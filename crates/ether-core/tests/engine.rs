@@ -574,3 +574,223 @@ fn compile_rejects_cycles_and_unknown_tracks() {
         Err(CompileError::Capacity(_))
     ));
 }
+
+#[test]
+fn enabled_lane_overrides_manual_moves() {
+    let mut p = create(config());
+    let dc = p.handle.add_node(Box::new(Dc(1.0))).unwrap();
+    let (rec, mut rx) = Recorder::new();
+    let rec = p.handle.add_node(Box::new(rec)).unwrap();
+    let mut t = with_chain(track(tid(2), TrackKind::Audio, Some(tid(1))), &[dc, rec]);
+    t.automation = vec![
+        // Constant lanes: the value never changes.
+        AutomationDesc {
+            target: AutomationTarget::TrackVolume { track: tid(2) },
+            resolved: ResolvedTarget::TrackVolume,
+            points: vec![(0.0, 0.5, CurveShape::Linear)],
+            mapping: linear_mapping(),
+        },
+        AutomationDesc {
+            target: AutomationTarget::TrackPan { track: tid(2) },
+            resolved: ResolvedTarget::Node {
+                node: rec,
+                param: ParamId(4),
+            },
+            points: vec![(0.0, 0.25, CurveShape::Linear)],
+            mapping: linear_mapping(),
+        },
+    ];
+    p.handle.publish(desc(vec![master(), t])).unwrap();
+    p.handle.transport(TransportControl::Play).unwrap();
+    render(&mut p.engine, 4096, 512);
+    drain(&mut rx);
+
+    p.handle
+        .set_param(ParamChange {
+            target: ParamTarget::TrackVolume { track: tid(2) },
+            value: 1.0,
+        })
+        .unwrap();
+    p.handle
+        .set_param(ParamChange {
+            target: ParamTarget::Node {
+                node: rec,
+                param: ParamId(4),
+            },
+            value: 0.9,
+        })
+        .unwrap();
+    let (l, _) = render(&mut p.engine, 4096, 512);
+    // Volume stays driven by the lane.
+    assert!(l.iter().all(|v| close(*v, 0.5)), "{}", l[4000]);
+    // The node sees the manual value, then the lane's value again at the same offset.
+    let params: Vec<_> = events(&drain(&mut rx))
+        .into_iter()
+        .filter_map(|(t, k)| match k {
+            EventKind::Param {
+                param: ParamId(4),
+                value,
+            } => Some((t, value)),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(params, vec![(4096, 0.9), (4096, 0.25)]);
+}
+
+#[test]
+fn clip_envelopes_drive_node_params_densely() {
+    let mut p = create(config());
+    let (rec, mut rx) = Recorder::new();
+    let rec = p.handle.add_node(Box::new(rec)).unwrap();
+    let mut t = with_chain(track(tid(2), TrackKind::Midi, Some(tid(1))), &[rec]);
+    let mut clip = midi_clip(cid(1), 0.0, 4.0, &[]);
+    clip.envelopes = vec![AutomationDesc {
+        target: AutomationTarget::TrackPan { track: tid(2) },
+        resolved: ResolvedTarget::Node {
+            node: rec,
+            param: ParamId(9),
+        },
+        points: vec![
+            (0.0, 0.0, CurveShape::Linear),
+            (1.0, 1.0, CurveShape::Linear),
+        ],
+        mapping: linear_mapping(),
+    }];
+    t.clips = vec![clip];
+    p.handle.publish(desc(vec![master(), t])).unwrap();
+    p.handle.transport(TransportControl::Play).unwrap();
+    render(&mut p.engine, 24_000, 480);
+    let n = events(&drain(&mut rx))
+        .iter()
+        .filter(|(_, k)| matches!(k, EventKind::Param { param, .. } if *param == ParamId(9)))
+        .count();
+    // One event per 64 samples, not one per block.
+    assert!(n > 300, "{n}");
+}
+
+#[test]
+fn oversized_blocks_are_zeroed_beyond_max_block() {
+    let mut p = create(config());
+    let dc = p.handle.add_node(Box::new(Dc(0.5))).unwrap();
+    let t = with_chain(track(tid(2), TrackKind::Audio, Some(tid(1))), &[dc]);
+    p.handle.publish(desc(vec![master(), t])).unwrap();
+    let mut l = vec![9.0f32; BLOCK * 2];
+    let mut r = vec![9.0f32; BLOCK * 2];
+    {
+        let mut outs: [&mut [f32]; 2] = [&mut l, &mut r];
+        p.engine.process(&[], &mut outs, BLOCK * 2);
+    }
+    assert!(close(l[BLOCK - 1], 0.5));
+    assert!(l[BLOCK..].iter().chain(&r[BLOCK..]).all(|v| *v == 0.0));
+}
+
+fn lane(resolved: ResolvedTarget, points: Vec<(f64, f64, CurveShape)>) -> AutomationDesc {
+    AutomationDesc {
+        target: AutomationTarget::TrackVolume { track: tid(2) },
+        resolved,
+        points,
+        mapping: linear_mapping(),
+    }
+}
+
+#[test]
+fn clip_envelope_takes_node_param_from_lane_then_hands_back() {
+    let mut p = create(config());
+    let (rec, mut rx) = Recorder::new();
+    let rec = p.handle.add_node(Box::new(rec)).unwrap();
+    let target = ResolvedTarget::Node {
+        node: rec,
+        param: ParamId(5),
+    };
+    let mut t = with_chain(track(tid(2), TrackKind::Midi, Some(tid(1))), &[rec]);
+    // Moving lane 0 -> 1 over 4 beats; constant envelope 0.3 on a clip covering beats 0..2.
+    t.automation = vec![lane(
+        target,
+        vec![
+            (0.0, 0.0, CurveShape::Linear),
+            (4.0, 1.0, CurveShape::Linear),
+        ],
+    )];
+    let mut clip = midi_clip(cid(1), 0.0, 2.0, &[]);
+    clip.envelopes = vec![lane(target, vec![(0.0, 0.3, CurveShape::Linear)])];
+    t.clips = vec![clip];
+    p.handle.publish(desc(vec![master(), t])).unwrap();
+    p.handle.transport(TransportControl::Play).unwrap();
+    render(&mut p.engine, 72_000, 480);
+    let params: Vec<(u64, f64)> = events(&drain(&mut rx))
+        .into_iter()
+        .filter_map(|(t, k)| match k {
+            EventKind::Param {
+                param: ParamId(5),
+                value,
+            } => Some((t, value)),
+            _ => None,
+        })
+        .collect();
+    // (1) While the clip plays (beats 0..2 = samples 0..48000) only the envelope drives it.
+    let during: Vec<_> = params.iter().filter(|(t, _)| *t < 48_000).collect();
+    assert!(!during.is_empty());
+    assert!(
+        during.iter().all(|(_, v)| (*v - 0.3).abs() < 1e-12),
+        "{during:?}"
+    );
+    // (2) The lane takes over right at the clip end, at its current value.
+    let (t0, v0) = *params.iter().find(|(t, _)| *t >= 48_000).unwrap();
+    assert_eq!(t0, 48_000);
+    assert!((v0 - 0.5).abs() < 1e-3, "{v0}");
+    let after: Vec<_> = params.iter().filter(|(t, _)| *t >= 48_000).collect();
+    assert!(after.len() > 300 && after.windows(2).all(|w| w[1].1 > w[0].1));
+}
+
+#[test]
+fn clip_envelope_and_lane_on_a_mixer_target_settle() {
+    let mut p = create(config());
+    let dc = p.handle.add_node(Box::new(Dc(1.0))).unwrap();
+    let mut t = with_chain(track(tid(2), TrackKind::Midi, Some(tid(1))), &[dc]);
+    t.automation = vec![lane(
+        ResolvedTarget::TrackVolume,
+        vec![(0.0, 0.2, CurveShape::Linear)],
+    )];
+    let mut clip = midi_clip(cid(1), 0.0, 2.0, &[]);
+    clip.envelopes = vec![lane(
+        ResolvedTarget::TrackVolume,
+        vec![(0.0, 0.8, CurveShape::Linear)],
+    )];
+    t.clips = vec![clip];
+    p.handle.publish(desc(vec![master(), t])).unwrap();
+    p.handle.transport(TransportControl::Play).unwrap();
+    let (l, _) = render(&mut p.engine, 72_000, 480);
+    // (3) The envelope's value is reached exactly and held (no ramp restarting forever).
+    assert!(l[2_000..47_900].iter().all(|v| *v == 0.8), "{}", l[20_000]);
+    // Then the lane takes over after the clip end (beat 2) and settles too.
+    assert!(l[49_000..72_000].iter().all(|v| (*v - 0.2).abs() < 1e-6));
+}
+
+#[test]
+fn envelopes_apply_while_stopped_like_lanes() {
+    let mut p = create(config());
+    let dc = p.handle.add_node(Box::new(Dc(1.0))).unwrap();
+    let mut t = with_chain(track(tid(2), TrackKind::Midi, Some(tid(1))), &[dc]);
+    t.automation = vec![lane(
+        ResolvedTarget::TrackVolume,
+        vec![(0.0, 0.2, CurveShape::Linear)],
+    )];
+    let mut clip = midi_clip(cid(1), 4.0, 2.0, &[]);
+    clip.envelopes = vec![lane(
+        ResolvedTarget::TrackVolume,
+        vec![(0.0, 0.8, CurveShape::Linear)],
+    )];
+    t.clips = vec![clip];
+    p.handle.publish(desc(vec![master(), t])).unwrap();
+    // Stopped outside the clip: the lane.
+    let (l, _) = render(&mut p.engine, 4096, 512);
+    assert!((l[4000] - 0.2).abs() < 1e-6);
+    // Stopped inside the clip: the envelope.
+    p.handle
+        .transport(TransportControl::Locate {
+            position: Beats(5.0),
+        })
+        .unwrap();
+    let (l, _) = render(&mut p.engine, 4096, 512);
+    assert!((l[4000] - 0.8).abs() < 1e-6);
+}

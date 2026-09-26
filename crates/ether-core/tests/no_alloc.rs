@@ -43,9 +43,30 @@ fn process_never_allocates() {
     let dc = p.handle.add_node(Box::new(Dc(0.2))).unwrap();
     let delay = p.handle.add_node(Box::new(Delay::new(300))).unwrap();
     let delay2 = p.handle.add_node(Box::new(Delay::new(50))).unwrap();
+    // Mono-output (2 in, 1 out) node, MIDI-emitting node, a bypassed device, and a node
+    // that overflows the event buffers.
+    let mono = p.handle.add_node(Box::new(MonoSum)).unwrap();
+    let emitter = p
+        .handle
+        .add_node(Box::new(NoteEmitter { per_block: 4 }))
+        .unwrap();
+    let bypassed = p.handle.add_node(Box::new(Delay::new(32))).unwrap();
+    let flood = p
+        .handle
+        .add_node(Box::new(NoteEmitter { per_block: 2000 }))
+        .unwrap();
+    let flood_sink = p.handle.add_node(Box::new(Dc(0.01))).unwrap();
 
-    let group = track(tid(10), TrackKind::Group, Some(tid(1)));
-    let mut midi = with_chain(track(tid(11), TrackKind::Midi, Some(tid(10))), &[rec, dc]);
+    let mut group = with_chain(track(tid(10), TrackKind::Group, Some(tid(1))), &[bypassed]);
+    group.chain[0].enabled = false;
+    let mut midi = with_chain(
+        track(tid(11), TrackKind::Midi, Some(tid(10))),
+        &[emitter, rec, dc],
+    );
+    let overflow = with_chain(
+        track(tid(13), TrackKind::Midi, Some(tid(1))),
+        &[flood, flood_sink],
+    );
     midi.group = Some(tid(10));
     let mut clip = midi_clip(
         cid(1),
@@ -105,6 +126,20 @@ fn process_never_allocates() {
     audio.audio_input = Some((0, 1));
     audio.monitor = true;
     audio.sends = vec![send(sid(2), tid(20), 0.3, false)];
+    audio.automation = vec![AutomationDesc {
+        target: AutomationTarget::SendLevel { send: sid(2) },
+        resolved: ResolvedTarget::Send { send: sid(2) },
+        points: vec![
+            (0.0, 0.1, CurveShape::Linear),
+            (5.0, 0.9, CurveShape::Linear),
+        ],
+        mapping: ParamMapping {
+            min: -70.0,
+            max: 6.0,
+            scale: ParamScale::Fader,
+            steps: None,
+        },
+    }];
     audio.clips = vec![ClipDesc {
         id: cid(2),
         start: 1.0,
@@ -125,7 +160,10 @@ fn process_never_allocates() {
         },
         envelopes: vec![],
     }];
-    let ret = with_chain(track(tid(20), TrackKind::Return, Some(tid(1))), &[delay2]);
+    let ret = with_chain(
+        track(tid(20), TrackKind::Return, Some(tid(1))),
+        &[delay2, mono],
+    );
 
     let mut desc = RenderGraphDesc {
         version: 1,
@@ -144,7 +182,7 @@ fn process_never_allocates() {
         loop_enabled: true,
         loop_start: 0.0,
         loop_end: 6.0,
-        tracks: vec![master(), group, midi, audio, ret],
+        tracks: vec![master(), group, midi, audio, ret, overflow],
         ..Default::default()
     };
     p.handle.publish(desc.clone()).unwrap();
@@ -156,7 +194,14 @@ fn process_never_allocates() {
     run(&mut p.engine, 300, 37, &mut l, &mut r);
 
     // Live changes, swaps, transport while running.
+    let mut saw_overflow = false;
     for i in 0..20 {
+        p.handle
+            .set_param(ParamChange {
+                target: ParamTarget::TrackPan { track: tid(12) },
+                value: 0.1 * i as f64 - 1.0,
+            })
+            .unwrap();
         p.handle
             .set_param(ParamChange {
                 target: ParamTarget::TrackVolume { track: tid(12) },
@@ -221,7 +266,12 @@ fn process_never_allocates() {
         p.gc.collect();
         let mut out = EngineOutputs::default();
         p.handle.poll(&mut out);
+        saw_overflow |= out.event_overflow;
     }
+    assert!(
+        saw_overflow,
+        "the flooding node must overflow and be reported"
+    );
     assert_eq!(p.engine.leaked(), 0);
     assert!(l.iter().chain(r.iter()).all(|v| v.is_finite()));
 }

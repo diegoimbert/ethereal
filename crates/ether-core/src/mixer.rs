@@ -122,8 +122,14 @@ pub(crate) struct TrackRt {
     pub scratch: Stereo,
     pub out_events: EventBuffer,
     pub notes: Vec<ActiveNote>,
-    /// Last value sent per automation lane (NaN = none yet).
+    /// Last node-param value sent per automation lane (NaN = send again).
     pub auto_last: Vec<f64>,
+    /// Same for clip envelopes: `env_base[clip] + envelope index`.
+    pub env_last: Vec<f64>,
+    pub env_base: Vec<usize>,
+    /// A live param change reached one of this track's nodes: re-send automated node
+    /// params so enabled lanes keep driving their targets.
+    pub auto_dirty: bool,
     pub meter: MeterAccum,
     /// Compiled latency of this track's output (for tests/diagnostics).
     pub out_latency: u32,
