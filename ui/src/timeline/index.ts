@@ -8,6 +8,14 @@
 
 export * from "./format";
 export * from "./grid";
+export * from "./loop";
+export * from "./marquee";
+export * from "./playhead";
+export * from "./PlayheadLine";
+export * from "./Ruler";
+export * from "./rulerMarks";
+export * from "./selection";
 export * from "./tempoMap";
+export * from "./useTimelineWheel";
 export * from "./viewport";
 export * from "./viewStore";
