@@ -16,6 +16,7 @@
  */
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { Button, Panel } from "@/kit";
+import { useEditorStore, useProjectStore } from "@/state";
 import { ArrangementView } from "@/features/arrangement";
 import { AutomationLanes } from "@/features/automation";
 import { Browser } from "@/features/browser";
@@ -102,6 +103,19 @@ export function App() {
   const [sidebarTab, setSidebarTab] = useState<SidebarTabId>("browser");
   const [detailTab, setDetailTab] = useState<DetailTabId>("devices");
   const [detailOpen, setDetailOpen] = useState(true);
+
+  // Opening a clip (arrangement double-click) focuses its editor in the detail view.
+  useEffect(
+    () =>
+      useEditorStore.subscribe((s, prev) => {
+        if (s.request === prev.request || !s.clip) return;
+        const clip = useProjectStore.getState().project?.clips[s.clip];
+        if (!clip) return;
+        setDetailTab(clip.content.type === "Midi" ? "piano-roll" : "warp");
+        setDetailOpen(true);
+      }),
+    [],
+  );
 
   const toggleMainView = useCallback(() => setMainView((v) => (v === "arrangement" ? "session" : "arrangement")), []);
 
