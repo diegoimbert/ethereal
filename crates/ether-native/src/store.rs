@@ -79,16 +79,25 @@ pub fn sanitize_rel(rel: &str) -> Result<PathBuf, StoreError> {
     Ok(out)
 }
 
-/// Join `rel` under `root`, rejecting anything that could leave it. If the target exists
-/// its canonical path must still be inside the canonical root (symlink escapes).
+/// Join `rel` under `root`, rejecting anything that could leave it. The nearest existing
+/// ancestor of the target (the target itself if it exists) is canonicalized and must stay
+/// inside the canonical root, so a symlinked folder or file can't escape it, including
+/// when creating a new file under a symlinked directory. Dangling symlinks are rejected.
 fn resolve_in(root: &Path, rel: &str) -> Result<PathBuf, StoreError> {
     let path = root.join(sanitize_rel(rel)?);
-    if let (Ok(canon_root), Ok(canon)) = (root.canonicalize(), path.canonicalize())
-        && !canon.starts_with(&canon_root)
-    {
-        return Err(StoreError::InvalidPath(rel.to_string()));
+    let invalid = || StoreError::InvalidPath(rel.to_string());
+    let canon_root = root.canonicalize().map_err(io_err)?;
+    let mut probe = path.as_path();
+    loop {
+        if fs::symlink_metadata(probe).is_ok() {
+            let canon = probe.canonicalize().map_err(|_| invalid())?;
+            if !canon.starts_with(&canon_root) {
+                return Err(invalid());
+            }
+            return Ok(path);
+        }
+        probe = probe.parent().ok_or_else(invalid)?;
     }
-    Ok(path)
 }
 
 /// Write `bytes` to `path` atomically (temp file in the same folder + fsync + rename).
@@ -112,6 +121,11 @@ pub fn atomic_write(path: &Path, bytes: &[u8]) -> Result<(), StoreError> {
     if let Err(e) = result {
         let _ = fs::remove_file(&tmp);
         return Err(io_err(e));
+    }
+    // Persist the rename itself (directory entry). Best effort: not supported everywhere.
+    #[cfg(unix)]
+    if let Ok(d) = fs::File::open(dir) {
+        let _ = d.sync_all();
     }
     Ok(())
 }
@@ -582,6 +596,47 @@ mod tests {
             ProjectStore::read(&mut s, a, "media/link.wav"),
             Err(StoreError::InvalidPath(_))
         ));
+        // Writing through the symlinked file is rejected too.
+        assert!(matches!(
+            s.write(a, "media/link.wav", b"x"),
+            Err(StoreError::InvalidPath(_))
+        ));
+        assert_eq!(fs::read(&outside).unwrap(), b"secret");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn new_file_under_symlinked_dir_rejected() {
+        let tmp = TempDir::new("store-symlink-dir");
+        let mut s = store(&tmp);
+        let a = pid(12);
+        s.create(a).unwrap();
+        let outside = tmp.path().join("outside");
+        fs::create_dir_all(&outside).unwrap();
+        let dir = s.project_dir(a);
+        fs::remove_dir(dir.join("media")).unwrap();
+        std::os::unix::fs::symlink(&outside, dir.join("media")).unwrap();
+        for rel in ["media/new.wav", "media/sub/deeper/new.wav"] {
+            assert!(
+                matches!(s.write(a, rel, b"x"), Err(StoreError::InvalidPath(_))),
+                "{rel}"
+            );
+        }
+        assert!(fs::read_dir(&outside).unwrap().next().is_none());
+        assert!(matches!(
+            ProjectStore::list_dir(&mut s, a, "media"),
+            Err(StoreError::InvalidPath(_))
+        ));
+        // Dangling symlink as target.
+        std::os::unix::fs::symlink(tmp.path().join("nowhere"), dir.join("cache/dangling")).unwrap();
+        assert!(matches!(
+            s.write(a, "cache/dangling", b"x"),
+            Err(StoreError::InvalidPath(_))
+        ));
+        // A symlink that stays inside the project is fine.
+        std::os::unix::fs::symlink(dir.join("cache"), dir.join("alias")).unwrap();
+        s.write(a, "alias/ok.bin", b"ok").unwrap();
+        assert_eq!(fs::read(dir.join("cache/ok.bin")).unwrap(), b"ok");
     }
 
     #[test]

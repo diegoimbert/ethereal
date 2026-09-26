@@ -524,12 +524,25 @@ where
     T: SizedSample + FromSample<f32>,
 {
     let channels = config.channels as usize;
+    let mut poisoned = false;
     device
         .build_output_stream::<T, _, _>(
             config,
             move |data: &mut [T], _info| {
                 enable_flush_denormals();
-                renderer.render(data, channels);
+                if poisoned {
+                    data.fill(T::EQUILIBRIUM);
+                    return;
+                }
+                // Never unwind into the OS audio callback: a panic (engine/plugin bug)
+                // silences the stream instead (catch_unwind is free when nothing panics).
+                let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    renderer.render(data, channels)
+                }));
+                if r.is_err() {
+                    poisoned = true;
+                    data.fill(T::EQUILIBRIUM);
+                }
             },
             move |err| {
                 // Runs on a cpal-internal (non-RT) thread.

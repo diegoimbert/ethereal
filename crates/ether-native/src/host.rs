@@ -122,6 +122,7 @@ pub struct NativeHost {
     gc_stop: Arc<AtomicBool>,
     gc_thread: Option<JoinHandle<()>>,
     info: StreamInfo,
+    plugins: PluginHost,
 }
 
 impl std::fmt::Debug for NativeHost {
@@ -161,9 +162,9 @@ fn start_audio(
     engine: Box<Engine>,
     settings: &AudioSettings,
     shared: &Arc<AudioShared>,
-) -> (Option<AudioOutput>, Option<String>) {
+) -> (Result<AudioOutput, Box<Engine>>, Option<String>) {
     match AudioOutput::start(engine, settings, shared.clone()) {
-        Ok(out) => (Some(out), None),
+        Ok(out) => (Ok(out), None),
         Err((e, engine)) if settings.backend == AudioBackendKind::Cpal => {
             let warning = format!("Audio device unavailable ({e}); running without sound.");
             tracing::warn!("{warning}");
@@ -172,11 +173,11 @@ fn start_audio(
                 ..settings.clone()
             };
             match AudioOutput::start(engine, &null, shared.clone()) {
-                Ok(out) => (Some(out), Some(warning)),
-                Err((e, _)) => (None, Some(format!("Audio failed to start: {e}"))),
+                Ok(out) => (Ok(out), Some(warning)),
+                Err((e, engine)) => (Err(engine), Some(format!("Audio failed to start: {e}"))),
             }
         }
-        Err((e, _)) => (None, Some(format!("Audio failed to start: {e}"))),
+        Err((e, engine)) => (Err(engine), Some(format!("Audio failed to start: {e}"))),
     }
 }
 
@@ -207,7 +208,11 @@ impl NativeHost {
         };
         let parts = ether_core::create(engine_config);
         let shared = Arc::new(AudioShared::default());
-        let (output, warning) = start_audio(Box::new(parts.engine), &settings, &shared);
+        let (started, warning) = start_audio(Box::new(parts.engine), &settings, &shared);
+        let (output, parked) = match started {
+            Ok(out) => (Some(out), None),
+            Err(engine) => (None, Some(engine)),
+        };
         let info = output
             .as_ref()
             .map(|o| o.info.clone())
@@ -250,6 +255,7 @@ impl NativeHost {
             router: Router::new(subscriber.clone()),
             audio: AudioState {
                 output,
+                parked,
                 settings,
                 shared,
                 engine_rate: prepare.sample_rate as u32,
@@ -257,7 +263,7 @@ impl NativeHost {
                 instance: config.instance.clone(),
                 last_xruns: 0,
             },
-            plugins,
+            plugins: plugins.clone(),
             catalog,
             scanning: Arc::new(AtomicBool::new(false)),
             startup_warning: warning,
@@ -286,6 +292,7 @@ impl NativeHost {
             gc_stop,
             gc_thread: Some(gc_thread),
             info,
+            plugins,
         })
     }
 
@@ -327,6 +334,9 @@ impl NativeHost {
     }
 
     fn stop(&mut self) {
+        // Main-thread plugin calls fail fast from now on: `stop` may run ON the main thread
+        // (Tauri exit), which then can't serve the controller thread we are about to join.
+        self.plugins.close();
         let _ = self.tx.send(HostMsg::Shutdown);
         if let Some(t) = self.controller_thread.take() {
             let _ = t.join();
@@ -463,6 +473,9 @@ impl MessageSink for Router {
 
 struct AudioState {
     output: Option<AudioOutput>,
+    /// The engine while no backend runs it (every start attempt failed); kept so a later
+    /// `SetAudioConfig` can start it again.
+    parked: Option<Box<Engine>>,
     settings: AudioSettings,
     shared: Arc<AudioShared>,
     engine_rate: u32,
@@ -508,8 +521,12 @@ impl AudioState {
             sample_rate: Some(self.engine_rate),
             ..new.clone()
         };
-        let Some(engine) = self.output.take().and_then(AudioOutput::stop) else {
-            return Err("audio engine is not running".into());
+        let engine = match self.output.take() {
+            Some(out) => out.stop(),
+            None => self.parked.take(),
+        };
+        let Some(engine) = engine else {
+            return Err("audio engine is lost; restart Ethereal".into());
         };
         match AudioOutput::start(engine, &run, self.shared.clone()) {
             Ok(out) => {
@@ -523,8 +540,10 @@ impl AudioState {
                     sample_rate: Some(self.engine_rate),
                     ..self.settings.clone()
                 };
-                let (out, _) = start_audio(engine, &old, &self.shared);
-                self.output = out;
+                match start_audio(engine, &old, &self.shared).0 {
+                    Ok(out) => self.output = Some(out),
+                    Err(engine) => self.parked = Some(engine),
+                }
                 save_audio_settings(&self.data_dir, &self.settings);
                 Err(e.to_string())
             }

@@ -20,10 +20,11 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
-use crossbeam_channel::{Sender, bounded, unbounded};
+use crossbeam_channel::{RecvTimeoutError, Sender, bounded, unbounded};
 use ether_core::plugin::{PluginController, PluginError, PluginNode, PluginNotification};
 use ether_core::protocol::devices::DeviceDescriptor;
 use ether_core::protocol::model::{DeviceId, ParamId};
@@ -71,16 +72,50 @@ impl MainThread for DedicatedThread {
 }
 
 pub(crate) struct Hosted {
+    device: DeviceId,
     controller: Box<dyn PluginController>,
-    /// Set when the device was destroyed while its node was still in the engine: the
-    /// controller is dropped once the node comes back.
-    destroyed: bool,
+    /// The device was destroyed or replaced while this instance's node was still in the
+    /// engine: the controller is dropped once the node comes back.
+    retired: bool,
     active: bool,
 }
 
+/// Main-thread plugin registry. Instances are keyed by a per-instance token, so an old
+/// instance of a device (retired, node still in the engine) and its replacement never get
+/// confused: a returning node always finds its own controller.
+#[derive(Default)]
+pub(crate) struct Registry {
+    instances: HashMap<u64, Hosted>,
+    /// Current (non-retired) instance of each device.
+    live: HashMap<DeviceId, u64>,
+    next_token: u64,
+}
+
+impl Registry {
+    fn live_mut(&mut self, device: DeviceId) -> Option<&mut Hosted> {
+        let token = *self.live.get(&device)?;
+        self.instances.get_mut(&token)
+    }
+
+    /// Retire the current instance of `device`: dropped now if its node is back, else when
+    /// its node returns.
+    fn retire(&mut self, device: DeviceId) {
+        let Some(token) = self.live.remove(&device) else {
+            return;
+        };
+        if let Some(h) = self.instances.get_mut(&token) {
+            if h.active {
+                h.retired = true;
+            } else {
+                self.instances.remove(&token);
+            }
+        }
+    }
+}
+
 thread_local! {
-    /// Plugin controllers, keyed by device. Only touched on the main-thread executor.
-    static REGISTRY: RefCell<HashMap<DeviceId, Hosted>> = RefCell::new(HashMap::new());
+    /// Plugin controllers. Only touched on the main-thread executor.
+    static REGISTRY: RefCell<Registry> = RefCell::new(Registry::default());
 }
 
 /// Handle to the main-thread plugin registry. Cheap to clone.
@@ -88,6 +123,9 @@ thread_local! {
 pub struct PluginHost {
     main: Arc<dyn MainThread>,
     timeout: Duration,
+    /// Set at shutdown: main-thread calls fail fast (the main thread may be busy joining
+    /// the host and never run them).
+    closing: Arc<AtomicBool>,
 }
 
 impl std::fmt::Debug for PluginHost {
@@ -106,26 +144,52 @@ impl PluginHost {
         Self {
             main,
             timeout: Duration::from_secs(30),
+            closing: Arc::new(AtomicBool::new(false)),
         }
+    }
+
+    /// Make every pending and future main-thread call fail immediately (shutdown).
+    pub fn close(&self) {
+        self.closing.store(true, Ordering::SeqCst);
     }
 
     /// Run `f` on the main thread with the registry and wait for its result.
     pub(crate) fn call<R: Send + 'static>(
         &self,
-        f: impl FnOnce(&mut HashMap<DeviceId, Hosted>) -> R + Send + 'static,
+        f: impl FnOnce(&mut Registry) -> R + Send + 'static,
     ) -> Result<R, PluginError> {
+        let closed = || PluginError::Ipc("host is shutting down".into());
+        if self.closing.load(Ordering::SeqCst) {
+            return Err(closed());
+        }
         let (tx, rx) = bounded(1);
         self.main.spawn(Box::new(move || {
             let r = REGISTRY.with(|reg| f(&mut reg.borrow_mut()));
             let _ = tx.send(r);
         }));
-        rx.recv_timeout(self.timeout)
-            .map_err(|_| PluginError::Ipc("main thread did not respond".into()))
+        let deadline = Instant::now() + self.timeout;
+        loop {
+            match rx.recv_timeout(Duration::from_millis(20)) {
+                Ok(r) => return Ok(r),
+                Err(RecvTimeoutError::Disconnected) => {
+                    return Err(PluginError::Ipc("main thread dropped the call".into()));
+                }
+                Err(RecvTimeoutError::Timeout) => {
+                    if self.closing.load(Ordering::SeqCst) {
+                        return Err(closed());
+                    }
+                    if Instant::now() >= deadline {
+                        return Err(PluginError::Ipc("main thread did not respond".into()));
+                    }
+                }
+            }
+        }
     }
 
     /// Instantiate, restore state, and activate a plugin on the main thread. Returns the
     /// engine node (wrapped so it comes back to the main thread when retired) and the
-    /// descriptor.
+    /// descriptor. A live instance of the same device is retired (never dropped while its
+    /// node may still be in the engine).
     pub fn instantiate(
         &self,
         instantiate: Instantiate,
@@ -136,28 +200,31 @@ impl PluginHost {
         prepare: PrepareConfig,
     ) -> Result<(Box<dyn Node>, DeviceDescriptor), PluginError> {
         let host = self.clone();
-        let (node, descriptor) = self.call(move |reg| {
-            // Replacing a live instance of the same device: drop the old one first.
-            reg.remove(&device);
+        let (token, node, descriptor) = self.call(move |reg| {
+            reg.retire(device);
             let mut controller = instantiate(&bundle, &plugin_id)?;
             if let Some(state) = state.as_deref().filter(|s| !s.is_empty()) {
                 controller.load_state(state)?;
             }
             let node = controller.activate(&prepare)?;
             let descriptor = controller.descriptor();
-            reg.insert(
-                device,
+            let token = reg.next_token;
+            reg.next_token += 1;
+            reg.instances.insert(
+                token,
                 Hosted {
+                    device,
                     controller,
-                    destroyed: false,
+                    retired: false,
                     active: true,
                 },
             );
-            Ok::<_, PluginError>((node, descriptor))
+            reg.live.insert(device, token);
+            Ok::<_, PluginError>((token, node, descriptor))
         })??;
         Ok((
             Box::new(HostedPluginNode {
-                device,
+                token,
                 node: Some(node),
                 host,
             }),
@@ -168,30 +235,22 @@ impl PluginHost {
     /// The device was destroyed: drop its controller now if its node is already back,
     /// otherwise when the node returns from the engine.
     pub fn destroy(&self, device: DeviceId) {
-        let _ = self.call(move |reg| {
-            if let Some(h) = reg.get_mut(&device) {
-                if h.active {
-                    h.destroyed = true;
-                } else {
-                    reg.remove(&device);
-                }
-            }
-        });
+        let _ = self.call(move |reg| reg.retire(device));
     }
 
     /// Called from [`HostedPluginNode::drop`] (GC thread): deactivate on the main thread.
-    fn node_returned(&self, device: DeviceId, node: Box<dyn PluginNode>) {
+    fn node_returned(&self, token: u64, node: Box<dyn PluginNode>) {
         self.main.spawn(Box::new(move || {
             REGISTRY.with(|reg| {
                 let mut reg = reg.borrow_mut();
-                if let Some(h) = reg.get_mut(&device) {
+                if let Some(h) = reg.instances.get_mut(&token) {
                     h.controller.deactivate(node);
                     h.active = false;
-                    if h.destroyed {
-                        reg.remove(&device);
+                    if h.retired {
+                        reg.instances.remove(&token);
                     }
                 }
-                // Unknown device: the controller is gone already; `node` drops here.
+                // Unknown instance: the controller is gone already; `node` drops here.
             });
         }));
     }
@@ -199,7 +258,7 @@ impl PluginHost {
     pub fn open_editor(&self, device: DeviceId) -> Result<(), PluginError> {
         self.call(move |reg| {
             let h = reg
-                .get_mut(&device)
+                .live_mut(device)
                 .ok_or_else(|| PluginError::NotFound(device.to_string()))?;
             if !h.controller.has_editor() {
                 return Err(PluginError::NoEditor);
@@ -210,21 +269,21 @@ impl PluginHost {
 
     pub fn close_editor(&self, device: DeviceId) -> Result<(), PluginError> {
         self.call(move |reg| {
-            if let Some(h) = reg.get_mut(&device) {
+            if let Some(h) = reg.live_mut(device) {
                 h.controller.close_editor();
             }
         })
     }
 
     pub fn save_state(&self, device: DeviceId) -> Result<Option<Vec<u8>>, PluginError> {
-        self.call(move |reg| match reg.get_mut(&device) {
-            Some(h) if !h.destroyed => h.controller.save_state().map(Some),
-            _ => Ok(None),
+        self.call(move |reg| match reg.live_mut(device) {
+            Some(h) => h.controller.save_state().map(Some),
+            None => Ok(None),
         })?
     }
 
     pub fn param_value(&self, device: DeviceId, param: ParamId) -> Option<f64> {
-        self.call(move |reg| reg.get_mut(&device)?.controller.param_value(param))
+        self.call(move |reg| reg.live_mut(device)?.controller.param_value(param))
             .ok()
             .flatten()
     }
@@ -235,9 +294,9 @@ impl PluginHost {
         if let Ok(notes) = self.call(|reg| {
             let mut all = Vec::new();
             let mut buf = Vec::new();
-            for (id, h) in reg.iter_mut().filter(|(_, h)| !h.destroyed) {
+            for h in reg.instances.values_mut().filter(|h| !h.retired) {
                 h.controller.poll(&mut buf);
-                all.extend(buf.drain(..).map(|n| (*id, n)));
+                all.extend(buf.drain(..).map(|n| (h.device, n)));
             }
             all
         }) {
@@ -245,16 +304,17 @@ impl PluginHost {
         }
     }
 
-    /// Number of plugin controllers alive on the main thread (tests/diagnostics).
+    /// Plugin controllers alive on the main thread, incl. retired ones whose node hasn't
+    /// come back yet (tests/diagnostics).
     pub fn live_count(&self) -> usize {
-        self.call(|reg| reg.len()).unwrap_or(0)
+        self.call(|reg| reg.instances.len()).unwrap_or(0)
     }
 }
 
 /// Engine node for a hosted plugin: forwards to the plugin's audio half and, when dropped
 /// (GC thread), returns it to the main thread for `deactivate`.
 pub struct HostedPluginNode {
-    device: DeviceId,
+    token: u64,
     node: Option<Box<dyn PluginNode>>,
     host: PluginHost,
 }
@@ -309,7 +369,7 @@ impl Device for HostedPluginNode {
 impl Drop for HostedPluginNode {
     fn drop(&mut self) {
         if let Some(node) = self.node.take() {
-            self.host.node_returned(self.device, node);
+            self.host.node_returned(self.token, node);
         }
     }
 }
@@ -371,6 +431,9 @@ pub(crate) mod fake {
     use std::sync::atomic::{AtomicU32, Ordering};
 
     pub static DEACTIVATED: AtomicU32 = AtomicU32::new(0);
+    /// State blobs of deactivated instances (identifies which instance was deactivated).
+    pub static DEACTIVATED_STATES: std::sync::Mutex<Vec<Vec<u8>>> =
+        std::sync::Mutex::new(Vec::new());
 
     pub struct FakeController {
         pub state: Vec<u8>,
@@ -436,6 +499,7 @@ pub(crate) mod fake {
         fn deactivate(&mut self, _node: Box<dyn PluginNode>) {
             assert_eq!(std::thread::current().id(), self.main_thread);
             DEACTIVATED.fetch_add(1, Ordering::SeqCst);
+            DEACTIVATED_STATES.lock().unwrap().push(self.state.clone());
         }
         fn save_state(&mut self) -> Result<Vec<u8>, PluginError> {
             Ok(self.state.clone())
@@ -525,6 +589,85 @@ mod tests {
             .err()
             .unwrap();
         assert!(matches!(err, PluginError::NotFound(_)));
+    }
+
+    #[test]
+    fn replacing_a_device_keeps_old_instance_until_its_node_returns() {
+        let host = PluginHost::new(Arc::new(DedicatedThread::new()));
+        let prepare = PrepareConfig {
+            sample_rate: 48_000.0,
+            max_block_size: 128,
+            max_events_per_block: 64,
+        };
+        let d = device(10);
+        let make = |state: &[u8]| {
+            host.instantiate(
+                fake::instantiate(),
+                d,
+                PathBuf::from("/x.clap"),
+                "fake".into(),
+                Some(state.to_vec()),
+                prepare,
+            )
+            .unwrap()
+            .0
+        };
+        let deactivated = |s: &[u8]| {
+            fake::DEACTIVATED_STATES
+                .lock()
+                .unwrap()
+                .iter()
+                .any(|x| x == s)
+        };
+        let old = make(b"replace-v1");
+        let new = make(b"replace-v2");
+        // Old instance retired but alive (its node is still "in the engine").
+        assert_eq!(host.live_count(), 2);
+        assert_eq!(
+            host.save_state(d).unwrap().as_deref(),
+            Some(&b"replace-v2"[..])
+        );
+        // The old node returns: the OLD controller is deactivated and dropped.
+        drop(old);
+        assert_eq!(host.live_count(), 1);
+        assert!(deactivated(b"replace-v1"));
+        assert!(!deactivated(b"replace-v2"));
+        assert_eq!(
+            host.save_state(d).unwrap().as_deref(),
+            Some(&b"replace-v2"[..])
+        );
+        let mut notes = Vec::new();
+        host.poll(&mut notes);
+        assert_eq!(notes.len(), 1);
+        // Then the new one goes away normally.
+        host.destroy(d);
+        drop(new);
+        assert_eq!(host.live_count(), 0);
+        assert!(deactivated(b"replace-v2"));
+    }
+
+    #[test]
+    fn calls_fail_fast_after_close() {
+        /// A main thread that never runs anything (e.g. blocked joining the host).
+        struct Stuck;
+        impl MainThread for Stuck {
+            fn spawn(&self, _f: Box<dyn FnOnce() + Send>) {}
+        }
+        let host = PluginHost::new(Arc::new(Stuck));
+        let h2 = host.clone();
+        let t = std::thread::spawn(move || {
+            let start = std::time::Instant::now();
+            let r = h2.save_state(device(11));
+            (r, start.elapsed())
+        });
+        std::thread::sleep(Duration::from_millis(100));
+        host.close();
+        let (r, elapsed) = t.join().unwrap();
+        assert!(matches!(r, Err(PluginError::Ipc(_))));
+        assert!(elapsed < Duration::from_secs(2), "{elapsed:?}");
+        let start = std::time::Instant::now();
+        assert!(host.save_state(device(11)).is_err());
+        assert!(start.elapsed() < Duration::from_millis(50));
     }
 
     #[test]

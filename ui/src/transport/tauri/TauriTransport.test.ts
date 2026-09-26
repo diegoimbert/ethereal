@@ -146,6 +146,46 @@ describe("TauriTransport", () => {
     expect(first.id).not.toBe(second.id);
   });
 
+  it("serializes ether_send invokes so the host receives commands in call order", async () => {
+    // Each invoke stays pending until the test resolves it; the test resolves them
+    // newest-first, so without chaining the host would accept 3, 2, 1.
+    const accepted: number[] = [];
+    const inFlight: Array<{ id: number; accept: () => void }> = [];
+    let channels: Channels | null = null;
+    const invoke: InvokeFn = (cmd, args) => {
+      if (cmd === "ether_connect") {
+        channels = args as unknown as Channels;
+        return Promise.resolve(INFO);
+      }
+      const message = (args as { message: ClientMessage }).message;
+      return new Promise((resolve) => {
+        inFlight.push({
+          id: message.id,
+          accept: () => {
+            accepted.push(message.id);
+            resolve(null);
+            setTimeout(() => channels?.messages.onmessage(ok(message.id, { type: "Unit" })), 0);
+          },
+        });
+      });
+    };
+    const t = new TauriTransport({ invoke, createChannel: () => new FakeChannel() });
+    // Register channels directly (skip connect's project bootstrap).
+    channels = { messages: new FakeChannel(), playhead: new FakeChannel(), meters: new FakeChannel() };
+    (t as unknown as { channels: unknown[] }).channels = [];
+    channels.messages.onmessage = (m) => (t as unknown as { onServerMessage(m: ServerMessage): void }).onServerMessage(m);
+    const flush = () => new Promise((r) => setTimeout(r, 0));
+    const sends = [1, 2, 3].map(() => t.send({ domain: "Transport", command: { type: "Play" } }));
+    while (accepted.length < 3) {
+      await flush();
+      // Never more than one invoke in flight.
+      expect(inFlight.length).toBeLessThanOrEqual(1);
+      inFlight.splice(0).reverse().forEach((f) => f.accept());
+    }
+    await Promise.all(sends);
+    expect(accepted).toEqual([1, 2, 3]);
+  });
+
   it("rejects with CommandFailedError on Err replies and on IPC failure", async () => {
     const { t } = transport((m) => {
       if ((m.command.command as { type: string }).type === "Get") return [ok(m.id, { type: "Project", project })];

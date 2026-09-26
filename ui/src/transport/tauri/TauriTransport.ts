@@ -86,6 +86,12 @@ export class TauriTransport implements EngineTransport {
   private channels: ChannelLike<unknown>[] = [];
   private nextId = 1;
   private disposed = false;
+  /**
+   * Tauri v2 doesn't guarantee that separate `invoke`s reach the backend in call order, so
+   * `ether_send` calls are chained: each is issued only after the previous one was
+   * accepted (which happens as soon as the host queued the message, not when it's handled).
+   */
+  private sendQueue: Promise<unknown> = Promise.resolve();
 
   constructor(options: TauriTransportOptions = {}) {
     this.invoke = options.invoke ?? ((cmd, args) => tauriInvoke(cmd, args));
@@ -131,7 +137,10 @@ export class TauriTransport implements EngineTransport {
     const message: ClientMessage = { id, gesture: opts?.gesture ?? null, command };
     return new Promise<ReplyValue>((resolve, reject) => {
       this.pending.set(id, { resolve, reject, command });
-      this.invoke("ether_send", { message }).catch((e: unknown) => {
+      // Chained: issued only once the previous `ether_send` was accepted.
+      const issued = this.sendQueue.then(() => (this.disposed ? undefined : this.invoke("ether_send", { message })));
+      this.sendQueue = issued.catch(noop);
+      issued.catch((e: unknown) => {
         if (!this.pending.delete(id)) return;
         reject(new CommandFailedError({ code: "Internal", message: `ipc: ${String(e)}` }, command));
       });
