@@ -1104,9 +1104,13 @@ name = "ether-controller"
 version = "0.0.1"
 dependencies = [
  "ether-core",
+ "ether-devices",
  "ether-media",
  "ether-model",
  "ether-protocol",
+ "rubato",
+ "serde_json",
+ "symphonia",
  "thiserror 2.0.21",
 ]
 

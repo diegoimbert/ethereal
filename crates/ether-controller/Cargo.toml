@@ -14,6 +14,10 @@ ether-core.workspace = true
 ether-model.workspace = true
 ether-protocol.workspace = true
 ether-media.workspace = true
+ether-devices.workspace = true
+symphonia.workspace = true
+rubato.workspace = true
+serde_json.workspace = true
 thiserror.workspace = true
 
 [lints]
