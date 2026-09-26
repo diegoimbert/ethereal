@@ -43,7 +43,8 @@ describe("TransportBar", () => {
     const before = store().transport!.loop_enabled;
     fireEvent.click(loop);
     await waitFor(() => expect(store().transport!.loop_enabled).toBe(!before));
-    expect(loop).toHaveAttribute("aria-pressed", String(!before));
+    // The store can update before React re-renders: assert on the DOM with waitFor too.
+    await waitFor(() => expect(loop).toHaveAttribute("aria-pressed", String(!before)));
 
     fireEvent.click(screen.getByRole("button", { name: "Metronome" }));
     await waitFor(() => expect(store().transport!.metronome).toBe(true));
@@ -57,7 +58,7 @@ describe("TransportBar", () => {
     fireEvent.keyDown(tempo, { key: "Enter" });
     await waitFor(() => expect(store().transport!.bpm).toBe(128));
     expect(tempoPoints(store().project!)[0]!.bpm).toBe(128);
-    expect(tempo.value).toBe("128.00");
+    await waitFor(() => expect(tempo.value).toBe("128.00"));
 
     fireEvent.focus(tempo);
     fireEvent.change(tempo, { target: { value: "abc" } });
@@ -72,7 +73,9 @@ describe("TransportBar", () => {
     await waitFor(() => expect(undo).toBeEnabled());
     fireEvent.click(undo);
     await waitFor(() => expect(store().transport!.bpm).toBe(128));
-    fireEvent.click(screen.getByRole("button", { name: "Redo" }));
+    const redo = screen.getByRole("button", { name: "Redo" });
+    await waitFor(() => expect(redo).toBeEnabled());
+    fireEvent.click(redo);
     await waitFor(() => expect(store().transport!.bpm).toBe(129));
   });
 
@@ -91,7 +94,7 @@ describe("TransportBar", () => {
     fireEvent.change(field, { target: { value: "7/8" } });
     fireEvent.keyDown(field, { key: "Enter" });
     await waitFor(() => expect(store().transport!.time_signature).toEqual({ numerator: 7, denominator: 8 }));
-    expect(field.value).toBe("7/8");
+    await waitFor(() => expect(field.value).toBe("7/8"));
   });
 
   it("shows engine errors (record is unsupported by the mock)", async () => {
