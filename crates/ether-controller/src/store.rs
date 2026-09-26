@@ -80,3 +80,38 @@ pub trait Library {
 
     fn read(&mut self, root: &str, rel_path: &str) -> Result<Vec<u8>, StoreError>;
 }
+
+/// Validate a relative path from the UI or a document: no absolute paths, drive letters,
+/// backslashes, `.`/`..` or empty components. `""` (a location root) is accepted.
+pub fn check_relative_path(path: &str) -> Result<(), StoreError> {
+    if path.is_empty() {
+        return Ok(());
+    }
+    let bad = path.starts_with('/')
+        || path.contains('\\')
+        || path.contains(':')
+        || path.contains('\0')
+        || path
+            .split('/')
+            .any(|seg| seg.is_empty() || seg == "." || seg == "..");
+    if bad {
+        return Err(StoreError::InvalidPath(path.to_string()));
+    }
+    Ok(())
+}
+
+/// Classify a file by extension (for directory listings).
+pub fn file_kind(name: &str) -> ether_core::protocol::media::FileKind {
+    use ether_core::protocol::media::FileKind;
+    let ext = name
+        .rsplit_once('.')
+        .map(|(_, e)| e.to_ascii_lowercase())
+        .unwrap_or_default();
+    match ext.as_str() {
+        "wav" | "wave" | "aif" | "aiff" | "aifc" | "flac" | "mp3" | "ogg" | "oga" => {
+            FileKind::Audio
+        }
+        "mid" | "midi" => FileKind::Midi,
+        _ => FileKind::Other,
+    }
+}

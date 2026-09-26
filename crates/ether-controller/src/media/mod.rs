@@ -1,0 +1,298 @@
+//! Media pipeline: import (copy into the project), then — off the hot path, stepped from
+//! `tick()` a frame budget at a time — decode, peaks (from the *source-rate* audio, since
+//! `PeakRequest` frames are source frames), resample to the engine rate, and hand the
+//! result to the engine (`EngineBridge::load_media`).
+//!
+//! Peak mipmaps are cached in the project's `cache/` folder, keyed by `MediaRef.hash`.
+
+mod decode;
+pub mod hash;
+mod resample;
+
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
+use std::sync::Arc;
+
+use ether_core::protocol::Event;
+use ether_core::protocol::NotificationLevel;
+use ether_core::protocol::media::MediaEvent;
+use ether_core::protocol::model::file::CACHE_DIR;
+use ether_core::protocol::model::{MediaId, MediaRef, Project, ProjectId};
+use ether_media::{DecodedAudio, MediaError, PeakMipmap};
+
+pub(crate) use decode::{IncrementalDecoder, is_chained_ogg};
+use resample::IncrementalResampler;
+
+use crate::EngineBridge;
+use crate::store::ProjectStore;
+
+pub(crate) fn peaks_cache_path(hash: &str) -> String {
+    format!("{CACHE_DIR}/{hash}.peaks")
+}
+
+pub(crate) fn extension_of(path: &str) -> Option<&str> {
+    let name = path.rsplit('/').next().unwrap_or(path);
+    name.rfind('.').filter(|i| *i > 0).map(|i| &name[i + 1..])
+}
+
+pub(crate) fn chained_ogg_warning(name: &str) -> String {
+    format!("\"{name}\" is a chained Ogg file; only its first stream was imported")
+}
+
+enum Stage {
+    /// Read the file from the store (and the peaks cache).
+    Read,
+    Decode(Box<IncrementalDecoder>),
+    Resample(IncrementalResampler),
+}
+
+struct Job {
+    media: MediaRef,
+    stage: Stage,
+    /// Emit `ImportProgress` (user-initiated imports).
+    report: bool,
+    /// The chained-Ogg warning was already given (at import).
+    warned: bool,
+}
+
+#[derive(Default)]
+pub(crate) struct MediaState {
+    peaks: BTreeMap<MediaId, PeakMipmap>,
+    loaded: BTreeSet<MediaId>,
+    jobs: VecDeque<Job>,
+}
+
+/// Decoded audio sized to the document's frame count (headers and decoders can disagree
+/// by a few frames; the document is the reference).
+fn fit_frames(mut audio: DecodedAudio, frames: u64) -> DecodedAudio {
+    let frames = frames as usize;
+    for ch in &mut audio.channels {
+        ch.resize(frames, 0.0);
+    }
+    audio
+}
+
+impl MediaState {
+    pub fn peaks(&self, media: MediaId) -> Option<&PeakMipmap> {
+        self.peaks.get(&media)
+    }
+
+    pub fn is_pending(&self, media: MediaId) -> bool {
+        self.jobs.iter().any(|j| j.media.id == media)
+    }
+
+    pub fn is_loaded(&self, media: MediaId) -> bool {
+        self.loaded.contains(&media)
+    }
+
+    pub fn has_jobs(&self) -> bool {
+        !self.jobs.is_empty()
+    }
+
+    /// Queue an import whose decoder was already created (header probed in `handle`).
+    pub fn queue_import(&mut self, media: MediaRef, decoder: IncrementalDecoder, warned: bool) {
+        self.jobs.retain(|j| j.media.id != media.id);
+        self.jobs.push_back(Job {
+            media,
+            stage: Stage::Decode(Box::new(decoder)),
+            report: true,
+            warned,
+        });
+    }
+
+    /// Forget everything (project switch). Engine sources are replaced/unloaded.
+    pub fn reset<B: EngineBridge>(&mut self, bridge: &mut B) {
+        for m in std::mem::take(&mut self.loaded) {
+            let _ = bridge.unload_media(m);
+        }
+        self.peaks.clear();
+        self.jobs.clear();
+    }
+
+    /// Reload every media (engine sample rate changed).
+    pub fn reload_all(&mut self) {
+        self.loaded.clear();
+        self.jobs.clear();
+    }
+
+    /// Match the document: queue loads for new media, unload removed media.
+    pub fn sync<B: EngineBridge>(&mut self, bridge: &mut B, project: Option<&Project>) {
+        let empty = BTreeMap::new();
+        let media = project.map_or(&empty, |p| &p.media);
+        let gone: Vec<MediaId> = self.loaded.iter().filter(|m| !media.contains_key(m)).copied().collect();
+        for m in gone {
+            self.loaded.remove(&m);
+            let _ = bridge.unload_media(m);
+        }
+        self.peaks.retain(|m, _| media.contains_key(m));
+        self.jobs.retain(|j| media.contains_key(&j.media.id));
+        for m in media.values() {
+            if !self.loaded.contains(&m.id) && !self.is_pending(m.id) {
+                self.jobs.push_back(Job {
+                    media: m.clone(),
+                    stage: Stage::Read,
+                    report: false,
+                    warned: false,
+                });
+            }
+        }
+    }
+
+    /// Advance jobs by about `budget` frames of work. Returns the media that became
+    /// available to the engine.
+    pub fn step<S: ProjectStore, B: EngineBridge>(
+        &mut self,
+        project: ProjectId,
+        store: &mut S,
+        bridge: &mut B,
+        engine_rate: u32,
+        budget: usize,
+        events: &mut Vec<Event>,
+    ) -> Vec<MediaId> {
+        let mut loaded = Vec::new();
+        let mut budget = budget.max(1) as isize;
+        let mut reported = BTreeSet::new();
+        while budget > 0 {
+            let Some(mut job) = self.jobs.pop_front() else { break };
+            match self.advance(&mut job, project, store, bridge, engine_rate, &mut budget, events) {
+                Ok(true) => {
+                    loaded.push(job.media.id);
+                    if job.report {
+                        events.push(Event::Media {
+                            event: MediaEvent::ImportProgress {
+                                media: job.media.id,
+                                progress: 1.0,
+                            },
+                        });
+                    }
+                }
+                Ok(false) => {
+                    if job.report && reported.insert(job.media.id) {
+                        events.push(Event::Media {
+                            event: MediaEvent::ImportProgress {
+                                media: job.media.id,
+                                progress: job_progress(&job),
+                            },
+                        });
+                    }
+                    self.jobs.push_front(job);
+                }
+                Err(e) => {
+                    events.push(Event::Notification {
+                        level: NotificationLevel::Error,
+                        message: format!("could not load \"{}\": {e}", job.media.name),
+                    });
+                }
+            }
+        }
+        loaded
+    }
+
+    /// Run one job until done or out of budget. `Ok(true)` = loaded into the engine.
+    #[allow(clippy::too_many_arguments)]
+    fn advance<S: ProjectStore, B: EngineBridge>(
+        &mut self,
+        job: &mut Job,
+        project: ProjectId,
+        store: &mut S,
+        bridge: &mut B,
+        engine_rate: u32,
+        budget: &mut isize,
+        events: &mut Vec<Event>,
+    ) -> Result<bool, MediaError> {
+        loop {
+            match &mut job.stage {
+                Stage::Read => {
+                    let bytes = match store.read(project, &job.media.file) {
+                        Ok(b) => b,
+                        Err(e) => {
+                            events.push(Event::Media {
+                                event: MediaEvent::Missing { media: job.media.id },
+                            });
+                            return Err(MediaError::Decode(e.to_string()));
+                        }
+                    };
+                    *budget -= (bytes.len() / 64) as isize;
+                    if !self.peaks.contains_key(&job.media.id)
+                        && let Some(hash) = &job.media.hash
+                        && let Ok(cached) = store.read(project, &peaks_cache_path(hash))
+                        && let Ok(peaks) = PeakMipmap::from_bytes(&cached)
+                    {
+                        self.peaks.insert(job.media.id, peaks);
+                        events.push(Event::Media {
+                            event: MediaEvent::PeaksReady { media: job.media.id },
+                        });
+                    }
+                    let chained = is_chained_ogg(&bytes);
+                    let decoder = IncrementalDecoder::new(bytes, extension_of(&job.media.file))?;
+                    if chained && !job.warned {
+                        job.warned = true;
+                        events.push(Event::Notification {
+                            level: NotificationLevel::Warning,
+                            message: chained_ogg_warning(&job.media.name),
+                        });
+                    }
+                    job.stage = Stage::Decode(Box::new(decoder));
+                }
+                Stage::Decode(dec) => {
+                    let before = dec.decoded_frames();
+                    let done = dec.step((*budget).max(1) as usize)?;
+                    *budget -= (dec.decoded_frames() - before) as isize;
+                    if !done {
+                        return Ok(false);
+                    }
+                    let Stage::Decode(dec) = std::mem::replace(&mut job.stage, Stage::Read) else {
+                        unreachable!()
+                    };
+                    let truncated = dec.truncated;
+                    let audio = fit_frames(dec.finish()?, job.media.frames);
+                    if truncated && !job.warned {
+                        job.warned = true;
+                        events.push(Event::Notification {
+                            level: NotificationLevel::Warning,
+                            message: chained_ogg_warning(&job.media.name),
+                        });
+                    }
+                    if !self.peaks.contains_key(&job.media.id) {
+                        let peaks = PeakMipmap::build(&audio);
+                        if let Some(hash) = &job.media.hash {
+                            let _ = store.write(project, &peaks_cache_path(hash), &peaks.to_bytes());
+                        }
+                        self.peaks.insert(job.media.id, peaks);
+                        events.push(Event::Media {
+                            event: MediaEvent::PeaksReady { media: job.media.id },
+                        });
+                    }
+                    *budget -= (audio.frames() / 16) as isize;
+                    job.stage = Stage::Resample(IncrementalResampler::new(Arc::new(audio), engine_rate)?);
+                }
+                Stage::Resample(r) => {
+                    let done = r.step((*budget).max(1) as usize)?;
+                    *budget -= (*budget).max(1);
+                    if !done {
+                        return Ok(false);
+                    }
+                    let Stage::Resample(r) = std::mem::replace(&mut job.stage, Stage::Read) else {
+                        unreachable!()
+                    };
+                    let audio = Arc::new(r.finish());
+                    bridge
+                        .load_media(&job.media, audio)
+                        .map_err(|e| MediaError::Decode(format!("engine: {e}")))?;
+                    self.loaded.insert(job.media.id);
+                    return Ok(true);
+                }
+            }
+        }
+    }
+}
+
+fn job_progress(job: &Job) -> f32 {
+    match &job.stage {
+        Stage::Read => 0.0,
+        Stage::Decode(d) => {
+            let total = job.media.frames.max(1) as f32;
+            0.5 * (d.decoded_frames() as f32 / total).min(1.0)
+        }
+        Stage::Resample(r) => 0.5 + 0.5 * r.progress(),
+    }
+}
