@@ -97,6 +97,10 @@ getrandom = "0.3"
 
 # --- desktop app ---
 tauri = { version = "2", features = [] }
+# macOS AppKit bindings (CLAP embedded editors in floating host windows). Already in the lockfile via tauri.
+objc2 = "0.6"
+objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSWindow", "NSView", "NSResponder", "NSGraphics", "NSApplication", "NSRunningApplication"] }
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSString", "NSGeometry", "NSThread"] }
 tauri-build = { version = "2", features = [] }
 tauri-plugin-dialog = "2"
 tauri-plugin-fs = "2"
