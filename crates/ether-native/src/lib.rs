@@ -14,6 +14,9 @@
 use std::path::PathBuf;
 
 pub mod audio;
+pub mod bridge;
+pub mod media;
+pub mod plugins;
 pub mod rt;
 pub mod store;
 #[doc(hidden)]
