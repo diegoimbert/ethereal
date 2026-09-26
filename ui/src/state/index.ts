@@ -7,3 +7,4 @@ export * from "./playhead";
 export * from "./projectStore";
 export * from "./selectors";
 export * from "./selection";
+export * from "./editor";
