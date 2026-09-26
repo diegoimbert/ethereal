@@ -847,6 +847,7 @@ dependencies = [
 name = "ether-devices"
 version = "0.0.1"
 dependencies = [
+ "assert_no_alloc",
  "ether-core",
 ]
 
