@@ -31,6 +31,18 @@ export function songToContent(clip: Clip, song: Beats): Beats | null {
 }
 
 /**
+ * First song position at which content position `content` plays (for locating from the
+ * clip ruler). Positions the clip never plays map to the nearest clip boundary.
+ */
+export function contentToSong(clip: Clip, content: Beats): Beats {
+  const start = clipSongStart(clip);
+  const { enabled, start: ls, end: le } = clip.looping;
+  let rel = content - clip.offset;
+  if (enabled && le > ls && rel < 0 && content >= ls) rel = le - clip.offset + (content - ls);
+  return start + Math.min(Math.max(0, rel), clip.length);
+}
+
+/**
  * Tempo map on the clip's content axis: the tempo and signature in effect at the clip's
  * start, with bar 1 at content beat 0.
  */
