@@ -22,6 +22,7 @@ use std::path::PathBuf;
 
 pub mod audio;
 pub mod bridge;
+pub mod demo_samples;
 pub mod host;
 pub mod media;
 pub mod plugins;

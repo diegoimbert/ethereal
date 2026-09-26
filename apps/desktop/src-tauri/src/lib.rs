@@ -140,9 +140,27 @@ fn init_tracing() {
     let _ = tracing_subscriber::fmt().with_env_filter(filter).try_init();
 }
 
-/// Library folders for the sample browser: `ETHER_LIBRARY` (OS path-list), else the
-/// user's Music folder if it exists.
-fn library_roots(app: &AppHandle) -> Vec<LibraryRoot> {
+/// Library folders for the sample browser: the generated "Demo Samples" folder
+/// (`<data_dir>/demo-samples`), then `ETHER_LIBRARY` (OS path-list), else the user's Music
+/// folder if it exists.
+fn library_roots(app: &AppHandle, data_dir: &std::path::Path) -> Vec<LibraryRoot> {
+    let demo = data_dir.join("demo-samples");
+    let mut roots = match ether_native::demo_samples::ensure(&demo) {
+        Ok(()) => vec![LibraryRoot {
+            id: "demo".into(),
+            name: "Demo Samples".into(),
+            path: demo,
+        }],
+        Err(e) => {
+            tracing::warn!(%e, "could not write the demo samples");
+            Vec::new()
+        }
+    };
+    roots.extend(user_library_roots(app));
+    roots
+}
+
+fn user_library_roots(app: &AppHandle) -> Vec<LibraryRoot> {
     if let Some(list) = std::env::var_os("ETHER_LIBRARY") {
         return std::env::split_paths(&list)
             .enumerate()
@@ -196,7 +214,7 @@ pub fn run() {
                     data_dir: data_dir.clone(),
                     instance: instance.clone(),
                     projects_root: projects_root.clone(),
-                    library_roots: library_roots(app.handle()),
+                    library_roots: library_roots(app.handle(), &data_dir),
                 },
                 HostOptions {
                     main_thread: Arc::new(TauriMainThread(app.handle().clone())),
