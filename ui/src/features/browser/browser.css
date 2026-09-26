@@ -1,0 +1,111 @@
+.eth-browser {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  font-size: var(--eth-fs-sm);
+}
+.eth-browser__locations {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--eth-space-xs);
+  padding: var(--eth-space-sm);
+  border-bottom: 1px solid var(--eth-color-border);
+}
+.eth-browser__crumbs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  padding: var(--eth-space-xs) var(--eth-space-sm);
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+  border-bottom: 1px solid var(--eth-color-border);
+}
+.eth-browser__crumb {
+  border: none;
+  background: none;
+  padding: 0 2px;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.eth-browser__crumb:hover {
+  color: var(--eth-color-text);
+  text-decoration: underline;
+}
+.eth-browser__sep {
+  opacity: 0.6;
+}
+.eth-browser__list {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  list-style: none;
+  margin: 0;
+  padding: var(--eth-space-xs) 0;
+}
+.eth-browser__row {
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-sm);
+  height: 20px;
+  padding: 0 var(--eth-space-sm);
+  cursor: default;
+  user-select: none;
+}
+.eth-browser__row[role="button"] {
+  cursor: pointer;
+}
+.eth-browser__row--audio {
+  cursor: grab;
+}
+.eth-browser__row:hover,
+.eth-browser__row:focus-visible {
+  background: var(--eth-color-selection);
+  outline: none;
+}
+.eth-browser__row--midi,
+.eth-browser__row--other {
+  color: var(--eth-color-text-dim);
+}
+.eth-browser__icon {
+  width: 1.2em;
+  text-align: center;
+  flex: none;
+}
+.eth-browser__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.eth-browser__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-xs);
+}
+.eth-browser__size {
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+  font-family: var(--eth-font-mono);
+}
+.eth-browser__hint {
+  padding: var(--eth-space-sm);
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+}
+.eth-browser__status,
+.eth-browser__error {
+  padding: var(--eth-space-xs) var(--eth-space-sm);
+  border: none;
+  border-top: 1px solid var(--eth-color-border);
+  background: none;
+  font-size: var(--eth-fs-xs);
+  color: var(--eth-color-text-dim);
+  text-align: left;
+}
+.eth-browser__error {
+  color: var(--eth-color-record);
+  cursor: pointer;
+}
