@@ -211,7 +211,7 @@ Timing depends on what landed. If the `sync` is marked `urgent` (a BCR touching 
 Merge gate:
 - **Local gate green, run by the worker and re-run by the manager** on the branch merged with current `main`: `just check-all`, `just test-all`, `just check-ownership`, and `just gen-types` producing no diff. GitHub Actions CI is disabled for cost (`.github/workflows/ci.yml` is kept; re-enable with `gh workflow enable ci.yml`).
 - ownership check passes
-- reviewer agent approves
+- **reviewer agent approves**: a read-only agent checks each acceptance criterion from the node's brief (MET / PARTIAL / MISSING, with evidence), contract adherence, real-time rules and leftover stubs. CHANGES_REQUESTED goes back to the worker. It is skipped only for the manager's own small `base-<n>` PRs.
 - up to date with current `main` (merged in, conflicts resolved)
 - squash-merged by the manager
 
