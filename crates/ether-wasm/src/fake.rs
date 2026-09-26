@@ -3,7 +3,7 @@
 //!
 //! It drives the *real* engine path (bridge → rings → Worklet → `ether_core::Engine`) and
 //! the real store, but only understands the project lifecycle basics (`Get`, `List`,
-//! `Create`, `Open`) and transport play/stop/locate. Everything else replies
+//! `Create`, `Open`), transport play/stop/locate and `ListBuiltin`. Everything else replies
 //! `Unsupported`. Selected with controller mode `"fake"` (`?controller=fake` in apps/web).
 
 use ether_controller::store::ProjectStore;
@@ -12,6 +12,7 @@ use ether_core::graph::TrackDesc;
 use ether_core::protocol::message::{
     Command, CommandError, ErrorCode, Event, PlayheadFrame, Reply, ReplyResult, ReplyValue,
 };
+use ether_core::protocol::devices::DeviceCommand;
 use ether_core::protocol::meters::MeterFrame;
 use ether_core::protocol::model::{Beats, IdGen, Project, ProjectId, TrackKind};
 use ether_core::protocol::project::ProjectCommand;
@@ -309,6 +310,9 @@ impl<B: EngineBridge, H: HostServices, S: ProjectStore> Controller for FakeContr
         let result = match message.command {
             Command::Project(c) => self.project_cmd(c, out),
             Command::Transport(c) => self.transport_cmd(c, out),
+            Command::Device(DeviceCommand::ListBuiltin) => Ok(ReplyValue::DeviceTypes {
+                devices: ether_devices::all_descriptors(),
+            }),
             other => Err(err(
                 ErrorCode::Unsupported,
                 format!("fake controller: {other:?}"),

@@ -20,6 +20,8 @@ export default defineConfig({
     alias: {
       // `@ethereal/ui` is consumed as source and uses `@/…` imports internally.
       "@": fileURLToPath(new URL("../../ui/src", import.meta.url)),
+      // wasm-bindgen output of crates/ether-wasm (scripts/build-wasm.mjs; git-ignored).
+      "@ether-wasm": fileURLToPath(new URL("./src/wasm/pkg", import.meta.url)),
     },
   },
   server: {
@@ -32,6 +34,8 @@ export default defineConfig({
     strictPort: true,
     headers: crossOriginIsolationHeaders,
   },
+  // Worker and worklet bundles are ES modules (the worklet is loaded with addModule).
+  worker: { format: "es" },
   build: {
     outDir: "dist",
     emptyOutDir: true,

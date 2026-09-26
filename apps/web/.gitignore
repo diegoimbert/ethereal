@@ -1,0 +1,5 @@
+# wasm-bindgen output (node scripts/build-wasm.mjs)
+src/wasm/pkg/
+# Playwright
+test-results/
+playwright-report/
