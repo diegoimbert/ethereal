@@ -10,6 +10,7 @@
 //! This crate's *types* are a frozen contract (changes via BCR); the logic (`todo!()`
 //! bodies) is implemented by the `model` node.
 
+mod apply;
 pub mod automation;
 pub mod clip;
 pub mod device;
