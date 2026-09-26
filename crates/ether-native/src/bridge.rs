@@ -1,0 +1,426 @@
+//! [`NativeBridge`]: the controller's [`EngineBridge`] over an in-process `EngineHandle`,
+//! plus the native [`HostServices`].
+//!
+//! Runs on the controller thread. Built-in devices are constructed here with
+//! `ether-devices`; plugins are instantiated and activated on the main thread through
+//! [`PluginHost`] and only their audio half is sent to the engine. Media arrives decoded;
+//! it is resampled here if needed (never on the audio thread) and registered with the
+//! engine as an in-memory `AudioSource` (see [`crate::media`] for the no-streaming
+//! decision).
+
+use std::collections::HashMap;
+use std::path::PathBuf;
+use std::sync::Arc;
+
+use ether_controller::{BridgeError, EngineBridge, HostServices};
+use ether_core::plugin::{PluginError, PluginNotification};
+use ether_core::protocol::devices::DeviceDescriptor;
+use ether_core::protocol::model::{
+    Base64Bytes, BuiltinDevice, BuiltinDeviceType, DeviceId, MediaId, MediaRef, ParamId,
+    PluginInstance,
+};
+use ether_core::{
+    AudioSource, EngineError, EngineHandle, EngineOutputs, NodeKey, ParamChange, PrepareConfig,
+    RenderGraphDesc, TransportControl,
+};
+use ether_media::{DecodedAudio, InMemorySource};
+
+use crate::plugins::{Instantiate, PluginCatalog, PluginHost};
+use crate::rt::AudioShared;
+
+fn engine_err(e: EngineError) -> BridgeError {
+    match e {
+        EngineError::QueueFull => BridgeError::QueueFull,
+        other => BridgeError::Other(other.to_string()),
+    }
+}
+
+fn plugin_err(e: PluginError) -> BridgeError {
+    BridgeError::Other(e.to_string())
+}
+
+enum DeviceKind {
+    Builtin(BuiltinDeviceType),
+    Plugin(Box<DeviceDescriptor>),
+}
+
+struct DeviceEntry {
+    key: NodeKey,
+    kind: DeviceKind,
+}
+
+/// Resolves sampler media against the sources registered with the engine.
+struct Sources<'a>(&'a HashMap<MediaId, Arc<dyn AudioSource>>);
+
+impl ether_devices::SampleResolver for Sources<'_> {
+    fn resolve(&self, media: MediaId) -> Option<Arc<dyn AudioSource>> {
+        self.0.get(&media).cloned()
+    }
+}
+
+/// Native engine bridge (controller thread).
+pub struct NativeBridge {
+    handle: EngineHandle,
+    prepare: PrepareConfig,
+    sample_rate: u32,
+    plugins: PluginHost,
+    catalog: PluginCatalog,
+    instantiate: Instantiate,
+    audio: Arc<AudioShared>,
+    sources: HashMap<MediaId, Arc<dyn AudioSource>>,
+    devices: HashMap<DeviceId, DeviceEntry>,
+}
+
+impl NativeBridge {
+    pub fn new(
+        handle: EngineHandle,
+        prepare: PrepareConfig,
+        plugins: PluginHost,
+        catalog: PluginCatalog,
+        instantiate: Instantiate,
+        audio: Arc<AudioShared>,
+    ) -> Self {
+        Self {
+            handle,
+            sample_rate: prepare.sample_rate as u32,
+            prepare,
+            plugins,
+            catalog,
+            instantiate,
+            audio,
+            sources: HashMap::new(),
+            devices: HashMap::new(),
+        }
+    }
+
+    pub fn sample_rate(&self) -> u32 {
+        self.sample_rate
+    }
+
+    pub fn plugins(&self) -> &PluginHost {
+        &self.plugins
+    }
+
+    /// Engine node of a device (tests/diagnostics).
+    pub fn node_of(&self, device: DeviceId) -> Option<NodeKey> {
+        self.devices.get(&device).map(|d| d.key)
+    }
+
+    fn replace_device(&mut self, device: DeviceId) {
+        if self.devices.contains_key(&device) {
+            let _ = self.destroy_device(device);
+        }
+    }
+
+    fn destroy_device(&mut self, device: DeviceId) -> Result<(), BridgeError> {
+        let Some(entry) = self.devices.remove(&device) else {
+            return Ok(());
+        };
+        let r = self.handle.remove_node(entry.key).map_err(engine_err);
+        if matches!(entry.kind, DeviceKind::Plugin(_)) {
+            self.plugins.destroy(device);
+        }
+        r
+    }
+}
+
+impl EngineBridge for NativeBridge {
+    fn create_builtin(
+        &mut self,
+        device: DeviceId,
+        kind: &BuiltinDevice,
+        params: &[(ParamId, f64)],
+    ) -> Result<NodeKey, BridgeError> {
+        self.replace_device(device);
+        let mut node = ether_devices::create(kind, &Sources(&self.sources));
+        for (id, value) in params {
+            node.set_param(*id, *value);
+        }
+        let key = self.handle.add_node(node).map_err(engine_err)?;
+        self.devices.insert(
+            device,
+            DeviceEntry {
+                key,
+                kind: DeviceKind::Builtin(kind.device_type()),
+            },
+        );
+        Ok(key)
+    }
+
+    fn create_plugin(
+        &mut self,
+        device: DeviceId,
+        plugin: &PluginInstance,
+        state: Option<&Base64Bytes>,
+    ) -> Result<NodeKey, BridgeError> {
+        self.replace_device(device);
+        let desc = self.catalog.find(&plugin.plugin_id).ok_or_else(|| {
+            BridgeError::Other(format!(
+                "plugin {} is not installed (rescan plugins)",
+                plugin.plugin_id
+            ))
+        })?;
+        if plugin.sandboxed {
+            // ether-sandbox is not wired yet: run in-process.
+            tracing::warn!(plugin = %plugin.plugin_id, "sandboxed hosting unavailable; loading in-process");
+        }
+        let (node, descriptor) = self
+            .plugins
+            .instantiate(
+                self.instantiate.clone(),
+                device,
+                PathBuf::from(desc.path),
+                plugin.plugin_id.clone(),
+                state.map(|s| s.0.clone()),
+                // Activated with the engine's max block size: backends never exceed it.
+                self.prepare,
+            )
+            .map_err(plugin_err)?;
+        let key = match self.handle.add_node(node) {
+            Ok(key) => key,
+            Err(e) => {
+                // The node was dropped (and returned to the main thread): drop the controller.
+                self.plugins.destroy(device);
+                return Err(engine_err(e));
+            }
+        };
+        self.devices.insert(
+            device,
+            DeviceEntry {
+                key,
+                kind: DeviceKind::Plugin(Box::new(descriptor)),
+            },
+        );
+        Ok(key)
+    }
+
+    fn destroy_node(&mut self, key: NodeKey) -> Result<(), BridgeError> {
+        match self
+            .devices
+            .iter()
+            .find(|(_, e)| e.key == key)
+            .map(|(d, _)| *d)
+        {
+            Some(device) => self.destroy_device(device),
+            None => self.handle.remove_node(key).map_err(engine_err),
+        }
+    }
+
+    fn load_media(
+        &mut self,
+        media: &MediaRef,
+        audio: Arc<DecodedAudio>,
+    ) -> Result<(), BridgeError> {
+        let audio = if audio.sample_rate != self.sample_rate && audio.frames() > 0 {
+            // Contract: the controller resamples; be lenient and do it here (off-RT).
+            Arc::new(
+                ether_media::resample(&audio, self.sample_rate)
+                    .map_err(|e| BridgeError::Other(e.to_string()))?,
+            )
+        } else {
+            audio
+        };
+        let source: Arc<dyn AudioSource> = Arc::new(InMemorySource::new(audio));
+        self.handle
+            .add_source(media.id, source.clone())
+            .map_err(engine_err)?;
+        self.sources.insert(media.id, source);
+        Ok(())
+    }
+
+    fn unload_media(&mut self, media: MediaId) -> Result<(), BridgeError> {
+        if self.sources.remove(&media).is_some() {
+            self.handle.remove_source(media).map_err(engine_err)?;
+        }
+        Ok(())
+    }
+
+    fn publish(&mut self, graph: RenderGraphDesc) -> Result<(), BridgeError> {
+        self.handle.publish(graph).map_err(engine_err)
+    }
+
+    fn set_param(&mut self, change: ParamChange) -> Result<(), BridgeError> {
+        self.handle.set_param(change).map_err(engine_err)
+    }
+
+    fn transport(&mut self, control: TransportControl) -> Result<(), BridgeError> {
+        self.handle.transport(control).map_err(engine_err)
+    }
+
+    fn poll(&mut self, out: &mut EngineOutputs) {
+        self.handle.poll(out);
+        out.cpu_load = self.audio.cpu_load();
+    }
+
+    fn descriptor(&mut self, device: DeviceId) -> Option<DeviceDescriptor> {
+        match &self.devices.get(&device)?.kind {
+            DeviceKind::Builtin(t) => Some(ether_devices::descriptor(*t)),
+            DeviceKind::Plugin(d) => Some((**d).clone()),
+        }
+    }
+
+    fn poll_plugins(&mut self, out: &mut Vec<(DeviceId, PluginNotification)>) {
+        if self
+            .devices
+            .values()
+            .any(|d| matches!(d.kind, DeviceKind::Plugin(_)))
+        {
+            self.plugins.poll(out);
+        }
+    }
+
+    fn plugin_state(&mut self, device: DeviceId) -> Result<Option<Base64Bytes>, BridgeError> {
+        match self.devices.get(&device).map(|d| &d.kind) {
+            Some(DeviceKind::Plugin(_)) => Ok(self
+                .plugins
+                .save_state(device)
+                .map_err(plugin_err)?
+                .map(Base64Bytes)),
+            _ => Ok(None),
+        }
+    }
+}
+
+/// Native [`HostServices`]: wall clock and OS entropy.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct NativeServices;
+
+impl HostServices for NativeServices {
+    fn now_ms(&self) -> u64 {
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_millis() as u64)
+    }
+
+    fn random_seed(&mut self) -> u64 {
+        getrandom::u64().unwrap_or_else(|_| self.now_ms() ^ u64::from(std::process::id()) << 32)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::plugins::{DedicatedThread, fake};
+    use ether_core::protocol::model::{PluginFormat, Ulid};
+    use ether_core::protocol::plugins::PluginDescriptor;
+
+    fn bridge() -> (NativeBridge, ether_core::Engine) {
+        let ether_core::EngineParts { engine, handle, .. } =
+            ether_core::create(ether_core::EngineConfig {
+                max_block_size: 128,
+                ..Default::default()
+            });
+        let catalog = PluginCatalog::default();
+        catalog.replace(vec![PluginDescriptor {
+            format: PluginFormat::Clap,
+            id: "fake".into(),
+            name: "Fake".into(),
+            vendor: "T".into(),
+            version: "1".into(),
+            description: String::new(),
+            features: vec![],
+            category: ether_core::protocol::devices::DeviceCategory::AudioEffect,
+            path: "/fake.clap".into(),
+        }]);
+        let b = NativeBridge::new(
+            handle,
+            PrepareConfig {
+                sample_rate: 48_000.0,
+                max_block_size: 128,
+                max_events_per_block: 64,
+            },
+            PluginHost::new(Arc::new(DedicatedThread::new())),
+            catalog,
+            fake::instantiate(),
+            Arc::new(AudioShared::default()),
+        );
+        (b, engine)
+    }
+
+    fn media_ref(id: u128) -> MediaRef {
+        MediaRef {
+            id: MediaId(Ulid(id)),
+            name: "a.wav".into(),
+            file: "media/a.wav".into(),
+            sample_rate: 44_100,
+            channels: 1,
+            frames: 441,
+            hash: None,
+        }
+    }
+
+    #[test]
+    fn builtin_devices() {
+        let (mut b, _engine) = bridge();
+        let d = DeviceId(Ulid(3));
+        let key = b.create_builtin(d, &BuiltinDevice::Synth, &[]).unwrap();
+        assert_eq!(
+            b.descriptor(d).unwrap().device_type,
+            ether_core::protocol::devices::DeviceTypeRef::Builtin {
+                device: BuiltinDeviceType::Synth
+            }
+        );
+        // Re-creating the same device replaces its node.
+        let key2 = b.create_builtin(d, &BuiltinDevice::Delay, &[]).unwrap();
+        assert_ne!(key, key2);
+        assert!(b.destroy_node(key).is_err());
+        b.destroy_node(key2).unwrap();
+        assert!(b.descriptor(d).is_none());
+    }
+
+    #[test]
+    fn media_is_resampled_and_registered() {
+        let (mut b, _engine) = bridge();
+        let audio = Arc::new(DecodedAudio {
+            sample_rate: 44_100,
+            channels: vec![vec![0.25; 441]],
+        });
+        b.load_media(&media_ref(1), audio).unwrap();
+        let src = b.sources.get(&MediaId(Ulid(1))).unwrap();
+        assert_eq!(
+            src.frames(),
+            ether_media::resampled_len(441, 44_100, 48_000) as u64
+        );
+        b.unload_media(MediaId(Ulid(1))).unwrap();
+        assert!(b.sources.is_empty());
+        // Unknown media: no-op.
+        b.unload_media(MediaId(Ulid(9))).unwrap();
+    }
+
+    #[test]
+    fn plugins_via_catalog_and_main_thread() {
+        let (mut b, _engine) = bridge();
+        let d = DeviceId(Ulid(5));
+        let inst = PluginInstance {
+            format: PluginFormat::Clap,
+            plugin_id: "fake".into(),
+            name: "Fake".into(),
+            vendor: "T".into(),
+            version: "1".into(),
+            sandboxed: false,
+            state: None,
+        };
+        let key = b
+            .create_plugin(d, &inst, Some(&Base64Bytes(b"abc".to_vec())))
+            .unwrap();
+        assert_eq!(b.node_of(d), Some(key));
+        assert_eq!(b.descriptor(d).unwrap().name, "Fake");
+        assert_eq!(
+            b.plugin_state(d).unwrap(),
+            Some(Base64Bytes(b"abc".to_vec()))
+        );
+        assert_eq!(b.plugin_state(DeviceId(Ulid(6))).unwrap(), None);
+        let mut notes = Vec::new();
+        b.poll_plugins(&mut notes);
+        assert_eq!(notes, vec![(d, PluginNotification::StateDirty)]);
+
+        let missing = PluginInstance {
+            plugin_id: "not-installed".into(),
+            ..inst.clone()
+        };
+        assert!(b.create_plugin(DeviceId(Ulid(7)), &missing, None).is_err());
+
+        b.destroy_node(key).unwrap();
+        assert!(b.descriptor(d).is_none());
+    }
+}
