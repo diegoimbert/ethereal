@@ -5,6 +5,10 @@ export interface FaderProps {
   /** Normalized value, 0..1 (mapping to dB is the caller's job). */
   value: number;
   onChange?: (value: number) => void;
+  /** Pointer drag started (open an undo gesture). */
+  onChangeStart?: () => void;
+  /** Pointer drag ended (close the gesture). */
+  onChangeEnd?: () => void;
   /** Double-click resets to this value. */
   defaultValue?: number;
   /** Pixel height. */
@@ -19,6 +23,8 @@ export interface FaderProps {
 export function Fader({
   value,
   onChange,
+  onChangeStart,
+  onChangeEnd,
   defaultValue,
   height = 120,
   label,
@@ -31,6 +37,8 @@ export function Fader({
     onChange: disabled ? undefined : onChange,
     sensitivity: 1 / height,
     defaultValue,
+    onChangeStart,
+    onChangeEnd,
   });
   const v = Math.min(1, Math.max(0, value));
   return (
