@@ -49,9 +49,7 @@ pub trait StretcherFactory: Send + Sync {
 
 /// Signalsmith Stretch implementation (native, `signalsmith` feature).
 #[cfg(all(feature = "signalsmith", not(target_arch = "wasm32")))]
-pub mod signalsmith {
-    /// Stub: implemented by the `stretch` node.
-    pub struct SignalsmithStretcher {
-        _private: (),
-    }
-}
+pub mod signalsmith;
+
+#[cfg(all(feature = "signalsmith", not(target_arch = "wasm32")))]
+pub use signalsmith::{Preset, SignalsmithFactory, SignalsmithStretcher};
