@@ -633,8 +633,17 @@ fn plugins_gui_edits_latency_crash_and_state() {
         publishes + 1,
         "latency change republishes"
     );
+    assert!(
+        h.ctl.bridge.param_changes().is_empty(),
+        "GUI edits are not echoed back to the plugin"
+    );
     h.ok(Command::Edit(EditCommand::Undo));
     assert!(!h.project().devices[&d].params.contains_key(&p));
+    // Undo does reach the plugin (its node has no mirror entry: the default is sent).
+    assert!(matches!(
+        h.ctl.bridge.param_changes().last(),
+        Some(ParamChange { target: ParamTarget::Node { param, .. }, value }) if *param == p && *value == 50.0
+    ));
 
     // Descriptor query.
     let v = h.ok(Command::Device(DeviceCommand::GetDescriptor { device: d }));

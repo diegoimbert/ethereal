@@ -567,6 +567,7 @@ where
         match n {
             PluginNotification::ParamEdited { param, value } if exists && value.is_finite() => {
                 let gesture = self.plugin_gestures.get(&(device, param)).copied();
+                self.engine.echo_from = Some(device);
                 let _ = self.edit_with("Set Param", gesture, now, out, |ctx| {
                     ctx.set_device(
                         device,
@@ -576,6 +577,7 @@ where
                         },
                     )
                 });
+                self.engine.echo_from = None;
             }
             PluginNotification::GestureBegin { param } => {
                 let g = self.new_gesture();

@@ -60,6 +60,8 @@ pub(crate) struct EngineState {
     pub graph_dirty: bool,
     pub version: u64,
     pub last_publish_ms: Option<u64>,
+    /// The edit being applied came from this device's own GUI: don't echo its params back.
+    pub echo_from: Option<DeviceId>,
 }
 
 pub(crate) fn bridge_err(e: BridgeError) -> ether_core::protocol::CommandError {
@@ -297,6 +299,9 @@ impl EngineState {
                     let Some(d) = project.devices.get(id) else {
                         continue;
                     };
+                    if self.echo_from == Some(*id) {
+                        continue;
+                    }
                     let value = d.params.get(param).copied().or_else(|| {
                         self.descriptor(d).and_then(|desc| {
                             desc.params

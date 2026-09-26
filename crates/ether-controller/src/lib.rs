@@ -319,6 +319,15 @@ where
         self.open(id, now, out).map(drop)
     }
 
+    /// Save the open project now (e.g. before the host quits). Events go to `out`.
+    pub fn save_now(
+        &mut self,
+        out: &mut dyn MessageSink,
+    ) -> Result<ether_core::protocol::project::ProjectSummary, ether_core::protocol::CommandError>
+    {
+        self.save_current(out)
+    }
+
     /// Unsaved changes in the open project.
     pub fn is_dirty(&self) -> bool {
         self.doc.as_ref().is_some_and(|d| d.dirty)
