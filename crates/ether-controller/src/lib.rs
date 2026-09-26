@@ -99,6 +99,21 @@ pub trait EngineBridge {
 
     /// Descriptors of built-in devices and of instantiated plugins.
     fn descriptor(&mut self, device: DeviceId) -> Option<DeviceDescriptor>;
+
+    /// Drain main-thread notifications from plugin controllers (GUI param edits and gestures,
+    /// latency changes, crashes). The controller calls this from its tick: `ParamEdited` becomes
+    /// an undoable SetParam, `LatencyChanged` a republish, `Crashed` a `PluginEvent::Crashed`.
+    /// Hosts without plugins (web) keep the default.
+    fn poll_plugins(&mut self, out: &mut Vec<(DeviceId, ether_core::plugin::PluginNotification)>) {
+        let _ = out;
+    }
+
+    /// Current state blob of a plugin device, read before serializing the project (Save,
+    /// SaveAs, autosave) into `PluginInstance.state`. `Ok(None)` = not a plugin / no state.
+    fn plugin_state(&mut self, device: DeviceId) -> Result<Option<Base64Bytes>, BridgeError> {
+        let _ = device;
+        Ok(None)
+    }
 }
 
 /// Host services the controller needs besides the engine.
