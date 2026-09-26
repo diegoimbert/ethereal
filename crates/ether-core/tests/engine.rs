@@ -574,3 +574,109 @@ fn compile_rejects_cycles_and_unknown_tracks() {
         Err(CompileError::Capacity(_))
     ));
 }
+
+#[test]
+fn enabled_lane_overrides_manual_moves() {
+    let mut p = create(config());
+    let dc = p.handle.add_node(Box::new(Dc(1.0))).unwrap();
+    let (rec, mut rx) = Recorder::new();
+    let rec = p.handle.add_node(Box::new(rec)).unwrap();
+    let mut t = with_chain(track(tid(2), TrackKind::Audio, Some(tid(1))), &[dc, rec]);
+    t.automation = vec![
+        // Constant lanes: the value never changes.
+        AutomationDesc {
+            target: AutomationTarget::TrackVolume { track: tid(2) },
+            resolved: ResolvedTarget::TrackVolume,
+            points: vec![(0.0, 0.5, CurveShape::Linear)],
+            mapping: linear_mapping(),
+        },
+        AutomationDesc {
+            target: AutomationTarget::TrackPan { track: tid(2) },
+            resolved: ResolvedTarget::Node {
+                node: rec,
+                param: ParamId(4),
+            },
+            points: vec![(0.0, 0.25, CurveShape::Linear)],
+            mapping: linear_mapping(),
+        },
+    ];
+    p.handle.publish(desc(vec![master(), t])).unwrap();
+    p.handle.transport(TransportControl::Play).unwrap();
+    render(&mut p.engine, 4096, 512);
+    drain(&mut rx);
+
+    p.handle
+        .set_param(ParamChange {
+            target: ParamTarget::TrackVolume { track: tid(2) },
+            value: 1.0,
+        })
+        .unwrap();
+    p.handle
+        .set_param(ParamChange {
+            target: ParamTarget::Node {
+                node: rec,
+                param: ParamId(4),
+            },
+            value: 0.9,
+        })
+        .unwrap();
+    let (l, _) = render(&mut p.engine, 4096, 512);
+    // Volume stays driven by the lane.
+    assert!(l.iter().all(|v| close(*v, 0.5)), "{}", l[4000]);
+    // The node sees the manual value, then the lane's value again at the same offset.
+    let params: Vec<_> = events(&drain(&mut rx))
+        .into_iter()
+        .filter_map(|(t, k)| match k {
+            EventKind::Param { param, value } if param == ParamId(4) => Some((t, value)),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(params, vec![(4096, 0.9), (4096, 0.25)]);
+}
+
+#[test]
+fn clip_envelopes_drive_node_params_densely() {
+    let mut p = create(config());
+    let (rec, mut rx) = Recorder::new();
+    let rec = p.handle.add_node(Box::new(rec)).unwrap();
+    let mut t = with_chain(track(tid(2), TrackKind::Midi, Some(tid(1))), &[rec]);
+    let mut clip = midi_clip(cid(1), 0.0, 4.0, &[]);
+    clip.envelopes = vec![AutomationDesc {
+        target: AutomationTarget::TrackPan { track: tid(2) },
+        resolved: ResolvedTarget::Node {
+            node: rec,
+            param: ParamId(9),
+        },
+        points: vec![
+            (0.0, 0.0, CurveShape::Linear),
+            (1.0, 1.0, CurveShape::Linear),
+        ],
+        mapping: linear_mapping(),
+    }];
+    t.clips = vec![clip];
+    p.handle.publish(desc(vec![master(), t])).unwrap();
+    p.handle.transport(TransportControl::Play).unwrap();
+    render(&mut p.engine, 24_000, 480);
+    let n = events(&drain(&mut rx))
+        .iter()
+        .filter(|(_, k)| matches!(k, EventKind::Param { param, .. } if *param == ParamId(9)))
+        .count();
+    // One event per 64 samples, not one per block.
+    assert!(n > 300, "{n}");
+}
+
+#[test]
+fn oversized_blocks_are_zeroed_beyond_max_block() {
+    let mut p = create(config());
+    let dc = p.handle.add_node(Box::new(Dc(0.5))).unwrap();
+    let t = with_chain(track(tid(2), TrackKind::Audio, Some(tid(1))), &[dc]);
+    p.handle.publish(desc(vec![master(), t])).unwrap();
+    let mut l = vec![9.0f32; BLOCK * 2];
+    let mut r = vec![9.0f32; BLOCK * 2];
+    {
+        let mut outs: [&mut [f32]; 2] = [&mut l, &mut r];
+        p.engine.process(&[], &mut outs, BLOCK * 2);
+    }
+    assert!(close(l[BLOCK - 1], 0.5));
+    assert!(l[BLOCK..].iter().chain(&r[BLOCK..]).all(|v| *v == 0.0));
+}

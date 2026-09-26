@@ -266,11 +266,13 @@ impl Engine {
     /// meters/playhead to the output ring, push retired objects to the GC ring. Never
     /// allocates, locks or blocks; bounded by graph size.
     pub fn process(&mut self, inputs: &[&[f32]], outputs: &mut [&mut [f32]], frames: usize) {
-        let frames = frames.min(self.config.max_block_size);
+        // Zero everything the host asked for; only `max_block_size` frames are rendered
+        // (hosts with larger buffers call `process` repeatedly), the rest stays silent.
         for out in outputs.iter_mut() {
             let n = frames.min(out.len());
             out[..n].fill(0.0);
         }
+        let frames = frames.min(self.config.max_block_size);
         self.drain_control();
         self.drain_params();
         self.update_latencies();
@@ -427,6 +429,7 @@ impl Engine {
                 }
                 ParamTarget::Node { node, param } => {
                     if let Some((t, k)) = rt.lookup_node(node) {
+                        rt.tracks[t].auto_dirty = true;
                         let pending = &mut rt.tracks[t].chain[k].pending;
                         if !pending.push(ProcessEvent {
                             offset: 0,
@@ -616,7 +619,7 @@ impl Engine {
                     let end = tdesc.clips.partition_point(|c| c.start < b1);
                     for clip in &tdesc.clips[..end] {
                         if matches!(clip.content, ClipContentDesc::Midi { .. }) {
-                            sched::schedule_notes(clip, clip.start, &timing, &mut sink);
+                            sched::schedule_notes(clip, &timing, &mut sink);
                         }
                     }
                     sink.end_notes(&timing);
@@ -640,7 +643,6 @@ impl Engine {
                     let [al, ar] = &mut *a;
                     if !sched::render_audio(
                         clip,
-                        clip.start,
                         &*sources[si].1,
                         ref_bpm,
                         &timing,
@@ -653,6 +655,13 @@ impl Engine {
             }
 
             // --- automation (arrangement lanes, then clip envelopes of active clips) ---
+            // Enabled lanes always drive their target: mixer targets are re-applied every
+            // sub-block, node params are re-sent after a live change or a locate.
+            if track.auto_dirty || transport.reset_nodes {
+                track.auto_last.fill(f64::NAN);
+                track.env_last.fill(f64::NAN);
+                track.auto_dirty = false;
+            }
             for (li, lane) in tdesc.automation.iter().enumerate() {
                 let last = &mut track.auto_last[li];
                 apply_automation(
@@ -667,22 +676,22 @@ impl Engine {
                     chain,
                 );
             }
+            // Clip envelopes (content-relative) of clips under the sub-block; for the same
+            // target they are applied after, and so override, the arrangement lane.
             if playing {
-                for clip in &tdesc.clips[..tdesc.clips.partition_point(|c| c.start <= b0)] {
+                let end = tdesc.clips.partition_point(|c| c.start < b1);
+                for (ci, clip) in tdesc.clips[..end].iter().enumerate() {
                     if clip.envelopes.is_empty() || clip.start + clip.length <= b0 {
                         continue;
                     }
-                    for env in &clip.envelopes {
-                        let mut last = f64::NAN;
+                    for (ei, env) in clip.envelopes.iter().enumerate() {
+                        let last = &mut track.env_last[track.env_base[ci] + ei];
                         apply_automation(
                             env,
-                            |t| {
-                                sched::content_at(clip, clip.start, t)
-                                    .and_then(|c| evaluate(&env.points, c))
-                            },
+                            |t| sched::content_at(clip, t).and_then(|c| evaluate(&env.points, c)),
                             &timing,
-                            false,
-                            &mut last,
+                            true,
+                            last,
                             &mut track.volume,
                             &mut track.pan,
                             &mut track.sends,
@@ -861,9 +870,11 @@ impl Engine {
     }
 }
 
-/// Apply one automation lane for the current sub-block. Mixer targets get a new smoother
-/// target at the sub-block start; node params get `Param` events every
-/// [`AUTOMATION_STEP`] samples while playing (only when the value changed).
+/// Apply one automation lane for the current sub-block. Mixer targets get their smoother
+/// target set from the lane at the sub-block start (every sub-block, so a manual move never
+/// sticks while a lane is enabled); node params get `Param` events every
+/// [`AUTOMATION_STEP`] samples while playing when the value differs from the last one
+/// sent (`last` is reset to NaN to force a re-send).
 #[allow(clippy::too_many_arguments)]
 fn apply_automation(
     lane: &AutomationDesc,
@@ -881,19 +892,20 @@ fn apply_automation(
             let Some(v) = value_at(timing.b0) else {
                 return;
             };
-            if v == *last {
-                return;
-            }
-            *last = v;
             let plain = to_plain(&lane.mapping, v);
+            let drive = |s: &mut crate::param::Smoother, target: f32| {
+                if s.target() != target {
+                    s.set_target(target);
+                }
+            };
             match lane.resolved {
                 ResolvedTarget::TrackVolume => {
-                    volume.set_target(gain_from_plain(&lane.mapping, plain));
+                    drive(volume, gain_from_plain(&lane.mapping, plain));
                 }
-                ResolvedTarget::TrackPan => pan.set_target(plain.clamp(-1.0, 1.0) as f32),
+                ResolvedTarget::TrackPan => drive(pan, plain.clamp(-1.0, 1.0) as f32),
                 ResolvedTarget::Send { send } => {
                     if let Some(s) = sends.iter_mut().find(|s| s.id == send) {
-                        s.level.set_target(gain_from_plain(&lane.mapping, plain));
+                        drive(&mut s.level, gain_from_plain(&lane.mapping, plain));
                     }
                 }
                 ResolvedTarget::Node { .. } => {}

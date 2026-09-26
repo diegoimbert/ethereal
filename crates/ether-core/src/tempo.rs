@@ -11,8 +11,7 @@
 //! the last point's tempo holds forever (a `Linear` curve on the last point is constant).
 
 use ether_protocol::model::{
-    TempoCurve, TimeSignature, segment_beats_to_seconds, segment_bpm_at,
-    segment_seconds_to_beats,
+    TempoCurve, TimeSignature, segment_beats_to_seconds, segment_bpm_at, segment_seconds_to_beats,
 };
 use serde::{Deserialize, Serialize};
 

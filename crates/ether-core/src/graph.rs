@@ -90,7 +90,7 @@ pub struct SendDesc {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ClipDesc {
     pub id: ClipId,
-    /// Timeline start (arrangement) in beats.
+    /// Timeline start in beats (`Clip.start`).
     pub start: f64,
     pub length: f64,
     pub offset: f64,
@@ -540,6 +540,17 @@ pub fn compile_with(
             out_events: EventBuffer::with_capacity(config.max_events_per_block),
             notes: Vec::with_capacity(MAX_ACTIVE_NOTES),
             auto_last: vec![f64::NAN; t.automation.len()],
+            env_last: vec![f64::NAN; t.clips.iter().map(|c| c.envelopes.len()).sum()],
+            env_base: t
+                .clips
+                .iter()
+                .scan(0, |acc, c| {
+                    let base = *acc;
+                    *acc += c.envelopes.len();
+                    Some(base)
+                })
+                .collect(),
+            auto_dirty: false,
             meter: MeterAccum::default(),
             out_latency: out_lat[i],
         });

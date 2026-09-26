@@ -41,8 +41,7 @@ fn engine_tempo_map_matches_shared_vectors() {
             .iter()
             .map(|s| TimeSignatureDesc {
                 beat: s["time"].as_f64().unwrap(),
-                signature: serde_json::from_value::<TimeSignature>(s["signature"].clone())
-                    .unwrap(),
+                signature: serde_json::from_value::<TimeSignature>(s["signature"].clone()).unwrap(),
             })
             .collect();
         let map = TempoMapRt::compile(&tempo, &sigs);
@@ -55,10 +54,20 @@ fn engine_tempo_map_matches_shared_vectors() {
             );
         };
         for (b, s) in pairs(case, "beats_to_seconds") {
-            check("beats_to_seconds", b, map.beats_to_seconds(b), s.as_f64().unwrap());
+            check(
+                "beats_to_seconds",
+                b,
+                map.beats_to_seconds(b),
+                s.as_f64().unwrap(),
+            );
         }
         for (s, b) in pairs(case, "seconds_to_beats") {
-            check("seconds_to_beats", s, map.seconds_to_beats(s), b.as_f64().unwrap());
+            check(
+                "seconds_to_beats",
+                s,
+                map.seconds_to_beats(s),
+                b.as_f64().unwrap(),
+            );
         }
         for (b, bpm) in pairs(case, "bpm_at") {
             check("bpm_at", b, map.bpm_at(b), bpm.as_f64().unwrap());
@@ -83,7 +92,12 @@ fn engine_tempo_map_matches_shared_vectors() {
                 bb["beat"].as_u64().unwrap(),
                 "{name}: beat at {b}"
             );
-            check("bar fraction", b, fraction, bb["fraction"].as_f64().unwrap());
+            check(
+                "bar fraction",
+                b,
+                fraction,
+                bb["fraction"].as_f64().unwrap(),
+            );
         }
     }
 }
