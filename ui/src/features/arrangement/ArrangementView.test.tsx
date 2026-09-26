@@ -24,12 +24,12 @@ function trackByName(name: string): Track {
 }
 
 function clipByName(name: string): Clip {
-  const c = Object.values(project().clips).find((x) => x.name === name && x.location.type === "Arrangement");
+  const c = Object.values(project().clips).find((x) => x.name === name);
   if (!c) throw new Error(`no clip ${name}`);
   return c;
 }
 
-const startOf = (c: Clip) => (c.location.type === "Arrangement" ? c.location.start : NaN);
+const startOf = (c: Clip) => c.start;
 const clipEl = (c: Clip) => document.querySelector<HTMLElement>(`[data-clip-id="${c.id}"]`)!;
 
 async function flush() {
@@ -264,7 +264,7 @@ describe("ArrangementView: clip editing", () => {
     const root = document.querySelector<HTMLElement>(".eth-arr")!;
     act(() => itemSelection.getState().select("clip", [chords.id]));
     act(() =>
-      playheadStore.setPlayhead({ transport: { position: 6, seconds: 3, playing: false, bpm: 120 }, session: [] }),
+      playheadStore.setPlayhead({ transport: { position: 6, seconds: 3, playing: false, bpm: 120 } }),
     );
     await act(async () => {
       fireEvent.keyDown(root, { key: "e", ctrlKey: true });

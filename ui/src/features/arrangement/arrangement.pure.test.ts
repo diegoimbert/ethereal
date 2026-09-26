@@ -42,14 +42,13 @@ function clip(id: string, trackId: string, start: number, length: number, extra:
   return {
     id,
     track: trackId,
-    location: { type: "Arrangement", start },
+    start,
     name: id,
     color: null,
     muted: false,
     length,
     offset: 0,
     looping: { enabled: false, start: 0, end: length },
-    launch: { mode: "Trigger", quantization: null, legato: false },
     content: { type: "Midi" },
     ...extra,
   };
@@ -246,8 +245,8 @@ describe("commands", () => {
       command: {
         type: "Move",
         moves: [
-          { id: "a", track: "m2", location: { type: "Arrangement", start: 6 } },
-          { id: "b", track: "m2", location: { type: "Arrangement", start: 12 } },
+          { id: "a", track: "m2", start: 6 },
+          { id: "b", track: "m2", start: 12 },
         ],
       },
     });
@@ -261,14 +260,14 @@ describe("commands", () => {
     const c = moveCommand([a], p, true, ids)!;
     expect(c.domain).toBe("Edit");
     expect(commandsOf(c).map((x) => x.command.type)).toEqual(["Duplicate", "Move"]);
-    expect(commandsOf(c)[0]!.command).toMatchObject({ id: "a", new_id: "new1", location: { start: 8 } });
+    expect(commandsOf(c)[0]!.command).toMatchObject({ id: "a", new_id: "new1", start: 8 });
   });
 
   it("resizes with SetBounds", () => {
     const p = dragPreview({ clips: [a], anchor: "a", rows, snap: beatGrid }, "resize-start", 1);
     expect(boundsCommand([a], p)).toEqual({
       domain: "Clip",
-      command: { type: "SetBounds", id: "a", location: { type: "Arrangement", start: 5 }, length: 3, offset: 1 },
+      command: { type: "SetBounds", id: "a", start: 5, length: 3, offset: 1 },
     });
   });
 
@@ -281,7 +280,7 @@ describe("commands", () => {
 
   it("duplicates the selection as a block after itself", () => {
     const c = commandsOf(duplicateCommand([a, b], ids));
-    expect(c.map((x) => (x.command as { location: { start: number } }).location.start)).toEqual([12, 18]);
+    expect(c.map((x) => (x.command as { start: number }).start)).toEqual([12, 18]);
   });
 
   it("toggles looping", () => {

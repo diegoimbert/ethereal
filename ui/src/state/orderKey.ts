@@ -1,6 +1,6 @@
 /**
- * Fractional-index order keys (`OrderKey`), used to order siblings (tracks, devices,
- * scenes) without indices.
+ * Fractional-index order keys (`OrderKey`), used to order siblings (tracks, devices)
+ * without indices.
  *
  * This is a faithful port of the `fractional-indexing` npm package (David Greenspan's
  * algorithm, base-62 digits), which is also the scheme the Rust model uses

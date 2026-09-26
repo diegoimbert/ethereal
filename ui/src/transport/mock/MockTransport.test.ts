@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import type { ClipStateChange, Event, Patch, PlayheadFrame, Project, Track } from "@/generated";
+import type { Event, Patch, PlayheadFrame, Project, Track } from "@/generated";
 import { EMPTY_HISTORY, useProjectStore } from "@/state/projectStore";
-import { clipsOfTrack, devicesOfTrack, notesOfClip, scenesOrdered, tracksOrdered } from "@/state/selectors";
+import { clipsOfTrack, devicesOfTrack, notesOfClip, tracksOrdered } from "@/state/selectors";
 import { cmd } from "../cmd";
 import { CommandFailedError } from "../EngineTransport";
 import { newId, newProjectId, nextGestureId } from "../ids";
@@ -18,7 +18,6 @@ async function setup(opts: { latencyMs?: number } = {}) {
     if (e.type === "Patch") store().applyPatch(e.patch);
     if (e.type === "ProjectLoaded") store().loadProject(e.project);
     if (e.type === "Transport") store().setTransport(e.state);
-    if (e.type === "Session") store().applySessionChanges(e.changes);
     if (e.type === "Recording" && e.event.type === "ArmChanged") store().setArmedTracks(e.event.armed);
     if (e.type === "Project") {
       if (e.event.type === "ListChanged") store().setProjects(e.event.projects);
@@ -115,8 +114,8 @@ describe("MockTransport documents", () => {
     const clipIds = Object.values(before.clips).filter((c) => c.track === keys.id).map((c) => c.id);
     const noteIds = Object.values(before.notes).filter((n) => clipIds.includes(n.clip)).map((n) => n.id);
     const deviceIds = devicesOfTrack(before, keys.id).map((d) => d.id);
-    expect(clipIds.length).toBe(2);
-    expect(noteIds.length).toBe(24);
+    expect(clipIds.length).toBe(1);
+    expect(noteIds.length).toBe(16);
     expect(deviceIds.length).toBe(2);
 
     await env.mock.send(cmd("Track", { type: "Delete", id: keys.id }));
@@ -175,7 +174,7 @@ describe("MockTransport documents", () => {
         commands: [
           cmd("Track", { type: "Create", id: trackId, kind: "Midi", name: "Lead", color: null, parent: null, before: null }),
           cmd("Device", { type: "Insert", id: deviceId, track: trackId, device: { type: "Builtin", device: { type: "Synth" } }, before: null }),
-          cmd("Clip", { type: "CreateMidi", id: clipId, track: trackId, location: { type: "Arrangement", start: 0 }, length: 4, name: null }),
+          cmd("Clip", { type: "CreateMidi", id: clipId, track: trackId, start: 0, length: 4, name: null }),
         ],
       }),
     );
@@ -223,7 +222,7 @@ describe("MockTransport documents", () => {
     const clip = clipsOfTrack(env.p(), drums.id)[0]!; // [0, 16)
     const media = Object.values(env.p().media)[0]!;
     const id = newId();
-    await env.mock.send(cmd("Clip", { type: "CreateAudio", id, track: drums.id, location: { type: "Arrangement", start: 12 }, media: media.id }));
+    await env.mock.send(cmd("Clip", { type: "CreateAudio", id, track: drums.id, start: 12, media: media.id }));
     expect(env.p().clips[clip.id]!.length).toBe(12);
     expect(env.p().clips[id]!.length).toBe(16); // 8 s at 120 BPM
   });
@@ -405,41 +404,6 @@ describe("MockTransport playback", () => {
     env.mock.tick(500);
     expect(env.mock.playheadPosition).toBe(at);
     expect(env.store().transport?.playing).toBe(false);
-  });
-
-  it("launching a session clip goes Queued then Playing at the next bar", async () => {
-    const env = await setup();
-    mock = env.mock;
-    const changes: ClipStateChange[] = [];
-    env.mock.onEvent((e) => e.type === "Session" && changes.push(...e.changes));
-    const keys = env.trackNamed("Keys");
-    const arp = Object.values(env.p().clips).find((c) => c.track === keys.id && c.location.type === "Session")!;
-
-    await env.mock.send(cmd("Transport", { type: "Play" }));
-    env.mock.tick(500); // beat 1
-    await env.mock.send(cmd("Session", { type: "LaunchClip", clip: arp.id }));
-    expect(changes).toEqual([{ track: keys.id, clip: arp.id, state: "Queued" }]);
-    expect(env.store().sessionStates[arp.id]).toBe("Queued");
-
-    env.mock.tick(1400); // beat 3.8: still queued
-    expect(changes).toHaveLength(1);
-    env.mock.tick(200); // beat 4.2: bar line crossed
-    expect(changes.at(-1)).toEqual({ track: keys.id, clip: arp.id, state: "Playing" });
-    expect(env.store().sessionStates[arp.id]).toBe("Playing");
-
-    await env.mock.send(cmd("Session", { type: "StopAll" }));
-    expect(changes.at(-1)!.state).toBe("Stopping");
-    env.mock.tick(2000);
-    expect(changes.at(-1)!.state).toBe("Stopped");
-    expect(env.store().sessionStates[arp.id]).toBeUndefined();
-
-    // Scenes: create, reorder, delete.
-    const scenes = scenesOrdered(env.p());
-    const sceneId = newId();
-    await env.mock.send(cmd("Session", { type: "CreateScene", id: sceneId, name: null, before: scenes[0]!.id }));
-    expect(scenesOrdered(env.p())[0]!.id).toBe(sceneId);
-    await env.mock.send(cmd("Session", { type: "DeleteScene", id: scenes[0]!.id }));
-    expect(env.p().clips[arp.id]).toBeUndefined();
   });
 
   it("emits meters that rise while playing", async () => {

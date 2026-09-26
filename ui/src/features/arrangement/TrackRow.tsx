@@ -5,7 +5,6 @@ import { Button } from "@/kit";
 import { useProjectStore, useSelectionStore } from "@/state";
 import { pxToBeats, useTempoMap, useTimelineView, useViewport, visibleRange } from "@/timeline";
 import { cmd, newId } from "@/transport";
-import { locationAt } from "./clipTime";
 import { ClipView } from "./ClipView";
 import { barAround, colorCss, groupSummaryKey } from "./helpers";
 import { sendEdit, useArrangement } from "./context";
@@ -148,7 +147,7 @@ function TrackLane({ track }: { track: Track }) {
     const bar = barAround(tempo, at);
     void sendEdit(
       transport,
-      cmd("Clip", { type: "CreateMidi", id: newId(), track: track.id, location: locationAt(bar.start), length: bar.length, name: null }),
+      cmd("Clip", { type: "CreateMidi", id: newId(), track: track.id, start: bar.start, length: bar.length, name: null }),
     );
   };
 
