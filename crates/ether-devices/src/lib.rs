@@ -14,11 +14,23 @@ pub mod compressor;
 pub mod delay;
 pub mod sampler;
 pub mod synth;
+mod util;
 
-/// Descriptor of a built-in device type (param list, category, I/O).
+pub use compressor::Compressor;
+pub use delay::Delay;
+pub use sampler::Sampler;
+pub use synth::Synth;
+
+/// Descriptor of a built-in device type (param list, category, I/O). Every instance of a
+/// type reports exactly this descriptor (`Device::descriptor` delegates here), so callers
+/// may cache it per type.
 pub fn descriptor(device: BuiltinDeviceType) -> DeviceDescriptor {
-    let _ = device;
-    todo!("devices node")
+    match device {
+        BuiltinDeviceType::Synth => synth::descriptor(),
+        BuiltinDeviceType::Sampler => sampler::descriptor(),
+        BuiltinDeviceType::Compressor => compressor::descriptor(),
+        BuiltinDeviceType::Delay => delay::descriptor(),
+    }
 }
 
 /// All built-in descriptors (for `DeviceCommand::ListBuiltin`).
@@ -41,7 +53,28 @@ pub trait SampleResolver {
 
 /// Non-RT. Instantiate a built-in device with default params (the caller then applies the
 /// document's param values with `Device::set_param` and calls `Node::prepare`).
+///
+/// A sampler whose media is missing or unresolved is created silent.
 pub fn create(device: &BuiltinDevice, samples: &dyn SampleResolver) -> Box<dyn Device> {
-    let _ = (device, samples);
-    todo!("devices node")
+    match device {
+        BuiltinDevice::Synth => Box::new(Synth::new()),
+        BuiltinDevice::Sampler { sample } => {
+            Box::new(Sampler::new(sample.and_then(|m| samples.resolve(m))))
+        }
+        BuiltinDevice::Compressor => Box::new(Compressor::new()),
+        BuiltinDevice::Delay => Box::new(Delay::new()),
+    }
+}
+
+/// A [`SampleResolver`] that resolves nothing (for devices without samples, tests).
+#[derive(Clone, Copy, Debug, Default)]
+pub struct NoSamples;
+
+impl SampleResolver for NoSamples {
+    fn resolve(
+        &self,
+        _media: ether_core::protocol::model::MediaId,
+    ) -> Option<Arc<dyn AudioSource>> {
+        None
+    }
 }
