@@ -17,8 +17,6 @@ import type {
   Device,
   Note,
   Project,
-  Scene,
-  SceneId,
   TempoPoint,
   TimeSignaturePoint,
   Track,
@@ -84,25 +82,8 @@ export function devicesOfTrack(project: Project, track: TrackId): Device[] {
 /** Arrangement clips of a track, sorted by start. */
 export function clipsOfTrack(project: Project, track: TrackId): Clip[] {
   return Object.values(project.clips)
-    .filter((c) => c.track === track && c.location.type === "Arrangement")
-    .sort((a, b) => clipStart(a) - clipStart(b) || compareOrderKeys(a.id, b.id));
-}
-
-/** Timeline start of an arrangement clip (0 for session clips). */
-export function clipStart(clip: Clip): number {
-  return clip.location.type === "Arrangement" ? clip.location.start : 0;
-}
-
-/** Session clips of a track (any scene). */
-export function sessionClipsOfTrack(project: Project, track: TrackId): Clip[] {
-  return Object.values(project.clips).filter((c) => c.track === track && c.location.type === "Session");
-}
-
-/** The clip in session slot `(track, scene)`, if any. */
-export function sessionClip(project: Project, track: TrackId, scene: SceneId): Clip | undefined {
-  return Object.values(project.clips).find(
-    (c) => c.track === track && c.location.type === "Session" && c.location.scene === scene,
-  );
+    .filter((c) => c.track === track)
+    .sort((a, b) => a.start - b.start || compareOrderKeys(a.id, b.id));
 }
 
 /** Notes of a MIDI clip, sorted by start then pitch. */
@@ -127,10 +108,6 @@ export function lanesOfTrack(project: Project, track: TrackId): AutomationLane[]
 /** Clip envelopes of a clip. */
 export function lanesOfClip(project: Project, clip: ClipId): AutomationLane[] {
   return Object.values(project.automation_lanes).filter((l) => l.owner.type === "Clip" && l.owner.clip === clip);
-}
-
-export function scenesOrdered(project: Project): Scene[] {
-  return Object.values(project.scenes).sort(byOrder);
 }
 
 /** Sends out of a track. */
@@ -168,11 +145,8 @@ export const useClip = (id: ClipId | null | undefined): Clip | undefined =>
   useProjectStore((s) => (id ? s.project?.clips[id] : undefined));
 
 export const useTracksOrdered = (): Track[] => useProjectList(tracksOrdered);
-export const useScenesOrdered = (): Scene[] => useProjectList(scenesOrdered);
 export const useDevicesOfTrack = (track: TrackId): Device[] => useProjectList((p) => devicesOfTrack(p, track));
 export const useClipsOfTrack = (track: TrackId): Clip[] => useProjectList((p) => clipsOfTrack(p, track));
 export const useNotesOfClip = (clip: ClipId): Note[] => useProjectList((p) => notesOfClip(p, clip));
 export const usePointsOfLane = (lane: AutomationLaneId): AutomationPoint[] =>
   useProjectList((p) => pointsOfLane(p, lane));
-export const useSessionClip = (track: TrackId, scene: SceneId): Clip | undefined =>
-  useProjectStore((s) => (s.project ? sessionClip(s.project, track, scene) : undefined));

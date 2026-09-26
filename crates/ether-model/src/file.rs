@@ -1,7 +1,7 @@
 //! The `.ether` file format: versioned JSON with migrations from day one.
 //!
 //! ```json
-//! { "format": "ethereal-project", "version": 1, "app_version": "0.1.0", "project": { ... } }
+//! { "format": "ethereal-project", "version": 2, "app_version": "0.1.0", "project": { ... } }
 //! ```
 //!
 //! Loading: parse to `serde_json::Value`, read `version`, run every migration from that
@@ -20,7 +20,7 @@ use crate::project::Project;
 /// Magic string in the `format` field.
 pub const FORMAT_TAG: &str = "ethereal-project";
 /// Current `.ether` version. Bump + add a [`Migration`] for every breaking schema change.
-pub const CURRENT_VERSION: u32 = 1;
+pub const CURRENT_VERSION: u32 = 2;
 /// File extension (without dot).
 pub const EXTENSION: &str = "ether";
 /// Document file name inside a project folder.
@@ -45,9 +45,93 @@ pub trait Migration: Send + Sync {
     fn migrate(&self, doc: &mut serde_json::Value) -> Result<(), FileError>;
 }
 
-/// All migrations, in order. Empty at version 1.
+/// All migrations, in order.
 pub fn migrations() -> Vec<Box<dyn Migration>> {
-    Vec::new()
+    vec![Box::new(V1RemoveSession)]
+}
+
+/// v1 → v2: Session view removed.
+///
+/// - arrangement clips: `location: {type: "Arrangement", start}` → `start`; `launch` dropped;
+/// - session clips (`location.type == "Session"`) are dropped together with their notes, warp
+///   markers and clip-envelope automation lanes (+ their points);
+/// - the `scenes` table and `settings.launch_quantization` are dropped.
+pub struct V1RemoveSession;
+
+impl Migration for V1RemoveSession {
+    fn source_version(&self) -> u32 {
+        1
+    }
+
+    fn migrate(&self, doc: &mut serde_json::Value) -> Result<(), FileError> {
+        use serde_json::Value;
+        let err = |message: &str| FileError::Migration {
+            from: 1,
+            message: message.into(),
+        };
+        let project = doc["project"]
+            .as_object_mut()
+            .ok_or_else(|| err("no project object"))?;
+        project.remove("scenes");
+        if let Some(settings) = project.get_mut("settings").and_then(Value::as_object_mut) {
+            settings.remove("launch_quantization");
+        }
+
+        let mut dropped = std::collections::HashSet::new();
+        if let Some(clips) = project.get_mut("clips").and_then(Value::as_object_mut) {
+            clips.retain(|id, clip| {
+                let Some(c) = clip.as_object_mut() else {
+                    return true;
+                };
+                c.remove("launch");
+                let location = c.remove("location").unwrap_or(Value::Null);
+                match location["type"].as_str() {
+                    Some("Session") => {
+                        dropped.insert(id.clone());
+                        false
+                    }
+                    _ => {
+                        let start = location.get("start").cloned().unwrap_or(Value::from(0.0));
+                        c.insert("start".into(), start);
+                        true
+                    }
+                }
+            });
+        }
+        if dropped.is_empty() {
+            return Ok(());
+        }
+        let owned = |v: &Value, field: &str| v[field].as_str().is_some_and(|c| dropped.contains(c));
+        for table in ["notes", "warp_markers"] {
+            if let Some(t) = project.get_mut(table).and_then(Value::as_object_mut) {
+                t.retain(|_, v| !owned(v, "clip"));
+            }
+        }
+        let mut dropped_lanes = std::collections::HashSet::new();
+        if let Some(t) = project
+            .get_mut("automation_lanes")
+            .and_then(Value::as_object_mut)
+        {
+            t.retain(|id, v| {
+                let gone = v["owner"]["type"] == "Clip" && owned(&v["owner"], "clip");
+                if gone {
+                    dropped_lanes.insert(id.clone());
+                }
+                !gone
+            });
+        }
+        if let Some(t) = project
+            .get_mut("automation_points")
+            .and_then(Value::as_object_mut)
+        {
+            t.retain(|_, v| {
+                !v["lane"]
+                    .as_str()
+                    .is_some_and(|l| dropped_lanes.contains(l))
+            });
+        }
+        Ok(())
+    }
 }
 
 /// Parse, migrate and validate an `.ether` document.
@@ -171,10 +255,47 @@ mod tests {
     }
 
     #[test]
+    fn v1_session_migration() {
+        let p = project();
+        let mut doc: serde_json::Value = serde_json::from_str(&save(&p, "0.1.0").unwrap()).unwrap();
+        doc["version"] = 1.into();
+        let project = &mut doc["project"];
+        project["settings"]["launch_quantization"] =
+            serde_json::json!({"type": "Bars", "count": 1});
+        project["scenes"] = serde_json::json!({"Scene_01": {"id": "Scene_01", "name": "1"}});
+        project["notes"] = serde_json::json!({
+            "Note_s": {"clip": "Clip_s"}
+        });
+        project["automation_lanes"] = serde_json::json!({
+            "Lane_s": {"owner": {"type": "Clip", "clip": "Clip_s"}}
+        });
+        project["automation_points"] = serde_json::json!({
+            "Point_s": {"lane": "Lane_s"}
+        });
+        project["clips"] = serde_json::json!({
+            "Clip_s": {"location": {"type": "Session", "scene": "Scene_01"}}
+        });
+        let json = doc.to_string();
+        // Only session things were added: migration restores the v2 project exactly.
+        assert_eq!(load(&json).unwrap(), p);
+
+        // Arrangement clips get a flat `start`.
+        let mut v: serde_json::Value = serde_json::json!({"project": {"clips": {
+            "Clip_a": {"location": {"type": "Arrangement", "start": 8.0}, "launch": {}}
+        }}});
+        V1RemoveSession.migrate(&mut v).unwrap();
+        assert_eq!(
+            v["project"]["clips"]["Clip_a"],
+            serde_json::json!({"start": 8.0})
+        );
+    }
+
+    #[test]
     fn migrations_run_in_order_up_to_target() {
         let p = project();
         let mut doc: serde_json::Value = serde_json::from_str(&save(&p, "0.0.1").unwrap()).unwrap();
         // Pretend a v1 file stored the name as `title`.
+        doc["version"] = 1.into();
         let settings = doc["project"]["settings"].as_object_mut().unwrap();
         let name = settings.remove("name").unwrap();
         settings.insert("title".into(), name);
@@ -207,7 +328,7 @@ mod tests {
             load(r#"{"format":"ethereal-project","version":99}"#),
             Err(FileError::TooNew {
                 found: 99,
-                supported: 1
+                supported: CURRENT_VERSION
             })
         ));
         assert!(matches!(load("{"), Err(FileError::Json(_))));

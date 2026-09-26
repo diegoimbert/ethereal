@@ -8,7 +8,6 @@
  *
  * Also holds low-rate engine state pushed as events:
  * - `TransportState` (`Event::Transport`);
- * - session clip play states (`Event::Session`);
  * - record-armed tracks (`Event::Recording { ArmChanged }`; runtime state, not document);
  * - the engine-side project list and the current project's dirty flag (`Event::Project`).
  * High-rate data (playhead, meters) lives in `./playhead.ts`, outside React state.
@@ -19,9 +18,6 @@
 import { create } from "zustand";
 import { immer } from "zustand/middleware/immer";
 import type {
-  ClipId,
-  ClipPlayState,
-  ClipStateChange,
   HistoryState,
   Patch,
   Project,
@@ -45,8 +41,6 @@ export interface ProjectStoreState {
   revision: number | null;
   history: HistoryState;
   transport: TransportState | null;
-  /** Play state of session clips that aren't `Stopped` (absent = stopped). */
-  sessionStates: Record<ClipId, ClipPlayState>;
   /** Record-armed tracks (engine runtime state). */
   armedTracks: TrackId[];
   /** Projects in the engine-side store, as last reported (`Project::ListChanged`). */
@@ -59,7 +53,6 @@ export interface ProjectStoreState {
   /** Apply an `Event::Patch`. Ignores stale revisions; reports gaps without applying. */
   applyPatch(patch: Patch): PatchResult;
   setTransport(state: TransportState): void;
-  applySessionChanges(changes: ReadonlyArray<ClipStateChange>): void;
   setArmedTracks(armed: ReadonlyArray<TrackId>): void;
   setProjects(projects: ReadonlyArray<ProjectSummary>): void;
   /** Update one project list entry (`Project::Saved`). */
@@ -74,7 +67,6 @@ const INITIAL = {
   revision: null,
   history: EMPTY_HISTORY,
   transport: null,
-  sessionStates: {},
   armedTracks: [],
   projects: [],
   dirty: false,
@@ -89,9 +81,7 @@ export const useProjectStore = create<ProjectStoreState>()(
         s.project = project;
         s.revision = null;
         s.history = opts?.history ?? EMPTY_HISTORY;
-        // A new document invalidates session slot states (clip ids may be gone). Armed
-        // tracks, the project list and the dirty flag come from their own events.
-        s.sessionStates = {};
+        // Armed tracks, the project list and the dirty flag come from their own events.
       });
     },
 
@@ -105,10 +95,6 @@ export const useProjectStore = create<ProjectStoreState>()(
         applyPatchChanges(s.project!, patch.changes);
         s.revision = patch.revision;
         s.history = patch.history;
-        // Drop play states of removed clips.
-        for (const c of patch.changes) {
-          if (c.type === "Remove" && c.key.type === "Clip") delete s.sessionStates[c.key.id];
-        }
       });
       return "applied";
     },
@@ -116,15 +102,6 @@ export const useProjectStore = create<ProjectStoreState>()(
     setTransport(state) {
       set((s) => {
         s.transport = state;
-      });
-    },
-
-    applySessionChanges(changes) {
-      set((s) => {
-        for (const c of changes) {
-          if (c.state === "Stopped") delete s.sessionStates[c.clip];
-          else s.sessionStates[c.clip] = c.state;
-        }
       });
     },
 

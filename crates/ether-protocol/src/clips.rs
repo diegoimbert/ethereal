@@ -1,11 +1,9 @@
-//! Clip editing (arrangement and session clips share these commands).
+//! Clip editing (arrangement clips).
 
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
-use crate::model::{
-    Beats, ClipId, ClipLocation, ClipLoop, Color, Decibels, LaunchSettings, MediaId, TrackId,
-};
+use crate::model::{Beats, ClipId, ClipLoop, Color, Decibels, MediaId, TrackId};
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
 #[serde(tag = "type")]
@@ -13,7 +11,7 @@ pub enum ClipCommand {
     CreateMidi {
         id: ClipId,
         track: TrackId,
-        location: ClipLocation,
+        start: Beats,
         length: Beats,
         name: Option<String>,
     },
@@ -21,7 +19,7 @@ pub enum ClipCommand {
     CreateAudio {
         id: ClipId,
         track: TrackId,
-        location: ClipLocation,
+        start: Beats,
         media: MediaId,
     },
     /// Deletes clips with their notes, envelopes and warp markers.
@@ -33,10 +31,10 @@ pub enum ClipCommand {
     Move {
         moves: Vec<ClipMove>,
     },
-    /// Set timing in one go (left/right edge trims): location, length and content offset.
+    /// Set timing in one go (left/right edge trims): start, length and content offset.
     SetBounds {
         id: ClipId,
-        location: ClipLocation,
+        start: Beats,
         length: Beats,
         offset: Beats,
     },
@@ -46,11 +44,12 @@ pub enum ClipCommand {
         at: Beats,
         new_id: ClipId,
     },
-    /// Copy (with notes/envelopes/markers) to `location` (None = right after the original).
+    /// Copy (with notes/envelopes/markers) to `start` on the same track (None = right after
+    /// the original).
     Duplicate {
         id: ClipId,
         new_id: ClipId,
-        location: Option<ClipLocation>,
+        start: Option<Beats>,
     },
     Rename {
         id: ClipId,
@@ -67,10 +66,6 @@ pub enum ClipCommand {
     SetLoop {
         id: ClipId,
         looping: ClipLoop,
-    },
-    SetLaunch {
-        id: ClipId,
-        launch: LaunchSettings,
     },
     /// Audio clips only.
     SetGain {
@@ -94,5 +89,5 @@ pub enum ClipCommand {
 pub struct ClipMove {
     pub id: ClipId,
     pub track: TrackId,
-    pub location: ClipLocation,
+    pub start: Beats,
 }
