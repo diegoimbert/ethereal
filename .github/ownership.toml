@@ -1,0 +1,117 @@
+# Node → owned path globs (ORCHESTRATION.md §3/§4). Enforced in CI by
+# scripts/check-ownership.py on PRs from branches named `node/<id>`.
+#
+# Glob syntax: `*` matches within one path segment, `**` matches any number of segments,
+# `{a,b}` alternation. A file is in scope for a node if it matches one of `paths` (or
+# `[global].allow`) and none of `exclude`.
+#
+# Changing this file is a manager/BCR action.
+
+[global]
+# Everyone may touch these (regenerated, never hand-merged).
+allow = [
+  "Cargo.lock",
+  "pnpm-lock.yaml",
+  "ui/src/generated/**",
+]
+# May touch anything.
+unrestricted = ["foundation", "alpha", "v0.1"]
+unrestricted_prefixes = ["base-"]
+
+# --- Wave 1 ---------------------------------------------------------------------------
+
+[nodes.model]
+paths = ["crates/ether-model/**"]
+
+[nodes.core]
+paths = ["crates/ether-core/**"]
+exclude = ["crates/ether-core/src/session/**"]
+
+[nodes.devices]
+paths = ["crates/ether-devices/**"]
+
+[nodes.media]
+paths = ["crates/ether-media/**"]
+
+[nodes.clap]
+paths = ["crates/ether-clap/**", "crates/ether-plugin-scanner/**"]
+
+[nodes.stretch]
+paths = ["crates/ether-stretch/**"]
+
+[nodes.ui-timeline]
+paths = ["ui/src/timeline/**"]
+
+[nodes.ui-mixer]
+paths = ["ui/src/features/mixer/**", "ui/src/features/devices/**"]
+
+[nodes.ui-shell]
+paths = [
+  "ui/src/features/transport-bar/**",
+  "ui/src/features/browser/**",
+  "ui/src/features/project/**",
+]
+
+[nodes.ui-session]
+paths = ["ui/src/features/session/**"]
+
+# --- Wave 2 ---------------------------------------------------------------------------
+
+[nodes.controller]
+paths = ["crates/ether-controller/**"]
+
+[nodes.native-host]
+paths = ["crates/ether-native/**", "apps/desktop/**", "ui/src/transport/tauri/**"]
+
+[nodes.wasm-host]
+paths = ["crates/ether-wasm/**", "apps/web/**", "ui/src/transport/wasm/**"]
+
+[nodes.core-session]
+paths = ["crates/ether-core/src/session/**"]
+
+[nodes.sandbox]
+paths = ["crates/ether-sandbox/**"]
+
+[nodes.ui-arrangement]
+paths = ["ui/src/features/arrangement/**"]
+
+[nodes.ui-piano-roll]
+paths = ["ui/src/features/piano-roll/**"]
+
+[nodes.ui-automation]
+paths = ["ui/src/features/automation/**"]
+
+# --- Wave 3 (alpha pre-creates module files/hook points; the manager may refine) --------
+
+[nodes.plugins]
+paths = [
+  "ui/src/features/plugins/**",
+  "crates/ether-model/src/plugins.rs",
+  "crates/ether-controller/src/plugins/**",
+  "crates/ether-native/src/plugins/**",
+]
+
+[nodes.warp]
+paths = [
+  "ui/src/features/warp/**",
+  "crates/ether-model/src/warp.rs",
+  "crates/ether-core/src/warp/**",
+  "crates/ether-controller/src/warp/**",
+]
+
+[nodes.recording]
+paths = [
+  "ui/src/features/recording/**",
+  "crates/ether-model/src/recording.rs",
+  "crates/ether-core/src/recording/**",
+  "crates/ether-controller/src/recording/**",
+  "crates/ether-native/src/recording/**",
+]
+
+[nodes.session]
+paths = [
+  "ui/src/features/session/**",
+  "crates/ether-model/src/session.rs",
+  "crates/ether-core/src/session/**",
+  "crates/ether-controller/src/session/**",
+]

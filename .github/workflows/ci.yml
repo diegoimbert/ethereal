@@ -1,0 +1,110 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: "0"
+  ETHER_AUDIO: "null"
+
+jobs:
+  ownership:
+    name: Ownership
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Check owned paths
+        run: python3 scripts/check-ownership.py --branch "${{ github.head_ref }}" --base "origin/${{ github.base_ref }}"
+
+  rust-macos:
+    name: Rust (macOS, full)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Toolchain (from rust-toolchain.toml)
+        run: rustup show active-toolchain || rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+      - name: fmt
+        run: cargo fmt --all --check
+      - name: clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: test
+        run: cargo test --workspace
+      - name: wasm32 check
+        run: cargo check --target wasm32-unknown-unknown -p ether-protocol -p ether-model -p ether-core -p ether-devices -p ether-media -p ether-controller -p ether-stretch -p ether-wasm
+
+  rust-check:
+    name: Rust check (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Linux system deps (Tauri, ALSA)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libasound2-dev libssl-dev pkg-config
+      - name: Toolchain (from rust-toolchain.toml)
+        run: rustup show active-toolchain || rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+      - name: cargo check
+        run: cargo check --workspace --all-targets
+
+  types-fresh:
+    name: Generated TS types fresh
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Toolchain (from rust-toolchain.toml)
+        run: rustup show active-toolchain || rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: gen-types
+      - name: Regenerate
+        run: cargo run -q -p ether-protocol --example gen-ts -- ui/src/generated
+      - name: Diff
+        run: |
+          if [ -n "$(git status --porcelain -- ui/src/generated)" ]; then
+            git status --porcelain -- ui/src/generated
+            git diff -- ui/src/generated | head -200
+            echo "::error::ui/src/generated is stale. Run 'just gen-types' and commit."
+            exit 1
+          fi
+
+  web:
+    name: TS (tsc, eslint, vitest, build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: tsc
+        run: pnpm -r typecheck
+      - name: eslint
+        run: pnpm -r lint
+      - name: vitest
+        run: pnpm -r test
+      - name: build ui + web
+        run: |
+          pnpm --filter @ethereal/ui build
+          pnpm --filter @ethereal/web build

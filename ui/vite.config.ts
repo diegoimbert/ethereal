@@ -2,6 +2,7 @@
 import { fileURLToPath, URL } from "node:url";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
+import { port as devPort } from "../scripts/dev-env.mjs";
 
 /**
  * Cross-origin isolation headers. Required for `SharedArrayBuffer` (web engine rings).
@@ -12,8 +13,9 @@ export const crossOriginIsolationHeaders = {
   "Cross-Origin-Embedder-Policy": "require-corp",
 };
 
-// Port is assigned per instance by the justfile via ETHER_DEV_PORT; 5173 only when unset.
-const port = process.env.ETHER_DEV_PORT ? Number(process.env.ETHER_DEV_PORT) : 5173;
+// Per-instance port (ETHER_DEV_PORT or derived from ETHER_INSTANCE); see scripts/dev-env.mjs.
+const port = devPort("dev");
+const previewPort = devPort("preview");
 
 export default defineConfig({
   plugins: [react()],
@@ -28,7 +30,7 @@ export default defineConfig({
     headers: crossOriginIsolationHeaders,
   },
   preview: {
-    port,
+    port: previewPort,
     strictPort: true,
     headers: crossOriginIsolationHeaders,
   },
