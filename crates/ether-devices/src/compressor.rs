@@ -201,6 +201,11 @@ impl Compressor {
                 self.release_coef
             };
             self.gr_db = target + (self.gr_db - target) * coef;
+            // Snap the decaying tail to 0 so it never goes subnormal (no FTZ on the
+            // audio thread).
+            if self.gr_db < 1e-6 {
+                self.gr_db = 0.0;
+            }
             let gain = util::db_to_amp(-self.gr_db) * self.makeup.tick();
             for (o, out) in audio.outputs.iter_mut().enumerate() {
                 out[i] = inputs.get(o).map_or(0.0, |ch| ch[i]) * gain;

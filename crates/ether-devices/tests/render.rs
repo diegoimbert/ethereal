@@ -511,6 +511,19 @@ fn compressor_reduces_loud_signals_by_ratio() {
 }
 
 #[test]
+fn compressor_gain_reduction_settles_to_exact_zero() {
+    let mut c = Compressor::new();
+    prepared(&mut c);
+    c.set_param(compressor::params::THRESHOLD, -30.0);
+    let frames = 20 * SR as usize;
+    let mut x = vec![0.0f32; frames];
+    x[..4800].fill(0.9);
+    render(&mut c, &[x.clone(), x], &[], frames, 120.0);
+    // Exactly 0, not a subnormal tail.
+    assert_eq!(c.gain_reduction(), 0.0);
+}
+
+#[test]
 fn compressor_attack_and_release_times() {
     let mut c = Compressor::new();
     prepared(&mut c);
