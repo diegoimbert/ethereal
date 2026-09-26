@@ -117,6 +117,6 @@ function Chain({ track }: { track: Track }) {
 /** Device chain of the selected track, with the generic param UI. */
 export function DeviceChainView() {
   const track = useSelectedTrack();
-  if (!track) return <div className="eth-devices eth-devices--empty">No project loaded</div>;
+  if (!track) return <div className="eth-devices eth-devices--empty" data-feature="devices">No project loaded</div>;
   return <Chain key={track.id} track={track} />;
 }

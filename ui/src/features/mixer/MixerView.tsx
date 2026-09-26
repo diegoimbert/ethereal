@@ -49,7 +49,7 @@ export function MixerView() {
       return next;
     });
 
-  if (!layout) return <div className="eth-mixer eth-mixer--empty">No project loaded</div>;
+  if (!layout) return <div className="eth-mixer eth-mixer--empty" data-feature="mixer">No project loaded</div>;
   return (
     <div className="eth-mixer" data-feature="mixer">
       <div className="eth-mixer__tracks">
