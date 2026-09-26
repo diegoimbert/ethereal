@@ -10,13 +10,24 @@ export interface VerticalDragOptions {
   sensitivity: number;
   /** Double-click resets to this value. */
   defaultValue?: number | undefined;
+  /** Called when a pointer drag starts. Open an undo gesture here. */
+  onChangeStart?: (() => void) | undefined;
+  /** Called when a pointer drag ends or is cancelled. Close the gesture here. */
+  onChangeEnd?: (() => void) | undefined;
 }
 
 /**
  * Pointer + keyboard handlers for a vertical 0..1 control (knobs, faders).
  * Drag up to increase; Shift = fine; arrows/PageUp/PageDown/Home/End on focus.
  */
-export function useVerticalDrag({ value, onChange, sensitivity, defaultValue }: VerticalDragOptions) {
+export function useVerticalDrag({
+  value,
+  onChange,
+  sensitivity,
+  defaultValue,
+  onChangeStart,
+  onChangeEnd,
+}: VerticalDragOptions) {
   const drag = useRef<{ startY: number; startValue: number } | null>(null);
 
   const onPointerDown = useCallback(
@@ -24,9 +35,10 @@ export function useVerticalDrag({ value, onChange, sensitivity, defaultValue }: 
       if (e.button !== 0) return;
       e.currentTarget.setPointerCapture(e.pointerId);
       drag.current = { startY: e.clientY, startValue: value };
+      if (onChange) onChangeStart?.();
       e.preventDefault();
     },
-    [value],
+    [value, onChange, onChangeStart],
   );
 
   const onPointerMove = useCallback(
@@ -40,10 +52,15 @@ export function useVerticalDrag({ value, onChange, sensitivity, defaultValue }: 
     [onChange, sensitivity, value],
   );
 
-  const onPointerUp = useCallback((e: PointerEvent<HTMLElement>) => {
-    drag.current = null;
-    if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
-  }, []);
+  const onPointerUp = useCallback(
+    (e: PointerEvent<HTMLElement>) => {
+      const wasDragging = drag.current !== null;
+      drag.current = null;
+      if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
+      if (wasDragging && onChange) onChangeEnd?.();
+    },
+    [onChange, onChangeEnd],
+  );
 
   const onDoubleClick = useCallback(() => {
     if (defaultValue !== undefined) onChange?.(clamp01(defaultValue));
