@@ -149,6 +149,11 @@ impl PluginHost {
     }
 
     /// Make every pending and future main-thread call fail immediately (shutdown).
+    ///
+    /// Retired controllers whose node returns after this point are only dropped if the
+    /// main loop still runs the queued `node_returned` work; if it has already exited
+    /// they are left behind with the thread-local registry (reclaimed at process exit,
+    /// without a CLAP `deactivate`). That is acceptable at quit.
     pub fn close(&self) {
         self.closing.store(true, Ordering::SeqCst);
     }
@@ -648,26 +653,43 @@ mod tests {
 
     #[test]
     fn calls_fail_fast_after_close() {
-        /// A main thread that never runs anything (e.g. blocked joining the host).
-        struct Stuck;
+        /// A main thread that never runs anything (e.g. blocked joining the host) but
+        /// keeps the queued closures alive, so a call really stays pending.
+        #[derive(Default)]
+        struct Stuck(std::sync::Mutex<Vec<Box<dyn FnOnce() + Send>>>);
         impl MainThread for Stuck {
-            fn spawn(&self, _f: Box<dyn FnOnce() + Send>) {}
+            fn spawn(&self, f: Box<dyn FnOnce() + Send>) {
+                self.0.lock().unwrap().push(f);
+            }
         }
-        let host = PluginHost::new(Arc::new(Stuck));
+        let stuck = Arc::new(Stuck::default());
+        let host = PluginHost::new(stuck.clone());
         let h2 = host.clone();
         let t = std::thread::spawn(move || {
-            let start = std::time::Instant::now();
             let r = h2.save_state(device(11));
-            (r, start.elapsed())
+            (r, std::time::Instant::now())
         });
-        std::thread::sleep(Duration::from_millis(100));
+        std::thread::sleep(Duration::from_millis(150));
+        // Still pending: the closure is queued, not run, not dropped.
+        assert!(!t.is_finished());
+        assert_eq!(stuck.0.lock().unwrap().len(), 1);
+        let closed_at = std::time::Instant::now();
         host.close();
-        let (r, elapsed) = t.join().unwrap();
-        assert!(matches!(r, Err(PluginError::Ipc(_))));
-        assert!(elapsed < Duration::from_secs(2), "{elapsed:?}");
+        let (r, returned_at) = t.join().unwrap();
+        match r {
+            Err(PluginError::Ipc(msg)) => assert_eq!(msg, "host is shutting down"),
+            other => panic!("{other:?}"),
+        }
+        let after_close = returned_at.duration_since(closed_at);
+        assert!(after_close < Duration::from_millis(500), "{after_close:?}");
+        // New calls fail immediately without queueing anything.
         let start = std::time::Instant::now();
-        assert!(host.save_state(device(11)).is_err());
+        match host.save_state(device(11)) {
+            Err(PluginError::Ipc(msg)) => assert_eq!(msg, "host is shutting down"),
+            other => panic!("{other:?}"),
+        }
         assert!(start.elapsed() < Duration::from_millis(50));
+        assert_eq!(stuck.0.lock().unwrap().len(), 1);
     }
 
     #[test]

@@ -186,6 +186,22 @@ describe("TauriTransport", () => {
     expect(accepted).toEqual([1, 2, 3]);
   });
 
+  it("keeps sending after an ether_send invoke is rejected", async () => {
+    let calls = 0;
+    const { t, host } = transport((m) => [ok(m.id, { type: "Project", project })]);
+    await t.connect();
+    const base = host.invoke;
+    const flaky: InvokeFn = (cmd, args) => {
+      if (cmd === "ether_send" && calls++ === 0) return Promise.reject(new Error("ipc down"));
+      return base(cmd, args);
+    };
+    (t as unknown as { invoke: InvokeFn }).invoke = flaky;
+    const first = t.send({ domain: "Transport", command: { type: "Play" } });
+    const second = t.send({ domain: "Transport", command: { type: "Stop" } });
+    await expect(first).rejects.toMatchObject({ code: "Internal" });
+    await expect(second).resolves.toEqual({ type: "Project", project });
+  });
+
   it("rejects with CommandFailedError on Err replies and on IPC failure", async () => {
     const { t } = transport((m) => {
       if ((m.command.command as { type: string }).type === "Get") return [ok(m.id, { type: "Project", project })];
