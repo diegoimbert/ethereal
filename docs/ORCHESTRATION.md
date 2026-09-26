@@ -6,7 +6,7 @@ Architecture decisions live in [ARCHITECTURE.md](./ARCHITECTURE.md).
 ## 1. Principles
 
 1. **Contracts first, then fan out.** The root PR freezes every cross-boundary interface (protocol, model types, core traits, `EngineTransport`, crate/folder skeletons). Everything after it implements instead of negotiating.
-2. **One node = one PR = one agent = one owned set of paths.** Ownership is disjoint within a wave and enforced by CI.
+2. **One node = one PR = one agent = one owned set of paths.** Ownership is disjoint within a wave and enforced by `just check-ownership`.
 3. **Separate crates/folders over shared files.** Anything that two nodes would both edit gets split, pre-created as a stub by the root, or routed through the manager.
 4. **Trunk-based.** Every node branches from `main` after all its dependencies are merged. No stacking on unmerged sibling branches (exception: manager-approved, recorded in the decision log). Whenever anything lands on `main`, in-flight nodes merge it in (§6.2).
 5. **Mocks unblock UI.** UI nodes build against `MockTransport` + generated types, so they never wait for the engine.
@@ -138,7 +138,7 @@ Deps: plugins, warp, recording, session. Full E2E suite, `assert_no_alloc` soak 
 | Workspace `Cargo.toml` members | Root lists all crates up front; nobody else edits members. |
 | New Rust deps | Root pre-populates `[workspace.dependencies]`; crates add `dep.workspace = true` in their **own** `Cargo.toml`. A dep missing from the workspace goes through a BCR (§6). |
 | `Cargo.lock`, `pnpm-lock.yaml` | Never hand-merged: when syncing with `main`, take `main`'s version and regenerate. |
-| Generated TS types | Committed, regenerated when syncing with `main`; CI checks freshness. |
+| Generated TS types | Committed, regenerated when syncing with `main`; the local gate checks freshness. |
 | Protocol enums | Split per domain file (`transport.rs`, `tracks.rs`, `clips.rs`, `devices.rs`, `session.rs`, `plugins.rs`, …). Changes only via BCR. |
 | App shell / feature registration | Root creates a slot per feature with a stub import; features only edit their own folder. |
 | `ui/package.json` | Root pre-installs anticipated deps; additions via BCR. |
@@ -150,7 +150,7 @@ Deps: plugins, warp, recording, session. Full E2E suite, `assert_no_alloc` soak 
 - **Manager** = a long-lived Claude Code session (the main session) running `/loop`. It owns the graph, merges, restructuring and the status artifact. It does not write product code.
 - **Workers** = background agents launched with `isolation: "worktree"`, one per ready node, branch `node/<id>`. Default concurrency cap: **6**, adjustable.
 - **Reviewer** = a short-lived agent per PR, spawned by the manager before merge. It checks acceptance criteria, contract adherence and RT-safety rules.
-- **GitHub** = the system of record for code (draft PR opened early, CI on every push).
+- **GitHub** = the system of record for code (draft PR opened early). **GitHub Actions CI is disabled for cost**: the gate is local (§7).
 - **`.orchestra/`** = the coordination bus. It lives in the main checkout (absolute path, gitignored), so all worktrees share it.
 
 The manager is a judgment-driven loop rather than a fixed workflow script, because the graph must be restructured at runtime.
@@ -189,7 +189,7 @@ Used when a node needs a change outside its owned paths that affects the shared 
 2. The manager triages it:
    - *Trivial and additive* (new variant, field with a default, new workspace dep): accept directly and batch it with other pending BCRs.
    - *Non-trivial or breaking*: the manager **consults the affected in-flight workers** via their inbox or `SendMessage` ("BCR-7 proposes X; impact on your node? objections? better alternative?"). It waits at most one tick for answers, then decides. The cost model (§8) applies when in-flight work would be invalidated.
-3. The manager implements the change itself in a short-lived `base/<n>` branch/PR. It's usually small and touches only base files. It merges that PR once CI passes. Human approval is only needed if it changes a decision in ARCHITECTURE.md, and then ARCHITECTURE.md is updated in the same PR.
+3. The manager implements the change itself in a short-lived `base/<n>` branch/PR. It's usually small and touches only base files. It merges that PR once the local gate passes. Human approval is only needed if it changes a decision in ARCHITECTURE.md, and then ARCHITECTURE.md is updated in the same PR.
 4. The manager sends `sync` to all in-flight nodes, with a note on what changed and what they must adapt.
 
 A foundational fix landed early is always preferred over N nodes building on a wrong assumption. The manager may also start a BCR itself when it notices a pattern across nodes, for example two workers asking the same question.
@@ -200,7 +200,7 @@ A foundational fix landed early is always preferred over N nodes building on a w
 
 1. Merge `origin/main` into its branch. Use merge rather than rebase, so there's no force-push; the final PR is squash-merged anyway.
 2. Regenerate lockfiles and generated types instead of hand-merging them.
-3. Adapt its code to the change, get CI green again, and note the sync in `status.json`.
+3. Adapt its code to the change, get the local checks green again, and note the sync in `status.json`.
 
 Timing depends on what landed. If the `sync` is marked `urgent` (a BCR touching the node's contracts), the worker syncs immediately. Otherwise it syncs at its next commit. Workers also check `main` themselves before marking a PR ready.
 
@@ -209,7 +209,7 @@ Timing depends on what landed. If the `sync` is marked `urgent` (a BCR touching 
 `queued → ready (deps merged) → running → blocked → in-review → changes-requested → merged` (also `cancelled`, `superseded`)
 
 Merge gate:
-- CI green
+- **Local gate green, run by the worker and re-run by the manager** on the branch merged with current `main`: `just check-all`, `just test-all`, `just check-ownership`, and `just gen-types` producing no diff. GitHub Actions CI is disabled for cost (`.github/workflows/ci.yml` is kept; re-enable with `gh workflow enable ci.yml`).
 - ownership check passes
 - reviewer agent approves
 - up to date with current `main` (merged in, conflicts resolved)
@@ -223,7 +223,7 @@ Human approval is required at **`foundation`**, **`alpha`** and **`v0.1`**. Ever
 - A node is blocked for more than one manager tick with no path forward.
 - A breaking BCR.
 - A node's estimated size grows more than 2× (from `discovery`).
-- The same CI failure repeats 3 times.
+- The same check failure repeats 3 times.
 - Two nodes are discovered to be building the same thing.
 - A dependency turns out to be unnecessary, which lets work start earlier.
 
