@@ -17,10 +17,10 @@ mod notes;
 mod tracks;
 
 use ether_core::protocol::Command;
+use ether_core::protocol::ReplyValue;
 use ether_core::protocol::devices::DeviceDescriptor;
 use ether_core::protocol::model::*;
 use ether_core::protocol::project::{EditCommand, ProjectCommand};
-use ether_core::protocol::ReplyValue;
 
 use crate::tx::{CmdResult, Tx, invalid, not_found, unsupported};
 
@@ -248,7 +248,12 @@ impl DocCtx<'_, '_> {
     // ─── Deep copies ────────────────────────────────────────────────────────────────────
 
     /// Copy a clip with its notes, warp markers and clip envelopes (new child ids).
-    pub fn copy_clip(&mut self, src: &Clip, new_id: ClipId, edit: impl FnOnce(&mut Clip)) -> CmdResult<()> {
+    pub fn copy_clip(
+        &mut self,
+        src: &Clip,
+        new_id: ClipId,
+        edit: impl FnOnce(&mut Clip),
+    ) -> CmdResult<()> {
         let mut copy = src.clone();
         copy.id = new_id;
         edit(&mut copy);
@@ -259,7 +264,12 @@ impl DocCtx<'_, '_> {
             n.clip = new_id;
             self.tx.insert(Entity::Note(n))?;
         }
-        let markers: Vec<WarpMarker> = self.p().warp_markers_of(src.id).into_iter().cloned().collect();
+        let markers: Vec<WarpMarker> = self
+            .p()
+            .warp_markers_of(src.id)
+            .into_iter()
+            .cloned()
+            .collect();
         for mut m in markers {
             m.id = self.new_id();
             m.clip = new_id;
@@ -309,7 +319,10 @@ pub(crate) fn order_before<I: PartialEq + Copy + std::fmt::Display>(
                 .iter()
                 .position(|s| s.1 == b)
                 .ok_or_else(|| invalid(format!("{b} is not a sibling")))?;
-            (i.checked_sub(1).map(|j| &siblings[j].0), Some(&siblings[i].0))
+            (
+                i.checked_sub(1).map(|j| &siblings[j].0),
+                Some(&siblings[i].0),
+            )
         }
     };
     OrderKey::try_between(lo, hi).map_err(invalid)
@@ -330,10 +343,10 @@ pub(crate) fn order_after<I: PartialEq + Copy>(
 
 /// `true` if `command` edits the document (undoable, allowed inside a `Batch`).
 pub(crate) fn is_document_command(command: &Command, current: Option<ProjectId>) -> bool {
+    use ether_core::protocol::devices::DeviceCommand as D;
     use ether_core::protocol::recording::RecordingCommand as R;
     use ether_core::protocol::transport::TransportCommand as T;
     use ether_core::protocol::warp::WarpCommand as W;
-    use ether_core::protocol::devices::DeviceCommand as D;
     match command {
         Command::Track(_)
         | Command::Clip(_)

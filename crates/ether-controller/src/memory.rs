@@ -14,18 +14,25 @@ use crate::store::{Library, ProjectStore, StoreError, check_relative_path, file_
 
 /// List the direct children of `dir` among `files` (paths relative to the same root).
 fn list(files: &BTreeMap<String, Vec<u8>>, dir: &str) -> Vec<DirectoryEntry> {
-    let prefix = if dir.is_empty() { String::new() } else { format!("{dir}/") };
+    let prefix = if dir.is_empty() {
+        String::new()
+    } else {
+        format!("{dir}/")
+    };
     let mut out: BTreeMap<String, DirectoryEntry> = BTreeMap::new();
     for (path, bytes) in files {
-        let Some(rest) = path.strip_prefix(&prefix) else { continue };
+        let Some(rest) = path.strip_prefix(&prefix) else {
+            continue;
+        };
         match rest.split_once('/') {
             Some((sub, _)) => {
-                out.entry(sub.to_string()).or_insert_with(|| DirectoryEntry {
-                    name: sub.to_string(),
-                    path: format!("{prefix}{sub}"),
-                    kind: FileKind::Directory,
-                    size: 0.0,
-                });
+                out.entry(sub.to_string())
+                    .or_insert_with(|| DirectoryEntry {
+                        name: sub.to_string(),
+                        path: format!("{prefix}{sub}"),
+                        kind: FileKind::Directory,
+                        size: 0.0,
+                    });
             }
             None if !rest.is_empty() => {
                 out.insert(
@@ -77,7 +84,11 @@ impl MemoryStore {
 
     /// Raw file access (tests).
     pub fn file(&self, id: ProjectId, rel_path: &str) -> Option<&[u8]> {
-        self.projects.get(&id)?.files.get(rel_path).map(Vec::as_slice)
+        self.projects
+            .get(&id)?
+            .files
+            .get(rel_path)
+            .map(Vec::as_slice)
     }
 
     pub fn contains(&self, id: ProjectId) -> bool {
@@ -107,7 +118,11 @@ impl ProjectStore for MemoryStore {
             .filter(|(_, p)| p.files.contains_key(PROJECT_FILE))
             .map(|(id, p)| Self::summary(*id, p))
             .collect();
-        v.sort_by(|a, b| b.modified_ms.total_cmp(&a.modified_ms).then(b.id.0.cmp(&a.id.0)));
+        v.sort_by(|a, b| {
+            b.modified_ms
+                .total_cmp(&a.modified_ms)
+                .then(b.id.0.cmp(&a.id.0))
+        });
         Ok(v)
     }
 
@@ -138,7 +153,8 @@ impl ProjectStore for MemoryStore {
     fn save(&mut self, id: ProjectId, ether_json: &str) -> Result<ProjectSummary, StoreError> {
         let now = self.now_ms;
         let p = self.project(id)?;
-        p.files.insert(PROJECT_FILE.into(), ether_json.as_bytes().to_vec());
+        p.files
+            .insert(PROJECT_FILE.into(), ether_json.as_bytes().to_vec());
         p.modified_ms = now;
         Ok(Self::summary(id, p))
     }
@@ -148,7 +164,8 @@ impl ProjectStore for MemoryStore {
             return Err(StoreError::AlreadyExists(to.to_string()));
         }
         let mut copy = self.project(from)?.clone();
-        copy.files.retain(|path, _| !path.starts_with(&format!("{CACHE_DIR}/")));
+        copy.files
+            .retain(|path, _| !path.starts_with(&format!("{CACHE_DIR}/")));
         copy.modified_ms = self.now_ms;
         self.projects.insert(to, copy);
         Ok(())
@@ -175,7 +192,9 @@ impl ProjectStore for MemoryStore {
         if rel_path.is_empty() {
             return Err(StoreError::InvalidPath(rel_path.into()));
         }
-        self.project(id)?.files.insert(rel_path.to_string(), bytes.to_vec());
+        self.project(id)?
+            .files
+            .insert(rel_path.to_string(), bytes.to_vec());
         Ok(())
     }
 
@@ -211,7 +230,11 @@ impl MemoryLibrary {
     /// Add a file under root `id` (created if needed).
     pub fn add_file(&mut self, id: &str, path: &str, bytes: Vec<u8>) {
         self.add_root(id, id);
-        self.roots.get_mut(id).expect("added").1.insert(path.to_string(), bytes);
+        self.roots
+            .get_mut(id)
+            .expect("added")
+            .1
+            .insert(path.to_string(), bytes);
     }
 }
 
@@ -233,7 +256,9 @@ impl Library for MemoryLibrary {
             .get(root)
             .ok_or_else(|| StoreError::NotFound(root.to_string()))?;
         Ok(DirectoryListing {
-            location: BrowseLocation::Library { id: root.to_string() },
+            location: BrowseLocation::Library {
+                id: root.to_string(),
+            },
             path: rel_path.to_string(),
             entries: list(files, rel_path),
         })

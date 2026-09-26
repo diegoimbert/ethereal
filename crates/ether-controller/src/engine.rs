@@ -114,10 +114,15 @@ impl EngineState {
         }
     }
 
-    fn create<B: EngineBridge>(bridge: &mut B, device: &Device, live_state: Option<Base64Bytes>) -> Result<NodeKey, BridgeError> {
+    fn create<B: EngineBridge>(
+        bridge: &mut B,
+        device: &Device,
+        live_state: Option<Base64Bytes>,
+    ) -> Result<NodeKey, BridgeError> {
         match &device.kind {
             DeviceKind::Builtin { device: kind } => {
-                let params: Vec<(ParamId, f64)> = device.params.iter().map(|(k, v)| (*k, *v)).collect();
+                let params: Vec<(ParamId, f64)> =
+                    device.params.iter().map(|(k, v)| (*k, *v)).collect();
                 bridge.create_builtin(device.id, kind, &params)
             }
             DeviceKind::Plugin { plugin } => {
@@ -129,12 +134,21 @@ impl EngineState {
 
     /// Create/re-create/forget nodes so they match the document's devices. Returns error
     /// messages for devices that could not be instantiated.
-    pub fn sync_nodes<B: EngineBridge>(&mut self, bridge: &mut B, project: Option<&Project>) -> Vec<String> {
+    pub fn sync_nodes<B: EngineBridge>(
+        &mut self,
+        bridge: &mut B,
+        project: Option<&Project>,
+    ) -> Vec<String> {
         let mut errors = Vec::new();
         let empty = BTreeMap::new();
         let devices = project.map_or(&empty, |p| &p.devices);
         // Forget nodes of devices that are gone.
-        let gone: Vec<DeviceId> = self.nodes.keys().filter(|d| !devices.contains_key(d)).copied().collect();
+        let gone: Vec<DeviceId> = self
+            .nodes
+            .keys()
+            .filter(|d| !devices.contains_key(d))
+            .copied()
+            .collect();
         for d in gone {
             if let Some(n) = self.nodes.remove(&d) {
                 self.pending_destroy.push(n.key);
@@ -226,7 +240,10 @@ impl EngineState {
             Err(e) => {
                 // Keep the graph dirty only for transient failures (retried next tick).
                 self.graph_dirty = matches!(e, BridgeError::QueueFull);
-                problems.push((NotificationLevel::Error, format!("engine rejected the graph: {e}")));
+                problems.push((
+                    NotificationLevel::Error,
+                    format!("engine rejected the graph: {e}"),
+                ));
             }
         }
         problems
@@ -234,7 +251,12 @@ impl EngineState {
 
     /// Engine effects of applied ops: continuous controls go to the param queue, anything
     /// else marks the graph dirty.
-    pub fn apply_effects<B: EngineBridge>(&mut self, bridge: &mut B, project: &Project, applied: &[Op]) {
+    pub fn apply_effects<B: EngineBridge>(
+        &mut self,
+        bridge: &mut B,
+        project: &Project,
+        applied: &[Op],
+    ) {
         for op in applied {
             let change = match op {
                 Op::Update {
@@ -276,12 +298,19 @@ impl EngineState {
                         continue;
                     };
                     let value = d.params.get(param).copied().or_else(|| {
-                        self.descriptor(d)
-                            .and_then(|desc| desc.params.iter().find(|p| p.id == *param).map(|p| p.default))
+                        self.descriptor(d).and_then(|desc| {
+                            desc.params
+                                .iter()
+                                .find(|p| p.id == *param)
+                                .map(|p| p.default)
+                        })
                     });
                     match (self.node(*id), value) {
                         (Some(node), Some(value)) => Some(ParamChange {
-                            target: ParamTarget::Node { node, param: *param },
+                            target: ParamTarget::Node {
+                                node,
+                                param: *param,
+                            },
                             value,
                         }),
                         _ => continue,
@@ -330,13 +359,22 @@ impl<B: EngineBridge> DocHost for EngineCtx<'_, B> {
         self.bridge.plugin_state(device).ok().flatten()
     }
 
-    fn instantiate_plugin(&mut self, device: DeviceId, plugin: &PluginInstance) -> CmdResult<Option<DeviceDescriptor>> {
-        let key = self.bridge.create_plugin(device, plugin, None).map_err(bridge_err)?;
+    fn instantiate_plugin(
+        &mut self,
+        device: DeviceId,
+        plugin: &PluginInstance,
+    ) -> CmdResult<Option<DeviceDescriptor>> {
+        let key = self
+            .bridge
+            .create_plugin(device, plugin, None)
+            .map_err(bridge_err)?;
         if let Some(old) = self.eng.nodes.insert(
             device,
             NodeEntry {
                 key,
-                sig: sig_of(&DeviceKind::Plugin { plugin: plugin.clone() }),
+                sig: sig_of(&DeviceKind::Plugin {
+                    plugin: plugin.clone(),
+                }),
             },
         ) {
             self.eng.pending_destroy.push(old.key);

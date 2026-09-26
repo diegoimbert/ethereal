@@ -16,8 +16,8 @@
 //!   the source arrives).
 
 use ether_core::graph::{
-    AutomationDesc, ChainEntry, ClipContentDesc, ClipDesc, NoteDesc, ParamMapping,
-    ResolvedTarget, SendDesc, TrackDesc, WarpDesc,
+    AutomationDesc, ChainEntry, ClipContentDesc, ClipDesc, NoteDesc, ParamMapping, ResolvedTarget,
+    SendDesc, TrackDesc, WarpDesc,
 };
 use ether_core::protocol::devices::{DeviceDescriptor, ParamInfo, ParamScale, ParamUnit};
 use ether_core::protocol::model::*;
@@ -58,8 +58,15 @@ pub const PAN_MAPPING: ParamMapping = ParamMapping {
 /// (mixer faders, automation lanes) uses the same mapping.
 pub fn track_param_info(target: &AutomationTarget) -> Option<ParamInfo> {
     let (name, unit, m, default) = match target {
-        AutomationTarget::TrackVolume { .. } => ("Volume", ParamUnit::Decibels, TRACK_VOLUME_MAPPING, 0.0),
-        AutomationTarget::SendLevel { .. } => ("Send", ParamUnit::Decibels, SEND_LEVEL_MAPPING, SILENCE_DB as f64),
+        AutomationTarget::TrackVolume { .. } => {
+            ("Volume", ParamUnit::Decibels, TRACK_VOLUME_MAPPING, 0.0)
+        }
+        AutomationTarget::SendLevel { .. } => (
+            "Send",
+            ParamUnit::Decibels,
+            SEND_LEVEL_MAPPING,
+            SILENCE_DB as f64,
+        ),
         AutomationTarget::TrackPan { .. } => ("Pan", ParamUnit::Pan, PAN_MAPPING, 0.0),
         AutomationTarget::DeviceParam { .. } => return None,
     };
@@ -156,11 +163,15 @@ fn resolve_target(
     target: &AutomationTarget,
 ) -> Option<(TrackId, ResolvedTarget, ParamMapping)> {
     match *target {
-        AutomationTarget::TrackVolume { track } => {
-            p.tracks.contains_key(&track).then_some((track, ResolvedTarget::TrackVolume, TRACK_VOLUME_MAPPING))
-        }
+        AutomationTarget::TrackVolume { track } => p.tracks.contains_key(&track).then_some((
+            track,
+            ResolvedTarget::TrackVolume,
+            TRACK_VOLUME_MAPPING,
+        )),
         AutomationTarget::TrackPan { track } => {
-            p.tracks.contains_key(&track).then_some((track, ResolvedTarget::TrackPan, PAN_MAPPING))
+            p.tracks
+                .contains_key(&track)
+                .then_some((track, ResolvedTarget::TrackPan, PAN_MAPPING))
         }
         AutomationTarget::SendLevel { send } => {
             let s = p.sends.get(&send)?;
@@ -194,7 +205,10 @@ fn warp_desc(p: &Project, clip: &Clip, audio: &AudioContent) -> Option<WarpDesc>
     markers.dedup_by(|b, a| Beats(a.0).approx_eq(Beats(b.0)));
     if markers.len() < 2 {
         // Derive the missing slope from the source tempo.
-        let bpm = audio.warp.source_bpm.filter(|b| b.is_finite() && *b > 0.0)?;
+        let bpm = audio
+            .warp
+            .source_bpm
+            .filter(|b| b.is_finite() && *b > 0.0)?;
         let (b0, s0) = markers.first().copied().unwrap_or((0.0, 0.0));
         markers = vec![(b0, s0), (b0 + 1.0, s0 + 60.0 / bpm)];
     }
@@ -232,7 +246,9 @@ fn clip_desc(p: &Project, ctx: &CompileContext, clip: &Clip, start: Beats) -> Cl
     let envelopes = p
         .automation_lanes
         .values()
-        .filter(|l| l.enabled && matches!(l.owner, AutomationOwner::Clip { clip: c } if c == clip.id))
+        .filter(|l| {
+            l.enabled && matches!(l.owner, AutomationOwner::Clip { clip: c } if c == clip.id)
+        })
         .filter_map(|l| {
             let (track, resolved, mapping) = resolve_target(p, ctx, &l.target)?;
             let points = lane_points(p, l.id);

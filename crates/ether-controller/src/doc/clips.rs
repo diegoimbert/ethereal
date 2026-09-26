@@ -107,7 +107,14 @@ fn resolve_overlaps(ctx: &mut DocCtx, keep: ClipId, ignore: &BTreeSet<ClipId>) -
     Ok(())
 }
 
-fn new_clip(id: ClipId, track: TrackId, start: Beats, length: Beats, name: String, content: ClipContent) -> Clip {
+fn new_clip(
+    id: ClipId,
+    track: TrackId,
+    start: Beats,
+    length: Beats,
+    name: String,
+    content: ClipContent,
+) -> Clip {
     Clip {
         id,
         track,
@@ -149,7 +156,14 @@ pub(super) fn apply(ctx: &mut DocCtx, c: &ClipCommand) -> CmdResult<()> {
             check_fits(&t, &ClipContent::Midi)?;
             let start = check_start(*start)?;
             check_length(*length)?;
-            let clip = new_clip(*id, t.id, start, *length, name.clone().unwrap_or_default(), ClipContent::Midi);
+            let clip = new_clip(
+                *id,
+                t.id,
+                start,
+                *length,
+                name.clone().unwrap_or_default(),
+                ClipContent::Midi,
+            );
             ctx.tx.insert(Entity::Clip(clip))?;
             resolve_overlaps(ctx, *id, &BTreeSet::new())
         }
@@ -252,11 +266,7 @@ pub(super) fn apply(ctx: &mut DocCtx, c: &ClipCommand) -> CmdResult<()> {
             })?;
             ctx.set_clip(cl.id, ClipChange::Length(Beats(at.0 - s)))
         }
-        ClipCommand::Duplicate {
-            id,
-            new_id,
-            start,
-        } => {
+        ClipCommand::Duplicate { id, new_id, start } => {
             if ctx.p().clips.contains_key(new_id) {
                 return Ok(());
             }
@@ -295,7 +305,10 @@ pub(super) fn apply(ctx: &mut DocCtx, c: &ClipCommand) -> CmdResult<()> {
             if !gain.0.is_finite() {
                 return Err(invalid("gain must be finite"));
             }
-            ctx.set_clip(*id, ClipChange::Gain(Decibels(gain.0.clamp(MIN_GAIN_DB, MAX_GAIN_DB))))
+            ctx.set_clip(
+                *id,
+                ClipChange::Gain(Decibels(gain.0.clamp(MIN_GAIN_DB, MAX_GAIN_DB))),
+            )
         }
         ClipCommand::SetTranspose { id, semitones } => {
             audio(&ctx.clip(*id)?)?;

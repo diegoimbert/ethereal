@@ -96,9 +96,9 @@ pub(crate) fn recording(ctx: &mut DocCtx, c: &RecordingCommand) -> CmdResult<()>
             }
             ctx.set_track(*track, TrackChange::Input(input.clone()))
         }
-        RecordingCommand::SetCountIn { bars } => {
-            ctx.tx.settings(SettingsChange::CountInBars((*bars).min(16)))
-        }
+        RecordingCommand::SetCountIn { bars } => ctx
+            .tx
+            .settings(SettingsChange::CountInBars((*bars).min(16))),
         _ => Err(unsupported("not a document command")),
     }
 }

@@ -39,7 +39,11 @@ fn default_input(kind: TrackKind) -> TrackInput {
 }
 
 /// Sorted `(order, id)` of the children of `parent` (`None` = top level), minus `except`.
-pub(crate) fn siblings(p: &Project, parent: Option<TrackId>, except: Option<TrackId>) -> Vec<(OrderKey, TrackId)> {
+pub(crate) fn siblings(
+    p: &Project,
+    parent: Option<TrackId>,
+    except: Option<TrackId>,
+) -> Vec<(OrderKey, TrackId)> {
     let tracks = match parent {
         None => p.tracks_ordered(),
         Some(g) => p.child_tracks(g),
@@ -53,18 +57,31 @@ pub(crate) fn siblings(p: &Project, parent: Option<TrackId>, except: Option<Trac
 
 /// Ableton layout for `before: None` at the top level: regular tracks go before the first
 /// return/master track, returns before master.
-fn default_before(p: &Project, kind: TrackKind, parent: Option<TrackId>, except: Option<TrackId>) -> Option<TrackId> {
+fn default_before(
+    p: &Project,
+    kind: TrackKind,
+    parent: Option<TrackId>,
+    except: Option<TrackId>,
+) -> Option<TrackId> {
     if parent.is_some() || kind == TrackKind::Master {
         return None;
     }
     p.tracks_ordered()
         .into_iter()
         .filter(|t| Some(t.id) != except)
-        .find(|t| t.kind == TrackKind::Master || (kind != TrackKind::Return && t.kind == TrackKind::Return))
+        .find(|t| {
+            t.kind == TrackKind::Master
+                || (kind != TrackKind::Return && t.kind == TrackKind::Return)
+        })
         .map(|t| t.id)
 }
 
-fn validate_parent(ctx: &DocCtx, kind: TrackKind, parent: Option<TrackId>, this: Option<TrackId>) -> CmdResult<()> {
+fn validate_parent(
+    ctx: &DocCtx,
+    kind: TrackKind,
+    parent: Option<TrackId>,
+    this: Option<TrackId>,
+) -> CmdResult<()> {
     let Some(parent) = parent else { return Ok(()) };
     if matches!(kind, TrackKind::Return | TrackKind::Master) {
         return Err(invalid(format!("{kind:?} tracks must be top-level")));
@@ -182,7 +199,13 @@ pub(super) fn apply(ctx: &mut DocCtx, c: &TrackCommand) -> CmdResult<()> {
 
 /// Deep copy of a track: devices, sends, clips (with notes/markers/envelopes), its
 /// automation lanes (retargeted to the copies) and, for groups, all children.
-fn duplicate(ctx: &mut DocCtx, t: &Track, new_id: TrackId, order: OrderKey, parent: Option<TrackId>) -> CmdResult<()> {
+fn duplicate(
+    ctx: &mut DocCtx,
+    t: &Track,
+    new_id: TrackId,
+    order: OrderKey,
+    parent: Option<TrackId>,
+) -> CmdResult<()> {
     let mut copy = t.clone();
     copy.id = new_id;
     copy.order = order;
@@ -204,7 +227,13 @@ fn duplicate(ctx: &mut DocCtx, t: &Track, new_id: TrackId, order: OrderKey, pare
         ctx.tx.insert(Entity::Device(nd))?;
     }
     let mut send_ids = BTreeMap::new();
-    let sends: Vec<TrackSend> = ctx.p().sends.values().filter(|s| s.from == t.id).cloned().collect();
+    let sends: Vec<TrackSend> = ctx
+        .p()
+        .sends
+        .values()
+        .filter(|s| s.from == t.id)
+        .cloned()
+        .collect();
     for s in sends {
         let mut ns = s.clone();
         ns.id = ctx.new_id();
@@ -212,7 +241,13 @@ fn duplicate(ctx: &mut DocCtx, t: &Track, new_id: TrackId, order: OrderKey, pare
         send_ids.insert(s.id, ns.id);
         ctx.tx.insert(Entity::Send(ns))?;
     }
-    let clips: Vec<Clip> = ctx.p().clips.values().filter(|c| c.track == t.id).cloned().collect();
+    let clips: Vec<Clip> = ctx
+        .p()
+        .clips
+        .values()
+        .filter(|c| c.track == t.id)
+        .cloned()
+        .collect();
     for c in clips {
         let id = ctx.new_id();
         ctx.copy_clip(&c, id, |c| c.track = new_id)?;
@@ -243,7 +278,9 @@ fn duplicate(ctx: &mut DocCtx, t: &Track, new_id: TrackId, order: OrderKey, pare
         .cloned()
         .collect();
     for l in lanes {
-        let Some(target) = remap(l.target) else { continue };
+        let Some(target) = remap(l.target) else {
+            continue;
+        };
         let lane = AutomationLane {
             id: ctx.new_id(),
             owner: AutomationOwner::Track { track: new_id },

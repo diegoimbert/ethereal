@@ -41,7 +41,10 @@ pub(crate) struct IncrementalDecoder {
 
 impl IncrementalDecoder {
     pub fn new(bytes: Arc<[u8]>, extension: Option<&str>) -> Result<Self, MediaError> {
-        let mss = MediaSourceStream::new(Box::new(Cursor::new(bytes)), MediaSourceStreamOptions::default());
+        let mss = MediaSourceStream::new(
+            Box::new(Cursor::new(bytes)),
+            MediaSourceStreamOptions::default(),
+        );
         let mut hint = Hint::new();
         if let Some(ext) = extension {
             let ext = ext.trim_start_matches('.').to_ascii_lowercase();
@@ -60,7 +63,12 @@ impl IncrementalDecoder {
         let track = format
             .default_track()
             .filter(|t| t.codec_params.codec != CODEC_TYPE_NULL)
-            .or_else(|| format.tracks().iter().find(|t| t.codec_params.codec != CODEC_TYPE_NULL))
+            .or_else(|| {
+                format
+                    .tracks()
+                    .iter()
+                    .find(|t| t.codec_params.codec != CODEC_TYPE_NULL)
+            })
             .ok_or_else(|| MediaError::Unsupported("no audio track".into()))?;
         let track_id = track.id;
         let sample_rate = track.codec_params.sample_rate.unwrap_or(0);
@@ -198,8 +206,58 @@ pub(crate) fn is_chained_ogg(bytes: &[u8]) -> bool {
         if i + 27 + segments > bytes.len() {
             break;
         }
-        let body: usize = bytes[i + 27..i + 27 + segments].iter().map(|&b| b as usize).sum();
+        let body: usize = bytes[i + 27..i + 27 + segments]
+            .iter()
+            .map(|&b| b as usize)
+            .sum();
         i += 27 + segments + body;
     }
     false
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn page(header_type: u8, serial: u32, body: &[u8]) -> Vec<u8> {
+        let mut p = b"OggS".to_vec();
+        p.push(0); // version
+        p.push(header_type);
+        p.extend_from_slice(&0u64.to_le_bytes()); // granule
+        p.extend_from_slice(&serial.to_le_bytes());
+        p.extend_from_slice(&0u32.to_le_bytes()); // sequence
+        p.extend_from_slice(&0u32.to_le_bytes()); // crc (not checked)
+        p.push(1);
+        p.push(body.len() as u8);
+        p.extend_from_slice(body);
+        p
+    }
+
+    #[test]
+    fn detects_chained_ogg() {
+        let single = [
+            page(0x02, 1, b"head"),
+            page(0, 1, b"data"),
+            page(0x04, 1, b"end"),
+        ]
+        .concat();
+        assert!(!is_chained_ogg(&single));
+        let chained = [
+            single.clone(),
+            page(0x02, 2, b"head"),
+            page(0x04, 2, b"end"),
+        ]
+        .concat();
+        assert!(is_chained_ogg(&chained));
+        // Multiplexed streams (several BOS pages up front) are not chained.
+        let muxed = [
+            page(0x02, 1, b"a"),
+            page(0x02, 2, b"b"),
+            page(0x04, 1, b"c"),
+            page(0x04, 2, b"d"),
+        ]
+        .concat();
+        assert!(!is_chained_ogg(&muxed));
+        assert!(!is_chained_ogg(b"RIFF....WAVE"));
+    }
 }

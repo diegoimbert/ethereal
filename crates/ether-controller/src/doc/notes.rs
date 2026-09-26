@@ -28,7 +28,12 @@ fn check_pitch(p: u8) -> CmdResult<()> {
 }
 
 fn check_beats(what: &str, b: Beats, strictly_positive: bool) -> CmdResult<()> {
-    let ok = b.0.is_finite() && if strictly_positive { b.0 > 0.0 } else { b.0 >= 0.0 };
+    let ok = b.0.is_finite()
+        && if strictly_positive {
+            b.0 > 0.0
+        } else {
+            b.0 >= 0.0
+        };
     if !ok {
         return Err(invalid(format!("invalid note {what} {}", b.0)));
     }

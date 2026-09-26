@@ -262,7 +262,13 @@ where
         Self::with_config(bridge, host, store, library, ControllerConfig::default())
     }
 
-    pub fn with_config(bridge: B, mut host: H, store: S, library: L, config: ControllerConfig) -> Self {
+    pub fn with_config(
+        bridge: B,
+        mut host: H,
+        store: S,
+        library: L,
+        config: ControllerConfig,
+    ) -> Self {
         let seed = host.random_seed();
         Self {
             bridge,

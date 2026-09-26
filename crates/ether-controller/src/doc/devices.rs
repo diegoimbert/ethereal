@@ -76,7 +76,13 @@ pub(super) fn apply(ctx: &mut DocCtx, c: &DeviceCommand) -> CmdResult<()> {
                     check_fits(&t, Some(desc.category))?;
                     let params: BTreeMap<ParamId, f64> =
                         desc.params.iter().map(|p| (p.id, p.default)).collect();
-                    (DeviceKind::Builtin { device: device.clone() }, desc.name, params)
+                    (
+                        DeviceKind::Builtin {
+                            device: device.clone(),
+                        },
+                        desc.name,
+                        params,
+                    )
                 }
                 DeviceSpec::Plugin {
                     plugin_id,
@@ -180,10 +186,12 @@ pub(super) fn apply(ctx: &mut DocCtx, c: &DeviceCommand) -> CmdResult<()> {
         DeviceCommand::ResetParam { device, param } => {
             let d = ctx.device(*device)?;
             // Reset = store the default explicitly (built-ins) or drop the mirror entry.
-            let default = ctx
-                .host
-                .descriptor(d.id, &d.kind)
-                .and_then(|desc| desc.params.iter().find(|p| p.id == *param).map(|p| p.default));
+            let default = ctx.host.descriptor(d.id, &d.kind).and_then(|desc| {
+                desc.params
+                    .iter()
+                    .find(|p| p.id == *param)
+                    .map(|p| p.default)
+            });
             if matches!(d.kind, DeviceKind::Builtin { .. }) && default.is_none() {
                 return Err(not_found(format!("param {}", param.0)));
             }

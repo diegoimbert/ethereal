@@ -88,7 +88,12 @@ pub(super) fn apply(ctx: &mut DocCtx, c: &MixerCommand) -> CmdResult<()> {
                 return Err(invalid("invalid send source"));
             }
             // A second send on the same route (double-sent keystroke): no-op.
-            if ctx.p().sends.values().any(|s| s.from == f.id && s.to == t.id) {
+            if ctx
+                .p()
+                .sends
+                .values()
+                .any(|s| s.from == f.id && s.to == t.id)
+            {
                 return Ok(());
             }
             ctx.tx.insert(Entity::Send(TrackSend {

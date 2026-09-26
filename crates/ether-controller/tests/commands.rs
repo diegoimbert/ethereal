@@ -4,13 +4,13 @@
 mod common;
 
 use common::*;
+use ether_core::protocol::automation::{AutomationCommand, PointSpec};
 use ether_core::protocol::clips::{ClipCommand, ClipMove};
 use ether_core::protocol::devices::{DeviceCommand, DeviceSpec};
 use ether_core::protocol::mixer::MixerCommand;
 use ether_core::protocol::model::*;
 use ether_core::protocol::notes::{NoteCommand, NoteSpec};
 use ether_core::protocol::project::{EditCommand, ProjectEvent};
-use ether_core::protocol::automation::{AutomationCommand, PointSpec};
 use ether_core::protocol::tracks::TrackCommand;
 use ether_core::protocol::transport::TransportCommand;
 use ether_core::protocol::*;
@@ -60,11 +60,16 @@ fn patch_then_reply_and_monotonic_revisions() {
     }));
     let p1 = patches(&out);
     assert_eq!(p1.len(), 1);
-    assert!(matches!(&p1[0].changes[0], PatchChange::Upsert { entity: Entity::Track(t) } if t.id == id && t.name == "Drums"));
+    assert!(
+        matches!(&p1[0].changes[0], PatchChange::Upsert { entity: Entity::Track(t) } if t.id == id && t.name == "Drums")
+    );
     assert!(p1[0].history.can_undo);
     assert_eq!(p1[0].history.undo_label.as_deref(), Some("Create"));
 
-    let out = h.send(Command::Track(TrackCommand::Rename { id, name: "Beat".into() }));
+    let out = h.send(Command::Track(TrackCommand::Rename {
+        id,
+        name: "Beat".into(),
+    }));
     let p2 = patches(&out);
     assert_eq!(p2[0].revision, p1[0].revision + 1);
 
@@ -466,7 +471,10 @@ fn track_duplicate_deep_copies_and_retargets_lanes() {
         },
     }));
     let copy: TrackId = h.id();
-    h.ok(Command::Track(TrackCommand::Duplicate { id: t, new_id: copy }));
+    h.ok(Command::Track(TrackCommand::Duplicate {
+        id: t,
+        new_id: copy,
+    }));
     let p = h.project();
     assert_eq!(p.tracks.len(), 3);
     let new_dev = p.devices_of(copy)[0].id;
@@ -498,7 +506,10 @@ fn set_tempo_and_loop_are_undoable_and_emit_transport() {
     let out = h.send(Command::Transport(TransportCommand::SetTempo { bpm: 90.0 }));
     let evs = events(&out);
     assert!(matches!(evs[0], Event::Patch { .. }));
-    assert!(evs.iter().any(|e| matches!(e, Event::Transport { state } if state.bpm == 90.0)));
+    assert!(
+        evs.iter()
+            .any(|e| matches!(e, Event::Transport { state } if state.bpm == 90.0))
+    );
     h.ok(Command::Transport(TransportCommand::SetLoopRegion {
         region: BeatRange {
             start: Beats(4.0),

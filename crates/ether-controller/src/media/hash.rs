@@ -19,15 +19,14 @@ fn mix(mut x: u64) -> u64 {
 pub fn content_hash(bytes: &[u8]) -> String {
     let mut a: u64 = P1 ^ bytes.len() as u64;
     let mut b: u64 = P2.wrapping_add(bytes.len() as u64);
-    let mut chunks = bytes.chunks_exact(16);
-    for c in &mut chunks {
+    let (chunks, rest) = bytes.as_chunks::<16>();
+    for c in chunks {
         let x = u64::from_le_bytes(c[..8].try_into().expect("8 bytes"));
         let y = u64::from_le_bytes(c[8..].try_into().expect("8 bytes"));
         a = (a ^ x.wrapping_mul(P2)).rotate_left(31).wrapping_mul(P1);
         b = (b ^ y.wrapping_mul(P1)).rotate_left(29).wrapping_mul(P3);
     }
     let mut tail = [0u8; 16];
-    let rest = chunks.remainder();
     tail[..rest.len()].copy_from_slice(rest);
     let x = u64::from_le_bytes(tail[..8].try_into().expect("8 bytes"));
     let y = u64::from_le_bytes(tail[8..].try_into().expect("8 bytes"));

@@ -32,7 +32,12 @@ where
     S: ProjectStore,
     L: Library,
 {
-    pub(crate) fn project_command(&mut self, c: &ProjectCommand, now: u64, out: &mut dyn MessageSink) -> CmdResult<ReplyValue> {
+    pub(crate) fn project_command(
+        &mut self,
+        c: &ProjectCommand,
+        now: u64,
+        out: &mut dyn MessageSink,
+    ) -> CmdResult<ReplyValue> {
         match c {
             ProjectCommand::List => Ok(ReplyValue::Projects {
                 projects: self.list_projects()?,
@@ -43,7 +48,9 @@ where
                 project: self.save_current(out)?,
             }),
             ProjectCommand::SaveAs { new_id, name } => self.save_as(*new_id, name, out),
-            ProjectCommand::Duplicate { id, new_id, name } => self.duplicate(*id, *new_id, name, out),
+            ProjectCommand::Duplicate { id, new_id, name } => {
+                self.duplicate(*id, *new_id, name, out)
+            }
             ProjectCommand::Rename { id, name } => {
                 // The current project's rename is a document edit (handled by dispatch).
                 let name = check_name(name)?;
@@ -139,7 +146,13 @@ where
         Ok(())
     }
 
-    fn create(&mut self, id: ProjectId, name: &str, now: u64, out: &mut dyn MessageSink) -> CmdResult<ReplyValue> {
+    fn create(
+        &mut self,
+        id: ProjectId,
+        name: &str,
+        now: u64,
+        out: &mut dyn MessageSink,
+    ) -> CmdResult<ReplyValue> {
         let name = check_name(name)?;
         if let Some(doc) = &self.doc
             && doc.project.id == id
@@ -166,7 +179,12 @@ where
         })
     }
 
-    pub(crate) fn open(&mut self, id: ProjectId, now: u64, out: &mut dyn MessageSink) -> CmdResult<ReplyValue> {
+    pub(crate) fn open(
+        &mut self,
+        id: ProjectId,
+        now: u64,
+        out: &mut dyn MessageSink,
+    ) -> CmdResult<ReplyValue> {
         self.autosave_before_switch(out)?;
         let json = self.store.load(id).map_err(store_err)?;
         let mut project = file::load(&json).map_err(file_err)?;
@@ -178,7 +196,12 @@ where
         })
     }
 
-    fn save_as(&mut self, new_id: ProjectId, name: &str, out: &mut dyn MessageSink) -> CmdResult<ReplyValue> {
+    fn save_as(
+        &mut self,
+        new_id: ProjectId,
+        name: &str,
+        out: &mut dyn MessageSink,
+    ) -> CmdResult<ReplyValue> {
         let name = check_name(name)?;
         let doc = self.doc.as_ref().ok_or_else(no_project)?;
         if doc.project.id == new_id {
@@ -229,14 +252,24 @@ where
         })
     }
 
-    fn duplicate(&mut self, id: ProjectId, new_id: ProjectId, name: &str, out: &mut dyn MessageSink) -> CmdResult<ReplyValue> {
+    fn duplicate(
+        &mut self,
+        id: ProjectId,
+        new_id: ProjectId,
+        name: &str,
+        out: &mut dyn MessageSink,
+    ) -> CmdResult<ReplyValue> {
         let name = check_name(name)?;
         if let Some(existing) = self.list_projects()?.into_iter().find(|s| s.id == new_id) {
             // Retried message.
             return Ok(ReplyValue::Saved { project: existing });
         }
         self.store.duplicate(id, new_id).map_err(store_err)?;
-        let current = self.doc.as_ref().filter(|d| d.project.id == id).map(|d| d.project.clone());
+        let current = self
+            .doc
+            .as_ref()
+            .filter(|d| d.project.id == id)
+            .map(|d| d.project.clone());
         let mut project = match current {
             // Duplicating the open project copies its current state.
             Some(p) => p,

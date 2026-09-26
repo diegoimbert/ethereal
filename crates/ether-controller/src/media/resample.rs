@@ -8,7 +8,9 @@
 use std::sync::Arc;
 
 use ether_media::{DecodedAudio, MediaError, resampled_len};
-use rubato::{Resampler, SincFixedIn, SincInterpolationParameters, SincInterpolationType, WindowFunction};
+use rubato::{
+    Resampler, SincFixedIn, SincInterpolationParameters, SincInterpolationType, WindowFunction,
+};
 
 const CHUNK: usize = 1024;
 
@@ -62,9 +64,13 @@ impl IncrementalResampler {
                 interpolation: SincInterpolationType::Cubic,
                 window: WindowFunction::BlackmanHarris2,
             };
-            let resampler = SincFixedIn::<f32>::new(ratio, 1.0, params, CHUNK, n_ch).map_err(err)?;
+            let resampler =
+                SincFixedIn::<f32>::new(ratio, 1.0, params, CHUNK, n_ch).map_err(err)?;
             let g = gcd(target_rate, source.sample_rate);
-            let (p, q) = ((target_rate / g) as usize, (source.sample_rate / g) as usize);
+            let (p, q) = (
+                (target_rate / g) as usize,
+                (source.sample_rate / g) as usize,
+            );
             let inbuf = resampler.input_buffer_allocate(true);
             let outbuf = resampler.output_buffer_allocate(true);
             Some(Running {
@@ -117,7 +123,11 @@ impl IncrementalResampler {
                 dst.resize(need, 0.0);
                 for (i, d) in dst.iter_mut().enumerate() {
                     let v = r.pos + i;
-                    *d = if v >= r.pad && v < r.total_in { src[v - r.pad] } else { 0.0 };
+                    *d = if v >= r.pad && v < r.total_in {
+                        src[v - r.pad]
+                    } else {
+                        0.0
+                    };
                 }
             }
             let (_, n) = r

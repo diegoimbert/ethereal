@@ -6,7 +6,9 @@ mod common;
 use std::collections::BTreeMap;
 
 use common::*;
-use ether_controller::compile::{PAN_MAPPING, SEND_LEVEL_MAPPING, TRACK_VOLUME_MAPPING, track_param_info};
+use ether_controller::compile::{
+    PAN_MAPPING, SEND_LEVEL_MAPPING, TRACK_VOLUME_MAPPING, track_param_info,
+};
 use ether_core::graph::{ClipContentDesc, ResolvedTarget};
 use ether_core::plugin::PluginNotification;
 use ether_core::protocol::automation::{AutomationCommand, PointSpec};
@@ -48,9 +50,18 @@ fn device(h: &mut Harness, track: TrackId, device: BuiltinDevice) -> DeviceId {
     id
 }
 
-fn lane(h: &mut Harness, owner: AutomationOwner, target: AutomationTarget, points: &[(f64, f64)]) -> AutomationLaneId {
+fn lane(
+    h: &mut Harness,
+    owner: AutomationOwner,
+    target: AutomationTarget,
+    points: &[(f64, f64)],
+) -> AutomationLaneId {
     let id = h.id();
-    h.ok(Command::Automation(AutomationCommand::CreateLane { id, owner, target }));
+    h.ok(Command::Automation(AutomationCommand::CreateLane {
+        id,
+        owner,
+        target,
+    }));
     let points = points
         .iter()
         .map(|(t, v)| PointSpec {
@@ -60,7 +71,10 @@ fn lane(h: &mut Harness, owner: AutomationOwner, target: AutomationTarget, point
             curve: CurveShape::Linear,
         })
         .collect();
-    h.ok(Command::Automation(AutomationCommand::AddPoints { lane: id, points }));
+    h.ok(Command::Automation(AutomationCommand::AddPoints {
+        lane: id,
+        points,
+    }));
     id
 }
 
@@ -95,8 +109,18 @@ fn compiles_groups_sends_and_automation() {
         solo: true,
         exclusive: true,
     }));
-    lane(&mut h, AutomationOwner::Track { track: a }, AutomationTarget::TrackVolume { track: a }, &[(0.0, 0.5), (4.0, 1.0)]);
-    lane(&mut h, AutomationOwner::Track { track: a }, AutomationTarget::SendLevel { send }, &[(0.0, 0.25)]);
+    lane(
+        &mut h,
+        AutomationOwner::Track { track: a },
+        AutomationTarget::TrackVolume { track: a },
+        &[(0.0, 0.5), (4.0, 1.0)],
+    );
+    lane(
+        &mut h,
+        AutomationOwner::Track { track: a },
+        AutomationTarget::SendLevel { send },
+        &[(0.0, 0.25)],
+    );
     lane(
         &mut h,
         AutomationOwner::Track { track: a },
@@ -106,7 +130,12 @@ fn compiles_groups_sends_and_automation() {
         },
         &[(2.0, 0.75)],
     );
-    let disabled = lane(&mut h, AutomationOwner::Track { track: a }, AutomationTarget::TrackPan { track: a }, &[(0.0, 0.0)]);
+    let disabled = lane(
+        &mut h,
+        AutomationOwner::Track { track: a },
+        AutomationTarget::TrackPan { track: a },
+        &[(0.0, 0.0)],
+    );
     h.ok(Command::Automation(AutomationCommand::SetLaneEnabled {
         id: disabled,
         enabled: false,
@@ -131,23 +160,44 @@ fn compiles_groups_sends_and_automation() {
 
     let auto = td(a).automation;
     assert_eq!(auto.len(), 3, "disabled lane skipped: {auto:#?}");
-    let vol = auto.iter().find(|x| x.resolved == ResolvedTarget::TrackVolume).unwrap();
+    let vol = auto
+        .iter()
+        .find(|x| x.resolved == ResolvedTarget::TrackVolume)
+        .unwrap();
     assert_eq!(vol.mapping, TRACK_VOLUME_MAPPING);
-    assert_eq!(vol.points.iter().map(|p| (p.0, p.1)).collect::<Vec<_>>(), vec![(0.0, 0.5), (4.0, 1.0)]);
-    let snd = auto.iter().find(|x| x.resolved == ResolvedTarget::Send { send }).unwrap();
+    assert_eq!(
+        vol.points.iter().map(|p| (p.0, p.1)).collect::<Vec<_>>(),
+        vec![(0.0, 0.5), (4.0, 1.0)]
+    );
+    let snd = auto
+        .iter()
+        .find(|x| x.resolved == ResolvedTarget::Send { send })
+        .unwrap();
     assert_eq!(snd.mapping, SEND_LEVEL_MAPPING);
     let dev = auto
         .iter()
-        .find(|x| x.resolved == ResolvedTarget::Node { node, param: ParamId(0) })
+        .find(|x| {
+            x.resolved
+                == ResolvedTarget::Node {
+                    node,
+                    param: ParamId(0),
+                }
+        })
         .unwrap();
     let info = &ether_devices::descriptor(BuiltinDeviceType::Compressor).params[0];
-    assert_eq!((dev.mapping.min, dev.mapping.max, dev.mapping.scale), (info.min, info.max, info.scale));
+    assert_eq!(
+        (dev.mapping.min, dev.mapping.max, dev.mapping.scale),
+        (info.min, info.max, info.scale)
+    );
 
     // The documented mixer mapping (shared with the UI).
     let vi = track_param_info(&AutomationTarget::TrackVolume { track: a }).unwrap();
     assert_eq!((vi.min, vi.max, vi.scale), (-144.0, 6.0, ParamScale::Fader));
     let pi = track_param_info(&AutomationTarget::TrackPan { track: a }).unwrap();
-    assert_eq!((pi.min, pi.max, pi.scale), (PAN_MAPPING.min, PAN_MAPPING.max, ParamScale::Linear));
+    assert_eq!(
+        (pi.min, pi.max, pi.scale),
+        (PAN_MAPPING.min, PAN_MAPPING.max, ParamScale::Linear)
+    );
 }
 
 #[test]
@@ -192,12 +242,20 @@ fn compiles_clips_notes_and_envelopes() {
             muted: Some(true),
         }],
     }));
-    lane(&mut h, AutomationOwner::Clip { clip: c }, AutomationTarget::TrackPan { track: t }, &[(0.0, 0.0), (8.0, 1.0)]);
+    lane(
+        &mut h,
+        AutomationOwner::Clip { clip: c },
+        AutomationTarget::TrackPan { track: t },
+        &[(0.0, 0.0), (8.0, 1.0)],
+    );
     h.tick();
     let g = h.ctl.bridge.last_graph();
     let td = g.tracks.iter().find(|x| x.id == t).unwrap();
     let cd = &td.clips[0];
-    assert_eq!((cd.start, cd.length, cd.offset, cd.looping), (4.0, 8.0, 0.0, None));
+    assert_eq!(
+        (cd.start, cd.length, cd.offset, cd.looping),
+        (4.0, 8.0, 0.0, None)
+    );
     match &cd.content {
         ClipContentDesc::Midi { notes } => {
             assert_eq!(notes.len(), 1, "muted notes are not played");
@@ -221,7 +279,10 @@ fn continuous_controls_push_params_without_republish() {
         track: t,
         volume: Decibels(-6.0),
     }));
-    h.ok(Command::Mixer(MixerCommand::SetPan { track: t, pan: Pan(-2.0) }));
+    h.ok(Command::Mixer(MixerCommand::SetPan {
+        track: t,
+        pan: Pan(-2.0),
+    }));
     h.ok(Command::Device(DeviceCommand::SetParam {
         device: synth,
         param: ParamId(0),
@@ -229,23 +290,40 @@ fn continuous_controls_push_params_without_republish() {
     }));
     h.advance(100);
     h.tick();
-    assert_eq!(h.ctl.bridge.publishes(), publishes, "no republish for continuous controls");
+    assert_eq!(
+        h.ctl.bridge.publishes(),
+        publishes,
+        "no republish for continuous controls"
+    );
     let params = h.ctl.bridge.param_changes();
-    assert!(matches!(params[0], ParamChange { target: ParamTarget::TrackVolume { track }, value } if track == t && (value - 0.501187).abs() < 1e-5));
-    assert!(matches!(params[1], ParamChange { target: ParamTarget::TrackPan { .. }, value } if value == -1.0));
+    assert!(
+        matches!(params[0], ParamChange { target: ParamTarget::TrackVolume { track }, value } if track == t && (value - 0.501187).abs() < 1e-5)
+    );
+    assert!(
+        matches!(params[1], ParamChange { target: ParamTarget::TrackPan { .. }, value } if value == -1.0)
+    );
     let info = &ether_devices::descriptor(BuiltinDeviceType::Synth).params[0];
     let node = node_of(&h, synth);
     assert_eq!(
         params[2],
         ParamChange {
-            target: ParamTarget::Node { node, param: ParamId(0) },
+            target: ParamTarget::Node {
+                node,
+                param: ParamId(0)
+            },
             value: info.max.max(info.min)
         }
     );
     // Undo also goes through the param queue.
     h.ok(Command::Edit(EditCommand::Undo));
     let last = *h.ctl.bridge.param_changes().last().unwrap();
-    assert_eq!(last.target, ParamTarget::Node { node, param: ParamId(0) });
+    assert_eq!(
+        last.target,
+        ParamTarget::Node {
+            node,
+            param: ParamId(0)
+        }
+    );
     assert_eq!(last.value, info.default);
 }
 
@@ -271,9 +349,20 @@ fn node_lifecycle_follows_the_document() {
     assert_eq!(h.ctl.bridge.live.len(), 2);
 
     // Disabling bypasses in the chain (no new node).
-    h.ok(Command::Device(DeviceCommand::SetEnabled { id: delay, enabled: false }));
+    h.ok(Command::Device(DeviceCommand::SetEnabled {
+        id: delay,
+        enabled: false,
+    }));
     h.tick();
-    let chain = &h.ctl.bridge.last_graph().tracks.iter().find(|x| x.id == t).unwrap().chain;
+    let chain = &h
+        .ctl
+        .bridge
+        .last_graph()
+        .tracks
+        .iter()
+        .find(|x| x.id == t)
+        .unwrap()
+        .chain;
     assert_eq!(chain.len(), 2);
     assert!(!chain[1].enabled);
 
@@ -310,14 +399,21 @@ fn publishes_are_coalesced() {
             name: format!("T{i}"),
         }));
     }
-    assert_eq!(h.ctl.bridge.publishes(), n, "burst within the interval: deferred");
+    assert_eq!(
+        h.ctl.bridge.publishes(),
+        n,
+        "burst within the interval: deferred"
+    );
     h.tick();
     assert_eq!(h.ctl.bridge.publishes(), n + 1);
     h.tick();
     assert_eq!(h.ctl.bridge.publishes(), n + 1, "nothing pending");
     // After the interval a command publishes right away.
     h.advance(1_000);
-    h.ok(Command::Track(TrackCommand::Rename { id: t, name: "X".into() }));
+    h.ok(Command::Track(TrackCommand::Rename {
+        id: t,
+        name: "X".into(),
+    }));
     assert_eq!(h.ctl.bridge.publishes(), n + 2);
 }
 
@@ -325,8 +421,17 @@ fn publishes_are_coalesced() {
 fn transport_playhead_and_meters() {
     let mut h = Harness::with_project();
     let out = h.send(Command::Transport(TransportCommand::Play));
-    assert!(events(&out).iter().any(|e| matches!(e, Event::Transport { state } if state.playing)));
-    assert!(h.ctl.bridge.calls.contains(&Call::Transport(TransportControl::Play)));
+    assert!(
+        events(&out)
+            .iter()
+            .any(|e| matches!(e, Event::Transport { state } if state.playing))
+    );
+    assert!(
+        h.ctl
+            .bridge
+            .calls
+            .contains(&Call::Transport(TransportControl::Play))
+    );
 
     let t = h.project().master_track().id;
     h.ctl.bridge.playhead = Some(PlayheadState {
@@ -345,7 +450,10 @@ fn transport_playhead_and_meters() {
     }];
     let out = h.tick();
     assert!(out.iter().any(|m| matches!(m, ServerMessage::Playhead(f) if f.transport.position == Beats(2.0) && f.transport.playing)));
-    assert!(out.iter().any(|m| matches!(m, ServerMessage::Meters(f) if f.tracks.len() == 1)));
+    assert!(
+        out.iter()
+            .any(|m| matches!(m, ServerMessage::Meters(f) if f.tracks.len() == 1))
+    );
     // Unchanged playhead: no new frame.
     let out = h.tick();
     assert!(!out.iter().any(|m| matches!(m, ServerMessage::Playhead(_))));
@@ -355,13 +463,19 @@ fn transport_playhead_and_meters() {
     h.ok(Command::Transport(TransportCommand::Stop));
     assert_eq!(
         h.ctl.bridge.calls.last(),
-        Some(&Call::Transport(TransportControl::Locate { position: Beats(0.0) }))
+        Some(&Call::Transport(TransportControl::Locate {
+            position: Beats(0.0)
+        }))
     );
     // The engine stopping on its own is adopted.
     h.ok(Command::Transport(TransportCommand::Play));
     h.ctl.bridge.playhead.as_mut().unwrap().playing = false;
     let out = h.tick();
-    assert!(events(&out).iter().any(|e| matches!(e, Event::Transport { state } if !state.playing)));
+    assert!(
+        events(&out)
+            .iter()
+            .any(|e| matches!(e, Event::Transport { state } if !state.playing))
+    );
 }
 
 #[test]
@@ -407,7 +521,15 @@ fn record_arm_is_runtime_state() {
     }));
     h.advance(100);
     h.tick();
-    let td = h.ctl.bridge.last_graph().tracks.iter().find(|x| x.id == b).unwrap().clone();
+    let td = h
+        .ctl
+        .bridge
+        .last_graph()
+        .tracks
+        .iter()
+        .find(|x| x.id == b)
+        .unwrap()
+        .clone();
     assert!(td.armed && td.monitor, "Auto monitoring follows arm");
     assert_eq!(td.audio_input, Some((0, 2)));
     // Deleting an armed track disarms it.
@@ -450,27 +572,55 @@ fn plugins_gui_edits_latency_crash_and_state() {
     let t = track(&mut h, TrackKind::Audio, None);
     let d = insert_plugin(&mut h, t);
     assert_eq!(h.project().devices[&d].name, "Verb");
-    assert!(matches!(h.ctl.bridge.calls.iter().find(|c| matches!(c, Call::CreatePlugin(..))), Some(Call::CreatePlugin(dev, _, None)) if *dev == d));
+    assert!(
+        matches!(h.ctl.bridge.calls.iter().find(|c| matches!(c, Call::CreatePlugin(..))), Some(Call::CreatePlugin(dev, _, None)) if *dev == d)
+    );
     h.tick();
-    let creates = h.ctl.bridge.calls.iter().filter(|c| matches!(c, Call::CreatePlugin(..))).count();
+    let creates = h
+        .ctl
+        .bridge
+        .calls
+        .iter()
+        .filter(|c| matches!(c, Call::CreatePlugin(..)))
+        .count();
     assert_eq!(creates, 1, "instantiated once (at insert)");
 
     // GUI drag = one undo step.
     let p = ParamId(7);
     h.ctl.bridge.plugin_notes = vec![
         (d, PluginNotification::GestureBegin { param: p }),
-        (d, PluginNotification::ParamEdited { param: p, value: 10.0 }),
-        (d, PluginNotification::ParamEdited { param: p, value: 20.0 }),
+        (
+            d,
+            PluginNotification::ParamEdited {
+                param: p,
+                value: 10.0,
+            },
+        ),
+        (
+            d,
+            PluginNotification::ParamEdited {
+                param: p,
+                value: 20.0,
+            },
+        ),
         (d, PluginNotification::GestureEnd { param: p }),
         (d, PluginNotification::LatencyChanged { samples: 64 }),
-        (d, PluginNotification::Crashed { message: "boom".into() }),
+        (
+            d,
+            PluginNotification::Crashed {
+                message: "boom".into(),
+            },
+        ),
     ];
     let publishes = h.ctl.bridge.publishes();
     let out = h.tick();
     assert_eq!(h.project().devices[&d].params[&p], 20.0);
     let evs = events(&out);
     assert!(evs.contains(&Event::Plugin {
-        event: PluginEvent::LatencyChanged { device: d, samples: 64 }
+        event: PluginEvent::LatencyChanged {
+            device: d,
+            samples: 64
+        }
     }));
     assert!(evs.contains(&Event::Plugin {
         event: PluginEvent::Crashed {
@@ -478,7 +628,11 @@ fn plugins_gui_edits_latency_crash_and_state() {
             message: "boom".into()
         }
     }));
-    assert_eq!(h.ctl.bridge.publishes(), publishes + 1, "latency change republishes");
+    assert_eq!(
+        h.ctl.bridge.publishes(),
+        publishes + 1,
+        "latency change republishes"
+    );
     h.ok(Command::Edit(EditCommand::Undo));
     assert!(!h.project().devices[&d].params.contains_key(&p));
 
@@ -487,27 +641,47 @@ fn plugins_gui_edits_latency_crash_and_state() {
     assert!(matches!(v, ReplyValue::Descriptor { descriptor } if descriptor.name == "Verb"));
 
     // Save reads live plugin state.
-    h.ctl.bridge.plugin_states.insert(d, Base64Bytes(vec![1, 2, 3]));
+    h.ctl
+        .bridge
+        .plugin_states
+        .insert(d, Base64Bytes(vec![1, 2, 3]));
     h.ok(Command::Project(ProjectCommand::Save));
     let id = h.project().id;
-    let saved = std::str::from_utf8(h.ctl.store.file(id, "project.ether").unwrap()).unwrap().to_string();
+    let saved = std::str::from_utf8(h.ctl.store.file(id, "project.ether").unwrap())
+        .unwrap()
+        .to_string();
     let loaded = ether_core::protocol::model::file::load(&saved).unwrap();
     match &loaded.devices[&d].kind {
         DeviceKind::Plugin { plugin } => assert_eq!(plugin.state, Some(Base64Bytes(vec![1, 2, 3]))),
         other => panic!("{other:?}"),
     }
     // The in-memory document is not changed by saving.
-    assert!(matches!(&h.project().devices[&d].kind, DeviceKind::Plugin { plugin } if plugin.state.is_none()));
+    assert!(
+        matches!(&h.project().devices[&d].kind, DeviceKind::Plugin { plugin } if plugin.state.is_none())
+    );
 
     // Reload re-creates the node with the live state.
     h.ok(Command::Plugin(PluginCommand::Reload { device: d }));
-    assert!(matches!(h.ctl.bridge.calls.iter().rev().find(|c| matches!(c, Call::CreatePlugin(..))), Some(Call::CreatePlugin(_, _, Some(s))) if s.0 == vec![1, 2, 3]));
+    assert!(
+        matches!(h.ctl.bridge.calls.iter().rev().find(|c| matches!(c, Call::CreatePlugin(..))), Some(Call::CreatePlugin(_, _, Some(s))) if s.0 == vec![1, 2, 3])
+    );
 
     // Sandbox toggle is an undoable edit that rebuilds the node.
-    h.ok(Command::Plugin(PluginCommand::SetSandboxed { device: d, sandboxed: true }));
-    assert!(matches!(&h.project().devices[&d].kind, DeviceKind::Plugin { plugin } if plugin.sandboxed));
+    h.ok(Command::Plugin(PluginCommand::SetSandboxed {
+        device: d,
+        sandboxed: true,
+    }));
+    assert!(
+        matches!(&h.project().devices[&d].kind, DeviceKind::Plugin { plugin } if plugin.sandboxed)
+    );
     h.tick();
-    let creates = h.ctl.bridge.calls.iter().filter(|c| matches!(c, Call::CreatePlugin(..))).count();
+    let creates = h
+        .ctl
+        .bridge
+        .calls
+        .iter()
+        .filter(|c| matches!(c, Call::CreatePlugin(..)))
+        .count();
     assert_eq!(creates, 3);
 }
 

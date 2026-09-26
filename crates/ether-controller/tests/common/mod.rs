@@ -11,12 +11,16 @@ use ether_controller::{
     BridgeError, Controller, ControllerConfig, EngineBridge, EtherController, HostServices,
 };
 use ether_core::plugin::PluginNotification;
-use ether_core::protocol::devices::{DeviceCategory, DeviceDescriptor, DeviceTypeRef, ParamInfo, ParamScale, ParamUnit};
+use ether_core::protocol::devices::{
+    DeviceCategory, DeviceDescriptor, DeviceTypeRef, ParamInfo, ParamScale, ParamUnit,
+};
 use ether_core::protocol::meters::TrackMeter;
 use ether_core::protocol::model::*;
 use ether_core::protocol::project::ProjectCommand;
 use ether_core::protocol::*;
-use ether_core::{EngineOutputs, NodeKey, ParamChange, PlayheadState, RenderGraphDesc, TransportControl};
+use ether_core::{
+    EngineOutputs, NodeKey, ParamChange, PlayheadState, RenderGraphDesc, TransportControl,
+};
 use ether_media::DecodedAudio;
 
 /// Everything the controller asked the engine to do, in order.
@@ -63,7 +67,10 @@ impl FakeBridge {
     }
 
     pub fn publishes(&self) -> usize {
-        self.calls.iter().filter(|c| matches!(c, Call::Publish(_))).count()
+        self.calls
+            .iter()
+            .filter(|c| matches!(c, Call::Publish(_)))
+            .count()
     }
 
     fn key(&mut self) -> NodeKey {
@@ -102,28 +109,45 @@ pub fn plugin_descriptor(name: &str, category: DeviceCategory) -> DeviceDescript
 }
 
 impl EngineBridge for FakeBridge {
-    fn create_builtin(&mut self, device: DeviceId, _kind: &BuiltinDevice, _params: &[(ParamId, f64)]) -> Result<NodeKey, BridgeError> {
+    fn create_builtin(
+        &mut self,
+        device: DeviceId,
+        _kind: &BuiltinDevice,
+        _params: &[(ParamId, f64)],
+    ) -> Result<NodeKey, BridgeError> {
         let key = self.key();
         self.live.insert(key, device);
         self.calls.push(Call::CreateBuiltin(device, key));
         Ok(key)
     }
 
-    fn create_plugin(&mut self, device: DeviceId, plugin: &PluginInstance, state: Option<&Base64Bytes>) -> Result<NodeKey, BridgeError> {
+    fn create_plugin(
+        &mut self,
+        device: DeviceId,
+        plugin: &PluginInstance,
+        state: Option<&Base64Bytes>,
+    ) -> Result<NodeKey, BridgeError> {
         let Some(plugins) = &self.plugins else {
             return Err(BridgeError::Unsupported("no plugins".into()));
         };
         if !plugins.contains_key(&plugin.plugin_id) {
-            return Err(BridgeError::Other(format!("unknown plugin {}", plugin.plugin_id)));
+            return Err(BridgeError::Other(format!(
+                "unknown plugin {}",
+                plugin.plugin_id
+            )));
         }
         let key = self.key();
         self.live.insert(key, device);
-        self.calls.push(Call::CreatePlugin(device, key, state.cloned()));
+        self.calls
+            .push(Call::CreatePlugin(device, key, state.cloned()));
         Ok(key)
     }
 
     fn destroy_node(&mut self, key: NodeKey) -> Result<(), BridgeError> {
-        assert!(self.live.remove(&key).is_some(), "destroying unknown node {key:?}");
+        assert!(
+            self.live.remove(&key).is_some(),
+            "destroying unknown node {key:?}"
+        );
         // Never destroy a node the current graph still references.
         if let Some(g) = self.graphs.last() {
             assert!(
@@ -136,7 +160,11 @@ impl EngineBridge for FakeBridge {
         Ok(())
     }
 
-    fn load_media(&mut self, media: &MediaRef, audio: Arc<DecodedAudio>) -> Result<(), BridgeError> {
+    fn load_media(
+        &mut self,
+        media: &MediaRef,
+        audio: Arc<DecodedAudio>,
+    ) -> Result<(), BridgeError> {
         self.media.insert(media.id, audio);
         self.calls.push(Call::LoadMedia(media.id));
         Ok(())
@@ -152,7 +180,11 @@ impl EngineBridge for FakeBridge {
         // Every chain node must be live.
         for t in &graph.tracks {
             for c in &t.chain {
-                assert!(self.live.contains_key(&c.node), "graph references dead node {:?}", c.node);
+                assert!(
+                    self.live.contains_key(&c.node),
+                    "graph references dead node {:?}",
+                    c.node
+                );
             }
         }
         self.calls.push(Call::Publish(graph.version));
@@ -216,7 +248,11 @@ pub struct Harness {
 
 impl Harness {
     pub fn new() -> Self {
-        Self::with(FakeBridge::default(), MemoryLibrary::new(), ControllerConfig::default())
+        Self::with(
+            FakeBridge::default(),
+            MemoryLibrary::new(),
+            ControllerConfig::default(),
+        )
     }
 
     pub fn with(bridge: FakeBridge, library: MemoryLibrary, config: ControllerConfig) -> Self {
@@ -246,7 +282,10 @@ impl Harness {
 
     pub fn create_project(&mut self, name: &str) -> ProjectId {
         let id = self.project_id();
-        let out = self.send(Command::Project(ProjectCommand::Create { id, name: name.into() }));
+        let out = self.send(Command::Project(ProjectCommand::Create {
+            id,
+            name: name.into(),
+        }));
         ok(&out);
         id
     }
@@ -256,11 +295,22 @@ impl Harness {
         self.ctl.store.now_ms = self.ctl.host.now;
     }
 
-    pub fn send_with(&mut self, command: Command, gesture: Option<GestureId>) -> Vec<ServerMessage> {
+    pub fn send_with(
+        &mut self,
+        command: Command,
+        gesture: Option<GestureId>,
+    ) -> Vec<ServerMessage> {
         let id = self.next_request;
         self.next_request += 1;
         let mut out = Vec::new();
-        self.ctl.handle(ClientMessage { id, gesture, command }, &mut out);
+        self.ctl.handle(
+            ClientMessage {
+                id,
+                gesture,
+                command,
+            },
+            &mut out,
+        );
         // Exactly one reply, last, with our id.
         let replies: Vec<&Reply> = out
             .iter()
@@ -270,7 +320,10 @@ impl Harness {
             })
             .collect();
         assert_eq!(replies.len(), 1, "exactly one reply: {out:#?}");
-        assert!(matches!(out.last(), Some(ServerMessage::Reply(r)) if r.id == id), "reply comes last");
+        assert!(
+            matches!(out.last(), Some(ServerMessage::Reply(r)) if r.id == id),
+            "reply comes last"
+        );
         out
     }
 

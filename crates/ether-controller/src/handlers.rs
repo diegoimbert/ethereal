@@ -3,9 +3,12 @@
 
 use std::sync::Arc;
 
+use ether_core::TransportControl;
 use ether_core::plugin::PluginNotification;
 use ether_core::protocol::devices::DeviceCommand;
-use ether_core::protocol::media::{BrowseLocation, BrowseRoot, DirectoryListing, MediaCommand, MediaEvent, MediaSource};
+use ether_core::protocol::media::{
+    BrowseLocation, BrowseRoot, DirectoryListing, MediaCommand, MediaEvent, MediaSource,
+};
 use ether_core::protocol::meters::MeterFrame;
 use ether_core::protocol::model::file::MEDIA_DIR;
 use ether_core::protocol::model::*;
@@ -15,16 +18,17 @@ use ether_core::protocol::recording::{RecordingCommand, RecordingEvent};
 use ether_core::protocol::transport::{PlayheadUpdate, TransportCommand, TransportState};
 use ether_core::protocol::warp::WarpCommand;
 use ether_core::protocol::{
-    ClientMessage, Command, CommandError, ErrorCode, Event, NotificationLevel, PlayheadFrame, ReplyValue,
-    ServerMessage,
+    ClientMessage, Command, CommandError, ErrorCode, Event, NotificationLevel, PlayheadFrame,
+    ReplyValue, ServerMessage,
 };
-use ether_core::TransportControl;
 
 use crate::doc::{self, DocCtx, DocHost};
 use crate::engine::{EngineCtx, bridge_err};
 use crate::media::{IncrementalDecoder, chained_ogg_warning, extension_of, is_chained_ogg};
 use crate::store::{Library, ProjectStore, StoreError, check_relative_path};
-use crate::tx::{CmdResult, Tx, cmd_err, internal, invalid, invalid_state, model_err, not_found, unsupported};
+use crate::tx::{
+    CmdResult, Tx, cmd_err, internal, invalid, invalid_state, model_err, not_found, unsupported,
+};
 use crate::{EngineBridge, EtherController, HostServices, MessageSink, content_hash};
 
 /// Taps further apart than this start a new tap-tempo sequence.
@@ -49,7 +53,11 @@ pub(crate) fn event(out: &mut dyn MessageSink, e: Event) {
     out.send(ServerMessage::Event(e));
 }
 
-pub(crate) fn notify(out: &mut dyn MessageSink, level: NotificationLevel, message: impl Into<String>) {
+pub(crate) fn notify(
+    out: &mut dyn MessageSink,
+    level: NotificationLevel,
+    message: impl Into<String>,
+) {
     event(
         out,
         Event::Notification {
@@ -67,10 +75,18 @@ fn basename(path: &str) -> &str {
 fn media_file_name(id: MediaId, name: &str) -> String {
     let mut clean: String = name
         .chars()
-        .map(|c| if c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '_') { c } else { '_' })
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '_') {
+                c
+            } else {
+                '_'
+            }
+        })
         .collect();
     if clean.len() > 80 {
-        let ext = extension_of(&clean).map(|e| format!(".{e}")).unwrap_or_default();
+        let ext = extension_of(&clean)
+            .map(|e| format!(".{e}"))
+            .unwrap_or_default();
         clean.truncate(80usize.saturating_sub(ext.len()));
         clean.push_str(&ext);
     }
@@ -85,12 +101,19 @@ where
     S: ProjectStore,
     L: Library,
 {
-    pub(crate) fn dispatch(&mut self, msg: &ClientMessage, now: u64, out: &mut dyn MessageSink) -> CmdResult<ReplyValue> {
+    pub(crate) fn dispatch(
+        &mut self,
+        msg: &ClientMessage,
+        now: u64,
+        out: &mut dyn MessageSink,
+    ) -> CmdResult<ReplyValue> {
         let current = self.doc.as_ref().map(|d| d.project.id);
         let command = &msg.command;
         if doc::is_document_command(command, current) {
             let label = doc::label_of(command);
-            self.edit_with(&label, msg.gesture, now, out, |ctx| doc::apply(ctx, command).map(drop))?;
+            self.edit_with(&label, msg.gesture, now, out, |ctx| {
+                doc::apply(ctx, command).map(drop)
+            })?;
             return Ok(ReplyValue::Unit);
         }
         match command {
@@ -100,13 +123,20 @@ where
             Command::Device(DeviceCommand::ListBuiltin) => Ok(ReplyValue::DeviceTypes {
                 devices: ether_devices::all_descriptors(),
             }),
-            Command::Device(DeviceCommand::GetDescriptor { device }) => self.get_descriptor(*device),
+            Command::Device(DeviceCommand::GetDescriptor { device }) => {
+                self.get_descriptor(*device)
+            }
             Command::Recording(r) => self.recording_command(r, out),
             Command::Plugin(p) => self.plugin_command(p, msg.gesture, now, out),
             Command::Warp(WarpCommand::DetectTempo { clip }) => self.detect_tempo(*clip),
             Command::Media(m) => self.media_command(m, now, out),
-            Command::Engine(_) => Err(unsupported("audio engine configuration is handled by the host")),
-            other => Err(internal(format!("unhandled command {}", doc::label_of(other)))),
+            Command::Engine(_) => Err(unsupported(
+                "audio engine configuration is handled by the host",
+            )),
+            other => Err(internal(format!(
+                "unhandled command {}",
+                doc::label_of(other)
+            ))),
         }
     }
 
@@ -153,7 +183,10 @@ where
             label: label.to_string(),
             ops,
         };
-        let applied = doc.history.commit(&mut doc.project, tx, gesture).map_err(model_err)?;
+        let applied = doc
+            .history
+            .commit(&mut doc.project, tx, gesture)
+            .map_err(model_err)?;
         self.after_ops(&applied, now, out);
         Ok(())
     }
@@ -183,7 +216,8 @@ where
         let armed_before = self.armed.len();
         self.armed.retain(|t| doc.project.tracks.contains_key(t));
         let disarmed = self.armed.len() != armed_before;
-        self.engine.apply_effects(&mut self.bridge, &doc.project, applied);
+        self.engine
+            .apply_effects(&mut self.bridge, &doc.project, applied);
         if touches_media {
             self.media.sync(&mut self.bridge, Some(&doc.project));
         }
@@ -221,7 +255,13 @@ where
         );
     }
 
-    fn edit_command(&mut self, c: &EditCommand, gesture: Option<GestureId>, now: u64, out: &mut dyn MessageSink) -> CmdResult<ReplyValue> {
+    fn edit_command(
+        &mut self,
+        c: &EditCommand,
+        gesture: Option<GestureId>,
+        now: u64,
+        out: &mut dyn MessageSink,
+    ) -> CmdResult<ReplyValue> {
         match c {
             EditCommand::Undo | EditCommand::Redo => {
                 let doc = self.doc.as_mut().ok_or_else(no_project)?;
@@ -251,8 +291,13 @@ where
             EditCommand::Batch { label, commands } => {
                 let current = self.doc.as_ref().map(|d| d.project.id);
                 for sub in commands {
-                    if !doc::is_document_command(sub, current) || matches!(sub, Command::Transport(_)) {
-                        return Err(invalid(format!("{} is not allowed in a batch", doc::label_of(sub))));
+                    if !doc::is_document_command(sub, current)
+                        || matches!(sub, Command::Transport(_))
+                    {
+                        return Err(invalid(format!(
+                            "{} is not allowed in a batch",
+                            doc::label_of(sub)
+                        )));
                     }
                 }
                 self.edit_with(label, gesture, now, out, |ctx| {
@@ -272,7 +317,12 @@ where
         self.bridge.transport(control).map_err(bridge_err)
     }
 
-    fn transport_command(&mut self, c: &TransportCommand, now: u64, out: &mut dyn MessageSink) -> CmdResult<ReplyValue> {
+    fn transport_command(
+        &mut self,
+        c: &TransportCommand,
+        now: u64,
+        out: &mut dyn MessageSink,
+    ) -> CmdResult<ReplyValue> {
         match c {
             TransportCommand::Play => self.play()?,
             TransportCommand::Stop => self.stop()?,
@@ -287,7 +337,9 @@ where
                 if !(position.0.is_finite() && position.0 >= 0.0) {
                     return Err(invalid("position must be >= 0"));
                 }
-                self.engine_transport(TransportControl::Locate { position: *position })?;
+                self.engine_transport(TransportControl::Locate {
+                    position: *position,
+                })?;
                 self.transport.position = *position;
                 if !self.transport.playing {
                     self.transport.start_position = *position;
@@ -319,7 +371,10 @@ where
 
     fn tap_tempo(&mut self, now: u64, out: &mut dyn MessageSink) -> CmdResult<()> {
         let t = &mut self.transport;
-        if t.taps.last().is_some_and(|last| now.saturating_sub(*last) > TAP_RESET_MS || now < *last) {
+        if t.taps
+            .last()
+            .is_some_and(|last| now.saturating_sub(*last) > TAP_RESET_MS || now < *last)
+        {
             t.taps.clear();
             t.tap_gesture = None;
         }
@@ -375,15 +430,21 @@ where
 
     pub(crate) fn emit_transport_if_changed(&mut self, out: &mut dyn MessageSink) {
         let state = self.transport_state();
-        if state.is_some() && state != self.last_transport {
-            self.last_transport = state.clone();
-            event(out, Event::Transport { state: state.expect("checked") });
+        if let Some(state) = state
+            && Some(&state) != self.last_transport.as_ref()
+        {
+            self.last_transport = Some(state.clone());
+            event(out, Event::Transport { state });
         }
     }
 
     // ─── Recording ──────────────────────────────────────────────────────────────────────
 
-    fn recording_command(&mut self, c: &RecordingCommand, out: &mut dyn MessageSink) -> CmdResult<ReplyValue> {
+    fn recording_command(
+        &mut self,
+        c: &RecordingCommand,
+        out: &mut dyn MessageSink,
+    ) -> CmdResult<ReplyValue> {
         match c {
             RecordingCommand::Arm {
                 track,
@@ -417,7 +478,9 @@ where
                 }
                 Ok(ReplyValue::Unit)
             }
-            RecordingCommand::ListInputs => Err(unsupported("input listing is not available on this host")),
+            RecordingCommand::ListInputs => {
+                Err(unsupported("input listing is not available on this host"))
+            }
             other => Err(internal(format!("unhandled recording command {other:?}"))),
         }
     }
@@ -450,12 +513,20 @@ where
         }
     }
 
-    fn plugin_command(&mut self, c: &PluginCommand, gesture: Option<GestureId>, now: u64, out: &mut dyn MessageSink) -> CmdResult<ReplyValue> {
+    fn plugin_command(
+        &mut self,
+        c: &PluginCommand,
+        gesture: Option<GestureId>,
+        now: u64,
+        out: &mut dyn MessageSink,
+    ) -> CmdResult<ReplyValue> {
         match c {
             PluginCommand::Rescan
             | PluginCommand::List
             | PluginCommand::OpenEditor { .. }
-            | PluginCommand::CloseEditor { .. } => Err(unsupported("plugin scanning and editors are handled by the host")),
+            | PluginCommand::CloseEditor { .. } => Err(unsupported(
+                "plugin scanning and editors are handled by the host",
+            )),
             PluginCommand::SetSandboxed { device, sandboxed } => {
                 let plugin = self.plugin_device(*device)?;
                 if plugin.sandboxed == *sandboxed {
@@ -482,7 +553,13 @@ where
         }
     }
 
-    fn plugin_notification(&mut self, device: DeviceId, n: PluginNotification, now: u64, out: &mut dyn MessageSink) {
+    fn plugin_notification(
+        &mut self,
+        device: DeviceId,
+        n: PluginNotification,
+        now: u64,
+        out: &mut dyn MessageSink,
+    ) {
         let exists = self
             .doc
             .as_ref()
@@ -554,11 +631,19 @@ where
     /// power-of-two number of bars (4/4).
     fn detect_tempo(&self, clip: ClipId) -> CmdResult<ReplyValue> {
         let doc = self.doc.as_ref().ok_or_else(no_project)?;
-        let c = doc.project.clips.get(&clip).ok_or_else(|| not_found(format!("clip {clip}")))?;
+        let c = doc
+            .project
+            .clips
+            .get(&clip)
+            .ok_or_else(|| not_found(format!("clip {clip}")))?;
         let ClipContent::Audio(a) = &c.content else {
             return Err(invalid(format!("clip {clip} is not an audio clip")));
         };
-        let m = doc.project.media.get(&a.media).ok_or_else(|| not_found(format!("media {}", a.media)))?;
+        let m = doc
+            .project
+            .media
+            .get(&a.media)
+            .ok_or_else(|| not_found(format!("media {}", a.media)))?;
         let seconds = m.frames as f64 / m.sample_rate.max(1) as f64;
         let bpm = (0..8)
             .map(|k| (1u32 << k) as f64 * 4.0 * 60.0 / seconds)
@@ -581,7 +666,12 @@ where
         roots
     }
 
-    fn media_command(&mut self, c: &MediaCommand, now: u64, out: &mut dyn MessageSink) -> CmdResult<ReplyValue> {
+    fn media_command(
+        &mut self,
+        c: &MediaCommand,
+        now: u64,
+        out: &mut dyn MessageSink,
+    ) -> CmdResult<ReplyValue> {
         match c {
             MediaCommand::Import { id, source } => self.import(*id, source, now, out),
             MediaCommand::GetPeaks { request } => {
@@ -597,7 +687,9 @@ where
                 if !exists {
                     Err(not_found(format!("media {}", request.media)))
                 } else if self.media.is_pending(request.media) {
-                    Err(invalid_state("peaks are not ready yet (wait for PeaksReady)"))
+                    Err(invalid_state(
+                        "peaks are not ready yet (wait for PeaksReady)",
+                    ))
                 } else {
                     Err(cmd_err(ErrorCode::Decode, "the media could not be decoded"))
                 }
@@ -608,7 +700,9 @@ where
             MediaCommand::ListDirectory { location, path } => {
                 check_relative_path(path).map_err(store_err)?;
                 let listing = match location {
-                    BrowseLocation::Library { id } => self.library.list_dir(id, path).map_err(store_err)?,
+                    BrowseLocation::Library { id } => {
+                        self.library.list_dir(id, path).map_err(store_err)?
+                    }
                     BrowseLocation::ProjectMedia => {
                         let pid = self.doc.as_ref().ok_or_else(no_project)?.project.id;
                         let rel = if path.is_empty() {
@@ -638,12 +732,22 @@ where
                 };
                 Ok(ReplyValue::Directory { listing })
             }
-            MediaCommand::Preview { .. } | MediaCommand::StopPreview => Err(unsupported("preview is not available on this host")),
-            MediaCommand::BeginUpload { .. } => Err(unsupported("uploads are not supported in v0.1")),
+            MediaCommand::Preview { .. } | MediaCommand::StopPreview => {
+                Err(unsupported("preview is not available on this host"))
+            }
+            MediaCommand::BeginUpload { .. } => {
+                Err(unsupported("uploads are not supported in v0.1"))
+            }
         }
     }
 
-    fn import(&mut self, id: MediaId, source: &MediaSource, now: u64, out: &mut dyn MessageSink) -> CmdResult<ReplyValue> {
+    fn import(
+        &mut self,
+        id: MediaId,
+        source: &MediaSource,
+        now: u64,
+        out: &mut dyn MessageSink,
+    ) -> CmdResult<ReplyValue> {
         let doc = self.doc.as_ref().ok_or_else(no_project)?;
         if let Some(m) = doc.project.media.get(&id) {
             return Ok(ReplyValue::Media { media: m.clone() });
@@ -677,7 +781,9 @@ where
                 let bytes = self.store.read(pid, &m.file).map_err(store_err)?;
                 (bytes, m.name, Some(m.file))
             }
-            MediaSource::Upload { .. } => return Err(unsupported("uploads are not supported in v0.1")),
+            MediaSource::Upload { .. } => {
+                return Err(unsupported("uploads are not supported in v0.1"));
+            }
         };
         let hash = content_hash(&bytes);
         let chained = is_chained_ogg(&bytes);
@@ -686,7 +792,9 @@ where
             .map_err(|e| cmd_err(ErrorCode::Decode, e.to_string()))?;
         if decoder.sample_rate == 0 || decoder.channels == 0 || decoder.n_frames.is_none() {
             // Header without the metadata a MediaRef needs: decode now.
-            decoder.run_to_end().map_err(|e| cmd_err(ErrorCode::Decode, e.to_string()))?;
+            decoder
+                .run_to_end()
+                .map_err(|e| cmd_err(ErrorCode::Decode, e.to_string()))?;
             decoder.n_frames = Some(decoder.decoded_frames() as u64);
         }
         if decoder.sample_rate == 0 || decoder.channels == 0 {
@@ -694,7 +802,12 @@ where
         }
         let file = match existing_file {
             Some(f) => f,
-            None => match doc.project.media.values().find(|m| m.hash.as_deref() == Some(hash.as_str())) {
+            None => match doc
+                .project
+                .media
+                .values()
+                .find(|m| m.hash.as_deref() == Some(hash.as_str()))
+            {
                 // Same content already in the project: share the file.
                 Some(m) => m.file.clone(),
                 None => {
@@ -722,7 +835,10 @@ where
         event(
             out,
             Event::Media {
-                event: MediaEvent::ImportProgress { media: id, progress: 0.0 },
+                event: MediaEvent::ImportProgress {
+                    media: id,
+                    progress: 0.0,
+                },
             },
         );
         Ok(ReplyValue::Media { media })
@@ -818,7 +934,11 @@ where
             && now.saturating_sub(doc.last_edit_ms) >= after
             && let Err(e) = self.save_current(out)
         {
-            notify(out, NotificationLevel::Error, format!("autosave failed: {}", e.message));
+            notify(
+                out,
+                NotificationLevel::Error,
+                format!("autosave failed: {}", e.message),
+            );
             // Don't retry every tick.
             if let Some(doc) = self.doc.as_mut() {
                 doc.last_edit_ms = now;
@@ -841,7 +961,10 @@ where
             return;
         }
         let project = self.doc.as_ref().map(|d| &d.project);
-        for (level, message) in self.engine.publish(&mut self.bridge, project, &self.armed, now) {
+        for (level, message) in self
+            .engine
+            .publish(&mut self.bridge, project, &self.armed, now)
+        {
             notify(out, level, message);
         }
     }

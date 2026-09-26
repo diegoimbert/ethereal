@@ -9,6 +9,7 @@ mod decode;
 pub mod hash;
 mod resample;
 
+use std::collections::btree_map::Entry;
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::sync::Arc;
 
@@ -42,7 +43,7 @@ enum Stage {
     /// Read the file from the store (and the peaks cache).
     Read,
     Decode(Box<IncrementalDecoder>),
-    Resample(IncrementalResampler),
+    Resample(Box<IncrementalResampler>),
 }
 
 struct Job {
@@ -114,7 +115,12 @@ impl MediaState {
     pub fn sync<B: EngineBridge>(&mut self, bridge: &mut B, project: Option<&Project>) {
         let empty = BTreeMap::new();
         let media = project.map_or(&empty, |p| &p.media);
-        let gone: Vec<MediaId> = self.loaded.iter().filter(|m| !media.contains_key(m)).copied().collect();
+        let gone: Vec<MediaId> = self
+            .loaded
+            .iter()
+            .filter(|m| !media.contains_key(m))
+            .copied()
+            .collect();
         for m in gone {
             self.loaded.remove(&m);
             let _ = bridge.unload_media(m);
@@ -148,8 +154,18 @@ impl MediaState {
         let mut budget = budget.max(1) as isize;
         let mut reported = BTreeSet::new();
         while budget > 0 {
-            let Some(mut job) = self.jobs.pop_front() else { break };
-            match self.advance(&mut job, project, store, bridge, engine_rate, &mut budget, events) {
+            let Some(mut job) = self.jobs.pop_front() else {
+                break;
+            };
+            match self.advance(
+                &mut job,
+                project,
+                store,
+                bridge,
+                engine_rate,
+                &mut budget,
+                events,
+            ) {
                 Ok(true) => {
                     loaded.push(job.media.id);
                     if job.report {
@@ -202,7 +218,9 @@ impl MediaState {
                         Ok(b) => b,
                         Err(e) => {
                             events.push(Event::Media {
-                                event: MediaEvent::Missing { media: job.media.id },
+                                event: MediaEvent::Missing {
+                                    media: job.media.id,
+                                },
                             });
                             return Err(MediaError::Decode(e.to_string()));
                         }
@@ -215,11 +233,14 @@ impl MediaState {
                     {
                         self.peaks.insert(job.media.id, peaks);
                         events.push(Event::Media {
-                            event: MediaEvent::PeaksReady { media: job.media.id },
+                            event: MediaEvent::PeaksReady {
+                                media: job.media.id,
+                            },
                         });
                     }
                     let chained = is_chained_ogg(&bytes);
-                    let decoder = IncrementalDecoder::new(bytes.into(), extension_of(&job.media.file))?;
+                    let decoder =
+                        IncrementalDecoder::new(bytes.into(), extension_of(&job.media.file))?;
                     if chained && !job.warned {
                         job.warned = true;
                         events.push(Event::Notification {
@@ -248,18 +269,24 @@ impl MediaState {
                             message: chained_ogg_warning(&job.media.name),
                         });
                     }
-                    if !self.peaks.contains_key(&job.media.id) {
+                    if let Entry::Vacant(slot) = self.peaks.entry(job.media.id) {
                         let peaks = PeakMipmap::build(&audio);
                         if let Some(hash) = &job.media.hash {
-                            let _ = store.write(project, &peaks_cache_path(hash), &peaks.to_bytes());
+                            let _ =
+                                store.write(project, &peaks_cache_path(hash), &peaks.to_bytes());
                         }
-                        self.peaks.insert(job.media.id, peaks);
+                        slot.insert(peaks);
                         events.push(Event::Media {
-                            event: MediaEvent::PeaksReady { media: job.media.id },
+                            event: MediaEvent::PeaksReady {
+                                media: job.media.id,
+                            },
                         });
                     }
                     *budget -= (audio.frames() / 16) as isize;
-                    job.stage = Stage::Resample(IncrementalResampler::new(Arc::new(audio), engine_rate)?);
+                    job.stage = Stage::Resample(Box::new(IncrementalResampler::new(
+                        Arc::new(audio),
+                        engine_rate,
+                    )?));
                 }
                 Stage::Resample(r) => {
                     let done = r.step((*budget).max(1) as usize)?;
