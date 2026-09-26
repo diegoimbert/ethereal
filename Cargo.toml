@@ -1,0 +1,128 @@
+[workspace]
+resolver = "3"
+# The member list is owned by `foundation` and frozen: nobody else edits it (ORCHESTRATION.md §4).
+members = [
+    "crates/ether-protocol",
+    "crates/ether-model",
+    "crates/ether-core",
+    "crates/ether-devices",
+    "crates/ether-media",
+    "crates/ether-controller",
+    "crates/ether-stretch",
+    "crates/ether-clap",
+    "crates/ether-plugin-scanner",
+    "crates/ether-sandbox",
+    "crates/ether-native",
+    "crates/ether-wasm",
+    "apps/desktop/src-tauri",
+]
+
+[workspace.package]
+version = "0.0.1"
+edition = "2024"
+rust-version = "1.88"
+license = "GPL-3.0-or-later"
+repository = "https://github.com/diegoimbert/ethereal"
+authors = ["Ethereal contributors"]
+publish = false
+
+# Every dependency any node is expected to need is pre-declared here (ORCHESTRATION.md §4).
+# Crates opt in with `foo.workspace = true` in their OWN Cargo.toml. A dependency missing
+# from this table goes through a BCR. Entries that no crate uses yet are not resolved or
+# downloaded, so pre-declaring them is free.
+[workspace.dependencies]
+# --- internal ---
+ether-protocol = { path = "crates/ether-protocol" }
+ether-model = { path = "crates/ether-model" }
+ether-core = { path = "crates/ether-core" }
+ether-devices = { path = "crates/ether-devices" }
+ether-media = { path = "crates/ether-media", default-features = false }
+ether-controller = { path = "crates/ether-controller" }
+ether-stretch = { path = "crates/ether-stretch", default-features = false }
+ether-clap = { path = "crates/ether-clap" }
+ether-sandbox = { path = "crates/ether-sandbox" }
+ether-native = { path = "crates/ether-native" }
+
+# --- serialization / ids / types ---
+serde = { version = "1.0.219", features = ["derive", "rc"] }
+serde_json = "1.0.140"
+ulid = { version = "1.2", default-features = false }
+# ProjectId is a UUIDv7. No `v7` feature here: it pulls in `getrandom` (breaks the wasm
+# check); the model builds v7 UUIDs from injected time + entropy (`IdGen::next_project_id`).
+# Native-only crates may add `features = ["v7"]` to use `Uuid::now_v7()`.
+uuid = { version = "1.18", default-features = false, features = ["std", "serde"] }
+ts-rs = { version = "12", features = ["serde-compat"] }
+base64 = "0.22"
+toml = "0.9"
+
+# --- errors / logging ---
+thiserror = "2"
+anyhow = "1"
+tracing = { version = "0.1", default-features = false, features = ["std"] }
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+
+# --- real-time plumbing ---
+rtrb = "0.3"
+triple_buffer = "8"
+basedrop = "0.1"
+assert_no_alloc = "1.1"
+crossbeam-channel = "0.5"
+parking_lot = "0.12"
+
+# --- audio I/O, media, DSP ---
+cpal = "0.16"
+midir = "0.10"
+symphonia = { version = "0.5", default-features = false, features = ["wav", "pcm", "aiff", "flac", "mp3", "ogg", "vorbis"] }
+rubato = "0.16"
+signalsmith-stretch = "0.1"
+
+# --- plugins (CLAP via clack; git-only, pinned) ---
+clack-host = { git = "https://github.com/prokopyl/clack", rev = "27ca28391b57a61bad4bb5099288a7bf9247350d" }
+clack-extensions = { git = "https://github.com/prokopyl/clack", rev = "27ca28391b57a61bad4bb5099288a7bf9247350d", features = ["clack-host", "audio-ports", "gui", "latency", "log", "note-ports", "params", "state", "timer", "tail"] }
+clack-plugin = { git = "https://github.com/prokopyl/clack", rev = "27ca28391b57a61bad4bb5099288a7bf9247350d" }
+libloading = "0.8"
+
+# --- out-of-process sandbox / IPC ---
+shared_memory = "0.12"
+raw_sync = "0.1"
+interprocess = "2"
+
+# --- wasm ---
+wasm-bindgen = "0.2.100"
+js-sys = "0.3.77"
+web-sys = { version = "0.3.77", features = ["console", "MessagePort", "Worker", "AudioWorkletGlobalScope"] }
+serde-wasm-bindgen = "0.6"
+console_error_panic_hook = "0.1"
+getrandom = "0.3"
+
+# --- desktop app ---
+tauri = { version = "2", features = [] }
+tauri-build = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+tauri-plugin-fs = "2"
+
+# --- tooling / tests ---
+globset = "0.4"
+proptest = "1"
+insta = { version = "1", features = ["json"] }
+
+[profile.dev]
+# DSP code is unusably slow at opt-level 0; keep debuginfo but optimize a bit.
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 2
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+
+[workspace.lints.rust]
+unsafe_op_in_unsafe_fn = "deny"
+missing_debug_implementations = "allow"
+
+[workspace.lints.clippy]
+# `todo!()` stubs are intentional in the foundation scaffold; nodes remove them.
+todo = "allow"
+# Stubs hide their future internals behind a private `_private: ()` field.
+manual_non_exhaustive = "allow"

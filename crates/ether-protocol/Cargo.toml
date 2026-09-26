@@ -1,0 +1,23 @@
+[package]
+name = "ether-protocol"
+description = "Wire protocol: commands, events, replies, patches and TypeScript type export."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[dependencies]
+ether-model.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+ts-rs.workspace = true
+
+[lints]
+workspace = true
+
+[[example]]
+name = "gen-ts"
+path = "examples/gen_ts.rs"

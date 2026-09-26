@@ -1,0 +1,21 @@
+[package]
+name = "ether-wasm"
+description = "wasm-bindgen bindings: controller worker + AudioWorklet engine."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+ether-core.workspace = true
+ether-controller.workspace = true
+wasm-bindgen.workspace = true
+
+[lints]
+workspace = true

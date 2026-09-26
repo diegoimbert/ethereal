@@ -1,0 +1,20 @@
+[package]
+name = "ether-controller"
+description = "Controller: commands to ops to model to patches; model to render snapshot."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[dependencies]
+ether-core.workspace = true
+ether-model.workspace = true
+ether-protocol.workspace = true
+ether-media.workspace = true
+thiserror.workspace = true
+
+[lints]
+workspace = true

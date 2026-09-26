@@ -1,0 +1,87 @@
+import { useCallback, useRef } from "react";
+import type { KeyboardEvent, PointerEvent } from "react";
+
+export const clamp01 = (v: number): number => (v < 0 ? 0 : v > 1 ? 1 : v);
+
+export interface VerticalDragOptions {
+  value: number;
+  onChange?: ((value: number) => void) | undefined;
+  /** Value change per pixel dragged upward. Shift divides it by 10 (fine mode). */
+  sensitivity: number;
+  /** Double-click resets to this value. */
+  defaultValue?: number | undefined;
+}
+
+/**
+ * Pointer + keyboard handlers for a vertical 0..1 control (knobs, faders).
+ * Drag up to increase; Shift = fine; arrows/PageUp/PageDown/Home/End on focus.
+ */
+export function useVerticalDrag({ value, onChange, sensitivity, defaultValue }: VerticalDragOptions) {
+  const drag = useRef<{ startY: number; startValue: number } | null>(null);
+
+  const onPointerDown = useCallback(
+    (e: PointerEvent<HTMLElement>) => {
+      if (e.button !== 0) return;
+      e.currentTarget.setPointerCapture(e.pointerId);
+      drag.current = { startY: e.clientY, startValue: value };
+      e.preventDefault();
+    },
+    [value],
+  );
+
+  const onPointerMove = useCallback(
+    (e: PointerEvent<HTMLElement>) => {
+      const d = drag.current;
+      if (!d || !onChange) return;
+      const s = e.shiftKey ? sensitivity / 10 : sensitivity;
+      const next = clamp01(d.startValue + (d.startY - e.clientY) * s);
+      if (next !== value) onChange(next);
+    },
+    [onChange, sensitivity, value],
+  );
+
+  const onPointerUp = useCallback((e: PointerEvent<HTMLElement>) => {
+    drag.current = null;
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
+  }, []);
+
+  const onDoubleClick = useCallback(() => {
+    if (defaultValue !== undefined) onChange?.(clamp01(defaultValue));
+  }, [defaultValue, onChange]);
+
+  const onKeyDown = useCallback(
+    (e: KeyboardEvent<HTMLElement>) => {
+      const step = e.shiftKey ? 0.001 : 0.01;
+      let next: number | null = null;
+      switch (e.key) {
+        case "ArrowUp":
+        case "ArrowRight":
+          next = value + step;
+          break;
+        case "ArrowDown":
+        case "ArrowLeft":
+          next = value - step;
+          break;
+        case "PageUp":
+          next = value + 0.1;
+          break;
+        case "PageDown":
+          next = value - 0.1;
+          break;
+        case "Home":
+          next = 0;
+          break;
+        case "End":
+          next = 1;
+          break;
+      }
+      if (next !== null) {
+        e.preventDefault();
+        onChange?.(clamp01(next));
+      }
+    },
+    [onChange, value],
+  );
+
+  return { onPointerDown, onPointerMove, onPointerUp, onPointerCancel: onPointerUp, onDoubleClick, onKeyDown };
+}

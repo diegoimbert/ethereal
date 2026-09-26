@@ -1,0 +1,178 @@
+/**
+ * Derived views of the normalized `Project` (pure functions) and React hooks over the
+ * project store.
+ *
+ * The pure functions allocate new arrays; the hooks wrap them in `useShallow` so a
+ * component only re-renders when the selected entities actually change (immer keeps
+ * untouched entity objects referentially stable across patches).
+ */
+
+import { useShallow } from "zustand/react/shallow";
+import type {
+  AutomationLane,
+  AutomationLaneId,
+  AutomationPoint,
+  Clip,
+  ClipId,
+  Device,
+  Note,
+  Project,
+  Scene,
+  SceneId,
+  TempoPoint,
+  TimeSignaturePoint,
+  Track,
+  TrackId,
+  TrackSend,
+  WarpMarker,
+} from "@/generated";
+import { compareOrderKeys } from "./orderKey";
+import { useProjectStore } from "./projectStore";
+
+const byOrder = (a: { order: string; id: string }, b: { order: string; id: string }) =>
+  compareOrderKeys(a.order, b.order) || compareOrderKeys(a.id, b.id);
+
+const byTime = (a: { time: number; id: string }, b: { time: number; id: string }) =>
+  a.time - b.time || compareOrderKeys(a.id, b.id);
+
+/** Direct children of `parent` (`null` = top level), sorted by `order`. */
+export function childTracks(project: Project, parent: TrackId | null): Track[] {
+  return Object.values(project.tracks)
+    .filter((t) => t.parent === parent)
+    .sort(byOrder);
+}
+
+/**
+ * Every track in display order: top-level tracks by `order`, each group immediately
+ * followed by its children (depth-first). Includes return and master tracks; filter by
+ * `kind` as needed.
+ */
+export function tracksOrdered(project: Project): Track[] {
+  const out: Track[] = [];
+  const visit = (parent: TrackId | null) => {
+    for (const t of childTracks(project, parent)) {
+      out.push(t);
+      if (t.kind === "Group") visit(t.id);
+    }
+  };
+  visit(null);
+  return out;
+}
+
+/** Nesting depth of a track (0 = top level). */
+export function trackDepth(project: Project, track: TrackId): number {
+  let depth = 0;
+  let parent = project.tracks[track]?.parent ?? null;
+  while (parent !== null && depth < 64) {
+    depth++;
+    parent = project.tracks[parent]?.parent ?? null;
+  }
+  return depth;
+}
+
+export function masterTrack(project: Project): Track | undefined {
+  return Object.values(project.tracks).find((t) => t.kind === "Master");
+}
+
+/** Device chain of a track, in chain order. */
+export function devicesOfTrack(project: Project, track: TrackId): Device[] {
+  return Object.values(project.devices)
+    .filter((d) => d.track === track)
+    .sort(byOrder);
+}
+
+/** Arrangement clips of a track, sorted by start. */
+export function clipsOfTrack(project: Project, track: TrackId): Clip[] {
+  return Object.values(project.clips)
+    .filter((c) => c.track === track && c.location.type === "Arrangement")
+    .sort((a, b) => clipStart(a) - clipStart(b) || compareOrderKeys(a.id, b.id));
+}
+
+/** Timeline start of an arrangement clip (0 for session clips). */
+export function clipStart(clip: Clip): number {
+  return clip.location.type === "Arrangement" ? clip.location.start : 0;
+}
+
+/** Session clips of a track (any scene). */
+export function sessionClipsOfTrack(project: Project, track: TrackId): Clip[] {
+  return Object.values(project.clips).filter((c) => c.track === track && c.location.type === "Session");
+}
+
+/** The clip in session slot `(track, scene)`, if any. */
+export function sessionClip(project: Project, track: TrackId, scene: SceneId): Clip | undefined {
+  return Object.values(project.clips).find(
+    (c) => c.track === track && c.location.type === "Session" && c.location.scene === scene,
+  );
+}
+
+/** Notes of a MIDI clip, sorted by start then pitch. */
+export function notesOfClip(project: Project, clip: ClipId): Note[] {
+  return Object.values(project.notes)
+    .filter((n) => n.clip === clip)
+    .sort((a, b) => a.start - b.start || a.pitch - b.pitch || compareOrderKeys(a.id, b.id));
+}
+
+/** Breakpoints of an automation lane, sorted by time. */
+export function pointsOfLane(project: Project, lane: AutomationLaneId): AutomationPoint[] {
+  return Object.values(project.automation_points)
+    .filter((p) => p.lane === lane)
+    .sort(byTime);
+}
+
+/** Arrangement automation lanes of a track. */
+export function lanesOfTrack(project: Project, track: TrackId): AutomationLane[] {
+  return Object.values(project.automation_lanes).filter((l) => l.owner.type === "Track" && l.owner.track === track);
+}
+
+/** Clip envelopes of a clip. */
+export function lanesOfClip(project: Project, clip: ClipId): AutomationLane[] {
+  return Object.values(project.automation_lanes).filter((l) => l.owner.type === "Clip" && l.owner.clip === clip);
+}
+
+export function scenesOrdered(project: Project): Scene[] {
+  return Object.values(project.scenes).sort(byOrder);
+}
+
+/** Sends out of a track. */
+export function sendsOfTrack(project: Project, track: TrackId): TrackSend[] {
+  return Object.values(project.sends).filter((s) => s.from === track);
+}
+
+export function warpMarkersOfClip(project: Project, clip: ClipId): WarpMarker[] {
+  return Object.values(project.warp_markers)
+    .filter((m) => m.clip === clip)
+    .sort((a, b) => a.beat - b.beat);
+}
+
+export function tempoPoints(project: Project): TempoPoint[] {
+  return Object.values(project.tempo_points).sort(byTime);
+}
+
+export function timeSignaturePoints(project: Project): TimeSignaturePoint[] {
+  return Object.values(project.time_signatures).sort(byTime);
+}
+
+// ─── Hooks ──────────────────────────────────────────────────────────────────────────────
+
+const EMPTY: never[] = [];
+
+/** Select a derived list from the current project with shallow equality. */
+function useProjectList<T>(select: (project: Project) => T[]): T[] {
+  return useProjectStore(useShallow((s) => (s.project ? select(s.project) : EMPTY)));
+}
+
+export const useProject = (): Project | null => useProjectStore((s) => s.project);
+export const useTrack = (id: TrackId | null | undefined): Track | undefined =>
+  useProjectStore((s) => (id ? s.project?.tracks[id] : undefined));
+export const useClip = (id: ClipId | null | undefined): Clip | undefined =>
+  useProjectStore((s) => (id ? s.project?.clips[id] : undefined));
+
+export const useTracksOrdered = (): Track[] => useProjectList(tracksOrdered);
+export const useScenesOrdered = (): Scene[] => useProjectList(scenesOrdered);
+export const useDevicesOfTrack = (track: TrackId): Device[] => useProjectList((p) => devicesOfTrack(p, track));
+export const useClipsOfTrack = (track: TrackId): Clip[] => useProjectList((p) => clipsOfTrack(p, track));
+export const useNotesOfClip = (clip: ClipId): Note[] => useProjectList((p) => notesOfClip(p, clip));
+export const usePointsOfLane = (lane: AutomationLaneId): AutomationPoint[] =>
+  useProjectList((p) => pointsOfLane(p, lane));
+export const useSessionClip = (track: TrackId, scene: SceneId): Clip | undefined =>
+  useProjectStore((s) => (s.project ? sessionClip(s.project, track, scene) : undefined));
