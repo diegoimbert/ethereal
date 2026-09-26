@@ -242,7 +242,6 @@ fn update_send(s: &mut TrackSend, c: SendChange) -> Result<SendChange, ModelErro
     })
 }
 
-
 fn update_lane(
     l: &mut AutomationLane,
     c: AutomationLaneChange,

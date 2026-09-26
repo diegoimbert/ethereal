@@ -5,7 +5,7 @@
  *
  * Layout (Ableton-like):
  *   ┌ project menu │ transport bar │ recording ┐
- *   │ browser /    │ main view: arrangement ⇄ session (Tab) │
+ *   │ browser /    │ main view: arrangement                  │
  *   │ plugins      ├─────────────────────────────────────────┤
  *   │              │ detail: devices | piano roll | automation | warp | mixer │
  *   └──────────────┴─────────────────────────────────────────┘
@@ -14,7 +14,7 @@
  * `<TransportProvider transport={createDefaultTransport()}>` from `@/transport`; features
  * use `useTransport()` and read the document from `@/state`.
  */
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Button, Panel } from "@/kit";
 import { useEditorStore, useProjectStore } from "@/state";
 import { ArrangementView } from "@/features/arrangement";
@@ -26,7 +26,6 @@ import { PianoRoll } from "@/features/piano-roll";
 import { PluginBrowser } from "@/features/plugins";
 import { ProjectMenu } from "@/features/project";
 import { RecordingControls } from "@/features/recording";
-import { SessionView } from "@/features/session";
 import { TransportBar } from "@/features/transport-bar";
 import { WarpEditor } from "@/features/warp";
 import "./App.css";
@@ -37,14 +36,8 @@ interface Slot<Id extends string> {
   render: () => ReactNode;
 }
 
-export type MainViewId = "arrangement" | "session";
 export type SidebarTabId = "browser" | "plugins";
 export type DetailTabId = "devices" | "piano-roll" | "automation" | "warp" | "mixer";
-
-const MAIN_VIEWS: ReadonlyArray<Slot<MainViewId>> = [
-  { id: "arrangement", label: "Arrangement", render: () => <ArrangementView /> },
-  { id: "session", label: "Session", render: () => <SessionView /> },
-];
 
 const SIDEBAR_TABS: ReadonlyArray<Slot<SidebarTabId>> = [
   { id: "browser", label: "Browser", render: () => <Browser /> },
@@ -58,11 +51,6 @@ const DETAIL_TABS: ReadonlyArray<Slot<DetailTabId>> = [
   { id: "warp", label: "Warp", render: () => <WarpEditor /> },
   { id: "mixer", label: "Mixer", render: () => <Mixer /> },
 ];
-
-function isTextEntry(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) return false;
-  return target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName);
-}
 
 function Tabs<Id extends string>({
   slots,
@@ -99,7 +87,6 @@ function renderActive<Id extends string>(slots: ReadonlyArray<Slot<Id>>, id: Id)
 }
 
 export function App() {
-  const [mainView, setMainView] = useState<MainViewId>("arrangement");
   const [sidebarTab, setSidebarTab] = useState<SidebarTabId>("browser");
   const [detailTab, setDetailTab] = useState<DetailTabId>("devices");
   const [detailOpen, setDetailOpen] = useState(true);
@@ -117,22 +104,8 @@ export function App() {
     [],
   );
 
-  const toggleMainView = useCallback(() => setMainView((v) => (v === "arrangement" ? "session" : "arrangement")), []);
-
-  // Tab toggles Arrangement ⇄ Session (as in Ableton), unless typing in a text field.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Tab" || e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return;
-      if (isTextEntry(e.target)) return;
-      e.preventDefault();
-      toggleMainView();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [toggleMainView]);
-
   return (
-    <div className={detailOpen ? "eth-shell" : "eth-shell eth-shell--detail-closed"} data-main-view={mainView}>
+    <div className={detailOpen ? "eth-shell" : "eth-shell eth-shell--detail-closed"}>
       <header className="eth-shell__top" data-slot="top">
         <div data-slot="project">
           <ProjectMenu />
@@ -153,17 +126,8 @@ export function App() {
         {renderActive(SIDEBAR_TABS, sidebarTab)}
       </Panel>
 
-      <Panel
-        className="eth-shell__main"
-        data-slot="main"
-        title={<Tabs label="Main view" slots={MAIN_VIEWS} active={mainView} onSelect={setMainView} />}
-        actions={
-          <Button size="sm" variant="ghost" onClick={toggleMainView} title="Toggle Arrangement/Session (Tab)">
-            ⇄ Tab
-          </Button>
-        }
-      >
-        {renderActive(MAIN_VIEWS, mainView)}
+      <Panel className="eth-shell__main" data-slot="main" title="Arrangement">
+        <ArrangementView />
       </Panel>
 
       <Panel

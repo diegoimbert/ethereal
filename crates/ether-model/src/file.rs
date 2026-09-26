@@ -101,9 +101,7 @@ impl Migration for V1RemoveSession {
         if dropped.is_empty() {
             return Ok(());
         }
-        let owned = |v: &Value, field: &str| {
-            v[field].as_str().is_some_and(|c| dropped.contains(c))
-        };
+        let owned = |v: &Value, field: &str| v[field].as_str().is_some_and(|c| dropped.contains(c));
         for table in ["notes", "warp_markers"] {
             if let Some(t) = project.get_mut(table).and_then(Value::as_object_mut) {
                 t.retain(|_, v| !owned(v, "clip"));
@@ -126,7 +124,11 @@ impl Migration for V1RemoveSession {
             .get_mut("automation_points")
             .and_then(Value::as_object_mut)
         {
-            t.retain(|_, v| !v["lane"].as_str().is_some_and(|l| dropped_lanes.contains(l)));
+            t.retain(|_, v| {
+                !v["lane"]
+                    .as_str()
+                    .is_some_and(|l| dropped_lanes.contains(l))
+            });
         }
         Ok(())
     }
@@ -258,7 +260,8 @@ mod tests {
         let mut doc: serde_json::Value = serde_json::from_str(&save(&p, "0.1.0").unwrap()).unwrap();
         doc["version"] = 1.into();
         let project = &mut doc["project"];
-        project["settings"]["launch_quantization"] = serde_json::json!({"type": "Bars", "count": 1});
+        project["settings"]["launch_quantization"] =
+            serde_json::json!({"type": "Bars", "count": 1});
         project["scenes"] = serde_json::json!({"Scene_01": {"id": "Scene_01", "name": "1"}});
         project["notes"] = serde_json::json!({
             "Note_s": {"clip": "Clip_s"}
@@ -281,7 +284,10 @@ mod tests {
             "Clip_a": {"location": {"type": "Arrangement", "start": 8.0}, "launch": {}}
         }}});
         V1RemoveSession.migrate(&mut v).unwrap();
-        assert_eq!(v["project"]["clips"]["Clip_a"], serde_json::json!({"start": 8.0}));
+        assert_eq!(
+            v["project"]["clips"]["Clip_a"],
+            serde_json::json!({"start": 8.0})
+        );
     }
 
     #[test]

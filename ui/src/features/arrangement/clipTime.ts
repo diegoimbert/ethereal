@@ -1,17 +1,16 @@
 /**
  * Clip time math for the arrangement (pure):
- * - the one accessor for a clip's timeline position (`startOf`) and the one constructor of
- *   clip locations (`locationAt`), so a change to `ClipLocation` touches only these;
+ * - the one accessor for a clip's timeline position (`startOf`);
  * - timeline → content-beat segments (loop unrolling);
  * - content beats → source seconds for audio clips (warp markers / source tempo).
  */
 
-import type { Beats, Clip, ClipLocation, MediaRef, WarpMarker } from "@/generated";
-import { BEATS_EPSILON, clipStart } from "@/state";
+import type { Beats, Clip, MediaRef, WarpMarker } from "@/generated";
+import { BEATS_EPSILON } from "@/state";
 
 /** Timeline start of an arrangement clip. */
 export function startOf(clip: Clip): Beats {
-  return clipStart(clip);
+  return clip.start;
 }
 
 /** Timeline end of an arrangement clip. */
@@ -19,13 +18,9 @@ export function endOf(clip: Clip): Beats {
   return startOf(clip) + clip.length;
 }
 
-/** The location value for an arrangement clip starting at `start`. */
-export function locationAt(start: Beats): ClipLocation {
-  return { type: "Arrangement", start };
-}
-
-export function isArrangementClip(clip: Clip): boolean {
-  return clip.location.type === "Arrangement";
+/** Every clip is an arrangement clip (Session view was removed); kept for call sites. */
+export function isArrangementClip(_clip: Clip): boolean {
+  return true;
 }
 
 /** A piece of a clip where timeline time maps linearly onto content time. */

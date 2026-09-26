@@ -25,7 +25,6 @@ paths = ["crates/ether-model/**"]
 
 [nodes.core]
 paths = ["crates/ether-core/**"]
-exclude = ["crates/ether-core/src/session/**"]
 
 [nodes.devices]
 paths = ["crates/ether-devices/**"]
@@ -52,9 +51,6 @@ paths = [
   "ui/src/features/project/**",
 ]
 
-[nodes.ui-session]
-paths = ["ui/src/features/session/**"]
-
 # --- Wave 2 ---------------------------------------------------------------------------
 
 [nodes.controller]
@@ -65,9 +61,6 @@ paths = ["crates/ether-native/**", "apps/desktop/**", "ui/src/transport/tauri/**
 
 [nodes.wasm-host]
 paths = ["crates/ether-wasm/**", "apps/web/**", "ui/src/transport/wasm/**"]
-
-[nodes.core-session]
-paths = ["crates/ether-core/src/session/**"]
 
 [nodes.sandbox]
 paths = ["crates/ether-sandbox/**"]
@@ -106,12 +99,4 @@ paths = [
   "crates/ether-core/src/recording/**",
   "crates/ether-controller/src/recording/**",
   "crates/ether-native/src/recording/**",
-]
-
-[nodes.session]
-paths = [
-  "ui/src/features/session/**",
-  "crates/ether-model/src/session.rs",
-  "crates/ether-core/src/session/**",
-  "crates/ether-controller/src/session/**",
 ]

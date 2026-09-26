@@ -9,7 +9,7 @@
 import type { Beats, Clip, ClipId, Command, TrackId } from "@/generated";
 import { BEATS_EPSILON } from "@/state";
 import { cmd } from "@/transport";
-import { endOf, locationAt, startOf } from "./clipTime";
+import { endOf, startOf } from "./clipTime";
 import { acceptsClip, type Row } from "./layout";
 
 /** Shortest clip a resize can produce. */
@@ -129,18 +129,18 @@ export function moveCommand(
       })
       .map((c) => {
         const p = preview.get(c.id)!;
-        return { id: c.id, track: p.track, location: locationAt(p.start) };
+        return { id: c.id, track: p.track, start: p.start };
       });
     return moves.length ? cmd("Clip", { type: "Move", moves }) : null;
   }
   const commands: Command[] = [];
-  const moves: Array<{ id: ClipId; track: TrackId; location: ReturnType<typeof locationAt> }> = [];
+  const moves: Array<{ id: ClipId; track: TrackId; start: number }> = [];
   for (const c of clips) {
     const p = preview.get(c.id);
     if (!p) continue;
     const id = newId();
-    commands.push(cmd("Clip", { type: "Duplicate", id: c.id, new_id: id, location: locationAt(p.start) }));
-    if (p.track !== c.track) moves.push({ id, track: p.track, location: locationAt(p.start) });
+    commands.push(cmd("Clip", { type: "Duplicate", id: c.id, new_id: id, start: p.start }));
+    if (p.track !== c.track) moves.push({ id, track: p.track, start: p.start });
   }
   if (moves.length) commands.push(cmd("Clip", { type: "Move", moves }));
   return asOneStep("Copy Clips", commands);
@@ -152,7 +152,7 @@ export function boundsCommand(clips: ReadonlyArray<Clip>, preview: ReadonlyMap<C
   for (const c of clips) {
     const p = preview.get(c.id);
     if (!p || !changed(boundsOf(c), p)) continue;
-    commands.push(cmd("Clip", { type: "SetBounds", id: c.id, location: locationAt(p.start), length: p.length, offset: p.offset }));
+    commands.push(cmd("Clip", { type: "SetBounds", id: c.id, start: p.start, length: p.length, offset: p.offset }));
   }
   return asOneStep("Resize Clips", commands);
 }
@@ -170,7 +170,7 @@ export function duplicateCommand(clips: ReadonlyArray<Clip>, newId: () => string
   if (clips.length === 0) return null;
   const span = Math.max(...clips.map(endOf)) - Math.min(...clips.map(startOf));
   const commands = clips.map((c) =>
-    cmd("Clip", { type: "Duplicate", id: c.id, new_id: newId(), location: locationAt(startOf(c) + span) }),
+    cmd("Clip", { type: "Duplicate", id: c.id, new_id: newId(), start: startOf(c) + span }),
   );
   return asOneStep("Duplicate Clips", commands);
 }

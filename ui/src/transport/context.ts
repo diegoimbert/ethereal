@@ -32,7 +32,7 @@ export function useConnectionStatus(): ConnectionStatus {
 
 /**
  * Subscribe to raw engine events (e.g. `Plugin`, `Media`, `Notification`) for the lifetime
- * of the component. Document/transport/session events are already mirrored into the
+ * of the component. Document/transport events are already mirrored into the
  * project store by `TransportProvider`; prefer reading the store for those.
  */
 export function useTransportEvent(listener: (event: Event) => void): void {
