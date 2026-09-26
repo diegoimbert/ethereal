@@ -1,0 +1,327 @@
+/* Arrangement view. Tokens come from kit/theme.css. */
+
+.eth-arr {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: var(--eth-color-bg);
+  color: var(--eth-color-text);
+  font-size: var(--eth-fs-sm);
+  outline: none;
+  user-select: none;
+}
+
+.eth-arr-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-sm);
+  padding: var(--eth-space-xs) var(--eth-space-sm);
+  border-bottom: 1px solid var(--eth-color-border);
+  background: var(--eth-color-bg-panel);
+}
+
+.eth-arr-toolbar__grid {
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-sm);
+  color: var(--eth-color-text-dim);
+}
+
+.eth-arr-toolbar__grid select {
+  background: var(--eth-color-bg-inset);
+  color: var(--eth-color-text);
+  border: 1px solid var(--eth-color-border-light);
+  border-radius: var(--eth-radius-sm);
+  font-size: var(--eth-fs-sm);
+}
+
+.eth-arr-toolbar__sep {
+  width: 1px;
+  align-self: stretch;
+  margin: 0 var(--eth-space-xs);
+  background: var(--eth-color-border-light);
+}
+
+.eth-arr__top {
+  display: flex;
+  flex: none;
+  scrollbar-gutter: stable;
+  overflow: hidden;
+}
+
+.eth-arr__corner {
+  flex: none;
+  background: var(--eth-color-bg-inset);
+  border-bottom: 1px solid var(--eth-color-border);
+  border-right: 1px solid var(--eth-color-border);
+}
+
+.eth-arr__ruler {
+  flex: 1;
+  min-width: 0;
+}
+
+.eth-arr__scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+
+.eth-arr__content {
+  position: relative;
+  min-height: 100%;
+  touch-action: none;
+}
+
+.eth-arr__backdrop,
+.eth-arr__overlay {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.eth-arr__overlay {
+  z-index: 3;
+}
+
+.eth-arr__gridline {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 1px;
+  background: var(--eth-color-bg-raised);
+}
+
+.eth-arr__gridline--bar {
+  background: var(--eth-color-border-light);
+}
+
+.eth-arr__gridline--sub {
+  opacity: 0.5;
+}
+
+.eth-arr__loop {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: var(--eth-color-accent);
+  opacity: 0.07;
+}
+
+.eth-arr__marquee {
+  position: absolute;
+  z-index: 4;
+  border: 1px solid var(--eth-color-selection);
+  background: color-mix(in srgb, var(--eth-color-selection) 15%, transparent);
+  pointer-events: none;
+}
+
+.eth-arr__drop-area {
+  position: relative;
+  display: flex;
+  align-items: center;
+  padding-left: calc(200px + var(--eth-space-lg));
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+}
+
+.eth-arr__drop-label--active {
+  color: var(--eth-color-accent);
+}
+
+/* ── Rows ─────────────────────────────────────────────────────────── */
+
+.eth-arr-row {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  border-bottom: 1px solid var(--eth-color-border);
+}
+
+.eth-arr-row__main {
+  display: flex;
+  flex: none;
+}
+
+.eth-arr-row__automation {
+  flex: 1;
+}
+
+.eth-arr-header {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-sm);
+  position: relative;
+  z-index: 5;
+  box-sizing: border-box;
+  padding-right: var(--eth-space-sm);
+  background: var(--eth-color-bg-panel);
+  border-right: 1px solid var(--eth-color-border);
+  cursor: default;
+}
+
+.eth-arr-header--selected {
+  background: var(--eth-color-bg-raised);
+}
+
+.eth-arr-header__color {
+  flex: none;
+  align-self: stretch;
+  width: 4px;
+  background: var(--eth-track-color);
+}
+
+.eth-arr-header__fold {
+  flex: none;
+  padding: 0 2px;
+  border: none;
+  background: none;
+  color: var(--eth-color-text-dim);
+  cursor: pointer;
+}
+
+.eth-arr-header__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.eth-arr-header__buttons {
+  display: flex;
+  gap: 2px;
+}
+
+.eth-arr-header__mute[aria-pressed="true"] {
+  background: var(--eth-color-accent);
+  color: var(--eth-color-text-inverse);
+}
+
+.eth-arr-header__solo[aria-pressed="true"] {
+  background: var(--eth-color-selection);
+  color: var(--eth-color-text-inverse);
+}
+
+.eth-arr-header__arm[aria-pressed="true"] {
+  background: var(--eth-color-record);
+  color: var(--eth-color-text-inverse);
+}
+
+.eth-arr-lane {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.eth-arr-lane--no-clips {
+  background: rgb(0 0 0 / 15%);
+}
+
+.eth-arr-lane__summary {
+  position: absolute;
+  top: 40%;
+  height: 20%;
+  background: var(--eth-track-color);
+  opacity: 0.5;
+  border-radius: var(--eth-radius-sm);
+}
+
+.eth-arr-lane__drop-hint {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--eth-color-accent);
+  pointer-events: none;
+}
+
+/* ── Clips ────────────────────────────────────────────────────────── */
+
+.eth-clip {
+  position: absolute;
+  top: 1px;
+  bottom: 1px;
+  box-sizing: border-box;
+  overflow: hidden;
+  border-radius: var(--eth-radius-sm);
+  background: color-mix(in srgb, var(--eth-clip-color) 55%, var(--eth-color-bg));
+  border: 1px solid color-mix(in srgb, var(--eth-clip-color) 70%, black);
+  cursor: grab;
+}
+
+.eth-clip--selected {
+  border-color: var(--eth-color-playhead);
+  box-shadow: inset 0 0 0 1px var(--eth-color-playhead);
+}
+
+.eth-clip--muted {
+  filter: grayscale(0.9);
+  opacity: 0.6;
+}
+
+.eth-clip--dragging {
+  opacity: 0.85;
+  z-index: 2;
+}
+
+.eth-clip--ghost {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.eth-clip__title {
+  height: 14px;
+  padding: 0 var(--eth-space-sm);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: var(--eth-fs-xs);
+  line-height: 14px;
+  color: var(--eth-color-text-inverse);
+  background: var(--eth-clip-color);
+  pointer-events: none;
+}
+
+.eth-clip__loop {
+  margin-right: var(--eth-space-xs);
+}
+
+.eth-clip__body {
+  position: absolute;
+  top: 14px;
+  bottom: 0;
+  pointer-events: none;
+}
+
+.eth-clip__canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.eth-clip__handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  cursor: ew-resize;
+  z-index: 1;
+}
+
+.eth-clip__handle--start {
+  left: 0;
+}
+
+.eth-clip__handle--end {
+  right: 0;
+}
