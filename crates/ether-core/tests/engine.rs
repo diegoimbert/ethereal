@@ -627,7 +627,10 @@ fn enabled_lane_overrides_manual_moves() {
     let params: Vec<_> = events(&drain(&mut rx))
         .into_iter()
         .filter_map(|(t, k)| match k {
-            EventKind::Param { param, value } if param == ParamId(4) => Some((t, value)),
+            EventKind::Param {
+                param: ParamId(4),
+                value,
+            } => Some((t, value)),
             _ => None,
         })
         .collect();
