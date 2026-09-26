@@ -1,5 +1,5 @@
 import "./arrangement.css";
-import { useEffect, useMemo, useRef, type DragEvent, type KeyboardEvent } from "react";
+import { useContext, useEffect, useMemo, useRef, type DragEvent, type KeyboardEvent } from "react";
 import type { Beats, TrackId } from "@/generated";
 import { useProjectStore, useSelectionStore, useTracksOrdered } from "@/state";
 import {
@@ -17,7 +17,7 @@ import {
   useViewport,
   visibleRange,
 } from "@/timeline";
-import { cmd, newId, useTransport, useTransportEvent } from "@/transport";
+import { cmd, newId, TransportContext, useTransport, useTransportEvent } from "@/transport";
 import { actionForKey, runClipAction } from "./actions";
 import { hasBrowserDrag, readBrowserDrag, resolveDroppedMedia } from "./browserDrop";
 import { locationAt } from "./clipTime";
@@ -43,9 +43,21 @@ interface DropTarget {
 
 /**
  * Arrangement view: track headers and clip lanes under a shared ruler. Horizontal zoom and
- * scroll are virtual (`arrangementView`), vertical scrolling is native.
+ * scroll are virtual (`arrangementView`), vertical scrolling is native. Outside a
+ * `<TransportProvider>` (the bare app shell in tests) it renders an empty placeholder.
  */
 export function ArrangementView() {
+  if (!useContext(TransportContext)) {
+    return (
+      <div className="eth-arr eth-arr--disconnected" data-feature="arrangement">
+        No engine connection
+      </div>
+    );
+  }
+  return <ConnectedArrangementView />;
+}
+
+function ConnectedArrangementView() {
   const transport = useTransport();
   const view = arrangementView;
   const peaks = useMemo(() => new PeakCache(transport), [transport]);
