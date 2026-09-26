@@ -13,32 +13,15 @@
 
 use std::path::PathBuf;
 
+pub mod audio;
+pub mod rt;
 pub mod store;
 #[doc(hidden)]
 pub mod test_util;
 
 pub use store::{DiskStore, LibraryRoot};
 
-/// Which audio backend to run.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum AudioBackendKind {
-    Cpal,
-    /// Real-time paced, no device.
-    Null,
-    /// Render as fast as possible (tests, bounce).
-    Offline,
-}
-
-impl AudioBackendKind {
-    /// From `ETHER_AUDIO` (`cpal` | `null` | `offline`), default `Cpal`.
-    pub fn from_env() -> Self {
-        match std::env::var("ETHER_AUDIO").as_deref() {
-            Ok("null") => Self::Null,
-            Ok("offline") => Self::Offline,
-            _ => Self::Cpal,
-        }
-    }
-}
+pub use audio::{AudioBackendKind, AudioSettings};
 
 /// Dev-instance identity (see README "Running multiple dev instances").
 pub mod instance {
