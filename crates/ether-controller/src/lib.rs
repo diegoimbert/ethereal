@@ -18,7 +18,6 @@ use ether_core::protocol::model::{
     Base64Bytes, BuiltinDevice, DeviceId, MediaId, MediaRef, ParamId, PluginInstance, Project,
 };
 use ether_core::protocol::{ClientMessage, ServerMessage};
-use ether_core::session::SessionControl;
 use ether_core::{EngineOutputs, NodeKey, ParamChange, RenderGraphDesc, TransportControl};
 
 /// Receives messages for the UI (Tauri emitter, `postMessage`, test vector, ...).
@@ -96,7 +95,6 @@ pub trait EngineBridge {
     fn publish(&mut self, graph: RenderGraphDesc) -> Result<(), BridgeError>;
     fn set_param(&mut self, change: ParamChange) -> Result<(), BridgeError>;
     fn transport(&mut self, control: TransportControl) -> Result<(), BridgeError>;
-    fn session(&mut self, control: SessionControl) -> Result<(), BridgeError>;
     fn poll(&mut self, out: &mut EngineOutputs);
 
     /// Descriptors of built-in devices and of instantiated plugins.
