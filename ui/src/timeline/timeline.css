@@ -1,0 +1,77 @@
+/* Timeline primitives (ruler, playhead line). Tokens come from kit/theme.css. */
+
+.eth-ruler {
+  position: relative;
+  overflow: hidden;
+  background: var(--eth-color-bg-inset);
+  border-bottom: 1px solid var(--eth-color-border);
+  cursor: default;
+  user-select: none;
+  touch-action: none;
+  font-family: var(--eth-font-mono);
+  font-size: var(--eth-fs-xs);
+  color: var(--eth-color-text-dim);
+}
+
+.eth-ruler__tick {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 1px;
+  height: 25%;
+  background: var(--eth-color-border-light);
+  pointer-events: none;
+}
+
+.eth-ruler__tick--major {
+  height: 55%;
+  background: var(--eth-color-text-dim);
+}
+
+.eth-ruler__label {
+  position: absolute;
+  left: 0;
+  bottom: 50%;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.eth-ruler__loop {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 30%;
+  min-height: 6px;
+  background: var(--eth-color-accent);
+  opacity: 0.85;
+  border-radius: var(--eth-radius-sm);
+  cursor: grab;
+}
+
+.eth-ruler__loop--off {
+  background: var(--eth-color-knob-track);
+  opacity: 0.9;
+}
+
+.eth-ruler__playhead {
+  position: absolute;
+  left: -5px;
+  bottom: 0;
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 7px solid var(--eth-color-playhead);
+  pointer-events: none;
+}
+
+.eth-playhead-line {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--eth-color-playhead);
+  pointer-events: none;
+  z-index: 2;
+}
