@@ -382,6 +382,7 @@ impl Region {
         unsafe { &mut *self.header_ptr() }
     }
 
+    #[allow(clippy::mut_from_ref)]
     fn slice<T>(&self, offset: usize, len: usize) -> &mut [T] {
         // SAFETY: offsets/lengths come from `layout`, which fits the mapping; `T` is `f32`
         // or `WireEvent` (plain data, aligned by `ALIGN`); exclusivity per protocol phase.

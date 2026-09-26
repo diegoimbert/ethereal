@@ -159,8 +159,16 @@ mod tests {
 
     #[test]
     fn names_are_short_and_distinct() {
-        let a = os_name("agent-with-a-rather-long-instance-name", 123_456, "sbx-1-shm");
-        let b = os_name("agent-with-a-rather-long-instance-name", 123_457, "sbx-1-shm");
+        let a = os_name(
+            "agent-with-a-rather-long-instance-name",
+            123_456,
+            "sbx-1-shm",
+        );
+        let b = os_name(
+            "agent-with-a-rather-long-instance-name",
+            123_457,
+            "sbx-1-shm",
+        );
         let c = os_name("other", 123_456, "sbx-1-shm");
         assert!(a.len() <= 31 && a.starts_with('/'));
         assert_ne!(a, b);
@@ -179,6 +187,9 @@ mod tests {
         drop(owner);
         drop(owner2);
         drop(other);
-        assert!(Semaphore::open(&name).is_err(), "name must be unlinked on drop");
+        assert!(
+            Semaphore::open(&name).is_err(),
+            "name must be unlinked on drop"
+        );
     }
 }

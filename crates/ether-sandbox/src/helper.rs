@@ -293,7 +293,12 @@ fn run_audio(
         out_events.clear();
 
         inputs.clear();
-        inputs.extend(region.in_audio().chunks_exact(max.max(1)).map(|c| &c[..frames]));
+        inputs.extend(
+            region
+                .in_audio()
+                .chunks_exact(max.max(1))
+                .map(|c| &c[..frames]),
+        );
         outputs.clear();
         outputs.extend(
             region

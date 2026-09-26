@@ -35,6 +35,8 @@ pub(crate) struct Shared {
     pub underruns: AtomicU64,
     /// The plugin's own latency (the node adds one block on top).
     pub plugin_latency: AtomicU32,
+    /// The sandbox's own latency (max block size of the current activation).
+    pub block_latency: AtomicU32,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -203,8 +205,10 @@ impl SandboxedNode {
 
     /// Move the helper's result for the previous call into the FIFO / `out_events`.
     fn collect(&mut self, frames_prev: usize, ctx: &mut ProcessContext<'_>) {
-        self.fifo
-            .push(frames_prev, Some((self.region.out_audio(), self.max_frames)));
+        self.fifo.push(
+            frames_prev,
+            Some((self.region.out_audio(), self.max_frames)),
+        );
 
         let header = self.region.header();
         let n = (header.n_out_events as usize).min(self.region.layout().max_out_events);

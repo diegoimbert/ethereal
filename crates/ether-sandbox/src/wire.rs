@@ -227,7 +227,10 @@ mod tests {
             assert_eq!(read_frame::<Request>(&mut rd).unwrap().as_ref(), Some(r));
         }
         assert_eq!(read_frame::<Request>(&mut rd).unwrap(), None);
-        assert_eq!(decode_state(&encode_state(&[1, 2, 255])).unwrap(), vec![1, 2, 255]);
+        assert_eq!(
+            decode_state(&encode_state(&[1, 2, 255])).unwrap(),
+            vec![1, 2, 255]
+        );
     }
 
     #[test]

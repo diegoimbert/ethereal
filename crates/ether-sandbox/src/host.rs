@@ -318,6 +318,9 @@ impl PluginController for SandboxedPlugin {
         };
         self.active = true;
         self.shared.plugin_latency.store(latency, Ordering::Relaxed);
+        self.shared
+            .block_latency
+            .store(config.max_block_size.max(1) as u32, Ordering::Relaxed);
 
         let mut values = Vec::with_capacity(self.descriptor.params.len());
         for p in self.descriptor.params.clone() {
@@ -392,8 +395,15 @@ impl PluginController for SandboxedPlugin {
                     let mut rescan = false;
                     for n in list {
                         match n {
+                            // Report the node's total latency (plugin + the sandbox block),
+                            // i.e. what `Node::latency` now returns.
                             Notification::LatencyChanged { samples } => {
                                 self.shared.plugin_latency.store(samples, Ordering::Relaxed);
+                                let block = self.shared.block_latency.load(Ordering::Relaxed);
+                                out.push(PluginNotification::LatencyChanged {
+                                    samples: samples + block,
+                                });
+                                continue;
                             }
                             Notification::ParamsChanged => rescan = true,
                             _ => {}
