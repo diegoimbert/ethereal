@@ -66,9 +66,11 @@ impl PeakMipmap {
             let (mins, maxs) = ch[..frames]
                 .chunks(spp)
                 .map(|c| {
-                    let (lo, hi) = c.iter().fold((f32::INFINITY, f32::NEG_INFINITY), |(lo, hi), &s| {
-                        (lo.min(s), hi.max(s))
-                    });
+                    let (lo, hi) = c
+                        .iter()
+                        .fold((f32::INFINITY, f32::NEG_INFINITY), |(lo, hi), &s| {
+                            (lo.min(s), hi.max(s))
+                        });
                     (q_min(lo), q_max(hi))
                 })
                 .unzip();
@@ -116,18 +118,12 @@ impl PeakMipmap {
         };
         let spp = level.samples_per_peak as f64;
         let len = level.len();
-        let start = if request.start_frame.is_finite() {
-            request.start_frame.max(0.0)
-        } else {
-            0.0
-        };
-        let count = if request.frame_count.is_finite() {
-            request.frame_count.max(0.0)
-        } else {
-            0.0
-        };
+        let finite = |v: f64| if v.is_finite() { v } else { 0.0 };
+        let start = finite(request.start_frame);
+        let end = start + finite(request.frame_count).max(0.0);
+        // Float-to-int `as` saturates, so negative values land on 0.
         let i0 = ((start / spp).floor() as usize).min(len);
-        let i1 = (((start + count) / spp).ceil() as usize).clamp(i0, len);
+        let i1 = ((end / spp).ceil() as usize).clamp(i0, len);
         let to_f = |v: &[i16]| v.iter().map(|&x| x as f32 / SCALE).collect::<Vec<f32>>();
         PeakData {
             media: request.media,
@@ -194,8 +190,10 @@ impl PeakMipmap {
             return Err(bad("trailing bytes"));
         }
         let mut values = data
-            .chunks_exact(2)
-            .map(|b| i16::from_le_bytes([b[0], b[1]]));
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .map(|b| i16::from_le_bytes(*b));
         let mut read_vecs = || -> Vec<Vec<i16>> {
             (0..channels)
                 .map(|_| values.by_ref().take(n).collect())

@@ -102,7 +102,11 @@ fn truncated_wav_keeps_what_is_there() {
     let mut bytes = wav_pcm16(&src, RATE);
     bytes.truncate(bytes.len() - 400); // lose the last 100 stereo frames
     let out = decode(&bytes, Some("wav")).unwrap();
-    assert!(out.frames() >= 800 && out.frames() <= 1000, "{}", out.frames());
+    assert!(
+        out.frames() >= 800 && out.frames() <= 1000,
+        "{}",
+        out.frames()
+    );
     let n = out.frames();
     let want: Vec<Vec<f32>> = src.iter().map(|c| c[..n].to_vec()).collect();
     assert_close(&out.channels, &want, 1.0 / 16000.0);
