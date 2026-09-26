@@ -10,6 +10,18 @@ const names = () => store().projects.map((p) => p.name).sort();
 
 afterEach(resetStores);
 
+/**
+ * The button named `name` in `container`, once it exists and is enabled. The manager
+ * disables its buttons while a store command is in flight, and the project list in the
+ * store updates from `Event::Project` BEFORE that command's reply. Waiting only for the
+ * store can therefore click a still-disabled button (a no-op); always wait for this.
+ */
+async function enabledButton(container: HTMLElement, name: string): Promise<HTMLElement> {
+  const button = await within(container).findByRole("button", { name });
+  await waitFor(() => expect(button).toBeEnabled());
+  return button;
+}
+
 async function openManager() {
   fireEvent.click(screen.getByRole("button", { name: "Projects" }));
   return screen.findByRole("dialog", { name: "Projects" });
@@ -52,16 +64,17 @@ describe("ProjectMenu", () => {
     await renderWithMock(<ProjectMenu />);
     const dialog = await openManager();
     fireEvent.change(within(dialog).getByLabelText("New project name"), { target: { value: "Song" } });
-    fireEvent.click(within(dialog).getByRole("button", { name: "New" }));
-    await waitFor(() => expect(screen.getByTestId("project-name").textContent).toBe("Song"));
-    expect(screen.queryByRole("dialog")).toBeNull();
+    fireEvent.click(await enabledButton(dialog, "New"));
+    // The popover closes once the reply arrives, after the ProjectLoaded event: wait for it.
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(screen.getByTestId("project-name").textContent).toBe("Song");
     expect(names()).toContain("Song");
   });
 
   it("opens another project", async () => {
     await renderWithMock(<ProjectMenu />);
     const dialog = await openManager();
-    fireEvent.click(await within(dialog).findByRole("button", { name: "Open Beat sketch" }));
+    fireEvent.click(await enabledButton(dialog, "Open Beat sketch"));
     await waitFor(() => expect(screen.getByTestId("project-name").textContent).toBe("Beat sketch"));
   });
 
@@ -70,7 +83,7 @@ describe("ProjectMenu", () => {
     const before = store().project!.id;
     const dialog = await openManager();
     fireEvent.change(within(dialog).getByLabelText("Save as name"), { target: { value: "Demo v2" } });
-    fireEvent.click(within(dialog).getByRole("button", { name: "Save as" }));
+    fireEvent.click(await enabledButton(dialog, "Save as"));
     await waitFor(() => expect(screen.getByTestId("project-name").textContent).toBe("Demo v2"));
     expect(store().project!.id).not.toBe(before);
     expect(names()).toEqual(["Ambient idea", "Beat sketch", "Demo", "Demo v2"]);
@@ -80,26 +93,26 @@ describe("ProjectMenu", () => {
     await renderWithMock(<ProjectMenu />);
     const dialog = await openManager();
 
-    fireEvent.click(await within(dialog).findByRole("button", { name: "Duplicate Beat sketch" }));
+    fireEvent.click(await enabledButton(dialog, "Duplicate Beat sketch"));
     await waitFor(() => expect(names()).toContain("Beat sketch copy"));
 
-    fireEvent.click(within(dialog).getByRole("button", { name: "Rename Beat sketch copy" }));
-    const input = within(dialog).getByLabelText("New name for Beat sketch copy");
+    fireEvent.click(await enabledButton(dialog, "Rename Beat sketch copy"));
+    const input = await within(dialog).findByLabelText("New name for Beat sketch copy");
     fireEvent.change(input, { target: { value: "Beats 2" } });
     fireEvent.submit(input);
     await waitFor(() => expect(names()).toContain("Beats 2"));
     expect(names()).not.toContain("Beat sketch copy");
 
-    fireEvent.click(within(dialog).getByRole("button", { name: "Delete Beats 2" }));
-    fireEvent.click(within(dialog).getByRole("button", { name: "Confirm delete Beats 2" }));
+    fireEvent.click(await enabledButton(dialog, "Delete Beats 2"));
+    fireEvent.click(await enabledButton(dialog, "Confirm delete Beats 2"));
     await waitFor(() => expect(names()).not.toContain("Beats 2"));
   });
 
   it("renames the current project (undoable document edit)", async () => {
     await renderWithMock(<ProjectMenu />);
     const dialog = await openManager();
-    fireEvent.click(await within(dialog).findByRole("button", { name: "Rename Demo" }));
-    const input = within(dialog).getByLabelText("New name for Demo");
+    fireEvent.click(await enabledButton(dialog, "Rename Demo"));
+    const input = await within(dialog).findByLabelText("New name for Demo");
     fireEvent.change(input, { target: { value: "My song" } });
     fireEvent.submit(input);
     await waitFor(() => expect(screen.getByTestId("project-name").textContent).toBe("My song"));
