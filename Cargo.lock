@@ -350,6 +350,7 @@ dependencies = [
  "bitflags 2.13.2",
  "clack-common",
  "clack-host",
+ "clack-plugin",
  "clap-sys",
 ]
 
@@ -362,6 +363,15 @@ dependencies = [
  "clap-sys",
  "libloading 0.8.9",
  "objc2-foundation",
+]
+
+[[package]]
+name = "clack-plugin"
+version = "0.2.0"
+source = "git+https://github.com/prokopyl/clack?rev=27ca28391b57a61bad4bb5099288a7bf9247350d#27ca28391b57a61bad4bb5099288a7bf9247350d"
+dependencies = [
+ "clack-common",
+ "clap-sys",
 ]
 
 [[package]]
@@ -812,10 +822,15 @@ dependencies = [
 name = "ether-clap"
 version = "0.0.1"
 dependencies = [
+ "assert_no_alloc",
  "clack-extensions",
  "clack-host",
+ "clack-plugin",
  "ether-core",
+ "rtrb",
+ "serde_json",
  "thiserror 2.0.21",
+ "tracing",
 ]
 
 [[package]]
