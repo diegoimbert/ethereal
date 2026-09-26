@@ -1,2 +1,9 @@
+/target
+node_modules/
+dist/
 .orchestra/
 .DS_Store
+*.tsbuildinfo
+apps/desktop/src-tauri/gen/
+.claude/
+.ether-dev/
