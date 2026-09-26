@@ -90,7 +90,8 @@ never hardcode ports or paths.
   `dev.ethereal.<instance>` (separate WebView storage) and injects `devUrl` through
   `tauri dev --config` (it's not hardcoded in `tauri.conf.json`). In debug builds all app
   data goes under `<data_dir>/ethereal-dev/<instance>/`: `config/`, `logs/`, `cache/`,
-  `plugin-db/`, `autosave/` and `tmp/`. There's no single-instance behavior.
+  `plugin-db/`, `autosave/`, `tmp/` and `projects/` (the dev `projects_root` of the
+  engine-side project store). There's no single-instance behavior.
 - **Headless audio.** `ETHER_AUDIO=null` selects the null backend. The engine runs on a
   timer thread with no sound device, so nothing contends for the audio device.
   `ETHER_AUDIO=offline` renders as fast as possible. Engine tests render offline and never

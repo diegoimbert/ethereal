@@ -1,4 +1,13 @@
-//! Media import, peaks (waveform overviews) and the file browser.
+//! Media import, peaks (waveform overviews) and the sample browser.
+//!
+//! All file access is engine-side. The browser lists *engine-visible* locations only: the
+//! configured library folder(s) and the current project's own media. Paths inside a
+//! location are relative (`"Drums/Kicks/kick1.wav"`) and resolved/sandboxed by the engine;
+//! the UI never sees absolute paths. Importing copies the file into the project's
+//! `media/` folder, so projects are self-contained.
+//!
+//! Uploading files from the UI machine is not in v0.1; `MediaSource::Upload` and
+//! `MediaCommand::BeginUpload` reserve the protocol slot (hosts reply `Unsupported`).
 
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
@@ -8,8 +17,9 @@ use crate::model::MediaId;
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
 #[serde(tag = "type")]
 pub enum MediaCommand {
-    /// Decode + register a file (copied into the project on save). Replies `Media` with the
-    /// `MediaRef`; peaks are computed in the background (`MediaEvent::PeaksReady`).
+    /// Copy a file into the current project's `media/`, decode it and register it.
+    /// Replies `Media` with the `MediaRef` (also delivered as a patch); peaks are computed
+    /// in the background (`MediaEvent::PeaksReady`).
     Import {
         id: MediaId,
         source: MediaSource,
@@ -18,24 +28,58 @@ pub enum MediaCommand {
     GetPeaks {
         request: PeakRequest,
     },
-    /// Replies `Directory`. Native only (web: `Unsupported`; the web browser uses OPFS/UI).
+    /// Engine-visible browse roots. Replies `Locations`.
+    ListLocations,
+    /// List a folder inside a location (`path` relative, `""` = root). Replies `Directory`.
     ListDirectory {
+        location: BrowseLocation,
         path: String,
     },
-    /// Audition a file in the browser (plays on the preview bus).
+    /// Audition a file (plays on the preview bus).
     Preview {
         source: MediaSource,
     },
     StopPreview,
+    /// RESERVED (v0.2+): start streaming a file from the UI machine. Hosts reply
+    /// `Unsupported` in v0.1. The intended flow: `BeginUpload` → chunked binary transfer on
+    /// a side channel → `Import { source: Upload { upload } }`.
+    BeginUpload {
+        upload: String,
+        name: String,
+        size: f64,
+    },
 }
 
+/// Where to read a file from. Never a raw file-system path.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
 #[serde(tag = "type")]
 pub enum MediaSource {
-    /// Native file system path.
-    Path { path: String },
-    /// Browser OPFS path (the UI writes dropped files there first; no large JSON payloads).
-    Opfs { path: String },
+    /// A file inside an engine-visible browse location.
+    Location {
+        location: BrowseLocation,
+        path: String,
+    },
+    /// Media already in the current project (e.g. preview).
+    Project { media: MediaId },
+    /// RESERVED (v0.2+): a completed upload from the UI machine (`BeginUpload`).
+    Upload { upload: String },
+}
+
+/// A browse root.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(tag = "type")]
+pub enum BrowseLocation {
+    /// A configured library folder, by its id from `ListLocations`.
+    Library { id: String },
+    /// The current project's `media/` folder.
+    ProjectMedia,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+pub struct BrowseRoot {
+    pub location: BrowseLocation,
+    /// Display name (e.g. "Library", "Project media").
+    pub name: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
@@ -62,6 +106,8 @@ pub struct PeakData {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
 pub struct DirectoryListing {
+    pub location: BrowseLocation,
+    /// Relative path of the listed folder (`""` = root).
     pub path: String,
     pub entries: Vec<DirectoryEntry>,
 }
@@ -69,8 +115,11 @@ pub struct DirectoryListing {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
 pub struct DirectoryEntry {
     pub name: String,
+    /// Relative path within the location (use with `MediaSource::Location`).
     pub path: String,
     pub kind: FileKind,
+    /// File size in bytes (0 for directories).
+    pub size: f64,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, TS)]
@@ -78,7 +127,6 @@ pub enum FileKind {
     Directory,
     Audio,
     Midi,
-    Project,
     Other,
 }
 
@@ -93,8 +141,12 @@ pub enum MediaEvent {
     PeaksReady {
         media: MediaId,
     },
-    /// A referenced file is missing on load (relink needed).
+    /// A media file of the current project is missing/unreadable in the store.
     Missing {
         media: MediaId,
+    },
+    /// The set of browse locations changed (library folder configured, ...).
+    LocationsChanged {
+        locations: Vec<BrowseRoot>,
     },
 }

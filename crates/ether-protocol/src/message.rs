@@ -7,13 +7,13 @@ use crate::automation::AutomationCommand;
 use crate::clips::ClipCommand;
 use crate::devices::{DeviceCommand, DeviceDescriptor};
 use crate::engine::{AudioDeviceList, EngineCommand, EngineEvent, EngineStatus};
-use crate::media::{DirectoryListing, MediaCommand, MediaEvent, PeakData};
+use crate::media::{BrowseRoot, DirectoryListing, MediaCommand, MediaEvent, PeakData};
 use crate::meters::MeterFrame;
 use crate::mixer::MixerCommand;
 use crate::model::{GestureId, MediaRef, Patch, Project};
 use crate::notes::NoteCommand;
 use crate::plugins::{PluginCommand, PluginDescriptor, PluginEvent};
-use crate::project::{EditCommand, ProjectCommand};
+use crate::project::{EditCommand, ProjectCommand, ProjectEvent, ProjectSummary};
 use crate::recording::{InputList, RecordingCommand, RecordingEvent};
 use crate::session::{ClipStateChange, SessionCommand, SessionPlayback};
 use crate::tracks::TrackCommand;
@@ -102,10 +102,15 @@ pub enum ReplyValue {
     Project {
         project: Box<Project>,
     },
-    /// `json` is set for `ProjectTarget::Json` saves; `path` for file saves.
+    Projects {
+        projects: Vec<ProjectSummary>,
+    },
+    /// The stored project (after `Save`/`Duplicate`).
     Saved {
-        path: Option<String>,
-        json: Option<String>,
+        project: ProjectSummary,
+    },
+    Locations {
+        locations: Vec<BrowseRoot>,
     },
     DeviceTypes {
         devices: Vec<DeviceDescriptor>,
@@ -156,7 +161,7 @@ pub enum ErrorCode {
     Io,
     Decode,
     Plugin,
-    /// Nothing to undo/redo, save without target, ...
+    /// Nothing to undo/redo, deleting the open project, ...
     InvalidState,
     Internal,
 }
@@ -168,7 +173,10 @@ pub enum Event {
     /// A whole new document (new/open/reconnect). Replaces the UI mirror.
     ProjectLoaded {
         project: Box<Project>,
-        path: Option<String>,
+    },
+    /// Project store / current-project lifecycle (list changes, saved, dirty flag).
+    Project {
+        event: ProjectEvent,
     },
     /// Incremental document change (see `ether_model::patch`).
     Patch {

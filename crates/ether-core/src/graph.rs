@@ -37,8 +37,14 @@ pub struct TrackDesc {
     /// Device chain in processing order (nodes previously added with `add_node`).
     /// Disabled devices are listed with `enabled: false` (bypassed, latency still counted).
     pub chain: Vec<ChainEntry>,
+    /// Fully resolved destination bus: a group track, a return, or master. The controller
+    /// resolves `TrackOutput::Default` to the parent group (if any) else master.
     /// `None` = not routed (master: the hardware output).
     pub output: Option<TrackId>,
+    /// Enclosing group (tree parent), for group mute/solo propagation. Group tracks
+    /// (`kind == Group`) are buses: their input is the sum of every track whose `output`
+    /// is the group, then their own device chain + fader, then their `output`.
+    pub group: Option<TrackId>,
     pub sends: Vec<SendDesc>,
     /// Linear gain, pan -1..=1. Live changes arrive via the param queue; these are the
     /// initial values when this snapshot is swapped in.
@@ -48,8 +54,9 @@ pub struct TrackDesc {
     pub solo: bool,
     /// Hardware input channels monitored/recorded by this track, if any.
     pub audio_input: Option<(u16, u16)>,
-    /// Effective monitoring (controller resolves Auto/In/Off + arm).
+    /// Effective monitoring (controller resolves Auto/In/Off + its runtime arm state).
     pub monitor: bool,
+    /// Runtime record-arm state (from the controller, not the document).
     pub armed: bool,
     /// Arrangement clips, sorted by start.
     pub clips: Vec<ClipDesc>,

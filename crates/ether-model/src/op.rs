@@ -19,7 +19,6 @@ use crate::clip::{ClipLocation, ClipLoop, LaunchSettings};
 use crate::device::{DeviceKind, PluginInstance};
 use crate::entity::{Entity, EntityKey};
 use crate::ids::*;
-use crate::media::MediaLocation;
 use crate::tempo::TempoCurve;
 use crate::track::{MonitorMode, TrackInput, TrackOutput};
 use crate::value::*;
@@ -112,7 +111,6 @@ pub enum TrackChange {
     Solo(bool),
     Input(TrackInput),
     Output(TrackOutput),
-    Arm(bool),
     Monitor(MonitorMode),
 }
 
@@ -224,8 +222,6 @@ pub enum WarpMarkerChange {
 #[serde(tag = "field", content = "value")]
 pub enum MediaChange {
     Name(String),
-    /// Relink a missing file.
-    Location(MediaLocation),
 }
 
 /// A labeled group of ops applied atomically = one undo step.

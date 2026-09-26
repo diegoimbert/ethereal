@@ -12,6 +12,64 @@ use ts_rs::TS;
 #[derive(Clone, Copy, Debug, Default, PartialEq, PartialOrd, Serialize, Deserialize, TS)]
 pub struct Beats(pub f64);
 
+/// Conventions for `f64` beats (decided for v0.1; see docs/CONTRACTS.md):
+/// - positions/lengths are serialized as plain JSON numbers, never rounded on save;
+/// - never compare beats with `==`: use [`Beats::approx_eq`] / [`Beats::EPSILON`];
+/// - grid operations (quantize, snapping, bar math) go through [`Beats::snap`] /
+///   [`Beats::floor_to`] / [`Beats::ceil_to`], which absorb float error so a value within
+///   `EPSILON` of a grid line is treated as on it.
+///
+/// The UI mirrors these helpers exactly (`ui/src/state/beats.ts`).
+impl Beats {
+    /// Tolerance for beat comparisons (~1/1000 of a 1/1024 note).
+    pub const EPSILON: f64 = 1e-6;
+    pub const ZERO: Self = Self(0.0);
+
+    pub fn approx_eq(self, other: Beats) -> bool {
+        (self.0 - other.0).abs() <= Self::EPSILON
+    }
+
+    /// Nearest multiple of `grid` (`grid <= 0` returns `self`).
+    pub fn snap(self, grid: Beats) -> Beats {
+        if grid.0 <= 0.0 {
+            return self;
+        }
+        Beats((self.0 / grid.0).round() * grid.0)
+    }
+
+    /// Largest multiple of `grid` that is `<= self + EPSILON`.
+    pub fn floor_to(self, grid: Beats) -> Beats {
+        if grid.0 <= 0.0 {
+            return self;
+        }
+        Beats(((self.0 + Self::EPSILON) / grid.0).floor() * grid.0)
+    }
+
+    /// Smallest multiple of `grid` that is `>= self - EPSILON`.
+    pub fn ceil_to(self, grid: Beats) -> Beats {
+        if grid.0 <= 0.0 {
+            return self;
+        }
+        Beats(((self.0 - Self::EPSILON) / grid.0).ceil() * grid.0)
+    }
+}
+
+#[cfg(test)]
+mod beats_tests {
+    use super::Beats;
+
+    #[test]
+    fn beat_helpers_absorb_float_error() {
+        let third = Beats(1.0 / 3.0);
+        let x = Beats(third.0 * 3.0);
+        assert!(x.approx_eq(Beats(1.0)));
+        assert_eq!(Beats(0.26).snap(Beats(0.25)), Beats(0.25));
+        assert_eq!(Beats(0.999_999_9).floor_to(Beats(1.0)), Beats(1.0));
+        assert_eq!(Beats(1.000_000_1).ceil_to(Beats(1.0)), Beats(1.0));
+        assert_eq!(Beats(1.3).ceil_to(Beats(1.0)), Beats(2.0));
+    }
+}
+
 /// Absolute time in seconds, `f64`. Used for media positions (e.g. warp marker source time).
 #[derive(Clone, Copy, Debug, Default, PartialEq, PartialOrd, Serialize, Deserialize, TS)]
 pub struct Seconds(pub f64);

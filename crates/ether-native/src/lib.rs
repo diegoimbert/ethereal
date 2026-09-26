@@ -64,6 +64,32 @@ pub struct HostConfig {
     /// Per-instance app data dir (plugin DB, logs, autosave, caches).
     pub data_dir: PathBuf,
     pub instance: String,
+    /// Root of the engine-side project store (see [`default_projects_root`]).
+    pub projects_root: PathBuf,
+    /// Sample library folders exposed to the browser: `(id, display name, path)`.
+    pub library_roots: Vec<(String, String, PathBuf)>,
+}
+
+/// Default `projects_root`:
+/// - dev builds: `<data_dir>/ethereal-dev/<instance>/projects` where `instance_data_dir` is
+///   the per-instance app data dir (`<data_dir>/ethereal-dev/<instance>`);
+/// - release: `~/Documents/Ethereal/Projects`.
+pub fn default_projects_root(dev: bool, instance_data_dir: &std::path::Path) -> PathBuf {
+    if dev {
+        return instance_data_dir.join("projects");
+    }
+    let home = std::env::var_os("HOME")
+        .or_else(|| std::env::var_os("USERPROFILE"))
+        .map(PathBuf::from)
+        .unwrap_or_else(|| instance_data_dir.to_path_buf());
+    home.join("Documents").join("Ethereal").join("Projects")
+}
+
+/// Disk-backed [`ether_controller::store::ProjectStore`] (folders under `projects_root`)
+/// and [`ether_controller::store::Library`]. Stub; implemented by the `native-host` node.
+pub struct DiskStore {
+    pub projects_root: PathBuf,
+    pub library_roots: Vec<(String, String, PathBuf)>,
 }
 
 /// The running native host. Methods are callable from any thread (Tauri commands).

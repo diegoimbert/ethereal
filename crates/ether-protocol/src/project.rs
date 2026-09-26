@@ -1,42 +1,68 @@
-//! Project lifecycle and edit history (undo/redo, gestures, batches).
+//! Project lifecycle (engine-side project store) and edit history (undo/redo, gestures,
+//! batches).
+//!
+//! **All file handling is engine-side.** The UI may run on another machine than the
+//! engine, so it never reads/writes files or sends file-system paths: projects are
+//! addressed by `ProjectId` (UUIDv7) inside the engine's `ProjectStore`
+//! (`<projects_root>/<project-uuid>/project.ether` + `media/` + `cache/`).
 
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
 use crate::Command;
-use crate::model::GestureId;
+use crate::model::{GestureId, ProjectId};
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
 #[serde(tag = "type")]
 pub enum ProjectCommand {
-    /// Replace the current project with a new empty one. Replies `Project`.
-    New,
-    /// Load a project. Replies `Project` (also emitted as `Event::ProjectLoaded`).
-    Open { source: ProjectSource },
-    /// Save. `target: None` = current location (error if never saved). Replies `Saved`.
-    Save { target: Option<ProjectTarget> },
+    /// List stored projects. Replies `Projects`.
+    List,
+    /// Create a new empty project with a client-chosen id, save it to the store and make it
+    /// the current project. Replies `Project` (also emitted as `Event::ProjectLoaded`).
+    Create { id: ProjectId, name: String },
+    /// Open a stored project (the current one is autosaved first if dirty). Replies
+    /// `Project` (also emitted as `Event::ProjectLoaded`).
+    Open { id: ProjectId },
+    /// Save the current project to the store. Replies `Saved`.
+    Save,
+    /// Copy the current project (document + media) under `new_id` with `name`, and switch
+    /// to the copy. Replies `Project`.
+    SaveAs { new_id: ProjectId, name: String },
+    /// Copy a stored project (document + media) under `new_id` without opening it.
+    /// Replies `Saved` (the copy's summary).
+    Duplicate {
+        id: ProjectId,
+        new_id: ProjectId,
+        name: String,
+    },
+    /// Rename a project. For the current project this is an undoable document edit; for a
+    /// stored one the store rewrites its file. The folder never moves.
+    Rename { id: ProjectId, name: String },
+    /// Delete a stored project (not the current one). Not undoable.
+    Delete { id: ProjectId },
     /// Full current document. Replies `Project`. Used on (re)connect and on revision gaps.
     Get,
-    /// Undoable.
-    SetName { name: String },
+}
+
+/// One entry of the project list.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+pub struct ProjectSummary {
+    pub id: ProjectId,
+    pub name: String,
+    /// Last save time, Unix epoch milliseconds.
+    pub modified_ms: f64,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
 #[serde(tag = "type")]
-pub enum ProjectSource {
-    /// Native: an `.ether` file path.
-    Path { path: String },
-    /// Web (or tests): the `.ether` JSON text itself.
-    Json { json: String },
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
-#[serde(tag = "type")]
-pub enum ProjectTarget {
-    /// Native: write to this `.ether` path (media copied next to it under `Samples/`).
-    Path { path: String },
-    /// Web: return the `.ether` JSON in the reply (the UI downloads it / writes to OPFS).
-    Json,
+pub enum ProjectEvent {
+    /// The stored project list changed (create/save/rename/duplicate/delete, or external
+    /// changes the store noticed).
+    ListChanged { projects: Vec<ProjectSummary> },
+    /// The current project was saved (explicitly or by autosave).
+    Saved { project: ProjectSummary },
+    /// Unsaved changes flag of the current project.
+    DirtyChanged { dirty: bool },
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
@@ -45,7 +71,7 @@ pub enum EditCommand {
     Undo,
     Redo,
     /// Closes a gesture: subsequent commands start a new undo step. See
-    /// `CommandEnvelope::gesture`.
+    /// `ClientMessage::gesture`.
     EndGesture {
         gesture: GestureId,
     },

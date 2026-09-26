@@ -94,7 +94,7 @@ Size: S ≈ half a day of agent work, M ≈ 1 day, L ≈ 2+ days (relative, used
 | `stretch` | S | `crates/ether-stretch/**` | Signalsmith binding behind `Stretcher`, native feature-gated; wasm build compiles with trait only. |
 | `ui-timeline` | M | `ui/src/timeline/**` | Time↔pixel (bars/beats/seconds), zoom/scroll store, grid + snapping, selection model, ruler component. |
 | `ui-mixer` | M | `ui/src/features/mixer/**`, `ui/src/features/devices/**` | Mixer strips, meters, sends; device chain with generic param UI. |
-| `ui-shell` | M | `ui/src/features/{transport-bar,browser,project}/**` | Transport bar, tempo/signature, file/sample browser, new/open/save `.ether`. |
+| `ui-shell` | M | `ui/src/features/{transport-bar,browser,project}/**` | Transport bar, tempo/signature, sample browser over engine-visible locations, project list/new/open/save/rename/duplicate/delete via the engine-side project store (no UI file access; see CONTRACTS.md §2b). |
 | `ui-session` | M | `ui/src/features/session/**` | Clip grid, launch/stop buttons, scenes (against mock). |
 
 ### Wave 2

@@ -69,8 +69,7 @@ fn sample_track(id_: TrackId) -> Track {
             port: None,
             channel: None,
         },
-        output: TrackOutput::Master,
-        arm: false,
+        output: TrackOutput::Default,
         monitor: MonitorMode::Auto,
     }
 }
@@ -190,4 +189,35 @@ fn replies_roundtrip() {
         },
     }));
     roundtrip(&Base64Bytes(vec![1, 2, 3, 255]));
+}
+
+#[test]
+fn project_store_and_browser_shapes() {
+    use ether_protocol::media::{BrowseLocation, MediaCommand, MediaSource};
+    use ether_protocol::project::{ProjectCommand, ProjectSummary};
+
+    let pid = IdGen::new(7).next_project_id(1_700_000_000_000);
+    let json = roundtrip(&Command::Project(ProjectCommand::Open { id: pid }));
+    assert_eq!(json["command"]["id"], pid.to_string());
+    assert_eq!(pid.to_string().len(), 36);
+
+    roundtrip(&ReplyValue::Projects {
+        projects: vec![ProjectSummary {
+            id: pid,
+            name: "Song".into(),
+            modified_ms: 1.0,
+        }],
+    });
+    let json = roundtrip(&Command::Media(MediaCommand::Import {
+        id: id(5),
+        source: MediaSource::Location {
+            location: BrowseLocation::Library { id: "lib".into() },
+            path: "Drums/kick.wav".into(),
+        },
+    }));
+    assert_eq!(json["command"]["source"]["location"]["type"], "Library");
+    roundtrip(&MediaCommand::ListDirectory {
+        location: BrowseLocation::ProjectMedia,
+        path: String::new(),
+    });
 }

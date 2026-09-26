@@ -4,4 +4,4 @@ import type { TrackId } from "./TrackId";
 /**
  * Where a track's post-fader signal goes.
  */
-export type TrackOutput = { "type": "Master" } | { "type": "Track", track: TrackId, } | { "type": "None" };
+export type TrackOutput = { "type": "Default" } | { "type": "Track", track: TrackId, } | { "type": "None" };

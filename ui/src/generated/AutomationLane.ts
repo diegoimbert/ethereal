@@ -8,6 +8,7 @@ import type { AutomationTarget } from "./AutomationTarget";
  */
 export type AutomationLane = { id: AutomationLaneId, owner: AutomationOwner, target: AutomationTarget, 
 /**
- * Disabled lanes are kept but not applied (Ableton's "re-enable automation").
+ * Explicit user toggle: disabled lanes are kept but not applied. v0.1 has no
+ * "manual move overrides automation / re-enable automation" behaviour.
  */
 enabled: boolean, };

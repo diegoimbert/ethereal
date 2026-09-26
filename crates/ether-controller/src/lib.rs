@@ -4,10 +4,14 @@
 //! recompile the `RenderGraphDesc` and publish it to the engine (or push a live param
 //! change for continuous controls) → `Reply`. Host-agnostic and wasm-safe: everything
 //! host-specific (engine transport, file/OPFS I/O, media decoding, plugins, clock, entropy)
-//! is behind the [`EngineBridge`] and [`HostServices`] traits.
+//! is behind the [`EngineBridge`], [`HostServices`], [`store::ProjectStore`] and
+//! [`store::Library`] traits. The controller is the only place that decides *what* is
+//! read/written; the UI never handles files.
 //!
 //! Runs on a non-RT thread: the Tauri backend thread natively, a Web Worker on the web.
 //! Owned by the `controller` node.
+
+pub mod store;
 
 use ether_core::protocol::devices::DeviceDescriptor;
 use ether_core::protocol::model::{
@@ -38,8 +42,8 @@ pub trait Controller {
     /// `Session` messages), plugin notifications, autosave, GC of media caches.
     fn tick(&mut self, now_ms: u64, out: &mut dyn MessageSink);
 
-    /// Read-only view of the document.
-    fn project(&self) -> &Project;
+    /// Read-only view of the open document (`None` before a project is created/opened).
+    fn project(&self) -> Option<&Project>;
 }
 
 #[derive(Debug, Clone, PartialEq, thiserror::Error)]
@@ -80,8 +84,13 @@ pub trait EngineBridge {
 
     fn destroy_node(&mut self, key: NodeKey) -> Result<(), BridgeError>;
 
-    /// Make decoded media available to the engine (bridge loads/decodes via the host).
-    fn load_media(&mut self, media: &MediaRef) -> Result<(), BridgeError>;
+    /// Make decoded media (already at the engine sample rate; decoded by the controller
+    /// with `ether-media` from bytes read via the `ProjectStore`) available to the engine.
+    fn load_media(
+        &mut self,
+        media: &MediaRef,
+        audio: std::sync::Arc<ether_media::DecodedAudio>,
+    ) -> Result<(), BridgeError>;
     fn unload_media(&mut self, media: MediaId) -> Result<(), BridgeError>;
 
     fn publish(&mut self, graph: RenderGraphDesc) -> Result<(), BridgeError>;
@@ -96,34 +105,49 @@ pub trait EngineBridge {
 
 /// Host services the controller needs besides the engine.
 pub trait HostServices {
-    /// Read a whole file (native path or OPFS path).
-    fn read_file(&mut self, path: &str) -> Result<Vec<u8>, String>;
-    fn write_file(&mut self, path: &str, bytes: &[u8]) -> Result<(), String>;
-    /// Wall clock, Unix ms (for ULIDs, autosave).
+    /// Wall clock, Unix ms (for IDs, autosave, `modified_ms`).
     fn now_ms(&self) -> u64;
     /// Entropy for the `IdGen` seed.
     fn random_seed(&mut self) -> u64;
-    /// Per-instance app data directory (autosave, caches). See README "Running multiple dev
-    /// instances".
-    fn data_dir(&self) -> Option<String>;
 }
 
 /// The standard controller implementation.
-pub struct EtherController<B: EngineBridge, H: HostServices> {
+pub struct EtherController<B, H, S, L>
+where
+    B: EngineBridge,
+    H: HostServices,
+    S: store::ProjectStore,
+    L: store::Library,
+{
     pub bridge: B,
     pub host: H,
+    pub store: S,
+    pub library: L,
     _private: (),
 }
 
-impl<B: EngineBridge, H: HostServices> EtherController<B, H> {
-    /// Start with a new empty project and publish it to the engine.
-    pub fn new(bridge: B, host: H) -> Self {
-        let _ = (bridge, host);
+impl<B, H, S, L> EtherController<B, H, S, L>
+where
+    B: EngineBridge,
+    H: HostServices,
+    S: store::ProjectStore,
+    L: store::Library,
+{
+    /// Start with no project open (the UI lists/creates/opens via `ProjectCommand`), or
+    /// reopen the last project if the host asks to.
+    pub fn new(bridge: B, host: H, store: S, library: L) -> Self {
+        let _ = (bridge, host, store, library);
         todo!("controller node")
     }
 }
 
-impl<B: EngineBridge, H: HostServices> Controller for EtherController<B, H> {
+impl<B, H, S, L> Controller for EtherController<B, H, S, L>
+where
+    B: EngineBridge,
+    H: HostServices,
+    S: store::ProjectStore,
+    L: store::Library,
+{
     fn handle(&mut self, message: ClientMessage, out: &mut dyn MessageSink) {
         let _ = (message, out);
         todo!("controller node")
@@ -134,7 +158,7 @@ impl<B: EngineBridge, H: HostServices> Controller for EtherController<B, H> {
         todo!("controller node")
     }
 
-    fn project(&self) -> &Project {
+    fn project(&self) -> Option<&Project> {
         todo!("controller node")
     }
 }

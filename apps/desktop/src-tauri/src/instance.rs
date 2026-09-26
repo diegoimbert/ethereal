@@ -17,7 +17,16 @@ use tauri::{AppHandle, Manager, Runtime};
 pub const INSTANCE_ENV: &str = "ETHER_INSTANCE";
 
 /// Subdirectories created under the app data dir.
-pub const SUBDIRS: &[&str] = &["config", "logs", "cache", "plugin-db", "autosave", "tmp"];
+/// `projects` is the dev `projects_root` (engine-side project store).
+pub const SUBDIRS: &[&str] = &[
+    "config",
+    "logs",
+    "cache",
+    "plugin-db",
+    "autosave",
+    "tmp",
+    "projects",
+];
 
 /// The instance id: `ETHER_INSTANCE` sanitized to `[A-Za-z0-9_-]`, or `"default"`.
 pub fn instance_id() -> String {

@@ -10,10 +10,14 @@ import type { TrackOutput } from "./TrackOutput";
 
 /**
  * A track. Tracks form an ordered tree: siblings sorted by `order`, nested via `parent`
- * (only `Group` tracks can be parents). Return tracks and the master track are top-level.
+ * (only `Group` tracks can be parents; groups may nest). Return tracks and the master track
+ * are top-level.
+ *
+ * Group routing: a child whose `output` is `Master` is routed into its parent group's bus
+ * (the controller resolves this when compiling the render graph); the group bus then goes
+ * to its own `output`. Muting/soloing a group applies to its children.
+ *
+ * Record-arm is **not** part of the document (momentary performance state, not undoable):
+ * it lives in the controller and is reported via `RecordingEvent::ArmChanged`.
  */
-export type Track = { id: TrackId, kind: TrackKind, name: string, color: Color, order: OrderKey, parent: TrackId | null, mixer: TrackMixer, input: TrackInput, output: TrackOutput, 
-/**
- * Armed for recording.
- */
-arm: boolean, monitor: MonitorMode, };
+export type Track = { id: TrackId, kind: TrackKind, name: string, color: Color, order: OrderKey, parent: TrackId | null, mixer: TrackMixer, input: TrackInput, output: TrackOutput, monitor: MonitorMode, };

@@ -6,7 +6,10 @@
 //!
 //! Loading: parse to `serde_json::Value`, read `version`, run every migration from that
 //! version up to [`CURRENT_VERSION`] on the untyped value, then deserialize and `validate`.
-//! Media paths inside are preferably project-relative (`Samples/...`).
+//! On disk (engine-side `ProjectStore`), a project is a folder named by its UUIDv7:
+//! `<projects_root>/<project-uuid>/{project.ether, media/, cache/}`. Media paths in the
+//! document are relative to that folder (`media/...`). The display name lives in the file
+//! (`project.settings.name`), so renaming never moves the folder.
 
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
@@ -20,6 +23,12 @@ pub const FORMAT_TAG: &str = "ethereal-project";
 pub const CURRENT_VERSION: u32 = 1;
 /// File extension (without dot).
 pub const EXTENSION: &str = "ether";
+/// Document file name inside a project folder.
+pub const PROJECT_FILE: &str = "project.ether";
+/// Imported media folder inside a project folder.
+pub const MEDIA_DIR: &str = "media";
+/// Regenerable caches (peak mipmaps, decoded audio) inside a project folder.
+pub const CACHE_DIR: &str = "cache";
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
 pub struct EtherFile {

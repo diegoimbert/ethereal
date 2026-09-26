@@ -47,6 +47,10 @@ ether-native = { path = "crates/ether-native" }
 serde = { version = "1.0.219", features = ["derive", "rc"] }
 serde_json = "1.0.140"
 ulid = { version = "1.2", default-features = false }
+# ProjectId is a UUIDv7. No `v7` feature here: it pulls in `getrandom` (breaks the wasm
+# check); the model builds v7 UUIDs from injected time + entropy (`IdGen::next_project_id`).
+# Native-only crates may add `features = ["v7"]` to use `Uuid::now_v7()`.
+uuid = { version = "1.18", default-features = false, features = ["std", "serde"] }
 ts-rs = { version = "12", features = ["serde-compat"] }
 base64 = "0.22"
 toml = "0.9"

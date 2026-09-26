@@ -20,7 +20,8 @@ pub enum ParamTarget {
 /// are plain (linear gain for volume/send level, -1..=1 for pan, 0/1 for mute). Applied at
 /// the start of the next block; continuous params are smoothed by the receiver.
 ///
-/// Automation playback overrides UI values while a lane is enabled (Ableton semantics).
+/// While an enabled automation lane drives a target, automation wins and manual changes are
+/// overwritten on the next automation value (no override/re-enable mechanism in v0.1).
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ParamChange {
     pub target: ParamTarget,

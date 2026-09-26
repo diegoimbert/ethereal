@@ -8,7 +8,8 @@ use crate::model::{ClipId, MonitorMode, TrackId, TrackInput};
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
 #[serde(tag = "type")]
 pub enum RecordingCommand {
-    /// `exclusive`: disarm all other tracks.
+    /// Record-arm (NOT undoable, not stored in the document; runtime state of the
+    /// controller, reported via `RecordingEvent::ArmChanged`). `exclusive`: disarm others.
     Arm {
         track: TrackId,
         armed: bool,
@@ -64,5 +65,9 @@ pub enum RecordingEvent {
     },
     InputsChanged {
         inputs: InputList,
+    },
+    /// The full set of currently armed tracks (sent on change and on connect).
+    ArmChanged {
+        armed: Vec<TrackId>,
     },
 }

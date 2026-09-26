@@ -21,7 +21,15 @@ pub enum TrackKind {
 }
 
 /// A track. Tracks form an ordered tree: siblings sorted by `order`, nested via `parent`
-/// (only `Group` tracks can be parents). Return tracks and the master track are top-level.
+/// (only `Group` tracks can be parents; groups may nest). Return tracks and the master track
+/// are top-level.
+///
+/// Group routing: a child whose `output` is `Master` is routed into its parent group's bus
+/// (the controller resolves this when compiling the render graph); the group bus then goes
+/// to its own `output`. Muting/soloing a group applies to its children.
+///
+/// Record-arm is **not** part of the document (momentary performance state, not undoable):
+/// it lives in the controller and is reported via `RecordingEvent::ArmChanged`.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
 pub struct Track {
     pub id: TrackId,
@@ -33,8 +41,6 @@ pub struct Track {
     pub mixer: TrackMixer,
     pub input: TrackInput,
     pub output: TrackOutput,
-    /// Armed for recording.
-    pub arm: bool,
     pub monitor: MonitorMode,
 }
 
@@ -82,8 +88,9 @@ pub enum TrackInput {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
 #[serde(tag = "type")]
 pub enum TrackOutput {
-    /// The master track (default). For the master track itself: the hardware output.
-    Master,
+    /// Default: the parent group bus if the track is in a group, else the master track.
+    /// For the master track itself: the hardware output.
+    Default,
     /// A group or return track.
     Track { track: TrackId },
     /// Not routed anywhere (still metered).

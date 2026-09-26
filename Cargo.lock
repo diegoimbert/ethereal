@@ -784,6 +784,7 @@ name = "ether-controller"
 version = "0.0.1"
 dependencies = [
  "ether-core",
+ "ether-media",
  "ether-model",
  "ether-protocol",
  "thiserror 2.0.21",
@@ -842,6 +843,7 @@ dependencies = [
  "thiserror 2.0.21",
  "ts-rs",
  "ulid",
+ "uuid",
 ]
 
 [[package]]

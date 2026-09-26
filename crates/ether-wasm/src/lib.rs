@@ -1,7 +1,9 @@
 //! Browser build: wasm-bindgen entry points.
 //!
 //! Two instances of this module run in the browser:
-//! - [`WasmController`] in a Web Worker: `ether-controller` with a bridge that serializes
+//! - [`WasmController`] in a Web Worker: `ether-controller` with an OPFS-backed
+//!   `ProjectStore` + `Library` (engine-side; the UI thread never touches OPFS), and a
+//!   bridge that serializes
 //!   engine calls into a SharedArrayBuffer ring;
 //! - [`WasmEngine`] in the AudioWorklet: owns `ether_core::Engine` + `EngineHandle`,
 //!   drains the ring between blocks, and renders in `process()`.
