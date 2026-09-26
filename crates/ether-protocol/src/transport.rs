@@ -3,7 +3,7 @@
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
-use crate::model::{BeatRange, Beats, Quantization, Seconds, TimeSignature};
+use crate::model::{BeatRange, Beats, Seconds, TimeSignature};
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
 #[serde(tag = "type")]
@@ -36,9 +36,6 @@ pub enum TransportCommand {
     SetMetronome {
         enabled: bool,
     },
-    SetLaunchQuantization {
-        quantization: Quantization,
-    },
     /// Tap tempo; the controller averages recent taps.
     TapTempo,
 }
@@ -54,7 +51,6 @@ pub struct TransportState {
     pub bpm: f64,
     pub time_signature: TimeSignature,
     pub metronome: bool,
-    pub launch_quantization: Quantization,
     /// Where `Stop` returns to.
     pub start_position: Beats,
 }

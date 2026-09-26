@@ -82,7 +82,7 @@ macro_rules! define_ids {
 define_ids! {
     /// A track (audio, MIDI, group, return or master).
     TrackId => "Track";
-    /// A clip, in the arrangement or in a session slot.
+    /// A clip on a track's arrangement lane.
     ClipId => "Clip";
     /// A MIDI note inside a clip.
     NoteId => "Note";
@@ -90,8 +90,6 @@ define_ids! {
     DeviceId => "Device";
     /// A send from a track to a return track.
     SendId => "Send";
-    /// A session-view scene (row).
-    SceneId => "Scene";
     /// An automation lane (arrangement lane on a track, or a clip envelope).
     AutomationLaneId => "AutomationLane";
     /// A breakpoint in an automation lane.

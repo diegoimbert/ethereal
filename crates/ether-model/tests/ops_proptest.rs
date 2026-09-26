@@ -148,21 +148,13 @@ impl Gen<'_> {
         } else {
             ClipContent::Midi
         };
-        let location = if self.r.chance(50) {
-            ClipLocation::Arrangement {
-                start: self.r.beats(),
-            }
-        } else {
-            ClipLocation::Session {
-                scene: self.r.pick(&self.keys(&self.p.scenes))?,
-            }
-        };
+        let start = self.r.beats();
         let length = self.r.beats();
         Some(Op::Insert {
             entity: Entity::Clip(Clip {
                 id: self.id(),
                 track,
-                location,
+                start,
                 name: String::new(),
                 color: None,
                 muted: false,
@@ -173,7 +165,6 @@ impl Gen<'_> {
                     start: Beats::ZERO,
                     end: Beats(4.0),
                 },
-                launch: LaunchSettings::default(),
                 content,
             }),
         })
@@ -239,7 +230,7 @@ impl Gen<'_> {
                     }),
                 }
             }
-            6 => {
+            6 | 7 => {
                 let from = self.some_track()?;
                 let to = self.some_track()?;
                 Op::Insert {
@@ -249,19 +240,6 @@ impl Gen<'_> {
                         to,
                         level: Decibels(-6.0),
                         pre_fader: false,
-                    }),
-                }
-            }
-            7 => {
-                let order = self.order();
-                Op::Insert {
-                    entity: Entity::Scene(Scene {
-                        id: self.id(),
-                        name: "S".into(),
-                        color: None,
-                        order,
-                        tempo: self.r.chance(30).then_some(128.0),
-                        time_signature: None,
                     }),
                 }
             }
@@ -390,15 +368,7 @@ impl Gen<'_> {
                 let id = self.r.pick(&self.keys(&self.p.clips))?;
                 let change = match self.r.below(7) {
                     0 => ClipChange::Length(self.r.beats()),
-                    1 => ClipChange::Location(if self.r.chance(50) {
-                        ClipLocation::Arrangement {
-                            start: self.r.beats(),
-                        }
-                    } else {
-                        ClipLocation::Session {
-                            scene: self.r.pick(&self.keys(&self.p.scenes))?,
-                        }
-                    }),
+                    1 => ClipChange::Start(self.r.beats()),
                     2 => ClipChange::Gain(Decibels(2.0)),
                     3 => ClipChange::Track(self.some_track()?),
                     4 => ClipChange::Warp(WarpSettings {
@@ -449,10 +419,10 @@ impl Gen<'_> {
                 EntityUpdate::TempoPoint { id, change }
             }
             7 => {
-                let id = self.r.pick(&self.keys(&self.p.scenes))?;
-                EntityUpdate::Scene {
+                let id = self.r.pick(&self.keys(&self.p.devices))?;
+                EntityUpdate::Device {
                     id,
-                    change: SceneChange::Order(self.order()),
+                    change: DeviceChange::Order(self.order()),
                 }
             }
             8 => {
@@ -463,16 +433,13 @@ impl Gen<'_> {
                 }
             }
             _ => {
-                let change = match self.r.below(4) {
+                let change = match self.r.below(3) {
                     0 => SettingsChange::Name("Song".into()),
                     1 => SettingsChange::LoopRegion(BeatRange {
                         start: self.r.beats(),
                         end: self.r.beats(),
                     }),
-                    2 => SettingsChange::Metronome(true),
-                    _ => SettingsChange::LaunchQuantization(Quantization::Beats {
-                        beats: self.r.beats(),
-                    }),
+                    _ => SettingsChange::Metronome(true),
                 };
                 return Some(Op::Settings { change });
             }
@@ -542,7 +509,7 @@ fn generator_covers_every_table() {
     let mut now = 1_700_000_000_000u64;
     let mut p = Project::new(&mut ids, now);
     let (mut ok, mut err) = (0, 0);
-    let mut max = [0usize; 12];
+    let mut max = [0usize; 11];
     for s in 0..3000u64 {
         let tx = make_tx(
             &p,
@@ -560,7 +527,6 @@ fn generator_covers_every_table() {
             p.notes.len(),
             p.devices.len(),
             p.sends.len(),
-            p.scenes.len(),
             p.automation_lanes.len(),
             p.automation_points.len(),
             p.tempo_points.len(),
@@ -752,11 +718,11 @@ proptest! {
                 input: TrackInput::None, output: TrackOutput::Default, monitor: MonitorMode::Auto,
             })},
             Op::Insert { entity: Entity::Clip(Clip {
-                id: clip, track, location: ClipLocation::Arrangement { start: Beats(beats[0]) },
+                id: clip, track, start: Beats(beats[0]),
                 name: String::new(), color: None, muted: false, length: Beats(beats[1] + 1e-3),
                 offset: Beats(beats[2]),
                 looping: ClipLoop { enabled: true, start: Beats(beats[3]), end: Beats(beats[3] * 2.0 + 1.0) },
-                launch: LaunchSettings::default(), content: ClipContent::Midi,
+                content: ClipContent::Midi,
             })},
             Op::Insert { entity: Entity::Note(Note {
                 id: note, clip, pitch: 60, velocity: unit as f32, release_velocity: pan.abs(),

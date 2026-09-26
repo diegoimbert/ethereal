@@ -63,7 +63,7 @@ async function setup(opts: { open?: boolean } = {}) {
   await waitFor(() => expect(store().project).not.toBeNull());
   const track = Object.values(store().project!.tracks).find((t) => t.kind === "Midi")!;
   const clip = "01PIANOROLLTESTCLIP0000000";
-  await send(cmd("Clip", { type: "CreateMidi", id: clip, track: track.id, location: { type: "Arrangement", start: 64 }, length: 8, name: "Test" }));
+  await send(cmd("Clip", { type: "CreateMidi", id: clip, track: track.id, start: 64, length: 8, name: "Test" }));
   await send(
     cmd("Note", {
       type: "Add",

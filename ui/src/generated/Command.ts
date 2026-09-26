@@ -10,7 +10,6 @@ import type { NoteCommand } from "./NoteCommand";
 import type { PluginCommand } from "./PluginCommand";
 import type { ProjectCommand } from "./ProjectCommand";
 import type { RecordingCommand } from "./RecordingCommand";
-import type { SessionCommand } from "./SessionCommand";
 import type { TrackCommand } from "./TrackCommand";
 import type { TransportCommand } from "./TransportCommand";
 import type { WarpCommand } from "./WarpCommand";
@@ -20,4 +19,4 @@ import type { WarpCommand } from "./WarpCommand";
  *
  * JSON: `{ "domain": "Mixer", "command": { "type": "SetVolume", "track": "01H…", "volume": -6 } }`
  */
-export type Command = { "domain": "Transport", "command": TransportCommand } | { "domain": "Project", "command": ProjectCommand } | { "domain": "Edit", "command": EditCommand } | { "domain": "Track", "command": TrackCommand } | { "domain": "Clip", "command": ClipCommand } | { "domain": "Note", "command": NoteCommand } | { "domain": "Automation", "command": AutomationCommand } | { "domain": "Device", "command": DeviceCommand } | { "domain": "Mixer", "command": MixerCommand } | { "domain": "Session", "command": SessionCommand } | { "domain": "Plugin", "command": PluginCommand } | { "domain": "Recording", "command": RecordingCommand } | { "domain": "Warp", "command": WarpCommand } | { "domain": "Media", "command": MediaCommand } | { "domain": "Engine", "command": EngineCommand };
+export type Command = { "domain": "Transport", "command": TransportCommand } | { "domain": "Project", "command": ProjectCommand } | { "domain": "Edit", "command": EditCommand } | { "domain": "Track", "command": TrackCommand } | { "domain": "Clip", "command": ClipCommand } | { "domain": "Note", "command": NoteCommand } | { "domain": "Automation", "command": AutomationCommand } | { "domain": "Device", "command": DeviceCommand } | { "domain": "Mixer", "command": MixerCommand } | { "domain": "Plugin", "command": PluginCommand } | { "domain": "Recording", "command": RecordingCommand } | { "domain": "Warp", "command": WarpCommand } | { "domain": "Media", "command": MediaCommand } | { "domain": "Engine", "command": EngineCommand };

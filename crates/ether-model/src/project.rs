@@ -15,10 +15,9 @@ use crate::media::MediaRef;
 use crate::mixer::TrackSend;
 use crate::note::Note;
 use crate::op::Op;
-use crate::session::{ClipSlot, Scene};
 use crate::tempo::{TempoMap, TempoPoint, TimeSignaturePoint};
 use crate::track::Track;
-use crate::value::{BeatRange, Quantization};
+use crate::value::BeatRange;
 use crate::warp::WarpMarker;
 use crate::*;
 
@@ -31,8 +30,8 @@ use crate::*;
 ///
 /// Invariants (enforced by `apply`, checked by `validate`):
 /// - exactly one `Master` track; a tempo point and a time signature at beat 0;
-/// - every parent reference resolves; notes only in MIDI clips; at most one clip per
-///   `(track, scene)` session slot; sends target `Return` tracks; no routing cycles.
+/// - every parent reference resolves; notes only in MIDI clips; sends target `Return`
+///   tracks; no routing cycles.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
 pub struct Project {
     pub id: ProjectId,
@@ -42,7 +41,6 @@ pub struct Project {
     pub notes: BTreeMap<NoteId, Note>,
     pub devices: BTreeMap<DeviceId, Device>,
     pub sends: BTreeMap<SendId, TrackSend>,
-    pub scenes: BTreeMap<SceneId, Scene>,
     pub automation_lanes: BTreeMap<AutomationLaneId, AutomationLane>,
     pub automation_points: BTreeMap<AutomationPointId, AutomationPoint>,
     pub tempo_points: BTreeMap<TempoPointId, TempoPoint>,
@@ -58,8 +56,6 @@ pub struct ProjectSettings {
     pub loop_enabled: bool,
     pub loop_region: BeatRange,
     pub metronome: bool,
-    /// Global clip launch quantization.
-    pub launch_quantization: Quantization,
     /// Count-in before recording, in bars (0 = off).
     pub count_in_bars: u32,
 }
@@ -74,23 +70,18 @@ impl Default for ProjectSettings {
                 end: Beats(16.0),
             },
             metronome: false,
-            launch_quantization: Quantization::default(),
             count_in_bars: 0,
         }
     }
 }
-
-/// Number of empty scenes in a new project.
-pub const NEW_PROJECT_SCENES: usize = 4;
 
 fn by_order<'a, I: Ord + Copy>(a: (&'a OrderKey, I), b: (&'a OrderKey, I)) -> std::cmp::Ordering {
     a.cmp(&b)
 }
 
 impl Project {
-    /// A new empty project: master track, tempo 120 at beat 0, 4/4 at beat 0,
-    /// [`NEW_PROJECT_SCENES`] empty scenes (named "1".."4"), default settings. IDs come
-    /// from `ids` at time `now_ms` (deterministic for a given generator state).
+    /// A new empty project: master track, tempo 120 at beat 0, 4/4 at beat 0, default
+    /// settings. IDs come from `ids` at time `now_ms` (deterministic for a given generator state).
     pub fn new(ids: &mut IdGen, now_ms: u64) -> Self {
         let id = ids.next_project_id(now_ms);
         let master = Track {
@@ -116,21 +107,6 @@ impl Project {
             time: Beats::ZERO,
             signature: TimeSignature::default(),
         };
-        let scenes = OrderKey::n_between(None, None, NEW_PROJECT_SCENES)
-            .into_iter()
-            .enumerate()
-            .map(|(i, order)| {
-                let s = Scene {
-                    id: ids.next(now_ms),
-                    name: format!("{}", i + 1),
-                    color: None,
-                    order,
-                    tempo: None,
-                    time_signature: None,
-                };
-                (s.id, s)
-            })
-            .collect();
         Self {
             id,
             settings: ProjectSettings::default(),
@@ -139,7 +115,6 @@ impl Project {
             notes: BTreeMap::new(),
             devices: BTreeMap::new(),
             sends: BTreeMap::new(),
-            scenes,
             automation_lanes: BTreeMap::new(),
             automation_points: BTreeMap::new(),
             tempo_points: BTreeMap::from([(tempo.id, tempo)]),
@@ -153,8 +128,8 @@ impl Project {
     /// On error the project is unchanged.
     ///
     /// Errors: `NotFound` / `AlreadyExists` (structure), `HasChildren` (removing an entity
-    /// that something still references: children, clips in a scene, lanes targeting it, ...),
-    /// `DanglingReference`, `Invariant` (master, session slots, routing cycles, tempo and
+    /// that something still references: children, lanes targeting it, ...),
+    /// `DanglingReference`, `Invariant` (master, routing cycles, tempo and
     /// signature at 0, ...), `InvalidValue` (out-of-range values, audio fields on MIDI clips).
     pub fn apply(&mut self, op: &Op) -> Result<Op, ModelError> {
         self.apply_checked(op)
@@ -180,7 +155,7 @@ impl Project {
 
     /// All entities, parents before children (useful for full-state patches and CRDT export).
     ///
-    /// Order: media, tracks (by nesting depth), scenes, tempo points, time signatures,
+    /// Order: media, tracks (by nesting depth), tempo points, time signatures,
     /// devices, sends, clips, notes, warp markers, automation lanes, automation points.
     pub fn entities(&self) -> Vec<Entity> {
         let depth = |t: &Track| {
@@ -200,7 +175,6 @@ impl Project {
         let mut out = Vec::new();
         out.extend(self.media.values().cloned().map(Entity::Media));
         out.extend(tracks.into_iter().cloned().map(Entity::Track));
-        out.extend(self.scenes.values().cloned().map(Entity::Scene));
         out.extend(self.tempo_points.values().cloned().map(Entity::TempoPoint));
         out.extend(
             self.time_signatures
@@ -266,18 +240,10 @@ impl Project {
         v
     }
 
-    /// Arrangement clips of a track sorted by start.
+    /// Clips of a track sorted by start.
     pub fn arrangement_clips_of(&self, track: TrackId) -> Vec<&Clip> {
-        let start = |c: &Clip| match c.location {
-            ClipLocation::Arrangement { start } => start.0,
-            ClipLocation::Session { .. } => 0.0,
-        };
-        let mut v: Vec<&Clip> = self
-            .clips
-            .values()
-            .filter(|c| c.track == track && matches!(c.location, ClipLocation::Arrangement { .. }))
-            .collect();
-        v.sort_by(|a, b| start(a).total_cmp(&start(b)).then(a.id.cmp(&b.id)));
+        let mut v: Vec<&Clip> = self.clips.values().filter(|c| c.track == track).collect();
+        v.sort_by(|a, b| a.start.0.total_cmp(&b.start.0).then(a.id.cmp(&b.id)));
         v
     }
 
@@ -314,24 +280,6 @@ impl Project {
             .collect();
         v.sort_by(|a, b| a.beat.0.total_cmp(&b.beat.0).then(a.id.cmp(&b.id)));
         v
-    }
-
-    pub fn scenes_ordered(&self) -> Vec<&Scene> {
-        let mut v: Vec<&Scene> = self.scenes.values().collect();
-        v.sort_by(|a, b| by_order((&a.order, a.id), (&b.order, b.id)));
-        v
-    }
-
-    pub fn clip_slot(&self, track: TrackId, scene: SceneId) -> ClipSlot {
-        let clip = self
-            .clips
-            .values()
-            .find(|c| {
-                c.track == track
-                    && matches!(c.location, ClipLocation::Session { scene: s } if s == scene)
-            })
-            .map(|c| c.id);
-        ClipSlot { track, scene, clip }
     }
 
     /// Tempo and signature points sorted by time (ties by id).

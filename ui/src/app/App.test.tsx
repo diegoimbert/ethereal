@@ -10,12 +10,9 @@ describe("App shell", () => {
     }
   });
 
-  it("toggles Arrangement/Session with the Tab key", () => {
+  it("mounts the arrangement as the main view", () => {
     const { container } = render(<App />);
     expect(container.querySelector('[data-feature="arrangement"]')).not.toBeNull();
-    fireEvent.keyDown(window, { key: "Tab" });
-    expect(container.querySelector('[data-feature="session"]')).not.toBeNull();
-    expect(container.querySelector('[data-feature="arrangement"]')).toBeNull();
   });
 
   it("switches detail tabs", () => {

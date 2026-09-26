@@ -28,7 +28,6 @@ pub mod notes;
 pub mod plugins;
 pub mod project;
 pub mod recording;
-pub mod session;
 pub mod tracks;
 pub mod transport;
 pub mod ts;

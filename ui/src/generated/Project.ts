@@ -13,8 +13,6 @@ import type { Note } from "./Note";
 import type { NoteId } from "./NoteId";
 import type { ProjectId } from "./ProjectId";
 import type { ProjectSettings } from "./ProjectSettings";
-import type { Scene } from "./Scene";
-import type { SceneId } from "./SceneId";
 import type { SendId } from "./SendId";
 import type { TempoPoint } from "./TempoPoint";
 import type { TempoPointId } from "./TempoPointId";
@@ -36,7 +34,7 @@ import type { WarpMarkerId } from "./WarpMarkerId";
  *
  * Invariants (enforced by `apply`, checked by `validate`):
  * - exactly one `Master` track; a tempo point and a time signature at beat 0;
- * - every parent reference resolves; notes only in MIDI clips; at most one clip per
- *   `(track, scene)` session slot; sends target `Return` tracks; no routing cycles.
+ * - every parent reference resolves; notes only in MIDI clips; sends target `Return`
+ *   tracks; no routing cycles.
  */
-export type Project = { id: ProjectId, settings: ProjectSettings, tracks: { [key in TrackId]: Track }, clips: { [key in ClipId]: Clip }, notes: { [key in NoteId]: Note }, devices: { [key in DeviceId]: Device }, sends: { [key in SendId]: TrackSend }, scenes: { [key in SceneId]: Scene }, automation_lanes: { [key in AutomationLaneId]: AutomationLane }, automation_points: { [key in AutomationPointId]: AutomationPoint }, tempo_points: { [key in TempoPointId]: TempoPoint }, time_signatures: { [key in TimeSignatureId]: TimeSignaturePoint }, warp_markers: { [key in WarpMarkerId]: WarpMarker }, media: { [key in MediaId]: MediaRef }, };
+export type Project = { id: ProjectId, settings: ProjectSettings, tracks: { [key in TrackId]: Track }, clips: { [key in ClipId]: Clip }, notes: { [key in NoteId]: Note }, devices: { [key in DeviceId]: Device }, sends: { [key in SendId]: TrackSend }, automation_lanes: { [key in AutomationLaneId]: AutomationLane }, automation_points: { [key in AutomationPointId]: AutomationPoint }, tempo_points: { [key in TempoPointId]: TempoPoint }, time_signatures: { [key in TimeSignatureId]: TimeSignaturePoint }, warp_markers: { [key in WarpMarkerId]: WarpMarker }, media: { [key in MediaId]: MediaRef }, };

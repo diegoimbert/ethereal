@@ -22,14 +22,13 @@ const note = (id: string, pitch: number, start: number, duration: number, veloci
 const clip = (over: Partial<Clip> = {}): Clip => ({
   id: "c",
   track: "t",
-  location: { type: "Arrangement", start: 8 },
+  start: 8,
   name: "Clip",
   color: null,
   muted: false,
   length: 8,
   offset: 0,
   looping: { enabled: false, start: 0, end: 4 },
-  launch: { mode: "Trigger", quantization: null, legato: false },
   content: { type: "Midi" },
   ...over,
 });

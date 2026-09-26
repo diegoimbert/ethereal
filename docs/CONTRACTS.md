@@ -33,11 +33,11 @@ them.
 ## 2. Document model: `crates/ether-model`
 
 Files: `ids.rs`, `value.rs`, `project.rs`, `track.rs`, `clip.rs`, `note.rs`, `automation.rs`,
-`device.rs`, `mixer.rs`, `session.rs`, `tempo.rs`, `warp.rs`, `media.rs`, `entity.rs`,
+`device.rs`, `mixer.rs`, `tempo.rs`, `warp.rs`, `media.rs`, `entity.rs`,
 `op.rs`, `history.rs`, `patch.rs`, `file.rs`.
 
 - **IDs.** Entity IDs are typed ULID newtypes (`TrackId`, `ClipId`, `NoteId`, `DeviceId`,
-  `SendId`, `SceneId`, `AutomationLaneId`, `AutomationPointId`, `TempoPointId`,
+  `SendId`, `AutomationLaneId`, `AutomationPointId`, `TempoPointId`,
   `TimeSignatureId`, `WarpMarkerId`, `MediaId`). **`ProjectId` is a UUIDv7** (hyphenated
   string); it names the project folder in the store. I chose this mix over UUIDv7
   everywhere: ULIDs are shorter on the wire, and only project IDs are user-visible or
@@ -49,8 +49,8 @@ Files: `ids.rs`, `value.rs`, `project.rs`, `track.rs`, `clip.rs`, `note.rs`, `au
 - **Normalized `Project`.** Every entity type has one flat `BTreeMap<Id, Entity>` table.
   Children point to parents by ID (`Clip.track`, `Note.clip`, `Device.track`,
   `AutomationPoint.lane`, `WarpMarker.clip`, ...). Nothing is nested. Singletons live in
-  `ProjectSettings` (name, loop, metronome, launch quantization, count-in).
-- **No indices.** Sibling order (tracks, devices, scenes) uses `OrderKey`, a
+  `ProjectSettings` (name, loop, metronome, count-in).
+- **No indices.** Sibling order (tracks, devices) uses `OrderKey`, a
   fractional-index string. Moving an item rewrites only that item's key.
 - **Values.** `Beats(f64)` (quarter notes) for all musical time; `Seconds(f64)` for source
   media time; `Decibels(f32)` (-144 = silence); `Pan(-1..1)`; `Color(0xRRGGBB)`;
@@ -72,11 +72,12 @@ Files: `ids.rs`, `value.rs`, `project.rs`, `track.rs`, `clip.rs`, `note.rs`, `au
   undoable. The controller holds it, `RecordingCommand::Arm` changes it, and
   `RecordingEvent::ArmChanged { armed }` reports it. Mute and solo are document fields and
   are undoable.
-- **Clips.** `ClipLocation::Arrangement { start } | Session { scene }`. Arrangement and
-  session clips are separate objects, as in Ableton. A session slot is `(track, scene)` and
-  is derived, not stored (`ClipSlot` is a view). Each clip has its own content timeline:
-  `offset`, `length` and `looping`, all in content beats. Notes, clip envelopes and warp
-  markers are relative to that content timeline.
+- **Clips.** Every clip lives on the arrangement timeline; there is no Session view.
+  `Clip { id, track, start, name, color, muted, length, offset, looping: ClipLoop, content: ClipContent }`,
+  where `start: Beats` is the clip's arrangement position (changed with
+  `ClipChange::Start(Beats)`). Each clip has its own content timeline: `offset`, `length`
+  and `looping`, all in content beats. Notes, clip envelopes and warp markers are
+  relative to that content timeline.
 - **Ops (`op.rs`).** There are four kinds:
   - `Insert { entity }`
   - `Remove { key }`, which only succeeds when the entity has no children. The controller
@@ -95,10 +96,15 @@ Files: `ids.rs`, `value.rs`, `project.rs`, `track.rs`, `clip.rs`, `note.rs`, `au
   (plus `Settings`), derived from the applied ops. The UI mirror applies them with no
   domain logic (`table[id] = value`). A gap in `revision` means the UI re-requests the
   project.
-- **`.ether` file.** Format: `{ format: "ethereal-project", version: 1, app_version, project }`.
-  Loading parses to `serde_json::Value`, runs `Migration`s up to `CURRENT_VERSION`,
-  deserializes, then calls `validate()`. `MediaRef.file` is always project-relative
-  (`media/...`).
+- **`.ether` file.** Format: `{ format: "ethereal-project", version, app_version, project }`,
+  with `CURRENT_VERSION = 2`. Loading parses to `serde_json::Value`, runs `Migration`s up
+  to `CURRENT_VERSION`, deserializes, then calls `validate()`. `MediaRef.file` is always
+  project-relative (`media/...`).
+  - **v1 → v2 (`V1RemoveSession`)** removes the Session view data. Arrangement clips'
+    `location: { type: "Arrangement", start }` becomes a flat `start`, and `launch` is
+    dropped. Session clips (`location.type == "Session"`) are dropped together with their
+    notes, warp markers and clip-envelope automation lanes (and those lanes' points).
+    `project.scenes` and `settings.launch_quantization` are removed.
 
 ## 2b. Storage: engine-side only (decided)
 
@@ -134,7 +140,7 @@ machine than the engine, so the protocol never carries file-system paths.
 ## 3. Wire protocol: `crates/ether-protocol`
 
 There is one file per domain: `transport`, `project` (also `EditCommand`), `tracks`,
-`clips`, `notes`, `automation`, `devices`, `mixer`, `session`, `plugins`, `recording`,
+`clips`, `notes`, `automation`, `devices`, `mixer`, `plugins`, `recording`,
 `warp`, `media` (import, peaks, browser), `meters`, `engine` (audio config/status).
 `message.rs` wraps them:
 
@@ -146,15 +152,20 @@ There is one file per domain: `transport`, `project` (also `EditCommand`), `trac
     Every client message gets exactly one reply. **The patches a command causes are
     emitted before its reply.**
   - `Event`: `ProjectLoaded`, `Project` (store list/saved/dirty), `Patch`, `Transport`,
-    `Session`, `Plugin`, `Recording`, `Media`, `Engine`, `Notification`.
-  - `Playhead` (~60 Hz) and `Meters` (~30 Hz) are high-rate streams. Hosts may deliver them
+    `Plugin`, `Recording`, `Media`, `Engine`, `Notification`.
+  - `Playhead` (~60 Hz, `PlayheadFrame { transport }`) and `Meters` (~30 Hz) are
+    high-rate streams. Hosts may deliver them
     on a separate channel (a Tauri `Channel`, or a SAB ring).
 - **Undoable vs. not undoable.**
   - Undoable: all document edits, including loop region, tempo, time signature, mute
     and solo.
-  - Not undoable: record-arm (not in the document), transport play/stop/locate, clip
-    launching, plugin editor windows, engine config, and project store operations
+  - Not undoable: record-arm (not in the document), transport play/stop/locate, plugin
+    editor windows, engine config, and project store operations
     (list/open/delete/duplicate).
+- **Clip commands.** `ClipCommand::CreateMidi`, `CreateAudio` and `SetBounds` take
+  `start: Beats` (arrangement position). `ClipCommand::Duplicate` takes
+  `start: Option<Beats>`; `None` places the copy right after the original on the same
+  track. A `ClipMove` is `{ id, track, start }`.
 - **Automation.** An enabled lane always drives its target. v0.1 has no "manual move
   overrides automation / re-enable automation". `AutomationLane.enabled` is only an
   explicit user toggle.
@@ -186,8 +197,8 @@ There is one file per domain: `transport`, `project` (also `EditCommand`), `trac
     - `add_node(Box<dyn Node>) -> NodeKey` (it calls `prepare` off-thread), `remove_node`
     - `add_source(MediaId, Arc<dyn AudioSource>)`
     - `publish(RenderGraphDesc)` (compiles, then swaps)
-    - `set_param(ParamChange)`, `transport(TransportControl)`, `session(SessionControl)`
-    - `poll(&mut EngineOutputs)` for playhead, meters, session state and overflow flags
+    - `set_param(ParamChange)`, `transport(TransportControl)`
+    - `poll(&mut EngineOutputs)` for playhead, meters and overflow flags
   - `GarbageCollector::collect()` runs on the GC thread and drops retired snapshots and
     nodes. The audio thread never frees.
 - **`Node`** (`Send`): `prepare` (non-RT, may allocate), `reset`,
@@ -208,7 +219,7 @@ There is one file per domain: `transport`, `project` (also `EditCommand`), `trac
 - **`RenderGraphDesc`** is plain `serde` data. It contains:
   - tempo points and time signatures, loop, metronome
   - tracks, each with: `chain` of `NodeKey`s, routing (`output`, `sends`),
-    volume/pan/mute/solo, input and monitoring, arrangement `clips`, `session_clips`, and
+    volume/pan/mute/solo, input and monitoring, arrangement `clips`, and
     `automation` resolved to engine targets with a `ParamMapping`
 
   Clip content is either MIDI `notes` or audio `media: MediaId` with gain, transpose,
@@ -222,8 +233,6 @@ There is one file per domain: `transport`, `project` (also `EditCommand`), `trac
   `ether-media::InMemorySource` is the simple case.
 - **`TempoMapRt`** is the RT-side tempo map. It must agree with `ether_model::TempoMap`
   (shared test vectors).
-- **`session/`** holds `SessionControl` and `SessionState`. It is pre-created and owned by
-  `core-session`.
 - **Plugins (`plugin.rs`).** Two halves, mirroring CLAP threading:
   - `PluginController` (main thread, not `Send`): params, `activate() -> Box<dyn PluginNode>`,
     state save/load, floating editor, `poll()` → `PluginNotification`s.
@@ -243,7 +252,7 @@ There is one file per domain: `transport`, `project` (also `EditCommand`), `trac
 
 - `Controller` has three methods:
   - `handle(ClientMessage, &mut dyn MessageSink)`: patches first, then exactly one reply.
-  - `tick(now_ms, sink)`: engine polling becomes `Playhead`/`Meters`/`Session`; also
+  - `tick(now_ms, sink)`: engine polling becomes `Playhead`/`Meters`; also
     plugin notifications and autosave.
   - `project()`.
 - `EngineBridge` is how the controller reaches the engine. Every argument is plain data,
@@ -253,7 +262,7 @@ There is one file per domain: `transport`, `project` (also `EditCommand`), `trac
 
   Its methods are `create_builtin`, `create_plugin`, `destroy_node`,
   `load_media(&MediaRef, Arc<DecodedAudio>)`/`unload_media`, `publish`, `set_param`,
-  `transport`, `session`, `poll` and `descriptor`.
+  `transport`, `poll` and `descriptor`.
 - `HostServices` provides the clock and entropy. All file access goes through
   `ProjectStore` and `Library` (§2b), which are passed to
   `EtherController::new(bridge, host, store, library)`. The controller decodes media with
@@ -286,7 +295,7 @@ There is one file per domain: `transport`, `project` (also `EditCommand`), `trac
   - `createDefaultTransport()` picks the implementation (mock until the real hosts land).
 - **State.**
   - `useProjectStore` (zustand) is the normalized mirror. It applies patches by revision
-    and holds history state, transport state and session clip states.
+    and holds history state and transport state.
   - Selectors live in `state/selectors.ts`.
   - High-rate playhead and meter data live in a separate external store
     (`usePlayhead`, `useTrackMeter`), so they don't re-render the whole tree.
@@ -362,7 +371,6 @@ There is one file per domain: `transport`, `project` (also `EditCommand`), `trac
 |---|---|
 | `model` | every `todo!("model node")` in ether-model (`OrderKey::between`, `Project::apply/...`, `History`, `patch::changes_for`, `file::load/save`, `TempoMap`) |
 | `core` | `engine.rs`, `graph::compile`, `tempo.rs` |
-| `core-session` | `ether-core/src/session/**` |
 | `devices` | ether-devices |
 | `media` | ether-media |
 | `controller` | ether-controller |

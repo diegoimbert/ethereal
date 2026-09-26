@@ -42,11 +42,11 @@ impl Fx {
             .unwrap();
         id
     }
-    fn midi_clip(&mut self, track: TrackId, location: ClipLocation) -> Clip {
+    fn midi_clip(&mut self, track: TrackId, start: Beats) -> Clip {
         Clip {
             id: self.id(),
             track,
-            location,
+            start,
             name: String::new(),
             color: None,
             muted: false,
@@ -57,7 +57,6 @@ impl Fx {
                 start: Beats::ZERO,
                 end: Beats(4.0),
             },
-            launch: LaunchSettings::default(),
             content: ClipContent::Midi,
         }
     }
@@ -76,9 +75,6 @@ fn new_project_is_valid_and_deterministic() {
     assert_eq!(a, b);
     a.validate().unwrap();
     assert_eq!(a.master_track().kind, TrackKind::Master);
-    assert_eq!(a.scenes_ordered().len(), NEW_PROJECT_SCENES);
-    let names: Vec<_> = a.scenes_ordered().iter().map(|s| s.name.clone()).collect();
-    assert_eq!(names, ["1", "2", "3", "4"]);
     assert_eq!(a.tempo_map().bpm_at(Beats::ZERO), 120.0);
     assert_eq!(a.id.0.get_version_num(), 7);
 }
@@ -121,7 +117,7 @@ fn structural_errors() {
 fn remove_requires_no_dependents() {
     let mut f = Fx::new();
     let midi = f.add_track(TrackKind::Midi, None);
-    let clip = f.midi_clip(midi, ClipLocation::Arrangement { start: Beats(0.0) });
+    let clip = f.midi_clip(midi, Beats(0.0));
     let clip_id = clip.id;
     f.p.apply(&Op::Insert {
         entity: Entity::Clip(clip),
@@ -147,38 +143,10 @@ fn remove_requires_no_dependents() {
 }
 
 #[test]
-fn session_slots_are_unique_and_derived() {
-    let mut f = Fx::new();
-    let midi = f.add_track(TrackKind::Midi, None);
-    let scene = f.p.scenes_ordered()[0].id;
-    let a = f.midi_clip(midi, ClipLocation::Session { scene });
-    let a_id = a.id;
-    f.p.apply(&Op::Insert {
-        entity: Entity::Clip(a),
-    })
-    .unwrap();
-    assert_eq!(f.p.clip_slot(midi, scene).clip, Some(a_id));
-    let b = f.midi_clip(midi, ClipLocation::Session { scene });
-    assert!(matches!(
-        f.p.apply(&Op::Insert {
-            entity: Entity::Clip(b)
-        }),
-        Err(ModelError::Invariant(_))
-    ));
-    // A scene holding a clip can't be removed.
-    assert!(matches!(
-        f.p.apply(&Op::Remove {
-            key: EntityKey::Scene(scene)
-        }),
-        Err(ModelError::HasChildren(_))
-    ));
-}
-
-#[test]
 fn audio_fields_on_midi_clip_fail_and_leave_project_unchanged() {
     let mut f = Fx::new();
     let midi = f.add_track(TrackKind::Midi, None);
-    let clip = f.midi_clip(midi, ClipLocation::Arrangement { start: Beats(0.0) });
+    let clip = f.midi_clip(midi, Beats(0.0));
     let id = clip.id;
     f.p.apply(&Op::Insert {
         entity: Entity::Clip(clip),
@@ -396,7 +364,7 @@ fn patches_coalesce_per_entity() {
     // Full-state changes rebuild the project on an empty mirror.
     let mut mirror = f.p.clone();
     mirror.tracks.clear();
-    mirror.scenes.clear();
+    mirror.clips.clear();
     mirror.apply_patch_changes(&full_changes(&f.p));
     assert_eq!(mirror, f.p);
 
