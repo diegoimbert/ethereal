@@ -7,7 +7,7 @@ use std::sync::atomic::Ordering;
 use std::time::Instant;
 
 use clack_extensions::audio_ports::{AudioPortFlags, AudioPortInfoBuffer};
-use clack_extensions::gui::{GuiApiType, GuiConfiguration};
+use clack_extensions::gui::{GuiConfiguration, GuiSize, PluginGui, Window as ClapWindow};
 use clack_host::events::event_types::ParamValueEvent;
 use clack_host::events::spaces::CoreEventSpace;
 use clack_host::prelude::*;
@@ -16,6 +16,7 @@ use ether_core::plugin::{PluginController, PluginError, PluginNode, PluginNotifi
 use ether_core::protocol::devices::{DeviceCategory, DeviceDescriptor, DeviceTypeRef, ParamInfo};
 use ether_core::protocol::model::ParamId;
 
+use crate::gui::HostWindow;
 use crate::host::{EtherHost, HostMainThread, HostShared, PluginExts, host_info};
 use crate::node::{ClapNode, NodeInit, NodeMsg, NodeShared, PortLayout};
 use crate::scan::{category_from_features, load_entry};
@@ -45,6 +46,8 @@ pub struct ClapPlugin {
     link: Option<ActiveLink>,
     editor: Option<GuiConfiguration<'static>>,
     editor_open: bool,
+    /// Host-created window for embedded editors (macOS).
+    editor_window: Option<HostWindow>,
 }
 
 impl std::fmt::Debug for ClapPlugin {
@@ -99,6 +102,7 @@ impl ClapPlugin {
             link: None,
             editor: None,
             editor_open: false,
+            editor_window: None,
         };
         plugin.params = plugin.query_params();
         plugin.refresh_io();
@@ -189,12 +193,6 @@ impl ClapPlugin {
         }
     }
 
-    /// Current plain value of a parameter (main thread; works active or inactive).
-    pub fn param_value(&mut self, param: ParamId) -> Option<f64> {
-        let ext = self.exts().params?;
-        ext.get_value(&self.instance.plugin_handle(), ClapId::new(param.0))
-    }
-
     /// Set a parameter while the plugin is NOT active (CLAP `params.flush`). While active,
     /// send `EventKind::Param` to the node instead (engine param queue / automation).
     pub fn set_param_value(&mut self, param: ParamId, value: f64) -> Result<(), PluginError> {
@@ -220,18 +218,88 @@ impl ClapPlugin {
         Ok(())
     }
 
-    /// Pick a GUI configuration we can host: the platform API as a CLAP floating window.
-    /// Embedded-only plugins need a host-created window (macOS: pending AppKit bindings, see
-    /// the clap node BCR), so they report no editor for now.
     fn negotiate_editor(&mut self) -> Option<GuiConfiguration<'static>> {
         let gui = self.exts().gui?;
-        let api_type: GuiApiType<'static> = GuiApiType::default_for_current_platform()?;
-        let config = GuiConfiguration {
-            api_type,
-            is_floating: true,
+        crate::gui::negotiate(&gui, &self.instance.plugin_handle())
+    }
+
+    /// Embedded editor: create the plugin GUI, parent it into a new host window, show both.
+    fn open_host_window(
+        &mut self,
+        gui: PluginGui,
+        config: GuiConfiguration<'static>,
+    ) -> Result<(), PluginError> {
+        let handle = self.instance.plugin_handle();
+        gui.create(&handle, config)
+            .map_err(|e| PluginError::Load(format!("editor: {e}")))?;
+        let size = gui.get_size(&handle).unwrap_or(crate::gui::DEFAULT_SIZE);
+        let window = match HostWindow::open(&self.name, size, gui.can_resize(&handle)) {
+            Ok(w) => w,
+            Err(e) => {
+                gui.destroy(&handle);
+                return Err(PluginError::Load(format!("editor: {e}")));
+            }
         };
-        gui.is_api_supported(&self.instance.plugin_handle(), config)
-            .then_some(config)
+        let parented = window.view_ptr().is_some_and(|view| {
+            // SAFETY: `view` is the content view of `window`, which we keep alive until after
+            // `gui.destroy` (see `close_editor` / `poll`).
+            unsafe { gui.set_parent(&handle, ClapWindow::from_generic_ptr(config.api_type, view)) }
+                .is_ok()
+        });
+        if !parented {
+            gui.destroy(&handle);
+            window.close();
+            return Err(PluginError::Load("editor: set_parent failed".into()));
+        }
+        // Some plugins show nothing until `show`, others return an error: ignore it.
+        let _ = gui.show(&handle);
+        window.show();
+        self.editor_window = Some(window);
+        Ok(())
+    }
+
+    /// Host-window housekeeping: user closed it, plugin asked for a resize, user resized it.
+    fn poll_host_window(&mut self, gui: Option<PluginGui>, out: &mut Vec<PluginNotification>) {
+        let Some(window) = self.editor_window.as_mut() else {
+            return;
+        };
+        let handle = self.instance.plugin_handle();
+        if !window.is_visible() {
+            if let Some(gui) = gui {
+                gui.destroy(&handle);
+            }
+            if let Some(w) = self.editor_window.take() {
+                w.close();
+            }
+            self.editor_open = false;
+            out.push(PluginNotification::EditorClosed);
+            return;
+        }
+        let packed = self
+            .instance
+            .access_shared_handler(|s| s.gui_resize.swap(0, Ordering::AcqRel));
+        let handle = self.instance.plugin_handle();
+        let Some(gui) = gui else {
+            return;
+        };
+        if packed != 0 {
+            window.resize(GuiSize::unpack_from_u64(packed));
+        } else {
+            let current = window.content_size();
+            if current != window.known_size() {
+                let size = if gui.can_resize(&handle) {
+                    gui.adjust_size(&handle, current).unwrap_or(current)
+                } else {
+                    gui.get_size(&handle).unwrap_or(current)
+                };
+                let _ = gui.set_size(&handle, size);
+                if size != current {
+                    window.resize(size);
+                } else {
+                    window.set_known_size(size);
+                }
+            }
+        }
     }
 
     fn drain_flush(&mut self, out: &mut Vec<PluginNotification>) {
@@ -381,6 +449,11 @@ impl PluginController for ClapPlugin {
             .map_err(|e| PluginError::State(e.to_string()))
     }
 
+    fn param_value(&mut self, param: ParamId) -> Option<f64> {
+        let ext = self.exts().params?;
+        ext.get_value(&self.instance.plugin_handle(), ClapId::new(param.0))
+    }
+
     fn has_editor(&self) -> bool {
         self.editor.is_some()
     }
@@ -388,17 +461,30 @@ impl PluginController for ClapPlugin {
     fn open_editor(&mut self) -> Result<(), PluginError> {
         let config = self.editor.ok_or(PluginError::NoEditor)?;
         let gui = self.exts().gui.ok_or(PluginError::NoEditor)?;
-        let handle = self.instance.plugin_handle();
-        if !self.editor_open {
+        if self.editor_open {
+            if let Some(w) = &self.editor_window {
+                w.show();
+            }
+            return gui
+                .show(&self.instance.plugin_handle())
+                .map_err(|e| PluginError::Load(format!("editor: {e}")));
+        }
+        if config.is_floating {
+            let handle = self.instance.plugin_handle();
             gui.create(&handle, config)
                 .map_err(|e| PluginError::Load(format!("editor: {e}")))?;
             if let Ok(title) = CString::new(self.name.clone()) {
                 gui.suggest_title(&handle, &title);
             }
-            self.editor_open = true;
+            if let Err(e) = gui.show(&handle) {
+                gui.destroy(&handle);
+                return Err(PluginError::Load(format!("editor: {e}")));
+            }
+        } else {
+            self.open_host_window(gui, config)?;
         }
-        gui.show(&handle)
-            .map_err(|e| PluginError::Load(format!("editor: {e}")))
+        self.editor_open = true;
+        Ok(())
     }
 
     fn close_editor(&mut self) {
@@ -409,6 +495,10 @@ impl PluginController for ClapPlugin {
             let handle = self.instance.plugin_handle();
             let _ = gui.hide(&handle);
             gui.destroy(&handle);
+        }
+        // The plugin view is gone; now the host window can go.
+        if let Some(w) = self.editor_window.take() {
+            w.close();
         }
         self.editor_open = false;
     }
@@ -482,13 +572,18 @@ impl PluginController for ClapPlugin {
         {
             out.push(PluginNotification::StateDirty);
         }
-        if self.instance.access_shared_handler(|s| take(&s.gui_closed)) && self.editor_open {
+        // Floating windows report closing through `gui.closed`; host windows are polled.
+        if self.instance.access_shared_handler(|s| take(&s.gui_closed))
+            && self.editor_open
+            && self.editor_window.is_none()
+        {
             if let Some(gui) = exts.gui {
                 gui.destroy(&self.instance.plugin_handle());
             }
             self.editor_open = false;
             out.push(PluginNotification::EditorClosed);
         }
+        self.poll_host_window(exts.gui, out);
     }
 }
 

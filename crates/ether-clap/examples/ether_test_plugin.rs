@@ -8,9 +8,13 @@
 //! - MIDI CC 7 sets the gain *from the plugin side* (as a GUI would): it emits gesture begin,
 //!   param value and gesture end output events.
 //! - State: gain + mode as 16 little-endian bytes.
+//! - GUI: CLAP *floating* window only, headless (no real window). While "open" it runs a
+//!   10 ms host timer and reports itself closed (`gui.closed`) on the 3rd tick, which
+//!   exercises timers + the editor-closed path.
 //! - Entry init aborts the process if the bundle path contains `ether-crash`, and hangs
 //!   forever if it contains `ether-hang` (to test scanner crash/timeout handling).
 
+use std::cell::Cell;
 use std::ffi::CStr;
 use std::io::{Read, Write};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -18,6 +22,9 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use clack_extensions::audio_ports::{
     AudioPortFlags, AudioPortInfo, AudioPortInfoWriter, AudioPortType, PluginAudioPorts,
     PluginAudioPortsImpl,
+};
+use clack_extensions::gui::{
+    GuiApiType, GuiConfiguration, GuiSize, HostGui, PluginGui, PluginGuiImpl, Window,
 };
 use clack_extensions::latency::{PluginLatency, PluginLatencyImpl};
 use clack_extensions::note_ports::{
@@ -29,6 +36,7 @@ use clack_extensions::params::{
     PluginMainThreadParams, PluginParams,
 };
 use clack_extensions::state::{PluginState, PluginStateImpl};
+use clack_extensions::timer::{HostTimer, PluginTimer, PluginTimerImpl, TimerId};
 use clack_plugin::entry::prelude::*;
 use clack_plugin::events::event_types::{
     ParamGestureBeginEvent, ParamGestureEndEvent, ParamValueEvent,
@@ -72,6 +80,9 @@ impl PluginShared<'_> for Shared {}
 
 pub struct MainThread<'a> {
     shared: &'a Shared,
+    host: HostMainThreadHandle<'a>,
+    timer: Cell<Option<TimerId>>,
+    ticks: Cell<u32>,
 }
 
 impl<'a> PluginMainThread<'a, Shared> for MainThread<'a> {}
@@ -92,7 +103,9 @@ impl Plugin for TestPlugin {
             .register::<PluginNotePorts>()
             .register::<PluginParams>()
             .register::<PluginState>()
-            .register::<PluginLatency>();
+            .register::<PluginLatency>()
+            .register::<PluginGui>()
+            .register::<PluginTimer>();
     }
 }
 
@@ -115,10 +128,15 @@ impl DefaultPluginFactory for TestPlugin {
     }
 
     fn new_main_thread<'a>(
-        _host: HostMainThreadHandle<'a>,
+        host: HostMainThreadHandle<'a>,
         shared: &'a Shared,
     ) -> Result<MainThread<'a>, PluginError> {
-        Ok(MainThread { shared })
+        Ok(MainThread {
+            shared,
+            host,
+            timer: Cell::new(None),
+            ticks: Cell::new(0),
+        })
     }
 }
 
@@ -353,6 +371,87 @@ impl PluginAudioProcessorParams for Processor<'_> {
     fn flush(&mut self, input: &InputEvents, _output: &mut OutputEvents) {
         for event in input {
             self.shared.handle(event);
+        }
+    }
+}
+
+impl PluginGuiImpl for MainThread<'_> {
+    fn is_api_supported(&self, configuration: GuiConfiguration) -> bool {
+        configuration.is_floating
+            && Some(configuration.api_type) == GuiApiType::default_for_current_platform()
+    }
+
+    fn get_preferred_api(&self) -> Option<GuiConfiguration<'_>> {
+        Some(GuiConfiguration {
+            api_type: GuiApiType::default_for_current_platform()?,
+            is_floating: true,
+        })
+    }
+
+    fn create(&self, configuration: GuiConfiguration) -> Result<(), PluginError> {
+        if !self.is_api_supported(configuration) {
+            return Err(PluginError::Message("unsupported gui configuration"));
+        }
+        let timer_ext: HostTimer = self
+            .host
+            .get_extension()
+            .ok_or(PluginError::Message("host has no timer support"))?;
+        let id = timer_ext
+            .register_timer(&self.host, 10)
+            .map_err(|_| PluginError::Message("register_timer failed"))?;
+        self.timer.set(Some(id));
+        self.ticks.set(0);
+        Ok(())
+    }
+
+    fn destroy(&self) {
+        if let (Some(id), Some(timer_ext)) =
+            (self.timer.take(), self.host.get_extension::<HostTimer>())
+        {
+            let _ = timer_ext.unregister_timer(&self.host, id);
+        }
+    }
+
+    fn set_scale(&self, _scale: f64) -> Result<(), PluginError> {
+        Ok(())
+    }
+
+    fn get_size(&self) -> Option<GuiSize> {
+        Some(GuiSize {
+            width: 300,
+            height: 200,
+        })
+    }
+
+    fn set_size(&self, _size: GuiSize) -> Result<(), PluginError> {
+        Ok(())
+    }
+
+    fn set_parent(&self, _window: Window) -> Result<(), PluginError> {
+        Err(PluginError::Message("floating only"))
+    }
+
+    fn set_transient(&self, _window: Window) -> Result<(), PluginError> {
+        Ok(())
+    }
+
+    fn show(&self) -> Result<(), PluginError> {
+        Ok(())
+    }
+
+    fn hide(&self) -> Result<(), PluginError> {
+        Ok(())
+    }
+}
+
+impl PluginTimerImpl for MainThread<'_> {
+    fn on_timer(&self, _timer_id: TimerId) {
+        let ticks = self.ticks.get() + 1;
+        self.ticks.set(ticks);
+        if ticks == 3
+            && let Some(gui) = self.host.get_extension::<HostGui>()
+        {
+            gui.closed(&self.host.shared(), false);
         }
     }
 }

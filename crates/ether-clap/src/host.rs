@@ -4,7 +4,7 @@
 //! half). [`crate::ClapPlugin::poll`] turns them into `PluginNotification`s on the main thread.
 
 use std::cell::{Cell, RefCell};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
 use clack_extensions::audio_ports::{
@@ -51,6 +51,8 @@ pub(crate) struct HostShared {
     pub restart_requested: AtomicBool,
     pub flush_requested: AtomicBool,
     pub gui_closed: AtomicBool,
+    /// Pending editor resize request (`GuiSize::pack_to_u64`), 0 = none.
+    pub gui_resize: AtomicU64,
 }
 
 impl HostShared {
@@ -94,8 +96,10 @@ impl HostParamsImplShared for HostShared {
 impl HostGuiImpl for HostShared {
     fn resize_hints_changed(&self) {}
 
-    fn request_resize(&self, _new_size: GuiSize) -> Result<(), HostError> {
-        // Floating windows are resized by the plugin itself.
+    fn request_resize(&self, new_size: GuiSize) -> Result<(), HostError> {
+        // Applied to the host window (if any) on the next poll.
+        self.gui_resize
+            .store(new_size.pack_to_u64().max(1), Ordering::Release);
         Ok(())
     }
 

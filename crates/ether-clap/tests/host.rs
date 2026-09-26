@@ -3,6 +3,7 @@
 
 use std::path::PathBuf;
 use std::sync::OnceLock;
+use std::time::{Duration, Instant};
 
 use assert_no_alloc::{AllocDisabler, assert_no_alloc};
 use ether_clap::{ClapPlugin, instantiate, testing};
@@ -121,8 +122,31 @@ fn descriptor_and_params() {
     assert!(tempo.hidden && !tempo.automatable);
 
     assert_eq!(plugin.param_value(GAIN), Some(1.0));
-    assert!(!plugin.has_editor());
-    assert_eq!(plugin.open_editor(), Err(PluginError::NoEditor));
+}
+
+#[test]
+fn floating_editor_timers_and_close() {
+    let mut plugin = load();
+    assert!(plugin.has_editor());
+    plugin.open_editor().expect("open editor");
+    plugin.open_editor().expect("re-show open editor");
+
+    // The fixture closes its (headless) window on its 3rd timer tick.
+    let mut out = Vec::new();
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while !out.contains(&PluginNotification::EditorClosed) {
+        assert!(Instant::now() < deadline, "editor never closed: {out:?}");
+        plugin.poll(&mut out);
+        std::thread::sleep(Duration::from_millis(5));
+    }
+
+    // Re-open and close from the host side: no EditorClosed notification then.
+    plugin.open_editor().expect("open again");
+    plugin.close_editor();
+    out.clear();
+    std::thread::sleep(Duration::from_millis(50));
+    plugin.poll(&mut out);
+    assert!(out.is_empty(), "{out:?}");
 }
 
 #[test]
