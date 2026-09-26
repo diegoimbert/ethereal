@@ -18,7 +18,6 @@ export function endOf(clip: Clip): Beats {
   return startOf(clip) + clip.length;
 }
 
-/** Every clip is an arrangement clip (Session view was removed); kept for call sites. */
 export function isArrangementClip(_clip: Clip): boolean {
   return true;
 }

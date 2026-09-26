@@ -1,0 +1,267 @@
+{
+  "format": "ethereal-project",
+  "version": 1,
+  "app_version": "0.1.0",
+  "project": {
+    "id": "018bcfe5-6800-7797-869c-e26aaed7572f",
+    "settings": {
+      "name": "Untitled",
+      "loop_enabled": false,
+      "loop_region": {
+        "start": 0.0,
+        "end": 16.0
+      },
+      "metronome": false,
+      "launch_quantization": {
+        "type": "Bars",
+        "count": 1
+      },
+      "count_in_bars": 0
+    },
+    "tracks": {
+      "01HF7YAT001HTF7ECJVVKKBXXT": {
+        "id": "01HF7YAT001HTF7ECJVVKKBXXT",
+        "kind": "Master",
+        "name": "Master",
+        "color": 10132122,
+        "order": "a0",
+        "parent": null,
+        "mixer": {
+          "volume": 0.0,
+          "pan": 0.0,
+          "mute": false,
+          "solo": false
+        },
+        "input": {
+          "type": "None"
+        },
+        "output": {
+          "type": "Default"
+        },
+        "monitor": "Auto"
+      },
+      "01HF7YAT0165BXA586GQ239WK4": {
+        "id": "01HF7YAT0165BXA586GQ239WK4",
+        "kind": "Midi",
+        "name": "Keys",
+        "color": 6069759,
+        "order": "a1",
+        "parent": null,
+        "mixer": {
+          "volume": 0.0,
+          "pan": 0.0,
+          "mute": false,
+          "solo": false
+        },
+        "input": {
+          "type": "None"
+        },
+        "output": {
+          "type": "Default"
+        },
+        "monitor": "Auto"
+      },
+      "01HF7YAT025B1KSC30QM73WCN3": {
+        "id": "01HF7YAT025B1KSC30QM73WCN3",
+        "kind": "Audio",
+        "name": "Drums",
+        "color": 6069759,
+        "order": "a2",
+        "parent": null,
+        "mixer": {
+          "volume": 0.0,
+          "pan": 0.0,
+          "mute": false,
+          "solo": false
+        },
+        "input": {
+          "type": "None"
+        },
+        "output": {
+          "type": "Default"
+        },
+        "monitor": "Auto"
+      }
+    },
+    "clips": {
+      "01HF7YAT048RRZ0HQB2TJNWDVZ": {
+        "id": "01HF7YAT048RRZ0HQB2TJNWDVZ",
+        "track": "01HF7YAT0165BXA586GQ239WK4",
+        "location": {
+          "type": "Arrangement",
+          "start": 8.0
+        },
+        "name": "Chords",
+        "color": null,
+        "muted": false,
+        "length": 16.0,
+        "offset": 0.0,
+        "looping": {
+          "enabled": false,
+          "start": 0.0,
+          "end": 16.0
+        },
+        "launch": {
+          "mode": "Trigger",
+          "quantization": null,
+          "legato": false
+        },
+        "content": {
+          "type": "Midi"
+        }
+      },
+      "01HF7YAT05E619RAZQY67693FR": {
+        "id": "01HF7YAT05E619RAZQY67693FR",
+        "track": "01HF7YAT025B1KSC30QM73WCN3",
+        "location": {
+          "type": "Session",
+          "scene": "01HF7YAT01SCENE0000000000A"
+        },
+        "name": "Loop",
+        "color": 16746496,
+        "muted": false,
+        "length": 16.0,
+        "offset": 0.0,
+        "looping": {
+          "enabled": true,
+          "start": 0.0,
+          "end": 16.0
+        },
+        "launch": {
+          "mode": "Trigger",
+          "quantization": {
+            "type": "Beats",
+            "beats": 1.0
+          },
+          "legato": false
+        },
+        "content": {
+          "type": "Audio",
+          "media": "01HF7YAT03NZ3NP2J0YMA9QBWS",
+          "gain": -3.0,
+          "transpose": 0.0,
+          "fade_in": 0.0,
+          "fade_out": 0.0,
+          "warp": {
+            "enabled": true,
+            "mode": "Complex",
+            "source_bpm": 120.0
+          }
+        }
+      }
+    },
+    "notes": {
+      "01HF7YAT06Z3QSXP0WPYFRXNKK": {
+        "id": "01HF7YAT06Z3QSXP0WPYFRXNKK",
+        "clip": "01HF7YAT048RRZ0HQB2TJNWDVZ",
+        "pitch": 60,
+        "velocity": 0.8,
+        "release_velocity": 0.5,
+        "start": 0.0,
+        "duration": 4.0,
+        "muted": false
+      },
+      "01HF7YAT07590RNRJV1RRR23DV": {
+        "id": "01HF7YAT07590RNRJV1RRR23DV",
+        "clip": "01HF7YAT048RRZ0HQB2TJNWDVZ",
+        "pitch": 64,
+        "velocity": 0.7,
+        "release_velocity": 0.5,
+        "start": 4.0,
+        "duration": 4.0,
+        "muted": false
+      }
+    },
+    "devices": {},
+    "sends": {},
+    "scenes": {
+      "01HF7YAT01SCENE0000000000A": {
+        "id": "01HF7YAT01SCENE0000000000A",
+        "name": "1",
+        "color": null,
+        "order": "a0",
+        "tempo": 128.0,
+        "time_signature": null
+      },
+      "01HF7YAT01SCENE0000000000B": {
+        "id": "01HF7YAT01SCENE0000000000B",
+        "name": "2",
+        "color": null,
+        "order": "a1",
+        "tempo": null,
+        "time_signature": null
+      }
+    },
+    "automation_lanes": {
+      "01HF7YAT093YXV9NY8DM1Y664F": {
+        "id": "01HF7YAT093YXV9NY8DM1Y664F",
+        "owner": {
+          "type": "Clip",
+          "clip": "01HF7YAT05E619RAZQY67693FR"
+        },
+        "target": {
+          "type": "TrackVolume",
+          "track": "01HF7YAT025B1KSC30QM73WCN3"
+        },
+        "enabled": true
+      }
+    },
+    "automation_points": {
+      "01HF7YAT0AG6GZVXTX6EZZ90Y7": {
+        "id": "01HF7YAT0AG6GZVXTX6EZZ90Y7",
+        "lane": "01HF7YAT093YXV9NY8DM1Y664F",
+        "time": 0.0,
+        "value": 0.2,
+        "curve": {
+          "type": "Linear"
+        }
+      },
+      "01HF7YAT0B6780KFECWCAX97S0": {
+        "id": "01HF7YAT0B6780KFECWCAX97S0",
+        "lane": "01HF7YAT093YXV9NY8DM1Y664F",
+        "time": 8.0,
+        "value": 0.9,
+        "curve": {
+          "type": "Step"
+        }
+      }
+    },
+    "tempo_points": {
+      "01HF7YAT001HTF7ECJVVKKBXXV": {
+        "id": "01HF7YAT001HTF7ECJVVKKBXXV",
+        "time": 0.0,
+        "bpm": 120.0,
+        "curve": "Step"
+      }
+    },
+    "time_signatures": {
+      "01HF7YAT001HTF7ECJVVKKBXXW": {
+        "id": "01HF7YAT001HTF7ECJVVKKBXXW",
+        "time": 0.0,
+        "signature": {
+          "numerator": 4,
+          "denominator": 4
+        }
+      }
+    },
+    "warp_markers": {
+      "01HF7YAT085HFH1PV7YC79TAB8": {
+        "id": "01HF7YAT085HFH1PV7YC79TAB8",
+        "clip": "01HF7YAT05E619RAZQY67693FR",
+        "beat": 4.0,
+        "source": 2.0
+      }
+    },
+    "media": {
+      "01HF7YAT03NZ3NP2J0YMA9QBWS": {
+        "id": "01HF7YAT03NZ3NP2J0YMA9QBWS",
+        "name": "loop.wav",
+        "file": "media/01HF7YAT03NZ3NP2J0YMA9QBWS-loop.wav",
+        "sample_rate": 44100,
+        "channels": 2,
+        "frames": 352800,
+        "hash": "abc123"
+      }
+    }
+  }
+}
