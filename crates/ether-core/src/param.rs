@@ -84,6 +84,10 @@ impl Smoother {
     pub fn current(&self) -> f32 {
         self.current
     }
+
+    pub fn target(&self) -> f32 {
+        self.target
+    }
 }
 
 #[cfg(test)]

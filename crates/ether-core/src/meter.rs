@@ -1,8 +1,7 @@
-//! Engine → controller outputs (meters, playhead, session states, diagnostics).
+//! Engine → controller outputs (meters, playhead, diagnostics).
 
 use ether_protocol::meters::TrackMeter;
 use ether_protocol::model::TrackId;
-use ether_protocol::session::ClipStateChange;
 
 use crate::transport::PlayheadState;
 
@@ -24,8 +23,6 @@ pub struct EngineOutputs {
     pub meters: Vec<TrackMeter>,
     /// DSP load 0..=1 (the host measures time; the engine reports its share if known).
     pub cpu_load: f32,
-    /// Session clip state transitions (from `session`).
-    pub session: Vec<ClipStateChange>,
     /// Some node's event buffer overflowed since the last poll.
     pub event_overflow: bool,
     /// Audio source underruns since the last poll.
@@ -36,7 +33,6 @@ impl EngineOutputs {
     pub fn clear(&mut self) {
         self.playhead = None;
         self.meters.clear();
-        self.session.clear();
         self.event_overflow = false;
         self.underruns = 0;
     }
