@@ -5,6 +5,10 @@ export interface KnobProps {
   /** Normalized value, 0..1. */
   value: number;
   onChange?: (value: number) => void;
+  /** Pointer drag started (open an undo gesture). */
+  onChangeStart?: () => void;
+  /** Pointer drag ended (close the gesture). */
+  onChangeEnd?: () => void;
   label?: string;
   /** Arc drawn from the center (0.5) instead of from the minimum, e.g. pan. */
   bipolar?: boolean;
@@ -38,6 +42,8 @@ function arc(cx: number, cy: number, r: number, from: number, to: number): strin
 export function Knob({
   value,
   onChange,
+  onChangeStart,
+  onChangeEnd,
   label,
   bipolar = false,
   defaultValue,
@@ -51,6 +57,8 @@ export function Knob({
     onChange: disabled ? undefined : onChange,
     sensitivity: 1 / 150,
     defaultValue: defaultValue ?? (bipolar ? 0.5 : undefined),
+    onChangeStart,
+    onChangeEnd,
   });
   const v = Math.min(1, Math.max(0, value));
   const c = size / 2;
