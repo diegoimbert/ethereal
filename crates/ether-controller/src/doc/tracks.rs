@@ -248,10 +248,6 @@ fn duplicate(
         .filter(|c| c.track == t.id)
         .cloned()
         .collect();
-    for c in clips {
-        let id = ctx.new_id();
-        ctx.copy_clip(&c, id, |c| c.track = new_id)?;
-    }
     let remap = |target: AutomationTarget| -> Option<AutomationTarget> {
         Some(match target {
             AutomationTarget::TrackVolume { track } if track == t.id => {
@@ -270,6 +266,11 @@ fn duplicate(
             other => other,
         })
     };
+    // Clip envelopes follow their clip to the copied track (retargeted like track lanes).
+    for c in clips {
+        let id = ctx.new_id();
+        ctx.copy_clip(&c, id, |c| c.track = new_id, &|t| remap(*t))?;
+    }
     let lanes: Vec<AutomationLane> = ctx
         .p()
         .automation_lanes

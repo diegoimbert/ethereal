@@ -60,6 +60,8 @@ pub(crate) struct MediaState {
     peaks: BTreeMap<MediaId, PeakMipmap>,
     loaded: BTreeSet<MediaId>,
     jobs: VecDeque<Job>,
+    /// Lengths learned by decoding media whose header had none (`MediaRef.frames == 0`).
+    frame_fixups: Vec<(MediaId, u64)>,
 }
 
 /// Decoded audio sized to the document's frame count (headers and decoders can disagree
@@ -79,6 +81,11 @@ impl MediaState {
 
     pub fn is_pending(&self, media: MediaId) -> bool {
         self.jobs.iter().any(|j| j.media.id == media)
+    }
+
+    /// Media lengths learned by decoding (see `MediaRef.frames == 0`).
+    pub fn take_frame_fixups(&mut self) -> Vec<(MediaId, u64)> {
+        std::mem::take(&mut self.frame_fixups)
     }
 
     pub fn has_jobs(&self) -> bool {
@@ -261,7 +268,15 @@ impl MediaState {
                         unreachable!()
                     };
                     let truncated = dec.truncated;
-                    let audio = fit_frames(dec.finish()?, job.media.frames);
+                    let audio = dec.finish()?;
+                    let audio = if job.media.frames == 0 {
+                        let frames = audio.frames() as u64;
+                        job.media.frames = frames;
+                        self.frame_fixups.push((job.media.id, frames));
+                        audio
+                    } else {
+                        fit_frames(audio, job.media.frames)
+                    };
                     if truncated && !job.warned {
                         job.warned = true;
                         events.push(Event::Notification {

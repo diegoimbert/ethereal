@@ -52,7 +52,7 @@ pub use compile::{CompileContext, compile_graph_with};
 pub use media::hash::content_hash;
 
 /// Lowest volume/send level: `Decibels::SILENCE` (treated as -inf).
-pub const SILENCE_DB: f32 = -144.0;
+pub const SILENCE_DB: f32 = ether_core::protocol::model::Decibels::SILENCE.0;
 /// Highest track volume accepted (commands are clamped).
 pub const MAX_VOLUME_DB: f32 = 6.0;
 /// Highest send level accepted (commands are clamped).

@@ -48,6 +48,8 @@ pub(crate) struct DocCtx<'a, 'p> {
     /// Current playhead (for "tempo at the playhead" commands).
     pub position: Beats,
     pub host: &'a mut dyn DocHost,
+    /// User-facing warnings, emitted as notifications if the edit commits.
+    pub warnings: Vec<String>,
 }
 
 impl DocCtx<'_, '_> {
@@ -253,6 +255,7 @@ impl DocCtx<'_, '_> {
         src: &Clip,
         new_id: ClipId,
         edit: impl FnOnce(&mut Clip),
+        retarget: &dyn Fn(&AutomationTarget) -> Option<AutomationTarget>,
     ) -> CmdResult<()> {
         let mut copy = src.clone();
         copy.id = new_id;
@@ -283,12 +286,109 @@ impl DocCtx<'_, '_> {
             .cloned()
             .collect();
         for l in lanes {
+            let Some(target) = retarget(&l.target) else {
+                continue;
+            };
             let mut lane = l.clone();
             lane.id = self.new_id();
             lane.owner = AutomationOwner::Clip { clip: new_id };
+            lane.target = target;
             self.copy_lane(l.id, lane)?;
         }
         Ok(())
+    }
+
+    /// A clip moved from track `from` to `to`: its envelopes follow it. Volume/pan retarget
+    /// to `to`, sends to `to`'s send to the same return; envelopes of devices (or sends)
+    /// that `to` doesn't have are deleted, with a warning.
+    pub fn retarget_clip_lanes(
+        &mut self,
+        clip: ClipId,
+        from: TrackId,
+        to: TrackId,
+    ) -> CmdResult<()> {
+        let lanes: Vec<AutomationLane> = self
+            .p()
+            .automation_lanes
+            .values()
+            .filter(|l| matches!(l.owner, AutomationOwner::Clip { clip: c } if c == clip))
+            .cloned()
+            .collect();
+        for l in lanes {
+            let p = self.p();
+            let new = match l.target {
+                AutomationTarget::TrackVolume { track } if track == from => {
+                    Some(AutomationTarget::TrackVolume { track: to })
+                }
+                AutomationTarget::TrackPan { track } if track == from => {
+                    Some(AutomationTarget::TrackPan { track: to })
+                }
+                AutomationTarget::SendLevel { send } => {
+                    let ret = p.sends.get(&send).map(|s| s.to);
+                    p.sends
+                        .values()
+                        .find(|s| s.from == to && Some(s.to) == ret)
+                        .map(|s| AutomationTarget::SendLevel { send: s.id })
+                }
+                AutomationTarget::DeviceParam { device, .. } => p
+                    .devices
+                    .get(&device)
+                    .filter(|d| d.track == to)
+                    .map(|_| l.target),
+                other => Some(other),
+            };
+            match new {
+                Some(t) if t == l.target => {}
+                Some(t) => self.replace_lane_target(&l, t)?,
+                None => {
+                    self.delete_lane(l.id)?;
+                    let name = self
+                        .p()
+                        .clips
+                        .get(&clip)
+                        .map(|c| c.name.clone())
+                        .unwrap_or_default();
+                    self.warnings.push(format!(
+                        "clip \"{name}\": an envelope was removed (its target does not exist on the new track)"
+                    ));
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Change a lane's target (there is no target field op: re-create it with the same ids).
+    fn replace_lane_target(
+        &mut self,
+        lane: &AutomationLane,
+        target: AutomationTarget,
+    ) -> CmdResult<()> {
+        let points: Vec<AutomationPoint> =
+            self.p().points_of(lane.id).into_iter().cloned().collect();
+        for p in &points {
+            self.tx.remove(EntityKey::AutomationPoint(p.id))?;
+        }
+        self.tx.remove(EntityKey::AutomationLane(lane.id))?;
+        self.tx.insert(Entity::AutomationLane(AutomationLane {
+            target,
+            ..lane.clone()
+        }))?;
+        for p in points {
+            self.tx.insert(Entity::AutomationPoint(p))?;
+        }
+        Ok(())
+    }
+
+    /// Track that a target belongs to (`None` = dangling).
+    pub fn target_track(&self, target: &AutomationTarget) -> Option<TrackId> {
+        let p = self.p();
+        match *target {
+            AutomationTarget::TrackVolume { track } | AutomationTarget::TrackPan { track } => {
+                Some(track)
+            }
+            AutomationTarget::SendLevel { send } => p.sends.get(&send).map(|s| s.from),
+            AutomationTarget::DeviceParam { device, .. } => p.devices.get(&device).map(|d| d.track),
+        }
     }
 
     pub fn copy_lane(&mut self, src: AutomationLaneId, lane: AutomationLane) -> CmdResult<()> {

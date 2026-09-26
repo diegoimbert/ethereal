@@ -136,6 +136,27 @@ pub(super) fn apply(ctx: &mut DocCtx, c: &DeviceCommand) -> CmdResult<()> {
             let order = order_before(&chain(ctx.p(), t.id, Some(d.id)), *before)?;
             if d.track != t.id {
                 ctx.set_device(d.id, DeviceChange::Track(t.id))?;
+                // Clip envelopes of the device on its old track can't follow it.
+                let dead: Vec<AutomationLaneId> = ctx
+                    .p()
+                    .automation_lanes
+                    .values()
+                    .filter(|l| {
+                        matches!(l.target, AutomationTarget::DeviceParam { device, .. } if device == d.id)
+                            && matches!(l.owner, AutomationOwner::Clip { clip }
+                                if ctx.p().clips.get(&clip).is_some_and(|c| c.track != t.id))
+                    })
+                    .map(|l| l.id)
+                    .collect();
+                if !dead.is_empty() {
+                    for l in dead {
+                        ctx.delete_lane(l)?;
+                    }
+                    ctx.warnings.push(format!(
+                        "\"{}\": clip envelopes on its previous track were removed",
+                        d.name
+                    ));
+                }
             }
             ctx.set_device(d.id, DeviceChange::Order(order))
         }

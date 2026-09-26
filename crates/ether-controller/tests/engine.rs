@@ -718,3 +718,145 @@ fn list_builtin_devices() {
     let v = h.ok(Command::Device(DeviceCommand::ListBuiltin));
     assert!(matches!(v, ReplyValue::DeviceTypes { devices } if devices.len() == 4));
 }
+
+fn midi_clip(h: &mut Harness, t: TrackId) -> ClipId {
+    let c: ClipId = h.id();
+    h.ok(Command::Clip(ClipCommand::CreateMidi {
+        id: c,
+        track: t,
+        start: Beats(0.0),
+        length: Beats(4.0),
+        name: Some("C".into()),
+    }));
+    c
+}
+
+fn envelopes_of(h: &Harness, t: TrackId) -> Vec<ResolvedTarget> {
+    let g = h.ctl.bridge.last_graph();
+    let td = g.tracks.iter().find(|x| x.id == t).unwrap();
+    td.clips
+        .iter()
+        .flat_map(|c| c.envelopes.iter().map(|e| e.resolved))
+        .collect()
+}
+
+#[test]
+fn clip_envelopes_follow_track_duplicates() {
+    let mut h = Harness::with_project();
+    let t = track(&mut h, TrackKind::Midi, None);
+    let d = device(&mut h, t, BuiltinDevice::Synth);
+    let c = midi_clip(&mut h, t);
+    let owner = AutomationOwner::Clip { clip: c };
+    lane(
+        &mut h,
+        owner,
+        AutomationTarget::TrackVolume { track: t },
+        &[(0.0, 0.5)],
+    );
+    lane(
+        &mut h,
+        owner,
+        AutomationTarget::DeviceParam {
+            device: d,
+            param: ParamId(0),
+        },
+        &[(0.0, 0.5)],
+    );
+    let copy: TrackId = h.id();
+    h.ok(Command::Track(TrackCommand::Duplicate {
+        id: t,
+        new_id: copy,
+    }));
+    h.tick();
+    let new_dev = h.project().devices_of(copy)[0].id;
+    let node = node_of(&h, new_dev);
+    let env = envelopes_of(&h, copy);
+    assert_eq!(env.len(), 2, "{env:?}");
+    assert!(env.contains(&ResolvedTarget::TrackVolume));
+    assert!(env.contains(&ResolvedTarget::Node {
+        node,
+        param: ParamId(0)
+    }));
+    assert_eq!(envelopes_of(&h, t).len(), 2);
+}
+
+#[test]
+fn clip_envelopes_follow_cross_track_moves() {
+    let mut h = Harness::with_project();
+    let ret = track(&mut h, TrackKind::Return, None);
+    let a = track(&mut h, TrackKind::Midi, None);
+    let b = track(&mut h, TrackKind::Midi, None);
+    let d = device(&mut h, a, BuiltinDevice::Synth);
+    let (sa, sb): (SendId, SendId) = (h.id(), h.id());
+    for (s, from) in [(sa, a), (sb, b)] {
+        h.ok(Command::Mixer(MixerCommand::CreateSend {
+            id: s,
+            from,
+            to: ret,
+            level: Decibels(0.0),
+            pre_fader: false,
+        }));
+    }
+    let c = midi_clip(&mut h, a);
+    let owner = AutomationOwner::Clip { clip: c };
+    let pan = lane(
+        &mut h,
+        owner,
+        AutomationTarget::TrackPan { track: a },
+        &[(0.0, 0.2), (2.0, 0.8)],
+    );
+    lane(
+        &mut h,
+        owner,
+        AutomationTarget::SendLevel { send: sa },
+        &[(0.0, 0.5)],
+    );
+    lane(
+        &mut h,
+        owner,
+        AutomationTarget::DeviceParam {
+            device: d,
+            param: ParamId(0),
+        },
+        &[(0.0, 0.5)],
+    );
+    // A clip envelope may only target its own track.
+    let bad: AutomationLaneId = h.id();
+    let out = h.send(Command::Automation(AutomationCommand::CreateLane {
+        id: bad,
+        owner,
+        target: AutomationTarget::TrackVolume { track: b },
+    }));
+    assert_eq!(err(&out).code, ErrorCode::InvalidArgument);
+
+    let before = h.project().clone();
+    let out = h.send(Command::Clip(ClipCommand::Move {
+        moves: vec![ether_core::protocol::clips::ClipMove {
+            id: c,
+            track: b,
+            start: Beats(0.0),
+        }],
+    }));
+    ok(&out);
+    assert!(events(&out).iter().any(|e| matches!(
+        e,
+        Event::Notification {
+            level: NotificationLevel::Warning,
+            ..
+        }
+    )));
+    let p = h.project();
+    assert_eq!(
+        p.automation_lanes[&pan].target,
+        AutomationTarget::TrackPan { track: b }
+    );
+    assert_eq!(p.points_of(pan).len(), 2, "points kept");
+    h.tick();
+    let env = envelopes_of(&h, b);
+    assert_eq!(env.len(), 2, "{env:?}");
+    assert!(env.contains(&ResolvedTarget::TrackPan));
+    assert!(env.contains(&ResolvedTarget::Send { send: sb }));
+    // Undo restores the original envelopes exactly.
+    h.ok(Command::Edit(EditCommand::Undo));
+    assert_eq!(h.project(), &before);
+}

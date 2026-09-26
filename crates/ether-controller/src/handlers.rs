@@ -163,8 +163,10 @@ where
             now,
             position: self.transport.position,
             host: &mut host,
+            warnings: Vec::new(),
         };
         let result = f(&mut ctx);
+        let warnings = std::mem::take(&mut ctx.warnings);
         let ops = match result {
             Ok(()) => ctx.tx.finish(),
             Err(e) => {
@@ -188,6 +190,9 @@ where
             .commit(&mut doc.project, tx, gesture)
             .map_err(model_err)?;
         self.after_ops(&applied, now, out);
+        for w in warnings {
+            notify(out, NotificationLevel::Warning, w);
+        }
         Ok(())
     }
 
@@ -792,13 +797,14 @@ where
         let bytes: Arc<[u8]> = bytes.into();
         let mut decoder = IncrementalDecoder::new(bytes.clone(), extension_of(&name))
             .map_err(|e| cmd_err(ErrorCode::Decode, e.to_string()))?;
-        if decoder.sample_rate == 0 || decoder.channels == 0 || decoder.n_frames.is_none() {
-            // Header without the metadata a MediaRef needs: decode now.
+        if decoder.sample_rate == 0 || decoder.channels == 0 {
+            // Rate/channels come with the first packet for some formats: decode just that.
             decoder
-                .run_to_end()
+                .step(1)
                 .map_err(|e| cmd_err(ErrorCode::Decode, e.to_string()))?;
-            decoder.n_frames = Some(decoder.decoded_frames() as u64);
         }
+        // Never decode the whole file here: an unknown length (e.g. VBR MP3 without a
+        // Xing header) is `frames: 0` until the background decode fills it in.
         if decoder.sample_rate == 0 || decoder.channels == 0 {
             return Err(cmd_err(ErrorCode::Decode, "no decodable audio"));
         }
@@ -808,10 +814,15 @@ where
                 .project
                 .media
                 .values()
-                .find(|m| m.hash.as_deref() == Some(hash.as_str()))
-            {
-                // Same content already in the project: share the file.
-                Some(m) => m.file.clone(),
+                .filter(|m| m.hash.as_deref() == Some(hash.as_str()))
+                .map(|m| m.file.clone())
+                .find(|f| {
+                    self.store
+                        .read(pid, f)
+                        .is_ok_and(|existing| existing[..] == bytes[..])
+                }) {
+                // Same content already in the project (verified byte for byte): share it.
+                Some(f) => f,
                 None => {
                     let file = media_file_name(id, &name);
                     self.store.write(pid, &file, &bytes).map_err(store_err)?;
@@ -844,6 +855,31 @@ where
             },
         );
         Ok(ReplyValue::Media { media })
+    }
+
+    /// Metadata fix-up (not an edit, not undoable): the length of media imported with an
+    /// unknown length, learned by the background decode. Sent as a patch.
+    fn fill_media_length(&mut self, media: MediaId, frames: u64, out: &mut dyn MessageSink) {
+        let Some(doc) = self.doc.as_mut() else { return };
+        let Some(m) = doc.project.media.get_mut(&media) else {
+            return;
+        };
+        if m.frames != 0 {
+            return;
+        }
+        m.frames = frames;
+        let entity = Entity::Media(m.clone());
+        self.revision += 1;
+        event(
+            out,
+            Event::Patch {
+                patch: Patch {
+                    revision: self.revision,
+                    changes: vec![PatchChange::Upsert { entity }],
+                    history: doc.history.state(),
+                },
+            },
+        );
     }
 
     // ─── Tick ───────────────────────────────────────────────────────────────────────────
@@ -904,6 +940,9 @@ where
             );
             for e in events {
                 event(out, e);
+            }
+            for (media, frames) in self.media.take_frame_fixups() {
+                self.fill_media_length(media, frames, out);
             }
             if !loaded.is_empty() {
                 self.engine.graph_dirty = true;

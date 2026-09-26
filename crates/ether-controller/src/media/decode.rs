@@ -159,12 +159,6 @@ impl IncrementalDecoder {
         Ok(self.done)
     }
 
-    /// Decode everything that is left.
-    pub fn run_to_end(&mut self) -> Result<(), MediaError> {
-        while !self.step(1 << 20)? {}
-        Ok(())
-    }
-
     pub fn finish(self) -> Result<DecodedAudio, MediaError> {
         if self.sample_rate == 0 {
             return Err(MediaError::Decode("unknown sample rate".into()));

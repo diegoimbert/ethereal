@@ -53,6 +53,14 @@ pub(super) fn apply(ctx: &mut DocCtx, c: &AutomationCommand) -> CmdResult<()> {
                 AutomationOwner::Clip { clip } => ctx.clip(*clip).map(drop)?,
             }
             check_target(ctx, target)?;
+            if let AutomationOwner::Clip { clip } = owner {
+                let clip_track = ctx.clip(*clip)?.track;
+                if ctx.target_track(target) != Some(clip_track) {
+                    return Err(invalid(
+                        "a clip envelope must target its own track (volume, pan, its sends or devices)",
+                    ));
+                }
+            }
             if ctx
                 .p()
                 .automation_lanes

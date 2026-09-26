@@ -9,7 +9,7 @@ use ether_core::protocol::clips::ClipCommand;
 use ether_core::protocol::model::*;
 
 use super::DocCtx;
-use crate::tx::{CmdResult, invalid, not_found};
+use crate::tx::{CmdResult, invalid, invalid_state, not_found};
 
 const EPS: f64 = Beats::EPSILON;
 const MIN_GAIN_DB: f32 = -144.0;
@@ -31,6 +31,11 @@ pub(crate) fn check_start(start: Beats) -> CmdResult<Beats> {
 /// The op field that moves a clip to `start`.
 pub(crate) fn start_change(start: Beats) -> ClipChange {
     ClipChange::Start(start)
+}
+
+/// Clip copies on the same track keep their envelope targets.
+fn same_target(t: &AutomationTarget) -> Option<AutomationTarget> {
+    Some(*t)
 }
 
 fn set_start(c: &mut Clip, start: Beats) {
@@ -90,11 +95,16 @@ fn resolve_overlaps(ctx: &mut DocCtx, keep: ClipId, ignore: &BTreeSet<ClipId>) -
             ctx.delete_clip(o.id)?;
         } else if os < s && oe > e {
             let right: ClipId = ctx.new_id();
-            ctx.copy_clip(&o, right, |c| {
-                set_start(c, Beats(e));
-                c.length = Beats(oe - e);
-                c.offset = Beats(o.offset.0 + (e - os));
-            })?;
+            ctx.copy_clip(
+                &o,
+                right,
+                |c| {
+                    set_start(c, Beats(e));
+                    c.length = Beats(oe - e);
+                    c.offset = Beats(o.offset.0 + (e - os));
+                },
+                &same_target,
+            )?;
             ctx.set_clip(o.id, ClipChange::Length(Beats(s - os)))?;
         } else if os < s {
             ctx.set_clip(o.id, ClipChange::Length(Beats(s - os)))?;
@@ -183,6 +193,11 @@ pub(super) fn apply(ctx: &mut DocCtx, c: &ClipCommand) -> CmdResult<()> {
                 .get(media)
                 .cloned()
                 .ok_or_else(|| not_found(format!("media {media}")))?;
+            if m.frames == 0 {
+                return Err(invalid_state(
+                    "the media is still loading (its length is not known yet)",
+                ));
+            }
             let start = check_start(*start)?;
             let bpm = ctx.p().tempo_map().bpm_at(start);
             let seconds = m.frames as f64 / m.sample_rate.max(1) as f64;
@@ -220,6 +235,7 @@ pub(super) fn apply(ctx: &mut DocCtx, c: &ClipCommand) -> CmdResult<()> {
                 let start = check_start(m.start)?;
                 if cl.track != t.id {
                     ctx.set_clip(cl.id, ClipChange::Track(t.id))?;
+                    ctx.retarget_clip_lanes(cl.id, cl.track, t.id)?;
                 }
                 if clip_start(&cl) != start {
                     ctx.set_clip(cl.id, start_change(start))?;
@@ -259,11 +275,16 @@ pub(super) fn apply(ctx: &mut DocCtx, c: &ClipCommand) -> CmdResult<()> {
             if !(at.0 > s + EPS && at.0 < e - EPS) {
                 return Err(invalid("split point outside the clip"));
             }
-            ctx.copy_clip(&cl, *new_id, |c| {
-                set_start(c, *at);
-                c.length = Beats(e - at.0);
-                c.offset = Beats(cl.offset.0 + (at.0 - s));
-            })?;
+            ctx.copy_clip(
+                &cl,
+                *new_id,
+                |c| {
+                    set_start(c, *at);
+                    c.length = Beats(e - at.0);
+                    c.offset = Beats(cl.offset.0 + (at.0 - s));
+                },
+                &same_target,
+            )?;
             ctx.set_clip(cl.id, ClipChange::Length(Beats(at.0 - s)))
         }
         ClipCommand::Duplicate { id, new_id, start } => {
@@ -275,7 +296,7 @@ pub(super) fn apply(ctx: &mut DocCtx, c: &ClipCommand) -> CmdResult<()> {
                 Some(s) => check_start(*s)?,
                 None => Beats(clip_start(&cl).0 + cl.length.0),
             };
-            ctx.copy_clip(&cl, *new_id, |c| set_start(c, start))?;
+            ctx.copy_clip(&cl, *new_id, |c| set_start(c, start), &same_target)?;
             resolve_overlaps(ctx, *new_id, &BTreeSet::new())
         }
         ClipCommand::Rename { id, name } => {
