@@ -2,7 +2,7 @@
 //! system) and the two exported classes.
 
 use ether_controller::store::StoreError;
-use ether_controller::{Controller, EtherController, HostServices};
+use ether_controller::{Controller, ControllerConfig, EtherController, HostServices};
 use ether_core::protocol::message::{
     CommandError, ErrorCode, Event, NotificationLevel, Reply, ReplyResult,
 };
@@ -227,15 +227,16 @@ impl WasmController {
         let bridge = WebBridge::new(shared.clone());
         let fs = JsFs(fs);
         let host = WebHost::new(seed);
-        // TODO(controller merge): pass it via `ControllerConfig::engine_sample_rate`
-        // (`EtherController::with_config`, controller PR #21).
-        let _ = sample_rate;
         let controller: Box<dyn Controller> = match mode {
-            "ether" => Box::new(EtherController::new(
+            "ether" => Box::new(EtherController::with_config(
                 bridge,
                 host,
                 WebStore::new(fs.clone()),
                 WebLibrary::new(fs),
+                ControllerConfig {
+                    engine_sample_rate: sample_rate,
+                    ..ControllerConfig::default()
+                },
             )),
             "fake" => Box::new(FakeController::new(bridge, host, WebStore::new(fs))),
             other => return Err(JsError::new(&format!("unknown controller mode {other}"))),

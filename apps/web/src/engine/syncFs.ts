@@ -1,8 +1,9 @@
 // Synchronous file system for the Rust controller (`JsFsHost` in crates/ether-wasm), used
 // inside the controller Worker. Each call posts an `FsRequest` to the OPFS Worker and blocks
-// with `Atomics.wait` until the answer is in the shared fs buffer (chunked for big files).
+// with `Atomics.wait` until the answer is in the shared fs buffer (see ./fsWire.ts).
 import type { JsFsHost } from "@ether-wasm/ether_wasm.js";
-import { FS_CHUNK, FS_ERROR, FS_HEADER_BYTES, FS_IDLE, type FsRequest } from "./protocol";
+import { collect, FsTimeoutError, resetForRequest } from "./fsWire";
+import { FS_HEADER_BYTES, type FsRequest } from "./protocol";
 
 /** A stuck OPFS worker must not hang the controller forever. */
 const TIMEOUT_MS = 30_000;
@@ -11,6 +12,7 @@ const decoder = new TextDecoder();
 export class SyncFs implements JsFsHost {
   private readonly ctrl: Int32Array;
   private readonly data: Uint8Array;
+  private seq = 0;
 
   constructor(
     buffer: SharedArrayBuffer,
@@ -44,29 +46,19 @@ export class SyncFs implements JsFsHost {
     return decoder.decode(this.call({ op: "stat", path }));
   }
 
-  private call(req: FsRequest, transfer: Transferable[] = []): Uint8Array {
-    Atomics.store(this.ctrl, 0, FS_IDLE);
-    this.port.postMessage(req, transfer);
-    const chunks: Uint8Array[] = [];
-    for (;;) {
-      if (Atomics.wait(this.ctrl, 0, FS_IDLE, TIMEOUT_MS) === "timed-out") {
-        throw { code: "Io", message: `OPFS ${req.op} ${req.path}: timed out` };
-      }
-      const state = Atomics.load(this.ctrl, 0);
-      const chunk = this.data.slice(0, Atomics.load(this.ctrl, 1));
-      Atomics.store(this.ctrl, 0, FS_IDLE);
-      Atomics.notify(this.ctrl, 0);
-      if (state === FS_ERROR) throw JSON.parse(decoder.decode(chunk)) as { code: string; message: string };
-      chunks.push(chunk);
-      if (state !== FS_CHUNK) break;
+  private call(req: Omit<FsRequest, "seq">, transfer: Transferable[] = []): Uint8Array {
+    this.seq = (this.seq + 1) | 0;
+    const seq = this.seq;
+    resetForRequest(this.ctrl);
+    this.port.postMessage({ ...req, seq } satisfies FsRequest, transfer);
+    let reply;
+    try {
+      reply = collect(this.ctrl, this.data, seq, TIMEOUT_MS);
+    } catch (e) {
+      if (e instanceof FsTimeoutError) throw { code: "Io", message: `OPFS ${req.op} ${req.path}: timed out` };
+      throw e;
     }
-    if (chunks.length === 1) return chunks[0]!;
-    const out = new Uint8Array(chunks.reduce((n, c) => n + c.length, 0));
-    let off = 0;
-    for (const c of chunks) {
-      out.set(c, off);
-      off += c.length;
-    }
-    return out;
+    if (!reply.ok) throw JSON.parse(decoder.decode(reply.error)) as { code: string; message: string };
+    return reply.bytes;
   }
 }

@@ -1,15 +1,9 @@
 // OPFS helper Worker: performs file operations for the controller Worker, whose Rust
 // `ProjectStore` is synchronous while OPFS is async. The controller posts an `FsRequest` on
 // a MessagePort and blocks on `Atomics.wait`; this worker answers through the shared fs
-// buffer in chunks (see ./syncFs.ts and ./protocol.ts).
-import {
-  FS_CHUNK,
-  FS_CHUNK_BYTES,
-  FS_DONE,
-  FS_ERROR,
-  FS_HEADER_BYTES,
-  type FsRequest,
-} from "./protocol";
+// buffer in chunks (see ./fsWire.ts).
+import { FS_DONE, FS_ERROR, respond } from "./fsWire";
+import { FS_HEADER_BYTES, type FsRequest } from "./protocol";
 
 interface Scope {
   onmessage: ((e: MessageEvent<{ type: "init"; port: MessagePort; buffer: SharedArrayBuffer }>) => void) | null;
@@ -95,6 +89,36 @@ async function writeFile(path: string, bytes: Uint8Array): Promise<void> {
   }
 }
 
+/** `FileSystemHandle.move()` (Chromium 110+, Firefox 111+, Safari 16.4+; not in lib.dom). */
+type Movable = FileSystemFileHandle & { move?: (dir: FileSystemDirectoryHandle, name: string) => Promise<void> };
+
+/**
+ * Replace `to` with `from`. OPFS has no guaranteed atomic replace: `move()` (overwriting
+ * where the browser allows it, else after removing the destination), or copy + remove where
+ * `move()` is missing. Either way `to` can be missing or truncated for a moment, but `from`
+ * (the store's complete temp file) survives until the end, and `WebStore::load` falls
+ * back to it, so an interrupted save never loses the document.
+ */
+async function rename(from: string, to: string): Promise<void> {
+  const src = (await fileHandle(from)) as Movable;
+  const [toDir, toName] = await locate(to, true);
+  if (typeof src.move === "function") {
+    try {
+      await src.move(toDir, toName);
+      return;
+    } catch (e) {
+      if (isLocked(e)) throw e;
+      // Some implementations refuse to overwrite: remove the destination and retry.
+      await toDir.removeEntry(toName).catch(() => undefined);
+      await src.move(toDir, toName);
+      return;
+    }
+  }
+  await writeFile(to, await readFile(from));
+  const [dir, name] = await locate(from, false);
+  await dir.removeEntry(name);
+}
+
 async function readFile(path: string): Promise<Uint8Array> {
   const file = await (await fileHandle(path)).getFile();
   return new Uint8Array(await file.arrayBuffer());
@@ -110,15 +134,10 @@ async function perform(req: FsRequest): Promise<Uint8Array> {
     case "write":
       await writeFile(req.path, req.bytes ?? EMPTY);
       return EMPTY;
-    case "rename": {
+    case "rename":
       if (!req.to) throw new FsError("InvalidPath", "rename without destination");
-      // Not atomic on OPFS in general; write-then-remove keeps the destination valid at
-      // every step (the store writes a temp file first).
-      await writeFile(req.to, await readFile(req.path));
-      const [dir, name] = await locate(req.path, false);
-      await dir.removeEntry(name);
+      await rename(req.path, req.to);
       return EMPTY;
-    }
     case "list": {
       const dir = await dirOf(parts(req.path), false);
       const out: Entry[] = [];
@@ -153,27 +172,26 @@ function isNotFound(e: unknown): boolean {
   return name === "NotFoundError" || name === "TypeMismatchError";
 }
 
+/** Another tab holds the file (sync access handles are exclusive). */
+function isLocked(e: unknown): boolean {
+  const name = (e as { name?: string } | null)?.name;
+  return name === "NoModificationAllowedError" || name === "InvalidStateError";
+}
+
 function errorPayload(e: unknown): Uint8Array {
   if (e instanceof FsError) return json({ code: e.code, message: e.message });
+  if (isLocked(e)) {
+    return json({
+      code: "Io",
+      message: "the project file is locked: Ethereal is probably open in another tab of this browser",
+    });
+  }
   const message = e instanceof Error ? e.message : String(e);
   return json({ code: isNotFound(e) ? "NotFound" : "Io", message });
 }
 
-function respond(ctrl: Int32Array, data: Uint8Array, bytes: Uint8Array, final: number): void {
-  let off = 0;
-  for (;;) {
-    const n = Math.min(FS_CHUNK_BYTES, bytes.length - off);
-    data.set(bytes.subarray(off, off + n));
-    Atomics.store(ctrl, 1, n);
-    off += n;
-    const last = off >= bytes.length;
-    Atomics.store(ctrl, 0, last ? final : FS_CHUNK);
-    Atomics.notify(ctrl, 0);
-    if (last) return;
-    // Wait for the controller to copy the chunk out (it resets the state to IDLE).
-    Atomics.wait(ctrl, 0, FS_CHUNK);
-  }
-}
+/** A caller that stops acknowledging has timed out; don't block forever on it. */
+const ACK_TIMEOUT_MS = 30_000;
 
 scope.onmessage = (e) => {
   if (e.data.type !== "init") return;
@@ -185,9 +203,9 @@ scope.onmessage = (e) => {
     const req = m.data;
     queue = queue.then(async () => {
       try {
-        respond(ctrl, data, await perform(req), FS_DONE);
+        respond(ctrl, data, req.seq, await perform(req), FS_DONE, ACK_TIMEOUT_MS);
       } catch (err) {
-        respond(ctrl, data, errorPayload(err), FS_ERROR);
+        respond(ctrl, data, req.seq, errorPayload(err), FS_ERROR, ACK_TIMEOUT_MS);
       }
     });
   };

@@ -49,13 +49,6 @@ export interface FsRequest {
   to?: string;
   /** `write` payload. */
   bytes?: Uint8Array;
+  /** Echoed in the reply (see ./fsWire.ts). */
+  seq: number;
 }
-
-/** Sync-FS buffer states (Int32 slot 0). */
-export const FS_IDLE = 0;
-/** A chunk of the response is in the buffer; more follow once the reader acks (→ IDLE). */
-export const FS_CHUNK = 1;
-/** The last chunk is in the buffer. */
-export const FS_DONE = 2;
-/** The buffer holds a JSON `{ code, message }` error. */
-export const FS_ERROR = 3;

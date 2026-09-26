@@ -1,5 +1,6 @@
-//! A thin stand-in [`Controller`] for tests and the browser smoke test while the real
-//! `ether_controller::EtherController` is being implemented by the `controller` node.
+//! A thin stand-in [`Controller`] for host-level tests: it isolates the web plumbing
+//! (rings, Worklet, store) from `ether_controller::EtherController`, which the default web
+//! mode uses.
 //!
 //! It drives the *real* engine path (bridge → rings → Worklet → `ether_core::Engine`) and
 //! the real store, but only understands the project lifecycle basics (`Get`, `List`,

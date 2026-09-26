@@ -16,7 +16,7 @@
 
 use std::collections::BTreeMap;
 
-use ether_controller::store::{Library, ProjectStore, StoreError};
+use ether_controller::store::{Library, ProjectStore, StoreError, check_relative_path, file_kind};
 use ether_core::protocol::media::{
     BrowseLocation, BrowseRoot, DirectoryEntry, DirectoryListing, FileKind,
 };
@@ -57,24 +57,11 @@ pub trait Fs {
     fn stat(&mut self, path: &str) -> Result<Option<FsEntry>, StoreError>;
 }
 
-/// Validate a relative path from the controller/UI: no absolute paths, `..`, `.`, empty
-/// components or backslashes. `""` is the root itself.
-pub fn validate_rel(path: &str) -> Result<&str, StoreError> {
-    let trimmed = path.trim_end_matches('/');
-    if trimmed.is_empty() {
-        return Ok("");
-    }
-    let bad = trimmed.starts_with('/')
-        || trimmed.contains('\\')
-        || trimmed.contains(':')
-        || trimmed.contains('\0')
-        || trimmed
-            .split('/')
-            .any(|c| c.is_empty() || c == "." || c == "..");
-    if bad {
-        return Err(StoreError::InvalidPath(path.to_string()));
-    }
-    Ok(trimmed)
+/// Validate a relative path from the controller/UI (same rules as native:
+/// [`check_relative_path`]). `""` is the root itself.
+fn relative(path: &str) -> Result<&str, StoreError> {
+    check_relative_path(path)?;
+    Ok(path)
 }
 
 fn join(base: &str, rel: &str) -> String {
@@ -85,25 +72,13 @@ fn join(base: &str, rel: &str) -> String {
     }
 }
 
-fn file_kind(name: &str) -> FileKind {
-    let ext = name
-        .rsplit_once('.')
-        .map(|(_, e)| e.to_ascii_lowercase())
-        .unwrap_or_default();
-    match ext.as_str() {
-        "wav" | "wave" | "aif" | "aiff" | "flac" | "mp3" | "ogg" | "oga" => FileKind::Audio,
-        "mid" | "midi" => FileKind::Midi,
-        _ => FileKind::Other,
-    }
-}
-
 fn listing<F: Fs>(
     fs: &mut F,
     base: &str,
     rel: &str,
     location: BrowseLocation,
 ) -> Result<DirectoryListing, StoreError> {
-    let rel = validate_rel(rel)?;
+    let rel = relative(rel)?;
     let mut entries: Vec<DirectoryEntry> = fs
         .list(&join(base, rel))?
         .into_iter()
@@ -158,9 +133,31 @@ impl<F: Fs> WebStore<F> {
         format!("{PROJECTS_ROOT}/{id}")
     }
 
+    fn tmp_file(id: ProjectId) -> String {
+        format!("{}/.{PROJECT_FILE}.tmp", Self::dir(id))
+    }
+
+    /// Read the document and the path it came from. `save` writes a temp file and then
+    /// renames it over `project.ether`; OPFS has no atomic replace everywhere, so a tab
+    /// closed mid-save can leave `project.ether` missing, empty or truncated while the
+    /// complete temp file is still there. Fall back to it in that case.
+    fn read_document(&mut self, id: ProjectId) -> Result<(Vec<u8>, String), StoreError> {
+        let main = format!("{}/{PROJECT_FILE}", Self::dir(id));
+        let valid = |b: &[u8]| serde_json::from_slice::<serde_json::Value>(b).is_ok();
+        let first = match self.fs.read(&main) {
+            Ok(bytes) if valid(&bytes) => return Ok((bytes, main)),
+            Ok(_) => StoreError::Io(format!("{main}: empty or corrupt")),
+            Err(e) => e,
+        };
+        let tmp = Self::tmp_file(id);
+        match self.fs.read(&tmp) {
+            Ok(bytes) if valid(&bytes) => Ok((bytes, tmp)),
+            _ => Err(first),
+        }
+    }
+
     fn summary(&mut self, id: ProjectId) -> Result<ProjectSummary, StoreError> {
-        let path = format!("{}/{PROJECT_FILE}", Self::dir(id));
-        let bytes = self.fs.read(&path)?;
+        let (bytes, path) = self.read_document(id)?;
         let modified_ms = self.fs.stat(&path)?.map_or(0.0, |e| e.modified_ms);
         Ok(ProjectSummary {
             id,
@@ -224,7 +221,7 @@ impl<F: Fs> ProjectStore for WebStore<F> {
     }
 
     fn load(&mut self, id: ProjectId) -> Result<String, StoreError> {
-        let bytes = self.fs.read(&format!("{}/{PROJECT_FILE}", Self::dir(id)))?;
+        let (bytes, _) = self.read_document(id)?;
         String::from_utf8(bytes).map_err(|e| StoreError::Io(e.to_string()))
     }
 
@@ -232,10 +229,10 @@ impl<F: Fs> ProjectStore for WebStore<F> {
         if !self.exists(id)? {
             return Err(StoreError::NotFound(id.to_string()));
         }
-        let dir = Self::dir(id);
-        let tmp = format!("{dir}/.{PROJECT_FILE}.tmp");
+        let tmp = Self::tmp_file(id);
         self.fs.write(&tmp, ether_json.as_bytes())?;
-        self.fs.rename(&tmp, &format!("{dir}/{PROJECT_FILE}"))?;
+        self.fs
+            .rename(&tmp, &format!("{}/{PROJECT_FILE}", Self::dir(id)))?;
         self.summary(id)
     }
 
@@ -256,7 +253,7 @@ impl<F: Fs> ProjectStore for WebStore<F> {
     }
 
     fn read(&mut self, id: ProjectId, rel_path: &str) -> Result<Vec<u8>, StoreError> {
-        let rel = validate_rel(rel_path)?;
+        let rel = relative(rel_path)?;
         if rel.is_empty() {
             return Err(StoreError::InvalidPath(rel_path.to_string()));
         }
@@ -264,7 +261,7 @@ impl<F: Fs> ProjectStore for WebStore<F> {
     }
 
     fn write(&mut self, id: ProjectId, rel_path: &str, bytes: &[u8]) -> Result<(), StoreError> {
-        let rel = validate_rel(rel_path)?;
+        let rel = relative(rel_path)?;
         if rel.is_empty() {
             return Err(StoreError::InvalidPath(rel_path.to_string()));
         }
@@ -322,7 +319,7 @@ impl<F: Fs> Library for WebLibrary<F> {
         };
         match listing(&mut self.fs, base, rel_path, location.clone()) {
             // A fresh browser profile has no library folder yet: show it empty.
-            Err(StoreError::NotFound(_)) if validate_rel(rel_path)?.is_empty() => {
+            Err(StoreError::NotFound(_)) if relative(rel_path)?.is_empty() => {
                 Ok(DirectoryListing {
                     location,
                     path: String::new(),
@@ -335,7 +332,7 @@ impl<F: Fs> Library for WebLibrary<F> {
 
     fn read(&mut self, root: &str, rel_path: &str) -> Result<Vec<u8>, StoreError> {
         let base = self.base(root)?;
-        let rel = validate_rel(rel_path)?;
+        let rel = relative(rel_path)?;
         if rel.is_empty() {
             return Err(StoreError::InvalidPath(rel_path.to_string()));
         }
@@ -552,6 +549,40 @@ mod tests {
         let mut fs2 = fs.clone();
         assert!(fs2.stat(&format!("{dir}/media")).unwrap().unwrap().is_dir);
         assert!(fs2.stat(&format!("{dir}/cache")).unwrap().unwrap().is_dir);
+    }
+
+    #[test]
+    fn load_recovers_from_an_interrupted_save() {
+        let (mut fs, mut s) = store();
+        s.create(pid(1)).unwrap();
+        s.save(pid(1), &doc("Saved")).unwrap();
+        let main = format!("projects/{}/project.ether", pid(1));
+        let tmp = format!("projects/{}/.project.ether.tmp", pid(1));
+
+        // Crash after the temp file was written, while project.ether was being replaced:
+        // truncated, emptied or already removed.
+        for broken in [Some(&b"{\"format\": \"ethe"[..]), Some(&b""[..]), None] {
+            fs.write(&tmp, doc("Newer").as_bytes()).unwrap();
+            match broken {
+                Some(b) => fs.write(&main, b).unwrap(),
+                None => fs.remove(&main).unwrap(),
+            }
+            assert_eq!(s.load(pid(1)).unwrap(), doc("Newer"), "{broken:?}");
+            assert_eq!(s.list().unwrap()[0].name, "Newer");
+            // The next save repairs the folder.
+            s.save(pid(1), &doc("Repaired")).unwrap();
+            assert_eq!(s.load(pid(1)).unwrap(), doc("Repaired"));
+            assert!(fs.stat(&tmp).unwrap().is_none());
+        }
+
+        // A stale temp file never shadows a valid document.
+        fs.write(&tmp, doc("Stale").as_bytes()).unwrap();
+        assert_eq!(s.load(pid(1)).unwrap(), doc("Repaired"));
+
+        // Both unusable: the original error.
+        fs.write(&main, b"").unwrap();
+        fs.write(&tmp, b"garbage").unwrap();
+        assert!(matches!(s.load(pid(1)), Err(StoreError::Io(_))));
     }
 
     #[test]

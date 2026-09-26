@@ -407,7 +407,10 @@ fn backlog_is_applied_in_bounded_steps_without_queue_overflow() {
     bridge.publish(graph.clone()).unwrap();
     bridge.publish(graph).unwrap();
     engine.render(RENDER_QUANTUM);
-    assert!(engine.control_backlog() > 0, "second publish waits a quantum");
+    assert!(
+        engine.control_backlog() > 0,
+        "second publish waits a quantum"
+    );
     engine.render(RENDER_QUANTUM);
     assert_eq!(engine.control_backlog(), 0);
 
@@ -437,4 +440,67 @@ fn backlog_is_applied_in_bounded_steps_without_queue_overflow() {
         "{:?}",
         shared.borrow().errors
     );
+}
+
+/// The real `EtherController` over the web bridge, rings, Worklet host and store.
+#[test]
+fn ether_controller_creates_plays_and_saves_through_the_web_host() {
+    use ether_controller::{ControllerConfig, EtherController};
+    use ether_wasm::store::WebLibrary;
+
+    let control = HeapMemory::new(1 << 16);
+    let reports = HeapMemory::new(1 << 14);
+    let shared = bridge::shared(control.clone(), reports.clone());
+    let fs = MemFs::new();
+    let mut ctl = EtherController::with_config(
+        WebBridge::new(shared.clone()),
+        TestHost,
+        WebStore::new(fs.clone()),
+        WebLibrary::new(fs.clone()),
+        ControllerConfig {
+            engine_sample_rate: 48_000,
+            ..ControllerConfig::default()
+        },
+    );
+    let mut engine = EngineHost::new(48_000, control, reports);
+
+    let out = send(
+        &mut ctl,
+        1,
+        Command::Project(ProjectCommand::Create {
+            id: pid(),
+            name: "Real".into(),
+        }),
+    );
+    assert!(matches!(reply(&out), ReplyResult::Ok { .. }), "{out:?}");
+    let out = send(&mut ctl, 2, Command::Transport(TransportCommand::Play));
+    assert!(matches!(reply(&out), ReplyResult::Ok { .. }), "{out:?}");
+
+    let mut position = 0.0;
+    for i in 0..200u64 {
+        engine.render(RENDER_QUANTUM);
+        if i % 8 == 0 {
+            let mut out = Vec::new();
+            ctl.tick(1_750_000_000_000 + i, &mut out);
+            for m in out {
+                if let ServerMessage::Playhead(f) = m {
+                    position = f.transport.position.0;
+                }
+            }
+        }
+    }
+    assert!(position > 0.5, "playhead {position}");
+    assert!(
+        shared.borrow().errors.is_empty(),
+        "{:?}",
+        shared.borrow().errors
+    );
+    let out = send(&mut ctl, 3, Command::Project(ProjectCommand::List));
+    let ReplyResult::Ok {
+        value: ReplyValue::Projects { projects },
+    } = reply(&out)
+    else {
+        panic!("{out:?}")
+    };
+    assert_eq!(projects[0].name, "Real");
 }
