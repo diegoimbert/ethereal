@@ -37,8 +37,8 @@ pub trait Controller {
     /// `Reply` into `out`.
     fn handle(&mut self, message: ClientMessage, out: &mut dyn MessageSink);
 
-    /// Periodic work at UI rate (~30-60 Hz): poll engine outputs (→ `Playhead`/`Meters`/
-    /// `Session` messages), plugin notifications, autosave, GC of media caches.
+    /// Periodic work at UI rate (~30-60 Hz): poll engine outputs (→ `Playhead`/`Meters`
+    /// messages), plugin notifications, autosave, GC of media caches.
     fn tick(&mut self, now_ms: u64, out: &mut dyn MessageSink);
 
     /// Read-only view of the open document (`None` before a project is created/opened).

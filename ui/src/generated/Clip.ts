@@ -2,22 +2,24 @@
 import type { Beats } from "./Beats";
 import type { ClipContent } from "./ClipContent";
 import type { ClipId } from "./ClipId";
-import type { ClipLocation } from "./ClipLocation";
 import type { ClipLoop } from "./ClipLoop";
 import type { Color } from "./Color";
-import type { LaunchSettings } from "./LaunchSettings";
 import type { TrackId } from "./TrackId";
 
-export type Clip = { id: ClipId, track: TrackId, location: ClipLocation, name: string, 
+export type Clip = { id: ClipId, track: TrackId, 
+/**
+ * Position on the track's arrangement lane.
+ */
+start: Beats, name: string, 
 /**
  * `None` = inherit the track color.
  */
 color: Color | null, muted: boolean, 
 /**
- * Duration on the arrangement timeline (arrangement clips) / nominal length (session).
+ * Duration on the arrangement timeline.
  */
 length: Beats, 
 /**
  * Content position played at the clip start.
  */
-offset: Beats, looping: ClipLoop, launch: LaunchSettings, content: ClipContent, };
+offset: Beats, looping: ClipLoop, content: ClipContent, };

@@ -1,7 +1,7 @@
 /**
  * Arrangement-local UI state: the timeline view (zoom/scroll, shared by the ruler and the
  * lanes), folded groups, the grid setting and the live drag preview. None of it is in the
- * document. Module-level so zoom and folding survive switching to the Session view and back.
+ * document. Module-level so zoom and folding survive the view unmounting and remounting.
  */
 
 import { create } from "zustand";

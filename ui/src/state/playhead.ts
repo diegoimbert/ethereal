@@ -12,7 +12,7 @@
  */
 
 import { useCallback, useSyncExternalStore } from "react";
-import type { ClipId, MeterFrame, PlayheadFrame, SessionPlayback, TrackId, TrackMeter } from "@/generated";
+import type { MeterFrame, PlayheadFrame, TrackId, TrackMeter } from "@/generated";
 
 type Listener = () => void;
 
@@ -95,15 +95,6 @@ export function usePlayhead(): PlayheadFrame | null {
 /** Playhead position in beats (re-renders only when it changes). */
 export function usePlayheadPosition(): number {
   const get = () => playheadStore.getPlayhead()?.transport.position ?? 0;
-  return useSyncExternalStore(playheadStore.subscribePlayhead, get, get);
-}
-
-/** Session playback of one clip (for its progress indicator), or `null` if not playing. */
-export function useSessionPlayback(clip: ClipId): SessionPlayback | null {
-  const get = useCallback(
-    () => playheadStore.getPlayhead()?.session.find((s) => s.clip === clip) ?? null,
-    [clip],
-  );
   return useSyncExternalStore(playheadStore.subscribePlayhead, get, get);
 }
 

@@ -66,8 +66,7 @@ pub struct TrackDesc {
     pub monitor: bool,
     /// Runtime record-arm state (from the controller, not the document).
     pub armed: bool,
-    /// Arrangement clips, sorted by start. Only arrangement clips reach the engine (the
-    /// controller skips non-arrangement clips; base-3 removes ClipLocation::Session).
+    /// The track's clips, sorted by start.
     pub clips: Vec<ClipDesc>,
     /// Arrangement automation of this track and its devices/sends.
     pub automation: Vec<AutomationDesc>,

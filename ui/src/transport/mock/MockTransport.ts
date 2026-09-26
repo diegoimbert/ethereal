@@ -14,7 +14,7 @@
  * - **Errors**: failing commands change nothing and reject with `CommandFailedError`.
  * - **Client-side ids**: commands that create entities carry their ids (`newId()`, or
  *   `newProjectId()` for projects); the engine only generates ids for entities it creates
- *   on its own (children of duplicated tracks/clips/scenes, the right part of an overlap
+ *   on its own (children of duplicated tracks/clips, the right part of an overlap
  *   split).
  * - **Undo**: every document command is one undo step. Commands sent with the same
  *   `gesture` merge into one step until `Edit::EndGesture` (or a command with another/no
@@ -39,8 +39,7 @@
  *   the master otherwise (the meters follow this). Groups nest via `Track.parent`;
  *   deleting a group deletes its children.
  * - **Non-document state**: transport play state → `Event::Transport` (emitted on connect
- *   and whenever a field changes); session clip play states → `Event::Session`
- *   (`Queued` → `Playing` at the next quantization boundary, `Stopping` → `Stopped`);
+ *   and whenever a field changes);
  *   playhead (~60 Hz while playing) and meters (~30 Hz) on their own streams.
  * - **Beats** are `f64`; all grid math uses the shared helpers of `@/state/beats`.
  * - Everything crossing the "wire" is JSON-cloned, like a real host would serialize it.
@@ -48,11 +47,9 @@
  *   `Project::ListChanged`, `Project::DirtyChanged`.
  *
  * ## Mock limitations
- * - Tempo map is step-only (linear tempo ramps are treated as steps); scene tempo/time
- *   signature are stored but not applied on launch; Gate/Toggle/Repeat launch modes and
- *   legato behave like Trigger; `ReleaseClip`/`BackToArrangement` are no-ops.
+ * - Tempo map is step-only (linear tempo ramps are treated as steps).
  * - No audio. Meters are synthesized from what "would" play (clips under the playhead,
- *   playing session clips, volume/pan/mute, sends, group/default routing); CPU load is
+ *   volume/pan/mute, sends, group/default routing); CPU load is
  *   fake. Library files only have metadata; peaks are synthesized deterministically.
  * - Replies `Err { code: "Unsupported" }`: plugins (insert/editor/sandbox/reload),
  *   `Media::BeginUpload` and `MediaSource::Upload` (reserved for v0.2),
@@ -71,8 +68,6 @@
 
 import type {
   BrowseLocation,
-  ClipId,
-  ClipStateChange,
   Command,
   EditCommand,
   EngineCommand,
@@ -91,11 +86,8 @@ import type {
   ProjectCommand,
   ProjectId,
   ProjectSummary,
-  Quantization,
   RecordingCommand,
   ReplyValue,
-  SessionCommand,
-  SessionPlayback,
   TrackId,
   TrackMeter,
   TransportCommand,
@@ -104,13 +96,12 @@ import type {
 import { cmd } from "../cmd";
 import { CommandFailedError, Emitter, type EngineTransport, type SendOptions, type Unsubscribe } from "../EngineTransport";
 import { newId as defaultNewId } from "../ids";
-import { BEATS_EPSILON } from "@/state/beats";
 import { createDemoProjects, createEmptyProject } from "./demoProject";
-import { fail, isDocumentCommand, labelOf, reduceDocumentCommand, sessionClipsInScene } from "./documentReducer";
+import { fail, isDocumentCommand, labelOf, reduceDocumentCommand } from "./documentReducer";
 import { findLibraryFile, LIBRARY_ID, listLibraryFolder, MOCK_LOCATIONS, normalize, wavSize } from "./library";
 import { synthesizePeaks } from "./peaks";
 import { mulberry32, SEED_TIME, seededIdFactory } from "./random";
-import { beatsPerBar, beatsToSeconds, bpmAt, nextGridLine, signatureAt } from "./tempo";
+import { beatsToSeconds, bpmAt, signatureAt } from "./tempo";
 import { changeKey, Tx } from "./tx";
 
 export interface MockTransportOptions {
@@ -138,7 +129,6 @@ const APP_VERSION = "0.0.1-mock";
 
 const PLAYHEAD_INTERVAL_MS = 16;
 const METER_INTERVAL_MS = 33;
-const EPS = BEATS_EPSILON;
 const HOUR_MS = 3_600_000;
 const UNIT: ReplyValue = { type: "Unit" };
 
@@ -157,13 +147,6 @@ interface StoredProject {
   json: string;
   name: string;
   modified_ms: number;
-}
-
-/** Per-track session playback runtime. Times are in `elapsed` beats (monotonic). */
-interface SlotRuntime {
-  playing: { clip: ClipId; since: number } | null;
-  queued: { clip: ClipId; at: number } | null;
-  stopAt: number | null;
 }
 
 /** JSON round-trip: what a real host's serialization would do to the value. */
@@ -213,8 +196,6 @@ export class MockTransport implements EngineTransport {
   private playing = false;
   private position = 0;
   private startPosition = 0;
-  /** Beats elapsed while playing (never wraps; used for session quantization). */
-  private elapsed = 0;
   private playheadDirty = true;
   private lastTransportJson = "";
   private tapTimes: number[] = [];
@@ -224,8 +205,7 @@ export class MockTransport implements EngineTransport {
   private dirty = false;
   private armed: TrackId[] = [];
 
-  // Session + meters runtime.
-  private readonly slots = new Map<TrackId, SlotRuntime>();
+  // Meters runtime.
   private readonly levels = new Map<TrackId, number>();
   private metersSilent = false;
 
@@ -300,7 +280,7 @@ export class MockTransport implements EngineTransport {
 
   /**
    * Advance virtual time by `ms` (manual timers only), in ~16 ms steps: moves the
-   * playhead, fires session boundaries and emits playhead/meter frames.
+   * playhead and emits playhead/meter frames.
    */
   tick(ms: number): void {
     if (!this.manual) throw new Error('MockTransport.tick() requires { timers: "manual" }');
@@ -351,8 +331,6 @@ export class MockTransport implements EngineTransport {
         return this.transportCommand(command.command);
       case "Edit":
         return this.editCommand(command.command, gesture);
-      case "Session":
-        return this.sessionCommand(command.command);
       case "Device":
         // Queries (ListBuiltin / GetDescriptor): run the reducer on a throwaway transaction.
         return reduceDocumentCommand({ tx: new Tx(this.project), newId: this.newId, position: this.position }, command);
@@ -474,14 +452,6 @@ export class MockTransport implements EngineTransport {
     // Deleted tracks can't stay armed.
     const armed = this.armed.filter((id) => this.project.tracks[id]);
     if (armed.length !== this.armed.length) this.setArmed(armed);
-    // Session runtime must forget removed clips (the UI store drops their states itself).
-    for (const c of changes) {
-      if (c.type !== "Remove" || c.key.type !== "Clip") continue;
-      for (const rt of this.slots.values()) {
-        if (rt.playing?.clip === c.key.id) rt.playing = null;
-        if (rt.queued?.clip === c.key.id) rt.queued = null;
-      }
-    }
   }
 
   private transportState(): TransportState {
@@ -494,7 +464,6 @@ export class MockTransport implements EngineTransport {
       bpm: bpmAt(this.project, this.position),
       time_signature: signatureAt(this.project, this.position),
       metronome: s.metronome,
-      launch_quantization: s.launch_quantization,
       start_position: this.startPosition,
     };
   }
@@ -516,7 +485,6 @@ export class MockTransport implements EngineTransport {
     this.playing = false;
     this.position = 0;
     this.startPosition = 0;
-    this.slots.clear();
     this.levels.clear();
     this.playheadDirty = true;
     this.emit({ type: "ProjectLoaded", project });
@@ -697,120 +665,6 @@ export class MockTransport implements EngineTransport {
 
   private stopPlaying(): void {
     this.playing = false;
-    const changes: ClipStateChange[] = [];
-    for (const [track, rt] of this.slots) {
-      if (rt.playing) changes.push({ track, clip: rt.playing.clip, state: "Stopped" });
-      if (rt.queued && rt.queued.clip !== rt.playing?.clip) changes.push({ track, clip: rt.queued.clip, state: "Stopped" });
-    }
-    this.slots.clear();
-    if (changes.length) this.emit({ type: "Session", changes });
-  }
-
-  // ─── Session ──────────────────────────────────────────────────────────────────────────
-
-  private slot(track: TrackId): SlotRuntime {
-    let rt = this.slots.get(track);
-    if (!rt) this.slots.set(track, (rt = { playing: null, queued: null, stopAt: null }));
-    return rt;
-  }
-
-  /** Quantization grid in beats at the playhead (0 = immediate). */
-  private grid(q: Quantization): number {
-    switch (q.type) {
-      case "None":
-        return 0;
-      case "Bars":
-        return q.count * beatsPerBar(signatureAt(this.project, this.position));
-      case "Beats":
-        return q.beats;
-    }
-  }
-
-  /** `elapsed` time of the next boundary of `grid` (now if on one, or if grid is 0). */
-  private boundary(grid: number): number {
-    if (grid <= 0) return this.elapsed;
-    return this.elapsed + (nextGridLine(this.position, grid, true) - this.position);
-  }
-
-  private launchClip(clipId: ClipId, immediate: boolean, out: ClipStateChange[]): void {
-    const clip = this.project.clips[clipId] ?? fail("NotFound", `clip ${clipId}`);
-    if (clip.location.type !== "Session") fail("InvalidArgument", "only session clips can be launched");
-    const rt = this.slot(clip.track);
-    if (rt.queued && rt.queued.clip !== clipId && rt.queued.clip !== rt.playing?.clip) {
-      out.push({ track: clip.track, clip: rt.queued.clip, state: "Stopped" });
-    }
-    rt.queued = null;
-    rt.stopAt = null;
-    const at = immediate ? this.elapsed : this.boundary(this.grid(clip.launch.quantization ?? this.project.settings.launch_quantization));
-    if (at <= this.elapsed + EPS) {
-      if (rt.playing && rt.playing.clip !== clipId) out.push({ track: clip.track, clip: rt.playing.clip, state: "Stopped" });
-      rt.playing = { clip: clipId, since: this.elapsed };
-      out.push({ track: clip.track, clip: clipId, state: "Playing" });
-    } else {
-      rt.queued = { clip: clipId, at };
-      out.push({ track: clip.track, clip: clipId, state: "Queued" });
-    }
-  }
-
-  private stopTrack(track: TrackId, out: ClipStateChange[]): void {
-    const rt = this.slots.get(track);
-    if (!rt) return;
-    if (rt.queued && rt.queued.clip !== rt.playing?.clip) out.push({ track, clip: rt.queued.clip, state: "Stopped" });
-    rt.queued = null;
-    if (!rt.playing) return;
-    const at = this.playing ? this.boundary(this.grid(this.project.settings.launch_quantization)) : this.elapsed;
-    if (at <= this.elapsed + EPS) {
-      out.push({ track, clip: rt.playing.clip, state: "Stopped" });
-      rt.playing = null;
-      rt.stopAt = null;
-    } else if (rt.stopAt === null) {
-      rt.stopAt = at;
-      out.push({ track, clip: rt.playing.clip, state: "Stopping" });
-    }
-  }
-
-  private sessionCommand(c: SessionCommand): ReplyValue {
-    const out: ClipStateChange[] = [];
-    const wasStopped = !this.playing;
-    switch (c.type) {
-      case "LaunchClip":
-        // Validate before starting the transport.
-        if (!this.project.clips[c.clip]) fail("NotFound", `clip ${c.clip}`);
-        if (this.project.clips[c.clip]!.location.type !== "Session") fail("InvalidArgument", "only session clips can be launched");
-        if (wasStopped) this.startPlaying();
-        this.launchClip(c.clip, wasStopped, out);
-        break;
-      case "LaunchScene": {
-        if (!this.project.scenes[c.scene]) fail("NotFound", `scene ${c.scene}`);
-        if (wasStopped) this.startPlaying();
-        const clips = new Map(sessionClipsInScene(this.project, c.scene).map((cl) => [cl.track, cl.id]));
-        for (const t of Object.values(this.project.tracks)) {
-          if (t.kind !== "Audio" && t.kind !== "Midi") continue;
-          const clip = clips.get(t.id);
-          if (clip) this.launchClip(clip, wasStopped, out);
-          else this.stopTrack(t.id, out);
-        }
-        break;
-      }
-      case "StopTrack":
-        if (!this.project.tracks[c.track]) fail("NotFound", `track ${c.track}`);
-        this.stopTrack(c.track, out);
-        break;
-      case "StopAll":
-        for (const track of [...this.slots.keys()]) this.stopTrack(track, out);
-        break;
-      case "ReleaseClip":
-      case "BackToArrangement":
-        break; // Gate mode / arrangement override are not simulated.
-      default:
-        return fail("Internal", `unreachable: ${c.type} is a document command`);
-    }
-    if (out.length) this.emit({ type: "Session", changes: out });
-    if (wasStopped && this.playing) {
-      this.playheadDirty = true;
-      this.syncTransport();
-    }
-    return UNIT;
   }
 
   // ─── Other domains ────────────────────────────────────────────────────────────────────
@@ -970,7 +824,7 @@ export class MockTransport implements EngineTransport {
     return this.manual ? this.manualNow : performance.now();
   }
 
-  /** Advance the playhead to `now()`, fire session boundaries, publish a playhead frame. */
+  /** Advance the playhead to `now()` and publish a playhead frame. */
   private step(): void {
     const t = this.now();
     const dtMs = t - this.lastStepAt;
@@ -984,51 +838,13 @@ export class MockTransport implements EngineTransport {
         next = loop_region.start + ((next - loop_region.end) % len);
       }
       this.position = next;
-      this.elapsed += beats;
-      this.advanceSession();
       this.syncTransport(); // tempo/signature at the playhead may change
     }
     if (this.playing || this.playheadDirty) this.emitPlayhead();
   }
 
-  private advanceSession(): void {
-    const out: ClipStateChange[] = [];
-    for (const [track, rt] of this.slots) {
-      if (rt.queued && this.elapsed >= rt.queued.at - EPS) {
-        if (rt.playing && rt.playing.clip !== rt.queued.clip) out.push({ track, clip: rt.playing.clip, state: "Stopped" });
-        rt.playing = { clip: rt.queued.clip, since: rt.queued.at };
-        out.push({ track, clip: rt.queued.clip, state: "Playing" });
-        rt.queued = null;
-      }
-      if (rt.playing && rt.stopAt !== null && this.elapsed >= rt.stopAt - EPS) {
-        out.push({ track, clip: rt.playing.clip, state: "Stopped" });
-        rt.playing = null;
-        rt.stopAt = null;
-      }
-      if (rt.playing) {
-        const clip = this.project.clips[rt.playing.clip];
-        if (clip && !clip.looping.enabled && this.elapsed - rt.playing.since >= clip.length) {
-          out.push({ track, clip: clip.id, state: "Stopped" });
-          rt.playing = null;
-          rt.stopAt = null;
-        }
-      }
-    }
-    if (out.length) this.emit({ type: "Session", changes: out });
-  }
-
   private emitPlayhead(): void {
     this.playheadDirty = false;
-    const session: SessionPlayback[] = [];
-    for (const [track, rt] of this.slots) {
-      if (!rt.playing) continue;
-      const clip = this.project.clips[rt.playing.clip];
-      if (!clip) continue;
-      let pos = clip.offset + (this.elapsed - rt.playing.since);
-      const { enabled, start, end } = clip.looping;
-      if (enabled && end > start && pos >= end) pos = start + ((pos - end) % (end - start));
-      session.push({ track, clip: clip.id, position: pos });
-    }
     this.playheadEmitter.emit({
       transport: {
         position: this.position,
@@ -1036,17 +852,15 @@ export class MockTransport implements EngineTransport {
         playing: this.playing,
         bpm: bpmAt(this.project, this.position),
       },
-      session,
     });
   }
 
   /** How much signal a track "would" produce right now, 0..1 before its fader. */
   private activity(track: TrackId): number {
     if (!this.playing) return 0;
-    if (this.slots.get(track)?.playing) return 0.6;
     for (const c of Object.values(this.project.clips)) {
-      if (c.track !== track || c.muted || c.location.type !== "Arrangement") continue;
-      if (this.position >= c.location.start && this.position < c.location.start + c.length) return 0.55;
+      if (c.track !== track || c.muted) continue;
+      if (this.position >= c.start && this.position < c.start + c.length) return 0.55;
     }
     return 0;
   }
@@ -1131,7 +945,7 @@ export function parseEtherFile(json: string): Project {
     return fail("Decode", `unsupported project version ${String(file.version)}`);
   }
   const p = file.project;
-  const tables = ["tracks", "clips", "notes", "devices", "sends", "scenes", "automation_lanes", "automation_points", "tempo_points", "time_signatures", "warp_markers", "media"] as const;
+  const tables = ["tracks", "clips", "notes", "devices", "sends", "automation_lanes", "automation_points", "tempo_points", "time_signatures", "warp_markers", "media"] as const;
   if (!p || typeof p !== "object" || !p.settings || tables.some((t) => typeof p[t] !== "object" || p[t] === null)) {
     return fail("Decode", "malformed project");
   }

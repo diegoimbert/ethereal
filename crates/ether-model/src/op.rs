@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
 use crate::automation::CurveShape;
-use crate::clip::{ClipLocation, ClipLoop, LaunchSettings};
+use crate::clip::ClipLoop;
 use crate::device::{DeviceKind, PluginInstance};
 use crate::entity::{Entity, EntityKey};
 use crate::ids::*;
@@ -57,10 +57,6 @@ pub enum EntityUpdate {
         id: SendId,
         change: SendChange,
     },
-    Scene {
-        id: SceneId,
-        change: SceneChange,
-    },
     AutomationLane {
         id: AutomationLaneId,
         change: AutomationLaneChange,
@@ -94,7 +90,6 @@ pub enum SettingsChange {
     LoopEnabled(bool),
     LoopRegion(BeatRange),
     Metronome(bool),
-    LaunchQuantization(Quantization),
     CountInBars(u32),
 }
 
@@ -119,14 +114,14 @@ pub enum TrackChange {
 pub enum ClipChange {
     /// Move to another track (same kind).
     Track(TrackId),
-    Location(ClipLocation),
+    /// Arrangement position.
+    Start(Beats),
     Name(String),
     Color(Option<Color>),
     Muted(bool),
     Length(Beats),
     Offset(Beats),
     Loop(ClipLoop),
-    Launch(LaunchSettings),
     // Audio-only fields (error on MIDI clips):
     Gain(Decibels),
     Transpose(f32),
@@ -170,16 +165,6 @@ pub enum DeviceChange {
 pub enum SendChange {
     Level(Decibels),
     PreFader(bool),
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
-#[serde(tag = "field", content = "value")]
-pub enum SceneChange {
-    Name(String),
-    Color(Option<Color>),
-    Order(OrderKey),
-    Tempo(Option<f64>),
-    TimeSignature(Option<TimeSignature>),
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]

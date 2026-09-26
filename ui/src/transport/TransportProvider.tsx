@@ -16,7 +16,7 @@ export interface TransportProviderProps {
 /**
  * Provides the `EngineTransport` to the tree and keeps the UI stores in sync with it:
  * - connects on mount and loads the returned project into `useProjectStore`;
- * - mirrors `ProjectLoaded` / `Patch` / `Transport` / `Session` / `Project` (list, saved,
+ * - mirrors `ProjectLoaded` / `Patch` / `Transport` / `Project` (list, saved,
  *   dirty) / `Recording::ArmChanged` events into the store (refetching the whole project on
  *   a revision gap);
  * - forwards playhead and meter streams to `playheadStore`.
@@ -67,9 +67,6 @@ export function TransportProvider({ transport, children }: TransportProviderProp
           break;
         case "Transport":
           store().setTransport(event.state);
-          break;
-        case "Session":
-          store().applySessionChanges(event.changes);
           break;
         default:
           // Plugin/Media/Engine/Notification: consumed by features via useTransportEvent.

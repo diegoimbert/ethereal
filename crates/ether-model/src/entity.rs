@@ -10,7 +10,6 @@ use crate::ids::*;
 use crate::media::MediaRef;
 use crate::mixer::TrackSend;
 use crate::note::Note;
-use crate::session::Scene;
 use crate::tempo::{TempoPoint, TimeSignaturePoint};
 use crate::track::Track;
 use crate::warp::WarpMarker;
@@ -26,7 +25,6 @@ pub enum Entity {
     Note(Note),
     Device(Device),
     Send(TrackSend),
-    Scene(Scene),
     AutomationLane(AutomationLane),
     AutomationPoint(AutomationPoint),
     TempoPoint(TempoPoint),
@@ -44,7 +42,6 @@ pub enum EntityKey {
     Note(NoteId),
     Device(DeviceId),
     Send(SendId),
-    Scene(SceneId),
     AutomationLane(AutomationLaneId),
     AutomationPoint(AutomationPointId),
     TempoPoint(TempoPointId),
@@ -61,7 +58,6 @@ impl Entity {
             Self::Note(e) => EntityKey::Note(e.id),
             Self::Device(e) => EntityKey::Device(e.id),
             Self::Send(e) => EntityKey::Send(e.id),
-            Self::Scene(e) => EntityKey::Scene(e.id),
             Self::AutomationLane(e) => EntityKey::AutomationLane(e.id),
             Self::AutomationPoint(e) => EntityKey::AutomationPoint(e.id),
             Self::TempoPoint(e) => EntityKey::TempoPoint(e.id),
