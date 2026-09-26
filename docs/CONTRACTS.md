@@ -261,6 +261,8 @@ There is one file per domain: `transport`, `project` (also `EditCommand`), `trac
 - `compile_graph(project, node_lookup, version) -> RenderGraphDesc` is a pure function
   that can be unit-tested without an engine.
 
+**Host-handled commands (base-6).** `Command::Engine(*)` (audio device list/config/status) and `Command::Plugin(Rescan | List | OpenEditor | CloseEditor)` are intercepted by the **native host** on the controller thread before `Controller::handle`, which replies itself (same ordering: one reply per message). The controller replies `Unsupported` if it ever receives them (web host). `EngineBridge::poll_plugins` (drained from the controller tick) and `EngineBridge::plugin_state` (read for every plugin device before serializing) are defaulted, so non-plugin hosts ignore them.
+
 ## 6. UI transport: `ui/src/transport`, `ui/src/state`
 
 - **`EngineTransport`** members:
