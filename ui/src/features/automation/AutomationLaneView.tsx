@@ -194,6 +194,8 @@ export function AutomationLaneView({
   };
 
   const onBackgroundPointerDown = (e: ReactPointerEvent<SVGSVGElement>) => {
+    // The lane owns its pointer events (the arrangement has its own clip marquee).
+    e.stopPropagation();
     rootRef.current?.focus();
     if (e.button !== 0) return;
     if (e.altKey) {
@@ -222,6 +224,7 @@ export function AutomationLaneView({
   };
 
   const onDoubleClick = (e: MouseEvent<SVGSVGElement>) => {
+    e.stopPropagation();
     if (e.target !== e.currentTarget) return;
     const p = local(e);
     const snap = snapFn(e.altKey);

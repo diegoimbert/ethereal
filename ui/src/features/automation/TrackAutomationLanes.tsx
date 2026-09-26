@@ -69,7 +69,14 @@ export function TrackAutomationLanes({
   };
 
   return (
-    <div className="eth-auto-track" style={{ height }} data-automation-track={trackId}>
+    <div
+      className="eth-auto-track"
+      style={{ height }}
+      data-automation-track={trackId}
+      // Keep lane and header gestures away from the arrangement's own handlers.
+      onPointerDown={(e) => e.stopPropagation()}
+      onDoubleClick={(e) => e.stopPropagation()}
+    >
       <div className="eth-auto-bar" style={{ height: AUTOMATION_BAR_HEIGHT }}>
         <div className="eth-auto-bar__header" style={{ width: headerWidth }}>
           <button
