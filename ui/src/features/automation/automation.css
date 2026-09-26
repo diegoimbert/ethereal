@@ -1,0 +1,219 @@
+/* Automation lanes. Tokens come from kit/theme.css. */
+
+.eth-auto-track {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  font-size: var(--eth-fs-xs);
+  color: var(--eth-color-text-dim);
+  user-select: none;
+}
+
+.eth-auto-bar {
+  display: flex;
+  flex: none;
+  border-top: 1px solid var(--eth-color-border);
+}
+
+.eth-auto-bar__header,
+.eth-auto-row__header {
+  flex: none;
+  box-sizing: border-box;
+  display: flex;
+  gap: var(--eth-space-xs);
+  padding: 0 var(--eth-space-xs);
+  background: var(--eth-color-bg-panel);
+  border-right: 1px solid var(--eth-color-border);
+}
+
+.eth-auto-bar__header {
+  align-items: center;
+}
+
+.eth-auto-bar__toggle {
+  background: none;
+  border: none;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.eth-auto-bar__toggle:hover {
+  color: var(--eth-color-text);
+}
+
+.eth-auto-select {
+  min-width: 0;
+  max-width: 100%;
+  background: var(--eth-color-bg-inset);
+  color: var(--eth-color-text);
+  border: 1px solid var(--eth-color-border-light);
+  border-radius: var(--eth-radius-sm);
+  font-size: var(--eth-fs-xs);
+}
+
+.eth-auto-row {
+  display: flex;
+  flex: none;
+  border-top: 1px solid var(--eth-color-border);
+}
+
+.eth-auto-row__header {
+  flex-direction: column;
+  justify-content: center;
+}
+
+.eth-auto-row__line {
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-xs);
+  min-width: 0;
+}
+
+.eth-auto-row__param {
+  flex: 1;
+}
+
+.eth-auto-row__missing {
+  flex: 1;
+  font-style: italic;
+}
+
+.eth-auto-icon {
+  flex: none;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 2px;
+  background: var(--eth-color-bg-raised);
+  color: var(--eth-color-text-dim);
+  border: 1px solid var(--eth-color-border-light);
+  border-radius: var(--eth-radius-sm);
+  font-size: var(--eth-fs-xs);
+  line-height: 1;
+  cursor: pointer;
+}
+
+.eth-auto-icon--on {
+  color: var(--eth-color-text-inverse);
+  background: var(--eth-color-accent);
+}
+
+.eth-auto-row__lane {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.eth-auto-lane {
+  position: relative;
+  background: var(--eth-color-bg-inset);
+  outline: none;
+  touch-action: none;
+}
+
+.eth-auto-lane:focus-visible {
+  box-shadow: inset 0 0 0 1px var(--eth-color-accent-dim);
+}
+
+.eth-auto-lane__svg {
+  display: block;
+  overflow: hidden;
+  cursor: crosshair;
+}
+
+.eth-auto-lane__line {
+  fill: none;
+  stroke: var(--eth-color-accent);
+  stroke-width: 1.5;
+  pointer-events: none;
+}
+
+.eth-auto-lane--disabled .eth-auto-lane__line,
+.eth-auto-lane--disabled .eth-auto-lane__point {
+  opacity: 0.35;
+}
+
+.eth-auto-lane__point {
+  fill: var(--eth-color-bg-inset);
+  stroke: var(--eth-color-accent);
+  stroke-width: 1.5;
+  cursor: grab;
+}
+
+.eth-auto-lane__point--selected {
+  fill: var(--eth-color-selection);
+  stroke: var(--eth-color-text);
+}
+
+.eth-auto-lane__marquee {
+  fill: var(--eth-color-selection);
+  fill-opacity: 0.2;
+  stroke: var(--eth-color-selection);
+  pointer-events: none;
+}
+
+.eth-auto-lane__readout {
+  fill: var(--eth-color-text);
+  font-family: var(--eth-font-mono);
+  font-size: var(--eth-fs-xs);
+  pointer-events: none;
+}
+
+/* Detail view */
+
+.eth-auto-detail {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: var(--eth-color-bg);
+}
+
+.eth-auto-detail--empty {
+  align-items: center;
+  justify-content: center;
+  color: var(--eth-color-text-dim);
+}
+
+.eth-auto-detail__ruler {
+  display: flex;
+  flex: none;
+}
+
+.eth-auto-detail__corner {
+  flex: none;
+  box-sizing: border-box;
+  padding: var(--eth-space-xs);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  background: var(--eth-color-bg-panel);
+  border-right: 1px solid var(--eth-color-border);
+  border-bottom: 1px solid var(--eth-color-border);
+  color: var(--eth-color-text);
+}
+
+.eth-auto-detail__ruler-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.eth-auto-detail__body {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.eth-auto-detail__playhead {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  overflow: hidden;
+  pointer-events: none;
+}

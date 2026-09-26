@@ -20,7 +20,6 @@ import {
 import { cmd, newId, TransportContext, useTransport, useTransportEvent } from "@/transport";
 import { actionForKey, runClipAction } from "./actions";
 import { hasBrowserDrag, readBrowserDrag, resolveDroppedMedia } from "./browserDrop";
-import { locationAt } from "./clipTime";
 import { ArrangementContext, sendEdit, type ArrangementContextValue } from "./context";
 import { asOneStep } from "./editMath";
 import { clipRects, DROP_AREA_HEIGHT, HEADER_WIDTH, layoutRows, rowIndexAt, rowsHeight, type Row } from "./layout";
@@ -132,7 +131,7 @@ function ConnectedArrangementView() {
     void (async () => {
       try {
         const media = await resolveDroppedMedia(transport, payload);
-        const clip = { id: newId(), location: locationAt(t.at), media: media.id };
+        const clip = { id: newId(), start: t.at, media: media.id };
         if (t.track) {
           await sendEdit(transport, cmd("Clip", { type: "CreateAudio", track: t.track, ...clip }));
           return;

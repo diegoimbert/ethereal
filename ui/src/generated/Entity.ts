@@ -5,7 +5,6 @@ import type { Clip } from "./Clip";
 import type { Device } from "./Device";
 import type { MediaRef } from "./MediaRef";
 import type { Note } from "./Note";
-import type { Scene } from "./Scene";
 import type { TempoPoint } from "./TempoPoint";
 import type { TimeSignaturePoint } from "./TimeSignaturePoint";
 import type { Track } from "./Track";
@@ -17,4 +16,4 @@ import type { WarpMarker } from "./WarpMarker";
  *
  * JSON: `{ "type": "Track", "value": { ...Track } }` so the UI can store `value` as-is.
  */
-export type Entity = { "type": "Track", "value": Track } | { "type": "Clip", "value": Clip } | { "type": "Note", "value": Note } | { "type": "Device", "value": Device } | { "type": "Send", "value": TrackSend } | { "type": "Scene", "value": Scene } | { "type": "AutomationLane", "value": AutomationLane } | { "type": "AutomationPoint", "value": AutomationPoint } | { "type": "TempoPoint", "value": TempoPoint } | { "type": "TimeSignature", "value": TimeSignaturePoint } | { "type": "WarpMarker", "value": WarpMarker } | { "type": "Media", "value": MediaRef };
+export type Entity = { "type": "Track", "value": Track } | { "type": "Clip", "value": Clip } | { "type": "Note", "value": Note } | { "type": "Device", "value": Device } | { "type": "Send", "value": TrackSend } | { "type": "AutomationLane", "value": AutomationLane } | { "type": "AutomationPoint", "value": AutomationPoint } | { "type": "TempoPoint", "value": TempoPoint } | { "type": "TimeSignature", "value": TimeSignaturePoint } | { "type": "WarpMarker", "value": WarpMarker } | { "type": "Media", "value": MediaRef };

@@ -15,7 +15,6 @@ use crate::notes::NoteCommand;
 use crate::plugins::{PluginCommand, PluginDescriptor, PluginEvent};
 use crate::project::{EditCommand, ProjectCommand, ProjectEvent, ProjectSummary};
 use crate::recording::{InputList, RecordingCommand, RecordingEvent};
-use crate::session::{ClipStateChange, SessionCommand, SessionPlayback};
 use crate::tracks::TrackCommand;
 use crate::transport::{PlayheadUpdate, TransportCommand, TransportState};
 use crate::warp::WarpCommand;
@@ -48,7 +47,6 @@ pub enum Command {
     Automation(AutomationCommand),
     Device(DeviceCommand),
     Mixer(MixerCommand),
-    Session(SessionCommand),
     Plugin(PluginCommand),
     Recording(RecordingCommand),
     Warp(WarpCommand),
@@ -71,8 +69,6 @@ pub enum ServerMessage {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
 pub struct PlayheadFrame {
     pub transport: PlayheadUpdate,
-    /// Session clips currently playing (empty when none).
-    pub session: Vec<SessionPlayback>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
@@ -184,9 +180,6 @@ pub enum Event {
     },
     Transport {
         state: TransportState,
-    },
-    Session {
-        changes: Vec<ClipStateChange>,
     },
     Plugin {
         event: PluginEvent,

@@ -4,7 +4,7 @@
  * transaction into a `Patch` event and an undo step.
  *
  * Validation mirrors the real model where it's cheap (entity existence, track kinds,
- * session slot uniqueness, sends target returns, ...); errors throw `CommandFailedError`
+ * sends target returns, ...); errors throw `CommandFailedError`
  * and the caller rolls the transaction back (commands are all-or-nothing).
  *
  * Every write replaces the entity object (`{ ...old, field }`); stored objects are never
@@ -19,7 +19,6 @@ import type {
   Clip,
   ClipCommand,
   ClipId,
-  ClipLocation,
   Command,
   Device,
   DeviceCommand,
@@ -27,13 +26,9 @@ import type {
   MixerCommand,
   Note,
   NoteCommand,
-  Project,
   ProjectCommand,
   RecordingCommand,
   ReplyValue,
-  Scene,
-  SceneId,
-  SessionCommand,
   TimeSignature,
   Track,
   TrackCommand,
@@ -45,7 +40,7 @@ import { BEATS_EPSILON, snapBeats } from "@/state/beats";
 import { compareOrderKeys, keyBetween, keyForInsert } from "@/state/orderKey";
 import { CommandFailedError } from "../EngineTransport";
 import { BUILTIN_DESCRIPTORS, builtinDescriptor, clampParam } from "./builtinDevices";
-import { defaultParams, defaultTrackName, makeClip, makeScene, makeTrack, MOCK_TRACK_COLORS } from "./demoProject";
+import { defaultParams, defaultTrackName, makeClip, makeTrack, MOCK_TRACK_COLORS } from "./demoProject";
 import { bpmAt, tempoPointAt, signaturePointAt } from "./tempo";
 import type { Tx } from "./tx";
 
@@ -78,17 +73,6 @@ export function isDocumentCommand(command: Command): boolean {
       return true;
     case "Device":
       return c.type !== "ListBuiltin" && c.type !== "GetDescriptor";
-    case "Session":
-      return [
-        "CreateScene",
-        "DeleteScene",
-        "DuplicateScene",
-        "RenameScene",
-        "SetSceneColor",
-        "MoveScene",
-        "SetSceneTempo",
-        "SetSceneTimeSignature",
-      ].includes(c.type);
     case "Project":
       // Only renaming the *current* project is a document edit (checked in the reducer).
       return c.type === "Rename";
@@ -99,7 +83,6 @@ export function isDocumentCommand(command: Command): boolean {
         "SetTempo",
         "SetTimeSignature",
         "SetMetronome",
-        "SetLaunchQuantization",
       ].includes(c.type);
     case "Recording":
       // `Arm` is runtime state (not undoable), handled by the MockTransport itself.
@@ -131,9 +114,6 @@ export function reduceDocumentCommand(ctx: ReducerContext, command: Command): Re
     case "Automation":
       automationCommand(ctx, command.command);
       break;
-    case "Session":
-      sceneCommand(ctx, command.command);
-      break;
     case "Transport":
       transportSettingsCommand(ctx, command.command);
       break;
@@ -164,9 +144,6 @@ function clip(ctx: ReducerContext, id: ClipId): Clip {
 }
 function device(ctx: ReducerContext, id: string): Device {
   return ctx.tx.get("Device", id) ?? fail("NotFound", `device ${id}`);
-}
-function scene(ctx: ReducerContext, id: SceneId): Scene {
-  return ctx.tx.get("Scene", id) ?? fail("NotFound", `scene ${id}`);
 }
 function audioContent(c: Clip) {
   if (c.content.type !== "Audio") fail("InvalidArgument", `clip ${c.id} is not an audio clip`);
@@ -579,16 +556,8 @@ function deviceCommand(ctx: ReducerContext, c: DeviceCommand): ReplyValue {
 
 // ─── Clips ──────────────────────────────────────────────────────────────────────────────
 
-function checkClipLocation(ctx: ReducerContext, t: Track, location: ClipLocation, ignore: ReadonlySet<ClipId>): void {
-  if (location.type === "Arrangement") {
-    if (!(location.start >= 0)) fail("InvalidArgument", "clip start must be >= 0");
-    return;
-  }
-  scene(ctx, location.scene);
-  const occupied = ctx.tx
-    .all("Clip")
-    .some((c) => !ignore.has(c.id) && c.track === t.id && c.location.type === "Session" && c.location.scene === location.scene);
-  if (occupied) fail("InvalidArgument", `session slot (${t.id}, ${location.scene}) is occupied`);
+function checkClipStart(start: Beats): void {
+  if (!(start >= 0)) fail("InvalidArgument", "clip start must be >= 0");
 }
 
 function checkContentFits(t: Track, content: Clip["content"]): void {
@@ -601,12 +570,11 @@ function checkContentFits(t: Track, content: Clip["content"]): void {
  * are deleted, partially covered clips are trimmed, and a clip that contains it is split.
  */
 function resolveOverlaps(ctx: ReducerContext, keep: Clip, ignore: ReadonlySet<ClipId>): void {
-  if (keep.location.type !== "Arrangement") return;
-  const s = keep.location.start;
+  const s = keep.start;
   const e = s + keep.length;
   for (const o of ctx.tx.all("Clip")) {
-    if (o.id === keep.id || ignore.has(o.id) || o.track !== keep.track || o.location.type !== "Arrangement") continue;
-    const os = o.location.start;
+    if (o.id === keep.id || ignore.has(o.id) || o.track !== keep.track) continue;
+    const os = o.start;
     const oe = os + o.length;
     if (oe <= s + EPS || os >= e - EPS) continue; // no overlap
     if (os >= s - EPS && oe <= e + EPS) {
@@ -614,7 +582,7 @@ function resolveOverlaps(ctx: ReducerContext, keep: Clip, ignore: ReadonlySet<Cl
     } else if (os < s && oe > e) {
       // `keep` sits inside `o`: split `o` around it.
       copyClip(ctx, o, ctx.newId(), {
-        location: { type: "Arrangement", start: e },
+        start: e,
         length: oe - e,
         offset: o.offset + (e - os),
       });
@@ -622,7 +590,7 @@ function resolveOverlaps(ctx: ReducerContext, keep: Clip, ignore: ReadonlySet<Cl
     } else if (os < s) {
       ctx.tx.upsert("Clip", { ...o, length: s - os }); // trim right edge
     } else {
-      ctx.tx.upsert("Clip", { ...o, location: { type: "Arrangement", start: e }, length: oe - e, offset: o.offset + (e - os) });
+      ctx.tx.upsert("Clip", { ...o, start: e, length: oe - e, offset: o.offset + (e - os) });
     }
   }
 }
@@ -639,9 +607,9 @@ function clipCommand(ctx: ReducerContext, c: ClipCommand): void {
       if (tx.get("Clip", c.id)) fail("InvalidArgument", `clip ${c.id} already exists`);
       const t = track(ctx, c.track);
       checkContentFits(t, { type: "Midi" });
-      checkClipLocation(ctx, t, c.location, new Set());
+      checkClipStart(c.start);
       if (!(c.length > 0)) fail("InvalidArgument", "clip length must be > 0");
-      const created = makeClip({ id: c.id, track: t.id, location: c.location, length: c.length, name: c.name ?? "" });
+      const created = makeClip({ id: c.id, track: t.id, start: c.start, length: c.length, name: c.name ?? "" });
       tx.upsert("Clip", created);
       resolveOverlaps(ctx, created, new Set());
       break;
@@ -651,13 +619,12 @@ function clipCommand(ctx: ReducerContext, c: ClipCommand): void {
       const t = track(ctx, c.track);
       const media = tx.get("Media", c.media) ?? fail("NotFound", `media ${c.media}`);
       checkContentFits(t, { type: "Audio" } as Clip["content"]);
-      checkClipLocation(ctx, t, c.location, new Set());
-      const at = c.location.type === "Arrangement" ? c.location.start : 0;
+      checkClipStart(c.start);
       const created = makeClip({
         id: c.id,
         track: t.id,
-        location: c.location,
-        length: mediaLengthBeats(ctx, media, at),
+        start: c.start,
+        length: mediaLengthBeats(ctx, media, c.start),
         name: media.name.replace(/\.[^.]+$/, ""),
         content: {
           type: "Audio",
@@ -686,17 +653,9 @@ function clipCommand(ctx: ReducerContext, c: ClipCommand): void {
         const cl = clip(ctx, m.id);
         const t = track(ctx, m.track);
         checkContentFits(t, cl.content);
-        checkClipLocation(ctx, t, m.location, moving);
-        const next = { ...cl, track: t.id, location: m.location };
+        checkClipStart(m.start);
+        const next = { ...cl, track: t.id, start: m.start };
         moved.push(next);
-      }
-      // Two moved clips may not land in the same session slot.
-      const slots = new Set<string>();
-      for (const m of moved) {
-        if (m.location.type !== "Session") continue;
-        const k = `${m.track}/${m.location.scene}`;
-        if (slots.has(k)) fail("InvalidArgument", `two clips moved into session slot ${k}`);
-        slots.add(k);
       }
       for (const m of moved) tx.upsert("Clip", m);
       for (const m of moved) if (tx.get("Clip", m.id)) resolveOverlaps(ctx, tx.get("Clip", m.id)!, moving);
@@ -706,20 +665,18 @@ function clipCommand(ctx: ReducerContext, c: ClipCommand): void {
       const cl = clip(ctx, c.id);
       if (!(c.length > 0)) fail("InvalidArgument", "clip length must be > 0");
       if (!(c.offset >= 0)) fail("InvalidArgument", "clip offset must be >= 0");
-      if (c.location.type !== cl.location.type) fail("InvalidArgument", "SetBounds cannot change arrangement/session");
-      checkClipLocation(ctx, track(ctx, cl.track), c.location, new Set([cl.id]));
-      const next = { ...cl, location: c.location, length: c.length, offset: c.offset };
+      checkClipStart(c.start);
+      const next = { ...cl, start: c.start, length: c.length, offset: c.offset };
       tx.upsert("Clip", next);
       resolveOverlaps(ctx, next, new Set());
       break;
     }
     case "Split": {
       const cl = clip(ctx, c.id);
-      if (cl.location.type !== "Arrangement") fail("InvalidArgument", "only arrangement clips can be split");
-      const start = cl.location.start;
+      const start = cl.start;
       if (!(c.at > start + EPS && c.at < start + cl.length - EPS)) fail("InvalidArgument", "split point outside the clip");
       copyClip(ctx, cl, c.new_id, {
-        location: { type: "Arrangement", start: c.at },
+        start: c.at,
         length: start + cl.length - c.at,
         offset: cl.offset + (c.at - start),
       });
@@ -728,23 +685,9 @@ function clipCommand(ctx: ReducerContext, c: ClipCommand): void {
     }
     case "Duplicate": {
       const cl = clip(ctx, c.id);
-      let location = c.location;
-      if (location === null) {
-        if (cl.location.type === "Arrangement") {
-          location = { type: "Arrangement", start: cl.location.start + cl.length };
-        } else {
-          const scenes = tx.all("Scene").sort(byOrder);
-          const below = scenes[scenes.findIndex((s) => s.id === (cl.location as { scene: SceneId }).scene) + 1];
-          if (!below) fail("InvalidArgument", "no scene below to duplicate into");
-          location = { type: "Session", scene: below.id };
-        }
-      }
-      const t = track(ctx, cl.track);
-      checkClipLocation(ctx, t, location, new Set());
-      const copy = copyClip(ctx, cl, c.new_id, {
-        location,
-        looping: location.type === cl.location.type ? cl.looping : { ...cl.looping, enabled: location.type === "Session" },
-      });
+      const start = c.start ?? cl.start + cl.length;
+      checkClipStart(start);
+      const copy = copyClip(ctx, cl, c.new_id, { start });
       resolveOverlaps(ctx, copy, new Set());
       break;
     }
@@ -763,9 +706,6 @@ function clipCommand(ctx: ReducerContext, c: ClipCommand): void {
       tx.upsert("Clip", { ...cl, looping: c.looping });
       break;
     }
-    case "SetLaunch":
-      tx.upsert("Clip", { ...clip(ctx, c.id), launch: c.launch });
-      break;
     case "SetGain": {
       const cl = clip(ctx, c.id);
       tx.upsert("Clip", { ...cl, content: { ...audioContent(cl), gain: clamp(c.gain, SILENCE_DB, 24) } });
@@ -941,70 +881,8 @@ function automationCommand(ctx: ReducerContext, c: AutomationCommand): void {
   }
 }
 
-// ─── Scenes ─────────────────────────────────────────────────────────────────────────────
-
-function scenesOrdered(ctx: ReducerContext, except?: SceneId): Scene[] {
-  return ctx.tx
-    .all("Scene")
-    .filter((s) => s.id !== except)
-    .sort(byOrder);
-}
-
 function validSignature(sig: TimeSignature): boolean {
   return Number.isInteger(sig.numerator) && sig.numerator >= 1 && sig.numerator <= 99 && [1, 2, 4, 8, 16, 32].includes(sig.denominator);
-}
-
-function sceneCommand(ctx: ReducerContext, c: SessionCommand): void {
-  const { tx } = ctx;
-  switch (c.type) {
-    case "CreateScene": {
-      if (tx.get("Scene", c.id)) fail("InvalidArgument", `scene ${c.id} already exists`);
-      const scenes = scenesOrdered(ctx);
-      tx.upsert("Scene", makeScene(c.id, c.name ?? `${scenes.length + 1}`, keyForInsert(scenes, c.before)));
-      break;
-    }
-    case "DeleteScene":
-      scene(ctx, c.id);
-      for (const cl of tx.all("Clip")) {
-        if (cl.location.type === "Session" && cl.location.scene === c.id) deleteClipCascade(ctx, cl.id);
-      }
-      tx.remove("Scene", c.id);
-      break;
-    case "DuplicateScene": {
-      const s = scene(ctx, c.id);
-      if (tx.get("Scene", c.new_id)) fail("InvalidArgument", `scene ${c.new_id} already exists`);
-      const scenes = scenesOrdered(ctx);
-      const next = scenes[scenes.findIndex((x) => x.id === s.id) + 1];
-      tx.upsert("Scene", { ...s, id: c.new_id, order: keyBetween(s.order, next?.order ?? null) });
-      for (const cl of tx.all("Clip")) {
-        if (cl.location.type === "Session" && cl.location.scene === s.id) {
-          copyClip(ctx, cl, ctx.newId(), { location: { type: "Session", scene: c.new_id } });
-        }
-      }
-      break;
-    }
-    case "RenameScene":
-      tx.upsert("Scene", { ...scene(ctx, c.id), name: c.name });
-      break;
-    case "SetSceneColor":
-      tx.upsert("Scene", { ...scene(ctx, c.id), color: c.color });
-      break;
-    case "MoveScene": {
-      const s = scene(ctx, c.id);
-      if (c.before === s.id) break;
-      tx.upsert("Scene", { ...s, order: keyForInsert(scenesOrdered(ctx, s.id), c.before) });
-      break;
-    }
-    case "SetSceneTempo":
-      tx.upsert("Scene", { ...scene(ctx, c.id), tempo: c.bpm === null ? null : clamp(c.bpm, 20, 999) });
-      break;
-    case "SetSceneTimeSignature":
-      if (c.signature && !validSignature(c.signature)) fail("InvalidArgument", "invalid time signature");
-      tx.upsert("Scene", { ...scene(ctx, c.id), time_signature: c.signature });
-      break;
-    default:
-      fail("Internal", `not a scene command: ${c.type}`);
-  }
 }
 
 // ─── Settings-like commands ─────────────────────────────────────────────────────────────
@@ -1033,9 +911,6 @@ function transportSettingsCommand(ctx: ReducerContext, c: TransportCommand): voi
     }
     case "SetMetronome":
       tx.setSettings({ ...settings, metronome: c.enabled });
-      break;
-    case "SetLaunchQuantization":
-      tx.setSettings({ ...settings, launch_quantization: c.quantization });
       break;
     default:
       fail("Internal", `not a document transport command: ${c.type}`);
@@ -1101,7 +976,3 @@ export function labelOf(command: Command): string {
   return command.command.type.replace(/([a-z])([A-Z])/g, "$1 $2");
 }
 
-/** Session clips in a scene row (for LaunchScene). */
-export function sessionClipsInScene(project: Project, sceneId: SceneId): Clip[] {
-  return Object.values(project.clips).filter((c) => c.location.type === "Session" && c.location.scene === sceneId);
-}

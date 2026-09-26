@@ -7,12 +7,9 @@
 import type { Beats, Clip } from "@/generated";
 import { TempoMap } from "@/timeline";
 
-/**
- * Song position (beats) where the clip starts. The only place the piano roll reads a
- * clip's position, so the upcoming `Clip.start` flattening is a one-line change here.
- */
+/** Song position (beats) where the clip starts. The only place the piano roll reads a clip's position. */
 export function clipSongStart(clip: Clip): Beats {
-  return clip.location.type === "Arrangement" ? clip.location.start : 0;
+  return clip.start;
 }
 
 /**

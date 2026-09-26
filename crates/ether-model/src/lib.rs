@@ -2,7 +2,7 @@
 //!
 //! - [`ids`]: typed ULID IDs + [`ids::IdGen`].
 //! - Entities: [`track`], [`clip`], [`note`], [`automation`], [`device`], [`mixer`],
-//!   [`session`], [`tempo`], [`warp`], [`media`], gathered in [`project::Project`].
+//!   [`tempo`], [`warp`], [`media`], gathered in [`project::Project`].
 //! - [`op`]: the op set (the only way to mutate), [`history`]: undo/redo,
 //!   [`patch`]: UI mirror updates, [`file`]: `.ether` format + migrations.
 //!
@@ -25,7 +25,6 @@ pub mod note;
 pub mod op;
 pub mod patch;
 pub mod project;
-pub mod session;
 pub mod tempo;
 pub mod track;
 pub mod value;
@@ -44,7 +43,6 @@ pub use note::*;
 pub use op::*;
 pub use patch::*;
 pub use project::*;
-pub use session::*;
 pub use tempo::*;
 pub use track::*;
 pub use value::*;

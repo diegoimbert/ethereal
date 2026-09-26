@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import type { Patch, Track } from "@/generated";
 import { createDemoProject } from "@/transport/mock/demoProject";
 import { EMPTY_HISTORY, useProjectStore } from "./projectStore";
-import { clipsOfTrack, devicesOfTrack, notesOfClip, pointsOfLane, scenesOrdered, sessionClip, tracksOrdered } from "./selectors";
+import { clipsOfTrack, devicesOfTrack, notesOfClip, pointsOfLane, tracksOrdered } from "./selectors";
 
 const store = () => useProjectStore.getState();
 
@@ -58,23 +58,12 @@ describe("projectStore.applyPatch", () => {
     store().reset();
     expect(store().applyPatch(patch(1, []))).toBe("no-project");
   });
-
-  it("tracks session clip states and drops removed clips", () => {
-    const clip = Object.values(store().project!.clips).find((c) => c.location.type === "Session")!;
-    store().applySessionChanges([{ track: clip.track, clip: clip.id, state: "Queued" }]);
-    expect(store().sessionStates[clip.id]).toBe("Queued");
-    store().applySessionChanges([{ track: clip.track, clip: clip.id, state: "Stopped" }]);
-    expect(store().sessionStates[clip.id]).toBeUndefined();
-    store().applySessionChanges([{ track: clip.track, clip: clip.id, state: "Playing" }]);
-    store().applyPatch(patch(1, [{ type: "Remove", key: { type: "Clip", id: clip.id } }]));
-    expect(store().sessionStates[clip.id]).toBeUndefined();
-  });
 });
 
 describe("selectors on the demo project", () => {
   const p = createDemoProject();
 
-  it("orders tracks, devices, clips, notes, points and scenes", () => {
+  it("orders tracks, devices, clips, notes and points", () => {
     expect(tracksOrdered(p).map((t) => t.name)).toEqual(["Keys", "Bass", "Drums", "A Delay", "Master"]);
     const keys = tracksOrdered(p)[0]!;
     expect(devicesOfTrack(p, keys.id).map((d) => d.name)).toEqual(["Synth", "Compressor"]);
@@ -83,10 +72,6 @@ describe("selectors on the demo project", () => {
     const notes = notesOfClip(p, clip.id);
     expect(notes).toHaveLength(16);
     expect(notes.map((n) => n.start)).toEqual([...notes.map((n) => n.start)].sort((a, b) => a - b));
-    const scenes = scenesOrdered(p);
-    expect(scenes.map((s) => s.name)).toEqual(["1", "2", "3", "4"]);
-    expect(sessionClip(p, keys.id, scenes[0]!.id)?.name).toBe("Arp");
-    expect(sessionClip(p, keys.id, scenes[1]!.id)).toBeUndefined();
     const lane = Object.values(p.automation_lanes)[0]!;
     expect(pointsOfLane(p, lane.id).map((pt) => pt.time)).toEqual([0, 8, 16]);
   });
