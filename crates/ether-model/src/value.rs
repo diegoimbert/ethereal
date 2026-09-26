@@ -148,24 +148,6 @@ impl Default for TimeSignature {
     }
 }
 
-/// Launch / record quantization (Ableton's global and per-clip quantization).
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize, TS)]
-#[serde(tag = "type")]
-pub enum Quantization {
-    /// Immediate (next audio block).
-    None,
-    /// Next multiple of `count` bars (respecting the time signature).
-    Bars { count: u32 },
-    /// Next multiple of `beats` (e.g. 0.25 = 1/16 note).
-    Beats { beats: Beats },
-}
-
-impl Default for Quantization {
-    fn default() -> Self {
-        Self::Bars { count: 1 }
-    }
-}
-
 /// A beat range `[start, end)`.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize, TS)]
 pub struct BeatRange {
@@ -196,7 +178,7 @@ impl<'de> Deserialize<'de> for Base64Bytes {
     }
 }
 
-/// Fractional-index sort key used to order siblings (tracks, devices, scenes) without
+/// Fractional-index sort key used to order siblings (tracks, devices) without
 /// indices. Keys are opaque strings compared lexicographically; inserting between two
 /// siblings creates a new key between theirs, touching no other entity (CRDT-friendly).
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, TS)]

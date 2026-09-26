@@ -23,7 +23,6 @@ macro_rules! tables {
             Note => notes,
             Device => devices,
             Send => sends,
-            Scene => scenes,
             AutomationLane => automation_lanes,
             AutomationPoint => automation_points,
             TempoPoint => tempo_points,
@@ -101,22 +100,13 @@ fn check_bpm(bpm: f64) -> Result<(), ModelError> {
     Ok(())
 }
 
-fn check_quantization(q: Quantization) -> Result<(), ModelError> {
-    match q {
-        Quantization::None => Ok(()),
-        Quantization::Bars { count } if count >= 1 => Ok(()),
-        Quantization::Beats { beats } if finite(beats.0) && beats.0 > 0.0 => Ok(()),
-        q => Err(invalid(format!("invalid quantization {q:?}"))),
-    }
-}
-
 pub(crate) fn check_settings(s: &ProjectSettings) -> Result<(), ModelError> {
     let r = s.loop_region;
     check_beats_nonneg("loop start", r.start)?;
     if !(finite(r.end.0) && r.end.0 > r.start.0) {
         return Err(invalid("loop region end must be after its start"));
     }
-    check_quantization(s.launch_quantization)
+    Ok(())
 }
 
 fn check_media_path(file: &str) -> Result<(), ModelError> {
@@ -168,14 +158,13 @@ fn update_clip(c: &mut Clip, ch: ClipChange) -> Result<ClipChange, ModelError> {
     }
     Ok(match ch {
         C::Track(v) => swap!(C::Track, c.track, v),
-        C::Location(v) => swap!(C::Location, c.location, v),
+        C::Start(v) => swap!(C::Start, c.start, v),
         C::Name(v) => swap!(C::Name, c.name, v),
         C::Color(v) => swap!(C::Color, c.color, v),
         C::Muted(v) => swap!(C::Muted, c.muted, v),
         C::Length(v) => swap!(C::Length, c.length, v),
         C::Offset(v) => swap!(C::Offset, c.offset, v),
         C::Loop(v) => swap!(C::Loop, c.looping, v),
-        C::Launch(v) => swap!(C::Launch, c.launch, v),
         C::Gain(v) => swap!(C::Gain, audio(c)?.gain, v),
         C::Transpose(v) => swap!(C::Transpose, audio(c)?.transpose, v),
         C::FadeIn(v) => swap!(C::FadeIn, audio(c)?.fade_in, v),
@@ -253,17 +242,6 @@ fn update_send(s: &mut TrackSend, c: SendChange) -> Result<SendChange, ModelErro
     })
 }
 
-fn update_scene(s: &mut Scene, c: SceneChange) -> Result<SceneChange, ModelError> {
-    use SceneChange as C;
-    Ok(match c {
-        C::Name(v) => swap!(C::Name, s.name, v),
-        C::Color(v) => swap!(C::Color, s.color, v),
-        C::Order(v) => swap!(C::Order, s.order, v),
-        C::Tempo(v) => swap!(C::Tempo, s.tempo, v),
-        C::TimeSignature(v) => swap!(C::TimeSignature, s.time_signature, v),
-    })
-}
-
 fn update_lane(
     l: &mut AutomationLane,
     c: AutomationLaneChange,
@@ -328,7 +306,6 @@ fn apply_settings(s: &mut ProjectSettings, c: SettingsChange) -> SettingsChange 
         C::LoopEnabled(v) => swap!(C::LoopEnabled, s.loop_enabled, v),
         C::LoopRegion(v) => swap!(C::LoopRegion, s.loop_region, v),
         C::Metronome(v) => swap!(C::Metronome, s.metronome, v),
-        C::LaunchQuantization(v) => swap!(C::LaunchQuantization, s.launch_quantization, v),
         C::CountInBars(v) => swap!(C::CountInBars, s.count_in_bars, v),
     }
 }
@@ -342,7 +319,6 @@ impl EntityUpdate {
             Self::Note { id, .. } => EntityKey::Note(*id),
             Self::Device { id, .. } => EntityKey::Device(*id),
             Self::Send { id, .. } => EntityKey::Send(*id),
-            Self::Scene { id, .. } => EntityKey::Scene(*id),
             Self::AutomationLane { id, .. } => EntityKey::AutomationLane(*id),
             Self::AutomationPoint { id, .. } => EntityKey::AutomationPoint(*id),
             Self::TempoPoint { id, .. } => EntityKey::TempoPoint(*id),
@@ -445,10 +421,6 @@ impl Project {
                     U::Send { id, change } => U::Send {
                         id,
                         change: update_send(self.sends.get_mut(&id).ok_or_else(nf)?, change)?,
-                    },
-                    U::Scene { id, change } => U::Scene {
-                        id,
-                        change: update_scene(self.scenes.get_mut(&id).ok_or_else(nf)?, change)?,
                     },
                     U::AutomationLane { id, change } => U::AutomationLane {
                         id,
@@ -652,20 +624,6 @@ impl Project {
                 }
                 check_db("send level", s.level)
             }
-            EntityKey::Scene(id) => {
-                let s = &self.scenes[&id];
-                check_order(&s.order)?;
-                if let Some(c) = s.color {
-                    check_color(c)?;
-                }
-                if let Some(t) = s.tempo {
-                    check_bpm(t)?;
-                }
-                if let Some(sig) = s.time_signature {
-                    check_signature(sig)?;
-                }
-                Ok(())
-            }
             EntityKey::AutomationLane(id) => {
                 let l = &self.automation_lanes[&id];
                 match l.owner {
@@ -821,23 +779,8 @@ impl Project {
             (ClipContent::Midi, TrackKind::Midi) => {}
             _ => return Err(invariant("clip content does not match its track kind")),
         }
-        match c.location {
-            ClipLocation::Arrangement { start } => {
-                if !finite(start.0) {
-                    return Err(invalid("clip start must be finite"));
-                }
-            }
-            ClipLocation::Session { scene } => {
-                self.require(key, EntityKey::Scene(scene))?;
-                let taken = self.clips.values().any(|o| {
-                    o.id != c.id
-                        && o.track == c.track
-                        && matches!(o.location, ClipLocation::Session { scene: s } if s == scene)
-                });
-                if taken {
-                    return Err(invariant("session slot already holds a clip"));
-                }
-            }
+        if !finite(c.start.0) {
+            return Err(invalid("clip start must be finite"));
         }
         if let Some(col) = c.color {
             check_color(col)?;
@@ -849,9 +792,6 @@ impl Project {
         check_beats_nonneg("loop start", c.looping.start)?;
         if !(finite(c.looping.end.0) && c.looping.end.0 > c.looping.start.0) {
             return Err(invalid("clip loop end must be after its start"));
-        }
-        if let Some(q) = c.launch.quantization {
-            check_quantization(q)?;
         }
         Ok(())
     }
@@ -984,11 +924,6 @@ impl Project {
                 .values()
                 .find(|l| matches!(l.target, AutomationTarget::SendLevel { send } if send == id))
                 .map(|l| EntityKey::AutomationLane(l.id)),
-            EntityKey::Scene(id) => self
-                .clips
-                .values()
-                .find(|c| matches!(c.location, ClipLocation::Session { scene } if scene == id))
-                .map(|c| EntityKey::Clip(c.id)),
             EntityKey::AutomationLane(id) => self
                 .automation_points
                 .values()

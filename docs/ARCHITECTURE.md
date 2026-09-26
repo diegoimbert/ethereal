@@ -19,7 +19,7 @@ The UI runs unchanged in Tauri (desktop) and in a browser; the engine core compi
 | Built-in devices | Sampler, basic-shape synth, compressor, delay. Minimal. |
 | Time-stretch | Signalsmith Stretch behind a `Stretcher` trait (native first; web later via its JS/WASM build). Warp modes: Repitch + Complex (Signalsmith) only. |
 | Automation | Enabled lanes always drive their target; no "manual move overrides automation / re-enable" in v0.1. |
-| Workflow | Ableton-style Session view + Arrangement view. |
+| Workflow | Arrangement view only (linear timeline). No Session view / clip launching. |
 | License | GPL-3.0-or-later. Dependencies must be GPL-3-compatible (MIT/Apache/BSD/GPL fine). |
 | Collaboration | Not in v0.1, but the model must stay CRDT-ready (stable IDs, op log). |
 

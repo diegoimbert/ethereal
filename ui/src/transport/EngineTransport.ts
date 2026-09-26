@@ -37,7 +37,7 @@ export interface EngineTransport {
    * listeners BEFORE the promise resolves.
    */
   send(command: Command, opts?: SendOptions): Promise<ReplyValue>;
-  /** Low-rate pushed events (ProjectLoaded, Patch, Transport, Session, Plugin, ...). */
+  /** Low-rate pushed events (ProjectLoaded, Patch, Transport, Plugin, ...). */
   onEvent(listener: (event: Event) => void): Unsubscribe;
   /** High-rate streams. */
   subscribePlayhead(listener: (frame: PlayheadFrame) => void): Unsubscribe;

@@ -24,7 +24,6 @@ export const TABLE_OF = {
   Note: "notes",
   Device: "devices",
   Send: "sends",
-  Scene: "scenes",
   AutomationLane: "automation_lanes",
   AutomationPoint: "automation_points",
   TempoPoint: "tempo_points",

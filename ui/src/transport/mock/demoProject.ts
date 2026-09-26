@@ -14,13 +14,11 @@ import type {
   ClipContent,
   Color,
   Device,
-  LaunchSettings,
   MediaRef,
   Note,
   Project,
   ProjectId,
   ProjectSettings,
-  Scene,
   Track,
   TrackInput,
   TrackKind,
@@ -34,15 +32,12 @@ export const MOCK_TRACK_COLORS: ReadonlyArray<Color> = [
   0xff764d, 0xffa53f, 0xf0d03f, 0x99d44a, 0x3fc98c, 0x3fc2d9, 0x5c9dff, 0x9b7bff, 0xe06adf, 0xff6b8b,
 ];
 
-export const DEFAULT_LAUNCH: LaunchSettings = { mode: "Trigger", quantization: null, legato: false };
-
 export function defaultSettings(name: string): ProjectSettings {
   return {
     name,
     loop_enabled: false,
     loop_region: { start: 0, end: 16 },
     metronome: false,
-    launch_quantization: { type: "Bars", count: 1 },
     count_in_bars: 0,
   };
 }
@@ -84,22 +79,17 @@ export function makeTrack(fields: Pick<Track, "id" | "kind" | "name" | "color" |
   };
 }
 
-export function makeClip(fields: Pick<Clip, "id" | "track" | "location" | "length"> & Partial<Clip>): Clip {
+export function makeClip(fields: Pick<Clip, "id" | "track" | "start" | "length"> & Partial<Clip>): Clip {
   const content: ClipContent = fields.content ?? { type: "Midi" };
   return {
     name: "",
     color: null,
     muted: false,
     offset: 0,
-    looping: { enabled: fields.location.type === "Session", start: 0, end: fields.length },
-    launch: DEFAULT_LAUNCH,
+    looping: { enabled: false, start: 0, end: fields.length },
     content,
     ...fields,
   };
-}
-
-export function makeScene(id: string, name: string, order: string): Scene {
-  return { id, name, color: null, order, tempo: null, time_signature: null };
 }
 
 /** Default param values of a built-in device (plain units). */
@@ -110,15 +100,13 @@ export function defaultParams(device: Parameters<typeof builtinDescriptor>[0]): 
 }
 
 /**
- * A new empty project: master track, tempo 120 and 4/4 at beat 0, 4 empty scenes, default
- * settings. `nextId` generates entity ids; `id` is the project's UUIDv7.
+ * A new empty project: master track, tempo 120 and 4/4 at beat 0, default settings.
+ * `nextId` generates entity ids; `id` is the project's UUIDv7.
  */
 export function createEmptyProject(nextId: () => string, name: string, id: ProjectId): Project {
   const master = makeTrack({ id: nextId(), kind: "Master", name: "Master", color: 0x9a9a9a, order: "a0" });
   const tempoId = nextId();
   const sigId = nextId();
-  const sceneKeys = keysBetween(null, null, 4);
-  const scenes = sceneKeys.map((order, i) => makeScene(nextId(), `${i + 1}`, order));
   return {
     id,
     settings: defaultSettings(name),
@@ -127,7 +115,6 @@ export function createEmptyProject(nextId: () => string, name: string, id: Proje
     notes: {},
     devices: {},
     sends: {},
-    scenes: Object.fromEntries(scenes.map((s) => [s.id, s])),
     automation_lanes: {},
     automation_points: {},
     tempo_points: { [tempoId]: { id: tempoId, time: 0, bpm: 120, curve: "Step" } },
@@ -139,16 +126,15 @@ export function createEmptyProject(nextId: () => string, name: string, id: Proje
 
 /**
  * The demo project:
- * - tracks (in order): "Keys" (MIDI, Synth, 4-bar clip with 16 notes, a session clip in
- *   scene 1, a volume automation lane with 3 points, a send to the return), "Bass" (MIDI,
+ * - tracks (in order): "Keys" (MIDI, Synth, 4-bar clip with 16 notes, a volume
+ *   automation lane with 3 points, a send to the return), "Bass" (MIDI,
  *   4-bar clip), "Drums" (audio, 8 s stereo 44.1 kHz loop clip), "A Delay" (return, Delay
  *   device), "Master";
- * - 4 scenes, tempo 120 at 0, 4/4 at 0, settings name "Demo".
+ * - tempo 120 at 0, 4/4 at 0, settings name "Demo".
  */
 export function createDemoProject(seed = 1): Project {
   const nextId = seededIdFactory(seed);
   const p = createEmptyProject(nextId, "Demo", seededProjectId(seed));
-  const scenes = Object.values(p.scenes).sort((a, b) => (a.order < b.order ? -1 : 1));
   const master = Object.values(p.tracks)[0]!;
 
   // Track order: Keys, Bass, Drums, A Delay, Master (master last, as in Ableton).
@@ -210,7 +196,7 @@ export function createDemoProject(seed = 1): Project {
   p.sends[send.id] = send;
 
   // Keys: 4-bar chord clip (Am - F - C - G), 16 notes.
-  const keysClip = makeClip({ id: nextId(), track: keys.id, location: { type: "Arrangement", start: 0 }, length: 16, name: "Chords" });
+  const keysClip = makeClip({ id: nextId(), track: keys.id, start: 0, length: 16, name: "Chords" });
   p.clips[keysClip.id] = keysClip;
   const chords = [
     [57, 60, 64, 69],
@@ -234,16 +220,8 @@ export function createDemoProject(seed = 1): Project {
     });
   });
 
-  // Keys: session clip in scene 1 (1 bar arpeggio, looping).
-  const arp = makeClip({ id: nextId(), track: keys.id, location: { type: "Session", scene: scenes[0]!.id }, length: 4, name: "Arp" });
-  p.clips[arp.id] = arp;
-  [69, 72, 76, 72, 69, 72, 76, 79].forEach((pitch, i) => {
-    const n: Note = { id: nextId(), clip: arp.id, pitch, velocity: 0.8, release_velocity: 0.5, start: i * 0.5, duration: 0.45, muted: false };
-    p.notes[n.id] = n;
-  });
-
   // Bass: 4-bar clip starting at bar 5.
-  const bassClip = makeClip({ id: nextId(), track: bass.id, location: { type: "Arrangement", start: 16 }, length: 16, name: "Bassline" });
+  const bassClip = makeClip({ id: nextId(), track: bass.id, start: 16, length: 16, name: "Bassline" });
   p.clips[bassClip.id] = bassClip;
   [33, 33, 29, 29, 36, 36, 31, 31].forEach((pitch, i) => {
     const n: Note = { id: nextId(), clip: bassClip.id, pitch, velocity: 0.9, release_velocity: 0.5, start: i * 2, duration: 1.5, muted: false };
@@ -264,7 +242,7 @@ export function createDemoProject(seed = 1): Project {
   const drumClip = makeClip({
     id: nextId(),
     track: drums.id,
-    location: { type: "Arrangement", start: 0 },
+    start: 0,
     length: 16,
     name: "drum-loop-120",
     content: {
@@ -319,7 +297,7 @@ export function createBeatSketchProject(seed = 2): Project {
   const hats = makeTrack({ id: nextId(), kind: "Midi", name: "Hats", color: MOCK_TRACK_COLORS[5]!, order: k2, parent: group.id });
   for (const t of [group, kick, hats]) p.tracks[t.id] = t;
   const pattern = (track: string, name: string, pitch: number, step: number) => {
-    const clip = makeClip({ id: nextId(), track, location: { type: "Arrangement", start: 0 }, length: 4, name });
+    const clip = makeClip({ id: nextId(), track, start: 0, length: 4, name });
     p.clips[clip.id] = clip;
     for (let i = 0; i * step < 4; i++) {
       const n: Note = { id: nextId(), clip: clip.id, pitch, velocity: 0.9, release_velocity: 0.5, start: i * step, duration: step / 2, muted: false };
@@ -368,7 +346,7 @@ export function createAmbientIdeaProject(seed = 3): Project {
     params: { ...defaultParams("Synth"), 0: 3, 4: 1200, 7: 4000 },
   };
   p.devices[synth.id] = synth;
-  const clip = makeClip({ id: nextId(), track: pad.id, location: { type: "Arrangement", start: 0 }, length: 32, name: "Drift" });
+  const clip = makeClip({ id: nextId(), track: pad.id, start: 0, length: 32, name: "Drift" });
   p.clips[clip.id] = clip;
   const chords = [
     [52, 59, 64, 71],

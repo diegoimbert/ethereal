@@ -28,7 +28,6 @@ graph TD
   foundation --> ui-timeline
   foundation --> ui-mixer
   foundation --> ui-shell
-  foundation --> ui-session
 
   model --> controller
   core --> controller
@@ -36,7 +35,6 @@ graph TD
   media --> native-host
   core --> wasm-host
   media --> wasm-host
-  core --> core-session
   clap --> sandbox
   ui-timeline --> ui-arrangement
   ui-timeline --> ui-piano-roll
@@ -59,14 +57,10 @@ graph TD
   alpha --> warp
   stretch --> warp
   alpha --> recording
-  alpha --> session
-  core-session --> session
-  ui-session --> session
 
   plugins --> v0.1
   warp --> v0.1
   recording --> v0.1
-  session --> v0.1
   v0.1[v0.1<br/>FINAL LEAF · release]
 ```
 
@@ -87,7 +81,7 @@ Size: S ≈ half a day of agent work, M ≈ 1 day, L ≈ 2+ days (relative, used
 | Node | Size | Owns | Acceptance |
 |---|---|---|---|
 | `model` | M | `crates/ether-model/**` | Op application, inverse ops, undo/redo, patch generation, `.ether` round-trip, migration framework, property tests. |
-| `core` | L | `crates/ether-core/**` except `src/session/**` | Graph + topo sort, tempo map (ramps), sample-accurate scheduler with block splitting, transport/loop, mixer (vol/pan/sends/buses), PDC, meters, automation evaluation. Tests prove no alloc in `process`. |
+| `core` | L | `crates/ether-core/**` | Graph + topo sort, tempo map (ramps), sample-accurate scheduler with block splitting, transport/loop, mixer (vol/pan/sends/buses), PDC, meters, automation evaluation. Tests prove no alloc in `process`. |
 | `devices` | S | `crates/ether-devices/**` | Synth (sine/saw/square/tri, ADSR, filter), sampler (one-shot + pitched), compressor, delay. Implements `Device`. Minimal. |
 | `media` | M | `crates/ether-media/**` | Decode (WAV/AIFF/FLAC/MP3/OGG), resample, peak mipmaps, all compiling to wasm. |
 | `clap` | L | `crates/ether-clap/**`, `crates/ether-plugin-scanner/**` | Scanner process → plugin DB. In-process `PluginNode` via `clack`: process, params, state save/load, floating GUI. Tested against a clack example plugin. |
@@ -95,7 +89,6 @@ Size: S ≈ half a day of agent work, M ≈ 1 day, L ≈ 2+ days (relative, used
 | `ui-timeline` | M | `ui/src/timeline/**` | Time↔pixel (bars/beats/seconds), zoom/scroll store, grid + snapping, selection model, ruler component. |
 | `ui-mixer` | M | `ui/src/features/mixer/**`, `ui/src/features/devices/**` | Mixer strips, meters, sends; device chain with generic param UI. |
 | `ui-shell` | M | `ui/src/features/{transport-bar,browser,project}/**` | Transport bar, tempo/signature, sample browser over engine-visible locations, project list/new/open/save/rename/duplicate/delete via the engine-side project store (no UI file access; see CONTRACTS.md §2b). |
-| `ui-session` | M | `ui/src/features/session/**` | Clip grid, launch/stop buttons, scenes (against mock). |
 
 ### Wave 2
 
@@ -104,7 +97,6 @@ Size: S ≈ half a day of agent work, M ≈ 1 day, L ≈ 2+ days (relative, used
 | `controller` | model, core | M | `crates/ether-controller/**` | Commands → ops → model → patches; model → `RenderSnapshot` compiler; device factory registry. Host-agnostic, wasm-safe. |
 | `native-host` | core, media | L | `crates/ether-native/**`, `apps/desktop/**`, `ui/src/transport/tauri/**` | cpal RT thread, snapshot swap, GC thread, disk streaming, Tauri commands/channels, `TauriTransport`. |
 | `wasm-host` | core, media | L | `crates/ether-wasm/**`, `apps/web/**`, `ui/src/transport/wasm/**` | Controller in a Worker, engine in AudioWorklet, SAB rings, `WasmTransport`, COOP/COEP dev server. |
-| `core-session` | core | M | `crates/ether-core/src/session/**` | Clip slots, quantized launch/stop, scenes, follow-legato basics. |
 | `sandbox` | clap | L | `crates/ether-sandbox/**` | Out-of-process `PluginNode`: helper binary, shared-memory buffers, semaphore sync, +1 block latency reported to PDC, crash detection → node bypass. |
 | `ui-arrangement` | ui-timeline | L | `ui/src/features/arrangement/**` | Tracks, clips (move/resize/split/loop), canvas waveforms from peaks. |
 | `ui-piano-roll` | ui-timeline | M | `ui/src/features/piano-roll/**` | Note edit, velocity lane, quantize. |
@@ -118,18 +110,17 @@ Acceptance: real transports replace the mock in both builds. You can open an `.e
 
 ### Wave 3: parallel after `alpha`
 
-These nodes touch several layers. To stay conflict-light, `alpha` pre-creates per-feature module files and hook points (`ether-model/src/{warp,recording,plugins,session}.rs`, `ether-core/src/{warp,recording}/`, `ui/src/features/{warp,recording,plugins}/`). Each node owns its module files, plus one-line registrations in shared files.
+These nodes touch several layers. To stay conflict-light, `alpha` pre-creates per-feature module files and hook points (`ether-model/src/{warp,recording,plugins}.rs`, `ether-core/src/{warp,recording}/`, `ui/src/features/{warp,recording,plugins}/`). Each node owns its module files, plus one-line registrations in shared files.
 
 | Node | Deps | Size | Acceptance |
 |---|---|---|---|
 | `plugins` | alpha, clap, sandbox | M | Plugin browser, insert on device chain, per-plugin sandbox toggle, state in `.ether`, PDC verified. |
 | `warp` | alpha, stretch | L | Warp markers in model/core/UI, BPM detection stub, stretched playback native. Web: unwarped fallback. |
 | `recording` | alpha | M | Arm, input monitoring, audio + MIDI record, latency-compensated placement, `midir`. |
-| `session` | alpha, core-session, ui-session | M | Session view live on real engine, clip launching quantized, session→arrangement recording optional/deferred. |
 
 ### Final leaf: `v0.1`
 
-Deps: plugins, warp, recording, session. Full E2E suite, `assert_no_alloc` soak test, cross-platform CI compile green, README/user docs, tag release.
+Deps: plugins, warp, recording. Full E2E suite, `assert_no_alloc` soak test, cross-platform CI compile green, README/user docs, tag release.
 
 ## 4. Conflict hotspots and how they're neutralized
 
@@ -139,7 +130,7 @@ Deps: plugins, warp, recording, session. Full E2E suite, `assert_no_alloc` soak 
 | New Rust deps | Root pre-populates `[workspace.dependencies]`; crates add `dep.workspace = true` in their **own** `Cargo.toml`. A dep missing from the workspace goes through a BCR (§6). |
 | `Cargo.lock`, `pnpm-lock.yaml` | Never hand-merged: when syncing with `main`, take `main`'s version and regenerate. |
 | Generated TS types | Committed, regenerated when syncing with `main`; the local gate checks freshness. |
-| Protocol enums | Split per domain file (`transport.rs`, `tracks.rs`, `clips.rs`, `devices.rs`, `session.rs`, `plugins.rs`, …). Changes only via BCR. |
+| Protocol enums | Split per domain file (`transport.rs`, `tracks.rs`, `clips.rs`, `devices.rs`, `plugins.rs`, …). Changes only via BCR. |
 | App shell / feature registration | Root creates a slot per feature with a stub import; features only edit their own folder. |
 | `ui/package.json` | Root pre-installs anticipated deps; additions via BCR. |
 
