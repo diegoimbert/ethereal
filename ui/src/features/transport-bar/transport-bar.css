@@ -1,0 +1,116 @@
+.eth-tb {
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-lg);
+  min-width: 0;
+  flex-wrap: wrap;
+  font-size: var(--eth-fs-sm);
+}
+.eth-tb__group {
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-xs);
+}
+.eth-tb__group--end {
+  margin-left: auto;
+  gap: var(--eth-space-md);
+}
+.eth-tb__play[aria-pressed="true"] {
+  background: var(--eth-color-play);
+}
+.eth-tb__record {
+  color: var(--eth-color-record);
+}
+.eth-tb__record[aria-pressed="true"] {
+  background: var(--eth-color-record);
+  color: var(--eth-color-text-inverse);
+}
+.eth-tb__unit {
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+}
+
+.eth-tb-field {
+  height: 22px;
+  padding: 0 var(--eth-space-sm);
+  border: 1px solid var(--eth-color-border);
+  border-radius: var(--eth-radius-sm);
+  background: var(--eth-color-bg-inset);
+  color: var(--eth-color-text);
+  font-family: var(--eth-font-mono);
+  font-size: var(--eth-fs-sm);
+  text-align: right;
+}
+.eth-tb-field:focus {
+  outline: 1px solid var(--eth-color-accent);
+}
+.eth-tb-field:disabled {
+  opacity: 0.4;
+}
+.eth-tb-field--invalid {
+  border-color: var(--eth-color-record);
+}
+
+.eth-tb__position {
+  display: flex;
+  align-items: baseline;
+  gap: var(--eth-space-md);
+  padding: 0 var(--eth-space-md);
+  height: 22px;
+  line-height: 22px;
+  border-radius: var(--eth-radius-sm);
+  background: var(--eth-color-bg-inset);
+  font-family: var(--eth-font-mono);
+  font-variant-numeric: tabular-nums;
+}
+.eth-tb__bars {
+  min-width: 8ch;
+  color: var(--eth-color-text);
+}
+.eth-tb__time {
+  min-width: 9ch;
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+}
+
+.eth-tb__error {
+  max-width: 28ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border: none;
+  background: none;
+  color: var(--eth-color-record);
+  font-size: var(--eth-fs-xs);
+  cursor: pointer;
+}
+
+.eth-tb__cpu {
+  font-family: var(--eth-font-mono);
+  font-size: var(--eth-fs-xs);
+  color: var(--eth-color-text-dim);
+  min-width: 8ch;
+  text-align: right;
+}
+.eth-tb__engine {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--eth-space-xs);
+  font-size: var(--eth-fs-xs);
+  color: var(--eth-color-text-dim);
+}
+.eth-tb__engine-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--eth-color-text-dim);
+}
+.eth-tb__engine[data-level="ok"] .eth-tb__engine-dot {
+  background: var(--eth-color-meter-low);
+}
+.eth-tb__engine[data-level="warn"] .eth-tb__engine-dot {
+  background: var(--eth-color-meter-mid);
+}
+.eth-tb__engine[data-level="error"] .eth-tb__engine-dot {
+  background: var(--eth-color-meter-high);
+}
