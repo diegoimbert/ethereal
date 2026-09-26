@@ -93,7 +93,6 @@ impl Controller for FakeController {
                     playing: p.playing,
                     bpm: p.bpm,
                 },
-                session: vec![],
             }));
         }
         if !self.outputs.meters.is_empty() {

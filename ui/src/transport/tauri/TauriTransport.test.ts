@@ -231,7 +231,6 @@ describe("TauriTransport", () => {
     t.subscribeMeters((f) => mt.push(f));
     const frame: PlayheadFrame = {
       transport: { position: 1.5, seconds: 0.75, playing: true, bpm: 120 },
-      session: [],
     } as unknown as PlayheadFrame;
     host.state.channels!.playhead.onmessage(frame);
     host.state.channels!.meters.onmessage({ tracks: [], cpu_load: 0.1 });
