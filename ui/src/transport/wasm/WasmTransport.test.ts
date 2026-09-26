@@ -151,7 +151,7 @@ describe("WasmTransport", () => {
     t.subscribePlayhead(playhead);
     t.subscribeMeters(meters);
     await t.connect();
-    const frame = { transport: { position: 1.5, seconds: 0.75, playing: true, bpm: 120 }, session: [] };
+    const frame = { transport: { position: 1.5, seconds: 0.75, playing: true, bpm: 120 } };
     const meterFrame = { tracks: [{ track: "01J00000000000000000000000", peak: [0.5, 0.5], rms: [0.1, 0.1], clipped: false }], cpu_load: 0.1 };
     ep.push([
       { kind: "Playhead", body: frame },

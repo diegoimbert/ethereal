@@ -9,10 +9,10 @@
 use ether_controller::store::ProjectStore;
 use ether_controller::{Controller, EngineBridge, HostServices, MessageSink};
 use ether_core::graph::TrackDesc;
+use ether_core::protocol::devices::DeviceCommand;
 use ether_core::protocol::message::{
     Command, CommandError, ErrorCode, Event, PlayheadFrame, Reply, ReplyResult, ReplyValue,
 };
-use ether_core::protocol::devices::DeviceCommand;
 use ether_core::protocol::meters::MeterFrame;
 use ether_core::protocol::model::{Beats, IdGen, Project, ProjectId, TrackKind};
 use ether_core::protocol::project::ProjectCommand;
@@ -40,37 +40,12 @@ fn err(code: ErrorCode, message: impl Into<String>) -> CommandError {
     }
 }
 
-/// A minimal valid document (master track, 120 bpm, 4/4), built from JSON so it doesn't
-/// depend on model logic that isn't implemented yet.
-pub fn minimal_project(id: ProjectId, name: &str, ids: &mut IdGen, now_ms: u64) -> Project {
-    let master = ids.next_ulid(now_ms).to_string();
-    let tempo = ids.next_ulid(now_ms).to_string();
-    let sig = ids.next_ulid(now_ms).to_string();
-    serde_json::from_value(serde_json::json!({
-        "id": id,
-        "settings": {
-            "name": name,
-            "loop_enabled": false,
-            "loop_region": { "start": 0.0, "end": 16.0 },
-            "metronome": false,
-            "launch_quantization": { "type": "Bars", "count": 1 },
-            "count_in_bars": 0,
-        },
-        "tracks": { master.clone(): {
-            "id": master, "kind": "Master", "name": "Master", "color": 0x8a8a8a,
-            "order": "a0", "parent": null,
-            "mixer": { "volume": 0.0, "pan": 0.0, "mute": false, "solo": false },
-            "input": { "type": "None" }, "output": { "type": "None" }, "monitor": "Auto",
-        }},
-        "clips": {}, "notes": {}, "devices": {}, "sends": {}, "scenes": {},
-        "automation_lanes": {}, "automation_points": {},
-        "tempo_points": { tempo.clone(): { "id": tempo, "time": 0.0, "bpm": 120.0, "curve": "Step" } },
-        "time_signatures": { sig.clone(): {
-            "id": sig, "time": 0.0, "signature": { "numerator": 4, "denominator": 4 },
-        }},
-        "warp_markers": {}, "media": {},
-    }))
-    .expect("minimal project deserializes")
+/// A new empty document (master track, 120 bpm, 4/4) with the given id and name.
+pub fn new_project(id: ProjectId, name: &str, ids: &mut IdGen, now_ms: u64) -> Project {
+    let mut project = Project::new(ids, now_ms);
+    project.id = id;
+    project.settings.name = name.to_string();
+    project
 }
 
 impl<B: EngineBridge, H: HostServices, S: ProjectStore> FakeController<B, H, S> {
@@ -159,7 +134,6 @@ impl<B: EngineBridge, H: HostServices, S: ProjectStore> FakeController<B, H, S> 
                 .map(|s| s.signature)
                 .unwrap_or_default(),
             metronome: p.settings.metronome,
-            launch_quantization: p.settings.launch_quantization,
             start_position: Beats(self.start),
         })
     }
@@ -220,26 +194,18 @@ impl<B: EngineBridge, H: HostServices, S: ProjectStore> FakeController<B, H, S> 
             }),
             ProjectCommand::Create { id, name } => {
                 let now = self.host.now_ms();
-                let project = minimal_project(id, &name, &mut self.ids, now);
-                let file = serde_json::json!({
-                    "format": "ethereal-project",
-                    "version": 1,
-                    "app_version": env!("CARGO_PKG_VERSION"),
-                    "project": project,
-                });
+                let project = new_project(id, &name, &mut self.ids, now);
+                let file =
+                    ether_core::protocol::model::file::save(&project, env!("CARGO_PKG_VERSION"))
+                        .map_err(|e| err(ErrorCode::Internal, e.to_string()))?;
                 self.store.create(id).map_err(Self::store_err)?;
-                self.store
-                    .save(id, &file.to_string())
-                    .map_err(Self::store_err)?;
+                self.store.save(id, &file).map_err(Self::store_err)?;
                 Ok(self.load(project, out))
             }
             ProjectCommand::Open { id } => {
                 let json = self.store.load(id).map_err(Self::store_err)?;
-                let project = serde_json::from_str::<serde_json::Value>(&json)
-                    .ok()
-                    .and_then(|v| v.get("project").cloned())
-                    .and_then(|p| serde_json::from_value::<Project>(p).ok())
-                    .ok_or_else(|| err(ErrorCode::Decode, "invalid project file"))?;
+                let project = ether_core::protocol::model::file::load(&json)
+                    .map_err(|e| err(ErrorCode::Decode, e.to_string()))?;
                 Ok(self.load(project, out))
             }
             other => Err(err(
@@ -338,7 +304,6 @@ impl<B: EngineBridge, H: HostServices, S: ProjectStore> Controller for FakeContr
                     playing: p.playing,
                     bpm: p.bpm,
                 },
-                session: vec![],
             }));
         }
         if !self.outputs.meters.is_empty() {
