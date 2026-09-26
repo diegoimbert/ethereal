@@ -79,7 +79,7 @@ fn scan_all_collects_plugins_and_failures() {
     let dir = testing::temp_dir("scan-all");
     let ok = testing::make_bundle(&dir.join("a"), "EtherAllOk");
     let crash = testing::make_bundle(&dir.join("b"), "ether-crash");
-    let bundles = ether_clap::find_bundles(&[dir.clone()]);
+    let bundles = ether_clap::find_bundles(std::slice::from_ref(&dir));
     assert_eq!(bundles, vec![ok.clone(), crash.clone()]);
 
     let mut calls = Vec::new();
