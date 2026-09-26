@@ -367,7 +367,7 @@ mod tests {
 
     fn clip(length: f64, offset: f64, looping: Option<(f64, f64)>) -> ClipDesc {
         ClipDesc {
-            id: ClipId::default(),
+            id: ClipId::NIL,
             start: 0.0,
             length,
             offset,
