@@ -44,7 +44,10 @@ pub struct HostSlot(Mutex<Option<NativeHost>>);
 
 impl HostSlot {
     fn with<R>(&self, f: impl FnOnce(&NativeHost) -> R) -> Result<R, String> {
-        let guard = self.0.lock().map_err(|_| "host lock poisoned".to_string())?;
+        let guard = self
+            .0
+            .lock()
+            .map_err(|_| "host lock poisoned".to_string())?;
         guard
             .as_ref()
             .map(f)
