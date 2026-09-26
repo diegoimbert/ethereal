@@ -24,17 +24,20 @@
 //! Real-time rules (ARCHITECTURE.md): no alloc/free, no locks shared with non-RT threads, no
 //! syscalls/I/O/logging, bounded runtime. Debug tests wrap `process` in `assert_no_alloc`.
 
+pub mod automation;
 pub mod buffer;
 pub mod config;
+mod delay;
 pub mod engine;
 pub mod event;
 pub mod graph;
 pub mod media;
 pub mod meter;
+mod mixer;
 pub mod node;
 pub mod param;
 pub mod plugin;
-pub mod session;
+mod sched;
 pub mod tempo;
 pub mod transport;
 
@@ -42,7 +45,7 @@ pub use buffer::AudioBuffers;
 pub use config::{EngineConfig, PrepareConfig};
 pub use engine::{Engine, EngineError, EngineHandle, EngineParts, GarbageCollector, create};
 pub use event::{EventBuffer, EventKind, ProcessEvent};
-pub use graph::{CompileError, RenderGraphDesc, RenderSnapshot};
+pub use graph::{CompileError, NodeInfo, RenderGraphDesc, RenderSnapshot};
 pub use media::AudioSource;
 pub use meter::{EngineOutputs, MeterReading};
 pub use node::{Device, Node, NodeKey, ProcessContext, ProcessStatus};
