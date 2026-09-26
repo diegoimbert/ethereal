@@ -17,6 +17,9 @@ ether-controller.workspace = true
 ether-devices.workspace = true
 ether-media.workspace = true
 ether-clap.workspace = true
+# Wave-3 registration points: `plugins` (sandbox.rs) and `recording` (recording/).
+ether-sandbox.workspace = true
+midir.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true

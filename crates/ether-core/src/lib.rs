@@ -37,9 +37,11 @@ mod mixer;
 pub mod node;
 pub mod param;
 pub mod plugin;
+mod recording;
 mod sched;
 pub mod tempo;
 pub mod transport;
+mod warp;
 
 pub use buffer::AudioBuffers;
 pub use config::{EngineConfig, PrepareConfig};

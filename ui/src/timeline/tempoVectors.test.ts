@@ -1,7 +1,7 @@
 /**
  * Cross-checks the UI tempo map against the shared vectors committed by `ether-model`
  * (the source of truth): `crates/ether-model/tests/tempo_vectors.json`. Read-only.
- * Skipped while the file doesn't exist yet.
+ * Fails if the file is missing (the three implementations must stay in lockstep).
  *
  * Accepted shape (fields optional unless noted):
  * {
@@ -46,7 +46,10 @@ function points<T>(raw: unknown, kind: "tempo" | "sig"): T[] {
   });
 }
 
-describe.skipIf(!exists)("shared tempo vectors (ether-model)", () => {
+describe("shared tempo vectors (ether-model)", () => {
+  it("vector file exists (shared by ether-model, ether-core and the UI)", () => {
+    expect(exists).toBe(true);
+  });
   const file = exists ? (JSON.parse(readFileSync(PATH, "utf8")) as Json) : {};
   const cases = (Array.isArray(file) ? file : ((file.cases ?? file.vectors ?? []) as Json[])) as Json[];
   const defaultTol = (file.tolerance as number | undefined) ?? 1e-9;

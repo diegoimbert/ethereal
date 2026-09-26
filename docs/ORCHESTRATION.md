@@ -110,13 +110,13 @@ Acceptance: real transports replace the mock in both builds. You can open an `.e
 
 ### Wave 3: parallel after `alpha`
 
-These nodes touch several layers. To stay conflict-light, `alpha` pre-creates per-feature module files and hook points (`ether-model/src/{warp,recording,plugins}.rs`, `ether-core/src/{warp,recording}/`, `ui/src/features/{warp,recording,plugins}/`). Each node owns its module files, plus one-line registrations in shared files.
+These nodes touch several layers. To stay conflict-light, `alpha` pre-created per-feature module files, each already registered with one line in its parent (`lib.rs`), and the UI slots mounted in `ui/src/app/App.tsx`. Each node owns exactly its hook files below (mirrored in `.github/ownership.toml`); anything else (dispatch calls in shared files, `Cargo.toml` deps, protocol changes) is a one-line registration coordinated with the manager or a BCR. Details and integration pointers: [`WAVE3.md`](WAVE3.md).
 
-| Node | Deps | Size | Acceptance |
-|---|---|---|---|
-| `plugins` | alpha, clap, sandbox | M | Plugin browser, insert on device chain, per-plugin sandbox toggle, state in `.ether`, PDC verified. |
-| `warp` | alpha, stretch | L | Warp markers in model/core/UI, BPM detection stub, stretched playback native. Web: unwarped fallback. |
-| `recording` | alpha | M | Arm, input monitoring, audio + MIDI record, latency-compensated placement, `midir`. |
+| Node | Deps | Size | Owned hook files | Acceptance |
+|---|---|---|---|---|
+| `plugins` | alpha, clap, sandbox | M | `ui/src/features/plugins/**`, `crates/ether-model/src/plugins.rs`, `crates/ether-controller/src/plugins/**`, `crates/ether-native/src/plugins.rs`, `crates/ether-native/src/sandbox.rs` | Plugin browser, insert on device chain, per-plugin sandbox toggle, state in `.ether`, PDC verified. |
+| `warp` | alpha, stretch | L | `ui/src/features/warp/**`, `crates/ether-model/src/warp.rs`, `crates/ether-core/src/warp/**`, `crates/ether-controller/src/warp/**` | Warp markers in model/core/UI, BPM detection stub, stretched playback native. Web: unwarped fallback. |
+| `recording` | alpha | M | `ui/src/features/recording/**`, `crates/ether-model/src/recording.rs`, `crates/ether-core/src/recording/**`, `crates/ether-controller/src/recording/**`, `crates/ether-native/src/recording/**` | Arm, input monitoring, audio + MIDI record, latency-compensated placement, `midir`. |
 
 ### Final leaf: `v0.1`
 

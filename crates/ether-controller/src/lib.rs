@@ -33,9 +33,12 @@ mod engine;
 mod handlers;
 mod media;
 pub mod memory;
+mod plugins;
 mod project;
+mod recording;
 pub mod store;
 mod tx;
+mod warp;
 
 use std::collections::BTreeMap;
 
