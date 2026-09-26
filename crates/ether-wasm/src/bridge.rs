@@ -41,33 +41,39 @@ impl<M: RingMemory> BridgeShared<M> {
             blocks,
             ..
         } = self;
-        let res = reports.drain(REPORT_BUDGET, |bytes| match bytes.first() {
-            Some(&REPORT_STATE) => match EngineReport::decode(bytes) {
-                Ok(r) => {
-                    out.playhead = Some(r.playhead);
-                    for m in r.meters {
-                        match out.meters.iter_mut().find(|e| e.track == m.track) {
-                            Some(e) => {
-                                for ch in 0..2 {
-                                    e.peak[ch] = e.peak[ch].max(m.peak[ch]);
-                                    e.rms[ch] = e.rms[ch].max(m.rms[ch]);
+        reports.drain(REPORT_BUDGET, |bytes| {
+            match bytes.first() {
+                Some(&REPORT_STATE) => match EngineReport::decode(bytes) {
+                    Ok(r) => {
+                        out.playhead = Some(r.playhead);
+                        for m in r.meters {
+                            match out.meters.iter_mut().find(|e| e.track == m.track) {
+                                Some(e) => {
+                                    for ch in 0..2 {
+                                        e.peak[ch] = e.peak[ch].max(m.peak[ch]);
+                                        e.rms[ch] = e.rms[ch].max(m.rms[ch]);
+                                    }
+                                    e.clipped |= m.clipped;
                                 }
-                                e.clipped |= m.clipped;
+                                None => out.meters.push(m),
                             }
-                            None => out.meters.push(m),
                         }
+                        out.event_overflow |= r.event_overflow;
+                        out.underruns += r.underruns;
+                        *blocks = r.blocks;
                     }
-                    out.event_overflow |= r.event_overflow;
-                    out.underruns += r.underruns;
-                    *blocks = r.blocks;
+                    Err(e) => errors.push(format!("bad engine report: {e}")),
+                },
+                Some(&REPORT_ERROR) => {
+                    errors.push(String::from_utf8_lossy(&bytes[1..]).into_owned())
                 }
-                Err(e) => errors.push(format!("bad engine report: {e}")),
-            },
-            Some(&REPORT_ERROR) => errors.push(String::from_utf8_lossy(&bytes[1..]).into_owned()),
-            _ => errors.push("unknown engine report".into()),
+                _ => errors.push("unknown engine report".into()),
+            }
+            true
         });
-        if let Err(e) = res {
-            errors.push(format!("report ring: {e}"));
+        let skipped = reports.take_skipped();
+        if skipped > 0 {
+            errors.push(format!("report ring corrupt: skipped {skipped} bytes"));
         }
     }
 }
@@ -101,7 +107,10 @@ impl<M: RingMemory> WebBridge<M> {
     }
 
     fn send(&mut self, msg: EngineMsg) {
-        self.shared.borrow_mut().control.send(&msg.encode());
+        let mut shared = self.shared.borrow_mut();
+        for frame in msg.encode() {
+            shared.control.send(&frame);
+        }
     }
 }
 

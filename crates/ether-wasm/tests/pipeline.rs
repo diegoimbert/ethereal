@@ -366,3 +366,75 @@ fn builtin_synth_under_virtual_key_plays_notes() {
     bridge.poll(&mut out);
     assert!(shared.borrow().errors.is_empty());
 }
+
+/// A backlog (e.g. after a suspended AudioContext resumes) is applied over several quanta:
+/// bounded frames per quantum, one heavy frame (Publish) per quantum, and nothing is lost
+/// to core's queue limits.
+#[test]
+fn backlog_is_applied_in_bounded_steps_without_queue_overflow() {
+    use ether_core::{ParamChange, ParamTarget};
+    use ether_wasm::worklet::MAX_FRAMES_PER_QUANTUM;
+
+    let control = HeapMemory::new(1 << 20);
+    let reports = HeapMemory::new(1 << 14);
+    let shared = bridge::shared(control.clone(), reports.clone());
+    let mut bridge = WebBridge::new(shared.clone());
+    let mut engine = EngineHost::new(48_000, control, reports);
+    let master = TrackId(Ulid(1));
+    let graph = RenderGraphDesc {
+        version: 1,
+        tracks: vec![TrackDesc {
+            id: master,
+            kind: TrackKind::Master,
+            chain: vec![],
+            output: None,
+            group: None,
+            sends: vec![],
+            volume: 1.0,
+            pan: 0.0,
+            mute: false,
+            solo: false,
+            audio_input: None,
+            monitor: false,
+            armed: false,
+            clips: vec![],
+            automation: vec![],
+        }],
+        ..Default::default()
+    };
+
+    // Two publishes: the first quantum stops right after the first one.
+    bridge.publish(graph.clone()).unwrap();
+    bridge.publish(graph).unwrap();
+    engine.render(RENDER_QUANTUM);
+    assert!(engine.control_backlog() > 0, "second publish waits a quantum");
+    engine.render(RENDER_QUANTUM);
+    assert_eq!(engine.control_backlog(), 0);
+
+    // 5000 param changes: more than core's control queue, applied in bounded steps.
+    let n = 5000;
+    for i in 0..n {
+        bridge
+            .set_param(ParamChange {
+                target: ParamTarget::TrackVolume { track: master },
+                value: i as f64 / n as f64,
+            })
+            .unwrap();
+    }
+    let mut quanta = 0;
+    while engine.control_backlog() > 0 || shared.borrow().control.pending_bytes() > 0 {
+        engine.render(RENDER_QUANTUM);
+        shared.borrow_mut().control.flush();
+        quanta += 1;
+        assert!(quanta < 10_000);
+    }
+    assert!(quanta >= n / MAX_FRAMES_PER_QUANTUM, "{quanta} quanta");
+    let mut out = EngineOutputs::default();
+    engine.render(RENDER_QUANTUM);
+    bridge.poll(&mut out);
+    assert!(
+        shared.borrow().errors.is_empty(),
+        "{:?}",
+        shared.borrow().errors
+    );
+}

@@ -1,22 +1,29 @@
 //! Messages between the controller Worker and the AudioWorklet (over [`crate::ring`]).
 //!
-//! - Worker → Worklet: [`EngineMsg`]. Plain-data engine calls (the `EngineBridge` surface).
-//!   Encoded as JSON (tag `b'J'`), except decoded media, which is raw planar `f32`
-//!   (tag `b'M'`) so a multi-minute file doesn't go through a text format.
+//! - Worker → Worklet: [`EngineMsg`]. Plain-data engine calls (the `EngineBridge` surface),
+//!   each encoded into one or more ring frames and decoded on the Worklet as [`Frame`]s.
+//!   Everything is JSON (tag `b'J'`) except decoded media: raw `f32` split into bounded
+//!   chunks (`MediaBegin`, `MediaChunk`s, `MediaEnd`; see [`MediaAssembler`]), so no single
+//!   frame makes the audio thread convert or buffer a whole file.
 //! - Worklet → Worker: [`EngineReport`] (playhead, max-held meters, diagnostics; compact
 //!   binary encoded into a reused buffer so the audio thread doesn't allocate) and
 //!   [`REPORT_ERROR`] text messages (compile errors etc.).
 
+use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use ether_core::protocol::meters::TrackMeter;
-use ether_core::protocol::model::{BuiltinDevice, MediaId, ParamId, TrackId};
+use ether_core::protocol::model::{BuiltinDevice, MediaId, ParamId, TrackId, Ulid};
 use ether_core::{NodeKey, ParamChange, PlayheadState, RenderGraphDesc, TransportControl};
 use ether_media::DecodedAudio;
 use serde::{Deserialize, Serialize};
 
 const TAG_JSON: u8 = b'J';
-const TAG_MEDIA: u8 = b'M';
+const TAG_MEDIA_BEGIN: u8 = b'B';
+const TAG_MEDIA_CHUNK: u8 = b'C';
+const TAG_MEDIA_END: u8 = b'D';
+/// Samples per media chunk frame (64 KiB of `f32`).
+pub const MEDIA_CHUNK_SAMPLES: usize = 16 * 1024;
 
 /// One engine call, Worker → Worklet. Node keys are *virtual*: allocated by the Worker
 /// (it must answer `create_builtin` synchronously) and mapped to real engine keys by the
@@ -88,7 +95,8 @@ pub enum DecodeError {
 }
 
 impl EngineMsg {
-    pub fn encode(&self) -> Vec<u8> {
+    /// Encode into ring frames: one, or `MediaBegin` + chunks + `MediaEnd` for media.
+    pub fn encode(&self) -> Vec<Vec<u8>> {
         let json = match self.clone() {
             EngineMsg::LoadMedia { media, audio } => return encode_media(media, &audio),
             EngineMsg::CreateBuiltin {
@@ -108,17 +116,63 @@ impl EngineMsg {
         };
         let mut out = vec![TAG_JSON];
         serde_json::to_writer(&mut out, &json).expect("engine messages serialize");
-        out
+        vec![out]
     }
+}
 
-    pub fn decode(bytes: &[u8]) -> Result<Self, DecodeError> {
+/// One decoded ring frame (Worklet side). Media chunks borrow the frame bytes; the
+/// [`MediaAssembler`] converts them straight into pre-allocated buffers.
+#[derive(Debug, PartialEq)]
+pub enum Frame<'a> {
+    /// Any non-media [`EngineMsg`].
+    Msg(EngineMsg),
+    MediaBegin {
+        media: MediaId,
+        sample_rate: u32,
+        channels: u16,
+        frames: u32,
+    },
+    MediaChunk {
+        media: MediaId,
+        channel: u16,
+        offset: u32,
+        /// `f32` LE samples.
+        samples: &'a [u8],
+    },
+    MediaEnd {
+        media: MediaId,
+    },
+}
+
+impl<'a> Frame<'a> {
+    pub fn decode(bytes: &'a [u8]) -> Result<Self, DecodeError> {
         let (&tag, rest) = bytes.split_first().ok_or(DecodeError::Empty)?;
+        let mut c = Cursor(rest);
         match tag {
-            TAG_MEDIA => decode_media(rest),
+            TAG_MEDIA_BEGIN => Ok(Frame::MediaBegin {
+                media: c.media()?,
+                sample_rate: c.u32()?,
+                channels: c.u16()?,
+                frames: c.u32()?,
+            }),
+            TAG_MEDIA_CHUNK => {
+                let media = c.media()?;
+                let channel = c.u16()?;
+                let offset = c.u32()?;
+                let count = c.u32()? as usize;
+                let samples = c.take(count * 4)?;
+                Ok(Frame::MediaChunk {
+                    media,
+                    channel,
+                    offset,
+                    samples,
+                })
+            }
+            TAG_MEDIA_END => Ok(Frame::MediaEnd { media: c.media()? }),
             TAG_JSON => {
                 let msg: JsonMsg =
                     serde_json::from_slice(rest).map_err(|e| DecodeError::Json(e.to_string()))?;
-                Ok(match msg {
+                Ok(Frame::Msg(match msg {
                     JsonMsg::CreateBuiltin {
                         key,
                         device,
@@ -133,29 +187,43 @@ impl EngineMsg {
                     JsonMsg::Publish { graph } => EngineMsg::Publish { graph },
                     JsonMsg::SetParam { change } => EngineMsg::SetParam { change },
                     JsonMsg::Transport { control } => EngineMsg::Transport { control },
-                })
+                }))
             }
             t => Err(DecodeError::Tag(t)),
         }
     }
 }
 
-// Media: [M][id_len u8][id utf8][sample_rate u32][channels u16][frames u32][f32 LE planar].
-fn encode_media(media: MediaId, audio: &DecodedAudio) -> Vec<u8> {
-    let id = media.to_string();
+// Begin: [B][media u128][sample_rate u32][channels u16][frames u32]
+// Chunk: [C][media u128][channel u16][offset u32][count u32][count x f32 LE]
+// End:   [D][media u128]
+fn encode_media(media: MediaId, audio: &DecodedAudio) -> Vec<Vec<u8>> {
+    let id = media.0.0.to_le_bytes();
     let frames = audio.frames();
-    let mut out = Vec::with_capacity(12 + id.len() + audio.channels.len() * frames * 4);
-    out.push(TAG_MEDIA);
-    out.push(id.len() as u8);
-    out.extend_from_slice(id.as_bytes());
-    out.extend_from_slice(&audio.sample_rate.to_le_bytes());
-    out.extend_from_slice(&(audio.channels.len() as u16).to_le_bytes());
-    out.extend_from_slice(&(frames as u32).to_le_bytes());
-    for ch in &audio.channels {
-        for s in &ch[..frames] {
-            out.extend_from_slice(&s.to_le_bytes());
+    let mut out = Vec::new();
+    let mut begin = vec![TAG_MEDIA_BEGIN];
+    begin.extend_from_slice(&id);
+    begin.extend_from_slice(&audio.sample_rate.to_le_bytes());
+    begin.extend_from_slice(&(audio.channels.len() as u16).to_le_bytes());
+    begin.extend_from_slice(&(frames as u32).to_le_bytes());
+    out.push(begin);
+    for (ch, data) in audio.channels.iter().enumerate() {
+        for (i, chunk) in data[..frames].chunks(MEDIA_CHUNK_SAMPLES).enumerate() {
+            let mut f = Vec::with_capacity(1 + 16 + 10 + chunk.len() * 4);
+            f.push(TAG_MEDIA_CHUNK);
+            f.extend_from_slice(&id);
+            f.extend_from_slice(&(ch as u16).to_le_bytes());
+            f.extend_from_slice(&((i * MEDIA_CHUNK_SAMPLES) as u32).to_le_bytes());
+            f.extend_from_slice(&(chunk.len() as u32).to_le_bytes());
+            for s in chunk {
+                f.extend_from_slice(&s.to_le_bytes());
+            }
+            out.push(f);
         }
     }
+    let mut end = vec![TAG_MEDIA_END];
+    end.extend_from_slice(&id);
+    out.push(end);
     out
 }
 
@@ -182,6 +250,10 @@ impl<'a> Cursor<'a> {
     fn u64(&mut self) -> Result<u64, DecodeError> {
         Ok(u64::from_le_bytes(self.take(8)?.try_into().unwrap()))
     }
+    fn media(&mut self) -> Result<MediaId, DecodeError> {
+        let id = u128::from_le_bytes(self.take(16)?.try_into().unwrap());
+        Ok(MediaId(Ulid(id)))
+    }
     fn f32(&mut self) -> Result<f32, DecodeError> {
         Ok(f32::from_bits(self.u32()?))
     }
@@ -190,34 +262,59 @@ impl<'a> Cursor<'a> {
     }
 }
 
-fn decode_media(bytes: &[u8]) -> Result<EngineMsg, DecodeError> {
-    let mut c = Cursor(bytes);
-    let id_len = c.u8()? as usize;
-    let id = std::str::from_utf8(c.take(id_len)?).map_err(|e| DecodeError::Json(e.to_string()))?;
-    let media: MediaId = id
-        .parse()
-        .map_err(|_| DecodeError::Json(format!("media id {id}")))?;
-    let sample_rate = c.u32()?;
-    let channels = c.u16()? as usize;
-    let frames = c.u32()? as usize;
-    let data = c.take(channels * frames * 4)?;
-    let channels = (0..channels)
-        .map(|ch| {
-            data[ch * frames * 4..(ch + 1) * frames * 4]
-                .as_chunks::<4>()
-                .0
-                .iter()
-                .map(|b| f32::from_le_bytes(*b))
-                .collect()
-        })
-        .collect::<Vec<Vec<f32>>>();
-    Ok(EngineMsg::LoadMedia {
-        media,
-        audio: Arc::new(DecodedAudio {
-            sample_rate,
-            channels,
-        }),
-    })
+/// Reassembles chunked media on the Worklet. [`Self::begin`] allocates the planar buffers
+/// once (the only allocation of a load); [`Self::chunk`] converts at most
+/// [`MEDIA_CHUNK_SAMPLES`] samples straight into them; [`Self::end`] hands out the audio.
+#[derive(Default)]
+pub struct MediaAssembler {
+    pending: BTreeMap<MediaId, DecodedAudio>,
+}
+
+impl MediaAssembler {
+    pub fn begin(&mut self, media: MediaId, sample_rate: u32, channels: u16, frames: u32) {
+        self.pending.insert(
+            media,
+            DecodedAudio {
+                sample_rate,
+                channels: (0..channels).map(|_| vec![0.0; frames as usize]).collect(),
+            },
+        );
+    }
+
+    pub fn chunk(
+        &mut self,
+        media: MediaId,
+        channel: u16,
+        offset: u32,
+        samples: &[u8],
+    ) -> Result<(), String> {
+        let audio = self
+            .pending
+            .get_mut(&media)
+            .ok_or_else(|| format!("media chunk for {media} without begin"))?;
+        let data = audio
+            .channels
+            .get_mut(channel as usize)
+            .ok_or_else(|| format!("media {media}: bad channel {channel}"))?;
+        let offset = offset as usize;
+        let dst = data
+            .get_mut(offset..offset + samples.len() / 4)
+            .ok_or_else(|| format!("media {media}: chunk out of range"))?;
+        for (d, b) in dst.iter_mut().zip(samples.as_chunks::<4>().0) {
+            *d = f32::from_le_bytes(*b);
+        }
+        Ok(())
+    }
+
+    /// The finished audio (`None` if the load was cancelled or never begun).
+    pub fn end(&mut self, media: MediaId) -> Option<Arc<DecodedAudio>> {
+        self.pending.remove(&media).map(Arc::new)
+    }
+
+    /// Drop a partially received load (the media was unloaded meanwhile).
+    pub fn cancel(&mut self, media: MediaId) {
+        self.pending.remove(&media);
+    }
 }
 
 /// Tag of a report message (Worklet → Worker).
@@ -294,7 +391,7 @@ impl EngineReport {
             let rms = [c.f32()?, c.f32()?];
             let clipped = c.u8()? != 0;
             meters.push(TrackMeter {
-                track: TrackId(ether_core::protocol::model::Ulid(id)),
+                track: TrackId(Ulid(id)),
                 peak,
                 rms,
                 clipped,
@@ -318,7 +415,41 @@ mod tests {
     use ether_core::protocol::model::{Beats, TrackKind};
 
     fn track_id(n: u128) -> TrackId {
-        TrackId(ether_core::protocol::model::Ulid(n))
+        TrackId(Ulid(n))
+    }
+
+    fn decode_one(m: &EngineMsg) -> EngineMsg {
+        let frames = m.encode();
+        assert_eq!(frames.len(), 1);
+        match Frame::decode(&frames[0]).unwrap() {
+            Frame::Msg(m) => m,
+            other => panic!("unexpected {other:?}"),
+        }
+    }
+
+    /// Run frames through a `MediaAssembler` the way the Worklet does.
+    fn assemble(frames: &[Vec<u8>]) -> Option<(MediaId, Arc<DecodedAudio>)> {
+        let mut asm = MediaAssembler::default();
+        let mut done = None;
+        for f in frames {
+            match Frame::decode(f).unwrap() {
+                Frame::MediaBegin {
+                    media,
+                    sample_rate,
+                    channels,
+                    frames,
+                } => asm.begin(media, sample_rate, channels, frames),
+                Frame::MediaChunk {
+                    media,
+                    channel,
+                    offset,
+                    samples,
+                } => asm.chunk(media, channel, offset, samples).unwrap(),
+                Frame::MediaEnd { media } => done = asm.end(media).map(|a| (media, a)),
+                Frame::Msg(m) => panic!("unexpected {m:?}"),
+            }
+        }
+        done
     }
 
     #[test]
@@ -377,49 +508,79 @@ mod tests {
             },
         ];
         for m in msgs {
-            assert_eq!(EngineMsg::decode(&m.encode()).unwrap(), m);
+            assert_eq!(decode_one(&m), m);
         }
     }
 
     #[test]
-    fn media_roundtrip_is_exact() {
-        let media: MediaId = MediaId(ether_core::protocol::model::Ulid(0xABCDEF));
+    fn media_is_chunked_and_reassembles_exactly() {
+        let media = MediaId(Ulid(0xABCDEF));
+        let frames = MEDIA_CHUNK_SAMPLES * 2 + 7;
+        let left: Vec<f32> = (0..frames).map(|i| (i as f32 * 0.001).sin()).collect();
+        let mut right = left.clone();
+        right[0] = f32::MAX;
+        right[frames - 1] = -0.0;
         let audio = Arc::new(DecodedAudio {
             sample_rate: 44_100,
-            channels: vec![vec![0.1, -0.5, 1.0e-30], vec![f32::MAX, 0.0, -0.0]],
+            channels: vec![left, right],
         });
-        let msg = EngineMsg::LoadMedia {
+        let encoded = EngineMsg::LoadMedia {
             media,
             audio: audio.clone(),
-        };
-        let bytes = msg.encode();
-        assert_eq!(bytes.len(), 1 + 1 + 26 + 4 + 2 + 4 + 6 * 4);
-        assert_eq!(EngineMsg::decode(&bytes).unwrap(), msg);
+        }
+        .encode();
+        // begin + 3 chunks per channel + end; no frame bigger than one chunk.
+        assert_eq!(encoded.len(), 1 + 2 * 3 + 1);
+        assert!(
+            encoded
+                .iter()
+                .all(|f| f.len() <= 1 + 16 + 10 + MEDIA_CHUNK_SAMPLES * 4)
+        );
+        let (id, got) = assemble(&encoded).unwrap();
+        assert_eq!(id, media);
+        assert_eq!(*got, *audio);
     }
 
     #[test]
     fn empty_media_keeps_channel_count() {
-        let media = MediaId(ether_core::protocol::model::Ulid(1));
-        let msg = EngineMsg::LoadMedia {
+        let media = MediaId(Ulid(1));
+        let audio = Arc::new(DecodedAudio {
+            sample_rate: 48_000,
+            channels: vec![vec![], vec![]],
+        });
+        let encoded = EngineMsg::LoadMedia {
             media,
-            audio: Arc::new(DecodedAudio {
-                sample_rate: 48_000,
-                channels: vec![vec![], vec![]],
-            }),
-        };
-        assert_eq!(EngineMsg::decode(&msg.encode()).unwrap(), msg);
+            audio: audio.clone(),
+        }
+        .encode();
+        assert_eq!(*assemble(&encoded).unwrap().1, *audio);
+    }
+
+    #[test]
+    fn cancelled_or_bad_media_chunks() {
+        let media = MediaId(Ulid(5));
+        let mut asm = MediaAssembler::default();
+        assert!(
+            asm.chunk(media, 0, 0, &[0; 4]).is_err(),
+            "chunk before begin"
+        );
+        asm.begin(media, 48_000, 1, 2);
+        assert!(asm.chunk(media, 1, 0, &[0; 4]).is_err(), "bad channel");
+        assert!(asm.chunk(media, 0, 1, &[0; 8]).is_err(), "out of range");
+        asm.cancel(media);
+        assert!(asm.end(media).is_none());
     }
 
     #[test]
     fn bad_messages_are_errors() {
-        assert_eq!(EngineMsg::decode(&[]), Err(DecodeError::Empty));
-        assert_eq!(EngineMsg::decode(b"X"), Err(DecodeError::Tag(b'X')));
+        assert_eq!(Frame::decode(&[]), Err(DecodeError::Empty));
+        assert_eq!(Frame::decode(b"X"), Err(DecodeError::Tag(b'X')));
         assert!(matches!(
-            EngineMsg::decode(b"J{nope"),
+            Frame::decode(b"J{nope"),
             Err(DecodeError::Json(_))
         ));
         assert_eq!(
-            EngineMsg::decode(&[TAG_MEDIA, 200]),
+            Frame::decode(&[TAG_MEDIA_CHUNK, 200]),
             Err(DecodeError::Truncated)
         );
     }

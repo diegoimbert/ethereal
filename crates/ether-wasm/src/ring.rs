@@ -16,10 +16,10 @@
 //!
 //! # Stream format
 //!
-//! The ring is a byte stream of messages, each `[len: u32 LE][len bytes]`. A message may be
+//! The ring is a byte stream of frames, each `[magic "ETHR"][len: u32 LE][len bytes]`. A message may be
 //! larger than the ring: the writer streams it in pieces as space frees up
 //! ([`RingWriter::flush`]) and the reader reassembles it across drains, so big payloads
-//! (graph snapshots, decoded media) need no separate channel and stay ordered with every
+//! (graph snapshots, media chunks) need no separate channel and stay ordered with every
 //! other message.
 
 use std::collections::VecDeque;
@@ -29,7 +29,19 @@ use std::sync::atomic::{AtomicU8, AtomicU32, Ordering};
 /// Bytes before the data area in the shared buffer.
 pub const HEADER_BYTES: usize = 16;
 /// Largest message the reader accepts (a corrupt length must not trigger a huge allocation).
-pub const MAX_MESSAGE: usize = 1 << 30;
+/// Big payloads (media) are split into chunks well below this.
+pub const MAX_MESSAGE: usize = 256 << 20;
+/// Frame header: magic + body length (both `u32` LE).
+pub const FRAME_HEADER: usize = 8;
+/// Marks a frame boundary (lets the reader resynchronize after corruption).
+pub const FRAME_MAGIC: u32 = u32::from_le_bytes(*b"ETHR");
+
+fn frame_header(len: usize) -> [u8; FRAME_HEADER] {
+    let mut h = [0; FRAME_HEADER];
+    h[..4].copy_from_slice(&FRAME_MAGIC.to_le_bytes());
+    h[4..].copy_from_slice(&(len as u32).to_le_bytes());
+    h
+}
 
 /// Shared memory backing a ring. `write`/`read` never wrap: callers split at the end.
 pub trait RingMemory {
@@ -148,8 +160,8 @@ impl<M: RingMemory> RingWriter<M> {
 
     /// Queue a message and write as much as fits now.
     pub fn send(&mut self, msg: &[u8]) {
-        let mut framed = Vec::with_capacity(4 + msg.len());
-        framed.extend_from_slice(&(msg.len() as u32).to_le_bytes());
+        let mut framed = Vec::with_capacity(FRAME_HEADER + msg.len());
+        framed.extend_from_slice(&frame_header(msg.len()));
         framed.extend_from_slice(msg);
         self.queued += framed.len();
         self.outbox.push_back(framed);
@@ -181,13 +193,14 @@ impl<M: RingMemory> RingWriter<M> {
     /// Write the whole message now if it fits and nothing is queued; otherwise drop it and
     /// return `false`. Never allocates.
     pub fn try_send_now(&mut self, msg: &[u8]) -> bool {
-        if !self.outbox.is_empty() || free_space(&self.mem) < 4 + msg.len() {
+        if !self.outbox.is_empty() || free_space(&self.mem) < FRAME_HEADER + msg.len() {
             return false;
         }
         let head = self.mem.load_head();
-        put(&self.mem, head, &(msg.len() as u32).to_le_bytes());
-        put(&self.mem, head.wrapping_add(4), msg);
-        self.mem.store_head(head.wrapping_add(4 + msg.len() as u32));
+        put(&self.mem, head, &frame_header(msg.len()));
+        put(&self.mem, head.wrapping_add(FRAME_HEADER as u32), msg);
+        self.mem
+            .store_head(head.wrapping_add((FRAME_HEADER + msg.len()) as u32));
         true
     }
 
@@ -197,36 +210,37 @@ impl<M: RingMemory> RingWriter<M> {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, thiserror::Error)]
-pub enum RingError {
-    #[error("message length {0} exceeds the maximum")]
-    TooLarge(usize),
-}
-
-/// Consumer half. Reassembles messages across drains; the body buffer is reused, so
-/// steady-state reads of small messages don't allocate.
+/// Consumer half. Reassembles messages across drains. The body buffer is reused (so
+/// steady-state reads of small messages don't allocate) and shrunk back to its initial
+/// capacity after an oversized message.
 pub struct RingReader<M: RingMemory> {
     mem: M,
-    len_buf: [u8; 4],
-    len_got: usize,
+    header: [u8; FRAME_HEADER],
+    header_got: usize,
     body: Vec<u8>,
-    /// Expected body length once the prefix is complete.
+    /// Expected body length once the header is complete.
     body_len: Option<usize>,
+    keep_capacity: usize,
+    /// Bytes skipped while resynchronizing after corruption (see [`Self::take_skipped`]).
+    skipped: usize,
 }
 
 impl<M: RingMemory> RingReader<M> {
     pub fn new(mem: M) -> Self {
-        Self::with_capacity(mem, 0)
+        Self::with_capacity(mem, 4096)
     }
 
-    /// Pre-reserve the body buffer (avoid allocations on an RT consumer).
+    /// Pre-reserve the body buffer (avoid allocations on an RT consumer). Messages up to
+    /// this size never allocate; larger ones allocate once and the buffer is shrunk back.
     pub fn with_capacity(mem: M, body_capacity: usize) -> Self {
         Self {
             mem,
-            len_buf: [0; 4],
-            len_got: 0,
+            header: [0; FRAME_HEADER],
+            header_got: 0,
             body: Vec::with_capacity(body_capacity),
             body_len: None,
+            keep_capacity: body_capacity,
+            skipped: 0,
         }
     }
 
@@ -235,14 +249,19 @@ impl<M: RingMemory> RingReader<M> {
         self.mem.load_head().wrapping_sub(self.mem.load_tail()) as usize
     }
 
-    /// Consume up to `budget` bytes, calling `on_message` for each completed message.
-    /// Returns the number of bytes consumed. On a corrupt length the ring is emptied and an
-    /// error returned (the stream is resynchronized at the current head).
-    pub fn drain(
-        &mut self,
-        budget: usize,
-        mut on_message: impl FnMut(&[u8]),
-    ) -> Result<usize, RingError> {
+    /// Bytes skipped to resynchronize on a frame boundary since the last call (non-zero
+    /// means the stream was corrupt and some message(s) were lost).
+    pub fn take_skipped(&mut self) -> usize {
+        std::mem::take(&mut self.skipped)
+    }
+
+    /// Consume up to `budget` bytes, calling `on_message` for each completed message; the
+    /// callback returns `false` to stop draining right after that message. Returns the
+    /// number of bytes consumed.
+    ///
+    /// A header with a bad magic or an impossible length is skipped byte by byte until the
+    /// next valid frame header (see [`Self::take_skipped`]).
+    pub fn drain(&mut self, budget: usize, mut on_message: impl FnMut(&[u8]) -> bool) -> usize {
         let head = self.mem.load_head();
         let mut tail = self.mem.load_tail();
         let mut consumed = 0;
@@ -254,20 +273,23 @@ impl<M: RingMemory> RingReader<M> {
             }
             match self.body_len {
                 None => {
-                    let n = (4 - self.len_got).min(avail).min(room);
-                    let (got, buf) = (self.len_got, &mut self.len_buf);
-                    get(&self.mem, tail, &mut buf[got..got + n]);
-                    self.len_got += n;
+                    let n = (FRAME_HEADER - self.header_got).min(avail).min(room);
+                    let got = self.header_got;
+                    get(&self.mem, tail, &mut self.header[got..got + n]);
+                    self.header_got += n;
                     tail = tail.wrapping_add(n as u32);
                     consumed += n;
-                    if self.len_got == 4 {
-                        let len = u32::from_le_bytes(self.len_buf) as usize;
-                        self.len_got = 0;
-                        if len > MAX_MESSAGE {
-                            self.body.clear();
-                            self.mem.store_tail(head);
-                            return Err(RingError::TooLarge(len));
+                    if self.header_got == FRAME_HEADER {
+                        let magic = u32::from_le_bytes(self.header[..4].try_into().unwrap());
+                        let len = u32::from_le_bytes(self.header[4..].try_into().unwrap()) as usize;
+                        if magic != FRAME_MAGIC || len > MAX_MESSAGE {
+                            // Resync: drop one byte and keep scanning for a header.
+                            self.header.copy_within(1.., 0);
+                            self.header_got = FRAME_HEADER - 1;
+                            self.skipped += 1;
+                            continue;
                         }
+                        self.header_got = 0;
                         self.body.clear();
                         self.body.reserve(len);
                         self.body_len = Some(len);
@@ -288,12 +310,18 @@ impl<M: RingMemory> RingReader<M> {
                 // Publish the tail before the callback so the producer can refill meanwhile.
                 self.mem.store_tail(tail);
                 self.body_len = None;
-                on_message(&self.body);
+                let more = on_message(&self.body);
                 self.body.clear();
+                if self.body.capacity() > self.keep_capacity {
+                    self.body.shrink_to(self.keep_capacity);
+                }
+                if !more {
+                    break;
+                }
             }
         }
         self.mem.store_tail(tail);
-        Ok(consumed)
+        consumed
     }
 }
 
@@ -308,7 +336,10 @@ mod tests {
 
     fn drain_all(r: &mut RingReader<HeapMemory>) -> Vec<Vec<u8>> {
         let mut out = Vec::new();
-        r.drain(usize::MAX, |m| out.push(m.to_vec())).unwrap();
+        r.drain(usize::MAX, |m| {
+            out.push(m.to_vec());
+            true
+        });
         out
     }
 
@@ -346,7 +377,10 @@ mod tests {
         let mut got = Vec::new();
         let mut rounds = 0;
         while got.len() < 3 {
-            r.drain(usize::MAX, |m| got.push(m.to_vec())).unwrap();
+            r.drain(usize::MAX, |m| {
+                got.push(m.to_vec());
+                true
+            });
             w.flush();
             rounds += 1;
             assert!(rounds < 10_000, "no progress");
@@ -362,21 +396,27 @@ mod tests {
         w.send(&[1; 100]);
         w.send(&[2; 100]);
         let mut got = Vec::new();
-        let n = r.drain(50, |m| got.push(m.to_vec())).unwrap();
+        let n = r.drain(50, |m| {
+            got.push(m.to_vec());
+            true
+        });
         assert_eq!(n, 50);
         assert!(got.is_empty());
-        r.drain(usize::MAX, |m| got.push(m.to_vec())).unwrap();
+        r.drain(usize::MAX, |m| {
+            got.push(m.to_vec());
+            true
+        });
         assert_eq!(got, vec![vec![1; 100], vec![2; 100]]);
     }
 
     #[test]
     fn try_send_now_drops_when_full() {
-        let (mut w, mut r) = pair(16);
-        assert!(w.try_send_now(&[1; 8]));
-        assert!(!w.try_send_now(&[2; 8]), "only 4 bytes left");
-        assert_eq!(drain_all(&mut r), vec![vec![1; 8]]);
-        assert!(w.try_send_now(&[3; 12]));
-        assert_eq!(drain_all(&mut r), vec![vec![3; 12]]);
+        let (mut w, mut r) = pair(32);
+        assert!(w.try_send_now(&[1; 16]));
+        assert!(!w.try_send_now(&[2; 1]), "only 8 bytes left");
+        assert_eq!(drain_all(&mut r), vec![vec![1; 16]]);
+        assert!(w.try_send_now(&[3; 24]));
+        assert_eq!(drain_all(&mut r), vec![vec![3; 24]]);
     }
 
     #[test]
@@ -386,23 +426,67 @@ mod tests {
         assert!(!w.try_send_now(&[1]), "must not overtake queued bytes");
         let mut got = Vec::new();
         while got.is_empty() {
-            r.drain(usize::MAX, |m| got.push(m.to_vec())).unwrap();
+            r.drain(usize::MAX, |m| {
+                got.push(m.to_vec());
+                true
+            });
             w.flush();
         }
         assert_eq!(got, vec![vec![9; 40]]);
     }
 
     #[test]
-    fn corrupt_length_resyncs() {
-        let mem = HeapMemory::new(64);
-        mem.write(0, &u32::MAX.to_le_bytes());
-        mem.store_head(4);
+    fn corrupt_bytes_resync_to_the_next_frame() {
+        let mem = HeapMemory::new(256);
+        // Garbage (incl. a huge "length") before a valid frame.
+        let garbage = [0xFFu8, 0xFF, 0xFF, 0xFF, 1, 2, 3, b'E', b'T', 9, 9, 9, 9, 9];
+        mem.write(0, &garbage);
+        mem.store_head(garbage.len() as u32);
         let mut r = RingReader::new(mem.clone());
-        assert!(r.drain(usize::MAX, |_| {}).is_err());
-        assert_eq!(r.available(), 0);
+        assert!(drain_all(&mut r).is_empty());
         let mut w = RingWriter::new(mem);
         w.send(b"ok");
-        assert_eq!(drain_all(&mut r), vec![b"ok".to_vec()]);
+        w.send(b"next");
+        assert_eq!(drain_all(&mut r), vec![b"ok".to_vec(), b"next".to_vec()]);
+        assert_eq!(r.take_skipped(), garbage.len());
+        assert_eq!(r.take_skipped(), 0);
+    }
+
+    #[test]
+    fn callback_can_stop_the_drain() {
+        let (mut w, mut r) = pair(256);
+        for i in 0..5u8 {
+            w.send(&[i]);
+        }
+        let mut got = Vec::new();
+        r.drain(usize::MAX, |m| {
+            got.push(m[0]);
+            m[0] != 1
+        });
+        assert_eq!(
+            got,
+            [0, 1],
+            "stops right after the message that returned false"
+        );
+        assert_eq!(drain_all(&mut r), vec![vec![2], vec![3], vec![4]]);
+    }
+
+    #[test]
+    fn oversized_message_buffer_is_released() {
+        let mem = HeapMemory::new(1 << 12);
+        let mut w = RingWriter::new(mem.clone());
+        let mut r = RingReader::with_capacity(mem, 128);
+        w.send(&[7; 100_000]);
+        let mut n = 0;
+        while n == 0 {
+            r.drain(usize::MAX, |m| {
+                n = m.len();
+                true
+            });
+            w.flush();
+        }
+        assert_eq!(n, 100_000);
+        assert!(r.body.capacity() <= 128, "capacity {}", r.body.capacity());
     }
 
     #[test]
@@ -427,8 +511,8 @@ mod tests {
                     .collect();
                 assert_eq!(m, &want[..]);
                 expected += 1;
-            })
-            .unwrap();
+                true
+            });
             std::thread::yield_now();
         }
         producer.join().unwrap();
