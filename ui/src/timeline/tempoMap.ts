@@ -2,18 +2,22 @@
  * UI-side tempo map: beats ↔ seconds and bars/beats, from the project mirror's
  * `tempo_points` and `time_signatures`.
  *
- * Mirrors the semantics of Rust `ether_model::TempoMap` (`crates/ether-model/src/tempo.rs`):
- * - tempo `Step` segments hold their BPM until the next point; `Linear` segments ramp the
- *   BPM linearly over beats to the next point's BPM (the last segment is always constant);
- * - bar/beat positions are 1-based (bar 1 beat 1 = beat 0); bars before beat 0 are <= 0;
- * - a time signature applies from its point onwards; `time` falls on a bar line of the
- *   previous signature.
- * Missing points fall back to 120 BPM and 4/4 (the document always has one of each at 0).
+ * Mirrors Rust `ether_model::TempoMap` (`crates/ether-model/src/tempo.rs`), which is the
+ * source of truth (shared vectors: `crates/ether-model/tests/tempo_vectors.json`):
+ * - seconds are measured from beat 0;
+ * - a `Step` segment is constant; a `Linear` segment ramps BPM linearly *over beats* to the
+ *   next point's BPM;
+ * - before the first point and after the last one the tempo is constant;
+ * - bar/beat positions are 1-based (bar 1 beat 1 = beat 0), beats count in the
+ *   signature's denominator unit (6/8 has 6 eighth-note beats); a signature change that is
+ *   not on a bar line ends the previous bar early (the partial bar counts as one bar);
+ *   negative positions extrapolate the first signature (bar 0, -1, ...);
+ * - an empty map means 120 BPM, 4/4.
  */
 
 import { useMemo } from "react";
 import type { Beats, Project, Seconds, TempoPoint, TimeSignature, TimeSignaturePoint } from "@/generated";
-import { BEATS_EPSILON, floorBeats } from "@/state/beats";
+import { BEATS_EPSILON, ceilBeats } from "@/state/beats";
 import { useProjectStore } from "@/state/projectStore";
 
 export const DEFAULT_BPM = 120;
@@ -50,9 +54,9 @@ export interface BarLine {
 interface TempoSeg {
   time: Beats;
   bpm: number;
-  /** BPM change per beat within the segment (0 for steps). */
+  /** BPM change per beat within the segment (0 = constant). */
   slope: number;
-  /** Seconds at `time`. */
+  /** Seconds at `time`, measured from the first point. */
   seconds: Seconds;
 }
 
@@ -66,53 +70,63 @@ interface SigSeg {
 const byTime = <T extends { time: number; id: string }>(a: T, b: T) =>
   a.time - b.time || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
 
-/** Seconds elapsed over `dx` beats from a segment start at `bpm` with `slope` BPM/beat. */
-function segSeconds(bpm: number, slope: number, dx: Beats): Seconds {
-  if (Math.abs(slope) < 1e-12) return (dx * 60) / bpm;
-  return (60 / slope) * Math.log((bpm + slope * dx) / bpm);
+/** Seconds elapsed over `dx` beats into a segment. */
+function segSeconds(seg: TempoSeg, dx: Beats): Seconds {
+  if (seg.slope === 0) return (dx * 60) / seg.bpm;
+  return (60 / seg.slope) * Math.log((seg.bpm + seg.slope * dx) / seg.bpm);
 }
 
-/** Beats elapsed after `ds` seconds from a segment start at `bpm` with `slope` BPM/beat. */
-function segBeats(bpm: number, slope: number, ds: Seconds): Beats {
-  if (Math.abs(slope) < 1e-12) return (ds * bpm) / 60;
-  return (bpm * (Math.exp((slope * ds) / 60) - 1)) / slope;
+/** Beats elapsed after `ds` seconds into a segment. */
+function segBeats(seg: TempoSeg, ds: Seconds): Beats {
+  if (seg.slope === 0) return (ds * seg.bpm) / 60;
+  return (seg.bpm * (Math.exp((seg.slope * ds) / 60) - 1)) / seg.slope;
+}
+
+/** Index of the last element with `key(el) <= x` (0 if none). */
+function lastAtOrBefore<T>(arr: ReadonlyArray<T>, x: number, key: (el: T) => number): number {
+  let lo = 0;
+  let hi = arr.length - 1;
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >> 1;
+    if (key(arr[mid]!) <= x) lo = mid;
+    else hi = mid - 1;
+  }
+  return lo;
 }
 
 export class TempoMap {
   private readonly tempo: TempoSeg[];
+  /** Seconds from the first point to beat 0. */
+  private readonly offset: Seconds;
   private readonly sigs: SigSeg[];
 
   constructor(tempoPoints: ReadonlyArray<TempoPoint>, signatures: ReadonlyArray<TimeSignaturePoint>) {
     const tp = [...tempoPoints].sort(byTime);
-    this.tempo = [];
-    if (tp.length === 0 || tp[0]!.time > 0) this.tempo.push({ time: 0, bpm: tp[0]?.bpm ?? DEFAULT_BPM, slope: 0, seconds: 0 });
-    for (let i = 0; i < tp.length; i++) {
-      const p = tp[i]!;
+    if (tp.length === 0) tp.push({ id: "", time: 0, bpm: DEFAULT_BPM, curve: "Step" });
+    this.tempo = tp.map((p, i) => {
       const next = tp[i + 1];
-      const slope = p.curve === "Linear" && next && next.time > p.time ? (next.bpm - p.bpm) / (next.time - p.time) : 0;
-      this.tempo.push({ time: Math.max(0, p.time), bpm: p.bpm, slope, seconds: 0 });
-    }
+      const len = next ? next.time - p.time : 0;
+      const ramps = p.curve === "Linear" && next !== undefined && len > BEATS_EPSILON && Math.abs(next.bpm - p.bpm) > 1e-9;
+      return { time: p.time, bpm: p.bpm, slope: ramps ? (next.bpm - p.bpm) / len : 0, seconds: 0 };
+    });
     for (let i = 1; i < this.tempo.length; i++) {
       const prev = this.tempo[i - 1]!;
-      const seg = this.tempo[i]!;
-      seg.seconds = prev.seconds + segSeconds(prev.bpm, prev.slope, seg.time - prev.time);
+      this.tempo[i]!.seconds = prev.seconds + segSeconds(prev, this.tempo[i]!.time - prev.time);
     }
+    this.offset = this.secondsFromFirst(0);
 
+    // Signatures: the first one applies from beat 0 (as in the model).
     const sp = [...signatures].sort(byTime);
-    this.sigs = [];
-    if (sp.length === 0 || sp[0]!.time > 0) this.sigs.push({ time: 0, signature: sp[0]?.signature ?? DEFAULT_SIGNATURE, bar: 1 });
-    for (const p of sp) {
-      const prev = this.sigs[this.sigs.length - 1];
-      let bar = 1;
-      if (prev) {
-        if (p.time <= prev.time) {
-          // Duplicate at the same time: the later one wins.
-          prev.signature = p.signature;
-          continue;
-        }
-        bar = prev.bar + Math.round((p.time - prev.time) / beatsPerBar(prev.signature));
+    this.sigs = [{ time: 0, signature: sp[0]?.signature ?? DEFAULT_SIGNATURE, bar: 1 }];
+    for (const p of sp.slice(1)) {
+      const prev = this.sigs[this.sigs.length - 1]!;
+      if (p.time <= prev.time + BEATS_EPSILON) {
+        prev.signature = p.signature;
+        continue;
       }
-      this.sigs.push({ time: Math.max(0, p.time), signature: p.signature, bar });
+      const bpb = beatsPerBar(prev.signature);
+      const bars = Math.round(ceilBeats(p.time - prev.time, bpb) / bpb);
+      this.sigs.push({ time: p.time, signature: p.signature, bar: prev.bar + bars });
     }
   }
 
@@ -123,86 +137,79 @@ export class TempoMap {
 
   /** Constant tempo/signature map (tests, empty states). */
   static constant(bpm = DEFAULT_BPM, signature: TimeSignature = DEFAULT_SIGNATURE): TempoMap {
-    return new TempoMap(
-      [{ id: "t", time: 0, bpm, curve: "Step" }],
-      [{ id: "s", time: 0, signature }],
-    );
+    return new TempoMap([{ id: "t", time: 0, bpm, curve: "Step" }], [{ id: "s", time: 0, signature }]);
   }
 
-  private tempoSegAt(beats: Beats): TempoSeg {
-    let lo = 0;
-    let hi = this.tempo.length - 1;
-    while (lo < hi) {
-      const mid = (lo + hi + 1) >> 1;
-      if (this.tempo[mid]!.time <= beats) lo = mid;
-      else hi = mid - 1;
-    }
-    return this.tempo[lo]!;
+  private secondsFromFirst(beats: Beats): Seconds {
+    const first = this.tempo[0]!;
+    if (beats <= first.time) return ((beats - first.time) * 60) / first.bpm;
+    const seg = this.tempo[lastAtOrBefore(this.tempo, beats, (s) => s.time)]!;
+    return seg.seconds + segSeconds(seg, beats - seg.time);
   }
 
-  private sigSegAt(beats: Beats): SigSeg {
-    let found = this.sigs[0]!;
-    for (const s of this.sigs) {
-      if (s.time <= beats + BEATS_EPSILON) found = s;
-      else break;
-    }
-    return found;
-  }
-
+  /** Instantaneous tempo at `beats` (interpolated inside linear segments). */
   bpmAt(beats: Beats): number {
-    const s = this.tempoSegAt(beats);
-    return s.bpm + s.slope * Math.max(0, beats - s.time);
+    const seg = this.tempo[lastAtOrBefore(this.tempo, beats + BEATS_EPSILON, (s) => s.time)]!;
+    if (seg.slope === 0) return seg.bpm;
+    const i = this.tempo.indexOf(seg);
+    const len = this.tempo[i + 1]!.time - seg.time;
+    return seg.bpm + seg.slope * Math.min(len, Math.max(0, beats - seg.time));
   }
 
-  /** Seconds from beat 0. Negative beats extrapolate the initial tempo. */
+  /** Seconds from beat 0 (negative before it). */
   beatsToSeconds(beats: Beats): Seconds {
-    const s = this.tempoSegAt(beats);
-    return s.seconds + segSeconds(s.bpm, s.slope, beats - s.time);
+    return this.secondsFromFirst(beats) - this.offset;
   }
 
   /** Inverse of `beatsToSeconds`. */
   secondsToBeats(seconds: Seconds): Beats {
-    let lo = 0;
-    let hi = this.tempo.length - 1;
-    while (lo < hi) {
-      const mid = (lo + hi + 1) >> 1;
-      if (this.tempo[mid]!.seconds <= seconds) lo = mid;
-      else hi = mid - 1;
-    }
-    const s = this.tempo[lo]!;
-    return s.time + segBeats(s.bpm, s.slope, seconds - s.seconds);
+    const first = this.tempo[0]!;
+    const abs = seconds + this.offset;
+    if (abs <= 0) return first.time + (abs * first.bpm) / 60;
+    const seg = this.tempo[lastAtOrBefore(this.tempo, abs, (s) => s.seconds)]!;
+    return seg.time + segBeats(seg, abs - seg.seconds);
   }
 
+  private sigSegAt(beats: Beats): SigSeg {
+    return this.sigs[lastAtOrBefore(this.sigs, beats + BEATS_EPSILON, (s) => s.time)]!;
+  }
+
+  /** Signature in effect at `beats`. */
   signatureAt(beats: Beats): TimeSignature {
     return this.sigSegAt(beats).signature;
   }
 
-  /** The bar containing `beats` (bar lines within epsilon count as the next bar). */
+  /** The bar containing `beats` (a position within epsilon below a bar line is on it). */
   barAt(beats: Beats): BarLine {
     const seg = this.sigSegAt(beats);
-    const len = beatsPerBar(seg.signature);
-    const start = seg.time + floorBeats(beats - seg.time, len);
-    return { bar: seg.bar + Math.round((start - seg.time) / len), beats: start, signature: seg.signature };
+    const bpb = beatsPerBar(seg.signature);
+    const n = Math.floor((beats - seg.time + BEATS_EPSILON) / bpb);
+    return { bar: seg.bar + n, beats: seg.time + n * bpb, signature: seg.signature };
+  }
+
+  /** The bar after `line` (cut short by a signature change that isn't on a bar line). */
+  nextBar(line: BarLine): BarLine {
+    let start = line.beats + beatsPerBar(line.signature);
+    const nextSig = this.sigs.find((s) => s.time > line.beats + BEATS_EPSILON);
+    if (nextSig && nextSig.time < start - BEATS_EPSILON) start = nextSig.time;
+    return { bar: line.bar + 1, beats: start, signature: this.sigSegAt(start).signature };
   }
 
   /** Start (in beats) of 1-based bar number `bar`. */
   barToBeats(bar: number): Beats {
-    let seg = this.sigs[0]!;
-    for (const s of this.sigs) {
-      if (s.bar <= bar) seg = s;
-      else break;
-    }
+    const seg = this.sigs[lastAtOrBefore(this.sigs, bar, (s) => s.bar)]!;
     return seg.time + (bar - seg.bar) * beatsPerBar(seg.signature);
   }
 
   /** 1-based bar/beat/fraction of a position. */
   barBeat(beats: Beats): BarBeat {
-    const bar = this.barAt(beats);
-    const unit = beatUnit(bar.signature);
-    const inBar = Math.max(0, beats - bar.beats);
-    const beatIdx = Math.floor((inBar + BEATS_EPSILON) / unit);
-    const fraction = Math.max(0, (inBar - beatIdx * unit) / unit);
-    return { bar: bar.bar, beat: beatIdx + 1, fraction: fraction < BEATS_EPSILON ? 0 : fraction };
+    const line = this.barAt(beats);
+    const sig = line.signature;
+    const unit = beatUnit(sig);
+    const rem = Math.max(0, beats - line.beats);
+    const idx = Math.min(Math.floor((rem + BEATS_EPSILON) / unit), Math.max(1, sig.numerator) - 1);
+    const fraction = Math.min(1, Math.max(0, (rem - idx * unit) / unit));
+    return { bar: line.bar, beat: idx + 1, fraction: fraction < 1e-6 || fraction >= 1 ? 0 : fraction };
   }
 
   /** Bar lines with `from <= beats < to`, every `everyBars` bars (counted from bar 1). */
@@ -211,21 +218,14 @@ export class TempoMap {
     const step = Math.max(1, Math.round(everyBars));
     let line = this.barAt(from);
     if (line.beats < from - BEATS_EPSILON) line = this.nextBar(line);
-    // Align to a multiple of `step` (bar 1, 1+step, ...).
-    while ((line.bar - 1) % step !== 0) line = this.nextBar(line);
+    // Align to bars 1, 1 + step, ...
+    while ((((line.bar - 1) % step) + step) % step !== 0) line = this.nextBar(line);
     let guard = 0;
     while (line.beats < to - BEATS_EPSILON && guard++ < 100_000) {
       out.push(line);
       for (let i = 0; i < step; i++) line = this.nextBar(line);
     }
     return out;
-  }
-
-  /** The bar after `line`. */
-  nextBar(line: BarLine): BarLine {
-    const start = line.beats + beatsPerBar(line.signature);
-    const seg = this.sigSegAt(start);
-    return { bar: line.bar + 1, beats: start, signature: seg.signature };
   }
 }
 

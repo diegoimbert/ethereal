@@ -72,6 +72,39 @@ describe("TempoMap", () => {
     expect(m.barBeat(4)).toEqual({ bar: 2, beat: 3, fraction: 0 });
   });
 
+  it("matches the model's bar_beat vectors (4/4, 6/8 at 8, 3/4 at 12)", () => {
+    const m = new TempoMap([], [sig(0, 4, 4), sig(8, 6, 8), sig(12, 3, 4)]);
+    const bb = (b: number) => {
+      const r = m.barBeat(b);
+      return [r.bar, r.beat, r.fraction];
+    };
+    expect(bb(0)).toEqual([1, 1, 0]);
+    expect(bb(5)).toEqual([2, 2, 0]);
+    expect(bb(5.5)).toEqual([2, 2, 0.5]);
+    expect(bb(3.9999999)).toEqual([2, 1, 0]);
+    expect(bb(8)).toEqual([3, 1, 0]);
+    expect(bb(8.5)).toEqual([3, 2, 0]);
+    expect(bb(11)).toEqual([4, 1, 0]);
+    expect(bb(12)).toEqual([5, 1, 0]);
+    expect(bb(16)).toEqual([6, 2, 0]);
+    expect(bb(-4)).toEqual([0, 1, 0]);
+    expect(m.signatureAt(9).numerator).toBe(6);
+    expect(m.signatureAt(1).numerator).toBe(4);
+  });
+
+  it("a signature change off a bar line ends the bar early", () => {
+    // 4/4 then 3/4 at beat 6 (mid bar 2): bar 2 is 2 beats long, bar 3 starts at 6.
+    const m = new TempoMap([], [sig(0, 4, 4), sig(6, 3, 4)]);
+    expect(m.barBeat(6)).toEqual({ bar: 3, beat: 1, fraction: 0 });
+    expect(m.barLines(0, 10).map((b) => b.beats)).toEqual([0, 4, 6, 9]);
+  });
+
+  it("negative beats and seconds extrapolate the first tempo", () => {
+    const m = new TempoMap([tp(0, 120), tp(8, 60)], []);
+    expect(m.beatsToSeconds(-2)).toBeCloseTo(-1);
+    expect(m.secondsToBeats(-1)).toBeCloseTo(-2);
+  });
+
   it("barLines enumerates bars, optionally every N", () => {
     const m = new TempoMap([tp(0, 120)], [sig(0, 4, 4), sig(8, 3, 4)]);
     expect(m.barLines(0, 15).map((b) => [b.bar, b.beats])).toEqual([
