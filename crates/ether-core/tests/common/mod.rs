@@ -308,3 +308,56 @@ pub fn mem_source(frames: usize) -> Arc<dyn AudioSource> {
         (0..frames).map(|i| (i % 1000) as f32 / 1000.0).collect(),
     ))
 }
+
+/// Stereo in, mono out: sums its inputs into one channel.
+pub struct MonoSum;
+
+impl Node for MonoSum {
+    fn prepare(&mut self, _: &PrepareConfig) {}
+    fn reset(&mut self) {}
+    fn process(
+        &mut self,
+        _: &mut ProcessContext<'_>,
+        audio: &mut AudioBuffers<'_, '_>,
+    ) -> ProcessStatus {
+        let n = audio.outputs[0].len();
+        for i in 0..n {
+            audio.outputs[0][i] = audio.inputs.iter().map(|c| c[i]).sum::<f32>() * 0.5;
+        }
+        ProcessStatus::Continue
+    }
+    fn channels(&self) -> (u16, u16) {
+        (2, 1)
+    }
+}
+
+/// MIDI effect: emits `per_block` note-ons per call into `out_events` (for the next
+/// device), passing audio through. A large `per_block` overflows the event buffers.
+pub struct NoteEmitter {
+    pub per_block: usize,
+}
+
+impl Node for NoteEmitter {
+    fn prepare(&mut self, _: &PrepareConfig) {}
+    fn reset(&mut self) {}
+    fn process(
+        &mut self,
+        ctx: &mut ProcessContext<'_>,
+        audio: &mut AudioBuffers<'_, '_>,
+    ) -> ProcessStatus {
+        for i in 0..self.per_block {
+            let _ = ctx.out_events.push(ether_core::ProcessEvent {
+                offset: (i % ctx.frames) as u32,
+                kind: EventKind::NoteOn {
+                    note_id: i as u32,
+                    channel: 0,
+                    key: 60,
+                    velocity: 1.0,
+                },
+            });
+        }
+        ctx.out_events.sort();
+        audio.pass_through();
+        ProcessStatus::Continue
+    }
+}

@@ -26,14 +26,9 @@ pub(crate) struct Piece {
     pub end: f64,
 }
 
-/// Call `f` for every linear piece of `clip` (placed at timeline `start`) inside `[r0, r1)`.
-pub(crate) fn for_each_piece(
-    clip: &ClipDesc,
-    start: f64,
-    r0: f64,
-    r1: f64,
-    mut f: impl FnMut(Piece),
-) {
+/// Call `f` for every linear piece of `clip` (at timeline `clip.start`) inside `[r0, r1)`.
+pub(crate) fn for_each_piece(clip: &ClipDesc, r0: f64, r1: f64, mut f: impl FnMut(Piece)) {
+    let start = clip.start;
     let clip_end = start + clip.length.max(0.0);
     let a = r0.max(start);
     let b = r1.min(clip_end);
@@ -88,9 +83,9 @@ pub(crate) fn for_each_piece(
 }
 
 /// Is timeline beat `t` inside the clip, and at which content position?
-pub(crate) fn content_at(clip: &ClipDesc, start: f64, t: f64) -> Option<f64> {
+pub(crate) fn content_at(clip: &ClipDesc, t: f64) -> Option<f64> {
     let mut out = None;
-    for_each_piece(clip, start, t, t + 1e-9, |p| out = Some(p.c0 + (t - p.t0)));
+    for_each_piece(clip, t, t + 1e-9, |p| out = Some(p.c0 + (t - p.t0)));
     out
 }
 
@@ -219,13 +214,8 @@ impl NoteSink<'_> {
     }
 }
 
-/// Schedule note-ons of a MIDI clip placed at `start` for the sub-block.
-pub(crate) fn schedule_notes(
-    clip: &ClipDesc,
-    start: f64,
-    timing: &Timing<'_>,
-    sink: &mut NoteSink<'_>,
-) {
+/// Schedule note-ons of a MIDI clip for the sub-block.
+pub(crate) fn schedule_notes(clip: &ClipDesc, timing: &Timing<'_>, sink: &mut NoteSink<'_>) {
     let ClipContentDesc::Midi { notes } = &clip.content else {
         return;
     };
@@ -233,7 +223,7 @@ pub(crate) fn schedule_notes(
         return;
     }
     let (r0, r1) = timing.event_range();
-    for_each_piece(clip, start, r0, r1, |p| {
+    for_each_piece(clip, r0, r1, |p| {
         let c_end = p.c0 + (p.t1 - p.t0);
         let first = notes.partition_point(|n| n.start < p.c0);
         for n in &notes[first..] {
@@ -269,7 +259,7 @@ pub(crate) fn source_seconds(warp: Option<&WarpDesc>, ref_bpm: f64, c: f64) -> f
     }
 }
 
-/// Render (add) an audio clip placed at `start` into `out` for the sub-block. Reads through
+/// Render (add) an audio clip into `out` for the sub-block. Reads through
 /// `scratch` (≥ 2 × frames recommended). Returns `false` on a source underrun.
 ///
 /// Warped clips play back by resampling (linear interpolation), i.e. `Repitch`
@@ -278,7 +268,6 @@ pub(crate) fn source_seconds(warp: Option<&WarpDesc>, ref_bpm: f64, c: f64) -> f
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn render_audio(
     clip: &ClipDesc,
-    start: f64,
     source: &dyn AudioSource,
     ref_bpm: f64,
     timing: &Timing<'_>,
@@ -299,6 +288,7 @@ pub(crate) fn render_audio(
         return true;
     }
     let sr = timing.sample_rate;
+    let start = clip.start;
     let clip_end = start + clip.length;
     let bps = (timing.b1 - timing.b0) / timing.frames.max(1) as f64;
     let declick = DECLICK_SAMPLES * bps;
@@ -309,7 +299,7 @@ pub(crate) fn render_audio(
     let [out_l, out_r] = out;
     let mut ok = true;
     let cap = scratch.len();
-    for_each_piece(clip, start, timing.b0, timing.b1, |p| {
+    for_each_piece(clip, timing.b0, timing.b1, |p| {
         let o_a = timing.sample_ceil(p.t0);
         let o_b = timing.sample_ceil(p.t1);
         let frame_at = |o: usize| {
@@ -377,10 +367,10 @@ mod tests {
     use super::*;
     use ether_protocol::model::ClipId;
 
-    fn clip(length: f64, offset: f64, looping: Option<(f64, f64)>) -> ClipDesc {
+    fn clip(start: f64, length: f64, offset: f64, looping: Option<(f64, f64)>) -> ClipDesc {
         ClipDesc {
             id: ClipId::NIL,
-            start: 0.0,
+            start,
             length,
             offset,
             looping,
@@ -390,34 +380,34 @@ mod tests {
         }
     }
 
-    fn pieces(c: &ClipDesc, start: f64, r0: f64, r1: f64) -> Vec<(f64, f64, f64, f64)> {
+    fn pieces(c: &ClipDesc, r0: f64, r1: f64) -> Vec<(f64, f64, f64, f64)> {
         let mut v = vec![];
-        for_each_piece(c, start, r0, r1, |p| v.push((p.t0, p.t1, p.c0, p.end)));
+        for_each_piece(c, r0, r1, |p| v.push((p.t0, p.t1, p.c0, p.end)));
         v
     }
 
     #[test]
     fn unlooped_piece() {
-        let c = clip(4.0, 1.0, None);
-        assert_eq!(pieces(&c, 8.0, 0.0, 100.0), vec![(8.0, 12.0, 1.0, 12.0)]);
-        assert_eq!(pieces(&c, 8.0, 9.0, 10.0), vec![(9.0, 10.0, 2.0, 12.0)]);
-        assert!(pieces(&c, 8.0, 12.0, 13.0).is_empty());
+        let c = clip(8.0, 4.0, 1.0, None);
+        assert_eq!(pieces(&c, 0.0, 100.0), vec![(8.0, 12.0, 1.0, 12.0)]);
+        assert_eq!(pieces(&c, 9.0, 10.0), vec![(9.0, 10.0, 2.0, 12.0)]);
+        assert!(pieces(&c, 12.0, 13.0).is_empty());
     }
 
     #[test]
     fn looped_pieces() {
         // Offset 1, loop [0, 2): content 1,(0..2),(0..2)... over 5 beats.
-        let c = clip(5.0, 1.0, Some((0.0, 2.0)));
+        let c = clip(0.0, 5.0, 1.0, Some((0.0, 2.0)));
         assert_eq!(
-            pieces(&c, 0.0, 0.0, 10.0),
+            pieces(&c, 0.0, 10.0),
             vec![
                 (0.0, 1.0, 1.0, 1.0),
                 (1.0, 3.0, 0.0, 3.0),
                 (3.0, 5.0, 0.0, 5.0)
             ]
         );
-        assert_eq!(pieces(&c, 0.0, 3.5, 4.0), vec![(3.5, 4.0, 0.5, 5.0)]);
-        assert_eq!(content_at(&c, 0.0, 4.25), Some(1.25));
+        assert_eq!(pieces(&c, 3.5, 4.0), vec![(3.5, 4.0, 0.5, 5.0)]);
+        assert_eq!(content_at(&c, 4.25), Some(1.25));
     }
 
     #[test]
