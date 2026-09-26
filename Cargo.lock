@@ -1117,6 +1117,9 @@ dependencies = [
 name = "ether-desktop"
 version = "0.0.1"
 dependencies = [
+ "assert_no_alloc",
+ "ether-core",
+ "ether-native",
  "serde",
  "serde_json",
  "tauri",
