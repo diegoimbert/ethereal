@@ -100,7 +100,7 @@ pub enum ReplyResult {
 pub enum ReplyValue {
     Unit,
     Project {
-        project: Project,
+        project: Box<Project>,
     },
     /// `json` is set for `ProjectTarget::Json` saves; `path` for file saves.
     Saved {
@@ -167,7 +167,7 @@ pub enum ErrorCode {
 pub enum Event {
     /// A whole new document (new/open/reconnect). Replaces the UI mirror.
     ProjectLoaded {
-        project: Project,
+        project: Box<Project>,
         path: Option<String>,
     },
     /// Incremental document change (see `ether_model::patch`).

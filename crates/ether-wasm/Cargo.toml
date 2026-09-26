@@ -13,6 +13,9 @@ publish.workspace = true
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
+ether-core.workspace = true
+ether-controller.workspace = true
+wasm-bindgen.workspace = true
 
 [lints]
 workspace = true

@@ -120,3 +120,5 @@ missing_debug_implementations = "allow"
 [workspace.lints.clippy]
 # `todo!()` stubs are intentional in the foundation scaffold; nodes remove them.
 todo = "allow"
+# Stubs hide their future internals behind a private `_private: ()` field.
+manual_non_exhaustive = "allow"

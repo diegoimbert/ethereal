@@ -11,5 +11,10 @@ publish.workspace = true
 
 [dependencies]
 
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+ether-core.workspace = true
+ether-controller.workspace = true
+thiserror.workspace = true
+
 [lints]
 workspace = true

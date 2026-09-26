@@ -30,9 +30,9 @@ pub struct EtherFile {
     pub project: Project,
 }
 
-/// Upgrades an untyped document from `from_version()` to `from_version() + 1`.
+/// Upgrades an untyped document from `source_version()` to `source_version() + 1`.
 pub trait Migration: Send + Sync {
-    fn from_version(&self) -> u32;
+    fn source_version(&self) -> u32;
     fn migrate(&self, doc: &mut serde_json::Value) -> Result<(), FileError>;
 }
 
