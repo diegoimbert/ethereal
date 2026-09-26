@@ -1,0 +1,196 @@
+//! Per-track runtime state of a compiled snapshot: device-chain buffers, fader, pan,
+//! mute/solo gate, sends, PDC delay lines, active notes and meters.
+//!
+//! Everything here is allocated by the compiler (off the audio thread). When a snapshot is
+//! swapped in, the audio thread moves the running state (smoother positions, delay-line
+//! contents, sounding notes, meter accumulators) over from the previous snapshot's track
+//! with the same id ([`TrackRt::inherit`]); that only swaps pointers, never allocates.
+
+use ether_protocol::model::{SendId, TrackId};
+
+use crate::delay::DelayLine;
+use crate::event::EventBuffer;
+use crate::node::NodeKey;
+use crate::param::Smoother;
+
+/// Ramp time for fader, pan, send and mute changes.
+pub(crate) const MIX_RAMP_MS: f32 = 10.0;
+/// Sounding notes tracked per track (for note-offs at note end, stop, loop and locate).
+pub(crate) const MAX_ACTIVE_NOTES: usize = 512;
+/// Live parameter events queued per chain node between two blocks.
+pub(crate) const MAX_PENDING_EVENTS: usize = 128;
+
+pub(crate) type Stereo = [Vec<f32>; 2];
+
+pub(crate) fn stereo(frames: usize) -> Stereo {
+    [vec![0.0; frames], vec![0.0; frames]]
+}
+
+#[derive(Debug)]
+pub(crate) struct ChainRt {
+    pub key: NodeKey,
+    pub enabled: bool,
+    pub channels: (u16, u16),
+    /// Events for the current sub-block (sorted before `process`).
+    pub events: EventBuffer,
+    /// Live param changes waiting for the next sub-block.
+    pub pending: EventBuffer,
+}
+
+#[derive(Debug)]
+pub(crate) struct SendRt {
+    pub id: SendId,
+    pub target: usize,
+    pub pre_fader: bool,
+    pub level: Smoother,
+    /// PDC: aligns this send with the other inputs of `target`.
+    pub delay: DelayLine,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct ActiveNote {
+    pub note_id: u32,
+    pub key: u8,
+    /// Timeline beat of the note-off.
+    pub end: f64,
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+pub(crate) struct MeterAccum {
+    pub peak: [f32; 2],
+    pub sum_sq: [f32; 2],
+    pub count: u32,
+    pub clipped: bool,
+}
+
+impl MeterAccum {
+    pub(crate) fn add(&mut self, l: &[f32], r: &[f32]) {
+        for (ch, buf) in [l, r].into_iter().enumerate() {
+            let mut peak = self.peak[ch];
+            let mut sum = 0.0f32;
+            for &s in buf {
+                let a = s.abs();
+                peak = peak.max(a);
+                sum += s * s;
+            }
+            self.peak[ch] = peak;
+            self.sum_sq[ch] += sum;
+            if peak >= 1.0 {
+                self.clipped = true;
+            }
+        }
+        self.count += l.len() as u32;
+    }
+
+    pub(crate) fn rms(&self) -> [f32; 2] {
+        if self.count == 0 {
+            return [0.0; 2];
+        }
+        let n = self.count as f32;
+        [(self.sum_sq[0] / n).sqrt(), (self.sum_sq[1] / n).sqrt()]
+    }
+}
+
+#[derive(Debug)]
+pub(crate) struct TrackRt {
+    pub id: TrackId,
+    /// Index of the destination bus track.
+    pub output: Option<usize>,
+    /// Enclosing group (mute propagation).
+    pub parent: Option<usize>,
+    /// Master bus: output goes to the hardware.
+    pub to_hardware: bool,
+    pub chain: Vec<ChainRt>,
+    pub sends: Vec<SendRt>,
+    /// Keeps a constant latency when devices with latency are bypassed.
+    pub bypass_delay: DelayLine,
+    /// PDC: aligns this track's output with the other inputs of `output`.
+    pub output_delay: DelayLine,
+    pub volume: Smoother,
+    pub pan: Smoother,
+    /// 1 = audible, 0 = muted (mute, group mute, or not soloed while something is).
+    pub gate: Smoother,
+    pub mute: bool,
+    /// False when another track is soloed and nothing keeps this one audible.
+    pub solo_ok: bool,
+    pub audio_input: Option<(u16, u16)>,
+    pub monitor: bool,
+    /// Ping-pong buffers for the device chain (current signal in `a`).
+    pub a: Stereo,
+    pub b: Stereo,
+    /// Scratch (sends, clip rendering).
+    pub scratch: Stereo,
+    pub out_events: EventBuffer,
+    pub notes: Vec<ActiveNote>,
+    /// Last value sent per automation lane (NaN = none yet).
+    pub auto_last: Vec<f64>,
+    pub meter: MeterAccum,
+    /// Compiled latency of this track's output (for tests/diagnostics).
+    pub out_latency: u32,
+}
+
+impl TrackRt {
+    /// RT. Carry running state over from the previous snapshot's version of this track.
+    pub(crate) fn inherit(&mut self, old: &mut TrackRt) {
+        let (vol, pan, gate) = (
+            self.volume.current(),
+            self.pan.current(),
+            self.gate.current(),
+        );
+        // New targets come from the new desc; start from where the old one was.
+        self.volume = old.volume;
+        self.volume.set_target(vol);
+        self.pan = old.pan;
+        self.pan.set_target(pan);
+        self.gate = old.gate;
+        self.gate.set_target(gate);
+        self.output_delay.inherit(&mut old.output_delay);
+        self.bypass_delay.inherit(&mut old.bypass_delay);
+        for send in &mut self.sends {
+            if let Some(o) = old.sends.iter_mut().find(|s| s.id == send.id) {
+                let level = send.level.current();
+                send.level = o.level;
+                send.level.set_target(level);
+                if o.target == send.target {
+                    send.delay.inherit(&mut o.delay);
+                }
+            }
+        }
+        std::mem::swap(&mut self.notes, &mut old.notes);
+        self.meter = old.meter;
+    }
+}
+
+/// RT. Apply fader (volume × gate) and pan to `a` in place.
+pub(crate) fn apply_fader(
+    a: &mut Stereo,
+    volume: &mut Smoother,
+    pan: &mut Smoother,
+    gate: &mut Smoother,
+    frames: usize,
+) {
+    let [l, r] = a;
+    for (sl, sr) in l[..frames].iter_mut().zip(r[..frames].iter_mut()) {
+        let g = volume.tick() * gate.tick();
+        let p = pan.tick().clamp(-1.0, 1.0);
+        // Balance law: centre is unity on both sides.
+        let gl = if p > 0.0 { 1.0 - p } else { 1.0 };
+        let gr = if p < 0.0 { 1.0 + p } else { 1.0 };
+        *sl *= g * gl;
+        *sr *= g * gr;
+    }
+}
+
+/// RT. `dst += src * smoothed gain`.
+pub(crate) fn mix_into(dst: &mut [f32], src: &[f32], gain: &mut Smoother, advance: bool) {
+    if advance {
+        for (d, s) in dst.iter_mut().zip(src) {
+            *d += s * gain.tick();
+        }
+    } else {
+        let mut g = *gain;
+        for (d, s) in dst.iter_mut().zip(src) {
+            *d += s * g.tick();
+        }
+    }
+}

@@ -1,38 +1,47 @@
 //! CLAP plugin hosting via `clack` (native only).
 //!
-//! Provides the in-process implementation of `ether_core::PluginController` /
-//! `ether_core::PluginNode`, and the bundle scanning used by `ether-plugin-scanner` (the
-//! app itself never loads a plugin for scanning; that always happens out-of-process).
-//! Owned by the `clap` node (adds `clack-host`/`clack-extensions` from the workspace).
+//! Provides the in-process implementation of `ether_core::PluginController` ([`ClapPlugin`])
+//! / `ether_core::PluginNode` ([`ClapNode`]), and the bundle scanning used by
+//! `ether-plugin-scanner` (the app itself never loads a plugin for scanning; that always
+//! happens out-of-process, driven by [`ScanRunner`]).
+//!
+//! # Threading
+//! A [`ClapPlugin`] is `!Send` and must live on the thread that runs the plugin's CLAP
+//! main-thread callbacks; call [`PluginController::poll`] from it regularly (~30-60 Hz).
+//! Floating editor windows additionally need that thread to be the OS main thread on macOS.
+//! The [`ClapNode`] returned by `activate` is `Send` and goes to the engine.
+//!
+//! # Parameters
+//! CLAP parameter values are plain values, as in the document, so `ParamId` = CLAP param id
+//! and values pass through unchanged (`ParamScale::Linear`). While active, parameter changes
+//! reach the plugin as sample-accurate `EventKind::Param` events (or `Device::set_param`);
+//! changes made in the plugin's GUI come back from [`PluginController::poll`] as
+//! `ParamEdited` + gesture notifications.
 #![cfg(not(target_arch = "wasm32"))]
 
-use std::path::{Path, PathBuf};
+mod gui;
+mod host;
+mod node;
+mod params;
+mod plugin;
+pub mod scan;
+#[doc(hidden)]
+pub mod testing;
+
+use std::path::Path;
 
 use ether_core::plugin::{PluginController, PluginError};
-use ether_core::protocol::plugins::PluginDescriptor;
 
-/// Platform default CLAP search paths (+ `CLAP_PATH`).
-pub fn default_search_paths() -> Vec<PathBuf> {
-    todo!("clap node")
-}
-
-/// Enumerate `.clap` bundles under `paths` (no loading).
-pub fn find_bundles(paths: &[PathBuf]) -> Vec<PathBuf> {
-    let _ = paths;
-    todo!("clap node")
-}
-
-/// Load one bundle and list its plugins. Called ONLY inside the scanner process.
-pub fn scan_bundle(bundle: &Path) -> Result<Vec<PluginDescriptor>, PluginError> {
-    let _ = bundle;
-    todo!("clap node")
-}
+pub use node::ClapNode;
+pub use plugin::ClapPlugin;
+pub use scan::{
+    ScanReport, ScanRunner, category_from_features, default_search_paths, find_bundles, scan_bundle,
+};
 
 /// Instantiate a plugin in-process (main thread).
 pub fn instantiate(
     bundle: &Path,
     plugin_id: &str,
 ) -> Result<Box<dyn PluginController>, PluginError> {
-    let _ = (bundle, plugin_id);
-    todo!("clap node")
+    Ok(Box::new(ClapPlugin::load(bundle, plugin_id)?))
 }
