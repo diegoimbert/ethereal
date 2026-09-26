@@ -41,6 +41,7 @@ import type {
   TransportCommand,
   WarpCommand,
 } from "@/generated";
+import { BEATS_EPSILON, snapBeats } from "@/state/beats";
 import { compareOrderKeys, keyBetween, keyForInsert } from "@/state/orderKey";
 import { CommandFailedError } from "../EngineTransport";
 import { BUILTIN_DESCRIPTORS, builtinDescriptor, clampParam } from "./builtinDevices";
@@ -60,7 +61,7 @@ export function fail(code: ErrorCode, message: string): never {
   throw new CommandFailedError({ code, message });
 }
 
-const EPS = 1e-9;
+const EPS = BEATS_EPSILON;
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 const SILENCE_DB = -144;
 const MAX_DB = 6;
@@ -89,7 +90,8 @@ export function isDocumentCommand(command: Command): boolean {
         "SetSceneTimeSignature",
       ].includes(c.type);
     case "Project":
-      return c.type === "SetName";
+      // Only renaming the *current* project is a document edit (checked in the reducer).
+      return c.type === "Rename";
     case "Transport":
       return [
         "SetLoopEnabled",
@@ -100,7 +102,8 @@ export function isDocumentCommand(command: Command): boolean {
         "SetLaunchQuantization",
       ].includes(c.type);
     case "Recording":
-      return ["Arm", "SetMonitor", "SetInput", "SetCountIn"].includes(c.type);
+      // `Arm` is runtime state (not undoable), handled by the MockTransport itself.
+      return ["SetMonitor", "SetInput", "SetCountIn"].includes(c.type);
     case "Warp":
       return c.type !== "DetectTempo";
     default:
@@ -229,7 +232,7 @@ function deleteTrackCascade(ctx: ReducerContext, id: TrackId): void {
   // Re-route tracks that pointed at the deleted one.
   for (const t of ctx.tx.all("Track")) {
     if (t.id === id) continue;
-    const output = t.output.type === "Track" && t.output.track === id ? ({ type: "Master" } as const) : t.output;
+    const output = t.output.type === "Track" && t.output.track === id ? ({ type: "Default" } as const) : t.output;
     const input = t.input.type === "Track" && t.input.track === id ? ({ type: "None" } as const) : t.input;
     if (output !== t.output || input !== t.input) ctx.tx.upsert("Track", { ...t, output, input });
   }
@@ -841,7 +844,7 @@ function noteCommand(ctx: ReducerContext, c: NoteCommand): void {
       if (!(c.grid > 0)) fail("InvalidArgument", "grid must be > 0");
       const strength = clamp(c.strength, 0, 1);
       const ids = c.notes ? new Set(c.notes) : null;
-      const snap = (t: number) => t + (Math.round(t / c.grid) * c.grid - t) * strength;
+      const snap = (t: number) => t + (snapBeats(t, c.grid) - t) * strength;
       for (const n of tx.all("Note")) {
         if (n.clip !== c.clip || (ids && !ids.has(n.id))) continue;
         const start = Math.max(0, snap(n.start));
@@ -1040,22 +1043,16 @@ function transportSettingsCommand(ctx: ReducerContext, c: TransportCommand): voi
 }
 
 function projectCommand(ctx: ReducerContext, c: ProjectCommand): void {
-  if (c.type !== "SetName") fail("Internal", `not a document project command: ${c.type}`);
-  ctx.tx.setSettings({ ...ctx.tx.project.settings, name: c.name });
+  if (c.type !== "Rename") fail("Internal", `not a document project command: ${c.type}`);
+  if (c.id !== ctx.tx.project.id) fail("InvalidArgument", "only the current project can be renamed as a document edit");
+  const name = c.name.trim();
+  if (!name) fail("InvalidArgument", "project name must not be empty");
+  ctx.tx.setSettings({ ...ctx.tx.project.settings, name });
 }
 
 function recordingCommand(ctx: ReducerContext, c: RecordingCommand): void {
   const { tx } = ctx;
   switch (c.type) {
-    case "Arm": {
-      const t = track(ctx, c.track);
-      if (t.kind !== "Audio" && t.kind !== "Midi") fail("InvalidArgument", `${t.kind} tracks can't be armed`);
-      if (c.exclusive && c.armed) {
-        for (const o of tx.all("Track")) if (o.arm && o.id !== t.id) tx.upsert("Track", { ...o, arm: false });
-      }
-      tx.upsert("Track", { ...t, arm: c.armed });
-      break;
-    }
     case "SetMonitor":
       tx.upsert("Track", { ...track(ctx, c.track), monitor: c.monitor });
       break;

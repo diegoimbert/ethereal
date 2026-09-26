@@ -16,8 +16,9 @@ export interface TransportProviderProps {
 /**
  * Provides the `EngineTransport` to the tree and keeps the UI stores in sync with it:
  * - connects on mount and loads the returned project into `useProjectStore`;
- * - mirrors `ProjectLoaded` / `Patch` / `Transport` / `Session` events into the store
- *   (refetching the whole project on a revision gap);
+ * - mirrors `ProjectLoaded` / `Patch` / `Transport` / `Session` / `Project` (list, saved,
+ *   dirty) / `Recording::ArmChanged` events into the store (refetching the whole project on
+ *   a revision gap);
  * - forwards playhead and meter streams to `playheadStore`.
  */
 export function TransportProvider({ transport, children }: TransportProviderProps) {
@@ -43,7 +44,23 @@ export function TransportProvider({ transport, children }: TransportProviderProp
     const offEvent = transport.onEvent((event) => {
       switch (event.type) {
         case "ProjectLoaded":
-          store().loadProject(event.project, { path: event.path });
+          store().loadProject(event.project);
+          break;
+        case "Project":
+          switch (event.event.type) {
+            case "ListChanged":
+              store().setProjects(event.event.projects);
+              break;
+            case "Saved":
+              store().upsertProjectSummary(event.event.project);
+              break;
+            case "DirtyChanged":
+              store().setDirty(event.event.dirty);
+              break;
+          }
+          break;
+        case "Recording":
+          if (event.event.type === "ArmChanged") store().setArmedTracks(event.event.armed);
           break;
         case "Patch":
           if (store().applyPatch(event.patch) === "gap") refetch();
@@ -55,7 +72,7 @@ export function TransportProvider({ transport, children }: TransportProviderProp
           store().applySessionChanges(event.changes);
           break;
         default:
-          // Plugin/Recording/Media/Engine/Notification: consumed by features via useTransportEvent.
+          // Plugin/Media/Engine/Notification: consumed by features via useTransportEvent.
           break;
       }
     });

@@ -5,48 +5,72 @@
  *
  * ## Semantics (shared with the real engine)
  * - **Document**: a normalized `Project` (flat tables keyed by ULID, sibling order via
- *   fractional `OrderKey`s). `connect()` returns a copy; afterwards the UI only learns about
- *   changes through events.
+ *   fractional `OrderKey`s; the project itself is identified by a UUIDv7 `ProjectId`).
+ *   `connect()` returns a copy; afterwards the UI only learns about changes through events.
  * - **Patches before replies**: a document command applies atomically, then emits ONE
  *   `Event::Patch` (whole-entity `Upsert`/`Remove`/`Settings` changes, `revision` + 1,
  *   current `HistoryState`), and only then settles the `send()` promise. After
  *   `await send(...)` the store mirror already reflects the command.
  * - **Errors**: failing commands change nothing and reject with `CommandFailedError`.
- * - **Client-side ids**: commands that create entities carry their ids (`newId()`); the
- *   engine only generates ids for entities it creates on its own (children of duplicated
- *   tracks/clips/scenes, the right part of an overlap split).
+ * - **Client-side ids**: commands that create entities carry their ids (`newId()`, or
+ *   `newProjectId()` for projects); the engine only generates ids for entities it creates
+ *   on its own (children of duplicated tracks/clips/scenes, the right part of an overlap
+ *   split).
  * - **Undo**: every document command is one undo step. Commands sent with the same
  *   `gesture` merge into one step until `Edit::EndGesture` (or a command with another/no
  *   gesture). `Edit::Batch` applies several document commands as one all-or-nothing step
  *   (no transport commands, queries or nested batches inside). Undo/Redo emit patches.
+ * - **Engine-side files only**: the UI may run on another machine, so it never sends file
+ *   paths or file contents. Projects live in an engine-side store addressed by
+ *   `ProjectId` (here: an in-memory map `ProjectId → saved .ether JSON + modified_ms`,
+ *   seeded with "Demo", "Beat sketch" and "Ambient idea"; "Demo" is opened on connect).
+ *   `Project::List/Create/Open/Save/SaveAs/Duplicate/Rename/Delete` operate on it and emit
+ *   `Event::Project` (`ListChanged`, `Saved`, `DirtyChanged`). Renaming the *current*
+ *   project is an undoable document edit (settings name) that also updates the list.
+ *   Opening/creating another project autosaves a dirty current one first. The dirty flag
+ *   is set by any document patch and cleared by saves/loads.
+ * - **Media**: browsed through engine-visible locations (`Media::ListLocations`: a fake
+ *   "Library" of wav files and the current project's `media/` folder) with relative
+ *   paths. `Media::Import` "copies" a file into the project (`MediaRef.file` =
+ *   `media/<id>-<name>`), delivered as an undoable `Media` upsert patch.
+ * - **Record-arm** is runtime state, not document: `Recording::Arm` is not undoable and is
+ *   reported as `Event::Recording { ArmChanged { armed } }` on change and on connect.
+ * - **Routing**: `TrackOutput::Default` = the parent group's bus for tracks inside a group,
+ *   the master otherwise (the meters follow this). Groups nest via `Track.parent`;
+ *   deleting a group deletes its children.
  * - **Non-document state**: transport play state → `Event::Transport` (emitted on connect
  *   and whenever a field changes); session clip play states → `Event::Session`
  *   (`Queued` → `Playing` at the next quantization boundary, `Stopping` → `Stopped`);
  *   playhead (~60 Hz while playing) and meters (~30 Hz) on their own streams.
+ * - **Beats** are `f64`; all grid math uses the shared helpers of `@/state/beats`.
  * - Everything crossing the "wire" is JSON-cloned, like a real host would serialize it.
+ * - On connect the mock emits, in order: `Transport`, `Recording::ArmChanged`,
+ *   `Project::ListChanged`, `Project::DirtyChanged`.
  *
  * ## Mock limitations
  * - Tempo map is step-only (linear tempo ramps are treated as steps); scene tempo/time
  *   signature are stored but not applied on launch; Gate/Toggle/Repeat launch modes and
  *   legato behave like Trigger; `ReleaseClip`/`BackToArrangement` are no-ops.
  * - No audio. Meters are synthesized from what "would" play (clips under the playhead,
- *   playing session clips, volume/pan/mute); CPU load is fake.
- * - Replies `Err { code: "Unsupported" }`: plugins (insert/editor/sandbox/reload), file
- *   paths (`Project::Open/Save` with `Path`, `Save` without target, `Media::Import`,
- *   `Media::ListDirectory`), `Recording::SetRecording`, `Warp::DetectTempo`,
- *   `Engine::SetAudioConfig`.
+ *   playing session clips, volume/pan/mute, sends, group/default routing); CPU load is
+ *   fake. Library files only have metadata; peaks are synthesized deterministically.
+ * - Replies `Err { code: "Unsupported" }`: plugins (insert/editor/sandbox/reload),
+ *   `Media::BeginUpload` and `MediaSource::Upload` (reserved for v0.2),
+ *   `Recording::SetRecording`, `Warp::DetectTempo`, `Engine::SetAudioConfig`.
  * - Harmless answers: `Plugin::List` → no plugins, `Plugin::Rescan` → an empty scan,
- *   `Media::Preview/StopPreview` → Unit, `Recording::ListInputs` / `Engine::*` → fake
- *   devices, `Media::GetPeaks` → a deterministic synthetic waveform.
+ *   `Media::Preview/StopPreview` → Unit (after validating the source),
+ *   `Recording::ListInputs` / `Engine::*` → fake devices.
  * - Validation covers the common invariants, not all of them (e.g. routing cycles through
  *   group outputs are not detected).
  *
  * ## Testing
  * `new MockTransport({ timers: "manual" })` disables real timers; drive time with
- * `tick(ms)`. `seed` makes ids and meter noise deterministic.
+ * `tick(ms)` (wall-clock `modified_ms` then starts at a fixed date). `seed` makes ids and
+ * meter noise deterministic.
  */
 
 import type {
+  BrowseLocation,
   ClipId,
   ClipStateChange,
   Command,
@@ -57,12 +81,16 @@ import type {
   GestureId,
   HistoryState,
   MediaCommand,
+  MediaRef,
+  MediaSource,
   MeterFrame,
   PatchChange,
   PlayheadFrame,
   PluginCommand,
   Project,
   ProjectCommand,
+  ProjectId,
+  ProjectSummary,
   Quantization,
   RecordingCommand,
   ReplyValue,
@@ -76,15 +104,22 @@ import type {
 import { cmd } from "../cmd";
 import { CommandFailedError, Emitter, type EngineTransport, type SendOptions, type Unsubscribe } from "../EngineTransport";
 import { newId as defaultNewId } from "../ids";
-import { createDemoProject, createEmptyProject } from "./demoProject";
+import { BEATS_EPSILON } from "@/state/beats";
+import { createDemoProjects, createEmptyProject } from "./demoProject";
 import { fail, isDocumentCommand, labelOf, reduceDocumentCommand, sessionClipsInScene } from "./documentReducer";
+import { findLibraryFile, LIBRARY_ID, listLibraryFolder, MOCK_LOCATIONS, normalize, wavSize } from "./library";
 import { synthesizePeaks } from "./peaks";
-import { mulberry32, seededIdFactory } from "./random";
+import { mulberry32, SEED_TIME, seededIdFactory } from "./random";
 import { beatsPerBar, beatsToSeconds, bpmAt, nextGridLine, signatureAt } from "./tempo";
 import { changeKey, Tx } from "./tx";
 
 export interface MockTransportOptions {
-  /** Initial document (default: `createDemoProject()`). Copied, never mutated. */
+  /**
+   * Initial content of the engine-side project store; the first one is opened on connect
+   * (default: `createDemoProjects()`). Copied, never mutated.
+   */
+  projects?: Project[];
+  /** Shorthand for `projects: [project]`. */
   project?: Project;
   /** Simulated round-trip latency per command, in ms (default 0 = next microtask). */
   latencyMs?: number;
@@ -103,7 +138,8 @@ const APP_VERSION = "0.0.1-mock";
 
 const PLAYHEAD_INTERVAL_MS = 16;
 const METER_INTERVAL_MS = 33;
-const EPS = 1e-9;
+const EPS = BEATS_EPSILON;
+const HOUR_MS = 3_600_000;
 const UNIT: ReplyValue = { type: "Unit" };
 
 interface HistoryEntry {
@@ -113,6 +149,14 @@ interface HistoryEntry {
   redo: PatchChange[];
   /** Initial entity states (reapply to undo). */
   undo: PatchChange[];
+}
+
+/** A project in the mock's engine-side store. */
+interface StoredProject {
+  /** The saved `.ether` document (JSON of an `EtherFile`). */
+  json: string;
+  name: string;
+  modified_ms: number;
 }
 
 /** Per-track session playback runtime. Times are in `elapsed` beats (monotonic). */
@@ -175,15 +219,24 @@ export class MockTransport implements EngineTransport {
   private lastTransportJson = "";
   private tapTimes: number[] = [];
 
+  // Engine-side project store + runtime state outside the document.
+  private readonly store = new Map<ProjectId, StoredProject>();
+  private dirty = false;
+  private armed: TrackId[] = [];
+
   // Session + meters runtime.
   private readonly slots = new Map<TrackId, SlotRuntime>();
   private readonly levels = new Map<TrackId, number>();
   private metersSilent = false;
 
   constructor(opts: MockTransportOptions = {}) {
-    this.project = wire(opts.project ?? createDemoProject());
-    this.latencyMs = Math.max(0, opts.latencyMs ?? 0);
     this.manual = opts.timers === "manual";
+    const initial = opts.projects ?? (opts.project ? [opts.project] : createDemoProjects());
+    if (initial.length === 0) throw new Error("MockTransport needs at least one project");
+    // Stored projects get staggered save times (first = most recent).
+    initial.forEach((p, i) => this.storeProject(p, this.wallNow() - i * HOUR_MS));
+    this.project = wire(initial[0]!);
+    this.latencyMs = Math.max(0, opts.latencyMs ?? 0);
     this.historyLimit = opts.historyLimit ?? 500;
     this.newId = opts.seed !== undefined ? seededIdFactory(opts.seed + 1000) : defaultNewId;
     this.rand = mulberry32(opts.seed ?? 1);
@@ -199,6 +252,9 @@ export class MockTransport implements EngineTransport {
       this.timers.push(setInterval(() => this.meterStep(), METER_INTERVAL_MS));
     }
     this.syncTransport(true);
+    this.emit({ type: "Recording", event: { type: "ArmChanged", armed: this.armed } });
+    this.emitListChanged();
+    this.emit({ type: "Project", event: { type: "DirtyChanged", dirty: this.dirty } });
     return Promise.resolve(wire(this.project));
   }
 
@@ -275,19 +331,24 @@ export class MockTransport implements EngineTransport {
     return this.position;
   }
 
+  /** Summaries of the engine-side project store, most recently saved first. */
+  storedProjects(): ProjectSummary[] {
+    return this.summaries();
+  }
+
   // ─── Dispatch ─────────────────────────────────────────────────────────────────────────
 
   private execute(command: Command, gesture: GestureId | null): ReplyValue {
     const isEndGesture = command.domain === "Edit" && command.command.type === "EndGesture";
     if (!isEndGesture && gesture !== this.openGesture) this.openGesture = null;
 
+    // Project commands first: `Rename` is a document edit only for the current project.
+    if (command.domain === "Project") return this.projectCommand(command.command, gesture);
     if (isDocumentCommand(command)) return this.applyDocument([command], labelOf(command), gesture);
 
     switch (command.domain) {
       case "Transport":
         return this.transportCommand(command.command);
-      case "Project":
-        return this.projectCommand(command.command);
       case "Edit":
         return this.editCommand(command.command, gesture);
       case "Session":
@@ -300,7 +361,7 @@ export class MockTransport implements EngineTransport {
       case "Recording":
         return this.recordingCommand(command.command);
       case "Media":
-        return this.mediaCommand(command.command);
+        return this.mediaCommand(command.command, gesture);
       case "Engine":
         return this.engineCommand(command.command);
       case "Warp":
@@ -312,11 +373,20 @@ export class MockTransport implements EngineTransport {
 
   /** Apply document commands as one transaction / undo step and emit its patch. */
   private applyDocument(commands: Command[], label: string, gesture: GestureId | null): ReplyValue {
-    const tx = new Tx(this.project);
-    const ctx = { tx, newId: this.newId, position: this.position };
-    let value: ReplyValue = UNIT;
-    try {
+    return this.transact(label, gesture, (tx) => {
+      const ctx = { tx, newId: this.newId, position: this.position };
+      let value: ReplyValue = UNIT;
       for (const c of commands) value = reduceDocumentCommand(ctx, c);
+      return value;
+    });
+  }
+
+  /** Run `body` as one atomic transaction / undo step and emit its patch. */
+  private transact(label: string, gesture: GestureId | null, body: (tx: Tx) => ReplyValue): ReplyValue {
+    const tx = new Tx(this.project);
+    let value: ReplyValue;
+    try {
+      value = body(tx);
     } catch (e) {
       tx.rollback();
       throw e;
@@ -398,6 +468,12 @@ export class MockTransport implements EngineTransport {
   private emitPatch(changes: PatchChange[]): void {
     this.revision += 1;
     this.emit({ type: "Patch", patch: { revision: this.revision, changes, history: this.historyState() } });
+    this.setDirty(true);
+    // The current project's name is shown in the project list.
+    if (changes.some((c) => c.type === "Settings")) this.emitListChanged();
+    // Deleted tracks can't stay armed.
+    const armed = this.armed.filter((id) => this.project.tracks[id]);
+    if (armed.length !== this.armed.length) this.setArmed(armed);
     // Session runtime must forget removed clips (the UI store drops their states itself).
     for (const c of changes) {
       if (c.type !== "Remove" || c.key.type !== "Clip") continue;
@@ -432,7 +508,7 @@ export class MockTransport implements EngineTransport {
     this.emit({ type: "Transport", state });
   }
 
-  private loadProject(project: Project, path: string | null): void {
+  private loadProject(project: Project): void {
     this.project = project;
     this.undoStack = [];
     this.redoStack = [];
@@ -443,32 +519,132 @@ export class MockTransport implements EngineTransport {
     this.slots.clear();
     this.levels.clear();
     this.playheadDirty = true;
-    this.emit({ type: "ProjectLoaded", project, path });
+    this.emit({ type: "ProjectLoaded", project });
+    this.setArmed([]);
+    this.setDirty(false);
     this.syncTransport();
+  }
+
+  private setDirty(dirty: boolean): void {
+    if (dirty === this.dirty) return;
+    this.dirty = dirty;
+    this.emit({ type: "Project", event: { type: "DirtyChanged", dirty } });
+  }
+
+  private setArmed(armed: TrackId[]): void {
+    if (armed.length === this.armed.length && armed.every((id, i) => id === this.armed[i])) return;
+    this.armed = armed;
+    this.emit({ type: "Recording", event: { type: "ArmChanged", armed } });
   }
 
   // ─── Project ──────────────────────────────────────────────────────────────────────────
 
-  private projectCommand(c: ProjectCommand): ReplyValue {
+  private wallNow(): number {
+    return this.manual ? SEED_TIME + this.manualNow : Date.now();
+  }
+
+  private storeProject(project: Project, modified_ms: number): ProjectSummary {
+    const entry = { json: serializeEtherFile(project), name: project.settings.name, modified_ms };
+    this.store.set(project.id, entry);
+    return { id: project.id, name: entry.name, modified_ms };
+  }
+
+  private summaries(): ProjectSummary[] {
+    return [...this.store.entries()]
+      .map(([id, e]) => ({
+        id,
+        // The current project's (possibly unsaved) name is what the user sees.
+        name: id === this.project.id ? this.project.settings.name : e.name,
+        modified_ms: e.modified_ms,
+      }))
+      .sort((a, b) => b.modified_ms - a.modified_ms || a.name.localeCompare(b.name));
+  }
+
+  private emitListChanged(): void {
+    this.emit({ type: "Project", event: { type: "ListChanged", projects: this.summaries() } });
+  }
+
+  private stored(id: ProjectId): StoredProject {
+    return this.store.get(id) ?? fail("NotFound", `project ${id}`);
+  }
+
+  private checkNewProject(id: ProjectId, name: string): string {
+    if (this.store.has(id) || id === this.project.id) fail("InvalidArgument", `project ${id} already exists`);
+    const trimmed = name.trim();
+    if (!trimmed) fail("InvalidArgument", "project name must not be empty");
+    return trimmed;
+  }
+
+  /** Save the current project into the store. */
+  private saveCurrent(): ProjectSummary {
+    const summary = this.storeProject(this.project, this.wallNow());
+    this.emit({ type: "Project", event: { type: "Saved", project: summary } });
+    this.emitListChanged();
+    this.setDirty(false);
+    return summary;
+  }
+
+  private projectCommand(c: ProjectCommand, gesture: GestureId | null): ReplyValue {
     switch (c.type) {
-      case "New":
-        this.loadProject(createEmptyProject(this.newId), null);
-        return { type: "Project", project: this.project };
+      case "List":
+        return { type: "Projects", projects: this.summaries() };
       case "Get":
         return { type: "Project", project: this.project };
-      case "Open": {
-        if (c.source.type === "Path") return fail("Unsupported", "the mock engine cannot read files; use a Json source");
-        this.loadProject(parseEtherFile(c.source.json), null);
+      case "Create": {
+        const name = this.checkNewProject(c.id, c.name);
+        if (this.dirty) this.saveCurrent();
+        const project = createEmptyProject(this.newId, name, c.id);
+        this.storeProject(project, this.wallNow());
+        this.loadProject(project);
+        this.emitListChanged();
         return { type: "Project", project: this.project };
       }
-      case "Save": {
-        if (c.target === null) return fail("InvalidState", "project was never saved; pass a target");
-        if (c.target.type === "Path") return fail("Unsupported", "the mock engine cannot write files; use a Json target");
-        const file: EtherFile = { format: ETHER_FORMAT, version: ETHER_VERSION, app_version: APP_VERSION, project: this.project };
-        return { type: "Saved", path: null, json: JSON.stringify(file, null, 2) };
+      case "Open": {
+        const entry = this.stored(c.id);
+        if (this.dirty) this.saveCurrent();
+        // Re-read after a possible autosave (opening the current project reloads it).
+        this.loadProject(parseEtherFile(this.store.get(c.id)?.json ?? entry.json));
+        return { type: "Project", project: this.project };
       }
-      case "SetName":
-        return fail("Internal", "unreachable: SetName is a document command");
+      case "Save":
+        return { type: "Saved", project: this.saveCurrent() };
+      case "SaveAs": {
+        const name = this.checkNewProject(c.new_id, c.name);
+        const copy: Project = { ...wire(this.project), id: c.new_id };
+        copy.settings = { ...copy.settings, name };
+        this.storeProject(copy, this.wallNow());
+        this.loadProject(copy);
+        this.emitListChanged();
+        return { type: "Project", project: this.project };
+      }
+      case "Duplicate": {
+        const src = this.stored(c.id);
+        const name = this.checkNewProject(c.new_id, c.name);
+        const copy: Project = { ...parseEtherFile(src.json), id: c.new_id };
+        copy.settings = { ...copy.settings, name };
+        const summary = this.storeProject(copy, this.wallNow());
+        this.emitListChanged();
+        return { type: "Saved", project: summary };
+      }
+      case "Rename": {
+        if (c.id === this.project.id) {
+          return this.applyDocument([{ domain: "Project", command: c }], "Rename Project", gesture);
+        }
+        const entry = this.stored(c.id);
+        const name = c.name.trim();
+        if (!name) fail("InvalidArgument", "project name must not be empty");
+        const project = parseEtherFile(entry.json);
+        project.settings = { ...project.settings, name };
+        this.storeProject(project, this.wallNow());
+        this.emitListChanged();
+        return UNIT;
+      }
+      case "Delete":
+        if (c.id === this.project.id) fail("InvalidState", "cannot delete the open project");
+        this.stored(c.id);
+        this.store.delete(c.id);
+        this.emitListChanged();
+        return UNIT;
     }
   }
 
@@ -652,6 +828,13 @@ export class MockTransport implements EngineTransport {
   }
 
   private recordingCommand(c: RecordingCommand): ReplyValue {
+    if (c.type === "Arm") {
+      const t = this.project.tracks[c.track] ?? fail("NotFound", `track ${c.track}`);
+      if (t.kind !== "Audio" && t.kind !== "Midi") fail("InvalidArgument", `${t.kind} tracks can't be armed`);
+      const others = c.exclusive ? [] : this.armed.filter((id) => id !== t.id);
+      this.setArmed(c.armed ? [...others, t.id] : c.exclusive ? this.armed.filter((id) => id !== t.id) : others);
+      return UNIT;
+    }
     if (c.type === "ListInputs") {
       return {
         type: "Inputs",
@@ -667,18 +850,94 @@ export class MockTransport implements EngineTransport {
     return fail("Unsupported", "recording is not available in the mock engine");
   }
 
-  private mediaCommand(c: MediaCommand): ReplyValue {
+  private mediaCommand(c: MediaCommand, gesture: GestureId | null): ReplyValue {
     switch (c.type) {
       case "GetPeaks": {
         const media = this.project.media[c.request.media] ?? fail("NotFound", `media ${c.request.media}`);
         return { type: "Peaks", peaks: synthesizePeaks(media, c.request) };
       }
+      case "ListLocations":
+        return { type: "Locations", locations: [...MOCK_LOCATIONS] };
+      case "ListDirectory":
+        return { type: "Directory", listing: { location: c.location, path: normalize(c.path), entries: this.listDirectory(c.location, c.path) } };
+      case "Import": {
+        if (this.project.media[c.id]) fail("InvalidArgument", `media ${c.id} already exists`);
+        const media = this.resolveImport(c.id, c.source);
+        const value = this.transact("Import", gesture, (tx) => {
+          tx.upsert("Media", media);
+          return { type: "Media", media };
+        });
+        this.emit({ type: "Media", event: { type: "PeaksReady", media: media.id } });
+        return value;
+      }
       case "Preview":
+        this.checkSource(c.source);
+        return UNIT;
       case "StopPreview":
         return UNIT;
-      default:
-        return fail("Unsupported", "the mock engine has no file system");
+      case "BeginUpload":
+        return fail("Unsupported", "uploads are reserved for v0.2");
     }
+  }
+
+  private listDirectory(location: BrowseLocation, path: string) {
+    if (location.type === "Library") {
+      if (location.id !== LIBRARY_ID) fail("NotFound", `location ${location.id}`);
+      return listLibraryFolder(path) ?? fail("NotFound", `folder ${path}`);
+    }
+    // The project's media/ folder is flat.
+    if (normalize(path) !== "") fail("NotFound", `folder ${path}`);
+    const byFile = new Map<string, MediaRef>();
+    for (const m of Object.values(this.project.media)) byFile.set(m.file, m);
+    return [...byFile.values()]
+      .map((m) => {
+        const rel = m.file.replace(/^media\//, "");
+        return { name: rel, path: rel, kind: "Audio" as const, size: wavSize(m.frames, m.channels) };
+      })
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  /** Validate a media source; returns the project media it refers to, if any. */
+  private checkSource(source: MediaSource): MediaRef | null {
+    switch (source.type) {
+      case "Upload":
+        return fail("Unsupported", "uploads are reserved for v0.2");
+      case "Project":
+        return this.project.media[source.media] ?? fail("NotFound", `media ${source.media}`);
+      case "Location":
+        if (source.location.type === "Library") {
+          if (source.location.id !== LIBRARY_ID) fail("NotFound", `location ${source.location.id}`);
+          const f = findLibraryFile(source.path) ?? fail("NotFound", `file ${source.path}`);
+          if (f.kind !== "Audio") fail("Decode", `${source.path} is not an audio file`);
+          return null;
+        }
+        return (
+          Object.values(this.project.media).find((m) => m.file === `media/${normalize(source.path)}`) ??
+          fail("NotFound", `file ${source.path}`)
+        );
+    }
+  }
+
+  /** The `MediaRef` an import of `source` creates ("copying" the file into `media/`). */
+  private resolveImport(id: string, source: MediaSource): MediaRef {
+    if (source.type === "Project") fail("InvalidArgument", "media is already in the project");
+    const existing = this.checkSource(source);
+    if (existing) return { ...existing, id };
+    const path = normalize((source as { path: string }).path);
+    const f = findLibraryFile(path)!;
+    const name = path.slice(path.lastIndexOf("/") + 1);
+    const hash = hashHex(`library:${path}`);
+    // Dedupe: a file already imported (same hash) is not copied twice.
+    const dup = Object.values(this.project.media).find((m) => m.hash === hash);
+    return {
+      id,
+      name,
+      file: dup?.file ?? `media/${id}-${name}`,
+      sample_rate: f.sample_rate,
+      channels: f.channels,
+      frames: f.frames,
+      hash,
+    };
   }
 
   private engineCommand(c: EngineCommand): ReplyValue {
@@ -797,34 +1056,41 @@ export class MockTransport implements EngineTransport {
     const tracks = Object.values(this.project.tracks);
     const pulse = 0.7 + 0.3 * (1 - (this.position % 1));
     const decay = 0.82;
-    const raw = new Map<TrackId, number>();
-    for (const t of tracks) {
-      if (t.kind === "Master" || t.kind === "Return" || t.kind === "Group") continue;
-      raw.set(t.id, this.activity(t.id) * pulse * (0.9 + 0.2 * this.rand()));
-    }
-    for (const s of Object.values(this.project.sends)) {
-      raw.set(s.to, (raw.get(s.to) ?? 0) + (raw.get(s.from) ?? 0) * dbToLinear(s.level) * 0.8);
-    }
-    for (const t of tracks) {
-      if (t.kind === "Group") {
-        let sum = 0;
-        for (const k of tracks) if (k.parent === t.id) sum += raw.get(k.id) ?? 0;
-        raw.set(t.id, sum * 0.7);
-      }
-    }
-    const post = (id: TrackId) => {
-      const t = this.project.tracks[id];
-      return t && !t.mixer.mute ? (raw.get(id) ?? 0) * dbToLinear(t.mixer.volume) : 0;
-    };
-    let masterIn = 0;
-    for (const t of tracks) if (t.kind !== "Master" && t.parent === null && t.output.type === "Master") masterIn += post(t.id);
     const master = tracks.find((t) => t.kind === "Master");
-    if (master) raw.set(master.id, Math.min(1.2, masterIn * 0.6));
+
+    // Signal each track produces itself (clips), then route post-fader levels:
+    // `Default` → parent group (or master at top level), `Track` → that track, sends → returns.
+    const own = new Map<TrackId, number>();
+    for (const t of tracks) own.set(t.id, this.activity(t.id) * pulse * (0.9 + 0.2 * this.rand()));
+    const destination = (t: (typeof tracks)[number]): TrackId | null => {
+      if (t.kind === "Master") return null;
+      if (t.output.type === "Track") return t.output.track;
+      if (t.output.type === "None") return null;
+      return t.parent ?? master?.id ?? null;
+    };
+    const post = new Map<TrackId, number>();
+    const visiting = new Set<TrackId>();
+    const postOf = (id: TrackId): number => {
+      const cached = post.get(id);
+      if (cached !== undefined) return cached;
+      const t = this.project.tracks[id];
+      if (!t || visiting.has(id)) return 0; // routing cycle: ignore
+      visiting.add(id);
+      let input = own.get(id) ?? 0;
+      for (const k of tracks) if (k.id !== id && destination(k) === id) input += postOf(k.id) * (t.kind === "Master" ? 0.6 : 0.7);
+      for (const snd of Object.values(this.project.sends)) {
+        if (snd.to === id) input += postOf(snd.from) * dbToLinear(snd.level) * 0.8;
+      }
+      visiting.delete(id);
+      const level = t.mixer.mute ? 0 : Math.min(1.2, input) * dbToLinear(t.mixer.volume);
+      post.set(id, level);
+      return level;
+    };
 
     const meters: TrackMeter[] = [];
     let silent = true;
     for (const t of tracks) {
-      const level = Math.max(post(t.id), (this.levels.get(t.id) ?? 0) * decay);
+      const level = Math.max(postOf(t.id), (this.levels.get(t.id) ?? 0) * decay);
       const v = level < 0.001 ? 0 : level;
       this.levels.set(t.id, v);
       if (v > 0) silent = false;
@@ -839,7 +1105,20 @@ export class MockTransport implements EngineTransport {
   }
 }
 
-/** Parse and minimally validate an `.ether` JSON document. */
+/** Hex FNV-1a hash of a string (fake content hash). */
+function hashHex(s: string): string {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619);
+  return (h >>> 0).toString(16).padStart(8, "0");
+}
+
+/** Serialize a project as an `.ether` document (what the engine-side store writes). */
+export function serializeEtherFile(project: Project): string {
+  const file: EtherFile = { format: ETHER_FORMAT, version: ETHER_VERSION, app_version: APP_VERSION, project };
+  return JSON.stringify(file);
+}
+
+/** Parse and minimally validate an `.ether` JSON document (engine-side store reads). */
 export function parseEtherFile(json: string): Project {
   let file: Partial<EtherFile>;
   try {

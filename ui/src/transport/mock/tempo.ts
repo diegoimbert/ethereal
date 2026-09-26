@@ -3,6 +3,7 @@
  * as steps). The real tempo map lives in `ether-model`/`ether-core`.
  */
 
+import { ceilBeats, floorBeats } from "@/state/beats";
 import type { Beats, Project, Seconds, TempoPoint, TimeSignature, TimeSignaturePoint } from "@/generated";
 
 const byTime = <T extends { time: number }>(a: T, b: T) => a.time - b.time;
@@ -63,10 +64,11 @@ export function beatsToSeconds(project: Project, beats: Beats): Seconds {
   return seconds + ((beats - pos) * 60) / bpm;
 }
 
-/** The next multiple of `grid` beats strictly after `position` (or at it if `inclusive`). */
+/**
+ * The next multiple of `grid` beats strictly after `position` (or at it if `inclusive`),
+ * with the shared `BEATS_EPSILON` tolerance (a position within epsilon of a line is on it).
+ */
 export function nextGridLine(position: Beats, grid: Beats, inclusive = false): Beats {
   if (grid <= 0) return position;
-  const eps = 1e-9;
-  const n = inclusive ? Math.ceil(position / grid - eps) : Math.floor(position / grid + eps) + 1;
-  return n * grid;
+  return inclusive ? ceilBeats(position, grid) : floorBeats(position, grid) + grid;
 }

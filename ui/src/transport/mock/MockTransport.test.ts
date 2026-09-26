@@ -4,7 +4,7 @@ import { EMPTY_HISTORY, useProjectStore } from "@/state/projectStore";
 import { clipsOfTrack, devicesOfTrack, notesOfClip, scenesOrdered, tracksOrdered } from "@/state/selectors";
 import { cmd } from "../cmd";
 import { CommandFailedError } from "../EngineTransport";
-import { newId, nextGestureId } from "../ids";
+import { newId, newProjectId, nextGestureId } from "../ids";
 import { MockTransport } from "./MockTransport";
 
 /** A connected mock with manual timers, mirroring events into the real project store. */
@@ -19,6 +19,12 @@ async function setup(opts: { latencyMs?: number } = {}) {
     if (e.type === "ProjectLoaded") store().loadProject(e.project);
     if (e.type === "Transport") store().setTransport(e.state);
     if (e.type === "Session") store().applySessionChanges(e.changes);
+    if (e.type === "Recording" && e.event.type === "ArmChanged") store().setArmedTracks(e.event.armed);
+    if (e.type === "Project") {
+      if (e.event.type === "ListChanged") store().setProjects(e.event.projects);
+      if (e.event.type === "Saved") store().upsertProjectSummary(e.event.project);
+      if (e.event.type === "DirtyChanged") store().setDirty(e.event.dirty);
+    }
   });
   const project = await mock.connect();
   store().loadProject(project);
@@ -55,7 +61,8 @@ describe("MockTransport documents", () => {
         return v;
       });
     expect(reply).toEqual({ type: "Unit" });
-    expect(order).toEqual(["Patch", "reply"]);
+    // Patch, then Project::DirtyChanged (first edit since load), then the reply.
+    expect(order).toEqual(["Patch", "Project", "reply"]);
     const last = env.patches().at(-1)!;
     expect(last.changes).toEqual([{ type: "Upsert", entity: { type: "Track", value: expect.objectContaining({ id, kind: "Midi" }) } }]);
     expect(last.history).toMatchObject({ can_undo: true, undo_label: "Create" });
@@ -221,28 +228,138 @@ describe("MockTransport documents", () => {
     expect(env.p().clips[id]!.length).toBe(16); // 8 s at 120 BPM
   });
 
-  it("save Json → open Json round-trips the project", async () => {
+  it("connect reports the engine-side project list, dirty flag and armed tracks", () => {
+    expect(env.store().projects.map((pr) => pr.name)).toEqual(["Demo", "Beat sketch", "Ambient idea"]);
+    expect(env.store().projects[0]!.id).toBe(env.p().id);
+    expect(env.p().id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+    expect(env.store().dirty).toBe(false);
+    expect(env.store().armedTracks).toEqual([]);
+  });
+
+  it("save / open / create / save-as / duplicate / rename / delete use the engine-side store", async () => {
+    const demoId = env.p().id;
     const keys = env.trackNamed("Keys");
-    await env.mock.send(cmd("Project", { type: "SetName", name: "Round Trip" }));
     await env.mock.send(cmd("Mixer", { type: "SetPan", track: keys.id, pan: 0.25 }));
-    const saved = await env.mock.send(cmd("Project", { type: "Save", target: { type: "Json" } }));
-    expect(saved.type).toBe("Saved");
-    const json = saved.type === "Saved" ? saved.json! : "";
-    expect(JSON.parse(json)).toMatchObject({ format: "ethereal-project", version: 1 });
+    expect(env.store().dirty).toBe(true);
+
+    // Rename of the current project: undoable document edit + list update.
+    await env.mock.send(cmd("Project", { type: "Rename", id: demoId, name: "Round Trip" }));
+    expect(env.p().settings.name).toBe("Round Trip");
+    expect(env.store().projects.find((pr) => pr.id === demoId)?.name).toBe("Round Trip");
+    expect(env.store().history.undo_label).toBe("Rename Project");
+
+    const saved = await env.mock.send(cmd("Project", { type: "Save" }));
+    expect(saved).toMatchObject({ type: "Saved", project: { id: demoId, name: "Round Trip" } });
+    expect(env.store().dirty).toBe(false);
     const snapshot = env.mock.snapshot();
 
-    await env.mock.send(cmd("Project", { type: "New" }));
-    expect(env.p().settings.name).toBe("Untitled");
+    // Create switches to a new empty project.
+    const newIdP = newProjectId();
+    const created = await env.mock.send(cmd("Project", { type: "Create", id: newIdP, name: "Fresh" }));
+    expect(created.type === "Project" && created.project.id).toBe(newIdP);
+    expect(env.p().settings.name).toBe("Fresh");
     expect(Object.values(env.p().tracks).map((t) => t.kind)).toEqual(["Master"]);
+    expect(env.store().projects.map((pr) => pr.name)).toContain("Fresh");
 
-    const opened = await env.mock.send(cmd("Project", { type: "Open", source: { type: "Json", json } }));
-    expect(opened.type === "Project" && opened.project).toEqual(snapshot);
+    // Open brings back exactly what was saved.
+    await env.mock.send(cmd("Project", { type: "Open", id: demoId }));
     expect(env.p()).toEqual(snapshot);
-    expect(env.events.filter((e) => e.type === "ProjectLoaded")).toHaveLength(2);
     expect(env.store().history.can_undo).toBe(false);
 
-    const bad = await env.mock.send(cmd("Project", { type: "Open", source: { type: "Json", json: "{}" } })).catch((e: unknown) => e);
-    expect((bad as CommandFailedError).code).toBe("Decode");
+    // Unsaved changes are autosaved when opening another project.
+    await env.mock.send(cmd("Mixer", { type: "SetMute", track: keys.id, mute: true }));
+    await env.mock.send(cmd("Project", { type: "Open", id: newIdP }));
+    await env.mock.send(cmd("Project", { type: "Open", id: demoId }));
+    expect(env.p().tracks[keys.id]!.mixer.mute).toBe(true);
+
+    // Duplicate a stored project without opening it; rename and delete stored projects.
+    const beat = env.store().projects.find((pr) => pr.name === "Beat sketch")!;
+    const dupId = newProjectId();
+    const dup = await env.mock.send(cmd("Project", { type: "Duplicate", id: beat.id, new_id: dupId, name: "Beat copy" }));
+    expect(dup).toMatchObject({ type: "Saved", project: { id: dupId, name: "Beat copy" } });
+    expect(env.p().id).toBe(demoId);
+    await env.mock.send(cmd("Project", { type: "Rename", id: dupId, name: "Beat v2" }));
+    expect(env.store().projects.find((pr) => pr.id === dupId)?.name).toBe("Beat v2");
+    await env.mock.send(cmd("Project", { type: "Delete", id: dupId }));
+    expect(env.store().projects.some((pr) => pr.id === dupId)).toBe(false);
+
+    const busy = await env.mock.send(cmd("Project", { type: "Delete", id: demoId })).catch((e: unknown) => e);
+    expect((busy as CommandFailedError).code).toBe("InvalidState");
+    const missing = await env.mock.send(cmd("Project", { type: "Open", id: newProjectId() })).catch((e: unknown) => e);
+    expect((missing as CommandFailedError).code).toBe("NotFound");
+
+    // Save As switches to the copy; the original stays in the store.
+    const asId = newProjectId();
+    await env.mock.send(cmd("Project", { type: "SaveAs", new_id: asId, name: "Variation" }));
+    expect(env.p().id).toBe(asId);
+    expect(env.p().settings.name).toBe("Variation");
+    expect(env.mock.storedProjects().map((pr) => pr.id)).toEqual(expect.arrayContaining([demoId, asId]));
+  });
+
+  it("record-arm is runtime state reported via ArmChanged, not a patch", async () => {
+    const keys = env.trackNamed("Keys");
+    const bass = env.trackNamed("Bass");
+    await env.mock.send(cmd("Recording", { type: "Arm", track: keys.id, armed: true, exclusive: false }));
+    await env.mock.send(cmd("Recording", { type: "Arm", track: bass.id, armed: true, exclusive: false }));
+    expect(env.store().armedTracks).toEqual([keys.id, bass.id]);
+    await env.mock.send(cmd("Recording", { type: "Arm", track: bass.id, armed: true, exclusive: true }));
+    expect(env.store().armedTracks).toEqual([bass.id]);
+    expect(env.patches()).toHaveLength(0);
+    expect(env.store().history.can_undo).toBe(false);
+    // Deleting an armed track disarms it.
+    await env.mock.send(cmd("Track", { type: "Delete", id: bass.id }));
+    expect(env.store().armedTracks).toEqual([]);
+  });
+
+  it("group tracks nest via parent; Default output routes into the group; delete cascades", async () => {
+    const group = newId();
+    const child = newId();
+    await env.mock.send(cmd("Track", { type: "Create", id: group, kind: "Group", name: "Bus", color: null, parent: null, before: null }));
+    await env.mock.send(cmd("Track", { type: "Create", id: child, kind: "Audio", name: "Gtr", color: null, parent: group, before: null }));
+    const keys = env.trackNamed("Keys");
+    await env.mock.send(cmd("Track", { type: "Move", id: keys.id, parent: group, before: child }));
+    expect(tracksOrdered(env.p()).map((t) => t.name)).toEqual(["Bass", "Drums", "Bus", "Keys", "Gtr", "A Delay", "Master"]);
+    expect(env.p().tracks[child]!.output).toEqual({ type: "Default" });
+
+    const cycle = await env.mock.send(cmd("Track", { type: "Move", id: group, parent: group, before: null })).catch((e: unknown) => e);
+    expect((cycle as CommandFailedError).code).toBe("InvalidArgument");
+
+    await env.mock.send(cmd("Track", { type: "Delete", id: group }));
+    expect(env.p().tracks[child]).toBeUndefined();
+    expect(env.p().tracks[keys.id]).toBeUndefined();
+  });
+
+  it("browses the library and imports media into the project", async () => {
+    const locs = await env.mock.send(cmd("Media", { type: "ListLocations" }));
+    expect(locs.type === "Locations" && locs.locations.map((l) => l.name)).toEqual(["Library", "Project media"]);
+    const lib = locs.type === "Locations" ? locs.locations[0]!.location : null;
+    const root = await env.mock.send(cmd("Media", { type: "ListDirectory", location: lib!, path: "" }));
+    expect(root.type === "Directory" && root.listing.entries.filter((e) => e.kind === "Directory").map((e) => e.name)).toEqual([
+      "Drums",
+      "MIDI",
+      "Synths",
+      "Vocals",
+    ]);
+    const drums = await env.mock.send(cmd("Media", { type: "ListDirectory", location: lib!, path: "Drums" }));
+    const kick = drums.type === "Directory" ? drums.listing.entries.find((e) => e.name === "Kick.wav")! : null;
+    expect(kick).toMatchObject({ path: "Drums/Kick.wav", kind: "Audio" });
+    expect(kick!.size).toBeGreaterThan(0);
+
+    const id = newId();
+    const reply = await env.mock.send(cmd("Media", { type: "Import", id, source: { type: "Location", location: lib!, path: kick!.path } }));
+    expect(reply.type === "Media" && reply.media).toMatchObject({ id, name: "Kick.wav", channels: 1, sample_rate: 44100 });
+    expect(env.p().media[id]?.file).toBe(`media/${id}-Kick.wav`);
+    expect(env.patches().at(-1)!.changes).toEqual([{ type: "Upsert", entity: { type: "Media", value: env.p().media[id] } }]);
+
+    const pm = await env.mock.send(cmd("Media", { type: "ListDirectory", location: { type: "ProjectMedia" }, path: "" }));
+    expect(pm.type === "Directory" && pm.listing.entries.map((e) => e.name)).toContain(`${id}-Kick.wav`);
+
+    const upload = await env.mock.send(cmd("Media", { type: "BeginUpload", upload: "u1", name: "x.wav", size: 10 })).catch((e: unknown) => e);
+    expect((upload as CommandFailedError).code).toBe("Unsupported");
+    const missing = await env.mock
+      .send(cmd("Media", { type: "Import", id: newId(), source: { type: "Location", location: lib!, path: "Nope.wav" } }))
+      .catch((e: unknown) => e);
+    expect((missing as CommandFailedError).code).toBe("NotFound");
   });
 
   it("unsupported commands reply Err Unsupported", async () => {

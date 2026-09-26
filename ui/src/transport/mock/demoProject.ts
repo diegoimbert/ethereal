@@ -1,9 +1,10 @@
 /**
- * Project factories for the MockTransport: an empty project (what `Project::New` creates)
- * and a small but complete demo project exercising every table, so UI nodes have real
- * data to render without the Rust engine.
+ * Project factories for the MockTransport: an empty project (what `Project::Create`
+ * makes), a small but complete demo project exercising every table, and the 3 projects
+ * the mock's engine-side project store starts with ("Demo", "Beat sketch",
+ * "Ambient idea"), so UI nodes have real data to render without the Rust engine.
  *
- * Ids are deterministic (seeded ULIDs), so tests and screenshots are stable.
+ * Ids are deterministic (seeded ULIDs / UUIDv7s), so tests and screenshots are stable.
  */
 
 import type {
@@ -17,6 +18,7 @@ import type {
   MediaRef,
   Note,
   Project,
+  ProjectId,
   ProjectSettings,
   Scene,
   Track,
@@ -25,7 +27,7 @@ import type {
 } from "@/generated";
 import { keysBetween } from "@/state/orderKey";
 import { builtinDescriptor } from "./builtinDevices";
-import { seededIdFactory } from "./random";
+import { seededIdFactory, seededProjectId } from "./random";
 
 /** Default track colors (0xRRGGBB), cycled for new tracks. */
 export const MOCK_TRACK_COLORS: ReadonlyArray<Color> = [
@@ -76,8 +78,7 @@ export function makeTrack(fields: Pick<Track, "id" | "kind" | "name" | "color" |
     parent: null,
     mixer: { volume: 0, pan: 0, mute: false, solo: false },
     input: defaultTrackInput(fields.kind),
-    output: { type: "Master" },
-    arm: false,
+    output: { type: "Default" },
     monitor: "Auto",
     ...fields,
   };
@@ -110,16 +111,16 @@ export function defaultParams(device: Parameters<typeof builtinDescriptor>[0]): 
 
 /**
  * A new empty project: master track, tempo 120 and 4/4 at beat 0, 4 empty scenes, default
- * settings. `nextId` generates entity ids.
+ * settings. `nextId` generates entity ids; `id` is the project's UUIDv7.
  */
-export function createEmptyProject(nextId: () => string, name = "Untitled"): Project {
+export function createEmptyProject(nextId: () => string, name: string, id: ProjectId): Project {
   const master = makeTrack({ id: nextId(), kind: "Master", name: "Master", color: 0x9a9a9a, order: "a0" });
   const tempoId = nextId();
   const sigId = nextId();
   const sceneKeys = keysBetween(null, null, 4);
   const scenes = sceneKeys.map((order, i) => makeScene(nextId(), `${i + 1}`, order));
   return {
-    id: nextId(),
+    id,
     settings: defaultSettings(name),
     tracks: { [master.id]: master },
     clips: {},
@@ -146,7 +147,7 @@ export function createEmptyProject(nextId: () => string, name = "Untitled"): Pro
  */
 export function createDemoProject(seed = 1): Project {
   const nextId = seededIdFactory(seed);
-  const p = createEmptyProject(nextId, "Demo");
+  const p = createEmptyProject(nextId, "Demo", seededProjectId(seed));
   const scenes = Object.values(p.scenes).sort((a, b) => (a.order < b.order ? -1 : 1));
   const master = Object.values(p.tracks)[0]!;
 
@@ -253,7 +254,7 @@ export function createDemoProject(seed = 1): Project {
   const media: MediaRef = {
     id: nextId(),
     name: "drum-loop-120.wav",
-    location: { type: "ProjectRelative", path: "Samples/drum-loop-120.wav" },
+    file: "media/drum-loop-120.wav",
     sample_rate: 44100,
     channels: 2,
     frames: 44100 * 8,
@@ -294,4 +295,95 @@ export function createDemoProject(seed = 1): Project {
   for (const pt of points) p.automation_points[pt.id] = pt;
 
   return p;
+}
+
+/** Set the tempo of the (single) tempo point at beat 0. */
+function setTempo(p: Project, bpm: number): void {
+  for (const t of Object.values(p.tempo_points)) t.bpm = bpm;
+}
+
+/**
+ * "Beat sketch": 96 BPM, a "Drum Bus" group track containing two MIDI tracks ("Kick" and
+ * "Hats", routed into the group via `output: Default`), each with a 1-bar pattern.
+ */
+export function createBeatSketchProject(seed = 2): Project {
+  const nextId = seededIdFactory(seed);
+  const p = createEmptyProject(nextId, "Beat sketch", seededProjectId(seed));
+  setTempo(p, 96);
+  const master = Object.values(p.tracks)[0]!;
+  const [kGroup, kMaster] = keysBetween(null, null, 2) as [string, string];
+  master.order = kMaster;
+  const [k1, k2] = keysBetween(null, null, 2) as [string, string];
+  const group = makeTrack({ id: nextId(), kind: "Group", name: "Drum Bus", color: MOCK_TRACK_COLORS[2]!, order: kGroup });
+  const kick = makeTrack({ id: nextId(), kind: "Midi", name: "Kick", color: MOCK_TRACK_COLORS[0]!, order: k1, parent: group.id });
+  const hats = makeTrack({ id: nextId(), kind: "Midi", name: "Hats", color: MOCK_TRACK_COLORS[5]!, order: k2, parent: group.id });
+  for (const t of [group, kick, hats]) p.tracks[t.id] = t;
+  const pattern = (track: string, name: string, pitch: number, step: number) => {
+    const clip = makeClip({ id: nextId(), track, location: { type: "Arrangement", start: 0 }, length: 4, name });
+    p.clips[clip.id] = clip;
+    for (let i = 0; i * step < 4; i++) {
+      const n: Note = { id: nextId(), clip: clip.id, pitch, velocity: 0.9, release_velocity: 0.5, start: i * step, duration: step / 2, muted: false };
+      p.notes[n.id] = n;
+    }
+  };
+  pattern(kick.id, "Kick", 36, 1);
+  pattern(hats.id, "Hats", 42, 0.5);
+  const devices: Array<[Track, "Synth" | "Compressor"]> = [
+    [kick, "Synth"],
+    [hats, "Synth"],
+    [group, "Compressor"],
+  ];
+  for (const [t, device] of devices) {
+    const d: Device = {
+      id: nextId(),
+      track: t.id,
+      order: "a0",
+      name: device,
+      enabled: true,
+      kind: { type: "Builtin", device: { type: device } },
+      params: defaultParams(device),
+    };
+    p.devices[d.id] = d;
+  }
+  return p;
+}
+
+/** "Ambient idea": 70 BPM, one MIDI "Pad" track with a long 8-bar chord clip. */
+export function createAmbientIdeaProject(seed = 3): Project {
+  const nextId = seededIdFactory(seed);
+  const p = createEmptyProject(nextId, "Ambient idea", seededProjectId(seed));
+  setTempo(p, 70);
+  const master = Object.values(p.tracks)[0]!;
+  const [kPad, kMaster] = keysBetween(null, null, 2) as [string, string];
+  master.order = kMaster;
+  const pad = makeTrack({ id: nextId(), kind: "Midi", name: "Pad", color: MOCK_TRACK_COLORS[7]!, order: kPad });
+  p.tracks[pad.id] = pad;
+  const synth: Device = {
+    id: nextId(),
+    track: pad.id,
+    order: "a0",
+    name: "Synth",
+    enabled: true,
+    kind: { type: "Builtin", device: { type: "Synth" } },
+    params: { ...defaultParams("Synth"), 0: 3, 4: 1200, 7: 4000 },
+  };
+  p.devices[synth.id] = synth;
+  const clip = makeClip({ id: nextId(), track: pad.id, location: { type: "Arrangement", start: 0 }, length: 32, name: "Drift" });
+  p.clips[clip.id] = clip;
+  const chords = [
+    [52, 59, 64, 71],
+    [48, 55, 64, 67],
+  ];
+  chords.forEach((chord, i) => {
+    for (const pitch of chord) {
+      const n: Note = { id: nextId(), clip: clip.id, pitch, velocity: 0.5, release_velocity: 0.5, start: i * 16, duration: 15.5, muted: false };
+      p.notes[n.id] = n;
+    }
+  });
+  return p;
+}
+
+/** The projects the mock's engine-side store starts with; the first one is opened on connect. */
+export function createDemoProjects(): Project[] {
+  return [createDemoProject(), createBeatSketchProject(), createAmbientIdeaProject()];
 }

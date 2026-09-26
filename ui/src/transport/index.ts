@@ -18,10 +18,10 @@ export {
   type SendOptions,
   type Unsubscribe,
 } from "./EngineTransport";
-export { newId, nextGestureId } from "./ids";
+export { newId, newProjectId, nextGestureId, uuidv7 } from "./ids";
 export { BUILTIN_DESCRIPTORS, builtinDescriptor, clampParam } from "./mock/builtinDevices";
-export { createDemoProject, createEmptyProject } from "./mock/demoProject";
-export { ETHER_FORMAT, ETHER_VERSION, MockTransport, parseEtherFile, type MockTransportOptions } from "./mock/MockTransport";
+export { createDemoProject, createDemoProjects, createEmptyProject } from "./mock/demoProject";
+export { MockTransport, type MockTransportOptions } from "./mock/MockTransport";
 export { TauriTransport } from "./tauri/TauriTransport";
 export { TransportProvider, type TransportProviderProps } from "./TransportProvider";
 export { WasmTransport } from "./wasm/WasmTransport";

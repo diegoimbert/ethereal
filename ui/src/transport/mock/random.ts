@@ -1,4 +1,5 @@
 import { monotonicFactory } from "ulid";
+import { uuidv7 } from "../ids";
 
 /** Small deterministic PRNG (mulberry32), returns floats in [0, 1). */
 export function mulberry32(seed: number): () => number {
@@ -13,7 +14,15 @@ export function mulberry32(seed: number): () => number {
 }
 
 /** Fixed timestamp used for deterministic ids (2026-01-01T00:00:00Z). */
-const SEED_TIME = 1767225600000;
+export const SEED_TIME = 1767225600000;
+
+/** A deterministic UUIDv7 project id for `seed` (timestamp `SEED_TIME + seed` ms). */
+export function seededProjectId(seed: number): string {
+  const rand = mulberry32(seed ^ 0x5eed);
+  return uuidv7(SEED_TIME + seed, (bytes) => {
+    for (let i = 0; i < bytes.length; i++) bytes[i] = Math.floor(rand() * 256);
+  });
+}
 
 /**
  * A deterministic ULID generator: same seed → same sequence of valid, increasing ids.

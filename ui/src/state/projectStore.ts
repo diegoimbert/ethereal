@@ -6,9 +6,12 @@
  * (whole-entity upserts/removes, applied with no domain logic). Features never write to
  * `project` directly: they `transport.send(...)` a command and render what comes back.
  *
- * Also holds low-rate engine state pushed as events: `TransportState` (`Event::Transport`)
- * and session clip play states (`Event::Session`). High-rate data (playhead, meters) lives
- * in `./playhead.ts`, outside React state.
+ * Also holds low-rate engine state pushed as events:
+ * - `TransportState` (`Event::Transport`);
+ * - session clip play states (`Event::Session`);
+ * - record-armed tracks (`Event::Recording { ArmChanged }`; runtime state, not document);
+ * - the engine-side project list and the current project's dirty flag (`Event::Project`).
+ * High-rate data (playhead, meters) lives in `./playhead.ts`, outside React state.
  *
  * `TransportProvider` wires the transport to this store; tests can drive it directly.
  */
@@ -22,6 +25,8 @@ import type {
   HistoryState,
   Patch,
   Project,
+  ProjectSummary,
+  TrackId,
   TransportState,
 } from "@/generated";
 import { applyPatchChanges } from "./entities";
@@ -33,8 +38,6 @@ export type PatchResult = "applied" | "stale" | "gap" | "no-project";
 
 export interface ProjectStoreState {
   project: Project | null;
-  /** File path of the loaded project, if any (from `Event::ProjectLoaded`). */
-  path: string | null;
   /**
    * Revision of the last applied patch. `null` right after a (re)load: the full project
    * carries no revision, so the next patch is accepted as-is and sets it.
@@ -44,24 +47,37 @@ export interface ProjectStoreState {
   transport: TransportState | null;
   /** Play state of session clips that aren't `Stopped` (absent = stopped). */
   sessionStates: Record<ClipId, ClipPlayState>;
+  /** Record-armed tracks (engine runtime state). */
+  armedTracks: TrackId[];
+  /** Projects in the engine-side store, as last reported (`Project::ListChanged`). */
+  projects: ProjectSummary[];
+  /** The current project has unsaved changes. */
+  dirty: boolean;
 
   /** Replace the whole document (connect, `ProjectLoaded`, refetch). */
-  loadProject(project: Project, opts?: { path?: string | null; history?: HistoryState }): void;
+  loadProject(project: Project, opts?: { history?: HistoryState }): void;
   /** Apply an `Event::Patch`. Ignores stale revisions; reports gaps without applying. */
   applyPatch(patch: Patch): PatchResult;
   setTransport(state: TransportState): void;
   applySessionChanges(changes: ReadonlyArray<ClipStateChange>): void;
+  setArmedTracks(armed: ReadonlyArray<TrackId>): void;
+  setProjects(projects: ReadonlyArray<ProjectSummary>): void;
+  /** Update one project list entry (`Project::Saved`). */
+  upsertProjectSummary(summary: ProjectSummary): void;
+  setDirty(dirty: boolean): void;
   /** Back to the initial empty state (disconnect, tests). */
   reset(): void;
 }
 
 const INITIAL = {
   project: null,
-  path: null,
   revision: null,
   history: EMPTY_HISTORY,
   transport: null,
   sessionStates: {},
+  armedTracks: [],
+  projects: [],
+  dirty: false,
 } satisfies Partial<ProjectStoreState>;
 
 export const useProjectStore = create<ProjectStoreState>()(
@@ -71,10 +87,10 @@ export const useProjectStore = create<ProjectStoreState>()(
     loadProject(project, opts) {
       set((s) => {
         s.project = project;
-        s.path = opts?.path ?? null;
         s.revision = null;
         s.history = opts?.history ?? EMPTY_HISTORY;
-        // A new document invalidates session slot states (clip ids may be gone).
+        // A new document invalidates session slot states (clip ids may be gone). Armed
+        // tracks, the project list and the dirty flag come from their own events.
         s.sessionStates = {};
       });
     },
@@ -109,6 +125,32 @@ export const useProjectStore = create<ProjectStoreState>()(
           if (c.state === "Stopped") delete s.sessionStates[c.clip];
           else s.sessionStates[c.clip] = c.state;
         }
+      });
+    },
+
+    setArmedTracks(armed) {
+      set((s) => {
+        s.armedTracks = [...armed];
+      });
+    },
+
+    setProjects(projects) {
+      set((s) => {
+        s.projects = [...projects];
+      });
+    },
+
+    upsertProjectSummary(summary) {
+      set((s) => {
+        const i = s.projects.findIndex((p) => p.id === summary.id);
+        if (i >= 0) s.projects[i] = summary;
+        else s.projects.unshift(summary);
+      });
+    },
+
+    setDirty(dirty) {
+      set((s) => {
+        s.dirty = dirty;
       });
     },
 
