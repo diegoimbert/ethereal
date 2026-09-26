@@ -27,7 +27,7 @@ import { cmd, newId, useTransport } from "@/transport";
 import { contentEnd, songToContent } from "./clipTime";
 import { startDrag, useSend } from "./drag";
 import { isBlackKey, noteHitZone, noteRect, pitchToY, PITCHES, yToPitch } from "./geometry";
-import { moveEdits, newNote, resizeEdits } from "./noteEdits";
+import { moveEdits, newNote, noteEdit, resizeEdits } from "./noteEdits";
 
 export interface NoteGridProps {
   clip: Clip;
@@ -85,14 +85,17 @@ export function NoteGrid({ clip, notes, view, vp, widthPx, keyH, tempo, step, ne
       void send(add).then((ok) => ok && selectIt());
       return;
     }
-    const anchor: Note = { ...spec, clip: clip.id, release_velocity: 0.5, muted: false };
+    const pressBeats = pxToBeats(x, vp);
     startDrag(
       transport,
       e,
       {
+        // The note extends to cover the grid cell under the pointer.
         move: (dx, _dy, ev) => {
-          const edits = resizeEdits([anchor], anchor, "end", dx / vp.pxPerBeat, ev.altKey ? null : step, tempo);
-          return cmd("Note", { type: "Edit", edits });
+          const pointer = pressBeats + dx / vp.pxPerBeat;
+          const end = snapToGrid(pointer, ev.altKey ? null : step, tempo, "ceil");
+          const duration = Math.max(spec.duration, end - spec.start);
+          return cmd("Note", { type: "Edit", edits: [noteEdit(spec.id, { duration })] });
         },
       },
       { initial: add, afterInitial: selectIt, threshold: 3 },
