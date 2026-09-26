@@ -50,9 +50,10 @@ export function TransportBar() {
 
   useTransportShortcuts({
     enabled: !disabled,
-    togglePlay,
-    undo: history.can_undo ? undo : undefined,
-    redo: history.can_redo ? redo : undefined,
+    // Engine-side toggle: correct even if the last Transport event hasn't rendered yet.
+    togglePlay: () => void send(cmd("Transport", { type: "TogglePlay" })),
+    undo,
+    redo,
   });
 
   return (
@@ -265,8 +266,18 @@ function EngineStatusIndicator() {
 interface ShortcutHandlers {
   enabled: boolean;
   togglePlay(): void;
-  undo?: () => void;
-  redo?: () => void;
+  undo(): void;
+  redo(): void;
+}
+
+// Shortcuts read state from the store at key time, not from the last render: a key pressed
+// right after an edit must see it even if React hasn't re-rendered (or run effects) yet.
+function undoIfPossible(h: ShortcutHandlers): void {
+  if (useProjectStore.getState().history.can_undo) h.undo();
+}
+
+function redoIfPossible(h: ShortcutHandlers): void {
+  if (useProjectStore.getState().history.can_redo) h.redo();
 }
 
 function useTransportShortcuts(handlers: ShortcutHandlers): void {
@@ -286,11 +297,11 @@ function useTransportShortcuts(handlers: ShortcutHandlers): void {
         h.togglePlay();
       } else if (mod && !e.altKey && e.key.toLowerCase() === "z") {
         e.preventDefault();
-        if (e.shiftKey) h.redo?.();
-        else h.undo?.();
+        if (e.shiftKey) redoIfPossible(h);
+        else undoIfPossible(h);
       } else if (e.ctrlKey && !e.metaKey && !e.shiftKey && e.key.toLowerCase() === "y") {
         e.preventDefault();
-        h.redo?.();
+        redoIfPossible(h);
       }
     };
     window.addEventListener("keydown", onKey);
