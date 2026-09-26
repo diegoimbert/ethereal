@@ -937,6 +937,7 @@ version = "0.0.1"
 dependencies = [
  "ether-controller",
  "ether-core",
+ "serde_json",
  "thiserror 2.0.21",
 ]
 

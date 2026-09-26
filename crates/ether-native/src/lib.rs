@@ -13,6 +13,12 @@
 
 use std::path::PathBuf;
 
+pub mod store;
+#[doc(hidden)]
+pub mod test_util;
+
+pub use store::{DiskStore, LibraryRoot};
+
 /// Which audio backend to run.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum AudioBackendKind {
@@ -67,7 +73,7 @@ pub struct HostConfig {
     /// Root of the engine-side project store (see [`default_projects_root`]).
     pub projects_root: PathBuf,
     /// Sample library folders exposed to the browser: `(id, display name, path)`.
-    pub library_roots: Vec<(String, String, PathBuf)>,
+    pub library_roots: Vec<LibraryRoot>,
 }
 
 /// Default `projects_root`:
@@ -83,13 +89,6 @@ pub fn default_projects_root(dev: bool, instance_data_dir: &std::path::Path) -> 
         .map(PathBuf::from)
         .unwrap_or_else(|| instance_data_dir.to_path_buf());
     home.join("Documents").join("Ethereal").join("Projects")
-}
-
-/// Disk-backed [`ether_controller::store::ProjectStore`] (folders under `projects_root`)
-/// and [`ether_controller::store::Library`]. Stub; implemented by the `native-host` node.
-pub struct DiskStore {
-    pub projects_root: PathBuf,
-    pub library_roots: Vec<(String, String, PathBuf)>,
 }
 
 /// The running native host. Methods are callable from any thread (Tauri commands).
