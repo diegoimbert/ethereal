@@ -97,7 +97,10 @@ mod tests {
         assert!(close(evaluate(&pts, 4.0).unwrap(), 1.0));
         assert!(close(evaluate(&pts, 7.9).unwrap(), 1.0));
         assert!(close(evaluate(&pts, 8.0).unwrap(), 0.5));
-        assert!(close(evaluate(&pts, 9.0).unwrap(), 0.5 + 0.5 * 0.5f64.powi(4)));
+        assert!(close(
+            evaluate(&pts, 9.0).unwrap(),
+            0.5 + 0.5 * 0.5f64.powi(4)
+        ));
         assert!(close(evaluate(&pts, 12.0).unwrap(), 1.0));
     }
 

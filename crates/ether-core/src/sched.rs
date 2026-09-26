@@ -3,10 +3,10 @@
 //!
 //! Everything here is RT-safe: no allocation, bounded work per call.
 
+use crate::event::{EventBuffer, EventKind, ProcessEvent};
 use crate::graph::{ClipContentDesc, ClipDesc, WarpDesc};
 use crate::media::AudioSource;
 use crate::mixer::{ActiveNote, MAX_ACTIVE_NOTES};
-use crate::event::{EventBuffer, EventKind, ProcessEvent};
 
 /// Shortest content loop honoured (beats); shorter loops play unlooped.
 const MIN_LOOP: f64 = 1.0 / 256.0;
@@ -57,12 +57,12 @@ pub(crate) fn for_each_piece(
     // Piece k covers clip-relative [first + k·len, first + (k+1)·len) (k = -1: the intro
     // from the offset to the first loop end).
     let p_a = a - start;
-    let mut k: i64 = if p_a < first {
+    let k0: i64 = if p_a < first {
         -1
     } else {
         ((p_a - first) / len).floor() as i64
     };
-    for _ in 0..MAX_PIECES {
+    for k in (k0..).take(MAX_PIECES) {
         let (p_start, p_end, c_start) = if k < 0 {
             (0.0, first, clip.offset)
         } else {
@@ -84,7 +84,6 @@ pub(crate) fn for_each_piece(
                 end: t_end,
             });
         }
-        k += 1;
     }
 }
 
@@ -94,6 +93,11 @@ pub(crate) fn content_at(clip: &ClipDesc, start: f64, t: f64) -> Option<f64> {
     for_each_piece(clip, start, t, t + 1e-9, |p| out = Some(p.c0 + (t - p.t0)));
     out
 }
+
+/// Event ranges are shifted back by this many beats (≈0.002 samples at 120 BPM/48 kHz) so an
+/// event exactly on a sub-block boundary, which float error may put a hair before the
+/// boundary, is always scheduled in the later sub-block, at offset 0.
+pub(crate) const EVENT_SHIFT: f64 = 1e-7;
 
 /// Context for converting beats to sample offsets inside the current sub-block.
 pub(crate) struct Timing<'a> {
@@ -108,10 +112,17 @@ pub(crate) struct Timing<'a> {
 }
 
 impl Timing<'_> {
+    /// Beat range `[r0, r1)` whose events belong to this sub-block.
+    #[inline]
+    pub(crate) fn event_range(&self) -> (f64, f64) {
+        (self.b0 - EVENT_SHIFT, self.b1 - EVENT_SHIFT)
+    }
+
     /// Sample offset of timeline beat `t` (`b0 <= t < b1`), clamped into the block.
     #[inline]
     pub(crate) fn offset(&self, t: f64) -> u32 {
-        let o = ((self.tempo.beats_to_seconds(t) - self.s0) * self.sample_rate).floor();
+        // Absorb float error so events on a sample boundary land on that sample.
+        let o = ((self.tempo.beats_to_seconds(t) - self.s0) * self.sample_rate + 1e-4).floor();
         (o.max(0.0) as usize).min(self.frames.saturating_sub(1)) as u32
     }
 
@@ -170,7 +181,7 @@ impl NoteSink<'_> {
         let mut i = 0;
         while i < self.notes.len() {
             let n = self.notes[i];
-            if n.end < timing.b1 {
+            if n.end < timing.event_range().1 {
                 let offset = if n.end <= timing.b0 {
                     0
                 } else {
@@ -221,7 +232,8 @@ pub(crate) fn schedule_notes(
     if clip.muted || notes.is_empty() {
         return;
     }
-    for_each_piece(clip, start, timing.b0, timing.b1, |p| {
+    let (r0, r1) = timing.event_range();
+    for_each_piece(clip, start, r0, r1, |p| {
         let c_end = p.c0 + (p.t1 - p.t0);
         let first = notes.partition_point(|n| n.start < p.c0);
         for n in &notes[first..] {

@@ -101,7 +101,8 @@ impl Segment {
 
     #[inline]
     fn seconds_at(&self, beats: f64) -> f64 {
-        self.seconds + segment_beats_to_seconds(self.bpm, self.end_bpm, self.length, beats - self.beat)
+        self.seconds
+            + segment_beats_to_seconds(self.bpm, self.end_bpm, self.length, beats - self.beat)
     }
 
     #[inline]

@@ -185,8 +185,8 @@ pub fn create(config: EngineConfig) -> EngineParts {
         .collect::<Vec<_>>()
         .into();
     let playhead = Arc::new(SharedPlayhead::default());
-    let snapshot = compile_with(RenderGraphDesc::default(), &config, &|_| None)
-        .expect("empty graph compiles");
+    let snapshot =
+        compile_with(RenderGraphDesc::default(), &config, &|_| None).expect("empty graph compiles");
     let tempo_bpm = snapshot.tempo.bpm_at(0.0);
     playhead.write(&PlayheadState {
         bpm: tempo_bpm,
@@ -536,7 +536,9 @@ impl Engine {
                 limit_is_loop = false;
             }
             if let Some(l) = limit {
-                let f = ((tempo.beats_to_seconds(l) - s0) * sr - 1e-7).ceil().max(1.0) as usize;
+                let f = ((tempo.beats_to_seconds(l) - s0) * sr - 1e-7)
+                    .ceil()
+                    .max(1.0) as usize;
                 if f <= n {
                     n = f;
                     b1 = Some(l);
