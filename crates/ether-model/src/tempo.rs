@@ -52,17 +52,67 @@ pub struct BarBeat {
     pub fraction: f64,
 }
 
-const DEFAULT_BPM: f64 = 120.0;
+/// Tempo of an empty tempo map.
+pub const DEFAULT_BPM: f64 = 120.0;
+/// A segment whose start and end BPM differ by at most this is treated as constant.
+pub const RAMP_EPSILON_BPM: f64 = 1e-9;
 
 /// Seconds per beat at `bpm`.
 fn spb(bpm: f64) -> f64 {
     60.0 / bpm
 }
 
-/// Semantics (shared with `ether-core`'s RT tempo map; keep the test vectors in sync):
+// ---------------------------------------------------------------------------------------
+// Per-segment tempo math: the single source of truth, shared with `ether-core`'s RT tempo
+// map and mirrored by the UI. Pure, allocation-free, no panics.
+//
+// A segment starts at a tempo point with `start_bpm`. For a `Linear` point followed by
+// another point, it ramps BPM linearly *over beats* to `end_bpm` across `length` beats.
+// For a `Step` point, or the last point, pass `end_bpm == start_bpm` (constant tempo; any
+// `length`, including `f64::INFINITY`). Offsets are measured from the segment start and
+// are only meaningful within `[0, length]`.
+//
+// Ramp: bpm(x) = b0 + (b1 - b0)·x/L, seconds(x) = ∫ 60/bpm = 60·L/(b1-b0)·ln(bpm(x)/b0).
+// Test vectors: crates/ether-model/tests/tempo_vectors.json.
+// ---------------------------------------------------------------------------------------
+
+/// `true` if the segment ramps (otherwise it is constant at `start_bpm`).
+pub fn segment_is_ramp(start_bpm: f64, end_bpm: f64, length: f64) -> bool {
+    length.is_finite() && length > Beats::EPSILON && (end_bpm - start_bpm).abs() > RAMP_EPSILON_BPM
+}
+
+/// Seconds elapsed `beats` into a segment.
+pub fn segment_beats_to_seconds(start_bpm: f64, end_bpm: f64, length: f64, beats: f64) -> f64 {
+    if segment_is_ramp(start_bpm, end_bpm, length) {
+        let slope = (end_bpm - start_bpm) / length; // bpm per beat
+        60.0 / slope * (beats * slope / start_bpm).ln_1p()
+    } else {
+        beats * spb(start_bpm)
+    }
+}
+
+/// Beats elapsed `seconds` into a segment (inverse of [`segment_beats_to_seconds`]).
+pub fn segment_seconds_to_beats(start_bpm: f64, end_bpm: f64, length: f64, seconds: f64) -> f64 {
+    if segment_is_ramp(start_bpm, end_bpm, length) {
+        let slope = (end_bpm - start_bpm) / length;
+        start_bpm / slope * (seconds * slope / 60.0).exp_m1()
+    } else {
+        seconds / spb(start_bpm)
+    }
+}
+
+/// Instantaneous BPM `beats` into a segment (clamped to `[0, length]` for ramps).
+pub fn segment_bpm_at(start_bpm: f64, end_bpm: f64, length: f64, beats: f64) -> f64 {
+    if segment_is_ramp(start_bpm, end_bpm, length) {
+        start_bpm + (end_bpm - start_bpm) * beats.clamp(0.0, length) / length
+    } else {
+        start_bpm
+    }
+}
+
+/// Semantics (shared with `ether-core`'s RT tempo map; see the per-segment functions above):
 /// - seconds are measured from beat 0;
-/// - a `Step` segment is constant; a `Linear` segment ramps BPM linearly *over beats* to the
-///   next point, so `seconds(x) = 60·k·ln(bpm(x)/b0)` with `k = len/(b1-b0)`;
+/// - a `Step` segment is constant; a `Linear` segment ramps to the next point's BPM;
 /// - before the first point and after the last one the tempo is constant;
 /// - an empty map means 120 BPM, 4/4.
 impl TempoMap {
@@ -77,35 +127,28 @@ impl TempoMap {
         Some(i.saturating_sub(1))
     }
 
-    /// `(start_bpm, end_bpm, length_beats)` of segment `i` if it ramps; `None` if constant.
-    fn ramp(&self, i: usize) -> Option<(f64, f64, f64)> {
+    /// `(start_bpm, end_bpm, length)` of segment `i`, in the per-segment functions' terms.
+    fn segment_params(&self, i: usize) -> (f64, f64, f64) {
         let p = &self.tempo[i];
-        let next = self.tempo.get(i + 1)?;
-        let len = next.time.0 - p.time.0;
-        (p.curve == TempoCurve::Linear && len > Beats::EPSILON && (next.bpm - p.bpm).abs() > 1e-9)
-            .then_some((p.bpm, next.bpm, len))
+        match self.tempo.get(i + 1) {
+            Some(next) if p.curve == TempoCurve::Linear => {
+                (p.bpm, next.bpm, next.time.0 - p.time.0)
+            }
+            Some(next) => (p.bpm, p.bpm, next.time.0 - p.time.0),
+            None => (p.bpm, p.bpm, f64::INFINITY),
+        }
     }
 
     /// Seconds from segment `i`'s start to `d` beats into it.
     fn seconds_in_segment(&self, i: usize, d: f64) -> f64 {
-        match self.ramp(i) {
-            Some((b0, b1, len)) => {
-                let k = len / (b1 - b0);
-                60.0 * k * ((b0 + d / k) / b0).ln()
-            }
-            None => d * spb(self.tempo[i].bpm),
-        }
+        let (b0, b1, len) = self.segment_params(i);
+        segment_beats_to_seconds(b0, b1, len, d)
     }
 
     /// Beats from segment `i`'s start after `s` seconds into it.
     fn beats_in_segment(&self, i: usize, s: f64) -> f64 {
-        match self.ramp(i) {
-            Some((b0, b1, len)) => {
-                let k = len / (b1 - b0);
-                k * b0 * ((s / (60.0 * k)).exp() - 1.0)
-            }
-            None => s / spb(self.tempo[i].bpm),
-        }
+        let (b0, b1, len) = self.segment_params(i);
+        segment_seconds_to_beats(b0, b1, len, s)
     }
 
     /// Seconds from the first tempo point to `beats` (negative before it).
@@ -162,14 +205,8 @@ impl TempoMap {
         let Some(i) = self.segment(beats) else {
             return DEFAULT_BPM;
         };
-        let p = &self.tempo[i];
-        match self.ramp(i) {
-            Some((b0, b1, len)) => {
-                let d = (beats.0 - p.time.0).clamp(0.0, len);
-                b0 + (b1 - b0) * d / len
-            }
-            None => p.bpm,
-        }
+        let (b0, b1, len) = self.segment_params(i);
+        segment_bpm_at(b0, b1, len, beats.0 - self.tempo[i].time.0)
     }
 
     /// Signature in effect at `beats` (the first one before the first change).
