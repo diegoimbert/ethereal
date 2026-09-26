@@ -1,0 +1,162 @@
+.eth-mixer {
+  display: flex;
+  align-items: stretch;
+  gap: var(--eth-space-md);
+  height: 100%;
+  min-height: 0;
+  padding: var(--eth-space-sm);
+  overflow-x: auto;
+  font-size: var(--eth-fs-xs);
+}
+.eth-mixer--empty {
+  align-items: center;
+  justify-content: center;
+  color: var(--eth-color-text-dim);
+}
+.eth-mixer__tracks,
+.eth-mixer__returns,
+.eth-mixer__master {
+  display: flex;
+  gap: var(--eth-space-xs);
+  flex: none;
+}
+.eth-mixer__tracks {
+  flex: 1 0 auto;
+}
+.eth-mixer__returns,
+.eth-mixer__master {
+  padding-left: var(--eth-space-md);
+  border-left: 1px solid var(--eth-color-border-light);
+}
+.eth-mixer select {
+  width: 100%;
+  height: 18px;
+  background: var(--eth-color-bg-inset);
+  color: var(--eth-color-text);
+  border: 1px solid var(--eth-color-border);
+  border-radius: var(--eth-radius-sm);
+  font-size: var(--eth-fs-xs);
+}
+
+/* Group tracks: the group strip followed by its (foldable) children, bracketed by the group color. */
+.eth-mixer__group {
+  display: flex;
+  gap: var(--eth-space-xs);
+  padding-top: 3px;
+  border-top: 3px solid var(--eth-group-color, var(--eth-color-border-light));
+  border-radius: var(--eth-radius-sm);
+}
+.eth-mixer__group-children {
+  display: flex;
+  gap: var(--eth-space-xs);
+  padding-left: var(--eth-space-xs);
+  border-left: 1px dashed var(--eth-color-border-light);
+}
+
+.eth-strip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--eth-space-sm);
+  width: 68px;
+  padding: var(--eth-space-xs) var(--eth-space-xs) var(--eth-space-sm);
+  background: var(--eth-color-bg-raised);
+  border: 1px solid var(--eth-color-border);
+  border-radius: var(--eth-radius-md);
+}
+.eth-strip--selected {
+  border-color: var(--eth-color-selection);
+}
+.eth-strip--master {
+  width: 76px;
+}
+.eth-strip__header {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 18px;
+  background: var(--eth-strip-color);
+  border-radius: var(--eth-radius-sm);
+}
+.eth-strip__fold {
+  color: var(--eth-color-text-inverse);
+  padding: 0 2px;
+}
+.eth-strip__name {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding: 0 var(--eth-space-xs);
+  border: 0;
+  background: transparent;
+  color: var(--eth-color-text-inverse);
+  font-size: var(--eth-fs-xs);
+  font-weight: 600;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.eth-strip__routing {
+  width: 100%;
+  min-height: 18px;
+}
+.eth-strip__sends {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-xs);
+  width: 100%;
+}
+.eth-strip__send {
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-xs);
+}
+.eth-strip__send .eth-knob > span {
+  display: none;
+}
+.eth-strip__send--off {
+  opacity: 0.5;
+}
+.eth-strip__send-name {
+  color: var(--eth-color-text-dim);
+}
+.eth-strip__pan > span {
+  display: none;
+}
+.eth-strip__fader-row {
+  position: relative;
+  display: flex;
+  gap: var(--eth-space-xs);
+}
+.eth-strip__clip {
+  position: absolute;
+  top: -6px;
+  right: 0;
+  width: 12px;
+  height: 4px;
+  padding: 0;
+  border: 0;
+  border-radius: 1px;
+  background: var(--eth-color-bg-inset);
+  cursor: pointer;
+}
+.eth-strip__clip--on {
+  background: var(--eth-color-meter-high);
+}
+.eth-strip__db {
+  font-family: var(--eth-font-mono);
+  color: var(--eth-color-text);
+}
+.eth-strip__buttons {
+  display: flex;
+  gap: var(--eth-space-xs);
+}
+.eth-strip__mute[aria-pressed="true"] {
+  background: var(--eth-color-accent);
+}
+.eth-strip__solo[aria-pressed="true"] {
+  background: var(--eth-color-selection);
+  color: var(--eth-color-text);
+}
