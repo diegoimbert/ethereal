@@ -50,7 +50,7 @@ fn client_message_shape() {
     roundtrip(&Command::Clip(ClipCommand::CreateMidi {
         id: id(2),
         track,
-        location: ClipLocation::Session { scene: id(3) },
+        start: Beats(0.0),
         length: Beats(4.0),
         name: None,
     }));
@@ -80,7 +80,7 @@ fn patch_and_entities_roundtrip() {
     let clip = Clip {
         id: id(11),
         track: track.id,
-        location: ClipLocation::Arrangement { start: Beats(8.0) },
+        start: Beats(8.0),
         name: "Loop".into(),
         color: None,
         muted: false,
@@ -91,7 +91,6 @@ fn patch_and_entities_roundtrip() {
             start: Beats(0.0),
             end: Beats(4.0),
         },
-        launch: LaunchSettings::default(),
         content: ClipContent::Audio(AudioContent {
             media: id(12),
             gain: Decibels(0.0),
@@ -157,7 +156,7 @@ fn patch_and_entities_roundtrip() {
             },
         },
         Op::Settings {
-            change: SettingsChange::LaunchQuantization(Quantization::None),
+            change: SettingsChange::CountInBars(2),
         },
         Op::Remove {
             key: EntityKey::Track(track.id),
