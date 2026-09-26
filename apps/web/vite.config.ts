@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 // Browser host for the Ethereal UI. OWNERSHIP: the `wasm-host` node owns apps/web/**.
 import { fileURLToPath, URL } from "node:url";
 import react from "@vitejs/plugin-react";
@@ -20,6 +21,8 @@ export default defineConfig({
     alias: {
       // `@ethereal/ui` is consumed as source and uses `@/…` imports internally.
       "@": fileURLToPath(new URL("../../ui/src", import.meta.url)),
+      // wasm-bindgen output of crates/ether-wasm (scripts/build-wasm.mjs; git-ignored).
+      "@ether-wasm": fileURLToPath(new URL("./src/wasm/pkg", import.meta.url)),
     },
   },
   server: {
@@ -31,6 +34,13 @@ export default defineConfig({
     port: previewPort,
     strictPort: true,
     headers: crossOriginIsolationHeaders,
+  },
+  // Worker and worklet bundles are ES modules (the worklet is loaded with addModule).
+  worker: { format: "es" },
+  test: {
+    // Unit tests of the engine glue that don't need a browser (the e2e covers the rest).
+    environment: "node",
+    include: ["src/**/*.test.ts"],
   },
   build: {
     outDir: "dist",

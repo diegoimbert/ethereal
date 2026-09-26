@@ -2,62 +2,24 @@
 //!
 //! Two instances of this module run in the browser:
 //! - [`WasmController`] in a Web Worker: `ether-controller` with an OPFS-backed
-//!   `ProjectStore` + `Library` (engine-side; the UI thread never touches OPFS), and a
-//!   bridge that serializes
-//!   engine calls into a SharedArrayBuffer ring;
-//! - [`WasmEngine`] in the AudioWorklet: owns `ether_core::Engine` + `EngineHandle`,
-//!   drains the ring between blocks, and renders in `process()`.
+//!   `ProjectStore` + `Library` ([`store`]; engine-side, the UI thread never touches OPFS)
+//!   and a [`bridge::WebBridge`] that serializes engine calls into a SharedArrayBuffer ring;
+//! - [`WasmEngine`] in the AudioWorklet: owns `ether_core::Engine` + `EngineHandle` + GC
+//!   ([`worklet::EngineHost`]), drains the ring between blocks, and renders in `process()`.
 //!
-//! Messages to/from the UI are JSON-encoded `ClientMessage`/`ServerMessage`. Meters and
-//! playhead go through a second SAB ring read by the UI at rAF rate. Requires COOP/COEP
-//! (`apps/web` sets them). Owned by the `wasm-host` node.
+//! The two wasm instances share no memory: they exchange serialized messages over two SAB
+//! rings ([`ring`], [`proto`]): control (graph snapshots, params, transport, nodes, decoded
+//! media) Worker → Worklet, and reports (playhead, meters, diagnostics) Worklet → Worker.
+//! The Worker turns reports into `Playhead`/`Meters` messages for the UI in `tick`.
+//! Messages to/from the UI are JSON-encoded `ClientMessage`/`ServerMessage`. Requires
+//! COOP/COEP (`apps/web` sets them). No plugins on the web. Owned by the `wasm-host` node.
 
-use wasm_bindgen::prelude::*;
+pub mod bridge;
+pub mod fake;
+pub mod proto;
+pub mod ring;
+pub mod store;
+pub mod web;
+pub mod worklet;
 
-/// Controller side (Web Worker).
-#[wasm_bindgen]
-pub struct WasmController {
-    _private: (),
-}
-
-#[wasm_bindgen]
-impl WasmController {
-    #[wasm_bindgen(constructor)]
-    pub fn new(seed: u64) -> WasmController {
-        let _ = seed;
-        todo!("wasm-host node")
-    }
-
-    /// Handle one JSON `ClientMessage`; returns a JSON array of `ServerMessage`s.
-    pub fn handle(&mut self, message_json: &str) -> String {
-        let _ = message_json;
-        todo!("wasm-host node")
-    }
-
-    /// Periodic work; returns a JSON array of `ServerMessage`s.
-    pub fn tick(&mut self, now_ms: f64) -> String {
-        let _ = now_ms;
-        todo!("wasm-host node")
-    }
-}
-
-/// Engine side (AudioWorkletProcessor).
-#[wasm_bindgen]
-pub struct WasmEngine {
-    _private: (),
-}
-
-#[wasm_bindgen]
-impl WasmEngine {
-    #[wasm_bindgen(constructor)]
-    pub fn new(sample_rate: u32, max_block_size: usize) -> WasmEngine {
-        let _ = (sample_rate, max_block_size);
-        todo!("wasm-host node")
-    }
-
-    /// Render one block into planar output (`channels * frames` floats).
-    pub fn process(&mut self, output: &mut [f32], channels: usize, frames: usize) {
-        let _ = (output, channels, frames);
-        todo!("wasm-host node")
-    }
-}
+pub use web::{WasmController, WasmEngine};
