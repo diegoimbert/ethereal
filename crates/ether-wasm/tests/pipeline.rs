@@ -265,3 +265,104 @@ fn engine_errors_come_back_to_the_worker() {
     assert!(errors[0].contains("unknown node"), "{errors:?}");
     assert!(shared.borrow().blocks >= 4);
 }
+
+/// Built-in devices are created in the Worklet under virtual keys that the graph and param
+/// changes reference; the Worklet maps them to real engine keys.
+#[test]
+fn builtin_synth_under_virtual_key_plays_notes() {
+    use ether_core::graph::{ChainEntry, NoteDesc};
+    use ether_core::protocol::model::{BuiltinDevice, DeviceId};
+    use ether_core::{ParamChange, ParamTarget};
+
+    let control = HeapMemory::new(1 << 16);
+    let reports = HeapMemory::new(1 << 14);
+    let shared = bridge::shared(control.clone(), reports.clone());
+    let mut bridge = WebBridge::new(shared.clone());
+    let mut engine = EngineHost::new(48_000, control, reports);
+
+    let device = DeviceId(Ulid(5));
+    let key = bridge
+        .create_builtin(device, &BuiltinDevice::Synth, &[])
+        .unwrap();
+    assert!(bridge.descriptor(device).is_some());
+    let master = TrackId(Ulid(1));
+    let midi = TrackDesc {
+        id: TrackId(Ulid(2)),
+        kind: TrackKind::Midi,
+        chain: vec![ChainEntry {
+            node: key,
+            enabled: true,
+        }],
+        output: Some(master),
+        group: None,
+        sends: vec![],
+        volume: 1.0,
+        pan: 0.0,
+        mute: false,
+        solo: false,
+        audio_input: None,
+        monitor: false,
+        armed: false,
+        clips: vec![ClipDesc {
+            id: ClipId(Ulid(3)),
+            start: 0.0,
+            length: 4.0,
+            offset: 0.0,
+            looping: None,
+            muted: false,
+            content: ClipContentDesc::Midi {
+                notes: vec![NoteDesc {
+                    start: 0.0,
+                    duration: 2.0,
+                    key: 60,
+                    velocity: 1.0,
+                    release_velocity: 0.5,
+                }],
+            },
+            envelopes: vec![],
+        }],
+        automation: vec![],
+    };
+    let mut master_desc = midi.clone();
+    master_desc.id = master;
+    master_desc.kind = TrackKind::Master;
+    master_desc.chain.clear();
+    master_desc.clips.clear();
+    master_desc.output = None;
+    bridge
+        .publish(RenderGraphDesc {
+            version: 1,
+            tracks: vec![master_desc, midi],
+            ..Default::default()
+        })
+        .unwrap();
+    let info = bridge.descriptor(device).unwrap().params[0].clone();
+    let (param, default) = (info.id, info.default);
+    bridge
+        .set_param(ParamChange {
+            target: ParamTarget::Node { node: key, param },
+            value: default,
+        })
+        .unwrap();
+    bridge.transport(TransportControl::Play).unwrap();
+
+    let mut peak = 0.0f32;
+    for _ in 0..100 {
+        engine.render(RENDER_QUANTUM);
+        peak = peak.max(engine.output(0).iter().fold(0.0, |m, s| m.max(s.abs())));
+    }
+    let mut out = EngineOutputs::default();
+    bridge.poll(&mut out);
+    assert!(
+        shared.borrow().errors.is_empty(),
+        "{:?}",
+        shared.borrow().errors
+    );
+    assert!(peak > 0.01, "synth should sound, peak {peak}");
+    assert!(!out.meters.is_empty());
+
+    bridge.destroy_node(key).unwrap();
+    engine.render(RENDER_QUANTUM);
+    bridge.poll(&mut out);
+    assert!(shared.borrow().errors.is_empty());
+}

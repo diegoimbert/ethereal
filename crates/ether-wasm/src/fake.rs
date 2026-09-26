@@ -206,9 +206,12 @@ impl<B: EngineBridge, H: HostServices, S: ProjectStore> FakeController<B, H, S> 
     ) -> Result<ReplyValue, CommandError> {
         match cmd {
             ProjectCommand::Get => match &self.project {
-                Some(p) => Ok(ReplyValue::Project {
-                    project: Box::new(p.clone()),
-                }),
+                Some(p) => {
+                    let project = Box::new(p.clone());
+                    // Connect/refetch: also report the transport state (host contract).
+                    self.emit_transport(out);
+                    Ok(ReplyValue::Project { project })
+                }
                 None => Err(err(ErrorCode::InvalidState, "no project open")),
             },
             ProjectCommand::List => Ok(ReplyValue::Projects {
