@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { AUTOMATION_BAR_HEIGHT, automationHeight } from "@/features/automation";
 import type { Clip, Command, Note, PeakData, ReplyValue, Track } from "@/generated";
 import { TempoMap } from "@/timeline";
 import type { EngineTransport } from "@/transport";
@@ -166,6 +167,14 @@ describe("layout", () => {
     expect(rowIndexAt(r, -1)).toBe(-1);
     expect(rowIndexAt(r, TRACK_HEIGHT + 70)).toBe(1);
     expect(rowIndexAt(r, 10000)).toBe(r.length);
+  });
+
+  it("adds the automation slot height of ui-automation to every row", () => {
+    const closed = { open: new Set<string>(), shown: {} };
+    const r = layoutRows(ordered, new Set(), (id) => automationHeight(closed, id));
+    expect(r[1]).toMatchObject({ y: TRACK_HEIGHT + AUTOMATION_BAR_HEIGHT, laneHeight: TRACK_HEIGHT, height: TRACK_HEIGHT + AUTOMATION_BAR_HEIGHT });
+    expect(TRACK_HEIGHT + AUTOMATION_BAR_HEIGHT).toBe(76);
+    expect(rowIndexAt(r, TRACK_HEIGHT + 10)).toBe(0);
   });
 
   it("computes clip rects in content px for the marquee", () => {

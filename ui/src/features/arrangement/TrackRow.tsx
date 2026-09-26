@@ -1,6 +1,7 @@
 import clsx from "clsx";
-import { memo, useMemo, type MouseEvent } from "react";
+import { memo, useMemo, type CSSProperties, type MouseEvent } from "react";
 import type { Clip, ClipId, Track } from "@/generated";
+import { TrackAutomationLanes } from "@/features/automation";
 import { Button } from "@/kit";
 import { useProjectStore, useSelectionStore } from "@/state";
 import { pxToBeats, useTempoMap, useTimelineView, useViewport, visibleRange } from "@/timeline";
@@ -10,24 +11,23 @@ import { barAround, colorCss, groupSummaryKey } from "./helpers";
 import { sendEdit, useArrangement } from "./context";
 import { laneItems } from "./laneItems";
 import { HEADER_WIDTH, type Row } from "./layout";
-import { arrangementView, useArrangementUi } from "./uiStore";
+import { arrangementView, useArrangementUi, type PendingImport } from "./uiStore";
 
 const EMPTY_CLIPS: Readonly<Record<ClipId, Clip>> = {};
 const INDENT_PX = 12;
 
 export const TrackRow = memo(function TrackRow({ row }: { row: Row }) {
+  const grid = useArrangementUi((s) => s.grid);
   return (
     <div className="eth-arr-row" style={{ height: row.height }} data-track={row.track.id}>
       <div className="eth-arr-row__main" style={{ height: row.laneHeight }}>
         <TrackHeader row={row} />
         {row.track.kind === "Group" ? <GroupLane track={row.track} /> : <TrackLane track={row.track} />}
       </div>
-      {/*
-        Automation slot: ui-automation mounts the track's automation lanes here (header part
-        in the first HEADER_WIDTH px, lane part after it, same horizontal viewport as the
-        clips: `arrangementView`). Its height must be reported to `layoutRows`.
-      */}
-      <div className="eth-arr-row__automation" data-slot="automation" data-track={row.track.id} />
+      {/* Automation slot: its height is fed to `layoutRows` via `useAutomationHeight`. */}
+      <div className="eth-arr-row__automation" data-slot="automation" data-track={row.track.id}>
+        <TrackAutomationLanes trackId={row.track.id} view={arrangementView} headerWidth={HEADER_WIDTH} grid={grid} />
+      </div>
     </div>
   );
 });
@@ -136,6 +136,7 @@ function TrackLane({ track }: { track: Track }) {
   const clips = useProjectStore((s) => s.project?.clips ?? EMPTY_CLIPS);
   const preview = useArrangementUi((s) => s.preview);
   const dropHint = useArrangementUi((s) => (s.dropHint?.track === track.id ? s.dropHint.at : null));
+  const imports = useArrangementUi((s) => s.imports);
   const tempo = useTempoMap();
   const { vp, visible } = useVisible();
   const items = useMemo(() => laneItems(clips, track.id, preview), [clips, track.id, preview]);
@@ -175,6 +176,29 @@ function TrackLane({ track }: { track: Track }) {
       {dropHint !== null && (
         <div className="eth-arr-lane__drop-hint" style={{ left: (dropHint - vp.scrollBeats) * vp.pxPerBeat }} />
       )}
+      {imports.map((i) =>
+        i.track === track.id ? (
+          <ImportPlaceholder key={i.id} item={i} style={{ left: (i.at - vp.scrollBeats) * vp.pxPerBeat }} />
+        ) : null,
+      )}
+    </div>
+  );
+}
+
+/** A browser drop still importing (or failed), shown where the clip will go. */
+export function ImportPlaceholder({ item, style }: { item: PendingImport; style?: CSSProperties }) {
+  const text = item.error
+    ? `Import failed: ${item.name}`
+    : `Importing ${item.name}…${item.progress !== null ? ` ${Math.round(item.progress * 100)}%` : ""}`;
+  return (
+    <div
+      className={clsx("eth-arr-import", item.error && "eth-arr-import--error")}
+      style={style}
+      role="status"
+      title={item.error ?? undefined}
+      data-testid="import-placeholder"
+    >
+      {text}
     </div>
   );
 }

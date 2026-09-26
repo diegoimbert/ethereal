@@ -3,7 +3,7 @@
 // `Browser`: keep this export name and keep it prop-less (read state via hooks).
 //
 // Drop targets (arrangement): see `./dragPayload.ts` for the drag payload format
-// and `resolveDroppedMedia`.
+// and `resolveDroppedMedia` / `waitForMediaLength`.
 import "./browser.css";
 import clsx from "clsx";
 import { useEffect, useState, type DragEvent, type KeyboardEvent } from "react";

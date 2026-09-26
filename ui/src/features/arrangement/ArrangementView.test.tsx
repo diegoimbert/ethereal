@@ -6,11 +6,14 @@ import { itemSelection } from "@/timeline";
 import { cmd, MockTransport, newId, TransportProvider } from "@/transport";
 import { ArrangementView } from "./ArrangementView";
 import { BROWSER_DRAG_MIME } from "./browserDrop";
+import { AUTOMATION_BAR_HEIGHT, LANE_HEIGHT, resetAutomationUi } from "@/features/automation";
 import { HEADER_WIDTH, TRACK_HEIGHT } from "./layout";
 import { resetArrangementUi, useArrangementUi } from "./uiStore";
 
 // Default zoom is 24 px/beat; tests use a fixed 1-beat grid.
 const PX = 24;
+/** Row pitch with the automation bar (closed automation) under each lane. */
+const ROW = TRACK_HEIGHT + AUTOMATION_BAR_HEIGHT;
 const store = () => useProjectStore.getState();
 const project = () => store().project!;
 
@@ -95,6 +98,7 @@ async function undo() {
 
 beforeEach(async () => {
   resetArrangementUi();
+  resetAutomationUi();
   useArrangementUi.getState().setGrid({ type: "Fixed", step: { kind: "beats", beats: 1 }, triplet: false });
   stubCanvas();
   await renderView();
@@ -200,12 +204,45 @@ describe("ArrangementView: clip editing", () => {
 
   it("drags a clip to another compatible track", async () => {
     const chords = clipByName("Chords");
-    await drag(clipEl(chords), 0, TRACK_HEIGHT, { x: 100, y: 20 });
+    await drag(clipEl(chords), 0, ROW, { x: 100, y: 20 });
     expect(project().clips[chords.id]!.track).toBe(trackByName("Bass").id);
     // Audio track below: MIDI clips don't go there.
     const bass = clipByName("Bassline");
-    await drag(clipEl(bass), 0, TRACK_HEIGHT, { x: 100, y: TRACK_HEIGHT + 20 });
+    await drag(clipEl(bass), 0, ROW, { x: 100, y: ROW + 20 });
     expect(project().clips[bass.id]!.track).toBe(trackByName("Bass").id);
+  });
+
+  it("lays rows out with the automation lanes (drag targets follow)", async () => {
+    const keys = trackByName("Keys");
+    const slot = document.querySelector(`[data-slot="automation"][data-track="${keys.id}"]`)!;
+    expect(slot.querySelector(`[data-automation-track="${keys.id}"]`)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Show automation of Keys" }));
+    await flush();
+    const rowEl = (id: string) => document.querySelector<HTMLElement>(`.eth-arr-row[data-track="${id}"]`)!;
+    expect(rowEl(keys.id).style.height).toBe(`${ROW + LANE_HEIGHT}px`);
+    // Keys' row is taller now: one row pitch down lands inside Keys' own lanes, not on Bass.
+    const chords = clipByName("Chords");
+    await drag(clipEl(chords), 0, ROW + LANE_HEIGHT, { x: 100, y: 20 });
+    expect(project().clips[chords.id]!.track).toBe(trackByName("Bass").id);
+    await undo();
+    await drag(clipEl(chords), 0, ROW, { x: 100, y: 20 });
+    expect(project().clips[chords.id]!.track).toBe(keys.id);
+  });
+
+  it("Delete in a focused automation lane without selected points keeps the selected clips", async () => {
+    const chords = clipByName("Chords");
+    act(() => itemSelection.getState().select("clip", [chords.id]));
+    fireEvent.click(screen.getByRole("button", { name: "Show automation of Keys" }));
+    await flush();
+    const lane = screen.getByRole("group", { name: "Volume automation" });
+    for (const key of ["Delete", "Backspace"]) {
+      await act(async () => {
+        fireEvent.keyDown(lane, { key });
+      });
+      await flush();
+    }
+    expect(project().clips[chords.id]).toBeDefined();
+    expect(sent.some((c) => c.domain === "Clip")).toBe(false);
   });
 
   it("copies with cmd/ctrl held on release", async () => {
@@ -312,7 +349,7 @@ describe("ArrangementView: clip editing", () => {
     expect(sel.has(clipByName("Chords").id)).toBe(true);
     expect(sel.has(clipByName("Bassline").id)).toBe(true);
     // A click on the background clears it and selects the row's track.
-    await drag(content, 0, 0, { x: HEADER_WIDTH + 10, y: TRACK_HEIGHT + 5 });
+    await drag(content, 0, 0, { x: HEADER_WIDTH + 10, y: ROW + 5 });
     expect(itemSelection.getState().selected.clip.size).toBe(0);
     expect(useSelectionStore.getState().selectedTrack).toBe(trackByName("Bass").id);
   });
@@ -370,7 +407,7 @@ describe("ArrangementView: audio and drops", () => {
       name: "Kick.wav",
       file_kind: "Audio",
     };
-    const y = 2 * TRACK_HEIGHT + 20;
+    const y = 2 * ROW + 20;
     fireDrag("dragOver", content, payload, HEADER_WIDTH + 20 * PX, y);
     expect(useArrangementUi.getState().dropHint).toEqual({ track: drums.id, at: 20 });
     fireDrag("drop", content, payload, HEADER_WIDTH + 20.2 * PX, y);
@@ -379,6 +416,20 @@ describe("ArrangementView: audio and drops", () => {
     expect(created?.content.type).toBe("Audio");
     expect(created?.name).toBe("Kick");
     expect(useArrangementUi.getState().dropHint).toBeNull();
+  });
+
+  it("shows pending imports in their lane or in the drop area", () => {
+    const drums = trackByName("Drums");
+    const base = { at: 2, name: "Pad.mp3", progress: 0.25, error: null };
+    act(() => {
+      useArrangementUi.getState().putImport({ id: "a", track: drums.id, ...base });
+      useArrangementUi.getState().putImport({ id: "b", track: null, ...base, error: "timed out" });
+    });
+    const lane = document.querySelector(`[data-lane="${drums.id}"]`)!;
+    expect(lane.querySelector('[data-testid="import-placeholder"]')?.textContent).toBe("Importing Pad.mp3… 25%");
+    expect(screen.getByText("Import failed: Pad.mp3")).toBeTruthy();
+    act(() => useArrangementUi.getState().removeImport("a"));
+    expect(lane.querySelector('[data-testid="import-placeholder"]')).toBeNull();
   });
 
   it("rejects drops on MIDI tracks and creates a track below the last one", async () => {
@@ -391,7 +442,7 @@ describe("ArrangementView: audio and drops", () => {
     await flush();
     expect(Object.keys(project().tracks)).toHaveLength(tracksBefore);
 
-    fireDrag("drop", content, payload, HEADER_WIDTH + 4 * PX, 5 * TRACK_HEIGHT + 20);
+    fireDrag("drop", content, payload, HEADER_WIDTH + 4 * PX, 5 * ROW + 20);
     await flush();
     expect(Object.keys(project().tracks)).toHaveLength(tracksBefore + 1);
     const t = Object.values(project().tracks).find((x) => !idsBefore.has(x.id))!;

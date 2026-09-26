@@ -7,12 +7,12 @@ import { useProjectStore, useSelectionStore } from "@/state";
 import { cmd, newId } from "@/transport";
 import { useGestureSender, useSend, type GestureSender } from "@/features/devices/gesture";
 import { formatDb, formatPan } from "@/features/devices/paramScale";
-import { dbToFader, defaultOutputLabel, faderToDb, outputTargets, outputValue, parseOutputValue } from "./routing";
+import { dbToFader, defaultOutputLabel, faderToDb, MAX_DB, outputTargets, outputValue, parseOutputValue } from "./routing";
 import { useMeterLevels } from "./useMeterLevels";
 
 const FADER_HEIGHT = 120;
-/** Sends top out at unity, like Ableton. */
-const SEND_MAX_DB = 0;
+/** Sends use the same fader range as track volume (controller `MAX_SEND_DB` = +6 dB). */
+const SEND_MAX_DB = MAX_DB;
 
 function colorCss(color: number): string {
   return `#${color.toString(16).padStart(6, "0")}`;

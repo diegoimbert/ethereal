@@ -10,7 +10,7 @@ export { AutomationLanes } from "./AutomationLanes";
 export { AutomationLaneView, type AutomationLaneViewProps } from "./AutomationLaneView";
 export { TrackAutomationLanes, type TrackAutomationLanesProps } from "./TrackAutomationLanes";
 export { clampTension, curveFraction, evaluatePoints, shapeFraction, type CurvePoint } from "./curve";
-export { PAN_INFO, VOLUME_INFO, targetKey, trackTargets, useTrackTargets, type TargetInfo } from "./params";
+export { PAN_INFO, SEND_INFO, VOLUME_INFO, targetKey, trackTargets, useTrackTargets, type TargetInfo } from "./params";
 export {
   AUTOMATION_BAR_HEIGHT,
   LANE_HEIGHT,

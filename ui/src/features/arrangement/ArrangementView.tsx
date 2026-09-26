@@ -17,15 +17,15 @@ import {
   useViewport,
   visibleRange,
 } from "@/timeline";
-import { cmd, newId, TransportContext, useTransport, useTransportEvent } from "@/transport";
+import { useAutomationHeight } from "@/features/automation";
+import { TransportContext, useTransport, useTransportEvent } from "@/transport";
 import { actionForKey, runClipAction } from "./actions";
-import { hasBrowserDrag, readBrowserDrag, resolveDroppedMedia } from "./browserDrop";
-import { ArrangementContext, sendEdit, type ArrangementContextValue } from "./context";
-import { asOneStep } from "./editMath";
+import { dropBrowserMedia, hasBrowserDrag, readBrowserDrag } from "./browserDrop";
+import { ArrangementContext, type ArrangementContextValue } from "./context";
 import { clipRects, DROP_AREA_HEIGHT, HEADER_WIDTH, layoutRows, rowIndexAt, rowsHeight, type Row } from "./layout";
 import { PeakCache } from "./peaks";
 import { Toolbar } from "./Toolbar";
-import { TrackRow } from "./TrackRow";
+import { ImportPlaceholder, TrackRow } from "./TrackRow";
 import { arrangementView, useArrangementUi } from "./uiStore";
 import { useFollowWithMargin } from "./useFollowWithMargin";
 
@@ -67,7 +67,8 @@ function ConnectedArrangementView() {
   const tracks = useTracksOrdered();
   const folded = useArrangementUi((s) => s.folded);
   const grid = useArrangementUi((s) => s.grid);
-  const rows = useMemo(() => layoutRows(tracks, folded), [tracks, folded]);
+  const automationHeight = useAutomationHeight();
+  const rows = useMemo(() => layoutRows(tracks, folded, automationHeight), [tracks, folded, automationHeight]);
   const rowsRef = useRef<ReadonlyArray<Row>>(rows);
   useEffect(() => {
     rowsRef.current = rows;
@@ -128,26 +129,8 @@ function ConnectedArrangementView() {
     e.preventDefault();
     const t = dropTarget(e);
     if (t === "reject") return;
-    void (async () => {
-      try {
-        const media = await resolveDroppedMedia(transport, payload);
-        const clip = { id: newId(), start: t.at, media: media.id };
-        if (t.track) {
-          await sendEdit(transport, cmd("Clip", { type: "CreateAudio", track: t.track, ...clip }));
-          return;
-        }
-        const track = newId();
-        await sendEdit(
-          transport,
-          asOneStep("Add Audio Clip", [
-            cmd("Track", { type: "Create", id: track, kind: "Audio", name: null, color: null, parent: null, before: null }),
-            cmd("Clip", { type: "CreateAudio", track, ...clip }),
-          ]),
-        );
-      } catch (err) {
-        console.warn("browser drop failed", err);
-      }
-    })();
+    // Import + (new track +) clip as one undo step; shows an "Importing…" placeholder.
+    dropBrowserMedia(transport, payload, t).catch((err: unknown) => console.warn("browser drop failed", err));
   };
 
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
@@ -252,6 +235,8 @@ function LoopLayer() {
 
 function NewTrackDropHint() {
   const hint = useArrangementUi((s) => (s.dropHint && s.dropHint.track === null ? s.dropHint.at : null));
+  const pending = useArrangementUi((s) => s.imports.find((i) => i.track === null));
+  if (hint === null && pending) return <ImportPlaceholder item={pending} />;
   if (hint === null) return <span className="eth-arr__drop-label">Drop audio files here to create a track</span>;
   return <span className="eth-arr__drop-label eth-arr__drop-label--active">Create an audio track</span>;
 }

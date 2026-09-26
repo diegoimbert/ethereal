@@ -4,7 +4,7 @@ import { createDemoProject } from "@/transport";
 import { curveFraction, type CurvePoint } from "./curve";
 import { addPointCommand, bendTension, moveEdits, removePointsCommand, setCurveCommand, TENSION_DRAG_PX } from "./edit";
 import { LANE_PAD, lanePath, pointRect, segmentAt, timeToX, valueToY, xToTime, yToValue, type LaneGeometry } from "./geometry";
-import { formatNormalized, PAN_INFO, targetKey, trackTargets, VOLUME_INFO } from "./params";
+import { formatNormalized, PAN_INFO, SEND_INFO, targetKey, trackTargets, VOLUME_INFO } from "./params";
 import {
   AUTOMATION_BAR_HEIGHT,
   automationHeight,
@@ -153,8 +153,16 @@ describe("params", () => {
     const list = trackTargets(project, track.id, descriptors);
     expect(list[0]).toMatchObject({ key: `volume:${track.id}`, name: "Volume" });
     expect(list[1]).toMatchObject({ key: `pan:${track.id}`, name: "Pan" });
-    expect(list.some((t) => t.target.type === "SendLevel")).toBe(true);
+    const send = list.find((t) => t.target.type === "SendLevel");
+    expect(send?.info).toMatchObject({ min: SEND_INFO.min, max: SEND_INFO.max, default: SEND_INFO.default, scale: { type: "Fader" } });
     expect(list.some((t) => t.info.name === "Hidden")).toBe(false);
+  });
+
+  it("matches the controller's track_param_info mappings (compile.rs)", () => {
+    // TRACK_VOLUME_MAPPING / SEND_LEVEL_MAPPING: Fader, SILENCE_DB..+6 dB; PAN_MAPPING: Linear -1..1.
+    expect(VOLUME_INFO).toMatchObject({ unit: "Decibels", min: -144, max: 6, default: 0, scale: { type: "Fader" } });
+    expect(SEND_INFO).toMatchObject({ unit: "Decibels", min: -144, max: 6, default: -144, scale: { type: "Fader" } });
+    expect(PAN_INFO).toMatchObject({ unit: "Pan", min: -1, max: 1, default: 0, scale: { type: "Linear" } });
   });
 
   it("formats normalized values through ParamInfo.scale", () => {
