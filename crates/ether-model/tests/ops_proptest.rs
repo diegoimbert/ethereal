@@ -30,11 +30,19 @@ impl Rng {
     fn pick<T: Clone>(&mut self, items: &[T]) -> Option<T> {
         (!items.is_empty()).then(|| items[self.below(items.len())].clone())
     }
-    /// Mostly-valid beat values, sometimes invalid.
+    /// A uniformly random `f64` in `[lo, hi)` using all 53 mantissa bits (so values need
+    /// every digit to survive a JSON round-trip).
+    fn float(&mut self, lo: f64, hi: f64) -> f64 {
+        let unit = (self.next() >> 11) as f64 / (1u64 << 53) as f64;
+        lo + unit * (hi - lo)
+    }
+    /// Mostly-valid beat values, sometimes invalid. Half of them are full-precision floats.
     fn beats(&mut self) -> Beats {
         let v = [0.0, 0.25, 1.0, 1.5, 3.75, 4.0, 8.0, 16.0, 33.3];
         if self.chance(5) {
             Beats(-1.0)
+        } else if self.chance(50) {
+            Beats(self.float(0.0, 64.0))
         } else {
             Beats(v[self.below(v.len())])
         }
@@ -187,7 +195,7 @@ impl Gen<'_> {
                         id: self.id(),
                         clip,
                         pitch,
-                        velocity: 0.8,
+                        velocity: self.r.float(0.0, 1.0) as f32,
                         release_velocity: 0.5,
                         start: self.r.beats(),
                         duration: Beats(0.5),
@@ -227,7 +235,7 @@ impl Gen<'_> {
                         name: "D".into(),
                         enabled: true,
                         kind,
-                        params: [(ParamId(1), 0.5), (ParamId(7), 440.0)].into(),
+                        params: [(ParamId(1), self.r.float(-1e6, 1e6)), (ParamId(7), 440.0)].into(),
                     }),
                 }
             }
@@ -289,7 +297,11 @@ impl Gen<'_> {
                             id: self.id(),
                             lane,
                             time: self.r.beats(),
-                            value: if self.r.chance(5) { 2.0 } else { 0.25 },
+                            value: if self.r.chance(5) {
+                                2.0
+                            } else {
+                                self.r.float(0.0, 1.0)
+                            },
                             curve: CurveShape::Curve { tension: 0.5 },
                         }),
                     }
@@ -301,7 +313,7 @@ impl Gen<'_> {
                         entity: Entity::TempoPoint(TempoPoint {
                             id: self.id(),
                             time: self.r.beats(),
-                            bpm: [90.0, 140.0, 0.0][self.r.below(3)],
+                            bpm: [90.0, self.r.float(20.0, 999.0), 0.0][self.r.below(3)],
                             curve: TempoCurve::Linear,
                         }),
                     }
@@ -357,7 +369,7 @@ impl Gen<'_> {
             0 | 1 => {
                 let id = self.some_track()?;
                 let change = match self.r.below(8) {
-                    0 => TrackChange::Volume(Decibels(-12.0)),
+                    0 => TrackChange::Volume(Decibels(self.r.float(-70.0, 6.0) as f32)),
                     1 => TrackChange::Mute(self.r.chance(50)),
                     2 => TrackChange::Name("renamed".into()),
                     3 => TrackChange::Parent(self.r.pick(&self.tracks_of(&[TrackKind::Group]))),
@@ -417,7 +429,7 @@ impl Gen<'_> {
                 let change = match self.r.below(4) {
                     0 => DeviceChange::Param {
                         param: ParamId(self.r.below(3) as u32 * 7),
-                        value: self.r.chance(50).then_some(0.75),
+                        value: self.r.chance(50).then_some(self.r.float(-1e9, 1e9)),
                     },
                     1 => DeviceChange::Enabled(false),
                     2 => DeviceChange::Kind(DeviceKind::Builtin {
@@ -432,7 +444,7 @@ impl Gen<'_> {
                 let change = if self.r.chance(50) {
                     TempoPointChange::Time(self.r.beats())
                 } else {
-                    TempoPointChange::Bpm(100.0)
+                    TempoPointChange::Bpm(self.r.float(20.0, 999.0))
                 };
                 EntityUpdate::TempoPoint { id, change }
             }
@@ -447,7 +459,7 @@ impl Gen<'_> {
                 let id = self.r.pick(&self.keys(&self.p.automation_points))?;
                 EntityUpdate::AutomationPoint {
                     id,
-                    change: AutomationPointChange::Value(0.9),
+                    change: AutomationPointChange::Value(self.r.float(0.0, 1.0)),
                 }
             }
             _ => {
@@ -568,9 +580,77 @@ fn generator_covers_every_table() {
     );
 }
 
+/// Project + History under test, with the expected undo/redo stacks as snapshots.
+struct Sim {
+    p: Project,
+    mirror: Project,
+    history: History,
+    /// Project state before each undoable step (bottom = oldest).
+    undo_snaps: Vec<Project>,
+    /// Project state after each undone step (top = next redo).
+    redo_snaps: Vec<Project>,
+}
+
+impl Sim {
+    fn check_applied(&mut self, applied: &[Op], what: &str) -> Result<(), TestCaseError> {
+        self.p.validate().unwrap();
+        self.mirror
+            .apply_patch_changes(&changes_for(&self.p, applied));
+        prop_assert_eq!(
+            &self.mirror,
+            &self.p,
+            "patch mirror diverged after {}",
+            what
+        );
+        Ok(())
+    }
+
+    /// Undo one step; `false` if there was nothing to undo.
+    fn undo(&mut self) -> Result<bool, TestCaseError> {
+        let current = self.p.clone();
+        let applied = self.history.undo(&mut self.p).unwrap();
+        match (self.undo_snaps.pop(), applied) {
+            (None, None) => Ok(false),
+            (Some(expected), Some(applied)) => {
+                prop_assert_eq!(&self.p, &expected, "undo did not restore the snapshot");
+                self.check_applied(&applied, "undo")?;
+                self.redo_snaps.push(current);
+                Ok(true)
+            }
+            (e, a) => Err(TestCaseError::fail(format!(
+                "undo availability mismatch: expected {}, got {}",
+                e.is_some(),
+                a.is_some()
+            ))),
+        }
+    }
+
+    /// Redo one step; `false` if there was nothing to redo.
+    fn redo(&mut self) -> Result<bool, TestCaseError> {
+        let current = self.p.clone();
+        let applied = self.history.redo(&mut self.p).unwrap();
+        match (self.redo_snaps.pop(), applied) {
+            (None, None) => Ok(false),
+            (Some(expected), Some(applied)) => {
+                prop_assert_eq!(&self.p, &expected, "redo did not restore the snapshot");
+                self.check_applied(&applied, "redo")?;
+                self.undo_snaps.push(current);
+                Ok(true)
+            }
+            (e, a) => Err(TestCaseError::fail(format!(
+                "redo availability mismatch: expected {}, got {}",
+                e.is_some(),
+                a.is_some()
+            ))),
+        }
+    }
+}
+
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(256))]
 
+    /// Random interleaving of commits (with gestures), undos and redos, checked against a
+    /// model of the expected undo/redo stacks (as project snapshots).
     #[test]
     fn random_ops_undo_redo_and_patches(
         seed in any::<u64>(),
@@ -581,69 +661,129 @@ proptest! {
         let initial = Project::new(&mut ids, now);
         initial.validate().unwrap();
 
-        let mut p = initial.clone();
-        let mut mirror = initial.clone();
-        let mut history = History::new(0);
-        // Snapshot at the start of each undo step.
-        let mut snapshots: Vec<Project> = Vec::new();
+        let mut s = Sim {
+            p: initial.clone(),
+            mirror: initial.clone(),
+            history: History::new(0),
+            undo_snaps: Vec::new(),
+            redo_snaps: Vec::new(),
+        };
         let mut open: Option<GestureId> = None;
-        let mut applied_any = 0;
 
         for (tx_seed, g) in steps {
-            let tx = make_tx(&p, &mut ids, &mut now, tx_seed);
-            let gesture = gesture_of(g);
-            let before = p.clone();
-            let empty = tx.ops.is_empty();
-            match history.commit(&mut p, tx, gesture) {
-                Err(_) => prop_assert_eq!(&p, &before, "failed commit changed the project"),
-                Ok(applied) => {
-                    p.validate().unwrap();
-                    if !empty {
-                        applied_any += 1;
-                        let merge = gesture.is_some() && gesture == open && !snapshots.is_empty();
-                        if !merge {
-                            snapshots.push(before);
-                        }
-                        open = gesture;
-                    }
-                    mirror.apply_patch_changes(&changes_for(&p, &applied));
-                    prop_assert_eq!(&mirror, &p, "patch mirror diverged after commit");
-                }
-            }
-            if g % 16 == 15 {
-                // End the gesture sometimes.
-                if let Some(o) = open {
-                    history.end_gesture(o);
+            match g % 8 {
+                6 => {
+                    s.undo()?;
                     open = None;
                 }
+                7 => {
+                    s.redo()?;
+                    open = None;
+                }
+                _ => {
+                    let tx = make_tx(&s.p, &mut ids, &mut now, tx_seed);
+                    let gesture = gesture_of(g / 8);
+                    let before = s.p.clone();
+                    let empty = tx.ops.is_empty();
+                    match s.history.commit(&mut s.p, tx, gesture) {
+                        Err(_) => prop_assert_eq!(&s.p, &before, "failed commit changed the project"),
+                        Ok(applied) => {
+                            s.p.validate().unwrap();
+                            if !empty {
+                                let merge = gesture.is_some() && gesture == open && !s.undo_snaps.is_empty();
+                                if !merge {
+                                    s.undo_snaps.push(before);
+                                }
+                                s.redo_snaps.clear();
+                                open = gesture;
+                            }
+                            s.mirror.apply_patch_changes(&changes_for(&s.p, &applied));
+                            prop_assert_eq!(&s.mirror, &s.p, "patch mirror diverged after commit");
+                        }
+                    }
+                }
+            }
+            prop_assert_eq!(s.history.state().can_undo, !s.undo_snaps.is_empty());
+            prop_assert_eq!(s.history.state().can_redo, !s.redo_snaps.is_empty());
+            if g % 64 == 63
+                && let Some(o) = open.take()
+            {
+                s.history.end_gesture(o);
             }
         }
 
         // Round-trip through the file format.
-        let json = file::save(&p, "0.1.0").unwrap();
-        prop_assert_eq!(&file::load(&json).unwrap(), &p);
+        let json = file::save(&s.p, "0.1.0").unwrap();
+        prop_assert_eq!(&file::load(&json).unwrap(), &s.p);
 
-        let final_state = p.clone();
-        prop_assert_eq!(history.state().can_undo, applied_any > 0);
+        // Undo everything (back to the initial project), then redo everything.
+        while s.undo()? {}
+        prop_assert_eq!(&s.p, &initial);
+        while s.redo()? {}
+        prop_assert!(s.history.redo(&mut s.p).unwrap().is_none());
+    }
 
-        // Undo everything, checking each step boundary.
-        while let Some(expected) = snapshots.pop() {
-            let applied = history.undo(&mut p).unwrap().expect("an undo step");
-            prop_assert_eq!(&p, &expected, "undo did not restore the snapshot");
-            p.validate().unwrap();
-            mirror.apply_patch_changes(&changes_for(&p, &applied));
-            prop_assert_eq!(&mirror, &p, "patch mirror diverged after undo");
-        }
-        prop_assert!(history.undo(&mut p).unwrap().is_none());
-        prop_assert_eq!(&p, &initial);
-
-        // Redo everything.
-        while let Some(applied) = history.redo(&mut p).unwrap() {
-            p.validate().unwrap();
-            mirror.apply_patch_changes(&changes_for(&p, &applied));
-            prop_assert_eq!(&mirror, &p, "patch mirror diverged after redo");
-        }
-        prop_assert_eq!(&p, &final_state);
+    /// `.ether` save/load preserves arbitrary finite floats bit-for-bit (f64 and f32 fields).
+    #[test]
+    fn file_roundtrip_preserves_arbitrary_floats(
+        seed in any::<u64>(),
+        beats in prop::collection::vec(0.0f64..1e7, 4),
+        bpm in 1e-3f64..999.0,
+        unit in 0.0f64..=1.0,
+        param in prop::num::f64::NORMAL | prop::num::f64::SUBNORMAL | prop::num::f64::ZERO,
+        db in prop::num::f32::NORMAL | prop::num::f32::SUBNORMAL | prop::num::f32::ZERO,
+        pan in -1.0f32..=1.0,
+    ) {
+        let mut ids = IdGen::new(seed);
+        let now = 1_700_000_000_000u64;
+        let mut p = Project::new(&mut ids, now);
+        let track: TrackId = ids.next(now);
+        let clip: ClipId = ids.next(now);
+        let note: NoteId = ids.next(now);
+        let device: DeviceId = ids.next(now);
+        let lane: AutomationLaneId = ids.next(now);
+        let point: AutomationPointId = ids.next(now);
+        let tempo: TempoPointId = ids.next(now);
+        let ops = vec![
+            Op::Insert { entity: Entity::Track(Track {
+                id: track, kind: TrackKind::Midi, name: "m".into(), color: Color(1),
+                order: OrderKey::between(None, None), parent: None,
+                mixer: TrackMixer { volume: Decibels(db), pan: Pan(pan), mute: false, solo: false },
+                input: TrackInput::None, output: TrackOutput::Default, monitor: MonitorMode::Auto,
+            })},
+            Op::Insert { entity: Entity::Clip(Clip {
+                id: clip, track, location: ClipLocation::Arrangement { start: Beats(beats[0]) },
+                name: String::new(), color: None, muted: false, length: Beats(beats[1] + 1e-3),
+                offset: Beats(beats[2]),
+                looping: ClipLoop { enabled: true, start: Beats(beats[3]), end: Beats(beats[3] * 2.0 + 1.0) },
+                launch: LaunchSettings::default(), content: ClipContent::Midi,
+            })},
+            Op::Insert { entity: Entity::Note(Note {
+                id: note, clip, pitch: 60, velocity: unit as f32, release_velocity: pan.abs(),
+                start: Beats(beats[1]), duration: Beats(beats[2] + 1e-3), muted: false,
+            })},
+            Op::Insert { entity: Entity::Device(Device {
+                id: device, track, order: OrderKey::between(None, None), name: "d".into(),
+                enabled: true, kind: DeviceKind::Builtin { device: BuiltinDevice::Synth },
+                params: [(ParamId(1), param)].into(),
+            })},
+            Op::Insert { entity: Entity::AutomationLane(AutomationLane {
+                id: lane, owner: AutomationOwner::Track { track },
+                target: AutomationTarget::DeviceParam { device, param: ParamId(1) }, enabled: true,
+            })},
+            Op::Insert { entity: Entity::AutomationPoint(AutomationPoint {
+                id: point, lane, time: Beats(beats[0]), value: unit,
+                curve: CurveShape::Curve { tension: pan },
+            })},
+            Op::Insert { entity: Entity::TempoPoint(TempoPoint {
+                id: tempo, time: Beats(beats[3]), bpm, curve: TempoCurve::Linear,
+            })},
+        ];
+        p.apply_all(&ops).unwrap();
+        let back = file::load(&file::save(&p, "0.1.0").unwrap()).unwrap();
+        prop_assert_eq!(back.devices[&device].params[&ParamId(1)].to_bits(), param.to_bits());
+        prop_assert_eq!(back.tracks[&track].mixer.volume.0.to_bits(), db.to_bits());
+        prop_assert_eq!(&back, &p);
     }
 
     #[test]
