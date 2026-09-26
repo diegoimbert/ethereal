@@ -14,6 +14,29 @@ publish.workspace = true
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 ether-core.workspace = true
 thiserror.workspace = true
+clack-host.workspace = true
+clack-extensions.workspace = true
+rtrb.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+
+# Host-created editor windows (embedded CLAP GUIs).
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2.workspace = true
+objc2-app-kit.workspace = true
+objc2-foundation.workspace = true
+
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+# The minimal test plugin (`examples/ether_test_plugin.rs`, a cdylib) is built with clack's
+# plugin-side crates, so tests never depend on plugins installed on the machine.
+clack-plugin.workspace = true
+clack-extensions = { workspace = true, features = ["clack-plugin"] }
+assert_no_alloc.workspace = true
+
+# Minimal CLAP plugin used by the tests of this crate and of `ether-plugin-scanner`.
+[[example]]
+name = "ether_test_plugin"
+crate-type = ["cdylib"]
 
 [lints]
 workspace = true
