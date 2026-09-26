@@ -338,10 +338,10 @@ mod order_key {
             let mid = (digit_a + digit_b).div_ceil(2);
             return Ok(vec![DIGITS[mid]]);
         }
-        if let Some(b) = b {
-            if b.len() > 1 {
-                return Ok(vec![b[0]]);
-            }
+        if let Some(b) = b
+            && b.len() > 1
+        {
+            return Ok(vec![b[0]]);
         }
         let mut out = vec![DIGITS[digit_a]];
         let a_rest = if a.is_empty() { &[][..] } else { &a[1..] };
@@ -465,10 +465,10 @@ mod order_key {
         if let Some(b) = b {
             validate(b)?;
         }
-        if let (Some(a), Some(b)) = (a, b) {
-            if a >= b {
-                return Err(format!("{a} >= {b}"));
-            }
+        if let (Some(a), Some(b)) = (a, b)
+            && a >= b
+        {
+            return Err(format!("{a} >= {b}"));
         }
         let out = match (a.map(str::as_bytes), b.map(str::as_bytes)) {
             (None, None) => vec![b'a', ZERO],

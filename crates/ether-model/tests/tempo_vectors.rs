@@ -167,7 +167,7 @@ fn generate() -> Value {
                 "tempo": tempo.iter().map(|&(t, bpm, c)| json!({"time": t, "bpm": bpm, "curve": c})).collect::<Vec<_>>(),
                 "signatures": sigs.iter().map(|&(t, n, d)| json!({"time": t, "signature": {"numerator": n, "denominator": d}})).collect::<Vec<_>>(),
                 "beats_to_seconds": b2s.iter().map(|&(b, s)| json!([b, s])).collect::<Vec<_>>(),
-                "seconds_to_beats": b2s.iter().map(|&(b, s)| json!([s, m.seconds_to_beats(Seconds(s)).0])).collect::<Vec<_>>(),
+                "seconds_to_beats": b2s.iter().map(|&(_, s)| json!([s, m.seconds_to_beats(Seconds(s)).0])).collect::<Vec<_>>(),
                 "bpm_at": BEATS.iter().map(|&b| json!([b, m.bpm_at(Beats(b))])).collect::<Vec<_>>(),
                 "bar_beat": BEATS.iter().map(|&b| json!([b, m.bar_beat(Beats(b))])).collect::<Vec<_>>(),
             })
