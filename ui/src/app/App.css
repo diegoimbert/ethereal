@@ -1,0 +1,73 @@
+.eth-shell {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr) 280px;
+  grid-template-areas:
+    "top top"
+    "sidebar main"
+    "sidebar detail";
+  gap: var(--eth-space-xs);
+  height: 100%;
+  padding: var(--eth-space-xs);
+  background: var(--eth-color-border);
+}
+.eth-shell--detail-closed {
+  grid-template-rows: auto minmax(0, 1fr) 24px;
+}
+
+.eth-shell__top {
+  grid-area: top;
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-md);
+  min-height: 36px;
+  padding: var(--eth-space-sm) var(--eth-space-md);
+  background: var(--eth-color-bg-panel);
+  border-radius: var(--eth-radius-md);
+}
+.eth-shell__transport {
+  flex: 1;
+  min-width: 0;
+}
+.eth-shell__sidebar {
+  grid-area: sidebar;
+}
+.eth-shell__main {
+  grid-area: main;
+}
+.eth-shell__detail {
+  grid-area: detail;
+}
+.eth-shell__tabs {
+  display: flex;
+  gap: var(--eth-space-xs);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+/* Placeholder look for feature stubs (removed as features land). */
+.eth-feature-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--eth-space-xs);
+  height: 100%;
+  min-height: 24px;
+  padding: var(--eth-space-sm);
+  border: 1px dashed var(--eth-color-border-light);
+  border-radius: var(--eth-radius-sm);
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-sm);
+  text-align: center;
+}
+.eth-shell__top .eth-feature-placeholder {
+  flex-direction: row;
+}
+.eth-shell__top .eth-feature-placeholder span {
+  display: none;
+}
+.eth-feature-placeholder__owner {
+  font-family: var(--eth-font-mono);
+  font-size: var(--eth-fs-xs);
+}

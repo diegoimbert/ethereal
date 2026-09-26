@@ -1,0 +1,177 @@
+/* Styles for kit primitives. Class names are prefixed `eth-`. */
+
+/* ---- Button ---- */
+.eth-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--eth-space-sm);
+  height: 22px;
+  padding: 0 var(--eth-space-md);
+  border: 1px solid var(--eth-color-border);
+  border-radius: var(--eth-radius-sm);
+  background: var(--eth-color-bg-raised);
+  font-size: var(--eth-fs-sm);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.eth-button:hover:not(:disabled) {
+  background: var(--eth-color-border-light);
+}
+.eth-button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.eth-button[aria-pressed="true"],
+.eth-button--primary {
+  background: var(--eth-color-accent);
+  color: var(--eth-color-text-inverse);
+}
+.eth-button--ghost {
+  background: transparent;
+  border-color: transparent;
+}
+.eth-button--sm {
+  height: 18px;
+  padding: 0 var(--eth-space-sm);
+  font-size: var(--eth-fs-xs);
+}
+
+/* ---- Panel ---- */
+.eth-panel {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: var(--eth-color-bg-panel);
+  border: 1px solid var(--eth-color-border);
+  border-radius: var(--eth-radius-md);
+  overflow: hidden;
+}
+.eth-panel__header {
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-md);
+  flex: none;
+  height: 22px;
+  padding: 0 var(--eth-space-md);
+  background: var(--eth-color-bg-raised);
+  border-bottom: 1px solid var(--eth-color-border);
+  font-size: var(--eth-fs-sm);
+  font-weight: 600;
+  color: var(--eth-color-text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.eth-panel__actions {
+  margin-left: auto;
+  display: flex;
+  gap: var(--eth-space-sm);
+}
+.eth-panel__body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  position: relative;
+}
+
+/* ---- Knob ---- */
+.eth-knob {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--eth-space-xs);
+  cursor: ns-resize;
+  touch-action: none;
+  font-size: var(--eth-fs-xs);
+  color: var(--eth-color-text-dim);
+}
+.eth-knob svg {
+  display: block;
+}
+.eth-knob__track {
+  stroke: var(--eth-color-knob-track);
+}
+.eth-knob__value {
+  stroke: var(--eth-color-accent);
+}
+.eth-knob__pointer {
+  stroke: var(--eth-color-text);
+}
+
+/* ---- Fader ---- */
+.eth-fader {
+  position: relative;
+  width: 24px;
+  cursor: ns-resize;
+  touch-action: none;
+}
+.eth-fader__track {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  transform: translateX(-50%);
+  background: var(--eth-color-bg-inset);
+  border-radius: 2px;
+}
+.eth-fader__fill {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--eth-color-accent-dim);
+  border-radius: 2px;
+}
+.eth-fader__thumb {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 10px;
+  transform: translateY(50%);
+  background: var(--eth-color-text-dim);
+  border: 1px solid var(--eth-color-border);
+  border-radius: var(--eth-radius-sm);
+}
+
+/* ---- Meter ---- */
+.eth-meter {
+  display: inline-flex;
+  gap: 1px;
+  width: auto;
+}
+.eth-meter__channel {
+  position: relative;
+  width: 5px;
+  height: 100%;
+  background: var(--eth-color-bg-inset);
+  overflow: hidden;
+}
+/* Full-height gradient; the mask covers the unlit part from the top. */
+.eth-meter__gradient {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to top,
+    var(--eth-color-meter-low) 0%,
+    var(--eth-color-meter-low) 70%,
+    var(--eth-color-meter-mid) 85%,
+    var(--eth-color-meter-high) 100%
+  );
+}
+.eth-meter__mask {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  background: var(--eth-color-bg-inset);
+}
+.eth-meter__clip {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 3px;
+  background: var(--eth-color-meter-high);
+}
