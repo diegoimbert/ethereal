@@ -350,6 +350,25 @@ mod tests {
     }
 
     #[test]
+    fn builtin_devices() {
+        let (mut b, _engine) = bridge();
+        let d = DeviceId(Ulid(3));
+        let key = b.create_builtin(d, &BuiltinDevice::Synth, &[]).unwrap();
+        assert_eq!(
+            b.descriptor(d).unwrap().device_type,
+            ether_core::protocol::devices::DeviceTypeRef::Builtin {
+                device: BuiltinDeviceType::Synth
+            }
+        );
+        // Re-creating the same device replaces its node.
+        let key2 = b.create_builtin(d, &BuiltinDevice::Delay, &[]).unwrap();
+        assert_ne!(key, key2);
+        assert!(b.destroy_node(key).is_err());
+        b.destroy_node(key2).unwrap();
+        assert!(b.descriptor(d).is_none());
+    }
+
+    #[test]
     fn media_is_resampled_and_registered() {
         let (mut b, _engine) = bridge();
         let audio = Arc::new(DecodedAudio {
