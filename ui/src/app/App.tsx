@@ -10,9 +10,9 @@
  *   │              │ detail: devices | piano roll | automation | warp | mixer │
  *   └──────────────┴─────────────────────────────────────────┘
  *
- * TODO(foundation/transport): wrap the tree in `<TransportProvider transport={...}>` from
- * `@/transport` (MockTransport standalone, Tauri/Wasm transports in the hosts). Not imported
- * yet because `ui/src/transport/` is being written separately; see also `main.tsx`.
+ * Engine access: entries (`ui/src/main.tsx`, `apps/web/src/main.tsx`) wrap `<App />` in
+ * `<TransportProvider transport={createDefaultTransport()}>` from `@/transport`; features
+ * use `useTransport()` and read the document from `@/state`.
  */
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { Button, Panel } from "@/kit";

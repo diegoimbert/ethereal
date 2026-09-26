@@ -3,3 +3,5 @@
 // `@` → `ui/src` as well (see apps/web/vite.config.ts).
 export { App, type DetailTabId, type MainViewId, type SidebarTabId } from "./app/App";
 export * from "./kit";
+export * from "./state";
+export * from "./transport";
