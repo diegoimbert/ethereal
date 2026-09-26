@@ -1,12 +1,21 @@
 //! Media: decoding (symphonia), resampling (rubato), peak mipmaps. Pure Rust, wasm-safe:
 //! operates on bytes in memory; hosts do the file/OPFS I/O.
 //!
-//! Owned by the `media` node (it adds `symphonia`/`rubato` from `[workspace.dependencies]`).
+//! Typical import flow (controller side): [`decode`] the file bytes, build a [`PeakMipmap`]
+//! from the source-rate audio (peak requests are in source frames), [`resample`] to the
+//! engine rate and hand the result to the engine wrapped in an [`InMemorySource`].
 
 use std::sync::Arc;
 
 use ether_core::AudioSource;
-use ether_core::protocol::media::{PeakData, PeakRequest};
+
+mod decode;
+mod peaks;
+mod resample;
+
+pub use decode::{decode, decode_owned};
+pub use peaks::{BASE_SAMPLES_PER_PEAK, PeakMipmap};
+pub use resample::{resample, resampled_len};
 
 /// Planar `f32` audio fully in memory.
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -32,50 +41,15 @@ pub enum MediaError {
     Resample(String),
 }
 
-/// Decode a whole file (WAV/AIFF/FLAC/MP3/OGG). `extension` is a format hint.
-pub fn decode(bytes: &[u8], extension: Option<&str>) -> Result<DecodedAudio, MediaError> {
-    let _ = (bytes, extension);
-    todo!("media node")
-}
-
-/// High-quality resample to `target_rate` (no-op clone if equal).
-pub fn resample(audio: &DecodedAudio, target_rate: u32) -> Result<DecodedAudio, MediaError> {
-    let _ = (audio, target_rate);
-    todo!("media node")
-}
-
-/// Min/max peak pyramid (levels at powers of two samples-per-peak, from 32 up).
-#[derive(Clone, Debug, Default)]
-pub struct PeakMipmap {
-    _private: (),
-}
-
-impl PeakMipmap {
-    pub fn build(audio: &DecodedAudio) -> Self {
-        let _ = audio;
-        todo!("media node")
-    }
-
-    /// Answer a `MediaCommand::GetPeaks` from the nearest level `>= samples_per_peak`.
-    pub fn query(&self, request: &PeakRequest) -> PeakData {
-        let _ = request;
-        todo!("media node")
-    }
-
-    /// Compact binary form for host-side caching (keyed by `MediaRef::hash`).
-    pub fn to_bytes(&self) -> Vec<u8> {
-        todo!("media node")
-    }
-
-    pub fn from_bytes(bytes: &[u8]) -> Result<Self, MediaError> {
-        let _ = bytes;
-        todo!("media node")
-    }
-}
-
 /// [`AudioSource`] over fully decoded audio (already at the engine rate).
 pub struct InMemorySource {
     pub audio: Arc<DecodedAudio>,
+}
+
+impl InMemorySource {
+    pub fn new(audio: Arc<DecodedAudio>) -> Self {
+        Self { audio }
+    }
 }
 
 impl AudioSource for InMemorySource {
