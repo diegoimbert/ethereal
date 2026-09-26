@@ -28,7 +28,14 @@ fn sanitize(raw: Option<&str>) -> String {
     let cleaned: String = raw
         .unwrap_or_default()
         .chars()
-        .filter(|c| c.is_ascii_alphanumeric() || *c == '_' || *c == '-')
+        // Same rule as scripts/dev-env.mjs and ether_native::instance::sanitize.
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '_' || c == '-' {
+                c
+            } else {
+                '-'
+            }
+        })
         .collect();
     if cleaned.is_empty() {
         "default".to_owned()
@@ -67,8 +74,8 @@ mod tests {
     fn sanitizes_instance_names() {
         assert_eq!(sanitize(None), "default");
         assert_eq!(sanitize(Some("")), "default");
-        assert_eq!(sanitize(Some("../../etc")), "etc");
-        assert_eq!(sanitize(Some("node/ui-shell")), "nodeui-shell");
+        assert_eq!(sanitize(Some("../../etc")), "------etc");
+        assert_eq!(sanitize(Some("node/ui-shell")), "node-ui-shell");
         assert_eq!(sanitize(Some("agent_42-b")), "agent_42-b");
     }
 }

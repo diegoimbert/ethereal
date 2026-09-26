@@ -80,7 +80,7 @@ Size: S ≈ half a day of agent work, M ≈ 1 day, L ≈ 2+ days (relative, used
 
 | Node | Size | Owns | Deliverable / acceptance |
 |---|---|---|---|
-| `foundation` | L | everything (it's first) | Cargo workspace with **all** crates listed as members (stubs compile). `[workspace.dependencies]` pre-populated with every anticipated crate. `ether-protocol` complete v0 command/event set + TS generation. `ether-model` types (no logic). `ether-core` public API + traits (`Node`, `Device`, `Engine`, `RenderSnapshot`) with `todo!()` bodies. `Stretcher`, `PluginNode`, `Controller` traits. Tauri + Vite apps boot. React shell with a layout slot per feature, each slot importing a stub component from its feature folder. `ui/src/kit` minimal primitives. `EngineTransport` + `MockTransport` (in-memory model, fake meters/playhead). CI: fmt, clippy, tests, `cargo check --target wasm32-unknown-unknown` for wasm crates, tsc, vitest, lint, **ownership check**, generated-types freshness check, matrix compile check on macOS/Linux/Windows. `.orchestra/ownership.toml`. **Human checkpoint: user reviews contracts before fan-out.** |
+| `foundation` | L | everything (it's first) | Cargo workspace with **all** crates listed as members (stubs compile). `[workspace.dependencies]` pre-populated with every anticipated crate. `ether-protocol` complete v0 command/event set + TS generation. `ether-model` types (no logic). `ether-core` public API + traits (`Node`, `Device`, `Engine`, `RenderSnapshot`) with `todo!()` bodies. `Stretcher`, `PluginNode`, `Controller` traits. Tauri + Vite apps boot. React shell with a layout slot per feature, each slot importing a stub component from its feature folder. `ui/src/kit` minimal primitives. `EngineTransport` + `MockTransport` (in-memory model, fake meters/playhead). CI: fmt, clippy, tests, `cargo check --target wasm32-unknown-unknown` for wasm crates, tsc, vitest, lint, **ownership check**, generated-types freshness check, matrix compile check on macOS/Linux/Windows. `.github/ownership.toml`. **Human checkpoint: user reviews contracts before fan-out.** |
 
 ### Wave 1: parallel after `foundation`
 
@@ -143,7 +143,7 @@ Deps: plugins, warp, recording, session. Full E2E suite, `assert_no_alloc` soak 
 | App shell / feature registration | Root creates a slot per feature with a stub import; features only edit their own folder. |
 | `ui/package.json` | Root pre-installs anticipated deps; additions via BCR. |
 
-**Ownership enforcement:** `.orchestra/ownership.toml` maps node id → globs. CI derives the node from the branch name (`node/<id>`) and fails if the diff touches files outside its globs (lockfiles/generated files whitelisted). Consolidation nodes have wide globs.
+**Ownership enforcement:** [`.github/ownership.toml`](../.github/ownership.toml) (in the repo, versioned with the code) maps node id → globs; `scripts/check-ownership.py` enforces it (`just check-ownership` locally). CI derives the node from the branch name (`node/<id>`) and fails if the diff touches files outside its globs (lockfiles/generated files whitelisted). Consolidation nodes have wide globs.
 
 ## 5. Runtime topology
 
@@ -160,7 +160,7 @@ The manager is a judgment-driven loop rather than a fixed workflow script, becau
 ```
 .orchestra/
   graph.json                  canonical DAG (manager-owned)
-  ownership.toml              node → path globs (also copied into repo by foundation)
+  (ownership lives in the repo: .github/ownership.toml)
   nodes/<id>/status.json      worker-owned: state, progress %, summary, last_heartbeat, blockers
   inbox/manager/<ts>-<id>-<kind>.json   worker → manager
   inbox/<id>/<ts>-<kind>.json           manager → worker
@@ -176,6 +176,7 @@ The manager is a judgment-driven loop rather than a fixed workflow script, becau
 - Check its inbox at every commit.
 - Open a draft PR after the first meaningful commit.
 - Never edit outside owned paths. If it needs to, it sends a `bcr`.
+- Always use the `just` dev commands (`just dev-ui`, `just dev-web`, `just dev-desktop`, `just test-all`, ...). Never hardcode ports, app data paths or IPC names: they derive from `ETHER_INSTANCE` so parallel worktrees don't clash (README "Running multiple dev instances"). Use `ETHER_AUDIO=null` when no sound is needed.
 - On finishing, mark the PR ready and send `ready-for-review`.
 
 The manager also uses `SendMessage` to wake or redirect an agent whose turn has ended, and gets automatic notifications when agents complete.
