@@ -38,7 +38,7 @@ pub struct FakeBridge {
     pub live: BTreeMap<NodeKey, DeviceId>,
     pub graphs: Vec<RenderGraphDesc>,
     pub media: BTreeMap<MediaId, Arc<DecodedAudio>>,
-    next: u32,
+    pub next: u32,
     /// Plugins: `None` = unsupported (web).
     pub plugins: Option<BTreeMap<String, DeviceDescriptor>>,
     pub plugin_states: BTreeMap<DeviceId, Base64Bytes>,
