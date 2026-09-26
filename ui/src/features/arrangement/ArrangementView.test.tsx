@@ -1,0 +1,419 @@
+import { act, createEvent, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { Clip, Command, Track } from "@/generated";
+import { playheadStore, useEditorStore, useProjectStore, useSelectionStore } from "@/state";
+import { itemSelection } from "@/timeline";
+import { cmd, MockTransport, newId, TransportProvider } from "@/transport";
+import { ArrangementView } from "./ArrangementView";
+import { BROWSER_DRAG_MIME } from "./browserDrop";
+import { HEADER_WIDTH, TRACK_HEIGHT } from "./layout";
+import { resetArrangementUi, useArrangementUi } from "./uiStore";
+
+// Default zoom is 24 px/beat; tests use a fixed 1-beat grid.
+const PX = 24;
+const store = () => useProjectStore.getState();
+const project = () => store().project!;
+
+let mock: MockTransport;
+let sent: Command[];
+
+function trackByName(name: string): Track {
+  const t = Object.values(project().tracks).find((x) => x.name === name);
+  if (!t) throw new Error(`no track ${name}`);
+  return t;
+}
+
+function clipByName(name: string): Clip {
+  const c = Object.values(project().clips).find((x) => x.name === name && x.location.type === "Arrangement");
+  if (!c) throw new Error(`no clip ${name}`);
+  return c;
+}
+
+const startOf = (c: Clip) => (c.location.type === "Arrangement" ? c.location.start : NaN);
+const clipEl = (c: Clip) => document.querySelector<HTMLElement>(`[data-clip-id="${c.id}"]`)!;
+
+async function flush() {
+  await act(async () => {
+    for (let i = 0; i < 10; i++) await Promise.resolve();
+  });
+}
+
+/** Fake 2D context: enough for the clip canvases to draw (and request peaks). */
+function stubCanvas() {
+  const ctx = new Proxy(
+    {},
+    {
+      get: (target: Record<string, unknown>, key: string) => (key in target ? target[key] : () => {}),
+      set: (target: Record<string, unknown>, key: string, value: unknown) => {
+        target[key] = value;
+        return true;
+      },
+    },
+  );
+  vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockImplementation(() => ctx as unknown as CanvasRenderingContext2D);
+}
+
+async function renderView() {
+  mock = new MockTransport({ timers: "manual", seed: 1 });
+  sent = [];
+  const send = mock.send.bind(mock);
+  vi.spyOn(mock, "send").mockImplementation((c, o) => {
+    sent.push(c);
+    return send(c, o);
+  });
+  render(
+    <TransportProvider transport={mock}>
+      <ArrangementView />
+    </TransportProvider>,
+  );
+  await waitFor(() => expect(store().project).not.toBeNull());
+  await flush();
+}
+
+/** Pointer drag on `el` by (dx, dy) px, starting at (x, y). */
+async function drag(el: Element, dx: number, dy = 0, opts: { x?: number; y?: number; up?: PointerEventInit } = {}) {
+  const x = opts.x ?? 100;
+  const y = opts.y ?? 20;
+  await act(async () => {
+    fireEvent.pointerDown(el, { button: 0, pointerId: 1, clientX: x, clientY: y });
+  });
+  await act(async () => {
+    fireEvent.pointerMove(window, { pointerId: 1, clientX: x + dx / 2, clientY: y + dy / 2 });
+    fireEvent.pointerMove(window, { pointerId: 1, clientX: x + dx, clientY: y + dy });
+  });
+  await act(async () => {
+    fireEvent.pointerUp(window, { pointerId: 1, clientX: x + dx, clientY: y + dy, ...opts.up });
+  });
+  await flush();
+}
+
+async function undo() {
+  await act(async () => {
+    await mock.send(cmd("Edit", { type: "Undo" }));
+  });
+}
+
+beforeEach(async () => {
+  resetArrangementUi();
+  useArrangementUi.getState().setGrid({ type: "Fixed", step: { kind: "beats", beats: 1 }, triplet: false });
+  stubCanvas();
+  await renderView();
+});
+
+afterEach(() => {
+  mock.dispose();
+  store().reset();
+  useSelectionStore.getState().selectTrack(null);
+  itemSelection.getState().clear();
+  useEditorStore.setState({ clip: null, request: 0 });
+  vi.restoreAllMocks();
+});
+
+describe("ArrangementView: tracks", () => {
+  it("renders a header and lane per track, returns and master last", () => {
+    const names = [...document.querySelectorAll(".eth-arr-header__name")].map((e) => e.textContent);
+    expect(names).toEqual(["Keys", "Bass", "Drums", "A Delay", "Master"]);
+    expect(document.querySelectorAll('[data-slot="automation"]')).toHaveLength(5);
+    expect(clipEl(clipByName("Chords"))).toBeTruthy();
+    expect(clipEl(clipByName("Bassline"))).toBeTruthy();
+  });
+
+  it("selects the track on header click", () => {
+    fireEvent.click(screen.getByRole("group", { name: "Bass track" }));
+    expect(useSelectionStore.getState().selectedTrack).toBe(trackByName("Bass").id);
+  });
+
+  it("mutes, solos and arms with the existing commands", async () => {
+    fireEvent.click(screen.getByRole("button", { name: "Mute Keys" }));
+    await flush();
+    expect(trackByName("Keys").mixer.mute).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "Solo Bass" }));
+    await flush();
+    expect(trackByName("Bass").mixer.solo).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "Arm Drums" }));
+    await flush();
+    expect(store().armedTracks).toEqual([trackByName("Drums").id]);
+    expect(screen.queryByRole("button", { name: "Arm Master" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Solo Master" })).toBeNull();
+  });
+
+  it("nests and folds groups", async () => {
+    const group = newId();
+    const child = trackByName("Bass").id;
+    await act(async () => {
+      await mock.send(cmd("Track", { type: "Create", id: group, kind: "Group", name: "Grp", color: null, parent: null, before: null }));
+      await mock.send(cmd("Track", { type: "Move", id: child, parent: group, before: null }));
+    });
+    await flush();
+    const header = screen.getByRole("group", { name: "Bass track" });
+    expect(header.style.paddingLeft).toBe("16px");
+    // The group lane summarizes the child's clip.
+    expect(document.querySelectorAll(`[data-lane="${group}"] .eth-arr-lane__summary`)).toHaveLength(1);
+    fireEvent.click(screen.getByRole("button", { name: "Fold Grp" }));
+    expect(screen.queryByRole("group", { name: "Bass track" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Unfold Grp" }));
+    expect(screen.getByRole("group", { name: "Bass track" })).toBeTruthy();
+  });
+});
+
+describe("ArrangementView: clip editing", () => {
+  it("click selects a clip and its track; shift adds; cmd toggles", async () => {
+    const chords = clipByName("Chords");
+    const bass = clipByName("Bassline");
+    await drag(clipEl(chords), 0);
+    expect([...itemSelection.getState().selected.clip]).toEqual([chords.id]);
+    expect(useSelectionStore.getState().selectedTrack).toBe(chords.track);
+    await act(async () => {
+      fireEvent.pointerDown(clipEl(bass), { button: 0, clientX: 10, clientY: 70, shiftKey: true });
+      fireEvent.pointerUp(window, { clientX: 10, clientY: 70 });
+    });
+    expect(itemSelection.getState().selected.clip.size).toBe(2);
+    await act(async () => {
+      fireEvent.pointerDown(clipEl(bass), { button: 0, clientX: 10, clientY: 70, metaKey: true });
+      fireEvent.pointerUp(window, { clientX: 10, clientY: 70, metaKey: true });
+    });
+    expect([...itemSelection.getState().selected.clip]).toEqual([chords.id]);
+  });
+
+  it("moves a clip with snapping as one undo step", async () => {
+    const chords = clipByName("Chords");
+    await drag(clipEl(chords), 4.3 * PX);
+    expect(startOf(project().clips[chords.id]!)).toBe(4);
+    expect(store().history.can_undo).toBe(true);
+    await undo();
+    expect(startOf(project().clips[chords.id]!)).toBe(0);
+  });
+
+  it("bypasses snapping with alt", async () => {
+    const chords = clipByName("Chords");
+    await drag(clipEl(chords), 1.5 * PX, 0, {});
+    expect(startOf(project().clips[chords.id]!)).toBe(2);
+    await undo();
+    await act(async () => {
+      fireEvent.pointerDown(clipEl(chords), { button: 0, clientX: 100, clientY: 20 });
+      fireEvent.pointerMove(window, { clientX: 100 + 1.5 * PX, clientY: 20, altKey: true });
+      fireEvent.pointerUp(window, { clientX: 100 + 1.5 * PX, clientY: 20, altKey: true });
+    });
+    await flush();
+    expect(startOf(project().clips[chords.id]!)).toBeCloseTo(1.5);
+  });
+
+  it("drags a clip to another compatible track", async () => {
+    const chords = clipByName("Chords");
+    await drag(clipEl(chords), 0, TRACK_HEIGHT, { x: 100, y: 20 });
+    expect(project().clips[chords.id]!.track).toBe(trackByName("Bass").id);
+    // Audio track below: MIDI clips don't go there.
+    const bass = clipByName("Bassline");
+    await drag(clipEl(bass), 0, TRACK_HEIGHT, { x: 100, y: TRACK_HEIGHT + 20 });
+    expect(project().clips[bass.id]!.track).toBe(trackByName("Bass").id);
+  });
+
+  it("copies with cmd/ctrl held on release", async () => {
+    const chords = clipByName("Chords");
+    const before = Object.keys(project().clips).length;
+    await drag(clipEl(chords), 16 * PX, 0, { up: { ctrlKey: true } });
+    expect(Object.keys(project().clips)).toHaveLength(before + 1);
+    expect(startOf(project().clips[chords.id]!)).toBe(0);
+    const copies = Object.values(project().clips).filter((c) => c.name === "Chords" && startOf(c) === 16);
+    expect(copies).toHaveLength(1);
+    await undo();
+    expect(Object.keys(project().clips)).toHaveLength(before);
+  });
+
+  it("previews a drag locally and commits once on release", async () => {
+    const chords = clipByName("Chords");
+    await act(async () => {
+      fireEvent.pointerDown(clipEl(chords), { button: 0, clientX: 100, clientY: 20 });
+      fireEvent.pointerMove(window, { clientX: 100 + 2 * PX, clientY: 20 });
+    });
+    expect(useArrangementUi.getState().preview?.bounds.get(chords.id)?.start).toBe(2);
+    expect(sent.filter((c) => c.domain === "Clip")).toHaveLength(0);
+    await act(async () => {
+      fireEvent.pointerUp(window, { clientX: 100 + 2 * PX, clientY: 20 });
+    });
+    await flush();
+    expect(sent.filter((c) => c.domain === "Clip")).toHaveLength(1);
+    expect(useArrangementUi.getState().preview).toBeNull();
+  });
+
+  it("resizes the end and the start", async () => {
+    const chords = clipByName("Chords");
+    await drag(clipEl(chords).querySelector('[data-handle="resize-end"]')!, -4 * PX);
+    expect(project().clips[chords.id]!.length).toBe(12);
+    await drag(clipEl(chords).querySelector('[data-handle="resize-start"]')!, 2 * PX);
+    const c = project().clips[chords.id]!;
+    expect([startOf(c), c.length, c.offset]).toEqual([2, 10, 2]);
+    await undo();
+    expect(startOf(project().clips[chords.id]!)).toBe(0);
+    expect(project().clips[chords.id]!.length).toBe(12);
+  });
+
+  it("moves a multi-selection together", async () => {
+    const chords = clipByName("Chords");
+    const bass = clipByName("Bassline");
+    act(() => itemSelection.getState().select("clip", [chords.id, bass.id]));
+    await drag(clipEl(chords), 8 * PX);
+    expect(startOf(project().clips[chords.id]!)).toBe(8);
+    expect(startOf(project().clips[bass.id]!)).toBe(24);
+    await undo();
+    expect(startOf(project().clips[bass.id]!)).toBe(16);
+  });
+
+  it("splits at the playhead, duplicates, loops and deletes from the keyboard", async () => {
+    const chords = clipByName("Chords");
+    const root = document.querySelector<HTMLElement>(".eth-arr")!;
+    act(() => itemSelection.getState().select("clip", [chords.id]));
+    act(() =>
+      playheadStore.setPlayhead({ transport: { position: 6, seconds: 3, playing: false, bpm: 120 }, session: [] }),
+    );
+    await act(async () => {
+      fireEvent.keyDown(root, { key: "e", ctrlKey: true });
+    });
+    await flush();
+    expect(project().clips[chords.id]!.length).toBe(6);
+    const right = Object.values(project().clips).find((c) => c.name === "Chords" && startOf(c) === 6);
+    expect(right?.offset).toBe(6);
+
+    await act(async () => {
+      fireEvent.keyDown(root, { key: "d", ctrlKey: true });
+    });
+    await flush();
+    const dup = Object.values(project().clips).find((c) => c.name === "Chords" && startOf(c) === 6 && c.id !== right?.id);
+    expect(dup?.length).toBe(6);
+    // The copy is now selected.
+    expect([...itemSelection.getState().selected.clip]).toEqual([dup!.id]);
+
+    await act(async () => {
+      fireEvent.keyDown(root, { key: "l", ctrlKey: true, shiftKey: true });
+    });
+    await flush();
+    expect(project().clips[dup!.id]!.looping.enabled).toBe(true);
+
+    await act(async () => {
+      fireEvent.keyDown(root, { key: "Delete" });
+    });
+    await flush();
+    expect(project().clips[dup!.id]).toBeUndefined();
+  });
+
+  it("toggles looping from the toolbar", async () => {
+    const chords = clipByName("Chords");
+    act(() => itemSelection.getState().select("clip", [chords.id]));
+    fireEvent.click(screen.getByRole("button", { name: "Loop" }));
+    await flush();
+    expect(project().clips[chords.id]!.looping).toEqual({ enabled: true, start: 0, end: 16 });
+    expect(clipEl(chords).querySelector(".eth-clip__loop")).toBeTruthy();
+  });
+
+  it("selects clips with the marquee", async () => {
+    const content = screen.getByTestId("arrangement-content");
+    await drag(content, 400, 150, { x: HEADER_WIDTH + 10, y: 5 });
+    const sel = itemSelection.getState().selected.clip;
+    expect(sel.has(clipByName("Chords").id)).toBe(true);
+    expect(sel.has(clipByName("Bassline").id)).toBe(true);
+    // A click on the background clears it and selects the row's track.
+    await drag(content, 0, 0, { x: HEADER_WIDTH + 10, y: TRACK_HEIGHT + 5 });
+    expect(itemSelection.getState().selected.clip.size).toBe(0);
+    expect(useSelectionStore.getState().selectedTrack).toBe(trackByName("Bass").id);
+  });
+
+  it("opens MIDI clips in the editor on double-click", () => {
+    const chords = clipByName("Chords");
+    fireEvent.doubleClick(clipEl(chords));
+    expect(useEditorStore.getState().clip).toBe(chords.id);
+    expect(useEditorStore.getState().request).toBe(1);
+  });
+
+  it("creates a one-bar MIDI clip on double-click in an empty MIDI lane", async () => {
+    const keys = trackByName("Keys");
+    const lane = document.querySelector<HTMLElement>(`[data-lane="${keys.id}"]`)!;
+    const before = Object.keys(project().clips).length;
+    fireEvent.doubleClick(lane, { clientX: 17.5 * PX });
+    await flush();
+    const created = Object.values(project().clips).filter((c) => c.track === keys.id && startOf(c) === 16);
+    expect(Object.keys(project().clips)).toHaveLength(before + 1);
+    expect(created[0]?.length).toBe(4);
+  });
+});
+
+describe("ArrangementView: audio and drops", () => {
+  it("requests peaks for audio clip waveforms", async () => {
+    await flush();
+    const peaks = sent.filter((c) => c.domain === "Media" && c.command.type === "GetPeaks");
+    expect(peaks.length).toBeGreaterThan(0);
+    expect(screen.getAllByTestId("clip-waveform").length).toBeGreaterThan(0);
+    expect(screen.getAllByTestId("clip-notes").length).toBeGreaterThan(0);
+  });
+
+  /** Fire a drag event with a fake DataTransfer (jsdom has no DragEvent, so set clientX/Y by hand). */
+  function fireDrag(type: "dragOver" | "drop", el: Element, payload: object, clientX: number, clientY: number) {
+    const data = JSON.stringify(payload);
+    const ev = createEvent[type](el, {
+      dataTransfer: {
+        types: [BROWSER_DRAG_MIME, "text/plain"],
+        getData: (t: string) => (t === BROWSER_DRAG_MIME ? data : ""),
+        dropEffect: "none",
+      },
+    });
+    Object.defineProperty(ev, "clientX", { value: clientX });
+    Object.defineProperty(ev, "clientY", { value: clientY });
+    fireEvent(el, ev);
+  }
+
+  it("creates an audio clip from a browser drop on an audio track", async () => {
+    const drums = trackByName("Drums");
+    const content = screen.getByTestId("arrangement-content");
+    const payload = {
+      version: 1,
+      kind: "media",
+      source: { type: "Location", location: { type: "Library", id: "library" }, path: "Drums/Kick.wav" },
+      name: "Kick.wav",
+      file_kind: "Audio",
+    };
+    const y = 2 * TRACK_HEIGHT + 20;
+    fireDrag("dragOver", content, payload, HEADER_WIDTH + 20 * PX, y);
+    expect(useArrangementUi.getState().dropHint).toEqual({ track: drums.id, at: 20 });
+    fireDrag("drop", content, payload, HEADER_WIDTH + 20.2 * PX, y);
+    await flush();
+    const created = Object.values(project().clips).find((c) => c.track === drums.id && startOf(c) === 20);
+    expect(created?.content.type).toBe("Audio");
+    expect(created?.name).toBe("Kick");
+    expect(useArrangementUi.getState().dropHint).toBeNull();
+  });
+
+  it("rejects drops on MIDI tracks and creates a track below the last one", async () => {
+    const media = Object.values(project().media)[0]!;
+    const payload = { version: 1, kind: "media", source: { type: "Project", media: media.id }, name: media.name, file_kind: "Audio" };
+    const content = screen.getByTestId("arrangement-content");
+    const idsBefore = new Set(Object.keys(project().tracks));
+    const tracksBefore = idsBefore.size;
+    fireDrag("drop", content, payload, HEADER_WIDTH + 10, 10);
+    await flush();
+    expect(Object.keys(project().tracks)).toHaveLength(tracksBefore);
+
+    fireDrag("drop", content, payload, HEADER_WIDTH + 4 * PX, 5 * TRACK_HEIGHT + 20);
+    await flush();
+    expect(Object.keys(project().tracks)).toHaveLength(tracksBefore + 1);
+    const t = Object.values(project().tracks).find((x) => !idsBefore.has(x.id))!;
+    expect(t.kind).toBe("Audio");
+    const clip = Object.values(project().clips).find((c) => c.track === t.id);
+    expect(clip && startOf(clip)).toBe(4);
+    // Track + clip are one undo step (media was already in the project).
+    await undo();
+    expect(Object.keys(project().tracks)).toHaveLength(tracksBefore);
+  });
+});
+
+describe("ArrangementView: loop region", () => {
+  it("shades the project loop region when enabled", async () => {
+    expect(screen.queryByTestId("loop-region")).toBeNull();
+    await act(async () => {
+      await mock.send(cmd("Transport", { type: "SetLoopRegion", region: { start: 4, end: 8 } }));
+      await mock.send(cmd("Transport", { type: "SetLoopEnabled", enabled: true }));
+    });
+    await flush();
+    const loop = screen.getByTestId("loop-region");
+    expect(loop.style.left).toBe(`${4 * PX}px`);
+    expect(loop.style.width).toBe(`${4 * PX}px`);
+  });
+});
