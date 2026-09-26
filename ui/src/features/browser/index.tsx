@@ -2,7 +2,7 @@
 // Only edit files inside this folder. The app shell (ui/src/app/App.tsx) already mounts
 // `Browser`: keep this export name and keep it prop-less (read state via hooks).
 //
-// Drop targets (arrangement, session): see `./dragPayload.ts` for the drag payload format
+// Drop targets (arrangement): see `./dragPayload.ts` for the drag payload format
 // and `resolveDroppedMedia`.
 import "./browser.css";
 import clsx from "clsx";

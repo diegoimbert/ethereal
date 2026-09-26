@@ -1,6 +1,6 @@
 /**
  * Drag payload of the sample browser: the contract between the browser (drag source) and
- * drop targets such as the arrangement or session views.
+ * drop targets such as the arrangement view.
  *
  * ## Format
  * - MIME type: `BROWSER_DRAG_MIME` (`application/x-ethereal-media+json`).
