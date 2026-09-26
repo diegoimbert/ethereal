@@ -10,17 +10,12 @@ export function isTauri(): boolean {
 
 /**
  * Pick the transport for the current environment:
- * - inside Tauri → `TauriTransport` (falls back to `MockTransport` with a warning until the
- *   native-host node implements it, so the desktop app still boots);
+ * - inside Tauri → `TauriTransport` (native host → real controller → engine);
  * - `VITE_ETHER_TRANSPORT=wasm` → `WasmTransport`;
- * - otherwise → `MockTransport` (standalone UI dev, tests, demos).
+ * - otherwise → `MockTransport` (standalone UI dev via `just dev-ui`, tests, demos).
  */
 export function createDefaultTransport(mockOptions?: MockTransportOptions): EngineTransport {
-  if (isTauri()) {
-    if (TauriTransport.implemented) return new TauriTransport();
-    console.warn("Ethereal: TauriTransport is not implemented yet; using MockTransport.");
-    return new MockTransport(mockOptions);
-  }
+  if (isTauri()) return new TauriTransport();
   if (import.meta.env.VITE_ETHER_TRANSPORT === "wasm") return new WasmTransport();
   return new MockTransport(mockOptions);
 }

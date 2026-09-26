@@ -27,7 +27,7 @@ use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
 use crossbeam_channel::{Receiver, RecvTimeoutError, Sender, unbounded};
-use ether_controller::{Controller, EtherController, MessageSink};
+use ether_controller::{Controller, ControllerConfig, EtherController, MessageSink};
 use ether_core::protocol::engine::{EngineCommand, EngineEvent, EngineStatus};
 use ether_core::protocol::message::{
     Command, CommandError, ErrorCode, Event, NotificationLevel, Reply, ReplyResult, ReplyValue,
@@ -54,15 +54,54 @@ pub const GC_INTERVAL: Duration = Duration::from_millis(20);
 /// Receives every `ServerMessage` for the UI (called on the controller thread).
 pub type Subscriber = Arc<dyn Fn(ServerMessage) + Send + Sync>;
 
+/// A controller as run by the native host: the [`Controller`] contract plus host
+/// lifecycle hooks (defaults do nothing, so test controllers only implement `Controller`).
+///
+/// The engine's sample rate is fixed for the host's lifetime (a rate change is applied at
+/// the next start, see `AudioState::reconfigure`), so the controller is configured with it
+/// once, at construction.
+pub trait HostedController: Controller {
+    /// The host is quitting: persist unsaved work. Events go to `out`.
+    fn before_shutdown(&mut self, out: &mut dyn MessageSink) {
+        let _ = out;
+    }
+}
+
+/// The standard native controller.
+pub type NativeController = EtherController<NativeBridge, NativeServices, DiskStore, DiskStore>;
+
+impl HostedController for NativeController {
+    fn before_shutdown(&mut self, out: &mut dyn MessageSink) {
+        if self.is_dirty()
+            && let Err(e) = self.save_now(out)
+        {
+            tracing::warn!(error = %e.message, "failed to save the project on quit");
+        }
+    }
+}
+
 /// Builds the controller on the controller thread.
 pub type ControllerFactory = Box<
-    dyn FnOnce(NativeBridge, NativeServices, DiskStore, DiskStore) -> Box<dyn Controller> + Send,
+    dyn FnOnce(NativeBridge, NativeServices, DiskStore, DiskStore) -> Box<dyn HostedController>
+        + Send,
 >;
 
-/// The standard controller (`ether_controller::EtherController`).
+/// Controller tunables for a native engine running at `sample_rate`.
+pub fn native_controller_config(sample_rate: u32) -> ControllerConfig {
+    ControllerConfig {
+        engine_sample_rate: sample_rate,
+        ..ControllerConfig::default()
+    }
+}
+
+/// The standard controller (`ether_controller::EtherController`), configured for the
+/// engine's sample rate.
 pub fn ether_controller() -> ControllerFactory {
     Box::new(|bridge, services, store, library| {
-        Box::new(EtherController::new(bridge, services, store, library))
+        let config = native_controller_config(bridge.sample_rate());
+        Box::new(EtherController::with_config(
+            bridge, services, store, library, config,
+        ))
     })
 }
 
@@ -390,6 +429,8 @@ fn notification(level: NotificationLevel, message: impl Into<String>) -> ServerM
 /// Stand-in when the controller could not be constructed: every command fails cleanly.
 struct Unavailable(String);
 
+impl HostedController for Unavailable {}
+
 impl Controller for Unavailable {
     fn handle(&mut self, message: ClientMessage, out: &mut dyn MessageSink) {
         out.send(reply_err(
@@ -563,7 +604,7 @@ struct ControllerThread {
 }
 
 impl ControllerThread {
-    fn run(mut self, mut controller: Box<dyn Controller>) {
+    fn run(mut self, mut controller: Box<dyn HostedController>) {
         let start = Instant::now();
         let mut next_tick = start;
         let mut tick_panicked = false;
@@ -598,6 +639,12 @@ impl ControllerThread {
             }
             self.router.flush_meters(now);
         }
+        let saved = std::panic::catch_unwind(AssertUnwindSafe(|| {
+            controller.before_shutdown(&mut self.router)
+        }));
+        if let Err(p) = saved {
+            tracing::error!(msg = %panic_message(&p), "saving on quit panicked");
+        }
         drop(controller);
         if let Some(out) = self.audio.output.take() {
             drop(out.stop());
@@ -614,7 +661,7 @@ impl ControllerThread {
         }
     }
 
-    fn handle(&mut self, controller: &mut dyn Controller, msg: ClientMessage) {
+    fn handle(&mut self, controller: &mut dyn HostedController, msg: ClientMessage) {
         if let Some(w) = self.startup_warning.take() {
             self.router
                 .send(notification(NotificationLevel::Warning, w));
