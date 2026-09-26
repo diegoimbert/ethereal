@@ -281,9 +281,25 @@ impl<F: Fs> ProjectStore for WebStore<F> {
     }
 }
 
+/// Folder of the generated demo samples inside the library.
+pub const DEMO_SAMPLES_DIR: &str = "Demo Samples";
+
+/// Write the demo samples ([`ether_media::demo::demo_samples`]) into
+/// `library/Demo Samples/` (files that exist are left alone).
+pub fn ensure_demo_samples<F: Fs>(fs: &mut F) -> Result<(), StoreError> {
+    let dir = format!("{LIBRARY_ROOT}/{DEMO_SAMPLES_DIR}");
+    for (name, bytes) in ether_media::demo::demo_samples() {
+        let path = format!("{dir}/{name}");
+        if fs.stat(&path)?.is_none() {
+            fs.write(&path, &bytes)?;
+        }
+    }
+    Ok(())
+}
+
 /// The browser's sample library: one OPFS folder (`library/`). There is no way to add
-/// files to it from the UI in v0.1 (uploads are reserved in the protocol), so it is
-/// usually empty; it exists so the browser panel works the same as native.
+/// files to it from the UI in v0.1 (uploads are reserved in the protocol); it holds the
+/// generated demo samples ([`ensure_demo_samples`]).
 pub struct WebLibrary<F: Fs> {
     fs: F,
 }
@@ -712,5 +728,19 @@ mod tests {
         assert!(lib.read(LIBRARY_ID, "../projects").is_err());
         assert!(lib.read("other", "drums/kick.wav").is_err());
         assert!(lib.list_dir(LIBRARY_ID, "missing").is_err());
+    }
+
+    #[test]
+    fn demo_samples_land_in_the_library_once() {
+        let mut fs = MemFs::new();
+        ensure_demo_samples(&mut fs).unwrap();
+        let mut lib = WebLibrary::new(fs.clone());
+        let demo = lib.list_dir(LIBRARY_ID, DEMO_SAMPLES_DIR).unwrap();
+        assert_eq!(demo.entries.len(), 5);
+        assert!(demo.entries.iter().all(|e| e.kind == FileKind::Audio));
+        // An existing file is kept.
+        fs.write("library/Demo Samples/Kick.wav", b"mine").unwrap();
+        ensure_demo_samples(&mut fs).unwrap();
+        assert_eq!(fs.read("library/Demo Samples/Kick.wav").unwrap(), b"mine");
     }
 }

@@ -44,7 +44,7 @@ scope.onmessage = (e) => {
       guarded(() => {
         initSync({ module: msg.module });
         const fs = new SyncFs(msg.fsBuffer, msg.fsPort);
-        const ctl = new WasmController(BigInt(msg.seed), msg.mode, msg.sampleRate, msg.control, msg.reports, fs);
+        const ctl = new WasmController(BigInt(msg.seed), msg.sampleRate, msg.control, msg.reports, fs);
         controller = ctl;
         setInterval(() => guarded(() => post(ctl.tick(Date.now()))), TICK_MS);
         scope.postMessage({ type: "ready" });

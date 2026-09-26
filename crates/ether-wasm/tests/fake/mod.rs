@@ -1,11 +1,11 @@
 //! A thin stand-in [`Controller`] for host-level tests: it isolates the web plumbing
-//! (rings, Worklet, store) from `ether_controller::EtherController`, which the default web
-//! mode uses.
+//! (rings, Worklet, store) from `ether_controller::EtherController`, which the web host
+//! always runs.
 //!
 //! It drives the *real* engine path (bridge → rings → Worklet → `ether_core::Engine`) and
 //! the real store, but only understands the project lifecycle basics (`Get`, `List`,
 //! `Create`, `Open`), transport play/stop/locate and `ListBuiltin`. Everything else replies
-//! `Unsupported`. Selected with controller mode `"fake"` (`?controller=fake` in apps/web).
+//! `Unsupported`. Test-only: hosts always run the real controller.
 
 use ether_controller::store::ProjectStore;
 use ether_controller::{Controller, EngineBridge, HostServices, MessageSink};

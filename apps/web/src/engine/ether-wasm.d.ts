@@ -24,7 +24,6 @@ declare module "@ether-wasm/ether_wasm.js" {
   export class WasmController {
     constructor(
       seed: bigint,
-      mode: string,
       sampleRate: number,
       control: SharedArrayBuffer,
       reports: SharedArrayBuffer,

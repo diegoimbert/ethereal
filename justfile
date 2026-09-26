@@ -35,6 +35,19 @@ dev-desktop:
 dev-desktop-headless:
     ETHER_AUDIO=null just dev-desktop
 
+# Install the headless Chromium used by the Playwright e2e suite (once per machine).
+e2e-install:
+    cd apps/web && npx playwright install chromium-headless-shell
+
+# Playwright e2e of the web build (real wasm engine + controller, headless Chromium, this
+# instance's Playwright port). Extra args go to `playwright test` (e.g. `just e2e-web flow`).
+e2e-web *args:
+    {{env}}; cd apps/web && node scripts/build-wasm.mjs && npx playwright test {{args}}
+
+# Native smoke test: the desktop host (null audio backend) driven through the full user flow.
+e2e-native:
+    ETHER_AUDIO=null cargo test -p ether-native --test e2e_flow --test null_host
+
 # Regenerate TypeScript types from ether-protocol into ui/src/generated.
 gen-types:
     cargo run -q -p ether-protocol --example gen-ts -- ui/src/generated

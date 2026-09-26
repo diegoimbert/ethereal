@@ -1,7 +1,6 @@
 import type { EngineTransport } from "./EngineTransport";
 import { MockTransport, type MockTransportOptions } from "./mock/MockTransport";
 import { TauriTransport } from "./tauri/TauriTransport";
-import { WasmTransport } from "./wasm/WasmTransport";
 
 /** `true` when running inside the Tauri desktop shell. */
 export function isTauri(): boolean {
@@ -9,13 +8,15 @@ export function isTauri(): boolean {
 }
 
 /**
- * Pick the transport for the current environment:
- * - inside Tauri → `TauriTransport` (native host → real controller → engine);
- * - `VITE_ETHER_TRANSPORT=wasm` → `WasmTransport`;
+ * Transport for the `ui/` entry (`ui/src/main.tsx`):
+ * - inside Tauri (`just dev-desktop`) → `TauriTransport` (native host → real controller →
+ *   engine);
  * - otherwise → `MockTransport` (standalone UI dev via `just dev-ui`, tests, demos).
+ *
+ * The browser build (`apps/web`, `just dev-web`) builds its own `WasmTransport` over the
+ * wasm engine endpoint.
  */
 export function createDefaultTransport(mockOptions?: MockTransportOptions): EngineTransport {
   if (isTauri()) return new TauriTransport();
-  if (import.meta.env.VITE_ETHER_TRANSPORT === "wasm") return new WasmTransport();
   return new MockTransport(mockOptions);
 }

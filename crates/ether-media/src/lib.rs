@@ -10,6 +10,7 @@ use std::sync::Arc;
 use ether_core::AudioSource;
 
 mod decode;
+pub mod demo;
 mod peaks;
 mod resample;
 

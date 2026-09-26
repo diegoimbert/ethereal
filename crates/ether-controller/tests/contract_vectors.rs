@@ -24,14 +24,23 @@ fn mixer_automation_param_info_matches_the_shared_vectors() {
     let track = TrackId(Ulid(1));
     for (name, target) in [
         ("TrackVolume", AutomationTarget::TrackVolume { track }),
-        ("SendLevel", AutomationTarget::SendLevel { send: SendId(Ulid(2)) }),
+        (
+            "SendLevel",
+            AutomationTarget::SendLevel {
+                send: SendId(Ulid(2)),
+            },
+        ),
         ("TrackPan", AutomationTarget::TrackPan { track }),
     ] {
         let info = track_param_info(&target).unwrap();
         let e = &expected[name];
         assert_eq!(info.min, e["min"].as_f64().unwrap(), "{name} min");
         assert_eq!(info.max, e["max"].as_f64().unwrap(), "{name} max");
-        assert_eq!(info.default, e["default"].as_f64().unwrap(), "{name} default");
+        assert_eq!(
+            info.default,
+            e["default"].as_f64().unwrap(),
+            "{name} default"
+        );
         let scale: ParamScale = serde_json::from_value(e["scale"].clone()).unwrap();
         assert_eq!(info.scale, scale, "{name} scale");
         let unit: ParamUnit = serde_json::from_value(e["unit"].clone()).unwrap();

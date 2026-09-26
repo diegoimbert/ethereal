@@ -15,7 +15,6 @@
 //! COOP/COEP (`apps/web` sets them). No plugins on the web. Owned by the `wasm-host` node.
 
 pub mod bridge;
-pub mod fake;
 pub mod proto;
 pub mod ring;
 pub mod store;

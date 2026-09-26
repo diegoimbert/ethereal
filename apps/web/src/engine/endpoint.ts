@@ -11,15 +11,9 @@ import {
   FS_HEADER_BYTES,
   REPORT_RING_BYTES,
   ringBuffer,
-  type ControllerMode,
   type FromController,
   type ToController,
 } from "./protocol";
-
-export interface WebEndpointOptions {
-  /** `"ether"`: the real controller (default); `"fake"`: the smoke-test controller. */
-  controller?: ControllerMode;
-}
 
 /** Live handles, for debugging and the e2e test (`window.__etherEngine`). */
 export interface WebEngineHandles {
@@ -52,7 +46,7 @@ function resumeOnGesture(context: AudioContext): () => void {
   };
 }
 
-export function createWebEndpoint(opts: WebEndpointOptions = {}): WasmEndpoint & { handles(): WebEngineHandles | null } {
+export function createWebEndpoint(): WasmEndpoint & { handles(): WebEngineHandles | null } {
   const batches = new Emitter<string>();
   const fatal = new Emitter<Error>();
   let handles: WebEngineHandles | null = null;
@@ -131,7 +125,6 @@ export function createWebEndpoint(opts: WebEndpointOptions = {}): WasmEndpoint &
         fsBuffer,
         fsPort: channel.port2,
         seed: randomSeed(),
-        mode: opts.controller ?? "ether",
         sampleRate: context.sampleRate,
       };
       controller.postMessage(init, [channel.port2]);

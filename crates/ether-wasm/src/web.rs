@@ -11,7 +11,6 @@ use js_sys::{Atomics, Int32Array, SharedArrayBuffer, Uint8Array};
 use wasm_bindgen::prelude::*;
 
 use crate::bridge::{self, Shared, WebBridge};
-use crate::fake::FakeController;
 use crate::ring::{HEADER_BYTES, RingMemory};
 use crate::store::{Fs, FsEntry, WebLibrary, WebStore};
 use crate::worklet::EngineHost;
@@ -205,18 +204,19 @@ pub struct WasmController {
     controller: Box<dyn Controller>,
     shared: Shared<SabMemory>,
     reported_errors: usize,
+    /// Reported as a notification with the first batch of messages.
+    startup_warning: Option<String>,
 }
 
 #[wasm_bindgen]
 impl WasmController {
-    /// `mode`: `"ether"` (the real `EtherController`) or `"fake"` (see [`crate::fake`]).
-    /// `sample_rate`: the AudioContext rate the Worklet renders at (media is resampled to
-    /// it by the controller). `control`/`reports`: the two ring buffers shared with the
-    /// Worklet. `fs`: the sync OPFS file system.
+    /// The real `EtherController`. `sample_rate`: the AudioContext rate the Worklet renders
+    /// at (media is resampled to it by the controller). `control`/`reports`: the two ring
+    /// buffers shared with the Worklet. `fs`: the sync OPFS file system (the demo samples
+    /// are written into its sample library on first start).
     #[wasm_bindgen(constructor)]
     pub fn new(
         seed: u64,
-        mode: &str,
         sample_rate: u32,
         control: &SharedArrayBuffer,
         reports: &SharedArrayBuffer,
@@ -225,26 +225,26 @@ impl WasmController {
         console_error_panic_hook::set_once();
         let shared = bridge::shared(SabMemory::new(control)?, SabMemory::new(reports)?);
         let bridge = WebBridge::new(shared.clone());
-        let fs = JsFs(fs);
+        let mut fs = JsFs(fs);
+        let startup_warning = crate::store::ensure_demo_samples(&mut fs)
+            .err()
+            .map(|e| format!("Demo samples could not be written: {e}"));
         let host = WebHost::new(seed);
-        let controller: Box<dyn Controller> = match mode {
-            "ether" => Box::new(EtherController::with_config(
-                bridge,
-                host,
-                WebStore::new(fs.clone()),
-                WebLibrary::new(fs),
-                ControllerConfig {
-                    engine_sample_rate: sample_rate,
-                    ..ControllerConfig::default()
-                },
-            )),
-            "fake" => Box::new(FakeController::new(bridge, host, WebStore::new(fs))),
-            other => return Err(JsError::new(&format!("unknown controller mode {other}"))),
-        };
+        let controller: Box<dyn Controller> = Box::new(EtherController::with_config(
+            bridge,
+            host,
+            WebStore::new(fs.clone()),
+            WebLibrary::new(fs),
+            ControllerConfig {
+                engine_sample_rate: sample_rate,
+                ..ControllerConfig::default()
+            },
+        ));
         Ok(WasmController {
             controller,
             shared,
             reported_errors: 0,
+            startup_warning,
         })
     }
 
@@ -293,6 +293,12 @@ impl WasmController {
     fn finish(&mut self, mut out: Vec<ServerMessage>) -> String {
         let mut shared = self.shared.borrow_mut();
         shared.control.flush();
+        if let Some(message) = self.startup_warning.take() {
+            out.push(ServerMessage::Event(Event::Notification {
+                level: NotificationLevel::Warning,
+                message,
+            }));
+        }
         // Engine-side errors become warnings (at most a few per tick; the rest are counted).
         for e in shared.errors.drain(..) {
             self.reported_errors += 1;
