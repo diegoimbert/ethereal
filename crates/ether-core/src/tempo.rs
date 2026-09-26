@@ -18,14 +18,14 @@
 use ether_protocol::model::{TempoCurve, TimeSignature};
 use serde::{Deserialize, Serialize};
 
-/// Default tempo when the desc has no tempo point at beat 0.
+/// Default tempo when the desc has no tempo points.
 pub const DEFAULT_BPM: f64 = 120.0;
 /// Tempos are clamped to this range to keep the math finite.
 pub const MIN_BPM: f64 = 1.0;
 pub const MAX_BPM: f64 = 10_000.0;
 
-/// Slopes smaller than this (BPM per beat) are treated as constant tempo.
-const SLOPE_EPS: f64 = 1e-12;
+/// Tempo differences below this are treated as constant tempo.
+const RAMP_EPSILON_BPM: f64 = 1e-9;
 /// Boundary comparisons tolerance (beats), matches `Beats::EPSILON`.
 const BEAT_EPS: f64 = 1e-6;
 
@@ -43,40 +43,71 @@ pub struct TimeSignatureDesc {
     pub signature: TimeSignature,
 }
 
+// Per-segment math. Offsets are relative to the segment start; `end_bpm == start_bpm` for
+// constant segments (`length` may be infinite). Same signatures as
+// `ether_model::tempo::segment_*`, which become the single source of truth once available.
+
+#[inline]
+fn segment_is_ramp(start_bpm: f64, end_bpm: f64, length: f64) -> bool {
+    (end_bpm - start_bpm).abs() > RAMP_EPSILON_BPM && length.is_finite() && length > 0.0
+}
+
+#[inline]
+fn segment_bpm_at(start_bpm: f64, end_bpm: f64, length: f64, beats: f64) -> f64 {
+    if segment_is_ramp(start_bpm, end_bpm, length) {
+        start_bpm + (end_bpm - start_bpm) * beats / length
+    } else {
+        start_bpm
+    }
+}
+
+#[inline]
+fn segment_beats_to_seconds(start_bpm: f64, end_bpm: f64, length: f64, beats: f64) -> f64 {
+    if segment_is_ramp(start_bpm, end_bpm, length) {
+        let k = (end_bpm - start_bpm) / length;
+        60.0 / k * (segment_bpm_at(start_bpm, end_bpm, length, beats) / start_bpm).ln()
+    } else {
+        60.0 * beats / start_bpm
+    }
+}
+
+#[inline]
+fn segment_seconds_to_beats(start_bpm: f64, end_bpm: f64, length: f64, seconds: f64) -> f64 {
+    if segment_is_ramp(start_bpm, end_bpm, length) {
+        let k = (end_bpm - start_bpm) / length;
+        let t = start_bpm * (k * seconds / 60.0).exp();
+        (t - start_bpm) / k
+    } else {
+        seconds * start_bpm / 60.0
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 struct Segment {
     beat: f64,
     seconds: f64,
     bpm: f64,
-    /// BPM per beat.
-    slope: f64,
+    /// Tempo reached at `beat + length` (== `bpm` for constant segments).
+    end_bpm: f64,
+    /// Beats until the next point (infinite for the last one).
+    length: f64,
 }
 
 impl Segment {
     #[inline]
     fn bpm_at(&self, beats: f64) -> f64 {
-        (self.bpm + self.slope * (beats - self.beat)).max(MIN_BPM)
+        segment_bpm_at(self.bpm, self.end_bpm, self.length, beats - self.beat)
     }
 
     #[inline]
     fn seconds_at(&self, beats: f64) -> f64 {
-        let db = beats - self.beat;
-        if self.slope.abs() < SLOPE_EPS {
-            self.seconds + 60.0 * db / self.bpm
-        } else {
-            self.seconds + 60.0 / self.slope * (self.bpm_at(beats) / self.bpm).ln()
-        }
+        self.seconds + segment_beats_to_seconds(self.bpm, self.end_bpm, self.length, beats - self.beat)
     }
 
     #[inline]
     fn beats_at(&self, seconds: f64) -> f64 {
-        let dt = seconds - self.seconds;
-        if self.slope.abs() < SLOPE_EPS {
-            self.beat + dt * self.bpm / 60.0
-        } else {
-            let t = self.bpm * (self.slope * dt / 60.0).exp();
-            self.beat + (t - self.bpm) / self.slope
-        }
+        self.beat
+            + segment_seconds_to_beats(self.bpm, self.end_bpm, self.length, seconds - self.seconds)
     }
 }
 
@@ -110,7 +141,8 @@ fn bar_len(sig: TimeSignature) -> f64 {
 }
 
 impl TempoMapRt {
-    /// Non-RT. `points` must contain one at beat 0 (the compiler inserts 120 BPM if not).
+    /// Non-RT. `points` should contain one at beat 0 (120 BPM is used when empty; otherwise
+    /// the first tempo holds before the first point).
     pub fn compile(points: &[TempoPointDesc], signatures: &[TimeSignatureDesc]) -> Self {
         let mut pts: Vec<TempoPointDesc> = points
             .iter()
@@ -127,35 +159,35 @@ impl TempoMapRt {
                 false
             }
         });
-        if pts.first().is_none_or(|p| p.beat > BEAT_EPS) {
-            pts.insert(
-                0,
-                TempoPointDesc {
-                    beat: 0.0,
-                    bpm: DEFAULT_BPM,
-                    curve: TempoCurve::Step,
-                },
-            );
+        if pts.is_empty() {
+            pts.push(TempoPointDesc {
+                beat: 0.0,
+                bpm: DEFAULT_BPM,
+                curve: TempoCurve::Step,
+            });
         }
 
         let mut segments = Vec::with_capacity(pts.len());
         for (i, p) in pts.iter().enumerate() {
             let bpm = p.bpm.clamp(MIN_BPM, MAX_BPM);
-            let slope = match (p.curve, pts.get(i + 1)) {
+            let (end_bpm, length) = match (p.curve, pts.get(i + 1)) {
                 (TempoCurve::Linear, Some(next)) => {
-                    (next.bpm.clamp(MIN_BPM, MAX_BPM) - bpm) / (next.beat - p.beat)
+                    (next.bpm.clamp(MIN_BPM, MAX_BPM), next.beat - p.beat)
                 }
-                _ => 0.0,
+                (_, Some(next)) => (bpm, next.beat - p.beat),
+                (_, None) => (bpm, f64::INFINITY),
             };
-            // The first point is at beat 0 (inserted above), which is 0 s.
-            let seconds = segments
-                .last()
-                .map_or(0.0, |prev: &Segment| prev.seconds_at(p.beat));
+            // Seconds count from beat 0; the first tempo holds before the first point.
+            let seconds = match segments.last() {
+                Some(prev) => Segment::seconds_at(prev, p.beat),
+                None => 60.0 * p.beat / bpm,
+            };
             segments.push(Segment {
                 beat: p.beat,
                 seconds,
                 bpm,
-                slope,
+                end_bpm,
+                length,
             });
         }
 
@@ -342,11 +374,12 @@ mod tests {
     }
 
     #[test]
-    fn inserts_default_point_and_sorts() {
+    fn first_tempo_holds_before_first_point() {
         let m = TempoMapRt::compile(&[pt(8.0, 60.0, TempoCurve::Step)], &[]);
-        assert_eq!(m.segment_count(), 2);
-        assert!(close(m.beats_to_seconds(8.0), 4.0));
-        assert!(close(m.beats_to_seconds(9.0), 5.0));
+        assert_eq!(m.segment_count(), 1);
+        assert!(close(m.beats_to_seconds(8.0), 8.0));
+        assert!(close(m.beats_to_seconds(9.0), 9.0));
+        assert!(close(m.seconds_to_beats(2.0), 2.0));
     }
 
     #[test]
