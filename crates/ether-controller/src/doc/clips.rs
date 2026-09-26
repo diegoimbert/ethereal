@@ -1,8 +1,7 @@
 //! `ClipCommand`s.
 //!
-//! Clip positions are read and written ONLY through [`clip_start`], [`arrangement_start`]
-//! and [`start_change`] (base-3 flattens `ClipLocation` into `Clip.start`; these three are
-//! the only places to adapt). Session clips are not supported by this controller.
+//! Clip positions are read and written only through [`clip_start`], [`check_start`] and
+//! [`start_change`].
 
 use std::collections::BTreeSet;
 
@@ -10,41 +9,32 @@ use ether_core::protocol::clips::ClipCommand;
 use ether_core::protocol::model::*;
 
 use super::DocCtx;
-use crate::tx::{CmdResult, invalid, not_found, unsupported};
+use crate::tx::{CmdResult, invalid, not_found};
 
 const EPS: f64 = Beats::EPSILON;
 const MIN_GAIN_DB: f32 = -144.0;
 const MAX_GAIN_DB: f32 = 24.0;
 
-/// Timeline start of an arrangement clip (`None` for legacy session clips, which the
-/// controller ignores).
-pub(crate) fn clip_start(c: &Clip) -> Option<Beats> {
-    match c.location {
-        ClipLocation::Arrangement { start } => Some(start),
-        ClipLocation::Session { .. } => None,
-    }
+/// Timeline start of a clip (the one place that reads clip positions).
+pub(crate) fn clip_start(c: &Clip) -> Beats {
+    c.start
 }
 
-/// Timeline start requested by a command.
-pub(crate) fn arrangement_start(location: &ClipLocation) -> CmdResult<Beats> {
-    match location {
-        ClipLocation::Arrangement { start } => {
-            if !(start.0.is_finite() && start.0 >= 0.0) {
-                return Err(invalid("clip start must be >= 0"));
-            }
-            Ok(*start)
-        }
-        ClipLocation::Session { .. } => Err(unsupported("session clips are not supported")),
+/// Validate a timeline start requested by a command.
+pub(crate) fn check_start(start: Beats) -> CmdResult<Beats> {
+    if !(start.0.is_finite() && start.0 >= 0.0) {
+        return Err(invalid("clip start must be >= 0"));
     }
+    Ok(start)
 }
 
 /// The op field that moves a clip to `start`.
 pub(crate) fn start_change(start: Beats) -> ClipChange {
-    ClipChange::Location(ClipLocation::Arrangement { start })
+    ClipChange::Start(start)
 }
 
 fn set_start(c: &mut Clip, start: Beats) {
-    c.location = ClipLocation::Arrangement { start };
+    c.start = start;
 }
 
 fn check_fits(track: &Track, content: &ClipContent) -> CmdResult<()> {
@@ -81,9 +71,7 @@ fn resolve_overlaps(ctx: &mut DocCtx, keep: ClipId, ignore: &BTreeSet<ClipId>) -
     let Some(k) = ctx.p().clips.get(&keep).cloned() else {
         return Ok(());
     };
-    let Some(s) = clip_start(&k).map(|b| b.0) else {
-        return Ok(());
-    };
+    let s = clip_start(&k).0;
     let e = s + k.length.0;
     let others: Vec<Clip> = ctx
         .p()
@@ -93,9 +81,7 @@ fn resolve_overlaps(ctx: &mut DocCtx, keep: ClipId, ignore: &BTreeSet<ClipId>) -
         .cloned()
         .collect();
     for o in others {
-        let Some(os) = clip_start(&o).map(|b| b.0) else {
-            continue;
-        };
+        let os = clip_start(&o).0;
         let oe = os + o.length.0;
         if oe <= s + EPS || os >= e - EPS {
             continue;
@@ -125,7 +111,7 @@ fn new_clip(id: ClipId, track: TrackId, start: Beats, length: Beats, name: Strin
     Clip {
         id,
         track,
-        location: ClipLocation::Arrangement { start },
+        start,
         name,
         color: None,
         muted: false,
@@ -136,7 +122,6 @@ fn new_clip(id: ClipId, track: TrackId, start: Beats, length: Beats, name: Strin
             start: Beats::ZERO,
             end: length,
         },
-        launch: LaunchSettings::default(),
         content,
     }
 }
@@ -153,7 +138,7 @@ pub(super) fn apply(ctx: &mut DocCtx, c: &ClipCommand) -> CmdResult<()> {
         ClipCommand::CreateMidi {
             id,
             track,
-            location,
+            start,
             length,
             name,
         } => {
@@ -162,7 +147,7 @@ pub(super) fn apply(ctx: &mut DocCtx, c: &ClipCommand) -> CmdResult<()> {
             }
             let t = ctx.track(*track)?;
             check_fits(&t, &ClipContent::Midi)?;
-            let start = arrangement_start(location)?;
+            let start = check_start(*start)?;
             check_length(*length)?;
             let clip = new_clip(*id, t.id, start, *length, name.clone().unwrap_or_default(), ClipContent::Midi);
             ctx.tx.insert(Entity::Clip(clip))?;
@@ -171,7 +156,7 @@ pub(super) fn apply(ctx: &mut DocCtx, c: &ClipCommand) -> CmdResult<()> {
         ClipCommand::CreateAudio {
             id,
             track,
-            location,
+            start,
             media,
         } => {
             if ctx.p().clips.contains_key(id) {
@@ -184,7 +169,7 @@ pub(super) fn apply(ctx: &mut DocCtx, c: &ClipCommand) -> CmdResult<()> {
                 .get(media)
                 .cloned()
                 .ok_or_else(|| not_found(format!("media {media}")))?;
-            let start = arrangement_start(location)?;
+            let start = check_start(*start)?;
             let bpm = ctx.p().tempo_map().bpm_at(start);
             let seconds = m.frames as f64 / m.sample_rate.max(1) as f64;
             let length = Beats((seconds * bpm / 60.0).max(Beats::EPSILON * 10.0));
@@ -218,11 +203,11 @@ pub(super) fn apply(ctx: &mut DocCtx, c: &ClipCommand) -> CmdResult<()> {
                 let cl = ctx.clip(m.id)?;
                 let t = ctx.track(m.track)?;
                 check_fits(&t, &cl.content)?;
-                let start = arrangement_start(&m.location)?;
+                let start = check_start(m.start)?;
                 if cl.track != t.id {
                     ctx.set_clip(cl.id, ClipChange::Track(t.id))?;
                 }
-                if !clip_start(&cl).is_some_and(|s| s == start) {
+                if clip_start(&cl) != start {
                     ctx.set_clip(cl.id, start_change(start))?;
                 }
             }
@@ -233,7 +218,7 @@ pub(super) fn apply(ctx: &mut DocCtx, c: &ClipCommand) -> CmdResult<()> {
         }
         ClipCommand::SetBounds {
             id,
-            location,
+            start,
             length,
             offset,
         } => {
@@ -242,8 +227,8 @@ pub(super) fn apply(ctx: &mut DocCtx, c: &ClipCommand) -> CmdResult<()> {
             if !(offset.0.is_finite() && offset.0 >= 0.0) {
                 return Err(invalid("clip offset must be >= 0"));
             }
-            let start = arrangement_start(location)?;
-            if !clip_start(&cl).is_some_and(|s| s == start) {
+            let start = check_start(*start)?;
+            if clip_start(&cl) != start {
                 ctx.set_clip(cl.id, start_change(start))?;
             }
             ctx.set_clip(cl.id, ClipChange::Length(*length))?;
@@ -255,7 +240,7 @@ pub(super) fn apply(ctx: &mut DocCtx, c: &ClipCommand) -> CmdResult<()> {
                 return Ok(());
             }
             let cl = ctx.clip(*id)?;
-            let start = clip_start(&cl).ok_or_else(|| unsupported("session clips are not supported"))?;
+            let start = clip_start(&cl);
             let (s, e) = (start.0, start.0 + cl.length.0);
             if !(at.0 > s + EPS && at.0 < e - EPS) {
                 return Err(invalid("split point outside the clip"));
@@ -270,18 +255,15 @@ pub(super) fn apply(ctx: &mut DocCtx, c: &ClipCommand) -> CmdResult<()> {
         ClipCommand::Duplicate {
             id,
             new_id,
-            location,
+            start,
         } => {
             if ctx.p().clips.contains_key(new_id) {
                 return Ok(());
             }
             let cl = ctx.clip(*id)?;
-            let start = match location {
-                Some(l) => arrangement_start(l)?,
-                None => {
-                    let s = clip_start(&cl).ok_or_else(|| unsupported("session clips are not supported"))?;
-                    Beats(s.0 + cl.length.0)
-                }
+            let start = match start {
+                Some(s) => check_start(*s)?,
+                None => Beats(clip_start(&cl).0 + cl.length.0),
             };
             ctx.copy_clip(&cl, *new_id, |c| set_start(c, start))?;
             resolve_overlaps(ctx, *new_id, &BTreeSet::new())
@@ -307,10 +289,6 @@ pub(super) fn apply(ctx: &mut DocCtx, c: &ClipCommand) -> CmdResult<()> {
                 return Err(invalid("invalid loop region"));
             }
             ctx.set_clip(*id, ClipChange::Loop(*looping))
-        }
-        ClipCommand::SetLaunch { id, launch } => {
-            ctx.clip(*id)?;
-            ctx.set_clip(*id, ClipChange::Launch(*launch))
         }
         ClipCommand::SetGain { id, gain } => {
             audio(&ctx.clip(*id)?)?;

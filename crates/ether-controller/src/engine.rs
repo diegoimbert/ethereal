@@ -74,6 +74,11 @@ impl EngineState {
         self.nodes.get(&device).map(|n| n.key)
     }
 
+    /// Nodes of devices that are not in `project` (to destroy at the next publish).
+    pub fn has_orphans(&self, project: &Project) -> bool {
+        self.nodes.keys().any(|d| !project.devices.contains_key(d))
+    }
+
     pub fn request_recreate(&mut self, device: DeviceId) {
         self.recreate.insert(device);
         self.failed.remove(&device);

@@ -80,10 +80,6 @@ impl MediaState {
         self.jobs.iter().any(|j| j.media.id == media)
     }
 
-    pub fn is_loaded(&self, media: MediaId) -> bool {
-        self.loaded.contains(&media)
-    }
-
     pub fn has_jobs(&self) -> bool {
         !self.jobs.is_empty()
     }
@@ -223,7 +219,7 @@ impl MediaState {
                         });
                     }
                     let chained = is_chained_ogg(&bytes);
-                    let decoder = IncrementalDecoder::new(bytes, extension_of(&job.media.file))?;
+                    let decoder = IncrementalDecoder::new(bytes.into(), extension_of(&job.media.file))?;
                     if chained && !job.warned {
                         job.warned = true;
                         events.push(Event::Notification {

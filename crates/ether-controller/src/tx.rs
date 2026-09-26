@@ -96,10 +96,6 @@ impl<'a> Tx<'a> {
         self.apply(Op::Settings { change })
     }
 
-    pub fn is_empty(&self) -> bool {
-        self.ops.is_empty()
-    }
-
     /// Undo everything applied so far (error path).
     pub fn rollback(mut self) {
         self.unwind();

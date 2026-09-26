@@ -5,6 +5,7 @@
 //! first stream (reported so the controller can warn).
 
 use std::io::Cursor;
+use std::sync::Arc;
 
 use ether_media::{DecodedAudio, MediaError};
 use symphonia::core::audio::{AudioBuffer, Signal};
@@ -39,7 +40,7 @@ pub(crate) struct IncrementalDecoder {
 }
 
 impl IncrementalDecoder {
-    pub fn new(bytes: Vec<u8>, extension: Option<&str>) -> Result<Self, MediaError> {
+    pub fn new(bytes: Arc<[u8]>, extension: Option<&str>) -> Result<Self, MediaError> {
         let mss = MediaSourceStream::new(Box::new(Cursor::new(bytes)), MediaSourceStreamOptions::default());
         let mut hint = Hint::new();
         if let Some(ext) = extension {

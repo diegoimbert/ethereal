@@ -19,7 +19,7 @@ use ether_core::graph::{
     AutomationDesc, ChainEntry, ClipContentDesc, ClipDesc, NoteDesc, ParamMapping,
     ResolvedTarget, SendDesc, TrackDesc, WarpDesc,
 };
-use ether_core::protocol::devices::{DeviceDescriptor, ParamScale};
+use ether_core::protocol::devices::{DeviceDescriptor, ParamInfo, ParamScale, ParamUnit};
 use ether_core::protocol::model::*;
 use ether_core::tempo::{TempoPointDesc, TimeSignatureDesc};
 use ether_core::{NodeKey, RenderGraphDesc};
@@ -50,6 +50,33 @@ pub const PAN_MAPPING: ParamMapping = ParamMapping {
     scale: ParamScale::Linear,
     steps: None,
 };
+
+/// Parameter metadata of the mixer targets of automation (`None` for device params, which
+/// come from the device descriptor). The single source of truth for mixer automation:
+/// track volume and send level use a `Fader` law over [`SILENCE_DB`]..=[`MAX_VOLUME_DB`]
+/// (-144..=+6 dB, plain value in dB; the bottom is silence), pan is linear -1..=1. The UI
+/// (mixer faders, automation lanes) uses the same mapping.
+pub fn track_param_info(target: &AutomationTarget) -> Option<ParamInfo> {
+    let (name, unit, m, default) = match target {
+        AutomationTarget::TrackVolume { .. } => ("Volume", ParamUnit::Decibels, TRACK_VOLUME_MAPPING, 0.0),
+        AutomationTarget::SendLevel { .. } => ("Send", ParamUnit::Decibels, SEND_LEVEL_MAPPING, SILENCE_DB as f64),
+        AutomationTarget::TrackPan { .. } => ("Pan", ParamUnit::Pan, PAN_MAPPING, 0.0),
+        AutomationTarget::DeviceParam { .. } => return None,
+    };
+    Some(ParamInfo {
+        id: ParamId(0),
+        name: name.into(),
+        group: None,
+        unit,
+        min: m.min,
+        max: m.max,
+        default,
+        scale: m.scale,
+        labels: None,
+        automatable: true,
+        hidden: false,
+    })
+}
 
 /// Everything besides the document that the compiler needs.
 pub struct CompileContext<'a> {
@@ -248,7 +275,7 @@ pub fn compile_graph_with(p: &Project, ctx: &CompileContext) -> RenderGraphDesc 
                 .clips
                 .values()
                 .filter(|c| c.track == t.id)
-                .filter_map(|c| clip_start(c).map(|s| (s, c)))
+                .map(|c| (clip_start(c), c))
                 .collect();
             clips.sort_by(|a, b| a.0.0.total_cmp(&b.0.0).then(a.1.id.cmp(&b.1.id)));
             TrackDesc {

@@ -79,9 +79,6 @@ pub(crate) fn transport(ctx: &mut DocCtx, c: &TransportCommand) -> CmdResult<()>
         TransportCommand::SetMetronome { enabled } => {
             ctx.tx.settings(SettingsChange::Metronome(*enabled))
         }
-        TransportCommand::SetLaunchQuantization { quantization } => ctx
-            .tx
-            .settings(SettingsChange::LaunchQuantization(*quantization)),
         _ => Err(unsupported("not a document command")),
     }
 }

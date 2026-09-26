@@ -20,11 +20,12 @@ use ether_core::protocol::Command;
 use ether_core::protocol::devices::DeviceDescriptor;
 use ether_core::protocol::model::*;
 use ether_core::protocol::project::{EditCommand, ProjectCommand};
-use ether_core::protocol::{ReplyValue, clips::ClipCommand};
+use ether_core::protocol::ReplyValue;
 
 use crate::tx::{CmdResult, Tx, invalid, not_found, unsupported};
 
-pub(crate) use clips::{arrangement_start, clip_start};
+pub(crate) use clips::clip_start;
+pub(crate) use misc::{MAX_BPM, MIN_BPM};
 
 /// What document commands need from the engine side.
 pub(crate) trait DocHost {
@@ -332,7 +333,7 @@ pub(crate) fn is_document_command(command: &Command, current: Option<ProjectId>)
     use ether_core::protocol::recording::RecordingCommand as R;
     use ether_core::protocol::transport::TransportCommand as T;
     use ether_core::protocol::warp::WarpCommand as W;
-    use ether_protocol::devices::DeviceCommand as D;
+    use ether_core::protocol::devices::DeviceCommand as D;
     match command {
         Command::Track(_)
         | Command::Clip(_)
@@ -347,7 +348,6 @@ pub(crate) fn is_document_command(command: &Command, current: Option<ProjectId>)
                 | T::SetTempo { .. }
                 | T::SetTimeSignature { .. }
                 | T::SetMetronome { .. }
-                | T::SetLaunchQuantization { .. }
         ),
         Command::Recording(c) => matches!(
             c,
@@ -402,6 +402,3 @@ pub(crate) fn apply(ctx: &mut DocCtx, command: &Command) -> CmdResult<ReplyValue
 }
 
 pub(crate) use devices::builtin_descriptor;
-
-#[allow(dead_code)]
-fn _assert_clip_command_used(_: &ClipCommand) {}

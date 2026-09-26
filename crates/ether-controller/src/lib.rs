@@ -20,8 +20,7 @@
 //!   `Edit::EndGesture`; `Edit::Batch` is one all-or-nothing step.
 //! - **Idempotent creates.** Creating an entity whose (client-chosen) id already exists is
 //!   a successful no-op.
-//! - **Unsupported.** Session commands (session mode is not part of the product),
-//!   host-handled commands (`Engine::*`, `Plugin::{Rescan, List, OpenEditor,
+//! - **Unsupported.** Host-handled commands (`Engine::*`, `Plugin::{Rescan, List, OpenEditor,
 //!   CloseEditor}`), media preview/upload and `Recording::ListInputs` reply `Unsupported`.
 //! - **Async media.** Import copies the file and probes its header in `handle` (the reply
 //!   carries the `MediaRef`); decoding, peaks and resampling are stepped from `tick`.
@@ -213,6 +212,8 @@ struct TransportRt {
     seconds: f64,
     start_position: ether_core::protocol::model::Beats,
     last_frame: Option<ether_core::protocol::transport::PlayheadUpdate>,
+    /// Engine play flag at the last poll (its transitions are adopted).
+    last_engine_playing: Option<bool>,
     /// Recent `TapTempo` times (ms).
     taps: Vec<u64>,
     tap_gesture: Option<GestureId>,

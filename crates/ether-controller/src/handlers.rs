@@ -105,7 +105,6 @@ where
             Command::Plugin(p) => self.plugin_command(p, msg.gesture, now, out),
             Command::Warp(WarpCommand::DetectTempo { clip }) => self.detect_tempo(*clip),
             Command::Media(m) => self.media_command(m, now, out),
-            Command::Session(_) => Err(unsupported("the session view is not supported")),
             Command::Engine(_) => Err(unsupported("audio engine configuration is handled by the host")),
             other => Err(internal(format!("unhandled command {}", doc::label_of(other)))),
         }
@@ -370,7 +369,6 @@ where
             bpm: map.bpm_at(at),
             time_signature: map.signature_at(at),
             metronome: p.settings.metronome,
-            launch_quantization: p.settings.launch_quantization,
             start_position: self.transport.start_position,
         })
     }
@@ -755,10 +753,7 @@ where
             };
             if self.transport.last_frame != Some(frame) {
                 self.transport.last_frame = Some(frame);
-                out.send(ServerMessage::Playhead(PlayheadFrame {
-                    transport: frame,
-                    session: Vec::new(),
-                }));
+                out.send(ServerMessage::Playhead(PlayheadFrame { transport: frame }));
             }
         }
         if !outputs.meters.is_empty() {
