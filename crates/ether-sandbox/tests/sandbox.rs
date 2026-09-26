@@ -408,6 +408,61 @@ fn late_helper_gives_silence_and_underruns_then_recovers() {
 }
 
 #[test]
+fn audio_thread_detects_helper_death_while_waiting() {
+    // Huge wait budget: only crash detection can end the wait early. No `poll()` calls.
+    let mut p = spawn_with(options(Duration::from_secs(10)));
+    let mut node = p.activate(&config(64)).unwrap();
+    let mut h = Harness::new(64);
+    h.in_l.fill(0.5);
+    h.in_r.fill(0.5);
+    for _ in 0..3 {
+        h.run(node.as_mut(), 64, &[]);
+    }
+    assert_eq!(h.out_l[0], 0.5);
+
+    // Freeze the helper once it is idle, post one more block (stays in flight), then kill it.
+    std::thread::sleep(Duration::from_millis(20));
+    let pid = p.helper_pid();
+    signal(pid, "-STOP");
+    h.run(node.as_mut(), 64, &[]);
+    assert_eq!(h.out_l[0], 0.5);
+    signal(pid, "-KILL");
+
+    let start = Instant::now();
+    h.out_l.fill(1.0);
+    h.run(node.as_mut(), 64, &[]);
+    let waited = start.elapsed();
+    assert!(waited < Duration::from_millis(500), "waited {waited:?}");
+    assert!(h.out_l.iter().chain(&h.out_r).all(|s| *s == 0.0));
+    assert!(node.is_faulted());
+    assert_eq!(p.underruns(), 0, "a crash is not an underrun");
+    p.deactivate(node);
+}
+
+#[test]
+fn set_param_coalesces_and_never_loses_the_latest_value() {
+    let mut p = spawn();
+    let mut node = p.activate(&config(64)).unwrap();
+    // Far more immediate sets than the pending list could hold without coalescing.
+    for i in 0..200 {
+        node.set_param(MODE, f64::from(i % 3));
+        node.set_param(GAIN, f64::from(i % 7) / 7.0);
+    }
+    node.set_param(GAIN, 0.5);
+    node.set_param(MODE, 2.0);
+    assert_eq!(node.param(GAIN), Some(0.5));
+    let mut h = Harness::new(64);
+    h.in_l.fill(1.0);
+    h.in_r.fill(1.0);
+    h.run(node.as_mut(), 64, &[]);
+    h.run(node.as_mut(), 64, &[]); // output of the first block (gain applied at offset 0)
+    assert!(h.out_l.iter().all(|s| *s == 0.5), "{:?}", &h.out_l[..4]);
+    assert_eq!(p.param_value(GAIN), Some(0.5));
+    assert_eq!(p.param_value(MODE), Some(2.0));
+    p.deactivate(node);
+}
+
+#[test]
 fn no_alloc_on_host_audio_path() {
     // Zero wait budget: exercises the underrun path too (results usually arrive late).
     for budget in [Duration::from_secs(10), Duration::ZERO] {

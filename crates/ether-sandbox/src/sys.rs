@@ -14,7 +14,7 @@ unsafe extern "C" {
     fn sem_unlink(name: *const c_char) -> c_int;
     fn sem_post(sem: *mut c_void) -> c_int;
     fn sem_wait(sem: *mut c_void) -> c_int;
-    fn dup(fd: c_int) -> c_int;
+    fn fcntl(fd: c_int, cmd: c_int, ...) -> c_int;
     fn dup2(src: c_int, dst: c_int) -> c_int;
 }
 
@@ -26,6 +26,10 @@ const O_EXCL: c_int = 0x0800;
 const O_CREAT: c_int = 0o100;
 #[cfg(target_os = "linux")]
 const O_EXCL: c_int = 0o200;
+#[cfg(target_os = "macos")]
+const F_DUPFD_CLOEXEC: c_int = 67;
+#[cfg(target_os = "linux")]
+const F_DUPFD_CLOEXEC: c_int = 1030;
 const EINTR: i32 = 4;
 
 /// OS name for a sandbox IPC object. Built from [`ipc_name`] (instance + host pid +
@@ -140,9 +144,11 @@ impl Drop for Semaphore {
 
 /// Helper side: keep a private duplicate of stdout for the control channel and point fd 1 at
 /// stderr, so plugins printing to stdout can't corrupt the protocol. Returns the private fd.
+/// It is close-on-exec: a process spawned by the plugin must not inherit it, or it would
+/// keep the pipe open after the helper dies and hide the crash (EOF) from the host.
 pub(crate) fn take_stdout() -> io::Result<c_int> {
     // SAFETY: plain fd syscalls on the process's own standard descriptors.
-    let fd = unsafe { dup(1) };
+    let fd = unsafe { fcntl(1, F_DUPFD_CLOEXEC, 0 as c_int) };
     if fd < 0 {
         return Err(io::Error::last_os_error());
     }

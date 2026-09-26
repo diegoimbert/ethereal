@@ -210,7 +210,7 @@ impl SandboxedNode {
             Some((self.region.out_audio(), self.max_frames)),
         );
 
-        let header = self.region.header();
+        let header = self.region.block();
         let n = (header.n_out_events as usize).min(self.region.layout().max_out_events);
         let last = ctx.frames.saturating_sub(1) as u32;
         for e in &self.region.out_events()[..n] {
@@ -267,7 +267,7 @@ impl SandboxedNode {
             }
         }
 
-        let h = self.region.header_mut();
+        let h = self.region.block();
         h.frames = frames as u32;
         h.n_in_events = n as u32;
         h.reset = u32::from(std::mem::take(&mut self.reset_pending));
@@ -299,6 +299,10 @@ impl Node for SandboxedNode {
 
     fn reset(&mut self) {
         self.reset_pending = true;
+        // Drop delayed output from before the jump (keeps the FIFO level = latency).
+        for ch in &mut self.fifo.data {
+            ch.fill(0.0);
+        }
     }
 
     fn process(
@@ -376,7 +380,11 @@ impl Device for SandboxedNode {
 
     fn set_param(&mut self, id: ParamId, value: f64) {
         set_value(&mut self.values, id.0, value);
-        if self.pending.len() < self.pending.capacity() {
+        // Coalesce per param: the list stays bounded by the param count and the latest
+        // value always reaches the plugin.
+        if let Some(p) = self.pending.iter_mut().find(|(k, _)| *k == id.0) {
+            p.1 = value;
+        } else if self.pending.len() < self.pending.capacity() {
             self.pending.push((id.0, value));
         }
     }

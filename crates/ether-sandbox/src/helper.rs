@@ -276,7 +276,7 @@ fn run_audio(
         }
         last = seq;
 
-        let h = region.header_mut();
+        let h = region.block();
         let frames = (h.frames as usize).min(max);
         if h.reset != 0 {
             node.reset();
@@ -326,7 +326,7 @@ fn run_audio(
         for (dst, e) in out.iter_mut().zip(out_events.as_slice()) {
             *dst = WireEvent::encode(e);
         }
-        let h = region.header_mut();
+        let h = region.block();
         h.n_out_events = n_out as u32;
         h.status = u32::from(status == ProcessStatus::Silent);
         region.header().done.store(seq, Ordering::Release);

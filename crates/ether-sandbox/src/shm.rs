@@ -1,6 +1,7 @@
 //! Shared-memory block exchange between the host node and the helper's audio thread.
 //!
-//! Layout: a [`Header`] (sync atomics + the current block's request/result fields), then
+//! Layout: a [`Header`] (capacities + sync atomics), a [`Block`] (the current block's plain
+//! request/result fields, never aliased with the atomics), then
 //! planar `f32` input audio, planar `f32` output audio, input events, output events, all at
 //! fixed offsets derived from the capacities stored in the header.
 //!
@@ -210,11 +211,18 @@ pub(crate) struct Header {
     pub posted: AtomicU64,
     /// Last block sequence number completed by the helper.
     pub done: AtomicU64,
+}
+
+/// The current block's plain (non-atomic) fields, in their own struct so that exclusive
+/// access to them never aliases the header's atomics.
+#[repr(C)]
+pub(crate) struct Block {
     // --- request (host phase) ---
     pub frames: u32,
     pub n_in_events: u32,
     /// 1 = call `Node::reset` before processing.
     pub reset: u32,
+    _pad: u32,
     pub transport: WireTransport,
     // --- result (helper phase) ---
     pub n_out_events: u32,
@@ -230,6 +238,7 @@ pub(crate) struct Layout {
     pub out_channels: usize,
     pub max_in_events: usize,
     pub max_out_events: usize,
+    block: usize,
     in_audio: usize,
     out_audio: usize,
     in_events: usize,
@@ -251,7 +260,8 @@ impl Layout {
     ) -> Self {
         let f = std::mem::size_of::<f32>();
         let e = std::mem::size_of::<WireEvent>();
-        let in_audio = align(std::mem::size_of::<Header>());
+        let block = align(std::mem::size_of::<Header>());
+        let in_audio = align(block + std::mem::size_of::<Block>());
         let out_audio = align(in_audio + in_channels * max_frames * f);
         let in_events = align(out_audio + out_channels * max_frames * f);
         let out_events = align(in_events + max_in_events * e);
@@ -262,6 +272,7 @@ impl Layout {
             out_channels,
             max_in_events,
             max_out_events,
+            block,
             in_audio,
             out_audio,
             in_events,
@@ -374,12 +385,14 @@ impl Region {
         unsafe { &*self.header_ptr() }
     }
 
-    /// Exclusive view of the header's plain fields. Only call during this side's phase.
+    /// Exclusive view of the current block's plain fields. Only call during this side's
+    /// phase (see module docs).
     #[allow(clippy::mut_from_ref)]
-    pub fn header_mut(&self) -> &mut Header {
-        // SAFETY: see module docs: the protocol gives this side exclusive access to the plain
-        // fields during its phase; atomics are only accessed through `&`.
-        unsafe { &mut *self.header_ptr() }
+    pub fn block(&self) -> &mut Block {
+        // SAFETY: `layout.block` is inside the mapping, aligned (ALIGN) and holds plain data;
+        // the protocol gives this side exclusive access during its phase. It does not overlap
+        // the header's atomics.
+        unsafe { &mut *(self.shm.as_ptr().add(self.layout.block) as *mut Block) }
     }
 
     #[allow(clippy::mut_from_ref)]
