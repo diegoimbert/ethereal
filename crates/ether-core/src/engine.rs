@@ -654,16 +654,41 @@ impl Engine {
                 }
             }
 
-            // --- automation (arrangement lanes, then clip envelopes of active clips) ---
-            // Enabled lanes always drive their target: mixer targets are re-applied every
-            // sub-block, node params are re-sent after a live change or a locate.
+            // --- automation ---
+            // Each target is resolved once per sub-block (see docs/CONTRACTS.md §4
+            // "Automation precedence"): a clip envelope of an unmuted clip overlapping the
+            // sub-block (or containing the position while stopped) takes the target; the
+            // arrangement lane for that target is skipped and re-sends as soon as it is
+            // uncovered. Enabled lanes/envelopes always drive their target: mixer targets
+            // are re-applied every sub-block, node params are re-sent after a live change
+            // or a locate.
             if track.auto_dirty || transport.reset_nodes {
                 track.auto_last.fill(f64::NAN);
                 track.env_last.fill(f64::NAN);
                 track.auto_dirty = false;
             }
+            // Stopped: the "sub-block" is the position itself.
+            let env_end = if playing { b1 } else { b0 + 1e-9 };
+            let clips_end = tdesc.clips.partition_point(|c| c.start < env_end);
+            let active_clips = || {
+                tdesc.clips[..clips_end]
+                    .iter()
+                    .enumerate()
+                    .filter(move |(_, c)| !c.muted && c.start + c.length > b0)
+            };
+            let covered = |target: ResolvedTarget| {
+                active_clips().any(|(_, c)| {
+                    c.envelopes
+                        .iter()
+                        .any(|e| e.resolved == target && !e.points.is_empty())
+                })
+            };
             for (li, lane) in tdesc.automation.iter().enumerate() {
                 let last = &mut track.auto_last[li];
+                if covered(lane.resolved) {
+                    *last = f64::NAN;
+                    continue;
+                }
                 apply_automation(
                     lane,
                     |t| evaluate(&lane.points, t),
@@ -676,28 +701,28 @@ impl Engine {
                     chain,
                 );
             }
-            // Clip envelopes (content-relative) of clips under the sub-block; for the same
-            // target they are applied after, and so override, the arrangement lane.
-            if playing {
-                let end = tdesc.clips.partition_point(|c| c.start < b1);
-                for (ci, clip) in tdesc.clips[..end].iter().enumerate() {
-                    if clip.envelopes.is_empty() || clip.start + clip.length <= b0 {
-                        continue;
-                    }
-                    for (ei, env) in clip.envelopes.iter().enumerate() {
-                        let last = &mut track.env_last[track.env_base[ci] + ei];
-                        apply_automation(
-                            env,
-                            |t| sched::content_at(clip, t).and_then(|c| evaluate(&env.points, c)),
-                            &timing,
-                            true,
-                            last,
-                            &mut track.volume,
-                            &mut track.pan,
-                            &mut track.sends,
-                            chain,
-                        );
-                    }
+            // Envelopes of clips that stopped covering their target send again next time.
+            for (ci, clip) in tdesc.clips.iter().enumerate() {
+                let active = ci < clips_end && !clip.muted && clip.start + clip.length > b0;
+                if !active && !clip.envelopes.is_empty() {
+                    let base = track.env_base[ci];
+                    track.env_last[base..base + clip.envelopes.len()].fill(f64::NAN);
+                }
+            }
+            for (ci, clip) in active_clips() {
+                for (ei, env) in clip.envelopes.iter().enumerate() {
+                    let last = &mut track.env_last[track.env_base[ci] + ei];
+                    apply_automation(
+                        env,
+                        |t| sched::content_at(clip, t).and_then(|c| evaluate(&env.points, c)),
+                        &timing,
+                        playing,
+                        last,
+                        &mut track.volume,
+                        &mut track.pan,
+                        &mut track.sends,
+                        chain,
+                    );
                 }
             }
 

@@ -169,6 +169,20 @@ There is one file per domain: `transport`, `project` (also `EditCommand`), `trac
 - **Automation.** An enabled lane always drives its target. v0.1 has no "manual move
   overrides automation / re-enable automation". `AutomationLane.enabled` is only an
   explicit user toggle.
+  - **Precedence (engine).** The engine resolves each target once per processed
+    sub-block:
+    - A clip envelope of an unmuted clip that overlaps the sub-block wins over the
+      arrangement lane for the same target. The lane is skipped for that sub-block.
+    - When no active clip envelope covers the target any more, the lane takes over
+      immediately (in the next sub-block, at its current value).
+    - Handover is at sub-block granularity: at most one host block.
+    - Overlapping clips on one track with envelopes for the same target are undefined.
+  - **While stopped.** Lanes and clip envelopes both apply at the stopped position (one
+    evaluation), with the same precedence. An envelope only applies when the position
+    is inside its clip.
+  - **Timing.** Mixer targets (volume, pan, send level) take the value at the sub-block
+    start, smoothed over 10 ms. Device params get `Param` events every 64 samples while
+    playing.
 - **Continuous controls.** Volume, pan, send level and device params are undoable
   document edits and are also pushed to the engine param queue immediately, with no graph
   republish. The UI sends them with a `gesture` and closes the gesture with
