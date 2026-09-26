@@ -29,6 +29,8 @@ export type ToController =
       fsPort: MessagePort;
       seed: string;
       mode: ControllerMode;
+      /** AudioContext sample rate (the engine's rate). */
+      sampleRate: number;
     }
   | { type: "client"; json: string };
 

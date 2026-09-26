@@ -22,7 +22,14 @@ declare module "@ether-wasm/ether_wasm.js" {
   }
 
   export class WasmController {
-    constructor(seed: bigint, mode: string, control: SharedArrayBuffer, reports: SharedArrayBuffer, fs: JsFsHost);
+    constructor(
+      seed: bigint,
+      mode: string,
+      sampleRate: number,
+      control: SharedArrayBuffer,
+      reports: SharedArrayBuffer,
+      fs: JsFsHost,
+    );
     handle(messageJson: string): string;
     tick(nowMs: number): string;
     pending_control_bytes(): number;

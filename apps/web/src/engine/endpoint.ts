@@ -132,6 +132,7 @@ export function createWebEndpoint(opts: WebEndpointOptions = {}): WasmEndpoint &
         fsPort: channel.port2,
         seed: randomSeed(),
         mode: opts.controller ?? "ether",
+        sampleRate: context.sampleRate,
       };
       controller.postMessage(init, [channel.port2]);
     });

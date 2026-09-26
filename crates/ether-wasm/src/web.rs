@@ -210,12 +210,14 @@ pub struct WasmController {
 #[wasm_bindgen]
 impl WasmController {
     /// `mode`: `"ether"` (the real `EtherController`) or `"fake"` (see [`crate::fake`]).
-    /// `control`/`reports`: the two ring buffers shared with the Worklet. `fs`: the sync
-    /// OPFS file system.
+    /// `sample_rate`: the AudioContext rate the Worklet renders at (media is resampled to
+    /// it by the controller). `control`/`reports`: the two ring buffers shared with the
+    /// Worklet. `fs`: the sync OPFS file system.
     #[wasm_bindgen(constructor)]
     pub fn new(
         seed: u64,
         mode: &str,
+        sample_rate: u32,
         control: &SharedArrayBuffer,
         reports: &SharedArrayBuffer,
         fs: JsFsHost,
@@ -225,6 +227,9 @@ impl WasmController {
         let bridge = WebBridge::new(shared.clone());
         let fs = JsFs(fs);
         let host = WebHost::new(seed);
+        // TODO(controller merge): pass it via `ControllerConfig::engine_sample_rate`
+        // (`EtherController::with_config`, controller PR #21).
+        let _ = sample_rate;
         let controller: Box<dyn Controller> = match mode {
             "ether" => Box::new(EtherController::new(
                 bridge,
