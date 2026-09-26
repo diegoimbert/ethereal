@@ -6,8 +6,7 @@
 //! `MediaId` (sources registered with `EngineHandle::add_source`), never by pointer.
 
 use ether_protocol::model::{
-    AutomationTarget, ClipId, CurveShape, LaunchSettings, MediaId, ParamId, SceneId, SendId,
-    TrackId, TrackKind, WarpMode,
+    AutomationTarget, ClipId, CurveShape, MediaId, ParamId, SendId, TrackId, TrackKind, WarpMode,
 };
 use std::collections::BTreeSet;
 
@@ -67,10 +66,9 @@ pub struct TrackDesc {
     pub monitor: bool,
     /// Runtime record-arm state (from the controller, not the document).
     pub armed: bool,
-    /// Arrangement clips, sorted by start.
+    /// Arrangement clips, sorted by start. Only arrangement clips reach the engine (the
+    /// controller skips non-arrangement clips; base-3 removes ClipLocation::Session).
     pub clips: Vec<ClipDesc>,
-    /// Session clips of this track (used by `session`).
-    pub session_clips: Vec<SessionClipDesc>,
     /// Arrangement automation of this track and its devices/sends.
     pub automation: Vec<AutomationDesc>,
 }
@@ -93,7 +91,7 @@ pub struct SendDesc {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ClipDesc {
     pub id: ClipId,
-    /// Timeline start (arrangement) in beats; ignored for session clips.
+    /// Timeline start (arrangement) in beats.
     pub start: f64,
     pub length: f64,
     pub offset: f64,
@@ -138,13 +136,6 @@ pub struct WarpDesc {
     pub mode: WarpMode,
     /// `(content beat, source seconds)`, sorted, at least two.
     pub markers: Vec<(f64, f64)>,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct SessionClipDesc {
-    pub scene: SceneId,
-    pub clip: ClipDesc,
-    pub launch: LaunchSettings,
 }
 
 /// An automation curve resolved to an engine target.

@@ -52,7 +52,6 @@ pub fn track(id: TrackId, kind: TrackKind, output: Option<TrackId>) -> TrackDesc
         monitor: false,
         armed: false,
         clips: vec![],
-        session_clips: vec![],
         automation: vec![],
     }
 }

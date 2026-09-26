@@ -9,8 +9,8 @@
 //! - The playhead is published through a seqlock of atomics (no ring, always the latest).
 //!
 //! # Rendering one block
-//! 1. Drain controls (node inserts/removals, snapshot swap, sources, transport, session)
-//!    and parameter changes.
+//! 1. Drain controls (node inserts/removals, snapshot swap, sources, transport) and
+//!    parameter changes.
 //! 2. Split the block at loop ends and tempo/time-signature boundaries so transport
 //!    information is linear within each sub-block.
 //! 3. Per sub-block, process tracks in topological order: input bus (+ monitored hardware
@@ -24,7 +24,6 @@ use std::sync::atomic::{AtomicU32, AtomicU64, Ordering, fence};
 
 use ether_protocol::meters::TrackMeter;
 use ether_protocol::model::{MediaId, TrackId, TrackKind};
-use ether_protocol::session::ClipStateChange;
 use rtrb::{Consumer, Producer, RingBuffer};
 
 use crate::automation::{evaluate, gain_from_plain, to_plain};
@@ -41,13 +40,10 @@ use crate::mixer::{TrackRt, apply_fader, mix_into};
 use crate::node::{Node, NodeKey, ProcessContext};
 use crate::param::{ParamChange, ParamTarget};
 use crate::sched::{self, NoteSink, Timing};
-use crate::session::{SessionControl, SessionState};
 use crate::transport::{PlayheadState, TransportControl, TransportInfo};
 
 /// Registered audio sources (media) the engine can hold.
 pub const MAX_SOURCES: usize = 4096;
-/// Tracks pre-allocated in the session state.
-pub const MAX_SESSION_TRACKS: usize = 1024;
 /// Node-param automation is re-evaluated every this many samples within a sub-block.
 const AUTOMATION_STEP: usize = 64;
 /// Beat tolerance for loop/boundary decisions.
@@ -77,23 +73,18 @@ enum Control {
         media: MediaId,
     },
     Transport(TransportControl),
-    Session(SessionControl),
-    InstallSession(Box<SessionState>),
 }
 
 enum Garbage {
     Snapshot(#[allow(dead_code)] Box<RenderSnapshot>),
     Node(#[allow(dead_code)] Box<dyn Node>),
     Source(#[allow(dead_code)] Arc<dyn AudioSource>),
-    Session(#[allow(dead_code)] Box<SessionState>),
 }
 
 enum Output {
     Meter(TrackMeter),
     Overflow,
     Underruns(u32),
-    #[allow(dead_code)]
-    Session(ClipStateChange),
 }
 
 /// Single-writer seqlock holding the latest playhead.
@@ -209,7 +200,6 @@ pub fn create(config: EngineConfig) -> EngineParts {
         out: out_tx,
         playhead: playhead.clone(),
         transport: TransportRt::default(),
-        session: None,
         src_scratch: vec![0.0; config.max_block_size * 8 + 64],
         next_note_id: 0,
         meter_interval: (config.sample_rate as usize / 30).max(1),
@@ -233,7 +223,6 @@ pub fn create(config: EngineConfig) -> EngineParts {
         free: (0..config.max_nodes as u32).rev().collect(),
         node_latency,
         playhead,
-        session_installed: false,
         config,
     };
     EngineParts {
@@ -257,7 +246,6 @@ pub struct Engine {
     out: Producer<Output>,
     playhead: Arc<SharedPlayhead>,
     transport: TransportRt,
-    session: Option<Box<SessionState>>,
     src_scratch: Vec<f32>,
     next_note_id: u32,
     meter_interval: usize,
@@ -273,8 +261,8 @@ impl Engine {
     /// **RT.** Render one block. `inputs`/`outputs` are planar, each `frames` long
     /// (`frames <= max_block_size`; channel counts as configured, extra channels ignored).
     ///
-    /// Per block: drain control ring (node inserts/removals, snapshot swap, transport,
-    /// session), drain param ring, render (splitting at loop/tempo boundaries), write
+    /// Per block: drain control ring (node inserts/removals, snapshot swap, sources,
+    /// transport), drain param ring, render (splitting at loop/tempo boundaries), write
     /// meters/playhead to the output ring, push retired objects to the GC ring. Never
     /// allocates, locks or blocks; bounded by graph size.
     pub fn process(&mut self, inputs: &[&[f32]], outputs: &mut [&mut [f32]], frames: usize) {
@@ -382,16 +370,6 @@ impl Engine {
                     }
                 }
                 Control::Transport(t) => self.apply_transport(t),
-                Control::Session(c) => {
-                    if let Some(s) = self.session.as_mut() {
-                        s.apply(c);
-                    }
-                }
-                Control::InstallSession(s) => {
-                    if let Some(old) = self.session.replace(s) {
-                        self.retire(Garbage::Session(old));
-                    }
-                }
             }
         }
     }
@@ -958,7 +936,6 @@ pub struct EngineHandle {
     free: Vec<u32>,
     node_latency: Arc<[AtomicU32]>,
     playhead: Arc<SharedPlayhead>,
-    session_installed: bool,
 }
 
 struct HandleSlot {
@@ -1074,20 +1051,7 @@ impl EngineHandle {
         self.send(Control::Transport(control))
     }
 
-    /// Session-view launch/stop (see [`crate::session`]).
-    pub fn session(&mut self, control: SessionControl) -> Result<(), EngineError> {
-        if !self.session_installed {
-            if self.control.slots() < 2 {
-                return Err(EngineError::QueueFull);
-            }
-            let state = Box::new(SessionState::new(MAX_SESSION_TRACKS));
-            self.send(Control::InstallSession(state))?;
-            self.session_installed = true;
-        }
-        self.send(Control::Session(control))
-    }
-
-    /// Drain engine outputs (meters, playhead, session state changes, diagnostics) into
+    /// Drain engine outputs (meters, playhead, diagnostics) into
     /// `out` (cleared first). Call at UI rate (~30-60 Hz).
     pub fn poll(&mut self, out: &mut EngineOutputs) {
         out.clear();
@@ -1096,7 +1060,6 @@ impl EngineHandle {
                 Output::Meter(m) => merge_meter(&mut out.meters, m),
                 Output::Overflow => out.event_overflow = true,
                 Output::Underruns(n) => out.underruns += n,
-                Output::Session(c) => out.session.push(c),
             }
         }
         out.playhead = Some(self.playhead());

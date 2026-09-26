@@ -38,7 +38,6 @@ pub mod node;
 pub mod param;
 pub mod plugin;
 mod sched;
-pub mod session;
 pub mod tempo;
 pub mod transport;
 
