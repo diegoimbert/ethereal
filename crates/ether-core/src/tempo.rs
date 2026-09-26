@@ -4,28 +4,24 @@
 //! thread with O(log n) lookups and no allocation. Must agree with
 //! `ether_model::TempoMap` (shared test vectors).
 //!
-//! # Math
-//! Within a segment starting at beat `B0` (seconds `S0`, tempo `T0` BPM) the tempo is
-//! `T(b) = T0 + k·(b − B0)` (`k = 0` for `Step`, `k = ΔT/Δbeats` for a `Linear` ramp towards
-//! the next point: a linear ramp in BPM *over beats*). Time is `dt/db = 60 / T(b)`, so
-//! - `k = 0`: `t = S0 + 60·(b − B0)/T0`
-//! - `k ≠ 0`: `t = S0 + (60/k)·ln(T(b)/T0)`, inverted as `T = T0·exp(k·(t − S0)/60)`,
-//!   `b = B0 + (T − T0)/k`.
-//!
-//! Before the first point the first tempo extends backwards (negative beats); the last
-//! point's tempo holds forever (a `Linear` curve on the last point is treated as `Step`).
+//! The per-segment math (constant and ramped, beats <-> seconds) is
+//! `ether_model::tempo::segment_*`, the single source of truth shared with the document
+//! model and the UI; this map only adds an RT-friendly layout (sorted segments with cached
+//! start seconds, binary-search lookups). Before the first point the first tempo holds;
+//! the last point's tempo holds forever (a `Linear` curve on the last point is constant).
 
-use ether_protocol::model::{TempoCurve, TimeSignature};
+use ether_protocol::model::{
+    TempoCurve, TimeSignature, segment_beats_to_seconds, segment_bpm_at,
+    segment_seconds_to_beats,
+};
 use serde::{Deserialize, Serialize};
 
 /// Default tempo when the desc has no tempo points.
-pub const DEFAULT_BPM: f64 = 120.0;
+pub const DEFAULT_BPM: f64 = ether_protocol::model::DEFAULT_BPM;
 /// Tempos are clamped to this range to keep the math finite.
 pub const MIN_BPM: f64 = 1.0;
 pub const MAX_BPM: f64 = 10_000.0;
 
-/// Tempo differences below this are treated as constant tempo.
-const RAMP_EPSILON_BPM: f64 = 1e-9;
 /// Boundary comparisons tolerance (beats), matches `Beats::EPSILON`.
 const BEAT_EPS: f64 = 1e-6;
 
@@ -41,45 +37,6 @@ pub struct TempoPointDesc {
 pub struct TimeSignatureDesc {
     pub beat: f64,
     pub signature: TimeSignature,
-}
-
-// Per-segment math. Offsets are relative to the segment start; `end_bpm == start_bpm` for
-// constant segments (`length` may be infinite). Same signatures as
-// `ether_model::tempo::segment_*`, which become the single source of truth once available.
-
-#[inline]
-fn segment_is_ramp(start_bpm: f64, end_bpm: f64, length: f64) -> bool {
-    (end_bpm - start_bpm).abs() > RAMP_EPSILON_BPM && length.is_finite() && length > 0.0
-}
-
-#[inline]
-fn segment_bpm_at(start_bpm: f64, end_bpm: f64, length: f64, beats: f64) -> f64 {
-    if segment_is_ramp(start_bpm, end_bpm, length) {
-        start_bpm + (end_bpm - start_bpm) * beats / length
-    } else {
-        start_bpm
-    }
-}
-
-#[inline]
-fn segment_beats_to_seconds(start_bpm: f64, end_bpm: f64, length: f64, beats: f64) -> f64 {
-    if segment_is_ramp(start_bpm, end_bpm, length) {
-        let k = (end_bpm - start_bpm) / length;
-        60.0 / k * (segment_bpm_at(start_bpm, end_bpm, length, beats) / start_bpm).ln()
-    } else {
-        60.0 * beats / start_bpm
-    }
-}
-
-#[inline]
-fn segment_seconds_to_beats(start_bpm: f64, end_bpm: f64, length: f64, seconds: f64) -> f64 {
-    if segment_is_ramp(start_bpm, end_bpm, length) {
-        let k = (end_bpm - start_bpm) / length;
-        let t = start_bpm * (k * seconds / 60.0).exp();
-        (t - start_bpm) / k
-    } else {
-        seconds * start_bpm / 60.0
-    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -151,15 +108,8 @@ impl TempoMapRt {
             .filter(|p| p.beat.is_finite() && p.bpm.is_finite())
             .collect();
         pts.sort_by(|a, b| a.beat.total_cmp(&b.beat));
-        // Later points at (nearly) the same beat win.
-        pts.dedup_by(|later, earlier| {
-            if (later.beat - earlier.beat).abs() <= BEAT_EPS {
-                *earlier = *later;
-                true
-            } else {
-                false
-            }
-        });
+        // Points at the same beat are kept (stable sort): the earlier one becomes a
+        // zero-length (constant) segment, and lookups pick the later one, as the model does.
         if pts.is_empty() {
             pts.push(TempoPointDesc {
                 beat: 0.0,
@@ -269,13 +219,10 @@ impl TempoMapRt {
         seg.beats_at(seconds)
     }
 
+    /// Tempo at `beats`. A position within `1e-6` beats of a point already uses that
+    /// point's tempo (as `ether_model::TempoMap::bpm_at`).
     pub fn bpm_at(&self, beats: f64) -> f64 {
-        let seg = self.segment_for_beats(beats);
-        if beats < seg.beat {
-            seg.bpm
-        } else {
-            seg.bpm_at(beats)
-        }
+        self.segment_for_beats(beats + BEAT_EPS).bpm_at(beats)
     }
 
     /// Beat of the next tempo-segment (or time-signature) boundary strictly after `beats`
