@@ -58,6 +58,13 @@ pub trait PluginController {
     /// Main-thread housekeeping (CLAP `on_main_thread`, timers, GUI callbacks). Appends
     /// notifications for the controller. Call regularly (~30-60 Hz).
     fn poll(&mut self, out: &mut Vec<PluginNotification>);
+
+    /// Current plain value of `param` (main thread; valid active or inactive). Used after
+    /// `load_state` to mirror plugin params into the document. `None` = unknown/unsupported.
+    fn param_value(&mut self, param: ParamId) -> Option<f64> {
+        let _ = param;
+        None
+    }
 }
 
 /// Things a plugin tells its host outside of audio processing.
