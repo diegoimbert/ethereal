@@ -5,6 +5,8 @@ import { useProjectStore } from "@/state/projectStore";
 import { useSelectionStore } from "@/state/selection";
 import { MockTransport, TransportProvider, type SendOptions } from "@/transport";
 import { MockCollab } from "@/transport/mock/roadmap/collab";
+import { useContextMenuStore } from "@/kit/contextMenuStore";
+import { FakePeerConnection } from "./listen/fakeRtc";
 import { PresenceBar } from ".";
 import { highlightCss, initials, peerColor, useCollabStore } from "./store";
 
@@ -94,6 +96,48 @@ describe("PresenceBar", () => {
     fireEvent.click(screen.getByRole("button", { name: "Leave session" }));
     await waitFor(() => expect(screen.getByTestId("collab-button").textContent).toBe("Collab"));
     expect(screen.queryByTestId("collab-peers")).toBeNull();
+  });
+});
+
+describe("Listen on a peer (stream-listen)", () => {
+  const peerState = { cursor: null, selected_tracks: [], selected_clips: [], selected_notes: [], selected_devices: [], view: null };
+  afterEach(() => {
+    // @ts-expect-error: jsdom has no WebRTC; remove the stub
+    delete globalThis.RTCPeerConnection;
+  });
+
+  it("is disabled with a reason, listens from the chip menu or the dialog, shows the status and stops", async () => {
+    const mock = await setup();
+    await act(() => mock.send({ domain: "Collab", command: { type: "Join", server: "ws://r:1", session: "jam", token: null, name: "Ada" } }));
+    act(() => mock.sim.simulatePeer("7", "Zoe", 0xff94a6, { ...peerState, can_host: true }));
+
+    fireEvent.click(screen.getByTestId("collab-button"));
+    const zoe = screen.getByRole("button", { name: "Listen on Zoe's computer" });
+    expect(zoe).toHaveProperty("disabled", true);
+    expect(zoe.title).toMatch(/no WebRTC/);
+
+    globalThis.RTCPeerConnection = FakePeerConnection as unknown as typeof RTCPeerConnection;
+    act(() => mock.sim.simulatePeer("7", "Zoe", 0xff94a6, { ...peerState, can_host: true, view: "x" }));
+    expect(screen.getByRole("button", { name: "Listen on Mock peer's computer" }).title).toMatch(/cannot host/);
+    fireEvent.click(screen.getByRole("button", { name: "Listen on Zoe's computer" }));
+    await waitFor(() => expect(mock.sent).toContainEqual({ domain: "Collab", command: { type: "Listen", host: "7" } }));
+    expect((await screen.findByTestId("listen-status")).textContent).toContain("Connecting to Zoe…");
+    expect(FakePeerConnection.last).not.toBeNull();
+
+    // The chip menu offers to stop.
+    const chip = screen.getByTestId("collab-peers").querySelector<HTMLElement>('[data-peer="Zoe"]')!;
+    fireEvent.contextMenu(chip);
+    const items = useContextMenuStore.getState().menu!.items;
+    expect(items.map((i) => (i === "separator" ? i : i.label))).toEqual(["Stop listening"]);
+    act(() => (items[0] as { onSelect(): void }).onSelect());
+    await waitFor(() => expect(mock.sent).toContainEqual({ domain: "Collab", command: { type: "StopListening" } }));
+    await waitFor(() => expect(screen.queryByTestId("listen-status")).toBeNull());
+    expect(FakePeerConnection.last!.closed).toBe(true);
+
+    fireEvent.contextMenu(chip);
+    const again = useContextMenuStore.getState().menu!.items[0] as { label: string; disabled?: boolean };
+    expect(again).toMatchObject({ label: "Listen on Zoe's computer", disabled: false });
+    act(() => useContextMenuStore.getState().close());
   });
 });
 

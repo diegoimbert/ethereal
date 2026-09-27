@@ -39,6 +39,24 @@ describe("MockCollab", () => {
     expect(events.at(-1)).toEqual({ type: "Collab", event: { type: "Presence", peers: [] } });
   });
 
+  it("simulates Listen/StopListening (connecting only: the mock has no media)", () => {
+    const events: Event[] = [];
+    const c = new MockCollab(stubHost(events));
+    expect(() => c.command({ type: "Listen", host: "2" })).toThrow(/session/);
+    c.command({ type: "Join", server: "ws://relay:1", session: "jam", token: null, name: "Me" });
+    expect(() => c.command({ type: "Listen", host: "9" })).toThrow(/peer/);
+    c.command({ type: "Listen", host: "2" });
+    expect(events.at(-1)).toEqual({
+      type: "Collab",
+      event: { type: "ListenStatus", status: { listening: { type: "Connecting", host: "2", stream: 1 }, listeners: [] } },
+    });
+    c.command({ type: "StopListening" });
+    expect(events.at(-1)).toMatchObject({ event: { type: "ListenStatus", status: { listening: { type: "Off" } } } });
+    const n = events.length;
+    c.command({ type: "StopListening" });
+    expect(events).toHaveLength(n);
+  });
+
   it("validates joins like the engine", () => {
     const c = new MockCollab(stubHost([]));
     expect(() => c.command({ type: "Join", server: "http://x", session: "jam", token: null, name: "" })).toThrow(/ws:\/\//);

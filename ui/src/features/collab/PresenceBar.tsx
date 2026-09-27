@@ -1,10 +1,11 @@
 import "./collab.css";
 import { useContext, useEffect, useState, type CSSProperties, type FormEvent } from "react";
 import type { PresenceState } from "@/generated";
-import { Button, Dialog, TextInput } from "@/kit";
+import { Button, Dialog, openContextMenu, TextInput } from "@/kit";
 import { useSelectionStore } from "@/state/selection";
 import { itemSelection } from "@/timeline/selection";
 import { cmd, TransportContext, type EngineTransport } from "@/transport";
+import { ListenBadge, ListenButton, listenMenuItems, useListenAgent } from "./listen";
 import { highlightCss, initials, peerColor, useCollabStore } from "./store";
 
 /** Remembered join fields (never the token). */
@@ -100,6 +101,7 @@ function PresenceBarWith({ transport }: { transport: EngineTransport }) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => transport.onEvent(onEvent), [transport, onEvent]);
+  useListenAgent(transport);
   // Current state after (re)connecting to an engine (it may already be in a session).
   useEffect(() => {
     useCollabStore.getState().reset();
@@ -156,12 +158,14 @@ function PresenceBarWith({ transport }: { transport: EngineTransport }) {
               style={{ "--eth-collab-peer": peerColor(p.color) } as CSSProperties}
               title={p.name || "Anonymous"}
               data-peer={p.name}
+              onContextMenu={(e) => openContextMenu(e, listenMenuItems(transport, p))}
             >
               {initials(p.name)}
             </span>
           ))}
         </span>
       )}
+      <ListenBadge transport={transport} peers={peers} />
       <PeerHighlights />
       <Dialog
         open={open}
@@ -198,6 +202,7 @@ function PresenceBarWith({ transport }: { transport: EngineTransport }) {
                     {initials(p.name)}
                   </span>
                   {p.name || "Anonymous"}
+                  <ListenButton transport={transport} peer={p} />
                 </li>
               ))}
             </ul>

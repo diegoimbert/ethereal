@@ -9,7 +9,7 @@
  * undo).
  */
 
-import type { CollabCommand, CollabStatus, Command, Presence, PresenceState, ReplyValue } from "@/generated";
+import type { CollabCommand, CollabStatus, Command, ListenState, Presence, PresenceState, ReplyValue } from "@/generated";
 import { fail } from "../documentReducer";
 import type { MockHost } from "./host";
 
@@ -40,6 +40,9 @@ const emptyPresence = (): PresenceState => ({
 export class MockCollab {
   private status: CollabStatus = { type: "Offline" };
   private peers = new Map<string, Presence>();
+  /** stream-listen: this site's listening state. */
+  private listening: ListenState = { type: "Off" };
+  private nextStream = 0;
   /** This site's last published presence. */
   presence: PresenceState = emptyPresence();
 
@@ -56,6 +59,10 @@ export class MockCollab {
         this.emitAll();
         return UNIT;
       case "Leave":
+        if (this.listening.type !== "Off") {
+          this.listening = { type: "Off" };
+          this.emitListen();
+        }
         this.status = { type: "Offline" };
         this.peers.clear();
         this.emitAll();
@@ -68,9 +75,21 @@ export class MockCollab {
         return UNIT;
       // base-53 (docs/COLLAB.md §8-§10): like the engine until presence-v2, stream-host and
       // stream-listen land (each node extends its cases).
-      case "SetPointer":
+      // stream-listen: the mock has no media; `Listen` stays connecting until stopped.
       case "Listen":
+        if (this.status.type !== "Online") fail("InvalidState", "not in a collaboration session");
+        if (!this.peers.has(c.host)) fail("NotFound", `peer ${c.host}`);
+        this.nextStream = (this.nextStream % 0xffff_fffe) + 1;
+        this.listening = { type: "Connecting", host: c.host, stream: this.nextStream };
+        this.emitListen();
+        return UNIT;
       case "StopListening":
+        if (this.listening.type !== "Off") {
+          this.listening = { type: "Off" };
+          this.emitListen();
+        }
+        return UNIT;
+      case "SetPointer":
       case "SetHosting":
       case "SendStreamClock":
         return fail("Unsupported", `${c.type} is not implemented yet`);
@@ -106,6 +125,10 @@ export class MockCollab {
   private emitAll() {
     this.host.emit({ type: "Collab", event: { type: "Session", status: this.status } });
     this.emitPeers();
+  }
+
+  private emitListen() {
+    this.host.emit({ type: "Collab", event: { type: "ListenStatus", status: { listening: this.listening, listeners: [] } } });
   }
 
   private emitPeers() {

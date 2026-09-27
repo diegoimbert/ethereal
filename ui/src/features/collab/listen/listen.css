@@ -1,0 +1,21 @@
+/* Listen on a peer: the status badge in the presence bar. Tokens only. */
+.eth-listen {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--eth-space-sm);
+  padding-inline-start: var(--eth-space-sm);
+  border-radius: var(--eth-radius-pill);
+  background: var(--eth-color-accent-subtle);
+  color: var(--eth-color-text);
+  font-size: var(--eth-fs-xs);
+}
+.eth-listen--ended {
+  background: var(--eth-color-bg-raised);
+  color: var(--eth-color-text-dim);
+}
+.eth-listen__text {
+  white-space: nowrap;
+}
+.eth-listen__action {
+  margin-inline-start: auto;
+}
