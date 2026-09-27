@@ -37,36 +37,10 @@ fn node_commands_reply_unsupported_until_implemented() {
     let mut sites = session(&hub, 2);
     let host = sites[0].ctl.collab_site();
     let s = &mut sites[1];
-    let clock = StreamClock {
-        rtp: 0,
-        position: Beats(0.0),
-        playing: false,
-        recording: false,
-        bpm: 120.0,
-        loop_enabled: false,
-        loop_region: BeatRange {
-            start: Beats(0.0),
-            end: Beats(4.0),
-        },
-        metronome: false,
-        discontinuity: true,
-        count_in_end: None,
-    };
     for c in [
         // stream-listen
         CollabCommand::Listen { host },
         CollabCommand::StopListening,
-        // stream-host
-        CollabCommand::SetHosting {
-            allow: true,
-            ui_sender: true,
-            remote_transport: true,
-        },
-        CollabCommand::SendStreamClock {
-            to: host,
-            stream: 1,
-            clock: clock.clone(),
-        },
     ] {
         let out = s.send(Command::Collab(c.clone()));
         assert_eq!(error_code(&out), ErrorCode::Unsupported, "{c:?}");

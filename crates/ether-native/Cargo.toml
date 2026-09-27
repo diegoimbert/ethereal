@@ -33,6 +33,12 @@ cpal.workspace = true
 crossbeam-channel.workspace = true
 getrandom.workspace = true
 assert_no_alloc = { workspace = true, features = ["warn_debug"] }
+# Listen-on-peer sender (`stream`): tap ring → 48 kHz → Opus → str0m (docs/COLLAB.md §9.1).
+rtrb.workspace = true
+rubato.workspace = true
+str0m.workspace = true
+opus.workspace = true
+audiopus_sys.workspace = true
 
 [lints]
 workspace = true

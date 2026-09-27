@@ -2,8 +2,9 @@
 // SAB rings, starts the AudioWorklet (engine), the OPFS Worker and the controller Worker,
 // and exposes them to `WasmTransport` as a `WasmEndpoint`.
 import wasmUrl from "@ether-wasm/ether_wasm_bg.wasm?url";
+import { tapClockBuffer } from "@/features/collab/host/tapClock";
 import { Emitter } from "@/transport/EngineTransport";
-import type { WasmEndpoint } from "@/transport/wasm/WasmTransport";
+import type { StreamOutput, WasmEndpoint } from "@/transport/wasm/WasmTransport";
 import workletUrl from "./engine.worklet.ts?worker&url";
 import {
   CONTROL_RING_BYTES,
@@ -21,6 +22,10 @@ export interface WebEngineHandles {
   node: AudioWorkletNode;
   controller: Worker;
   fs: Worker;
+  /** Worklet output 1 (the stream tap) and its clock, for the web sender. */
+  tapClock: SharedArrayBuffer;
+  /** Created on the first `streamOutput()` call. */
+  streamDestination: MediaStreamAudioDestinationNode | null;
 }
 
 async function compileWasm(): Promise<WebAssembly.Module> {
@@ -46,7 +51,7 @@ function resumeOnGesture(context: AudioContext): () => void {
   };
 }
 
-export function createWebEndpoint(): WasmEndpoint & { handles(): WebEngineHandles | null } {
+export function createWebEndpoint(): WasmEndpoint & { handles(): WebEngineHandles | null; streamOutput(): StreamOutput | null } {
   const batches = new Emitter<string>();
   const fatal = new Emitter<Error>();
   let handles: WebEngineHandles | null = null;
@@ -73,17 +78,20 @@ export function createWebEndpoint(): WasmEndpoint & { handles(): WebEngineHandle
 
     const context = new AudioContext({ latencyHint: "interactive" });
     await context.audioWorklet.addModule(workletUrl);
+    const tapClock = tapClockBuffer();
+    // Output 0 → speakers; output 1 = the stream tap (docs/COLLAB.md §9.1), connected to a
+    // MediaStream destination when the web sender asks for it (`streamOutput`).
     const node = new AudioWorkletNode(context, "ether-engine", {
       numberOfInputs: 0,
-      numberOfOutputs: 1,
-      outputChannelCount: [2],
-      processorOptions: { module, control, reports },
+      numberOfOutputs: 2,
+      outputChannelCount: [2, 2],
+      processorOptions: { module, control, reports, tapClock },
     });
     node.onprocessorerror = () => die("the audio worklet failed");
     node.port.onmessage = (e: MessageEvent<{ type: string; message?: string }>) => {
       if (e.data.type === "fatal") die(`audio worklet: ${e.data.message ?? "crashed"}`);
     };
-    node.connect(context.destination);
+    node.connect(context.destination, 0);
 
     const fs = new Worker(new URL("./opfs.worker.ts", import.meta.url), { type: "module", name: "ether-opfs" });
     const channel = new MessageChannel();
@@ -94,7 +102,7 @@ export function createWebEndpoint(): WasmEndpoint & { handles(): WebEngineHandle
       type: "module",
       name: "ether-controller",
     });
-    handles = { context, node, controller, fs };
+    handles = { context, node, controller, fs, tapClock, streamDestination: null };
     cleanup.push(resumeOnGesture(context));
 
     await new Promise<void>((resolve, reject) => {
@@ -139,6 +147,17 @@ export function createWebEndpoint(): WasmEndpoint & { handles(): WebEngineHandle
     onMessages: (l) => batches.on(l),
     onFatal: (l) => fatal.on(l),
     handles: () => handles,
+    streamOutput() {
+      const h = handles;
+      if (!h) return null;
+      if (!h.streamDestination) {
+        const dest = h.context.createMediaStreamDestination();
+        dest.channelCount = 2;
+        h.node.connect(dest, 1);
+        h.streamDestination = dest;
+      }
+      return { stream: h.streamDestination.stream, context: h.context, tapClock: h.tapClock };
+    },
     dispose() {
       for (const c of cleanup) c();
       cleanup = [];

@@ -30,6 +30,7 @@ pub mod recording;
 pub mod rt;
 pub mod sandbox;
 pub mod store;
+pub mod stream;
 #[doc(hidden)]
 pub mod test_util;
 pub mod uploads;

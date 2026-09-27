@@ -1,0 +1,26 @@
+/* Hosting ("listen on <peer>", host side): toggles and listener list in the collab
+   dialog, the "N listening" badge in the top bar. Tokens only. */
+.eth-collab-host {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-sm);
+  padding-top: var(--eth-space-md);
+  border-top: var(--eth-border-width) solid var(--eth-color-border);
+}
+.eth-collab-host__listeners {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-xs);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.eth-collab-host__listener {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--eth-space-sm);
+}
+.eth-collab-host__badge {
+  display: inline-flex;
+}
