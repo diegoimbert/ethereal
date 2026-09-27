@@ -116,6 +116,23 @@ fn chat_seq_is_assigned_in_apply_order() {
 }
 
 #[test]
+fn chat_seq_saturates_at_u64_max() {
+    let mut f = F::new();
+    // A forged (or loaded) message at the top of the range.
+    let mut top = f.chat("forged");
+    top.seq = u64::MAX;
+    f.p.apply(&insert(Entity::ChatMessage(top.clone())))
+        .unwrap();
+    let next = f.chat("next");
+    f.p.apply(&insert(Entity::ChatMessage(next.clone())))
+        .unwrap();
+    assert_eq!(f.p.chat[&next.id].seq, u64::MAX, "no panic, no wrap to 0");
+    // Ties sort by id: the later ULID stays after the forged one.
+    let order: Vec<ChatMessageId> = f.p.chat_ordered().iter().map(|m| m.id).collect();
+    assert_eq!(order, [top.id, next.id]);
+}
+
+#[test]
 fn chat_overflow_prunes_the_oldest() {
     let mut f = F::new();
     let ms: Vec<ChatMessage> = (0..5).map(|i| f.chat(&format!("m{i}"))).collect();

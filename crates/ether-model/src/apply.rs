@@ -559,7 +559,10 @@ impl Project {
                     // Chat order = log order (social.rs): `seq: 0` takes the next one.
                     Entity::ChatMessage(m) if m.seq == 0 => {
                         let mut m = m.clone();
-                        m.seq = 1 + self.chat.values().map(|o| o.seq).max().unwrap_or(0);
+                        // Saturating: a forged `u64::MAX` must not panic or wrap to 0 (ties
+                        // sort by id).
+                        let max = self.chat.values().map(|o| o.seq).max().unwrap_or(0);
+                        m.seq = max.saturating_add(1);
                         self.chat.insert(m.id, m);
                     }
                     _ => self.upsert_unchecked(entity.clone()),
