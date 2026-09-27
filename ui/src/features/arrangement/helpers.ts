@@ -2,11 +2,12 @@
 
 import type { Beats, Clip, Color, Track } from "@/generated";
 import { beatsPerBar, snapToGrid, type GridSetting, type TempoMap } from "@/timeline";
+import { ink } from "@/theme";
 import { isArrangementClip, startOf } from "./clipTime";
 
-/** Icon/text colors readable on a colored fill (see `inkOn`). */
-export const DARK_INK = "#14161b";
-export const LIGHT_INK = "#ffffff";
+/** Icon/text colors readable on a colored fill (see `inkOn`; tokens `--eth-ink-*`). */
+export const DARK_INK = ink.dark;
+export const LIGHT_INK = ink.light;
 
 /** WCAG relative luminance of a 0xRRGGBB color (0 = black, 1 = white). */
 export function luminance(color: Color): number {

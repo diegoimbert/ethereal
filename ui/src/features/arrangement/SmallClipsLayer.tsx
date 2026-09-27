@@ -1,15 +1,18 @@
 import { useLayoutEffect, useRef } from "react";
 import type { Beats, ClipId, Color } from "@/generated";
+import { useThemeColor } from "@/kit";
+import { fontSize, fontWeight, size, space } from "@/theme";
 import { colorCss } from "./helpers";
 import { beatsCss } from "./laneGeometry";
 import type { LaneItem } from "./laneItems";
 
 /** Longest canvas side in device px. */
 const MAX_CANVAS_PX = 8192;
+const px = (token: string) => parseFloat(token);
 /** Vertical inset like clips (px). */
-const INSET = 2;
+const INSET = px(space.xs);
 /** Title band height, like `.eth-clip__title` (px). */
-const TITLE = 14;
+const TITLE = px(size.clipTitleHeight);
 const RADIUS = 4;
 
 export interface SmallClipsLayerProps {
@@ -33,6 +36,9 @@ export function SmallClipsLayer({ items, origin, visible, pxPerBeat, trackColor,
   const ref = useRef<HTMLCanvasElement>(null);
   const from = visible.start;
   const to = visible.end;
+  // Colors from the theme (re-rendered, so redrawn, when it changes).
+  const bodyColor = useThemeColor("bgPanel");
+  const textColor = useThemeColor("textInverse");
 
   useLayoutEffect(() => {
     const canvas = ref.current;
@@ -49,9 +55,7 @@ export function SmallClipsLayer({ items, origin, visible, pxPerBeat, trackColor,
     const top = INSET;
     const height = h - 2 * INSET;
     const title = Math.min(TITLE, height / 3);
-    const bodyColor = getComputedStyle(canvas).getPropertyValue("--eth-color-bg-panel").trim() || "#1c1f26";
-    const textColor = getComputedStyle(canvas).getPropertyValue("--eth-color-text-inverse").trim() || "#14161b";
-    ctx.font = `500 10px ${getComputedStyle(canvas).fontFamily || "sans-serif"}`;
+    ctx.font = `${fontWeight.medium} ${fontSize.xs} ${getComputedStyle(canvas).fontFamily || "sans-serif"}`;
     ctx.textBaseline = "middle";
     for (const it of items) {
       const end = it.bounds.start + it.bounds.length;
