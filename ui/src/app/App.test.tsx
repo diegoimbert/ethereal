@@ -1,7 +1,8 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { renderWithMock, resetStores } from "@/features/transport-bar/testUtils";
-import { resetArrangementUi } from "@/features/arrangement/uiStore";
+import { startOf } from "@/features/arrangement/clipTime";
+import { arrangementView, resetArrangementUi, useArrangementUi } from "@/features/arrangement/uiStore";
 import { useEditorStore, useProjectStore } from "@/state";
 import { size as tokenSize } from "@/theme";
 import { itemSelection } from "@/timeline";
@@ -112,6 +113,36 @@ describe("App shell: connected", () => {
     });
     expect(screen.getByRole("tab", { name: "Piano Roll" })).toHaveAttribute("aria-selected", "true");
     expect(container.querySelector('[data-pane="bottom"] [data-testid="piano-roll"]')).not.toBeNull();
+    mock.dispose();
+  });
+
+  it("a click on a MIDI clip opens the piano roll; a click elsewhere in the tracks closes it unless pinned", async () => {
+    const { mock } = await renderWithMock(<App />);
+    act(() => arrangementView.getState().setViewport({ pxPerBeat: 10, scrollBeats: 0 }));
+    const chords = Object.values(useProjectStore.getState().project!.clips).find((c) => c.name === "Chords")!;
+    // jsdom lays nothing out: the content box is at 0,0 and Keys (the first row) is at y 0.
+    const at = { button: 0, clientX: useArrangementUi.getState().headerWidth + (startOf(chords) + 0.5) * 10, clientY: 5 };
+    const press = async (el: Element, p = at) => {
+      await act(async () => {
+        fireEvent.pointerDown(el, p);
+        fireEvent.pointerUp(window, p);
+      });
+    };
+    await press(clipEl("Chords"));
+    expect(pane("bottom")).not.toBeNull();
+    expect(useShellStore.getState().bottom.tab).toBe("piano-roll");
+    expect(useEditorStore.getState().clip).toBe(chords.id);
+
+    // A track header (outside any clip) closes it.
+    const header = screen.getByRole("group", { name: "Keys track" });
+    await press(header, { button: 0, clientX: 5, clientY: 5 });
+    await waitFor(() => expect(pane("bottom")).toBeNull());
+
+    // Pinned, it stays.
+    await press(clipEl("Chords"));
+    act(() => useShellStore.getState().setPinned("bottom", true));
+    await press(header, { button: 0, clientX: 5, clientY: 5 });
+    expect(pane("bottom")).not.toBeNull();
     mock.dispose();
   });
 

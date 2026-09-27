@@ -3,7 +3,7 @@ import { openContextMenu, setDragCursor } from "@/kit";
 import { AddTrackRow } from "./newTrack";
 import { useContext, useEffect, useMemo, useRef, type DragEvent, type KeyboardEvent, type PointerEvent } from "react";
 import type { Beats, TrackId } from "@/generated";
-import { useProjectStore, useSelectionStore, useTracksOrdered } from "@/state";
+import { useEditorStore, useProjectStore, useSelectionStore, useTracksOrdered } from "@/state";
 import {
   gridLines,
   itemSelection,
@@ -163,6 +163,30 @@ function ConnectedArrangementView() {
     },
   });
 
+  /**
+   * Pointer press in the tracks (capture, so clips' own handlers can't hide it): on a MIDI
+   * clip it opens that clip in the piano roll; anywhere else it dismisses the piano roll
+   * (the shell keeps it when pinned).
+   */
+  const onTracksPointerDownCapture = (e: PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return;
+    const project = useProjectStore.getState().project;
+    const box = contentRef.current?.getBoundingClientRect();
+    if (!project || !box) return;
+    const inTracks = contentRef.current!.contains(e.target as Node);
+    const x = e.clientX - box.left;
+    const y = e.clientY - box.top;
+    const hw = useArrangementUi.getState().headerWidth;
+    const hit = inTracks
+      ? clipRects(rowsRef.current, Object.values(project.clips), view.getState(), hw).find(
+          ({ rect: r }) => x >= r.x0 && x < r.x1 && y >= r.y0 && y < r.y1,
+        )
+      : undefined;
+    const clip = hit ? project.clips[hit.id] : undefined;
+    if (clip?.content.type === "Midi") useEditorStore.getState().openClip(clip.id);
+    else useEditorStore.getState().dismiss();
+  };
+
   const tempo = useTempoMap();
   const snap = (beats: Beats, bypass: boolean): Beats => {
     if (bypass) return beats;
@@ -226,7 +250,7 @@ function ConnectedArrangementView() {
           <div className="eth-arr__corner" style={{ width: headerWidth }} />
           <Ruler view={view} grid={grid} className="eth-arr__ruler" />
         </div>
-        <div className="eth-arr__scroll" ref={scrollRef}>
+        <div className="eth-arr__scroll" ref={scrollRef} onPointerDownCapture={onTracksPointerDownCapture}>
           <div
             className="eth-arr__content"
             ref={contentRef}
@@ -278,7 +302,7 @@ function ConnectedArrangementView() {
           </div>
         </div>
         {masterRow && (
-          <div className="eth-arr__master" data-testid="arrangement-master">
+          <div className="eth-arr__master" data-testid="arrangement-master" onPointerDownCapture={onTracksPointerDownCapture}>
             <div className="eth-arr__backdrop" style={{ left: headerWidth }}>
               <GridLayer />
             </div>

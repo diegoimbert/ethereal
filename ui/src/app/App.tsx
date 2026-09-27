@@ -80,10 +80,17 @@ function Workspace() {
     if (shell().right.open !== rightOpen) shell().setOpen("right", rightOpen);
   }, [rightOpen, shell]);
 
-  // Opening a clip (double-click) shows its editor in the drawer.
+  // Opening a clip (a click on a MIDI clip, a double-click on an audio clip) shows its
+  // editor in the drawer.
   useEffect(
     () =>
       useEditorStore.subscribe((s, prev) => {
+        // Clicked away from MIDI clips in the arrangement: an unpinned piano roll closes.
+        if (s.dismissed !== prev.dismissed) {
+          const { bottom } = shell();
+          if (bottom.open && !bottom.pinned && bottom.tab === "piano-roll") shell().setOpen("bottom", false);
+          return;
+        }
         if (s.request === prev.request || !s.clip) return;
         const clip = useProjectStore.getState().project?.clips[s.clip];
         if (clip) shell().openDrawer(clip.content.type === "Midi" ? "piano-roll" : "warp");
