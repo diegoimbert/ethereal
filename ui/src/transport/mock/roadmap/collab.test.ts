@@ -39,6 +39,28 @@ describe("MockCollab", () => {
     expect(events.at(-1)).toEqual({ type: "Collab", event: { type: "Presence", peers: [] } });
   });
 
+  it("simulates Listen/StopListening (connecting only: the mock has no media)", () => {
+    const events: Event[] = [];
+    const c = new MockCollab(stubHost(events));
+    expect(() => c.command({ type: "Listen", host: "2" })).toThrow(/session/);
+    c.command({ type: "Join", server: "ws://relay:1", session: "jam", token: null, name: "Me" });
+    expect(() => c.command({ type: "Listen", host: "9" })).toThrow(/peer/);
+    c.command({ type: "Listen", host: "2" });
+    expect(events.at(-1)).toEqual({
+      type: "Collab",
+      event: { type: "ListenStatus", status: { listening: { type: "Connecting", host: "2", stream: 1 }, listeners: [] } },
+    });
+    c.command({ type: "StopListening" });
+    expect(events.at(-1)).toMatchObject({ event: { type: "ListenStatus", status: { listening: { type: "Off" } } } });
+    const n = events.length;
+    c.command({ type: "StopListening" });
+    expect(events).toHaveLength(n);
+    // The receiver's Bye ends the stream.
+    c.command({ type: "Listen", host: "2" });
+    c.command({ type: "SendSignal", to: "2", stream: 2, signal: { type: "Bye", reason: "no audio" } });
+    expect(events.at(-1)).toMatchObject({ event: { status: { listening: { type: "Ended", host: "2", reason: "no audio" } } } });
+  });
+
   it("stores this site's pointer and simulates a peer's (presence-v2)", () => {
     const events: Event[] = [];
     const c = new MockCollab(stubHost(events));
