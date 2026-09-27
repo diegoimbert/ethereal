@@ -209,6 +209,9 @@
   border-radius: 2px;
   cursor: move;
   z-index: 2;
+  transition:
+    background-color var(--eth-duration-fast) var(--eth-ease-out),
+    box-shadow var(--eth-duration-fast) var(--eth-ease-out);
 }
 
 .eth-pr-note::before,
@@ -229,9 +232,14 @@
   right: 0;
 }
 
+/* Selected notes glow: a brighter fill, a light rim and a soft halo in the accent color. */
 .eth-pr-note--selected {
-  background: var(--eth-color-selection);
-  border-color: var(--eth-color-text);
+  z-index: 3;
+  background: color-mix(in srgb, var(--eth-color-accent) 70%, white);
+  border-color: color-mix(in srgb, var(--eth-color-accent) 30%, white);
+  box-shadow:
+    0 0 6px color-mix(in srgb, var(--eth-color-accent) 85%, transparent),
+    0 0 14px color-mix(in srgb, var(--eth-color-accent) 45%, transparent);
 }
 
 .eth-pr-note--muted {
