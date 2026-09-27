@@ -23,6 +23,24 @@ const pattern = (seq: number, len: number) => {
   return b;
 };
 
+/**
+ * Byte-exact comparison that stays O(n) native work. `expect(a).toEqual(b)` walks a typed
+ * array element by element through vitest's generic deep equality, which costs seconds
+ * for a multi-MB buffer (15 s measured under CPU load) and made the large-reply test time
+ * out; this reports the length and the first differing offset instead.
+ */
+function expectBytes(actual: Uint8Array, expected: Uint8Array) {
+  expect(actual.length).toBe(expected.length);
+  const same = Buffer.from(actual.buffer, actual.byteOffset, actual.byteLength).equals(
+    Buffer.from(expected.buffer, expected.byteOffset, expected.byteLength),
+  );
+  if (!same) {
+    let i = 0;
+    while (actual[i] === expected[i]) i++;
+    expect({ firstMismatchAt: i, got: actual[i], want: expected[i] }).toBeUndefined();
+  }
+}
+
 const workers: Worker[] = [];
 afterEach(async () => {
   await Promise.all(workers.splice(0).map((w) => w.terminate()));
@@ -61,7 +79,7 @@ describe("sync-FS wire protocol", () => {
     responder(buffer, [{ seq: 7, len }]);
     const reply = collect(ctrl, data, 7, 10_000);
     expect(reply.ok).toBe(true);
-    if (reply.ok) expect(reply.bytes).toEqual(pattern(7, len));
+    if (reply.ok) expectBytes(reply.bytes, pattern(7, len));
   });
 
   it("returns exactly-one-chunk and empty replies", () => {
@@ -72,7 +90,8 @@ describe("sync-FS wire protocol", () => {
       { seq: 2, len: 0 },
     ]);
     const a = collect(ctrl, data, 1, 10_000);
-    expect(a.ok && a.bytes.length).toBe(CHUNK);
+    expect(a.ok).toBe(true);
+    if (a.ok) expectBytes(a.bytes, pattern(1, CHUNK));
     const b = collect(ctrl, data, 2, 10_000);
     expect(b.ok && b.bytes.length).toBe(0);
   });
@@ -104,6 +123,6 @@ describe("sync-FS wire protocol", () => {
     resetForRequest(ctrl);
     const reply = collect(ctrl, data, 2, 10_000);
     expect(reply.ok).toBe(true);
-    if (reply.ok) expect(reply.bytes).toEqual(pattern(2, 1000));
+    if (reply.ok) expectBytes(reply.bytes, pattern(2, 1000));
   });
 });
