@@ -540,7 +540,11 @@ fn random_edit(s: &mut Site, action: u8, r1: u64, r2: u64) {
             },
             name: None,
             color: None,
-            parent: if r2.is_multiple_of(3) { pick(&groups, r1) } else { None },
+            parent: if r2.is_multiple_of(3) {
+                pick(&groups, r1)
+            } else {
+                None
+            },
             before: None,
         }),
         2 => match pick(&tracks, r1) {
