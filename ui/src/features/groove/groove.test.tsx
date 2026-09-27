@@ -1,3 +1,4 @@
+import { pickOption } from "@/kit/testing";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Command, Note } from "@/generated";
@@ -118,7 +119,12 @@ describe("GrooveControls (piano roll)", () => {
   it("quantizes with strength 50% halfway and swing on off-beats", async () => {
     await setup("controls");
     fireEvent.click(screen.getByRole("button", { name: "Quantize…" }));
-    fireEvent.change(screen.getByLabelText("Quantize grid"), { target: { value: "1/8" } });
+    // A real press in the (portaled) list must not close the Quantize popover.
+    const grid = screen.getByRole("combobox", { name: "Quantize grid" });
+    fireEvent.click(grid);
+    const option = screen.getByRole("option", { name: "1/8" });
+    fireEvent.pointerDown(option);
+    fireEvent.click(option);
     setPercent("Strength", 50);
     setPercent("Swing", 100);
     fireEvent.click(screen.getByRole("button", { name: "Quantize all notes" }));
@@ -161,7 +167,7 @@ describe("GroovePanel", () => {
     setPercent("Project swing", 60);
     await flush();
     expect(store().project!.settings.swing).toBeCloseTo(0.6, 6);
-    fireEvent.change(screen.getByLabelText("Swing grid"), { target: { value: "1/8" } });
+    pickOption(screen.getByRole("combobox", { name: "Swing grid" }), { value: "1/8" });
     await flush();
     expect(store().project!.settings.swing_grid).toBe(0.5);
     expect(store().project!.settings.swing).toBeCloseTo(0.6, 6);
@@ -170,7 +176,7 @@ describe("GroovePanel", () => {
   it("a grid change right after an amount change keeps the new amount (no stale mirror)", async () => {
     await setup("panel");
     setPercent("Project swing", 40);
-    fireEvent.change(screen.getByLabelText("Swing grid"), { target: { value: "1/8" } });
+    pickOption(screen.getByRole("combobox", { name: "Swing grid" }), { value: "1/8" });
     await flush();
     expect(store().project!.settings.swing).toBeCloseTo(0.4, 6);
     expect(store().project!.settings.swing_grid).toBe(0.5);

@@ -4,6 +4,7 @@ import type { Clip, Command, GestureId, WarpMarker } from "@/generated";
 import { useEditorStore, useProjectStore, warpMarkersOfClip } from "@/state";
 import { cmd, MockTransport, TransportProvider } from "@/transport";
 import { WarpEditor } from "./index";
+import { pickOption } from "@/kit/testing";
 
 let mock: MockTransport | undefined;
 const store = () => useProjectStore.getState();
@@ -80,7 +81,7 @@ describe("WarpEditor", () => {
     const { clip } = await setup();
     expect(screen.getByTestId("warp-editor").dataset.clipId).toBe(clip.id);
     expect((screen.getByLabelText("Warp") as HTMLInputElement).checked).toBe(true);
-    expect((screen.getByLabelText("Warp mode") as HTMLSelectElement).value).toBe("Repitch");
+    expect(screen.getByRole("combobox", { name: "Warp mode" })).toHaveTextContent("Repitch");
     expect(screen.getByTestId("warp-source-bpm").textContent).toBe("Source 120.00 BPM");
     expect(screen.getByTestId("warp-waveform")).toBeTruthy();
     expect(screen.queryByTestId("warp-web-fallback")).toBeNull();
@@ -88,14 +89,14 @@ describe("WarpEditor", () => {
 
   it("toggles warp, switches the mode and transposes", async () => {
     const { clip, sent } = await setup();
-    fireEvent.change(screen.getByLabelText("Warp mode"), { target: { value: "Complex" } });
+    pickOption(screen.getByRole("combobox", { name: "Warp mode" }), { value: "Complex" });
     await flush();
     const content = () => clipNow(clip.id).content as Extract<Clip["content"], { type: "Audio" }>;
     expect(content().warp.mode).toBe("Complex");
     fireEvent.click(screen.getByLabelText("Warp"));
     await flush();
     expect(content().warp.enabled).toBe(false);
-    expect((screen.getByLabelText("Warp mode") as HTMLSelectElement).disabled).toBe(true);
+    expect(screen.getByRole("combobox", { name: "Warp mode" })).toBeDisabled();
     expect(screen.getByTestId("warp-marker-count").textContent).toBe("Unwarped");
     fireEvent.change(screen.getByRole("spinbutton", { name: "Transpose" }), { target: { value: "7" } });
     await flush();
@@ -182,7 +183,7 @@ describe("WarpEditor", () => {
   it("says Complex plays as Repitch in the browser build", async () => {
     await setup({ kind: "wasm" });
     expect(screen.queryByTestId("warp-web-fallback")).toBeNull();
-    fireEvent.change(screen.getByLabelText("Warp mode"), { target: { value: "Complex" } });
+    pickOption(screen.getByRole("combobox", { name: "Warp mode" }), { value: "Complex" });
     await flush();
     expect(screen.getByTestId("warp-web-fallback").textContent).toMatch(/Repitch in the browser/);
   });

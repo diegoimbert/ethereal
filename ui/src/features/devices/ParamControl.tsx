@@ -1,5 +1,5 @@
 import type { Device, ParamInfo } from "@/generated";
-import { Button, Knob } from "@/kit";
+import { Button, Knob, Select } from "@/kit";
 import { cmd } from "@/transport";
 import type { GestureSender } from "./gesture";
 import { formatParam, labelIndex, labelValue, paramToNormalized, paramToPlain } from "./paramScale";
@@ -40,18 +40,14 @@ export function ParamControl({ device, info, sender, size = "md" }: ParamControl
   if (labels && labels.length > 2) {
     return (
       <label className="eth-param eth-param--choice" data-param={info.id}>
-        <select
+        <Select
+          size="sm"
           className="eth-param__select"
           aria-label={info.name}
-          value={labelIndex(info, plain)}
-          onChange={(e) => setPlain(labelValue(info, Number(e.target.value)))}
-        >
-          {labels.map((l, i) => (
-            <option key={i} value={i}>
-              {l}
-            </option>
-          ))}
-        </select>
+          value={String(labelIndex(info, plain))}
+          onChange={(v) => setPlain(labelValue(info, Number(v)))}
+          options={labels.map((l, i) => ({ value: String(i), label: l }))}
+        />
         <span className="eth-param__name">{info.name}</span>
       </label>
     );

@@ -138,9 +138,11 @@ test("full flow: build a song, play it, edit, save, reload", async ({ page }) =>
   // --- Compressor and delay on the audio track ---------------------------------------------
   await page.getByRole("group", { name: `${audio.name} track` }).click();
   await page.getByRole("tab", { name: "Devices" }).click();
-  await page.getByLabel("Add device").selectOption("Compressor");
+  await page.getByRole("combobox", { name: "Add device" }).click();
+  await page.locator('[role="option"][data-value="Compressor"]').click();
   await expect.poll(async () => Object.values((await doc(page)).devices).filter((d) => d.track === audio.id).length).toBe(1);
-  await page.getByLabel("Add device").selectOption("Delay");
+  await page.getByRole("combobox", { name: "Add device" }).click();
+  await page.locator('[role="option"][data-value="Delay"]').click();
   await expect
     .poll(async () =>
       Object.values((await doc(page)).devices)

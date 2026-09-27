@@ -1,7 +1,7 @@
 import { LocateFixed, ZoomIn, ZoomOut } from "lucide-react";
 import type { GridSetting } from "@/timeline";
 import { animateZoom, useTimelineView } from "@/timeline";
-import { Button } from "@/kit";
+import { Button, Select } from "@/kit";
 import { useArrangement } from "./context";
 import { addTrack, runClipAction } from "./actions";
 import { GRID_OPTIONS } from "./helpers";
@@ -26,23 +26,19 @@ export function Toolbar() {
         + Audio track
       </Button>
       <span className="eth-arr-toolbar__sep" />
-      <label className="eth-arr-toolbar__grid">
+      <span className="eth-arr-toolbar__grid">
         Grid
-        <select
+        <Select
+          size="sm"
           aria-label="Grid"
           value={gridId(grid)}
-          onChange={(e) => {
-            const o = GRID_OPTIONS.find((x) => x.id === e.target.value);
+          options={GRID_OPTIONS.map((o) => ({ value: o.id, label: o.label }))}
+          onChange={(id) => {
+            const o = GRID_OPTIONS.find((x) => x.id === id);
             if (o) useArrangementUi.getState().setGrid(o.grid);
           }}
-        >
-          {GRID_OPTIONS.map((o) => (
-            <option key={o.id} value={o.id}>
-              {o.label}
-            </option>
-          ))}
-        </select>
-      </label>
+        />
+      </span>
       <Button
         size="sm"
         active={follow}

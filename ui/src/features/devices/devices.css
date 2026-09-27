@@ -16,14 +16,15 @@
   padding: var(--eth-space-sm) var(--eth-space-md);
   border-bottom: var(--eth-border-width) solid var(--eth-color-border-light);
 }
-.eth-devices select {
-  height: 20px;
+/* Kit Select (track picker, add device, choice params). */
+.eth-devices .eth-select {
   max-width: 100%;
-  background: var(--eth-color-bg-inset);
-  color: var(--eth-color-text);
-  border: 1px solid var(--eth-color-border);
-  border-radius: var(--eth-radius-sm);
-  font-size: var(--eth-fs-xs);
+}
+.eth-devices__track {
+  min-width: 120px;
+}
+.eth-devices__add {
+  min-width: 140px;
 }
 .eth-devices__chain {
   display: flex;

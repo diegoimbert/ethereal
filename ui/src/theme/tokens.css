@@ -92,6 +92,7 @@
   --eth-size-splitter-width: 6px;
   --eth-size-detail-collapsed-height: 24px;
   --eth-size-popover-min-width: 140px;
+  --eth-size-select-list-max-height: 320px;
   --eth-size-dialog-width: 420px;
   --eth-size-tooltip-max-width: 240px;
   --eth-meter-stop-mid: 70%;
@@ -319,6 +320,7 @@
   --context-menu-enter-duration: var(--eth-duration-fast);
   --context-menu-enter-ease: var(--eth-ease-out);
   --context-menu-enter-scale: 0.92;
+  --select-exit-duration: var(--eth-duration-fast);
   --popover-bg: var(--eth-color-bg-overlay);
   --popover-border: var(--eth-color-border-light);
   --popover-radius: var(--eth-radius-lg);

@@ -111,7 +111,8 @@ test("EQ, reverb, limiter and utility on an audio track", async ({ page }) => {
   for (const [i, type] of (
     ["Eq", "Reverb", "Limiter", "Utility"] as const
   ).entries()) {
-    await page.getByLabel("Add device").selectOption(type);
+    await page.getByRole("combobox", { name: "Add device" }).click();
+    await page.locator(`[role="option"][data-value="${type}"]`).click();
     await expect.poll(async () => (await chainOf()).length).toBe(i + 1);
   }
   const chain = await chainOf();
@@ -156,7 +157,8 @@ test("EQ, reverb, limiter and utility on an audio track", async ({ page }) => {
     (await doc(page)).devices[device]?.params[param];
 
   // EQ band 1 type (id 1) → Bell; Utility mono (id 5) on.
-  await panel(eq.id).getByLabel("Type").first().selectOption({ label: "Bell" });
+  await panel(eq.id).getByRole("combobox", { name: "Type" }).first().click();
+  await page.getByRole("option", { name: "Bell", exact: true }).click();
   await expect.poll(() => paramOf(eq.id, 1)).toBe(2);
   await panel(utility.id).getByRole("button", { name: "Mono" }).click();
   await expect.poll(() => paramOf(utility.id, 5)).toBe(1);

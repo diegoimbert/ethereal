@@ -28,14 +28,9 @@
   padding-left: var(--eth-space-md);
   border-left: 1px solid var(--eth-color-border-light);
 }
-.eth-mixer select {
+/* Output routing: the kit Select, full strip width. */
+.eth-mixer .eth-select {
   width: 100%;
-  height: 18px;
-  background: var(--eth-color-bg-inset);
-  color: var(--eth-color-text);
-  border: 1px solid var(--eth-color-border);
-  border-radius: var(--eth-radius-sm);
-  font-size: var(--eth-fs-xs);
 }
 
 /* Group tracks: the group strip followed by its (foldable) children, bracketed by the group color. */

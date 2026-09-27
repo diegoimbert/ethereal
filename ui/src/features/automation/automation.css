@@ -44,14 +44,10 @@
   color: var(--eth-color-text);
 }
 
+/* Kit Selects in the lane headers: layout only (the kit styles them). */
 .eth-auto-select {
   min-width: 0;
   max-width: 100%;
-  background: var(--eth-color-bg-inset);
-  color: var(--eth-color-text);
-  border: 1px solid var(--eth-color-border-light);
-  border-radius: var(--eth-radius-sm);
-  font-size: var(--eth-fs-xs);
 }
 
 .eth-auto-row {

@@ -15,7 +15,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Beats, Clip, Command, Note, NoteId } from "@/generated";
-import { Button } from "@/kit";
+import { Button, Select } from "@/kit";
 import { GrooveControls, grooveMenuItems, grooveQuantizeCommand, useGrooveSettings } from "@/features/groove";
 import { useClip, useEditedClipId, useNotesOfClip } from "@/state";
 import {
@@ -174,16 +174,16 @@ export function PianoRollEditor({ clip, view: injectedView }: PianoRollEditorPro
         <span className="eth-pr__title" title={clip.name}>
           {clip.name || "MIDI Clip"}
         </span>
-        <label className="eth-pr__grid-select">
+        <span className="eth-pr__grid-select">
           Grid
-          <select value={gridIndex} onChange={(e) => setGridIndex(Number(e.target.value))} aria-label="Grid">
-            {GRID_OPTIONS.map((o, i) => (
-              <option key={o.label} value={i}>
-                {o.label}
-              </option>
-            ))}
-          </select>
-        </label>
+          <Select
+            size="sm"
+            aria-label="Grid"
+            value={String(gridIndex)}
+            options={GRID_OPTIONS.map((o, i) => ({ value: String(i), label: o.label }))}
+            onChange={(v) => setGridIndex(Number(v))}
+          />
+        </span>
         <Button size="sm" active={triplet} onClick={() => setTriplet((t) => !t)} title="Triplet grid">
           3
         </Button>

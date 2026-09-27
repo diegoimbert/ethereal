@@ -43,14 +43,6 @@
   color: var(--eth-color-text-dim);
 }
 
-.eth-pr__grid-select select {
-  background: var(--eth-color-bg-inset);
-  color: var(--eth-color-text);
-  border: 1px solid var(--eth-color-border);
-  border-radius: var(--eth-radius-sm);
-  font: inherit;
-}
-
 .eth-pr__step {
   min-width: 3.5em;
   font-family: var(--eth-font-mono);

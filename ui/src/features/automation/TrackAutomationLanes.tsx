@@ -8,8 +8,9 @@
  */
 
 import clsx from "clsx";
-import { useMemo, type ChangeEvent } from "react";
+import { useMemo } from "react";
 import type { AutomationLane, AutomationOwner, AutomationPoint, CurveShape, TrackId } from "@/generated";
+import { Select, type SelectOption } from "@/kit";
 import { useProjectStore } from "@/state";
 import { DEFAULT_GRID, itemSelection, useSelectedItems, type GridSetting, type ItemSelectionStore, type TimelineViewStore } from "@/timeline";
 import { cmd, useTransport } from "@/transport";
@@ -64,8 +65,8 @@ export function TrackAutomationLanes({
   };
 
   const hidden = targets.filter((t) => !keys.includes(t.key));
-  const onShow = (e: ChangeEvent<HTMLSelectElement>) => {
-    if (e.target.value) useAutomationUi.getState().show(trackId, e.target.value);
+  const onShow = (key: string) => {
+    if (key) useAutomationUi.getState().show(trackId, key);
   };
 
   return (
@@ -89,10 +90,15 @@ export function TrackAutomationLanes({
             {open ? "▾" : "▸"} Automation{lanes.size > 0 ? ` (${lanes.size})` : ""}
           </button>
           {open && hidden.length > 0 && (
-            <select className="eth-auto-select" aria-label="Show parameter" value="" onChange={onShow}>
-              <option value="">+ Parameter…</option>
-              <TargetOptions targets={hidden} lanes={lanes} />
-            </select>
+            <Select
+              size="sm"
+              className="eth-auto-select"
+              aria-label="Show parameter"
+              value=""
+              placeholder="+ Parameter…"
+              options={targetOptions(hidden, lanes)}
+              onChange={onShow}
+            />
           )}
         </div>
       </div>
@@ -115,28 +121,27 @@ export function TrackAutomationLanes({
   );
 }
 
-function TargetOptions({ targets, lanes }: { targets: ReadonlyArray<TargetInfo>; lanes: ReadonlyMap<string, AutomationLane> }) {
+/** Parameter choices grouped by device (a dot marks parameters that already have a lane). */
+function targetOptions(
+  targets: ReadonlyArray<TargetInfo>,
+  lanes: ReadonlyMap<string, AutomationLane>,
+): SelectOption<string>[] {
   const groups = new Map<string, TargetInfo[]>();
   for (const t of targets) {
     const g = groups.get(t.group);
     if (g) g.push(t);
     else groups.set(t.group, [t]);
   }
-  return (
-    <>
-      {[...groups].map(([group, list]) => (
-        <optgroup key={group} label={group}>
-          {list.map((t) => (
-            <option key={t.key} value={t.key}>
-              {t.name}
-              {lanes.has(t.key) ? " •" : ""}
-            </option>
-          ))}
-        </optgroup>
-      ))}
-    </>
+  return [...groups].flatMap(([group, list]) =>
+    list.map((t) => ({ value: t.key, label: `${t.name}${lanes.has(t.key) ? " •" : ""}`, group })),
   );
 }
+
+const CURVE_OPTIONS: ReadonlyArray<SelectOption<CurveChoice>> = [
+  { value: "Linear", label: "Linear" },
+  { value: "Step", label: "Step" },
+  { value: "Curve", label: "Curve" },
+];
 
 interface LaneRowProps {
   trackId: TrackId;
@@ -168,9 +173,8 @@ function LaneRow({ trackId, targetKey: key, info, targets, shown, lane, view, he
   }, [laneSelection]);
 
   const ui = useAutomationUi.getState;
-  const onChangeTarget = (e: ChangeEvent<HTMLSelectElement>) => ui().replace(trackId, key, e.target.value);
-  const onCurve = (e: ChangeEvent<HTMLSelectElement>) => {
-    const choice = e.target.value as CurveChoice;
+  const onChangeTarget = (next: string) => ui().replace(trackId, key, next);
+  const onCurve = (choice: CurveChoice) => {
     if (!choice) return;
     const ids = laneSelection.map((p) => p.id);
     const curve: CurveShape =
@@ -183,9 +187,17 @@ function LaneRow({ trackId, targetKey: key, info, targets, shown, lane, view, he
       <div className="eth-auto-row__header" style={{ width: headerWidth }}>
         <div className="eth-auto-row__line">
           {info ? (
-            <select className="eth-auto-select eth-auto-row__param" aria-label="Automated parameter" value={key} onChange={onChangeTarget}>
-              <TargetOptions targets={targets.filter((t) => t.key === key || !shown.includes(t.key))} lanes={new Map()} />
-            </select>
+            <Select
+              size="sm"
+              className="eth-auto-select eth-auto-row__param"
+              aria-label="Automated parameter"
+              value={key}
+              options={targetOptions(
+                targets.filter((t) => t.key === key || !shown.includes(t.key)),
+                new Map(),
+              )}
+              onChange={onChangeTarget}
+            />
           ) : (
             <span className="eth-auto-row__missing">Unavailable parameter</span>
           )}
@@ -205,19 +217,17 @@ function LaneRow({ trackId, targetKey: key, info, targets, shown, lane, view, he
             >
               ⏻
             </button>
-            <select
+            <Select<CurveChoice>
+              size="sm"
               className="eth-auto-select"
               aria-label="Curve of selected points"
               title="Curve of the segments after the selected points (alt-drag a segment to bend it)"
               value={curveValue}
+              placeholder="Curve…"
               disabled={laneSelection.length === 0}
+              options={CURVE_OPTIONS}
               onChange={onCurve}
-            >
-              <option value="">Curve…</option>
-              <option value="Linear">Linear</option>
-              <option value="Step">Step</option>
-              <option value="Curve">Curve</option>
-            </select>
+            />
             <button
               type="button"
               className="eth-auto-icon"

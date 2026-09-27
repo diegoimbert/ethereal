@@ -6,6 +6,7 @@ import { itemSelection, wheelZoomFactor } from "@/timeline";
 import { cmd, MockTransport, TransportProvider } from "@/transport";
 import { DEFAULT_KEY_HEIGHT as KEY_H, MAX_KEY_HEIGHT } from "./geometry";
 import { PianoRoll } from "./index";
+import { pickOption } from "@/kit/testing";
 
 // The piano roll's own view starts at 40 px/beat, scrolled to 0. jsdom has no layout: the
 // grid's box is at (0, 0), so client coordinates are grid-local px. Notes report their
@@ -76,7 +77,7 @@ async function setup(opts: { open?: boolean } = {}) {
   );
   if (opts.open !== false) act(() => useEditorStore.getState().openClip(clip));
   // Fixed 1/4 grid for deterministic snapping.
-  if (opts.open !== false) fireEvent.change(screen.getByLabelText("Grid"), { target: { value: "5" } });
+  if (opts.open !== false) pickOption(screen.getByRole("combobox", { name: "Grid" }), { value: "5" });
   return { clip, a: "01PIANOROLLNOTEA0000000000", b: "01PIANOROLLNOTEB0000000000" };
 }
 

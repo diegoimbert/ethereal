@@ -7,6 +7,7 @@ import { MOCK_NOTICE, WEB_NOTICE } from "./host";
 import { MidiLearnPanel } from "./index";
 import { useMidiLearnStore } from "./store";
 import { MIDI_MODE_CLASS } from "./useMidiMode";
+import { pickOption } from "@/kit/testing";
 
 const store = () => useProjectStore.getState();
 
@@ -88,7 +89,7 @@ describe("MidiLearnPanel", () => {
     await waitFor(() => expect(pan).toHaveAttribute("data-midi-mapped"));
 
     // Edit the mode and the range.
-    fireEvent.change(screen.getByLabelText(`Mode of ${track.name} · Pan`), { target: { value: "Relative:BinaryOffset" } });
+    pickOption(screen.getByRole("combobox", { name: `Mode of ${track.name} · Pan` }), { value: "Relative:BinaryOffset" });
     await waitFor(() =>
       expect(Object.values(store().project!.midi_mappings)[0]!.mode).toEqual({ type: "Relative", encoding: "BinaryOffset" }),
     );
@@ -138,7 +139,7 @@ describe("MidiLearnPanel", () => {
   it("learns transport actions from the target menu and shows input activity", async () => {
     const { mock } = await setup();
     fireEvent.click(screen.getByRole("switch", { name: "MIDI mode" }));
-    fireEvent.change(await screen.findByLabelText("Learn other target"), { target: { value: "transport:ToggleLoop" } });
+    pickOption(await screen.findByRole("combobox", { name: "Learn other target" }), { value: "transport:ToggleLoop" });
     await waitFor(() => expect(useMidiLearnStore.getState().learning).toEqual({ type: "Transport", action: "ToggleLoop" }));
     act(() => mock.simulateMidiInput("mock-midi", [0x90, 60, 100]));
     const list = await screen.findByRole("list", { name: "MIDI mappings" });

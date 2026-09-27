@@ -1,4 +1,5 @@
 import { useState, type DragEvent } from "react";
+import { Select, type SelectOption } from "@/kit";
 import type { BuiltinDeviceType, DeviceDescriptor, DeviceId, Track } from "@/generated";
 import { useDevicesOfTrack, useSelectionStore, useTracksOrdered } from "@/state";
 import { cmd, newId } from "@/transport";
@@ -13,20 +14,31 @@ function TrackPicker({ track }: { track: Track }) {
   const tracks = useTracksOrdered();
   const selectTrack = useSelectionStore((s) => s.selectTrack);
   return (
-    <select
+    <Select
+      size="sm"
       className="eth-devices__track"
       aria-label="Track"
       value={track.id}
-      onChange={(e) => selectTrack(e.target.value)}
-    >
-      {tracks.map((t) => (
-        <option key={t.id} value={t.id}>
-          {t.name}
-        </option>
-      ))}
-    </select>
+      onChange={(v) => selectTrack(v)}
+      options={tracks.map((t) => ({ value: t.id, label: t.name }))}
+    />
   );
 }
+
+/** Add-device options, grouped by category (in order of first appearance). */
+function groupByCategory(types: ReadonlyArray<DeviceDescriptor>): SelectOption<string>[] {
+  const order: string[] = [];
+  for (const t of types) if (!order.includes(t.category)) order.push(t.category);
+  return order.flatMap((category) =>
+    types.flatMap((d) =>
+      d.category === category && d.device_type.type === "Builtin"
+        ? [{ value: d.device_type.device as string, label: d.name, group: CATEGORY_LABELS[category] ?? category }]
+        : [],
+    ),
+  );
+}
+
+const CATEGORY_LABELS: Record<string, string> = { Instrument: "Instruments", AudioEffect: "Audio effects", NoteEffect: "MIDI effects" };
 
 function AddDevice({ track, firstDevice }: { track: Track; firstDevice: DeviceId | null }) {
   const send = useSend();
@@ -43,24 +55,18 @@ function AddDevice({ track, firstDevice }: { track: Track; firstDevice: DeviceId
       }),
     );
   return (
-    <select
+    <Select
+      size="sm"
       className="eth-devices__add"
       aria-label="Add device"
       value=""
-      onChange={(e) => {
-        const d = types.find((t) => t.device_type.type === "Builtin" && t.device_type.device === e.target.value);
+      placeholder="+ Add device…"
+      onChange={(v) => {
+        const d = types.find((t) => t.device_type.type === "Builtin" && t.device_type.device === v);
         if (d && d.device_type.type === "Builtin") add(d.device_type.device, d.category);
       }}
-    >
-      <option value="">+ Add device…</option>
-      {types.map((d) =>
-        d.device_type.type === "Builtin" ? (
-          <option key={d.device_type.device} value={d.device_type.device}>
-            {d.name}
-          </option>
-        ) : null,
-      )}
-    </select>
+      options={groupByCategory(types)}
+    />
   );
 }
 

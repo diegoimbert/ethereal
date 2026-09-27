@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { useState, type InputHTMLAttributes, type KeyboardEvent, type SelectHTMLAttributes } from "react";
+import { useState, type InputHTMLAttributes, type KeyboardEvent } from "react";
 import type { Size } from "./variants";
 
 // ---- TextInput ------------------------------------------------------------------------
@@ -18,40 +18,6 @@ export function TextInput({ size = "md", invalid, className, type = "text", ...r
       className={clsx("eth-input", `eth-input--${size}`, className)}
       {...rest}
     />
-  );
-}
-
-// ---- Select ---------------------------------------------------------------------------
-
-export interface SelectOption<V extends string> {
-  value: V;
-  label: string;
-  disabled?: boolean;
-}
-
-export interface SelectProps<V extends string>
-  extends Omit<SelectHTMLAttributes<HTMLSelectElement>, "size" | "value" | "onChange"> {
-  options: ReadonlyArray<SelectOption<V>>;
-  value: V;
-  onChange: (value: V) => void;
-  size?: Size;
-}
-
-/** Native `<select>` styled with input tokens. */
-export function Select<V extends string>({ options, value, onChange, size = "md", className, ...rest }: SelectProps<V>) {
-  return (
-    <select
-      className={clsx("eth-input", "eth-select", `eth-input--${size}`, className)}
-      value={value}
-      onChange={(e) => onChange(e.target.value as V)}
-      {...rest}
-    >
-      {options.map((o) => (
-        <option key={o.value} value={o.value} disabled={o.disabled}>
-          {o.label}
-        </option>
-      ))}
-    </select>
   );
 }
 

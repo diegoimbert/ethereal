@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import type { Command, Event, ReplyValue } from "@/generated";
 import { playheadStore, tracksOrdered, useProjectStore } from "@/state";
 import { cmd, CommandFailedError, MockTransport, TransportProvider, type SendOptions, type Unsubscribe } from "@/transport";
+import { pickOption } from "@/kit/testing";
 import { RecordingControls, UNSUPPORTED_TOOLTIP } from "./index";
 
 const store = () => useProjectStore.getState();
@@ -99,11 +100,11 @@ describe("RecordingControls", () => {
 
   it("sets the count-in (an undoable project setting)", async () => {
     await renderControls();
-    const countIn = screen.getByLabelText<HTMLSelectElement>("Count-in");
-    expect(countIn.value).toBe("0");
-    fireEvent.change(countIn, { target: { value: "2" } });
+    const countIn = screen.getByRole("combobox", { name: "Count-in" });
+    expect(countIn).toHaveTextContent("Off");
+    pickOption(countIn, { value: "2" });
     await waitFor(() => expect(store().project!.settings.count_in_bars).toBe(2));
-    await waitFor(() => expect(countIn.value).toBe("2"));
+    await waitFor(() => expect(countIn).toHaveTextContent("2 bars"));
   });
 
   it("toggles punch from the engine's PunchChanged event", async () => {
@@ -125,18 +126,19 @@ describe("RecordingControls", () => {
     await waitFor(() => expect(store().armedTracks).toContain(audio.id));
 
     // Mono input 2 ("Mock In 2" from the mock's input list).
-    const input = within(row).getByLabelText<HTMLSelectElement>(`Input of ${audio.name}`);
-    await waitFor(() => expect(within(input).getByText("Mock In 2")).toBeInTheDocument());
-    fireEvent.change(input, { target: { value: "audio:1:1" } });
+    const input = within(row).getByRole("combobox", { name: `Input of ${audio.name}` });
+    fireEvent.click(input);
+    // The list fills in once the mock's input list arrives.
+    fireEvent.click(await screen.findByRole("option", { name: "Mock In 2" }));
     await waitFor(() => expect(store().project!.tracks[audio.id]!.input).toEqual({ type: "Audio", first: 1, count: 1 }));
 
-    const monitor = within(row).getByLabelText<HTMLSelectElement>(`Monitoring of ${audio.name}`);
-    fireEvent.change(monitor, { target: { value: "Off" } });
+    const monitor = within(row).getByRole("combobox", { name: `Monitoring of ${audio.name}` });
+    pickOption(monitor, { value: "Off" });
     await waitFor(() => expect(store().project!.tracks[audio.id]!.monitor).toBe("Off"));
 
     // The input device list comes from the host-handled engine config.
-    const device = within(panel).getByLabelText<HTMLSelectElement>("Audio input device");
-    await waitFor(() => expect(device.value).toBe("Mock Input"));
+    const device = within(panel).getByRole("combobox", { name: "Audio input device" });
+    await waitFor(() => expect(device).toHaveTextContent("Mock Input"));
     await act(() => Promise.resolve());
     expect(mock.sent.some((c) => c.domain === "Engine" && c.command.type === "ListAudioDevices")).toBe(true);
   });

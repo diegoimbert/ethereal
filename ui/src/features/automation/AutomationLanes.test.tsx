@@ -7,6 +7,7 @@ import { cmd, MockTransport, TransportProvider } from "@/transport";
 import { AutomationLanes, TrackAutomationLanes } from "./index";
 import { LANE_PAD } from "./geometry";
 import { AUTOMATION_BAR_HEIGHT, LANE_HEIGHT, resetAutomationUi, useAutomationUi } from "./uiStore";
+import { pickOption } from "@/kit/testing";
 
 const store = () => useProjectStore.getState();
 const project = () => store().project!;
@@ -122,7 +123,7 @@ describe("TrackAutomationLanes", () => {
     const track = await renderLanes();
     openTrack();
     await flush();
-    fireEvent.change(screen.getByRole("combobox", { name: "Show parameter" }), { target: { value: `pan:${track.id}` } });
+    pickOption(screen.getByRole("combobox", { name: "Show parameter" }), { value: `pan:${track.id}` });
     await flush();
     expect(screen.getAllByTestId("automation-lane-svg")).toHaveLength(2);
     fireEvent.click(screen.getAllByRole("button", { name: "Hide lane" })[0]!);
@@ -167,7 +168,7 @@ describe("TrackAutomationLanes", () => {
     const track = await renderLanes();
     openTrack();
     await flush();
-    fireEvent.change(screen.getByRole("combobox", { name: "Show parameter" }), { target: { value: `pan:${track.id}` } });
+    pickOption(screen.getByRole("combobox", { name: "Show parameter" }), { value: `pan:${track.id}` });
     await flush();
     const panSvg = screen.getAllByTestId("automation-lane-svg")[1]!;
     fireEvent.doubleClick(panSvg, { clientX: 40, clientY: y(0.25) });
@@ -219,10 +220,10 @@ describe("TrackAutomationLanes", () => {
     });
     await flush();
     expect(select).toBeEnabled();
-    fireEvent.change(select, { target: { value: "Step" } });
+    pickOption(select, { value: "Step" });
     await flush();
     expect(project().automation_points[a!.id]!.curve).toEqual({ type: "Step" });
-    fireEvent.change(select, { target: { value: "Curve" } });
+    pickOption(select, { value: "Curve" });
     await flush();
     expect(project().automation_points[a!.id]!.curve).toEqual({ type: "Curve", tension: 0.5 });
     // The drawn path follows the curve: not a straight line between the two points.

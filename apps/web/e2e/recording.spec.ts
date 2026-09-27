@@ -32,7 +32,8 @@ test("recording controls on the web: inputs unsupported, settings and arm work",
   await expect(page.getByRole("button", { name: "Punch in/out" })).toBeDisabled();
 
   // Count-in is an undoable project setting handled by the wasm controller.
-  await page.getByLabel("Count-in").selectOption("2");
+  await page.getByRole("combobox", { name: "Count-in" }).click();
+  await page.getByRole("option", { name: "2 bars" }).click();
   await expect.poll(async () => (await doc(page)).settings.count_in_bars).toBe(2);
 
   // An audio track, armed and set to monitor "In" from the inputs panel.
@@ -45,7 +46,8 @@ test("recording controls on the web: inputs unsupported, settings and arm work",
   const row = panel.locator(`tr[data-track="${audio.id}"]`);
   await row.getByRole("button", { name: `Arm ${audio.name}` }).click();
   await expect.poll(() => state(page).then((s) => s.armedTracks)).toContain(audio.id);
-  await row.getByLabel(`Monitoring of ${audio.name}`).selectOption("In");
+  await row.getByRole("combobox", { name: `Monitoring of ${audio.name}` }).click();
+  await page.getByRole("option", { name: "In", exact: true }).click();
   await expect.poll(async () => (await doc(page)).tracks[audio.id]!.monitor).toBe("In");
 
   expect(errors).toEqual([]);

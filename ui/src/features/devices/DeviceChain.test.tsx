@@ -7,6 +7,7 @@ import { dragUp, flush, renderWithMock, resetStores, store, stubPointerCapture, 
 import { groupParams, insertableTypes, splitMainParams } from "./chainUtils";
 import { BUILTIN_DESCRIPTORS } from "@/transport";
 import { DeviceChain } from "./index";
+import { pickOption } from "@/kit/testing";
 import { BROWSER_DRAG_MIME, type BrowserDragPayload } from "@/features/browser/dragPayload";
 
 let mock: MockTransport | undefined;
@@ -78,17 +79,17 @@ describe("chain helpers", () => {
 describe("DeviceChain", () => {
   it("shows the selected track's chain (first track by default) with params from the descriptor", async () => {
     await renderChain();
-    expect(screen.getByRole("combobox", { name: "Track" })).toHaveDisplayValue("Keys");
+    expect(screen.getByRole("combobox", { name: "Track" })).toHaveTextContent("Keys");
     const list = screen.getByRole("list", { name: "Keys devices" });
     expect(within(list).getAllByRole("region").map((r) => r.getAttribute("aria-label"))).toEqual(["Synth", "Compressor"]);
     const synth = deviceEl("Synth");
     // Enum param with 4 labels → select; log param → knob showing the formatted plain value.
-    expect(within(synth).getByRole("combobox", { name: "Waveform" })).toHaveDisplayValue("Saw");
+    expect(within(synth).getByRole("combobox", { name: "Waveform" })).toHaveTextContent("Saw");
     expect(within(synth).getByRole("slider", { name: "Cutoff" })).toHaveAttribute("aria-valuetext", "2.4 kHz");
 
     act(() => useSelectionStore.getState().selectTrack(trackByName("Drums").id));
     expect(screen.getByRole("list", { name: "Drums devices" })).toBeInTheDocument();
-    expect(screen.getByRole("combobox", { name: "Track" })).toHaveDisplayValue("Drums");
+    expect(screen.getByRole("combobox", { name: "Track" })).toHaveTextContent("Drums");
   });
 
   it("toggles bypass", async () => {
@@ -104,7 +105,7 @@ describe("DeviceChain", () => {
 
   it("adds, reorders and removes devices", async () => {
     await renderChain();
-    fireEvent.change(screen.getByRole("combobox", { name: "Add device" }), { target: { value: "Delay" } });
+    pickOption(screen.getByRole("combobox", { name: "Add device" }), { value: "Delay" });
     await flush();
     expect(chainNames("Keys")).toEqual(["Synth", "Compressor", "Delay"]);
 
@@ -125,14 +126,14 @@ describe("DeviceChain", () => {
 
   it("inserts instruments at the start of the chain", async () => {
     await renderChain();
-    fireEvent.change(screen.getByRole("combobox", { name: "Add device" }), { target: { value: "Sampler" } });
+    pickOption(screen.getByRole("combobox", { name: "Add device" }), { value: "Sampler" });
     await flush();
     expect(chainNames("Keys")[0]).toBe("Sampler");
   });
 
   it("loads a sample dropped from the browser into a Sampler (one undo step)", async () => {
     await renderChain();
-    fireEvent.change(screen.getByRole("combobox", { name: "Add device" }), { target: { value: "Sampler" } });
+    pickOption(screen.getByRole("combobox", { name: "Add device" }), { value: "Sampler" });
     await flush();
     const slot = within(deviceEl("Sampler")).getByTestId("sample-slot");
     expect(slot.textContent).toMatch(/drop a sample/i);
@@ -171,7 +172,7 @@ describe("DeviceChain", () => {
 
   it("sets enum params from the choice list and resets on double-click", async () => {
     await renderChain();
-    fireEvent.change(within(deviceEl("Synth")).getByRole("combobox", { name: "Waveform" }), { target: { value: "2" } });
+    pickOption(within(deviceEl("Synth")).getByRole("combobox", { name: "Waveform" }), { value: "2" });
     await flush();
     expect(deviceOf("Keys", "Synth").params[0]).toBe(2);
 

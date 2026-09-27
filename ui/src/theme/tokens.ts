@@ -264,6 +264,7 @@ export const size = {
   splitterWidth: "6px",
   detailCollapsedHeight: "24px",
   popoverMinWidth: "140px",
+  selectListMaxHeight: "320px",
   dialogWidth: "420px",
   tooltipMaxWidth: "240px",
 } as const;
@@ -453,6 +454,7 @@ export const componentTokens = {
     "--context-menu-enter-duration": v("duration-fast"),
     "--context-menu-enter-ease": v("ease-out"),
     "--context-menu-enter-scale": "0.92",
+    "--select-exit-duration": v("duration-fast"),
     "--popover-bg": v("color-bg-overlay"),
     "--popover-border": v("color-border-light"),
     "--popover-radius": v("radius-lg"),

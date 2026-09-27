@@ -96,7 +96,8 @@ test("warp: markers, modes, transpose and playback", async ({ page }) => {
   await expect(page.getByTestId("warp-marker")).toHaveCount(2);
 
   // Complex has no stretcher in the browser: the editor says it plays as Repitch.
-  await page.getByLabel("Warp mode").selectOption("Complex");
+  await page.getByRole("combobox", { name: "Warp mode" }).click();
+  await page.getByRole("option", { name: "Complex" }).click();
   await expect(page.getByTestId("warp-web-fallback")).toBeVisible();
   await expect.poll(async () => (await audioOf(page, clip.id)).warp.mode).toBe("Complex");
 
