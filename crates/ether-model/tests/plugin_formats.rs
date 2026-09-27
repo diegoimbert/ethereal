@@ -28,6 +28,8 @@ fn project_with(plugins: &[PluginInstance]) -> Project {
     let mut p = Project::new(&mut ids, now);
     now += 1;
     let track = Track {
+        vca: Default::default(),
+        freeze: None,
         id: ids.next(now),
         kind: TrackKind::Audio,
         name: "t".into(),
@@ -52,6 +54,7 @@ fn project_with(plugins: &[PluginInstance]) -> Project {
         prev = Some(order.clone());
         p.apply(&Op::Insert {
             entity: Entity::Device(Device {
+                chain: None,
                 id: ids.next(now),
                 track: track_id,
                 order,

@@ -25,16 +25,17 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, AtomicU64, Ordering, fence};
 
 use ether_protocol::meters::TrackMeter;
-use ether_protocol::model::{MediaId, TrackId, TrackKind};
+use ether_protocol::model::{InputTap, MediaId, TrackId, TrackKind};
 use rtrb::{Consumer, Producer, RingBuffer};
 
-use crate::automation::{evaluate, gain_from_plain, to_plain};
+use crate::automation::evaluate;
+use crate::automation_rt::apply_automation;
 use crate::buffer::AudioBuffers;
 use crate::config::{EngineConfig, PrepareConfig};
 use crate::event::{EventKind, ProcessEvent};
 use crate::graph::{
-    AutomationDesc, ClipContentDesc, CompileError, NodeInfo, RenderGraphDesc, RenderSnapshot,
-    ResolvedTarget, SnapshotRt, compile_with,
+    ClipContentDesc, CompileError, NodeInfo, RenderGraphDesc, RenderSnapshot, ResolvedTarget,
+    SnapshotRt, compile_with,
 };
 use crate::media::AudioSource;
 use crate::meter::EngineOutputs;
@@ -46,8 +47,6 @@ use crate::transport::{PlayheadState, TransportControl, TransportInfo};
 
 /// Registered audio sources (media) the engine can hold.
 pub const MAX_SOURCES: usize = 4096;
-/// Node-param automation is re-evaluated every this many samples within a sub-block.
-const AUTOMATION_STEP: usize = 64;
 /// Beat tolerance for loop/boundary decisions.
 const EPS: f64 = 1e-9;
 
@@ -81,6 +80,11 @@ enum Control {
     Transport(TransportControl),
     Preview(crate::preview::PreviewControl),
     StreamTap(Option<Box<crate::stream_tap::StreamTapWriter>>),
+    /// v0.2: start/stop collecting a node's analysis frames (`crate::analysis`).
+    AnalysisWatch {
+        key: NodeKey,
+        on: bool,
+    },
 }
 
 enum Garbage {
@@ -219,6 +223,7 @@ pub fn create(config: EngineConfig) -> EngineParts {
     let snapshot =
         compile_with(RenderGraphDesc::default(), &config, &|_| None).expect("empty graph compiles");
     let tempo_bpm = snapshot.tempo.bpm_at(0.0);
+    let (analysis_rt, analysis_rx) = crate::analysis::AnalysisRt::new(config.sample_rate);
     playhead.write(&PlayheadState {
         bpm: tempo_bpm,
         ..Default::default()
@@ -251,6 +256,7 @@ pub fn create(config: EngineConfig) -> EngineParts {
         stream_tap: Default::default(),
         executor: Box::new(crate::parallel::SequentialExecutor),
         warp: warp_rt,
+        analysis: analysis_rt,
         config: config.clone(),
     };
     let handle = EngineHandle {
@@ -270,6 +276,7 @@ pub fn create(config: EngineConfig) -> EngineParts {
         recording: Some(recording_io),
         latency: 0,
         warp: warp_handle,
+        analysis: analysis_rx,
         config,
     };
     EngineParts {
@@ -313,6 +320,8 @@ pub struct Engine {
     /// Sequential until a host injects one with [`Engine::set_executor`].
     executor: Box<dyn crate::parallel::ParallelExecutor>,
     pub(crate) warp: crate::warp::WarpRt,
+    /// Device → UI analysis frames ([`crate::analysis`], v0.2).
+    analysis: crate::analysis::AnalysisRt,
 }
 
 impl Engine {
@@ -339,6 +348,13 @@ impl Engine {
         let mut done = 0;
         while done < frames {
             done += self.render_sub(inputs, outputs, done, frames - done);
+        }
+
+        // --- v0.2 analysis channel (`crate::analysis`): after every track job ---
+        if self.analysis.due(frames) {
+            // Modulation readback first, so device frames filling the ring can't starve it.
+            crate::modulation::readback(&mut self.snapshot.rt.tracks, &mut self.analysis);
+            self.analysis.collect_all(&mut self.nodes);
         }
 
         self.publish_playhead();
@@ -387,6 +403,7 @@ impl Engine {
                         continue;
                     }
                     self.node_latency[i].store(node.latency(), Ordering::Relaxed);
+                    self.analysis.on_add(key, node.as_ref());
                     let slot = &mut self.nodes[i];
                     slot.generation = key.generation;
                     if let Some(old) = slot.node.replace(node) {
@@ -394,6 +411,7 @@ impl Engine {
                     }
                 }
                 Control::RemoveNode { key } => {
+                    self.analysis.on_remove(key);
                     let old = self.nodes.get_mut(key.index as usize).and_then(|slot| {
                         if slot.generation == key.generation {
                             slot.node.take()
@@ -423,6 +441,7 @@ impl Engine {
                                 t.inherit(&mut old.tracks[oi]);
                             }
                         }
+                        fresh.vcas.inherit(&mut old.vcas);
                     }
                     self.transport.loop_override = None;
                     let old = std::mem::replace(&mut self.snapshot, new);
@@ -455,6 +474,7 @@ impl Engine {
                         self.retire(Garbage::Source(old));
                     }
                 }
+                Control::AnalysisWatch { key, on } => self.analysis.watch(key, on),
                 Control::StreamTap(w) => {
                     if let Some(old) = self.stream_tap.set(w) {
                         self.retire(Garbage::StreamTap(old));
@@ -505,6 +525,12 @@ impl Engine {
                 ParamTarget::TrackVolume { track } => {
                     if let Some(i) = rt.lookup_track(track) {
                         rt.tracks[i].volume.set_target(v.max(0.0) as f32);
+                    } else if let Some(dirty) =
+                        rt.vcas
+                            .set_param(track, None, Some(v.max(0.0) as f32), &mut rt.tracks)
+                    {
+                        // A VCA fader (`crate::vca`).
+                        gates_dirty |= dirty;
                     }
                 }
                 ParamTarget::TrackPan { track } => {
@@ -516,6 +542,11 @@ impl Engine {
                     if let Some(i) = rt.lookup_track(track) {
                         rt.tracks[i].mute = v >= 0.5;
                         gates_dirty = true;
+                    } else if let Some(dirty) =
+                        rt.vcas
+                            .set_param(track, Some(v >= 0.5), None, &mut rt.tracks)
+                    {
+                        gates_dirty |= dirty;
                     }
                 }
                 ParamTarget::SendLevel { send } => {
@@ -523,11 +554,32 @@ impl Engine {
                         rt.tracks[t].sends[s].level.set_target(v.max(0.0) as f32);
                     }
                 }
+                ParamTarget::Modulator { modulator, param } => {
+                    // Live modulator param (`crate::modulation`).
+                    for t in rt.tracks.iter_mut() {
+                        if t.modulation.set_param(modulator, param, v) {
+                            break;
+                        }
+                    }
+                }
                 ParamTarget::Node { node, param } => {
                     let event = ProcessEvent {
                         offset: 0,
                         kind: EventKind::Param { param, value: v },
                     };
+                    // Modulated params and macros: the change sets the base
+                    // (`crate::modulation`).
+                    let owner = rt
+                        .lookup_node(node)
+                        .map(|(t, _)| t)
+                        .or_else(|| rt.lookup_pad_node(node))
+                        .or_else(|| rt.lookup_rack_chain_node(node));
+                    if let Some(t) = owner
+                        && rt.tracks[t].modulation.intercept(node, param, v)
+                    {
+                        rt.tracks[t].auto_dirty = true;
+                        continue;
+                    }
                     if let Some((t, k)) = rt.lookup_node(node) {
                         rt.tracks[t].auto_dirty = true;
                         if !rt.tracks[t].chain[k].pending.push(event) {
@@ -537,6 +589,14 @@ impl Engine {
                         // A device on a drum pad (`crate::drum_rack`).
                         rt.tracks[t].auto_dirty = true;
                         if let Some(pending) = rt.tracks[t].racks.pending_mut(node)
+                            && !pending.push(event)
+                        {
+                            self.overflow = true;
+                        }
+                    } else if let Some(t) = rt.lookup_rack_chain_node(node) {
+                        // A device on a rack chain (`crate::rack_chains`).
+                        rt.tracks[t].auto_dirty = true;
+                        if let Some(pending) = rt.tracks[t].chain_racks.pending_mut(node)
                             && !pending.push(event)
                         {
                             self.overflow = true;
@@ -556,7 +616,8 @@ impl Engine {
             .node_index
             .iter()
             .map(|e| e.0)
-            .chain(rt.pad_index.iter().map(|e| e.0));
+            .chain(rt.pad_index.iter().map(|e| e.0))
+            .chain(rt.rack_chain_index.iter().map(|e| e.0));
         for key in keys {
             let i = key.index as usize;
             if let Some(slot) = self.nodes.get(i)
@@ -609,6 +670,7 @@ impl Engine {
             levels,
             tracks,
             latency: graph_latency,
+            vcas,
             ..
         } = rt;
 
@@ -672,6 +734,8 @@ impl Engine {
             frames: n,
         };
         recording.process(&info, inputs, off, n, &desc.tracks, tracks);
+        // VCA gains and automation for this sub-block (`crate::vca`), before the jobs.
+        vcas.update(tracks, &timing, playing);
 
         // --- tracks, level by level (`crate::parallel`) ---
         // Stopped with nothing live (no monitored input): only tails ring out, so keep the
@@ -986,6 +1050,27 @@ impl JobCtx<'_> {
                 }
             }
         }
+        // Envelope-follower sidechains (`crate::modulation`, v0.2): sources finished earlier.
+        for i in 0..track.modulation.sidechain_sources().len() {
+            let s = track.modulation.sidechain_sources()[i];
+            if s == ti {
+                continue;
+            }
+            // SAFETY: as above (sidechain sources are ordered before their consumer).
+            let src = unsafe { &*self.tracks.add(s) };
+            if let Some(tap) = &src.tap {
+                track.modulation.write_sidechain(s, tap, n);
+            }
+        }
+        // Track input from another track (`crate::bus_tap`, v0.2): its source finished in an
+        // earlier level.
+        if let Some(s) = track.input_tap.source
+            && s != ti
+        {
+            // SAFETY: as above (tap sources are ordered before their consumer).
+            let src = unsafe { &*self.tracks.add(s) };
+            track.input_tap.gather(&src.taps, n);
+        }
 
         let warp = if track.pinned {
             // SAFETY: pinned jobs run on the audio thread, one after the other.
@@ -1026,6 +1111,11 @@ impl JobCtx<'_> {
             src_scratch,
             overflow,
             underruns,
+            chain_racks,
+            modulation,
+            input_tap,
+            taps,
+            vca,
             ..
         } = track;
 
@@ -1043,8 +1133,12 @@ impl JobCtx<'_> {
             }
         }
 
+        // --- track input from another track (`crate::bus_tap`, v0.2) ---
+        input_tap.mix_into(a, n, track.monitor);
+
         // --- events: pending live params ---
         racks.begin_block(flags.all_notes_off);
+        chain_racks.begin_block(flags.all_notes_off);
         for c in chain.iter_mut() {
             c.events.clear();
             for e in c.pending.as_slice() {
@@ -1084,6 +1178,14 @@ impl JobCtx<'_> {
         } else if flags.release_notes {
             notes.clear();
         }
+        // Frozen track (`crate::freeze`, v0.2): the render replaces clips and chain (the
+        // controller compiles neither).
+        if playing
+            && let Some(frozen) = &tdesc.frozen
+            && !crate::freeze::render_frozen(frozen, self.sources, info, sr, a, n)
+        {
+            *underruns += 1;
+        }
         if playing && tdesc.kind == TrackKind::Audio {
             let end = tdesc.clips.partition_point(|c| c.start < b1);
             for clip in &tdesc.clips[..end] {
@@ -1111,6 +1213,8 @@ impl JobCtx<'_> {
                 }
             }
         }
+
+        taps.write(InputTap::PreFx, a, n);
 
         // --- automation ---
         // Each target is resolved once per sub-block (see docs/CONTRACTS.md §4
@@ -1158,6 +1262,8 @@ impl JobCtx<'_> {
                 &mut track.sends,
                 chain,
                 racks,
+                chain_racks,
+                modulation,
             );
         }
         // Envelopes of clips that stopped covering their target send again next time.
@@ -1182,9 +1288,13 @@ impl JobCtx<'_> {
                     &mut track.sends,
                     chain,
                     racks,
+                    chain_racks,
+                    modulation,
                 );
             }
         }
+        // --- modulation (`crate::modulation`, v0.2): base + Σ depth · source ---
+        modulation.render(timing, info, chain, racks, chain_racks);
 
         // --- device chain ---
         for k in 0..chain.len() {
@@ -1208,6 +1318,21 @@ impl JobCtx<'_> {
                     flags.reset_nodes,
                 );
             }
+            // Rack chains (`crate::rack_chains`, v0.2): chains feed the rack node's input.
+            if entry.enabled && !chain_racks.is_empty() && chain_racks.is_rack(key) {
+                *overflow |= chain_racks.run(
+                    key,
+                    nodes,
+                    entry.events.as_slice(),
+                    out_events,
+                    info,
+                    sr as f32,
+                    a,
+                    n,
+                    flags.reset_nodes,
+                );
+            }
+            modulation.pre_node(k, key, entry.events.as_slice(), a, n);
             let Some(node) = nodes.get(key) else {
                 continue;
             };
@@ -1268,6 +1393,7 @@ impl JobCtx<'_> {
             let [al, ar] = &mut *a;
             track.bypass_delay.process(&mut al[..n], &mut ar[..n]);
         }
+        taps.write(InputTap::PostFx, a, n);
 
         // --- sends (pre), fader, sends (post) ---
         // Each send's signal goes to its own buffer, gathered by the destination's job.
@@ -1275,6 +1401,9 @@ impl JobCtx<'_> {
         for pass_pre in [true, false] {
             if !pass_pre {
                 apply_fader(a, &mut track.volume, &mut track.pan, &mut track.gate, n);
+                // VCA gain (`crate::vca`, v0.2), then the post-fader tap.
+                vca.apply(a, n);
+                taps.write(InputTap::PostFader, a, n);
             }
             for send in track.sends.iter_mut().filter(|s| s.pre_fader == pass_pre) {
                 let [sl, sr_] = &mut send.buf;
@@ -1305,78 +1434,6 @@ impl JobCtx<'_> {
     }
 }
 
-/// Apply one automation lane for the current sub-block. Mixer targets get their smoother
-/// target set from the lane at the sub-block start (every sub-block, so a manual move never
-/// sticks while a lane is enabled); node params get `Param` events every
-/// [`AUTOMATION_STEP`] samples while playing when the value differs from the last one
-/// sent (`last` is reset to NaN to force a re-send).
-#[allow(clippy::too_many_arguments)]
-fn apply_automation(
-    lane: &AutomationDesc,
-    value_at: impl Fn(f64) -> Option<f64>,
-    timing: &Timing<'_>,
-    playing: bool,
-    last: &mut f64,
-    volume: &mut crate::param::Smoother,
-    pan: &mut crate::param::Smoother,
-    sends: &mut [crate::mixer::SendRt],
-    chain: &mut [crate::mixer::ChainRt],
-    racks: &mut crate::drum_rack::RacksRt,
-) {
-    match lane.resolved {
-        ResolvedTarget::TrackVolume | ResolvedTarget::TrackPan | ResolvedTarget::Send { .. } => {
-            let Some(v) = value_at(timing.b0) else {
-                return;
-            };
-            let plain = to_plain(&lane.mapping, v);
-            let drive = |s: &mut crate::param::Smoother, target: f32| {
-                if s.target() != target {
-                    s.set_target(target);
-                }
-            };
-            match lane.resolved {
-                ResolvedTarget::TrackVolume => {
-                    drive(volume, gain_from_plain(&lane.mapping, plain));
-                }
-                ResolvedTarget::TrackPan => drive(pan, plain.clamp(-1.0, 1.0) as f32),
-                ResolvedTarget::Send { send } => {
-                    if let Some(s) = sends.iter_mut().find(|s| s.id == send) {
-                        drive(&mut s.level, gain_from_plain(&lane.mapping, plain));
-                    }
-                }
-                ResolvedTarget::Node { .. } => {}
-            }
-        }
-        ResolvedTarget::Node { node, param } => {
-            // Track-chain node, or a device on a drum pad.
-            let events = match chain.iter_mut().find(|c| c.key == node) {
-                Some(entry) => &mut entry.events,
-                None => match racks.events_mut(node) {
-                    Some(events) => events,
-                    None => return,
-                },
-            };
-            let steps = if playing { timing.frames } else { 1 };
-            let mut o = 0;
-            while o < steps {
-                if let Some(v) = value_at(timing.beat_at(o as f64))
-                    && v != *last
-                {
-                    *last = v;
-                    events.push(ProcessEvent {
-                        offset: o as u32,
-                        kind: EventKind::Param {
-                            param,
-                            value: to_plain(&lane.mapping, v),
-                        },
-                    });
-                }
-                o += AUTOMATION_STEP;
-            }
-        }
-    }
-}
-
 /// Controller-thread half. All methods are non-blocking; `Err(EngineError::QueueFull)`
 /// means the audio thread isn't draining (stalled or not started) and the caller should
 /// retry later.
@@ -1393,6 +1450,8 @@ pub struct EngineHandle {
     pub(crate) warp: crate::warp::WarpHandle,
     /// Output latency of the last published graph (samples).
     latency: u32,
+    /// Analysis frames from the audio thread ([`crate::analysis`], v0.2).
+    analysis: Consumer<crate::analysis::AnalysisFrame>,
 }
 
 struct HandleSlot {
@@ -1561,6 +1620,20 @@ impl EngineHandle {
             }
         }
         out.playhead = Some(self.playhead());
+    }
+
+    /// Drain the analysis frames pushed since the last call ([`crate::analysis`], v0.2),
+    /// oldest first. Non-blocking.
+    pub fn poll_analysis(&mut self, mut f: impl FnMut(&crate::analysis::AnalysisFrame)) {
+        while let Ok(frame) = self.analysis.pop() {
+            f(&frame);
+        }
+    }
+
+    /// Start/stop collecting `node`'s analysis frames ([`crate::analysis`], v0.2; driven by
+    /// the controller's watches). Non-blocking.
+    pub fn watch_analysis(&mut self, node: NodeKey, on: bool) -> Result<(), EngineError> {
+        self.send(Control::AnalysisWatch { key: node, on })
     }
 
     /// Latest playhead published by the audio thread.

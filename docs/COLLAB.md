@@ -689,6 +689,20 @@ are the relay's, or the ones set in settings (`SetIceServers`; e.g. a self-hoste
   crate server (UDP allocations, RFC 8656) in its own tokio runtime thread; when on, it owns
   the UDP port and answers Binding requests itself. Relayed ports from a configurable range
   (`--turn-ports`), public address from `--public-ip`.
+  **Experimental: do not expose it publicly yet** (off by default; `--help` and a startup
+  warning say so). Every TURN request is rate-capped per source and globally before the
+  crate, and the crate's never-evicted nonce map is bounded by counting admitted requests:
+  past a soft budget only requests with a MESSAGE-INTEGRITY we verify pass (plus a global
+  trickle of 5 unverified requests/s), and the server is rotated (fresh nonce map) when no
+  allocation is live, or unconditionally at a hard budget. Known limitations (follow-up
+  node `turn-hardening`: a per-username verified cap, counting real nonce inserts,
+  rotation-decision tests):
+  - past the soft budget, `admitted` never decays until a rotation, so new clients share
+    the 5/s unverified trickle with whoever keeps sending unverified requests (an attacker
+    can crowd them out);
+  - a captured valid request replayed from spoofed sources counts as verified, so it can
+    push the count to the hard budget and force a rotation (dropping every live
+    allocation) about every 100 s.
 - **Credentials** (TURN REST API scheme, per site, time-limited), only for token-protected
   relays:
   - `secret` = 32 random bytes from the OS, generated when the relay starts, kept in memory

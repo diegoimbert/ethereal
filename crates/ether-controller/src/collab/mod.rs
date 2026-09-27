@@ -573,6 +573,8 @@ where
                     );
                     return;
                 }
+                // A host's relay reconnect is a leave: its streams end (COLLAB.md §9.2).
+                self.collab_host_end_all("the host lost its relay connection", out);
                 let s = self.collab.session.as_mut().expect("checked");
                 s.link = None;
                 s.greeted = false;
@@ -1579,6 +1581,7 @@ mod tests {
         project.media.insert(
             id,
             MediaRef {
+                location: Default::default(),
                 id,
                 name: "kick.wav".into(),
                 file: file.into(),

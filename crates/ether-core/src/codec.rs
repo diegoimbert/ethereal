@@ -83,8 +83,31 @@ pub trait GraphCodec {
 pub struct BinaryCodec;
 
 impl BinaryCodec {
-    /// Current format version (first byte of every encoding).
-    pub const VERSION: u8 = 1;
+    /// Current format version (first byte of every encoding). 2 = v0.2 (contracts-3): track
+    /// kind `Vca`, the v0.2 track fields and `RenderGraphDesc::vcas`.
+    pub const VERSION: u8 = 2;
+}
+
+/// v0.2 fields of a [`TrackDesc`] (contracts-3). Encoded as one tagged JSON blob (`0` = all
+/// default, the common case: no allocation; `1` + `u32` length + JSON), so the v0.2 nodes
+/// can refine their own desc types without touching the binary layout. A node that needs a
+/// hot, compact encoding moves its field into the binary layout (bumping `VERSION`).
+#[derive(serde::Serialize)]
+struct TrackExtRef<'a> {
+    frozen: &'a Option<crate::freeze::FrozenDesc>,
+    chain_racks: &'a Vec<crate::rack_chains::ChainRackDesc>,
+    modulation: &'a crate::modulation::ModulationDesc,
+    input_tap: &'a Option<crate::bus_tap::InputTapDesc>,
+    vca: &'a Option<TrackId>,
+}
+
+#[derive(serde::Deserialize, Default)]
+struct TrackExt {
+    frozen: Option<crate::freeze::FrozenDesc>,
+    chain_racks: Vec<crate::rack_chains::ChainRackDesc>,
+    modulation: crate::modulation::ModulationDesc,
+    input_tap: Option<crate::bus_tap::InputTapDesc>,
+    vca: Option<TrackId>,
 }
 
 impl GraphCodec for BinaryCodec {
@@ -172,6 +195,7 @@ impl Writer<'_> {
             metronome,
             click,
             tracks,
+            vcas,
         } = d;
         self.u64(*version);
         self.vec(tempo, |w, p| {
@@ -215,6 +239,19 @@ impl Writer<'_> {
         });
         self.opt(&count_in_end, |w, v| w.f64(*v));
         self.vec(tracks, Self::track);
+        // v0.2: VCAs as a JSON blob (see `TrackExt`).
+        if vcas.is_empty() {
+            self.u8(0);
+        } else {
+            self.u8(1);
+            self.json(vcas);
+        }
+    }
+
+    fn json<T: serde::Serialize + ?Sized>(&mut self, v: &T) {
+        let bytes = serde_json::to_vec(v).expect("graph desc JSON");
+        self.u32(u32::try_from(bytes.len()).expect("graph desc blob longer than u32::MAX"));
+        self.0.extend_from_slice(&bytes);
     }
 
     fn track(&mut self, t: &TrackDesc) {
@@ -235,6 +272,11 @@ impl Writer<'_> {
             clips,
             automation,
             racks,
+            frozen,
+            chain_racks,
+            modulation,
+            input_tap,
+            vca,
         } = t;
         self.ulid(id.0);
         self.u8(match kind {
@@ -243,6 +285,7 @@ impl Writer<'_> {
             TrackKind::Group => 2,
             TrackKind::Return => 3,
             TrackKind::Master => 4,
+            TrackKind::Vca => 5,
         });
         self.vec(chain, Self::chain_entry);
         self.opt(output, |w, v| w.ulid(v.0));
@@ -293,6 +336,24 @@ impl Writer<'_> {
                 w.bool(*mute);
             });
         });
+        // v0.2 fields (`TrackExt`).
+        if frozen.is_none()
+            && chain_racks.is_empty()
+            && modulation.is_empty()
+            && input_tap.is_none()
+            && vca.is_none()
+        {
+            self.u8(0);
+        } else {
+            self.u8(1);
+            self.json(&TrackExtRef {
+                frozen,
+                chain_racks,
+                modulation,
+                input_tap,
+                vca,
+            });
+        }
     }
 
     fn chain_entry(&mut self, e: &ChainEntry) {
@@ -626,18 +687,47 @@ impl Reader<'_> {
                 count_in_end: self.opt(Self::f64)?,
             },
             tracks: self.vec(min_size::TRACK, Self::track)?,
+            vcas: if self.bool()? {
+                self.json()?
+            } else {
+                Vec::new()
+            },
         })
     }
 
+    fn json<T: serde::de::DeserializeOwned>(&mut self) -> Result<T, CodecError> {
+        let n = self.u32()? as usize;
+        let bytes = self
+            .bytes
+            .get(self.pos..self.pos + n)
+            .ok_or_else(|| malformed("truncated"))?;
+        self.pos += n;
+        serde_json::from_slice(bytes).map_err(|e| CodecError::Malformed(e.to_string()))
+    }
+
     fn track(&mut self) -> Result<TrackDesc, CodecError> {
+        let mut t = self.track_v1()?;
+        if self.bool()? {
+            let ext: TrackExt = self.json()?;
+            t.frozen = ext.frozen;
+            t.chain_racks = ext.chain_racks;
+            t.modulation = ext.modulation;
+            t.input_tap = ext.input_tap;
+            t.vca = ext.vca;
+        }
+        Ok(t)
+    }
+
+    fn track_v1(&mut self) -> Result<TrackDesc, CodecError> {
         Ok(TrackDesc {
             id: self.track_id()?,
-            kind: match self.tag(5, "track kind")? {
+            kind: match self.tag(6, "track kind")? {
                 0 => TrackKind::Audio,
                 1 => TrackKind::Midi,
                 2 => TrackKind::Group,
                 3 => TrackKind::Return,
-                _ => TrackKind::Master,
+                4 => TrackKind::Master,
+                _ => TrackKind::Vca,
             },
             chain: self.vec(min_size::CHAIN, Self::chain_entry)?,
             output: self.opt(Self::track_id)?,
@@ -675,6 +765,11 @@ impl Reader<'_> {
                     })?,
                 })
             })?,
+            frozen: None,
+            chain_racks: Vec::new(),
+            modulation: Default::default(),
+            input_tap: None,
+            vca: None,
         })
     }
 

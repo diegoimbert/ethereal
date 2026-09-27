@@ -71,6 +71,8 @@ export function defaultTrackName(kind: TrackKind, n: number): string {
       return `${String.fromCharCode(64 + Math.max(1, n))} Return`;
     case "Master":
       return "Master";
+    case "Vca":
+      return `${n} VCA`;
   }
 }
 
@@ -118,6 +120,12 @@ export function createEmptyProject(nextId: () => string, name: string, id: Proje
     id,
     settings: defaultSettings(name),
     tracks: { [master.id]: master },
+    // v0.2 tables (contracts-3).
+    take_lanes: {},
+    comp_regions: {},
+    rack_chains: {},
+    modulators: {},
+    mod_mappings: {},
     clips: {},
     notes: {},
     devices: {},
@@ -255,6 +263,7 @@ export function createDemoProject(seed = 1): Project {
     channels: 2,
     frames: 44100 * 8,
     hash: null,
+    location: { type: "Project" },
   };
   p.media[media.id] = media;
   const drumClip = makeClip({

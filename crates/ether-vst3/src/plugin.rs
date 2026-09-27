@@ -540,6 +540,7 @@ impl PluginController for Vst3Plugin {
     fn descriptor(&self) -> DeviceDescriptor {
         let (i, o) = self.layout.main_channels();
         DeviceDescriptor {
+            layout: None,
             device_type: DeviceTypeRef::Plugin {
                 plugin_id: self.plugin_id.clone(),
             },

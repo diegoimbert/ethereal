@@ -246,6 +246,7 @@ mod tests {
         }
         fn scan(&self, target: &Path) -> Result<Vec<PluginDescriptor>, PluginError> {
             Ok(vec![PluginDescriptor {
+                sidechain_inputs: Default::default(),
                 format: self.format,
                 id: target.display().to_string(),
                 name: String::new(),

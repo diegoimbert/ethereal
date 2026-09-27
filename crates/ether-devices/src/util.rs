@@ -13,6 +13,7 @@ pub(crate) fn param(
     scale: ParamScale,
 ) -> ParamInfo {
     ParamInfo {
+        step: None,
         id: ParamId(id),
         name: name.to_owned(),
         group: Some(group.to_owned()),
@@ -48,6 +49,7 @@ pub(crate) fn choice(
         labels: Some(labels.iter().map(|s| (*s).to_owned()).collect()),
         automatable: true,
         hidden: false,
+        step: Some(1.0),
     }
 }
 

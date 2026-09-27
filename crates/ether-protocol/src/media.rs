@@ -78,6 +78,15 @@ pub enum MediaSource {
     Project { media: MediaId },
     /// A completed upload from the UI machine (`BeginUpload`).
     Upload { upload: String },
+    /// v0.2 (`file-import`): a file of the **engine machine** chosen by the user in an OS
+    /// file dialog or dropped from the OS (desktop shell only: the Tauri dialog and dropped
+    /// file paths). The one explicit OS-file handoff: the UI passes the path, never reads the
+    /// file. The engine validates it (absolute, a regular readable file with an audio
+    /// extension) and imports it as an external reference in place (`media-references`;
+    /// copied into the project until that lands). Hosts where the UI is not on the engine
+    /// machine (web, remote) reply `Unsupported`: they upload the bytes instead
+    /// (`BeginUpload`/`UploadChunk`, then `Upload`, copied into the project).
+    Path { path: String },
 }
 
 /// A browse root.

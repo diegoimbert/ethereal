@@ -22,4 +22,11 @@ features: Array<string>, category: DeviceCategory,
  * the scan target (the component id, same as `id`), since AUs are instantiated from
  * the system component registry, not from a path.
  */
-path: string, };
+path: string, 
+/**
+ * v0.2 (`plugin-sidechain`): channels of the plugin's aux/sidechain input bus found at
+ * scan (CLAP second input audio port, VST3 `kAux` input bus, AU input bus 1); 0 = none.
+ * The instance's `DeviceDescriptor::sidechain_inputs` (from the bus layout at
+ * instantiation) is authoritative. Older catalogs omit it (= 0).
+ */
+sidechain_inputs: number, };

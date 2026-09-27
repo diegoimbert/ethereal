@@ -116,6 +116,8 @@ impl Gen<'_> {
         };
         Op::Insert {
             entity: Entity::Track(Track {
+                vca: Default::default(),
+                freeze: None,
                 id: self.id(),
                 kind,
                 name: format!("T{}", self.r.below(100)),
@@ -156,6 +158,7 @@ impl Gen<'_> {
         let length = self.r.beats();
         Some(Op::Insert {
             entity: Entity::Clip(Clip {
+                lane: None,
                 id: self.id(),
                 track,
                 start,
@@ -225,6 +228,7 @@ impl Gen<'_> {
                 };
                 Op::Insert {
                     entity: Entity::Device(Device {
+                        chain: None,
                         id: self.id(),
                         track,
                         order,
@@ -325,6 +329,7 @@ impl Gen<'_> {
                     };
                     Op::Insert {
                         entity: Entity::Media(MediaRef {
+                            location: Default::default(),
                             id,
                             name: "kick.wav".into(),
                             file,
@@ -365,7 +370,10 @@ impl Gen<'_> {
                     5 => TrackChange::Order(self.order()),
                     6 => TrackChange::Pan(Pan(if self.r.chance(10) { 3.0 } else { -0.5 })),
                     _ => TrackChange::Input(match self.some_track() {
-                        Some(track) => TrackInput::Track { track },
+                        Some(track) => TrackInput::Track {
+                            tap: Default::default(),
+                            track,
+                        },
                         None => TrackInput::None,
                     }),
                 };
@@ -722,12 +730,15 @@ proptest! {
         let tempo: TempoPointId = ids.next(now);
         let ops = vec![
             Op::Insert { entity: Entity::Track(Track {
+                vca: Default::default(),
+                freeze: None,
                 id: track, kind: TrackKind::Midi, name: "m".into(), color: Color(1),
                 order: OrderKey::between(None, None), parent: None,
                 mixer: TrackMixer { volume: Decibels(db), pan: Pan(pan), mute: false, solo: false },
                 input: TrackInput::None, output: TrackOutput::Default, monitor: MonitorMode::Auto, scale: Default::default(),
             })},
             Op::Insert { entity: Entity::Clip(Clip {
+                lane: None,
                 id: clip, track, start: Beats(beats[0]),
                 name: String::new(), color: None, muted: false, length: Beats(beats[1] + 1e-3),
                 offset: Beats(beats[2]),
@@ -739,6 +750,7 @@ proptest! {
                 start: Beats(beats[1]), duration: Beats(beats[2] + 1e-3), muted: false,
             })},
             Op::Insert { entity: Entity::Device(Device {
+                chain: None,
                 id: device, track, order: OrderKey::between(None, None), name: "d".into(),
                 enabled: true, kind: DeviceKind::Builtin { device: BuiltinDevice::Synth },
                 params: [(ParamId(1), param)].into(), sidechain: None, pad: None,

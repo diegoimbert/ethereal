@@ -51,6 +51,7 @@ pub(crate) fn list(ext: &PluginParams, plugin: &PluginMainThreadHandle) -> Vec<P
         };
 
         out.push(ParamInfo {
+            step: None,
             id: ParamId(id),
             name,
             group: (!module.is_empty()).then_some(module),

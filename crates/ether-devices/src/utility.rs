@@ -81,6 +81,7 @@ pub fn param_infos() -> Vec<ParamInfo> {
 /// Descriptor of the `Utility` type.
 pub fn descriptor() -> DeviceDescriptor {
     DeviceDescriptor {
+        layout: None,
         device_type: DeviceTypeRef::Builtin {
             device: BuiltinDeviceType::Utility,
         },

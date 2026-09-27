@@ -1,7 +1,7 @@
 //! The `.ether` file format: versioned JSON with migrations from day one.
 //!
 //! ```json
-//! { "format": "ethereal-project", "version": 3, "app_version": "0.1.0", "project": { ... } }
+//! { "format": "ethereal-project", "version": 4, "app_version": "0.2.0", "project": { ... } }
 //! ```
 //!
 //! Loading: parse to `serde_json::Value`, read `version`, run every migration from that
@@ -20,7 +20,7 @@ use crate::project::Project;
 /// Magic string in the `format` field.
 pub const FORMAT_TAG: &str = "ethereal-project";
 /// Current `.ether` version. Bump + add a [`Migration`] for every breaking schema change.
-pub const CURRENT_VERSION: u32 = 3;
+pub const CURRENT_VERSION: u32 = 4;
 /// File extension (without dot).
 pub const EXTENSION: &str = "ether";
 /// Document file name inside a project folder.
@@ -50,7 +50,11 @@ pub trait Migration: Send + Sync {
 
 /// All migrations, in order.
 pub fn migrations() -> Vec<Box<dyn Migration>> {
-    vec![Box::new(V1RemoveSession), Box::new(V2RoadmapDefaults)]
+    vec![
+        Box::new(V1RemoveSession),
+        Box::new(V2RoadmapDefaults),
+        Box::new(V3ContractsV3Defaults),
+    ]
 }
 
 /// v1 → v2: Session view removed.
@@ -207,6 +211,52 @@ impl Migration for V2RoadmapDefaults {
                     set_default(content, "fade_out_curve", json!({"type": "Linear"}));
                     set_default(content, "reversed", json!(false));
                 }
+            }
+        }
+        Ok(())
+    }
+}
+
+/// v3 → v4: v0.2 (contracts-3) tables and fields, all neutral (a migrated project sounds and
+/// behaves exactly as before).
+///
+/// - tables `take_lanes`, `comp_regions`, `rack_chains`, `modulators`, `mod_mappings`
+///   (empty);
+/// - media: `location` `Project` (v0.1 imports were copied into the project; v0.2 imports
+///   reference library files in place, see `crate::media`);
+/// - `Clip::lane`, `Device::chain`, `Track::freeze` stay absent (= `None`).
+///
+/// The version bump itself is the point: a v0.1 app refuses v4 files (`TooNew`) instead of
+/// silently dropping takes, racks and modulation on re-save. Fields already present are kept
+/// (idempotent).
+pub struct V3ContractsV3Defaults;
+
+impl Migration for V3ContractsV3Defaults {
+    fn source_version(&self) -> u32 {
+        3
+    }
+
+    fn migrate(&self, doc: &mut serde_json::Value) -> Result<(), FileError> {
+        use serde_json::{Value, json};
+        let project = doc["project"]
+            .as_object_mut()
+            .ok_or_else(|| FileError::Migration {
+                from: 3,
+                message: "no project object".into(),
+            })?;
+        for table in [
+            "take_lanes",
+            "comp_regions",
+            "rack_chains",
+            "modulators",
+            "mod_mappings",
+        ] {
+            project.entry(table.to_string()).or_insert(json!({}));
+        }
+        if let Some(media) = project.get_mut("media").and_then(Value::as_object_mut) {
+            for m in media.values_mut().filter_map(Value::as_object_mut) {
+                m.entry("location".to_string())
+                    .or_insert(json!({"type": "Project"}));
             }
         }
         Ok(())
@@ -415,6 +465,27 @@ mod tests {
             "swing_grid",
         ] {
             settings.remove(f);
+        }
+        assert_eq!(load(&doc.to_string()).unwrap(), p);
+    }
+
+    #[test]
+    fn v3_migration_is_idempotent_and_neutral() {
+        let p = project();
+        let mut doc: serde_json::Value = serde_json::from_str(&save(&p, "0.2.0").unwrap()).unwrap();
+        let before = doc.clone();
+        V3ContractsV3Defaults.migrate(&mut doc).unwrap();
+        assert_eq!(doc, before);
+        doc["version"] = 3.into();
+        let project = doc["project"].as_object_mut().unwrap();
+        for t in [
+            "take_lanes",
+            "comp_regions",
+            "rack_chains",
+            "modulators",
+            "mod_mappings",
+        ] {
+            assert!(project.remove(t).is_some(), "{t}");
         }
         assert_eq!(load(&doc.to_string()).unwrap(), p);
     }

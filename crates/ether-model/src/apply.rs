@@ -31,7 +31,12 @@ macro_rules! tables {
             Media => media,
             Marker => markers,
             MidiMapping => midi_mappings,
-            DrumPad => drum_pads
+            DrumPad => drum_pads,
+            TakeLane => take_lanes,
+            CompRegion => comp_regions,
+            RackChain => rack_chains,
+            Modulator => modulators,
+            ModMapping => mod_mappings
         }
     };
 }
@@ -177,6 +182,56 @@ fn check_media_path(file: &str) -> Result<(), ModelError> {
     Ok(())
 }
 
+fn check_zone(what: &str, z: Zone) -> Result<(), ModelError> {
+    if z.lo > z.hi || z.hi > 127 {
+        return Err(invalid(format!("{what} zone must satisfy lo <= hi <= 127")));
+    }
+    Ok(())
+}
+
+fn check_seconds_nonneg(what: &str, s: Seconds) -> Result<(), ModelError> {
+    if !(finite(s.0) && s.0 >= 0.0) {
+        return Err(invalid(format!("{what} must be finite and >= 0")));
+    }
+    Ok(())
+}
+
+fn check_sample_zones(zones: &[SampleZone]) -> Result<(), ModelError> {
+    if zones.len() > MAX_ZONES {
+        return Err(invalid(format!("at most {MAX_ZONES} sample zones")));
+    }
+    for z in zones {
+        if z.root_key > 127 {
+            return Err(invalid("zone root key must be 0..=127"));
+        }
+        if !(z.tune_cents.is_finite() && z.tune_cents.abs() <= 100.0) {
+            return Err(invalid("zone tune must be within ±100 cents"));
+        }
+        check_zone("key", z.keys)?;
+        check_zone("velocity", z.velocities)?;
+        for (what, s) in [
+            ("zone start", z.start),
+            ("zone loop start", z.loop_start),
+            ("zone loop end", z.loop_end),
+            ("zone loop crossfade", z.loop_crossfade),
+        ] {
+            check_seconds_nonneg(what, s)?;
+        }
+        if let Some(end) = z.end {
+            check_seconds_nonneg("zone end", end)?;
+        }
+        check_db("zone gain", z.gain)?;
+        if !(-1.0..=1.0).contains(&z.pan.0) {
+            return Err(invalid("pan must be in -1..=1"));
+        }
+    }
+    Ok(())
+}
+
+fn is_rack(kind: &DeviceKind) -> bool {
+    matches!(kind, DeviceKind::Builtin { device } if device.device_type().is_rack())
+}
+
 fn is_drum_rack(kind: &DeviceKind) -> bool {
     matches!(
         kind,
@@ -222,6 +277,8 @@ fn update_track(t: &mut Track, c: TrackChange) -> Result<TrackChange, ModelError
         C::Output(v) => swap!(C::Output, t.output, v),
         C::Monitor(v) => swap!(C::Monitor, t.monitor, v),
         C::Scale(v) => swap!(C::Scale, t.scale, v),
+        C::Freeze(v) => swap!(C::Freeze, t.freeze, v),
+        C::Vca(v) => swap!(C::Vca, t.vca, v),
     })
 }
 
@@ -250,6 +307,7 @@ fn update_clip(c: &mut Clip, ch: ClipChange) -> Result<ClipChange, ModelError> {
         C::FadeInCurve(v) => swap!(C::FadeInCurve, audio(c)?.fade_in_curve, v),
         C::FadeOutCurve(v) => swap!(C::FadeOutCurve, audio(c)?.fade_out_curve, v),
         C::Reversed(v) => swap!(C::Reversed, audio(c)?.reversed, v),
+        C::Lane(v) => swap!(C::Lane, c.lane, v),
     })
 }
 
@@ -313,6 +371,7 @@ fn update_device(d: &mut Device, c: DeviceChange) -> Result<DeviceChange, ModelE
         },
         C::Sidechain(v) => swap!(C::Sidechain, d.sidechain, v),
         C::Pad(v) => swap!(C::Pad, d.pad, v),
+        C::Chain(v) => swap!(C::Chain, d.chain, v),
     })
 }
 
@@ -378,6 +437,83 @@ fn update_media(m: &mut MediaRef, c: MediaChange) -> Result<MediaChange, ModelEr
     use MediaChange as C;
     Ok(match c {
         C::Name(v) => swap!(C::Name, m.name, v),
+        C::Location(v) => swap!(C::Location, m.location, v),
+        C::Hash(v) => swap!(C::Hash, m.hash, v),
+    })
+}
+
+fn update_take_lane(l: &mut TakeLane, c: TakeLaneChange) -> Result<TakeLaneChange, ModelError> {
+    use TakeLaneChange as C;
+    Ok(match c {
+        C::Order(v) => swap!(C::Order, l.order, v),
+        C::Name(v) => swap!(C::Name, l.name, v),
+        C::Color(v) => swap!(C::Color, l.color, v),
+    })
+}
+
+fn update_comp_region(
+    r: &mut CompRegion,
+    c: CompRegionChange,
+) -> Result<CompRegionChange, ModelError> {
+    use CompRegionChange as C;
+    Ok(match c {
+        C::Range(v) => {
+            let old = BeatRange {
+                start: r.start,
+                end: r.end,
+            };
+            r.start = v.start;
+            r.end = v.end;
+            C::Range(old)
+        }
+        C::Lane(v) => swap!(C::Lane, r.lane, v),
+        C::Crossfade(v) => swap!(C::Crossfade, r.crossfade, v),
+    })
+}
+
+fn update_rack_chain(r: &mut RackChain, c: RackChainChange) -> Result<RackChainChange, ModelError> {
+    use RackChainChange as C;
+    Ok(match c {
+        C::Order(v) => swap!(C::Order, r.order, v),
+        C::Name(v) => swap!(C::Name, r.name, v),
+        C::Color(v) => swap!(C::Color, r.color, v),
+        C::Volume(v) => swap!(C::Volume, r.volume, v),
+        C::Pan(v) => swap!(C::Pan, r.pan, v),
+        C::Mute(v) => swap!(C::Mute, r.mute, v),
+        C::Solo(v) => swap!(C::Solo, r.solo, v),
+        C::Keys(v) => swap!(C::Keys, r.keys, v),
+        C::Velocities(v) => swap!(C::Velocities, r.velocities, v),
+        C::Select(v) => swap!(C::Select, r.select, v),
+    })
+}
+
+fn update_modulator(m: &mut Modulator, c: ModulatorChange) -> Result<ModulatorChange, ModelError> {
+    use ModulatorChange as C;
+    Ok(match c {
+        C::Order(v) => swap!(C::Order, m.order, v),
+        C::Name(v) => swap!(C::Name, m.name, v),
+        C::Param { param, value } => {
+            if value.is_some_and(|v| !v.is_finite()) {
+                return Err(invalid("modulator param values must be finite"));
+            }
+            let old = match value {
+                Some(v) => m.params.insert(param, v),
+                None => m.params.remove(&param),
+            };
+            C::Param { param, value: old }
+        }
+        C::Sidechain(v) => swap!(C::Sidechain, m.sidechain, v),
+    })
+}
+
+fn update_mod_mapping(
+    m: &mut ModMapping,
+    c: ModMappingChange,
+) -> Result<ModMappingChange, ModelError> {
+    use ModMappingChange as C;
+    Ok(match c {
+        C::Depth(v) => swap!(C::Depth, m.depth, v),
+        C::Source(v) => swap!(C::Source, m.source, v),
     })
 }
 
@@ -452,6 +588,11 @@ impl EntityUpdate {
             Self::Marker { id, .. } => EntityKey::Marker(*id),
             Self::MidiMapping { id, .. } => EntityKey::MidiMapping(*id),
             Self::DrumPad { id, .. } => EntityKey::DrumPad(*id),
+            Self::TakeLane { id, .. } => EntityKey::TakeLane(*id),
+            Self::CompRegion { id, .. } => EntityKey::CompRegion(*id),
+            Self::RackChain { id, .. } => EntityKey::RackChain(*id),
+            Self::Modulator { id, .. } => EntityKey::Modulator(*id),
+            Self::ModMapping { id, .. } => EntityKey::ModMapping(*id),
         }
     }
 }
@@ -603,6 +744,41 @@ impl Project {
                         id,
                         change: update_pad(self.drum_pads.get_mut(&id).ok_or_else(nf)?, change)?,
                     },
+                    U::TakeLane { id, change } => U::TakeLane {
+                        id,
+                        change: update_take_lane(
+                            self.take_lanes.get_mut(&id).ok_or_else(nf)?,
+                            change,
+                        )?,
+                    },
+                    U::CompRegion { id, change } => U::CompRegion {
+                        id,
+                        change: update_comp_region(
+                            self.comp_regions.get_mut(&id).ok_or_else(nf)?,
+                            change,
+                        )?,
+                    },
+                    U::RackChain { id, change } => U::RackChain {
+                        id,
+                        change: update_rack_chain(
+                            self.rack_chains.get_mut(&id).ok_or_else(nf)?,
+                            change,
+                        )?,
+                    },
+                    U::Modulator { id, change } => U::Modulator {
+                        id,
+                        change: update_modulator(
+                            self.modulators.get_mut(&id).ok_or_else(nf)?,
+                            change,
+                        )?,
+                    },
+                    U::ModMapping { id, change } => U::ModMapping {
+                        id,
+                        change: update_mod_mapping(
+                            self.mod_mappings.get_mut(&id).ok_or_else(nf)?,
+                            change,
+                        )?,
+                    },
                 };
                 Ok(Op::Update { update: inverse })
             }
@@ -672,7 +848,10 @@ impl Project {
     fn check_globals(&self, key: EntityKey) -> Result<(), ModelError> {
         match key {
             // Devices: sidechain edges are routing edges.
-            EntityKey::Track(_) | EntityKey::Send(_) | EntityKey::Device(_) => self.check_routing(),
+            EntityKey::Track(_)
+            | EntityKey::Send(_)
+            | EntityKey::Device(_)
+            | EntityKey::Modulator(_) => self.check_routing(),
             EntityKey::TempoPoint(_) => {
                 if !self
                     .tempo_points
@@ -742,19 +921,22 @@ impl Project {
             }
             EntityKey::Device(id) => {
                 let d = &self.devices[&id];
-                self.require(key, EntityKey::Track(d.track))?;
+                if self.require_track(key, d.track)?.kind == TrackKind::Vca {
+                    return Err(invariant("VCA tracks have no devices"));
+                }
                 check_order(&d.order)?;
                 if d.params.values().any(|v| !v.is_finite()) {
                     return Err(invalid("device param values must be finite"));
                 }
-                if let DeviceKind::Builtin {
-                    device: BuiltinDevice::Sampler { sample, slices },
-                } = &d.kind
-                {
-                    if let Some(m) = sample {
-                        self.require(key, EntityKey::Media(*m))?;
+                if let DeviceKind::Builtin { device } = &d.kind {
+                    for m in device.media() {
+                        self.require(key, EntityKey::Media(m))?;
                     }
-                    check_slices(slices)?;
+                    match device {
+                        BuiltinDevice::Sampler { slices, .. } => check_slices(slices)?,
+                        BuiltinDevice::MultiSampler { zones } => check_sample_zones(zones)?,
+                        _ => {}
+                    }
                 }
                 if let Some(src) = d.sidechain {
                     self.require_track(key, src)?;
@@ -796,7 +978,11 @@ impl Project {
                     if is_drum_rack(&d.kind) {
                         return Err(invariant("drum racks cannot be nested in pads"));
                     }
+                    if is_rack(&d.kind) {
+                        return Err(invariant("racks cannot be nested in pads"));
+                    }
                 }
+                self.check_device_v2(d)?;
                 Ok(())
             }
             EntityKey::Send(id) => {
@@ -806,7 +992,7 @@ impl Project {
                 if to.kind != TrackKind::Return {
                     return Err(invariant("sends must target a return track"));
                 }
-                if from.kind == TrackKind::Master || s.from == s.to {
+                if matches!(from.kind, TrackKind::Master | TrackKind::Vca) || s.from == s.to {
                     return Err(invariant("invalid send source"));
                 }
                 check_db("send level", s.level)
@@ -861,6 +1047,11 @@ impl Project {
             EntityKey::Media(id) => {
                 let m = &self.media[&id];
                 check_media_path(&m.file)?;
+                if let MediaLocation::External { path } = &m.location
+                    && (path.is_empty() || path.contains('\0'))
+                {
+                    return Err(invalid("external media needs a path"));
+                }
                 if m.sample_rate == 0 || m.channels == 0 {
                     return Err(invalid("media needs a sample rate and channels"));
                 }
@@ -876,7 +1067,237 @@ impl Project {
             }
             EntityKey::MidiMapping(id) => self.check_mapping(&self.midi_mappings[&id]),
             EntityKey::DrumPad(id) => self.check_pad(&self.drum_pads[&id]),
+            EntityKey::TakeLane(id) => {
+                let l = &self.take_lanes[&id];
+                let track = self.require_track(key, l.track)?;
+                if !matches!(track.kind, TrackKind::Audio | TrackKind::Midi) {
+                    return Err(invariant("take lanes belong to audio or MIDI tracks"));
+                }
+                check_order(&l.order)?;
+                if let Some(c) = l.color {
+                    check_color(c)?;
+                }
+                Ok(())
+            }
+            EntityKey::CompRegion(id) => self.check_comp_region(&self.comp_regions[&id]),
+            EntityKey::RackChain(id) => self.check_rack_chain(&self.rack_chains[&id]),
+            EntityKey::Modulator(id) => {
+                let m = &self.modulators[&id];
+                self.require(key, EntityKey::Device(m.device))?;
+                check_order(&m.order)?;
+                let host = &self.devices[&m.device];
+                if host.pad.is_some() || host.chain.is_some() {
+                    return Err(invariant(
+                        "modulators live on track-chain devices (not on drum pads or rack chains)",
+                    ));
+                }
+                if let Some(src) = m.sidechain {
+                    if m.kind != ModulatorKind::EnvelopeFollower {
+                        return Err(invalid("only envelope followers take a sidechain"));
+                    }
+                    self.require_track(key, src)?;
+                    if self.devices.get(&m.device).map(|d| d.track) == Some(src) {
+                        return Err(invariant("a modulator cannot sidechain its own track"));
+                    }
+                }
+                if m.params.values().any(|v| !v.is_finite()) {
+                    return Err(invalid("modulator param values must be finite"));
+                }
+                Ok(())
+            }
+            EntityKey::ModMapping(id) => self.check_mod_mapping(&self.mod_mappings[&id]),
         }
+    }
+
+    /// v0.2 device rules: rack chains, nesting, mappings that target the device.
+    fn check_device_v2(&self, d: &Device) -> Result<(), ModelError> {
+        let key = EntityKey::Device(d.id);
+        if let Some(chain) = d.chain {
+            if d.pad.is_some() {
+                return Err(invariant(
+                    "a device cannot be on a drum pad and a rack chain",
+                ));
+            }
+            let chain = self
+                .rack_chains
+                .get(&chain)
+                .ok_or(ModelError::DanglingReference {
+                    entity: key,
+                    missing: EntityKey::RackChain(chain),
+                })?;
+            if self.devices.get(&chain.rack).map(|r| r.track) != Some(d.track) {
+                return Err(invariant(
+                    "a rack chain device must be on the same track as its rack",
+                ));
+            }
+            if is_rack(&d.kind) || is_drum_rack(&d.kind) {
+                return Err(invariant("racks cannot be nested in rack chains (v0.2)"));
+            }
+            if d.sidechain.is_some() {
+                return Err(invariant("devices on rack chains cannot have a sidechain"));
+            }
+        }
+        // A rack's chain devices must stay on the rack's track.
+        if is_rack(&d.kind)
+            && let Some(stray) = self.devices.values().find(|o| {
+                o.chain
+                    .and_then(|c| self.rack_chains.get(&c))
+                    .is_some_and(|c| c.rack == d.id)
+                    && o.track != d.track
+            })
+        {
+            return Err(invariant(format!(
+                "rack chain device {} is not on its rack's track",
+                stray.id
+            )));
+        }
+        // Modulators only on track-chain devices.
+        if (d.pad.is_some() || d.chain.is_some())
+            && self.modulators.values().any(|m| m.device == d.id)
+        {
+            return Err(invariant(
+                "modulators live on track-chain devices (not on drum pads or rack chains)",
+            ));
+        }
+        // Its modulators' sidechains stay off its own track when it moves.
+        if self
+            .modulators
+            .values()
+            .any(|m| m.device == d.id && m.sidechain == Some(d.track))
+        {
+            return Err(invariant("a modulator cannot sidechain its own track"));
+        }
+        // Mappings targeting this device stay in scope when it moves.
+        for m in self.mod_mappings.values().filter(|m| m.device == d.id) {
+            self.check_mod_mapping(m)?;
+        }
+        Ok(())
+    }
+
+    fn check_comp_region(&self, r: &CompRegion) -> Result<(), ModelError> {
+        let key = EntityKey::CompRegion(r.id);
+        self.require_track(key, r.track)?;
+        let lane = self
+            .take_lanes
+            .get(&r.lane)
+            .ok_or(ModelError::DanglingReference {
+                entity: key,
+                missing: EntityKey::TakeLane(r.lane),
+            })?;
+        if lane.track != r.track {
+            return Err(invariant("a comp region's lane must belong to its track"));
+        }
+        check_beats_nonneg("comp region start", r.start)?;
+        if !(finite(r.end.0) && r.end.0 > r.start.0 + Beats::EPSILON) {
+            return Err(invalid("comp region end must be after its start"));
+        }
+        if !(finite(r.crossfade.0) && (0.0..=MAX_COMP_CROSSFADE).contains(&r.crossfade.0)) {
+            return Err(invalid(format!(
+                "comp crossfade must be 0..={MAX_COMP_CROSSFADE} s"
+            )));
+        }
+        if self.comp_regions.values().any(|o| {
+            o.id != r.id
+                && o.track == r.track
+                && o.start.0 < r.end.0 - Beats::EPSILON
+                && r.start.0 < o.end.0 - Beats::EPSILON
+        }) {
+            return Err(invariant("comp regions of a track cannot overlap"));
+        }
+        Ok(())
+    }
+
+    fn check_rack_chain(&self, c: &RackChain) -> Result<(), ModelError> {
+        let key = EntityKey::RackChain(c.id);
+        let rack = self
+            .devices
+            .get(&c.rack)
+            .ok_or(ModelError::DanglingReference {
+                entity: key,
+                missing: EntityKey::Device(c.rack),
+            })?;
+        if !is_rack(&rack.kind) || rack.pad.is_some() || rack.chain.is_some() {
+            return Err(invariant("rack chains belong to a rack on a track chain"));
+        }
+        check_order(&c.order)?;
+        if let Some(col) = c.color {
+            check_color(col)?;
+        }
+        check_db("chain volume", c.volume)?;
+        if !(-1.0..=1.0).contains(&c.pan.0) {
+            return Err(invalid("pan must be in -1..=1"));
+        }
+        check_zone("key", c.keys)?;
+        check_zone("velocity", c.velocities)?;
+        check_zone("selector", c.select)
+    }
+
+    fn check_mod_mapping(&self, m: &ModMapping) -> Result<(), ModelError> {
+        let key = EntityKey::ModMapping(m.id);
+        if !(finite(m.depth) && (-1.0..=1.0).contains(&m.depth)) {
+            return Err(invalid("modulation depth must be in -1..=1"));
+        }
+        let target = self
+            .devices
+            .get(&m.device)
+            .ok_or(ModelError::DanglingReference {
+                entity: key,
+                missing: EntityKey::Device(m.device),
+            })?;
+        let in_rack = |rack: DeviceId| {
+            target
+                .chain
+                .and_then(|c| self.rack_chains.get(&c))
+                .is_some_and(|c| c.rack == rack)
+        };
+        match m.source {
+            ModSource::Modulator { modulator } => {
+                let host = self
+                    .modulators
+                    .get(&modulator)
+                    .ok_or(ModelError::DanglingReference {
+                        entity: key,
+                        missing: EntityKey::Modulator(modulator),
+                    })?
+                    .device;
+                if host != m.device && !in_rack(host) {
+                    return Err(invariant(
+                        "a modulator can only target its device or devices inside its rack",
+                    ));
+                }
+                // No modulation of modulation: a rack's modulators don't drive its macros.
+                if host == m.device && is_rack(&target.kind) && m.param.0 < RACK_SELECTOR_PARAM.0 {
+                    return Err(invariant("modulators cannot target their rack's macros"));
+                }
+            }
+            ModSource::Macro { rack, index } => {
+                if index >= RACK_MACROS {
+                    return Err(invalid(format!("macro index must be < {RACK_MACROS}")));
+                }
+                let r = self
+                    .devices
+                    .get(&rack)
+                    .ok_or(ModelError::DanglingReference {
+                        entity: key,
+                        missing: EntityKey::Device(rack),
+                    })?;
+                if !is_rack(&r.kind) {
+                    return Err(invariant("macro sources must be racks"));
+                }
+                let own = m.device == rack && m.param.0 >= RACK_SELECTOR_PARAM.0;
+                if !own && !in_rack(rack) {
+                    return Err(invariant(
+                        "a macro can only target devices inside its rack (or the rack's non-macro params)",
+                    ));
+                }
+            }
+        }
+        if self.mod_mappings.values().any(|o| {
+            o.id != m.id && o.source == m.source && o.device == m.device && o.param == m.param
+        }) {
+            return Err(invariant("duplicate modulation mapping"));
+        }
+        Ok(())
     }
 
     fn check_pad(&self, p: &DrumPad) -> Result<(), ModelError> {
@@ -964,13 +1385,52 @@ impl Project {
             return Err(invalid("track scales are only available on MIDI tracks"));
         }
         let key = EntityKey::Track(t.id);
+        if let Some(f) = &t.freeze {
+            if !matches!(t.kind, TrackKind::Audio | TrackKind::Midi) {
+                return Err(invariant("only audio and MIDI tracks can be frozen"));
+            }
+            let media = self
+                .media
+                .get(&f.media)
+                .ok_or(ModelError::DanglingReference {
+                    entity: key,
+                    missing: EntityKey::Media(f.media),
+                })?;
+            if media.location != MediaLocation::Project {
+                return Err(invariant("freeze renders are project media"));
+            }
+            check_seconds_nonneg("freeze start", f.start)?;
+        }
         check_color(t.color)?;
         check_order(&t.order)?;
         check_db("track volume", t.mixer.volume)?;
         if !(-1.0..=1.0).contains(&t.mixer.pan.0) {
             return Err(invalid("pan must be in -1..=1"));
         }
-        let top_level_only = matches!(t.kind, TrackKind::Master | TrackKind::Return);
+        let top_level_only = matches!(
+            t.kind,
+            TrackKind::Master | TrackKind::Return | TrackKind::Vca
+        );
+        if let Some(vca) = t.vca {
+            if t.kind == TrackKind::Master {
+                return Err(invariant("the master track cannot be assigned to a VCA"));
+            }
+            if self.require_track(key, vca)?.kind != TrackKind::Vca {
+                return Err(invariant("VCA assignments must target a VCA track"));
+            }
+            let mut cur = Some(vca);
+            let mut steps = 0;
+            while let Some(v) = cur {
+                if v == t.id || steps > self.tracks.len() {
+                    return Err(invariant("VCA assignment cycle"));
+                }
+                cur = self.tracks.get(&v).and_then(|v| v.vca);
+                steps += 1;
+            }
+        }
+        if t.kind == TrackKind::Vca && t.input != TrackInput::None {
+            return Err(invariant("VCA tracks have no input"));
+        }
         if t.kind == TrackKind::Master {
             if self
                 .tracks
@@ -1002,7 +1462,7 @@ impl Project {
             }
         }
         match &t.input {
-            TrackInput::Track { track } => {
+            TrackInput::Track { track, .. } => {
                 self.require_track(key, *track)?;
                 if *track == t.id {
                     return Err(invariant("a track cannot take its own output as input"));
@@ -1048,6 +1508,18 @@ impl Project {
             (ClipContent::Midi, TrackKind::Midi) => {}
             _ => return Err(invariant("clip content does not match its track kind")),
         }
+        if let Some(lane) = c.lane {
+            let l = self
+                .take_lanes
+                .get(&lane)
+                .ok_or(ModelError::DanglingReference {
+                    entity: key,
+                    missing: EntityKey::TakeLane(lane),
+                })?;
+            if l.track != c.track {
+                return Err(invariant("a take clip must be on its lane's track"));
+            }
+        }
         if !finite(c.start.0) {
             return Err(invalid("clip start must be finite"));
         }
@@ -1092,10 +1564,22 @@ impl Project {
         for s in self.sends.values() {
             edges.entry(s.from).or_default().push(s.to);
         }
+        // v0.2: a track input from another track is rendered after its source.
+        for t in self.tracks.values() {
+            if let TrackInput::Track { track, .. } = t.input {
+                edges.entry(track).or_default().push(t.id);
+            }
+        }
         // A sidechain source is rendered before the track whose device listens to it.
         for d in self.devices.values() {
             if let Some(src) = d.sidechain {
                 edges.entry(src).or_default().push(d.track);
+            }
+        }
+        // v0.2: envelope-follower sidechains too.
+        for m in self.modulators.values() {
+            if let (Some(src), Some(host)) = (m.sidechain, self.devices.get(&m.device)) {
+                edges.entry(src).or_default().push(host.track);
             }
         }
         // 0 = unvisited, 1 = on stack, 2 = done. Iterative DFS.
@@ -1137,7 +1621,8 @@ impl Project {
                 .values()
                 .find(|t| {
                     t.parent == Some(id)
-                        || matches!(t.input, TrackInput::Track { track } if track == id)
+                        || matches!(t.input, TrackInput::Track { track, .. } if track == id)
+                        || t.vca == Some(id)
                         || matches!(t.output, TrackOutput::Track { track } if track == id)
                 })
                 .map(|t| EntityKey::Track(t.id))
@@ -1183,6 +1668,24 @@ impl Project {
                         .values()
                         .find(|m| mapping_refs_track(&m.target, id))
                         .map(|m| EntityKey::MidiMapping(m.id))
+                })
+                .or_else(|| {
+                    self.comp_regions
+                        .values()
+                        .find(|r| r.track == id)
+                        .map(|r| EntityKey::CompRegion(r.id))
+                })
+                .or_else(|| {
+                    self.take_lanes
+                        .values()
+                        .find(|l| l.track == id)
+                        .map(|l| EntityKey::TakeLane(l.id))
+                })
+                .or_else(|| {
+                    self.modulators
+                        .values()
+                        .find(|m| m.sidechain == Some(id))
+                        .map(|m| EntityKey::Modulator(m.id))
                 }),
             EntityKey::Clip(id) => self
                 .notes
@@ -1217,6 +1720,27 @@ impl Project {
                         .values()
                         .find(|m| matches!(&m.target, MidiMapTarget::Param { target: AutomationTarget::DeviceParam { device, .. } } if *device == id))
                         .map(|m| EntityKey::MidiMapping(m.id))
+                })
+                .or_else(|| {
+                    self.mod_mappings
+                        .values()
+                        .find(|m| {
+                            m.device == id
+                                || matches!(m.source, ModSource::Macro { rack, .. } if rack == id)
+                        })
+                        .map(|m| EntityKey::ModMapping(m.id))
+                })
+                .or_else(|| {
+                    self.modulators
+                        .values()
+                        .find(|m| m.device == id)
+                        .map(|m| EntityKey::Modulator(m.id))
+                })
+                .or_else(|| {
+                    self.rack_chains
+                        .values()
+                        .find(|c| c.rack == id)
+                        .map(|c| EntityKey::RackChain(c.id))
                 }),
             EntityKey::Send(id) => self
                 .automation_lanes
@@ -1248,20 +1772,46 @@ impl Project {
                     self.devices
                         .values()
                         .find(|d| {
-                            matches!(
-                                &d.kind,
-                                DeviceKind::Builtin { device: BuiltinDevice::Sampler { sample: Some(m), .. } } if *m == id
-                            )
+                            matches!(&d.kind, DeviceKind::Builtin { device } if device.media().contains(&id))
                         })
                         .map(|d| EntityKey::Device(d.id))
+                })
+                .or_else(|| {
+                    self.tracks
+                        .values()
+                        .find(|t| t.freeze.as_ref().is_some_and(|f| f.media == id))
+                        .map(|t| EntityKey::Track(t.id))
                 }),
+            EntityKey::TakeLane(id) => self
+                .clips
+                .values()
+                .find(|c| c.lane == Some(id))
+                .map(|c| EntityKey::Clip(c.id))
+                .or_else(|| {
+                    self.comp_regions
+                        .values()
+                        .find(|r| r.lane == id)
+                        .map(|r| EntityKey::CompRegion(r.id))
+                }),
+            EntityKey::RackChain(id) => self
+                .devices
+                .values()
+                .find(|d| d.chain == Some(id))
+                .map(|d| EntityKey::Device(d.id)),
+            EntityKey::Modulator(id) => self
+                .mod_mappings
+                .values()
+                .find(|m| m.source == ModSource::Modulator { modulator: id })
+                .map(|m| EntityKey::ModMapping(m.id)),
             EntityKey::Note(_)
             | EntityKey::AutomationPoint(_)
             | EntityKey::TempoPoint(_)
             | EntityKey::TimeSignature(_)
             | EntityKey::WarpMarker(_)
             | EntityKey::Marker(_)
-            | EntityKey::MidiMapping(_) => None,
+            | EntityKey::MidiMapping(_)
+            | EntityKey::CompRegion(_)
+            | EntityKey::ModMapping(_) => None,
         }
     }
 

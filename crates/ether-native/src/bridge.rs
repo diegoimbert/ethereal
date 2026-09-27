@@ -87,6 +87,8 @@ pub struct NativeBridge {
     devices: HashMap<DeviceId, DeviceEntry>,
     /// Instances created for offline export so far (their private registry ids).
     offline_seq: u64,
+    /// "Listen on <peer>" native sender (`stream-host`; [`crate::stream`]).
+    stream: crate::stream::StreamHost,
 }
 
 impl NativeBridge {
@@ -111,6 +113,7 @@ impl NativeBridge {
             sources: HashMap::new(),
             devices: HashMap::new(),
             offline_seq: 0,
+            stream: crate::stream::StreamHost::new(),
         }
     }
 
@@ -417,6 +420,7 @@ impl EngineBridge for NativeBridge {
     }
 
     fn publish(&mut self, graph: RenderGraphDesc) -> Result<(), BridgeError> {
+        self.stream.observe_graph(&graph);
         self.handle.publish(graph).map_err(engine_err)
     }
 
@@ -425,12 +429,22 @@ impl EngineBridge for NativeBridge {
     }
 
     fn transport(&mut self, control: TransportControl) -> Result<(), BridgeError> {
+        self.stream.observe_transport(&control);
         self.handle.transport(control).map_err(engine_err)
     }
 
     fn poll(&mut self, out: &mut EngineOutputs) {
         self.handle.poll(out);
         out.cpu_load = self.audio.cpu_load();
+    }
+
+    /// v0.2 analysis channel (contracts-3): device frames straight from the engine handle.
+    fn poll_analysis(&mut self, out: &mut Vec<ether_core::AnalysisFrame>) {
+        self.handle.poll_analysis(|f| out.push(*f));
+    }
+
+    fn watch_analysis(&mut self, node: NodeKey, on: bool) -> Result<(), BridgeError> {
+        self.handle.watch_analysis(node, on).map_err(engine_err)
     }
 
     fn descriptor(&mut self, device: DeviceId) -> Option<DeviceDescriptor> {
@@ -499,6 +513,51 @@ impl EngineBridge for NativeBridge {
     fn poll_midi_input(&mut self, out: &mut Vec<ether_core::protocol::midi_map::MidiInputEvent>) {
         crate::recording::drain_midi_input(&self.audio, out);
     }
+
+    // "Listen on <peer>" native sender (`stream-host`): delegated to `crate::stream`.
+
+    fn stream_capabilities(&self) -> ether_controller::streaming::StreamCapabilities {
+        self.stream.capabilities()
+    }
+
+    fn start_stream_capture(&mut self) -> Result<(), BridgeError> {
+        self.stream
+            .start_capture(&mut self.handle, self.sample_rate)
+    }
+
+    fn stop_stream_capture(&mut self) -> Result<(), BridgeError> {
+        self.stream.stop_capture(&mut self.handle)
+    }
+
+    fn stream_open(
+        &mut self,
+        listener: ether_core::protocol::model::SiteId,
+        stream: u32,
+        ice: &[ether_core::protocol::collab::IceServer],
+    ) -> Result<(), BridgeError> {
+        self.stream.open(listener, stream, ice)
+    }
+
+    fn stream_signal(
+        &mut self,
+        listener: ether_core::protocol::model::SiteId,
+        stream: u32,
+        signal: &ether_core::protocol::collab::StreamSignal,
+    ) -> Result<(), BridgeError> {
+        self.stream.signal(listener, stream, signal)
+    }
+
+    fn stream_close(
+        &mut self,
+        listener: ether_core::protocol::model::SiteId,
+        stream: u32,
+    ) -> Result<(), BridgeError> {
+        self.stream.close(listener, stream)
+    }
+
+    fn poll_stream(&mut self, out: &mut Vec<ether_controller::streaming::StreamOutput>) {
+        self.stream.poll(out);
+    }
 }
 
 /// Native [`HostServices`]: wall clock and OS entropy.
@@ -532,6 +591,7 @@ mod tests {
             });
         let catalog = PluginCatalog::default();
         catalog.replace(vec![PluginDescriptor {
+            sidechain_inputs: Default::default(),
             format: PluginFormat::Clap,
             id: "fake".into(),
             name: "Fake".into(),
@@ -559,6 +619,7 @@ mod tests {
 
     fn media_ref(id: u128) -> MediaRef {
         MediaRef {
+            location: Default::default(),
             id: MediaId(Ulid(id)),
             name: "a.wav".into(),
             file: "media/a.wav".into(),

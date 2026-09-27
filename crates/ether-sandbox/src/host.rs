@@ -134,6 +134,7 @@ impl SandboxedPlugin {
             shared,
             instance: instance.to_owned(),
             descriptor: DeviceDescriptor {
+                layout: None,
                 device_type: ether_core::protocol::devices::DeviceTypeRef::Plugin {
                     plugin_id: plugin_id.to_owned(),
                 },

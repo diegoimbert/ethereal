@@ -7,6 +7,7 @@
  */
 
 import type { BuiltinDevice, BuiltinDeviceType, DeviceDescriptor, ParamInfo, ParamScale, ParamUnit } from "@/generated";
+import { EQ_DESCRIPTOR, V02_DESCRIPTORS } from "./devices";
 
 function param(
   id: number,
@@ -19,7 +20,9 @@ function param(
   scale: ParamScale = { type: "Linear" },
   labels: string[] | null = null,
 ): ParamInfo {
-  return { id, name, group, unit, min, max, default: def, scale, labels, automatable: true, hidden: false };
+  // Integer params step by 1 (Rust `ParamInfo::step`): enums/toggles, semitones, keys.
+  const integer = labels !== null || unit === "Semitones" || name === "Root Key";
+  return { id, name, group, unit, min, max, default: def, scale, labels, automatable: true, hidden: false, ...(integer ? { step: 1 } : {}) };
 }
 
 const LOG: ParamScale = { type: "Log" };
@@ -103,7 +106,8 @@ export const BUILTIN_DESCRIPTORS: Readonly<Record<BuiltinDeviceType, DeviceDescr
     ],
   },
   // Roadmap v2 effects: mirror `ether-devices/src/{eq,reverb,limiter,utility}.rs` exactly.
-  Eq: effect("Eq", "EQ", eqParams()),
+  // Generated from `ether-devices/src/eq.rs` (carries the v0.2 EqCurve layout).
+  Eq: EQ_DESCRIPTOR,
   Reverb: effect("Reverb", "Reverb", [
     param(0, "Pre-Delay", "Reverb", "Milliseconds", 0, 250, 20, { type: "Power", exponent: 2 }),
     param(1, "Size", "Reverb", "Percent", 0, 100, 50),
@@ -139,6 +143,8 @@ export const BUILTIN_DESCRIPTORS: Readonly<Record<BuiltinDeviceType, DeviceDescr
     sidechain_inputs: 0,
     params: [param(0, "Volume", "Rack", "Decibels", -60, 6, 0), param(1, "Pan", "Rack", "Pan", -1, 1, 0)],
   },
+  // v0.2 (contracts-3): generated from Rust, one JSON file per device node (`./devices`).
+  ...V02_DESCRIPTORS,
 };
 
 /** Stereo audio effect descriptor. */
@@ -155,36 +161,11 @@ function effect(device: BuiltinDeviceType, name: string, params: ParamInfo[]): D
   };
 }
 
-/** EQ: 8 bands x (On, Type, Freq, Gain, Q) at ids 5b..5b+4, then Output (40). */
-function eqParams(): ParamInfo[] {
-  const types = ["Low Cut", "Low Shelf", "Bell", "Notch", "High Shelf", "High Cut"];
-  const bands: [boolean, number, number][] = [
-    [false, 0, 30],
-    [true, 1, 100],
-    [true, 2, 250],
-    [true, 2, 1000],
-    [true, 2, 2500],
-    [true, 2, 6000],
-    [true, 4, 10000],
-    [false, 5, 18000],
-  ];
-  const params = bands.flatMap(([on, type, freq], b) => {
-    const group = `Band ${b + 1}`;
-    const id = 5 * b;
-    return [
-      param(id, "On", group, "Toggle", 0, 1, on ? 1 : 0, undefined, ONOFF),
-      param(id + 1, "Type", group, "None", 0, types.length - 1, type, undefined, types),
-      param(id + 2, "Freq", group, "Hertz", 20, 20000, freq, LOG),
-      param(id + 3, "Gain", group, "Decibels", -24, 24, 0),
-      param(id + 4, "Q", group, "None", 0.1, 18, Math.SQRT1_2, LOG),
-    ];
-  });
-  return [...params, param(40, "Output", "Output", "Decibels", -24, 24, 0)];
-}
-
 /** A fresh `BuiltinDevice` of `type` with default data (mirrors Rust `BuiltinDevice::new`). */
 export function newBuiltinDevice(type: BuiltinDeviceType): BuiltinDevice {
-  return type === "Sampler" ? { type: "Sampler", sample: null, slices: { enabled: false, base_note: 36, markers: [] } } : { type };
+  if (type === "Sampler") return { type: "Sampler", sample: null, slices: { enabled: false, base_note: 36, markers: [] } };
+  if (type === "MultiSampler") return { type: "MultiSampler", zones: [] };
+  return { type } as BuiltinDevice;
 }
 
 export function builtinDescriptor(device: BuiltinDevice | BuiltinDeviceType): DeviceDescriptor {

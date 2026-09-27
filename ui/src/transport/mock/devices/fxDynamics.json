@@ -1,0 +1,740 @@
+{
+  "Gate": {
+    "audio_inputs": 2,
+    "audio_outputs": 2,
+    "category": "AudioEffect",
+    "device_type": {
+      "device": "Gate",
+      "type": "Builtin"
+    },
+    "midi_input": false,
+    "name": "Gate",
+    "params": [
+      {
+        "automatable": true,
+        "default": -40.0,
+        "group": "Gate",
+        "hidden": false,
+        "id": 0,
+        "labels": null,
+        "max": 0.0,
+        "min": -80.0,
+        "name": "Threshold",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Decibels"
+      },
+      {
+        "automatable": true,
+        "default": 3.0,
+        "group": "Gate",
+        "hidden": false,
+        "id": 1,
+        "labels": null,
+        "max": 24.0,
+        "min": 0.0,
+        "name": "Return",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Decibels"
+      },
+      {
+        "automatable": true,
+        "default": -80.0,
+        "group": "Gate",
+        "hidden": false,
+        "id": 2,
+        "labels": null,
+        "max": 0.0,
+        "min": -80.0,
+        "name": "Floor",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Decibels"
+      },
+      {
+        "automatable": true,
+        "default": 4.0,
+        "group": "Gate",
+        "hidden": false,
+        "id": 3,
+        "labels": null,
+        "max": 20.0,
+        "min": 1.0,
+        "name": "Ratio",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Ratio"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Gate",
+        "hidden": false,
+        "id": 4,
+        "labels": [
+          "Gate",
+          "Expander"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Mode",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 0.5,
+        "group": "Timing",
+        "hidden": false,
+        "id": 5,
+        "labels": null,
+        "max": 100.0,
+        "min": 0.01,
+        "name": "Attack",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Milliseconds"
+      },
+      {
+        "automatable": true,
+        "default": 10.0,
+        "group": "Timing",
+        "hidden": false,
+        "id": 6,
+        "labels": null,
+        "max": 500.0,
+        "min": 0.0,
+        "name": "Hold",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Milliseconds"
+      },
+      {
+        "automatable": true,
+        "default": 100.0,
+        "group": "Timing",
+        "hidden": false,
+        "id": 7,
+        "labels": null,
+        "max": 2000.0,
+        "min": 1.0,
+        "name": "Release",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Milliseconds"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Timing",
+        "hidden": false,
+        "id": 8,
+        "labels": null,
+        "max": 10.0,
+        "min": 0.0,
+        "name": "Lookahead",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Milliseconds"
+      },
+      {
+        "automatable": true,
+        "default": 20.0,
+        "group": "Sidechain",
+        "hidden": false,
+        "id": 9,
+        "labels": null,
+        "max": 2000.0,
+        "min": 20.0,
+        "name": "Sidechain HPF",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Hertz"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Gate",
+        "hidden": false,
+        "id": 10,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Flip",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Output",
+        "hidden": false,
+        "id": 11,
+        "labels": null,
+        "max": 24.0,
+        "min": -24.0,
+        "name": "Output",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Decibels"
+      }
+    ],
+    "sidechain_inputs": 2
+  },
+  "MultibandCompressor": {
+    "audio_inputs": 2,
+    "audio_outputs": 2,
+    "category": "AudioEffect",
+    "device_type": {
+      "device": "MultibandCompressor",
+      "type": "Builtin"
+    },
+    "midi_input": false,
+    "name": "Multiband Compressor",
+    "params": [
+      {
+        "automatable": true,
+        "default": 200.0,
+        "group": "Crossover",
+        "hidden": false,
+        "id": 0,
+        "labels": null,
+        "max": 1000.0,
+        "min": 20.0,
+        "name": "Low / Mid",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Hertz"
+      },
+      {
+        "automatable": true,
+        "default": 2500.0,
+        "group": "Crossover",
+        "hidden": false,
+        "id": 1,
+        "labels": null,
+        "max": 16000.0,
+        "min": 500.0,
+        "name": "Mid / High",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Hertz"
+      },
+      {
+        "automatable": true,
+        "default": -20.0,
+        "group": "Low",
+        "hidden": false,
+        "id": 2,
+        "labels": null,
+        "max": 0.0,
+        "min": -60.0,
+        "name": "Threshold",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Decibels"
+      },
+      {
+        "automatable": true,
+        "default": 3.0,
+        "group": "Low",
+        "hidden": false,
+        "id": 3,
+        "labels": null,
+        "max": 20.0,
+        "min": 1.0,
+        "name": "Ratio",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Ratio"
+      },
+      {
+        "automatable": true,
+        "default": 10.0,
+        "group": "Low",
+        "hidden": false,
+        "id": 4,
+        "labels": null,
+        "max": 200.0,
+        "min": 0.1,
+        "name": "Attack",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Milliseconds"
+      },
+      {
+        "automatable": true,
+        "default": 150.0,
+        "group": "Low",
+        "hidden": false,
+        "id": 5,
+        "labels": null,
+        "max": 2000.0,
+        "min": 5.0,
+        "name": "Release",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Milliseconds"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Low",
+        "hidden": false,
+        "id": 6,
+        "labels": null,
+        "max": 24.0,
+        "min": 0.0,
+        "name": "Makeup",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Decibels"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Low",
+        "hidden": false,
+        "id": 7,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Solo",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Low",
+        "hidden": false,
+        "id": 8,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Bypass",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      },
+      {
+        "automatable": true,
+        "default": -20.0,
+        "group": "Mid",
+        "hidden": false,
+        "id": 9,
+        "labels": null,
+        "max": 0.0,
+        "min": -60.0,
+        "name": "Threshold",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Decibels"
+      },
+      {
+        "automatable": true,
+        "default": 3.0,
+        "group": "Mid",
+        "hidden": false,
+        "id": 10,
+        "labels": null,
+        "max": 20.0,
+        "min": 1.0,
+        "name": "Ratio",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Ratio"
+      },
+      {
+        "automatable": true,
+        "default": 10.0,
+        "group": "Mid",
+        "hidden": false,
+        "id": 11,
+        "labels": null,
+        "max": 200.0,
+        "min": 0.1,
+        "name": "Attack",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Milliseconds"
+      },
+      {
+        "automatable": true,
+        "default": 150.0,
+        "group": "Mid",
+        "hidden": false,
+        "id": 12,
+        "labels": null,
+        "max": 2000.0,
+        "min": 5.0,
+        "name": "Release",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Milliseconds"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Mid",
+        "hidden": false,
+        "id": 13,
+        "labels": null,
+        "max": 24.0,
+        "min": 0.0,
+        "name": "Makeup",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Decibels"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Mid",
+        "hidden": false,
+        "id": 14,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Solo",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Mid",
+        "hidden": false,
+        "id": 15,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Bypass",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      },
+      {
+        "automatable": true,
+        "default": -20.0,
+        "group": "High",
+        "hidden": false,
+        "id": 16,
+        "labels": null,
+        "max": 0.0,
+        "min": -60.0,
+        "name": "Threshold",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Decibels"
+      },
+      {
+        "automatable": true,
+        "default": 3.0,
+        "group": "High",
+        "hidden": false,
+        "id": 17,
+        "labels": null,
+        "max": 20.0,
+        "min": 1.0,
+        "name": "Ratio",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Ratio"
+      },
+      {
+        "automatable": true,
+        "default": 10.0,
+        "group": "High",
+        "hidden": false,
+        "id": 18,
+        "labels": null,
+        "max": 200.0,
+        "min": 0.1,
+        "name": "Attack",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Milliseconds"
+      },
+      {
+        "automatable": true,
+        "default": 150.0,
+        "group": "High",
+        "hidden": false,
+        "id": 19,
+        "labels": null,
+        "max": 2000.0,
+        "min": 5.0,
+        "name": "Release",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Milliseconds"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "High",
+        "hidden": false,
+        "id": 20,
+        "labels": null,
+        "max": 24.0,
+        "min": 0.0,
+        "name": "Makeup",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Decibels"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "High",
+        "hidden": false,
+        "id": 21,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Solo",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "High",
+        "hidden": false,
+        "id": 22,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Bypass",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Output",
+        "hidden": false,
+        "id": 23,
+        "labels": null,
+        "max": 24.0,
+        "min": -24.0,
+        "name": "Output",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Decibels"
+      },
+      {
+        "automatable": true,
+        "default": 100.0,
+        "group": "Output",
+        "hidden": false,
+        "id": 24,
+        "labels": null,
+        "max": 100.0,
+        "min": 0.0,
+        "name": "Mix",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Percent"
+      }
+    ],
+    "sidechain_inputs": 2
+  },
+  "TransientShaper": {
+    "audio_inputs": 2,
+    "audio_outputs": 2,
+    "category": "AudioEffect",
+    "device_type": {
+      "device": "TransientShaper",
+      "type": "Builtin"
+    },
+    "midi_input": false,
+    "name": "Transient Shaper",
+    "params": [
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Shaper",
+        "hidden": false,
+        "id": 0,
+        "labels": null,
+        "max": 100.0,
+        "min": -100.0,
+        "name": "Attack",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Percent"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Shaper",
+        "hidden": false,
+        "id": 1,
+        "labels": null,
+        "max": 100.0,
+        "min": -100.0,
+        "name": "Sustain",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Percent"
+      },
+      {
+        "automatable": true,
+        "default": 10.0,
+        "group": "Shaper",
+        "hidden": false,
+        "id": 2,
+        "labels": null,
+        "max": 50.0,
+        "min": 1.0,
+        "name": "Attack Time",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Milliseconds"
+      },
+      {
+        "automatable": true,
+        "default": 100.0,
+        "group": "Shaper",
+        "hidden": false,
+        "id": 3,
+        "labels": null,
+        "max": 500.0,
+        "min": 10.0,
+        "name": "Release Time",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Milliseconds"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Output",
+        "hidden": false,
+        "id": 4,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Clip",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Output",
+        "hidden": false,
+        "id": 5,
+        "labels": null,
+        "max": 24.0,
+        "min": -24.0,
+        "name": "Output",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Decibels"
+      },
+      {
+        "automatable": true,
+        "default": 100.0,
+        "group": "Output",
+        "hidden": false,
+        "id": 6,
+        "labels": null,
+        "max": 100.0,
+        "min": 0.0,
+        "name": "Mix",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Percent"
+      }
+    ],
+    "sidechain_inputs": 0
+  }
+}

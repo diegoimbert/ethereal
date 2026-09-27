@@ -68,11 +68,10 @@ fn v2_fixture_migrates_to_v3_with_neutral_defaults() {
         (FadeCurve::Linear, FadeCurve::Linear, false)
     );
 
-    // Saved as v3; saving is stable; loading the v3 file gives the same project.
+    // Saved at the current version (v3 or later); saving is stable; loading it back gives the same project.
     let saved = file::save(&p, "0.2.0").unwrap();
     let v: Value = serde_json::from_str(&saved).unwrap();
     assert_eq!(v["version"], file::CURRENT_VERSION);
-    assert_eq!(file::CURRENT_VERSION, 3);
     assert_eq!(file::load(&saved).unwrap(), p);
     assert_eq!(
         file::save(&file::load(&saved).unwrap(), "0.2.0").unwrap(),
@@ -104,6 +103,8 @@ impl Fx {
     fn track(&mut self, kind: TrackKind) -> TrackId {
         let id = self.id();
         self.insert(Entity::Track(Track {
+            vca: Default::default(),
+            freeze: None,
             id,
             kind,
             name: "t".into(),
@@ -121,6 +122,7 @@ impl Fx {
     }
     fn device(&mut self, track: TrackId, device: BuiltinDevice, pad: Option<DrumPadId>) -> Device {
         Device {
+            chain: None,
             id: self.id(),
             track,
             order: OrderKey::between(None, None),
