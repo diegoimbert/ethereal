@@ -272,3 +272,85 @@ fn locate_silences_the_click() {
     assert_eq!(positions(&l), vec![18_000]);
     assert_eq!(l[0], 0.0);
 }
+
+/// Outputs a one-sample impulse on every beat (as the metronome places clicks), or
+/// silence when `on` is false.
+struct BeatImpulse {
+    on: bool,
+}
+
+impl ether_core::Node for BeatImpulse {
+    fn prepare(&mut self, _: &ether_core::PrepareConfig) {}
+    fn reset(&mut self) {}
+    fn process(
+        &mut self,
+        ctx: &mut ether_core::ProcessContext<'_>,
+        audio: &mut ether_core::AudioBuffers<'_, '_>,
+    ) -> ether_core::ProcessStatus {
+        for ch in 0..2 {
+            audio.outputs[ch].fill(0.0);
+        }
+        let t = ctx.transport;
+        if !self.on || !t.playing || t.beats_per_sample <= 0.0 {
+            return ether_core::ProcessStatus::Continue;
+        }
+        let end = t.position + t.beats_per_sample * ctx.frames as f64;
+        let mut k = (t.position - 1e-7).ceil();
+        while k < end - 1e-7 {
+            let i = ((k - t.position) / t.beats_per_sample - 1e-4)
+                .ceil()
+                .max(0.0) as usize;
+            if i < ctx.frames {
+                audio.outputs[0][i] = 4.0;
+                audio.outputs[1][i] = 4.0;
+            }
+            k += 1.0;
+        }
+        ether_core::ProcessStatus::Continue
+    }
+}
+
+#[test]
+fn clicks_line_up_with_the_audio_under_pdc() {
+    const LATENCY: usize = 700;
+    let run = |impulses: bool, metronome: bool| {
+        let mut p = create(config());
+        let src = p
+            .handle
+            .add_node(Box::new(BeatImpulse { on: impulses }))
+            .unwrap();
+        let delay = p.handle.add_node(Box::new(Delay::new(LATENCY))).unwrap();
+        let mut d = graph(vec![tp(0.0, 120.0, TempoCurve::Step)], vec![]);
+        d.metronome = metronome;
+        d.tracks.push(with_chain(
+            track(
+                tid(2),
+                ether_core::protocol::model::TrackKind::Audio,
+                Some(tid(1)),
+            ),
+            &[src, delay],
+        ));
+        p.handle.publish(d).unwrap();
+        p.handle.transport(TransportControl::Play).unwrap();
+        // Let the graph (and its latency) land before counting.
+        render(&mut p.engine, 1, 1);
+        assert_eq!(p.handle.latency() as usize, LATENCY);
+        let (l, _) = render(&mut p.engine, 24_000 * 4, 256);
+        l
+    };
+    let audio = run(true, false);
+    let clicks = run(false, true);
+    let hits: Vec<usize> = audio
+        .iter()
+        .enumerate()
+        .filter(|(_, s)| **s != 0.0)
+        .map(|(i, _)| i)
+        .collect();
+    let want: Vec<usize> = (0..4).map(|b| b * 24_000 + LATENCY - 1).collect();
+    assert_eq!(hits, want, "the latent track's beats");
+    assert_eq!(
+        positions(&clicks),
+        want,
+        "clicks are delayed like the audio"
+    );
+}

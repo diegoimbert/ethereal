@@ -6,7 +6,7 @@ mod common;
 use assert_no_alloc::{AllocDisabler, assert_no_alloc};
 use common::*;
 use ether_core::graph::MetronomeDesc;
-use ether_core::protocol::model::{Beats, MetronomeSound, TempoCurve, TimeSignature};
+use ether_core::protocol::model::{Beats, MetronomeSound, TempoCurve, TimeSignature, TrackKind};
 use ether_core::tempo::{TempoPointDesc, TimeSignatureDesc};
 use ether_core::{Engine, RenderGraphDesc, TransportControl, create};
 
@@ -62,16 +62,19 @@ fn graph(version: u64, sound: MetronomeSound, count_in_end: Option<f64>) -> Rend
 #[test]
 fn metronome_never_allocates() {
     let mut p = create(config());
-    p.handle
-        .publish(graph(1, MetronomeSound::Classic, None))
-        .unwrap();
+    // A latent track: clicks wait in the pending queue for the PDC latency.
+    let delay = p.handle.add_node(Box::new(Delay::new(3000))).unwrap();
+    let latent = with_chain(track(tid(2), TrackKind::Audio, Some(tid(1))), &[delay]);
+    let mut g = graph(1, MetronomeSound::Classic, None);
+    g.tracks.push(latent.clone());
+    p.handle.publish(g).unwrap();
     p.handle.transport(TransportControl::Play).unwrap();
     run(&mut p.engine, 400, BLOCK);
     run(&mut p.engine, 400, 37);
 
-    p.handle
-        .publish(graph(2, MetronomeSound::Wood, None))
-        .unwrap();
+    let mut g = graph(2, MetronomeSound::Wood, None);
+    g.tracks.push(latent.clone());
+    p.handle.publish(g).unwrap();
     p.handle
         .transport(TransportControl::Locate {
             position: Beats(3.3),

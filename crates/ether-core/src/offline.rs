@@ -14,6 +14,7 @@ use ether_protocol::model::Beats;
 
 use crate::config::EngineConfig;
 use crate::engine::{Engine, EngineError, EngineHandle, GarbageCollector, create};
+use crate::graph::RenderGraphDesc;
 use crate::meter::EngineOutputs;
 use crate::transport::TransportControl;
 
@@ -45,9 +46,19 @@ impl OfflineRenderer {
         }
     }
 
-    /// Add nodes/sources and publish the graph here, like on a live engine.
+    /// Add nodes/sources here, like on a live engine. Publish with
+    /// [`OfflineRenderer::publish`] (which silences the metronome), not
+    /// `handle().publish`.
     pub fn handle(&mut self) -> &mut EngineHandle {
         &mut self.handle
+    }
+
+    /// Publish the graph to render, with the metronome and any count-in click forced off
+    /// (exports never contain the click).
+    pub fn publish(&mut self, mut desc: RenderGraphDesc) -> Result<(), EngineError> {
+        desc.metronome = false;
+        desc.click.count_in_end = None;
+        self.handle.publish(desc)
     }
 
     pub fn sample_rate(&self) -> u32 {

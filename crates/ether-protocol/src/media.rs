@@ -37,10 +37,15 @@ pub enum MediaCommand {
         location: BrowseLocation,
         path: String,
     },
-    /// Audition a file (plays on the preview bus).
+    /// Audition a file (`media-preview` node): decoded engine-side and played by the
+    /// engine's preview voice straight to the hardware output (not through the tracks,
+    /// independent of the transport). Replaces any playing preview. Replies `Unit` once the
+    /// preview is queued; `MediaEvent::PreviewStarted` follows, then exactly one
+    /// `MediaEvent::PreviewEnded` (end of file, `StopPreview`, replaced, or failed).
     Preview {
         source: MediaSource,
     },
+    /// Stop the playing preview (no-op if none).
     StopPreview,
     /// Start uploading a file from the UI machine. `upload` is a client-chosen id (ULID).
     BeginUpload {
@@ -164,4 +169,26 @@ pub enum MediaEvent {
         upload: String,
         received: f64,
     },
+    /// A preview started playing (`media-preview`).
+    PreviewStarted {
+        source: MediaSource,
+    },
+    /// The preview of `source` ended; the UI resets its "previewing" state.
+    PreviewEnded {
+        source: MediaSource,
+        reason: PreviewEndReason,
+    },
+}
+
+/// Why a preview ended.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, TS)]
+pub enum PreviewEndReason {
+    /// Played to the end of the file.
+    Finished,
+    /// `Media::StopPreview`.
+    Stopped,
+    /// Another `Media::Preview` replaced it.
+    Replaced,
+    /// Decoding or playback failed (a notification carries the message).
+    Failed,
 }

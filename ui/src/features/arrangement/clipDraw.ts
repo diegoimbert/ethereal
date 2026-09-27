@@ -90,6 +90,8 @@ export interface WaveformSource {
   toSeconds: (contentBeat: Beats) => number;
   /** Media length in frames (nothing is drawn past it). */
   frames: number;
+  /** Reversed clip (clip-editing): source times are on the reversed media, frame `f` reads `frames - f`. */
+  reversed?: boolean;
   level: number;
   tile: (index: number) => PeakData | null;
 }
@@ -109,8 +111,9 @@ export function drawWaveform(ctx: CanvasRenderingContext2D, area: DrawArea, src:
     const seg = segs[si];
     if (!seg || t < seg.t0 || t >= seg.t1) continue;
     const c = seg.c0 + (t - seg.t0);
-    const f0 = Math.floor(src.toSeconds(c) * src.sampleRate);
-    const f1 = Math.ceil(src.toSeconds(c + bpp) * src.sampleRate);
+    let f0 = Math.floor(src.toSeconds(c) * src.sampleRate);
+    let f1 = Math.ceil(src.toSeconds(c + bpp) * src.sampleRate);
+    if (src.reversed) [f0, f1] = [src.frames - f1, src.frames - f0];
     if (f0 >= src.frames || f1 <= 0) continue;
     const p = peakRange(Math.max(0, f0), Math.min(src.frames, f1), src.level, src.tile);
     if (!p) {

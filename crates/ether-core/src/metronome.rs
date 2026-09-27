@@ -19,6 +19,8 @@
 //!   and its average rate (exact for constant tempo, quadratic fit for ramps). A beat
 //!   starts its click on the first sample at or after it. Bars restart at every signature
 //!   change; the first beat of a bar is accented when `desc.accent`.
+//! - **Latency**: `render` gets the graph's output latency (PDC); a beat's click is emitted that
+//!   many samples after the sub-block crosses the beat, so it lines up with the audio.
 //! - **Sound**: synthesized once in [`Metronome::new`] (one normal + one accent buffer per
 //!   [`MetronomeSound`]), scaled by `desc.volume`. A new click cuts the previous one.
 //!
@@ -108,23 +110,13 @@ impl Metronome {
     /// `out[ch][offset..offset + frames]` (planar hardware outputs; channels may be shorter:
     /// clamp). `enabled` = `RenderGraphDesc::metronome`. Called by `engine.rs` once per
     /// sub-block (already wired).
-    pub fn render(
-        &mut self,
-        desc: &MetronomeDesc,
-        enabled: bool,
-        info: &TransportInfo,
-        offset: usize,
-        frames: usize,
-        out: &mut [&mut [f32]],
-    ) {
-        self.render_latent(desc, enabled, info, 0, offset, frames, out);
-    }
-
-    /// [`Self::render`] with the graph's output latency (samples, PDC included): the audio
-    /// of timeline position `p` reaches the hardware `latency` samples after `p` is
-    /// rendered, so each click is emitted `latency` samples after its beat.
+    ///
+    /// `latency` is the graph's total output latency (samples, PDC included): the audio of
+    /// timeline position `p` reaches the hardware `latency` samples after `p` is rendered,
+    /// so the click of a beat is emitted `latency` samples after the sample where the
+    /// sub-block timeline crosses it (pending clicks wait in a preallocated queue).
     #[allow(clippy::too_many_arguments)]
-    fn render_latent(
+    pub fn render(
         &mut self,
         desc: &MetronomeDesc,
         enabled: bool,
@@ -371,7 +363,7 @@ mod tests {
             let i = info(pos, 120.0, t);
             let off = t as usize;
             let mut outs: [&mut [f32]; 2] = [&mut l, &mut r];
-            m.render_latent(desc, enabled, &i, latency, off, n, &mut outs);
+            m.render(desc, enabled, &i, latency, off, n, &mut outs);
             pos += i.beats_per_sample * n as f64;
             t += n as u64;
         }
@@ -406,7 +398,7 @@ mod tests {
         let mut m = Metronome::new(SR);
         let mut l = vec![0.0f32; 512];
         let mut outs: [&mut [f32]; 1] = [&mut l];
-        m.render(&desc, true, &TransportInfo::STOPPED, 0, 512, &mut outs);
+        m.render(&desc, true, &TransportInfo::STOPPED, 0, 0, 512, &mut outs);
         assert!(l.iter().all(|s| *s == 0.0));
     }
 
@@ -416,7 +408,7 @@ mod tests {
         let mut m = Metronome::new(SR);
         let mut l = vec![0.0f32; 100];
         let mut outs: [&mut [f32]; 1] = [&mut l];
-        m.render(&desc, true, &info(0.0, 120.0, 0), 0, 512, &mut outs);
+        m.render(&desc, true, &info(0.0, 120.0, 0), 0, 0, 512, &mut outs);
         assert!(l[0] != 0.0);
     }
 
