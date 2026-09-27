@@ -31,7 +31,9 @@ macro_rules! tables {
             Media => media,
             Marker => markers,
             MidiMapping => midi_mappings,
-            DrumPad => drum_pads
+            DrumPad => drum_pads,
+            ChatMessage => chat,
+            PinnedNote => pinned_notes
         }
     };
 }
@@ -68,6 +70,31 @@ fn check_beats_nonneg(what: &str, b: Beats) -> Result<(), ModelError> {
             "{what} must be a finite beat >= 0, got {}",
             b.0
         )));
+    }
+    Ok(())
+}
+
+fn check_text(what: &str, text: &str, max_chars: usize) -> Result<(), ModelError> {
+    if text.trim().is_empty() {
+        return Err(invalid(format!("{what} text is empty")));
+    }
+    let n = text.chars().count();
+    if n > max_chars {
+        return Err(invalid(format!(
+            "{what} text is {n} characters (max {max_chars})"
+        )));
+    }
+    Ok(())
+}
+
+fn check_author(a: &Author) -> Result<(), ModelError> {
+    if a.name.chars().count() > AUTHOR_NAME_MAX_CHARS {
+        return Err(invalid(format!(
+            "author name is longer than {AUTHOR_NAME_MAX_CHARS} characters"
+        )));
+    }
+    if let Some(c) = a.color {
+        check_color(c)?;
     }
     Ok(())
 }
@@ -404,6 +431,18 @@ fn update_mapping(
     })
 }
 
+fn update_pinned_note(
+    n: &mut PinnedNote,
+    c: PinnedNoteChange,
+) -> Result<PinnedNoteChange, ModelError> {
+    use PinnedNoteChange as C;
+    Ok(match c {
+        C::Position(v) => swap!(C::Position, n.position, v),
+        C::Text(v) => swap!(C::Text, n.text, v),
+        C::Resolved(v) => swap!(C::Resolved, n.resolved, v),
+    })
+}
+
 fn update_pad(p: &mut DrumPad, c: DrumPadChange) -> Result<DrumPadChange, ModelError> {
     use DrumPadChange as C;
     Ok(match c {
@@ -452,6 +491,7 @@ impl EntityUpdate {
             Self::Marker { id, .. } => EntityKey::Marker(*id),
             Self::MidiMapping { id, .. } => EntityKey::MidiMapping(*id),
             Self::DrumPad { id, .. } => EntityKey::DrumPad(*id),
+            Self::PinnedNote { id, .. } => EntityKey::PinnedNote(*id),
         }
     }
 }
@@ -515,7 +555,15 @@ impl Project {
                 if self.contains(key) {
                     return Err(ModelError::AlreadyExists(key));
                 }
-                self.upsert_unchecked(entity.clone());
+                match entity {
+                    // Chat order = log order (social.rs): `seq: 0` takes the next one.
+                    Entity::ChatMessage(m) if m.seq == 0 => {
+                        let mut m = m.clone();
+                        m.seq = 1 + self.chat.values().map(|o| o.seq).max().unwrap_or(0);
+                        self.chat.insert(m.id, m);
+                    }
+                    _ => self.upsert_unchecked(entity.clone()),
+                }
                 Ok(Op::Remove { key })
             }
             Op::Remove { key } => {
@@ -602,6 +650,13 @@ impl Project {
                     U::DrumPad { id, change } => U::DrumPad {
                         id,
                         change: update_pad(self.drum_pads.get_mut(&id).ok_or_else(nf)?, change)?,
+                    },
+                    U::PinnedNote { id, change } => U::PinnedNote {
+                        id,
+                        change: update_pinned_note(
+                            self.pinned_notes.get_mut(&id).ok_or_else(nf)?,
+                            change,
+                        )?,
                     },
                 };
                 Ok(Op::Update { update: inverse })
@@ -876,6 +931,22 @@ impl Project {
             }
             EntityKey::MidiMapping(id) => self.check_mapping(&self.midi_mappings[&id]),
             EntityKey::DrumPad(id) => self.check_pad(&self.drum_pads[&id]),
+            EntityKey::ChatMessage(id) => {
+                let m = &self.chat[&id];
+                check_author(&m.author)?;
+                check_text("chat message", &m.text, CHAT_TEXT_MAX_CHARS)
+            }
+            EntityKey::PinnedNote(id) => {
+                let n = &self.pinned_notes[&id];
+                check_author(&n.author)?;
+                check_text("note", &n.text, NOTE_TEXT_MAX_CHARS)?;
+                let p = &n.position;
+                check_beats_nonneg("note position", p.beats)?;
+                if !p.y.is_finite() {
+                    return Err(invalid("note y must be finite"));
+                }
+                check_unit("note y", f64::from(p.y))
+            }
         }
     }
 
@@ -1261,7 +1332,9 @@ impl Project {
             | EntityKey::TimeSignature(_)
             | EntityKey::WarpMarker(_)
             | EntityKey::Marker(_)
-            | EntityKey::MidiMapping(_) => None,
+            | EntityKey::MidiMapping(_)
+            | EntityKey::ChatMessage(_)
+            | EntityKey::PinnedNote(_) => None,
         }
     }
 

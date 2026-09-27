@@ -108,6 +108,10 @@ define_ids! {
     MidiMappingId => "MidiMapping";
     /// A pad of a drum rack device. Roadmap v2 (`drum-rack`).
     DrumPadId => "DrumPad";
+    /// A chat message of the project journal. base-62 (`collab-social`).
+    ChatMessageId => "ChatMessage";
+    /// A note pinned on the arrangement. base-62 (`collab-social`).
+    PinnedNoteId => "PinnedNote";
 }
 
 /// Identifies a project (stable across saves, renames and machines). UUIDv7.

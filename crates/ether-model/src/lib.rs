@@ -4,7 +4,8 @@
 //! - Entities: [`track`], [`clip`], [`note`], [`automation`], [`device`], [`mixer`],
 //!   [`tempo`], [`warp`], [`media`], gathered in [`project::Project`].
 //! - Roadmap v2 entities (`.ether` v3): [`marker`], [`midi_map`], [`drum_rack`]; the
-//!   reserved collaboration envelope is [`collab`].
+//!   reserved collaboration envelope is [`collab`]; chat and pinned notes are [`social`]
+//!   (base-62).
 //! - [`op`]: the op set (the only way to mutate), [`history`]: undo/redo,
 //!   [`patch`]: UI mirror updates, [`file`]: `.ether` format + migrations.
 //!
@@ -35,6 +36,7 @@ pub mod project;
 pub mod recording;
 pub mod scale;
 pub use scale::*;
+pub mod social;
 pub mod tempo;
 pub mod track;
 pub mod value;
@@ -57,6 +59,7 @@ pub use note::*;
 pub use op::*;
 pub use patch::*;
 pub use project::*;
+pub use social::*;
 pub use tempo::*;
 pub use track::*;
 pub use value::*;

@@ -53,6 +53,12 @@ pub struct Project {
     pub midi_mappings: BTreeMap<MidiMappingId, MidiMapping>,
     /// Drum rack pads (roadmap v2, `drum-rack`; `.ether` v3).
     pub drum_pads: BTreeMap<DrumPadId, DrumPad>,
+    /// Chat journal (base-62, `collab-social`; absent in older files).
+    #[serde(default)]
+    pub chat: BTreeMap<ChatMessageId, ChatMessage>,
+    /// Notes pinned on the arrangement (base-62, `collab-social`; absent in older files).
+    #[serde(default)]
+    pub pinned_notes: BTreeMap<PinnedNoteId, PinnedNote>,
 }
 
 /// Project-wide singleton settings (a single LWW register per field).
@@ -166,6 +172,8 @@ impl Project {
             markers: BTreeMap::new(),
             midi_mappings: BTreeMap::new(),
             drum_pads: BTreeMap::new(),
+            chat: BTreeMap::new(),
+            pinned_notes: BTreeMap::new(),
         }
     }
 
@@ -202,7 +210,8 @@ impl Project {
     ///
     /// Order: media, tracks (by nesting depth), tempo points, time signatures, markers,
     /// track-chain devices, drum pads, pad-chain devices, sends, clips, notes, warp markers,
-    /// automation lanes, automation points, MIDI mappings.
+    /// automation lanes, automation points, MIDI mappings, chat messages (by `seq`), pinned
+    /// notes.
     pub fn entities(&self) -> Vec<Entity> {
         let depth = |t: &Track| {
             let mut d = 0;
@@ -267,6 +276,13 @@ impl Project {
                 .cloned()
                 .map(Entity::MidiMapping),
         );
+        out.extend(
+            self.chat_ordered()
+                .into_iter()
+                .cloned()
+                .map(Entity::ChatMessage),
+        );
+        out.extend(self.pinned_notes.values().cloned().map(Entity::PinnedNote));
         out
     }
 

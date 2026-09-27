@@ -13,6 +13,7 @@ use crate::media::MediaRef;
 use crate::midi_map::MidiMapping;
 use crate::mixer::TrackSend;
 use crate::note::Note;
+use crate::social::{ChatMessage, PinnedNote};
 use crate::tempo::{TempoPoint, TimeSignaturePoint};
 use crate::track::Track;
 use crate::warp::WarpMarker;
@@ -38,6 +39,9 @@ pub enum Entity {
     Marker(Marker),
     MidiMapping(MidiMapping),
     DrumPad(DrumPad),
+    // --- base-62 (`collab-social`; tables `#[serde(default)]`, no version bump) ---
+    ChatMessage(ChatMessage),
+    PinnedNote(PinnedNote),
 }
 
 /// The key of any entity.
@@ -58,6 +62,8 @@ pub enum EntityKey {
     Marker(MarkerId),
     MidiMapping(MidiMappingId),
     DrumPad(DrumPadId),
+    ChatMessage(ChatMessageId),
+    PinnedNote(PinnedNoteId),
 }
 
 impl Entity {
@@ -77,6 +83,8 @@ impl Entity {
             Self::Marker(e) => EntityKey::Marker(e.id),
             Self::MidiMapping(e) => EntityKey::MidiMapping(e.id),
             Self::DrumPad(e) => EntityKey::DrumPad(e.id),
+            Self::ChatMessage(e) => EntityKey::ChatMessage(e.id),
+            Self::PinnedNote(e) => EntityKey::PinnedNote(e.id),
         }
     }
 }
