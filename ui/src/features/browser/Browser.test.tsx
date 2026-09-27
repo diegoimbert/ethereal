@@ -80,53 +80,76 @@ describe("Browser", () => {
     expect(screen.getByRole("searchbox", { name: "Search files" })).toHaveValue("");
   });
 
-  it("imports on double-click and shows the file in project media", async () => {
+  it("previews on click (Enter too) and stops on a second click, without importing", async () => {
     await renderWithMock(<Browser />);
     const list = await files();
     fireEvent.click(await list.findByRole("button", { name: "Drums" }));
-    fireEvent.doubleClick(await list.findByRole("button", { name: "Kick.wav" }));
-    await waitFor(() => expect(mediaNames()).toContain("Kick.wav"));
-    expect((await screen.findByRole("status")).textContent).toBe("Imported Kick.wav");
-
-    fireEvent.click(screen.getByRole("tab", { name: "Project media" }));
-    const row = await list.findByRole("button", { name: /^\w+-Kick\.wav$/ });
-    // Already in the project: no import button.
-    expect(within(row).queryByRole("button", { name: /Import/ })).toBeNull();
+    const snare = await list.findByRole("button", { name: "Snare.wav" });
+    const before = mediaNames().length;
+    fireEvent.click(snare);
+    await waitFor(() => expect(snare).toHaveAttribute("aria-pressed", "true"));
+    fireEvent.click(snare);
+    await waitFor(() => expect(snare).toHaveAttribute("aria-pressed", "false"));
+    fireEvent.keyDown(snare, { key: "Enter" });
+    await waitFor(() => expect(snare).toHaveAttribute("aria-pressed", "true"));
+    expect(mediaNames()).toHaveLength(before);
+    expect(list.queryByRole("button", { name: /^(Preview|Import) / })).toBeNull();
   });
 
-  it("imports with the + button and Enter", async () => {
+  it("walks the rows with the arrow keys, previewing audio files, and opens / leaves folders", async () => {
     await renderWithMock(<Browser />);
     const list = await files();
-    fireEvent.click(await list.findByRole("button", { name: "Vocals" }));
-    fireEvent.click(await list.findByRole("button", { name: "Import Chop 1.wav" }));
-    await waitFor(() => expect(mediaNames()).toContain("Chop 1.wav"));
-    fireEvent.keyDown(list.getByRole("button", { name: "Phrase 2.wav" }), { key: "Enter" });
-    await waitFor(() => expect(mediaNames()).toContain("Phrase 2.wav"));
-  });
-
-  it("previews and stops a preview", async () => {
-    await renderWithMock(<Browser />);
-    const list = await files();
-    fireEvent.click(await list.findByRole("button", { name: "Drums" }));
-    fireEvent.click(await list.findByRole("button", { name: "Preview Snare.wav" }));
-    fireEvent.click(await list.findByRole("button", { name: "Stop preview of Snare.wav" }));
-    expect(await list.findByRole("button", { name: "Preview Snare.wav" })).toBeInTheDocument();
+    const drums = await list.findByRole("button", { name: "Drums" });
+    drums.focus();
+    fireEvent.keyDown(drums, { key: "ArrowRight" });
+    const parent = await list.findByRole("button", { name: "Parent folder" });
+    await waitFor(() => expect(parent).toHaveFocus());
+    const kick = await list.findByRole("button", { name: "Kick.wav" });
+    const snare = list.getByRole("button", { name: "Snare.wav" });
+    const rows = list.getAllByRole("button");
+    const k = rows.indexOf(kick);
+    // Walk down from the parent row to the kick: it plays; the next row replaces it.
+    for (let i = 0; i < k; i++) fireEvent.keyDown(document.activeElement!, { key: "ArrowDown" });
+    expect(kick).toHaveFocus();
+    await waitFor(() => expect(kick).toHaveAttribute("aria-pressed", "true"));
+    expect(rows[k + 1]).toBe(snare);
+    fireEvent.keyDown(kick, { key: "ArrowDown" });
+    expect(snare).toHaveFocus();
+    await waitFor(() => expect(snare).toHaveAttribute("aria-pressed", "true"));
+    expect(kick).toHaveAttribute("aria-pressed", "false");
+    // Moving back onto a playing row keeps it playing (no toggle).
+    fireEvent.click(kick);
+    await waitFor(() => expect(kick).toHaveAttribute("aria-pressed", "true"));
+    fireEvent.keyDown(kick, { key: "ArrowUp" });
+    fireEvent.keyDown(document.activeElement!, { key: "ArrowDown" });
+    expect(kick).toHaveFocus();
+    await waitFor(() => expect(kick).toHaveAttribute("aria-pressed", "true"));
+    // Home / End clamp to the ends; ← goes up a folder.
+    fireEvent.keyDown(kick, { key: "Home" });
+    expect(parent).toHaveFocus();
+    fireEvent.keyDown(parent, { key: "ArrowUp" });
+    expect(parent).toHaveFocus();
+    fireEvent.keyDown(parent, { key: "ArrowLeft" });
+    const back = await list.findByRole("button", { name: "Drums" });
+    await waitFor(() => expect(list.getAllByRole("button")[0]).toHaveFocus());
+    expect(back).toBeInTheDocument();
   });
 
   it("follows replaced previews and resets the row when the preview ends", async () => {
     const { mock } = await renderWithMock(<Browser />);
     const list = await files();
     fireEvent.click(await list.findByRole("button", { name: "Drums" }));
-    fireEvent.click(await list.findByRole("button", { name: "Preview Kick.wav" }));
-    await list.findByRole("button", { name: "Stop preview of Kick.wav" });
+    const kick = await list.findByRole("button", { name: "Kick.wav" });
+    const snare = list.getByRole("button", { name: "Snare.wav" });
+    fireEvent.click(kick);
+    await waitFor(() => expect(kick).toHaveAttribute("aria-pressed", "true"));
     // Replaced: the old row resets, the new one is previewing.
-    fireEvent.click(list.getByRole("button", { name: "Preview Snare.wav" }));
-    await list.findByRole("button", { name: "Stop preview of Snare.wav" });
-    expect(list.getByRole("button", { name: "Preview Kick.wav" })).toBeInTheDocument();
+    fireEvent.click(snare);
+    await waitFor(() => expect(snare).toHaveAttribute("aria-pressed", "true"));
+    expect(kick).toHaveAttribute("aria-pressed", "false");
     // Played to its end (PreviewEnded { Finished }): the row resets by itself.
     act(() => mock.tick(16 * (PREVIEW_STEPS + 2)));
-    expect(await list.findByRole("button", { name: "Preview Snare.wav" })).toBeInTheDocument();
-    expect(list.queryByRole("button", { name: /^Stop preview/ })).toBeNull();
+    await waitFor(() => expect(snare).toHaveAttribute("aria-pressed", "false"));
   });
 
   it("puts a media drag payload on audio files", async () => {
@@ -155,7 +178,7 @@ describe("Browser", () => {
     fireEvent.click(await list.findByRole("button", { name: "Drums" }));
     const row = await list.findByRole("button", { name: "Kick.wav" });
     mock.dispose(); // every further command fails
-    fireEvent.doubleClick(row);
+    fireEvent.click(row);
     const alert = await screen.findByRole("alert");
     expect(alert.textContent).toMatch(/disposed/);
     fireEvent.click(alert);
