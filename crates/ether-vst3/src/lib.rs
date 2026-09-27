@@ -1,9 +1,40 @@
 //! VST3 plugin hosting (native only). Owned by the `vst3` node; see `docs/PLUGIN-FORMATS.md`.
 //!
-//! [`Vst3Format`] is the [`PluginFormatHost`] for `.vst3` bundles. Discovery (search paths,
-//! bundle walk) and the id convention ([`class_id_to_string`] / [`parse_class_id`]) are
-//! real; scanning and instantiation return [`PluginError::Unsupported`] until the `vst3`
-//! node implements them (COM hosting via the `vst3` crate).
+//! [`Vst3Format`] is the [`PluginFormatHost`] for `.vst3` bundles, built on the `vst3`
+//! crate's COM bindings:
+//! - discovery: search paths and the bundle walk (no loading);
+//! - [`scan_bundle`]: load the module (`bundleEntry`/`ModuleEntry`/`InitDll` +
+//!   `GetPluginFactory`, `moduleinfo.json` when present) and list its audio-module classes;
+//!   runs only in `ether-plugin-scanner`;
+//! - [`instantiate`]: a [`Vst3Plugin`] (`PluginController`: `IComponent` +
+//!   `IEditController`, single-component or separate and connected via `IConnectionPoint`)
+//!   whose `activate` returns a [`Vst3Node`] (`PluginNode`: `IAudioProcessor::process` with
+//!   pre-allocated `ProcessData`, sample-accurate `IParameterChanges`, notes as `IEventList`,
+//!   `ProcessContext` from `TransportInfo`; no allocation on the audio thread).
+//!
+//! # Threading
+//! Like `ether-clap`: [`Vst3Plugin`] is `!Send` and lives on the plugin main thread (VST3's
+//! "UI thread"); call `poll` regularly. The editor (an `IPlugView` in a host `NSWindow`)
+//! needs that thread to be the process main thread on macOS; other OSes report no editor.
+//!
+//! # Parameters
+//! `ParamId` = VST3 `ParamID`. Plain values follow `docs/PLUGIN-FORMATS.md`: continuous
+//! params are their normalized value (0..=1), discrete params (`stepCount = n`) their step
+//! index 0..=n (see [`params::to_plain`] / [`params::to_normalized`]). GUI edits
+//! (`IComponentHandler::performEdit`) come back from `poll` as `ParamEdited` (plain) with
+//! gesture notifications, and are forwarded to the processor. Values the processor receives
+//! (automation) are mirrored to the edit controller from `poll`. A value set while inactive
+//! (`set_param_value`) goes to the controller at once and to the processor with the first
+//! block after activation.
+//!
+//! # State
+//! `save_state` = component state + controller state (`IBStream` over memory) in one blob:
+//! `b"EthVST3\0"`, u32 LE version (1), then u32 LE length + bytes for each part.
+//!
+//! # Latency
+//! `IAudioProcessor::getLatencySamples` at activation; `restartComponent(kLatencyChanged)`
+//! becomes `LatencyChanged` (plus `RestartRequested` while active, since VST3 applies it on
+//! re-activation).
 //!
 //! # Ids
 //! A VST3 plugin id is the audio-processor class id (`PClassInfo::cid`) in the SDK's
@@ -15,13 +46,39 @@
 //! host's plugin catalog.
 #![cfg(not(target_arch = "wasm32"))]
 
+mod events;
+mod gui;
+mod host;
+mod module;
+mod node;
+pub mod params;
+mod plugin;
+mod scan;
+mod stream;
+#[doc(hidden)]
+pub mod testing;
+
 use std::path::{Path, PathBuf};
 
 use ether_core::plugin::{PluginController, PluginError};
 use ether_core::protocol::model::PluginFormat;
 use ether_core::protocol::plugins::PluginDescriptor;
+use ether_plugin_host::PluginFormatHost;
 use ether_plugin_host::bundles::{self, BundleShape};
-use ether_plugin_host::{PluginFormatHost, unsupported};
+
+pub use node::Vst3Node;
+pub use plugin::Vst3Plugin;
+pub use scan::{
+    AUDIO_MODULE_CLASS, category_from_features, features_from_sub_categories, scan_bundle,
+};
+
+/// Instantiate a plugin in-process (plugin main thread).
+pub fn instantiate(
+    bundle: &Path,
+    plugin_id: &str,
+) -> Result<Box<dyn PluginController>, PluginError> {
+    Ok(Box::new(Vst3Plugin::load(bundle, plugin_id)?))
+}
 
 /// What a VST3 bundle looks like: a `.vst3` bundle folder on every OS (VST 3.6.10+), or a
 /// legacy single-file `.vst3` library on Windows/Linux. Bundle folders are not descended into
@@ -129,16 +186,14 @@ impl PluginFormatHost for Vst3Format {
         bundles::has_extension(target, BUNDLE_SHAPE.extension)
     }
     fn scan(&self, target: &Path) -> Result<Vec<PluginDescriptor>, PluginError> {
-        let _ = target;
-        Err(unsupported(PluginFormat::Vst3, "scanning"))
+        scan_bundle(target)
     }
     fn instantiate(
         &self,
         path: &Path,
         plugin_id: &str,
     ) -> Result<Box<dyn PluginController>, PluginError> {
-        let _ = (path, plugin_id);
-        Err(unsupported(PluginFormat::Vst3, "loading"))
+        instantiate(path, plugin_id)
     }
 }
 
@@ -174,19 +229,29 @@ mod tests {
     }
 
     #[test]
-    fn stub_reports_unsupported() {
+    fn format_shape() {
         let f = Vst3Format;
         assert_eq!(f.format(), PluginFormat::Vst3);
         assert!(f.claims(Path::new("/p/A.vst3")));
         assert!(f.claims(Path::new("/p/A.VST3")));
         assert!(!f.claims(Path::new("/p/A.clap")));
         assert!(!default_search_paths().is_empty());
-        let e = f.scan(Path::new("/p/A.vst3")).unwrap_err();
+    }
+
+    #[test]
+    fn missing_and_empty_bundles() {
+        let dir = testing::temp_dir("vst3-bad-bundles");
+        let e = Vst3Format.scan(&dir.join("Missing.vst3")).unwrap_err();
+        assert!(matches!(e, PluginError::NotFound(_)), "{e:?}");
+        let empty = dir.join("Empty.vst3");
+        std::fs::create_dir_all(empty.join("Contents")).unwrap();
+        let e = Vst3Format.scan(&empty).unwrap_err();
         assert!(matches!(e, PluginError::Unsupported(_)), "{e:?}");
-        let e = f
-            .instantiate(Path::new("/p/A.vst3"), &"0".repeat(32))
+        let e = Vst3Format
+            .instantiate(&empty, "not-a-class-id")
             .err()
             .unwrap();
-        assert!(matches!(e, PluginError::Unsupported(_)), "{e:?}");
+        assert!(matches!(e, PluginError::NotFound(_)), "{e:?}");
+        let _ = std::fs::remove_dir_all(dir);
     }
 }
