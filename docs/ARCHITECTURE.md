@@ -15,7 +15,7 @@ The UI runs unchanged in Tauri (desktop) and in a browser; the engine core compi
 | Storage | **All file handling is engine-side**; the UI may run on another machine and never reads/writes files or sends paths. A `ProjectStore` (native: folders on disk; web: OPFS inside the engine Worker) keeps `<projects_root>/<project-uuid>/{project.ether, media/, cache/}`; imported audio is copied into `media/` (self-contained projects); the display name lives in the file. `projects_root` from engine config: `~/Documents/Ethereal/Projects`, or `<data_dir>/ethereal-dev/<instance>/projects` in dev. The sample browser lists engine-visible locations only (library folders + project media). |
 | Protocol | All UI↔engine traffic is serializable commands/events in `ether-protocol`. TS types generated from Rust (`ts-rs`), never hand-written. |
 | UI | React + TS. `EngineTransport` interface with `TauriTransport`, `WasmTransport`, `MockTransport`. SVG for automation, `<canvas>` per clip for waveforms (peak mipmaps computed in Rust). Visual polish/perf later. |
-| Plugins | CLAP only. Floating plugin windows (no embedding). Scanner always out-of-process. Plugin state blob is authoritative on load; params are mirrored in the document for UI/automation. |
+| Plugins | CLAP, VST3 and AU (macOS), each behind the format-agnostic `PluginFormatHost` trait (`ether-plugin-host`; see docs/PLUGIN-FORMATS.md). Floating plugin windows (no embedding). Scanner always out-of-process. Plugin state blob is authoritative on load; params are mirrored in the document for UI/automation. |
 | Built-in devices | Sampler, basic-shape synth, compressor, delay. Minimal. |
 | Time-stretch | Signalsmith Stretch behind a `Stretcher` trait (native first; web later via its JS/WASM build). Warp modes: Repitch + Complex (Signalsmith) only. |
 | Automation | Enabled lanes always drive their target; no "manual move overrides automation / re-enable" in v0.1. |
@@ -42,7 +42,10 @@ crates/
   ether-controller      commands → model → patches; model → render snapshot (native + wasm)
   ether-stretch         Stretcher trait + Signalsmith impl                  (native; trait wasm)
   ether-clap            CLAP hosting (clack), PluginNode in-process         (native)
-  ether-plugin-scanner  scanner binary                                      (native)
+  ether-plugin-host     PluginFormatHost trait, format registry, scan runner (native)
+  ether-vst3            VST3 hosting                                        (native)
+  ether-au              Audio Unit hosting               (native; functional on macOS only)
+  ether-plugin-scanner  scanner binary (all formats)                        (native)
   ether-sandbox         out-of-process PluginNode + helper binary           (native)
   ether-native          cpal host, RT thread, disk streaming, GC thread     (native)
   ether-wasm            wasm-bindgen: controller worker + worklet engine    (wasm)

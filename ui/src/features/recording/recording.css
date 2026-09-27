@@ -1,0 +1,98 @@
+.eth-rec {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-sm);
+  font-size: var(--eth-fs-sm);
+}
+.eth-rec__indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--eth-space-xs);
+  min-width: 4ch;
+  color: var(--eth-color-record);
+  font-family: var(--eth-font-mono);
+  font-weight: 600;
+}
+.eth-rec__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--eth-color-record);
+  animation: eth-rec-blink 1s steps(2, start) infinite;
+}
+@keyframes eth-rec-blink {
+  to {
+    visibility: hidden;
+  }
+}
+.eth-rec__record-wrap {
+  display: inline-flex;
+}
+.eth-rec__record,
+.eth-rec__arm {
+  color: var(--eth-color-record);
+}
+.eth-rec__record[aria-pressed="true"],
+.eth-rec__arm[aria-pressed="true"] {
+  background: var(--eth-color-record);
+  color: var(--eth-color-text-inverse);
+}
+.eth-rec__field {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--eth-space-xs);
+  color: var(--eth-color-text-dim);
+}
+.eth-rec select {
+  height: 22px;
+  border: 1px solid var(--eth-color-border);
+  border-radius: var(--eth-radius-sm);
+  background: var(--eth-color-bg-inset);
+  color: var(--eth-color-text);
+  font-size: var(--eth-fs-sm);
+}
+.eth-rec__panel {
+  position: absolute;
+  top: calc(100% + var(--eth-space-sm));
+  right: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-md);
+  min-width: 320px;
+  padding: var(--eth-space-md);
+  border: 1px solid var(--eth-color-border-light);
+  border-radius: var(--eth-radius-md);
+  background: var(--eth-color-bg-raised);
+  box-shadow: 0 4px 16px rgb(0 0 0 / 40%);
+}
+.eth-rec__tracks {
+  border-collapse: collapse;
+}
+.eth-rec__tracks th {
+  color: var(--eth-color-text-dim);
+  font-weight: normal;
+  text-align: left;
+}
+.eth-rec__tracks td,
+.eth-rec__tracks th {
+  padding: var(--eth-space-xs) var(--eth-space-sm);
+}
+.eth-rec__track-name {
+  max-width: 14ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.eth-rec__note {
+  margin: 0;
+  color: var(--eth-color-text-dim);
+}
+.eth-rec__error {
+  border: none;
+  background: none;
+  color: var(--eth-color-record);
+  cursor: pointer;
+  font-size: var(--eth-fs-xs);
+}
