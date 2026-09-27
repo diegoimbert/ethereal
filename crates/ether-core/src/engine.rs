@@ -161,6 +161,9 @@ struct TransportRt {
     all_notes_off: bool,
     /// `Node::reset` on every node before the next sub-block.
     reset_nodes: bool,
+    /// Note chasing on the next played sub-block: start the clip notes already sounding at
+    /// the position (after Play, Locate or a loop jump).
+    chase_notes: bool,
 }
 
 /// Create an engine. Non-RT (allocates every ring and table up front).
@@ -389,7 +392,12 @@ impl Engine {
     fn apply_transport(&mut self, control: TransportControl) {
         let t = &mut self.transport;
         match control {
-            TransportControl::Play => t.playing = true,
+            TransportControl::Play => {
+                if !t.playing {
+                    t.chase_notes = true;
+                }
+                t.playing = true;
+            }
             TransportControl::Stop => {
                 if t.playing {
                     t.release_notes = true;
@@ -402,6 +410,7 @@ impl Engine {
                 t.release_notes = true;
                 t.all_notes_off = true;
                 t.reset_nodes = true;
+                t.chase_notes = true;
             }
             TransportControl::SetRecording { enabled } => t.recording = enabled,
             TransportControl::SetLoop { enabled, region } => {
@@ -632,6 +641,9 @@ impl Engine {
                     let end = tdesc.clips.partition_point(|c| c.start < b1);
                     for clip in &tdesc.clips[..end] {
                         if matches!(clip.content, ClipContentDesc::Midi { .. }) {
+                            if transport.chase_notes {
+                                sched::chase_notes(clip, &timing, &mut sink);
+                            }
                             sched::schedule_notes(clip, &timing, &mut sink);
                         }
                     }
@@ -860,9 +872,11 @@ impl Engine {
         transport.reset_nodes = false;
         transport.sample_time += n as u64;
         if playing {
+            transport.chase_notes = false;
             if hit_loop {
                 transport.position = loop_start;
                 transport.release_notes = true;
+                transport.chase_notes = true;
             } else {
                 transport.position = b1;
             }

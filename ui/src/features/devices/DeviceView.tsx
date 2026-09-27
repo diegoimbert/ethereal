@@ -9,6 +9,7 @@ import { DEVICE_DRAG_TYPE, groupParams } from "./chainUtils";
 import { useDescriptor } from "./descriptors";
 import { useGestureSender, useSend } from "./gesture";
 import { ParamControl } from "./ParamControl";
+import { SampleSlot } from "./SampleSlot";
 
 export interface DeviceViewProps {
   device: Device;
@@ -109,6 +110,7 @@ export function DeviceView({ device, prev, moveRightBefore, onDropBefore }: Devi
           ✕
         </Button>
       </header>
+      <SampleSlot device={device} />
       <div className="eth-device__body">
         {descriptor ? (
           groupParams(descriptor.params).map(({ group, params }) => (

@@ -47,6 +47,12 @@ a {
   -webkit-user-drag: none;
 }
 
+/* WebKit (Tauri on macOS) won't start an HTML5 drag on a non-selectable element unless
+   it is explicitly draggable this way (sample browser rows, device headers). */
+[draggable="true"] {
+  -webkit-user-drag: element;
+}
+
 input,
 textarea,
 [contenteditable]:not([contenteditable="false"]) {
