@@ -20,8 +20,11 @@
 //! [`job::UNIT_FRAMES`] frames of resampling/peak scan/encoding, [`job::UNIT_BUILTINS`]
 //! built-in nodes or one plugin instance per unit); a tick runs units until
 //! [`TICK_BUDGET_MS`] elapsed (at most [`MAX_UNITS_PER_TICK`]), so the controller stays
-//! responsive whatever the export length. The only unbounded step is the final store write
-//! of each file (native disk I/O).
+//! responsive whatever the export length. A few steps still take time proportional to a
+//! file's length rather than to a unit: reading a media file from the store (one
+//! `ProjectStore::read`), the resamplers' final step (`IncrementalResampler::finish` trims
+//! and copies the output: a memory copy), and the final store write of each export file
+//! (native disk I/O).
 //!
 //! # Stem semantics
 //! Stems are one pass per listed track ([`job::stem_graph`]): the track's post-fader output

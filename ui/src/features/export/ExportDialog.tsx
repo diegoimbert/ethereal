@@ -114,6 +114,8 @@ function ExportPanel({
   // Downloads being pulled from the engine, by token: their bytes are only released
   // engine-side once they finished.
   const inflight = useRef(new Map<string, Promise<void>>());
+  // Downloads in flight: a new render would drop their engine-side bytes.
+  const [pulling, setPulling] = useState(0);
 
   const download = useCallback(
     (d: ExportDownload): Promise<void> => {
@@ -127,7 +129,9 @@ function ExportPanel({
         }
       })();
       inflight.current.set(d.token, p);
+      setPulling((n) => n + 1);
       void p.finally(() => {
+        setPulling((n) => n - 1);
         if (inflight.current.get(d.token) === p)
           inflight.current.delete(d.token);
       });
@@ -251,8 +255,12 @@ function ExportPanel({
               </Button>
               <Button
                 tone="accent"
-                disabled={problem !== null}
-                title={problem ?? undefined}
+                disabled={problem !== null || pulling > 0}
+                title={
+                  pulling > 0
+                    ? "Wait for the downloads to finish"
+                    : (problem ?? undefined)
+                }
                 onClick={() => void start()}
               >
                 Export

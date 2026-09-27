@@ -152,6 +152,10 @@ describe("ExportDialog", () => {
       mock.tick(16);
     });
     await within(dialog).findByTestId("export-done");
+    // A new render would drop the bytes being pulled: Export waits for the downloads.
+    expect(
+      within(dialog).getByRole("button", { name: "Export" }),
+    ).toBeDisabled();
     fireEvent.click(within(dialog).getByRole("button", { name: "Close" }));
     const order = () =>
       mock.sent.flatMap((c) => (c.domain === "Export" ? [c.command.type] : []));
