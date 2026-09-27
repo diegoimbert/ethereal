@@ -208,10 +208,12 @@ pub(super) fn apply(ctx: &mut DocCtx, c: &ClipCommand) -> CmdResult<()> {
                 transpose: 0.0,
                 fade_in: Beats::ZERO,
                 fade_out: Beats::ZERO,
+                // Unwarped (plays at its native speed, no stretcher). Enabling warp pins
+                // markers from the BPM stub (`crate::warp::command`).
                 warp: WarpSettings {
-                    enabled: true,
-                    mode: WarpMode::Complex,
-                    source_bpm: Some(bpm),
+                    enabled: false,
+                    mode: WarpMode::Repitch,
+                    source_bpm: None,
                 },
             });
             check_fits(&t, &content)?;

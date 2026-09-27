@@ -245,7 +245,10 @@ impl NativeHost {
             max_block_size: engine_config.max_block_size,
             max_events_per_block: engine_config.max_events_per_block,
         };
-        let parts = ether_core::create(engine_config);
+        let mut parts = ether_core::create(engine_config);
+        parts
+            .handle
+            .set_stretcher_factory(Arc::new(ether_stretch::SignalsmithFactory::default()));
         let shared = Arc::new(AudioShared::default());
         shared
             .recording

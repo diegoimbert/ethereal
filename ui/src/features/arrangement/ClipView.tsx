@@ -7,7 +7,8 @@ import { useEditorStore, useNotesOfClip, useProjectStore, warpMarkersOfClip } fr
 import { useIsSelected, type TempoMap, type TimelineViewport } from "@/timeline";
 import { onClipPointerDown } from "./clipDrag";
 import { drawNotes, drawWaveform, noteRects, pitchRange, type DrawArea } from "./clipDraw";
-import { contentSegments, sourceSecondsMapper } from "./clipTime";
+import { contentSegments } from "./clipTime";
+import { clipSourceMapper } from "@/features/warp/warpMap";
 import { useArrangement } from "./context";
 import type { ClipBounds } from "./editMath";
 import { peakLevel, TILE_PEAKS } from "./peaks";
@@ -60,7 +61,7 @@ export const ClipView = memo(function ClipView({ clip, bounds, trackColor, vp, v
           ? undefined
           : (e) => {
               e.stopPropagation();
-              if (clip.content.type === "Midi") useEditorStore.getState().openClip(clip.id);
+              useEditorStore.getState().openClip(clip.id);
             }
       }
     >
@@ -134,7 +135,7 @@ function MidiPreview({ clip, bounds, from, to, pxWidth }: BodyProps) {
 
 /** Waveform of an audio clip from engine peaks (`Media::GetPeaks`, cached in tiles). */
 function AudioWaveform({ clip, bounds, from, to, pxWidth, tempo }: BodyProps & { tempo: TempoMap }) {
-  const { peaks } = useArrangement();
+  const { peaks, transport } = useArrangement();
   const ref = useRef<HTMLCanvasElement>(null);
   const mediaId = clip.content.type === "Audio" ? clip.content.media : null;
   const media: MediaRef | undefined = useProjectStore((s) => (mediaId ? s.project?.media[mediaId] : undefined));
@@ -147,7 +148,7 @@ function AudioWaveform({ clip, bounds, from, to, pxWidth, tempo }: BodyProps & {
 
   useCanvasDraw(ref, pxWidth, from, to, (ctx, area) => {
     if (!media || clip.content.type !== "Audio") return;
-    const toSeconds = sourceSecondsMapper(clip.content.warp.source_bpm, tempo.bpmAt(bounds.start), markers);
+    const toSeconds = clipSourceMapper(clip.content, markers, tempo.bpmAt(bounds.start), bounds.offset, transport.kind);
     const beatsPerPx = (to - from) / Math.max(1, area.width);
     const level = peakLevel(Math.abs(toSeconds(beatsPerPx) - toSeconds(0)) * media.sample_rate);
     const shaped = { length: bounds.length, offset: bounds.offset, looping: clip.looping };

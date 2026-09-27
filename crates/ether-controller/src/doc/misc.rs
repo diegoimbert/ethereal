@@ -7,7 +7,7 @@ use ether_core::protocol::transport::TransportCommand;
 use ether_core::protocol::warp::WarpCommand;
 
 use super::DocCtx;
-use crate::tx::{CmdResult, invalid, invalid_state, not_found, unsupported};
+use crate::tx::{CmdResult, invalid, invalid_state, unsupported};
 
 pub(crate) const MIN_BPM: f64 = 20.0;
 pub(crate) const MAX_BPM: f64 = 999.0;
@@ -103,66 +103,8 @@ pub(crate) fn recording(ctx: &mut DocCtx, c: &RecordingCommand) -> CmdResult<()>
     }
 }
 
-fn check_audio(clip: &Clip) -> CmdResult<()> {
-    match clip.content {
-        ClipContent::Audio(_) => Ok(()),
-        ClipContent::Midi => Err(invalid(format!("clip {} is not an audio clip", clip.id))),
-    }
-}
-
-fn marker_values(beat: Beats, source: Seconds) -> CmdResult<(Beats, Seconds)> {
-    if !(beat.0.is_finite() && source.0.is_finite()) {
-        return Err(invalid("warp marker times must be finite"));
-    }
-    Ok((beat, Seconds(source.0.max(0.0))))
-}
-
 pub(crate) fn warp(ctx: &mut DocCtx, c: &WarpCommand) -> CmdResult<()> {
-    match c {
-        WarpCommand::SetWarp { clip, warp } => {
-            check_audio(&ctx.clip(*clip)?)?;
-            ctx.set_clip(*clip, ClipChange::Warp(*warp))
-        }
-        WarpCommand::AddMarker {
-            id,
-            clip,
-            beat,
-            source,
-        } => {
-            if ctx.p().warp_markers.contains_key(id) {
-                return Ok(());
-            }
-            check_audio(&ctx.clip(*clip)?)?;
-            let (beat, source) = marker_values(*beat, *source)?;
-            ctx.tx.insert(Entity::WarpMarker(WarpMarker {
-                id: *id,
-                clip: *clip,
-                beat,
-                source,
-            }))
-        }
-        WarpCommand::MoveMarker { id, beat, source } => {
-            if !ctx.p().warp_markers.contains_key(id) {
-                return Err(not_found(format!("warp marker {id}")));
-            }
-            let (beat, source) = marker_values(*beat, *source)?;
-            ctx.tx.update(EntityUpdate::WarpMarker {
-                id: *id,
-                change: WarpMarkerChange::Beat(beat),
-            })?;
-            ctx.tx.update(EntityUpdate::WarpMarker {
-                id: *id,
-                change: WarpMarkerChange::Source(source),
-            })
-        }
-        WarpCommand::RemoveMarker { id } => {
-            if !ctx.p().warp_markers.contains_key(id) {
-                return Err(not_found(format!("warp marker {id}")));
-            }
-            ctx.tx.remove(EntityKey::WarpMarker(*id))
-        }
-        WarpCommand::DetectTempo { .. } => Err(unsupported("not a document command")),
-    }
+    crate::warp::command(ctx, c)
 }
 
 pub(crate) fn rename_project(ctx: &mut DocCtx, name: &str) -> CmdResult<()> {

@@ -177,6 +177,7 @@ pub fn create(config: EngineConfig) -> EngineParts {
         .into();
     let playhead = Arc::new(SharedPlayhead::default());
     let (recording_rt, recording_io) = crate::recording::channel(&config);
+    let (warp_handle, warp_rt) = crate::warp::channel(&config);
     let snapshot =
         compile_with(RenderGraphDesc::default(), &config, &|_| None).expect("empty graph compiles");
     let tempo_bpm = snapshot.tempo.bpm_at(0.0);
@@ -209,6 +210,7 @@ pub fn create(config: EngineConfig) -> EngineParts {
         underruns: 0,
         leaked: 0,
         recording: recording_rt,
+        warp: warp_rt,
         config: config.clone(),
     };
     let handle = EngineHandle {
@@ -226,6 +228,7 @@ pub fn create(config: EngineConfig) -> EngineParts {
         node_latency,
         playhead,
         recording: Some(recording_io),
+        warp: warp_handle,
         config,
     };
     EngineParts {
@@ -260,6 +263,7 @@ pub struct Engine {
     leaked: u64,
     /// Recording hooks: input capture, live MIDI in/out ([`crate::recording`]).
     pub(crate) recording: crate::recording::RecordingRt,
+    pub(crate) warp: crate::warp::WarpRt,
 }
 
 impl Engine {
@@ -279,6 +283,7 @@ impl Engine {
         }
         let frames = frames.min(self.config.max_block_size);
         self.drain_control();
+        self.warp.drain();
         self.drain_params();
         self.update_latencies();
 
@@ -492,6 +497,7 @@ impl Engine {
             overflow,
             underruns,
             recording,
+            warp,
             ..
         } = self;
         let RenderSnapshot { desc, tempo, rt } = &mut **snapshot;
@@ -648,7 +654,7 @@ impl Engine {
                     };
                     let ref_bpm = tempo.bpm_at(clip.start);
                     let [al, ar] = &mut *a;
-                    if !sched::render_audio(
+                    if !warp.render(
                         clip,
                         &*sources[si].1,
                         ref_bpm,
@@ -981,6 +987,7 @@ pub struct EngineHandle {
     node_latency: Arc<[AtomicU32]>,
     playhead: Arc<SharedPlayhead>,
     pub(crate) recording: Option<crate::recording::RecordingIo>,
+    pub(crate) warp: crate::warp::WarpHandle,
 }
 
 struct HandleSlot {
@@ -1073,6 +1080,7 @@ impl EngineHandle {
     /// node's latency changes the controller re-publishes. Clips whose media has no
     /// registered source play silence (no error), so media can load asynchronously.
     pub fn publish(&mut self, desc: RenderGraphDesc) -> Result<(), EngineError> {
+        self.warp.sync(&desc);
         let snapshot = {
             let slots = &self.slots;
             let lat = &self.node_latency;

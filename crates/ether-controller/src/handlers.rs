@@ -587,30 +587,9 @@ where
 
     // ─── Warp ───────────────────────────────────────────────────────────────────────────
 
-    /// Loop-length heuristic: the tempo in [80, 160) BPM at which the clip's media spans a
-    /// power-of-two number of bars (4/4).
+    /// `WarpCommand::DetectTempo` (the BPM stub lives in `crate::warp`).
     fn detect_tempo(&self, clip: ClipId) -> CmdResult<ReplyValue> {
-        let doc = self.doc.as_ref().ok_or_else(no_project)?;
-        let c = doc
-            .project
-            .clips
-            .get(&clip)
-            .ok_or_else(|| not_found(format!("clip {clip}")))?;
-        let ClipContent::Audio(a) = &c.content else {
-            return Err(invalid(format!("clip {clip} is not an audio clip")));
-        };
-        let m = doc
-            .project
-            .media
-            .get(&a.media)
-            .ok_or_else(|| not_found(format!("media {}", a.media)))?;
-        let seconds = m.frames as f64 / m.sample_rate.max(1) as f64;
-        let bpm = (0..8)
-            .map(|k| (1u32 << k) as f64 * 4.0 * 60.0 / seconds)
-            .find(|bpm| (80.0..160.0).contains(bpm))
-            .filter(|_| seconds > 0.0)
-            .map(|bpm| (bpm * 100.0).round() / 100.0);
-        Ok(ReplyValue::Tempo { bpm })
+        crate::warp::detect_tempo(&self.doc.as_ref().ok_or_else(no_project)?.project, clip)
     }
 
     // ─── Media ──────────────────────────────────────────────────────────────────────────
