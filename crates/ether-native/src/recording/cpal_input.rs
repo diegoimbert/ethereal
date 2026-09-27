@@ -113,6 +113,9 @@ pub(crate) fn open_input(
         Ok(s) => Some(s),
         Err(e) => {
             tracing::warn!(error = %e, "audio input unavailable");
+            shared
+                .recording
+                .set_input_error(format!("Audio input unavailable: {e}"));
             None
         }
     }
@@ -130,6 +133,7 @@ where
 {
     let channels = usize::from(config.channels.max(1));
     let rate = f64::from(config.sample_rate.0);
+    let errors = shared.clone();
     device
         .build_input_stream::<T, _, _>(
             config,
@@ -161,7 +165,13 @@ where
                 }
                 chunk.commit_all();
             },
-            |err| tracing::warn!(%err, "audio input stream error"),
+            move |err| {
+                // Non-RT (cpal error thread): e.g. the device was unplugged.
+                tracing::warn!(%err, "audio input stream error");
+                errors
+                    .recording
+                    .set_input_error(format!("Audio input failed: {err}"));
+            },
             None,
         )
         .map_err(|e| e.to_string())

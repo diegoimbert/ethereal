@@ -310,3 +310,30 @@ fn wav_header_layout() {
     assert_eq!(u16::from_le_bytes([h[20], h[21]]), 3);
     assert_eq!(u32::from_le_bytes(h[40..44].try_into().unwrap()), 80);
 }
+
+#[test]
+fn unavailable_input_fails_the_audio_session_gracefully() {
+    let tmp = TempDir::new("rec-denied");
+    let rig = rig(AudioBackendKind::Null, None, tmp.path());
+    // What `open_input` records when the device is missing or permission is denied.
+    rig.shared
+        .recording
+        .set_input_error("Audio input unavailable: permission denied".into());
+    let project = ProjectId::v7(1_750_000_000_000, [9; 10]);
+    let audio = vec![AudioTarget {
+        track: TrackId(Ulid(5)),
+        first: 0,
+        count: 1,
+    }];
+    let err = start(&rig.shared, &session(project, audio, false)).unwrap_err();
+    assert!(err.to_string().contains("permission denied"), "{err}");
+    // MIDI-only sessions don't need the audio input.
+    start(&rig.shared, &session(project, vec![], true)).unwrap();
+    assert_eq!(
+        stop(&rig.shared, &rig.handle).unwrap(),
+        RecordedTakes::default()
+    );
+    // Reconfiguring the input clears the error.
+    configure_input(&rig.shared, &AudioSettings::default());
+    assert_eq!(rig.shared.recording.input_error(), None);
+}

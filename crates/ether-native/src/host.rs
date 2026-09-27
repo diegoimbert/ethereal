@@ -729,6 +729,10 @@ impl ControllerThread {
                         if let Some(n) = note {
                             self.router.send(notification(NotificationLevel::Info, n));
                         }
+                        if let Some(e) = self.audio.shared.recording.input_error() {
+                            self.router
+                                .send(notification(NotificationLevel::Warning, e));
+                        }
                         let status = self.audio.status();
                         self.router.send(ServerMessage::Event(Event::Engine {
                             event: EngineEvent::Status {

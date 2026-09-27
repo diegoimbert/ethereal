@@ -121,6 +121,8 @@ struct Inner {
     input_host: Option<String>,
     /// Channels of the opened input device.
     input_channels: u16,
+    /// Why the configured input device could not be opened (or stopped working).
+    input_error: Option<String>,
     /// Producer of the current feed's ring, taken by the input stream.
     pending_input: Option<Producer<f32>>,
     engine_clock: Option<Arc<AtomicU64>>,
@@ -166,6 +168,16 @@ impl RecordingShared {
     /// Root of the project store: takes are written to `<root>/<project>/media/`.
     pub fn set_projects_root(&self, root: PathBuf) {
         self.inner().projects_root = Some(root);
+    }
+
+    /// Why the configured audio input is unavailable (device missing, unsupported rate,
+    /// permission denied), if it is.
+    pub fn input_error(&self) -> Option<String> {
+        self.inner().input_error.clone()
+    }
+
+    fn set_input_error(&self, error: String) {
+        self.inner().input_error = Some(error);
     }
 
     /// Input latency in samples (0 without an input).
@@ -274,6 +286,7 @@ pub fn configure_input(shared: &AudioShared, settings: &AudioSettings) {
     inner.input_device = settings.input_device.clone();
     inner.input_host = settings.host.clone();
     inner.input_channels = 0;
+    inner.input_error = None;
     inner.pending_input = None;
     rec.input_latency.store(0, Ordering::Relaxed);
     rec.output_latency.store(0, Ordering::Relaxed);
@@ -504,6 +517,11 @@ pub fn start(audio: &AudioShared, session: &RecordSession) -> Result<(), BridgeE
         .writer
         .as_ref()
         .ok_or_else(|| BridgeError::Unavailable("the engine has no recording rings".into()))?;
+    if !session.audio.is_empty()
+        && let Some(e) = &inner.input_error
+    {
+        return Err(BridgeError::Other(e.clone()));
+    }
     let root = inner
         .projects_root
         .clone()
