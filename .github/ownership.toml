@@ -733,3 +733,300 @@ paths = [
   "crates/ether-native/src/plugins.rs",
   "crates/ether-native/src/host.rs",
 ]
+
+# --- v0.2 (contracts-3; docs/ROADMAP.md "v0.2", CONTRACTS.md §12) -------------------------
+# contracts-3 froze the types, pre-wired the hot engine files (engine.rs/graph.rs/mixer.rs/
+# codec.rs) once and pre-created one module per node, registered in its parent. Every node:
+# - owns its modules below; "shared touch" entries are additive and limited as commented;
+# - in crates/ether-controller/tests/roadmap_v3.rs deletes/rewrites ONLY its own test fn;
+# - keeps its mock file (ui/src/transport/mock/roadmap/<node>.*) in sync;
+# - device groups regenerate their mock descriptor JSON from Rust, never by hand
+#   (UPDATE_MOCK_DESCRIPTORS=1 cargo test -p ether-devices --test v02_descriptors).
+# Priority: groups-buses first, device-ui early (the renderer every device node targets).
+
+[nodes.groups-buses]
+paths = [
+  "crates/ether-core/src/bus_tap.rs",
+  "crates/ether-core/src/vca.rs",
+  "crates/ether-controller/src/groups/**",
+  "ui/src/features/groups/**",
+  "ui/src/transport/mock/roadmap/groupsBuses.*",
+  "crates/ether-core/tests/groups*.rs",
+  "crates/ether-controller/tests/groups*.rs",
+  "crates/ether-native/tests/groups*.rs",
+  "apps/web/e2e/groups*.spec.ts",
+  "crates/ether-controller/tests/roadmap_v3.rs",
+  # shared touch: solo/mute compile rules (graph.rs `solo_ok` block and update_gates only)
+  "crates/ether-core/src/graph.rs",
+  # shared touch: recording from an input tap (record the aligned tap signal)
+  "crates/ether-core/src/recording/mod.rs",
+  "crates/ether-controller/src/recording/**",
+  # shared touch: routing/output picker, sends, VCA assignment in the mixer/inspector, Cmd+G,
+  # drag into/out of groups (additive; the repo owner's UX is authoritative)
+  "ui/src/features/mixer/**",
+  "ui/src/features/arrangement/trackDrag.ts",
+  "ui/src/features/arrangement/TrackRow.tsx",
+  "ui/src/features/arrangement/ArrangementView.tsx",
+  "ui/src/features/arrangement/arrangement.css",
+  # shared touch: the mock's track reducer for grouping (reducer hook only)
+  "ui/src/transport/mock/documentReducer.ts",
+]
+
+[nodes.device-ui]
+# The ONE shared renderer of declarative device layouts (+ the widget catalog). Lands early.
+paths = [
+  "ui/src/features/devices/layout/**",
+  "apps/web/e2e/device-ui*.spec.ts",
+  # shared touch: mount the renderer in the device panel (generic layout fallback)
+  "ui/src/features/devices/DeviceView.tsx",
+  "ui/src/features/devices/DeviceChain.tsx",
+  "ui/src/features/devices/devices.css",
+  "ui/src/features/devices/descriptors.ts",
+]
+
+[nodes.synth-2]
+paths = [
+  "crates/ether-devices/src/poly_synth/**",
+  "crates/ether-devices/presets/poly-synth/**",
+  "crates/ether-devices/tests/poly_synth*.rs",
+  "ui/src/transport/mock/devices/polySynth.json",
+  "apps/web/e2e/poly-synth*.spec.ts",
+  "crates/ether-controller/tests/roadmap_v3.rs",
+]
+
+[nodes.multisampler]
+paths = [
+  "crates/ether-devices/src/multisampler/**",
+  "crates/ether-devices/presets/multisampler/**",
+  "crates/ether-devices/tests/multisampler*.rs",
+  "crates/ether-controller/src/multisampler/**",
+  "crates/ether-controller/tests/multisampler*.rs",
+  "ui/src/transport/mock/devices/multisampler.json",
+  "ui/src/transport/mock/roadmap/multisampler.*",
+  "apps/web/e2e/multisampler*.spec.ts",
+  "crates/ether-controller/tests/roadmap_v3.rs",
+  # shared touch: rebuild/update multisamplers when zone media loads (next to samplers)
+  "crates/ether-controller/src/handlers.rs",
+  # shared touch: zone sources in the bridges' node creation / update_builtin
+  "crates/ether-native/src/bridge.rs",
+  "crates/ether-wasm/src/bridge.rs",
+]
+
+[nodes.fx-color]
+paths = [
+  "crates/ether-devices/src/fx_color/**",
+  "crates/ether-devices/presets/{saturator,bitcrusher,auto-filter}/**",
+  "crates/ether-devices/tests/fx_color*.rs",
+  "ui/src/transport/mock/devices/fxColor.json",
+  "crates/ether-controller/tests/roadmap_v3.rs",
+]
+
+[nodes.fx-modulation]
+paths = [
+  "crates/ether-devices/src/fx_modulation/**",
+  "crates/ether-devices/presets/{chorus,phaser,flanger,tremolo}/**",
+  "crates/ether-devices/tests/fx_modulation*.rs",
+  "ui/src/transport/mock/devices/fxModulation.json",
+  "crates/ether-controller/tests/roadmap_v3.rs",
+]
+
+[nodes.fx-dynamics]
+paths = [
+  "crates/ether-devices/src/fx_dynamics/**",
+  "crates/ether-devices/presets/{gate,multiband-compressor,transient-shaper}/**",
+  "crates/ether-devices/tests/fx_dynamics*.rs",
+  "ui/src/transport/mock/devices/fxDynamics.json",
+  "crates/ether-controller/tests/roadmap_v3.rs",
+]
+
+[nodes.fx-analysis]
+paths = [
+  "crates/ether-devices/src/fx_analysis/**",
+  "crates/ether-devices/presets/{spectrum-analyzer,tuner}/**",
+  "crates/ether-devices/tests/fx_analysis*.rs",
+  "ui/src/transport/mock/devices/fxAnalysis.json",
+  "ui/src/transport/mock/roadmap/analysis.*",
+  # the UI side of the analysis channel (Watch/Unwatch + Event::Analysis store/hook) that the
+  # renderer's Spectrum/Tuner/Meter widgets read
+  "ui/src/features/devices/analysis/**",
+  "crates/ether-controller/tests/analysis*.rs",
+  "apps/web/e2e/fx-analysis*.spec.ts",
+  "crates/ether-controller/tests/roadmap_v3.rs",
+  # shared touch (web-perf's files, this change only): forward AnalysisFrames from the
+  # worklet to the controller Worker (EngineBridge::poll_analysis on the web)
+  "crates/ether-wasm/src/worklet.rs",
+  "crates/ether-wasm/src/proto.rs",
+  "crates/ether-wasm/src/bridge.rs",
+]
+
+[nodes.midi-fx]
+paths = [
+  "crates/ether-devices/src/midi_fx/**",
+  "crates/ether-devices/presets/{arpeggiator,chord,scale-quantize,note-length,velocity,randomizer}/**",
+  "crates/ether-devices/tests/midi_fx*.rs",
+  "crates/ether-controller/src/midi_fx/**",
+  "crates/ether-controller/tests/midi_fx*.rs",
+  "ui/src/transport/mock/devices/midiFx.json",
+  "apps/web/e2e/midi-fx*.spec.ts",
+  "crates/ether-controller/tests/roadmap_v3.rs",
+  # shared touch: push the resolved MusicalScale to Scale Quantize nodes (create + scale edits)
+  "crates/ether-controller/src/engine.rs",
+]
+
+[nodes.presets]
+paths = [
+  "crates/ether-controller/src/presets/**",
+  "crates/ether-devices/src/factory.rs",
+  "crates/ether-devices/presets/{synth,sampler,compressor,delay,eq,reverb,limiter,utility,drum-rack}/**",
+  "ui/src/features/presets/**",
+  "ui/src/transport/mock/roadmap/presets.*",
+  "crates/ether-controller/tests/presets*.rs",
+  "crates/ether-native/tests/presets*.rs",
+  "apps/web/e2e/presets*.spec.ts",
+  "crates/ether-controller/tests/roadmap_v3.rs",
+  # shared touch: writable user library (Library::{write_file, remove_file, rename_file, user_root})
+  "crates/ether-native/src/store.rs",
+  "crates/ether-wasm/src/store.rs",
+  "crates/ether-controller/src/memory.rs",
+  # shared touch: preset menu in the device header
+  "ui/src/features/devices/DeviceView.tsx",
+]
+
+[nodes.racks-modulation]
+paths = [
+  "crates/ether-core/src/rack_chains/**",
+  "crates/ether-core/src/modulation/**",
+  "crates/ether-devices/src/racks/**",
+  "crates/ether-devices/src/modulators.rs",
+  "crates/ether-devices/presets/{instrument-rack,audio-effect-rack,midi-effect-rack}/**",
+  "crates/ether-controller/src/racks/**",
+  "ui/src/features/racks/**",
+  "ui/src/features/modulation/**",
+  "ui/src/transport/mock/roadmap/racksModulation.*",
+  "ui/src/transport/mock/devices/{racks,modulators}.json",
+  "crates/ether-core/tests/{racks,modulation}*.rs",
+  "crates/ether-controller/tests/{racks,modulation}*.rs",
+  "crates/ether-devices/tests/racks*.rs",
+  "apps/web/e2e/{racks,modulation}*.spec.ts",
+  "crates/ether-controller/tests/roadmap_v3.rs",
+  # shared touch: live modulator params (ParamTarget::Modulator) and depth drags
+  "crates/ether-controller/src/doc/devices.rs",
+  # shared touch: ignore plugin ParamEdited echoes of modulated values
+  "crates/ether-controller/src/plugins/**",
+  # shared touch: modulation drop targets / depth rings mount in the device panel
+  "ui/src/features/devices/DeviceView.tsx",
+]
+
+[nodes.comping]
+paths = [
+  "crates/ether-controller/src/comping/**",
+  "ui/src/features/comping/**",
+  "ui/src/transport/mock/roadmap/comping.*",
+  "crates/ether-controller/tests/comping*.rs",
+  "crates/ether-native/tests/comping*.rs",
+  "apps/web/e2e/comping*.spec.ts",
+  "crates/ether-controller/tests/roadmap_v3.rs",
+  # shared touch: loop/punch passes become take lanes + comp regions
+  "crates/ether-controller/src/recording/**",
+  "ui/src/transport/mock/roadmap/liveRecord.*",
+  # shared touch: expandable take lanes under the track (additive; owner's UX authoritative)
+  "ui/src/features/arrangement/TrackRow.tsx",
+  "ui/src/features/arrangement/ArrangementView.tsx",
+  "ui/src/features/arrangement/arrangement.css",
+  "ui/src/features/arrangement/layout*.ts",
+]
+
+[nodes.freeze-bounce]
+paths = [
+  "crates/ether-core/src/freeze.rs",
+  "crates/ether-controller/src/freeze/**",
+  "ui/src/features/freeze/**",
+  "ui/src/transport/mock/roadmap/freezeBounce.*",
+  "crates/ether-core/tests/freeze*.rs",
+  "crates/ether-controller/tests/{freeze,bounce,consolidate}*.rs",
+  "crates/ether-native/tests/freeze*.rs",
+  "apps/web/e2e/freeze*.spec.ts",
+  "crates/ether-controller/tests/roadmap_v3.rs",
+  # shared touch: skip node creation for frozen tracks' devices
+  "crates/ether-controller/src/engine.rs",
+  # shared touch: reuse export's offline job helpers (additive pub(crate) extraction only)
+  "crates/ether-controller/src/export/**",
+  # shared touch: freeze/flatten/bounce entries in the track and clip context menus
+  "ui/src/features/arrangement/TrackRow.tsx",
+  "ui/src/features/arrangement/ClipView.tsx",
+]
+
+[nodes.time-edits]
+paths = [
+  "crates/ether-controller/src/time_edit/**",
+  "ui/src/features/time-edits/**",
+  "ui/src/transport/mock/roadmap/timeEdits.*",
+  "crates/ether-controller/tests/time_edit*.rs",
+  "apps/web/e2e/time-edits*.spec.ts",
+  "crates/ether-controller/tests/roadmap_v3.rs",
+  # shared touch: time-selection shortcuts and context-menu entries in the arrangement
+  "ui/src/features/arrangement/ArrangementView.tsx",
+]
+
+[nodes.sample-accurate-automation]
+paths = [
+  "crates/ether-core/src/automation_rt.rs",
+  "crates/ether-core/src/automation.rs",
+  "crates/ether-core/tests/sample_accurate*.rs",
+  "crates/ether-controller/tests/sample_accurate*.rs",
+  "crates/ether-controller/tests/roadmap_v3.rs",
+  # shared touch: exact tempo-ramp integration (Timing) and sub-block splitting
+  "crates/ether-core/src/sched.rs",
+  "crates/ether-core/src/tempo.rs",
+  "crates/ether-core/src/engine.rs",
+  # shared touch: per-sample mixer ramps (apply_fader / smoothers)
+  "crates/ether-core/src/mixer.rs",
+  "crates/ether-core/src/param.rs",
+  # shared touch: param-event offsets in the plugin hosts and split_at_events
+  "crates/ether-clap/src/node.rs",
+  "crates/ether-vst3/src/node.rs",
+  "crates/ether-au/src/mac/node.rs",
+  "crates/ether-sandbox/src/node.rs",
+  "crates/ether-sandbox/src/shm.rs",
+  "crates/ether-devices/src/util.rs",
+]
+
+[nodes.browser-v2]
+paths = [
+  "crates/ether-controller/src/browser/**",
+  "ui/src/features/browser/v2/**",
+  "ui/src/transport/mock/roadmap/browserV2.*",
+  "crates/ether-controller/tests/browser*.rs",
+  "crates/ether-native/tests/browser*.rs",
+  "apps/web/e2e/browser-v2*.spec.ts",
+  "crates/ether-controller/tests/roadmap_v3.rs",
+  # shared touch: mount the v2 browser; tempo-synced preview (rate on the preview voice)
+  "ui/src/features/browser/index.tsx",
+  "crates/ether-core/src/preview.rs",
+  "crates/ether-controller/src/media_preview/**",
+  # shared touch: user folders (Library::{add_folder, remove_folder}) and the native picker
+  "crates/ether-native/src/store.rs",
+  "apps/desktop/src/**",
+]
+
+[nodes.media-references]
+paths = [
+  "crates/ether-controller/src/media_refs/**",
+  "ui/src/features/media-refs/**",
+  "ui/src/transport/mock/roadmap/mediaReferences.*",
+  "crates/ether-controller/tests/media_ref*.rs",
+  "crates/ether-native/tests/media_ref*.rs",
+  "apps/web/e2e/media-refs*.spec.ts",
+  "crates/ether-controller/tests/roadmap_v3.rs",
+  # shared touch: import as reference, resolution order, missing detection on open
+  "crates/ether-controller/src/media/**",
+  "crates/ether-controller/src/handlers.rs",
+  "crates/ether-controller/src/project.rs",
+  # shared touch: Library::{external_path, read_external} natively
+  "crates/ether-native/src/store.rs",
+  # shared touch (collab/mod.rs media-transfer lines only): peers fetch media by hash
+  "crates/ether-controller/src/collab/mod.rs",
+  # shared touch: the mock's import (MediaLocation) and library
+  "ui/src/transport/mock/MockTransport.ts",
+  "ui/src/transport/mock/library.ts",
+]
