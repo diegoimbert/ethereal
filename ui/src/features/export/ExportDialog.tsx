@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { Event, ExportDownload, ExportResult } from "@/generated";
 import { Button, Dialog, NumberField, Select, TextInput, Toggle } from "@/kit";
 import { useProjectStore } from "@/state";
@@ -7,9 +7,8 @@ import {
   cmd,
   isCommandFailed,
   newId,
-  useConnectionStatus,
-  useTransport,
-  useTransportEvent,
+  TransportContext,
+  type EngineTransport,
 } from "@/transport";
 import { fetchDownload, saveFile } from "./download";
 import {
@@ -45,8 +44,35 @@ function message(e: unknown): string {
  * build downloads the files through the browser.
  */
 export function ExportDialog() {
-  const transport = useTransport();
-  const connected = useConnectionStatus().status === "connected";
+  const ctx = useContext(TransportContext);
+  if (!ctx) return null;
+  return (
+    <ExportPanel
+      transport={ctx.transport}
+      connected={ctx.connection.status === "connected"}
+    />
+  );
+}
+
+/** `onEvent` subscription that always calls the latest `listener`. */
+function useEvents(
+  transport: EngineTransport,
+  listener: (e: Event) => void,
+): void {
+  const ref = useRef(listener);
+  useEffect(() => {
+    ref.current = listener;
+  });
+  useEffect(() => transport.onEvent((e) => ref.current(e)), [transport]);
+}
+
+function ExportPanel({
+  transport,
+  connected,
+}: {
+  transport: EngineTransport;
+  connected: boolean;
+}) {
   const project = useProjectStore((s) => s.project);
   const selection = useTimeRangeSelection();
   const [open, setOpen] = useState(false);
@@ -88,7 +114,7 @@ export function ExportDialog() {
     [transport],
   );
 
-  useTransportEvent((e: Event) => {
+  useEvents(transport, (e: Event) => {
     if (e.type !== "Export" || e.event.job !== jobRef.current) return;
     const ev = e.event;
     switch (ev.type) {
