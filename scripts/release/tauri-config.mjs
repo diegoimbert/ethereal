@@ -11,8 +11,8 @@
 //       macOS: hardened-runtime entitlements (scripts/release/macos/entitlements.plist).
 //              APPLE_SIGNING_IDENTITY set → Tauri signs with it (and notarizes when
 //              APPLE_ID/APPLE_PASSWORD/APPLE_TEAM_ID are set; Tauri reads those itself),
-//              and beforeBuildCommand also signs the staged sandbox helper
-//              (sign-macos-helper.mjs), which Tauri does not sign;
+//              beforeBuildCommand also signs the staged sandbox helper (sign-macos-helper.mjs,
+//              same identity or ad-hoc), which Tauri does not sign;
 //              unset → ad-hoc signature ("-") so the unsigned app still runs on Apple Silicon.
 //       Windows: WINDOWS_CERTIFICATE_THUMBPRINT set (the workflow imports the .pfx and
 //              exports it) → `bundle.windows.certificateThumbprint` + timestamping.
@@ -55,12 +55,10 @@ if (platform === "macOS") {
     signingIdentity: signed ? env.APPLE_SIGNING_IDENTITY : "-",
     entitlements: "../../../scripts/release/macos/entitlements.plist",
   };
-  if (signed) {
-    const base = JSON.parse(readFileSync(join(root, "apps/desktop/src-tauri/tauri.conf.json"), "utf8"));
-    const before = base.build?.beforeBuildCommand;
-    const sign = "pnpm --workspace-root exec node scripts/release/sign-macos-helper.mjs";
-    config.build = { beforeBuildCommand: before ? `${before} && ${sign}` : sign };
-  }
+  const base = JSON.parse(readFileSync(join(root, "apps/desktop/src-tauri/tauri.conf.json"), "utf8"));
+  const before = base.build?.beforeBuildCommand;
+  const sign = "pnpm --workspace-root exec node scripts/release/sign-macos-helper.mjs";
+  config.build = { beforeBuildCommand: before ? `${before} && ${sign}` : sign };
 } else if (platform === "Windows" && env.WINDOWS_CERTIFICATE_THUMBPRINT) {
   signed = true;
   config.bundle.windows = {

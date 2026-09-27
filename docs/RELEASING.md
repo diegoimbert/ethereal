@@ -57,7 +57,10 @@ changelog.
 
 Without secrets, everything builds **unsigned** and the release notes say so. macOS builds
 then get an ad-hoc signature (`signingIdentity: "-"`), so they launch on Apple Silicon after
-the quarantine prompt. With the secrets below, the workflow signs (and, on macOS,
+the quarantine prompt. The sandbox helper is always signed first
+(`scripts/release/sign-macos-helper.mjs`, ad-hoc here): codesign refuses to sign the `.app`
+around an unsigned nested binary. The linker only signs arm64 binaries, so without this the
+x86_64 build fails. With the secrets below, the workflow signs (and, on macOS,
 notarizes) automatically. Add them under Settings → Secrets and variables → Actions.
 
 ### macOS (Developer ID)
