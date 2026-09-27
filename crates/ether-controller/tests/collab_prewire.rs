@@ -53,8 +53,6 @@ fn node_commands_reply_unsupported_until_implemented() {
         count_in_end: None,
     };
     for c in [
-        // presence-v2
-        CollabCommand::SetPointer { pointer: None },
         // stream-listen
         CollabCommand::Listen { host },
         CollabCommand::StopListening,
