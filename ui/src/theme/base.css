@@ -67,9 +67,10 @@ body {
   cursor: default;
 }
 
-input:not([type="button"]):not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
-textarea,
-[contenteditable]:not([contenteditable="false"]) {
+:where(input:not([type="button"], [type="checkbox"], [type="radio"], [type="range"], [type="color"])),
+:where(textarea),
+:where([contenteditable]:not([contenteditable="false"])) {
+  /* Zero specificity: components' own cursors (e.g. drag-to-change fields) win. */
   cursor: text;
 }
 
