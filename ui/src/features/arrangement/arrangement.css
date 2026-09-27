@@ -261,6 +261,8 @@
   justify-content: center;
   width: 26px;
   height: 26px;
+  /* A bit more room before the track name than the header's gap. */
+  margin-right: 4px;
   border-radius: 50%;
   background: var(--eth-track-color);
   /* Icon color: set inline from the track color's contrast (inkOn). */
