@@ -17,18 +17,25 @@
 
 import type {
   ArrangerPointer,
+  Author,
   CollabCommand,
   CollabStatus,
   Command,
   ListenerLink,
   ListenState,
   Presence,
+  PeerTransport,
   PresenceState,
   ReplyValue,
   StreamClock,
 } from "@/generated";
 import { fail } from "../documentReducer";
+import type { Tx } from "../tx";
 import type { MockHost } from "./host";
+import { insertChat, setNoteAuthor, type ChatSession } from "./social";
+
+/** This site's relay colour in the mock session (data, like track colours). */
+export const MOCK_OWN_COLOR = 0xffb454;
 
 const UNIT: ReplyValue = { type: "Unit" };
 
@@ -54,8 +61,10 @@ const emptyPresence = (): PresenceState => ({
   view: null,
 });
 
-export class MockCollab {
+export class MockCollab implements ChatSession {
   private status: CollabStatus = { type: "Offline" };
+  /** The name given to `Join`. */
+  private name = "";
   private peers = new Map<string, Presence>();
   /** stream-listen: this site's listening state. */
   private listening: ListenState = { type: "Off" };
@@ -71,12 +80,25 @@ export class MockCollab {
   /** This site's last published pointer (presence-v2). */
   pointer: ArrangerPointer | null = null;
 
-  constructor(private readonly host: MockHost) {}
+  constructor(private readonly host: MockHost) {
+    // collab-social: notes added in a session are authored by this site.
+    setNoteAuthor(() => this.author());
+  }
+
+  /** collab-social: this site's identity while in a session. */
+  author(): Author | null {
+    return this.status.type === "Online" ? { name: this.name, site: MOCK_SITE, actor: null, color: MOCK_OWN_COLOR } : null;
+  }
+
+  applyUntracked(body: (tx: Tx) => void): void {
+    this.host.applyUntracked(body);
+  }
 
   command(c: CollabCommand): ReplyValue {
     switch (c.type) {
       case "Join":
         checkJoin(c);
+        this.name = c.name.trim().slice(0, 64);
         this.status = { type: "Online", session: c.session, site: MOCK_SITE };
         this.peers = new Map([
           ["2", { site: "2", actor: null, name: "Mock peer", color: 0x5cffe8, state: emptyPresence() }],
@@ -185,6 +207,29 @@ export class MockCollab {
   simulatePointer(site: string, pointer: ArrangerPointer | null): void {
     if (this.status.type !== "Online") return;
     this.host.emit({ type: "Collab", event: { type: "Pointer", site, pointer } });
+  }
+
+  /** collab-social: a peer posts a chat message (patch + `ChatReceived`); returns its id. */
+  simulateChat(site: string, text: string): string | null {
+    const peer = this.peers.get(site);
+    if (this.status.type !== "Online" || !peer) return null;
+    const id = this.host.newId();
+    this.host.applyUntracked((tx) =>
+      insertChat(tx, { id, author: { name: peer.name, site, actor: null, color: peer.color }, text, sent_at: Date.now() }),
+    );
+    this.host.emit({ type: "Collab", event: { type: "ChatReceived", ids: [id] } });
+    return id;
+  }
+
+  /** collab-social: a peer's transport (its playhead), `null` = none (e.g. listening). */
+  simulatePeerTransport(site: string, transport: PeerTransport | null): void {
+    const peer = this.peers.get(site);
+    if (this.status.type !== "Online" || !peer) return;
+    const state = { ...peer.state };
+    if (transport) state.transport = transport;
+    else delete state.transport;
+    this.peers.set(site, { ...peer, state });
+    this.emitPeers();
   }
 
   /** Document commands as if a peer made them. */

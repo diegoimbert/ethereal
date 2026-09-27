@@ -4,6 +4,7 @@
  */
 
 import type { Command, Event, Project } from "@/generated";
+import type { Tx } from "../tx";
 
 export interface MockHost {
   /** The live engine-side document (read-only by convention). */
@@ -14,4 +15,9 @@ export interface MockHost {
   applyDocument(commands: Command[], label: string): void;
   /** Run any command as if the UI sent it without a gesture. Throws on failure. */
   execute(command: Command): void;
+  /**
+   * Apply a transaction and emit its patch WITHOUT an undo step (collab-social: chat is a
+   * journal, never undone; docs/COLLAB.md §12.1). Rolled back if `body` throws.
+   */
+  applyUntracked(body: (tx: Tx) => void): void;
 }

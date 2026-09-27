@@ -1,0 +1,276 @@
+/* collab-social: chat section, pinned notes, peers' playheads (docs/COLLAB.md §12). Tokens
+   only; author and peer colours are data (`--eth-chat-author`, `--eth-note-color`,
+   `--eth-collab-peer`), like track colours. */
+
+/* ─── Chat ─────────────────────────────────────────────────────────────────────────── */
+.eth-chat {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  font-size: var(--eth-fs-sm);
+}
+.eth-chat__list {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  margin: 0;
+  padding: var(--eth-space-sm) var(--eth-space-md);
+  overflow-y: auto;
+  list-style: none;
+}
+.eth-chat__message {
+  --eth-chat-author: var(--eth-color-text-dim);
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-hair);
+  margin-top: var(--eth-space-md);
+}
+.eth-chat__message--grouped {
+  margin-top: var(--eth-space-xs);
+}
+.eth-chat__message:first-child {
+  margin-top: 0;
+}
+.eth-chat__meta {
+  display: flex;
+  align-items: baseline;
+  gap: var(--eth-space-sm);
+  min-width: 0;
+}
+.eth-chat__author {
+  overflow: hidden;
+  color: var(--eth-chat-author);
+  font-weight: var(--eth-fw-medium);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.eth-chat__time {
+  flex: none;
+  color: var(--eth-color-text-disabled);
+  font-size: var(--eth-fs-xs);
+}
+.eth-chat__text {
+  margin: 0;
+  padding-left: var(--eth-space-sm);
+  border-left: var(--eth-border-width-strong) solid var(--eth-chat-author);
+  color: var(--eth-color-text);
+  line-height: var(--eth-lh-normal);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.eth-chat__composer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-xs);
+  padding: var(--eth-space-sm) var(--eth-space-md) var(--eth-space-md);
+  border-top: var(--eth-border-width) solid var(--eth-color-border);
+}
+.eth-chat__input {
+  height: auto;
+  padding: var(--eth-space-xs) var(--input-padding-x);
+  font-family: inherit;
+  line-height: var(--eth-lh-normal);
+  resize: vertical;
+}
+.eth-chat__footer {
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-sm);
+}
+.eth-chat__footer .eth-chat__hint,
+.eth-chat__footer .eth-chat__error {
+  flex: 1;
+  min-width: 0;
+}
+.eth-chat__hint {
+  margin: 0;
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+}
+.eth-chat__empty,
+.eth-chat--offline .eth-chat__hint {
+  flex: 1;
+  padding: var(--eth-space-md);
+}
+.eth-chat__error {
+  margin: 0;
+  color: var(--eth-color-danger);
+  font-size: var(--eth-fs-xs);
+}
+.eth-chat__counter {
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+  font-variant-numeric: tabular-nums;
+}
+.eth-chat__counter--over {
+  color: var(--eth-color-danger);
+}
+
+/* ─── Pinned notes ─────────────────────────────────────────────────────────────────── */
+.eth-notes-layer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 3;
+}
+.eth-note {
+  --eth-note-color: var(--eth-color-text-dim);
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
+}
+.eth-note .eth-popover-anchor {
+  translate: -50% -50%;
+}
+.eth-note__dot {
+  display: block;
+  width: var(--eth-size-status-dot);
+  height: var(--eth-size-status-dot);
+  padding: 0;
+  border: var(--eth-border-width-strong) solid var(--eth-color-bg);
+  border-radius: var(--eth-radius-round);
+  background: var(--eth-note-color);
+  box-shadow: var(--eth-shadow-sm);
+  cursor: grab;
+  pointer-events: auto;
+  transition: transform var(--eth-duration-fast) var(--eth-ease-out);
+}
+.eth-note__dot:hover,
+.eth-note__dot[aria-expanded="true"] {
+  transform: scale(1.35);
+}
+.eth-note__dot:focus-visible {
+  outline: var(--eth-focus-ring-width) solid var(--eth-color-focus);
+  outline-offset: var(--eth-focus-ring-offset);
+}
+.eth-note--resolved .eth-note__dot {
+  opacity: var(--eth-opacity-muted);
+}
+.eth-note--draft .eth-note__dot {
+  cursor: default;
+}
+.eth-note-card {
+  max-width: var(--eth-size-tooltip-max-width);
+}
+.eth-note-card__inner {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-xs);
+  padding: var(--eth-space-xs);
+  font-size: var(--eth-fs-sm);
+}
+.eth-note-card__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-xs);
+}
+.eth-note-card__swatch {
+  flex: none;
+  width: var(--eth-size-dot-sm);
+  height: var(--eth-size-dot-sm);
+  border-radius: var(--eth-radius-round);
+  background: var(--eth-note-color);
+}
+.eth-note-card__author {
+  color: var(--eth-note-color);
+  font-weight: var(--eth-fw-medium);
+}
+.eth-note-card__time {
+  color: var(--eth-color-text-disabled);
+  font-size: var(--eth-fs-xs);
+}
+.eth-note-card__badge {
+  margin-left: auto;
+  color: var(--eth-color-ok);
+  font-size: var(--eth-fs-xs);
+}
+.eth-note-card__text {
+  margin: 0;
+  color: var(--eth-color-text);
+  line-height: var(--eth-lh-normal);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.eth-note-card__text--collapsed {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  line-clamp: 4;
+}
+.eth-note-card__more {
+  align-self: flex-start;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--eth-color-accent);
+  font: inherit;
+  font-size: var(--eth-fs-xs);
+  cursor: pointer;
+}
+.eth-note-card__actions,
+.eth-note-editor__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--eth-space-xs);
+  margin-top: var(--eth-space-xs);
+}
+.eth-note-editor {
+  display: flex;
+  flex-direction: column;
+}
+.eth-note-editor__input {
+  width: 100%;
+  height: auto;
+  padding: var(--eth-space-xs) var(--input-padding-x);
+  font-family: inherit;
+  line-height: var(--eth-lh-normal);
+  resize: vertical;
+}
+.eth-note-editor__actions .eth-chat__counter {
+  margin-right: auto;
+}
+
+/* ─── Peers' playheads ─────────────────────────────────────────────────────────────── */
+.eth-peer-playheads {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 3;
+}
+/* Thinner than ours and dashed, in the peer's colour, with its initials on the ruler. */
+.eth-peer-playhead {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 0;
+  border-left: var(--eth-border-width) dashed var(--eth-collab-peer);
+  will-change: transform;
+}
+.eth-peer-playhead[data-hidden="true"] {
+  display: none;
+}
+.eth-peer-playhead[data-playing="false"] {
+  opacity: var(--eth-opacity-muted);
+}
+.eth-peer-playhead__cap {
+  position: absolute;
+  top: 0;
+  left: 0;
+  translate: -50% 0;
+  padding: 0 var(--eth-space-xs);
+  border-radius: var(--eth-radius-sm);
+  background: var(--eth-collab-peer);
+  color: var(--eth-ink-dark);
+  font-size: var(--eth-fs-2xs);
+  font-weight: var(--eth-fw-bold);
+  line-height: var(--eth-lh-tight);
+  white-space: nowrap;
+}

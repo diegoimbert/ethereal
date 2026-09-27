@@ -17,6 +17,7 @@ import {
 import type { Beats, Clip, ClipId, Color, Track, TrackId } from "@/generated";
 import { promptForInputIfNone } from "@/features/audio-settings";
 import { AutomationToggleButton, TrackAutomationLanes } from "@/features/automation";
+import { leaveNoteEntries, withSeparator } from "@/features/collab/social";
 import { LiveRecordLane } from "@/features/recording/live/LiveRecordLane";
 import { MOD_KEY, meterPosition, openContextMenu, setDragCursor } from "@/kit";
 import { useEditorStore, useProjectStore, useTrackMeter } from "@/state";
@@ -443,6 +444,8 @@ function TrackLane({ track }: { track: Track }) {
         const at = Math.max(0, snapToGrid(pxToBeats(x, s), e.altKey ? null : step, tempo, "floor"));
         openContextMenu(e, [
           { label: "Paste", shortcut: `${MOD_KEY}V`, disabled: !hasClipboard(), onSelect: () => void pasteClips(ctx.transport, at, track.id) },
+          // collab-social: pin a note here (hidden while "Hide users and notes" is on).
+          ...withSeparator(leaveNoteEntries({ kind: "arranger" }, e)),
         ]);
       }}
     >

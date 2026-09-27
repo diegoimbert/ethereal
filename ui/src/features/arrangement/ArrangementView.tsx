@@ -24,6 +24,7 @@ import {
 } from "@/timeline";
 import { useAutomationSlotHeight } from "@/features/automation";
 import { PresenceLayer } from "@/features/collab/presence";
+import { ArrangerSocialLayer, leaveNoteEntries, rulerNoteEntries, withSeparator } from "@/features/collab/social";
 import { TransportContext, useTransport, useTransportEvent } from "@/transport";
 import { actionForKey, bindSingleSelection, locateIfStopped, newTrackMenu, runClipAction } from "./actions";
 import { dropBrowserMedia, hasBrowserDrag, readBrowserDrag } from "./browserDrop";
@@ -252,7 +253,7 @@ function ConnectedArrangementView() {
         <Toolbar />
         <div className="eth-arr__top">
           <div className="eth-arr__corner" style={{ width: headerWidth }} />
-          <Ruler view={view} grid={grid} className="eth-arr__ruler" />
+          <Ruler view={view} grid={grid} className="eth-arr__ruler" menuItems={rulerNoteEntries} />
         </div>
         <div className="eth-arr__scroll" ref={scrollRef} onPointerDownCapture={onTracksPointerDownCapture}>
           <div
@@ -269,7 +270,8 @@ function ConnectedArrangementView() {
               // Empty space below the tracks (header column or lanes): add a track. Rows,
               // headers and clips open their own menus (and stop the event).
               const y = e.clientY - e.currentTarget.getBoundingClientRect().top;
-              if (y >= rowsHeight(rowsRef.current)) openContextMenu(e, newTrackMenu(transport));
+              if (y >= rowsHeight(rowsRef.current))
+                openContextMenu(e, [...newTrackMenu(transport), ...withSeparator(leaveNoteEntries({ kind: "arranger" }, e))]);
             }}
             onDragOver={onDragOver}
             onDragLeave={() => useArrangementUi.getState().setDropHint(null)}
@@ -319,6 +321,8 @@ function ConnectedArrangementView() {
         <HeaderColumnResizer />
         {/* presence-v2: peers' live pointers, pointer/viewport publishing, follow mode */}
         <PresenceLayer rootRef={rootRef} scrollRef={scrollRef} rows={rows} masterRow={masterRow} />
+        {/* collab-social: pinned notes and the peers' playheads */}
+        <ArrangerSocialLayer rootRef={rootRef} scrollRef={scrollRef} rows={rows} masterRow={masterRow} />
       </div>
     </ArrangementContext.Provider>
   );

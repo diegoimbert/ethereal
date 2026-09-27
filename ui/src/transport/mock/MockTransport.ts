@@ -253,6 +253,16 @@ export class MockTransport implements EngineTransport {
     newId: () => this.newId(),
     applyDocument: (commands, label) => void this.applyDocument(commands, label, null),
     execute: (command) => void this.execute(command, null),
+    applyUntracked: (body) => {
+      const tx = new Tx(this.project);
+      try {
+        body(tx);
+      } catch (e) {
+        tx.rollback();
+        throw e;
+      }
+      if (!tx.isEmpty) this.emitPatch(tx.changes());
+    },
   };
   private readonly midiLearn = new MockMidiLearn(this.host);
   private readonly exports = new MockExports(this.host);
@@ -431,7 +441,7 @@ export class MockTransport implements EngineTransport {
       case "Modulation":
         return listModulatorKinds();
       case "Chat":
-        return chatCommand(command.command);
+        return chatCommand(command.command, this.collab);
       default:
         return fail("InvalidArgument", `unknown command domain`);
     }
