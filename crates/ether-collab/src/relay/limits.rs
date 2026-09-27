@@ -85,6 +85,7 @@ mod tests {
                 beats: Beats(1.0),
                 track: None,
                 y: 0.0,
+                editor: None,
             }),
         }
     }

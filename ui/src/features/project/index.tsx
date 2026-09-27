@@ -2,7 +2,7 @@
 // Only edit files inside this folder. The app shell (ui/src/app/App.tsx) already mounts
 // `ProjectMenu`: keep this export name and keep it prop-less (read state via hooks).
 import "./project.css";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { Menu } from "lucide-react";
 import { useEngineCommands } from "@/features/transport-bar/engine";
 import { Button } from "@/kit";
@@ -35,11 +35,7 @@ export function ProjectMenu() {
   const disabled = !transport || name === null;
 
   const revision = useProjectStore((s) => s.revision);
-  const [saving, setSaving] = useState(false);
-  const save = () => {
-    setSaving(true);
-    void send(cmd("Project", { type: "Save" })).finally(() => setSaving(false));
-  };
+  const save = () => void send(cmd("Project", { type: "Save" }));
   const saveRef = useRef(save);
   useEffect(() => {
     saveRef.current = disabled ? () => undefined : save;
@@ -80,14 +76,14 @@ export function ProjectMenu() {
       <span className="eth-project__name" data-testid="project-name" title={name ?? undefined}>
         {name ?? "No project"}
       </span>
-      {dirty && (
+      {/* Always laid out (hidden when saved), so autosaving never shifts the top bar. */}
+      {dirty ? (
         <span className="eth-project__dirty" role="status" aria-label="Unsaved changes" title="Unsaved changes">
           ●
         </span>
-      )}
-      {saving && (
-        <span className="eth-project__saving" role="status">
-          Saving…
+      ) : (
+        <span className="eth-project__dirty eth-project__dirty--clean" aria-hidden>
+          ●
         </span>
       )}
       {error && !open && (

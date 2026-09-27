@@ -15,6 +15,10 @@
 .eth-project__dirty {
   color: var(--eth-color-accent);
   font-size: var(--eth-fs-xs);
+  transition: opacity var(--eth-duration-fast) var(--eth-ease-out);
+}
+.eth-project__dirty--clean {
+  opacity: 0;
 }
 .eth-project__error {
   max-width: 28ch;
@@ -172,9 +176,4 @@
   display: flex;
   justify-content: flex-end;
   gap: var(--eth-space-sm);
-}
-
-.eth-project__saving {
-  color: var(--eth-color-text-dim);
-  font-size: var(--eth-fs-xs);
 }

@@ -7,10 +7,20 @@ import { useEffect, useLayoutEffect, useRef, type CSSProperties, type RefObject 
 import type { ArrangerPointer, SiteId, TrackId } from "@/generated";
 import { useProjectStore } from "@/state";
 import { cmd, useTransport } from "@/transport";
-import type { Row } from "@/features/arrangement/layout";
+import { DROP_AREA_HEIGHT, type Row } from "@/features/arrangement/layout";
 import { arrangementView, useArrangementUi } from "@/features/arrangement/uiStore";
 import { peerColor, useCollabStore } from "../store";
-import { clampToBox, screenToSong, scrollTopFor, songToScreen, viewportOf, type Box, type Lanes, type RowBox } from "./coords";
+import {
+  clampToBox,
+  screenToSong,
+  scrollTopFor,
+  songToScreen,
+  viewportOf,
+  type Box,
+  type FreeSpace,
+  type Lanes,
+  type RowBox,
+} from "./coords";
 import { activityLabel, setFollowing, useLocalPresence } from "./local";
 import { usePointerStore } from "./pointers";
 
@@ -38,9 +48,11 @@ interface Geometry {
   scrollBox: Box;
   masterBox: Box | null;
   masterTrack: TrackId | null;
-  /** The ruler band (pointers without a track sit in its middle). */
+  /** The ruler band (pointers over the ruler sit in its middle). */
   rulerTop: number;
   rulerY: number;
+  /** Free space below the last scrolling track, down to the bottom of the view. */
+  free: FreeSpace;
 }
 
 /** Rows and boxes in root px (from the DOM and the local layout). */
@@ -54,6 +66,8 @@ function measure(root: HTMLElement, scroll: HTMLElement, rows: ReadonlyArray<Row
   const x1 = s.left - r.left + scroll.clientWidth;
   const boxes: RowBox[] = rows.filter((row) => row.track.id !== DRAFT).map((row) => ({ track: row.track.id, top: offY + row.y, height: row.height }));
   const scrollBox = { x0, x1, y0: s.top - r.top, y1: s.top - r.top + scroll.clientHeight };
+  const last = rows.at(-1);
+  const free = { top: offY + (last ? last.y + last.height : 0), bottom: scrollBox.y1 };
   let masterBox: Box | null = null;
   const masterEl = masterRow ? root.querySelector<HTMLElement>('[data-testid="arrangement-master"]') : null;
   if (masterRow && masterEl) {
@@ -71,6 +85,7 @@ function measure(root: HTMLElement, scroll: HTMLElement, rows: ReadonlyArray<Row
     masterTrack: masterRow?.track.id ?? null,
     rulerTop,
     rulerY: ruler ? (ruler.top + ruler.bottom) / 2 - r.top : scrollBox.y0,
+    free,
   };
 }
 
@@ -129,7 +144,8 @@ function usePublishPointer(layer: LayerRef, online: boolean) {
       if (y < g.scrollBox.y0) return { ...screenToSong(x, y, [], g.lanes), track: null, y: 0 };
       const inMaster = g.masterBox && y >= g.masterBox.y0;
       const band = g.rows.filter((row) => (row.track === g.masterTrack) === !!inMaster);
-      return screenToSong(x, y, band, g.lanes);
+      // Below the last track: a fraction of the free space (at least the drop area tall).
+      return screenToSong(x, y, band, g.lanes, inMaster ? undefined : g.free, DROP_AREA_HEIGHT);
     };
     const flush = () => {
       frame = 0;
@@ -296,14 +312,17 @@ function PeerPointers({ layer }: { layer: LayerRef }) {
       const { trails } = usePointerStore.getState();
       for (const [site, el] of els.current) {
         const p = trails.get(site)?.at(now) ?? null;
-        const at = p && songToScreen(p, g.rows, g.lanes, parentOf, g.rulerY);
+        // In a piano roll: drawn there (see EditorPointers), not over the arranger.
+        const at = p && !p.editor ? songToScreen(p, g.rows, g.lanes, parentOf, g.rulerY, g.free, DROP_AREA_HEIGHT) : null;
         if (!p || !at) {
           el.dataset.hidden = "true";
           continue;
         }
         const box =
           p.track === null
-            ? { ...g.scrollBox, y0: g.rulerTop, y1: g.scrollBox.y1 }
+            ? p.y > 0
+              ? g.scrollBox
+              : { ...g.scrollBox, y0: g.rulerTop, y1: g.scrollBox.y1 }
             : p.track === g.masterTrack && g.masterBox
               ? g.masterBox
               : g.scrollBox;

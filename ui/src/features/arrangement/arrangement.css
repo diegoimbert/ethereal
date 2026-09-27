@@ -719,6 +719,24 @@
   background: color-mix(in srgb, var(--clip-strong) 85%, var(--clip-lift));
 }
 
+/* Another user has this clip open in their piano roll: a ring and their name, in their
+   color (--eth-collab-peer, data like the clip color). */
+.eth-clip--peer-editing {
+  outline: var(--eth-size-peer-edit-ring) solid var(--eth-collab-peer);
+  outline-offset: calc(var(--eth-size-peer-edit-ring) * -1);
+}
+.eth-clip__editors {
+  flex: none;
+  margin-left: auto;
+  padding: 0 var(--eth-space-xs);
+  border-radius: var(--eth-radius-sm);
+  background: var(--eth-collab-peer);
+  color: var(--eth-ink-dark);
+  font-size: var(--eth-fs-xs);
+  font-weight: var(--eth-fw-medium);
+  white-space: nowrap;
+}
+
 .eth-clip__name {
   min-width: 0;
   overflow: hidden;

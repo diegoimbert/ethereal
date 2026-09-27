@@ -113,6 +113,10 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+      - name: Windows aws-lc (prebuilt NASM objects; str0m's DTLS pulls aws-lc-sys)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: echo "AWS_LC_SYS_PREBUILT_NASM=1" >> "$GITHUB_ENV"
       - name: Linux system deps (Tauri, ALSA, AppImage)
         if: runner.os == 'Linux'
         run: |

@@ -351,6 +351,8 @@ export const size = {
   /** Two-layer halo around selected clips and notes (inner and outer blur). */
   selectedGlowInner: "6px",
   selectedGlowOuter: "14px",
+  /** Ring around a clip another user has open in their piano roll. */
+  peerEditRing: "2px",
   /** "+ Add track" row below the tracks: height and horizontal padding. */
   addTrackHeight: "32px",
   addTrackPadLeft: "18px",

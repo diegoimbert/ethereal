@@ -37,13 +37,45 @@ function rowAt(rows: ReadonlyArray<RowBox>, y: number): RowBox | undefined {
 }
 
 /**
- * The song position under a screen point. Left of the lanes (the header column) counts as
- * the left edge; outside every row (ruler, below the last track) `track` is null.
+ * The free space below the last track: from its bottom (`top`) to the bottom of the view
+ * (`bottom`). Each user has their own; pointers in it travel as a fraction of it.
  */
-export function screenToSong(x: number, y: number, rows: ReadonlyArray<RowBox>, lanes: Lanes): ArrangerPointer {
+export interface FreeSpace {
+  top: number;
+  bottom: number;
+}
+
+/** Height a pointer's free-space fraction spans: the visible free space, at least `min`. */
+const freeHeight = (f: FreeSpace, min: number) => Math.max(f.bottom - f.top, min);
+
+/**
+ * Smallest `y` a free-space pointer sends: `track: null, y: 0` means the ruler (and is what
+ * older peers send), so a pointer right below the last track still sends a little more.
+ */
+export const FREE_SPACE_MIN_Y = 1e-3;
+
+/**
+ * The song position under a screen point. Left of the lanes (the header column) counts as
+ * the left edge; outside every row `track` is null, with `y` 0 over the ruler and, below
+ * the last track (`free`), the fraction (> 0) of the way down the free space.
+ */
+export function screenToSong(
+  x: number,
+  y: number,
+  rows: ReadonlyArray<RowBox>,
+  lanes: Lanes,
+  free?: FreeSpace,
+  minFree = 0,
+): ArrangerPointer {
   const beats = Math.max(0, lanes.scrollBeats + Math.max(0, x - lanes.left) / lanes.pxPerBeat);
   const row = rowAt(rows, y);
-  if (!row || row.height <= 0) return { beats, track: null, y: 0 };
+  if (!row || row.height <= 0) {
+    if (free && y >= free.top) {
+      const frac = (y - free.top) / freeHeight(free, minFree);
+      return { beats, track: null, y: Math.min(1, Math.max(FREE_SPACE_MIN_Y, frac)) };
+    }
+    return { beats, track: null, y: 0 };
+  }
   return { beats, track: row.track, y: clamp01((y - row.top) / row.height) };
 }
 
@@ -71,9 +103,11 @@ export interface ScreenPoint {
 }
 
 /**
- * A peer's song pointer on this screen. `noTrackY`: where pointers without a track go (the
- * ruler). A pointer inside a folded group sits in the middle of the group's row. `null`: the
- * track is unknown here (deleted), so hide it.
+ * A peer's song pointer on this screen. `noTrackY`: where pointers over the ruler go.
+ * Pointers below the last track (`track: null`, `y > 0`) land at the same fraction of this
+ * user's free space (`free`, spanning at least `minFree`). A pointer inside a folded group
+ * sits in the middle of the group's row. `null`: the track is unknown here (deleted), so
+ * hide it.
  */
 export function songToScreen(
   p: ArrangerPointer,
@@ -81,9 +115,14 @@ export function songToScreen(
   lanes: Lanes,
   parentOf: (track: TrackId) => TrackId | null | undefined,
   noTrackY: number,
+  free?: FreeSpace,
+  minFree = 0,
 ): ScreenPoint | null {
   const x = beatsToX(p.beats, lanes);
-  if (p.track === null) return { x, y: noTrackY, folded: false };
+  if (p.track === null) {
+    if (free && p.y > 0) return { x, y: free.top + clamp01(p.y) * freeHeight(free, minFree), folded: false };
+    return { x, y: noTrackY, folded: false };
+  }
   const hit = visibleRowOf(p.track, rows, parentOf);
   if (!hit) return null;
   const frac = hit.folded ? 0.5 : clamp01(p.y);

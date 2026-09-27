@@ -177,16 +177,18 @@ fn settings_file(data_dir: &std::path::Path) -> PathBuf {
     data_dir.join("config").join("audio.json")
 }
 
-/// Load persisted audio settings, then apply `ETHER_AUDIO`.
+/// Load persisted audio settings (the user's choice; `ETHER_AUDIO` is applied only to the
+/// running backend, see [`env_backend`], never saved).
 pub fn load_audio_settings(data_dir: &std::path::Path) -> AudioSettings {
-    let mut s: AudioSettings = std::fs::read_to_string(settings_file(data_dir))
+    std::fs::read_to_string(settings_file(data_dir))
         .ok()
         .and_then(|j| serde_json::from_str(&j).ok())
-        .unwrap_or_default();
-    if let Some(b) = AudioBackendKind::parse(std::env::var("ETHER_AUDIO").ok().as_deref()) {
-        s.backend = b;
-    }
-    s
+        .unwrap_or_default()
+}
+
+/// The backend forced by `ETHER_AUDIO`, if set.
+fn env_backend() -> Option<AudioBackendKind> {
+    AudioBackendKind::parse(std::env::var("ETHER_AUDIO").ok().as_deref())
 }
 
 /// Engine settings persisted next to the audio settings (`<data_dir>/config/engine.json`).
@@ -253,16 +255,24 @@ fn start_audio(
 impl NativeHost {
     /// Create the engine, start audio, GC and controller threads.
     pub fn start(config: HostConfig, options: HostOptions) -> Result<Self, HostError> {
-        let mut settings = config
-            .audio
-            .clone()
-            .unwrap_or_else(|| load_audio_settings(&config.data_dir));
-        let resolved = match audio::resolve(&settings) {
+        // `settings` stay what the user chose (they are saved again by `SetAudioConfig`);
+        // a missing device only makes this run use the null backend (`run_settings`), so a
+        // temporary fallback never becomes the saved choice.
+        // `ETHER_AUDIO` forces the backend of settings loaded from disk (not of explicit ones).
+        let (settings, forced_backend) = match config.audio.clone() {
+            Some(s) => (s, None),
+            None => (load_audio_settings(&config.data_dir), env_backend()),
+        };
+        let mut run_settings = settings.clone();
+        if let Some(b) = forced_backend {
+            run_settings.backend = b;
+        }
+        let resolved = match audio::resolve(&run_settings) {
             Ok(r) => r,
             Err(e) => {
                 tracing::warn!(%e, "audio device unavailable; using the null backend");
-                settings.backend = AudioBackendKind::Null;
-                audio::resolve(&settings).map_err(|e| HostError::Start(e.to_string()))?
+                run_settings.backend = AudioBackendKind::Null;
+                audio::resolve(&run_settings).map_err(|e| HostError::Start(e.to_string()))?
             }
         };
         let engine_config = EngineConfig {
@@ -301,7 +311,7 @@ impl NativeHost {
         shared
             .recording
             .set_projects_root(config.projects_root.clone());
-        let (started, warning) = start_audio(Box::new(parts.engine), &settings, &shared);
+        let (started, warning) = start_audio(Box::new(parts.engine), &run_settings, &shared);
         let (output, parked) = match started {
             Ok(out) => (Some(out), None),
             Err(engine) => (None, Some(engine)),
@@ -350,6 +360,7 @@ impl NativeHost {
                 output,
                 parked,
                 settings,
+                forced_backend,
                 shared,
                 engine_rate: prepare.sample_rate as u32,
                 data_dir: config.data_dir.clone(),
@@ -571,7 +582,11 @@ struct AudioState {
     /// The engine while no backend runs it (every start attempt failed); kept so a later
     /// `SetAudioConfig` can start it again.
     parked: Option<Box<Engine>>,
+    /// The user's choice (saved). What runs may differ: `forced_backend`, or the null
+    /// backend when the device was unavailable at startup.
     settings: AudioSettings,
+    /// `ETHER_AUDIO`: the backend every start uses, whatever the settings say.
+    forced_backend: Option<AudioBackendKind>,
     shared: Arc<AudioShared>,
     engine_rate: u32,
     data_dir: PathBuf,
@@ -614,6 +629,7 @@ impl AudioState {
         }
         let run = AudioSettings {
             sample_rate: Some(self.engine_rate),
+            backend: self.forced_backend.unwrap_or(new.backend),
             ..new.clone()
         };
         let engine = match self.output.take() {
@@ -633,6 +649,7 @@ impl AudioState {
                 // Restore the previous configuration.
                 let old = AudioSettings {
                     sample_rate: Some(self.engine_rate),
+                    backend: self.forced_backend.unwrap_or(self.settings.backend),
                     ..self.settings.clone()
                 };
                 match start_audio(engine, &old, &self.shared).0 {

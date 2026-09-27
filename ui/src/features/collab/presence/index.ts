@@ -4,3 +4,5 @@
 export { PresenceLayer, type PresenceLayerProps } from "./PresenceLayer";
 export { activityLabel, presenceV2Fields, setActivity, setFollowing, useLocalPresence } from "./local";
 export { usePointerStore } from "./pointers";
+export { EditingPeers, EditorPresence, type EditorCursorMapping, type EditorPresenceProps } from "./EditorPresence";
+export { useClipEditors } from "./editors";

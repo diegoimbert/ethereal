@@ -5,6 +5,7 @@ import { playheadStore, tracksOrdered, useEditorStore, useProjectStore, useSelec
 import { itemSelection, wheelZoomFactor } from "@/timeline";
 import { cmd, MockTransport, newId, TransportProvider } from "@/transport";
 import { ContextMenuHost } from "@/kit";
+import { useCollabStore } from "@/features/collab/store";
 import { ArrangementView } from "./ArrangementView";
 import { BROWSER_DRAG_MIME } from "./browserDrop";
 import { clearClipboard } from "./clipboard";
@@ -243,6 +244,30 @@ describe("ArrangementView: tracks", () => {
 });
 
 describe("ArrangementView: clip editing", () => {
+  it("rings a clip another user has open in their piano roll, with their name", async () => {
+    const chords = clipByName("Chords");
+    act(() =>
+      useCollabStore.setState({
+        status: { type: "Online", session: "jam", site: "1" },
+        peers: [
+          {
+            site: "2",
+            actor: null,
+            name: "Ada",
+            color: 0x5cffe8,
+            state: { cursor: null, selected_tracks: [], selected_clips: [], selected_notes: [], selected_devices: [], view: null, editing_clip: chords.id },
+          },
+        ],
+      }),
+    );
+    const el = clipEl(chords);
+    expect(el.classList.contains("eth-clip--peer-editing")).toBe(true);
+    expect(el.querySelector('[data-testid="clip-editors"]')?.textContent).toBe("Ada");
+    expect(clipEl(clipByName("Bassline")).classList.contains("eth-clip--peer-editing")).toBe(false);
+    act(() => useCollabStore.getState().reset());
+    expect(clipEl(chords).classList.contains("eth-clip--peer-editing")).toBe(false);
+  });
+
   it("click selects a clip and its track; shift adds; cmd toggles", async () => {
     const chords = clipByName("Chords");
     const bass = clipByName("Bassline");
