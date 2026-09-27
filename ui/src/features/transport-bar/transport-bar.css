@@ -41,6 +41,9 @@
   font-size: var(--eth-fs-sm);
   text-align: right;
 }
+.eth-tb-field--draggable:not(:focus) {
+  cursor: ns-resize;
+}
 .eth-tb-field:focus {
   outline: 1px solid var(--eth-color-accent);
 }

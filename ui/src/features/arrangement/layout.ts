@@ -3,8 +3,9 @@
  * their descendants), their order, depth and y offsets. Clip hit testing (marquee) and
  * drag-between-tracks use this model instead of measuring the DOM.
  *
- * Each row is `TRACK_HEIGHT` px of lane plus the height of its automation slot (0 until
- * ui-automation mounts lanes there; pass their heights via `automationHeight`).
+ * Each row is its lane height (`TRACK_HEIGHT` unless resized, see `laneHeight`) plus the
+ * height of its automation slot (0 until ui-automation mounts lanes there; pass their
+ * heights via `automationHeight`).
  */
 
 import type { Clip, Track, TrackId } from "@/generated";
@@ -13,7 +14,16 @@ import { beatsToPx, type TimelineViewport } from "@/timeline";
 import { isArrangementClip, startOf } from "./clipTime";
 
 export const HEADER_WIDTH = 200;
+/** Default lane height. Resized lanes stay within `[MIN_TRACK_HEIGHT, MAX_TRACK_HEIGHT]`. */
 export const TRACK_HEIGHT = 56;
+export const MIN_TRACK_HEIGHT = 24;
+export const MAX_TRACK_HEIGHT = 320;
+/** Dragging a lane's edge resizes it in these increments. */
+export const TRACK_HEIGHT_STEP = 8;
+
+export function clampTrackHeight(h: number): number {
+  return Math.min(MAX_TRACK_HEIGHT, Math.max(MIN_TRACK_HEIGHT, h));
+}
 /** Height of the empty drop area below the last track. */
 export const DROP_AREA_HEIGHT = 80;
 
@@ -65,11 +75,12 @@ export function layoutRows(
   ordered: ReadonlyArray<Track>,
   folded: ReadonlySet<TrackId>,
   automationHeight: (track: TrackId) => number = () => 0,
+  laneHeightOf: (track: TrackId) => number = () => TRACK_HEIGHT,
 ): Row[] {
   const byId = new Map(ordered.map((t) => [t.id, t]));
   let y = 0;
   return arrangementTracks(ordered, folded).map((track) => {
-    const laneHeight = TRACK_HEIGHT;
+    const laneHeight = Math.round(laneHeightOf(track.id));
     const height = laneHeight + automationHeight(track.id);
     const row: Row = { track, depth: depthOf(track, byId), y, laneHeight, height };
     y += height;

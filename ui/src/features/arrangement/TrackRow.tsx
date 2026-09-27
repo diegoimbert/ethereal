@@ -1,16 +1,18 @@
 import clsx from "clsx";
-import { memo, useMemo, type CSSProperties, type MouseEvent } from "react";
+import { memo, useMemo, useState, type CSSProperties, type MouseEvent, type PointerEvent } from "react";
 import type { Clip, ClipId, Track } from "@/generated";
 import { TrackAutomationLanes } from "@/features/automation";
-import { Button } from "@/kit";
+import { Button, openContextMenu, setDragCursor } from "@/kit";
 import { useProjectStore, useSelectionStore } from "@/state";
-import { pxToBeats, useTempoMap, useTimelineView, useViewport, visibleRange } from "@/timeline";
-import { cmd, newId } from "@/transport";
+import { useTempoMap, useTimelineView, useViewport, visibleRange } from "@/timeline";
+import { cmd } from "@/transport";
+import { trackMenu } from "./actions";
+import { onLaneInsertPointerDown, type InsertSpan } from "./clipInsert";
 import { ClipView } from "./ClipView";
-import { barAround, colorCss, groupSummaryKey } from "./helpers";
+import { colorCss, groupSummaryKey } from "./helpers";
 import { sendEdit, useArrangement } from "./context";
 import { laneItems } from "./laneItems";
-import { HEADER_WIDTH, type Row } from "./layout";
+import { HEADER_WIDTH, TRACK_HEIGHT_STEP, type Row } from "./layout";
 import { arrangementView, useArrangementUi, type PendingImport } from "./uiStore";
 
 const EMPTY_CLIPS: Readonly<Record<ClipId, Clip>> = {};
@@ -22,6 +24,7 @@ export const TrackRow = memo(function TrackRow({ row }: { row: Row }) {
     <div className="eth-arr-row" style={{ height: row.height }} data-track={row.track.id}>
       <div className="eth-arr-row__main" style={{ height: row.laneHeight }}>
         <TrackHeader row={row} />
+        <ResizeHandle row={row} />
         {row.track.kind === "Group" ? <GroupLane track={row.track} /> : <TrackLane track={row.track} />}
       </div>
       {/* Automation slot: its height is fed to `layoutRows` via `useAutomationHeight`. */}
@@ -48,6 +51,7 @@ function TrackHeader({ row }: { row: Row }) {
       style={{ width: HEADER_WIDTH, paddingLeft: 4 + depth * INDENT_PX, ["--eth-track-color" as string]: colorCss(track.color) }}
       onPointerDown={stop}
       onClick={() => useSelectionStore.getState().selectTrack(track.id)}
+      onContextMenu={(e) => openContextMenu(e, trackMenu(transport, track))}
       role="group"
       aria-label={`${track.name} track`}
     >
@@ -119,6 +123,50 @@ function TrackHeader({ row }: { row: Row }) {
   );
 }
 
+/**
+ * Bottom edge of a track's header (not the lane, so clips keep their edges): drag to resize
+ * the track in `TRACK_HEIGHT_STEP` increments (alt: free), double-click to reset it.
+ */
+function ResizeHandle({ row }: { row: Row }) {
+  const onPointerDown = (e: PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return;
+    e.stopPropagation();
+    e.preventDefault();
+    const startY = e.clientY;
+    const startH = row.laneHeight;
+    const ui = useArrangementUi.getState();
+    const move = (ev: globalThis.PointerEvent) => {
+      const h = startH + ev.clientY - startY;
+      ui.setHeight(row.track.id, ev.altKey ? h : Math.round(h / TRACK_HEIGHT_STEP) * TRACK_HEIGHT_STEP);
+    };
+    const done = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", done);
+      window.removeEventListener("pointercancel", done);
+      setDragCursor(null);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", done);
+    window.addEventListener("pointercancel", done);
+    setDragCursor("ns-resize");
+  };
+  return (
+    <div
+      className="eth-arr-row__resize"
+      style={{ top: row.laneHeight - 3, width: HEADER_WIDTH }}
+      onPointerDown={onPointerDown}
+      onDoubleClick={(e) => {
+        e.stopPropagation();
+        useArrangementUi.getState().setHeight(row.track.id, null);
+      }}
+      role="separator"
+      aria-orientation="horizontal"
+      aria-label={`Resize ${row.track.name}`}
+      title="Drag to resize the track (double-click to reset)"
+    />
+  );
+}
+
 /** Visible beat range of the arrangement view (re-renders on scroll/zoom/resize). */
 function useVisible() {
   const vp = useViewport(arrangementView);
@@ -132,7 +180,7 @@ function useVisible() {
 
 /** The clip lane of an audio or MIDI (or return/master: empty) track. */
 function TrackLane({ track }: { track: Track }) {
-  const { transport } = useArrangement();
+  const ctx = useArrangement();
   const clips = useProjectStore((s) => s.project?.clips ?? EMPTY_CLIPS);
   const preview = useArrangementUi((s) => s.preview);
   const dropHint = useArrangementUi((s) => (s.dropHint?.track === track.id ? s.dropHint.at : null));
@@ -141,22 +189,13 @@ function TrackLane({ track }: { track: Track }) {
   const { vp, visible } = useVisible();
   const items = useMemo(() => laneItems(clips, track.id, preview), [clips, track.id, preview]);
 
-  const onDoubleClick = (e: MouseEvent<HTMLDivElement>) => {
-    if (track.kind !== "Midi" || e.target !== e.currentTarget) return;
-    const x = e.clientX - e.currentTarget.getBoundingClientRect().left;
-    const at = pxToBeats(x, arrangementView.getState());
-    const bar = barAround(tempo, at);
-    void sendEdit(
-      transport,
-      cmd("Clip", { type: "CreateMidi", id: newId(), track: track.id, start: bar.start, length: bar.length, name: null }),
-    );
-  };
+  const [insert, setInsert] = useState<InsertSpan | null>(null);
 
   return (
     <div
       className={clsx("eth-arr-lane", track.kind !== "Audio" && track.kind !== "Midi" && "eth-arr-lane--no-clips")}
       data-lane={track.id}
-      onDoubleClick={onDoubleClick}
+      onPointerDown={track.kind === "Midi" ? (e) => onLaneInsertPointerDown(e, track.id, ctx, setInsert) : undefined}
     >
       {items.map((it) =>
         it.bounds.start + it.bounds.length < visible.start || it.bounds.start > visible.end ? null : (
@@ -172,6 +211,17 @@ function TrackLane({ track }: { track: Track }) {
             ghost={it.ghost}
           />
         ),
+      )}
+      {insert && (
+        <div
+          className="eth-clip eth-clip--ghost"
+          data-testid="insert-preview"
+          style={{
+            left: (insert.start - vp.scrollBeats) * vp.pxPerBeat,
+            width: insert.length * vp.pxPerBeat,
+            ["--eth-clip-color" as string]: colorCss(track.color),
+          }}
+        />
       )}
       {dropHint !== null && (
         <div className="eth-arr-lane__drop-hint" style={{ left: (dropHint - vp.scrollBeats) * vp.pxPerBeat }} />

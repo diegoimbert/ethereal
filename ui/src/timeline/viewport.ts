@@ -6,6 +6,7 @@
  */
 
 import type { BeatRange, Beats, Seconds } from "@/generated";
+import { MOTION } from "./motion";
 import type { TempoMap } from "./tempoMap";
 
 /** Horizontal viewport of a timeline. */
@@ -125,6 +126,6 @@ export function revealBeats(
 }
 
 /** Zoom factor for a wheel `deltaY` (pixels): smooth, exponential, sign-correct. */
-export function wheelZoomFactor(deltaY: number, sensitivity = 0.002): number {
+export function wheelZoomFactor(deltaY: number, sensitivity = MOTION.wheelZoomSensitivity): number {
   return Math.exp(-deltaY * sensitivity);
 }
