@@ -567,3 +567,20 @@ fn audition_plays_one_lane_without_editing_the_document() {
     }));
     assert_eq!(err(&out).code, ErrorCode::InvalidArgument);
 }
+
+/// Pinned so the UI/mock port (`ui/src/features/comping/model.ts` `deriveId`) stays in step.
+#[test]
+fn derive_id_vector_matches_the_ui_port() {
+    let seed: ClipId = serde_json::from_str("\"01J8Z3Q4R5S6T7V8W9XAYBZC0D\"").unwrap();
+    let ids: Vec<String> = (0..3)
+        .map(|i| serde_json::to_string(&derive_id::<ClipId, ClipId>(seed, i)).unwrap())
+        .collect();
+    assert_eq!(
+        ids,
+        [
+            "\"01J8Z3Q4R5S6T1EFD3CS0GPJYM\"",
+            "\"01J8Z3Q4R5S6T4KSN14Z5KR71Z\"",
+            "\"01J8Z3Q4R5S6TEW19PDZ8M53YS\""
+        ]
+    );
+}
