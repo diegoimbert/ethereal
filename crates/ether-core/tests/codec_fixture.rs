@@ -630,7 +630,18 @@ pub fn fill_v02(d: &mut RenderGraphDesc) {
             volume: 0.5,
             mute: false,
             parent: Some(TrackId(ulid(10, 1))),
-            automation: vec![],
+            automation: vec![AutomationDesc {
+                target: AutomationTarget::TrackVolume {
+                    track: TrackId(ulid(10, 0)),
+                },
+                resolved: ResolvedTarget::TrackVolume,
+                points: vec![
+                    (0.0, 0.25, CurveShape::Linear),
+                    (4.0, 1.0, CurveShape::Curve { tension: -0.5 }),
+                    (8.0, 0.0, CurveShape::Step),
+                ],
+                mapping: mapping(3),
+            }],
         },
         VcaDesc {
             id: TrackId(ulid(10, 1)),

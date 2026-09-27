@@ -58,6 +58,9 @@ use ether_core::parallel::ParallelExecutor;
 
 /// Upper bound of the default worker count (more rarely helps a DAW graph and costs power).
 pub const MAX_DEFAULT_WORKERS: usize = 8;
+/// How long `WorkerPool::with_options` waits for its workers to start before panicking.
+const WORKER_START_TIMEOUT: Duration = Duration::from_secs(10);
+
 /// Spin iterations (`spin_loop` hints, ~tens of µs) before a worker parks.
 pub const SPIN_ITERS: u32 = 1 << 12;
 /// Spin iterations of the audio thread waiting for the last jobs before it yields.
@@ -250,7 +253,22 @@ impl WorkerPool {
             }
         }
         // Wait until every spawned worker is in its loop (non-RT: this is construction).
+        // Bounded: a worker that died before signalling (panic in RT setup) is a bug, not
+        // something to spin on forever.
+        let deadline = std::time::Instant::now() + WORKER_START_TIMEOUT;
         while shared.started.load(Ordering::Acquire) < handles.len() {
+            if let Some(h) = handles.iter().find(|h| h.is_finished()) {
+                panic!(
+                    "audio worker {:?} exited before starting",
+                    h.thread().name().unwrap_or("?")
+                );
+            }
+            assert!(
+                std::time::Instant::now() < deadline,
+                "audio workers did not start within {WORKER_START_TIMEOUT:?} ({} of {})",
+                shared.started.load(Ordering::Acquire),
+                handles.len()
+            );
             std::thread::yield_now();
         }
         Self {

@@ -558,19 +558,40 @@ fn track_ext() -> impl Strategy<Value = TrackExt> {
     )
 }
 
+/// VCA volume automation (finite: JSON blob).
+fn vca_automation() -> impl Strategy<Value = AutomationDesc> {
+    let curve = prop_oneof![
+        Just(CurveShape::Linear),
+        Just(CurveShape::Step),
+        finite32().prop_map(|tension| CurveShape::Curve { tension }),
+    ];
+    (
+        track_id(),
+        vec((finite64(), finite64(), curve), 0..4),
+        finite_mapping(),
+    )
+        .prop_map(|(track, points, mapping)| AutomationDesc {
+            target: AutomationTarget::TrackVolume { track },
+            resolved: ResolvedTarget::TrackVolume,
+            points,
+            mapping,
+        })
+}
+
 fn vca() -> impl Strategy<Value = VcaDesc> {
     (
         track_id(),
         finite32(),
         any::<bool>(),
         option::of(track_id()),
+        vec(vca_automation(), 0..3),
     )
-        .prop_map(|(id, volume, mute, parent)| VcaDesc {
+        .prop_map(|(id, volume, mute, parent, automation)| VcaDesc {
             id,
             volume,
             mute,
             parent,
-            automation: vec![],
+            automation,
         })
 }
 
