@@ -197,6 +197,32 @@ describe("PianoRoll", () => {
     expect(notesOf(clip)).toHaveLength(2);
   });
 
+  it("pressing cmd mid-drag switches to duplicating (the original goes back); releasing it undoes that", async () => {
+    const { clip, a } = await setup();
+    act(() => itemSelection.getState().select("note", [a], "replace"));
+    fireEvent.pointerDown(noteEl(a), { button: 0, clientX: x(1.5), clientY: y(60) });
+    fireEvent.pointerMove(window, { clientX: x(3.5), clientY: y(60) });
+    await flush();
+    expect(notesOf(clip).find((n) => n.id === a)).toMatchObject({ start: 3 });
+    fireEvent.keyDown(window, { key: "Meta", metaKey: true });
+    await flush();
+    expect(notesOf(clip).find((n) => n.id === a)).toMatchObject({ start: 1, pitch: 60 });
+    expect(notesOf(clip).filter((n) => n.pitch === 60).map((n) => n.start)).toEqual([1, 3]);
+    expect(document.documentElement.style.getPropertyValue("--eth-drag-cursor")).toBe("copy");
+
+    fireEvent.keyUp(window, { key: "Meta", metaKey: false });
+    await flush();
+    expect(notesOf(clip).filter((n) => n.pitch === 60).map((n) => n.start)).toEqual([3]);
+
+    fireEvent.keyDown(window, { key: "Meta", metaKey: true });
+    fireEvent.pointerMove(window, { clientX: x(4.5), clientY: y(60), metaKey: true });
+    fireEvent.pointerUp(window, { clientX: x(4.5), clientY: y(60), metaKey: true });
+    await flush();
+    expect(notesOf(clip).filter((n) => n.pitch === 60).map((n) => n.start)).toEqual([1, 4]);
+    await undo();
+    expect(notesOf(clip).filter((n) => n.pitch === 60).map((n) => n.start)).toEqual([1]);
+  });
+
   it("keeps the resize (or move) cursor for the whole drag", async () => {
     const { a } = await setup();
     const root = document.documentElement;

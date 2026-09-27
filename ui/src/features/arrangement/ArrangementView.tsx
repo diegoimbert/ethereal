@@ -20,7 +20,7 @@ import {
 } from "@/timeline";
 import { useAutomationHeight } from "@/features/automation";
 import { TransportContext, useTransport, useTransportEvent } from "@/transport";
-import { actionForKey, runClipAction } from "./actions";
+import { actionForKey, bindSingleSelection, locateIfStopped, runClipAction } from "./actions";
 import { dropBrowserMedia, hasBrowserDrag, readBrowserDrag } from "./browserDrop";
 import { ArrangementContext, type ArrangementContextValue } from "./context";
 import { clipRects, DROP_AREA_HEIGHT, HEADER_WIDTH, layoutRows, rowIndexAt, rowsHeight, type Row } from "./layout";
@@ -88,6 +88,26 @@ function ConnectedArrangementView() {
   useTimelineWheel(scrollRef, view, { smoothScrollY: true, onVerticalZoom });
   useMiddleButtonPan(scrollRef, view);
   useFollowWithMargin(view);
+  useEffect(() => bindSingleSelection(), []);
+
+  // Copy/cut/paste also arrive as clipboard events: on macOS the app's Edit menu takes
+  // cmd-C/X/V before the page sees the key (desktop app), and sends these instead.
+  useEffect(() => {
+    const onClipboard = (e: ClipboardEvent) => {
+      const root = rootRef.current;
+      if (!root || !root.contains(document.activeElement) || isTextEntry(document.activeElement)) return;
+      e.preventDefault();
+      void runClipAction(transport, e.type as "copy" | "cut" | "paste");
+    };
+    document.addEventListener("copy", onClipboard);
+    document.addEventListener("cut", onClipboard);
+    document.addEventListener("paste", onClipboard);
+    return () => {
+      document.removeEventListener("copy", onClipboard);
+      document.removeEventListener("cut", onClipboard);
+      document.removeEventListener("paste", onClipboard);
+    };
+  }, [transport]);
 
   const ctx = useMemo<ArrangementContextValue>(
     () => ({ transport, peaks, contentRef, rowsRef, focus: () => rootRef.current?.focus({ preventScroll: true }) }),
@@ -100,9 +120,12 @@ function ConnectedArrangementView() {
       const project = useProjectStore.getState().project;
       return project ? marqueeHits(rect, clipRects(rowsRef.current, Object.values(project.clips), view.getState())) : [];
     },
-    onClick: (p) => {
+    onClick: (p, ev) => {
+      useArrangementUi.getState().setTrackFocus(null);
       const row = rowsRef.current[rowIndexAt(rowsRef.current, p.y)];
       if (row) useSelectionStore.getState().selectTrack(row.track.id);
+      // A click on empty space also moves the playhead there (when stopped), snapped.
+      if (p.x >= HEADER_WIDTH) locateIfStopped(transport, snap(pxToBeats(p.x - HEADER_WIDTH, view.getState()), ev.altKey));
     },
   });
 
@@ -186,6 +209,7 @@ function ConnectedArrangementView() {
             <div className="eth-arr__drop-area" style={{ height: DROP_AREA_HEIGHT }}>
               <NewTrackDropHint />
             </div>
+            <TrackDropLine />
             <div className="eth-arr__overlay" style={{ left: HEADER_WIDTH }}>
               <PlayheadLine view={view} />
             </div>
@@ -201,6 +225,12 @@ function ConnectedArrangementView() {
       </div>
     </ArrangementContext.Provider>
   );
+}
+
+/** Where a dragged track header will land (a line between rows). */
+function TrackDropLine() {
+  const y = useArrangementUi((s) => (s.trackDrag && !s.trackDrag.into ? s.trackDrag.y : null));
+  return y === null ? null : <div className="eth-arr__track-drop" style={{ top: y }} data-testid="track-drop-line" />;
 }
 
 /** Bar/beat lines behind the lanes. */

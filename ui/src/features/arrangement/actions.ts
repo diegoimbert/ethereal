@@ -2,12 +2,14 @@
 
 import type { EngineTransport } from "@/transport";
 import { cmd, newId } from "@/transport";
-import type { Clip, Command, Track, TrackId } from "@/generated";
+import type { Beats, Clip, Command, Track, TrackId } from "@/generated";
 import { MOD_KEY, type ContextMenuEntry } from "@/kit";
 import { useEditorStore, useProjectStore, useSelectionStore } from "@/state";
 import { itemSelection, playheadBeats } from "@/timeline";
+import { copyClips, cutClips, hasClipboard, pasteClips } from "./clipboard";
 import { isArrangementClip } from "./clipTime";
 import { selectedClips, sendEdit } from "./context";
+import { useArrangementUi } from "./uiStore";
 import { asOneStep, deleteCommand, duplicateCommand, splitCommand, toggleLoopCommand } from "./editMath";
 
 export type NewTrackKind = "Midi" | "Audio";
@@ -28,6 +30,52 @@ export function addTrackCommand(kind: NewTrackKind, id: TrackId, deviceId: strin
   return asOneStep(kind === "Midi" ? "Add MIDI Track" : "Add Audio Track", commands)!;
 }
 
+/**
+ * Move the playhead to `beats`, unless the transport is playing (clicking a clip or empty
+ * space while stopped sets where playback will start). Reads the controller's transport
+ * state, which knows about Play/Stop as soon as they are sent.
+ */
+export function locateIfStopped(transport: EngineTransport, beats: Beats): void {
+  if (useProjectStore.getState().transport?.playing) return;
+  transport
+    .send(cmd("Transport", { type: "Locate", position: Math.max(0, beats) }))
+    .catch((err: unknown) => console.warn("locate failed", err));
+}
+
+/**
+ * Select `track` as the arrangement's entity (header click): it becomes the selected
+ * track and the clip and automation point selections are cleared.
+ */
+export function selectTrackEntity(track: TrackId): void {
+  itemSelection.getState().clear("clip");
+  itemSelection.getState().clear("automationPoint");
+  useSelectionStore.getState().selectTrack(track);
+  useArrangementUi.getState().setTrackFocus(track);
+}
+
+/**
+ * Keep a single kind of selected entity in the arrangement: selecting clips clears the
+ * automation points and the track focus, and the other way around. Returns the unsubscribe.
+ */
+export function bindSingleSelection(): () => void {
+  return itemSelection.subscribe((s, prev) => {
+    const clips = s.selected.clip !== prev.selected.clip && s.selected.clip.size > 0;
+    const points = s.selected.automationPoint !== prev.selected.automationPoint && s.selected.automationPoint.size > 0;
+    if (!clips && !points) return;
+    useArrangementUi.getState().setTrackFocus(null);
+    itemSelection.getState().clear(clips ? "automationPoint" : "clip");
+  });
+}
+
+/** Delete the focused track (Delete key with a track selected), if it can be deleted. */
+export function deleteFocusedTrack(transport: EngineTransport): Promise<void> {
+  const ui = useArrangementUi.getState();
+  const track = ui.trackFocus ? useProjectStore.getState().project?.tracks[ui.trackFocus] : undefined;
+  ui.setTrackFocus(null);
+  if (!track || track.kind === "Master") return Promise.resolve();
+  return sendEdit(transport, cmd("Track", { type: "Delete", id: track.id }));
+}
+
 /** Add a track (see `addTrackCommand`) and select it. */
 export async function addTrack(transport: EngineTransport, kind: NewTrackKind): Promise<TrackId> {
   const id = newId();
@@ -36,7 +84,7 @@ export async function addTrack(transport: EngineTransport, kind: NewTrackKind): 
   return id;
 }
 
-export type ClipAction = "split" | "duplicate" | "delete" | "loop" | "select-all" | "deselect";
+export type ClipAction = "split" | "duplicate" | "delete" | "loop" | "select-all" | "deselect" | "copy" | "cut" | "paste";
 
 export function runClipAction(transport: EngineTransport, action: ClipAction): Promise<void> {
   const clips = selectedClips();
@@ -58,6 +106,8 @@ export function runClipAction(transport: EngineTransport, action: ClipAction): P
       });
     }
     case "delete":
+      // The selected entity: a track (header clicked) or the selected clips.
+      if (useArrangementUi.getState().trackFocus) return deleteFocusedTrack(transport);
       return sendEdit(transport, deleteCommand(clips.map((c) => c.id)));
     case "loop":
       return sendEdit(transport, toggleLoopCommand(clips));
@@ -67,8 +117,17 @@ export function runClipAction(transport: EngineTransport, action: ClipAction): P
       itemSelection.getState().select("clip", all, "replace");
       return Promise.resolve();
     }
+    case "copy":
+      copyClips();
+      return Promise.resolve();
+    case "cut":
+      return cutClips(transport);
+    case "paste":
+      // At the playhead; onto the selected track when the clips all come from one track.
+      return pasteClips(transport, playheadBeats(), useSelectionStore.getState().selectedTrack).then(() => {});
     case "deselect":
       itemSelection.getState().clear("clip");
+      useArrangementUi.getState().setTrackFocus(null);
       return Promise.resolve();
   }
 }
@@ -83,6 +142,9 @@ export function actionForKey(e: { key: string; metaKey: boolean; ctrlKey: boolea
     if (k === "e") return "split";
     if (k === "d") return "duplicate";
     if (k === "a") return "select-all";
+    if (k === "c") return "copy";
+    if (k === "x") return "cut";
+    if (k === "v") return "paste";
   }
   if (mod && e.shiftKey && k === "l") return "loop";
   return null;
@@ -103,6 +165,10 @@ export function clipMenu(transport: EngineTransport, clip: Clip): ContextMenuEnt
     ...(clip.content.type === "Midi" && clips.length === 1
       ? [{ label: "Open in Piano Roll", onSelect: () => useEditorStore.getState().openClip(clip.id) }, "separator" as const]
       : []),
+    { label: "Cut", shortcut: `${MOD_KEY}X`, onSelect: run("cut") },
+    { label: "Copy", shortcut: `${MOD_KEY}C`, onSelect: run("copy") },
+    { label: "Paste at Playhead", shortcut: `${MOD_KEY}V`, disabled: !hasClipboard(), onSelect: run("paste") },
+    "separator",
     { label: "Split at Playhead", shortcut: `${MOD_KEY}E`, onSelect: run("split") },
     { label: "Duplicate", shortcut: `${MOD_KEY}D`, onSelect: run("duplicate") },
     { label: allLooping ? "Disable Loop" : "Enable Loop", shortcut: `⇧${MOD_KEY}L`, onSelect: run("loop") },
@@ -117,7 +183,7 @@ export function clipMenu(transport: EngineTransport, clip: Clip): ContextMenuEnt
 
 /** Right-click menu of a track header (selects the track). */
 export function trackMenu(transport: EngineTransport, track: Track): ContextMenuEntry[] {
-  useSelectionStore.getState().selectTrack(track.id);
+  selectTrackEntity(track.id);
   if (track.kind === "Master") return [];
   return [
     {
@@ -130,6 +196,14 @@ export function trackMenu(transport: EngineTransport, track: Track): ContextMenu
       },
     },
     "separator",
-    { label: "Delete Track", danger: true, onSelect: () => void sendEdit(transport, cmd("Track", { type: "Delete", id: track.id })) },
+    {
+      label: "Delete Track",
+      shortcut: "⌫",
+      danger: true,
+      onSelect: () => {
+        useArrangementUi.getState().setTrackFocus(null);
+        void sendEdit(transport, cmd("Track", { type: "Delete", id: track.id }));
+      },
+    },
   ];
 }

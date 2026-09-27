@@ -32,6 +32,14 @@ export interface PendingImport {
 }
 
 export interface ArrangementUiState {
+  /**
+   * The track selected as an entity (its header was clicked): Delete deletes it. The
+   * arrangement has one selected entity at a time, so this is null while clips or
+   * automation points are selected (see `bindSingleSelection`).
+   */
+  trackFocus: TrackId | null;
+  /** A track header being dragged: the drop indicator (a line at `y`, or a group to go into). */
+  trackDrag: { track: TrackId; y: number | null; into: TrackId | null } | null;
   folded: ReadonlySet<TrackId>;
   /** Lane height of resized tracks; the others use `defaultHeight`. */
   heights: ReadonlyMap<TrackId, number>;
@@ -43,6 +51,8 @@ export interface ArrangementUiState {
   dropHint: { track: TrackId | null; at: Beats } | null;
   imports: ReadonlyArray<PendingImport>;
 
+  setTrackFocus(track: TrackId | null): void;
+  setTrackDrag(drag: ArrangementUiState["trackDrag"]): void;
   toggleFold(track: TrackId): void;
   /** Resize one lane (clamped); `null` resets it to the default. */
   setHeight(track: TrackId, height: number | null): void;
@@ -57,6 +67,8 @@ export interface ArrangementUiState {
 }
 
 const INITIAL = {
+  trackFocus: null as TrackId | null,
+  trackDrag: null as ArrangementUiState["trackDrag"],
   folded: new Set<TrackId>() as ReadonlySet<TrackId>,
   heights: new Map<TrackId, number>() as ReadonlyMap<TrackId, number>,
   defaultHeight: TRACK_HEIGHT,
@@ -68,6 +80,8 @@ const INITIAL = {
 
 export const useArrangementUi = create<ArrangementUiState>()((set) => ({
   ...INITIAL,
+  setTrackFocus: (trackFocus) => set({ trackFocus }),
+  setTrackDrag: (trackDrag) => set({ trackDrag }),
   toggleFold: (track) =>
     set((s) => {
       const folded = new Set(s.folded);

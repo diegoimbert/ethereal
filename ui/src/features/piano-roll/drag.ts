@@ -26,9 +26,20 @@ export function useSend(): (command: Command) => Promise<boolean> {
   return useCallback((command: Command) => report(transport.send(command)), [transport]);
 }
 
+/** Modifier keys held during a drag (from the pointer, or a key press mid-drag). */
+export interface DragModifiers {
+  altKey: boolean;
+  shiftKey: boolean;
+  metaKey: boolean;
+  ctrlKey: boolean;
+}
+
 export interface DragHandlers {
-  /** Pointer moved by (dx, dy) px from the press point. Return the command to send, if any. */
-  move(dx: number, dy: number, e: PointerEvent): Command | null;
+  /**
+   * Pointer moved by (dx, dy) px from the press point, or a modifier key changed while
+   * dragging (same dx, dy). Return the command to send, if any.
+   */
+  move(dx: number, dy: number, e: DragModifiers): Command | null;
   /** Called after release (the gesture is already closed). */
   end?(moved: boolean): void;
 }
@@ -41,7 +52,7 @@ export interface DragOptions {
   /** Pixels to travel before `move` is called (default 0). */
   threshold?: number;
   /** Cursor shown everywhere until release (e.g. "ew-resize" while resizing). */
-  cursor?: string;
+  cursor?: string | ((e: DragModifiers) => string);
 }
 
 /**
@@ -72,24 +83,46 @@ export function startDrag(
     });
   }
 
-  const onMove = (ev: PointerEvent) => {
-    const dx = ev.clientX - x0;
-    const dy = ev.clientY - y0;
-    if (!moved && Math.hypot(dx, dy) < (opts.threshold ?? 0)) return;
-    moved = true;
-    const command = handlers.move(dx, dy, ev);
+  let dx = 0;
+  let dy = 0;
+  const cursor = (m: DragModifiers) => {
+    if (opts.cursor) setDragCursor(typeof opts.cursor === "string" ? opts.cursor : opts.cursor(m));
+  };
+  const update = (m: DragModifiers) => {
+    cursor(m);
+    const command = handlers.move(dx, dy, m);
     if (command) send(command);
   };
-  if (opts.cursor) setDragCursor(opts.cursor);
+  const onMove = (ev: PointerEvent) => {
+    dx = ev.clientX - x0;
+    dy = ev.clientY - y0;
+    if (!moved && Math.hypot(dx, dy) < (opts.threshold ?? 0)) return;
+    moved = true;
+    update(ev);
+  };
+  // Pressing or releasing a modifier mid-drag (e.g. cmd: duplicate) applies at once.
+  const onKey = (ev: KeyboardEvent) => {
+    if (moved && ["Alt", "Shift", "Meta", "Control"].includes(ev.key)) update(ev);
+  };
+  cursor({ altKey: false, shiftKey: false, metaKey: false, ctrlKey: false, ...modifiersOf(e) });
   const onUp = () => {
     if (opts.cursor) setDragCursor(null);
     window.removeEventListener("pointermove", onMove);
     window.removeEventListener("pointerup", onUp);
     window.removeEventListener("pointercancel", onUp);
+    window.removeEventListener("keydown", onKey);
+    window.removeEventListener("keyup", onKey);
     if (gesture !== null) void report(transport.send(cmd("Edit", { type: "EndGesture", gesture })));
     handlers.end?.(moved);
   };
   window.addEventListener("pointermove", onMove);
   window.addEventListener("pointerup", onUp);
   window.addEventListener("pointercancel", onUp);
+  window.addEventListener("keydown", onKey);
+  window.addEventListener("keyup", onKey);
+}
+
+function modifiersOf(e: object): Partial<DragModifiers> {
+  const m = e as Partial<DragModifiers>;
+  return { altKey: !!m.altKey, shiftKey: !!m.shiftKey, metaKey: !!m.metaKey, ctrlKey: !!m.ctrlKey };
 }

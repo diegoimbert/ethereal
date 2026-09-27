@@ -1,12 +1,13 @@
 import { act, createEvent, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Clip, Command, Track } from "@/generated";
-import { playheadStore, useEditorStore, useProjectStore, useSelectionStore } from "@/state";
+import { playheadStore, tracksOrdered, useEditorStore, useProjectStore, useSelectionStore } from "@/state";
 import { itemSelection, wheelZoomFactor } from "@/timeline";
 import { cmd, MockTransport, newId, TransportProvider } from "@/transport";
 import { ContextMenuHost } from "@/kit";
 import { ArrangementView } from "./ArrangementView";
 import { BROWSER_DRAG_MIME } from "./browserDrop";
+import { clearClipboard } from "./clipboard";
 import { AUTOMATION_BAR_HEIGHT, LANE_HEIGHT, resetAutomationUi } from "@/features/automation";
 import { HEADER_WIDTH, MAX_TRACK_HEIGHT, MIN_TRACK_HEIGHT, TRACK_HEIGHT } from "./layout";
 import { arrangementView, resetArrangementUi, useArrangementUi } from "./uiStore";
@@ -107,6 +108,7 @@ beforeEach(async () => {
 });
 
 afterEach(() => {
+  clearClipboard();
   mock.dispose();
   store().reset();
   useSelectionStore.getState().selectTrack(null);
@@ -386,6 +388,167 @@ describe("ArrangementView: clip editing", () => {
     const bass = clipByName("Bassline");
     await drag(clipEl(bass), 0, 0, { x: 10, y: ROW + 5 });
     await waitFor(() => expect(playheadStore.getPlayhead()?.transport.position).toBe(startOf(bass)));
+  });
+
+  it("a click on empty space moves the playhead there (snapped), but not while playing", async () => {
+    const content = screen.getByTestId("arrangement-content");
+    await drag(content, 0, 0, { x: HEADER_WIDTH + 20.4 * PX, y: ROW * 3 + 5 });
+    await waitFor(() => expect(playheadStore.getPlayhead()?.transport.position).toBe(20));
+
+    await act(async () => {
+      await mock.send(cmd("Transport", { type: "Play" }));
+    });
+    await waitFor(() => expect(store().transport?.playing).toBe(true));
+    await drag(content, 0, 0, { x: HEADER_WIDTH + 40 * PX, y: ROW * 3 + 5 });
+    await drag(clipEl(clipByName("Bassline")), 0, 0, { x: 10, y: ROW + 5 });
+    expect(sent.filter((c) => c.domain === "Transport" && c.command.type === "Locate")).toHaveLength(1);
+  });
+
+  it("pressing cmd mid-drag copies the clip instead of moving it", async () => {
+    const bass = clipByName("Bassline");
+    const start = startOf(bass);
+    await act(async () => {
+      fireEvent.pointerDown(clipEl(bass), { button: 0, pointerId: 1, clientX: 10, clientY: ROW + 5 });
+      fireEvent.pointerMove(window, { pointerId: 1, clientX: 10 + 4 * PX, clientY: ROW + 5 });
+    });
+    expect(useArrangementUi.getState().preview?.copy).toBe(false);
+    act(() => {
+      fireEvent.keyDown(window, { key: "Meta", metaKey: true });
+    });
+    expect(useArrangementUi.getState().preview?.copy).toBe(true);
+    await act(async () => {
+      fireEvent.pointerUp(window, { pointerId: 1, clientX: 10 + 4 * PX, clientY: ROW + 5, metaKey: true });
+    });
+    await flush();
+    expect(project().clips[bass.id]!.start).toBe(start);
+    expect(Object.values(project().clips).some((c) => c.track === bass.track && startOf(c) === start + 4)).toBe(true);
+  });
+
+  it("reorders tracks by dragging their headers (one undo step)", async () => {
+    const names = () => tracksOrdered(project()).map((t) => t.name);
+    expect(names().slice(0, 3)).toEqual(["Keys", "Bass", "Drums"]);
+    const drums = screen.getByRole("group", { name: "Drums track" });
+    await act(async () => {
+      fireEvent.pointerDown(drums, { button: 0, pointerId: 1, clientX: 20, clientY: 2 * ROW + 10 });
+      fireEvent.pointerMove(window, { pointerId: 1, clientX: 20, clientY: ROW });
+      fireEvent.pointerMove(window, { pointerId: 1, clientX: 20, clientY: 5 });
+    });
+    expect(screen.getByTestId("track-drop-line").style.top).toBe("0px");
+    await act(async () => {
+      fireEvent.pointerUp(window, { pointerId: 1, clientX: 20, clientY: 5 });
+    });
+    await flush();
+    expect(names().slice(0, 3)).toEqual(["Drums", "Keys", "Bass"]);
+    expect(screen.queryByTestId("track-drop-line")).toBeNull();
+    await undo();
+    expect(names().slice(0, 3)).toEqual(["Keys", "Bass", "Drums"]);
+  });
+
+  it("keeps a single selected entity: a track or clips, and Delete removes that one", async () => {
+    const bass = clipByName("Bassline");
+    const keys = trackByName("Keys");
+    await drag(clipEl(bass), 0, 0, { x: 10, y: ROW + 5 });
+    expect([...itemSelection.getState().selected.clip]).toEqual([bass.id]);
+
+    // Selecting a track clears the clips; Delete deletes the track, not the clip.
+    fireEvent.click(screen.getByRole("group", { name: "Keys track" }));
+    expect(itemSelection.getState().selected.clip.size).toBe(0);
+    expect(useArrangementUi.getState().trackFocus).toBe(keys.id);
+    fireEvent.keyDown(document.querySelector('[data-feature="arrangement"]')!, { key: "Delete" });
+    await flush();
+    expect(project().tracks[keys.id]).toBeUndefined();
+    expect(project().clips[bass.id]).toBeDefined();
+
+    // Selecting a clip clears the track focus again.
+    fireEvent.click(screen.getByRole("group", { name: "Drums track" }));
+    await drag(clipEl(bass), 0, 0, { x: 10, y: ROW + 5 });
+    expect(useArrangementUi.getState().trackFocus).toBeNull();
+    expect(document.querySelector(".eth-arr-header--selected")).toBeNull();
+  });
+
+  it("a double-click on a clip's body (passed through to the lane) opens it instead of inserting", async () => {
+    const chords = clipByName("Chords");
+    const lane = document.querySelector<HTMLElement>(`[data-lane="${chords.track}"]`)!;
+    const before = Object.keys(project().clips).length;
+    const x = (startOf(chords) + 1) * PX;
+    await act(async () => {
+      fireEvent.pointerDown(lane, { button: 0, pointerId: 1, clientX: x, clientY: 30 });
+      fireEvent.pointerUp(window, { pointerId: 1, clientX: x, clientY: 30 });
+      fireEvent.pointerDown(lane, { button: 0, pointerId: 1, clientX: x, clientY: 30 });
+      fireEvent.pointerUp(window, { pointerId: 1, clientX: x, clientY: 30 });
+    });
+    await flush();
+    expect(Object.keys(project().clips)).toHaveLength(before);
+    expect(useEditorStore.getState().clip).toBe(chords.id);
+  });
+
+  describe("copy / cut / paste", () => {
+    const root = () => document.querySelector<HTMLElement>('[data-feature="arrangement"]')!;
+    const key = (k: string) => fireEvent.keyDown(root(), { key: k, metaKey: true });
+    const clipsOn = (track: string) => Object.values(project().clips).filter((c) => c.track === track);
+    async function locate(position: number) {
+      await act(async () => {
+        await mock.send(cmd("Transport", { type: "Locate", position }));
+      });
+    }
+
+    it("copies the selection and pastes it at the playhead as one undo step", async () => {
+      const bass = clipByName("Bassline");
+      const notes = (clip: string) => Object.values(project().notes).filter((n) => n.clip === clip).length;
+      await drag(clipEl(bass), 0, 0, { x: 10, y: ROW + 5 });
+      key("c");
+      await locate(32);
+      key("v");
+      await flush();
+      const pasted = clipsOn(bass.track).find((c) => startOf(c) === 32)!;
+      expect(pasted).toMatchObject({ length: bass.length, name: bass.name });
+      expect(notes(pasted.id)).toBe(notes(bass.id));
+      expect([...itemSelection.getState().selected.clip]).toEqual([pasted.id]);
+      await waitFor(() => expect(playheadStore.getPlayhead()?.transport.position).toBe(32 + bass.length));
+      await undo();
+      expect(project().clips[pasted.id]).toBeUndefined();
+    });
+
+    it("cut removes the clips and paste rebuilds them (notes included)", async () => {
+      const bass = clipByName("Bassline");
+      const noteCount = Object.values(project().notes).filter((n) => n.clip === bass.id).length;
+      await drag(clipEl(bass), 0, 0, { x: 10, y: ROW + 5 });
+      key("x");
+      await flush();
+      expect(project().clips[bass.id]).toBeUndefined();
+      await locate(40);
+      key("v");
+      await flush();
+      const pasted = clipsOn(bass.track).find((c) => startOf(c) === 40)!;
+      expect(pasted).toMatchObject({ length: bass.length, offset: bass.offset, name: bass.name });
+      expect(Object.values(project().notes).filter((n) => n.clip === pasted.id)).toHaveLength(noteCount);
+    });
+
+    it("handles the clipboard events the macOS Edit menu sends", async () => {
+      const bass = clipByName("Bassline");
+      await drag(clipEl(bass), 0, 0, { x: 10, y: ROW + 5 });
+      root().focus();
+      act(() => {
+        document.dispatchEvent(new Event("copy", { bubbles: true, cancelable: true }));
+      });
+      await locate(48);
+      await act(async () => {
+        document.dispatchEvent(new Event("paste", { bubbles: true, cancelable: true }));
+      });
+      await flush();
+      expect(clipsOn(bass.track).some((c) => startOf(c) === 48)).toBe(true);
+    });
+
+    it("pastes where an empty lane is right-clicked, onto that track", async () => {
+      const chords = clipByName("Chords");
+      await drag(clipEl(chords), 0, 0, { x: 100, y: 5 });
+      key("c");
+      const lane = document.querySelector<HTMLElement>(`[data-lane="${chords.track}"]`)!;
+      fireEvent.contextMenu(lane, { clientX: 24.3 * PX, clientY: 20 });
+      fireEvent.click(screen.getByRole("menuitem", { name: "Paste" }));
+      await flush();
+      expect(clipsOn(chords.track).some((c) => startOf(c) === 24)).toBe(true);
+    });
   });
 
   it("offers Delete in the right-click menu of a clip and of a track", async () => {
