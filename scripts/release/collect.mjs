@@ -64,7 +64,12 @@ function desktop(triple) {
     } else if (INSTALLER.test(name) && !name.startsWith("rw.")) {
       if (wantHelper && name.endsWith(".deb")) {
         const list = execFileSync("dpkg-deb", ["-c", f], { encoding: "utf8" });
-        if (!list.includes(`/usr/bin/${HELPER}`)) fail(`${name} has no /usr/bin/${HELPER}`);
+        // Entries print as `./usr/bin/x` or `usr/bin/x` depending on how the tar was made.
+        const has = (bin) => new RegExp(`(^|[\\s/])usr/bin/${bin}$`, "m").test(list);
+        if (!has(HELPER)) {
+          console.error(list);
+          fail(`${name} has no /usr/bin/${HELPER}`);
+        }
       }
       const dest = join(outDir, name);
       copyFileSync(f, dest);
