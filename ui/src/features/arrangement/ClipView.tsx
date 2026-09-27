@@ -61,7 +61,7 @@ export const ClipView = memo(function ClipView({ clip, bounds, trackColor, vp, v
           ? undefined
           : (e) => {
               e.stopPropagation();
-              if (clip.content.type === "Midi") useEditorStore.getState().openClip(clip.id);
+              useEditorStore.getState().openClip(clip.id);
             }
       }
     >
