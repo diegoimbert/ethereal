@@ -5,7 +5,8 @@
 //! 1. The client opens `ws(s)://host:port/` (no token in the URL: URLs end up in logs).
 //! 2. Client → server, first text frame: a [`ClientHello`].
 //! 3. Server → client: one [`ServerHello`] text frame. `Rejected` is followed by a close
-//!    frame (code 4001 auth, 4002 version). After `Welcome` the server sends what every
+//!    frame (code 4001 auth, 4002 version, 4003 server busy). A connected client that stays
+//!    silent past the server's idle deadline is closed with 4004. After `Welcome` the server sends what every
 //!    transport sends on connect (`Transport`, `Recording::ArmChanged`, project list, ...).
 //! 4. Then every **text frame** is exactly one JSON [`ClientMessage`] (client → server) or
 //!    [`ServerMessage`] (server → client), with the usual ordering rules (patches before the

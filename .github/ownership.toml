@@ -405,6 +405,8 @@ paths = [
   "crates/ether-native/tests/collab*.rs",
   # shared touch (base-25): one additive state field + initializer on EtherController
   "crates/ether-controller/src/lib.rs",
+  # base-36: collab design doc
+  "docs/COLLAB.md",
 ]
 
 [nodes.multicore]
@@ -540,6 +542,12 @@ paths = [
   "crates/ether-controller/src/lib.rs",
   # shared touch (base-29): DrumRack/Sampler-slice mock descriptors
   "ui/src/transport/mock/builtinDevices.ts",
+  # shared touch (base-31): pass sampler slices in create(); drop the placeholder module
+  "crates/ether-devices/src/lib.rs",
+  "crates/ether-devices/src/placeholder.rs",
+  # shared touch (base-33): `media: &self.media` in the EngineCtx literals only (transient auto-slice)
+  "crates/ether-controller/src/handlers.rs",
+  "crates/ether-controller/src/midi_learn/mod.rs",
 ]
 
 # --- media-preview (base-24) ------------------------------------------------------------

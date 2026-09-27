@@ -1,0 +1,39 @@
+/* Remote engine: top-bar button, connect dialog, upload status. Tokens only. */
+.eth-remote {
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-sm);
+  font-size: var(--eth-fs-sm);
+}
+.eth-remote__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-md);
+}
+.eth-remote__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-xs);
+  color: var(--eth-color-text-dim);
+}
+.eth-remote__hint {
+  margin: 0;
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+}
+.eth-remote__form-error {
+  margin: 0;
+  color: var(--eth-color-danger);
+}
+.eth-remote__uploads {
+  display: flex;
+  gap: var(--eth-space-xs);
+}
+.eth-remote__error {
+  border: none;
+  background: none;
+  padding: 0;
+  color: var(--eth-color-danger);
+  font: inherit;
+  cursor: pointer;
+}

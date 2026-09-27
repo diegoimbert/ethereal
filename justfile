@@ -13,7 +13,7 @@ default:
 
 # Print this instance's id and base dev port.
 dev-port:
-    @{{env}}; echo "instance=$ETHER_INSTANCE port=$ETHER_DEV_PORT (preview=$((ETHER_DEV_PORT+1)) playwright=$((ETHER_DEV_PORT+2)))"
+    @{{env}}; echo "instance=$ETHER_INSTANCE port=$ETHER_DEV_PORT (preview=$((ETHER_DEV_PORT+1)) playwright=$((ETHER_DEV_PORT+2)) remote=$((ETHER_DEV_PORT+4)))"
 
 # Install JS dependencies.
 install:
@@ -35,6 +35,12 @@ dev-desktop:
 # Desktop app with the null audio backend (no device, no contention).
 dev-desktop-headless:
     ETHER_AUDIO=null just dev-desktop
+
+# Headless engine over WebSocket on this instance's remote port (base +4, loopback only).
+# The token is printed (dev convenience); connect from the web UI's "Remote" button.
+# Extra args go to ether-server (e.g. `just dev-server --listen 0.0.0.0`, see --help).
+dev-server *args:
+    {{env}}; ETHER_AUDIO="${ETHER_AUDIO:-null}" cargo run -p ether-server -- --print-token {{args}}
 
 # Install the headless Chromium used by the Playwright e2e suite (once per machine).
 e2e-install:
