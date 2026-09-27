@@ -329,6 +329,8 @@ impl PluginController for AuPlugin {
             audio_inputs: self.io.0,
             audio_outputs: self.io.1,
             midi_input: self.io.2,
+            // Extra input busses (AU sidechains) are not routed yet.
+            sidechain_inputs: 0,
         }
     }
 
