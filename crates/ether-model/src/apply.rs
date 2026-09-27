@@ -502,6 +502,7 @@ fn update_modulator(m: &mut Modulator, c: ModulatorChange) -> Result<ModulatorCh
             };
             C::Param { param, value: old }
         }
+        C::Sidechain(v) => swap!(C::Sidechain, m.sidechain, v),
     })
 }
 
@@ -847,7 +848,10 @@ impl Project {
     fn check_globals(&self, key: EntityKey) -> Result<(), ModelError> {
         match key {
             // Devices: sidechain edges are routing edges.
-            EntityKey::Track(_) | EntityKey::Send(_) | EntityKey::Device(_) => self.check_routing(),
+            EntityKey::Track(_)
+            | EntityKey::Send(_)
+            | EntityKey::Device(_)
+            | EntityKey::Modulator(_) => self.check_routing(),
             EntityKey::TempoPoint(_) => {
                 if !self
                     .tempo_points
@@ -1081,6 +1085,15 @@ impl Project {
                 let m = &self.modulators[&id];
                 self.require(key, EntityKey::Device(m.device))?;
                 check_order(&m.order)?;
+                if let Some(src) = m.sidechain {
+                    if m.kind != ModulatorKind::EnvelopeFollower {
+                        return Err(invalid("only envelope followers take a sidechain"));
+                    }
+                    self.require_track(key, src)?;
+                    if self.devices.get(&m.device).map(|d| d.track) == Some(src) {
+                        return Err(invariant("a modulator cannot sidechain its own track"));
+                    }
+                }
                 if m.params.values().any(|v| !v.is_finite()) {
                     return Err(invalid("modulator param values must be finite"));
                 }
@@ -1131,6 +1144,14 @@ impl Project {
                 "rack chain device {} is not on its rack's track",
                 stray.id
             )));
+        }
+        // Its modulators' sidechains stay off its own track when it moves.
+        if self
+            .modulators
+            .values()
+            .any(|m| m.device == d.id && m.sidechain == Some(d.track))
+        {
+            return Err(invariant("a modulator cannot sidechain its own track"));
         }
         // Mappings targeting this device stay in scope when it moves.
         for m in self.mod_mappings.values().filter(|m| m.device == d.id) {
@@ -1537,6 +1558,12 @@ impl Project {
                 edges.entry(src).or_default().push(d.track);
             }
         }
+        // v0.2: envelope-follower sidechains too.
+        for m in self.modulators.values() {
+            if let (Some(src), Some(host)) = (m.sidechain, self.devices.get(&m.device)) {
+                edges.entry(src).or_default().push(host.track);
+            }
+        }
         // 0 = unvisited, 1 = on stack, 2 = done. Iterative DFS.
         let mut state: BTreeMap<TrackId, u8> = BTreeMap::new();
         for &root in self.tracks.keys() {
@@ -1635,6 +1662,12 @@ impl Project {
                         .values()
                         .find(|l| l.track == id)
                         .map(|l| EntityKey::TakeLane(l.id))
+                })
+                .or_else(|| {
+                    self.modulators
+                        .values()
+                        .find(|m| m.sidechain == Some(id))
+                        .map(|m| EntityKey::Modulator(m.id))
                 }),
             EntityKey::Clip(id) => self
                 .notes

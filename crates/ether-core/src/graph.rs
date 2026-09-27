@@ -521,6 +521,30 @@ pub fn compile_with(
             }
         }
     }
+    // v0.2: envelope-follower sidechains (`crate::modulation`): the source goes first and
+    // keeps its tap.
+    let mod_sc_sources: Vec<Vec<usize>> = desc
+        .tracks
+        .iter()
+        .enumerate()
+        .map(|(i, t)| {
+            let mut v: Vec<usize> = t
+                .modulation
+                .modulators
+                .iter()
+                .filter_map(|m| m.sidechain.and_then(track_of))
+                .filter(|&s| s != i)
+                .collect();
+            v.sort_unstable();
+            v.dedup();
+            v
+        })
+        .collect();
+    for (i, sources) in mod_sc_sources.iter().enumerate() {
+        for &s in sources {
+            order_succ[s].push(i);
+        }
+    }
     // v0.2: track input from another track (`crate::bus_tap`): the source goes first.
     let tap_source: Vec<Option<usize>> = desc
         .tracks
@@ -776,6 +800,9 @@ pub fn compile_with(
     for p in sc_plans.iter().flatten() {
         tapped[p.source] = true;
     }
+    for &s in mod_sc_sources.iter().flatten() {
+        tapped[s] = true;
+    }
     // v0.2: tap points each track must provide (`crate::bus_tap`).
     let mut tap_points: Vec<Vec<InputTap>> = vec![Vec::new(); n];
     for (i, s) in tap_source.iter().enumerate() {
@@ -887,7 +914,11 @@ pub fn compile_with(
                 node_info,
                 config,
             ),
-            modulation: crate::modulation::ModulationRt::compile(&t.modulation, config),
+            modulation: crate::modulation::ModulationRt::compile(
+                &t.modulation,
+                mod_sc_sources[i].clone(),
+                config,
+            ),
             input_tap: crate::bus_tap::InputTapRt::compile(
                 tap_source[i],
                 t.input_tap.map(|tap| tap.point),

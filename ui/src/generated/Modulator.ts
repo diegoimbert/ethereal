@@ -4,6 +4,7 @@ import type { ModulatorId } from "./ModulatorId";
 import type { ModulatorKind } from "./ModulatorKind";
 import type { OrderKey } from "./OrderKey";
 import type { ParamId } from "./ParamId";
+import type { TrackId } from "./TrackId";
 
 /**
  * A modulator inside a device.
@@ -20,4 +21,11 @@ order: OrderKey, name: string, kind: ModulatorKind,
 /**
  * Plain values of the kind's params; missing = default.
  */
-params: { [key in ParamId]: number }, };
+params: { [key in ParamId]: number }, 
+/**
+ * `EnvelopeFollower` only: follow this track's sidechain tap (post-fader, before its
+ * PDC delay, exactly like a device sidechain, CONTRACTS.md §11.10) instead of the host
+ * device's input. A routing edge `source → host track` (no cycles, not the host's own
+ * track). Deleting the source track cuts it. Omitted when `None`.
+ */
+sidechain?: TrackId, };

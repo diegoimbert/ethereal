@@ -1048,6 +1048,18 @@ impl JobCtx<'_> {
                 }
             }
         }
+        // Envelope-follower sidechains (`crate::modulation`, v0.2): sources finished earlier.
+        for i in 0..track.modulation.sidechain_sources().len() {
+            let s = track.modulation.sidechain_sources()[i];
+            if s == ti {
+                continue;
+            }
+            // SAFETY: as above (sidechain sources are ordered before their consumer).
+            let src = unsafe { &*self.tracks.add(s) };
+            if let Some(tap) = &src.tap {
+                track.modulation.write_sidechain(s, tap, n);
+            }
+        }
         // Track input from another track (`crate::bus_tap`, v0.2): its source finished in an
         // earlier level.
         if let Some(s) = track.input_tap.source

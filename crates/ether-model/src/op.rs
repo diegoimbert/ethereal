@@ -352,6 +352,8 @@ pub enum ModulatorChange {
         param: ParamId,
         value: Option<f64>,
     },
+    /// Envelope-follower sidechain source.
+    Sidechain(Option<TrackId>),
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]

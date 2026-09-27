@@ -56,6 +56,11 @@ pub struct ModulatorDesc {
     pub kind: ModulatorKind,
     /// Plain values of every param of the kind (defaults filled in by the controller).
     pub params: Vec<(ParamId, f64)>,
+    /// Envelope followers: follow this track's sidechain tap instead of the host input
+    /// (ordered first and tapped by `graph.rs`, read in the consumer's job via
+    /// [`ModulationRt::write_sidechain`]).
+    #[serde(default)]
+    pub sidechain: Option<ether_protocol::model::TrackId>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
@@ -83,13 +88,35 @@ pub struct ModMappingDesc {
 
 /// Per-track modulation state (in `TrackRt`).
 #[derive(Debug, Default)]
-pub(crate) struct ModulationRt {}
+pub(crate) struct ModulationRt {
+    /// Track indices of envelope-follower sidechain sources (distinct, sorted).
+    sidechain_sources: Vec<usize>,
+}
 
 impl ModulationRt {
-    /// Non-RT (graph compile).
-    pub(crate) fn compile(desc: &ModulationDesc, config: &EngineConfig) -> Self {
+    /// Non-RT (graph compile). `sidechain_sources`: track indices of the envelope-follower
+    /// sidechain sources of this track (finished before its job; their `tap` is kept).
+    pub(crate) fn compile(
+        desc: &ModulationDesc,
+        sidechain_sources: Vec<usize>,
+        config: &EngineConfig,
+    ) -> Self {
         let _ = (desc, config);
-        Self::default()
+        Self { sidechain_sources }
+    }
+
+    /// Envelope-follower sidechain sources (track indices).
+    pub(crate) fn sidechain_sources(&self) -> &[usize] {
+        &self.sidechain_sources
+    }
+
+    /// RT. At the start of the consumer's job: the post-fader tap of source track `source`
+    /// (latency `out_lat(source)`), for the followers keyed from it. PDC: aligned to the host
+    /// device's input like a device sidechain when the source is earlier (`L_sc <= L`: delay
+    /// the tap by `L - L_sc`); when it is later the modulation lags by `L_sc - L` (a control
+    /// signal never delays the audio). Placeholder: ignored.
+    pub(crate) fn write_sidechain(&mut self, source: usize, tap: &Stereo, n: usize) {
+        let _ = (source, tap, n);
     }
 
     /// RT. Carry source state (LFO phases, envelope stages) over a snapshot swap.

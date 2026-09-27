@@ -277,6 +277,7 @@ fn modulators_and_mapping_scope() {
     let other = f.device(t, BuiltinDevice::Chorus);
     f.insert(Entity::Device(other.clone())).unwrap();
     let lfo = Modulator {
+        sidechain: Default::default(),
         id: f.id(),
         device: synth.id,
         order: OrderKey::between(None, None),
@@ -470,4 +471,51 @@ fn v2_fixture_loads_at_v4_with_project_media() {
             && !saved.contains("\"chain\": null")
     );
     assert_eq!(file::load(&saved).unwrap(), p);
+}
+
+#[test]
+fn envelope_follower_sidechain_is_a_routing_edge() {
+    let mut f = Fx::new();
+    let host_track = f.track(TrackKind::Audio);
+    let source = f.track(TrackKind::Audio);
+    let host = f.device(host_track, BuiltinDevice::AutoFilter);
+    f.insert(Entity::Device(host.clone())).unwrap();
+    let follower = Modulator {
+        id: f.id(),
+        device: host.id,
+        order: OrderKey::between(None, None),
+        name: "Follower".into(),
+        kind: ModulatorKind::EnvelopeFollower,
+        params: Default::default(),
+        sidechain: Some(source),
+    };
+    f.insert(Entity::Modulator(follower.clone())).unwrap();
+    // Only followers; not the host's own track.
+    let lfo = Modulator {
+        id: f.id(),
+        kind: ModulatorKind::Lfo,
+        ..follower.clone()
+    };
+    assert!(f.insert(Entity::Modulator(lfo)).is_err());
+    let own = Modulator {
+        id: f.id(),
+        sidechain: Some(host_track),
+        ..follower.clone()
+    };
+    assert!(f.insert(Entity::Modulator(own)).is_err());
+    // source → host is an edge: the reverse sidechain would close a cycle.
+    let mut back = f.device(source, BuiltinDevice::Gate);
+    back.sidechain = Some(host_track);
+    assert!(matches!(
+        f.insert(Entity::Device(back)),
+        Err(ModelError::Invariant(_))
+    ));
+    // The source track can't be removed while followed.
+    assert!(
+        f.p.apply(&Op::Remove {
+            key: EntityKey::Track(source)
+        })
+        .is_err()
+    );
+    f.p.validate().unwrap();
 }

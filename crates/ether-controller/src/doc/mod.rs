@@ -370,6 +370,20 @@ impl DocCtx<'_, '_> {
         for d in listeners {
             self.set_device(d, DeviceChange::Sidechain(None))?;
         }
+        // v0.2: envelope followers listening to it too.
+        let followers: Vec<ModulatorId> = self
+            .p()
+            .modulators
+            .values()
+            .filter(|m| m.sidechain == Some(id))
+            .map(|m| m.id)
+            .collect();
+        for m in followers {
+            self.tx.update(EntityUpdate::Modulator {
+                id: m,
+                change: ModulatorChange::Sidechain(None),
+            })?;
+        }
         let sends: Vec<SendId> = self
             .p()
             .sends

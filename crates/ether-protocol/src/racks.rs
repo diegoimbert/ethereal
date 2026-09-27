@@ -14,7 +14,7 @@ use ts_rs::TS;
 use crate::devices::{DeviceSpec, ParamInfo};
 use crate::model::{
     BuiltinDeviceType, Color, Decibels, DeviceId, ModMappingId, ModSource, ModulatorId,
-    ModulatorKind, Pan, ParamId, RackChainId, Zone,
+    ModulatorKind, Pan, ParamId, RackChainId, TrackId, Zone,
 };
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
@@ -126,6 +126,13 @@ pub enum ModulationCommand {
     },
     Unmap {
         id: ModMappingId,
+    },
+    /// Envelope followers only: follow `source`'s sidechain tap instead of the host device's
+    /// input (`None` = the host input). `InvalidArgument` on a cycle, the host's own track or
+    /// the master track (same rules as `Device::SetSidechain`).
+    SetSidechain {
+        modulator: ModulatorId,
+        source: Option<TrackId>,
     },
     /// Replies `ModulatorKinds`.
     ListModulatorKinds,

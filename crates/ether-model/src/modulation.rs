@@ -47,7 +47,7 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
-use crate::ids::{DeviceId, ModMappingId, ModulatorId};
+use crate::ids::{DeviceId, ModMappingId, ModulatorId, TrackId};
 use crate::value::{OrderKey, ParamId};
 
 /// Modulator kinds. Append-only (serialized by name).
@@ -94,6 +94,13 @@ pub struct Modulator {
     pub kind: ModulatorKind,
     /// Plain values of the kind's params; missing = default.
     pub params: BTreeMap<ParamId, f64>,
+    /// `EnvelopeFollower` only: follow this track's sidechain tap (post-fader, before its
+    /// PDC delay, exactly like a device sidechain, CONTRACTS.md §11.10) instead of the host
+    /// device's input. A routing edge `source → host track` (no cycles, not the host's own
+    /// track). Deleting the source track cuts it. Omitted when `None`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub sidechain: Option<TrackId>,
 }
 
 /// A modulation source.

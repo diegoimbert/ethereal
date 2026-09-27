@@ -560,6 +560,9 @@ modulation}/**`, mock `roadmap/racksModulation.*` + `devices/{racks,modulators}.
 - Engine: implement `ChainRacksRt::run` (+ `chain_latency`, `inherit`) and `ModulationRt`
   (sources, `intercept`/`render`/`pre_node`/`set_param`, `readback`). Routing of params,
   automation and latency to chain nodes is already wired.
+- Envelope-follower sidechains (`Modulator::sidechain`, `Modulation::SetSidechain`):
+  ordering, tap and the per-job gather are wired; implement `write_sidechain` alignment and
+  the command (same validation as `sidechain::set_sidechain`).
 - Controller: `rack_command`, `modulation_command`, `chain_racks_desc`, `modulation_desc`;
   cascades are done. Shared touches: `doc/devices.rs` (live modulator params),
   `plugins/**` (ignore echoes of modulated values), `DeviceView.tsx` (drop targets, rings).

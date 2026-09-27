@@ -851,6 +851,14 @@ runtime; `PresetEvent::Changed` after user-set changes. Sample-based presets car
   device, param, depth -1..=1 }`, one per (source, target). Scope: a modulator targets its
   host and, for a rack host, devices on the rack's chains; a macro targets devices on its
   rack's chains and the rack's own non-macro params.
+- **Envelope-follower sidechain:** `Modulator::sidechain: Option<TrackId>` (followers only,
+  `Modulation::SetSidechain`) follows that track's sidechain tap (post-fader, before its PDC
+  delay, like device sidechains §11.10) instead of the host's input. It reuses the sidechain
+  machinery: a routing edge `source → host track` in the model's cycle check, ordered first
+  and tapped by `graph.rs`, gathered in the consumer's job (`ModulationRt::write_sidechain`,
+  pre-wired). PDC: when the source is earlier than the host's input position the tap is
+  delayed to align; when it is later the modulation lags by the difference (a control signal
+  never delays the audio). Deleting the source track cuts it (`doc/mod.rs`, done).
 - **Composition (frozen):** `effective = clamp(base + Σ depth_i · m_i, 0, 1)` in normalized
   units, then the param's scale (stepped params snap after the sum). `base` = the enabled
   automation (arrangement lane or clip envelope, v0.1 precedence) else the document value
