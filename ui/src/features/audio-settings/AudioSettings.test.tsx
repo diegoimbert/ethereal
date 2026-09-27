@@ -1,9 +1,10 @@
-import { act, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AudioConfig, Command } from "@/generated";
 import { pickOption } from "@/kit/testing";
 import { renderWithMock, resetStores } from "@/features/transport-bar/testUtils";
 import { AudioSettingsDialog, openAudioSettings, promptForInputIfNone, useAudioSettings } from "./index";
+import { loadAudioDevices } from "./store";
 
 afterEach(() => {
   resetStores();
@@ -28,14 +29,18 @@ async function setup() {
     if (reply.type === "AudioDevices") return { ...reply, devices: { ...reply.devices, current } };
     return reply;
   });
+  // The dialog loaded the devices when it mounted; reload them through the stub.
+  await act(async () => loadAudioDevices(mock));
   return { mock, applied };
 }
 
 describe("AudioSettingsDialog", () => {
   it("lists the devices and applies each change on its own", async () => {
-    const { applied } = await setup();
+    const { mock, applied } = await setup();
     act(() => openAudioSettings());
-    const input = await screen.findByRole("combobox", { name: "Input device" });
+    // Already loaded: no "Loading devices…" step when the dialog opens.
+    expect(screen.queryByText(/Loading devices/)).toBeNull();
+    const input = screen.getByRole("combobox", { name: "Input device" });
     expect(input).toHaveTextContent("None (no recording)");
     expect(screen.getByRole("combobox", { name: "Output device" })).toHaveTextContent("Mock Output (system default)");
     expect(await screen.findByTestId("audio-status")).toHaveTextContent("48000 Hz");
@@ -47,6 +52,11 @@ describe("AudioSettingsDialog", () => {
 
     pickOption(screen.getByRole("combobox", { name: "Buffer size" }), { value: "128" });
     await waitFor(() => expect(applied[1]).toMatchObject({ buffer_size: 128, input_device: null }));
+
+    // Refresh re-reads the devices.
+    const sends = vi.mocked(mock.send).mock.calls.length;
+    fireEvent.click(screen.getByRole("button", { name: "Refresh devices" }));
+    await waitFor(() => expect(vi.mocked(mock.send).mock.calls.length).toBeGreaterThan(sends));
   });
 
   it("arming with no input device opens the settings with a hint", async () => {

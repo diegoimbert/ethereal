@@ -56,3 +56,17 @@
 .eth-audio-settings__meter-bar {
   flex: 1;
 }
+
+.eth-audio-settings__toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: calc(var(--eth-space-sm) * -1);
+}
+.eth-audio-settings__spin {
+  animation: eth-audio-spin 0.8s linear infinite;
+}
+@keyframes eth-audio-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

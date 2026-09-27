@@ -1,9 +1,10 @@
 import { useContext, useEffect, useState } from "react";
-import type { AudioConfig, AudioDeviceList, EngineStatus, TrackId } from "@/generated";
-import { Button, Dialog, Meter, Select, type SelectOption } from "@/kit";
+import type { AudioConfig, TrackId } from "@/generated";
+import { RefreshCw } from "lucide-react";
+import { Button, Dialog, IconButton, Meter, Select, type SelectOption } from "@/kit";
 import { useProjectStore, useTrackMeter } from "@/state";
 import { cmd, isCommandFailed, TransportContext, type EngineTransport } from "@/transport";
-import { useAudioSettings } from "./store";
+import { loadAudioDevices, useAudioSettings } from "./store";
 import "./audioSettings.css";
 
 const BUFFER_SIZES = [32, 64, 128, 256, 512, 1024, 2048];
@@ -22,6 +23,10 @@ function errorText(e: unknown): string {
  */
 export function AudioSettingsDialog() {
   const transport = useContext(TransportContext)?.transport ?? null;
+  // Load the devices as soon as the engine is there, so the dialog opens ready.
+  useEffect(() => {
+    if (transport) void loadAudioDevices(transport);
+  }, [transport]);
   const open = useAudioSettings((s) => s.open);
   const reason = useAudioSettings((s) => s.reason);
   const close = useAudioSettings((s) => s.close);
@@ -40,30 +45,13 @@ export function AudioSettingsDialog() {
 }
 
 function AudioSettingsBody({ transport, reason }: { transport: EngineTransport; reason: "input" | null }) {
-  const [devices, setDevices] = useState<AudioDeviceList | null>(null);
-  const [status, setStatus] = useState<EngineStatus | null>(null);
+  // Loaded when the app connected (see AudioSettingsDialog), so this opens without a flicker.
+  const devices = useAudioSettings((s) => s.devices);
+  const status = useAudioSettings((s) => s.status);
+  const unavailable = useAudioSettings((s) => s.unavailable);
+  const loading = useAudioSettings((s) => s.loading);
   const [error, setError] = useState<string | null>(null);
-  const [unavailable, setUnavailable] = useState<string | null>(null);
-  const [version, setVersion] = useState(0);
-
-  useEffect(() => {
-    let active = true;
-    transport.send(cmd("Engine", { type: "ListAudioDevices" })).then(
-      (reply) => {
-        if (!active || reply.type !== "AudioDevices") return;
-        setDevices(reply.devices);
-        useAudioSettings.getState().setConfig(reply.devices.current);
-      },
-      (e: unknown) => active && setUnavailable(errorText(e)),
-    );
-    transport.send(cmd("Engine", { type: "GetStatus" })).then(
-      (reply) => active && reply.type === "Status" && setStatus(reply.status),
-      () => undefined,
-    );
-    return () => {
-      active = false;
-    };
-  }, [transport, version]);
+  const refresh = () => void loadAudioDevices(transport);
 
   /** Apply one field (the engine keeps the others), then refresh the lists and status. */
   const apply = async (patch: Partial<AudioConfig>) => {
@@ -82,7 +70,7 @@ function AudioSettingsBody({ transport, reason }: { transport: EngineTransport; 
     } catch (e) {
       setError(errorText(e));
     }
-    setVersion((v) => v + 1);
+    await loadAudioDevices(transport);
   };
 
   if (unavailable) {
@@ -93,7 +81,7 @@ function AudioSettingsBody({ transport, reason }: { transport: EngineTransport; 
       </p>
     );
   }
-  if (!devices) return <p className="eth-audio-settings__note">Loading devices…</p>;
+  if (!devices) return <p className="eth-audio-settings__note">{loading ? "Loading devices…" : "No devices."}</p>;
 
   const cur = devices.current;
   const defaultOutput = devices.outputs.find((d) => d.is_default)?.name ?? devices.outputs[0]?.name ?? "";
@@ -117,6 +105,16 @@ function AudioSettingsBody({ transport, reason }: { transport: EngineTransport; 
         </p>
       )}
 
+      <div className="eth-audio-settings__toolbar">
+        <IconButton
+          size="sm"
+          tone="ghost"
+          label="Refresh devices"
+          icon={<RefreshCw className={loading ? "eth-audio-settings__spin" : undefined} />}
+          disabled={loading}
+          onClick={refresh}
+        />
+      </div>
       <div className="eth-audio-settings__grid">
         {devices.hosts.length > 1 && (
           <Field label="Driver">
