@@ -88,6 +88,9 @@ impl BufList {
 #[derive(Debug, Default)]
 pub(crate) struct NodeShared {
     pub faulted: AtomicBool,
+    /// `reset` requested by the audio thread for an out-of-process unit; performed by the
+    /// controller's `poll` on the main thread.
+    pub reset_requested: AtomicBool,
     pub latency: AtomicU32,
 }
 
@@ -133,6 +136,8 @@ struct HostContext {
 /// Audio-thread state reachable from the blocks (through a raw pointer).
 pub(crate) struct RtState {
     in_bufs: Vec<Vec<f32>>,
+    /// Silence for non-main input busses.
+    zeros: Vec<f32>,
     frames: u32,
     ctx: HostContext,
     block_start: f64,
@@ -233,6 +238,7 @@ pub(crate) struct RtParts {
 pub(crate) fn rt_parts(in_channels: usize, max_frames: usize) -> RtParts {
     let rt = Box::new(UnsafeCell::new(RtState {
         in_bufs: (0..in_channels).map(|_| vec![0.0; max_frames]).collect(),
+        zeros: vec![0.0; max_frames],
         frames: 0,
         ctx: HostContext::default(),
         block_start: 0.0,
@@ -244,11 +250,13 @@ pub(crate) fn rt_parts(in_channels: usize, max_frames: usize) -> RtParts {
         move |_flags: NonNull<AudioUnitRenderActionFlags>,
               _ts: NonNull<AudioTimeStamp>,
               frames: u32,
-              _bus: isize,
+              bus: isize,
               data: NonNull<AudioBufferList>|
               -> i32 {
             // SAFETY: called synchronously from inside our render call.
             let st = unsafe { ptr.get() };
+            // Only the main input (bus 0) carries the node's input; other busses (AU
+            // sidechains) get silence.
             let list = data.as_ptr() as *mut BufList;
             // SAFETY: the unit passes a valid list with `count` buffers.
             let count = unsafe { (*list).count } as usize;
@@ -256,7 +264,11 @@ pub(crate) fn rt_parts(in_channels: usize, max_frames: usize) -> RtParts {
             for c in 0..count.min(MAX_CHANNELS) {
                 // SAFETY: `c < count`; buffers are laid out contiguously.
                 let buf = unsafe { &mut *(*list).buffers.as_mut_ptr().add(c) };
-                let src = st.in_bufs.get(c).or(st.in_bufs.last());
+                let src = if bus == 0 {
+                    st.in_bufs.get(c).or(st.in_bufs.last())
+                } else {
+                    Some(&st.zeros)
+                };
                 let bytes = (frames * 4) as u32;
                 match src {
                     Some(src) if buf.mData.is_null() => {
@@ -464,7 +476,9 @@ impl AuNode {
             .collect();
         values.sort_by_key(|v| v.id);
         let pending_cap = values.len().max(16);
-        let reset_imp = reset_imp(&au);
+        // SAFETY: plain getter (main thread, at activation).
+        let in_process = unsafe { au.isLoadedInProcess() };
+        let reset_imp = if in_process { reset_imp(&au) } else { None };
         Self {
             render,
             pull: parts.pull,
@@ -576,6 +590,12 @@ impl Node for AuNode {
     fn reset(&mut self) {
         // `-[AUAudioUnit reset]` "may be invoked on a render thread": clears delay lines,
         // voices. Called through its cached IMP (no message dispatch / encoding checks).
+        // For out-of-process units (v3 extensions) `reset` is an XPC round trip that can
+        // block, so it is deferred to the controller (`reset_imp` is `None` for them).
+        if self.reset_imp.is_none() {
+            self.shared.reset_requested.store(true, Ordering::Release);
+            return;
+        }
         if let Some(imp) = self.reset_imp {
             let obj = Retained::as_ptr(&self.au) as *mut AnyObject;
             // SAFETY: `imp` is the implementation of `reset` for the unit's class (looked up
@@ -726,12 +746,14 @@ impl Node for AuNode {
 
     fn channels(&self) -> (u16, u16) {
         (
+            // Same clamp as the controller's descriptor: the engine feeds/reads at most a
+            // stereo main bus (extra unit channels mirror the last one / are dropped).
             if self.has_input {
-                self.in_channels as u16
+                self.in_channels.min(2) as u16
             } else {
                 0
             },
-            self.out_channels as u16,
+            self.out_channels.min(2) as u16,
         )
     }
 }

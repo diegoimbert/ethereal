@@ -33,6 +33,18 @@
 //!   the param-id table ([`ids::encode_state`]).
 //! - **Editor**: `requestViewControllerWithCompletionHandler:` (v3 views; v2 Cocoa views via
 //!   the bridge) in a floating `NSWindow`, main thread only.
+//! - **Busses**: only the main input/output bus is routed; extra input busses (sidechains)
+//!   are disabled and fed silence. `Node::channels` and the descriptor report at most 2.
+//! - **Reset**: in-process units are reset on the audio thread (cached IMP). For
+//!   out-of-process units `reset` is an XPC round trip that can block, so the node only
+//!   flags it and the controller's `poll` performs it on the main thread.
+//!
+//! # Re-entrancy (for hosts)
+//! [`AuFormat::instantiate`] (async units) and `open_editor` wait for their completion by
+//! running a **nested** `CFRunLoopRunInMode` on the calling thread. Anything the host has
+//! queued on that run loop (e.g. other `run_on_main_thread` jobs) can run inside those
+//! calls, so a host must not hold a borrow of its plugin registry (`RefCell`, lock) across
+//! `instantiate` / `open_editor`.
 //!
 //! # Ids
 //! `type:subtype:manufacturer`, each an `AudioComponentDescription` four-char code

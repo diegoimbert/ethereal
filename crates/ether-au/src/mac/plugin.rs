@@ -357,12 +357,16 @@ impl PluginController for AuPlugin {
             in_channels = set_bus_format(&in_bus, sample_rate, 2).map_err(act)? as usize;
             unsafe { in_bus.setEnabled(true) };
         }
-        // Other busses keep their defaults but must share the sample rate.
-        for busses in [&inputs, &outputs] {
+        // Other busses keep their defaults but must share the sample rate; extra input
+        // busses (sidechains) are disabled: they are not routed yet.
+        for (is_input, busses) in [(true, &inputs), (false, &outputs)] {
             for i in 1..unsafe { busses.count() } {
                 let bus = unsafe { busses.objectAtIndexedSubscript(i) };
                 let ch = bus_channels(&bus);
                 let _ = set_bus_format(&bus, sample_rate, ch);
+                if is_input {
+                    unsafe { bus.setEnabled(false) };
+                }
             }
         }
         // Sent as a 64-bit value: `AUAudioUnitV2Bridge` declares the setter with an
@@ -382,19 +386,22 @@ impl PluginController for AuPlugin {
             self.au
                 .setMIDIOutputEventBlock(RcBlock::as_ptr(&parts.host.midi_out));
         }
-        unsafe { self.au.allocateRenderResourcesAndReturnError() }
-            .map_err(|e| act(ns_error(&e)))?;
-
-        // Cache the RT blocks once (copies; the unit keeps its own).
+        // Fetch and cache the RT blocks BEFORE allocating render resources: AUAudioUnit.h
+        // asks hosts that schedule events to do so, and some v3 units only set up
+        // parameter/MIDI scheduling if the blocks were fetched first (otherwise events are
+        // dropped silently). The copies stay valid across allocate/deallocate.
         let render: Option<RcBlock<RenderFn>> = unsafe { RcBlock::copy(self.au.renderBlock()) };
-        let Some(render) = render else {
-            unsafe { self.au.deallocateRenderResources() };
-            return Err(act("the unit has no render block".into()));
-        };
         let schedule_param: Option<RcBlock<ScheduleParamFn>> =
             unsafe { RcBlock::copy(self.au.scheduleParameterBlock()) };
         let schedule_midi: Option<RcBlock<ScheduleMidiFn>> =
             unsafe { RcBlock::copy(self.au.scheduleMIDIEventBlock()) };
+
+        unsafe { self.au.allocateRenderResourcesAndReturnError() }
+            .map_err(|e| act(ns_error(&e)))?;
+        let Some(render) = render else {
+            unsafe { self.au.deallocateRenderResources() };
+            return Err(act("the unit has no render block".into()));
+        };
 
         self.refresh_params(None);
         self.refresh_io();
@@ -516,6 +523,12 @@ impl PluginController for AuPlugin {
         super::service_idle_run_loop();
         if let Ok(mut q) = self.observed.queue.lock() {
             out.extend(q.drain(..));
+        }
+        if let Some(link) = &self.link
+            && link.shared.reset_requested.swap(false, Ordering::AcqRel)
+        {
+            // Deferred from the audio thread (out-of-process unit, see `AuNode::reset`).
+            unsafe { self.au.reset() };
         }
         if let Some(link) = self.link.as_mut()
             && link.shared.faulted.load(Ordering::Acquire)
