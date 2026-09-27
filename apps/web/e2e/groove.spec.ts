@@ -58,7 +58,7 @@ test("groove: quantize with swing, humanize, project swing", async ({ page }) =>
   const grid = page.getByTestId("piano-roll-grid");
   await expect(grid).toBeVisible();
   // Grid off, so drawn notes start wherever we click.
-  await page.getByLabel("Grid", { exact: true }).selectOption({ label: "Off" });
+  await page.getByTestId("piano-roll").getByLabel("Grid", { exact: true }).selectOption({ label: "Off" });
   const gridBox = (await grid.boundingBox())!;
   const endBox = (await page.getByTestId("piano-roll-clip-end").boundingBox())!;
   const clipWidth = endBox.x - gridBox.x;
@@ -71,17 +71,19 @@ test("groove: quantize with swing, humanize, project swing", async ({ page }) =>
   }
   await expect.poll(async () => (await notes(page)).length).toBe(3);
 
-  // --- Quantize… popover: 1/8, strength 100%, swing 100% -------------------------------------
+  // --- Quantize… popover: 1/8, strength 100%, swing 100% (all notes selected) ----------------
+  await page.getByTestId("piano-roll").press("ControlOrMeta+a");
   await page.getByRole("button", { name: "Quantize…" }).click();
   await page.getByLabel("Quantize grid").selectOption("1/8");
   const swing = page.getByRole("spinbutton", { name: "Swing" });
   await swing.fill("100");
   await swing.press("Enter");
-  await page.getByRole("button", { name: /^Quantize (all notes|\d+ selected)$/ }).click();
+  await page.getByRole("button", { name: "Quantize 3 selected" }).click();
   await expect.poll(async () => (await notes(page)).every((n) => onSwungEighths(n.start))).toBe(true);
 
   // --- Right-click a note → Humanize: only that note changes ---------------------------------
   const before = await notes(page);
+  await page.getByTestId("piano-roll").press("Escape");
   await page.getByTestId("piano-roll-note").first().click({ button: "right" });
   await page.getByRole("menuitem", { name: /Humanize/ }).click();
   await expect
