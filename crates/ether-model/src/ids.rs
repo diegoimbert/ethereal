@@ -108,10 +108,47 @@ define_ids! {
     MidiMappingId => "MidiMapping";
     /// A pad of a drum rack device. Roadmap v2 (`drum-rack`).
     DrumPadId => "DrumPad";
+    /// A take lane of a track (v0.2, `comping`).
+    TakeLaneId => "TakeLane";
+    /// A comp region: a time range of a track played from one take lane (v0.2, `comping`).
+    CompRegionId => "CompRegion";
+    /// A parallel chain of a rack device (v0.2, `racks-modulation`).
+    RackChainId => "RackChain";
+    /// A modulator (LFO, envelope, ...) inside a device (v0.2, `racks-modulation`).
+    ModulatorId => "Modulator";
+    /// A modulation mapping: source (modulator or macro) → device param, with a depth (v0.2,
+    /// `racks-modulation`).
+    ModMappingId => "ModMapping";
     /// A chat message of the project journal. base-62 (`collab-social`).
     ChatMessageId => "ChatMessage";
     /// A note pinned on the arrangement. base-62 (`collab-social`).
     PinnedNoteId => "PinnedNote";
+}
+
+/// Deterministic id number `index` derived from a client-chosen `seed` id (v0.2, collab-safe
+/// id minting, CONTRACTS.md §12.1).
+///
+/// Commands that create a number of entities unknown to the client (flatten a comp, split
+/// across tracks, paste time, consolidate, ...) take **one** client-chosen seed id and derive
+/// every other new id with `derive_id(seed, 0)`, `derive_id(seed, 1)`, ... in a documented
+/// order. Two sites replaying the same command then mint the same ids. The result keeps the
+/// seed's timestamp and mixes `index` into the random part (never equal to the seed itself;
+/// collisions between different `(seed, index)` pairs need a 64-bit hash collision).
+pub fn derive_id<S: Id, I: Id>(seed: S, index: u32) -> I {
+    let u = seed.ulid();
+    let random = u.random();
+    // splitmix64 over (random, index): cheap, deterministic, well mixed.
+    let mut x = (random as u64)
+        ^ ((random >> 64) as u64).rotate_left(17)
+        ^ (u64::from(index) + 1).wrapping_mul(0x9E37_79B9_7F4A_7C15);
+    x ^= x >> 30;
+    x = x.wrapping_mul(0xBF58_476D_1CE4_E5B9);
+    x ^= x >> 27;
+    x = x.wrapping_mul(0x94D0_49BB_1331_11EB);
+    x ^= x >> 31;
+    let hi = ((random >> 64) as u64 ^ u64::from(index).rotate_left(32)) & 0xFFFF;
+    let mixed = (u128::from(hi) << 64) | u128::from(x);
+    I::from_ulid(Ulid::from_parts(u.timestamp_ms(), mixed))
 }
 
 /// Identifies a project (stable across saves, renames and machines). UUIDv7.
@@ -231,5 +268,22 @@ mod tests {
         assert_eq!(json.len(), 38); // 36-char hyphenated + quotes
         assert_eq!(serde_json::from_str::<ProjectId>(&json).unwrap(), p);
         assert_eq!(p.to_string().parse::<ProjectId>().unwrap(), p);
+    }
+
+    #[test]
+    fn derived_ids_are_deterministic_and_distinct() {
+        let mut g = IdGen::new(7);
+        let seed: ClipId = g.next(1_000);
+        let a: ClipId = derive_id(seed, 0);
+        let b: ClipId = derive_id(seed, 1);
+        let c: NoteId = derive_id(seed, 0);
+        assert_eq!(a, derive_id::<ClipId, ClipId>(seed, 0));
+        assert_ne!(a, b);
+        assert_ne!(a, seed);
+        assert_eq!(a.ulid(), c.ulid());
+        assert_eq!(a.ulid().timestamp_ms(), 1_000);
+        let set: std::collections::BTreeSet<ClipId> =
+            (0..1000).map(|i| derive_id(seed, i)).collect();
+        assert_eq!(set.len(), 1000);
     }
 }

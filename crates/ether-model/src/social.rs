@@ -9,8 +9,8 @@
 //!   pointers), saved in the project like markers. Undoable, replicated, works outside a
 //!   session too. Named `PinnedNote` because `Note` is the MIDI note.
 //!
-//! Both tables are `#[serde(default)]` on `Project`, so `.ether` v3 files without them load
-//! unchanged (no version bump).
+//! Both tables ship with `.ether` v4 (contracts-3): the v3 → v4 migration adds them empty,
+//! and they are also `#[serde(default)]` on `Project`.
 
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;

@@ -6,7 +6,8 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
 use crate::drum_rack::SliceSettings;
-use crate::ids::{DeviceId, DrumPadId, MediaId, TrackId};
+use crate::ids::{DeviceId, DrumPadId, MediaId, RackChainId, TrackId};
+use crate::multisampler::SampleZone;
 use crate::value::{Base64Bytes, OrderKey, ParamId};
 
 /// A device on a track. Chain order = `order` among devices with the same `track`.
@@ -33,6 +34,12 @@ pub struct Device {
     /// the track's own chain. Pad devices keep `track` = the rack's track; chain order is
     /// `order` among devices with the same `(track, pad)`.
     pub pad: Option<DrumPadId>,
+    /// Rack chain this device is on (v0.2, `racks-modulation`; see [`crate::rack`]). `None` =
+    /// not in a rack. Mutually exclusive with `pad`; `track` = the rack's track. Omitted from
+    /// JSON when `None`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub chain: Option<RackChainId>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
@@ -47,7 +54,9 @@ pub enum DeviceKind {
 /// Parameters are *not* here (they are `Device::params`, described by the device type's
 /// `DeviceDescriptor` from `ether-devices`). Variants after `Delay` are roadmap v2: their
 /// parameter lists are defined by the owning node (`devices-2`, `drum-rack`); ids are
-/// append-only, never renumbered once released.
+/// append-only, never renumbered once released. Variants after `DrumRack` are v0.2
+/// (contracts-3): their param tables are frozen in their `ether-devices` module (append-only)
+/// and implemented by the owning node (docs/ROADMAP.md "v0.2").
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
 #[serde(tag = "type")]
 pub enum BuiltinDevice {
@@ -71,6 +80,55 @@ pub enum BuiltinDevice {
     /// Instrument hosting [`crate::drum_rack::DrumPad`]s, each with its own chain
     /// (`drum-rack`).
     DrumRack,
+    // --- v0.2 (contracts-3); owning node in parentheses ---
+    /// Polyphonic subtractive/wavetable synth (`synth-2`).
+    PolySynth,
+    /// Key/velocity-zoned sampler with round robin (`multisampler`).
+    MultiSampler {
+        zones: Vec<SampleZone>,
+    },
+    /// Distortion/saturation with several curves (`fx-color`).
+    Saturator,
+    /// Bit depth and sample-rate reduction (`fx-color`).
+    Bitcrusher,
+    /// Multimode filter with LFO and envelope follower (`fx-color`).
+    AutoFilter,
+    /// Chorus / ensemble (`fx-modulation`).
+    Chorus,
+    /// Phaser (`fx-modulation`).
+    Phaser,
+    /// Flanger (`fx-modulation`).
+    Flanger,
+    /// Tremolo and auto-pan (`fx-modulation`).
+    Tremolo,
+    /// Gate / expander (`fx-dynamics`).
+    Gate,
+    /// Three-band compressor (`fx-dynamics`).
+    MultibandCompressor,
+    /// Attack/sustain transient shaper (`fx-dynamics`).
+    TransientShaper,
+    /// Spectrum analyzer, audio pass-through (`fx-analysis`).
+    SpectrumAnalyzer,
+    /// Chromatic tuner, audio pass-through (`fx-analysis`).
+    Tuner,
+    /// Arpeggiator, MIDI effect (`midi-fx`).
+    Arpeggiator,
+    /// Chord generator, MIDI effect (`midi-fx`).
+    Chord,
+    /// Scale quantizer (track/project `MusicalScale`), MIDI effect (`midi-fx`).
+    ScaleQuantize,
+    /// Note length / gate, MIDI effect (`midi-fx`).
+    NoteLength,
+    /// Velocity curve/range, MIDI effect (`midi-fx`).
+    Velocity,
+    /// Random pitch/velocity/timing (humanize), MIDI effect (`midi-fx`).
+    Randomizer,
+    /// Rack of parallel instrument chains (`racks-modulation`, [`crate::rack`]).
+    InstrumentRack,
+    /// Rack of parallel audio effect chains (`racks-modulation`).
+    AudioEffectRack,
+    /// Rack of parallel MIDI effect chains (`racks-modulation`).
+    MidiEffectRack,
 }
 
 /// Data-less discriminant of [`BuiltinDevice`] (used in descriptors and factories).
@@ -85,11 +143,34 @@ pub enum BuiltinDeviceType {
     Limiter,
     Utility,
     DrumRack,
+    PolySynth,
+    MultiSampler,
+    Saturator,
+    Bitcrusher,
+    AutoFilter,
+    Chorus,
+    Phaser,
+    Flanger,
+    Tremolo,
+    Gate,
+    MultibandCompressor,
+    TransientShaper,
+    SpectrumAnalyzer,
+    Tuner,
+    Arpeggiator,
+    Chord,
+    ScaleQuantize,
+    NoteLength,
+    Velocity,
+    Randomizer,
+    InstrumentRack,
+    AudioEffectRack,
+    MidiEffectRack,
 }
 
 impl BuiltinDeviceType {
     /// Every built-in type, in `DeviceCommand::ListBuiltin` order.
-    pub const ALL: [BuiltinDeviceType; 9] = [
+    pub const ALL: [BuiltinDeviceType; 32] = [
         Self::Synth,
         Self::Sampler,
         Self::Compressor,
@@ -99,7 +180,56 @@ impl BuiltinDeviceType {
         Self::Limiter,
         Self::Utility,
         Self::DrumRack,
+        Self::PolySynth,
+        Self::MultiSampler,
+        Self::Saturator,
+        Self::Bitcrusher,
+        Self::AutoFilter,
+        Self::Chorus,
+        Self::Phaser,
+        Self::Flanger,
+        Self::Tremolo,
+        Self::Gate,
+        Self::MultibandCompressor,
+        Self::TransientShaper,
+        Self::SpectrumAnalyzer,
+        Self::Tuner,
+        Self::Arpeggiator,
+        Self::Chord,
+        Self::ScaleQuantize,
+        Self::NoteLength,
+        Self::Velocity,
+        Self::Randomizer,
+        Self::InstrumentRack,
+        Self::AudioEffectRack,
+        Self::MidiEffectRack,
     ];
+
+    /// Rack types ([`crate::rack`]).
+    pub fn is_rack(self) -> bool {
+        matches!(
+            self,
+            Self::InstrumentRack | Self::AudioEffectRack | Self::MidiEffectRack
+        )
+    }
+
+    /// Stable lowercase key (preset folders, factory preset ids): the variant name in kebab
+    /// case (`poly-synth`, `multiband-compressor`).
+    pub fn key(self) -> String {
+        let name = format!("{self:?}");
+        let mut out = String::with_capacity(name.len() + 4);
+        for (i, c) in name.chars().enumerate() {
+            if c.is_ascii_uppercase() {
+                if i > 0 {
+                    out.push('-');
+                }
+                out.push(c.to_ascii_lowercase());
+            } else {
+                out.push(c);
+            }
+        }
+        out
+    }
 }
 
 impl BuiltinDevice {
@@ -114,6 +244,29 @@ impl BuiltinDevice {
             Self::Limiter => BuiltinDeviceType::Limiter,
             Self::Utility => BuiltinDeviceType::Utility,
             Self::DrumRack => BuiltinDeviceType::DrumRack,
+            Self::MultiSampler { .. } => BuiltinDeviceType::MultiSampler,
+            Self::PolySynth => BuiltinDeviceType::PolySynth,
+            Self::Saturator => BuiltinDeviceType::Saturator,
+            Self::Bitcrusher => BuiltinDeviceType::Bitcrusher,
+            Self::AutoFilter => BuiltinDeviceType::AutoFilter,
+            Self::Chorus => BuiltinDeviceType::Chorus,
+            Self::Phaser => BuiltinDeviceType::Phaser,
+            Self::Flanger => BuiltinDeviceType::Flanger,
+            Self::Tremolo => BuiltinDeviceType::Tremolo,
+            Self::Gate => BuiltinDeviceType::Gate,
+            Self::MultibandCompressor => BuiltinDeviceType::MultibandCompressor,
+            Self::TransientShaper => BuiltinDeviceType::TransientShaper,
+            Self::SpectrumAnalyzer => BuiltinDeviceType::SpectrumAnalyzer,
+            Self::Tuner => BuiltinDeviceType::Tuner,
+            Self::Arpeggiator => BuiltinDeviceType::Arpeggiator,
+            Self::Chord => BuiltinDeviceType::Chord,
+            Self::ScaleQuantize => BuiltinDeviceType::ScaleQuantize,
+            Self::NoteLength => BuiltinDeviceType::NoteLength,
+            Self::Velocity => BuiltinDeviceType::Velocity,
+            Self::Randomizer => BuiltinDeviceType::Randomizer,
+            Self::InstrumentRack => BuiltinDeviceType::InstrumentRack,
+            Self::AudioEffectRack => BuiltinDeviceType::AudioEffectRack,
+            Self::MidiEffectRack => BuiltinDeviceType::MidiEffectRack,
         }
     }
 
@@ -132,6 +285,40 @@ impl BuiltinDevice {
             BuiltinDeviceType::Limiter => Self::Limiter,
             BuiltinDeviceType::Utility => Self::Utility,
             BuiltinDeviceType::DrumRack => Self::DrumRack,
+            BuiltinDeviceType::MultiSampler => Self::MultiSampler { zones: Vec::new() },
+            BuiltinDeviceType::PolySynth => Self::PolySynth,
+            BuiltinDeviceType::Saturator => Self::Saturator,
+            BuiltinDeviceType::Bitcrusher => Self::Bitcrusher,
+            BuiltinDeviceType::AutoFilter => Self::AutoFilter,
+            BuiltinDeviceType::Chorus => Self::Chorus,
+            BuiltinDeviceType::Phaser => Self::Phaser,
+            BuiltinDeviceType::Flanger => Self::Flanger,
+            BuiltinDeviceType::Tremolo => Self::Tremolo,
+            BuiltinDeviceType::Gate => Self::Gate,
+            BuiltinDeviceType::MultibandCompressor => Self::MultibandCompressor,
+            BuiltinDeviceType::TransientShaper => Self::TransientShaper,
+            BuiltinDeviceType::SpectrumAnalyzer => Self::SpectrumAnalyzer,
+            BuiltinDeviceType::Tuner => Self::Tuner,
+            BuiltinDeviceType::Arpeggiator => Self::Arpeggiator,
+            BuiltinDeviceType::Chord => Self::Chord,
+            BuiltinDeviceType::ScaleQuantize => Self::ScaleQuantize,
+            BuiltinDeviceType::NoteLength => Self::NoteLength,
+            BuiltinDeviceType::Velocity => Self::Velocity,
+            BuiltinDeviceType::Randomizer => Self::Randomizer,
+            BuiltinDeviceType::InstrumentRack => Self::InstrumentRack,
+            BuiltinDeviceType::AudioEffectRack => Self::AudioEffectRack,
+            BuiltinDeviceType::MidiEffectRack => Self::MidiEffectRack,
+        }
+    }
+
+    /// Media referenced by the device kind (sampler sample, multisampler zones).
+    pub fn media(&self) -> Vec<MediaId> {
+        match self {
+            Self::Sampler {
+                sample: Some(m), ..
+            } => vec![*m],
+            Self::MultiSampler { zones } => zones.iter().filter_map(|z| z.media).collect(),
+            _ => Vec::new(),
         }
     }
 }

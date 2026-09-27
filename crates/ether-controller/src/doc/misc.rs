@@ -91,7 +91,7 @@ pub(crate) fn recording(ctx: &mut DocCtx, c: &RecordingCommand) -> CmdResult<()>
         }
         RecordingCommand::SetInput { track, input } => {
             ctx.track(*track)?;
-            if let TrackInput::Track { track: src } = input {
+            if let TrackInput::Track { track: src, .. } = input {
                 ctx.track(*src)?;
             }
             ctx.set_track(*track, TrackChange::Input(input.clone()))

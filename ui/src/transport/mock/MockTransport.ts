@@ -131,6 +131,14 @@ import type { MockHost } from "./roadmap/host";
 import { MockMidiLearn } from "./roadmap/midiLearn";
 import { MockLiveRecord } from "./roadmap/liveRecord";
 import { uploadCommand, uploadSource } from "./roadmap/remote";
+// v0.2 (contracts-3) runtime simulations, one file per node.
+import { MockAnalysis } from "./roadmap/analysis";
+import { browserCommand } from "./roadmap/browserV2";
+import { freezeCommand } from "./roadmap/freezeBounce";
+import { mediaRefCommand } from "./roadmap/mediaReferences";
+import { presetCommand } from "./roadmap/presets";
+import { listModulatorKinds } from "./roadmap/racksModulation";
+import { timeEditCommand } from "./roadmap/timeEdits";
 import { chatCommand } from "./roadmap/social";
 
 export interface MockTransportOptions {
@@ -249,6 +257,7 @@ export class MockTransport implements EngineTransport {
   private readonly midiLearn = new MockMidiLearn(this.host);
   private readonly exports = new MockExports(this.host);
   private readonly collab = new MockCollab(this.host);
+  private readonly analysis = new MockAnalysis();
   private readonly preview = new MockPreview(this.host);
   private readonly liveRecord = new MockLiveRecord({
     ...this.host,
@@ -406,6 +415,21 @@ export class MockTransport implements EngineTransport {
         return this.midiLearn.command(command.command);
       case "Collab":
         return this.collab.command(command.command);
+      // v0.2 (contracts-3).
+      case "Freeze":
+        return freezeCommand(command.command);
+      case "TimeEdit":
+        return timeEditCommand(command.command);
+      case "Preset":
+        return presetCommand(command.command);
+      case "Browser":
+        return browserCommand(command.command);
+      case "Analysis":
+        return this.analysis.command(command.command);
+      case "MediaRef":
+        return mediaRefCommand(command.command);
+      case "Modulation":
+        return listModulatorKinds();
       case "Chat":
         return chatCommand(command.command);
       default:
@@ -832,6 +856,9 @@ export class MockTransport implements EngineTransport {
     switch (source.type) {
       case "Upload":
         return uploadSource(source.upload);
+      case "Path":
+        // v0.2 (`file-import`): OS paths exist only on the desktop engine.
+        return fail("Unsupported", "importing OS files by path needs the desktop engine");
       case "Project":
         return this.project.media[source.media] ?? fail("NotFound", `media ${source.media}`);
       case "Location":
@@ -867,6 +894,9 @@ export class MockTransport implements EngineTransport {
       channels: f.channels,
       frames: f.frames,
       hash,
+      // v0.1 behaviour (copied into the project); `media-references` switches library
+      // imports to external references.
+      location: { type: "Project" },
     };
   }
 

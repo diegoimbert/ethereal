@@ -505,6 +505,11 @@ mod tests {
             loop_start: 1.0 / 3.0,
             loop_end: 8.0,
             tracks: vec![TrackDesc {
+                modulation: Default::default(),
+                vca: Default::default(),
+                chain_racks: Default::default(),
+                frozen: Default::default(),
+                input_tap: Default::default(),
                 id: track_id(42),
                 kind: TrackKind::Master,
                 chain: vec![],

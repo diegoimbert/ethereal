@@ -90,6 +90,7 @@ check-all: check-wasm
 # All tests (Rust + vitest). Engine tests render offline and never need an audio device.
 test-all:
     ETHER_WORKERS="${ETHER_WORKERS:-1}" ETHER_AUDIO=null cargo test --workspace
+    ETHER_WORKERS="${ETHER_WORKERS:-1}" ETHER_AUDIO=null cargo test -p ether-collab --features turn
     pnpm -r test
 
 # Format Rust.

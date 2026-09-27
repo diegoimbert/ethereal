@@ -85,6 +85,14 @@ impl EngineState {
         self.nodes.get(&device).map(|n| n.key)
     }
 
+    /// The device of a live node (v0.2 analysis channel).
+    pub fn device_of(&self, node: NodeKey) -> Option<DeviceId> {
+        self.nodes
+            .iter()
+            .find(|(_, n)| n.key == node)
+            .map(|(d, _)| *d)
+    }
+
     /// Nodes of devices that are not in `project` (to destroy at the next publish).
     pub fn has_orphans(&self, project: &Project) -> bool {
         self.nodes.keys().any(|d| !project.devices.contains_key(d))

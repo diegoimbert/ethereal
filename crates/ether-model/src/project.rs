@@ -53,10 +53,26 @@ pub struct Project {
     pub midi_mappings: BTreeMap<MidiMappingId, MidiMapping>,
     /// Drum rack pads (roadmap v2, `drum-rack`; `.ether` v3).
     pub drum_pads: BTreeMap<DrumPadId, DrumPad>,
-    /// Chat journal (base-62, `collab-social`; absent in older files).
+    // --- v0.2 (`.ether` v4, contracts-3) ---
+    /// Take lanes (`comping`).
+    #[serde(default)]
+    pub take_lanes: BTreeMap<TakeLaneId, TakeLane>,
+    /// Comp regions (`comping`).
+    #[serde(default)]
+    pub comp_regions: BTreeMap<CompRegionId, CompRegion>,
+    /// Rack chains (`racks-modulation`).
+    #[serde(default)]
+    pub rack_chains: BTreeMap<RackChainId, RackChain>,
+    /// Modulators inside devices (`racks-modulation`).
+    #[serde(default)]
+    pub modulators: BTreeMap<ModulatorId, Modulator>,
+    /// Modulation mappings (`racks-modulation`).
+    #[serde(default)]
+    pub mod_mappings: BTreeMap<ModMappingId, ModMapping>,
+    /// Chat journal (base-62, `collab-social`; `.ether` v4).
     #[serde(default)]
     pub chat: BTreeMap<ChatMessageId, ChatMessage>,
-    /// Notes pinned on the arrangement (base-62, `collab-social`; absent in older files).
+    /// Notes pinned on the arrangement (base-62, `collab-social`; `.ether` v4).
     #[serde(default)]
     pub pinned_notes: BTreeMap<PinnedNoteId, PinnedNote>,
 }
@@ -132,6 +148,7 @@ impl Project {
     pub fn new(ids: &mut IdGen, now_ms: u64) -> Self {
         let id = ids.next_project_id(now_ms);
         let master = Track {
+            vca: Default::default(),
             id: ids.next(now_ms),
             kind: TrackKind::Master,
             name: "Master".into(),
@@ -143,6 +160,7 @@ impl Project {
             output: TrackOutput::Default,
             monitor: MonitorMode::default(),
             scale: Default::default(),
+            freeze: None,
         };
         let tempo = TempoPoint {
             id: ids.next(now_ms),
@@ -172,6 +190,11 @@ impl Project {
             markers: BTreeMap::new(),
             midi_mappings: BTreeMap::new(),
             drum_pads: BTreeMap::new(),
+            take_lanes: BTreeMap::new(),
+            comp_regions: BTreeMap::new(),
+            rack_chains: BTreeMap::new(),
+            modulators: BTreeMap::new(),
+            mod_mappings: BTreeMap::new(),
             chat: BTreeMap::new(),
             pinned_notes: BTreeMap::new(),
         }
@@ -208,10 +231,11 @@ impl Project {
 
     /// All entities, parents before children (useful for full-state patches and CRDT export).
     ///
-    /// Order: media, tracks (by nesting depth), tempo points, time signatures, markers,
-    /// track-chain devices, drum pads, pad-chain devices, sends, clips, notes, warp markers,
-    /// automation lanes, automation points, MIDI mappings, chat messages (by `seq`), pinned
-    /// notes.
+    /// Order: media, tracks (by nesting depth), tempo points, time signatures, markers, take
+    /// lanes, track-chain devices, drum pads, rack chains, pad-chain and rack-chain devices,
+    /// modulators, sends, clips, comp regions, notes, warp markers, automation lanes,
+    /// automation points, MIDI mappings, modulation mappings, chat messages (by `seq`),
+    /// pinned notes.
     pub fn entities(&self) -> Vec<Entity> {
         let depth = |t: &Track| {
             let mut d = 0;
@@ -238,24 +262,30 @@ impl Project {
                 .map(Entity::TimeSignature),
         );
         out.extend(self.markers.values().cloned().map(Entity::Marker));
-        // Racks (track-chain devices) before their pads, pads before their devices.
+        out.extend(self.take_lanes.values().cloned().map(Entity::TakeLane));
+        // Racks (track-chain devices) before their pads/chains, pads/chains before their
+        // devices.
+        let nested = |d: &&Device| d.pad.is_some() || d.chain.is_some();
         out.extend(
             self.devices
                 .values()
-                .filter(|d| d.pad.is_none())
+                .filter(|d| !nested(d))
                 .cloned()
                 .map(Entity::Device),
         );
         out.extend(self.drum_pads.values().cloned().map(Entity::DrumPad));
+        out.extend(self.rack_chains.values().cloned().map(Entity::RackChain));
         out.extend(
             self.devices
                 .values()
-                .filter(|d| d.pad.is_some())
+                .filter(nested)
                 .cloned()
                 .map(Entity::Device),
         );
+        out.extend(self.modulators.values().cloned().map(Entity::Modulator));
         out.extend(self.sends.values().cloned().map(Entity::Send));
         out.extend(self.clips.values().cloned().map(Entity::Clip));
+        out.extend(self.comp_regions.values().cloned().map(Entity::CompRegion));
         out.extend(self.notes.values().cloned().map(Entity::Note));
         out.extend(self.warp_markers.values().cloned().map(Entity::WarpMarker));
         out.extend(
@@ -276,6 +306,7 @@ impl Project {
                 .cloned()
                 .map(Entity::MidiMapping),
         );
+        out.extend(self.mod_mappings.values().cloned().map(Entity::ModMapping));
         out.extend(
             self.chat_ordered()
                 .into_iter()
@@ -318,12 +349,13 @@ impl Project {
     }
 
     /// The device chain of a track, sorted by `order`. Devices on drum pads
-    /// (`Device::pad`) are not part of it: see [`Self::pad_devices_of`].
+    /// (`Device::pad`) and rack chains (`Device::chain`) are not part of it: see
+    /// [`Self::pad_devices_of`], [`Self::chain_devices_of`].
     pub fn devices_of(&self, track: TrackId) -> Vec<&Device> {
         let mut v: Vec<&Device> = self
             .devices
             .values()
-            .filter(|d| d.track == track && d.pad.is_none())
+            .filter(|d| d.track == track && d.pad.is_none() && d.chain.is_none())
             .collect();
         v.sort_by(|a, b| by_order((&a.order, a.id), (&b.order, b.id)));
         v
@@ -337,6 +369,83 @@ impl Project {
             .filter(|d| d.pad == Some(pad))
             .collect();
         v.sort_by(|a, b| by_order((&a.order, a.id), (&b.order, b.id)));
+        v
+    }
+
+    /// The device chain of a rack chain, sorted by `order` (v0.2).
+    pub fn chain_devices_of(&self, chain: RackChainId) -> Vec<&Device> {
+        let mut v: Vec<&Device> = self
+            .devices
+            .values()
+            .filter(|d| d.chain == Some(chain))
+            .collect();
+        v.sort_by(|a, b| by_order((&a.order, a.id), (&b.order, b.id)));
+        v
+    }
+
+    /// Chains of a rack device, sorted by `order` (v0.2).
+    pub fn chains_of(&self, rack: DeviceId) -> Vec<&RackChain> {
+        let mut v: Vec<&RackChain> = self
+            .rack_chains
+            .values()
+            .filter(|c| c.rack == rack)
+            .collect();
+        v.sort_by(|a, b| by_order((&a.order, a.id), (&b.order, b.id)));
+        v
+    }
+
+    /// Modulators inside a device, sorted by `order` (v0.2).
+    pub fn modulators_of(&self, device: DeviceId) -> Vec<&Modulator> {
+        let mut v: Vec<&Modulator> = self
+            .modulators
+            .values()
+            .filter(|m| m.device == device)
+            .collect();
+        v.sort_by(|a, b| by_order((&a.order, a.id), (&b.order, b.id)));
+        v
+    }
+
+    /// Modulation mappings targeting a device's params, sorted by (param, id) (v0.2).
+    pub fn mappings_to(&self, device: DeviceId) -> Vec<&ModMapping> {
+        let mut v: Vec<&ModMapping> = self
+            .mod_mappings
+            .values()
+            .filter(|m| m.device == device)
+            .collect();
+        v.sort_by(|a, b| a.param.cmp(&b.param).then(a.id.cmp(&b.id)));
+        v
+    }
+
+    /// Take lanes of a track, sorted by `order` (v0.2).
+    pub fn lanes_of(&self, track: TrackId) -> Vec<&TakeLane> {
+        let mut v: Vec<&TakeLane> = self
+            .take_lanes
+            .values()
+            .filter(|l| l.track == track)
+            .collect();
+        v.sort_by(|a, b| by_order((&a.order, a.id), (&b.order, b.id)));
+        v
+    }
+
+    /// Clips of a take lane sorted by start (v0.2).
+    pub fn lane_clips_of(&self, lane: TakeLaneId) -> Vec<&Clip> {
+        let mut v: Vec<&Clip> = self
+            .clips
+            .values()
+            .filter(|c| c.lane == Some(lane))
+            .collect();
+        v.sort_by(|a, b| a.start.0.total_cmp(&b.start.0).then(a.id.cmp(&b.id)));
+        v
+    }
+
+    /// Comp regions of a track sorted by start (v0.2).
+    pub fn comp_of(&self, track: TrackId) -> Vec<&CompRegion> {
+        let mut v: Vec<&CompRegion> = self
+            .comp_regions
+            .values()
+            .filter(|r| r.track == track)
+            .collect();
+        v.sort_by(|a, b| a.start.0.total_cmp(&b.start.0).then(a.id.cmp(&b.id)));
         v
     }
 
@@ -354,9 +463,14 @@ impl Project {
         v
     }
 
-    /// Clips of a track sorted by start.
+    /// Main-lane clips of a track sorted by start (take-lane clips, v0.2, are listed by
+    /// [`Self::lane_clips_of`]).
     pub fn arrangement_clips_of(&self, track: TrackId) -> Vec<&Clip> {
-        let mut v: Vec<&Clip> = self.clips.values().filter(|c| c.track == track).collect();
+        let mut v: Vec<&Clip> = self
+            .clips
+            .values()
+            .filter(|c| c.track == track && c.lane.is_none())
+            .collect();
         v.sort_by(|a, b| a.start.0.total_cmp(&b.start.0).then(a.id.cmp(&b.id)));
         v
     }

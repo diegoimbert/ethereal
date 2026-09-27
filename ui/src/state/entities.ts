@@ -36,6 +36,14 @@ export const TABLE_OF = {
   DrumPad: "drum_pads",
   Marker: "markers",
   MidiMapping: "midi_mappings",
+  // v0.2 (contracts-3). Take clips share the Clip table (`Clip.lane`), rack-chain devices the
+  // Device table (`Device.chain`); lanes come before their clips and regions, chains after
+  // their rack and before their devices, modulators and mappings after their devices.
+  TakeLane: "take_lanes",
+  CompRegion: "comp_regions",
+  RackChain: "rack_chains",
+  Modulator: "modulators",
+  ModMapping: "mod_mappings",
   // base-62 (collab-social): chat journal and pinned notes (no parents).
   ChatMessage: "chat",
   PinnedNote: "pinned_notes",

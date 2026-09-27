@@ -576,6 +576,7 @@ where
                 };
                 n_take += 1;
                 let media = MediaRef {
+                    location: Default::default(),
                     id: ctx.ids.next(ctx.now),
                     name: format!("{} Rec {n_take}.wav", track.name),
                     file: take.file.clone(),

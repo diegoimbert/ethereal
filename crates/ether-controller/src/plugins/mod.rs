@@ -119,6 +119,7 @@ mod tests {
 
     fn plugin_device(id: DeviceId) -> Device {
         Device {
+            chain: None,
             id,
             track: TrackId(Ulid(1)),
             order: OrderKey::between(None, None),

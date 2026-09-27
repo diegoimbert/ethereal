@@ -5,6 +5,8 @@ import type { AutomationPointChange } from "./AutomationPointChange";
 import type { AutomationPointId } from "./AutomationPointId";
 import type { ClipChange } from "./ClipChange";
 import type { ClipId } from "./ClipId";
+import type { CompRegionChange } from "./CompRegionChange";
+import type { CompRegionId } from "./CompRegionId";
 import type { DeviceChange } from "./DeviceChange";
 import type { DeviceId } from "./DeviceId";
 import type { DrumPadChange } from "./DrumPadChange";
@@ -15,12 +17,20 @@ import type { MediaChange } from "./MediaChange";
 import type { MediaId } from "./MediaId";
 import type { MidiMappingChange } from "./MidiMappingChange";
 import type { MidiMappingId } from "./MidiMappingId";
+import type { ModMappingChange } from "./ModMappingChange";
+import type { ModMappingId } from "./ModMappingId";
+import type { ModulatorChange } from "./ModulatorChange";
+import type { ModulatorId } from "./ModulatorId";
 import type { NoteChange } from "./NoteChange";
 import type { NoteId } from "./NoteId";
 import type { PinnedNoteChange } from "./PinnedNoteChange";
 import type { PinnedNoteId } from "./PinnedNoteId";
+import type { RackChainChange } from "./RackChainChange";
+import type { RackChainId } from "./RackChainId";
 import type { SendChange } from "./SendChange";
 import type { SendId } from "./SendId";
+import type { TakeLaneChange } from "./TakeLaneChange";
+import type { TakeLaneId } from "./TakeLaneId";
 import type { TempoPointChange } from "./TempoPointChange";
 import type { TempoPointId } from "./TempoPointId";
 import type { TimeSignatureChange } from "./TimeSignatureChange";
@@ -33,4 +43,4 @@ import type { WarpMarkerId } from "./WarpMarkerId";
 /**
  * A single-field change of one entity.
  */
-export type EntityUpdate = { "type": "Track", id: TrackId, change: TrackChange, } | { "type": "Clip", id: ClipId, change: ClipChange, } | { "type": "Note", id: NoteId, change: NoteChange, } | { "type": "Device", id: DeviceId, change: DeviceChange, } | { "type": "Send", id: SendId, change: SendChange, } | { "type": "AutomationLane", id: AutomationLaneId, change: AutomationLaneChange, } | { "type": "AutomationPoint", id: AutomationPointId, change: AutomationPointChange, } | { "type": "TempoPoint", id: TempoPointId, change: TempoPointChange, } | { "type": "TimeSignature", id: TimeSignatureId, change: TimeSignatureChange, } | { "type": "WarpMarker", id: WarpMarkerId, change: WarpMarkerChange, } | { "type": "Media", id: MediaId, change: MediaChange, } | { "type": "Marker", id: MarkerId, change: MarkerChange, } | { "type": "MidiMapping", id: MidiMappingId, change: MidiMappingChange, } | { "type": "DrumPad", id: DrumPadId, change: DrumPadChange, } | { "type": "PinnedNote", id: PinnedNoteId, change: PinnedNoteChange, };
+export type EntityUpdate = { "type": "Track", id: TrackId, change: TrackChange, } | { "type": "Clip", id: ClipId, change: ClipChange, } | { "type": "Note", id: NoteId, change: NoteChange, } | { "type": "Device", id: DeviceId, change: DeviceChange, } | { "type": "Send", id: SendId, change: SendChange, } | { "type": "AutomationLane", id: AutomationLaneId, change: AutomationLaneChange, } | { "type": "AutomationPoint", id: AutomationPointId, change: AutomationPointChange, } | { "type": "TempoPoint", id: TempoPointId, change: TempoPointChange, } | { "type": "TimeSignature", id: TimeSignatureId, change: TimeSignatureChange, } | { "type": "WarpMarker", id: WarpMarkerId, change: WarpMarkerChange, } | { "type": "Media", id: MediaId, change: MediaChange, } | { "type": "Marker", id: MarkerId, change: MarkerChange, } | { "type": "MidiMapping", id: MidiMappingId, change: MidiMappingChange, } | { "type": "DrumPad", id: DrumPadId, change: DrumPadChange, } | { "type": "TakeLane", id: TakeLaneId, change: TakeLaneChange, } | { "type": "CompRegion", id: CompRegionId, change: CompRegionChange, } | { "type": "RackChain", id: RackChainId, change: RackChainChange, } | { "type": "Modulator", id: ModulatorId, change: ModulatorChange, } | { "type": "ModMapping", id: ModMappingId, change: ModMappingChange, } | { "type": "PinnedNote", id: PinnedNoteId, change: PinnedNoteChange, };

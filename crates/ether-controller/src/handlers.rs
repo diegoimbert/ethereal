@@ -109,6 +109,10 @@ where
     ) -> CmdResult<ReplyValue> {
         let current = self.doc.as_ref().map(|d| d.project.id);
         let command = &msg.command;
+        if let Some(doc) = self.doc.as_ref() {
+            // v0.2 (`freeze-bounce`): frozen tracks can't be edited.
+            crate::freeze::check_editable(&doc.project, command)?;
+        }
         if doc::is_document_command(command, current) {
             let label = doc::label_of(command);
             self.edit_with(&label, msg.gesture, now, out, |ctx| {
@@ -143,6 +147,19 @@ where
             Command::Export(c) => self.export_command(c, out),
             Command::MidiMap(c) => self.midi_map_command(c, out),
             Command::Collab(c) => self.collab_command(c, out),
+            // v0.2 (contracts-3; document parts of `Take`, `Rack`, `Modulation` and the new
+            // `Track` commands go through `doc::apply`).
+            Command::Freeze(c) => self.freeze_command(c, now, out),
+            Command::TimeEdit(c) => self.time_edit_command(c, msg.gesture, now, out),
+            Command::Preset(c) => self.preset_command(c, msg.gesture, now, out),
+            Command::Browser(c) => self.browser_command(c, now, out),
+            Command::Analysis(c) => self.analysis_command(c),
+            Command::MediaRef(c) => self.media_ref_command(c, now, out),
+            Command::Modulation(
+                ether_core::protocol::racks::ModulationCommand::ListModulatorKinds,
+            ) => Ok(ReplyValue::ModulatorKinds {
+                kinds: ether_devices::modulators::all(),
+            }),
             Command::Chat(c) => self.chat_command(c, now, out),
             other => Err(internal(format!(
                 "unhandled command {}",
@@ -765,6 +782,11 @@ where
                     crate::upload::take_upload(&mut self.uploads, &mut self.store, upload)?;
                 (bytes, name, None)
             }
+            // v0.2 (`file-import`): an OS file of the engine machine (desktop).
+            MediaSource::Path { path } => {
+                let (bytes, name) = crate::file_import::read_path(&mut self.library, path)?;
+                (bytes, name, None)
+            }
         };
         let hash = content_hash(&bytes);
         let chained = is_chained_ogg(&bytes);
@@ -805,6 +827,7 @@ where
             },
         };
         let media = MediaRef {
+            location: Default::default(),
             id,
             name: name.clone(),
             file,
@@ -907,6 +930,11 @@ where
         self.export_tick(now, out);
         self.recording_tick(now, out);
         self.collab_tick(now, out);
+        // v0.2 hooks.
+        self.analysis_tick(out);
+        self.freeze_tick(now, out);
+        self.browser_tick(now, out);
+        self.media_refs_tick(now, out);
 
         // Media jobs.
         if let Some(pid) = self.doc.as_ref().map(|d| d.project.id)

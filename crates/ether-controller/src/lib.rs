@@ -29,27 +29,39 @@
 //! - **Engine sample rate.** Media is resampled to [`ControllerConfig::engine_sample_rate`];
 //!   hosts call [`EtherController::set_engine_sample_rate`] when the device changes.
 
+mod analysis;
+mod browser;
 mod clip_editing;
 mod collab;
 pub mod compile;
+mod comping;
 mod doc;
 mod drum_rack;
 mod engine;
 mod export;
+mod file_import;
+mod freeze;
 mod groove;
+mod groups;
 mod handlers;
 mod media;
 mod media_preview;
+mod media_refs;
 pub mod memory;
+mod midi_fx;
 mod midi_learn;
+mod multisampler;
 mod plugins;
+mod presets;
 mod project;
+mod racks;
 mod recording;
 mod sidechain;
 mod social;
 pub mod store;
 pub mod streaming;
 mod tempo;
+mod time_edit;
 mod tx;
 mod upload;
 mod warp;
@@ -270,6 +282,22 @@ pub trait EngineBridge {
         Vec::new()
     }
 
+    // ─── v0.2 (contracts-3) ───
+
+    /// Analysis frames pushed by device nodes since the last call (`EngineHandle::
+    /// poll_analysis`; CONTRACTS.md §12.4.3). Called from every tick. Native: drain the
+    /// handle; web: frames forwarded from the worklet. Default: none.
+    fn poll_analysis(&mut self, out: &mut Vec<ether_core::AnalysisFrame>) {
+        let _ = out;
+    }
+
+    /// Start/stop collecting a node's analysis frames (`EngineHandle::watch_analysis`;
+    /// driven by the watched devices). Default: nothing (hosts without the channel).
+    fn watch_analysis(&mut self, node: NodeKey, on: bool) -> Result<(), BridgeError> {
+        let _ = (node, on);
+        Ok(())
+    }
+
     // ─── base-53: "listen on <peer>" native sender (`stream-host`; docs/COLLAB.md §9) ───
 
     /// What this host can do for streaming. Default: nothing (the web build streams from
@@ -473,6 +501,8 @@ where
     uploads: upload::UploadState,
     /// Collaboration session (`collab` module).
     collab: collab::CollabState,
+    /// v0.2: watched devices for the analysis channel (`analysis` module).
+    analysis: analysis::AnalysisState,
     next_gesture: u32,
     last_transport: Option<TransportState>,
     outputs: EngineOutputs,
@@ -520,6 +550,7 @@ where
             preview: Default::default(),
             uploads: Default::default(),
             collab: Default::default(),
+            analysis: Default::default(),
             // Internal gestures (plugin GUI, tap tempo) live in the upper half of the id
             // space, away from UI-allocated ones.
             next_gesture: 0x8000_0000,

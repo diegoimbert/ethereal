@@ -140,6 +140,26 @@ tungstenite = "0.27"
 hound = "3.5"
 flacenc = "0.4"
 
+# --- listen-on-peer (stream-host; docs/COLLAB.md §11) ---
+# Native WebRTC sender (sans-IO). `rust-crypto`: SRTP and DTLS ciphers in pure Rust, no system
+# OpenSSL; its DTLS stack (`dimpl`, default features) still builds the vendored aws-lc
+# (aws-lc-sys: cmake, and NASM on Windows). License: MIT OR Apache-2.0.
+str0m = { version = "0.24", default-features = false, features = ["rust-crypto"] }
+# Opus encoder (libopus, BSD-3). `audiopus_sys/static` builds the vendored libopus
+# statically (never a system library). Licenses: MIT/Apache-2.0 (opus), ISC (audiopus_sys).
+opus = "0.4"
+audiopus_sys = { version = "0.2", features = ["static"] }
+# Relay STUN codec and optional TURN server (webrtc-rs). License: MIT/Apache-2.0.
+stun = "0.17"
+turn = "0.17"
+tokio = { version = "1", default-features = false, features = ["rt", "net", "time", "sync"] }
+# The `turn` crate's socket trait (`Conn`, via async-trait) for the relay's socket wrappers.
+webrtc-util = { version = "0.17", default-features = false, features = ["conn"] }
+async-trait = "0.1"
+# TURN REST credentials (HMAC-SHA1). License: MIT OR Apache-2.0.
+hmac = "0.12"
+sha1 = "0.10"
+
 # --- tooling / tests ---
 globset = "0.4"
 proptest = "1"

@@ -12,8 +12,11 @@ use crate::marker::Marker;
 use crate::media::MediaRef;
 use crate::midi_map::MidiMapping;
 use crate::mixer::TrackSend;
+use crate::modulation::{ModMapping, Modulator};
 use crate::note::Note;
+use crate::rack::RackChain;
 use crate::social::{ChatMessage, PinnedNote};
+use crate::take::{CompRegion, TakeLane};
 use crate::tempo::{TempoPoint, TimeSignaturePoint};
 use crate::track::Track;
 use crate::warp::WarpMarker;
@@ -39,7 +42,13 @@ pub enum Entity {
     Marker(Marker),
     MidiMapping(MidiMapping),
     DrumPad(DrumPad),
-    // --- base-62 (`collab-social`; tables `#[serde(default)]`, no version bump) ---
+    // --- v0.2 (`.ether` v4) ---
+    TakeLane(TakeLane),
+    CompRegion(CompRegion),
+    RackChain(RackChain),
+    Modulator(Modulator),
+    ModMapping(ModMapping),
+    // --- base-62 (`collab-social`, `.ether` v4) ---
     ChatMessage(ChatMessage),
     PinnedNote(PinnedNote),
 }
@@ -62,6 +71,11 @@ pub enum EntityKey {
     Marker(MarkerId),
     MidiMapping(MidiMappingId),
     DrumPad(DrumPadId),
+    TakeLane(TakeLaneId),
+    CompRegion(CompRegionId),
+    RackChain(RackChainId),
+    Modulator(ModulatorId),
+    ModMapping(ModMappingId),
     ChatMessage(ChatMessageId),
     PinnedNote(PinnedNoteId),
 }
@@ -83,6 +97,11 @@ impl Entity {
             Self::Marker(e) => EntityKey::Marker(e.id),
             Self::MidiMapping(e) => EntityKey::MidiMapping(e.id),
             Self::DrumPad(e) => EntityKey::DrumPad(e.id),
+            Self::TakeLane(e) => EntityKey::TakeLane(e.id),
+            Self::CompRegion(e) => EntityKey::CompRegion(e.id),
+            Self::RackChain(e) => EntityKey::RackChain(e.id),
+            Self::Modulator(e) => EntityKey::Modulator(e.id),
+            Self::ModMapping(e) => EntityKey::ModMapping(e.id),
             Self::ChatMessage(e) => EntityKey::ChatMessage(e.id),
             Self::PinnedNote(e) => EntityKey::PinnedNote(e.id),
         }

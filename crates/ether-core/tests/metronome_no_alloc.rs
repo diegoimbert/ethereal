@@ -25,6 +25,7 @@ fn run(engine: &mut Engine, blocks: usize, frames: usize) {
 
 fn graph(version: u64, sound: MetronomeSound, count_in_end: Option<f64>) -> RenderGraphDesc {
     RenderGraphDesc {
+        vcas: Default::default(),
         version,
         tempo: vec![
             TempoPointDesc {

@@ -3,7 +3,7 @@ import type { Command, MediaRef, ReplyValue } from "@/generated";
 import { CommandFailedError, Emitter, type EngineTransport } from "@/transport";
 import { CHUNK_BYTES, uploadFile, uploadFiles, uploadStore } from "./upload";
 
-const MEDIA: MediaRef = { id: "m", name: "a.wav", file: "media/a.wav", sample_rate: 48000, channels: 1, frames: 10, hash: null };
+const MEDIA: MediaRef = { id: "m", name: "a.wav", file: "media/a.wav", sample_rate: 48000, channels: 1, frames: 10, hash: null, location: { type: "Project" } };
 
 function file(size: number, name = "a.wav") {
   const bytes = new Uint8Array(size).map((_, i) => i % 251);

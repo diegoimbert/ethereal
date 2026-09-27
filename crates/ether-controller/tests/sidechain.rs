@@ -252,6 +252,8 @@ fn pad_devices_cannot_take_a_sidechain() {
     let mut p = Project::new(&mut ids, T0);
     let ins = |p: &mut Project, e: Entity| p.apply(&Op::Insert { entity: e }).unwrap();
     let mk_track = |ids: &mut IdGen, order: &str| Track {
+        freeze: None,
+        vca: Default::default(),
         id: ids.next(T0),
         kind: TrackKind::Midi,
         name: "t".into(),
@@ -271,6 +273,7 @@ fn pad_devices_cannot_take_a_sidechain() {
     ins(&mut p, Entity::Track(drums));
     let mk_dev =
         |ids: &mut IdGen, device: BuiltinDevice, pad: Option<DrumPadId>, order: &str| Device {
+            chain: None,
             id: ids.next(T0),
             track: drums_id,
             order: OrderKey(order.into()),

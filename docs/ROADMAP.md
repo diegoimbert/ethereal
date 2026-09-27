@@ -388,7 +388,7 @@ Owns: `crates/ether-controller/src/collab/mirror.rs` (new; one `mod` line in
 
 Design and frozen contract: [COLLAB.md §12](COLLAB.md), CONTRACTS.md §11.17. base-62
 landed the model entities (`ChatMessage`, `PinnedNote` in `ether_model::social`, tables
-`Project::{chat, pinned_notes}` with `#[serde(default)]`, no `.ether` bump), their
+`Project::{chat, pinned_notes}`, shipped with `.ether` v4 and its migration), their
 validation (text caps, author, position ranges), the chat `seq` assignment in
 `Project::apply` and the **History exemption for chat** (implemented and tested in
 `ether-model/tests/social.rs`), the commands `Chat::Send` and `PinnedNote::{Add, Edit,
@@ -449,3 +449,271 @@ component), `ui/src/transport/mock/roadmap/social.*`, `apps/web/e2e/collab-socia
   `ChatReceived`, transport refresh in the tick), `crates/ether-controller/src/handlers.rs`
   (one hook after transport commands to publish the transport at once),
   `crates/ether-collab/src/relay/{mod.rs, tests.rs}` (own presence to self), `docs/COLLAB.md`.
+
+# v0.2 (contracts-3)
+
+`contracts-3` froze the v0.2 contracts ([CONTRACTS.md §12](CONTRACTS.md)) and pre-created
+one module per node and layer, registered in its parent with one line, so the v0.2 nodes
+run in parallel with disjoint files. Each node owns exactly its block in
+[`.github/ownership.toml`](../.github/ownership.toml) ("v0.2"); the lists below summarize
+them. Every pre-created module starts with a doc comment saying what goes there.
+
+Ground rules (as for the roadmap v2 nodes above):
+- Protocol and model *types* are frozen (changes via BCR). Model validation of the new
+  entities is implemented (`ether-model/src/apply.rs`) and tested
+  (`ether-model/tests/roadmap_v3.rs`); `.ether` is v4.
+- Until a node lands its commands reply `Unsupported`, pinned by **one test per node** in
+  `crates/ether-controller/tests/roadmap_v3.rs`: each node rewrites or deletes only its own
+  test function. New devices are placeholders (`ether_devices::contract::Placeholder`).
+- The MockTransport routes every new command to one file per node under
+  `ui/src/transport/mock/roadmap/` (+ its test); device descriptors are generated JSON in
+  `ui/src/transport/mock/devices/` (one file per device node).
+- **Hot files** (`ether-core/src/{engine.rs, graph.rs, mixer.rs, codec.rs}`) were pre-wired
+  once by contracts-3 (CONTRACTS.md §12.11). Nodes work in their own core module; the few
+  node-specific shared touches there are listed in their blocks. Need another hook: BCR.
+- The repo owner's UX passes on dev are authoritative (kit components, tokens, `midiTarget()`
+  on new controls, existing context menus). **Every PR with a UI-visible change includes
+  screenshots** uploaded with `.orchestra/pr-screenshot.sh <node-id> <file.png> "<caption>"`
+  and embedded under `## Screenshots` in the PR body.
+- **Order.** `groups-buses` and `file-import` are priority 1 (land first; the desktop path
+  half of `file-import` needs `media-references`, its web/remote upload half does not).
+  `device-ui` lands early: device
+  nodes target its renderer (until then they test their layouts with the generic view and
+  the JSON parity test). Everything else runs in parallel.
+
+## Device agent guide (synth-2, multisampler, fx-color, fx-modulation, fx-dynamics, fx-analysis, midi-fx, racks-modulation)
+
+1. **Your module.** `crates/ether-devices/src/<group>/` (split into files freely). The param
+   table in `descriptor()` is frozen by contracts-3: ids are dense and **append-only** (never
+   renumber, rename freely only before a release). Use the named ids in
+   `<group>::<device>::*`. Replace `Placeholder` in `create()` with your node.
+1b. **Steps.** Integer or stepped params carry `ParamInfo::step` (plain step; 1 for enums,
+   toggles, transposes in semitones, keys, voices, counts; `contract::{choice, toggle,
+   stepped}` set it, continuous `param(..)` + `.with_step(1.0)` otherwise). Knobs, automation
+   lanes, MIDI learn and the renderer snap to it; `tests/v02_descriptors.rs` fails when a
+   semitone/count param ships without one.
+2. **Real-time rules** (docs/ARCHITECTURE.md): no allocation, locks, I/O or unbounded work
+   in `process`/`reset`/`set_data`/`analysis`; allocate in `new`/`prepare`. Apply
+   `EventKind::Param` at its sample offset (`util::split_at_events`) and smooth continuous
+   params. Write `assert_no_alloc` tests like `tests/devices2.rs`
+   (`tests/<group>*.rs`, global `AllocDisabler`), plus render tests (impulse/sine, known
+   outputs, extreme params, NaN-free).
+3. **Latency** (lookahead, oversampling): report it with `Node::latency` (PDC).
+3b. **If your device has a detector, support sidechain**: declare `sidechain_inputs = 2`
+   (already set for `Gate`, `MultibandCompressor` (external key drives all bands) and
+   `AutoFilter` (its envelope follower follows the sidechain)) and key the detector from
+   `Node::process_sidechain` like `compressor.rs`/`limiter.rs`: the sidechain arrives
+   latency-aligned (CONTRACTS.md §11.10); without a source, `process` keys from the input.
+4. **Descriptor ↔ mock parity.** After any descriptor change run
+   `UPDATE_MOCK_DESCRIPTORS=1 cargo test -p ether-devices --test v02_descriptors` and commit
+   your JSON (`ui/src/transport/mock/devices/<group>.json`). Never edit it by hand.
+5. **Layout.** Ship a `DeviceLayout` for every device in `descriptor().layout` (checked by
+   `tests/layouts.rs`; `EqCurve` is for the EQ only for now: filters use `FilterCurve`,
+   multiband crossovers `Crossover`)
+   (`ether_protocol::layout`; builders in `contract::{layout, section, item, knob}`): hero
+   controls `Large`, typed widgets where they help (envelopes, filter curve, transfer curve,
+   zone map, spectrum/tuner, step editor). Only specs and widget data: no bespoke panels,
+   no styling. The shared renderer (`device-ui`) draws it with kit components and tokens and
+   makes every param MIDI-learnable (`midiTarget()`) and a modulation target. Screenshot the
+   panel rendered by the shared renderer in the dark theme for your PR.
+6. **Analysis / meters.** Implement `Node::{has_analysis, analysis}` (copy only; compute in
+   `process`) with the encodings of CONTRACTS.md §12.4.3.
+7. **Factory presets.** A few good ones per device under
+   `crates/ether-devices/presets/<device-key>/<slug>.etherpreset` (`ether_model::preset`
+   format, `BuiltinDeviceType::key()` folder), registered in your module's
+   `factory_presets()` with `include_str!`; `v02_descriptors.rs` parses them.
+8. **MIDI effects** follow CONTRACTS.md §12.4.4 (MIDI-thru of what you don't transform,
+   `AllNotesOff` forwarded, own note ids, delays only).
+9. **Tests and e2e.** Your `tests/<group>*.rs`, your function in `roadmap_v3.rs`, an e2e
+   (`apps/web/e2e/<device>*.spec.ts`: insert the device, turn a knob, hear/see the effect).
+
+## `groups-buses` (priority 1)
+
+Owns: `crates/ether-core/src/{bus_tap,vca}.rs`, `crates/ether-controller/src/groups/**`,
+`ui/src/features/groups/**`, mock `roadmap/groupsBuses.*`, its tests/e2e.
+
+- Protocol: `Track::{GroupSelected, Ungroup, SetVca}`; `TrackInput::Track { track, tap }`
+  (`Recording::SetInput`); `TrackKind::Vca`, `Track::vca` (CONTRACTS.md §12.10).
+- Controller: `groups::track_command` (from `doc/tracks.rs`), `groups::vca_descs`
+  (`RenderGraphDesc::vcas`; VCA solo folded into `TrackDesc::solo`). Compile already skips
+  VCA tracks and fills `TrackDesc::{input_tap, vca}`; deleting a VCA unassigns (done).
+- Engine: implement `bus_tap` (tap buffers, aligned delay, monitoring) and `vca` (gains,
+  automation, live fader/mute); ordering/PDC for taps and the gate hook are pre-wired.
+- **Acceptance:** move `TrackDesc::{input_tap, vca}` and `RenderGraphDesc::vcas` out of the
+  codec's JSON blob into the binary layout (`ether-core/src/codec.rs`, shared touch; bump
+  `BinaryCodec::VERSION`, update the fixtures and proptests).
+- Shared touches: `graph.rs` (solo/mute rules only), recording from a tap
+  (`ether-core/src/recording/mod.rs`, `ether-controller/src/recording/**`), mixer/inspector
+  routing picker, sends, VCA assignment, "new bus from selection", Cmd+G, drag into/out of
+  groups (`ui/src/features/mixer/**`, arrangement `trackDrag.ts`, `TrackRow.tsx`,
+  `ArrangementView.tsx`, `arrangement.css`), the mock track reducer hook.
+
+## `file-import` (priority 1)
+
+Owns: `ui/src/features/import/**`, `crates/ether-controller/src/file_import/**`
+(`read_path`), upload staging for the web OPFS store and the local wasm controller
+(`ether-wasm/src/{store,bridge}.rs`, `apps/web/src/engine/**`, `ui/src/transport/wasm/**`),
+its tests/e2e. Contract: CONTRACTS.md §12.13 (`MediaSource::Path`, the OS-file handoff).
+Shared touches: `ether-native/src/store.rs` (`Library::read_external`), the desktop shell
+(`apps/desktop/src-tauri/**`: dialog plugin + dropped paths; `ui/src/transport/tauri/**`),
+drops on the browser panel and arrangement lanes and the "Import audio…" command
+(`features/browser/index.tsx`, `features/remote/{uploadDrop,upload}.ts`,
+`features/arrangement/{ArrangementView,TrackRow}.tsx`, `App.tsx`), the collab push of
+external-path media (`collab/mod.rs`, those lines only), the mock import/upload paths.
+The web/remote upload half can land before `media-references`; the desktop path half
+depends on it for referencing in place (copy until then).
+
+## `device-ui` (early)
+
+Owns: `ui/src/features/devices/layout/**` (the renderer and every widget of the catalog),
+its e2e. Shared touches: `DeviceView.tsx`, `DeviceChain.tsx`, `devices.css`, `descriptors.ts`
+in `ui/src/features/devices/` (mount the renderer; generic layout fallback).
+
+- Render `DeviceDescriptor::layout` (CONTRACTS.md §12.4.2) with kit components and tokens
+  only; generic layout for devices without one. Data widgets read `useAnalysis(device)`
+  from `fx-analysis` (`ui/src/features/devices/analysis/`; stub it until then) and the
+  device kind (zones, sample). Depth rings/drop targets come from `racks-modulation`
+  (`ui/src/features/modulation/`): leave a slot.
+- The repo owner styles the renderer once; keep the structure token-driven.
+
+## `synth-2`
+
+Owns: `crates/ether-devices/src/poly_synth/**`, `crates/ether-devices/presets/poly-synth/**`,
+`crates/ether-devices/tests/poly_synth*.rs`, `ui/src/transport/mock/devices/polySynth.json`.
+No shared touches. `PolySynth` (59 params: 2 oscillators with VA shapes + wavetable
+position, sub, noise, multimode filter + drive, amp/filter/mod envelopes, 2 LFOs, unison,
+glide, voice modes). Follow the device agent guide.
+
+## `multisampler`
+
+Owns: `crates/ether-devices/src/multisampler/**`, `.../presets/multisampler/**`,
+`crates/ether-controller/src/multisampler/**` (`Device::SetZones`), mock
+`roadmap/multisampler.*` + `devices/multisampler.json`, its tests.
+Shared touches: `handlers.rs` (rebuild/update multisamplers when zone media loads, next to
+samplers), zone sources in `ether-native/src/bridge.rs` / `ether-wasm/src/bridge.rs`.
+Zones: `ether_model::multisampler` (selection, round robin, loops); external media allowed.
+
+## `fx-color`, `fx-modulation`, `fx-dynamics`
+
+Own their group module (`fx_color`, `fx_modulation`, `fx_dynamics`), presets folders
+(`saturator`, `bitcrusher`, `auto-filter` / `chorus`, `phaser`, `flanger`, `tremolo` /
+`gate`, `multiband-compressor`, `transient-shaper`), tests and mock JSON. No shared
+touches. Sidechain inputs (2 channels, keyed in `Node::process_sidechain`): `AutoFilter`
+(envelope follower), `Gate`, `MultibandCompressor` (all bands).
+`fx-dynamics` publishes gain reduction as `AnalysisKind::Levels` for layout meters.
+
+## `fx-analysis`
+
+Owns: `crates/ether-devices/src/fx_analysis/**`, presets `spectrum-analyzer`, `tuner`,
+`ui/src/features/devices/analysis/**` (the UI side of the analysis channel: Watch/Unwatch
+on visibility, `Event::Analysis` store/hook used by the renderer widgets), mock
+`roadmap/analysis.*` (simulate frames) + `devices/fxAnalysis.json`, its tests.
+The channel itself is implemented (engine, native bridge, controller). Shared touch (web):
+forward `AnalysisFrame`s from the worklet to the Worker's bridge
+(`ether-wasm/src/{worklet,proto,bridge}.rs`, that change only; merge dev after web-perf).
+
+## `midi-fx`
+
+Owns: `crates/ether-devices/src/midi_fx/**`, its presets folders,
+`crates/ether-controller/src/midi_fx/**` (`check_chain_order`, scale data), tests, mock JSON.
+Shared touch: `ether-controller/src/engine.rs` (push the resolved `MusicalScale` to Scale
+Quantize nodes on creation and scale changes). Contract: CONTRACTS.md §12.4.4.
+
+## `presets`
+
+Owns: `crates/ether-controller/src/presets/**`, `crates/ether-devices/src/factory.rs` +
+presets folders of the v0.1/v2 devices, `ui/src/features/presets/**`, mock
+`roadmap/presets.*`, tests. Shared touches: the writable user library
+(`Library::{write_file, remove_file, rename_file, user_root}` in `ether-native/src/store.rs`,
+`ether-wasm/src/store.rs`, `ether-controller/src/memory.rs`), the preset menu in the device
+header (`DeviceView.tsx`). Device nodes ship their own factory presets.
+
+## `racks-modulation`
+
+Owns: `crates/ether-core/src/{rack_chains,modulation}/**`, `crates/ether-devices/src/racks/**`
++ `modulators.rs`, `crates/ether-controller/src/racks/**`, `ui/src/features/{racks,
+modulation}/**`, mock `roadmap/racksModulation.*` + `devices/{racks,modulators}.json`, tests.
+- Engine: implement `ChainRacksRt::run` (+ `chain_latency`, `inherit`) and `ModulationRt`
+  (sources, `intercept`/`render`/`pre_node`/`set_param`, `readback`). Routing of params,
+  automation and latency to chain nodes is already wired.
+- Envelope-follower sidechains (`Modulator::sidechain`, `Modulation::SetSidechain`):
+  ordering, tap and the per-job gather are wired; implement `write_sidechain` alignment and
+  the command (same validation as `sidechain::set_sidechain`).
+- Controller: `rack_command`, `modulation_command`, `chain_racks_desc`, `modulation_desc`;
+  cascades are done.
+- **Acceptance:** move `TrackDesc::{chain_racks, modulation}` out of the codec's JSON blob
+  into the binary layout (`ether-core/src/codec.rs`, shared touch; bump the version, update
+  fixtures and proptests). Shared touches: `doc/devices.rs` (live modulator params),
+  `plugins/**` (ignore echoes of modulated values), `DeviceView.tsx` (drop targets, rings).
+
+## `comping`
+
+Owns: `crates/ether-controller/src/comping/**` (`take_command`, `comp_clips`),
+`ui/src/features/comping/**`, mock `roadmap/comping.*`, tests/e2e. Shared touches: take lanes
+from loop/punch recording (`ether-controller/src/recording/**`, mock `liveRecord.*`), the
+expandable lanes under tracks (arrangement `TrackRow.tsx`, `ArrangementView.tsx`,
+`arrangement.css`, `layout*.ts`). Compile already skips lane clips and merges
+`comp_clips`; cascades are done.
+
+## `freeze-bounce`
+
+Owns: `crates/ether-core/src/freeze.rs` (`render_frozen`), `crates/ether-controller/src/
+freeze/**` (`freeze_command`, `freeze_tick`, `frozen_desc`, `check_editable`),
+`ui/src/features/freeze/**`, mock `roadmap/freezeBounce.*`, tests. Shared touches:
+`ether-controller/src/engine.rs` (don't instantiate frozen tracks' devices),
+`ether-controller/src/export/**` (extract reusable offline-job helpers, additive), track and
+clip context menus (`TrackRow.tsx`, `ClipView.tsx`).
+
+## `time-edits`
+
+Owns: `crates/ether-controller/src/time_edit/**`, `ui/src/features/time-edits/**`, mock
+`roadmap/timeEdits.*`, tests. Shared touch: time-selection shortcuts and menu entries in
+`ArrangementView.tsx`.
+
+## `sample-accurate-automation`
+
+Owns: `crates/ether-core/src/automation_rt.rs` (v0.1 behaviour moved verbatim),
+`automation.rs`, `crates/ether-core/tests/sample_accurate*.rs`. Shared touches: `sched.rs`
+(`Timing`), `tempo.rs`, `engine.rs` (sub-block timing lines only), `mixer.rs` (per-sample
+ramps), `param.rs`, the plugin hosts' param-event offsets (`ether-clap/src/node.rs`,
+`ether-vst3/src/node.rs`, `ether-au/src/mac/node.rs`, `ether-sandbox/src/{node,shm}.rs`),
+`ether-devices/src/util.rs`. Acceptance: CONTRACTS.md §12.7 (block-size independence).
+
+## `browser-v2`
+
+Owns: `crates/ether-controller/src/browser/**`, `ui/src/features/browser/v2/**`, mock
+`roadmap/browserV2.*`, tests. Shared touches: mount in `features/browser/index.tsx`, the
+tempo-synced preview (`ether-core/src/preview.rs`, `ether-controller/src/media_preview/**`),
+user folders (`ether-native/src/store.rs`; native picker in `apps/desktop/src/**`).
+
+## `media-references`
+
+Owns: `crates/ether-controller/src/media_refs/**`, `ui/src/features/media-refs/**`, mock
+`roadmap/mediaReferences.*`, tests. Shared touches: import as reference and resolution in
+`ether-controller/src/media/**`, `handlers.rs` (import), `project.rs` (missing check on
+open), `ether-native/src/store.rs` (`Library::{external_path, read_external}`),
+the mock import/library (`MockTransport.ts`, `library.ts`). The collab push by hash belongs to
+`file-import`. Behaviour change and migration: CONTRACTS.md §12.9.
+
+## `plugin-sidechain` (priority 2)
+
+Owns: `crates/ether-controller/tests/plugin_sidechain*.rs`, `crates/ether-native/tests/
+plugin_sidechain*.rs`. Contract: CONTRACTS.md §12.14. Shared touches (format files): the
+aux bus in `ether-clap/src/{node,plugin,scan}.rs`, `ether-vst3/src/{node,plugin,scan}.rs`,
+`ether-au/src/mac/{node,plugin,mod}.rs` (`Node::{sidechain_inputs, process_sidechain}` +
+`sidechain_inputs` in the descriptors), the sandbox shm layout and version (bump it by one;
+serialized after `sample-accurate-automation`, which also changes the shm layout)
+(`ether-sandbox/src/{shm,node,helper,host}.rs`), the plugin catalog
+(`ether-plugin-host/src/**`, `PluginDescriptor::sidechain_inputs`). No controller or engine
+changes are needed: `Device::SetSidechain` already accepts any device whose descriptor has
+`sidechain_inputs > 0`, and the engine feeds `process_sidechain`.
+
+## `graphical-eq` (priority 2, after `device-ui`)
+
+Owns: `ui/src/features/devices/layout/eq/**` (the `EqCurve` widget, `eqResponse.ts`),
+`crates/ether-devices/tests/eq_analysis*.rs`, its e2e. Contract: CONTRACTS.md §12.15.
+Shared touches: the EQ's analysis producer (`ether-devices/src/eq.rs`: pre/post spectrum,
+`Node::{has_analysis, analysis}`), widget registration in the shared renderer
+(`layout/index.ts`, `layout/Widget.tsx`), `mock/devices/eq.json` (regenerated).
+Tests: TS response parity with the Rust vectors, gesture = one undo step per drag, the EQ's
+analysis under `assert_no_alloc`. Screenshots of the EQ panel in the dark theme.

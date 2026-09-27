@@ -693,6 +693,20 @@ are the relay's, or the ones set in settings (`SetIceServers`; e.g. a self-hoste
   crate server (UDP allocations, RFC 8656) in its own tokio runtime thread; when on, it owns
   the UDP port and answers Binding requests itself. Relayed ports from a configurable range
   (`--turn-ports`), public address from `--public-ip`.
+  **Experimental: do not expose it publicly yet** (off by default; `--help` and a startup
+  warning say so). Every TURN request is rate-capped per source and globally before the
+  crate, and the crate's never-evicted nonce map is bounded by counting admitted requests:
+  past a soft budget only requests with a MESSAGE-INTEGRITY we verify pass (plus a global
+  trickle of 5 unverified requests/s), and the server is rotated (fresh nonce map) when no
+  allocation is live, or unconditionally at a hard budget. Known limitations (follow-up
+  node `turn-hardening`: a per-username verified cap, counting real nonce inserts,
+  rotation-decision tests):
+  - past the soft budget, `admitted` never decays until a rotation, so new clients share
+    the 5/s unverified trickle with whoever keeps sending unverified requests (an attacker
+    can crowd them out);
+  - a captured valid request replayed from spoofed sources counts as verified, so it can
+    push the count to the hard budget and force a rotation (dropping every live
+    allocation) about every 100 s.
 - **Credentials** (TURN REST API scheme, per site, time-limited), only for token-protected
   relays:
   - `secret` = 32 random bytes from the OS, generated when the relay starts, kept in memory
@@ -746,7 +760,7 @@ project, replicated as ordinary ops); peer playheads are **presence** (ephemeral
 ### 12.1 Chat (a project journal)
 
 - **Entity** `ChatMessage { id, seq, author, text, sent_at }` in `Project::chat`
-  (`#[serde(default)]`: `.ether` v3 files without it load unchanged, no version bump).
+  (`.ether` v4: the v3 → v4 migration adds it empty; also `#[serde(default)]`).
   `id` is a client-chosen ULID (unique across sites). `author = Author { name, site,
   actor, color }` is a **snapshot** taken by the sender's controller (session name, site,
   its relay colour at the time), so the journal keeps showing who wrote what after the
@@ -816,10 +830,9 @@ project, replicated as ordinary ops); peer playheads are **presence** (ephemeral
   once synced (`relay/mod.rs`, next to the peers' presence it already sends a joiner), and
   the controller records its colour from a `Presence` with its own site instead of
   dropping it (`collab/mod.rs`, one line). `Author::color` is `None` until known.
-- **Older readers.** A build without these tables (`.ether` v3 readers) ignores the unknown
-  `chat` and `pinned_notes` keys and loses them on its next save. Acceptable because the v4
-  bump (contracts-3, PR #106) ships in the same release: a v3 reader then refuses the file
-  outright instead of silently dropping the journal. In a session, older builds are
+- **Older readers.** The tables ship with `.ether` v4 (contracts-3, #106): a v3 reader
+  refuses a v4 file (`TooNew`) instead of silently dropping the journal and the notes on
+  re-save; the v3 → v4 migration adds both tables empty (`V3ContractsV3Defaults`, tested). In a session, older builds are
   refused by the collab protocol version (above).
 - **Solo** (no session): the chat UI is hidden; messages still load with the project, stay
   in the file, and show again in the next session.

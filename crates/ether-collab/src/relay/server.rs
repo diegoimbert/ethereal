@@ -14,6 +14,9 @@
 //!
 //! Threads: one accept thread, one per connection; the [`Relay`] state machine sits behind
 //! a mutex and routes outgoing messages into per-connection bounded queues.
+//!
+//! The same port number is bound in UDP for STUN (or TURN), and the per-site ICE servers
+//! are installed as the relay's ICE provider ([`super::ice`], docs/COLLAB.md §10).
 
 use std::collections::{HashMap, HashSet};
 use std::io::ErrorKind;
@@ -35,6 +38,7 @@ use tungstenite::protocol::frame::coding::CloseCode;
 use tungstenite::protocol::{CloseFrame, WebSocketConfig};
 use tungstenite::{Message, WebSocket};
 
+use super::ice::{IceConfig, IceService, SiteHosts, host_name};
 use super::{ConnId, Outgoing, Relay, RelayConfig};
 use crate::wire::{
     MAX_COLLAB_MESSAGE_BYTES, WireFrame, decode_binary, decode_text, encode_frame,
@@ -119,6 +123,8 @@ pub struct RelayServerConfig {
     /// Outgoing bytes a connection may have queued before it is dropped as too slow
     /// (raised to fit a late joiner's catch-up, see [`conn_byte_budget`]).
     pub max_queued_bytes: usize,
+    /// STUN/TURN on the UDP port of the same number (docs/COLLAB.md §10).
+    pub ice: IceConfig,
 }
 
 impl Default for RelayServerConfig {
@@ -136,6 +142,7 @@ impl Default for RelayServerConfig {
             idle_timeout: Duration::from_secs(60),
             max_messages_per_second: 2_000,
             max_queued_bytes: 256 << 20,
+            ice: IceConfig::default(),
         }
     }
 }
@@ -219,6 +226,8 @@ struct Shared {
     /// Connections the relay dropped, with why (their threads close the sockets).
     kicked: Mutex<HashMap<ConnId, String>>,
     started: Instant,
+    /// The host name each site used to reach the relay (for its ICE server URLs).
+    hosts: Arc<SiteHosts>,
     byte_budget: usize,
     config: RelayServerConfig,
     info: ServerInfo,
@@ -297,6 +306,9 @@ pub struct RelayServer {
     shared: Arc<Shared>,
     accept: Option<JoinHandle<()>>,
     ticker: Option<JoinHandle<()>>,
+    /// STUN/TURN on the UDP port (dropped on stop).
+    ice: Option<IceService>,
+    ice_status: String,
 }
 
 impl RelayServer {
@@ -320,12 +332,19 @@ impl RelayServer {
                 ..ServerCapabilities::default()
             },
         };
+        let hosts = Arc::new(SiteHosts::default());
+        let ice = IceService::start(&config.ice, addr, config.token.is_some(), hosts.clone());
+        let mut relay = Relay::new(config.relay.clone());
+        if let Some(advertiser) = ice.advertiser {
+            relay.set_ice_provider(advertiser.into_provider());
+        }
         let shared = Arc::new(Shared {
-            relay: Mutex::new(Relay::new(config.relay.clone())),
+            relay: Mutex::new(relay),
             queues: Mutex::new(HashMap::new()),
             pings: Mutex::new(HashSet::new()),
             kicked: Mutex::new(HashMap::new()),
             started: Instant::now(),
+            hosts,
             byte_budget: conn_byte_budget(&config),
             config,
             info,
@@ -350,13 +369,25 @@ impl RelayServer {
                     }
                 })?
         };
-        tracing::info!(%addr, auth = shared.info.auth_required, "collab relay listening");
+        tracing::info!(%addr, auth = shared.info.auth_required, ice = %ice.status, "collab relay listening");
         Ok(Self {
             addr,
             shared,
             accept: Some(accept),
             ticker: Some(ticker),
+            ice: ice.service,
+            ice_status: ice.status,
         })
+    }
+
+    /// The UDP address STUN/TURN answers on (`None`: off, or the bind failed).
+    pub fn udp_addr(&self) -> Option<SocketAddr> {
+        self.ice.as_ref().map(IceService::local_addr)
+    }
+
+    /// One line describing the UDP side (`stun: udp ...`, `turn: udp ...`, `stun: off ...`).
+    pub fn ice_status(&self) -> &str {
+        &self.ice_status
     }
 
     pub fn local_addr(&self) -> SocketAddr {
@@ -393,6 +424,7 @@ impl RelayServer {
         if let Some(t) = self.ticker.take() {
             let _ = t.join();
         }
+        self.ice = None;
     }
 }
 
@@ -478,6 +510,8 @@ fn serve_connection(stream: TcpStream, shared: &Shared) -> Result<(), String> {
     let unauthenticated = shared.config.token.is_none();
     let path = Arc::new(Mutex::new(String::new()));
     let path_w = path.clone();
+    let host = Arc::new(Mutex::new(None::<String>));
+    let host_w = host.clone();
     #[allow(clippy::result_large_err)] // tungstenite's callback signature
     let check = move |req: &Request, resp: Response| -> Result<Response, ErrorResponse> {
         let refuse = |why: &str, status: StatusCode| {
@@ -492,6 +526,11 @@ fn serve_connection(stream: TcpStream, shared: &Shared) -> Result<(), String> {
             return Err(refuse("bad session name", StatusCode::NOT_FOUND));
         }
         *path_w.lock().expect("path lock") = req.uri().path().to_string();
+        *host_w.lock().expect("host lock") = req
+            .headers()
+            .get("host")
+            .and_then(|v| v.to_str().ok())
+            .and_then(host_name);
         Ok(resp)
     };
     let pre_auth = WebSocketConfig::default()
@@ -591,6 +630,8 @@ fn serve_connection(stream: TcpStream, shared: &Shared) -> Result<(), String> {
         session: session.clone(),
     };
     tracing::info!(%session, conn, client = %loggable(&hello.client), "site connected");
+    let host = host.lock().expect("host lock").take();
+    let mut claimed = None;
     let result = (|| {
         ws.set_config(|c| {
             c.max_message_size = Some(MAX_COLLAB_MESSAGE_BYTES);
@@ -608,8 +649,11 @@ fn serve_connection(stream: TcpStream, shared: &Shared) -> Result<(), String> {
             serde_json::to_string(&welcome).map_err(|e| e.to_string())?,
         ))
         .map_err(|e| e.to_string())?;
-        pump(&mut ws, &rx, &bytes, conn, shared)
+        pump(&mut ws, &rx, &bytes, conn, host, &mut claimed, shared)
     })();
+    if let Some(site) = claimed {
+        shared.hosts.release(site, conn);
+    }
     shared.queues.lock().expect("queues lock").remove(&conn);
     shared.pings.lock().expect("pings lock").remove(&conn);
     shared.kicked.lock().expect("kicked lock").remove(&conn);
@@ -618,11 +662,16 @@ fn serve_connection(stream: TcpStream, shared: &Shared) -> Result<(), String> {
     result
 }
 
+/// `host`: the host name this connection used (its `Host` header); `claimed` is set to the
+/// site id it claims in its `Hello` (recorded with that host for its ICE server URLs).
+#[allow(clippy::too_many_arguments)]
 fn pump(
     ws: &mut WebSocket<TcpStream>,
     rx: &Receiver<(Arc<CollabMessage>, usize)>,
     bytes: &AtomicUsize,
     conn: ConnId,
+    host: Option<String>,
+    claimed: &mut Option<ether_protocol::model::SiteId>,
     shared: &Shared,
 ) -> Result<(), String> {
     let mut last_inbound = Instant::now();
@@ -720,6 +769,10 @@ fn pump(
             continue;
         }
         let leave = matches!(message, CollabMessage::Leave { .. });
+        if let (CollabMessage::Hello { site, .. }, None, Some(host)) = (&message, *claimed, &host) {
+            *claimed = Some(*site);
+            shared.hosts.claim(*site, conn, host.clone());
+        }
         let r = shared.with_relay(|relay, out| relay.message(conn, message, out));
         if let Err(e) = r {
             tracing::debug!(conn, reason = %e.reason, "collab message dropped");
@@ -749,6 +802,7 @@ mod tests {
             pings: Mutex::new(HashSet::new()),
             kicked: Mutex::new(HashMap::new()),
             started: Instant::now(),
+            hosts: Arc::default(),
             byte_budget,
             info: ServerInfo {
                 name: String::new(),

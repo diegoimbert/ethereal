@@ -266,6 +266,7 @@ pub(crate) fn rack_command(ctx: &mut DocCtx, c: &DrumRackCommand) -> CmdResult<(
                 }
             };
             ctx.tx.insert(Entity::Device(Device {
+                chain: None,
                 id: *id,
                 track: r.track,
                 order,
@@ -348,6 +349,7 @@ pub(crate) fn rack_command(ctx: &mut DocCtx, c: &DrumRackCommand) -> CmdResult<(
                 slices: SliceSettings::default(),
             };
             ctx.tx.insert(Entity::Device(Device {
+                chain: None,
                 id: *device,
                 track: r.track,
                 order: order_before::<DeviceId>(&[], None)?,
@@ -576,6 +578,7 @@ fn to_drum_rack(
     }
     let rack_kind = BuiltinDevice::DrumRack;
     ctx.tx.insert(Entity::Device(Device {
+        chain: None,
         id: rack_id,
         track: d.track,
         order: d.order.clone(),
@@ -614,6 +617,7 @@ fn to_drum_rack(
         params.insert(sampler::params::START, percent(start));
         params.insert(sampler::params::END, percent(end));
         ctx.tx.insert(Entity::Device(Device {
+            chain: None,
             id: pid.device,
             track: d.track,
             order: pad_order.clone(),

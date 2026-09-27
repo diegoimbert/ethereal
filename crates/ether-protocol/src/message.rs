@@ -3,26 +3,34 @@
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
+use crate::analysis::{AnalysisCommand, AnalysisEvent};
 use crate::automation::AutomationCommand;
+use crate::browser::{BrowserCommand, BrowserEvent, BrowserPage, BrowserRoot};
 use crate::clips::ClipCommand;
 use crate::collab::{CollabCommand, CollabEvent};
 use crate::devices::{DeviceCommand, DeviceDescriptor};
 use crate::drum_rack::{DrumRackCommand, SliceCommand};
 use crate::engine::{AudioDeviceList, EngineCommand, EngineEvent, EngineStatus};
 use crate::export::{ByteChunk, ExportCommand, ExportEvent, ExportJobId};
+use crate::freeze::{FreezeCommand, FreezeEvent, RenderJobId};
 use crate::groove::GrooveCommand;
 use crate::markers::MarkerCommand;
 use crate::media::{BrowseRoot, DirectoryListing, MediaCommand, MediaEvent, PeakData};
+use crate::media_refs::{MediaRefCommand, MediaRefEvent};
 use crate::meters::MeterFrame;
 use crate::midi_map::{MidiMapCommand, MidiMapEvent};
 use crate::mixer::MixerCommand;
-use crate::model::{GestureId, MediaRef, MidiMapping, Patch, Project};
+use crate::model::{GestureId, MediaId, MediaRef, MidiMapping, Patch, Project};
 use crate::notes::NoteCommand;
 use crate::plugins::{PluginCommand, PluginDescriptor, PluginEvent};
+use crate::presets::{PresetCommand, PresetEvent, PresetInfo};
 use crate::project::{EditCommand, ProjectCommand, ProjectEvent, ProjectSummary};
+use crate::racks::{ModulationCommand, ModulatorDescriptor, RackCommand};
 use crate::recording::{InputList, RecordingCommand, RecordingEvent};
 use crate::social::{ChatCommand, PinnedNoteCommand};
+use crate::takes::TakeCommand;
 use crate::tempo::TempoCommand;
+use crate::time_edit::TimeEditCommand;
 use crate::tracks::TrackCommand;
 use crate::transport::{PlayheadUpdate, TransportCommand, TransportState};
 use crate::warp::WarpCommand;
@@ -72,6 +80,16 @@ pub enum Command {
     DrumRack(DrumRackCommand),
     Slice(SliceCommand),
     Collab(CollabCommand),
+    // --- v0.2 (contracts-3; one domain per node, see docs/ROADMAP.md "v0.2") ---
+    Take(TakeCommand),
+    Freeze(FreezeCommand),
+    TimeEdit(TimeEditCommand),
+    Preset(PresetCommand),
+    Browser(BrowserCommand),
+    Analysis(AnalysisCommand),
+    Rack(RackCommand),
+    Modulation(ModulationCommand),
+    MediaRef(MediaRefCommand),
     // --- base-62 (`collab-social`, docs/COLLAB.md §12) ---
     /// Session chat (not a document command: never an undo step).
     Chat(ChatCommand),
@@ -174,6 +192,29 @@ pub enum ReplyValue {
     MidiMappings {
         mappings: Vec<MidiMapping>,
     },
+    // --- v0.2 ---
+    /// A freeze/bounce/consolidate render started (`freeze-bounce`).
+    RenderStarted {
+        job: RenderJobId,
+    },
+    Presets {
+        presets: Vec<PresetInfo>,
+    },
+    Preset {
+        preset: PresetInfo,
+    },
+    BrowserPage {
+        page: BrowserPage,
+    },
+    BrowserRoots {
+        roots: Vec<BrowserRoot>,
+    },
+    ModulatorKinds {
+        kinds: Vec<ModulatorDescriptor>,
+    },
+    MissingMedia {
+        media: Vec<MediaId>,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
@@ -238,6 +279,23 @@ pub enum Event {
     },
     Collab {
         event: CollabEvent,
+    },
+    // --- v0.2 ---
+    Freeze {
+        event: FreezeEvent,
+    },
+    Preset {
+        event: PresetEvent,
+    },
+    Browser {
+        event: BrowserEvent,
+    },
+    /// Device analysis frames and modulation readback for watched devices.
+    Analysis {
+        event: AnalysisEvent,
+    },
+    MediaRef {
+        event: MediaRefEvent,
     },
     /// User-facing message (toast).
     Notification {

@@ -136,7 +136,7 @@ fn zero_crossing_hz(x: &[f32]) -> f32 {
 // ---------------------------------------------------------------------------------------
 // Descriptors
 
-const TYPES: [BuiltinDeviceType; 9] = BuiltinDeviceType::ALL;
+const TYPES: [BuiltinDeviceType; BuiltinDeviceType::ALL.len()] = BuiltinDeviceType::ALL;
 
 fn builtin(t: BuiltinDeviceType) -> BuiltinDevice {
     BuiltinDevice::new(t)

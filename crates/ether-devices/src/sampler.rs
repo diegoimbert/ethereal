@@ -76,7 +76,8 @@ pub fn param_infos() -> Vec<ParamInfo> {
             ParamUnit::None,
             (0.0, 127.0, 60.0),
             ParamScale::Linear,
-        ),
+        )
+        .with_step(1.0),
         param(
             2,
             "Transpose",
@@ -84,7 +85,8 @@ pub fn param_infos() -> Vec<ParamInfo> {
             ParamUnit::Semitones,
             (-24.0, 24.0, 0.0),
             ParamScale::Linear,
-        ),
+        )
+        .with_step(1.0),
         param(
             3,
             "Attack",
@@ -131,6 +133,7 @@ pub fn param_infos() -> Vec<ParamInfo> {
 /// Descriptor of the sampler type.
 pub fn descriptor() -> DeviceDescriptor {
     DeviceDescriptor {
+        layout: None,
         device_type: DeviceTypeRef::Builtin {
             device: BuiltinDeviceType::Sampler,
         },

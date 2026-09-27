@@ -12,6 +12,12 @@
 //!    [`EngineReport`] to the report ring (dropped if the ring is full),
 //! 4. run the `GarbageCollector`.
 //!
+//! The engine's stream tap (`ether_core::stream_tap`: master + metronome/count-in, minus the
+//! preview voice; "listen on <peer>", docs/COLLAB.md §9.1) is installed once at construction
+//! and drained after every render into [`EngineHost::tap_output`] (the worklet's second
+//! output, fed to a `MediaStreamAudioDestinationNode` by the web sender), with the transport
+//! state of the rendered sub-blocks in [`EngineHost::tap_clock`] (layout [`tap_clock`]).
+//!
 //! Only step 2 is the real-time render. Steps 1 and 4 allocate (snapshot decode and
 //! compile, media buffers, dropping retired snapshots) but run on the same thread because
 //! an AudioWorkletGlobalScope has no other thread; the budgets bound their cost per block.
@@ -31,6 +37,7 @@ use std::sync::Arc;
 
 use ether_core::graph::{AutomationDesc, ResolvedTarget};
 use ether_core::protocol::model::MediaId;
+use ether_core::stream_tap::{StreamBlock, StreamTapReader, stream_tap_ring};
 use ether_core::{
     AudioSource, EngineConfig, EngineHandle, EngineOutputs, GarbageCollector, NodeKey, ParamTarget,
     RenderGraphDesc,
@@ -57,6 +64,37 @@ const DEAD_KEY: NodeKey = NodeKey {
 };
 /// Output channels rendered by the worklet.
 pub const OUTPUT_CHANNELS: usize = 2;
+
+/// Stream tap channels (stereo), exposed as `output_ptr(OUTPUT_CHANNELS + c)`.
+pub const TAP_CHANNELS: usize = 2;
+/// `output_ptr(TAP_CLOCK_SLOT)` points at the [`tap_clock`] header (`f64`s, not `f32`s).
+pub const TAP_CLOCK_SLOT: usize = OUTPUT_CHANNELS + TAP_CHANNELS;
+/// Stereo frames the tap ring holds (it is drained every block).
+const TAP_RING_FRAMES: usize = RENDER_QUANTUM * 8;
+
+/// Layout of the tap clock header (`f64` slots) written by each render: the transport
+/// state of the last tapped sub-block, and of the last one that jumped (or followed a gap).
+/// Offsets are frames into the rendered block; `latency` is the graph latency (samples).
+pub mod tap_clock {
+    /// Tapped sub-blocks in the last render (0: nothing tapped; ignore the rest).
+    pub const BLOCKS: usize = 0;
+    pub const OFFSET: usize = 1;
+    pub const POSITION: usize = 2;
+    pub const PLAYING: usize = 3;
+    pub const RECORDING: usize = 4;
+    pub const BPM: usize = 5;
+    pub const LATENCY: usize = 6;
+    /// 1 when a sub-block of the last render jumped or followed a gap; the `JUMP_*` slots
+    /// describe the last such sub-block.
+    pub const JUMPED: usize = 7;
+    pub const JUMP_OFFSET: usize = 8;
+    pub const JUMP_POSITION: usize = 9;
+    pub const JUMP_PLAYING: usize = 10;
+    pub const JUMP_RECORDING: usize = 11;
+    pub const JUMP_BPM: usize = 12;
+    pub const JUMP_LATENCY: usize = 13;
+    pub const LEN: usize = 14;
+}
 
 /// Engine config for the web: one render quantum per `process`, stereo out, no inputs yet.
 pub fn web_engine_config(sample_rate: u32) -> EngineConfig {
@@ -95,6 +133,10 @@ pub struct EngineHost<M: RingMemory> {
     report: EngineReport,
     report_buf: Vec<u8>,
     out: Vec<Vec<f32>>,
+    /// Stream tap reader and its planar copy of the last render (see the module docs).
+    tap: StreamTapReader,
+    tap_out: Vec<Vec<f32>>,
+    tap_clock: Vec<f64>,
     blocks_since_report: u32,
     blocks: u64,
     /// Errors not yet delivered (report ring was full).
@@ -105,7 +147,10 @@ pub struct EngineHost<M: RingMemory> {
 
 impl<M: RingMemory> EngineHost<M> {
     pub fn new(sample_rate: u32, control: M, reports: M) -> Self {
-        let parts = ether_core::create(web_engine_config(sample_rate));
+        let mut parts = ether_core::create(web_engine_config(sample_rate));
+        let (tap_writer, tap) = stream_tap_ring(TAP_RING_FRAMES);
+        // Applied on the first render; the queue is empty at creation.
+        let _ = parts.handle.set_stream_tap(Some(tap_writer));
         Self {
             engine: parts.engine,
             handle: parts.handle,
@@ -125,6 +170,9 @@ impl<M: RingMemory> EngineHost<M> {
             },
             report_buf: Vec::with_capacity(EngineReport::encoded_len(256)),
             out: vec![vec![0.0; RENDER_QUANTUM]; OUTPUT_CHANNELS],
+            tap,
+            tap_out: vec![vec![0.0; RENDER_QUANTUM]; TAP_CHANNELS],
+            tap_clock: vec![0.0; tap_clock::LEN],
             blocks_since_report: 0,
             blocks: 0,
             errors: Vec::new(),
@@ -137,9 +185,24 @@ impl<M: RingMemory> EngineHost<M> {
         &self.out[channel]
     }
 
-    /// Pointer to an output channel (the JS side views it through wasm memory).
+    /// Planar stream tap of the last [`Self::render`] call (`RENDER_QUANTUM` frames).
+    pub fn tap_output(&self, channel: usize) -> &[f32] {
+        &self.tap_out[channel]
+    }
+
+    /// Tap clock header of the last [`Self::render`] call (layout [`tap_clock`]).
+    pub fn tap_clock(&self) -> &[f64] {
+        &self.tap_clock
+    }
+
+    /// Pointer to an output channel (the JS side views it through wasm memory): `0..2` the
+    /// main output, `2..4` the stream tap, [`TAP_CLOCK_SLOT`] the tap clock header (`f64`s).
     pub fn output_ptr(&self, channel: usize) -> *const f32 {
-        self.out[channel].as_ptr()
+        match channel {
+            c if c < OUTPUT_CHANNELS => self.out[c].as_ptr(),
+            c if c < TAP_CLOCK_SLOT => self.tap_out[c - OUTPUT_CHANNELS].as_ptr(),
+            _ => self.tap_clock.as_ptr().cast(),
+        }
     }
 
     /// Render one block of `frames` (`<= RENDER_QUANTUM`) frames.
@@ -153,6 +216,7 @@ impl<M: RingMemory> EngineHost<M> {
             let mut outs: [&mut [f32]; OUTPUT_CHANNELS] = [&mut l[..frames], &mut r[..frames]];
             self.engine.process(&[], &mut outs, frames);
         }
+        self.drain_tap(frames);
         self.blocks += 1;
         self.blocks_since_report += 1;
         if self.blocks_since_report >= REPORT_INTERVAL_BLOCKS {
@@ -160,6 +224,63 @@ impl<M: RingMemory> EngineHost<M> {
             self.send_report();
         }
         self.gc.collect();
+    }
+
+    /// **RT.** Move what the engine tapped during this render (exactly `frames` frames
+    /// unless blocks were skipped) into `tap_out`, deinterleaved; silence for the rest.
+    fn drain_tap(&mut self, frames: usize) {
+        let clock = &mut self.tap_clock[..];
+        clock.fill(0.0);
+        let [tl, tr] = &mut self.tap_out[..] else {
+            unreachable!("stereo tap")
+        };
+        let mut at = 0usize;
+        let mut blocks = 0.0;
+        while let Ok(block) = self.tap.blocks.pop() {
+            let n = block.frames as usize;
+            let offset = at.min(frames);
+            let put = |c: &mut [f64], base: usize, b: &StreamBlock| {
+                c[base] = offset as f64;
+                c[base + 1] = b.position;
+                c[base + 2] = f64::from(u8::from(b.playing));
+                c[base + 3] = f64::from(u8::from(b.recording));
+                c[base + 4] = b.bpm;
+                c[base + 5] = f64::from(b.latency);
+            };
+            blocks += 1.0;
+            put(clock, tap_clock::OFFSET, &block);
+            if block.jump || block.gap {
+                clock[tap_clock::JUMPED] = 1.0;
+                put(clock, tap_clock::JUMP_OFFSET, &block);
+            }
+            let Ok(chunk) = self
+                .tap
+                .audio
+                .read_chunk((2 * n).min(self.tap.audio.slots()))
+            else {
+                continue;
+            };
+            let (a, b) = chunk.as_slices();
+            for (k, &v) in a.iter().chain(b.iter()).enumerate() {
+                let i = at + k / 2;
+                if i >= frames {
+                    break;
+                }
+                if k % 2 == 0 {
+                    tl[i] = v;
+                } else {
+                    tr[i] = v;
+                }
+            }
+            chunk.commit_all();
+            at += n;
+        }
+        clock[tap_clock::BLOCKS] = blocks;
+        for ch in [tl, tr] {
+            if at < frames {
+                ch[at..frames].fill(0.0);
+            }
+        }
     }
 
     /// Apply pending control frames, within `budget` bytes and the per-quantum limits.
@@ -379,5 +500,34 @@ impl<M: RingMemory> EngineHost<M> {
     /// Blocks rendered so far.
     pub fn blocks(&self) -> u64 {
         self.blocks
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ring::HeapMemory;
+
+    #[test]
+    fn stream_tap_is_drained_every_render() {
+        let mut host = EngineHost::new(48_000, HeapMemory::new(1 << 12), HeapMemory::new(1 << 12));
+        for i in 0..4 {
+            host.render(RENDER_QUANTUM);
+            let clock = host.tap_clock();
+            assert!(clock[tap_clock::BLOCKS] >= 1.0, "render {i} tapped nothing");
+            // The tap installs with a jump (a fresh timeline for the reader).
+            assert_eq!(clock[tap_clock::JUMPED], if i == 0 { 1.0 } else { 0.0 });
+            assert_eq!(clock[tap_clock::PLAYING], 0.0);
+            assert_eq!(host.tap_output(0), host.output(0));
+            assert_eq!(host.tap_output(1), host.output(1));
+        }
+        assert_eq!(
+            host.output_ptr(OUTPUT_CHANNELS),
+            host.tap_output(0).as_ptr()
+        );
+        assert_eq!(
+            host.output_ptr(TAP_CLOCK_SLOT).cast::<f64>(),
+            host.tap_clock().as_ptr()
+        );
     }
 }

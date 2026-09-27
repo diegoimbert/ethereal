@@ -58,6 +58,8 @@ fn client_message_shape() {
 
 fn sample_track(id_: TrackId) -> Track {
     Track {
+        freeze: None,
+        vca: Default::default(),
         id: id_,
         kind: TrackKind::Midi,
         name: "Bass".into(),
@@ -79,6 +81,7 @@ fn sample_track(id_: TrackId) -> Track {
 fn patch_and_entities_roundtrip() {
     let track = sample_track(id(10));
     let clip = Clip {
+        lane: None,
         id: id(11),
         track: track.id,
         start: Beats(8.0),
@@ -105,6 +108,7 @@ fn patch_and_entities_roundtrip() {
         }),
     };
     let device = Device {
+        chain: None,
         id: id(13),
         track: track.id,
         order: OrderKey("a0".into()),

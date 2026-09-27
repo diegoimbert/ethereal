@@ -7,6 +7,8 @@ import type { ChatMessage } from "./ChatMessage";
 import type { ChatMessageId } from "./ChatMessageId";
 import type { Clip } from "./Clip";
 import type { ClipId } from "./ClipId";
+import type { CompRegion } from "./CompRegion";
+import type { CompRegionId } from "./CompRegionId";
 import type { Device } from "./Device";
 import type { DeviceId } from "./DeviceId";
 import type { DrumPad } from "./DrumPad";
@@ -17,13 +19,21 @@ import type { MediaId } from "./MediaId";
 import type { MediaRef } from "./MediaRef";
 import type { MidiMapping } from "./MidiMapping";
 import type { MidiMappingId } from "./MidiMappingId";
+import type { ModMapping } from "./ModMapping";
+import type { ModMappingId } from "./ModMappingId";
+import type { Modulator } from "./Modulator";
+import type { ModulatorId } from "./ModulatorId";
 import type { Note } from "./Note";
 import type { NoteId } from "./NoteId";
 import type { PinnedNote } from "./PinnedNote";
 import type { PinnedNoteId } from "./PinnedNoteId";
 import type { ProjectId } from "./ProjectId";
 import type { ProjectSettings } from "./ProjectSettings";
+import type { RackChain } from "./RackChain";
+import type { RackChainId } from "./RackChainId";
 import type { SendId } from "./SendId";
+import type { TakeLane } from "./TakeLane";
+import type { TakeLaneId } from "./TakeLaneId";
 import type { TempoPoint } from "./TempoPoint";
 import type { TempoPointId } from "./TempoPointId";
 import type { TimeSignatureId } from "./TimeSignatureId";
@@ -61,10 +71,30 @@ midi_mappings: { [key in MidiMappingId]: MidiMapping },
  */
 drum_pads: { [key in DrumPadId]: DrumPad }, 
 /**
- * Chat journal (base-62, `collab-social`; absent in older files).
+ * Take lanes (`comping`).
+ */
+take_lanes: { [key in TakeLaneId]: TakeLane }, 
+/**
+ * Comp regions (`comping`).
+ */
+comp_regions: { [key in CompRegionId]: CompRegion }, 
+/**
+ * Rack chains (`racks-modulation`).
+ */
+rack_chains: { [key in RackChainId]: RackChain }, 
+/**
+ * Modulators inside devices (`racks-modulation`).
+ */
+modulators: { [key in ModulatorId]: Modulator }, 
+/**
+ * Modulation mappings (`racks-modulation`).
+ */
+mod_mappings: { [key in ModMappingId]: ModMapping }, 
+/**
+ * Chat journal (base-62, `collab-social`; `.ether` v4).
  */
 chat: { [key in ChatMessageId]: ChatMessage }, 
 /**
- * Notes pinned on the arrangement (base-62, `collab-social`; absent in older files).
+ * Notes pinned on the arrangement (base-62, `collab-social`; `.ether` v4).
  */
 pinned_notes: { [key in PinnedNoteId]: PinnedNote }, };

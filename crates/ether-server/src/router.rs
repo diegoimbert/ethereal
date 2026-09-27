@@ -8,15 +8,17 @@
 //!
 //! Gestures are remapped per client so two clients' drags never merge into one undo step
 //! (`ClientMessage::gesture` and `Edit::EndGesture`). Uploads a client started are
-//! cancelled when it disconnects (`Media::CancelUpload`).
+//! cancelled when it disconnects (`Media::CancelUpload`), and its analysis watches are
+//! released (`Analysis::Unwatch`, v0.2: the controller refcounts watches).
 
 use std::collections::{HashMap, HashSet};
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 
 use crossbeam_channel::{Sender, TrySendError};
+use ether_protocol::analysis::AnalysisCommand;
 use ether_protocol::media::{MediaCommand, MediaSource};
-use ether_protocol::model::GestureId;
+use ether_protocol::model::{DeviceId, GestureId};
 use ether_protocol::project::EditCommand;
 use ether_protocol::{
     ClientMessage, Command, CommandError, ErrorCode, Reply, ReplyResult, ServerMessage,
@@ -46,6 +48,8 @@ struct Client {
     gestures: HashMap<u32, u32>,
     /// Uploads started and not finished (imported or cancelled).
     uploads: HashSet<String>,
+    /// Analysis watches held (device → count).
+    watches: HashMap<DeviceId, u32>,
 }
 
 #[derive(Default)]
@@ -106,6 +110,7 @@ impl Router {
                 tx: Some(tx),
                 gestures: HashMap::new(),
                 uploads: HashSet::new(),
+                watches: HashMap::new(),
             },
         );
         Ok(id)
@@ -124,6 +129,12 @@ impl Router {
         gestures.sort_unstable();
         let mut uploads: Vec<String> = c.uploads.into_iter().collect();
         uploads.sort();
+        let mut watches: Vec<DeviceId> = c
+            .watches
+            .into_iter()
+            .flat_map(|(d, n)| std::iter::repeat_n(d, n as usize))
+            .collect();
+        watches.sort();
         gestures
             .into_iter()
             .map(|g| {
@@ -135,6 +146,11 @@ impl Router {
                 uploads
                     .into_iter()
                     .map(|upload| Command::Media(MediaCommand::CancelUpload { upload })),
+            )
+            .chain(
+                watches
+                    .into_iter()
+                    .map(|device| Command::Analysis(AnalysisCommand::Unwatch { device })),
             )
             .map(|command| ClientMessage {
                 id: self.next_request.fetch_add(1, Ordering::Relaxed),
@@ -173,6 +189,18 @@ impl Router {
                 },
             })));
         }
+        // An `Unwatch` this client doesn't hold is a no-op for it (never release another
+        // client's watch).
+        if let Command::Analysis(AnalysisCommand::Unwatch { device }) = &m.command
+            && !c.watches.contains_key(device)
+        {
+            return Err(Box::new(ServerMessage::Reply(Reply {
+                id: m.id,
+                result: ReplyResult::Ok {
+                    value: ether_protocol::ReplyValue::Unit,
+                },
+            })));
+        }
         let next_gesture = &self.next_gesture;
         let mut map = |g: u32| {
             *c.gestures
@@ -190,6 +218,18 @@ impl Router {
             }
             Command::Media(MediaCommand::BeginUpload { upload, .. }) => {
                 c.uploads.insert(upload.clone());
+            }
+            Command::Analysis(AnalysisCommand::Watch { device }) => {
+                *c.watches.entry(*device).or_insert(0) += 1;
+            }
+            Command::Analysis(AnalysisCommand::Unwatch { device }) => {
+                match c.watches.get_mut(device) {
+                    Some(n) if *n > 1 => *n -= 1,
+                    Some(_) => {
+                        c.watches.remove(device);
+                    }
+                    None => {}
+                }
             }
             Command::Media(MediaCommand::CancelUpload { upload })
             | Command::Media(MediaCommand::Import {
@@ -332,6 +372,28 @@ mod tests {
             b_got[1].contains(r#""id":1"#),
             "client's own id: {}",
             b_got[1]
+        );
+    }
+
+    #[test]
+    fn disconnect_releases_analysis_watches_and_unheld_unwatch_is_a_no_op() {
+        let r = Router::default();
+        let (t, _rx) = crossbeam_channel::bounded(16);
+        let (t2, _rx2) = crossbeam_channel::bounded(16);
+        let a = r.add(t);
+        let b = r.add(t2);
+        let d = DeviceId(ether_protocol::model::Ulid(7));
+        let watch = |r: &Router, c, cmd| r.inbound(c, msg(1, None, Command::Analysis(cmd)));
+        for _ in 0..2 {
+            assert!(watch(&r, a, AnalysisCommand::Watch { device: d }).is_ok());
+        }
+        // `b` never watched `d`: its Unwatch is answered locally, not forwarded.
+        assert!(watch(&r, b, AnalysisCommand::Unwatch { device: d }).is_err());
+        assert!(watch(&r, a, AnalysisCommand::Unwatch { device: d }).is_ok());
+        let released: Vec<Command> = r.remove(a).into_iter().map(|m| m.command).collect();
+        assert_eq!(
+            released,
+            vec![Command::Analysis(AnalysisCommand::Unwatch { device: d })]
         );
     }
 

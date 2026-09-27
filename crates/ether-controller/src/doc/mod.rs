@@ -213,7 +213,47 @@ impl DocCtx<'_, '_> {
         for pad in pads {
             self.delete_pad(pad)?;
         }
+        // v0.2: modulation mappings targeting the device or sourced from its modulators /
+        // macros, its modulators, and a rack's chains with their devices.
+        let mappings: Vec<ModMappingId> = self
+            .p()
+            .mod_mappings
+            .values()
+            .filter(|m| {
+                m.device == id
+                    || match m.source {
+                        ModSource::Macro { rack, .. } => rack == id,
+                        ModSource::Modulator { modulator } => self
+                            .p()
+                            .modulators
+                            .get(&modulator)
+                            .is_some_and(|x| x.device == id),
+                    }
+            })
+            .map(|m| m.id)
+            .collect();
+        for m in mappings {
+            self.tx.remove(EntityKey::ModMapping(m))?;
+        }
+        let modulators: Vec<ModulatorId> =
+            self.p().modulators_of(id).iter().map(|m| m.id).collect();
+        for m in modulators {
+            self.tx.remove(EntityKey::Modulator(m))?;
+        }
+        let chains: Vec<RackChainId> = self.p().chains_of(id).iter().map(|c| c.id).collect();
+        for c in chains {
+            self.delete_rack_chain(c)?;
+        }
         self.tx.remove(EntityKey::Device(id))
+    }
+
+    /// Delete a rack chain with its devices (v0.2).
+    pub fn delete_rack_chain(&mut self, id: RackChainId) -> CmdResult<()> {
+        let devices: Vec<DeviceId> = self.p().chain_devices_of(id).iter().map(|d| d.id).collect();
+        for d in devices {
+            self.delete_device(d)?;
+        }
+        self.tx.remove(EntityKey::RackChain(id))
     }
 
     /// Copy the pads of drum rack `src` (with their device chains) onto rack `dst` on track
@@ -284,6 +324,12 @@ impl DocCtx<'_, '_> {
 
     /// Delete one track (not its group children: see `tracks::delete`).
     pub fn delete_track_only(&mut self, id: TrackId) -> CmdResult<()> {
+        // v0.2: comp regions before the lanes they select, lane clips with the other clips,
+        // then the lanes.
+        let regions: Vec<CompRegionId> = self.p().comp_of(id).iter().map(|r| r.id).collect();
+        for r in regions {
+            self.tx.remove(EntityKey::CompRegion(r))?;
+        }
         let clips: Vec<ClipId> = self
             .p()
             .clips
@@ -293,6 +339,10 @@ impl DocCtx<'_, '_> {
             .collect();
         for c in clips {
             self.delete_clip(c)?;
+        }
+        let lanes: Vec<TakeLaneId> = self.p().lanes_of(id).iter().map(|l| l.id).collect();
+        for l in lanes {
+            self.tx.remove(EntityKey::TakeLane(l))?;
         }
         // Track-chain devices (a rack's delete takes its pads and pad devices along).
         let devices: Vec<DeviceId> = self.p().devices_of(id).iter().map(|d| d.id).collect();
@@ -319,6 +369,20 @@ impl DocCtx<'_, '_> {
             .collect();
         for d in listeners {
             self.set_device(d, DeviceChange::Sidechain(None))?;
+        }
+        // v0.2: envelope followers listening to it too.
+        let followers: Vec<ModulatorId> = self
+            .p()
+            .modulators
+            .values()
+            .filter(|m| m.sidechain == Some(id))
+            .map(|m| m.id)
+            .collect();
+        for m in followers {
+            self.tx.update(EntityUpdate::Modulator {
+                id: m,
+                change: ModulatorChange::Sidechain(None),
+            })?;
         }
         let sends: Vec<SendId> = self
             .p()
@@ -350,8 +414,12 @@ impl DocCtx<'_, '_> {
             if matches!(t.output, TrackOutput::Track { track } if track == id) {
                 self.set_track(t.id, TrackChange::Output(TrackOutput::Default))?;
             }
-            if matches!(t.input, TrackInput::Track { track } if track == id) {
+            if matches!(t.input, TrackInput::Track { track, .. } if track == id) {
                 self.set_track(t.id, TrackChange::Input(TrackInput::None))?;
+            }
+            // v0.2: tracks assigned to a deleted VCA are unassigned.
+            if t.vca == Some(id) {
+                self.set_track(t.id, TrackChange::Vca(None))?;
             }
         }
         self.tx.remove(EntityKey::Track(id))
@@ -586,6 +654,12 @@ pub(crate) fn is_document_command(command: &Command, current: Option<ProjectId>)
         | Command::Slice(_)
         | Command::PinnedNote(_) => true,
         Command::MidiMap(c) => !matches!(c, M::Learn { .. } | M::List),
+        // v0.2 (contracts-3).
+        Command::Take(_) | Command::Rack(_) => true,
+        Command::Modulation(c) => !matches!(
+            c,
+            ether_core::protocol::racks::ModulationCommand::ListModulatorKinds
+        ),
         Command::Project(ProjectCommand::SetScale { .. }) => true,
         Command::Project(ProjectCommand::Rename { id, .. }) => Some(*id) == current,
         _ => false,
@@ -631,6 +705,9 @@ pub(crate) fn apply(ctx: &mut DocCtx, command: &Command) -> CmdResult<ReplyValue
         Command::DrumRack(c) => crate::drum_rack::rack_command(ctx, c),
         Command::Slice(c) => crate::drum_rack::slice_command(ctx, c),
         Command::MidiMap(c) => crate::midi_learn::apply(ctx, c),
+        Command::Take(c) => crate::comping::take_command(ctx, c),
+        Command::Rack(c) => crate::racks::rack_command(ctx, c),
+        Command::Modulation(c) => crate::racks::modulation_command(ctx, c),
         Command::PinnedNote(c) => crate::social::pinned_note_command(ctx, c),
         Command::Project(ProjectCommand::SetScale { scale }) => {
             ctx.tx.settings(SettingsChange::Scale(*scale))

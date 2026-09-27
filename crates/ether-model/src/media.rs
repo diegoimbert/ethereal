@@ -1,8 +1,11 @@
-//! References to media owned by the project.
+//! References to media used by the project.
 //!
-//! Projects are self-contained: importing audio copies it into the project's `media/`
-//! folder in the engine-side project store, so a `MediaRef` only ever points inside the
-//! project. The UI never sees or supplies file-system paths.
+//! v0.1 projects were self-contained: importing audio copied it into the project's `media/`
+//! folder. **v0.2 (`media-references`) references library files in place**
+//! ([`MediaLocation::External`]); recordings, bounces, freezes, uploads from a remote UI and
+//! media received from collaborators still live in the project's `media/`
+//! ([`MediaLocation::Project`]). The UI never opens or supplies file-system paths (it may
+//! display an external path). See CONTRACTS.md §12.9.
 
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
@@ -24,6 +27,29 @@ pub struct MediaRef {
     /// Length in sample frames at `sample_rate`.
     #[ts(type = "number")]
     pub frames: u64,
-    /// Content hash (hex) of the file, used to key caches and dedupe imports.
+    /// Content hash (hex) of the file, used to key caches and dedupe imports. Required for
+    /// external references (relink and collab transfer match on it).
     pub hash: Option<String>,
+    /// Where the audio is read from (v0.2, `media-references`). Missing in older files =
+    /// `Project`.
+    #[serde(default)]
+    pub location: MediaLocation,
+}
+
+/// Where a [`MediaRef`]'s audio lives (v0.2, `media-references`).
+///
+/// Resolution on every site (engine-side): an `External` path that exists and whose content
+/// hash matches `hash`; else the project copy at `MediaRef::file` (collected media, or media
+/// a collaborator/remote client transferred by hash); else the media is **missing**
+/// (`MediaEvent::Missing`, silence, relink offered).
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(tag = "type")]
+pub enum MediaLocation {
+    /// The project copy at `MediaRef::file` (v0.1 behaviour).
+    #[default]
+    Project,
+    /// Referenced in place: an absolute engine-side path (inside a library root or a user
+    /// folder). `MediaRef::file` is still a valid `media/...` path: where "collect all"
+    /// copies it and where collaborators store their copy.
+    External { path: String },
 }

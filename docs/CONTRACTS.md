@@ -682,11 +682,11 @@ Design: docs/COLLAB.md §8-§11. All additive and append-only in `ether_protocol
   site-to-site 200/s (dropped, not disconnected).
 
 ### 11.17 Social: chat, pinned notes, peer playheads (base-62)
-Design: docs/COLLAB.md §12. Additive, no `.ether` version bump:
+Design: docs/COLLAB.md §12. Additive; the tables ship with `.ether` v4 (contracts-3):
 - Model (`ether_model::social`): `ChatMessage { id, seq, author, text, sent_at }` and
   `PinnedNote { id, position: NotePosition { beats, track, y }, text, author, created_at,
   resolved }`, `Author { name, site, actor, color }`; tables `Project::{chat,
-  pinned_notes}` (`#[serde(default)]`); ids `ChatMessageId`, `PinnedNoteId`;
+  pinned_notes}` (`.ether` v4: added empty by the v3 → v4 migration); ids `ChatMessageId`, `PinnedNoteId`;
   `EntityUpdate::PinnedNote` (`PinnedNoteChange::{Position, Text, Resolved}`); chat
   messages have no updates. Caps: text ≤ 2000 chars and ≤ 4096 bytes (chat and notes),
   author name ≤ 64, ≤ 2000 stored chat messages (oldest pruned by the sender, in the same
@@ -703,3 +703,381 @@ Design: docs/COLLAB.md §12. Additive, no `.ether` version bump:
   position, playing, sent_at_ms, loop_region }>` (controller-owned),
   `CollabEvent::ChatReceived { ids }`. Until `collab-social` lands, `Chat::*` and
   `PinnedNote::*` reply `Unsupported` (`ether-controller/tests/social_prewire.rs`).
+
+## 12. v0.2 contracts (contracts-3)
+
+Frozen for the v0.2 nodes; per-node files, hook points and shared touches are in
+[ROADMAP.md "v0.2"](ROADMAP.md#v02-contracts-3). Everything is additive and append-only:
+v0.1 behaviour is unchanged until a node implements its part (its commands reply
+`Unsupported`, pinned by `ether-controller/tests/roadmap_v3.rs`; new devices are
+placeholders; new desc fields are empty). The MockTransport routes every new command to
+one file per node (`ui/src/transport/mock/roadmap/`). The repo owner decided four UX
+questions before the freeze: Bitwig-style modulation, take lanes with swipe comping,
+declarative device layouts with one shared renderer, and samples referenced in place.
+
+New domains: `Command::{Take, Freeze, TimeEdit, Preset, Browser, Analysis, Rack, Modulation,
+MediaRef}`; `Event::{Freeze, Preset, Browser, Analysis, MediaRef}`; replies
+`RenderStarted`, `Presets`, `Preset`, `BrowserPage`, `BrowserRoots`, `ModulatorKinds`,
+`MissingMedia`. New variants on existing domains: `Track::{GroupSelected, Ungroup,
+SetVca}`, `Device::SetZones`, `MediaSource::Path` (file-import).
+
+### 12.1 Ids, entities, `.ether` v4
+- New tables (`#[serde(default)]`): `take_lanes`, `comp_regions`, `rack_chains`,
+  `modulators`, `mod_mappings`. New optional fields (omitted from JSON when `None`, TS
+  optional): `Clip::lane`, `Device::chain`, `Track::{freeze, vca}`. New defaulted fields:
+  `MediaRef::location`, `TrackInput::Track::tap`. New variants: `TrackKind::Vca`, 23
+  `BuiltinDevice`s, `EntityKey`/`Entity`/`EntityUpdate` rows, `TrackChange::{Freeze, Vca}`,
+  `ClipChange::Lane`, `DeviceChange::Chain`, `MediaChange::{Location, Hash}`.
+- `.ether` v4: `V3ContractsV3Defaults` adds the empty tables and `location: Project` on
+  media (idempotent, tested). The bump makes a v0.1 app refuse v4 files (`TooNew`) instead
+  of silently dropping takes, racks and modulation when re-saving.
+- **Collab-safe ids** (`ether_model::derive_id(seed, i)`): a command that creates a number of
+  entities unknown to the client takes one client-chosen seed id and derives the rest in a
+  documented order (`Take::Flatten`, `Freeze::{Flatten, Consolidate}`, every `TimeEdit`
+  that creates entities). Replays on another site mint the same ids.
+- `Project::entities()` order: … markers, take lanes, track-chain devices, drum pads, rack
+  chains, pad/rack-chain devices, modulators, sends, clips, comp regions, notes, … MIDI
+  mappings, modulation mappings.
+
+### 12.2 Takes and comping (`comping`)
+Model (`ether_model::take`): `TakeLane { track, order, name, color }` (audio/MIDI tracks);
+take clips are ordinary clips with `Clip::lane = Some(lane)` (so notes, fades, warp,
+envelopes and clip commands work unchanged); `CompRegion { track, lane, start, end,
+crossfade }` selects what plays. Regions of a track never overlap (model invariant;
+half-open ranges). `arrangement_clips_of` lists main-lane clips only.
+- Playback (controller compile, `comping::comp_clips`): take-lane clips are never compiled
+  directly; each region plays its lane's clips trimmed to the region. Adjacent regions
+  overlap by the later region's `crossfade` seconds (default 5 ms, max 0.5 s) centred on
+  the boundary with equal-power fades; outer edges get `crossfade / 2`. MIDI ignores
+  crossfades (notes cut at the region end). Main-lane clips still play.
+- Swipe comping is **one** undoable `Take::SetComp { id, split_id, track, lane, start, end }`:
+  the range becomes a region of `lane`; existing regions are trimmed, split (right part =
+  `split_id`) or removed; adjacent same-lane regions are not merged. `ClearComp`,
+  `SetCrossfade`, `Flatten` (bake the comp into main-lane clips, ids from the seeds).
+- Recording: each loop/punch pass becomes a lane with its clip and a region spanning the pass
+  that selects the newest lane. A pass over existing main-lane clips first moves their parts
+  inside the recorded range onto a new lane, the **first take** (edge-crossing clips are split),
+  so only the comp sounds there; one undo step with the recording.
+
+### 12.3 Freeze, flatten, bounce, consolidate, time edits (`freeze-bounce`, `time-edits`)
+- `Track::freeze: Some(TrackFreeze { media, start })`: the track plays its render (post-chain,
+  pre-fader, latency removed) at **song time** (frame `f` at song second `start + f/rate`,
+  whatever the tempo map). Clips and devices stay in the document but are neither compiled
+  nor instantiated (CPU saved). Fader, pan, mute/solo, sends and routing stay live. Only
+  audio/MIDI tracks; the media is project media. The controller rejects edits to a frozen
+  track's clips, devices and device automation (`freeze::check_editable`, `InvalidState`).
+- Engine: `TrackDesc::frozen: Option<FrozenDesc>` (+ empty clips/chain), rendered by
+  `ether_core::freeze::render_frozen` where clips render (pre-wired).
+- Render jobs (`Freeze`, `Bounce`, audio `Consolidate`) reply `RenderStarted { job }` and run
+  on an `OfflineRenderer` from the controller tick (like export; one job at a time,
+  independent of export), then `FreezeEvent::{Progress, Done, Failed, Cancelled}`. The
+  document changes once, at `Done` (media insert + edit, one undo step). Renders always land
+  in the project's `media/`.
+- `Flatten` makes a freeze permanent (audio track: clips and devices replaced by one clip of
+  the render; MIDI track: replaced by a new audio track at its position, sends copied with
+  derived ids). The clip is warped to the tempo map so it plays exactly the render.
+- `Bounce { track, start, end, include_chain, target }`: `NewTrack` (a new audio track below,
+  source muted) or `InPlace` (audio tracks, pre-chain only). `Consolidate` joins clips per
+  track over a range (MIDI instantly; audio rendered pre-chain).
+- `TimeEdit` (`ether_protocol::time_edit`): `Split` across tracks, `Copy`/`Cut`/`Paste`
+  (controller-side time clipboard, runtime only), `DeleteTime`, `InsertSilence`,
+  `DuplicateTime`. Selections are a beat range + tracks (empty = all audio/MIDI/group);
+  time shifts move clips, take clips, comp regions and track automation after the range,
+  and with `global` also markers, tempo points and time signatures. One undo step each.
+
+### 12.4 Devices
+#### 12.4.1 New built-ins and frozen param tables
+`BuiltinDevice` gains, in `BuiltinDeviceType::ALL` order: `PolySynth` (synth-2),
+`MultiSampler { zones }` (multisampler), `Saturator`, `Bitcrusher`, `AutoFilter`
+(fx-color), `Chorus`, `Phaser`, `Flanger`, `Tremolo` (fx-modulation), `Gate`,
+`MultibandCompressor`, `TransientShaper` (fx-dynamics), `SpectrumAnalyzer`, `Tuner`
+(fx-analysis), `Arpeggiator`, `Chord`, `ScaleQuantize`, `NoteLength`, `Velocity`,
+`Randomizer` (midi-fx), `InstrumentRack`, `AudioEffectRack`, `MidiEffectRack`
+(racks-modulation). The poly synth's `Wavetable` oscillator type plays a table chosen by
+`OSC1_TABLE`/`OSC2_TABLE` from a small built-in set shipped with the device
+(`poly_synth/tables/`; user wavetables later, as appended kind data). Devices with a detector take a sidechain (`sidechain_inputs = 2`,
+keyed in `Node::process_sidechain` like the compressor/limiter): `Gate`,
+`MultibandCompressor` (the key drives all bands), `AutoFilter` (envelope follower). Each group
+module in `ether-devices` (`poly_synth`, `multisampler`,
+`fx_color`, `fx_modulation`, `fx_dynamics`, `fx_analysis`, `midi_fx`, `racks`) defines the
+**final descriptor** (dense param ids, documented in the module's table, append-only, named
+constants in `<group>::<device>::*`) and starts as a `contract::Placeholder` (audio effects
+and racks pass through, instruments are silent, MIDI effects forward events). Descriptor ↔
+mock parity is enforced (`ether-devices/tests/v02_descriptors.rs` against the generated
+`ui/src/transport/mock/devices/*.json`). `ParamInfo::step` (v0.2, `#[serde(default)]`, TS optional): the plain step of integer and
+stepped params (1 for every enum/toggle, transpose, root key, voice or count param of every
+built-in; `None` = continuous); knobs, automation lanes, MIDI learn and the renderer snap to
+it (`ParamInfo::snap`), the scale helpers don't. `BuiltinDeviceType::key()` (kebab case) names preset
+folders. Multisampler zones (`ether_model::multisampler::SampleZone`: key/velocity zones,
+root, tune, round-robin group, start/end, loop, gain, pan) live in the device kind and are
+edited with `Device::SetZones`; zone media may be external references.
+
+#### 12.4.2 Declarative layouts (`device-ui`)
+`DeviceDescriptor::layout: Option<DeviceLayout>` (`ether_protocol::layout`, generated to
+TS): sections (`id`, `title`, `span` 1..=4, `columns` 1..=8) of items (`widget`, `size`
+Small/Medium/Large, `colspan`, `label`). Widget catalog (append-only, BCR to extend): param
+widgets `Knob`, `Slider`, `Toggle`, `Choice`, `Number`; typed widgets `Envelope`,
+`FilterCurve`, `TransferCurve`, `Oscillator`, `Lfo`, `StepEditor`, `XyPad`, `Crossover`;
+data widgets `SampleWaveform`, `ZoneMap`, `Spectrum`, `Tuner`, `Meter`, `RackChains`,
+`Macros`, and `EqCurve` (§12.15, the EQ only for now). **One shared renderer** (`ui/src/features/devices/layout/`, kit components and
+tokens only) renders every built-in; devices without a layout (plugins, v0.1 devices until
+they add one) get the generic layout grouped by `ParamInfo::group`. Device nodes write
+specs and widget data only, never bespoke panels. `ModulatorDescriptor::layout` uses the same
+catalog (the Steps editor is `StepEditor`). A shared validator
+(`ether-devices/tests/layouts.rs`) checks every built-in and modulator layout: referenced
+params exist (typed widgets included), `colspan <= columns`, spans/columns in range, unique
+section ids, one `EqCurve` shape per `kind` label. The renderer adds MIDI-learn targets
+(`midiTarget()`), modulation drop targets and depth rings to every param widget.
+
+#### 12.4.3 Analysis channel (implemented)
+Node opt-in `Node::has_analysis()` (queried once when added) and RT `Node::analysis(&mut
+AnalysisSink)`: the node copies the latest results computed in `process` into up to
+`ANALYSIS_FRAMES_PER_PASS` (4) pre-allocated frames per pass (`sink.frame(kind)`), e.g. the
+EQ's pre **and** post spectrum in the same pass (no alternating). The engine collects from
+the watched live nodes after all track jobs, at most `ANALYSIS_HZ` (30) times per second,
+into a fixed ring of `Copy` frames (`ANALYSIS_RING` = 128, `ANALYSIS_MAX_VALUES` = 1024; a
+node is only asked when the ring has room for a whole pass; no allocation). Modulation
+readback is pushed first each pass, so device frames can't starve it. `EngineHandle::poll_analysis` →
+`EngineBridge::poll_analysis` (native done; web: forward from the worklet, `fx-analysis`)
+→ the controller keeps the latest frame per (device, kind) per tick and emits
+`Event::Analysis { Frame { device, data } }` only for devices watched with
+`Analysis::Watch`. Watches are refcounted in the controller and owned per connection: the
+remote router releases a disconnecting client's watches (`Unwatch` per watch held; an
+`Unwatch` a client doesn't hold is a no-op). Project loads don't touch them (watches of
+devices that no longer exist are inert, and the router's per-client counts stay exact);
+single-connection hosts call `EtherController::reset_analysis_watches` when their UI
+reconnects. An engine watch whose queue push fails is retried on the next tick. Only watched
+nodes are collected (`EngineHandle::watch_analysis`, synced by the controller each tick,
+node re-creation included), round-robin so a full ring never starves the same nodes; a
+node re-added into a reused slot index replaces the stale entry. Kinds and encodings:
+`Spectrum` (`[min_hz, max_hz, bins_db…]`, ≤ 256 log-spaced bins), `Tuner` (`[hz|0, note|-1,
+cents, confidence, level_db]`), `Levels` (device-defined meters, e.g. gain reduction),
+`Modulation` (`[param bits, base, effective]` triples, racks-modulation readback).
+
+#### 12.4.4 MIDI effects (`midi-fx`)
+Category `NoteEffect` (= MIDI effect). The engine already feeds clip notes to chain entry 0
+and each entry's `out_events` to the next entry. Contract: a MIDI effect has
+`channels() == (0, 0)` (audio untouched) and `audio_inputs == audio_outputs == 0`, consumes
+`ctx.events` and writes the transformed note/MIDI stream to `ctx.out_events`, forwarding what
+it doesn't transform and every `AllNotesOff`, never `Param` events; generated notes use ids
+`0x8000_0000 | n`; it only delays (never earlier than its input) and reports no latency.
+Chain rule: MIDI effects precede the first instrument (`midi_fx::check_chain_order` after
+`Device::{Insert, Move}`, `InvalidArgument`). Scale Quantize receives the resolved
+`MusicalScale` (track scale, else project) through `Node::set_data` on creation and on
+scale changes. Plugins with MIDI output keep working as before (their events feed the next
+device).
+
+### 12.5 Presets (`presets` + each device node)
+File format `ether_model::preset` (`.etherpreset`, JSON `{ format: "ethereal-preset",
+version: 1, app_version, preset: { name, device: Builtin { device } | Plugin { format,
+plugin_id, name, vendor }, meta { tags, author, description }, params, kind, samples,
+state } }`; unknown params ignored on load, missing ones reset to defaults; kind must match
+the device type). Factory presets are embedded per device type
+(`ether_devices::factory_presets(ty)`, ids `"<device-key>/<slug>"`, files under
+`crates/ether-devices/presets/<device-key>/`, parsed and checked by
+`v02_descriptors.rs`). User presets live engine-side under
+`<user library>/Presets/<device-key>/…` (plugins: `Presets/plugins/<format>/<id>/…`) through
+the defaulted `Library::{write_file, remove_file, rename_file, user_root}`; the UI never
+touches files. `Preset::Load` is one undo step; `List/Save/Rename/Delete/SetMeta` are
+runtime; `PresetEvent::Changed` after user-set changes. Sample-based presets carry
+`samples` (library location + hash) that loading references/imports first.
+
+### 12.6 Racks, macros and modulation (`racks-modulation`, Bitwig-style)
+- Racks (`ether_model::rack`): `RackChain { rack, order, name, color, volume, pan, mute, solo,
+  keys, velocities, select }`; chain devices are ordinary devices with `Device::chain`
+  (on the rack's track, exclusive with `pad`). No nesting in v0.2 (no racks or drum racks
+  inside chains or pads). Every rack's params: macros `0..8` (plain 0..1) and the chain
+  selector (`8`, 0..=127). Engine: `TrackDesc::chain_racks` (`ether_core::rack_chains`),
+  run at the rack entry before the rack node (pre-wired like drum-rack pads: params,
+  automation and latency already reach chain nodes).
+- Modulators live **inside any track-chain device** (not on drum-pad or rack-chain devices in
+  v0.2, so every host is an entry the engine's `pre_node` hook sees; a rack's modulators reach
+  its chain devices) (`Modulator { device, order, name, kind, params, sidechain }`,
+  kinds `Lfo`, `Envelope`, `EnvelopeFollower`, `Steps`, `Random`; param tables frozen in
+  `ether_devices::modulators`). `ModMapping { source: Modulator | Macro { rack, index },
+  device, param, depth -1..=1 }`, one per (source, target). Scope: a modulator targets its
+  host and, for a rack host, devices on the rack's chains, never the rack's own macros (no
+  modulation of modulation in v0.2); a macro targets devices on its rack's chains and the
+  rack's own non-macro params.
+- **Envelope-follower sidechain:** `Modulator::sidechain: Option<TrackId>` (followers only,
+  `Modulation::SetSidechain`) follows that track's sidechain tap (post-fader, before its PDC
+  delay, like device sidechains §11.10) instead of the host's input. It reuses the sidechain
+  machinery: a routing edge `source → host track` in the model's cycle check, ordered first
+  and tapped by `graph.rs`, gathered in the consumer's job (`ModulationRt::write_sidechain`,
+  pre-wired). PDC: when the source is earlier than the host's input position the tap is
+  delayed to align; when it is later the modulation lags by the difference (a control signal
+  never delays the audio). Deleting the source track cuts it (`doc/mod.rs`, done).
+- **Composition (frozen):** `effective = clamp(base + Σ depth_i · m_i, 0, 1)` in normalized
+  units, then the param's scale (stepped params snap after the sum). `base` = the enabled
+  automation (arrangement lane or clip envelope, v0.1 precedence) else the document value
+  (knob, `SetParam`, MIDI learn, presets); modulation never writes the document. Sources:
+  LFO/Steps/Random bipolar, envelopes/followers/macros unipolar. Engine hooks
+  (`ether_core::modulation`, pre-wired): `intercept` (every base write from the param
+  queue and automation goes through it; `true` = stored as base), `render` once per
+  sub-block after automation (emits `Param` events on the automation grid), `pre_node`
+  (follower/envelope inputs), `readback` (depth rings via the analysis channel);
+  `ParamTarget::Modulator` for live modulator params.
+- **Plugins:** host-side modulation sends the effective value as ordinary parameter changes
+  (CLAP param value events, VST3 `IParameterChanges`, AU scheduled params). Caveats: the
+  plugin GUI shows the modulated value, the plugin may mark itself dirty, resolution is the
+  automation grid; the document keeps the base and the controller ignores `ParamEdited`
+  echoes of modulated params. CLAP `PARAM_MOD` may be used later.
+- UI: the knob shows the base, a ring shows the effective value (`AnalysisData::Modulation`
+  for watched devices, ≤ 30 Hz).
+
+### 12.7 Sample-accurate automation (`sample-accurate-automation`)
+The node parameter-event API is `EventKind::Param { param, value }` at a sample `offset`
+(already delivered to every node, sorted). Built-ins apply them at their offset
+(`split_at_events`); hosts forward offsets: CLAP `clap_event_param_value.header.time`, VST3
+`IParamValueQueue::addPoint(sampleOffset)`, AU `AudioUnitScheduleParameters` with
+`eventSampleTime`. A node that ignores offsets applies changes at block start (the
+backwards-compatible default). What changes (engine only, `ether_core::automation_rt`,
+extracted verbatim from `engine.rs` by contracts-3):
+- node params: events on an **absolute grid** (`sample_time` multiples of `PARAM_GRID` =
+  32) plus one at every breakpoint, each evaluated at the exact beat of its sample;
+- tempo ramps integrated exactly per sample for scheduling and automation (`Timing`);
+- mixer targets (volume, pan, sends) ramped per sample to the value at each grid point;
+- acceptance: an offline render of the same project is identical (±1e-6) with block sizes
+  64 and 512, with automation and tempo ramps; with neither, bit-identical as today.
+Modulation uses the same grid.
+
+### 12.8 Browser v2 (`browser-v2`)
+Engine-side index (controller `browser/`, persisted at `<user library>/.ethereal/
+index.json`): `LibraryItem { id: "<root>/<path>", kind: Audio | Midi | Preset | Project,
+name, root, path, source, preset, tags, favourite, meta { duration, rate, channels, bpm,
+key, pack, modified, size } }`. `Browser::Query { text, kinds, tags, favourites_only, roots,
+folder, device, sort: Name | Recent | Duration | Bpm | Relevance, offset, limit ≤ 200 }` →
+`BrowserPage { items, total, offset }`. `ListRoots` (library, packs, user folders, factory
+presets), `SetFavourite`, `SetTags`, `AddFolder { path }` (native only; the desktop shell
+picks it), `RemoveFolder`, `Rescan`; background indexing with `BrowserEvent::{IndexProgress,
+IndexChanged}`. `Preview { item, sync }` uses the media-preview voice; `sync` repitches by
+project bpm / item bpm and starts on the next beat while playing. Presets appear as items
+(kind `Preset`).
+
+### 12.9 Media references (`media-references`)
+`MediaRef::location: Project | External { path }` (default `Project`). v0.2 imports from a
+library location **reference the file in place** (`External`, content hash required, nothing
+copied) where the host can (`Library::external_path`); web/remote copy as before.
+Recordings, bounces, freezes and uploads from a remote UI stay project media. Resolution on
+every site: external path whose hash matches → the project copy at `MediaRef::file` →
+missing (`MediaEvent::Missing`, silence). `MediaRef` commands: `ListMissing`, `Search`
+(library roots and user folders, by hash then name; unambiguous hash matches relinked
+automatically, else `Candidates`), `Relink { media, source }` (undoable; hash updated with a
+warning when content differs), `CollectAll` (copy every external reference into `media/`,
+switch to `Project`, save). Collab/remote: peers receive media by hash and store it at
+`MediaRef::file` in their own project (the document is shared; availability is per site).
+The collab push by hash (`collab/mod.rs`) belongs to `file-import` (§12.13), including
+external-path media; `media-references` doesn't touch it.
+Migration: v0.1 media are `Project`; nothing moves.
+
+### 12.10 Groups, buses, input taps, VCAs (`groups-buses`, priority 1)
+- `Track::GroupSelected { ids, group, name }`: same parent required, nesting allowed, the
+  group takes the first track's position, children keep their order; one undo step, no
+  other ids. `Ungroup { group, force }`: children move to the group's parent at its place;
+  the group's devices, automation, sends and explicit outputs pointing at it are lost
+  (outputs reset to `Default`), so without `force` it replies `InvalidState` if any exist.
+  Moving tracks in/out of groups is the existing `Track::Move { parent }`.
+- Mute/solo (compile rules, `graph.rs`): muting a group mutes everything inside (and a
+  muted VCA its tracks); while anything is soloed a track is audible if it is soloed, inside
+  a soloed group, a group/bus on the output path of a soloed track (solo in place through the
+  bus chain), a return, or master; soloing a VCA solos its tracks (folded at compile).
+- `TrackInput::Track { track, tap: PreFx | PostFx | PostFader }` (default `PostFader`): a
+  routing edge (no cycles, model and compiler). PDC: tap latency = `in_lat(source)` (PreFx)
+  or `out_lat(source)`; the consumer's `in_lat` includes it and the tap is delayed by the
+  difference (pre-wired in `graph.rs`, `ether_core::bus_tap`), so the consumer hears and
+  records it aligned. It is heard when the consumer monitors.
+- VCAs: `TrackKind::Vca` (no audio, clips, devices, sends or input; top-level), assignment
+  `Track::vca` (VCAs can nest, no cycles, master excluded). Effective gain = own fader +
+  Σ VCA faders in dB up the chain, applied after the fader (`ether_core::vca`, pre-wired);
+  VCA volume is automatable and its fader/mute live (`ParamTarget::{TrackVolume, TrackMute}`
+  with the VCA id). VCA tracks are compiled into `RenderGraphDesc::vcas`, never `tracks`.
+
+### 12.11 Engine pre-wiring (contracts-3, hot files touched once)
+`engine.rs`: analysis collection after the jobs (watched nodes only); `freeze::render_frozen` in the clip stage;
+`bus_tap` gather/mix/write at PreFx/PostFx/PostFader; `vca.update` before the jobs and
+`vca.apply` after the fader; rack-chain `run` at the rack entry plus param/automation
+routing and latency refresh for chain nodes; `modulation::{intercept, render, pre_node,
+readback}`; `ParamTarget::Modulator`; `automation_rt::apply_automation` (moved).
+`graph.rs`: `TrackDesc::{frozen, chain_racks, modulation, input_tap, vca}`,
+`RenderGraphDesc::vcas`, tap ordering and PDC, rack-chain index/latency, VCA mute in gates.
+`mixer.rs`: the per-track hook state. `codec.rs` (v2): the v0.2 fields as a tagged JSON blob
+(`0` = all default, no allocation).
+
+### 12.12 Choices worth reviewing
+1. **Take clips and rack-chain devices reuse `Clip` and `Device`** (a `lane` / `chain`
+   parent pointer), like drum-pad devices, so every existing command, patch and UI path
+   works on them.
+2. **Modulators are entities inside a device**, not devices in the chain (the owner's
+   Bitwig choice); macros are modulation sources rather than direct param owners.
+3. **Freeze plays at song time**, not as a warped clip: exact whatever the tempo map, and
+   the engine needs no warp for it. Flatten warps the clip to the tempo map.
+4. **Device param tables were frozen by contracts-3**, not by the device nodes, so the mock,
+   presets and layouts could be written in parallel. Nodes append params; they never
+   renumber.
+5. **The codec carries v0.2 track fields as JSON** to keep the binary layout stable while
+   nodes refine their desc types; a node that needs speed moves its field into the binary
+   layout (bumping the version).
+6. **Library write access is new** (`Library::write_file` & co.) and presets/index share
+   one writable user root.
+
+### 12.13 Importing audio from the user's computer (`file-import`, priority 1)
+- UI: an "Import audio…" command (toolbar/menu, ⌘I, following the owner's patterns), OS
+  drag-drop onto the browser panel and onto arrangement lanes (a clip at the drop position
+  on that track; below the tracks, a new track of the right kind). Several files at once;
+  progress (`MediaEvent::{UploadProgress, ImportProgress}`), errors (unsupported formats:
+  `Decode`), cancel (`CancelUpload`). One undo step per import-with-clip gesture (a `Batch`
+  or one gesture id).
+- Desktop: the Tauri file dialog and dropped-file paths → `Media::Import { source:
+  MediaSource::Path { path } }`. This is the one explicit OS-file handoff: the UI passes the
+  **path**, never the bytes, and never reads the file. The engine validates the path
+  (absolute, regular readable file, audio extension) and reads it through
+  `Library::read_external`; the media becomes an external reference in place once
+  `media-references` lands (copied into the project before that).
+- Web (local wasm controller) and remote: the bytes go through the frozen upload staging
+  (`BeginUpload` → `UploadChunk`s → `Import { source: Upload }`), which `file-import`
+  implements for the web OPFS store too; uploaded media is always copied into the project.
+  `Path` replies `Unsupported` there.
+- Collab: imported media replicates through the existing media push; an external-path
+  media pushes its bytes (read with `read_external`) and peers store it at `MediaRef::file`.
+
+### 12.14 Plugin sidechain (`plugin-sidechain`, priority 2)
+Plugins with an aux/sidechain input bus take the device's sidechain source (`Device::
+sidechain`, `Device::SetSidechain`) exactly like built-ins: the engine already provides the
+latency-aligned sidechain buffers (base-24, §11.10) through `Node::process_sidechain`.
+- Discovery: `PluginDescriptor::sidechain_inputs` (scan, catalog; `#[serde(default)]` = 0) and
+  the instance's `DeviceDescriptor::sidechain_inputs` (authoritative, from the bus layout at
+  instantiation; the UI shows the sidechain selector when > 0). Only the first aux input bus
+  is used; mono aux buses get the left channel, wider ones the first two.
+- Hosts pass the buffers as their second input bus: CLAP (clack) the second input audio port
+  (`CLAP_PORT_IS_MAIN` unset), VST3 the first `kAux` input bus (activated with
+  `activateBus` when a source is set, silent when not), AU input bus 1 (render callback
+  supplying the sidechain). Without a source the aux bus gets silence.
+- Sandboxed plugins: the shared-memory block gains the aux input channels (`sidechain_inputs ×
+  max_block` floats after the main inputs) and the shm `VERSION` is bumped by one; the helper
+  forwards them to the plugin the same way. Serialized with `sample-accurate-automation`
+  (which also touches the shm event layout): whichever lands second rebases on the other and
+  bumps the version again.
+- Offline renders (export, freeze, bounce) route sidechains like live playback.
+
+### 12.15 Graphical EQ (`graphical-eq`, priority 2)
+- Widget `EqCurve { bands: [EqBandBinding { on?, kind?, shapes, freq, gain?, q? }], crossovers,
+  spectrum: None | Post | PrePost }` (§12.4.2 catalog). It draws the combined magnitude
+  response of the bands (the sum of each enabled band's dB) on a log-frequency (20 Hz–20 kHz) /
+  dB grid, with one handle per band: drag = freq (x) + gain (y; x only without `gain`), wheel or
+  Alt-drag = Q, double-click = toggle `on`, context menu = `kind` (labels of the kind param,
+  `shapes[i]` per value). `crossovers` are vertical handles (drag = frequency). Each drag is
+  one gesture (one undo step). Canvas colours come from tokens (`readToken`).
+- Response math is shared: `ether_protocol::eq_response::{EqShape, svf_coefs, svf_magnitude,
+  magnitude_db}`, exactly the EQ's TPT SVF (`y = m0·x + m1·band + m2·low`, magnitude at
+  `s = j·tan(π·f/fs)/g`; `*24` shapes squared). The UI mirror
+  (`ui/src/features/devices/layout/eq/eqResponse.ts`) must match
+  `crates/ether-protocol/tests/fixtures/eq_response_vectors.json` within 1e-6 dB (regenerate
+  with `UPDATE_EQ_VECTORS=1 cargo test -p ether-protocol --test eq_response`). The widget uses
+  the engine sample rate when known (`EngineStatus`), else 48 kHz.
+- The EQ ships the layout (`eq::layout`: the curve over 8 bands with `PrePost` spectrum, then
+  the band controls). It publishes `AnalysisKind::SpectrumPre` (input) and `Spectrum` (output)
+  frames while watched (≤ 30 Hz, RT-safe: accumulate in `process`, copy in `analysis`); they
+  arrive as `AnalysisData::Spectrum { stage: Pre | Post }`.
+- `EqCurve` is for the EQ only in v0.2: the auto filter and the multiband compressor use
+  standard controls (`FilterCurve`, `Crossover`, knobs). Other filters may adopt it later with
+  an explicit param mapping (a BCR on this section).

@@ -140,6 +140,72 @@ pub trait Library {
     fn list_dir(&mut self, root: &str, rel_path: &str) -> Result<DirectoryListing, StoreError>;
 
     fn read(&mut self, root: &str, rel_path: &str) -> Result<Vec<u8>, StoreError>;
+
+    // --- v0.2 (contracts-3), defaulted ---
+
+    /// Write a file in a writable root (the user library: presets, the browser index).
+    /// Creates parent folders. Default: unsupported (read-only library).
+    fn write_file(&mut self, root: &str, rel_path: &str, bytes: &[u8]) -> Result<(), StoreError> {
+        let _ = (root, rel_path, bytes);
+        Err(StoreError::Unsupported(
+            "the library is read-only on this host".into(),
+        ))
+    }
+
+    /// Delete a file (user presets). Default: unsupported.
+    fn remove_file(&mut self, root: &str, rel_path: &str) -> Result<(), StoreError> {
+        let _ = (root, rel_path);
+        Err(StoreError::Unsupported(
+            "the library is read-only on this host".into(),
+        ))
+    }
+
+    /// Rename/move a file within a root (user presets). Default: unsupported.
+    fn rename_file(&mut self, root: &str, from: &str, to: &str) -> Result<(), StoreError> {
+        let _ = (root, from, to);
+        Err(StoreError::Unsupported(
+            "the library is read-only on this host".into(),
+        ))
+    }
+
+    /// The writable user-library root id (presets, index), if any. Default: none.
+    fn user_root(&self) -> Option<String> {
+        None
+    }
+
+    /// `browser-v2`: add a user folder by absolute engine-side path; returns its root id.
+    /// Native only. Default: unsupported.
+    fn add_folder(&mut self, path: &str) -> Result<String, StoreError> {
+        let _ = path;
+        Err(StoreError::Unsupported(
+            "user folders are not available on this host".into(),
+        ))
+    }
+
+    /// `browser-v2`: forget a user folder. Default: unsupported.
+    fn remove_folder(&mut self, root: &str) -> Result<(), StoreError> {
+        let _ = root;
+        Err(StoreError::Unsupported(
+            "user folders are not available on this host".into(),
+        ))
+    }
+
+    /// `media-references`: the absolute engine-side path of a library file, for an external
+    /// reference (`MediaLocation::External`). `None` = cannot be referenced in place (web,
+    /// remote): the import copies it into the project instead.
+    fn external_path(&self, root: &str, rel_path: &str) -> Option<String> {
+        let _ = (root, rel_path);
+        None
+    }
+
+    /// `media-references`: read an external reference by its absolute path. Default:
+    /// unsupported.
+    fn read_external(&mut self, path: &str) -> Result<Vec<u8>, StoreError> {
+        let _ = path;
+        Err(StoreError::Unsupported(
+            "external media is not available on this host".into(),
+        ))
+    }
 }
 
 /// Validate a relative path from the UI or a document: no absolute paths, drive letters,
