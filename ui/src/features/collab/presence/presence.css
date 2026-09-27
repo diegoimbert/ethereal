@@ -25,19 +25,19 @@
 }
 .eth-collab-pointer__arrow {
   flex: none;
-  width: var(--eth-size-icon-sm);
-  height: var(--eth-size-icon-sm);
+  width: var(--eth-size-icon-md);
+  height: var(--eth-size-icon-md);
   fill: currentColor;
-  stroke: var(--eth-color-bg);
+  stroke: var(--eth-ink-dark);
   stroke-width: var(--eth-border-width);
   transform-origin: center;
 }
 .eth-collab-pointer__label {
-  margin-top: var(--eth-size-icon-sm);
+  margin-top: calc(var(--eth-size-icon-md) * 0.75);
   padding: var(--eth-space-hair) var(--eth-space-xs);
   border-radius: var(--eth-radius-sm);
   background: var(--eth-collab-peer);
-  color: var(--eth-color-bg);
+  color: var(--eth-ink-dark);
   font-size: var(--eth-fs-xs);
   font-weight: 600;
   line-height: 1.2;
