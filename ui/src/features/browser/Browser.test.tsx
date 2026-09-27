@@ -96,6 +96,45 @@ describe("Browser", () => {
     expect(list.queryByRole("button", { name: /^(Preview|Import) / })).toBeNull();
   });
 
+  it("walks the rows with the arrow keys, previewing audio files, and opens / leaves folders", async () => {
+    await renderWithMock(<Browser />);
+    const list = await files();
+    const drums = await list.findByRole("button", { name: "Drums" });
+    drums.focus();
+    fireEvent.keyDown(drums, { key: "ArrowRight" });
+    const parent = await list.findByRole("button", { name: "Parent folder" });
+    await waitFor(() => expect(parent).toHaveFocus());
+    const kick = await list.findByRole("button", { name: "Kick.wav" });
+    const snare = list.getByRole("button", { name: "Snare.wav" });
+    const rows = list.getAllByRole("button");
+    const k = rows.indexOf(kick);
+    // Walk down from the parent row to the kick: it plays; the next row replaces it.
+    for (let i = 0; i < k; i++) fireEvent.keyDown(document.activeElement!, { key: "ArrowDown" });
+    expect(kick).toHaveFocus();
+    await waitFor(() => expect(kick).toHaveAttribute("aria-pressed", "true"));
+    expect(rows[k + 1]).toBe(snare);
+    fireEvent.keyDown(kick, { key: "ArrowDown" });
+    expect(snare).toHaveFocus();
+    await waitFor(() => expect(snare).toHaveAttribute("aria-pressed", "true"));
+    expect(kick).toHaveAttribute("aria-pressed", "false");
+    // Moving back onto a playing row keeps it playing (no toggle).
+    fireEvent.click(kick);
+    await waitFor(() => expect(kick).toHaveAttribute("aria-pressed", "true"));
+    fireEvent.keyDown(kick, { key: "ArrowUp" });
+    fireEvent.keyDown(document.activeElement!, { key: "ArrowDown" });
+    expect(kick).toHaveFocus();
+    await waitFor(() => expect(kick).toHaveAttribute("aria-pressed", "true"));
+    // Home / End clamp to the ends; ← goes up a folder.
+    fireEvent.keyDown(kick, { key: "Home" });
+    expect(parent).toHaveFocus();
+    fireEvent.keyDown(parent, { key: "ArrowUp" });
+    expect(parent).toHaveFocus();
+    fireEvent.keyDown(parent, { key: "ArrowLeft" });
+    const back = await list.findByRole("button", { name: "Drums" });
+    await waitFor(() => expect(list.getAllByRole("button")[0]).toHaveFocus());
+    expect(back).toBeInTheDocument();
+  });
+
   it("follows replaced previews and resets the row when the preview ends", async () => {
     const { mock } = await renderWithMock(<Browser />);
     const list = await files();
