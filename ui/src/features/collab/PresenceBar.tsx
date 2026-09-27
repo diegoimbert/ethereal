@@ -6,6 +6,7 @@ import { useSelectionStore } from "@/state/selection";
 import { itemSelection } from "@/timeline/selection";
 import { cmd, TransportContext, type EngineTransport } from "@/transport";
 import { HostingBadge, HostingSection, useHosting } from "./host";
+import { ListenBadge, ListenButton, listenMenuItems, useListenAgent } from "./listen";
 import { nameOf, peerSummary, presenceV2Fields, setFollowing, useLocalPresence } from "./presence/local";
 import { highlightCss, initials, peerColor, useCollabStore } from "./store";
 
@@ -82,7 +83,7 @@ function usePublishPresence(transport: EngineTransport, active: boolean) {
  * stops); right-click offers the same. A headphones badge shows when it listens to someone
  * (docs/COLLAB.md §8.4).
  */
-function PeerChip({ peer, peers, me }: { peer: Presence; peers: Presence[]; me: SiteId | null }) {
+function PeerChip({ peer, peers, me, transport }: { peer: Presence; peers: Presence[]; me: SiteId | null; transport: EngineTransport }) {
   const following = useLocalPresence((s) => s.following === peer.site);
   const name = peer.name || "Anonymous";
   const toggle = () => setFollowing(following ? null : peer.site);
@@ -100,7 +101,9 @@ function PeerChip({ peer, peers, me }: { peer: Presence; peers: Presence[]; me: 
       data-following={following || undefined}
       data-followed={me !== null && peer.state.following === me ? "you" : undefined}
       onClick={toggle}
-      onContextMenu={(e) => openContextMenu(e, [{ label: following ? "Stop following" : `Follow ${name}`, onSelect: toggle }])}
+      onContextMenu={(e) =>
+        openContextMenu(e, [{ label: following ? "Stop following" : `Follow ${name}`, onSelect: toggle }, "separator", ...listenMenuItems(transport, peer)])
+      }
     >
       {initials(peer.name)}
       {listening && (
@@ -143,6 +146,7 @@ function PresenceBarWith({ transport }: { transport: EngineTransport }) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => transport.onEvent(onEvent), [transport, onEvent]);
+  useListenAgent(transport);
   // Current state after (re)connecting to an engine (it may already be in a session).
   useEffect(() => {
     useCollabStore.getState().reset();
@@ -195,10 +199,11 @@ function PresenceBarWith({ transport }: { transport: EngineTransport }) {
       {peers.length > 0 && (
         <span className="eth-collab__peers" aria-label="Participants" data-testid="collab-peers">
           {peers.map((p) => (
-            <PeerChip key={p.site} peer={p} peers={peers} me={status.type === "Online" ? status.site : null} />
+            <PeerChip key={p.site} peer={p} peers={peers} me={status.type === "Online" ? status.site : null} transport={transport} />
           ))}
         </span>
       )}
+      <ListenBadge transport={transport} peers={peers} />
       <PeerHighlights />
       <Dialog
         open={open}
@@ -235,6 +240,7 @@ function PresenceBarWith({ transport }: { transport: EngineTransport }) {
                     {initials(p.name)}
                   </span>
                   {p.name || "Anonymous"}
+                  <ListenButton transport={transport} peer={p} />
                 </li>
               ))}
             </ul>
