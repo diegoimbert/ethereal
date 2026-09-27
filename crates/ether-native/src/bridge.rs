@@ -160,14 +160,10 @@ impl EngineBridge for NativeBridge {
                 plugin.plugin_id
             ))
         })?;
-        if plugin.sandboxed {
-            // ether-sandbox is not wired yet: run in-process.
-            tracing::warn!(plugin = %plugin.plugin_id, "sandboxed hosting unavailable; loading in-process");
-        }
         let (node, descriptor) = self
             .plugins
             .instantiate(
-                self.instantiate.clone(),
+                crate::sandbox::instantiator(plugin.sandboxed, &self.instantiate),
                 device,
                 PathBuf::from(desc.path),
                 plugin.plugin_id.clone(),
@@ -278,6 +274,10 @@ impl EngineBridge for NativeBridge {
                 .map(Base64Bytes)),
             _ => Ok(None),
         }
+    }
+
+    fn plugin_param_values(&mut self, device: DeviceId) -> Vec<(ParamId, f64)> {
+        self.plugins.param_values(device)
     }
 }
 

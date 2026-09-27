@@ -5,5 +5,7 @@ dist/
 .DS_Store
 *.tsbuildinfo
 apps/desktop/src-tauri/gen/
+# Sandbox helper staged for the bundler (scripts/build-sandbox-helper.mjs --bundle).
+apps/desktop/src-tauri/binaries/
 .claude/
 .ether-dev/

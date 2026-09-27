@@ -28,8 +28,9 @@ dev-web:
     {{env}}; echo "web on http://localhost:$ETHER_DEV_PORT"; pnpm --filter @ethereal/web dev
 
 # Tauri desktop app (per-instance identifier, data dir and devUrl; ETHER_AUDIO=null for no device).
+# Builds the sandbox helper first (sandboxed plugins; ETHER_SANDBOX_HELPER overrides it).
 dev-desktop:
-    {{env}}; cd apps/desktop && pnpm tauri dev --config "{\"identifier\":\"dev.ethereal.$ETHER_INSTANCE\",\"build\":{\"devUrl\":\"http://localhost:$ETHER_DEV_PORT\",\"beforeDevCommand\":\"pnpm --filter @ethereal/ui dev\"}}"
+    {{env}}; node scripts/build-sandbox-helper.mjs; cd apps/desktop && pnpm tauri dev --config "{\"identifier\":\"dev.ethereal.$ETHER_INSTANCE\",\"build\":{\"devUrl\":\"http://localhost:$ETHER_DEV_PORT\",\"beforeDevCommand\":\"pnpm --filter @ethereal/ui dev\"}}"
 
 # Desktop app with the null audio backend (no device, no contention).
 dev-desktop-headless:
