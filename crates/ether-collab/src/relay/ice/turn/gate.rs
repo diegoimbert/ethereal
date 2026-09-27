@@ -113,7 +113,10 @@ struct Bucket {
 
 impl Bucket {
     fn full(burst: f64, now: Instant) -> Self {
-        Self { tokens: burst, at: now }
+        Self {
+            tokens: burst,
+            at: now,
+        }
     }
 
     fn refill(&mut self, rate: f64, burst: f64, now: Instant) {
@@ -351,10 +354,11 @@ impl RequestGate {
                 Some(username) => self.take_verified(username, now),
                 None => self.take_unverified(from, now),
             };
-        if pass && let Some(RequestInfo {
-            nonce: Some(Some(n)),
-            ..
-        }) = &info
+        if pass
+            && let Some(RequestInfo {
+                nonce: Some(Some(n)),
+                ..
+            }) = &info
         {
             self.ledger.presented(n, now);
         }
@@ -363,8 +367,11 @@ impl RequestGate {
 
     fn take_verified(&mut self, username: String, now: Instant) -> bool {
         let b = &self.budgets;
-        self.verified
-            .refill(b.verified_inserts_per_second, b.verified_inserts_per_second, now);
+        self.verified.refill(
+            b.verified_inserts_per_second,
+            b.verified_inserts_per_second,
+            now,
+        );
         if self.verified.tokens < 1.0 {
             return false;
         }
@@ -636,7 +643,9 @@ mod tests {
         assert!(g.admit(&authenticated("stale", "x"), ip(60), t1, || None));
         // Never more than one second's worth, however long it waited.
         let t2 = t0 + Duration::from_secs(60);
-        let passed = (100..200).filter(|&i| g.admit(&p, ip(i), t2, || None)).count();
+        let passed = (100..200)
+            .filter(|&i| g.admit(&p, ip(i), t2, || None))
+            .count();
         assert_eq!(passed, trickle);
     }
 
@@ -654,10 +663,18 @@ mod tests {
         let b = budgets(10, 20);
         assert_eq!(rotation(0, 0, &b), None);
         assert_eq!(rotation(9, 0, &b), None);
-        assert_eq!(rotation(10, 0, &b), Some(Rotation::Idle), "soft, nobody live");
+        assert_eq!(
+            rotation(10, 0, &b),
+            Some(Rotation::Idle),
+            "soft, nobody live"
+        );
         assert_eq!(rotation(10, 1, &b), None, "soft: live allocations are kept");
         assert_eq!(rotation(19, 64, &b), None);
-        assert_eq!(rotation(20, 3, &b), Some(Rotation::Forced), "hard: live dropped");
+        assert_eq!(
+            rotation(20, 3, &b),
+            Some(Rotation::Forced),
+            "hard: live dropped"
+        );
         assert_eq!(rotation(20, 0, &b), Some(Rotation::Forced));
         let d = TurnBudgets::default();
         assert_eq!(rotation(NONCE_SOFT_BUDGET - 1, 0, &d), None);
@@ -695,6 +712,9 @@ mod tests {
             assert_eq!(rotation(g.nonces(), 1, g.budgets()), None, "at {second} s");
         }
         let past_soft = g.nonces() - NONCE_SOFT_BUDGET;
-        assert!(past_soft < 3600 * 6, "{past_soft} nonces past the soft budget");
+        assert!(
+            past_soft < 3600 * 6,
+            "{past_soft} nonces past the soft budget"
+        );
     }
 }

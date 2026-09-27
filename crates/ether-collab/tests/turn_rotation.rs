@@ -15,8 +15,8 @@ use ether_protocol::model::SiteId;
 use stun::attributes::{ATTR_NONCE, ATTR_REALM, ATTR_USERNAME};
 use stun::error_code::{CODE_STALE_NONCE, CODE_UNAUTHORIZED, ErrorCodeAttribute};
 use stun::message::{
-    CLASS_ERROR_RESPONSE, CLASS_REQUEST, CLASS_SUCCESS_RESPONSE, Getter, METHOD_ALLOCATE,
-    Message, MessageType, Setter,
+    CLASS_ERROR_RESPONSE, CLASS_REQUEST, CLASS_SUCCESS_RESPONSE, Getter, METHOD_ALLOCATE, Message,
+    MessageType, Setter,
 };
 use stun::textattrs::TextAttribute;
 
@@ -150,7 +150,11 @@ fn an_idle_server_is_rotated_at_the_soft_budget_and_forgets_its_nonces() {
     first_allocate(&c, server);
     wait_until("a rotation", || load(turn.stats()).0 == 1);
     let m = authenticated_allocate(&c, server, &creds, 1, &old);
-    assert_eq!(error_code(&m), CODE_STALE_NONCE.0, "forgotten by the new server");
+    assert_eq!(
+        error_code(&m),
+        CODE_STALE_NONCE.0,
+        "forgotten by the new server"
+    );
     // The 438 carried a new nonce, which the new server accepts.
     let renewed = TextAttribute::get_from_as(&m, ATTR_NONCE).unwrap().text;
     let ok = authenticated_allocate(&c, server, &creds, 1, &renewed);
@@ -183,5 +187,9 @@ fn the_hard_budget_rotates_even_with_live_allocations() {
     wait_until("a forced rotation", || load(turn.stats()).1 == 1);
     wait_until("the allocation to be dropped", || load(turn.stats()).3 == 0);
     let m = authenticated_allocate(&c, server, &creds, 1, &nonce);
-    assert_eq!(error_code(&m), CODE_STALE_NONCE.0, "forgotten by the new server");
+    assert_eq!(
+        error_code(&m),
+        CODE_STALE_NONCE.0,
+        "forgotten by the new server"
+    );
 }

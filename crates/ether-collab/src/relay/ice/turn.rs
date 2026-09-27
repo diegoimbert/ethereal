@@ -737,7 +737,15 @@ mod tests {
         .unwrap();
         assert_eq!(verify_integrity(&m.raw, &creds), Some(cred.username));
         let other = TurnCredentials::new().unwrap();
-        assert_eq!(verify_integrity(&m.raw, &other), None, "another relay secret");
-        assert_eq!(verify_integrity(&request(), &creds), None, "a fake attribute");
+        assert_eq!(
+            verify_integrity(&m.raw, &other),
+            None,
+            "another relay secret"
+        );
+        assert_eq!(
+            verify_integrity(&request(), &creds),
+            None,
+            "a fake attribute"
+        );
     }
 }
