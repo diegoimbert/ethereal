@@ -47,6 +47,7 @@ mod project;
 mod recording;
 mod sidechain;
 pub mod store;
+pub mod streaming;
 mod tempo;
 mod tx;
 mod upload;
@@ -54,10 +55,11 @@ mod warp;
 
 use std::collections::BTreeMap;
 
+use ether_core::protocol::collab::{IceServer, StreamSignal};
 use ether_core::protocol::devices::DeviceDescriptor;
 use ether_core::protocol::model::{
     Base64Bytes, BuiltinDevice, DeviceId, GestureId, History, IdGen, MediaId, MediaRef, ParamId,
-    PluginInstance, Project,
+    PluginInstance, Project, SiteId,
 };
 use ether_core::protocol::transport::TransportState;
 use ether_core::protocol::{ClientMessage, Reply, ReplyResult, ServerMessage};
@@ -265,6 +267,105 @@ pub trait EngineBridge {
     fn plugin_param_values(&mut self, device: DeviceId) -> Vec<(ParamId, f64)> {
         let _ = device;
         Vec::new()
+    }
+
+    // ─── base-53: "listen on <peer>" native sender (`stream-host`; docs/COLLAB.md §9) ───
+
+    /// What this host can do for streaming. Default: nothing (the web build streams from
+    /// the UI instead, `CollabCommand::SetHosting { ui_sender: true }`).
+    fn stream_capabilities(&self) -> streaming::StreamCapabilities {
+        streaming::StreamCapabilities::default()
+    }
+
+    /// Start copying the engine's stream tap (master + metronome/count-in, never the
+    /// preview voice: `EngineHandle::set_stream_tap`) into the sender's ring. Called
+    /// when the first listener arrives; idempotent.
+    fn start_stream_capture(&mut self) -> Result<(), BridgeError> {
+        Err(BridgeError::Unsupported(
+            "streaming is not available on this host".into(),
+        ))
+    }
+
+    /// Stop the capture (after the last listener left). Idempotent.
+    fn stop_stream_capture(&mut self) -> Result<(), BridgeError> {
+        Ok(())
+    }
+
+    /// Open a peer connection to `listener` for `stream` using `ice` servers: the sender
+    /// creates the offer and reports it (and its ICE candidates) through `poll_stream`.
+    fn stream_open(
+        &mut self,
+        listener: SiteId,
+        stream: u32,
+        ice: &[IceServer],
+    ) -> Result<(), BridgeError> {
+        let _ = (listener, stream, ice);
+        Err(BridgeError::Unsupported(
+            "streaming is not available on this host".into(),
+        ))
+    }
+
+    /// A signal from `listener` (its answer, trickle ICE, or `Bye`) for `stream`.
+    fn stream_signal(
+        &mut self,
+        listener: SiteId,
+        stream: u32,
+        signal: &StreamSignal,
+    ) -> Result<(), BridgeError> {
+        let _ = (listener, stream, signal);
+        Err(BridgeError::Unsupported(
+            "streaming is not available on this host".into(),
+        ))
+    }
+
+    /// Close the peer connection for `stream` (no `Bye` is sent by the bridge: the
+    /// controller does that). Unknown streams are ignored.
+    fn stream_close(&mut self, listener: SiteId, stream: u32) -> Result<(), BridgeError> {
+        let _ = (listener, stream);
+        Ok(())
+    }
+
+    /// Drain what the sender produced since the last call (signals, clock anchors, link
+    /// states). Called from every controller tick.
+    fn poll_stream(&mut self, out: &mut Vec<streaming::StreamOutput>) {
+        let _ = out;
+    }
+
+    // ─── base-53: plugin GUI mirrors (`plugin-mirror`; docs/COLLAB.md §9.6) ───
+
+    /// Instantiate a GUI-only instance of a plugin device: never routed, never processes
+    /// audio, not in any graph. Its GUI edits come back through `poll_plugins` as
+    /// `ParamEdited` (→ ordinary undoable, replicated `SetParam`); `OpenEditor` for a
+    /// device with a mirror and no live instance opens the mirror. Default: unsupported.
+    fn create_plugin_mirror(
+        &mut self,
+        device: DeviceId,
+        plugin: &PluginInstance,
+        state: Option<&Base64Bytes>,
+    ) -> Result<(), BridgeError> {
+        let _ = (device, plugin, state);
+        Err(BridgeError::Unsupported(
+            "plugin mirrors are not available on this host".into(),
+        ))
+    }
+
+    /// Drop a mirror (unknown devices are ignored).
+    fn destroy_plugin_mirror(&mut self, device: DeviceId) -> Result<(), BridgeError> {
+        let _ = device;
+        Ok(())
+    }
+
+    /// Show a document param change in a mirror's GUI (a remote `SetParam`, undo, ...).
+    fn set_plugin_mirror_param(
+        &mut self,
+        device: DeviceId,
+        param: ParamId,
+        value: f64,
+    ) -> Result<(), BridgeError> {
+        let _ = (device, param, value);
+        Err(BridgeError::Unsupported(
+            "plugin mirrors are not available on this host".into(),
+        ))
     }
 }
 

@@ -48,6 +48,19 @@ pub(crate) struct SendRt {
     pub level: Smoother,
     /// PDC: aligns this send with the other inputs of `target`.
     pub delay: DelayLine,
+    /// This sub-block's send signal (delayed, level applied), gathered by `target`'s job
+    /// (`crate::parallel`).
+    pub buf: Stereo,
+}
+
+/// One input of a track's bus, gathered at the start of the track's job
+/// (`crate::parallel`: fixed order = the sequential engine's summation order).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum BusInput {
+    /// Track `.0`'s output (post PDC output delay, `TrackRt::a`).
+    Output(usize),
+    /// Send `.1` of track `.0` (`SendRt::buf`).
+    Send(usize, usize),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -97,8 +110,6 @@ impl MeterAccum {
 #[derive(Debug)]
 pub(crate) struct TrackRt {
     pub id: TrackId,
-    /// Index of the destination bus track.
-    pub output: Option<usize>,
     /// Enclosing group (mute propagation).
     pub parent: Option<usize>,
     /// Master bus: output goes to the hardware.
@@ -121,8 +132,6 @@ pub(crate) struct TrackRt {
     /// Ping-pong buffers for the device chain (current signal in `a`).
     pub a: Stereo,
     pub b: Stereo,
-    /// Scratch (sends, clip rendering).
-    pub scratch: Stereo,
     pub out_events: EventBuffer,
     pub notes: Vec<ActiveNote>,
     /// Last node-param value sent per automation lane (NaN = send again).
@@ -138,6 +147,24 @@ pub(crate) struct TrackRt {
     pub out_latency: u32,
     /// Drum rack pad chains (`crate::drum_rack`).
     pub racks: crate::drum_rack::RacksRt,
+    /// Bus inputs, summed in this order at the start of the track's job.
+    pub inputs: Vec<BusInput>,
+    /// Sidechain state of this track's sidechained entries (`crate::sidechain`, compiled
+    /// for this track only so jobs never share it) and the sources they listen to.
+    pub sidechain: crate::sidechain::Taps,
+    pub sc_sources: Vec<usize>,
+    /// Post-fader output before the PDC output delay, kept when a sidechain listens to
+    /// this track (copied into the consumers' taps by their jobs).
+    pub tap: Option<Stereo>,
+    /// Note ids of clip notes (per track, so they never depend on processing order).
+    pub next_note_id: u32,
+    /// Resampling scratch for audio clips (audio tracks only; empty otherwise).
+    pub src_scratch: Vec<f32>,
+    /// Runs on the audio thread (Complex-warped clips: engine-wide stretcher state).
+    pub pinned: bool,
+    /// Set by the track's job, collected on the audio thread after the last level.
+    pub overflow: bool,
+    pub underruns: u32,
 }
 
 impl TrackRt {
@@ -168,6 +195,7 @@ impl TrackRt {
             }
         }
         std::mem::swap(&mut self.notes, &mut old.notes);
+        self.next_note_id = old.next_note_id;
         self.meter = old.meter;
         self.racks.inherit(&mut old.racks);
     }
@@ -193,16 +221,19 @@ pub(crate) fn apply_fader(
     }
 }
 
-/// RT. `dst += src * smoothed gain`.
-pub(crate) fn mix_into(dst: &mut [f32], src: &[f32], gain: &mut Smoother, advance: bool) {
+/// RT. `buf *= smoothed gain`. A send's buffer is scaled in its track's job and added to
+/// the destination bus later (`d + s * g` rounds exactly like `t = s * g; d + t`: Rust
+/// never fuses into FMA), so this matches mixing `src * gain` straight into the bus.
+/// `advance = false` leaves `gain` where it was (the left channel; the right advances).
+pub(crate) fn scale(buf: &mut [f32], gain: &mut Smoother, advance: bool) {
     if advance {
-        for (d, s) in dst.iter_mut().zip(src) {
-            *d += s * gain.tick();
+        for s in buf.iter_mut() {
+            *s *= gain.tick();
         }
     } else {
         let mut g = *gain;
-        for (d, s) in dst.iter_mut().zip(src) {
-            *d += s * g.tick();
+        for s in buf.iter_mut() {
+            *s *= g.tick();
         }
     }
 }

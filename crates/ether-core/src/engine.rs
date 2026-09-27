@@ -13,10 +13,12 @@
 //!    parameter changes.
 //! 2. Split the block at loop ends and tempo/time-signature boundaries so transport
 //!    information is linear within each sub-block.
-//! 3. Per sub-block, process tracks in topological order: input bus (+ monitored hardware
-//!    input) → clips (audio rendered, MIDI notes scheduled sample-accurately) → automation
-//!    → device chain → pre-fader sends → fader/pan/mute gate → post-fader sends → meter →
-//!    PDC-aligned output into the destination bus (or the hardware for master).
+//! 3. Per sub-block, process tracks level by level of the routing DAG, one job per track
+//!    (in parallel through the host's [`crate::parallel::ParallelExecutor`], see there):
+//!    input bus gathered from the finished sources (+ monitored hardware input) → clips
+//!    (audio rendered, MIDI notes scheduled sample-accurately) → automation → device chain →
+//!    pre-fader sends → fader/pan/mute gate → post-fader sends → meter → PDC-aligned output
+//!    in the track's own buffers. Then master goes to the hardware.
 //! 4. Publish playhead; every ~33 ms push meter readings.
 
 use std::sync::Arc;
@@ -36,7 +38,7 @@ use crate::graph::{
 };
 use crate::media::AudioSource;
 use crate::meter::EngineOutputs;
-use crate::mixer::{TrackRt, apply_fader, mix_into};
+use crate::mixer::{BusInput, TrackRt, apply_fader, scale};
 use crate::node::{Node, NodeKey, ProcessContext};
 use crate::param::{ParamChange, ParamTarget};
 use crate::sched::{self, NoteSink, Timing};
@@ -78,6 +80,7 @@ enum Control {
     },
     Transport(TransportControl),
     Preview(crate::preview::PreviewControl),
+    StreamTap(Option<Box<crate::stream_tap::StreamTapWriter>>),
 }
 
 enum Garbage {
@@ -85,6 +88,7 @@ enum Garbage {
     Node(#[allow(dead_code)] Box<dyn Node>),
     Data(#[allow(dead_code)] crate::node::NodeData),
     Source(#[allow(dead_code)] Arc<dyn AudioSource>),
+    StreamTap(#[allow(dead_code)] Box<crate::stream_tap::StreamTapWriter>),
 }
 
 enum Output {
@@ -192,6 +196,9 @@ struct TransportRt {
     /// Note chasing on the next played sub-block: start the clip notes already sounding at
     /// the position (after Play, Locate or a loop jump).
     chase_notes: bool,
+    /// The timeline jumps at the next sub-block (Play from stopped, Locate, loop wrap);
+    /// reported to the stream tap ([`crate::stream_tap::StreamBlock::jump`]), then cleared.
+    jump: bool,
 }
 
 /// Create an engine. Non-RT (allocates every ring and table up front).
@@ -233,8 +240,6 @@ pub fn create(config: EngineConfig) -> EngineParts {
         out: out_tx,
         playhead: playhead.clone(),
         transport: TransportRt::default(),
-        src_scratch: vec![0.0; config.max_block_size * 8 + 64],
-        next_note_id: 0,
         meter_interval: (config.sample_rate as usize / 30).max(1),
         meter_elapsed: 0,
         overflow: false,
@@ -243,6 +248,7 @@ pub fn create(config: EngineConfig) -> EngineParts {
         recording: recording_rt,
         metronome: crate::metronome::Metronome::new(config.sample_rate as f32),
         preview: crate::preview::PreviewVoice::new(config.max_block_size),
+        stream_tap: Default::default(),
         executor: Box::new(crate::parallel::SequentialExecutor),
         warp: warp_rt,
         config: config.clone(),
@@ -287,8 +293,6 @@ pub struct Engine {
     out: Producer<Output>,
     playhead: Arc<SharedPlayhead>,
     transport: TransportRt,
-    src_scratch: Vec<f32>,
-    next_note_id: u32,
     meter_interval: usize,
     meter_elapsed: usize,
     overflow: bool,
@@ -302,9 +306,11 @@ pub struct Engine {
     metronome: crate::metronome::Metronome,
     /// Browser preview voice ([`crate::preview`]).
     preview: crate::preview::PreviewVoice,
+    /// "Listen on <peer>" tap ([`crate::stream_tap`], base-53): after master + metronome,
+    /// before the preview voice.
+    stream_tap: crate::stream_tap::StreamTap,
     /// Parallel track processing ([`crate::parallel`], roadmap v2; `multicore` node).
     /// Sequential until a host injects one with [`Engine::set_executor`].
-    #[allow(dead_code)]
     executor: Box<dyn crate::parallel::ParallelExecutor>,
     pub(crate) warp: crate::warp::WarpRt,
 }
@@ -352,6 +358,9 @@ impl Engine {
     /// the executor used to process independent tracks in parallel (roadmap v2,
     /// `multicore`; see [`crate::parallel`]). Ignored on wasm32 (single-threaded).
     pub fn set_executor(&mut self, executor: Box<dyn crate::parallel::ParallelExecutor>) {
+        if cfg!(target_arch = "wasm32") {
+            return;
+        }
         self.executor = executor;
     }
 
@@ -446,6 +455,11 @@ impl Engine {
                         self.retire(Garbage::Source(old));
                     }
                 }
+                Control::StreamTap(w) => {
+                    if let Some(old) = self.stream_tap.set(w) {
+                        self.retire(Garbage::StreamTap(old));
+                    }
+                }
             }
         }
     }
@@ -456,6 +470,7 @@ impl Engine {
             TransportControl::Play => {
                 if !t.playing {
                     t.chase_notes = true;
+                    t.jump = true;
                 }
                 t.playing = true;
             }
@@ -472,6 +487,7 @@ impl Engine {
                 t.all_notes_off = true;
                 t.reset_nodes = true;
                 t.chase_notes = true;
+                t.jump = true;
             }
             TransportControl::SetRecording { enabled } => t.recording = enabled,
             TransportControl::SetLoop { enabled, region } => {
@@ -576,22 +592,22 @@ impl Engine {
             sources,
             snapshot,
             transport,
-            src_scratch,
-            next_note_id,
             overflow,
             underruns,
             recording,
             warp,
             metronome,
             preview,
+            stream_tap,
+            executor,
             ..
         } = self;
         let RenderSnapshot { desc, tempo, rt } = &mut **snapshot;
         let SnapshotRt {
             order,
+            level_order,
+            levels,
             tracks,
-            buses,
-            sidechain: rt_sidechain,
             latency: graph_latency,
             ..
         } = rt;
@@ -657,322 +673,65 @@ impl Engine {
         };
         recording.process(&info, inputs, off, n, &desc.tracks, tracks);
 
-        for bus in buses.iter_mut() {
-            bus[0][..n].fill(0.0);
-            bus[1][..n].fill(0.0);
+        // --- tracks, level by level (`crate::parallel`) ---
+        // Stopped with nothing live (no monitored input): only tails ring out, so keep the
+        // workers parked and run the jobs here, in level order (same result, bit for bit).
+        let parallel = playing || tracks.iter().any(|t| t.monitor);
+        let ctx = JobCtx {
+            tracks: tracks.as_mut_ptr(),
+            n_tracks: tracks.len(),
+            nodes: nodes.as_mut_ptr(),
+            n_nodes: nodes.len(),
+            warp: &mut *warp,
+            descs: &desc.tracks,
+            sources,
+            inputs,
+            off,
+            n,
+            sr,
+            flags: JobFlags {
+                playing,
+                release_notes: transport.release_notes,
+                all_notes_off: transport.all_notes_off,
+                reset_nodes: transport.reset_nodes,
+                chase_notes: transport.chase_notes,
+            },
+            info: &info,
+            timing: &timing,
+        };
+        for level in levels.iter() {
+            let idx = &level_order[level.start..level.end];
+            // SAFETY (`crate::parallel`, "Unsafe sharing"): job `j` touches track `idx[j]`
+            // (distinct within a level), its nodes (each node in one chain) and finished
+            // tracks of earlier levels; the executor runs each `j` once, pinned jobs on this
+            // thread, and returns after all of them finished.
+            let job = |j: usize| unsafe { ctx.run(idx[j]) };
+            if idx.len() == 1 || !parallel {
+                for j in 0..idx.len() {
+                    job(j);
+                }
+            } else {
+                executor.execute_pinned(idx.len(), level.pinned, &job);
+            }
         }
 
+        // --- collect job flags; master to the hardware (fixed order) ---
         for &ti in order.iter() {
-            let tdesc = &desc.tracks[ti];
             let track = &mut tracks[ti];
-            let TrackRt {
-                chain,
-                a,
-                b,
-                scratch,
-                out_events,
-                notes,
-                racks,
-                ..
-            } = track;
-
-            // --- input ---
-            a[0][..n].copy_from_slice(&buses[ti][0][..n]);
-            a[1][..n].copy_from_slice(&buses[ti][1][..n]);
-            if track.monitor
-                && let Some((l, r)) = crate::recording::input_channels(track.audio_input)
-            {
-                for (ch, hw) in [(0usize, l), (1, r)] {
-                    if let Some(input) = inputs.get(hw as usize) {
-                        let src = &input[off.min(input.len())..(off + n).min(input.len())];
-                        for (d, s) in a[ch].iter_mut().zip(src) {
-                            *d += s;
-                        }
-                    }
-                }
-            }
-
-            // --- events: pending live params ---
-            racks.begin_block(transport.all_notes_off);
-            for c in chain.iter_mut() {
-                c.events.clear();
-                for e in c.pending.as_slice() {
-                    c.events.push(*e);
-                }
-                c.pending.clear();
-                if transport.all_notes_off {
-                    c.events.push(ProcessEvent {
-                        offset: 0,
-                        kind: EventKind::AllNotesOff,
-                    });
-                }
-            }
-
-            // --- clips ---
-            if let Some(first) = chain.first_mut() {
-                let mut sink = NoteSink {
-                    events: &mut first.events,
-                    notes,
-                    next_note_id,
-                };
-                if transport.release_notes {
-                    sink.release_all(0);
-                }
-                if playing {
-                    let end = tdesc.clips.partition_point(|c| c.start < b1);
-                    for clip in &tdesc.clips[..end] {
-                        if matches!(clip.content, ClipContentDesc::Midi { .. }) {
-                            if transport.chase_notes {
-                                sched::chase_notes(clip, &timing, &mut sink);
-                            }
-                            sched::schedule_notes(clip, &timing, &mut sink);
-                        }
-                    }
-                    sink.end_notes(&timing);
-                }
-            } else if transport.release_notes {
-                notes.clear();
-            }
-            if playing && tdesc.kind == TrackKind::Audio {
-                let end = tdesc.clips.partition_point(|c| c.start < b1);
-                for clip in &tdesc.clips[..end] {
-                    let ClipContentDesc::Audio { media, .. } = &clip.content else {
-                        continue;
-                    };
-                    if clip.start + clip.length <= b0 {
-                        continue;
-                    }
-                    let Ok(si) = sources.binary_search_by(|e| e.0.cmp(media)) else {
-                        continue;
-                    };
-                    let ref_bpm = tempo.bpm_at(clip.start);
-                    let [al, ar] = &mut *a;
-                    if !warp.render(
-                        clip,
-                        &*sources[si].1,
-                        ref_bpm,
-                        &timing,
-                        [&mut al[..n], &mut ar[..n]],
-                        src_scratch,
-                    ) {
-                        *underruns += 1;
-                    }
-                }
-            }
-
-            // --- automation ---
-            // Each target is resolved once per sub-block (see docs/CONTRACTS.md §4
-            // "Automation precedence"): a clip envelope of an unmuted clip overlapping the
-            // sub-block (or containing the position while stopped) takes the target; the
-            // arrangement lane for that target is skipped and re-sends as soon as it is
-            // uncovered. Enabled lanes/envelopes always drive their target: mixer targets
-            // are re-applied every sub-block, node params are re-sent after a live change
-            // or a locate.
-            if track.auto_dirty || transport.reset_nodes {
-                track.auto_last.fill(f64::NAN);
-                track.env_last.fill(f64::NAN);
-                track.auto_dirty = false;
-            }
-            // Stopped: the "sub-block" is the position itself.
-            let env_end = if playing { b1 } else { b0 + 1e-9 };
-            let clips_end = tdesc.clips.partition_point(|c| c.start < env_end);
-            let active_clips = || {
-                tdesc.clips[..clips_end]
-                    .iter()
-                    .enumerate()
-                    .filter(move |(_, c)| !c.muted && c.start + c.length > b0)
-            };
-            let covered = |target: ResolvedTarget| {
-                active_clips().any(|(_, c)| {
-                    c.envelopes
-                        .iter()
-                        .any(|e| e.resolved == target && !e.points.is_empty())
-                })
-            };
-            for (li, lane) in tdesc.automation.iter().enumerate() {
-                let last = &mut track.auto_last[li];
-                if covered(lane.resolved) {
-                    *last = f64::NAN;
-                    continue;
-                }
-                apply_automation(
-                    lane,
-                    |t| evaluate(&lane.points, t),
-                    &timing,
-                    playing,
-                    last,
-                    &mut track.volume,
-                    &mut track.pan,
-                    &mut track.sends,
-                    chain,
-                    racks,
-                );
-            }
-            // Envelopes of clips that stopped covering their target send again next time.
-            for (ci, clip) in tdesc.clips.iter().enumerate() {
-                let active = ci < clips_end && !clip.muted && clip.start + clip.length > b0;
-                if !active && !clip.envelopes.is_empty() {
-                    let base = track.env_base[ci];
-                    track.env_last[base..base + clip.envelopes.len()].fill(f64::NAN);
-                }
-            }
-            for (ci, clip) in active_clips() {
-                for (ei, env) in clip.envelopes.iter().enumerate() {
-                    let last = &mut track.env_last[track.env_base[ci] + ei];
-                    apply_automation(
-                        env,
-                        |t| sched::content_at(clip, t).and_then(|c| evaluate(&env.points, c)),
-                        &timing,
-                        playing,
-                        last,
-                        &mut track.volume,
-                        &mut track.pan,
-                        &mut track.sends,
-                        chain,
-                        racks,
-                    );
-                }
-            }
-
-            // --- device chain ---
-            for k in 0..chain.len() {
-                let (head, tail) = chain.split_at_mut(k + 1);
-                let entry = &mut head[k];
-                entry.events.sort();
-                *overflow |= entry.events.overflowed();
-                let key = entry.key;
-                // Sidechain PDC: delay the main signal before this entry if planned.
-                rt_sidechain.align_main(ti, k, a, n);
-                // Drum rack: pad chains feed the rack node's input (`crate::drum_rack`).
-                if entry.enabled && !racks.is_empty() && racks.is_rack(key) {
-                    *overflow |= racks.run_pads(
-                        key,
-                        nodes,
-                        entry.events.as_slice(),
-                        &info,
-                        sr as f32,
-                        a,
-                        n,
-                        transport.reset_nodes,
-                    );
-                }
-                let Some(slot) = nodes.get_mut(key.index as usize) else {
-                    continue;
-                };
-                if slot.generation != key.generation {
-                    continue;
-                }
-                let Some(node) = slot.node.as_mut() else {
-                    continue;
-                };
-                if transport.reset_nodes {
-                    node.reset();
-                }
-                if !entry.enabled {
-                    continue;
-                }
-                out_events.clear();
-                let (n_in, n_out) = (
-                    (entry.channels.0 as usize).min(2),
-                    (entry.channels.1 as usize).min(2),
-                );
-                {
-                    let [al, ar] = &*a;
-                    let [bl, br] = &mut *b;
-                    let ins: [&[f32]; 2] = [&al[..n], &ar[..n]];
-                    let mut outs: [&mut [f32]; 2] = [&mut bl[..n], &mut br[..n]];
-                    let mut ctx = ProcessContext {
-                        sample_rate: sr as f32,
-                        frames: n,
-                        transport: &info,
-                        events: entry.events.as_slice(),
-                        out_events,
-                    };
-                    let mut buffers = AudioBuffers {
-                        inputs: &ins[..n_in],
-                        outputs: &mut outs[..n_out],
-                    };
-                    // Sidechain (`crate::sidechain`): a tapped source's aligned signal.
-                    match entry
-                        .sidechain
-                        .and_then(|src| rt_sidechain.read(ti, k, src, n))
-                    {
-                        Some(sc) => node.process_sidechain(&mut ctx, &mut buffers, &sc),
-                        None => node.process(&mut ctx, &mut buffers),
-                    };
-                }
-                *overflow |= out_events.overflowed();
-                match n_out {
-                    0 => {}
-                    1 => {
-                        let [bl, br] = &mut *b;
-                        br[..n].copy_from_slice(&bl[..n]);
-                        std::mem::swap(a, b);
-                    }
-                    _ => std::mem::swap(a, b),
-                }
-                // Note/MIDI output feeds the next device.
-                if let Some(next) = tail.first_mut() {
-                    for e in out_events.as_slice() {
-                        next.events.push(*e);
-                    }
-                }
-            }
-            {
-                let [al, ar] = &mut *a;
-                track.bypass_delay.process(&mut al[..n], &mut ar[..n]);
-            }
-
-            // --- sends (pre), fader, sends (post) ---
-            let gate = track.gate.current();
-            for pass_pre in [true, false] {
-                if !pass_pre {
-                    apply_fader(a, &mut track.volume, &mut track.pan, &mut track.gate, n);
-                }
-                for send in track.sends.iter_mut().filter(|s| s.pre_fader == pass_pre) {
-                    let [sl, sr_] = &mut *scratch;
-                    sl[..n].copy_from_slice(&a[0][..n]);
-                    sr_[..n].copy_from_slice(&a[1][..n]);
-                    if pass_pre && gate != 1.0 {
-                        for s in sl[..n].iter_mut().chain(sr_[..n].iter_mut()) {
-                            *s *= gate;
-                        }
-                    }
-                    send.delay.process(&mut sl[..n], &mut sr_[..n]);
-                    let dst = &mut buses[send.target];
-                    mix_into(&mut dst[0][..n], &sl[..n], &mut send.level, false);
-                    mix_into(&mut dst[1][..n], &sr_[..n], &mut send.level, true);
-                }
-            }
-
-            // --- meter + output ---
-            track.meter.add(&a[0][..n], &a[1][..n]);
-            // Sidechain tap: post-fader, before the PDC output delay (latency = out_lat).
-            rt_sidechain.write(ti, a, n);
-            {
-                let [al, ar] = &mut *a;
-                track.output_delay.process(&mut al[..n], &mut ar[..n]);
-            }
-            if let Some(o) = track.output {
-                let dst = &mut buses[o];
-                for ch in 0..2 {
-                    for (d, s) in dst[ch][..n].iter_mut().zip(&a[ch][..n]) {
-                        *d += s;
-                    }
-                }
-            } else if track.to_hardware {
+            *overflow |= std::mem::take(&mut track.overflow);
+            *underruns += std::mem::take(&mut track.underruns);
+            if track.to_hardware {
                 for (ch, out) in outputs.iter_mut().take(2).enumerate() {
                     let end = (off + n).min(out.len());
                     if off >= end {
                         continue;
                     }
-                    for (d, s) in out[off..end].iter_mut().zip(&a[ch][..n]) {
+                    for (d, s) in out[off..end].iter_mut().zip(&track.a[ch][..n]) {
                         *d += s;
                     }
                 }
             }
         }
-
         // --- metronome (after master reached the hardware outputs; not metered) ---
         if transport.reset_nodes {
             metronome.reset();
@@ -987,6 +746,9 @@ impl Engine {
             n,
             outputs,
         );
+        // --- stream tap (base-53): master + metronome/count-in, never the preview ---
+        stream_tap.write(&info, *graph_latency, transport.jump, off, n, outputs);
+        transport.jump = false;
         // --- browser preview (after master; not metered, transport-independent) ---
         preview.render(off, n, outputs);
 
@@ -1001,6 +763,7 @@ impl Engine {
                 transport.position = loop_start;
                 transport.release_notes = true;
                 transport.chase_notes = true;
+                transport.jump = true;
             } else {
                 transport.position = b1;
             }
@@ -1051,6 +814,494 @@ impl Engine {
         if self.underruns > 0 && self.out.push(Output::Underruns(self.underruns)).is_ok() {
             self.underruns = 0;
         }
+    }
+}
+
+/// RT. Keyed access to the engine's node table from one track job (its chain and drum-rack
+/// pad chains, `crate::drum_rack`). Every access goes through [`NodeTable::get`], which
+/// yields one slot at a time, so no job ever holds a `&mut` over the whole table.
+pub(crate) struct NodeTable<'a> {
+    ptr: *mut NodeSlot,
+    len: usize,
+    _slots: std::marker::PhantomData<&'a mut [NodeSlot]>,
+}
+
+impl<'a> NodeTable<'a> {
+    /// A table with exclusive access to `slots`.
+    #[allow(dead_code)]
+    pub(crate) fn new(slots: &'a mut [NodeSlot]) -> Self {
+        Self {
+            len: slots.len(),
+            ptr: slots.as_mut_ptr(),
+            _slots: std::marker::PhantomData,
+        }
+    }
+
+    /// One of several tables over the same slots, one per concurrent track job.
+    ///
+    /// # Safety
+    /// `ptr..ptr+len` must be valid `NodeSlot`s for `'a`, not accessed through any other
+    /// path for `'a` except other tables made by this function, and every table must only
+    /// be asked for keys of *its own* track (its chain and pad chains). That holds for
+    /// track jobs (`crate::parallel`, "Unsafe sharing"):
+    /// - a *live* key (generation equal to its slot's) is unique in a snapshot: the compiler
+    ///   rejects a key used twice, and a slot has one generation, so two live keys never
+    ///   share a slot; only live keys reach a `&mut` (to the slot's `node` field);
+    /// - a *stale* key (a pad node removed and its slot reused by another track: the
+    ///   compiler tolerates unknown pad nodes) only *reads* the slot's `generation`, which
+    ///   nothing writes while a level runs, and yields `None`;
+    /// - the audio thread doesn't touch the table while a level runs.
+    ///
+    /// So [`NodeTable::get`] never creates two live `&mut` to one node, nor a `&mut` to a
+    /// slot another job uses.
+    pub(crate) unsafe fn shared(ptr: *mut NodeSlot, len: usize) -> Self {
+        Self {
+            ptr,
+            len,
+            _slots: std::marker::PhantomData,
+        }
+    }
+
+    /// RT. The live node behind `key`, if the slot still holds that generation.
+    pub(crate) fn get(&mut self, key: NodeKey) -> Option<&mut Box<dyn Node>> {
+        let i = key.index as usize;
+        if i >= self.len {
+            return None;
+        }
+        // Never a reference to the whole slot: read the generation through the raw pointer
+        // (nobody writes it while jobs run) and borrow only the `node` field, and only when
+        // the key is live. A stale key of another track's slot thus never forms a `&mut`.
+        let slot = self.ptr.wrapping_add(i);
+        // SAFETY: `i < len`: a valid `NodeSlot`; `generation` is only written on the audio
+        // thread between blocks (`drain_control`), never during a level.
+        if unsafe { std::ptr::addr_of!((*slot).generation).read() } != key.generation {
+            return None;
+        }
+        // SAFETY: the key is live, so by the `shared` contract (or `new`'s exclusivity) this
+        // slot's node belongs to this table's track only; the borrow of `self` keeps it to
+        // one node at a time per table.
+        unsafe { (*std::ptr::addr_of_mut!((*slot).node)).as_mut() }
+    }
+}
+
+/// Transport flags of the current sub-block (read-only for the jobs).
+#[derive(Clone, Copy)]
+struct JobFlags {
+    playing: bool,
+    release_notes: bool,
+    all_notes_off: bool,
+    reset_nodes: bool,
+    chase_notes: bool,
+}
+
+/// What a track job needs: raw pointers to the per-track/per-node state it gets exclusive
+/// access to (`crate::parallel`, "Unsafe sharing"), plus read-only sub-block context.
+struct JobCtx<'a> {
+    tracks: *mut TrackRt,
+    n_tracks: usize,
+    nodes: *mut NodeSlot,
+    n_nodes: usize,
+    /// Only dereferenced by pinned jobs (on the audio thread, one at a time).
+    warp: *mut crate::warp::WarpRt,
+    descs: &'a [crate::graph::TrackDesc],
+    sources: &'a [(MediaId, Arc<dyn AudioSource>)],
+    inputs: &'a [&'a [f32]],
+    off: usize,
+    n: usize,
+    sr: f64,
+    flags: JobFlags,
+    info: &'a TransportInfo,
+    timing: &'a Timing<'a>,
+}
+
+// SAFETY: the shared fields are `Sync` (checked below); the raw pointers are only
+// dereferenced by `JobCtx::run` under the level contract: one job per track per level,
+// each node reached by one job, finished tracks only read, `warp` only on the audio thread.
+// The pointees are `Send` (`TrackRt`, `NodeSlot` via `Node: Send`), so handing them to a
+// worker thread is fine.
+unsafe impl Sync for JobCtx<'_> {}
+
+const _: () = {
+    const fn sync<T: Sync + ?Sized>() {}
+    const fn send<T: Send + ?Sized>() {}
+    sync::<crate::graph::TrackDesc>();
+    sync::<(MediaId, Arc<dyn AudioSource>)>();
+    sync::<TransportInfo>();
+    sync::<Timing<'static>>();
+    send::<TrackRt>();
+    send::<NodeSlot>();
+};
+
+impl JobCtx<'_> {
+    /// RT. Process track `ti` for the sub-block (see [`Engine::process`]).
+    ///
+    /// # Safety
+    /// Called at most once per track per level, never concurrently for one track; every
+    /// track in `tracks[ti].inputs` / `sc_sources` finished in an earlier level (the level
+    /// partition guarantees it); the tracks of the running level are touched by their own
+    /// jobs only; if `tracks[ti].pinned`, this runs on the audio thread (`execute_pinned`).
+    unsafe fn run(&self, ti: usize) {
+        debug_assert!(ti < self.n_tracks);
+        // SAFETY: exclusive by the contract above.
+        let track = unsafe { &mut *self.tracks.add(ti) };
+        // SAFETY: this job only asks for the keys of its own chain and pad chains.
+        let mut nodes = unsafe { NodeTable::shared(self.nodes, self.n_nodes) };
+        let n = self.n;
+
+        // --- input bus: gather the finished sources in the fixed order ---
+        {
+            let TrackRt {
+                a,
+                inputs,
+                sidechain,
+                sc_sources,
+                ..
+            } = &mut *track;
+            a[0][..n].fill(0.0);
+            a[1][..n].fill(0.0);
+            for &input in inputs.iter() {
+                let (c, sel) = match input {
+                    BusInput::Output(c) => (c, None),
+                    BusInput::Send(c, k) => (c, Some(k)),
+                };
+                debug_assert!(c != ti && c < self.n_tracks);
+                // SAFETY: `c != ti` finished in an earlier level; nothing writes it now.
+                let src = unsafe { &*self.tracks.add(c) };
+                let buf = match sel {
+                    None => &src.a,
+                    Some(k) => &src.sends[k].buf,
+                };
+                for ch in 0..2 {
+                    for (d, s) in a[ch][..n].iter_mut().zip(&buf[ch][..n]) {
+                        *d += s;
+                    }
+                }
+            }
+            // Sidechain sources' taps (finished too) into this track's own taps.
+            for &s in sc_sources.iter() {
+                // SAFETY: as above (sidechain sources are ordered before their consumer).
+                let src = unsafe { &*self.tracks.add(s) };
+                if let Some(tap) = &src.tap {
+                    sidechain.write(s, tap, n);
+                }
+            }
+        }
+
+        let warp = if track.pinned {
+            // SAFETY: pinned jobs run on the audio thread, one after the other.
+            Some(unsafe { &mut *self.warp })
+        } else {
+            None
+        };
+        self.render_track(ti, track, &mut nodes, warp);
+    }
+
+    /// RT. The body of a track job, after its input bus was gathered into `track.a`.
+    fn render_track(
+        &self,
+        ti: usize,
+        track: &mut TrackRt,
+        nodes: &mut NodeTable<'_>,
+        mut warp: Option<&mut crate::warp::WarpRt>,
+    ) {
+        let n = self.n;
+        let off = self.off;
+        let sr = self.sr;
+        let flags = self.flags;
+        let playing = flags.playing;
+        let timing = self.timing;
+        let tempo = timing.tempo;
+        let (b0, b1) = (timing.b0, timing.b1);
+        let info = self.info;
+        let tdesc = &self.descs[ti];
+        let TrackRt {
+            chain,
+            a,
+            b,
+            out_events,
+            notes,
+            racks,
+            sidechain: rt_sidechain,
+            next_note_id,
+            src_scratch,
+            overflow,
+            underruns,
+            ..
+        } = track;
+
+        // --- monitored hardware input ---
+        if track.monitor
+            && let Some((l, r)) = crate::recording::input_channels(track.audio_input)
+        {
+            for (ch, hw) in [(0usize, l), (1, r)] {
+                if let Some(input) = self.inputs.get(hw as usize) {
+                    let src = &input[off.min(input.len())..(off + n).min(input.len())];
+                    for (d, s) in a[ch].iter_mut().zip(src) {
+                        *d += s;
+                    }
+                }
+            }
+        }
+
+        // --- events: pending live params ---
+        racks.begin_block(flags.all_notes_off);
+        for c in chain.iter_mut() {
+            c.events.clear();
+            for e in c.pending.as_slice() {
+                c.events.push(*e);
+            }
+            c.pending.clear();
+            if flags.all_notes_off {
+                c.events.push(ProcessEvent {
+                    offset: 0,
+                    kind: EventKind::AllNotesOff,
+                });
+            }
+        }
+
+        // --- clips ---
+        if let Some(first) = chain.first_mut() {
+            let mut sink = NoteSink {
+                events: &mut first.events,
+                notes,
+                next_note_id,
+            };
+            if flags.release_notes {
+                sink.release_all(0);
+            }
+            if playing {
+                let end = tdesc.clips.partition_point(|c| c.start < b1);
+                for clip in &tdesc.clips[..end] {
+                    if matches!(clip.content, ClipContentDesc::Midi { .. }) {
+                        if flags.chase_notes {
+                            sched::chase_notes(clip, timing, &mut sink);
+                        }
+                        sched::schedule_notes(clip, timing, &mut sink);
+                    }
+                }
+                sink.end_notes(timing);
+            }
+        } else if flags.release_notes {
+            notes.clear();
+        }
+        if playing && tdesc.kind == TrackKind::Audio {
+            let end = tdesc.clips.partition_point(|c| c.start < b1);
+            for clip in &tdesc.clips[..end] {
+                let ClipContentDesc::Audio { media, .. } = &clip.content else {
+                    continue;
+                };
+                if clip.start + clip.length <= b0 {
+                    continue;
+                }
+                let Ok(si) = self.sources.binary_search_by(|e| e.0.cmp(media)) else {
+                    continue;
+                };
+                let ref_bpm = tempo.bpm_at(clip.start);
+                let [al, ar] = &mut *a;
+                let out = [&mut al[..n], &mut ar[..n]];
+                let source = &*self.sources[si].1;
+                // Unpinned tracks have no Complex-warped clip, for which `WarpRt::render`
+                // is exactly `sched::render_audio`.
+                let ok = match warp.as_deref_mut() {
+                    Some(w) => w.render(clip, source, ref_bpm, timing, out, src_scratch),
+                    None => sched::render_audio(clip, source, ref_bpm, timing, out, src_scratch),
+                };
+                if !ok {
+                    *underruns += 1;
+                }
+            }
+        }
+
+        // --- automation ---
+        // Each target is resolved once per sub-block (see docs/CONTRACTS.md §4
+        // "Automation precedence"): a clip envelope of an unmuted clip overlapping the
+        // sub-block (or containing the position while stopped) takes the target; the
+        // arrangement lane for that target is skipped and re-sends as soon as it is
+        // uncovered. Enabled lanes/envelopes always drive their target: mixer targets
+        // are re-applied every sub-block, node params are re-sent after a live change
+        // or a locate.
+        if track.auto_dirty || flags.reset_nodes {
+            track.auto_last.fill(f64::NAN);
+            track.env_last.fill(f64::NAN);
+            track.auto_dirty = false;
+        }
+        // Stopped: the "sub-block" is the position itself.
+        let env_end = if playing { b1 } else { b0 + 1e-9 };
+        let clips_end = tdesc.clips.partition_point(|c| c.start < env_end);
+        let active_clips = || {
+            tdesc.clips[..clips_end]
+                .iter()
+                .enumerate()
+                .filter(move |(_, c)| !c.muted && c.start + c.length > b0)
+        };
+        let covered = |target: ResolvedTarget| {
+            active_clips().any(|(_, c)| {
+                c.envelopes
+                    .iter()
+                    .any(|e| e.resolved == target && !e.points.is_empty())
+            })
+        };
+        for (li, lane) in tdesc.automation.iter().enumerate() {
+            let last = &mut track.auto_last[li];
+            if covered(lane.resolved) {
+                *last = f64::NAN;
+                continue;
+            }
+            apply_automation(
+                lane,
+                |t| evaluate(&lane.points, t),
+                timing,
+                playing,
+                last,
+                &mut track.volume,
+                &mut track.pan,
+                &mut track.sends,
+                chain,
+                racks,
+            );
+        }
+        // Envelopes of clips that stopped covering their target send again next time.
+        for (ci, clip) in tdesc.clips.iter().enumerate() {
+            let active = ci < clips_end && !clip.muted && clip.start + clip.length > b0;
+            if !active && !clip.envelopes.is_empty() {
+                let base = track.env_base[ci];
+                track.env_last[base..base + clip.envelopes.len()].fill(f64::NAN);
+            }
+        }
+        for (ci, clip) in active_clips() {
+            for (ei, env) in clip.envelopes.iter().enumerate() {
+                let last = &mut track.env_last[track.env_base[ci] + ei];
+                apply_automation(
+                    env,
+                    |t| sched::content_at(clip, t).and_then(|c| evaluate(&env.points, c)),
+                    timing,
+                    playing,
+                    last,
+                    &mut track.volume,
+                    &mut track.pan,
+                    &mut track.sends,
+                    chain,
+                    racks,
+                );
+            }
+        }
+
+        // --- device chain ---
+        for k in 0..chain.len() {
+            let (head, tail) = chain.split_at_mut(k + 1);
+            let entry = &mut head[k];
+            entry.events.sort();
+            *overflow |= entry.events.overflowed();
+            let key = entry.key;
+            // Sidechain PDC: delay the main signal before this entry if planned.
+            rt_sidechain.align_main(ti, k, a, n);
+            // Drum rack: pad chains feed the rack node's input (`crate::drum_rack`).
+            if entry.enabled && !racks.is_empty() && racks.is_rack(key) {
+                *overflow |= racks.run_pads(
+                    key,
+                    nodes,
+                    entry.events.as_slice(),
+                    info,
+                    sr as f32,
+                    a,
+                    n,
+                    flags.reset_nodes,
+                );
+            }
+            let Some(node) = nodes.get(key) else {
+                continue;
+            };
+            if flags.reset_nodes {
+                node.reset();
+            }
+            if !entry.enabled {
+                continue;
+            }
+            out_events.clear();
+            let (n_in, n_out) = (
+                (entry.channels.0 as usize).min(2),
+                (entry.channels.1 as usize).min(2),
+            );
+            {
+                let [al, ar] = &*a;
+                let [bl, br] = &mut *b;
+                let ins: [&[f32]; 2] = [&al[..n], &ar[..n]];
+                let mut outs: [&mut [f32]; 2] = [&mut bl[..n], &mut br[..n]];
+                let mut ctx = ProcessContext {
+                    sample_rate: sr as f32,
+                    frames: n,
+                    transport: info,
+                    events: entry.events.as_slice(),
+                    out_events,
+                };
+                let mut buffers = AudioBuffers {
+                    inputs: &ins[..n_in],
+                    outputs: &mut outs[..n_out],
+                };
+                // Sidechain (`crate::sidechain`): a tapped source's aligned signal.
+                match entry
+                    .sidechain
+                    .and_then(|src| rt_sidechain.read(ti, k, src, n))
+                {
+                    Some(sc) => node.process_sidechain(&mut ctx, &mut buffers, &sc),
+                    None => node.process(&mut ctx, &mut buffers),
+                };
+            }
+            *overflow |= out_events.overflowed();
+            match n_out {
+                0 => {}
+                1 => {
+                    let [bl, br] = &mut *b;
+                    br[..n].copy_from_slice(&bl[..n]);
+                    std::mem::swap(a, b);
+                }
+                _ => std::mem::swap(a, b),
+            }
+            // Note/MIDI output feeds the next device.
+            if let Some(next) = tail.first_mut() {
+                for e in out_events.as_slice() {
+                    next.events.push(*e);
+                }
+            }
+        }
+        {
+            let [al, ar] = &mut *a;
+            track.bypass_delay.process(&mut al[..n], &mut ar[..n]);
+        }
+
+        // --- sends (pre), fader, sends (post) ---
+        // Each send's signal goes to its own buffer, gathered by the destination's job.
+        let gate = track.gate.current();
+        for pass_pre in [true, false] {
+            if !pass_pre {
+                apply_fader(a, &mut track.volume, &mut track.pan, &mut track.gate, n);
+            }
+            for send in track.sends.iter_mut().filter(|s| s.pre_fader == pass_pre) {
+                let [sl, sr_] = &mut send.buf;
+                sl[..n].copy_from_slice(&a[0][..n]);
+                sr_[..n].copy_from_slice(&a[1][..n]);
+                if pass_pre && gate != 1.0 {
+                    for s in sl[..n].iter_mut().chain(sr_[..n].iter_mut()) {
+                        *s *= gate;
+                    }
+                }
+                send.delay.process(&mut sl[..n], &mut sr_[..n]);
+                scale(&mut sl[..n], &mut send.level, false);
+                scale(&mut sr_[..n], &mut send.level, true);
+            }
+        }
+
+        // --- meter + output ---
+        track.meter.add(&a[0][..n], &a[1][..n]);
+        // Sidechain tap: post-fader, before the PDC output delay (latency = out_lat).
+        if let Some(tap) = &mut track.tap {
+            tap[0][..n].copy_from_slice(&a[0][..n]);
+            tap[1][..n].copy_from_slice(&a[1][..n]);
+        }
+        // The output stays in `a`: gathered by the destination bus's job, or summed into
+        // the hardware output by the audio thread (master).
+        let [al, ar] = &mut *a;
+        track.output_delay.process(&mut al[..n], &mut ar[..n]);
     }
 }
 
@@ -1270,6 +1521,16 @@ impl EngineHandle {
     /// Start or stop the browser preview voice ([`crate::preview`]). Non-blocking.
     pub fn preview(&mut self, control: crate::preview::PreviewControl) -> Result<(), EngineError> {
         self.send(Control::Preview(control))
+    }
+
+    /// Install (`Some`) or remove (`None`) the "listen on <peer>" stream tap
+    /// ([`crate::stream_tap`]; base-53). Non-blocking; the previous writer is retired to the
+    /// GC.
+    pub fn set_stream_tap(
+        &mut self,
+        writer: Option<crate::stream_tap::StreamTapWriter>,
+    ) -> Result<(), EngineError> {
+        self.send(Control::StreamTap(writer.map(Box::new)))
     }
 
     /// Total output latency (samples, PDC included) of the last successfully published

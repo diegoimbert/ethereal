@@ -360,6 +360,10 @@ where
         now: u64,
         out: &mut dyn MessageSink,
     ) -> CmdResult<ReplyValue> {
+        // base-53: while listening on a peer, transport commands go to the host.
+        if let Some(r) = self.collab_transport_intercept(c, out) {
+            return r;
+        }
         match c {
             TransportCommand::Play => self.play()?,
             TransportCommand::Stop => self.transport_stop(now, out)?,

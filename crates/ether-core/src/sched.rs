@@ -147,7 +147,8 @@ impl Timing<'_> {
     }
 }
 
-/// Sounding-note bookkeeping + note-id allocation shared by all tracks.
+/// Sounding-note bookkeeping + note-id allocation of one track (ids are per track, so they
+/// never depend on processing order).
 pub(crate) struct NoteSink<'a> {
     pub events: &'a mut EventBuffer,
     pub notes: &'a mut Vec<ActiveNote>,

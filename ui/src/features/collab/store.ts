@@ -20,7 +20,9 @@ export const useCollabStore = create<CollabState>()((set) => ({
     if (event.type !== "Collab") return;
     const e = event.event;
     if (e.type === "Session") set({ status: e.status });
-    else set({ peers: e.peers });
+    else if (e.type === "Presence") set({ peers: e.peers });
+    // base-53 events (Pointer, Signal, ListenStatus, StreamClock, IceServers) are handled by
+    // the presence-v2 / stream-listen / stream-host nodes.
   },
   reset: () => set({ ...INITIAL }),
 }));

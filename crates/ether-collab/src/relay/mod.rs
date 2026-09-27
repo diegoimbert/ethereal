@@ -15,8 +15,13 @@
 //! - `Transaction`s are appended to the log and sent to every ready peer, the author
 //!   included (the echo is its ack). A transaction whose `origin.site` is not the sender's
 //!   site, or whose `seq` is not above that site's last sequenced one (a resend), is dropped.
-//! - `Presence` is stamped with the sender's site and color; `Hello`, `Presence` and `Leave`
-//!   are forwarded to the other ready peers.
+//! - `Presence` is stamped with the sender's site and color, `Pointer` with its site;
+//!   `Hello`, `Presence`, `Pointer` and `Leave` are forwarded to the other ready peers
+//!   (pointers are never cached).
+//! - Site-to-site messages (`Signal`, `Listen`, `Unlisten`, `TransportRequest`,
+//!   `StreamClock`; [`CollabMessage::route`]) must come from the sender's own site, between
+//!   synced members of the session, and go to their `to` site only. `IceServers` only goes
+//!   relay → site ([`Relay::set_ice_provider`]).
 //! - A site id is held by one connection. A `Hello` for a site another connection holds
 //!   starts a contest: the holder is pinged ([`Relay::take_pings`]) and the newcomer's
 //!   messages are held. Any sign of life from the holder ([`Relay::heard`], or a message)
@@ -27,13 +32,14 @@
 //! - Past [`RelayConfig::compact_after`] log entries, one ready peer is asked for a snapshot
 //!   (`SyncRequest { site: it, version: [] }`); the log before its index is dropped.
 
+pub mod limits;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod server;
 
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 
-use ether_protocol::collab::{CollabMessage, Presence, PresenceState};
+use ether_protocol::collab::{CollabMessage, IceServer, Presence, PresenceState, StreamSignal};
 use ether_protocol::model::{Base64Bytes, Color, SiteId};
 
 use crate::wire::{PEER_COLORS, SnapshotData, decode_version, valid_session_name};
@@ -62,6 +68,9 @@ pub struct RelayConfig {
     /// How long a site id's holder has to show a sign of life when another connection
     /// says hello with that id (after that it is taken for half-open and dropped).
     pub site_probe_ms: u64,
+    /// ICE servers are advertised again this long after the last advertisement (before
+    /// time-limited TURN credentials expire; docs/COLLAB.md §10).
+    pub ice_refresh_ms: u64,
 }
 
 impl Default for RelayConfig {
@@ -74,6 +83,7 @@ impl Default for RelayConfig {
             compact_after: 5_000,
             max_log: 20_000,
             site_probe_ms: 4_000,
+            ice_refresh_ms: 6 * 3_600_000,
         }
     }
 }
@@ -102,6 +112,8 @@ struct Peer {
     waiting: Option<Option<(u64, u64)>>,
     /// This connection said hello with a site id another connection holds.
     contest: Option<Contest>,
+    /// When the ICE servers were last advertised to this peer (relay clock).
+    ice_sent_ms: Option<u64>,
 }
 
 /// A newcomer waiting for the holder of its site id to prove alive (or not).
@@ -174,6 +186,46 @@ pub struct Relay {
     pings: Vec<ConnId>,
     /// Connections the relay dropped, with why: the driver closes their sockets.
     closing: Vec<(ConnId, String)>,
+    /// The ICE servers advertised to each site ([`Relay::set_ice_provider`]).
+    ice: Option<IceProvider>,
+}
+
+/// The ICE servers the relay advertises to `site` at relay time `now_ms` (per site, so TURN
+/// credentials can name it and expire; docs/COLLAB.md §10). An empty list sends nothing.
+#[cfg(not(target_arch = "wasm32"))]
+pub type IceProvider = Box<dyn Fn(SiteId, u64) -> Vec<IceServer> + Send>;
+#[cfg(target_arch = "wasm32")]
+pub type IceProvider = Box<dyn Fn(SiteId, u64) -> Vec<IceServer>>;
+
+/// Largest SDP a site may send in a `Signal` (audio-only SDPs are a few KiB).
+pub const MAX_SDP_BYTES: usize = 32 << 10;
+/// Largest ICE candidate line / `Bye` reason in a `Signal`.
+pub const MAX_CANDIDATE_BYTES: usize = 1 << 10;
+
+/// Checks the size of a site-to-site message's free-form strings.
+fn check_routed(m: &CollabMessage) -> Result<(), Dropped> {
+    let ok = match m {
+        CollabMessage::Signal { signal, .. } => match signal {
+            StreamSignal::Offer { sdp } | StreamSignal::Answer { sdp } => {
+                sdp.len() <= MAX_SDP_BYTES
+            }
+            StreamSignal::Ice { candidate } => {
+                candidate.candidate.len()
+                    + candidate.sdp_mid.as_ref().map_or(0, String::len)
+                    + candidate.username_fragment.as_ref().map_or(0, String::len)
+                    <= MAX_CANDIDATE_BYTES
+            }
+            StreamSignal::Bye { reason } => {
+                reason.as_ref().map_or(0, String::len) <= MAX_CANDIDATE_BYTES
+            }
+        },
+        _ => true,
+    };
+    if ok {
+        Ok(())
+    } else {
+        Err("signal too large".into())
+    }
 }
 
 /// Why a message was dropped (for logs). `disconnect`: close the sender's link.
@@ -204,6 +256,12 @@ impl Relay {
             config,
             ..Self::default()
         }
+    }
+
+    /// Advertise ICE servers (STUN/TURN, docs/COLLAB.md §10) to every site once it is
+    /// synced, and again every [`RelayConfig::ice_refresh_ms`].
+    pub fn set_ice_provider(&mut self, provider: IceProvider) {
+        self.ice = Some(provider);
     }
 
     pub fn session_count(&self) -> usize {
@@ -249,6 +307,7 @@ impl Relay {
                 creator: false,
                 waiting: None,
                 contest: None,
+                ice_sent_ms: None,
             },
         );
         self.conns.insert(conn, session.to_string());
@@ -333,6 +392,12 @@ impl Relay {
                 out,
             );
         }
+        if self.ice.is_some() {
+            let names: Vec<String> = self.sessions.keys().cloned().collect();
+            for name in names {
+                self.advertise_ice(&name, out);
+            }
+        }
     }
 
     /// A sign of life from `conn` (a pong, any frame): contenders for its site id lose.
@@ -393,6 +458,44 @@ impl Relay {
     /// A message from `conn`. Malformed or unauthorized messages are dropped (`Err` says
     /// why, for logs); the connection stays.
     pub fn message(
+        &mut self,
+        conn: ConnId,
+        message: CollabMessage,
+        out: &mut Vec<Outgoing>,
+    ) -> Result<(), Dropped> {
+        let session = self.conns.get(&conn).cloned();
+        let r = self.message_inner(conn, message, out);
+        if let Some(name) = session {
+            self.advertise_ice(&name, out);
+        }
+        r
+    }
+
+    /// Send the ICE servers to the ready peers of `session` that have none yet, or whose
+    /// advertisement is older than [`RelayConfig::ice_refresh_ms`].
+    fn advertise_ice(&mut self, session: &str, out: &mut Vec<Outgoing>) {
+        let Some(ice) = self.ice.as_ref() else { return };
+        let Some(s) = self.sessions.get_mut(session) else {
+            return;
+        };
+        let now = self.now_ms;
+        let refresh = self.config.ice_refresh_ms;
+        for (id, p) in s.peers.iter_mut() {
+            let due = p
+                .ice_sent_ms
+                .is_none_or(|t| now >= t.saturating_add(refresh));
+            let (true, Some(site), true) = (p.ready, p.site, due) else {
+                continue;
+            };
+            p.ice_sent_ms = Some(now);
+            let servers = ice(site, now);
+            if !servers.is_empty() {
+                out.push((*id, Arc::new(CollabMessage::IceServers { servers })));
+            }
+        }
+    }
+
+    fn message_inner(
         &mut self,
         conn: ConnId,
         message: CollabMessage,
@@ -649,6 +752,43 @@ impl Relay {
                 Ok(())
             }
             CollabMessage::Update { .. } => Err("CRDT updates are not used".into()),
+            CollabMessage::Pointer { pointer, .. } => {
+                let site = peer.site.ok_or("pointer before hello")?;
+                if !peer.ready {
+                    return Ok(());
+                }
+                let m = Arc::new(CollabMessage::Pointer { site, pointer });
+                s.broadcast(Some(conn), &m, out);
+                Ok(())
+            }
+            CollabMessage::IceServers { .. } => Err("ICE servers come from the relay".into()),
+            m @ (CollabMessage::Signal { .. }
+            | CollabMessage::Listen { .. }
+            | CollabMessage::Unlisten { .. }
+            | CollabMessage::TransportRequest { .. }
+            | CollabMessage::StreamClock { .. }) => {
+                // Site to site: only between synced members of this session, from the
+                // sender's own site, delivered to the target only (docs/COLLAB.md §9.7).
+                let site = peer.site.ok_or("signal before hello")?;
+                if !peer.ready {
+                    return Err("signal before sync".into());
+                }
+                let (from, target) = m.route().expect("routed variants");
+                if from != site {
+                    return Err("signal from another site".into());
+                }
+                if target == site {
+                    return Err("signal to itself".into());
+                }
+                check_routed(&m)?;
+                let (id, _) = s
+                    .peers
+                    .iter()
+                    .find(|(_, p)| p.ready && p.site == Some(target))
+                    .ok_or("signal target is not in the session")?;
+                out.push((*id, Arc::new(m)));
+                Ok(())
+            }
         }
     }
 

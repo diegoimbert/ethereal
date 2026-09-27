@@ -47,6 +47,7 @@ pub mod preview;
 pub mod recording;
 mod sched;
 mod sidechain;
+pub mod stream_tap;
 pub mod tempo;
 pub mod transport;
 mod warp;

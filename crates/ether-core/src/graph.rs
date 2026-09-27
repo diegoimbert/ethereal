@@ -17,7 +17,7 @@ use crate::config::EngineConfig;
 use crate::delay::DelayLine;
 use crate::event::EventBuffer;
 use crate::mixer::{
-    ChainRt, MAX_ACTIVE_NOTES, MAX_PENDING_EVENTS, MIX_RAMP_MS, MeterAccum, SendRt, Stereo,
+    BusInput, ChainRt, MAX_ACTIVE_NOTES, MAX_PENDING_EVENTS, MIX_RAMP_MS, MeterAccum, SendRt,
     TrackRt, stereo,
 };
 use crate::node::NodeKey;
@@ -259,20 +259,29 @@ pub struct RenderSnapshot {
     pub(crate) rt: SnapshotRt,
 }
 
+/// One level of the processing DAG (`crate::parallel`): `SnapshotRt::level_order[start..end]`,
+/// the first `pinned` of which must run on the audio thread.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct Level {
+    pub start: usize,
+    pub end: usize,
+    pub pinned: usize,
+}
+
 pub(crate) struct SnapshotRt {
     /// Track indices (into `desc.tracks` / `tracks`) in processing order.
     pub order: Vec<usize>,
+    /// Track indices grouped by level (`levels`), pinned tracks first within a level, then
+    /// processing order.
+    pub level_order: Vec<usize>,
+    pub levels: Vec<Level>,
     pub tracks: Vec<TrackRt>,
-    /// Input bus of every track (sum of routed tracks and sends).
-    pub buses: Vec<Stereo>,
     /// Sorted lookups (binary search on the audio thread).
     pub track_index: Vec<(TrackId, usize)>,
     pub send_index: Vec<(SendId, usize, usize)>,
     pub node_index: Vec<(NodeKey, usize, usize)>,
     /// Total latency from the timeline to the hardware output (samples).
     pub latency: u32,
-    /// Sidechain buffers (`crate::sidechain`).
-    pub sidechain: crate::sidechain::Taps,
     /// Drum-rack pad-chain nodes and their track index, sorted (live params, automation
     /// and latency refresh reach them through `TrackRt::racks`).
     pub pad_index: Vec<(NodeKey, usize)>,
@@ -503,6 +512,70 @@ pub fn compile_with(
         return Err(CompileError::Cycle(desc.tracks[stuck].id));
     }
 
+    // --- levels (`crate::parallel`) ---
+    // Level = 1 + max level of every source (outputs, sends, sidechains): tracks of one
+    // level never depend on each other. Tracks with Complex-warped clips are pinned to the
+    // audio thread (the stretchers live in the engine-wide `WarpRt`).
+    let mut level = vec![0usize; n];
+    for &i in &order {
+        for &d in &order_succ[i] {
+            level[d] = level[d].max(level[i] + 1);
+        }
+    }
+    let pinned: Vec<bool> = desc
+        .tracks
+        .iter()
+        .map(|t| {
+            t.clips.iter().any(|c| {
+                matches!(
+                    &c.content,
+                    ClipContentDesc::Audio {
+                        warp: Some(WarpDesc {
+                            mode: WarpMode::Complex,
+                            ..
+                        }),
+                        ..
+                    }
+                )
+            })
+        })
+        .collect();
+    let mut pos = vec![0usize; n];
+    for (p, &i) in order.iter().enumerate() {
+        pos[i] = p;
+    }
+    let mut level_order = order.clone();
+    level_order.sort_by_key(|&i| (level[i], !pinned[i], pos[i]));
+    let mut levels: Vec<Level> = Vec::new();
+    for (k, &i) in level_order.iter().enumerate() {
+        match levels.last_mut() {
+            Some(l) if level[level_order[l.start]] == level[i] => {
+                l.end = k + 1;
+                l.pinned += pinned[i] as usize;
+            }
+            _ => levels.push(Level {
+                start: k,
+                end: k + 1,
+                pinned: pinned[i] as usize,
+            }),
+        }
+    }
+
+    // --- bus inputs, in the sequential summation order (`crate::parallel`) ---
+    let mut bus_inputs: Vec<Vec<BusInput>> = vec![Vec::new(); n];
+    for &c in &order {
+        for pass_pre in [true, false] {
+            for (k, s) in desc.tracks[c].sends.iter().enumerate() {
+                if s.pre_fader == pass_pre {
+                    bus_inputs[find(s.to)?].push(BusInput::Send(c, k));
+                }
+            }
+        }
+        if let Some(o) = outputs[c] {
+            bus_inputs[o].push(BusInput::Output(c));
+        }
+    }
+
     // --- nodes ---
     let mut node_index = Vec::new();
     let mut pad_index = Vec::new();
@@ -523,6 +596,9 @@ pub fn compile_with(
             .flat_map(|p| &p.chain)
             .map(|e| e.node)
         {
+            // Unknown pad nodes stay allowed (silent: `pad_latency` counts 0). A stale key
+            // there may share its slot with a live node of another track; the jobs'
+            // `engine::NodeTable::get` only reads the slot's generation for it.
             pad_index.push((pad_node, i));
         }
         chain_info.push(infos);
@@ -530,6 +606,8 @@ pub fn compile_with(
     node_index.sort();
     pad_index.sort();
     {
+        // A key is used once (parallel jobs get `&mut` to their live nodes through
+        // `engine::NodeTable`; a slot has one live generation, so live keys never collide).
         let mut all: Vec<NodeKey> = node_index
             .iter()
             .map(|e| e.0)
@@ -618,10 +696,30 @@ pub fn compile_with(
         }
     }
 
+    // --- sidechains: each consumer gets its own taps (jobs never share them) ---
+    for p in sc_plans.iter().flatten() {
+        check(p.main_delay)?;
+        check(p.sc_delay)?;
+    }
+    let mut tapped = vec![false; n];
+    for p in sc_plans.iter().flatten() {
+        tapped[p.source] = true;
+    }
+
     // --- runtime state ---
     let mut tracks = Vec::with_capacity(n);
     let mut send_index = Vec::new();
     for (i, t) in desc.tracks.iter().enumerate() {
+        let (sidechain, sc_sources) = if sc_plans[i].is_empty() {
+            (crate::sidechain::Taps::default(), Vec::new())
+        } else {
+            let mut own = vec![Vec::new(); n];
+            own[i] = sc_plans[i].clone();
+            let mut sources: Vec<usize> = sc_plans[i].iter().map(|p| p.source).collect();
+            sources.sort_unstable();
+            sources.dedup();
+            (crate::sidechain::Taps::compile(&own, config), sources)
+        };
         let chain = t
             .chain
             .iter()
@@ -652,6 +750,7 @@ pub fn compile_with(
                 pre_fader: s.pre_fader,
                 level: Smoother::new(s.level.max(0.0), MIX_RAMP_MS, sr),
                 delay: DelayLine::new(check(in_lat[target] - out_lat[i])?),
+                buf: stereo(frames),
             });
         }
         let output_delay = match outputs[i] {
@@ -660,7 +759,6 @@ pub fn compile_with(
         };
         tracks.push(TrackRt {
             id: t.id,
-            output: outputs[i],
             parent: parents[i],
             to_hardware: t.output.is_none() && t.kind == TrackKind::Master,
             chain,
@@ -676,7 +774,6 @@ pub fn compile_with(
             monitor: t.monitor,
             a: stereo(frames),
             b: stereo(frames),
-            scratch: stereo(frames),
             out_events: EventBuffer::with_capacity(config.max_events_per_block),
             notes: Vec::with_capacity(MAX_ACTIVE_NOTES),
             auto_last: vec![f64::NAN; t.automation.len()],
@@ -694,6 +791,19 @@ pub fn compile_with(
             meter: MeterAccum::default(),
             out_latency: out_lat[i],
             racks: crate::drum_rack::RacksRt::compile(&t.racks, node_info, config),
+            inputs: std::mem::take(&mut bus_inputs[i]),
+            sidechain,
+            sc_sources,
+            tap: tapped[i].then(|| stereo(frames)),
+            next_note_id: 0,
+            src_scratch: if t.kind == TrackKind::Audio {
+                vec![0.0; frames * 8 + 64]
+            } else {
+                Vec::new()
+            },
+            pinned: pinned[i],
+            overflow: false,
+            underruns: 0,
         });
     }
     send_index.sort();
@@ -705,17 +815,12 @@ pub fn compile_with(
         .max()
         .unwrap_or(0);
 
-    for p in sc_plans.iter().flatten() {
-        check(p.main_delay)?;
-        check(p.sc_delay)?;
-    }
-    let sidechain = crate::sidechain::Taps::compile(&sc_plans, config);
     let mut rt = SnapshotRt {
-        sidechain,
         pad_index,
         order,
+        level_order,
+        levels,
         tracks,
-        buses: (0..n).map(|_| stereo(frames)).collect(),
         track_index,
         send_index,
         node_index,
@@ -730,4 +835,137 @@ pub fn compile_with(
 
     let tempo = TempoMapRt::compile(&desc.tempo, &desc.signatures);
     Ok(RenderSnapshot { desc, tempo, rt })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ether_protocol::model::Ulid;
+
+    fn t(id: u128, kind: TrackKind, output: Option<u128>) -> TrackDesc {
+        TrackDesc {
+            id: TrackId(Ulid(id)),
+            kind,
+            chain: vec![],
+            output: output.map(|o| TrackId(Ulid(o))),
+            group: None,
+            sends: vec![],
+            volume: 1.0,
+            pan: 0.0,
+            mute: false,
+            solo: false,
+            audio_input: None,
+            monitor: false,
+            armed: false,
+            clips: vec![],
+            automation: vec![],
+            racks: vec![],
+        }
+    }
+
+    fn key(i: u32) -> NodeKey {
+        NodeKey {
+            index: i,
+            generation: 1,
+        }
+    }
+
+    /// Levels follow outputs, sends and sidechains; each level lists pinned tracks first;
+    /// bus inputs keep the sequential summation order.
+    #[test]
+    fn levels_partition_the_dag() {
+        let mut t1 = t(10, TrackKind::Midi, Some(2));
+        t1.sends.push(SendDesc {
+            id: SendId(Ulid(1)),
+            to: TrackId(Ulid(3)),
+            level: 1.0,
+            pre_fader: false,
+        });
+        let mut t2 = t(11, TrackKind::Audio, Some(1));
+        t2.chain.push(ChainEntry {
+            node: key(0),
+            enabled: true,
+            sidechain: Some(TrackId(Ulid(10))),
+        });
+        t2.clips.push(ClipDesc {
+            id: ClipId(Ulid(1)),
+            start: 0.0,
+            length: 1.0,
+            offset: 0.0,
+            looping: None,
+            muted: false,
+            content: ClipContentDesc::Audio {
+                media: MediaId(Ulid(1)),
+                gain: 1.0,
+                transpose: 0.0,
+                fade_in: 0.0,
+                fade_out: 0.0,
+                warp: Some(WarpDesc {
+                    mode: WarpMode::Complex,
+                    markers: vec![(0.0, 0.0), (1.0, 1.0)],
+                }),
+                fade_in_curve: FadeCurve::default(),
+                fade_out_curve: FadeCurve::default(),
+                reversed: false,
+            },
+            envelopes: vec![],
+        });
+        let t3 = t(12, TrackKind::Midi, Some(2));
+        let desc = RenderGraphDesc {
+            tracks: vec![
+                t(1, TrackKind::Master, None),
+                t(2, TrackKind::Group, Some(1)),
+                t(3, TrackKind::Return, Some(1)),
+                t1,
+                t2,
+                t3,
+            ],
+            ..Default::default()
+        };
+        let snap = compile(desc, &EngineConfig::default()).unwrap();
+        let rt = &snap.rt;
+        let level_of = |ti: usize| {
+            rt.levels
+                .iter()
+                .position(|l| rt.level_order[l.start..l.end].contains(&ti))
+                .unwrap()
+        };
+        // t1, t3 | group, return, t2 (sidechained by t1, pinned) | master
+        assert_eq!(rt.levels.len(), 3);
+        assert_eq!(level_of(3), 0);
+        assert_eq!(level_of(5), 0);
+        assert_eq!(level_of(4), 1);
+        assert_eq!(level_of(1), 1);
+        assert_eq!(level_of(2), 1);
+        assert_eq!(level_of(0), 2);
+        assert_eq!(rt.levels[1].pinned, 1);
+        assert_eq!(rt.level_order[rt.levels[1].start], 4);
+        for (ti, track) in rt.tracks.iter().enumerate() {
+            for input in &track.inputs {
+                let (BusInput::Output(c) | BusInput::Send(c, _)) = *input;
+                assert!(level_of(c) < level_of(ti));
+            }
+            for &s in &track.sc_sources {
+                assert!(level_of(s) < level_of(ti));
+            }
+        }
+        assert_eq!(rt.tracks[4].sc_sources, vec![3]);
+        assert!(rt.tracks[3].tap.is_some() && rt.tracks[5].tap.is_none());
+        // Group inputs in processing order (t1 before t3); the return gets t1's send.
+        assert_eq!(
+            rt.tracks[1].inputs,
+            vec![BusInput::Output(3), BusInput::Output(5)]
+        );
+        assert_eq!(rt.tracks[2].inputs, vec![BusInput::Send(3, 0)]);
+        // Master: in processing order (t1, return, t2, t3, group, master).
+        assert_eq!(rt.order, vec![3, 2, 4, 5, 1, 0]);
+        assert_eq!(
+            rt.tracks[0].inputs,
+            vec![
+                BusInput::Output(2),
+                BusInput::Output(4),
+                BusInput::Output(1)
+            ]
+        );
+    }
 }

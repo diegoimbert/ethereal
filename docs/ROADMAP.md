@@ -269,3 +269,117 @@ arrangement `TrackRow.tsx`/`clipDraw.ts` (additive overlay) and `MockTransport.t
 - Controller: poll in the tick while recording, emit `Progress`.
 - UI: a live clip per armed track growing to the playhead (waveform / notes), replaced by
   the committed clip on `Stopped`; punch/count-in show only the kept range; loop takes.
+
+## Collab v2: presence and listen-on-peer (base-53)
+
+Design and frozen contract: [COLLAB.md §8-§11](COLLAB.md), CONTRACTS.md §11.16. base-53
+landed the protocol types, the relay routing/limits/ICE advertisement (implemented and
+tested), the engine stream tap, the defaulted `EngineBridge` hooks, and one controller module
+per node, already dispatched from `collab/mod.rs`. Until a node lands, its commands reply
+`Unsupported` (pinned in `ether-controller/tests/collab_prewire.rs`; each node removes ONLY
+its own assertions there). The three first nodes run in parallel; `plugin-mirror` comes
+later. Shared touches are additive; in `collab/mod.rs` they are limited to dispatch lines.
+The repo owner's UX passes on dev are authoritative (reuse their patterns, kit components,
+tokens).
+
+### `presence-v2`
+
+Owns: `crates/ether-controller/src/collab/presence.rs`,
+`crates/ether-controller/tests/collab_presence*.rs`, `ui/src/features/collab/presence/**`
+(new), `apps/web/e2e/collab-presence.spec.ts`.
+
+- Controller: `SetPointer` throttled to 30 Hz (latest wins, flushed on the next tick,
+  clears never throttled) → `CollabMessage::Pointer`; peers' pointers →
+  `CollabEvent::Pointer` (own dropped), a clear on a peer's `Leave`. Viewport, activity and
+  following already travel in `PresenceState` (nothing to do in the controller).
+- UI: pointer publishing from the arranger (song coordinates, rAF-coalesced, clear on leave /
+  blur / unmount), the pointer overlay (interpolated, name label, peer colour), activity
+  hints (`activity` set/cleared around arrangement gestures), follow mode (chip click,
+  viewport publishing and applying, stop on local scroll/zoom/Escape), the listening badge
+  from `listening_to`.
+- Shared touches: `ui/src/features/collab/{store.ts, PresenceBar.tsx, PresenceBar.test.tsx,
+  index.tsx, collab.css}` (handle `Pointer` in the store, chip menu entries),
+  `ui/src/features/arrangement/{ArrangementView.tsx, arrangement.css, clipDrag.ts,
+  trackDrag.ts}` (mount the overlay, publish pointer/viewport, set activity),
+  `ui/src/transport/mock/roadmap/collab.*` (simulate peer pointers),
+  `crates/ether-controller/src/collab/mod.rs` (dispatch lines only),
+  `crates/ether-controller/tests/collab_prewire.rs` (own assertions only).
+
+### `stream-host`
+
+Owns: `crates/ether-native/src/stream/**` (new: tap reader, resampler, Opus encoder,
+str0m sender thread), `crates/ether-collab/src/relay/ice/**` (new: STUN responder, TURN
+server behind the `turn` feature, TURN-REST credentials), `crates/ether-controller/src/
+collab/stream_host.rs`, `ui/src/features/collab/host/**` (new: the web sender),
+tests `crates/ether-native/tests/stream*.rs`, `crates/ether-collab/tests/ice*.rs`,
+`crates/ether-controller/tests/collab_host*.rs`, `apps/web/e2e/collab-host.spec.ts`.
+
+- Native: `EngineBridge::{stream_capabilities, start/stop_stream_capture, stream_open,
+  stream_signal, stream_close, poll_stream}` in `ether-native` (install the tap with
+  `EngineHandle::set_stream_tap`, sender thread: ring → 48 kHz → Opus 20 ms → one str0m
+  `Rtc` per listener on one UDP socket, srflx via one STUN Binding, anchors from the tap
+  headers, bitrate from str0m's estimate).
+- Controller: hosting policy, accept/refuse `Listen` (≤ 8), endpoint choice (Engine/Ui),
+  signal routing, `poll_stream` drain, `TransportRequest` application (§9.5), `can_host`,
+  host part of `ListenStatus`, cleanup on Unlisten/Bye/Leave.
+- Relay: STUN on the relay's UDP port, optional TURN (`turn` feature), per-site credentials
+  through `Relay::set_ice_provider`, flags `--no-stun`, `--turn`, `--public-host`,
+  `--public-ip`, `--turn-ports`, `--turn-allow-private`.
+- Web sender: second worklet output (the tap: master + metronome, minus preview) →
+  `MediaStreamAudioDestinationNode` → one `RTCPeerConnection` per `ListenerLink { endpoint:
+  Ui }`, Opus SDP parameters, RTP↔position anchors through a read-only sender encoded
+  transform (`SendStreamClock`), `SetHosting { ui_sender: true }` when supported.
+- Shared touches: `crates/ether-native/src/bridge.rs` (delegations), `ether-native/src/lib.rs`
+  (`mod stream;`), `ether-collab/src/relay/mod.rs` (`mod ice;`),
+  `crates/ether-native/Cargo.toml`, `crates/ether-collab/Cargo.toml`, root `Cargo.toml`
+  (workspace deps `str0m`, `opus`, `stun`, `turn`), `crates/ether-collab/src/relay/
+  server.rs` + `src/bin/relay.rs` (bind UDP, install the ICE provider),
+  `crates/ether-wasm/src/worklet.rs` (copy the tap into worklet output 1; web-perf's file,
+  that change only), `apps/web/src/engine/{endpoint.ts, engine.worklet.ts}` (second
+  output), `ui/src/transport/wasm/WasmTransport.ts` (expose the stream `MediaStream`),
+  `ui/src/features/collab/{store.ts, PresenceBar.tsx, index.tsx}` (hosting toggle, listener
+  list), `ui/src/transport/mock/roadmap/collab.*`, `crates/ether-controller/src/collab/
+  mod.rs` (dispatch lines only), `crates/ether-controller/tests/collab_prewire.rs` (own
+  assertions only), `THIRD_PARTY_NOTICES.txt`.
+
+### `stream-listen`
+
+Owns: `crates/ether-controller/src/collab/listen.rs`,
+`crates/ether-controller/tests/collab_listen*.rs`, `ui/src/features/collab/listen/**` (new:
+the receiver, the stream clock mapping and its tests, the listen UX),
+`apps/web/e2e/collab-listen.spec.ts`.
+
+- Controller: `Listen`/`StopListening`, holding the local transport stopped, the transport
+  intercept (`collab_transport_intercept`, called first in `handlers.rs::transport_command`:
+  forward Play/Stop/TogglePlay/Locate/loop, refuse recording), `Event::Transport` from the
+  host's anchors, signal/clock relay to the UI, `ListenStatus` (listener part +
+  `collab_host_listeners()`), end cases (§9.2), `listening_to`, restore the local transport
+  at the last heard position.
+- UI: "Listen on <name>'s computer" in the peer chip menu / collab dialog, **disabled with a
+  reason** when `RTCPeerConnection` is missing (WebKitGTK); the receiver
+  (`RTCPeerConnection`, ICE servers from `CollabEvent::IceServers`, `<audio>`/AudioContext
+  started in the click gesture), the playhead mapping of §9.4 at rAF, status and errors.
+- Shared touches: `ui/src/state/playhead.ts` (an override source while listening),
+  `ui/src/transport/TransportProvider.tsx` (suspend the local playhead feed while
+  listening), `ui/src/features/collab/{store.ts, PresenceBar.tsx, PresenceBar.test.tsx,
+  index.tsx, collab.css}`, `ui/src/transport/mock/roadmap/collab.*`,
+  `crates/ether-controller/src/collab/mod.rs` (dispatch lines only),
+  `crates/ether-controller/tests/collab_prewire.rs` (own assertions only).
+- Integration with `stream-host`: the e2e (two browser contexts, web host) needs both; until
+  then test against a scripted host (controller tests with the in-memory hub and a fake
+  bridge; UI tests with a fake `RTCPeerConnection`).
+
+### `plugin-mirror` (later)
+
+Owns: `crates/ether-controller/src/collab/mirror.rs` (new; one `mod` line in
+`collab/mod.rs`), `crates/ether-native/src/plugin_mirror.rs` (new; one `mod` line in
+`ether-native/src/lib.rs`),
+`crates/ether-controller/tests/collab_mirror*.rs`.
+
+- `EngineBridge::{create_plugin_mirror, destroy_plugin_mirror, set_plugin_mirror_param}` in
+  `ether-native` (GUI-only instance, never in a graph; edits come back as `ParamEdited`),
+  `OpenEditor` falls back to the mirror, the controller pushes document param changes into
+  mirrors and (setting) swaps live instances for mirrors while listening.
+- Shared touches: `crates/ether-native/src/bridge.rs`, `crates/ether-native/src/plugins.rs`
+  (editor routing), `crates/ether-native/src/host.rs` (`OpenEditor`),
+  `crates/ether-controller/src/collab/mod.rs` (one mod line + dispatch).
