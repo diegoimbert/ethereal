@@ -182,3 +182,24 @@ paths = [
   # granted by manager (base-10)
   "crates/ether-core/tests/recording_*.rs",
 ]
+
+# --- Roadmap (manager, base-13) --------------------------------------------------------
+
+[nodes.design-system]
+paths = [
+  "ui/src/kit/**",
+  "ui/src/theme/**",
+  "ui/src/app/App.css",
+  "ui/src/features/kit-gallery/**",
+  "docs/DESIGN-SYSTEM.md",
+  "ui/src/main.tsx",
+]
+
+[nodes.ci-release]
+paths = [
+  ".github/workflows/release.yml",
+  "scripts/release/**",
+  "VERSION",
+  "THIRD_PARTY_NOTICES*",
+  "docs/RELEASING.md",
+]
