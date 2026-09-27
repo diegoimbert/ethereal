@@ -102,8 +102,11 @@ export function PluginList() {
         </div>
       )}
       {!scan && failed.length > 0 && (
-        <div className="eth-plugins__status" title={failed.map((f) => `${f.path}: ${f.message}`).join("\n")}>
-          {failed.length} plugin{failed.length === 1 ? "" : "s"} failed to load
+        <div className="eth-plugins__status" title={failed.map((f) => (f.path ? `${f.path}: ${f.message}` : f.message)).join("\n")}>
+          {/* A failure without a path is the scan itself failing (e.g. no scanner binary). */}
+          {failed.some((f) => !f.path)
+            ? `Plugin scan failed: ${failed.find((f) => !f.path)!.message}`
+            : `${failed.length} plugin${failed.length === 1 ? "" : "s"} failed to load`}
         </div>
       )}
       <div className="eth-plugins__target">{track ? `Insert on: ${track.name}` : "No track selected"}</div>

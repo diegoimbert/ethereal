@@ -60,6 +60,20 @@ textarea,
   user-select: text;
 }
 
+/* Desktop feel: the arrow cursor everywhere (no I-beam over labels and text). Elements
+   that want another cursor (grab, resize, ...) set it; text fields show the text cursor. */
+html,
+body {
+  cursor: default;
+}
+
+:where(input:not([type="button"], [type="checkbox"], [type="radio"], [type="range"], [type="color"])),
+:where(textarea),
+:where([contenteditable]:not([contenteditable="false"])) {
+  /* Zero specificity: components' own cursors (e.g. drag-to-change fields) win. */
+  cursor: text;
+}
+
 button,
 input,
 select,

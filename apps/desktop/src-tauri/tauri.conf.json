@@ -37,23 +37,27 @@
     ],
     "macOS": {
       "files": {
-        "MacOS/ether-sandbox-helper": "binaries/ether-sandbox-helper"
+        "MacOS/ether-sandbox-helper": "binaries/ether-sandbox-helper",
+        "MacOS/ether-plugin-scanner": "binaries/ether-plugin-scanner"
       }
     },
     "linux": {
       "deb": {
         "files": {
-          "/usr/bin/ether-sandbox-helper": "binaries/ether-sandbox-helper"
+          "/usr/bin/ether-sandbox-helper": "binaries/ether-sandbox-helper",
+          "/usr/bin/ether-plugin-scanner": "binaries/ether-plugin-scanner"
         }
       },
       "rpm": {
         "files": {
-          "/usr/bin/ether-sandbox-helper": "binaries/ether-sandbox-helper"
+          "/usr/bin/ether-sandbox-helper": "binaries/ether-sandbox-helper",
+          "/usr/bin/ether-plugin-scanner": "binaries/ether-plugin-scanner"
         }
       },
       "appimage": {
         "files": {
-          "/usr/bin/ether-sandbox-helper": "binaries/ether-sandbox-helper"
+          "/usr/bin/ether-sandbox-helper": "binaries/ether-sandbox-helper",
+          "/usr/bin/ether-plugin-scanner": "binaries/ether-plugin-scanner"
         }
       }
     }

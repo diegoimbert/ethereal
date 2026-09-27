@@ -6,14 +6,14 @@
 // and `resolveDroppedMedia` / `waitForMediaLength`.
 import "./browser.css";
 import clsx from "clsx";
-import { useEffect, useState, type DragEvent, type KeyboardEvent, type ReactNode } from "react";
-import { AudioLines, CornerLeftUp, File, Folder, FolderOpen, Music, Pause, Play, Plus, Search, X } from "lucide-react";
+import { useEffect, useRef, useState, type DragEvent, type KeyboardEvent, type ReactNode } from "react";
+import { AudioLines, CornerLeftUp, File, Folder, FolderOpen, Music, Search, Volume2, X } from "lucide-react";
 import type { BrowseLocation, BrowseRoot, DirectoryEntry, MediaSource } from "@/generated";
 import { useUploadDrop } from "@/features/remote";
 import { useEngineCommands, useEngineEvent } from "@/features/transport-bar/engine";
 import { Button, TextInput } from "@/kit";
 import { useProjectStore } from "@/state";
-import { cmd, newId } from "@/transport";
+import { cmd } from "@/transport";
 import { writeBrowserDrag, type BrowserDragPayload } from "./dragPayload";
 import { formatSize, locationKey, parentPath, pathSegments, sameLocation, sourceOf } from "./paths";
 import { useBrowserPreview } from "./preview";
@@ -47,6 +47,9 @@ interface Found {
   done: boolean;
 }
 
+/** Keyboard-navigable rows of a list. */
+const ROW_SELECTOR = ".eth-browser__row[data-row]";
+
 const KIND_ICON: Record<DirectoryEntry["kind"], ReactNode> = {
   Directory: <Folder />,
   Audio: <AudioLines />,
@@ -56,9 +59,9 @@ const KIND_ICON: Record<DirectoryEntry["kind"], ReactNode> = {
 
 /**
  * Sample browser over the engine-visible locations (`Media::ListLocations`: library folders
- * and the current project's media). Folders navigate; audio files can be previewed,
- * imported into the project (double-click, Enter or "+") and dragged onto drop targets
- * (payload: `./dragPayload.ts`). The UI never accesses files itself.
+ * and the current project's media). Folders navigate; clicking an audio file previews it
+ * (click again to stop) and dragging it onto a drop target imports it there (payload:
+ * `./dragPayload.ts`). The UI never accesses files itself.
  */
 export function Browser({ scope = "all" }: { scope?: BrowserScope } = {}) {
   const { transport, send, error, clearError } = useEngineCommands();
@@ -67,8 +70,7 @@ export function Browser({ scope = "all" }: { scope?: BrowserScope } = {}) {
   const [locations, setLocations] = useState<BrowseRoot[] | null>(null);
   const [place, setPlace] = useState<Place | null>(null);
   const [listing, setListing] = useState<Listing | null>(null);
-  const { previewing, toggle: togglePreview } = useBrowserPreview(send);
-  const [message, setMessage] = useState<string | null>(null);
+  const { previewing, toggle: togglePreview, play: playPreview } = useBrowserPreview(send);
   const [query, setQuery] = useState("");
   const [found, setFound] = useState<Found | null>(null);
 
@@ -152,20 +154,53 @@ export function Browser({ scope = "all" }: { scope?: BrowserScope } = {}) {
   const navigate = (path: string) => {
     if (!current) return;
     setPlace({ location: current.location, path });
-    setMessage(null);
     setQuery("");
   };
 
-  const importEntry = async (entry: DirectoryEntry, source: MediaSource) => {
-    if (source.type === "Project") {
-      setMessage(`${entry.name} is already in the project`);
+  const entries = listing && listing.key === currentKey ? listing.entries : null;
+
+  // Keyboard folder navigation focuses the new folder's first row once it is listed.
+  const focusFirstRow = useRef(false);
+  const filesList = useRef<HTMLUListElement>(null);
+  useEffect(() => {
+    if (!focusFirstRow.current || !entries) return;
+    focusFirstRow.current = false;
+    filesList.current?.querySelector<HTMLElement>(ROW_SELECTOR)?.focus();
+  }, [entries]);
+
+  /**
+   * Arrow keys walk the rows of a list (moving onto an audio file previews it), Home/End jump
+   * to the ends; → opens a folder, ← / Backspace go up one.
+   */
+  const onListKeyDown = (e: KeyboardEvent<HTMLUListElement>, shown: DirectoryEntry[] | null | undefined) => {
+    const row = (e.target as HTMLElement).closest<HTMLElement>(ROW_SELECTOR);
+    if (!row || !current) return;
+    const entry = shown?.find((x) => x.path === row.dataset.path);
+    if ((e.key === "ArrowLeft" || e.key === "Backspace") && current.path !== "") {
+      e.preventDefault();
+      focusFirstRow.current = true;
+      navigate(parentPath(current.path));
       return;
     }
-    const reply = await send(cmd("Media", { type: "Import", id: newId(), source }));
-    if (reply?.type === "Media") setMessage(`Imported ${reply.media.name}`);
+    if (e.key === "ArrowRight" && entry?.kind === "Directory") {
+      e.preventDefault();
+      focusFirstRow.current = true;
+      navigate(entry.path);
+      return;
+    }
+    const rows = Array.from(e.currentTarget.querySelectorAll<HTMLElement>(ROW_SELECTOR));
+    const i = rows.indexOf(row);
+    const to =
+      e.key === "ArrowDown" ? i + 1 : e.key === "ArrowUp" ? i - 1 : e.key === "Home" ? 0 : e.key === "End" ? rows.length - 1 : null;
+    if (to === null) return;
+    e.preventDefault();
+    const next = rows[Math.max(0, Math.min(rows.length - 1, to))];
+    if (!next || next === row) return;
+    next.focus();
+    next.scrollIntoView?.({ block: "nearest" });
+    const target = shown?.find((x) => x.path === next.dataset.path);
+    if (target?.kind === "Audio") void playPreview(target, sourceOf(current.location, target, media));
   };
-
-  const entries = listing && listing.key === currentKey ? listing.entries : null;
   const currentRoot = current ? locations?.find((l) => sameLocation(l.location, current.location)) : undefined;
 
   return (
@@ -211,8 +246,7 @@ export function Browser({ scope = "all" }: { scope?: BrowserScope } = {}) {
               active={selected}
               onClick={() => {
                 setPlace({ location: root.location, path: "" });
-                setMessage(null);
-              }}
+                          }}
             >
               {root.name}
             </Button>
@@ -238,7 +272,12 @@ export function Browser({ scope = "all" }: { scope?: BrowserScope } = {}) {
       )}
 
       {q ? (
-        <ul className="eth-browser__list" aria-label="Search results" aria-busy={!results?.done}>
+        <ul
+          className="eth-browser__list"
+          aria-label="Search results"
+          aria-busy={!results?.done}
+          onKeyDown={(e) => onListKeyDown(e, results?.entries)}
+        >
           {results?.done && results.entries.length === 0 && (
             <li className="eth-browser__empty">
               <Search aria-hidden />
@@ -255,19 +294,25 @@ export function Browser({ scope = "all" }: { scope?: BrowserScope } = {}) {
                 source={sourceOf(current.location, entry, media)}
                 previewing={previewing === entry.path}
                 onOpen={() => navigate(entry.path)}
-                onImport={importEntry}
                 onPreview={togglePreview}
               />
             ))}
         </ul>
       ) : (
-      <ul className="eth-browser__list" aria-label="Files" aria-busy={current !== null && entries === null}>
+      <ul
+        ref={filesList}
+        className="eth-browser__list"
+        aria-label="Files"
+        aria-busy={current !== null && entries === null}
+        onKeyDown={(e) => onListKeyDown(e, entries)}
+      >
         {current && current.path !== "" && (
           <li>
             <div
               className="eth-browser__row eth-browser__row--dir"
               role="button"
               tabIndex={0}
+              data-row
               aria-label="Parent folder"
               onClick={() => navigate(parentPath(current.path))}
               onKeyDown={(e) => e.key === "Enter" && navigate(parentPath(current.path))}
@@ -294,23 +339,16 @@ export function Browser({ scope = "all" }: { scope?: BrowserScope } = {}) {
               source={sourceOf(current.location, entry, media)}
               previewing={previewing === entry.path}
               onOpen={() => navigate(entry.path)}
-              onImport={importEntry}
               onPreview={togglePreview}
             />
           ))}
       </ul>
       )}
 
-      {error ? (
+      {error && (
         <button type="button" className="eth-browser__error" role="alert" title="Dismiss" onClick={clearError}>
           {error}
         </button>
-      ) : (
-        message && (
-          <div className="eth-browser__status" role="status">
-            {message}
-          </div>
-        )
       )}
     </div>
   );
@@ -323,18 +361,16 @@ interface EntryRowProps {
   source: MediaSource;
   previewing: boolean;
   onOpen(): void;
-  onImport(entry: DirectoryEntry, source: MediaSource): void;
   onPreview(entry: DirectoryEntry, source: MediaSource): void;
 }
 
-function EntryRow({ entry, detail, source, previewing, onOpen, onImport, onPreview }: EntryRowProps) {
+function EntryRow({ entry, detail, source, previewing, onOpen, onPreview }: EntryRowProps) {
   const isDir = entry.kind === "Directory";
   const isAudio = entry.kind === "Audio";
-  const inProject = source.type === "Project";
 
   const activate = () => {
     if (isDir) onOpen();
-    else if (isAudio) onImport(entry, source);
+    else if (isAudio) onPreview(entry, source);
   };
 
   const onDragStart = (e: DragEvent<HTMLDivElement>) => {
@@ -345,55 +381,34 @@ function EntryRow({ entry, detail, source, previewing, onOpen, onImport, onPrevi
   return (
     <li>
       <div
-        className={clsx("eth-browser__row", `eth-browser__row--${entry.kind.toLowerCase()}`)}
+        className={clsx("eth-browser__row", `eth-browser__row--${entry.kind.toLowerCase()}`, previewing && "eth-browser__row--previewing")}
         role={isDir || isAudio ? "button" : undefined}
         tabIndex={isDir || isAudio ? 0 : undefined}
         aria-label={entry.name}
-        title={isAudio ? `${entry.name}: drag to a track, double-click to import` : entry.name}
+        aria-pressed={isAudio ? previewing : undefined}
+        data-row={isDir || isAudio ? "" : undefined}
+        data-path={entry.path}
+        title={isAudio ? `${entry.name}: click to preview, drag to a track` : entry.name}
         draggable={isAudio}
         onDragStart={isAudio ? onDragStart : undefined}
-        onClick={isDir ? onOpen : undefined}
-        onDoubleClick={isAudio ? activate : undefined}
+        onClick={
+          isDir || isAudio
+            ? (e) => {
+                e.currentTarget.focus();
+                activate();
+              }
+            : undefined
+        }
         onKeyDown={(e: KeyboardEvent) => {
           if (e.key === "Enter" && e.target === e.currentTarget) activate();
         }}
       >
         <span className="eth-browser__icon" aria-hidden>
-          {KIND_ICON[entry.kind]}
+          {previewing ? <Volume2 /> : KIND_ICON[entry.kind]}
         </span>
         <span className="eth-browser__name">{entry.name}</span>
         {detail !== undefined && detail !== "" && <span className="eth-browser__detail">{detail}</span>}
-        {isAudio && (
-          <span className="eth-browser__actions">
-            <span className="eth-browser__size">{formatSize(entry.size)}</span>
-            <Button
-              size="sm"
-              variant="ghost"
-              aria-label={previewing ? `Stop preview of ${entry.name}` : `Preview ${entry.name}`}
-              active={previewing}
-              onClick={(e) => {
-                e.stopPropagation();
-                onPreview(entry, source);
-              }}
-            >
-              {previewing ? <Pause aria-hidden /> : <Play aria-hidden />}
-            </Button>
-            {!inProject && (
-              <Button
-                size="sm"
-                variant="ghost"
-                aria-label={`Import ${entry.name}`}
-                title="Import into project"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onImport(entry, source);
-                }}
-              >
-                <Plus aria-hidden />
-              </Button>
-            )}
-          </span>
-        )}
+        {isAudio && <span className="eth-browser__size">{formatSize(entry.size)}</span>}
       </div>
     </li>
   );

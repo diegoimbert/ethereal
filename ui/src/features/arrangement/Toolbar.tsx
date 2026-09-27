@@ -1,9 +1,7 @@
-import { LocateFixed, ZoomIn, ZoomOut } from "lucide-react";
+import { LocateFixed } from "lucide-react";
 import type { GridSetting } from "@/timeline";
-import { animateZoom, useTimelineView } from "@/timeline";
+import { useTimelineView } from "@/timeline";
 import { Button, Select } from "@/kit";
-import { useArrangement } from "./context";
-import { runClipAction } from "./actions";
 import { NewTrackButton } from "./newTrack";
 import { GRID_OPTIONS } from "./helpers";
 import { arrangementView, useArrangementUi } from "./uiStore";
@@ -13,10 +11,8 @@ function gridId(grid: GridSetting): string {
 }
 
 export function Toolbar() {
-  const { transport } = useArrangement();
   const grid = useArrangementUi((s) => s.grid);
   const follow = useTimelineView(arrangementView, (s) => s.followPlayhead);
-  const run = (a: Parameters<typeof runClipAction>[1]) => () => void runClipAction(transport, a);
 
   return (
     <div className="eth-arr-toolbar" role="toolbar" aria-label="Arrangement tools">
@@ -43,26 +39,6 @@ export function Toolbar() {
       >
         <LocateFixed />
         Follow
-      </Button>
-      <span className="eth-arr-toolbar__sep" />
-      <Button size="sm" onClick={run("split")} title="Split selected clips at the playhead (Ctrl/Cmd+E)">
-        Split
-      </Button>
-      <Button size="sm" onClick={run("duplicate")} title="Duplicate selected clips (Ctrl/Cmd+D)">
-        Duplicate
-      </Button>
-      <Button size="sm" onClick={run("loop")} title="Toggle looping of selected clips (Ctrl/Cmd+Shift+L)">
-        Loop
-      </Button>
-      <Button size="sm" onClick={run("delete")} title="Delete selected clips (Delete)">
-        Delete
-      </Button>
-      <span className="eth-arr-toolbar__sep" />
-      <Button size="sm" aria-label="Zoom out" title="Zoom out (Ctrl/Cmd+wheel)" onClick={() => animateZoom(arrangementView, 1 / 1.5)}>
-        <ZoomOut />
-      </Button>
-      <Button size="sm" aria-label="Zoom in" title="Zoom in (Ctrl/Cmd+wheel)" onClick={() => animateZoom(arrangementView, 1.5)}>
-        <ZoomIn />
       </Button>
     </div>
   );

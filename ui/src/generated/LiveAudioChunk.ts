@@ -19,4 +19,4 @@ start: number, sample_rate: number, frames_per_peak: number,
 /**
  * Index of `min[0]` / `max[0]` within the take.
  */
-first_peak: bigint, min: Array<number>, max: Array<number>, };
+first_peak: number, min: Array<number>, max: Array<number>, };
