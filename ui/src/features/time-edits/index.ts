@@ -16,3 +16,4 @@ export {
 export { coversWholeSong, expandTracks, pasteTracks, selectionFromRect, timeSelection } from "./commands";
 export { clearTimeSelection, resetTimeSelection, useTimeSelection, type TimeRangeSelection } from "./store";
 export { TimeEditNotice, TimeSelectionLayer } from "./TimeSelectionLayer";
+export { useArrangementTimeEdits, type ArrangementTimeEdits } from "./useArrangementTimeEdits";
