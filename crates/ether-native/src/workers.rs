@@ -601,6 +601,8 @@ mod tests {
         let hit_worker = AtomicU32::new(0);
         for _ in 0..20 {
             ran.store(0, Ordering::Relaxed);
+            // Per iteration: an earlier iteration's worker panic says nothing about this one.
+            hit_worker.store(0, Ordering::Relaxed);
             let r = std::panic::catch_unwind(AssertUnwindSafe(|| {
                 pool.execute(16, &|i| {
                     ran.fetch_add(1, Ordering::Relaxed);
