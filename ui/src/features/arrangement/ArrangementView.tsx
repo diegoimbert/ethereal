@@ -132,6 +132,27 @@ function ConnectedArrangementView() {
     };
   }, [transport]);
 
+  // groups-buses: Cmd+G groups the selected tracks, Cmd+Shift+G ungroups. On the document,
+  // so it still works after a menu or a click elsewhere took the focus (not in text fields
+  // or dialogs).
+  useEffect(() => {
+    const onKey = (e: globalThis.KeyboardEvent) => {
+      const grouping = groupShortcut(e);
+      if (!grouping || e.defaultPrevented || isTextEntry(e.target)) return;
+      const active = document.activeElement;
+      const root = rootRef.current;
+      if (active && active !== document.body && !root?.contains(active)) return;
+      e.preventDefault();
+      const ui = useArrangementUi.getState();
+      const fallback = useSelectionStore.getState().selectedTrack;
+      const selected = ui.selectedTracks.size > 0 ? [...ui.selectedTracks] : fallback ? [fallback] : [];
+      if (grouping === "ungroup") void ungroupSelected(transport, selected);
+      else void groupTracks(transport, selected).then((g) => g && selectTrackEntity(g));
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [transport]);
+
   const ctx = useMemo<ArrangementContextValue>(
     () => ({ transport, peaks, contentRef, rowsRef, focus: () => rootRef.current?.focus({ preventScroll: true }) }),
     [transport, peaks],
@@ -227,18 +248,6 @@ function ConnectedArrangementView() {
 
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     if (isTextEntry(e.target)) return;
-    // groups-buses: Cmd+G groups the selected tracks, Cmd+Shift+G ungroups.
-    const grouping = groupShortcut(e);
-    if (grouping) {
-      e.preventDefault();
-      e.stopPropagation();
-      const ui = useArrangementUi.getState();
-      const fallback = useSelectionStore.getState().selectedTrack;
-      const selected = ui.selectedTracks.size > 0 ? [...ui.selectedTracks] : fallback ? [fallback] : [];
-      if (grouping === "ungroup") void ungroupSelected(transport, selected);
-      else void groupTracks(transport, selected).then((g) => g && selectTrackEntity(g));
-      return;
-    }
     const action = actionForKey(e);
     if (!action) return;
     e.preventDefault();
