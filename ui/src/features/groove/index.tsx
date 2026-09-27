@@ -1,14 +1,15 @@
 // OWNERSHIP: the `groove` node owns `ui/src/features/groove/**`.
 // Only edit files inside this folder. The app shell (ui/src/app/App.tsx) already mounts
 // `GroovePanel` (detail tab "groove"): keep the export names and keep them prop-less (read state via hooks).
+// `GrooveControls` is mounted by the piano-roll toolbar (shared touch).
 
-/** Groove: quantize swing, humanize, project swing. */
-export function GroovePanel() {
-  return (
-    <div className="eth-feature-placeholder" data-feature="groove">
-      <strong>GroovePanel</strong>
-      <span>Groove: quantize swing, humanize, project swing.</span>
-      <span className="eth-feature-placeholder__owner">owner: groove</span>
-    </div>
-  );
-}
+export { GroovePanel } from "./GroovePanel";
+export { GrooveControls, type GrooveControlsProps } from "./GrooveControls";
+export {
+  grooveQuantizeCommand,
+  humanizeCommand,
+  setSwingCommand,
+  useGrooveSettings,
+  type HumanizeSettings,
+  type QuantizeSettings,
+} from "./grooveCommands";
