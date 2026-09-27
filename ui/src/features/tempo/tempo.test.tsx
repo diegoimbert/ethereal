@@ -124,6 +124,23 @@ describe("TempoEditor", () => {
     await waitFor(() => expect(tempoPoints()).toHaveLength(1));
   });
 
+  it("Shift-drag changes BPM in fine 0.01 steps, like the transport bar's tempo drag", async () => {
+    await setup(<TempoEditor />);
+    const zero = tempoPoints()[0]!;
+    const circle = document.querySelector(`[data-point="${zero.id}"]`)!;
+    fireEvent.pointerDown(circle, { button: 0, clientX: 0, clientY: 20, shiftKey: true });
+    await act(async () => {
+      window.dispatchEvent(new MouseEvent("pointermove", { clientX: 0, clientY: 11, shiftKey: true }) as PointerEvent);
+    });
+    await flush();
+    await act(async () => {
+      window.dispatchEvent(new MouseEvent("pointerup", { clientX: 0, clientY: 11, shiftKey: true }) as PointerEvent);
+    });
+    await flush();
+    // 9 px up at 0.05 BPM per pixel.
+    expect(project().tempo_points[zero.id]!.bpm).toBeCloseTo(zero.bpm + 0.45, 9);
+  });
+
   it("the point at beat 0 only changes BPM and can't be deleted", async () => {
     await setup(<TempoEditor />);
     const zero = tempoPoints()[0]!;

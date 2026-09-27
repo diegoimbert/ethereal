@@ -2,8 +2,9 @@
  * Tempo lane of the tempo editor: the tempo curve (steps and ramps) with one handle per
  * tempo point.
  *
- * - drag a point: time (snapped to the grid; Alt bypasses) and BPM (whole BPM); Shift
- *   locks the dominant axis; the point at beat 0 only changes BPM. One undo step per drag;
+ * - drag a point: time (snapped to the grid; Alt bypasses) and BPM (whole BPM, following
+ *   the lane; Shift: fine 0.01 BPM steps, 0.05 BPM per pixel, like the transport bar's
+ *   tempo drag); the point at beat 0 only changes BPM. One undo step per drag;
  * - double-click the lane: add a point there; double-click a point: remove it;
  * - right-click a point: ramp to the next point on/off, delete;
  * - Delete/Backspace removes the selected point.
@@ -42,6 +43,8 @@ import {
 
 const POINT_RADIUS = 4;
 const PAD = 8;
+/** Shift-drag BPM sensitivity (transport bar: 0.05 BPM per pixel, 0.01 BPM steps). */
+const FINE_BPM_PER_PX = 0.05;
 
 export interface TempoLaneProps {
   view: TimelineViewStore;
@@ -109,11 +112,12 @@ export function TempoLane({ view, tempo, points, selected, onSelect }: TempoLane
         const p = local(ev);
         const dx = p.x - start.x;
         const dy = p.y - start.y;
-        const lockTime = fixedTime || (ev.shiftKey && Math.abs(dy) > Math.abs(dx));
-        const lockBpm = ev.shiftKey && !lockTime;
-        let time = lockTime ? point.time : snap(point.time + dx / view.getState().pxPerBeat, ev.altKey);
+        let time = fixedTime ? point.time : snap(point.time + dx / view.getState().pxPerBeat, ev.altKey);
         if (tempoTimeTaken(live.current.points, time, point.id)) time = last.time;
-        const bpm = lockBpm ? point.bpm : clampBpm(Math.round(yToBpm(bpmToY(point.bpm, g) + dy, g)));
+        // Shift = fine steps, as the user's tempo drag in the transport bar.
+        const bpm = clampBpm(
+          ev.shiftKey ? Math.round((point.bpm - dy * FINE_BPM_PER_PX) * 100) / 100 : Math.round(yToBpm(bpmToY(point.bpm, g) + dy, g)),
+        );
         setReadout({ x: toX(time), y: bpmToY(bpm, g), text: `${formatBpm(bpm)} BPM` });
         if (time === last.time && bpm === last.bpm) return;
         last = { time, bpm };

@@ -21,7 +21,7 @@ import { beatsPerBar } from "@/timeline/tempoMap";
 
 export const MIN_BPM = 20;
 export const MAX_BPM = 999;
-export const MIN_METRONOME_DB = -60;
+export const MIN_METRONOME_DB = -144;
 export const MAX_METRONOME_DB = 6;
 
 export const METRONOME_SOUNDS: ReadonlyArray<{ value: MetronomeSound; label: string }> = [

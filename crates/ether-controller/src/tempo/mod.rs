@@ -12,7 +12,10 @@
 //!   removed; two tempo points (or two time signatures) never share a position;
 //! - BPM is clamped to `MIN_BPM..=MAX_BPM`; metronome volume to -144..=+6 dB;
 //! - a time-signature change must fall on a bar line of the signature in effect before it
-//!   (bars restart at every change, as in the engine).
+//!   (bars restart at every change, as in the engine). The rule holds after every edit:
+//!   changing, moving, adding or removing a signature is **rejected** (`InvalidArgument`)
+//!   if a later change would end up off its bar line; later changes are never moved
+//!   implicitly (move or remove them first).
 
 use ether_core::graph::MetronomeDesc;
 use ether_core::protocol::model::*;
@@ -119,7 +122,8 @@ pub(crate) fn apply(ctx: &mut DocCtx, c: &TempoCommand) -> CmdResult<()> {
                 id: *id,
                 time: *time,
                 signature: *signature,
-            }))
+            }))?;
+            check_later_bar_lines(ctx.p(), *time)
         }
         TempoCommand::EditTimeSignature {
             id,
@@ -156,9 +160,10 @@ pub(crate) fn apply(ctx: &mut DocCtx, c: &TempoCommand) -> CmdResult<()> {
                     change: TimeSignatureChange::Signature(s),
                 })?;
             }
-            Ok(())
+            check_later_bar_lines(ctx.p(), Beats(p.time.0.min(time.unwrap_or(p.time).0)))
         }
         TempoCommand::RemoveTimeSignatures { ids } => {
+            let mut from = f64::INFINITY;
             for id in ids {
                 let p = ctx
                     .p()
@@ -168,9 +173,10 @@ pub(crate) fn apply(ctx: &mut DocCtx, c: &TempoCommand) -> CmdResult<()> {
                 if p.time.approx_eq(Beats::ZERO) {
                     return Err(invalid("the time signature at beat 0 cannot be removed"));
                 }
+                from = from.min(p.time.0);
                 ctx.tx.remove(EntityKey::TimeSignature(*id))?;
             }
-            Ok(())
+            check_later_bar_lines(ctx.p(), Beats(from))
         }
         TempoCommand::SetMetronomeSettings {
             volume,
@@ -270,6 +276,29 @@ fn check_signature_time(p: &Project, t: Beats, except: Option<TimeSignatureId>) 
 /// Bar length in quarter-note beats.
 pub(crate) fn bar_length(s: TimeSignature) -> f64 {
     f64::from(s.numerator.max(1)) * 4.0 / f64::from(s.denominator.max(1))
+}
+
+/// Every time-signature change at or after `from` still falls on a bar line of the one
+/// before it. Edits that would break this (changing, moving, adding or removing an earlier
+/// signature) are rejected rather than moving later changes. Changes before `from`
+/// (untouched by the edit, e.g. from an older document) are not checked.
+fn check_later_bar_lines(p: &Project, from: Beats) -> CmdResult<()> {
+    let mut sigs: Vec<&TimeSignaturePoint> = p.time_signatures.values().collect();
+    sigs.sort_by(|a, b| a.time.0.total_cmp(&b.time.0));
+    for w in sigs.windows(2) {
+        let (prev, s) = (w[0], w[1]);
+        if s.time.0 + Beats::EPSILON < from.0 {
+            continue;
+        }
+        if !on_bar_line(prev, s.time) {
+            return Err(invalid(format!(
+                "the time signature change at beat {} would no longer fall on a bar line \
+                 ({}/{} from beat {}); move or remove it first",
+                s.time.0, prev.signature.numerator, prev.signature.denominator, prev.time.0
+            )));
+        }
+    }
+    Ok(())
 }
 
 fn on_bar_line(prev: &TimeSignaturePoint, t: Beats) -> bool {

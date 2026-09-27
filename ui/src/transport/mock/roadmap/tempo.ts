@@ -4,7 +4,8 @@
  * - times are finite and >= 0; the points at beat 0 can be edited but not moved or removed;
  *   two tempo points (or two time signatures) never share a position;
  * - BPM is clamped to 20..=999, metronome volume to -144..=+6 dB;
- * - a time-signature change must fall on a bar line of the signature in effect before it;
+ * - a time-signature change must fall on a bar line of the signature in effect before it,
+ *   after every edit: an edit that would leave a later change off its bar line is rejected;
  * - edits that change nothing produce no patch.
  */
 
@@ -42,6 +43,20 @@ function checkSignatureTime(p: Project, t: Beats, except: string | null): void {
   const bar = (prev.signature.numerator * 4) / prev.signature.denominator;
   const bars = (t - prev.time) / bar;
   if (Math.abs((bars - Math.round(bars)) * bar) > BEATS_EPSILON) fail("InvalidArgument", "a time signature change must fall on a bar line");
+}
+
+function checkLaterBarLines(p: Project, from: Beats): void {
+  const sigs = Object.values(p.time_signatures).sort((a, b) => a.time - b.time);
+  for (let i = 1; i < sigs.length; i++) {
+    const prev = sigs[i - 1]!;
+    const s = sigs[i]!;
+    if (s.time + BEATS_EPSILON < from) continue;
+    const bar = (prev.signature.numerator * 4) / prev.signature.denominator;
+    const bars = (s.time - prev.time) / bar;
+    if (Math.abs((bars - Math.round(bars)) * bar) > BEATS_EPSILON) {
+      fail("InvalidArgument", `the time signature change at beat ${s.time} would no longer fall on a bar line`);
+    }
+  }
 }
 
 export function tempoCommand(ctx: ReducerContext, c: TempoCommand): void {
@@ -82,6 +97,7 @@ export function tempoCommand(ctx: ReducerContext, c: TempoCommand): void {
       if (!validSignature(c.signature)) fail("InvalidArgument", "invalid time signature");
       checkSignatureTime(tx.project, c.time, null);
       tx.upsert("TimeSignature", { id: c.id, time: c.time, signature: c.signature });
+      checkLaterBarLines(tx.project, c.time);
       break;
     case "EditTimeSignature": {
       const p = tx.get("TimeSignature", c.id) ?? fail("NotFound", `time signature ${c.id}`);
@@ -96,15 +112,20 @@ export function tempoCommand(ctx: ReducerContext, c: TempoCommand): void {
       const signature = c.signature ?? p.signature;
       const same = signature.numerator === p.signature.numerator && signature.denominator === p.signature.denominator;
       if (time !== p.time || !same) tx.upsert("TimeSignature", { ...p, time, signature });
+      checkLaterBarLines(tx.project, Math.min(p.time, time));
       break;
     }
-    case "RemoveTimeSignatures":
+    case "RemoveTimeSignatures": {
+      let from = Infinity;
       for (const id of c.ids) {
         const p = tx.get("TimeSignature", id) ?? fail("NotFound", `time signature ${id}`);
         if (near(p.time, 0)) fail("InvalidArgument", "the time signature at beat 0 cannot be removed");
+        from = Math.min(from, p.time);
         tx.remove("TimeSignature", id);
       }
+      checkLaterBarLines(tx.project, from);
       break;
+    }
     case "SetMetronomeSettings": {
       const s = tx.project.settings;
       if (c.volume !== null && !Number.isFinite(c.volume)) fail("InvalidArgument", "metronome volume must be finite");

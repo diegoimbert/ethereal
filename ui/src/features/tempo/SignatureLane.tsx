@@ -6,6 +6,8 @@
  * - double-click the lane: add a change on the nearest bar line (same signature, edit it
  *   in the header or from the marker's menu); double-click a marker: remove it;
  * - right-click a marker: common signatures, delete.
+ * The controller rejects an edit that would leave a later change off its bar line (the
+ * lane then keeps the previous state); move or remove the later change first.
  */
 
 import { useLayoutEffect, useRef, type KeyboardEvent, type MouseEvent, type PointerEvent as ReactPointerEvent } from "react";

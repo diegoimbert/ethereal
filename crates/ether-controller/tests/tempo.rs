@@ -276,14 +276,24 @@ fn time_signatures_crud_on_bar_lines() {
         );
         assert_eq!(e, ErrorCode::InvalidArgument);
     }
-    // Move: on a bar line of the previous signature (4/4 from 0), not onto another change.
+    // Move: on a bar line of the previous signature (4/4 from 0), not onto another change,
+    // and only if the later 7/8 at 14 stays on a bar line (6/8 from 4: no; 5/4: yes).
+    let e = code(
+        &mut h,
+        tempo(TempoCommand::EditTimeSignature {
+            id,
+            time: Some(Beats(4.0)),
+            signature: Some(sig(6, 8)),
+        }),
+    );
+    assert_eq!(e, ErrorCode::InvalidArgument);
     h.ok(tempo(TempoCommand::EditTimeSignature {
         id,
         time: Some(Beats(4.0)),
-        signature: Some(sig(6, 8)),
+        signature: Some(sig(5, 4)),
     }));
     let p = &h.project().time_signatures[&id];
-    assert_eq!((p.time, p.signature), (Beats(4.0), sig(6, 8)));
+    assert_eq!((p.time, p.signature), (Beats(4.0), sig(5, 4)));
     undo(&mut h);
     let p = &h.project().time_signatures[&id];
     assert_eq!((p.time, p.signature), (Beats(8.0), sig(3, 4)));
@@ -296,13 +306,35 @@ fn time_signatures_crud_on_bar_lines() {
         }),
     );
     assert_eq!(e, ErrorCode::InvalidArgument);
-    // The one at 0: editable, not movable or removable.
-    h.ok(tempo(TempoCommand::EditTimeSignature {
-        id: zero.id,
-        time: None,
-        signature: Some(sig(3, 4)),
-    }));
-    assert_eq!(first_signature(&h).signature, sig(3, 4));
+    // Edits that would push a later change off its bar line are rejected: 3/4 at 0 with a
+    // change at 8, or removing the 3/4 at 8 (the 7/8 at 14 is not on a 4/4 bar line).
+    let e = code(
+        &mut h,
+        tempo(TempoCommand::EditTimeSignature {
+            id: zero.id,
+            time: None,
+            signature: Some(sig(3, 4)),
+        }),
+    );
+    assert_eq!(e, ErrorCode::InvalidArgument);
+    let e = code(
+        &mut h,
+        tempo(TempoCommand::RemoveTimeSignatures { ids: vec![id] }),
+    );
+    assert_eq!(e, ErrorCode::InvalidArgument);
+    // Adding a change that would shift a later one's grid is rejected too (2/4 at 11:
+    // 14 is not on a 2/4 bar line from 11).
+    let two: TimeSignatureId = h.id();
+    let e = code(
+        &mut h,
+        tempo(TempoCommand::AddTimeSignature {
+            id: two,
+            time: Beats(11.0),
+            signature: sig(2, 4),
+        }),
+    );
+    assert_eq!(e, ErrorCode::InvalidArgument);
+    // The one at 0: not movable or removable.
     let e = code(
         &mut h,
         tempo(TempoCommand::EditTimeSignature {
@@ -321,6 +353,14 @@ fn time_signatures_crud_on_bar_lines() {
         ids: vec![id, seven],
     }));
     assert_eq!(h.project().time_signatures.len(), 1);
+    // Alone, the one at 0 is editable.
+    h.ok(tempo(TempoCommand::EditTimeSignature {
+        id: zero.id,
+        time: None,
+        signature: Some(sig(3, 4)),
+    }));
+    assert_eq!(first_signature(&h).signature, sig(3, 4));
+    undo(&mut h);
     undo(&mut h);
     assert_eq!(h.project().time_signatures.len(), 3);
 }
