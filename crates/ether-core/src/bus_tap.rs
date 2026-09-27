@@ -137,11 +137,7 @@ pub(crate) struct TapBuffers {
 impl TapBuffers {
     /// Non-RT (graph compile): buffers for the points tapped by consumers.
     pub(crate) fn compile(points: &[InputTap], config: &EngineConfig) -> Self {
-        let has = |p: InputTap| {
-            points
-                .contains(&p)
-                .then(|| stereo(config.max_block_size))
-        };
+        let has = |p: InputTap| points.contains(&p).then(|| stereo(config.max_block_size));
         Self {
             pre_fx: has(InputTap::PreFx),
             post_fx: has(InputTap::PostFx),

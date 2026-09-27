@@ -29,7 +29,10 @@ fn siblings(p: &Project, parent: Option<TrackId>) -> Vec<(OrderKey, TrackId)> {
         None => p.tracks_ordered(),
         Some(g) => p.child_tracks(g),
     };
-    tracks.into_iter().map(|t| (t.order.clone(), t.id)).collect()
+    tracks
+        .into_iter()
+        .map(|t| (t.order.clone(), t.id))
+        .collect()
 }
 
 /// Name of a group created by `GroupSelected { name: None }`.
@@ -56,9 +59,14 @@ fn group_selected(
     if ctx.p().tracks.contains_key(&group) {
         // Idempotent retry of the same command (like `Track::Create`).
         let existing = ctx.track(group)?;
-        if existing.kind == TrackKind::Group && ids.iter().all(|id| {
-            ctx.p().tracks.get(id).is_some_and(|t| t.parent == Some(group))
-        }) {
+        if existing.kind == TrackKind::Group
+            && ids.iter().all(|id| {
+                ctx.p()
+                    .tracks
+                    .get(id)
+                    .is_some_and(|t| t.parent == Some(group))
+            })
+        {
             return Ok(());
         }
         return Err(invalid(format!("track {group} already exists")));
@@ -77,10 +85,7 @@ fn group_selected(
             t.kind,
             TrackKind::Master | TrackKind::Return | TrackKind::Vca
         ) {
-            return Err(invalid(format!(
-                "{:?} tracks cannot be grouped",
-                t.kind
-            )));
+            return Err(invalid(format!("{:?} tracks cannot be grouped", t.kind)));
         }
         tracks.push(t);
     }
@@ -300,7 +305,6 @@ fn soloed_vcas(p: &Project) -> BTreeSet<TrackId> {
 
 /// Fold VCA solo into the assigned tracks' `TrackDesc::solo` (CONTRACTS.md §12.10: soloing
 /// a VCA solos its tracks, nested VCAs included). Called by `compile_graph_with`.
-#[allow(dead_code)] // wired into compile.rs by a BCR
 pub(crate) fn fold_vca_solo(p: &Project, tracks: &mut [TrackDesc]) {
     let soloed = soloed_vcas(p);
     if soloed.is_empty() {

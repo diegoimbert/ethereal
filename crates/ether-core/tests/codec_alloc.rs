@@ -108,9 +108,9 @@ fn large_fixture_decodes_within_bound() {
     decodes_within_bound(fixture::large_project());
 }
 
-/// The same bound with every v0.2 field filled on all 64 tracks (their JSON blob,
-/// contracts-3; `groups-buses` and `racks-modulation` move their fields into the binary
-/// layout as an acceptance item).
+/// The same bound with every v0.2 field filled on all 64 tracks (a JSON blob for the fields
+/// still in it; `groups-buses` moved `input_tap`, `vca` and `vcas` into the binary layout in
+/// codec v3, `racks-modulation` moves its own as an acceptance item).
 #[test]
 fn large_v02_fixture_decodes_within_bound() {
     decodes_within_bound(fixture::large_v02_project());
