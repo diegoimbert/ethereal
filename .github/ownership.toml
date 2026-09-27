@@ -325,6 +325,8 @@ paths = [
   "crates/ether-native/tests/tempo_metronome*.rs",
   # shared touch (base-25): one additive state field + initializer on EtherController
   "crates/ether-controller/src/lib.rs",
+  # shared touch (base-40): pass &TempoMapRt to Metronome::render at its call site only (multicore owns the rest of engine.rs)
+  "crates/ether-core/src/engine.rs",
 ]
 
 [nodes.clip-editing]
@@ -407,6 +409,8 @@ paths = [
   "crates/ether-controller/src/lib.rs",
   # base-36: collab design doc
   "docs/COLLAB.md",
+  # shared touch (base-39): wire MockCollab into MockTransport (import, field, Collab case)
+  "ui/src/transport/mock/MockTransport.ts",
 ]
 
 [nodes.multicore]
