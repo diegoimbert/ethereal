@@ -445,7 +445,9 @@ mod tests {
             _: &PrepareConfig,
         ) -> Result<Box<dyn ether_core::plugin::PluginNode>, PluginError> {
             self.0.activated.store(true, Ordering::SeqCst);
-            Err(PluginError::Activation("a mirror is never activated".into()))
+            Err(PluginError::Activation(
+                "a mirror is never activated".into(),
+            ))
         }
         fn deactivate(&mut self, _: Box<dyn ether_core::plugin::PluginNode>) {}
         fn save_state(&mut self) -> Result<Vec<u8>, PluginError> {
@@ -506,7 +508,10 @@ mod tests {
         assert_eq!(host.mirror_count(), 1);
         assert_eq!(host.live_count(), 0, "not in the live registry");
         assert!(!probe.activated.load(Ordering::SeqCst));
-        assert_eq!(host.mirror_state(d).unwrap().as_deref(), Some(&b"preset"[..]));
+        assert_eq!(
+            host.mirror_state(d).unwrap().as_deref(),
+            Some(&b"preset"[..])
+        );
 
         // Document values pushed in (inactive path).
         host.set_mirror_param(d, ParamId(1), 0.25).unwrap();
@@ -777,14 +782,22 @@ mod fixture_tests {
         assert_ne!(stand_in, live);
         assert_eq!(b.node_of(d), Some(stand_in));
         assert!(b.descriptor(d).is_some(), "the mirror's descriptor");
-        assert_eq!(b.plugins().param_value(d, ParamId(1)), None, "no live instance");
+        assert_eq!(
+            b.plugins().param_value(d, ParamId(1)),
+            None,
+            "no live instance"
+        );
         assert_eq!(b.plugins().mirror_param(d, ParamId(1)), Some(0.5));
 
         // Document values pushed into the inactive mirror (CLAP params.flush).
         b.set_plugin_mirror_param(d, ParamId(1), 1.5).unwrap();
         assert_eq!(b.plugins().mirror_param(d, ParamId(1)), Some(1.5));
         let mirror_state = b.plugin_state(d).unwrap().unwrap();
-        assert_eq!(clap_gain(&mirror_state), 1.5, "the device's state is the mirror's");
+        assert_eq!(
+            clap_gain(&mirror_state),
+            1.5,
+            "the device's state is the mirror's"
+        );
 
         // OpenEditor falls back to the mirror (headless floating GUI: it reports itself
         // closed on its 3rd timer tick, through the ordinary poll).

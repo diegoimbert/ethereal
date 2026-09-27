@@ -383,12 +383,6 @@ Owns: `crates/ether-controller/src/collab/mirror.rs` (new; one `mod` line in
 - Shared touches: `crates/ether-native/src/bridge.rs`, `crates/ether-native/src/plugins.rs`
   (editor routing), `crates/ether-native/src/host.rs` (`OpenEditor`),
   `crates/ether-controller/src/collab/mod.rs` (one mod line + dispatch).
-- Landed (#132): while a site listens (connecting or listening) every plugin device is
-  swapped for a mirror, except devices on record-armed tracks; the device's engine slot
-  becomes a dry/silent stand-in node, and swapping back re-creates the live instance from
-  the mirror's last state. The setting is `EtherController::set_plugin_mirrors` (default
-  on; a wire command is a pending BCR). `OpenEditor`/`CloseEditor` fall back to the mirror
-  in `PluginHost` (no `host.rs` change needed).
 
 # v0.2 (contracts-3)
 

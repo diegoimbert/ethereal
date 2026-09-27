@@ -22,8 +22,8 @@ use ether_core::protocol::collab::*;
 use ether_core::protocol::devices::{DeviceCategory, DeviceCommand, DeviceDescriptor, DeviceSpec};
 use ether_core::protocol::model::*;
 use ether_core::protocol::project::{EditCommand, ProjectCommand};
-use ether_core::protocol::tracks::TrackCommand;
 use ether_core::protocol::recording::RecordingCommand;
+use ether_core::protocol::tracks::TrackCommand;
 use ether_core::protocol::*;
 use ether_core::{EngineOutputs, NodeKey, ParamChange, RenderGraphDesc, TransportControl};
 use ether_media::DecodedAudio;
@@ -211,7 +211,10 @@ impl EngineBridge for MirrorBridge {
         param: ParamId,
         value: f64,
     ) -> Result<(), BridgeError> {
-        assert!(self.mirrors.contains_key(&device), "push into a dropped mirror");
+        assert!(
+            self.mirrors.contains_key(&device),
+            "push into a dropped mirror"
+        );
         self.log.push(MirrorCall::Param(device, param, value));
         Ok(())
     }
@@ -278,7 +281,13 @@ impl Listener {
     }
 
     fn param(&self, device: DeviceId) -> Option<f64> {
-        self.ctl.project()?.devices.get(&device)?.params.get(&MIX).copied()
+        self.ctl
+            .project()?
+            .devices
+            .get(&device)?
+            .params
+            .get(&MIX)
+            .copied()
     }
 
     fn bridge(&mut self) -> &mut MirrorBridge {
@@ -432,7 +441,10 @@ impl World {
             before: None,
         }));
         self.settle();
-        assert!(self.listener.bridge().live_plugin(device), "live on the listener");
+        assert!(
+            self.listener.bridge().live_plugin(device),
+            "live on the listener"
+        );
         (track, device)
     }
 
@@ -459,7 +471,13 @@ impl World {
     }
 
     fn peer_param(&self, device: DeviceId) -> Option<f64> {
-        self.peer.project().devices.get(&device)?.params.get(&MIX).copied()
+        self.peer
+            .project()
+            .devices
+            .get(&device)?
+            .params
+            .get(&MIX)
+            .copied()
     }
 
     fn peer_state(&self, device: DeviceId) -> Option<Base64Bytes> {
@@ -541,12 +559,7 @@ fn listening_swaps_plugins_for_mirrors_and_back() {
     assert_eq!(w.listener.bridge().pushes(d).len(), n);
 
     // A preset loaded in the mirror GUI (opaque state) replicates at the next save.
-    w.listener
-        .bridge()
-        .mirrors
-        .get_mut(&d)
-        .unwrap()
-        .state = Some(Base64Bytes(vec![7]));
+    w.listener.bridge().mirrors.get_mut(&d).unwrap().state = Some(Base64Bytes(vec![7]));
     w.listener.ok(Command::Project(ProjectCommand::Save));
     w.settle();
     assert_eq!(w.peer_state(d), Some(Base64Bytes(vec![7])));
