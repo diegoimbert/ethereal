@@ -8,4 +8,4 @@ import type { StampedTransaction } from "./StampedTransaction";
 /**
  * Engine ↔ engine collaboration wire (RESERVED; the collab node may add variants).
  */
-export type CollabMessage = { "type": "Hello", site: SiteId, actor: ActorId | null, name: string, protocol_version: number, } | { "type": "Transaction", transaction: StampedTransaction, } | { "type": "Update", site: SiteId, data: Base64Bytes, } | { "type": "SyncRequest", site: SiteId, version: Base64Bytes, } | { "type": "Snapshot", data: Base64Bytes, } | { "type": "Presence", presence: Presence, } | { "type": "Leave", site: SiteId, };
+export type CollabMessage = { "type": "Hello", site: SiteId, actor: ActorId | null, name: string, protocol_version: number, } | { "type": "Transaction", transaction: StampedTransaction, } | { "type": "Update", site: SiteId, data: Base64Bytes, } | { "type": "SyncRequest", site: SiteId, version: Base64Bytes, } | { "type": "Snapshot", data: Base64Bytes, } | { "type": "Presence", presence: Presence, } | { "type": "Media", file: string, hash: string, offset: bigint, total: bigint, data: Base64Bytes, } | { "type": "Leave", site: SiteId, };
