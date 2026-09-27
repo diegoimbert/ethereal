@@ -130,6 +130,17 @@
   border-bottom: 1px solid #aaa;
 }
 
+/* Light theme: white keys with visible dividers; black keys stay dark. */
+[data-theme="light"] .eth-pr-key--white {
+  background: #fdfdfe;
+  border-bottom-color: #c3c8d3;
+}
+
+[data-theme="light"] .eth-pr-keys {
+  background: #fdfdfe;
+  border-right-color: #c3c8d3;
+}
+
 .eth-pr-key--black {
   background: #222;
   right: 35%;
@@ -162,9 +173,11 @@
 }
 
 .eth-pr-grid__row--c {
-  border-bottom: 1px solid var(--eth-color-border);
+  border-bottom: 1px solid color-mix(in srgb, var(--eth-color-text) 14%, transparent);
 }
 
+/* Grid lines: a faint tint of the text color (darker than the background in light mode,
+   lighter in dark mode). */
 .eth-pr-grid__line {
   position: absolute;
   top: 0;
@@ -172,17 +185,15 @@
   left: 0;
   width: 1px;
   pointer-events: none;
-  background: var(--eth-color-border);
-  opacity: 0.5;
+  background: color-mix(in srgb, var(--eth-color-text) 5%, transparent);
 }
 
 .eth-pr-grid__line--beat {
-  opacity: 0.8;
+  background: color-mix(in srgb, var(--eth-color-text) 9%, transparent);
 }
 
 .eth-pr-grid__line--bar {
-  background: var(--eth-color-border-light);
-  opacity: 1;
+  background: color-mix(in srgb, var(--eth-color-text) 18%, transparent);
 }
 
 .eth-pr-grid__outside {
@@ -240,6 +251,13 @@
   box-shadow:
     0 0 6px color-mix(in srgb, var(--eth-color-accent) 85%, transparent),
     0 0 14px color-mix(in srgb, var(--eth-color-accent) 45%, transparent);
+}
+
+/* No glow in the light theme: a darker fill and rim instead. */
+[data-theme="light"] .eth-pr-note--selected {
+  background: color-mix(in srgb, var(--eth-color-accent) 75%, black);
+  border-color: color-mix(in srgb, var(--eth-color-accent) 45%, black);
+  box-shadow: none;
 }
 
 .eth-pr-note--muted {

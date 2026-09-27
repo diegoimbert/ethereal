@@ -92,17 +92,19 @@
   z-index: 3;
 }
 
+/* Grid lines are a faint tint of the text color: darker than the background in light
+   mode, lighter in dark mode. */
 .eth-arr__gridline {
   position: absolute;
   top: 0;
   bottom: 0;
   left: 0;
   width: 1px;
-  background: var(--eth-color-bg-raised);
+  background: color-mix(in srgb, var(--eth-color-text) 7%, transparent);
 }
 
 .eth-arr__gridline--bar {
-  background: var(--eth-color-border-light);
+  background: color-mix(in srgb, var(--eth-color-text) 16%, transparent);
 }
 
 .eth-arr__gridline--sub {
@@ -575,7 +577,12 @@
   overflow: hidden;
   border-radius: var(--eth-radius-md);
   /* A soft tint of the clip color; the waveform/notes sit on it. */
-  background: color-mix(in srgb, var(--eth-clip-color) 26%, var(--eth-color-bg-panel));
+  /* Theme-aware shades of the clip color: in light mode the pastel palette is darkened so
+     clips stand out on the light background (see the [data-theme="light"] rule below). */
+  --clip-strong: var(--eth-clip-color);
+  --clip-rim: color-mix(in srgb, var(--eth-clip-color) 30%, white);
+  --clip-lift: white;
+  background: color-mix(in srgb, var(--clip-strong) 26%, var(--eth-color-bg-panel));
   border: none;
   /* Only the title bar and the edge handles take the pointer: a press on the body goes
      through to the lane, like on empty space (locate, marquee). */
@@ -592,10 +599,10 @@
    and a two-layer halo in the clip's own color. */
 .eth-clip--selected {
   z-index: 2;
-  background: color-mix(in srgb, var(--eth-clip-color) 36%, var(--eth-color-bg));
+  background: color-mix(in srgb, var(--clip-strong) 36%, var(--eth-color-bg));
   box-shadow:
-    0 0 6px color-mix(in srgb, var(--eth-clip-color) 85%, transparent),
-    0 0 14px color-mix(in srgb, var(--eth-clip-color) 45%, transparent);
+    0 0 6px color-mix(in srgb, var(--clip-strong) 85%, transparent),
+    0 0 14px color-mix(in srgb, var(--clip-strong) 45%, transparent);
 }
 
 /* The light rim sits above the clip's content (the notes/waveform canvas would cover an
@@ -606,12 +613,12 @@
   inset: 0;
   z-index: 2;
   border-radius: inherit;
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--eth-clip-color) 30%, white);
+  box-shadow: inset 0 0 0 1px var(--clip-rim);
   pointer-events: none;
 }
 
 .eth-clip--selected .eth-clip__title {
-  background: color-mix(in srgb, var(--eth-clip-color) 70%, white);
+  background: color-mix(in srgb, var(--clip-strong) 70%, var(--clip-lift));
 }
 
 .eth-clip--muted {
@@ -642,14 +649,14 @@
   font-size: var(--eth-fs-xs);
   line-height: 12px;
   color: var(--eth-color-text-inverse);
-  background: var(--eth-clip-color);
+  background: var(--clip-strong);
   pointer-events: auto;
   cursor: grab;
   transition: background-color var(--eth-duration-fast) var(--eth-ease-out);
 }
 
 .eth-clip__title:hover {
-  background: color-mix(in srgb, var(--eth-clip-color) 85%, white);
+  background: color-mix(in srgb, var(--clip-strong) 85%, var(--clip-lift));
 }
 
 .eth-clip__name {
@@ -744,4 +751,16 @@
 
 .eth-arr-toolbar__new {
   cursor: grab;
+}
+
+/* Light theme: darker clip shades for contrast on the light background. */
+[data-theme="light"] .eth-clip {
+  --clip-strong: color-mix(in srgb, var(--eth-clip-color) 70%, black);
+  --clip-rim: var(--clip-strong);
+  --clip-lift: black;
+}
+
+/* No glow in the light theme: the rim and the darker band mark the selection. */
+[data-theme="light"] .eth-clip--selected {
+  box-shadow: none;
 }

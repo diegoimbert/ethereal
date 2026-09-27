@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef } from "react";
 import type { Beats, ClipId, Color } from "@/generated";
-import { colorCss } from "./helpers";
+import { clipInk, colorCss } from "./helpers";
+import { useTheme } from "@/theme";
 import { beatsCss } from "./laneGeometry";
 import type { LaneItem } from "./laneItems";
 
@@ -31,6 +32,7 @@ export interface SmallClipsLayerProps {
  */
 export function SmallClipsLayer({ items, origin, visible, pxPerBeat, trackColor, selected }: SmallClipsLayerProps) {
   const ref = useRef<HTMLCanvasElement>(null);
+  const [theme] = useTheme();
   const from = visible.start;
   const to = visible.end;
 
@@ -56,14 +58,15 @@ export function SmallClipsLayer({ items, origin, visible, pxPerBeat, trackColor,
     for (const it of items) {
       const end = it.bounds.start + it.bounds.length;
       if (end < from || it.bounds.start > to) continue;
-      const color = colorCss(it.clip.color ?? trackColor);
+      const color = clipInk(colorCss(it.clip.color ?? trackColor), theme);
       const x0 = (it.bounds.start - from) * pxPerBeat;
       const cw = Math.max(1, it.bounds.length * pxPerBeat);
       const sel = !it.ghost && selected.has(it.clip.id);
       const r = cw >= 2 * RADIUS ? RADIUS : 0;
       ctx.globalAlpha = (it.ghost ? 0.45 : it.dragging ? 0.85 : 1) * (it.clip.muted ? 0.55 : 1);
-      if (sel) {
+      if (sel && theme !== "light") {
         // The same halo as selected clips/notes (a wide soft blur; the rim is drawn below).
+        // No glow in the light theme.
         ctx.shadowColor = color;
         ctx.shadowBlur = 14;
       }
@@ -78,7 +81,7 @@ export function SmallClipsLayer({ items, origin, visible, pxPerBeat, trackColor,
       ctx.fill();
       ctx.globalAlpha /= tint;
       // Title band (brighter when selected).
-      if (sel) ctx.fillStyle = mixWhite(color, 0.3);
+      if (sel) ctx.fillStyle = theme === "light" ? color : mixWhite(color, 0.3);
       ctx.save();
       roundRect(ctx, x0, top, cw, height, r);
       ctx.clip();
@@ -89,7 +92,7 @@ export function SmallClipsLayer({ items, origin, visible, pxPerBeat, trackColor,
       }
       ctx.restore();
       if (sel) {
-        ctx.strokeStyle = mixWhite(color, 0.7);
+        ctx.strokeStyle = theme === "light" ? color : mixWhite(color, 0.7);
         ctx.lineWidth = 1;
         roundRect(ctx, x0 + 0.75, top + 0.75, cw - 1.5, height - 1.5, r);
         ctx.stroke();
