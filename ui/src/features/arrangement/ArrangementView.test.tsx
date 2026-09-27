@@ -404,6 +404,26 @@ describe("ArrangementView: clip editing", () => {
     expect(sent.filter((c) => c.domain === "Transport" && c.command.type === "Locate")).toHaveLength(1);
   });
 
+  it("pressing cmd mid-drag copies the clip instead of moving it", async () => {
+    const bass = clipByName("Bassline");
+    const start = startOf(bass);
+    await act(async () => {
+      fireEvent.pointerDown(clipEl(bass), { button: 0, pointerId: 1, clientX: 10, clientY: ROW + 5 });
+      fireEvent.pointerMove(window, { pointerId: 1, clientX: 10 + 4 * PX, clientY: ROW + 5 });
+    });
+    expect(useArrangementUi.getState().preview?.copy).toBe(false);
+    act(() => {
+      fireEvent.keyDown(window, { key: "Meta", metaKey: true });
+    });
+    expect(useArrangementUi.getState().preview?.copy).toBe(true);
+    await act(async () => {
+      fireEvent.pointerUp(window, { pointerId: 1, clientX: 10 + 4 * PX, clientY: ROW + 5, metaKey: true });
+    });
+    await flush();
+    expect(project().clips[bass.id]!.start).toBe(start);
+    expect(Object.values(project().clips).some((c) => c.track === bass.track && startOf(c) === start + 4)).toBe(true);
+  });
+
   it("reorders tracks by dragging their headers (one undo step)", async () => {
     const names = () => tracksOrdered(project()).map((t) => t.name);
     expect(names().slice(0, 3)).toEqual(["Keys", "Bass", "Drums"]);

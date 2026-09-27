@@ -87,13 +87,13 @@ export function onClipPointerDown(e: ReactPointerEvent<HTMLElement>, clip: Clip,
     return (b: Beats) => snapToGrid(b, step, tempo);
   };
 
-  const move = (ev: PointerEvent) => {
-    const dx = ev.clientX - startX;
-    const dy = ev.clientY - startY;
-    if (!active && Math.hypot(dx, dy) < DRAG_THRESHOLD_PX) return;
-    if (!active) setDragCursor(mode === "move" ? "grabbing" : "ew-resize");
-    active = true;
+  type Mods = Pick<PointerEvent, "altKey" | "metaKey" | "ctrlKey">;
+  let pointer = { x: startX, y: startY };
+  /** Preview for the pointer position and the held modifiers (cmd/ctrl: copy). */
+  const update = (ev: Mods) => {
+    const dx = pointer.x - startX;
     copy = mode === "move" && (ev.metaKey || ev.ctrlKey);
+    setDragCursor(mode === "move" ? (copy ? "copy" : "grabbing") : "ew-resize");
     last = dragPreview(
       {
         clips,
@@ -104,9 +104,22 @@ export function onClipPointerDown(e: ReactPointerEvent<HTMLElement>, clip: Clip,
       },
       mode,
       dx / pxPerBeat,
-      mode === "move" ? rowAt(ev.clientY) - startRow : 0,
+      mode === "move" ? rowAt(pointer.y) - startRow : 0,
     );
     useArrangementUi.getState().setPreview({ bounds: last, copy });
+  };
+
+  const move = (ev: PointerEvent) => {
+    pointer = { x: ev.clientX, y: ev.clientY };
+    if (!active && Math.hypot(pointer.x - startX, pointer.y - startY) < DRAG_THRESHOLD_PX) return;
+    active = true;
+    update(ev);
+  };
+
+  // Pressing or releasing cmd/ctrl (or alt) mid-drag switches copy (or snapping) at once:
+  // the originals stay where they were while copying.
+  const key = (ev: KeyboardEvent) => {
+    if (active && ["Meta", "Control", "Alt"].includes(ev.key)) update(ev);
   };
 
   const up = (ev: PointerEvent) => {
@@ -134,8 +147,12 @@ export function onClipPointerDown(e: ReactPointerEvent<HTMLElement>, clip: Clip,
     window.removeEventListener("pointermove", move);
     window.removeEventListener("pointerup", up);
     window.removeEventListener("pointercancel", cancel);
+    window.removeEventListener("keydown", key);
+    window.removeEventListener("keyup", key);
   };
   window.addEventListener("pointermove", move);
   window.addEventListener("pointerup", up);
   window.addEventListener("pointercancel", cancel);
+  window.addEventListener("keydown", key);
+  window.addEventListener("keyup", key);
 }
