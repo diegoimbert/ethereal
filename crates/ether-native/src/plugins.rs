@@ -719,6 +719,7 @@ pub(crate) mod fake {
 
     pub fn descriptor() -> DeviceDescriptor {
         DeviceDescriptor {
+            layout: None,
             device_type: DeviceTypeRef::Plugin {
                 plugin_id: "fake".into(),
             },

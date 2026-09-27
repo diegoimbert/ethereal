@@ -4,6 +4,7 @@ import type { DeviceKind } from "./DeviceKind";
 import type { DrumPadId } from "./DrumPadId";
 import type { OrderKey } from "./OrderKey";
 import type { ParamId } from "./ParamId";
+import type { RackChainId } from "./RackChainId";
 import type { TrackId } from "./TrackId";
 
 /**
@@ -33,4 +34,10 @@ sidechain: TrackId | null,
  * the track's own chain. Pad devices keep `track` = the rack's track; chain order is
  * `order` among devices with the same `(track, pad)`.
  */
-pad: DrumPadId | null, };
+pad: DrumPadId | null, 
+/**
+ * Rack chain this device is on (v0.2, `racks-modulation`; see [`crate::rack`]). `None` =
+ * not in a rack. Mutually exclusive with `pad`; `track` = the rack's track. Omitted from
+ * JSON when `None`.
+ */
+chain?: RackChainId, };

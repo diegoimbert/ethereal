@@ -320,6 +320,7 @@ impl AuPlugin {
 impl PluginController for AuPlugin {
     fn descriptor(&self) -> DeviceDescriptor {
         DeviceDescriptor {
+            layout: None,
             device_type: DeviceTypeRef::Plugin {
                 plugin_id: self.id.to_string(),
             },

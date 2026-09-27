@@ -3,7 +3,7 @@
 //!
 //! [`EtherController::preset_command`] (dispatched from `handlers.rs`): `List` merges
 //! `ether_devices::factory_presets` (built-ins) with the user presets read through the
-//! `Library` (`<library>/Presets/...`, `Library::{list_dir, read, write, remove, rename}`);
+//! `Library` (`<library>/Presets/...`, `Library::{list_dir, read, write_file, remove_file, rename_file}`);
 //! `Load` is one document transaction (`edit_with`): params reset/set, kind data, plugin
 //! state (+ `EngineBridge` reload for plugins); `Save` serializes the device
 //! (`EngineBridge::plugin_state` for plugins) with `ether_model::save_preset`.

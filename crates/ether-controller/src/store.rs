@@ -145,7 +145,7 @@ pub trait Library {
 
     /// Write a file in a writable root (the user library: presets, the browser index).
     /// Creates parent folders. Default: unsupported (read-only library).
-    fn write(&mut self, root: &str, rel_path: &str, bytes: &[u8]) -> Result<(), StoreError> {
+    fn write_file(&mut self, root: &str, rel_path: &str, bytes: &[u8]) -> Result<(), StoreError> {
         let _ = (root, rel_path, bytes);
         Err(StoreError::Unsupported(
             "the library is read-only on this host".into(),
@@ -153,7 +153,7 @@ pub trait Library {
     }
 
     /// Delete a file (user presets). Default: unsupported.
-    fn remove(&mut self, root: &str, rel_path: &str) -> Result<(), StoreError> {
+    fn remove_file(&mut self, root: &str, rel_path: &str) -> Result<(), StoreError> {
         let _ = (root, rel_path);
         Err(StoreError::Unsupported(
             "the library is read-only on this host".into(),
@@ -161,7 +161,7 @@ pub trait Library {
     }
 
     /// Rename/move a file within a root (user presets). Default: unsupported.
-    fn rename(&mut self, root: &str, from: &str, to: &str) -> Result<(), StoreError> {
+    fn rename_file(&mut self, root: &str, from: &str, to: &str) -> Result<(), StoreError> {
         let _ = (root, from, to);
         Err(StoreError::Unsupported(
             "the library is read-only on this host".into(),

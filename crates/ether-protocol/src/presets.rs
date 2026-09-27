@@ -5,7 +5,7 @@
 //!   folder per device type under `crates/ether-devices/presets/<device-key>/`; read-only.
 //! - User presets live engine-side in the user library
 //!   (`<library>/Presets/<device-key>/<file>.etherpreset`, or `<library>/Presets/plugins/
-//!   <format>/<plugin id>/...`), written through `Library::{write, remove, rename}`. The UI
+//!   <format>/<plugin id>/...`), written through `Library::{write_file, remove_file, rename_file}`. The UI
 //!   never touches files. Hosts without a writable library (web without OPFS library, remote
 //!   read-only) reply `Unsupported` to `Save`/`Rename`/`Delete`/`SetMeta`.
 //! - `Load` is a document command (one undo step); the others are not undoable.

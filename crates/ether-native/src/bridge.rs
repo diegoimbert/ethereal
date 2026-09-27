@@ -433,6 +433,11 @@ impl EngineBridge for NativeBridge {
         out.cpu_load = self.audio.cpu_load();
     }
 
+    /// v0.2 analysis channel (contracts-3): device frames straight from the engine handle.
+    fn poll_analysis(&mut self, out: &mut Vec<ether_core::AnalysisFrame>) {
+        self.handle.poll_analysis(|f| out.push(*f));
+    }
+
     fn descriptor(&mut self, device: DeviceId) -> Option<DeviceDescriptor> {
         match &self.devices.get(&device)?.kind {
             DeviceKind::Builtin(t) => Some(ether_devices::descriptor(*t)),
@@ -559,6 +564,7 @@ mod tests {
 
     fn media_ref(id: u128) -> MediaRef {
         MediaRef {
+            location: Default::default(),
             id: MediaId(Ulid(id)),
             name: "a.wav".into(),
             file: "media/a.wav".into(),

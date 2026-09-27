@@ -7,6 +7,7 @@
  */
 
 import type { BuiltinDevice, BuiltinDeviceType, DeviceDescriptor, ParamInfo, ParamScale, ParamUnit } from "@/generated";
+import { V02_DESCRIPTORS } from "./devices";
 
 function param(
   id: number,
@@ -139,6 +140,8 @@ export const BUILTIN_DESCRIPTORS: Readonly<Record<BuiltinDeviceType, DeviceDescr
     sidechain_inputs: 0,
     params: [param(0, "Volume", "Rack", "Decibels", -60, 6, 0), param(1, "Pan", "Rack", "Pan", -1, 1, 0)],
   },
+  // v0.2 (contracts-3): generated from Rust, one JSON file per device node (`./devices`).
+  ...V02_DESCRIPTORS,
 };
 
 /** Stereo audio effect descriptor. */
@@ -184,7 +187,9 @@ function eqParams(): ParamInfo[] {
 
 /** A fresh `BuiltinDevice` of `type` with default data (mirrors Rust `BuiltinDevice::new`). */
 export function newBuiltinDevice(type: BuiltinDeviceType): BuiltinDevice {
-  return type === "Sampler" ? { type: "Sampler", sample: null, slices: { enabled: false, base_note: 36, markers: [] } } : { type };
+  if (type === "Sampler") return { type: "Sampler", sample: null, slices: { enabled: false, base_note: 36, markers: [] } };
+  if (type === "MultiSampler") return { type: "MultiSampler", zones: [] };
+  return { type } as BuiltinDevice;
 }
 
 export function builtinDescriptor(device: BuiltinDevice | BuiltinDeviceType): DeviceDescriptor {
