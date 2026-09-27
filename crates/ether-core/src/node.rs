@@ -5,7 +5,7 @@ use ether_protocol::devices::DeviceDescriptor;
 use ether_protocol::model::ParamId;
 use serde::{Deserialize, Serialize};
 
-use crate::analysis::AnalysisFrame;
+use crate::analysis::AnalysisSink;
 use crate::buffer::AudioBuffers;
 use crate::config::PrepareConfig;
 use crate::event::{EventBuffer, ProcessEvent};
@@ -114,13 +114,14 @@ pub trait Node: Send {
         false
     }
 
-    /// RT. Fill `out` (kind, values; `out.node` is set by the engine) with the latest analysis
-    /// and return `true`, or `false` for nothing new. Called at most
+    /// RT. Write this pass's analysis frames into `out` (up to
+    /// [`crate::analysis::ANALYSIS_FRAMES_PER_PASS`], e.g. the EQ's pre and post spectrum;
+    /// `AnalysisSink::frame(kind)` hands out the next pre-allocated frame, `node` is set by
+    /// the engine); write none for nothing new. Called while the node is watched, at most
     /// [`crate::analysis::ANALYSIS_HZ`] times per second, after `process`, on the audio
     /// thread. Copy only: compute in `process`.
-    fn analysis(&mut self, out: &mut AnalysisFrame) -> bool {
+    fn analysis(&mut self, out: &mut AnalysisSink<'_>) {
         let _ = out;
-        false
     }
 }
 

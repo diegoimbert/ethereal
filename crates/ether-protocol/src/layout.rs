@@ -161,8 +161,9 @@ pub enum Widget {
     /// double-click = toggle `on`, context menu = `kind`. Each drag is one gesture (one undo
     /// step). `crossovers` draws vertical handles (drag = frequency), e.g. multiband
     /// crossovers. `spectrum` overlays `AnalysisData::Spectrum` frames (watched device).
-    /// Serves the EQ (8 bands), the auto filter (1 band) and the multiband compressor
-    /// (crossovers only).
+    /// v0.2: the EQ only (8 bands). Other filters (auto filter, multiband crossovers) use
+    /// `FilterCurve` / `Crossover` for now and may adopt it later with an explicit param
+    /// mapping (BCR).
     EqCurve {
         bands: Vec<EqBandBinding>,
         crossovers: Vec<ParamId>,

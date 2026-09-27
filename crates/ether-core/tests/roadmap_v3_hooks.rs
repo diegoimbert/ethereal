@@ -6,7 +6,7 @@ mod common;
 
 use assert_no_alloc::assert_no_alloc;
 use common::*;
-use ether_core::analysis::{ANALYSIS_HZ, AnalysisFrame, AnalysisKind};
+use ether_core::analysis::{ANALYSIS_HZ, AnalysisKind, AnalysisSink};
 use ether_core::graph::RenderGraphDesc;
 use ether_core::protocol::model::{InputTap, TrackKind};
 use ether_core::{
@@ -39,10 +39,14 @@ impl Node for Analyzer {
     fn has_analysis(&self) -> bool {
         true
     }
-    fn analysis(&mut self, out: &mut AnalysisFrame) -> bool {
-        out.begin(AnalysisKind::Levels);
-        out.push(self.blocks);
-        true
+    // Two frames per pass (like the EQ's pre/post spectrum).
+    fn analysis(&mut self, out: &mut AnalysisSink<'_>) {
+        if let Some(f) = out.frame(AnalysisKind::SpectrumPre) {
+            f.push(self.blocks);
+        }
+        if let Some(f) = out.frame(AnalysisKind::Spectrum) {
+            f.push(self.blocks);
+        }
     }
 }
 
@@ -81,21 +85,28 @@ fn analysis_frames_are_throttled_and_allocation_free() {
     }
     let mut frames = Vec::new();
     parts.handle.poll_analysis(|f| frames.push(*f));
-    // ~ANALYSIS_HZ frames per second from the node, in order, tagged with its key.
+    // ~ANALYSIS_HZ passes per second, two frames each (pre, post), in order, tagged with
+    // the node's key.
+    assert_eq!(frames.len() % 2, 0);
+    let passes = frames.len() as u32 / 2;
     assert!(
-        frames.len() as u32 >= ANALYSIS_HZ - 2 && frames.len() as u32 <= ANALYSIS_HZ + 1,
-        "{} frames",
-        frames.len()
+        passes >= ANALYSIS_HZ - 2 && passes <= ANALYSIS_HZ + 1,
+        "{passes} passes"
     );
+    assert!(frames.iter().all(|f| f.node == key));
+    for pair in frames.chunks(2) {
+        assert_eq!(
+            (pair[0].kind, pair[1].kind),
+            (AnalysisKind::SpectrumPre, AnalysisKind::Spectrum)
+        );
+        assert_eq!(pair[0].values(), pair[1].values());
+    }
     assert!(
         frames
-            .iter()
-            .all(|f| f.node == key && f.kind == AnalysisKind::Levels)
-    );
-    assert!(
-        frames
+            .chunks(2)
+            .collect::<Vec<_>>()
             .windows(2)
-            .all(|w| w[0].values()[0] < w[1].values()[0])
+            .all(|w| w[0][0].values()[0] < w[1][0].values()[0])
     );
     // Removing the node stops its frames.
     parts.handle.remove_node(key).unwrap();
@@ -106,7 +117,7 @@ fn analysis_frames_are_throttled_and_allocation_free() {
     }
     let mut after = 0;
     parts.handle.poll_analysis(|_| after += 1);
-    assert!(after <= 1, "{after}");
+    assert!(after <= 2, "{after}");
 }
 
 #[test]

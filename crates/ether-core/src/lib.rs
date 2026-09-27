@@ -59,7 +59,7 @@ pub mod transport;
 pub mod vca;
 mod warp;
 
-pub use analysis::{AnalysisFrame, AnalysisKind};
+pub use analysis::{AnalysisFrame, AnalysisKind, AnalysisSink};
 pub use buffer::AudioBuffers;
 pub use bus_tap::InputTapDesc;
 pub use config::{EngineConfig, PrepareConfig};

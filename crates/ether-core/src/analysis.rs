@@ -36,6 +36,8 @@ pub const ANALYSIS_MAX_VALUES: usize = 1024;
 pub const ANALYSIS_HZ: u32 = 30;
 /// Ring capacity (frames).
 pub const ANALYSIS_RING: usize = 128;
+/// Frames a node may write per pass ([`AnalysisSink`] capacity), e.g. pre + post spectrum.
+pub const ANALYSIS_FRAMES_PER_PASS: usize = 4;
 /// Most analysis nodes tracked at once (further opted-in nodes are ignored).
 pub const MAX_ANALYSIS_NODES: usize = 128;
 
@@ -103,6 +105,46 @@ impl AnalysisFrame {
     }
 }
 
+/// Where a node writes its frames for one pass ([`crate::Node::analysis`]): a fixed set of
+/// [`ANALYSIS_FRAMES_PER_PASS`] pre-allocated frames, no allocation.
+pub struct AnalysisSink<'a> {
+    frames: &'a mut [AnalysisFrame],
+    len: usize,
+}
+
+impl<'a> AnalysisSink<'a> {
+    /// A sink over `frames` (its capacity).
+    pub fn new(frames: &'a mut [AnalysisFrame]) -> Self {
+        Self { frames, len: 0 }
+    }
+
+    /// RT. The next frame, emptied and set to `kind`; `None` when the sink is full.
+    pub fn frame(&mut self, kind: AnalysisKind) -> Option<&mut AnalysisFrame> {
+        let f = self.frames.get_mut(self.len)?;
+        self.len += 1;
+        f.begin(kind);
+        Some(f)
+    }
+
+    /// Frames written so far.
+    pub fn len(&self) -> usize {
+        self.len
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len == 0
+    }
+
+    pub fn capacity(&self) -> usize {
+        self.frames.len()
+    }
+
+    /// The frames written.
+    pub fn written(&self) -> &[AnalysisFrame] {
+        &self.frames[..self.len]
+    }
+}
+
 /// Audio-thread side (owned by the `Engine`).
 ///
 /// Nodes that opt in get a slot (`on_add`); only **watched** slots are collected
@@ -116,13 +158,18 @@ pub(crate) struct AnalysisRt {
     interval: usize,
     elapsed: usize,
     ring: Producer<AnalysisFrame>,
-    scratch: Box<AnalysisFrame>,
+    scratch: Box<[AnalysisFrame; ANALYSIS_FRAMES_PER_PASS]>,
 }
 
 impl AnalysisRt {
     /// Non-RT (engine creation).
     pub(crate) fn new(sample_rate: u32) -> (Self, Consumer<AnalysisFrame>) {
-        let (ring, rx) = RingBuffer::new(ANALYSIS_RING);
+        Self::with_ring(sample_rate, ANALYSIS_RING)
+    }
+
+    /// Non-RT. With a ring of `capacity` frames (tests).
+    pub(crate) fn with_ring(sample_rate: u32, capacity: usize) -> (Self, Consumer<AnalysisFrame>) {
+        let (ring, rx) = RingBuffer::new(capacity);
         (
             Self {
                 slots: [None; MAX_ANALYSIS_NODES],
@@ -130,7 +177,7 @@ impl AnalysisRt {
                 interval: (sample_rate / ANALYSIS_HZ).max(1) as usize,
                 elapsed: 0,
                 ring,
-                scratch: Box::new(AnalysisFrame::EMPTY),
+                scratch: Box::new([AnalysisFrame::EMPTY; ANALYSIS_FRAMES_PER_PASS]),
             },
             rx,
         )
@@ -190,16 +237,18 @@ impl AnalysisRt {
             let Some((key, true)) = self.slots[i] else {
                 continue;
             };
-            if self.ring.slots() == 0 {
-                // Resume here next time.
+            if self.ring.slots() < ANALYSIS_FRAMES_PER_PASS {
+                // Not enough room for a full pass of this node: resume here next time.
                 self.cursor = i;
                 return;
             }
             if let Some(node) = crate::engine::NodeSlot::get(nodes, key) {
-                self.scratch.begin(AnalysisKind::Levels);
-                if node.analysis(&mut self.scratch) {
-                    self.scratch.node = key;
-                    let _ = self.ring.push(*self.scratch);
+                let mut sink = AnalysisSink::new(&mut self.scratch[..]);
+                node.analysis(&mut sink);
+                let n = sink.len();
+                for f in self.scratch[..n].iter_mut() {
+                    f.node = key;
+                    let _ = self.ring.push(*f);
                 }
             }
         }
@@ -216,6 +265,85 @@ impl AnalysisRt {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::buffer::AudioBuffers;
+    use crate::config::PrepareConfig;
+    use crate::engine::NodeSlot;
+    use crate::node::{ProcessContext, ProcessStatus};
+
+    /// Emits one `Levels` frame tagged with its id.
+    struct Tagger(f32);
+    impl Node for Tagger {
+        fn prepare(&mut self, _: &PrepareConfig) {}
+        fn reset(&mut self) {}
+        fn process(
+            &mut self,
+            _: &mut ProcessContext<'_>,
+            _: &mut AudioBuffers<'_, '_>,
+        ) -> ProcessStatus {
+            ProcessStatus::Silent
+        }
+        fn has_analysis(&self) -> bool {
+            true
+        }
+        fn analysis(&mut self, out: &mut AnalysisSink<'_>) {
+            if let Some(f) = out.frame(AnalysisKind::Levels) {
+                f.push(self.0);
+            }
+        }
+    }
+
+    /// With a ring too small for every watched node, passes resume where the previous one
+    /// stopped: no node starves.
+    #[test]
+    fn full_ring_is_fair() {
+        let (mut rt, mut rx) = AnalysisRt::with_ring(48_000, ANALYSIS_FRAMES_PER_PASS + 1);
+        let mut nodes: Vec<NodeSlot> = (0..3)
+            .map(|i| NodeSlot {
+                generation: 1,
+                node: Some(Box::new(Tagger(i as f32))),
+            })
+            .collect();
+        for i in 0..3u32 {
+            let key = NodeKey {
+                index: i,
+                generation: 1,
+            };
+            rt.on_add(key, nodes[i as usize].node.as_deref().unwrap());
+            rt.watch(key, true);
+        }
+        let mut seen = [0usize; 3];
+        for _ in 0..6 {
+            rt.collect_all(&mut nodes);
+            while let Ok(f) = rx.pop() {
+                seen[f.values()[0] as usize] += 1;
+            }
+        }
+        assert!(seen.iter().all(|&n| n >= 3), "{seen:?}");
+        // Unwatched nodes are never asked.
+        rt.watch(
+            NodeKey {
+                index: 1,
+                generation: 1,
+            },
+            false,
+        );
+        rt.collect_all(&mut nodes);
+        rt.collect_all(&mut nodes);
+        while let Ok(f) = rx.pop() {
+            assert_ne!(f.values()[0], 1.0);
+        }
+    }
+
+    #[test]
+    fn sink_is_bounded() {
+        let mut frames = [AnalysisFrame::EMPTY; ANALYSIS_FRAMES_PER_PASS];
+        let mut sink = AnalysisSink::new(&mut frames);
+        for _ in 0..ANALYSIS_FRAMES_PER_PASS {
+            assert!(sink.frame(AnalysisKind::Spectrum).is_some());
+        }
+        assert!(sink.frame(AnalysisKind::SpectrumPre).is_none());
+        assert_eq!(sink.len(), ANALYSIS_FRAMES_PER_PASS);
+    }
 
     #[test]
     fn frames_encode_and_bound() {

@@ -796,7 +796,7 @@ Small/Medium/Large, `colspan`, `label`). Widget catalog (append-only, BCR to ext
 widgets `Knob`, `Slider`, `Toggle`, `Choice`, `Number`; typed widgets `Envelope`,
 `FilterCurve`, `TransferCurve`, `Oscillator`, `Lfo`, `StepEditor`, `XyPad`, `Crossover`;
 data widgets `SampleWaveform`, `ZoneMap`, `Spectrum`, `Tuner`, `Meter`, `RackChains`,
-`Macros`, and `EqCurve` (§12.15). **One shared renderer** (`ui/src/features/devices/layout/`, kit components and
+`Macros`, and `EqCurve` (§12.15, the EQ only for now). **One shared renderer** (`ui/src/features/devices/layout/`, kit components and
 tokens only) renders every built-in; devices without a layout (plugins, v0.1 devices until
 they add one) get the generic layout grouped by `ParamInfo::group`. Device nodes write
 specs and widget data only, never bespoke panels. `ModulatorDescriptor::layout` uses the same
@@ -808,16 +808,22 @@ section ids, one `EqCurve` shape per `kind` label. The renderer adds MIDI-learn 
 
 #### 12.4.3 Analysis channel (implemented)
 Node opt-in `Node::has_analysis()` (queried once when added) and RT `Node::analysis(&mut
-AnalysisFrame) -> bool` (copy the latest result computed in `process`). The engine collects
-from every opted-in live node after all track jobs, at most `ANALYSIS_HZ` (30) times per
-second, into a fixed ring of `Copy` frames (`ANALYSIS_RING` = 64, `ANALYSIS_MAX_VALUES` =
-1024; full ring = dropped, no allocation). `EngineHandle::poll_analysis` →
+AnalysisSink)`: the node copies the latest results computed in `process` into up to
+`ANALYSIS_FRAMES_PER_PASS` (4) pre-allocated frames per pass (`sink.frame(kind)`), e.g. the
+EQ's pre **and** post spectrum in the same pass (no alternating). The engine collects from
+the watched live nodes after all track jobs, at most `ANALYSIS_HZ` (30) times per second,
+into a fixed ring of `Copy` frames (`ANALYSIS_RING` = 128, `ANALYSIS_MAX_VALUES` = 1024; a
+node is only asked when the ring has room for a whole pass; no allocation). Modulation
+readback is pushed first each pass, so device frames can't starve it. `EngineHandle::poll_analysis` →
 `EngineBridge::poll_analysis` (native done; web: forward from the worklet, `fx-analysis`)
 → the controller keeps the latest frame per (device, kind) per tick and emits
 `Event::Analysis { Frame { device, data } }` only for devices watched with
 `Analysis::Watch`. Watches are refcounted in the controller and owned per connection: the
 remote router releases a disconnecting client's watches (`Unwatch` per watch held; an
-`Unwatch` a client doesn't hold is a no-op); project loads clear them all. Only watched
+`Unwatch` a client doesn't hold is a no-op). Project loads don't touch them (watches of
+devices that no longer exist are inert, and the router's per-client counts stay exact);
+single-connection hosts call `EtherController::reset_analysis_watches` when their UI
+reconnects. An engine watch whose queue push fails is retried on the next tick. Only watched
 nodes are collected (`EngineHandle::watch_analysis`, synced by the controller each tick,
 node re-creation included), round-robin so a full ring never starves the same nodes; a
 node re-added into a reused slot index replaces the stale entry. Kinds and encodings:
@@ -1024,8 +1030,10 @@ latency-aligned sidechain buffers (base-24, §11.10) through `Node::process_side
   `activateBus` when a source is set, silent when not), AU input bus 1 (render callback
   supplying the sidechain). Without a source the aux bus gets silence.
 - Sandboxed plugins: the shared-memory block gains the aux input channels (`sidechain_inputs ×
-  max_block` floats after the main inputs) and the shm `VERSION` is bumped (3); the helper
-  forwards them to the plugin the same way.
+  max_block` floats after the main inputs) and the shm `VERSION` is bumped by one; the helper
+  forwards them to the plugin the same way. Serialized with `sample-accurate-automation`
+  (which also touches the shm event layout): whichever lands second rebases on the other and
+  bumps the version again.
 - Offline renders (export, freeze, bounce) route sidechains like live playback.
 
 ### 12.15 Graphical EQ (`graphical-eq`, priority 2)
@@ -1047,5 +1055,6 @@ latency-aligned sidechain buffers (base-24, §11.10) through `Node::process_side
   the band controls). It publishes `AnalysisKind::SpectrumPre` (input) and `Spectrum` (output)
   frames while watched (≤ 30 Hz, RT-safe: accumulate in `process`, copy in `analysis`); they
   arrive as `AnalysisData::Spectrum { stage: Pre | Post }`.
-- The auto filter (fx-color: one band, `kind` = its filter type) and the multiband compressor
-  (fx-dynamics: `crossovers`) use the same widget.
+- `EqCurve` is for the EQ only in v0.2: the auto filter and the multiband compressor use
+  standard controls (`FilterCurve`, `Crossover`, knobs). Other filters may adopt it later with
+  an explicit param mapping (a BCR on this section).

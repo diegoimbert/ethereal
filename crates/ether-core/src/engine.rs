@@ -352,8 +352,9 @@ impl Engine {
 
         // --- v0.2 analysis channel (`crate::analysis`): after every track job ---
         if self.analysis.due(frames) {
-            self.analysis.collect_all(&mut self.nodes);
+            // Modulation readback first, so device frames filling the ring can't starve it.
             crate::modulation::readback(&mut self.snapshot.rt.tracks, &mut self.analysis);
+            self.analysis.collect_all(&mut self.nodes);
         }
 
         self.publish_playhead();

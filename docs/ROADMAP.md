@@ -442,8 +442,8 @@ Ground rules (as for the roadmap v2 nodes above):
    `UPDATE_MOCK_DESCRIPTORS=1 cargo test -p ether-devices --test v02_descriptors` and commit
    your JSON (`ui/src/transport/mock/devices/<group>.json`). Never edit it by hand.
 5. **Layout.** Ship a `DeviceLayout` for every device in `descriptor().layout` (checked by
-   `tests/layouts.rs`; the auto filter uses a one-band `EqCurve`, the multiband compressor an
-   `EqCurve` with `crossovers`)
+   `tests/layouts.rs`; `EqCurve` is for the EQ only for now: filters use `FilterCurve`,
+   multiband crossovers `Crossover`)
    (`ether_protocol::layout`; builders in `contract::{layout, section, item, knob}`): hero
    controls `Large`, typed widgets where they help (envelopes, filter curve, transfer curve,
    zone map, spectrum/tuner, step editor). Only specs and widget data: no bespoke panels,
@@ -635,7 +635,8 @@ Owns: `crates/ether-controller/tests/plugin_sidechain*.rs`, `crates/ether-native
 plugin_sidechain*.rs`. Contract: CONTRACTS.md §12.14. Shared touches (format files): the
 aux bus in `ether-clap/src/{node,plugin,scan}.rs`, `ether-vst3/src/{node,plugin,scan}.rs`,
 `ether-au/src/mac/{node,plugin,mod}.rs` (`Node::{sidechain_inputs, process_sidechain}` +
-`sidechain_inputs` in the descriptors), the sandbox shm layout and version
+`sidechain_inputs` in the descriptors), the sandbox shm layout and version (bump it by one;
+serialized after `sample-accurate-automation`, which also changes the shm layout)
 (`ether-sandbox/src/{shm,node,helper,host}.rs`), the plugin catalog
 (`ether-plugin-host/src/**`, `PluginDescriptor::sidechain_inputs`). No controller or engine
 changes are needed: `Device::SetSidechain` already accepts any device whose descriptor has
