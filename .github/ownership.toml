@@ -487,6 +487,8 @@ paths = [
   "crates/ether-devices/src/limiter.rs",
   "ui/src/transport/mock/builtinDevices.ts",
   "crates/ether-devices/tests/sidechain*.rs",
+  # shared touch (base-30): devices2 test expects Limiter sidechain_inputs = 2
+  "crates/ether-devices/tests/devices2.rs",
 ]
 
 [nodes.groove]
