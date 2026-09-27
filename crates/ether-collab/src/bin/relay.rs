@@ -29,8 +29,10 @@ Usage: ether-collab-relay [options]
   --no-token        Serve without a token (loopback only).
   --no-stun         Do not bind UDP: no STUN (by default the relay answers STUN Binding
                     requests on UDP, same IP and port number as the WebSocket listener).
-  --turn            Also run a TURN server on that UDP port (needs the `turn` build
-                    feature and a token; sites get per-site 12 h credentials).
+  --turn            EXPERIMENTAL: also run a TURN server on that UDP port (needs the
+                    `turn` build feature and a token; sites get per-site 12 h
+                    credentials). Known denial-of-service limitations (docs/COLLAB.md
+                    §10): do not expose it publicly yet.
   --public-host <H> Host name in the advertised stun:/turn: URLs. Default: the host name
                     each site used to reach the relay.
   --public-ip <IP>  TURN relayed address (default: the listen address; required when

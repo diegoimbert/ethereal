@@ -9,7 +9,9 @@
 //!   request, and a MESSAGE-INTEGRITY attribute proves nothing until checked);
 //! - the crate remembers every nonce it hands out and only forgets one when it is presented
 //!   again stale: requests reaching it are counted, and past [`NONCE_SOFT_BUDGET`] only
-//!   requests whose MESSAGE-INTEGRITY we verified ourselves get through, until the server
+//!   requests whose MESSAGE-INTEGRITY we verified ourselves get through (plus a global
+//!   trickle of [`UNVERIFIED_TRICKLE_PER_SECOND`] unverified ones, so new clients can still
+//!   send their first Allocate), until the server
 //!   is rotated (a fresh `Server`, fresh nonce map) as soon as no allocation is live, or
 //!   unconditionally at [`NONCE_HARD_BUDGET`] (live allocations are then dropped): the nonce
 //!   map stays bounded;
@@ -57,6 +59,8 @@ const REAP_EVERY: Duration = Duration::from_secs(10);
 pub const NONCE_SOFT_BUDGET: u64 = 50_000;
 /// Requests handed to the crate before the server is rotated even with live allocations.
 pub const NONCE_HARD_BUDGET: u64 = 100_000;
+/// Unverified requests let through per second (whole relay) past the soft budget.
+pub const UNVERIFIED_TRICKLE_PER_SECOND: f64 = 5.0;
 
 type TurnResult<T> = Result<T, turn::Error>;
 
@@ -257,6 +261,8 @@ pub struct RequestGate {
     caps: RateCaps,
     /// Requests handed to the current server (an upper bound of its nonces).
     admitted: u64,
+    /// Token bucket of unverified requests past the soft budget (tokens, last refill).
+    trickle: Option<(f64, Instant)>,
 }
 
 impl Default for RequestGate {
@@ -267,7 +273,11 @@ impl Default for RequestGate {
 
 impl RequestGate {
     pub fn new(caps: RateCaps) -> Self {
-        Self { caps, admitted: 0 }
+        Self {
+            caps,
+            admitted: 0,
+            trickle: None,
+        }
     }
 
     /// `packet` from `from`: `verified` tells whether its MESSAGE-INTEGRITY checks out
@@ -286,10 +296,25 @@ impl RequestGate {
         if !self.caps.admit(from, now) {
             return false;
         }
-        if self.admitted >= NONCE_SOFT_BUDGET && !verified() {
+        if self.admitted >= NONCE_SOFT_BUDGET && !verified() && !self.trickle(now) {
             return false;
         }
         self.admitted += 1;
+        true
+    }
+
+    /// Past the soft budget, unverified requests (a new client's first Allocate) still get
+    /// through at [`UNVERIFIED_TRICKLE_PER_SECOND`] for the whole relay, so new clients can
+    /// join while the server waits to rotate.
+    fn trickle(&mut self, now: Instant) -> bool {
+        let rate = UNVERIFIED_TRICKLE_PER_SECOND;
+        let (tokens, at) = self.trickle.get_or_insert((rate, now));
+        *tokens = (*tokens + now.saturating_duration_since(*at).as_secs_f64() * rate).min(rate);
+        *at = now;
+        if *tokens < 1.0 {
+            return false;
+        }
+        *tokens -= 1.0;
         true
     }
 
@@ -500,6 +525,10 @@ impl TurnThread {
         socket: std::net::UdpSocket,
         config: &IceConfig,
     ) -> Result<(Self, Arc<TurnCredentials>), String> {
+        tracing::warn!(
+            "TURN is EXPERIMENTAL: known denial-of-service limitations (docs/COLLAB.md §10); \
+             do not expose it publicly yet"
+        );
         let addr = socket.local_addr().map_err(|e| e.to_string())?;
         let listen_ip = addr.ip();
         let relay_ip = match config.public_ip {
@@ -747,7 +776,7 @@ mod tests {
     }
 
     #[test]
-    fn past_the_soft_budget_only_verified_requests_pass_until_rotation() {
+    fn past_the_soft_budget_verified_requests_pass_and_unverified_trickle() {
         let mut g = RequestGate::new(RateCaps::new(u32::MAX, u32::MAX, 16));
         let now = Instant::now();
         let ip = IpAddr::V4(Ipv4Addr::LOCALHOST);
@@ -755,9 +784,16 @@ mod tests {
         for _ in 0..NONCE_SOFT_BUDGET {
             assert!(g.admit(&p, ip, now, || false));
         }
-        assert!(!g.admit(&p, ip, now, || false), "unverified: dropped");
+        // Unverified: a small global trickle (new clients can still join), then dropped.
+        let trickle = UNVERIFIED_TRICKLE_PER_SECOND as usize;
+        let passed = (0..50).filter(|_| g.admit(&p, ip, now, || false)).count();
+        assert_eq!(passed, trickle);
         assert!(g.admit(&p, ip, now, || true), "verified: passes");
-        assert_eq!(g.admitted(), NONCE_SOFT_BUDGET + 1);
+        assert_eq!(g.admitted(), NONCE_SOFT_BUDGET + trickle as u64 + 1);
+        // One second later the trickle is back, never more than one second's worth.
+        let later = now + Duration::from_secs(5);
+        let passed = (0..50).filter(|_| g.admit(&p, ip, later, || false)).count();
+        assert_eq!(passed, trickle);
         g.rotated();
         assert!(g.admit(&p, ip, now, || false));
     }
