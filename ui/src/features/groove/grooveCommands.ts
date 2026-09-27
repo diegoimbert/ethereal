@@ -5,6 +5,7 @@
 
 import { create } from "zustand";
 import type { Beats, ClipId, Command, NoteId } from "@/generated";
+import { MOD_KEY, type ContextMenuEntry } from "@/kit";
 import { cmd } from "@/transport";
 
 /** Quantize grid choices; `"roll"` = the piano roll's current grid step. */
@@ -115,6 +116,27 @@ export function humanizeCommand(
 /** `GrooveCommand::SetSwing` (project playback swing). */
 export function setSwingCommand(amount: number, grid: Beats): Command {
   return cmd("Groove", { type: "SetSwing", amount: Math.min(1, Math.max(0, amount)), grid });
+}
+
+/**
+ * Note context-menu items (piano roll): Quantize and Humanize the clicked selection with
+ * the remembered settings. Each is one command = one undo step.
+ */
+export function grooveMenuItems(
+  clip: ClipId,
+  ids: ReadonlyArray<NoteId>,
+  rollStep: Beats,
+  send: (command: Command) => unknown,
+): ContextMenuEntry[] {
+  const { quantize, humanize } = useGrooveSettings.getState();
+  return [
+    {
+      label: "Quantize",
+      shortcut: `${MOD_KEY}U`,
+      onSelect: () => void send(grooveQuantizeCommand(clip, ids, quantize, rollStep)),
+    },
+    { label: "Humanize", onSelect: () => void send(humanizeCommand(clip, ids, humanize, newSeed())) },
+  ];
 }
 
 /** The swing grid choice for `beats` (closest match, default 1/16). */

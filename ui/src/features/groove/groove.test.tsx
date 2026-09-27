@@ -6,6 +6,7 @@ import { cmd, MockTransport, TransportProvider } from "@/transport";
 import { GrooveControls } from "./GrooveControls";
 import { GroovePanel } from "./GroovePanel";
 import {
+  grooveMenuItems,
   grooveQuantizeCommand,
   humanizeCommand,
   HUMANIZE_TIMING_UNIT,
@@ -91,6 +92,19 @@ describe("groove commands", () => {
         seed: 0xffffffff,
       }),
     );
+  });
+
+  it("note context-menu items quantize/humanize the clicked notes with the remembered settings", () => {
+    useGrooveSettings.getState().setQuantize({ grid: "1/16", strength: 0.75, swing: 0.5 });
+    vi.spyOn(Math, "random").mockReturnValue(0.5);
+    const sent: Command[] = [];
+    const items = grooveMenuItems(CLIP, [A, B], 1, (c) => sent.push(c));
+    expect(items.map((i) => (i === "separator" ? i : i.label))).toEqual(["Quantize", "Humanize"]);
+    for (const i of items) if (i !== "separator") i.onSelect();
+    expect(sent[0]).toEqual(
+      cmd("Note", { type: "Quantize", clip: CLIP, notes: [A, B], grid: 0.25, strength: 0.75, ends: false, swing: 0.5 }),
+    );
+    expect(sent[1]).toMatchObject({ domain: "Groove", command: { type: "Humanize", notes: [A, B], seed: 0x80000000 } });
   });
 
   it("set swing clamps the amount; grid choices round-trip", () => {

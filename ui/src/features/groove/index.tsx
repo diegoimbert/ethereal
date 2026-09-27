@@ -6,6 +6,7 @@
 export { GroovePanel } from "./GroovePanel";
 export { GrooveControls, type GrooveControlsProps } from "./GrooveControls";
 export {
+  grooveMenuItems,
   grooveQuantizeCommand,
   humanizeCommand,
   setSwingCommand,

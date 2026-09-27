@@ -16,7 +16,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Beats, Clip, Command, Note, NoteId } from "@/generated";
 import { Button } from "@/kit";
-import { GrooveControls, grooveQuantizeCommand, useGrooveSettings } from "@/features/groove";
+import { GrooveControls, grooveMenuItems, grooveQuantizeCommand, useGrooveSettings } from "@/features/groove";
 import { useClip, useEditedClipId, useNotesOfClip } from "@/state";
 import {
   beatsToPx,
@@ -239,6 +239,7 @@ export function PianoRollEditor({ clip, view: injectedView }: PianoRollEditorPro
             step={step}
             newNoteBeats={stepBeats}
             drawMode={drawMode}
+            menuItems={(ids) => grooveMenuItems(clip.id, ids, stepBeats, send)}
           />
         </div>
       </div>
