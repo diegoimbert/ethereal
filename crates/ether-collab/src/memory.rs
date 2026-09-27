@@ -25,6 +25,9 @@ struct Inner {
     auto: bool,
     /// Every message delivered to the relay, in order (for assertions).
     delivered: usize,
+    /// Half-open links: closed for the site, still connected for the relay (they never
+    /// answer a ping).
+    silent: HashSet<ConnId>,
 }
 
 impl Inner {
@@ -37,6 +40,7 @@ impl Inner {
         let mut out = Vec::new();
         let r = self.relay.message(conn, m, &mut out);
         self.route(out);
+        self.after_relay();
         if leave {
             self.close(conn, "left".into(), false);
         } else if let Err(e) = r
@@ -54,11 +58,33 @@ impl Inner {
         }
     }
 
+    /// Answer the relay's pings (live links answer at once) and close what it dropped.
+    fn after_relay(&mut self) {
+        loop {
+            let pings = self.relay.take_pings();
+            let closing = self.relay.take_closing();
+            if pings.is_empty() && closing.is_empty() {
+                return;
+            }
+            for c in pings {
+                if self.open.contains(&c) {
+                    self.relay.heard(c);
+                }
+            }
+            for (c, reason) in closing {
+                self.silent.remove(&c);
+                self.close(c, reason, false);
+            }
+        }
+    }
+
     fn close(&mut self, conn: ConnId, reason: String, fatal: bool) {
+        self.silent.remove(&conn);
         if self.open.remove(&conn) {
             let mut out = Vec::new();
             self.relay.disconnect(conn, &mut out);
             self.route(out);
+            self.after_relay();
             self.inbox.retain(|(c, _)| *c != conn);
             self.closed.insert(conn, (reason, fatal));
         }
@@ -143,6 +169,26 @@ impl Hub {
     /// Simulate a dropped connection (the site sees `Closed { fatal: false }`).
     pub fn kill(&self, conn: ConnId) {
         self.lock().close(conn, "connection lost".into(), false);
+    }
+
+    /// Simulate a half-open connection: the site sees it closed, the relay still has it
+    /// (and it never answers a ping) until the relay drops it.
+    pub fn half_open(&self, conn: ConnId) {
+        let mut h = self.lock();
+        if h.open.remove(&conn) {
+            h.inbox.retain(|(c, _)| *c != conn);
+            h.closed.insert(conn, ("connection lost".into(), false));
+            h.silent.insert(conn);
+        }
+    }
+
+    /// Advance the relay's clock to `now_ms` (probes of contested site ids time out).
+    pub fn tick(&self, now_ms: u64) {
+        let mut h = self.lock();
+        let mut out = Vec::new();
+        h.relay.tick(now_ms, &mut out);
+        h.route(out);
+        h.after_relay();
     }
 
     /// Open links, oldest first.

@@ -17,6 +17,13 @@
 //!   site, or whose `seq` is not above that site's last sequenced one (a resend), is dropped.
 //! - `Presence` is stamped with the sender's site and color; `Hello`, `Presence` and `Leave`
 //!   are forwarded to the other ready peers.
+//! - A site id is held by one connection. A `Hello` for a site another connection holds
+//!   starts a contest: the holder is pinged ([`Relay::take_pings`]) and the newcomer's
+//!   messages are held. Any sign of life from the holder ([`Relay::heard`], or a message)
+//!   within [`RelayConfig::site_probe_ms`] refuses the newcomer; otherwise ([`Relay::tick`])
+//!   the holder is dropped as half-open and the newcomer proceeds. A newcomer never evicts
+//!   a live holder (the token is relay-wide). Connections to close are in
+//!   [`Relay::take_closing`].
 //! - Past [`RelayConfig::compact_after`] log entries, one ready peer is asked for a snapshot
 //!   (`SyncRequest { site: it, version: [] }`); the log before its index is dropped.
 
@@ -52,6 +59,9 @@ pub struct RelayConfig {
     /// Hard cap: past it, new transactions are refused (the sender is disconnected and
     /// resyncs on reconnect) until a snapshot shrinks the log.
     pub max_log: usize,
+    /// How long a site id's holder has to show a sign of life when another connection
+    /// says hello with that id (after that it is taken for half-open and dropped).
+    pub site_probe_ms: u64,
 }
 
 impl Default for RelayConfig {
@@ -63,6 +73,7 @@ impl Default for RelayConfig {
             max_total_media_bytes: 4 << 30,
             compact_after: 5_000,
             max_log: 20_000,
+            site_probe_ms: 4_000,
         }
     }
 }
@@ -89,7 +100,20 @@ struct Peer {
     creator: bool,
     /// A `SyncRequest` that arrived before the session had a snapshot.
     waiting: Option<Option<(u64, u64)>>,
+    /// This connection said hello with a site id another connection holds.
+    contest: Option<Contest>,
 }
+
+/// A newcomer waiting for the holder of its site id to prove alive (or not).
+struct Contest {
+    holder: ConnId,
+    since_ms: u64,
+    /// The newcomer's messages (its `Hello` first), handled once it wins.
+    held: Vec<CollabMessage>,
+}
+
+/// Messages a contending connection may send before the contest is decided.
+const MAX_HELD: usize = 64;
 
 struct MediaChunk {
     /// Log length when it arrived (resumers get the chunks at or after their index).
@@ -144,6 +168,12 @@ pub struct Relay {
     conns: HashMap<ConnId, String>,
     /// Media bytes cached across sessions.
     media_bytes: usize,
+    /// The driver's clock ([`Relay::tick`]).
+    now_ms: u64,
+    /// Connections to ping now (holders of a contested site id).
+    pings: Vec<ConnId>,
+    /// Connections the relay dropped, with why: the driver closes their sockets.
+    closing: Vec<(ConnId, String)>,
 }
 
 /// Why a message was dropped (for logs). `disconnect`: close the sender's link.
@@ -218,6 +248,7 @@ impl Relay {
                 ready: false,
                 creator: false,
                 waiting: None,
+                contest: None,
             },
         );
         self.conns.insert(conn, session.to_string());
@@ -255,6 +286,87 @@ impl Relay {
         if peer.creator && s.snapshot.is_none() {
             Self::elect_creator(s, out);
         }
+        // Newcomers contesting this connection's site id win.
+        let winners: Vec<(ConnId, Vec<CollabMessage>)> = s
+            .peers
+            .iter_mut()
+            .filter(|(_, p)| p.contest.as_ref().is_some_and(|c| c.holder == conn))
+            .filter_map(|(id, p)| Some((*id, p.contest.take()?.held)))
+            .collect();
+        for (w, held) in winners {
+            for m in held {
+                if let Err(e) = self.message(w, m, out)
+                    && e.disconnect
+                {
+                    self.drop_conn(w, e.reason, out);
+                    break;
+                }
+            }
+        }
+    }
+
+    /// Drop `conn` (the driver closes its socket, see [`Relay::take_closing`]).
+    fn drop_conn(&mut self, conn: ConnId, reason: String, out: &mut Vec<Outgoing>) {
+        if self.conns.contains_key(&conn) {
+            self.closing.push((conn, reason));
+            self.disconnect(conn, out);
+        }
+    }
+
+    /// Advance the clock: holders that didn't answer their probe in time are dropped (their
+    /// contenders proceed).
+    pub fn tick(&mut self, now_ms: u64, out: &mut Vec<Outgoing>) {
+        self.now_ms = self.now_ms.max(now_ms);
+        let probe = self.config.site_probe_ms;
+        let expired: Vec<ConnId> = self
+            .sessions
+            .values()
+            .flat_map(|s| s.peers.values())
+            .filter_map(|p| p.contest.as_ref())
+            .filter(|c| self.now_ms >= c.since_ms + probe)
+            .map(|c| c.holder)
+            .collect();
+        for holder in expired {
+            self.drop_conn(
+                holder,
+                "no answer (a new connection of this site took over)".into(),
+                out,
+            );
+        }
+    }
+
+    /// A sign of life from `conn` (a pong, any frame): contenders for its site id lose.
+    pub fn heard(&mut self, conn: ConnId) {
+        let Some(s) = self.conns.get(&conn).and_then(|n| self.sessions.get_mut(n)) else {
+            return;
+        };
+        let mut losers = Vec::new();
+        for (id, p) in s.peers.iter_mut() {
+            if p.contest.as_ref().is_some_and(|c| c.holder == conn) {
+                p.contest = None;
+                losers.push(*id);
+            }
+        }
+        let mut out = Vec::new();
+        for l in losers {
+            self.drop_conn(
+                l,
+                "this site is already connected to the session".into(),
+                &mut out,
+            );
+        }
+        debug_assert!(out.is_empty(), "contenders are not introduced to anyone");
+    }
+
+    /// Connections to ping now (see the module docs).
+    pub fn take_pings(&mut self) -> Vec<ConnId> {
+        std::mem::take(&mut self.pings)
+    }
+
+    /// Connections the relay dropped (already disconnected from the relay state): the
+    /// driver closes their sockets with the reason.
+    pub fn take_closing(&mut self) -> Vec<(ConnId, String)> {
+        std::mem::take(&mut self.closing)
     }
 
     fn elect_creator(s: &mut Session, out: &mut Vec<Outgoing>) {
@@ -287,6 +399,12 @@ impl Relay {
         out: &mut Vec<Outgoing>,
     ) -> Result<(), Dropped> {
         let name = self.conns.get(&conn).ok_or("unknown connection")?.clone();
+        // A message is a sign of life (for a contest on this connection's site id).
+        self.heard(conn);
+        if !self.conns.contains_key(&conn) {
+            return Err("unknown connection".into());
+        }
+        let now_ms = self.now_ms;
         let RelayConfig {
             compact_after,
             max_log,
@@ -296,16 +414,27 @@ impl Relay {
         } = self.config;
         let total_media = self.media_bytes;
         let s = self.sessions.get_mut(&name).ok_or("unknown session")?;
-        // A site id is held by one live connection at a time (no impersonation; a
-        // reconnecting site's old connection is closed before it says hello again).
-        let taken = match &message {
+        // A site id is held by one live connection at a time (no impersonation, no
+        // eviction of a live holder; a half-open one is probed and dropped).
+        let holder = match &message {
             CollabMessage::Hello { site, .. } => s
                 .peers
                 .iter()
-                .any(|(id, p)| *id != conn && p.site == Some(*site)),
-            _ => false,
+                .find(|(id, p)| **id != conn && p.site == Some(*site))
+                .map(|(id, _)| *id),
+            _ => None,
         };
         let peer = s.peers.get_mut(&conn).ok_or("unknown peer")?;
+        if let Some(c) = peer.contest.as_mut() {
+            if c.held.len() >= MAX_HELD {
+                return Err(Dropped {
+                    reason: "too many messages before the site id was granted".into(),
+                    disconnect: true,
+                });
+            }
+            c.held.push(message);
+            return Ok(());
+        }
         match message {
             CollabMessage::Hello {
                 site,
@@ -319,17 +448,25 @@ impl Relay {
                         disconnect: true,
                     });
                 }
-                if taken {
-                    return Err(Dropped {
-                        reason: "this site is already connected to the session".into(),
-                        disconnect: true,
-                    });
-                }
                 if protocol_version != crate::wire::COLLAB_PROTOCOL_VERSION {
                     return Err(Dropped {
                         reason: format!("unsupported collab protocol {protocol_version}"),
                         disconnect: true,
                     });
+                }
+                if let Some(holder) = holder {
+                    peer.contest = Some(Contest {
+                        holder,
+                        since_ms: now_ms,
+                        held: vec![CollabMessage::Hello {
+                            site,
+                            actor,
+                            name,
+                            protocol_version,
+                        }],
+                    });
+                    self.pings.push(holder);
+                    return Ok(());
                 }
                 peer.site = Some(site);
                 let name: String = name.chars().take(64).collect();

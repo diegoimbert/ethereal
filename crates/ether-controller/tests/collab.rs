@@ -540,6 +540,99 @@ fn leave_and_rejoin_on_the_same_controller_converges() {
 }
 
 #[test]
+fn a_site_whose_old_link_is_half_open_gets_back_in() {
+    let hub = Hub::default();
+    let mut sites = session(&hub, 2);
+    let [a, b] = sites.as_mut_slice() else {
+        unreachable!()
+    };
+    let t = add_track(a, TrackKind::Midi);
+    settle(&mut [a, b], &hub);
+    // B's link dies on B's side only: the relay still holds B's site id.
+    let b_link = hub.links()[1];
+    hub.half_open(b_link);
+    let tb = add_track(b, TrackKind::Audio);
+    for _ in 0..20 {
+        b.advance(100);
+        b.tick();
+        hub.deliver();
+        a.tick();
+    }
+    // B reconnected, but its new link is held while the old one is probed.
+    assert_eq!(hub.links().len(), 2);
+    assert_eq!(b.ctl.collab_pending(), 1);
+    assert!(!a.project().tracks.contains_key(&tb));
+    // The old link never answers: the relay drops it and lets B's new link in.
+    hub.tick(ether_collab::relay::RelayConfig::default().site_probe_ms);
+    for _ in 0..20 {
+        b.advance(100);
+        settle(&mut [a, b], &hub);
+    }
+    assert!(b.online(), "{:?}", b.status());
+    assert_eq!(b.ctl.collab_pending(), 0);
+    for s in [&*a, &*b] {
+        assert!(s.project().tracks.contains_key(&t));
+        assert!(s.project().tracks.contains_key(&tb));
+    }
+    assert_converged(&[a, b]);
+}
+
+#[test]
+fn a_recreated_session_keeps_what_it_has_of_returning_sites() {
+    let hub = Hub::default();
+    let mut sites = session(&hub, 2);
+    let [a, b] = sites.as_mut_slice() else {
+        unreachable!()
+    };
+    let t = add_track(a, TrackKind::Midi);
+    settle(&mut [a, b], &hub);
+    let (a_link, b_link) = (hub.links()[0], hub.links()[1]);
+    // B's rename is sequenced and reaches A, but B's link dies before its echo: it is still
+    // pending on B.
+    b.ok(Command::Track(TrackCommand::Rename {
+        id: t,
+        name: "old".into(),
+    }));
+    while hub.deliver_from(b_link) {}
+    hub.kill(b_link);
+    a.tick();
+    assert_eq!(a.project().tracks[&t].name, "old");
+    assert_eq!(b.ctl.collab_pending(), 1);
+    // Everybody is gone: the relay forgets the session, A re-creates it from its replica
+    // and makes a newer edit.
+    hub.kill(a_link);
+    for _ in 0..100 {
+        a.advance(100);
+        settle(&mut [a], &hub);
+        if a.online() {
+            break;
+        }
+    }
+    assert!(a.online(), "{:?}", a.status());
+    a.ok(Command::Track(TrackCommand::Rename {
+        id: t,
+        name: "new".into(),
+    }));
+    settle(&mut [a], &hub);
+    // B returns: A's snapshot says it has B's rename, so B doesn't resend it (it would be
+    // sequenced after "new" and silently revert it).
+    for _ in 0..100 {
+        b.advance(100);
+        settle(&mut [a, b], &hub);
+        if b.online() {
+            break;
+        }
+    }
+    assert!(b.online(), "{:?}", b.status());
+    settle(&mut [a, b], &hub);
+    assert_eq!(b.ctl.collab_pending(), 0);
+    for s in [&*a, &*b] {
+        assert_eq!(s.project().tracks[&t].name, "new");
+    }
+    assert_converged(&[a, b]);
+}
+
+#[test]
 fn rebase_keeps_derived_media_length_of_a_pending_import() {
     let hub = Hub::default();
     let mut lib = MemoryLibrary::new();

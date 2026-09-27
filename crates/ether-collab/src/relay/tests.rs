@@ -182,13 +182,66 @@ fn a_site_id_held_by_a_live_connection_cannot_be_claimed() {
     let mut r = created();
     let mut out = Vec::new();
     r.connect(2, "jam").unwrap();
-    let e = r.message(2, hello(1), &mut out).unwrap_err();
-    assert!(e.disconnect, "impersonating site 1 is refused");
+    // The claim is held while the holder is probed; the newcomer's messages wait.
+    r.message(2, hello(1), &mut out).unwrap();
+    r.message(2, sync(1, None), &mut out).unwrap();
+    assert_eq!(r.take_pings(), [1]);
     assert!(out.is_empty());
-    // Once the old connection is gone, the site may come back (reconnect).
-    r.disconnect(1, &mut out);
+    // The holder answers (pong): the newcomer is refused, the holder stays.
+    r.heard(1);
+    assert_eq!(
+        r.take_closing().iter().map(|c| c.0).collect::<Vec<_>>(),
+        [2]
+    );
+    assert_eq!(r.peer_count("jam"), 1);
+    // Even much later, the holder is not dropped (the contest is over).
+    r.tick(60_000, &mut out);
+    assert!(r.take_closing().is_empty());
+    // A message from the holder is a sign of life too.
     r.connect(3, "jam").unwrap();
     r.message(3, hello(1), &mut out).unwrap();
+    assert_eq!(r.take_pings(), [1]);
+    r.message(1, tx(1, 1), &mut out).unwrap();
+    assert_eq!(
+        r.take_closing().iter().map(|c| c.0).collect::<Vec<_>>(),
+        [3]
+    );
+    assert!(
+        to(&out, 3).is_empty(),
+        "nothing reached the refused newcomer"
+    );
+    // Once the old connection is gone, the site may come back (reconnect).
+    r.disconnect(1, &mut out);
+    r.connect(4, "jam").unwrap();
+    r.message(4, hello(1), &mut out).unwrap();
+    assert!(r.take_pings().is_empty());
+}
+
+#[test]
+fn a_half_open_holder_is_dropped_after_its_probe() {
+    let mut r = created();
+    let mut out = Vec::new();
+    r.message(1, tx(1, 1), &mut out).unwrap();
+    r.tick(1_000, &mut out);
+    r.connect(2, "jam").unwrap();
+    r.message(2, hello(1), &mut out).unwrap();
+    r.message(2, sync(1, Some(0)), &mut out).unwrap();
+    assert_eq!(r.take_pings(), [1]);
+    // No answer yet: still waiting.
+    r.tick(1_000 + RelayConfig::default().site_probe_ms - 1, &mut out);
+    assert!(r.take_closing().is_empty());
+    assert!(to(&out, 2).is_empty());
+    out.clear();
+    // No answer in time: the holder is dropped, the newcomer's hello + sync proceed.
+    r.tick(1_000 + RelayConfig::default().site_probe_ms, &mut out);
+    assert_eq!(
+        r.take_closing().iter().map(|c| c.0).collect::<Vec<_>>(),
+        [1]
+    );
+    assert_eq!(r.peer_count("jam"), 1);
+    assert_eq!(kinds(&to(&out, 2)), ["Transaction"], "the newcomer resumes");
+    r.message(2, tx(1, 2), &mut out).unwrap();
+    assert_eq!(r.log_len("jam"), (0, 2));
 }
 
 #[test]

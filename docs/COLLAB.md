@@ -186,7 +186,11 @@ undo/redo go through `History::undo_with/redo_with` (`history.rs`) with
 - `Snapshot.data` (opaque on the wire, defined by `ether-collab`): JSON
   `{ epoch, index, sites: { site: last_seq }, ether: "<.ether file JSON>" }`, base64. The
   `epoch` is chosen by the site that creates the session (random) and kept by compaction
-  snapshots: it names this incarnation of the session.
+  snapshots: it names this incarnation of the session. Its `sites` are everything the
+  creator's document includes: the creator's own map when it re-creates a session it was
+  in (or the map it kept when it left the session with this project), so a returning site
+  doesn't resend an edit the snapshot already has (re-sequenced after a newer peer edit,
+  it would silently revert it).
 - Reconnect (socket dropped, relay restart is out of scope): status `Connecting`, exponential
   backoff; on reconnect `Hello` + `SyncRequest { version = (epoch, confirmed index) (2 × u64
   LE) }`; the relay replays the log after that index (or snapshot + log if it was compacted,
@@ -241,7 +245,9 @@ tokens; peer colors are data, like track colors).
 - Each connection's outgoing queue (`relay::server::conn_queue`) holds at least a full
   catch-up (the cached media chunks, snapshot, `max_log` transactions, peers), so a late
   joiner is never disconnected by its own catch-up and can't loop on reconnects; a site
-  that falls further behind than that is disconnected and resyncs.
+  that falls further behind than that is disconnected and resyncs. The queue also has a
+  byte budget (encoded size; `RelayServerConfig::max_queued_bytes`, 256 MiB, raised to
+  fit a catch-up): a slow reader past it is closed (`4005`) like an idle one.
 - Relay limits (all in `RelayConfig`): sessions per relay, sites per session, media cache per
   session and in total across sessions (chunks beyond it are still forwarded live but not
   cached for late joiners), log length before compaction and a hard log cap (past it the
@@ -254,10 +260,12 @@ tokens; peer colors are data, like track colors).
   loopback check when there is no token, handshake deadline + 64 KiB pre-auth limit +
   bounded pending handshakes, idle ping/timeout, write timeout, max sites per session and
   max sessions. Post-auth message limit 16 MiB (snapshots).
-- A `SiteId` is held by one live connection per session: a `Hello` claiming a site another
-  live connection has is refused (disconnect). A reconnecting site's old connection is gone
-  first (closed socket, or the idle timeout for a half-open one; the site retries with
-  backoff meanwhile).
+- A `SiteId` is held by one connection per session. A `Hello` claiming a site another
+  connection holds starts a contest: the relay pings the holder and holds the newcomer's
+  messages. Any sign of life from the holder (pong or message) within
+  `RelayConfig::site_probe_ms` (4 s) refuses the newcomer (disconnect); otherwise the
+  holder is dropped as half-open and the newcomer proceeds. A newcomer never evicts a live
+  holder outright: the token is relay-wide, so any token holder could.
 - The relay rewrites/validates identity: `Transaction.origin.site`, `Presence.site` and
   `Leave.site` must be the sender's `Hello` site (else dropped).
 - Receivers treat every remote op as untrusted input: it only enters the document through

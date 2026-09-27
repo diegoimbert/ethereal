@@ -147,6 +147,10 @@ pub(crate) struct CollabState {
     /// Last `seq` this site used, across sessions: a re-join of the same session (same
     /// site id) must never reuse a `seq` the relay already sequenced.
     last_seq: u64,
+    /// The sequenced `seq` per site that the project's document includes, as of the last
+    /// session left with it: a site that later re-creates the session from this document
+    /// seeds its snapshot with it (returning sites must not resend what it already has).
+    left_sites: Option<(ProjectId, BTreeMap<SiteId, u64>)>,
 }
 
 impl<B, H, S, L> EtherController<B, H, S, L>
@@ -299,6 +303,17 @@ where
             return;
         };
         self.collab.last_seq = self.collab.last_seq.max(s.seq);
+        if s.joined
+            && let Some(pid) = s.project
+        {
+            let mut sites = s.sites.clone();
+            if let Some(site) = self.collab.site {
+                // Pending edits stay in the document (they may be re-sent by a re-join,
+                // with a fresh seq, never with an old one).
+                sites.insert(site, s.seq.max(sites.get(&site).copied().unwrap_or(0)));
+            }
+            self.collab.left_sites = Some((pid, sites));
+        }
         if let Some(site) = self.collab.site {
             s.send(&CollabMessage::Leave { site });
         }
@@ -1003,7 +1018,23 @@ where
             self.collab.created += 1;
             x ^ self.collab.created.wrapping_mul(0xbf58_476d_1ce4_e5b9)
         };
+        // Everything the document includes stays included: a recreated session keeps the
+        // per-site `seq` it has (ours, or the last session left with this project), so a
+        // returning site resends only what we don't have (never an old edit that would be
+        // re-sequenced after, and silently revert, a newer one).
+        let left = match self.collab.left_sites.take() {
+            Some((p, sites)) if p == pid => Some(sites),
+            _ => None,
+        };
         let s = self.collab.session.as_mut().expect("in session");
+        let mut sites = if s.joined && s.project == Some(pid) {
+            std::mem::take(&mut s.sites)
+        } else {
+            left.unwrap_or_default()
+        };
+        let own = sites.get(&site).copied().unwrap_or(0).max(s.seq);
+        s.seq = own;
+        sites.insert(site, own);
         // Peers start from these plugin states.
         s.captured = live;
         // Pending edits are part of the snapshot.
@@ -1013,7 +1044,7 @@ where
         s.index = 0;
         // A new incarnation of the session (it may have existed before on the relay).
         s.epoch = epoch;
-        s.sites = BTreeMap::from([(site, s.seq)]);
+        s.sites = sites;
         for m in &medias {
             self.collab_push_media(pid, m);
         }

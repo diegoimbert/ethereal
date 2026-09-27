@@ -7,12 +7,15 @@
 //! a connection has an absolute deadline, a 64 KiB message limit and counts against
 //! [`RelayServerConfig::max_pending_handshakes`]. Afterwards every frame is one
 //! [`CollabMessage`](ether_protocol::collab::CollabMessage) (JSON text, media chunks as
-//! binary frames), writes time out and idle connections are pinged, then dropped.
+//! binary frames), writes time out and idle connections are pinged, then dropped. A slow
+//! reader is dropped when its outgoing queue passes a message count or a byte budget. A
+//! site id claimed by a new connection makes the relay ping its current holder, which is
+//! dropped if it doesn't answer within `RelayConfig::site_probe_ms`.
 //!
 //! Threads: one accept thread, one per connection; the [`Relay`] state machine sits behind
 //! a mutex and routes outgoing messages into per-connection bounded queues.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::io::ErrorKind;
 use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
@@ -20,7 +23,7 @@ use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
-use crossbeam_channel::{Receiver, Sender, TryRecvError, TrySendError};
+use crossbeam_channel::{Receiver, Sender, TryRecvError};
 use ether_protocol::collab::CollabMessage;
 use ether_protocol::remote::{
     ClientHello, HelloRejection, PROTOCOL_VERSION, ServerCapabilities, ServerHello, ServerInfo,
@@ -42,8 +45,13 @@ pub const CLOSE_AUTH: u16 = 4001;
 pub const CLOSE_VERSION: u16 = 4002;
 pub const CLOSE_BUSY: u16 = 4003;
 pub const CLOSE_IDLE: u16 = 4004;
+/// A slow reader (its outgoing queue passed its bound) or a half-open connection another
+/// connection of the same site took over.
+pub const CLOSE_DROPPED: u16 = 4005;
 
 const POLL: Duration = Duration::from_millis(4);
+/// How often the relay's clock advances (site id probes time out).
+const TICK: Duration = Duration::from_millis(100);
 const PRE_AUTH_POLL: Duration = Duration::from_millis(10);
 const MAX_PRE_AUTH_MESSAGE_BYTES: usize = 64 << 10;
 /// At most one presence update per site per this interval (20 Hz); extra ones are dropped.
@@ -58,6 +66,39 @@ pub const CONN_QUEUE: usize = 8192;
 pub fn conn_queue(relay: &RelayConfig) -> usize {
     let media_chunks = relay.max_media_bytes / crate::wire::MEDIA_CHUNK_BYTES + 1;
     CONN_QUEUE.max(relay.max_log + media_chunks + 4 * relay.max_sites_per_session + 64)
+}
+
+/// Bytes a connection may have queued (encoded size): `max_queued_bytes`, and at least
+/// room for a late joiner's catch-up (the cached media, a maximal snapshot, and the log
+/// at a nominal 4 KiB per transaction; queued messages are shared between connections,
+/// so this bounds how far one reader lags, not memory per reader).
+pub fn conn_byte_budget(config: &RelayServerConfig) -> usize {
+    let relay = &config.relay;
+    let catch_up = relay.max_media_bytes + 2 * MAX_COLLAB_MESSAGE_BYTES + relay.max_log * 4096;
+    config.max_queued_bytes.max(catch_up)
+}
+
+/// Encoded size of a message (as the frame that carries it).
+fn wire_size(m: &CollabMessage) -> usize {
+    struct Count(usize);
+    impl std::io::Write for Count {
+        fn write(&mut self, b: &[u8]) -> std::io::Result<usize> {
+            self.0 += b.len();
+            Ok(b.len())
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+    match m {
+        CollabMessage::Media { data, .. } => data.0.len() + 256,
+        CollabMessage::Snapshot { data } => data.0.len() * 4 / 3 + 64,
+        _ => {
+            let mut c = Count(0);
+            let _ = serde_json::to_writer(&mut c, m);
+            c.0
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -77,6 +118,9 @@ pub struct RelayServerConfig {
     /// Messages per second a site may send (burst: one second's worth); a site above it is
     /// disconnected.
     pub max_messages_per_second: u32,
+    /// Outgoing bytes a connection may have queued before it is dropped as too slow
+    /// (raised to fit a late joiner's catch-up, see [`conn_byte_budget`]).
+    pub max_queued_bytes: usize,
 }
 
 impl Default for RelayServerConfig {
@@ -93,6 +137,7 @@ impl Default for RelayServerConfig {
             ping_interval: Duration::from_secs(20),
             idle_timeout: Duration::from_secs(60),
             max_messages_per_second: 2_000,
+            max_queued_bytes: 256 << 20,
         }
     }
 }
@@ -162,9 +207,21 @@ fn check_unauthenticated_upgrade(req: &Request) -> Result<(), &'static str> {
     Ok(())
 }
 
+/// A connection's outgoing queue: messages with their encoded size, and the bytes queued.
+struct Queue {
+    tx: Sender<(Arc<CollabMessage>, usize)>,
+    bytes: Arc<AtomicUsize>,
+}
+
 struct Shared {
     relay: Mutex<Relay>,
-    queues: Mutex<HashMap<ConnId, Sender<Arc<CollabMessage>>>>,
+    queues: Mutex<HashMap<ConnId, Queue>>,
+    /// Connections the relay wants pinged now (contested site ids).
+    pings: Mutex<HashSet<ConnId>>,
+    /// Connections the relay dropped, with why (their threads close the sockets).
+    kicked: Mutex<HashMap<ConnId, String>>,
+    started: Instant,
+    byte_budget: usize,
     config: RelayServerConfig,
     info: ServerInfo,
     stop: AtomicBool,
@@ -178,26 +235,43 @@ impl Shared {
     fn with_relay<R>(&self, f: impl FnOnce(&mut Relay, &mut Vec<Outgoing>) -> R) -> R {
         let mut relay = self.relay.lock().expect("relay lock");
         let mut out = Vec::new();
+        relay.tick(self.started.elapsed().as_millis() as u64, &mut out);
         let r = f(&mut relay, &mut out);
         self.route(out);
+        let pings = relay.take_pings();
+        if !pings.is_empty() {
+            self.pings.lock().expect("pings lock").extend(pings);
+        }
+        let closing = relay.take_closing();
+        if !closing.is_empty() {
+            let mut queues = self.queues.lock().expect("queues lock");
+            let mut kicked = self.kicked.lock().expect("kicked lock");
+            for (conn, why) in closing {
+                queues.remove(&conn);
+                kicked.insert(conn, why);
+            }
+        }
         r
     }
 
-    /// Queue messages for their connections; a full queue drops that connection's sender
-    /// (its thread then closes the socket).
+    /// Queue messages for their connections; a full queue (count or bytes) drops that
+    /// connection's sender (its thread then closes the socket).
     fn route(&self, out: Vec<Outgoing>) {
         if out.is_empty() {
             return;
         }
         let mut queues = self.queues.lock().expect("queues lock");
+        // Broadcasts share one message: size it once.
+        let mut sizes: HashMap<*const CollabMessage, usize> = HashMap::new();
         for (conn, m) in out {
-            if let Some(tx) = queues.get(&conn) {
-                match tx.try_send(m) {
-                    Ok(()) => {}
-                    Err(TrySendError::Full(_) | TrySendError::Disconnected(_)) => {
-                        queues.remove(&conn);
-                    }
-                }
+            let Some(q) = queues.get(&conn) else { continue };
+            let size = *sizes
+                .entry(Arc::as_ptr(&m))
+                .or_insert_with(|| wire_size(&m));
+            let queued = q.bytes.fetch_add(size, Ordering::AcqRel) + size;
+            let sent = queued <= self.byte_budget && q.tx.try_send((m, size)).is_ok();
+            if !sent {
+                queues.remove(&conn);
             }
         }
     }
@@ -224,6 +298,7 @@ pub struct RelayServer {
     addr: SocketAddr,
     shared: Arc<Shared>,
     accept: Option<JoinHandle<()>>,
+    ticker: Option<JoinHandle<()>>,
 }
 
 impl RelayServer {
@@ -250,6 +325,10 @@ impl RelayServer {
         let shared = Arc::new(Shared {
             relay: Mutex::new(Relay::new(config.relay.clone())),
             queues: Mutex::new(HashMap::new()),
+            pings: Mutex::new(HashSet::new()),
+            kicked: Mutex::new(HashMap::new()),
+            started: Instant::now(),
+            byte_budget: conn_byte_budget(&config),
             config,
             info,
             stop: AtomicBool::new(false),
@@ -262,11 +341,23 @@ impl RelayServer {
                 .name("collab-relay-accept".into())
                 .spawn(move || accept_loop(listener, shared))?
         };
+        let ticker = {
+            let shared = shared.clone();
+            std::thread::Builder::new()
+                .name("collab-relay-tick".into())
+                .spawn(move || {
+                    while !shared.stop.load(Ordering::Relaxed) {
+                        std::thread::sleep(TICK);
+                        shared.with_relay(|_, _| {});
+                    }
+                })?
+        };
         tracing::info!(%addr, auth = shared.info.auth_required, "collab relay listening");
         Ok(Self {
             addr,
             shared,
             accept: Some(accept),
+            ticker: Some(ticker),
         })
     }
 
@@ -299,6 +390,9 @@ impl RelayServer {
         self.shared.stop.store(true, Ordering::Relaxed);
         let _ = TcpStream::connect(self.addr);
         if let Some(t) = self.accept.take() {
+            let _ = t.join();
+        }
+        if let Some(t) = self.ticker.take() {
             let _ = t.join();
         }
     }
@@ -472,10 +566,16 @@ fn serve_connection(stream: TcpStream, shared: &Shared) -> Result<(), String> {
         return Err("bad token".into());
     }
     let conn = shared.next_conn.fetch_add(1, Ordering::Relaxed);
-    let (tx, rx) =
-        crossbeam_channel::bounded::<Arc<CollabMessage>>(conn_queue(&shared.config.relay));
+    let (tx, rx) = crossbeam_channel::bounded(conn_queue(&shared.config.relay));
+    let bytes = Arc::new(AtomicUsize::new(0));
     // Register the queue before the relay can route anything to this connection.
-    shared.queues.lock().expect("queues lock").insert(conn, tx);
+    shared.queues.lock().expect("queues lock").insert(
+        conn,
+        Queue {
+            tx,
+            bytes: bytes.clone(),
+        },
+    );
     if let Err(refusal) = shared
         .relay
         .lock()
@@ -510,9 +610,11 @@ fn serve_connection(stream: TcpStream, shared: &Shared) -> Result<(), String> {
             serde_json::to_string(&welcome).map_err(|e| e.to_string())?,
         ))
         .map_err(|e| e.to_string())?;
-        pump(&mut ws, &rx, conn, shared)
+        pump(&mut ws, &rx, &bytes, conn, shared)
     })();
     shared.queues.lock().expect("queues lock").remove(&conn);
+    shared.pings.lock().expect("pings lock").remove(&conn);
+    shared.kicked.lock().expect("kicked lock").remove(&conn);
     shared.with_relay(|relay, out| relay.disconnect(conn, out));
     tracing::info!(%session, conn, "site disconnected");
     result
@@ -520,7 +622,8 @@ fn serve_connection(stream: TcpStream, shared: &Shared) -> Result<(), String> {
 
 fn pump(
     ws: &mut WebSocket<TcpStream>,
-    rx: &Receiver<Arc<CollabMessage>>,
+    rx: &Receiver<(Arc<CollabMessage>, usize)>,
+    bytes: &AtomicUsize,
     conn: ConnId,
     shared: &Shared,
 ) -> Result<(), String> {
@@ -535,6 +638,16 @@ fn pump(
         if shared.stop.load(Ordering::Relaxed) {
             close_with(ws, 1001, "relay shutting down");
             return Ok(());
+        }
+        if let Some(why) = shared.kicked.lock().expect("kicked lock").remove(&conn) {
+            close_with(ws, CLOSE_DROPPED, &why);
+            return Err(why);
+        }
+        if shared.pings.lock().expect("pings lock").remove(&conn) {
+            // The relay asks whether we are alive (another connection claims our site).
+            last_ping = Instant::now();
+            ws.send(Message::Ping(Default::default()))
+                .map_err(|e| e.to_string())?;
         }
         let quiet = last_inbound.elapsed();
         if quiet >= shared.config.idle_timeout {
@@ -551,7 +664,8 @@ fn pump(
         let mut wrote = false;
         loop {
             match rx.try_recv() {
-                Ok(m) => {
+                Ok((m, size)) => {
+                    bytes.fetch_sub(size, Ordering::AcqRel);
                     let frame = match encode_frame(&m) {
                         WireFrame::Text(t) => Message::text(t),
                         WireFrame::Binary(b) => Message::binary(b),
@@ -562,7 +676,7 @@ fn pump(
                 Err(TryRecvError::Empty) => break,
                 Err(TryRecvError::Disconnected) => {
                     let _ = ws.flush();
-                    close_with(ws, 1008, "site too slow");
+                    close_with(ws, CLOSE_DROPPED, "site too slow");
                     return Err("outgoing queue closed".into());
                 }
             }
@@ -577,6 +691,11 @@ fn pump(
         let decoded = match read {
             Ok(Message::Text(t)) => decode_text(&t),
             Ok(Message::Binary(b)) => decode_binary(&b),
+            Ok(Message::Pong(_)) => {
+                // Alive: a contest on our site id (if any) is lost by the newcomer.
+                shared.with_relay(|relay, _| relay.heard(conn));
+                continue;
+            }
             Ok(_) => continue,
             Err(e) if would_block(&e) => continue,
             Err(tungstenite::Error::ConnectionClosed | tungstenite::Error::AlreadyClosed) => {
@@ -618,5 +737,78 @@ fn pump(
             close_with(ws, 1000, "left");
             return Ok(());
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use ether_protocol::model::Base64Bytes;
+
+    use super::*;
+
+    fn shared(byte_budget: usize) -> Shared {
+        let config = RelayServerConfig::default();
+        Shared {
+            relay: Mutex::new(Relay::new(config.relay.clone())),
+            queues: Mutex::new(HashMap::new()),
+            pings: Mutex::new(HashSet::new()),
+            kicked: Mutex::new(HashMap::new()),
+            started: Instant::now(),
+            byte_budget,
+            info: ServerInfo {
+                name: String::new(),
+                app_version: String::new(),
+                protocol_version: PROTOCOL_VERSION,
+                instance: String::new(),
+                auth_required: false,
+                capabilities: ServerCapabilities::default(),
+            },
+            config,
+            stop: AtomicBool::new(false),
+            pending: AtomicUsize::new(0),
+            next_conn: AtomicU64::new(1),
+        }
+    }
+
+    fn media(bytes: usize) -> Arc<CollabMessage> {
+        Arc::new(CollabMessage::Media {
+            file: "media/a.wav".into(),
+            hash: "h".into(),
+            offset: 0,
+            total: bytes as u64,
+            data: Base64Bytes(vec![0; bytes]),
+        })
+    }
+
+    #[test]
+    fn a_reader_past_its_byte_budget_is_dropped() {
+        let s = shared(10_000);
+        let (tx, rx) = crossbeam_channel::bounded(1000);
+        let bytes = Arc::new(AtomicUsize::new(0));
+        s.queues.lock().unwrap().insert(
+            1,
+            Queue {
+                tx,
+                bytes: bytes.clone(),
+            },
+        );
+        // Well under the message count, within the byte budget: queued.
+        s.route(vec![(1, media(4_000)), (1, media(4_000))]);
+        assert!(s.queues.lock().unwrap().contains_key(&1));
+        // The reader drains one: its budget frees up.
+        let (_, size) = rx.try_recv().unwrap();
+        bytes.fetch_sub(size, Ordering::AcqRel);
+        s.route(vec![(1, media(4_000))]);
+        assert!(s.queues.lock().unwrap().contains_key(&1));
+        // Past the budget: the queue is dropped (the connection closes as too slow).
+        s.route(vec![(1, media(4_000))]);
+        assert!(!s.queues.lock().unwrap().contains_key(&1));
+    }
+
+    #[test]
+    fn the_byte_budget_fits_a_catch_up() {
+        let config = RelayServerConfig::default();
+        assert!(conn_byte_budget(&config) >= config.relay.max_media_bytes);
+        assert!(conn_byte_budget(&config) >= config.max_queued_bytes);
     }
 }
