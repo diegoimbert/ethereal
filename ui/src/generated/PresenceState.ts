@@ -5,6 +5,7 @@ import type { Beats } from "./Beats";
 import type { ClipId } from "./ClipId";
 import type { DeviceId } from "./DeviceId";
 import type { NoteId } from "./NoteId";
+import type { PeerTransport } from "./PeerTransport";
 import type { SiteId } from "./SiteId";
 import type { TrackId } from "./TrackId";
 
@@ -50,4 +51,10 @@ listening_to?: SiteId,
 /**
  * Controller-owned: others can "Listen on" this site (it allows it and has a sender).
  */
-can_host?: boolean, };
+can_host?: boolean, 
+/**
+ * Controller-owned (base-62, `collab-social`): this site's own transport, so peers
+ * draw its playhead. `None` while listening to a host (§9: the host's playhead is the
+ * one heard) and from older peers.
+ */
+transport?: PeerTransport, };

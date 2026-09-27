@@ -119,6 +119,10 @@ define_ids! {
     /// A modulation mapping: source (modulator or macro) → device param, with a depth (v0.2,
     /// `racks-modulation`).
     ModMappingId => "ModMapping";
+    /// A chat message of the project journal. base-62 (`collab-social`).
+    ChatMessageId => "ChatMessage";
+    /// A note pinned on the arrangement. base-62 (`collab-social`).
+    PinnedNoteId => "PinnedNote";
 }
 
 /// Deterministic id number `index` derived from a client-chosen `seed` id (v0.2, collab-safe

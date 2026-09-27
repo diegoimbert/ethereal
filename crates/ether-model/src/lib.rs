@@ -8,6 +8,7 @@
 //! - v0.2 entities (`.ether` v4, contracts-3): [`take`] (take lanes, comp regions), [`rack`]
 //!   (rack chains), [`modulation`] (modulators, mappings); plus [`multisampler`] zones,
 //!   track freeze, external media references and the [`preset`] file format.
+//! - Chat journal and pinned notes (`.ether` v4, base-62): [`social`].
 //! - [`op`]: the op set (the only way to mutate), [`history`]: undo/redo,
 //!   [`patch`]: UI mirror updates, [`file`]: `.ether` format + migrations.
 //!
@@ -42,6 +43,7 @@ pub mod rack;
 pub mod recording;
 pub mod scale;
 pub use scale::*;
+pub mod social;
 pub mod take;
 pub mod tempo;
 pub mod track;
@@ -69,6 +71,7 @@ pub use patch::*;
 pub use preset::*;
 pub use project::*;
 pub use rack::*;
+pub use social::*;
 pub use take::*;
 pub use tempo::*;
 pub use track::*;

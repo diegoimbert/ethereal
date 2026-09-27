@@ -21,8 +21,8 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
 use crate::model::{
-    ActorId, AutomationLaneId, Base64Bytes, BeatRange, Beats, ClipId, Color, DeviceId, NoteId,
-    ParamId, SiteId, StampedTransaction, TrackId,
+    ActorId, AutomationLaneId, Base64Bytes, BeatRange, Beats, ChatMessageId, ClipId, Color,
+    DeviceId, NoteId, ParamId, SiteId, StampedTransaction, TrackId,
 };
 
 // `SetPresence` carries a whole `PresenceState` (presence v2 grew it). Commands are rare and
@@ -129,6 +129,12 @@ pub enum CollabEvent {
         servers: Vec<IceServer>,
         source: IceServerSource,
     },
+    // ─── base-62 (`collab-social`, docs/COLLAB.md §12) ───
+    /// Peers' chat messages that just arrived live (sequenced after this site's join
+    /// catch-up), in chat order. Never for the join snapshot or catch-up log, a project
+    /// load, or this site's own messages. The messages themselves come in the same tick's
+    /// `Event::Patch`; the UI toasts these ids while the chat panel is closed.
+    ChatReceived { ids: Vec<ChatMessageId> },
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
@@ -181,6 +187,38 @@ pub struct PresenceState {
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     #[ts(as = "Option<bool>", optional)]
     pub can_host: bool,
+    /// Controller-owned (base-62, `collab-social`): this site's own transport, so peers
+    /// draw its playhead. `None` while listening to a host (§9: the host's playhead is the
+    /// one heard) and from older peers.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub transport: Option<PeerTransport>,
+}
+
+// ─── Social (base-62, docs/COLLAB.md §12) ────────────────────────────────────────────────
+
+/// While playing steadily, a site refreshes [`PresenceState::transport`] at least this
+/// often (receivers extrapolate in between); play, stop, locate, loop and tempo changes are
+/// published at once (subject to the 10 Hz presence throttle).
+pub const PEER_TRANSPORT_REFRESH_MS: u64 = 1000;
+
+/// A site's transport as its peers see it (each site has its own transport, §1).
+///
+/// Receivers extrapolate while `playing`: `position` plus the beats elapsed since the sample
+/// arrived, integrated over the **replicated** tempo map from `position`, then wrapped into
+/// `loop_region` when set and `position` was inside it. Clocks are not synchronized:
+/// extrapolate from the local **arrival** time of the sample (a new `sent_at_ms` = a new
+/// sample), never from `sent_at_ms` itself.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+pub struct PeerTransport {
+    /// Timeline position at `sent_at_ms` (beats; negative during a count-in pre-roll).
+    pub position: Beats,
+    pub playing: bool,
+    /// Unix ms on the sender's clock when `position` was read. Identifies the sample.
+    #[ts(type = "number")]
+    pub sent_at_ms: u64,
+    /// The loop region while loop playback is on (`None` = not looping).
+    pub loop_region: Option<BeatRange>,
 }
 
 /// A peer's presence as shown to the UI.
