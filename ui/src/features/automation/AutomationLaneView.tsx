@@ -24,6 +24,7 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import type { AutomationLane, AutomationOwner, AutomationPoint, AutomationTarget, ParamInfo } from "@/generated";
+import { openContextMenu } from "@/kit";
 import { usePointsOfLane } from "@/state";
 import {
   DEFAULT_GRID,
@@ -297,6 +298,19 @@ export function AutomationLaneView({
               onDoubleClick={(e) => {
                 e.stopPropagation();
                 void sendEdit(transport, removePointsCommand([p.id]));
+              }}
+              onContextMenu={(e) => {
+                if (!selection.getState().isSelected("automationPoint", p.id)) selection.getState().select("automationPoint", [p.id], "replace");
+                const sel = selection.getState().selected.automationPoint;
+                const ids = live.current.points.filter((x) => sel.has(x.id)).map((x) => x.id);
+                openContextMenu(e, [
+                  {
+                    label: ids.length > 1 ? `Delete ${ids.length} Points` : "Delete Point",
+                    shortcut: "⌫",
+                    danger: true,
+                    onSelect: () => void sendEdit(transport, removePointsCommand(ids)),
+                  },
+                ]);
               }}
             >
               <title>{formatNormalized(info, p.value)}</title>

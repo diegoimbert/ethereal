@@ -2,13 +2,14 @@ import { act, createEvent, fireEvent, render, screen, waitFor } from "@testing-l
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Clip, Command, Track } from "@/generated";
 import { playheadStore, useEditorStore, useProjectStore, useSelectionStore } from "@/state";
-import { itemSelection } from "@/timeline";
+import { itemSelection, wheelZoomFactor } from "@/timeline";
 import { cmd, MockTransport, newId, TransportProvider } from "@/transport";
+import { ContextMenuHost } from "@/kit";
 import { ArrangementView } from "./ArrangementView";
 import { BROWSER_DRAG_MIME } from "./browserDrop";
 import { AUTOMATION_BAR_HEIGHT, LANE_HEIGHT, resetAutomationUi } from "@/features/automation";
-import { HEADER_WIDTH, TRACK_HEIGHT } from "./layout";
-import { resetArrangementUi, useArrangementUi } from "./uiStore";
+import { HEADER_WIDTH, MAX_TRACK_HEIGHT, MIN_TRACK_HEIGHT, TRACK_HEIGHT } from "./layout";
+import { arrangementView, resetArrangementUi, useArrangementUi } from "./uiStore";
 
 // Default zoom is 24 px/beat; tests use a fixed 1-beat grid.
 const PX = 24;
@@ -67,6 +68,7 @@ async function renderView() {
   render(
     <TransportProvider transport={mock}>
       <ArrangementView />
+      <ContextMenuHost />
     </TransportProvider>,
   );
   await waitFor(() => expect(store().project).not.toBeNull());
@@ -380,15 +382,102 @@ describe("ArrangementView: clip editing", () => {
     expect(useEditorStore.getState().request).toBe(1);
   });
 
+  it("moves the playhead to a clip's start when it is pressed while stopped", async () => {
+    const bass = clipByName("Bassline");
+    await drag(clipEl(bass), 0, 0, { x: 10, y: ROW + 5 });
+    await waitFor(() => expect(playheadStore.getPlayhead()?.transport.position).toBe(startOf(bass)));
+  });
+
+  it("offers Delete in the right-click menu of a clip and of a track", async () => {
+    const bass = clipByName("Bassline");
+    fireEvent.contextMenu(clipEl(bass), { clientX: 10, clientY: 70 });
+    expect([...itemSelection.getState().selected.clip]).toEqual([bass.id]);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Delete" }));
+    await flush();
+    expect(project().clips[bass.id]).toBeUndefined();
+
+    const keys = trackByName("Keys");
+    fireEvent.contextMenu(screen.getByRole("group", { name: "Keys track" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Delete Track" }));
+    await flush();
+    expect(project().tracks[keys.id]).toBeUndefined();
+  });
+
+  it("resizes one track in steps by dragging its bottom edge, and resets on double-click", async () => {
+    const keys = trackByName("Keys");
+    const handle = screen.getByRole("separator", { name: "Resize Keys" });
+    const row = () => document.querySelector<HTMLElement>(`.eth-arr-row[data-track="${keys.id}"]`)!;
+    await drag(handle, 0, 21, { y: 100 });
+    expect(useArrangementUi.getState().heights.get(keys.id)).toBe(TRACK_HEIGHT + 24);
+    expect(row().style.height).toBe(`${TRACK_HEIGHT + 24 + AUTOMATION_BAR_HEIGHT}px`);
+    await drag(handle, 0, -1000, { y: 100 });
+    expect(useArrangementUi.getState().heights.get(keys.id)).toBe(MIN_TRACK_HEIGHT);
+    fireEvent.doubleClick(handle);
+    expect(useArrangementUi.getState().heights.has(keys.id)).toBe(false);
+  });
+
+  it("scales every track with cmd+shift+wheel, within the limits", () => {
+    const keys = trackByName("Keys");
+    useArrangementUi.getState().setHeight(keys.id, 100);
+    const scroll = document.querySelector<HTMLElement>(".eth-arr__scroll")!;
+    act(() => {
+      fireEvent.wheel(scroll, { deltaY: -100, metaKey: true, shiftKey: true });
+    });
+    const f = wheelZoomFactor(-100);
+    expect(useArrangementUi.getState().defaultHeight).toBeCloseTo(TRACK_HEIGHT * f);
+    expect(useArrangementUi.getState().heights.get(keys.id)).toBeCloseTo(100 * f);
+    expect(arrangementView.getState().pxPerBeat).toBe(PX); // not a horizontal zoom
+    act(() => {
+      for (let i = 0; i < 50; i++) fireEvent.wheel(scroll, { deltaY: -200, ctrlKey: true, shiftKey: true });
+    });
+    expect(useArrangementUi.getState().heights.get(keys.id)).toBe(MAX_TRACK_HEIGHT);
+  });
+
+  /** Double-press on `lane` at x, then (still holding) drag to `toX` and release. */
+  async function doublePressDrag(lane: Element, x: number, toX = x) {
+    await act(async () => {
+      fireEvent.pointerDown(lane, { button: 0, pointerId: 1, clientX: x, clientY: 5 });
+      fireEvent.pointerUp(window, { pointerId: 1, clientX: x, clientY: 5 });
+      fireEvent.pointerDown(lane, { button: 0, pointerId: 1, clientX: x, clientY: 5 });
+    });
+    if (toX !== x) {
+      await act(async () => {
+        fireEvent.pointerMove(window, { pointerId: 1, clientX: (x + toX) / 2, clientY: 5 });
+        fireEvent.pointerMove(window, { pointerId: 1, clientX: toX, clientY: 5 });
+      });
+      expect(screen.getByTestId("insert-preview")).toBeInTheDocument();
+    }
+    await act(async () => {
+      fireEvent.pointerUp(window, { pointerId: 1, clientX: toX, clientY: 5 });
+    });
+    await flush();
+  }
+
   it("creates a one-bar MIDI clip on double-click in an empty MIDI lane", async () => {
     const keys = trackByName("Keys");
     const lane = document.querySelector<HTMLElement>(`[data-lane="${keys.id}"]`)!;
     const before = Object.keys(project().clips).length;
-    fireEvent.doubleClick(lane, { clientX: 17.5 * PX });
-    await flush();
+    await doublePressDrag(lane, 17.5 * PX);
     const created = Object.values(project().clips).filter((c) => c.track === keys.id && startOf(c) === 16);
     expect(Object.keys(project().clips)).toHaveLength(before + 1);
     expect(created[0]?.length).toBe(4);
+  });
+
+  it("sizes the new MIDI clip by dragging after the double-click", async () => {
+    const keys = trackByName("Keys");
+    const lane = document.querySelector<HTMLElement>(`[data-lane="${keys.id}"]`)!;
+    const before = Object.keys(project().clips).length;
+    // Press at beat 16.5, drag to beat 22.5: the 1-beat grid covers [16, 23).
+    await doublePressDrag(lane, 16.5 * PX, 22.5 * PX);
+    expect(Object.keys(project().clips)).toHaveLength(before + 1);
+    const created = Object.values(project().clips).find((c) => c.track === keys.id && startOf(c) === 16);
+    expect(created?.length).toBe(7);
+    expect(screen.queryByTestId("insert-preview")).toBeNull();
+
+    // Dragging left of the press extends the clip backwards.
+    await doublePressDrag(lane, 30.5 * PX, 27.5 * PX);
+    const back = Object.values(project().clips).find((c) => c.track === keys.id && startOf(c) === 27);
+    expect(back?.length).toBe(4);
   });
 });
 

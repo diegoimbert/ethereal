@@ -7,13 +7,15 @@
  * - Snapping follows the arrangement grid; hold alt/option to bypass it.
  * - Cmd/ctrl held on release copies instead of moving.
  * - A plain click on an already selected clip selects only it; shift adds; cmd/ctrl toggles.
+ * - While stopped, pressing a clip moves the playhead to its start.
  */
 
 import type { PointerEvent as ReactPointerEvent } from "react";
 import type { Beats, Clip, MediaRef } from "@/generated";
-import { useProjectStore, useSelectionStore, warpMarkersOfClip } from "@/state";
+import { playheadStore, useProjectStore, useSelectionStore, warpMarkersOfClip } from "@/state";
 import { itemSelection, resolveGrid, selectModeFromEvent, snapToGrid, TempoMap } from "@/timeline";
-import { newId, type EngineTransport } from "@/transport";
+import { cmd, newId, type EngineTransport } from "@/transport";
+import { setDragCursor } from "@/kit";
 import { clipSourceMapper } from "@/features/warp/warpMap";
 import { isArrangementClip, mediaLengthInBeats, startOf } from "./clipTime";
 import { sendEdit, type ArrangementContextValue } from "./context";
@@ -52,6 +54,9 @@ export function onClipPointerDown(e: ReactPointerEvent<HTMLElement>, clip: Clip,
   const selectMode = selectModeFromEvent(e);
   if (!wasSelected) sel.select("clip", [clip.id], selectMode === "replace" ? "replace" : "add");
   useSelectionStore.getState().selectTrack(clip.track);
+  if (!playheadStore.getPlayhead()?.transport.playing) {
+    ctx.transport.send(cmd("Transport", { type: "Locate", position: startOf(clip) })).catch(() => {});
+  }
 
   const project = useProjectStore.getState().project;
   if (!project) return;
@@ -87,6 +92,7 @@ export function onClipPointerDown(e: ReactPointerEvent<HTMLElement>, clip: Clip,
     const dx = ev.clientX - startX;
     const dy = ev.clientY - startY;
     if (!active && Math.hypot(dx, dy) < DRAG_THRESHOLD_PX) return;
+    if (!active) setDragCursor(mode === "move" ? "grabbing" : "ew-resize");
     active = true;
     copy = mode === "move" && (ev.metaKey || ev.ctrlKey);
     last = dragPreview(
@@ -125,6 +131,7 @@ export function onClipPointerDown(e: ReactPointerEvent<HTMLElement>, clip: Clip,
   };
 
   const done = () => {
+    setDragCursor(null);
     window.removeEventListener("pointermove", move);
     window.removeEventListener("pointerup", up);
     window.removeEventListener("pointercancel", cancel);

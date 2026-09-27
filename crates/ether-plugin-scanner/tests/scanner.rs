@@ -135,20 +135,30 @@ fn dispatches_by_format() {
     use ether_plugin_host::ScanTarget;
 
     let dir = testing::temp_dir("scan-formats");
-    // VST3: bundle folder, recognized by extension, stubbed until the `vst3` node lands.
+    // VST3: an empty bundle folder is recognized by extension and fails cleanly (stub:
+    // "unsupported"; real host: no module binary / not found). Real coverage: tests/vst3.rs.
     let vst3 = dir.join("Stub.vst3");
     std::fs::create_dir_all(vst3.join("Contents")).unwrap();
     let err = runner().scan_bundle(&vst3).unwrap_err();
-    assert!(err.contains("unsupported") && err.contains("vst3"), "{err}");
+    let lower = err.to_lowercase();
+    assert!(
+        lower.contains("unsupported") || lower.contains("not found") || lower.contains("no module"),
+        "{err}"
+    );
 
-    // AU: a component id with an explicit format.
+    // AU: a nonexistent component id with an explicit format fails cleanly (stub or off-macOS:
+    // "unsupported"; real host: not found). Real coverage: tests/au.rs.
     let err = runner()
         .scan_target(&ScanTarget {
             format: PluginFormat::Au,
-            path: "aufx:dely:appl".into(),
+            path: "aufx:zzzz:zzzz".into(),
         })
         .unwrap_err();
-    assert!(err.contains("unsupported"), "{err}");
+    let lower = err.to_lowercase();
+    assert!(
+        lower.contains("unsupported") || lower.contains("not found"),
+        "{err}"
+    );
 
     // Unknown extension, no format: not claimed by any format.
     let other = dir.join("Thing.vst");

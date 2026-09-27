@@ -28,6 +28,7 @@
   --eth-fs-lg: 14px;
   --eth-fs-xl: 18px;
   --eth-fs-2xl: 24px;
+  --eth-fw-text: 450;
   --eth-fw-regular: 400;
   --eth-fw-medium: 500;
   --eth-fw-bold: 600;
@@ -35,7 +36,7 @@
   --eth-lh-normal: 1.35;
   --eth-tracking-normal: 0;
   --eth-tracking-caps: 0.04em;
-  --eth-font-ui: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --eth-font-ui: 'Inter Variable', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   --eth-font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
   --eth-focus-ring-width: 1px;
   --eth-focus-ring-offset: 1px;
@@ -83,7 +84,11 @@
   --eth-size-panel-header-height: 22px;
   --eth-size-top-bar-height: 36px;
   --eth-size-sidebar-width: 220px;
+  --eth-size-sidebar-min-width: 140px;
   --eth-size-detail-height: 280px;
+  --eth-size-detail-min-height: 80px;
+  --eth-size-main-min-size: 160px;
+  --eth-size-splitter-width: 6px;
   --eth-size-detail-collapsed-height: 24px;
   --eth-size-popover-min-width: 140px;
   --eth-size-dialog-width: 420px;
@@ -260,7 +265,8 @@
   --panel-header-bg: var(--eth-color-bg-raised);
   --panel-header-fg: var(--eth-color-text-dim);
   --panel-header-font-size: var(--eth-fs-sm);
-  --panel-header-transform: uppercase;
+  --panel-header-transform: none;
+  --panel-header-tracking: var(--eth-tracking-normal);
   --tab-height: var(--eth-size-control-md);
   --tab-padding-x: var(--eth-space-md);
   --tab-font-size: var(--eth-fs-sm);
@@ -302,6 +308,9 @@
   --input-height-lg: var(--eth-size-control-lg);
   --input-padding-x-lg: var(--eth-space-md);
   --input-font-size-lg: var(--eth-fs-md);
+  --context-menu-enter-duration: var(--eth-duration-fast);
+  --context-menu-enter-ease: var(--eth-ease-out);
+  --context-menu-enter-scale: 0.92;
   --popover-bg: var(--eth-color-bg-overlay);
   --popover-border: var(--eth-color-border-light);
   --popover-radius: var(--eth-radius-md);
