@@ -381,6 +381,8 @@ paths = [
   "crates/ether-controller/src/handlers.rs",
   # shared touch (base-25): import_errors Upload expectation
   "crates/ether-controller/tests/media.rs",
+  # shared touch (base-27): spread useUploadDrop() on the browser root only (no styling)
+  "ui/src/features/browser/index.tsx",
 ]
 
 [nodes.collab]
