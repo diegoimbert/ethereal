@@ -20,5 +20,7 @@ pub fn descriptor() -> DeviceDescriptor {
 
 /// Non-RT. A new instance with default params.
 pub fn create() -> Box<dyn Device> {
-    Box::new(crate::placeholder::Placeholder::new(descriptor()))
+    // The engine mixes the pad chains into this node's input (`ether_core` drum_rack
+    // module); until the rack has params of its own it just passes that mix through.
+    Box::new(crate::placeholder::Placeholder::pass_through(descriptor()))
 }

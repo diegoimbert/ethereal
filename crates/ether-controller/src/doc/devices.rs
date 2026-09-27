@@ -137,10 +137,10 @@ pub(super) fn apply(ctx: &mut DocCtx, c: &DeviceCommand) -> CmdResult<()> {
                 )));
             }
             if d.track != *track && !ctx.p().pads_of(d.id).is_empty() {
-                // Moving a rack across tracks would strand its pad chains (they'd need to
-                // move in the same op). Until the drum-rack node supports it: rejected.
+                // Moving a rack across tracks would strand its pad chains (each op is
+                // checked on its own, so they can't move together). Unsupported by design.
                 return Err(invalid(
-                    "moving a drum rack with pads to another track is not supported yet",
+                    "a drum rack with pads cannot move to another track (its pad chains live on its track); duplicate it there instead",
                 ));
             }
             let t = ctx.track(*track)?;

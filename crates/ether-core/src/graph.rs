@@ -273,6 +273,9 @@ pub(crate) struct SnapshotRt {
     pub latency: u32,
     /// Sidechain buffers (`crate::sidechain`).
     pub sidechain: crate::sidechain::Taps,
+    /// Drum-rack pad-chain nodes and their track index, sorted (live params, automation
+    /// and latency refresh reach them through `TrackRt::racks`).
+    pub pad_index: Vec<(NodeKey, usize)>,
 }
 
 impl RenderSnapshot {
@@ -320,6 +323,14 @@ impl SnapshotRt {
             .binary_search_by(|e| e.0.cmp(&send))
             .ok()
             .map(|i| (self.send_index[i].1, self.send_index[i].2))
+    }
+
+    /// Track of a drum-rack pad-chain node.
+    pub(crate) fn lookup_pad_node(&self, node: NodeKey) -> Option<usize> {
+        self.pad_index
+            .binary_search_by(|e| e.0.cmp(&node))
+            .ok()
+            .map(|i| self.pad_index[i].1)
     }
 
     pub(crate) fn lookup_node(&self, node: NodeKey) -> Option<(usize, usize)> {
@@ -494,22 +505,43 @@ pub fn compile_with(
 
     // --- nodes ---
     let mut node_index = Vec::new();
+    let mut pad_index = Vec::new();
     let mut chain_info: Vec<Vec<NodeInfo>> = Vec::with_capacity(n);
     for (i, t) in desc.tracks.iter().enumerate() {
         let mut infos = Vec::with_capacity(t.chain.len());
         for (k, e) in t.chain.iter().enumerate() {
-            let info = node_info(e.node).ok_or(CompileError::UnknownNode(e.node))?;
+            let mut info = node_info(e.node).ok_or(CompileError::UnknownNode(e.node))?;
+            // A drum rack's entry also carries its longest pad chain (pads run before it).
+            info.latency += crate::drum_rack::pad_latency(&t.racks, e.node, node_info);
             infos.push(info);
             node_index.push((e.node, i, k));
+        }
+        for pad_node in t
+            .racks
+            .iter()
+            .flat_map(|r| &r.pads)
+            .flat_map(|p| &p.chain)
+            .map(|e| e.node)
+        {
+            pad_index.push((pad_node, i));
         }
         chain_info.push(infos);
     }
     node_index.sort();
-    if let Some(w) = node_index.windows(2).find(|w| w[0].0 == w[1].0) {
-        return Err(CompileError::Capacity(format!(
-            "node {:?} used more than once",
-            w[0].0
-        )));
+    pad_index.sort();
+    {
+        let mut all: Vec<NodeKey> = node_index
+            .iter()
+            .map(|e| e.0)
+            .chain(pad_index.iter().map(|e| e.0))
+            .collect();
+        all.sort();
+        if let Some(w) = all.windows(2).find(|w| w[0] == w[1]) {
+            return Err(CompileError::Capacity(format!(
+                "node {:?} used more than once",
+                w[0]
+            )));
+        }
     }
 
     // --- PDC ---
@@ -523,14 +555,20 @@ pub fn compile_with(
         .collect();
     let mut in_lat = vec![0u32; n];
     let mut out_lat = vec![0u32; n];
+    // Sidechain PDC (`crate::sidechain::plan`): main-signal delays before sidechained
+    // entries count into the track's chain latency.
+    let mut sc_plans: Vec<Vec<crate::sidechain::EntryPlan>> = vec![Vec::new(); n];
     for &i in &order {
-        in_lat[i] = in_lat[i].max(crate::sidechain::required_input_latency(
+        sc_plans[i] = crate::sidechain::plan(
+            i,
             &desc.tracks[i],
             &chain_info[i],
+            in_lat[i],
             &track_of,
             &out_lat,
-        ));
-        out_lat[i] = in_lat[i] + chain_lat[i];
+        );
+        let sc_delay: u32 = sc_plans[i].iter().map(|p| p.main_delay).sum();
+        out_lat[i] = in_lat[i] + chain_lat[i] + sc_delay;
         for &d in &succ[i] {
             in_lat[d] = in_lat[d].max(out_lat[i]);
         }
@@ -667,16 +705,14 @@ pub fn compile_with(
         .max()
         .unwrap_or(0);
 
-    let sidechain = crate::sidechain::Taps::compile(
-        &desc.tracks,
-        &track_of,
-        &in_lat,
-        &out_lat,
-        &chain_info,
-        config,
-    );
+    for p in sc_plans.iter().flatten() {
+        check(p.main_delay)?;
+        check(p.sc_delay)?;
+    }
+    let sidechain = crate::sidechain::Taps::compile(&sc_plans, config);
     let mut rt = SnapshotRt {
         sidechain,
+        pad_index,
         order,
         tracks,
         buses: (0..n).map(|_| stereo(frames)).collect(),
