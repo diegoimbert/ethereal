@@ -13,16 +13,16 @@
   display: flex;
   gap: var(--eth-space-xs);
   padding: var(--eth-space-sm);
-  border-bottom: 1px solid var(--eth-color-border);
+  border-bottom: var(--eth-border-width) solid var(--eth-color-border);
 }
 .eth-plugins__search {
   flex: 1;
   min-width: 0;
   background: var(--eth-color-bg-inset);
   color: var(--eth-color-text);
-  border: 1px solid var(--eth-color-border-light);
-  border-radius: 3px;
-  padding: 2px var(--eth-space-xs);
+  border: var(--eth-border-width) solid var(--eth-color-border-light);
+  border-radius: var(--eth-radius-compact);
+  padding: var(--eth-space-xs) var(--eth-space-xs);
   font: inherit;
 }
 .eth-plugins__status,
@@ -33,7 +33,7 @@
   color: var(--eth-color-text-dim);
 }
 .eth-plugins__message {
-  border-top: 1px solid var(--eth-color-border);
+  border-top: var(--eth-border-width) solid var(--eth-color-border);
 }
 .eth-plugins__current {
   font-family: var(--eth-font-mono);
@@ -59,7 +59,7 @@
   align-items: center;
   gap: var(--eth-space-sm);
   width: 100%;
-  height: 22px;
+  height: var(--eth-size-row-height);
   padding: 0 var(--eth-space-sm);
   border: none;
   background: none;
@@ -98,11 +98,11 @@
 .eth-plugin-controls {
   display: inline-flex;
   align-items: center;
-  gap: 2px;
+  gap: var(--eth-space-xs);
 }
 .eth-plugin-controls__crashed {
   padding: 0 var(--eth-space-xs);
-  border-radius: 3px;
+  border-radius: var(--eth-radius-compact);
   background: var(--eth-color-record);
   color: var(--eth-color-text-inverse);
   font-size: var(--eth-fs-xs);
