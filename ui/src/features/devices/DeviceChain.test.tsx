@@ -7,6 +7,7 @@ import { dragUp, flush, renderWithMock, resetStores, store, stubPointerCapture, 
 import { groupParams, insertableTypes } from "./chainUtils";
 import { BUILTIN_DESCRIPTORS } from "@/transport";
 import { DeviceChain } from "./index";
+import { BROWSER_DRAG_MIME, type BrowserDragPayload } from "@/features/browser/dragPayload";
 
 let mock: MockTransport | undefined;
 beforeAll(stubPointerCapture);
@@ -19,6 +20,20 @@ const chainNames = (track: string) => devicesOfTrack(store().project!, trackByNa
 const deviceOf = (track: string, name: string): Device =>
   devicesOfTrack(store().project!, trackByName(track).id).find((d) => d.name === name)!;
 const deviceEl = (name: string) => screen.getByRole("region", { name });
+
+/** A fake DataTransfer carrying a sample-browser payload for a library file. */
+function writePayload(path: string) {
+  const data = new Map<string, string>();
+  const payload: BrowserDragPayload = {
+    version: 1,
+    kind: "media",
+    source: { type: "Location", location: { type: "Library", id: "library" }, path },
+    name: path.split("/").pop()!,
+    file_kind: "Audio",
+  };
+  data.set(BROWSER_DRAG_MIME, JSON.stringify(payload));
+  return { types: [...data.keys()], getData: (f: string) => data.get(f) ?? "", dropEffect: "none" };
+}
 
 async function renderChain() {
   mock = await renderWithMock(<DeviceChain />);
@@ -105,6 +120,31 @@ describe("DeviceChain", () => {
     fireEvent.change(screen.getByRole("combobox", { name: "Add device" }), { target: { value: "Sampler" } });
     await flush();
     expect(chainNames("Keys")[0]).toBe("Sampler");
+  });
+
+  it("loads a sample dropped from the browser into a Sampler (one undo step)", async () => {
+    await renderChain();
+    fireEvent.change(screen.getByRole("combobox", { name: "Add device" }), { target: { value: "Sampler" } });
+    await flush();
+    const slot = within(deviceEl("Sampler")).getByTestId("sample-slot");
+    expect(slot.textContent).toMatch(/drop a sample/i);
+    const payload = writePayload("Drums/Kick.wav");
+    await act(async () => {
+      fireEvent.dragOver(slot, { dataTransfer: payload });
+      fireEvent.drop(slot, { dataTransfer: payload });
+    });
+    await flush();
+    const sampler = deviceOf("Keys", "Sampler");
+    const kind = sampler.kind.type === "Builtin" ? sampler.kind.device : null;
+    const media = kind?.type === "Sampler" ? kind.sample : null;
+    expect(media).not.toBeNull();
+    expect(store().project!.media[media!]!.name).toMatch(/Kick/);
+    expect(slot.textContent).toMatch(/Kick/);
+    await act(async () => {
+      await mock!.send(cmd("Edit", { type: "Undo" }));
+    });
+    const after = deviceOf("Keys", "Sampler").kind;
+    expect(after.type === "Builtin" && after.device.type === "Sampler" ? after.device.sample : "?").toBeNull();
   });
 
   it("a knob drag is one undo step and maps through the param scale", async () => {

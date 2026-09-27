@@ -4,6 +4,7 @@ import type { Clip, Command, Note, PeakData, ReplyValue, Track } from "@/generat
 import { TempoMap } from "@/timeline";
 import type { EngineTransport } from "@/transport";
 import { actionForKey } from "./actions";
+import { trackDropTarget } from "./trackDrag";
 import { BROWSER_DRAG_MIME, readBrowserDrag } from "./browserDrop";
 import { noteRects, pitchRange } from "./clipDraw";
 import { contentBeatAt, contentSegments, mediaLengthInBeats, sourceSecondsMapper } from "./clipTime";
@@ -446,5 +447,38 @@ describe("keys and drops", () => {
     expect(readBrowserDrag(dt("{"))).toBeNull();
     expect(readBrowserDrag(dt(JSON.stringify({ ...payload, version: 2 })))).toBeNull();
     expect(readBrowserDrag({ types: ["text/plain"], getData: () => "" })).toBeNull();
+  });
+});
+
+// ── trackDrag ─────────────────────────────────────────────────────────────────────────
+
+describe("trackDropTarget", () => {
+  // g (group) > [g1], m1, m2, r (return), M (master); every row TRACK_HEIGHT tall.
+  const ordered = [
+    track("g", "Group", "a"),
+    track("g1", "Midi", "a", "g"),
+    track("m1", "Midi", "b"),
+    track("m2", "Midi", "c"),
+    track("r", "Return", "d"),
+    track("M", "Master", "e"),
+  ];
+  const rs = layoutRows(ordered, new Set());
+  const H = TRACK_HEIGHT;
+
+  it("drops before the row below the nearest gap, in that row's group", () => {
+    expect(trackDropTarget(rs, 2 * H + 5, "m2")).toEqual({ parent: null, before: "m1", y: 2 * H, into: null });
+    expect(trackDropTarget(rs, H + 5, "m2")).toEqual({ parent: "g", before: "g1", y: H, into: null });
+  });
+
+  it("drops into a group over the middle of its header, never into itself", () => {
+    expect(trackDropTarget(rs, H / 2, "m1")).toEqual({ parent: "g", before: null, y: 0, into: "g" });
+    expect(trackDropTarget(rs, H / 2, "g")?.into).toBeNull();
+    // Over its own child: lands after itself (no move), never inside itself.
+    expect(trackDropTarget(rs, H + 5, "g")).toEqual({ parent: null, before: "m1", y: 2 * H, into: null });
+    expect(trackDropTarget(rs, 5, "g")).toBeNull(); // right where it is
+  });
+
+  it("drops after the last regular track instead of among returns and master", () => {
+    expect(trackDropTarget(rs, 5 * H, "m1")).toEqual({ parent: null, before: null, y: 4 * H, into: null });
   });
 });

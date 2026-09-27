@@ -2,16 +2,18 @@ import clsx from "clsx";
 import { memo, useMemo, useState, type CSSProperties, type MouseEvent, type PointerEvent } from "react";
 import type { Clip, ClipId, Track } from "@/generated";
 import { TrackAutomationLanes } from "@/features/automation";
-import { Button, openContextMenu, setDragCursor } from "@/kit";
-import { useProjectStore, useSelectionStore } from "@/state";
-import { useTempoMap, useTimelineView, useViewport, visibleRange } from "@/timeline";
+import { Button, MOD_KEY, openContextMenu, setDragCursor } from "@/kit";
+import { useProjectStore } from "@/state";
+import { pxToBeats, resolveGrid, snapToGrid, useTempoMap, useTimelineView, useViewport, visibleRange } from "@/timeline";
 import { cmd } from "@/transport";
-import { trackMenu } from "./actions";
+import { selectTrackEntity, trackMenu } from "./actions";
+import { hasClipboard, pasteClips } from "./clipboard";
 import { onLaneInsertPointerDown, type InsertSpan } from "./clipInsert";
 import { ClipView } from "./ClipView";
 import { colorCss, groupSummaryKey } from "./helpers";
 import { sendEdit, useArrangement } from "./context";
 import { laneItems } from "./laneItems";
+import { onTrackHeaderPointerDown } from "./trackDrag";
 import { HEADER_WIDTH, TRACK_HEIGHT_STEP, type Row } from "./layout";
 import { arrangementView, useArrangementUi, type PendingImport } from "./uiStore";
 
@@ -37,8 +39,12 @@ export const TrackRow = memo(function TrackRow({ row }: { row: Row }) {
 
 function TrackHeader({ row }: { row: Row }) {
   const { track, depth } = row;
-  const { transport } = useArrangement();
-  const selected = useSelectionStore((s) => s.selectedTrack === track.id);
+  const ctx = useArrangement();
+  const { transport } = ctx;
+  const dragging = useArrangementUi((s) => s.trackDrag?.track === track.id);
+  const dropInto = useArrangementUi((s) => s.trackDrag?.into === track.id);
+  // Highlighted only as the arrangement's selected entity (not while one of its clips is).
+  const selected = useArrangementUi((s) => s.trackFocus === track.id);
   const armed = useProjectStore((s) => s.armedTracks.includes(track.id));
   const folded = useArrangementUi((s) => s.folded.has(track.id));
   const { mute, solo } = track.mixer;
@@ -47,10 +53,19 @@ function TrackHeader({ row }: { row: Row }) {
 
   return (
     <div
-      className={clsx("eth-arr-header", selected && "eth-arr-header--selected", `eth-arr-header--${track.kind.toLowerCase()}`)}
+      className={clsx(
+        "eth-arr-header",
+        selected && "eth-arr-header--selected",
+        dragging && "eth-arr-header--dragging",
+        dropInto && "eth-arr-header--drop-into",
+        `eth-arr-header--${track.kind.toLowerCase()}`,
+      )}
       style={{ width: HEADER_WIDTH, paddingLeft: 4 + depth * INDENT_PX, ["--eth-track-color" as string]: colorCss(track.color) }}
-      onPointerDown={stop}
-      onClick={() => useSelectionStore.getState().selectTrack(track.id)}
+      onPointerDown={(e) => {
+        stop(e);
+        onTrackHeaderPointerDown(e, track, ctx);
+      }}
+      onClick={() => selectTrackEntity(track.id)}
       onContextMenu={(e) => openContextMenu(e, trackMenu(transport, track))}
       role="group"
       aria-label={`${track.name} track`}
@@ -196,6 +211,16 @@ function TrackLane({ track }: { track: Track }) {
       className={clsx("eth-arr-lane", track.kind !== "Audio" && track.kind !== "Midi" && "eth-arr-lane--no-clips")}
       data-lane={track.id}
       onPointerDown={track.kind === "Midi" ? (e) => onLaneInsertPointerDown(e, track.id, ctx, setInsert) : undefined}
+      onContextMenu={(e) => {
+        // Empty space (or a clip's body, which lets clicks through): paste here.
+        const x = e.clientX - e.currentTarget.getBoundingClientRect().left;
+        const s = arrangementView.getState();
+        const step = resolveGrid(useArrangementUi.getState().grid, s.pxPerBeat, tempo.signatureAt(s.scrollBeats));
+        const at = Math.max(0, snapToGrid(pxToBeats(x, s), e.altKey ? null : step, tempo, "floor"));
+        openContextMenu(e, [
+          { label: "Paste", shortcut: `${MOD_KEY}V`, disabled: !hasClipboard(), onSelect: () => void pasteClips(ctx.transport, at, track.id) },
+        ]);
+      }}
     >
       {items.map((it) =>
         it.bounds.start + it.bounds.length < visible.start || it.bounds.start > visible.end ? null : (

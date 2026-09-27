@@ -12,12 +12,13 @@
 
 import type { PointerEvent as ReactPointerEvent } from "react";
 import type { Beats, Clip, MediaRef } from "@/generated";
-import { playheadStore, useProjectStore, useSelectionStore, warpMarkersOfClip } from "@/state";
+import { useProjectStore, useSelectionStore, warpMarkersOfClip } from "@/state";
 import { itemSelection, resolveGrid, selectModeFromEvent, snapToGrid, TempoMap } from "@/timeline";
-import { cmd, newId, type EngineTransport } from "@/transport";
+import { newId, type EngineTransport } from "@/transport";
 import { setDragCursor } from "@/kit";
 import { clipSourceMapper } from "@/features/warp/warpMap";
 import { isArrangementClip, mediaLengthInBeats, startOf } from "./clipTime";
+import { locateIfStopped } from "./actions";
 import { sendEdit, type ArrangementContextValue } from "./context";
 import { boundsCommand, dragPreview, moveCommand, type DragMode } from "./editMath";
 import { rowIndexAt } from "./layout";
@@ -54,9 +55,7 @@ export function onClipPointerDown(e: ReactPointerEvent<HTMLElement>, clip: Clip,
   const selectMode = selectModeFromEvent(e);
   if (!wasSelected) sel.select("clip", [clip.id], selectMode === "replace" ? "replace" : "add");
   useSelectionStore.getState().selectTrack(clip.track);
-  if (!playheadStore.getPlayhead()?.transport.playing) {
-    ctx.transport.send(cmd("Transport", { type: "Locate", position: startOf(clip) })).catch(() => {});
-  }
+  locateIfStopped(ctx.transport, startOf(clip));
 
   const project = useProjectStore.getState().project;
   if (!project) return;
