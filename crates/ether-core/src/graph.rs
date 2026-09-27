@@ -60,8 +60,7 @@ pub struct TrackDesc {
     pub pan: f32,
     pub mute: bool,
     pub solo: bool,
-    /// Hardware input channels monitored/recorded by this track, if any, as `(first, count)`
-    /// (count 1 = mono, 2 = stereo; see `crate::recording::input_channels`).
+    /// Hardware input channels monitored/recorded by this track, if any.
     pub audio_input: Option<(u16, u16)>,
     /// Effective monitoring (controller resolves Auto/In/Off + its runtime arm state).
     pub monitor: bool,
