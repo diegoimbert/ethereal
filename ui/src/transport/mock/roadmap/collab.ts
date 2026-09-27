@@ -95,6 +95,11 @@ export class MockCollab {
         return fail("Unsupported", `${c.type} is not implemented yet`);
       case "SendSignal":
         if (this.status.type !== "Online") fail("InvalidState", "not in a collaboration session");
+        // The receiver gave up (like the engine: the stream ends).
+        if (c.signal.type === "Bye" && this.listening.type !== "Off" && this.listening.type !== "Ended" && this.listening.host === c.to) {
+          this.listening = { type: "Ended", host: c.to, reason: c.signal.reason ?? "the connection failed" };
+          this.emitListen();
+        }
         return UNIT;
       case "SetIceServers":
         this.host.emit({

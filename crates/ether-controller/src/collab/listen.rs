@@ -141,6 +141,8 @@ where
             // Listening elsewhere: that stream ends first (one host at a time).
             self.collab_listen_end(End::Stopped, true, now, out);
         }
+        // TODO(stream-host): end our own streams first (no chains, §9.3):
+        // `self.collab_host_end_all("host started listening elsewhere", out);`
         // Hold the local timeline stopped (previews and live input still sound).
         if self.transport.playing {
             self.bridge

@@ -55,6 +55,10 @@ describe("MockCollab", () => {
     const n = events.length;
     c.command({ type: "StopListening" });
     expect(events).toHaveLength(n);
+    // The receiver's Bye ends the stream.
+    c.command({ type: "Listen", host: "2" });
+    c.command({ type: "SendSignal", to: "2", stream: 2, signal: { type: "Bye", reason: "no audio" } });
+    expect(events.at(-1)).toMatchObject({ event: { status: { listening: { type: "Ended", host: "2", reason: "no audio" } } } });
   });
 
   it("validates joins like the engine", () => {
