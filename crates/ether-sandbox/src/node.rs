@@ -45,6 +45,9 @@ struct InFlight {
     frames: usize,
     /// Its samples were already replaced by silence (it came too late).
     substituted: bool,
+    /// Posted before a `reset`: its samples were already replaced by silence, the result is
+    /// dropped when it arrives (it would replay audio from before the jump).
+    discard: bool,
 }
 
 /// Fixed-capacity multichannel FIFO (planar).
@@ -282,6 +285,7 @@ impl SandboxedNode {
             seq: self.seq,
             frames,
             substituted: false,
+            discard: false,
         });
     }
 }
@@ -302,6 +306,15 @@ impl Node for SandboxedNode {
         // Drop delayed output from before the jump (keeps the FIFO level = latency).
         for ch in &mut self.fifo.data {
             ch.fill(0.0);
+        }
+        // The block still in flight was rendered before the jump too: its slot becomes
+        // silence now and its result is dropped when it arrives.
+        if let Some(f) = &mut self.in_flight
+            && !f.substituted
+            && !f.discard
+        {
+            self.fifo.push(f.frames, None);
+            f.discard = true;
         }
     }
 
@@ -327,7 +340,7 @@ impl Node for SandboxedNode {
                 self.wait_budget
             };
             if self.wait_done(f.seq, budget) {
-                if !f.substituted {
+                if !f.substituted && !f.discard {
                     self.collect(f.frames, ctx);
                 }
                 self.in_flight = None;
@@ -338,7 +351,9 @@ impl Node for SandboxedNode {
                 }
                 self.shared.underruns.fetch_add(1, Ordering::Relaxed);
                 if !f.substituted {
-                    self.fifo.push(f.frames, None);
+                    if !f.discard {
+                        self.fifo.push(f.frames, None);
+                    }
                     f.substituted = true;
                     self.in_flight = Some(f);
                 }
@@ -399,6 +414,86 @@ impl PluginNode for SandboxedNode {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::shm::Layout;
+    use crate::sys::os_name;
+    use ether_core::event::EventBuffer;
+    use ether_core::transport::TransportInfo;
+
+    /// A node over a real region, with the test acting as the helper.
+    fn node(tag: &str, max_frames: usize) -> SandboxedNode {
+        let pid = std::process::id();
+        let shm = os_name("sandbox-unit", pid, &format!("{tag}-shm"));
+        let sem = os_name("sandbox-unit", pid, &format!("{tag}-sem"));
+        let mut region = Region::create(&shm, Layout::new(max_frames, 1, 1, 16, 16)).unwrap();
+        let mut sem = Semaphore::create(&sem).unwrap();
+        region.unlink();
+        sem.unlink();
+        SandboxedNode::new(NodeInit {
+            region,
+            sem,
+            shared: Arc::new(Shared::default()),
+            descriptor: DeviceDescriptor {
+                device_type: ether_core::protocol::devices::DeviceTypeRef::Plugin {
+                    plugin_id: "t".into(),
+                },
+                name: "t".into(),
+                category: ether_core::protocol::devices::DeviceCategory::AudioEffect,
+                params: Vec::new(),
+                audio_inputs: 1,
+                audio_outputs: 1,
+                midi_input: false,
+            },
+            values: Vec::new(),
+            channels: (1, 1),
+            wait_budget: Duration::from_secs(1),
+        })
+    }
+
+    fn run(node: &mut SandboxedNode, input: f32, frames: usize) -> Vec<f32> {
+        let transport = TransportInfo::STOPPED;
+        let mut out_events = EventBuffer::with_capacity(16);
+        let inp = vec![input; frames];
+        let mut out = vec![9.0f32; frames];
+        let inputs: [&[f32]; 1] = [&inp];
+        let mut outputs: [&mut [f32]; 1] = [&mut out];
+        let mut ctx = ProcessContext {
+            sample_rate: 48_000.0,
+            frames,
+            transport: &transport,
+            events: &[],
+            out_events: &mut out_events,
+        };
+        let mut audio = AudioBuffers {
+            inputs: &inputs,
+            outputs: &mut outputs,
+        };
+        node.process(&mut ctx, &mut audio);
+        out
+    }
+
+    /// Plays the helper: completes the posted block with `value`.
+    fn complete(node: &SandboxedNode, value: f32) {
+        let seq = node.region.header().posted.load(Ordering::Acquire);
+        let frames = node.region.block().frames as usize;
+        node.region.out_audio()[..frames].fill(value);
+        node.region.block().n_out_events = 0;
+        node.region.header().done.store(seq, Ordering::Release);
+    }
+
+    #[test]
+    fn reset_drops_the_in_flight_result() {
+        let mut n = node("reset", 4);
+        assert_eq!(run(&mut n, 1.0, 4), [0.0; 4]); // latency prefill
+        complete(&n, 1.0);
+        assert_eq!(run(&mut n, 1.0, 4), [1.0; 4]); // normal: previous block, one block late
+        complete(&n, 1.0);
+        // Jump: the block rendered before it (in flight) must not play afterwards.
+        n.reset();
+        assert_eq!(run(&mut n, 0.5, 4), [0.0; 4]);
+        complete(&n, 0.5);
+        assert_eq!(run(&mut n, 0.5, 4), [0.5; 4]);
+        assert_eq!(n.shared.underruns.load(Ordering::Relaxed), 0);
+    }
 
     #[test]
     fn fifo_delays_by_prefill() {

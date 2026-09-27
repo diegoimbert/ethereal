@@ -275,6 +275,10 @@ impl EngineBridge for NativeBridge {
             _ => Ok(None),
         }
     }
+
+    fn plugin_param_values(&mut self, device: DeviceId) -> Vec<(ParamId, f64)> {
+        self.plugins.param_values(device)
+    }
 }
 
 /// Native [`HostServices`]: wall clock and OS entropy.

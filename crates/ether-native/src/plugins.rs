@@ -289,6 +289,22 @@ impl PluginHost {
             .flatten()
     }
 
+    /// Current plain values of every param of `device`'s live instance (one main-thread
+    /// call; used to mirror a restored state into the document).
+    pub fn param_values(&self, device: DeviceId) -> Vec<(ParamId, f64)> {
+        self.call(move |reg| {
+            let Some(h) = reg.live_mut(device) else {
+                return Vec::new();
+            };
+            let params = h.controller.params();
+            params
+                .iter()
+                .filter_map(|p| Some((p.id, h.controller.param_value(p.id)?)))
+                .collect()
+        })
+        .unwrap_or_default()
+    }
+
     /// Poll every live controller (CLAP `on_main_thread`, timers, GUI) and collect their
     /// notifications.
     pub fn poll(&self, out: &mut Vec<(DeviceId, PluginNotification)>) {
