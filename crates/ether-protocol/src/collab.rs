@@ -25,6 +25,9 @@ use crate::model::{
     ParamId, SiteId, StampedTransaction, TrackId,
 };
 
+// `SetPresence` carries a whole `PresenceState` (presence v2 grew it). Commands are rare and
+// short-lived, so the variant size gap doesn't matter; boxing would only churn call sites.
+#[allow(clippy::large_enum_variant)]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
 #[serde(tag = "type")]
 pub enum CollabCommand {
