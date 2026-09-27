@@ -8,6 +8,10 @@
 //! (`reset`, which the AU API allows on the render thread, goes through the method's
 //! implementation pointer looked up at activation, bypassing dynamic dispatch).
 //!
+//! Sidechain (CONTRACTS §12.14): the unit's input bus 1, enabled at activation when it
+//! exists, is served by the same pull block from the node's sidechain buffers (mono buses
+//! get the left channel, wider ones the first two); silence when there's no source.
+//!
 //! Engine events become render events: `Param` → `scheduleParameterBlock`
 //! (`AUEventSampleTimeImmediate + offset`, sample accurate), notes/MIDI →
 //! `scheduleMIDIEventBlock` (same timing), both issued right before the render call.
@@ -136,6 +140,10 @@ struct HostContext {
 /// Audio-thread state reachable from the blocks (through a raw pointer).
 pub(crate) struct RtState {
     in_bufs: Vec<Vec<f32>>,
+    /// Sidechain (input bus 1) left/right, when the node has one (else empty).
+    sc_bufs: Vec<Vec<f32>>,
+    /// The current block carries a sidechain signal (else bus 1 gets silence).
+    sc_active: bool,
     /// Silence for non-main input busses.
     zeros: Vec<f32>,
     frames: u32,
@@ -189,6 +197,8 @@ pub(crate) struct AuNode {
     has_input: bool,
     in_channels: usize,
     out_channels: usize,
+    /// `Node::sidechain_inputs` (input bus 1 enabled).
+    sidechain: u16,
     max_frames: usize,
     sample_rate: f64,
     sample_time: f64,
@@ -221,6 +231,8 @@ pub(crate) struct NodeInit {
     pub has_input: bool,
     pub in_channels: usize,
     pub out_channels: usize,
+    /// Sidechain channels (input bus 1 enabled; 0 = none). Must match `rt_parts`.
+    pub sidechain: u16,
     pub max_frames: usize,
     pub sample_rate: f64,
     /// `(id, address, value)`.
@@ -235,9 +247,15 @@ pub(crate) struct RtParts {
     pub host: HostBlocks,
 }
 
-pub(crate) fn rt_parts(in_channels: usize, max_frames: usize) -> RtParts {
+pub(crate) fn rt_parts(in_channels: usize, sidechain: u16, max_frames: usize) -> RtParts {
     let rt = Box::new(UnsafeCell::new(RtState {
         in_bufs: (0..in_channels).map(|_| vec![0.0; max_frames]).collect(),
+        sc_bufs: if sidechain > 0 {
+            vec![vec![0.0; max_frames]; 2]
+        } else {
+            Vec::new()
+        },
+        sc_active: false,
         zeros: vec![0.0; max_frames],
         frames: 0,
         ctx: HostContext::default(),
@@ -255,8 +273,8 @@ pub(crate) fn rt_parts(in_channels: usize, max_frames: usize) -> RtParts {
               -> i32 {
             // SAFETY: called synchronously from inside our render call.
             let st = unsafe { ptr.get() };
-            // Only the main input (bus 0) carries the node's input; other busses (AU
-            // sidechains) get silence.
+            // The main input (bus 0) carries the node's input, bus 1 the sidechain (when
+            // there's a source); other busses get silence.
             let list = data.as_ptr() as *mut BufList;
             // SAFETY: the unit passes a valid list with `count` buffers.
             let count = unsafe { (*list).count } as usize;
@@ -266,6 +284,8 @@ pub(crate) fn rt_parts(in_channels: usize, max_frames: usize) -> RtParts {
                 let buf = unsafe { &mut *(*list).buffers.as_mut_ptr().add(c) };
                 let src = if bus == 0 {
                     st.in_bufs.get(c).or(st.in_bufs.last())
+                } else if bus == 1 && st.sc_active && c < 2 {
+                    st.sc_bufs.get(c)
                 } else {
                     Some(&st.zeros)
                 };
@@ -459,6 +479,7 @@ impl AuNode {
             has_input,
             in_channels,
             out_channels,
+            sidechain,
             max_frames,
             sample_rate,
             values,
@@ -497,6 +518,7 @@ impl AuNode {
             has_input,
             in_channels,
             out_channels,
+            sidechain,
             max_frames,
             sample_rate,
             sample_time: 0.0,
@@ -609,6 +631,49 @@ impl Node for AuNode {
         ctx: &mut ProcessContext<'_>,
         audio: &mut AudioBuffers<'_, '_>,
     ) -> ProcessStatus {
+        self.run(ctx, audio, &[])
+    }
+
+    fn sidechain_inputs(&self) -> u16 {
+        self.sidechain
+    }
+
+    fn process_sidechain(
+        &mut self,
+        ctx: &mut ProcessContext<'_>,
+        audio: &mut AudioBuffers<'_, '_>,
+        sidechain: &[&[f32]],
+    ) -> ProcessStatus {
+        self.run(ctx, audio, sidechain)
+    }
+
+    fn latency(&self) -> u32 {
+        self.shared.latency.load(Ordering::Relaxed)
+    }
+
+    fn channels(&self) -> (u16, u16) {
+        (
+            // Same clamp as the controller's descriptor: the engine feeds/reads at most a
+            // stereo main bus (extra unit channels mirror the last one / are dropped).
+            if self.has_input {
+                self.in_channels.min(2) as u16
+            } else {
+                0
+            },
+            self.out_channels.min(2) as u16,
+        )
+    }
+}
+
+impl AuNode {
+    /// `process` (no sidechain source: `sidechain` is empty, bus 1 gets silence) and
+    /// `process_sidechain`.
+    fn run(
+        &mut self,
+        ctx: &mut ProcessContext<'_>,
+        audio: &mut AudioBuffers<'_, '_>,
+        sidechain: &[&[f32]],
+    ) -> ProcessStatus {
         let frames = ctx.frames;
         if self.shared.faulted.load(Ordering::Relaxed) || frames > self.max_frames {
             audio.clear_outputs();
@@ -654,6 +719,20 @@ impl Node for AuNode {
                     None => dst[..frames].fill(0.0),
                 }
             }
+            // Sidechain: left → channel 0, right (or left again, mono source) → channel 1.
+            st.sc_active = !st.sc_bufs.is_empty() && !sidechain.is_empty();
+            if st.sc_active {
+                for (c, dst) in st.sc_bufs.iter_mut().enumerate() {
+                    let src = sidechain
+                        .get(c)
+                        .or(sidechain.first())
+                        .copied()
+                        .unwrap_or(&[]);
+                    let n = src.len().min(frames);
+                    dst[..n].copy_from_slice(&src[..n]);
+                    dst[n..frames].fill(0.0);
+                }
+            }
         }
 
         // Output buffers: ours (the unit may substitute its own pointers).
@@ -671,7 +750,7 @@ impl Node for AuNode {
         let mut ts: AudioTimeStamp = unsafe { std::mem::zeroed() };
         ts.mSampleTime = self.sample_time;
         ts.mFlags = AudioTimeStampFlags::SampleTimeValid;
-        let pull = if self.has_input && self.in_channels > 0 {
+        let pull = if (self.has_input && self.in_channels > 0) || self.sidechain > 0 {
             RcBlock::as_ptr(&self.pull)
         } else {
             std::ptr::null_mut()
@@ -739,23 +818,6 @@ impl Node for AuNode {
         }
         ProcessStatus::Continue
     }
-
-    fn latency(&self) -> u32 {
-        self.shared.latency.load(Ordering::Relaxed)
-    }
-
-    fn channels(&self) -> (u16, u16) {
-        (
-            // Same clamp as the controller's descriptor: the engine feeds/reads at most a
-            // stereo main bus (extra unit channels mirror the last one / are dropped).
-            if self.has_input {
-                self.in_channels.min(2) as u16
-            } else {
-                0
-            },
-            self.out_channels.min(2) as u16,
-        )
-    }
 }
 
 impl Device for AuNode {
@@ -786,6 +848,61 @@ impl PluginNode for AuNode {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Pull `bus` (2 channels, `frames`) into fresh buffers, as a unit would.
+    fn pull(parts: &RtParts, bus: isize, frames: usize) -> [Vec<f32>; 2] {
+        let mut out = [vec![7.0f32; frames], vec![7.0f32; frames]];
+        let mut list = BufList::new();
+        list.count = 2;
+        for (c, b) in out.iter_mut().enumerate() {
+            list.buffers[c] = AudioBuffer {
+                mNumberChannels: 1,
+                mDataByteSize: (frames * 4) as u32,
+                mData: b.as_mut_ptr() as *mut _,
+            };
+        }
+        let mut flags = AudioUnitRenderActionFlags(0);
+        // SAFETY: plain old data.
+        let mut ts: AudioTimeStamp = unsafe { std::mem::zeroed() };
+        let status = parts.pull.call((
+            NonNull::from(&mut flags),
+            NonNull::from(&mut ts),
+            frames as u32,
+            bus,
+            NonNull::from(&mut *list).cast(),
+        ));
+        assert_eq!(status, 0);
+        out
+    }
+
+    #[test]
+    fn the_pull_block_serves_the_sidechain_on_bus_1() {
+        let parts = rt_parts(2, 2, 8);
+        {
+            // SAFETY: nothing else uses the state in this test.
+            let st = unsafe { &mut *parts.rt.get() };
+            st.frames = 4;
+            st.in_bufs[0][..4].fill(1.0);
+            st.in_bufs[1][..4].fill(2.0);
+            st.sc_bufs[0][..4].fill(0.25);
+            st.sc_bufs[1][..4].fill(-0.5);
+        }
+        assert_eq!(pull(&parts, 0, 4), [vec![1.0; 4], vec![2.0; 4]]);
+        // No source this block: bus 1 is silent.
+        assert_eq!(pull(&parts, 1, 4), [vec![0.0; 4], vec![0.0; 4]]);
+        unsafe { (*parts.rt.get()).sc_active = true };
+        assert_eq!(pull(&parts, 1, 4), [vec![0.25; 4], vec![-0.5; 4]]);
+        // Other busses stay silent.
+        assert_eq!(pull(&parts, 2, 4), [vec![0.0; 4], vec![0.0; 4]]);
+
+        // Without a sidechain there are no buffers and bus 1 is silent even if flagged.
+        let plain = rt_parts(2, 0, 8);
+        unsafe {
+            (*plain.rt.get()).frames = 4;
+            (*plain.rt.get()).sc_active = true;
+        }
+        assert_eq!(pull(&plain, 1, 4), [vec![0.0; 4], vec![0.0; 4]]);
+    }
 
     #[test]
     fn note_events_to_midi() {
