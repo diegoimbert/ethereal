@@ -102,6 +102,11 @@ mod macos {
         /// The platform type passed to `IPlugView::attached`.
         pub const PLATFORM_TYPE: &std::ffi::CStr = c"NSView";
 
+        /// Whether the current thread is the process main thread (where editors live).
+        pub fn on_main_thread() -> bool {
+            MainThreadMarker::new().is_some()
+        }
+
         /// Must be called on the process main thread (AppKit requirement).
         pub fn open(title: &str, size: Size, resizable: bool) -> Result<Self, String> {
             let mtm = MainThreadMarker::new()
@@ -194,6 +199,9 @@ mod other {
         pub const SUPPORTED: bool = false;
         pub const PLATFORM_TYPE: &std::ffi::CStr = c"";
 
+        pub fn on_main_thread() -> bool {
+            false
+        }
         pub fn open(_title: &str, _size: Size, _resizable: bool) -> Result<Self, String> {
             Err("host editor windows are not supported on this OS yet".into())
         }

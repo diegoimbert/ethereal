@@ -28,6 +28,13 @@
 //! Loading aborts the process if the module path contains `ether-crash`, and hangs forever if
 //! it contains `ether-hang` (scanner crash/timeout tests).
 //!
+//! A note-on with key 127 makes the instrument's `process` return `kInternalError` (host
+//! fault handling).
+//!
+//! Every COM object of the fixture is counted; the module exit function (`bundleExit` /
+//! `ModuleExit` / `ExitDll`) aborts the process if any is still alive when the last module
+//! reference goes away, so a host that leaks plugin objects fails its tests.
+//!
 //! Nothing here allocates on the audio thread.
 // SDK enum constants are `u32` or `i32` depending on the OS, hence the casts.
 #![allow(
@@ -40,7 +47,7 @@
 use std::cell::Cell;
 use std::ffi::{CStr, c_char, c_void};
 use std::sync::Mutex;
-use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicIsize, AtomicU32, AtomicU64, Ordering};
 
 use vst3::Steinberg::Vst::BusDirections_::{kInput, kOutput};
 use vst3::Steinberg::Vst::BusInfo_::BusFlags_::kDefaultActive;
@@ -66,6 +73,52 @@ const LEVEL: ParamID = 10;
 const INVERT: ParamID = 11;
 
 const LATENCY_UNIT: u32 = 64;
+
+// ---------------------------------------------------------------------------------------
+// live-object accounting
+
+/// Live COM objects of this module.
+static LIVE: AtomicIsize = AtomicIsize::new(0);
+/// Balance of entry/exit calls (hosts may load the module several times).
+static ENTRIES: AtomicIsize = AtomicIsize::new(0);
+
+/// A member of every fixture class: counts the object in `LIVE`.
+struct Live(());
+
+impl Live {
+    fn new() -> Self {
+        Self::default()
+    }
+}
+
+impl Default for Live {
+    fn default() -> Self {
+        LIVE.fetch_add(1, Ordering::SeqCst);
+        Live(())
+    }
+}
+
+impl Drop for Live {
+    fn drop(&mut self) {
+        LIVE.fetch_sub(1, Ordering::SeqCst);
+    }
+}
+
+fn module_entry() -> bool {
+    ENTRIES.fetch_add(1, Ordering::SeqCst);
+    true
+}
+
+fn module_exit() -> bool {
+    if ENTRIES.fetch_sub(1, Ordering::SeqCst) == 1 {
+        let live = LIVE.load(Ordering::SeqCst);
+        if live != 0 {
+            eprintln!("ether_vst3_test_plugin: {live} plugin object(s) leaked at module exit");
+            std::process::abort();
+        }
+    }
+    true
+}
 
 // ---------------------------------------------------------------------------------------
 // helpers
@@ -200,6 +253,7 @@ unsafe fn channel_slices<'a>(
 // gain effect: processor
 
 struct EffectProcessor {
+    _live: Live,
     gain: AtomicU64,
     mode: AtomicU32,
     latency_step: AtomicU32,
@@ -213,6 +267,7 @@ impl Class for EffectProcessor {
 impl EffectProcessor {
     fn new() -> Self {
         Self {
+            _live: Live::new(),
             gain: AtomicU64::new(0.5f64.to_bits()),
             mode: AtomicU32::new(0),
             latency_step: AtomicU32::new(1),
@@ -451,6 +506,7 @@ impl IConnectionPointTrait for EffectProcessor {
 // gain effect: controller + editor
 
 struct EffectController {
+    _live: Live,
     values: [Cell<f64>; 4],
     host: Cell<Option<*mut FUnknown>>,
     handler: Cell<Option<*mut IComponentHandler>>,
@@ -464,6 +520,7 @@ impl Class for EffectController {
 impl EffectController {
     fn new() -> Self {
         Self {
+            _live: Live::new(),
             values: [
                 Cell::new(0.5),
                 Cell::new(0.0),
@@ -654,6 +711,7 @@ impl IEditControllerTrait for EffectController {
 
 #[derive(Default)]
 struct TestView {
+    _live: Live,
     size: Cell<(i32, i32)>,
     attached: Cell<bool>,
 }
@@ -725,6 +783,7 @@ impl IPlugViewTrait for TestView {
 // instrument (single component)
 
 struct Instrument {
+    _live: Live,
     level: AtomicU64,
     invert: AtomicBool,
     /// Velocity of the sounding note (0 = silent).
@@ -739,6 +798,7 @@ impl Class for Instrument {
 impl Instrument {
     fn new() -> Self {
         Self {
+            _live: Live::new(),
             level: AtomicU64::new(1.0f64.to_bits()),
             invert: AtomicBool::new(false),
             velocity: AtomicU64::new(0.0f64.to_bits()),
@@ -903,6 +963,9 @@ impl IAudioProcessorTrait for Instrument {
                         break;
                     }
                     if u32::from(e.r#type) == kNoteOnEvent as u32 {
+                        if e.__field0.noteOn.pitch == 127 {
+                            return kInternalError;
+                        }
                         velocity = f64::from(e.__field0.noteOn.velocity);
                     } else if u32::from(e.r#type) == kNoteOffEvent as u32 {
                         velocity = 0.0;
@@ -996,7 +1059,9 @@ impl IEditControllerTrait for Instrument {
 // ---------------------------------------------------------------------------------------
 // factory + entry points
 
-struct Factory;
+struct Factory {
+    _live: Live,
+}
 
 impl Class for Factory {
     type Interfaces = (IPluginFactory2,);
@@ -1123,43 +1188,45 @@ fn misbehave() {
 #[cfg(target_os = "windows")]
 #[unsafe(no_mangle)]
 extern "system" fn InitDll() -> bool {
-    true
+    module_entry()
 }
 
 #[cfg(target_os = "windows")]
 #[unsafe(no_mangle)]
 extern "system" fn ExitDll() -> bool {
-    true
+    module_exit()
 }
 
 #[cfg(target_os = "macos")]
 #[unsafe(no_mangle)]
 extern "system" fn bundleEntry(_bundle: *mut c_void) -> bool {
-    true
+    module_entry()
 }
 
 #[cfg(target_os = "macos")]
 #[unsafe(no_mangle)]
 extern "system" fn bundleExit() -> bool {
-    true
+    module_exit()
 }
 
 #[cfg(all(unix, not(target_os = "macos")))]
 #[unsafe(no_mangle)]
 extern "system" fn ModuleEntry(_handle: *mut c_void) -> bool {
-    true
+    module_entry()
 }
 
 #[cfg(all(unix, not(target_os = "macos")))]
 #[unsafe(no_mangle)]
 extern "system" fn ModuleExit() -> bool {
-    true
+    module_exit()
 }
 
 #[unsafe(no_mangle)]
 extern "system" fn GetPluginFactory() -> *mut IPluginFactory {
     misbehave();
-    ComWrapper::new(Factory)
-        .to_com_ptr::<IPluginFactory>()
-        .map_or(std::ptr::null_mut(), |p| p.into_raw())
+    ComWrapper::new(Factory {
+        _live: Live::new(),
+    })
+    .to_com_ptr::<IPluginFactory>()
+    .map_or(std::ptr::null_mut(), |p| p.into_raw())
 }
