@@ -1,11 +1,13 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { playheadStore } from "@/state/playhead";
 import { useProjectStore } from "@/state/projectStore";
 import { cmd } from "./cmd";
 import { TransportContext, type ConnectionStatus } from "./context";
+import { TransportSwitchContext, type TransportSwitch } from "./createDefaultTransport";
 import type { EngineTransport } from "./EngineTransport";
 
 const CONNECTING: ConnectionStatus = { status: "connecting" };
+
 
 export interface TransportProviderProps {
   /** The engine connection. Owned by the caller (the provider never disposes it). */
@@ -21,7 +23,9 @@ export interface TransportProviderProps {
  *   a revision gap);
  * - forwards playhead and meter streams to `playheadStore`.
  */
-export function TransportProvider({ transport, children }: TransportProviderProps) {
+export function TransportProvider({ transport: local, children }: TransportProviderProps) {
+  const [remote, setRemote] = useState<EngineTransport | null>(null);
+  const transport = remote ?? local;
   // Status is tagged with its transport, so swapping the transport reads as "connecting".
   const [state, setState] = useState<{ transport: EngineTransport; connection: ConnectionStatus } | null>(null);
   const connection: ConnectionStatus = state?.transport === transport ? state.connection : CONNECTING;
@@ -97,6 +101,23 @@ export function TransportProvider({ transport, children }: TransportProviderProp
     };
   }, [transport]);
 
+  // The provider owns the remote transport: dispose it when it is replaced or on unmount.
+  useEffect(() => (remote ? () => remote.dispose() : undefined), [remote]);
+  const switchToRemote = useCallback(
+    (next: EngineTransport) => {
+      // Silence the local engine while the remote one is in use.
+      local.send(cmd("Transport", { type: "Stop" })).catch(() => {});
+      setRemote(next);
+    },
+    [local],
+  );
+  const switchToLocal = useCallback(() => setRemote(null), []);
+  const switcher = useMemo<TransportSwitch>(() => ({ local, remote, switchToRemote, switchToLocal }), [local, remote, switchToRemote, switchToLocal]);
+
   const value = useMemo(() => ({ transport, connection }), [transport, connection]);
-  return <TransportContext.Provider value={value}>{children}</TransportContext.Provider>;
+  return (
+    <TransportSwitchContext.Provider value={switcher}>
+      <TransportContext.Provider value={value}>{children}</TransportContext.Provider>
+    </TransportSwitchContext.Provider>
+  );
 }
