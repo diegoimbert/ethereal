@@ -28,6 +28,12 @@ const trackNames = async (page: Page): Promise<string[]> =>
     .map((t) => t.name)
     .sort();
 
+/** Add a track through the arrangement's "New track" draft row. */
+async function addTrack(page: Page, kind: "MIDI" | "audio"): Promise<void> {
+  await page.getByRole("button", { name: /New track/ }).first().click();
+  await page.getByRole("button", { name: `Create ${kind} track` }).click();
+}
+
 /** Build `ether-collab-relay` and return the binary path (cargo tells where it is). */
 function buildRelay(): string {
   const out = execFileSync("cargo", ["build", "-p", "ether-collab", "--bin", "ether-collab-relay", "--message-format=json"], {
@@ -102,7 +108,7 @@ test("two browsers edit one project through a relay", async ({ browser }) => {
   expect(idB).not.toBe(idA);
 
   // --- A creates the session with its project; B joins and gets it.
-  await a.getByRole("button", { name: "+ MIDI track" }).click();
+  await addTrack(a, "MIDI");
   await join(a, "Ada");
   await join(b, "Bob");
   await expect.poll(async () => (await project(b))?.id, { timeout: 20_000 }).toBe(idA);
@@ -110,22 +116,19 @@ test("two browsers edit one project through a relay", async ({ browser }) => {
 
   // --- Edits flow both ways.
   const before = (await trackNames(a)).length;
-  await a.getByRole("button", { name: "+ MIDI track" }).click();
+  await addTrack(a, "MIDI");
   await expect.poll(async () => (await trackNames(b)).length, { timeout: 10_000 }).toBe(before + 1);
-  await b.getByRole("button", { name: "+ Audio track" }).click();
+  await addTrack(b, "audio");
   await expect.poll(async () => (await trackNames(a)).length, { timeout: 10_000 }).toBe(before + 2);
   await expect.poll(() => trackNames(a)).toEqual(await trackNames(b));
 
   // --- Presence: each sees the other, and A's selected track is outlined on B.
   await expect(a.locator('[data-testid="collab-peers"] [data-peer="Bob"]')).toBeVisible({ timeout: 10_000 });
   await expect(b.locator('[data-testid="collab-peers"] [data-peer="Ada"]')).toBeVisible({ timeout: 10_000 });
-  const row = a.locator(".eth-arr-header").first();
-  await row.click();
-  const selected = await a.evaluate(() => {
-    const el = document.querySelector<HTMLElement>(".eth-arr-row[data-track]");
-    return el?.dataset.track ?? null;
-  });
+  const row = a.locator(".eth-arr-row[data-track]:not(.eth-arr-row--draft)").first();
+  const selected = await row.getAttribute("data-track");
   expect(selected).not.toBeNull();
+  await row.locator(".eth-arr-header").first().click({ position: { x: 4, y: 4 } });
   await expect
     .poll(
       () =>
