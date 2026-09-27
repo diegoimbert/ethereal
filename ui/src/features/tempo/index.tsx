@@ -4,21 +4,8 @@
 // `data-slot="metronome"`): keep the export names and keep them prop-less (read state via hooks).
 
 /** Tempo map and time-signature changes (add, move, remove, ramps). */
-export function TempoEditor() {
-  return (
-    <div className="eth-feature-placeholder" data-feature="tempo">
-      <strong>TempoEditor</strong>
-      <span>Tempo map and time-signature changes (add, move, remove, ramps).</span>
-      <span className="eth-feature-placeholder__owner">owner: tempo-metronome</span>
-    </div>
-  );
-}
-
-/**
- * Metronome volume, accent and sound.
- *
- * Inline slot: renders nothing until implemented, so the shell layout is unchanged.
- */
-export function MetronomeSettings() {
-  return null;
-}
+export { TempoEditor } from "./TempoEditor";
+/** Metronome on/off, volume, accent and sound (top bar popover). */
+export { MetronomeSettings } from "./MetronomeSettings";
+export { RulerTempoMarkers, rulerTempoMenu } from "./RulerTempoMarkers";
+export * from "./tempoCommands";
