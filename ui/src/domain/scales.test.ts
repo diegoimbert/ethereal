@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { CHROMATIC_SCALE, getPitchClass, getScaleNotes, isNoteInScale, resolveScale, SCALE_KINDS } from "./scales";
-import { createPitchRows, pitchToY, yToPitch } from "@/features/piano-roll/geometry";
+import { createPitchRows, pitchToY, rowPitchDelta, yToPitch } from "@/features/piano-roll/geometry";
 
 describe("musical scales", () => {
   it("wraps pitch classes and transposes scales through B", () => {
@@ -40,5 +40,18 @@ describe("musical scales", () => {
       expect(yToPitch(10000, 12, rows)).toBe(rows.at(-1));
     }
     expect(createPitchRows({ root: 0, kind: "Minor" }, false)).toHaveLength(128);
+  });
+  it("counts vertical drags in visible rows (folded or not), clamped at the ends", () => {
+    const all = createPitchRows();
+    expect(rowPitchDelta(60, -12, 12, all)).toBe(1);
+    expect(rowPitchDelta(60, 30, 12, all)).toBe(-3);
+    expect(rowPitchDelta(126, -60, 12, all)).toBe(1);
+    const cMinor = createPitchRows({ root: 0, kind: "Minor" }, true);
+    // C -> D -> D# going up; C -> A# -> G# going down.
+    expect(rowPitchDelta(60, -12, 12, cMinor)).toBe(2);
+    expect(rowPitchDelta(60, -24, 12, cMinor)).toBe(3);
+    expect(rowPitchDelta(60, 24, 12, cMinor)).toBe(-4);
+    expect(60 + rowPitchDelta(60, -100000, 12, cMinor)).toBe(cMinor[0]);
+    expect(60 + rowPitchDelta(60, 100000, 12, cMinor)).toBe(cMinor.at(-1));
   });
 });

@@ -14,7 +14,7 @@
 import { basename, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-export const PORT_OFFSETS = { dev: 0, preview: 1, playwright: 2, collab: 3 };
+export const PORT_OFFSETS = { dev: 0, preview: 1, playwright: 2, collab: 3, remote: 4 };
 
 export function sanitizeInstance(name) {
   return name.replace(/[^A-Za-z0-9_-]/g, "-");

@@ -14,7 +14,7 @@ use ether_core::protocol::model::file::MEDIA_DIR;
 use ether_core::protocol::model::*;
 use ether_core::protocol::plugins::{PluginCommand, PluginEvent};
 use ether_core::protocol::project::{EditCommand, ProjectEvent};
-use ether_core::protocol::recording::{RecordingCommand, RecordingEvent};
+use ether_core::protocol::recording::RecordingEvent;
 use ether_core::protocol::transport::{PlayheadUpdate, TransportCommand, TransportState};
 use ether_core::protocol::warp::WarpCommand;
 use ether_core::protocol::{
@@ -126,13 +126,17 @@ where
             Command::Device(DeviceCommand::GetDescriptor { device }) => {
                 self.get_descriptor(*device)
             }
-            Command::Recording(r) => self.recording_command(r, out),
+            Command::Recording(r) => self.recording_command(r, now, out),
             Command::Plugin(p) => self.plugin_command(p, msg.gesture, now, out),
             Command::Warp(WarpCommand::DetectTempo { clip }) => self.detect_tempo(*clip),
             Command::Media(m) => self.media_command(m, msg.gesture, now, out),
             Command::Engine(_) => Err(unsupported(
                 "audio engine configuration is handled by the host",
             )),
+            // Roadmap v2 (non-document parts; document parts go through `doc::apply`).
+            Command::Export(c) => self.export_command(c, out),
+            Command::MidiMap(c) => self.midi_map_command(c, out),
+            Command::Collab(c) => self.collab_command(c, out),
             other => Err(internal(format!(
                 "unhandled command {}",
                 doc::label_of(other)
@@ -156,6 +160,7 @@ where
         let mut host = EngineCtx {
             bridge: &mut self.bridge,
             eng: &mut self.engine,
+            media: &self.media,
         };
         let mut ctx = DocCtx {
             tx: Tx::new(&mut doc.project),
@@ -204,6 +209,7 @@ where
             revision: self.revision,
             changes: changes_for(&doc.project, applied),
             history: doc.history.state(),
+            origin: None,
         };
         event(out, Event::Patch { patch });
         doc.last_edit_ms = now;
@@ -330,10 +336,10 @@ where
     ) -> CmdResult<ReplyValue> {
         match c {
             TransportCommand::Play => self.play()?,
-            TransportCommand::Stop => self.stop()?,
+            TransportCommand::Stop => self.transport_stop(now, out)?,
             TransportCommand::TogglePlay => {
                 if self.transport.playing {
-                    self.stop()?
+                    self.transport_stop(now, out)?
                 } else {
                     self.play()?
                 }
@@ -362,7 +368,7 @@ where
         Ok(())
     }
 
-    fn stop(&mut self) -> CmdResult<()> {
+    pub(crate) fn stop(&mut self) -> CmdResult<()> {
         if self.transport.playing {
             self.engine_transport(TransportControl::Stop)?;
             self.transport.playing = false;
@@ -443,53 +449,6 @@ where
         }
     }
 
-    // ─── Recording ──────────────────────────────────────────────────────────────────────
-
-    fn recording_command(
-        &mut self,
-        c: &RecordingCommand,
-        out: &mut dyn MessageSink,
-    ) -> CmdResult<ReplyValue> {
-        match c {
-            RecordingCommand::Arm {
-                track,
-                armed,
-                exclusive,
-            } => {
-                let doc = self.doc.as_ref().ok_or_else(no_project)?;
-                if !doc.project.tracks.contains_key(track) {
-                    return Err(not_found(format!("track {track}")));
-                }
-                let before = self.armed.clone();
-                if *armed {
-                    if *exclusive {
-                        self.armed.clear();
-                    }
-                    self.armed.insert(*track);
-                } else {
-                    self.armed.remove(track);
-                }
-                if self.armed != before {
-                    self.engine.graph_dirty = true;
-                    self.emit_armed(out);
-                }
-                Ok(ReplyValue::Unit)
-            }
-            RecordingCommand::SetRecording { enabled } => {
-                self.engine_transport(TransportControl::SetRecording { enabled: *enabled })?;
-                self.transport.recording = *enabled;
-                if *enabled && !self.transport.playing {
-                    self.play()?;
-                }
-                Ok(ReplyValue::Unit)
-            }
-            RecordingCommand::ListInputs => {
-                Err(unsupported("input listing is not available on this host"))
-            }
-            other => Err(internal(format!("unhandled recording command {other:?}"))),
-        }
-    }
-
     // ─── Devices / plugins ──────────────────────────────────────────────────────────────
 
     fn get_descriptor(&mut self, device: DeviceId) -> CmdResult<ReplyValue> {
@@ -503,6 +462,7 @@ where
         let mut host = EngineCtx {
             bridge: &mut self.bridge,
             eng: &mut self.engine,
+            media: &self.media,
         };
         host.descriptor(d.id, &d.kind)
             .map(|descriptor| ReplyValue::Descriptor { descriptor })
@@ -634,30 +594,9 @@ where
 
     // ─── Warp ───────────────────────────────────────────────────────────────────────────
 
-    /// Loop-length heuristic: the tempo in [80, 160) BPM at which the clip's media spans a
-    /// power-of-two number of bars (4/4).
+    /// `WarpCommand::DetectTempo` (the BPM stub lives in `crate::warp`).
     fn detect_tempo(&self, clip: ClipId) -> CmdResult<ReplyValue> {
-        let doc = self.doc.as_ref().ok_or_else(no_project)?;
-        let c = doc
-            .project
-            .clips
-            .get(&clip)
-            .ok_or_else(|| not_found(format!("clip {clip}")))?;
-        let ClipContent::Audio(a) = &c.content else {
-            return Err(invalid(format!("clip {clip} is not an audio clip")));
-        };
-        let m = doc
-            .project
-            .media
-            .get(&a.media)
-            .ok_or_else(|| not_found(format!("media {}", a.media)))?;
-        let seconds = m.frames as f64 / m.sample_rate.max(1) as f64;
-        let bpm = (0..8)
-            .map(|k| (1u32 << k) as f64 * 4.0 * 60.0 / seconds)
-            .find(|bpm| (80.0..160.0).contains(bpm))
-            .filter(|_| seconds > 0.0)
-            .map(|bpm| (bpm * 100.0).round() / 100.0);
-        Ok(ReplyValue::Tempo { bpm })
+        crate::warp::detect_tempo(&self.doc.as_ref().ok_or_else(no_project)?.project, clip)
     }
 
     // ─── Media ──────────────────────────────────────────────────────────────────────────
@@ -741,11 +680,11 @@ where
                 Ok(ReplyValue::Directory { listing })
             }
             MediaCommand::Preview { .. } | MediaCommand::StopPreview => {
-                Err(unsupported("preview is not available on this host"))
+                self.preview_command(c, out)
             }
-            MediaCommand::BeginUpload { .. } => {
-                Err(unsupported("uploads are not supported in v0.1"))
-            }
+            MediaCommand::BeginUpload { .. }
+            | MediaCommand::UploadChunk { .. }
+            | MediaCommand::CancelUpload { .. } => self.upload_command(c, out),
         }
     }
 
@@ -790,8 +729,10 @@ where
                 let bytes = self.store.read(pid, &m.file).map_err(store_err)?;
                 (bytes, m.name, Some(m.file))
             }
-            MediaSource::Upload { .. } => {
-                return Err(unsupported("uploads are not supported in v0.1"));
+            MediaSource::Upload { upload } => {
+                let (bytes, name) =
+                    crate::upload::take_upload(&mut self.uploads, &mut self.store, upload)?;
+                (bytes, name, None)
             }
         };
         let hash = content_hash(&bytes);
@@ -880,6 +821,7 @@ where
                     revision: self.revision,
                     changes: vec![PatchChange::Upsert { entity }],
                     history: doc.history.state(),
+                    origin: None,
                 },
             },
         );
@@ -927,6 +869,12 @@ where
         for (device, n) in notes {
             self.plugin_notification(device, n, now, out);
         }
+        self.plugins_tick(now, out);
+        // Roadmap v2 hooks.
+        self.preview_tick(now, out);
+        self.midi_learn_tick(now, out);
+        self.export_tick(now, out);
+        self.recording_tick(now, out);
 
         // Media jobs.
         if let Some(pid) = self.doc.as_ref().map(|d| d.project.id)
@@ -959,7 +907,7 @@ where
                             .values()
                             .filter(|dev| {
                                 matches!(&dev.kind, DeviceKind::Builtin {
-                                    device: BuiltinDevice::Sampler { sample: Some(m) }
+                                    device: BuiltinDevice::Sampler { sample: Some(m), .. }
                                 } if loaded.contains(m))
                             })
                             .map(|dev| dev.id)

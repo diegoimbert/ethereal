@@ -64,6 +64,10 @@ enum Control {
     RemoveNode {
         key: NodeKey,
     },
+    NodeData {
+        key: NodeKey,
+        data: crate::node::NodeData,
+    },
     Swap(Box<RenderSnapshot>),
     AddSource {
         media: MediaId,
@@ -73,11 +77,13 @@ enum Control {
         media: MediaId,
     },
     Transport(TransportControl),
+    Preview(crate::preview::PreviewControl),
 }
 
 enum Garbage {
     Snapshot(#[allow(dead_code)] Box<RenderSnapshot>),
     Node(#[allow(dead_code)] Box<dyn Node>),
+    Data(#[allow(dead_code)] crate::node::NodeData),
     Source(#[allow(dead_code)] Arc<dyn AudioSource>),
 }
 
@@ -85,6 +91,7 @@ enum Output {
     Meter(TrackMeter),
     Overflow,
     Underruns(u32),
+    PreviewEnded(u64),
 }
 
 /// Single-writer seqlock holding the latest playhead.
@@ -141,9 +148,30 @@ impl SharedPlayhead {
     }
 }
 
-struct NodeSlot {
-    generation: u32,
-    node: Option<Box<dyn Node>>,
+pub(crate) struct NodeSlot {
+    pub(crate) generation: u32,
+    pub(crate) node: Option<Box<dyn Node>>,
+}
+
+impl std::fmt::Debug for NodeSlot {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("NodeSlot")
+            .field("generation", &self.generation)
+            .field("live", &self.node.is_some())
+            .finish()
+    }
+}
+
+impl NodeSlot {
+    /// RT. The live node behind `key`, if the slot still holds that generation (also used
+    /// by `crate::drum_rack`, which processes pad-chain nodes).
+    pub(crate) fn get(slots: &mut [NodeSlot], key: NodeKey) -> Option<&mut Box<dyn Node>> {
+        let slot = slots.get_mut(key.index as usize)?;
+        if slot.generation != key.generation {
+            return None;
+        }
+        slot.node.as_mut()
+    }
 }
 
 #[derive(Default)]
@@ -161,6 +189,9 @@ struct TransportRt {
     all_notes_off: bool,
     /// `Node::reset` on every node before the next sub-block.
     reset_nodes: bool,
+    /// Note chasing on the next played sub-block: start the clip notes already sounding at
+    /// the position (after Play, Locate or a loop jump).
+    chase_notes: bool,
 }
 
 /// Create an engine. Non-RT (allocates every ring and table up front).
@@ -176,6 +207,8 @@ pub fn create(config: EngineConfig) -> EngineParts {
         .collect::<Vec<_>>()
         .into();
     let playhead = Arc::new(SharedPlayhead::default());
+    let (recording_rt, recording_io) = crate::recording::channel(&config);
+    let (warp_handle, warp_rt) = crate::warp::channel(&config);
     let snapshot =
         compile_with(RenderGraphDesc::default(), &config, &|_| None).expect("empty graph compiles");
     let tempo_bpm = snapshot.tempo.bpm_at(0.0);
@@ -207,6 +240,11 @@ pub fn create(config: EngineConfig) -> EngineParts {
         overflow: false,
         underruns: 0,
         leaked: 0,
+        recording: recording_rt,
+        metronome: crate::metronome::Metronome::new(config.sample_rate as f32),
+        preview: crate::preview::PreviewVoice::new(config.max_block_size),
+        executor: Box::new(crate::parallel::SequentialExecutor),
+        warp: warp_rt,
         config: config.clone(),
     };
     let handle = EngineHandle {
@@ -223,6 +261,9 @@ pub fn create(config: EngineConfig) -> EngineParts {
         free: (0..config.max_nodes as u32).rev().collect(),
         node_latency,
         playhead,
+        recording: Some(recording_io),
+        latency: 0,
+        warp: warp_handle,
         config,
     };
     EngineParts {
@@ -255,6 +296,17 @@ pub struct Engine {
     /// Objects that could not be handed to the GC (ring full) and were leaked instead of
     /// being freed on the audio thread.
     leaked: u64,
+    /// Recording hooks: input capture, live MIDI in/out ([`crate::recording`]).
+    pub(crate) recording: crate::recording::RecordingRt,
+    /// Click generator ([`crate::metronome`], roadmap v2).
+    metronome: crate::metronome::Metronome,
+    /// Browser preview voice ([`crate::preview`]).
+    preview: crate::preview::PreviewVoice,
+    /// Parallel track processing ([`crate::parallel`], roadmap v2; `multicore` node).
+    /// Sequential until a host injects one with [`Engine::set_executor`].
+    #[allow(dead_code)]
+    executor: Box<dyn crate::parallel::ParallelExecutor>,
+    pub(crate) warp: crate::warp::WarpRt,
 }
 
 impl Engine {
@@ -274,6 +326,7 @@ impl Engine {
         }
         let frames = frames.min(self.config.max_block_size);
         self.drain_control();
+        self.warp.drain();
         self.drain_params();
         self.update_latencies();
 
@@ -293,6 +346,13 @@ impl Engine {
 
     pub fn config(&self) -> &EngineConfig {
         &self.config
+    }
+
+    /// Non-RT (call before the audio thread starts processing, or while it is stopped):
+    /// the executor used to process independent tracks in parallel (roadmap v2,
+    /// `multicore`; see [`crate::parallel`]). Ignored on wasm32 (single-threaded).
+    pub fn set_executor(&mut self, executor: Box<dyn crate::parallel::ParallelExecutor>) {
+        self.executor = executor;
     }
 
     /// Objects leaked because the GC ring was full (should stay 0).
@@ -336,6 +396,15 @@ impl Engine {
                         self.retire(Garbage::Node(old));
                     }
                 }
+                Control::NodeData { key, data } => {
+                    let rejected = match NodeSlot::get(&mut self.nodes, key) {
+                        Some(node) => node.set_data(data),
+                        None => Some(data),
+                    };
+                    if let Some(old) = rejected {
+                        self.retire(Garbage::Data(old));
+                    }
+                }
                 Control::Swap(mut new) => {
                     {
                         let old = &mut self.snapshot.rt;
@@ -372,6 +441,11 @@ impl Engine {
                     }
                 }
                 Control::Transport(t) => self.apply_transport(t),
+                Control::Preview(c) => {
+                    if let Some(old) = self.preview.control(c) {
+                        self.retire(Garbage::Source(old));
+                    }
+                }
             }
         }
     }
@@ -379,7 +453,12 @@ impl Engine {
     fn apply_transport(&mut self, control: TransportControl) {
         let t = &mut self.transport;
         match control {
-            TransportControl::Play => t.playing = true,
+            TransportControl::Play => {
+                if !t.playing {
+                    t.chase_notes = true;
+                }
+                t.playing = true;
+            }
             TransportControl::Stop => {
                 if t.playing {
                     t.release_notes = true;
@@ -392,6 +471,7 @@ impl Engine {
                 t.release_notes = true;
                 t.all_notes_off = true;
                 t.reset_nodes = true;
+                t.chase_notes = true;
             }
             TransportControl::SetRecording { enabled } => t.recording = enabled,
             TransportControl::SetLoop { enabled, region } => {
@@ -428,13 +508,21 @@ impl Engine {
                     }
                 }
                 ParamTarget::Node { node, param } => {
+                    let event = ProcessEvent {
+                        offset: 0,
+                        kind: EventKind::Param { param, value: v },
+                    };
                     if let Some((t, k)) = rt.lookup_node(node) {
                         rt.tracks[t].auto_dirty = true;
-                        let pending = &mut rt.tracks[t].chain[k].pending;
-                        if !pending.push(ProcessEvent {
-                            offset: 0,
-                            kind: EventKind::Param { param, value: v },
-                        }) {
+                        if !rt.tracks[t].chain[k].pending.push(event) {
+                            self.overflow = true;
+                        }
+                    } else if let Some(t) = rt.lookup_pad_node(node) {
+                        // A device on a drum pad (`crate::drum_rack`).
+                        rt.tracks[t].auto_dirty = true;
+                        if let Some(pending) = rt.tracks[t].racks.pending_mut(node)
+                            && !pending.push(event)
+                        {
                             self.overflow = true;
                         }
                     }
@@ -447,7 +535,13 @@ impl Engine {
     }
 
     fn update_latencies(&mut self) {
-        for &(key, _, _) in &self.snapshot.rt.node_index {
+        let rt = &self.snapshot.rt;
+        let keys = rt
+            .node_index
+            .iter()
+            .map(|e| e.0)
+            .chain(rt.pad_index.iter().map(|e| e.0));
+        for key in keys {
             let i = key.index as usize;
             if let Some(slot) = self.nodes.get(i)
                 && slot.generation == key.generation
@@ -486,6 +580,10 @@ impl Engine {
             next_note_id,
             overflow,
             underruns,
+            recording,
+            warp,
+            metronome,
+            preview,
             ..
         } = self;
         let RenderSnapshot { desc, tempo, rt } = &mut **snapshot;
@@ -493,6 +591,8 @@ impl Engine {
             order,
             tracks,
             buses,
+            sidechain: rt_sidechain,
+            latency: graph_latency,
             ..
         } = rt;
 
@@ -555,6 +655,7 @@ impl Engine {
             sample_rate: sr,
             frames: n,
         };
+        recording.process(&info, inputs, off, n, &desc.tracks, tracks);
 
         for bus in buses.iter_mut() {
             bus[0][..n].fill(0.0);
@@ -571,6 +672,7 @@ impl Engine {
                 scratch,
                 out_events,
                 notes,
+                racks,
                 ..
             } = track;
 
@@ -578,7 +680,7 @@ impl Engine {
             a[0][..n].copy_from_slice(&buses[ti][0][..n]);
             a[1][..n].copy_from_slice(&buses[ti][1][..n]);
             if track.monitor
-                && let Some((l, r)) = track.audio_input
+                && let Some((l, r)) = crate::recording::input_channels(track.audio_input)
             {
                 for (ch, hw) in [(0usize, l), (1, r)] {
                     if let Some(input) = inputs.get(hw as usize) {
@@ -591,6 +693,7 @@ impl Engine {
             }
 
             // --- events: pending live params ---
+            racks.begin_block(transport.all_notes_off);
             for c in chain.iter_mut() {
                 c.events.clear();
                 for e in c.pending.as_slice() {
@@ -619,6 +722,9 @@ impl Engine {
                     let end = tdesc.clips.partition_point(|c| c.start < b1);
                     for clip in &tdesc.clips[..end] {
                         if matches!(clip.content, ClipContentDesc::Midi { .. }) {
+                            if transport.chase_notes {
+                                sched::chase_notes(clip, &timing, &mut sink);
+                            }
                             sched::schedule_notes(clip, &timing, &mut sink);
                         }
                     }
@@ -641,7 +747,7 @@ impl Engine {
                     };
                     let ref_bpm = tempo.bpm_at(clip.start);
                     let [al, ar] = &mut *a;
-                    if !sched::render_audio(
+                    if !warp.render(
                         clip,
                         &*sources[si].1,
                         ref_bpm,
@@ -699,6 +805,7 @@ impl Engine {
                     &mut track.pan,
                     &mut track.sends,
                     chain,
+                    racks,
                 );
             }
             // Envelopes of clips that stopped covering their target send again next time.
@@ -722,6 +829,7 @@ impl Engine {
                         &mut track.pan,
                         &mut track.sends,
                         chain,
+                        racks,
                     );
                 }
             }
@@ -733,6 +841,21 @@ impl Engine {
                 entry.events.sort();
                 *overflow |= entry.events.overflowed();
                 let key = entry.key;
+                // Sidechain PDC: delay the main signal before this entry if planned.
+                rt_sidechain.align_main(ti, k, a, n);
+                // Drum rack: pad chains feed the rack node's input (`crate::drum_rack`).
+                if entry.enabled && !racks.is_empty() && racks.is_rack(key) {
+                    *overflow |= racks.run_pads(
+                        key,
+                        nodes,
+                        entry.events.as_slice(),
+                        &info,
+                        sr as f32,
+                        a,
+                        n,
+                        transport.reset_nodes,
+                    );
+                }
                 let Some(slot) = nodes.get_mut(key.index as usize) else {
                     continue;
                 };
@@ -769,7 +892,14 @@ impl Engine {
                         inputs: &ins[..n_in],
                         outputs: &mut outs[..n_out],
                     };
-                    node.process(&mut ctx, &mut buffers);
+                    // Sidechain (`crate::sidechain`): a tapped source's aligned signal.
+                    match entry
+                        .sidechain
+                        .and_then(|src| rt_sidechain.read(ti, k, src, n))
+                    {
+                        Some(sc) => node.process_sidechain(&mut ctx, &mut buffers, &sc),
+                        None => node.process(&mut ctx, &mut buffers),
+                    };
                 }
                 *overflow |= out_events.overflowed();
                 match n_out {
@@ -817,6 +947,8 @@ impl Engine {
 
             // --- meter + output ---
             track.meter.add(&a[0][..n], &a[1][..n]);
+            // Sidechain tap: post-fader, before the PDC output delay (latency = out_lat).
+            rt_sidechain.write(ti, a, n);
             {
                 let [al, ar] = &mut *a;
                 track.output_delay.process(&mut al[..n], &mut ar[..n]);
@@ -841,15 +973,34 @@ impl Engine {
             }
         }
 
+        // --- metronome (after master reached the hardware outputs; not metered) ---
+        if transport.reset_nodes {
+            metronome.reset();
+        }
+        metronome.render(
+            &desc.click,
+            desc.metronome,
+            &info,
+            tempo,
+            *graph_latency,
+            off,
+            n,
+            outputs,
+        );
+        // --- browser preview (after master; not metered, transport-independent) ---
+        preview.render(off, n, outputs);
+
         // --- advance ---
         transport.release_notes = false;
         transport.all_notes_off = false;
         transport.reset_nodes = false;
         transport.sample_time += n as u64;
         if playing {
+            transport.chase_notes = false;
             if hit_loop {
                 transport.position = loop_start;
                 transport.release_notes = true;
+                transport.chase_notes = true;
             } else {
                 transport.position = b1;
             }
@@ -886,6 +1037,14 @@ impl Engine {
     }
 
     fn report(&mut self) {
+        if let Some(old) = self.preview.take_retired() {
+            self.retire(Garbage::Source(old));
+        }
+        if let Some(id) = self.preview.ended
+            && self.out.push(Output::PreviewEnded(id)).is_ok()
+        {
+            self.preview.ended = None;
+        }
         if self.overflow && self.out.push(Output::Overflow).is_ok() {
             self.overflow = false;
         }
@@ -911,6 +1070,7 @@ fn apply_automation(
     pan: &mut crate::param::Smoother,
     sends: &mut [crate::mixer::SendRt],
     chain: &mut [crate::mixer::ChainRt],
+    racks: &mut crate::drum_rack::RacksRt,
 ) {
     match lane.resolved {
         ResolvedTarget::TrackVolume | ResolvedTarget::TrackPan | ResolvedTarget::Send { .. } => {
@@ -937,8 +1097,13 @@ fn apply_automation(
             }
         }
         ResolvedTarget::Node { node, param } => {
-            let Some(entry) = chain.iter_mut().find(|c| c.key == node) else {
-                return;
+            // Track-chain node, or a device on a drum pad.
+            let events = match chain.iter_mut().find(|c| c.key == node) {
+                Some(entry) => &mut entry.events,
+                None => match racks.events_mut(node) {
+                    Some(events) => events,
+                    None => return,
+                },
             };
             let steps = if playing { timing.frames } else { 1 };
             let mut o = 0;
@@ -947,7 +1112,7 @@ fn apply_automation(
                     && v != *last
                 {
                     *last = v;
-                    entry.events.push(ProcessEvent {
+                    events.push(ProcessEvent {
                         offset: o as u32,
                         kind: EventKind::Param {
                             param,
@@ -973,6 +1138,10 @@ pub struct EngineHandle {
     free: Vec<u32>,
     node_latency: Arc<[AtomicU32]>,
     playhead: Arc<SharedPlayhead>,
+    pub(crate) recording: Option<crate::recording::RecordingIo>,
+    pub(crate) warp: crate::warp::WarpHandle,
+    /// Output latency of the last published graph (samples).
+    latency: u32,
 }
 
 struct HandleSlot {
@@ -1045,6 +1214,21 @@ impl EngineHandle {
         Ok(())
     }
 
+    /// Hand non-parameter data to a live node in place (roadmap v2; e.g. new sampler slice
+    /// markers, so an edit doesn't re-create the node and cut sounding notes). Delivered at
+    /// the next block via [`Node::set_data`]; whatever the node returns (its previous data,
+    /// or `data` itself if it doesn't take it) is dropped on the GC thread.
+    pub fn set_node_data(
+        &mut self,
+        key: NodeKey,
+        data: crate::node::NodeData,
+    ) -> Result<(), EngineError> {
+        if !self.key_live(key) {
+            return Err(EngineError::UnknownNode(key));
+        }
+        self.send(Control::NodeData { key, data })
+    }
+
     /// Register (or replace) the audio source for `media` (used by audio clips/samplers).
     pub fn add_source(
         &mut self,
@@ -1065,6 +1249,7 @@ impl EngineHandle {
     /// node's latency changes the controller re-publishes. Clips whose media has no
     /// registered source play silence (no error), so media can load asynchronously.
     pub fn publish(&mut self, desc: RenderGraphDesc) -> Result<(), EngineError> {
+        self.warp.sync(&desc);
         let snapshot = {
             let slots = &self.slots;
             let lat = &self.node_latency;
@@ -1076,7 +1261,21 @@ impl EngineHandle {
                 })
             })?
         };
-        self.send(Control::Swap(Box::new(snapshot)))
+        let latency = snapshot.latency();
+        self.send(Control::Swap(Box::new(snapshot)))?;
+        self.latency = latency;
+        Ok(())
+    }
+
+    /// Start or stop the browser preview voice ([`crate::preview`]). Non-blocking.
+    pub fn preview(&mut self, control: crate::preview::PreviewControl) -> Result<(), EngineError> {
+        self.send(Control::Preview(control))
+    }
+
+    /// Total output latency (samples, PDC included) of the last successfully published
+    /// graph: timeline position `p` reaches the hardware `latency()` samples later.
+    pub fn latency(&self) -> u32 {
+        self.latency
     }
 
     /// Live parameter change (fader, knob). Lock-free; applied next block.
@@ -1097,6 +1296,7 @@ impl EngineHandle {
                 Output::Meter(m) => merge_meter(&mut out.meters, m),
                 Output::Overflow => out.event_overflow = true,
                 Output::Underruns(n) => out.underruns += n,
+                Output::PreviewEnded(id) => out.preview_ended = Some(id),
             }
         }
         out.playhead = Some(self.playhead());

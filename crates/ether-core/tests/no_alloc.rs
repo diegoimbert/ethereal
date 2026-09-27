@@ -153,6 +153,9 @@ fn process_never_allocates() {
             transpose: 0.0,
             fade_in: 0.25,
             fade_out: 0.25,
+            fade_in_curve: Default::default(),
+            fade_out_curve: Default::default(),
+            reversed: false,
             warp: Some(ether_core::graph::WarpDesc {
                 mode: ether_core::protocol::model::WarpMode::Repitch,
                 markers: vec![(0.0, 0.0), (2.0, 1.3), (6.0, 2.9)],
@@ -274,4 +277,213 @@ fn process_never_allocates() {
     );
     assert_eq!(p.engine.leaked(), 0);
     assert!(l.iter().chain(r.iter()).all(|v| v.is_finite()));
+}
+
+// ─── Roadmap v2 hooks (base-24) ─────────────────────────────────────────────────────────
+
+/// Adds its sidechain into its output (no allocation).
+struct ScSum;
+
+impl ether_core::Node for ScSum {
+    fn prepare(&mut self, _: &ether_core::PrepareConfig) {}
+    fn reset(&mut self) {}
+    fn process(
+        &mut self,
+        _: &mut ether_core::ProcessContext<'_>,
+        audio: &mut ether_core::AudioBuffers<'_, '_>,
+    ) -> ether_core::ProcessStatus {
+        audio.pass_through();
+        ether_core::ProcessStatus::Continue
+    }
+    fn sidechain_inputs(&self) -> u16 {
+        2
+    }
+    fn process_sidechain(
+        &mut self,
+        ctx: &mut ether_core::ProcessContext<'_>,
+        audio: &mut ether_core::AudioBuffers<'_, '_>,
+        sidechain: &[&[f32]],
+    ) -> ether_core::ProcessStatus {
+        self.process(ctx, audio);
+        for (out, sc) in audio.outputs.iter_mut().zip(sidechain) {
+            for (o, s) in out.iter_mut().zip(sc.iter()) {
+                *o += s * 0.1;
+            }
+        }
+        ether_core::ProcessStatus::Continue
+    }
+}
+
+/// Passes its input through (a drum rack stand-in).
+struct Pass;
+
+impl ether_core::Node for Pass {
+    fn prepare(&mut self, _: &ether_core::PrepareConfig) {}
+    fn reset(&mut self) {}
+    fn process(
+        &mut self,
+        _: &mut ether_core::ProcessContext<'_>,
+        audio: &mut ether_core::AudioBuffers<'_, '_>,
+    ) -> ether_core::ProcessStatus {
+        audio.pass_through();
+        ether_core::ProcessStatus::Continue
+    }
+}
+
+#[test]
+fn roadmap_hooks_never_allocate() {
+    use ether_core::graph::{ChainEntry, PadDesc, RackDesc};
+    use ether_core::preview::PreviewControl;
+    use ether_core::protocol::model::DrumPadId;
+
+    let mut p = create(config());
+    let key = |p: &mut ether_core::EngineParts, n: Box<dyn ether_core::Node>| {
+        p.handle.add_node(n).unwrap()
+    };
+    // Sidechain, both directions: S (latency 100) feeds early (0) and late (250) consumers.
+    let s_dc = key(&mut p, Box::new(Dc(0.3)));
+    let s_del = key(&mut p, Box::new(Delay::new(100)));
+    let early_dc = key(&mut p, Box::new(Dc(0.1)));
+    let early_sc = key(&mut p, Box::new(ScSum));
+    let late_dc = key(&mut p, Box::new(Dc(0.1)));
+    let late_del = key(&mut p, Box::new(Delay::new(250)));
+    let late_sc = key(&mut p, Box::new(ScSum));
+    // A rack with two pads fed by notes (key 60 = pad A), with params and automation.
+    let emitter = key(&mut p, Box::new(NoteEmitter { per_block: 4 }));
+    let rack = key(&mut p, Box::new(Pass));
+    let (rec, _rx) = Recorder::new();
+    let pad_a = key(&mut p, Box::new(rec));
+    let pad_a_del = key(&mut p, Box::new(Delay::new(20)));
+    let pad_b = key(&mut p, Box::new(Dc(0.05)));
+
+    let source = with_chain(track(tid(2), TrackKind::Midi, Some(tid(1))), &[s_dc, s_del]);
+    let mut early = with_chain(
+        track(tid(3), TrackKind::Midi, Some(tid(1))),
+        &[early_dc, early_sc],
+    );
+    early.chain[1].sidechain = Some(tid(2));
+    let mut late = with_chain(
+        track(tid(4), TrackKind::Midi, Some(tid(1))),
+        &[late_dc, late_del, late_sc],
+    );
+    late.chain[2].sidechain = Some(tid(2));
+    let entry = |node| ChainEntry {
+        node,
+        enabled: true,
+        sidechain: None,
+    };
+    let mut drums = with_chain(
+        track(tid(5), TrackKind::Midi, Some(tid(1))),
+        &[emitter, rack],
+    );
+    drums.racks = vec![RackDesc {
+        rack,
+        pads: vec![
+            PadDesc {
+                pad: DrumPadId(Ulid(1)),
+                note: 60,
+                choke_group: Some(1),
+                chain: vec![entry(pad_a), entry(pad_a_del)],
+                volume: 0.8,
+                pan: -0.5,
+                mute: false,
+            },
+            PadDesc {
+                pad: DrumPadId(Ulid(2)),
+                note: 62,
+                choke_group: Some(1),
+                chain: vec![entry(pad_b)],
+                volume: 1.0,
+                pan: 0.0,
+                mute: false,
+            },
+        ],
+    }];
+    drums.automation = vec![AutomationDesc {
+        target: AutomationTarget::DeviceParam {
+            device: ether_core::protocol::model::DeviceId(Ulid(3)),
+            param: ParamId(1),
+        },
+        resolved: ResolvedTarget::Node {
+            node: pad_a,
+            param: ParamId(1),
+        },
+        points: vec![
+            (0.0, 0.0, CurveShape::Linear),
+            (8.0, 1.0, CurveShape::Linear),
+        ],
+        mapping: ParamMapping {
+            min: 0.0,
+            max: 1.0,
+            scale: ParamScale::Linear,
+            steps: None,
+        },
+    }];
+    p.handle
+        .publish(RenderGraphDesc {
+            version: 1,
+            metronome: true,
+            tracks: vec![master(), source, early, late, drums],
+            ..Default::default()
+        })
+        .unwrap();
+    p.handle.transport(TransportControl::Play).unwrap();
+
+    let mut l = vec![0.0; BLOCK];
+    let mut r = vec![0.0; BLOCK];
+    run(&mut p.engine, 4, BLOCK, &mut l, &mut r);
+
+    // Live pad params.
+    for v in [0.2, 0.4] {
+        p.handle
+            .set_param(ParamChange {
+                target: ParamTarget::Node {
+                    node: pad_a,
+                    param: ParamId(2),
+                },
+                value: v,
+            })
+            .unwrap();
+        run(&mut p.engine, 2, BLOCK, &mut l, &mut r);
+    }
+
+    // Preview: play, replace, stop, then a short one that ends by itself.
+    p.handle
+        .preview(PreviewControl::Play {
+            id: 1,
+            source: mem_source(10 * BLOCK),
+            gain: 0.5,
+        })
+        .unwrap();
+    run(&mut p.engine, 2, BLOCK, &mut l, &mut r);
+    p.handle
+        .preview(PreviewControl::Play {
+            id: 2,
+            source: mem_source(10 * BLOCK),
+            gain: 0.5,
+        })
+        .unwrap();
+    run(&mut p.engine, 2, BLOCK, &mut l, &mut r);
+    p.handle.preview(PreviewControl::Stop).unwrap();
+    run(&mut p.engine, 1, BLOCK, &mut l, &mut r);
+    p.handle
+        .preview(PreviewControl::Play {
+            id: 3,
+            source: mem_source(BLOCK / 2),
+            gain: 0.5,
+        })
+        .unwrap();
+    run(&mut p.engine, 3, BLOCK, &mut l, &mut r);
+    // Locate (resets pad nodes, AllNotesOff to pad chains) while everything runs.
+    p.handle
+        .transport(TransportControl::Locate {
+            position: Beats(2.0),
+        })
+        .unwrap();
+    run(&mut p.engine, 3, BLOCK, &mut l, &mut r);
+
+    let mut out = EngineOutputs::default();
+    p.handle.poll(&mut out);
+    assert_eq!(out.preview_ended, Some(3));
+    p.gc.collect();
 }

@@ -1,19 +1,21 @@
 import { act, createEvent, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Clip, Command, Track } from "@/generated";
-import { playheadStore, useEditorStore, useProjectStore, useSelectionStore } from "@/state";
-import { itemSelection } from "@/timeline";
+import { playheadStore, tracksOrdered, useEditorStore, useProjectStore, useSelectionStore } from "@/state";
+import { itemSelection, wheelZoomFactor } from "@/timeline";
 import { cmd, MockTransport, newId, TransportProvider } from "@/transport";
+import { ContextMenuHost } from "@/kit";
 import { ArrangementView } from "./ArrangementView";
 import { BROWSER_DRAG_MIME } from "./browserDrop";
+import { clearClipboard } from "./clipboard";
 import { AUTOMATION_BAR_HEIGHT, LANE_HEIGHT, resetAutomationUi } from "@/features/automation";
-import { HEADER_WIDTH, TRACK_HEIGHT } from "./layout";
-import { resetArrangementUi, useArrangementUi } from "./uiStore";
+import { HEADER_WIDTH, MAX_TRACK_HEIGHT, MIN_TRACK_HEIGHT, TRACK_HEIGHT } from "./layout";
+import { arrangementView, resetArrangementUi, useArrangementUi } from "./uiStore";
 
 // Default zoom is 24 px/beat; tests use a fixed 1-beat grid.
 const PX = 24;
-/** Row pitch with the automation bar (closed automation) under each lane. */
-const ROW = TRACK_HEIGHT + AUTOMATION_BAR_HEIGHT;
+/** Row pitch (closed automation takes no room). */
+const ROW = TRACK_HEIGHT;
 const store = () => useProjectStore.getState();
 const project = () => store().project!;
 
@@ -67,6 +69,7 @@ async function renderView() {
   render(
     <TransportProvider transport={mock}>
       <ArrangementView />
+      <ContextMenuHost />
     </TransportProvider>,
   );
   await waitFor(() => expect(store().project).not.toBeNull());
@@ -105,6 +108,7 @@ beforeEach(async () => {
 });
 
 afterEach(() => {
+  clearClipboard();
   mock.dispose();
   store().reset();
   useSelectionStore.getState().selectTrack(null);
@@ -141,9 +145,39 @@ describe("ArrangementView: tracks", () => {
     expect(screen.queryByRole("button", { name: "Solo Master" })).toBeNull();
   });
 
+  it("dragging New track between rows asks for the type there, and creates the track at that spot", async () => {
+    const names = () => tracksOrdered(project()).map((t) => t.name);
+    const button = screen.getByRole("button", { name: /New track/ });
+    // jsdom has no layout: give the lanes a box so the pointer is "over" them.
+    vi.spyOn(screen.getByTestId("arrangement-content"), "getBoundingClientRect").mockReturnValue(new DOMRect(0, 0, 1200, 800));
+    await act(async () => {
+      fireEvent.pointerDown(button, { button: 0, pointerId: 1, clientX: 10, clientY: -20 });
+      fireEvent.pointerMove(window, { pointerId: 1, clientX: 300, clientY: ROW });
+      fireEvent.pointerMove(window, { pointerId: 1, clientX: 300, clientY: ROW + 5 });
+    });
+    expect(screen.getByTestId("track-drop-line").style.top).toBe(`${ROW}px`);
+    await act(async () => {
+      fireEvent.pointerUp(window, { pointerId: 1, clientX: 300, clientY: ROW + 5 });
+      fireEvent.click(button);
+    });
+    // The draft row sits between Keys and Bass; Escape cancels it, M makes a MIDI track.
+    const draft = screen.getByRole("group", { name: "New track" });
+    const rowsNow = [...document.querySelectorAll<HTMLElement>(".eth-arr-row")].map((r) => r.dataset.track);
+    expect(rowsNow.indexOf("__draft_track__")).toBe(1);
+    fireEvent.keyDown(draft, { key: "m" });
+    await flush();
+    expect(screen.queryByRole("group", { name: "New track" })).toBeNull();
+    expect(names().slice(0, 3)).toEqual(["Keys", expect.stringMatching(/MIDI/), "Bass"]);
+
+    fireEvent.click(button);
+    fireEvent.keyDown(screen.getByRole("group", { name: "New track" }), { key: "Escape" });
+    expect(screen.queryByRole("group", { name: "New track" })).toBeNull();
+  });
+
   it("adds a MIDI track with the built-in synth and an audio track, each one undo step", async () => {
     const before = Object.keys(project().tracks).length;
-    fireEvent.click(screen.getByRole("button", { name: "+ MIDI track" }));
+    fireEvent.click(screen.getByRole("button", { name: /New track/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Create MIDI track" }));
     await flush();
     const midi = Object.values(project().tracks).filter((t) => t.kind === "Midi").at(-1)!;
     expect(Object.keys(project().tracks)).toHaveLength(before + 1);
@@ -151,7 +185,8 @@ describe("ArrangementView: tracks", () => {
     const devices = Object.values(project().devices).filter((d) => d.track === midi.id);
     expect(devices.map((d) => d.kind)).toEqual([{ type: "Builtin", device: { type: "Synth" } }]);
 
-    fireEvent.click(screen.getByRole("button", { name: "+ Audio track" }));
+    fireEvent.click(screen.getByRole("button", { name: /New track/ }));
+    fireEvent.keyDown(screen.getByRole("group", { name: "New track" }), { key: "a" });
     await flush();
     expect(Object.keys(project().tracks)).toHaveLength(before + 2);
     await undo();
@@ -169,7 +204,7 @@ describe("ArrangementView: tracks", () => {
     });
     await flush();
     const header = screen.getByRole("group", { name: "Bass track" });
-    expect(header.style.paddingLeft).toBe("16px");
+    expect(header.style.paddingLeft).toBe("26px");
     // The group lane summarizes the child's clip.
     expect(document.querySelectorAll(`[data-lane="${group}"] .eth-arr-lane__summary`)).toHaveLength(1);
     fireEvent.click(screen.getByRole("button", { name: "Fold Grp" }));
@@ -238,10 +273,10 @@ describe("ArrangementView: clip editing", () => {
     fireEvent.click(screen.getByRole("button", { name: "Show automation of Keys" }));
     await flush();
     const rowEl = (id: string) => document.querySelector<HTMLElement>(`.eth-arr-row[data-track="${id}"]`)!;
-    expect(rowEl(keys.id).style.height).toBe(`${ROW + LANE_HEIGHT}px`);
+    expect(rowEl(keys.id).style.height).toBe(`${ROW + AUTOMATION_BAR_HEIGHT + LANE_HEIGHT}px`);
     // Keys' row is taller now: one row pitch down lands inside Keys' own lanes, not on Bass.
     const chords = clipByName("Chords");
-    await drag(clipEl(chords), 0, ROW + LANE_HEIGHT, { x: 100, y: 20 });
+    await drag(clipEl(chords), 0, ROW + AUTOMATION_BAR_HEIGHT + LANE_HEIGHT, { x: 100, y: 20 });
     expect(project().clips[chords.id]!.track).toBe(trackByName("Bass").id);
     await undo();
     await drag(clipEl(chords), 0, ROW, { x: 100, y: 20 });
@@ -352,10 +387,10 @@ describe("ArrangementView: clip editing", () => {
     expect(project().clips[dup!.id]).toBeUndefined();
   });
 
-  it("toggles looping from the toolbar", async () => {
+  it("toggles looping with cmd+shift+L", async () => {
     const chords = clipByName("Chords");
     act(() => itemSelection.getState().select("clip", [chords.id]));
-    fireEvent.click(screen.getByRole("button", { name: "Loop" }));
+    fireEvent.keyDown(document.querySelector('[data-feature="arrangement"]')!, { key: "l", metaKey: true, shiftKey: true });
     await flush();
     expect(project().clips[chords.id]!.looping).toEqual({ enabled: true, start: 0, end: 16 });
     expect(clipEl(chords).querySelector(".eth-clip__loop")).toBeTruthy();
@@ -380,15 +415,415 @@ describe("ArrangementView: clip editing", () => {
     expect(useEditorStore.getState().request).toBe(1);
   });
 
+  it("moves the playhead to a clip's start when it is pressed while stopped", async () => {
+    const bass = clipByName("Bassline");
+    await drag(clipEl(bass), 0, 0, { x: 10, y: ROW + 5 });
+    await waitFor(() => expect(playheadStore.getPlayhead()?.transport.position).toBe(startOf(bass)));
+  });
+
+  it("a click on a clip's body selects it and moves the playhead to the click (not the clip start)", async () => {
+    const bass = clipByName("Bassline");
+    const content = screen.getByTestId("arrangement-content");
+    // Bassline is on row 1; its body is below the title bar. Click 2 beats into it.
+    const x = HEADER_WIDTH + (bass.start + 2) * PX;
+    await drag(content, 0, 0, { x, y: ROW + 30 });
+    expect([...itemSelection.getState().selected.clip]).toEqual([bass.id]);
+    await waitFor(() => expect(playheadStore.getPlayhead()?.transport.position).toBe(bass.start + 2));
+  });
+
+  it("a click on empty space moves the playhead there (snapped), but not while playing", async () => {
+    const content = screen.getByTestId("arrangement-content");
+    await drag(content, 0, 0, { x: HEADER_WIDTH + 20.4 * PX, y: ROW * 3 + 5 });
+    await waitFor(() => expect(playheadStore.getPlayhead()?.transport.position).toBe(20));
+
+    await act(async () => {
+      await mock.send(cmd("Transport", { type: "Play" }));
+    });
+    await waitFor(() => expect(store().transport?.playing).toBe(true));
+    await drag(content, 0, 0, { x: HEADER_WIDTH + 40 * PX, y: ROW * 3 + 5 });
+    await drag(clipEl(clipByName("Bassline")), 0, 0, { x: 10, y: ROW + 5 });
+    expect(sent.filter((c) => c.domain === "Transport" && c.command.type === "Locate")).toHaveLength(1);
+  });
+
+  it("pressing cmd mid-drag copies the clip instead of moving it", async () => {
+    const bass = clipByName("Bassline");
+    const start = startOf(bass);
+    await act(async () => {
+      fireEvent.pointerDown(clipEl(bass), { button: 0, pointerId: 1, clientX: 10, clientY: ROW + 5 });
+      fireEvent.pointerMove(window, { pointerId: 1, clientX: 10 + 4 * PX, clientY: ROW + 5 });
+    });
+    expect(useArrangementUi.getState().preview?.copy).toBe(false);
+    act(() => {
+      fireEvent.keyDown(window, { key: "Meta", metaKey: true });
+    });
+    expect(useArrangementUi.getState().preview?.copy).toBe(true);
+    await act(async () => {
+      fireEvent.pointerUp(window, { pointerId: 1, clientX: 10 + 4 * PX, clientY: ROW + 5, metaKey: true });
+    });
+    await flush();
+    expect(project().clips[bass.id]!.start).toBe(start);
+    expect(Object.values(project().clips).some((c) => c.track === bass.track && startOf(c) === start + 4)).toBe(true);
+  });
+
+  it("renames a track inline by double-clicking its name (Enter commits, Escape cancels)", async () => {
+    const keys = trackByName("Keys");
+    const header = () => document.querySelector<HTMLElement>(`.eth-arr-row[data-track="${keys.id}"] .eth-arr-header__name`)!;
+    fireEvent.doubleClick(header());
+    const input = screen.getByRole("textbox", { name: "Track name" });
+    fireEvent.change(input, { target: { value: "Piano" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    await flush();
+    expect(project().tracks[keys.id]!.name).toBe("Piano");
+
+    fireEvent.doubleClick(header());
+    const again = screen.getByRole("textbox", { name: "Track name" });
+    fireEvent.change(again, { target: { value: "Nope" } });
+    fireEvent.keyDown(again, { key: "Escape" });
+    await flush();
+    expect(project().tracks[keys.id]!.name).toBe("Piano");
+    expect(screen.queryByRole("textbox", { name: "Track name" })).toBeNull();
+  });
+
+  it("cmd-dragging a MIDI clip onto another track copies it and leaves the original", async () => {
+    const chords = clipByName("Chords");
+    const bass = clipByName("Bassline");
+    const count = Object.keys(project().clips).length;
+    // Chords (Keys, row 0) copied straight down onto Bass (row 1), overlapping in time.
+    await drag(clipEl(chords), 0, ROW, { x: 100, y: 5, up: { metaKey: true } });
+    expect(Object.keys(project().clips)).toHaveLength(count + 1);
+    expect(project().clips[chords.id]).toMatchObject({ track: chords.track, start: chords.start, length: chords.length });
+    const copy = Object.values(project().clips).find((c) => c.track === bass.track && c.name === chords.name);
+    expect(copy).toMatchObject({ start: chords.start, length: chords.length });
+    expect(Object.values(project().notes).filter((n) => n.clip === copy!.id).length).toBe(
+      Object.values(project().notes).filter((n) => n.clip === chords.id).length,
+    );
+  });
+
+  it("a header volume fader drag is one undo step; double-click resets to 0 dB", async () => {
+    const keys = trackByName("Keys");
+    const fader = screen.getByRole("slider", { name: "Keys volume" });
+    const before = keys.mixer.volume;
+    Object.defineProperty(fader, "clientWidth", { configurable: true, value: 40 });
+    await act(async () => {
+      fireEvent.pointerDown(fader, { button: 0, pointerId: 1, clientX: 20 });
+      fireEvent.pointerMove(fader, { pointerId: 1, clientX: 10 });
+      fireEvent.pointerMove(fader, { pointerId: 1, clientX: 4 });
+      fireEvent.pointerUp(fader, { pointerId: 1, clientX: 4 });
+    });
+    await flush();
+    const lowered = trackByName("Keys").mixer.volume;
+    expect(lowered).toBeLessThan(before);
+    expect(fader.getAttribute("aria-valuetext")).toMatch(/dB/);
+    // The drag didn't select or move the track.
+    expect(useArrangementUi.getState().trackFocus).toBeNull();
+    await undo();
+    expect(trackByName("Keys").mixer.volume).toBeCloseTo(before);
+
+    fireEvent.doubleClick(fader);
+    await flush();
+    expect(trackByName("Keys").mixer.volume).toBeCloseTo(0);
+  });
+
+  it("zoomed out, tiny clips are painted on the lane canvas and still behave like clips", async () => {
+    const keys = trackByName("Keys");
+    // 16 one-beat clips back to back on Keys, from beat 32.
+    await act(async () => {
+      for (let i = 0; i < 16; i++) {
+        await mock.send(cmd("Clip", { type: "CreateMidi", id: newId(), track: keys.id, start: 32 + i, length: 1, name: null }));
+      }
+    });
+    const lane = document.querySelector<HTMLElement>(`[data-lane="${keys.id}"]`)!;
+    act(() => arrangementView.getState().setViewport({ pxPerBeat: 4, scrollBeats: 0 }));
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 200)); // the lanes re-render at the settled zoom
+    });
+    expect(lane.querySelector('[data-testid="small-clips"]')).not.toBeNull();
+    const ids = Object.values(project().clips)
+      .filter((c) => c.track === keys.id && c.start >= 32)
+      .sort((a, b) => a.start - b.start)
+      .map((c) => c.id);
+    expect(ids.every((id) => !lane.querySelector(`[data-clip-id="${id}"]`))).toBe(true);
+
+    // Press on the 9th one (beat 40.5): selects just it; dragging moves just it.
+    await drag(lane, 8, 0, { x: 40.5 * 4, y: 5 });
+    await flush();
+    expect([...itemSelection.getState().selected.clip]).toEqual([ids[8]]);
+    expect(project().clips[ids[8]!]!.start).toBe(42);
+    expect(project().clips[ids[7]!]!.start).toBe(39);
+  });
+
+  it("cmd-click toggles tracks, shift-click selects a range; Delete removes them all in one step", async () => {
+    const header = (name: string) => screen.getByRole("group", { name: `${name} track` });
+    const [keys, bass, drums] = ["Keys", "Bass", "Drums"].map(trackByName);
+    fireEvent.click(header("Keys"));
+    fireEvent.click(header("Drums"), { metaKey: true });
+    expect([...useArrangementUi.getState().selectedTracks].sort()).toEqual([keys!.id, drums!.id].sort());
+    fireEvent.click(header("Drums"), { metaKey: true });
+    expect([...useArrangementUi.getState().selectedTracks]).toEqual([keys!.id]);
+    fireEvent.click(header("Drums"), { shiftKey: true });
+    expect(new Set(useArrangementUi.getState().selectedTracks)).toEqual(new Set([keys!.id, bass!.id, drums!.id]));
+    expect(document.querySelectorAll(".eth-arr-header--selected")).toHaveLength(3);
+    const count = Object.keys(project().tracks).length;
+    fireEvent.keyDown(document.querySelector('[data-feature="arrangement"]')!, { key: "Delete" });
+    await flush();
+    expect(Object.keys(project().tracks)).toHaveLength(count - 3);
+    await undo();
+    expect(Object.keys(project().tracks)).toHaveLength(count);
+  });
+
+  it("the selection box starts only over the lanes, and the header column resizes", async () => {
+    const content = screen.getByTestId("arrangement-content");
+    await act(async () => {
+      fireEvent.pointerDown(content, { button: 0, pointerId: 1, clientX: 50, clientY: 5 });
+      fireEvent.pointerMove(window, { pointerId: 1, clientX: 400, clientY: 90 });
+    });
+    expect(screen.queryByTestId("marquee")).toBeNull();
+    await act(async () => {
+      fireEvent.pointerUp(window, { pointerId: 1, clientX: 400, clientY: 90 });
+    });
+
+    const grip = screen.getByRole("separator", { name: "Resize track headers" });
+    await act(async () => {
+      fireEvent.pointerDown(grip, { button: 0, clientX: HEADER_WIDTH });
+      fireEvent.pointerMove(window, { clientX: HEADER_WIDTH + 60 });
+      fireEvent.pointerUp(window, { clientX: HEADER_WIDTH + 60 });
+    });
+    expect(useArrangementUi.getState().headerWidth).toBe(HEADER_WIDTH + 60);
+    expect(screen.getByRole("group", { name: "Keys track" }).style.width).toBe(`${HEADER_WIDTH + 60}px`);
+    fireEvent.doubleClick(grip);
+    expect(useArrangementUi.getState().headerWidth).toBe(HEADER_WIDTH);
+  });
+
+  it("reorders tracks by dragging their headers (one undo step)", async () => {
+    const names = () => tracksOrdered(project()).map((t) => t.name);
+    expect(names().slice(0, 3)).toEqual(["Keys", "Bass", "Drums"]);
+    const drums = screen.getByRole("group", { name: "Drums track" });
+    await act(async () => {
+      fireEvent.pointerDown(drums, { button: 0, pointerId: 1, clientX: 20, clientY: 2 * ROW + 10 });
+      fireEvent.pointerMove(window, { pointerId: 1, clientX: 20, clientY: ROW });
+      fireEvent.pointerMove(window, { pointerId: 1, clientX: 20, clientY: 5 });
+    });
+    expect(screen.getByTestId("track-drop-line").style.top).toBe("0px");
+    await act(async () => {
+      fireEvent.pointerUp(window, { pointerId: 1, clientX: 20, clientY: 5 });
+    });
+    await flush();
+    expect(names().slice(0, 3)).toEqual(["Drums", "Keys", "Bass"]);
+    expect(screen.queryByTestId("track-drop-line")).toBeNull();
+    await undo();
+    expect(names().slice(0, 3)).toEqual(["Keys", "Bass", "Drums"]);
+  });
+
+  it("keeps a single selected entity: a track or clips, and Delete removes that one", async () => {
+    const bass = clipByName("Bassline");
+    const keys = trackByName("Keys");
+    await drag(clipEl(bass), 0, 0, { x: 10, y: ROW + 5 });
+    expect([...itemSelection.getState().selected.clip]).toEqual([bass.id]);
+
+    // Selecting a track clears the clips; Delete deletes the track, not the clip.
+    fireEvent.click(screen.getByRole("group", { name: "Keys track" }));
+    expect(itemSelection.getState().selected.clip.size).toBe(0);
+    expect(useArrangementUi.getState().trackFocus).toBe(keys.id);
+    fireEvent.keyDown(document.querySelector('[data-feature="arrangement"]')!, { key: "Delete" });
+    await flush();
+    expect(project().tracks[keys.id]).toBeUndefined();
+    expect(project().clips[bass.id]).toBeDefined();
+
+    // Selecting a clip clears the track focus again.
+    fireEvent.click(screen.getByRole("group", { name: "Drums track" }));
+    await drag(clipEl(bass), 0, 0, { x: 10, y: ROW + 5 });
+    expect(useArrangementUi.getState().trackFocus).toBeNull();
+    expect(document.querySelector(".eth-arr-header--selected")).toBeNull();
+  });
+
+  it("a double-click on a clip's body (passed through to the lane) opens it instead of inserting", async () => {
+    const chords = clipByName("Chords");
+    const lane = document.querySelector<HTMLElement>(`[data-lane="${chords.track}"]`)!;
+    const before = Object.keys(project().clips).length;
+    const x = (startOf(chords) + 1) * PX;
+    await act(async () => {
+      fireEvent.pointerDown(lane, { button: 0, pointerId: 1, clientX: x, clientY: 30 });
+      fireEvent.pointerUp(window, { pointerId: 1, clientX: x, clientY: 30 });
+      fireEvent.pointerDown(lane, { button: 0, pointerId: 1, clientX: x, clientY: 30 });
+      fireEvent.pointerUp(window, { pointerId: 1, clientX: x, clientY: 30 });
+    });
+    await flush();
+    expect(Object.keys(project().clips)).toHaveLength(before);
+    expect(useEditorStore.getState().clip).toBe(chords.id);
+  });
+
+  describe("copy / cut / paste", () => {
+    const root = () => document.querySelector<HTMLElement>('[data-feature="arrangement"]')!;
+    const key = (k: string) => fireEvent.keyDown(root(), { key: k, metaKey: true });
+    const clipsOn = (track: string) => Object.values(project().clips).filter((c) => c.track === track);
+    async function locate(position: number) {
+      await act(async () => {
+        await mock.send(cmd("Transport", { type: "Locate", position }));
+      });
+    }
+
+    it("copies the selection and pastes it at the playhead as one undo step", async () => {
+      const bass = clipByName("Bassline");
+      const notes = (clip: string) => Object.values(project().notes).filter((n) => n.clip === clip).length;
+      await drag(clipEl(bass), 0, 0, { x: 10, y: ROW + 5 });
+      key("c");
+      await locate(32);
+      key("v");
+      await flush();
+      const pasted = clipsOn(bass.track).find((c) => startOf(c) === 32)!;
+      expect(pasted).toMatchObject({ length: bass.length, name: bass.name });
+      expect(notes(pasted.id)).toBe(notes(bass.id));
+      expect([...itemSelection.getState().selected.clip]).toEqual([pasted.id]);
+      await waitFor(() => expect(playheadStore.getPlayhead()?.transport.position).toBe(32 + bass.length));
+      await undo();
+      expect(project().clips[pasted.id]).toBeUndefined();
+    });
+
+    it("cut removes the clips and paste rebuilds them (notes included)", async () => {
+      const bass = clipByName("Bassline");
+      const noteCount = Object.values(project().notes).filter((n) => n.clip === bass.id).length;
+      await drag(clipEl(bass), 0, 0, { x: 10, y: ROW + 5 });
+      key("x");
+      await flush();
+      expect(project().clips[bass.id]).toBeUndefined();
+      await locate(40);
+      key("v");
+      await flush();
+      const pasted = clipsOn(bass.track).find((c) => startOf(c) === 40)!;
+      expect(pasted).toMatchObject({ length: bass.length, offset: bass.offset, name: bass.name });
+      expect(Object.values(project().notes).filter((n) => n.clip === pasted.id)).toHaveLength(noteCount);
+    });
+
+    it("handles the clipboard events the macOS Edit menu sends", async () => {
+      const bass = clipByName("Bassline");
+      await drag(clipEl(bass), 0, 0, { x: 10, y: ROW + 5 });
+      root().focus();
+      act(() => {
+        document.dispatchEvent(new Event("copy", { bubbles: true, cancelable: true }));
+      });
+      await locate(48);
+      await act(async () => {
+        document.dispatchEvent(new Event("paste", { bubbles: true, cancelable: true }));
+      });
+      await flush();
+      expect(clipsOn(bass.track).some((c) => startOf(c) === 48)).toBe(true);
+    });
+
+    it("pastes where an empty lane is right-clicked, onto that track", async () => {
+      const chords = clipByName("Chords");
+      await drag(clipEl(chords), 0, 0, { x: 100, y: 5 });
+      key("c");
+      const lane = document.querySelector<HTMLElement>(`[data-lane="${chords.track}"]`)!;
+      fireEvent.contextMenu(lane, { clientX: 24.3 * PX, clientY: 20 });
+      fireEvent.click(screen.getByRole("menuitem", { name: "Paste" }));
+      await flush();
+      expect(clipsOn(chords.track).some((c) => startOf(c) === 24)).toBe(true);
+    });
+  });
+
+  it("offers Delete in the right-click menu of a clip and of a track", async () => {
+    const bass = clipByName("Bassline");
+    fireEvent.contextMenu(clipEl(bass), { clientX: 10, clientY: 70 });
+    expect([...itemSelection.getState().selected.clip]).toEqual([bass.id]);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Delete" }));
+    await flush();
+    expect(project().clips[bass.id]).toBeUndefined();
+
+    const keys = trackByName("Keys");
+    fireEvent.contextMenu(screen.getByRole("group", { name: "Keys track" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Delete Track" }));
+    await flush();
+    expect(project().tracks[keys.id]).toBeUndefined();
+  });
+
+  it("resizes one track in steps by dragging its bottom edge, and resets on double-click", async () => {
+    const keys = trackByName("Keys");
+    const handle = screen.getByRole("separator", { name: "Resize Keys" });
+    const row = () => document.querySelector<HTMLElement>(`.eth-arr-row[data-track="${keys.id}"]`)!;
+    await drag(handle, 0, 21, { y: 100 });
+    expect(useArrangementUi.getState().heights.get(keys.id)).toBe(TRACK_HEIGHT + 24);
+    expect(row().style.height).toBe(`${TRACK_HEIGHT + 24}px`);
+    await drag(handle, 0, -1000, { y: 100 });
+    expect(useArrangementUi.getState().heights.get(keys.id)).toBe(MIN_TRACK_HEIGHT);
+    fireEvent.doubleClick(handle);
+    expect(useArrangementUi.getState().heights.has(keys.id)).toBe(false);
+  });
+
+  it("cmd+wheel zooms around the beat under the pointer (lanes start after the headers)", () => {
+    const scroll = document.querySelector<HTMLElement>(".eth-arr__scroll")!;
+    const x = 10 * PX; // beat 10 in the lanes
+    const beatAt = () => arrangementView.getState().scrollBeats + x / arrangementView.getState().pxPerBeat;
+    act(() => arrangementView.getState().scrollTo(4));
+    const before = beatAt();
+    act(() => {
+      fireEvent.wheel(scroll, { deltaY: -100, metaKey: true, clientX: HEADER_WIDTH + x });
+    });
+    expect(arrangementView.getState().pxPerBeat).not.toBe(PX);
+    expect(beatAt()).toBeCloseTo(before, 6);
+  });
+
+  it("scales every track with cmd+shift+wheel, within the limits", () => {
+    const keys = trackByName("Keys");
+    useArrangementUi.getState().setHeight(keys.id, 100);
+    const scroll = document.querySelector<HTMLElement>(".eth-arr__scroll")!;
+    act(() => {
+      fireEvent.wheel(scroll, { deltaY: -100, metaKey: true, shiftKey: true });
+    });
+    const f = wheelZoomFactor(-100);
+    expect(useArrangementUi.getState().defaultHeight).toBeCloseTo(TRACK_HEIGHT * f);
+    expect(useArrangementUi.getState().heights.get(keys.id)).toBeCloseTo(100 * f);
+    expect(arrangementView.getState().pxPerBeat).toBe(PX); // not a horizontal zoom
+    act(() => {
+      for (let i = 0; i < 50; i++) fireEvent.wheel(scroll, { deltaY: -200, ctrlKey: true, shiftKey: true });
+    });
+    expect(useArrangementUi.getState().heights.get(keys.id)).toBe(MAX_TRACK_HEIGHT);
+  });
+
+  /** Double-press on `lane` at x, then (still holding) drag to `toX` and release. */
+  async function doublePressDrag(lane: Element, x: number, toX = x) {
+    await act(async () => {
+      fireEvent.pointerDown(lane, { button: 0, pointerId: 1, clientX: x, clientY: 5 });
+      fireEvent.pointerUp(window, { pointerId: 1, clientX: x, clientY: 5 });
+      fireEvent.pointerDown(lane, { button: 0, pointerId: 1, clientX: x, clientY: 5 });
+    });
+    if (toX !== x) {
+      await act(async () => {
+        fireEvent.pointerMove(window, { pointerId: 1, clientX: (x + toX) / 2, clientY: 5 });
+        fireEvent.pointerMove(window, { pointerId: 1, clientX: toX, clientY: 5 });
+      });
+      expect(screen.getByTestId("insert-preview")).toBeInTheDocument();
+    }
+    await act(async () => {
+      fireEvent.pointerUp(window, { pointerId: 1, clientX: toX, clientY: 5 });
+    });
+    await flush();
+  }
+
   it("creates a one-bar MIDI clip on double-click in an empty MIDI lane", async () => {
     const keys = trackByName("Keys");
     const lane = document.querySelector<HTMLElement>(`[data-lane="${keys.id}"]`)!;
     const before = Object.keys(project().clips).length;
-    fireEvent.doubleClick(lane, { clientX: 17.5 * PX });
-    await flush();
+    await doublePressDrag(lane, 17.5 * PX);
     const created = Object.values(project().clips).filter((c) => c.track === keys.id && startOf(c) === 16);
     expect(Object.keys(project().clips)).toHaveLength(before + 1);
     expect(created[0]?.length).toBe(4);
+  });
+
+  it("sizes the new MIDI clip by dragging after the double-click", async () => {
+    const keys = trackByName("Keys");
+    const lane = document.querySelector<HTMLElement>(`[data-lane="${keys.id}"]`)!;
+    const before = Object.keys(project().clips).length;
+    // Press at beat 16.5, drag to beat 22.5: the 1-beat grid covers [16, 23).
+    await doublePressDrag(lane, 16.5 * PX, 22.5 * PX);
+    expect(Object.keys(project().clips)).toHaveLength(before + 1);
+    const created = Object.values(project().clips).find((c) => c.track === keys.id && startOf(c) === 16);
+    expect(created?.length).toBe(7);
+    expect(screen.queryByTestId("insert-preview")).toBeNull();
+
+    // Dragging left of the press extends the clip backwards.
+    await doublePressDrag(lane, 30.5 * PX, 27.5 * PX);
+    const back = Object.values(project().clips).find((c) => c.track === keys.id && startOf(c) === 27);
+    expect(back?.length).toBe(4);
   });
 });
 
@@ -399,6 +834,38 @@ describe("ArrangementView: audio and drops", () => {
     expect(peaks.length).toBeGreaterThan(0);
     expect(screen.getAllByTestId("clip-waveform").length).toBeGreaterThan(0);
     expect(screen.getAllByTestId("clip-notes").length).toBeGreaterThan(0);
+  });
+
+  it("scrolling slides the lane layers instead of re-laying out the clips", async () => {
+    const chords = clipEl(clipByName("Chords"));
+    const view = arrangementView.getState();
+    act(() => view.setWidth(800));
+    const left = chords.style.left;
+    const layer = chords.closest<HTMLElement>(".eth-arr-lane__layer")!;
+    act(() => view.scrollByPx(30));
+    expect(chords.style.left).toBe(left);
+    expect(layer.style.transform).toBe("translateX(-30px)");
+  });
+
+  it("pans and small zooms reuse the clip canvases; they redraw once the zoom settles", async () => {
+    await flush();
+    const paints = vi.mocked(HTMLCanvasElement.prototype.getContext);
+    const view = arrangementView.getState();
+    act(() => view.setWidth(800));
+    await flush();
+    const base = paints.mock.calls.length;
+    act(() => view.scrollByPx(12));
+    act(() => view.scrollByPx(12));
+    expect(paints.mock.calls.length).toBe(base);
+    vi.useFakeTimers();
+    try {
+      act(() => view.zoomBy(1.2, 100));
+      expect(paints.mock.calls.length).toBe(base);
+      act(() => vi.advanceTimersByTime(200));
+      expect(paints.mock.calls.length).toBeGreaterThan(base);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   /** Fire a drag event with a fake DataTransfer (jsdom has no DragEvent, so set clientX/Y by hand). */

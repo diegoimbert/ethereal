@@ -13,6 +13,12 @@ Architecture decisions live in [ARCHITECTURE.md](./ARCHITECTURE.md).
 6. **Consolidation nodes** are where parallel work is joined, the mock is replaced with the real thing, and end-to-end tests are added.
 7. **Fix the base, don't build on a bad one.** If a foundational decision turns out wrong, the change is made once, in the base, by the manager, and every in-flight node merges it (§6.1). This beats working around it in N branches. Use it when needed, not for things a node can solve locally.
 
+## 1b. Branches (since 2026-09-27)
+
+- **`dev` is the integration branch.** Every node branches from `origin/dev`, PRs target `dev`, and workers sync by merging `origin/dev`.
+- **`main` = releases only.** Pushing to `main` triggers the release workflow (compile + publish). Only the final `release` node merges `dev` → `main`, and only with the user's approval.
+- GitHub Actions PR CI stays disabled; the local gate + reviewer is the merge gate.
+
 ## 2. The graph
 
 ```mermaid

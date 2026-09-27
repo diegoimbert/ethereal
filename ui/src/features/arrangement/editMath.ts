@@ -114,12 +114,34 @@ export function asOneStep(label: string, commands: Command[]): Command | null {
   return cmd("Edit", { type: "Batch", label, commands });
 }
 
-/** Commit a move (or a copy when `copy`) drag. */
+/**
+ * Where to create a copy that is headed for another track: after every clip on its source
+ * track. `Clip::Duplicate` places the copy on the source track and resolves overlaps
+ * there at once, so a copy created at its final time could trim or delete the clips it
+ * lands on (the original included) before it moves away. Parked clear of them, the copy
+ * then moves to its destination, and overlaps resolve on that track only. Call it once per
+ * copy: each call reserves room for the returned copy.
+ */
+export function parkingSpots(clips: Iterable<Clip>): (clip: Clip) => Beats {
+  const ends = new Map<TrackId, Beats>();
+  for (const c of clips) ends.set(c.track, Math.max(ends.get(c.track) ?? 0, startOf(c) + c.length));
+  return (clip) => {
+    const at = (ends.get(clip.track) ?? 0) + 1;
+    ends.set(clip.track, at + clip.length);
+    return at;
+  };
+}
+
+/**
+ * Commit a move (or a copy when `copy`) drag. `all` is every clip of the project (for
+ * copies between tracks, see `parkingSpots`); it defaults to the dragged clips.
+ */
 export function moveCommand(
   clips: ReadonlyArray<Clip>,
   preview: ReadonlyMap<ClipId, ClipBounds>,
   copy: boolean,
   newId: () => string,
+  all: Iterable<Clip> = clips,
 ): Command | null {
   if (!copy) {
     const moves = clips
@@ -133,14 +155,19 @@ export function moveCommand(
       });
     return moves.length ? cmd("Clip", { type: "Move", moves }) : null;
   }
+  const park = parkingSpots(all);
   const commands: Command[] = [];
   const moves: Array<{ id: ClipId; track: TrackId; start: number }> = [];
   for (const c of clips) {
     const p = preview.get(c.id);
     if (!p) continue;
     const id = newId();
-    commands.push(cmd("Clip", { type: "Duplicate", id: c.id, new_id: id, start: p.start }));
-    if (p.track !== c.track) moves.push({ id, track: p.track, start: p.start });
+    if (p.track === c.track) {
+      commands.push(cmd("Clip", { type: "Duplicate", id: c.id, new_id: id, start: p.start }));
+    } else {
+      commands.push(cmd("Clip", { type: "Duplicate", id: c.id, new_id: id, start: park(c) }));
+      moves.push({ id, track: p.track, start: p.start });
+    }
   }
   if (moves.length) commands.push(cmd("Clip", { type: "Move", moves }));
   return asOneStep("Copy Clips", commands);

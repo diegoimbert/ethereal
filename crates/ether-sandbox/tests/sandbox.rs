@@ -519,3 +519,47 @@ fn spawn_errors() {
     .unwrap_err();
     assert!(matches!(e, PluginError::Ipc(_)), "{e:?}");
 }
+
+#[test]
+fn helper_loads_through_the_requested_format() {
+    use ether_core::protocol::model::PluginFormat;
+    // Explicit `--format clap` works like the default.
+    let p = SandboxedPlugin::spawn(
+        &bundle(),
+        ID,
+        "t",
+        SandboxOptions {
+            format: PluginFormat::Clap,
+            ..options(Duration::ZERO)
+        },
+    )
+    .unwrap();
+    assert_eq!(p.descriptor().name, "Ethereal Test Plugin");
+    drop(p);
+    // VST3/AU go through their format hosts. A plugin that doesn't exist must give a clean
+    // error (`Unsupported` from a stub or off-platform, `NotFound` from a real host), not a
+    // crash. Real per-format coverage lives in tests/vst3.rs and tests/au.rs.
+    for (format, path, id) in [
+        (PluginFormat::Vst3, "/nonexistent/X.vst3", "0".repeat(32)),
+        (
+            PluginFormat::Au,
+            "aufx:zzzz:zzzz",
+            "aufx:zzzz:zzzz".to_string(),
+        ),
+    ] {
+        let e = SandboxedPlugin::spawn(
+            Path::new(path),
+            &id,
+            "t",
+            SandboxOptions {
+                format,
+                ..options(Duration::ZERO)
+            },
+        )
+        .unwrap_err();
+        assert!(
+            matches!(e, PluginError::Unsupported(_) | PluginError::NotFound(_)),
+            "{format}: {e:?}"
+        );
+    }
+}

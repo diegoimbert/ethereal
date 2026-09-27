@@ -1,4 +1,5 @@
-//! Built-in devices: basic-shape synth, sampler, compressor, delay. Minimal by design.
+//! Built-in devices: basic-shape synth, sampler, compressor, delay; roadmap v2 adds EQ,
+//! reverb, limiter, utility (`devices-2`) and the drum rack (`drum-rack`), one module each.
 //!
 //! Every device implements [`ether_core::Device`]; parameter ids and ranges are defined
 //! by each device's [`DeviceDescriptor`] (the UI renders a generic param UI from it).
@@ -12,14 +13,24 @@ use ether_core::{AudioSource, Device};
 
 pub mod compressor;
 pub mod delay;
+pub mod drum_rack;
+mod dsp;
+pub mod eq;
+pub mod limiter;
+pub mod reverb;
 pub mod sampler;
 pub mod synth;
 mod util;
+pub mod utility;
 
 pub use compressor::Compressor;
 pub use delay::Delay;
+pub use eq::Eq;
+pub use limiter::Limiter;
+pub use reverb::Reverb;
 pub use sampler::Sampler;
 pub use synth::Synth;
+pub use utility::Utility;
 
 /// Descriptor of a built-in device type (param list, category, I/O). Every instance of a
 /// type reports exactly this descriptor (`Device::descriptor` delegates here), so callers
@@ -30,20 +41,17 @@ pub fn descriptor(device: BuiltinDeviceType) -> DeviceDescriptor {
         BuiltinDeviceType::Sampler => sampler::descriptor(),
         BuiltinDeviceType::Compressor => compressor::descriptor(),
         BuiltinDeviceType::Delay => delay::descriptor(),
+        BuiltinDeviceType::Eq => eq::descriptor(),
+        BuiltinDeviceType::Reverb => reverb::descriptor(),
+        BuiltinDeviceType::Limiter => limiter::descriptor(),
+        BuiltinDeviceType::Utility => utility::descriptor(),
+        BuiltinDeviceType::DrumRack => drum_rack::descriptor(),
     }
 }
 
 /// All built-in descriptors (for `DeviceCommand::ListBuiltin`).
 pub fn all_descriptors() -> Vec<DeviceDescriptor> {
-    [
-        BuiltinDeviceType::Synth,
-        BuiltinDeviceType::Sampler,
-        BuiltinDeviceType::Compressor,
-        BuiltinDeviceType::Delay,
-    ]
-    .into_iter()
-    .map(descriptor)
-    .collect()
+    BuiltinDeviceType::ALL.into_iter().map(descriptor).collect()
 }
 
 /// Resolves media for devices that need samples (sampler).
@@ -58,11 +66,17 @@ pub trait SampleResolver {
 pub fn create(device: &BuiltinDevice, samples: &dyn SampleResolver) -> Box<dyn Device> {
     match device {
         BuiltinDevice::Synth => Box::new(Synth::new()),
-        BuiltinDevice::Sampler { sample } => {
-            Box::new(Sampler::new(sample.and_then(|m| samples.resolve(m))))
-        }
+        BuiltinDevice::Sampler { sample, slices } => Box::new(Sampler::with_slices(
+            sample.and_then(|m| samples.resolve(m)),
+            slices.clone(),
+        )),
         BuiltinDevice::Compressor => Box::new(Compressor::new()),
         BuiltinDevice::Delay => Box::new(Delay::new()),
+        BuiltinDevice::Eq => eq::create(),
+        BuiltinDevice::Reverb => reverb::create(),
+        BuiltinDevice::Limiter => limiter::create(),
+        BuiltinDevice::Utility => utility::create(),
+        BuiltinDevice::DrumRack => drum_rack::create(),
     }
 }
 

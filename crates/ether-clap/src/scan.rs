@@ -1,21 +1,29 @@
-//! Plugin discovery.
+//! CLAP plugin discovery.
 //!
 //! - [`default_search_paths`] / [`find_bundles`] only walk the file system (safe in-process).
 //! - [`scan_bundle`] loads a bundle. It runs ONLY inside the `ether-plugin-scanner` process.
-//! - [`ScanRunner`] is the host side: it runs the scanner binary once per bundle with a
-//!   timeout, so a plugin that crashes or hangs while loading only loses that bundle.
+//! - [`ScanRunner`] (from `ether-plugin-host`, re-exported) is the host side: it runs the
+//!   scanner binary once per bundle with a timeout, so a plugin that crashes or hangs while
+//!   loading only loses that bundle.
 
 use std::ffi::CString;
-use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
-use std::time::{Duration, Instant};
 
 use clack_host::prelude::PluginEntry;
 use ether_core::plugin::PluginError;
 use ether_core::protocol::devices::DeviceCategory;
 use ether_core::protocol::model::PluginFormat;
-use ether_core::protocol::plugins::{PluginDescriptor, ScanFailure, ScanRequest, ScanResponse};
+use ether_core::protocol::plugins::PluginDescriptor;
+use ether_plugin_host::bundles::{self, BundleShape};
+
+pub use ether_plugin_host::{SCANNER_BIN, ScanReport, ScanRunner};
+
+/// What a CLAP bundle looks like: a bundle directory on macOS, a shared library elsewhere.
+pub const BUNDLE_SHAPE: BundleShape = BundleShape {
+    extension: "clap",
+    files: true,
+    dirs: cfg!(target_os = "macos"),
+};
 
 /// Platform default CLAP search paths, `CLAP_PATH` entries first (CLAP spec, `entry.h`).
 pub fn default_search_paths() -> Vec<PathBuf> {
@@ -49,51 +57,13 @@ pub fn default_search_paths() -> Vec<PathBuf> {
         paths.push(PathBuf::from("/usr/lib/clap"));
     }
 
-    let mut seen = std::collections::HashSet::new();
-    paths.retain(|p| !p.as_os_str().is_empty() && seen.insert(p.clone()));
-    paths
-}
-
-fn is_clap(path: &Path) -> bool {
-    path.extension()
-        .is_some_and(|e| e.eq_ignore_ascii_case("clap"))
+    bundles::dedup_paths(paths)
 }
 
 /// Enumerate `.clap` bundles under `paths` (recursive, no loading). On macOS a bundle is a
 /// directory; elsewhere it is a shared library file. Sorted, deduplicated.
 pub fn find_bundles(paths: &[PathBuf]) -> Vec<PathBuf> {
-    fn walk(dir: &Path, depth: u32, out: &mut Vec<PathBuf>) {
-        if depth > 16 {
-            return; // symlink loops
-        }
-        let Ok(entries) = std::fs::read_dir(dir) else {
-            return;
-        };
-        for entry in entries.flatten() {
-            let path = entry.path();
-            // `metadata` follows symlinks (plugins are often symlinked into place).
-            let Ok(meta) = std::fs::metadata(&path) else {
-                continue;
-            };
-            if is_clap(&path) && (meta.is_file() || cfg!(target_os = "macos")) {
-                out.push(path);
-            } else if meta.is_dir() {
-                walk(&path, depth + 1, out);
-            }
-        }
-    }
-
-    let mut out = Vec::new();
-    for p in paths {
-        if is_clap(p) && p.exists() {
-            out.push(p.clone());
-        } else {
-            walk(p, 0, &mut out);
-        }
-    }
-    out.sort();
-    out.dedup();
-    out
+    bundles::find_bundles(paths, BUNDLE_SHAPE)
 }
 
 /// Map CLAP feature strings to a device category.
@@ -152,156 +122,6 @@ pub(crate) fn load_entry(bundle: &Path) -> Result<PluginEntry, PluginError> {
     // SAFETY: loading a plugin library runs foreign code. This is inherent to plugin hosting;
     // scanning happens out-of-process and instantiation is the user's explicit choice.
     unsafe { PluginEntry::load(bundle) }.map_err(|e| PluginError::Load(e.to_string()))
-}
-
-/// Result of scanning many bundles.
-#[derive(Debug, Default, Clone, PartialEq)]
-pub struct ScanReport {
-    pub plugins: Vec<PluginDescriptor>,
-    pub failed: Vec<ScanFailure>,
-}
-
-/// Host side of the out-of-process scanner.
-#[derive(Debug, Clone)]
-pub struct ScanRunner {
-    pub scanner: PathBuf,
-    pub timeout: Duration,
-}
-
-/// Name of the scanner binary.
-pub const SCANNER_BIN: &str = if cfg!(windows) {
-    "ether-plugin-scanner.exe"
-} else {
-    "ether-plugin-scanner"
-};
-
-impl ScanRunner {
-    pub const DEFAULT_TIMEOUT: Duration = Duration::from_secs(20);
-
-    pub fn new(scanner: impl Into<PathBuf>) -> Self {
-        Self {
-            scanner: scanner.into(),
-            timeout: Self::DEFAULT_TIMEOUT,
-        }
-    }
-
-    pub fn with_timeout(mut self, timeout: Duration) -> Self {
-        self.timeout = timeout;
-        self
-    }
-
-    /// Locate the scanner: `ETHER_PLUGIN_SCANNER`, else next to the current executable (or
-    /// its parent directory, for test binaries in `target/<profile>/deps`).
-    pub fn locate() -> Option<Self> {
-        if let Some(p) = std::env::var_os("ETHER_PLUGIN_SCANNER") {
-            return Some(Self::new(p));
-        }
-        let exe = std::env::current_exe().ok()?;
-        let dir = exe.parent()?;
-        [dir.join(SCANNER_BIN), dir.parent()?.join(SCANNER_BIN)]
-            .into_iter()
-            .find(|p| p.is_file())
-            .map(Self::new)
-    }
-
-    /// Scan one bundle in a fresh scanner process. Crashes, hangs (killed after `timeout`),
-    /// and malformed output all become an `Err` message.
-    pub fn scan_bundle(&self, bundle: &Path) -> Result<Vec<PluginDescriptor>, String> {
-        let request = serde_json::to_string(&ScanRequest {
-            bundle_path: bundle.to_string_lossy().into_owned(),
-        })
-        .map_err(|e| e.to_string())?;
-
-        let mut child = Command::new(&self.scanner)
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .map_err(|e| format!("failed to start scanner {}: {e}", self.scanner.display()))?;
-
-        let mut stdin = child.stdin.take().expect("piped stdin");
-        let mut stdout = child.stdout.take().expect("piped stdout");
-        let mut stderr = child.stderr.take().expect("piped stderr");
-        // Readers on threads so a chatty plugin can't fill a pipe and deadlock us.
-        let out_reader = std::thread::spawn(move || {
-            let mut s = String::new();
-            let _ = stdout.read_to_string(&mut s);
-            s
-        });
-        let err_reader = std::thread::spawn(move || {
-            let mut s = String::new();
-            let _ = stderr.read_to_string(&mut s);
-            s
-        });
-        let _ = stdin.write_all(request.as_bytes());
-        drop(stdin);
-
-        let deadline = Instant::now() + self.timeout;
-        let status = loop {
-            match child.try_wait() {
-                Ok(Some(status)) => break Some(status),
-                Ok(None) if Instant::now() >= deadline => {
-                    let _ = child.kill();
-                    let _ = child.wait();
-                    break None;
-                }
-                Ok(None) => std::thread::sleep(Duration::from_millis(5)),
-                Err(e) => return Err(format!("scanner wait failed: {e}")),
-            }
-        };
-        let Some(status) = status else {
-            // Killed: the pipes may be held open by grandchildren; don't join the readers.
-            return Err(format!("scan timed out after {:?}", self.timeout));
-        };
-        let out = out_reader.join().unwrap_or_default();
-        let err = err_reader.join().unwrap_or_default();
-
-        if !status.success() {
-            let tail: String = err.lines().rev().take(3).collect::<Vec<_>>().join(" | ");
-            return Err(format!(
-                "scanner crashed ({status}){}",
-                if tail.is_empty() {
-                    String::new()
-                } else {
-                    format!(": {tail}")
-                }
-            ));
-        }
-        // Plugins may print to stdout while loading: the response is the last JSON line.
-        let line = out
-            .lines()
-            .rev()
-            .find(|l| l.trim_start().starts_with('{'))
-            .ok_or_else(|| "scanner produced no response".to_string())?;
-        match serde_json::from_str::<ScanResponse>(line) {
-            Ok(ScanResponse::Ok { plugins }) => Ok(plugins),
-            Ok(ScanResponse::Err { message }) => Err(message),
-            Err(e) => Err(format!("bad scanner response: {e}")),
-        }
-    }
-
-    /// Scan every bundle sequentially. `progress(done, total, current)` is called before each
-    /// bundle and once at the end with `current = None`.
-    pub fn scan_all(
-        &self,
-        bundles: &[PathBuf],
-        mut progress: impl FnMut(u32, u32, Option<&Path>),
-    ) -> ScanReport {
-        let total = bundles.len() as u32;
-        let mut report = ScanReport::default();
-        for (i, bundle) in bundles.iter().enumerate() {
-            progress(i as u32, total, Some(bundle));
-            match self.scan_bundle(bundle) {
-                Ok(plugins) => report.plugins.extend(plugins),
-                Err(message) => report.failed.push(ScanFailure {
-                    path: bundle.to_string_lossy().into_owned(),
-                    message,
-                }),
-            }
-        }
-        progress(total, total, None);
-        report
-    }
 }
 
 #[cfg(test)]

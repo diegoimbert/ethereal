@@ -72,6 +72,7 @@ fn check_length(length: Beats) -> CmdResult<()> {
 
 /// Make room for arrangement clip `keep` on its track, Ableton-style: clips it fully covers
 /// are deleted, partially covered clips are trimmed, a clip that contains it is split.
+/// Crossfade overlaps (see `ether_model::clip`) are left alone.
 fn resolve_overlaps(ctx: &mut DocCtx, keep: ClipId, ignore: &BTreeSet<ClipId>) -> CmdResult<()> {
     let Some(k) = ctx.p().clips.get(&keep).cloned() else {
         return Ok(());
@@ -89,6 +90,10 @@ fn resolve_overlaps(ctx: &mut DocCtx, keep: ClipId, ignore: &BTreeSet<ClipId>) -
         let os = clip_start(&o).0;
         let oe = os + o.length.0;
         if oe <= s + EPS || os >= e - EPS {
+            continue;
+        }
+        // Crossfade overlaps (roadmap v2, `clip-editing`) are kept.
+        if crate::clip_editing::is_crossfade(&k, &o) {
             continue;
         }
         if os >= s - EPS && oe <= e + EPS {
@@ -208,11 +213,16 @@ pub(super) fn apply(ctx: &mut DocCtx, c: &ClipCommand) -> CmdResult<()> {
                 transpose: 0.0,
                 fade_in: Beats::ZERO,
                 fade_out: Beats::ZERO,
+                // Unwarped (plays at its native speed, no stretcher). Enabling warp pins
+                // markers from the BPM stub (`crate::warp::command`).
                 warp: WarpSettings {
-                    enabled: true,
-                    mode: WarpMode::Complex,
-                    source_bpm: Some(bpm),
+                    enabled: false,
+                    mode: WarpMode::Repitch,
+                    source_bpm: None,
                 },
+                fade_in_curve: FadeCurve::Linear,
+                fade_out_curve: FadeCurve::Linear,
+                reversed: false,
             });
             check_fits(&t, &content)?;
             let clip = new_clip(*id, t.id, start, length, strip_extension(&m.name), content);
@@ -338,6 +348,9 @@ pub(super) fn apply(ctx: &mut DocCtx, c: &ClipCommand) -> CmdResult<()> {
             }
             ctx.set_clip(*id, ClipChange::Transpose(semitones.clamp(-48.0, 48.0)))
         }
+        ClipCommand::SetFadeCurves { .. }
+        | ClipCommand::SetReversed { .. }
+        | ClipCommand::Crossfade { .. } => crate::clip_editing::clip_command(ctx, c),
         ClipCommand::SetFades {
             id,
             fade_in,

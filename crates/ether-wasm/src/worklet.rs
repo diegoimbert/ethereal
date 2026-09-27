@@ -5,19 +5,21 @@
 //! 1. apply pending control frames through the `EngineHandle` (node creation, graph
 //!    compile, media chunks, sources), bounded per quantum: at most
 //!    [`CONTROL_BUDGET_BYTES`] bytes and [`MAX_FRAMES_PER_QUANTUM`] frames, and never more
-//!    than one heavy frame (a `Publish`, which decodes JSON and compiles a snapshot, or a
+//!    than one heavy frame (a `Publish`, which decodes a binary snapshot and compiles it, or a
 //!    `MediaBegin`, which allocates the media buffers),
 //! 2. `Engine::process` into the host's planar output buffers,
 //! 3. every [`REPORT_INTERVAL_BLOCKS`] blocks, poll the handle and write an
 //!    [`EngineReport`] to the report ring (dropped if the ring is full),
 //! 4. run the `GarbageCollector`.
 //!
-//! Only step 2 is the real-time render. Steps 1 and 4 allocate (JSON decode, snapshot
+//! Only step 2 is the real-time render. Steps 1 and 4 allocate (snapshot decode and
 //! compile, media buffers, dropping retired snapshots) but run on the same thread because
 //! an AudioWorkletGlobalScope has no other thread; the budgets bound their cost per block.
-//! This is the web-host trade-off accepted in ARCHITECTURE.md ("single-threaded"). Known
-//! limitation: decoding and compiling the JSON snapshot of a big project in one quantum
-//! can still cause a dropout.
+//! This is the web-host trade-off accepted in ARCHITECTURE.md ("single-threaded").
+//! Snapshots use the binary `ether_core::codec::BinaryCodec` (one allocation per `Vec`,
+//! no parsing): for a 64-track / 500-clip project the whole publish quantum costs ~0.8 ms
+//! in V8 against a 2.67 ms quantum at 48 kHz (the former JSON decode alone took ~4.5 ms);
+//! see [`crate::perf`].
 //!
 //! The frame cap also keeps core's queues from overflowing: every quantum drains them
 //! (control 1024, params 4096 entries), and at most [`MAX_FRAMES_PER_QUANTUM`] entries are
@@ -36,7 +38,7 @@ use ether_core::{
 use ether_devices::SampleResolver;
 use ether_media::InMemorySource;
 
-use crate::proto::{EngineMsg, EngineReport, Frame, MediaAssembler, REPORT_ERROR};
+use crate::proto::{EngineMsg, EngineReport, Frame, MediaAssembler, PREVIEW_MEDIA, REPORT_ERROR};
 use crate::ring::{RingMemory, RingReader, RingWriter};
 
 /// Web render quantum.
@@ -97,6 +99,8 @@ pub struct EngineHost<M: RingMemory> {
     blocks: u64,
     /// Errors not yet delivered (report ring was full).
     errors: Vec<String>,
+    /// `media-preview`: a natural preview end not yet delivered (reports are lossy).
+    preview_ended: Option<u64>,
 }
 
 impl<M: RingMemory> EngineHost<M> {
@@ -124,6 +128,7 @@ impl<M: RingMemory> EngineHost<M> {
             blocks_since_report: 0,
             blocks: 0,
             errors: Vec::new(),
+            preview_ended: None,
         }
     }
 
@@ -215,6 +220,10 @@ impl<M: RingMemory> EngineHost<M> {
     ) -> Result<(), String> {
         let source: Arc<dyn AudioSource> = Arc::new(InMemorySource::new(audio));
         self.sources.insert(media, source.clone());
+        if media == PREVIEW_MEDIA {
+            // Waits for its `Preview` message; not an engine (clip) source.
+            return Ok(());
+        }
         self.handle
             .add_source(media, source)
             .map_err(|e| e.to_string())
@@ -275,6 +284,22 @@ impl<M: RingMemory> EngineHost<M> {
             EngineMsg::Transport { control } => {
                 self.handle.transport(control).map_err(|e| e.to_string())
             }
+            EngineMsg::Preview { id, media, gain } => {
+                use ether_core::preview::PreviewControl;
+                let control = match media {
+                    Some(media) => PreviewControl::Play {
+                        id,
+                        // The voice owns it from now on (retired to the GC when done).
+                        source: self
+                            .sources
+                            .remove(&media)
+                            .ok_or_else(|| format!("preview of unknown media {media}"))?,
+                        gain,
+                    },
+                    None => PreviewControl::Stop,
+                };
+                self.handle.preview(control).map_err(|e| e.to_string())
+            }
         }
     }
 
@@ -334,10 +359,16 @@ impl<M: RingMemory> EngineHost<M> {
         self.report.event_overflow = self.outputs.event_overflow;
         self.report.underruns = self.outputs.underruns;
         self.report.blocks = self.blocks;
+        if self.outputs.preview_ended.is_some() {
+            self.preview_ended = self.outputs.preview_ended;
+        }
+        self.report.preview_ended = self.preview_ended;
         self.report.encode_into(&mut self.report_buf);
         // Lossy: if the Worker isn't reading, drop this report (meters are max-held per
-        // report, playhead is always the latest).
-        self.reports.try_send_now(&self.report_buf);
+        // report, playhead is always the latest; a preview end is kept until delivered).
+        if self.reports.try_send_now(&self.report_buf) {
+            self.preview_ended = None;
+        }
     }
 
     /// Control bytes written by the Worker but not applied yet.

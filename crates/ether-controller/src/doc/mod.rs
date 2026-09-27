@@ -39,6 +39,17 @@ pub(crate) trait DocHost {
         device: DeviceId,
         plugin: &PluginInstance,
     ) -> CmdResult<Option<DeviceDescriptor>>;
+    /// Roadmap v2 (`drum-rack`): waveform peaks of loaded media (auto-slicing by
+    /// transients). `None` = not loaded (yet).
+    fn peaks(&self, media: MediaId) -> Option<&ether_media::PeakMipmap> {
+        let _ = media;
+        None
+    }
+    /// Roadmap v2 (`drum-rack`): runtime pad solo (`DrumRack::SetPadSolo`; not a document
+    /// change, compiled as mute of the rack's other pads).
+    fn set_pad_solo(&mut self, pad: DrumPadId, solo: bool) {
+        let _ = (pad, solo);
+    }
 }
 
 pub(crate) struct DocCtx<'a, 'p> {
@@ -174,6 +185,9 @@ impl DocCtx<'_, '_> {
         self.delete_lanes_where(
             |l| matches!(l.target, AutomationTarget::SendLevel { send } if send == id),
         )?;
+        self.delete_mappings_where(|t| {
+            matches!(t, MidiMapTarget::Param { target: AutomationTarget::SendLevel { send } } if *send == id)
+        })?;
         self.tx.remove(EntityKey::Send(id))
     }
 
@@ -191,7 +205,81 @@ impl DocCtx<'_, '_> {
         self.delete_lanes_where(
             |l| matches!(l.target, AutomationTarget::DeviceParam { device, .. } if device == id),
         )?;
+        // Roadmap v2: MIDI mappings of the device, and a drum rack's pads with their chains.
+        self.delete_mappings_where(|t| {
+            matches!(t, MidiMapTarget::Param { target: AutomationTarget::DeviceParam { device, .. } } if *device == id)
+        })?;
+        let pads: Vec<DrumPadId> = self.p().pads_of(id).iter().map(|p| p.id).collect();
+        for pad in pads {
+            self.delete_pad(pad)?;
+        }
         self.tx.remove(EntityKey::Device(id))
+    }
+
+    /// Copy the pads of drum rack `src` (with their device chains) onto rack `dst` on track
+    /// `track`, with new ids. `device_ids` receives old → new pad-device ids (for
+    /// retargeting automation). Used by device and track duplication.
+    pub fn copy_rack_pads(
+        &mut self,
+        src: DeviceId,
+        dst: DeviceId,
+        track: TrackId,
+        device_ids: &mut std::collections::BTreeMap<DeviceId, DeviceId>,
+    ) -> CmdResult<()> {
+        let pads: Vec<DrumPad> = self.p().pads_of(src).into_iter().cloned().collect();
+        for pad in pads {
+            let mut np = pad.clone();
+            np.id = self.new_id();
+            np.rack = dst;
+            let new_pad = np.id;
+            self.tx.insert(Entity::DrumPad(np))?;
+            let devices: Vec<Device> = self
+                .p()
+                .pad_devices_of(pad.id)
+                .into_iter()
+                .cloned()
+                .collect();
+            for d in devices {
+                let mut nd = d.clone();
+                nd.id = self.new_id();
+                nd.track = track;
+                nd.pad = Some(new_pad);
+                if let DeviceKind::Plugin { plugin } = &mut nd.kind
+                    && let Some(state) = self.host.plugin_state(d.id)
+                {
+                    plugin.state = Some(state);
+                }
+                device_ids.insert(d.id, nd.id);
+                self.tx.insert(Entity::Device(nd))?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Delete a drum pad with its device chain.
+    pub fn delete_pad(&mut self, id: DrumPadId) -> CmdResult<()> {
+        let devices: Vec<DeviceId> = self.p().pad_devices_of(id).iter().map(|d| d.id).collect();
+        for d in devices {
+            self.delete_device(d)?;
+        }
+        self.tx.remove(EntityKey::DrumPad(id))
+    }
+
+    pub fn delete_mappings_where(
+        &mut self,
+        pred: impl Fn(&MidiMapTarget) -> bool,
+    ) -> CmdResult<()> {
+        let ids: Vec<MidiMappingId> = self
+            .p()
+            .midi_mappings
+            .values()
+            .filter(|m| pred(&m.target))
+            .map(|m| m.id)
+            .collect();
+        for m in ids {
+            self.tx.remove(EntityKey::MidiMapping(m))?;
+        }
+        Ok(())
     }
 
     /// Delete one track (not its group children: see `tracks::delete`).
@@ -206,9 +294,31 @@ impl DocCtx<'_, '_> {
         for c in clips {
             self.delete_clip(c)?;
         }
+        // Track-chain devices (a rack's delete takes its pads and pad devices along).
         let devices: Vec<DeviceId> = self.p().devices_of(id).iter().map(|d| d.id).collect();
         for d in devices {
             self.delete_device(d)?;
+        }
+        // Roadmap v2: mappings targeting the track; sidechains listening to it are cut.
+        self.delete_mappings_where(|t| match t {
+            MidiMapTarget::Param {
+                target:
+                    AutomationTarget::TrackVolume { track } | AutomationTarget::TrackPan { track },
+            }
+            | MidiMapTarget::TrackMute { track }
+            | MidiMapTarget::TrackSolo { track }
+            | MidiMapTarget::TrackArm { track } => *track == id,
+            _ => false,
+        })?;
+        let listeners: Vec<DeviceId> = self
+            .p()
+            .devices
+            .values()
+            .filter(|d| d.sidechain == Some(id))
+            .map(|d| d.id)
+            .collect();
+        for d in listeners {
+            self.set_device(d, DeviceChange::Sidechain(None))?;
         }
         let sends: Vec<SendId> = self
             .p()
@@ -444,6 +554,7 @@ pub(crate) fn order_after<I: PartialEq + Copy>(
 /// `true` if `command` edits the document (undoable, allowed inside a `Batch`).
 pub(crate) fn is_document_command(command: &Command, current: Option<ProjectId>) -> bool {
     use ether_core::protocol::devices::DeviceCommand as D;
+    use ether_core::protocol::midi_map::MidiMapCommand as M;
     use ether_core::protocol::recording::RecordingCommand as R;
     use ether_core::protocol::transport::TransportCommand as T;
     use ether_core::protocol::warp::WarpCommand as W;
@@ -467,6 +578,13 @@ pub(crate) fn is_document_command(command: &Command, current: Option<ProjectId>)
             R::SetMonitor { .. } | R::SetInput { .. } | R::SetCountIn { .. }
         ),
         Command::Warp(c) => !matches!(c, W::DetectTempo { .. }),
+        // Roadmap v2.
+        Command::Tempo(_)
+        | Command::Marker(_)
+        | Command::Groove(_)
+        | Command::DrumRack(_)
+        | Command::Slice(_) => true,
+        Command::MidiMap(c) => !matches!(c, M::Learn { .. } | M::List),
         Command::Project(ProjectCommand::SetScale { .. }) => true,
         Command::Project(ProjectCommand::Rename { id, .. }) => Some(*id) == current,
         _ => false,
@@ -506,6 +624,12 @@ pub(crate) fn apply(ctx: &mut DocCtx, command: &Command) -> CmdResult<ReplyValue
         Command::Transport(c) => misc::transport(ctx, c),
         Command::Recording(c) => misc::recording(ctx, c),
         Command::Warp(c) => misc::warp(ctx, c),
+        Command::Tempo(c) => crate::tempo::apply(ctx, c),
+        Command::Marker(c) => crate::clip_editing::marker_command(ctx, c),
+        Command::Groove(c) => crate::groove::apply(ctx, c),
+        Command::DrumRack(c) => crate::drum_rack::rack_command(ctx, c),
+        Command::Slice(c) => crate::drum_rack::slice_command(ctx, c),
+        Command::MidiMap(c) => crate::midi_learn::apply(ctx, c),
         Command::Project(ProjectCommand::SetScale { scale }) => {
             ctx.tx.settings(SettingsChange::Scale(*scale))
         }

@@ -1,0 +1,111 @@
+/* Global base styles. Reads tokens only (see tokens.css). */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body,
+[data-theme] {
+  color: var(--eth-color-text);
+  font-family: var(--eth-font-ui);
+  font-size: var(--eth-fs-md);
+  font-weight: var(--eth-fw-text);
+  line-height: var(--eth-lh-normal);
+  /* Inter: cleaner alternates (cv11); numbers don't jitter as they change. */
+  font-feature-settings: "cv11";
+  font-variant-numeric: tabular-nums;
+}
+
+body {
+  background: var(--eth-color-bg);
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+
+/* Desktop-app feel: nothing is text-selectable or drag-ghostable except text fields.
+   WebKit (Tauri on macOS) only honours the prefixed property. */
+*,
+*::before,
+*::after {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+img,
+svg,
+a {
+  -webkit-user-drag: none;
+}
+
+/* WebKit (Tauri on macOS) won't start an HTML5 drag on a non-selectable element unless
+   it is explicitly draggable this way (sample browser rows, device headers). */
+[draggable="true"] {
+  -webkit-user-drag: element;
+}
+
+input,
+textarea,
+[contenteditable]:not([contenteditable="false"]) {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* Desktop feel: the arrow cursor everywhere (no I-beam over labels and text). Elements
+   that want another cursor (grab, resize, ...) set it; text fields show the text cursor. */
+html,
+body {
+  cursor: default;
+}
+
+:where(input:not([type="button"], [type="checkbox"], [type="radio"], [type="range"], [type="color"])),
+:where(textarea),
+:where([contenteditable]:not([contenteditable="false"])) {
+  /* Zero specificity: components' own cursors (e.g. drag-to-change fields) win. */
+  cursor: text;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+/* While a drag owns the pointer, its cursor wins everywhere (kit `setDragCursor`). */
+html[data-drag-cursor],
+html[data-drag-cursor] * {
+  cursor: var(--eth-drag-cursor) !important;
+}
+
+/* Lucide icons: sized by the surrounding font size, thin strokes (they default to 24px). */
+.lucide {
+  width: var(--eth-size-icon-inline);
+  height: var(--eth-size-icon-inline);
+  flex: none;
+  stroke-width: 1.75;
+}
+
+:focus-visible {
+  outline: var(--eth-focus-ring-width) solid var(--eth-color-focus);
+  outline-offset: var(--eth-focus-ring-offset);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: var(--eth-duration-instant) !important;
+    animation-duration: var(--eth-duration-instant) !important;
+  }
+}

@@ -27,6 +27,11 @@ pub enum RecordingCommand {
     SetRecording {
         enabled: bool,
     },
+    /// Punch in/out: record only inside the loop region (runtime, not undoable; reported
+    /// via `RecordingEvent::PunchChanged`).
+    SetPunch {
+        enabled: bool,
+    },
     /// Undoable project setting.
     SetCountIn {
         bars: u32,
@@ -70,4 +75,45 @@ pub enum RecordingEvent {
     ArmChanged {
         armed: Vec<TrackId>,
     },
+    PunchChanged {
+        enabled: bool,
+    },
+    /// Live view of the takes being recorded (`live-record`): only what is new since the
+    /// previous `Progress`, emitted by the controller while recording (~20 Hz). Runtime only:
+    /// never part of the document or of collab; the real clips arrive with `Stopped`.
+    Progress {
+        audio: Vec<LiveAudioChunk>,
+        midi: Vec<LiveMidiNote>,
+    },
+}
+
+/// New waveform peaks of one audio take. Peaks are min/max over `frames_per_peak` input
+/// frames, all channels merged; peak `i` of the take covers frames
+/// `[i * frames_per_peak, (i + 1) * frames_per_peak)` from the take start.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+pub struct LiveAudioChunk {
+    pub track: TrackId,
+    /// Take number within this recording session (a new take starts on each loop wrap).
+    pub take: u32,
+    /// Timeline position (beats) of the take's first frame, latency-compensated exactly like
+    /// the committed clip.
+    pub start: f64,
+    pub sample_rate: u32,
+    pub frames_per_peak: u32,
+    /// Index of `min[0]` / `max[0]` within the take.
+    #[ts(type = "number")]
+    pub first_peak: u64,
+    pub min: Vec<f32>,
+    pub max: Vec<f32>,
+}
+
+/// A MIDI note played while recording, at its latency-compensated timeline position.
+/// Sent when it starts (`length: None`) and again when it ends (`length: Some`).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+pub struct LiveMidiNote {
+    pub track: TrackId,
+    pub pitch: u8,
+    pub velocity: u8,
+    pub start: f64,
+    pub length: Option<f64>,
 }

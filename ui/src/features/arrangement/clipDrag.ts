@@ -7,14 +7,18 @@
  * - Snapping follows the arrangement grid; hold alt/option to bypass it.
  * - Cmd/ctrl held on release copies instead of moving.
  * - A plain click on an already selected clip selects only it; shift adds; cmd/ctrl toggles.
+ * - While stopped, pressing a clip moves the playhead to its start.
  */
 
 import type { PointerEvent as ReactPointerEvent } from "react";
 import type { Beats, Clip, MediaRef } from "@/generated";
 import { useProjectStore, useSelectionStore, warpMarkersOfClip } from "@/state";
 import { itemSelection, resolveGrid, selectModeFromEvent, snapToGrid, TempoMap } from "@/timeline";
-import { newId } from "@/transport";
-import { isArrangementClip, mediaLengthInBeats, sourceSecondsMapper, startOf } from "./clipTime";
+import { newId, type EngineTransport } from "@/transport";
+import { setDragCursor } from "@/kit";
+import { clipSourceMapper } from "@/features/warp/warpMap";
+import { isArrangementClip, mediaLengthInBeats, startOf } from "./clipTime";
+import { locateIfStopped } from "./actions";
 import { sendEdit, type ArrangementContextValue } from "./context";
 import { boundsCommand, dragPreview, moveCommand, type DragMode } from "./editMath";
 import { rowIndexAt } from "./layout";
@@ -23,17 +27,31 @@ import { arrangementView, useArrangementUi } from "./uiStore";
 const DRAG_THRESHOLD_PX = 3;
 
 /** Media length in content beats of an audio clip (null for MIDI or unknown media). */
-export function clipSourceLength(clip: Clip, media: Readonly<Record<string, MediaRef>>, tempo: TempoMap): Beats | null {
+export function clipSourceLength(
+  clip: Clip,
+  media: Readonly<Record<string, MediaRef>>,
+  tempo: TempoMap,
+  kind: EngineTransport["kind"] = "mock",
+): Beats | null {
   if (clip.content.type !== "Audio") return null;
   const m = media[clip.content.media];
   if (!m) return null;
   const project = useProjectStore.getState().project;
   const markers = project ? warpMarkersOfClip(project, clip.id) : [];
-  const map = sourceSecondsMapper(clip.content.warp.source_bpm, tempo.bpmAt(startOf(clip)), markers);
+  const map = clipSourceMapper(clip.content, markers, tempo.bpmAt(startOf(clip)), clip.offset, kind);
   return mediaLengthInBeats(m, map);
 }
 
-export function onClipPointerDown(e: ReactPointerEvent<HTMLElement>, clip: Clip, ctx: ArrangementContextValue): void {
+/**
+ * `keepSelection`: the caller already selected what to drag (a clip cluster): a click
+ * without a drag keeps that selection instead of narrowing it to `clip`.
+ */
+export function onClipPointerDown(
+  e: ReactPointerEvent<HTMLElement>,
+  clip: Clip,
+  ctx: ArrangementContextValue,
+  opts: { keepSelection?: boolean } = {},
+): void {
   if (e.button !== 0) return;
   e.stopPropagation();
   e.preventDefault();
@@ -46,6 +64,7 @@ export function onClipPointerDown(e: ReactPointerEvent<HTMLElement>, clip: Clip,
   const selectMode = selectModeFromEvent(e);
   if (!wasSelected) sel.select("clip", [clip.id], selectMode === "replace" ? "replace" : "add");
   useSelectionStore.getState().selectTrack(clip.track);
+  locateIfStopped(ctx.transport, startOf(clip));
 
   const project = useProjectStore.getState().project;
   if (!project) return;
@@ -77,39 +96,53 @@ export function onClipPointerDown(e: ReactPointerEvent<HTMLElement>, clip: Clip,
     return (b: Beats) => snapToGrid(b, step, tempo);
   };
 
-  const move = (ev: PointerEvent) => {
-    const dx = ev.clientX - startX;
-    const dy = ev.clientY - startY;
-    if (!active && Math.hypot(dx, dy) < DRAG_THRESHOLD_PX) return;
-    active = true;
+  type Mods = Pick<PointerEvent, "altKey" | "metaKey" | "ctrlKey">;
+  let pointer = { x: startX, y: startY };
+  /** Preview for the pointer position and the held modifiers (cmd/ctrl: copy). */
+  const update = (ev: Mods) => {
+    const dx = pointer.x - startX;
     copy = mode === "move" && (ev.metaKey || ev.ctrlKey);
+    setDragCursor(mode === "move" ? (copy ? "copy" : "grabbing") : "ew-resize");
     last = dragPreview(
       {
         clips,
         anchor: clip.id,
         rows,
         snap: snapFor(ev.altKey),
-        sourceLength: (c) => clipSourceLength(c, project.media, tempo),
+        sourceLength: (c) => clipSourceLength(c, project.media, tempo, ctx.transport.kind),
       },
       mode,
       dx / pxPerBeat,
-      mode === "move" ? rowAt(ev.clientY) - startRow : 0,
+      mode === "move" ? rowAt(pointer.y) - startRow : 0,
     );
     useArrangementUi.getState().setPreview({ bounds: last, copy });
+  };
+
+  const move = (ev: PointerEvent) => {
+    pointer = { x: ev.clientX, y: ev.clientY };
+    if (!active && Math.hypot(pointer.x - startX, pointer.y - startY) < DRAG_THRESHOLD_PX) return;
+    active = true;
+    update(ev);
+  };
+
+  // Pressing or releasing cmd/ctrl (or alt) mid-drag switches copy (or snapping) at once:
+  // the originals stay where they were while copying.
+  const key = (ev: KeyboardEvent) => {
+    if (active && ["Meta", "Control", "Alt"].includes(ev.key)) update(ev);
   };
 
   const up = (ev: PointerEvent) => {
     done();
     if (!active || !last) {
       useArrangementUi.getState().setPreview(null);
-      if (wasSelected) {
+      if (wasSelected && !opts.keepSelection) {
         if (selectMode === "replace") itemSelection.getState().select("clip", [clip.id], "replace");
         else if (selectMode === "toggle") itemSelection.getState().select("clip", [clip.id], "toggle");
       }
       return;
     }
     copy = mode === "move" && (ev.metaKey || ev.ctrlKey);
-    const command = mode === "move" ? moveCommand(clips, last, copy, newId) : boundsCommand(clips, last);
+    const command = mode === "move" ? moveCommand(clips, last, copy, newId, Object.values(project.clips)) : boundsCommand(clips, last);
     void sendEdit(ctx.transport, command).finally(() => useArrangementUi.getState().setPreview(null));
   };
 
@@ -119,11 +152,16 @@ export function onClipPointerDown(e: ReactPointerEvent<HTMLElement>, clip: Clip,
   };
 
   const done = () => {
+    setDragCursor(null);
     window.removeEventListener("pointermove", move);
     window.removeEventListener("pointerup", up);
     window.removeEventListener("pointercancel", cancel);
+    window.removeEventListener("keydown", key);
+    window.removeEventListener("keyup", key);
   };
   window.addEventListener("pointermove", move);
   window.addEventListener("pointerup", up);
   window.addEventListener("pointercancel", cancel);
+  window.addEventListener("keydown", key);
+  window.addEventListener("keyup", key);
 }

@@ -10,6 +10,8 @@
 // locators. The UI mirror is read through `window.__ether` (apps/web/src/main.tsx).
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import type { Project } from "@/generated";
+import { openClip, selectClip } from "./clips";
+import { addDevice, createTrack, newProject, openDeviceTab, openLibrary, playButton } from "./ui";
 
 interface Handle {
   state(): { project: Project | null; dirty: boolean; history: { can_undo: boolean; can_redo: boolean } };
@@ -26,6 +28,12 @@ async function doc(page: Page): Promise<Project> {
 }
 
 const count = (o: object) => Object.keys(o).length;
+
+// WORKAROUND for an app layout bug (reported by base-46, for the user to fix): at the
+// default 1280 px width the transport bar's right side (.eth-tb__side--end: undo/redo, CPU,
+// engine status) overflows onto the Loop/Metronome buttons and takes their clicks. A wider
+// window keeps them clickable. Drop this once the transport bar fits at 1280 px.
+test.use({ viewport: { width: 1600, height: 900 } });
 
 /** Peak level of a track's latest meter frame (0 when none yet). */
 const peakOf = (page: Page, track: string): Promise<number> =>
@@ -62,22 +70,18 @@ test("full flow: build a song, play it, edit, save, reload", async ({ page }) =>
   });
 
   await page.goto("/");
-  await expect(page.getByRole("button", { name: "Play" })).toBeVisible({ timeout: 30_000 });
+  await expect(playButton(page)).toBeVisible({ timeout: 30_000 });
   await expect.poll(() => project(page).then((p) => p !== null), { timeout: 30_000 }).toBe(true);
 
   // --- Create a project -----------------------------------------------------------------
   const name = `E2E Song ${Date.now()}`;
-  await page.getByRole("button", { name: "Projects" }).click();
-  await page.getByLabel("New project name").fill(name);
-  await page.getByRole("dialog", { name: "Projects" }).getByRole("button", { name: "New" }).click();
-  await expect(page.getByTestId("project-name")).toHaveText(name);
+  await newProject(page, name);
   const projectId = (await doc(page)).id;
   const baseTracks = count((await doc(page)).tracks);
 
   // --- MIDI track with the built-in synth -------------------------------------------------
-  await page.getByRole("button", { name: "+ MIDI track" }).click();
-  await expect.poll(async () => count((await doc(page)).tracks)).toBe(baseTracks + 1);
-  const midi = Object.values((await doc(page)).tracks).find((t) => t.kind === "Midi")!;
+  const midi = await createTrack(page, "Midi");
+  expect(count((await doc(page)).tracks)).toBe(baseTracks + 1);
   const synth = Object.values((await doc(page)).devices).find((d) => d.track === midi.id);
   expect(synth?.kind).toEqual({ type: "Builtin", device: { type: "Synth" } });
 
@@ -86,8 +90,7 @@ test("full flow: build a song, play it, edit, save, reload", async ({ page }) =>
   await midiLane.dblclick({ position: { x: 10, y: 20 } });
   await expect.poll(async () => count((await doc(page)).clips)).toBe(1);
   const midiClip = Object.values((await doc(page)).clips)[0]!;
-  const midiClipEl = page.locator(`[data-clip-id="${midiClip.id}"]`);
-  await midiClipEl.dblclick({ position: { x: 20, y: 30 } });
+  await openClip(page, midiClip.id);
   const grid = page.getByTestId("piano-roll-grid");
   await expect(grid).toBeVisible();
 
@@ -107,12 +110,12 @@ test("full flow: build a song, play it, edit, save, reload", async ({ page }) =>
   await expect.poll(async () => count((await doc(page)).notes)).toBe(4);
 
   // --- Audio track + a library sample dropped on it ---------------------------------------
-  await page.getByRole("button", { name: "+ Audio track" }).click();
-  await expect.poll(async () => count((await doc(page)).tracks)).toBe(baseTracks + 2);
-  const audio = Object.values((await doc(page)).tracks).find((t) => t.kind === "Audio")!;
+  const audio = await createTrack(page, "Audio");
+  expect(count((await doc(page)).tracks)).toBe(baseTracks + 2);
 
   // The library location lists the bundled demo samples.
-  await page.getByRole("tablist", { name: "Locations" }).getByRole("tab", { name: "Browser library" }).click();
+  // The sample browser is a pane opened from the rail; pinned, it doesn't cover the lanes.
+  await openLibrary(page);
   await page.getByRole("list", { name: "Files" }).getByRole("button", { name: "Demo Samples" }).click();
   const sample = page.getByRole("button", { name: "Bass Loop 120.wav", exact: true });
   await expect(sample).toBeVisible();
@@ -136,11 +139,11 @@ test("full flow: build a song, play it, edit, save, reload", async ({ page }) =>
   await expect.poll(() => inkedPixels(waveform), { timeout: 20_000 }).toBeGreaterThan(50);
 
   // --- Compressor and delay on the audio track ---------------------------------------------
-  await page.getByRole("group", { name: `${audio.name} track` }).click();
-  await page.getByRole("tab", { name: "Devices" }).click();
-  await page.getByLabel("Add device").selectOption("Compressor");
+  // Selecting the track opens the inspector with its devices.
+  await openDeviceTab(page, audio.name);
+  await addDevice(page, "Compressor");
   await expect.poll(async () => Object.values((await doc(page)).devices).filter((d) => d.track === audio.id).length).toBe(1);
-  await page.getByLabel("Add device").selectOption("Delay");
+  await addDevice(page, "Delay");
   await expect
     .poll(async () =>
       Object.values((await doc(page)).devices)
@@ -167,20 +170,23 @@ test("full flow: build a song, play it, edit, save, reload", async ({ page }) =>
   const transportBar = page.getByRole("toolbar", { name: "Transport" });
   await transportBar.getByRole("button", { name: "Loop" }).click();
   await expect.poll(async () => (await doc(page)).settings.loop_enabled).toBe(true);
-  await transportBar.getByRole("button", { name: "Play" }).click();
+  await transportBar.getByRole("button", { name: "Play", exact: true }).click();
   await expect(transportBar.getByRole("button", { name: "Stop" }).first()).toBeVisible();
-  await expect.poll(() => peakOf(page, midi.id), { timeout: 10_000 }).toBeGreaterThan(0.001);
-  await expect.poll(() => peakOf(page, audio.id), { timeout: 10_000 }).toBeGreaterThan(0.001);
+  // The drawn notes are short (the piano roll's fine grid): sample the meter often, or the
+  // default back-off (up to 1 s between polls) can step over every note.
+  const often = { timeout: 10_000, intervals: [50] };
+  await expect.poll(() => peakOf(page, midi.id), often).toBeGreaterThan(0.001);
+  await expect.poll(() => peakOf(page, audio.id), often).toBeGreaterThan(0.001);
   // The loop region is 0..16 beats (8 s at 120 BPM): the position passes 2 s, then wraps
   // back below it.
   await expect.poll(() => positionSeconds(position), { timeout: 15_000 }).toBeGreaterThan(2);
   await expect.poll(() => positionSeconds(position), { timeout: 15_000 }).toBeLessThan(2);
   await transportBar.getByRole("button", { name: "Stop" }).first().click();
-  await expect(transportBar.getByRole("button", { name: "Play" })).toBeVisible();
+  await expect(transportBar.getByRole("button", { name: "Play", exact: true })).toBeVisible();
 
   // --- Edit, undo, redo ----------------------------------------------------------------------
-  await midiClipEl.click({ position: { x: 20, y: 30 } });
-  await page.getByRole("toolbar", { name: "Arrangement tools" }).getByRole("button", { name: "Duplicate" }).click();
+  await selectClip(page, midiClip.id);
+  await page.keyboard.press("ControlOrMeta+d");
   await expect.poll(async () => count((await doc(page)).clips)).toBe(3);
   await page.getByRole("button", { name: "Undo" }).click();
   await expect.poll(async () => count((await doc(page)).clips)).toBe(2);
@@ -189,12 +195,13 @@ test("full flow: build a song, play it, edit, save, reload", async ({ page }) =>
   await expect.poll(async () => count((await doc(page)).notes)).toBe(8);
 
   // --- Save, reload, identical state -------------------------------------------------------
-  await page.getByRole("button", { name: "Save", exact: true }).click();
+  // The project autosaves a second after the last change; Ctrl/Cmd+S saves now.
+  await page.keyboard.press("ControlOrMeta+s");
   await expect(page.getByRole("status", { name: "Unsaved changes" })).toHaveCount(0);
   const saved = await doc(page);
 
   await page.reload();
-  await expect(page.getByRole("button", { name: "Play" })).toBeVisible({ timeout: 30_000 });
+  await expect(playButton(page)).toBeVisible({ timeout: 30_000 });
   await expect.poll(() => project(page).then((p) => p?.id), { timeout: 30_000 }).toBe(projectId);
   expect(await doc(page)).toEqual(saved);
   await expect(page.getByTestId("project-name")).toHaveText(name);

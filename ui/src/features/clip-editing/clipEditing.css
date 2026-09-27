@@ -1,0 +1,142 @@
+/* Clip editing: fade overlay + handles on audio clips, reversed badge, marker lane.
+   Tokens only (docs/DESIGN-SYSTEM.md). */
+
+/* ─── Fades (inside the clip body zone) ─────────────────────────────────────────────── */
+
+.eth-clip-fades {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.eth-clip-fades__svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.eth-clip-fades__shade {
+  fill: var(--eth-color-backdrop);
+}
+
+.eth-clip-fades__line {
+  fill: none;
+  stroke: var(--eth-color-text);
+  stroke-width: var(--eth-border-width);
+  vector-effect: non-scaling-stroke;
+}
+
+.eth-clip-fades__handle,
+.eth-clip-fades__curve {
+  position: absolute;
+  width: var(--eth-space-sm);
+  height: var(--eth-space-sm);
+  transform: translateX(-50%);
+  box-sizing: border-box;
+  background: var(--eth-color-text);
+  border: var(--eth-border-width) solid var(--eth-color-bg);
+  pointer-events: auto;
+  z-index: 1;
+  opacity: 0;
+  transition: opacity var(--eth-duration-fast) var(--eth-ease-standard);
+}
+
+.eth-clip-fades__handle {
+  top: 0;
+  cursor: ew-resize;
+}
+
+.eth-clip-fades__curve {
+  border-radius: var(--eth-radius-round);
+  transform: translate(-50%, -50%);
+  cursor: ns-resize;
+}
+
+/* Handles show on hover of the clip (or while its fades are set). */
+.eth-clip:hover .eth-clip-fades__handle,
+.eth-clip:hover .eth-clip-fades__curve,
+.eth-clip--selected .eth-clip-fades__handle,
+.eth-clip--selected .eth-clip-fades__curve {
+  opacity: 1;
+}
+
+/* ─── Reversed badge (clip title) ───────────────────────────────────────────────────── */
+
+.eth-clip-reversed {
+  --badge-font-size: var(--eth-fs-xs);
+  display: inline-flex;
+  margin-right: var(--eth-space-xs);
+  vertical-align: top;
+}
+
+.eth-clip-reversed .eth-badge {
+  height: auto;
+  padding: 0 var(--eth-space-xs);
+}
+
+/* ─── Marker lane ───────────────────────────────────────────────────────────────────── */
+
+.eth-markers {
+  display: flex;
+  height: var(--eth-size-row-height-sm);
+  border-bottom: var(--eth-border-width) solid var(--eth-color-border);
+  background: var(--eth-color-bg-inset);
+  user-select: none;
+}
+
+.eth-markers__corner {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--eth-space-xs);
+  box-sizing: border-box;
+  padding: 0 var(--eth-space-sm);
+  font-size: var(--eth-fs-xs);
+  color: var(--eth-color-text-dim);
+  border-right: var(--eth-border-width) solid var(--eth-color-border);
+}
+
+.eth-markers__lane {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  cursor: copy;
+}
+
+.eth-markers__marker {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  max-width: var(--eth-size-sidebar-min-width);
+  padding: 0 var(--eth-space-xs);
+  border-left: var(--eth-border-width-strong) solid var(--eth-marker-color, var(--eth-color-warn));
+  background: color-mix(in srgb, var(--eth-marker-color, var(--eth-color-warn)) 25%, var(--eth-color-bg-inset));
+  color: var(--eth-color-text);
+  font-size: var(--eth-fs-xs);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: grab;
+}
+
+.eth-markers__marker:hover {
+  background: color-mix(in srgb, var(--eth-marker-color, var(--eth-color-warn)) 45%, var(--eth-color-bg-inset));
+}
+
+.eth-markers__marker--dragging {
+  cursor: grabbing;
+  z-index: 1;
+}
+
+.eth-markers__rename {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 2;
+}

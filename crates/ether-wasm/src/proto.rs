@@ -2,9 +2,11 @@
 //!
 //! - Worker → Worklet: [`EngineMsg`]. Plain-data engine calls (the `EngineBridge` surface),
 //!   each encoded into one or more ring frames and decoded on the Worklet as [`Frame`]s.
-//!   Everything is JSON (tag `b'J'`) except decoded media: raw `f32` split into bounded
-//!   chunks (`MediaBegin`, `MediaChunk`s, `MediaEnd`; see [`MediaAssembler`]), so no single
-//!   frame makes the audio thread convert or buffer a whole file.
+//!   Graph snapshots (`Publish`) use the binary [`BinaryCodec`] (tag `b'G'`): the Worklet
+//!   decodes them on the audio thread, so no JSON parsing there. Decoded media is raw `f32`
+//!   split into bounded chunks (`MediaBegin`, `MediaChunk`s, `MediaEnd`; see
+//!   [`MediaAssembler`]), so no single frame makes the audio thread convert or buffer a whole
+//!   file. The remaining small messages are JSON (tag `b'J'`).
 //! - Worklet → Worker: [`EngineReport`] (playhead, max-held meters, diagnostics; compact
 //!   binary encoded into a reused buffer so the audio thread doesn't allocate) and
 //!   [`REPORT_ERROR`] text messages (compile errors etc.).
@@ -12,6 +14,7 @@
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
+use ether_core::codec::{BinaryCodec, CodecError, GraphCodec};
 use ether_core::protocol::meters::TrackMeter;
 use ether_core::protocol::model::{BuiltinDevice, MediaId, ParamId, TrackId, Ulid};
 use ether_core::{NodeKey, ParamChange, PlayheadState, RenderGraphDesc, TransportControl};
@@ -19,11 +22,18 @@ use ether_media::DecodedAudio;
 use serde::{Deserialize, Serialize};
 
 const TAG_JSON: u8 = b'J';
+/// `[G][BinaryCodec encoding]`: a `Publish`.
+const TAG_GRAPH: u8 = b'G';
+/// Initial capacity of a graph frame (Worker side; grows as needed).
+const GRAPH_FRAME_RESERVE: usize = 64 * 1024;
 const TAG_MEDIA_BEGIN: u8 = b'B';
 const TAG_MEDIA_CHUNK: u8 = b'C';
 const TAG_MEDIA_END: u8 = b'D';
 /// Samples per media chunk frame (64 KiB of `f32`).
 pub const MEDIA_CHUNK_SAMPLES: usize = 16 * 1024;
+/// `media-preview`: the reserved media id preview audio is shipped under (the ordinary
+/// `LoadMedia` chunk path), then played by [`EngineMsg::Preview`]. Never a project media.
+pub const PREVIEW_MEDIA: MediaId = MediaId(Ulid(u128::MAX));
 
 /// One engine call, Worker → Worklet. Node keys are *virtual*: allocated by the Worker
 /// (it must answer `create_builtin` synchronously) and mapped to real engine keys by the
@@ -55,6 +65,13 @@ pub enum EngineMsg {
     Transport {
         control: TransportControl,
     },
+    /// `media-preview`: play the audio loaded as `media` (always [`PREVIEW_MEDIA`]) on the
+    /// preview voice as preview `id` at `gain`; `media: None` stops the preview.
+    Preview {
+        id: u64,
+        media: Option<MediaId>,
+        gain: f32,
+    },
 }
 
 /// The JSON-encoded subset of [`EngineMsg`].
@@ -71,14 +88,16 @@ enum JsonMsg {
     UnloadMedia {
         media: MediaId,
     },
-    Publish {
-        graph: Box<RenderGraphDesc>,
-    },
     SetParam {
         change: ParamChange,
     },
     Transport {
         control: TransportControl,
+    },
+    Preview {
+        media: Option<MediaId>,
+        gain: f32,
+        id: u64,
     },
 }
 
@@ -92,13 +111,25 @@ pub enum DecodeError {
     Truncated,
     #[error("json: {0}")]
     Json(String),
+    #[error("graph: {0}")]
+    Graph(#[from] CodecError),
 }
 
 impl EngineMsg {
     /// Encode into ring frames: one, or `MediaBegin` + chunks + `MediaEnd` for media.
     pub fn encode(&self) -> Vec<Vec<u8>> {
+        match self {
+            EngineMsg::LoadMedia { media, audio } => return encode_media(*media, audio),
+            EngineMsg::Publish { graph } => {
+                let mut out = Vec::with_capacity(GRAPH_FRAME_RESERVE);
+                out.push(TAG_GRAPH);
+                BinaryCodec.encode(graph, &mut out);
+                return vec![out];
+            }
+            _ => {}
+        }
         let json = match self.clone() {
-            EngineMsg::LoadMedia { media, audio } => return encode_media(media, &audio),
+            EngineMsg::LoadMedia { .. } | EngineMsg::Publish { .. } => unreachable!(),
             EngineMsg::CreateBuiltin {
                 key,
                 device,
@@ -110,9 +141,9 @@ impl EngineMsg {
             },
             EngineMsg::DestroyNode { key } => JsonMsg::DestroyNode { key },
             EngineMsg::UnloadMedia { media } => JsonMsg::UnloadMedia { media },
-            EngineMsg::Publish { graph } => JsonMsg::Publish { graph },
             EngineMsg::SetParam { change } => JsonMsg::SetParam { change },
             EngineMsg::Transport { control } => JsonMsg::Transport { control },
+            EngineMsg::Preview { id, media, gain } => JsonMsg::Preview { media, gain, id },
         };
         let mut out = vec![TAG_JSON];
         serde_json::to_writer(&mut out, &json).expect("engine messages serialize");
@@ -169,6 +200,9 @@ impl<'a> Frame<'a> {
                 })
             }
             TAG_MEDIA_END => Ok(Frame::MediaEnd { media: c.media()? }),
+            TAG_GRAPH => Ok(Frame::Msg(EngineMsg::Publish {
+                graph: Box::new(BinaryCodec.decode(rest)?),
+            })),
             TAG_JSON => {
                 let msg: JsonMsg =
                     serde_json::from_slice(rest).map_err(|e| DecodeError::Json(e.to_string()))?;
@@ -184,9 +218,9 @@ impl<'a> Frame<'a> {
                     },
                     JsonMsg::DestroyNode { key } => EngineMsg::DestroyNode { key },
                     JsonMsg::UnloadMedia { media } => EngineMsg::UnloadMedia { media },
-                    JsonMsg::Publish { graph } => EngineMsg::Publish { graph },
                     JsonMsg::SetParam { change } => EngineMsg::SetParam { change },
                     JsonMsg::Transport { control } => EngineMsg::Transport { control },
+                    JsonMsg::Preview { media, gain, id } => EngineMsg::Preview { id, media, gain },
                 }))
             }
             t => Err(DecodeError::Tag(t)),
@@ -331,12 +365,16 @@ pub struct EngineReport {
     pub underruns: u32,
     /// Blocks rendered since the Worklet started (diagnostics / liveness).
     pub blocks: u64,
+    /// `media-preview`: id of the latest preview that played to its natural end since the
+    /// last delivered report (`EngineOutputs::preview_ended`).
+    pub preview_ended: Option<u64>,
 }
 
 // [R][flags u8][position f64][seconds f64][bpm f64][sample_time u64][blocks u64]
-// [underruns u32][count u16] then per meter: [track u128 LE][peak f32 x2][rms f32 x2][clipped u8]
+// [preview_ended u64, 0 = none][underruns u32][count u16]
+// then per meter: [track u128 LE][peak f32 x2][rms f32 x2][clipped u8]
 const METER_BYTES: usize = 16 + 16 + 1;
-const REPORT_FIXED: usize = 1 + 1 + 8 * 5 + 4 + 2;
+const REPORT_FIXED: usize = 1 + 1 + 8 * 6 + 4 + 2;
 
 impl EngineReport {
     /// Encoded size (to pre-size buffers).
@@ -355,6 +393,7 @@ impl EngineReport {
         out.extend_from_slice(&p.bpm.to_le_bytes());
         out.extend_from_slice(&p.sample_time.to_le_bytes());
         out.extend_from_slice(&self.blocks.to_le_bytes());
+        out.extend_from_slice(&self.preview_ended.unwrap_or(0).to_le_bytes());
         out.extend_from_slice(&self.underruns.to_le_bytes());
         let n = self.meters.len().min(u16::MAX as usize);
         out.extend_from_slice(&(n as u16).to_le_bytes());
@@ -382,6 +421,7 @@ impl EngineReport {
             sample_time: c.u64()?,
         };
         let blocks = c.u64()?;
+        let preview_ended = Some(c.u64()?).filter(|&id| id != 0);
         let underruns = c.u32()?;
         let n = c.u16()? as usize;
         let mut meters = Vec::with_capacity(n);
@@ -403,6 +443,7 @@ impl EngineReport {
             event_overflow: flags & 4 != 0,
             underruns,
             blocks,
+            preview_ended,
         })
     }
 }
@@ -453,7 +494,7 @@ mod tests {
     }
 
     #[test]
-    fn json_messages_roundtrip() {
+    fn messages_roundtrip() {
         let key = NodeKey {
             index: 3,
             generation: 7,
@@ -479,13 +520,17 @@ mod tests {
                 armed: false,
                 clips: vec![],
                 automation: vec![],
+                racks: Vec::new(),
             }],
             ..Default::default()
         };
         let msgs = vec![
             EngineMsg::CreateBuiltin {
                 key,
-                device: BuiltinDevice::Sampler { sample: None },
+                device: BuiltinDevice::Sampler {
+                    sample: None,
+                    slices: Default::default(),
+                },
                 params: vec![(ParamId(1), 0.25)],
             },
             EngineMsg::DestroyNode { key },
@@ -506,10 +551,46 @@ mod tests {
                     position: Beats(3.5),
                 },
             },
+            EngineMsg::Preview {
+                id: 7,
+                media: Some(PREVIEW_MEDIA),
+                gain: 0.5,
+            },
+            EngineMsg::Preview {
+                id: 8,
+                media: None,
+                gain: 1.0,
+            },
         ];
         for m in msgs {
             assert_eq!(decode_one(&m), m);
         }
+    }
+
+    #[test]
+    fn graph_frames_are_binary_and_versioned() {
+        let msg = EngineMsg::Publish {
+            graph: Box::new(RenderGraphDesc {
+                version: 9,
+                ..Default::default()
+            }),
+        };
+        let mut frame = msg.encode().remove(0);
+        assert_eq!(frame[..2], [TAG_GRAPH, BinaryCodec::VERSION]);
+        assert_eq!(decode_one(&msg), msg);
+        frame[1] = BinaryCodec::VERSION + 1;
+        assert_eq!(
+            Frame::decode(&frame),
+            Err(DecodeError::Graph(CodecError::Version(
+                BinaryCodec::VERSION + 1
+            )))
+        );
+        frame.truncate(5);
+        frame[1] = BinaryCodec::VERSION;
+        assert!(matches!(
+            Frame::decode(&frame),
+            Err(DecodeError::Graph(CodecError::Malformed(_)))
+        ));
     }
 
     #[test]
@@ -605,6 +686,7 @@ mod tests {
             event_overflow: true,
             underruns: 3,
             blocks: 999,
+            preview_ended: Some(42),
         };
         let mut buf = Vec::with_capacity(EngineReport::encoded_len(1));
         let cap = buf.capacity();

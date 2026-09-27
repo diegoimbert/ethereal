@@ -26,19 +26,27 @@
 
 pub mod automation;
 pub mod buffer;
+pub mod codec;
 pub mod config;
 mod delay;
+mod drum_rack;
 pub mod engine;
 pub mod event;
+pub mod fades;
 pub mod graph;
 pub mod media;
 pub mod meter;
+pub mod metronome;
 mod mixer;
 pub mod node;
+pub mod offline;
+pub mod parallel;
 pub mod param;
 pub mod plugin;
-mod recording;
+pub mod preview;
+pub mod recording;
 mod sched;
+mod sidechain;
 pub mod tempo;
 pub mod transport;
 mod warp;

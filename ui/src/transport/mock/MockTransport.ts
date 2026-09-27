@@ -45,6 +45,25 @@
  * - Everything crossing the "wire" is JSON-cloned, like a real host would serialize it.
  * - On connect the mock emits, in order: `Transport`, `Recording::ArmChanged`,
  *   `Project::ListChanged`, `Project::DirtyChanged`.
+ * - **New audio clips are unwarped** (`warp.enabled = false`, Repitch), like the real
+ *   controller.
+ *
+ * ## Roadmap v2 (contracts-2) simulations (one file per feature in `./roadmap/`)
+ * - Undoable document commands: `Tempo::*` (tempo/signature CRUD; the points at beat 0
+ *   can't be removed or moved; metronome settings), `Marker::*`, `Clip::{SetFadeCurves,
+ *   SetReversed, Crossfade}` (the crossfade just extends the first clip), `Device::
+ *   SetSidechain`, `Groove::{Humanize (seeded, deterministic), SetSwing}`, quantize swing,
+ *   `DrumRack::*` (pads + pad chains), `Slice::*` (auto slicing: `Equal`/`Grid`;
+ *   `Transients` = 8 equal slices; `ToDrumRack` → `Unsupported`), `MidiMap::{Map, Edit,
+ *   Unmap}`. Deleting devices/sends/tracks cascades to MIDI mappings, drum pads and
+ *   sidechain sources like the Rust controller.
+ * - `MidiMap::Learn` arms learning (`Event::MidiMap LearnChanged`); feed input with
+ *   `simulateMidiInput(port, [status, d1, d2])` (completes a learn, or drives the mapped
+ *   target). `MidiMap::List` replies `MidiMappings`.
+ * - `Export::Render` replies `ExportStarted`, then advances one phase per playhead step
+ *   (16 ms, or `tick()` with manual timers): `Progress 0.5`, then `Progress 1` + `Done`
+ *   with `Download` results (silent 0.1 s WAV bytes, also for FLAC) readable with
+ *   `Export::ReadChunk`. `Cancel`/`Release` as specified; FLAC + Float32 is rejected.
  *
  * ## Mock limitations
  * - Tempo map is step-only (linear tempo ramps are treated as steps).
@@ -52,8 +71,10 @@
  *   volume/pan/mute, sends, group/default routing); CPU load is
  *   fake. Library files only have metadata; peaks are synthesized deterministically.
  * - Replies `Err { code: "Unsupported" }`: plugins (insert/editor/sandbox/reload),
- *   `Media::BeginUpload` and `MediaSource::Upload` (reserved for v0.2),
- *   `Recording::SetRecording`, `Warp::DetectTempo`, `Engine::SetAudioConfig`.
+ *   uploads (`Media::{BeginUpload, UploadChunk, CancelUpload}`, `MediaSource::Upload`),
+ *   `Collab::*`, `Slice::ToDrumRack`,
+ *   `Warp::DetectTempo`, `Engine::SetAudioConfig`.
+ * - `Recording::SetRecording` simulates recording with its live view (`roadmap/liveRecord.ts`).
  * - Harmless answers: `Plugin::List` → no plugins, `Plugin::Rescan` → an empty scan,
  *   `Media::Preview/StopPreview` → Unit (after validating the source),
  *   `Recording::ListInputs` / `Engine::*` → fake devices.
@@ -103,6 +124,13 @@ import { synthesizePeaks } from "./peaks";
 import { mulberry32, SEED_TIME, seededIdFactory } from "./random";
 import { beatsToSeconds, bpmAt, signatureAt } from "./tempo";
 import { changeKey, Tx } from "./tx";
+import { collabCommand } from "./roadmap/collab";
+import { MockExports } from "./roadmap/export";
+import { MockPreview } from "./roadmap/mediaPreview";
+import type { MockHost } from "./roadmap/host";
+import { MockMidiLearn } from "./roadmap/midiLearn";
+import { MockLiveRecord } from "./roadmap/liveRecord";
+import { uploadCommand, uploadSource } from "./roadmap/remote";
 
 export interface MockTransportOptions {
   /**
@@ -124,7 +152,7 @@ export interface MockTransportOptions {
 
 /** File format tag / version of `.ether` files (see `ether-model/src/file.rs`). */
 export const ETHER_FORMAT = "ethereal-project";
-export const ETHER_VERSION = 1;
+export const ETHER_VERSION = 3;
 const APP_VERSION = "0.0.1-mock";
 
 const PLAYHEAD_INTERVAL_MS = 16;
@@ -208,6 +236,32 @@ export class MockTransport implements EngineTransport {
   // Meters runtime.
   private readonly levels = new Map<TrackId, number>();
   private metersSilent = false;
+
+  // Roadmap v2 runtime simulations (`./roadmap`).
+  private readonly host: MockHost = {
+    project: () => this.project,
+    emit: (event) => this.emit(event),
+    newId: () => this.newId(),
+    applyDocument: (commands, label) => void this.applyDocument(commands, label, null),
+    execute: (command) => void this.execute(command, null),
+  };
+  private readonly midiLearn = new MockMidiLearn(this.host);
+  private readonly exports = new MockExports(this.host);
+  private readonly preview = new MockPreview(this.host);
+  private readonly liveRecord = new MockLiveRecord({
+    ...this.host,
+    position: () => this.position,
+    playing: () => this.playing,
+    armed: () => this.armed,
+    play: () => this.transportCommand({ type: "Play" }),
+    commit: (media, commands) =>
+      void this.transact("Record", null, (tx) => {
+        for (const m of media) tx.upsert("Media", m);
+        const ctx = { tx, newId: this.newId, position: this.position };
+        for (const c of commands) reduceDocumentCommand(ctx, c);
+        return UNIT;
+      }),
+  });
 
   constructor(opts: MockTransportOptions = {}) {
     this.manual = opts.timers === "manual";
@@ -344,6 +398,12 @@ export class MockTransport implements EngineTransport {
         return this.engineCommand(command.command);
       case "Warp":
         return fail("Unsupported", "tempo detection is not available in the mock engine");
+      case "Export":
+        return this.exports.command(command.command);
+      case "MidiMap":
+        return this.midiLearn.command(command.command);
+      case "Collab":
+        return collabCommand(command.command);
       default:
         return fail("InvalidArgument", `unknown command domain`);
     }
@@ -458,7 +518,7 @@ export class MockTransport implements EngineTransport {
     const s = this.project.settings;
     return {
       playing: this.playing,
-      recording: false,
+      recording: this.liveRecord.recording,
       loop_enabled: s.loop_enabled,
       loop_region: s.loop_region,
       bpm: bpmAt(this.project, this.position),
@@ -478,6 +538,7 @@ export class MockTransport implements EngineTransport {
   }
 
   private loadProject(project: Project): void {
+    this.liveRecord.abort();
     this.project = project;
     this.undoStack = [];
     this.redoStack = [];
@@ -553,10 +614,6 @@ export class MockTransport implements EngineTransport {
   }
 
   private projectCommand(c: ProjectCommand, gesture: GestureId | null): ReplyValue {
-    if (c.type === "SetScale") {
-      const command = { domain: "Project", command: c } as const;
-      return this.applyDocument([command], labelOf(command), gesture);
-    }
     switch (c.type) {
       case "List":
         return { type: "Projects", projects: this.summaries() };
@@ -617,6 +674,9 @@ export class MockTransport implements EngineTransport {
         this.store.delete(c.id);
         this.emitListChanged();
         return UNIT;
+      case "SetScale":
+        // A document edit (applied by `documentReducer`).
+        return this.applyDocument([{ domain: "Project", command: c }], "Set Scale", gesture);
     }
   }
 
@@ -668,6 +728,7 @@ export class MockTransport implements EngineTransport {
   }
 
   private stopPlaying(): void {
+    this.liveRecord.finish();
     this.playing = false;
   }
 
@@ -705,6 +766,11 @@ export class MockTransport implements EngineTransport {
         },
       };
     }
+    if (c.type === "SetRecording") {
+      const reply = this.liveRecord.set(c.enabled);
+      this.syncTransport();
+      return reply;
+    }
     return fail("Unsupported", "recording is not available in the mock engine");
   }
 
@@ -730,11 +796,13 @@ export class MockTransport implements EngineTransport {
       }
       case "Preview":
         this.checkSource(c.source);
-        return UNIT;
+        return this.preview.play(c.source);
       case "StopPreview":
-        return UNIT;
+        return this.preview.stop();
       case "BeginUpload":
-        return fail("Unsupported", "uploads are reserved for v0.2");
+      case "UploadChunk":
+      case "CancelUpload":
+        return uploadCommand(c);
     }
   }
 
@@ -759,7 +827,7 @@ export class MockTransport implements EngineTransport {
   private checkSource(source: MediaSource): MediaRef | null {
     switch (source.type) {
       case "Upload":
-        return fail("Unsupported", "uploads are reserved for v0.2");
+        return uploadSource(source.upload);
       case "Project":
         return this.project.media[source.media] ?? fail("NotFound", `media ${source.media}`);
       case "Location":
@@ -822,6 +890,15 @@ export class MockTransport implements EngineTransport {
     }
   }
 
+  /**
+   * Test/debug helper: feed one incoming MIDI short message, as a host would through
+   * `EngineBridge::poll_midi_input`. Completes a pending learn, else drives the mapped target
+   * (see `roadmap/midiLearn.ts`).
+   */
+  simulateMidiInput(port: string, data: [number, number, number]): void {
+    this.midiLearn.input(port, data);
+  }
+
   // ─── Time ─────────────────────────────────────────────────────────────────────────────
 
   private now(): number {
@@ -845,6 +922,9 @@ export class MockTransport implements EngineTransport {
       this.syncTransport(); // tempo/signature at the playhead may change
     }
     if (this.playing || this.playheadDirty) this.emitPlayhead();
+    this.exports.step();
+    this.preview.step();
+    this.liveRecord.step();
   }
 
   private emitPlayhead(): void {
@@ -949,7 +1029,22 @@ export function parseEtherFile(json: string): Project {
     return fail("Decode", `unsupported project version ${String(file.version)}`);
   }
   const p = file.project;
-  const tables = ["tracks", "clips", "notes", "devices", "sends", "automation_lanes", "automation_points", "tempo_points", "time_signatures", "warp_markers", "media"] as const;
+  const tables = [
+    "tracks",
+    "clips",
+    "notes",
+    "devices",
+    "sends",
+    "automation_lanes",
+    "automation_points",
+    "tempo_points",
+    "time_signatures",
+    "warp_markers",
+    "media",
+    "markers",
+    "midi_mappings",
+    "drum_pads",
+  ] as const;
   if (!p || typeof p !== "object" || !p.settings || tables.some((t) => typeof p[t] !== "object" || p[t] === null)) {
     return fail("Decode", "malformed project");
   }

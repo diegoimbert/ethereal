@@ -358,6 +358,7 @@ impl PluginController for ClapPlugin {
             audio_inputs: io.0,
             audio_outputs: io.1,
             midi_input: io.2,
+            sidechain_inputs: 0,
         }
     }
 
@@ -452,6 +453,10 @@ impl PluginController for ClapPlugin {
     fn param_value(&mut self, param: ParamId) -> Option<f64> {
         let ext = self.exts().params?;
         ext.get_value(&self.instance.plugin_handle(), ClapId::new(param.0))
+    }
+
+    fn set_param_value(&mut self, param: ParamId, value: f64) -> Result<(), PluginError> {
+        ClapPlugin::set_param_value(self, param, value)
     }
 
     fn has_editor(&self) -> bool {

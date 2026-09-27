@@ -1,12 +1,14 @@
 /** Piano-roll layout: pitch rows (127 at the top) and note rectangles in grid-local px. */
 
-import type { Note } from "@/generated";
-import type { MusicalScale } from "@/generated";
+import type { MusicalScale, Note } from "@/generated";
 import { CHROMATIC_SCALE, getPitchClass, isNoteInScale, ROOT_NOTES } from "@/domain/scales";
 import { beatsToPx, type Rect, type TimelineViewport } from "@/timeline";
 
 export const PITCHES = 128;
 export const DEFAULT_KEY_HEIGHT = 12;
+/** Key height range of the vertical zoom (cmd/ctrl + shift + wheel). */
+export const MIN_KEY_HEIGHT = 5;
+export const MAX_KEY_HEIGHT = 40;
 export const KEYBOARD_WIDTH = 64;
 export const VELOCITY_LANE_HEIGHT = 72;
 /** Width of the resize zone at each end of a note (shrinks on short notes). */
@@ -30,6 +32,8 @@ export const ALL_PITCH_ROWS = createPitchRows();
 
 /** Nearest visible row, also used to preserve the viewport when folding rows. */
 export function pitchRow(pitch: number, rows: readonly number[]): number {
+  // Unfolded rows: direct mapping (the common case, called per note on every render).
+  if (rows.length === PITCHES) return Math.min(PITCHES - 1, Math.max(0, PITCHES - 1 - Math.round(pitch)));
   let nearest = 0;
   for (let i = 1; i < rows.length; i++) {
     if (Math.abs(rows[i]! - pitch) < Math.abs(rows[nearest]! - pitch)) nearest = i;
@@ -38,7 +42,16 @@ export function pitchRow(pitch: number, rows: readonly number[]): number {
 }
 export const pitchToY = (pitch: number, keyH: number, rows = ALL_PITCH_ROWS): number => pitchRow(pitch, rows) * keyH;
 
-/** Pitch of the row at `y` (clamped to 0..127). */
+/**
+ * Pitch change for a vertical note drag of `dy` px from `pitch`, counted in visible rows: with
+ * folded rows the note moves between the displayed pitches (clamped to the first/last row).
+ */
+export function rowPitchDelta(pitch: number, dy: number, keyH: number, rows: readonly number[] = ALL_PITCH_ROWS): number {
+  const row = pitchRow(pitch, rows) + Math.round(dy / keyH);
+  return rows[Math.min(rows.length - 1, Math.max(0, row))]! - pitch;
+}
+
+/** Pitch of the row at `y` (clamped to the first/last visible row). */
 export function yToPitch(y: number, keyH: number, rows = ALL_PITCH_ROWS): number {
   return rows[Math.min(rows.length - 1, Math.max(0, Math.floor(y / keyH)))]!;
 }

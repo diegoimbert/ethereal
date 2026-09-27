@@ -129,3 +129,58 @@ fn binary_scan_all_and_paths_modes() {
     let paths: Vec<PathBuf> = serde_json::from_slice(&out.stdout).unwrap();
     assert_eq!(paths.first(), Some(&dir));
 }
+
+#[test]
+fn dispatches_by_format() {
+    use ether_plugin_host::ScanTarget;
+
+    let dir = testing::temp_dir("scan-formats");
+    // VST3: an empty bundle folder is recognized by extension and fails cleanly (stub:
+    // "unsupported"; real host: no module binary / not found). Real coverage: tests/vst3.rs.
+    let vst3 = dir.join("Stub.vst3");
+    std::fs::create_dir_all(vst3.join("Contents")).unwrap();
+    let err = runner().scan_bundle(&vst3).unwrap_err();
+    let lower = err.to_lowercase();
+    assert!(
+        lower.contains("unsupported") || lower.contains("not found") || lower.contains("no module"),
+        "{err}"
+    );
+
+    // AU: a nonexistent component id with an explicit format fails cleanly (stub or off-macOS:
+    // "unsupported"; real host: not found). Real coverage: tests/au.rs.
+    let err = runner()
+        .scan_target(&ScanTarget {
+            format: PluginFormat::Au,
+            path: "aufx:zzzz:zzzz".into(),
+        })
+        .unwrap_err();
+    let lower = err.to_lowercase();
+    assert!(
+        lower.contains("unsupported") || lower.contains("not found"),
+        "{err}"
+    );
+
+    // Unknown extension, no format: not claimed by any format.
+    let other = dir.join("Thing.vst");
+    std::fs::write(&other, b"").unwrap();
+    let err = runner().scan_bundle(&other).unwrap_err();
+    assert!(err.contains("not a plugin bundle"), "{err}");
+
+    // --scan-all finds CLAP and VST3 bundles; the VST3 one fails (stub) without affecting
+    // the CLAP one.
+    let ok = testing::make_bundle(&dir, "EtherFormatsOk");
+    let out = Command::new(SCANNER)
+        .arg("--scan-all")
+        .arg(&dir)
+        .stderr(Stdio::null())
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let v: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    let plugins: Vec<PluginDescriptor> = serde_json::from_value(v["plugins"].clone()).unwrap();
+    let failed: Vec<ScanFailure> = serde_json::from_value(v["failed"].clone()).unwrap();
+    assert_eq!(plugins.len(), 1);
+    check_descriptor(&plugins[0], &ok);
+    assert_eq!(failed.len(), 1);
+    assert_eq!(failed[0].path, vst3.to_string_lossy());
+}

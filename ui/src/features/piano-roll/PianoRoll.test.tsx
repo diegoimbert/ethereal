@@ -1,11 +1,12 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Command, Note } from "@/generated";
-import { useEditorStore, useProjectStore } from "@/state";
-import { itemSelection } from "@/timeline";
+import { playheadStore, useEditorStore, useProjectStore } from "@/state";
+import { itemSelection, wheelZoomFactor } from "@/timeline";
 import { cmd, MockTransport, TransportProvider } from "@/transport";
-import { DEFAULT_KEY_HEIGHT as KEY_H } from "./geometry";
+import { DEFAULT_KEY_HEIGHT as KEY_H, MAX_KEY_HEIGHT } from "./geometry";
 import { PianoRoll } from "./index";
+import { pickOption } from "@/kit/testing";
 
 // The piano roll's own view starts at 40 px/beat, scrolled to 0. jsdom has no layout: the
 // grid's box is at (0, 0), so client coordinates are grid-local px. Notes report their
@@ -76,7 +77,7 @@ async function setup(opts: { open?: boolean } = {}) {
   );
   if (opts.open !== false) act(() => useEditorStore.getState().openClip(clip));
   // Fixed 1/4 grid for deterministic snapping.
-  if (opts.open !== false) fireEvent.change(screen.getByLabelText("Grid"), { target: { value: "5" } });
+  if (opts.open !== false) pickOption(screen.getByRole("combobox", { name: "Grid" }), { value: "5" });
   return { clip, a: "01PIANOROLLNOTEA0000000000", b: "01PIANOROLLNOTEB0000000000" };
 }
 
@@ -99,30 +100,59 @@ async function drag(el: Element, from: [number, number], to: [number, number], i
 const undo = () => send(cmd("Edit", { type: "Undo" }));
 
 describe("PianoRoll", () => {
+  /** A control of the scale popover (opens it first if needed). */
+  function scaleControl(label: string): HTMLElement {
+    const trigger = screen.getByTestId("scale-trigger");
+    if (trigger.getAttribute("aria-expanded") !== "true") fireEvent.click(trigger);
+    // Not a Select's list (it shares the Select's label while it animates out).
+    return screen.getAllByLabelText(label).find((el) => el.getAttribute("role") !== "listbox")!;
+  }
+  const pickScale = async (label: string, value: string) => {
+    pickOption(scaleControl(label), { value });
+    await flush();
+  };
+  /** C minor with "Scale notes only" on: rows are the scale's pitches, 127 down to 0. */
+  async function foldToCMinor() {
+    await send(cmd("Project", { type: "SetScale", scale: { root: 0, kind: "Minor" } }));
+    fireEvent.click(scaleControl("Scale notes only"));
+    await flush();
+  }
+  const keys = () => [...document.querySelectorAll<HTMLElement>(".eth-pr-key")];
+  /** Center of `pitch`'s row with folded rows (from the rendered keys). */
+  const foldedY = (pitch: number) => keys().findIndex((key) => key.dataset.pitch === String(pitch)) * KEY_H + KEY_H / 2;
+
   it("edits project and custom track scales independently and can undo them", async () => {
     const { clip } = await setup();
     const track = store().project!.clips[clip]!.track;
-    expect(screen.getByLabelText("Active scale type")).toHaveValue("Chromatic");
-    fireEvent.change(screen.getByLabelText("Active scale type"), { target: { value: "Minor" } });
-    await flush();
+    expect(screen.getByTestId("scale-trigger")).toHaveTextContent("Scale…");
+    expect(scaleControl("Active scale type")).toHaveTextContent("Chromatic / None");
+    await pickScale("Active scale type", "Minor");
     expect(store().project!.settings.scale).toEqual({ root: 0, kind: "Minor" });
-    expect(screen.getByText("· Project")).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText("Track scale mode"), { target: { value: "Custom" } });
-    await flush();
-    fireEvent.change(screen.getByLabelText("Active scale root"), { target: { value: "9" } });
-    await flush();
+    expect(screen.getByTestId("scale-trigger")).toHaveTextContent("C Minor…");
+    expect(screen.getByTestId("scale-popover")).toHaveTextContent("Project");
+    await pickScale("Track scale mode", "Custom");
+    await pickScale("Active scale root", "9");
     expect(store().project!.tracks[track]!.scale).toEqual({ type: "Custom", scale: { root: 9, kind: "Minor" } });
     await send(cmd("Project", { type: "SetScale", scale: { root: 2, kind: "Major" } }));
-    expect(screen.getByLabelText("Active scale root")).toHaveValue("9");
-    fireEvent.change(screen.getByLabelText("Track scale mode"), { target: { value: "FollowProject" } });
-    await flush();
-    expect(screen.getByLabelText("Active scale root")).toHaveValue("2");
+    expect(scaleControl("Active scale root")).toHaveTextContent("A");
+    await pickScale("Track scale mode", "FollowProject");
+    expect(scaleControl("Active scale root")).toHaveTextContent("D");
     await undo();
-    expect(screen.getByLabelText("Active scale root")).toHaveValue("9");
-    fireEvent.change(screen.getByLabelText("Track scale mode"), { target: { value: "Chromatic" } });
+    expect(scaleControl("Active scale root")).toHaveTextContent("A");
+    await pickScale("Track scale mode", "Chromatic");
+    expect(scaleControl("Active scale type")).toHaveTextContent("Chromatic / None");
+    expect(scaleControl("Active scale type")).toBeDisabled();
+  });
+
+  it("keeps highlight and folding as local view state (no document edit)", async () => {
+    await setup();
+    await send(cmd("Project", { type: "SetScale", scale: { root: 0, kind: "Minor" } }));
+    const before = store().project!;
+    fireEvent.click(scaleControl("Highlight"));
+    fireEvent.click(scaleControl("Scale notes only"));
     await flush();
-    expect(screen.getByLabelText("Active scale type")).toHaveValue("Chromatic");
-    expect(screen.getByLabelText("Active scale type")).toBeDisabled();
+    expect(store().project).toBe(before);
+    expect(screen.getByTestId("scale-trigger")).toHaveAttribute("aria-pressed", "true");
   });
 
   it("highlights roots, dims outside notes and still accepts any pitch", async () => {
@@ -131,51 +161,77 @@ describe("PianoRoll", () => {
     expect(noteEl(a)).toHaveAttribute("data-scale-tone", "root");
     expect(noteEl(b)).toHaveAttribute("data-scale-tone", "out");
     expect(document.querySelector('.eth-pr-key[data-pitch="63"]')).toHaveAttribute("data-scale-tone", "in");
-    fireEvent.doubleClick(grid(), { clientX: x(4), clientY: y(61) });
-    await flush();
+    await doublePress(x(4), y(61));
     expect(notesOf(clip).some((n) => n.pitch === 61)).toBe(true);
-    fireEvent.click(screen.getByLabelText("Highlight"));
+    fireEvent.click(scaleControl("Highlight"));
     expect(noteEl(a)).not.toHaveAttribute("data-scale-tone");
     expect(noteEl(b)).not.toHaveAttribute("data-scale-tone");
   });
 
   it("folds keys and notes together, draws and drags at the displayed pitches, and restores hidden notes", async () => {
     const { clip, a, b } = await setup();
-    await send(cmd("Project", { type: "SetScale", scale: { root: 0, kind: "Minor" } }));
-    fireEvent.click(screen.getByLabelText("Scale notes only"));
-    const keys = () => [...document.querySelectorAll<HTMLElement>(".eth-pr-key")];
-    const foldedY = (pitch: number) => keys().findIndex((key) => key.dataset.pitch === String(pitch)) * KEY_H + KEY_H / 2;
+    await foldToCMinor();
     expect(keys().length).toBeLessThan(128);
     expect(document.querySelector('.eth-pr-key[data-pitch="64"]')).toBeNull();
     expect(noteEl(b)).toBeNull();
     expect(notesOf(clip)).toHaveLength(2);
     expect((noteEl(a) as HTMLElement).style.top).toBe(`${foldedY(60) - KEY_H / 2}px`);
-    fireEvent.doubleClick(grid(), { clientX: x(4), clientY: foldedY(63) });
-    await flush();
+    await doublePress(x(4), foldedY(63));
     expect(notesOf(clip).some((n) => n.pitch === 63 && n.start === 4)).toBe(true);
     await drag(noteEl(a), [x(1.5), foldedY(60)], [x(1.5), foldedY(62)]);
     expect(notesOf(clip).find((n) => n.id === a)!.pitch).toBe(62);
     await undo();
     expect(notesOf(clip).find((n) => n.id === a)!.pitch).toBe(60);
-    fireEvent.click(screen.getByLabelText("Scale notes only"));
+    fireEvent.click(scaleControl("Scale notes only"));
     expect(keys()).toHaveLength(128);
     expect(noteEl(b)).toBeInTheDocument();
     expect(notesOf(clip).find((n) => n.id === b)!.pitch).toBe(64);
   });
 
+  it("cmd-drag copies to the displayed row when folded; one row up is the next scale pitch", async () => {
+    const { clip, a } = await setup();
+    await foldToCMinor();
+    act(() => itemSelection.getState().select("note", [a], "replace"));
+    // One folded row up from C (60) is D (62), two semitones.
+    await drag(noteEl(a), [x(1.5), foldedY(60)], [x(3.5), foldedY(60) - KEY_H], { metaKey: true });
+    const all = notesOf(clip);
+    expect(all.find((n) => n.id === a)).toMatchObject({ start: 1, pitch: 60 });
+    const copy = all.find((n) => n.id !== a && n.pitch !== 64)!;
+    expect(copy).toMatchObject({ start: 3, pitch: 62 });
+    expect([...itemSelection.getState().selected.note]).toEqual([copy.id]);
+    await undo();
+    expect(notesOf(clip)).toHaveLength(2);
+  });
+
+  it("maps drags to chromatic rows again once unfolded", async () => {
+    const { clip, a } = await setup();
+    await foldToCMinor();
+    fireEvent.click(scaleControl("Scale notes only"));
+    await flush();
+    await drag(noteEl(a), [x(1.5), y(60)], [x(1.5), y(61)]);
+    expect(notesOf(clip).find((n) => n.id === a)!.pitch).toBe(61);
+  });
+
+  it("clicking a folded key selects the notes on that pitch", async () => {
+    const { a } = await setup();
+    await foldToCMinor();
+    fireEvent.pointerDown(document.querySelector('.eth-pr-key[data-pitch="60"]')!, { button: 0 });
+    expect([...itemSelection.getState().selected.note]).toEqual([a]);
+  });
+
   it("does not interpret scale selector keys as note-edit shortcuts", async () => {
     const { clip, a } = await setup();
     act(() => itemSelection.getState().select("note", [a], "replace"));
-    fireEvent.keyDown(screen.getByLabelText("Active scale type"), { key: "Delete" });
-    fireEvent.keyDown(screen.getByLabelText("Active scale root"), { key: "ArrowUp" });
+    // Arrows on a closed Select open it (and are consumed): no transpose.
+    fireEvent.keyDown(scaleControl("Active scale root"), { key: "ArrowUp" });
+    fireEvent.keyDown(scaleControl("Track scale mode"), { key: "ArrowDown" });
     await flush();
     expect(notesOf(clip).find((n) => n.id === a)!.pitch).toBe(60);
   });
 
   it("uses folded coordinates for marquee and resize without selecting hidden notes", async () => {
     const { clip, a, b } = await setup();
-    await send(cmd("Project", { type: "SetScale", scale: { root: 0, kind: "Minor" } }));
-    fireEvent.click(screen.getByLabelText("Scale notes only"));
+    await foldToCMinor();
     const top = parseFloat((noteEl(a) as HTMLElement).style.top);
     await drag(grid(), [x(0.5), top - 1], [x(3.5), top + KEY_H + 1]);
     expect([...itemSelection.getState().selected.note]).toEqual([a]);
@@ -186,16 +242,22 @@ describe("PianoRoll", () => {
     expect(notesOf(clip).find((n) => n.id === a)!.duration).toBe(1);
   });
 
+  it("select-all takes only the displayed notes while folded", async () => {
+    const { a } = await setup();
+    await foldToCMinor();
+    fireEvent.keyDown(screen.getByTestId("piano-roll"), { key: "a", metaKey: true });
+    expect([...itemSelection.getState().selected.note]).toEqual([a]);
+  });
+
   it("allows semitone nudges outside the scale even while rows are filtered", async () => {
     const { clip, a } = await setup();
-    await send(cmd("Project", { type: "SetScale", scale: { root: 0, kind: "Minor" } }));
-    fireEvent.click(screen.getByLabelText("Scale notes only"));
+    await foldToCMinor();
     act(() => itemSelection.getState().select("note", [a], "replace"));
     fireEvent.keyDown(screen.getByTestId("piano-roll"), { key: "ArrowUp" });
     await flush();
     expect(notesOf(clip).find((n) => n.id === a)!.pitch).toBe(61);
     expect(noteEl(a)).toBeNull();
-    fireEvent.click(screen.getByLabelText("Scale notes only"));
+    fireEvent.click(scaleControl("Scale notes only"));
     expect(noteEl(a)).toHaveAttribute("data-pitch", "61");
   });
 
@@ -222,6 +284,30 @@ describe("PianoRoll", () => {
     expect(el.style.width).toBe(`${PX}px`);
     expect(screen.getByTestId("piano-roll-keys").textContent).toContain("C3");
     expect(screen.getByTestId("piano-roll-step").textContent).toBe("1/4");
+  });
+
+  it("double-click and drag sets the new note's length", async () => {
+    const { clip } = await setup();
+    await doublePress(x(2.2), y(70), x(5.4));
+    const added = notesOf(clip).filter((n) => n.pitch === 70);
+    expect(added).toHaveLength(1);
+    expect(added[0]).toMatchObject({ start: 2, duration: 4 });
+    expect([...itemSelection.getState().selected.note]).toEqual([added[0]!.id]);
+  });
+
+  it("zooms the key height with cmd+shift+wheel, within limits", async () => {
+    const { a } = await setup();
+    const body = document.querySelector<HTMLElement>(".eth-pr__body")!;
+    act(() => {
+      fireEvent.wheel(body, { deltaY: -100, metaKey: true, shiftKey: true });
+    });
+    const k = KEY_H * wheelZoomFactor(-100);
+    expect(parseFloat((noteEl(a) as HTMLElement).style.height)).toBeCloseTo(k);
+    expect(parseFloat((noteEl(a) as HTMLElement).style.top)).toBeCloseTo((127 - 60) * k);
+    act(() => {
+      for (let i = 0; i < 20; i++) fireEvent.wheel(body, { deltaY: -200, ctrlKey: true, shiftKey: true });
+    });
+    expect((noteEl(a) as HTMLElement).style.height).toBe(`${MAX_KEY_HEIGHT}px`);
   });
 
   it("moves the selection with snapping (time and pitch) as one undo step", async () => {
@@ -254,6 +340,65 @@ describe("PianoRoll", () => {
     expect(notesOf(clip)[0]).toMatchObject({ start: 0, duration: 3 });
   });
 
+  it("cmd-drag duplicates the selection to the drop point as one undo step", async () => {
+    const { clip, a, b } = await setup();
+    act(() => itemSelection.getState().select("note", [a, b], "replace"));
+    // Drag note A's body by +2 beats and up 1 row with cmd held.
+    await drag(noteEl(a), [x(1.5), y(60)], [x(3.5), y(61)], { metaKey: true });
+    const all = notesOf(clip);
+    expect(all).toHaveLength(4);
+    expect(all.find((n) => n.id === a)).toMatchObject({ start: 1, pitch: 60 });
+    expect(all.find((n) => n.id === b)).toMatchObject({ start: 2, pitch: 64 });
+    const copies = all.filter((n) => n.id !== a && n.id !== b);
+    expect(copies.map((n) => [n.start, n.pitch])).toEqual([
+      [3, 61],
+      [4, 65],
+    ]);
+    expect(new Set(itemSelection.getState().selected.note)).toEqual(new Set(copies.map((n) => n.id)));
+    await undo();
+    expect(notesOf(clip)).toHaveLength(2);
+  });
+
+  it("pressing cmd mid-drag switches to duplicating (the original goes back); releasing it undoes that", async () => {
+    const { clip, a } = await setup();
+    act(() => itemSelection.getState().select("note", [a], "replace"));
+    fireEvent.pointerDown(noteEl(a), { button: 0, clientX: x(1.5), clientY: y(60) });
+    fireEvent.pointerMove(window, { clientX: x(3.5), clientY: y(60) });
+    await flush();
+    expect(notesOf(clip).find((n) => n.id === a)).toMatchObject({ start: 3 });
+    fireEvent.keyDown(window, { key: "Meta", metaKey: true });
+    await flush();
+    expect(notesOf(clip).find((n) => n.id === a)).toMatchObject({ start: 1, pitch: 60 });
+    expect(notesOf(clip).filter((n) => n.pitch === 60).map((n) => n.start)).toEqual([1, 3]);
+    expect(document.documentElement.style.getPropertyValue("--eth-drag-cursor")).toBe("copy");
+
+    fireEvent.keyUp(window, { key: "Meta", metaKey: false });
+    await flush();
+    expect(notesOf(clip).filter((n) => n.pitch === 60).map((n) => n.start)).toEqual([3]);
+
+    fireEvent.keyDown(window, { key: "Meta", metaKey: true });
+    fireEvent.pointerMove(window, { clientX: x(4.5), clientY: y(60), metaKey: true });
+    fireEvent.pointerUp(window, { clientX: x(4.5), clientY: y(60), metaKey: true });
+    await flush();
+    expect(notesOf(clip).filter((n) => n.pitch === 60).map((n) => n.start)).toEqual([1, 4]);
+    await undo();
+    expect(notesOf(clip).filter((n) => n.pitch === 60).map((n) => n.start)).toEqual([1]);
+  });
+
+  it("keeps the resize (or move) cursor for the whole drag", async () => {
+    const { a } = await setup();
+    const root = document.documentElement;
+    fireEvent.pointerDown(noteEl(a), { button: 0, clientX: x(2) - 1, clientY: y(60) });
+    expect(root.style.getPropertyValue("--eth-drag-cursor")).toBe("ew-resize");
+    expect(root.dataset.dragCursor).toBeDefined();
+    fireEvent.pointerUp(window, { clientX: x(2) - 1, clientY: y(60) });
+    expect(root.dataset.dragCursor).toBeUndefined();
+    fireEvent.pointerDown(noteEl(a), { button: 0, clientX: x(1.5), clientY: y(60) });
+    expect(root.style.getPropertyValue("--eth-drag-cursor")).toBe("move");
+    fireEvent.pointerUp(window, { clientX: x(1.5), clientY: y(60) });
+    await flush();
+  });
+
   it("clicking a note selects it; shift adds; clicking empty space deselects", async () => {
     const { a, b } = await setup();
     await drag(noteEl(a), [x(1.5), y(60)], [x(1.5), y(60)]);
@@ -264,6 +409,13 @@ describe("PianoRoll", () => {
     expect(itemSelection.getState().selected.note.size).toBe(0);
   });
 
+  it("a click on empty space moves the playhead there (song time, snapped)", async () => {
+    await setup();
+    // The clip starts at song beat 64; a click at content beat 4.2 snaps to 4 (1/4 grid).
+    await drag(grid(), [x(4.2), y(70)], [x(4.2), y(70)]);
+    await waitFor(() => expect(playheadStore.getPlayhead()?.transport.position).toBe(68));
+  });
+
   it("marquee-selects notes", async () => {
     const { a, b } = await setup();
     await drag(grid(), [x(0.5), y(66)], [x(1.5), y(58)]);
@@ -272,10 +424,17 @@ describe("PianoRoll", () => {
     expect(new Set(itemSelection.getState().selected.note)).toEqual(new Set([a, b]));
   });
 
+  /** Two presses at the same spot; the second one is held and dragged to `toX`. */
+  async function doublePress(atX: number, atY: number, toX = atX) {
+    fireEvent.pointerDown(grid(), { button: 0, clientX: atX, clientY: atY });
+    fireEvent.pointerUp(window, { clientX: atX, clientY: atY });
+    await flush();
+    await drag(grid(), [atX, atY], [toX, atY]);
+  }
+
   it("double-click on empty space adds a snapped note; double-click on a note deletes it", async () => {
     const { clip, a } = await setup();
-    fireEvent.doubleClick(grid(), { clientX: x(4.6), clientY: y(67) });
-    await flush();
+    await doublePress(x(4.6), y(67));
     const added = notesOf(clip).find((n) => n.pitch === 67)!;
     expect(added).toMatchObject({ start: 4.5 - 0.5, duration: 1 });
     expect([...itemSelection.getState().selected.note]).toEqual([added.id]);

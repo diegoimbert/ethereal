@@ -3,12 +3,15 @@
  * marquee. Draw / move / resize notes; every drag is one undo gesture.
  */
 
-import { memo, useMemo, useRef, type PointerEvent as ReactPointerEvent } from "react";
+import { memo, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import clsx from "clsx";
 import { scaleTone } from "@/domain/scales";
-import type { MusicalScale, Clip, Note, NoteId } from "@/generated";
+import type { Clip, Command, MusicalScale, Note, NoteId } from "@/generated";
+import { openContextMenu, type ContextMenuEntry } from "@/kit";
+import { useProjectStore } from "@/state";
 import {
   beatsToPx,
+  createDoublePress,
   gridLines,
   itemSelection,
   marqueeHits,
@@ -25,9 +28,9 @@ import {
   type TimelineViewStore,
 } from "@/timeline";
 import { cmd, newId, useTransport } from "@/transport";
-import { contentEnd, songToContent } from "./clipTime";
+import { contentEnd, contentToSong, songToContent } from "./clipTime";
 import { startDrag, useSend } from "./drag";
-import { isBlackKey, noteHitZone, noteRect, pitchToY, yToPitch } from "./geometry";
+import { isBlackKey, noteHitZone, noteRect, pitchToY, rowPitchDelta, yToPitch } from "./geometry";
 import { moveEdits, newNote, noteEdit, resizeEdits } from "./noteEdits";
 
 export interface NoteGridProps {
@@ -46,11 +49,13 @@ export interface NoteGridProps {
   /** Length of a new note (the grid step, or a 1/16 when the grid is off). */
   newNoteBeats: number;
   drawMode: boolean;
+  /** Extra note context-menu items for the clicked selection (appended after Delete). */
+  menuItems?: (ids: NoteId[]) => ContextMenuEntry[];
 }
 
 const BAR_STEP: GridStep = { kind: "bars", bars: 1 };
 
-export function NoteGrid({ clip, notes, view, vp, widthPx, keyH, tempo, step, newNoteBeats, drawMode, rows, scale, highlight }: NoteGridProps) {
+export function NoteGrid({ clip, notes, view, vp, widthPx, keyH, rows, scale, highlight, tempo, step, newNoteBeats, drawMode, menuItems }: NoteGridProps) {
   const transport = useTransport();
   const send = useSend();
   const rootRef = useRef<HTMLDivElement>(null);
@@ -69,6 +74,13 @@ export function NoteGrid({ clip, notes, view, vp, widthPx, keyH, tempo, step, ne
   const marquee = useMarquee({
     kind: "note",
     hitTest: (rect) => marqueeHits(rect, notes.map((n) => ({ id: n.id, rect: noteRect(n, vp, keyH, rows) }))),
+    // A click on empty space (no drag) also moves the playhead there, snapped to the grid
+    // (alt: free), while stopped, like in the arrangement.
+    onClick: (p, ev) => {
+      if (useProjectStore.getState().transport?.playing) return;
+      const content = Math.max(0, snapToGrid(pxToBeats(p.x, vp), ev.altKey ? null : step, tempo, "nearest"));
+      transport.send(cmd("Transport", { type: "Locate", position: contentToSong(clip, content) })).catch(() => {});
+    },
   });
 
   const local = (e: { clientX: number; clientY: number }) => {
@@ -102,21 +114,21 @@ export function NoteGrid({ clip, notes, view, vp, widthPx, keyH, tempo, step, ne
           return cmd("Note", { type: "Edit", edits: [noteEdit(spec.id, { duration })] });
         },
       },
-      { initial: add, afterInitial: selectIt, threshold: 3 },
+      { initial: add, afterInitial: selectIt, threshold: 3, cursor: "ew-resize" },
     );
   };
 
+  const [isDoublePress] = useState(createDoublePress);
+
   const onBackgroundPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
-    if (drawMode && e.button === 0) {
+    // Draw mode: every press inserts. Otherwise the second press of a double-click on empty
+    // space inserts, and dragging before releasing sets the new note's length.
+    const insert = e.button === 0 && (drawMode || (e.target === e.currentTarget && isDoublePress(e)));
+    if (insert) {
       addNoteAt(e, true);
       return;
     }
     marquee.onPointerDown(e);
-  };
-
-  const onBackgroundDoubleClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (drawMode || e.target !== e.currentTarget) return;
-    addNoteAt(e, false);
   };
 
   const onNotePointerDown = (e: ReactPointerEvent<HTMLDivElement>, note: Note) => {
@@ -125,15 +137,15 @@ export function NoteGrid({ clip, notes, view, vp, widthPx, keyH, tempo, step, ne
     const sel = itemSelection.getState();
     const mode = selectModeFromEvent(e);
     const wasSelected = sel.selected.note.has(note.id);
-    if (!wasSelected) sel.select("note", [note.id], mode === "remove" ? "replace" : mode);
-    else if (mode === "toggle") {
-      sel.select("note", [note.id], "remove");
-      return;
-    }
+    // Cmd/ctrl: a click toggles the note (on release), a drag duplicates the selection.
+    if (!wasSelected) sel.select("note", [note.id], mode === "remove" || mode === "toggle" ? "add" : mode);
     const box = e.currentTarget.getBoundingClientRect();
     const zone = noteHitZone(e.clientX - box.left, box.width);
     const selected = itemSelection.getState().selected.note;
     const originals = notes.filter((n) => selected.has(n.id));
+    /** Copy ids by original id while the drag duplicates (cmd/ctrl held). */
+    let copies: Map<NoteId, NoteId> | null = null;
+    const back = originals.map((n) => noteEdit(n.id, { start: n.start, pitch: n.pitch }));
     startDrag(
       transport,
       e,
@@ -141,20 +153,49 @@ export function NoteGrid({ clip, notes, view, vp, widthPx, keyH, tempo, step, ne
         move: (dx, dy, ev) => {
           const snap = ev.altKey ? null : step;
           const dBeats = dx / vp.pxPerBeat;
-          const targetY = pitchToY(note.pitch, keyH, rows) + Math.round(dy / keyH) * keyH;
-          const dPitch = yToPitch(targetY, keyH, rows) - note.pitch;
-          const edits =
-            zone === "body"
-              ? moveEdits(originals, note, dBeats, dPitch, snap, tempo)
-              : resizeEdits(originals, note, zone, dBeats, snap, tempo);
-          return cmd("Note", { type: "Edit", edits });
+          if (zone !== "body") return cmd("Note", { type: "Edit", edits: resizeEdits(originals, note, zone, dBeats, snap, tempo) });
+          const edits = moveEdits(originals, note, dBeats, rowPitchDelta(note.pitch, dy, keyH, rows), snap, tempo);
+          const wantCopy = ev.metaKey || ev.ctrlKey;
+          if (wantCopy && !copies) {
+            // Cmd pressed (at the start or mid-drag): the originals go back where they were
+            // and copies take their place under the pointer.
+            copies = new Map(originals.map((n) => [n.id, newId()]));
+            const a = edits.find((x) => x.id === note.id)!;
+            return batch("Duplicate Notes", [
+              cmd("Note", { type: "Edit", edits: back }),
+              cmd("Note", {
+                type: "Duplicate",
+                copies: [...copies].map(([from, new_id]) => ({ from, new_id })),
+                offset: (a.start ?? note.start) - note.start,
+                transpose: (a.pitch ?? note.pitch) - note.pitch,
+              }),
+            ]);
+          }
+          if (!wantCopy && copies) {
+            // Cmd released: drop the copies, the originals follow the pointer again.
+            const ids = [...copies.values()];
+            copies = null;
+            return batch("Move Notes", [cmd("Note", { type: "Remove", ids }), cmd("Note", { type: "Edit", edits })]);
+          }
+          const ids = copies;
+          return cmd("Note", { type: "Edit", edits: ids ? edits.map((x) => ({ ...x, id: ids.get(x.id)! })) : edits });
         },
         end: (moved) => {
-          // A plain click on an already-selected note selects just that note.
-          if (!moved && wasSelected && mode === "replace") itemSelection.getState().select("note", [note.id], "replace");
+          if (copies) {
+            const project = useProjectStore.getState().project;
+            const created = [...copies.values()].filter((id) => project?.notes[id]);
+            if (created.length) itemSelection.getState().select("note", created, "replace");
+          } else if (!moved && wasSelected) {
+            // A plain click on a selected note selects just it; cmd-click deselects it.
+            if (mode === "replace") itemSelection.getState().select("note", [note.id], "replace");
+            else if (mode === "toggle") itemSelection.getState().select("note", [note.id], "remove");
+          }
         },
       },
-      { threshold: 3 },
+      {
+        threshold: 3,
+        cursor: (m) => (zone !== "body" ? "ew-resize" : m.metaKey || m.ctrlKey ? "copy" : "move"),
+      },
     );
   };
 
@@ -162,6 +203,24 @@ export function NoteGrid({ clip, notes, view, vp, widthPx, keyH, tempo, step, ne
     e.stopPropagation();
     itemSelection.getState().select("note", [id], "remove");
     void send(cmd("Note", { type: "Remove", ids: [id] }));
+  };
+
+  const onNoteContextMenu = (e: React.MouseEvent, id: NoteId) => {
+    const sel = itemSelection.getState();
+    if (!sel.selected.note.has(id)) sel.select("note", [id], "replace");
+    const ids = [...itemSelection.getState().selected.note].filter((n) => notes.some((x) => x.id === n));
+    openContextMenu(e, [
+      {
+        label: ids.length > 1 ? `Delete ${ids.length} Notes` : "Delete Note",
+        shortcut: "⌫",
+        danger: true,
+        onSelect: () => {
+          itemSelection.getState().select("note", ids, "remove");
+          void send(cmd("Note", { type: "Remove", ids }));
+        },
+      },
+      ...(menuItems ? ["separator" as const, ...menuItems(ids)] : []),
+    ]);
   };
 
   // Playable region of the clip on its content axis.
@@ -177,7 +236,6 @@ export function NoteGrid({ clip, notes, view, vp, widthPx, keyH, tempo, step, ne
       style={{ height }}
       data-testid="piano-roll-grid"
       onPointerDown={onBackgroundPointerDown}
-      onDoubleClick={onBackgroundDoubleClick}
     >
       <Rows keyH={keyH} rows={rows} scale={scale} highlight={highlight} />
       {lines.map((l) => {
@@ -187,7 +245,17 @@ export function NoteGrid({ clip, notes, view, vp, widthPx, keyH, tempo, step, ne
       <div className="eth-pr-grid__outside" style={{ left: 0, width: Math.max(0, xStart) }} />
       <div className="eth-pr-grid__outside" style={{ left: Math.max(0, xEnd), right: 0 }} data-testid="piano-roll-clip-end" />
       {visible.map((n) => (
-        <NoteView key={n.id} note={n} vp={vp} keyH={keyH} rows={rows} tone={scaleTone(n.pitch, scale, highlight)} onPointerDown={onNotePointerDown} onDoubleClick={onNoteDoubleClick} />
+        <NoteView
+          key={n.id}
+          note={n}
+          vp={vp}
+          keyH={keyH}
+          rows={rows}
+          tone={scaleTone(n.pitch, scale, highlight)}
+          onPointerDown={onNotePointerDown}
+          onDoubleClick={onNoteDoubleClick}
+          onContextMenu={onNoteContextMenu}
+        />
       ))}
       {marquee.rect && (
         <div
@@ -203,6 +271,11 @@ export function NoteGrid({ clip, notes, view, vp, widthPx, keyH, tempo, step, ne
       <PlayheadLine view={view} mapping={(song) => songToContent(clip, song)} />
     </div>
   );
+}
+
+/** Several commands as one (inside the drag's gesture). */
+function batch(label: string, commands: Command[]): Command {
+  return cmd("Edit", { type: "Batch", label, commands });
 }
 
 /** Black-key row shading and octave (C) lines; static for a given key height. */
@@ -233,9 +306,10 @@ interface NoteViewProps {
   keyH: number;
   onPointerDown: (e: ReactPointerEvent<HTMLDivElement>, note: Note) => void;
   onDoubleClick: (e: React.MouseEvent, id: NoteId) => void;
+  onContextMenu: (e: React.MouseEvent, id: NoteId) => void;
 }
 
-function NoteView({ note, vp, keyH, rows, tone, onPointerDown, onDoubleClick }: NoteViewProps) {
+function NoteView({ note, vp, keyH, rows, tone, onPointerDown, onDoubleClick, onContextMenu }: NoteViewProps) {
   const selected = useIsSelected("note", note.id);
   const r = noteRect(note, vp, keyH, rows);
   return (
@@ -250,10 +324,11 @@ function NoteView({ note, vp, keyH, rows, tone, onPointerDown, onDoubleClick }: 
         top: r.y0,
         width: Math.max(2, r.x1 - r.x0),
         height: keyH,
-        opacity: (0.45 + 0.55 * note.velocity) * (tone === "out" && !selected ? 0.45 : 1),
+        opacity: 0.45 + 0.55 * note.velocity,
       }}
       onPointerDown={(e) => onPointerDown(e, note)}
       onDoubleClick={(e) => onDoubleClick(e, note.id)}
+      onContextMenu={(e) => onContextMenu(e, note.id)}
     />
   );
 }

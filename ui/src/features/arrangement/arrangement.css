@@ -1,6 +1,8 @@
 /* Arrangement view. Tokens come from kit/theme.css. */
 
 .eth-arr {
+  /* Positioned: the header column's resize grip is placed from its left edge. */
+  position: relative;
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -17,7 +19,7 @@
   align-items: center;
   gap: var(--eth-space-sm);
   padding: var(--eth-space-xs) var(--eth-space-sm);
-  border-bottom: 1px solid var(--eth-color-border);
+  border-bottom: var(--eth-border-width) solid var(--eth-color-border);
   background: var(--eth-color-bg-panel);
 }
 
@@ -31,13 +33,13 @@
 .eth-arr-toolbar__grid select {
   background: var(--eth-color-bg-inset);
   color: var(--eth-color-text);
-  border: 1px solid var(--eth-color-border-light);
+  border: var(--eth-border-width) solid var(--eth-color-border-light);
   border-radius: var(--eth-radius-sm);
   font-size: var(--eth-fs-sm);
 }
 
 .eth-arr-toolbar__sep {
-  width: 1px;
+  width: var(--eth-border-width);
   align-self: stretch;
   margin: 0 var(--eth-space-xs);
   background: var(--eth-color-border-light);
@@ -53,8 +55,8 @@
 .eth-arr__corner {
   flex: none;
   background: var(--eth-color-bg-inset);
-  border-bottom: 1px solid var(--eth-color-border);
-  border-right: 1px solid var(--eth-color-border);
+  border-bottom: var(--eth-border-width) solid var(--eth-color-border);
+  border-right: var(--eth-border-width) solid var(--eth-color-border);
 }
 
 .eth-arr__ruler {
@@ -90,17 +92,19 @@
   z-index: 3;
 }
 
+/* Grid lines are a faint tint of the text color: darker than the background in light
+   mode, lighter in dark mode. */
 .eth-arr__gridline {
   position: absolute;
   top: 0;
   bottom: 0;
   left: 0;
-  width: 1px;
-  background: var(--eth-color-bg-raised);
+  width: var(--eth-border-width);
+  background: color-mix(in srgb, var(--eth-color-text) 7%, transparent);
 }
 
 .eth-arr__gridline--bar {
-  background: var(--eth-color-border-light);
+  background: color-mix(in srgb, var(--eth-color-text) 16%, transparent);
 }
 
 .eth-arr__gridline--sub {
@@ -118,7 +122,7 @@
 .eth-arr__marquee {
   position: absolute;
   z-index: 4;
-  border: 1px solid var(--eth-color-selection);
+  border: var(--eth-border-width) solid var(--eth-color-selection);
   background: color-mix(in srgb, var(--eth-color-selection) 15%, transparent);
   pointer-events: none;
 }
@@ -127,20 +131,32 @@
   position: relative;
   display: flex;
   align-items: center;
-  padding-left: calc(200px + var(--eth-space-lg));
+  padding-left: calc(var(--eth-arr-header-width, var(--eth-size-track-header-width)) + var(--eth-space-lg));
   color: var(--eth-color-text-dim);
   font-size: var(--eth-fs-xs);
 }
 
+.eth-arr__drop-label {
+  padding: var(--eth-space-sm) var(--eth-space-md);
+  border: var(--eth-border-width) dashed var(--eth-color-border-light);
+  border-radius: var(--eth-radius-md);
+  transition:
+    color var(--eth-duration-fast) var(--eth-ease-out),
+    border-color var(--eth-duration-fast) var(--eth-ease-out),
+    background-color var(--eth-duration-fast) var(--eth-ease-out);
+}
+
 .eth-arr__drop-label--active {
   color: var(--eth-color-accent);
+  border-color: var(--eth-color-accent);
+  background: var(--eth-color-accent-subtle);
 }
 
 /* Pending browser-drop import (lane placeholder, or in the drop area for a new track). */
 .eth-arr-import {
-  padding: 2px var(--eth-space-sm);
-  border: 1px dashed var(--eth-color-accent);
-  border-radius: 3px;
+  padding: var(--eth-space-xs) var(--eth-space-sm);
+  border: var(--eth-border-width) dashed var(--eth-color-accent);
+  border-radius: var(--eth-radius-sm);
   color: var(--eth-color-text-dim);
   font-size: var(--eth-fs-xs);
   white-space: nowrap;
@@ -149,12 +165,27 @@
 
 .eth-arr-lane .eth-arr-import {
   position: absolute;
-  top: 4px;
+  top: var(--eth-space-sm);
 }
 
 .eth-arr-import--error {
   border-color: var(--eth-color-record);
   color: var(--eth-color-record);
+}
+
+/* Resize grip on the header column's right edge (full height of the arrangement). */
+.eth-arr__header-resize {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: var(--eth-size-splitter-width);
+  z-index: 8;
+  cursor: ew-resize;
+  transition: background var(--eth-duration-fast) var(--eth-ease-out);
+}
+
+.eth-arr__header-resize:hover {
+  background: color-mix(in srgb, var(--eth-color-accent) 40%, transparent);
 }
 
 /* ── Rows ─────────────────────────────────────────────────────────── */
@@ -163,12 +194,24 @@
   position: relative;
   display: flex;
   flex-direction: column;
-  border-bottom: 1px solid var(--eth-color-border);
 }
 
 .eth-arr-row__main {
   display: flex;
   flex: none;
+}
+
+/* Lane resize grip: along the bottom edge of the track header only. */
+.eth-arr-row__resize {
+  position: absolute;
+  left: 0;
+  height: var(--eth-size-splitter-width);
+  z-index: 6;
+  cursor: ns-resize;
+}
+
+.eth-arr-row__resize:hover {
+  background: color-mix(in srgb, var(--eth-color-selection) 40%, transparent);
 }
 
 .eth-arr-row__automation {
@@ -183,30 +226,98 @@
   position: relative;
   z-index: 5;
   box-sizing: border-box;
-  padding-right: var(--eth-space-sm);
-  background: var(--eth-color-bg-panel);
-  border-right: 1px solid var(--eth-color-border);
+  /* The card's right inset (12px, a gap before the lanes) plus room inside it. */
+  padding-right: calc(var(--eth-space-lg) + var(--eth-space-md));
+  /* The header is a floating card: drawn by ::before, inset from the row (the header box
+     itself keeps the column width that clip positions rely on). */
+  background: transparent;
   cursor: default;
+  transition:
+    background-color var(--eth-duration-fast) var(--eth-ease-out),
+    opacity var(--eth-duration-fast) var(--eth-ease-out);
 }
 
-.eth-arr-header--selected {
-  background: var(--eth-color-bg-raised);
+.eth-arr-header::before {
+  content: "";
+  position: absolute;
+  /* Nested tracks' cards step in with their group depth. */
+  inset: var(--eth-size-track-card-inset-y) var(--eth-space-lg) var(--eth-size-track-card-inset-y)
+    calc(var(--eth-size-track-card-inset-left) + var(--eth-track-depth, 0) * var(--eth-size-track-indent));
+  z-index: -1;
+  border-radius: var(--eth-radius-lg);
+  /* Only a selected track shows its card; hover gives a faint hint. */
+  background: transparent;
+  transition:
+    background-color var(--eth-duration-fast) var(--eth-ease-out),
+    box-shadow var(--eth-duration-fast) var(--eth-ease-out);
 }
 
-.eth-arr-header__color {
+.eth-arr-header:hover::before {
+  background: color-mix(in srgb, var(--eth-track-color) 8%, transparent);
+}
+
+/* Round badge in the track color with the track type's icon. */
+.eth-arr-header__badge {
   flex: none;
-  align-self: stretch;
-  width: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--eth-size-track-badge);
+  height: var(--eth-size-track-badge);
+  /* A bit more room before the track name than the header's gap. */
+  margin-right: var(--eth-space-sm);
+  border-radius: var(--eth-radius-round);
   background: var(--eth-track-color);
+  /* Icon color: set inline from the track color's contrast (inkOn). */
+  font-size: var(--eth-fs-lg);
+}
+
+.eth-arr-header--dragging {
+  opacity: 0.5;
+}
+
+.eth-arr-header--drop-into::before {
+  box-shadow: inset 0 0 0 var(--eth-border-width-strong) var(--eth-color-accent);
+}
+
+.eth-arr-header:not(.eth-arr-header--master):not(.eth-arr-header--return) {
+  cursor: grab;
+}
+
+/* Track header drop position while dragging a track. */
+.eth-arr__track-drop {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: var(--eth-border-width-strong);
+  margin-top: calc(var(--eth-border-width-strong) / -2);
+  z-index: 6;
+  background: var(--eth-color-accent);
+  pointer-events: none;
+}
+
+.eth-arr-header--selected::before,
+.eth-arr-header--selected:hover::before {
+  background: color-mix(in srgb, var(--eth-track-color) 22%, var(--eth-color-bg-raised));
+  box-shadow:
+    inset 0 0 0 var(--eth-border-width) color-mix(in srgb, var(--eth-track-color) 60%, transparent),
+    0 0 var(--eth-size-track-selected-glow) color-mix(in srgb, var(--eth-track-color) 25%, transparent);
 }
 
 .eth-arr-header__fold {
   flex: none;
-  padding: 0 2px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0;
   border: none;
   background: none;
   color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-md);
   cursor: pointer;
+}
+
+.eth-arr-header__fold:hover {
+  color: var(--eth-color-text);
 }
 
 .eth-arr-header__name {
@@ -215,26 +326,199 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-weight: var(--eth-fw-medium);
+}
+
+.eth-arr-header__rename {
+  flex: 1;
+  min-width: 0;
+  height: calc(var(--eth-fs-md) + var(--eth-space-md));
+  padding: 0 var(--eth-space-xs);
+  border: var(--eth-border-width) solid var(--eth-color-focus);
+  border-radius: var(--eth-radius-sm);
+  background: var(--eth-color-bg-inset);
+  color: var(--eth-color-text);
+  outline: none;
+}
+
+/* Mute / solo / arm: shown on hover (and whenever one is on). */
+/* Compact volume fader in the header (the mixer view is gone). */
+.eth-arr-vol {
+  position: relative;
+  flex: none;
+  display: flex;
+  align-items: center;
+  width: var(--eth-size-track-fader-width);
+  height: var(--eth-size-control-sm);
+  cursor: ew-resize;
+  touch-action: none;
+  outline: none;
+}
+.eth-arr-vol__track {
+  position: relative;
+  width: 100%;
+  height: var(--eth-size-fader-track-width);
+  border-radius: var(--eth-radius-pill);
+  background: var(--eth-color-knob-track);
+  overflow: visible;
+}
+.eth-arr-vol__fill {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: color-mix(in srgb, var(--eth-track-color) 70%, var(--eth-color-text-dim));
+  transform-origin: left center;
+}
+.eth-arr-vol__thumb {
+  position: absolute;
+  top: 50%;
+  width: var(--eth-size-track-fader-thumb);
+  height: var(--eth-size-track-fader-thumb);
+  margin: calc(var(--eth-size-track-fader-thumb) / -2) 0 0 calc(var(--eth-size-track-fader-thumb) / -2);
+  border-radius: var(--eth-radius-round);
+  background: var(--eth-color-text);
+  box-shadow: var(--eth-shadow-sm);
+  opacity: 0.7;
+  transition:
+    opacity var(--eth-duration-fast) var(--eth-ease-out),
+    transform var(--eth-duration-fast) var(--eth-ease-out);
+}
+.eth-arr-vol:hover .eth-arr-vol__thumb,
+.eth-arr-vol--active .eth-arr-vol__thumb,
+.eth-arr-vol:focus-visible .eth-arr-vol__thumb {
+  opacity: 1;
+  transform: scale(1.2);
+}
+.eth-arr-vol:focus-visible .eth-arr-vol__track {
+  box-shadow: 0 0 0 var(--eth-focus-ring-width) var(--eth-color-focus);
+}
+/* dB readout above the fader while hovering or dragging. */
+.eth-arr-vol__readout {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  z-index: 2;
+  padding: 0 var(--eth-space-xs);
+  border-radius: var(--eth-radius-sm);
+  background: var(--eth-color-bg-overlay);
+  box-shadow: var(--eth-shadow-sm);
+  color: var(--eth-color-text);
+  font-size: var(--eth-fs-xs);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transform: translate(-50%, var(--eth-space-xs));
+  transition:
+    opacity var(--eth-duration-fast) var(--eth-ease-out),
+    transform var(--eth-duration-fast) var(--eth-ease-out);
+}
+.eth-arr-vol:hover .eth-arr-vol__readout,
+.eth-arr-vol--active .eth-arr-vol__readout {
+  opacity: 1;
+  transform: translate(-50%, 0);
 }
 
 .eth-arr-header__buttons {
   display: flex;
-  gap: 2px;
+  gap: var(--eth-space-xs);
+}
+
+.eth-arr-header__toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--eth-size-track-button);
+  height: var(--eth-size-track-button);
+  padding: 0;
+  border: none;
+  border-radius: var(--eth-radius-sm);
+  background: transparent;
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-md);
+  cursor: pointer;
+  opacity: 0;
+  transition:
+    opacity var(--eth-duration-fast) var(--eth-ease-out),
+    background-color var(--eth-duration-fast) var(--eth-ease-out),
+    color var(--eth-duration-fast) var(--eth-ease-out);
+}
+
+.eth-arr-header:hover .eth-arr-header__toggle,
+.eth-arr-header__toggle:focus-visible,
+.eth-arr-header__toggle[aria-pressed="true"] {
+  opacity: 1;
+}
+
+.eth-arr-header__toggle:hover {
+  background: var(--eth-color-bg-hover);
+  color: var(--eth-color-text);
+}
+
+.eth-arr-header__automation[aria-pressed="true"] {
+  background: var(--eth-color-accent-subtle);
+  color: var(--eth-color-accent);
+}
+
+/* The track has automation: a dot on the toggle, even while its lanes are hidden. */
+.eth-arr-header__automation.eth-auto-toggle--has {
+  position: relative;
+  opacity: 1;
+}
+
+.eth-arr-header__automation.eth-auto-toggle--has::after {
+  content: "";
+  position: absolute;
+  top: var(--eth-space-xs);
+  right: var(--eth-space-xs);
+  width: var(--eth-size-dot-sm);
+  height: var(--eth-size-dot-sm);
+  border-radius: var(--eth-radius-round);
+  background: var(--eth-color-accent);
 }
 
 .eth-arr-header__mute[aria-pressed="true"] {
-  background: var(--eth-color-accent);
-  color: var(--eth-color-text-inverse);
+  background: color-mix(in srgb, var(--eth-color-warn) 22%, transparent);
+  color: var(--eth-color-warn);
 }
 
 .eth-arr-header__solo[aria-pressed="true"] {
-  background: var(--eth-color-selection);
-  color: var(--eth-color-text-inverse);
+  background: color-mix(in srgb, var(--eth-color-accent) 24%, transparent);
+  color: var(--eth-color-accent);
 }
 
 .eth-arr-header__arm[aria-pressed="true"] {
-  background: var(--eth-color-record);
-  color: var(--eth-color-text-inverse);
+  background: color-mix(in srgb, var(--eth-color-record) 22%, transparent);
+  color: var(--eth-color-record);
+}
+
+.eth-arr-header__arm[aria-pressed="true"] .lucide {
+  fill: currentColor;
+}
+
+/* Live level along the header's right edge. */
+.eth-arr-header__meter {
+  position: absolute;
+  top: var(--eth-space-xs);
+  bottom: var(--eth-space-xs);
+  right: var(--eth-space-xs);
+  width: var(--eth-size-track-meter-width);
+  border-radius: var(--eth-radius-pill);
+  background: color-mix(in srgb, var(--eth-color-text) 6%, transparent);
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.eth-arr-header__meter-fill {
+  position: absolute;
+  inset: 0;
+  transform-origin: bottom;
+  background: linear-gradient(
+    to top,
+    var(--eth-color-meter-low) 0%,
+    var(--eth-color-meter-low) 70%,
+    var(--eth-color-meter-mid) 85%,
+    var(--eth-color-meter-high) 100%
+  );
 }
 
 .eth-arr-lane {
@@ -242,10 +526,12 @@
   flex: 1;
   min-width: 0;
   overflow: hidden;
+  /* A faint line between tracks, in the lanes only (headers are floating cards). */
+  box-shadow: inset 0 calc(-1 * var(--eth-border-width)) 0 color-mix(in srgb, var(--eth-color-border-light) 45%, transparent);
 }
 
 .eth-arr-lane--no-clips {
-  background: rgb(0 0 0 / 15%);
+  background: color-mix(in srgb, var(--eth-color-bg-inset) 60%, transparent);
 }
 
 .eth-arr-lane__summary {
@@ -261,8 +547,24 @@
   position: absolute;
   top: 0;
   bottom: 0;
-  width: 2px;
+  width: var(--eth-border-width-strong);
   background: var(--eth-color-accent);
+  pointer-events: none;
+}
+
+/* Lane content, slid to the scroll position by LaneLayer (so scrolling doesn't re-render). */
+.eth-arr-lane__layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  will-change: transform;
+}
+
+/* Clip clusters (zoomed out): one canvas per lane, positioned in beats. */
+.eth-arr-clusters {
+  position: absolute;
+  top: 0;
+  height: 100%;
   pointer-events: none;
 }
 
@@ -270,24 +572,59 @@
 
 .eth-clip {
   position: absolute;
-  top: 1px;
-  bottom: 1px;
+  top: var(--eth-space-xs);
+  bottom: var(--eth-space-xs);
   box-sizing: border-box;
   overflow: hidden;
-  border-radius: var(--eth-radius-sm);
-  background: color-mix(in srgb, var(--eth-clip-color) 55%, var(--eth-color-bg));
-  border: 1px solid color-mix(in srgb, var(--eth-clip-color) 70%, black);
-  cursor: grab;
+  border-radius: var(--eth-radius-md);
+  /* A soft tint of the clip color; the waveform/notes sit on it. */
+  /* Theme-aware shades of the clip color: in light mode the pastel palette is darkened so
+     clips stand out on the light background (see the [data-theme="light"] rule below). */
+  --clip-strong: var(--eth-clip-color);
+  --clip-rim: color-mix(in srgb, var(--eth-clip-color) 30%, var(--eth-mix-white));
+  --clip-lift: var(--eth-mix-white);
+  background: color-mix(in srgb, var(--clip-strong) 26%, var(--eth-color-bg-panel));
+  border: none;
+  /* Only the title bar and the edge handles take the pointer: a press on the body goes
+     through to the lane, like on empty space (locate, marquee). */
+  pointer-events: none;
+  transition:
+    box-shadow var(--eth-duration-fast) var(--eth-ease-out),
+    border-color var(--eth-duration-fast) var(--eth-ease-out),
+    opacity var(--eth-duration-fast) var(--eth-ease-out),
+    filter var(--eth-duration-fast) var(--eth-ease-out);
 }
 
+/* Selected: a ring and glow in the clip's own color. */
+/* Selected clips glow like selected notes: a light rim, a brighter title band and body,
+   and a two-layer halo in the clip's own color. */
 .eth-clip--selected {
-  border-color: var(--eth-color-playhead);
-  box-shadow: inset 0 0 0 1px var(--eth-color-playhead);
+  z-index: 2;
+  background: color-mix(in srgb, var(--clip-strong) 36%, var(--eth-color-bg));
+  box-shadow:
+    0 0 var(--eth-size-selected-glow-inner) color-mix(in srgb, var(--clip-strong) 85%, transparent),
+    0 0 var(--eth-size-selected-glow-outer) color-mix(in srgb, var(--clip-strong) 45%, transparent);
+}
+
+/* The light rim sits above the clip's content (the notes/waveform canvas would cover an
+   inset shadow on the clip itself). */
+.eth-clip--selected::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 var(--eth-border-width) var(--clip-rim);
+  pointer-events: none;
+}
+
+.eth-clip--selected .eth-clip__title {
+  background: color-mix(in srgb, var(--clip-strong) 70%, var(--clip-lift));
 }
 
 .eth-clip--muted {
-  filter: grayscale(0.9);
-  opacity: 0.6;
+  filter: saturate(0.15);
+  opacity: 0.55;
 }
 
 .eth-clip--dragging {
@@ -296,30 +633,53 @@
 }
 
 .eth-clip--ghost {
-  opacity: 0.5;
+  opacity: 0.45;
   pointer-events: none;
 }
 
+/* Title bar: the clip's grab zone (a thin grip strip on top, the name as an inset label). */
 .eth-clip__title {
-  height: 14px;
-  padding: 0 var(--eth-space-sm);
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-xs);
+  height: var(--eth-size-clip-title-height);
+  padding: var(--eth-space-hair) var(--eth-space-xs) 0;
   overflow: hidden;
   white-space: nowrap;
-  text-overflow: ellipsis;
   font-size: var(--eth-fs-xs);
-  line-height: 14px;
+  line-height: var(--eth-size-clip-title-line-height);
   color: var(--eth-color-text-inverse);
-  background: var(--eth-clip-color);
-  pointer-events: none;
+  background: var(--clip-strong);
+  pointer-events: auto;
+  cursor: grab;
+  transition: background-color var(--eth-duration-fast) var(--eth-ease-out);
+}
+
+.eth-clip__title:hover {
+  background: color-mix(in srgb, var(--clip-strong) 85%, var(--clip-lift));
+}
+
+.eth-clip__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 0 var(--eth-space-xs);
+  border-radius: var(--eth-radius-sm);
+  font-weight: var(--eth-fw-medium);
 }
 
 .eth-clip__loop {
-  margin-right: var(--eth-space-xs);
+  display: inline-flex;
+  flex: none;
+  /* Same ink as the title text on the colored band. */
+  color: inherit;
+  opacity: 0.85;
 }
 
 .eth-clip__body {
   position: absolute;
-  top: 14px;
+  top: var(--eth-size-clip-title-height);
   bottom: 0;
   pointer-events: none;
 }
@@ -334,9 +694,15 @@
   position: absolute;
   top: 0;
   bottom: 0;
-  width: 6px;
+  /* Narrow clips keep a grabbable middle: each edge handle is at most a quarter of it. */
+  width: min(var(--eth-size-edge-handle), 25%);
   cursor: ew-resize;
   z-index: 1;
+  pointer-events: auto;
+}
+
+.eth-clip__handle:hover {
+  background: color-mix(in srgb, var(--eth-color-selection) 35%, transparent);
 }
 
 .eth-clip__handle--start {
@@ -345,4 +711,59 @@
 
 .eth-clip__handle--end {
   right: 0;
+}
+
+/* ── Draft track (type not chosen yet) ─────────────────────────────── */
+
+.eth-arr-row--draft {
+  animation: eth-arr-draft-in var(--eth-duration-normal) var(--eth-ease-out) both;
+}
+
+.eth-arr-header--draft {
+  gap: var(--eth-space-xs);
+}
+
+.eth-arr-header--draft::before,
+.eth-arr-header--draft:hover::before {
+  background: var(--eth-color-accent-subtle);
+  box-shadow: inset 0 0 0 var(--eth-border-width) color-mix(in srgb, var(--eth-color-accent) 55%, transparent);
+}
+
+.eth-arr-header--draft .eth-arr-header__name {
+  color: var(--eth-color-accent);
+  font-weight: var(--eth-fw-medium);
+}
+
+.eth-arr-lane--draft {
+  display: flex;
+  align-items: center;
+  padding-left: var(--eth-space-lg);
+  border: var(--eth-border-width) dashed color-mix(in srgb, var(--eth-color-accent) 45%, transparent);
+  border-radius: var(--eth-radius-md);
+  margin: var(--eth-space-xs);
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-sm);
+}
+
+@keyframes eth-arr-draft-in {
+  from {
+    opacity: 0;
+    transform: translateY(calc(-1 * var(--eth-space-sm)));
+  }
+}
+
+.eth-arr-toolbar__new {
+  cursor: grab;
+}
+
+/* Light theme: darker clip shades for contrast on the light background. */
+[data-theme="light"] .eth-clip {
+  --clip-strong: color-mix(in srgb, var(--eth-clip-color) 70%, var(--eth-mix-black));
+  --clip-rim: var(--clip-strong);
+  --clip-lift: var(--eth-mix-black);
+}
+
+/* No glow in the light theme: the rim and the darker band mark the selection. */
+[data-theme="light"] .eth-clip--selected {
+  box-shadow: none;
 }

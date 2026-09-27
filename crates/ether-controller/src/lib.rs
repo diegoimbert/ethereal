@@ -21,23 +21,35 @@
 //! - **Idempotent creates.** Creating an entity whose (client-chosen) id already exists is
 //!   a successful no-op.
 //! - **Unsupported.** Host-handled commands (`Engine::*`, `Plugin::{Rescan, List, OpenEditor,
-//!   CloseEditor}`), media preview/upload and `Recording::ListInputs` reply `Unsupported`.
+//!   CloseEditor}`) and media preview reply `Unsupported` (uploads: `upload` module, over the
+//!   store's staging methods); `Recording::ListInputs` and
+//!   record sessions go to the bridge (`EngineBridge::{list_inputs, start_recording, ...}`).
 //! - **Async media.** Import copies the file and probes its header in `handle` (the reply
 //!   carries the `MediaRef`); decoding, peaks and resampling are stepped from `tick`.
 //! - **Engine sample rate.** Media is resampled to [`ControllerConfig::engine_sample_rate`];
 //!   hosts call [`EtherController::set_engine_sample_rate`] when the device changes.
 
+mod clip_editing;
+mod collab;
 pub mod compile;
 mod doc;
+mod drum_rack;
 mod engine;
+mod export;
+mod groove;
 mod handlers;
 mod media;
+mod media_preview;
 pub mod memory;
+mod midi_learn;
 mod plugins;
 mod project;
 mod recording;
+mod sidechain;
 pub mod store;
+mod tempo;
 mod tx;
+mod upload;
 mod warp;
 
 use std::collections::BTreeMap;
@@ -53,6 +65,7 @@ use ether_core::{EngineOutputs, NodeKey, ParamChange, RenderGraphDesc, Transport
 
 pub use compile::{CompileContext, compile_graph_with};
 pub use media::hash::content_hash;
+pub use recording::{AudioTake, AudioTarget, RecordSession, RecordedMidi, RecordedTakes};
 
 /// Lowest volume/send level: `Decibels::SILENCE` (treated as -inf).
 pub const SILENCE_DB: f32 = ether_core::protocol::model::Decibels::SILENCE.0;
@@ -141,6 +154,62 @@ pub trait EngineBridge {
     /// Descriptors of built-in devices and of instantiated plugins.
     fn descriptor(&mut self, device: DeviceId) -> Option<DeviceDescriptor>;
 
+    /// Roadmap v2 (`midi-learn`): drain incoming MIDI messages received since the last
+    /// call (all ports), for MIDI mappings/learn. Called from every controller tick.
+    /// Hosts without MIDI input keep the default.
+    fn poll_midi_input(&mut self, out: &mut Vec<ether_core::protocol::midi_map::MidiInputEvent>) {
+        let _ = out;
+    }
+
+    /// Roadmap v2 (`drum-rack`): update a live built-in node's non-parameter data in place
+    /// (sampler slices) instead of re-creating it, so an edit doesn't cut sounding notes.
+    /// Native: `EngineHandle::set_node_data`; web: serialized to the worklet. `Ok(false)`
+    /// (the default) = not supported for this change: the controller re-creates the node.
+    fn update_builtin(
+        &mut self,
+        device: DeviceId,
+        kind: &BuiltinDevice,
+    ) -> Result<bool, BridgeError> {
+        let _ = (device, kind);
+        Ok(false)
+    }
+
+    /// `media-preview`: play decoded `audio` (at the engine rate) on the engine's preview
+    /// voice at linear `gain` as preview `id` (controller-chosen, monotonic), replacing any
+    /// playing preview; `audio: None` stops it (`id` ignored). Native: `EngineHandle::preview`
+    /// with an in-memory source; web: the audio is shipped to the worklet like `load_media`.
+    /// Natural ends come back as `EngineOutputs::preview_ended = Some(id)` (from `poll`);
+    /// stop/replace are never reported. Default: unsupported.
+    fn preview(
+        &mut self,
+        id: u64,
+        audio: Option<std::sync::Arc<ether_media::DecodedAudio>>,
+        gain: f32,
+    ) -> Result<(), BridgeError> {
+        let _ = (id, audio, gain);
+        Err(BridgeError::Unsupported(
+            "preview is not available on this host".into(),
+        ))
+    }
+
+    /// Roadmap v2 (`export`): a fresh, independent plugin node for offline rendering
+    /// (prepared at `sample_rate`, state loaded from `state`). Never the live instance.
+    /// Default: unsupported. An export never skips a plugin: if this fails (unsupported
+    /// host, plugin not installed, instantiation error) the whole export fails with a
+    /// message naming the plugin. Disabled plugin devices are not instantiated.
+    fn create_offline_plugin(
+        &mut self,
+        device: DeviceId,
+        plugin: &PluginInstance,
+        state: Option<&Base64Bytes>,
+        sample_rate: u32,
+    ) -> Result<Box<dyn ether_core::Node>, BridgeError> {
+        let _ = (device, plugin, state, sample_rate);
+        Err(BridgeError::Unsupported(
+            "offline plugin rendering is not available on this host".into(),
+        ))
+    }
+
     /// Drain main-thread notifications from plugin controllers (GUI param edits and gestures,
     /// latency changes, crashes). The controller calls this from its tick: `ParamEdited` becomes
     /// an undoable SetParam, `LatencyChanged` a republish, `Crashed` a `PluginEvent::Crashed`.
@@ -154,6 +223,48 @@ pub trait EngineBridge {
     fn plugin_state(&mut self, device: DeviceId) -> Result<Option<Base64Bytes>, BridgeError> {
         let _ = device;
         Ok(None)
+    }
+
+    /// Hardware inputs for `RecordingCommand::ListInputs` (native). Default: unsupported (web).
+    fn list_inputs(&mut self) -> Result<ether_core::protocol::recording::InputList, BridgeError> {
+        Err(BridgeError::Unsupported(
+            "input listing is not available on this host".into(),
+        ))
+    }
+
+    /// Start capturing armed tracks' input into take files under the project's `media/` (the
+    /// controller then enables engine recording). Default: unsupported (nothing is captured).
+    fn start_recording(&mut self, session: &RecordSession) -> Result<(), BridgeError> {
+        let _ = session;
+        Err(BridgeError::Unsupported(
+            "recording is not available on this host".into(),
+        ))
+    }
+
+    /// Live recording view (`live-record`): append the waveform peaks and MIDI notes captured
+    /// since the previous call (never blocks; called from the controller tick while
+    /// recording). Default: nothing (hosts without capture).
+    fn poll_recording(
+        &mut self,
+        audio: &mut Vec<ether_core::protocol::recording::LiveAudioChunk>,
+        midi: &mut Vec<ether_core::protocol::recording::LiveMidiNote>,
+    ) {
+        let _ = (audio, midi);
+    }
+
+    /// Finish the capture (after engine recording was disabled): close the files and return
+    /// the latency-compensated takes and MIDI. Default: unsupported.
+    fn stop_recording(&mut self) -> Result<RecordedTakes, BridgeError> {
+        Err(BridgeError::Unsupported(
+            "recording is not available on this host".into(),
+        ))
+    }
+
+    /// Current plain values of a plugin device's params, read after instantiation (state
+    /// load) to mirror them into the document. Hosts without plugins keep the default.
+    fn plugin_param_values(&mut self, device: DeviceId) -> Vec<(ParamId, f64)> {
+        let _ = device;
+        Vec::new()
     }
 }
 
@@ -244,8 +355,20 @@ where
     transport: TransportRt,
     /// Record-armed tracks (runtime state, not undoable).
     armed: std::collections::BTreeSet<ether_core::protocol::model::TrackId>,
+    /// Punch flag and the active record session.
+    recording: recording::RecordingState,
     /// Open plugin-GUI gestures → internal gesture ids.
     plugin_gestures: BTreeMap<(DeviceId, ParamId), GestureId>,
+    /// Plugin runtime bookkeeping (param mirroring after load; `plugins` module).
+    plugins: plugins::PluginsState,
+    /// Offline export job and finished downloads (`export` module).
+    export: export::ExportState,
+    /// MIDI learn runtime state (learn mode, mapping gestures; `midi_learn` module).
+    midi_learn: midi_learn::MidiLearnState,
+    /// Browser preview runtime state (current preview id, decode, cache; `media_preview`).
+    preview: media_preview::PreviewState,
+    /// Uploads from the UI machine in progress (`upload` module, remote-engine).
+    uploads: upload::UploadState,
     next_gesture: u32,
     last_transport: Option<TransportState>,
     outputs: EngineOutputs,
@@ -285,7 +408,13 @@ where
             media: media::MediaState::default(),
             transport: TransportRt::default(),
             armed: Default::default(),
+            recording: Default::default(),
             plugin_gestures: BTreeMap::new(),
+            plugins: Default::default(),
+            export: Default::default(),
+            midi_learn: Default::default(),
+            preview: Default::default(),
+            uploads: Default::default(),
             // Internal gestures (plugin GUI, tap tempo) live in the upper half of the id
             // space, away from UI-allocated ones.
             next_gesture: 0x8000_0000,

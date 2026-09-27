@@ -41,6 +41,12 @@ import { compareOrderKeys, keyBetween, keyForInsert } from "@/state/orderKey";
 import { CommandFailedError } from "../EngineTransport";
 import { BUILTIN_DESCRIPTORS, builtinDescriptor, clampParam } from "./builtinDevices";
 import { defaultParams, defaultTrackName, makeClip, makeTrack, MOCK_TRACK_COLORS } from "./demoProject";
+import { isRoadmapDocumentCommand, reduceRoadmapCommand } from "./roadmap";
+import { clipV2Command, isCrossfade } from "./roadmap/clipEditing";
+import { checkDeviceMove, copyRackPads, duplicateSiblings, onRackDeleted } from "./roadmap/drumRack";
+import { swingOffset } from "./roadmap/groove";
+import { onDeviceDeleted, onSendDeleted, onTrackDeleted } from "./roadmap/shared";
+import { setSidechain } from "./roadmap/sidechain";
 import { bpmAt, tempoPointAt, signaturePointAt } from "./tempo";
 import type { Tx } from "./tx";
 
@@ -90,7 +96,7 @@ export function isDocumentCommand(command: Command): boolean {
     case "Warp":
       return c.type !== "DetectTempo";
     default:
-      return false;
+      return isRoadmapDocumentCommand(command);
   }
 }
 
@@ -127,7 +133,10 @@ export function reduceDocumentCommand(ctx: ReducerContext, command: Command): Re
       warpCommand(ctx, command.command);
       break;
     default:
-      fail("Internal", `not a document command: ${command.domain}`);
+      // Roadmap v2 domains (`./roadmap`).
+      if (!reduceRoadmapCommand(ctx, command, (id) => deleteDeviceCascade(ctx, id))) {
+        fail("Internal", `not a document command: ${command.domain}`);
+      }
   }
   return UNIT;
 }
@@ -188,17 +197,23 @@ function deleteClipCascade(ctx: ReducerContext, id: ClipId): void {
 
 function deleteSendCascade(ctx: ReducerContext, id: string): void {
   deleteLanesWhere(ctx, (l) => l.target.type === "SendLevel" && l.target.send === id);
+  onSendDeleted(ctx, id);
   ctx.tx.remove("Send", id);
 }
 
 function deleteDeviceCascade(ctx: ReducerContext, id: string): void {
   deleteLanesWhere(ctx, (l) => l.target.type === "DeviceParam" && l.target.device === id);
+  onDeviceDeleted(ctx, id);
+  // A drum rack takes its pads (and their chains) with it.
+  onRackDeleted(ctx, id, (d) => deleteDeviceCascade(ctx, d));
   ctx.tx.remove("Device", id);
 }
 
 function deleteTrackCascade(ctx: ReducerContext, id: TrackId): void {
   for (const c of ctx.tx.all("Clip")) if (c.track === id) deleteClipCascade(ctx, c.id);
-  for (const d of ctx.tx.all("Device")) if (d.track === id) deleteDeviceCascade(ctx, d.id);
+  // Pad devices go with their rack.
+  for (const d of ctx.tx.all("Device")) if (d.track === id && d.pad === null) deleteDeviceCascade(ctx, d.id);
+  onTrackDeleted(ctx, id);
   for (const s of ctx.tx.all("Send")) if (s.from === id || s.to === id) deleteSendCascade(ctx, s.id);
   deleteLanesWhere(
     ctx,
@@ -341,11 +356,13 @@ function duplicateTrack(ctx: ReducerContext, t: Track, newId: TrackId, order: st
   tx.upsert("Track", { ...t, id: newId, order, parent });
   const deviceIds = new Map<string, string>();
   const sendIds = new Map<string, string>();
+  // Track-chain devices; drum racks bring their pads and pad chains.
   for (const d of tx.all("Device")) {
-    if (d.track !== t.id) continue;
+    if (d.track !== t.id || d.pad !== null) continue;
     const id = ctx.newId();
     deviceIds.set(d.id, id);
     tx.upsert("Device", { ...d, id, track: newId });
+    copyRackPads(ctx, d.id, id, newId, deviceIds);
   }
   for (const s of tx.all("Send")) {
     if (s.from !== t.id) continue;
@@ -467,7 +484,7 @@ function mixerCommand(ctx: ReducerContext, c: MixerCommand): void {
 function chainOf(ctx: ReducerContext, trackId: TrackId, except?: string): Device[] {
   return ctx.tx
     .all("Device")
-    .filter((d) => d.track === trackId && d.id !== except)
+    .filter((d) => d.track === trackId && d.pad === null && d.id !== except)
     .sort(byOrder);
 }
 
@@ -496,6 +513,8 @@ function deviceCommand(ctx: ReducerContext, c: DeviceCommand): ReplyValue {
         enabled: true,
         kind,
         params: defaultParams(c.device.device),
+        sidechain: null,
+        pad: null,
       });
       break;
     }
@@ -505,6 +524,7 @@ function deviceCommand(ctx: ReducerContext, c: DeviceCommand): ReplyValue {
       break;
     case "Move": {
       const d = device(ctx, c.id);
+      checkDeviceMove(ctx, d, c.track);
       const t = track(ctx, c.track);
       checkDeviceFits(t, d.kind);
       if (c.before === d.id) break;
@@ -515,9 +535,10 @@ function deviceCommand(ctx: ReducerContext, c: DeviceCommand): ReplyValue {
     case "Duplicate": {
       const d = device(ctx, c.id);
       if (tx.get("Device", c.new_id)) fail("InvalidArgument", `device ${c.new_id} already exists`);
-      const chain = chainOf(ctx, d.track);
+      const chain = duplicateSiblings(ctx, d, chainOf(ctx, d.track));
       const next = chain[chain.findIndex((x) => x.id === d.id) + 1];
       tx.upsert("Device", { ...d, id: c.new_id, order: keyBetween(d.order, next?.order ?? null) });
+      copyRackPads(ctx, d.id, c.new_id, d.track);
       break;
     }
     case "Rename":
@@ -547,9 +568,13 @@ function deviceCommand(ctx: ReducerContext, c: DeviceCommand): ReplyValue {
         fail("InvalidArgument", `device ${d.id} is not a sampler`);
       }
       if (c.media !== null && !tx.get("Media", c.media)) fail("NotFound", `media ${c.media}`);
-      tx.upsert("Device", { ...d, kind: { type: "Builtin", device: { type: "Sampler", sample: c.media } } });
+      const slices = d.kind.device.type === "Sampler" ? d.kind.device.slices : { enabled: false, base_note: 36, markers: [] };
+      tx.upsert("Device", { ...d, kind: { type: "Builtin", device: { type: "Sampler", sample: c.media, slices } } });
       break;
     }
+    case "SetSidechain":
+      setSidechain(ctx, c.device, c.source);
+      break;
     case "ListBuiltin":
       return { type: "DeviceTypes", devices: Object.values(BUILTIN_DESCRIPTORS) };
     case "GetDescriptor": {
@@ -584,6 +609,7 @@ function resolveOverlaps(ctx: ReducerContext, keep: Clip, ignore: ReadonlySet<Cl
     const os = o.start;
     const oe = os + o.length;
     if (oe <= s + EPS || os >= e - EPS) continue; // no overlap
+    if (isCrossfade(keep, o)) continue; // crossfade overlap (clip-editing)
     if (os >= s - EPS && oe <= e + EPS) {
       deleteClipCascade(ctx, o.id); // fully covered
     } else if (os < s && oe > e) {
@@ -610,6 +636,11 @@ function mediaLengthBeats(ctx: ReducerContext, media: { frames: number; sample_r
 function clipCommand(ctx: ReducerContext, c: ClipCommand): void {
   const { tx } = ctx;
   switch (c.type) {
+    case "SetFadeCurves":
+    case "SetReversed":
+    case "Crossfade":
+      clipV2Command(ctx, c);
+      break;
     case "CreateMidi": {
       if (tx.get("Clip", c.id)) fail("InvalidArgument", `clip ${c.id} already exists`);
       const t = track(ctx, c.track);
@@ -640,7 +671,11 @@ function clipCommand(ctx: ReducerContext, c: ClipCommand): void {
           transpose: 0,
           fade_in: 0,
           fade_out: 0,
-          warp: { enabled: true, mode: "Complex", source_bpm: null },
+          fade_in_curve: { type: "Linear" },
+          fade_out_curve: { type: "Linear" },
+          reversed: false,
+          // Unwarped (native speed), like the real controller.
+          warp: { enabled: false, mode: "Repitch", source_bpm: null },
         },
       });
       tx.upsert("Clip", created);
@@ -791,7 +826,8 @@ function noteCommand(ctx: ReducerContext, c: NoteCommand): void {
       if (!(c.grid > 0)) fail("InvalidArgument", "grid must be > 0");
       const strength = clamp(c.strength, 0, 1);
       const ids = c.notes ? new Set(c.notes) : null;
-      const snap = (t: number) => t + (snapBeats(t, c.grid) - t) * strength;
+      const target = (t: number) => snapBeats(t, c.grid) + swingOffset(snapBeats(t, c.grid), c.grid, c.swing);
+      const snap = (t: number) => t + (target(t) - t) * strength;
       for (const n of tx.all("Note")) {
         if (n.clip !== c.clip || (ids && !ids.has(n.id))) continue;
         const start = Math.max(0, snap(n.start));

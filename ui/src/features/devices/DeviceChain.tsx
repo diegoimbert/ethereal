@@ -1,6 +1,8 @@
 import { useState, type DragEvent } from "react";
-import type { BuiltinDeviceType, DeviceDescriptor, DeviceId, Track } from "@/generated";
-import { useDevicesOfTrack, useSelectionStore, useTracksOrdered } from "@/state";
+import { Select, type SelectOption } from "@/kit";
+import type { BuiltinDeviceType, DeviceDescriptor, DeviceId, Track, TrackId } from "@/generated";
+import clsx from "clsx";
+import { useDevicesOfTrack, useProjectStore, useSelectionStore, useTracksOrdered } from "@/state";
 import { cmd, newId } from "@/transport";
 import { builtinDevice, useBuiltinTypes } from "./descriptors";
 import { DEVICE_DRAG_TYPE, insertableTypes } from "./chainUtils";
@@ -13,20 +15,31 @@ function TrackPicker({ track }: { track: Track }) {
   const tracks = useTracksOrdered();
   const selectTrack = useSelectionStore((s) => s.selectTrack);
   return (
-    <select
+    <Select
+      size="sm"
       className="eth-devices__track"
       aria-label="Track"
       value={track.id}
-      onChange={(e) => selectTrack(e.target.value)}
-    >
-      {tracks.map((t) => (
-        <option key={t.id} value={t.id}>
-          {t.name}
-        </option>
-      ))}
-    </select>
+      onChange={(v) => selectTrack(v)}
+      options={tracks.map((t) => ({ value: t.id, label: t.name }))}
+    />
   );
 }
+
+/** Add-device options, grouped by category (in order of first appearance). */
+function groupByCategory(types: ReadonlyArray<DeviceDescriptor>): SelectOption<string>[] {
+  const order: string[] = [];
+  for (const t of types) if (!order.includes(t.category)) order.push(t.category);
+  return order.flatMap((category) =>
+    types.flatMap((d) =>
+      d.category === category && d.device_type.type === "Builtin"
+        ? [{ value: d.device_type.device as string, label: d.name, group: CATEGORY_LABELS[category] ?? category }]
+        : [],
+    ),
+  );
+}
+
+const CATEGORY_LABELS: Record<string, string> = { Instrument: "Instruments", AudioEffect: "Audio effects", NoteEffect: "MIDI effects" };
 
 function AddDevice({ track, firstDevice }: { track: Track; firstDevice: DeviceId | null }) {
   const send = useSend();
@@ -43,28 +56,25 @@ function AddDevice({ track, firstDevice }: { track: Track; firstDevice: DeviceId
       }),
     );
   return (
-    <select
+    <Select
+      size="sm"
       className="eth-devices__add"
       aria-label="Add device"
       value=""
-      onChange={(e) => {
-        const d = types.find((t) => t.device_type.type === "Builtin" && t.device_type.device === e.target.value);
+      placeholder="+ Add device…"
+      onChange={(v) => {
+        const d = types.find((t) => t.device_type.type === "Builtin" && t.device_type.device === v);
         if (d && d.device_type.type === "Builtin") add(d.device_type.device, d.category);
       }}
-    >
-      <option value="">+ Add device…</option>
-      {types.map((d) =>
-        d.device_type.type === "Builtin" ? (
-          <option key={d.device_type.device} value={d.device_type.device}>
-            {d.name}
-          </option>
-        ) : null,
-      )}
-    </select>
+      options={groupByCategory(types)}
+    />
   );
 }
 
-function Chain({ track }: { track: Track }) {
+export type ChainLayout = "row" | "stack";
+
+function Chain({ track, layout, picker }: { track: Track; layout: ChainLayout; picker: boolean }) {
+  const stack = layout === "stack";
   const send = useSend();
   const devices = useDevicesOfTrack(track.id);
   const [endDrop, setEndDrop] = useState(false);
@@ -85,12 +95,14 @@ function Chain({ track }: { track: Track }) {
   };
 
   return (
-    <div className="eth-devices" data-feature="devices">
-      <div className="eth-devices__toolbar">
-        <TrackPicker track={track} />
-        <AddDevice track={track} firstDevice={devices[0]?.id ?? null} />
-      </div>
-      <div className="eth-devices__chain" role="list" aria-label={`${track.name} devices`}>
+    <div className={clsx("eth-devices", stack && "eth-devices--stack")} data-feature="devices">
+      {!stack && (
+        <div className="eth-devices__toolbar">
+          {picker && <TrackPicker track={track} />}
+          <AddDevice track={track} firstDevice={devices[0]?.id ?? null} />
+        </div>
+      )}
+      <div className={clsx("eth-devices__chain", stack && "eth-devices__chain--stack")} role="list" aria-label={`${track.name} devices`}>
         {devices.map((d, i) => (
           <div role="listitem" key={d.id} className="eth-devices__slot">
             <DeviceView
@@ -98,6 +110,7 @@ function Chain({ track }: { track: Track }) {
               prev={devices[i - 1]?.id ?? null}
               moveRightBefore={i === devices.length - 1 ? undefined : (devices[i + 2]?.id ?? null)}
               onDropBefore={(dragged) => moveTo(dragged, d.id)}
+              layout={layout}
             />
           </div>
         ))}
@@ -107,16 +120,35 @@ function Chain({ track }: { track: Track }) {
           onDragLeave={() => setEndDrop(false)}
           onDrop={onEndDrop}
         >
-          {devices.length === 0 ? "No devices. Add one above or drop it here." : ""}
+          {devices.length === 0 && (
+            <div className="eth-devices__empty">
+              <span className="eth-devices__empty-title">No devices yet</span>
+              <span>Add one with “+ Add device”, or drop one here.</span>
+            </div>
+          )}
         </div>
       </div>
+      {stack && (
+        <div className="eth-devices__footer">
+          <AddDevice track={track} firstDevice={devices[0]?.id ?? null} />
+        </div>
+      )}
     </div>
   );
 }
 
-/** Device chain of the selected track, with the generic param UI. */
-export function DeviceChainView() {
-  const track = useSelectedTrack();
+export interface DeviceChainProps {
+  /** Show this track's chain (no track picker). Default: the selected track, with a picker. */
+  track?: TrackId;
+  /** "row" (default): cards side by side. "stack": full-width collapsible cards (inspector). */
+  layout?: ChainLayout;
+}
+
+/** Device chain of a track (the selected one by default), with the generic param UI. */
+export function DeviceChainView({ track: trackId, layout = "row" }: DeviceChainProps) {
+  const selected = useSelectedTrack();
+  const given = useProjectStore((s) => (trackId ? s.project?.tracks[trackId] : undefined));
+  const track = trackId ? given : selected;
   if (!track) return <div className="eth-devices eth-devices--empty" data-feature="devices">No project loaded</div>;
-  return <Chain key={track.id} track={track} />;
+  return <Chain key={track.id} track={track} layout={layout} picker={!trackId} />;
 }

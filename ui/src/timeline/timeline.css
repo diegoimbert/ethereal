@@ -4,7 +4,7 @@
   position: relative;
   overflow: hidden;
   background: var(--eth-color-bg-inset);
-  border-bottom: 1px solid var(--eth-color-border);
+  border-bottom: var(--eth-border-width) solid var(--eth-color-border);
   cursor: default;
   user-select: none;
   touch-action: none;
@@ -17,7 +17,7 @@
   position: absolute;
   left: 0;
   bottom: 0;
-  width: 1px;
+  width: var(--eth-border-width);
   height: 25%;
   background: var(--eth-color-border-light);
   pointer-events: none;
@@ -31,7 +31,9 @@
 .eth-ruler__label {
   position: absolute;
   left: 0;
-  bottom: 50%;
+  /* Below the loop brace (4px strip along the top). */
+  top: var(--eth-size-ruler-label-top);
+  line-height: var(--eth-size-ruler-label-line-height);
   white-space: nowrap;
   pointer-events: none;
 }
@@ -40,12 +42,18 @@
   position: absolute;
   left: 0;
   top: 0;
-  height: 30%;
-  min-height: 6px;
+  height: var(--eth-size-ruler-loop-height);
   background: var(--eth-color-accent);
   opacity: 0.85;
-  border-radius: var(--eth-radius-sm);
+  border-radius: 0 0 var(--eth-radius-sm) var(--eth-radius-sm);
   cursor: grab;
+}
+
+/* Taller invisible hit area so the thin brace stays easy to grab. */
+.eth-ruler__loop::after {
+  content: "";
+  position: absolute;
+  inset: 0 0 calc(-1 * var(--eth-size-ruler-loop-hit-extra));
 }
 
 .eth-ruler__loop--off {
@@ -55,13 +63,13 @@
 
 .eth-ruler__playhead {
   position: absolute;
-  left: -5px;
+  left: calc(-1 * var(--eth-size-playhead-marker-half-width));
   bottom: 0;
   width: 0;
   height: 0;
-  border-left: 5px solid transparent;
-  border-right: 5px solid transparent;
-  border-top: 7px solid var(--eth-color-playhead);
+  border-left: var(--eth-size-playhead-marker-half-width) solid transparent;
+  border-right: var(--eth-size-playhead-marker-half-width) solid transparent;
+  border-top: var(--eth-size-playhead-marker-height) solid var(--eth-color-playhead);
   pointer-events: none;
 }
 
@@ -70,7 +78,7 @@
   left: 0;
   top: 0;
   bottom: 0;
-  width: 1px;
+  width: var(--eth-border-width);
   background: var(--eth-color-playhead);
   pointer-events: none;
   z-index: 2;

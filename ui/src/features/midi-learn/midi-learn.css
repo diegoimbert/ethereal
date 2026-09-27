@@ -1,0 +1,102 @@
+/* MIDI learn panel (sidebar tab "midi") and the MIDI-mode highlight of mappable controls
+   anywhere in the app (marked by useMidiMode.ts). Tokens only. */
+.eth-midi {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-sm);
+  padding: var(--eth-space-sm);
+  font-size: var(--eth-fs-sm);
+  min-height: 0;
+  overflow: auto;
+}
+.eth-midi__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--eth-space-sm);
+}
+.eth-midi__hint,
+.eth-midi__empty,
+.eth-midi__notice,
+.eth-midi__activity {
+  margin: 0;
+  color: var(--eth-color-text-dim);
+}
+.eth-midi__notice {
+  color: var(--eth-color-warn);
+}
+.eth-midi__status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--eth-space-sm);
+  padding: var(--eth-space-xs) var(--eth-space-sm);
+  border-radius: var(--eth-radius-sm);
+  background: var(--eth-color-accent-subtle);
+}
+.eth-midi__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-xs);
+}
+.eth-midi__row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-xs);
+  padding: var(--eth-space-xs) var(--eth-space-sm);
+  border: var(--eth-border-width) solid var(--eth-color-border);
+  border-radius: var(--eth-radius-sm);
+  background: var(--eth-color-bg-raised);
+  transition: border-color var(--eth-duration-fast) var(--eth-ease-standard);
+}
+.eth-midi__row--active {
+  border-color: var(--eth-color-accent);
+}
+.eth-midi__row--fresh {
+  background: var(--eth-color-accent-subtle);
+}
+.eth-midi__row-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--eth-space-xs);
+}
+.eth-midi__target {
+  font-weight: var(--eth-fw-medium);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.eth-midi__source {
+  color: var(--eth-color-text-dim);
+  font-family: var(--eth-font-mono);
+  font-size: var(--eth-fs-xs);
+}
+.eth-midi__fields {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr;
+  gap: var(--eth-space-xs);
+}
+
+/* MIDI mode: highlight every mappable control; mapped ones and the learn target stand out. */
+.eth-midi-mode [data-midi-mappable] {
+  outline: var(--eth-border-width-strong) dashed var(--eth-color-accent-dim);
+  outline-offset: var(--eth-border-width);
+  cursor: pointer;
+}
+.eth-midi-mode [data-midi-mapped] {
+  outline-style: solid;
+  outline-color: var(--eth-color-accent);
+}
+.eth-midi-mode [data-midi-learning] {
+  outline: var(--eth-border-width-strong) solid var(--eth-color-warn);
+  animation: eth-midi-learning var(--eth-duration-slow) var(--eth-ease-standard) infinite alternate;
+}
+@keyframes eth-midi-learning {
+  to {
+    outline-color: var(--eth-color-accent);
+  }
+}

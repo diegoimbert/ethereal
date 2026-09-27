@@ -3,109 +3,176 @@
  * this file; they edit their own `ui/src/features/<name>/` folder, whose `index.tsx`
  * export is mounted into a slot here. Owned by `foundation` (later wiring by `alpha`).
  *
- * Layout (Ableton-like):
- *   ┌ project menu │ transport bar │ recording ┐
- *   │ browser /    │ main view: arrangement                  │
- *   │ plugins      ├─────────────────────────────────────────┤
- *   │              │ detail: devices | piano roll | automation | warp | mixer │
- *   └──────────────┴─────────────────────────────────────────┘
+ * Layout:
+ *   ┌ project menu │ transport capsule │ metronome │ recording │ export │ remote │ collab ┐
+ *   │rail│ markers + arrangement (fills the workspace)                                   │
+ *   │    │  floating panes over it (or pinned beside it): browser (left, from the rail),   │
+ *   │    │  inspector (right, with the selection), editor drawer (bottom)                 │
+ *   └────┴───────────────────────────────────────────────────────────────────────────────┘
+ * Roadmap v2 slots (contracts-2, docs/ROADMAP.md) are pre-mounted with placeholders.
  *
  * Engine access: entries (`ui/src/main.tsx`, `apps/web/src/main.tsx`) wrap `<App />` in
  * `<TransportProvider transport={createDefaultTransport()}>` from `@/transport`; features
  * use `useTransport()` and read the document from `@/state`.
  */
-import { useEffect, useState, type ReactNode } from "react";
-import { Button, Panel } from "@/kit";
+import { useEffect } from "react";
+import { AudioLines, Moon, Sun } from "lucide-react";
+import { ContextMenuHost, IconButton } from "@/kit";
 import { useEditorStore, useProjectStore } from "@/state";
+import { size, useTheme } from "@/theme";
 import { ArrangementView } from "@/features/arrangement";
-import { AutomationLanes } from "@/features/automation";
-import { Browser } from "@/features/browser";
-import { DeviceChain } from "@/features/devices";
-import { Mixer } from "@/features/mixer";
-import { PianoRoll } from "@/features/piano-roll";
-import { PluginBrowser } from "@/features/plugins";
+import { AudioSettingsDialog, openAudioSettings } from "@/features/audio-settings";
+import { MarkerLane } from "@/features/clip-editing";
+import { PresenceBar } from "@/features/collab";
+import { ExportDialog } from "@/features/export";
 import { ProjectMenu } from "@/features/project";
 import { RecordingControls } from "@/features/recording";
+import { ConnectDialog } from "@/features/remote";
+import { MetronomeSettings } from "@/features/tempo";
 import { TransportBar } from "@/features/transport-bar";
-import { WarpEditor } from "@/features/warp";
+import { CommandPalette } from "./shell/CommandPalette";
+import { DrawerShortcut, DrawerTabs, EditorDrawer } from "./shell/EditorDrawer";
+import { FloatingPane } from "./shell/FloatingPane";
+import { Inspector } from "./shell/Inspector";
+import { useInspectorTarget } from "./shell/inspectorTarget";
+import { LeftPanel, LeftRail } from "./shell/LeftRail";
+import { LEFT_TABS } from "./shell/tabs";
+import { useShellStore } from "./shell/shellStore";
 import "./App.css";
 
-interface Slot<Id extends string> {
-  id: Id;
-  label: string;
-  render: () => ReactNode;
-}
+/** Sizes in px, from the design tokens (`size.*` in ui/src/theme/tokens.ts). */
+const px = (token: string) => parseFloat(token);
+const GAP = px(size.floatGap);
+const MIN = px(size.floatMinSize);
+const MAIN_MIN = px(size.mainMinSize);
 
-export type SidebarTabId = "browser" | "plugins";
-export type DetailTabId = "devices" | "piano-roll" | "automation" | "warp" | "mixer";
-
-const SIDEBAR_TABS: ReadonlyArray<Slot<SidebarTabId>> = [
-  { id: "browser", label: "Browser", render: () => <Browser /> },
-  { id: "plugins", label: "Plugins", render: () => <PluginBrowser /> },
-];
-
-const DETAIL_TABS: ReadonlyArray<Slot<DetailTabId>> = [
-  { id: "devices", label: "Devices", render: () => <DeviceChain /> },
-  { id: "piano-roll", label: "Piano Roll", render: () => <PianoRoll /> },
-  { id: "automation", label: "Automation", render: () => <AutomationLanes /> },
-  { id: "warp", label: "Warp", render: () => <WarpEditor /> },
-  { id: "mixer", label: "Mixer", render: () => <Mixer /> },
-];
-
-function Tabs<Id extends string>({
-  slots,
-  active,
-  onSelect,
-  label,
-}: {
-  slots: ReadonlyArray<Slot<Id>>;
-  active: Id;
-  onSelect: (id: Id) => void;
-  label: string;
-}) {
+/** Dark / light theme switch (remembered by `@/theme`). */
+function ThemeToggle() {
+  const [theme, setTheme] = useTheme();
+  const dark = theme === "dark";
   return (
-    <div className="eth-shell__tabs" role="tablist" aria-label={label}>
-      {slots.map((s) => (
-        <Button
-          key={s.id}
-          size="sm"
-          variant="ghost"
-          role="tab"
-          aria-selected={s.id === active}
-          active={s.id === active}
-          onClick={() => onSelect(s.id)}
-        >
-          {s.label}
-        </Button>
-      ))}
-    </div>
+    <IconButton
+      size="sm"
+      tone="ghost"
+      className="eth-shell__theme"
+      label={dark ? "Switch to light theme" : "Switch to dark theme"}
+      icon={dark ? <Sun /> : <Moon />}
+      onClick={() => setTheme(dark ? "light" : "dark")}
+    />
   );
 }
 
-function renderActive<Id extends string>(slots: ReadonlyArray<Slot<Id>>, id: Id): ReactNode {
-  return (slots.find((s) => s.id === id) ?? slots[0]!).render();
-}
+/**
+ * The workspace: the arrangement fills it; the icon rail sits on its left edge; the
+ * browser (left), inspector (right) and editor drawer (bottom) float over it as cards, or,
+ * pinned, also take their space (the arrangement shrinks, animated).
+ */
+function Workspace() {
+  const left = useShellStore((s) => s.left);
+  const right = useShellStore((s) => s.right);
+  const bottom = useShellStore((s) => s.bottom);
+  const shell = useShellStore.getState;
+  const target = useInspectorTarget();
+  const rightOpen = target !== null;
 
-export function App() {
-  const [sidebarTab, setSidebarTab] = useState<SidebarTabId>("browser");
-  const [detailTab, setDetailTab] = useState<DetailTabId>("devices");
-  const [detailOpen, setDetailOpen] = useState(true);
+  // The inspector opens with the selection (the store knows, for layout and tests).
+  useEffect(() => {
+    if (shell().right.open !== rightOpen) shell().setOpen("right", rightOpen);
+  }, [rightOpen, shell]);
 
-  // Opening a clip (arrangement double-click) focuses its editor in the detail view.
+  // Opening a clip (double-click) shows its editor in the drawer.
   useEffect(
     () =>
       useEditorStore.subscribe((s, prev) => {
         if (s.request === prev.request || !s.clip) return;
         const clip = useProjectStore.getState().project?.clips[s.clip];
-        if (!clip) return;
-        setDetailTab(clip.content.type === "Midi" ? "piano-roll" : "warp");
-        setDetailOpen(true);
+        if (clip) shell().openDrawer(clip.content.type === "Midi" ? "piano-roll" : "warp");
       }),
-    [],
+    [shell],
   );
 
+  // A pinned pane reserves its size plus the gap on both of its sides (it floats inset).
+  const reserved = (p: { open: boolean; pinned: boolean; size: number }) => (p.open && p.pinned ? p.size + 2 * GAP : 0);
+  const style = {
+    "--pane-left-size": `${left.size}px`,
+    "--pane-right-size": `${right.size}px`,
+    "--pane-bottom-size": `${bottom.size}px`,
+    "--pane-left-reserved": `${reserved(left)}px`,
+    "--pane-right-reserved": `${reserved({ ...right, open: rightOpen })}px`,
+    "--pane-bottom-reserved": `${reserved(bottom)}px`,
+    // Room taken by open side panes, pinned or not: the drawer sits between them.
+    "--pane-left-occupied": `${left.open ? left.size + GAP : 0}px`,
+    "--pane-right-occupied": `${rightOpen ? right.size + GAP : 0}px`,
+  } as React.CSSProperties;
+  const leftLabel = LEFT_TABS.find((t) => t.id === left.tab)?.label ?? "Browser";
+
   return (
-    <div className={detailOpen ? "eth-shell" : "eth-shell eth-shell--detail-closed"}>
+    <div className="eth-workspace" style={style}>
+      <LeftRail />
+      <main className="eth-workspace__main" data-slot="main">
+        <div className="eth-workspace__stage">
+          <div data-slot="markers">
+            <MarkerLane />
+          </div>
+          <ArrangementView />
+        </div>
+      </main>
+
+      <FloatingPane
+        side="left"
+        label={leftLabel}
+        header={<span className="eth-float__heading">{leftLabel}</span>}
+        open={left.open}
+        pinned={left.pinned}
+        size={left.size}
+        minSize={MIN}
+        maxSize={() => window.innerWidth - MAIN_MIN}
+        onResize={(v) => shell().setSize("left", v)}
+        onPinnedChange={(v) => shell().setPinned("left", v)}
+        onClose={() => shell().setOpen("left", false)}
+      >
+        <div data-slot="sidebar" className="eth-float__fill">
+          <LeftPanel tab={left.tab} />
+        </div>
+      </FloatingPane>
+
+      <FloatingPane
+        side="right"
+        label="Inspector"
+        header={<span className="eth-float__heading">Inspector</span>}
+        open={rightOpen}
+        pinned={right.pinned}
+        size={right.size}
+        minSize={MIN}
+        maxSize={() => window.innerWidth - MAIN_MIN}
+        onResize={(v) => shell().setSize("right", v)}
+        onPinnedChange={(v) => shell().setPinned("right", v)}
+      >
+        <Inspector target={target} />
+      </FloatingPane>
+
+      <FloatingPane
+        side="bottom"
+        label="Editor"
+        header={<DrawerTabs />}
+        open={bottom.open}
+        pinned={bottom.pinned}
+        size={bottom.size}
+        minSize={MIN}
+        maxSize={() => window.innerHeight - MAIN_MIN - px(size.topBarHeight)}
+        onResize={(v) => shell().setSize("bottom", v)}
+        onPinnedChange={(v) => shell().setPinned("bottom", v)}
+        onClose={() => shell().setOpen("bottom", false)}
+      >
+        <EditorDrawer />
+      </FloatingPane>
+    </div>
+  );
+}
+
+export function App() {
+  return (
+    <div className="eth-shell">
       <header className="eth-shell__top" data-slot="top">
         <div data-slot="project">
           <ProjectMenu />
@@ -113,41 +180,36 @@ export function App() {
         <div className="eth-shell__transport" data-slot="transport-bar">
           <TransportBar />
         </div>
+        <div data-slot="metronome">
+          <MetronomeSettings />
+        </div>
         <div data-slot="recording">
           <RecordingControls />
         </div>
+        <div data-slot="export">
+          <ExportDialog />
+        </div>
+        <div data-slot="remote">
+          <ConnectDialog />
+        </div>
+        <div data-slot="collab">
+          <PresenceBar />
+        </div>
+        <IconButton
+          size="sm"
+          tone="ghost"
+          className="eth-shell__theme"
+          label="Audio settings"
+          icon={<AudioLines />}
+          onClick={() => openAudioSettings()}
+        />
+        <ThemeToggle />
       </header>
-
-      <Panel
-        className="eth-shell__sidebar"
-        data-slot="sidebar"
-        title={<Tabs label="Sidebar" slots={SIDEBAR_TABS} active={sidebarTab} onSelect={setSidebarTab} />}
-      >
-        {renderActive(SIDEBAR_TABS, sidebarTab)}
-      </Panel>
-
-      <Panel className="eth-shell__main" data-slot="main" title="Arrangement">
-        <ArrangementView />
-      </Panel>
-
-      <Panel
-        className="eth-shell__detail"
-        data-slot="detail"
-        title={<Tabs label="Detail view" slots={DETAIL_TABS} active={detailTab} onSelect={setDetailTab} />}
-        actions={
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => setDetailOpen((o) => !o)}
-            aria-expanded={detailOpen}
-            title={detailOpen ? "Hide detail view" : "Show detail view"}
-          >
-            {detailOpen ? "▾" : "▴"}
-          </Button>
-        }
-      >
-        {detailOpen && renderActive(DETAIL_TABS, detailTab)}
-      </Panel>
+      <Workspace />
+      <DrawerShortcut />
+      <CommandPalette />
+      <AudioSettingsDialog />
+      <ContextMenuHost />
     </div>
   );
 }

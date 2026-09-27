@@ -1,0 +1,40 @@
+[package]
+name = "ether-au"
+description = "Audio Unit hosting (PluginFormatHost over the macOS AudioComponent registry). Owned by the `au` node."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+# Builds everywhere (so hosts can register `AuFormat` unconditionally); off macOS every
+# operation is `PluginError::Unsupported`. The `au` node adds its Apple framework deps under
+# the macOS target from [workspace.dependencies] (`objc2-audio-toolbox`, `objc2-core-audio`,
+# `objc2-core-audio-types`, `objc2-avf-audio`, `objc2-core-foundation`, `block2`, ...).
+[dependencies]
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+ether-core.workspace = true
+ether-plugin-host.workspace = true
+
+# Apple frameworks (AUAudioUnit, AudioComponent registry, AVAudioFormat, CFRunLoop, AppKit
+# editor windows). All Zlib OR Apache-2.0 OR MIT (`block2`: MIT).
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2.workspace = true
+block2.workspace = true
+rtrb.workspace = true
+tracing.workspace = true
+objc2-audio-toolbox.workspace = true
+objc2-core-audio-types.workspace = true
+objc2-avf-audio.workspace = true
+objc2-core-foundation.workspace = true
+objc2-foundation = { workspace = true, features = ["NSArray", "NSData", "NSDictionary", "NSError", "NSPropertyList", "NSString", "NSValue", "NSObject", "NSGeometry"] }
+objc2-app-kit = { workspace = true, features = ["NSViewController", "NSView", "NSWindow", "NSResponder"] }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+assert_no_alloc.workspace = true
+
+[lints]
+workspace = true

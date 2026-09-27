@@ -4,9 +4,11 @@ import type { AutomationLane, AutomationPoint, Track } from "@/generated";
 import { useProjectStore, useSelectionStore } from "@/state";
 import { createTimelineViewStore, DEFAULT_GRID, itemSelection, resolveGrid, snapToGrid, TempoMap, type TimelineViewStore } from "@/timeline";
 import { cmd, MockTransport, TransportProvider } from "@/transport";
+import { AutomationToggleButton } from "./AutomationToggleButton";
 import { AutomationLanes, TrackAutomationLanes } from "./index";
 import { LANE_PAD } from "./geometry";
 import { AUTOMATION_BAR_HEIGHT, LANE_HEIGHT, resetAutomationUi, useAutomationUi } from "./uiStore";
+import { pickOption } from "@/kit/testing";
 
 const store = () => useProjectStore.getState();
 const project = () => store().project!;
@@ -45,7 +47,12 @@ async function renderLanes(track?: () => Track): Promise<Track> {
     const p = useProjectStore((s) => s.project);
     if (!p) return null;
     t ??= (track ?? keysTrack)();
-    return <TrackAutomationLanes trackId={t.id} view={view} />;
+    return (
+      <>
+        <AutomationToggleButton trackId={t.id} trackName={t.name} />
+        <TrackAutomationLanes trackId={t.id} view={view} />
+      </>
+    );
   };
   render(
     <TransportProvider transport={mock}>
@@ -100,9 +107,9 @@ afterEach(() => {
 });
 
 describe("TrackAutomationLanes", () => {
-  it("is a collapsed bar until opened, then shows the existing lanes", async () => {
+  it("takes no room until opened, then shows the existing lanes", async () => {
     const track = await renderLanes();
-    expect(document.querySelector(".eth-auto-track")).toHaveStyle({ height: `${AUTOMATION_BAR_HEIGHT}px` });
+    expect(document.querySelector(".eth-auto-track")).toHaveStyle({ height: "0px" });
     expect(screen.queryByTestId("automation-lane-svg")).toBeNull();
     openTrack();
     await flush();
@@ -122,7 +129,7 @@ describe("TrackAutomationLanes", () => {
     const track = await renderLanes();
     openTrack();
     await flush();
-    fireEvent.change(screen.getByRole("combobox", { name: "Show parameter" }), { target: { value: `pan:${track.id}` } });
+    pickOption(screen.getByRole("combobox", { name: "Show parameter" }), { value: `pan:${track.id}` });
     await flush();
     expect(screen.getAllByTestId("automation-lane-svg")).toHaveLength(2);
     fireEvent.click(screen.getAllByRole("button", { name: "Hide lane" })[0]!);
@@ -167,7 +174,7 @@ describe("TrackAutomationLanes", () => {
     const track = await renderLanes();
     openTrack();
     await flush();
-    fireEvent.change(screen.getByRole("combobox", { name: "Show parameter" }), { target: { value: `pan:${track.id}` } });
+    pickOption(screen.getByRole("combobox", { name: "Show parameter" }), { value: `pan:${track.id}` });
     await flush();
     const panSvg = screen.getAllByTestId("automation-lane-svg")[1]!;
     fireEvent.doubleClick(panSvg, { clientX: 40, clientY: y(0.25) });
@@ -219,10 +226,10 @@ describe("TrackAutomationLanes", () => {
     });
     await flush();
     expect(select).toBeEnabled();
-    fireEvent.change(select, { target: { value: "Step" } });
+    pickOption(select, { value: "Step" });
     await flush();
     expect(project().automation_points[a!.id]!.curve).toEqual({ type: "Step" });
-    fireEvent.change(select, { target: { value: "Curve" } });
+    pickOption(select, { value: "Curve" });
     await flush();
     expect(project().automation_points[a!.id]!.curve).toEqual({ type: "Curve", tension: 0.5 });
     // The drawn path follows the curve: not a straight line between the two points.

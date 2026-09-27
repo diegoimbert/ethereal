@@ -395,6 +395,88 @@ fn node_param_automation_and_live_params() {
 }
 
 #[test]
+fn starting_inside_a_note_plays_it() {
+    let mut p = create(config());
+    let (rec, mut rx) = Recorder::new();
+    let rec = p.handle.add_node(Box::new(rec)).unwrap();
+    let mut t = with_chain(track(tid(2), TrackKind::Midi, Some(tid(1))), &[rec]);
+    // A 4-beat note at 0 and one at 4 (24 000 samples per beat).
+    t.clips = vec![midi_clip(
+        cid(1),
+        0.0,
+        8.0,
+        &[(0.0, 4.0, 60), (4.0, 1.0, 62)],
+    )];
+    p.handle.publish(desc(vec![master(), t])).unwrap();
+
+    // Located into the middle of the first note, then played: it starts at once and
+    // still ends at beat 4; the note at 4 plays normally.
+    p.handle
+        .transport(TransportControl::Locate {
+            position: Beats(2.5),
+        })
+        .unwrap();
+    p.handle.transport(TransportControl::Play).unwrap();
+    render(&mut p.engine, 36_000 + 1024, 512);
+    let mut notes: Vec<_> = events(&drain(&mut rx))
+        .into_iter()
+        .filter_map(|(t, k)| match k {
+            EventKind::NoteOn { key, .. } => Some((t, key, true)),
+            EventKind::NoteOff { key, .. } => Some((t, key, false)),
+            _ => None,
+        })
+        .collect();
+    notes.sort();
+    assert_eq!(
+        notes,
+        vec![(0, 60, true), (36_000, 60, false), (36_000, 62, true)]
+    );
+
+    // Exactly at a note's end: nothing to chase.
+    p.handle.transport(TransportControl::Stop).unwrap();
+    p.handle
+        .transport(TransportControl::Locate {
+            position: Beats(4.0 + 1.0),
+        })
+        .unwrap();
+    p.handle.transport(TransportControl::Play).unwrap();
+    render(&mut p.engine, 1024, 512);
+    let ons = events(&drain(&mut rx))
+        .into_iter()
+        .filter(|(_, k)| matches!(k, EventKind::NoteOn { .. }))
+        .count();
+    assert_eq!(ons, 0);
+}
+
+#[test]
+fn looping_back_into_a_note_plays_it() {
+    let mut p = create(config());
+    let (rec, mut rx) = Recorder::new();
+    let rec = p.handle.add_node(Box::new(rec)).unwrap();
+    let mut t = with_chain(track(tid(2), TrackKind::Midi, Some(tid(1))), &[rec]);
+    // A note from 0.5 to 3 across the whole loop [1, 2).
+    t.clips = vec![midi_clip(cid(1), 0.0, 8.0, &[(0.5, 2.5, 60)])];
+    let mut d = desc(vec![master(), t]);
+    d.loop_enabled = true;
+    d.loop_start = 1.0;
+    d.loop_end = 2.0;
+    p.handle.publish(d).unwrap();
+    p.handle
+        .transport(TransportControl::Locate {
+            position: Beats(1.0),
+        })
+        .unwrap();
+    p.handle.transport(TransportControl::Play).unwrap();
+    render(&mut p.engine, 2 * 24_000 + 512, 512);
+    let ons: Vec<_> = events(&drain(&mut rx))
+        .into_iter()
+        .filter_map(|(t, k)| matches!(k, EventKind::NoteOn { .. }).then_some(t))
+        .collect();
+    // At the start and at every loop jump.
+    assert_eq!(ons, vec![0, 24_000, 48_000]);
+}
+
+#[test]
 fn transport_stop_locate_release_notes() {
     let mut p = create(config());
     let (rec, mut rx) = Recorder::new();
@@ -463,6 +545,9 @@ fn audio_clip_plays_source() {
             transpose: 0.0,
             fade_in: 0.0,
             fade_out: 0.0,
+            fade_in_curve: Default::default(),
+            fade_out_curve: Default::default(),
+            reversed: false,
             warp: None,
         },
         envelopes: vec![],
@@ -566,6 +651,7 @@ fn compile_rejects_cycles_and_unknown_tracks() {
     t1.chain = vec![ChainEntry {
         node: key,
         enabled: true,
+        sidechain: None,
     }];
     let mut t2 = t1.clone();
     t2.id = tid(9);

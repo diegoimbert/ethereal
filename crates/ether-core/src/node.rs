@@ -33,6 +33,10 @@ pub struct ProcessContext<'a> {
     pub out_events: &'a mut EventBuffer,
 }
 
+/// Non-parameter data for a live node ([`Node::set_data`], `EngineHandle::set_node_data`):
+/// built off the audio thread, downcast by the node (`data.downcast::<T>()`).
+pub type NodeData = Box<dyn std::any::Any + Send>;
+
 /// Return value of [`Node::process`] (lets the engine skip silent nodes later).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ProcessStatus {
@@ -72,6 +76,35 @@ pub trait Node: Send {
     /// Main input / output channel counts.
     fn channels(&self) -> (u16, u16) {
         (2, 2)
+    }
+
+    /// RT-safe. Take non-parameter data (roadmap v2, e.g. `ether_model::SliceSettings` for
+    /// the sampler) sent with `EngineHandle::set_node_data`. Swap it in without allocating
+    /// or freeing and return the replaced data (dropped on the GC thread); return `Some(data)`
+    /// unchanged to reject it (the default).
+    fn set_data(&mut self, data: NodeData) -> Option<NodeData> {
+        Some(data)
+    }
+
+    /// Roadmap v2 (`sidechain`): channels of the sidechain input (0 = none; the engine then
+    /// never calls [`Node::process_sidechain`]). Must match
+    /// `DeviceDescriptor::sidechain_inputs`.
+    fn sidechain_inputs(&self) -> u16 {
+        0
+    }
+
+    /// RT-safe. [`Node::process`] with the sidechain signal (`sidechain_inputs()` planar
+    /// channels of `ctx.frames` samples, already latency-aligned with `audio`). Called
+    /// instead of `process` when the chain entry has a sidechain source; nodes with a
+    /// sidechain input override it. Default: ignore the sidechain.
+    fn process_sidechain(
+        &mut self,
+        ctx: &mut ProcessContext<'_>,
+        audio: &mut AudioBuffers<'_, '_>,
+        sidechain: &[&[f32]],
+    ) -> ProcessStatus {
+        let _ = sidechain;
+        self.process(ctx, audio)
     }
 }
 

@@ -331,7 +331,14 @@ fn continuous_controls_push_params_without_republish() {
 fn node_lifecycle_follows_the_document() {
     let mut h = Harness::with_project();
     let t = track(&mut h, TrackKind::Midi, None);
-    let sampler = device(&mut h, t, BuiltinDevice::Sampler { sample: None });
+    let sampler = device(
+        &mut h,
+        t,
+        BuiltinDevice::Sampler {
+            sample: None,
+            slices: Default::default(),
+        },
+    );
     let delay = device(&mut h, t, BuiltinDevice::Delay);
     h.tick();
     assert_eq!(h.ctl.bridge.live.len(), 2);
@@ -560,10 +567,35 @@ fn insert_plugin(h: &mut Harness, t: TrackId) -> DeviceId {
         device: DeviceSpec::Plugin {
             plugin_id: "com.test.Verb".into(),
             sandboxed: None,
+            format: None,
         },
         before: None,
     }));
     d
+}
+
+#[test]
+fn plugin_format_is_recorded_and_defaults_to_clap() {
+    let mut h = plugin_harness();
+    let t = track(&mut h, TrackKind::Audio, None);
+    let clap = insert_plugin(&mut h, t);
+    let vst3: DeviceId = h.id();
+    h.ok(Command::Device(DeviceCommand::Insert {
+        id: vst3,
+        track: t,
+        device: DeviceSpec::Plugin {
+            plugin_id: "com.test.Verb".into(),
+            sandboxed: None,
+            format: Some(PluginFormat::Vst3),
+        },
+        before: None,
+    }));
+    let format = |h: &Harness, d: DeviceId| match &h.project().devices[&d].kind {
+        DeviceKind::Plugin { plugin } => plugin.format,
+        other => panic!("{other:?}"),
+    };
+    assert_eq!(format(&h, clap), PluginFormat::Clap);
+    assert_eq!(format(&h, vst3), PluginFormat::Vst3);
 }
 
 #[test]
@@ -705,6 +737,7 @@ fn plugins_unsupported_on_web() {
         device: DeviceSpec::Plugin {
             plugin_id: "com.test.Verb".into(),
             sandboxed: None,
+            format: None,
         },
         before: None,
     }));
@@ -716,7 +749,9 @@ fn plugins_unsupported_on_web() {
 fn list_builtin_devices() {
     let mut h = Harness::with_project();
     let v = h.ok(Command::Device(DeviceCommand::ListBuiltin));
-    assert!(matches!(v, ReplyValue::DeviceTypes { devices } if devices.len() == 4));
+    assert!(
+        matches!(v, ReplyValue::DeviceTypes { devices } if devices.len() == BuiltinDeviceType::ALL.len())
+    );
 }
 
 fn midi_clip(h: &mut Harness, t: TrackId) -> ClipId {

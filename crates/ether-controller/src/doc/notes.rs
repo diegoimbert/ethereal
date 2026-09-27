@@ -115,6 +115,7 @@ pub(super) fn apply(ctx: &mut DocCtx, c: &NoteCommand) -> CmdResult<()> {
             grid,
             strength,
             ends,
+            swing,
         } => {
             ctx.clip(*clip)?;
             if !(grid.0.is_finite() && grid.0 > 0.0) {
@@ -125,7 +126,12 @@ pub(super) fn apply(ctx: &mut DocCtx, c: &NoteCommand) -> CmdResult<()> {
             } else {
                 1.0
             };
-            let snap = |t: f64| t + (Beats(t).snap(*grid).0 - t) * strength;
+            // Target = nearest grid line, delayed by the quantize swing on odd lines.
+            let target = |t: f64| {
+                let s = Beats(t).snap(*grid).0;
+                s + crate::groove::swing_delay(s, grid.0, *swing)
+            };
+            let snap = |t: f64| t + (target(t) - t) * strength;
             let targets: Vec<Note> = ctx
                 .p()
                 .notes_of(*clip)

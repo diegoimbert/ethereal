@@ -21,4 +21,9 @@ import type { TrackScale } from "./TrackScale";
  * Record-arm is **not** part of the document (momentary performance state, not undoable):
  * it lives in the controller and is reported via `RecordingEvent::ArmChanged`.
  */
-export type Track = { scale: TrackScale, id: TrackId, kind: TrackKind, name: string, color: Color, order: OrderKey, parent: TrackId | null, mixer: TrackMixer, input: TrackInput, output: TrackOutput, monitor: MonitorMode, };
+export type Track = { id: TrackId, kind: TrackKind, name: string, color: Color, order: OrderKey, parent: TrackId | null, mixer: TrackMixer, input: TrackInput, output: TrackOutput, monitor: MonitorMode, 
+/**
+ * Piano-roll scale (MIDI tracks only; others stay `FollowProject`). Older files load
+ * as `FollowProject`.
+ */
+scale: TrackScale, };

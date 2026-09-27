@@ -37,6 +37,7 @@ just test-all    # cargo test + vitest
 | `just dev-ui` | Standalone UI against the in-memory `MockTransport` (no Rust needed). |
 | `just dev-web` | Browser host (`apps/web`, COOP/COEP headers for SharedArrayBuffer). |
 | `just dev-desktop` | Tauri desktop app. `just dev-desktop-headless` = same with the null audio backend. |
+| `just dev-server` | Headless engine over WebSocket (`ether-server`) for the web UI's **Remote** button (see below). |
 | `just gen-types` | Regenerate `ui/src/generated/` (TS types) from `crates/ether-protocol`. Commit the result; CI fails if stale. |
 | `just check-wasm` | `cargo check --target wasm32-unknown-unknown` for the engine-side crates. |
 | `just check-all` / `just test-all` | Everything CI runs. |
@@ -82,7 +83,7 @@ never hardcode ports or paths.
   (`scripts/dev-env.mjs` is the single source of truth).
 - **Ports.** No fixed ports. The base port is `20000 + fnv1a(instance) % 10000`, or
   `ETHER_DEV_PORT` when set. Offsets: `+0` UI/web dev server (and the Tauri `devUrl`),
-  `+1` vite preview, `+2` Playwright web server, `+3` reserved (collab server). Vite runs
+  `+1` vite preview, `+2` Playwright web server, `+3` reserved (collab server), `+4` remote engine server (`ether-server`). Vite runs
   with `strictPort`, so a collision fails loudly instead of silently moving. If two
   instance names ever hash to the same port, set `ETHER_DEV_PORT` for one of them. Other
   servers use the same scheme, or port 0.
@@ -102,6 +103,33 @@ never hardcode ports or paths.
   id and the pid.
 - **Cargo.** Each worktree keeps its own `target/` directory, which is the default. Don't
   set a shared `CARGO_TARGET_DIR`: the build-directory lock would serialize every agent.
+
+## Remote engine (`ether-server`)
+
+`ether-server` runs the engine headless (the same native host as the desktop app) and
+serves the UI over WebSocket, so the browser UI can drive an engine on another machine.
+
+- `just dev-server` starts it on this instance's remote port (base `+4`, see
+  `just dev-port`) with the null audio backend and prints its address and token. In the
+  web UI (`just dev-web`), click **Remote** in the top bar, enter `ws://127.0.0.1:<port>`
+  and the token. Disconnecting returns to the in-browser engine.
+- It listens on `127.0.0.1` by default; `--listen <ip>` exposes it to the network and
+  requires a token. The token comes from `--token`/`ETHER_SERVER_TOKEN`, or is generated
+  on first start into `<data-dir>/config/server-token` (it is never logged; `--print-token`
+  shows it). `--no-auth` is allowed on loopback only, and then only upgrades whose
+  `Host` and (browser) `Origin` are loopback are accepted, so other web pages open on the
+  machine cannot drive the engine. Use TLS (a reverse proxy) for anything beyond a
+  trusted network.
+- Connections must finish the upgrade and hello within 10 s (64 KiB message limit until
+  then, at most 32 at once). Afterwards the server pings quiet clients and drops those
+  silent for 60 s or whose writes block for 10 s; a dropped client's open gestures are
+  ended and its unfinished uploads cancelled. Each client may run 4 uploads at once.
+- Several UIs can connect at once: they share one project, see each other's edits live,
+  and each gets only its own replies.
+- Dropping audio files onto the sample browser while connected uploads them to the server
+  and imports them into the project. Unfinished uploads are dropped when their client
+  disconnects.
+- Protocol: `crates/ether-protocol/src/remote.rs`. `ether-server --help` lists all flags.
 
 ## License
 

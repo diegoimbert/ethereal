@@ -10,8 +10,8 @@ use crate::tx::{CmdResult, invalid};
 
 /// Default track colors (same palette as the UI mock).
 pub(crate) const TRACK_COLORS: [u32; 10] = [
-    0xff764d, 0xffa53f, 0xf0d03f, 0x99d44a, 0x3fc98c, 0x3fc2d9, 0x5c9dff, 0x9b7bff, 0xe06adf,
-    0xff6b8b,
+    0xe8919d, 0xe8a585, 0xe6c07e, 0xa9cf8b, 0x86cfa8, 0x7cc6c0, 0x86bfe0, 0x8fa8e6, 0xbd9ae3,
+    0xd99adf,
 ];
 
 fn default_name(kind: TrackKind, n: usize) -> String {
@@ -230,8 +230,11 @@ fn duplicate(
         {
             plugin.state = Some(state);
         }
+        let new_device = nd.id;
         device_ids.insert(d.id, nd.id);
         ctx.tx.insert(Entity::Device(nd))?;
+        // Drum racks come with their pads and pad chains.
+        ctx.copy_rack_pads(d.id, new_device, new_id, &mut device_ids)?;
     }
     let mut send_ids = BTreeMap::new();
     let sends: Vec<TrackSend> = ctx

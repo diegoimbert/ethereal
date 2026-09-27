@@ -23,7 +23,8 @@ use ether_core::transport::TransportInfo;
 use shared_memory::{Shmem, ShmemConf, ShmemError};
 
 const MAGIC: u32 = 0x4554_5342; // "ETSB"
-const VERSION: u32 = 1;
+/// Layout version, checked by the helper on open. Bump on any change to the region layout.
+const VERSION: u32 = 2;
 const ALIGN: usize = 64;
 
 /// Block transport, `repr(C)`.

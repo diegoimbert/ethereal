@@ -1,20 +1,33 @@
-.eth-scale-select, .eth-scale-controls, .eth-project-scale {
+/* Scale pickers (Projects menu, piano-roll scale popover). Tokens only (docs/DESIGN-SYSTEM.md). */
+
+.eth-scale-select,
+.eth-project-scale {
   display: inline-flex;
   align-items: center;
   gap: var(--eth-space-xs);
   white-space: nowrap;
 }
-.eth-scale-select select, .eth-scale-source {
-  background: var(--eth-color-bg-inset);
-  color: var(--eth-color-text);
-  border: 1px solid var(--eth-color-border);
-  border-radius: var(--eth-radius-sm);
-  font: inherit;
-  height: 23px;
-  max-width: 135px;
+
+.eth-project-scale {
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
 }
-.eth-scale-source { max-width: 150px; }
-.eth-scale-origin, .eth-project-scale { color: var(--eth-color-text-dim); font-size: var(--eth-fs-xs); }
-.eth-scale-controls { gap: var(--eth-space-sm); }
-.eth-scale-controls label { display: inline-flex; align-items: center; gap: 2px; }
-.eth-scale-controls input { accent-color: var(--eth-color-accent); margin: 0; }
+
+.eth-scale-controls {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-sm);
+  padding: var(--eth-space-sm);
+  font-size: var(--eth-fs-sm);
+}
+
+.eth-scale-controls__field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--eth-space-sm);
+}
+
+.eth-scale-controls__label {
+  color: var(--eth-color-text-dim);
+}

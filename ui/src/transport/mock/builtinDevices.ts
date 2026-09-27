@@ -25,6 +25,7 @@ function param(
 const LOG: ParamScale = { type: "Log" };
 const TIME: ParamScale = { type: "Power", exponent: 2 };
 const FADER: ParamScale = { type: "Fader" };
+const ONOFF = ["Off", "On"];
 
 export const BUILTIN_DESCRIPTORS: Readonly<Record<BuiltinDeviceType, DeviceDescriptor>> = {
   Synth: {
@@ -34,6 +35,7 @@ export const BUILTIN_DESCRIPTORS: Readonly<Record<BuiltinDeviceType, DeviceDescr
     audio_inputs: 0,
     audio_outputs: 2,
     midi_input: true,
+    sidechain_inputs: 0,
     params: [
       param(0, "Waveform", "Oscillator", "None", 0, 3, 1, undefined, ["Sine", "Saw", "Square", "Triangle"]),
       param(1, "Detune", "Oscillator", "Semitones", -12, 12, 0),
@@ -46,6 +48,7 @@ export const BUILTIN_DESCRIPTORS: Readonly<Record<BuiltinDeviceType, DeviceDescr
       param(8, "Volume", "Output", "Decibels", -60, 6, -6, FADER),
     ],
   },
+  // Mirrors `ether-devices/src/sampler.rs` (drum-rack: Start/End, slice mode in the kind).
   Sampler: {
     device_type: { type: "Builtin", device: "Sampler" },
     name: "Sampler",
@@ -53,13 +56,16 @@ export const BUILTIN_DESCRIPTORS: Readonly<Record<BuiltinDeviceType, DeviceDescr
     audio_inputs: 0,
     audio_outputs: 2,
     midi_input: true,
+    sidechain_inputs: 0,
     params: [
-      param(0, "Root Key", "Sample", "None", 0, 127, 60),
-      param(1, "Transpose", "Sample", "Semitones", -48, 48, 0),
-      param(2, "Attack", "Envelope", "Milliseconds", 0, 5000, 1, TIME),
-      param(3, "Release", "Envelope", "Milliseconds", 0, 10000, 100, TIME),
-      param(4, "Loop", "Sample", "Toggle", 0, 1, 0, undefined, ["Off", "On"]),
-      param(5, "Gain", "Output", "Decibels", -60, 12, 0, FADER),
+      param(0, "Mode", "Playback", "None", 0, 1, 1, undefined, ["One-shot", "Pitched"]),
+      param(1, "Root Key", "Playback", "None", 0, 127, 60),
+      param(2, "Transpose", "Playback", "Semitones", -24, 24, 0),
+      param(3, "Attack", "Envelope", "Milliseconds", 0, 5000, 1, { type: "Power", exponent: 3 }),
+      param(4, "Release", "Envelope", "Milliseconds", 1, 10000, 100, { type: "Power", exponent: 3 }),
+      param(5, "Volume", "Output", "Decibels", -60, 6, 0),
+      param(6, "Start", "Playback", "Percent", 0, 100, 0),
+      param(7, "End", "Playback", "Percent", 0, 100, 100),
     ],
   },
   Compressor: {
@@ -69,13 +75,14 @@ export const BUILTIN_DESCRIPTORS: Readonly<Record<BuiltinDeviceType, DeviceDescr
     audio_inputs: 2,
     audio_outputs: 2,
     midi_input: false,
+    sidechain_inputs: 2,
     params: [
       param(0, "Threshold", null, "Decibels", -60, 0, -18),
       param(1, "Ratio", null, "Ratio", 1, 20, 4, LOG),
       param(2, "Attack", null, "Milliseconds", 0.1, 200, 10, LOG),
       param(3, "Release", null, "Milliseconds", 5, 2000, 150, LOG),
       param(4, "Makeup", null, "Decibels", 0, 24, 0),
-      param(5, "Mix", null, "Percent", 0, 100, 100),
+      param(5, "Sidechain HPF", "Sidechain", "Hertz", 20, 500, 20, LOG),
     ],
   },
   Delay: {
@@ -85,6 +92,7 @@ export const BUILTIN_DESCRIPTORS: Readonly<Record<BuiltinDeviceType, DeviceDescr
     audio_inputs: 2,
     audio_outputs: 2,
     midi_input: false,
+    sidechain_inputs: 0,
     params: [
       param(0, "Time", null, "Milliseconds", 1, 2000, 375, LOG),
       param(1, "Sync", null, "Toggle", 0, 1, 1, undefined, ["Off", "On"]),
@@ -93,7 +101,90 @@ export const BUILTIN_DESCRIPTORS: Readonly<Record<BuiltinDeviceType, DeviceDescr
       param(4, "Mix", null, "Percent", 0, 100, 30),
     ],
   },
+  // Roadmap v2 effects: mirror `ether-devices/src/{eq,reverb,limiter,utility}.rs` exactly.
+  Eq: effect("Eq", "EQ", eqParams()),
+  Reverb: effect("Reverb", "Reverb", [
+    param(0, "Pre-Delay", "Reverb", "Milliseconds", 0, 250, 20, { type: "Power", exponent: 2 }),
+    param(1, "Size", "Reverb", "Percent", 0, 100, 50),
+    param(2, "Decay", "Reverb", "Seconds", 0.2, 20, 2, LOG),
+    param(3, "Damping", "Reverb", "Percent", 0, 100, 50),
+    param(4, "Width", "Output", "Percent", 0, 100, 100),
+    param(5, "Mix", "Output", "Percent", 0, 100, 30),
+  ]),
+  Limiter: {
+    ...effect("Limiter", "Limiter", [
+      param(0, "Gain", "Limiter", "Decibels", -12, 24, 0),
+      param(1, "Ceiling", "Limiter", "Decibels", -24, 0, -0.3),
+      param(2, "Release", "Limiter", "Milliseconds", 1, 1000, 100, LOG),
+    ]),
+    sidechain_inputs: 2,
+  },
+  Utility: effect("Utility", "Utility", [
+    param(0, "Gain", "Utility", "Decibels", -36, 36, 0),
+    param(1, "Pan", "Utility", "Pan", -1, 1, 0),
+    param(2, "Width", "Stereo", "Percent", 0, 200, 100),
+    param(3, "Invert L", "Phase", "Toggle", 0, 1, 0, undefined, ONOFF),
+    param(4, "Invert R", "Phase", "Toggle", 0, 1, 0, undefined, ONOFF),
+    param(5, "Mono", "Stereo", "Toggle", 0, 1, 0, undefined, ONOFF),
+  ]),
+  // Mirrors `ether-devices/src/drum_rack.rs` (drum-rack).
+  DrumRack: {
+    device_type: { type: "Builtin", device: "DrumRack" },
+    name: "Drum Rack",
+    category: "Instrument",
+    audio_inputs: 0,
+    audio_outputs: 2,
+    midi_input: true,
+    sidechain_inputs: 0,
+    params: [param(0, "Volume", "Rack", "Decibels", -60, 6, 0), param(1, "Pan", "Rack", "Pan", -1, 1, 0)],
+  },
 };
+
+/** Stereo audio effect descriptor. */
+function effect(device: BuiltinDeviceType, name: string, params: ParamInfo[]): DeviceDescriptor {
+  return {
+    device_type: { type: "Builtin", device },
+    name,
+    category: "AudioEffect",
+    audio_inputs: 2,
+    audio_outputs: 2,
+    midi_input: false,
+    sidechain_inputs: 0,
+    params,
+  };
+}
+
+/** EQ: 8 bands x (On, Type, Freq, Gain, Q) at ids 5b..5b+4, then Output (40). */
+function eqParams(): ParamInfo[] {
+  const types = ["Low Cut", "Low Shelf", "Bell", "Notch", "High Shelf", "High Cut"];
+  const bands: [boolean, number, number][] = [
+    [false, 0, 30],
+    [true, 1, 100],
+    [true, 2, 250],
+    [true, 2, 1000],
+    [true, 2, 2500],
+    [true, 2, 6000],
+    [true, 4, 10000],
+    [false, 5, 18000],
+  ];
+  const params = bands.flatMap(([on, type, freq], b) => {
+    const group = `Band ${b + 1}`;
+    const id = 5 * b;
+    return [
+      param(id, "On", group, "Toggle", 0, 1, on ? 1 : 0, undefined, ONOFF),
+      param(id + 1, "Type", group, "None", 0, types.length - 1, type, undefined, types),
+      param(id + 2, "Freq", group, "Hertz", 20, 20000, freq, LOG),
+      param(id + 3, "Gain", group, "Decibels", -24, 24, 0),
+      param(id + 4, "Q", group, "None", 0.1, 18, Math.SQRT1_2, LOG),
+    ];
+  });
+  return [...params, param(40, "Output", "Output", "Decibels", -24, 24, 0)];
+}
+
+/** A fresh `BuiltinDevice` of `type` with default data (mirrors Rust `BuiltinDevice::new`). */
+export function newBuiltinDevice(type: BuiltinDeviceType): BuiltinDevice {
+  return type === "Sampler" ? { type: "Sampler", sample: null, slices: { enabled: false, base_note: 36, markers: [] } } : { type };
+}
 
 export function builtinDescriptor(device: BuiltinDevice | BuiltinDeviceType): DeviceDescriptor {
   return BUILTIN_DESCRIPTORS[typeof device === "string" ? device : device.type];

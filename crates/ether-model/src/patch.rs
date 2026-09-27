@@ -22,8 +22,15 @@ pub struct Patch {
     pub revision: u64,
     pub changes: Vec<PatchChange>,
     pub history: HistoryState,
+    /// RESERVED (roadmap v2, `collab`): who made the change when it came from another site
+    /// (`None` = this site / not collaborative). Omitted from JSON when `None`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub origin: Option<crate::collab::OpOrigin>,
 }
 
+// Entities are plain data sent once per change; boxing them would only add an allocation.
+#[allow(clippy::large_enum_variant)]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
 #[serde(tag = "type")]
 pub enum PatchChange {

@@ -145,6 +145,9 @@ impl Gen<'_> {
                 fade_in: Beats::ZERO,
                 fade_out: Beats::ZERO,
                 warp: WarpSettings::default(),
+                fade_in_curve: FadeCurve::Linear,
+                fade_out_curve: FadeCurve::EqualPower,
+                reversed: self.r.chance(20),
             })
         } else {
             ClipContent::Midi
@@ -205,6 +208,7 @@ impl Gen<'_> {
                     1 => DeviceKind::Builtin {
                         device: BuiltinDevice::Sampler {
                             sample: self.r.pick(&self.keys(&self.p.media)),
+                            slices: SliceSettings::default(),
                         },
                     },
                     _ => DeviceKind::Plugin {
@@ -228,6 +232,8 @@ impl Gen<'_> {
                         enabled: true,
                         kind,
                         params: [(ParamId(1), self.r.float(-1e6, 1e6)), (ParamId(7), 440.0)].into(),
+                        sidechain: None,
+                        pad: None,
                     }),
                 }
             }
@@ -404,7 +410,10 @@ impl Gen<'_> {
                     },
                     1 => DeviceChange::Enabled(false),
                     2 => DeviceChange::Kind(DeviceKind::Builtin {
-                        device: BuiltinDevice::Sampler { sample: None },
+                        device: BuiltinDevice::Sampler {
+                            sample: None,
+                            slices: SliceSettings::default(),
+                        },
                     }),
                     _ => DeviceChange::Track(self.some_track()?),
                 };
@@ -732,7 +741,7 @@ proptest! {
             Op::Insert { entity: Entity::Device(Device {
                 id: device, track, order: OrderKey::between(None, None), name: "d".into(),
                 enabled: true, kind: DeviceKind::Builtin { device: BuiltinDevice::Synth },
-                params: [(ParamId(1), param)].into(),
+                params: [(ParamId(1), param)].into(), sidechain: None, pad: None,
             })},
             Op::Insert { entity: Entity::AutomationLane(AutomationLane {
                 id: lane, owner: AutomationOwner::Track { track },

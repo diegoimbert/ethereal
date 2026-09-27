@@ -32,8 +32,6 @@ pub enum TrackKind {
 /// it lives in the controller and is reported via `RecordingEvent::ArmChanged`.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
 pub struct Track {
-    #[serde(default)]
-    pub scale: crate::scale::TrackScale,
     pub id: TrackId,
     pub kind: TrackKind,
     pub name: String,
@@ -44,6 +42,10 @@ pub struct Track {
     pub input: TrackInput,
     pub output: TrackOutput,
     pub monitor: MonitorMode,
+    /// Piano-roll scale (MIDI tracks only; others stay `FollowProject`). Older files load
+    /// as `FollowProject`.
+    #[serde(default)]
+    pub scale: crate::scale::TrackScale,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize, TS)]

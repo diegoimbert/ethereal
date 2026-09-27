@@ -84,7 +84,7 @@ export function defaultOutputLabel(tracks: Tracks, track: Track): string {
   return parent ? `Group (${parent.name})` : "Master";
 }
 
-/** `<select>` value encoding of a `TrackOutput`. */
+/** Output `Select` value encoding of a `TrackOutput`. */
 export function outputValue(output: TrackOutput): string {
   switch (output.type) {
     case "Default":

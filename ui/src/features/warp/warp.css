@@ -1,0 +1,106 @@
+/* Warp editor. Tokens come from kit/theme.css. */
+
+.eth-warp {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: var(--eth-color-bg-panel);
+  color: var(--eth-color-text);
+  font-family: var(--eth-font-ui);
+  font-size: var(--eth-fs-sm);
+  user-select: none;
+}
+
+.eth-warp--empty {
+  align-items: center;
+  justify-content: center;
+  color: var(--eth-color-text-dim);
+}
+
+.eth-warp__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--eth-space-sm);
+  padding: var(--eth-space-xs) var(--eth-space-sm);
+  border-bottom: var(--eth-border-width) solid var(--eth-color-border);
+}
+
+.eth-warp__title {
+  font-weight: 600;
+  max-width: var(--eth-size-editor-title-max-width);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.eth-warp__field {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--eth-space-xs);
+}
+
+.eth-warp__number {
+  width: var(--eth-size-number-field-narrow);
+}
+
+.eth-warp__note {
+  color: var(--eth-color-record);
+}
+
+.eth-warp__info {
+  color: var(--eth-color-text-dim);
+}
+
+.eth-warp__view {
+  position: relative;
+  flex: 0 0 auto;
+  margin: var(--eth-space-sm);
+  overflow: hidden;
+  outline: none;
+  background: var(--eth-color-bg-inset);
+  border: var(--eth-border-width) solid var(--eth-color-border);
+}
+
+.eth-warp__view:focus-visible {
+  border-color: var(--eth-color-accent);
+}
+
+.eth-warp__canvas {
+  position: absolute;
+  left: 0;
+  pointer-events: none;
+}
+
+.eth-warp__overlay {
+  position: absolute;
+  inset: 0;
+}
+
+.eth-warp__tick {
+  stroke: var(--eth-color-border-light);
+}
+
+.eth-warp__tick-label {
+  fill: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+}
+
+.eth-warp__marker {
+  cursor: ew-resize;
+  color: var(--eth-color-accent);
+}
+
+.eth-warp__marker line {
+  stroke: currentColor;
+  stroke-width: 1;
+}
+
+.eth-warp__marker path {
+  fill: currentColor;
+}
+
+.eth-warp__marker--selected {
+  color: var(--eth-color-playhead);
+}

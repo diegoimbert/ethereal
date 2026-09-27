@@ -3,7 +3,9 @@
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
-use crate::model::{BuiltinDevice, BuiltinDeviceType, DeviceId, MediaId, ParamId, TrackId};
+use crate::model::{
+    BuiltinDevice, BuiltinDeviceType, DeviceId, MediaId, ParamId, PluginFormat, TrackId,
+};
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
 #[serde(tag = "type")]
@@ -59,6 +61,13 @@ pub enum DeviceCommand {
     GetDescriptor {
         device: DeviceId,
     },
+    /// Roadmap v2 (`sidechain`): feed `source`'s post-fader output into the device's
+    /// sidechain input (`None` = off). `InvalidArgument` if it would create a routing cycle
+    /// or the device has no sidechain input (`sidechain_inputs == 0`). Undoable.
+    SetSidechain {
+        device: DeviceId,
+        source: Option<TrackId>,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
@@ -67,10 +76,14 @@ pub enum DeviceSpec {
     Builtin {
         device: BuiltinDevice,
     },
-    /// CLAP plugin id from the plugin list. `sandboxed: None` = user default.
+    /// A plugin from the plugin list (`PluginDescriptor { format, id }`). `sandboxed: None`
+    /// = user default. `format` omitted/`null` = CLAP (the only format before VST3/AU).
     Plugin {
         plugin_id: String,
         sandboxed: Option<bool>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[ts(optional)]
+        format: Option<PluginFormat>,
     },
 }
 
@@ -99,6 +112,9 @@ pub struct DeviceDescriptor {
     pub audio_inputs: u16,
     pub audio_outputs: u16,
     pub midi_input: bool,
+    /// Roadmap v2 (`sidechain`): channels of the sidechain input (0 = none; the UI shows a
+    /// sidechain source selector when > 0).
+    pub sidechain_inputs: u16,
 }
 
 /// Parameter metadata. Plain values are what the document stores; normalized 0..=1 values

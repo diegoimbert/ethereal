@@ -3,7 +3,10 @@
 //!
 //! Everything here is RT-safe: no allocation, bounded work per call.
 
+use ether_protocol::model::FadeCurve;
+
 use crate::event::{EventBuffer, EventKind, ProcessEvent};
+use crate::fades::fade_gain;
 use crate::graph::{ClipContentDesc, ClipDesc, WarpDesc};
 use crate::media::AudioSource;
 use crate::mixer::{ActiveNote, MAX_ACTIVE_NOTES};
@@ -24,6 +27,9 @@ pub(crate) struct Piece {
     /// Where this linear piece ends on the timeline if not cut by the query range (clip end
     /// or content loop end): notes are cut there.
     pub end: f64,
+    /// Where this linear piece begins on the timeline if not cut by the query range (clip
+    /// start or content loop start): notes before it don't sound in it.
+    pub begin: f64,
 }
 
 /// Call `f` for every linear piece of `clip` (at timeline `clip.start`) inside `[r0, r1)`.
@@ -44,6 +50,7 @@ pub(crate) fn for_each_piece(clip: &ClipDesc, r0: f64, r1: f64, mut f: impl FnMu
             t1: b,
             c0: clip.offset + (a - start),
             end: clip_end,
+            begin: start,
         });
         return;
     };
@@ -77,6 +84,7 @@ pub(crate) fn for_each_piece(clip: &ClipDesc, r0: f64, r1: f64, mut f: impl FnMu
                 t1,
                 c0: c_start + (t0 - t_start),
                 end: t_end,
+                begin: t_start,
             });
         }
     }
@@ -240,6 +248,34 @@ pub(crate) fn schedule_notes(clip: &ClipDesc, timing: &Timing<'_>, sink: &mut No
     });
 }
 
+/// Note chasing: note-ons at the start of the sub-block for the clip's notes that are
+/// already sounding at `timing.b0` (playback started, located or looped back into the
+/// middle of them). They end where they would have. Notes starting in the sub-block are
+/// `schedule_notes`'s. Scans the notes before the position: bounded by the clip's notes,
+/// and only on the first sub-block after a jump.
+pub(crate) fn chase_notes(clip: &ClipDesc, timing: &Timing<'_>, sink: &mut NoteSink<'_>) {
+    let ClipContentDesc::Midi { notes } = &clip.content else {
+        return;
+    };
+    if clip.muted || notes.is_empty() {
+        return;
+    }
+    let (r0, _) = timing.event_range();
+    for_each_piece(clip, r0, r0 + EVENT_SHIFT, |p| {
+        let first = notes.partition_point(|n| n.start < p.c0);
+        for n in &notes[..first] {
+            let t = p.t0 + (n.start - p.c0);
+            if t < p.begin - EVENT_SHIFT {
+                continue; // before this piece (e.g. ahead of the content loop start)
+            }
+            let end = (t + n.duration.max(0.0)).min(p.end);
+            if end > timing.b0 {
+                sink.note_on(0, n.key, n.velocity, end);
+            }
+        }
+    });
+}
+
 /// Source seconds of content beat `c`: piecewise-linear warp markers (extrapolated with
 /// the edge slopes), or, unwarped, `c` at the tempo `ref_bpm`.
 #[inline]
@@ -259,12 +295,134 @@ pub(crate) fn source_seconds(warp: Option<&WarpDesc>, ref_bpm: f64, c: f64) -> f
     }
 }
 
+/// Gain envelope of an audio clip on the timeline: clip gain × fade-in × fade-out, with the
+/// fade law [`crate::fades::fade_gain`] (fade-outs mirrored in time). Fades shorter than
+/// the anti-click ramp ([`DECLICK_SAMPLES`]) use a linear ramp of that length instead.
+/// Shared by [`render_audio`] and the stretched (Complex warp) path.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct ClipEnvelope {
+    start: f64,
+    end: f64,
+    fin: f64,
+    fout: f64,
+    curve_in: FadeCurve,
+    curve_out: FadeCurve,
+    gain: f32,
+}
+
+impl ClipEnvelope {
+    /// `None` when the clip is silent (not audio, muted or zero gain).
+    #[inline]
+    pub(crate) fn new(clip: &ClipDesc, timing: &Timing<'_>) -> Option<Self> {
+        let ClipContentDesc::Audio {
+            gain,
+            fade_in,
+            fade_out,
+            fade_in_curve,
+            fade_out_curve,
+            ..
+        } = &clip.content
+        else {
+            return None;
+        };
+        if clip.muted || *gain == 0.0 {
+            return None;
+        }
+        let bps = (timing.b1 - timing.b0) / timing.frames.max(1) as f64;
+        let declick = DECLICK_SAMPLES * bps;
+        let pick = |len: f64, curve: FadeCurve| {
+            if len > declick {
+                (len, curve)
+            } else {
+                (declick, FadeCurve::Linear)
+            }
+        };
+        let (fin, curve_in) = pick(*fade_in, *fade_in_curve);
+        let (fout, curve_out) = pick(*fade_out, *fade_out_curve);
+        Some(Self {
+            start: clip.start,
+            end: clip.start + clip.length,
+            fin,
+            fout,
+            curve_in,
+            curve_out,
+            gain: *gain,
+        })
+    }
+
+    /// Gain at timeline beat `t`.
+    #[inline]
+    pub(crate) fn at(&self, t: f64) -> f32 {
+        let x_in = (t - self.start) / self.fin;
+        let x_out = (self.end - t) / self.fout;
+        let g_in = if x_in >= 1.0 {
+            1.0
+        } else {
+            fade_gain(self.curve_in, x_in as f32)
+        };
+        let g_out = if x_out >= 1.0 {
+            1.0
+        } else {
+            fade_gain(self.curve_out, x_out as f32)
+        };
+        self.gain * g_in.min(g_out)
+    }
+}
+
+/// RT. Read `l.len()` frames of `source` starting at frame `start` (may be negative:
+/// silence before the source start) into `l`/`r` (mono sources are duplicated). With
+/// `reversed`, the frames are those of the reversed media (`R[i] = M[N - 1 - i]`, see
+/// `ether_model::AudioContent::reversed`): the forward window is read, then flipped.
+/// Used by the stretched (Complex warp) path.
+pub(crate) fn read_frames(
+    source: &dyn AudioSource,
+    reversed: bool,
+    start: i64,
+    l: &mut [f32],
+    r: &mut [f32],
+) -> bool {
+    let n = l.len();
+    let start = if reversed {
+        source.frames() as i64 - start - n as i64
+    } else {
+        start
+    };
+    let skip = if start < 0 {
+        ((-start) as u64).min(n as u64) as usize
+    } else {
+        0
+    };
+    l[..skip].fill(0.0);
+    r[..skip].fill(0.0);
+    let mut ok = true;
+    if skip < n {
+        let from = start.max(0) as u64;
+        ok = source.read(0, from, &mut l[skip..]);
+        if source.channels() > 1 {
+            ok &= source.read(1, from, &mut r[skip..]);
+        } else {
+            r[skip..].copy_from_slice(&l[skip..]);
+        }
+    }
+    if reversed {
+        l.reverse();
+        r.reverse();
+    }
+    ok
+}
+
 /// Render (add) an audio clip into `out` for the sub-block. Reads through
 /// `scratch` (≥ 2 × frames recommended). Returns `false` on a source underrun.
 ///
-/// Warped clips play back by resampling (linear interpolation), i.e. `Repitch`
-/// semantics; `Complex` (Signalsmith time-stretch) is not wired in yet and falls back to
-/// the same resampling.
+/// Resamples (linear interpolation): unwarped and `Repitch` clips, and `Complex` clips
+/// without a stretcher (`crate::warp` handles the stretched path). Transpose changes the
+/// playback rate. Fades follow [`ClipEnvelope`].
+///
+/// **Reverse** (`reversed`): the clip plays the reversed media `R[i] = M[N - 1 - i]`. The
+/// whole content → source mapping (offset, clip loop, warp markers, transpose) is computed
+/// on that reversed timeline exactly as for a forward clip, and only the final frame lookup
+/// is mirrored, so a reversed clip is sample-for-sample the forward rendering of a
+/// reversed file.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn render_audio(
     clip: &ClipDesc,
@@ -275,36 +433,39 @@ pub(crate) fn render_audio(
     scratch: &mut [f32],
 ) -> bool {
     let ClipContentDesc::Audio {
-        gain,
-        fade_in,
-        fade_out,
         warp,
+        transpose,
+        reversed,
         ..
     } = &clip.content
     else {
         return true;
     };
-    if clip.muted || *gain == 0.0 {
+    let Some(env) = ClipEnvelope::new(clip, timing) else {
         return true;
-    }
+    };
+    let reversed = *reversed;
     let sr = timing.sample_rate;
-    let start = clip.start;
-    let clip_end = start + clip.length;
-    let bps = (timing.b1 - timing.b0) / timing.frames.max(1) as f64;
-    let declick = DECLICK_SAMPLES * bps;
-    let fin = fade_in.max(declick);
-    let fout = fade_out.max(declick);
     let channels = source.channels().max(1);
     let total = source.frames();
+    let last = total as f64 - 1.0;
     let [out_l, out_r] = out;
     let mut ok = true;
     let cap = scratch.len();
     for_each_piece(clip, timing.b0, timing.b1, |p| {
         let o_a = timing.sample_ceil(p.t0);
         let o_b = timing.sample_ceil(p.t1);
+        // Media frame (fractional) played at output sample `o`.
         let frame_at = |o: usize| {
             let t = timing.beat_at(o as f64);
-            source_seconds(warp.as_ref(), ref_bpm, p.c0 + (t - p.t0)) * sr
+            let f = crate::warp::repitch_source_seconds(
+                warp.as_ref(),
+                *transpose,
+                ref_bpm,
+                clip.offset,
+                p.c0 + (t - p.t0),
+            ) * sr;
+            if reversed { last - f } else { f }
         };
         let mut o = o_a;
         while o < o_b {
@@ -335,7 +496,7 @@ pub(crate) fn render_audio(
                 }
                 for s in o..o + len {
                     let f = frame_at(s);
-                    if f < 0.0 {
+                    if f < 0.0 || (reversed && f > last) {
                         continue;
                     }
                     let rel = f - base as f64;
@@ -345,16 +506,17 @@ pub(crate) fn render_audio(
                     if i + 1 >= count {
                         continue;
                     }
-                    let t = timing.beat_at(s as f64);
-                    let g_in = ((t - start) / fin).min(1.0);
-                    let g_out = ((clip_end - t) / fout).min(1.0);
-                    let g = gain * (g_in.min(g_out).max(0.0) as f32);
+                    let g = env.at(timing.beat_at(s as f64));
                     let l = sl[i] + (sl[i + 1] - sl[i]) * frac;
                     let r = sr_buf[i] + (sr_buf[i + 1] - sr_buf[i]) * frac;
                     out_l[s] += l * g;
                     out_r[s] += r * g;
                 }
-                source.prefetch_hint(base + count as u64);
+                if reversed {
+                    source.prefetch_hint(base.saturating_sub(count as u64));
+                } else {
+                    source.prefetch_hint(base + count as u64);
+                }
             }
             o += len;
         }

@@ -130,7 +130,7 @@ impl Default for HostOptions {
     fn default() -> Self {
         Self {
             main_thread: Arc::new(DedicatedThread::new()),
-            instantiate: Arc::new(ether_clap::instantiate),
+            instantiate: crate::plugins::instantiate_any(),
             controller: ether_controller(),
         }
     }
@@ -245,8 +245,14 @@ impl NativeHost {
             max_block_size: engine_config.max_block_size,
             max_events_per_block: engine_config.max_events_per_block,
         };
-        let parts = ether_core::create(engine_config);
+        let mut parts = ether_core::create(engine_config);
+        parts
+            .handle
+            .set_stretcher_factory(Arc::new(ether_stretch::SignalsmithFactory::default()));
         let shared = Arc::new(AudioShared::default());
+        shared
+            .recording
+            .set_projects_root(config.projects_root.clone());
         let (started, warning) = start_audio(Box::new(parts.engine), &settings, &shared);
         let (output, parked) = match started {
             Ok(out) => (Some(out), None),
@@ -540,8 +546,8 @@ impl AudioState {
             sample_rate: self.engine_rate,
             buffer_size: buffer,
             // cpal doesn't expose device latency portably: report one buffer.
-            output_latency: buffer,
-            input_latency: 0,
+            output_latency: self.shared.recording.output_latency_or(buffer),
+            input_latency: self.shared.recording.input_latency(),
             xruns: self.shared.xruns.load(Ordering::Relaxed),
             instance: self.instance.clone(),
         }
@@ -726,6 +732,10 @@ impl ControllerThread {
                         if let Some(n) = note {
                             self.router.send(notification(NotificationLevel::Info, n));
                         }
+                        if let Some(e) = self.audio.shared.recording.input_error() {
+                            self.router
+                                .send(notification(NotificationLevel::Warning, e));
+                        }
                         let status = self.audio.status();
                         self.router.send(ServerMessage::Event(Event::Engine {
                             event: EngineEvent::Status {
@@ -784,16 +794,16 @@ impl ControllerThread {
         let spawned = std::thread::Builder::new()
             .name("ether-plugin-scan".into())
             .spawn(move || {
-                let bundles = ether_clap::find_bundles(&ether_clap::default_search_paths());
-                let report = match ether_clap::ScanRunner::locate() {
-                    Some(runner) => runner.scan_all(&bundles, |done, total, current| {
+                let targets = crate::plugins::formats().discover(None);
+                let report = match ether_plugin_host::ScanRunner::locate() {
+                    Some(runner) => runner.scan_targets(&targets, |done, total, current| {
                         emit(PluginEvent::ScanProgress {
                             done,
                             total,
                             current: current.map(|p| p.display().to_string()),
                         });
                     }),
-                    None => ether_clap::ScanReport {
+                    None => ether_plugin_host::ScanReport {
                         plugins: Vec::new(),
                         failed: vec![ether_core::protocol::plugins::ScanFailure {
                             path: String::new(),

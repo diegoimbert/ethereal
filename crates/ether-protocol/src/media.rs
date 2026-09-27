@@ -6,8 +6,10 @@
 //! the UI never sees absolute paths. Importing copies the file into the project's
 //! `media/` folder, so projects are self-contained.
 //!
-//! Uploading files from the UI machine is not in v0.1; `MediaSource::Upload` and
-//! `MediaCommand::BeginUpload` reserve the protocol slot (hosts reply `Unsupported`).
+//! Uploading files from the UI machine (roadmap v2, `remote-engine`): `BeginUpload` →
+//! `UploadChunk`s (in order, any size up to 1 MiB each) → `Import { source: Upload }`, which
+//! fails with `InvalidState` unless exactly `size` bytes were received. `CancelUpload` (or a
+//! disconnect) drops the partial upload. Hosts without upload support reply `Unsupported`.
 
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
@@ -35,18 +37,31 @@ pub enum MediaCommand {
         location: BrowseLocation,
         path: String,
     },
-    /// Audition a file (plays on the preview bus).
+    /// Audition a file (`media-preview` node): decoded engine-side and played by the
+    /// engine's preview voice straight to the hardware output (not through the tracks,
+    /// independent of the transport). Replaces any playing preview. Replies `Unit` once the
+    /// preview is queued; `MediaEvent::PreviewStarted` follows, then exactly one
+    /// `MediaEvent::PreviewEnded` (end of file, `StopPreview`, replaced, or failed).
     Preview {
         source: MediaSource,
     },
+    /// Stop the playing preview (no-op if none).
     StopPreview,
-    /// RESERVED (v0.2+): start streaming a file from the UI machine. Hosts reply
-    /// `Unsupported` in v0.1. The intended flow: `BeginUpload` → chunked binary transfer on
-    /// a side channel → `Import { source: Upload { upload } }`.
+    /// Start uploading a file from the UI machine. `upload` is a client-chosen id (ULID).
     BeginUpload {
         upload: String,
         name: String,
         size: f64,
+    },
+    /// Bytes `[offset, offset + data.len())` of an upload; `offset` must equal the bytes
+    /// received so far. Progress is reported as `MediaEvent::UploadProgress`.
+    UploadChunk {
+        upload: String,
+        offset: f64,
+        data: crate::model::Base64Bytes,
+    },
+    CancelUpload {
+        upload: String,
     },
 }
 
@@ -61,7 +76,7 @@ pub enum MediaSource {
     },
     /// Media already in the current project (e.g. preview).
     Project { media: MediaId },
-    /// RESERVED (v0.2+): a completed upload from the UI machine (`BeginUpload`).
+    /// A completed upload from the UI machine (`BeginUpload`).
     Upload { upload: String },
 }
 
@@ -149,4 +164,31 @@ pub enum MediaEvent {
     LocationsChanged {
         locations: Vec<BrowseRoot>,
     },
+    /// Bytes received for an upload (throttled).
+    UploadProgress {
+        upload: String,
+        received: f64,
+    },
+    /// A preview started playing (`media-preview`).
+    PreviewStarted {
+        source: MediaSource,
+    },
+    /// The preview of `source` ended; the UI resets its "previewing" state.
+    PreviewEnded {
+        source: MediaSource,
+        reason: PreviewEndReason,
+    },
+}
+
+/// Why a preview ended.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, TS)]
+pub enum PreviewEndReason {
+    /// Played to the end of the file.
+    Finished,
+    /// `Media::StopPreview`.
+    Stopped,
+    /// Another `Media::Preview` replaced it.
+    Replaced,
+    /// Decoding or playback failed (a notification carries the message).
+    Failed,
 }

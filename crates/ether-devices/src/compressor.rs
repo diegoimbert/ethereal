@@ -1,7 +1,14 @@
-//! Compressor: threshold, ratio, attack, release, makeup gain.
+//! Compressor: threshold, ratio, attack, release, makeup gain, sidechain HPF.
 //!
 //! Feed-forward, stereo-linked peak detector with a fixed 6 dB soft knee. The gain
 //! reduction (in dB) is smoothed with separate attack/release time constants.
+//!
+//! Sidechain (roadmap v2, `sidechain`): the device has a stereo sidechain input
+//! (`sidechain_inputs = 2`). When the chain entry has a sidechain source, the engine calls
+//! [`Node::process_sidechain`] with the (latency-aligned) source signal and the detector
+//! listens to it instead of the main input; the gain is still applied to the main input.
+//! The detector signal of the sidechain goes through a one-pole high-pass
+//! (`Sidechain HPF`, off at its 20 Hz minimum) so a kick's sub doesn't dominate.
 
 use ether_core::protocol::devices::{
     DeviceCategory, DeviceDescriptor, DeviceTypeRef, ParamInfo, ParamScale, ParamUnit,
@@ -21,9 +28,14 @@ pub mod params {
     pub const ATTACK: ParamId = ParamId(2);
     pub const RELEASE: ParamId = ParamId(3);
     pub const MAKEUP: ParamId = ParamId(4);
+    /// Roadmap v2 (`sidechain`): high-pass cutoff of the sidechain detector signal (Hz; the
+    /// 20 Hz minimum = off). Only used while a sidechain is connected.
+    pub const SIDECHAIN_HPF: ParamId = ParamId(5);
 }
 
-const NUM_PARAMS: usize = 5;
+const NUM_PARAMS: usize = 6;
+/// `Sidechain HPF` at or below this cutoff (Hz) is off.
+const HPF_OFF_HZ: f32 = 20.0;
 /// Soft-knee width in dB.
 const KNEE_DB: f32 = 6.0;
 
@@ -71,6 +83,14 @@ pub fn param_infos() -> Vec<ParamInfo> {
             (0.0, 24.0, 0.0),
             ParamScale::Linear,
         ),
+        param(
+            5,
+            "Sidechain HPF",
+            "Sidechain",
+            ParamUnit::Hertz,
+            (HPF_OFF_HZ as f64, 500.0, HPF_OFF_HZ as f64),
+            ParamScale::Log,
+        ),
     ]
 }
 
@@ -86,8 +106,12 @@ pub fn descriptor() -> DeviceDescriptor {
         audio_inputs: 2,
         audio_outputs: 2,
         midi_input: false,
+        sidechain_inputs: SIDECHAIN_CHANNELS as u16,
     }
 }
+
+/// Channels of the sidechain input.
+const SIDECHAIN_CHANNELS: usize = 2;
 
 /// Static gain computer: gain reduction in dB (>= 0) for an input level in dB.
 #[inline]
@@ -115,6 +139,10 @@ pub struct Compressor {
     makeup: Smoother,
     /// Current smoothed gain reduction in dB.
     gr_db: f32,
+    /// One-pole high-pass coefficient of the sidechain detector (`None` = off).
+    hpf_coef: Option<f32>,
+    /// High-pass state per sidechain channel: (previous input, previous output).
+    hpf_state: [(f32, f32); SIDECHAIN_CHANNELS],
 }
 
 impl Default for Compressor {
@@ -141,6 +169,8 @@ impl Compressor {
             release_coef: 0.0,
             makeup: Smoother::new(1.0, 20.0, 48_000.0),
             gr_db: 0.0,
+            hpf_coef: None,
+            hpf_state: [(0.0, 0.0); SIDECHAIN_CHANNELS],
         };
         c.sync_all();
         c
@@ -157,6 +187,17 @@ impl Compressor {
             self.sample_rate,
         );
         self.update_times();
+        self.update_hpf();
+    }
+
+    fn update_hpf(&mut self) {
+        let fc = self.value(params::SIDECHAIN_HPF);
+        self.hpf_coef = (fc > HPF_OFF_HZ).then(|| {
+            // One-pole high-pass: y[n] = a * (y[n-1] + x[n] - x[n-1]).
+            let rc = 1.0 / (2.0 * std::f32::consts::PI * fc);
+            let dt = 1.0 / self.sample_rate;
+            rc / (rc + dt)
+        });
     }
 
     fn update_times(&mut self) {
@@ -179,6 +220,7 @@ impl Compressor {
                 }
             }
             params::ATTACK | params::RELEASE => self.update_times(),
+            params::SIDECHAIN_HPF => self.update_hpf(),
             _ => {}
         }
     }
@@ -188,12 +230,43 @@ impl Compressor {
         self.gr_db
     }
 
-    fn render(&mut self, audio: &mut AudioBuffers<'_, '_>, start: usize, end: usize) {
+    /// Detector level (linear peak) of frame `i`: the sidechain if connected (high-passed),
+    /// else the main input.
+    #[inline]
+    fn detect(&mut self, inputs: &[&[f32]], sidechain: &[&[f32]], i: usize) -> f32 {
+        if sidechain.is_empty() {
+            return inputs.iter().fold(0.0f32, |m, ch| m.max(ch[i].abs()));
+        }
+        let mut peak = 0.0f32;
+        for (ch, st) in sidechain.iter().zip(self.hpf_state.iter_mut()) {
+            let x = ch[i];
+            let y = match self.hpf_coef {
+                Some(a) => {
+                    let y = a * (st.1 + x - st.0);
+                    // Keep the state out of the subnormal range (no FTZ on the audio
+                    // thread).
+                    *st = (x, if y.abs() < 1e-20 { 0.0 } else { y });
+                    y
+                }
+                None => x,
+            };
+            peak = peak.max(y.abs());
+        }
+        peak
+    }
+
+    fn render(
+        &mut self,
+        audio: &mut AudioBuffers<'_, '_>,
+        sidechain: &[&[f32]],
+        start: usize,
+        end: usize,
+    ) {
         let threshold = self.value(params::THRESHOLD);
         let ratio = self.value(params::RATIO);
         let inputs = audio.inputs;
         for i in start..end {
-            let peak = inputs.iter().fold(0.0f32, |m, ch| m.max(ch[i].abs()));
+            let peak = self.detect(inputs, sidechain, i);
             let target = gain_reduction_db(util::amp_to_db(peak), threshold, ratio);
             let coef = if target > self.gr_db {
                 self.attack_coef
@@ -212,6 +285,34 @@ impl Compressor {
             }
         }
     }
+
+    fn run(
+        &mut self,
+        ctx: &mut ProcessContext<'_>,
+        audio: &mut AudioBuffers<'_, '_>,
+        sidechain: &[&[f32]],
+    ) -> ProcessStatus {
+        let frames = ctx.frames;
+        // At most `SIDECHAIN_CHANNELS` channels, each at least `frames` long (else ignored).
+        let n = sidechain.len().min(SIDECHAIN_CHANNELS);
+        let sidechain = if sidechain[..n].iter().all(|c| c.len() >= frames) {
+            &sidechain[..n]
+        } else {
+            &[]
+        };
+        util::split_at_events(
+            self,
+            ctx.events,
+            frames,
+            |s, a, b| s.render(audio, sidechain, a, b),
+            |s, kind| {
+                if let EventKind::Param { param, value } = *kind {
+                    s.apply_param(param, value, true);
+                }
+            },
+        );
+        ProcessStatus::Continue
+    }
 }
 
 impl Node for Compressor {
@@ -223,6 +324,7 @@ impl Node for Compressor {
 
     fn reset(&mut self) {
         self.gr_db = 0.0;
+        self.hpf_state = [(0.0, 0.0); SIDECHAIN_CHANNELS];
     }
 
     fn process(
@@ -230,18 +332,20 @@ impl Node for Compressor {
         ctx: &mut ProcessContext<'_>,
         audio: &mut AudioBuffers<'_, '_>,
     ) -> ProcessStatus {
-        util::split_at_events(
-            self,
-            ctx.events,
-            ctx.frames,
-            |s, a, b| s.render(audio, a, b),
-            |s, kind| {
-                if let EventKind::Param { param, value } = *kind {
-                    s.apply_param(param, value, true);
-                }
-            },
-        );
-        ProcessStatus::Continue
+        self.run(ctx, audio, &[])
+    }
+
+    fn sidechain_inputs(&self) -> u16 {
+        SIDECHAIN_CHANNELS as u16
+    }
+
+    fn process_sidechain(
+        &mut self,
+        ctx: &mut ProcessContext<'_>,
+        audio: &mut AudioBuffers<'_, '_>,
+        sidechain: &[&[f32]],
+    ) -> ProcessStatus {
+        self.run(ctx, audio, sidechain)
     }
 }
 

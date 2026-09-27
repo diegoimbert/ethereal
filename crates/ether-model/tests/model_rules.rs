@@ -388,6 +388,8 @@ fn params_roundtrip_through_json_and_param_reset() {
             device: BuiltinDevice::Synth,
         },
         params: [(ParamId(3), 440.0)].into(),
+        sidechain: None,
+        pad: None,
     };
     let did = d.id;
     f.p.apply(&Op::Insert {

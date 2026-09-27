@@ -364,6 +364,39 @@ impl ProjectStore for DiskStore {
         atomic_write(&path, bytes)
     }
 
+    fn write_export(
+        &mut self,
+        id: ProjectId,
+        file_name: &str,
+        bytes: &[u8],
+    ) -> Result<String, StoreError> {
+        let path = ether_controller::store::export_path(file_name)?;
+        self.write(id, &path, bytes)?;
+        Ok(path)
+    }
+
+    // Upload staging lives in `crate::uploads` (owned by the remote-engine node).
+    fn begin_upload(&mut self, upload: &str, size: u64) -> Result<(), StoreError> {
+        crate::uploads::begin(&self.projects_root, upload, size)
+    }
+
+    fn append_upload(
+        &mut self,
+        upload: &str,
+        offset: u64,
+        bytes: &[u8],
+    ) -> Result<u64, StoreError> {
+        crate::uploads::append(&self.projects_root, upload, offset, bytes)
+    }
+
+    fn read_upload(&mut self, upload: &str) -> Result<Vec<u8>, StoreError> {
+        crate::uploads::read(&self.projects_root, upload)
+    }
+
+    fn discard_upload(&mut self, upload: &str) -> Result<(), StoreError> {
+        crate::uploads::discard(&self.projects_root, upload)
+    }
+
     fn list_dir(&mut self, id: ProjectId, rel_path: &str) -> Result<DirectoryListing, StoreError> {
         let dir = self.existing_project_dir(id)?;
         let rel = sanitize_rel(rel_path)?;

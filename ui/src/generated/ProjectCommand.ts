@@ -2,4 +2,4 @@
 import type { MusicalScale } from "./MusicalScale";
 import type { ProjectId } from "./ProjectId";
 
-export type ProjectCommand = { "type": "SetScale", scale: MusicalScale, } | { "type": "List" } | { "type": "Create", id: ProjectId, name: string, } | { "type": "Open", id: ProjectId, } | { "type": "Save" } | { "type": "SaveAs", new_id: ProjectId, name: string, } | { "type": "Duplicate", id: ProjectId, new_id: ProjectId, name: string, } | { "type": "Rename", id: ProjectId, name: string, } | { "type": "Delete", id: ProjectId, } | { "type": "Get" };
+export type ProjectCommand = { "type": "List" } | { "type": "Create", id: ProjectId, name: string, } | { "type": "Open", id: ProjectId, } | { "type": "Save" } | { "type": "SaveAs", new_id: ProjectId, name: string, } | { "type": "Duplicate", id: ProjectId, new_id: ProjectId, name: string, } | { "type": "Rename", id: ProjectId, name: string, } | { "type": "Delete", id: ProjectId, } | { "type": "Get" } | { "type": "SetScale", scale: MusicalScale, };

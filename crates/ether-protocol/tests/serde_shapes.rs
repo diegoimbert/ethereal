@@ -98,6 +98,9 @@ fn patch_and_entities_roundtrip() {
             transpose: 0.0,
             fade_in: Beats(0.0),
             fade_out: Beats(0.0),
+            fade_in_curve: Default::default(),
+            fade_out_curve: Default::default(),
+            reversed: false,
             warp: WarpSettings::default(),
         }),
     };
@@ -110,9 +113,12 @@ fn patch_and_entities_roundtrip() {
         kind: DeviceKind::Builtin {
             device: BuiltinDevice::Sampler {
                 sample: Some(id(12)),
+                slices: Default::default(),
             },
         },
         params: [(ParamId(1), 0.5)].into_iter().collect(),
+        sidechain: None,
+        pad: None,
     };
     let patch = Patch {
         revision: 5,
@@ -131,6 +137,7 @@ fn patch_and_entities_roundtrip() {
             },
         ],
         history: HistoryState::default(),
+        origin: None,
     };
     let json = roundtrip(&ServerMessage::Event(Event::Patch { patch }));
     assert_eq!(json["kind"], "Event");

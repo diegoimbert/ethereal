@@ -6,7 +6,8 @@
 //! `MediaId` (sources registered with `EngineHandle::add_source`), never by pointer.
 
 use ether_protocol::model::{
-    AutomationTarget, ClipId, CurveShape, MediaId, ParamId, SendId, TrackId, TrackKind, WarpMode,
+    AutomationTarget, ClipId, CurveShape, DrumPadId, FadeCurve, MediaId, MetronomeSound, ParamId,
+    SendId, TrackId, TrackKind, WarpMode,
 };
 use std::collections::BTreeSet;
 
@@ -33,6 +34,9 @@ pub struct RenderGraphDesc {
     pub loop_start: f64,
     pub loop_end: f64,
     pub metronome: bool,
+    /// Roadmap v2 (`tempo-metronome`): how the click sounds when `metronome` is on.
+    #[serde(default)]
+    pub click: MetronomeDesc,
     /// All tracks incl. groups, returns and master. Order is irrelevant: the compiler
     /// topologically sorts by routing (outputs, sends, resampling inputs) and rejects cycles.
     pub tracks: Vec<TrackDesc>,
@@ -60,7 +64,8 @@ pub struct TrackDesc {
     pub pan: f32,
     pub mute: bool,
     pub solo: bool,
-    /// Hardware input channels monitored/recorded by this track, if any.
+    /// Hardware input channels monitored/recorded by this track, if any, as
+    /// `(first, count)` (`TrackInput::Audio`: count 1 = mono, 2 = stereo).
     pub audio_input: Option<(u16, u16)>,
     /// Effective monitoring (controller resolves Auto/In/Off + its runtime arm state).
     pub monitor: bool,
@@ -70,12 +75,78 @@ pub struct TrackDesc {
     pub clips: Vec<ClipDesc>,
     /// Arrangement automation of this track and its devices/sends.
     pub automation: Vec<AutomationDesc>,
+    /// Roadmap v2 (`drum-rack`): pad chains of the drum racks in `chain` (one entry per
+    /// rack device, keyed by the rack's node). Empty for tracks without racks.
+    #[serde(default)]
+    pub racks: Vec<RackDesc>,
+}
+
+/// Click settings (roadmap v2, `tempo-metronome`). The click is rendered by
+/// [`crate::metronome`] straight into the hardware output after master (not metered, never
+/// part of exports), on every beat while playing when `RenderGraphDesc::metronome` is on,
+/// and during a recording count-in regardless of it.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+pub struct MetronomeDesc {
+    /// Linear gain.
+    pub volume: f32,
+    /// Accent (higher/louder click) on the first beat of each bar.
+    pub accent: bool,
+    pub sound: MetronomeSound,
+    /// Recording count-in: while playing and recording with the position before this beat,
+    /// the click sounds even if the metronome is off. Set by the controller for the
+    /// duration of a record session's pre-roll (`recording` computes it:
+    /// `EtherController::recording` knows the record start), `None` otherwise.
+    #[serde(default)]
+    pub count_in_end: Option<f64>,
+}
+
+impl Default for MetronomeDesc {
+    fn default() -> Self {
+        Self {
+            volume: 0.5,
+            accent: true,
+            sound: MetronomeSound::Classic,
+            count_in_end: None,
+        }
+    }
+}
+
+/// A drum rack's pads (roadmap v2, `drum-rack`). When processing the chain entry whose
+/// node is `rack`, the engine routes the incoming note events to the pad chains by key
+/// (transposed to `ether_model::PAD_PLAY_NOTE`), applies choke groups, runs each pad chain
+/// (same rules as a track chain: bypass, latency, param events), mixes them through the
+/// pad's volume/pan/mute into the rack node's input, then runs the rack node itself. PDC
+/// inside a rack: every pad chain is delayed to the longest pad chain's latency, and the
+/// rack node reports that as part of its chain position (the controller adds it when
+/// computing `NodeInfo`).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct RackDesc {
+    pub rack: NodeKey,
+    pub pads: Vec<PadDesc>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct PadDesc {
+    pub pad: DrumPadId,
+    /// Incoming key that triggers the pad.
+    pub note: u8,
+    pub choke_group: Option<u8>,
+    pub chain: Vec<ChainEntry>,
+    /// Linear gain; pan -1..=1.
+    pub volume: f32,
+    pub pan: f32,
+    pub mute: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ChainEntry {
     pub node: NodeKey,
     pub enabled: bool,
+    /// Roadmap v2 (`sidechain`): the track whose post-fader output feeds this node's
+    /// sidechain input (`Node::process_sidechain`). The compiler orders `sidechain` before
+    /// this track (a routing edge) and aligns it for PDC (CONTRACTS.md §11.10).
+    #[serde(default)]
+    pub sidechain: Option<TrackId>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
@@ -116,6 +187,14 @@ pub enum ClipContentDesc {
         fade_in: f64,
         fade_out: f64,
         warp: Option<WarpDesc>,
+        /// Roadmap v2 (`clip-editing`): fade shapes (`crate::fades::fade_gain`) and reverse
+        /// playback (see `ether_model::AudioContent::reversed`).
+        #[serde(default)]
+        fade_in_curve: FadeCurve,
+        #[serde(default)]
+        fade_out_curve: FadeCurve,
+        #[serde(default)]
+        reversed: bool,
     },
 }
 
@@ -192,6 +271,11 @@ pub(crate) struct SnapshotRt {
     pub node_index: Vec<(NodeKey, usize, usize)>,
     /// Total latency from the timeline to the hardware output (samples).
     pub latency: u32,
+    /// Sidechain buffers (`crate::sidechain`).
+    pub sidechain: crate::sidechain::Taps,
+    /// Drum-rack pad-chain nodes and their track index, sorted (live params, automation
+    /// and latency refresh reach them through `TrackRt::racks`).
+    pub pad_index: Vec<(NodeKey, usize)>,
 }
 
 impl RenderSnapshot {
@@ -239,6 +323,14 @@ impl SnapshotRt {
             .binary_search_by(|e| e.0.cmp(&send))
             .ok()
             .map(|i| (self.send_index[i].1, self.send_index[i].2))
+    }
+
+    /// Track of a drum-rack pad-chain node.
+    pub(crate) fn lookup_pad_node(&self, node: NodeKey) -> Option<usize> {
+        self.pad_index
+            .binary_search_by(|e| e.0.cmp(&node))
+            .ok()
+            .map(|i| self.pad_index[i].1)
     }
 
     pub(crate) fn lookup_node(&self, node: NodeKey) -> Option<(usize, usize)> {
@@ -374,9 +466,23 @@ pub fn compile_with(
         }
     }
 
+    // Sidechain edges (source → consumer) only constrain the processing order; they are
+    // not bus connections (`crate::sidechain` handles their PDC).
+    let track_of = |id: TrackId| find(id).ok();
+    let mut order_succ = succ.clone();
+    for (i, t) in desc.tracks.iter().enumerate() {
+        for src in t.chain.iter().filter_map(|e| e.sidechain) {
+            if let Some(s) = track_of(src)
+                && s != i
+            {
+                order_succ[s].push(i);
+            }
+        }
+    }
+
     // --- topological sort (Kahn; ties broken by desc order, so it is deterministic) ---
     let mut indeg = vec![0usize; n];
-    for s in &succ {
+    for s in &order_succ {
         for &d in s {
             indeg[d] += 1;
         }
@@ -385,7 +491,7 @@ pub fn compile_with(
     let mut order = Vec::with_capacity(n);
     while let Some(i) = ready.pop_first() {
         order.push(i);
-        for &d in &succ[i] {
+        for &d in &order_succ[i] {
             indeg[d] -= 1;
             if indeg[d] == 0 {
                 ready.insert(d);
@@ -399,22 +505,43 @@ pub fn compile_with(
 
     // --- nodes ---
     let mut node_index = Vec::new();
+    let mut pad_index = Vec::new();
     let mut chain_info: Vec<Vec<NodeInfo>> = Vec::with_capacity(n);
     for (i, t) in desc.tracks.iter().enumerate() {
         let mut infos = Vec::with_capacity(t.chain.len());
         for (k, e) in t.chain.iter().enumerate() {
-            let info = node_info(e.node).ok_or(CompileError::UnknownNode(e.node))?;
+            let mut info = node_info(e.node).ok_or(CompileError::UnknownNode(e.node))?;
+            // A drum rack's entry also carries its longest pad chain (pads run before it).
+            info.latency += crate::drum_rack::pad_latency(&t.racks, e.node, node_info);
             infos.push(info);
             node_index.push((e.node, i, k));
+        }
+        for pad_node in t
+            .racks
+            .iter()
+            .flat_map(|r| &r.pads)
+            .flat_map(|p| &p.chain)
+            .map(|e| e.node)
+        {
+            pad_index.push((pad_node, i));
         }
         chain_info.push(infos);
     }
     node_index.sort();
-    if let Some(w) = node_index.windows(2).find(|w| w[0].0 == w[1].0) {
-        return Err(CompileError::Capacity(format!(
-            "node {:?} used more than once",
-            w[0].0
-        )));
+    pad_index.sort();
+    {
+        let mut all: Vec<NodeKey> = node_index
+            .iter()
+            .map(|e| e.0)
+            .chain(pad_index.iter().map(|e| e.0))
+            .collect();
+        all.sort();
+        if let Some(w) = all.windows(2).find(|w| w[0] == w[1]) {
+            return Err(CompileError::Capacity(format!(
+                "node {:?} used more than once",
+                w[0]
+            )));
+        }
     }
 
     // --- PDC ---
@@ -428,8 +555,20 @@ pub fn compile_with(
         .collect();
     let mut in_lat = vec![0u32; n];
     let mut out_lat = vec![0u32; n];
+    // Sidechain PDC (`crate::sidechain::plan`): main-signal delays before sidechained
+    // entries count into the track's chain latency.
+    let mut sc_plans: Vec<Vec<crate::sidechain::EntryPlan>> = vec![Vec::new(); n];
     for &i in &order {
-        out_lat[i] = in_lat[i] + chain_lat[i];
+        sc_plans[i] = crate::sidechain::plan(
+            i,
+            &desc.tracks[i],
+            &chain_info[i],
+            in_lat[i],
+            &track_of,
+            &out_lat,
+        );
+        let sc_delay: u32 = sc_plans[i].iter().map(|p| p.main_delay).sum();
+        out_lat[i] = in_lat[i] + chain_lat[i] + sc_delay;
         for &d in &succ[i] {
             in_lat[d] = in_lat[d].max(out_lat[i]);
         }
@@ -493,6 +632,7 @@ pub fn compile_with(
                 channels: info.channels,
                 events: EventBuffer::with_capacity(config.max_events_per_block),
                 pending: EventBuffer::with_capacity(MAX_PENDING_EVENTS),
+                sidechain: e.sidechain.and_then(track_of),
             })
             .collect();
         let bypass: u32 = t
@@ -553,6 +693,7 @@ pub fn compile_with(
             auto_dirty: false,
             meter: MeterAccum::default(),
             out_latency: out_lat[i],
+            racks: crate::drum_rack::RacksRt::compile(&t.racks, node_info, config),
         });
     }
     send_index.sort();
@@ -564,7 +705,14 @@ pub fn compile_with(
         .max()
         .unwrap_or(0);
 
+    for p in sc_plans.iter().flatten() {
+        check(p.main_delay)?;
+        check(p.sc_delay)?;
+    }
+    let sidechain = crate::sidechain::Taps::compile(&sc_plans, config);
     let mut rt = SnapshotRt {
+        sidechain,
+        pad_index,
         order,
         tracks,
         buses: (0..n).map(|_| stereo(frames)).collect(),

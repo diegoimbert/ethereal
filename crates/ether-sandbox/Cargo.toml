@@ -13,8 +13,11 @@ publish.workspace = true
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 ether-core.workspace = true
-# The helper process hosts the plugin with the in-process CLAP host.
+# The helper process hosts the plugin in-process through its format's PluginFormatHost.
+ether-plugin-host.workspace = true
 ether-clap.workspace = true
+ether-vst3.workspace = true
+ether-au.workspace = true
 thiserror.workspace = true
 serde.workspace = true
 serde_json.workspace = true

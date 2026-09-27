@@ -85,6 +85,8 @@ pub struct AudioShared {
     pub buffer_size: AtomicU32,
     /// Frames rendered since start.
     pub frames: AtomicU64,
+    /// Input capture / recording state ([`crate::recording`]).
+    pub recording: crate::recording::RecordingShared,
 }
 
 impl AudioShared {
@@ -99,8 +101,8 @@ pub struct RtRenderer {
     /// Planar output scratch (2 × max block).
     out_l: Vec<f32>,
     out_r: Vec<f32>,
-    /// Silent inputs (no capture in v0.1).
-    silence: Vec<f32>,
+    /// Engine input: hardware input, loopback or silence ([`crate::recording`]).
+    input: crate::recording::InputFeed,
     max_block: usize,
     sample_rate: f64,
     shared: Arc<AudioShared>,
@@ -120,7 +122,7 @@ impl RtRenderer {
             engine: Some(engine),
             out_l: vec![0.0; max_block],
             out_r: vec![0.0; max_block],
-            silence: vec![0.0; max_block],
+            input: crate::recording::InputFeed::new(&shared, max_block, sample_rate),
             max_block,
             sample_rate,
             shared,
@@ -151,10 +153,11 @@ impl RtRenderer {
         while done < total {
             let n = (total - done).min(self.max_block);
             {
-                let inputs: [&[f32]; 2] = [&self.silence[..n], &self.silence[..n]];
+                let inputs = self.input.read(n);
                 let mut outputs: [&mut [f32]; 2] = [&mut self.out_l[..n], &mut self.out_r[..n]];
                 process_guarded(engine, &inputs, &mut outputs, n);
             }
+            self.input.after_process(&self.out_l[..n], &self.out_r[..n]);
             let frames = &mut out[done * channels..(done + n) * channels];
             for (i, frame) in frames.chunks_exact_mut(channels).enumerate() {
                 let (l, r) = (self.out_l[i], self.out_r[i]);

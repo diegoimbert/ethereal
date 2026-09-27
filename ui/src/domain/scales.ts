@@ -33,6 +33,10 @@ export function resolveScale(project: MusicalScale, track?: TrackScale): Musical
   if (track?.type === "Custom") return track.scale;
   return track?.type === "Chromatic" ? CHROMATIC_SCALE : project;
 }
+/** Short name of a scale, e.g. "C Minor" ("Scale" when chromatic, i.e. no scale). */
+export function scaleLabel(scale: MusicalScale): string {
+  return scale.kind === "Chromatic" ? "Scale" : `${ROOT_NOTES[scale.root]} ${SCALES[scale.kind].label}`;
+}
 export function scaleTone(pitch: number, scale: MusicalScale, highlight: boolean): "root" | "in" | "out" | undefined {
   if (!highlight || scale.kind === "Chromatic") return undefined;
   if (getPitchClass(pitch) === scale.root) return "root";

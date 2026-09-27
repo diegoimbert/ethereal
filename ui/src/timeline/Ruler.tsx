@@ -3,10 +3,12 @@
  * marker, driven by a `TimelineViewStore`.
  *
  * Interactions (Ableton-like):
- * - click: locate the playhead (snapped to the grid; alt/option bypasses snapping);
- * - drag: horizontal scrolls, vertical zooms around the press point (down = zoom in);
+ * - press: locate the playhead there; drag: the playhead follows the pointer (both snapped
+ *   to the grid; alt/option bypasses snapping). The view itself never moves;
  * - loop brace: drag the body to move it, the edges to resize (snapped); double-click
  *   toggles the loop; shift-drag on the ruler draws a new loop region;
+ * - tempo map (shared touch, `features/tempo/RulerTempoMarkers`): tempo and time-signature
+ *   markers (drag to move), right-click to add a change there;
  * - cmd/ctrl + wheel zooms, horizontal wheel scrolls (`useTimelineWheel`).
  * Loop edits are undoable document edits sent with a gesture (one undo step per drag).
  */
@@ -20,6 +22,10 @@ import { DEFAULT_GRID, resolveGrid, snapToGrid, type GridSetting } from "./grid"
 import { useFollowPlayhead, usePlayheadPosition, type PlayheadMapping } from "./playhead";
 import { rulerMarks, type RulerFormat } from "./rulerMarks";
 import { useTempoMap, type TempoMap } from "./tempoMap";
+// Shared touch (tempo-metronome): tempo-map markers and menu on the ruler.
+import { openContextMenu } from "@/kit";
+import { rulerTempoMenu, useSortedTempoMap } from "@/features/tempo/menus";
+import { RulerTempoMarkers } from "@/features/tempo/RulerTempoMarkers";
 import { useTimelineWheel } from "./useTimelineWheel";
 import { beatsToPx, pxToBeats } from "./viewport";
 import { useTimelineView, useViewport, type TimelineViewStore } from "./viewStore";
@@ -35,6 +41,9 @@ export interface RulerProps {
   showLoop?: boolean;
   /** Override the tempo map (default: the project's). */
   tempo?: TempoMap;
+  /** Show and edit the tempo map (tempo/signature markers, right-click to add; default:
+   *  with the loop brace, on the project tempo map). */
+  showTempo?: boolean;
   /** Maps song beats to this view's axis (clip-relative views). Default identity. */
   playheadMapping?: PlayheadMapping;
   /** Locate handler (default: `Transport::Locate`). Receives beats on this view's axis. */
@@ -53,6 +62,7 @@ export function Ruler({
   grid = DEFAULT_GRID,
   showLoop = true,
   tempo: tempoOverride,
+  showTempo,
   playheadMapping,
   onLocate,
   syncWidth = true,
@@ -62,6 +72,8 @@ export function Ruler({
   const transport = useTransport();
   const projectTempo = useTempoMap();
   const tempo = tempoOverride ?? projectTempo;
+  const tempoEditable = (showTempo ?? (showLoop && tempoOverride === undefined)) && tempoOverride === undefined;
+  const tempoTables = useSortedTempoMap();
   const vp = useViewport(view);
   const widthPx = useTimelineView(view, (s) => s.widthPx);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -159,7 +171,6 @@ export function Ruler({
   const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
     if (e.button !== 0) return;
     const startX = localX(e);
-    const startY = e.clientY;
     const startBeats = pxToBeats(startX, view.getState());
 
     if (e.shiftKey && showLoop) {
@@ -182,28 +193,19 @@ export function Ruler({
       return;
     }
 
-    let lastX = startX;
-    let lastY = startY;
-    let dragged = false;
+    // Locate on press, then scrub: the playhead follows the pointer until release.
+    let located: Beats | null = null;
+    const locate = (x: number, bypass: boolean) => {
+      const beats = Math.max(0, snap(pxToBeats(x, view.getState()), bypass));
+      if (beats === located) return;
+      located = beats;
+      if (onLocate) onLocate(beats);
+      else send(cmd("Transport", { type: "Locate", position: beats }));
+    };
+    locate(startX, e.altKey);
     track(
-      (ev) => {
-        const x = localX(ev);
-        if (!dragged && Math.hypot(x - startX, ev.clientY - startY) < 3) return;
-        dragged = true;
-        const s = view.getState();
-        const dy = ev.clientY - lastY;
-        if (dy !== 0) s.zoomBy(Math.exp(dy * 0.01), startX);
-        const dx = x - lastX;
-        if (dx !== 0) s.scrollByPx(-dx);
-        lastX = x;
-        lastY = ev.clientY;
-      },
-      (ev) => {
-        if (dragged) return;
-        const beats = Math.max(0, snap(startBeats, ev.altKey));
-        if (onLocate) onLocate(beats);
-        else send(cmd("Transport", { type: "Locate", position: beats }));
-      },
+      (ev) => locate(localX(ev), ev.altKey),
+      () => {},
     );
   };
 
@@ -216,6 +218,15 @@ export function Ruler({
       className={className ? `eth-ruler ${className}` : "eth-ruler"}
       style={{ height }}
       onPointerDown={onPointerDown}
+      onContextMenu={
+        tempoEditable
+          ? (e) =>
+              openContextMenu(
+                e,
+                rulerTempoMenu(transport, tempo, tempoTables.points, tempoTables.signatures, snap(pxToBeats(localX(e), view.getState()), e.altKey)),
+              )
+          : undefined
+      }
       data-testid="ruler"
       role="slider"
       aria-label="Timeline ruler"
@@ -244,6 +255,7 @@ export function Ruler({
           title="Loop (drag to move, edges to resize, double-click to toggle)"
         />
       )}
+      {tempoEditable && <RulerTempoMarkers vp={vp} widthPx={widthPx} snap={snap} />}
       <div ref={playheadRef} className="eth-ruler__playhead" data-testid="ruler-playhead" aria-hidden />
     </div>
   );

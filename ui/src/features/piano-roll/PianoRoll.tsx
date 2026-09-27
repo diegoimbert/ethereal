@@ -3,16 +3,21 @@
  * (`useEditedClipId()` from `@/state`). The time axis is the clip's content timeline.
  *
  * - Keyboard gutter (click a key: select its notes), note grid, velocity lane.
- * - Draw: double-click empty space, or drag in draw mode (B). Move: drag a note body
+ * - Draw: double-click empty space (keep holding and drag to set the length), or drag in
+ *   draw mode (B). Move: drag a note body
  *   (vertical = pitch). Resize: drag either edge. Delete: double-click a note, or
  *   Delete/Backspace. Alt bypasses snapping. Every drag is one undo gesture.
- * - Selection: click / shift / cmd-ctrl, marquee on empty space, cmd-A.
+ * - Selection: click / shift / cmd-ctrl, marquee on empty space, cmd-A. Cmd/ctrl-drag a
+ *   note duplicates the selection (copies follow the pointer).
  * - Keys: arrows nudge (shift = octave), cmd-U quantize, cmd-D duplicate, Esc deselects.
+ *   Quantize (button, cmd-U) uses the settings of the groove Quantize… popover.
  */
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import type { Beats, Clip, Command, Note, NoteId, MusicalScale, TrackScale } from "@/generated";
-import { Button } from "@/kit";
+import type { Beats, Clip, Command, MusicalScale, Note, NoteId, TrackScale } from "@/generated";
+import { CHROMATIC_SCALE, resolveScale } from "@/domain/scales";
+import { Button, Select } from "@/kit";
+import { GrooveControls, grooveMenuItems, grooveQuantizeCommand, useGrooveSettings } from "@/features/groove";
 import { useClip, useEditedClipId, useNotesOfClip, useProjectStore } from "@/state";
 import {
   beatsToPx,
@@ -22,6 +27,7 @@ import {
   resolveGrid,
   Ruler,
   stepLength,
+  useMiddleButtonPan,
   useSelectedItems,
   useTempoMap,
   useTimelineView,
@@ -33,15 +39,15 @@ import {
 import { cmd, newId, useTransport } from "@/transport";
 import { clipTempoMap, contentEnd, contentToSong, songToContent } from "./clipTime";
 import { useSend } from "./drag";
-import { DEFAULT_KEY_HEIGHT, KEYBOARD_WIDTH, pitchToY, yToPitch, createPitchRows } from "./geometry";
+import { createPitchRows, KEYBOARD_WIDTH, pitchToY, yToPitch } from "./geometry";
 import { Keyboard } from "./Keyboard";
 import { NoteGrid } from "./NoteGrid";
-import { nudgeEdits, quantizeCommand } from "./noteEdits";
+import { nudgeEdits } from "./noteEdits";
 import { GRID_OPTIONS } from "./gridOptions";
+import { useKeyHeightZoom } from "./useKeyHeightZoom";
 import { VelocityLane } from "./VelocityLane";
-import "./pianoRoll.css";
-import { CHROMATIC_SCALE, resolveScale } from "@/domain/scales";
 import { ScaleControls } from "./ScaleControls";
+import "./pianoRoll.css";
 
 /** Prop-less piano roll mounted by the app shell. */
 export function PianoRoll() {
@@ -84,7 +90,7 @@ export function PianoRollEditor({ clip, view: injectedView }: PianoRollEditorPro
   const [gridIndex, setGridIndex] = useState(1);
   const [triplet, setTriplet] = useState(false);
   const [drawMode, setDrawMode] = useState(false);
-  const keyH = DEFAULT_KEY_HEIGHT;
+  // Scale: document state (project / track); highlight and folding are local view state.
   const projectScale = useProjectStore((s) => s.project?.settings.scale ?? CHROMATIC_SCALE);
   const trackScale = useProjectStore((s) => s.project?.tracks[clip.track]?.scale);
   const mode = trackScale?.type ?? "FollowProject";
@@ -111,8 +117,12 @@ export function PianoRollEditor({ clip, view: injectedView }: PianoRollEditorPro
   // Keep the pre-fold scroll position: shrinking the canvas may clamp the DOM's scrollTop.
   const scrollTopRef = useRef(0);
   const laneRef = useRef<HTMLDivElement>(null);
-  useTimelineWheel(bodyRef, view);
+  const [keyH, onVerticalZoom] = useKeyHeightZoom(bodyRef);
+  useTimelineWheel(bodyRef, view, { smoothScrollY: true, onVerticalZoom, originPx: KEYBOARD_WIDTH });
   useTimelineWheel(laneRef, view);
+  useMiddleButtonPan(bodyRef, view);
+  useMiddleButtonPan(laneRef, view);
+  // Folding rows keeps the pitch at the middle of the view in place.
   const previousRows = useRef(rows);
   useLayoutEffect(() => {
     const body = bodyRef.current;
@@ -139,17 +149,19 @@ export function PianoRollEditor({ clip, view: injectedView }: PianoRollEditorPro
     }
   }, [widthPx, view, clip, notes, keyH, rows]);
 
-  const quantize = () => void send(quantizeCommand(clip.id, selected.map((n) => n.id), stepBeats));
+  const quantize = () =>
+    void send(grooveQuantizeCommand(clip.id, selected.map((n) => n.id), useGrooveSettings.getState().quantize, stepBeats));
 
   const onKeyDown = (e: React.KeyboardEvent) => {
-    if ((e.target as HTMLElement).closest("select, input, button, textarea")) return;
+    // Already handled by a focused control (e.g. arrows opening a toolbar Select).
+    if (e.defaultPrevented) return;
     const mod = e.metaKey || e.ctrlKey;
     const key = e.key.toLowerCase();
     let command: Command | null = null;
     if (key === "delete" || key === "backspace") {
       if (selected.length) command = cmd("Note", { type: "Remove", ids: selected.map((n) => n.id) });
     } else if (mod && key === "a") {
-      itemSelection.getState().select("note", notes.map((n) => n.id), "replace");
+      itemSelection.getState().select("note", shownNotes.map((n) => n.id), "replace");
     } else if (mod && key === "u") {
       quantize();
     } else if (mod && key === "d") {
@@ -188,24 +200,22 @@ export function PianoRollEditor({ clip, view: injectedView }: PianoRollEditorPro
       tabIndex={0}
       data-testid="piano-roll"
       onKeyDown={onKeyDown}
-      onPointerDownCapture={(e) => {
-        if (!(e.target as HTMLElement).closest("select, input, button, textarea")) rootRef.current?.focus({ preventScroll: true });
-      }}
+      onPointerDownCapture={() => rootRef.current?.focus({ preventScroll: true })}
     >
       <div className="eth-pr__toolbar">
         <span className="eth-pr__title" title={clip.name}>
           {clip.name || "MIDI Clip"}
         </span>
-        <label className="eth-pr__grid-select">
+        <span className="eth-pr__grid-select">
           Grid
-          <select value={gridIndex} onChange={(e) => setGridIndex(Number(e.target.value))} aria-label="Grid">
-            {GRID_OPTIONS.map((o, i) => (
-              <option key={o.label} value={i}>
-                {o.label}
-              </option>
-            ))}
-          </select>
-        </label>
+          <Select
+            size="sm"
+            aria-label="Grid"
+            value={String(gridIndex)}
+            options={GRID_OPTIONS.map((o, i) => ({ value: String(i), label: o.label }))}
+            onChange={(v) => setGridIndex(Number(v))}
+          />
+        </span>
         <Button size="sm" active={triplet} onClick={() => setTriplet((t) => !t)} title="Triplet grid">
           3
         </Button>
@@ -218,9 +228,17 @@ export function PianoRollEditor({ clip, view: injectedView }: PianoRollEditorPro
         <Button size="sm" onClick={quantize} title="Quantize to the grid (Cmd/Ctrl+U)">
           Quantize
         </Button>
-        <ScaleControls scale={scale} mode={mode} onScale={setScale}
+        <GrooveControls clip={clip.id} selected={selected.map((n) => n.id)} rollStep={stepBeats} />
+        <ScaleControls
+          scale={scale}
+          mode={mode}
+          onScale={setScale}
           onMode={(type) => setTrackScale(type === "Custom" ? { type, scale } : { type })}
-          highlight={highlight} onHighlight={setHighlight} only={scaleOnly} onOnly={setScaleOnly} />
+          highlight={highlight}
+          onHighlight={setHighlight}
+          only={scaleOnly}
+          onOnly={setScaleOnly}
+        />
       </div>
 
       <div className="eth-pr__header">
@@ -266,6 +284,7 @@ export function PianoRollEditor({ clip, view: injectedView }: PianoRollEditorPro
             step={step}
             newNoteBeats={stepBeats}
             drawMode={drawMode}
+            menuItems={(ids) => grooveMenuItems(clip.id, ids, stepBeats, send)}
           />
         </div>
       </div>

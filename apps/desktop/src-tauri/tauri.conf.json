@@ -6,7 +6,7 @@
   "build": {
     "frontendDist": "../../../ui/dist",
     "beforeDevCommand": "",
-    "beforeBuildCommand": "pnpm --filter @ethereal/ui build"
+    "beforeBuildCommand": "pnpm --filter @ethereal/ui build && pnpm --workspace-root exec node scripts/build-sandbox-helper.mjs --bundle"
   },
   "app": {
     "windows": [
@@ -15,7 +15,8 @@
         "width": 1440,
         "height": 900,
         "minWidth": 960,
-        "minHeight": 600
+        "minHeight": 600,
+        "dragDropEnabled": false
       }
     ],
     "security": {
@@ -33,6 +34,32 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "macOS": {
+      "files": {
+        "MacOS/ether-sandbox-helper": "binaries/ether-sandbox-helper",
+        "MacOS/ether-plugin-scanner": "binaries/ether-plugin-scanner"
+      }
+    },
+    "linux": {
+      "deb": {
+        "files": {
+          "/usr/bin/ether-sandbox-helper": "binaries/ether-sandbox-helper",
+          "/usr/bin/ether-plugin-scanner": "binaries/ether-plugin-scanner"
+        }
+      },
+      "rpm": {
+        "files": {
+          "/usr/bin/ether-sandbox-helper": "binaries/ether-sandbox-helper",
+          "/usr/bin/ether-plugin-scanner": "binaries/ether-plugin-scanner"
+        }
+      },
+      "appimage": {
+        "files": {
+          "/usr/bin/ether-sandbox-helper": "binaries/ether-sandbox-helper",
+          "/usr/bin/ether-plugin-scanner": "binaries/ether-plugin-scanner"
+        }
+      }
+    }
   }
 }

@@ -198,6 +198,17 @@ impl ProjectStore for MemoryStore {
         Ok(())
     }
 
+    fn write_export(
+        &mut self,
+        id: ProjectId,
+        file_name: &str,
+        bytes: &[u8],
+    ) -> Result<String, StoreError> {
+        let path = crate::store::export_path(file_name)?;
+        self.write(id, &path, bytes)?;
+        Ok(path)
+    }
+
     fn list_dir(&mut self, id: ProjectId, rel_path: &str) -> Result<DirectoryListing, StoreError> {
         check_relative_path(rel_path)?;
         let entries = list(&self.project(id)?.files, rel_path);

@@ -180,7 +180,7 @@ describe("ui store heights", () => {
 
   it("is the bar when closed and grows by a lane per shown parameter", () => {
     const s = () => useAutomationUi.getState();
-    expect(automationHeight(s(), "T")).toBe(AUTOMATION_BAR_HEIGHT);
+    expect(automationHeight(s(), "T")).toBe(0);
     s().setOpen("T", true, ["volume:T"]);
     expect(automationLaneHeights("T")).toBe(AUTOMATION_BAR_HEIGHT + LANE_HEIGHT);
     s().show("T", "pan:T");
@@ -192,7 +192,7 @@ describe("ui store heights", () => {
     expect(automationHeight(s(), "T")).toBe(AUTOMATION_BAR_HEIGHT + LANE_HEIGHT);
     // Closing keeps the list for next time.
     s().setOpen("T", false);
-    expect(automationHeight(s(), "T")).toBe(AUTOMATION_BAR_HEIGHT);
+    expect(automationHeight(s(), "T")).toBe(0);
     s().setOpen("T", true, ["ignored"]);
     expect(shownKeys(s(), "T")).toEqual(["pan:T"]);
   });

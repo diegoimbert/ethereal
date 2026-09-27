@@ -15,7 +15,7 @@ allow = [
   "ui/src/generated/**",
 ]
 # May touch anything.
-unrestricted = ["foundation", "alpha", "v0.1"]
+unrestricted = ["foundation", "alpha", "v0.1", "formats-base"]
 unrestricted_prefixes = ["base-"]
 
 # --- Wave 1 ---------------------------------------------------------------------------
@@ -141,6 +141,10 @@ paths = [
   "apps/web/e2e/warp.spec.ts",
   # granted by manager (BCR, base-9)
   "crates/ether-native/tests/e2e_warp.rs",
+  # granted by manager (review follow-ups, base-12)
+  "crates/ether-controller/src/doc/clips.rs",
+  "crates/ether-controller/src/handlers.rs",
+  "ui/src/features/arrangement/clipDrag.ts",
 ]
 
 [nodes.recording]
@@ -177,4 +181,447 @@ paths = [
   "apps/web/e2e/recording.spec.ts",
   # granted by manager (base-10)
   "crates/ether-core/tests/recording_*.rs",
+  # granted by manager (ci-release discovery, base-14)
+  "apps/desktop/src-tauri/Info.plist",
+]
+
+# --- Roadmap (manager, base-13) --------------------------------------------------------
+
+[nodes.design-system]
+paths = [
+  "ui/src/kit/**",
+  "ui/src/theme/**",
+  "ui/src/app/App.css",
+  "ui/src/features/kit-gallery/**",
+  "docs/DESIGN-SYSTEM.md",
+  "ui/src/main.tsx",
+  # granted by manager (review follow-ups, base-15)
+  "ui/vite.config.ts",
+  "justfile",
+  "ui/src/features/mixer/**",
+  "ui/src/app/App.tsx",
+]
+
+[nodes.ci-release]
+paths = [
+  ".github/workflows/release.yml",
+  "scripts/release/**",
+  "VERSION",
+  "THIRD_PARTY_NOTICES*",
+  "docs/RELEASING.md",
+]
+
+# --- Plugin formats (formats-base; docs/PLUGIN-FORMATS.md) ----------------------------
+# `vst3` and `au` each implement one PluginFormatHost in their own crate (no shared files:
+# the scanner and sandbox helper already register both stubs). `formats-integration`
+# wires the formats into the native host/bridge/UI afterwards.
+
+[nodes.vst3]
+paths = [
+  "crates/ether-vst3/**",
+  # tests through the real scanner binary / sandbox helper (CARGO_BIN_EXE_* only exists there)
+  "crates/ether-plugin-scanner/tests/vst3.rs",
+  "crates/ether-sandbox/tests/vst3.rs",
+]
+
+[nodes.au]
+paths = [
+  "crates/ether-au/**",
+  # tests through the real scanner binary / sandbox helper (CARGO_BIN_EXE_* only exists there)
+  "crates/ether-plugin-scanner/tests/au.rs",
+  "crates/ether-sandbox/tests/au.rs",
+]
+
+[nodes.formats-integration]
+paths = [
+  "crates/ether-native/src/plugins.rs",
+  "crates/ether-native/src/sandbox.rs",
+  "crates/ether-native/src/bridge.rs",
+  "crates/ether-native/Cargo.toml",
+  "crates/ether-native/tests/plugins_e2e.rs",
+  "crates/ether-native/tests/formats_e2e.rs",
+  "crates/ether-plugin-host/**",
+  "crates/ether-plugin-scanner/**",
+  "crates/ether-sandbox/src/helper.rs",
+  "crates/ether-sandbox/src/host.rs",
+  "crates/ether-sandbox/src/lib.rs",
+  "ui/src/features/plugins/**",
+  "docs/PLUGIN-FORMATS.md",
+  # one-line change only: `spawn_scan` discovers targets via `Formats::discover` + `ScanRunner::scan_targets`
+  "crates/ether-native/src/host.rs",
+  # packaging: nothing new to ship (formats are linked into the scanner/helper/app), listed for codesign tweaks
+  "apps/desktop/src-tauri/Cargo.toml",
+]
+
+# --- Roadmap features (contracts-2, revised in base-17) ----------------------------------
+# contracts-2 pre-created one module per feature and layer, registered with one line in its
+# parent (see docs/ROADMAP.md for hook points). Each node owns its modules, UI feature
+# folder, mock file (`ui/src/transport/mock/roadmap/<feature>.*`) and test files. "shared
+# touch" = minimal, additive edits in a shared file. The hot core files (ether-core
+# engine.rs, graph.rs, mixer.rs) were pre-wired in base-17: only `multicore` (which lands
+# last) edits them; the other engine features work in their own core module.
+
+[nodes.export]
+paths = [
+  "ui/src/features/export/**",
+  "ui/src/transport/mock/roadmap/export.*",
+  "crates/ether-controller/src/export/**",
+  "crates/ether-core/src/offline.rs",
+  "crates/ether-controller/tests/export*.rs",
+  "crates/ether-core/tests/offline*.rs",
+  "apps/web/e2e/export.spec.ts",
+  # shared touch: hound/flacenc deps (pre-declared in the workspace)
+  "crates/ether-controller/Cargo.toml",
+  # shared touch: EngineBridge::create_offline_plugin impl (native plugins)
+  "crates/ether-native/src/bridge.rs",
+  # shared (base-18): remove ONLY your own entries from the "unsupported until implemented" test
+  "crates/ether-controller/tests/roadmap_v2.rs",
+  # own e2e/integration test files (base-21)
+  "crates/ether-native/tests/export*.rs",
+  # shared touch (base-25): one additive state field + initializer on EtherController
+  "crates/ether-controller/src/lib.rs",
+  # shared touch (base-25): pub(crate) re-export of IncrementalResampler
+  "crates/ether-controller/src/media/mod.rs",
+]
+
+[nodes.devices-2]
+paths = [
+  "crates/ether-devices/src/eq.rs",
+  "crates/ether-devices/src/reverb.rs",
+  "crates/ether-devices/src/limiter.rs",
+  "crates/ether-devices/src/utility.rs",
+  "crates/ether-devices/src/dsp/**",
+  "crates/ether-devices/tests/devices2*.rs",
+  # shared touch: helpers (Smoother/param tables) and the placeholder removal
+  "crates/ether-devices/src/util.rs",
+  "crates/ether-devices/src/placeholder.rs",
+  "crates/ether-devices/src/lib.rs",
+  # shared touch: mock descriptors mirroring the real param lists
+  "ui/src/transport/mock/builtinDevices.ts",
+  # shared (base-18): remove ONLY your own entries from the "unsupported until implemented" test
+  "crates/ether-controller/tests/roadmap_v2.rs",
+  # own e2e/integration test files (base-21)
+  "apps/web/e2e/devices-2.spec.ts",
+  "crates/ether-native/tests/devices_2*.rs",
+]
+
+[nodes.tempo-metronome]
+paths = [
+  "ui/src/features/tempo/**",
+  "ui/src/transport/mock/roadmap/tempo.*",
+  "crates/ether-controller/src/tempo/**",
+  "crates/ether-core/src/metronome.rs",
+  "crates/ether-controller/tests/tempo*.rs",
+  "crates/ether-core/tests/metronome*.rs",
+  # shared touch: MetronomeDesc::count_in_end from the record session
+  "crates/ether-controller/src/engine.rs",
+  "crates/ether-controller/src/recording/mod.rs",
+  # shared touch: tempo-map editing on the ruler
+  "ui/src/timeline/Ruler.tsx",
+  # shared (base-18): remove ONLY your own entries from the "unsupported until implemented" test
+  "crates/ether-controller/tests/roadmap_v2.rs",
+  # own e2e/integration test files (base-21)
+  "apps/web/e2e/tempo-metronome.spec.ts",
+  "crates/ether-native/tests/tempo_metronome*.rs",
+  # shared touch (base-25): one additive state field + initializer on EtherController
+  "crates/ether-controller/src/lib.rs",
+  # shared touch (base-40): pass &TempoMapRt to Metronome::render at its call site only (multicore owns the rest of engine.rs)
+  "crates/ether-core/src/engine.rs",
+]
+
+[nodes.clip-editing]
+paths = [
+  "ui/src/features/clip-editing/**",
+  "ui/src/transport/mock/roadmap/clipEditing.*",
+  "crates/ether-controller/src/clip_editing/**",
+  "crates/ether-core/src/fades.rs",
+  "crates/ether-controller/tests/clip_editing*.rs",
+  "crates/ether-core/tests/fades*.rs",
+  # shared touch: fade law + reverse playback in render_audio
+  "crates/ether-core/src/sched.rs",
+  # shared touch: overlap trimming keeps crossfades
+  "crates/ether-controller/src/doc/clips.rs",
+  # shared touch: fade handles / reversed badge on clips
+  "ui/src/features/arrangement/ClipView.tsx",
+  "ui/src/features/arrangement/clipDraw.ts",
+  # shared (base-18): remove ONLY your own entries from the "unsupported until implemented" test
+  "crates/ether-controller/tests/roadmap_v2.rs",
+  # own e2e/integration test files (base-21)
+  "apps/web/e2e/clip-editing.spec.ts",
+  "crates/ether-native/tests/clip_editing*.rs",
+  # shared touch (base-25): one additive state field + initializer on EtherController
+  "crates/ether-controller/src/lib.rs",
+  # shared touch (base-26): fade law + reverse in render_complex via sched helpers
+  "crates/ether-core/src/warp/mod.rs",
+  # shared touch (base-28): resolveOverlaps keeps crossfade overlaps (isCrossfade), one line + import
+  "ui/src/transport/mock/documentReducer.ts",
+]
+
+[nodes.remote-engine]
+paths = [
+  "crates/ether-server/**",
+  "ui/src/transport/ws/**",
+  "ui/src/features/remote/**",
+  "ui/src/transport/mock/roadmap/remote.*",
+  "crates/ether-controller/src/upload/**",
+  "crates/ether-native/src/uploads.rs",
+  "crates/ether-controller/tests/upload*.rs",
+  "apps/web/e2e/remote.spec.ts",
+  # shared touch: runtime transport switching (connect dialog)
+  "ui/src/transport/createDefaultTransport.ts",
+  "ui/src/transport/TransportProvider.tsx",
+  # shared touch: `just dev-server` recipe, README section
+  "justfile",
+  "README.md",
+  # shared (base-18): remove ONLY your own entries from the "unsupported until implemented" test
+  "crates/ether-controller/tests/roadmap_v2.rs",
+  # own e2e/integration test files (base-21)
+  "apps/web/e2e/remote-engine.spec.ts",
+  "crates/ether-native/tests/remote_engine*.rs",
+  # shared touch (base-25): one additive state field + initializer on EtherController
+  "crates/ether-controller/src/lib.rs",
+  # shared touch (base-25): MediaSource::Upload arm in import
+  "crates/ether-controller/src/handlers.rs",
+  # shared touch (base-25): import_errors Upload expectation
+  "crates/ether-controller/tests/media.rs",
+  # shared touch (base-27): spread useUploadDrop() on the browser root only (no styling)
+  "ui/src/features/browser/index.tsx",
+]
+
+[nodes.collab]
+paths = [
+  "crates/ether-collab/**",
+  "crates/ether-controller/src/collab/**",
+  "ui/src/features/collab/**",
+  "ui/src/transport/mock/roadmap/collab.*",
+  "crates/ether-controller/tests/collab*.rs",
+  # shared touch: stamping committed transactions (edit_with) and the tick hook
+  "crates/ether-controller/src/handlers.rs",
+  # shared touch: CRDT/transport deps; per-site undo in the history
+  "crates/ether-controller/Cargo.toml",
+  "crates/ether-model/src/history.rs",
+  # shared (base-18): remove ONLY your own entries from the "unsupported until implemented" test
+  "crates/ether-controller/tests/roadmap_v2.rs",
+  # own e2e/integration test files (base-21)
+  "apps/web/e2e/collab.spec.ts",
+  "crates/ether-native/tests/collab*.rs",
+  # shared touch (base-25): one additive state field + initializer on EtherController
+  "crates/ether-controller/src/lib.rs",
+  # base-36: collab design doc
+  "docs/COLLAB.md",
+  # shared touch (base-39): wire MockCollab into MockTransport (import, field, Collab case)
+  "ui/src/transport/mock/MockTransport.ts",
+  # shared touch (base-44): EngineState::request_reload_from_doc (re-create a plugin from the document state)
+  "crates/ether-controller/src/engine.rs",
+]
+
+[nodes.multicore]
+paths = [
+  "crates/ether-core/src/parallel.rs",
+  "crates/ether-native/src/workers.rs",
+  "crates/ether-core/tests/parallel*.rs",
+  # shared touch: level partition in the compiled snapshot, per-level job dispatch
+  "crates/ether-core/src/graph.rs",
+  "crates/ether-core/src/engine.rs",
+  "crates/ether-core/src/mixer.rs",
+  # shared touch: worker pool wiring (EngineConfig::worker_threads, Engine::set_executor)
+  "crates/ether-native/src/rt.rs",
+  "crates/ether-native/src/host.rs",
+  "crates/ether-native/src/lib.rs",
+  # shared (base-18): remove ONLY your own entries from the "unsupported until implemented" test
+  "crates/ether-controller/tests/roadmap_v2.rs",
+  # own e2e/integration test files (base-21)
+  "apps/web/e2e/multicore.spec.ts",
+  "crates/ether-native/tests/multicore*.rs",
+  # shared touch (base-42): run_pads takes the engine NodeTable (signature only)
+  "crates/ether-core/src/drum_rack/mod.rs",
+]
+
+[nodes.web-perf]
+paths = [
+  "crates/ether-core/src/codec.rs",
+  "crates/ether-wasm/src/**",
+  "crates/ether-wasm/tests/**",
+  "apps/web/src/engine/**",
+  "crates/ether-core/tests/codec*.rs",
+  # shared (base-18): remove ONLY your own entries from the "unsupported until implemented" test
+  "crates/ether-controller/tests/roadmap_v2.rs",
+  # own e2e/integration test files (base-21)
+  "apps/web/e2e/web-perf.spec.ts",
+  "crates/ether-native/tests/web_perf*.rs",
+]
+# The web store and bridge are shared with other roadmap nodes (export, drum-rack).
+exclude = [
+  "crates/ether-wasm/src/store.rs",
+  "crates/ether-wasm/src/bridge.rs",
+]
+
+[nodes.midi-learn]
+paths = [
+  "ui/src/features/midi-learn/**",
+  "ui/src/transport/mock/roadmap/midiLearn.*",
+  "crates/ether-controller/src/midi_learn/**",
+  "crates/ether-controller/tests/midi_learn*.rs",
+  # shared touch: forward port + message from the recording MIDI input path
+  "crates/ether-native/src/recording/midi.rs",
+  "crates/ether-native/src/recording/mod.rs",
+  # shared touch: EngineBridge::poll_midi_input impl
+  "crates/ether-native/src/bridge.rs",
+  # shared (base-18): remove ONLY your own entries from the "unsupported until implemented" test
+  "crates/ether-controller/tests/roadmap_v2.rs",
+  # granted (BCR, base-19): the midi_learn state field + its initializer only
+  "crates/ether-controller/src/lib.rs",
+  # own e2e/integration test files (base-21)
+  "apps/web/e2e/midi-learn.spec.ts",
+  "crates/ether-native/tests/midi_learn*.rs",
+]
+
+[nodes.sidechain]
+paths = [
+  "ui/src/features/sidechain/**",
+  "ui/src/transport/mock/roadmap/sidechain.*",
+  "crates/ether-controller/src/sidechain/**",
+  "crates/ether-core/src/sidechain.rs",
+  "crates/ether-controller/tests/sidechain*.rs",
+  "crates/ether-core/tests/sidechain*.rs",
+  # shared touch: compressor (and limiter, with devices-2) sidechain input
+  "crates/ether-devices/src/compressor.rs",
+  # shared (base-18): remove ONLY your own entries from the "unsupported until implemented" test
+  "crates/ether-controller/tests/roadmap_v2.rs",
+  # own e2e/integration test files (base-21)
+  "apps/web/e2e/sidechain.spec.ts",
+  "crates/ether-native/tests/sidechain*.rs",
+  # shared touch (base-25): one additive state field + initializer on EtherController
+  "crates/ether-controller/src/lib.rs",
+  # shared touches (base-29): limiter sidechain detector; mock descriptors (sidechain_inputs, compressor param 5)
+  "crates/ether-devices/src/limiter.rs",
+  "ui/src/transport/mock/builtinDevices.ts",
+  "crates/ether-devices/tests/sidechain*.rs",
+  # shared touch (base-30): devices2 test expects Limiter sidechain_inputs = 2
+  "crates/ether-devices/tests/devices2.rs",
+]
+
+[nodes.groove]
+paths = [
+  "ui/src/features/groove/**",
+  "ui/src/transport/mock/roadmap/groove.*",
+  "crates/ether-controller/src/groove/**",
+  "crates/ether-controller/tests/groove*.rs",
+  # shared touch: Quantize swing
+  "crates/ether-controller/src/doc/notes.rs",
+  # shared touch: quantize-swing / humanize controls in the piano roll
+  "ui/src/features/piano-roll/noteEdits.ts",
+  "ui/src/features/piano-roll/PianoRoll.tsx",
+  # shared (base-18): remove ONLY your own entries from the "unsupported until implemented" test
+  "crates/ether-controller/tests/roadmap_v2.rs",
+  # granted (BCR, base-20): additive menuItems prop only; user-owned UX, do not restyle
+  "ui/src/features/piano-roll/NoteGrid.tsx",
+  # own e2e/integration test files (base-21)
+  "apps/web/e2e/groove.spec.ts",
+  "crates/ether-native/tests/groove*.rs",
+  # shared touch (base-25): one additive state field + initializer on EtherController
+  "crates/ether-controller/src/lib.rs",
+]
+
+[nodes.drum-rack]
+paths = [
+  "ui/src/features/drum-rack/**",
+  "ui/src/transport/mock/roadmap/drumRack.*",
+  "crates/ether-controller/src/drum_rack/**",
+  "crates/ether-core/src/drum_rack/**",
+  "crates/ether-devices/src/drum_rack.rs",
+  "crates/ether-controller/tests/drum_rack*.rs",
+  "crates/ether-core/tests/drum_rack*.rs",
+  "crates/ether-devices/tests/drum_rack*.rs",
+  # shared touch: slice mode in the sampler
+  "crates/ether-devices/src/sampler.rs",
+  # shared touch: in-place slice updates (EngineBridge::update_builtin), pad-chain node
+  # creation, cascades
+  "crates/ether-native/src/bridge.rs",
+  "crates/ether-wasm/src/bridge.rs",
+  "crates/ether-controller/src/engine.rs",
+  "crates/ether-controller/src/doc/mod.rs",
+  # shared (base-18): remove ONLY your own entries from the "unsupported until implemented" test
+  "crates/ether-controller/tests/roadmap_v2.rs",
+  # own e2e/integration test files (base-21)
+  "apps/web/e2e/drum-rack.spec.ts",
+  "crates/ether-native/tests/drum_rack*.rs",
+  # shared touch (base-25): one additive state field + initializer on EtherController
+  "crates/ether-controller/src/lib.rs",
+  # shared touch (base-29): DrumRack/Sampler-slice mock descriptors
+  "ui/src/transport/mock/builtinDevices.ts",
+  # shared touch (base-31): pass sampler slices in create(); drop the placeholder module
+  "crates/ether-devices/src/lib.rs",
+  "crates/ether-devices/src/placeholder.rs",
+  # shared touch (base-33): `media: &self.media` in the EngineCtx literals only (transient auto-slice)
+  "crates/ether-controller/src/handlers.rs",
+  "crates/ether-controller/src/midi_learn/mod.rs",
+]
+
+# --- media-preview (base-24) ------------------------------------------------------------
+
+[nodes.media-preview]
+paths = [
+  "crates/ether-core/src/preview.rs",
+  "crates/ether-controller/src/media_preview/**",
+  "ui/src/transport/mock/roadmap/mediaPreview.*",
+  "ui/src/features/browser/preview*",
+  "crates/ether-core/tests/preview*.rs",
+  "crates/ether-controller/tests/media_preview*.rs",
+  "crates/ether-native/tests/media_preview*.rs",
+  "apps/web/e2e/media-preview.spec.ts",
+  # shared touch: reset the "previewing" state on MediaEvent::PreviewEnded
+  "ui/src/features/browser/index.tsx",
+  "ui/src/features/browser/Browser.test.tsx",
+  # shared touch: EngineBridge::preview impls (native: in-memory source)
+  "crates/ether-native/src/bridge.rs",
+  "crates/ether-wasm/src/bridge.rs",
+  # shared touch, web-perf's files, LIMITED to (ROADMAP.md): reusing LoadMedia chunks under
+  # a preview MediaId, one additive JsonMsg::Preview { media, gain, id }, one extra field in
+  # the engine report. No new frame tags; merge dev after web-perf lands.
+  "crates/ether-wasm/src/worklet.rs",
+  "crates/ether-wasm/src/proto.rs",
+  # shared touch (base-37): preview assertions after the stop/replace fade
+  "crates/ether-core/tests/base24_hooks.rs",
+  # shared touch (base-38, as base-25 for other roadmap nodes): one additive state field + initializer on EtherController
+  "crates/ether-controller/src/lib.rs",
+]
+
+[nodes.design-sweep]
+# Post-roadmap cleanup: migrate hard-coded UI values to design tokens WITHOUT visual change,
+# canvas/SVG colours via readToken(), data-midi-target hooks, small UI follow-ups.
+paths = [
+  "ui/src/**",
+  "apps/web/e2e/design-sweep.spec.ts",
+  "docs/DESIGN-SYSTEM.md",
+]
+exclude = [
+  "ui/src/generated/**",
+  "ui/src/features/collab/**",
+  "ui/src/transport/mock/roadmap/collab.*",
+]
+
+[nodes.live-record]
+# Live waveform/MIDI view while recording (base-43 froze RecordingEvent::Progress and
+# EngineBridge::poll_recording).
+paths = [
+  "crates/ether-native/src/recording/**",
+  "crates/ether-controller/src/recording/**",
+  "crates/ether-controller/tests/live_record*.rs",
+  "crates/ether-native/tests/live_record*.rs",
+  "ui/src/features/recording/**",
+  "ui/src/transport/mock/roadmap/liveRecord.*",
+  "apps/web/e2e/live-record.spec.ts",
+  # shared touch: poll_recording impl in the native bridge (one delegation)
+  "crates/ether-native/src/bridge.rs",
+  # shared touch: live recording clip overlay in the arrangement (additive; the user's UX is authoritative)
+  "ui/src/features/arrangement/TrackRow.tsx",
+  "ui/src/features/arrangement/clipDraw.ts",
+  # shared touch: wire MockLiveRecord into MockTransport (import, field, event emission)
+  "ui/src/transport/mock/MockTransport.ts",
+  # shared touch (base-45): one-line recording_tick delegation in tick_impl
+  "crates/ether-controller/src/handlers.rs",
+  # shared touch (base-48): tests that assumed the mock cannot record
+  "ui/src/transport/mock/MockTransport.test.ts",
+  "ui/src/features/transport-bar/TransportBar.test.tsx",
 ]

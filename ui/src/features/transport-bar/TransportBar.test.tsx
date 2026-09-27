@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { tempoPoints, useProjectStore } from "@/state";
+import { cmd, CommandFailedError } from "@/transport";
 import { renderWithMock, resetStores } from "./testUtils";
 import { TransportBar } from "./index";
 
@@ -50,6 +51,29 @@ describe("TransportBar", () => {
     await waitFor(() => expect(store().transport!.metronome).toBe(true));
   });
 
+  it("drags the tempo up and down as one undo step; a plain click edits", async () => {
+    await renderWithMock(<TransportBar />);
+    const tempo = screen.getByLabelText<HTMLInputElement>("Tempo");
+    await waitFor(() => expect(tempo).toBeEnabled());
+    fireEvent.pointerDown(tempo, { button: 0, pointerId: 1, clientY: 100 });
+    fireEvent.pointerMove(tempo, { pointerId: 1, clientY: 90 });
+    fireEvent.pointerMove(tempo, { pointerId: 1, clientY: 80 });
+    await waitFor(() => expect(store().transport!.bpm).toBe(130));
+    fireEvent.pointerMove(tempo, { pointerId: 1, clientY: 110 });
+    await waitFor(() => expect(store().transport!.bpm).toBe(115));
+    fireEvent.pointerUp(tempo, { pointerId: 1, clientY: 110 });
+    expect(document.activeElement).not.toBe(tempo);
+
+    const undo = screen.getByRole("button", { name: "Undo" });
+    await waitFor(() => expect(undo).toBeEnabled());
+    fireEvent.click(undo);
+    await waitFor(() => expect(store().transport!.bpm).toBe(120));
+
+    fireEvent.pointerDown(tempo, { button: 0, pointerId: 2, clientY: 100 });
+    fireEvent.pointerUp(tempo, { pointerId: 2, clientY: 100 });
+    expect(document.activeElement).toBe(tempo);
+  });
+
   it("edits tempo, rejects invalid values, and undoes", async () => {
     await renderWithMock(<TransportBar />);
     const tempo = screen.getByLabelText<HTMLInputElement>("Tempo");
@@ -97,8 +121,12 @@ describe("TransportBar", () => {
     await waitFor(() => expect(field.value).toBe("7/8"));
   });
 
-  it("shows engine errors (record is unsupported by the mock)", async () => {
-    await renderWithMock(<TransportBar />);
+  it("shows engine errors", async () => {
+    const { mock } = await renderWithMock(<TransportBar />);
+    const command = cmd("Recording", { type: "SetRecording", enabled: true });
+    vi.spyOn(mock, "send").mockRejectedValueOnce(
+      new CommandFailedError({ code: "Unsupported", message: "recording is not available" }, command),
+    );
     fireEvent.click(screen.getByRole("button", { name: "Record" }));
     const alert = await screen.findByRole("alert");
     expect(alert.textContent).toMatch(/recording/);

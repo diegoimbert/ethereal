@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { X } from "lucide-react";
 import { ProjectScale } from "@/features/scale/ProjectScale";
 import type { ProjectSummary } from "@/generated";
 import type { EngineCommands } from "@/features/transport-bar/engine";
@@ -12,7 +13,7 @@ export interface ProjectManagerProps {
   onClose(): void;
 }
 
-/** Popover listing the engine-side project store, with create/open/save-as/duplicate/rename/delete. */
+/** Content of the Projects popover (kit Popover, see ProjectMenu): lists the engine-side project store, with create/open/save-as/duplicate/rename/delete. */
 export function ProjectManager({ commands, onClose }: ProjectManagerProps) {
   const { send, error, clearError } = commands;
   const projects = useProjectStore((s) => s.projects);
@@ -91,14 +92,14 @@ export function ProjectManager({ commands, onClose }: ProjectManagerProps) {
   };
 
   return (
-    <div className="eth-project-mgr" role="dialog" aria-label="Projects">
+    <div className="eth-project-mgr">
       <header className="eth-project-mgr__header">
         <span>Projects</span>
         <Button size="sm" variant="ghost" aria-label="Close" onClick={onClose}>
-          ✕
+          <X aria-hidden />
         </Button>
       </header>
-      <ProjectScale />
+      <ProjectScale send={send} />
 
       <form className="eth-project-mgr__row" onSubmit={create}>
         <input

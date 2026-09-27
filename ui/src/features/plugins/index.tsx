@@ -1,14 +1,13 @@
 // OWNERSHIP: the `plugins` node owns `ui/src/features/plugins/**`.
 // Only edit files inside this folder. The app shell (ui/src/app/App.tsx) already mounts
 // `PluginBrowser`: keep this export name and keep it prop-less (read state via hooks).
+// `PluginDeviceControls` is mounted in every device header by `features/devices/DeviceView`.
+import "./plugins.css";
+import { PluginBrowserView } from "./PluginBrowser";
 
-/** Plugin browser: CLAP plugins, sandbox toggle. */
+/** Plugin browser: scanned CLAP/VST3/AU plugins, format filter, search, rescan, click to insert (desktop only). */
 export function PluginBrowser() {
-  return (
-    <div className="eth-feature-placeholder" data-feature="plugins">
-      <strong>PluginBrowser</strong>
-      <span>Plugin browser: CLAP plugins, sandbox toggle.</span>
-      <span className="eth-feature-placeholder__owner">owner: plugins</span>
-    </div>
-  );
+  return <PluginBrowserView />;
 }
+
+export { PluginDeviceControls, type PluginDeviceControlsProps } from "./PluginDeviceControls";

@@ -1,8 +1,8 @@
+import { LocateFixed } from "lucide-react";
 import type { GridSetting } from "@/timeline";
 import { useTimelineView } from "@/timeline";
-import { Button } from "@/kit";
-import { useArrangement } from "./context";
-import { addTrack, runClipAction } from "./actions";
+import { Button, Select } from "@/kit";
+import { NewTrackButton } from "./newTrack";
 import { GRID_OPTIONS } from "./helpers";
 import { arrangementView, useArrangementUi } from "./uiStore";
 
@@ -11,64 +11,34 @@ function gridId(grid: GridSetting): string {
 }
 
 export function Toolbar() {
-  const { transport } = useArrangement();
   const grid = useArrangementUi((s) => s.grid);
   const follow = useTimelineView(arrangementView, (s) => s.followPlayhead);
-  const run = (a: Parameters<typeof runClipAction>[1]) => () => void runClipAction(transport, a);
 
   return (
     <div className="eth-arr-toolbar" role="toolbar" aria-label="Arrangement tools">
-      <Button size="sm" onClick={() => void addTrack(transport, "Midi")} title="Add a MIDI track with the built-in synth">
-        + MIDI track
-      </Button>
-      <Button size="sm" onClick={() => void addTrack(transport, "Audio")} title="Add an audio track">
-        + Audio track
-      </Button>
+      <NewTrackButton />
       <span className="eth-arr-toolbar__sep" />
-      <label className="eth-arr-toolbar__grid">
+      <span className="eth-arr-toolbar__grid">
         Grid
-        <select
+        <Select
+          size="sm"
           aria-label="Grid"
           value={gridId(grid)}
-          onChange={(e) => {
-            const o = GRID_OPTIONS.find((x) => x.id === e.target.value);
+          options={GRID_OPTIONS.map((o) => ({ value: o.id, label: o.label }))}
+          onChange={(id) => {
+            const o = GRID_OPTIONS.find((x) => x.id === id);
             if (o) useArrangementUi.getState().setGrid(o.grid);
           }}
-        >
-          {GRID_OPTIONS.map((o) => (
-            <option key={o.id} value={o.id}>
-              {o.label}
-            </option>
-          ))}
-        </select>
-      </label>
+        />
+      </span>
       <Button
         size="sm"
         active={follow}
         title="Follow the playhead while playing"
         onClick={() => arrangementView.getState().setFollowPlayhead(!follow)}
       >
+        <LocateFixed />
         Follow
-      </Button>
-      <span className="eth-arr-toolbar__sep" />
-      <Button size="sm" onClick={run("split")} title="Split selected clips at the playhead (Ctrl/Cmd+E)">
-        Split
-      </Button>
-      <Button size="sm" onClick={run("duplicate")} title="Duplicate selected clips (Ctrl/Cmd+D)">
-        Duplicate
-      </Button>
-      <Button size="sm" onClick={run("loop")} title="Toggle looping of selected clips (Ctrl/Cmd+Shift+L)">
-        Loop
-      </Button>
-      <Button size="sm" onClick={run("delete")} title="Delete selected clips (Delete)">
-        Delete
-      </Button>
-      <span className="eth-arr-toolbar__sep" />
-      <Button size="sm" aria-label="Zoom out" onClick={() => arrangementView.getState().zoomBy(1 / 1.5)}>
-        −
-      </Button>
-      <Button size="sm" aria-label="Zoom in" onClick={() => arrangementView.getState().zoomBy(1.5)}>
-        +
       </Button>
     </div>
   );

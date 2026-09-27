@@ -15,8 +15,6 @@ use crate::model::{GestureId, ProjectId};
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
 #[serde(tag = "type")]
 pub enum ProjectCommand {
-    /// Undoable project scale metadata; never restricts MIDI notes.
-    SetScale { scale: crate::model::MusicalScale },
     /// List stored projects. Replies `Projects`.
     List,
     /// Create a new empty project with a client-chosen id, save it to the store and make it
@@ -44,6 +42,8 @@ pub enum ProjectCommand {
     Delete { id: ProjectId },
     /// Full current document. Replies `Project`. Used on (re)connect and on revision gaps.
     Get,
+    /// Undoable project scale metadata; never restricts MIDI notes.
+    SetScale { scale: crate::model::MusicalScale },
 }
 
 /// One entry of the project list.

@@ -7,14 +7,19 @@ import type { PluginFormat } from "./PluginFormat";
  */
 export type PluginDescriptor = { format: PluginFormat, 
 /**
- * CLAP id.
+ * Format-specific plugin id (`PluginInstance.plugin_id`; convention per format in
+ * `ether_model::PluginFormat`): CLAP id, VST3 class id (32 hex), AU `type:subtype:manu`.
  */
 id: string, name: string, vendor: string, version: string, description: string, 
 /**
- * CLAP feature strings (`instrument`, `audio-effect`, `reverb`, ...).
+ * Feature/category strings, lowercase. CLAP feature strings as-is (`instrument`,
+ * `audio-effect`, `reverb`, ...); VST3 sub-categories split on `|` (`fx`, `instrument`,
+ * `delay`, ...); AU the component type (`aufx`, `aumu`, `aumf`, `aumi`).
  */
 features: Array<string>, category: DeviceCategory, 
 /**
- * Bundle path on disk.
+ * Where the host loads the plugin from: the `.clap`/`.vst3` bundle path on disk. AU:
+ * the scan target (the component id, same as `id`), since AUs are instantiated from
+ * the system component registry, not from a path.
  */
 path: string, };
