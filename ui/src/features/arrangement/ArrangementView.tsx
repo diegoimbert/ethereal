@@ -1,5 +1,6 @@
 import "./arrangement.css";
-import { setDragCursor } from "@/kit";
+import { openContextMenu, setDragCursor } from "@/kit";
+import { AddTrackRow } from "./newTrack";
 import { useContext, useEffect, useMemo, useRef, type DragEvent, type KeyboardEvent, type PointerEvent } from "react";
 import type { Beats, TrackId } from "@/generated";
 import { useProjectStore, useSelectionStore, useTracksOrdered } from "@/state";
@@ -23,7 +24,7 @@ import {
 } from "@/timeline";
 import { useAutomationHeight } from "@/features/automation";
 import { TransportContext, useTransport, useTransportEvent } from "@/transport";
-import { actionForKey, bindSingleSelection, locateIfStopped, runClipAction } from "./actions";
+import { actionForKey, bindSingleSelection, locateIfStopped, newTrackMenu, runClipAction } from "./actions";
 import { dropBrowserMedia, hasBrowserDrag, readBrowserDrag } from "./browserDrop";
 import { ArrangementContext, type ArrangementContextValue } from "./context";
 import { clipRects, DROP_AREA_HEIGHT, HEADER_WIDTH, layoutRows, rowIndexAt, rowsHeight, type Row } from "./layout";
@@ -233,6 +234,12 @@ function ConnectedArrangementView() {
               const x = e.clientX - e.currentTarget.getBoundingClientRect().left;
               if (x >= useArrangementUi.getState().headerWidth) marquee.onPointerDown(e);
             }}
+            onContextMenu={(e) => {
+              // Empty space below the tracks (header column or lanes): add a track. Rows,
+              // headers and clips open their own menus (and stop the event).
+              const y = e.clientY - e.currentTarget.getBoundingClientRect().top;
+              if (y >= rowsHeight(rowsRef.current)) openContextMenu(e, newTrackMenu(transport));
+            }}
             onDragOver={onDragOver}
             onDragLeave={() => useArrangementUi.getState().setDropHint(null)}
             onDrop={onDrop}
@@ -246,6 +253,7 @@ function ConnectedArrangementView() {
               <TrackRow key={row.track.id} row={row} />
             ))}
             <div className="eth-arr__drop-area" style={{ height: DROP_AREA_HEIGHT }}>
+              <AddTrackRow />
               <NewTrackDropHint />
             </div>
             <TrackDropLine />

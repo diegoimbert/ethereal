@@ -251,3 +251,12 @@ export function trackMenu(transport: EngineTransport, track: Track): ContextMenu
     },
   ];
 }
+
+/** Context-menu items adding a track at the end of the list (right-click on empty space). */
+export function newTrackMenu(transport: EngineTransport): ContextMenuEntry[] {
+  const add = (kind: NewTrackKind) => () => void addTrack(transport, kind).then((id) => selectTrackEntity(id));
+  return [
+    { label: "Add audio track", onSelect: add("Audio") },
+    { label: "Add MIDI track", onSelect: add("Midi") },
+  ];
+}

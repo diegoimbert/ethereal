@@ -136,6 +136,52 @@
   font-size: var(--eth-fs-xs);
 }
 
+/* "+ Add track" below the last track, in the header column: a faint ghost row that firms
+   up on hover, like a track header card. */
+.eth-arr__add-track {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-sm);
+  box-sizing: border-box;
+  height: 32px;
+  padding: 0 20px 0 18px;
+  z-index: 1;
+  border: none;
+  background: none;
+  color: var(--eth-color-text-dim);
+  opacity: 0.6;
+  font: inherit;
+  font-size: var(--eth-fs-sm);
+  cursor: default;
+  transition: opacity var(--eth-duration-fast) var(--eth-ease-out), color var(--eth-duration-fast) var(--eth-ease-out);
+}
+.eth-arr__add-track::before {
+  content: "";
+  position: absolute;
+  inset: 3px 12px 3px 6px;
+  z-index: -1;
+  border-radius: var(--eth-radius-lg);
+  background: transparent;
+  transition: background-color var(--eth-duration-fast) var(--eth-ease-out);
+}
+.eth-arr__add-track:hover,
+.eth-arr__add-track:focus-visible {
+  opacity: 1;
+  color: var(--eth-color-text);
+  outline: none;
+}
+.eth-arr__add-track:hover::before,
+.eth-arr__add-track:focus-visible::before {
+  background: var(--eth-color-bg-hover);
+}
+.eth-arr__add-track svg {
+  width: 14px;
+  height: 14px;
+}
+
 .eth-arr__drop-label {
   padding: var(--eth-space-sm) var(--eth-space-md);
   border: 1px dashed var(--eth-color-border-light);
