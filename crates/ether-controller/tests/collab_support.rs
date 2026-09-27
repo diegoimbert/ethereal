@@ -9,8 +9,12 @@ mod common;
 
 pub use common::{Call, FakeBridge, T0, ok, patches, plugin_descriptor, wav};
 
-use ether_collab::Connector;
+use std::sync::{Arc, Mutex};
+
 use ether_collab::memory::Hub;
+use ether_collab::{
+    BoxTransport, CollabMessage, CollabTransport, ConnectRequest, Connector, LinkState,
+};
 use ether_controller::memory::{MemoryLibrary, MemoryStore};
 use ether_controller::{Controller, ControllerConfig, EtherController, HostServices};
 use ether_core::protocol::collab::{CollabCommand, CollabEvent, CollabStatus, Presence};
@@ -183,10 +187,82 @@ pub fn shared(p: &Project) -> Project {
     p.settings.metronome_volume = d.metronome_volume;
     p.settings.metronome_accent = d.metronome_accent;
     p.settings.metronome_sound = d.metronome_sound;
+    // Mute and solo are per-site (COLLAB.md §2.1).
     for t in p.tracks.values_mut() {
+        t.mixer.mute = false;
         t.mixer.solo = false;
     }
+    for d in p.drum_pads.values_mut() {
+        d.mute = false;
+    }
     p
+}
+
+/// A wire tap on a site's links: records the transactions it sends, and can add ops to its
+/// next one (to act as an old peer that still sends mute/solo).
+#[derive(Clone, Default)]
+pub struct Tap {
+    sent: Arc<Mutex<Vec<StampedTransaction>>>,
+    inject: Arc<Mutex<Vec<Op>>>,
+}
+
+impl Tap {
+    pub fn connector(&self, hub: &Hub) -> Connector {
+        let tap = self.clone();
+        let mut inner = hub.connector();
+        Box::new(move |r: &ConnectRequest| -> BoxTransport {
+            Box::new(TapLink {
+                inner: inner(r),
+                tap: tap.clone(),
+            })
+        })
+    }
+
+    /// Every transaction sent so far (resends included).
+    pub fn sent(&self) -> Vec<StampedTransaction> {
+        self.sent.lock().unwrap().clone()
+    }
+
+    /// Every op sent so far.
+    pub fn sent_ops(&self) -> Vec<Op> {
+        self.sent()
+            .into_iter()
+            .flat_map(|t| t.transaction.ops)
+            .collect()
+    }
+
+    /// Append `ops` to the next transaction sent.
+    pub fn inject(&self, ops: Vec<Op>) {
+        *self.inject.lock().unwrap() = ops;
+    }
+}
+
+struct TapLink {
+    inner: BoxTransport,
+    tap: Tap,
+}
+
+impl CollabTransport for TapLink {
+    fn send(&mut self, message: &CollabMessage) {
+        let mut message = message.clone();
+        if let CollabMessage::Transaction { transaction } = &mut message {
+            transaction
+                .transaction
+                .ops
+                .append(&mut self.tap.inject.lock().unwrap());
+            self.tap.sent.lock().unwrap().push(transaction.clone());
+        }
+        self.inner.send(&message);
+    }
+    fn poll(&mut self, out: &mut Vec<CollabMessage>) {
+        self.inner.poll(out);
+    }
+    fn state(&self) -> LinkState {
+        self.inner.state()
+    }
+    fn close(&mut self) {
+        self.inner.close();
+    }
 }
 
 /// Tick every site and deliver every message until nothing moves (bounded).
@@ -218,9 +294,31 @@ pub fn settle(sites: &mut [&mut Site], hub: &Hub) {
 
 /// A session "jam" created by a new site `a` (with a project) and joined by `others`.
 pub fn session(hub: &Hub, n: usize) -> Vec<Site> {
-    let mut sites: Vec<Site> = (0..n)
+    let sites: Vec<Site> = (0..n)
         .map(|i| Site::on_hub(0x1000 + i as u64 * 0x9e37, hub))
         .collect();
+    session_of(hub, sites)
+}
+
+/// Like [`session`], with every site's links tapped.
+pub fn tapped_session(hub: &Hub, n: usize) -> (Vec<Site>, Vec<Tap>) {
+    let taps: Vec<Tap> = (0..n).map(|_| Tap::default()).collect();
+    let sites = taps
+        .iter()
+        .enumerate()
+        .map(|(i, t)| {
+            Site::new(
+                0x1000 + i as u64 * 0x9e37,
+                t.connector(hub),
+                MemoryLibrary::new(),
+            )
+        })
+        .collect();
+    (session_of(hub, sites), taps)
+}
+
+/// `sites[0]` creates "Jam" and the session, then the others join.
+pub fn session_of(hub: &Hub, mut sites: Vec<Site>) -> Vec<Site> {
     sites[0].create_project("Jam");
     sites[0].join("ws://hub", "jam", "Site 0", None);
     {
