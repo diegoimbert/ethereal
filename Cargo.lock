@@ -1103,6 +1103,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "ether-au"
+version = "0.0.1"
+dependencies = [
+ "ether-core",
+ "ether-plugin-host",
+]
+
+[[package]]
 name = "ether-clap"
 version = "0.0.1"
 dependencies = [
@@ -1111,6 +1119,7 @@ dependencies = [
  "clack-host",
  "clack-plugin",
  "ether-core",
+ "ether-plugin-host",
  "objc2",
  "objc2-app-kit",
  "objc2-foundation",
@@ -1221,11 +1230,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "ether-plugin-host"
+version = "0.0.1"
+dependencies = [
+ "ether-core",
+ "serde_json",
+]
+
+[[package]]
 name = "ether-plugin-scanner"
 version = "0.0.1"
 dependencies = [
+ "ether-au",
  "ether-clap",
  "ether-core",
+ "ether-plugin-host",
+ "ether-vst3",
  "serde_json",
 ]
 
@@ -1245,8 +1265,11 @@ version = "0.0.1"
 dependencies = [
  "assert_no_alloc",
  "base64 0.22.1",
+ "ether-au",
  "ether-clap",
  "ether-core",
+ "ether-plugin-host",
+ "ether-vst3",
  "serde",
  "serde_json",
  "shared_memory",
@@ -1259,6 +1282,14 @@ name = "ether-stretch"
 version = "0.0.1"
 dependencies = [
  "signalsmith-stretch",
+]
+
+[[package]]
+name = "ether-vst3"
+version = "0.0.1"
+dependencies = [
+ "ether-core",
+ "ether-plugin-host",
 ]
 
 [[package]]
