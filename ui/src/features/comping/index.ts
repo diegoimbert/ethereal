@@ -6,6 +6,7 @@
 
 export { handleTakeKey, trackTakeEntries } from "./actions";
 export { CompLayer } from "./CompLayer";
-export { TakeLanes, TAKE_LANE_HEIGHT, useTakesHeight } from "./TakeLanes";
+export { TAKE_LANE_HEIGHT, useTakesHeight } from "./height";
+export { TakeLanes } from "./TakeLanes";
 export { TakesToggle } from "./TakesToggle";
 export { useCompingUi } from "./store";
