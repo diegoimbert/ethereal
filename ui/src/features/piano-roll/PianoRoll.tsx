@@ -10,11 +10,13 @@
  * - Selection: click / shift / cmd-ctrl, marquee on empty space, cmd-A. Cmd/ctrl-drag a
  *   note duplicates the selection (copies follow the pointer).
  * - Keys: arrows nudge (shift = octave), cmd-U quantize, cmd-D duplicate, Esc deselects.
+ *   Quantize (button, cmd-U) uses the settings of the groove Quantize… popover.
  */
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Beats, Clip, Command, Note, NoteId } from "@/generated";
 import { Button } from "@/kit";
+import { GrooveControls, grooveQuantizeCommand, useGrooveSettings } from "@/features/groove";
 import { useClip, useEditedClipId, useNotesOfClip } from "@/state";
 import {
   beatsToPx,
@@ -39,7 +41,7 @@ import { useSend } from "./drag";
 import { KEYBOARD_WIDTH, pitchToY } from "./geometry";
 import { Keyboard } from "./Keyboard";
 import { NoteGrid } from "./NoteGrid";
-import { nudgeEdits, quantizeCommand } from "./noteEdits";
+import { nudgeEdits } from "./noteEdits";
 import { GRID_OPTIONS } from "./gridOptions";
 import { useKeyHeightZoom } from "./useKeyHeightZoom";
 import { VelocityLane } from "./VelocityLane";
@@ -117,7 +119,8 @@ export function PianoRollEditor({ clip, view: injectedView }: PianoRollEditorPro
     }
   }, [widthPx, view, clip, notes, keyH]);
 
-  const quantize = () => void send(quantizeCommand(clip.id, selected.map((n) => n.id), stepBeats));
+  const quantize = () =>
+    void send(grooveQuantizeCommand(clip.id, selected.map((n) => n.id), useGrooveSettings.getState().quantize, stepBeats));
 
   const onKeyDown = (e: React.KeyboardEvent) => {
     const mod = e.metaKey || e.ctrlKey;
@@ -193,6 +196,7 @@ export function PianoRollEditor({ clip, view: injectedView }: PianoRollEditorPro
         <Button size="sm" onClick={quantize} title="Quantize to the grid (Cmd/Ctrl+U)">
           Quantize
         </Button>
+        <GrooveControls clip={clip.id} selected={selected.map((n) => n.id)} rollStep={stepBeats} />
       </div>
 
       <div className="eth-pr__header">
