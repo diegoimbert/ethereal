@@ -26,11 +26,25 @@ pub fn descriptor(ty: BuiltinDeviceType, name: &str, category: DeviceCategory) -
 #[derive(Debug)]
 pub struct Placeholder {
     descriptor: DeviceDescriptor,
+    /// Pass audio through even as an instrument (the drum rack: the engine mixes its pads
+    /// into its input).
+    pass_through: bool,
 }
 
 impl Placeholder {
     pub fn new(descriptor: DeviceDescriptor) -> Self {
-        Self { descriptor }
+        Self {
+            descriptor,
+            pass_through: false,
+        }
+    }
+
+    /// A placeholder that always passes its input through.
+    pub fn pass_through(descriptor: DeviceDescriptor) -> Self {
+        Self {
+            descriptor,
+            pass_through: true,
+        }
     }
 }
 
@@ -44,7 +58,7 @@ impl Node for Placeholder {
         _ctx: &mut ProcessContext<'_>,
         audio: &mut AudioBuffers<'_, '_>,
     ) -> ProcessStatus {
-        if self.descriptor.category == DeviceCategory::Instrument {
+        if self.descriptor.category == DeviceCategory::Instrument && !self.pass_through {
             audio.clear_outputs();
             ProcessStatus::Silent
         } else {

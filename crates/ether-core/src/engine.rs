@@ -498,13 +498,21 @@ impl Engine {
                     }
                 }
                 ParamTarget::Node { node, param } => {
+                    let event = ProcessEvent {
+                        offset: 0,
+                        kind: EventKind::Param { param, value: v },
+                    };
                     if let Some((t, k)) = rt.lookup_node(node) {
                         rt.tracks[t].auto_dirty = true;
-                        let pending = &mut rt.tracks[t].chain[k].pending;
-                        if !pending.push(ProcessEvent {
-                            offset: 0,
-                            kind: EventKind::Param { param, value: v },
-                        }) {
+                        if !rt.tracks[t].chain[k].pending.push(event) {
+                            self.overflow = true;
+                        }
+                    } else if let Some(t) = rt.lookup_pad_node(node) {
+                        // A device on a drum pad (`crate::drum_rack`).
+                        rt.tracks[t].auto_dirty = true;
+                        if let Some(pending) = rt.tracks[t].racks.pending_mut(node)
+                            && !pending.push(event)
+                        {
                             self.overflow = true;
                         }
                     }
@@ -517,7 +525,13 @@ impl Engine {
     }
 
     fn update_latencies(&mut self) {
-        for &(key, _, _) in &self.snapshot.rt.node_index {
+        let rt = &self.snapshot.rt;
+        let keys = rt
+            .node_index
+            .iter()
+            .map(|e| e.0)
+            .chain(rt.pad_index.iter().map(|e| e.0));
+        for key in keys {
             let i = key.index as usize;
             if let Some(slot) = self.nodes.get(i)
                 && slot.generation == key.generation
@@ -567,6 +581,7 @@ impl Engine {
             tracks,
             buses,
             sidechain: rt_sidechain,
+            latency: graph_latency,
             ..
         } = rt;
 
@@ -667,6 +682,7 @@ impl Engine {
             }
 
             // --- events: pending live params ---
+            racks.begin_block(transport.all_notes_off);
             for c in chain.iter_mut() {
                 c.events.clear();
                 for e in c.pending.as_slice() {
@@ -778,6 +794,7 @@ impl Engine {
                     &mut track.pan,
                     &mut track.sends,
                     chain,
+                    racks,
                 );
             }
             // Envelopes of clips that stopped covering their target send again next time.
@@ -801,6 +818,7 @@ impl Engine {
                         &mut track.pan,
                         &mut track.sends,
                         chain,
+                        racks,
                     );
                 }
             }
@@ -812,9 +830,11 @@ impl Engine {
                 entry.events.sort();
                 *overflow |= entry.events.overflowed();
                 let key = entry.key;
+                // Sidechain PDC: delay the main signal before this entry if planned.
+                rt_sidechain.align_main(ti, k, a, n);
                 // Drum rack: pad chains feed the rack node's input (`crate::drum_rack`).
                 if entry.enabled && !racks.is_empty() && racks.is_rack(key) {
-                    racks.run_pads(
+                    *overflow |= racks.run_pads(
                         key,
                         nodes,
                         entry.events.as_slice(),
@@ -916,11 +936,12 @@ impl Engine {
 
             // --- meter + output ---
             track.meter.add(&a[0][..n], &a[1][..n]);
+            // Sidechain tap: post-fader, before the PDC output delay (latency = out_lat).
+            rt_sidechain.write(ti, a, n);
             {
                 let [al, ar] = &mut *a;
                 track.output_delay.process(&mut al[..n], &mut ar[..n]);
             }
-            rt_sidechain.write(ti, a, n);
             if let Some(o) = track.output {
                 let dst = &mut buses[o];
                 for ch in 0..2 {
@@ -945,7 +966,15 @@ impl Engine {
         if transport.reset_nodes {
             metronome.reset();
         }
-        metronome.render(&desc.click, desc.metronome, &info, off, n, outputs);
+        metronome.render(
+            &desc.click,
+            desc.metronome,
+            &info,
+            *graph_latency,
+            off,
+            n,
+            outputs,
+        );
 
         // --- advance ---
         transport.release_notes = false;
@@ -1019,6 +1048,7 @@ fn apply_automation(
     pan: &mut crate::param::Smoother,
     sends: &mut [crate::mixer::SendRt],
     chain: &mut [crate::mixer::ChainRt],
+    racks: &mut crate::drum_rack::RacksRt,
 ) {
     match lane.resolved {
         ResolvedTarget::TrackVolume | ResolvedTarget::TrackPan | ResolvedTarget::Send { .. } => {
@@ -1045,8 +1075,13 @@ fn apply_automation(
             }
         }
         ResolvedTarget::Node { node, param } => {
-            let Some(entry) = chain.iter_mut().find(|c| c.key == node) else {
-                return;
+            // Track-chain node, or a device on a drum pad.
+            let events = match chain.iter_mut().find(|c| c.key == node) {
+                Some(entry) => &mut entry.events,
+                None => match racks.events_mut(node) {
+                    Some(events) => events,
+                    None => return,
+                },
             };
             let steps = if playing { timing.frames } else { 1 };
             let mut o = 0;
@@ -1055,7 +1090,7 @@ fn apply_automation(
                     && v != *last
                 {
                     *last = v;
-                    entry.events.push(ProcessEvent {
+                    events.push(ProcessEvent {
                         offset: o as u32,
                         kind: EventKind::Param {
                             param,
