@@ -715,6 +715,8 @@ paths = [
   "ui/src/features/collab/index.tsx",
   "ui/src/features/collab/collab.css",
   "ui/src/transport/mock/roadmap/collab.*",
+  # shared touch (base-54): collab_transport_intercept at the top of dispatch() and collab_listen_transport_state in transport_state()
+  "crates/ether-controller/src/handlers.rs",
 ]
 
 [nodes.plugin-mirror]
