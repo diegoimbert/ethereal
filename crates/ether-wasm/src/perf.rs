@@ -96,15 +96,21 @@ impl Pipeline {
         }
     }
 
-    /// Render until the control ring is empty; returns the slowest quantum (per `now`).
+    /// Render until the control ring is empty, plus [`Self::SETTLE_QUANTA`] (so deferred
+    /// work, e.g. dropping the retired snapshot, is included); returns the slowest quantum
+    /// (per `now`).
     pub fn drain(&mut self, now: impl Fn() -> f64) -> f64 {
         let mut worst: f64 = 0.0;
+        let mut settle = Self::SETTLE_QUANTA;
         for _ in 0..100_000 {
             self.shared.borrow_mut().control.flush();
             if self.engine.control_backlog() == 0
                 && self.shared.borrow().control.pending_bytes() == 0
             {
-                return worst;
+                if settle == 0 {
+                    return worst;
+                }
+                settle -= 1;
             }
             let t = now();
             self.engine.render(RENDER_QUANTUM);
@@ -112,6 +118,8 @@ impl Pipeline {
         }
         panic!("control ring never drained");
     }
+
+    pub const SETTLE_QUANTA: usize = 2;
 }
 
 fn best<T>(runs: usize, now: &impl Fn() -> f64, mut f: impl FnMut() -> T) -> f64 {
