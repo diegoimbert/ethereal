@@ -8,14 +8,15 @@
  * - right-click a marker: common signatures, delete.
  */
 
-import { useRef, type KeyboardEvent, type MouseEvent, type PointerEvent as ReactPointerEvent } from "react";
-import type { TimeSignature, TimeSignaturePoint } from "@/generated";
-import { openContextMenu, setDragCursor, type ContextMenuEntry } from "@/kit";
+import { useLayoutEffect, useRef, type KeyboardEvent, type MouseEvent, type PointerEvent as ReactPointerEvent } from "react";
+import type { TimeSignaturePoint } from "@/generated";
+import { openContextMenu, setDragCursor } from "@/kit";
 import { newId, useTransport } from "@/transport";
 import type { TempoMap } from "@/timeline/tempoMap";
 import { beatsToPx, pxToBeats } from "@/timeline/viewport";
 import { useViewport, type TimelineViewStore } from "@/timeline/viewStore";
 import { sendEdit, TempoGesture, trackDrag } from "./gesture";
+import { signatureMenu } from "./menus";
 import {
   addSignatureCommand,
   editSignatureCommand,
@@ -24,30 +25,6 @@ import {
   removeSignaturesCommand,
   snapSignatureTime,
 } from "./tempoCommands";
-
-export const COMMON_SIGNATURES: ReadonlyArray<TimeSignature> = [
-  { numerator: 2, denominator: 4 },
-  { numerator: 3, denominator: 4 },
-  { numerator: 4, denominator: 4 },
-  { numerator: 5, denominator: 4 },
-  { numerator: 6, denominator: 8 },
-  { numerator: 7, denominator: 8 },
-  { numerator: 12, denominator: 8 },
-];
-
-/** Context-menu entries for a signature change (shared with the ruler markers). */
-export function signatureMenu(
-  point: TimeSignaturePoint,
-  set: (s: TimeSignature) => void,
-  remove: () => void,
-): ContextMenuEntry[] {
-  const same = (s: TimeSignature) => s.numerator === point.signature.numerator && s.denominator === point.signature.denominator;
-  return [
-    ...COMMON_SIGNATURES.map((s) => ({ label: formatSignature(s), disabled: same(s), onSelect: () => set(s) })),
-    "separator",
-    { label: "Delete Time Signature", shortcut: "⌫", danger: true, disabled: isAtZero(point), onSelect: remove },
-  ];
-}
 
 export interface SignatureLaneProps {
   view: TimelineViewStore;
@@ -62,7 +39,9 @@ export function SignatureLane({ view, tempo, signatures, selected, onSelect }: S
   const vp = useViewport(view);
   const rootRef = useRef<HTMLDivElement>(null);
   const live = useRef(signatures);
-  live.current = signatures;
+  useLayoutEffect(() => {
+    live.current = signatures;
+  });
 
   const localX = (e: { clientX: number }) => e.clientX - (rootRef.current?.getBoundingClientRect().left ?? 0);
 

@@ -6,21 +6,17 @@
  *   lines of the signature before it); the ones at beat 0 stay. One undo step per drag;
  * - right-click a marker: ramp on/off or common signatures, delete;
  * - right-click the ruler: add a tempo change or a time signature there
- *   ([`rulerTempoMenu`]).
+ *   (`rulerTempoMenu` in `menus.ts`).
  */
 
-import { useMemo, useRef, type PointerEvent as ReactPointerEvent } from "react";
+import { useLayoutEffect, useRef, type PointerEvent as ReactPointerEvent } from "react";
 import type { Beats, Command, TempoPoint, TimeSignaturePoint } from "@/generated";
-import { openContextMenu, setDragCursor, type ContextMenuEntry } from "@/kit";
-import { useProjectStore } from "@/state/projectStore";
-import { useTransport, type EngineTransport } from "@/transport";
-import type { TempoMap } from "@/timeline/tempoMap";
+import { openContextMenu, setDragCursor } from "@/kit";
+import { useTransport } from "@/transport";
 import { beatsToPx, type TimelineViewport } from "@/timeline/viewport";
 import { sendEdit, TempoGesture, trackDrag } from "./gesture";
-import { signatureMenu } from "./SignatureLane";
+import { signatureMenu, useSortedTempoMap } from "./menus";
 import {
-  addSignatureCommand,
-  addTempoPointCommand,
   editSignatureCommand,
   editTempoPointCommand,
   formatBpm,
@@ -29,50 +25,9 @@ import {
   removeSignaturesCommand,
   removeTempoPointsCommand,
   snapSignatureTime,
-  sortedSignatures,
-  sortedTempoPoints,
   tempoTimeTaken,
 } from "./tempoCommands";
 import "./tempo.css";
-
-const EMPTY_TEMPO: Record<string, TempoPoint> = {};
-const EMPTY_SIGS: Record<string, TimeSignaturePoint> = {};
-
-/** Ruler context-menu entries at `beats`: add a tempo change / a time signature there. */
-export function rulerTempoMenu(
-  transport: EngineTransport,
-  tempo: TempoMap,
-  points: ReadonlyArray<TempoPoint>,
-  signatures: ReadonlyArray<TimeSignaturePoint>,
-  beats: Beats,
-): ContextMenuEntry[] {
-  const at = Math.max(0, beats);
-  const sigAt = snapSignatureTime(signatures, at);
-  return [
-    {
-      label: "Add Tempo Change Here",
-      disabled: tempoTimeTaken(points, at),
-      onSelect: () => void sendEdit(transport, addTempoPointCommand(at, tempo.bpmAt(at))),
-    },
-    {
-      label: "Add Time Signature Change Here",
-      disabled: sigAt === null,
-      onSelect: () => {
-        if (sigAt !== null) void sendEdit(transport, addSignatureCommand(sigAt, tempo.signatureAt(sigAt)));
-      },
-    },
-  ];
-}
-
-/** The project's tempo points and signatures, sorted (for the ruler menu). */
-export function useSortedTempoMap(): { points: TempoPoint[]; signatures: TimeSignaturePoint[] } {
-  const tp = useProjectStore((s) => s.project?.tempo_points ?? EMPTY_TEMPO);
-  const ts = useProjectStore((s) => s.project?.time_signatures ?? EMPTY_SIGS);
-  return useMemo(
-    () => ({ points: sortedTempoPoints({ tempo_points: tp }), signatures: sortedSignatures({ time_signatures: ts }) }),
-    [tp, ts],
-  );
-}
 
 export interface RulerTempoMarkersProps {
   vp: TimelineViewport;
@@ -85,7 +40,9 @@ export function RulerTempoMarkers({ vp, widthPx, snap }: RulerTempoMarkersProps)
   const transport = useTransport();
   const { points, signatures } = useSortedTempoMap();
   const live = useRef({ points, signatures, vp });
-  live.current = { points, signatures, vp };
+  useLayoutEffect(() => {
+    live.current = { points, signatures, vp };
+  });
 
   const visible = (b: Beats) => {
     const x = beatsToPx(b, vp);

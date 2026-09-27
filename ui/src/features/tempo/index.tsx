@@ -7,5 +7,3 @@
 export { TempoEditor } from "./TempoEditor";
 /** Metronome on/off, volume, accent and sound (top bar popover). */
 export { MetronomeSettings } from "./MetronomeSettings";
-export { RulerTempoMarkers, rulerTempoMenu } from "./RulerTempoMarkers";
-export * from "./tempoCommands";

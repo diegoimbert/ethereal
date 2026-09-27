@@ -24,7 +24,8 @@ import { rulerMarks, type RulerFormat } from "./rulerMarks";
 import { useTempoMap, type TempoMap } from "./tempoMap";
 // Shared touch (tempo-metronome): tempo-map markers and menu on the ruler.
 import { openContextMenu } from "@/kit";
-import { RulerTempoMarkers, rulerTempoMenu, useSortedTempoMap } from "@/features/tempo/RulerTempoMarkers";
+import { rulerTempoMenu, useSortedTempoMap } from "@/features/tempo/menus";
+import { RulerTempoMarkers } from "@/features/tempo/RulerTempoMarkers";
 import { useTimelineWheel } from "./useTimelineWheel";
 import { beatsToPx, pxToBeats } from "./viewport";
 import { useTimelineView, useViewport, type TimelineViewStore } from "./viewStore";

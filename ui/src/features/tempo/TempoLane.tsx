@@ -9,7 +9,7 @@
  * - Delete/Backspace removes the selected point.
  */
 
-import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type PointerEvent as ReactPointerEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type PointerEvent as ReactPointerEvent } from "react";
 import type { TempoPoint } from "@/generated";
 import { openContextMenu, setDragCursor } from "@/kit";
 import { newId, useTransport } from "@/transport";
@@ -62,7 +62,9 @@ export function TempoLane({ view, tempo, points, selected, onSelect }: TempoLane
   const [frozen, setFrozen] = useState<LaneGeom["range"] | null>(null);
   const geom: LaneGeom = { height, pad: PAD, range: frozen ?? bpmRange(points) };
   const live = useRef({ points, geom, tempo });
-  live.current = { points, geom, tempo };
+  useLayoutEffect(() => {
+    live.current = { points, geom, tempo };
+  });
 
   useEffect(() => {
     const el = rootRef.current;
