@@ -746,6 +746,23 @@ paths = [
   "docs/COLLAB.md",
 ]
 
+[nodes.automation-anim]
+# automation-ux (branch node/automation-anim): lane open/close animation, lane resizing,
+# param-aware value axis/snapping, point copy/paste (owner requests).
+paths = [
+  "ui/src/features/automation/**",
+  # shared touch: slot heights into layoutRows + useLaneAnimation (three lines)
+  "ui/src/features/arrangement/ArrangementView.tsx",
+  # new: per-frame application of the lane animation (row transforms, hit-test rows)
+  "ui/src/features/arrangement/laneAnimation.ts",
+  # shared touch: rows that only move don't re-render; lane part memoized
+  "ui/src/features/arrangement/TrackRow.tsx",
+  # shared touch: semantic motion tokens (motion.lane, --automation-lane-*)
+  "ui/src/theme/tokens.ts",
+  "ui/src/theme/tokens.css",
+  "apps/web/e2e/automation-*",
+]
+
 [nodes.collab-social]
 # base-62: chat, pinned notes, peer playheads, "hide others" (docs/COLLAB.md §12).
 paths = [
@@ -775,6 +792,12 @@ paths = [
   "ui/src/features/collab/collab.css",
   "ui/src/features/collab/presence/PresenceLayer.tsx",
   "ui/src/features/collab/presence/EditorPresence.tsx",
+  # shared touch: the "peer editing" clip ring (useClipEditors) honours the hide toggle
+  "ui/src/features/collab/presence/editors.ts",
+  # shared touch: notes in the piano roll (overlay mount, "Leave a note" menu entry)
+  "ui/src/features/piano-roll/NoteGrid.tsx",
+  "ui/src/features/piano-roll/PianoRoll.tsx",
+  "ui/src/features/piano-roll/pianoRoll.css",
   "ui/src/transport/mock/roadmap/collab.*",
   # shared touch: dispatch lines only (own colour, ChatReceived, transport refresh)
   "crates/ether-controller/src/collab/mod.rs",
