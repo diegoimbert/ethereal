@@ -9,7 +9,7 @@ import { create } from "zustand";
 import type { Beats, ClipId, TrackId } from "@/generated";
 import { createTimelineViewStore, DEFAULT_GRID, type GridSetting, type TimelineViewStore } from "@/timeline";
 import type { ClipBounds } from "./editMath";
-import { clampTrackHeight, TRACK_HEIGHT } from "./layout";
+import { clampTrackHeight, TRACK_HEIGHT, type DraftTrack } from "./layout";
 
 export interface DragPreview {
   /** New bounds per dragged clip. */
@@ -40,6 +40,8 @@ export interface ArrangementUiState {
   trackFocus: TrackId | null;
   /** A track header being dragged: the drop indicator (a line at `y`, or a group to go into). */
   trackDrag: { track: TrackId; y: number | null; into: TrackId | null } | null;
+  /** A track being added: its row asks for the type in place (see layout.ts `DraftTrack`). */
+  draftTrack: DraftTrack | null;
   folded: ReadonlySet<TrackId>;
   /** Lane height of resized tracks; the others use `defaultHeight`. */
   heights: ReadonlyMap<TrackId, number>;
@@ -53,6 +55,7 @@ export interface ArrangementUiState {
 
   setTrackFocus(track: TrackId | null): void;
   setTrackDrag(drag: ArrangementUiState["trackDrag"]): void;
+  setDraftTrack(draft: DraftTrack | null): void;
   toggleFold(track: TrackId): void;
   /** Resize one lane (clamped); `null` resets it to the default. */
   setHeight(track: TrackId, height: number | null): void;
@@ -69,6 +72,7 @@ export interface ArrangementUiState {
 const INITIAL = {
   trackFocus: null as TrackId | null,
   trackDrag: null as ArrangementUiState["trackDrag"],
+  draftTrack: null as DraftTrack | null,
   folded: new Set<TrackId>() as ReadonlySet<TrackId>,
   heights: new Map<TrackId, number>() as ReadonlyMap<TrackId, number>,
   defaultHeight: TRACK_HEIGHT,
@@ -82,6 +86,7 @@ export const useArrangementUi = create<ArrangementUiState>()((set) => ({
   ...INITIAL,
   setTrackFocus: (trackFocus) => set({ trackFocus }),
   setTrackDrag: (trackDrag) => set({ trackDrag }),
+  setDraftTrack: (draftTrack) => set({ draftTrack }),
   toggleFold: (track) =>
     set((s) => {
       const folded = new Set(s.folded);

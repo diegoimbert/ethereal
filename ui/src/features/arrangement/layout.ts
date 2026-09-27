@@ -27,8 +27,23 @@ export function clampTrackHeight(h: number): number {
 /** Height of the empty drop area below the last track. */
 export const DROP_AREA_HEIGHT = 80;
 
+/**
+ * A track being added, before its type is chosen (UI only): inserted in the layout at
+ * `before` (a track of `parent`, or `null` = after the last regular track).
+ */
+export interface DraftTrack {
+  parent: TrackId | null;
+  before: TrackId | null;
+}
+
+/** Id of the draft row's stand-in track (never sent to the engine). */
+export const DRAFT_TRACK_ID = "__draft_track__";
+
 export interface Row {
+  /** For the draft row, a stand-in "Return" track: nothing drops or moves onto it. */
   track: Track;
+  /** Set on the draft row (see `DraftTrack`). */
+  draft?: DraftTrack;
   depth: number;
   /** Top of the row in content px (0 = first row). */
   y: number;
@@ -76,16 +91,46 @@ export function layoutRows(
   folded: ReadonlySet<TrackId>,
   automationHeight: (track: TrackId) => number = () => 0,
   laneHeightOf: (track: TrackId) => number = () => TRACK_HEIGHT,
+  draft: DraftTrack | null = null,
 ): Row[] {
   const byId = new Map(ordered.map((t) => [t.id, t]));
+  const tracks = arrangementTracks(ordered, folded);
+  let at = -1;
+  if (draft) {
+    at = draft.before ? tracks.findIndex((t) => t.id === draft.before) : -1;
+    if (at < 0) at = tracks.findIndex((t) => t.kind === "Return" || t.kind === "Master");
+    if (at < 0) at = tracks.length;
+  }
   let y = 0;
-  return arrangementTracks(ordered, folded).map((track) => {
+  const rows: Row[] = [];
+  const pushDraft = () => {
+    rows.push(draftRow(draft!, y, byId));
+    y += TRACK_HEIGHT;
+  };
+  tracks.forEach((track, i) => {
+    if (i === at) pushDraft();
     const laneHeight = Math.round(laneHeightOf(track.id));
     const height = laneHeight + automationHeight(track.id);
-    const row: Row = { track, depth: depthOf(track, byId), y, laneHeight, height };
+    rows.push({ track, depth: depthOf(track, byId), y, laneHeight, height });
     y += height;
-    return row;
   });
+  if (at === tracks.length) pushDraft();
+  return rows;
+}
+
+function draftRow(draft: DraftTrack, y: number, byId: ReadonlyMap<TrackId, Track>): Row {
+  const track = {
+    id: DRAFT_TRACK_ID,
+    kind: "Return",
+    name: "New track",
+    color: 0x8a91a8,
+    order: "",
+    parent: draft.parent,
+    mixer: { volume: 0, pan: 0, mute: false, solo: false },
+  } as unknown as Track;
+  const parent = draft.parent ? byId.get(draft.parent) : undefined;
+  const depth = parent ? depthOf(parent, byId) + 1 : 0;
+  return { track, draft, depth, y, laneHeight: TRACK_HEIGHT, height: TRACK_HEIGHT };
 }
 
 /** Total height of the rows. */

@@ -145,9 +145,39 @@ describe("ArrangementView: tracks", () => {
     expect(screen.queryByRole("button", { name: "Solo Master" })).toBeNull();
   });
 
+  it("dragging New track between rows asks for the type there, and creates the track at that spot", async () => {
+    const names = () => tracksOrdered(project()).map((t) => t.name);
+    const button = screen.getByRole("button", { name: /New track/ });
+    // jsdom has no layout: give the lanes a box so the pointer is "over" them.
+    vi.spyOn(screen.getByTestId("arrangement-content"), "getBoundingClientRect").mockReturnValue(new DOMRect(0, 0, 1200, 800));
+    await act(async () => {
+      fireEvent.pointerDown(button, { button: 0, pointerId: 1, clientX: 10, clientY: -20 });
+      fireEvent.pointerMove(window, { pointerId: 1, clientX: 300, clientY: ROW });
+      fireEvent.pointerMove(window, { pointerId: 1, clientX: 300, clientY: ROW + 5 });
+    });
+    expect(screen.getByTestId("track-drop-line").style.top).toBe(`${ROW}px`);
+    await act(async () => {
+      fireEvent.pointerUp(window, { pointerId: 1, clientX: 300, clientY: ROW + 5 });
+      fireEvent.click(button);
+    });
+    // The draft row sits between Keys and Bass; Escape cancels it, M makes a MIDI track.
+    const draft = screen.getByRole("group", { name: "New track" });
+    const rowsNow = [...document.querySelectorAll<HTMLElement>(".eth-arr-row")].map((r) => r.dataset.track);
+    expect(rowsNow.indexOf("__draft_track__")).toBe(1);
+    fireEvent.keyDown(draft, { key: "m" });
+    await flush();
+    expect(screen.queryByRole("group", { name: "New track" })).toBeNull();
+    expect(names().slice(0, 3)).toEqual(["Keys", expect.stringMatching(/MIDI/), "Bass"]);
+
+    fireEvent.click(button);
+    fireEvent.keyDown(screen.getByRole("group", { name: "New track" }), { key: "Escape" });
+    expect(screen.queryByRole("group", { name: "New track" })).toBeNull();
+  });
+
   it("adds a MIDI track with the built-in synth and an audio track, each one undo step", async () => {
     const before = Object.keys(project().tracks).length;
-    fireEvent.click(screen.getByRole("button", { name: "+ MIDI track" }));
+    fireEvent.click(screen.getByRole("button", { name: /New track/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Create MIDI track" }));
     await flush();
     const midi = Object.values(project().tracks).filter((t) => t.kind === "Midi").at(-1)!;
     expect(Object.keys(project().tracks)).toHaveLength(before + 1);
@@ -155,7 +185,8 @@ describe("ArrangementView: tracks", () => {
     const devices = Object.values(project().devices).filter((d) => d.track === midi.id);
     expect(devices.map((d) => d.kind)).toEqual([{ type: "Builtin", device: { type: "Synth" } }]);
 
-    fireEvent.click(screen.getByRole("button", { name: "+ Audio track" }));
+    fireEvent.click(screen.getByRole("button", { name: /New track/ }));
+    fireEvent.keyDown(screen.getByRole("group", { name: "New track" }), { key: "a" });
     await flush();
     expect(Object.keys(project().tracks)).toHaveLength(before + 2);
     await undo();
@@ -483,7 +514,7 @@ describe("ArrangementView: clip editing", () => {
     expect(trackByName("Keys").mixer.volume).toBeCloseTo(0);
   });
 
-  it("zoomed out, runs of tiny clips become one clickable, draggable cluster", async () => {
+  it("zoomed out, tiny clips are painted on the lane canvas and still behave like clips", async () => {
     const keys = trackByName("Keys");
     // 16 one-beat clips back to back on Keys, from beat 32.
     await act(async () => {
@@ -493,22 +524,22 @@ describe("ArrangementView: clip editing", () => {
     });
     const lane = document.querySelector<HTMLElement>(`[data-lane="${keys.id}"]`)!;
     act(() => arrangementView.getState().setViewport({ pxPerBeat: 4, scrollBeats: 0 }));
-    await flush();
     await act(async () => {
       await new Promise((r) => setTimeout(r, 200)); // the lanes re-render at the settled zoom
     });
-    const layer = lane.querySelector<HTMLElement>('[data-testid="clip-clusters"]');
-    expect(layer).not.toBeNull();
-    const ids = Object.values(project().clips).filter((c) => c.track === keys.id && c.start >= 32).map((c) => c.id);
+    expect(lane.querySelector('[data-testid="small-clips"]')).not.toBeNull();
+    const ids = Object.values(project().clips)
+      .filter((c) => c.track === keys.id && c.start >= 32)
+      .sort((a, b) => a.start - b.start)
+      .map((c) => c.id);
     expect(ids.every((id) => !lane.querySelector(`[data-clip-id="${id}"]`))).toBe(true);
 
-    // Click the cluster: all its clips selected; drag it: all move together.
-    await drag(lane, 8, 0, { x: 40 * 4, y: 5 });
+    // Press on the 9th one (beat 40.5): selects just it; dragging moves just it.
+    await drag(lane, 8, 0, { x: 40.5 * 4, y: 5 });
     await flush();
-    expect(new Set(itemSelection.getState().selected.clip)).toEqual(new Set(ids));
-    const starts = () => ids.map((id) => project().clips[id]!.start).sort((a, b) => a - b);
-    expect(starts()[0]).toBe(34);
-    expect(starts()[15]).toBe(49);
+    expect([...itemSelection.getState().selected.clip]).toEqual([ids[8]]);
+    expect(project().clips[ids[8]!]!.start).toBe(42);
+    expect(project().clips[ids[7]!]!.start).toBe(39);
   });
 
   it("reorders tracks by dragging their headers (one undo step)", async () => {

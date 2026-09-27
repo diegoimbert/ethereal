@@ -72,9 +72,10 @@ function ConnectedArrangementView() {
   const defaultHeight = useArrangementUi((s) => s.defaultHeight);
   const grid = useArrangementUi((s) => s.grid);
   const automationHeight = useAutomationHeight();
+  const draftTrack = useArrangementUi((s) => s.draftTrack);
   const rows = useMemo(
-    () => layoutRows(tracks, folded, automationHeight, (id) => heights.get(id) ?? defaultHeight),
-    [tracks, folded, automationHeight, heights, defaultHeight],
+    () => layoutRows(tracks, folded, automationHeight, (id) => heights.get(id) ?? defaultHeight, draftTrack),
+    [tracks, folded, automationHeight, heights, defaultHeight, draftTrack],
   );
   const rowsRef = useRef<ReadonlyArray<Row>>(rows);
   useEffect(() => {
@@ -85,6 +86,18 @@ function ConnectedArrangementView() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const onVerticalZoom = useTrackHeightZoom(scrollRef, rows);
+
+  // A new draft track scrolls into view.
+  useEffect(() => {
+    if (!draftTrack) return;
+    const row = rows.find((r) => r.draft);
+    const el = scrollRef.current;
+    if (!row || !el) return;
+    if (row.y < el.scrollTop) el.scrollTop = row.y;
+    else if (row.y + row.height > el.scrollTop + el.clientHeight) el.scrollTop = row.y + row.height - el.clientHeight;
+    // Only when the draft appears or moves, not on every layout change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draftTrack]);
   useTimelineWheel(scrollRef, view, { smoothScrollY: true, onVerticalZoom, originPx: HEADER_WIDTH });
   useMiddleButtonPan(scrollRef, view);
   useFollowWithMargin(view);
@@ -123,7 +136,7 @@ function ConnectedArrangementView() {
     onClick: (p, ev) => {
       useArrangementUi.getState().setTrackFocus(null);
       const row = rowsRef.current[rowIndexAt(rowsRef.current, p.y)];
-      if (row) useSelectionStore.getState().selectTrack(row.track.id);
+      if (row && !row.draft) useSelectionStore.getState().selectTrack(row.track.id);
       // A click on empty space also moves the playhead there (when stopped), snapped.
       if (p.x >= HEADER_WIDTH) locateIfStopped(transport, snap(pxToBeats(p.x - HEADER_WIDTH, view.getState()), ev.altKey));
     },

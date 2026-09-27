@@ -613,3 +613,42 @@
 .eth-clip__handle--end {
   right: 0;
 }
+
+/* ── Draft track (type not chosen yet) ─────────────────────────────── */
+
+.eth-arr-row--draft {
+  animation: eth-arr-draft-in var(--eth-duration-normal) var(--eth-ease-out) both;
+}
+
+.eth-arr-header--draft {
+  gap: var(--eth-space-xs);
+  background: var(--eth-color-accent-subtle);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--eth-color-accent) 55%, transparent);
+}
+
+.eth-arr-header--draft .eth-arr-header__name {
+  color: var(--eth-color-accent);
+  font-weight: var(--eth-fw-medium);
+}
+
+.eth-arr-lane--draft {
+  display: flex;
+  align-items: center;
+  padding-left: var(--eth-space-lg);
+  border: 1px dashed color-mix(in srgb, var(--eth-color-accent) 45%, transparent);
+  border-radius: var(--eth-radius-md);
+  margin: 2px;
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-sm);
+}
+
+@keyframes eth-arr-draft-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+.eth-arr-toolbar__new {
+  cursor: grab;
+}
