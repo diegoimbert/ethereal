@@ -31,7 +31,7 @@ use vst3::Steinberg::Vst::{
     IAudioProcessorTrait, IEventList, IParameterChanges, NoteOffEvent, NoteOnEvent,
     ProcessContext as Vst3Context, ProcessData,
 };
-use vst3::Steinberg::{kResultOk, kResultTrue};
+use vst3::Steinberg::{kResultFalse, kResultOk, kResultTrue};
 use vst3::{ComPtr, ComWrapper};
 
 use crate::events::{EventList, ParamChanges};
@@ -337,10 +337,51 @@ impl Vst3Node {
         c.timeSigDenominator = i32::from(sig.denominator);
     }
 
-    fn fault(&mut self, audio: &mut AudioBuffers<'_, '_>) -> ProcessStatus {
-        self.shared.faulted.store(true, Ordering::Release);
-        audio.clear_outputs();
-        ProcessStatus::Silent
+    /// Call `IAudioProcessor::process` with this node's buffers, param changes and events.
+    fn call_process(&mut self, frames: usize) -> i32 {
+        let (Some(in_changes), Some(out_changes), Some(in_events), Some(out_events)) = (
+            self.in_changes.as_com_ref::<IParameterChanges>(),
+            self.out_changes.as_com_ref::<IParameterChanges>(),
+            self.in_events.as_com_ref::<IEventList>(),
+            self.out_events.as_com_ref::<IEventList>(),
+        ) else {
+            return kResultFalse;
+        };
+        let mut data = ProcessData {
+            processMode: kRealtime as i32,
+            symbolicSampleSize: kSample32 as i32,
+            numSamples: frames as i32,
+            numInputs: self.ins.buses.len() as i32,
+            numOutputs: self.outs.buses.len() as i32,
+            inputs: self.ins.buses.as_mut_ptr(),
+            outputs: self.outs.buses.as_mut_ptr(),
+            inputParameterChanges: in_changes.as_ptr(),
+            outputParameterChanges: out_changes.as_ptr(),
+            inputEvents: if self.layout.event_input {
+                in_events.as_ptr()
+            } else {
+                std::ptr::null_mut()
+            },
+            outputEvents: out_events.as_ptr(),
+            processContext: &mut *self.context,
+        };
+        // SAFETY: `data` points at buffers/objects owned by this node, sized for `frames`.
+        unsafe { self.processor.process(&mut data) }
+    }
+
+    /// Deliver pending param values with a zero-sample `process` call (the VST3 way to
+    /// "flush" parameters). Main thread, while the processor is active but not in the graph.
+    pub(crate) fn flush_params(&mut self) {
+        self.in_changes.clear();
+        self.in_events.clear();
+        self.out_changes.clear();
+        self.out_events.clear();
+        for i in 0..self.pending.len() {
+            let (id, norm) = self.pending[i];
+            self.in_changes.add(id, 0, norm);
+        }
+        self.pending.clear();
+        self.call_process(0);
     }
 }
 
@@ -419,34 +460,7 @@ impl Node for Vst3Node {
             bus.silenceFlags = 0;
         }
 
-        let (Some(in_changes), Some(out_changes), Some(in_events), Some(out_events)) = (
-            self.in_changes.as_com_ref::<IParameterChanges>(),
-            self.out_changes.as_com_ref::<IParameterChanges>(),
-            self.in_events.as_com_ref::<IEventList>(),
-            self.out_events.as_com_ref::<IEventList>(),
-        ) else {
-            return self.fault(audio);
-        };
-        let mut data = ProcessData {
-            processMode: kRealtime as i32,
-            symbolicSampleSize: kSample32 as i32,
-            numSamples: frames as i32,
-            numInputs: self.ins.buses.len() as i32,
-            numOutputs: self.outs.buses.len() as i32,
-            inputs: self.ins.buses.as_mut_ptr(),
-            outputs: self.outs.buses.as_mut_ptr(),
-            inputParameterChanges: in_changes.as_ptr(),
-            outputParameterChanges: out_changes.as_ptr(),
-            inputEvents: if self.layout.event_input {
-                in_events.as_ptr()
-            } else {
-                std::ptr::null_mut()
-            },
-            outputEvents: out_events.as_ptr(),
-            processContext: &mut *self.context,
-        };
-        // SAFETY: `data` points at buffers/objects owned by this node, sized for `frames`.
-        let result = unsafe { self.processor.process(&mut data) };
+        let result = self.call_process(frames);
         if result != kResultOk && result != kResultTrue {
             audio.clear_outputs();
             return ProcessStatus::Silent;

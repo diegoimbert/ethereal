@@ -372,6 +372,106 @@ impl Vst3Plugin {
         true
     }
 
+    fn activate_node(&mut self, config: &PrepareConfig) -> Result<Vst3Node, PluginError> {
+        if self.link.is_some() {
+            return Err(PluginError::Activation("plugin is already active".into()));
+        }
+        self.refresh_layout();
+        self.refresh_params();
+        let layout = self.setup_buses();
+        self.set_bus_active(true);
+        let max_frames = config.max_block_size.max(1);
+        let mut setup = ProcessSetup {
+            processMode: kRealtime as i32,
+            symbolicSampleSize: kSample32 as i32,
+            maxSamplesPerBlock: max_frames as i32,
+            sampleRate: f64::from(config.sample_rate),
+        };
+        // SAFETY (all calls): valid component/processor on the main thread.
+        unsafe {
+            if self.processor.canProcessSampleSize(kSample32 as i32) != kResultOk {
+                return Err(PluginError::Activation(
+                    "plugin cannot process 32-bit float".into(),
+                ));
+            }
+            if self.processor.setupProcessing(&mut setup) != kResultOk {
+                return Err(PluginError::Activation("setupProcessing failed".into()));
+            }
+            if self.component.setActive(1) != kResultOk {
+                return Err(PluginError::Activation("setActive failed".into()));
+            }
+            self.processor.setProcessing(1);
+        }
+        let latency = self.query_latency();
+
+        let values: Vec<(u32, f64)> = self
+            .steps
+            .ids()
+            .map(|id| {
+                let steps = self.steps.steps(id).unwrap_or(0);
+                let norm = self.controller_normalized(id).unwrap_or(0.0);
+                (id, to_plain(norm, steps))
+            })
+            .collect();
+        let (to_main, from_node) = rtrb::RingBuffer::new(RING_CAPACITY);
+        let (to_node, from_main) = rtrb::RingBuffer::new(RING_CAPACITY);
+        let shared = Arc::new(NodeShared::default());
+        shared.latency.store(latency, Ordering::Relaxed);
+        self.link = Some(ActiveLink {
+            from_node,
+            to_node,
+            shared: shared.clone(),
+            fault_reported: false,
+        });
+        let descriptor = self.descriptor();
+        Ok(Vst3Node::new(NodeInit {
+            processor: self.processor.clone(),
+            shared,
+            to_main,
+            from_main,
+            descriptor,
+            layout,
+            config: *config,
+            steps: self.steps.clone(),
+            values,
+            pending: std::mem::take(&mut self.pending),
+        }))
+    }
+
+    fn deactivate_inner(&mut self) {
+        let Some(mut link) = self.link.take() else {
+            return;
+        };
+        // Values the processor saw last block → controller.
+        while let Ok((id, v)) = link.from_node.pop() {
+            self.set_controller_normalized(id, v);
+        }
+        // SAFETY: valid component/processor on the main thread; the node (audio side) is gone.
+        unsafe {
+            self.processor.setProcessing(0);
+            self.component.setActive(0);
+        }
+        self.set_bus_active(false);
+    }
+
+    /// Values set while inactive only reached the controller: flush them into the processor
+    /// (activate, zero-sample `process`, deactivate) so its state includes them.
+    fn flush_pending(&mut self) -> Result<(), PluginError> {
+        if self.link.is_some() || self.pending.is_empty() {
+            return Ok(());
+        }
+        let config = PrepareConfig {
+            sample_rate: 48_000.0,
+            max_block_size: 64,
+            max_events_per_block: 16,
+        };
+        let mut node = self.activate_node(&config)?;
+        node.flush_params();
+        drop(node);
+        self.deactivate_inner();
+        Ok(())
+    }
+
     /// Host-window housekeeping: user closed it, plugin asked for a resize, user resized it.
     fn poll_editor(&mut self, out: &mut Vec<PluginNotification>) {
         let Some(editor) = self.editor.as_mut() else {
@@ -439,89 +539,16 @@ impl PluginController for Vst3Plugin {
     }
 
     fn activate(&mut self, config: &PrepareConfig) -> Result<Box<dyn PluginNode>, PluginError> {
-        if self.link.is_some() {
-            return Err(PluginError::Activation("plugin is already active".into()));
-        }
-        self.refresh_layout();
-        self.refresh_params();
-        let layout = self.setup_buses();
-        self.set_bus_active(true);
-        let max_frames = config.max_block_size.max(1);
-        let mut setup = ProcessSetup {
-            processMode: kRealtime as i32,
-            symbolicSampleSize: kSample32 as i32,
-            maxSamplesPerBlock: max_frames as i32,
-            sampleRate: f64::from(config.sample_rate),
-        };
-        // SAFETY (all calls): valid component/processor on the main thread.
-        unsafe {
-            if self.processor.canProcessSampleSize(kSample32 as i32) != kResultOk {
-                return Err(PluginError::Activation(
-                    "plugin cannot process 32-bit float".into(),
-                ));
-            }
-            if self.processor.setupProcessing(&mut setup) != kResultOk {
-                return Err(PluginError::Activation("setupProcessing failed".into()));
-            }
-            if self.component.setActive(1) != kResultOk {
-                return Err(PluginError::Activation("setActive failed".into()));
-            }
-            self.processor.setProcessing(1);
-        }
-        let latency = self.query_latency();
-
-        let values: Vec<(u32, f64)> = self
-            .steps
-            .ids()
-            .map(|id| {
-                let steps = self.steps.steps(id).unwrap_or(0);
-                let norm = self.controller_normalized(id).unwrap_or(0.0);
-                (id, to_plain(norm, steps))
-            })
-            .collect();
-        let (to_main, from_node) = rtrb::RingBuffer::new(RING_CAPACITY);
-        let (to_node, from_main) = rtrb::RingBuffer::new(RING_CAPACITY);
-        let shared = Arc::new(NodeShared::default());
-        shared.latency.store(latency, Ordering::Relaxed);
-        self.link = Some(ActiveLink {
-            from_node,
-            to_node,
-            shared: shared.clone(),
-            fault_reported: false,
-        });
-        let descriptor = self.descriptor();
-        Ok(Box::new(Vst3Node::new(NodeInit {
-            processor: self.processor.clone(),
-            shared,
-            to_main,
-            from_main,
-            descriptor,
-            layout,
-            config: *config,
-            steps: self.steps.clone(),
-            values,
-            pending: std::mem::take(&mut self.pending),
-        })))
+        Ok(Box::new(self.activate_node(config)?))
     }
 
     fn deactivate(&mut self, node: Box<dyn PluginNode>) {
         drop(node);
-        let Some(mut link) = self.link.take() else {
-            return;
-        };
-        // Values the processor saw last block → controller.
-        while let Ok((id, v)) = link.from_node.pop() {
-            self.set_controller_normalized(id, v);
-        }
-        // SAFETY: valid component/processor on the main thread; the node (audio side) is gone.
-        unsafe {
-            self.processor.setProcessing(0);
-            self.component.setActive(0);
-        }
-        self.set_bus_active(false);
+        self.deactivate_inner();
     }
 
     fn save_state(&mut self) -> Result<Vec<u8>, PluginError> {
+        self.flush_pending()?;
         let component = MemoryStream::new();
         let s = component
             .as_com_ref::<IBStream>()
@@ -640,6 +667,23 @@ impl PluginController for Vst3Plugin {
     }
 
     fn poll(&mut self, out: &mut Vec<PluginNotification>) {
+        // Values the processor received (automation, UI) → controller, so its GUI follows.
+        let mut synced = Vec::new();
+        if let Some(link) = self.link.as_mut() {
+            while let Ok(msg) = link.from_node.pop() {
+                synced.push(msg);
+            }
+            if link.shared.faulted.load(Ordering::Acquire) && !link.fault_reported {
+                link.fault_reported = true;
+                out.push(PluginNotification::Crashed {
+                    message: "plugin process() failed".into(),
+                });
+            }
+        }
+        for (id, v) in synced {
+            self.set_controller_normalized(id, v);
+        }
+
         // Edits from the plugin's GUI (IComponentHandler).
         for edit in self.handler.take_edits() {
             match edit {
@@ -660,23 +704,6 @@ impl PluginController for Vst3Plugin {
                     });
                 }
             }
-        }
-
-        // Values the processor received (automation, UI) → controller, so its GUI follows.
-        let mut synced = Vec::new();
-        if let Some(link) = self.link.as_mut() {
-            while let Ok(msg) = link.from_node.pop() {
-                synced.push(msg);
-            }
-            if link.shared.faulted.load(Ordering::Acquire) && !link.fault_reported {
-                link.fault_reported = true;
-                out.push(PluginNotification::Crashed {
-                    message: "plugin process() failed".into(),
-                });
-            }
-        }
-        for (id, v) in synced {
-            self.set_controller_normalized(id, v);
         }
 
         let flags = self.handler.take_restart();
