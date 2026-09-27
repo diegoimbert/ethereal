@@ -9,7 +9,7 @@
 //!
 //! # Gate (`BuiltinDeviceType::Gate`)
 //!
-//! Sidechain input (`sidechain_inputs = 2`). Lookahead is latency (`Node::latency`). Gate state for the layout meter: `AnalysisKind::Levels` `[gain reduction dB]`.
+//! Sidechain input (`sidechain_inputs = 2`): when a source is set it keys the detector (`Node::process_sidechain`, filtered by `Sidechain HPF`), like the compressor. Lookahead is latency (`Node::latency`). Gate state for the layout meter: `AnalysisKind::Levels` `[gain reduction dB]`.
 //!
 //! | id | group | name | range |
 //! |----|-------|------|-------|
@@ -28,7 +28,7 @@
 //!
 //! # Multiband Compressor (`BuiltinDeviceType::MultibandCompressor`)
 //!
-//! Linkwitz-Riley crossovers (flat sum when all bands are neutral). Per-band gain reduction for the layout meters: `AnalysisKind::Levels` `[low, mid, high]` in dB.
+//! Sidechain input (`sidechain_inputs = 2`): when a source is set, its full-band signal keys the detectors of all three bands (`Node::process_sidechain`). Linkwitz-Riley crossovers (flat sum when all bands are neutral). Per-band gain reduction for the layout meters: `AnalysisKind::Levels` `[low, mid, high]` in dB.
 //!
 //! | id | group | name | range |
 //! |----|-------|------|-------|
@@ -411,7 +411,7 @@ pub fn descriptor(ty: BuiltinDeviceType) -> DeviceDescriptor {
             2,
             2,
             false,
-            0,
+            2,
         ),
         BuiltinDeviceType::TransientShaper => build(
             BuiltinDeviceType::TransientShaper,

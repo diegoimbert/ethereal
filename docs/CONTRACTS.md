@@ -768,7 +768,10 @@ half-open ranges). `arrangement_clips_of` lists main-lane clips only.
 `MultibandCompressor`, `TransientShaper` (fx-dynamics), `SpectrumAnalyzer`, `Tuner`
 (fx-analysis), `Arpeggiator`, `Chord`, `ScaleQuantize`, `NoteLength`, `Velocity`,
 `Randomizer` (midi-fx), `InstrumentRack`, `AudioEffectRack`, `MidiEffectRack`
-(racks-modulation). Each group module in `ether-devices` (`poly_synth`, `multisampler`,
+(racks-modulation). Devices with a detector take a sidechain (`sidechain_inputs = 2`,
+keyed in `Node::process_sidechain` like the compressor/limiter): `Gate`,
+`MultibandCompressor` (the key drives all bands), `AutoFilter` (envelope follower). Each group
+module in `ether-devices` (`poly_synth`, `multisampler`,
 `fx_color`, `fx_modulation`, `fx_dynamics`, `fx_analysis`, `midi_fx`, `racks`) defines the
 **final descriptor** (dense param ids, documented in the module's table, append-only, named
 constants in `<group>::<device>::*`) and starts as a `contract::Placeholder` (audio effects

@@ -211,6 +211,19 @@ fn placeholders_follow_their_category_without_allocating() {
     }
 }
 
+/// v0.2 devices with a detector take a sidechain (stereo), keyed through
+/// `Node::process_sidechain` like the compressor and limiter.
+#[test]
+fn detector_devices_take_a_sidechain() {
+    for t in [
+        BuiltinDeviceType::Gate,
+        BuiltinDeviceType::MultibandCompressor,
+        BuiltinDeviceType::AutoFilter,
+    ] {
+        assert_eq!(ether_devices::descriptor(t).sidechain_inputs, 2, "{t:?}");
+    }
+}
+
 #[test]
 fn factory_presets_parse_and_match_their_type() {
     for t in BuiltinDeviceType::ALL {

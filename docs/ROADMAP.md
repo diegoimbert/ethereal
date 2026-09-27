@@ -428,6 +428,11 @@ Ground rules (as for the roadmap v2 nodes above):
    (`tests/<group>*.rs`, global `AllocDisabler`), plus render tests (impulse/sine, known
    outputs, extreme params, NaN-free).
 3. **Latency** (lookahead, oversampling): report it with `Node::latency` (PDC).
+3b. **If your device has a detector, support sidechain**: declare `sidechain_inputs = 2`
+   (already set for `Gate`, `MultibandCompressor` (external key drives all bands) and
+   `AutoFilter` (its envelope follower follows the sidechain)) and key the detector from
+   `Node::process_sidechain` like `compressor.rs`/`limiter.rs`: the sidechain arrives
+   latency-aligned (CONTRACTS.md §11.10); without a source, `process` keys from the input.
 4. **Descriptor ↔ mock parity.** After any descriptor change run
    `UPDATE_MOCK_DESCRIPTORS=1 cargo test -p ether-devices --test v02_descriptors` and commit
    your JSON (`ui/src/transport/mock/devices/<group>.json`). Never edit it by hand.
@@ -517,7 +522,8 @@ Zones: `ether_model::multisampler` (selection, round robin, loops); external med
 Own their group module (`fx_color`, `fx_modulation`, `fx_dynamics`), presets folders
 (`saturator`, `bitcrusher`, `auto-filter` / `chorus`, `phaser`, `flanger`, `tremolo` /
 `gate`, `multiband-compressor`, `transient-shaper`), tests and mock JSON. No shared
-touches. Sidechain inputs are declared where useful (`AutoFilter`, `Gate`: 2 channels).
+touches. Sidechain inputs (2 channels, keyed in `Node::process_sidechain`): `AutoFilter`
+(envelope follower), `Gate`, `MultibandCompressor` (all bands).
 `fx-dynamics` publishes gain reduction as `AnalysisKind::Levels` for layout meters.
 
 ## `fx-analysis`
