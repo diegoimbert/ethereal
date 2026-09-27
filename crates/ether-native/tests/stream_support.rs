@@ -1,7 +1,7 @@
 //! Shared helpers of the `stream-host` tests: an in-test WebRTC listener (a str0m receiver
 //! on its own UDP socket on 127.0.0.1, same crypto backend), the sender's output
 //! collector, and an Opus decoder in RTP space.
-#![allow(dead_code)]
+#![allow(dead_code, clippy::new_without_default)]
 
 use std::io::ErrorKind;
 use std::net::{SocketAddr, UdpSocket};

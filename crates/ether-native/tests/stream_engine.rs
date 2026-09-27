@@ -3,6 +3,7 @@
 //! metronome on is streamed to a str0m listener over UDP on 127.0.0.1, and every click the
 //! listener decodes sits where the anchors say its beat is heard (docs/COLLAB.md §9.4).
 
+#[path = "stream_support.rs"]
 mod stream_util;
 
 use std::time::{Duration, Instant};

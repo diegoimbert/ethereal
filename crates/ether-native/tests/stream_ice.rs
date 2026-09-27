@@ -2,6 +2,7 @@
 //! STUN Binding request per `stun:` URL on the sender's socket → a trickled srflx candidate,
 //! then the end-of-candidates marker; unanswered STUN gives up silently.
 
+#[path = "stream_support.rs"]
 mod stream_util;
 
 use std::net::UdpSocket;

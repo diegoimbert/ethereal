@@ -5,6 +5,7 @@
 //! locate, loop wrap, latency change (+L48), gap, stop, count-in, at 48 kHz and through the
 //! 44.1 kHz resampling path.
 
+#[path = "stream_support.rs"]
 mod stream_util;
 
 use std::time::{Duration, Instant};
