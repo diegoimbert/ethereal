@@ -121,14 +121,45 @@ fn name_of(ether_json: &[u8]) -> String {
         .unwrap_or_else(|| "Untitled".to_string())
 }
 
+/// Upload staging root (`file-import`), outside `projects/` so it never lists as a project.
+pub const UPLOADS_ROOT: &str = "uploads";
+
+/// `true` for upload ids that are safe as a single path segment (as natively).
+pub fn valid_upload_id(upload: &str) -> bool {
+    !upload.is_empty()
+        && upload.len() <= 64
+        && upload
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
+}
+
+/// A staged upload: `uploads/<id>/<offset>` chunk files (OPFS has no append, and rewriting
+/// one growing file would be quadratic), concatenated in offset order by `read_upload`.
+#[derive(Debug, Clone, Copy)]
+struct Staged {
+    size: u64,
+    received: u64,
+}
+
 /// `ProjectStore` over an [`Fs`] (OPFS on the web).
 pub struct WebStore<F: Fs> {
     fs: F,
+    uploads: BTreeMap<String, Staged>,
 }
 
 impl<F: Fs> WebStore<F> {
     pub fn new(fs: F) -> Self {
-        Self { fs }
+        Self {
+            fs,
+            uploads: BTreeMap::new(),
+        }
+    }
+
+    fn upload_dir(upload: &str) -> Result<String, StoreError> {
+        if !valid_upload_id(upload) {
+            return Err(StoreError::InvalidPath(format!("upload id {upload:?}")));
+        }
+        Ok(format!("{UPLOADS_ROOT}/{upload}"))
     }
 
     fn dir(id: ProjectId) -> String {
@@ -280,6 +311,85 @@ impl<F: Fs> ProjectStore for WebStore<F> {
             rel_path,
             BrowseLocation::ProjectMedia,
         )
+    }
+
+    // ─── Upload staging (`file-import`: the local web build imports OS files too) ───────
+
+    fn begin_upload(&mut self, upload: &str, size: u64) -> Result<(), StoreError> {
+        let dir = Self::upload_dir(upload)?;
+        if self.uploads.is_empty() {
+            // Nothing staged in this session: drop leftovers of a closed tab.
+            match self.fs.remove(UPLOADS_ROOT) {
+                Ok(()) | Err(StoreError::NotFound(_)) => {}
+                Err(e) => return Err(e),
+            }
+        } else {
+            self.discard_upload(upload)?;
+        }
+        self.fs.mkdir(&dir)?;
+        self.uploads
+            .insert(upload.to_string(), Staged { size, received: 0 });
+        Ok(())
+    }
+
+    fn append_upload(&mut self, upload: &str, offset: u64, bytes: &[u8]) -> Result<u64, StoreError> {
+        let dir = Self::upload_dir(upload)?;
+        let s = *self
+            .uploads
+            .get(upload)
+            .ok_or_else(|| StoreError::NotFound(format!("upload {upload}")))?;
+        if offset != s.received {
+            return Err(StoreError::Io(format!(
+                "upload {upload}: chunk at {offset}, expected {}",
+                s.received
+            )));
+        }
+        let total = s.received + bytes.len() as u64;
+        if total > s.size {
+            return Err(StoreError::Io(format!(
+                "upload {upload}: {total} bytes exceed the announced {}",
+                s.size
+            )));
+        }
+        if !bytes.is_empty() {
+            // Zero-padded so the names sort in offset order.
+            self.fs.write(&format!("{dir}/{offset:016}"), bytes)?;
+        }
+        self.uploads.get_mut(upload).expect("checked").received = total;
+        Ok(total)
+    }
+
+    fn read_upload(&mut self, upload: &str) -> Result<Vec<u8>, StoreError> {
+        let dir = Self::upload_dir(upload)?;
+        let s = *self
+            .uploads
+            .get(upload)
+            .ok_or_else(|| StoreError::NotFound(format!("upload {upload}")))?;
+        if s.received != s.size {
+            return Err(StoreError::Io(format!(
+                "upload {upload} is incomplete ({} of {} bytes)",
+                s.received, s.size
+            )));
+        }
+        let mut parts = self.fs.list(&dir)?;
+        parts.sort_by(|a, b| a.name.cmp(&b.name));
+        let mut out = Vec::with_capacity(s.size as usize);
+        for p in parts.iter().filter(|p| !p.is_dir) {
+            out.extend_from_slice(&self.fs.read(&format!("{dir}/{}", p.name))?);
+        }
+        if out.len() as u64 != s.size {
+            return Err(StoreError::Io(format!("upload {upload}: staging is corrupt")));
+        }
+        Ok(out)
+    }
+
+    fn discard_upload(&mut self, upload: &str) -> Result<(), StoreError> {
+        let dir = Self::upload_dir(upload)?;
+        self.uploads.remove(upload);
+        match self.fs.remove(&dir) {
+            Ok(()) | Err(StoreError::NotFound(_)) => Ok(()),
+            Err(e) => Err(e),
+        }
     }
 }
 

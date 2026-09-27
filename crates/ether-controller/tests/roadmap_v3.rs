@@ -437,17 +437,23 @@ fn groups_buses_reply_unsupported() {
     assert!(graph.vcas.is_empty());
 }
 
+/// `file-import` landed: `Path` is validated first, then read through
+/// `Library::read_external`; a host without OS files (web, this memory library) replies
+/// `Unsupported` (native coverage: `ether-native/tests/file_import_e2e.rs`).
 #[test]
-fn file_import_path_replies_unsupported() {
+fn file_import_path_needs_an_os_file_host() {
     let mut h = Harness::with_project();
-    let id: MediaId = h.id();
-    assert_unsupported(
-        &mut h,
+    let path_import = |h: &mut Harness, path: &str| {
+        let id: MediaId = h.id();
         Command::Media(MediaCommand::Import {
             id,
-            source: MediaSource::Path {
-                path: "/Users/me/kick.wav".into(),
-            },
-        }),
-    );
+            source: MediaSource::Path { path: path.into() },
+        })
+    };
+    let c = path_import(&mut h, "/Users/me/kick.wav");
+    assert_unsupported(&mut h, c);
+    for bad in ["kick.wav", "/Users/me/notes.txt"] {
+        let c = path_import(&mut h, bad);
+        assert_eq!(err(&h.send(c)).code, ErrorCode::InvalidArgument, "{bad}");
+    }
 }

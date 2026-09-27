@@ -431,6 +431,43 @@ impl Library for DiskStore {
             _ => io_err(e),
         })
     }
+
+    /// `file-import` (shared with `media-references`): an OS file chosen by the user (file
+    /// dialog or drop) or an external reference. Absolute, an audio file by extension, a
+    /// regular file (symlinks followed) of at most [`MAX_EXTERNAL_BYTES`].
+    fn read_external(&mut self, path: &str) -> Result<Vec<u8>, StoreError> {
+        read_external_file(path)
+    }
+}
+
+/// Largest external file read (same as the upload limit: 1 GiB).
+pub const MAX_EXTERNAL_BYTES: u64 = 1 << 30;
+
+/// See `Library::read_external` for `DiskStore`.
+pub fn read_external_file(path: &str) -> Result<Vec<u8>, StoreError> {
+    let p = Path::new(path);
+    if path.contains('\0') || !p.is_absolute() {
+        return Err(StoreError::InvalidPath(path.to_string()));
+    }
+    let name = p.file_name().and_then(|n| n.to_str()).unwrap_or_default();
+    if file_kind(name) != FileKind::Audio {
+        return Err(StoreError::InvalidPath(format!("not an audio file: {path}")));
+    }
+    let not_found = |e: std::io::Error| match e.kind() {
+        std::io::ErrorKind::NotFound => StoreError::NotFound(path.to_string()),
+        _ => io_err(e),
+    };
+    let meta = fs::metadata(p).map_err(not_found)?;
+    if !meta.is_file() {
+        return Err(StoreError::InvalidPath(format!("not a file: {path}")));
+    }
+    if meta.len() > MAX_EXTERNAL_BYTES {
+        return Err(StoreError::Io(format!(
+            "{name} is larger than {} MiB",
+            MAX_EXTERNAL_BYTES >> 20
+        )));
+    }
+    fs::read(p).map_err(not_found)
 }
 
 #[cfg(test)]

@@ -677,7 +677,10 @@ where
     }
 
     fn collab_push_media(&mut self, pid: ProjectId, m: &MediaRef) {
-        let Ok(bytes) = self.store.read(pid, &m.file) else {
+        // `file-import`: an external reference pushes the referenced file's bytes.
+        let Ok(bytes) =
+            crate::file_import::media_bytes(&mut self.store, &mut self.library, pid, m)
+        else {
             return;
         };
         let hash = m.hash.clone().unwrap_or_else(|| content_hash(&bytes));
