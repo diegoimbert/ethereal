@@ -195,6 +195,21 @@
 .eth-float__fill {
   height: 100%;
 }
+/* The editor drawer fills its pane: each editor scrolls inside itself (e.g. the piano
+   roll's key rows), so the pane body itself doesn't scroll. */
+.eth-float--bottom .eth-float__body {
+  overflow: hidden;
+}
+.eth-drawer {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+.eth-drawer > * {
+  flex: 1;
+  min-height: 0;
+}
 /* Resize grip on the pane's inner edge. */
 .eth-float__resize {
   position: absolute;

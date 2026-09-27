@@ -77,7 +77,8 @@ export function useTimelineWheel(ref: RefObject<HTMLElement | null>, view: Timel
       if (verticalScrolls) {
         e.preventDefault();
         animatePan(view, dy);
-      } else if (scrollY) {
+      } else if (scrollY && el.scrollHeight > el.clientHeight) {
+        // Only when the element can scroll; otherwise let the page/parent handle it.
         e.preventDefault();
         scrollY.scrollBy(dy);
       }
