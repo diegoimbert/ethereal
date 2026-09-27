@@ -7,10 +7,10 @@
     "top top"
     "sidebar main"
     "sidebar detail";
-  gap: var(--eth-space-xs);
+  gap: var(--eth-space-sm);
   height: 100%;
-  padding: var(--eth-space-xs);
-  background: var(--eth-color-border);
+  padding: var(--eth-space-sm);
+  background: var(--eth-color-bg);
 }
 .eth-shell--detail-closed {
   grid-template-rows: auto minmax(0, 1fr) var(--eth-size-detail-collapsed-height);
@@ -22,9 +22,7 @@
   align-items: center;
   gap: var(--eth-space-md);
   min-height: var(--eth-size-top-bar-height);
-  padding: var(--eth-space-sm) var(--eth-space-md);
-  background: var(--eth-color-bg-panel);
-  border-radius: var(--eth-radius-md);
+  padding: var(--eth-space-xs) var(--eth-space-sm);
 }
 .eth-shell__transport {
   flex: 1;
@@ -46,19 +44,23 @@
   z-index: 10;
   touch-action: none;
 }
+.eth-splitter {
+  border-radius: var(--eth-radius-pill);
+  transition: background var(--eth-duration-fast) var(--eth-ease-out);
+}
 .eth-splitter:hover {
-  background: color-mix(in srgb, var(--eth-color-selection) 50%, transparent);
+  background: color-mix(in srgb, var(--eth-color-accent) 40%, transparent);
 }
 /* Centered on the gap between the panes. */
 .eth-splitter--vertical {
   width: var(--eth-size-splitter-width);
-  margin-left: calc((var(--eth-size-splitter-width) + var(--eth-space-xs)) / -2);
+  margin-left: calc((var(--eth-size-splitter-width) + var(--eth-space-sm)) / -2);
   justify-self: start;
   cursor: ew-resize;
 }
 .eth-splitter--horizontal {
   height: var(--eth-size-splitter-width);
-  margin-top: calc((var(--eth-size-splitter-width) + var(--eth-space-xs)) / -2);
+  margin-top: calc((var(--eth-size-splitter-width) + var(--eth-space-sm)) / -2);
   align-self: start;
   cursor: ns-resize;
 }
@@ -75,6 +77,27 @@
   gap: var(--eth-space-xs);
   text-transform: none;
   letter-spacing: var(--eth-tracking-normal);
+}
+/* Soft pill tabs: the active one sits on a raised surface. */
+.eth-shell__tab {
+  border-radius: var(--eth-radius-pill);
+  color: var(--eth-color-text-dim);
+  font-weight: var(--eth-fw-medium);
+  transition:
+    background var(--eth-duration-normal) var(--eth-ease-out),
+    color var(--eth-duration-normal) var(--eth-ease-out),
+    box-shadow var(--eth-duration-normal) var(--eth-ease-out);
+}
+.eth-shell__tab:hover:not(:disabled) {
+  color: var(--eth-color-text);
+}
+.eth-shell__tab[aria-selected="true"] {
+  background: var(--eth-color-bg-active);
+  color: var(--eth-color-text);
+  box-shadow: var(--eth-shadow-sm);
+}
+.eth-shell__theme {
+  color: var(--eth-color-text-dim);
 }
 
 /* Placeholder look for feature stubs (removed as features land). */

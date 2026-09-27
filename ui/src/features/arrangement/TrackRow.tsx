@@ -1,9 +1,10 @@
 import clsx from "clsx";
-import { memo, useMemo, useState, type CSSProperties, type MouseEvent, type PointerEvent } from "react";
-import type { Clip, ClipId, Track } from "@/generated";
+import { memo, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type PointerEvent } from "react";
+import { ChevronDown, ChevronRight, Circle, Headphones, Volume2, VolumeX } from "lucide-react";
+import type { Clip, ClipId, Track, TrackId } from "@/generated";
 import { TrackAutomationLanes } from "@/features/automation";
-import { Button, MOD_KEY, openContextMenu, setDragCursor } from "@/kit";
-import { useProjectStore } from "@/state";
+import { MOD_KEY, meterPosition, openContextMenu, setDragCursor } from "@/kit";
+import { useProjectStore, useTrackMeter } from "@/state";
 import { pxToBeats, resolveGrid, snapToGrid, useTempoMap, useTimelineView, useViewport, visibleRange } from "@/timeline";
 import { cmd } from "@/transport";
 import { selectTrackEntity, trackMenu } from "./actions";
@@ -47,6 +48,7 @@ function TrackHeader({ row }: { row: Row }) {
   const selected = useArrangementUi((s) => s.trackFocus === track.id);
   const armed = useProjectStore((s) => s.armedTracks.includes(track.id));
   const folded = useArrangementUi((s) => s.folded.has(track.id));
+  const [renaming, setRenaming] = useState(false);
   const { mute, solo } = track.mixer;
   const canArm = track.kind === "Audio" || track.kind === "Midi";
   const stop = (e: MouseEvent) => e.stopPropagation();
@@ -60,17 +62,16 @@ function TrackHeader({ row }: { row: Row }) {
         dropInto && "eth-arr-header--drop-into",
         `eth-arr-header--${track.kind.toLowerCase()}`,
       )}
-      style={{ width: HEADER_WIDTH, paddingLeft: 4 + depth * INDENT_PX, ["--eth-track-color" as string]: colorCss(track.color) }}
+      style={{ width: HEADER_WIDTH, paddingLeft: 8 + depth * INDENT_PX, ["--eth-track-color" as string]: colorCss(track.color) }}
       onPointerDown={(e) => {
         stop(e);
-        onTrackHeaderPointerDown(e, track, ctx);
+        if (!renaming) onTrackHeaderPointerDown(e, track, ctx);
       }}
       onClick={() => selectTrackEntity(track.id)}
       onContextMenu={(e) => openContextMenu(e, trackMenu(transport, track))}
       role="group"
       aria-label={`${track.name} track`}
     >
-      <span className="eth-arr-header__color" />
       {track.kind === "Group" ? (
         <button
           type="button"
@@ -82,27 +83,47 @@ function TrackHeader({ row }: { row: Row }) {
             useArrangementUi.getState().toggleFold(track.id);
           }}
         >
-          {folded ? "▸" : "▾"}
+          {folded ? <ChevronRight /> : <ChevronDown />}
         </button>
       ) : null}
-      <span className="eth-arr-header__name" title={track.name}>
-        {track.name}
-      </span>
+      {renaming ? (
+        <TrackNameInput
+          name={track.name}
+          onDone={(name) => {
+            setRenaming(false);
+            if (name !== null && name.trim() && name.trim() !== track.name) {
+              void sendEdit(transport, cmd("Track", { type: "Rename", id: track.id, name: name.trim() }));
+            }
+          }}
+        />
+      ) : (
+        <span
+          className="eth-arr-header__name"
+          title={`${track.name} (double-click to rename)`}
+          onDoubleClick={(e) => {
+            stop(e);
+            setRenaming(true);
+          }}
+        >
+          {track.name}
+        </span>
+      )}
       <span className="eth-arr-header__buttons" onClick={stop}>
-        <Button
-          size="sm"
-          className="eth-arr-header__mute"
-          active={mute}
+        <button
+          type="button"
+          className="eth-arr-header__toggle eth-arr-header__mute"
+          aria-pressed={mute}
           aria-label={`Mute ${track.name}`}
+          title={mute ? "Unmute" : "Mute"}
           onClick={() => void sendEdit(transport, cmd("Mixer", { type: "SetMute", track: track.id, mute: !mute }))}
         >
-          M
-        </Button>
+          {mute ? <VolumeX /> : <Volume2 />}
+        </button>
         {track.kind !== "Master" && (
-          <Button
-            size="sm"
-            className="eth-arr-header__solo"
-            active={solo}
+          <button
+            type="button"
+            className="eth-arr-header__toggle eth-arr-header__solo"
+            aria-pressed={solo}
             aria-label={`Solo ${track.name}`}
             title="Solo (Ctrl/Cmd-click to add to the soloed tracks)"
             onClick={(e) =>
@@ -112,14 +133,14 @@ function TrackHeader({ row }: { row: Row }) {
               )
             }
           >
-            S
-          </Button>
+            <Headphones />
+          </button>
         )}
         {canArm && (
-          <Button
-            size="sm"
-            className="eth-arr-header__arm"
-            active={armed}
+          <button
+            type="button"
+            className="eth-arr-header__toggle eth-arr-header__arm"
+            aria-pressed={armed}
             aria-label={`Arm ${track.name}`}
             title="Record arm (Ctrl/Cmd-click to arm several tracks)"
             onClick={(e) =>
@@ -130,11 +151,52 @@ function TrackHeader({ row }: { row: Row }) {
                 .catch((err: unknown) => console.warn("arm failed", err))
             }
           >
-            ●
-          </Button>
+            <Circle />
+          </button>
         )}
       </span>
+      <HeaderMeter track={track.id} />
     </div>
+  );
+}
+
+/** Inline rename field: Enter or blur commits, Escape cancels (`onDone(null)`). */
+function TrackNameInput({ name, onDone }: { name: string; onDone: (name: string | null) => void }) {
+  const [value, setValue] = useState(name);
+  const done = useRef(false);
+  const finish = (v: string | null) => {
+    if (done.current) return;
+    done.current = true;
+    onDone(v);
+  };
+  return (
+    <input
+      className="eth-arr-header__rename"
+      aria-label="Track name"
+      value={value}
+      autoFocus
+      onFocus={(e) => e.currentTarget.select()}
+      onChange={(e) => setValue(e.target.value)}
+      onPointerDown={(e) => e.stopPropagation()}
+      onClick={(e) => e.stopPropagation()}
+      onKeyDown={(e) => {
+        e.stopPropagation();
+        if (e.key === "Enter") finish(value);
+        else if (e.key === "Escape") finish(null);
+      }}
+      onBlur={() => finish(value)}
+    />
+  );
+}
+
+/** Live level along the header's right edge (its own component: re-renders at meter rate). */
+function HeaderMeter({ track }: { track: TrackId }) {
+  const meter = useTrackMeter(track);
+  const level = meter ? meterPosition(Math.max(meter.peak[0], meter.peak[1])) : 0;
+  return (
+    <span className="eth-arr-header__meter" aria-hidden>
+      <span className="eth-arr-header__meter-fill" style={{ transform: `scaleY(${level})` }} />
+    </span>
   );
 }
 

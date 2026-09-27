@@ -1,3 +1,4 @@
+import { LocateFixed, ZoomIn, ZoomOut } from "lucide-react";
 import type { GridSetting } from "@/timeline";
 import { animateZoom, useTimelineView } from "@/timeline";
 import { Button } from "@/kit";
@@ -48,6 +49,7 @@ export function Toolbar() {
         title="Follow the playhead while playing"
         onClick={() => arrangementView.getState().setFollowPlayhead(!follow)}
       >
+        <LocateFixed />
         Follow
       </Button>
       <span className="eth-arr-toolbar__sep" />
@@ -64,11 +66,11 @@ export function Toolbar() {
         Delete
       </Button>
       <span className="eth-arr-toolbar__sep" />
-      <Button size="sm" aria-label="Zoom out" onClick={() => animateZoom(arrangementView, 1 / 1.5)}>
-        −
+      <Button size="sm" aria-label="Zoom out" title="Zoom out (Ctrl/Cmd+wheel)" onClick={() => animateZoom(arrangementView, 1 / 1.5)}>
+        <ZoomOut />
       </Button>
-      <Button size="sm" aria-label="Zoom in" onClick={() => animateZoom(arrangementView, 1.5)}>
-        +
+      <Button size="sm" aria-label="Zoom in" title="Zoom in (Ctrl/Cmd+wheel)" onClick={() => animateZoom(arrangementView, 1.5)}>
+        <ZoomIn />
       </Button>
     </div>
   );

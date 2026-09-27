@@ -107,7 +107,12 @@ function Chain({ track }: { track: Track }) {
           onDragLeave={() => setEndDrop(false)}
           onDrop={onEndDrop}
         >
-          {devices.length === 0 ? "No devices. Add one above or drop it here." : ""}
+          {devices.length === 0 && (
+            <div className="eth-devices__empty">
+              <span className="eth-devices__empty-title">No devices yet</span>
+              <span>Add one with “+ Add device”, or drop one here.</span>
+            </div>
+          )}
         </div>
       </div>
     </div>

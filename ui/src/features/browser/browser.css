@@ -10,7 +10,7 @@
   flex-wrap: wrap;
   gap: var(--eth-space-xs);
   padding: var(--eth-space-sm);
-  border-bottom: 1px solid var(--eth-color-border);
+  border-bottom: 1px solid var(--eth-color-border-light);
 }
 .eth-browser__crumbs {
   display: flex;
@@ -19,7 +19,7 @@
   padding: var(--eth-space-xs) var(--eth-space-sm);
   color: var(--eth-color-text-dim);
   font-size: var(--eth-fs-xs);
-  border-bottom: 1px solid var(--eth-color-border);
+  border-bottom: 1px solid var(--eth-color-border-light);
 }
 .eth-browser__crumb {
   border: none;
@@ -31,7 +31,6 @@
 }
 .eth-browser__crumb:hover {
   color: var(--eth-color-text);
-  text-decoration: underline;
 }
 .eth-browser__sep {
   opacity: 0.6;
@@ -42,16 +41,18 @@
   overflow: auto;
   list-style: none;
   margin: 0;
-  padding: var(--eth-space-xs) 0;
+  padding: var(--eth-space-xs);
 }
 .eth-browser__row {
   display: flex;
   align-items: center;
   gap: var(--eth-space-sm);
-  height: 20px;
+  height: 24px;
   padding: 0 var(--eth-space-sm);
+  border-radius: var(--eth-radius-sm);
   cursor: default;
   user-select: none;
+  transition: background-color var(--eth-duration-fast) var(--eth-ease-out);
 }
 .eth-browser__row[role="button"] {
   cursor: pointer;
@@ -61,17 +62,37 @@
 }
 .eth-browser__row:hover,
 .eth-browser__row:focus-visible {
-  background: var(--eth-color-selection);
+  background: var(--eth-color-bg-hover);
   outline: none;
+}
+.eth-browser__row:focus-visible {
+  box-shadow: inset 0 0 0 1px var(--eth-color-focus);
+}
+/* Row actions (preview, import) show on hover. */
+.eth-browser__row .eth-browser__actions .eth-button {
+  opacity: 0;
+  transition: opacity var(--eth-duration-fast) var(--eth-ease-out);
+}
+.eth-browser__row:hover .eth-browser__actions .eth-button,
+.eth-browser__row:focus-within .eth-browser__actions .eth-button,
+.eth-browser__actions .eth-button[aria-pressed="true"] {
+  opacity: 1;
 }
 .eth-browser__row--midi,
 .eth-browser__row--other {
   color: var(--eth-color-text-dim);
 }
 .eth-browser__icon {
-  width: 1.2em;
-  text-align: center;
+  display: inline-flex;
   flex: none;
+  font-size: var(--eth-fs-md);
+  color: var(--eth-color-text-dim);
+}
+.eth-browser__row--directory .eth-browser__icon {
+  color: var(--eth-color-accent);
+}
+.eth-browser__row--audio .eth-browser__icon {
+  color: var(--eth-color-info);
 }
 .eth-browser__name {
   flex: 1;
@@ -88,18 +109,35 @@
 .eth-browser__size {
   color: var(--eth-color-text-dim);
   font-size: var(--eth-fs-xs);
-  font-family: var(--eth-font-mono);
+  font-variant-numeric: tabular-nums;
 }
 .eth-browser__hint {
   padding: var(--eth-space-sm);
   color: var(--eth-color-text-dim);
   font-size: var(--eth-fs-xs);
 }
+.eth-browser__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--eth-space-xs);
+  padding: var(--eth-space-2xl) var(--eth-space-lg);
+  color: var(--eth-color-text-dim);
+  text-align: center;
+}
+.eth-browser__empty .lucide {
+  font-size: 22px;
+  opacity: 0.6;
+}
+.eth-browser__empty-hint {
+  font-size: var(--eth-fs-xs);
+  color: var(--eth-color-text-disabled);
+}
 .eth-browser__status,
 .eth-browser__error {
   padding: var(--eth-space-xs) var(--eth-space-sm);
   border: none;
-  border-top: 1px solid var(--eth-color-border);
+  border-top: 1px solid var(--eth-color-border-light);
   background: none;
   font-size: var(--eth-fs-xs);
   color: var(--eth-color-text-dim);

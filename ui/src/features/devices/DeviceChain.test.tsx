@@ -4,7 +4,7 @@ import type { Device } from "@/generated";
 import { devicesOfTrack, useSelectionStore } from "@/state";
 import { cmd, type MockTransport } from "@/transport";
 import { dragUp, flush, renderWithMock, resetStores, store, stubPointerCapture, trackByName } from "@/features/mixer/testUtils";
-import { groupParams, insertableTypes } from "./chainUtils";
+import { groupParams, insertableTypes, splitMainParams } from "./chainUtils";
 import { BUILTIN_DESCRIPTORS } from "@/transport";
 import { DeviceChain } from "./index";
 import { BROWSER_DRAG_MIME, type BrowserDragPayload } from "@/features/browser/dragPayload";
@@ -58,6 +58,14 @@ describe("chain helpers", () => {
       "Drum Rack",
     ]);
     expect(insertableTypes(all, audio).map((d) => d.name)).toEqual(["Compressor", "Delay", "EQ", "Reverb", "Limiter", "Utility"]);
+  });
+
+  it("keeps leading whole groups as the main controls and folds the rest", () => {
+    const { main, more } = splitMainParams(groupParams(BUILTIN_DESCRIPTORS.Synth.params));
+    expect(main.map((g) => g.group)).toEqual(["Oscillator", "Filter"]);
+    expect(more.map((g) => g.group)).toEqual(["Envelope", "Output"]);
+    const small = groupParams(BUILTIN_DESCRIPTORS.Delay.params);
+    expect(splitMainParams(small).more).toEqual([]);
   });
 
   it("groups visible params by section", () => {
@@ -167,6 +175,9 @@ describe("DeviceChain", () => {
     await flush();
     expect(deviceOf("Keys", "Synth").params[0]).toBe(2);
 
+    // The envelope is folded under "More" (the Synth leads with oscillator and filter).
+    expect(within(deviceEl("Synth")).queryByRole("slider", { name: "Attack" })).toBeNull();
+    fireEvent.click(within(deviceEl("Synth")).getByRole("button", { name: "More Synth controls" }));
     const attack = within(deviceEl("Synth")).getByRole("slider", { name: "Attack" });
     fireEvent.keyDown(attack, { key: "PageUp" });
     await flush();

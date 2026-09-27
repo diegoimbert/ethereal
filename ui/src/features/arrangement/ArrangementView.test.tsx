@@ -173,7 +173,7 @@ describe("ArrangementView: tracks", () => {
     });
     await flush();
     const header = screen.getByRole("group", { name: "Bass track" });
-    expect(header.style.paddingLeft).toBe("16px");
+    expect(header.style.paddingLeft).toBe("20px");
     // The group lane summarizes the child's clip.
     expect(document.querySelectorAll(`[data-lane="${group}"] .eth-arr-lane__summary`)).toHaveLength(1);
     fireEvent.click(screen.getByRole("button", { name: "Fold Grp" }));
@@ -424,6 +424,25 @@ describe("ArrangementView: clip editing", () => {
     expect(Object.values(project().clips).some((c) => c.track === bass.track && startOf(c) === start + 4)).toBe(true);
   });
 
+  it("renames a track inline by double-clicking its name (Enter commits, Escape cancels)", async () => {
+    const keys = trackByName("Keys");
+    const header = () => document.querySelector<HTMLElement>(`.eth-arr-row[data-track="${keys.id}"] .eth-arr-header__name`)!;
+    fireEvent.doubleClick(header());
+    const input = screen.getByRole("textbox", { name: "Track name" });
+    fireEvent.change(input, { target: { value: "Piano" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    await flush();
+    expect(project().tracks[keys.id]!.name).toBe("Piano");
+
+    fireEvent.doubleClick(header());
+    const again = screen.getByRole("textbox", { name: "Track name" });
+    fireEvent.change(again, { target: { value: "Nope" } });
+    fireEvent.keyDown(again, { key: "Escape" });
+    await flush();
+    expect(project().tracks[keys.id]!.name).toBe("Piano");
+    expect(screen.queryByRole("textbox", { name: "Track name" })).toBeNull();
+  });
+
   it("reorders tracks by dragging their headers (one undo step)", async () => {
     const names = () => tracksOrdered(project()).map((t) => t.name);
     expect(names().slice(0, 3)).toEqual(["Keys", "Bass", "Drums"]);
@@ -651,6 +670,27 @@ describe("ArrangementView: audio and drops", () => {
     expect(peaks.length).toBeGreaterThan(0);
     expect(screen.getAllByTestId("clip-waveform").length).toBeGreaterThan(0);
     expect(screen.getAllByTestId("clip-notes").length).toBeGreaterThan(0);
+  });
+
+  it("pans and small zooms reuse the clip canvases; they redraw once the zoom settles", async () => {
+    await flush();
+    const paints = vi.mocked(HTMLCanvasElement.prototype.getContext);
+    const view = arrangementView.getState();
+    act(() => view.setWidth(800));
+    await flush();
+    const base = paints.mock.calls.length;
+    act(() => view.scrollByPx(12));
+    act(() => view.scrollByPx(12));
+    expect(paints.mock.calls.length).toBe(base);
+    vi.useFakeTimers();
+    try {
+      act(() => view.zoomBy(1.2, 100));
+      expect(paints.mock.calls.length).toBe(base);
+      act(() => vi.advanceTimersByTime(200));
+      expect(paints.mock.calls.length).toBeGreaterThan(base);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   /** Fire a drag event with a fake DataTransfer (jsdom has no DragEvent, so set clientX/Y by hand). */

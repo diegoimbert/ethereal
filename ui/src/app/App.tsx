@@ -17,9 +17,10 @@
  * use `useTransport()` and read the document from `@/state`.
  */
 import { useEffect, useState, type ReactNode } from "react";
-import { Button, ContextMenuHost, Panel } from "@/kit";
+import { ChevronDown, ChevronUp, Moon, Sun } from "lucide-react";
+import { Button, ContextMenuHost, IconButton, Panel } from "@/kit";
 import { useEditorStore, useProjectStore } from "@/state";
-import { size } from "@/theme";
+import { size, useTheme } from "@/theme";
 import { ArrangementView } from "@/features/arrangement";
 import { AutomationLanes } from "@/features/automation";
 import { Browser } from "@/features/browser";
@@ -94,14 +95,30 @@ function Tabs<Id extends string>({
           size="sm"
           tone="ghost"
           role="tab"
+          className="eth-shell__tab"
           aria-selected={s.id === active}
-          active={s.id === active}
           onClick={() => onSelect(s.id)}
         >
           {s.label}
         </Button>
       ))}
     </div>
+  );
+}
+
+/** Dark / light theme switch (remembered by `@/theme`). */
+function ThemeToggle() {
+  const [theme, setTheme] = useTheme();
+  const dark = theme === "dark";
+  return (
+    <IconButton
+      size="sm"
+      tone="ghost"
+      className="eth-shell__theme"
+      label={dark ? "Switch to light theme" : "Switch to dark theme"}
+      icon={dark ? <Sun /> : <Moon />}
+      onClick={() => setTheme(dark ? "light" : "dark")}
+    />
   );
 }
 
@@ -156,6 +173,7 @@ export function App() {
         <div data-slot="collab">
           <PresenceBar />
         </div>
+        <ThemeToggle />
       </header>
 
       <Panel
@@ -185,7 +203,7 @@ export function App() {
             aria-expanded={detailOpen}
             title={detailOpen ? "Hide detail view" : "Show detail view"}
           >
-            {detailOpen ? "▾" : "▴"}
+            {detailOpen ? <ChevronDown aria-hidden /> : <ChevronUp aria-hidden />}
           </Button>
         }
       >

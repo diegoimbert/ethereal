@@ -275,7 +275,16 @@ function LoopLayer() {
 function NewTrackDropHint() {
   const hint = useArrangementUi((s) => (s.dropHint && s.dropHint.track === null ? s.dropHint.at : null));
   const pending = useArrangementUi((s) => s.imports.find((i) => i.track === null));
+  const empty = useProjectStore((s) => !s.project || Object.keys(s.project.clips).length === 0);
   if (hint === null && pending) return <ImportPlaceholder item={pending} />;
-  if (hint === null) return <span className="eth-arr__drop-label">Drop audio files here to create a track</span>;
+  if (hint === null) {
+    return (
+      <span className="eth-arr__drop-label">
+        {empty
+          ? "Drop a sample from the Browser, or double-click a MIDI track to create a clip"
+          : "Drop audio files here to create a track"}
+      </span>
+    );
+  }
   return <span className="eth-arr__drop-label eth-arr__drop-label--active">Create an audio track</span>;
 }

@@ -6,7 +6,8 @@
 // and `resolveDroppedMedia` / `waitForMediaLength`.
 import "./browser.css";
 import clsx from "clsx";
-import { useEffect, useState, type DragEvent, type KeyboardEvent } from "react";
+import { useEffect, useState, type DragEvent, type KeyboardEvent, type ReactNode } from "react";
+import { AudioLines, CornerLeftUp, File, Folder, FolderOpen, Music, Pause, Play, Plus } from "lucide-react";
 import type { BrowseLocation, BrowseRoot, DirectoryEntry, MediaSource } from "@/generated";
 import { useEngineCommands, useEngineEvent } from "@/features/transport-bar/engine";
 import { Button } from "@/kit";
@@ -27,11 +28,11 @@ interface Listing {
 
 const placeKey = (p: Place) => `${locationKey(p.location)}/${p.path}`;
 
-const KIND_ICON: Record<DirectoryEntry["kind"], string> = {
-  Directory: "📁",
-  Audio: "♪",
-  Midi: "♫",
-  Other: "·",
+const KIND_ICON: Record<DirectoryEntry["kind"], ReactNode> = {
+  Directory: <Folder />,
+  Audio: <AudioLines />,
+  Midi: <Music />,
+  Other: <File />,
 };
 
 /**
@@ -130,6 +131,7 @@ export function Browser() {
             <Button
               key={locationKey(root.location)}
               size="sm"
+              tone="ghost"
               role="tab"
               aria-selected={selected}
               active={selected}
@@ -172,12 +174,20 @@ export function Browser() {
               onClick={() => navigate(parentPath(current.path))}
               onKeyDown={(e) => e.key === "Enter" && navigate(parentPath(current.path))}
             >
-              <span className="eth-browser__icon">↩</span>
+              <span className="eth-browser__icon" aria-hidden>
+                <CornerLeftUp />
+              </span>
               <span className="eth-browser__name">..</span>
             </div>
           </li>
         )}
-        {entries?.length === 0 && <li className="eth-browser__hint">Empty folder</li>}
+        {entries?.length === 0 && (
+          <li className="eth-browser__empty">
+            <FolderOpen aria-hidden />
+            <span>Empty folder</span>
+            <span className="eth-browser__empty-hint">Audio files you add here show up to drag onto tracks.</span>
+          </li>
+        )}
         {current &&
           entries?.map((entry) => (
             <EntryRow
@@ -264,7 +274,7 @@ function EntryRow({ entry, source, previewing, onOpen, onImport, onPreview }: En
                 onPreview(entry, source);
               }}
             >
-              {previewing ? "■" : "▶"}
+              {previewing ? <Pause aria-hidden /> : <Play aria-hidden />}
             </Button>
             {!inProject && (
               <Button
@@ -277,7 +287,7 @@ function EntryRow({ entry, source, previewing, onOpen, onImport, onPreview }: En
                   onImport(entry, source);
                 }}
               >
-                +
+                <Plus aria-hidden />
               </Button>
             )}
           </span>

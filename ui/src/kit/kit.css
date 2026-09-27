@@ -25,11 +25,29 @@
   cursor: pointer;
   white-space: nowrap;
   transition:
-    background-color var(--eth-duration-fast) var(--eth-ease-standard),
-    color var(--eth-duration-fast) var(--eth-ease-standard);
+    background-color var(--eth-duration-fast) var(--eth-ease-out),
+    border-color var(--eth-duration-fast) var(--eth-ease-out),
+    color var(--eth-duration-fast) var(--eth-ease-out),
+    box-shadow var(--eth-duration-fast) var(--eth-ease-out);
 }
 .eth-button:hover:not(:disabled) {
   background: var(--_bg-hover);
+}
+.eth-button:active:not(:disabled) {
+  box-shadow: var(--eth-shadow-inset);
+}
+/* Icons inside buttons: centered, sized by the button size. */
+.eth-button > .lucide {
+  width: var(--eth-size-icon-md);
+  height: var(--eth-size-icon-md);
+}
+.eth-button--sm > .lucide {
+  width: var(--eth-size-icon-sm);
+  height: var(--eth-size-icon-sm);
+}
+.eth-button--lg > .lucide {
+  width: var(--eth-size-icon-lg);
+  height: var(--eth-size-icon-lg);
 }
 .eth-button:disabled {
   opacity: var(--eth-opacity-disabled);
@@ -61,9 +79,11 @@
   --_bg-hover: var(--button-ghost-bg-hover);
   --_border: transparent;
 }
+/* A toggled ghost button: a soft accent tint rather than a solid fill. */
 .eth-button--ghost[aria-pressed="true"] {
-  --_bg: var(--button-accent-bg);
-  --_bg-hover: var(--button-accent-bg-hover);
+  --_bg: var(--eth-color-accent-subtle);
+  --_bg-hover: var(--eth-color-accent-subtle);
+  --_fg: var(--eth-color-accent);
 }
 .eth-icon-button {
   width: var(--button-height);
@@ -75,6 +95,10 @@
   justify-content: center;
   font-size: var(--eth-size-icon-md);
   line-height: var(--eth-lh-tight);
+}
+.eth-icon-button__icon > .lucide {
+  width: var(--eth-size-icon-inline);
+  height: var(--eth-size-icon-inline);
 }
 .eth-button--sm .eth-icon-button__icon {
   font-size: var(--eth-size-icon-sm);
@@ -92,6 +116,7 @@
   background: var(--panel-bg);
   border: var(--eth-border-width) solid var(--panel-border);
   border-radius: var(--panel-radius);
+  box-shadow: var(--eth-shadow-sm);
   overflow: hidden;
 }
 .eth-panel__header {
@@ -104,7 +129,7 @@
   background: var(--panel-header-bg);
   border-bottom: var(--eth-border-width) solid var(--panel-border);
   font-size: var(--panel-header-font-size);
-  font-weight: var(--eth-fw-bold);
+  font-weight: var(--eth-fw-medium);
   color: var(--panel-header-fg);
   text-transform: var(--panel-header-transform);
   letter-spacing: var(--panel-header-tracking);
@@ -131,6 +156,7 @@
   touch-action: none;
   font-size: var(--eth-fs-xs);
   color: var(--knob-label-fg);
+  outline: none;
 }
 .eth-knob--sm {
   --knob-size: var(--knob-size-sm);
@@ -142,10 +168,21 @@
   opacity: var(--eth-opacity-disabled);
   cursor: default;
 }
-.eth-knob__svg {
+.eth-knob__dial {
+  position: relative;
   display: block;
   width: var(--knob-size);
   height: var(--knob-size);
+  border-radius: var(--eth-radius-round);
+  transition: box-shadow var(--eth-duration-fast) var(--eth-ease-out);
+}
+.eth-knob:focus-visible .eth-knob__dial {
+  box-shadow: 0 0 0 var(--eth-focus-ring-width) var(--eth-color-focus);
+}
+.eth-knob__svg {
+  display: block;
+  width: 100%;
+  height: 100%;
   overflow: visible;
 }
 .eth-knob__body {
@@ -160,6 +197,7 @@
   stroke-width: var(--knob-stroke);
   stroke-linecap: var(--knob-linecap);
   vector-effect: non-scaling-stroke;
+  transition: stroke var(--eth-duration-fast) var(--eth-ease-out);
 }
 .eth-knob__track {
   stroke: var(--knob-track);
@@ -167,11 +205,64 @@
 .eth-knob__value {
   stroke: var(--knob-value);
 }
+.eth-knob:hover .eth-knob__track {
+  stroke: var(--knob-track-hover);
+}
+.eth-knob:hover .eth-knob__value,
+.eth-knob:active .eth-knob__value {
+  stroke: var(--knob-value-hover);
+}
 .eth-knob__pointer {
   stroke: var(--knob-pointer);
   stroke-width: var(--knob-pointer-width);
   stroke-linecap: var(--knob-pointer-linecap);
   vector-effect: non-scaling-stroke;
+}
+.eth-knob__dot {
+  fill: var(--knob-dot);
+}
+/* The value inside the ring (large knobs). */
+.eth-knob__center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 var(--knob-center-inset);
+  overflow: hidden;
+  color: var(--knob-center-fg);
+  font-size: var(--knob-center-font-size);
+  font-weight: var(--eth-fw-medium);
+  line-height: var(--eth-lh-tight);
+  text-align: center;
+  white-space: nowrap;
+  pointer-events: none;
+}
+/* The label turns into the value readout on hover, focus and drag. */
+.eth-knob__label {
+  display: grid;
+  justify-items: center;
+  max-width: 100%;
+}
+.eth-knob__name,
+.eth-knob__readout {
+  grid-area: 1 / 1;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: opacity var(--eth-duration-fast) var(--eth-ease-out);
+}
+.eth-knob__readout {
+  opacity: 0;
+  color: var(--knob-readout-fg);
+  font-variant-numeric: tabular-nums;
+}
+.eth-knob:is(:hover, :focus-visible, :active) .eth-knob__readout {
+  opacity: 1;
+}
+.eth-knob:is(:hover, :focus-visible, :active) .eth-knob__label--readout .eth-knob__name {
+  opacity: 0;
 }
 
 /* ---- Fader -------------------------------------------------------------------------- */
@@ -275,6 +366,10 @@
   font-size: var(--tab-font-size);
   cursor: pointer;
   white-space: nowrap;
+  transition:
+    background-color var(--eth-duration-normal) var(--eth-ease-out),
+    color var(--eth-duration-normal) var(--eth-ease-out),
+    box-shadow var(--eth-duration-normal) var(--eth-ease-out);
 }
 .eth-tabs--sm {
   --tab-height: var(--tab-height-sm);
@@ -289,10 +384,14 @@
 .eth-tabs__tab:hover:not(:disabled) {
   background: var(--tab-bg-hover);
 }
+.eth-tabs__tab:hover:not(:disabled) {
+  color: var(--tab-fg-active);
+}
 .eth-tabs__tab[aria-selected="true"],
 .eth-tabs__tab[aria-selected="true"]:hover {
   background: var(--tab-bg-active);
   color: var(--tab-fg-active);
+  box-shadow: var(--eth-shadow-sm);
 }
 .eth-tabs__tab:disabled {
   opacity: var(--eth-opacity-disabled);
@@ -361,6 +460,9 @@
   color: var(--input-fg);
   font-size: var(--input-font-size);
   min-width: 0;
+  transition:
+    border-color var(--eth-duration-fast) var(--eth-ease-out),
+    box-shadow var(--eth-duration-fast) var(--eth-ease-out);
 }
 .eth-input--sm {
   --input-height: var(--input-height-sm);
@@ -376,6 +478,7 @@
 .eth-number:focus-within {
   outline: none;
   border-color: var(--input-border-focus);
+  box-shadow: 0 0 0 var(--eth-focus-ring-width) var(--eth-color-accent-subtle);
 }
 .eth-input[aria-invalid="true"] {
   border-color: var(--eth-color-danger);
@@ -427,6 +530,7 @@
   border: var(--eth-border-width) solid var(--popover-border);
   border-radius: var(--popover-radius);
   box-shadow: var(--popover-shadow);
+  backdrop-filter: blur(var(--eth-space-md));
 }
 .eth-popover--bottom-start,
 .eth-popover--bottom-end {
@@ -466,6 +570,7 @@
   font-size: var(--eth-fs-sm);
   text-align: left;
   cursor: pointer;
+  transition: background-color var(--eth-duration-fast) var(--eth-ease-out);
 }
 .eth-menu__item:hover:not(:disabled),
 .eth-menu__item:focus-visible {

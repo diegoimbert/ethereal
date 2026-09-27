@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { X } from "lucide-react";
 import type { ProjectSummary } from "@/generated";
 import type { EngineCommands } from "@/features/transport-bar/engine";
 import { Button } from "@/kit";
@@ -94,7 +95,7 @@ export function ProjectManager({ commands, onClose }: ProjectManagerProps) {
       <header className="eth-project-mgr__header">
         <span>Projects</span>
         <Button size="sm" variant="ghost" aria-label="Close" onClick={onClose}>
-          ✕
+          <X aria-hidden />
         </Button>
       </header>
 

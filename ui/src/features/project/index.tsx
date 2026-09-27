@@ -3,6 +3,7 @@
 // `ProjectMenu`: keep this export name and keep it prop-less (read state via hooks).
 import "./project.css";
 import { useEffect, useRef, useState } from "react";
+import { Menu, Save } from "lucide-react";
 import { useEngineCommands } from "@/features/transport-bar/engine";
 import { Button } from "@/kit";
 import { useProjectStore } from "@/state";
@@ -57,6 +58,7 @@ export function ProjectMenu() {
   return (
     <div className="eth-project" data-feature="project" ref={rootRef}>
       <Button
+        tone="ghost"
         aria-label="Projects"
         aria-haspopup="dialog"
         aria-expanded={open}
@@ -64,7 +66,7 @@ export function ProjectMenu() {
         disabled={!transport}
         onClick={() => setOpen((o) => !o)}
       >
-        ☰
+        <Menu aria-hidden />
       </Button>
       <span className="eth-project__name" data-testid="project-name" title={name ?? undefined}>
         {name ?? "No project"}
@@ -74,7 +76,8 @@ export function ProjectMenu() {
           ●
         </span>
       )}
-      <Button size="sm" variant={dirty ? "primary" : "default"} title="Save (Ctrl+S)" disabled={disabled} onClick={save}>
+      <Button size="sm" tone={dirty ? "accent" : "ghost"} title="Save (Ctrl+S)" disabled={disabled} onClick={save}>
+        <Save aria-hidden />
         Save
       </Button>
       {error && !open && (

@@ -1,11 +1,12 @@
 import clsx from "clsx";
-import { useState, type DragEvent } from "react";
+import { useState, type DragEvent, type ReactNode } from "react";
 import type { Device, DeviceId } from "@/generated";
 import { PluginDeviceControls } from "@/features/plugins";
 import { SidechainSelector } from "@/features/sidechain";
-import { Button, openContextMenu } from "@/kit";
+import { ChevronDown, ChevronLeft, ChevronRight, Power, X } from "lucide-react";
+import { IconButton, openContextMenu } from "@/kit";
 import { cmd } from "@/transport";
-import { DEVICE_DRAG_TYPE, groupParams } from "./chainUtils";
+import { DEVICE_DRAG_TYPE, groupParams, splitMainParams, type ParamGroup } from "./chainUtils";
 import { useDescriptor } from "./descriptors";
 import { useGestureSender, useSend } from "./gesture";
 import { ParamControl } from "./ParamControl";
@@ -26,6 +27,7 @@ export function DeviceView({ device, prev, moveRightBefore, onDropBefore }: Devi
   const sender = useGestureSender();
   const { descriptor, error } = useDescriptor(device);
   const [dropTarget, setDropTarget] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const move = (before: DeviceId | null) =>
     void send(cmd("Device", { type: "Move", id: device.id, track: device.track, before }));
 
@@ -69,64 +71,107 @@ export function DeviceView({ device, prev, moveRightBefore, onDropBefore }: Devi
           e.dataTransfer.effectAllowed = "move";
         }}
       >
-        <Button
+        <IconButton
           size="sm"
-          variant="ghost"
+          tone="ghost"
           className="eth-device__power"
           active={device.enabled}
-          aria-label={device.enabled ? `Bypass ${device.name}` : `Enable ${device.name}`}
+          label={device.enabled ? `Bypass ${device.name}` : `Enable ${device.name}`}
           title={device.enabled ? "Device on (click to bypass)" : "Device bypassed (click to enable)"}
+          icon={<Power />}
           onClick={() => void send(cmd("Device", { type: "SetEnabled", id: device.id, enabled: !device.enabled }))}
-        >
-          ⏻
-        </Button>
+        />
         <span className="eth-device__name">{device.name}</span>
         <PluginDeviceControls device={device} />
         <SidechainSelector device={device} />
-        <Button
-          size="sm"
-          variant="ghost"
-          aria-label={`Move ${device.name} left`}
-          disabled={prev === null}
-          onClick={() => prev !== null && move(prev)}
-        >
-          ◀
-        </Button>
-        <Button
-          size="sm"
-          variant="ghost"
-          aria-label={`Move ${device.name} right`}
-          disabled={moveRightBefore === undefined}
-          onClick={() => moveRightBefore !== undefined && move(moveRightBefore)}
-        >
-          ▶
-        </Button>
-        <Button
-          size="sm"
-          variant="ghost"
-          aria-label={`Remove ${device.name}`}
-          onClick={() => void send(cmd("Device", { type: "Remove", id: device.id }))}
-        >
-          ✕
-        </Button>
+        <span className="eth-device__actions">
+          <IconButton
+            size="sm"
+            tone="ghost"
+            label={`Move ${device.name} left`}
+            icon={<ChevronLeft />}
+            disabled={prev === null}
+            onClick={() => prev !== null && move(prev)}
+          />
+          <IconButton
+            size="sm"
+            tone="ghost"
+            label={`Move ${device.name} right`}
+            icon={<ChevronRight />}
+            disabled={moveRightBefore === undefined}
+            onClick={() => moveRightBefore !== undefined && move(moveRightBefore)}
+          />
+          <IconButton
+            size="sm"
+            tone="ghost"
+            label={`Remove ${device.name}`}
+            icon={<X />}
+            onClick={() => void send(cmd("Device", { type: "Remove", id: device.id }))}
+          />
+        </span>
       </header>
       <SampleSlot device={device} />
-      <div className="eth-device__body">
-        {descriptor ? (
-          groupParams(descriptor.params).map(({ group, params }) => (
-            <div className="eth-device__group" key={group ?? ""}>
-              {group && <div className="eth-device__group-name">{group}</div>}
-              <div className="eth-device__params">
-                {params.map((p) => (
-                  <ParamControl key={p.id} device={device} info={p} sender={sender} />
-                ))}
-              </div>
-            </div>
-          ))
-        ) : (
+      {descriptor ? (
+        <DeviceParams
+          groups={groupParams(descriptor.params)}
+          name={device.name}
+          expanded={expanded}
+          onToggle={() => setExpanded((x) => !x)}
+          render={(p, size) => <ParamControl key={p.id} device={device} info={p} sender={sender} size={size} />}
+        />
+      ) : (
+        <div className="eth-device__body">
           <div className="eth-device__status">{error ? "Descriptor unavailable" : "Loading…"}</div>
-        )}
-      </div>
+        </div>
+      )}
     </section>
+  );
+}
+
+/**
+ * A device's params: the main section (leading groups, large knobs) always shows; the rest
+ * folds under a "More" disclosure (see `splitMainParams`).
+ */
+function DeviceParams({
+  groups,
+  name,
+  expanded,
+  onToggle,
+  render,
+}: {
+  groups: ReadonlyArray<ParamGroup>;
+  name: string;
+  expanded: boolean;
+  onToggle(): void;
+  render(p: ParamGroup["params"][number], size: "md" | "lg"): ReactNode;
+}) {
+  const { main, more } = splitMainParams(groups);
+  const hidden = more.reduce((n, g) => n + g.params.length, 0);
+  const section = (list: ReadonlyArray<ParamGroup>, size: "md" | "lg") =>
+    list.map(({ group, params }) => (
+      <div className="eth-device__group" key={group ?? ""}>
+        {group && <div className="eth-device__group-name">{group}</div>}
+        <div className={`eth-device__params eth-device__params--${size}`}>{params.map((p) => render(p, size))}</div>
+      </div>
+    ));
+  return (
+    <>
+      <div className="eth-device__body">{section(main, "lg")}</div>
+      {more.length > 0 && (
+        <>
+          <button
+            type="button"
+            className="eth-device__more"
+            aria-expanded={expanded}
+            aria-label={`${expanded ? "Fewer" : "More"} ${name} controls`}
+            onClick={onToggle}
+          >
+            <ChevronDown className={expanded ? "eth-device__more-icon eth-device__more-icon--open" : "eth-device__more-icon"} />
+            {expanded ? "Fewer controls" : `More controls (${hidden})`}
+          </button>
+          {expanded && <div className="eth-device__body eth-device__body--more">{section(more, "md")}</div>}
+        </>
+      )}
+    </>
   );
 }

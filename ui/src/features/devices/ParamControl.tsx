@@ -8,10 +8,12 @@ export interface ParamControlProps {
   device: Device;
   info: ParamInfo;
   sender: GestureSender;
+  /** Main controls are large (value inside the ring); folded ones small with a value line. */
+  size?: "md" | "lg";
 }
 
 /** Generic control for one param, chosen from its `ParamInfo` (knob, toggle or choice). */
-export function ParamControl({ device, info, sender }: ParamControlProps) {
+export function ParamControl({ device, info, sender, size = "md" }: ParamControlProps) {
   const plain = device.params[info.id] ?? info.default;
   const setPlain = (value: number) =>
     void sender.send(cmd("Device", { type: "SetParam", device: device.id, param: info.id, value }));
@@ -57,8 +59,9 @@ export function ParamControl({ device, info, sender }: ParamControlProps) {
 
   const text = formatParam(info, plain);
   return (
-    <div className="eth-param eth-param--knob" data-param={info.id}>
+    <div className={`eth-param eth-param--knob eth-param--${size}`} data-param={info.id}>
       <Knob
+        size={size}
         value={paramToNormalized(info, plain)}
         defaultValue={paramToNormalized(info, info.default)}
         bipolar={info.min < 0 && info.max > 0}
@@ -68,7 +71,7 @@ export function ParamControl({ device, info, sender }: ParamControlProps) {
         onChangeStart={sender.begin}
         onChangeEnd={sender.end}
       />
-      <span className="eth-param__value">{text}</span>
+      {size !== "lg" && <span className="eth-param__value">{text}</span>}
     </div>
   );
 }
