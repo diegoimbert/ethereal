@@ -8,14 +8,14 @@
 import type { MetronomeSound } from "@/generated";
 import { Button, NumberField, Popover, Select, Toggle } from "@/kit";
 import { useProjectStore } from "@/state";
-import { cmd, useTransport } from "@/transport";
-import { sendEdit } from "./gesture";
+import { cmd } from "@/transport";
+import { sendEdit, useTempoTransport } from "./gesture";
 import { MAX_METRONOME_DB, METRONOME_SOUNDS, metronomeSettingsCommand, MIN_METRONOME_DB } from "./tempoCommands";
 import "./tempo.css";
 
 export function MetronomeSettings() {
   const settings = useProjectStore((s) => s.project?.settings ?? null);
-  const transport = useTransport();
+  const transport = useTempoTransport();
   if (!settings) return null;
   const on = settings.metronome;
   return (

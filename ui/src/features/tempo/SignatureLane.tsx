@@ -11,11 +11,11 @@
 import { useLayoutEffect, useRef, type KeyboardEvent, type MouseEvent, type PointerEvent as ReactPointerEvent } from "react";
 import type { TimeSignaturePoint } from "@/generated";
 import { openContextMenu, setDragCursor } from "@/kit";
-import { newId, useTransport } from "@/transport";
+import { newId } from "@/transport";
 import type { TempoMap } from "@/timeline/tempoMap";
 import { beatsToPx, pxToBeats } from "@/timeline/viewport";
 import { useViewport, type TimelineViewStore } from "@/timeline/viewStore";
-import { sendEdit, TempoGesture, trackDrag } from "./gesture";
+import { sendEdit, TempoGesture, trackDrag, useTempoTransport } from "./gesture";
 import { signatureMenu } from "./menus";
 import {
   addSignatureCommand,
@@ -35,7 +35,7 @@ export interface SignatureLaneProps {
 }
 
 export function SignatureLane({ view, tempo, signatures, selected, onSelect }: SignatureLaneProps) {
-  const transport = useTransport();
+  const transport = useTempoTransport();
   const vp = useViewport(view);
   const rootRef = useRef<HTMLDivElement>(null);
   const live = useRef(signatures);

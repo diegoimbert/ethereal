@@ -4,8 +4,9 @@
  * the latest pending one is kept, so fast pointer moves don't queue up.
  */
 
+import { useContext } from "react";
 import type { Command } from "@/generated";
-import { cmd, nextGestureId, type EngineTransport } from "@/transport";
+import { cmd, nextGestureId, TransportContext, type EngineTransport } from "@/transport";
 
 const warn = (e: unknown) => console.warn("[ethereal] tempo edit failed:", e);
 
@@ -17,11 +18,11 @@ export class TempoGesture {
   private ended = false;
   private closed = false;
 
-  constructor(private readonly transport: EngineTransport) {}
+  constructor(private readonly transport: EngineTransport | null) {}
 
   /** Send `command` (latest wins while one is in flight). */
   update(command: Command): void {
-    if (this.ended) return;
+    if (this.ended || !this.transport) return;
     if (this.inFlight) this.pending = command;
     else this.dispatch(command);
   }
@@ -33,9 +34,11 @@ export class TempoGesture {
   }
 
   private dispatch(command: Command): void {
+    const transport = this.transport;
+    if (!transport) return;
     this.inFlight = true;
     this.sent = true;
-    this.transport
+    transport
       .send(command, { gesture: this.gesture })
       .catch(warn)
       .finally(() => {
@@ -50,12 +53,18 @@ export class TempoGesture {
   private close(): void {
     if (this.closed || !this.sent) return;
     this.closed = true;
-    this.transport.send(cmd("Edit", { type: "EndGesture", gesture: this.gesture })).catch(warn);
+    this.transport?.send(cmd("Edit", { type: "EndGesture", gesture: this.gesture })).catch(warn);
   }
 }
 
+/** The engine transport, or `null` outside a `TransportProvider` (edits are then no-ops). */
+export function useTempoTransport(): EngineTransport | null {
+  return useContext(TransportContext)?.transport ?? null;
+}
+
 /** Send a one-shot edit (its own undo step). */
-export function sendEdit(transport: EngineTransport, command: Command): Promise<void> {
+export function sendEdit(transport: EngineTransport | null, command: Command): Promise<void> {
+  if (!transport) return Promise.resolve();
   return transport.send(command).then(() => undefined, warn);
 }
 

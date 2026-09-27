@@ -12,7 +12,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type PointerEvent as ReactPointerEvent } from "react";
 import type { TempoPoint } from "@/generated";
 import { openContextMenu, setDragCursor } from "@/kit";
-import { newId, useTransport } from "@/transport";
+import { newId } from "@/transport";
 import {
   beatsToPx,
   DEFAULT_GRID,
@@ -24,7 +24,7 @@ import {
   type TempoMap,
   type TimelineViewStore,
 } from "@/timeline";
-import { sendEdit, TempoGesture, trackDrag } from "./gesture";
+import { sendEdit, TempoGesture, trackDrag, useTempoTransport } from "./gesture";
 import {
   addTempoPointCommand,
   bpmRange,
@@ -52,7 +52,7 @@ export interface TempoLaneProps {
 }
 
 export function TempoLane({ view, tempo, points, selected, onSelect }: TempoLaneProps) {
-  const transport = useTransport();
+  const transport = useTempoTransport();
   const vp = useViewport(view);
   const widthPx = useTimelineView(view, (s) => s.widthPx);
   const rootRef = useRef<HTMLDivElement>(null);

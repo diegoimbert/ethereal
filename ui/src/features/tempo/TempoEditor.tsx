@@ -8,9 +8,8 @@ import { useMemo, useRef, useState } from "react";
 import type { TempoCurve, TimeSignature } from "@/generated";
 import { Button, NumberField, Select } from "@/kit";
 import { playheadStore, useProjectStore } from "@/state";
-import { useTransport } from "@/transport";
 import { createTimelineViewStore, PlayheadLine, Ruler, useTempoMap, useTimelineWheel } from "@/timeline";
-import { sendEdit } from "./gesture";
+import { sendEdit, useTempoTransport } from "./gesture";
 import { SignatureLane } from "./SignatureLane";
 import { TempoLane } from "./TempoLane";
 import {
@@ -54,7 +53,7 @@ export function TempoEditor() {
 }
 
 function TempoEditorBody() {
-  const transport = useTransport();
+  const transport = useTempoTransport();
   const tempoPoints = useProjectStore((s) => s.project!.tempo_points);
   const timeSignatures = useProjectStore((s) => s.project!.time_signatures);
   const points = useMemo(() => sortedTempoPoints({ tempo_points: tempoPoints }), [tempoPoints]);

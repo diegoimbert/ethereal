@@ -12,9 +12,8 @@
 import { useLayoutEffect, useRef, type PointerEvent as ReactPointerEvent } from "react";
 import type { Beats, Command, TempoPoint, TimeSignaturePoint } from "@/generated";
 import { openContextMenu, setDragCursor } from "@/kit";
-import { useTransport } from "@/transport";
 import { beatsToPx, type TimelineViewport } from "@/timeline/viewport";
-import { sendEdit, TempoGesture, trackDrag } from "./gesture";
+import { sendEdit, TempoGesture, trackDrag, useTempoTransport } from "./gesture";
 import { signatureMenu, useSortedTempoMap } from "./menus";
 import {
   editSignatureCommand,
@@ -37,7 +36,7 @@ export interface RulerTempoMarkersProps {
 }
 
 export function RulerTempoMarkers({ vp, widthPx, snap }: RulerTempoMarkersProps) {
-  const transport = useTransport();
+  const transport = useTempoTransport();
   const { points, signatures } = useSortedTempoMap();
   const live = useRef({ points, signatures, vp });
   useLayoutEffect(() => {
