@@ -585,7 +585,7 @@ impl Engine {
             a[0][..n].copy_from_slice(&buses[ti][0][..n]);
             a[1][..n].copy_from_slice(&buses[ti][1][..n]);
             if track.monitor
-                && let Some((l, r)) = track.audio_input
+                && let Some((l, r)) = crate::recording::input_channels(track.audio_input)
             {
                 for (ch, hw) in [(0usize, l), (1, r)] {
                     if let Some(input) = inputs.get(hw as usize) {

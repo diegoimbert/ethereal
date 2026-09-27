@@ -153,6 +153,13 @@ impl EngineHandle {
     }
 }
 
+/// Hardware (left, right) channels of a track's `audio_input` (`(first, count)`, see
+/// `TrackDesc::audio_input`): a mono input feeds both sides.
+pub fn input_channels(audio_input: Option<(u16, u16)>) -> Option<(u16, u16)> {
+    let (first, count) = audio_input?;
+    (count > 0).then(|| (first, first + u16::from(count > 1)))
+}
+
 /// Decode a short MIDI message into an engine event (`None`: not playable, e.g. SysEx
 /// fragments, clock).
 pub fn midi_event(data: [u8; 3]) -> Option<EventKind> {
@@ -389,6 +396,14 @@ mod tests {
             engine.process(&[&il, &ir], &mut [&mut l, &mut r], BLOCK);
             *t += BLOCK as u64;
         }
+    }
+
+    #[test]
+    fn input_channels_from_first_and_count() {
+        assert_eq!(input_channels(Some((0, 2))), Some((0, 1)));
+        assert_eq!(input_channels(Some((3, 1))), Some((3, 3)));
+        assert_eq!(input_channels(Some((0, 0))), None);
+        assert_eq!(input_channels(None), None);
     }
 
     #[test]

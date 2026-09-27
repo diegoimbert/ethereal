@@ -53,6 +53,7 @@ use ether_core::{EngineOutputs, NodeKey, ParamChange, RenderGraphDesc, Transport
 
 pub use compile::{CompileContext, compile_graph_with};
 pub use media::hash::content_hash;
+pub use recording::{AudioTake, AudioTarget, RecordSession, RecordedMidi, RecordedTakes};
 
 /// Lowest volume/send level: `Decibels::SILENCE` (treated as -inf).
 pub const SILENCE_DB: f32 = ether_core::protocol::model::Decibels::SILENCE.0;
@@ -155,6 +156,32 @@ pub trait EngineBridge {
         let _ = device;
         Ok(None)
     }
+
+    /// Hardware inputs for `RecordingCommand::ListInputs` (native). Default: unsupported (web).
+    fn list_inputs(
+        &mut self,
+    ) -> Result<ether_core::protocol::recording::InputList, BridgeError> {
+        Err(BridgeError::Unsupported(
+            "input listing is not available on this host".into(),
+        ))
+    }
+
+    /// Start capturing armed tracks' input into take files under the project's `media/` (the
+    /// controller then enables engine recording). Default: unsupported (nothing is captured).
+    fn start_recording(&mut self, session: &RecordSession) -> Result<(), BridgeError> {
+        let _ = session;
+        Err(BridgeError::Unsupported(
+            "recording is not available on this host".into(),
+        ))
+    }
+
+    /// Finish the capture (after engine recording was disabled): close the files and return
+    /// the latency-compensated takes and MIDI. Default: unsupported.
+    fn stop_recording(&mut self) -> Result<RecordedTakes, BridgeError> {
+        Err(BridgeError::Unsupported(
+            "recording is not available on this host".into(),
+        ))
+    }
 }
 
 /// Host services the controller needs besides the engine.
@@ -244,6 +271,8 @@ where
     transport: TransportRt,
     /// Record-armed tracks (runtime state, not undoable).
     armed: std::collections::BTreeSet<ether_core::protocol::model::TrackId>,
+    /// Punch flag and the active record session.
+    recording: recording::RecordingState,
     /// Open plugin-GUI gestures → internal gesture ids.
     plugin_gestures: BTreeMap<(DeviceId, ParamId), GestureId>,
     next_gesture: u32,
@@ -285,6 +314,7 @@ where
             media: media::MediaState::default(),
             transport: TransportRt::default(),
             armed: Default::default(),
+            recording: Default::default(),
             plugin_gestures: BTreeMap::new(),
             // Internal gestures (plugin GUI, tap tempo) live in the upper half of the id
             // space, away from UI-allocated ones.
