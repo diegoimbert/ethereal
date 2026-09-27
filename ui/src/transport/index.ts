@@ -25,3 +25,4 @@ export { MockTransport, type MockTransportOptions } from "./mock/MockTransport";
 export { TauriTransport } from "./tauri/TauriTransport";
 export { TransportProvider, type TransportProviderProps } from "./TransportProvider";
 export { WasmTransport } from "./wasm/WasmTransport";
+export { WsTransport, type WsTransportOptions } from "./ws/WsTransport";

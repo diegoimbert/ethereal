@@ -70,4 +70,20 @@ describe("App shell", () => {
     expect(shell.style.getPropertyValue("--eth-detail-height")).toBe("280px");
     localStorage.clear();
   });
+
+  it("mounts the roadmap v2 slots (contracts-2)", () => {
+    const { container } = render(<App />);
+    for (const slot of ["metronome", "export", "remote", "collab", "markers"]) {
+      expect(container.querySelector(`[data-slot="${slot}"]`), slot).not.toBeNull();
+    }
+    for (const [tab, feature] of [
+      ["Tempo", "tempo"],
+      ["Groove", "groove"],
+      ["Drum Rack", "drum-rack"],
+      ["MIDI", "midi-learn"],
+    ] as const) {
+      fireEvent.click(screen.getByRole("tab", { name: tab }));
+      expect(container.querySelector(`[data-feature="${feature}"]`), feature).not.toBeNull();
+    }
+  });
 });

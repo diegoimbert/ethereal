@@ -96,6 +96,7 @@ fn track(id: TrackId, kind: TrackKind, output: Option<TrackId>, clips: Vec<ClipD
         armed: false,
         clips,
         automation: vec![],
+        racks: Vec::new(),
     }
 }
 
@@ -119,6 +120,9 @@ fn audio_clip(
             transpose,
             fade_in: 0.0,
             fade_out: 0.0,
+            fade_in_curve: Default::default(),
+            fade_out_curve: Default::default(),
+            reversed: false,
             warp,
         },
         envelopes: vec![],

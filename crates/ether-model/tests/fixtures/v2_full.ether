@@ -1,0 +1,398 @@
+{
+  "format": "ethereal-project",
+  "version": 2,
+  "app_version": "0.1.0",
+  "project": {
+    "id": "0190f5a2-7b3c-7d4e-8f00-123456789abc",
+    "settings": {
+      "name": "Fixture v2",
+      "loop_enabled": true,
+      "loop_region": {
+        "start": 4.0,
+        "end": 12.0
+      },
+      "metronome": true,
+      "count_in_bars": 1
+    },
+    "tracks": {
+      "01HG2V2F000000000000000001": {
+        "id": "01HG2V2F000000000000000001",
+        "kind": "Master",
+        "name": "Master",
+        "color": 10132122,
+        "order": "a0",
+        "parent": null,
+        "mixer": {
+          "volume": -3.5,
+          "pan": 0.25,
+          "mute": false,
+          "solo": false
+        },
+        "input": {
+          "type": "None"
+        },
+        "output": {
+          "type": "Default"
+        },
+        "monitor": "Auto"
+      },
+      "01HG2V2F000000000000000002": {
+        "id": "01HG2V2F000000000000000002",
+        "kind": "Group",
+        "name": "Drums Group",
+        "color": 16741965,
+        "order": "a1",
+        "parent": null,
+        "mixer": {
+          "volume": -3.5,
+          "pan": 0.25,
+          "mute": false,
+          "solo": false
+        },
+        "input": {
+          "type": "None"
+        },
+        "output": {
+          "type": "Default"
+        },
+        "monitor": "Auto"
+      },
+      "01HG2V2F000000000000000003": {
+        "id": "01HG2V2F000000000000000003",
+        "kind": "Audio",
+        "name": "Kick",
+        "color": 6069759,
+        "order": "a0",
+        "parent": "01HG2V2F000000000000000002",
+        "mixer": {
+          "volume": -3.5,
+          "pan": 0.25,
+          "mute": false,
+          "solo": false
+        },
+        "input": {
+          "type": "Audio",
+          "first": 0,
+          "count": 2
+        },
+        "output": {
+          "type": "Default"
+        },
+        "monitor": "Auto"
+      },
+      "01HG2V2F000000000000000004": {
+        "id": "01HG2V2F000000000000000004",
+        "kind": "Midi",
+        "name": "Keys",
+        "color": 6069759,
+        "order": "a2",
+        "parent": null,
+        "mixer": {
+          "volume": -3.5,
+          "pan": 0.25,
+          "mute": false,
+          "solo": false
+        },
+        "input": {
+          "type": "Midi",
+          "port": null,
+          "channel": null
+        },
+        "output": {
+          "type": "Default"
+        },
+        "monitor": "Auto"
+      },
+      "01HG2V2F000000000000000005": {
+        "id": "01HG2V2F000000000000000005",
+        "kind": "Return",
+        "name": "Reverb",
+        "color": 6069759,
+        "order": "a3",
+        "parent": null,
+        "mixer": {
+          "volume": -3.5,
+          "pan": 0.25,
+          "mute": false,
+          "solo": false
+        },
+        "input": {
+          "type": "None"
+        },
+        "output": {
+          "type": "Default"
+        },
+        "monitor": "Auto"
+      }
+    },
+    "clips": {
+      "01HG2V2F000000000000000011": {
+        "id": "01HG2V2F000000000000000011",
+        "track": "01HG2V2F000000000000000003",
+        "start": 0.0,
+        "name": "Kick",
+        "color": null,
+        "muted": false,
+        "length": 8.0,
+        "offset": 0.5,
+        "looping": {
+          "enabled": true,
+          "start": 0.0,
+          "end": 4.0
+        },
+        "content": {
+          "type": "Audio",
+          "media": "01HG2V2F000000000000000006",
+          "gain": -2.0,
+          "transpose": 0.0,
+          "fade_in": 0.25,
+          "fade_out": 0.5,
+          "warp": {
+            "enabled": true,
+            "mode": "Complex",
+            "source_bpm": 120.0
+          }
+        }
+      },
+      "01HG2V2F000000000000000012": {
+        "id": "01HG2V2F000000000000000012",
+        "track": "01HG2V2F000000000000000004",
+        "start": 8.0,
+        "name": "Chords",
+        "color": 16746496,
+        "muted": false,
+        "length": 4.0,
+        "offset": 0.0,
+        "looping": {
+          "enabled": false,
+          "start": 0.0,
+          "end": 4.0
+        },
+        "content": {
+          "type": "Midi"
+        }
+      }
+    },
+    "notes": {
+      "01HG2V2F000000000000000013": {
+        "id": "01HG2V2F000000000000000013",
+        "clip": "01HG2V2F000000000000000012",
+        "pitch": 60,
+        "velocity": 0.8,
+        "release_velocity": 0.5,
+        "start": 0.0,
+        "duration": 0.75,
+        "muted": false
+      },
+      "01HG2V2F000000000000000014": {
+        "id": "01HG2V2F000000000000000014",
+        "clip": "01HG2V2F000000000000000012",
+        "pitch": 64,
+        "velocity": 0.8,
+        "release_velocity": 0.5,
+        "start": 1.0,
+        "duration": 0.75,
+        "muted": false
+      },
+      "01HG2V2F000000000000000015": {
+        "id": "01HG2V2F000000000000000015",
+        "clip": "01HG2V2F000000000000000012",
+        "pitch": 68,
+        "velocity": 0.8,
+        "release_velocity": 0.5,
+        "start": 2.0,
+        "duration": 0.75,
+        "muted": true
+      }
+    },
+    "devices": {
+      "01HG2V2F000000000000000007": {
+        "id": "01HG2V2F000000000000000007",
+        "track": "01HG2V2F000000000000000004",
+        "order": "a0",
+        "name": "Synth",
+        "enabled": true,
+        "kind": {
+          "type": "Builtin",
+          "device": {
+            "type": "Synth"
+          }
+        },
+        "params": {
+          "2": 1200.0,
+          "8": -6.0
+        }
+      },
+      "01HG2V2F000000000000000008": {
+        "id": "01HG2V2F000000000000000008",
+        "track": "01HG2V2F000000000000000003",
+        "order": "a0",
+        "name": "Compressor",
+        "enabled": false,
+        "kind": {
+          "type": "Builtin",
+          "device": {
+            "type": "Compressor"
+          }
+        },
+        "params": {
+          "0": -18.0
+        }
+      },
+      "01HG2V2F000000000000000009": {
+        "id": "01HG2V2F000000000000000009",
+        "track": "01HG2V2F000000000000000004",
+        "order": "a1",
+        "name": "Sampler",
+        "enabled": true,
+        "kind": {
+          "type": "Builtin",
+          "device": {
+            "type": "Sampler",
+            "sample": "01HG2V2F000000000000000006"
+          }
+        },
+        "params": {}
+      },
+      "01HG2V2F000000000000000010": {
+        "id": "01HG2V2F000000000000000010",
+        "track": "01HG2V2F000000000000000005",
+        "order": "a0",
+        "name": "Delay",
+        "enabled": true,
+        "kind": {
+          "type": "Builtin",
+          "device": {
+            "type": "Delay"
+          }
+        },
+        "params": {
+          "4": 0.35
+        }
+      }
+    },
+    "sends": {
+      "01HG2V2F000000000000000018": {
+        "id": "01HG2V2F000000000000000018",
+        "from": "01HG2V2F000000000000000004",
+        "to": "01HG2V2F000000000000000005",
+        "level": -12.0,
+        "pre_fader": false
+      }
+    },
+    "automation_lanes": {
+      "01HG2V2F000000000000000019": {
+        "id": "01HG2V2F000000000000000019",
+        "owner": {
+          "type": "Track",
+          "track": "01HG2V2F000000000000000004"
+        },
+        "target": {
+          "type": "DeviceParam",
+          "device": "01HG2V2F000000000000000007",
+          "param": 2
+        },
+        "enabled": true
+      },
+      "01HG2V2F000000000000000020": {
+        "id": "01HG2V2F000000000000000020",
+        "owner": {
+          "type": "Clip",
+          "clip": "01HG2V2F000000000000000012"
+        },
+        "target": {
+          "type": "TrackPan",
+          "track": "01HG2V2F000000000000000004"
+        },
+        "enabled": true
+      }
+    },
+    "automation_points": {
+      "01HG2V2F000000000000000021": {
+        "id": "01HG2V2F000000000000000021",
+        "lane": "01HG2V2F000000000000000019",
+        "time": 0.0,
+        "value": 0.2,
+        "curve": {
+          "type": "Linear"
+        }
+      },
+      "01HG2V2F000000000000000022": {
+        "id": "01HG2V2F000000000000000022",
+        "lane": "01HG2V2F000000000000000019",
+        "time": 8.0,
+        "value": 0.9,
+        "curve": {
+          "type": "Curve",
+          "tension": 0.5
+        }
+      },
+      "01HG2V2F000000000000000023": {
+        "id": "01HG2V2F000000000000000023",
+        "lane": "01HG2V2F000000000000000020",
+        "time": 1.0,
+        "value": 0.5,
+        "curve": {
+          "type": "Step"
+        }
+      }
+    },
+    "tempo_points": {
+      "01HG2V2F000000000000000024": {
+        "id": "01HG2V2F000000000000000024",
+        "time": 0.0,
+        "bpm": 120.0,
+        "curve": "Step"
+      },
+      "01HG2V2F000000000000000025": {
+        "id": "01HG2V2F000000000000000025",
+        "time": 16.0,
+        "bpm": 132.5,
+        "curve": "Linear"
+      }
+    },
+    "time_signatures": {
+      "01HG2V2F000000000000000026": {
+        "id": "01HG2V2F000000000000000026",
+        "time": 0.0,
+        "signature": {
+          "numerator": 4,
+          "denominator": 4
+        }
+      },
+      "01HG2V2F000000000000000027": {
+        "id": "01HG2V2F000000000000000027",
+        "time": 16.0,
+        "signature": {
+          "numerator": 7,
+          "denominator": 8
+        }
+      }
+    },
+    "warp_markers": {
+      "01HG2V2F000000000000000016": {
+        "id": "01HG2V2F000000000000000016",
+        "clip": "01HG2V2F000000000000000011",
+        "beat": 0.0,
+        "source": 0.0
+      },
+      "01HG2V2F000000000000000017": {
+        "id": "01HG2V2F000000000000000017",
+        "clip": "01HG2V2F000000000000000011",
+        "beat": 4.0,
+        "source": 2.0
+      }
+    },
+    "media": {
+      "01HG2V2F000000000000000006": {
+        "id": "01HG2V2F000000000000000006",
+        "name": "kick.wav",
+        "file": "media/01HG2V2F000000000000000006-kick.wav",
+        "sample_rate": 44100,
+        "channels": 2,
+        "frames": 88200,
+        "hash": "d41d8cd98f00b204"
+      }
+    }
+  }
+}

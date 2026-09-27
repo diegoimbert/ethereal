@@ -58,6 +58,9 @@ describe("clipSourceMapper (mirrors ether-core warp::repitch_source_seconds)", (
     transpose,
     fade_in: 0,
     fade_out: 0,
+    fade_in_curve: { type: "Linear" },
+    fade_out_curve: { type: "Linear" },
+    reversed: false,
     warp,
   });
   const markers = [m(0, 0), m(4, 2)];

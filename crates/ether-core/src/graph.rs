@@ -6,7 +6,8 @@
 //! `MediaId` (sources registered with `EngineHandle::add_source`), never by pointer.
 
 use ether_protocol::model::{
-    AutomationTarget, ClipId, CurveShape, MediaId, ParamId, SendId, TrackId, TrackKind, WarpMode,
+    AutomationTarget, ClipId, CurveShape, DrumPadId, FadeCurve, MediaId, MetronomeSound, ParamId,
+    SendId, TrackId, TrackKind, WarpMode,
 };
 use std::collections::BTreeSet;
 
@@ -33,6 +34,9 @@ pub struct RenderGraphDesc {
     pub loop_start: f64,
     pub loop_end: f64,
     pub metronome: bool,
+    /// Roadmap v2 (`tempo-metronome`): how the click sounds when `metronome` is on.
+    #[serde(default)]
+    pub click: MetronomeDesc,
     /// All tracks incl. groups, returns and master. Order is irrelevant: the compiler
     /// topologically sorts by routing (outputs, sends, resampling inputs) and rejects cycles.
     pub tracks: Vec<TrackDesc>,
@@ -60,7 +64,8 @@ pub struct TrackDesc {
     pub pan: f32,
     pub mute: bool,
     pub solo: bool,
-    /// Hardware input channels monitored/recorded by this track, if any.
+    /// Hardware input channels monitored/recorded by this track, if any, as
+    /// `(first, count)` (`TrackInput::Audio`: count 1 = mono, 2 = stereo).
     pub audio_input: Option<(u16, u16)>,
     /// Effective monitoring (controller resolves Auto/In/Off + its runtime arm state).
     pub monitor: bool,
@@ -70,12 +75,78 @@ pub struct TrackDesc {
     pub clips: Vec<ClipDesc>,
     /// Arrangement automation of this track and its devices/sends.
     pub automation: Vec<AutomationDesc>,
+    /// Roadmap v2 (`drum-rack`): pad chains of the drum racks in `chain` (one entry per
+    /// rack device, keyed by the rack's node). Empty for tracks without racks.
+    #[serde(default)]
+    pub racks: Vec<RackDesc>,
+}
+
+/// Click settings (roadmap v2, `tempo-metronome`). The click is rendered by
+/// [`crate::metronome`] straight into the hardware output after master (not metered, never
+/// part of exports), on every beat while playing when `RenderGraphDesc::metronome` is on,
+/// and during a recording count-in regardless of it.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+pub struct MetronomeDesc {
+    /// Linear gain.
+    pub volume: f32,
+    /// Accent (higher/louder click) on the first beat of each bar.
+    pub accent: bool,
+    pub sound: MetronomeSound,
+    /// Recording count-in: while playing and recording with the position before this beat,
+    /// the click sounds even if the metronome is off. Set by the controller for the
+    /// duration of a record session's pre-roll (`recording` computes it:
+    /// `EtherController::recording` knows the record start), `None` otherwise.
+    #[serde(default)]
+    pub count_in_end: Option<f64>,
+}
+
+impl Default for MetronomeDesc {
+    fn default() -> Self {
+        Self {
+            volume: 0.5,
+            accent: true,
+            sound: MetronomeSound::Classic,
+            count_in_end: None,
+        }
+    }
+}
+
+/// A drum rack's pads (roadmap v2, `drum-rack`). When processing the chain entry whose
+/// node is `rack`, the engine routes the incoming note events to the pad chains by key
+/// (transposed to `ether_model::PAD_PLAY_NOTE`), applies choke groups, runs each pad chain
+/// (same rules as a track chain: bypass, latency, param events), mixes them through the
+/// pad's volume/pan/mute into the rack node's input, then runs the rack node itself. PDC
+/// inside a rack: every pad chain is delayed to the longest pad chain's latency, and the
+/// rack node reports that as part of its chain position (the controller adds it when
+/// computing `NodeInfo`).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct RackDesc {
+    pub rack: NodeKey,
+    pub pads: Vec<PadDesc>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct PadDesc {
+    pub pad: DrumPadId,
+    /// Incoming key that triggers the pad.
+    pub note: u8,
+    pub choke_group: Option<u8>,
+    pub chain: Vec<ChainEntry>,
+    /// Linear gain; pan -1..=1.
+    pub volume: f32,
+    pub pan: f32,
+    pub mute: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ChainEntry {
     pub node: NodeKey,
     pub enabled: bool,
+    /// Roadmap v2 (`sidechain`): the track whose post-fader output feeds this node's
+    /// sidechain input (`Node::process_sidechain`). The compiler orders `sidechain` before
+    /// this track (a routing edge) and aligns it for PDC (CONTRACTS.md §11.10).
+    #[serde(default)]
+    pub sidechain: Option<TrackId>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
@@ -116,6 +187,14 @@ pub enum ClipContentDesc {
         fade_in: f64,
         fade_out: f64,
         warp: Option<WarpDesc>,
+        /// Roadmap v2 (`clip-editing`): fade shapes (`crate::fades::fade_gain`) and reverse
+        /// playback (see `ether_model::AudioContent::reversed`).
+        #[serde(default)]
+        fade_in_curve: FadeCurve,
+        #[serde(default)]
+        fade_out_curve: FadeCurve,
+        #[serde(default)]
+        reversed: bool,
     },
 }
 

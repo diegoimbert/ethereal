@@ -215,6 +215,9 @@ pub(super) fn apply(ctx: &mut DocCtx, c: &ClipCommand) -> CmdResult<()> {
                     mode: WarpMode::Repitch,
                     source_bpm: None,
                 },
+                fade_in_curve: FadeCurve::Linear,
+                fade_out_curve: FadeCurve::Linear,
+                reversed: false,
             });
             check_fits(&t, &content)?;
             let clip = new_clip(*id, t.id, start, length, strip_extension(&m.name), content);
@@ -340,6 +343,9 @@ pub(super) fn apply(ctx: &mut DocCtx, c: &ClipCommand) -> CmdResult<()> {
             }
             ctx.set_clip(*id, ClipChange::Transpose(semitones.clamp(-48.0, 48.0)))
         }
+        ClipCommand::SetFadeCurves { .. }
+        | ClipCommand::SetReversed { .. }
+        | ClipCommand::Crossfade { .. } => crate::clip_editing::clip_command(ctx, c),
         ClipCommand::SetFades {
             id,
             fade_in,

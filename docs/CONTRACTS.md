@@ -97,7 +97,7 @@ Files: `ids.rs`, `value.rs`, `project.rs`, `track.rs`, `clip.rs`, `note.rs`, `au
   domain logic (`table[id] = value`). A gap in `revision` means the UI re-requests the
   project.
 - **`.ether` file.** Format: `{ format: "ethereal-project", version, app_version, project }`,
-  with `CURRENT_VERSION = 2`. Loading parses to `serde_json::Value`, runs `Migration`s up
+  with `CURRENT_VERSION = 3`. Loading parses to `serde_json::Value`, runs `Migration`s up
   to `CURRENT_VERSION`, deserializes, then calls `validate()`. `MediaRef.file` is always
   project-relative (`media/...`).
   - **v1 → v2 (`V1RemoveSession`)** removes the Session view data. Arrangement clips'
@@ -105,6 +105,8 @@ Files: `ids.rs`, `value.rs`, `project.rs`, `track.rs`, `clip.rs`, `note.rs`, `au
     dropped. Session clips (`location.type == "Session"`) are dropped together with their
     notes, warp markers and clip-envelope automation lanes (and those lanes' points).
     `project.scenes` and `settings.launch_quantization` are removed.
+  - **v2 → v3 (`V2RoadmapDefaults`, contracts-2)** adds the roadmap v2 tables and fields
+    with neutral defaults (§11.13); a migrated project sounds and behaves as before.
 
 ## 2b. Storage: engine-side only (decided)
 
@@ -141,7 +143,9 @@ machine than the engine, so the protocol never carries file-system paths.
 
 There is one file per domain: `transport`, `project` (also `EditCommand`), `tracks`,
 `clips`, `notes`, `automation`, `devices`, `mixer`, `plugins`, `recording`,
-`warp`, `media` (import, peaks, browser), `meters`, `engine` (audio config/status).
+`warp`, `media` (import, peaks, browser), `meters`, `engine` (audio config/status). Roadmap
+v2 adds `export`, `tempo`, `markers`, `midi_map`, `groove`, `drum_rack` (with slices),
+`collab` and `remote` (§11).
 `message.rs` wraps them:
 
 - **`ClientMessage { id, gesture?, command }`**, where
@@ -410,3 +414,164 @@ There is one file per domain: `transport`, `project` (also `EditCommand`), `trac
 `ether-protocol` has no owner after foundation, so everything in it is implemented now.
 That includes the normalized↔plain param mapping (`devices::scale_to_plain` /
 `scale_to_normalized`, with test vectors the UI mirrors).
+
+## 11. Roadmap v2 contracts (contracts-2)
+
+Frozen for the 12 roadmap feature nodes; per-node files and hook points are in
+[ROADMAP.md](ROADMAP.md). Everything is additive: v0.1 behaviour is unchanged until a node
+implements its part (its commands reply `Unsupported`, new devices are pass-through
+placeholders, new graph fields are empty or neutral). The MockTransport simulates all of it.
+
+Conventions kept: one protocol domain file per feature (`Command::{Export, Tempo, Marker,
+MidiMap, Groove, DrumRack, Slice, Collab}`), document edits are ops on normalized entity
+tables with field-level `Update`s, client-chosen ids, patches before replies.
+
+### 11.1 Export
+- `Export::Render { job, request }` replies `ExportStarted`; progress, done, failed and
+  cancelled arrive as `Event::Export`. One job at a time. `ExportRequest { range: Loop |
+  Project | Custom, format { Wav | Flac, Int16 | Int24 | Float32 (not FLAC), sample_rate },
+  mode: Mix | Stems { tracks }, normalize, tail_seconds, name }`.
+- Rendering uses `ether_core::offline::OfflineRenderer` (a private engine on the controller
+  thread) with fresh nodes, never the live ones. The metronome is never rendered. Stems are
+  one pass per track: that track's post-fader output into master, sends included, master
+  chain excluded.
+- No UI paths: native writes `<project>/exports/<file>` (`ExportResult::Files`, project
+  relative); web and remote return `Download` tokens read with `Export::ReadChunk` →
+  `ReplyValue::Bytes` (base64, or binary frames over WebSocket) and dropped by `Release`.
+- Plugins offline: `EngineBridge::create_offline_plugin` (defaulted `Unsupported`, which
+  bypasses the plugin with a warning).
+
+### 11.2 New built-in devices
+`BuiltinDevice::{Eq, Reverb, Limiter, Utility, DrumRack}`. `BuiltinDeviceType::ALL` is the
+`ListBuiltin` order and `BuiltinDevice::new(ty)` builds defaults. Param lists belong to the
+owning node (append-only ids). `DeviceDescriptor::sidechain_inputs` (0 = none) is new on
+every descriptor.
+
+### 11.3 Tempo map and metronome
+- `TempoCommand`: tempo-point and time-signature CRUD (the points at beat 0 can't be
+  removed or moved), `SetMetronomeSettings { volume, accent, sound }` (partial). Undoable.
+- Settings: `metronome_volume` (dB), `metronome_accent`, `metronome_sound: Classic | Wood |
+  Beep`. The on/off switch stays `metronome` / `Transport::SetMetronome`.
+- Engine: `RenderGraphDesc::click: MetronomeDesc { volume (linear), accent, sound,
+  count_in_end }`. The click goes to the hardware output after master (not metered, never
+  exported) while playing with `metronome` on, and during a recording count-in (`recording`
+  and position `< count_in_end`) regardless of `metronome`. Hook:
+  `ether_core::metronome::Metronome::render`, one call per sub-block in `engine.rs`.
+
+### 11.4 Clip editing
+- `AudioContent::{fade_in_curve, fade_out_curve}: FadeCurve { Linear | EqualPower |
+  Curve { tension } }` and `AudioContent::reversed`. The fade law is
+  `ether_core::fades::fade_gain` (fade-outs mirror it in time), mirrored in
+  `ui/src/features/clip-editing/fades.ts`. Fades stay audio-only and clip gain stays
+  `AudioContent::gain`.
+- **Crossfades.** Edits keep clips on a track from overlapping, except a crossfade overlap:
+  the earlier clip ends inside the later one by at most both `A.fade_out` and `B.fade_in`.
+  The engine sums clips, so a crossfade is two overlapping fades; `ClipCommand::Crossfade`
+  creates one. Overlaps are not a model invariant.
+- **Reverse.** The clip behaves as if its media were reversed; offset, loop and warp markers
+  are expressed on that reversed timeline.
+- `Marker { id, position, name, color }` + `MarkerCommand`; jump with `Transport::Locate`.
+
+### 11.5 Remote engine (WebSocket)
+`ether_protocol::remote`: the first text frame is `ClientHello { protocol_version, token,
+client }`, answered by `ServerHello::Welcome { server: ServerInfo, session }` or
+`Rejected { reason, message }` (then close 4001/4002). After that, text frames are
+`ClientMessage`/`ServerMessage` JSON, and binary frames
+`[kind u8][header_len u32 LE][header JSON][payload]` carry bulk bytes (`Bytes`: the
+message's base64 `data` field travels raw; `Peaks`: f32 min/max arrays). The JSON forms stay
+valid on every transport. Token auth (no token only on loopback). Uploads: `BeginUpload` →
+ordered `UploadChunk`s → `Import { source: Upload }`, plus `CancelUpload` and
+`MediaEvent::UploadProgress`. `ether-server` (headless native host) and
+`ui/src/transport/ws/WsTransport` are stubs; the frame codec is implemented on both sides.
+
+### 11.6 Collaboration (reserved)
+Model: `SiteId` (u64 as a decimal string), `ActorId`, `OpOrigin { site, actor, seq }`,
+`StampedTransaction`. Protocol: `CollabCommand` (Join, Leave, SetPresence), `CollabEvent`
+(Session, Presence), `Presence`/`PresenceState`, and the engine-to-engine `CollabMessage`
+(Hello, Transaction, Update, SyncRequest, Snapshot, Presence, Leave). Everything replies
+`Unsupported`; the `collab` node refines it through BCRs. Remote edits will reach UIs as
+ordinary patches, and undo stays per site.
+
+### 11.7 Multicore partition contract
+`EngineConfig::worker_threads` (0 = everything on the audio thread, the default). The core
+never spawns threads; hosts supply an RT-safe `parallel::ParallelExecutor`. The snapshot is
+partitioned into DAG levels (routing, sends, resampling inputs, sidechains). Tracks of one
+level run as independent jobs (clips → automation → chain → fader → meters, into their own
+buffers). Bus mixing happens after each level on the audio thread in a fixed order, so the
+output is bit-identical to sequential processing. Each node belongs to one chain, so jobs
+need no locks.
+
+### 11.8 Web perf: graph codec
+`ether_core::codec::GraphCodec { encode, decode }` for the Worker → Worklet snapshot: exact
+round trip, version byte first, unknown versions rejected (`CodecError::Version`), decoding
+off the audio thread.
+
+### 11.9 MIDI learn
+`MidiMapping { id, source: MidiSource { port?, channel?, control: Cc | Note | PitchBend },
+target: Param { AutomationTarget } | TrackMute | TrackSolo | TrackArm | Transport { action },
+min, max (normalized; min > max inverts), mode: Absolute | Relative { encoding } | Toggle }`.
+One mapping per source, saved in the document. `MidiMapCommand::{Map, Edit, Unmap}` are
+undoable; `Learn { target? }` (runtime, `MidiMapEvent::LearnChanged`/`Learned`) and `List`
+(`ReplyValue::MidiMappings`) are not. Host input: `MidiInputEvent { port, data: [u8; 3],
+time_ms }` through `EngineBridge::poll_midi_input`, fed natively from the recording node's
+MIDI input path (its `LiveMidi` callback, extended with the port id). Mapped messages become
+ordinary edits at tick rate (one gesture per control) and still reach monitored tracks.
+
+### 11.10 Sidechain
+`Device::sidechain: Option<TrackId>`, `DeviceCommand::SetSidechain`, `ChainEntry::sidechain`,
+`Node::{sidechain_inputs, process_sidechain}` (defaulted).
+- Tap: the source track's **post-fader** output (after its PDC output delay).
+- Order: a sidechain is a routing edge `source → consumer track`. The model rejects cycles
+  and the compiler orders the source first.
+- PDC: the sidechain must reach device *k* of track T aligned with T's main signal there.
+  With `L_main(k) = in_lat(T) + Σ latency(chain[..k])` and `L_sc = out_lat(source)`: if
+  `L_sc < L_main(k)` the sidechain is delayed by the difference; if `L_sc > L_main(k)`, the
+  sidechain counts as an input of T when computing `in_lat(T)` (raised to
+  `L_sc − Σ latency(chain[..k])`), so it is never late. T's output latency grows and
+  downstream PDC absorbs it.
+
+### 11.11 Groove
+`NoteCommand::Quantize::swing` (0..=1, destructive: odd grid positions are delayed by
+`swing·grid/3`). `GrooveCommand::Humanize { clip, notes?, timing, velocity, seed }` is
+deterministic from `seed`. `GrooveCommand::SetSwing` sets `ProjectSettings::{swing,
+swing_grid}`, a non-destructive **playback** groove the controller applies when compiling
+MIDI clips (`groove::swing_notes`).
+
+### 11.12 Drum rack and slicing
+- `BuiltinDevice::DrumRack` sits on a track chain. `DrumPad { id, rack, note (unique per
+  rack), name, color, choke_group (1..=16), volume, pan, mute }`. Pad chains are devices
+  with `Device::pad = Some(pad)` on the rack's track (no nested racks).
+  `Project::devices_of` excludes them and `pad_devices_of` lists them. Removal order: pad
+  devices, pad, rack (the controller cascades).
+- Engine: `TrackDesc::racks: Vec<RackDesc { rack: NodeKey, pads: Vec<PadDesc> }>`. At the
+  rack's chain entry the engine routes notes by key to pads (transposed to
+  `PAD_PLAY_NOTE` = 60), applies choke groups, runs the pad chains (PDC-aligned to the
+  longest), mixes them (volume/pan/mute) and runs the rack node.
+- Slicing: `BuiltinDevice::Sampler { sample, slices: SliceSettings { enabled, base_note,
+  markers } }`. The data travels with the node (the controller re-creates it on change).
+  `SliceCommand` edits markers by sorted index (a single LWW register, like other device
+  kind data); `ToDrumRack` turns slices into sampler pads.
+
+### 11.13 `.ether` v3 defaults
+Tables `markers`, `midi_mappings` and `drum_pads` start empty. Settings: `metronome_volume`
+-6 dB, `metronome_accent` true, `metronome_sound` Classic, `swing` 0, `swing_grid` 0.25.
+Devices: `sidechain` and `pad` null; samplers get `slices` off (base note 36). Audio clips:
+fade curves Linear, `reversed` false. Tested on a realistic v2 fixture
+(`ether-model/tests/fixtures/v2_full.ether`).
+
+### 11.14 Choices worth reviewing
+1. **Fade curves are separate fields** next to the existing `fade_in`/`fade_out` lengths
+   instead of a nested `{ length, curve }`, and gain/fades stay on `AudioContent`. This is
+   purely additive for the engine (`ClipContentDesc` keeps its fields) and for merged code.
+2. **Slices live in the sampler's device kind**, not as entities, so they reach the engine
+   with the node on both hosts. Edits address markers by index.
+3. **Pad chains reuse `Device`** with a `pad` parent pointer instead of a second device
+   table, so params, automation, plugins and MIDI mapping work on pad devices unchanged.
+4. **`sidechain_inputs` is on every descriptor**, touching every descriptor literal once now
+   so feature nodes don't have to.
+5. **Project swing is a playback groove** compiled by the controller; `Quantize::swing` is
+   the destructive variant.
+6. **MIDI mappings are document entities** (saved and undoable, like Ableton); learn mode is
+   runtime state.
+7. `PatchChange` allows `clippy::large_enum_variant`: entities got larger, and boxing them
+   would only add allocations.

@@ -30,6 +30,12 @@ export const TABLE_OF = {
   TimeSignature: "time_signatures",
   WarpMarker: "warp_markers",
   Media: "media",
+  // Roadmap v2. Pads come after their rack devices; pad-chain devices share the Device
+  // table (a full dump that must be strictly ordered should emit rack devices, pads, then
+  // pad devices, like Rust `Project::entities`).
+  DrumPad: "drum_pads",
+  Marker: "markers",
+  MidiMapping: "midi_mappings",
 } as const satisfies Record<EntityType, keyof Project>;
 
 /** Every entity type, parents before children (useful for ordered full-state dumps). */

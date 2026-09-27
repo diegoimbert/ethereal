@@ -188,6 +188,8 @@ describe("PluginDeviceControls", () => {
       plugin: { format: "Clap", plugin_id: VERB.id, name: "Verb", vendor: "Acme", version: "1", sandboxed, state: null },
     },
     params: {},
+    sidechain: null,
+    pad: null,
   });
 
   it("renders nothing for built-in devices", async () => {

@@ -3,4 +3,4 @@
 /**
  * Data-less discriminant of [`BuiltinDevice`] (used in descriptors and factories).
  */
-export type BuiltinDeviceType = "Synth" | "Sampler" | "Compressor" | "Delay";
+export type BuiltinDeviceType = "Synth" | "Sampler" | "Compressor" | "Delay" | "Eq" | "Reverb" | "Limiter" | "Utility" | "DrumRack";

@@ -3,7 +3,10 @@ import type { AutomationLaneId } from "./AutomationLaneId";
 import type { AutomationPointId } from "./AutomationPointId";
 import type { ClipId } from "./ClipId";
 import type { DeviceId } from "./DeviceId";
+import type { DrumPadId } from "./DrumPadId";
+import type { MarkerId } from "./MarkerId";
 import type { MediaId } from "./MediaId";
+import type { MidiMappingId } from "./MidiMappingId";
 import type { NoteId } from "./NoteId";
 import type { SendId } from "./SendId";
 import type { TempoPointId } from "./TempoPointId";
@@ -14,4 +17,4 @@ import type { WarpMarkerId } from "./WarpMarkerId";
 /**
  * The key of any entity.
  */
-export type EntityKey = { "type": "Track", "id": TrackId } | { "type": "Clip", "id": ClipId } | { "type": "Note", "id": NoteId } | { "type": "Device", "id": DeviceId } | { "type": "Send", "id": SendId } | { "type": "AutomationLane", "id": AutomationLaneId } | { "type": "AutomationPoint", "id": AutomationPointId } | { "type": "TempoPoint", "id": TempoPointId } | { "type": "TimeSignature", "id": TimeSignatureId } | { "type": "WarpMarker", "id": WarpMarkerId } | { "type": "Media", "id": MediaId };
+export type EntityKey = { "type": "Track", "id": TrackId } | { "type": "Clip", "id": ClipId } | { "type": "Note", "id": NoteId } | { "type": "Device", "id": DeviceId } | { "type": "Send", "id": SendId } | { "type": "AutomationLane", "id": AutomationLaneId } | { "type": "AutomationPoint", "id": AutomationPointId } | { "type": "TempoPoint", "id": TempoPointId } | { "type": "TimeSignature", "id": TimeSignatureId } | { "type": "WarpMarker", "id": WarpMarkerId } | { "type": "Media", "id": MediaId } | { "type": "Marker", "id": MarkerId } | { "type": "MidiMapping", "id": MidiMappingId } | { "type": "DrumPad", "id": DrumPadId };

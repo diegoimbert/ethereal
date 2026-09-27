@@ -28,7 +28,10 @@ macro_rules! tables {
             TempoPoint => tempo_points,
             TimeSignature => time_signatures,
             WarpMarker => warp_markers,
-            Media => media
+            Media => media,
+            Marker => markers,
+            MidiMapping => midi_mappings,
+            DrumPad => drum_pads
         }
     };
 }
@@ -106,7 +109,54 @@ pub(crate) fn check_settings(s: &ProjectSettings) -> Result<(), ModelError> {
     if !(finite(r.end.0) && r.end.0 > r.start.0) {
         return Err(invalid("loop region end must be after its start"));
     }
+    check_db("metronome volume", s.metronome_volume)?;
+    check_unit("swing", f64::from(s.swing))?;
+    if !(finite(s.swing_grid.0) && s.swing_grid.0 > 0.0) {
+        return Err(invalid("swing grid must be > 0"));
+    }
     Ok(())
+}
+
+fn check_tension(t: f32) -> Result<(), ModelError> {
+    if !(-1.0..=1.0).contains(&t) {
+        return Err(invalid("curve tension must be in -1..=1"));
+    }
+    Ok(())
+}
+
+fn check_fade_curve(c: FadeCurve) -> Result<(), ModelError> {
+    match c {
+        FadeCurve::Curve { tension } => check_tension(tension),
+        FadeCurve::Linear | FadeCurve::EqualPower => Ok(()),
+    }
+}
+
+fn check_slices(s: &SliceSettings) -> Result<(), ModelError> {
+    if s.base_note > 127 {
+        return Err(invalid("slice base note must be 0..=127"));
+    }
+    let mut prev = -1.0;
+    for m in &s.markers {
+        if !(finite(m.0) && m.0 >= 0.0 && m.0 > prev) {
+            return Err(invalid(
+                "slice markers must be finite, >= 0, sorted and distinct",
+            ));
+        }
+        prev = m.0;
+    }
+    Ok(())
+}
+
+fn check_midi_source(s: &MidiSource) -> Result<(), ModelError> {
+    if s.channel.is_some_and(|c| c > 15) {
+        return Err(invalid("MIDI channel must be 0..=15"));
+    }
+    match s.control {
+        MidiControl::Cc { number: n } | MidiControl::Note { key: n } if n > 127 => {
+            Err(invalid("MIDI controller/note number must be 0..=127"))
+        }
+        _ => Ok(()),
+    }
 }
 
 fn check_media_path(file: &str) -> Result<(), ModelError> {
@@ -122,6 +172,29 @@ fn check_media_path(file: &str) -> Result<(), ModelError> {
         )));
     }
     Ok(())
+}
+
+fn is_drum_rack(kind: &DeviceKind) -> bool {
+    matches!(
+        kind,
+        DeviceKind::Builtin {
+            device: BuiltinDevice::DrumRack
+        }
+    )
+}
+
+/// `true` if a MIDI mapping target references `track` directly.
+fn mapping_refs_track(target: &MidiMapTarget, track: TrackId) -> bool {
+    match target {
+        MidiMapTarget::Param {
+            target:
+                AutomationTarget::TrackVolume { track: t } | AutomationTarget::TrackPan { track: t },
+        }
+        | MidiMapTarget::TrackMute { track: t }
+        | MidiMapTarget::TrackSolo { track: t }
+        | MidiMapTarget::TrackArm { track: t } => *t == track,
+        _ => false,
+    }
 }
 
 /// Swap `$field` with `$new` and return the old value wrapped in `$variant`.
@@ -170,6 +243,9 @@ fn update_clip(c: &mut Clip, ch: ClipChange) -> Result<ClipChange, ModelError> {
         C::FadeIn(v) => swap!(C::FadeIn, audio(c)?.fade_in, v),
         C::FadeOut(v) => swap!(C::FadeOut, audio(c)?.fade_out, v),
         C::Warp(v) => swap!(C::Warp, audio(c)?.warp, v),
+        C::FadeInCurve(v) => swap!(C::FadeInCurve, audio(c)?.fade_in_curve, v),
+        C::FadeOutCurve(v) => swap!(C::FadeOutCurve, audio(c)?.fade_out_curve, v),
+        C::Reversed(v) => swap!(C::Reversed, audio(c)?.reversed, v),
     })
 }
 
@@ -231,6 +307,8 @@ fn update_device(d: &mut Device, c: DeviceChange) -> Result<DeviceChange, ModelE
                 return Err(invalid("DeviceChange::Plugin on a built-in device"));
             }
         },
+        C::Sidechain(v) => swap!(C::Sidechain, d.sidechain, v),
+        C::Pad(v) => swap!(C::Pad, d.pad, v),
     })
 }
 
@@ -299,6 +377,42 @@ fn update_media(m: &mut MediaRef, c: MediaChange) -> Result<MediaChange, ModelEr
     })
 }
 
+fn update_marker(m: &mut Marker, c: MarkerChange) -> Result<MarkerChange, ModelError> {
+    use MarkerChange as C;
+    Ok(match c {
+        C::Position(v) => swap!(C::Position, m.position, v),
+        C::Name(v) => swap!(C::Name, m.name, v),
+        C::Color(v) => swap!(C::Color, m.color, v),
+    })
+}
+
+fn update_mapping(
+    m: &mut MidiMapping,
+    c: MidiMappingChange,
+) -> Result<MidiMappingChange, ModelError> {
+    use MidiMappingChange as C;
+    Ok(match c {
+        C::Source(v) => swap!(C::Source, m.source, v),
+        C::Target(v) => swap!(C::Target, m.target, v),
+        C::Min(v) => swap!(C::Min, m.min, v),
+        C::Max(v) => swap!(C::Max, m.max, v),
+        C::Mode(v) => swap!(C::Mode, m.mode, v),
+    })
+}
+
+fn update_pad(p: &mut DrumPad, c: DrumPadChange) -> Result<DrumPadChange, ModelError> {
+    use DrumPadChange as C;
+    Ok(match c {
+        C::Note(v) => swap!(C::Note, p.note, v),
+        C::Name(v) => swap!(C::Name, p.name, v),
+        C::Color(v) => swap!(C::Color, p.color, v),
+        C::ChokeGroup(v) => swap!(C::ChokeGroup, p.choke_group, v),
+        C::Volume(v) => swap!(C::Volume, p.volume, v),
+        C::Pan(v) => swap!(C::Pan, p.pan, v),
+        C::Mute(v) => swap!(C::Mute, p.mute, v),
+    })
+}
+
 fn apply_settings(s: &mut ProjectSettings, c: SettingsChange) -> SettingsChange {
     use SettingsChange as C;
     match c {
@@ -307,6 +421,11 @@ fn apply_settings(s: &mut ProjectSettings, c: SettingsChange) -> SettingsChange 
         C::LoopRegion(v) => swap!(C::LoopRegion, s.loop_region, v),
         C::Metronome(v) => swap!(C::Metronome, s.metronome, v),
         C::CountInBars(v) => swap!(C::CountInBars, s.count_in_bars, v),
+        C::MetronomeVolume(v) => swap!(C::MetronomeVolume, s.metronome_volume, v),
+        C::MetronomeAccent(v) => swap!(C::MetronomeAccent, s.metronome_accent, v),
+        C::MetronomeSound(v) => swap!(C::MetronomeSound, s.metronome_sound, v),
+        C::Swing(v) => swap!(C::Swing, s.swing, v),
+        C::SwingGrid(v) => swap!(C::SwingGrid, s.swing_grid, v),
     }
 }
 
@@ -325,6 +444,9 @@ impl EntityUpdate {
             Self::TimeSignature { id, .. } => EntityKey::TimeSignature(*id),
             Self::WarpMarker { id, .. } => EntityKey::WarpMarker(*id),
             Self::Media { id, .. } => EntityKey::Media(*id),
+            Self::Marker { id, .. } => EntityKey::Marker(*id),
+            Self::MidiMapping { id, .. } => EntityKey::MidiMapping(*id),
+            Self::DrumPad { id, .. } => EntityKey::DrumPad(*id),
         }
     }
 }
@@ -461,6 +583,21 @@ impl Project {
                         id,
                         change: update_media(self.media.get_mut(&id).ok_or_else(nf)?, change)?,
                     },
+                    U::Marker { id, change } => U::Marker {
+                        id,
+                        change: update_marker(self.markers.get_mut(&id).ok_or_else(nf)?, change)?,
+                    },
+                    U::MidiMapping { id, change } => U::MidiMapping {
+                        id,
+                        change: update_mapping(
+                            self.midi_mappings.get_mut(&id).ok_or_else(nf)?,
+                            change,
+                        )?,
+                    },
+                    U::DrumPad { id, change } => U::DrumPad {
+                        id,
+                        change: update_pad(self.drum_pads.get_mut(&id).ok_or_else(nf)?, change)?,
+                    },
                 };
                 Ok(Op::Update { update: inverse })
             }
@@ -529,7 +666,8 @@ impl Project {
     /// Document-wide invariants an op on `key`'s table can break.
     fn check_globals(&self, key: EntityKey) -> Result<(), ModelError> {
         match key {
-            EntityKey::Track(_) | EntityKey::Send(_) => self.check_routing(),
+            // Devices: sidechain edges are routing edges.
+            EntityKey::Track(_) | EntityKey::Send(_) | EntityKey::Device(_) => self.check_routing(),
             EntityKey::TempoPoint(_) => {
                 if !self
                     .tempo_points
@@ -605,10 +743,36 @@ impl Project {
                     return Err(invalid("device param values must be finite"));
                 }
                 if let DeviceKind::Builtin {
-                    device: BuiltinDevice::Sampler { sample: Some(m) },
+                    device: BuiltinDevice::Sampler { sample, slices },
                 } = &d.kind
                 {
-                    self.require(key, EntityKey::Media(*m))?;
+                    if let Some(m) = sample {
+                        self.require(key, EntityKey::Media(*m))?;
+                    }
+                    check_slices(slices)?;
+                }
+                if let Some(src) = d.sidechain {
+                    self.require_track(key, src)?;
+                    if src == d.track {
+                        return Err(invariant("a device cannot sidechain its own track"));
+                    }
+                }
+                if let Some(pad) = d.pad {
+                    let pad = self
+                        .drum_pads
+                        .get(&pad)
+                        .ok_or(ModelError::DanglingReference {
+                            entity: key,
+                            missing: EntityKey::DrumPad(pad),
+                        })?;
+                    if self.devices.get(&pad.rack).map(|r| r.track) != Some(d.track) {
+                        return Err(invariant(
+                            "a pad device must be on the same track as its drum rack",
+                        ));
+                    }
+                    if is_drum_rack(&d.kind) {
+                        return Err(invariant("drum racks cannot be nested in pads"));
+                    }
                 }
                 Ok(())
             }
@@ -632,28 +796,15 @@ impl Project {
                     }
                     AutomationOwner::Clip { clip } => self.require(key, EntityKey::Clip(clip))?,
                 }
-                match l.target {
-                    AutomationTarget::TrackVolume { track }
-                    | AutomationTarget::TrackPan { track } => {
-                        self.require(key, EntityKey::Track(track))
-                    }
-                    AutomationTarget::SendLevel { send } => {
-                        self.require(key, EntityKey::Send(send))
-                    }
-                    AutomationTarget::DeviceParam { device, .. } => {
-                        self.require(key, EntityKey::Device(device))
-                    }
-                }
+                self.check_target(key, &l.target)
             }
             EntityKey::AutomationPoint(id) => {
                 let p = &self.automation_points[&id];
                 self.require(key, EntityKey::AutomationLane(p.lane))?;
                 check_beats_nonneg("automation point time", p.time)?;
                 check_unit("automation value", p.value)?;
-                if let CurveShape::Curve { tension } = p.curve
-                    && !(-1.0..=1.0).contains(&tension)
-                {
-                    return Err(invalid("curve tension must be in -1..=1"));
+                if let CurveShape::Curve { tension } = p.curve {
+                    check_tension(tension)?;
                 }
                 Ok(())
             }
@@ -691,6 +842,91 @@ impl Project {
                     return Err(invalid("media needs a sample rate and channels"));
                 }
                 Ok(())
+            }
+            EntityKey::Marker(id) => {
+                let m = &self.markers[&id];
+                check_beats_nonneg("marker position", m.position)?;
+                if let Some(c) = m.color {
+                    check_color(c)?;
+                }
+                Ok(())
+            }
+            EntityKey::MidiMapping(id) => self.check_mapping(&self.midi_mappings[&id]),
+            EntityKey::DrumPad(id) => self.check_pad(&self.drum_pads[&id]),
+        }
+    }
+
+    fn check_pad(&self, p: &DrumPad) -> Result<(), ModelError> {
+        let key = EntityKey::DrumPad(p.id);
+        let rack = self
+            .devices
+            .get(&p.rack)
+            .ok_or(ModelError::DanglingReference {
+                entity: key,
+                missing: EntityKey::Device(p.rack),
+            })?;
+        if !is_drum_rack(&rack.kind) || rack.pad.is_some() {
+            return Err(invariant(
+                "drum pads belong to a drum rack on a track chain",
+            ));
+        }
+        if p.note > 127 {
+            return Err(invalid("pad note must be 0..=127"));
+        }
+        if p.choke_group.is_some_and(|g| g == 0 || g > MAX_CHOKE_GROUP) {
+            return Err(invalid(format!(
+                "choke group must be 1..={MAX_CHOKE_GROUP}"
+            )));
+        }
+        if let Some(c) = p.color {
+            check_color(c)?;
+        }
+        check_db("pad volume", p.volume)?;
+        if !(-1.0..=1.0).contains(&p.pan.0) {
+            return Err(invalid("pan must be in -1..=1"));
+        }
+        if self
+            .drum_pads
+            .values()
+            .any(|o| o.id != p.id && o.rack == p.rack && o.note == p.note)
+        {
+            return Err(invariant("two pads of a drum rack share a note"));
+        }
+        Ok(())
+    }
+
+    fn check_mapping(&self, m: &MidiMapping) -> Result<(), ModelError> {
+        let key = EntityKey::MidiMapping(m.id);
+        check_midi_source(&m.source)?;
+        check_unit("mapping min", m.min)?;
+        check_unit("mapping max", m.max)?;
+        match &m.target {
+            MidiMapTarget::Param { target } => self.check_target(key, target)?,
+            MidiMapTarget::TrackMute { track }
+            | MidiMapTarget::TrackSolo { track }
+            | MidiMapTarget::TrackArm { track } => {
+                self.require_track(key, *track)?;
+            }
+            MidiMapTarget::Transport { .. } => {}
+        }
+        if self
+            .midi_mappings
+            .values()
+            .any(|o| o.id != m.id && o.source == m.source)
+        {
+            return Err(invariant("two MIDI mappings share a source"));
+        }
+        Ok(())
+    }
+
+    fn check_target(&self, key: EntityKey, target: &AutomationTarget) -> Result<(), ModelError> {
+        match *target {
+            AutomationTarget::TrackVolume { track } | AutomationTarget::TrackPan { track } => {
+                self.require(key, EntityKey::Track(track))
+            }
+            AutomationTarget::SendLevel { send } => self.require(key, EntityKey::Send(send)),
+            AutomationTarget::DeviceParam { device, .. } => {
+                self.require(key, EntityKey::Device(device))
             }
         }
     }
@@ -772,6 +1008,8 @@ impl Project {
                 }
                 check_beats_nonneg("fade in", a.fade_in)?;
                 check_beats_nonneg("fade out", a.fade_out)?;
+                check_fade_curve(a.fade_in_curve)?;
+                check_fade_curve(a.fade_out_curve)?;
                 if a.warp.source_bpm.is_some_and(|b| check_bpm(b).is_err()) {
                     return Err(invalid("invalid source bpm"));
                 }
@@ -822,6 +1060,12 @@ impl Project {
         }
         for s in self.sends.values() {
             edges.entry(s.from).or_default().push(s.to);
+        }
+        // A sidechain source is rendered before the track whose device listens to it.
+        for d in self.devices.values() {
+            if let Some(src) = d.sidechain {
+                edges.entry(src).or_default().push(d.track);
+            }
         }
         // 0 = unvisited, 1 = on stack, 2 = done. Iterative DFS.
         let mut state: BTreeMap<TrackId, u8> = BTreeMap::new();
@@ -896,6 +1140,18 @@ impl Project {
                                 )
                         })
                         .map(|l| EntityKey::AutomationLane(l.id))
+                })
+                .or_else(|| {
+                    self.devices
+                        .values()
+                        .find(|d| d.sidechain == Some(id))
+                        .map(|d| EntityKey::Device(d.id))
+                })
+                .or_else(|| {
+                    self.midi_mappings
+                        .values()
+                        .find(|m| mapping_refs_track(&m.target, id))
+                        .map(|m| EntityKey::MidiMapping(m.id))
                 }),
             EntityKey::Clip(id) => self
                 .notes
@@ -918,12 +1174,35 @@ impl Project {
                 .automation_lanes
                 .values()
                 .find(|l| matches!(l.target, AutomationTarget::DeviceParam { device, .. } if device == id))
-                .map(|l| EntityKey::AutomationLane(l.id)),
+                .map(|l| EntityKey::AutomationLane(l.id))
+                .or_else(|| {
+                    self.drum_pads
+                        .values()
+                        .find(|p| p.rack == id)
+                        .map(|p| EntityKey::DrumPad(p.id))
+                })
+                .or_else(|| {
+                    self.midi_mappings
+                        .values()
+                        .find(|m| matches!(&m.target, MidiMapTarget::Param { target: AutomationTarget::DeviceParam { device, .. } } if *device == id))
+                        .map(|m| EntityKey::MidiMapping(m.id))
+                }),
             EntityKey::Send(id) => self
                 .automation_lanes
                 .values()
                 .find(|l| matches!(l.target, AutomationTarget::SendLevel { send } if send == id))
-                .map(|l| EntityKey::AutomationLane(l.id)),
+                .map(|l| EntityKey::AutomationLane(l.id))
+                .or_else(|| {
+                    self.midi_mappings
+                        .values()
+                        .find(|m| matches!(&m.target, MidiMapTarget::Param { target: AutomationTarget::SendLevel { send } } if *send == id))
+                        .map(|m| EntityKey::MidiMapping(m.id))
+                }),
+            EntityKey::DrumPad(id) => self
+                .devices
+                .values()
+                .find(|d| d.pad == Some(id))
+                .map(|d| EntityKey::Device(d.id)),
             EntityKey::AutomationLane(id) => self
                 .automation_points
                 .values()
@@ -940,7 +1219,7 @@ impl Project {
                         .find(|d| {
                             matches!(
                                 &d.kind,
-                                DeviceKind::Builtin { device: BuiltinDevice::Sampler { sample: Some(m) } } if *m == id
+                                DeviceKind::Builtin { device: BuiltinDevice::Sampler { sample: Some(m), .. } } if *m == id
                             )
                         })
                         .map(|d| EntityKey::Device(d.id))
@@ -949,7 +1228,9 @@ impl Project {
             | EntityKey::AutomationPoint(_)
             | EntityKey::TempoPoint(_)
             | EntityKey::TimeSignature(_)
-            | EntityKey::WarpMarker(_) => None,
+            | EntityKey::WarpMarker(_)
+            | EntityKey::Marker(_)
+            | EntityKey::MidiMapping(_) => None,
         }
     }
 

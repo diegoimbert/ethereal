@@ -135,6 +135,8 @@ mod tests {
                 },
             },
             params: BTreeMap::from([(ParamId(1), 0.5)]),
+            sidechain: None,
+            pad: None,
         }
     }
 
