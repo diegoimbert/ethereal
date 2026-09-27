@@ -195,6 +195,11 @@ paths = [
   "ui/src/features/kit-gallery/**",
   "docs/DESIGN-SYSTEM.md",
   "ui/src/main.tsx",
+  # granted by manager (review follow-ups, base-15)
+  "ui/vite.config.ts",
+  "justfile",
+  "ui/src/features/mixer/**",
+  "ui/src/app/App.tsx",
 ]
 
 [nodes.ci-release]
