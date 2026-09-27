@@ -54,4 +54,16 @@ describe("MockTransport clipEditing", () => {
       f.mock.send(cmd("Clip", { type: "Crossfade", first: bId, second: a.id, length: 1, curve: { type: "Linear" } })),
     ).rejects.toThrow();
   });
+
+  it("overlap trimming keeps crossfades", async () => {
+    const a = drumClip();
+    const bId = newId();
+    await f.mock.send(cmd("Clip", { type: "Split", id: a.id, at: 8, new_id: bId }));
+    await f.mock.send(cmd("Clip", { type: "Crossfade", first: a.id, second: bId, length: 1, curve: { type: "Linear" } }));
+    await f.mock.send(cmd("Clip", { type: "SetBounds", id: a.id, start: 0, length: 8.2, offset: 0 }));
+    expect(project(f).clips[bId]).toMatchObject({ start: 7.5, length: 8.5 });
+    // Beyond the fades it trims as before.
+    await f.mock.send(cmd("Clip", { type: "SetBounds", id: a.id, start: 0, length: 10, offset: 0 }));
+    expect(project(f).clips[bId]).toMatchObject({ start: 10, length: 6 });
+  });
 });
