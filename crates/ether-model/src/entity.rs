@@ -15,6 +15,7 @@ use crate::mixer::TrackSend;
 use crate::modulation::{ModMapping, Modulator};
 use crate::note::Note;
 use crate::rack::RackChain;
+use crate::social::{ChatMessage, PinnedNote};
 use crate::take::{CompRegion, TakeLane};
 use crate::tempo::{TempoPoint, TimeSignaturePoint};
 use crate::track::Track;
@@ -47,6 +48,9 @@ pub enum Entity {
     RackChain(RackChain),
     Modulator(Modulator),
     ModMapping(ModMapping),
+    // --- base-62 (`collab-social`, `.ether` v4) ---
+    ChatMessage(ChatMessage),
+    PinnedNote(PinnedNote),
 }
 
 /// The key of any entity.
@@ -72,6 +76,8 @@ pub enum EntityKey {
     RackChain(RackChainId),
     Modulator(ModulatorId),
     ModMapping(ModMappingId),
+    ChatMessage(ChatMessageId),
+    PinnedNote(PinnedNoteId),
 }
 
 impl Entity {
@@ -96,6 +102,8 @@ impl Entity {
             Self::RackChain(e) => EntityKey::RackChain(e.id),
             Self::Modulator(e) => EntityKey::Modulator(e.id),
             Self::ModMapping(e) => EntityKey::ModMapping(e.id),
+            Self::ChatMessage(e) => EntityKey::ChatMessage(e.id),
+            Self::PinnedNote(e) => EntityKey::PinnedNote(e.id),
         }
     }
 }

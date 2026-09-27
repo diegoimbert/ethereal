@@ -31,6 +31,9 @@ struct Step {
 ///   A gesture closes on [`History::end_gesture`], on a commit with another (or no) gesture,
 ///   and on undo/redo/clear.
 /// - At most `max_depth` steps are kept (the oldest are dropped); `0` = unlimited.
+/// - Chat ops ([`crate::social::is_untracked`]) are applied by `commit` but never recorded
+///   (docs/COLLAB.md §12.1): a transaction of only chat ops pushes nothing, keeps the redo
+///   stack and the open gesture.
 #[derive(Debug, Default)]
 pub struct History {
     max_depth: usize,
@@ -86,18 +89,26 @@ impl History {
             return Ok((Vec::new(), Vec::new()));
         }
         let own_inverse = inverse.clone();
+        // Chat ops (`social::is_untracked`) are applied but never recorded: a transaction of
+        // only those leaves the stacks and the open gesture as they were.
+        let tracked = |op: &Op| !op.key().is_some_and(crate::social::is_untracked);
+        let forward: Vec<Op> = tx.ops.iter().filter(|op| tracked(op)).cloned().collect();
+        inverse.retain(tracked);
+        if forward.is_empty() {
+            return Ok((tx.ops, own_inverse));
+        }
         self.redo.clear();
         let merge = gesture.is_some() && gesture == self.open_gesture && !self.undo.is_empty();
         self.open_gesture = gesture;
         if merge {
             let step = self.undo.back_mut().expect("checked non-empty");
-            step.forward.extend(tx.ops.iter().cloned());
+            step.forward.extend(forward);
             inverse.append(&mut step.inverse);
             step.inverse = inverse;
         } else {
             self.undo.push_back(Step {
                 label: tx.label,
-                forward: tx.ops.clone(),
+                forward,
                 inverse,
             });
             if self.max_depth > 0 {
