@@ -155,6 +155,13 @@ pub trait EngineBridge {
         let _ = device;
         Ok(None)
     }
+
+    /// Current plain values of a plugin device's params, read after instantiation (state
+    /// load) to mirror them into the document. Hosts without plugins keep the default.
+    fn plugin_param_values(&mut self, device: DeviceId) -> Vec<(ParamId, f64)> {
+        let _ = device;
+        Vec::new()
+    }
 }
 
 /// Host services the controller needs besides the engine.
@@ -246,6 +253,8 @@ where
     armed: std::collections::BTreeSet<ether_core::protocol::model::TrackId>,
     /// Open plugin-GUI gestures → internal gesture ids.
     plugin_gestures: BTreeMap<(DeviceId, ParamId), GestureId>,
+    /// Plugin runtime bookkeeping (param mirroring after load; `plugins` module).
+    plugins: plugins::PluginsState,
     next_gesture: u32,
     last_transport: Option<TransportState>,
     outputs: EngineOutputs,
@@ -286,6 +295,7 @@ where
             transport: TransportRt::default(),
             armed: Default::default(),
             plugin_gestures: BTreeMap::new(),
+            plugins: Default::default(),
             // Internal gestures (plugin GUI, tap tempo) live in the upper half of the id
             // space, away from UI-allocated ones.
             next_gesture: 0x8000_0000,
