@@ -111,6 +111,8 @@ pub enum SettingsChange {
     MetronomeSound(MetronomeSound),
     Swing(f32),
     SwingGrid(Beats),
+    /// Project musical scale (piano-roll guide).
+    Scale(crate::scale::MusicalScale),
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
@@ -127,6 +129,8 @@ pub enum TrackChange {
     Input(TrackInput),
     Output(TrackOutput),
     Monitor(MonitorMode),
+    /// Track musical scale (MIDI tracks only).
+    Scale(crate::scale::TrackScale),
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]

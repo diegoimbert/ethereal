@@ -3,6 +3,7 @@ import { MoreHorizontal, Plus } from "lucide-react";
 import type { ProjectSummary } from "@/generated";
 import type { EngineCommands } from "@/features/transport-bar/engine";
 import { Button, Dialog, IconButton, openContextMenu, TextInput } from "@/kit";
+import { ProjectScale } from "@/features/scale/ProjectScale";
 import { useProjectStore } from "@/state";
 import { cmd, newProjectId } from "@/transport";
 import { copyName, formatModified, sortProjects, uniqueName } from "./projectNames";
@@ -105,6 +106,7 @@ function Home({ commands, onNew, onDone }: { commands: EngineCommands; onNew(): 
           <Button variant="primary" onClick={onDone}>
             Continue
           </Button>
+          <ProjectScale send={send} />
         </section>
       )}
 

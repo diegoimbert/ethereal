@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
+import { pickOption } from "@/kit/testing";
 import { renderWithMock, resetStores } from "@/features/transport-bar/testUtils";
 import { useProjectStore } from "@/state";
 import { cmd } from "@/transport";
@@ -41,6 +42,21 @@ async function openManager() {
 }
 
 describe("ProjectMenu", () => {
+  it("sets the global scale from the project menu and saves it", async () => {
+    const { mock } = await renderWithMock(<ProjectMenu />);
+    await openManager();
+    pickOption(screen.getByLabelText("Project scale type"), { value: "Minor" });
+    await waitFor(() => expect(store().project!.settings.scale.kind).toBe("Minor"));
+    pickOption(screen.getByLabelText("Project scale root"), { value: "3" });
+    await waitFor(() => expect(store().project!.settings.scale.root).toBe(3));
+    const id = store().project!.id;
+    await mock.send(cmd("Project", { type: "Save" }));
+    await mock.send(cmd("Project", { type: "SetScale", scale: { root: 0, kind: "Chromatic" } }));
+    await mock.send(cmd("Edit", { type: "Undo" }));
+    await mock.send(cmd("Project", { type: "Open", id }));
+    await waitFor(() => expect(store().project!.settings.scale).toEqual({ root: 3, kind: "Minor" }));
+  });
+
   it("renders without an engine", () => {
     render(<ProjectMenu />);
     expect(screen.getByTestId("project-name").textContent).toBe("No project");

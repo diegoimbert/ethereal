@@ -1,6 +1,7 @@
 /** Piano-roll layout: pitch rows (127 at the top) and note rectangles in grid-local px. */
 
-import type { Note } from "@/generated";
+import type { MusicalScale, Note } from "@/generated";
+import { CHROMATIC_SCALE, getPitchClass, isNoteInScale, ROOT_NOTES } from "@/domain/scales";
 import { beatsToPx, type Rect, type TimelineViewport } from "@/timeline";
 
 export const PITCHES = 128;
@@ -13,26 +14,51 @@ export const VELOCITY_LANE_HEIGHT = 72;
 /** Width of the resize zone at each end of a note (shrinks on short notes). */
 export const EDGE_PX = 6;
 
-const NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"] as const;
 const BLACK = new Set([1, 3, 6, 8, 10]);
 
-export const isBlackKey = (pitch: number): boolean => BLACK.has(((pitch % 12) + 12) % 12);
+export const isBlackKey = (pitch: number): boolean => BLACK.has(getPitchClass(pitch));
 
 /** Note name with Ableton's octave numbering (middle C, MIDI 60, is "C3"). */
 export function pitchName(pitch: number): string {
-  return `${NAMES[((pitch % 12) + 12) % 12]}${Math.floor(pitch / 12) - 2}`;
+  return `${ROOT_NOTES[getPitchClass(pitch)]}${Math.floor(pitch / 12) - 2}`;
 }
 
-export const pitchToY = (pitch: number, keyH: number): number => (PITCHES - 1 - pitch) * keyH;
+/** Descending visible MIDI pitches. All layout and hit testing use this same mapping. */
+export function createPitchRows(scale: MusicalScale = CHROMATIC_SCALE, only = false): readonly number[] {
+  return Array.from({ length: PITCHES }, (_, i) => PITCHES - 1 - i)
+    .filter((pitch) => !only || isNoteInScale(pitch, scale.root, scale.kind));
+}
+export const ALL_PITCH_ROWS = createPitchRows();
 
-/** Pitch of the row at `y` (clamped to 0..127). */
-export function yToPitch(y: number, keyH: number): number {
-  return Math.min(PITCHES - 1, Math.max(0, PITCHES - 1 - Math.floor(y / keyH)));
+/** Nearest visible row, also used to preserve the viewport when folding rows. */
+export function pitchRow(pitch: number, rows: readonly number[]): number {
+  // Unfolded rows: direct mapping (the common case, called per note on every render).
+  if (rows.length === PITCHES) return Math.min(PITCHES - 1, Math.max(0, PITCHES - 1 - Math.round(pitch)));
+  let nearest = 0;
+  for (let i = 1; i < rows.length; i++) {
+    if (Math.abs(rows[i]! - pitch) < Math.abs(rows[nearest]! - pitch)) nearest = i;
+  }
+  return nearest;
+}
+export const pitchToY = (pitch: number, keyH: number, rows = ALL_PITCH_ROWS): number => pitchRow(pitch, rows) * keyH;
+
+/**
+ * Pitch change for a vertical note drag of `dy` px from `pitch`, counted in visible rows: with
+ * folded rows the note moves between the displayed pitches (clamped to the first/last row).
+ */
+export function rowPitchDelta(pitch: number, dy: number, keyH: number, rows: readonly number[] = ALL_PITCH_ROWS): number {
+  const row = pitchRow(pitch, rows) + Math.round(dy / keyH);
+  return rows[Math.min(rows.length - 1, Math.max(0, row))]! - pitch;
 }
 
-export function noteRect(n: Note, vp: TimelineViewport, keyH: number): Rect {
+/** Pitch of the row at `y` (clamped to the first/last visible row). */
+export function yToPitch(y: number, keyH: number, rows = ALL_PITCH_ROWS): number {
+  return rows[Math.min(rows.length - 1, Math.max(0, Math.floor(y / keyH)))]!;
+}
+
+export function noteRect(n: Note, vp: TimelineViewport, keyH: number, rows = ALL_PITCH_ROWS): Rect {
   const x0 = beatsToPx(n.start, vp);
-  const y0 = pitchToY(n.pitch, keyH);
+  const y0 = pitchToY(n.pitch, keyH, rows);
   return { x0, y0, x1: x0 + n.duration * vp.pxPerBeat, y1: y0 + keyH };
 }
 

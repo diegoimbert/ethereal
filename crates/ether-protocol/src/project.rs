@@ -42,6 +42,8 @@ pub enum ProjectCommand {
     Delete { id: ProjectId },
     /// Full current document. Replies `Project`. Used on (re)connect and on revision gaps.
     Get,
+    /// Undoable project scale metadata; never restricts MIDI notes.
+    SetScale { scale: crate::model::MusicalScale },
 }
 
 /// One entry of the project list.

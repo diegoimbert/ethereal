@@ -79,7 +79,14 @@ pub fn param_infos() -> Vec<ParamInfo> {
             (0.0, 100.0, 30.0),
             ParamScale::Linear,
         ),
-        choice(5, "Ping-pong", "Delay", ParamUnit::Toggle, &["Off", "On"], 0),
+        choice(
+            5,
+            "Ping-pong",
+            "Delay",
+            ParamUnit::Toggle,
+            &["Off", "On"],
+            0,
+        ),
     ]
 }
 
