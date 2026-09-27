@@ -141,6 +141,25 @@ describe("ArrangementView: tracks", () => {
     expect(screen.queryByRole("button", { name: "Solo Master" })).toBeNull();
   });
 
+  it("adds a MIDI track with the built-in synth and an audio track, each one undo step", async () => {
+    const before = Object.keys(project().tracks).length;
+    fireEvent.click(screen.getByRole("button", { name: "+ MIDI track" }));
+    await flush();
+    const midi = Object.values(project().tracks).filter((t) => t.kind === "Midi").at(-1)!;
+    expect(Object.keys(project().tracks)).toHaveLength(before + 1);
+    expect(useSelectionStore.getState().selectedTrack).toBe(midi.id);
+    const devices = Object.values(project().devices).filter((d) => d.track === midi.id);
+    expect(devices.map((d) => d.kind)).toEqual([{ type: "Builtin", device: { type: "Synth" } }]);
+
+    fireEvent.click(screen.getByRole("button", { name: "+ Audio track" }));
+    await flush();
+    expect(Object.keys(project().tracks)).toHaveLength(before + 2);
+    await undo();
+    await undo();
+    expect(Object.keys(project().tracks)).toHaveLength(before);
+    expect(Object.values(project().devices).filter((d) => d.track === midi.id)).toEqual([]);
+  });
+
   it("nests and folds groups", async () => {
     const group = newId();
     const child = trackByName("Bass").id;

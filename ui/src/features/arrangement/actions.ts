@@ -1,12 +1,39 @@
 /** Edit actions on the selected clips, shared by the toolbar and keyboard shortcuts. */
 
 import type { EngineTransport } from "@/transport";
-import { newId } from "@/transport";
-import { useProjectStore } from "@/state";
+import { cmd, newId } from "@/transport";
+import type { Command, TrackId } from "@/generated";
+import { useProjectStore, useSelectionStore } from "@/state";
 import { itemSelection, playheadBeats } from "@/timeline";
 import { isArrangementClip } from "./clipTime";
 import { selectedClips, sendEdit } from "./context";
-import { deleteCommand, duplicateCommand, splitCommand, toggleLoopCommand } from "./editMath";
+import { asOneStep, deleteCommand, duplicateCommand, splitCommand, toggleLoopCommand } from "./editMath";
+
+export type NewTrackKind = "Midi" | "Audio";
+
+/**
+ * Commands adding a track at the end of the list; a MIDI track comes with the built-in
+ * synth, so it plays as soon as it has notes. One undo step.
+ */
+export function addTrackCommand(kind: NewTrackKind, id: TrackId, deviceId: string): Command {
+  const commands: Command[] = [
+    cmd("Track", { type: "Create", id, kind, name: null, color: null, parent: null, before: null }),
+  ];
+  if (kind === "Midi") {
+    commands.push(
+      cmd("Device", { type: "Insert", id: deviceId, track: id, device: { type: "Builtin", device: { type: "Synth" } }, before: null }),
+    );
+  }
+  return asOneStep(kind === "Midi" ? "Add MIDI Track" : "Add Audio Track", commands)!;
+}
+
+/** Add a track (see `addTrackCommand`) and select it. */
+export async function addTrack(transport: EngineTransport, kind: NewTrackKind): Promise<TrackId> {
+  const id = newId();
+  await sendEdit(transport, addTrackCommand(kind, id, newId()));
+  if (useProjectStore.getState().project?.tracks[id]) useSelectionStore.getState().selectTrack(id);
+  return id;
+}
 
 export type ClipAction = "split" | "duplicate" | "delete" | "loop" | "select-all" | "deselect";
 
