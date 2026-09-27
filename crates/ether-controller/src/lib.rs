@@ -329,6 +329,8 @@ where
     plugin_gestures: BTreeMap<(DeviceId, ParamId), GestureId>,
     /// Plugin runtime bookkeeping (param mirroring after load; `plugins` module).
     plugins: plugins::PluginsState,
+    /// MIDI learn runtime state (learn mode, mapping gestures; `midi_learn` module).
+    midi_learn: midi_learn::MidiLearnState,
     /// Uploads from the UI machine in progress (`upload` module, remote-engine).
     uploads: upload::UploadState,
     next_gesture: u32,
@@ -373,6 +375,7 @@ where
             recording: Default::default(),
             plugin_gestures: BTreeMap::new(),
             plugins: Default::default(),
+            midi_learn: Default::default(),
             uploads: Default::default(),
             // Internal gestures (plugin GUI, tap tempo) live in the upper half of the id
             // space, away from UI-allocated ones.
