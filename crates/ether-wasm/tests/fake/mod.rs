@@ -95,6 +95,7 @@ impl<B: EngineBridge, H: HostServices, S: ProjectStore> FakeController<B, H, S> 
             loop_start: p.settings.loop_region.start.0,
             loop_end: p.settings.loop_region.end.0,
             metronome: p.settings.metronome,
+            click: Default::default(),
             tracks: p
                 .tracks
                 .values()
@@ -115,6 +116,7 @@ impl<B: EngineBridge, H: HostServices, S: ProjectStore> FakeController<B, H, S> 
                     armed: false,
                     clips: vec![],
                     automation: vec![],
+                    racks: Vec::new(),
                 })
                 .collect(),
         }

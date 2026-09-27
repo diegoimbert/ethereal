@@ -73,6 +73,27 @@ pub trait Node: Send {
     fn channels(&self) -> (u16, u16) {
         (2, 2)
     }
+
+    /// Roadmap v2 (`sidechain`): channels of the sidechain input (0 = none; the engine then
+    /// never calls [`Node::process_sidechain`]). Must match
+    /// `DeviceDescriptor::sidechain_inputs`.
+    fn sidechain_inputs(&self) -> u16 {
+        0
+    }
+
+    /// RT-safe. [`Node::process`] with the sidechain signal (`sidechain_inputs()` planar
+    /// channels of `ctx.frames` samples, already latency-aligned with `audio`). Called
+    /// instead of `process` when the chain entry has a sidechain source; nodes with a
+    /// sidechain input override it. Default: ignore the sidechain.
+    fn process_sidechain(
+        &mut self,
+        ctx: &mut ProcessContext<'_>,
+        audio: &mut AudioBuffers<'_, '_>,
+        sidechain: &[&[f32]],
+    ) -> ProcessStatus {
+        let _ = sidechain;
+        self.process(ctx, audio)
+    }
 }
 
 /// A node with parameters and a descriptor (built-in devices, plugins).

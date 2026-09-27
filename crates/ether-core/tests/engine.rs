@@ -463,6 +463,9 @@ fn audio_clip_plays_source() {
             transpose: 0.0,
             fade_in: 0.0,
             fade_out: 0.0,
+            fade_in_curve: Default::default(),
+            fade_out_curve: Default::default(),
+            reversed: false,
             warp: None,
         },
         envelopes: vec![],
@@ -566,6 +569,7 @@ fn compile_rejects_cycles_and_unknown_tracks() {
     t1.chain = vec![ChainEntry {
         node: key,
         enabled: true,
+        sidechain: None,
     }];
     let mut t2 = t1.clone();
     t2.id = tid(9);

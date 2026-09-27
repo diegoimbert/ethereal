@@ -10,4 +10,9 @@ export type DeviceDescriptor = { device_type: DeviceTypeRef, name: string, categ
 /**
  * Audio I/O channel counts of the main ports.
  */
-audio_inputs: number, audio_outputs: number, midi_input: boolean, };
+audio_inputs: number, audio_outputs: number, midi_input: boolean, 
+/**
+ * Roadmap v2 (`sidechain`): channels of the sidechain input (0 = none; the UI shows a
+ * sidechain source selector when > 0).
+ */
+sidechain_inputs: number, };

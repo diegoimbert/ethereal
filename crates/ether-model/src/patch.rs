@@ -24,6 +24,8 @@ pub struct Patch {
     pub history: HistoryState,
 }
 
+// Entities are plain data sent once per change; boxing them would only add an allocation.
+#[allow(clippy::large_enum_variant)]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
 #[serde(tag = "type")]
 pub enum PatchChange {

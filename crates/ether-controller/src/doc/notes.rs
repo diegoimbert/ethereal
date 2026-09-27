@@ -115,6 +115,8 @@ pub(super) fn apply(ctx: &mut DocCtx, c: &NoteCommand) -> CmdResult<()> {
             grid,
             strength,
             ends,
+            // Roadmap v2 (`groove` node): quantize swing, not applied yet.
+            swing: _,
         } => {
             ctx.clip(*clip)?;
             if !(grid.0.is_finite() && grid.0 > 0.0) {

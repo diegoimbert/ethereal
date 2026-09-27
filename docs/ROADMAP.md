@@ -1,0 +1,195 @@
+# Roadmap features: hook points (contracts v2)
+
+`contracts-2` froze the cross-boundary contracts of the 12 roadmap features and pre-created
+one module per feature and layer, already registered with one line in its parent, so the
+feature nodes can run in parallel. Each node owns exactly the files listed for it in
+[`.github/ownership.toml`](../.github/ownership.toml) (block "Roadmap features"). Every
+pre-created module starts with a doc comment saying what goes there. The contract details
+(semantics, invariants, PDC, partition rules) are in [CONTRACTS.md §11](CONTRACTS.md).
+
+Ground rules (same as wave 3):
+- Protocol and model *types* are frozen (`crates/ether-protocol/**`, `crates/ether-model/src/*`
+  except the node's own helpers): changes go through a BCR. Model validation for the new
+  entities is already implemented (`ether-model/src/apply.rs`) and tested
+  (`ether-model/tests/roadmap_v2.rs`).
+- Until a node lands, its commands reply `Unsupported` (`ether-controller/tests/roadmap_v2.rs`
+  pins this; replace those assertions with real behaviour tests), and its built-in devices
+  are pass-through placeholders.
+- **MockTransport already simulates every new command** (`ui/src/transport/mock/roadmapReducer.ts`,
+  `MockTransport.ts`, tests in `MockTransport.roadmap.test.ts`), so UI work can start before
+  the Rust side. Keep the mock in sync if a behaviour detail changes.
+- UI placeholders render the standard `eth-feature-placeholder` markup (or nothing, for
+  top-bar/inline slots); no styling (the `design-system` node owns styling).
+- "Shared touch" = a minimal, additive edit in a shared file. **Hot files**:
+  `ether-core/src/{engine.rs, graph.rs, mixer.rs}` are shared by `tempo-metronome`,
+  `sidechain`, `drum-rack` and `multicore`. Keep engine work in your own module and call it
+  with one line from those files; merge `origin/dev` often. Recommended order for the engine
+  core: `sidechain` and `drum-rack` first, `multicore` last (it partitions whatever graph
+  shape exists when it lands).
+
+## `export`
+
+Owns: `ui/src/features/export/**`, `crates/ether-controller/src/export/**`,
+`crates/ether-core/src/offline.rs`.
+
+- Protocol: `ExportCommand`/`ExportEvent`/`ExportResult`/`ByteChunk`
+  (`crates/ether-protocol/src/export.rs`), `ReplyValue::{ExportStarted, Bytes}`,
+  `Event::Export`.
+- Core: `ether_core::offline::OfflineRenderer` is implemented (fresh engine, no device,
+  renders on the caller's thread; tested).
+- Controller: `EtherController::export_command` (dispatched from `handlers.rs`) and
+  `export_tick` (called every tick) in `export/mod.rs`. Plugins offline:
+  `EngineBridge::create_offline_plugin` (defaulted `Unsupported`; implement it in
+  `ether-native/src/bridge.rs`). Files: native writes `<project>/exports/` (`file::EXPORTS_DIR`);
+  web/remote keep bytes for `Export::ReadChunk`. Deps `hound`/`flacenc` are pre-declared in
+  the workspace (versions are verified on first use).
+- UI: `ExportDialog` in the top bar (`data-slot="export"` in `App.tsx`).
+
+## `devices-2`
+
+Owns: `crates/ether-devices/src/{eq,reverb,limiter,utility}.rs`.
+
+- Model: `BuiltinDevice::{Eq, Reverb, Limiter, Utility}` (+ `BuiltinDeviceType`,
+  `BuiltinDeviceType::ALL`, `BuiltinDevice::new`). Param ids are yours to define in each
+  module's `descriptor()`; append-only once released.
+- `ether-devices/src/lib.rs` already dispatches `descriptor()`/`create()` to the modules; they
+  currently return `placeholder::Placeholder`. Limiter lookahead is reported via
+  `Node::latency` (PDC). Update the mock descriptors (`ui/src/transport/mock/builtinDevices.ts`).
+- The limiter may take a sidechain later (coordinate with `sidechain`: `sidechain_inputs`).
+
+## `tempo-metronome`
+
+Owns: `ui/src/features/tempo/**`, `crates/ether-controller/src/tempo/**`,
+`crates/ether-core/src/metronome.rs`.
+
+- Protocol: `TempoCommand` (`tempo.rs`): tempo-point/time-signature CRUD and
+  `SetMetronomeSettings`. Document command (`doc::apply` → `tempo::apply`).
+- Model: `ProjectSettings::{metronome_volume, metronome_accent, metronome_sound}`,
+  `SettingsChange::Metronome*`.
+- Core: `RenderGraphDesc::click: MetronomeDesc` (compiled by `tempo::metronome_desc`), and
+  `Metronome::render` (placeholder, silent). Add the one call in `engine.rs::render_sub`
+  after master is written to the hardware outputs.
+- Count-in (recording): the controller's record session pre-rolls `count_in_bars`
+  (`ether-controller/src/recording/mod.rs`). Set `MetronomeDesc::count_in_end` to the record
+  start on the published desc for the duration of the pre-roll; the click then sounds even
+  with the metronome off.
+- UI: `TempoEditor` (detail tab "tempo"), `MetronomeSettings` (top bar `data-slot="metronome"`).
+
+## `clip-editing`
+
+Owns: `ui/src/features/clip-editing/**`, `crates/ether-controller/src/clip_editing/**`,
+`crates/ether-core/src/fades.rs`.
+
+- Model: `AudioContent::{fade_in_curve, fade_out_curve, reversed}`, `FadeCurve`,
+  `ClipChange::{FadeInCurve, FadeOutCurve, Reversed}`; `Marker` entity + `MarkerChange`.
+  Crossfade/overlap rules: `ether_model::clip` module docs.
+- Protocol: `ClipCommand::{SetFadeCurves, SetReversed, Crossfade}` (routed to
+  `clip_editing::clip_command` from `doc/clips.rs`), `MarkerCommand` (`markers.rs`).
+- Core: `fades::fade_gain` is the fade law (implemented and mirrored in
+  `ui/src/features/clip-editing/fades.ts`); switch `sched::render_audio` to it and
+  implement reverse playback there (`ClipContentDesc::Audio::{fade_in_curve, fade_out_curve,
+  reversed}` are already compiled).
+- UI: `MarkerLane` (`data-slot="markers"` above the arrangement); fade handles in
+  `ClipView.tsx`/`clipDraw.ts` (shared touch).
+
+## `remote-engine`
+
+Owns: `crates/ether-server/**`, `ui/src/transport/ws/**`, `ui/src/features/remote/**`,
+`crates/ether-controller/src/upload/**`.
+
+- Protocol: `remote.rs` (handshake `ClientHello`/`ServerHello`, `ServerInfo`, binary frame
+  codec implemented in Rust and `ui/src/transport/ws/binaryFrame.ts`), media upload
+  (`MediaCommand::{BeginUpload, UploadChunk, CancelUpload}`, `MediaSource::Upload`,
+  `MediaEvent::UploadProgress`).
+- `ether-server`: stub lib (`ServerConfig`, `serve`) + binary. Add `ether-native` and
+  `tungstenite` (pre-declared) as deps. Dev port: the instance base port `+4` (`+3` is
+  reserved for the collab server; `scripts/dev-env.mjs`).
+- Controller: `EtherController::upload_command` (`upload/mod.rs`).
+- UI: `WsTransport` stub (`kind: "remote"`), `ConnectDialog` (top bar `data-slot="remote"`);
+  runtime transport switching needs `TransportProvider`/`createDefaultTransport` (shared touch).
+
+## `collab` (reserved envelope)
+
+Owns: `crates/ether-collab/**`, `crates/ether-controller/src/collab/**`,
+`ui/src/features/collab/**`.
+
+- Model: `SiteId` (u64 as decimal string), `ActorId`, `OpOrigin`, `StampedTransaction`.
+- Protocol: `CollabCommand`/`CollabEvent`/`Presence`/`PresenceState`/`CollabMessage`
+  (`collab.rs`). All `CollabCommand`s reply `Unsupported`.
+- Refine through BCRs (CRDT library choice, extra variants). UI: `PresenceBar` (top bar
+  `data-slot="collab"`).
+
+## `multicore`
+
+Owns: `crates/ether-core/src/parallel.rs`, `crates/ether-native/src/workers.rs` (new).
+
+- `EngineConfig::worker_threads` (default 0 = v0.1 behaviour), `ParallelExecutor` trait +
+  `SequentialExecutor`. Partition contract: CONTRACTS.md §11.7 and `parallel.rs` docs.
+- Shared touches: `graph.rs` (levels), `engine.rs`/`mixer.rs` (per-level dispatch), native
+  host wiring. No protocol changes.
+
+## `web-perf`
+
+Owns: `crates/ether-core/src/codec.rs`, `crates/ether-wasm/src/**`, `apps/web/src/engine/**`.
+
+- `GraphCodec` trait (+ `CodecError`) for a binary `RenderGraphDesc` encoding between the
+  controller Worker and the AudioWorklet (today JSON in `ether-wasm/src/proto.rs`).
+  Round-trip exactness and versioning rules are in the trait docs.
+
+## `midi-learn`
+
+Owns: `ui/src/features/midi-learn/**`, `crates/ether-controller/src/midi_learn/**`.
+
+- Model: `MidiMapping` entity (`midi_map.rs`: `MidiSource`, `MidiControl`, `MidiMapTarget`,
+  `TransportAction`, `MidiMapMode`, `RelativeEncoding`), one mapping per source; deleting a
+  device/track/send cascades its mappings (`doc/mod.rs`, done).
+- Protocol: `MidiMapCommand` (`Map`/`Edit`/`Unmap` are document commands via
+  `midi_learn::apply`; `Learn`/`List` via `EtherController::midi_map_command`),
+  `MidiMapEvent`, `ReplyValue::MidiMappings`, host input `MidiInputEvent`.
+- Input: `EngineBridge::poll_midi_input` (defaulted; drained in `midi_learn_tick`). Natively,
+  extend the recording MIDI path (`ether-native/src/recording/midi.rs`, `MidiInputs::refresh`
+  callback → add the port id) to also queue `MidiInputEvent`s for the bridge.
+- UI: `MidiLearnPanel` (sidebar tab "midi"). Mock: `MockTransport.simulateMidiInput`.
+
+## `sidechain`
+
+Owns: `ui/src/features/sidechain/**`, `crates/ether-controller/src/sidechain/**`.
+
+- Model: `Device::sidechain` (+ `DeviceChange::Sidechain`); sidechain edges are routing
+  edges (no cycles; the source track can't be removed while referenced; deleting it cuts
+  the sidechain, done in `doc/mod.rs`).
+- Protocol: `DeviceCommand::SetSidechain` (→ `sidechain::set_sidechain`),
+  `DeviceDescriptor::sidechain_inputs` (0 everywhere for now).
+- Core: `ChainEntry::sidechain` (already compiled from the document), `Node::sidechain_inputs`
+  / `Node::process_sidechain` (defaulted). Implement ordering + PDC (CONTRACTS.md §11.10) in
+  `graph.rs` and the call in `mixer.rs`/`engine.rs`; give the compressor a sidechain input.
+- UI: `SidechainSelector` in every device header (`features/devices/DeviceView.tsx`, one
+  line, renders nothing when `sidechain_inputs == 0`).
+
+## `groove`
+
+Owns: `ui/src/features/groove/**`, `crates/ether-controller/src/groove/**`.
+
+- Model: `ProjectSettings::{swing, swing_grid}` (playback swing; see the field docs).
+- Protocol: `GrooveCommand::{Humanize, SetSwing}` (`groove.rs`), `NoteCommand::Quantize::swing`
+  (handle it in `doc/notes.rs`, currently ignored).
+- Controller: `groove::swing_notes` is already called by `compile.rs` for every MIDI clip
+  (no-op until implemented).
+- UI: `GroovePanel` (detail tab "groove"); piano-roll controls are shared touches.
+
+## `drum-rack`
+
+Owns: `ui/src/features/drum-rack/**`, `crates/ether-controller/src/drum_rack/**`,
+`crates/ether-core/src/drum_rack/**`, `crates/ether-devices/src/drum_rack.rs`.
+
+- Model: `BuiltinDevice::DrumRack`, `DrumPad` entity (`drum_rack.rs`), `Device::pad` (pad
+  chains), `Project::{pads_of, pad_devices_of}`; `devices_of(track)` excludes pad devices.
+  Sampler slicing: `BuiltinDevice::Sampler::slices: SliceSettings`. Deleting a rack device
+  cascades its pads and pad devices (`doc/mod.rs`, done).
+- Protocol: `DrumRackCommand`, `SliceCommand`, `AutoSlice` (`drum_rack.rs`), both document
+  commands (→ `drum_rack::{rack_command, slice_command}`).
+- Core: `TrackDesc::racks: Vec<RackDesc>` (compiled by `drum_rack::racks_desc`, empty until
+  implemented), `PadDesc`; engine processing rules on `RackDesc`. Pad devices already get
+  engine nodes (every document device does); only their chain wiring is missing.
+- Devices: `drum_rack.rs` (rack node, placeholder), slice mode in `sampler.rs` (shared touch).
+- UI: `DrumRackView` (detail tab "drum-rack").

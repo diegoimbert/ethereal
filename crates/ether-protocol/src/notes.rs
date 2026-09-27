@@ -20,13 +20,16 @@ pub enum NoteCommand {
         edits: Vec<NoteEdit>,
     },
     /// Quantize starts (and optionally ends) to `grid` with `strength` 0..=1.
-    /// `notes: None` = all notes of the clip.
+    /// `notes: None` = all notes of the clip. `swing` 0..=1 (roadmap v2, `groove`): targets
+    /// on odd grid positions are delayed by `swing · grid / 3` (destructive, independent of
+    /// the project playback swing). 0 = straight.
     Quantize {
         clip: ClipId,
         notes: Option<Vec<NoteId>>,
         grid: Beats,
         strength: f32,
         ends: bool,
+        swing: f32,
     },
     /// Copy notes shifted by `offset` beats and `transpose` semitones, with new ids.
     Duplicate {

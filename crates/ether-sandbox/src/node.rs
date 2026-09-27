@@ -442,6 +442,7 @@ mod tests {
                 audio_inputs: 1,
                 audio_outputs: 1,
                 midi_input: false,
+                sidechain_inputs: 0,
             },
             values: Vec::new(),
             channels: (1, 1),

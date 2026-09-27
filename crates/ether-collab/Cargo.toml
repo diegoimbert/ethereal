@@ -1,0 +1,18 @@
+[package]
+name = "ether-collab"
+description = "Collaboration layer: op/CRDT sync between document replicas and presence (reserved)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+# Native + wasm (runs next to the controller). The `collab` node chooses the CRDT library
+# (Loro/Yrs) and transport via BCR.
+[dependencies]
+ether-protocol.workspace = true
+
+[lints]
+workspace = true

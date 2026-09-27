@@ -28,7 +28,7 @@ export interface SendOptions {
 }
 
 export interface EngineTransport {
-  readonly kind: "mock" | "tauri" | "wasm";
+  readonly kind: "mock" | "tauri" | "wasm" | "remote";
   /** Connect and return the full current project. */
   connect(): Promise<Project>;
   /**

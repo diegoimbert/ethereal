@@ -28,17 +28,26 @@
 //! - **Engine sample rate.** Media is resampled to [`ControllerConfig::engine_sample_rate`];
 //!   hosts call [`EtherController::set_engine_sample_rate`] when the device changes.
 
+mod clip_editing;
+mod collab;
 pub mod compile;
 mod doc;
+mod drum_rack;
 mod engine;
+mod export;
+mod groove;
 mod handlers;
 mod media;
 pub mod memory;
+mod midi_learn;
 mod plugins;
 mod project;
 mod recording;
+mod sidechain;
 pub mod store;
+mod tempo;
 mod tx;
+mod upload;
 mod warp;
 
 use std::collections::BTreeMap;
@@ -142,6 +151,29 @@ pub trait EngineBridge {
 
     /// Descriptors of built-in devices and of instantiated plugins.
     fn descriptor(&mut self, device: DeviceId) -> Option<DeviceDescriptor>;
+
+    /// Roadmap v2 (`midi-learn`): drain incoming MIDI messages received since the last
+    /// call (all ports), for MIDI mappings/learn. Called from every controller tick.
+    /// Hosts without MIDI input keep the default.
+    fn poll_midi_input(&mut self, out: &mut Vec<ether_core::protocol::midi_map::MidiInputEvent>) {
+        let _ = out;
+    }
+
+    /// Roadmap v2 (`export`): a fresh, independent plugin node for offline rendering
+    /// (prepared at `sample_rate`, state loaded from `state`). Never the live instance.
+    /// Default: unsupported (the export bypasses the plugin with a warning).
+    fn create_offline_plugin(
+        &mut self,
+        device: DeviceId,
+        plugin: &PluginInstance,
+        state: Option<&Base64Bytes>,
+        sample_rate: u32,
+    ) -> Result<Box<dyn ether_core::Node>, BridgeError> {
+        let _ = (device, plugin, state, sample_rate);
+        Err(BridgeError::Unsupported(
+            "offline plugin rendering is not available on this host".into(),
+        ))
+    }
 
     /// Drain main-thread notifications from plugin controllers (GUI param edits and gestures,
     /// latency changes, crashes). The controller calls this from its tick: `ParamEdited` becomes

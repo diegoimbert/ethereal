@@ -92,5 +92,5 @@ export function useBuiltinTypes(): DeviceDescriptor[] {
 
 /** The `BuiltinDevice` value to insert for a built-in type. */
 export function builtinDevice(type: BuiltinDeviceType): BuiltinDevice {
-  return type === "Sampler" ? { type: "Sampler", sample: null } : { type };
+  return type === "Sampler" ? { type: "Sampler", sample: null, slices: { enabled: false, base_note: 36, markers: [] } } : { type };
 }

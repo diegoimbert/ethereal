@@ -5,16 +5,23 @@ use ts_rs::TS;
 
 use crate::automation::AutomationCommand;
 use crate::clips::ClipCommand;
+use crate::collab::{CollabCommand, CollabEvent};
 use crate::devices::{DeviceCommand, DeviceDescriptor};
+use crate::drum_rack::{DrumRackCommand, SliceCommand};
 use crate::engine::{AudioDeviceList, EngineCommand, EngineEvent, EngineStatus};
+use crate::export::{ByteChunk, ExportCommand, ExportEvent, ExportJobId};
+use crate::groove::GrooveCommand;
+use crate::markers::MarkerCommand;
 use crate::media::{BrowseRoot, DirectoryListing, MediaCommand, MediaEvent, PeakData};
 use crate::meters::MeterFrame;
+use crate::midi_map::{MidiMapCommand, MidiMapEvent};
 use crate::mixer::MixerCommand;
-use crate::model::{GestureId, MediaRef, Patch, Project};
+use crate::model::{GestureId, MediaRef, MidiMapping, Patch, Project};
 use crate::notes::NoteCommand;
 use crate::plugins::{PluginCommand, PluginDescriptor, PluginEvent};
 use crate::project::{EditCommand, ProjectCommand, ProjectEvent, ProjectSummary};
 use crate::recording::{InputList, RecordingCommand, RecordingEvent};
+use crate::tempo::TempoCommand;
 use crate::tracks::TrackCommand;
 use crate::transport::{PlayheadUpdate, TransportCommand, TransportState};
 use crate::warp::WarpCommand;
@@ -52,6 +59,15 @@ pub enum Command {
     Warp(WarpCommand),
     Media(MediaCommand),
     Engine(EngineCommand),
+    // --- roadmap v2 (one domain per feature node, see docs/ROADMAP.md) ---
+    Export(ExportCommand),
+    Tempo(TempoCommand),
+    Marker(MarkerCommand),
+    MidiMap(MidiMapCommand),
+    Groove(GrooveCommand),
+    DrumRack(DrumRackCommand),
+    Slice(SliceCommand),
+    Collab(CollabCommand),
 }
 
 /// Engine → UI. `Reply` answers exactly one `ClientMessage`; `Event`s are pushed;
@@ -138,6 +154,17 @@ pub enum ReplyValue {
     Status {
         status: EngineStatus,
     },
+    // --- roadmap v2 ---
+    ExportStarted {
+        job: ExportJobId,
+    },
+    /// Bulk bytes (export downloads).
+    Bytes {
+        chunk: ByteChunk,
+    },
+    MidiMappings {
+        mappings: Vec<MidiMapping>,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
@@ -192,6 +219,16 @@ pub enum Event {
     },
     Engine {
         event: EngineEvent,
+    },
+    // --- roadmap v2 ---
+    Export {
+        event: ExportEvent,
+    },
+    MidiMap {
+        event: MidiMapEvent,
+    },
+    Collab {
+        event: CollabEvent,
     },
     /// User-facing message (toast).
     Notification {
