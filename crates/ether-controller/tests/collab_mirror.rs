@@ -563,6 +563,29 @@ fn listening_swaps_plugins_for_mirrors_and_back() {
     w.listener.ok(Command::Project(ProjectCommand::Save));
     w.settle();
     assert_eq!(w.peer_state(d), Some(Base64Bytes(vec![7])));
+    assert_eq!(w.listener.bridge().creates(), 1, "its own state: no reload");
+
+    // A preset the peer loads (replicated at its save) reaches the mirror.
+    w.peer
+        .ctl
+        .bridge
+        .plugin_states
+        .insert(d, Base64Bytes(vec![9]));
+    w.peer.ok(Command::Project(ProjectCommand::Save));
+    w.settle();
+    assert_eq!(
+        w.listener
+            .bridge()
+            .log
+            .iter()
+            .rev()
+            .find(|c| matches!(c, MirrorCall::Create(..))),
+        Some(&MirrorCall::Create(d, Some(Base64Bytes(vec![9]))))
+    );
+    assert_eq!(w.listener.bridge().creates(), 2);
+    w.set_param(d, 21.0);
+    assert_eq!(w.listener.bridge().pushes(d).last(), Some(&(MIX, 21.0)));
+    w.listener.bridge().mirrors.get_mut(&d).unwrap().state = Some(Base64Bytes(vec![7]));
 
     // Stop: the live instance comes back from the mirror's last state.
     w.stop_listening();

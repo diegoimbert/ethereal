@@ -26,13 +26,17 @@
 //!   The bridge skips values the mirror already shows (a GUI edit's own echo).
 //! - **Opaque state** (a preset loaded in the mirror's GUI) replicates at the next save
 //!   through the save-time capture (§2.2): the bridge's `plugin_state` reads the mirror.
+//!   A state a peer replicates is loaded into the mirror (re-created from it, which
+//!   closes its editor; its params are pushed again).
 //! - A bridge without mirrors (web, `Unsupported`) is never asked again; a plugin whose
 //!   mirror fails (not installed here) keeps its live instance or its missing-plugin
 //!   bypass, and is retried only when the device's plugin changes.
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use ether_core::protocol::model::{DeviceId, DeviceKind, ParamId, PluginFormat, PluginInstance};
+use ether_core::protocol::model::{
+    Base64Bytes, DeviceId, DeviceKind, ParamId, PluginFormat, PluginInstance,
+};
 
 use crate::store::{Library, ProjectStore};
 use crate::{BridgeError, EngineBridge, EtherController, HostServices};
@@ -55,6 +59,9 @@ fn sig_of(plugin: &PluginInstance) -> Sig {
 
 struct Mirror {
     sig: Sig,
+    /// The document's `plugin.state` as of the last check: a different one (a peer's
+    /// replicated preset) is loaded into the mirror.
+    doc_state: Option<Base64Bytes>,
     /// Values last pushed into the mirror.
     pushed: BTreeMap<ParamId, f64>,
 }
@@ -130,7 +137,46 @@ where
             }
             self.collab_mirror_swap(device, sig, &plugin);
         }
+        self.collab_mirror_reload_states();
         self.collab_mirror_push_params();
+    }
+
+    /// A peer replicated a new opaque state (§2.2) for a mirrored device: load it into the
+    /// mirror (re-created from it; its params are pushed again). A state this site captured
+    /// from the mirror itself (its own save) is only recorded.
+    fn collab_mirror_reload_states(&mut self) {
+        let Some(doc) = self.doc.as_ref() else {
+            return;
+        };
+        let changed: Vec<(DeviceId, PluginInstance)> = self
+            .collab
+            .mirror
+            .mirrors
+            .iter()
+            .filter_map(|(id, m)| match &doc.project.devices.get(id)?.kind {
+                DeviceKind::Plugin { plugin } if plugin.state != m.doc_state => {
+                    Some((*id, plugin.clone()))
+                }
+                _ => None,
+            })
+            .collect();
+        for (device, plugin) in changed {
+            let current = self.bridge.plugin_state(device).ok().flatten();
+            if plugin.state.is_some() && current != plugin.state {
+                // Replaces the mirror in place (its engine slot stays a stand-in).
+                if self
+                    .bridge
+                    .create_plugin_mirror(device, &plugin, plugin.state.as_ref())
+                    .is_ok()
+                    && let Some(m) = self.collab.mirror.mirrors.get_mut(&device)
+                {
+                    m.pushed.clear();
+                }
+            }
+            if let Some(m) = self.collab.mirror.mirrors.get_mut(&device) {
+                m.doc_state = plugin.state;
+            }
+        }
     }
 
     /// The plugin devices to show through mirrors now.
@@ -172,6 +218,7 @@ where
                     device,
                     Mirror {
                         sig,
+                        doc_state: plugin.state.clone(),
                         pushed: BTreeMap::new(),
                     },
                 );
