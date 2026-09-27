@@ -56,9 +56,9 @@ describe("steps", () => {
     expect(paramStep(VOLUME_INFO)).toBeNull();
     expect(paramStep({ ...PERCENT, step: 5 } as ParamInfo)).toBe(5);
     // With the field present, `step: null` is continuous: no semitone inference.
-    expect(paramStep({ ...TRANSPOSE, step: null } as ParamInfo)).toBeNull();
+    expect(paramStep({ ...TRANSPOSE, step: null } as unknown as ParamInfo)).toBeNull();
     expect(paramStep({ ...TRANSPOSE, step: 1 } as ParamInfo)).toBe(1);
-    expect(paramStep({ ...WAVE, step: null } as ParamInfo)).toBe(1);
+    expect(paramStep({ ...WAVE, step: null } as unknown as ParamInfo)).toBe(1);
   });
 
   it("stepped params always snap to whole steps", () => {
