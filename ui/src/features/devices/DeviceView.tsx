@@ -1,6 +1,7 @@
 import clsx from "clsx";
 import { useState, type DragEvent } from "react";
 import type { Device, DeviceId } from "@/generated";
+import { PluginDeviceControls } from "@/features/plugins";
 import { Button } from "@/kit";
 import { cmd } from "@/transport";
 import { DEVICE_DRAG_TYPE, groupParams } from "./chainUtils";
@@ -68,6 +69,7 @@ export function DeviceView({ device, prev, moveRightBefore, onDropBefore }: Devi
           ⏻
         </Button>
         <span className="eth-device__name">{device.name}</span>
+        <PluginDeviceControls device={device} />
         <Button
           size="sm"
           variant="ghost"

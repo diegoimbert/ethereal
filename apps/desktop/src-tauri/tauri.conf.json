@@ -6,7 +6,7 @@
   "build": {
     "frontendDist": "../../../ui/dist",
     "beforeDevCommand": "",
-    "beforeBuildCommand": "pnpm --filter @ethereal/ui build"
+    "beforeBuildCommand": "pnpm --filter @ethereal/ui build && pnpm --workspace-root exec node scripts/build-sandbox-helper.mjs --bundle"
   },
   "app": {
     "windows": [
@@ -33,6 +33,28 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "macOS": {
+      "files": {
+        "MacOS/ether-sandbox-helper": "binaries/ether-sandbox-helper"
+      }
+    },
+    "linux": {
+      "deb": {
+        "files": {
+          "/usr/bin/ether-sandbox-helper": "binaries/ether-sandbox-helper"
+        }
+      },
+      "rpm": {
+        "files": {
+          "/usr/bin/ether-sandbox-helper": "binaries/ether-sandbox-helper"
+        }
+      },
+      "appimage": {
+        "files": {
+          "/usr/bin/ether-sandbox-helper": "binaries/ether-sandbox-helper"
+        }
+      }
+    }
   }
 }

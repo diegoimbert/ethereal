@@ -927,6 +927,7 @@ where
         for (device, n) in notes {
             self.plugin_notification(device, n, now, out);
         }
+        self.plugins_tick(now, out);
 
         // Media jobs.
         if let Some(pid) = self.doc.as_ref().map(|d| d.project.id)
