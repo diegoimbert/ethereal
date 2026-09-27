@@ -141,6 +141,10 @@ paths = [
   "apps/web/e2e/warp.spec.ts",
   # granted by manager (BCR, base-9)
   "crates/ether-native/tests/e2e_warp.rs",
+  # granted by manager (review follow-ups, base-12)
+  "crates/ether-controller/src/doc/clips.rs",
+  "crates/ether-controller/src/handlers.rs",
+  "ui/src/features/arrangement/clipDrag.ts",
 ]
 
 [nodes.recording]
@@ -177,4 +181,27 @@ paths = [
   "apps/web/e2e/recording.spec.ts",
   # granted by manager (base-10)
   "crates/ether-core/tests/recording_*.rs",
+  # granted by manager (ci-release discovery, base-14)
+  "apps/desktop/src-tauri/Info.plist",
+]
+
+# --- Roadmap (manager, base-13) --------------------------------------------------------
+
+[nodes.design-system]
+paths = [
+  "ui/src/kit/**",
+  "ui/src/theme/**",
+  "ui/src/app/App.css",
+  "ui/src/features/kit-gallery/**",
+  "docs/DESIGN-SYSTEM.md",
+  "ui/src/main.tsx",
+]
+
+[nodes.ci-release]
+paths = [
+  ".github/workflows/release.yml",
+  "scripts/release/**",
+  "VERSION",
+  "THIRD_PARTY_NOTICES*",
+  "docs/RELEASING.md",
 ]
