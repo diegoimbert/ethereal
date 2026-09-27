@@ -1,14 +1,17 @@
 //! Offline rendering (roadmap v2, used by the `export` node; see `docs/ROADMAP.md`).
 //!
 //! An [`OfflineRenderer`] is a private engine that renders as fast as the caller pulls,
-//! with no device and no threads: the caller adds nodes and sources and publishes a graph
-//! through [`OfflineRenderer::handle`] exactly as with a live engine, then calls
+//! with no device and no threads: the caller adds nodes and sources through
+//! [`OfflineRenderer::handle`] exactly as with a live engine, publishes the graph with
+//! [`OfflineRenderer::publish`], then calls
 //! [`OfflineRenderer::start`] and [`OfflineRenderer::render`] in a loop. Everything runs
 //! on the calling thread (the controller thread / Worker), so it works on native and web.
 //!
 //! Nodes are fresh instances (built from the document like the live ones), never the live
-//! engine's nodes, so exporting doesn't disturb playback. The metronome is never rendered
-//! offline (the export desc has `metronome: false`).
+//! engine's nodes, so exporting doesn't disturb playback.
+//!
+//! The click is never rendered: [`OfflineRenderer::publish`] forces `metronome` and any
+//! count-in off (publishing through the handle directly would render it like a live engine).
 
 use ether_protocol::model::Beats;
 
@@ -17,6 +20,11 @@ use crate::engine::{Engine, EngineError, EngineHandle, GarbageCollector, create}
 use crate::graph::RenderGraphDesc;
 use crate::meter::EngineOutputs;
 use crate::transport::TransportControl;
+
+/// Block size of offline renders (`EngineConfig::max_block_size` of the export engine).
+/// Offline plugin instances are activated with it, so a host never has to know the live
+/// engine's block size to build one.
+pub const OFFLINE_MAX_BLOCK: usize = 512;
 
 pub struct OfflineRenderer {
     engine: Engine,

@@ -1,0 +1,68 @@
+.eth-export {
+  display: flex;
+  align-items: center;
+}
+.eth-export__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-sm);
+}
+.eth-export__row {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  align-items: center;
+  gap: var(--eth-space-md);
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-sm);
+}
+.eth-export__tracks,
+.eth-export__files {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-xs);
+  margin: 0;
+  padding: var(--eth-space-sm);
+  list-style: none;
+  max-height: calc(var(--eth-size-row-height) * 8);
+  overflow: auto;
+  border: var(--eth-border-width) solid var(--eth-color-border);
+  border-radius: var(--eth-radius-sm);
+  background: var(--eth-color-bg-inset);
+}
+.eth-export__files li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--eth-space-sm);
+  font-family: var(--eth-font-mono);
+  font-size: var(--eth-fs-sm);
+  color: var(--eth-color-text);
+}
+.eth-export__status {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-xs);
+  margin-top: var(--eth-space-md);
+  font-size: var(--eth-fs-sm);
+  color: var(--eth-color-text-dim);
+}
+.eth-export__progress {
+  width: 100%;
+  accent-color: var(--eth-color-accent);
+}
+.eth-export__error {
+  margin: var(--eth-space-md) 0 0;
+  color: var(--eth-color-danger);
+  font-size: var(--eth-fs-sm);
+}
+.eth-export__help {
+  margin: 0;
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+  line-height: var(--eth-lh-normal);
+}
+.eth-export__warning {
+  margin: var(--eth-space-md) 0 0;
+  color: var(--eth-color-warn);
+  font-size: var(--eth-fs-sm);
+}
