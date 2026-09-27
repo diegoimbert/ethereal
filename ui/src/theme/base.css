@@ -1,0 +1,51 @@
+/* Global base styles. Reads tokens only (see tokens.css). */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body,
+[data-theme] {
+  color: var(--eth-color-text);
+  font-family: var(--eth-font-ui);
+  font-size: var(--eth-fs-md);
+  line-height: var(--eth-lh-normal);
+}
+
+body {
+  background: var(--eth-color-bg);
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+  overflow: hidden;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+:focus-visible {
+  outline: var(--eth-focus-ring-width) solid var(--eth-color-focus);
+  outline-offset: var(--eth-focus-ring-offset);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: var(--eth-duration-instant) !important;
+    animation-duration: var(--eth-duration-instant) !important;
+  }
+}

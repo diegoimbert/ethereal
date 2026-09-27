@@ -3,6 +3,7 @@ import { fileURLToPath, URL } from "node:url";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 import { port as devPort } from "../scripts/dev-env.mjs";
+import { tokensCssPlugin } from "./src/theme/tokens-plugin.ts";
 
 /**
  * Cross-origin isolation headers. Required for `SharedArrayBuffer` (web engine rings).
@@ -18,7 +19,8 @@ const port = devPort("dev");
 const previewPort = devPort("preview");
 
 export default defineConfig({
-  plugins: [react()],
+  // tokensCssPlugin: regenerates src/theme/tokens.css when src/theme/tokens.ts changes.
+  plugins: [react(), tokensCssPlugin()],
   resolve: {
     alias: {
       "@": fileURLToPath(new URL("./src", import.meta.url)),

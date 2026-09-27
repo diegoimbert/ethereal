@@ -27,6 +27,11 @@ pub enum RecordingCommand {
     SetRecording {
         enabled: bool,
     },
+    /// Punch in/out: record only inside the loop region (runtime, not undoable; reported
+    /// via `RecordingEvent::PunchChanged`).
+    SetPunch {
+        enabled: bool,
+    },
     /// Undoable project setting.
     SetCountIn {
         bars: u32,
@@ -69,5 +74,8 @@ pub enum RecordingEvent {
     /// The full set of currently armed tracks (sent on change and on connect).
     ArmChanged {
         armed: Vec<TrackId>,
+    },
+    PunchChanged {
+        enabled: bool,
     },
 }
