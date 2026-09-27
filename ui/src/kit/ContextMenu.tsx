@@ -60,7 +60,10 @@ function ContextMenu({ menu }: { menu: OpenMenu }) {
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
-    const { width, height } = el.getBoundingClientRect();
+    // Layout size, not getBoundingClientRect(): the enter animation scales the menu, and a
+    // scaled rect underestimates the width so the clamp would leave it overflowing the edge.
+    const width = el.offsetWidth;
+    const height = el.offsetHeight;
     const x = Math.max(VIEWPORT_MARGIN, Math.min(menu.x, window.innerWidth - width - VIEWPORT_MARGIN));
     const y = menu.y + height > window.innerHeight - VIEWPORT_MARGIN ? Math.max(VIEWPORT_MARGIN, menu.y - height) : menu.y;
     el.style.left = `${x}px`;
