@@ -2,9 +2,11 @@
 //!
 //! - Worker → Worklet: [`EngineMsg`]. Plain-data engine calls (the `EngineBridge` surface),
 //!   each encoded into one or more ring frames and decoded on the Worklet as [`Frame`]s.
-//!   Everything is JSON (tag `b'J'`) except decoded media: raw `f32` split into bounded
-//!   chunks (`MediaBegin`, `MediaChunk`s, `MediaEnd`; see [`MediaAssembler`]), so no single
-//!   frame makes the audio thread convert or buffer a whole file.
+//!   Graph snapshots (`Publish`) use the binary [`BinaryCodec`] (tag `b'G'`): the Worklet
+//!   decodes them on the audio thread, so no JSON parsing there. Decoded media is raw `f32`
+//!   split into bounded chunks (`MediaBegin`, `MediaChunk`s, `MediaEnd`; see
+//!   [`MediaAssembler`]), so no single frame makes the audio thread convert or buffer a whole
+//!   file. The remaining small messages are JSON (tag `b'J'`).
 //! - Worklet → Worker: [`EngineReport`] (playhead, max-held meters, diagnostics; compact
 //!   binary encoded into a reused buffer so the audio thread doesn't allocate) and
 //!   [`REPORT_ERROR`] text messages (compile errors etc.).
@@ -12,6 +14,7 @@
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
+use ether_core::codec::{BinaryCodec, CodecError, GraphCodec};
 use ether_core::protocol::meters::TrackMeter;
 use ether_core::protocol::model::{BuiltinDevice, MediaId, ParamId, TrackId, Ulid};
 use ether_core::{NodeKey, ParamChange, PlayheadState, RenderGraphDesc, TransportControl};
@@ -19,6 +22,10 @@ use ether_media::DecodedAudio;
 use serde::{Deserialize, Serialize};
 
 const TAG_JSON: u8 = b'J';
+/// `[G][BinaryCodec encoding]`: a `Publish`.
+const TAG_GRAPH: u8 = b'G';
+/// Initial capacity of a graph frame (Worker side; grows as needed).
+const GRAPH_FRAME_RESERVE: usize = 64 * 1024;
 const TAG_MEDIA_BEGIN: u8 = b'B';
 const TAG_MEDIA_CHUNK: u8 = b'C';
 const TAG_MEDIA_END: u8 = b'D';
@@ -71,9 +78,6 @@ enum JsonMsg {
     UnloadMedia {
         media: MediaId,
     },
-    Publish {
-        graph: Box<RenderGraphDesc>,
-    },
     SetParam {
         change: ParamChange,
     },
@@ -92,13 +96,25 @@ pub enum DecodeError {
     Truncated,
     #[error("json: {0}")]
     Json(String),
+    #[error("graph: {0}")]
+    Graph(#[from] CodecError),
 }
 
 impl EngineMsg {
     /// Encode into ring frames: one, or `MediaBegin` + chunks + `MediaEnd` for media.
     pub fn encode(&self) -> Vec<Vec<u8>> {
+        match self {
+            EngineMsg::LoadMedia { media, audio } => return encode_media(*media, audio),
+            EngineMsg::Publish { graph } => {
+                let mut out = Vec::with_capacity(GRAPH_FRAME_RESERVE);
+                out.push(TAG_GRAPH);
+                BinaryCodec.encode(graph, &mut out);
+                return vec![out];
+            }
+            _ => {}
+        }
         let json = match self.clone() {
-            EngineMsg::LoadMedia { media, audio } => return encode_media(media, &audio),
+            EngineMsg::LoadMedia { .. } | EngineMsg::Publish { .. } => unreachable!(),
             EngineMsg::CreateBuiltin {
                 key,
                 device,
@@ -110,7 +126,6 @@ impl EngineMsg {
             },
             EngineMsg::DestroyNode { key } => JsonMsg::DestroyNode { key },
             EngineMsg::UnloadMedia { media } => JsonMsg::UnloadMedia { media },
-            EngineMsg::Publish { graph } => JsonMsg::Publish { graph },
             EngineMsg::SetParam { change } => JsonMsg::SetParam { change },
             EngineMsg::Transport { control } => JsonMsg::Transport { control },
         };
@@ -169,6 +184,9 @@ impl<'a> Frame<'a> {
                 })
             }
             TAG_MEDIA_END => Ok(Frame::MediaEnd { media: c.media()? }),
+            TAG_GRAPH => Ok(Frame::Msg(EngineMsg::Publish {
+                graph: Box::new(BinaryCodec.decode(rest)?),
+            })),
             TAG_JSON => {
                 let msg: JsonMsg =
                     serde_json::from_slice(rest).map_err(|e| DecodeError::Json(e.to_string()))?;
@@ -184,7 +202,6 @@ impl<'a> Frame<'a> {
                     },
                     JsonMsg::DestroyNode { key } => EngineMsg::DestroyNode { key },
                     JsonMsg::UnloadMedia { media } => EngineMsg::UnloadMedia { media },
-                    JsonMsg::Publish { graph } => EngineMsg::Publish { graph },
                     JsonMsg::SetParam { change } => EngineMsg::SetParam { change },
                     JsonMsg::Transport { control } => EngineMsg::Transport { control },
                 }))
@@ -453,7 +470,7 @@ mod tests {
     }
 
     #[test]
-    fn json_messages_roundtrip() {
+    fn messages_roundtrip() {
         let key = NodeKey {
             index: 3,
             generation: 7,
@@ -514,6 +531,32 @@ mod tests {
         for m in msgs {
             assert_eq!(decode_one(&m), m);
         }
+    }
+
+    #[test]
+    fn graph_frames_are_binary_and_versioned() {
+        let msg = EngineMsg::Publish {
+            graph: Box::new(RenderGraphDesc {
+                version: 9,
+                ..Default::default()
+            }),
+        };
+        let mut frame = msg.encode().remove(0);
+        assert_eq!(frame[..2], [TAG_GRAPH, BinaryCodec::VERSION]);
+        assert_eq!(decode_one(&msg), msg);
+        frame[1] = BinaryCodec::VERSION + 1;
+        assert_eq!(
+            Frame::decode(&frame),
+            Err(DecodeError::Graph(CodecError::Version(
+                BinaryCodec::VERSION + 1
+            )))
+        );
+        frame.truncate(5);
+        frame[1] = BinaryCodec::VERSION;
+        assert!(matches!(
+            Frame::decode(&frame),
+            Err(DecodeError::Graph(CodecError::Malformed(_)))
+        ));
     }
 
     #[test]
