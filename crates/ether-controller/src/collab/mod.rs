@@ -17,6 +17,7 @@
 
 // base-53 (docs/COLLAB.md §8-§9): one module per node, dispatched from here.
 mod listen;
+mod mirror;
 mod presence;
 pub(crate) mod resolve;
 mod stream_host;
