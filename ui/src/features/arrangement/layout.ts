@@ -13,7 +13,14 @@ import type { Rect } from "@/timeline";
 import { beatsToPx, type TimelineViewport } from "@/timeline";
 import { isArrangementClip, startOf } from "./clipTime";
 
+/** Default width of the track header column (resizable: `useArrangementUi().headerWidth`). */
 export const HEADER_WIDTH = 200;
+export const MIN_HEADER_WIDTH = 140;
+export const MAX_HEADER_WIDTH = 400;
+
+export function clampHeaderWidth(px: number): number {
+  return Math.min(MAX_HEADER_WIDTH, Math.max(MIN_HEADER_WIDTH, px));
+}
 /** Default lane height. Resized lanes stay within `[MIN_TRACK_HEIGHT, MAX_TRACK_HEIGHT]`. */
 export const TRACK_HEIGHT = 56;
 export const MIN_TRACK_HEIGHT = 24;
@@ -159,13 +166,14 @@ export function clipRects(
   rows: ReadonlyArray<Row>,
   clips: Iterable<Clip>,
   vp: TimelineViewport,
+  headerWidth = HEADER_WIDTH,
 ): Array<{ id: Clip["id"]; rect: Rect }> {
   const rowOf = new Map(rows.map((r) => [r.track.id, r]));
   const out: Array<{ id: Clip["id"]; rect: Rect }> = [];
   for (const c of clips) {
     const row = rowOf.get(c.track);
     if (!row || !isArrangementClip(c)) continue;
-    const x0 = HEADER_WIDTH + beatsToPx(startOf(c), vp);
+    const x0 = headerWidth + beatsToPx(startOf(c), vp);
     out.push({ id: c.id, rect: { x0, x1: x0 + c.length * vp.pxPerBeat, y0: row.y, y1: row.y + row.laneHeight } });
   }
   return out;

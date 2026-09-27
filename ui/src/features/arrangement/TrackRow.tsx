@@ -10,14 +10,15 @@ import {
   Headphones,
   Piano,
   Speaker,
+  Spline,
   Volume2,
   VolumeX,
 } from "lucide-react";
 import type { Beats, Clip, ClipId, Color, Track, TrackId } from "@/generated";
-import { TrackAutomationLanes } from "@/features/automation";
+import { AutomationToggleButton, TrackAutomationLanes } from "@/features/automation";
 import { MOD_KEY, meterPosition, openContextMenu, setDragCursor } from "@/kit";
 import { useEditorStore, useProjectStore, useTrackMeter } from "@/state";
-import { pxToBeats, resolveGrid, snapToGrid, useSelectedItems, useTempoMap, useTimelineView } from "@/timeline";
+import { pxToBeats, resolveGrid, selectModeFromEvent, snapToGrid, useSelectedItems, useTempoMap, useTimelineView } from "@/timeline";
 import { cmd } from "@/transport";
 import { clipMenu, selectTrackEntity, trackMenu } from "./actions";
 import { smallClipAt, splitSmallClips } from "./smallClips";
@@ -33,7 +34,7 @@ import { laneItems } from "./laneItems";
 import { DraftRow } from "./newTrack";
 import { HeaderVolume } from "./HeaderVolume";
 import { onTrackHeaderPointerDown } from "./trackDrag";
-import { HEADER_WIDTH, TRACK_HEIGHT_STEP, type Row } from "./layout";
+import { TRACK_HEIGHT_STEP, type Row } from "./layout";
 import { arrangementView, useArrangementUi, type PendingImport } from "./uiStore";
 
 /** Pointer tolerance around painted small clips (px): very thin ones stay clickable. */
@@ -47,6 +48,7 @@ export const TrackRow = memo(function TrackRow({ row }: { row: Row }) {
 });
 
 function RealTrackRow({ row }: { row: Row }) {
+  const headerWidth = useArrangementUi((s) => s.headerWidth);
   const grid = useArrangementUi((s) => s.grid);
   return (
     <div className="eth-arr-row" style={{ height: row.height }} data-track={row.track.id}>
@@ -57,9 +59,21 @@ function RealTrackRow({ row }: { row: Row }) {
       </div>
       {/* Automation slot: its height is fed to `layoutRows` via `useAutomationHeight`. */}
       <div className="eth-arr-row__automation" data-slot="automation" data-track={row.track.id}>
-        <TrackAutomationLanes trackId={row.track.id} view={arrangementView} headerWidth={HEADER_WIDTH} grid={grid} />
+        <TrackAutomationLanes trackId={row.track.id} view={arrangementView} headerWidth={headerWidth} grid={grid} />
       </div>
     </div>
+  );
+}
+
+/**
+ * Shows / hides the track's automation lanes (under its row). A dot marks a track that has
+ * automation even while its lanes are hidden.
+ */
+function AutomationToggle({ track }: { track: Track }) {
+  return (
+    <AutomationToggleButton trackId={track.id} trackName={track.name} className="eth-arr-header__toggle eth-arr-header__automation">
+      <Spline />
+    </AutomationToggleButton>
   );
 }
 
@@ -84,13 +98,14 @@ function TrackBadge({ kind, color }: { kind: Track["kind"]; color: Color }) {
 }
 
 function TrackHeader({ row }: { row: Row }) {
+  const headerWidth = useArrangementUi((s) => s.headerWidth);
   const { track, depth } = row;
   const ctx = useArrangement();
   const { transport } = ctx;
   const dragging = useArrangementUi((s) => s.trackDrag?.track === track.id);
   const dropInto = useArrangementUi((s) => s.trackDrag?.into === track.id);
   // Highlighted only as the arrangement's selected entity (not while one of its clips is).
-  const selected = useArrangementUi((s) => s.trackFocus === track.id);
+  const selected = useArrangementUi((s) => s.selectedTracks.has(track.id));
   const armed = useProjectStore((s) => s.armedTracks.includes(track.id));
   const folded = useArrangementUi((s) => s.folded.has(track.id));
   const [renaming, setRenaming] = useState(false);
@@ -108,7 +123,7 @@ function TrackHeader({ row }: { row: Row }) {
         `eth-arr-header--${track.kind.toLowerCase()}`,
       )}
       style={{
-        width: HEADER_WIDTH,
+        width: headerWidth,
         paddingLeft: 14 + depth * INDENT_PX,
         ["--eth-track-color" as string]: colorCss(track.color),
         ["--eth-track-depth" as string]: depth,
@@ -117,7 +132,7 @@ function TrackHeader({ row }: { row: Row }) {
         stop(e);
         if (!renaming) onTrackHeaderPointerDown(e, track, ctx);
       }}
-      onClick={() => selectTrackEntity(track.id)}
+      onClick={(e) => selectTrackEntity(track.id, selectModeFromEvent(e))}
       onContextMenu={(e) => openContextMenu(e, trackMenu(transport, track))}
       role="group"
       aria-label={`${track.name} track`}
@@ -206,6 +221,7 @@ function TrackHeader({ row }: { row: Row }) {
             <Circle />
           </button>
         )}
+        <AutomationToggle track={track} />
       </span>
       <HeaderMeter track={track.id} />
     </div>
@@ -257,6 +273,7 @@ function HeaderMeter({ track }: { track: TrackId }) {
  * the track in `TRACK_HEIGHT_STEP` increments (alt: free), double-click to reset it.
  */
 function ResizeHandle({ row }: { row: Row }) {
+  const headerWidth = useArrangementUi((s) => s.headerWidth);
   const onPointerDown = (e: PointerEvent<HTMLDivElement>) => {
     if (e.button !== 0) return;
     e.stopPropagation();
@@ -282,7 +299,7 @@ function ResizeHandle({ row }: { row: Row }) {
   return (
     <div
       className="eth-arr-row__resize"
-      style={{ top: row.laneHeight - 3, width: HEADER_WIDTH }}
+      style={{ top: row.laneHeight - 3, width: headerWidth }}
       onPointerDown={onPointerDown}
       onDoubleClick={(e) => {
         e.stopPropagation();

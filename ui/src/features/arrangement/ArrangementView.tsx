@@ -1,5 +1,6 @@
 import "./arrangement.css";
-import { useContext, useEffect, useMemo, useRef, type DragEvent, type KeyboardEvent } from "react";
+import { setDragCursor } from "@/kit";
+import { useContext, useEffect, useMemo, useRef, type DragEvent, type KeyboardEvent, type PointerEvent } from "react";
 import type { Beats, TrackId } from "@/generated";
 import { useProjectStore, useSelectionStore, useTracksOrdered } from "@/state";
 import {
@@ -98,7 +99,8 @@ function ConnectedArrangementView() {
     // Only when the draft appears or moves, not on every layout change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draftTrack]);
-  useTimelineWheel(scrollRef, view, { smoothScrollY: true, onVerticalZoom, originPx: HEADER_WIDTH });
+  const headerWidth = useArrangementUi((s) => s.headerWidth);
+  useTimelineWheel(scrollRef, view, { smoothScrollY: true, onVerticalZoom, originPx: () => useArrangementUi.getState().headerWidth });
   useMiddleButtonPan(scrollRef, view);
   useFollowWithMargin(view);
   useEffect(() => bindSingleSelection(), []);
@@ -131,14 +133,17 @@ function ConnectedArrangementView() {
     kind: "clip",
     hitTest: (rect) => {
       const project = useProjectStore.getState().project;
-      return project ? marqueeHits(rect, clipRects(rowsRef.current, Object.values(project.clips), view.getState())) : [];
+      const hw = useArrangementUi.getState().headerWidth;
+      const lanes = { ...rect, x0: Math.max(rect.x0, hw), x1: Math.max(rect.x1, hw) };
+      return project ? marqueeHits(lanes, clipRects(rowsRef.current, Object.values(project.clips), view.getState(), hw)) : [];
     },
     onClick: (p, ev) => {
       useArrangementUi.getState().setTrackFocus(null);
       const row = rowsRef.current[rowIndexAt(rowsRef.current, p.y)];
       if (row && !row.draft) useSelectionStore.getState().selectTrack(row.track.id);
       // A click on empty space also moves the playhead there (when stopped), snapped.
-      if (p.x >= HEADER_WIDTH) locateIfStopped(transport, snap(pxToBeats(p.x - HEADER_WIDTH, view.getState()), ev.altKey));
+      const hw = useArrangementUi.getState().headerWidth;
+      if (p.x >= hw) locateIfStopped(transport, snap(pxToBeats(p.x - hw, view.getState()), ev.altKey));
     },
   });
 
@@ -151,7 +156,7 @@ function ConnectedArrangementView() {
 
   const dropTarget = (e: DragEvent): DropTarget | "reject" => {
     const box = contentRef.current?.getBoundingClientRect();
-    const x = e.clientX - (box?.left ?? 0) - HEADER_WIDTH;
+    const x = e.clientX - (box?.left ?? 0) - useArrangementUi.getState().headerWidth;
     const i = rowIndexAt(rowsRef.current, e.clientY - (box?.top ?? 0));
     const at = Math.max(0, snap(pxToBeats(Math.max(0, x), view.getState()), e.altKey));
     if (i >= rowsRef.current.length) return { track: null, at };
@@ -192,10 +197,17 @@ function ConnectedArrangementView() {
 
   return (
     <ArrangementContext.Provider value={ctx}>
-      <div className="eth-arr" ref={rootRef} tabIndex={-1} onKeyDown={onKeyDown} data-feature="arrangement">
+      <div
+        className="eth-arr"
+        ref={rootRef}
+        tabIndex={-1}
+        onKeyDown={onKeyDown}
+        data-feature="arrangement"
+        style={{ ["--eth-arr-header-width" as string]: `${headerWidth}px` }}
+      >
         <Toolbar />
         <div className="eth-arr__top">
-          <div className="eth-arr__corner" style={{ width: HEADER_WIDTH }} />
+          <div className="eth-arr__corner" style={{ width: headerWidth }} />
           <Ruler view={view} grid={grid} className="eth-arr__ruler" />
         </div>
         <div className="eth-arr__scroll" ref={scrollRef}>
@@ -205,14 +217,16 @@ function ConnectedArrangementView() {
             style={{ height }}
             onPointerDown={(e) => {
               ctx.focus();
-              marquee.onPointerDown(e);
+              // The selection box only starts over the lanes, not the header column.
+              const x = e.clientX - e.currentTarget.getBoundingClientRect().left;
+              if (x >= useArrangementUi.getState().headerWidth) marquee.onPointerDown(e);
             }}
             onDragOver={onDragOver}
             onDragLeave={() => useArrangementUi.getState().setDropHint(null)}
             onDrop={onDrop}
             data-testid="arrangement-content"
           >
-            <div className="eth-arr__backdrop" style={{ left: HEADER_WIDTH }}>
+            <div className="eth-arr__backdrop" style={{ left: headerWidth }}>
               <GridLayer />
               <LoopLayer />
             </div>
@@ -223,20 +237,64 @@ function ConnectedArrangementView() {
               <NewTrackDropHint />
             </div>
             <TrackDropLine />
-            <div className="eth-arr__overlay" style={{ left: HEADER_WIDTH }}>
+            <div className="eth-arr__overlay" style={{ left: headerWidth }}>
               <PlayheadLine view={view} />
             </div>
             {m && (
               <div
                 className="eth-arr__marquee"
                 data-testid="marquee"
-                style={{ left: m.x0, top: m.y0, width: m.x1 - m.x0, height: m.y1 - m.y0 }}
+                style={{
+                  left: Math.max(m.x0, headerWidth),
+                  top: m.y0,
+                  width: Math.max(0, m.x1 - Math.max(m.x0, headerWidth)),
+                  height: m.y1 - m.y0,
+                }}
               />
             )}
           </div>
         </div>
+        <HeaderColumnResizer />
       </div>
     </ArrangementContext.Provider>
+  );
+}
+
+/**
+ * Drag handle on the right edge of the track header column (full height): resizes it.
+ * Double-click restores the default width.
+ */
+function HeaderColumnResizer() {
+  const headerWidth = useArrangementUi((s) => s.headerWidth);
+  const onPointerDown = (e: PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const x0 = e.clientX;
+    const w0 = headerWidth;
+    setDragCursor("ew-resize");
+    const move = (ev: globalThis.PointerEvent) => useArrangementUi.getState().setHeaderWidth(w0 + ev.clientX - x0);
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", up);
+      setDragCursor(null);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", up);
+  };
+  return (
+    <div
+      className="eth-arr__header-resize"
+      style={{ left: headerWidth - 3 }}
+      role="separator"
+      aria-orientation="vertical"
+      aria-label="Resize track headers"
+      title="Drag to resize the track headers (double-click to reset)"
+      onPointerDown={onPointerDown}
+      onDoubleClick={() => useArrangementUi.getState().setHeaderWidth(HEADER_WIDTH)}
+    />
   );
 }
 

@@ -1,6 +1,8 @@
 /* Arrangement view. Tokens come from kit/theme.css. */
 
 .eth-arr {
+  /* Positioned: the header column's resize grip is placed from its left edge. */
+  position: relative;
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -127,7 +129,7 @@
   position: relative;
   display: flex;
   align-items: center;
-  padding-left: calc(200px + var(--eth-space-lg));
+  padding-left: calc(var(--eth-arr-header-width, 200px) + var(--eth-space-lg));
   color: var(--eth-color-text-dim);
   font-size: var(--eth-fs-xs);
 }
@@ -167,6 +169,21 @@
 .eth-arr-import--error {
   border-color: var(--eth-color-record);
   color: var(--eth-color-record);
+}
+
+/* Resize grip on the header column's right edge (full height of the arrangement). */
+.eth-arr__header-resize {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  z-index: 8;
+  cursor: ew-resize;
+  transition: background var(--eth-duration-fast) var(--eth-ease-out);
+}
+
+.eth-arr__header-resize:hover {
+  background: color-mix(in srgb, var(--eth-color-accent) 40%, transparent);
 }
 
 /* ── Rows ─────────────────────────────────────────────────────────── */
@@ -224,15 +241,15 @@
   inset: 3px 4px 3px calc(6px + var(--eth-track-depth, 0) * 12px);
   z-index: -1;
   border-radius: var(--eth-radius-lg);
-  background: color-mix(in srgb, var(--eth-track-color) 13%, var(--eth-color-bg-raised));
-  box-shadow: var(--eth-shadow-sm);
+  /* Only a selected track shows its card; hover gives a faint hint. */
+  background: transparent;
   transition:
     background-color var(--eth-duration-fast) var(--eth-ease-out),
     box-shadow var(--eth-duration-fast) var(--eth-ease-out);
 }
 
 .eth-arr-header:hover::before {
-  background: color-mix(in srgb, var(--eth-track-color) 19%, var(--eth-color-bg-raised));
+  background: color-mix(in srgb, var(--eth-track-color) 8%, transparent);
 }
 
 /* Round badge in the track color with the track type's icon. */
@@ -241,12 +258,12 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 20px;
+  width: 26px;
+  height: 26px;
   border-radius: 50%;
   background: var(--eth-track-color);
   /* Icon color: set inline from the track color's contrast (inkOn). */
-  font-size: 11px;
+  font-size: 14px;
 }
 
 .eth-arr-header--dragging {
@@ -275,7 +292,7 @@
 
 .eth-arr-header--selected::before,
 .eth-arr-header--selected:hover::before {
-  background: color-mix(in srgb, var(--eth-track-color) 26%, var(--eth-color-bg-raised));
+  background: color-mix(in srgb, var(--eth-track-color) 22%, var(--eth-color-bg-raised));
   box-shadow:
     inset 0 0 0 1px color-mix(in srgb, var(--eth-track-color) 60%, transparent),
     0 0 10px color-mix(in srgb, var(--eth-track-color) 25%, transparent);
@@ -429,6 +446,28 @@
 .eth-arr-header__toggle:hover {
   background: var(--eth-color-bg-hover);
   color: var(--eth-color-text);
+}
+
+.eth-arr-header__automation[aria-pressed="true"] {
+  background: var(--eth-color-accent-subtle);
+  color: var(--eth-color-accent);
+}
+
+/* The track has automation: a dot on the toggle, even while its lanes are hidden. */
+.eth-arr-header__automation.eth-auto-toggle--has {
+  position: relative;
+  opacity: 1;
+}
+
+.eth-arr-header__automation.eth-auto-toggle--has::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--eth-color-accent);
 }
 
 .eth-arr-header__mute[aria-pressed="true"] {

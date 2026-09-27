@@ -176,11 +176,15 @@ describe("layout", () => {
   });
 
   it("adds the automation slot height of ui-automation to every row", () => {
+    // Closed automation takes no room; an open track adds the parameter bar and its lanes.
     const closed = { open: new Set<string>(), shown: {} };
     const r = layoutRows(ordered, new Set(), (id) => automationHeight(closed, id));
-    expect(r[1]).toMatchObject({ y: TRACK_HEIGHT + AUTOMATION_BAR_HEIGHT, laneHeight: TRACK_HEIGHT, height: TRACK_HEIGHT + AUTOMATION_BAR_HEIGHT });
-    expect(TRACK_HEIGHT + AUTOMATION_BAR_HEIGHT).toBe(76);
-    expect(rowIndexAt(r, TRACK_HEIGHT + 10)).toBe(0);
+    expect(r[1]).toMatchObject({ y: TRACK_HEIGHT, laneHeight: TRACK_HEIGHT, height: TRACK_HEIGHT });
+    const first = ordered[0]!.id;
+    const open = { open: new Set([first]), shown: { [first]: ["volume"] } };
+    const o = layoutRows(ordered, new Set(), (id) => automationHeight(open, id));
+    expect(o[1]!.y).toBe(TRACK_HEIGHT + AUTOMATION_BAR_HEIGHT + 64);
+    expect(rowIndexAt(o, TRACK_HEIGHT + 10)).toBe(0);
   });
 
   it("computes clip rects in content px for the marquee", () => {

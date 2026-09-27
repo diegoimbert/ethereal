@@ -8,7 +8,6 @@ import { playheadStore, useProjectStore } from "@/state";
 import { pxToBeats, resolveGrid, snapToGrid, TempoMap, useViewport } from "@/timeline";
 import { cmd, newId, TransportContext, type EngineTransport } from "@/transport";
 import { LaneGesture } from "@/features/automation/gesture";
-import { HEADER_WIDTH } from "@/features/arrangement/layout";
 import { arrangementView, useArrangementUi } from "@/features/arrangement/uiStore";
 import { colorCss } from "@/features/arrangement/helpers";
 import { sendEdit } from "./clipEditing";
@@ -55,6 +54,7 @@ function ConnectedMarkerLane({ transport }: { transport: EngineTransport }) {
   const laneRef = useRef<HTMLDivElement>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
   const [dragging, setDragging] = useState<string | null>(null);
+  const headerWidth = useArrangementUi((s) => s.headerWidth);
   if (!hasProject) return null;
 
   const beatAt = (clientX: number) => pxToBeats(clientX - (laneRef.current?.getBoundingClientRect().left ?? 0), arrangementView.getState());
@@ -111,7 +111,7 @@ function ConnectedMarkerLane({ transport }: { transport: EngineTransport }) {
 
   return (
     <div className="eth-markers" data-feature="markers" data-testid="marker-lane">
-      <div className="eth-markers__corner" style={{ width: HEADER_WIDTH }}>
+      <div className="eth-markers__corner" style={{ width: headerWidth }}>
         <span>Markers</span>
         <IconButton
           label="Add marker at playhead"

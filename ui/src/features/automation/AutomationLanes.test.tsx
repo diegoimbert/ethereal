@@ -4,6 +4,7 @@ import type { AutomationLane, AutomationPoint, Track } from "@/generated";
 import { useProjectStore, useSelectionStore } from "@/state";
 import { createTimelineViewStore, DEFAULT_GRID, itemSelection, resolveGrid, snapToGrid, TempoMap, type TimelineViewStore } from "@/timeline";
 import { cmd, MockTransport, TransportProvider } from "@/transport";
+import { AutomationToggleButton } from "./AutomationToggleButton";
 import { AutomationLanes, TrackAutomationLanes } from "./index";
 import { LANE_PAD } from "./geometry";
 import { AUTOMATION_BAR_HEIGHT, LANE_HEIGHT, resetAutomationUi, useAutomationUi } from "./uiStore";
@@ -46,7 +47,12 @@ async function renderLanes(track?: () => Track): Promise<Track> {
     const p = useProjectStore((s) => s.project);
     if (!p) return null;
     t ??= (track ?? keysTrack)();
-    return <TrackAutomationLanes trackId={t.id} view={view} />;
+    return (
+      <>
+        <AutomationToggleButton trackId={t.id} trackName={t.name} />
+        <TrackAutomationLanes trackId={t.id} view={view} />
+      </>
+    );
   };
   render(
     <TransportProvider transport={mock}>
@@ -101,9 +107,9 @@ afterEach(() => {
 });
 
 describe("TrackAutomationLanes", () => {
-  it("is a collapsed bar until opened, then shows the existing lanes", async () => {
+  it("takes no room until opened, then shows the existing lanes", async () => {
     const track = await renderLanes();
-    expect(document.querySelector(".eth-auto-track")).toHaveStyle({ height: `${AUTOMATION_BAR_HEIGHT}px` });
+    expect(document.querySelector(".eth-auto-track")).toHaveStyle({ height: "0px" });
     expect(screen.queryByTestId("automation-lane-svg")).toBeNull();
     openTrack();
     await flush();

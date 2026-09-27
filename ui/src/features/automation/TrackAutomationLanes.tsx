@@ -1,7 +1,8 @@
 /**
  * The automation lanes of one track, as mounted under the track's row in the arrangement
- * (and in the detail view). A bar with the open/close toggle and a "show parameter" menu,
- * then one row per shown parameter: a header (`headerWidth` px) and the SVG lane.
+ * (and in the detail view). Open/closed with `useAutomationToggle` (an icon button in the
+ * track header). Open: a bar with a "show parameter" menu, then one row per shown
+ * parameter: a header (`headerWidth` px) and the SVG lane. Closed: nothing.
  *
  * Its height is `automationHeight(state, track)` (see uiStore.ts), which the arrangement
  * feeds to its row layout.
@@ -17,8 +18,9 @@ import { cmd, useTransport } from "@/transport";
 import { setCurveCommand } from "./edit";
 import { sendEdit } from "./gesture";
 import { AutomationLaneView } from "./AutomationLaneView";
-import { targetKey, useTrackTargets, type TargetInfo } from "./params";
+import { useTrackTargets, type TargetInfo } from "./params";
 import { AUTOMATION_BAR_HEIGHT, LANE_HEIGHT, automationHeight, shownKeys, useAutomationUi } from "./uiStore";
+import { useTrackLanes } from "./toggle";
 import "./automation.css";
 
 export interface TrackAutomationLanesProps {
@@ -31,18 +33,6 @@ export interface TrackAutomationLanesProps {
   grid?: GridSetting;
   /** Point selection store (default: the app-wide `itemSelection`). */
   selection?: ItemSelectionStore;
-}
-
-const EMPTY_LANES: Readonly<Record<string, AutomationLane>> = {};
-
-/** Arrangement lanes of a track, by target key. */
-function useTrackLanes(track: TrackId): ReadonlyMap<string, AutomationLane> {
-  const lanes = useProjectStore((s) => s.project?.automation_lanes ?? EMPTY_LANES);
-  return useMemo(() => {
-    const m = new Map<string, AutomationLane>();
-    for (const l of Object.values(lanes)) if (l.owner.type === "Track" && l.owner.track === track) m.set(targetKey(l.target), l);
-    return m;
-  }, [lanes, track]);
 }
 
 export function TrackAutomationLanes({
@@ -59,11 +49,6 @@ export function TrackAutomationLanes({
   const lanes = useTrackLanes(trackId);
   const trackName = useProjectStore((s) => s.project?.tracks[trackId]?.name ?? "");
 
-  const toggle = () => {
-    const initial = lanes.size > 0 ? [...lanes.keys()] : [targetKey({ type: "TrackVolume", track: trackId })];
-    useAutomationUi.getState().setOpen(trackId, !open, initial);
-  };
-
   const hidden = targets.filter((t) => !keys.includes(t.key));
   const onShow = (key: string) => {
     if (key) useAutomationUi.getState().show(trackId, key);
@@ -78,18 +63,10 @@ export function TrackAutomationLanes({
       onPointerDown={(e) => e.stopPropagation()}
       onDoubleClick={(e) => e.stopPropagation()}
     >
+      {open && (
       <div className="eth-auto-bar" style={{ height: AUTOMATION_BAR_HEIGHT }}>
-        <div className="eth-auto-bar__header" style={{ width: headerWidth }}>
-          <button
-            type="button"
-            className="eth-auto-bar__toggle"
-            aria-expanded={open}
-            aria-label={`${open ? "Hide" : "Show"} automation of ${trackName}`}
-            onClick={toggle}
-          >
-            {open ? "▾" : "▸"} Automation{lanes.size > 0 ? ` (${lanes.size})` : ""}
-          </button>
-          {open && hidden.length > 0 && (
+        <div className="eth-auto-bar__header" style={{ width: headerWidth }} aria-label={`Automation of ${trackName}`}>
+          {hidden.length > 0 && (
             <Select
               size="sm"
               className="eth-auto-select"
@@ -102,6 +79,7 @@ export function TrackAutomationLanes({
           )}
         </div>
       </div>
+      )}
       {keys.map((key) => (
         <LaneRow
           key={key}

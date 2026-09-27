@@ -211,3 +211,19 @@
   overflow: hidden;
   pointer-events: none;
 }
+
+/* Automation open/close toggle (detail view; the arrangement shows it as an icon). */
+.eth-auto-toggle {
+  margin-left: auto;
+  padding: 0 var(--eth-space-sm);
+  border: none;
+  border-radius: var(--eth-radius-sm);
+  background: none;
+  color: var(--eth-color-text-dim);
+  font: inherit;
+  cursor: pointer;
+}
+.eth-auto-toggle[aria-pressed="true"] {
+  background: var(--eth-color-accent-subtle);
+  color: var(--eth-color-accent);
+}

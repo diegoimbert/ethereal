@@ -3,7 +3,7 @@ import { useRef, type KeyboardEvent, type PointerEvent } from "react";
 import { Button, IconButton, setDragCursor } from "@/kit";
 import { addTrack, selectTrackEntity, type NewTrackKind } from "./actions";
 import { useArrangement } from "./context";
-import { DRAFT_TRACK_ID, HEADER_WIDTH, type Row } from "./layout";
+import { DRAFT_TRACK_ID, type Row } from "./layout";
 import { trackDropTarget } from "./trackDrag";
 import { useArrangementUi } from "./uiStore";
 
@@ -73,6 +73,7 @@ export function NewTrackButton() {
 export function DraftRow({ row }: { row: Row }) {
   const { transport } = useArrangement();
   const draft = row.draft!;
+  const headerWidth = useArrangementUi((s) => s.headerWidth);
   const cancel = () => useArrangementUi.getState().setDraftTrack(null);
   const create = (kind: NewTrackKind) => {
     cancel();
@@ -93,7 +94,7 @@ export function DraftRow({ row }: { row: Row }) {
       <div className="eth-arr-row__main" style={{ height: row.laneHeight }}>
         <div
           className="eth-arr-header eth-arr-header--draft"
-          style={{ width: HEADER_WIDTH, paddingLeft: 14 + row.depth * INDENT_PX, ["--eth-track-depth" as string]: row.depth }}
+          style={{ width: headerWidth, paddingLeft: 14 + row.depth * INDENT_PX, ["--eth-track-depth" as string]: row.depth }}
           role="group"
           aria-label="New track"
           onPointerDown={(e) => e.stopPropagation()}

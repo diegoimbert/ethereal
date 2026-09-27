@@ -82,6 +82,9 @@ const EMPTY: ReadonlyArray<string> = [];
 
 /** Total height of `<TrackAutomationLanes track>` for a UI state (pure). */
 export function automationHeight(state: Pick<AutomationUiState, "open" | "shown">, track: TrackId): number {
+  // Closed: nothing (the toggle is an icon in the track header). Open: the parameter bar
+  // and the lanes.
+  if (!state.open.has(track)) return 0;
   return AUTOMATION_BAR_HEIGHT + shownKeys(state, track).length * LANE_HEIGHT;
 }
 

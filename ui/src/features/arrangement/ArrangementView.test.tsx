@@ -14,8 +14,8 @@ import { arrangementView, resetArrangementUi, useArrangementUi } from "./uiStore
 
 // Default zoom is 24 px/beat; tests use a fixed 1-beat grid.
 const PX = 24;
-/** Row pitch with the automation bar (closed automation) under each lane. */
-const ROW = TRACK_HEIGHT + AUTOMATION_BAR_HEIGHT;
+/** Row pitch (closed automation takes no room). */
+const ROW = TRACK_HEIGHT;
 const store = () => useProjectStore.getState();
 const project = () => store().project!;
 
@@ -273,10 +273,10 @@ describe("ArrangementView: clip editing", () => {
     fireEvent.click(screen.getByRole("button", { name: "Show automation of Keys" }));
     await flush();
     const rowEl = (id: string) => document.querySelector<HTMLElement>(`.eth-arr-row[data-track="${id}"]`)!;
-    expect(rowEl(keys.id).style.height).toBe(`${ROW + LANE_HEIGHT}px`);
+    expect(rowEl(keys.id).style.height).toBe(`${ROW + AUTOMATION_BAR_HEIGHT + LANE_HEIGHT}px`);
     // Keys' row is taller now: one row pitch down lands inside Keys' own lanes, not on Bass.
     const chords = clipByName("Chords");
-    await drag(clipEl(chords), 0, ROW + LANE_HEIGHT, { x: 100, y: 20 });
+    await drag(clipEl(chords), 0, ROW + AUTOMATION_BAR_HEIGHT + LANE_HEIGHT, { x: 100, y: 20 });
     expect(project().clips[chords.id]!.track).toBe(trackByName("Bass").id);
     await undo();
     await drag(clipEl(chords), 0, ROW, { x: 100, y: 20 });
@@ -542,6 +542,48 @@ describe("ArrangementView: clip editing", () => {
     expect(project().clips[ids[7]!]!.start).toBe(39);
   });
 
+  it("cmd-click toggles tracks, shift-click selects a range; Delete removes them all in one step", async () => {
+    const header = (name: string) => screen.getByRole("group", { name: `${name} track` });
+    const [keys, bass, drums] = ["Keys", "Bass", "Drums"].map(trackByName);
+    fireEvent.click(header("Keys"));
+    fireEvent.click(header("Drums"), { metaKey: true });
+    expect([...useArrangementUi.getState().selectedTracks].sort()).toEqual([keys!.id, drums!.id].sort());
+    fireEvent.click(header("Drums"), { metaKey: true });
+    expect([...useArrangementUi.getState().selectedTracks]).toEqual([keys!.id]);
+    fireEvent.click(header("Drums"), { shiftKey: true });
+    expect(new Set(useArrangementUi.getState().selectedTracks)).toEqual(new Set([keys!.id, bass!.id, drums!.id]));
+    expect(document.querySelectorAll(".eth-arr-header--selected")).toHaveLength(3);
+    const count = Object.keys(project().tracks).length;
+    fireEvent.keyDown(document.querySelector('[data-feature="arrangement"]')!, { key: "Delete" });
+    await flush();
+    expect(Object.keys(project().tracks)).toHaveLength(count - 3);
+    await undo();
+    expect(Object.keys(project().tracks)).toHaveLength(count);
+  });
+
+  it("the selection box starts only over the lanes, and the header column resizes", async () => {
+    const content = screen.getByTestId("arrangement-content");
+    await act(async () => {
+      fireEvent.pointerDown(content, { button: 0, pointerId: 1, clientX: 50, clientY: 5 });
+      fireEvent.pointerMove(window, { pointerId: 1, clientX: 400, clientY: 90 });
+    });
+    expect(screen.queryByTestId("marquee")).toBeNull();
+    await act(async () => {
+      fireEvent.pointerUp(window, { pointerId: 1, clientX: 400, clientY: 90 });
+    });
+
+    const grip = screen.getByRole("separator", { name: "Resize track headers" });
+    await act(async () => {
+      fireEvent.pointerDown(grip, { button: 0, clientX: HEADER_WIDTH });
+      fireEvent.pointerMove(window, { clientX: HEADER_WIDTH + 60 });
+      fireEvent.pointerUp(window, { clientX: HEADER_WIDTH + 60 });
+    });
+    expect(useArrangementUi.getState().headerWidth).toBe(HEADER_WIDTH + 60);
+    expect(screen.getByRole("group", { name: "Keys track" }).style.width).toBe(`${HEADER_WIDTH + 60}px`);
+    fireEvent.doubleClick(grip);
+    expect(useArrangementUi.getState().headerWidth).toBe(HEADER_WIDTH);
+  });
+
   it("reorders tracks by dragging their headers (one undo step)", async () => {
     const names = () => tracksOrdered(project()).map((t) => t.name);
     expect(names().slice(0, 3)).toEqual(["Keys", "Bass", "Drums"]);
@@ -690,7 +732,7 @@ describe("ArrangementView: clip editing", () => {
     const row = () => document.querySelector<HTMLElement>(`.eth-arr-row[data-track="${keys.id}"]`)!;
     await drag(handle, 0, 21, { y: 100 });
     expect(useArrangementUi.getState().heights.get(keys.id)).toBe(TRACK_HEIGHT + 24);
-    expect(row().style.height).toBe(`${TRACK_HEIGHT + 24 + AUTOMATION_BAR_HEIGHT}px`);
+    expect(row().style.height).toBe(`${TRACK_HEIGHT + 24}px`);
     await drag(handle, 0, -1000, { y: 100 });
     expect(useArrangementUi.getState().heights.get(keys.id)).toBe(MIN_TRACK_HEIGHT);
     fireEvent.doubleClick(handle);
