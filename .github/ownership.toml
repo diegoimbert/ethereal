@@ -781,6 +781,8 @@ paths = [
 
 [nodes.groups-buses]
 paths = [
+  # BCR (base-70): Inspector TrackMixer routing rows (Input/VCA) + hide pan/output/sends for VCA tracks; additive, reuse the owner's Row
+  "ui/src/app/shell/Inspector.tsx",
   # BCR (base-67): one additive line in compile_graph_with to fold VCA solo (§12.10)
   "crates/ether-controller/src/compile.rs",
   "crates/ether-core/src/bus_tap.rs",
@@ -816,6 +818,8 @@ paths = [
 # Priority 1 (with groups-buses). The desktop path half depends on media-references
 # (reference in place); the web/remote upload half can land first.
 paths = [
+  # BCR (base-70): one palette entry "Import audio..." (Cmd+I)
+  "ui/src/app/shell/commands.ts",
   "ui/src/features/import/**",
   "crates/ether-controller/src/file_import/**",
   "crates/ether-controller/tests/file_import*.rs",
@@ -842,7 +846,7 @@ paths = [
   "ui/src/features/remote/upload.ts",
   "ui/src/features/arrangement/ArrangementView.tsx",
   "ui/src/features/arrangement/TrackRow.tsx",
-  "ui/src/App.tsx",
+  "ui/src/app/App.tsx",
   # shared touch: collab push of external-path media (read the bytes; those lines only)
   "crates/ether-controller/src/collab/mod.rs",
   # shared touch: the mock's import/upload paths
@@ -872,6 +876,11 @@ paths = [
   "crates/ether-devices/tests/device_ui*.rs",
   "ui/src/transport/mock/devices/v01Layouts.json",
   "ui/src/transport/mock/builtinDevices.ts",
+  # BCR-2 (base-68): tests that encoded the old hand-written mock param ids (mock descriptors now generated from Rust)
+  "ui/src/features/devices/DeviceChain.test.tsx",
+  "ui/src/transport/mock/MockTransport.test.ts",
+  # BCR-2 addendum (base-69): remap the demo Synth param ids to the Rust ids, values unchanged
+  "ui/src/transport/mock/demoProject.ts",
 ]
 
 [nodes.synth-2]
