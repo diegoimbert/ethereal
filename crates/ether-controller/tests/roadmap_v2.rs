@@ -28,10 +28,6 @@ fn new_domains_reply_unsupported_until_implemented() {
             indices: vec![],
         }),
         Command::Collab(CollabCommand::Leave),
-        Command::Device(DeviceCommand::SetSidechain {
-            device: h.id(),
-            source: None,
-        }),
     ];
     for c in commands {
         let out = h.send(c.clone());
