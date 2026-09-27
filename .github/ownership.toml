@@ -582,3 +582,17 @@ paths = [
   # shared touch (base-38, as base-25 for other roadmap nodes): one additive state field + initializer on EtherController
   "crates/ether-controller/src/lib.rs",
 ]
+
+[nodes.design-sweep]
+# Post-roadmap cleanup: migrate hard-coded UI values to design tokens WITHOUT visual change,
+# canvas/SVG colours via readToken(), data-midi-target hooks, small UI follow-ups.
+paths = [
+  "ui/src/**",
+  "apps/web/e2e/design-sweep.spec.ts",
+  "docs/DESIGN-SYSTEM.md",
+]
+exclude = [
+  "ui/src/generated/**",
+  "ui/src/features/collab/**",
+  "ui/src/transport/mock/roadmap/collab.*",
+]
