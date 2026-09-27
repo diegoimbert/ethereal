@@ -176,6 +176,7 @@ pub fn create(config: EngineConfig) -> EngineParts {
         .collect::<Vec<_>>()
         .into();
     let playhead = Arc::new(SharedPlayhead::default());
+    let (recording_rt, recording_io) = crate::recording::channel(&config);
     let snapshot =
         compile_with(RenderGraphDesc::default(), &config, &|_| None).expect("empty graph compiles");
     let tempo_bpm = snapshot.tempo.bpm_at(0.0);
@@ -207,6 +208,7 @@ pub fn create(config: EngineConfig) -> EngineParts {
         overflow: false,
         underruns: 0,
         leaked: 0,
+        recording: recording_rt,
         config: config.clone(),
     };
     let handle = EngineHandle {
@@ -223,6 +225,7 @@ pub fn create(config: EngineConfig) -> EngineParts {
         free: (0..config.max_nodes as u32).rev().collect(),
         node_latency,
         playhead,
+        recording: Some(recording_io),
         config,
     };
     EngineParts {
@@ -255,6 +258,8 @@ pub struct Engine {
     /// Objects that could not be handed to the GC (ring full) and were leaked instead of
     /// being freed on the audio thread.
     leaked: u64,
+    /// Recording hooks: input capture, live MIDI in/out ([`crate::recording`]).
+    pub(crate) recording: crate::recording::RecordingRt,
 }
 
 impl Engine {
@@ -486,6 +491,7 @@ impl Engine {
             next_note_id,
             overflow,
             underruns,
+            recording,
             ..
         } = self;
         let RenderSnapshot { desc, tempo, rt } = &mut **snapshot;
@@ -555,6 +561,7 @@ impl Engine {
             sample_rate: sr,
             frames: n,
         };
+        recording.process(&info, inputs, off, n, &desc.tracks, tracks);
 
         for bus in buses.iter_mut() {
             bus[0][..n].fill(0.0);
@@ -973,6 +980,7 @@ pub struct EngineHandle {
     free: Vec<u32>,
     node_latency: Arc<[AtomicU32]>,
     playhead: Arc<SharedPlayhead>,
+    pub(crate) recording: Option<crate::recording::RecordingIo>,
 }
 
 struct HandleSlot {
