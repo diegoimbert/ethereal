@@ -553,6 +553,10 @@ export class MockTransport implements EngineTransport {
   }
 
   private projectCommand(c: ProjectCommand, gesture: GestureId | null): ReplyValue {
+    if (c.type === "SetScale") {
+      const command = { domain: "Project", command: c } as const;
+      return this.applyDocument([command], labelOf(command), gesture);
+    }
     switch (c.type) {
       case "List":
         return { type: "Projects", projects: this.summaries() };

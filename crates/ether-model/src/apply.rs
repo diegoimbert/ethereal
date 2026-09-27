@@ -101,6 +101,9 @@ fn check_bpm(bpm: f64) -> Result<(), ModelError> {
 }
 
 pub(crate) fn check_settings(s: &ProjectSettings) -> Result<(), ModelError> {
+    if s.scale.root > 11 {
+        return Err(invalid("scale root must be in 0..=11"));
+    }
     let r = s.loop_region;
     check_beats_nonneg("loop start", r.start)?;
     if !(finite(r.end.0) && r.end.0 > r.start.0) {
@@ -145,6 +148,7 @@ fn update_track(t: &mut Track, c: TrackChange) -> Result<TrackChange, ModelError
         C::Input(v) => swap!(C::Input, t.input, v),
         C::Output(v) => swap!(C::Output, t.output, v),
         C::Monitor(v) => swap!(C::Monitor, t.monitor, v),
+        C::Scale(v) => swap!(C::Scale, t.scale, v),
     })
 }
 
@@ -307,6 +311,7 @@ fn apply_settings(s: &mut ProjectSettings, c: SettingsChange) -> SettingsChange 
         C::LoopRegion(v) => swap!(C::LoopRegion, s.loop_region, v),
         C::Metronome(v) => swap!(C::Metronome, s.metronome, v),
         C::CountInBars(v) => swap!(C::CountInBars, s.count_in_bars, v),
+        C::Scale(v) => swap!(C::Scale, s.scale, v),
     }
 }
 
@@ -696,6 +701,14 @@ impl Project {
     }
 
     fn check_track(&self, t: &Track) -> Result<(), ModelError> {
+        if let crate::scale::TrackScale::Custom { scale } = t.scale
+            && scale.root > 11
+        {
+            return Err(invalid("scale root must be in 0..=11"));
+        }
+        if t.kind != TrackKind::Midi && t.scale != crate::scale::TrackScale::FollowProject {
+            return Err(invalid("track scales are only available on MIDI tracks"));
+        }
         let key = EntityKey::Track(t.id);
         check_color(t.color)?;
         check_order(&t.order)?;

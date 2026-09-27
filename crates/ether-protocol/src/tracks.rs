@@ -9,6 +9,10 @@ use crate::model::{Color, TrackId, TrackKind};
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
 #[serde(tag = "type")]
 pub enum TrackCommand {
+    SetScale {
+        id: TrackId,
+        scale: crate::model::TrackScale,
+    },
     /// Create a track with a client-chosen id, placed before `before` (None = last among its
     /// siblings), inside group `parent`. MIDI tracks get no default instrument (the UI
     /// follows up with `Device::Insert` in a `Batch` if it wants one).

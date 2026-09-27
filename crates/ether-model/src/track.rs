@@ -32,6 +32,8 @@ pub enum TrackKind {
 /// it lives in the controller and is reported via `RecordingEvent::ArmChanged`.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
 pub struct Track {
+    #[serde(default)]
+    pub scale: crate::scale::TrackScale,
     pub id: TrackId,
     pub kind: TrackKind,
     pub name: String,

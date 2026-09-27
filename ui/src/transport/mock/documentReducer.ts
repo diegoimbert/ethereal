@@ -75,7 +75,7 @@ export function isDocumentCommand(command: Command): boolean {
       return c.type !== "ListBuiltin" && c.type !== "GetDescriptor";
     case "Project":
       // Only renaming the *current* project is a document edit (checked in the reducer).
-      return c.type === "Rename";
+      return c.type === "Rename" || c.type === "SetScale";
     case "Transport":
       return [
         "SetLoopEnabled",
@@ -272,6 +272,13 @@ function validateParent(ctx: ReducerContext, kind: Track["kind"], parent: TrackI
 }
 
 function trackCommand(ctx: ReducerContext, c: TrackCommand): void {
+  if (c.type === "SetScale") {
+    const t = track(ctx, c.id);
+    if (t.kind !== "Midi") fail("InvalidArgument", "track scales are only available on MIDI tracks");
+    if (c.scale.type === "Custom" && (!Number.isInteger(c.scale.scale.root) || c.scale.scale.root < 0 || c.scale.scale.root > 11)) fail("InvalidArgument", "invalid scale root");
+    ctx.tx.upsert("Track", { ...t, scale: c.scale });
+    return;
+  }
   const { tx } = ctx;
   switch (c.type) {
     case "Create": {
@@ -918,6 +925,11 @@ function transportSettingsCommand(ctx: ReducerContext, c: TransportCommand): voi
 }
 
 function projectCommand(ctx: ReducerContext, c: ProjectCommand): void {
+  if (c.type === "SetScale") {
+    if (!Number.isInteger(c.scale.root) || c.scale.root < 0 || c.scale.root > 11) fail("InvalidArgument", "invalid scale root");
+    ctx.tx.setSettings({ ...ctx.tx.project.settings, scale: c.scale });
+    return;
+  }
   if (c.type !== "Rename") fail("Internal", `not a document project command: ${c.type}`);
   if (c.id !== ctx.tx.project.id) fail("InvalidArgument", "only the current project can be renamed as a document edit");
   const name = c.name.trim();

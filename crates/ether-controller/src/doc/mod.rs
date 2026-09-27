@@ -467,6 +467,7 @@ pub(crate) fn is_document_command(command: &Command, current: Option<ProjectId>)
             R::SetMonitor { .. } | R::SetInput { .. } | R::SetCountIn { .. }
         ),
         Command::Warp(c) => !matches!(c, W::DetectTempo { .. }),
+        Command::Project(ProjectCommand::SetScale { .. }) => true,
         Command::Project(ProjectCommand::Rename { id, .. }) => Some(*id) == current,
         _ => false,
     }
@@ -505,6 +506,9 @@ pub(crate) fn apply(ctx: &mut DocCtx, command: &Command) -> CmdResult<ReplyValue
         Command::Transport(c) => misc::transport(ctx, c),
         Command::Recording(c) => misc::recording(ctx, c),
         Command::Warp(c) => misc::warp(ctx, c),
+        Command::Project(ProjectCommand::SetScale { scale }) => {
+            ctx.tx.settings(SettingsChange::Scale(*scale))
+        }
         Command::Project(ProjectCommand::Rename { name, .. }) => misc::rename_project(ctx, name),
         other => Err(unsupported(format!(
             "{} is not a document command",

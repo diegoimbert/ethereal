@@ -58,12 +58,15 @@ pub struct ProjectSettings {
     pub metronome: bool,
     /// Count-in before recording, in bars (0 = off).
     pub count_in_bars: u32,
+    #[serde(default)]
+    pub scale: MusicalScale,
 }
 
 impl Default for ProjectSettings {
     fn default() -> Self {
         Self {
             name: "Untitled".into(),
+            scale: MusicalScale::default(),
             loop_enabled: false,
             loop_region: BeatRange {
                 start: Beats::ZERO,
@@ -95,6 +98,7 @@ impl Project {
             input: TrackInput::None,
             output: TrackOutput::Default,
             monitor: MonitorMode::default(),
+            scale: Default::default(),
         };
         let tempo = TempoPoint {
             id: ids.next(now_ms),

@@ -39,6 +39,7 @@ where
         out: &mut dyn MessageSink,
     ) -> CmdResult<ReplyValue> {
         match c {
+            ProjectCommand::SetScale { .. } => unreachable!("scale is a document command"),
             ProjectCommand::List => Ok(ReplyValue::Projects {
                 projects: self.list_projects()?,
             }),

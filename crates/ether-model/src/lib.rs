@@ -27,6 +27,8 @@ pub mod patch;
 pub mod plugins;
 pub mod project;
 pub mod recording;
+pub mod scale;
+pub use scale::*;
 pub mod tempo;
 pub mod track;
 pub mod value;

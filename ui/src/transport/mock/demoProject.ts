@@ -39,6 +39,7 @@ export function defaultSettings(name: string): ProjectSettings {
     loop_region: { start: 0, end: 16 },
     metronome: false,
     count_in_bars: 0,
+    scale: { root: 0, kind: "Chromatic" },
   };
 }
 
@@ -75,6 +76,7 @@ export function makeTrack(fields: Pick<Track, "id" | "kind" | "name" | "color" |
     input: defaultTrackInput(fields.kind),
     output: { type: "Default" },
     monitor: "Auto",
+    scale: { type: "FollowProject" },
     ...fields,
   };
 }

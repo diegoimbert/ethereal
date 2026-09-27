@@ -36,6 +36,7 @@ function track(id: string, kind: Track["kind"], order: string, parent: string | 
     input: { type: "None" },
     output: { type: "Default" },
     monitor: "Auto",
+    scale: { type: "FollowProject" },
   };
 }
 

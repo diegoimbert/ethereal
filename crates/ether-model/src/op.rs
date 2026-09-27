@@ -86,6 +86,7 @@ pub enum EntityUpdate {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
 #[serde(tag = "field", content = "value")]
 pub enum SettingsChange {
+    Scale(crate::scale::MusicalScale),
     Name(String),
     LoopEnabled(bool),
     LoopRegion(BeatRange),
@@ -96,6 +97,7 @@ pub enum SettingsChange {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
 #[serde(tag = "field", content = "value")]
 pub enum TrackChange {
+    Scale(crate::scale::TrackScale),
     Name(String),
     Color(Color),
     Order(OrderKey),
