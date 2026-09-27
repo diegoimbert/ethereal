@@ -93,6 +93,7 @@ export class MockLiveRecord {
           channels: 1,
           frames: 0,
           hash: null,
+          location: { type: "Project" },
         },
       }));
     for (const t of this.takes) t.media.file = `media/rec-mock-${t.media.id}.wav`;

@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
 use crate::model::{
-    BuiltinDevice, BuiltinDeviceType, DeviceId, MediaId, ParamId, PluginFormat, TrackId,
+    BuiltinDevice, BuiltinDeviceType, DeviceId, MediaId, ParamId, PluginFormat, SampleZone, TrackId,
 };
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
@@ -68,6 +68,13 @@ pub enum DeviceCommand {
         device: DeviceId,
         source: Option<TrackId>,
     },
+    /// v0.2 (`multisampler`): replace a multisampler's zones (`ether_model::multisampler`;
+    /// referenced media must exist). Undoable; live nodes update in place
+    /// (`EngineBridge::update_builtin`).
+    SetZones {
+        device: DeviceId,
+        zones: Vec<SampleZone>,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
@@ -87,6 +94,11 @@ pub enum DeviceSpec {
     },
 }
 
+/// Device category (append-only).
+///
+/// `NoteEffect` = **MIDI effect** (v0.2 `midi-fx`, CONTRACTS.md §12.4.4): sits before the
+/// instrument, transforms note/MIDI events (`Node` MIDI-in → MIDI-out), audio passes through
+/// untouched (`audio_inputs == audio_outputs == 0`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, TS)]
 pub enum DeviceCategory {
     Instrument,
@@ -115,6 +127,11 @@ pub struct DeviceDescriptor {
     /// Roadmap v2 (`sidechain`): channels of the sidechain input (0 = none; the UI shows a
     /// sidechain source selector when > 0).
     pub sidechain_inputs: u16,
+    /// v0.2 (`device-ui`): declarative panel layout rendered by the shared renderer
+    /// ([`crate::layout`]). `None` = the generic layout. Omitted from JSON when `None`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub layout: Option<crate::layout::DeviceLayout>,
 }
 
 /// Parameter metadata. Plain values are what the document stores; normalized 0..=1 values
@@ -134,6 +151,13 @@ pub struct ParamInfo {
     pub labels: Option<Vec<String>>,
     pub automatable: bool,
     pub hidden: bool,
+    /// v0.2: plain-value step (`None` = continuous). Integer params (transpose, root key,
+    /// voices, counts) and enum/toggle params use 1. Knobs, automation lanes, MIDI learn and
+    /// the layout renderer snap to it (`min + round((v - min) / step) · step`); the scale
+    /// helpers (`to_plain`/`to_normalized`) don't. Omitted from JSON when `None`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub step: Option<f64>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, TS)]
@@ -207,6 +231,22 @@ pub fn scale_to_normalized(scale: ParamScale, min: f64, max: f64, plain: f64) ->
 }
 
 impl ParamInfo {
+    /// This param with a plain-value step (builder).
+    pub fn with_step(mut self, step: f64) -> Self {
+        self.step = Some(step);
+        self
+    }
+
+    /// Snap a plain value to [`ParamInfo::step`] (unchanged when continuous), clamped.
+    pub fn snap(&self, plain: f64) -> f64 {
+        let (lo, hi) = (self.min.min(self.max), self.max.max(self.min));
+        let v = plain.clamp(lo, hi);
+        match self.step {
+            Some(s) if s > 0.0 => (self.min + ((v - self.min) / s).round() * s).clamp(lo, hi),
+            _ => v,
+        }
+    }
+
     /// Map a normalized value 0..=1 to a plain value (snapped to steps for enum params).
     pub fn to_plain(&self, normalized: f64) -> f64 {
         let v = scale_to_plain(self.scale, self.min, self.max, normalized);

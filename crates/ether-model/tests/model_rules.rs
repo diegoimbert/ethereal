@@ -20,6 +20,8 @@ impl Fx {
     }
     fn track(&mut self, kind: TrackKind, parent: Option<TrackId>) -> Track {
         Track {
+            vca: Default::default(),
+            freeze: None,
             id: self.id(),
             kind,
             name: "t".into(),
@@ -45,6 +47,7 @@ impl Fx {
     }
     fn midi_clip(&mut self, track: TrackId, start: Beats) -> Clip {
         Clip {
+            lane: None,
             id: self.id(),
             track,
             start,
@@ -379,6 +382,7 @@ fn params_roundtrip_through_json_and_param_reset() {
     let mut f = Fx::new();
     let t = f.add_track(TrackKind::Midi, None);
     let d = Device {
+        chain: None,
         id: f.id(),
         track: t,
         order: OrderKey::between(None, None),

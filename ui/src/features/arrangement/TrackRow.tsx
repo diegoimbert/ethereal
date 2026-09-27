@@ -86,6 +86,8 @@ const TRACK_ICONS: Record<Track["kind"], ReactNode> = {
   Group: <Folder />,
   Return: <CornerDownRight />,
   Master: <Speaker />,
+  // v0.2 (`groups-buses`): VCA tracks; the node refines the icon.
+  Vca: <Folder />,
 };
 
 /**

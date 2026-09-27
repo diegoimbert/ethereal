@@ -1,0 +1,1214 @@
+{
+  "PolySynth": {
+    "audio_inputs": 0,
+    "audio_outputs": 2,
+    "category": "Instrument",
+    "device_type": {
+      "device": "PolySynth",
+      "type": "Builtin"
+    },
+    "midi_input": true,
+    "name": "Poly Synth",
+    "params": [
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Osc 1",
+        "hidden": false,
+        "id": 0,
+        "labels": [
+          "Saw",
+          "Square",
+          "Triangle",
+          "Sine",
+          "Wavetable"
+        ],
+        "max": 4.0,
+        "min": 0.0,
+        "name": "Type",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Osc 1",
+        "hidden": false,
+        "id": 1,
+        "labels": null,
+        "max": 100.0,
+        "min": 0.0,
+        "name": "Position",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Percent"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Osc 1",
+        "hidden": false,
+        "id": 2,
+        "labels": [
+          "-3",
+          "-2",
+          "-1",
+          "0",
+          "1",
+          "2",
+          "3"
+        ],
+        "max": 3.0,
+        "min": -3.0,
+        "name": "Octave",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Osc 1",
+        "hidden": false,
+        "id": 3,
+        "labels": [
+          "-12",
+          "-11",
+          "-10",
+          "-9",
+          "-8",
+          "-7",
+          "-6",
+          "-5",
+          "-4",
+          "-3",
+          "-2",
+          "-1",
+          "0",
+          "1",
+          "2",
+          "3",
+          "4",
+          "5",
+          "6",
+          "7",
+          "8",
+          "9",
+          "10",
+          "11",
+          "12"
+        ],
+        "max": 12.0,
+        "min": -12.0,
+        "name": "Semitones",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Semitones"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Osc 1",
+        "hidden": false,
+        "id": 4,
+        "labels": null,
+        "max": 1.0,
+        "min": -1.0,
+        "name": "Fine",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Semitones"
+      },
+      {
+        "automatable": true,
+        "default": 50.0,
+        "group": "Osc 1",
+        "hidden": false,
+        "id": 5,
+        "labels": null,
+        "max": 95.0,
+        "min": 5.0,
+        "name": "Pulse Width",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Percent"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Osc 1",
+        "hidden": false,
+        "id": 6,
+        "labels": null,
+        "max": 6.0,
+        "min": -70.0,
+        "name": "Level",
+        "scale": {
+          "type": "Fader"
+        },
+        "unit": "Decibels"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Osc 2",
+        "hidden": false,
+        "id": 7,
+        "labels": [
+          "Saw",
+          "Square",
+          "Triangle",
+          "Sine",
+          "Wavetable"
+        ],
+        "max": 4.0,
+        "min": 0.0,
+        "name": "Type",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Osc 2",
+        "hidden": false,
+        "id": 8,
+        "labels": null,
+        "max": 100.0,
+        "min": 0.0,
+        "name": "Position",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Percent"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Osc 2",
+        "hidden": false,
+        "id": 9,
+        "labels": [
+          "-3",
+          "-2",
+          "-1",
+          "0",
+          "1",
+          "2",
+          "3"
+        ],
+        "max": 3.0,
+        "min": -3.0,
+        "name": "Octave",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Osc 2",
+        "hidden": false,
+        "id": 10,
+        "labels": [
+          "-12",
+          "-11",
+          "-10",
+          "-9",
+          "-8",
+          "-7",
+          "-6",
+          "-5",
+          "-4",
+          "-3",
+          "-2",
+          "-1",
+          "0",
+          "1",
+          "2",
+          "3",
+          "4",
+          "5",
+          "6",
+          "7",
+          "8",
+          "9",
+          "10",
+          "11",
+          "12"
+        ],
+        "max": 12.0,
+        "min": -12.0,
+        "name": "Semitones",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Semitones"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Osc 2",
+        "hidden": false,
+        "id": 11,
+        "labels": null,
+        "max": 1.0,
+        "min": -1.0,
+        "name": "Fine",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Semitones"
+      },
+      {
+        "automatable": true,
+        "default": 50.0,
+        "group": "Osc 2",
+        "hidden": false,
+        "id": 12,
+        "labels": null,
+        "max": 95.0,
+        "min": 5.0,
+        "name": "Pulse Width",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Percent"
+      },
+      {
+        "automatable": true,
+        "default": -70.0,
+        "group": "Osc 2",
+        "hidden": false,
+        "id": 13,
+        "labels": null,
+        "max": 6.0,
+        "min": -70.0,
+        "name": "Level",
+        "scale": {
+          "type": "Fader"
+        },
+        "unit": "Decibels"
+      },
+      {
+        "automatable": true,
+        "default": -70.0,
+        "group": "Sub / Noise",
+        "hidden": false,
+        "id": 14,
+        "labels": null,
+        "max": 6.0,
+        "min": -70.0,
+        "name": "Sub Level",
+        "scale": {
+          "type": "Fader"
+        },
+        "unit": "Decibels"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Sub / Noise",
+        "hidden": false,
+        "id": 15,
+        "labels": [
+          "-1",
+          "-2"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Sub Octave",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": -70.0,
+        "group": "Sub / Noise",
+        "hidden": false,
+        "id": 16,
+        "labels": null,
+        "max": 6.0,
+        "min": -70.0,
+        "name": "Noise Level",
+        "scale": {
+          "type": "Fader"
+        },
+        "unit": "Decibels"
+      },
+      {
+        "automatable": true,
+        "default": 50.0,
+        "group": "Sub / Noise",
+        "hidden": false,
+        "id": 17,
+        "labels": null,
+        "max": 100.0,
+        "min": 0.0,
+        "name": "Noise Color",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Percent"
+      },
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Unison",
+        "hidden": false,
+        "id": 18,
+        "labels": [
+          "1",
+          "2",
+          "3",
+          "4",
+          "5",
+          "6",
+          "7",
+          "8"
+        ],
+        "max": 8.0,
+        "min": 1.0,
+        "name": "Unison",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 20.0,
+        "group": "Unison",
+        "hidden": false,
+        "id": 19,
+        "labels": null,
+        "max": 100.0,
+        "min": 0.0,
+        "name": "Detune",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Percent"
+      },
+      {
+        "automatable": true,
+        "default": 50.0,
+        "group": "Unison",
+        "hidden": false,
+        "id": 20,
+        "labels": null,
+        "max": 100.0,
+        "min": 0.0,
+        "name": "Spread",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Percent"
+      },
+      {
+        "automatable": true,
+        "default": 16.0,
+        "group": "Voice",
+        "hidden": false,
+        "id": 21,
+        "labels": [
+          "1",
+          "2",
+          "3",
+          "4",
+          "5",
+          "6",
+          "7",
+          "8",
+          "9",
+          "10",
+          "11",
+          "12",
+          "13",
+          "14",
+          "15",
+          "16",
+          "17",
+          "18",
+          "19",
+          "20",
+          "21",
+          "22",
+          "23",
+          "24",
+          "25",
+          "26",
+          "27",
+          "28",
+          "29",
+          "30",
+          "31",
+          "32"
+        ],
+        "max": 32.0,
+        "min": 1.0,
+        "name": "Voices",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Voice",
+        "hidden": false,
+        "id": 22,
+        "labels": [
+          "Poly",
+          "Mono",
+          "Legato"
+        ],
+        "max": 2.0,
+        "min": 0.0,
+        "name": "Mode",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Voice",
+        "hidden": false,
+        "id": 23,
+        "labels": null,
+        "max": 2000.0,
+        "min": 0.0,
+        "name": "Glide",
+        "scale": {
+          "exponent": 3.0,
+          "type": "Power"
+        },
+        "unit": "Milliseconds"
+      },
+      {
+        "automatable": true,
+        "default": 2.0,
+        "group": "Voice",
+        "hidden": false,
+        "id": 24,
+        "labels": [
+          "0",
+          "1",
+          "2",
+          "3",
+          "4",
+          "5",
+          "6",
+          "7",
+          "8",
+          "9",
+          "10",
+          "11",
+          "12",
+          "13",
+          "14",
+          "15",
+          "16",
+          "17",
+          "18",
+          "19",
+          "20",
+          "21",
+          "22",
+          "23",
+          "24"
+        ],
+        "max": 24.0,
+        "min": 0.0,
+        "name": "Bend Range",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Semitones"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Filter",
+        "hidden": false,
+        "id": 25,
+        "labels": [
+          "Low-pass 24",
+          "Low-pass 12",
+          "High-pass 12",
+          "Band-pass 12",
+          "Notch"
+        ],
+        "max": 4.0,
+        "min": 0.0,
+        "name": "Type",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 8000.0,
+        "group": "Filter",
+        "hidden": false,
+        "id": 26,
+        "labels": null,
+        "max": 20000.0,
+        "min": 20.0,
+        "name": "Cutoff",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Hertz"
+      },
+      {
+        "automatable": true,
+        "default": 10.0,
+        "group": "Filter",
+        "hidden": false,
+        "id": 27,
+        "labels": null,
+        "max": 100.0,
+        "min": 0.0,
+        "name": "Resonance",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Percent"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Filter",
+        "hidden": false,
+        "id": 28,
+        "labels": null,
+        "max": 24.0,
+        "min": 0.0,
+        "name": "Drive",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Decibels"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Filter",
+        "hidden": false,
+        "id": 29,
+        "labels": null,
+        "max": 100.0,
+        "min": 0.0,
+        "name": "Key Tracking",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Percent"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Filter",
+        "hidden": false,
+        "id": 30,
+        "labels": null,
+        "max": 100.0,
+        "min": -100.0,
+        "name": "Env Amount",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Percent"
+      },
+      {
+        "automatable": true,
+        "default": 5.0,
+        "group": "Amp Envelope",
+        "hidden": false,
+        "id": 31,
+        "labels": null,
+        "max": 10000.0,
+        "min": 0.0,
+        "name": "Attack",
+        "scale": {
+          "exponent": 3.0,
+          "type": "Power"
+        },
+        "unit": "Milliseconds"
+      },
+      {
+        "automatable": true,
+        "default": 200.0,
+        "group": "Amp Envelope",
+        "hidden": false,
+        "id": 32,
+        "labels": null,
+        "max": 10000.0,
+        "min": 1.0,
+        "name": "Decay",
+        "scale": {
+          "exponent": 3.0,
+          "type": "Power"
+        },
+        "unit": "Milliseconds"
+      },
+      {
+        "automatable": true,
+        "default": 70.0,
+        "group": "Amp Envelope",
+        "hidden": false,
+        "id": 33,
+        "labels": null,
+        "max": 100.0,
+        "min": 0.0,
+        "name": "Sustain",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Percent"
+      },
+      {
+        "automatable": true,
+        "default": 300.0,
+        "group": "Amp Envelope",
+        "hidden": false,
+        "id": 34,
+        "labels": null,
+        "max": 20000.0,
+        "min": 1.0,
+        "name": "Release",
+        "scale": {
+          "exponent": 3.0,
+          "type": "Power"
+        },
+        "unit": "Milliseconds"
+      },
+      {
+        "automatable": true,
+        "default": 5.0,
+        "group": "Filter Envelope",
+        "hidden": false,
+        "id": 35,
+        "labels": null,
+        "max": 10000.0,
+        "min": 0.0,
+        "name": "Attack",
+        "scale": {
+          "exponent": 3.0,
+          "type": "Power"
+        },
+        "unit": "Milliseconds"
+      },
+      {
+        "automatable": true,
+        "default": 400.0,
+        "group": "Filter Envelope",
+        "hidden": false,
+        "id": 36,
+        "labels": null,
+        "max": 10000.0,
+        "min": 1.0,
+        "name": "Decay",
+        "scale": {
+          "exponent": 3.0,
+          "type": "Power"
+        },
+        "unit": "Milliseconds"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Filter Envelope",
+        "hidden": false,
+        "id": 37,
+        "labels": null,
+        "max": 100.0,
+        "min": 0.0,
+        "name": "Sustain",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Percent"
+      },
+      {
+        "automatable": true,
+        "default": 300.0,
+        "group": "Filter Envelope",
+        "hidden": false,
+        "id": 38,
+        "labels": null,
+        "max": 20000.0,
+        "min": 1.0,
+        "name": "Release",
+        "scale": {
+          "exponent": 3.0,
+          "type": "Power"
+        },
+        "unit": "Milliseconds"
+      },
+      {
+        "automatable": true,
+        "default": 5.0,
+        "group": "Mod Envelope",
+        "hidden": false,
+        "id": 39,
+        "labels": null,
+        "max": 10000.0,
+        "min": 0.0,
+        "name": "Attack",
+        "scale": {
+          "exponent": 3.0,
+          "type": "Power"
+        },
+        "unit": "Milliseconds"
+      },
+      {
+        "automatable": true,
+        "default": 400.0,
+        "group": "Mod Envelope",
+        "hidden": false,
+        "id": 40,
+        "labels": null,
+        "max": 10000.0,
+        "min": 1.0,
+        "name": "Decay",
+        "scale": {
+          "exponent": 3.0,
+          "type": "Power"
+        },
+        "unit": "Milliseconds"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Mod Envelope",
+        "hidden": false,
+        "id": 41,
+        "labels": null,
+        "max": 100.0,
+        "min": 0.0,
+        "name": "Sustain",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Percent"
+      },
+      {
+        "automatable": true,
+        "default": 300.0,
+        "group": "Mod Envelope",
+        "hidden": false,
+        "id": 42,
+        "labels": null,
+        "max": 20000.0,
+        "min": 1.0,
+        "name": "Release",
+        "scale": {
+          "exponent": 3.0,
+          "type": "Power"
+        },
+        "unit": "Milliseconds"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Mod Envelope",
+        "hidden": false,
+        "id": 43,
+        "labels": [
+          "Off",
+          "Pitch",
+          "Osc 2 Pitch",
+          "Wavetable Position",
+          "Pulse Width",
+          "Cutoff"
+        ],
+        "max": 5.0,
+        "min": 0.0,
+        "name": "Target",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Mod Envelope",
+        "hidden": false,
+        "id": 44,
+        "labels": null,
+        "max": 100.0,
+        "min": -100.0,
+        "name": "Amount",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Percent"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "LFO 1",
+        "hidden": false,
+        "id": 45,
+        "labels": [
+          "Sine",
+          "Triangle",
+          "Saw",
+          "Square",
+          "Sample & Hold"
+        ],
+        "max": 4.0,
+        "min": 0.0,
+        "name": "Shape",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 2.0,
+        "group": "LFO 1",
+        "hidden": false,
+        "id": 46,
+        "labels": null,
+        "max": 50.0,
+        "min": 0.01,
+        "name": "Rate",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Hertz"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "LFO 1",
+        "hidden": false,
+        "id": 47,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Sync",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      },
+      {
+        "automatable": true,
+        "default": 8.0,
+        "group": "LFO 1",
+        "hidden": false,
+        "id": 48,
+        "labels": [
+          "1/64",
+          "1/32T",
+          "1/32",
+          "1/16T",
+          "1/16",
+          "1/8T",
+          "1/8",
+          "1/4T",
+          "1/4",
+          "1/2",
+          "1 bar",
+          "2 bars",
+          "4 bars",
+          "8 bars"
+        ],
+        "max": 13.0,
+        "min": 0.0,
+        "name": "Sync Rate",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "LFO 1",
+        "hidden": false,
+        "id": 49,
+        "labels": [
+          "Off",
+          "Pitch",
+          "Cutoff",
+          "Amp",
+          "Pan",
+          "Wavetable Position",
+          "Pulse Width"
+        ],
+        "max": 6.0,
+        "min": 0.0,
+        "name": "Target",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "LFO 1",
+        "hidden": false,
+        "id": 50,
+        "labels": null,
+        "max": 100.0,
+        "min": -100.0,
+        "name": "Amount",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Percent"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "LFO 2",
+        "hidden": false,
+        "id": 51,
+        "labels": [
+          "Sine",
+          "Triangle",
+          "Saw",
+          "Square",
+          "Sample & Hold"
+        ],
+        "max": 4.0,
+        "min": 0.0,
+        "name": "Shape",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 2.0,
+        "group": "LFO 2",
+        "hidden": false,
+        "id": 52,
+        "labels": null,
+        "max": 50.0,
+        "min": 0.01,
+        "name": "Rate",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Hertz"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "LFO 2",
+        "hidden": false,
+        "id": 53,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Sync",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      },
+      {
+        "automatable": true,
+        "default": 8.0,
+        "group": "LFO 2",
+        "hidden": false,
+        "id": 54,
+        "labels": [
+          "1/64",
+          "1/32T",
+          "1/32",
+          "1/16T",
+          "1/16",
+          "1/8T",
+          "1/8",
+          "1/4T",
+          "1/4",
+          "1/2",
+          "1 bar",
+          "2 bars",
+          "4 bars",
+          "8 bars"
+        ],
+        "max": 13.0,
+        "min": 0.0,
+        "name": "Sync Rate",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "LFO 2",
+        "hidden": false,
+        "id": 55,
+        "labels": [
+          "Off",
+          "Pitch",
+          "Cutoff",
+          "Amp",
+          "Pan",
+          "Wavetable Position",
+          "Pulse Width"
+        ],
+        "max": 6.0,
+        "min": 0.0,
+        "name": "Target",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "LFO 2",
+        "hidden": false,
+        "id": 56,
+        "labels": null,
+        "max": 100.0,
+        "min": -100.0,
+        "name": "Amount",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Percent"
+      },
+      {
+        "automatable": true,
+        "default": -6.0,
+        "group": "Output",
+        "hidden": false,
+        "id": 57,
+        "labels": null,
+        "max": 6.0,
+        "min": -70.0,
+        "name": "Volume",
+        "scale": {
+          "type": "Fader"
+        },
+        "unit": "Decibels"
+      },
+      {
+        "automatable": true,
+        "default": 50.0,
+        "group": "Output",
+        "hidden": false,
+        "id": 58,
+        "labels": null,
+        "max": 100.0,
+        "min": 0.0,
+        "name": "Velocity",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Percent"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Osc 1",
+        "hidden": false,
+        "id": 59,
+        "labels": [
+          "Basic Shapes",
+          "Harmonic Sweep",
+          "PWM",
+          "Formant",
+          "Digital",
+          "Organ",
+          "Vocal",
+          "Metallic"
+        ],
+        "max": 7.0,
+        "min": 0.0,
+        "name": "Table",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Osc 2",
+        "hidden": false,
+        "id": 60,
+        "labels": [
+          "Basic Shapes",
+          "Harmonic Sweep",
+          "PWM",
+          "Formant",
+          "Digital",
+          "Organ",
+          "Vocal",
+          "Metallic"
+        ],
+        "max": 7.0,
+        "min": 0.0,
+        "name": "Table",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      }
+    ],
+    "sidechain_inputs": 0
+  }
+}

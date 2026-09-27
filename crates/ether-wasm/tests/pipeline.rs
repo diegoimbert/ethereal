@@ -171,6 +171,7 @@ fn media_streams_through_small_ring_and_plays() {
         channels: vec![vec![0.5; frames], vec![-0.25; frames]],
     });
     let media = MediaRef {
+        location: Default::default(),
         id: media_id,
         name: "tone".into(),
         file: "media/tone.wav".into(),
@@ -184,6 +185,11 @@ fn media_streams_through_small_ring_and_plays() {
 
     let master = TrackId(Ulid(1));
     let track = |id, kind, output, clips| TrackDesc {
+        modulation: Default::default(),
+        vca: Default::default(),
+        chain_racks: Default::default(),
+        frozen: Default::default(),
+        input_tap: Default::default(),
         id,
         kind,
         chain: vec![],
@@ -293,6 +299,11 @@ fn builtin_synth_under_virtual_key_plays_notes() {
     assert!(bridge.descriptor(device).is_some());
     let master = TrackId(Ulid(1));
     let midi = TrackDesc {
+        modulation: Default::default(),
+        vca: Default::default(),
+        chain_racks: Default::default(),
+        frozen: Default::default(),
+        input_tap: Default::default(),
         id: TrackId(Ulid(2)),
         kind: TrackKind::Midi,
         chain: vec![ChainEntry {
@@ -392,6 +403,11 @@ fn backlog_is_applied_in_bounded_steps_without_queue_overflow() {
     let graph = RenderGraphDesc {
         version: 1,
         tracks: vec![TrackDesc {
+            modulation: Default::default(),
+            vca: Default::default(),
+            chain_racks: Default::default(),
+            frozen: Default::default(),
+            input_tap: Default::default(),
             id: master,
             kind: TrackKind::Master,
             chain: vec![],

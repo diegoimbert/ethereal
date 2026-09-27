@@ -37,6 +37,8 @@ impl Doc {
     fn track(&mut self, kind: TrackKind, order: &str) -> TrackId {
         let id = self.id();
         self.insert(Entity::Track(Track {
+            freeze: None,
+            vca: Default::default(),
             id,
             kind,
             name: format!("{kind:?}"),
@@ -60,6 +62,7 @@ impl Doc {
     ) -> DeviceId {
         let id = self.id();
         self.insert(Entity::Device(Device {
+            chain: None,
             id,
             track,
             order: OrderKey(order.into()),

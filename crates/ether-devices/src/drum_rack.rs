@@ -62,6 +62,7 @@ pub fn param_infos() -> Vec<ParamInfo> {
 /// Descriptor of the `DrumRack` type.
 pub fn descriptor() -> DeviceDescriptor {
     DeviceDescriptor {
+        layout: None,
         device_type: DeviceTypeRef::Builtin {
             device: BuiltinDeviceType::DrumRack,
         },

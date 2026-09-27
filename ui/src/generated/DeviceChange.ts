@@ -4,6 +4,7 @@ import type { DrumPadId } from "./DrumPadId";
 import type { OrderKey } from "./OrderKey";
 import type { ParamId } from "./ParamId";
 import type { PluginInstance } from "./PluginInstance";
+import type { RackChainId } from "./RackChainId";
 import type { TrackId } from "./TrackId";
 
-export type DeviceChange = { "field": "Name", "value": string } | { "field": "Enabled", "value": boolean } | { "field": "Track", "value": TrackId } | { "field": "Order", "value": OrderKey } | { "field": "Param", "value": { param: ParamId, value: number | null, } } | { "field": "Kind", "value": DeviceKind } | { "field": "Plugin", "value": PluginInstance } | { "field": "Sidechain", "value": TrackId | null } | { "field": "Pad", "value": DrumPadId | null };
+export type DeviceChange = { "field": "Name", "value": string } | { "field": "Enabled", "value": boolean } | { "field": "Track", "value": TrackId } | { "field": "Order", "value": OrderKey } | { "field": "Param", "value": { param: ParamId, value: number | null, } } | { "field": "Kind", "value": DeviceKind } | { "field": "Plugin", "value": PluginInstance } | { "field": "Sidechain", "value": TrackId | null } | { "field": "Pad", "value": DrumPadId | null } | { "field": "Chain", "value": RackChainId | null };

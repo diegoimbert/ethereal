@@ -195,6 +195,7 @@ fn name(source: &MediaSource) -> String {
         MediaSource::Location { path, .. } => path.clone(),
         MediaSource::Project { media } => format!("project:{media}"),
         MediaSource::Upload { upload } => upload.clone(),
+        MediaSource::Path { path } => path.clone(),
     }
 }
 

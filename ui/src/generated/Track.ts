@@ -2,6 +2,7 @@
 import type { Color } from "./Color";
 import type { MonitorMode } from "./MonitorMode";
 import type { OrderKey } from "./OrderKey";
+import type { TrackFreeze } from "./TrackFreeze";
 import type { TrackId } from "./TrackId";
 import type { TrackInput } from "./TrackInput";
 import type { TrackKind } from "./TrackKind";
@@ -26,4 +27,16 @@ export type Track = { id: TrackId, kind: TrackKind, name: string, color: Color, 
  * Piano-roll scale (MIDI tracks only; others stay `FollowProject`). Older files load
  * as `FollowProject`.
  */
-scale: TrackScale, };
+scale: TrackScale, 
+/**
+ * Freeze state (v0.2, `freeze-bounce`; CONTRACTS.md §12.3). `Some` = the track plays
+ * `freeze.media` instead of its clips and device chain. Omitted from JSON when `None`.
+ */
+freeze?: TrackFreeze, 
+/**
+ * VCA assignment (v0.2, `groups-buses`; CONTRACTS.md §12.10): a `TrackKind::Vca` track.
+ * Effective fader gain = own volume (dB) + the VCA's volume (dB) + its own VCA's, and so
+ * on up the VCA chain (VCAs can be assigned to VCAs; no cycles). A muted VCA mutes its
+ * tracks; a soloed VCA solos them. Master cannot be assigned. Omitted when `None`.
+ */
+vca?: TrackId, };

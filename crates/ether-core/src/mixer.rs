@@ -165,6 +165,17 @@ pub(crate) struct TrackRt {
     /// Set by the track's job, collected on the audio thread after the last level.
     pub overflow: bool,
     pub underruns: u32,
+    // --- v0.2 hooks (contracts-3; each owned by its module's node) ---
+    /// Rack chains (`crate::rack_chains`).
+    pub chain_racks: crate::rack_chains::ChainRacksRt,
+    /// Modulators and mappings (`crate::modulation`).
+    pub modulation: crate::modulation::ModulationRt,
+    /// Input from another track (`crate::bus_tap`).
+    pub input_tap: crate::bus_tap::InputTapRt,
+    /// Tap buffers other tracks read from this one (`crate::bus_tap`).
+    pub taps: crate::bus_tap::TapBuffers,
+    /// VCA gain/mute (`crate::vca`).
+    pub vca: crate::vca::TrackVcaRt,
 }
 
 impl TrackRt {
@@ -198,6 +209,10 @@ impl TrackRt {
         self.next_note_id = old.next_note_id;
         self.meter = old.meter;
         self.racks.inherit(&mut old.racks);
+        self.chain_racks.inherit(&mut old.chain_racks);
+        self.modulation.inherit(&mut old.modulation);
+        self.input_tap.inherit(&mut old.input_tap);
+        self.vca.inherit(&mut old.vca);
     }
 }
 

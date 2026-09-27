@@ -81,6 +81,11 @@ const MEDIA: MediaId = MediaId(Ulid(77));
 
 fn track(id: TrackId, kind: TrackKind, output: Option<TrackId>, clips: Vec<ClipDesc>) -> TrackDesc {
     TrackDesc {
+        modulation: Default::default(),
+        vca: Default::default(),
+        chain_racks: Default::default(),
+        frozen: Default::default(),
+        input_tap: Default::default(),
         id,
         kind,
         chain: vec![],

@@ -1581,6 +1581,7 @@ mod tests {
         project.media.insert(
             id,
             MediaRef {
+                location: Default::default(),
                 id,
                 name: "kick.wav".into(),
                 file: file.into(),

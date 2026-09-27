@@ -1,0 +1,537 @@
+{
+  "AutoFilter": {
+    "audio_inputs": 2,
+    "audio_outputs": 2,
+    "category": "AudioEffect",
+    "device_type": {
+      "device": "AutoFilter",
+      "type": "Builtin"
+    },
+    "midi_input": false,
+    "name": "Auto Filter",
+    "params": [
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Filter",
+        "hidden": false,
+        "id": 0,
+        "labels": [
+          "Low-pass 12",
+          "Low-pass 24",
+          "High-pass 12",
+          "High-pass 24",
+          "Band-pass",
+          "Notch",
+          "Peak"
+        ],
+        "max": 6.0,
+        "min": 0.0,
+        "name": "Type",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 1000.0,
+        "group": "Filter",
+        "hidden": false,
+        "id": 1,
+        "labels": null,
+        "max": 20000.0,
+        "min": 20.0,
+        "name": "Cutoff",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Hertz"
+      },
+      {
+        "automatable": true,
+        "default": 20.0,
+        "group": "Filter",
+        "hidden": false,
+        "id": 2,
+        "labels": null,
+        "max": 100.0,
+        "min": 0.0,
+        "name": "Resonance",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Percent"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Filter",
+        "hidden": false,
+        "id": 3,
+        "labels": null,
+        "max": 24.0,
+        "min": 0.0,
+        "name": "Drive",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Decibels"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Envelope",
+        "hidden": false,
+        "id": 4,
+        "labels": null,
+        "max": 100.0,
+        "min": -100.0,
+        "name": "Amount",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Percent"
+      },
+      {
+        "automatable": true,
+        "default": 5.0,
+        "group": "Envelope",
+        "hidden": false,
+        "id": 5,
+        "labels": null,
+        "max": 100.0,
+        "min": 0.1,
+        "name": "Attack",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Milliseconds"
+      },
+      {
+        "automatable": true,
+        "default": 200.0,
+        "group": "Envelope",
+        "hidden": false,
+        "id": 6,
+        "labels": null,
+        "max": 2000.0,
+        "min": 10.0,
+        "name": "Release",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Milliseconds"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "LFO",
+        "hidden": false,
+        "id": 7,
+        "labels": null,
+        "max": 100.0,
+        "min": 0.0,
+        "name": "Amount",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Percent"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "LFO",
+        "hidden": false,
+        "id": 8,
+        "labels": [
+          "Sine",
+          "Triangle",
+          "Saw Up",
+          "Saw Down",
+          "Square",
+          "Sample & Hold"
+        ],
+        "max": 5.0,
+        "min": 0.0,
+        "name": "Shape",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "LFO",
+        "hidden": false,
+        "id": 9,
+        "labels": null,
+        "max": 20.0,
+        "min": 0.01,
+        "name": "Rate",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Hertz"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "LFO",
+        "hidden": false,
+        "id": 10,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Sync",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      },
+      {
+        "automatable": true,
+        "default": 8.0,
+        "group": "LFO",
+        "hidden": false,
+        "id": 11,
+        "labels": [
+          "1/64",
+          "1/32T",
+          "1/32",
+          "1/16T",
+          "1/16",
+          "1/8T",
+          "1/8",
+          "1/4T",
+          "1/4",
+          "1/2",
+          "1 bar",
+          "2 bars",
+          "4 bars",
+          "8 bars"
+        ],
+        "max": 13.0,
+        "min": 0.0,
+        "name": "Sync Rate",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "LFO",
+        "hidden": false,
+        "id": 12,
+        "labels": null,
+        "max": 180.0,
+        "min": 0.0,
+        "name": "Stereo Phase",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 100.0,
+        "group": "Output",
+        "hidden": false,
+        "id": 13,
+        "labels": null,
+        "max": 100.0,
+        "min": 0.0,
+        "name": "Mix",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Percent"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Output",
+        "hidden": false,
+        "id": 14,
+        "labels": null,
+        "max": 24.0,
+        "min": -24.0,
+        "name": "Output",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Decibels"
+      }
+    ],
+    "sidechain_inputs": 2
+  },
+  "Bitcrusher": {
+    "audio_inputs": 2,
+    "audio_outputs": 2,
+    "category": "AudioEffect",
+    "device_type": {
+      "device": "Bitcrusher",
+      "type": "Builtin"
+    },
+    "midi_input": false,
+    "name": "Bitcrusher",
+    "params": [
+      {
+        "automatable": true,
+        "default": 8.0,
+        "group": "Crush",
+        "hidden": false,
+        "id": 0,
+        "labels": null,
+        "max": 24.0,
+        "min": 1.0,
+        "name": "Bits",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 11025.0,
+        "group": "Crush",
+        "hidden": false,
+        "id": 1,
+        "labels": null,
+        "max": 48000.0,
+        "min": 100.0,
+        "name": "Rate",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Hertz"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Crush",
+        "hidden": false,
+        "id": 2,
+        "labels": null,
+        "max": 100.0,
+        "min": 0.0,
+        "name": "Jitter",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Percent"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Crush",
+        "hidden": false,
+        "id": 3,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Dither",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Output",
+        "hidden": false,
+        "id": 4,
+        "labels": null,
+        "max": 24.0,
+        "min": -24.0,
+        "name": "Output",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Decibels"
+      },
+      {
+        "automatable": true,
+        "default": 100.0,
+        "group": "Output",
+        "hidden": false,
+        "id": 5,
+        "labels": null,
+        "max": 100.0,
+        "min": 0.0,
+        "name": "Mix",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Percent"
+      }
+    ],
+    "sidechain_inputs": 0
+  },
+  "Saturator": {
+    "audio_inputs": 2,
+    "audio_outputs": 2,
+    "category": "AudioEffect",
+    "device_type": {
+      "device": "Saturator",
+      "type": "Builtin"
+    },
+    "midi_input": false,
+    "name": "Saturator",
+    "params": [
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Shape",
+        "hidden": false,
+        "id": 0,
+        "labels": [
+          "Soft",
+          "Hard",
+          "Tube",
+          "Tape",
+          "Fold",
+          "Rectify"
+        ],
+        "max": 5.0,
+        "min": 0.0,
+        "name": "Curve",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 6.0,
+        "group": "Shape",
+        "hidden": false,
+        "id": 1,
+        "labels": null,
+        "max": 36.0,
+        "min": 0.0,
+        "name": "Drive",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Decibels"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Shape",
+        "hidden": false,
+        "id": 2,
+        "labels": null,
+        "max": 100.0,
+        "min": -100.0,
+        "name": "Bias",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Percent"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Shape",
+        "hidden": false,
+        "id": 3,
+        "labels": null,
+        "max": 100.0,
+        "min": -100.0,
+        "name": "Tone",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Percent"
+      },
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Quality",
+        "hidden": false,
+        "id": 4,
+        "labels": [
+          "Off",
+          "2x",
+          "4x"
+        ],
+        "max": 2.0,
+        "min": 0.0,
+        "name": "Oversampling",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Output",
+        "hidden": false,
+        "id": 5,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Auto Gain",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Output",
+        "hidden": false,
+        "id": 6,
+        "labels": null,
+        "max": 24.0,
+        "min": -24.0,
+        "name": "Output",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Decibels"
+      },
+      {
+        "automatable": true,
+        "default": 100.0,
+        "group": "Output",
+        "hidden": false,
+        "id": 7,
+        "labels": null,
+        "max": 100.0,
+        "min": 0.0,
+        "name": "Mix",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Percent"
+      }
+    ],
+    "sidechain_inputs": 0
+  }
+}

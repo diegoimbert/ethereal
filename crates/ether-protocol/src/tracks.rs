@@ -39,7 +39,10 @@ pub enum TrackCommand {
         id: TrackId,
         color: Color,
     },
-    /// Reorder / regroup.
+    /// Reorder / regroup: `parent` = the destination group (`None` = top level), `before` a
+    /// sibling there. Moving into/out of a group is this command (v0.2 `groups-buses` keeps
+    /// it; the model rejects cycles and master/return/VCA tracks inside groups). Explicit
+    /// outputs (`TrackOutput::Track`) are kept; `Default` follows the new parent.
     Move {
         id: TrackId,
         parent: Option<TrackId>,
@@ -49,5 +52,28 @@ pub enum TrackCommand {
     SetScale {
         id: TrackId,
         scale: crate::model::TrackScale,
+    },
+    // --- v0.2 (`groups-buses`, CONTRACTS.md §12.10) ---
+    /// Cmd+G: create group track `group` around `ids` (all with the same parent; nested
+    /// groups allowed; master/return/VCA rejected). The group takes the position of the
+    /// first of `ids` in track order; the tracks move inside it in their current order.
+    /// `name: None` = "Group". One undo step; no other ids are minted.
+    GroupSelected {
+        ids: Vec<TrackId>,
+        group: TrackId,
+        name: Option<String>,
+    },
+    /// Move a group's children to the group's parent at its position (order kept) and
+    /// delete the group track. Its own devices, automation lanes, sends and the explicit
+    /// outputs pointing at it are **lost** (outputs reset to `Default`): without `force` the
+    /// command replies `InvalidState` when any of those exist. One undo step.
+    Ungroup {
+        group: TrackId,
+        force: bool,
+    },
+    /// Assign a track to a VCA (`None` = unassign). Undoable.
+    SetVca {
+        id: TrackId,
+        vca: Option<TrackId>,
     },
 }

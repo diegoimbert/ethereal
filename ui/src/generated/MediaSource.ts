@@ -5,4 +5,4 @@ import type { MediaId } from "./MediaId";
 /**
  * Where to read a file from. Never a raw file-system path.
  */
-export type MediaSource = { "type": "Location", location: BrowseLocation, path: string, } | { "type": "Project", media: MediaId, } | { "type": "Upload", upload: string, };
+export type MediaSource = { "type": "Location", location: BrowseLocation, path: string, } | { "type": "Project", media: MediaId, } | { "type": "Upload", upload: string, } | { "type": "Path", path: string, };

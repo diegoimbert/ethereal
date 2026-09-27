@@ -100,7 +100,7 @@ describe("path helpers", () => {
   });
 
   it("maps project media files to their MediaRef", () => {
-    const m: MediaRef = { id: "M1", name: "a.wav", file: "media/M1-a.wav", sample_rate: 48000, channels: 2, frames: 10, hash: null };
+    const m: MediaRef = { id: "M1", name: "a.wav", file: "media/M1-a.wav", sample_rate: 48000, channels: 2, frames: 10, hash: null, location: { type: "Project" } };
     expect(sourceOf({ type: "ProjectMedia" }, { path: "M1-a.wav" }, { M1: m })).toEqual({ type: "Project", media: "M1" });
     expect(sourceOf({ type: "ProjectMedia" }, { path: "x.wav" }, { M1: m })).toEqual({
       type: "Location",

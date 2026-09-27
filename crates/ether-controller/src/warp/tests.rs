@@ -36,6 +36,8 @@ fn fixture(seconds: f64, warp: WarpSettings) -> Fixture {
     let mut ids = IdGen::new(7);
     let mut project = Project::new(&mut ids, 0);
     let track = Track {
+        freeze: None,
+        vca: Default::default(),
         id: ids.next(0),
         kind: TrackKind::Audio,
         name: "Audio".into(),
@@ -55,6 +57,7 @@ fn fixture(seconds: f64, warp: WarpSettings) -> Fixture {
         ..track.clone()
     };
     let media = MediaRef {
+        location: Default::default(),
         id: ids.next(0),
         name: "loop.wav".into(),
         file: "media/loop.wav".into(),
@@ -64,6 +67,7 @@ fn fixture(seconds: f64, warp: WarpSettings) -> Fixture {
         hash: None,
     };
     let clip = Clip {
+        lane: None,
         id: ids.next(0),
         track: track.id,
         start: Beats(4.0),

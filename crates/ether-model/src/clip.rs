@@ -18,7 +18,7 @@
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
-use crate::ids::{ClipId, MediaId, TrackId};
+use crate::ids::{ClipId, MediaId, TakeLaneId, TrackId};
 use crate::value::{Beats, Color, Decibels};
 use crate::warp::WarpSettings;
 
@@ -38,6 +38,12 @@ pub struct Clip {
     pub offset: Beats,
     pub looping: ClipLoop,
     pub content: ClipContent,
+    /// Take lane this clip is on (v0.2, `comping`; see [`crate::take`]). `None` = the track's
+    /// main lane. Take-lane clips never play directly; comp regions select what plays. Omitted
+    /// from JSON when `None`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub lane: Option<TakeLaneId>,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize, TS)]
