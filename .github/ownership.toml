@@ -411,6 +411,8 @@ paths = [
   "docs/COLLAB.md",
   # shared touch (base-39): wire MockCollab into MockTransport (import, field, Collab case)
   "ui/src/transport/mock/MockTransport.ts",
+  # shared touch (base-44): EngineState::request_reload_from_doc (re-create a plugin from the document state)
+  "crates/ether-controller/src/engine.rs",
 ]
 
 [nodes.multicore]
@@ -597,4 +599,26 @@ exclude = [
   "ui/src/generated/**",
   "ui/src/features/collab/**",
   "ui/src/transport/mock/roadmap/collab.*",
+]
+
+[nodes.live-record]
+# Live waveform/MIDI view while recording (base-43 froze RecordingEvent::Progress and
+# EngineBridge::poll_recording).
+paths = [
+  "crates/ether-native/src/recording/**",
+  "crates/ether-controller/src/recording/**",
+  "crates/ether-controller/tests/live_record*.rs",
+  "crates/ether-native/tests/live_record*.rs",
+  "ui/src/features/recording/**",
+  "ui/src/transport/mock/roadmap/liveRecord.*",
+  "apps/web/e2e/live-record.spec.ts",
+  # shared touch: poll_recording impl in the native bridge (one delegation)
+  "crates/ether-native/src/bridge.rs",
+  # shared touch: live recording clip overlay in the arrangement (additive; the user's UX is authoritative)
+  "ui/src/features/arrangement/TrackRow.tsx",
+  "ui/src/features/arrangement/clipDraw.ts",
+  # shared touch: wire MockLiveRecord into MockTransport (import, field, event emission)
+  "ui/src/transport/mock/MockTransport.ts",
+  # shared touch (base-45): one-line recording_tick delegation in tick_impl
+  "crates/ether-controller/src/handlers.rs",
 ]
