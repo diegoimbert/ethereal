@@ -2,7 +2,7 @@
 // presence bar.
 import "./listen.css";
 import type { Presence, SiteId } from "@/generated";
-import { Button } from "@/kit";
+import { Button, IconButton } from "@/kit";
 import type { EngineTransport } from "@/transport";
 import { listenTo, stopListening } from "./agent";
 import { listenBlocker, peerName, send } from "./menu";
@@ -36,6 +36,14 @@ export function ListenButton({ transport, peer }: { transport: EngineTransport; 
   );
 }
 
+function Headphones() {
+  return (
+    <svg className="eth-listen__icon" viewBox="0 0 16 16" aria-hidden="true">
+      <path d="M1.5 12V8.5a6.5 6.5 0 0 1 13 0V12h-1.5V8.5a5 5 0 0 0-10 0V12zM1.5 10h3v5h-3zM11.5 10h3v5h-3z" />
+    </svg>
+  );
+}
+
 /** "Listening to Diego" / "Connecting to Diego…" / why it ended, in the presence bar. */
 export function ListenBadge({ transport, peers }: { transport: EngineTransport; peers: Presence[] }) {
   const listening = useListenStore((s) => s.listening);
@@ -50,27 +58,38 @@ export function ListenBadge({ transport, peers }: { transport: EngineTransport; 
       ...(listening.type === "Ended" ? { listening: { type: "Off" } } : {}),
     });
 
+  // Floats under the presence bar (the top bar has no width to spare), ellipsized; the full
+  // text is also the tooltip and the accessible name.
   if (listening.type === "Connecting" || listening.type === "Listening") {
     const who = nameOf(listening.host);
+    const full = listening.type === "Connecting" ? `Connecting to ${who}…` : countIn ? `Listening to ${who} · count-in` : `Listening to ${who}`;
+
     return (
-      <span className="eth-listen" data-testid="listen-status" data-state={listening.type} role="status">
-        <span className="eth-listen__text">
-          {listening.type === "Connecting" ? `Connecting to ${who}…` : countIn ? `Listening to ${who} · count-in` : `Listening to ${who}`}
+      <span className="eth-listen" data-testid="listen-status" data-state={listening.type} role="status" aria-label={full} title={full}>
+        <Headphones />
+        <span className="eth-listen__text" aria-hidden="true">
+          {full}
         </span>
-        <Button size="sm" onClick={() => void stopListening(send(transport))}>
-          Stop
-        </Button>
+        <IconButton size="sm" tone="ghost" label="Stop listening" icon="×" onClick={() => void stopListening(send(transport))} />
       </span>
     );
   }
   const message = listening.type === "Ended" ? `Stopped listening to ${nameOf(listening.host)}: ${listening.reason}` : error;
   if (!message) return null;
   return (
-    <span className="eth-listen eth-listen--ended" data-testid="listen-status" data-state={listening.type} role="alert">
-      <span className="eth-listen__text">{message}</span>
-      <Button size="sm" aria-label="Dismiss" onClick={dismiss}>
-        OK
-      </Button>
+    <span
+      className="eth-listen eth-listen--ended"
+      data-testid="listen-status"
+      data-state={listening.type}
+      role="alert"
+      aria-label={message}
+      title={message}
+    >
+      <Headphones />
+      <span className="eth-listen__text" aria-hidden="true">
+        {message}
+      </span>
+      <IconButton size="sm" tone="ghost" label="Dismiss" icon="×" onClick={dismiss} />
     </span>
   );
 }

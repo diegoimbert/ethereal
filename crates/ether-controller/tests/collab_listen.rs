@@ -748,3 +748,95 @@ fn listen_is_validated() {
         }) if *host == other
     )));
 }
+
+#[test]
+fn a_relay_drop_ends_the_stream_at_the_last_heard_position() {
+    let mut w = World::new();
+    let me = w.me();
+    let stream = w.listening();
+    w.host.clock(me, stream, anchor(2_000, 6.0, false));
+    w.settle();
+    // The listener's own link to the relay dies (conns: site 0, the listener, the host).
+    let conn = w.hub.links()[1];
+    w.hub.kill(conn);
+    w.sites[1].tick();
+    assert_eq!(
+        listen_state(&w.sites[1]),
+        Some(ListenState::Ended {
+            host: SiteId(HOST),
+            reason: "the connection to the relay was lost".into()
+        })
+    );
+    assert_eq!(
+        engine_calls(&w.sites[1]).last(),
+        Some(&TransportControl::Locate {
+            position: Beats(6.0)
+        })
+    );
+    assert!(!last_transport(&w.sites[1]).unwrap().playing);
+}
+
+#[test]
+fn the_tick_guard_restops_an_engine_that_started_on_its_own() {
+    let mut w = World::new();
+    w.listening();
+    let state = |playing| ether_core::PlayheadState {
+        playing,
+        recording: false,
+        position: Beats(0.0),
+        seconds: 0.0,
+        bpm: 120.0,
+        sample_time: 0,
+    };
+    w.sites[1].ctl.bridge.playhead = Some(state(false));
+    w.sites[1].tick();
+    let before = engine_calls(&w.sites[1]).len();
+    // The engine reports playing (started from elsewhere): the controller adopts it, then
+    // the listener's tick stops it again.
+    w.sites[1].ctl.bridge.playhead = Some(state(true));
+    w.sites[1].tick();
+    w.sites[1].tick();
+    let calls = engine_calls(&w.sites[1]);
+    assert!(
+        calls[before..].contains(&TransportControl::Stop),
+        "{:?}",
+        &calls[before..]
+    );
+    assert!(!calls[before..].contains(&TransportControl::Play));
+}
+
+#[test]
+fn local_non_transport_commands_still_reach_the_engine() {
+    let mut w = World::new();
+    w.listening();
+    // A preview (local audition) is not intercepted: it goes to the bridge, whose fake
+    // answers that previews are unsupported on this host.
+    let out = w.listener().send(Command::Media(
+        ether_core::protocol::media::MediaCommand::StopPreview,
+    ));
+    match out.last() {
+        Some(ServerMessage::Reply(Reply {
+            result: ReplyResult::Err { error },
+            ..
+        })) => assert!(error.message.contains("preview"), "{error:?}"),
+        other => panic!("expected the bridge's answer, got {other:?}"),
+    }
+    // Record-arming (live input monitoring) stays local too.
+    let track: TrackId = w.sites[1].id();
+    w.listener().ok(Command::Track(
+        ether_core::protocol::tracks::TrackCommand::Create {
+            id: track,
+            kind: TrackKind::Midi,
+            name: None,
+            color: None,
+            parent: None,
+            before: None,
+        },
+    ));
+    w.listener().ok(Command::Recording(RecordingCommand::Arm {
+        track,
+        armed: true,
+        exclusive: false,
+    }));
+    assert!(w.sites[1].ctl.armed().contains(&track));
+}

@@ -123,6 +123,25 @@ describe("StreamClockMapper", () => {
     expect(late.countIn).toBe(false);
   });
 
+  it("maps a count-in through the tempo map (pre-roll at the first tempo, then its changes)", () => {
+    // 60 bpm from beat 0, 120 bpm from beat 2: pre-roll -2..0 takes 2 s.
+    const tempo = new TempoMap(
+      [
+        { id: "a", time: 0, bpm: 60, curve: "Step" },
+        { id: "b", time: 2, bpm: 120, curve: "Step" },
+      ],
+      [{ id: "s", time: 0, signature: { numerator: 4, denominator: 4 } }],
+    );
+    const m = new StreamClockMapper();
+    m.push(anchor(0, -2, { recording: true, count_in_end: 0, discontinuity: true }));
+    const early = m.map(48_000, tempo)!; // 1 s at 60 bpm
+    expect(early.position).toBeCloseTo(-1, 6);
+    expect(early.countIn).toBe(true);
+    const later = m.map(48_000 * 4.5, tempo)!; // 2 s pre-roll, 2 s to beat 2, 0.5 s at 120
+    expect(later.position).toBeCloseTo(3, 6);
+    expect(later.countIn).toBe(false);
+  });
+
   it("falls back to arrival time minus the receive delay", () => {
     const m = new StreamClockMapper();
     m.push(anchor(1000, 8), 10_000);

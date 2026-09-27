@@ -125,7 +125,7 @@ describe("Listen on a peer (stream-listen)", () => {
     expect(screen.getByRole("button", { name: "Listen on Mock peer's computer" }).title).toMatch(/can't host/);
     fireEvent.click(screen.getByRole("button", { name: "Listen on Zoe's computer" }));
     await waitFor(() => expect(mock.sent).toContainEqual({ domain: "Collab", command: { type: "Listen", host: "7" } }));
-    expect((await screen.findByTestId("listen-status")).textContent).toContain("Connecting to Zoe…");
+    expect((await screen.findByTestId("listen-status")).getAttribute("aria-label")).toBe("Connecting to Zoe…");
     expect(FakePeerConnection.last).not.toBeNull();
 
     // The chip menu offers to stop.

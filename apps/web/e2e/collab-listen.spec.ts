@@ -18,6 +18,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test, type Page } from "@playwright/test";
 import type { Project, TransportState } from "@/generated";
+import { playButton } from "./ui";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const TOKEN = `e2e-${Math.random().toString(36).slice(2)}`;
@@ -26,10 +27,16 @@ const HOST_SITE = "777000111";
 /** `ETHER_SCREENSHOTS=<dir>`: also save PR screenshots (1440×900, dark theme) there. */
 const SHOTS = process.env.ETHER_SCREENSHOTS ?? "";
 
-async function shot(page: Page, name: string): Promise<void> {
+async function shot(page: Page, name: string, alsoNarrow = false): Promise<void> {
   if (!SHOTS) return;
   mkdirSync(SHOTS, { recursive: true });
   await page.screenshot({ path: resolve(SHOTS, `${name}.png`), animations: "disabled" });
+  if (!alsoNarrow) return;
+  // The top bar is tight: check the badge at a smaller laptop width too.
+  const size = page.viewportSize()!;
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.screenshot({ path: resolve(SHOTS, `${name}-1280.png`), animations: "disabled" });
+  await page.setViewportSize(size);
 }
 
 // Same-browser WebRTC on loopback: expose host candidates instead of mDNS names.
@@ -92,7 +99,7 @@ test.afterAll(() => {
 
 async function open(page: Page): Promise<void> {
   await page.goto("/");
-  await expect(page.getByRole("button", { name: "Play", exact: true })).toBeVisible({ timeout: 30_000 });
+  await expect(playButton(page)).toBeVisible({ timeout: 30_000 });
   await expect.poll(() => project(page).then((p) => p !== null), { timeout: 30_000 }).toBe(true);
 }
 
@@ -294,20 +301,21 @@ test("listen on a scripted host: stream, shared playhead, forwarded transport, h
   await a.getByRole("menuitem", { name: "Listen on Hal's computer" }).click();
   await expect.poll(async () => (await hostLog(h)).some((m) => m.type === "Listen"), { timeout: 10_000 }).toBe(true);
   const status = a.getByTestId("listen-status");
-  await expect(status).toContainText("Listening to Hal", { timeout: 30_000 });
+  await expect(status).toHaveAttribute("aria-label", "Listening to Hal", { timeout: 30_000 });
 
   // --- The transport shows the host playing; the playhead follows its clock (beat 16+).
   await expect.poll(async () => (await transportState(a))?.playing, { timeout: 10_000 }).toBe(true);
-  await expect(a.getByRole("button", { name: "Stop", exact: true }).first()).toBeVisible();
+  const transportStop = a.getByRole("toolbar", { name: "Transport" }).getByRole("button", { name: "Stop", exact: true }).first();
+  await expect(transportStop).toBeVisible();
   await expect
     .poll(async () => Number((await a.getByTestId("position-bars").textContent())?.split(".")[0] ?? 0), { timeout: 10_000 })
     .toBeGreaterThanOrEqual(5);
-  await shot(a, "listen-listening");
+  await shot(a, "listen-listening", true);
   const bar1 = await a.getByTestId("position-bars").textContent();
   await expect.poll(async () => a.getByTestId("position-bars").textContent(), { timeout: 10_000 }).not.toBe(bar1);
 
   // --- Transport commands go to the host.
-  await a.getByRole("button", { name: "Stop", exact: true }).first().click();
+  await transportStop.click();
   await expect
     .poll(async () => (await hostLog(h)).filter((m) => m.type === "TransportRequest").map((m) => (m.request as { type: string }).type), {
       timeout: 10_000,
@@ -321,10 +329,11 @@ test("listen on a scripted host: stream, shared playhead, forwarded transport, h
 
   // --- The host leaves: Ada is back on her stopped local transport, the reason is shown.
   await h.evaluate(() => (window as unknown as { __host: ScriptedHost }).__host.leave());
-  await expect(status).toContainText("Stopped listening to Hal: Hal left", { timeout: 10_000 });
+  await expect(status).toHaveAttribute("aria-label", "Stopped listening to Hal: Hal left", { timeout: 10_000 });
+  await expect(status).toContainText("Hal left");
   await expect.poll(async () => (await transportState(a))?.playing, { timeout: 10_000 }).toBe(false);
-  await expect(a.getByRole("button", { name: "Play", exact: true })).toBeVisible();
-  await shot(a, "listen-ended");
+  await expect(playButton(a)).toBeVisible();
+  await shot(a, "listen-ended", true);
   await status.getByRole("button", { name: "Dismiss" }).click();
   await expect(status).toHaveCount(0);
 
