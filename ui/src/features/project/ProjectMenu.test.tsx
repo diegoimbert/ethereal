@@ -1,14 +1,27 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { renderWithMock, resetStores } from "@/features/transport-bar/testUtils";
 import { useProjectStore } from "@/state";
 import { cmd } from "@/transport";
+import { useContextMenuStore } from "@/kit";
 import { AUTOSAVE_MS, ProjectMenu } from "./index";
+import { useProjectScreen } from "./screenStore";
 
 const store = () => useProjectStore.getState();
 const names = () => store().projects.map((p) => p.name).sort();
 
-afterEach(resetStores);
+afterEach(() => {
+  resetStores();
+  useProjectScreen.setState({ open: false, launchPending: false });
+});
+
+/** Run the context-menu item `label` of the stored project `name` (via its "…" button). */
+async function projectAction(dialog: HTMLElement, name: string, label: string) {
+  fireEvent.click(await enabledButton(dialog, `More actions for ${name}`));
+  const item = useContextMenuStore.getState().menu!.items.find((i) => i !== "separator" && i.label === label);
+  if (!item || item === "separator") throw new Error(`no ${label} item`);
+  act(() => item.onSelect());
+}
 
 /**
  * The button named `name` in `container`, once it exists and is enabled. The manager
@@ -52,22 +65,26 @@ describe("ProjectMenu", () => {
     await waitFor(() => expect(store().dirty).toBe(false));
   });
 
-  it("lists stored projects, current one marked and not deletable", async () => {
+  it("shows the project screen once on launch, with the open project", async () => {
+    useProjectScreen.setState({ launchPending: true });
     await renderWithMock(<ProjectMenu />);
-    const dialog = await openManager();
-    await waitFor(() => expect(within(dialog).getAllByRole("listitem")).toHaveLength(3));
-    const current = within(dialog).getAllByRole("listitem").find((li) => li.getAttribute("aria-current"))!;
-    expect(current.textContent).toMatch(/Demo/);
-    expect(within(current).getByRole("button", { name: "Delete Demo" })).toBeDisabled();
-    expect(within(current).getByRole("button", { name: "Open Demo" })).toBeDisabled();
+    const dialog = await screen.findByRole("dialog", { name: "Projects" });
+    expect(within(dialog).getByLabelText("Project name")).toHaveValue("Demo");
+    expect(within(dialog).getByRole("button", { name: "New project" })).toBeInTheDocument();
+    // The other stored projects, not the open one.
+    await waitFor(() => expect(within(dialog).getAllByRole("listitem")).toHaveLength(2));
+    expect(within(dialog).queryByRole("button", { name: "Open Demo" })).toBeNull();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Continue" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(useProjectScreen.getState().launchPending).toBe(false);
   });
 
-  it("creates a new project and opens it", async () => {
+  it("creates a new project after asking for its name", async () => {
     await renderWithMock(<ProjectMenu />);
     const dialog = await openManager();
-    fireEvent.change(within(dialog).getByLabelText("New project name"), { target: { value: "Song" } });
-    fireEvent.click(await enabledButton(dialog, "New"));
-    // The popover closes once the reply arrives, after the ProjectLoaded event: wait for it.
+    fireEvent.click(within(dialog).getByRole("button", { name: "New project" }));
+    fireEvent.change(await within(dialog).findByLabelText("New project name"), { target: { value: "Song" } });
+    fireEvent.click(await enabledButton(dialog, "Create"));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     expect(screen.getByTestId("project-name").textContent).toBe("Song");
     expect(names()).toContain("Song");
@@ -78,43 +95,32 @@ describe("ProjectMenu", () => {
     const dialog = await openManager();
     fireEvent.click(await enabledButton(dialog, "Open Beat sketch"));
     await waitFor(() => expect(screen.getByTestId("project-name").textContent).toBe("Beat sketch"));
-  });
-
-  it("saves as a copy and switches to it", async () => {
-    await renderWithMock(<ProjectMenu />);
-    const before = store().project!.id;
-    const dialog = await openManager();
-    fireEvent.change(within(dialog).getByLabelText("Save as name"), { target: { value: "Demo v2" } });
-    fireEvent.click(await enabledButton(dialog, "Save as"));
-    await waitFor(() => expect(screen.getByTestId("project-name").textContent).toBe("Demo v2"));
-    expect(store().project!.id).not.toBe(before);
-    expect(names()).toEqual(["Ambient idea", "Beat sketch", "Demo", "Demo v2"]);
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
 
   it("duplicates, renames and deletes stored projects", async () => {
     await renderWithMock(<ProjectMenu />);
     const dialog = await openManager();
 
-    fireEvent.click(await enabledButton(dialog, "Duplicate Beat sketch"));
+    await projectAction(dialog, "Beat sketch", "Duplicate");
     await waitFor(() => expect(names()).toContain("Beat sketch copy"));
 
-    fireEvent.click(await enabledButton(dialog, "Rename Beat sketch copy"));
+    await projectAction(dialog, "Beat sketch copy", "Rename");
     const input = await within(dialog).findByLabelText("New name for Beat sketch copy");
     fireEvent.change(input, { target: { value: "Beats 2" } });
     fireEvent.submit(input);
     await waitFor(() => expect(names()).toContain("Beats 2"));
     expect(names()).not.toContain("Beat sketch copy");
 
-    fireEvent.click(await enabledButton(dialog, "Delete Beats 2"));
+    await projectAction(dialog, "Beats 2", "Delete…");
     fireEvent.click(await enabledButton(dialog, "Confirm delete Beats 2"));
     await waitFor(() => expect(names()).not.toContain("Beats 2"));
   });
 
-  it("renames the current project (undoable document edit)", async () => {
+  it("renames the open project from the screen (undoable document edit)", async () => {
     await renderWithMock(<ProjectMenu />);
     const dialog = await openManager();
-    fireEvent.click(await enabledButton(dialog, "Rename Demo"));
-    const input = await within(dialog).findByLabelText("New name for Demo");
+    const input = within(dialog).getByLabelText("Project name");
     fireEvent.change(input, { target: { value: "My song" } });
     fireEvent.submit(input);
     await waitFor(() => expect(screen.getByTestId("project-name").textContent).toBe("My song"));
@@ -123,8 +129,8 @@ describe("ProjectMenu", () => {
 
   it("closes on Escape", async () => {
     await renderWithMock(<ProjectMenu />);
-    await openManager();
-    fireEvent.keyDown(window, { key: "Escape" });
-    expect(screen.queryByRole("dialog")).toBeNull();
+    const dialog = await openManager();
+    fireEvent.keyDown(dialog, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
 });

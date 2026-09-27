@@ -174,6 +174,8 @@ export function runClipAction(transport: EngineTransport, action: ClipAction): P
     case "deselect":
       itemSelection.getState().clear("clip");
       useArrangementUi.getState().setTrackFocus(null);
+      // Escape also closes an unpinned piano roll.
+      useEditorStore.getState().dismiss();
       return Promise.resolve();
   }
 }
@@ -249,5 +251,14 @@ export function trackMenu(transport: EngineTransport, track: Track): ContextMenu
       danger: true,
       onSelect: () => void deleteSelectedTracks(transport),
     },
+  ];
+}
+
+/** Context-menu items adding a track at the end of the list (right-click on empty space). */
+export function newTrackMenu(transport: EngineTransport): ContextMenuEntry[] {
+  const add = (kind: NewTrackKind) => () => void addTrack(transport, kind).then((id) => selectTrackEntity(id));
+  return [
+    { label: "Add audio track", onSelect: add("Audio") },
+    { label: "Add MIDI track", onSelect: add("Midi") },
   ];
 }

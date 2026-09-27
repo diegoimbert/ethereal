@@ -9,15 +9,21 @@ export interface EditorState {
   clip: ClipId | null;
   /** Bumped on every `openClip`, so reopening the same clip still re-focuses its editor. */
   request: number;
+  /** Bumped by `dismiss`: the arrangement was clicked away from the edited clip. */
+  dismissed: number;
   openClip(id: ClipId): void;
   close(): void;
+  /** A click in the arrangement outside any MIDI clip: the shell closes an unpinned piano roll. */
+  dismiss(): void;
 }
 
 export const useEditorStore = create<EditorState>()((set) => ({
   clip: null,
   request: 0,
+  dismissed: 0,
   openClip: (id) => set((s) => ({ clip: id, request: s.request + 1 })),
   close: () => set({ clip: null }),
+  dismiss: () => set((s) => ({ dismissed: s.dismissed + 1 })),
 }));
 
 export const useEditedClipId = (): ClipId | null => useEditorStore((s) => s.clip);

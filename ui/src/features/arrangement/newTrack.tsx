@@ -69,6 +69,24 @@ export function NewTrackButton() {
   );
 }
 
+/** Subtle "+ Add track" row below the last track (in the header column): starts a draft track. */
+export function AddTrackRow() {
+  const drafting = useArrangementUi((s) => s.draftTrack !== null);
+  const headerWidth = useArrangementUi((s) => s.headerWidth);
+  if (drafting) return null;
+  return (
+    <button
+      type="button"
+      className="eth-arr__add-track"
+      style={{ width: headerWidth }}
+      onPointerDown={(e) => e.stopPropagation()}
+      onClick={() => useArrangementUi.getState().setDraftTrack({ parent: null, before: null })}
+    >
+      <Plus aria-hidden /> Add track
+    </button>
+  );
+}
+
 /** The draft track's row: asks whether it is a MIDI or an audio track (M / A, Esc cancels). */
 export function DraftRow({ row }: { row: Row }) {
   const { transport } = useArrangement();

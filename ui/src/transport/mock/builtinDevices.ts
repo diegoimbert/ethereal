@@ -99,6 +99,7 @@ export const BUILTIN_DESCRIPTORS: Readonly<Record<BuiltinDeviceType, DeviceDescr
       param(2, "Feedback", null, "Percent", 0, 95, 35),
       param(3, "Filter", null, "Hertz", 200, 20000, 6000, LOG),
       param(4, "Mix", null, "Percent", 0, 100, 30),
+      param(5, "Ping-pong", null, "Toggle", 0, 1, 0, undefined, ["Off", "On"]),
     ],
   },
   // Roadmap v2 effects: mirror `ether-devices/src/{eq,reverb,limiter,utility}.rs` exactly.

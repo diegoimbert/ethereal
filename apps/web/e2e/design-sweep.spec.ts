@@ -5,6 +5,7 @@
 //   carry `data-midi-target` with the right target (MIDI learn reads only this attribute).
 import { expect, test, type Page } from "@playwright/test";
 import type { MidiMapTarget, Project } from "@/generated";
+import { newProject } from "./ui";
 
 interface Handle {
   state(): { project: Project | null };
@@ -46,9 +47,7 @@ test("theme switch and MIDI learn targets", async ({ page }) => {
 
   // A fresh project with one MIDI track (the built-in synth comes with it).
   const name = `Design sweep ${Date.now()}`;
-  await page.getByRole("button", { name: "Projects" }).click();
-  await page.getByLabel("New project name").fill(name);
-  await page.getByRole("dialog", { name: "Projects" }).getByRole("button", { name: "New" }).click();
+  await newProject(page, name);
   await expect(page.getByTestId("project-name")).toHaveText(name);
   const baseTracks = count((await doc(page)).tracks);
   await page.getByRole("button", { name: /New track/ }).click();

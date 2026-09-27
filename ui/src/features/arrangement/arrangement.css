@@ -72,6 +72,18 @@
   scrollbar-gutter: stable;
 }
 
+/* The master track, pinned below the scrolling tracks (same scrollbar gutter, so the lanes
+   line up with the ones above). */
+.eth-arr__master {
+  position: relative;
+  flex: none;
+  max-height: 40%;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  border-top: var(--eth-border-width) solid var(--eth-color-border);
+}
+
 .eth-arr__content {
   position: relative;
   min-height: 100%;
@@ -134,6 +146,53 @@
   padding-left: calc(var(--eth-arr-header-width, var(--eth-size-track-header-width)) + var(--eth-space-lg));
   color: var(--eth-color-text-dim);
   font-size: var(--eth-fs-xs);
+}
+
+/* "+ Add track" below the last track, in the header column: a faint ghost row that firms
+   up on hover, like a track header card. */
+.eth-arr__add-track {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-sm);
+  box-sizing: border-box;
+  height: var(--eth-size-add-track-height);
+  padding: 0 var(--eth-size-add-track-pad-right) 0 var(--eth-size-add-track-pad-left);
+  z-index: 1;
+  border: none;
+  background: none;
+  color: var(--eth-color-text-dim);
+  opacity: 0.6;
+  font: inherit;
+  font-size: var(--eth-fs-sm);
+  cursor: default;
+  transition: opacity var(--eth-duration-fast) var(--eth-ease-out), color var(--eth-duration-fast) var(--eth-ease-out);
+}
+.eth-arr__add-track::before {
+  content: "";
+  position: absolute;
+  inset: var(--eth-size-track-card-inset-y) var(--eth-space-lg) var(--eth-size-track-card-inset-y)
+    var(--eth-size-track-card-inset-left);
+  z-index: -1;
+  border-radius: var(--eth-radius-lg);
+  background: transparent;
+  transition: background-color var(--eth-duration-fast) var(--eth-ease-out);
+}
+.eth-arr__add-track:hover,
+.eth-arr__add-track:focus-visible {
+  opacity: 1;
+  color: var(--eth-color-text);
+  outline: none;
+}
+.eth-arr__add-track:hover::before,
+.eth-arr__add-track:focus-visible::before {
+  background: var(--eth-color-bg-hover);
+}
+.eth-arr__add-track svg {
+  width: var(--eth-size-icon-md);
+  height: var(--eth-size-icon-md);
 }
 
 .eth-arr__drop-label {

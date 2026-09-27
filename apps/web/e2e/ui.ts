@@ -136,10 +136,12 @@ export async function openEditor(page: Page, tab: string): Promise<void> {
 export const playButton = (page: Page): Locator =>
   page.getByRole("toolbar", { name: "Transport" }).getByRole("button", { name: "Play", exact: true });
 
-/** Creates and opens a new, empty project from the Projects popover. */
+/** Creates and opens a new, empty project from the project screen (Projects button). */
 export async function newProject(page: Page, name: string): Promise<void> {
   await page.getByRole("button", { name: "Projects" }).click();
-  await page.getByLabel("New project name").fill(name);
-  await page.getByRole("dialog", { name: "Projects" }).getByRole("button", { name: "New" }).click();
+  const screen = page.getByRole("dialog", { name: "Projects" });
+  await screen.getByRole("button", { name: "New project" }).click();
+  await screen.getByLabel("New project name").fill(name);
+  await screen.getByRole("button", { name: "Create" }).click();
   await expect(page.getByTestId("project-name")).toHaveText(name);
 }

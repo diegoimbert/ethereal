@@ -127,6 +127,9 @@
   --eth-size-track-selected-glow: 10px;
   --eth-size-selected-glow-inner: 6px;
   --eth-size-selected-glow-outer: 14px;
+  --eth-size-add-track-height: 32px;
+  --eth-size-add-track-pad-left: 18px;
+  --eth-size-add-track-pad-right: 20px;
   --eth-size-clip-title-height: 14px;
   --eth-size-clip-title-line-height: 12px;
   --eth-size-ruler-loop-height: 4px;
@@ -140,7 +143,10 @@
   --eth-size-velocity-bar-width: 4px;
   --eth-size-browser-row-height: 24px;
   --eth-size-empty-state-icon: 22px;
-  --eth-size-project-manager-width: 460px;
+  --eth-size-project-screen-width: 560px;
+  --eth-size-project-new-height: 72px;
+  --eth-size-project-new-icon: 20px;
+  --eth-size-project-row-height: 32px;
   --eth-size-project-input-height: 20px;
   --eth-size-record-panel-min-width: 320px;
   --eth-size-transport-icon: 15px;
