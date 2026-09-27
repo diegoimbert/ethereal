@@ -63,7 +63,7 @@
   flex-direction: column;
   /* Centered in the rail, on the same vertical line as the top bar's menu button. */
   align-items: center;
-  gap: var(--eth-space-xs);
+  gap: var(--eth-space-md);
   padding-top: var(--eth-space-xs);
 }
 .eth-rail__button {
