@@ -322,10 +322,6 @@ fn ws_config() -> WebSocketConfig {
         .max_frame_size(Some(MAX_MESSAGE_BYTES))
 }
 
-fn send_now(ws: &mut WebSocket<TcpStream>, m: Message) -> tungstenite::Result<()> {
-    ws.send(m)
-}
-
 fn close_with(ws: &mut WebSocket<TcpStream>, code: u16, reason: &str) {
     let _ = ws.close(Some(CloseFrame {
         code: CloseCode::from(code),
@@ -349,7 +345,7 @@ fn reject(ws: &mut WebSocket<TcpStream>, reason: HelloRejection, message: &str, 
         message: message.to_string(),
     };
     if let Ok(json) = serde_json::to_string(&hello) {
-        let _ = send_now(ws, Message::text(json));
+        let _ = ws.send(Message::text(json));
     }
     close_with(ws, code, message);
 }
@@ -434,10 +430,9 @@ fn serve_connection(stream: TcpStream, shared: &Shared) -> Result<(), String> {
     };
     tracing::info!(%peer, client = %hello.client, %session, "client connected");
     let result = (|| {
-        send_now(
-            &mut ws,
-            Message::text(serde_json::to_string(&welcome).map_err(|e| e.to_string())?),
-        )
+        ws.send(Message::text(
+            serde_json::to_string(&welcome).map_err(|e| e.to_string())?,
+        ))
         .map_err(|e| e.to_string())?;
         ws.get_ref()
             .set_read_timeout(Some(POLL))
@@ -516,7 +511,7 @@ fn pump(
                         },
                     });
                     let json = serde_json::to_string(&reply).map_err(|e| e.to_string())?;
-                    send_now(ws, Message::text(json)).map_err(|e| e.to_string())?;
+                    ws.send(Message::text(json)).map_err(|e| e.to_string())?;
                 }
             }
         }

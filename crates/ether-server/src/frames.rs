@@ -108,8 +108,10 @@ pub fn decode_server(f: &Frame) -> Result<ServerMessage, String> {
                     }
                     let n = payload.len() / (8 * ch);
                     let f: Vec<f32> = payload
-                        .chunks_exact(4)
-                        .map(|c| f32::from_le_bytes([c[0], c[1], c[2], c[3]]))
+                        .as_chunks::<4>()
+                        .0
+                        .iter()
+                        .map(|c| f32::from_le_bytes(*c))
                         .collect();
                     for c in 0..ch {
                         peaks.min[c] = f[c * 2 * n..c * 2 * n + n].to_vec();
