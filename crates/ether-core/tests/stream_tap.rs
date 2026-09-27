@@ -1,4 +1,4 @@
-//! base-53 stream tap ("listen on <peer>", docs/COLLAB.md §9.3): the tap carries master +
+//! base-53 stream tap ("listen on <peer>", docs/COLLAB.md §9.1): the tap carries master +
 //! metronome/count-in and never the browser preview voice; it writes block headers that
 //! tile the engine sample clock, and never allocates.
 

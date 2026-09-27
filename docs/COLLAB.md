@@ -28,8 +28,9 @@ CONTRACTS.md §11.6 (`SiteId`, `ActorId`, `OpOrigin`, `StampedTransaction`,
   (remote-engine) and stays available, but it means one audio engine: only the host hears
   the project, the others need a separate audio path. Replicas give everyone local,
   latency-free audio and local undo, and survive a peer leaving.
-- **Transport (play/stop/locate/record/arm) is per-site** and never shared. What else is
-  local is listed in §2.1.
+- **Transport (play/stop/locate/record/arm) is per-site** and never shared, except while a
+  site listens on a peer (§9: its transport follows the host). What else is local is
+  listed in §2.1.
 
 ## 2. Consistency: server-sequenced op log (no CRDT library)
 
@@ -238,7 +239,8 @@ controller emits `CollabEvent::Presence { peers }` (others only) and
 join/leave button + dialog (server, session, token, name; same pattern as the remote
 `ConnectDialog`), and one avatar chip per peer in its color with its name; the peer's
 selected tracks/clips get an outline in that color (only through kit components and
-tokens; peer colors are data, like track colors).
+tokens; peer colors are data, like track colors). Presence v2 (live pointers, activity,
+follow mode, listening indicator) is §8.
 
 ## 7. Security
 
@@ -254,7 +256,8 @@ tokens; peer colors are data, like track colors).
   relay asks another peer for a snapshot and refuses new transactions from a site until
   the log shrinks: that site's link is closed and it resyncs on reconnect), and a per-site
   message rate limit (a site sending more than the cap per second is disconnected, like a
-  slow reader). Presence is rate limited to 20 Hz per site (extra updates dropped).
+  slow reader). Presence, pointers and site-to-site messages have their own throttles
+  (extra ones dropped; §8.5).
 - Relay handshake and limits copied from `ether-server`: shared token in `ClientHello`
   compared in constant time, token required unless bound to loopback, `Host`/`Origin`
   loopback check when there is no token, handshake deadline + 64 KiB pre-auth limit +
@@ -267,13 +270,382 @@ tokens; peer colors are data, like track colors).
   holder is dropped as half-open and the newcomer proceeds. A newcomer never evicts a live
   holder outright: the token is relay-wide, so any token holder could.
 - The relay rewrites/validates identity: `Transaction.origin.site`, `Presence.site` and
-  `Leave.site` must be the sender's `Hello` site (else dropped).
+  `Leave.site` must be the sender's `Hello` site (else dropped); `Pointer.site` is stamped;
+  site-to-site messages must have `from` = the sender's site (§9.7).
 - Receivers treat every remote op as untrusted input: it only enters the document through
   `Project::apply` (full validation); media paths are validated and hashes verified.
 - No new unauthenticated surface: the UI↔engine protocol only gains the reserved
   `CollabCommand`s; the relay is a separate, token-protected listener.
 
-## 8. Code layout
+## 8. Presence v2 (base-53, node `presence-v2`)
+
+State of the art is Figma's multiplayer: live pointers, selections in the peer's colour, a
+hint of what each peer is doing, follow mode. Everything here is **ephemeral** (never an op,
+never in the document, never logged by the relay) and everything is additive to §6.
+
+### 8.1 Two channels
+
+| Channel | Carries | Rate | Relay |
+|---|---|---|---|
+| `SetPresence` → `CollabMessage::Presence` → `CollabEvent::Presence { peers }` (existing) | `PresenceState`: selection, edit cursor, view, **viewport**, **activity**, **following**, **listening_to**, **can_host** | ≤ 10 Hz per site (controller throttle), flushed on the next tick | cached per peer (late joiners get the latest), drops > 20 Hz |
+| `SetPointer` → `CollabMessage::Pointer` → `CollabEvent::Pointer { site, pointer }` (new) | `Option<ArrangerPointer>` | ≤ 30 Hz while moving (`POINTER_MAX_HZ`), nothing while still | not cached, drops > 40 Hz **except clears** |
+
+The pointer is its own channel because it is the only high-rate field: sending the whole
+`PresenceState` (selected notes can be thousands of ids) at 30 Hz, and re-emitting the whole
+`peers` list to the UI at 30 Hz per peer, would be wasteful. `CollabEvent::Presence` is
+emitted only when a non-pointer field changes.
+
+### 8.2 `PresenceState` fields (all `#[serde(default)]`, omitted when unset)
+
+- `cursor: Option<Beats>` keeps its v1 meaning: the **edit (insert) cursor**, where a paste
+  or recording would start. It is not deprecated and it is not the mouse pointer.
+- `viewport: Option<ArrangerViewport { start, end, top_track, top_offset }>`: the visible
+  part of the arranger, for follow mode. Horizontal range in beats; vertically, the track row
+  at the top edge and the fraction of it scrolled past (row heights are local, so a pixel
+  offset would mean nothing on another screen). Published when the view settles (throttled
+  like the rest of the presence, i.e. ≤ 10 Hz while scrolling).
+- `activity: Option<Activity { kind, target }>`: set when a gesture starts, cleared when it
+  ends. `ActivityKind` = Dragging, Resizing, Drawing, Adjusting, Renaming, Recording, Other;
+  `ActivityTarget` = Clip, Track, Device, Param, Notes (of a clip), Lane, Selection. The UI
+  renders "Diego · dragging" next to the peer's pointer and/or on the target.
+- `following: Option<SiteId>`: the peer this user follows (shown on the leader's chip).
+- `listening_to: Option<SiteId>` and `can_host: bool` are **controller-owned** (§9): the
+  controller overwrites whatever the UI sends.
+
+### 8.3 Live pointers (arranger only)
+
+- **Song coordinates, not screen coordinates**: `ArrangerPointer { beats, track, y }`, with
+  `y` = 0..1 inside that track's row (including its expanded lanes); `track: None` = over the
+  ruler/header area or below the last track (then `y` = 0). Zoom, scroll, row heights and
+  folds are local to each user, so every receiver maps the pointer through its own layout.
+- The UI sends `SetPointer` on `pointermove` over the arranger (rAF-coalesced) and
+  `SetPointer { pointer: None }` on `pointerleave`, on blur, and when the arranger unmounts.
+  The controller throttles to 30 Hz, keeping the **latest** value (a throttled update is sent
+  on the next tick, so the last position always arrives) and never throttles a clear.
+- Receivers render at display rate and **interpolate**: keep the last two samples with their
+  arrival times and draw at `now - 1 interval` (≈ 40 ms) with linear interpolation (or a
+  critically damped spring), snapping on a track change. A peer whose `track` is unknown
+  (deleted), folded or scrolled out of view: clamp to the visible edge with an arrow, or
+  hide; a clear or the peer's `Leave` removes it (the controller emits `Pointer { None }` on
+  `Leave`).
+- Look: arrow + name label in the peer colour (colours are data, like track colours),
+  through kit components/tokens; drawn in one overlay layer over the arrangement
+  (pointer-events: none), a shared touch on the arrangement (the owner's UX is
+  authoritative).
+
+### 8.4 Selection outlines, activity, follow, listening
+
+- Selection outlines: the existing `selected_*` fields in the peer colour (§6,
+  `highlightCss`). Unchanged.
+- Follow mode: clicking a peer chip follows it (sets `following`). The follower applies the
+  leader's `viewport` on every presence update: horizontal range exactly (zoom so that
+  `start..end` fills its width), vertical scroll so that `top_track` is at the top with
+  `top_offset`. Any local scroll/zoom, Escape, or clicking the chip again stops following.
+  Following never changes the transport.
+- "Listening to" indicator: a peer with `listening_to = X` shows a headphones badge ("Ada is
+  listening to Diego"); a peer with `can_host` offers "Listen on <name>'s computer" in its
+  chip menu (§9).
+
+### 8.5 Rate limits (relay, per connection; `relay::limits`)
+
+| Message | Sender | Relay |
+|---|---|---|
+| `Presence` | ≤ 10 Hz | at most one per 50 ms (20 Hz); extra dropped |
+| `Pointer` | ≤ 30 Hz | at most one per 25 ms (40 Hz); **clears always pass**; extra dropped |
+| `Signal`, `Listen`, `Unlisten`, `TransportRequest`, `StreamClock` | host: ≤ 10 Hz clocks per listener | shared token bucket, 200/s, burst 200; extra dropped |
+| everything | | the existing global cap (`max_messages_per_second`, 2000/s): above it the site is disconnected |
+
+## 9. Listen on a peer (hosted listening; base-53, nodes `stream-host` and `stream-listen`)
+
+Everyone keeps their own replica and their own engine (§1). "Listen on Diego's computer"
+makes a site **hear Diego's engine** instead of its own, with a shared playhead: useful when
+the listener lacks a plugin, has a weak machine, or the group wants to hear exactly one mix.
+
+### 9.1 Architecture
+
+```
+ Host (Diego)                                                Listener (Ada)
+ ┌──────────────────────────────┐                            ┌──────────────────────────────┐
+ │ engine: tracks → master      │                            │ engine: timeline held STOPPED │
+ │   + metronome / count-in     │                            │   (previews, pad audition,   │
+ │   ─► stream tap ─┐           │                            │    live MIDI still sound)    │
+ │   + preview voice ─► speakers│                            │                              │
+ │                  │ rtrb ring │    WebRTC (DTLS-SRTP, Opus) │ UI: RTCPeerConnection         │
+ │ sender: Opus → RTP ──────────┼───── P2P, or via TURN ─────►│   → <audio> / AudioContext   │
+ │  native: str0m (desktop,     │                            │   getSynchronizationSources() │
+ │   ether-server)              │                            │   → playhead (§9.4)           │
+ │  web: browser WebRTC (UI)    │                            │                              │
+ └───────────┬──────────────────┘                            └─────────────┬────────────────┘
+             │  Signal / StreamClock (to: Ada)      Listen / Signal /       │
+             │                                      TransportRequest (to: Diego)
+             └────────────────────────► relay ◄────────────────────────────┘
+                                  (routes by `to`, enforces `from`;
+                                   STUN on its UDP port, optional TURN)
+```
+
+- **Topology: a mesh from the host to each listener** (one peer connection per listener),
+  fine for ≤ 8 listeners (`MAX_LISTENERS = 8`; Opus stereo ≈ 128 kbit/s up per listener).
+  Future work: an SFU (the relay forwarding one uplink to many listeners) for larger
+  audiences.
+- **What is streamed**: the engine's **stream tap**, taken after master, the metronome and
+  the count-in, and **before the browser preview voice** (`ether-core/src/stream_tap.rs`,
+  pre-wired in `engine.rs::render_sub`; test `ether-core/tests/stream_tap.rs`). Sample
+  previews stay private to each site. Pad auditions (clicking a drum pad) render through the
+  pad's track chain into master, so a host's pad audition IS heard by its listeners; keeping
+  them private would need a separate audition bus (future work).
+- **Receivers**: always the UI's `RTCPeerConnection` (web build, and the Tauri webview on
+  desktop: simplest, and it gives the jitter buffer, PLC, drift handling and congestion
+  control for free). Audio plays through the webview's default output device, not the
+  engine's device (acceptable for listening; a native receiver would fix it). Where the
+  webview has no WebRTC (WebKitGTK builds without it, i.e. some Linux desktops), `Listen` is
+  **disabled with a reason** in the UI ("this build's webview has no WebRTC", detected with
+  `typeof RTCPeerConnection`) and the controller replies `Unsupported`; **hosting still
+  works** there, because the native sender does not use the webview. Future work: a native
+  receiver (str0m + Opus decoder playing into the engine output).
+- **Senders**:
+  - **Desktop / ether-server** (`StreamEndpoint::Engine`): `ether-native`. The audio thread
+    only writes the tap (`EngineHandle::set_stream_tap`, RT-safe, pre-allocated `rtrb`
+    rings, no allocation); a **sender thread** reads the ring, resamples to 48 kHz if needed
+    (the workspace `rubato`), encodes 20 ms Opus frames (libopus), and drives one `str0m`
+    `Rtc` per listener on one UDP socket (sans-IO: the thread owns the socket and the
+    clock). Controlled through the defaulted `EngineBridge` hooks
+    (`stream_capabilities`, `start/stop_stream_capture`, `stream_open/signal/close`,
+    `poll_stream`; `ether-controller/src/streaming.rs`).
+  - **Web** (`StreamEndpoint::Ui`): `RTCPeerConnection` is not available in Workers, so the
+    sender runs in the **UI main thread**: the engine worklet gets a second output (the tap:
+    master + metronome, minus preview) feeding a `MediaStreamAudioDestinationNode`, whose
+    track is added to one `RTCPeerConnection` per listener. The UI declares it with
+    `SetHosting { ui_sender: true }`; the controller lists the listeners in
+    `ListenStatus.listeners` (endpoint `Ui`) and routes their signals to the UI.
+- Opus settings (both senders): 48 kHz stereo, 20 ms frames, music mode, 128 kbit/s target
+  (adapted by congestion control, 48-192), in-band FEC on, DTX off. Web: SDP
+  `stereo=1; sprop-stereo=1; maxaveragebitrate=128000; useinbandfec=1`, track
+  `contentHint = "music"`.
+
+### 9.2 Message flows
+
+Listen, happy path (host native; the web host differs only in who answers `stream_*`):
+
+```
+Ada UI        Ada controller        relay            Diego controller      Diego bridge
+  │ Listen{host:D}  │                  │                    │                     │
+  │────────────────►│ hold local transport stopped, status Connecting{D, s}        │
+  │                 │ Listen{from:A,to:D,stream:s} ─►│ ─────►│ accept (policy, ≤ 8)  │
+  │                 │                  │             │       │ start_stream_capture  │
+  │                 │                  │             │       │ stream_open(A, s, ice)├─► offer
+  │                 │                  │ ◄─ Signal{Offer} ◄──│ ◄── poll_stream ──────┤
+  │ ◄ Event Signal{Offer}              │             │       │                       │
+  │ setRemoteDescription, createAnswer │             │       │                       │
+  │ SendSignal{Answer} ─►│ Signal{Answer} ─►│ ──────►│ stream_signal(A, s, Answer) ─►│
+  │ ⇄ trickle ICE: SendSignal{Ice} / Event Signal{Ice} (both ways, same path)          │
+  │ ═════════════════ ICE + DTLS: media flows P2P (or via TURN) ══════════════════════│
+  │                 │ ◄─ StreamClock{rtp, position, ...} every 100 ms + on jumps ◄────│
+  │ ◄ Event StreamClock; status Listening{D, s} (first clock); presence listening_to=D │
+```
+
+- **Refused** (hosting disallowed, no sender, `MAX_LISTENERS`, the host is itself
+  listening): the host answers `Signal { Bye { reason } }`; the listener goes
+  `Ended { host, reason }` and its local engine is back.
+- **Stop**: `StopListening` → `Unlisten` to the host; the UI closes its peer connection; the
+  host `stream_close`s (and `stop_stream_capture` after the last listener).
+- **Failure**: the listener's UI sends `SendSignal { Bye }` when its peer connection fails
+  (ICE `failed`, or no media for 10 s); the host's bridge reports
+  `StreamOutput::State { Failed }` and the host sends `Bye`. Both end the stream; no
+  automatic retry (the UI may offer one).
+- **Host leaves / disconnects**: the relay broadcasts `Leave { host }`: the listener ends
+  with "Diego left". A host's relay reconnect is a leave (streams do not survive it).
+- **Listener leaves**: its `Leave` ends its stream on the host.
+- **Stale signals**: every signal carries the listener-chosen `stream` id (random u32, new
+  per `Listen`); signals for an unknown stream are dropped, so a late `Offer` from an old
+  request never plays.
+- **ICE servers**: after its sync (and every 6 h), the relay sends each site
+  `IceServers { servers }` (§10); the controller emits `CollabEvent::IceServers` (settings
+  override: `SetIceServers`), the UI endpoints use them for `RTCPeerConnection`, the native
+  sender gets them in `stream_open`.
+
+### 9.3 Host side rules
+
+- Hosting policy (`SetHosting { allow, ui_sender, remote_transport }`): default allow + remote
+  transport in a session. `can_host` (presence) = allowed ∧ a sender exists (native, or UI
+  sender declared) ∧ not listening to someone else.
+- A host that starts listening to someone else ends its own streams (`Bye` "host started
+  listening elsewhere"): no chains.
+- The stream carries whatever the host hears minus previews: when the host is stopped the
+  listeners hear silence (and metronome only if it plays), exactly like the host.
+- Clock anchors come from the tap headers (`StreamBlock { sample_time, position, playing,
+  recording, bpm, latency, gap }`), see §9.4. The web host builds them in the UI (§9.4).
+
+### 9.4 Stream clock: what the listener's playhead shows is what it hears
+
+The listener's playhead must show the audio it is hearing, which lags the host by network +
+jitter buffer + output latency (typically 60-200 ms), varying over time. We map audio, not
+wall clocks: every RTP packet carries an RTP timestamp in the **host's sample clock**
+(48 kHz), and the browser tells the receiver which RTP timestamp it is playing.
+
+Host → listener: `StreamClock { rtp, position, playing, recording, bpm, loop_enabled,
+loop_region, metronome, discontinuity }` = "the sample with RTP timestamp `rtp` (in *this
+listener's* RTP stream) is the timeline at `position`". Sent per listener (RTP timestamps
+start at a random offset per stream) every `STREAM_CLOCK_INTERVAL_MS` (100 ms) and
+immediately at every discontinuity (play, stop, locate, loop wrap, tap gap), with
+`discontinuity: true` and the `rtp` of the first sample after the jump.
+
+Host math (native): the sender knows, for each tapped block, its engine sample time `T`,
+position `P` (beats at `T`, before latency compensation), engine rate `sr`, graph latency
+`L` (samples). The audio in that block is the timeline at `beats(seconds(P) - L/sr)` (while
+playing; `P` when stopped). With the stream's 48 kHz sample counter `n(T)` (after
+resampling) and the stream's random RTP offset `o`: `rtp = o + n(T) (mod 2^32)`. str0m
+writes RTP timestamps from the same counter, so the anchor is exact.
+
+Host math (web): the RTP timestamp is chosen by the browser. The UI sender observes it with a
+read-only encoded transform on the sender (`RTCRtpScriptTransform`, or
+`createEncodedStreams` on Chromium): each `RTCEncodedAudioFrame` has its RTP `timestamp`,
+observed at `performance.now()`. The UI maps that instant to the engine's position through
+its own playhead stream (`AudioContext.getOutputTimestamp()` relates context and
+performance time) minus the constant encoder pipeline delay (one 20 ms frame + 10 ms).
+Accuracy ±10 ms (under one display frame). A browser without encoded transforms cannot host
+(`can_host` false).
+
+Listener math (UI, per animation frame):
+
+```
+ssrc      = receiver.getSynchronizationSources()[0]     // { rtpTimestamp, timestamp }
+r_now     = ssrc.rtpTimestamp
+          + round((performance.now() - ssrc.timestamp) / 1000 * 48000)   // extrapolate
+          - outputLatencySamples            // AudioContext.outputLatency when known, else 0
+A         = latest anchor with (r_now - A.rtp) as i32 >= 0      // wrapping u32 arithmetic
+dt        = ((r_now - A.rtp) as i32) / 48000                    // seconds of audio since A
+position  = A.playing ? beats_at(seconds_at(A.position) + dt) : A.position
+            // with the replicated tempo map; A.bpm only as a fallback
+if A.playing && A.loop_enabled && A.position < loop_end && position >= loop_end:
+            position = loop_start + (position - loop_start) mod (loop_end - loop_start)
+            // predicted wrap; the wrap anchor (discontinuity) makes it exact
+```
+
+- Anchors are kept ordered by `rtp` (≤ 32; older ones than the one in use are dropped). They
+  usually arrive **before** their audio plays (the relay path is not slower than the jitter
+  buffer); one arriving late applies from then on. A `discontinuity` anchor is never
+  interpolated across: the position jumps exactly when its first sample plays.
+- **Drift**: none in the mapping, since it only uses the host's sample clock (RTP) and the
+  browser's playout report; the host/listener clock drift itself is absorbed by the WebRTC
+  jitter buffer (time-stretching), not by us.
+- **Wrap**: RTP timestamps wrap every 24.8 h at 48 kHz: always compare as `i32` differences.
+- Transport display: while listening, `Event::Transport` reflects the latest applied anchor
+  (playing, recording, loop, bpm, metronome of the host) and the UI playhead uses the mapped
+  position, ignoring the local engine's `PlayheadUpdate`s.
+- Fallback when `getSynchronizationSources()` has no `rtpTimestamp`: position = latest anchor
+  extrapolated by local time minus the receiver's `jitterBufferDelay / jitterBufferEmittedCount`
+  (from `getStats`) and half the RTT: degraded but usable.
+
+### 9.5 Transport while listening
+
+- **The listener's local engine transport is held stopped** from `Listen` until the stream
+  ends. Its master is not muted: with the timeline stopped, only local previews (browser
+  preview, drum pad audition, live MIDI on armed tracks, monitoring) sound, which is what we
+  want. The controller never sends `Play` to the local engine while listening.
+- Forwarded to the host as `TransportRequest` (reply `Unit` at once; the result shows when
+  the host's next anchor arrives): `Play`, `Stop`, `TogglePlay`, `Locate`,
+  `SetLoopEnabled`, `SetLoopRegion`.
+- Not forwarded: `SetMetronome` (a local setting: the listener hears the host's click, its
+  own setting applies after listening), `SetTempo`/`SetTimeSignature`/`TapTempo` (document
+  edits: they replicate as usual). Recording while listening is refused (`InvalidState`,
+  "stop listening to record").
+- **Who wins**: the host applies requests exactly like its own transport commands, in
+  arrival order. The relay is one ordered stream into the host, so requests from several
+  listeners are totally ordered, and the host's own commands interleave by when the host
+  handles them: **last command handled by the host wins**, no locks, no ownership (a shared
+  transport, like a band). Forwarded loop changes are site-local settings on the host,
+  applied outside its undo history (like any remote change).
+- Ignored by the host: requests while it records or counts in (only the host stops its own
+  recording), requests from sites that are not its current listeners (stream id mismatch),
+  and all requests when `remote_transport` is off.
+- When the stream ends (stop, host left, refusal, failure): the local transport stays
+  **stopped**, located at the last heard position; it never auto-plays. The status goes
+  `Off` (explicit stop) or `Ended { reason }`.
+
+### 9.6 Plugins while listening (node `plugin-mirror`, later)
+
+The host's engine processes the audio, so a listener hears the host's plugins even when it
+does not have them. The listener's own engine keeps its instances (the timeline is stopped).
+A listener that has the plugin installed may open its GUI as a **mirror**: a GUI-only
+instance, never routed, never processing (`EngineBridge::create_plugin_mirror`,
+`destroy_plugin_mirror`, `set_plugin_mirror_param`, defaulted `Unsupported`). Its GUI edits
+come back through `poll_plugins` as `ParamEdited`: ordinary undoable, replicated `SetParam`
+ops, which the host's live instance receives like any remote edit (so the listener hears the
+change). Document param changes are pushed into the mirror. Opaque state (a preset loaded in
+the mirror GUI) replicates through the save-time capture of §2.2, reading the mirror's state.
+`OpenEditor` for a device with a mirror and no live instance opens the mirror. A listener may
+also (setting) swap its live instances for mirrors while listening, to save CPU.
+
+### 9.7 Security
+
+- **Only session members signal each other**: site-to-site messages are accepted from
+  synced, token-authenticated connections only, `from` must be the sender's own site, `to`
+  must be a synced peer of the **same** session, and the message goes to `to` only (never
+  broadcast, logged or cached). `IceServers` is relay → site only. SDPs ≤ 32 KiB, candidates
+  and reasons ≤ 1 KiB, the token bucket of §8.5. (`relay/mod.rs`, tests in
+  `relay/tests.rs`.)
+- **No unsolicited audio**: a listener only accepts an `Offer` for the `stream` it asked for,
+  from the host it asked; hosts only accept answers/ICE for streams they created.
+- **Media is end-to-end encrypted** (DTLS-SRTP) even through TURN; the relay sees
+  ciphertext. DTLS fingerprints travel through the relay, which is trusted like it already
+  is for the document.
+- **ICE candidates reveal IP addresses** to the session's members (browsers use mDNS for
+  local addresses). A "relay only" setting (`iceTransportPolicy: "relay"`) hides them when
+  TURN is available.
+- TURN credentials and limits: §10. No unauthenticated media relay.
+- Autoplay: the "Listen" click is the user gesture that starts playback.
+
+## 10. NAT traversal: the relay is the STUN (and optionally TURN) server
+
+No third party: nothing points at Google/Cloudflare STUN by default. The only ICE servers
+are the relay's, or the ones set in settings (`SetIceServers`; e.g. a self-hosted coturn).
+
+- **Port**: the relay binary also binds **UDP on the same port number** as its WebSocket
+  (TCP) listener, so a relay stays one host:port (dev: `ETHER_DEV_PORT + 3`, both
+  protocols). `--no-stun` disables it.
+- **STUN** (always on): an RFC 8489 Binding responder (XOR-MAPPED-ADDRESS, FINGERPRINT) on a
+  small thread, using the `stun` crate's message codec (webrtc-rs). Binding requests are
+  unauthenticated by design; responses are no bigger than requests (no amplification);
+  per-source-IP rate limit (50/s).
+- **TURN** (optional, cargo feature `turn` of `ether-collab`, `--turn`): the webrtc-rs `turn`
+  crate server (UDP allocations, RFC 8656) in its own tokio runtime thread; when on, it owns
+  the UDP port and answers Binding requests itself. Relayed ports from a configurable range
+  (`--turn-ports`), public address from `--public-ip`.
+- **Credentials** (TURN REST API scheme, per site, time-limited), only for token-protected
+  relays:
+  - `secret = HMAC-SHA256(key = relay token, "ether-turn-v1")` (the token itself never
+    leaves the relay);
+  - `username = "<expiry unix seconds>:<site id>"`, TTL 12 h;
+  - `credential = base64(HMAC-SHA1(secret, username))`;
+  - the TURN auth handler recomputes it and rejects expired usernames. A relay without a
+    token (loopback dev) serves STUN only.
+- **Advertisement**: after a site's sync, the relay sends `IceServers` built for that site
+  (`Relay::set_ice_provider`), and again every `RelayConfig::ice_refresh_ms` (6 h) so
+  credentials never expire mid-session. URLs use `--public-host`, else the host name the
+  site used to reach the relay.
+- **Limits**: ≤ 4 allocations per username, ≤ 64 per relay, 512 kbit/s per allocation,
+  lifetime ≤ credential expiry, and denied peer addresses: loopback, link-local, private
+  ranges and the relay's own addresses (no SSRF into the relay's network), unless
+  `--turn-allow-private` (LAN tests).
+- Future: TURN over TCP/TLS (`turns:`) for UDP-blocked networks.
+- The native sender (str0m) gathers its own host candidates and a server-reflexive one
+  (a Binding request to the advertised STUN URL on its socket); it does not need its own
+  relay candidate, because the listener's TURN allocation is reachable from anywhere.
+
+## 11. Library choices
+
+| Need | Choice | Why (and rejected alternatives) |
+|---|---|---|
+| Browser send/receive | the browser's `RTCPeerConnection` | Jitter buffer, PLC, drift, congestion control, Opus: not reinvented. |
+| Native sender | **`str0m`** (MIT/Apache) | Sans-IO and synchronous: fits the thread-based native host (no async runtime), one sender thread and one socket, deterministic tests with fake time; small dependency tree; RTP timestamps under our control (exact stream clock); has TWCC bandwidth estimation. **Rejected: `webrtc-rs`** (a Pion port: tokio everywhere, large tree, API churn, itself moving to a sans-IO rewrite). str0m does not gather srflx/relay candidates: one Binding request on the same socket covers srflx (§10). DTLS backend: prefer a feature that avoids a system OpenSSL (decided in `stream-host`). |
+| Opus encode | **`opus`** crate (bindings to libopus via `audiopus_sys`, which builds the vendored libopus statically) | Reference codec, BSD-3 (GPL-compatible), no system library needed. |
+| Tap → sender | `rtrb` | Already the engine's SPSC ring; RT-safe. |
+| Resampling to 48 kHz | `rubato` (workspace) | Already used by `ether-media`. |
+| STUN | `stun` crate (webrtc-rs) message codec | Sync encode/decode; a Binding responder is ~100 lines around it. |
+| TURN | `turn` crate (webrtc-rs), feature-gated, tokio in its own thread | Maintained RFC 5766/8656 server with a TURN-REST-style auth hook, in-process (the relay stays one binary). Rejected: coturn (C, a second process to deploy), writing TURN ourselves (large security surface). |
+| Topology | mesh host → listeners | ≤ 8 listeners; an SFU is future work. |
+
+## 12. Code layout
 
 - `ether-collab` (native + wasm): wire helpers (snapshot/version encoding, media chunking,
   binary frames), `CollabTransport` implementations: native WebSocket client thread
@@ -300,13 +672,24 @@ tokens; peer colors are data, like track colors).
 - UI: `ui/src/features/collab/**` (`PresenceBar`, store, peer selection outlines injected as
   a `<style>` keyed on `[data-track]`/`[data-clip-id]`), mock simulation `MockCollab` in
   `ui/src/transport/mock/roadmap/collab.ts` (session status, simulated peers).
+- base-53 (§8-§10): `ether-protocol/src/collab.rs` (types), `ether-collab/src/relay/`
+  (`mod.rs` routing + ICE advertisement, `limits.rs` throttles), `ether-core/src/
+  stream_tap.rs` (+ the tap call in `engine.rs`), `ether-controller/src/streaming.rs`
+  (bridge types) and the defaulted `EngineBridge` stream/mirror hooks (`lib.rs`), the
+  per-node controller modules `collab/{presence, listen, stream_host}.rs` (dispatched from
+  `collab/mod.rs`; the transport intercept in `handlers.rs::transport_command`), tests
+  `ether-protocol/tests/collab_v2_shapes.rs`, `ether-core/tests/stream_tap.rs`,
+  `ether-controller/tests/collab_prewire.rs`. Node boundaries: docs/ROADMAP.md.
 - Limitations: `wss://` works from the browser; the native client speaks `ws://` only (put a
   TLS proxy in front of a public relay). The relay keeps sessions in memory (a relay restart
   makes the first site to reconnect re-create the session from its replica).
 
-## 9. Base changes
+## 13. Base changes
 
 Landed in base-36: `CollabMessage::Media`, `CollabCommand::Get` (re-emits
 `CollabEvent::Session` + `CollabEvent::Presence`, replies `Unit`), ownership of this file.
 base-39: `MockTransport.ts` wiring of `MockCollab`. base-44: `engine.rs`
 (`EngineState::request_reload_from_doc`).
+base-53: presence v2 and listen-on-peer contract (§8-§11): protocol types, relay routing,
+limits and ICE advertisement, the engine stream tap, the `EngineBridge` stream and
+plugin-mirror hooks, controller dispatch into per-node stubs.

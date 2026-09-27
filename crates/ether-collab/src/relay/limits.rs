@@ -1,4 +1,4 @@
-//! Per-site throttles for high-rate messages (docs/COLLAB.md §7, §8.4). Excess messages
+//! Per-site throttles for high-rate messages (docs/COLLAB.md §7, §8.5). Excess messages
 //! are dropped silently (never a disconnect: that is the global message rate limit's job).
 
 use ether_protocol::collab::CollabMessage;

@@ -1,4 +1,4 @@
-//! Stream tap (base-53; docs/COLLAB.md §9.3): a copy of what the engine renders **after
+//! Stream tap (base-53; docs/COLLAB.md §9.1): a copy of what the engine renders **after
 //! master, the metronome and the count-in, and before the browser preview voice**, for
 //! "listen on <peer>" (the host streams it to its listeners over WebRTC). Previews stay
 //! private to each site.

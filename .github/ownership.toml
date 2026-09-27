@@ -628,3 +628,106 @@ paths = [
   "ui/src/transport/mock/MockTransport.test.ts",
   "ui/src/features/transport-bar/TransportBar.test.tsx",
 ]
+
+# --- Collab v2: presence and listen-on-peer (base-53; docs/COLLAB.md §8-§11, ROADMAP.md) ---
+# base-53 froze the types, implemented relay routing/limits/ICE advertisement and the engine
+# stream tap, and pre-created one controller module per node (dispatched from collab/mod.rs).
+# Shared touches are additive; in collab/mod.rs they are limited to dispatch lines, and in
+# tests/collab_prewire.rs to removing the node's own `Unsupported` assertions.
+
+[nodes.presence-v2]
+paths = [
+  "crates/ether-controller/src/collab/presence.rs",
+  "crates/ether-controller/tests/collab_presence*.rs",
+  "ui/src/features/collab/presence/**",
+  "apps/web/e2e/collab-presence.spec.ts",
+  # shared touch: dispatch lines only / own prewire assertions only
+  "crates/ether-controller/src/collab/mod.rs",
+  "crates/ether-controller/tests/collab_prewire.rs",
+  # shared touch: collab UI (store events, chip menu), mock
+  "ui/src/features/collab/store.ts",
+  "ui/src/features/collab/PresenceBar.tsx",
+  "ui/src/features/collab/PresenceBar.test.tsx",
+  "ui/src/features/collab/index.tsx",
+  "ui/src/features/collab/collab.css",
+  "ui/src/transport/mock/roadmap/collab.*",
+  # shared touch: pointer overlay + pointer/viewport publishing + activity in the arrangement
+  # (additive; the repo owner's UX is authoritative)
+  "ui/src/features/arrangement/ArrangementView.tsx",
+  "ui/src/features/arrangement/arrangement.css",
+  "ui/src/features/arrangement/clipDrag.ts",
+  "ui/src/features/arrangement/trackDrag.ts",
+]
+
+[nodes.stream-host]
+paths = [
+  "crates/ether-native/src/stream/**",
+  "crates/ether-collab/src/relay/ice/**",
+  "crates/ether-controller/src/collab/stream_host.rs",
+  "ui/src/features/collab/host/**",
+  "crates/ether-native/tests/stream*.rs",
+  "crates/ether-collab/tests/ice*.rs",
+  "crates/ether-controller/tests/collab_host*.rs",
+  "apps/web/e2e/collab-host.spec.ts",
+  # shared touch: dispatch lines only / own prewire assertions only
+  "crates/ether-controller/src/collab/mod.rs",
+  "crates/ether-controller/tests/collab_prewire.rs",
+  # shared touch: bridge delegations, the `mod stream;` line, deps
+  "crates/ether-native/src/bridge.rs",
+  "crates/ether-native/src/lib.rs",
+  "crates/ether-native/Cargo.toml",
+  "crates/ether-collab/Cargo.toml",
+  "Cargo.toml",
+  "THIRD_PARTY_NOTICES.txt",
+  # shared touch: relay server/binary bind UDP and install the ICE provider; `mod ice;`
+  "crates/ether-collab/src/relay/server.rs",
+  "crates/ether-collab/src/relay/mod.rs",
+  "crates/ether-collab/src/bin/relay.rs",
+  # shared touch (web-perf's file, this change only): copy the stream tap into worklet output 1
+  "crates/ether-wasm/src/worklet.rs",
+  # shared touch: second worklet output → MediaStream for the web sender
+  "apps/web/src/engine/endpoint.ts",
+  "apps/web/src/engine/engine.worklet.ts",
+  "ui/src/transport/wasm/WasmTransport.ts",
+  # shared touch: hosting toggle and listener list in the collab UI, mock
+  "ui/src/features/collab/store.ts",
+  "ui/src/features/collab/PresenceBar.tsx",
+  "ui/src/features/collab/index.tsx",
+  "ui/src/transport/mock/roadmap/collab.*",
+]
+
+[nodes.stream-listen]
+paths = [
+  "crates/ether-controller/src/collab/listen.rs",
+  "crates/ether-controller/tests/collab_listen*.rs",
+  "ui/src/features/collab/listen/**",
+  "apps/web/e2e/collab-listen.spec.ts",
+  # shared touch: dispatch lines only / own prewire assertions only
+  "crates/ether-controller/src/collab/mod.rs",
+  "crates/ether-controller/tests/collab_prewire.rs",
+  # shared touch: the playhead shows what the listener hears
+  "ui/src/state/playhead.ts",
+  "ui/src/transport/TransportProvider.tsx",
+  # shared touch: listen UX in the collab UI, mock
+  "ui/src/features/collab/store.ts",
+  "ui/src/features/collab/PresenceBar.tsx",
+  "ui/src/features/collab/PresenceBar.test.tsx",
+  "ui/src/features/collab/index.tsx",
+  "ui/src/features/collab/collab.css",
+  "ui/src/transport/mock/roadmap/collab.*",
+]
+
+[nodes.plugin-mirror]
+# Later (after stream-host / stream-listen).
+paths = [
+  "crates/ether-controller/src/collab/mirror.rs",
+  "crates/ether-native/src/plugin_mirror.rs",
+  "crates/ether-controller/tests/collab_mirror*.rs",
+  # shared touch: one `mod` line + dispatch
+  "crates/ether-controller/src/collab/mod.rs",
+  "crates/ether-native/src/lib.rs",
+  # shared touch: mirror delegations, editor routing to the mirror
+  "crates/ether-native/src/bridge.rs",
+  "crates/ether-native/src/plugins.rs",
+  "crates/ether-native/src/host.rs",
+]

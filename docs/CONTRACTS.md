@@ -648,3 +648,32 @@ preview. **Preview ids (frozen):**
 Controller hook: `EngineBridge::preview` (defaulted `Unsupported`), `media_preview` module
 (`preview_command`, `preview_tick`). The MockTransport (`MockPreview`) follows the same
 event rules.
+
+### 11.16 Presence v2 and listen-on-peer (base-53)
+Design: docs/COLLAB.md §8-§11. All additive and append-only in `ether_protocol::collab`:
+- `PresenceState` gains `viewport`, `activity`, `following`, and the controller-owned
+  `listening_to`, `can_host` (all `#[serde(default)]`, omitted when unset). `cursor` keeps
+  its meaning (edit cursor). The live pointer is a separate channel:
+  `CollabCommand::SetPointer` → `CollabMessage::Pointer { site, pointer }` →
+  `CollabEvent::Pointer`, `ArrangerPointer { beats, track, y }` in song coordinates
+  (≤ 30 Hz, `POINTER_MAX_HZ`).
+- Site-to-site messages `CollabMessage::{Signal, Listen, Unlisten, TransportRequest,
+  StreamClock}` carry `from`/`to` (`CollabMessage::route`): the relay checks `from`, delivers
+  to `to` only (same session, synced). `IceServers` is relay → site only
+  (`Relay::set_ice_provider`, refreshed every `RelayConfig::ice_refresh_ms`).
+- Commands `Listen { host }`, `StopListening`, `SendSignal`, `SendStreamClock`, `SetHosting`,
+  `SetIceServers`; events `Signal`, `ListenStatus`, `StreamClock`, `IceServers`. Until their
+  node lands, `SetPointer` (presence-v2), `Listen`/`StopListening` (stream-listen),
+  `SetHosting`/`SendStreamClock` (stream-host) reply `Unsupported`; `SendSignal` and
+  `SetIceServers` work (`ether-controller/tests/collab_prewire.rs`).
+- Stream clock: `StreamClock { rtp, position, ... }` = "the sample with RTP timestamp `rtp`
+  in this listener's stream is the timeline at `position`" (48 kHz, wrapping u32), every
+  100 ms and at every discontinuity.
+- Engine: `ether_core::stream_tap` (`EngineHandle::set_stream_tap`): a copy of the render
+  after master + metronome/count-in and before the preview voice, into pre-allocated `rtrb`
+  rings (block headers + interleaved stereo), RT-safe.
+- `EngineBridge` (defaulted): `stream_capabilities`, `start/stop_stream_capture`,
+  `stream_open/stream_signal/stream_close`, `poll_stream` (`streaming::StreamOutput`), and
+  plugin GUI mirrors `create/destroy_plugin_mirror`, `set_plugin_mirror_param`.
+- Relay limits (`relay::limits`): presence 20 Hz, pointer 40 Hz (clears always pass),
+  site-to-site 200/s (dropped, not disconnected).
