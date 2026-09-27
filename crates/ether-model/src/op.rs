@@ -24,6 +24,7 @@ use crate::midi_map::{MidiMapMode, MidiMapTarget, MidiSource};
 use crate::modulation::ModSource;
 use crate::project::MetronomeSound;
 use crate::rack::Zone;
+use crate::social::NotePosition;
 use crate::tempo::TempoCurve;
 use crate::track::{MonitorMode, TrackFreeze, TrackInput, TrackOutput};
 use crate::value::*;
@@ -118,6 +119,11 @@ pub enum EntityUpdate {
     ModMapping {
         id: ModMappingId,
         change: ModMappingChange,
+    },
+    /// base-62 (`collab-social`). Chat messages have no updates (sent messages are final).
+    PinnedNote {
+        id: PinnedNoteId,
+        change: PinnedNoteChange,
     },
 }
 
@@ -285,6 +291,14 @@ pub enum MarkerChange {
     Position(Beats),
     Name(String),
     Color(Option<Color>),
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+#[serde(tag = "field", content = "value")]
+pub enum PinnedNoteChange {
+    Position(NotePosition),
+    Text(String),
+    Resolved(bool),
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]

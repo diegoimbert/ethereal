@@ -681,6 +681,29 @@ Design: docs/COLLAB.md §8-§11. All additive and append-only in `ether_protocol
 - Relay limits (`relay::limits`): presence 20 Hz, pointer 40 Hz (clears always pass),
   site-to-site 200/s (dropped, not disconnected).
 
+### 11.17 Social: chat, pinned notes, peer playheads (base-62)
+Design: docs/COLLAB.md §12. Additive; the tables ship with `.ether` v4 (contracts-3):
+- Model (`ether_model::social`): `ChatMessage { id, seq, author, text, sent_at }` and
+  `PinnedNote { id, position: NotePosition { beats, track, y }, text, author, created_at,
+  resolved }`, `Author { name, site, actor, color }`; tables `Project::{chat,
+  pinned_notes}` (`.ether` v4: added empty by the v3 → v4 migration); ids `ChatMessageId`, `PinnedNoteId`;
+  `EntityUpdate::PinnedNote` (`PinnedNoteChange::{Position, Text, Resolved}`); chat
+  messages have no updates. Caps: text ≤ 2000 chars and ≤ 4096 bytes (chat and notes),
+  author name ≤ 64, ≤ 2000 stored chat messages (oldest pruned by the sender, in the same
+  transaction; `apply` refuses past 4000), ≤ 500 notes. Notes may be pinned in a piano
+  roll (`NotePosition::editor`, weak clip ref). Remote chat inserts are dropped unless
+  `author.site` is the origin and `seq` is 0; chat updates are dropped, and chat removes
+  unless they are the sender's prune (COLLAB.md §12.1). `COLLAB_PROTOCOL_VERSION` = 2.
+  `note.position.track` is a weak reference (not validated, never cascaded).
+- Chat order is log order: `Project::apply` gives an `Insert` with `seq: 0` the next `seq`.
+  `History` applies chat ops without recording them (`social::is_untracked`).
+- Protocol: `Command::Chat(ChatCommand::Send { id, text })` (not a document command, not in
+  a `Batch`, `InvalidState` outside a session), `Command::PinnedNote(PinnedNoteCommand::{Add,
+  Edit, Delete})` (document command), `PresenceState::transport: Option<PeerTransport {
+  position, playing, sent_at_ms, loop_region }>` (controller-owned),
+  `CollabEvent::ChatReceived { ids }`. Until `collab-social` lands, `Chat::*` and
+  `PinnedNote::*` reply `Unsupported` (`ether-controller/tests/social_prewire.rs`).
+
 ## 12. v0.2 contracts (contracts-3)
 
 Frozen for the v0.2 nodes; per-node files, hook points and shared touches are in

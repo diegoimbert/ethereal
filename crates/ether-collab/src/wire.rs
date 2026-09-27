@@ -16,8 +16,14 @@ use ether_protocol::collab::CollabMessage;
 use ether_protocol::model::{Base64Bytes, Color, SiteId};
 use serde::{Deserialize, Serialize};
 
-/// Version of the engine ↔ relay collaboration protocol (`CollabMessage::Hello`).
-pub const COLLAB_PROTOCOL_VERSION: u32 = 1;
+/// Version of the engine ↔ relay collaboration protocol (`CollabMessage::Hello`). The relay
+/// refuses any other version at the hello, so mixed-version sites fail cleanly instead of
+/// silently dropping messages they cannot decode (and drifting apart).
+///
+/// - 1: base collab + presence v2 / listen-on-peer (base-53).
+/// - 2: base-62 social: `Entity::{ChatMessage, PinnedNote}` in transactions,
+///   `PresenceState::transport`.
+pub const COLLAB_PROTOCOL_VERSION: u32 = 2;
 
 /// Largest message a relay or site accepts after the hello (snapshots of big projects).
 pub const MAX_COLLAB_MESSAGE_BYTES: usize = 16 << 20;

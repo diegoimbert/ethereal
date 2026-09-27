@@ -485,6 +485,7 @@ fn v2_fixture_loads_at_v4_with_project_media() {
             .all(|m| m.location == MediaLocation::Project)
     );
     assert!(p.take_lanes.is_empty() && p.rack_chains.is_empty() && p.mod_mappings.is_empty());
+    assert!(p.chat.is_empty() && p.pinned_notes.is_empty());
     let saved = file::save(&p, "0.2.0").unwrap();
     let v: serde_json::Value = serde_json::from_str(&saved).unwrap();
     assert_eq!(v["version"], 4);
