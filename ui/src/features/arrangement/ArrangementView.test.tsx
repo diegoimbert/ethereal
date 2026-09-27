@@ -483,6 +483,34 @@ describe("ArrangementView: clip editing", () => {
     expect(trackByName("Keys").mixer.volume).toBeCloseTo(0);
   });
 
+  it("zoomed out, runs of tiny clips become one clickable, draggable cluster", async () => {
+    const keys = trackByName("Keys");
+    // 16 one-beat clips back to back on Keys, from beat 32.
+    await act(async () => {
+      for (let i = 0; i < 16; i++) {
+        await mock.send(cmd("Clip", { type: "CreateMidi", id: newId(), track: keys.id, start: 32 + i, length: 1, name: null }));
+      }
+    });
+    const lane = document.querySelector<HTMLElement>(`[data-lane="${keys.id}"]`)!;
+    act(() => arrangementView.getState().setViewport({ pxPerBeat: 4, scrollBeats: 0 }));
+    await flush();
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 200)); // the lanes re-render at the settled zoom
+    });
+    const layer = lane.querySelector<HTMLElement>('[data-testid="clip-clusters"]');
+    expect(layer).not.toBeNull();
+    const ids = Object.values(project().clips).filter((c) => c.track === keys.id && c.start >= 32).map((c) => c.id);
+    expect(ids.every((id) => !lane.querySelector(`[data-clip-id="${id}"]`))).toBe(true);
+
+    // Click the cluster: all its clips selected; drag it: all move together.
+    await drag(lane, 8, 0, { x: 40 * 4, y: 5 });
+    await flush();
+    expect(new Set(itemSelection.getState().selected.clip)).toEqual(new Set(ids));
+    const starts = () => ids.map((id) => project().clips[id]!.start).sort((a, b) => a - b);
+    expect(starts()[0]).toBe(34);
+    expect(starts()[15]).toBe(49);
+  });
+
   it("reorders tracks by dragging their headers (one undo step)", async () => {
     const names = () => tracksOrdered(project()).map((t) => t.name);
     expect(names().slice(0, 3)).toEqual(["Keys", "Bass", "Drums"]);

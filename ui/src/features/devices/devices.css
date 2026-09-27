@@ -226,12 +226,68 @@
   min-width: 0;
   min-height: var(--eth-size-row-height-lg);
 }
+/*
+ * Responsive cards: each stacked card is a size container, and its content reflows with
+ * the card's width (the inspector pane is resizable):
+ * - params sit in a grid of auto-filled columns, as many as fit;
+ * - groups (Oscillator, Filter, ...) are blocks laid side by side when there's room and
+ *   stacked when narrow;
+ * - knobs scale with the card (container units, clamped).
+ * Roughly: ~200px → 2 columns of compact knobs; ~320px → 3–4 columns; ≥500px → groups side
+ * by side with larger knobs.
+ */
 .eth-device--stack {
   min-width: 0;
+  container: device / inline-size;
 }
 .eth-device--stack .eth-device__body {
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--device-group-min)), 1fr));
   gap: var(--eth-space-md) var(--eth-space-lg);
+  padding: var(--eth-space-md);
+  /* Knob diameters follow the card width: main (lg) and folded (md) controls. */
+  --knob-size-lg: clamp(34px, 11cqi, 54px);
+  --knob-size: clamp(26px, 8cqi, 38px);
+  --device-param-min: calc(var(--knob-size-lg) + 22px);
+  --device-group-min: 220px;
+}
+.eth-device--stack .eth-device__body--more {
+  padding-top: 0;
+  --device-param-min: calc(var(--knob-size) + 26px);
+}
+.eth-device--stack .eth-device__group {
+  min-width: 0;
+}
+.eth-device--stack .eth-device__params {
+  grid-template-columns: repeat(auto-fill, minmax(var(--device-param-min), 1fr));
+  justify-items: center;
+  gap: var(--eth-space-md) var(--eth-space-sm);
+}
+/* Choices and toggles span wider cells so their text fits. */
+.eth-device--stack .eth-param--choice {
+  grid-column: span 2;
+  justify-self: stretch;
+}
+.eth-device--stack .eth-param {
+  width: 100%;
+}
+@container device (max-width: 240px) {
+  .eth-device__body {
+    --device-param-min: calc(var(--knob-size-lg) + 14px);
+    --knob-center-font-size: var(--eth-fs-xs);
+  }
+  .eth-device__header {
+    padding: 0 var(--eth-space-xs);
+  }
+}
+@container device (min-width: 480px) {
+  .eth-device__body {
+    --device-group-min: 200px;
+    --knob-center-font-size: var(--eth-fs-sm);
+  }
+  .eth-device__group-name {
+    font-size: var(--eth-fs-sm);
+  }
 }
 .eth-devices__footer {
   display: flex;
@@ -249,12 +305,30 @@
   min-width: 0;
   font-size: var(--eth-fs-xs);
 }
+.eth-param__name,
+.eth-param__value {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: center;
+}
 .eth-param__name {
   color: var(--eth-color-text-dim);
 }
 .eth-param__value {
   color: var(--eth-color-text);
   font-variant-numeric: tabular-nums;
+}
+/* Enum selects shrink with their cell. */
+.eth-param--choice .eth-select {
+  width: 100%;
+  min-width: 0;
+}
+/* Kit knob labels (under the ring) truncate too. */
+.eth-param .eth-knob {
+  max-width: 100%;
+  min-width: 0;
 }
 
 /* Sampler: the loaded sample, and the drop target for a new one. */

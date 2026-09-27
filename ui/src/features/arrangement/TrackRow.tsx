@@ -5,9 +5,23 @@ import type { Beats, Clip, ClipId, Track, TrackId } from "@/generated";
 import { TrackAutomationLanes } from "@/features/automation";
 import { MOD_KEY, meterPosition, openContextMenu, setDragCursor } from "@/kit";
 import { useProjectStore, useTrackMeter } from "@/state";
-import { pxToBeats, resolveGrid, snapToGrid, useTempoMap, useTimelineView } from "@/timeline";
+import {
+  createDoublePress,
+  itemSelection,
+  pxToBeats,
+  resolveGrid,
+  selectModeFromEvent,
+  snapToGrid,
+  useSelectedItems,
+  useTempoMap,
+  useTimelineView,
+  type SelectMode,
+} from "@/timeline";
 import { cmd } from "@/transport";
-import { selectTrackEntity, trackMenu } from "./actions";
+import { clipMenu, selectTrackEntity, trackMenu } from "./actions";
+import { clusterAt, clusterLane, zoomLevel, type ClipCluster } from "./clipClusters";
+import { onClipPointerDown } from "./clipDrag";
+import { ClusterLayer } from "./ClusterLayer";
 import { hasClipboard, pasteClips } from "./clipboard";
 import { onLaneInsertPointerDown, type InsertSpan } from "./clipInsert";
 import { ClipView } from "./ClipView";
@@ -20,6 +34,8 @@ import { onTrackHeaderPointerDown } from "./trackDrag";
 import { HEADER_WIDTH, TRACK_HEIGHT_STEP, type Row } from "./layout";
 import { arrangementView, useArrangementUi, type PendingImport } from "./uiStore";
 
+/** Pointer tolerance around clusters (px): very thin ones stay clickable. */
+const CLUSTER_SLOP_PX = 3;
 const EMPTY_CLIPS: Readonly<Record<ClipId, Clip>> = {};
 const INDENT_PX = 12;
 
@@ -306,15 +322,63 @@ function TrackLane({ track }: { track: Track }) {
   const tempo = useTempoMap();
   const { vp, visible } = useLaneView();
   const items = useMemo(() => laneItems(clips, track.id, preview), [clips, track.id, preview]);
+  // Zoomed out, runs of tiny clips become clusters drawn on one canvas (clipClusters.ts).
+  const level = zoomLevel(vp.pxPerBeat);
+  const { singles, clusters } = useMemo(() => clusterLane(items, level), [items, level]);
+  const selectedClips = useSelectedItems("clip");
+  const [isDoublePress] = useState(createDoublePress);
 
   const [insert, setInsert] = useState<InsertSpan | null>(null);
+
+  /** The cluster under the pointer (with a few px of tolerance: they can be very thin). */
+  const clusterUnder = (e: { clientX: number; currentTarget: HTMLElement }) => {
+    if (!clusters.length) return null;
+    const s = arrangementView.getState();
+    const x = e.clientX - e.currentTarget.getBoundingClientRect().left;
+    return clusterAt(clusters, pxToBeats(x, s), CLUSTER_SLOP_PX / s.pxPerBeat);
+  };
+  /** Select a cluster's clips like clicking a clip: replace, shift adds, cmd/ctrl toggles. */
+  const selectCluster = (c: ClipCluster, mode: SelectMode) => {
+    const ids = c.items.map((it) => it.clip.id);
+    const sel = itemSelection.getState();
+    if (mode === "toggle") sel.select("clip", ids, ids.every((id) => sel.isSelected("clip", id)) ? "remove" : "add");
+    else if (mode === "add" || ids.every((id) => sel.isSelected("clip", id))) sel.select("clip", ids, "add");
+    else sel.select("clip", ids, "replace");
+  };
 
   return (
     <div
       className={clsx("eth-arr-lane", track.kind !== "Audio" && track.kind !== "Midi" && "eth-arr-lane--no-clips")}
       data-lane={track.id}
-      onPointerDown={track.kind === "Midi" ? (e) => onLaneInsertPointerDown(e, track.id, ctx, setInsert) : undefined}
+      onPointerDown={(e) => {
+        const c = e.button === 0 ? clusterUnder(e) : null;
+        if (c) {
+          if (isDoublePress(e, "cluster")) {
+            // Double-click a cluster: zoom in on it.
+            e.stopPropagation();
+            const pad = (c.end - c.start) * 0.1;
+            arrangementView.getState().zoomToRange({ start: Math.max(0, c.start - pad), end: c.end + pad });
+            return;
+          }
+          selectCluster(c, selectModeFromEvent(e));
+          // Drag them like selected clips (cmd: copy); a plain click keeps the cluster selected.
+          onClipPointerDown(e, c.items[0]!.clip, ctx, { keepSelection: true });
+          return;
+        }
+        if (track.kind === "Midi") onLaneInsertPointerDown(e, track.id, ctx, setInsert);
+      }}
+      onPointerMove={(e) => {
+        const c = clusterUnder(e);
+        const title = c ? `${c.items.length} clips (double-click to zoom in)` : "";
+        if (e.currentTarget.title !== title) e.currentTarget.title = title;
+      }}
       onContextMenu={(e) => {
+        const c = clusterUnder(e);
+        if (c) {
+          if (!c.items.every((it) => itemSelection.getState().isSelected("clip", it.clip.id))) selectCluster(c, "replace");
+          openContextMenu(e, clipMenu(ctx.transport, c.items[0]!.clip));
+          return;
+        }
         // Empty space (or a clip's body, which lets clicks through): paste here.
         const x = e.clientX - e.currentTarget.getBoundingClientRect().left;
         const s = arrangementView.getState();
@@ -326,7 +390,17 @@ function TrackLane({ track }: { track: Track }) {
       }}
     >
       <LaneLayer origin={vp.scrollBeats}>
-      {items.map((it) =>
+      {clusters.length > 0 && (
+        <ClusterLayer
+          clusters={clusters}
+          origin={vp.scrollBeats}
+          visible={visible}
+          pxPerBeat={vp.pxPerBeat}
+          trackColor={track.color}
+          selected={selectedClips}
+        />
+      )}
+      {singles.map((it) =>
         it.bounds.start + it.bounds.length < visible.start || it.bounds.start > visible.end ? null : (
           <ClipView
             key={(it.ghost ? "ghost:" : "") + it.clip.id}

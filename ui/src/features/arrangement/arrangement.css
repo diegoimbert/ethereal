@@ -487,6 +487,14 @@
   will-change: transform;
 }
 
+/* Clip clusters (zoomed out): one canvas per lane, positioned in beats. */
+.eth-arr-clusters {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  pointer-events: none;
+}
+
 /* ── Clips ────────────────────────────────────────────────────────── */
 
 .eth-clip {

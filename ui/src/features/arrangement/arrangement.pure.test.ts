@@ -4,6 +4,7 @@ import type { Clip, Command, Note, PeakData, ReplyValue, Track } from "@/generat
 import { TempoMap } from "@/timeline";
 import type { EngineTransport } from "@/transport";
 import { actionForKey } from "./actions";
+import { clusterAt, clusterLane, zoomLevel } from "./clipClusters";
 import { trackDropTarget } from "./trackDrag";
 import { BROWSER_DRAG_MIME, readBrowserDrag } from "./browserDrop";
 import { noteRects, pitchRange } from "./clipDraw";
@@ -482,5 +483,51 @@ describe("trackDropTarget", () => {
 
   it("drops after the last regular track instead of among returns and master", () => {
     expect(trackDropTarget(rs, 5 * H, "m1")).toEqual({ parent: null, before: null, y: 4 * H, into: null });
+  });
+});
+
+// ── clipClusters ──────────────────────────────────────────────────────────────────────
+
+describe("clusterLane", () => {
+  const item = (id: string, start: number, length: number, ghost = false) => ({
+    clip: { id } as Clip,
+    bounds: { start, length, offset: 0, track: "t" },
+    dragging: false,
+    ghost,
+  });
+
+  it("merges small clips closer than the gap, keeps wide ones and lone small ones as clips", () => {
+    // Level 4 px/beat: small < 5.5 beats, gap < 1.25 beats.
+    const items = [
+      item("a", 0, 1),
+      item("b", 1.5, 1), // 0.5 beat after a: same cluster
+      item("c", 3, 2), // touching b
+      item("big", 10, 8), // wide: a clip
+      item("lone", 30, 1), // small but alone: a clip
+      item("d", 40, 1),
+      item("e", 42, 1), // 1 beat after d (< 1.25): cluster
+    ];
+    const { singles, clusters } = clusterLane(items, 4);
+    expect(clusters.map((c) => [c.start, c.end, c.items.map((i) => i.clip.id)])).toEqual([
+      [0, 5, ["a", "b", "c"]],
+      [40, 43, ["d", "e"]],
+    ]);
+    expect(singles.map((i) => i.clip.id).sort()).toEqual(["big", "lone"]);
+    // Zoomed in (64 px/beat) nothing is small: all clips.
+    expect(clusterLane(items, 64).clusters).toEqual([]);
+  });
+
+  it("clusters copy ghosts apart from clips, and hit-tests with slop", () => {
+    const items = [item("a", 0, 1), item("b", 1, 1), item("g1", 0.5, 1, true), item("g2", 1.5, 1, true)];
+    const { clusters } = clusterLane(items, 4);
+    expect(clusters.map((c) => c.items.map((i) => i.clip.id))).toEqual([["a", "b"], ["g1", "g2"]]);
+    expect(clusterAt(clusters, 2.1, 0.2)?.items[0]!.clip.id).toBe("a");
+    expect(clusterAt(clusters, 2.5, 0.2)).toBeNull();
+  });
+
+  it("zoom levels are powers of two", () => {
+    expect(zoomLevel(24)).toBe(16);
+    expect(zoomLevel(16)).toBe(16);
+    expect(zoomLevel(0.3)).toBe(0.25);
   });
 });
