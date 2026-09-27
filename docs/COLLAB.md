@@ -786,15 +786,31 @@ project, replicated as ordinary ops); peer playheads are **presence** (ephemeral
 - **Protocol version 2.** New entity variants travel in transactions, which an older
   build cannot decode (it would drop them silently and diverge), so base-62 bumps
   `COLLAB_PROTOCOL_VERSION` to 2: the relay refuses mixed-version sites at the hello (§4).
-- **Authorship is verified on receipt** (implemented: `social::is_forged_chat`, applied in
-  `collab_apply_remote` and in the debug echo check): a peer's `Insert ChatMessage` is
-  dropped unless `author.site == Some(origin.site)` (the relay-verified sender, §7) and
-  `seq == 0`. Deterministic (a function of the op and its stamped origin), so every
-  replica drops the same ops, and a dropped message never produces `ChatReceived`. No
-  legitimate path sends anything else, because chat is never undone or redone. Tested in
-  `ether-controller/tests/social_sanitize.rs`. **Note authorship is best-effort**: undoing a
-  discard legitimately re-inserts another user's note, so notes cannot use this rule; their
-  `author` is what the inserting op says.
+- **Nobody writes, edits or deletes other people's chat** (implemented:
+  `social::sanitize_chat`). Every sequenced transaction's chat ops are filtered against the
+  document **as it is right before that transaction** (the confirmed state, identical on
+  every replica), so every replica keeps the same ops:
+  - an `Insert ChatMessage` is dropped unless `author.site == Some(origin.site)` (the
+    relay-verified sender, §7) and `seq == 0`;
+  - any `Update` of a chat message is dropped (sent messages are final; the model has no
+    chat update today, and this keeps it so);
+  - the transaction's chat `Remove`s are kept only as a **prune**: it also inserts a
+    well-formed message by the sender, the removed messages that still exist are the oldest
+    ones (a prefix of `chat_ordered`), and removing them leaves at least
+    `CHAT_MAX_MESSAGES` with the new message. Otherwise all its chat `Remove`s are dropped
+    (e.g. a concurrent prune already brought the chat to the cap; the next send prunes
+    again). A dropped message never produces `ChatReceived`.
+
+  It runs in `collab_apply_remote` (peers' transactions, and our own from before a
+  re-join), on the re-application of our pending transactions during a rebase (so our live
+  prune is exactly what peers will keep once it is sequenced: a pending transaction's last
+  re-application is on the state its echo will find), and in the debug echo check. No
+  legitimate path is affected: chat is never undone or redone, and `Send` prunes exactly
+  this way. Tested in `ether-controller/src/social/mod.rs` (unit) and
+  `tests/social_sanitize.rs` (a tapped peer injecting spoofed, reordered and site-less
+  messages, and deletes of others' messages). **Note authorship is best-effort**: undoing a
+  discard legitimately re-inserts (or deletes) another user's note, so notes cannot use
+  these rules; their `author` is what the inserting op says.
 - **Own colour.** Today a site never learns its relay colour (the relay drops a site's own
   presence). The node adds it: the relay sends each site its own stamped default presence
   once synced (`relay/mod.rs`, next to the peers' presence it already sends a joiner), and

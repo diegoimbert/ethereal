@@ -692,7 +692,8 @@ Design: docs/COLLAB.md §12. Additive, no `.ether` version bump:
   author name ≤ 64, ≤ 2000 stored chat messages (oldest pruned by the sender, in the same
   transaction; `apply` refuses past 4000), ≤ 500 notes. Notes may be pinned in a piano
   roll (`NotePosition::editor`, weak clip ref). Remote chat inserts are dropped unless
-  `author.site` is the origin and `seq` is 0. `COLLAB_PROTOCOL_VERSION` = 2.
+  `author.site` is the origin and `seq` is 0; chat updates are dropped, and chat removes
+  unless they are the sender's prune (COLLAB.md §12.1). `COLLAB_PROTOCOL_VERSION` = 2.
   `note.position.track` is a weak reference (not validated, never cascaded).
 - Chat order is log order: `Project::apply` gives an `Insert` with `seq: 0` the next `seq`.
   `History` applies chat ops without recording them (`social::is_untracked`).

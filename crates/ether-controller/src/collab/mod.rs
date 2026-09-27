@@ -952,8 +952,8 @@ where
             .ops
             .into_iter()
             .filter(|op| !resolve::is_local_only(op))
-            .filter(|op| !crate::social::is_forged_chat(op, t.origin.site))
             .collect();
+        let ops = crate::social::sanitize_chat(project, &ops, t.origin.site);
         let (applied, _) = resolve::resolve_all(project, &ops);
         let replaced: Vec<DeviceId> = applied
             .iter()
@@ -970,7 +970,11 @@ where
             .collect();
         touched.extend(applied);
         for p in s.pending.iter_mut() {
-            let (applied, inverse) = resolve::resolve_all(project, &p.tx.transaction.ops);
+            // Same chat rule as when it is sequenced (COLLAB.md §12.1), on the state it
+            // re-applies to, so our live prune matches what peers will keep.
+            let ops =
+                crate::social::sanitize_chat(project, &p.tx.transaction.ops, p.tx.origin.site);
+            let (applied, inverse) = resolve::resolve_all(project, &ops);
             p.inverse = inverse;
             touched.extend(applied);
         }
@@ -1474,12 +1478,13 @@ fn check_echo(live: &Project, pending: &VecDeque<Pending>, echo: &StampedTransac
         .ops
         .iter()
         .filter(|op| !resolve::is_local_only(op))
-        .filter(|op| !crate::social::is_forged_chat(op, echo.origin.site))
         .cloned()
         .collect();
+    let ops = crate::social::sanitize_chat(&p, &ops, echo.origin.site);
     resolve::resolve_all(&mut p, &ops);
     for q in pending.iter().skip(1) {
-        resolve::resolve_all(&mut p, &q.tx.transaction.ops);
+        let ops = crate::social::sanitize_chat(&p, &q.tx.transaction.ops, q.tx.origin.site);
+        resolve::resolve_all(&mut p, &ops);
     }
     resolve::LocalMix::of(live).overlay(&mut p);
     debug_assert!(
