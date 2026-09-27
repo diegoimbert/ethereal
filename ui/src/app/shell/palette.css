@@ -1,0 +1,101 @@
+/* Command palette (⌘K). Tokens only (scanned by hardcoded.test.ts). */
+.eth-palette {
+  position: fixed;
+  inset: 0;
+  z-index: var(--eth-z-dialog);
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding-top: calc(var(--eth-size-top-bar-height) * 3);
+  background: color-mix(in srgb, var(--eth-color-backdrop) 60%, transparent);
+  animation: eth-palette-fade var(--context-menu-enter-duration) var(--eth-ease-out) both;
+}
+.eth-palette--closing {
+  animation: eth-palette-fade var(--select-exit-duration) var(--eth-ease-in) reverse both;
+  pointer-events: none;
+}
+.eth-palette__card {
+  display: flex;
+  flex-direction: column;
+  width: min(var(--eth-size-dialog-width) * 1.4, calc(100vw - var(--eth-space-3xl)));
+  max-height: min(var(--eth-size-select-list-max-height) * 1.5, 70vh);
+  overflow: hidden;
+  border: var(--eth-border-width) solid var(--popover-border);
+  border-radius: var(--eth-radius-xl);
+  background: var(--popover-bg);
+  box-shadow: var(--eth-shadow-lg);
+  transform-origin: top center;
+  animation: eth-context-menu-in var(--context-menu-enter-duration) var(--context-menu-enter-ease) both;
+}
+.eth-palette--closing .eth-palette__card {
+  animation: eth-context-menu-out var(--select-exit-duration) var(--eth-ease-in) both;
+}
+@keyframes eth-palette-fade {
+  from {
+    opacity: 0;
+  }
+}
+.eth-palette__search {
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-sm);
+  padding: var(--eth-space-md) var(--eth-space-lg);
+  border-bottom: var(--eth-border-width) solid var(--eth-color-border-light);
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-size-icon-lg);
+}
+.eth-palette__input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: none;
+  color: var(--eth-color-text);
+  font-size: var(--eth-fs-lg);
+}
+.eth-palette__input::placeholder {
+  color: var(--eth-color-text-disabled);
+}
+.eth-palette__list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--eth-space-xs);
+}
+.eth-palette__item {
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-md);
+  height: var(--eth-size-row-height-lg);
+  padding: 0 var(--eth-space-md);
+  border-radius: var(--eth-radius-md);
+  font-size: var(--eth-fs-md);
+  cursor: default;
+}
+.eth-palette__item--active {
+  background: var(--menu-item-bg-hover);
+}
+.eth-palette__label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.eth-palette__group {
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+}
+.eth-palette__kbd {
+  padding: 0 var(--eth-space-xs);
+  border: var(--eth-border-width) solid var(--eth-color-border-light);
+  border-radius: var(--eth-radius-sm);
+  color: var(--eth-color-text-dim);
+  font-family: var(--eth-font-ui);
+  font-size: var(--eth-fs-xs);
+}
+.eth-palette__empty {
+  padding: var(--eth-space-lg);
+  color: var(--eth-color-text-dim);
+  text-align: center;
+}

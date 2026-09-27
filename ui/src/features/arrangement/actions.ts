@@ -4,10 +4,11 @@ import type { EngineTransport } from "@/transport";
 import { cmd, newId } from "@/transport";
 import type { Beats, Clip, Command, Track, TrackId } from "@/generated";
 import { MOD_KEY, type ContextMenuEntry } from "@/kit";
-import { useEditorStore, useProjectStore, useSelectionStore } from "@/state";
-import { itemSelection, playheadBeats } from "@/timeline";
+import { tracksOrdered, useEditorStore, useProjectStore, useSelectionStore } from "@/state";
+import { itemSelection, playheadBeats, type SelectMode } from "@/timeline";
 import { copyClips, cutClips, hasClipboard, pasteClips } from "./clipboard";
 import { isArrangementClip } from "./clipTime";
+import { arrangementTracks } from "./layout";
 import { selectedClips, sendEdit } from "./context";
 import { useArrangementUi } from "./uiStore";
 import { asOneStep, deleteCommand, duplicateCommand, splitCommand, toggleLoopCommand } from "./editMath";
@@ -18,9 +19,14 @@ export type NewTrackKind = "Midi" | "Audio";
  * Commands adding a track at the end of the list; a MIDI track comes with the built-in
  * synth, so it plays as soon as it has notes. One undo step.
  */
-export function addTrackCommand(kind: NewTrackKind, id: TrackId, deviceId: string): Command {
+export function addTrackCommand(
+  kind: NewTrackKind,
+  id: TrackId,
+  deviceId: string,
+  at: { parent: TrackId | null; before: TrackId | null } = { parent: null, before: null },
+): Command {
   const commands: Command[] = [
-    cmd("Track", { type: "Create", id, kind, name: null, color: null, parent: null, before: null }),
+    cmd("Track", { type: "Create", id, kind, name: null, color: null, parent: at.parent, before: at.before }),
   ];
   if (kind === "Midi") {
     commands.push(
@@ -43,14 +49,36 @@ export function locateIfStopped(transport: EngineTransport, beats: Beats): void 
 }
 
 /**
- * Select `track` as the arrangement's entity (header click): it becomes the selected
- * track and the clip and automation point selections are cleared.
+ * Select tracks as the arrangement's entity (header click); the clip and automation point
+ * selections are cleared. `replace` selects just `track`; `toggle` (cmd/ctrl-click) adds
+ * or removes it; `add` (shift-click) selects the range from the last clicked track to it,
+ * in display order.
  */
-export function selectTrackEntity(track: TrackId): void {
+export function selectTrackEntity(track: TrackId, mode: SelectMode = "replace"): void {
   itemSelection.getState().clear("clip");
   itemSelection.getState().clear("automationPoint");
-  useSelectionStore.getState().selectTrack(track);
-  useArrangementUi.getState().setTrackFocus(track);
+  const ui = useArrangementUi.getState();
+  const anchor = ui.trackFocus;
+  if (mode === "toggle") {
+    const next = new Set(ui.selectedTracks);
+    if (next.has(track)) {
+      next.delete(track);
+      ui.setTrackSelection(next, anchor === track ? ([...next].at(-1) ?? null) : anchor);
+    } else {
+      next.add(track);
+      ui.setTrackSelection(next, track);
+    }
+  } else if (mode === "add" && anchor && anchor !== track) {
+    const project = useProjectStore.getState().project;
+    const order = project ? arrangementTracks(tracksOrdered(project), ui.folded).map((t) => t.id) : [];
+    const [a, b] = [order.indexOf(anchor), order.indexOf(track)];
+    if (a < 0 || b < 0) ui.setTrackFocus(track);
+    else ui.setTrackSelection(order.slice(Math.min(a, b), Math.max(a, b) + 1), anchor);
+  } else {
+    ui.setTrackFocus(track);
+  }
+  const focus = useArrangementUi.getState().trackFocus;
+  if (focus) useSelectionStore.getState().selectTrack(focus);
 }
 
 /**
@@ -67,19 +95,37 @@ export function bindSingleSelection(): () => void {
   });
 }
 
-/** Delete the focused track (Delete key with a track selected), if it can be deleted. */
-export function deleteFocusedTrack(transport: EngineTransport): Promise<void> {
+/**
+ * Delete the selected tracks (Delete key or menu) as one undo step. The master track stays;
+ * a track inside a selected group goes with the group.
+ */
+export function deleteSelectedTracks(transport: EngineTransport): Promise<void> {
   const ui = useArrangementUi.getState();
-  const track = ui.trackFocus ? useProjectStore.getState().project?.tracks[ui.trackFocus] : undefined;
+  const project = useProjectStore.getState().project;
+  const ids = ui.selectedTracks;
   ui.setTrackFocus(null);
-  if (!track || track.kind === "Master") return Promise.resolve();
-  return sendEdit(transport, cmd("Track", { type: "Delete", id: track.id }));
+  if (!project) return Promise.resolve();
+  const insideSelected = (id: TrackId) => {
+    let p = project.tracks[id]?.parent ?? null;
+    for (let guard = 0; p !== null && guard < 64; guard++) {
+      if (ids.has(p)) return true;
+      p = project.tracks[p]?.parent ?? null;
+    }
+    return false;
+  };
+  const doomed = [...ids].filter((id) => project.tracks[id] && project.tracks[id]!.kind !== "Master" && !insideSelected(id));
+  const commands = doomed.map((id) => cmd("Track", { type: "Delete", id }));
+  return sendEdit(transport, asOneStep(doomed.length > 1 ? "Delete Tracks" : "Delete Track", commands));
 }
 
-/** Add a track (see `addTrackCommand`) and select it. */
-export async function addTrack(transport: EngineTransport, kind: NewTrackKind): Promise<TrackId> {
+/** Add a track (see `addTrackCommand`), at the end or at `at`, and select it. */
+export async function addTrack(
+  transport: EngineTransport,
+  kind: NewTrackKind,
+  at?: { parent: TrackId | null; before: TrackId | null },
+): Promise<TrackId> {
   const id = newId();
-  await sendEdit(transport, addTrackCommand(kind, id, newId()));
+  await sendEdit(transport, addTrackCommand(kind, id, newId(), at));
   if (useProjectStore.getState().project?.tracks[id]) useSelectionStore.getState().selectTrack(id);
   return id;
 }
@@ -107,7 +153,7 @@ export function runClipAction(transport: EngineTransport, action: ClipAction): P
     }
     case "delete":
       // The selected entity: a track (header clicked) or the selected clips.
-      if (useArrangementUi.getState().trackFocus) return deleteFocusedTrack(transport);
+      if (useArrangementUi.getState().selectedTracks.size) return deleteSelectedTracks(transport);
       return sendEdit(transport, deleteCommand(clips.map((c) => c.id)));
     case "loop":
       return sendEdit(transport, toggleLoopCommand(clips));
@@ -181,10 +227,11 @@ export function clipMenu(transport: EngineTransport, clip: Clip): ContextMenuEnt
   ];
 }
 
-/** Right-click menu of a track header (selects the track). */
+/** Right-click menu of a track header (selects the track, unless it is already selected). */
 export function trackMenu(transport: EngineTransport, track: Track): ContextMenuEntry[] {
-  selectTrackEntity(track.id);
+  if (!useArrangementUi.getState().selectedTracks.has(track.id)) selectTrackEntity(track.id);
   if (track.kind === "Master") return [];
+  const count = useArrangementUi.getState().selectedTracks.size;
   return [
     {
       label: "Duplicate Track",
@@ -197,13 +244,10 @@ export function trackMenu(transport: EngineTransport, track: Track): ContextMenu
     },
     "separator",
     {
-      label: "Delete Track",
+      label: count > 1 ? `Delete ${count} Tracks` : "Delete Track",
       shortcut: "⌫",
       danger: true,
-      onSelect: () => {
-        useArrangementUi.getState().setTrackFocus(null);
-        void sendEdit(transport, cmd("Track", { type: "Delete", id: track.id }));
-      },
+      onSelect: () => void deleteSelectedTracks(transport),
     },
   ];
 }

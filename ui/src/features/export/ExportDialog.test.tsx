@@ -6,6 +6,7 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
+import { pickOption } from "@/kit/testing";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Command, ExportRequest, ReplyValue } from "@/generated";
 import { useProjectStore } from "@/state";
@@ -77,14 +78,13 @@ describe("ExportDialog", () => {
 
   it("renders a mix, shows progress and downloads the result", async () => {
     const { mock, dialog } = await setup();
-    fireEvent.change(within(dialog).getByLabelText("Format"), {
-      target: { value: "Flac" },
-    });
+    pickOption(within(dialog).getByRole("combobox", { name: "Format" }), { value: "Flac" });
     // FLAC has no float option.
-    const float = within(dialog).getByRole("option", {
-      name: "32-bit float",
-    }) as HTMLOptionElement;
-    expect(float.disabled).toBe(true);
+    const depth = within(dialog).getByRole("combobox", { name: "Bit depth" });
+    fireEvent.click(depth);
+    const list = document.getElementById(depth.getAttribute("aria-controls")!)!;
+    expect(within(list).getByRole("option", { name: "32-bit float" })).toHaveAttribute("aria-disabled", "true");
+    fireEvent.keyDown(depth, { key: "Escape" });
     fireEvent.click(within(dialog).getByRole("switch", { name: "Normalize" }));
     await act(async () => {
       fireEvent.click(within(dialog).getByRole("button", { name: "Export" }));

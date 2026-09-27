@@ -42,7 +42,16 @@ export function clipSourceLength(
   return mediaLengthInBeats(m, map);
 }
 
-export function onClipPointerDown(e: ReactPointerEvent<HTMLElement>, clip: Clip, ctx: ArrangementContextValue): void {
+/**
+ * `keepSelection`: the caller already selected what to drag (a clip cluster): a click
+ * without a drag keeps that selection instead of narrowing it to `clip`.
+ */
+export function onClipPointerDown(
+  e: ReactPointerEvent<HTMLElement>,
+  clip: Clip,
+  ctx: ArrangementContextValue,
+  opts: { keepSelection?: boolean } = {},
+): void {
   if (e.button !== 0) return;
   e.stopPropagation();
   e.preventDefault();
@@ -126,14 +135,14 @@ export function onClipPointerDown(e: ReactPointerEvent<HTMLElement>, clip: Clip,
     done();
     if (!active || !last) {
       useArrangementUi.getState().setPreview(null);
-      if (wasSelected) {
+      if (wasSelected && !opts.keepSelection) {
         if (selectMode === "replace") itemSelection.getState().select("clip", [clip.id], "replace");
         else if (selectMode === "toggle") itemSelection.getState().select("clip", [clip.id], "toggle");
       }
       return;
     }
     copy = mode === "move" && (ev.metaKey || ev.ctrlKey);
-    const command = mode === "move" ? moveCommand(clips, last, copy, newId) : boundsCommand(clips, last);
+    const command = mode === "move" ? moveCommand(clips, last, copy, newId, Object.values(project.clips)) : boundsCommand(clips, last);
     void sendEdit(ctx.transport, command).finally(() => useArrangementUi.getState().setPreview(null));
   };
 

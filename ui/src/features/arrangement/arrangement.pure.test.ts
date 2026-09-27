@@ -4,6 +4,8 @@ import type { Clip, Command, Note, PeakData, ReplyValue, Track } from "@/generat
 import { TempoMap } from "@/timeline";
 import type { EngineTransport } from "@/transport";
 import { actionForKey } from "./actions";
+import { smallClipAt, splitSmallClips } from "./smallClips";
+import { contrastRatio, DARK_INK, inkOn, LIGHT_INK, luminance } from "./helpers";
 import { trackDropTarget } from "./trackDrag";
 import { BROWSER_DRAG_MIME, readBrowserDrag } from "./browserDrop";
 import { noteRects, pitchRange } from "./clipDraw";
@@ -174,11 +176,15 @@ describe("layout", () => {
   });
 
   it("adds the automation slot height of ui-automation to every row", () => {
+    // Closed automation takes no room; an open track adds the parameter bar and its lanes.
     const closed = { open: new Set<string>(), shown: {} };
     const r = layoutRows(ordered, new Set(), (id) => automationHeight(closed, id));
-    expect(r[1]).toMatchObject({ y: TRACK_HEIGHT + AUTOMATION_BAR_HEIGHT, laneHeight: TRACK_HEIGHT, height: TRACK_HEIGHT + AUTOMATION_BAR_HEIGHT });
-    expect(TRACK_HEIGHT + AUTOMATION_BAR_HEIGHT).toBe(76);
-    expect(rowIndexAt(r, TRACK_HEIGHT + 10)).toBe(0);
+    expect(r[1]).toMatchObject({ y: TRACK_HEIGHT, laneHeight: TRACK_HEIGHT, height: TRACK_HEIGHT });
+    const first = ordered[0]!.id;
+    const open = { open: new Set([first]), shown: { [first]: ["volume"] } };
+    const o = layoutRows(ordered, new Set(), (id) => automationHeight(open, id));
+    expect(o[1]!.y).toBe(TRACK_HEIGHT + AUTOMATION_BAR_HEIGHT + 64);
+    expect(rowIndexAt(o, TRACK_HEIGHT + 10)).toBe(0);
   });
 
   it("computes clip rects in content px for the marquee", () => {
@@ -273,7 +279,9 @@ describe("commands", () => {
     const c = moveCommand([a], p, true, ids)!;
     expect(c.domain).toBe("Edit");
     expect(commandsOf(c).map((x) => x.command.type)).toEqual(["Duplicate", "Move"]);
-    expect(commandsOf(c)[0]!.command).toMatchObject({ id: "a", new_id: "new1", start: 8 });
+    // Created clear of the source track's clips (so it can't trim the original), then moved.
+    expect(commandsOf(c)[0]!.command).toMatchObject({ id: "a", new_id: "new1", start: a.start + a.length + 1 });
+    expect(commandsOf(c)[1]!.command).toMatchObject({ moves: [{ id: "new1", start: 8 }] });
   });
 
   it("resizes with SetBounds", () => {
@@ -480,5 +488,45 @@ describe("trackDropTarget", () => {
 
   it("drops after the last regular track instead of among returns and master", () => {
     expect(trackDropTarget(rs, 5 * H, "m1")).toEqual({ parent: null, before: null, y: 4 * H, into: null });
+  });
+});
+
+// ── smallClips ────────────────────────────────────────────────────────────────────────
+
+describe("splitSmallClips / smallClipAt", () => {
+  const item = (id: string, start: number, length: number, ghost = false) => ({
+    clip: { id } as Clip,
+    bounds: { start, length, offset: 0, track: "t" },
+    dragging: false,
+    ghost,
+  });
+
+  it("paints clips narrower than the threshold, keeps wider ones as elements", () => {
+    // 8 px/beat: small < 6 beats.
+    const items = [item("a", 0, 1), item("big", 10, 8), item("lone", 30, 1)];
+    const { singles, small } = splitSmallClips(items, 8);
+    expect(small.map((i) => i.clip.id)).toEqual(["a", "lone"]);
+    expect(singles.map((i) => i.clip.id)).toEqual(["big"]);
+    expect(splitSmallClips(items, 64).small).toEqual([]);
+  });
+
+  it("hit-tests the clip under the pointer, else the nearest within the slop; ghosts never", () => {
+    const small = [item("a", 0, 1), item("b", 1.2, 1), item("g", 5, 1, true)];
+    expect(smallClipAt(small, 0.5, 0.1)?.clip.id).toBe("a");
+    expect(smallClipAt(small, 1.15, 0.1)?.clip.id).toBe("b"); // 0.05 before b, 0.15 after a
+    expect(smallClipAt(small, 3, 0.1)).toBeNull();
+    expect(smallClipAt(small, 5.5, 0.1)).toBeNull();
+  });
+});
+
+describe("inkOn (badge icon contrast)", () => {
+  it("uses dark ink on light fills and light ink on dark ones, by WCAG contrast", () => {
+    expect(luminance(0xffffff)).toBeCloseTo(1);
+    expect(luminance(0x000000)).toBe(0);
+    expect(contrastRatio(1, 0)).toBeCloseTo(21);
+    expect(inkOn(0xe6c07e)).toBe(DARK_INK); // pastel amber
+    expect(inkOn(0x8fa8e6)).toBe(DARK_INK); // pastel blue
+    expect(inkOn(0x1e3a8a)).toBe(LIGHT_INK); // deep navy
+    expect(inkOn(0x7a1f3d)).toBe(LIGHT_INK); // wine
   });
 });

@@ -1,4 +1,5 @@
 import { act, fireEvent, screen, within } from "@testing-library/react";
+import { pickOption } from "@/kit/testing";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
 import type { Device, DrumPad } from "@/generated";
 import { BROWSER_DRAG_MIME, type BrowserDragPayload } from "@/features/browser/dragPayload";
@@ -110,7 +111,7 @@ describe("DrumRackView", () => {
     const snare = pads()[1]!;
     const settings = screen.getByTestId("pad-settings");
     expect(settings.getAttribute("aria-label")).toBe(`Pad ${snare.name}`);
-    fireEvent.change(within(settings).getByRole("combobox", { name: "Choke group" }), { target: { value: "1" } });
+    pickOption(within(settings).getByRole("combobox", { name: "Choke group" }), { value: "1" });
     await flush();
     expect(store().project!.drum_pads[snare.id]!.choke_group).toBe(1);
     fireEvent.click(within(settings).getByRole("button", { name: "Mute pad" }));
@@ -125,7 +126,7 @@ describe("DrumRackView", () => {
     expect(store().project).toBe(before);
 
     // Add an effect to the pad chain.
-    fireEvent.change(within(settings).getByRole("combobox", { name: "Add device to pad" }), { target: { value: "Delay" } });
+    pickOption(within(settings).getByRole("combobox", { name: "Add device to pad" }), { value: "Delay" });
     await flush();
     expect(devicesOfPad(store().project!, snare.id).map((d) => d.name)).toEqual(["Sampler", "Delay"]);
     // Pad devices stay off the track chain.
@@ -185,7 +186,7 @@ describe("DrumRackView", () => {
     );
     await flush();
     const editor = screen.getByTestId("slice-editor");
-    fireEvent.change(within(editor).getByRole("combobox", { name: "Auto-slice mode" }), { target: { value: "Equal" } });
+    pickOption(within(editor).getByRole("combobox", { name: "Auto-slice mode" }), { value: "Equal" });
     const countField = within(editor).getByRole("spinbutton", {
       name: "Slice count",
     });

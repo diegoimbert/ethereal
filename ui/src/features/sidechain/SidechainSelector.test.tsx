@@ -1,4 +1,5 @@
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { pickOption } from "@/kit/testing";
 import { afterEach, describe, expect, it } from "vitest";
 import type { Device, DeviceId } from "@/generated";
 import { devicesOfTrack, useProjectStore } from "@/state";
@@ -41,6 +42,11 @@ function Devices({ ids }: { ids: () => DeviceId[] }) {
 }
 
 const selector = (name: string) => screen.findByRole("combobox", { name: `Sidechain source for ${name}` });
+/** The options of a kit Select (opens it; they are only rendered while open). */
+const optionsOf = (select: HTMLElement) => {
+  if (select.getAttribute("aria-expanded") !== "true") fireEvent.click(select);
+  return within(document.getElementById(select.getAttribute("aria-controls")!)!);
+};
 
 describe("SidechainSelector", () => {
   it("renders only for devices with a sidechain input", async () => {
@@ -54,7 +60,7 @@ describe("SidechainSelector", () => {
   it("lists tracks and returns (not master, not its own track) and sets / clears the source", async () => {
     await renderAll(() => [deviceOf("Keys", "Compressor").id]);
     const select = await selector("Compressor");
-    const labels = within(select)
+    const labels = optionsOf(select)
       .getAllByRole("option")
       .map((o) => o.textContent);
     const p = store().project!;
@@ -64,17 +70,19 @@ describe("SidechainSelector", () => {
     expect(labels).toContain("Drums");
     expect(labels).not.toContain("Keys");
     expect(labels).not.toContain("Master");
-    expect(select).toHaveDisplayValue("No sidechain");
+    fireEvent.keyDown(select, { key: "Escape" });
+    expect(select).toHaveTextContent("No sidechain");
 
     const drums = trackByName("Drums");
     await act(async () => {
-      fireEvent.change(select, { target: { value: drums.id } });
+      pickOption(select, { value: drums.id });
     });
     await waitFor(() => expect(deviceOf("Keys", "Compressor").sidechain).toBe(drums.id));
-    expect(await selector("Compressor")).toHaveDisplayValue("Drums");
+    expect(await selector("Compressor")).toHaveTextContent("Drums");
 
+    const current = await selector("Compressor");
     await act(async () => {
-      fireEvent.change(select, { target: { value: "" } });
+      pickOption(current, { value: "" });
     });
     await waitFor(() => expect(deviceOf("Keys", "Compressor").sidechain).toBeNull());
 
@@ -97,7 +105,7 @@ describe("SidechainSelector", () => {
       );
     });
     const select = await selector("Limiter");
-    const keysOption = within(select).getByRole("option", { name: `${keys.name} (would loop)` });
-    expect(keysOption).toBeDisabled();
+    const keysOption = optionsOf(select).getByRole("option", { name: `${keys.name} (would loop)` });
+    expect(keysOption).toHaveAttribute("aria-disabled", "true");
   });
 });

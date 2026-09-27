@@ -6,6 +6,7 @@
 import { useMemo, useRef } from "react";
 import { useSelectedTrackId, useTrack } from "@/state";
 import { createTimelineViewStore, PlayheadLine, Ruler, useTimelineWheel } from "@/timeline";
+import { AutomationToggleButton } from "./AutomationToggleButton";
 import { TrackAutomationLanes } from "./TrackAutomationLanes";
 import "./automation.css";
 
@@ -17,7 +18,7 @@ export function AutomationLanes() {
   const track = useTrack(trackId);
   const view = useMemo(() => createTimelineViewStore({ pxPerBeat: 24 }), []);
   const bodyRef = useRef<HTMLDivElement>(null);
-  useTimelineWheel(bodyRef, view);
+  useTimelineWheel(bodyRef, view, { originPx: HEADER_WIDTH });
 
   if (!trackId || !track) {
     return (
@@ -30,7 +31,8 @@ export function AutomationLanes() {
     <div className="eth-auto-detail" data-feature="automation">
       <div className="eth-auto-detail__ruler">
         <div className="eth-auto-detail__corner" style={{ width: HEADER_WIDTH }}>
-          {track.name}
+          <span className="eth-auto-detail__name">{track.name}</span>
+          <AutomationToggleButton trackId={trackId} trackName={track.name} />
         </div>
         <div className="eth-auto-detail__ruler-main">
           <Ruler view={view} />

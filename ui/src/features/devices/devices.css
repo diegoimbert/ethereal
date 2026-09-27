@@ -14,16 +14,17 @@
   display: flex;
   gap: var(--eth-space-md);
   padding: var(--eth-space-sm) var(--eth-space-md);
-  border-bottom: 1px solid var(--eth-color-border);
+  border-bottom: var(--eth-border-width) solid var(--eth-color-border-light);
 }
-.eth-devices select {
-  height: 20px;
+/* Kit Select (track picker, add device, choice params). */
+.eth-devices .eth-select {
   max-width: 100%;
-  background: var(--eth-color-bg-inset);
-  color: var(--eth-color-text);
-  border: 1px solid var(--eth-color-border);
-  border-radius: var(--eth-radius-sm);
-  font-size: var(--eth-fs-xs);
+}
+.eth-devices__track {
+  min-width: 120px;
+}
+.eth-devices__add {
+  min-width: 140px;
 }
 .eth-devices__chain {
   display: flex;
@@ -44,55 +45,96 @@
   align-items: center;
   justify-content: center;
   color: var(--eth-color-text-dim);
-  border: 1px dashed transparent;
-  border-radius: var(--eth-radius-md);
+  border: var(--eth-border-width) dashed transparent;
+  border-radius: var(--eth-radius-lg);
+  transition: border-color var(--eth-duration-fast) var(--eth-ease-out);
 }
 .eth-devices__end--drop {
-  border-color: var(--eth-color-selection);
+  border-color: var(--eth-color-accent);
+}
+.eth-devices__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--eth-space-xs);
+  padding: var(--eth-space-xl);
+  text-align: center;
+}
+.eth-devices__empty-title {
+  color: var(--eth-color-text);
+  font-size: var(--eth-fs-md);
+  font-weight: var(--eth-fw-medium);
 }
 
+/* ---- Device card ---- */
 .eth-device {
   display: flex;
   flex-direction: column;
-  min-width: 140px;
+  min-width: 148px;
+  overflow: hidden;
   background: var(--eth-color-bg-raised);
-  border: 1px solid var(--eth-color-border);
-  border-radius: var(--eth-radius-md);
+  border: var(--eth-border-width) solid var(--eth-color-border-light);
+  border-radius: var(--eth-radius-lg);
+  box-shadow: var(--eth-shadow-sm);
+  transition:
+    border-color var(--eth-duration-fast) var(--eth-ease-out),
+    box-shadow var(--eth-duration-fast) var(--eth-ease-out),
+    opacity var(--eth-duration-fast) var(--eth-ease-out);
+}
+.eth-device:hover {
+  border-color: var(--eth-color-border-strong);
 }
 .eth-device--drop {
-  box-shadow: -3px 0 0 var(--eth-color-selection);
+  box-shadow:
+    calc(-1 * var(--eth-border-width-strong)) 0 0 var(--eth-color-accent),
+    var(--eth-shadow-sm);
 }
-.eth-device--bypassed .eth-device__body {
-  opacity: 0.45;
+.eth-device--bypassed .eth-device__body,
+.eth-device--bypassed .eth-device__name {
+  opacity: var(--eth-opacity-muted);
 }
 .eth-device__header {
   display: flex;
   align-items: center;
   gap: var(--eth-space-xs);
-  height: 22px;
-  padding: 0 var(--eth-space-xs);
-  background: var(--eth-color-bg-panel);
-  border-bottom: 1px solid var(--eth-color-border);
+  height: var(--eth-size-row-height-lg);
+  padding: 0 var(--eth-space-sm);
+  border-bottom: var(--eth-border-width) solid var(--eth-color-border-light);
   cursor: grab;
 }
 .eth-device__name {
   flex: 1;
-  font-weight: 600;
+  min-width: 0;
+  font-weight: var(--eth-fw-medium);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  transition: opacity var(--eth-duration-fast) var(--eth-ease-out);
 }
 .eth-device__power[aria-pressed="true"] {
-  background: transparent;
   color: var(--eth-color-accent);
 }
 .eth-device__power[aria-pressed="false"] {
   color: var(--eth-color-text-dim);
 }
+/* Move/remove appear on hover (and stay reachable by keyboard). */
+.eth-device__actions {
+  display: flex;
+  gap: var(--eth-space-xs);
+  opacity: 0;
+  transition: opacity var(--eth-duration-fast) var(--eth-ease-out);
+}
+.eth-device:hover .eth-device__actions,
+.eth-device__actions:focus-within {
+  opacity: 1;
+}
 .eth-device__body {
   display: flex;
-  gap: var(--eth-space-lg);
-  padding: var(--eth-space-md);
+  gap: var(--eth-space-xl);
+  padding: var(--eth-space-md) var(--eth-space-lg);
+}
+.eth-device__body--more {
+  padding-top: 0;
 }
 .eth-device__group {
   display: flex;
@@ -101,17 +143,158 @@
 }
 .eth-device__group-name {
   font-size: var(--eth-fs-xs);
+  font-weight: var(--eth-fw-medium);
   color: var(--eth-color-text-dim);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
 }
 .eth-device__params {
   display: grid;
-  grid-template-columns: repeat(2, minmax(56px, auto));
-  gap: var(--eth-space-md);
+  grid-template-columns: repeat(2, minmax(52px, auto));
+  gap: var(--eth-space-md) var(--eth-space-lg);
+}
+.eth-device__more {
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-xs);
+  margin: 0 var(--eth-space-sm) var(--eth-space-sm);
+  padding: var(--eth-space-xs) var(--eth-space-sm);
+  border: 0;
+  border-radius: var(--eth-radius-sm);
+  background: transparent;
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+  cursor: pointer;
+  transition:
+    background var(--eth-duration-fast) var(--eth-ease-out),
+    color var(--eth-duration-fast) var(--eth-ease-out);
+}
+.eth-device__more:hover {
+  background: var(--eth-color-bg-hover);
+  color: var(--eth-color-text);
+}
+.eth-device__more-icon {
+  transition: transform var(--eth-duration-fast) var(--eth-ease-out);
+}
+.eth-device__more-icon--open {
+  transform: rotate(180deg);
 }
 .eth-device__status {
   color: var(--eth-color-text-dim);
+}
+
+/* Card body: collapsible (stacked layout) with an animated height. The 1fr/0fr grid row
+   animates to the content's natural height without measuring it. */
+.eth-device__collapse {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition:
+    grid-template-rows var(--eth-duration-normal) var(--eth-ease-standard),
+    opacity var(--eth-duration-normal) var(--eth-ease-standard);
+}
+.eth-device__collapse--closed {
+  grid-template-rows: 0fr;
+  opacity: 0;
+}
+.eth-device__collapse-inner {
+  min-height: 0;
+  overflow: hidden;
+}
+.eth-device__collapse-toggle svg {
+  transition: transform var(--eth-duration-normal) var(--eth-ease-standard);
+}
+.eth-device--collapsed .eth-device__collapse-toggle svg {
+  transform: rotate(-90deg);
+}
+.eth-device--collapsed .eth-device__header {
+  border-bottom-color: transparent;
+}
+
+/* ---- Stacked layout (inspector): full-width cards, one above the other ---- */
+.eth-devices--stack {
+  height: auto;
+}
+.eth-devices__chain--stack {
+  flex-direction: column;
+  flex: none;
+  overflow: visible;
+  padding: 0;
+  gap: var(--eth-space-sm);
+}
+.eth-devices__chain--stack .eth-devices__slot {
+  display: block;
+}
+.eth-devices__chain--stack .eth-devices__end {
+  min-width: 0;
+  min-height: var(--eth-size-row-height-lg);
+}
+/*
+ * Responsive cards: each stacked card is a size container, and its content reflows with
+ * the card's width (the inspector pane is resizable):
+ * - params sit in a grid of auto-filled columns, as many as fit;
+ * - groups (Oscillator, Filter, ...) are blocks laid side by side when there's room and
+ *   stacked when narrow;
+ * - knobs scale with the card (container units, clamped).
+ * Roughly: ~200px → 2 columns of compact knobs; ~320px → 3–4 columns; ≥500px → groups side
+ * by side with larger knobs.
+ */
+.eth-device--stack {
+  min-width: 0;
+  container: device / inline-size;
+}
+.eth-device--stack .eth-device__body {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--device-group-min)), 1fr));
+  gap: var(--eth-space-md) var(--eth-space-lg);
+  padding: var(--eth-space-md);
+  /* Knob diameters follow the card width: main (lg) and folded (md) controls. */
+  --knob-size-lg: clamp(34px, 11cqi, 54px);
+  --knob-size: clamp(26px, 8cqi, 38px);
+  --device-param-min: calc(var(--knob-size-lg) + 22px);
+  --device-group-min: 220px;
+}
+.eth-device--stack .eth-device__body--more {
+  padding-top: 0;
+  --device-param-min: calc(var(--knob-size) + 26px);
+}
+.eth-device--stack .eth-device__group {
+  min-width: 0;
+}
+.eth-device--stack .eth-device__params {
+  grid-template-columns: repeat(auto-fill, minmax(var(--device-param-min), 1fr));
+  justify-items: center;
+  gap: var(--eth-space-md) var(--eth-space-sm);
+}
+/* Choices and toggles span wider cells so their text fits. */
+.eth-device--stack .eth-param--choice {
+  grid-column: span 2;
+  justify-self: stretch;
+}
+.eth-device--stack .eth-param {
+  width: 100%;
+}
+@container device (max-width: 240px) {
+  .eth-device__body {
+    --device-param-min: calc(var(--knob-size-lg) + 14px);
+    --knob-center-font-size: var(--eth-fs-xs);
+  }
+  .eth-device__header {
+    padding: 0 var(--eth-space-xs);
+  }
+}
+@container device (min-width: 480px) {
+  .eth-device__body {
+    --device-group-min: 200px;
+    --knob-center-font-size: var(--eth-fs-sm);
+  }
+  .eth-device__group-name {
+    font-size: var(--eth-fs-sm);
+  }
+}
+.eth-devices__footer {
+  display: flex;
+  padding-top: var(--eth-space-sm);
+}
+.eth-devices__footer .eth-devices__add {
+  flex: 1;
 }
 
 .eth-param {
@@ -119,14 +302,33 @@
   flex-direction: column;
   align-items: center;
   gap: var(--eth-space-xs);
+  min-width: 0;
   font-size: var(--eth-fs-xs);
+}
+.eth-param__name,
+.eth-param__value {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: center;
 }
 .eth-param__name {
   color: var(--eth-color-text-dim);
 }
 .eth-param__value {
-  font-family: var(--eth-font-mono);
   color: var(--eth-color-text);
+  font-variant-numeric: tabular-nums;
+}
+/* Enum selects shrink with their cell. */
+.eth-param--choice .eth-select {
+  width: 100%;
+  min-width: 0;
+}
+/* Kit knob labels (under the ring) truncate too. */
+.eth-param .eth-knob {
+  max-width: 100%;
+  min-width: 0;
 }
 
 /* Sampler: the loaded sample, and the drop target for a new one. */
@@ -137,9 +339,10 @@
   margin: var(--eth-space-md) var(--eth-space-md) 0;
   padding: var(--eth-space-xs) var(--eth-space-sm);
   border: var(--eth-border-width) solid var(--eth-color-border-light);
-  border-radius: var(--eth-radius-sm);
+  border-radius: var(--eth-radius-md);
   background: var(--eth-color-bg-inset);
   font-size: var(--eth-fs-sm);
+  transition: border-color var(--eth-duration-fast) var(--eth-ease-out);
 }
 .eth-sample-slot--empty {
   border-style: dashed;

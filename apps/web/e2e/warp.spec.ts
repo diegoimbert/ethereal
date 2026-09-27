@@ -68,9 +68,13 @@ test("warp: markers, modes, transpose and playback", async ({ page }) => {
   await expect.poll(async () => Object.keys((await doc(page)).clips).length).toBe(0);
 
   // --- Audio track + library loop ----------------------------------------------------------
-  await page.getByRole("button", { name: "+ Audio track" }).click();
+  await page.getByRole("button", { name: /New track/ }).click();
+  await page.getByRole("button", { name: "Create audio track" }).click();
   await expect.poll(async () => Object.values((await doc(page)).tracks).some((t) => t.kind === "Audio")).toBe(true);
   const audio = Object.values((await doc(page)).tracks).find((t) => t.kind === "Audio")!;
+  // The sample browser is a pane opened from the rail; pinned, it doesn't cover the lanes.
+  await page.getByRole("button", { name: "Library", exact: true }).click();
+  await page.getByRole("button", { name: "Pin Library" }).click();
   await page.getByRole("tablist", { name: "Locations" }).getByRole("tab", { name: "Browser library" }).click();
   await page.getByRole("list", { name: "Files" }).getByRole("button", { name: "Demo Samples" }).click();
   const sample = page.getByRole("button", { name: "Bass Loop 120.wav", exact: true });
@@ -96,7 +100,8 @@ test("warp: markers, modes, transpose and playback", async ({ page }) => {
   await expect(page.getByTestId("warp-marker")).toHaveCount(2);
 
   // Complex has no stretcher in the browser: the editor says it plays as Repitch.
-  await page.getByLabel("Warp mode").selectOption("Complex");
+  await page.getByRole("combobox", { name: "Warp mode" }).click();
+  await page.getByRole("option", { name: "Complex" }).click();
   await expect(page.getByTestId("warp-web-fallback")).toBeVisible();
   await expect.poll(async () => (await audioOf(page, clip.id)).warp.mode).toBe("Complex");
 

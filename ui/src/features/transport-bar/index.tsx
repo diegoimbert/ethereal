@@ -5,6 +5,7 @@ import "./transport-bar.css";
 import { useEffect, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import type { EngineStatus, GestureId, TimeSignaturePoint } from "@/generated";
+import { Circle, Pause, Play, Redo2, Repeat, Square, Timer, Undo2 } from "lucide-react";
 import { Button } from "@/kit";
 import { timeSignaturePoints, useCpuLoad, usePlayhead, useProjectStore } from "@/state";
 import { cmd, nextGestureId } from "@/transport";
@@ -81,119 +82,149 @@ export function TransportBar() {
 
   return (
     <div className="eth-tb" data-feature="transport-bar" role="toolbar" aria-label="Transport">
-      <div className="eth-tb__group">
-        <Button
-          aria-label={playing ? "Stop" : "Play"}
-          title={playing ? "Stop (Space)" : "Play (Space)"}
-          active={playing}
-          className="eth-tb__play"
-          disabled={disabled}
-          onClick={togglePlay}
-        >
-          {playing ? "■" : "▶"}
-        </Button>
-        <Button
-          aria-label="Stop"
-          title="Stop (press again to return to start)"
-          disabled={disabled}
-          onClick={() => void send(cmd("Transport", { type: "Stop" }))}
-        >
-          ⏹
-        </Button>
-        <Button
-          aria-label="Record"
-          title="Arrangement record"
-          active={recording}
-          className="eth-tb__record"
-          disabled={disabled}
-          onClick={() => void send(cmd("Recording", { type: "SetRecording", enabled: !recording }))}
-        >
-          ●
-        </Button>
+      <div className="eth-tb__side" />
+
+      {/* The capsule: transport, position and tempo. */}
+      <div className="eth-tb__capsule">
+        <div className="eth-tb__group">
+          <Button
+            tone="ghost"
+            aria-label={playing ? "Stop" : "Play"}
+            title={playing ? "Stop (Space)" : "Play (Space)"}
+            active={playing}
+            className="eth-tb__btn eth-tb__play"
+            disabled={disabled}
+            onClick={togglePlay}
+          >
+            {playing ? <Pause aria-hidden /> : <Play aria-hidden />}
+          </Button>
+          <Button
+            tone="ghost"
+            aria-label="Stop"
+            title="Stop (press again to return to start)"
+            className="eth-tb__btn"
+            disabled={disabled}
+            onClick={() => void send(cmd("Transport", { type: "Stop" }))}
+          >
+            <Square aria-hidden />
+          </Button>
+          <Button
+            tone="ghost"
+            aria-label="Record"
+            title="Arrangement record"
+            active={recording}
+            className="eth-tb__btn eth-tb__record"
+            disabled={disabled}
+            onClick={() => void send(cmd("Recording", { type: "SetRecording", enabled: !recording }))}
+          >
+            <Circle aria-hidden />
+          </Button>
+        </div>
+
+        <span className="eth-tb__divider" aria-hidden />
+
+        <PositionDisplay />
+
+        <span className="eth-tb__divider" aria-hidden />
+
+        <div className="eth-tb__group eth-tb__tempo">
+          <CommitField
+            label="Tempo"
+            title="Tempo in BPM (drag up/down or ↑/↓ to change, Shift for fine steps)"
+            width="6ch"
+            className="eth-tb-field--pill"
+            disabled={disabled}
+            value={formatBpm(bpm)}
+            onCommit={(text) => {
+              const value = parseBpm(text);
+              if (value === null) return false;
+              setTempo(value);
+            }}
+            onStep={(dir, fine) => setTempo(bpm + dir * (fine ? 0.1 : 1))}
+            drag={tempoDragHandlers}
+          />
+          <span className="eth-tb__unit">BPM</span>
+          <Button
+            size="sm"
+            tone="ghost"
+            className="eth-tb__tap"
+            title="Tap tempo"
+            disabled={disabled}
+            onClick={() => void send(cmd("Transport", { type: "TapTempo" }))}
+          >
+            TAP
+          </Button>
+          <CommitField
+            label="Time signature"
+            title="Time signature at the playhead (e.g. 7/8)"
+            width="5ch"
+            className="eth-tb-field--pill"
+            disabled={disabled}
+            value={formatSignature(signature)}
+            onCommit={(text) => {
+              const sig = parseSignature(text);
+              if (!sig) return false;
+              void send(cmd("Transport", { type: "SetTimeSignature", signature: sig }));
+            }}
+          />
+        </div>
+
+        <span className="eth-tb__divider" aria-hidden />
+
+        <div className="eth-tb__group">
+          <Button
+            tone="ghost"
+            aria-label="Loop"
+            title="Loop"
+            className="eth-tb__btn eth-tb__toggle"
+            active={state?.loop_enabled ?? false}
+            disabled={disabled}
+            onClick={() => void send(cmd("Transport", { type: "SetLoopEnabled", enabled: !(state?.loop_enabled ?? false) }))}
+          >
+            <Repeat aria-hidden />
+          </Button>
+          <Button
+            tone="ghost"
+            aria-label="Metronome"
+            title="Metronome"
+            className="eth-tb__btn eth-tb__toggle"
+            active={state?.metronome ?? false}
+            disabled={disabled}
+            onClick={() => void send(cmd("Transport", { type: "SetMetronome", enabled: !(state?.metronome ?? false) }))}
+          >
+            <Timer aria-hidden />
+          </Button>
+        </div>
       </div>
 
-      <div className="eth-tb__group">
-        <Button
-          aria-label="Loop"
-          title="Loop"
-          active={state?.loop_enabled ?? false}
-          disabled={disabled}
-          onClick={() => void send(cmd("Transport", { type: "SetLoopEnabled", enabled: !(state?.loop_enabled ?? false) }))}
-        >
-          ⟳
-        </Button>
-        <Button
-          aria-label="Metronome"
-          title="Metronome"
-          active={state?.metronome ?? false}
-          disabled={disabled}
-          onClick={() => void send(cmd("Transport", { type: "SetMetronome", enabled: !(state?.metronome ?? false) }))}
-        >
-          ♩
-        </Button>
-      </div>
-
-      <div className="eth-tb__group">
-        <CommitField
-          label="Tempo"
-          title="Tempo in BPM (drag up/down or ↑/↓ to change, Shift for fine steps)"
-          width="6ch"
-          disabled={disabled}
-          value={formatBpm(bpm)}
-          onCommit={(text) => {
-            const value = parseBpm(text);
-            if (value === null) return false;
-            setTempo(value);
-          }}
-          onStep={(dir, fine) => setTempo(bpm + dir * (fine ? 0.1 : 1))}
-          drag={tempoDragHandlers}
-        />
-        <span className="eth-tb__unit">BPM</span>
-        <Button size="sm" title="Tap tempo" disabled={disabled} onClick={() => void send(cmd("Transport", { type: "TapTempo" }))}>
-          TAP
-        </Button>
-        <CommitField
-          label="Time signature"
-          title="Time signature at the playhead (e.g. 7/8)"
-          width="5ch"
-          disabled={disabled}
-          value={formatSignature(signature)}
-          onCommit={(text) => {
-            const sig = parseSignature(text);
-            if (!sig) return false;
-            void send(cmd("Transport", { type: "SetTimeSignature", signature: sig }));
-          }}
-        />
-      </div>
-
-      <PositionDisplay />
-
-      <div className="eth-tb__group">
-        <Button
-          aria-label="Undo"
-          title={history.undo_label ? `Undo ${history.undo_label}` : "Nothing to undo"}
-          disabled={disabled || !history.can_undo}
-          onClick={undo}
-        >
-          ↶
-        </Button>
-        <Button
-          aria-label="Redo"
-          title={history.redo_label ? `Redo ${history.redo_label}` : "Nothing to redo"}
-          disabled={disabled || !history.can_redo}
-          onClick={redo}
-        >
-          ↷
-        </Button>
-      </div>
-
-      {error && (
-        <button type="button" className="eth-tb__error" role="alert" title="Dismiss" onClick={clearError}>
-          {error}
-        </button>
-      )}
-
-      <div className="eth-tb__group eth-tb__group--end">
+      <div className="eth-tb__side eth-tb__side--end">
+        {error && (
+          <button type="button" className="eth-tb__error" role="alert" title="Dismiss" onClick={clearError}>
+            {error}
+          </button>
+        )}
+        <div className="eth-tb__group">
+          <Button
+            tone="ghost"
+            aria-label="Undo"
+            className="eth-tb__btn"
+            title={history.undo_label ? `Undo ${history.undo_label}` : "Nothing to undo"}
+            disabled={disabled || !history.can_undo}
+            onClick={undo}
+          >
+            <Undo2 aria-hidden />
+          </Button>
+          <Button
+            tone="ghost"
+            aria-label="Redo"
+            className="eth-tb__btn"
+            title={history.redo_label ? `Redo ${history.redo_label}` : "Nothing to redo"}
+            disabled={disabled || !history.can_redo}
+            onClick={redo}
+          >
+            <Redo2 aria-hidden />
+          </Button>
+        </div>
         <CpuMeter />
         <EngineStatusIndicator />
       </div>

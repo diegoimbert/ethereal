@@ -20,7 +20,7 @@ import { itemSelection } from "@/timeline";
 import { cmd, newId, type EngineTransport } from "@/transport";
 import { startOf } from "./clipTime";
 import { selectedClips, sendEdit } from "./context";
-import { asOneStep, deleteCommand } from "./editMath";
+import { asOneStep, deleteCommand, parkingSpots } from "./editMath";
 import { acceptsClip } from "./layout";
 
 interface Entry {
@@ -63,6 +63,7 @@ export async function pasteClips(transport: EngineTransport, at: Beats, track: T
   const into = track !== null ? project.tracks[track] : undefined;
   const retarget = into && sources.size === 1 && entries.every((e) => acceptsClip(into, e.clip.content.type)) ? into.id : null;
 
+  const park = parkingSpots(Object.values(project.clips));
   const commands: Command[] = [];
   const pasted: ClipId[] = [];
   for (const e of entries) {
@@ -70,7 +71,9 @@ export async function pasteClips(transport: EngineTransport, at: Beats, track: T
     if (!project.tracks[target]) continue; // its track was deleted
     const id = newId();
     const clipStart = at + (startOf(e.clip) - start);
-    commands.push(...(project.clips[e.clip.id] ? duplicate(e.clip, id, target, clipStart) : rebuild(e, id, target, clipStart)));
+    commands.push(
+      ...(project.clips[e.clip.id] ? duplicate(e.clip, id, target, clipStart, park) : rebuild(e, id, target, clipStart)),
+    );
     pasted.push(id);
   }
   await sendEdit(transport, asOneStep(pasted.length > 1 ? "Paste Clips" : "Paste Clip", commands));
@@ -83,10 +86,13 @@ export async function pasteClips(transport: EngineTransport, at: Beats, track: T
   return created;
 }
 
-function duplicate(clip: Clip, id: ClipId, track: TrackId, start: Beats): Command[] {
-  const out: Command[] = [cmd("Clip", { type: "Duplicate", id: clip.id, new_id: id, start })];
-  if (track !== clip.track) out.push(cmd("Clip", { type: "Move", moves: [{ id, track, start }] }));
-  return out;
+function duplicate(clip: Clip, id: ClipId, track: TrackId, start: Beats, park: (c: Clip) => Beats): Command[] {
+  if (track === clip.track) return [cmd("Clip", { type: "Duplicate", id: clip.id, new_id: id, start })];
+  // Another track: create it clear of the source track's clips first (see `parkingSpots`).
+  return [
+    cmd("Clip", { type: "Duplicate", id: clip.id, new_id: id, start: park(clip) }),
+    cmd("Clip", { type: "Move", moves: [{ id, track, start }] }),
+  ];
 }
 
 /** Recreate a clip that is no longer in the project (cut) from its snapshot. */

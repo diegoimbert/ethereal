@@ -13,7 +13,14 @@ import type { Rect } from "@/timeline";
 import { beatsToPx, type TimelineViewport } from "@/timeline";
 import { isArrangementClip, startOf } from "./clipTime";
 
+/** Default width of the track header column (resizable: `useArrangementUi().headerWidth`). */
 export const HEADER_WIDTH = 200;
+export const MIN_HEADER_WIDTH = 140;
+export const MAX_HEADER_WIDTH = 400;
+
+export function clampHeaderWidth(px: number): number {
+  return Math.min(MAX_HEADER_WIDTH, Math.max(MIN_HEADER_WIDTH, px));
+}
 /** Default lane height. Resized lanes stay within `[MIN_TRACK_HEIGHT, MAX_TRACK_HEIGHT]`. */
 export const TRACK_HEIGHT = 56;
 export const MIN_TRACK_HEIGHT = 24;
@@ -27,8 +34,23 @@ export function clampTrackHeight(h: number): number {
 /** Height of the empty drop area below the last track. */
 export const DROP_AREA_HEIGHT = 80;
 
+/**
+ * A track being added, before its type is chosen (UI only): inserted in the layout at
+ * `before` (a track of `parent`, or `null` = after the last regular track).
+ */
+export interface DraftTrack {
+  parent: TrackId | null;
+  before: TrackId | null;
+}
+
+/** Id of the draft row's stand-in track (never sent to the engine). */
+export const DRAFT_TRACK_ID = "__draft_track__";
+
 export interface Row {
+  /** For the draft row, a stand-in "Return" track: nothing drops or moves onto it. */
   track: Track;
+  /** Set on the draft row (see `DraftTrack`). */
+  draft?: DraftTrack;
   depth: number;
   /** Top of the row in content px (0 = first row). */
   y: number;
@@ -76,16 +98,46 @@ export function layoutRows(
   folded: ReadonlySet<TrackId>,
   automationHeight: (track: TrackId) => number = () => 0,
   laneHeightOf: (track: TrackId) => number = () => TRACK_HEIGHT,
+  draft: DraftTrack | null = null,
 ): Row[] {
   const byId = new Map(ordered.map((t) => [t.id, t]));
+  const tracks = arrangementTracks(ordered, folded);
+  let at = -1;
+  if (draft) {
+    at = draft.before ? tracks.findIndex((t) => t.id === draft.before) : -1;
+    if (at < 0) at = tracks.findIndex((t) => t.kind === "Return" || t.kind === "Master");
+    if (at < 0) at = tracks.length;
+  }
   let y = 0;
-  return arrangementTracks(ordered, folded).map((track) => {
+  const rows: Row[] = [];
+  const pushDraft = () => {
+    rows.push(draftRow(draft!, y, byId));
+    y += TRACK_HEIGHT;
+  };
+  tracks.forEach((track, i) => {
+    if (i === at) pushDraft();
     const laneHeight = Math.round(laneHeightOf(track.id));
     const height = laneHeight + automationHeight(track.id);
-    const row: Row = { track, depth: depthOf(track, byId), y, laneHeight, height };
+    rows.push({ track, depth: depthOf(track, byId), y, laneHeight, height });
     y += height;
-    return row;
   });
+  if (at === tracks.length) pushDraft();
+  return rows;
+}
+
+function draftRow(draft: DraftTrack, y: number, byId: ReadonlyMap<TrackId, Track>): Row {
+  const track = {
+    id: DRAFT_TRACK_ID,
+    kind: "Return",
+    name: "New track",
+    color: 0x8a91a8,
+    order: "",
+    parent: draft.parent,
+    mixer: { volume: 0, pan: 0, mute: false, solo: false },
+  } as unknown as Track;
+  const parent = draft.parent ? byId.get(draft.parent) : undefined;
+  const depth = parent ? depthOf(parent, byId) + 1 : 0;
+  return { track, draft, depth, y, laneHeight: TRACK_HEIGHT, height: TRACK_HEIGHT };
 }
 
 /** Total height of the rows. */
@@ -114,13 +166,14 @@ export function clipRects(
   rows: ReadonlyArray<Row>,
   clips: Iterable<Clip>,
   vp: TimelineViewport,
+  headerWidth = HEADER_WIDTH,
 ): Array<{ id: Clip["id"]; rect: Rect }> {
   const rowOf = new Map(rows.map((r) => [r.track.id, r]));
   const out: Array<{ id: Clip["id"]; rect: Rect }> = [];
   for (const c of clips) {
     const row = rowOf.get(c.track);
     if (!row || !isArrangementClip(c)) continue;
-    const x0 = HEADER_WIDTH + beatsToPx(startOf(c), vp);
+    const x0 = headerWidth + beatsToPx(startOf(c), vp);
     out.push({ id: c.id, rect: { x0, x1: x0 + c.length * vp.pxPerBeat, y0: row.y, y1: row.y + row.laneHeight } });
   }
   return out;

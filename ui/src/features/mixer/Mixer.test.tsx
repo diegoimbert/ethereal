@@ -3,6 +3,7 @@ import { afterEach, beforeAll, describe, expect, it } from "vitest";
 import { playheadStore, useSelectionStore } from "@/state";
 import { cmd, type MockTransport } from "@/transport";
 import { createBeatSketchProject } from "@/transport/mock/demoProject";
+import { pickOption } from "@/kit/testing";
 import { Mixer } from "./index";
 import { dbToFader, faderToDb, mixerLayout, outputTargets, parseOutputValue, outputValue } from "./routing";
 import { decayed, METER_HOLD_MS } from "./useMeterLevels";
@@ -128,10 +129,10 @@ describe("Mixer", () => {
   it("routes a track's output", async () => {
     mock = await renderWithMock(<Mixer />);
     const ret = trackByName("A Delay");
-    fireEvent.change(screen.getByRole("combobox", { name: "Drums output" }), { target: { value: `track:${ret.id}` } });
+    pickOption(screen.getByRole("combobox", { name: "Drums output" }), { value: `track:${ret.id}` });
     await flush();
     expect(trackByName("Drums").output).toEqual({ type: "Track", track: ret.id });
-    fireEvent.change(screen.getByRole("combobox", { name: "Drums output" }), { target: { value: "none" } });
+    pickOption(screen.getByRole("combobox", { name: "Drums output" }), { value: "none" });
     await flush();
     expect(trackByName("Drums").output).toEqual({ type: "None" });
   });
@@ -140,7 +141,7 @@ describe("Mixer", () => {
     mock = await renderWithMock(<Mixer />, createBeatSketchProject());
     const bus = strip("Drum Bus").closest("[data-group]")!;
     expect(within(bus as HTMLElement).getByRole("group", { name: "Kick" })).toBeInTheDocument();
-    expect(within(strip("Kick")).getByRole("combobox", { name: "Kick output" })).toHaveDisplayValue("Group (Drum Bus)");
+    expect(within(strip("Kick")).getByRole("combobox", { name: "Kick output" })).toHaveTextContent("Group (Drum Bus)");
     fireEvent.click(screen.getByRole("button", { name: "Fold Drum Bus" }));
     expect(screen.queryByRole("group", { name: "Kick" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Unfold Drum Bus" }));

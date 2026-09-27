@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { renderWithMock, resetStores } from "@/features/transport-bar/testUtils";
 import { useProjectStore } from "@/state";
 import { cmd } from "@/transport";
-import { ProjectMenu } from "./index";
+import { AUTOSAVE_MS, ProjectMenu } from "./index";
 
 const store = () => useProjectStore.getState();
 const names = () => store().projects.map((p) => p.name).sort();
@@ -31,18 +31,20 @@ describe("ProjectMenu", () => {
   it("renders without an engine", () => {
     render(<ProjectMenu />);
     expect(screen.getByTestId("project-name").textContent).toBe("No project");
-    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "Save" })).toBeNull();
   });
 
-  it("shows the dirty indicator and saves (button and Ctrl+S)", async () => {
+  it("shows the dirty indicator, autosaves a second after the last change, and saves on Ctrl+S", async () => {
     const { mock } = await renderWithMock(<ProjectMenu />);
     expect(screen.getByTestId("project-name").textContent).toBe("Demo");
     expect(screen.queryByLabelText("Unsaved changes")).toBeNull();
 
     await mock.send(cmd("Transport", { type: "SetMetronome", enabled: true }));
     await screen.findByLabelText("Unsaved changes");
-    fireEvent.click(screen.getByRole("button", { name: "Save" }));
-    await waitFor(() => expect(screen.queryByLabelText("Unsaved changes")).toBeNull());
+    // Not saved right away; saved once edits stop for AUTOSAVE_MS.
+    await new Promise((r) => setTimeout(r, AUTOSAVE_MS / 2));
+    expect(store().dirty).toBe(true);
+    await waitFor(() => expect(screen.queryByLabelText("Unsaved changes")).toBeNull(), { timeout: AUTOSAVE_MS * 3 });
 
     await mock.send(cmd("Transport", { type: "SetMetronome", enabled: false }));
     await screen.findByLabelText("Unsaved changes");

@@ -19,15 +19,8 @@ export {
 } from "./contextMenuStore";
 export { setDragCursor } from "./dragCursor";
 export { Fader, type FaderProps } from "./Fader";
-export {
-  NumberField,
-  Select,
-  TextInput,
-  type NumberFieldProps,
-  type SelectOption,
-  type SelectProps,
-  type TextInputProps,
-} from "./fields";
+export { NumberField, TextInput, type NumberFieldProps, type TextInputProps } from "./fields";
+export { Select, type SelectOption, type SelectProps } from "./Select";
 export { IconButton, type IconButtonProps } from "./IconButton";
 export { Knob, type KnobProps } from "./Knob";
 export { Meter, type MeterProps } from "./Meter";

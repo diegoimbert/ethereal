@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import {
@@ -19,6 +19,7 @@ import {
   Toggle,
   Tooltip,
 } from "./index";
+import { pickOption } from "./testing";
 
 describe("Button", () => {
   it("maps tone and size to classes; deprecated variant still works", () => {
@@ -111,26 +112,85 @@ describe("fields", () => {
     expect(onChange).toHaveBeenCalledWith(true);
   });
 
-  it("Select reports the picked value", () => {
-    const onChange = vi.fn();
-    render(
-      <Select
-        aria-label="S"
-        value="a"
-        onChange={onChange}
-        options={[
-          { value: "a", label: "A" },
-          { value: "b", label: "B" },
-        ]}
-      />,
-    );
-    fireEvent.change(screen.getByRole("combobox", { name: "S" }), { target: { value: "b" } });
-    expect(onChange).toHaveBeenCalledWith("b");
+  describe("Select", () => {
+    const options = [
+      { value: "a", label: "Apple", group: "Fruit" },
+      { value: "b", label: "Banana", group: "Fruit" },
+      { value: "c", label: "Carrot", group: "Veg", disabled: true },
+      { value: "d", label: "Daikon", group: "Veg" },
+    ] as const;
+    const setup = (value = "a") => {
+      const onChange = vi.fn();
+      render(<Select aria-label="S" value={value} onChange={onChange} options={options} placeholder="Pick…" />);
+      return { onChange, trigger: screen.getByRole("combobox", { name: "S" }) };
+    };
+
+    it("opens our own list and reports the picked option", async () => {
+      const { onChange, trigger } = setup();
+      expect(trigger).toHaveTextContent("Apple");
+      fireEvent.click(trigger);
+      expect(trigger).toHaveAttribute("aria-expanded", "true");
+      expect(screen.getByRole("option", { name: "Apple" })).toHaveAttribute("aria-selected", "true");
+      expect(screen.getByText("Veg")).toBeInTheDocument(); // group heading
+      fireEvent.click(screen.getByRole("option", { name: "Banana" }));
+      expect(onChange).toHaveBeenCalledWith("b");
+      // Closes with an exit animation, then unmounts.
+      expect(trigger).toHaveAttribute("aria-expanded", "false");
+      await waitFor(() => expect(screen.queryByRole("listbox")).toBeNull());
+    });
+
+    it("keyboard: arrows skip disabled options, type-ahead, Enter picks, Escape closes", async () => {
+      const { onChange, trigger } = setup("b");
+      fireEvent.keyDown(trigger, { key: "ArrowDown" });
+      fireEvent.keyDown(trigger, { key: "ArrowDown" }); // Banana → (Carrot disabled) → Daikon
+      expect(trigger.getAttribute("aria-activedescendant")).toBe(
+        screen.getByRole("option", { name: "Daikon" }).id,
+      );
+      fireEvent.keyDown(trigger, { key: "a" });
+      expect(trigger.getAttribute("aria-activedescendant")).toBe(screen.getByRole("option", { name: "Apple" }).id);
+      fireEvent.keyDown(trigger, { key: "Enter" });
+      expect(onChange).toHaveBeenCalledWith("a");
+      fireEvent.keyDown(trigger, { key: " " });
+      expect(screen.getByRole("listbox")).toBeInTheDocument();
+      fireEvent.keyDown(trigger, { key: "Escape" });
+      await waitFor(() => expect(screen.queryByRole("listbox")).toBeNull());
+      expect(onChange).toHaveBeenCalledTimes(1);
+    });
+
+    it("shows the placeholder for a value that isn't an option; pickOption helper", () => {
+      const { onChange, trigger } = setup("zzz");
+      expect(trigger).toHaveTextContent("Pick…");
+      pickOption(trigger, { value: "d" });
+      expect(onChange).toHaveBeenCalledWith("d");
+    });
   });
 
   it("TextInput marks invalid", () => {
     render(<TextInput aria-label="T" invalid size="sm" />);
     expect(screen.getByRole("textbox", { name: "T" })).toHaveAttribute("aria-invalid", "true");
+  });
+
+  it("NumberField: hold and drag up/down changes the value (shift: fine); a click still types", () => {
+    const onChange = vi.fn();
+    const start = vi.fn();
+    const end = vi.fn();
+    render(<NumberField aria-label="N" value={10} onChange={onChange} step={1} min={0} max={20} onChangeStart={start} onChangeEnd={end} />);
+    const input = screen.getByRole("spinbutton", { name: "N" });
+    fireEvent.pointerDown(input, { button: 0, pointerId: 1, clientY: 100 });
+    fireEvent.pointerMove(input, { pointerId: 1, clientY: 88 }); // 12 px up, 4 px per step
+    expect(start).toHaveBeenCalledOnce();
+    expect(onChange).toHaveBeenLastCalledWith(13);
+    fireEvent.pointerMove(input, { pointerId: 1, clientY: 200, shiftKey: true }); // 100 px down, tenth steps
+    expect(onChange).toHaveBeenLastCalledWith(7.5);
+    fireEvent.pointerMove(input, { pointerId: 1, clientY: 400 });
+    expect(onChange).toHaveBeenLastCalledWith(0); // clamped
+    fireEvent.pointerUp(input, { pointerId: 1, clientY: 400 });
+    expect(end).toHaveBeenCalledOnce();
+    expect(document.activeElement).not.toBe(input);
+    // A click without a drag focuses it for typing.
+    fireEvent.pointerDown(input, { button: 0, pointerId: 2, clientY: 100 });
+    fireEvent.pointerUp(input, { pointerId: 2, clientY: 100 });
+    expect(document.activeElement).toBe(input);
   });
 
   it("NumberField commits on Enter (clamped), steps with arrows, reverts on Escape", () => {

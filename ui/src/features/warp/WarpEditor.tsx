@@ -16,7 +16,7 @@
 import { useEffect, useMemo, useReducer, useRef, useState, type KeyboardEvent, type PointerEvent, type RefObject } from "react";
 import { useShallow } from "zustand/react/shallow";
 import type { AudioContent, Beats, Clip, MediaRef, WarpMarker, WarpMarkerId, WarpMode } from "@/generated";
-import { Knob } from "@/kit";
+import { Knob, Select, type SelectOption } from "@/kit";
 import { useClip, useEditedClipId, useProjectStore, warpMarkersOfClip } from "@/state";
 import { useTempoMap } from "@/timeline";
 import { cmd, newId, useTransport } from "@/transport";
@@ -29,6 +29,10 @@ import "./warp.css";
 export const MARKER_SNAP: Beats = 0.25;
 /** Closest two markers may get (beats). */
 const MIN_GAP: Beats = 1 / 64;
+const WARP_MODES: ReadonlyArray<SelectOption<WarpMode>> = [
+  { value: "Repitch", label: "Repitch" },
+  { value: "Complex", label: "Complex" },
+];
 const TRANSPOSE_RANGE = 48;
 const HEIGHT = 140;
 const RULER = 16;
@@ -149,18 +153,17 @@ function WarpClipEditor({ clip, content }: { clip: Clip; content: AudioContent }
           />
           Warp
         </label>
-        <label className="eth-warp__field">
+        <span className="eth-warp__field">
           Mode
-          <select
+          <Select<WarpMode>
+            size="sm"
             aria-label="Warp mode"
             value={warp.mode}
             disabled={!warp.enabled}
-            onChange={(e) => setWarp({ mode: e.target.value as WarpMode })}
-          >
-            <option value="Repitch">Repitch</option>
-            <option value="Complex">Complex</option>
-          </select>
-        </label>
+            options={WARP_MODES}
+            onChange={(mode) => setWarp({ mode })}
+          />
+        </span>
         {webFallback && (
           <span className="eth-warp__note" data-testid="warp-web-fallback">
             Complex plays as Repitch in the browser (no time-stretch engine).

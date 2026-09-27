@@ -9,7 +9,7 @@ import { create } from "zustand";
 import type { Beats, ClipId, TrackId } from "@/generated";
 import { createTimelineViewStore, DEFAULT_GRID, type GridSetting, type TimelineViewStore } from "@/timeline";
 import type { ClipBounds } from "./editMath";
-import { clampTrackHeight, TRACK_HEIGHT } from "./layout";
+import { clampHeaderWidth, clampTrackHeight, HEADER_WIDTH, TRACK_HEIGHT, type DraftTrack } from "./layout";
 
 export interface DragPreview {
   /** New bounds per dragged clip. */
@@ -37,9 +37,15 @@ export interface ArrangementUiState {
    * arrangement has one selected entity at a time, so this is null while clips or
    * automation points are selected (see `bindSingleSelection`).
    */
+  /** Width of the track header column (px), resizable; remembered across sessions. */
+  headerWidth: number;
   trackFocus: TrackId | null;
+  /** Tracks selected as entities (cmd-click toggles, shift-click a range); includes `trackFocus`. */
+  selectedTracks: ReadonlySet<TrackId>;
   /** A track header being dragged: the drop indicator (a line at `y`, or a group to go into). */
   trackDrag: { track: TrackId; y: number | null; into: TrackId | null } | null;
+  /** A track being added: its row asks for the type in place (see layout.ts `DraftTrack`). */
+  draftTrack: DraftTrack | null;
   folded: ReadonlySet<TrackId>;
   /** Lane height of resized tracks; the others use `defaultHeight`. */
   heights: ReadonlyMap<TrackId, number>;
@@ -51,8 +57,13 @@ export interface ArrangementUiState {
   dropHint: { track: TrackId | null; at: Beats } | null;
   imports: ReadonlyArray<PendingImport>;
 
+  setHeaderWidth(px: number): void;
+  /** Select just `track` (or nothing). */
   setTrackFocus(track: TrackId | null): void;
+  /** Select several tracks; `focus` is the one the inspector shows (the anchor of a range). */
+  setTrackSelection(tracks: Iterable<TrackId>, focus: TrackId | null): void;
   setTrackDrag(drag: ArrangementUiState["trackDrag"]): void;
+  setDraftTrack(draft: DraftTrack | null): void;
   toggleFold(track: TrackId): void;
   /** Resize one lane (clamped); `null` resets it to the default. */
   setHeight(track: TrackId, height: number | null): void;
@@ -66,9 +77,22 @@ export interface ArrangementUiState {
   removeImport(id: string): void;
 }
 
+const HEADER_WIDTH_KEY = "eth.arr.headerWidth";
+
+function savedHeaderWidth(): number {
+  try {
+    const v = Number(localStorage.getItem(HEADER_WIDTH_KEY));
+    return Number.isFinite(v) && v > 0 ? clampHeaderWidth(v) : HEADER_WIDTH;
+  } catch {
+    return HEADER_WIDTH;
+  }
+}
+
 const INITIAL = {
   trackFocus: null as TrackId | null,
+  selectedTracks: new Set<TrackId>() as ReadonlySet<TrackId>,
   trackDrag: null as ArrangementUiState["trackDrag"],
+  draftTrack: null as DraftTrack | null,
   folded: new Set<TrackId>() as ReadonlySet<TrackId>,
   heights: new Map<TrackId, number>() as ReadonlyMap<TrackId, number>,
   defaultHeight: TRACK_HEIGHT,
@@ -80,8 +104,20 @@ const INITIAL = {
 
 export const useArrangementUi = create<ArrangementUiState>()((set) => ({
   ...INITIAL,
-  setTrackFocus: (trackFocus) => set({ trackFocus }),
+  headerWidth: savedHeaderWidth(),
+  setHeaderWidth: (px) => {
+    const headerWidth = clampHeaderWidth(px);
+    set({ headerWidth });
+    try {
+      localStorage.setItem(HEADER_WIDTH_KEY, String(Math.round(headerWidth)));
+    } catch {
+      /* not persisted */
+    }
+  },
+  setTrackFocus: (trackFocus) => set({ trackFocus, selectedTracks: new Set(trackFocus ? [trackFocus] : []) }),
+  setTrackSelection: (tracks, focus) => set({ trackFocus: focus, selectedTracks: new Set(tracks) }),
   setTrackDrag: (trackDrag) => set({ trackDrag }),
+  setDraftTrack: (draftTrack) => set({ draftTrack }),
   toggleFold: (track) =>
     set((s) => {
       const folded = new Set(s.folded);
@@ -118,6 +154,6 @@ export let arrangementView: TimelineViewStore = createTimelineViewStore({ pxPerB
 
 /** Reset all arrangement UI state (tests). */
 export function resetArrangementUi(): void {
-  useArrangementUi.setState({ ...INITIAL, folded: new Set(), heights: new Map() });
+  useArrangementUi.setState({ ...INITIAL, folded: new Set(), heights: new Map(), selectedTracks: new Set(), headerWidth: HEADER_WIDTH });
   arrangementView = createTimelineViewStore({ pxPerBeat: DEFAULT_PX_PER_BEAT });
 }

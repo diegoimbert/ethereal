@@ -380,6 +380,35 @@ impl EngineBridge for NativeBridge {
         Ok(())
     }
 
+    fn preview(
+        &mut self,
+        id: u64,
+        audio: Option<Arc<DecodedAudio>>,
+        gain: f32,
+    ) -> Result<(), BridgeError> {
+        use ether_core::preview::PreviewControl;
+        let control = match audio {
+            Some(audio) => {
+                let audio = if audio.sample_rate != self.sample_rate && audio.frames() > 0 {
+                    // Contract: the controller resamples; be lenient (off-RT), as load_media.
+                    Arc::new(
+                        ether_media::resample(&audio, self.sample_rate)
+                            .map_err(|e| BridgeError::Other(e.to_string()))?,
+                    )
+                } else {
+                    audio
+                };
+                PreviewControl::Play {
+                    id,
+                    source: Arc::new(InMemorySource::new(audio)),
+                    gain,
+                }
+            }
+            None => PreviewControl::Stop,
+        };
+        self.handle.preview(control).map_err(engine_err)
+    }
+
     fn unload_media(&mut self, media: MediaId) -> Result<(), BridgeError> {
         if self.sources.remove(&media).is_some() {
             self.handle.remove_source(media).map_err(engine_err)?;

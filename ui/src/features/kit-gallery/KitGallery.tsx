@@ -238,7 +238,7 @@ function Buttons() {
 
 function Inputs() {
   const [text, setText] = useState("Audio 1");
-  const [sel, setSel] = useState<"a" | "b" | "c">("a");
+  const [sel, setSel] = useState<"a" | "b" | "c" | "d" | "e">("a");
   const [num, setNum] = useState(120);
   const [on, setOn] = useState(true);
   const [tab, setTab] = useState<"one" | "two" | "three">("one");
@@ -255,9 +255,22 @@ function Inputs() {
             value={sel}
             onChange={setSel}
             options={[
-              { value: "a", label: "Option A" },
-              { value: "b", label: "Option B" },
-              { value: "c", label: "Option C" },
+              { value: "a", label: "Option A", group: "First group" },
+              { value: "b", label: "Option B", group: "First group" },
+              { value: "c", label: "Disabled option", group: "First group", disabled: true },
+              { value: "d", label: "Option D", group: "Second group" },
+              { value: "e", label: "Option E", group: "Second group" },
+            ]}
+          />
+          <Select
+            size={size}
+            aria-label={`Placeholder select ${size}`}
+            value=""
+            placeholder="+ Add…"
+            onChange={() => undefined}
+            options={[
+              { value: "x", label: "Action X" },
+              { value: "y", label: "Action Y" },
             ]}
           />
           <NumberField size={size} aria-label={`Tempo ${size}`} value={num} onChange={setNum} min={20} max={999} precision={2} unit="BPM" />

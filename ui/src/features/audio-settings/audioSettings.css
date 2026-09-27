@@ -1,0 +1,76 @@
+/* A roomier dialog than the default; the content fills it and never overflows it. */
+.eth-audio-settings {
+  --dialog-width: 520px;
+}
+.eth-audio-settings__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-lg);
+  min-width: 0;
+}
+.eth-audio-settings__grid {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--eth-space-sm) var(--eth-space-lg);
+  align-items: center;
+}
+.eth-audio-settings__field {
+  display: contents;
+}
+.eth-audio-settings__label {
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-sm);
+}
+.eth-audio-settings__hint {
+  margin: 0;
+  padding: var(--eth-space-sm) var(--eth-space-md);
+  border-radius: var(--eth-radius-md);
+  background: var(--eth-color-accent-subtle);
+  color: var(--eth-color-text);
+  font-size: var(--eth-fs-sm);
+}
+.eth-audio-settings__error {
+  margin: 0;
+  color: var(--eth-color-danger);
+  font-size: var(--eth-fs-sm);
+}
+.eth-audio-settings__status,
+.eth-audio-settings__note {
+  margin: 0;
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-sm);
+}
+.eth-audio-settings__heading {
+  margin: 0 0 var(--eth-space-xs);
+  font-size: var(--eth-fs-sm);
+  font-weight: var(--eth-fw-medium);
+}
+.eth-audio-settings__meter {
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-md);
+}
+.eth-audio-settings__meter-name {
+  width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--eth-fs-sm);
+}
+.eth-audio-settings__meter-bar {
+  flex: 1;
+}
+
+.eth-audio-settings__toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: calc(var(--eth-space-sm) * -1);
+}
+.eth-audio-settings__spin {
+  animation: eth-audio-spin 0.8s linear infinite;
+}
+@keyframes eth-audio-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

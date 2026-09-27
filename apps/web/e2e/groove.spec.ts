@@ -49,7 +49,8 @@ test("groove: quantize with swing, humanize, project swing", async ({ page }) =>
   await expect.poll(async () => Object.keys((await doc(page)).clips).length).toBe(0);
 
   // --- MIDI clip in the piano roll, with notes off the grid ---------------------------------
-  await page.getByRole("button", { name: "+ MIDI track" }).click();
+  await page.getByRole("button", { name: /New track/ }).click();
+  await page.getByRole("button", { name: "Create MIDI track" }).click();
   await expect.poll(async () => Object.values((await doc(page)).tracks).some((t) => t.kind === "Midi")).toBe(true);
   const midi = Object.values((await doc(page)).tracks).find((t) => t.kind === "Midi")!;
   await page.locator(`[data-lane="${midi.id}"]`).dblclick({ position: { x: 10, y: 20 } });
@@ -59,7 +60,8 @@ test("groove: quantize with swing, humanize, project swing", async ({ page }) =>
   const grid = page.getByTestId("piano-roll-grid");
   await expect(grid).toBeVisible();
   // Grid off, so drawn notes start wherever we click.
-  await page.getByTestId("piano-roll").getByLabel("Grid", { exact: true }).selectOption({ label: "Off" });
+  await page.getByTestId("piano-roll").getByRole("combobox", { name: "Grid", exact: true }).click();
+  await page.getByRole("option", { name: "Off", exact: true }).click();
   const gridBox = (await grid.boundingBox())!;
   const endBox = (await page.getByTestId("piano-roll-clip-end").boundingBox())!;
   const clipWidth = endBox.x - gridBox.x;
@@ -75,7 +77,8 @@ test("groove: quantize with swing, humanize, project swing", async ({ page }) =>
   // --- Quantize… popover: 1/8, strength 100%, swing 100% (all notes selected) ----------------
   await page.getByTestId("piano-roll").press("ControlOrMeta+a");
   await page.getByRole("button", { name: "Quantize…" }).click();
-  await page.getByLabel("Quantize grid").selectOption("1/8");
+  await page.getByRole("combobox", { name: "Quantize grid" }).click();
+  await page.getByRole("option", { name: "1/8", exact: true }).click();
   const swing = page.getByRole("spinbutton", { name: "Swing" });
   await swing.fill("100");
   await swing.press("Enter");
@@ -95,11 +98,12 @@ test("groove: quantize with swing, humanize, project swing", async ({ page }) =>
     .toBe(1);
 
   // --- Groove tab: project playback swing ----------------------------------------------------
-  await page.getByRole("tablist", { name: "Detail view" }).getByRole("tab", { name: "Groove" }).click();
+  await page.getByRole("tablist", { name: "Editors" }).getByRole("tab", { name: "Groove" }).click();
   const amount = page.getByRole("spinbutton", { name: "Project swing" });
   await amount.fill("50");
   await amount.press("Enter");
-  await page.getByLabel("Swing grid").selectOption("1/8");
+  await page.getByRole("combobox", { name: "Swing grid" }).click();
+  await page.getByRole("option", { name: "1/8", exact: true }).click();
   await expect.poll(async () => (await doc(page)).settings.swing).toBeCloseTo(0.5, 5);
   await expect.poll(async () => (await doc(page)).settings.swing_grid).toBe(0.5);
 

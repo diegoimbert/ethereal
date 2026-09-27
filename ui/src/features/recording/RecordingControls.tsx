@@ -1,7 +1,7 @@
 import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import type { AudioDeviceList, Command, Event, InputList, ReplyValue, Track } from "@/generated";
-import { Button } from "@/kit";
+import { Button, Popover, Select } from "@/kit";
 import { tracksOrdered, useProjectStore } from "@/state";
 import { cmd, isCommandFailed, TransportContext, type EngineTransport } from "@/transport";
 import { COUNT_IN_CHOICES, countInLabel, inputOptions, inputValue, isRecordable, MONITOR_MODES } from "./inputs";
@@ -122,18 +122,17 @@ export function RecordingControls() {
       </span>
       <label className="eth-rec__field" title="Count-in before recording (pre-roll)">
         <span>Count-in</span>
-        <select
+        <Select
+          size="sm"
           aria-label="Count-in"
           disabled={disabled}
-          value={countIn}
-          onChange={(e) => void send(cmd("Recording", { type: "SetCountIn", bars: Number(e.target.value) }))}
-        >
-          {(COUNT_IN_CHOICES.includes(countIn) ? COUNT_IN_CHOICES : [...COUNT_IN_CHOICES, countIn]).map((bars) => (
-            <option key={bars} value={bars}>
-              {countInLabel(bars)}
-            </option>
-          ))}
-        </select>
+          value={String(countIn)}
+          onChange={(v) => void send(cmd("Recording", { type: "SetCountIn", bars: Number(v) }))}
+          options={(COUNT_IN_CHOICES.includes(countIn) ? COUNT_IN_CHOICES : [...COUNT_IN_CHOICES, countIn]).map((bars) => ({
+            value: String(bars),
+            label: countInLabel(bars),
+          }))}
+        />
       </label>
       <Button
         size="sm"
@@ -145,26 +144,35 @@ export function RecordingControls() {
       >
         PUNCH
       </Button>
-      <Button
-        size="sm"
-        aria-label="Inputs"
-        aria-expanded={open}
-        title="Inputs and monitoring"
-        active={open}
-        disabled={disabled}
-        onClick={() => setOpen((o) => !o)}
+      <Popover
+        open={open && !!transport}
+        onOpenChange={setOpen}
+        placement="bottom-end"
+        role="presentation"
+        className="eth-rec__popover"
+        trigger={(t) => (
+          <Button
+            {...t}
+            size="sm"
+            aria-label="Inputs"
+            title="Inputs and monitoring"
+            active={open}
+            disabled={disabled}
+          >
+            IN ▾
+          </Button>
+        )}
       >
-        IN ▾
-      </Button>
-      {open && transport && (
-        <InputsPanel
-          transport={transport}
-          inputs={support.state === "supported" ? support.inputs : null}
-          unsupported={unsupported}
-          send={send}
-          onDeviceChanged={() => setInputsVersion((v) => v + 1)}
-        />
-      )}
+        {transport && (
+          <InputsPanel
+            transport={transport}
+            inputs={support.state === "supported" ? support.inputs : null}
+            unsupported={unsupported}
+            send={send}
+            onDeviceChanged={() => setInputsVersion((v) => v + 1)}
+          />
+        )}
+      </Popover>
       {error && (
         <button type="button" className="eth-rec__error" role="alert" title="Dismiss" onClick={clearError}>
           {error}
@@ -221,17 +229,19 @@ function InputsPanel({ transport, inputs, unsupported, send, onDeviceChanged }: 
       ) : (
         <label className="eth-rec__field">
           <span>Audio input</span>
-          <select aria-label="Audio input device" value={devices?.current.input_device ?? ""} onChange={(e) => void setDevice(e.target.value)}>
-            <option value="">None</option>
-            {(devices?.inputs ?? []).map((d) => (
-              <option key={d.name} value={d.name}>
-                {d.name}
-              </option>
-            ))}
-            {devices?.current.input_device && !devices.inputs.some((d) => d.name === devices.current.input_device) && (
-              <option value={devices.current.input_device}>{devices.current.input_device}</option>
-            )}
-          </select>
+          <Select
+            size="sm"
+            aria-label="Audio input device"
+            value={devices?.current.input_device ?? ""}
+            onChange={(v) => void setDevice(v)}
+            options={[
+              { value: "", label: "None" },
+              ...(devices?.inputs ?? []).map((d) => ({ value: d.name, label: d.name })),
+              ...(devices?.current.input_device && !devices.inputs.some((d) => d.name === devices.current.input_device)
+                ? [{ value: devices.current.input_device, label: devices.current.input_device }]
+                : []),
+            ]}
+          />
         </label>
       )}
       {tracks.length === 0 ? (
@@ -265,35 +275,25 @@ function InputsPanel({ transport, inputs, unsupported, send, onDeviceChanged }: 
                     </Button>
                   </td>
                   <td>
-                    <select
+                    <Select
+                      size="sm"
                       aria-label={`Input of ${t.name}`}
                       value={inputValue(t.input)}
-                      onChange={(e) => {
-                        const option = options.find((o) => o.value === e.target.value);
+                      onChange={(v) => {
+                        const option = options.find((o) => o.value === v);
                         if (option) void send(cmd("Recording", { type: "SetInput", track: t.id, input: option.input }));
                       }}
-                    >
-                      {options.map((o) => (
-                        <option key={o.value} value={o.value}>
-                          {o.label}
-                        </option>
-                      ))}
-                    </select>
+                      options={options.map((o) => ({ value: o.value, label: o.label }))}
+                    />
                   </td>
                   <td>
-                    <select
+                    <Select<Track["monitor"]>
+                      size="sm"
                       aria-label={`Monitoring of ${t.name}`}
                       value={t.monitor}
-                      onChange={(e) =>
-                        void send(cmd("Recording", { type: "SetMonitor", track: t.id, monitor: e.target.value as Track["monitor"] }))
-                      }
-                    >
-                      {MONITOR_MODES.map((m) => (
-                        <option key={m} value={m}>
-                          {m}
-                        </option>
-                      ))}
-                    </select>
+                      onChange={(v) => void send(cmd("Recording", { type: "SetMonitor", track: t.id, monitor: v }))}
+                      options={MONITOR_MODES.map((m) => ({ value: m, label: m }))}
+                    />
                   </td>
                 </tr>
               );

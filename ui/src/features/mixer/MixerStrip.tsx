@@ -2,7 +2,7 @@ import clsx from "clsx";
 import { useRef } from "react";
 import { useShallow } from "zustand/react/shallow";
 import type { SendId, Track, TrackSend } from "@/generated";
-import { Button, Fader, Knob, Meter } from "@/kit";
+import { Button, Fader, Knob, Meter, Select } from "@/kit";
 import { useProjectStore, useSelectionStore } from "@/state";
 import { cmd, newId } from "@/transport";
 import { useGestureSender, useSend, type GestureSender } from "@/features/devices/gesture";
@@ -73,22 +73,18 @@ function OutputSelect({ track }: { track: Track }) {
   const targets = useProjectStore(useShallow((s) => (s.project ? outputTargets(s.project.tracks, track) : [])));
   const defaultLabel = useProjectStore((s) => (s.project ? defaultOutputLabel(s.project.tracks, track) : "Master"));
   return (
-    <select
+    <Select
+      size="sm"
       className="eth-strip__output"
       aria-label={`${track.name} output`}
       value={outputValue(track.output)}
-      onChange={(e) =>
-        void send(cmd("Mixer", { type: "SetOutput", track: track.id, output: parseOutputValue(e.target.value) }))
-      }
-    >
-      <option value="default">{defaultLabel}</option>
-      {targets.map((t) => (
-        <option key={t.id} value={`track:${t.id}`}>
-          {t.name}
-        </option>
-      ))}
-      <option value="none">No output</option>
-    </select>
+      onChange={(v) => void send(cmd("Mixer", { type: "SetOutput", track: track.id, output: parseOutputValue(v) }))}
+      options={[
+        { value: "default", label: defaultLabel },
+        ...targets.map((t) => ({ value: `track:${t.id}`, label: t.name })),
+        { value: "none", label: "No output" },
+      ]}
+    />
   );
 }
 

@@ -185,7 +185,6 @@ function ConnectedPanel({ transport }: { transport: EngineTransport }) {
   const selectedName = selectedTrack ? project?.tracks[selectedTrack]?.name : undefined;
   const extraOptions = useMemo(
     () => [
-      { value: "" as ExtraTarget, label: "Learn other target…" },
       ...TRANSPORT_ACTIONS.map((a) => ({ value: `transport:${a.action}` as ExtraTarget, label: `Transport · ${a.label}` })),
       ...(selectedName
         ? (["arm", "mute", "solo"] as const).map((k) => ({
@@ -240,7 +239,8 @@ function ConnectedPanel({ transport }: { transport: EngineTransport }) {
           size="sm"
           aria-label="Learn other target"
           options={extraOptions}
-          value=""
+          value={"" as ExtraTarget}
+          placeholder="Learn other target…"
           onChange={(v) => {
             const t = extraTarget(v, selectedTrack);
             if (t) void learn(transport, t);

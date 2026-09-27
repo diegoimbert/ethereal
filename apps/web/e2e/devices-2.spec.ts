@@ -69,13 +69,17 @@ test("EQ, reverb, limiter and utility on an audio track", async ({ page }) => {
   const baseTracks = count((await doc(page)).tracks);
 
   // Audio track with a looping demo sample.
-  await page.getByRole("button", { name: "+ Audio track" }).click();
+  await page.getByRole("button", { name: /New track/ }).click();
+  await page.getByRole("button", { name: "Create audio track" }).click();
   await expect
     .poll(async () => count((await doc(page)).tracks))
     .toBe(baseTracks + 1);
   const audio = Object.values((await doc(page)).tracks).find(
     (t) => t.kind === "Audio",
   )!;
+  // The sample browser is a pane opened from the rail; pinned, it doesn't cover the lanes.
+  await page.getByRole("button", { name: "Library", exact: true }).click();
+  await page.getByRole("button", { name: "Pin Library" }).click();
   await page
     .getByRole("tablist", { name: "Locations" })
     .getByRole("tab", { name: "Browser library" })
@@ -102,8 +106,8 @@ test("EQ, reverb, limiter and utility on an audio track", async ({ page }) => {
     .toBe(1);
 
   // Insert the four devices.
+  // Selecting the track opens the inspector with its devices.
   await page.getByRole("group", { name: `${audio.name} track` }).click();
-  await page.getByRole("tab", { name: "Devices" }).click();
   const chainOf = async () =>
     Object.values((await doc(page)).devices)
       .filter((d) => d.track === audio.id)
@@ -111,7 +115,8 @@ test("EQ, reverb, limiter and utility on an audio track", async ({ page }) => {
   for (const [i, type] of (
     ["Eq", "Reverb", "Limiter", "Utility"] as const
   ).entries()) {
-    await page.getByLabel("Add device").selectOption(type);
+    await page.getByRole("combobox", { name: "Add device" }).click();
+    await page.locator(`[role="option"][data-value="${type}"]`).click();
     await expect.poll(async () => (await chainOf()).length).toBe(i + 1);
   }
   const chain = await chainOf();
@@ -156,7 +161,8 @@ test("EQ, reverb, limiter and utility on an audio track", async ({ page }) => {
     (await doc(page)).devices[device]?.params[param];
 
   // EQ band 1 type (id 1) → Bell; Utility mono (id 5) on.
-  await panel(eq.id).getByLabel("Type").first().selectOption({ label: "Bell" });
+  await panel(eq.id).getByRole("combobox", { name: "Type" }).first().click();
+  await page.getByRole("option", { name: "Bell", exact: true }).click();
   await expect.poll(() => paramOf(eq.id, 1)).toBe(2);
   await panel(utility.id).getByRole("button", { name: "Mono" }).click();
   await expect.poll(() => paramOf(utility.id, 5)).toBe(1);

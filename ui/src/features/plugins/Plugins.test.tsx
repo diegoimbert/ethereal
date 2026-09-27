@@ -2,6 +2,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testi
 import { afterEach, describe, expect, it } from "vitest";
 import type { ReactNode } from "react";
 import type { Command, Device, Event, PluginDescriptor, PluginEvent, ReplyValue } from "@/generated";
+import { pickOption } from "@/kit/testing";
 import { useProjectStore, useSelectionStore } from "@/state";
 import {
   Emitter,
@@ -310,7 +311,7 @@ describe("plugin formats", () => {
     ]);
 
     const format = screen.getByRole("combobox", { name: "Plugin format" });
-    fireEvent.change(format, { target: { value: "Vst3" } });
+    pickOption(format, { value: "Vst3" });
     expect(within(list).getAllByRole("button").map((b) => b.textContent)).toEqual(["VerbAcmeEffectVST3"]);
     act(() => useSelectionStore.getState().selectTrack(trackNamed("Drums").id));
     fireEvent.click(within(list).getByText("Verb"));
@@ -322,14 +323,14 @@ describe("plugin formats", () => {
       },
     });
 
-    fireEvent.change(format, { target: { value: "Au" } });
+    pickOption(format, { value: "Au" });
     fireEvent.click(within(list).getByText("AUDelay"));
     await screen.findByText("Inserted AUDelay on Drums");
     expect(t.sent.at(-1)).toMatchObject({
       command: { type: "Insert", device: { type: "Plugin", plugin_id: AU_DELAY.id, format: "Au" } },
     });
 
-    fireEvent.change(format, { target: { value: "All" } });
+    pickOption(format, { value: "All" });
     expect(within(list).getAllByRole("button")).toHaveLength(4);
   });
 

@@ -73,11 +73,49 @@ export function masterTrack(project: Project): Track | undefined {
   return Object.values(project.tracks).find((t) => t.kind === "Master");
 }
 
+/**
+ * Entities of a table grouped by their owner (notes by clip, clips by track, ...), each
+ * group sorted. Built once per table object: the store is immutable (immer), so a table
+ * changes identity exactly when it changes, and the index is rebuilt on the next read.
+ * Lookups are O(1) and return the same array until the table changes, so components
+ * re-render only when their own entities did. Mutable tables (the mock engine's working
+ * copy) aren't frozen and are grouped fresh on every call instead.
+ */
+function groupedBy<T, K>(
+  cache: WeakMap<object, Map<K, T[]>>,
+  table: Readonly<Record<string, T>>,
+  keyOf: (t: T) => K | null,
+  compare: (a: T, b: T) => number,
+): Map<K, T[]> {
+  const hit = cache.get(table);
+  if (hit) return hit;
+  const groups = new Map<K, T[]>();
+  for (const t of Object.values(table)) {
+    const k = keyOf(t);
+    if (k === null) continue;
+    const g = groups.get(k);
+    if (g) g.push(t);
+    else groups.set(k, [t]);
+  }
+  for (const g of groups.values()) g.sort(compare);
+  if (Object.isFrozen(table)) {
+    // Shared between callers: never mutate a returned group (copy it first).
+    for (const g of groups.values()) Object.freeze(g);
+    cache.set(table, groups);
+  }
+  return groups;
+}
+
+const NONE: never[] = Object.freeze([]) as never[];
+const notesByClip = new WeakMap<object, Map<ClipId, Note[]>>();
+const clipsByTrack = new WeakMap<object, Map<TrackId, Clip[]>>();
+const devicesByTrack = new WeakMap<object, Map<TrackId, Device[]>>();
+const pointsByLane = new WeakMap<object, Map<AutomationLaneId, AutomationPoint[]>>();
+const markersByClip = new WeakMap<object, Map<ClipId, WarpMarker[]>>();
+
 /** The track's own device chain (devices on drum pads are excluded: see `devicesOfPad`). */
 export function devicesOfTrack(project: Project, track: TrackId): Device[] {
-  return Object.values(project.devices)
-    .filter((d) => d.track === track && d.pad === null)
-    .sort(byOrder);
+  return groupedBy(devicesByTrack, project.devices, (d) => (d.pad === null ? d.track : null), byOrder).get(track) ?? NONE;
 }
 
 /** The device chain of a drum pad (mirrors `Project::pad_devices_of`). */
@@ -89,23 +127,22 @@ export function devicesOfPad(project: Project, pad: DrumPadId): Device[] {
 
 /** Arrangement clips of a track, sorted by start. */
 export function clipsOfTrack(project: Project, track: TrackId): Clip[] {
-  return Object.values(project.clips)
-    .filter((c) => c.track === track)
-    .sort((a, b) => a.start - b.start || compareOrderKeys(a.id, b.id));
+  return (
+    groupedBy(clipsByTrack, project.clips, (c) => c.track, (a, b) => a.start - b.start || compareOrderKeys(a.id, b.id)).get(
+      track,
+    ) ?? NONE
+  );
 }
 
 /** Notes of a MIDI clip, sorted by start then pitch. */
 export function notesOfClip(project: Project, clip: ClipId): Note[] {
-  return Object.values(project.notes)
-    .filter((n) => n.clip === clip)
-    .sort((a, b) => a.start - b.start || a.pitch - b.pitch || compareOrderKeys(a.id, b.id));
+  const order = (a: Note, b: Note) => a.start - b.start || a.pitch - b.pitch || compareOrderKeys(a.id, b.id);
+  return groupedBy(notesByClip, project.notes, (n) => n.clip, order).get(clip) ?? NONE;
 }
 
 /** Breakpoints of an automation lane, sorted by time. */
 export function pointsOfLane(project: Project, lane: AutomationLaneId): AutomationPoint[] {
-  return Object.values(project.automation_points)
-    .filter((p) => p.lane === lane)
-    .sort(byTime);
+  return groupedBy(pointsByLane, project.automation_points, (p) => p.lane, byTime).get(lane) ?? NONE;
 }
 
 /** Arrangement automation lanes of a track. */
@@ -124,9 +161,7 @@ export function sendsOfTrack(project: Project, track: TrackId): TrackSend[] {
 }
 
 export function warpMarkersOfClip(project: Project, clip: ClipId): WarpMarker[] {
-  return Object.values(project.warp_markers)
-    .filter((m) => m.clip === clip)
-    .sort((a, b) => a.beat - b.beat);
+  return groupedBy(markersByClip, project.warp_markers, (m) => m.clip, (a, b) => a.beat - b.beat).get(clip) ?? NONE;
 }
 
 export function tempoPoints(project: Project): TempoPoint[] {

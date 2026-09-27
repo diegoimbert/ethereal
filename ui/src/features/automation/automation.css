@@ -12,7 +12,6 @@
 .eth-auto-bar {
   display: flex;
   flex: none;
-  border-top: 1px solid var(--eth-color-border);
 }
 
 .eth-auto-bar__header,
@@ -21,9 +20,8 @@
   box-sizing: border-box;
   display: flex;
   gap: var(--eth-space-xs);
-  padding: 0 var(--eth-space-xs);
-  background: var(--eth-color-bg-panel);
-  border-right: 1px solid var(--eth-color-border);
+  padding: 0 var(--eth-space-xs) 0 var(--eth-space-md);
+  background: transparent;
 }
 
 .eth-auto-bar__header {
@@ -44,14 +42,10 @@
   color: var(--eth-color-text);
 }
 
+/* Kit Selects in the lane headers: layout only (the kit styles them). */
 .eth-auto-select {
   min-width: 0;
   max-width: 100%;
-  background: var(--eth-color-bg-inset);
-  color: var(--eth-color-text);
-  border: 1px solid var(--eth-color-border-light);
-  border-radius: var(--eth-radius-sm);
-  font-size: var(--eth-fs-xs);
 }
 
 .eth-auto-row {
@@ -216,4 +210,20 @@
   bottom: 0;
   overflow: hidden;
   pointer-events: none;
+}
+
+/* Automation open/close toggle (detail view; the arrangement shows it as an icon). */
+.eth-auto-toggle {
+  margin-left: auto;
+  padding: 0 var(--eth-space-sm);
+  border: none;
+  border-radius: var(--eth-radius-sm);
+  background: none;
+  color: var(--eth-color-text-dim);
+  font: inherit;
+  cursor: pointer;
+}
+.eth-auto-toggle[aria-pressed="true"] {
+  background: var(--eth-color-accent-subtle);
+  color: var(--eth-color-accent);
 }

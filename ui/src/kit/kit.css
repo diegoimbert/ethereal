@@ -25,11 +25,29 @@
   cursor: pointer;
   white-space: nowrap;
   transition:
-    background-color var(--eth-duration-fast) var(--eth-ease-standard),
-    color var(--eth-duration-fast) var(--eth-ease-standard);
+    background-color var(--eth-duration-fast) var(--eth-ease-out),
+    border-color var(--eth-duration-fast) var(--eth-ease-out),
+    color var(--eth-duration-fast) var(--eth-ease-out),
+    box-shadow var(--eth-duration-fast) var(--eth-ease-out);
 }
 .eth-button:hover:not(:disabled) {
   background: var(--_bg-hover);
+}
+.eth-button:active:not(:disabled) {
+  box-shadow: var(--eth-shadow-inset);
+}
+/* Icons inside buttons: centered, sized by the button size. */
+.eth-button > .lucide {
+  width: var(--eth-size-icon-md);
+  height: var(--eth-size-icon-md);
+}
+.eth-button--sm > .lucide {
+  width: var(--eth-size-icon-sm);
+  height: var(--eth-size-icon-sm);
+}
+.eth-button--lg > .lucide {
+  width: var(--eth-size-icon-lg);
+  height: var(--eth-size-icon-lg);
 }
 .eth-button:disabled {
   opacity: var(--eth-opacity-disabled);
@@ -61,9 +79,11 @@
   --_bg-hover: var(--button-ghost-bg-hover);
   --_border: transparent;
 }
+/* A toggled ghost button: a soft accent tint rather than a solid fill. */
 .eth-button--ghost[aria-pressed="true"] {
-  --_bg: var(--button-accent-bg);
-  --_bg-hover: var(--button-accent-bg-hover);
+  --_bg: var(--eth-color-accent-subtle);
+  --_bg-hover: var(--eth-color-accent-subtle);
+  --_fg: var(--eth-color-accent);
 }
 .eth-icon-button {
   width: var(--button-height);
@@ -75,6 +95,10 @@
   justify-content: center;
   font-size: var(--eth-size-icon-md);
   line-height: var(--eth-lh-tight);
+}
+.eth-icon-button__icon > .lucide {
+  width: var(--eth-size-icon-inline);
+  height: var(--eth-size-icon-inline);
 }
 .eth-button--sm .eth-icon-button__icon {
   font-size: var(--eth-size-icon-sm);
@@ -92,6 +116,7 @@
   background: var(--panel-bg);
   border: var(--eth-border-width) solid var(--panel-border);
   border-radius: var(--panel-radius);
+  box-shadow: var(--eth-shadow-sm);
   overflow: hidden;
 }
 .eth-panel__header {
@@ -104,7 +129,7 @@
   background: var(--panel-header-bg);
   border-bottom: var(--eth-border-width) solid var(--panel-border);
   font-size: var(--panel-header-font-size);
-  font-weight: var(--eth-fw-bold);
+  font-weight: var(--eth-fw-medium);
   color: var(--panel-header-fg);
   text-transform: var(--panel-header-transform);
   letter-spacing: var(--panel-header-tracking);
@@ -131,6 +156,7 @@
   touch-action: none;
   font-size: var(--eth-fs-xs);
   color: var(--knob-label-fg);
+  outline: none;
 }
 .eth-knob--sm {
   --knob-size: var(--knob-size-sm);
@@ -142,10 +168,21 @@
   opacity: var(--eth-opacity-disabled);
   cursor: default;
 }
-.eth-knob__svg {
+.eth-knob__dial {
+  position: relative;
   display: block;
   width: var(--knob-size);
   height: var(--knob-size);
+  border-radius: var(--eth-radius-round);
+  transition: box-shadow var(--eth-duration-fast) var(--eth-ease-out);
+}
+.eth-knob:focus-visible .eth-knob__dial {
+  box-shadow: 0 0 0 var(--eth-focus-ring-width) var(--eth-color-focus);
+}
+.eth-knob__svg {
+  display: block;
+  width: 100%;
+  height: 100%;
   overflow: visible;
 }
 .eth-knob__body {
@@ -160,6 +197,7 @@
   stroke-width: var(--knob-stroke);
   stroke-linecap: var(--knob-linecap);
   vector-effect: non-scaling-stroke;
+  transition: stroke var(--eth-duration-fast) var(--eth-ease-out);
 }
 .eth-knob__track {
   stroke: var(--knob-track);
@@ -167,11 +205,64 @@
 .eth-knob__value {
   stroke: var(--knob-value);
 }
+.eth-knob:hover .eth-knob__track {
+  stroke: var(--knob-track-hover);
+}
+.eth-knob:hover .eth-knob__value,
+.eth-knob:active .eth-knob__value {
+  stroke: var(--knob-value-hover);
+}
 .eth-knob__pointer {
   stroke: var(--knob-pointer);
   stroke-width: var(--knob-pointer-width);
   stroke-linecap: var(--knob-pointer-linecap);
   vector-effect: non-scaling-stroke;
+}
+.eth-knob__dot {
+  fill: var(--knob-dot);
+}
+/* The value inside the ring (large knobs). */
+.eth-knob__center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 var(--knob-center-inset);
+  overflow: hidden;
+  color: var(--knob-center-fg);
+  font-size: var(--knob-center-font-size);
+  font-weight: var(--eth-fw-medium);
+  line-height: var(--eth-lh-tight);
+  text-align: center;
+  white-space: nowrap;
+  pointer-events: none;
+}
+/* The label turns into the value readout on hover, focus and drag. */
+.eth-knob__label {
+  display: grid;
+  justify-items: center;
+  max-width: 100%;
+}
+.eth-knob__name,
+.eth-knob__readout {
+  grid-area: 1 / 1;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: opacity var(--eth-duration-fast) var(--eth-ease-out);
+}
+.eth-knob__readout {
+  opacity: 0;
+  color: var(--knob-readout-fg);
+  font-variant-numeric: tabular-nums;
+}
+.eth-knob:is(:hover, :focus-visible, :active) .eth-knob__readout {
+  opacity: 1;
+}
+.eth-knob:is(:hover, :focus-visible, :active) .eth-knob__label--readout .eth-knob__name {
+  opacity: 0;
 }
 
 /* ---- Fader -------------------------------------------------------------------------- */
@@ -275,6 +366,10 @@
   font-size: var(--tab-font-size);
   cursor: pointer;
   white-space: nowrap;
+  transition:
+    background-color var(--eth-duration-normal) var(--eth-ease-out),
+    color var(--eth-duration-normal) var(--eth-ease-out),
+    box-shadow var(--eth-duration-normal) var(--eth-ease-out);
 }
 .eth-tabs--sm {
   --tab-height: var(--tab-height-sm);
@@ -289,10 +384,14 @@
 .eth-tabs__tab:hover:not(:disabled) {
   background: var(--tab-bg-hover);
 }
+.eth-tabs__tab:hover:not(:disabled) {
+  color: var(--tab-fg-active);
+}
 .eth-tabs__tab[aria-selected="true"],
 .eth-tabs__tab[aria-selected="true"]:hover {
   background: var(--tab-bg-active);
   color: var(--tab-fg-active);
+  box-shadow: var(--eth-shadow-sm);
 }
 .eth-tabs__tab:disabled {
   opacity: var(--eth-opacity-disabled);
@@ -361,6 +460,9 @@
   color: var(--input-fg);
   font-size: var(--input-font-size);
   min-width: 0;
+  transition:
+    border-color var(--eth-duration-fast) var(--eth-ease-out),
+    box-shadow var(--eth-duration-fast) var(--eth-ease-out);
 }
 .eth-input--sm {
   --input-height: var(--input-height-sm);
@@ -372,10 +474,15 @@
   --input-padding-x: var(--input-padding-x-lg);
   --input-font-size: var(--input-font-size-lg);
 }
+/* Number fields can be dragged up/down while not being typed in. */
+.eth-number:not(:focus-within) .eth-number__input:not(:disabled) {
+  cursor: ns-resize;
+}
 .eth-input:focus-visible,
 .eth-number:focus-within {
   outline: none;
   border-color: var(--input-border-focus);
+  box-shadow: 0 0 0 var(--eth-focus-ring-width) var(--eth-color-accent-subtle);
 }
 .eth-input[aria-invalid="true"] {
   border-color: var(--eth-color-danger);
@@ -427,6 +534,15 @@
   border: var(--eth-border-width) solid var(--popover-border);
   border-radius: var(--popover-radius);
   box-shadow: var(--popover-shadow);
+  backdrop-filter: blur(var(--eth-space-md));
+}
+/* Opens/closes like the context menu and the Select list. */
+.eth-popover--enter {
+  animation: eth-context-menu-in var(--context-menu-enter-duration) var(--context-menu-enter-ease) both;
+}
+.eth-popover--closing {
+  animation: eth-context-menu-out var(--select-exit-duration) var(--eth-ease-in) both;
+  pointer-events: none;
 }
 .eth-popover--bottom-start,
 .eth-popover--bottom-end {
@@ -439,6 +555,116 @@
 /* Context menu: flies out of the click point (transform-origin is set inline to it). */
 .eth-popover--context {
   animation: eth-context-menu-in var(--context-menu-enter-duration) var(--context-menu-enter-ease) both;
+}
+/* ---- Select ------------------------------------------------------------------------- */
+.eth-select {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--eth-space-sm);
+  height: var(--input-height);
+  min-width: 0;
+  padding: 0 var(--eth-space-sm) 0 var(--input-padding-x);
+  /* Looks like a (flat) button, not a text field. */
+  border: var(--eth-border-width) solid var(--button-border);
+  border-radius: var(--button-radius);
+  background: var(--button-bg);
+  color: var(--button-fg);
+  font-size: var(--input-font-size);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color var(--eth-duration-fast) var(--eth-ease-out),
+    background-color var(--eth-duration-fast) var(--eth-ease-out),
+    box-shadow var(--eth-duration-fast) var(--eth-ease-out);
+}
+.eth-select--sm {
+  --input-height: var(--input-height-sm);
+  --input-padding-x: var(--input-padding-x-sm);
+  --input-font-size: var(--input-font-size-sm);
+}
+.eth-select--lg {
+  --input-height: var(--input-height-lg);
+  --input-padding-x: var(--input-padding-x-lg);
+  --input-font-size: var(--input-font-size-lg);
+}
+.eth-select:hover:not(:disabled) {
+  background: var(--button-bg-hover);
+}
+.eth-select:focus-visible,
+.eth-select--open {
+  outline: none;
+  background: var(--button-bg-hover);
+  box-shadow: 0 0 0 var(--eth-focus-ring-width) var(--eth-color-accent-subtle);
+}
+.eth-select:disabled {
+  opacity: var(--eth-opacity-disabled);
+  cursor: default;
+}
+.eth-select__value {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.eth-select__value--placeholder {
+  color: var(--eth-color-text-dim);
+}
+.eth-select__chevron {
+  color: var(--eth-color-text-dim);
+  transition: transform var(--eth-duration-fast) var(--eth-ease-out);
+}
+.eth-select--open .eth-select__chevron {
+  transform: rotate(180deg);
+}
+.eth-select-list {
+  position: fixed;
+  max-height: var(--eth-size-select-list-max-height);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+.eth-select-list--closing {
+  animation: eth-context-menu-out var(--select-exit-duration) var(--eth-ease-in) both;
+  pointer-events: none;
+}
+.eth-select-list__option {
+  cursor: default;
+}
+.eth-select-list__option--active {
+  background: var(--menu-item-bg-hover);
+}
+.eth-select-list__option[aria-selected="true"] {
+  color: var(--eth-color-accent);
+}
+.eth-select-list__option--disabled {
+  opacity: var(--eth-opacity-disabled);
+}
+.eth-select-list__check {
+  display: inline-flex;
+  width: var(--eth-size-icon-md);
+  flex: none;
+}
+.eth-select-list__icon {
+  display: inline-flex;
+  flex: none;
+  color: var(--eth-color-text-dim);
+}
+.eth-select-list__group {
+  padding: var(--eth-space-sm) var(--eth-space-md) var(--eth-space-xs);
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+  font-weight: var(--eth-fw-medium);
+}
+@keyframes eth-context-menu-out {
+  from {
+    opacity: 1;
+    transform: none;
+  }
+  to {
+    opacity: 0;
+    transform: scale(var(--context-menu-enter-scale)) translateY(calc(var(--eth-space-xs) * var(--context-menu-dir, 1) * -1));
+  }
 }
 @keyframes eth-context-menu-in {
   from {
@@ -466,6 +692,7 @@
   font-size: var(--eth-fs-sm);
   text-align: left;
   cursor: pointer;
+  transition: background-color var(--eth-duration-fast) var(--eth-ease-out);
 }
 .eth-menu__item:hover:not(:disabled),
 .eth-menu__item:focus-visible {
@@ -514,6 +741,42 @@
   border-radius: var(--dialog-radius);
   box-shadow: var(--dialog-shadow);
   outline: none;
+}
+/* Opening: the backdrop fades in and the dialog grows into place; closing reverses it. */
+.eth-dialog-backdrop {
+  animation: eth-fade-in var(--eth-duration-normal) var(--eth-ease-out) both;
+}
+.eth-dialog-backdrop--closing {
+  animation: eth-fade-out var(--eth-duration-normal) var(--eth-ease-in) both;
+  pointer-events: none;
+}
+.eth-dialog {
+  animation: eth-dialog-in var(--eth-duration-normal) var(--eth-ease-out) both;
+}
+.eth-dialog--closing {
+  animation: eth-dialog-out var(--eth-duration-normal) var(--eth-ease-in) both;
+}
+@keyframes eth-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes eth-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+@keyframes eth-dialog-in {
+  from {
+    opacity: 0;
+    transform: translateY(var(--eth-space-md)) scale(0.96);
+  }
+}
+@keyframes eth-dialog-out {
+  to {
+    opacity: 0;
+    transform: translateY(var(--eth-space-sm)) scale(0.97);
+  }
 }
 .eth-dialog__header {
   padding: var(--eth-space-md) var(--eth-space-lg);

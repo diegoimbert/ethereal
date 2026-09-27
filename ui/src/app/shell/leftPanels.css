@@ -1,0 +1,65 @@
+/* Left rail extras and the Devices panel. Tokens only (scanned by hardcoded.test.ts). */
+.eth-rail__spacer {
+  flex: 1;
+}
+
+.eth-devices-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  font-size: var(--eth-fs-sm);
+}
+.eth-devices-panel__target,
+.eth-devices-panel__hint {
+  padding: var(--eth-space-sm) var(--eth-space-md);
+  color: var(--eth-color-text-dim);
+}
+.eth-devices-panel__target strong {
+  color: var(--eth-color-text);
+  font-weight: var(--eth-fw-medium);
+}
+.eth-devices-panel__list {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 0 var(--eth-space-xs) var(--eth-space-sm);
+}
+.eth-devices-panel__heading {
+  margin: var(--eth-space-md) var(--eth-space-sm) var(--eth-space-xs);
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+  font-weight: var(--eth-fw-medium);
+}
+.eth-devices-panel__item {
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-sm);
+  width: 100%;
+  height: var(--eth-size-row-height-lg);
+  padding: 0 var(--eth-space-sm);
+  border: none;
+  border-radius: var(--eth-radius-md);
+  background: none;
+  color: var(--eth-color-text);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--eth-duration-fast) var(--eth-ease-out);
+}
+.eth-devices-panel__item:hover:not(:disabled) {
+  background: var(--eth-color-bg-hover);
+}
+.eth-devices-panel__item--disabled {
+  opacity: var(--eth-opacity-disabled);
+  cursor: default;
+}
+.eth-devices-panel__icon {
+  display: inline-flex;
+  color: var(--eth-color-accent);
+  font-size: var(--eth-size-icon-md);
+}
+.eth-devices-panel__status {
+  padding: var(--eth-space-sm) var(--eth-space-md);
+  border-top: var(--eth-border-width) solid var(--eth-color-border-light);
+  color: var(--eth-color-text-dim);
+}
