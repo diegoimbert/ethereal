@@ -1085,6 +1085,12 @@ impl Project {
                 let m = &self.modulators[&id];
                 self.require(key, EntityKey::Device(m.device))?;
                 check_order(&m.order)?;
+                let host = &self.devices[&m.device];
+                if host.pad.is_some() || host.chain.is_some() {
+                    return Err(invariant(
+                        "modulators live on track-chain devices (not on drum pads or rack chains)",
+                    ));
+                }
                 if let Some(src) = m.sidechain {
                     if m.kind != ModulatorKind::EnvelopeFollower {
                         return Err(invalid("only envelope followers take a sidechain"));
@@ -1144,6 +1150,14 @@ impl Project {
                 "rack chain device {} is not on its rack's track",
                 stray.id
             )));
+        }
+        // Modulators only on track-chain devices.
+        if (d.pad.is_some() || d.chain.is_some())
+            && self.modulators.values().any(|m| m.device == d.id)
+        {
+            return Err(invariant(
+                "modulators live on track-chain devices (not on drum pads or rack chains)",
+            ));
         }
         // Its modulators' sidechains stay off its own track when it moves.
         if self
@@ -1250,6 +1264,10 @@ impl Project {
                     return Err(invariant(
                         "a modulator can only target its device or devices inside its rack",
                     ));
+                }
+                // No modulation of modulation: a rack's modulators don't drive its macros.
+                if host == m.device && is_rack(&target.kind) && m.param.0 < RACK_SELECTOR_PARAM.0 {
+                    return Err(invariant("modulators cannot target their rack's macros"));
                 }
             }
             ModSource::Macro { rack, index } => {

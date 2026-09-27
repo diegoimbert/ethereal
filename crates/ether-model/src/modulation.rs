@@ -1,14 +1,17 @@
 //! Modulation (v0.2, Bitwig-style; owned by the `racks-modulation` node; CONTRACTS.md §12.6).
 //!
 //! # Model
-//! - A [`Modulator`] lives **inside a device** (`Modulator::device`, any device: built-in,
-//!   plugin, rack or drum rack). Its kind ([`ModulatorKind`]) has a fixed param table
+//! - A [`Modulator`] lives **inside a device** of a track chain (`Modulator::device`: built-in,
+//!   plugin, rack or drum rack; not a device on a drum pad or a rack chain in v0.2, so every
+//!   host is a chain entry the engine's `pre_node` hook sees; a rack's modulators reach its
+//!   chain devices). Its kind ([`ModulatorKind`]) has a fixed param table
 //!   (`ether_devices::modulators::descriptor(kind)`, ids append-only), values in
 //!   `Modulator::params` (plain units, missing = default), exactly like device params.
 //! - A [`ModMapping`] routes a [`ModSource`] to one param of one device with a bipolar
 //!   `depth` in `-1..=1` (normalized param units). Sources:
 //!   - `Modulator { modulator }`: may target params of the modulator's host device and, when
-//!     the host is a rack, params of the devices on the rack's chains.
+//!     the host is a rack, params of the devices on the rack's chains; never the rack's own
+//!     macros (no modulation of modulation in v0.2).
 //!   - `Macro { rack, index }`: macro `index` (`0..RACK_MACROS`) of a rack; may target params
 //!     of the devices on that rack's chains, and the rack's own params from
 //!     `RACK_SELECTOR_PARAM` on (never its macros).
@@ -35,7 +38,8 @@
 //!   the base (the controller ignores `ParamEdited` echoes of modulated values). CLAP
 //!   `CLAP_EVENT_PARAM_MOD` (non-destructive offsets) may be used later where supported.
 //! - The UI shows `base` on the knob and the effective value as a ring
-//!   (`ModulationEvent::Values`, throttled readback for watched devices).
+//!   (`AnalysisData::Modulation` frames through the analysis channel, throttled readback
+//!   for watched devices).
 //!
 //! # Structure
 //! Deleting a device cascades (controller, children first): mappings targeting it, mappings

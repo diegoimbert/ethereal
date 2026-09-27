@@ -348,6 +348,30 @@ fn modulators_and_mapping_scope() {
         ..own
     };
     assert!(f.insert(Entity::ModMapping(bad_index)).is_err());
+    // No modulation of modulation: the rack's own modulator can't drive its macros.
+    let rack_lfo = Modulator {
+        id: f.id(),
+        device: rack.id,
+        order: OrderKey::between(None, None),
+        name: "LFO".into(),
+        kind: ModulatorKind::Lfo,
+        params: Default::default(),
+        sidechain: None,
+    };
+    f.insert(Entity::Modulator(rack_lfo.clone())).unwrap();
+    let onto_macro = ModMapping {
+        id: f.id(),
+        source: ModSource::Modulator {
+            modulator: rack_lfo.id,
+        },
+        device: rack.id,
+        param: rack_macro_param(0),
+        depth: 0.5,
+    };
+    assert!(matches!(
+        f.insert(Entity::ModMapping(onto_macro)),
+        Err(ModelError::Invariant(_))
+    ));
     // The host can't be removed while mapped; the modulator neither.
     assert!(
         f.p.apply(&Op::Remove {

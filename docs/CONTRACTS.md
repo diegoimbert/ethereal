@@ -850,12 +850,15 @@ runtime; `PresetEvent::Changed` after user-set changes. Sample-based presets car
   selector (`8`, 0..=127). Engine: `TrackDesc::chain_racks` (`ether_core::rack_chains`),
   run at the rack entry before the rack node (pre-wired like drum-rack pads: params,
   automation and latency already reach chain nodes).
-- Modulators live **inside any device** (`Modulator { device, order, name, kind, params }`,
+- Modulators live **inside any track-chain device** (not on drum-pad or rack-chain devices in
+  v0.2, so every host is an entry the engine's `pre_node` hook sees; a rack's modulators reach
+  its chain devices) (`Modulator { device, order, name, kind, params, sidechain }`,
   kinds `Lfo`, `Envelope`, `EnvelopeFollower`, `Steps`, `Random`; param tables frozen in
   `ether_devices::modulators`). `ModMapping { source: Modulator | Macro { rack, index },
   device, param, depth -1..=1 }`, one per (source, target). Scope: a modulator targets its
-  host and, for a rack host, devices on the rack's chains; a macro targets devices on its
-  rack's chains and the rack's own non-macro params.
+  host and, for a rack host, devices on the rack's chains, never the rack's own macros (no
+  modulation of modulation in v0.2); a macro targets devices on its rack's chains and the
+  rack's own non-macro params.
 - **Envelope-follower sidechain:** `Modulator::sidechain: Option<TrackId>` (followers only,
   `Modulation::SetSidechain`) follows that track's sidechain tap (post-fader, before its PDC
   delay, like device sidechains §11.10) instead of the host's input. It reuses the sidechain
