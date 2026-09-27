@@ -194,7 +194,9 @@ pub trait EngineBridge {
 
     /// Roadmap v2 (`export`): a fresh, independent plugin node for offline rendering
     /// (prepared at `sample_rate`, state loaded from `state`). Never the live instance.
-    /// Default: unsupported (the export bypasses the plugin with a warning).
+    /// Default: unsupported. An export never skips a plugin: if this fails (unsupported
+    /// host, plugin not installed, instantiation error) the whole export fails with a
+    /// message naming the plugin. Disabled plugin devices are not instantiated.
     fn create_offline_plugin(
         &mut self,
         device: DeviceId,
@@ -348,6 +350,8 @@ where
     plugin_gestures: BTreeMap<(DeviceId, ParamId), GestureId>,
     /// Plugin runtime bookkeeping (param mirroring after load; `plugins` module).
     plugins: plugins::PluginsState,
+    /// Offline export job and finished downloads (`export` module).
+    export: export::ExportState,
     /// MIDI learn runtime state (learn mode, mapping gestures; `midi_learn` module).
     midi_learn: midi_learn::MidiLearnState,
     /// Uploads from the UI machine in progress (`upload` module, remote-engine).
@@ -394,6 +398,7 @@ where
             recording: Default::default(),
             plugin_gestures: BTreeMap::new(),
             plugins: Default::default(),
+            export: Default::default(),
             midi_learn: Default::default(),
             uploads: Default::default(),
             // Internal gestures (plugin GUI, tap tempo) live in the upper half of the id
