@@ -73,7 +73,6 @@ export function masterTrack(project: Project): Track | undefined {
   return Object.values(project.tracks).find((t) => t.kind === "Master");
 }
 
-/** Device chain of a track, in chain order. */
 /** The track's own device chain (devices on drum pads are excluded: see `devicesOfPad`). */
 export function devicesOfTrack(project: Project, track: TrackId): Device[] {
   return Object.values(project.devices)

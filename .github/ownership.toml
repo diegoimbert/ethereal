@@ -292,7 +292,6 @@ paths = [
   "crates/ether-devices/src/utility.rs",
   "crates/ether-devices/src/dsp/**",
   "crates/ether-devices/tests/devices2*.rs",
-  "ui/src/transport/mock/roadmap/devices2.*",
   # shared touch: helpers (Smoother/param tables) and the placeholder removal
   "crates/ether-devices/src/util.rs",
   "crates/ether-devices/src/placeholder.rs",
@@ -541,4 +540,29 @@ paths = [
   "crates/ether-controller/src/lib.rs",
   # shared touch (base-29): DrumRack/Sampler-slice mock descriptors
   "ui/src/transport/mock/builtinDevices.ts",
+]
+
+# --- media-preview (base-24) ------------------------------------------------------------
+
+[nodes.media-preview]
+paths = [
+  "crates/ether-core/src/preview.rs",
+  "crates/ether-controller/src/media_preview/**",
+  "ui/src/transport/mock/roadmap/mediaPreview.*",
+  "ui/src/features/browser/preview*",
+  "crates/ether-core/tests/preview*.rs",
+  "crates/ether-controller/tests/media_preview*.rs",
+  "crates/ether-native/tests/media_preview*.rs",
+  "apps/web/e2e/media-preview.spec.ts",
+  # shared touch: reset the "previewing" state on MediaEvent::PreviewEnded
+  "ui/src/features/browser/index.tsx",
+  "ui/src/features/browser/Browser.test.tsx",
+  # shared touch: EngineBridge::preview impls (native: in-memory source)
+  "crates/ether-native/src/bridge.rs",
+  "crates/ether-wasm/src/bridge.rs",
+  # shared touch, web-perf's files, LIMITED to (ROADMAP.md): reusing LoadMedia chunks under
+  # a preview MediaId, one additive JsonMsg::Preview { media, gain, id }, one extra field in
+  # the engine report. No new frame tags; merge dev after web-perf lands.
+  "crates/ether-wasm/src/worklet.rs",
+  "crates/ether-wasm/src/proto.rs",
 ]
