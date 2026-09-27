@@ -1,14 +1,15 @@
-/* Import status list (file-import): floats at the bottom-left of the window, above the
+/* Import status list (file-import): floats at the bottom center of the window, above the
    workspace panes and below popovers. */
 .eth-import {
   position: fixed;
-  left: calc(var(--eth-size-rail-width) + var(--eth-space-lg));
-  bottom: var(--eth-space-lg);
+  left: 50%;
+  bottom: var(--eth-space-2xl);
+  transform: translateX(-50%);
   z-index: var(--eth-z-popover);
   display: flex;
   flex-direction: column;
   gap: var(--eth-space-xs);
-  width: var(--eth-size-sidebar-width);
+  width: var(--eth-size-inspector-width);
   max-width: calc(100vw - 2 * var(--eth-space-lg));
   margin: 0;
   padding: var(--eth-space-sm);
@@ -36,6 +37,12 @@
 
 .eth-import__row--error {
   color: var(--eth-color-danger);
+}
+
+/* Errors wrap: the reason is the useful part. */
+.eth-import__row--error .eth-import__text {
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .eth-import__text {

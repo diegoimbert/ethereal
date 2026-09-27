@@ -54,7 +54,7 @@ export function rejectReason(s: ImportSource): string | null {
   const name = sourceName(s);
   if (!isAudioName(name)) {
     const ext = extension(name);
-    return ext ? `.${ext} files are not supported (use ${AUDIO_EXTENSIONS.join(", ")})` : "not an audio file";
+    return ext ? `.${ext} files are not supported (use WAV, AIFF, FLAC, MP3 or OGG)` : "not an audio file";
   }
   const size = sourceSize(s);
   if (size !== null && size <= 0) return "the file is empty";
