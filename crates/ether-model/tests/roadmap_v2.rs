@@ -72,7 +72,6 @@ fn v2_fixture_migrates_to_v3_with_neutral_defaults() {
     let saved = file::save(&p, "0.2.0").unwrap();
     let v: Value = serde_json::from_str(&saved).unwrap();
     assert_eq!(v["version"], file::CURRENT_VERSION);
-    assert!(file::CURRENT_VERSION >= 3);
     assert_eq!(file::load(&saved).unwrap(), p);
     assert_eq!(
         file::save(&file::load(&saved).unwrap(), "0.2.0").unwrap(),

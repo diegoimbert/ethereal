@@ -73,7 +73,9 @@ pub(crate) fn decode(frame: &AnalysisFrame) -> Option<AnalysisData> {
         AnalysisKind::Levels => AnalysisData::Levels { values: v.to_vec() },
         AnalysisKind::Modulation => AnalysisData::Modulation {
             values: v
-                .chunks_exact(3)
+                .as_chunks::<3>()
+                .0
+                .iter()
                 .map(|c| ModulatedValue {
                     param: ParamId(c[0].to_bits()),
                     base: c[1],

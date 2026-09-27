@@ -505,9 +505,7 @@ pub fn descriptor(ty: BuiltinDeviceType) -> DeviceDescriptor {
 /// Non-RT. A new instance (placeholder until implemented).
 pub fn create(device: &BuiltinDevice) -> Box<dyn Device> {
     let ty = device.device_type();
-    let mode = match ty {
-        _ => PlaceholderMode::MidiThru,
-    };
+    let mode = PlaceholderMode::MidiThru;
     Box::new(Placeholder::new(descriptor(ty), mode))
 }
 

@@ -82,6 +82,7 @@ use crate::contract::{
 };
 
 /// Param ids of `PolySynth` (stable, append-only).
+#[allow(clippy::module_inception)]
 pub mod poly_synth {
     use ether_core::protocol::model::ParamId;
     pub const OSC1_TYPE: ParamId = ParamId(0);
@@ -573,9 +574,7 @@ pub fn descriptor(ty: BuiltinDeviceType) -> DeviceDescriptor {
 /// Non-RT. A new instance (placeholder until implemented).
 pub fn create(device: &BuiltinDevice) -> Box<dyn Device> {
     let ty = device.device_type();
-    let mode = match ty {
-        _ => PlaceholderMode::Silent,
-    };
+    let mode = PlaceholderMode::Silent;
     Box::new(Placeholder::new(descriptor(ty), mode))
 }
 
