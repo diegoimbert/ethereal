@@ -128,7 +128,11 @@ fn new_builtins_are_real_devices() {
         assert_eq!(desc.params.len(), count, "{ty:?}");
         assert_eq!((desc.audio_inputs, desc.audio_outputs), (2, 2));
         // The limiter has a stereo sidechain (detector) input (sidechain node).
-        let sidechain = if ty == BuiltinDeviceType::Limiter { 2 } else { 0 };
+        let sidechain = if ty == BuiltinDeviceType::Limiter {
+            2
+        } else {
+            0
+        };
         assert_eq!(desc.sidechain_inputs, sidechain);
         let mut d = ether_devices::create(&BuiltinDevice::new(ty), &NoSamples);
         prepared(&mut *d);
