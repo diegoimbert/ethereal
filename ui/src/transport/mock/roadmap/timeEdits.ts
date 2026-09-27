@@ -44,7 +44,12 @@ interface Pt {
   curve: CurveShape;
 }
 
-const pt = (time: number, value: number, curve: CurveShape): Pt => ({ id: null, time, value, curve });
+const pt = (time: number, value: number, curve: CurveShape): Pt => ({
+  id: null,
+  time,
+  value,
+  curve,
+});
 
 function shape(curve: CurveShape, x: number): number {
   if (curve.type === "Linear") return x;
@@ -283,7 +288,10 @@ export class MockTimeEdits {
     const envelopes = tx
       .all("AutomationLane")
       .filter((l) => l.owner.type === "Clip" && l.owner.clip === c.id)
-      .map((lane) => ({ lane, points: tx.all("AutomationPoint").filter((p) => p.lane === lane.id) }));
+      .map((lane) => ({
+        lane,
+        points: tx.all("AutomationPoint").filter((p) => p.lane === lane.id),
+      }));
     return {
       clip: c,
       notes: tx.all("Note").filter((n) => n.clip === c.id),
@@ -300,7 +308,12 @@ export class MockTimeEdits {
       const target = keepEnvelope(lane.target);
       if (!target) continue;
       const id = this.host.newId();
-      tx.upsert("AutomationLane", { ...lane, id, owner: { type: "Clip", clip: clip.id }, target });
+      tx.upsert("AutomationLane", {
+        ...lane,
+        id,
+        owner: { type: "Clip", clip: clip.id },
+        target,
+      });
       for (const p of points) tx.upsert("AutomationPoint", { ...p, id: this.host.newId(), lane: id });
     }
   }
@@ -344,7 +357,14 @@ export class MockTimeEdits {
   private rewriteLane(tx: Tx, lane: string, pts: Pt[]): void {
     for (const p of tx.all("AutomationPoint")) if (p.lane === lane) tx.remove("AutomationPoint", p.id);
     // (Unlike the controller, same-time jumps are not ordered by id here.)
-    for (const p of pts) tx.upsert("AutomationPoint", { id: this.host.newId(), lane, time: Math.max(0, p.time), value: p.value, curve: p.curve });
+    for (const p of pts)
+      tx.upsert("AutomationPoint", {
+        id: this.host.newId(),
+        lane,
+        time: Math.max(0, p.time),
+        value: p.value,
+        curve: p.curve,
+      });
   }
 
   private deleteTrackTime(tx: Tx, track: TrackId, a: number, b: number): void {
@@ -364,10 +384,20 @@ export class MockTimeEdits {
     this.split(tx, track, at);
     this.shiftClips(tx, track, at, len);
     for (const r of this.regions(tx, track)) {
-      if (r.start >= at - EPS) tx.upsert("CompRegion", { ...r, start: r.start + len, end: r.end + len });
+      if (r.start >= at - EPS)
+        tx.upsert("CompRegion", {
+          ...r,
+          start: r.start + len,
+          end: r.end + len,
+        });
       else if (r.end > at + EPS) {
         tx.upsert("CompRegion", { ...r, end: at });
-        tx.upsert("CompRegion", { ...r, id: this.host.newId(), start: at + len, end: r.end + len });
+        tx.upsert("CompRegion", {
+          ...r,
+          id: this.host.newId(),
+          start: at + len,
+          end: r.end + len,
+        });
       }
     }
     this.editLanes(tx, track, (pts) => insertPoints(pts, at, len));
@@ -416,7 +446,8 @@ export class MockTimeEdits {
     if (!global) return;
     for (const m of tx.all("Marker")) if (m.position >= at - EPS) tx.upsert("Marker", { ...m, position: m.position + len });
     for (const p of tx.all("TempoPoint")) if (p.time > EPS && p.time >= at - EPS) tx.upsert("TempoPoint", { ...p, time: p.time + len });
-    for (const s of tx.all("TimeSignature")) if (s.time > EPS && s.time >= at - EPS) tx.upsert("TimeSignature", { ...s, time: s.time + len });
+    for (const s of tx.all("TimeSignature"))
+      if (s.time > EPS && s.time >= at - EPS) tx.upsert("TimeSignature", { ...s, time: s.time + len });
     this.moveLoop(tx, (x) => (x < at ? x : x + len));
   }
 
@@ -444,12 +475,19 @@ export class MockTimeEdits {
             warp: Object.values(p.warp_markers).filter((m) => m.clip === c.id),
             envelopes: Object.values(p.automation_lanes)
               .filter((l) => l.owner.type === "Clip" && l.owner.clip === c.id)
-              .map((lane) => ({ lane, points: Object.values(p.automation_points).filter((x) => x.lane === lane.id) })),
+              .map((lane) => ({
+                lane,
+                points: Object.values(p.automation_points).filter((x) => x.lane === lane.id),
+              })),
           };
         }),
       regions: Object.values(p.comp_regions)
         .filter((r) => r.track === t.id && r.start < b - EPS && r.end > a + EPS)
-        .map((r) => ({ ...r, start: Math.max(r.start, a) - a, end: Math.min(r.end, b) - a })),
+        .map((r) => ({
+          ...r,
+          start: Math.max(r.start, a) - a,
+          end: Math.min(r.end, b) - a,
+        })),
       lanes: Object.values(p.automation_lanes)
         .filter((l) => l.owner.type === "Track" && l.owner.track === t.id)
         .flatMap((l) => {
@@ -472,10 +510,27 @@ export class MockTimeEdits {
       const map = (t: AutomationTarget) => retarget(tx.project, src.track, dest, t);
       for (const b of src.clips) {
         if (b.clip.lane && !laneOk(b.clip.lane)) continue;
-        this.insertBundle(tx, b, { ...b.clip, id: this.host.newId(), track: dest, start: b.clip.start + at }, map);
+        this.insertBundle(
+          tx,
+          b,
+          {
+            ...b.clip,
+            id: this.host.newId(),
+            track: dest,
+            start: b.clip.start + at,
+          },
+          map,
+        );
       }
       for (const r of src.regions) {
-        if (laneOk(r.lane)) tx.upsert("CompRegion", { ...r, id: this.host.newId(), track: dest, start: r.start + at, end: r.end + at });
+        if (laneOk(r.lane))
+          tx.upsert("CompRegion", {
+            ...r,
+            id: this.host.newId(),
+            track: dest,
+            start: r.start + at,
+            end: r.end + at,
+          });
       }
       for (const l of src.lanes) {
         const target = map(l.target);
@@ -484,7 +539,12 @@ export class MockTimeEdits {
           .all("AutomationLane")
           .find((x) => x.owner.type === "Track" && x.owner.track === dest && JSON.stringify(x.target) === JSON.stringify(target));
         if (!lane) {
-          lane = { id: this.host.newId(), owner: { type: "Track", track: dest }, target, enabled: l.enabled };
+          lane = {
+            id: this.host.newId(),
+            owner: { type: "Track", track: dest },
+            target,
+            enabled: l.enabled,
+          };
           tx.upsert("AutomationLane", lane);
         }
         this.rewriteLane(tx, lane.id, overwritePoints(lanePoints(tx, lane.id), at, l.points, len));
@@ -496,7 +556,12 @@ export class MockTimeEdits {
 /** `c` restricted to `[s, e)`; fades only on the clip's own edges. */
 function piece(c: Clip, s: number, e: number): Clip {
   const len = e - s;
-  const out: Clip = { ...c, start: s, length: len, offset: c.offset + (s - c.start) };
+  const out: Clip = {
+    ...c,
+    start: s,
+    length: len,
+    offset: c.offset + (s - c.start),
+  };
   if (c.content.type === "Audio") {
     out.content = {
       ...c.content,

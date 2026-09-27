@@ -1,7 +1,7 @@
 import "./arrangement.css";
 import { openContextMenu, setDragCursor } from "@/kit";
 import { AddTrackRow } from "./newTrack";
-import { useContext, useEffect, useMemo, useRef, type DragEvent, type KeyboardEvent, type PointerEvent } from "react";
+import { useContext, useEffect, useMemo, useRef, type DragEvent, type KeyboardEvent, type MouseEvent, type PointerEvent } from "react";
 import type { Beats, TrackId } from "@/generated";
 import { useEditorStore, useProjectStore, useSelectionStore, useTracksOrdered } from "@/state";
 import {
@@ -24,6 +24,18 @@ import {
 } from "@/timeline";
 import { useAutomationSlotHeight } from "@/features/automation";
 import { PresenceLayer } from "@/features/collab/presence";
+import {
+  bindTimeSelection,
+  clearTimeSelection,
+  inTimeSelection,
+  runTimeAction,
+  selectionFromRect,
+  timeActionForKey,
+  timeSelectionMenu,
+  TimeEditNotice,
+  TimeSelectionLayer,
+  useTimeSelection,
+} from "@/features/time-edits";
 import { TransportContext, useTransport, useTransportEvent } from "@/transport";
 import { actionForKey, bindSingleSelection, locateIfStopped, newTrackMenu, runClipAction } from "./actions";
 import { dropBrowserMedia, hasBrowserDrag, readBrowserDrag } from "./browserDrop";
@@ -114,6 +126,14 @@ function ConnectedArrangementView() {
   useMiddleButtonPan(scrollRef, view);
   useFollowWithMargin(view);
   useEffect(() => bindSingleSelection(), []);
+  // time-edits: header/clip selections replace the time selection.
+  useEffect(
+    () =>
+      bindTimeSelection({
+        subscribe: (fn) => useArrangementUi.subscribe((s, prev) => s.selectedTracks !== prev.selectedTracks && fn(s.selectedTracks)),
+      }),
+    [],
+  );
 
   // Copy/cut/paste also arrive as clipboard events: on macOS the app's Edit menu takes
   // cmd-C/X/V before the page sees the key (desktop app), and sends these instead.
@@ -139,6 +159,8 @@ function ConnectedArrangementView() {
     [transport, peaks],
   );
 
+  /** Alt held when the marquee started: its time selection is not snapped (time-edits). */
+  const marqueeAltRef = useRef(false);
   const marquee = useMarquee({
     kind: "clip",
     hitTest: (rect) => {
@@ -147,7 +169,16 @@ function ConnectedArrangementView() {
       const lanes = { ...rect, x0: Math.max(rect.x0, hw), x1: Math.max(rect.x1, hw) };
       return project ? marqueeHits(lanes, clipRects(rowsRef.current, Object.values(project.clips), view.getState(), hw)) : [];
     },
+    // time-edits: a drag over the lanes also makes the time selection (its range and rows).
+    onEnd: (rect) => {
+      const hw = useArrangementUi.getState().headerWidth;
+      const bypass = marqueeAltRef.current;
+      useTimeSelection
+        .getState()
+        .setSelection(selectionFromRect(rect, rowsRef.current, hw, (px) => snap(pxToBeats(px, view.getState()), bypass)));
+    },
     onClick: (p, ev) => {
+      clearTimeSelection();
       useArrangementUi.getState().setTrackFocus(null);
       const row = rowsRef.current[rowIndexAt(rowsRef.current, p.y)];
       if (row && !row.draft) useSelectionStore.getState().selectTrack(row.track.id);
@@ -229,11 +260,34 @@ function ConnectedArrangementView() {
 
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     if (isTextEntry(e.target)) return;
+    // time-edits: time-selection shortcuts first (⇧⌘X/C/V/D/⌫, ⌘I, ⌘E on a selection).
+    const timeAction = timeActionForKey(e, timeActionContext());
+    if (timeAction) {
+      e.preventDefault();
+      e.stopPropagation();
+      void runTimeAction(transport, timeAction, timeActionContext());
+      return;
+    }
+    if (e.key === "Escape") clearTimeSelection();
     const action = actionForKey(e);
     if (!action) return;
     e.preventDefault();
     e.stopPropagation();
     void runClipAction(transport, action);
+  };
+
+  /** The arrangement state time-edit actions depend on. */
+  const timeActionContext = () => ({
+    selectedTracks: useArrangementUi.getState().selectedTracks,
+    hasSelectedClips: itemSelection.getState().selected.clip.size > 0,
+  });
+  /** Right-click inside the time selection: its menu instead of the lane's / clip's. */
+  const onContextMenuCapture = (e: MouseEvent<HTMLDivElement>) => {
+    const box = e.currentTarget.getBoundingClientRect();
+    const hw = useArrangementUi.getState().headerWidth;
+    if (inTimeSelection(e.clientX - box.left, e.clientY - box.top, rowsRef.current, (px) => pxToBeats(px, view.getState()), hw)) {
+      openContextMenu(e, timeSelectionMenu(transport));
+    }
   };
 
   const height = rowsHeight(rows) + DROP_AREA_HEIGHT;
@@ -261,10 +315,12 @@ function ConnectedArrangementView() {
             style={{ height }}
             onPointerDown={(e) => {
               ctx.focus();
+              marqueeAltRef.current = e.altKey;
               // The selection box only starts over the lanes, not the header column.
               const x = e.clientX - e.currentTarget.getBoundingClientRect().left;
               if (x >= useArrangementUi.getState().headerWidth) marquee.onPointerDown(e);
             }}
+            onContextMenuCapture={onContextMenuCapture}
             onContextMenu={(e) => {
               // Empty space below the tracks (header column or lanes): add a track. Rows,
               // headers and clips open their own menus (and stop the event).
@@ -289,6 +345,7 @@ function ConnectedArrangementView() {
             </div>
             <TrackDropLine />
             <div className="eth-arr__overlay" style={{ left: headerWidth }}>
+              <TimeSelectionLayer rows={rows} view={view} headerWidth={0} />
               <PlayheadLine view={view} />
             </div>
             {m && (
@@ -317,6 +374,7 @@ function ConnectedArrangementView() {
           </div>
         )}
         <HeaderColumnResizer />
+        <TimeEditNotice />
         {/* presence-v2: peers' live pointers, pointer/viewport publishing, follow mode */}
         <PresenceLayer rootRef={rootRef} scrollRef={scrollRef} rows={rows} masterRow={masterRow} />
       </div>

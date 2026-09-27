@@ -1,0 +1,28 @@
+/* Time selection over the lanes (time-edits). Tokens only. */
+
+.eth-time-sel {
+  position: absolute;
+  z-index: 2;
+  pointer-events: none;
+  background: color-mix(in srgb, var(--eth-color-selection) 18%, transparent);
+  box-shadow:
+    inset var(--eth-border-width) 0 0 var(--eth-color-selection),
+    inset calc(-1 * var(--eth-border-width)) 0 0 var(--eth-color-selection);
+}
+
+.eth-time-notice {
+  position: absolute;
+  z-index: 6;
+  left: 50%;
+  bottom: var(--eth-space-lg);
+  transform: translateX(-50%);
+  max-width: 80%;
+  padding: var(--eth-space-sm) var(--eth-space-md);
+  border: var(--eth-border-width) solid var(--eth-color-danger);
+  border-radius: var(--eth-radius-md);
+  background: var(--eth-color-bg-raised);
+  box-shadow: var(--eth-shadow-md);
+  color: var(--eth-color-text);
+  font-size: var(--eth-fs-sm);
+  cursor: default;
+}
