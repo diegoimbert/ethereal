@@ -21,6 +21,7 @@
 
 .eth-pr__toolbar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--eth-space-sm);
   padding: var(--eth-space-xs) var(--eth-space-sm);
@@ -287,3 +288,22 @@
   background: var(--eth-color-selection);
   outline: 1px solid var(--eth-color-text);
 }
+
+.eth-pr-grid__row[data-scale-tone="in"] {
+  background: color-mix(in srgb, var(--eth-color-accent) 8%, var(--eth-color-bg));
+}
+.eth-pr-grid__row[data-scale-tone="root"] {
+  background: color-mix(in srgb, var(--eth-color-accent) 17%, var(--eth-color-bg));
+  box-shadow: inset 0 -1px color-mix(in srgb, var(--eth-color-accent) 35%, transparent);
+}
+.eth-pr-grid__row[data-scale-tone="out"] { background: var(--eth-color-bg-inset); }
+.eth-pr-key[data-scale-tone="in"] {
+  box-shadow: inset 3px 0 color-mix(in srgb, var(--eth-color-accent) 55%, transparent);
+}
+.eth-pr-key[data-scale-tone="root"] {
+  box-shadow: inset 5px 0 var(--eth-color-accent);
+  color: var(--eth-color-accent);
+  font-weight: 700;
+}
+.eth-pr-key[data-scale-tone="out"] { opacity: 0.35; }
+.eth-pr-note[data-scale-tone="root"] { border-top-color: var(--eth-color-text); }

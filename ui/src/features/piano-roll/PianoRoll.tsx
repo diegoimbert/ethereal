@@ -10,10 +10,10 @@
  * - Keys: arrows nudge (shift = octave), cmd-U quantize, cmd-D duplicate, Esc deselects.
  */
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import type { Beats, Clip, Command, Note, NoteId } from "@/generated";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import type { Beats, Clip, Command, Note, NoteId, MusicalScale, TrackScale } from "@/generated";
 import { Button } from "@/kit";
-import { useClip, useEditedClipId, useNotesOfClip } from "@/state";
+import { useClip, useEditedClipId, useNotesOfClip, useProjectStore } from "@/state";
 import {
   beatsToPx,
   createTimelineViewStore,
@@ -33,13 +33,15 @@ import {
 import { cmd, newId, useTransport } from "@/transport";
 import { clipTempoMap, contentEnd, contentToSong, songToContent } from "./clipTime";
 import { useSend } from "./drag";
-import { DEFAULT_KEY_HEIGHT, KEYBOARD_WIDTH, pitchToY } from "./geometry";
+import { DEFAULT_KEY_HEIGHT, KEYBOARD_WIDTH, pitchToY, yToPitch, createPitchRows } from "./geometry";
 import { Keyboard } from "./Keyboard";
 import { NoteGrid } from "./NoteGrid";
 import { nudgeEdits, quantizeCommand } from "./noteEdits";
 import { GRID_OPTIONS } from "./gridOptions";
 import { VelocityLane } from "./VelocityLane";
 import "./pianoRoll.css";
+import { CHROMATIC_SCALE, resolveScale } from "@/domain/scales";
+import { ScaleControls } from "./ScaleControls";
 
 /** Prop-less piano roll mounted by the app shell. */
 export function PianoRoll() {
@@ -83,6 +85,19 @@ export function PianoRollEditor({ clip, view: injectedView }: PianoRollEditorPro
   const [triplet, setTriplet] = useState(false);
   const [drawMode, setDrawMode] = useState(false);
   const keyH = DEFAULT_KEY_HEIGHT;
+  const projectScale = useProjectStore((s) => s.project?.settings.scale ?? CHROMATIC_SCALE);
+  const trackScale = useProjectStore((s) => s.project?.tracks[clip.track]?.scale);
+  const mode = trackScale?.type ?? "FollowProject";
+  const scale = resolveScale(projectScale, trackScale);
+  const [highlight, setHighlight] = useState(true);
+  const [scaleOnly, setScaleOnly] = useState(false);
+  const rows = useMemo(() => createPitchRows(scale, scaleOnly), [scale, scaleOnly]);
+  const shownNotes = useMemo(() => notes.filter((n) => rows.includes(n.pitch)), [notes, rows]);
+  const setTrackScale = (value: TrackScale) => void send(cmd("Track", { type: "SetScale", id: clip.track, scale: value }));
+  const setScale = (value: MusicalScale) => {
+    if (mode === "FollowProject") void send(cmd("Project", { type: "SetScale", scale: value }));
+    else setTrackScale({ type: "Custom", scale: value });
+  };
 
   const grid: GridSetting = useMemo(() => {
     const g = GRID_OPTIONS[gridIndex]!.setting;
@@ -93,9 +108,21 @@ export function PianoRollEditor({ clip, view: injectedView }: PianoRollEditorPro
 
   const rootRef = useRef<HTMLDivElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
+  // Keep the pre-fold scroll position: shrinking the canvas may clamp the DOM's scrollTop.
+  const scrollTopRef = useRef(0);
   const laneRef = useRef<HTMLDivElement>(null);
   useTimelineWheel(bodyRef, view);
   useTimelineWheel(laneRef, view);
+  const previousRows = useRef(rows);
+  useLayoutEffect(() => {
+    const body = bodyRef.current;
+    if (body && previousRows.current !== rows) {
+      const pitch = yToPitch(scrollTopRef.current + body.clientHeight / 2, keyH, previousRows.current);
+      body.scrollTop = Math.max(0, pitchToY(pitch, keyH, rows) + keyH / 2 - body.clientHeight / 2);
+      scrollTopRef.current = body.scrollTop;
+    }
+    previousRows.current = rows;
+  }, [rows, keyH]);
 
   // Fit the clip horizontally and center its notes vertically when it opens.
   const fitted = useRef(false);
@@ -107,13 +134,15 @@ export function PianoRollEditor({ clip, view: injectedView }: PianoRollEditorPro
     if (body) {
       const pitches = notes.map((n) => n.pitch);
       const center = pitches.length ? (Math.min(...pitches) + Math.max(...pitches)) / 2 : 60;
-      body.scrollTop = pitchToY(Math.round(center), keyH) - body.clientHeight / 2;
+      body.scrollTop = pitchToY(Math.round(center), keyH, rows) - body.clientHeight / 2;
+      scrollTopRef.current = body.scrollTop;
     }
-  }, [widthPx, view, clip, notes, keyH]);
+  }, [widthPx, view, clip, notes, keyH, rows]);
 
   const quantize = () => void send(quantizeCommand(clip.id, selected.map((n) => n.id), stepBeats));
 
   const onKeyDown = (e: React.KeyboardEvent) => {
+    if ((e.target as HTMLElement).closest("select, input, button, textarea")) return;
     const mod = e.metaKey || e.ctrlKey;
     const key = e.key.toLowerCase();
     let command: Command | null = null;
@@ -159,7 +188,9 @@ export function PianoRollEditor({ clip, view: injectedView }: PianoRollEditorPro
       tabIndex={0}
       data-testid="piano-roll"
       onKeyDown={onKeyDown}
-      onPointerDownCapture={() => rootRef.current?.focus({ preventScroll: true })}
+      onPointerDownCapture={(e) => {
+        if (!(e.target as HTMLElement).closest("select, input, button, textarea")) rootRef.current?.focus({ preventScroll: true });
+      }}
     >
       <div className="eth-pr__toolbar">
         <span className="eth-pr__title" title={clip.name}>
@@ -187,6 +218,9 @@ export function PianoRollEditor({ clip, view: injectedView }: PianoRollEditorPro
         <Button size="sm" onClick={quantize} title="Quantize to the grid (Cmd/Ctrl+U)">
           Quantize
         </Button>
+        <ScaleControls scale={scale} mode={mode} onScale={setScale}
+          onMode={(type) => setTrackScale(type === "Custom" ? { type, scale } : { type })}
+          highlight={highlight} onHighlight={setHighlight} only={scaleOnly} onOnly={setScaleOnly} />
       </div>
 
       <div className="eth-pr__header">
@@ -215,12 +249,15 @@ export function PianoRollEditor({ clip, view: injectedView }: PianoRollEditorPro
         </div>
       </div>
 
-      <div ref={bodyRef} className="eth-pr__body">
+      <div ref={bodyRef} className="eth-pr__body" onScroll={(e) => { scrollTopRef.current = e.currentTarget.scrollTop; }}>
         <div className="eth-pr__canvas">
-          <Keyboard keyH={keyH} notes={notes} />
+          <Keyboard keyH={keyH} notes={shownNotes} rows={rows} scale={scale} highlight={highlight} />
           <NoteGrid
             clip={clip}
-            notes={notes}
+            notes={shownNotes}
+            rows={rows}
+            scale={scale}
+            highlight={highlight}
             view={view}
             vp={vp}
             widthPx={widthPx}
@@ -238,7 +275,7 @@ export function PianoRollEditor({ clip, view: injectedView }: PianoRollEditorPro
           Velocity
         </div>
         <div ref={laneRef} className="eth-pr__lane-body">
-          <VelocityLane notes={notes} vp={vp} widthPx={widthPx} />
+          <VelocityLane notes={shownNotes} vp={vp} widthPx={widthPx} />
         </div>
       </div>
     </div>

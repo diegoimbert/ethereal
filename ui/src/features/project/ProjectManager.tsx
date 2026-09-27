@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { ProjectScale } from "@/features/scale/ProjectScale";
 import type { ProjectSummary } from "@/generated";
 import type { EngineCommands } from "@/features/transport-bar/engine";
 import { Button } from "@/kit";
@@ -97,6 +98,7 @@ export function ProjectManager({ commands, onClose }: ProjectManagerProps) {
           ✕
         </Button>
       </header>
+      <ProjectScale />
 
       <form className="eth-project-mgr__row" onSubmit={create}>
         <input
