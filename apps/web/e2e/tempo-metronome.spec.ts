@@ -29,9 +29,11 @@ async function doc(page: Page): Promise<Project> {
 }
 
 const tempoPoints = async (page: Page) => Object.values((await doc(page)).tempo_points).sort((a, b) => a.time - b.time);
-// At the default 1280 px width the transport bar's right side (undo/redo, CPU, engine
-// status) overflows onto the Loop/Metronome buttons and takes their clicks (reported as an
-// app layout bug); a wider window keeps them clickable.
+
+// WORKAROUND for an app layout bug (reported by base-46, for the user to fix): at the
+// default 1280 px width the transport bar's right side (.eth-tb__side--end: undo/redo, CPU,
+// engine status) overflows onto the Loop/Metronome buttons and takes their clicks. A wider
+// window keeps them clickable. Drop this once the transport bar fits at 1280 px.
 test.use({ viewport: { width: 1600, height: 900 } });
 
 const signatures = async (page: Page) => Object.values((await doc(page)).time_signatures).sort((a, b) => a.time - b.time);

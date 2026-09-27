@@ -57,8 +57,9 @@ export async function pickOption(
 }
 
 /**
- * Selects a track the way a user does: a click on its header card, at its left edge (the
- * card's center can land on its mute/solo toggles, and a narrow card hides the name).
+ * Selects a track the way a user does: a click on its header card, at its left edge. The
+ * card's center lands on its mute toggle, and the name can't be clicked: at the default
+ * header width it is squeezed to 0 px (an app layout bug reported by base-46).
  */
 export async function selectTrack(page: Page, trackName: string): Promise<void> {
   const header = page.getByRole("group", { name: `${trackName} track` });
