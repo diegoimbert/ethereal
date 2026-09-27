@@ -411,6 +411,8 @@ paths = [
   "docs/COLLAB.md",
   # shared touch (base-39): wire MockCollab into MockTransport (import, field, Collab case)
   "ui/src/transport/mock/MockTransport.ts",
+  # shared touch (base-44): EngineState::request_reload_from_doc (re-create a plugin from the document state)
+  "crates/ether-controller/src/engine.rs",
 ]
 
 [nodes.multicore]
