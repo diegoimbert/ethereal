@@ -351,3 +351,24 @@ impl WasmEngine {
         self.host.blocks() as f64
     }
 }
+
+/// `performance.now()` in milliseconds (Window, Worker, Node).
+fn performance_now() -> f64 {
+    let perf = js_sys::Reflect::get(&js_sys::global(), &JsValue::from_str("performance"))
+        .expect("global performance");
+    let now = js_sys::Reflect::get(&perf, &JsValue::from_str("now"))
+        .expect("performance.now")
+        .unchecked_into::<js_sys::Function>();
+    now.call0(&perf)
+        .ok()
+        .and_then(|v| v.as_f64())
+        .expect("performance.now() returns a number")
+}
+
+/// Graph snapshot costs of the large fixture, measured in wasm (web-perf): JSON of
+/// [`crate::perf::SnapshotCosts`], fastest of `runs`. Diagnostics only, not used by the app.
+#[wasm_bindgen]
+pub fn bench_graph_snapshot(runs: u32) -> String {
+    let costs = crate::perf::measure(runs as usize, performance_now);
+    serde_json::to_string(&costs).expect("costs serialize")
+}

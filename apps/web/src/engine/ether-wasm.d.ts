@@ -43,6 +43,9 @@ declare module "@ether-wasm/ether_wasm.js" {
     blocks(): number;
     free(): void;
   }
+
+  /** Graph snapshot costs of the large fixture (JSON `SnapshotCosts`, ms; web-perf). */
+  export function bench_graph_snapshot(runs: number): string;
 }
 
 declare module "@ether-wasm/ether_wasm_bg.wasm?url" {
