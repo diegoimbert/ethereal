@@ -552,10 +552,11 @@
   height: var(--input-height);
   min-width: 0;
   padding: 0 var(--eth-space-sm) 0 var(--input-padding-x);
-  border: var(--eth-border-width) solid var(--input-border);
-  border-radius: var(--input-radius);
-  background: var(--input-bg);
-  color: var(--input-fg);
+  /* Looks like a (flat) button, not a text field. */
+  border: var(--eth-border-width) solid var(--button-border);
+  border-radius: var(--button-radius);
+  background: var(--button-bg);
+  color: var(--button-fg);
   font-size: var(--input-font-size);
   text-align: left;
   cursor: pointer;
@@ -575,13 +576,12 @@
   --input-font-size: var(--input-font-size-lg);
 }
 .eth-select:hover:not(:disabled) {
-  border-color: var(--eth-color-border-strong);
-  background: var(--eth-color-bg-hover);
+  background: var(--button-bg-hover);
 }
 .eth-select:focus-visible,
 .eth-select--open {
   outline: none;
-  border-color: var(--input-border-focus);
+  background: var(--button-bg-hover);
   box-shadow: 0 0 0 var(--eth-focus-ring-width) var(--eth-color-accent-subtle);
 }
 .eth-select:disabled {
