@@ -138,7 +138,7 @@ import { freezeCommand } from "./roadmap/freezeBounce";
 import { mediaRefCommand } from "./roadmap/mediaReferences";
 import { presetCommand } from "./roadmap/presets";
 import { listModulatorKinds } from "./roadmap/racksModulation";
-import { timeEditCommand } from "./roadmap/timeEdits";
+import { MockTimeEdits } from "./roadmap/timeEdits";
 
 export interface MockTransportOptions {
   /**
@@ -255,6 +255,14 @@ export class MockTransport implements EngineTransport {
   };
   private readonly midiLearn = new MockMidiLearn(this.host);
   private readonly exports = new MockExports(this.host);
+  private readonly timeEdits = new MockTimeEdits({
+    ...this.host,
+    transact: (label, edit) =>
+      void this.transact(label, null, (tx) => {
+        edit(tx);
+        return UNIT;
+      }),
+  });
   private readonly collab = new MockCollab(this.host);
   private readonly analysis = new MockAnalysis();
   private readonly preview = new MockPreview(this.host);
@@ -418,7 +426,7 @@ export class MockTransport implements EngineTransport {
       case "Freeze":
         return freezeCommand(command.command);
       case "TimeEdit":
-        return timeEditCommand(command.command);
+        return this.timeEdits.command(command.command);
       case "Preset":
         return presetCommand(command.command);
       case "Browser":
