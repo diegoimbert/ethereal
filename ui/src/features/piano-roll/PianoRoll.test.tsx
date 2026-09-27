@@ -99,6 +99,106 @@ async function drag(el: Element, from: [number, number], to: [number, number], i
 const undo = () => send(cmd("Edit", { type: "Undo" }));
 
 describe("PianoRoll", () => {
+  it("edits project and custom track scales independently and can undo them", async () => {
+    const { clip } = await setup();
+    const track = store().project!.clips[clip]!.track;
+    expect(screen.getByLabelText("Active scale type")).toHaveValue("Chromatic");
+    fireEvent.change(screen.getByLabelText("Active scale type"), { target: { value: "Minor" } });
+    await flush();
+    expect(store().project!.settings.scale).toEqual({ root: 0, kind: "Minor" });
+    expect(screen.getByText("· Project")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Track scale mode"), { target: { value: "Custom" } });
+    await flush();
+    fireEvent.change(screen.getByLabelText("Active scale root"), { target: { value: "9" } });
+    await flush();
+    expect(store().project!.tracks[track]!.scale).toEqual({ type: "Custom", scale: { root: 9, kind: "Minor" } });
+    await send(cmd("Project", { type: "SetScale", scale: { root: 2, kind: "Major" } }));
+    expect(screen.getByLabelText("Active scale root")).toHaveValue("9");
+    fireEvent.change(screen.getByLabelText("Track scale mode"), { target: { value: "FollowProject" } });
+    await flush();
+    expect(screen.getByLabelText("Active scale root")).toHaveValue("2");
+    await undo();
+    expect(screen.getByLabelText("Active scale root")).toHaveValue("9");
+    fireEvent.change(screen.getByLabelText("Track scale mode"), { target: { value: "Chromatic" } });
+    await flush();
+    expect(screen.getByLabelText("Active scale type")).toHaveValue("Chromatic");
+    expect(screen.getByLabelText("Active scale type")).toBeDisabled();
+  });
+
+  it("highlights roots, dims outside notes and still accepts any pitch", async () => {
+    const { clip, a, b } = await setup();
+    await send(cmd("Project", { type: "SetScale", scale: { root: 0, kind: "Minor" } }));
+    expect(noteEl(a)).toHaveAttribute("data-scale-tone", "root");
+    expect(noteEl(b)).toHaveAttribute("data-scale-tone", "out");
+    expect(document.querySelector('.eth-pr-key[data-pitch="63"]')).toHaveAttribute("data-scale-tone", "in");
+    fireEvent.doubleClick(grid(), { clientX: x(4), clientY: y(61) });
+    await flush();
+    expect(notesOf(clip).some((n) => n.pitch === 61)).toBe(true);
+    fireEvent.click(screen.getByLabelText("Highlight"));
+    expect(noteEl(a)).not.toHaveAttribute("data-scale-tone");
+    expect(noteEl(b)).not.toHaveAttribute("data-scale-tone");
+  });
+
+  it("folds keys and notes together, draws and drags at the displayed pitches, and restores hidden notes", async () => {
+    const { clip, a, b } = await setup();
+    await send(cmd("Project", { type: "SetScale", scale: { root: 0, kind: "Minor" } }));
+    fireEvent.click(screen.getByLabelText("Scale notes only"));
+    const keys = () => [...document.querySelectorAll<HTMLElement>(".eth-pr-key")];
+    const foldedY = (pitch: number) => keys().findIndex((key) => key.dataset.pitch === String(pitch)) * KEY_H + KEY_H / 2;
+    expect(keys().length).toBeLessThan(128);
+    expect(document.querySelector('.eth-pr-key[data-pitch="64"]')).toBeNull();
+    expect(noteEl(b)).toBeNull();
+    expect(notesOf(clip)).toHaveLength(2);
+    expect((noteEl(a) as HTMLElement).style.top).toBe(`${foldedY(60) - KEY_H / 2}px`);
+    fireEvent.doubleClick(grid(), { clientX: x(4), clientY: foldedY(63) });
+    await flush();
+    expect(notesOf(clip).some((n) => n.pitch === 63 && n.start === 4)).toBe(true);
+    await drag(noteEl(a), [x(1.5), foldedY(60)], [x(1.5), foldedY(62)]);
+    expect(notesOf(clip).find((n) => n.id === a)!.pitch).toBe(62);
+    await undo();
+    expect(notesOf(clip).find((n) => n.id === a)!.pitch).toBe(60);
+    fireEvent.click(screen.getByLabelText("Scale notes only"));
+    expect(keys()).toHaveLength(128);
+    expect(noteEl(b)).toBeInTheDocument();
+    expect(notesOf(clip).find((n) => n.id === b)!.pitch).toBe(64);
+  });
+
+  it("does not interpret scale selector keys as note-edit shortcuts", async () => {
+    const { clip, a } = await setup();
+    act(() => itemSelection.getState().select("note", [a], "replace"));
+    fireEvent.keyDown(screen.getByLabelText("Active scale type"), { key: "Delete" });
+    fireEvent.keyDown(screen.getByLabelText("Active scale root"), { key: "ArrowUp" });
+    await flush();
+    expect(notesOf(clip).find((n) => n.id === a)!.pitch).toBe(60);
+  });
+
+  it("uses folded coordinates for marquee and resize without selecting hidden notes", async () => {
+    const { clip, a, b } = await setup();
+    await send(cmd("Project", { type: "SetScale", scale: { root: 0, kind: "Minor" } }));
+    fireEvent.click(screen.getByLabelText("Scale notes only"));
+    const top = parseFloat((noteEl(a) as HTMLElement).style.top);
+    await drag(grid(), [x(0.5), top - 1], [x(3.5), top + KEY_H + 1]);
+    expect([...itemSelection.getState().selected.note]).toEqual([a]);
+    await drag(noteEl(a), [x(2) - 1, top + KEY_H / 2], [x(3) - 1, top + KEY_H / 2]);
+    expect(notesOf(clip).find((n) => n.id === a)!.duration).toBe(2);
+    expect(notesOf(clip).find((n) => n.id === b)).toMatchObject({ pitch: 64, start: 2, duration: 1 });
+    await undo();
+    expect(notesOf(clip).find((n) => n.id === a)!.duration).toBe(1);
+  });
+
+  it("allows semitone nudges outside the scale even while rows are filtered", async () => {
+    const { clip, a } = await setup();
+    await send(cmd("Project", { type: "SetScale", scale: { root: 0, kind: "Minor" } }));
+    fireEvent.click(screen.getByLabelText("Scale notes only"));
+    act(() => itemSelection.getState().select("note", [a], "replace"));
+    fireEvent.keyDown(screen.getByTestId("piano-roll"), { key: "ArrowUp" });
+    await flush();
+    expect(notesOf(clip).find((n) => n.id === a)!.pitch).toBe(61);
+    expect(noteEl(a)).toBeNull();
+    fireEvent.click(screen.getByLabelText("Scale notes only"));
+    expect(noteEl(a)).toHaveAttribute("data-pitch", "61");
+  });
+
   it("shows an empty state without an edited clip, for deleted ids and for audio clips", async () => {
     const { clip } = await setup({ open: false });
     expect(screen.getByTestId("piano-roll-empty")).toBeInTheDocument();

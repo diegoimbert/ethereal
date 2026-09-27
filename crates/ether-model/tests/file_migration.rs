@@ -5,6 +5,34 @@ use serde_json::Value;
 
 const V1: &str = include_str!("fixtures/v1_with_session.ether");
 
+#[test]
+fn files_without_scale_metadata_default_to_unrestricted() {
+    let legacy = file::load(V1).unwrap();
+    assert_eq!(legacy.settings.scale, MusicalScale::default());
+    assert!(
+        legacy
+            .tracks
+            .values()
+            .all(|t| t.scale == TrackScale::FollowProject)
+    );
+    let mut v2 = serde_json::json!({
+        "format": file::FORMAT_TAG, "version": file::CURRENT_VERSION,
+        "app_version": "0.0.1", "project": legacy,
+    });
+    v2["project"]["settings"]
+        .as_object_mut()
+        .unwrap()
+        .remove("scale");
+    for track in v2["project"]["tracks"]
+        .as_object_mut()
+        .unwrap()
+        .values_mut()
+    {
+        track.as_object_mut().unwrap().remove("scale");
+    }
+    assert_eq!(file::load(&v2.to_string()).unwrap(), legacy);
+}
+
 fn keys(v: &Value, table: &str) -> Vec<String> {
     v["project"][table]
         .as_object()
