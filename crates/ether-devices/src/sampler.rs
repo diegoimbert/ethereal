@@ -7,6 +7,14 @@
 //! - **Pitched**: playback rate follows `key - Root Key` (+ `Transpose`); note-off starts
 //!   the release.
 //!
+//! - **Sample range**: `Start`/`End` (percent of the sample) bound what every note plays
+//!   (slice pads of a drum rack use this, `SliceCommand::ToDrumRack`).
+//! - **Slice mode** (roadmap v2, `drum-rack`; [`SliceSettings`] in the device kind): note
+//!   `base_note + i` plays slice `i` (`[markers[i], markers[i + 1])`, the last one to the
+//!   end of the sample) at its original pitch (+ `Transpose`); other keys are ignored. The
+//!   markers reach a live sampler in place through [`Node::set_data`] (a boxed
+//!   [`SliceSettings`]), so an edit never cuts sounding notes.
+//!
 //! Reads go through the source in chunks into pre-allocated scratch buffers and are
 //! linearly interpolated, so `process` never allocates.
 
@@ -15,7 +23,8 @@ use std::sync::Arc;
 use ether_core::protocol::devices::{
     DeviceCategory, DeviceDescriptor, DeviceTypeRef, ParamInfo, ParamScale, ParamUnit,
 };
-use ether_core::protocol::model::{BuiltinDeviceType, ParamId};
+use ether_core::node::NodeData;
+use ether_core::protocol::model::{BuiltinDeviceType, ParamId, SliceSettings};
 use ether_core::{
     AudioBuffers, AudioSource, Device, EventKind, Node, PrepareConfig, ProcessContext,
     ProcessStatus, Smoother,
@@ -40,9 +49,15 @@ pub mod params {
     pub const ATTACK: ParamId = ParamId(3);
     pub const RELEASE: ParamId = ParamId(4);
     pub const VOLUME: ParamId = ParamId(5);
+    /// Start of the played range, percent of the sample (roadmap v2, `drum-rack`).
+    pub const START: ParamId = ParamId(6);
+    /// End of the played range, percent of the sample (roadmap v2, `drum-rack`).
+    pub const END: ParamId = ParamId(7);
 }
 
-const NUM_PARAMS: usize = 6;
+const NUM_PARAMS: usize = 8;
+/// Fade at a range/slice end that is not the end of the sample (declick), in ms.
+const END_FADE_MS: f64 = 2.0;
 
 /// Mode labels in plain-value order.
 pub const MODES: [&str; 2] = ["One-shot", "Pitched"];
@@ -94,6 +109,22 @@ pub fn param_infos() -> Vec<ParamInfo> {
             (-60.0, 6.0, 0.0),
             ParamScale::Linear,
         ),
+        param(
+            6,
+            "Start",
+            "Playback",
+            ParamUnit::Percent,
+            (0.0, 100.0, 0.0),
+            ParamScale::Linear,
+        ),
+        param(
+            7,
+            "End",
+            "Playback",
+            ParamUnit::Percent,
+            (0.0, 100.0, 100.0),
+            ParamScale::Linear,
+        ),
     ]
 }
 
@@ -122,6 +153,10 @@ struct Voice {
     age: u64,
     /// Read position in source frames.
     pos: f64,
+    /// End of the played range in source frames (exclusive).
+    end: f64,
+    /// Transpose by key (pitched mode, outside slice mode).
+    tracks_key: bool,
     env: Adsr,
 }
 
@@ -133,6 +168,8 @@ impl Voice {
         velocity: 0.0,
         age: 0,
         pos: 0.0,
+        end: 0.0,
+        tracks_key: false,
         env: Adsr::IDLE,
     };
 }
@@ -150,6 +187,8 @@ pub struct Sampler {
     /// Per source channel (max 2) read scratch.
     scratch: [Vec<f32>; 2],
     gains: [f32; CHUNK],
+    /// Slice markers + slice mode (swapped in place by `set_data`).
+    slices: Box<SliceSettings>,
 }
 
 impl std::fmt::Debug for Sampler {
@@ -157,6 +196,7 @@ impl std::fmt::Debug for Sampler {
         f.debug_struct("Sampler")
             .field("has_source", &self.source.is_some())
             .field("values", &self.values)
+            .field("slices", &self.slices)
             .finish()
     }
 }
@@ -170,6 +210,11 @@ impl Default for Sampler {
 impl Sampler {
     /// Non-RT. A sampler with default parameters playing `source` (`None` = silent).
     pub fn new(source: Option<Arc<dyn AudioSource>>) -> Self {
+        Self::with_slices(source, SliceSettings::default())
+    }
+
+    /// Non-RT. A sampler with default parameters and the given slice settings.
+    pub fn with_slices(source: Option<Arc<dyn AudioSource>>, slices: SliceSettings) -> Self {
         let infos = param_infos();
         let mut values = [0.0; NUM_PARAMS];
         for (v, info) in values.iter_mut().zip(&infos) {
@@ -186,6 +231,7 @@ impl Sampler {
             volume: Smoother::new(1.0, 20.0, 48_000.0),
             scratch: [vec![0.0; SCRATCH], vec![0.0; SCRATCH]],
             gains: [0.0; CHUNK],
+            slices: Box::new(slices),
         };
         s.sync_all();
         s
@@ -244,20 +290,50 @@ impl Sampler {
         util::index(self.value(params::MODE), MODES.len()) == MODE_ONE_SHOT
     }
 
-    /// Playback rate for `key` in the current mode.
-    fn rate(&self, key: u8) -> f64 {
+    /// Current slice settings.
+    pub fn slices(&self) -> &SliceSettings {
+        &self.slices
+    }
+
+    /// Playback rate of a voice on `key`.
+    fn rate(&self, key: u8, tracks_key: bool) -> f64 {
         let mut semis = self.value(params::TRANSPOSE);
-        if !self.one_shot() {
+        if tracks_key {
             semis += key as f64 - self.value(params::ROOT_KEY).round();
         }
         2f64.powf(semis / 12.0).min(MAX_RATE)
+    }
+
+    /// Source frame range `[start, end)` a note on `key` plays (`None` = no sound: a key
+    /// without a slice in slice mode, or an empty range).
+    fn range(&self, key: u8, frames: u64) -> Option<(f64, f64)> {
+        let len = frames as f64;
+        let sr = self.sample_rate as f64;
+        let (start, end) = if self.slices.enabled {
+            let i = (key as usize).checked_sub(self.slices.base_note as usize)?;
+            let m = &self.slices.markers;
+            let start = m.get(i)?.0 * sr;
+            let end = m.get(i + 1).map_or(len, |e| e.0 * sr);
+            (start, end)
+        } else {
+            (
+                self.value(params::START) * 0.01 * len,
+                self.value(params::END) * 0.01 * len,
+            )
+        };
+        let (start, end) = (start.clamp(0.0, len), end.clamp(0.0, len));
+        (start.is_finite() && end > start).then_some((start, end))
     }
 
     fn note_on(&mut self, note_id: u32, channel: u8, key: u8, velocity: f32) {
         let Some(source) = &self.source else {
             return;
         };
-        source.prefetch_hint(0);
+        let Some((start, end)) = self.range(key, source.frames()) else {
+            return;
+        };
+        let tracks_key = !self.slices.enabled && !self.one_shot();
+        source.prefetch_hint(start as u64);
         let slot = self
             .voices
             .iter()
@@ -278,6 +354,9 @@ impl Sampler {
             key,
             velocity: velocity.clamp(0.0, 1.0),
             age: self.next_age,
+            pos: start,
+            end,
+            tracks_key,
             ..Voice::IDLE
         };
         v.env.trigger();
@@ -341,10 +420,11 @@ impl Sampler {
             return;
         };
         let src_channels = (source.channels() as usize).min(2);
-        let src_frames = source.frames();
+        let src_frames = source.frames() as f64;
         if src_channels == 0 {
             return;
         }
+        let fade = (END_FADE_MS * 0.001 * self.sample_rate as f64).max(1.0);
         let mut c0 = start;
         while c0 < end {
             let n = CHUNK.min(end - c0);
@@ -355,8 +435,11 @@ impl Sampler {
                 if !self.voices[vi].env.is_active() {
                     continue;
                 }
-                let rate = self.rate(self.voices[vi].key);
+                let rate = self.rate(self.voices[vi].key, self.voices[vi].tracks_key);
                 let v = &mut self.voices[vi];
+                let end = v.end.min(src_frames);
+                // Declick a range end inside the sample.
+                let fade_from = if end < src_frames { end - fade * rate } else { end };
                 let first = v.pos.floor();
                 // Frames needed for `n` outputs, +1 for interpolation.
                 let len = ((v.pos + (n - 1) as f64 * rate).floor() - first) as usize + 2;
@@ -365,14 +448,17 @@ impl Sampler {
                     source.read(ch as u16, first as u64, &mut buf[..len]);
                 }
                 for k in 0..n {
-                    if v.pos >= src_frames as f64 {
+                    if v.pos >= end {
                         v.env.kill();
                         break;
                     }
                     let idx = v.pos - first;
                     let i0 = (idx as usize).min(len - 2);
                     let frac = (idx - i0 as f64) as f32;
-                    let amp = v.env.tick(&self.rates) * v.velocity * self.gains[k];
+                    let mut amp = v.env.tick(&self.rates) * v.velocity * self.gains[k];
+                    if v.pos > fade_from {
+                        amp *= ((end - v.pos) / (end - fade_from)) as f32;
+                    }
                     for (o, out) in outputs.iter_mut().enumerate() {
                         let buf = &self.scratch[o.min(src_channels - 1)];
                         let s = buf[i0] + (buf[i0 + 1] - buf[i0]) * frac;
@@ -433,6 +519,15 @@ impl Node for Sampler {
 
     fn channels(&self) -> (u16, u16) {
         (0, 2)
+    }
+
+    /// Takes a boxed [`SliceSettings`] (new markers / slice mode) without touching the
+    /// voices; returns the previous settings (dropped off the audio thread).
+    fn set_data(&mut self, data: NodeData) -> Option<NodeData> {
+        match data.downcast::<SliceSettings>() {
+            Ok(new) => Some(std::mem::replace(&mut self.slices, new) as NodeData),
+            Err(data) => Some(data),
+        }
     }
 }
 
