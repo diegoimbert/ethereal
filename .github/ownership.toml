@@ -875,6 +875,8 @@ paths = [
   # BCR-2 (base-68): tests that encoded the old hand-written mock param ids (mock descriptors now generated from Rust)
   "ui/src/features/devices/DeviceChain.test.tsx",
   "ui/src/transport/mock/MockTransport.test.ts",
+  # BCR-2 addendum (base-69): remap the demo Synth param ids to the Rust ids, values unchanged
+  "ui/src/transport/mock/demoProject.ts",
 ]
 
 [nodes.synth-2]
