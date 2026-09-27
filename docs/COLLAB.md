@@ -750,10 +750,11 @@ project, replicated as ordinary ops); peer playheads are **presence** (ephemeral
   `id` is a client-chosen ULID (unique across sites). `author = Author { name, site,
   actor, color }` is a **snapshot** taken by the sender's controller (session name, site,
   its relay colour at the time), so the journal keeps showing who wrote what after the
-  session. `text`: 1..=2000 chars (`CHAT_TEXT_MAX_CHARS`, counted in `char`s), not only
-  whitespace. `sent_at`: unix ms on the sender's clock, display only.
+  session. `text`: 1..=2000 chars (`CHAT_TEXT_MAX_CHARS`, counted in `char`s) and ≤ 4096
+  UTF-8 bytes (`TEXT_MAX_BYTES`), not only whitespace. `sent_at`: unix ms on the sender's clock, display only.
 - **Order = relay log order, not `sent_at`.** `seq` is assigned by `Project::apply`: an
-  `Insert` with `seq: 0` gets `1 + max(seq)`. The confirmed document is the resolve-fold of
+  `Insert` with `seq: 0` gets `max(seq) + 1` (saturating: a forged `u64::MAX` neither
+  panics nor wraps; ties sort by id). The confirmed document is the resolve-fold of
   the log (§2), so every replica numbers messages in log order; a pending own message gets
   a provisional `seq` that is recomputed on every rebase (it re-applies the op as sent, with
   `seq: 0`), and its echo lands it where the relay put it. A non-zero `seq` is kept (inverse
@@ -770,7 +771,10 @@ project, replicated as ordinary ops); peer playheads are **presence** (ephemeral
   insert: removes are ordinary ops, so every replica removes the same ones. Two sites
   sending concurrently at the cap may both remove the same oldest message (the second
   `Remove` is skipped by resolve), leaving `cap + 1` until the next send prunes two: bounded
-  and convergent.
+  and convergent. A peer that never prunes is stopped at apply time: `Project::apply`
+  refuses an insert past `CHAT_HARD_MAX_MESSAGES` (2 × the cap). The confirmed state is the
+  same on every replica, so every replica refuses the same insert (resolve skips it). Worst
+  case stored: 4000 × 4 KiB, far below a snapshot's 16 MiB with the rest of the project.
 - **Command** `Chat::Send { id, text }`: validate, fill `author` and `sent_at`, then one
   transaction `Insert ChatMessage { seq: 0 } + Remove overflow` (an existing `id` is a
   no-op). Outside a session: `InvalidState` (chat is hidden there). Replies `Unit`; the
@@ -796,6 +800,11 @@ project, replicated as ordinary ops); peer playheads are **presence** (ephemeral
   once synced (`relay/mod.rs`, next to the peers' presence it already sends a joiner), and
   the controller records its colour from a `Presence` with its own site instead of
   dropping it (`collab/mod.rs`, one line). `Author::color` is `None` until known.
+- **Older readers.** A build without these tables (`.ether` v3 readers) ignores the unknown
+  `chat` and `pinned_notes` keys and loses them on its next save. Acceptable because the v4
+  bump (contracts-3, PR #106) ships in the same release: a v3 reader then refuses the file
+  outright instead of silently dropping the journal. In a session, older builds are
+  refused by the collab protocol version (above).
 - **Solo** (no session): the chat UI is hidden; messages still load with the project, stay
   in the file, and show again in the next session.
 

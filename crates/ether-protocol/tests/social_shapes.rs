@@ -189,6 +189,9 @@ fn caps() {
     assert_eq!(CHAT_MAX_MESSAGES, 2000);
     assert_eq!(NOTE_TEXT_MAX_CHARS, 2000);
     assert_eq!(AUTHOR_NAME_MAX_CHARS, 64);
+    assert_eq!(TEXT_MAX_BYTES, 4096);
+    assert_eq!(CHAT_HARD_MAX_MESSAGES, 4000);
+    assert_eq!(MAX_PINNED_NOTES, 500);
 }
 
 #[test]

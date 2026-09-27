@@ -274,3 +274,39 @@ fn pinned_notes_in_the_piano_roll() {
         );
     }
 }
+
+#[test]
+fn byte_and_count_caps() {
+    let mut f = F::new();
+    // Within the char cap but over the byte cap (4-byte characters).
+    let wide = "\u{1F3B9}".repeat(TEXT_MAX_BYTES / 4 + 1);
+    assert!(wide.chars().count() <= CHAT_TEXT_MAX_CHARS);
+    let m = f.chat(&wide);
+    assert!(matches!(
+        f.p.apply(&insert(Entity::ChatMessage(m))),
+        Err(ModelError::InvalidValue(_))
+    ));
+    let n = f.note(&wide);
+    assert!(f.p.apply(&insert(Entity::PinnedNote(n))).is_err());
+
+    // Notes: at most MAX_PINNED_NOTES, with a clear error.
+    for i in 0..MAX_PINNED_NOTES {
+        let n = f.note(&format!("n{i}"));
+        f.p.apply(&insert(Entity::PinnedNote(n))).unwrap();
+    }
+    let n = f.note("one too many");
+    match f.p.apply(&insert(Entity::PinnedNote(n))) {
+        Err(ModelError::InvalidValue(m)) => assert!(m.contains("at most 500 notes"), "{m}"),
+        other => panic!("{other:?}"),
+    }
+
+    // Chat: the apply-time ceiling (a peer that never prunes) is refused deterministically.
+    for i in 0..CHAT_HARD_MAX_MESSAGES {
+        let m = f.chat(&format!("m{i}"));
+        f.p.apply(&insert(Entity::ChatMessage(m))).unwrap();
+    }
+    let m = f.chat("over the ceiling");
+    assert!(f.p.apply(&insert(Entity::ChatMessage(m))).is_err());
+    assert_eq!(f.p.chat.len(), CHAT_HARD_MAX_MESSAGES);
+    f.p.validate().unwrap();
+}

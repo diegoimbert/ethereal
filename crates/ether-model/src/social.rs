@@ -28,6 +28,15 @@ pub const CHAT_TEXT_MAX_CHARS: usize = 2000;
 pub const CHAT_MAX_MESSAGES: usize = 2000;
 /// Longest pinned note text, in `char`s.
 pub const NOTE_TEXT_MAX_CHARS: usize = 2000;
+/// Largest chat or note text in UTF-8 bytes, on top of the `char` caps (bounds the worst
+/// case of wide characters: the whole journal stays far below a snapshot's 16 MiB).
+pub const TEXT_MAX_BYTES: usize = 4096;
+/// Hard ceiling on stored chat messages, enforced by `Project::apply` (an insert past it is
+/// refused on every replica alike, since the confirmed state is the same everywhere). The
+/// sender keeps the chat at [`CHAT_MAX_MESSAGES`]; this only stops a peer that doesn't prune.
+pub const CHAT_HARD_MAX_MESSAGES: usize = 2 * CHAT_MAX_MESSAGES;
+/// Most pinned notes a project holds (`Project::apply` refuses an insert past it).
+pub const MAX_PINNED_NOTES: usize = 500;
 /// Longest author display name, in `char`s (the collab dialog's name field).
 pub const AUTHOR_NAME_MAX_CHARS: usize = 64;
 

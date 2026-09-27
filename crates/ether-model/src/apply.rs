@@ -84,6 +84,12 @@ fn check_text(what: &str, text: &str, max_chars: usize) -> Result<(), ModelError
             "{what} text is {n} characters (max {max_chars})"
         )));
     }
+    if text.len() > TEXT_MAX_BYTES {
+        return Err(invalid(format!(
+            "{what} text is {} bytes (max {TEXT_MAX_BYTES})",
+            text.len()
+        )));
+    }
     Ok(())
 }
 
@@ -751,6 +757,12 @@ impl Project {
                 }
                 Ok(())
             }
+            EntityKey::ChatMessage(_) if self.chat.len() > CHAT_HARD_MAX_MESSAGES => Err(invalid(
+                format!("a project holds at most {CHAT_HARD_MAX_MESSAGES} chat messages"),
+            )),
+            EntityKey::PinnedNote(_) if self.pinned_notes.len() > MAX_PINNED_NOTES => Err(invalid(
+                format!("a project holds at most {MAX_PINNED_NOTES} notes"),
+            )),
             _ => Ok(()),
         }
     }
@@ -1380,6 +1392,8 @@ impl Project {
         self.check_routing()?;
         self.check_globals(EntityKey::TempoPoint(TempoPointId::NIL))?;
         self.check_globals(EntityKey::TimeSignature(TimeSignatureId::NIL))?;
+        self.check_globals(EntityKey::ChatMessage(ChatMessageId::NIL))?;
+        self.check_globals(EntityKey::PinnedNote(PinnedNoteId::NIL))?;
         Ok(())
     }
 }
