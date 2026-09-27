@@ -90,6 +90,8 @@ pub struct RecordedTakes {
     pub midi: Vec<RecordedMidi>,
     /// Round-trip latency that was compensated, in samples (diagnostics).
     pub latency: u32,
+    /// Problems worth telling the user (e.g. the input delivered only silence).
+    pub warnings: Vec<String>,
 }
 
 /// Recording runtime state of the controller.
@@ -375,6 +377,9 @@ where
         } else {
             RecordedTakes::default()
         };
+        for w in &takes.warnings {
+            notify(out, NotificationLevel::Warning, w.clone());
+        }
         let stop_at = self.transport.position.0;
         match self.commit_takes(&active, &takes, stop_at, now, out) {
             Ok(clips) => event(

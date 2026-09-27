@@ -358,6 +358,7 @@ fn record_with_count_in_commits_takes_as_one_undo_step() {
             },
         ],
         latency: 256,
+        ..Default::default()
     };
     let out = h.ok(Command::Transport(TransportCommand::Stop));
     assert_eq!(h.capture().stops, 1);
@@ -475,4 +476,53 @@ fn without_host_capture_recording_only_drives_the_transport() {
     assert!(h.project().clips.is_empty());
     // Still playing: only recording stopped.
     assert!(h.ctl.transport.playing && !h.ctl.transport.recording);
+}
+
+#[test]
+fn toggle_play_stop_finishes_the_recording() {
+    let mut h = H::new(true);
+    let t = h.track(TrackKind::Audio);
+    h.rec(RecordingCommand::Arm {
+        track: t,
+        armed: true,
+        exclusive: false,
+    });
+    h.rec(RecordingCommand::SetRecording { enabled: true });
+    h.capture().result.audio = vec![AudioTake {
+        track: t,
+        file: "media/rec-b.wav".into(),
+        start: 0.0,
+        frames: 4_800,
+        channels: 2,
+        sample_rate: 48_000,
+    }];
+    // Space bar = TogglePlay while playing: stops and commits the take.
+    let out = h.ok(Command::Transport(TransportCommand::TogglePlay));
+    assert_eq!(h.capture().stops, 1);
+    assert!(!h.ctl.transport.recording && !h.ctl.transport.playing);
+    let events = recording_events(&out);
+    assert!(
+        matches!(events.as_slice(), [RecordingEvent::Stopped { clips }] if clips.len() == 1),
+        "{events:?}"
+    );
+    // The next play does not reopen the session.
+    h.ok(Command::Transport(TransportCommand::TogglePlay));
+    assert_eq!(h.capture().sessions.len(), 1);
+    assert!(!h.ctl.transport.recording);
+}
+
+#[test]
+fn host_warnings_become_notifications() {
+    let mut h = H::new(true);
+    let t = h.track(TrackKind::Audio);
+    h.rec(RecordingCommand::Arm {
+        track: t,
+        armed: true,
+        exclusive: false,
+    });
+    h.rec(RecordingCommand::SetRecording { enabled: true });
+    h.capture().result.warnings = vec!["silent".into()];
+    let out = h.rec(RecordingCommand::SetRecording { enabled: false });
+    assert!(out.iter().any(|m| matches!(m,
+        ServerMessage::Event(Event::Notification { message, .. }) if message == "silent")));
 }

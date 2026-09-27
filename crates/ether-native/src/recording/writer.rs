@@ -11,6 +11,11 @@ use ether_controller::{AudioTake, BridgeError, RecordSession, RecordedMidi, Reco
 use ether_core::recording::rtrb::Consumer;
 use ether_core::recording::{CaptureBlock, CaptureReader, RecordedMidi as EngineMidi};
 
+/// Warning for a take of pure digital silence (at least one second).
+pub(super) const SILENT_INPUT: &str = "The recorded audio input is completely silent. If the \
+    system denied microphone access, allow Ethereal in the privacy settings (macOS: System \
+    Settings > Privacy & Security > Microphone) and check the input device and channels.";
+
 /// How often the writer drains the engine rings.
 const POLL: Duration = Duration::from_millis(5);
 /// How long `stop` waits for the files to be closed.
@@ -144,6 +149,10 @@ struct Session {
     done: Vec<AudioTake>,
     midi: Vec<RecordedMidi>,
     error: Option<String>,
+    /// Audio frames kept and whether any of them was not exactly zero (a denied
+    /// microphone permission delivers pure digital silence).
+    frames_kept: u64,
+    heard: bool,
 }
 
 impl Session {
@@ -158,6 +167,8 @@ impl Session {
             done: Vec::new(),
             midi: Vec::new(),
             error: None,
+            frames_kept: 0,
+            heard: false,
         }
     }
 
@@ -218,11 +229,13 @@ impl Session {
                 self.gap();
                 self.open_take(seg.run, position);
             }
+            self.frames_kept += 1;
             if let Some(take) = &mut self.current {
                 let mut failed = None;
                 for f in &mut take.files {
                     for c in 0..f.count {
                         let s = frame.get(f.first + c).copied().unwrap_or(0.0);
+                        self.heard |= s != 0.0;
                         if let Err(e) = f.out.sample(s) {
                             failed = Some(e.to_string());
                         }
@@ -304,10 +317,15 @@ impl Session {
             return Err(e);
         }
         self.midi.sort_by(|a, b| a.position.total_cmp(&b.position));
+        let mut warnings = Vec::new();
+        if !self.heard && self.frames_kept >= u64::from(self.config.sample_rate) {
+            warnings.push(SILENT_INPUT.to_string());
+        }
         Ok(RecordedTakes {
             audio: self.done,
             midi: self.midi,
             latency: self.config.latency as u32,
+            warnings,
         })
     }
 }

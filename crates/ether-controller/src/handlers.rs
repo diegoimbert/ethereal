@@ -333,7 +333,7 @@ where
             TransportCommand::Stop => self.transport_stop(now, out)?,
             TransportCommand::TogglePlay => {
                 if self.transport.playing {
-                    self.stop()?
+                    self.transport_stop(now, out)?
                 } else {
                     self.play()?
                 }

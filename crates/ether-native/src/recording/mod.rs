@@ -56,7 +56,7 @@ mod tests;
 
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU32, AtomicU64, Ordering, fence};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
 use ether_controller::{BridgeError, RecordSession, RecordedTakes};
@@ -110,6 +110,14 @@ pub struct RecordingShared {
     output_latency: AtomicU32,
     /// Smoothed input ring backlog in frames (`f32` bits).
     backlog: AtomicU32,
+    /// Set once by [`attach`]; read lock-free by the audio thread (the stream may start
+    /// before the engine rings are attached).
+    engine_clock: OnceLock<Arc<AtomicU64>>,
+    /// Live MIDI towards the engine: its own lock, only held for one push.
+    midi_in: OnceLock<Mutex<Producer<LiveMidi>>>,
+    writer: OnceLock<writer::WriterHandle>,
+    /// Connected MIDI ports. Never held while taking `inner` or `midi_in`.
+    midi: Mutex<midi::MidiInputs>,
     inner: Mutex<Inner>,
 }
 
@@ -125,10 +133,6 @@ struct Inner {
     input_error: Option<String>,
     /// Producer of the current feed's ring, taken by the input stream.
     pending_input: Option<Producer<f32>>,
-    engine_clock: Option<Arc<AtomicU64>>,
-    midi_in: Option<Arc<Mutex<Producer<LiveMidi>>>>,
-    midi: midi::MidiInputs,
-    writer: Option<writer::WriterHandle>,
 }
 
 impl Default for RecordingShared {
@@ -143,6 +147,10 @@ impl Default for RecordingShared {
             input_latency: AtomicU32::new(0),
             output_latency: AtomicU32::new(0),
             backlog: AtomicU32::new(0),
+            engine_clock: OnceLock::new(),
+            midi_in: OnceLock::new(),
+            writer: OnceLock::new(),
+            midi: Mutex::new(midi::MidiInputs::default()),
             inner: Mutex::new(Inner::default()),
         }
     }
@@ -243,8 +251,7 @@ impl RecordingShared {
     /// Queue a live MIDI message for the engine (MIDI thread; non-RT).
     fn push_live(&self, data: [u8; 3]) -> bool {
         let stamp = self.stamp_now();
-        let midi_in = self.inner().midi_in.clone();
-        let Some(midi_in) = midi_in else {
+        let Some(midi_in) = self.midi_in.get() else {
             return false;
         };
         let mut p = midi_in.lock().unwrap_or_else(|p| p.into_inner());
@@ -310,7 +317,6 @@ pub fn output_timing(shared: &AudioShared, info: &cpal::OutputCallbackInfo) {
 /// of the engine's own output, or silence. Owned by `RtRenderer` (audio thread).
 pub struct InputFeed {
     shared: Arc<AudioShared>,
-    clock: Option<Arc<AtomicU64>>,
     feed: Feed,
     l: Vec<f32>,
     r: Vec<f32>,
@@ -356,7 +362,6 @@ impl InputFeed {
             }
         };
         Self {
-            clock: inner.engine_clock.clone(),
             shared: shared.clone(),
             feed,
             l: vec![0.0; max_block],
@@ -368,10 +373,9 @@ impl InputFeed {
     /// **RT.** Planar input for the next `n` (`<= max_block`) frames.
     pub fn read(&mut self, n: usize) -> [&[f32]; 2] {
         let n = n.min(self.max_block);
-        if let Some(clock) = &self.clock {
-            self.shared
-                .recording
-                .publish_clock(clock.load(Ordering::Acquire));
+        let rec = &self.shared.recording;
+        if let Some(clock) = rec.engine_clock.get() {
+            rec.publish_clock(clock.load(Ordering::Acquire));
         }
         match &mut self.feed {
             Feed::Silent => {
@@ -456,23 +460,29 @@ pub fn attach(handle: &mut EngineHandle, audio: &Arc<AudioShared>) {
     else {
         return;
     };
-    let writer = writer::spawn(capture, midi_out);
-    let mut inner = audio.recording.inner();
-    inner.engine_clock = Some(clock);
-    inner.midi_in = Some(Arc::new(Mutex::new(midi_in)));
-    inner.writer = writer;
+    let rec = &audio.recording;
+    if rec.engine_clock.set(clock).is_err() {
+        tracing::warn!("recording already attached to another engine");
+        return;
+    }
+    let _ = rec.midi_in.set(Mutex::new(midi_in));
+    if let Some(writer) = writer::spawn(capture, midi_out) {
+        let _ = rec.writer.set(writer);
+    }
 }
 
 /// `RecordingCommand::ListInputs`: the input device's channels and the MIDI ports (which
 /// get connected for monitoring and recording).
 pub fn list_inputs(audio: &Arc<AudioShared>) -> Result<InputList, BridgeError> {
     let weak = Arc::downgrade(audio);
-    let mut inner = audio.recording.inner();
-    let (mode, name, channels) = (
-        inner.mode,
-        inner.input_device.clone().unwrap_or_default(),
-        inner.input_channels,
-    );
+    let (mode, name, channels) = {
+        let inner = audio.recording.inner();
+        (
+            inner.mode,
+            inner.input_device.clone().unwrap_or_default(),
+            inner.input_channels,
+        )
+    };
     let audio_channels = match mode {
         FeedMode::Silent => Vec::new(),
         FeedMode::Loopback { .. } => vec![
@@ -492,11 +502,18 @@ pub fn list_inputs(audio: &Arc<AudioShared>) -> Result<InputList, BridgeError> {
             })
             .collect(),
     };
-    let midi = inner.midi.refresh(move |data| {
-        if let Some(a) = weak.upgrade() {
-            a.recording.push_live(data);
-        }
-    });
+    let (midi, gone) = audio
+        .recording
+        .midi
+        .lock()
+        .unwrap_or_else(|p| p.into_inner())
+        .refresh(move |data| {
+            if let Some(a) = weak.upgrade() {
+                a.recording.push_live(data);
+            }
+        });
+    // Closing a connection may join midir's callback thread: never under a lock.
+    drop(gone);
     Ok(InputList {
         audio: audio_channels,
         midi,
@@ -512,20 +529,21 @@ pub fn inject_midi(audio: &AudioShared, data: [u8; 3]) -> bool {
 /// Start capturing a session (controller thread, before engine recording is enabled).
 pub fn start(audio: &AudioShared, session: &RecordSession) -> Result<(), BridgeError> {
     let rec = &audio.recording;
-    let inner = rec.inner();
-    let writer = inner
+    let writer = rec
         .writer
-        .as_ref()
+        .get()
         .ok_or_else(|| BridgeError::Unavailable("the engine has no recording rings".into()))?;
+    // Copy what's needed: the guard is never held across the (blocking) writer calls.
+    let (input_error, root) = {
+        let inner = rec.inner();
+        (inner.input_error.clone(), inner.projects_root.clone())
+    };
     if !session.audio.is_empty()
-        && let Some(e) = &inner.input_error
+        && let Some(e) = input_error
     {
-        return Err(BridgeError::Other(e.clone()));
+        return Err(BridgeError::Other(e));
     }
-    let root = inner
-        .projects_root
-        .clone()
-        .ok_or_else(|| BridgeError::Other("no project folder to record into".into()))?;
+    let root = root.ok_or_else(|| BridgeError::Other("no project folder to record into".into()))?;
     let media_dir = root
         .join(session.project.to_string())
         .join(ether_core::protocol::model::file::MEDIA_DIR);
@@ -548,10 +566,10 @@ pub fn stop(audio: &AudioShared, handle: &EngineHandle) -> Result<RecordedTakes,
     while handle.playhead().recording && Instant::now() < deadline {
         std::thread::sleep(Duration::from_millis(1));
     }
-    let inner = audio.recording.inner();
-    let writer = inner
+    let writer = audio
+        .recording
         .writer
-        .as_ref()
+        .get()
         .ok_or_else(|| BridgeError::Unavailable("the engine has no recording rings".into()))?;
     writer.stop()
 }

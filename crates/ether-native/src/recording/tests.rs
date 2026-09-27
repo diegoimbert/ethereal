@@ -63,7 +63,6 @@ fn rig(backend: AudioBackendKind, input: Option<&str>, root: &std::path::Path) -
     });
     let mut handle = parts.handle;
     let shared = Arc::new(AudioShared::default());
-    attach(&mut handle, &shared);
     shared.recording.set_projects_root(root.to_path_buf());
     let settings = AudioSettings {
         backend,
@@ -74,6 +73,8 @@ fn rig(backend: AudioBackendKind, input: Option<&str>, root: &std::path::Path) -
     let out = AudioOutput::start(Box::new(parts.engine), &settings, shared.clone())
         .map_err(|(e, _)| e)
         .expect("backend starts");
+    // Like `NativeHost::start`: the stream runs before the bridge attaches the rings.
+    attach(&mut handle, &shared);
     let mut gc = parts.gc;
     let gc = std::thread::spawn(move || {
         for _ in 0..400 {
@@ -253,8 +254,14 @@ fn midi_is_monitored_and_recorded_with_compensation() {
             ..Default::default()
         })
         .unwrap();
-    // Let the engine run so the MIDI clock is published.
-    wait_for("engine clock", || rig.handle.playhead().sample_time > 0);
+    // The stream started before `attach`: the engine clock still gets published.
+    wait_for("engine clock", || rig.shared.recording.read_clock().1 > 0);
+    let (_, sample) = rig.shared.recording.read_clock();
+    let engine = rig.handle.playhead().sample_time;
+    assert!(
+        sample.abs_diff(engine) < 48_000,
+        "clock {sample} tracks the engine {engine}"
+    );
     let project = ProjectId::v7(1_750_000_000_000, [7; 10]);
     let s = session(project, vec![], true);
     start(&rig.shared, &s).unwrap();
@@ -336,4 +343,31 @@ fn unavailable_input_fails_the_audio_session_gracefully() {
     // Reconfiguring the input clears the error.
     configure_input(&rig.shared, &AudioSettings::default());
     assert_eq!(rig.shared.recording.input_error(), None);
+}
+
+#[test]
+fn a_silent_input_take_warns() {
+    let tmp = TempDir::new("rec-silent");
+    let mut rig = rig(AudioBackendKind::Offline, Some("loopback:512"), tmp.path());
+    let master = track(1, TrackKind::Master, None);
+    let mut rec = track(3, TrackKind::Audio, Some(master.id));
+    rec.armed = true;
+    rec.audio_input = Some((0, 1));
+    let rec_id = rec.id;
+    rig.handle
+        .publish(RenderGraphDesc {
+            tracks: vec![master, rec],
+            ..Default::default()
+        })
+        .unwrap();
+    let project = ProjectId::v7(1_750_000_000_000, [4; 10]);
+    let target = AudioTarget {
+        track: rec_id,
+        first: 0,
+        count: 1,
+    };
+    // Nothing plays: the loopback delivers digital silence, like a denied microphone.
+    let takes = record(&mut rig, &session(project, vec![target], false), 3.0);
+    assert_eq!(takes.audio.len(), 1);
+    assert_eq!(takes.warnings, vec![writer::SILENT_INPUT.to_string()]);
 }

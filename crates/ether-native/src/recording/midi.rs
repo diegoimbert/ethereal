@@ -15,22 +15,26 @@ pub(super) struct MidiInputs {
 
 impl MidiInputs {
     /// Connect ports that appeared since the last call (and forget vanished ones); returns
-    /// every available port. `on_message` receives short messages (status + up to 2 data
+    /// every available port and the connections of vanished ports (to close). `on_message` receives short messages (status + up to 2 data
     /// bytes) on midir's thread.
     pub fn refresh(
         &mut self,
         on_message: impl Fn([u8; 3]) + Send + Sync + 'static,
-    ) -> Vec<MidiPort> {
+    ) -> (Vec<MidiPort>, Vec<MidiInputConnection<()>>) {
         let Ok(probe) = MidiInput::new(CLIENT) else {
-            return Vec::new();
+            return (Vec::new(), Vec::new());
         };
         let ports: Vec<(String, midir::MidiInputPort)> = probe
             .ports()
             .into_iter()
             .filter_map(|p| Some((probe.port_name(&p).ok()?, p)))
             .collect();
-        self.connections
-            .retain(|(name, _)| ports.iter().any(|(n, _)| n == name));
+        // Vanished ports: returned to the caller, which closes them outside any lock.
+        let (keep, gone): (Vec<_>, Vec<_>) = std::mem::take(&mut self.connections)
+            .into_iter()
+            .partition(|(name, _)| ports.iter().any(|(n, _)| n == name));
+        self.connections = keep;
+        let gone = gone.into_iter().map(|(_, c)| c).collect();
         let on_message = Arc::new(on_message);
         for (name, port) in &ports {
             if self.connections.iter().any(|(n, _)| n == name) {
@@ -55,13 +59,14 @@ impl MidiInputs {
                 Err(e) => tracing::warn!(port = %name, error = %e, "could not open MIDI input"),
             }
         }
-        ports
+        let ports = ports
             .into_iter()
             .map(|(name, _)| MidiPort {
                 id: name.clone(),
                 name,
             })
-            .collect()
+            .collect();
+        (ports, gone)
     }
 }
 
