@@ -432,15 +432,30 @@ tables with field-level `Update`s, client-chosen ids, patches before replies.
   Project | Custom, format { Wav | Flac, Int16 | Int24 | Float32 (not FLAC), sample_rate },
   mode: Mix | Stems { tracks }, normalize, tail_seconds, name }`.
 - Rendering uses `ether_core::offline::OfflineRenderer` (a private engine on the controller
-  thread) with fresh nodes, never the live ones. The metronome is never rendered. Stems are
-  one pass per track: that track's post-fader output into master, sends included, master
-  chain excluded.
+  thread) with fresh nodes, never the live ones, stepped a bounded unit of work at a time
+  from the controller tick. The metronome and count-in are never rendered
+  (`OfflineRenderer::publish` forces them off), looping and inputs are off, and the graph
+  latency is dropped at the start. The result equals a live render of the same project
+  sample-exactly when both engines use the same block size; automation and tempo ramps are
+  evaluated per block, so other block sizes differ slightly.
+- Stems are one pass per listed track: that track's post-fader output (chain, fader, pan)
+  goes straight into master, and its sends feed the returns (return processing included).
+  Every other source is silent. The master chain is excluded (master fader and pan are
+  kept). Solo is ignored, and a muted track is unmuted for its own stem. A child of a group
+  bypasses the group's processing in its own stem, while a group's stem includes its
+  children through the group. A return's stem is everything sent to it. Selecting a track
+  together with its group, or with a return it sends to, puts that audio in both files.
+  Sidechain sources on other tracks are silent. Stems therefore sum to the mix only with
+  neutral master devices, neutral groups, linear returns and no sidechains.
+- Files: a name already in `exports/` gets a ` (2)`, ` (3)`, ... suffix (never overwritten).
 - No UI paths: `ProjectStore::write_export` writes `<project>/exports/<file>` natively
   (`ExportResult::Files`, project relative); where it returns `Unsupported` (web, remote)
   the result is `Download` tokens read with `Export::ReadChunk` →
   `ReplyValue::Bytes` (base64, or binary frames over WebSocket) and dropped by `Release`.
-- Plugins offline: `EngineBridge::create_offline_plugin` (defaulted `Unsupported`, which
-  bypasses the plugin with a warning).
+- Plugins offline: `EngineBridge::create_offline_plugin` (a fresh instance with the current
+  state; defaulted `Unsupported`). If a plugin can't be instantiated offline the export
+  fails with an error naming it; plugins are never skipped. Disabled plugin devices are not
+  instantiated. Notifications from offline instances never reach the document.
 
 ### 11.2 New built-in devices
 `BuiltinDevice::{Eq, Reverb, Limiter, Utility, DrumRack}`. `BuiltinDeviceType::ALL` is the

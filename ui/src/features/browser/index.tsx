@@ -8,6 +8,7 @@ import "./browser.css";
 import clsx from "clsx";
 import { useEffect, useState, type DragEvent, type KeyboardEvent } from "react";
 import type { BrowseLocation, BrowseRoot, DirectoryEntry, MediaSource } from "@/generated";
+import { useUploadDrop } from "@/features/remote";
 import { useEngineCommands, useEngineEvent } from "@/features/transport-bar/engine";
 import { Button } from "@/kit";
 import { useProjectStore } from "@/state";
@@ -122,7 +123,7 @@ export function Browser() {
   const currentRoot = current ? locations?.find((l) => sameLocation(l.location, current.location)) : undefined;
 
   return (
-    <div className="eth-browser" data-feature="browser">
+    <div className="eth-browser" data-feature="browser" {...useUploadDrop()}>
       <div className="eth-browser__locations" role="tablist" aria-label="Locations">
         {(locations ?? []).map((root) => {
           const selected = !!current && sameLocation(root.location, current.location);
