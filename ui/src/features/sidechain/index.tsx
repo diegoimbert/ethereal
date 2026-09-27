@@ -9,8 +9,6 @@ import { useProject } from "@/state";
 import { cmd } from "@/transport";
 import { sidechainSources } from "./routing";
 
-export { sidechainSources } from "./routing";
-
 export interface SidechainSelectorProps {
   device: Device;
 }
