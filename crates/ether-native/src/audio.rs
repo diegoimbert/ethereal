@@ -71,6 +71,8 @@ pub struct AudioSettings {
     pub host: Option<String>,
     /// Output device name; `None` = default device.
     pub output_device: Option<String>,
+    /// Input device name (`None` = no input; `loopback[:<samples>]` = test loopback).
+    pub input_device: Option<String>,
     /// Requested sample rate; `None` = device default (48 kHz for null/offline).
     pub sample_rate: Option<u32>,
     /// Requested device buffer size in frames; `None` = device default (the engine block
@@ -87,6 +89,7 @@ impl Default for AudioSettings {
             backend: AudioBackendKind::Cpal,
             host: None,
             output_device: None,
+            input_device: None,
             sample_rate: None,
             buffer_size: None,
             max_block_size: 1024,
@@ -100,7 +103,7 @@ impl AudioSettings {
             backend: Some(self.backend.name().to_string()),
             host: self.host.clone(),
             output_device: self.output_device.clone(),
-            input_device: None,
+            input_device: self.input_device.clone(),
             sample_rate: self.sample_rate,
             buffer_size: self.buffer_size,
         }
@@ -118,6 +121,9 @@ impl AudioSettings {
         }
         if c.output_device.is_some() {
             s.output_device = c.output_device.clone();
+        }
+        if c.input_device.is_some() {
+            s.input_device = c.input_device.clone().filter(|d| !d.is_empty());
         }
         if c.sample_rate.is_some() {
             s.sample_rate = c.sample_rate;
@@ -320,7 +326,7 @@ pub fn list_devices(current: &AudioSettings) -> AudioDeviceList {
             .map(|h| h.name().to_string())
             .collect(),
         outputs,
-        inputs: Vec::new(),
+        inputs: crate::recording::list_input_devices(current),
         current: current.to_protocol(),
     }
 }
@@ -350,6 +356,7 @@ impl AudioOutput {
         shared: Arc<AudioShared>,
     ) -> Result<Self, (AudioError, Box<Engine>)> {
         let (back_tx, back_rx) = unbounded();
+        crate::recording::configure_input(&shared, settings);
         let renderer = RtRenderer::new(engine, shared.clone(), back_tx);
         let result = match settings.backend {
             AudioBackendKind::Cpal => start_cpal(renderer, settings, shared.clone()),
@@ -447,6 +454,7 @@ fn start_cpal(
     let thread = std::thread::Builder::new()
         .name("ether-audio-cpal".into())
         .spawn(move || {
+            let _input = crate::recording::open_input(&settings, &shared);
             let stream = match build_cpal(renderer, &settings, shared.clone()) {
                 Ok((stream, info)) => {
                     let _ = ready_tx.send(Ok(info));
@@ -525,11 +533,13 @@ where
 {
     let channels = config.channels as usize;
     let mut poisoned = false;
+    let timing = shared.clone();
     device
         .build_output_stream::<T, _, _>(
             config,
-            move |data: &mut [T], _info| {
+            move |data: &mut [T], info| {
                 enable_flush_denormals();
+                crate::recording::output_timing(&timing, info);
                 if poisoned {
                     data.fill(T::EQUILIBRIUM);
                     return;

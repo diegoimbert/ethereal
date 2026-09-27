@@ -44,7 +44,7 @@ pub mod offline;
 pub mod parallel;
 pub mod param;
 pub mod plugin;
-mod recording;
+pub mod recording;
 mod sched;
 pub mod tempo;
 pub mod transport;

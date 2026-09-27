@@ -21,7 +21,8 @@
 //! - **Idempotent creates.** Creating an entity whose (client-chosen) id already exists is
 //!   a successful no-op.
 //! - **Unsupported.** Host-handled commands (`Engine::*`, `Plugin::{Rescan, List, OpenEditor,
-//!   CloseEditor}`), media preview/upload and `Recording::ListInputs` reply `Unsupported`.
+//!   CloseEditor}`) and media preview/upload reply `Unsupported`; `Recording::ListInputs` and
+//!   record sessions go to the bridge (`EngineBridge::{list_inputs, start_recording, ...}`).
 //! - **Async media.** Import copies the file and probes its header in `handle` (the reply
 //!   carries the `MediaRef`); decoding, peaks and resampling are stepped from `tick`.
 //! - **Engine sample rate.** Media is resampled to [`ControllerConfig::engine_sample_rate`];
@@ -62,6 +63,7 @@ use ether_core::{EngineOutputs, NodeKey, ParamChange, RenderGraphDesc, Transport
 
 pub use compile::{CompileContext, compile_graph_with};
 pub use media::hash::content_hash;
+pub use recording::{AudioTake, AudioTarget, RecordSession, RecordedMidi, RecordedTakes};
 
 /// Lowest volume/send level: `Decibels::SILENCE` (treated as -inf).
 pub const SILENCE_DB: f32 = ether_core::protocol::model::Decibels::SILENCE.0;
@@ -191,6 +193,30 @@ pub trait EngineBridge {
         Ok(None)
     }
 
+    /// Hardware inputs for `RecordingCommand::ListInputs` (native). Default: unsupported (web).
+    fn list_inputs(&mut self) -> Result<ether_core::protocol::recording::InputList, BridgeError> {
+        Err(BridgeError::Unsupported(
+            "input listing is not available on this host".into(),
+        ))
+    }
+
+    /// Start capturing armed tracks' input into take files under the project's `media/` (the
+    /// controller then enables engine recording). Default: unsupported (nothing is captured).
+    fn start_recording(&mut self, session: &RecordSession) -> Result<(), BridgeError> {
+        let _ = session;
+        Err(BridgeError::Unsupported(
+            "recording is not available on this host".into(),
+        ))
+    }
+
+    /// Finish the capture (after engine recording was disabled): close the files and return
+    /// the latency-compensated takes and MIDI. Default: unsupported.
+    fn stop_recording(&mut self) -> Result<RecordedTakes, BridgeError> {
+        Err(BridgeError::Unsupported(
+            "recording is not available on this host".into(),
+        ))
+    }
+
     /// Current plain values of a plugin device's params, read after instantiation (state
     /// load) to mirror them into the document. Hosts without plugins keep the default.
     fn plugin_param_values(&mut self, device: DeviceId) -> Vec<(ParamId, f64)> {
@@ -286,6 +312,8 @@ where
     transport: TransportRt,
     /// Record-armed tracks (runtime state, not undoable).
     armed: std::collections::BTreeSet<ether_core::protocol::model::TrackId>,
+    /// Punch flag and the active record session.
+    recording: recording::RecordingState,
     /// Open plugin-GUI gestures → internal gesture ids.
     plugin_gestures: BTreeMap<(DeviceId, ParamId), GestureId>,
     /// Plugin runtime bookkeeping (param mirroring after load; `plugins` module).
@@ -329,6 +357,7 @@ where
             media: media::MediaState::default(),
             transport: TransportRt::default(),
             armed: Default::default(),
+            recording: Default::default(),
             plugin_gestures: BTreeMap::new(),
             plugins: Default::default(),
             // Internal gestures (plugin GUI, tap tempo) live in the upper half of the id

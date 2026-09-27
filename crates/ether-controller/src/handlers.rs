@@ -14,7 +14,7 @@ use ether_core::protocol::model::file::MEDIA_DIR;
 use ether_core::protocol::model::*;
 use ether_core::protocol::plugins::{PluginCommand, PluginEvent};
 use ether_core::protocol::project::{EditCommand, ProjectEvent};
-use ether_core::protocol::recording::{RecordingCommand, RecordingEvent};
+use ether_core::protocol::recording::RecordingEvent;
 use ether_core::protocol::transport::{PlayheadUpdate, TransportCommand, TransportState};
 use ether_core::protocol::warp::WarpCommand;
 use ether_core::protocol::{
@@ -126,7 +126,7 @@ where
             Command::Device(DeviceCommand::GetDescriptor { device }) => {
                 self.get_descriptor(*device)
             }
-            Command::Recording(r) => self.recording_command(r, out),
+            Command::Recording(r) => self.recording_command(r, now, out),
             Command::Plugin(p) => self.plugin_command(p, msg.gesture, now, out),
             Command::Warp(WarpCommand::DetectTempo { clip }) => self.detect_tempo(*clip),
             Command::Media(m) => self.media_command(m, msg.gesture, now, out),
@@ -334,10 +334,10 @@ where
     ) -> CmdResult<ReplyValue> {
         match c {
             TransportCommand::Play => self.play()?,
-            TransportCommand::Stop => self.stop()?,
+            TransportCommand::Stop => self.transport_stop(now, out)?,
             TransportCommand::TogglePlay => {
                 if self.transport.playing {
-                    self.stop()?
+                    self.transport_stop(now, out)?
                 } else {
                     self.play()?
                 }
@@ -366,7 +366,7 @@ where
         Ok(())
     }
 
-    fn stop(&mut self) -> CmdResult<()> {
+    pub(crate) fn stop(&mut self) -> CmdResult<()> {
         if self.transport.playing {
             self.engine_transport(TransportControl::Stop)?;
             self.transport.playing = false;
@@ -444,53 +444,6 @@ where
         {
             self.last_transport = Some(state.clone());
             event(out, Event::Transport { state });
-        }
-    }
-
-    // ─── Recording ──────────────────────────────────────────────────────────────────────
-
-    fn recording_command(
-        &mut self,
-        c: &RecordingCommand,
-        out: &mut dyn MessageSink,
-    ) -> CmdResult<ReplyValue> {
-        match c {
-            RecordingCommand::Arm {
-                track,
-                armed,
-                exclusive,
-            } => {
-                let doc = self.doc.as_ref().ok_or_else(no_project)?;
-                if !doc.project.tracks.contains_key(track) {
-                    return Err(not_found(format!("track {track}")));
-                }
-                let before = self.armed.clone();
-                if *armed {
-                    if *exclusive {
-                        self.armed.clear();
-                    }
-                    self.armed.insert(*track);
-                } else {
-                    self.armed.remove(track);
-                }
-                if self.armed != before {
-                    self.engine.graph_dirty = true;
-                    self.emit_armed(out);
-                }
-                Ok(ReplyValue::Unit)
-            }
-            RecordingCommand::SetRecording { enabled } => {
-                self.engine_transport(TransportControl::SetRecording { enabled: *enabled })?;
-                self.transport.recording = *enabled;
-                if *enabled && !self.transport.playing {
-                    self.play()?;
-                }
-                Ok(ReplyValue::Unit)
-            }
-            RecordingCommand::ListInputs => {
-                Err(unsupported("input listing is not available on this host"))
-            }
-            other => Err(internal(format!("unhandled recording command {other:?}"))),
         }
     }
 
