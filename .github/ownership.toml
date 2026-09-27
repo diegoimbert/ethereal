@@ -728,6 +728,17 @@ paths = [
   "apps/web/e2e/collab-stream*.spec.ts",
 ]
 
+[nodes.turn-hardening]
+# Follow-up to stream-host (docs/COLLAB.md §10 known limitations): per-username verified cap,
+# counting real nonce inserts, rotation-decision tests. TURN stays experimental until merged.
+paths = [
+  "crates/ether-collab/src/relay/ice/turn.rs",
+  "crates/ether-collab/src/relay/ice/turn/**",
+  "crates/ether-collab/tests/turn*.rs",
+  # shared touch: lift the "known limitations" + experimental notice once fixed
+  "docs/COLLAB.md",
+]
+
 [nodes.plugin-mirror]
 # Later (after stream-host / stream-listen).
 paths = [
@@ -1023,6 +1034,13 @@ paths = [
 
 [nodes.comping]
 paths = [
+  # BCR-2 (base-77): TakeCommand::Audition (runtime, site-local, like DrumRack::SetPadSolo):
+  # the variant + regenerated TS, one CONTRACTS §12.2 line, DocHost::set_audition (default no-op),
+  # engine.rs `audition` field + set_audition impl + one apply_audition call after apply_solo
+  "crates/ether-protocol/src/takes.rs",
+  "crates/ether-controller/src/doc/mod.rs",
+  "crates/ether-controller/src/engine.rs",
+  "docs/CONTRACTS.md",
   # BCR (base-75): overlap trimming per lane (1 line), mock overlap + take cascade on track delete,
   # arrangement hides lane clips from the main row, MIDI loop-pass index in the native recording writer
   "crates/ether-controller/src/doc/clips.rs",
@@ -1198,6 +1216,11 @@ paths = [
 [nodes.collab-social]
 # base-62: chat, pinned notes, peer playheads, "hide users and notes" (docs/COLLAB.md §12).
 paths = [
+  # BCR (base-78): mock Chat routing with the session + untracked (non-undoable) apply
+  "ui/src/transport/mock/MockTransport.ts",
+  "ui/src/transport/mock/roadmap/host.ts",
+  # BCR (base-78): optional `menuItems` prop on the ruler context menu ("Leave a note")
+  "ui/src/timeline/Ruler.tsx",
   "crates/ether-controller/src/social/**",
   "crates/ether-controller/tests/social*.rs",
   "ui/src/features/collab/social/**",

@@ -9,6 +9,7 @@ import { useClipEditors } from "@/features/collab/presence/editors";
 import { useEditorStore, useNotesOfClip, useProjectStore, warpMarkersOfClip } from "@/state";
 import { useIsSelected, type TempoMap, type TimelineViewport } from "@/timeline";
 import { openContextMenu, useThemeColor } from "@/kit";
+import { withFreezeClipEntries } from "@/features/freeze";
 import { clipMenu } from "./actions";
 import { onClipPointerDown } from "./clipDrag";
 import { drawNotes, drawWaveform, noteRects, pitchRange, type DrawArea } from "./clipDraw";
@@ -76,7 +77,7 @@ export const ClipView = memo(function ClipView({ clip, bounds, trackColor, vp, v
       aria-label={ghost ? undefined : clip.name || "Clip"}
       aria-pressed={ghost ? undefined : selected}
       onPointerDown={ghost ? undefined : (e) => onClipPointerDown(e, clip, ctx)}
-      onContextMenu={ghost ? undefined : (e) => openContextMenu(e, withClipEditingEntries(clipMenu(ctx.transport, clip), ctx.transport, clip))}
+      onContextMenu={ghost ? undefined : (e) => openContextMenu(e, withFreezeClipEntries(withClipEditingEntries(clipMenu(ctx.transport, clip), ctx.transport, clip), ctx.transport, clip))}
       onDoubleClick={
         ghost
           ? undefined
