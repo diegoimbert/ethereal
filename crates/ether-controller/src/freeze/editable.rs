@@ -55,18 +55,9 @@ fn domain(command: &Command) -> Option<Tracks> {
             W::DetectTempo { .. } => return None,
             _ => Tracks::Ignore,
         },
-        Command::Groove(c) => match c {
-            G::Humanize { .. } => Tracks::Ignore,
-            _ => return None,
-        },
-        Command::Preset(c) => match c {
-            P::Load { .. } => Tracks::Ignore,
-            _ => return None,
-        },
-        Command::Recording(c) => match c {
-            R::Arm { .. } => Tracks::Field,
-            _ => return None,
-        },
+        Command::Groove(G::Humanize { .. }) => Tracks::Ignore,
+        Command::Preset(P::Load { .. }) => Tracks::Ignore,
+        Command::Recording(R::Arm { .. }) => Tracks::Field,
         Command::TimeEdit(_) => Tracks::Selection,
         _ => return None,
     })
