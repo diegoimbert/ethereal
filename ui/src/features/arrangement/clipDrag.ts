@@ -17,6 +17,7 @@ import { itemSelection, resolveGrid, selectModeFromEvent, snapToGrid, TempoMap }
 import { newId, type EngineTransport } from "@/transport";
 import { setDragCursor } from "@/kit";
 import { clipSourceMapper } from "@/features/warp/warpMap";
+import { setActivity } from "@/features/collab/presence/local";
 import { isArrangementClip, mediaLengthInBeats, startOf } from "./clipTime";
 import { locateIfStopped } from "./actions";
 import { sendEdit, type ArrangementContextValue } from "./context";
@@ -121,6 +122,11 @@ export function onClipPointerDown(
   const move = (ev: PointerEvent) => {
     pointer = { x: ev.clientX, y: ev.clientY };
     if (!active && Math.hypot(pointer.x - startX, pointer.y - startY) < DRAG_THRESHOLD_PX) return;
+    if (!active) {
+      // presence-v2: "Ada · dragging" for the peers, cleared in `done`.
+      const target = clips.length > 1 ? ({ type: "Selection" } as const) : ({ type: "Clip", clip: clip.id } as const);
+      setActivity({ kind: mode === "move" ? "Dragging" : "Resizing", target });
+    }
     active = true;
     update(ev);
   };
@@ -153,6 +159,7 @@ export function onClipPointerDown(
 
   const done = () => {
     setDragCursor(null);
+    if (active) setActivity(null);
     window.removeEventListener("pointermove", move);
     window.removeEventListener("pointerup", up);
     window.removeEventListener("pointercancel", cancel);

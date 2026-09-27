@@ -23,6 +23,7 @@ import {
   visibleRange,
 } from "@/timeline";
 import { useAutomationHeight } from "@/features/automation";
+import { PresenceLayer } from "@/features/collab/presence";
 import { TransportContext, useTransport, useTransportEvent } from "@/transport";
 import { actionForKey, bindSingleSelection, locateIfStopped, newTrackMenu, runClipAction } from "./actions";
 import { dropBrowserMedia, hasBrowserDrag, readBrowserDrag } from "./browserDrop";
@@ -313,6 +314,8 @@ function ConnectedArrangementView() {
           </div>
         )}
         <HeaderColumnResizer />
+        {/* presence-v2: peers' live pointers, pointer/viewport publishing, follow mode */}
+        <PresenceLayer rootRef={rootRef} scrollRef={scrollRef} rows={rows} masterRow={masterRow} />
       </div>
     </ArrangementContext.Provider>
   );
