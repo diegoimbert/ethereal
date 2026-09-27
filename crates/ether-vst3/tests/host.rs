@@ -193,7 +193,8 @@ fn instrument_descriptor_and_params() {
     assert_eq!((params[0].id, params[0].default), (LEVEL, 1.0));
     assert_eq!((params[1].id, params[1].unit), (INVERT, ParamUnit::Toggle));
     assert!(!plugin.has_editor());
-    assert!(matches!(plugin.open_editor(), Err(PluginError::NoEditor)));
+    // NoEditor (or, off the main thread on macOS, "must be opened on the main thread").
+    assert!(plugin.open_editor().is_err());
 }
 
 #[test]
@@ -459,9 +460,10 @@ fn state_round_trip() {
 #[test]
 fn editor_needs_the_main_thread() {
     let mut plugin = effect();
-    // Test threads are not the process main thread: AppKit windows can't be created.
+    // Test threads are not the process main thread: the editor is neither probed
+    // (`createView` is main-thread only) nor opened there.
     if cfg!(target_os = "macos") {
-        assert!(plugin.has_editor());
+        assert!(!plugin.has_editor());
         let e = plugin.open_editor().unwrap_err();
         assert!(matches!(e, PluginError::Load(_)), "{e:?}");
     } else {
@@ -470,4 +472,49 @@ fn editor_needs_the_main_thread() {
     }
     plugin.close_editor();
     assert!(poll(&mut plugin).is_empty());
+}
+
+#[test]
+fn failing_process_faults_the_node() {
+    let mut plugin = instrument();
+    let mut node = plugin.activate(&config()).unwrap();
+    let mut h = Harness::new(0.0);
+    let note = |key| {
+        [ProcessEvent {
+            offset: 0,
+            kind: EventKind::NoteOn {
+                note_id: 1,
+                channel: 0,
+                key,
+                velocity: 1.0,
+            },
+        }]
+    };
+    // The fixture instrument fails `process` on a note with key 127.
+    let bad = note(127);
+    let status = assert_no_alloc(|| h.run(node.as_mut(), &bad));
+    assert_eq!(status, ProcessStatus::Silent);
+    assert!(node.is_faulted());
+    assert!(matches!(
+        poll(&mut plugin).as_slice(),
+        [PluginNotification::Crashed { .. }]
+    ));
+    assert!(poll(&mut plugin).is_empty()); // reported once
+    // A faulted node stays silent.
+    h.run(node.as_mut(), &note(60));
+    assert!(h.out_l.iter().all(|s| *s == 0.0));
+    plugin.deactivate(node);
+}
+
+#[test]
+fn node_keeps_the_module_alive_after_the_controller_is_dropped() {
+    let mut plugin = effect();
+    let mut node = plugin.activate(&config()).unwrap();
+    // The controller goes away first: the node's processor must still point into a loaded
+    // library. (The fixture also aborts at module exit if any of its objects leaked.)
+    drop(plugin);
+    let mut h = Harness::new(1.0);
+    h.run(node.as_mut(), &[]);
+    assert_eq!(h.out_l[0], 1.0);
+    drop(node);
 }
