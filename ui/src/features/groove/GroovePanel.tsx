@@ -12,21 +12,25 @@ import "./groove.css";
 const GRID_OPTIONS = SWING_GRIDS.map((g) => ({ value: g.value, label: g.label }));
 
 export function GroovePanel() {
-  const transport = useTransport();
   const swing = useProjectStore((s) => s.project?.settings.swing ?? null);
   const swingGrid = useProjectStore((s) => s.project?.settings.swing_grid ?? null);
   if (swing === null || swingGrid === null) {
     return (
-      <div className="eth-groove eth-groove--empty" data-testid="groove-panel">
+      <div className="eth-groove eth-groove--empty" data-feature="groove" data-testid="groove-panel">
         No project open.
       </div>
     );
   }
+  return <SwingControls swing={swing} swingGrid={swingGrid} />;
+}
+
+function SwingControls({ swing, swingGrid }: { swing: number; swingGrid: number }) {
+  const transport = useTransport();
   const set = (amount: number, grid: number) => {
     transport.send(setSwingCommand(amount, grid)).catch((e: unknown) => console.warn("[groove] SetSwing failed:", e));
   };
   return (
-    <div className="eth-groove" data-testid="groove-panel">
+    <div className="eth-groove" data-feature="groove" data-testid="groove-panel">
       <label className="eth-groove__field">
         <span className="eth-groove__label">Swing</span>
         <NumberField
