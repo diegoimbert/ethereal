@@ -201,6 +201,16 @@ pub(crate) fn run_loop_for(d: Duration) {
     CFRunLoop::run_in_mode(mode, d.as_secs_f64(), true);
 }
 
+/// Handle whatever is pending on this thread's run loop without waiting, unless the run
+/// loop is already running further up the stack (then it is serviced anyway, and running it
+/// re-entrantly could re-enter the host).
+pub(crate) fn service_idle_run_loop() {
+    let running = CFRunLoop::current().is_some_and(|rl| rl.current_mode().is_some());
+    if !running {
+        run_loop_for(Duration::ZERO);
+    }
+}
+
 fn ns_error(e: &NSError) -> String {
     e.localizedDescription().to_string()
 }

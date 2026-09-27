@@ -4,7 +4,9 @@
 //! block, schedule-parameter/MIDI blocks (copied once), the pull-input block and the
 //! host-context blocks (created once; they read [`RtState`] through a raw pointer), and the
 //! output `AudioBufferList` + buffers. `process` then only fills buffers, invokes blocks
-//! and copies: no Rust allocation and no Objective-C message sends on the audio thread.
+//! and copies: no Rust allocation and no Objective-C message sends on the audio thread
+//! (`reset`, which the AU API allows on the render thread, goes through the method's
+//! implementation pointer looked up at activation, bypassing dynamic dispatch).
 //!
 //! Engine events become render events: `Param` → `scheduleParameterBlock`
 //! (`AUEventSampleTimeImmediate + offset`, sample accurate), notes/MIDI →
@@ -25,7 +27,8 @@ use ether_core::protocol::devices::DeviceDescriptor;
 use ether_core::protocol::model::ParamId;
 use ether_core::transport::TransportInfo;
 use objc2::rc::Retained;
-use objc2::runtime::Bool;
+use objc2::runtime::{AnyObject, Bool, Imp, Sel};
+use objc2::sel;
 use objc2_audio_toolbox::{
     AUAudioUnit, AUEventSampleTimeImmediate, AUHostTransportStateFlags, AudioUnitRenderActionFlags,
 };
@@ -185,6 +188,16 @@ pub(crate) struct AuNode {
     sample_rate: f64,
     sample_time: f64,
     errors: u32,
+    reset_imp: Option<ResetImp>,
+}
+
+type ResetImp = unsafe extern "C-unwind" fn(*mut AnyObject, Sel);
+
+/// The implementation of `-reset` for `au`'s class.
+fn reset_imp(au: &AUAudioUnit) -> Option<ResetImp> {
+    let method = au.class().instance_method(sel!(reset))?;
+    // SAFETY: `reset` has the signature `-(void)reset`, i.e. `fn(self, _cmd)`.
+    Some(unsafe { std::mem::transmute::<Imp, ResetImp>(method.implementation()) })
 }
 
 // SAFETY: the node is created on the main thread and then used by exactly one thread at a
@@ -451,6 +464,7 @@ impl AuNode {
             .collect();
         values.sort_by_key(|v| v.id);
         let pending_cap = values.len().max(16);
+        let reset_imp = reset_imp(&au);
         Self {
             render,
             pull: parts.pull,
@@ -473,6 +487,7 @@ impl AuNode {
             sample_rate,
             sample_time: 0.0,
             errors: 0,
+            reset_imp,
         }
     }
 
@@ -559,10 +574,14 @@ impl Node for AuNode {
     }
 
     fn reset(&mut self) {
-        // `reset` is documented as callable from the render context for AUAudioUnit;
-        // it clears delay lines / voices.
-        // SAFETY: plain message send, no allocation in Apple's implementation path we rely on.
-        unsafe { self.au.reset() };
+        // `-[AUAudioUnit reset]` "may be invoked on a render thread": clears delay lines,
+        // voices. Called through its cached IMP (no message dispatch / encoding checks).
+        if let Some(imp) = self.reset_imp {
+            let obj = Retained::as_ptr(&self.au) as *mut AnyObject;
+            // SAFETY: `imp` is the implementation of `reset` for the unit's class (looked up
+            // at creation); `reset` takes no arguments and returns void.
+            unsafe { imp(obj, sel!(reset)) };
+        }
     }
 
     fn process(

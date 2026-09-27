@@ -504,6 +504,10 @@ impl PluginController for AuPlugin {
     }
 
     fn poll(&mut self, out: &mut Vec<PluginNotification>) {
+        // Hosts without a running run loop on the plugin main thread (the sandbox helper,
+        // tests) still get AU work delivered to it (observers, main-queue callbacks). Never
+        // re-entered when a run loop is already running (the app's main thread).
+        super::service_idle_run_loop();
         if let Ok(mut q) = self.observed.queue.lock() {
             out.extend(q.drain(..));
         }

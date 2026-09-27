@@ -165,7 +165,7 @@ fn params_are_mapped_stably() {
 }
 
 #[test]
-fn delay_alters_signal_with_sample_accurate_params() {
+fn delay_alters_signal_and_applies_scheduled_params() {
     let mut plugin = load(DELAY);
     let mut node = plugin.activate(&config()).expect("activate");
     assert_eq!(node.channels(), (2, 2));
@@ -187,6 +187,8 @@ fn delay_alters_signal_with_sample_accurate_params() {
     assert!((h.output[0][0] - 1.0).abs() < 0.05);
     assert!(!node.is_faulted());
     assert!((node.param(WET_DRY).unwrap()).abs() < 1e-9);
+    // RT-safe reset (cached IMP), no allocation.
+    assert_no_alloc(|| node.reset());
     plugin.deactivate(node);
 
     // Re-activation works.
@@ -338,6 +340,24 @@ fn editor_needs_main_thread() {
     // that the unit has no custom view), never crash.
     assert!(plugin.open_editor().is_err());
     plugin.close_editor();
+}
+
+#[test]
+fn latency_is_reported() {
+    // AUPeakLimiter looks ahead (its attack time): non-zero latency at the engine rate.
+    let mut plugin = load("aufx:lmtr:appl");
+    let node = plugin.activate(&config()).expect("activate");
+    let latency = node.latency();
+    assert!(latency > 0 && latency < SR as u32, "{latency}");
+    let mut notes = Vec::new();
+    plugin.poll(&mut notes);
+    assert!(
+        !notes
+            .iter()
+            .any(|n| matches!(n, PluginNotification::LatencyChanged { .. })),
+        "steady latency is not re-announced: {notes:?}"
+    );
+    plugin.deactivate(node);
 }
 
 #[test]
