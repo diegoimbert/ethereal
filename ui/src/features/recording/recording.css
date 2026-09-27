@@ -93,8 +93,8 @@
 /* Live recording view (live-record): an overlay clip in the lane, never a real clip. */
 .eth-clip--live {
   pointer-events: none;
-  outline: 1px solid var(--eth-color-record);
-  outline-offset: -1px;
+  outline: var(--eth-border-width) solid var(--eth-color-record);
+  outline-offset: calc(-1 * var(--eth-border-width));
 }
 .eth-clip--live .eth-clip__name {
   color: var(--eth-color-record);
