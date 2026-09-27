@@ -184,11 +184,6 @@
   background: color-mix(in srgb, var(--eth-color-selection) 40%, transparent);
 }
 
-body.eth-resizing-rows,
-body.eth-resizing-rows * {
-  cursor: ns-resize !important;
-}
-
 .eth-arr-row__automation {
   flex: 1;
 }

@@ -439,6 +439,10 @@ export const componentTokens = {
     "--input-font-size-lg": v("fs-md"),
   },
   popover: {
+    // Context menu entrance: grows out of the click point.
+    "--context-menu-enter-duration": v("duration-fast"),
+    "--context-menu-enter-ease": v("ease-out"),
+    "--context-menu-enter-scale": "0.92",
     "--popover-bg": v("color-bg-overlay"),
     "--popover-border": v("color-border-light"),
     "--popover-radius": v("radius-md"),

@@ -178,6 +178,39 @@ describe("PianoRoll", () => {
     expect(notesOf(clip)[0]).toMatchObject({ start: 0, duration: 3 });
   });
 
+  it("cmd-drag duplicates the selection to the drop point as one undo step", async () => {
+    const { clip, a, b } = await setup();
+    act(() => itemSelection.getState().select("note", [a, b], "replace"));
+    // Drag note A's body by +2 beats and up 1 row with cmd held.
+    await drag(noteEl(a), [x(1.5), y(60)], [x(3.5), y(61)], { metaKey: true });
+    const all = notesOf(clip);
+    expect(all).toHaveLength(4);
+    expect(all.find((n) => n.id === a)).toMatchObject({ start: 1, pitch: 60 });
+    expect(all.find((n) => n.id === b)).toMatchObject({ start: 2, pitch: 64 });
+    const copies = all.filter((n) => n.id !== a && n.id !== b);
+    expect(copies.map((n) => [n.start, n.pitch])).toEqual([
+      [3, 61],
+      [4, 65],
+    ]);
+    expect(new Set(itemSelection.getState().selected.note)).toEqual(new Set(copies.map((n) => n.id)));
+    await undo();
+    expect(notesOf(clip)).toHaveLength(2);
+  });
+
+  it("keeps the resize (or move) cursor for the whole drag", async () => {
+    const { a } = await setup();
+    const root = document.documentElement;
+    fireEvent.pointerDown(noteEl(a), { button: 0, clientX: x(2) - 1, clientY: y(60) });
+    expect(root.style.getPropertyValue("--eth-drag-cursor")).toBe("ew-resize");
+    expect(root.dataset.dragCursor).toBeDefined();
+    fireEvent.pointerUp(window, { clientX: x(2) - 1, clientY: y(60) });
+    expect(root.dataset.dragCursor).toBeUndefined();
+    fireEvent.pointerDown(noteEl(a), { button: 0, clientX: x(1.5), clientY: y(60) });
+    expect(root.style.getPropertyValue("--eth-drag-cursor")).toBe("move");
+    fireEvent.pointerUp(window, { clientX: x(1.5), clientY: y(60) });
+    await flush();
+  });
+
   it("clicking a note selects it; shift adds; clicking empty space deselects", async () => {
     const { a, b } = await setup();
     await drag(noteEl(a), [x(1.5), y(60)], [x(1.5), y(60)]);

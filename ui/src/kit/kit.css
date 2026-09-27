@@ -436,6 +436,20 @@
 .eth-popover--top-end {
   margin-bottom: var(--eth-space-xs);
 }
+/* Context menu: flies out of the click point (transform-origin is set inline to it). */
+.eth-popover--context {
+  animation: eth-context-menu-in var(--context-menu-enter-duration) var(--context-menu-enter-ease) both;
+}
+@keyframes eth-context-menu-in {
+  from {
+    opacity: 0;
+    transform: scale(var(--context-menu-enter-scale)) translateY(calc(var(--eth-space-sm) * var(--context-menu-dir, 1) * -1));
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
 .eth-menu {
   display: flex;
   flex-direction: column;

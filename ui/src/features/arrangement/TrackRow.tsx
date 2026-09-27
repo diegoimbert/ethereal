@@ -2,7 +2,7 @@ import clsx from "clsx";
 import { memo, useMemo, useState, type CSSProperties, type MouseEvent, type PointerEvent } from "react";
 import type { Clip, ClipId, Track } from "@/generated";
 import { TrackAutomationLanes } from "@/features/automation";
-import { Button, openContextMenu } from "@/kit";
+import { Button, openContextMenu, setDragCursor } from "@/kit";
 import { useProjectStore, useSelectionStore } from "@/state";
 import { useTempoMap, useTimelineView, useViewport, visibleRange } from "@/timeline";
 import { cmd } from "@/transport";
@@ -143,12 +143,12 @@ function ResizeHandle({ row }: { row: Row }) {
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", done);
       window.removeEventListener("pointercancel", done);
-      document.body.classList.remove("eth-resizing-rows");
+      setDragCursor(null);
     };
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", done);
     window.addEventListener("pointercancel", done);
-    document.body.classList.add("eth-resizing-rows");
+    setDragCursor("ns-resize");
   };
   return (
     <div

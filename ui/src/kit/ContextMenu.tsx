@@ -65,6 +65,9 @@ function ContextMenu({ menu }: { menu: OpenMenu }) {
     const y = menu.y + height > window.innerHeight - VIEWPORT_MARGIN ? Math.max(VIEWPORT_MARGIN, menu.y - height) : menu.y;
     el.style.left = `${x}px`;
     el.style.top = `${y}px`;
+    // Grow out of the click point; fly downward, or upward when flipped above it.
+    el.style.transformOrigin = `${menu.x - x}px ${menu.y - y}px`;
+    el.style.setProperty("--context-menu-dir", y < menu.y ? "-1" : "1");
     el.style.visibility = "visible";
   }, [menu]);
 
@@ -79,7 +82,7 @@ function ContextMenu({ menu }: { menu: OpenMenu }) {
   return (
     <div
       ref={ref}
-      className="eth-popover eth-popover--menu"
+      className="eth-popover eth-popover--menu eth-popover--context"
       style={{ left: menu.x, top: menu.y, visibility: "hidden" }}
       onKeyDown={onKeyDown}
       onContextMenu={(e) => e.preventDefault()}

@@ -308,6 +308,9 @@
   --input-height-lg: var(--eth-size-control-lg);
   --input-padding-x-lg: var(--eth-space-md);
   --input-font-size-lg: var(--eth-fs-md);
+  --context-menu-enter-duration: var(--eth-duration-fast);
+  --context-menu-enter-ease: var(--eth-ease-out);
+  --context-menu-enter-scale: 0.92;
   --popover-bg: var(--eth-color-bg-overlay);
   --popover-border: var(--eth-color-border-light);
   --popover-radius: var(--eth-radius-md);

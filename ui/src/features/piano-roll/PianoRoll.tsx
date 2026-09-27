@@ -7,7 +7,8 @@
  *   draw mode (B). Move: drag a note body
  *   (vertical = pitch). Resize: drag either edge. Delete: double-click a note, or
  *   Delete/Backspace. Alt bypasses snapping. Every drag is one undo gesture.
- * - Selection: click / shift / cmd-ctrl, marquee on empty space, cmd-A.
+ * - Selection: click / shift / cmd-ctrl, marquee on empty space, cmd-A. Cmd/ctrl-drag a
+ *   note duplicates the selection (copies follow the pointer).
  * - Keys: arrows nudge (shift = octave), cmd-U quantize, cmd-D duplicate, Esc deselects.
  */
 

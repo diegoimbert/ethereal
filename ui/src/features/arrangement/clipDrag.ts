@@ -15,6 +15,7 @@ import type { Beats, Clip, MediaRef } from "@/generated";
 import { playheadStore, useProjectStore, useSelectionStore, warpMarkersOfClip } from "@/state";
 import { itemSelection, resolveGrid, selectModeFromEvent, snapToGrid, TempoMap } from "@/timeline";
 import { cmd, newId, type EngineTransport } from "@/transport";
+import { setDragCursor } from "@/kit";
 import { clipSourceMapper } from "@/features/warp/warpMap";
 import { isArrangementClip, mediaLengthInBeats, startOf } from "./clipTime";
 import { sendEdit, type ArrangementContextValue } from "./context";
@@ -91,6 +92,7 @@ export function onClipPointerDown(e: ReactPointerEvent<HTMLElement>, clip: Clip,
     const dx = ev.clientX - startX;
     const dy = ev.clientY - startY;
     if (!active && Math.hypot(dx, dy) < DRAG_THRESHOLD_PX) return;
+    if (!active) setDragCursor(mode === "move" ? "grabbing" : "ew-resize");
     active = true;
     copy = mode === "move" && (ev.metaKey || ev.ctrlKey);
     last = dragPreview(
@@ -129,6 +131,7 @@ export function onClipPointerDown(e: ReactPointerEvent<HTMLElement>, clip: Clip,
   };
 
   const done = () => {
+    setDragCursor(null);
     window.removeEventListener("pointermove", move);
     window.removeEventListener("pointerup", up);
     window.removeEventListener("pointercancel", cancel);

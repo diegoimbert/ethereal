@@ -17,6 +17,7 @@ export {
   type ContextMenuEntry,
   type ContextMenuItem,
 } from "./contextMenuStore";
+export { setDragCursor } from "./dragCursor";
 export { Fader, type FaderProps } from "./Fader";
 export {
   NumberField,

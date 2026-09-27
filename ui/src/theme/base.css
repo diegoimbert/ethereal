@@ -62,6 +62,12 @@ textarea {
   color: inherit;
 }
 
+/* While a drag owns the pointer, its cursor wins everywhere (kit `setDragCursor`). */
+html[data-drag-cursor],
+html[data-drag-cursor] * {
+  cursor: var(--eth-drag-cursor) !important;
+}
+
 :focus-visible {
   outline: var(--eth-focus-ring-width) solid var(--eth-color-focus);
   outline-offset: var(--eth-focus-ring-offset);

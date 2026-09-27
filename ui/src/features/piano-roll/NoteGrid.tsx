@@ -7,6 +7,7 @@ import { memo, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent
 import clsx from "clsx";
 import type { Clip, Note, NoteId } from "@/generated";
 import { openContextMenu } from "@/kit";
+import { useProjectStore } from "@/state";
 import {
   beatsToPx,
   createDoublePress,
@@ -100,7 +101,7 @@ export function NoteGrid({ clip, notes, view, vp, widthPx, keyH, tempo, step, ne
           return cmd("Note", { type: "Edit", edits: [noteEdit(spec.id, { duration })] });
         },
       },
-      { initial: add, afterInitial: selectIt, threshold: 3 },
+      { initial: add, afterInitial: selectIt, threshold: 3, cursor: "ew-resize" },
     );
   };
 
@@ -123,15 +124,14 @@ export function NoteGrid({ clip, notes, view, vp, widthPx, keyH, tempo, step, ne
     const sel = itemSelection.getState();
     const mode = selectModeFromEvent(e);
     const wasSelected = sel.selected.note.has(note.id);
-    if (!wasSelected) sel.select("note", [note.id], mode === "remove" ? "replace" : mode);
-    else if (mode === "toggle") {
-      sel.select("note", [note.id], "remove");
-      return;
-    }
+    // Cmd/ctrl: a click toggles the note (on release), a drag duplicates the selection.
+    if (!wasSelected) sel.select("note", [note.id], mode === "remove" || mode === "toggle" ? "add" : mode);
     const box = e.currentTarget.getBoundingClientRect();
     const zone = noteHitZone(e.clientX - box.left, box.width);
     const selected = itemSelection.getState().selected.note;
     const originals = notes.filter((n) => selected.has(n.id));
+    /** Copy ids by original id, once a cmd-drag has duplicated the notes. */
+    let copies: Map<NoteId, NoteId> | null = null;
     startDrag(
       transport,
       e,
@@ -139,18 +139,36 @@ export function NoteGrid({ clip, notes, view, vp, widthPx, keyH, tempo, step, ne
         move: (dx, dy, ev) => {
           const snap = ev.altKey ? null : step;
           const dBeats = dx / vp.pxPerBeat;
-          const edits =
-            zone === "body"
-              ? moveEdits(originals, note, dBeats, -Math.round(dy / keyH), snap, tempo)
-              : resizeEdits(originals, note, zone, dBeats, snap, tempo);
-          return cmd("Note", { type: "Edit", edits });
+          if (zone !== "body") return cmd("Note", { type: "Edit", edits: resizeEdits(originals, note, zone, dBeats, snap, tempo) });
+          const edits = moveEdits(originals, note, dBeats, -Math.round(dy / keyH), snap, tempo);
+          if (!copies && mode === "toggle") {
+            // First move of a cmd-drag: copy the notes to where they are being dragged;
+            // the originals stay put and the copies follow the pointer from here on.
+            copies = new Map(originals.map((n) => [n.id, newId()]));
+            const a = edits.find((x) => x.id === note.id)!;
+            return cmd("Note", {
+              type: "Duplicate",
+              copies: [...copies].map(([from, new_id]) => ({ from, new_id })),
+              offset: (a.start ?? note.start) - note.start,
+              transpose: (a.pitch ?? note.pitch) - note.pitch,
+            });
+          }
+          const ids = copies;
+          return cmd("Note", { type: "Edit", edits: ids ? edits.map((x) => ({ ...x, id: ids.get(x.id)! })) : edits });
         },
         end: (moved) => {
-          // A plain click on an already-selected note selects just that note.
-          if (!moved && wasSelected && mode === "replace") itemSelection.getState().select("note", [note.id], "replace");
+          if (copies) {
+            const project = useProjectStore.getState().project;
+            const created = [...copies.values()].filter((id) => project?.notes[id]);
+            if (created.length) itemSelection.getState().select("note", created, "replace");
+          } else if (!moved && wasSelected) {
+            // A plain click on a selected note selects just it; cmd-click deselects it.
+            if (mode === "replace") itemSelection.getState().select("note", [note.id], "replace");
+            else if (mode === "toggle") itemSelection.getState().select("note", [note.id], "remove");
+          }
         },
       },
-      { threshold: 3 },
+      { threshold: 3, cursor: zone === "body" ? (mode === "toggle" ? "copy" : "move") : "ew-resize" },
     );
   };
 

@@ -1,4 +1,5 @@
 import type { PointerEvent } from "react";
+import { setDragCursor } from "@/kit";
 
 export interface SplitterProps {
   /** "vertical": a column divider dragged left/right; "horizontal": a row divider dragged up/down. */
@@ -33,12 +34,12 @@ export function Splitter({ orientation, size, direction, min, max, onResize, res
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", done);
       window.removeEventListener("pointercancel", done);
-      document.body.style.removeProperty("cursor");
+      setDragCursor(null);
     };
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", done);
     window.addEventListener("pointercancel", done);
-    document.body.style.cursor = cursor;
+    setDragCursor(cursor);
   };
   return (
     <div
