@@ -387,10 +387,10 @@ describe("ArrangementView: clip editing", () => {
     expect(project().clips[dup!.id]).toBeUndefined();
   });
 
-  it("toggles looping from the toolbar", async () => {
+  it("toggles looping with cmd+shift+L", async () => {
     const chords = clipByName("Chords");
     act(() => itemSelection.getState().select("clip", [chords.id]));
-    fireEvent.click(screen.getByRole("button", { name: "Loop" }));
+    fireEvent.keyDown(document.querySelector('[data-feature="arrangement"]')!, { key: "l", metaKey: true, shiftKey: true });
     await flush();
     expect(project().clips[chords.id]!.looping).toEqual({ enabled: true, start: 0, end: 16 });
     expect(clipEl(chords).querySelector(".eth-clip__loop")).toBeTruthy();
