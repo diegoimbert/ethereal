@@ -1,0 +1,46 @@
+/* Listen on a peer: the status badge in the presence bar. Tokens only. */
+:root {
+  --eth-listen-max-width: calc(var(--eth-size-knob-lg) * 8);
+}
+/* Never takes width from the top bar: floats just under the presence bar (right-aligned),
+   bounded and ellipsized. */
+.eth-listen {
+  position: absolute;
+  top: calc(100% + var(--eth-space-sm));
+  right: 0;
+  z-index: calc(var(--eth-z-dialog) - 1);
+  display: inline-flex;
+  max-width: var(--eth-listen-max-width);
+  box-shadow: var(--eth-shadow-md);
+  align-items: center;
+  gap: var(--eth-space-sm);
+  padding-inline-start: var(--eth-space-sm);
+  border-radius: var(--eth-radius-pill);
+  background: var(--eth-color-accent-subtle);
+  color: var(--eth-color-text);
+  font-size: var(--eth-fs-xs);
+}
+.eth-listen--ended {
+  background: var(--eth-color-bg-raised);
+  color: var(--eth-color-text-dim);
+}
+.eth-listen__text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.eth-listen__icon {
+  flex: none;
+  width: var(--eth-size-icon-sm);
+  height: var(--eth-size-icon-sm);
+  fill: currentColor;
+}
+.eth-listen__action,
+.eth-listen__reason {
+  margin-inline-start: auto;
+}
+.eth-listen__reason {
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+}

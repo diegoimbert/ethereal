@@ -21,6 +21,7 @@ import type {
   CollabStatus,
   Command,
   ListenerLink,
+  ListenState,
   Presence,
   PresenceState,
   ReplyValue,
@@ -56,6 +57,9 @@ const emptyPresence = (): PresenceState => ({
 export class MockCollab {
   private status: CollabStatus = { type: "Offline" };
   private peers = new Map<string, Presence>();
+  /** stream-listen: this site's listening state. */
+  private listening: ListenState = { type: "Off" };
+  private nextStream = 0;
   /** This site's last published presence. */
   presence: PresenceState = emptyPresence();
   /** Hosting policy (`SetHosting`; defaults of a session). */
@@ -80,6 +84,10 @@ export class MockCollab {
         this.emitAll();
         return UNIT;
       case "Leave":
+        if (this.listening.type !== "Off") {
+          this.listening = { type: "Off" };
+          this.emitListenStatus();
+        }
         this.status = { type: "Offline" };
         this.peers.clear();
         this.pointer = null;
@@ -120,11 +128,27 @@ export class MockCollab {
         return UNIT;
       // base-53 (docs/COLLAB.md §8-§10): like the engine until stream-host and stream-listen
       // land (each node extends its cases).
+      // stream-listen: the mock has no media; `Listen` stays connecting until stopped.
       case "Listen":
+        if (this.status.type !== "Online") fail("InvalidState", "not in a collaboration session");
+        if (!this.peers.has(c.host)) fail("NotFound", `peer ${c.host}`);
+        this.nextStream = (this.nextStream % 0xffff_fffe) + 1;
+        this.listening = { type: "Connecting", host: c.host, stream: this.nextStream };
+        this.emitListenStatus();
+        return UNIT;
       case "StopListening":
-        return fail("Unsupported", `${c.type} is not implemented yet`);
+        if (this.listening.type !== "Off") {
+          this.listening = { type: "Off" };
+          this.emitListenStatus();
+        }
+        return UNIT;
       case "SendSignal":
         if (this.status.type !== "Online") fail("InvalidState", "not in a collaboration session");
+        // The receiver gave up (like the engine: the stream ends).
+        if (c.signal.type === "Bye" && this.listening.type !== "Off" && this.listening.type !== "Ended" && this.listening.host === c.to) {
+          this.listening = { type: "Ended", host: c.to, reason: c.signal.reason ?? "the connection failed" };
+          this.emitListenStatus();
+        }
         return UNIT;
       case "SetIceServers":
         this.host.emit({
@@ -181,7 +205,7 @@ export class MockCollab {
   private emitListenStatus() {
     this.host.emit({
       type: "Collab",
-      event: { type: "ListenStatus", status: { listening: { type: "Off" }, listeners: [...this.listeners] } },
+      event: { type: "ListenStatus", status: { listening: this.listening, listeners: [...this.listeners] } },
     });
   }
 
