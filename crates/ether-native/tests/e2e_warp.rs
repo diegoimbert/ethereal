@@ -110,8 +110,7 @@ fn warp_markers_and_stretching_on_the_native_host() {
     let p = c.project();
     assert_eq!(markers_of(&p, &clip), vec![(0.0, 0.0), (8.0, 4.0)]);
     assert_eq!(
-        p["clips"][&clip]["content"]["warp"]["source_bpm"],
-        120.0,
+        p["clips"][&clip]["content"]["warp"]["source_bpm"], 120.0,
         "{}",
         p["clips"][&clip]
     );
@@ -164,10 +163,7 @@ fn warp_markers_and_stretching_on_the_native_host() {
     // Locate mid-clip: sound resumes (the stretcher seeks with pre-roll).
     c.ok("Transport", json!({"type": "Stop"}));
     let frames = c.with(|r| r.meters.len());
-    c.ok(
-        "Transport",
-        json!({"type": "Locate", "position": 6.0}),
-    );
+    c.ok("Transport", json!({"type": "Locate", "position": 6.0}));
     c.ok("Transport", json!({"type": "Play"}));
     wait_signal(&c, &track, frames, "signal after locate");
     c.ok("Transport", json!({"type": "Stop"}));
