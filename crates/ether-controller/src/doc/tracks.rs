@@ -223,8 +223,11 @@ fn duplicate(
         {
             plugin.state = Some(state);
         }
+        let new_device = nd.id;
         device_ids.insert(d.id, nd.id);
         ctx.tx.insert(Entity::Device(nd))?;
+        // Drum racks come with their pads and pad chains.
+        ctx.copy_rack_pads(d.id, new_device, new_id, &mut device_ids)?;
     }
     let mut send_ids = BTreeMap::new();
     let sends: Vec<TrackSend> = ctx

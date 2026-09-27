@@ -271,6 +271,8 @@ pub(crate) struct SnapshotRt {
     pub node_index: Vec<(NodeKey, usize, usize)>,
     /// Total latency from the timeline to the hardware output (samples).
     pub latency: u32,
+    /// Sidechain buffers (`crate::sidechain`).
+    pub sidechain: crate::sidechain::Taps,
 }
 
 impl RenderSnapshot {
@@ -453,9 +455,23 @@ pub fn compile_with(
         }
     }
 
+    // Sidechain edges (source → consumer) only constrain the processing order; they are
+    // not bus connections (`crate::sidechain` handles their PDC).
+    let track_of = |id: TrackId| find(id).ok();
+    let mut order_succ = succ.clone();
+    for (i, t) in desc.tracks.iter().enumerate() {
+        for src in t.chain.iter().filter_map(|e| e.sidechain) {
+            if let Some(s) = track_of(src)
+                && s != i
+            {
+                order_succ[s].push(i);
+            }
+        }
+    }
+
     // --- topological sort (Kahn; ties broken by desc order, so it is deterministic) ---
     let mut indeg = vec![0usize; n];
-    for s in &succ {
+    for s in &order_succ {
         for &d in s {
             indeg[d] += 1;
         }
@@ -464,7 +480,7 @@ pub fn compile_with(
     let mut order = Vec::with_capacity(n);
     while let Some(i) = ready.pop_first() {
         order.push(i);
-        for &d in &succ[i] {
+        for &d in &order_succ[i] {
             indeg[d] -= 1;
             if indeg[d] == 0 {
                 ready.insert(d);
@@ -508,6 +524,12 @@ pub fn compile_with(
     let mut in_lat = vec![0u32; n];
     let mut out_lat = vec![0u32; n];
     for &i in &order {
+        in_lat[i] = in_lat[i].max(crate::sidechain::required_input_latency(
+            &desc.tracks[i],
+            &chain_info[i],
+            &track_of,
+            &out_lat,
+        ));
         out_lat[i] = in_lat[i] + chain_lat[i];
         for &d in &succ[i] {
             in_lat[d] = in_lat[d].max(out_lat[i]);
@@ -572,6 +594,7 @@ pub fn compile_with(
                 channels: info.channels,
                 events: EventBuffer::with_capacity(config.max_events_per_block),
                 pending: EventBuffer::with_capacity(MAX_PENDING_EVENTS),
+                sidechain: e.sidechain.and_then(track_of),
             })
             .collect();
         let bypass: u32 = t
@@ -632,6 +655,7 @@ pub fn compile_with(
             auto_dirty: false,
             meter: MeterAccum::default(),
             out_latency: out_lat[i],
+            racks: crate::drum_rack::RacksRt::compile(&t.racks, node_info, config),
         });
     }
     send_index.sort();
@@ -643,7 +667,16 @@ pub fn compile_with(
         .max()
         .unwrap_or(0);
 
+    let sidechain = crate::sidechain::Taps::compile(
+        &desc.tracks,
+        &track_of,
+        &in_lat,
+        &out_lat,
+        &chain_info,
+        config,
+    );
     let mut rt = SnapshotRt {
+        sidechain,
         order,
         tracks,
         buses: (0..n).map(|_| stereo(frames)).collect(),

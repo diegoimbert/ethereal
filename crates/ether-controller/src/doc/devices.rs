@@ -130,6 +130,19 @@ pub(super) fn apply(ctx: &mut DocCtx, c: &DeviceCommand) -> CmdResult<()> {
         }
         DeviceCommand::Move { id, track, before } => {
             let d = ctx.device(*id)?;
+            if d.pad.is_some() {
+                return Err(invalid(format!(
+                    "device {} is on a drum pad: use DrumRack::MoveDevice",
+                    d.id
+                )));
+            }
+            if d.track != *track && !ctx.p().pads_of(d.id).is_empty() {
+                // Moving a rack across tracks would strand its pad chains (they'd need to
+                // move in the same op). Until the drum-rack node supports it: rejected.
+                return Err(invalid(
+                    "moving a drum rack with pads to another track is not supported yet",
+                ));
+            }
             let t = ctx.track(*track)?;
             let category = category_of(ctx, &d);
             check_fits(&t, category)?;
@@ -168,7 +181,17 @@ pub(super) fn apply(ctx: &mut DocCtx, c: &DeviceCommand) -> CmdResult<()> {
                 return Ok(());
             }
             let d = ctx.device(*id)?;
-            let order = order_after(&chain(ctx.p(), d.track, None), d.id)?;
+            let siblings: Vec<(OrderKey, DeviceId)> = match d.pad {
+                // Pad devices are duplicated within their pad chain.
+                Some(pad) => ctx
+                    .p()
+                    .pad_devices_of(pad)
+                    .into_iter()
+                    .map(|d| (d.order.clone(), d.id))
+                    .collect(),
+                None => chain(ctx.p(), d.track, None),
+            };
+            let order = order_after(&siblings, d.id)?;
             let mut copy = d.clone();
             copy.id = *new_id;
             copy.order = order;
@@ -177,7 +200,9 @@ pub(super) fn apply(ctx: &mut DocCtx, c: &DeviceCommand) -> CmdResult<()> {
             {
                 plugin.state = Some(state);
             }
-            ctx.tx.insert(Entity::Device(copy))
+            ctx.tx.insert(Entity::Device(copy))?;
+            // A drum rack is copied with its pads and their chains.
+            ctx.copy_rack_pads(d.id, *new_id, d.track, &mut Default::default())
         }
         DeviceCommand::Rename { id, name } => {
             ctx.device(*id)?;

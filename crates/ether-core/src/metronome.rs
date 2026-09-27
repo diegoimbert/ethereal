@@ -1,9 +1,10 @@
 //! Metronome click (roadmap v2, owned by the `tempo-metronome` node; see
 //! `docs/ROADMAP.md`).
 //!
-//! Hook point: the engine owns one [`Metronome`] and, after the master bus has been written
-//! to the hardware outputs of a sub-block, calls [`Metronome::render`] once with that
-//! sub-block's `TransportInfo` (one line in `engine.rs::render_sub`, added by this node).
+//! Hook point (already wired, base-17): the engine owns one [`Metronome`] and, after the
+//! master bus has been written to the hardware outputs of a sub-block, calls
+//! [`Metronome::render`] once with that sub-block's `TransportInfo`, and
+//! [`Metronome::reset`] on transport jumps. This node only edits this file.
 //! Clicks are synthesized (no samples), sample-accurate on every beat boundary inside the
 //! sub-block (accent on bar starts when `desc.accent`), while playing with
 //! `RenderGraphDesc::metronome` on, and during a recording count-in: `info.recording` with
@@ -31,18 +32,21 @@ impl Metronome {
         }
     }
 
-    /// RT. Add the click for `frames` samples starting at the sub-block described by
-    /// `info` into `out` (planar, hardware channels). Placeholder: renders nothing until
-    /// the `tempo-metronome` node implements it.
+    /// RT. Add the click for the sub-block described by `info` (`frames` samples) into
+    /// `out[ch][offset..offset + frames]` (planar hardware outputs; channels may be shorter:
+    /// clamp). `enabled` = `RenderGraphDesc::metronome`. Called by `engine.rs` once per
+    /// sub-block (already wired). Placeholder: renders nothing until the `tempo-metronome`
+    /// node implements it.
     pub fn render(
         &mut self,
         desc: &MetronomeDesc,
         enabled: bool,
         info: &TransportInfo,
+        offset: usize,
         frames: usize,
         out: &mut [&mut [f32]],
     ) {
-        let _ = (desc, enabled, info, frames, out, self.sample_rate);
+        let _ = (desc, enabled, info, offset, frames, out, self.sample_rate);
         self.remaining = 0;
     }
 

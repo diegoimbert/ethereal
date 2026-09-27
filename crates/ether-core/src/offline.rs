@@ -14,14 +14,20 @@ use ether_protocol::model::Beats;
 
 use crate::config::EngineConfig;
 use crate::engine::{Engine, EngineError, EngineHandle, GarbageCollector, create};
+use crate::meter::EngineOutputs;
 use crate::transport::TransportControl;
 
 pub struct OfflineRenderer {
     engine: Engine,
     handle: EngineHandle,
     gc: GarbageCollector,
+    /// Drained engine outputs (meters/playhead), so the output ring never fills.
+    outputs: EngineOutputs,
     /// Frames rendered since `start`.
     rendered: u64,
+    /// Accumulated since `start`: some node's events overflowed / source underruns.
+    event_overflow: bool,
+    underruns: u32,
 }
 
 impl OfflineRenderer {
@@ -32,7 +38,10 @@ impl OfflineRenderer {
             engine: parts.engine,
             handle: parts.handle,
             gc: parts.gc,
+            outputs: EngineOutputs::default(),
             rendered: 0,
+            event_overflow: false,
+            underruns: 0,
         }
     }
 
@@ -51,6 +60,8 @@ impl OfflineRenderer {
             .transport(TransportControl::Locate { position })?;
         self.handle.transport(TransportControl::Play)?;
         self.rendered = 0;
+        self.event_overflow = false;
+        self.underruns = 0;
         Ok(())
     }
 
@@ -66,8 +77,24 @@ impl OfflineRenderer {
             self.engine.process(&[], &mut chunk, n);
             done += n;
             self.gc.collect();
+            self.handle.poll(&mut self.outputs);
+            self.event_overflow |= self.outputs.event_overflow;
+            self.underruns += self.outputs.underruns;
         }
         self.rendered += frames as u64;
+    }
+
+    /// Total graph latency (samples) of the last published graph: the audio for timeline
+    /// position `p` comes out `latency()` frames late, so an export starting at `p` renders
+    /// and drops that many leading frames (and renders as many extra at the end).
+    pub fn latency(&self) -> u32 {
+        self.handle.latency()
+    }
+
+    /// Since the last `start`: `(some node's event buffer overflowed, source underruns)`.
+    /// An export should warn when either is set.
+    pub fn diagnostics(&self) -> (bool, u32) {
+        (self.event_overflow, self.underruns)
     }
 
     /// Frames rendered since the last [`OfflineRenderer::start`].
@@ -79,6 +106,51 @@ impl OfflineRenderer {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::node::{Node, NodeData, ProcessContext, ProcessStatus};
+    use crate::{AudioBuffers, PrepareConfig};
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicU32, Ordering};
+
+    /// Accepts `u32` data and publishes it.
+    struct DataNode(Arc<AtomicU32>);
+    impl Node for DataNode {
+        fn prepare(&mut self, _: &PrepareConfig) {}
+        fn reset(&mut self) {}
+        fn process(
+            &mut self,
+            _: &mut ProcessContext<'_>,
+            a: &mut AudioBuffers<'_, '_>,
+        ) -> ProcessStatus {
+            a.clear_outputs();
+            ProcessStatus::Silent
+        }
+        fn set_data(&mut self, data: NodeData) -> Option<NodeData> {
+            match data.downcast::<u32>() {
+                Ok(v) => {
+                    self.0.store(*v, Ordering::Relaxed);
+                    Some(v)
+                }
+                Err(other) => Some(other),
+            }
+        }
+    }
+
+    #[test]
+    fn node_data_reaches_the_live_node() {
+        let seen = Arc::new(AtomicU32::new(0));
+        let mut r = OfflineRenderer::new(EngineConfig::default());
+        let key = r
+            .handle()
+            .add_node(Box::new(DataNode(seen.clone())))
+            .unwrap();
+        r.handle().set_node_data(key, Box::new(7u32)).unwrap();
+        let mut l = vec![0.0f32; 64];
+        let mut rr = vec![0.0f32; 64];
+        r.render(64, &mut [&mut l, &mut rr]);
+        assert_eq!(seen.load(Ordering::Relaxed), 7);
+        assert_eq!(r.latency(), 0);
+        assert_eq!(r.diagnostics(), (false, 0));
+    }
 
     #[test]
     fn renders_silence_for_an_empty_graph() {

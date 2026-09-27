@@ -7,8 +7,15 @@
 //! codec. Contract:
 //!
 //! - `decode(encode(d)) == d` for every desc (exact `f64`s, ids, ordering).
-//! - `encode` runs on the controller side (may allocate); `decode` runs off the audio
-//!   thread (the worklet decodes before compiling, like today).
+//! - `encode` runs on the controller side (Worker; may allocate).
+//! - **`decode` runs in the AudioWorklet** on the web: the worklet scope has no other
+//!   thread, so decoding (and `compile_with`, which follows) runs on the audio rendering
+//!   thread between two `process()` calls and allocates, exactly like today's JSON path.
+//!   This is the one accepted exception to the RT rules on the web (native hosts decode
+//!   nothing: they publish the desc directly). The codec's job is to make that step cheap
+//!   and bounded: no string parsing, sizes known up front (reserve once), no per-field
+//!   allocation beyond the desc's own `Vec`s. Natively, `decode` may run on any non-RT
+//!   thread.
 //! - Encoded data starts with a version byte; `decode` rejects unknown versions with
 //!   [`CodecError::Version`] instead of misreading.
 

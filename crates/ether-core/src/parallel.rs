@@ -19,6 +19,16 @@
 //! - The executor must be RT-safe: no allocation, no blocking syscalls; workers spin or
 //!   wait on futexes/semaphores that the audio thread signals; `execute` returns only when
 //!   every job is done. With 0 workers the audio thread runs every job itself.
+//! - **Unsafe sharing (engine side).** `job` is a shared `Fn + Sync`, but each job needs
+//!   `&mut` access to its own track (buffers, nodes). The engine hands out disjoint mutable
+//!   access through raw pointers (index `i` ↔ track `level[i]` only, never two jobs on one
+//!   track or one node), which is sound only if the executor upholds its contract: every
+//!   index exactly once, all jobs finished (with a release/acquire fence) before `execute`
+//!   returns, and no job running after that. `Node: Send` is what allows a node to be
+//!   processed on a worker thread. Document every `unsafe` block with this argument.
+//! - **wasm32:** `EngineConfig::worker_threads` is ignored and the engine always runs
+//!   sequentially (the AudioWorklet has no threads; SharedArrayBuffer workers are out of
+//!   scope).
 
 /// Runs `jobs` independent jobs, possibly in parallel, and returns when all are finished.
 pub trait ParallelExecutor: Send {

@@ -136,6 +136,7 @@ fn patch_and_entities_roundtrip() {
             },
         ],
         history: HistoryState::default(),
+        origin: None,
     };
     let json = roundtrip(&ServerMessage::Event(Event::Patch { patch }));
     assert_eq!(json["kind"], "Event");
