@@ -5,7 +5,7 @@ import "./project.css";
 import { useEffect, useRef, useState } from "react";
 import { Menu } from "lucide-react";
 import { useEngineCommands } from "@/features/transport-bar/engine";
-import { Button } from "@/kit";
+import { Button, Popover } from "@/kit";
 import { useProjectStore } from "@/state";
 import { cmd } from "@/transport";
 import { ProjectManager } from "./ProjectManager";
@@ -30,7 +30,6 @@ export function ProjectMenu() {
   const name = useProjectStore((s) => s.project?.settings.name ?? null);
   const dirty = useProjectStore((s) => s.dirty);
   const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement>(null);
   const disabled = !transport || name === null;
 
   const revision = useProjectStore((s) => s.revision);
@@ -64,29 +63,22 @@ export function ProjectMenu() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  // Close the popover on outside click.
-  useEffect(() => {
-    if (!open) return;
-    const onDown = (e: MouseEvent) => {
-      if (rootRef.current && e.target instanceof Node && !rootRef.current.contains(e.target)) setOpen(false);
-    };
-    document.addEventListener("mousedown", onDown);
-    return () => document.removeEventListener("mousedown", onDown);
-  }, [open]);
-
   return (
-    <div className="eth-project" data-feature="project" ref={rootRef}>
-      <Button
-        tone="ghost"
+    <div className="eth-project" data-feature="project">
+      <Popover
+        open={open}
+        onOpenChange={setOpen}
+        role="dialog"
         aria-label="Projects"
-        aria-haspopup="dialog"
-        aria-expanded={open}
-        title="Projects"
-        disabled={!transport}
-        onClick={() => setOpen((o) => !o)}
+        className="eth-project-popover"
+        trigger={(t) => (
+          <Button {...t} tone="ghost" aria-label="Projects" title="Projects" disabled={!transport}>
+            <Menu aria-hidden />
+          </Button>
+        )}
       >
-        <Menu aria-hidden />
-      </Button>
+        {(close) => <ProjectManager commands={commands} onClose={close} />}
+      </Popover>
       <span className="eth-project__name" data-testid="project-name" title={name ?? undefined}>
         {name ?? "No project"}
       </span>
@@ -105,7 +97,6 @@ export function ProjectMenu() {
           {error}
         </button>
       )}
-      {open && <ProjectManager commands={commands} onClose={() => setOpen(false)} />}
     </div>
   );
 }

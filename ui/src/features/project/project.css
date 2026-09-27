@@ -29,21 +29,15 @@
   text-align: left;
 }
 
+/* Inside a kit Popover (portal, animated); the popover supplies the card. */
 .eth-project-mgr {
-  position: absolute;
-  top: calc(100% + var(--eth-space-sm));
-  left: 0;
-  z-index: 100;
   display: flex;
   flex-direction: column;
   gap: var(--eth-space-sm);
   width: 460px;
   max-height: 70vh;
-  padding: var(--eth-space-md);
-  background: var(--eth-color-bg-raised);
-  border: 1px solid var(--eth-color-border-light);
-  border-radius: var(--eth-radius-md);
-  box-shadow: 0 8px 24px rgb(0 0 0 / 0.4);
+  padding: var(--eth-space-sm);
+  overflow: auto;
 }
 .eth-project-mgr__header {
   display: flex;
