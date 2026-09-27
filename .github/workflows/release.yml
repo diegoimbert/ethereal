@@ -154,7 +154,23 @@ jobs:
           export_var() { { echo "$1<<__EOF_$1__"; printf '%s\n' "${!1}"; echo "__EOF_$1__"; } >> "$GITHUB_ENV"; }
           status="unsigned (ad-hoc signature, not notarized)"
           if [ -n "$APPLE_CERTIFICATE" ] && [ -n "$APPLE_CERTIFICATE_PASSWORD" ] && [ -n "$APPLE_SIGNING_IDENTITY" ]; then
-            export_var APPLE_CERTIFICATE; export_var APPLE_CERTIFICATE_PASSWORD; export_var APPLE_SIGNING_IDENTITY
+            # Import the certificate into a temporary keychain on the search list ourselves
+            # (instead of letting Tauri do it from APPLE_CERTIFICATE during bundling): the
+            # sandbox helper is signed earlier, in beforeBuildCommand.
+            keychain="$RUNNER_TEMP/ethereal-signing.keychain-db"
+            kpw="$(openssl rand -hex 24)"
+            p12="$RUNNER_TEMP/ethereal-signing.p12"
+            security create-keychain -p "$kpw" "$keychain"
+            security set-keychain-settings -lut 21600 "$keychain"
+            security unlock-keychain -p "$kpw" "$keychain"
+            printf '%s' "$APPLE_CERTIFICATE" | base64 --decode > "$p12"
+            security import "$p12" -P "$APPLE_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$keychain"
+            rm -f "$p12"
+            security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$kpw" "$keychain" >/dev/null
+            # shellcheck disable=SC2046
+            security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
+            security find-identity -v -p codesigning "$keychain"
+            export_var APPLE_SIGNING_IDENTITY
             status="signed, not notarized"
             if [ -n "$APPLE_ID" ] && [ -n "$APPLE_PASSWORD" ] && [ -n "$APPLE_TEAM_ID" ]; then
               export_var APPLE_ID; export_var APPLE_PASSWORD; export_var APPLE_TEAM_ID
