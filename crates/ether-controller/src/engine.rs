@@ -65,6 +65,9 @@ pub(crate) struct EngineState {
     /// Record count-in (`tempo-metronome`): the record start while a record session's
     /// pre-roll may run, set on every published `MetronomeDesc::count_in_end`.
     pub count_in_end: Option<f64>,
+    /// Soloed drum pads (runtime, `DrumRack::SetPadSolo`): compiled as mute of the other
+    /// pads of their rack (`crate::drum_rack::apply_solo`).
+    pub pad_solo: BTreeSet<DrumPadId>,
 }
 
 pub(crate) fn bridge_err(e: BridgeError) -> ether_core::protocol::CommandError {
@@ -98,6 +101,7 @@ impl EngineState {
         self.failed.clear();
         self.plugin_descriptors.clear();
         self.recreate.clear();
+        self.pad_solo.clear();
         self.graph_dirty = true;
     }
 
@@ -166,6 +170,18 @@ impl EngineState {
             let sig = sig_of(&device.kind);
             let recreate = self.recreate.remove(&device.id);
             let mut live_state = None;
+            // Data-only change of a built-in (sampler slices): update the live node in place
+            // so sounding notes aren't cut, when the host supports it.
+            if !recreate
+                && let Some(n) = self.nodes.get_mut(&device.id)
+                && n.sig != sig
+                && let (NodeSig::Builtin(old), NodeSig::Builtin(new)) = (&n.sig, &sig)
+                && crate::drum_rack::updatable_in_place(old, new)
+                && matches!(bridge.update_builtin(device.id, new), Ok(true))
+            {
+                n.sig = sig;
+                continue;
+            }
             match self.nodes.get(&device.id) {
                 Some(n) if n.sig == sig && !recreate => continue,
                 Some(_) => {
@@ -235,6 +251,10 @@ impl EngineState {
             },
         };
         desc.click.count_in_end = self.count_in_end;
+        if let Some(p) = project {
+            self.pad_solo.retain(|pad| p.drum_pads.contains_key(pad));
+        }
+        crate::drum_rack::apply_solo(&mut desc, &self.pad_solo);
         self.last_publish_ms = Some(now_ms);
         match bridge.publish(desc) {
             Ok(()) => {
@@ -344,9 +364,26 @@ impl EngineState {
 pub(crate) struct EngineCtx<'a, B> {
     pub bridge: &'a mut B,
     pub eng: &'a mut EngineState,
+    /// Loaded media (peaks, for auto-slicing).
+    pub media: &'a crate::media::MediaState,
 }
 
 impl<B: EngineBridge> DocHost for EngineCtx<'_, B> {
+    fn peaks(&self, media: MediaId) -> Option<&ether_media::PeakMipmap> {
+        self.media.peaks(media)
+    }
+
+    fn set_pad_solo(&mut self, pad: DrumPadId, solo: bool) {
+        let changed = if solo {
+            self.eng.pad_solo.insert(pad)
+        } else {
+            self.eng.pad_solo.remove(&pad)
+        };
+        if changed {
+            self.eng.graph_dirty = true;
+        }
+    }
+
     fn descriptor(&mut self, device: DeviceId, kind: &DeviceKind) -> Option<DeviceDescriptor> {
         match kind {
             DeviceKind::Builtin { device } => Some(builtin_descriptor(device)),

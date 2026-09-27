@@ -17,7 +17,6 @@ pub mod drum_rack;
 mod dsp;
 pub mod eq;
 pub mod limiter;
-mod placeholder;
 pub mod reverb;
 pub mod sampler;
 pub mod synth;
@@ -67,10 +66,10 @@ pub trait SampleResolver {
 pub fn create(device: &BuiltinDevice, samples: &dyn SampleResolver) -> Box<dyn Device> {
     match device {
         BuiltinDevice::Synth => Box::new(Synth::new()),
-        // `slices` (roadmap v2) are applied by the `drum-rack` node.
-        BuiltinDevice::Sampler { sample, slices: _ } => {
-            Box::new(Sampler::new(sample.and_then(|m| samples.resolve(m))))
-        }
+        BuiltinDevice::Sampler { sample, slices } => Box::new(Sampler::with_slices(
+            sample.and_then(|m| samples.resolve(m)),
+            slices.clone(),
+        )),
         BuiltinDevice::Compressor => Box::new(Compressor::new()),
         BuiltinDevice::Delay => Box::new(Delay::new()),
         BuiltinDevice::Eq => eq::create(),

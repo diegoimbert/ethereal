@@ -39,6 +39,17 @@ pub(crate) trait DocHost {
         device: DeviceId,
         plugin: &PluginInstance,
     ) -> CmdResult<Option<DeviceDescriptor>>;
+    /// Roadmap v2 (`drum-rack`): waveform peaks of loaded media (auto-slicing by
+    /// transients). `None` = not loaded (yet).
+    fn peaks(&self, media: MediaId) -> Option<&ether_media::PeakMipmap> {
+        let _ = media;
+        None
+    }
+    /// Roadmap v2 (`drum-rack`): runtime pad solo (`DrumRack::SetPadSolo`; not a document
+    /// change, compiled as mute of the rack's other pads).
+    fn set_pad_solo(&mut self, pad: DrumPadId, solo: bool) {
+        let _ = (pad, solo);
+    }
 }
 
 pub(crate) struct DocCtx<'a, 'p> {
