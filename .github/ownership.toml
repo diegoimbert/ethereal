@@ -325,6 +325,8 @@ paths = [
   "crates/ether-native/tests/tempo_metronome*.rs",
   # shared touch (base-25): one additive state field + initializer on EtherController
   "crates/ether-controller/src/lib.rs",
+  # shared touch (base-40): pass &TempoMapRt to Metronome::render at its call site only (multicore owns the rest of engine.rs)
+  "crates/ether-core/src/engine.rs",
 ]
 
 [nodes.clip-editing]
