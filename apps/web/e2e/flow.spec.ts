@@ -10,6 +10,7 @@
 // locators. The UI mirror is read through `window.__ether` (apps/web/src/main.tsx).
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import type { Project } from "@/generated";
+import { openClip, selectClip } from "./clips";
 
 interface Handle {
   state(): { project: Project | null; dirty: boolean; history: { can_undo: boolean; can_redo: boolean } };
@@ -86,8 +87,7 @@ test("full flow: build a song, play it, edit, save, reload", async ({ page }) =>
   await midiLane.dblclick({ position: { x: 10, y: 20 } });
   await expect.poll(async () => count((await doc(page)).clips)).toBe(1);
   const midiClip = Object.values((await doc(page)).clips)[0]!;
-  const midiClipEl = page.locator(`[data-clip-id="${midiClip.id}"]`);
-  await midiClipEl.dblclick({ position: { x: 20, y: 30 } });
+  await openClip(page, midiClip.id);
   const grid = page.getByTestId("piano-roll-grid");
   await expect(grid).toBeVisible();
 
@@ -179,7 +179,7 @@ test("full flow: build a song, play it, edit, save, reload", async ({ page }) =>
   await expect(transportBar.getByRole("button", { name: "Play" })).toBeVisible();
 
   // --- Edit, undo, redo ----------------------------------------------------------------------
-  await midiClipEl.click({ position: { x: 20, y: 30 } });
+  await selectClip(page, midiClip.id);
   await page.getByRole("toolbar", { name: "Arrangement tools" }).getByRole("button", { name: "Duplicate" }).click();
   await expect.poll(async () => count((await doc(page)).clips)).toBe(3);
   await page.getByRole("button", { name: "Undo" }).click();
