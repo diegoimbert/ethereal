@@ -369,6 +369,8 @@ where
     preview: media_preview::PreviewState,
     /// Uploads from the UI machine in progress (`upload` module, remote-engine).
     uploads: upload::UploadState,
+    /// Collaboration session (`collab` module).
+    collab: collab::CollabState,
     next_gesture: u32,
     last_transport: Option<TransportState>,
     outputs: EngineOutputs,
@@ -415,6 +417,7 @@ where
             midi_learn: Default::default(),
             preview: Default::default(),
             uploads: Default::default(),
+            collab: Default::default(),
             // Internal gestures (plugin GUI, tap tempo) live in the upper half of the id
             // space, away from UI-allocated ones.
             next_gesture: 0x8000_0000,

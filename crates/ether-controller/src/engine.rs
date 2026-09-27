@@ -57,6 +57,9 @@ pub(crate) struct EngineState {
     pending_destroy: Vec<NodeKey>,
     /// Devices whose node must be re-created at the next sync.
     recreate: BTreeSet<DeviceId>,
+    /// Plugins to re-create from the document's `plugin.state` rather than their live state
+    /// (collab: a peer replicated a new state).
+    reload_from_doc: BTreeSet<DeviceId>,
     pub graph_dirty: bool,
     pub version: u64,
     pub last_publish_ms: Option<u64>,
@@ -93,6 +96,13 @@ impl EngineState {
         self.graph_dirty = true;
     }
 
+    /// Re-create `device` at the next sync from the document's plugin state (not the
+    /// instance's live state).
+    pub fn request_reload_from_doc(&mut self, device: DeviceId) {
+        self.reload_from_doc.insert(device);
+        self.request_recreate(device);
+    }
+
     /// Forget every node (project switch): all are destroyed after the next publish.
     pub fn reset(&mut self) {
         for (_, n) in std::mem::take(&mut self.nodes) {
@@ -101,6 +111,7 @@ impl EngineState {
         self.failed.clear();
         self.plugin_descriptors.clear();
         self.recreate.clear();
+        self.reload_from_doc.clear();
         self.pad_solo.clear();
         self.graph_dirty = true;
     }
@@ -166,9 +177,11 @@ impl EngineState {
         }
         self.failed.retain(|d, _| devices.contains_key(d));
         self.recreate.retain(|d| devices.contains_key(d));
+        self.reload_from_doc.retain(|d| devices.contains_key(d));
         for device in devices.values() {
             let sig = sig_of(&device.kind);
             let recreate = self.recreate.remove(&device.id);
+            let from_doc = self.reload_from_doc.remove(&device.id);
             let mut live_state = None;
             // Data-only change of a built-in (sampler slices): update the live node in place
             // so sounding notes aren't cut, when the host supports it.
@@ -185,7 +198,7 @@ impl EngineState {
             match self.nodes.get(&device.id) {
                 Some(n) if n.sig == sig && !recreate => continue,
                 Some(_) => {
-                    if matches!(device.kind, DeviceKind::Plugin { .. }) {
+                    if matches!(device.kind, DeviceKind::Plugin { .. }) && !from_doc {
                         live_state = bridge.plugin_state(device.id).ok().flatten();
                     }
                     let old = self.nodes.remove(&device.id).expect("checked");

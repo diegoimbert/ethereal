@@ -15,7 +15,7 @@
  * `<TransportProvider transport={createDefaultTransport()}>` from `@/transport`; features
  * use `useTransport()` and read the document from `@/state`.
  */
-import { useEffect } from "react";
+import { memo, useEffect } from "react";
 import { AudioLines, Moon, Sun } from "lucide-react";
 import { ContextMenuHost, IconButton } from "@/kit";
 import { useEditorStore, useProjectStore } from "@/state";
@@ -45,6 +45,16 @@ const px = (token: string) => parseFloat(token);
 const GAP = px(size.floatGap);
 const MIN = px(size.floatMinSize);
 const MAIN_MIN = px(size.mainMinSize);
+
+// The workspace re-renders whenever a pane opens, closes, resizes or (un)pins; its content
+// doesn't depend on that, so it is memoized (re-rendering the arrangement or the piano roll
+// on every pane change made the pane animations stutter).
+const Arrangement = memo(ArrangementView);
+const Markers = memo(MarkerLane);
+const Rail = memo(LeftRail);
+const LeftContent = memo(LeftPanel);
+const InspectorContent = memo(Inspector);
+const Drawer = memo(EditorDrawer);
 
 /** Dark / light theme switch (remembered by `@/theme`). */
 function ThemeToggle() {
@@ -80,10 +90,17 @@ function Workspace() {
     if (shell().right.open !== rightOpen) shell().setOpen("right", rightOpen);
   }, [rightOpen, shell]);
 
-  // Opening a clip (double-click) shows its editor in the drawer.
+  // Opening a clip (a click on a MIDI clip, a double-click on an audio clip) shows its
+  // editor in the drawer.
   useEffect(
     () =>
       useEditorStore.subscribe((s, prev) => {
+        // Clicked away from MIDI clips in the arrangement: an unpinned piano roll closes.
+        if (s.dismissed !== prev.dismissed) {
+          const { bottom } = shell();
+          if (bottom.open && !bottom.pinned && bottom.tab === "piano-roll") shell().setOpen("bottom", false);
+          return;
+        }
         if (s.request === prev.request || !s.clip) return;
         const clip = useProjectStore.getState().project?.clips[s.clip];
         if (clip) shell().openDrawer(clip.content.type === "Midi" ? "piano-roll" : "warp");
@@ -108,13 +125,13 @@ function Workspace() {
 
   return (
     <div className="eth-workspace" style={style}>
-      <LeftRail />
+      <Rail />
       <main className="eth-workspace__main" data-slot="main">
         <div className="eth-workspace__stage">
           <div data-slot="markers">
-            <MarkerLane />
+            <Markers />
           </div>
-          <ArrangementView />
+          <Arrangement />
         </div>
       </main>
 
@@ -132,7 +149,7 @@ function Workspace() {
         onClose={() => shell().setOpen("left", false)}
       >
         <div data-slot="sidebar" className="eth-float__fill">
-          <LeftPanel tab={left.tab} />
+          <LeftContent tab={left.tab} />
         </div>
       </FloatingPane>
 
@@ -148,7 +165,7 @@ function Workspace() {
         onResize={(v) => shell().setSize("right", v)}
         onPinnedChange={(v) => shell().setPinned("right", v)}
       >
-        <Inspector target={target} />
+        <InspectorContent target={target} />
       </FloatingPane>
 
       <FloatingPane
@@ -164,7 +181,7 @@ function Workspace() {
         onPinnedChange={(v) => shell().setPinned("bottom", v)}
         onClose={() => shell().setOpen("bottom", false)}
       >
-        <EditorDrawer />
+        <Drawer />
       </FloatingPane>
     </div>
   );

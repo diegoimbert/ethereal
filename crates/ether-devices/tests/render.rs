@@ -573,6 +573,29 @@ fn delay_echo_at_time_in_ms() {
 }
 
 #[test]
+fn delay_ping_pong_alternates_channels() {
+    let mut d = Delay::new();
+    prepared(&mut d);
+    assert_eq!(
+        d.param(delay::params::PING_PONG),
+        Some(0.0),
+        "off by default"
+    );
+    d.set_param(delay::params::TIME, 100.0);
+    d.set_param(delay::params::FEEDBACK, 50.0);
+    d.set_param(delay::params::MIX, 100.0);
+    d.set_param(delay::params::PING_PONG, 1.0);
+    let out = render(&mut d, &impulse(24_000), &[], 24_000, 120.0);
+    // Mono input (1.0 on both) → first echo left only, then right at half, then left...
+    assert!((out[0][4800] - 1.0).abs() < 1e-4, "1st echo left");
+    assert!(out[1][4800].abs() < 1e-6, "1st echo not right");
+    assert!((out[1][9600] - 0.5).abs() < 1e-4, "2nd echo right");
+    assert!(out[0][9600].abs() < 1e-6, "2nd echo not left");
+    assert!((out[0][14_400] - 0.25).abs() < 1e-4, "3rd echo left");
+    assert!(out[1][14_400].abs() < 1e-6);
+}
+
+#[test]
 fn delay_synced_to_tempo() {
     let mut d = Delay::new();
     prepared(&mut d);

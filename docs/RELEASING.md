@@ -135,3 +135,20 @@ file gives the SPDX id and the source URL.
   publish job is skipped. Before the workflow is on the default branch, temporarily add a
   `push: branches: [release-dry-run]` trigger and push that branch instead. Either way it
   uses paid runner minutes (macOS runners cost the most), so do it sparingly.
+
+## Web app on Cloudflare Pages
+
+Every push to `main` also deploys the web build (`apps/web/dist` plus the COOP/COEP
+`_headers` from `scripts/release/web/`) to Cloudflare Pages (job `pages` in
+`.github/workflows/release.yml`, `wrangler` pinned by version). The deploy runs even when
+another platform's build failed, as long as the web bundle built. It is skipped (with a
+warning), not failed, until these are configured in the GitHub repository settings:
+
+- Secret `CLOUDFLARE_API_TOKEN`: an API token with **Account > Cloudflare Pages > Edit**
+  (Cloudflare dashboard > My Profile > API Tokens > Create Token > custom token).
+- Secret `CLOUDFLARE_ACCOUNT_ID`: your account id (dashboard sidebar, or Workers & Pages overview).
+- Optional variable `CLOUDFLARE_PAGES_PROJECT` (default `ethereal`): the Pages project name. The
+  job creates the project (production branch `main`) on first deploy if it doesn't exist.
+
+The site is served at `https://<project>.pages.dev` (a custom domain can be attached in the
+Pages dashboard). The COOP/COEP headers are required: the web engine uses SharedArrayBuffer.

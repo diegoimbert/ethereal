@@ -1,8 +1,9 @@
 import "./arrangement.css";
-import { setDragCursor } from "@/kit";
+import { openContextMenu, setDragCursor } from "@/kit";
+import { AddTrackRow } from "./newTrack";
 import { useContext, useEffect, useMemo, useRef, type DragEvent, type KeyboardEvent, type PointerEvent } from "react";
 import type { Beats, TrackId } from "@/generated";
-import { useProjectStore, useSelectionStore, useTracksOrdered } from "@/state";
+import { useEditorStore, useProjectStore, useSelectionStore, useTracksOrdered } from "@/state";
 import {
   gridLines,
   itemSelection,
@@ -23,7 +24,7 @@ import {
 } from "@/timeline";
 import { useAutomationHeight } from "@/features/automation";
 import { TransportContext, useTransport, useTransportEvent } from "@/transport";
-import { actionForKey, bindSingleSelection, locateIfStopped, runClipAction } from "./actions";
+import { actionForKey, bindSingleSelection, locateIfStopped, newTrackMenu, runClipAction } from "./actions";
 import { dropBrowserMedia, hasBrowserDrag, readBrowserDrag } from "./browserDrop";
 import { ArrangementContext, type ArrangementContextValue } from "./context";
 import { clipRects, DROP_AREA_HEIGHT, HEADER_WIDTH, layoutRows, rowIndexAt, rowsHeight, type Row } from "./layout";
@@ -76,10 +77,13 @@ function ConnectedArrangementView() {
   const grid = useArrangementUi((s) => s.grid);
   const automationHeight = useAutomationHeight();
   const draftTrack = useArrangementUi((s) => s.draftTrack);
-  const rows = useMemo(
-    () => layoutRows(tracks, folded, automationHeight, (id) => heights.get(id) ?? defaultHeight, draftTrack),
-    [tracks, folded, automationHeight, heights, defaultHeight, draftTrack],
-  );
+  // The master track is pinned below the scrolling tracks (its own footer, at y 0); it is
+  // laid out last, so the other rows keep their positions.
+  const { rows, masterRow } = useMemo(() => {
+    const all = layoutRows(tracks, folded, automationHeight, (id) => heights.get(id) ?? defaultHeight, draftTrack);
+    const master = all.find((r) => r.track.kind === "Master");
+    return { rows: all.filter((r) => r !== master), masterRow: master ? { ...master, y: 0 } : null };
+  }, [tracks, folded, automationHeight, heights, defaultHeight, draftTrack]);
   const rowsRef = useRef<ReadonlyArray<Row>>(rows);
   useEffect(() => {
     rowsRef.current = rows;
@@ -159,6 +163,30 @@ function ConnectedArrangementView() {
     },
   });
 
+  /**
+   * Pointer press in the tracks (capture, so clips' own handlers can't hide it): on a MIDI
+   * clip it opens that clip in the piano roll; anywhere else it dismisses the piano roll
+   * (the shell keeps it when pinned).
+   */
+  const onTracksPointerDownCapture = (e: PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return;
+    const project = useProjectStore.getState().project;
+    const box = contentRef.current?.getBoundingClientRect();
+    if (!project || !box) return;
+    const inTracks = contentRef.current!.contains(e.target as Node);
+    const x = e.clientX - box.left;
+    const y = e.clientY - box.top;
+    const hw = useArrangementUi.getState().headerWidth;
+    const hit = inTracks
+      ? clipRects(rowsRef.current, Object.values(project.clips), view.getState(), hw).find(
+          ({ rect: r }) => x >= r.x0 && x < r.x1 && y >= r.y0 && y < r.y1,
+        )
+      : undefined;
+    const clip = hit ? project.clips[hit.id] : undefined;
+    if (clip?.content.type === "Midi") useEditorStore.getState().openClip(clip.id);
+    else useEditorStore.getState().dismiss();
+  };
+
   const tempo = useTempoMap();
   const snap = (beats: Beats, bypass: boolean): Beats => {
     if (bypass) return beats;
@@ -222,7 +250,7 @@ function ConnectedArrangementView() {
           <div className="eth-arr__corner" style={{ width: headerWidth }} />
           <Ruler view={view} grid={grid} className="eth-arr__ruler" />
         </div>
-        <div className="eth-arr__scroll" ref={scrollRef}>
+        <div className="eth-arr__scroll" ref={scrollRef} onPointerDownCapture={onTracksPointerDownCapture}>
           <div
             className="eth-arr__content"
             ref={contentRef}
@@ -232,6 +260,12 @@ function ConnectedArrangementView() {
               // The selection box only starts over the lanes, not the header column.
               const x = e.clientX - e.currentTarget.getBoundingClientRect().left;
               if (x >= useArrangementUi.getState().headerWidth) marquee.onPointerDown(e);
+            }}
+            onContextMenu={(e) => {
+              // Empty space below the tracks (header column or lanes): add a track. Rows,
+              // headers and clips open their own menus (and stop the event).
+              const y = e.clientY - e.currentTarget.getBoundingClientRect().top;
+              if (y >= rowsHeight(rowsRef.current)) openContextMenu(e, newTrackMenu(transport));
             }}
             onDragOver={onDragOver}
             onDragLeave={() => useArrangementUi.getState().setDropHint(null)}
@@ -246,6 +280,7 @@ function ConnectedArrangementView() {
               <TrackRow key={row.track.id} row={row} />
             ))}
             <div className="eth-arr__drop-area" style={{ height: DROP_AREA_HEIGHT }}>
+              <AddTrackRow />
               <NewTrackDropHint />
             </div>
             <TrackDropLine />
@@ -266,6 +301,17 @@ function ConnectedArrangementView() {
             )}
           </div>
         </div>
+        {masterRow && (
+          <div className="eth-arr__master" data-testid="arrangement-master" onPointerDownCapture={onTracksPointerDownCapture}>
+            <div className="eth-arr__backdrop" style={{ left: headerWidth }}>
+              <GridLayer />
+            </div>
+            <TrackRow row={masterRow} />
+            <div className="eth-arr__overlay" style={{ left: headerWidth }}>
+              <PlayheadLine view={view} />
+            </div>
+          </div>
+        )}
         <HeaderColumnResizer />
       </div>
     </ArrangementContext.Provider>

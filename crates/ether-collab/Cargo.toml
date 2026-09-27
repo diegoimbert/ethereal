@@ -1,6 +1,6 @@
 [package]
 name = "ether-collab"
-description = "Collaboration layer: op/CRDT sync between document replicas and presence (reserved)."
+description = "Collaboration layer: relay/sequencer, site transports and wire helpers for replicated documents (docs/COLLAB.md)."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -9,10 +9,33 @@ repository.workspace = true
 authors.workspace = true
 publish.workspace = true
 
-# Native + wasm (runs next to the controller). The `collab` node chooses the CRDT library
-# (Loro/Yrs) and transport via BCR.
+# Native + wasm (runs next to the controller). The relay (`relay::server`, the
+# `ether-collab-relay` binary) and the tungstenite client are native only; the web client
+# uses the browser's WebSocket from the controller Worker.
 [dependencies]
 ether-protocol.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+tungstenite.workspace = true
+crossbeam-channel.workspace = true
+getrandom.workspace = true
+tracing-subscriber.workspace = true
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen.workspace = true
+js-sys.workspace = true
+web-sys = { workspace = true, features = ["WebSocket", "MessageEvent", "BinaryType", "CloseEvent", "Event"] }
+
+[dev-dependencies]
+proptest.workspace = true
 
 [lints]
 workspace = true
+
+[[bin]]
+name = "ether-collab-relay"
+path = "src/bin/relay.rs"

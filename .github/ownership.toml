@@ -435,6 +435,9 @@ paths = [
   "crates/ether-native/tests/multicore*.rs",
   # shared touch (base-42): run_pads takes the engine NodeTable (signature only)
   "crates/ether-core/src/drum_rack/mod.rs",
+  # shared touch (base-49): NoteSink doc line (per-track note ids); ETHER_WORKERS default in just recipes
+  "crates/ether-core/src/sched.rs",
+  "justfile",
 ]
 
 [nodes.web-perf]

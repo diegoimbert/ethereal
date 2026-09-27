@@ -351,6 +351,10 @@ export const size = {
   /** Two-layer halo around selected clips and notes (inner and outer blur). */
   selectedGlowInner: "6px",
   selectedGlowOuter: "14px",
+  /** "+ Add track" row below the tracks: height and horizontal padding. */
+  addTrackHeight: "32px",
+  addTrackPadLeft: "18px",
+  addTrackPadRight: "20px",
   /** Piano-roll scale highlight: accent mark on in-scale keys, and the wider one on roots. */
   pianoScaleMark: "3px",
   pianoScaleRootMark: "5px",
@@ -371,7 +375,11 @@ export const size = {
   // Browser, plugins, project, recording, transport.
   browserRowHeight: "24px",
   emptyStateIcon: "22px",
-  projectManagerWidth: "460px",
+  /** Project screen (dialog) width, its big "New project" button and list rows. */
+  projectScreenWidth: "560px",
+  projectNewHeight: "72px",
+  projectNewIcon: "20px",
+  projectRowHeight: "32px",
   projectInputHeight: "20px",
   recordPanelMinWidth: "320px",
   transportIcon: "15px",

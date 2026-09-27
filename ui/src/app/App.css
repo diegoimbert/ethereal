@@ -89,10 +89,9 @@
   /* A step lighter than the arrangement under it, so the card reads as floating on top. */
   background: var(--eth-color-bg-raised);
   box-shadow: var(--eth-shadow-lg);
-  transition:
-    left var(--eth-duration-slow) var(--eth-ease-standard),
-    right var(--eth-duration-slow) var(--eth-ease-standard),
-    box-shadow var(--eth-duration-normal) var(--eth-ease-out);
+  /* No transition on left/right: the drawer's edges follow the side panes exactly (they
+     take their final place at once and only fade/slide in), never lagging behind them. */
+  transition: box-shadow var(--eth-duration-normal) var(--eth-ease-out);
   animation: var(--float-enter) var(--eth-duration-normal) var(--eth-ease-out) both;
 }
 .eth-float--pinned {

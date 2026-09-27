@@ -8,7 +8,9 @@
   white-space: nowrap;
 }
 
+/* A full-width row of the project screen's "Open project" section. */
 .eth-project-scale {
+  grid-column: 1 / -1;
   color: var(--eth-color-text-dim);
   font-size: var(--eth-fs-xs);
 }

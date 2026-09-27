@@ -121,6 +121,10 @@ describe("ArrangementView: tracks", () => {
   it("renders a header and lane per track, returns and master last", () => {
     const names = [...document.querySelectorAll(".eth-arr-header__name")].map((e) => e.textContent);
     expect(names).toEqual(["Keys", "Bass", "Drums", "A Delay", "Master"]);
+    // Master is pinned below the scrolling tracks, outside the scroll content.
+    const master = screen.getByTestId("arrangement-master");
+    expect(master.querySelector(".eth-arr-header__name")?.textContent).toBe("Master");
+    expect(screen.getByTestId("arrangement-content").textContent).not.toContain("Master");
     expect(document.querySelectorAll('[data-slot="automation"]')).toHaveLength(5);
     expect(clipEl(clipByName("Chords"))).toBeTruthy();
     expect(clipEl(clipByName("Bassline"))).toBeTruthy();
@@ -193,6 +197,30 @@ describe("ArrangementView: tracks", () => {
     await undo();
     expect(Object.keys(project().tracks)).toHaveLength(before);
     expect(Object.values(project().devices).filter((d) => d.track === midi.id)).toEqual([]);
+  });
+
+  it("adds a track from the + Add track row below the tracks and from a right-click on empty space", async () => {
+    const before = Object.keys(project().tracks).length;
+    fireEvent.click(screen.getByRole("button", { name: "Add track" }));
+    // Same draft flow as the toolbar button; the row hides while drafting.
+    expect(screen.queryByRole("button", { name: "Add track" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Create audio track" }));
+    await flush();
+    expect(Object.keys(project().tracks)).toHaveLength(before + 1);
+    expect(screen.getByRole("button", { name: "Add track" })).toBeInTheDocument();
+
+    // Empty space below the tracks: the menu offers both kinds and creates the track at once.
+    fireEvent.contextMenu(screen.getByTestId("arrangement-content"), { clientX: 20, clientY: 100_000 });
+    expect(screen.getByRole("menuitem", { name: "Add audio track" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("menuitem", { name: "Add MIDI track" }));
+    await flush();
+    const midi = Object.values(project().tracks).filter((t) => t.kind === "Midi").at(-1)!;
+    expect(Object.keys(project().tracks)).toHaveLength(before + 2);
+    expect(useSelectionStore.getState().selectedTrack).toBe(midi.id);
+
+    // A track's own menu is unchanged (no add-track items).
+    fireEvent.contextMenu(screen.getByRole("group", { name: "Keys track" }));
+    expect(screen.queryByRole("menuitem", { name: "Add audio track" })).toBeNull();
   });
 
   it("nests and folds groups", async () => {
