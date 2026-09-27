@@ -13,6 +13,7 @@ export function grooveCommand(ctx: ReducerContext, c: GrooveCommand): void {
   switch (c.type) {
     case "Humanize": {
       if (!tx.get("Clip", c.clip)) fail("NotFound", `clip ${c.clip}`);
+      if (!Number.isFinite(c.timing) || !Number.isFinite(c.velocity)) fail("InvalidArgument", "humanize amounts must be finite");
       const ids = c.notes ? new Set(c.notes) : null;
       const rand = mulberry32(c.seed);
       const notes = tx
@@ -27,14 +28,19 @@ export function grooveCommand(ctx: ReducerContext, c: GrooveCommand): void {
       break;
     }
     case "SetSwing":
-      if (!(c.grid > 0)) fail("InvalidArgument", "swing grid must be > 0");
+      if (!Number.isFinite(c.amount)) fail("InvalidArgument", "swing amount must be finite");
+      if (!(Number.isFinite(c.grid) && c.grid > 0)) fail("InvalidArgument", "swing grid must be > 0");
       tx.setSettings({ ...tx.project.settings, swing: clamp(c.amount, 0, 1), swing_grid: c.grid });
       break;
   }
 }
 
-/** Swing delay for a quantize target `t` on `grid`: odd grid positions move by `swing·grid/3`. */
+/**
+ * Swing delay for a quantize target `t` on `grid`: odd grid positions move by `swing·grid/3`.
+ * Non-finite swing = straight (mirrors `groove::swing_delay`).
+ */
 export function swingOffset(t: number, grid: number, swing: number): number {
+  if (!Number.isFinite(swing) || !(grid > 0)) return 0;
   const index = Math.round(t / grid);
   return Math.abs(index % 2) === 1 ? (clamp(swing, 0, 1) * grid) / 3 : 0;
 }
