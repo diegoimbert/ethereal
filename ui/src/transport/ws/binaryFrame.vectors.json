@@ -1,0 +1,70 @@
+{
+  "_comment": "Shared binary-frame test vectors, checked by crates/ether-server/tests/frame_vectors.rs (Rust) and ui/src/transport/ws/binaryFrame.test.ts (TS). Layout: [kind u8][header_len u32 LE][header UTF-8 JSON][payload].",
+  "protocol_version": 1,
+  "vectors": [
+    {
+      "name": "upload chunk (client to server)",
+      "kind": "Bytes",
+      "header": "{\"id\":1,\"gesture\":null,\"command\":{\"domain\":\"Media\",\"command\":{\"type\":\"UploadChunk\",\"upload\":\"01J8ZK3V9Q4N2B7XK6M1T0R5AS\",\"offset\":1048576,\"data\":\"\"}}}",
+      "payload_hex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff00ff80",
+      "frame_hex": "01960000007b226964223a312c2267657374757265223a6e756c6c2c22636f6d6d616e64223a7b22646f6d61696e223a224d65646961222c22636f6d6d616e64223a7b2274797065223a2255706c6f61644368756e6b222c2275706c6f6164223a2230314a385a4b33563951344e324237584b364d31543052354153222c226f6666736574223a313034383537362c2264617461223a22227d7d7d000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff00ff80"
+    },
+    {
+      "name": "export download chunk (server to client)",
+      "kind": "Bytes",
+      "header": "{\"kind\":\"Reply\",\"body\":{\"id\":42,\"result\":{\"status\":\"Ok\",\"value\":{\"type\":\"Bytes\",\"chunk\":{\"offset\":0,\"data\":\"\",\"eof\":true}}}}}",
+      "payload_hex": "52494646",
+      "frame_hex": "017d0000007b226b696e64223a225265706c79222c22626f6479223a7b226964223a34322c22726573756c74223a7b22737461747573223a224f6b222c2276616c7565223a7b2274797065223a224279746573222c226368756e6b223a7b226f6666736574223a302c2264617461223a22222c22656f66223a747275657d7d7d7d7d52494646"
+    },
+    {
+      "name": "peaks, 2 channels x 2 (server to client)",
+      "kind": "Peaks",
+      "header": "{\"kind\":\"Reply\",\"body\":{\"id\":7,\"result\":{\"status\":\"Ok\",\"value\":{\"type\":\"Peaks\",\"peaks\":{\"media\":\"01J8ZK3V9Q4N2B7XK6M1T0R5AS\",\"samples_per_peak\":256,\"start_frame\":0,\"min\":[[],[]],\"max\":[[],[]]}}}}}",
+      "payload_hex": "000000bf000080be0000003f0000803f000080bf000000000000003e0000403f",
+      "peaks": {
+        "min": [
+          [
+            -0.5,
+            -0.25
+          ],
+          [
+            -1.0,
+            0.0
+          ]
+        ],
+        "max": [
+          [
+            0.5,
+            1.0
+          ],
+          [
+            0.125,
+            0.75
+          ]
+        ]
+      },
+      "frame_hex": "02c40000007b226b696e64223a225265706c79222c22626f6479223a7b226964223a372c22726573756c74223a7b22737461747573223a224f6b222c2276616c7565223a7b2274797065223a225065616b73222c227065616b73223a7b226d65646961223a2230314a385a4b33563951344e324237584b364d31543052354153222c2273616d706c65735f7065725f7065616b223a3235362c2273746172745f6672616d65223a302c226d696e223a5b5b5d2c5b5d5d2c226d6178223a5b5b5d2c5b5d5d7d7d7d7d7d000000bf000080be0000003f0000803f000080bf000000000000003e0000403f"
+    },
+    {
+      "name": "UTF-8 header, empty payload",
+      "kind": "Bytes",
+      "header": "{\"é\":\"ü\"}",
+      "payload_hex": "",
+      "frame_hex": "010b0000007b22c3a9223a22c3bc227d"
+    }
+  ],
+  "invalid": [
+    {
+      "name": "too short",
+      "frame_hex": "0108000000"
+    },
+    {
+      "name": "unknown kind",
+      "frame_hex": "0300000000"
+    },
+    {
+      "name": "header longer than frame",
+      "frame_hex": "01ff0000007b7d"
+    }
+  ]
+}
