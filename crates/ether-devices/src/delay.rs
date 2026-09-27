@@ -1,6 +1,8 @@
-//! Delay: time (ms or synced), feedback, mix.
+//! Delay: time (ms or synced), feedback, mix, ping-pong.
 //!
-//! Stereo (per-channel) feedback delay. In sync mode the time is a note division of the
+//! Stereo (per-channel) feedback delay. In ping-pong mode the input is summed to mono and
+//! fed to the left line only, and each line feeds back into the other, so the echoes
+//! alternate left, right, left... In sync mode the time is a note division of the
 //! transport tempo. Delay-time changes glide (fractional read with linear interpolation),
 //! so automation doesn't click. The delay line is allocated in `prepare`.
 
@@ -22,9 +24,10 @@ pub mod params {
     pub const DIVISION: ParamId = ParamId(2);
     pub const FEEDBACK: ParamId = ParamId(3);
     pub const MIX: ParamId = ParamId(4);
+    pub const PING_PONG: ParamId = ParamId(5);
 }
 
-const NUM_PARAMS: usize = 5;
+const NUM_PARAMS: usize = 6;
 /// Longest possible delay (synced times are clamped to it).
 pub const MAX_DELAY_SECONDS: f32 = 5.0;
 /// Glide time constant for delay-time changes.
@@ -76,6 +79,7 @@ pub fn param_infos() -> Vec<ParamInfo> {
             (0.0, 100.0, 30.0),
             ParamScale::Linear,
         ),
+        choice(5, "Ping-pong", "Delay", ParamUnit::Toggle, &["Off", "On"], 0),
     ]
 }
 
@@ -205,6 +209,7 @@ impl Delay {
         let len = self.lines[0].len();
         let inputs = audio.inputs;
         let channels = audio.outputs.len().min(2);
+        let ping_pong = self.value(params::PING_PONG) >= 0.5;
         for i in start..end {
             self.delay = target + (self.delay - target) * self.glide_coef;
             let fb = self.feedback.tick();
@@ -217,14 +222,24 @@ impl Delay {
             let i0 = rp as usize % len;
             let i1 = (i0 + 1) % len;
             let frac = rp - rp.floor();
+            let tap = |line: &[f32]| line[i0] + (line[i1] - line[i0]) * frac;
+            let wet = [tap(&self.lines[0]), tap(&self.lines[1])];
+            let dry = [
+                inputs.first().map_or(0.0, |c| c[i]),
+                inputs.get(1).map_or(0.0, |c| c[i]),
+            ];
+            // Line inputs: per channel, or (ping-pong, stereo) mono input into the left
+            // line with the feedback crossing over.
+            let fed = if ping_pong && channels == 2 {
+                [(dry[0] + dry[1]) * 0.5 + wet[1] * fb, wet[0] * fb]
+            } else {
+                [dry[0] + wet[0] * fb, dry[1] + wet[1] * fb]
+            };
             for ch in 0..channels {
-                let line = &mut self.lines[ch];
-                let wet = line[i0] + (line[i1] - line[i0]) * frac;
-                let dry = inputs.get(ch).map_or(0.0, |c| c[i]);
                 // Flush tiny values so the tail doesn't run on denormals.
-                let fed = dry + wet * fb;
-                line[self.write] = if fed.abs() < 1e-20 { 0.0 } else { fed };
-                audio.outputs[ch][i] = dry * (1.0 - mix) + wet * mix;
+                let f = fed[ch];
+                self.lines[ch][self.write] = if f.abs() < 1e-20 { 0.0 } else { f };
+                audio.outputs[ch][i] = dry[ch] * (1.0 - mix) + wet[ch] * mix;
             }
             for out in audio.outputs.iter_mut().skip(channels) {
                 out[i] = 0.0;
