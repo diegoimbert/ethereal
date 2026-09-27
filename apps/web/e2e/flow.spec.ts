@@ -9,7 +9,7 @@
 // No sleeps: every step waits on UI or engine state with `expect.poll` / auto-waiting
 // locators. The UI mirror is read through `window.__ether` (apps/web/src/main.tsx).
 import { expect, test, type Locator, type Page } from "@playwright/test";
-import type { Project } from "@ethereal/ui";
+import type { Project } from "@/generated";
 
 interface Handle {
   state(): { project: Project | null; dirty: boolean; history: { can_undo: boolean; can_redo: boolean } };
