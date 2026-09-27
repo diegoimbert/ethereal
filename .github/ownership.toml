@@ -621,4 +621,7 @@ paths = [
   "ui/src/transport/mock/MockTransport.ts",
   # shared touch (base-45): one-line recording_tick delegation in tick_impl
   "crates/ether-controller/src/handlers.rs",
+  # shared touch (base-48): tests that assumed the mock cannot record
+  "ui/src/transport/mock/MockTransport.test.ts",
+  "ui/src/features/transport-bar/TransportBar.test.tsx",
 ]
