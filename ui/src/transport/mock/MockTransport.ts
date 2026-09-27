@@ -72,7 +72,7 @@
  *   fake. Library files only have metadata; peaks are synthesized deterministically.
  * - Replies `Err { code: "Unsupported" }`: plugins (insert/editor/sandbox/reload),
  *   uploads (`Media::{BeginUpload, UploadChunk, CancelUpload}`, `MediaSource::Upload`),
- *   `Collab::*`, `Slice::ToDrumRack`,
+ *   `Collab::*`, `Chat::*` and `PinnedNote::*` (base-62 stubs), `Slice::ToDrumRack`,
  *   `Warp::DetectTempo`, `Engine::SetAudioConfig`.
  * - `Recording::SetRecording` simulates recording with its live view (`roadmap/liveRecord.ts`).
  * - Harmless answers: `Plugin::List` → no plugins, `Plugin::Rescan` → an empty scan,
@@ -139,6 +139,7 @@ import { mediaRefCommand } from "./roadmap/mediaReferences";
 import { presetCommand } from "./roadmap/presets";
 import { listModulatorKinds } from "./roadmap/racksModulation";
 import { timeEditCommand } from "./roadmap/timeEdits";
+import { chatCommand } from "./roadmap/social";
 
 export interface MockTransportOptions {
   /**
@@ -429,6 +430,8 @@ export class MockTransport implements EngineTransport {
         return mediaRefCommand(command.command);
       case "Modulation":
         return listModulatorKinds();
+      case "Chat":
+        return chatCommand(command.command);
       default:
         return fail("InvalidArgument", `unknown command domain`);
     }

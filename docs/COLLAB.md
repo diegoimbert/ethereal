@@ -105,12 +105,13 @@ invariants (routing cycles, "clip on an existing track of the right kind", tempo
 
 | Shared (ops are sent) | Site-local (never sent, remote values ignored) |
 |---|---|
-| every entity table (tracks, clips, notes, devices + params, sends, lanes/points, tempo, signatures, warp markers, media, markers, MIDI mappings, drum pads) | transport: play/stop/locate/record, playhead, count-in |
+| every entity table (tracks, clips, notes, devices + params, sends, lanes/points, tempo, signatures, warp markers, media, markers, MIDI mappings, drum pads, chat messages, pinned notes: §12) | transport: play/stop/locate/record, playhead, count-in |
 | track volume, pan, routing, names, colors, order; drum pad volume, pan, choke group | **mute and solo, per user**: track mute and solo (`TrackChange::Mute`/`Solo`, group tracks included), drum pad mute (`DrumPadChange::Mute`), drum pad solo (`SetPadSolo`, runtime already); record-arm (runtime already) |
 | settings: project name, swing, swing grid | settings: loop enabled + loop region, metronome on/off, volume, accent, sound, count-in bars |
 | | MIDI learn mode/gestures, selection (shared only as presence), undo history |
 | | the live recording view (`RecordingEvent::Progress`, live chunks/notes): events, never ops; only the committed take (media pushed first, then its `Insert`s) replicates |
 | | missing-plugin bypass (runtime engine state, never an op) |
+| | UI preferences such as "hide users and notes" (§12.4): never a command |
 
 Local-only ops are applied and undone locally as usual but filtered out of the stamped
 transaction (a transaction with only local ops is not sent; a mixed one, e.g. a rename and
@@ -188,7 +189,10 @@ undo/redo go through `History::undo_with/redo_with` (`history.rs`) with
   host entropy (kept for the controller's lifetime, so a reconnect is the same site) and
   connects to `server` (`ws://host:port/`; the session name is the URL path
   `/<session>` percent-encoded). Handshake = remote-engine's `ClientHello`/`ServerHello`
-  (token, protocol version), then `CollabMessage::Hello { site, actor, name, ... }`.
+  (token, protocol version), then `CollabMessage::Hello { site, actor, name,
+  protocol_version }`. The relay refuses (disconnects) a `protocol_version` other than its
+  `COLLAB_PROTOCOL_VERSION` (`ether-collab/src/wire.rs`; 2 since base-62, §12), so sites of
+  different builds never share a session and drift apart on messages they can't decode.
 - Relay → joiner (after `Hello` + `SyncRequest`):
   - empty session: `SyncRequest { site: joiner, version: [] }` = "you create it": the site
     uploads its media (`Media` chunks) and a `Snapshot` of its open project. Other joiners
@@ -262,7 +266,7 @@ join/leave button + dialog (server, session, token, name; same pattern as the re
 `ConnectDialog`), and one avatar chip per peer in its color with its name; the peer's
 selected tracks/clips get an outline in that color (only through kit components and
 tokens; peer colors are data, like track colors). Presence v2 (live pointers, activity,
-follow mode, listening indicator) is §8.
+follow mode, listening indicator) is §8; chat, pinned notes and peers' playheads are §12.
 
 ## 7. Security
 
@@ -742,7 +746,198 @@ are the relay's, or the ones set in settings (`SetIceServers`; e.g. a self-hoste
 | TURN | `turn` crate (webrtc-rs), feature-gated, tokio in its own thread | Maintained RFC 5766/8656 server with a TURN-REST-style auth hook, in-process (the relay stays one binary). Rejected: coturn (C, a second process to deploy), writing TURN ourselves (large security surface). |
 | Topology | mesh host → listeners | ≤ 8 listeners; an SFU is future work. |
 
-## 12. Code layout
+## 12. Social: chat, notes, peer playheads (base-62, node `collab-social`)
+
+Four owner requests, one node. Chat and notes are **document** state (saved with the
+project, replicated as ordinary ops); peer playheads are **presence** (ephemeral); the
+"hide users and notes" toggle is **UI state** (per user, never sent). Contract: `ether_model::social`
+(entities, caps, `is_untracked`), `ether_protocol::social` (`ChatCommand`,
+`PinnedNoteCommand`), `ether_protocol::collab` (`PresenceState::transport`, `PeerTransport`,
+`CollabEvent::ChatReceived`). Until the node lands, `Chat::*` and `PinnedNote::*` reply
+`Unsupported` (engine: `ether-controller/src/social/mod.rs`, pinned in
+`tests/social_prewire.rs`; mock: `ui/src/transport/mock/roadmap/social.ts`).
+
+### 12.1 Chat (a project journal)
+
+- **Entity** `ChatMessage { id, seq, author, text, sent_at }` in `Project::chat`
+  (`.ether` v4: the v3 → v4 migration adds it empty; also `#[serde(default)]`).
+  `id` is a client-chosen ULID (unique across sites). `author = Author { name, site,
+  actor, color }` is a **snapshot** taken by the sender's controller (session name, site,
+  its relay colour at the time), so the journal keeps showing who wrote what after the
+  session. `text`: 1..=2000 chars (`CHAT_TEXT_MAX_CHARS`, counted in `char`s) and ≤ 4096
+  UTF-8 bytes (`TEXT_MAX_BYTES`), not only whitespace. `sent_at`: unix ms on the sender's clock, display only.
+- **Order = relay log order, not `sent_at`.** `seq` is assigned by `Project::apply`: an
+  `Insert` with `seq: 0` gets `max(seq) + 1` (saturating: a forged `u64::MAX` neither
+  panics nor wraps; ties sort by id). The confirmed document is the resolve-fold of
+  the log (§2), so every replica numbers messages in log order; a pending own message gets
+  a provisional `seq` that is recomputed on every rebase (it re-applies the op as sent, with
+  `seq: 0`), and its echo lands it where the relay put it. A non-zero `seq` is kept (inverse
+  ops, snapshots). `Project::chat_ordered()` sorts by `(seq, id)`.
+- **Not undoable.** `History::commit` applies chat ops (`Insert`/`Remove` of a
+  `ChatMessage`; `social::is_untracked`) but never records them: a chat-only transaction
+  pushes no step and keeps the redo stack and the open gesture; in a mixed transaction only
+  the other ops form the step. The controller still stamps and sends the transaction (the
+  `edit_with` path: `collab_local_commit` gets the full applied ops and inverse, so
+  rebasing works as for any pending transaction). `Chat` is not a document command: it is
+  refused inside `Edit::Batch`. Test: `ether-model/tests/social.rs`.
+- **Cap.** `CHAT_MAX_MESSAGES` = 2000. `Send` computes `Project::chat_overflow(cap)` on the
+  live document and removes those oldest messages **in the same transaction** as the
+  insert: removes are ordinary ops, so every replica removes the same ones. Two sites
+  sending concurrently at the cap may both remove the same oldest message (the second
+  `Remove` is skipped by resolve), leaving `cap + 1` until the next send prunes two: bounded
+  and convergent. A peer that never prunes is stopped at apply time: `Project::apply`
+  refuses an insert past `CHAT_HARD_MAX_MESSAGES` (2 × the cap). The confirmed state is the
+  same on every replica, so every replica refuses the same insert (resolve skips it). Worst
+  case stored: 4000 × 4 KiB, far below a snapshot's 16 MiB with the rest of the project.
+- **Command** `Chat::Send { id, text }`: validate, fill `author` and `sent_at`, then one
+  transaction `Insert ChatMessage { seq: 0 } + Remove overflow` (an existing `id` is a
+  no-op). Outside a session: `InvalidState` (chat is hidden there). Replies `Unit`; the
+  message reaches the UI as a patch, like any edit.
+- **Incoming** messages arrive as peers' patches (`Patch::origin` set). The controller also
+  emits `CollabEvent::ChatReceived { ids }` for peers' messages **sequenced after this
+  site's join catch-up** (never for the join snapshot, the catch-up log, a project load, or
+  own messages), so the UI toasts only live messages.
+- **Protocol version 2.** New entity variants travel in transactions, which an older
+  build cannot decode (it would drop them silently and diverge), so base-62 bumps
+  `COLLAB_PROTOCOL_VERSION` to 2: the relay refuses mixed-version sites at the hello (§4).
+- **Nobody writes, edits or deletes other people's chat** (implemented:
+  `social::sanitize_chat`). Every sequenced transaction's chat ops are filtered against the
+  document **as it is right before that transaction** (the confirmed state, identical on
+  every replica), so every replica keeps the same ops:
+  - an `Insert ChatMessage` is dropped unless `author.site == Some(origin.site)` (the
+    relay-verified sender, §7) and `seq == 0`;
+  - any `Update` of a chat message is dropped (sent messages are final; the model has no
+    chat update today, and this keeps it so);
+  - the transaction's chat `Remove`s are kept only as a **prune**: it also inserts a
+    well-formed message by the sender, the removed messages that still exist are the oldest
+    ones (a prefix of `chat_ordered`), and removing them leaves at least
+    `CHAT_MAX_MESSAGES` with the new message. Otherwise all its chat `Remove`s are dropped
+    (e.g. a concurrent prune already brought the chat to the cap; the next send prunes
+    again). A dropped message never produces `ChatReceived`.
+
+  It runs in `collab_apply_remote` (peers' transactions, and our own from before a
+  re-join), on the re-application of our pending transactions during a rebase (so our live
+  prune is exactly what peers will keep once it is sequenced: a pending transaction's last
+  re-application is on the state its echo will find), and in the debug echo check. No
+  legitimate path is affected: chat is never undone or redone, and `Send` prunes exactly
+  this way. Tested in `ether-controller/src/social/mod.rs` (unit) and
+  `tests/social_sanitize.rs` (a tapped peer injecting spoofed, reordered and site-less
+  messages, and deletes of others' messages). **Note authorship is best-effort**: undoing a
+  discard legitimately re-inserts (or deletes) another user's note, so notes cannot use
+  these rules; their `author` is what the inserting op says.
+- **Own colour.** Today a site never learns its relay colour (the relay drops a site's own
+  presence). The node adds it: the relay sends each site its own stamped default presence
+  once synced (`relay/mod.rs`, next to the peers' presence it already sends a joiner), and
+  the controller records its colour from a `Presence` with its own site instead of
+  dropping it (`collab/mod.rs`, one line). `Author::color` is `None` until known.
+- **Older readers.** The tables ship with `.ether` v4 (contracts-3, #106): a v3 reader
+  refuses a v4 file (`TooNew`) instead of silently dropping the journal and the notes on
+  re-save; the v3 → v4 migration adds both tables empty (`V3ContractsV3Defaults`, tested). In a session, older builds are
+  refused by the collab protocol version (above).
+- **Solo** (no session): the chat UI is hidden; messages still load with the project, stay
+  in the file, and show again in the next session.
+
+UI (`ui/src/features/collab/social/**`):
+- A **Chat** section in the left sidebar: a new rail tab (`LeftTab` `"chat"`, `LEFT_TABS`
+  entry, `LeftPanel` case), shown **only in a session**. Message list in `chat_ordered`
+  order (author name in the author's snapshot colour, relative time from `sent_at`), input
+  at the bottom (Enter sends, Shift+Enter new line, a live counter near the 2000 cap).
+- **Toasts** while the chat section is closed: each `ChatReceived` id pops a toast at the
+  top right (author, first line, click opens the chat), a few at most on screen, auto
+  dismissed. The kit has no toast: the node adds one as its own kit component
+  (`ui/src/kit/Toast.tsx` + one export line in `kit/index.ts`), tokens only.
+- **Shortcut**: `Mod+Shift+M` opens the chat section if needed and focuses its input (listed
+  in the command palette as "Chat: Focus input"; Escape returns focus to where it was).
+  Only in a session. The node checks the existing keymap for conflicts.
+
+### 12.2 Notes pinned wherever cursors are tracked (arranger and piano roll)
+
+- **Entity** `PinnedNote { id, position, text, author, created_at, resolved }` in
+  `Project::pinned_notes` (`#[serde(default)]`; named `PinnedNote` because `Note` is the MIDI
+  note). `text`: 1..=2000 chars and ≤ 4096 UTF-8 bytes (`NOTE_TEXT_MAX_CHARS`,
+  `TEXT_MAX_BYTES`). `resolved` defaults to `false`. At most `MAX_PINNED_NOTES` (500) per
+  project: an insert past it is refused by `Project::apply` ("a project holds at most 500
+  notes"; the UI shows it). Validated by `Project::apply` (text, author, position ranges,
+  count).
+- `position = NotePosition { beats, track, y, editor? }`, the same coordinates as a
+  presence pointer (§8.3), so a note can be left **wherever cursors are tracked**:
+  - **Arranger** (`editor: None`): `beats` ≥ 0; `track` = the row, `y` in 0..=1 inside it
+    (including its expanded lanes); `track: None` = off-track, with `ArrangerPointer::y`'s
+    meaning: `y` = 0 over the ruler/header area, `y` > 0 below the last track as the
+    fraction of the free space there (each user maps it onto their own).
+  - **Piano roll** (`editor: Some(EditorNotePosition { clip, beats, pitch })`, mirroring
+    `EditorPointer`): content beats of that clip (≥ 0) and `pitch` in 0..=128 (60.5 = the
+    middle of C3's row). The arranger fields are then `beats: 0, track: None, y: 0`
+    (validated) and ignored.
+- `track` and `clip` are **weak references**: never validated, never cascaded, never block
+  a delete. A note whose track is gone shows in the ruler row at its `beats`; one whose
+  clip is gone is not shown. Undoing the delete puts it back in place.
+- **Commands** `PinnedNote::{Add { id, position, text, author_name }, Edit { id, text?,
+  position?, resolved? }, Delete { ids }}`: document commands (undoable, replicated, allowed
+  in a `Batch`, work outside a session). The controller fills `author` (in a session: the
+  session identity; outside: `author_name` or "", no site/colour) and `created_at`. **Any
+  user can edit, resolve, move or discard any note**, for everyone; discarding is undoable
+  (by whoever discarded it, per-site undo §3). Authorship is best-effort (§12.1): an undo
+  legitimately re-inserts another user's note, so receivers cannot verify it like chat.
+- UI (`ui/src/features/collab/social/notes/**`), the owner's context-menu pattern in both
+  places:
+  - **Arranger**: **"Leave a note"** in the lane/ruler menus of `ArrangementView.tsx` and
+    `TrackRow.tsx`, at the right-click position mapped to song coordinates with
+    presence-v2's `coords.ts`; dots drawn in an overlay layer over the arrangement (the
+    PresenceLayer pattern: one layer, pointer-events only on the dots, each user's own
+    layout maps song → screen).
+  - **Piano roll**: **"Leave a note"** in the note-grid context menu (`NoteGrid.tsx`), at
+    the right-click position in content coordinates (the `EditorPresence` mapping); dots
+    in an overlay over the grid (mounted in `PianoRoll.tsx`), shown only for the open clip.
+  - Both: a small dot in the author's colour; hover/click shows the text, collapsed to a
+    few lines with "more" when long; edit, resolve and "Discard note" from the dot's menu;
+    drag the dot to move it (one gesture). Resolved notes are dimmed.
+
+### 12.3 Peers' playheads
+
+- Transports are per site (§1), so each peer has its own playhead. Our presence carries it:
+  `PresenceState::transport: Option<PeerTransport { position, playing, sent_at_ms,
+  loop_region }>` (additive, `#[serde(default)]`, omitted when `None`). It is
+  **controller-owned** (`social_presence`, next to `listening_to`/`can_host`): whatever the UI
+  sends is overwritten. `loop_region` is `Some` while loop playback is on.
+- Published within the presence throttle (≤ 10 Hz): at once on play, stop, locate, loop
+  and tempo-map changes, and every `PEER_TRANSPORT_REFRESH_MS` (1 s) while playing (receivers
+  extrapolate in between). `None` while this site listens to a host (§9: the host's
+  playhead is the one heard, shown by the listening badge).
+- Receivers (UI, per animation frame): a new `sent_at_ms` marks a new sample; record its
+  **local arrival time** (clocks are not synchronized, so `sent_at_ms` is never compared with
+  the local clock). While `playing`: `position` + the time elapsed since arrival, converted
+  with the **replicated tempo map** (`seconds_at`/`beats_at` from `position`), then, if
+  `loop_region` is set and `position` was inside it, wrapped into it; if a refresh is late
+  by more than 2 × the refresh interval, hold the last extrapolated position (do not run
+  away). Stopped: `position` as is.
+- UI: one line per peer over the arrangement (and a small cap on the ruler) in the peer's
+  colour, visibly distinct from our own playhead (thinner, dashed or with the peer's
+  initials on the ruler cap), in the presence overlay layer (the PresenceLayer pattern,
+  pointer-events: none), hidden when off screen.
+- **Optional** in `collab-social`'s scope: the peers' playheads in the piano roll too (the
+  same extrapolation, mapped to the open clip's content axis), and follow-mode parity there
+  (nice to have).
+
+### 12.4 "Hide users and notes" (local preference)
+
+- A toggle in the collab ("jam") dialog labelled **"Hide users and notes"** (the owner's
+  wording): while on, this user sees **no peers' pointers (arranger and piano roll),
+  playheads, selection outlines, "peer editing" rings on clips, presence chips on the
+  timeline, and no pinned notes** (arranger and piano roll). Nothing else changes: peers'
+  edits still apply, the chat and its toasts still work, the participant list in the dialog
+  and the top-bar chips stay (they are how to turn it back off), and our own presence is
+  still published.
+- UI state only: stored in local settings (`localStorage`, next to the dialog's remembered
+  join fields), never replicated, never a command. One selector (`useHideOthers()` in the
+  collab store) that **every** presence and notes renderer honours: `PresenceLayer`,
+  `EditorPresence`, `PeerHighlights` (selection outlines), `useClipEditors`
+  (`presence/editors.ts`, the ring `ClipView.tsx` draws on clips a peer is editing: it
+  returns no editors while hiding, so `ClipView.tsx` needs no change), the playhead
+  overlay, both notes overlays and both "Leave a note" menu entries (hidden while hiding
+  notes).
+
+## 13. Code layout
 
 - `ether-collab` (native + wasm): wire helpers (snapshot/version encoding, media chunking,
   binary frames), `CollabTransport` implementations: native WebSocket client thread
@@ -777,11 +972,16 @@ are the relay's, or the ones set in settings (`SetIceServers`; e.g. a self-hoste
   `collab/mod.rs`; the transport intercept in `handlers.rs::transport_command`), tests
   `ether-protocol/tests/collab_v2_shapes.rs`, `ether-core/tests/stream_tap.rs`,
   `ether-controller/tests/collab_prewire.rs`. Node boundaries: docs/ROADMAP.md.
+- base-62 (§12): `ether-model/src/social.rs` (entities, caps, `is_untracked`, used by
+  `history.rs`), `ether-protocol/src/social.rs` (commands), `ether-controller/src/social/`
+  (stubs; `social_presence` called from `collab_flush_presence`), tests
+  `ether-model/tests/social.rs`, `ether-protocol/tests/social_shapes.rs`,
+  `ether-controller/tests/social_prewire.rs`; mock `ui/src/transport/mock/roadmap/social.ts`.
 - Limitations: `wss://` works from the browser; the native client speaks `ws://` only (put a
   TLS proxy in front of a public relay). The relay keeps sessions in memory (a relay restart
   makes the first site to reconnect re-create the session from its replica).
 
-## 13. Base changes
+## 14. Base changes
 
 Landed in base-36: `CollabMessage::Media`, `CollabCommand::Get` (re-emits
 `CollabEvent::Session` + `CollabEvent::Presence`, replies `Unit`), ownership of this file.
@@ -790,3 +990,5 @@ base-39: `MockTransport.ts` wiring of `MockCollab`. base-44: `engine.rs`
 base-53: presence v2 and listen-on-peer contract (§8-§11): protocol types, relay routing,
 limits and ICE advertisement, the engine stream tap, the `EngineBridge` stream and
 plugin-mirror hooks, controller dispatch into per-node stubs.
+base-62: social contract (§12): chat and pinned-note entities, their commands, the chat
+History exemption, `PresenceState::transport`, `CollabEvent::ChatReceived`, stubs.
