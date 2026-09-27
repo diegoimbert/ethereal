@@ -355,6 +355,23 @@ fn learn_can_be_cancelled_and_note_learns_toggle() {
     assert_eq!(m.mode, MidiMapMode::Toggle);
 }
 
+#[test]
+fn learn_is_cancelled_when_its_target_disappears() {
+    let mut h = H::new();
+    let t = h.track(TrackKind::Audio);
+    h.ok(Command::MidiMap(MidiMapCommand::Learn {
+        target: Some(MidiMapTarget::TrackSolo { track: t }),
+    }));
+    assert!(midi_events(&h.tick()).is_empty());
+    h.ok(Command::Track(TrackCommand::Delete { id: t }));
+    assert_eq!(
+        midi_events(&h.tick()),
+        vec![MidiMapEvent::LearnChanged { target: None }]
+    );
+    h.midi("K", &[[CC, 1, 64]]);
+    assert!(h.project().midi_mappings.is_empty());
+}
+
 // ─── Document commands ───────────────────────────────────────────────────────────────
 
 #[test]

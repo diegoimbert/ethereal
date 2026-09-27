@@ -114,6 +114,23 @@ enum OnOffTarget {
     Arm(TrackId),
 }
 
+/// Whether the entities a target refers to exist.
+fn target_exists(p: &Project, target: &MidiMapTarget) -> bool {
+    match target {
+        MidiMapTarget::Param { target } => match *target {
+            AutomationTarget::TrackVolume { track } | AutomationTarget::TrackPan { track } => {
+                p.tracks.contains_key(&track)
+            }
+            AutomationTarget::SendLevel { send } => p.sends.contains_key(&send),
+            AutomationTarget::DeviceParam { device, .. } => p.devices.contains_key(&device),
+        },
+        MidiMapTarget::TrackMute { track }
+        | MidiMapTarget::TrackSolo { track }
+        | MidiMapTarget::TrackArm { track } => p.tracks.contains_key(track),
+        MidiMapTarget::Transport { .. } => true,
+    }
+}
+
 impl<B, H, S, L> EtherController<B, H, S, L>
 where
     B: EngineBridge,
@@ -155,6 +172,16 @@ where
 
     /// Called from every tick.
     pub(crate) fn midi_learn_tick(&mut self, now: u64, out: &mut dyn MessageSink) {
+        // A learn whose target vanished (deleted, undone, other project) is cancelled.
+        if let Some(target) = &self.midi_learn.learn
+            && !self
+                .doc
+                .as_ref()
+                .is_some_and(|d| target_exists(&d.project, target))
+        {
+            self.set_learn(None, out);
+        }
+
         let mut buf = std::mem::take(&mut self.midi_learn.buf);
         self.bridge.poll_midi_input(&mut buf);
         for e in buf.drain(..) {
