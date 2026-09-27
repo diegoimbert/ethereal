@@ -64,6 +64,35 @@ describe("live recording model", () => {
     expect(r!.min).toBeCloseTo(-Math.max(...values.slice(1020, 1030)), 5);
   });
 
+  it("keeps coarser peak levels up to date for zoomed-out drawing", () => {
+    const t = new LiveTake(A, 1, 0, 48_000, 256);
+    const values = Array.from({ length: 5000 }, (_, i) => ((i * 37) % 101) / 100);
+    // Fed in uneven chunks, like Progress events.
+    for (let i = 0; i < values.length; i += 333) {
+      const v = values.slice(i, i + 333);
+      t.put(i, v.map((x) => -x), v);
+    }
+    expect(t.levels.map((l) => [l.framesPerPeak, l.count])).toEqual([
+      [256, 5000],
+      [4096, Math.ceil(5000 / 16)],
+      [65536, Math.ceil(5000 / 256)],
+    ]);
+    for (const [l, f] of [[1, 16], [2, 256]] as const) {
+      for (let j = 0; j < t.levels[l]!.count; j++) {
+        const slice = values.slice(j * f, (j + 1) * f);
+        expect(t.levels[l]!.max[j]).toBeCloseTo(Math.max(...slice), 5);
+        expect(t.levels[l]!.min[j]).toBeCloseTo(-Math.max(...slice), 5);
+      }
+    }
+    // One level per zoom, like committed clips: about one peak per pixel.
+    expect(t.levelFor(100)).toBe(0);
+    expect(t.levelFor(5000)).toBe(1);
+    expect(t.levelFor(1e6)).toBe(2);
+    // Coarse tiles read like the base ones.
+    const r = peakRange(0, 5000 * 256, 65536, (i) => t.tile(i, 2));
+    expect(r!.max).toBeCloseTo(1, 5);
+  });
+
   it("draws the accumulated peaks with the arrangement waveform code", () => {
     const t = new LiveTake(A, 1, 2, 48_000, 256);
     // One beat at 120 bpm = 24000 frames ≈ 94 peaks: loud first half, silent second.

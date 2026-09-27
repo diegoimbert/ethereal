@@ -90,6 +90,9 @@ function LiveClip(p: LiveClipProps) {
     props.current = p;
   });
 
+  /** What the canvas shows now: redrawn only when this changes. */
+  const drawn = useRef("");
+
   useEffect(() => {
     let frame = 0;
     const draw = () => {
@@ -99,31 +102,48 @@ function LiveClip(p: LiveClipProps) {
       const cv = canvas.current;
       if (!el || !cv) return;
       const playhead = playheadStore.getPlayhead()?.transport.position ?? null;
+      // The clip box follows the playhead every frame (CSS only).
       const { start, end, bpm } = extent(q, playhead);
       el.style.left = beatsCss(start - q.origin);
       el.style.width = widthCss(Math.max(0, end - start));
+      // The canvas covers the visible part of what there is to draw: the received peaks
+      // (audio) or the notes, held ones up to the playhead (MIDI).
+      const growingNotes = q.notes !== undefined && q.growing && q.phase === "recording";
+      const now = growingNotes && playhead !== null ? playhead : -Infinity;
+      const dataEnd = q.take ? takeEnd(q.take, bpm) : Math.max(start, ...noteSpans(q.notes ?? [], now).map((n) => n.end));
       const from = Math.max(start, q.visible.start);
-      const to = Math.min(end, q.visible.end);
+      const to = Math.min(dataEnd, q.visible.end);
       if (!(to > from)) {
         cv.style.display = "none";
+        drawn.current = "";
         return;
       }
-      cv.style.display = "";
-      cv.style.left = beatsCss(from - start);
-      cv.style.width = beatsCss(to - from);
       const dpr = window.devicePixelRatio || 1;
       const w = Math.max(1, Math.round((to - from) * q.pxPerBeat));
       const h = cv.clientHeight || 30;
-      cv.width = Math.min(MAX_CANVAS_PX, Math.round(w * dpr));
-      cv.height = Math.round(h * dpr);
+      const held = q.notes?.some((n) => n.length === null) ?? false;
+      const key = [q.take?.count, q.notes?.length, held ? now : 0, from, to, q.pxPerBeat, w, h, dpr, q.ink].join("|");
+      if (key === drawn.current) return;
+      drawn.current = key;
+      cv.style.display = "";
+      cv.style.left = beatsCss(from - start);
+      cv.style.width = beatsCss(to - from);
+      // Resizing reallocates the canvas: only when the size really changed.
+      const cw = Math.min(MAX_CANVAS_PX, Math.round(w * dpr));
+      const ch = Math.round(h * dpr);
+      if (cv.width !== cw) cv.width = cw;
+      if (cv.height !== ch) cv.height = ch;
       const ctx = cv.getContext("2d");
       if (!ctx) return;
-      ctx.setTransform(cv.width / w, 0, 0, dpr, 0, 0);
+      ctx.setTransform(cw / w, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, w, h);
       const area: DrawArea = { from, to, width: w, height: h };
       if (q.take) {
         const t = q.take;
-        const len = takeEnd(t, bpm) - t.start;
+        const len = dataEnd - t.start;
+        // About one peak per pixel, like committed clips (`peakLevel`).
+        const framesPerPx = (((to - from) / w) * 60 * t.sampleRate) / bpm;
+        const level = t.levelFor(framesPerPx);
         drawWaveform(
           ctx,
           area,
@@ -133,13 +153,12 @@ function LiveClip(p: LiveClipProps) {
             sampleRate: t.sampleRate,
             toSeconds: (c) => (c * 60) / bpm,
             frames: t.frames,
-            level: t.framesPerPeak,
-            tile: (i) => t.tile(i),
+            level: t.levels[level]!.framesPerPeak,
+            tile: (i) => t.tile(i, level),
           },
           q.ink,
         );
       } else if (q.notes) {
-        const now = q.growing && q.phase === "recording" && playhead !== null ? playhead : -Infinity;
         const spans = noteSpans(q.notes, now);
         const rects = spans
           .filter((s) => s.end > from && s.start < to)

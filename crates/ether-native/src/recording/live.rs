@@ -63,6 +63,11 @@ impl LiveQueue {
     pub(crate) fn dropped(&self) -> u64 {
         self.dropped
     }
+
+    /// Entries dropped since the last call (reported at the end of each session).
+    pub(super) fn take_dropped(&mut self) -> u64 {
+        std::mem::take(&mut self.dropped)
+    }
 }
 
 /// Shared between the writer thread and the bridge (controller thread) only.

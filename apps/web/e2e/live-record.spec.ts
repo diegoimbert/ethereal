@@ -149,6 +149,14 @@ test("live recording clip grows while recording, then becomes the real clip", as
 
   // --- Stop: the committed clip lands where the live one was; the live clip goes away.
   const liveBox = (await live.boundingBox())!;
+  // The frozen live clip (handoff) may go away quickly: note its width when it freezes.
+  await live.evaluate((el) => {
+    const w = window as unknown as { __liveHandoffWidth?: number };
+    new MutationObserver(() => {
+      if (el.getAttribute("data-live-phase") === "handoff")
+        requestAnimationFrame(() => (w.__liveHandoffWidth ??= el.getBoundingClientRect().width));
+    }).observe(el, { attributes: true });
+  });
   await expect(record).toHaveAttribute("title", "Stop recording");
   await record.click();
   await expect
@@ -158,6 +166,10 @@ test("live recording clip grows while recording, then becomes the real clip", as
   await expect(clip).toHaveCount(1);
   const clipBox = (await clip.boundingBox())!;
   expect(Math.abs(clipBox.x - liveBox.x)).toBeLessThan(1.5);
+  // ... and ends where the live one ended (it got the last peaks before `Stopped`).
+  const handoffWidth = await page.evaluate(() => (window as unknown as { __liveHandoffWidth?: number }).__liveHandoffWidth);
+  expect(handoffWidth).toBeDefined();
+  expect(Math.abs(clipBox.width - handoffWidth!)).toBeLessThan(2);
   await expect(live).toHaveCount(0, { timeout: 10_000 });
   const committed = (await project(page)).clips[(await clip.getAttribute("data-clip-id"))!]!;
   expect(committed.content.type).toBe("Audio");

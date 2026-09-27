@@ -174,6 +174,9 @@ export class MockLiveRecord {
   /** Stop recording (transport stop or `SetRecording { false }`): commit the takes. */
   finish(): void {
     if (!this.recording) return;
+    // The rest of the live view (with the last partial peak), before the real clips.
+    this.advance(this.last, this.last);
+    this.progress(true);
     this.recording = false;
     const end = Math.max(this.last, this.start);
     const media: MediaRef[] = [];

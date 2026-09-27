@@ -356,6 +356,13 @@ impl Session {
 
     pub(super) fn finish(mut self) -> Result<RecordedTakes, String> {
         self.gap();
+        let dropped = self.live.lock().take_dropped();
+        if dropped > 0 {
+            tracing::warn!(
+                dropped,
+                "live recording view: entries dropped (the controller did not poll in time)"
+            );
+        }
         if let Some(e) = self.error {
             return Err(e);
         }

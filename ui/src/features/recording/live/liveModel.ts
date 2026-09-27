@@ -26,53 +26,41 @@ export const MIN_NOTE = 1 / 64;
 
 export type LivePhase = "idle" | "recording" | "handoff";
 
-export class LiveTake {
-  /** Peaks stored so far (`min`/`max` hold `count` values; capacity grows by doubling). */
+/** Each coarser live peak level merges this many peaks of the finer one. */
+export const MIP_FACTOR = 16;
+/** Peak levels kept per take: 256, 4096, 65536 frames per peak (at 256 base). */
+const MIP_LEVELS = 3;
+
+/** Min/max peaks at one resolution, stored in growable typed arrays. */
+class PeakLevel {
   count = 0;
   min = new Float32Array(256);
   max = new Float32Array(256);
   private tiles = new Map<number, { n: number; data: PeakData }>();
 
-  constructor(
-    readonly track: TrackId,
-    readonly take: number,
-    readonly start: number,
-    readonly sampleRate: number,
-    readonly framesPerPeak: number,
-  ) {}
+  constructor(readonly framesPerPeak: number) {}
 
-  /** Store peaks `min`/`max` at index `first` (gaps read as silence). */
-  put(first: number, min: ReadonlyArray<number>, max: ReadonlyArray<number>): void {
-    const end = first + min.length;
-    const before = this.count;
-    if (end > this.min.length) {
-      let cap = this.min.length;
-      while (cap < end) cap *= 2;
-      const grow = (a: Float32Array) => {
-        const b = new Float32Array(cap);
-        b.set(a.subarray(0, this.count));
-        return b;
-      };
-      this.min = grow(this.min);
-      this.max = grow(this.max);
-    }
-    this.min.set(min, first);
-    this.max.set(max, first);
+  /** Make room for `end` peaks. */
+  reserve(end: number): void {
+    if (end <= this.min.length) return;
+    let cap = this.min.length;
+    while (cap < end) cap *= 2;
+    const grow = (a: Float32Array) => {
+      const b = new Float32Array(cap);
+      b.set(a.subarray(0, this.count));
+      return b;
+    };
+    this.min = grow(this.min);
+    this.max = grow(this.max);
+  }
+
+  /** Peaks from index `from` on changed (tiles touching them are rebuilt on demand). */
+  touched(from: number, end: number): void {
+    const t0 = Math.floor(Math.min(from, this.count) / TILE_PEAKS);
     this.count = Math.max(this.count, end);
-    // Tiles touched by the new peaks are rebuilt on demand.
-    const t0 = Math.floor(Math.min(first, before) / TILE_PEAKS);
     for (const k of [...this.tiles.keys()]) if (k >= t0) this.tiles.delete(k);
   }
 
-  /** Recorded frames covered by the peaks so far. */
-  get frames(): number {
-    return this.count * this.framesPerPeak;
-  }
-
-  /**
-   * The peaks as `PeakData` tiles for `drawWaveform` / `peakRange` (level =
-   * `framesPerPeak`, one merged channel).
-   */
   tile(index: number): PeakData | null {
     const i0 = index * TILE_PEAKS;
     if (index < 0 || i0 >= this.count) return null;
@@ -89,6 +77,88 @@ export class LiveTake {
     };
     this.tiles.set(index, { n, data });
     return data;
+  }
+}
+
+export class LiveTake {
+  /**
+   * `levels[0]` holds the received peaks; each coarser level (`MIP_FACTOR` times more
+   * frames per peak) is kept up to date incrementally, so drawing a long take zoomed out
+   * reads about one peak per pixel, like committed clips (`peakLevel`).
+   */
+  readonly levels: PeakLevel[];
+
+  constructor(
+    readonly track: TrackId,
+    readonly take: number,
+    readonly start: number,
+    readonly sampleRate: number,
+    readonly framesPerPeak: number,
+  ) {
+    this.levels = Array.from({ length: MIP_LEVELS }, (_, i) => new PeakLevel(framesPerPeak * MIP_FACTOR ** i));
+  }
+
+  /** Received peaks (base level). */
+  get count(): number {
+    return this.levels[0]!.count;
+  }
+  get min(): Float32Array {
+    return this.levels[0]!.min;
+  }
+  get max(): Float32Array {
+    return this.levels[0]!.max;
+  }
+
+  /** Store peaks `min`/`max` at index `first` (gaps read as silence). */
+  put(first: number, min: ReadonlyArray<number>, max: ReadonlyArray<number>): void {
+    const base = this.levels[0]!;
+    const end = first + min.length;
+    base.reserve(end);
+    base.min.set(min, first);
+    base.max.set(max, first);
+    base.touched(first, end);
+    // Coarser levels: recompute the peaks covering the change (O(new peaks)).
+    let lo = Math.min(first, base.count);
+    for (let l = 1; l < this.levels.length; l++) {
+      const fine = this.levels[l - 1]!;
+      const coarse = this.levels[l]!;
+      const j0 = Math.floor(lo / MIP_FACTOR);
+      const j1 = Math.ceil(fine.count / MIP_FACTOR);
+      coarse.reserve(j1);
+      for (let j = j0; j < j1; j++) {
+        let mn = Infinity;
+        let mx = -Infinity;
+        const k1 = Math.min(fine.count, (j + 1) * MIP_FACTOR);
+        for (let k = j * MIP_FACTOR; k < k1; k++) {
+          if (fine.min[k]! < mn) mn = fine.min[k]!;
+          if (fine.max[k]! > mx) mx = fine.max[k]!;
+        }
+        coarse.min[j] = mn;
+        coarse.max[j] = mx;
+      }
+      coarse.touched(j0, j1);
+      lo = j0;
+    }
+  }
+
+  /** Recorded frames covered by the peaks so far. */
+  get frames(): number {
+    return this.count * this.framesPerPeak;
+  }
+
+  /** The coarsest level with at most `framesPerPx` frames per peak (0: the received peaks). */
+  levelFor(framesPerPx: number): number {
+    let l = 0;
+    while (l + 1 < this.levels.length && this.levels[l + 1]!.framesPerPeak <= framesPerPx) l++;
+    return l;
+  }
+
+  /**
+   * Level `level`'s peaks as `PeakData` tiles for `drawWaveform` / `peakRange` (its
+   * `framesPerPeak` is the draw level, one merged channel).
+   */
+  tile(index: number, level = 0): PeakData | null {
+    return this.levels[level]?.tile(index) ?? null;
   }
 }
 

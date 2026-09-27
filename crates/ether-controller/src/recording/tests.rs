@@ -113,7 +113,6 @@ impl EngineBridge for Bridge {
     }
     fn poll_recording(&mut self, audio: &mut Vec<LiveAudioChunk>, midi: &mut Vec<LiveMidiNote>) {
         let c = self.capture.as_mut().expect("capture");
-        assert!(c.active, "polled while not capturing");
         c.polls += 1;
         if let Some((a, m)) = c.live.pop_front() {
             audio.extend(a);
@@ -631,14 +630,22 @@ fn live_progress_is_throttled_merged_and_stops_with_the_recording() {
     assert_eq!(h.ctl.revision, revision);
     assert_eq!(h.ctl.doc.as_ref().unwrap().history.state(), history);
 
-    // Stop: whatever is pending is dropped; `Stopped` is the last recording event.
+    // Stop: what the host flushed while closing the takes is sent at once (not
+    // throttled), before the real clips; `Stopped` is the last recording event.
     h.capture()
         .live
         .push_back((vec![chunk(audio, 2, 1, 5)], vec![]));
     let out = h.rec(RecordingCommand::SetRecording { enabled: false });
     let events = recording_events(&out);
+    assert_eq!(
+        events.first(),
+        Some(&RecordingEvent::Progress {
+            audio: vec![chunk(audio, 2, 1, 5)],
+            midi: vec![],
+        })
+    );
     assert!(
-        matches!(events.as_slice(), [RecordingEvent::Stopped { .. }]),
+        matches!(events.as_slice(), [_, RecordingEvent::Stopped { .. }]),
         "{events:?}"
     );
     let polls = h.capture().polls;
