@@ -76,7 +76,8 @@ test("full flow: build a song, play it, edit, save, reload", async ({ page }) =>
   const baseTracks = count((await doc(page)).tracks);
 
   // --- MIDI track with the built-in synth -------------------------------------------------
-  await page.getByRole("button", { name: "+ MIDI track" }).click();
+  await page.getByRole("button", { name: /New track/ }).click();
+  await page.getByRole("button", { name: "Create MIDI track" }).click();
   await expect.poll(async () => count((await doc(page)).tracks)).toBe(baseTracks + 1);
   const midi = Object.values((await doc(page)).tracks).find((t) => t.kind === "Midi")!;
   const synth = Object.values((await doc(page)).devices).find((d) => d.track === midi.id);
@@ -107,7 +108,8 @@ test("full flow: build a song, play it, edit, save, reload", async ({ page }) =>
   await expect.poll(async () => count((await doc(page)).notes)).toBe(4);
 
   // --- Audio track + a library sample dropped on it ---------------------------------------
-  await page.getByRole("button", { name: "+ Audio track" }).click();
+  await page.getByRole("button", { name: /New track/ }).click();
+  await page.getByRole("button", { name: "Create audio track" }).click();
   await expect.poll(async () => count((await doc(page)).tracks)).toBe(baseTracks + 2);
   const audio = Object.values((await doc(page)).tracks).find((t) => t.kind === "Audio")!;
 

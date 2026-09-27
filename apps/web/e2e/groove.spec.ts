@@ -49,7 +49,8 @@ test("groove: quantize with swing, humanize, project swing", async ({ page }) =>
   await expect.poll(async () => Object.keys((await doc(page)).clips).length).toBe(0);
 
   // --- MIDI clip in the piano roll, with notes off the grid ---------------------------------
-  await page.getByRole("button", { name: "+ MIDI track" }).click();
+  await page.getByRole("button", { name: /New track/ }).click();
+  await page.getByRole("button", { name: "Create MIDI track" }).click();
   await expect.poll(async () => Object.values((await doc(page)).tracks).some((t) => t.kind === "Midi")).toBe(true);
   const midi = Object.values((await doc(page)).tracks).find((t) => t.kind === "Midi")!;
   await page.locator(`[data-lane="${midi.id}"]`).dblclick({ position: { x: 10, y: 20 } });

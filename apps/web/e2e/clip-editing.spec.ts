@@ -44,7 +44,8 @@ test("clip editing: fade drag, reverse, markers", async ({ page }) => {
   await expect.poll(async () => Object.keys((await doc(page)).clips).length).toBe(0);
 
   // --- Audio track + library loop ----------------------------------------------------------
-  await page.getByRole("button", { name: "+ Audio track" }).click();
+  await page.getByRole("button", { name: /New track/ }).click();
+  await page.getByRole("button", { name: "Create audio track" }).click();
   await expect.poll(async () => Object.values((await doc(page)).tracks).some((t) => t.kind === "Audio")).toBe(true);
   const audio = Object.values((await doc(page)).tracks).find((t) => t.kind === "Audio")!;
   // The sample browser is a pane opened from the rail; pinned, it doesn't cover the lanes.

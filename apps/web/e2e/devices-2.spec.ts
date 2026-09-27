@@ -69,7 +69,8 @@ test("EQ, reverb, limiter and utility on an audio track", async ({ page }) => {
   const baseTracks = count((await doc(page)).tracks);
 
   // Audio track with a looping demo sample.
-  await page.getByRole("button", { name: "+ Audio track" }).click();
+  await page.getByRole("button", { name: /New track/ }).click();
+  await page.getByRole("button", { name: "Create audio track" }).click();
   await expect
     .poll(async () => count((await doc(page)).tracks))
     .toBe(baseTracks + 1);

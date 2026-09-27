@@ -37,7 +37,8 @@ test("recording controls on the web: inputs unsupported, settings and arm work",
   await expect.poll(async () => (await doc(page)).settings.count_in_bars).toBe(2);
 
   // An audio track, armed and set to monitor "In" from the inputs panel.
-  await page.getByRole("button", { name: "+ Audio track" }).click();
+  await page.getByRole("button", { name: /New track/ }).click();
+  await page.getByRole("button", { name: "Create audio track" }).click();
   await expect.poll(async () => Object.values((await doc(page)).tracks).some((t) => t.kind === "Audio")).toBe(true);
   const audio = Object.values(await doc(page).then((p) => p.tracks)).find((t) => t.kind === "Audio")!;
   await page.getByRole("button", { name: "Inputs" }).click();
