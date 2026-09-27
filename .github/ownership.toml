@@ -575,4 +575,6 @@ paths = [
   "crates/ether-wasm/src/proto.rs",
   # shared touch (base-37): preview assertions after the stop/replace fade
   "crates/ether-core/tests/base24_hooks.rs",
+  # shared touch (base-38, as base-25 for other roadmap nodes): one additive state field + initializer on EtherController
+  "crates/ether-controller/src/lib.rs",
 ]
