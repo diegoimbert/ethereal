@@ -20,6 +20,15 @@
 //! - **Inputs** (`ListInputs`): [`crate::EngineBridge::list_inputs`] (native: cpal input
 //!   channels + MIDI ports; web: `Unsupported`).
 //!
+//! - **Live view** (`live-record`): while recording, [`EtherController::recording_tick`]
+//!   polls the host ([`crate::EngineBridge::poll_recording`]) every tick and emits
+//!   `RecordingEvent::Progress` at most every [`PROGRESS_INTERVAL_MS`], with the chunks
+//!   received in between merged. Runtime only: nothing goes into the document, the history
+//!   or collab (it is an event). The host does not know which MIDI tracks are armed: live
+//!   notes are sent once per armed MIDI track, like the committed MIDI clips. On stop, what
+//!   the host flushed while closing the takes is sent right before the real clips; nothing
+//!   is emitted after `Stopped`.
+//!
 //! Hosts without capture (web, tests) reply `Unsupported` from the bridge: recording then
 //! runs the transport but creates no clips.
 
@@ -27,7 +36,9 @@ use ether_core::TransportControl;
 use ether_core::protocol::clips::ClipCommand;
 use ether_core::protocol::model::*;
 use ether_core::protocol::notes::{NoteCommand, NoteSpec};
-use ether_core::protocol::recording::{RecordingCommand, RecordingEvent};
+use ether_core::protocol::recording::{
+    LiveAudioChunk, LiveMidiNote, RecordingCommand, RecordingEvent,
+};
 use ether_core::protocol::warp::WarpCommand;
 use ether_core::protocol::{Command, Event, NotificationLevel, ReplyValue};
 
@@ -109,6 +120,44 @@ struct Active {
     host: bool,
     /// Armed MIDI tracks (each gets a clip with the recorded notes).
     midi_tracks: Vec<TrackId>,
+    /// Live view not yet emitted.
+    live: LiveProgress,
+}
+
+/// Minimum time between two `RecordingEvent::Progress` (~20 Hz).
+pub const PROGRESS_INTERVAL_MS: u64 = 50;
+
+/// Live data polled from the host since the last `Progress`.
+#[derive(Debug, Default)]
+struct LiveProgress {
+    audio: Vec<LiveAudioChunk>,
+    midi: Vec<LiveMidiNote>,
+    last_emit: Option<u64>,
+    /// Poll scratch buffers.
+    poll_audio: Vec<LiveAudioChunk>,
+    poll_midi: Vec<LiveMidiNote>,
+}
+
+impl LiveProgress {
+    /// Add polled chunks, appending each to the previous chunk of the same take when it
+    /// continues it.
+    fn merge_audio(&mut self, chunks: impl IntoIterator<Item = LiveAudioChunk>) {
+        for c in chunks {
+            let prev = self.audio.iter_mut().rev().find(|p| {
+                p.track == c.track
+                    && p.take == c.take
+                    && p.frames_per_peak == c.frames_per_peak
+                    && p.first_peak + p.min.len() as u64 == c.first_peak
+            });
+            match prev {
+                Some(p) => {
+                    p.min.extend(c.min);
+                    p.max.extend(c.max);
+                }
+                None => self.audio.push(c),
+            }
+        }
+    }
 }
 
 /// Longest count-in (bars).
@@ -163,6 +212,53 @@ pub(crate) struct NoteSpecDraft {
     pub velocity: f32,
     pub start: f64,
     pub duration: f64,
+}
+
+/// Poll the host's live view into `active` and emit `Progress` if due (`now: None`: flush
+/// whatever is pending, at the end of the recording).
+fn pump_live<B: EngineBridge>(
+    bridge: &mut B,
+    active: &mut Active,
+    now: Option<u64>,
+    out: &mut dyn MessageSink,
+) {
+    let live = &mut active.live;
+    bridge.poll_recording(&mut live.poll_audio, &mut live.poll_midi);
+    let polled = std::mem::take(&mut live.poll_audio);
+    live.merge_audio(polled);
+    for n in live.poll_midi.drain(..) {
+        if n.track == TrackId::NIL {
+            for t in &active.midi_tracks {
+                live.midi.push(LiveMidiNote {
+                    track: *t,
+                    ..n.clone()
+                });
+            }
+        } else {
+            live.midi.push(n);
+        }
+    }
+    if live.audio.is_empty() && live.midi.is_empty() {
+        return;
+    }
+    if let Some(now) = now {
+        if live
+            .last_emit
+            .is_some_and(|t| now.saturating_sub(t) < PROGRESS_INTERVAL_MS)
+        {
+            return;
+        }
+        live.last_emit = Some(now);
+    }
+    event(
+        out,
+        Event::Recording {
+            event: RecordingEvent::Progress {
+                audio: std::mem::take(&mut live.audio),
+                midi: std::mem::take(&mut live.midi),
+            },
+        },
+    );
 }
 
 fn unsupported_host(e: &BridgeError) -> bool {
@@ -351,6 +447,7 @@ where
             session,
             host,
             midi_tracks,
+            live: LiveProgress::default(),
         });
         event(
             out,
@@ -359,6 +456,17 @@ where
             },
         );
         Ok(())
+    }
+
+    /// Tick while recording (`live-record`): poll the host's live peaks/notes and emit
+    /// `RecordingEvent::Progress`, throttled to [`PROGRESS_INTERVAL_MS`].
+    pub(crate) fn recording_tick(&mut self, now: u64, out: &mut dyn MessageSink) {
+        let Some(active) = self.recording.session.as_mut() else {
+            return;
+        };
+        if active.host {
+            pump_live(&mut self.bridge, active, Some(now), out);
+        }
     }
 
     /// Disable recording and commit what was captured (no-op when not recording).
@@ -372,12 +480,17 @@ where
                 .transport(TransportControl::SetRecording { enabled: false });
             self.transport.recording = false;
         }
-        let Some(active) = self.recording.session.take() else {
+        let Some(mut active) = self.recording.session.take() else {
             return;
         };
         let takes = if active.host {
             match self.bridge.stop_recording() {
-                Ok(t) => t,
+                Ok(t) => {
+                    // The rest of the live view (the takes are closed now), before the
+                    // real clips: the live clips then end exactly where they will.
+                    pump_live(&mut self.bridge, &mut active, None, out);
+                    t
+                }
                 Err(e) => {
                     notify(
                         out,

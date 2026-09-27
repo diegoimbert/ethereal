@@ -73,7 +73,8 @@
  * - Replies `Err { code: "Unsupported" }`: plugins (insert/editor/sandbox/reload),
  *   uploads (`Media::{BeginUpload, UploadChunk, CancelUpload}`, `MediaSource::Upload`),
  *   `Collab::*`, `Slice::ToDrumRack`,
- *   `Recording::SetRecording`, `Warp::DetectTempo`, `Engine::SetAudioConfig`.
+ *   `Warp::DetectTempo`, `Engine::SetAudioConfig`.
+ * - `Recording::SetRecording` simulates recording with its live view (`roadmap/liveRecord.ts`).
  * - Harmless answers: `Plugin::List` → no plugins, `Plugin::Rescan` → an empty scan,
  *   `Media::Preview/StopPreview` → Unit (after validating the source),
  *   `Recording::ListInputs` / `Engine::*` → fake devices.
@@ -128,6 +129,7 @@ import { MockExports } from "./roadmap/export";
 import { MockPreview } from "./roadmap/mediaPreview";
 import type { MockHost } from "./roadmap/host";
 import { MockMidiLearn } from "./roadmap/midiLearn";
+import { MockLiveRecord } from "./roadmap/liveRecord";
 import { uploadCommand, uploadSource } from "./roadmap/remote";
 
 export interface MockTransportOptions {
@@ -246,6 +248,20 @@ export class MockTransport implements EngineTransport {
   private readonly midiLearn = new MockMidiLearn(this.host);
   private readonly exports = new MockExports(this.host);
   private readonly preview = new MockPreview(this.host);
+  private readonly liveRecord = new MockLiveRecord({
+    ...this.host,
+    position: () => this.position,
+    playing: () => this.playing,
+    armed: () => this.armed,
+    play: () => this.transportCommand({ type: "Play" }),
+    commit: (media, commands) =>
+      void this.transact("Record", null, (tx) => {
+        for (const m of media) tx.upsert("Media", m);
+        const ctx = { tx, newId: this.newId, position: this.position };
+        for (const c of commands) reduceDocumentCommand(ctx, c);
+        return UNIT;
+      }),
+  });
 
   constructor(opts: MockTransportOptions = {}) {
     this.manual = opts.timers === "manual";
@@ -502,7 +518,7 @@ export class MockTransport implements EngineTransport {
     const s = this.project.settings;
     return {
       playing: this.playing,
-      recording: false,
+      recording: this.liveRecord.recording,
       loop_enabled: s.loop_enabled,
       loop_region: s.loop_region,
       bpm: bpmAt(this.project, this.position),
@@ -522,6 +538,7 @@ export class MockTransport implements EngineTransport {
   }
 
   private loadProject(project: Project): void {
+    this.liveRecord.abort();
     this.project = project;
     this.undoStack = [];
     this.redoStack = [];
@@ -708,6 +725,7 @@ export class MockTransport implements EngineTransport {
   }
 
   private stopPlaying(): void {
+    this.liveRecord.finish();
     this.playing = false;
   }
 
@@ -744,6 +762,11 @@ export class MockTransport implements EngineTransport {
           midi: [{ id: "mock-midi", name: "Mock MIDI Keyboard" }],
         },
       };
+    }
+    if (c.type === "SetRecording") {
+      const reply = this.liveRecord.set(c.enabled);
+      this.syncTransport();
+      return reply;
     }
     return fail("Unsupported", "recording is not available in the mock engine");
   }
@@ -898,6 +921,7 @@ export class MockTransport implements EngineTransport {
     if (this.playing || this.playheadDirty) this.emitPlayhead();
     this.exports.step();
     this.preview.step();
+    this.liveRecord.step();
   }
 
   private emitPlayhead(): void {

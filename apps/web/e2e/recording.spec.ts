@@ -4,6 +4,7 @@
 // count-in (undoable), per-track input and monitoring, and record-arm (runtime state).
 import { expect, test, type Page } from "@playwright/test";
 import type { Project, TrackId } from "@/generated";
+import { createTrack, pickOption, playButton } from "./ui";
 
 interface Handle {
   state(): { project: Project | null; armedTracks: TrackId[] };
@@ -22,7 +23,7 @@ test("recording controls on the web: inputs unsupported, settings and arm work",
   page.on("pageerror", (e) => errors.push(e.message));
 
   await page.goto("/");
-  await expect(page.getByRole("button", { name: "Play" })).toBeVisible({ timeout: 30_000 });
+  await expect(playButton(page)).toBeVisible({ timeout: 30_000 });
   await expect.poll(() => state(page).then((s) => s.project !== null), { timeout: 30_000 }).toBe(true);
 
   // No inputs in the browser: record is disabled, and says why.
@@ -32,23 +33,18 @@ test("recording controls on the web: inputs unsupported, settings and arm work",
   await expect(page.getByRole("button", { name: "Punch in/out" })).toBeDisabled();
 
   // Count-in is an undoable project setting handled by the wasm controller.
-  await page.getByRole("combobox", { name: "Count-in" }).click();
-  await page.getByRole("option", { name: "2 bars" }).click();
+  await pickOption(page, "Count-in", "2 bars");
   await expect.poll(async () => (await doc(page)).settings.count_in_bars).toBe(2);
 
   // An audio track, armed and set to monitor "In" from the inputs panel.
-  await page.getByRole("button", { name: /New track/ }).click();
-  await page.getByRole("button", { name: "Create audio track" }).click();
-  await expect.poll(async () => Object.values((await doc(page)).tracks).some((t) => t.kind === "Audio")).toBe(true);
-  const audio = Object.values(await doc(page).then((p) => p.tracks)).find((t) => t.kind === "Audio")!;
+  const audio = await createTrack(page, "Audio");
   await page.getByRole("button", { name: "Inputs" }).click();
   const panel = page.getByRole("dialog", { name: "Recording inputs" });
   await expect(panel).toContainText("desktop app");
   const row = panel.locator(`tr[data-track="${audio.id}"]`);
   await row.getByRole("button", { name: `Arm ${audio.name}` }).click();
   await expect.poll(() => state(page).then((s) => s.armedTracks)).toContain(audio.id);
-  await row.getByRole("combobox", { name: `Monitoring of ${audio.name}` }).click();
-  await page.getByRole("option", { name: "In", exact: true }).click();
+  await pickOption(row, `Monitoring of ${audio.name}`, "In");
   await expect.poll(async () => (await doc(page)).tracks[audio.id]!.monitor).toBe("In");
 
   expect(errors).toEqual([]);

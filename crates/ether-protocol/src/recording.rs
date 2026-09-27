@@ -101,6 +101,7 @@ pub struct LiveAudioChunk {
     pub sample_rate: u32,
     pub frames_per_peak: u32,
     /// Index of `min[0]` / `max[0]` within the take.
+    #[ts(type = "number")]
     pub first_peak: u64,
     pub min: Vec<f32>,
     pub max: Vec<f32>,

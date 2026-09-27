@@ -44,8 +44,8 @@
 /* Round icon buttons. */
 .eth-tb__btn {
   --_fg: var(--eth-color-text-dim);
-  width: 28px;
-  height: 28px;
+  width: var(--eth-size-control-lg);
+  height: var(--eth-size-control-lg);
   padding: 0;
   border-radius: var(--eth-radius-pill);
 }
@@ -53,8 +53,8 @@
   --_fg: var(--eth-color-text);
 }
 .eth-tb__btn .lucide {
-  width: 15px;
-  height: 15px;
+  width: var(--eth-size-transport-icon);
+  height: var(--eth-size-transport-icon);
 }
 .eth-tb__play {
   --_fg: var(--eth-color-text);
@@ -93,11 +93,11 @@
 }
 .eth-tb__tap {
   color: var(--eth-color-text-dim);
-  letter-spacing: 0.04em;
+  letter-spacing: var(--eth-tracking-caps);
 }
 
 .eth-tb-field {
-  height: 22px;
+  height: var(--eth-size-control-md);
   padding: 0 var(--eth-space-sm);
   border: var(--eth-border-width) solid var(--eth-color-border-light);
   border-radius: var(--eth-radius-sm);
@@ -125,7 +125,7 @@
 .eth-tb-field:focus {
   outline: none;
   border-color: var(--eth-color-accent);
-  box-shadow: 0 0 0 3px var(--eth-color-accent-subtle);
+  box-shadow: 0 0 0 var(--eth-focus-halo) var(--eth-color-accent-subtle);
 }
 .eth-tb-field:disabled {
   opacity: 0.4;
@@ -147,7 +147,7 @@
   color: var(--eth-color-text);
   font-size: var(--eth-fs-xl);
   font-weight: 500;
-  letter-spacing: -0.01em;
+  letter-spacing: var(--eth-tracking-tight);
   text-align: right;
 }
 .eth-tb__time {
@@ -183,14 +183,14 @@
   color: var(--eth-color-text-dim);
 }
 .eth-tb__engine-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
+  width: var(--eth-size-status-dot);
+  height: var(--eth-size-status-dot);
+  border-radius: var(--eth-radius-round);
   background: var(--eth-color-text-dim);
 }
 .eth-tb__engine[data-level="ok"] .eth-tb__engine-dot {
   background: var(--eth-color-meter-low);
-  box-shadow: 0 0 6px color-mix(in srgb, var(--eth-color-meter-low) 60%, transparent);
+  box-shadow: 0 0 var(--eth-size-status-dot-glow) color-mix(in srgb, var(--eth-color-meter-low) 60%, transparent);
 }
 .eth-tb__engine[data-level="warn"] .eth-tb__engine-dot {
   background: var(--eth-color-meter-mid);
