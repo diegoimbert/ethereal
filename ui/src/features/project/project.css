@@ -123,3 +123,8 @@
   color: var(--eth-color-text-dim);
   text-align: center;
 }
+
+.eth-project__saving {
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+}
