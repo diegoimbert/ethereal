@@ -84,8 +84,8 @@ impl InputTapRt {
         }
         match source.get(point) {
             Some(src) if src[0].len() >= frames => {
-                for ch in 0..2 {
-                    self.buf[ch][..frames].copy_from_slice(&src[ch][..frames]);
+                for (dst, src) in self.buf.iter_mut().zip(src) {
+                    dst[..frames].copy_from_slice(&src[..frames]);
                 }
             }
             _ => {
@@ -102,8 +102,8 @@ impl InputTapRt {
     /// RT. Add the (aligned) tapped signal into the consumer's input when it monitors.
     pub(crate) fn mix_into(&mut self, a: &mut Stereo, frames: usize, monitor: bool) {
         if monitor && self.ready {
-            for ch in 0..2 {
-                for (d, s) in a[ch][..frames].iter_mut().zip(&self.buf[ch][..frames]) {
+            for (dst, src) in a.iter_mut().zip(&self.buf) {
+                for (d, s) in dst[..frames].iter_mut().zip(&src[..frames]) {
                     *d += s;
                 }
             }
