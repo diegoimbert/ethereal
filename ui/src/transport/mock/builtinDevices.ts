@@ -25,6 +25,7 @@ function param(
 const LOG: ParamScale = { type: "Log" };
 const TIME: ParamScale = { type: "Power", exponent: 2 };
 const FADER: ParamScale = { type: "Fader" };
+const ONOFF = ["Off", "On"];
 
 export const BUILTIN_DESCRIPTORS: Readonly<Record<BuiltinDeviceType, DeviceDescriptor>> = {
   Synth: {
@@ -97,14 +98,74 @@ export const BUILTIN_DESCRIPTORS: Readonly<Record<BuiltinDeviceType, DeviceDescr
       param(4, "Mix", null, "Percent", 0, 100, 30),
     ],
   },
-  Eq: placeholder("Eq", "EQ", false),
-  Reverb: placeholder("Reverb", "Reverb", false),
-  Limiter: placeholder("Limiter", "Limiter", false),
-  Utility: placeholder("Utility", "Utility", false),
+  // Roadmap v2 effects: mirror `ether-devices/src/{eq,reverb,limiter,utility}.rs` exactly.
+  Eq: effect("Eq", "EQ", eqParams()),
+  Reverb: effect("Reverb", "Reverb", [
+    param(0, "Pre-Delay", "Reverb", "Milliseconds", 0, 250, 20, { type: "Power", exponent: 2 }),
+    param(1, "Size", "Reverb", "Percent", 0, 100, 50),
+    param(2, "Decay", "Reverb", "Seconds", 0.2, 20, 2, LOG),
+    param(3, "Damping", "Reverb", "Percent", 0, 100, 50),
+    param(4, "Width", "Output", "Percent", 0, 100, 100),
+    param(5, "Mix", "Output", "Percent", 0, 100, 30),
+  ]),
+  Limiter: effect("Limiter", "Limiter", [
+    param(0, "Gain", "Limiter", "Decibels", -12, 24, 0),
+    param(1, "Ceiling", "Limiter", "Decibels", -24, 0, -0.3),
+    param(2, "Release", "Limiter", "Milliseconds", 1, 1000, 100, LOG),
+  ]),
+  Utility: effect("Utility", "Utility", [
+    param(0, "Gain", "Utility", "Decibels", -36, 36, 0),
+    param(1, "Pan", "Utility", "Pan", -1, 1, 0),
+    param(2, "Width", "Stereo", "Percent", 0, 200, 100),
+    param(3, "Invert L", "Phase", "Toggle", 0, 1, 0, undefined, ONOFF),
+    param(4, "Invert R", "Phase", "Toggle", 0, 1, 0, undefined, ONOFF),
+    param(5, "Mono", "Stereo", "Toggle", 0, 1, 0, undefined, ONOFF),
+  ]),
   DrumRack: placeholder("DrumRack", "Drum Rack", true),
 };
 
-/** Roadmap v2 built-ins: no params yet, like the Rust placeholders (`ether-devices/src/placeholder.rs`). */
+/** Stereo audio effect descriptor. */
+function effect(device: BuiltinDeviceType, name: string, params: ParamInfo[]): DeviceDescriptor {
+  return {
+    device_type: { type: "Builtin", device },
+    name,
+    category: "AudioEffect",
+    audio_inputs: 2,
+    audio_outputs: 2,
+    midi_input: false,
+    sidechain_inputs: 0,
+    params,
+  };
+}
+
+/** EQ: 8 bands x (On, Type, Freq, Gain, Q) at ids 5b..5b+4, then Output (40). */
+function eqParams(): ParamInfo[] {
+  const types = ["Low Cut", "Low Shelf", "Bell", "Notch", "High Shelf", "High Cut"];
+  const bands: [boolean, number, number][] = [
+    [false, 0, 30],
+    [true, 1, 100],
+    [true, 2, 250],
+    [true, 2, 1000],
+    [true, 2, 2500],
+    [true, 2, 6000],
+    [true, 4, 10000],
+    [false, 5, 18000],
+  ];
+  const params = bands.flatMap(([on, type, freq], b) => {
+    const group = `Band ${b + 1}`;
+    const id = 5 * b;
+    return [
+      param(id, "On", group, "Toggle", 0, 1, on ? 1 : 0, undefined, ONOFF),
+      param(id + 1, "Type", group, "None", 0, types.length - 1, type, undefined, types),
+      param(id + 2, "Freq", group, "Hertz", 20, 20000, freq, LOG),
+      param(id + 3, "Gain", group, "Decibels", -24, 24, 0),
+      param(id + 4, "Q", group, "None", 0.1, 18, Math.SQRT1_2, LOG),
+    ];
+  });
+  return [...params, param(40, "Output", "Output", "Decibels", -24, 24, 0)];
+}
+
+/** Roadmap v2 built-ins not implemented yet: no params, like the Rust placeholders (`ether-devices/src/placeholder.rs`). */
 function placeholder(device: BuiltinDeviceType, name: string, instrument: boolean): DeviceDescriptor {
   return {
     device_type: { type: "Builtin", device },
