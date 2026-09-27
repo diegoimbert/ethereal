@@ -5,7 +5,7 @@
 //! 1. apply pending control frames through the `EngineHandle` (node creation, graph
 //!    compile, media chunks, sources), bounded per quantum: at most
 //!    [`CONTROL_BUDGET_BYTES`] bytes and [`MAX_FRAMES_PER_QUANTUM`] frames, and never more
-//!    than one heavy frame (a `Publish`, which decodes JSON and compiles a snapshot, or a
+//!    than one heavy frame (a `Publish`, which decodes a binary snapshot and compiles it, or a
 //!    `MediaBegin`, which allocates the media buffers),
 //! 2. `Engine::process` into the host's planar output buffers,
 //! 3. every [`REPORT_INTERVAL_BLOCKS`] blocks, poll the handle and write an

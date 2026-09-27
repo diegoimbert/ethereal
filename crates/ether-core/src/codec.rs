@@ -21,9 +21,8 @@
 
 use ether_protocol::devices::ParamScale;
 use ether_protocol::model::{
-    AutomationTarget, ClipId, CurveShape, DeviceId, DrumPadId, FadeCurve, MediaId,
-    MetronomeSound, ParamId, SendId, TempoCurve, TimeSignature, TrackId, TrackKind, Ulid,
-    WarpMode,
+    AutomationTarget, ClipId, CurveShape, DeviceId, DrumPadId, FadeCurve, MediaId, MetronomeSound,
+    ParamId, SendId, TempoCurve, TimeSignature, TrackId, TrackKind, Ulid, WarpMode,
 };
 
 use crate::graph::{
