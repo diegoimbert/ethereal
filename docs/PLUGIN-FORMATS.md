@@ -1,12 +1,9 @@
 # Plugin formats: CLAP, VST3, AU
 
-The base is in place (the `formats-base` node). Three nodes build on it:
-
-- `vst3` (`crates/ether-vst3/**`) implements VST3.
-- `au` (`crates/ether-au/**`) implements AU.
-- `formats-integration` wires both into the native host once they land.
-
-`vst3` and `au` touch no shared files, so they can run in parallel.
+All three formats are hosted end to end: scanning, the native host (in-process and
+sandboxed), save/reopen and the plugin browser. The base came from the `formats-base` node.
+`vst3` (`crates/ether-vst3/**`) and `au` (`crates/ether-au/**`) implemented the formats, and
+`formats-integration` wired them into the app (see "Integration (native host)" below).
 
 ## Architecture
 
@@ -14,8 +11,8 @@ The base is in place (the `formats-base` node). Three nodes build on it:
 ether-core            PluginController / PluginNode / PluginError   (contracts, wasm-safe)
 ether-plugin-host     PluginFormatHost trait, Formats registry, ScanRunner, bundle walker
   ├─ ether-clap       ClapFormat  (adapter over the existing CLAP host)
-  ├─ ether-vst3       Vst3Format  (stub: discovery + ids real, scan/load Unsupported)
-  └─ ether-au         AuFormat    (stub: ids real, registry/scan/load Unsupported; macOS only)
+  ├─ ether-vst3       Vst3Format
+  └─ ether-au         AuFormat    (macOS only; Unsupported elsewhere)
 users: ether-plugin-scanner (protocol + --scan-all), ether-sandbox helper (--format),
        ether-native (formats-integration)
 ```
@@ -34,8 +31,8 @@ users: ether-plugin-scanner (protocol + --scan-all), ether-sandbox helper (--for
 
 The formats the `Formats` registry holds depend on who builds it:
 
-- The scanner and the sandbox helper build a registry with all three formats.
-- The native host still uses CLAP only (`ether_clap::instantiate`, `ether_clap::find_bundles`). This keeps users with VST3s installed from seeing stub failures until the implementations land.
+- The scanner, the sandbox helper and the native host (`ether_native::plugins::formats`)
+  all build a registry with all three formats.
 
 Scanning stays out-of-process and crash-safe:
 
@@ -137,6 +134,65 @@ The paths this node owns are in `.github/ownership.toml`.
    - send `format: plugin.format` in `DeviceSpec::Plugin`;
    - show a format badge and filter in the browser.
 5. **End-to-end tests.** Add the VST3 fixture and AU built-ins to the native e2e: insert, save, reopen, sandbox toggle.
+
+## Integration (native host)
+
+Done by the `formats-integration` node:
+
+- **Loading by format.** `ether_native::plugins::Instantiate` is `Fn(PluginFormat, &Path, &str)`,
+  built from the `Formats` registry (`instantiate_any`). `NativeBridge::create_plugin` looks
+  the plugin up by `(format, plugin_id)` (`PluginCatalog::find_format`; ids are only unique
+  per format) and passes `PluginDescriptor.path`, which is the component id for AUs.
+- **Missing plugins.** A plugin that isn't in the catalog fails with
+  `<FORMAT> plugin <name> (<id>) is not installed (rescan plugins)`. The controller reports it
+  as an error notification and keeps the device in the document without an engine node, so
+  the track plays the dry signal (bypassed). A rescan followed by a reload (or reopening the
+  project) loads it with its saved state. The UI shows such a device as "missing · bypassed",
+  checked against the scanned list by `(format, id)`.
+- **Rescan.** `spawn_scan` scans `formats().discover(None)` (every format's search paths
+  plus the AU component registry) with `ScanRunner::scan_targets`.
+- **Sandbox.** `SandboxOptions.format` is passed to the helper (`--format`), so the per-plugin
+  sandbox toggle works for every format. **AUv3 decision:** AUv3 extensions already run out of
+  process (Apple's XPC bridge), but sandboxing one is *allowed*: the helper then hosts the
+  `AUAudioUnit` proxy. It is harmless, keeps the toggle the same for every plugin, and still
+  isolates in-process v2 units and our AU host code from the app. It costs the usual +1 block
+  of latency.
+- **UI.** The plugin browser shows a CLAP/VST3/AU badge per plugin and a format filter, and
+  inserts with `DeviceSpec::Plugin { format }`. Crashed and missing states work the same for
+  every format.
+- **Tests.** `crates/ether-native/tests/formats_e2e.rs` scans (real scanner), inserts,
+  processes, saves/reopens and toggles the sandbox for the CLAP and VST3 fixtures and Apple's
+  AUDelay (macOS), plus the missing-plugin path.
+
+### Re-entrancy (AU nested run loops)
+
+AU `instantiate` (async units: v3, or v2 bridged out of process) and `open_editor`
+(`requestViewController`) wait for their completion by running a **nested**
+`CFRunLoopRunInMode` on the plugin main thread. In the desktop app that thread is the process
+main thread, and its run loop also delivers Tauri's `run_on_main_thread` jobs. So other plugin
+registry work (polls, state saves, nodes returning from the engine, other devices' calls) can
+run *inside* those calls.
+
+The native host therefore never holds a borrow of its plugin registry (a thread-local
+`RefCell`) across a call into a plugin. Each call **checks out** the controller (its registry
+slot is left empty), calls the plugin with no borrow held, and checks it back in:
+
+- a nested call that needs the same controller sees it busy: `poll` skips it, other calls
+  fail with an `Ipc` "busy" error;
+- a node that returns from the engine meanwhile is parked on the instance and deactivated at
+  check-in; a retired instance is dropped at check-in;
+- `instantiate` builds, restores and activates the new controller with no borrow held, and
+  only then inserts it (retiring any instance of the device created meanwhile).
+
+Other notes from the format nodes that hosts must respect:
+
+- `load_state` on an *active* controller leaves the live node's links stale. The host only
+  restores state before `activate` (a state change re-instantiates the device).
+- `set_param_value` on an active VST3 (like CLAP) returns a `State` error. While active, params
+  go to the node as `ProcessEvent::Param`.
+- The first `save_state` of a VST3 after setting params while inactive briefly activates it.
+- VST3 bundle paths on Linux/Windows have no local build target; release CI is their first
+  compile.
 
 ## Licenses
 
