@@ -1,6 +1,6 @@
 [package]
 name = "ether-plugin-scanner"
-description = "Out-of-process CLAP plugin scanner binary."
+description = "Out-of-process plugin scanner binary (CLAP, VST3, AU)."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -13,7 +13,10 @@ publish.workspace = true
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 ether-core.workspace = true
+ether-plugin-host.workspace = true
 ether-clap.workspace = true
+ether-vst3.workspace = true
+ether-au.workspace = true
 serde_json.workspace = true
 
 [lints]

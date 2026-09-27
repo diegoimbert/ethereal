@@ -1,0 +1,77 @@
+/* Global base styles. Reads tokens only (see tokens.css). */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body,
+[data-theme] {
+  color: var(--eth-color-text);
+  font-family: var(--eth-font-ui);
+  font-size: var(--eth-fs-md);
+  font-weight: var(--eth-fw-text);
+  line-height: var(--eth-lh-normal);
+  /* Inter: cleaner alternates (cv11); numbers don't jitter as they change. */
+  font-feature-settings: "cv11";
+  font-variant-numeric: tabular-nums;
+}
+
+body {
+  background: var(--eth-color-bg);
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+
+/* Desktop-app feel: nothing is text-selectable or drag-ghostable except text fields.
+   WebKit (Tauri on macOS) only honours the prefixed property. */
+*,
+*::before,
+*::after {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+img,
+svg,
+a {
+  -webkit-user-drag: none;
+}
+
+input,
+textarea,
+[contenteditable]:not([contenteditable="false"]) {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+:focus-visible {
+  outline: var(--eth-focus-ring-width) solid var(--eth-color-focus);
+  outline-offset: var(--eth-focus-ring-offset);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: var(--eth-duration-instant) !important;
+    animation-duration: var(--eth-duration-instant) !important;
+  }
+}

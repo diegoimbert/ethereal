@@ -14,8 +14,9 @@ import type { PointerEvent as ReactPointerEvent } from "react";
 import type { Beats, Clip, MediaRef } from "@/generated";
 import { playheadStore, useProjectStore, useSelectionStore, warpMarkersOfClip } from "@/state";
 import { itemSelection, resolveGrid, selectModeFromEvent, snapToGrid, TempoMap } from "@/timeline";
-import { cmd, newId } from "@/transport";
-import { isArrangementClip, mediaLengthInBeats, sourceSecondsMapper, startOf } from "./clipTime";
+import { cmd, newId, type EngineTransport } from "@/transport";
+import { clipSourceMapper } from "@/features/warp/warpMap";
+import { isArrangementClip, mediaLengthInBeats, startOf } from "./clipTime";
 import { sendEdit, type ArrangementContextValue } from "./context";
 import { boundsCommand, dragPreview, moveCommand, type DragMode } from "./editMath";
 import { rowIndexAt } from "./layout";
@@ -24,13 +25,18 @@ import { arrangementView, useArrangementUi } from "./uiStore";
 const DRAG_THRESHOLD_PX = 3;
 
 /** Media length in content beats of an audio clip (null for MIDI or unknown media). */
-export function clipSourceLength(clip: Clip, media: Readonly<Record<string, MediaRef>>, tempo: TempoMap): Beats | null {
+export function clipSourceLength(
+  clip: Clip,
+  media: Readonly<Record<string, MediaRef>>,
+  tempo: TempoMap,
+  kind: EngineTransport["kind"] = "mock",
+): Beats | null {
   if (clip.content.type !== "Audio") return null;
   const m = media[clip.content.media];
   if (!m) return null;
   const project = useProjectStore.getState().project;
   const markers = project ? warpMarkersOfClip(project, clip.id) : [];
-  const map = sourceSecondsMapper(clip.content.warp.source_bpm, tempo.bpmAt(startOf(clip)), markers);
+  const map = clipSourceMapper(clip.content, markers, tempo.bpmAt(startOf(clip)), clip.offset, kind);
   return mediaLengthInBeats(m, map);
 }
 
@@ -93,7 +99,7 @@ export function onClipPointerDown(e: ReactPointerEvent<HTMLElement>, clip: Clip,
         anchor: clip.id,
         rows,
         snap: snapFor(ev.altKey),
-        sourceLength: (c) => clipSourceLength(c, project.media, tempo),
+        sourceLength: (c) => clipSourceLength(c, project.media, tempo, ctx.transport.kind),
       },
       mode,
       dx / pxPerBeat,

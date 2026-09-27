@@ -17,6 +17,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Button, ContextMenuHost, Panel } from "@/kit";
 import { useEditorStore, useProjectStore } from "@/state";
+import { size } from "@/theme";
 import { ArrangementView } from "@/features/arrangement";
 import { AutomationLanes } from "@/features/automation";
 import { Browser } from "@/features/browser";
@@ -32,10 +33,11 @@ import { Splitter } from "./Splitter";
 import { usePaneSize } from "./usePaneSize";
 import "./App.css";
 
-const SIDEBAR_WIDTH = 220;
-const DETAIL_HEIGHT = 280;
-/** Space the arrangement always keeps when the panes around it grow. */
-const MAIN_MIN = 160;
+/** Pane sizes in px, from the design tokens (`size.*` in ui/src/theme/tokens.ts). */
+const px = (token: string) => parseFloat(token);
+const SIDEBAR_WIDTH = px(size.sidebarWidth);
+const DETAIL_HEIGHT = px(size.detailHeight);
+const MAIN_MIN = px(size.mainMinSize);
 
 interface Slot<Id extends string> {
   id: Id;
@@ -76,7 +78,7 @@ function Tabs<Id extends string>({
         <Button
           key={s.id}
           size="sm"
-          variant="ghost"
+          tone="ghost"
           role="tab"
           aria-selected={s.id === active}
           active={s.id === active}
@@ -149,7 +151,7 @@ export function App() {
         actions={
           <Button
             size="sm"
-            variant="ghost"
+            tone="ghost"
             onClick={() => setDetailOpen((o) => !o)}
             aria-expanded={detailOpen}
             title={detailOpen ? "Hide detail view" : "Show detail view"}
@@ -167,7 +169,7 @@ export function App() {
         label="Resize sidebar"
         size={sidebarWidth}
         direction={1}
-        min={140}
+        min={px(size.sidebarMinWidth)}
         max={() => window.innerWidth - MAIN_MIN}
         onResize={setSidebarWidth}
         reset={SIDEBAR_WIDTH}
@@ -179,8 +181,8 @@ export function App() {
           label="Resize detail view"
           size={detailHeight}
           direction={-1}
-          min={80}
-          max={() => window.innerHeight - MAIN_MIN - 60}
+          min={px(size.detailMinHeight)}
+          max={() => window.innerHeight - MAIN_MIN - px(size.topBarHeight)}
           onResize={setDetailHeight}
           reset={DETAIL_HEIGHT}
         />

@@ -1,18 +1,32 @@
-//! `ether-plugin-scanner`: scans CLAP bundles out-of-process.
+//! `ether-plugin-scanner`: scans plugins (CLAP, VST3, AU) out-of-process.
 //!
 //! Modes:
 //! - no arguments (the host protocol, see `ether_protocol::plugins`): reads a JSON
-//!   `ScanRequest` from stdin, loads that ONE bundle, writes one JSON `ScanResponse` line to
-//!   stdout, exits 0. A crash/hang only loses that bundle; the host
-//!   (`ether_clap::ScanRunner`) enforces a timeout.
-//! - `--paths`: print the platform CLAP search paths (+ `CLAP_PATH`) as a JSON array.
-//! - `--scan-all [DIR_OR_BUNDLE...]`: find every bundle under the given paths (default: the
-//!   platform search paths), scan each one in a child scanner process (this same binary, in
-//!   protocol mode) and print `{"plugins": [PluginDescriptor...], "failed": [ScanFailure...]}`.
-//!   Options: `--timeout-ms N` (per bundle).
+//!   `ScanRequest` from stdin, loads that ONE target through the format's
+//!   `PluginFormatHost` (format from the request, else inferred from the path: `.clap`,
+//!   `.vst3`, AU component id), writes one JSON `ScanResponse` line to stdout, exits 0. A
+//!   crash/hang only loses that target; the host (`ether_plugin_host::ScanRunner`) enforces a
+//!   timeout.
+//! - `--paths`: print every format's platform search paths (CLAP first, incl. `CLAP_PATH`) as
+//!   a JSON array.
+//! - `--scan-all [DIR_OR_BUNDLE...]`: find every scan target under the given paths (default:
+//!   every format's search paths plus the AU component registry), scan each one in a child
+//!   scanner process (this same binary, in protocol mode) and print
+//!   `{"plugins": [PluginDescriptor...], "failed": [ScanFailure...]}`.
+//!   Options: `--timeout-ms N` (per target).
 //!
 //! The scanner creates no temp files or IPC objects (pipes only); anything added later must
-//! be named with `ether_core::plugin::ipc_name`. Owned by the `clap` node.
+//! be named with `ether_core::plugin::ipc_name`.
+
+#[cfg(not(target_arch = "wasm32"))]
+fn formats() -> ether_plugin_host::Formats {
+    use std::sync::Arc;
+    ether_plugin_host::Formats::new(vec![
+        Arc::new(ether_clap::ClapFormat),
+        Arc::new(ether_vst3::Vst3Format),
+        Arc::new(ether_au::AuFormat),
+    ])
+}
 
 #[cfg(not(target_arch = "wasm32"))]
 fn main() {
@@ -20,9 +34,10 @@ fn main() {
     match args.first().map(String::as_str) {
         None => protocol(),
         Some("--paths") => {
-            let paths: Vec<String> = ether_clap::default_search_paths()
+            let paths: Vec<String> = formats()
+                .default_search_paths()
                 .iter()
-                .map(|p| p.to_string_lossy().into_owned())
+                .map(|(_, p)| p.to_string_lossy().into_owned())
                 .collect();
             println!("{}", serde_json::to_string(&paths).expect("serialize"));
         }
@@ -51,12 +66,7 @@ fn protocol() {
             Err(e) => ScanResponse::Err {
                 message: format!("bad request: {e}"),
             },
-            Ok(req) => match ether_clap::scan_bundle(std::path::Path::new(&req.bundle_path)) {
-                Ok(plugins) => ScanResponse::Ok { plugins },
-                Err(e) => ScanResponse::Err {
-                    message: e.to_string(),
-                },
-            },
+            Ok(req) => formats().handle_scan_request(&req),
         },
     };
     // Leading newline: a plugin may have printed a partial line to stdout while loading.
@@ -71,7 +81,7 @@ fn scan_all(args: &[String]) {
     use std::path::PathBuf;
     use std::time::Duration;
 
-    let mut timeout = ether_clap::ScanRunner::DEFAULT_TIMEOUT;
+    let mut timeout = ether_plugin_host::ScanRunner::DEFAULT_TIMEOUT;
     let mut paths = Vec::new();
     let mut it = args.iter();
     while let Some(a) = it.next() {
@@ -85,13 +95,10 @@ fn scan_all(args: &[String]) {
             paths.push(PathBuf::from(a));
         }
     }
-    if paths.is_empty() {
-        paths = ether_clap::default_search_paths();
-    }
     let exe = std::env::current_exe().expect("current exe");
-    let runner = ether_clap::ScanRunner::new(exe).with_timeout(timeout);
-    let bundles = ether_clap::find_bundles(&paths);
-    let report = runner.scan_all(&bundles, |done, total, current| {
+    let runner = ether_plugin_host::ScanRunner::new(exe).with_timeout(timeout);
+    let targets = formats().discover((!paths.is_empty()).then_some(paths.as_slice()));
+    let report = runner.scan_targets(&targets, |done, total, current| {
         if let Some(current) = current {
             eprintln!("[{}/{}] {}", done + 1, total, current.display());
         }

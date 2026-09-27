@@ -3,7 +3,7 @@
 import type { EngineTransport } from "@/transport";
 import { cmd, newId } from "@/transport";
 import type { Clip, Command, Track, TrackId } from "@/generated";
-import { MOD_KEY, type MenuEntry } from "@/kit";
+import { MOD_KEY, type ContextMenuEntry } from "@/kit";
 import { useEditorStore, useProjectStore, useSelectionStore } from "@/state";
 import { itemSelection, playheadBeats } from "@/timeline";
 import { isArrangementClip } from "./clipTime";
@@ -92,7 +92,7 @@ export function actionForKey(e: { key: string; metaKey: boolean; ctrlKey: boolea
  * Right-click menu of a clip. Right-clicking an unselected clip selects just it (and its
  * track) first, so the actions apply to what is highlighted.
  */
-export function clipMenu(transport: EngineTransport, clip: Clip): MenuEntry[] {
+export function clipMenu(transport: EngineTransport, clip: Clip): ContextMenuEntry[] {
   if (!itemSelection.getState().isSelected("clip", clip.id)) itemSelection.getState().select("clip", [clip.id], "replace");
   useSelectionStore.getState().selectTrack(clip.track);
   const clips = selectedClips();
@@ -116,7 +116,7 @@ export function clipMenu(transport: EngineTransport, clip: Clip): MenuEntry[] {
 }
 
 /** Right-click menu of a track header (selects the track). */
-export function trackMenu(transport: EngineTransport, track: Track): MenuEntry[] {
+export function trackMenu(transport: EngineTransport, track: Track): ContextMenuEntry[] {
   useSelectionStore.getState().selectTrack(track.id);
   if (track.kind === "Master") return [];
   return [

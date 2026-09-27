@@ -1,9 +1,11 @@
-//! The helper process: hosts ONE plugin instance with `ether-clap` and serves it to the host.
+//! The helper process: hosts ONE plugin instance of any format (through the format's
+//! `ether_plugin_host::PluginFormatHost`) and serves it to the host.
 //!
-//! - main thread: owns the [`ClapPlugin`] (CLAP main thread, editors), answers control
-//!   requests and calls `poll` every ~10 ms, buffering notifications until the host polls;
+//! - main thread: owns the plugin's `PluginController` (plugin main thread, editors), answers
+//!   control requests and calls `poll` every ~10 ms, buffering notifications until the host
+//!   polls;
 //! - audio thread (while attached): waits on the block semaphore, processes one block from
-//!   shared memory with the in-process [`ClapNode`](ether_clap::ClapNode), signals `done`.
+//!   shared memory with the in-process `PluginNode`, signals `done`.
 //!
 //! The helper exits when its stdin closes (host dropped the controller or died).
 
@@ -16,13 +18,12 @@ use std::sync::{Arc, mpsc};
 use std::thread::JoinHandle;
 use std::time::Duration;
 
-use ether_clap::ClapPlugin;
 use ether_core::buffer::AudioBuffers;
 use ether_core::config::PrepareConfig;
 use ether_core::event::{EventBuffer, ProcessEvent};
 use ether_core::node::{ProcessContext, ProcessStatus};
 use ether_core::plugin::{PluginController, PluginError, PluginNode, PluginNotification};
-use ether_core::protocol::model::ParamId;
+use ether_core::protocol::model::{ParamId, PluginFormat};
 
 use crate::shm::{Region, WireEvent};
 use crate::sys::{self, Semaphore};
@@ -59,15 +60,65 @@ impl Active {
     }
 }
 
-/// Entry point of `ether-sandbox-helper <bundle> <plugin-id>`. Returns the exit code.
+/// Every plugin format the helper can host.
+pub fn formats() -> ether_plugin_host::Formats {
+    ether_plugin_host::Formats::new(vec![
+        Arc::new(ether_clap::ClapFormat),
+        Arc::new(ether_vst3::Vst3Format),
+        Arc::new(ether_au::AuFormat),
+    ])
+}
+
+/// Parsed command line: `[--format <clap|vst3|au>] <path> <plugin-id>`.
+#[derive(Debug, PartialEq)]
+pub struct Args {
+    pub format: PluginFormat,
+    pub path: PathBuf,
+    pub plugin_id: String,
+}
+
+pub const USAGE: &str =
+    "usage: ether-sandbox-helper [--format <clap|vst3|au>] <bundle-or-component> <plugin-id>";
+
+/// Parse the helper's arguments. `--format` defaults to `clap` (hosts before VST3/AU passed
+/// only the bundle and the id).
+pub fn parse_args(args: impl IntoIterator<Item = std::ffi::OsString>) -> Result<Args, String> {
+    let mut format = PluginFormat::Clap;
+    let mut positional = Vec::new();
+    let mut it = args.into_iter();
+    while let Some(a) = it.next() {
+        if a == "--format" {
+            let v = it.next().ok_or("--format needs a value")?;
+            let v = v.to_string_lossy();
+            format = PluginFormat::parse(&v).ok_or_else(|| format!("unknown format {v:?}"))?;
+        } else {
+            positional.push(a);
+        }
+    }
+    let [path, plugin_id]: [std::ffi::OsString; 2] = positional
+        .try_into()
+        .map_err(|_| "expected <bundle-or-component> <plugin-id>".to_string())?;
+    Ok(Args {
+        format,
+        path: PathBuf::from(path),
+        plugin_id: plugin_id.to_string_lossy().into_owned(),
+    })
+}
+
+/// Entry point of `ether-sandbox-helper [--format F] <path> <plugin-id>`. Returns the exit
+/// code.
 pub fn main() -> i32 {
-    let mut args = std::env::args_os().skip(1);
-    let (Some(bundle), Some(plugin_id)) = (args.next(), args.next()) else {
-        eprintln!("usage: ether-sandbox-helper <bundle.clap> <plugin-id>");
-        return 2;
+    let Args {
+        format,
+        path: bundle,
+        plugin_id,
+    } = match parse_args(std::env::args_os().skip(1)) {
+        Ok(a) => a,
+        Err(e) => {
+            eprintln!("ether-sandbox-helper: {e}\n{USAGE}");
+            return 2;
+        }
     };
-    let bundle = PathBuf::from(bundle);
-    let plugin_id = plugin_id.to_string_lossy().into_owned();
 
     let fd = match sys::take_stdout() {
         Ok(fd) => fd,
@@ -92,7 +143,7 @@ pub fn main() -> i32 {
         })
         .expect("spawn control thread");
 
-    let mut plugin = match ClapPlugin::load(&bundle, &plugin_id) {
+    let mut plugin = match formats().instantiate(format, &bundle, &plugin_id) {
         Ok(p) => p,
         Err(e) => {
             let _ = wire::write_frame(&mut out, &Response::Err(e.into()));
@@ -138,7 +189,7 @@ fn result(r: Result<(), PluginError>) -> Response {
 }
 
 fn handle(
-    plugin: &mut ClapPlugin,
+    plugin: &mut Box<dyn PluginController>,
     active: &mut Option<Active>,
     notifications: &mut Vec<PluginNotification>,
     req: Request,
@@ -332,4 +383,39 @@ fn run_audio(
         region.header().done.store(seq, Ordering::Release);
     }
     node
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn parse(args: &[&str]) -> Result<Args, String> {
+        parse_args(args.iter().map(std::ffi::OsString::from))
+    }
+
+    #[test]
+    fn args() {
+        let a = parse(&["/p/A.clap", "com.x"]).unwrap();
+        assert_eq!(
+            a,
+            Args {
+                format: PluginFormat::Clap,
+                path: "/p/A.clap".into(),
+                plugin_id: "com.x".into()
+            }
+        );
+        let a = parse(&["--format", "vst3", "/p/A.vst3", "ABC"]).unwrap();
+        assert_eq!(a.format, PluginFormat::Vst3);
+        let a = parse(&["aufx:dely:appl", "aufx:dely:appl", "--format", "AU"]).unwrap();
+        assert_eq!(a.format, PluginFormat::Au);
+        assert_eq!(a.path, PathBuf::from("aufx:dely:appl"));
+        assert!(parse(&["--format", "vst2", "a", "b"]).is_err());
+        assert!(parse(&["a", "b", "--format"]).is_err());
+        assert!(parse(&["a"]).is_err());
+        assert!(parse(&["a", "b", "c"]).is_err());
+        assert_eq!(
+            formats().formats(),
+            [PluginFormat::Clap, PluginFormat::Vst3, PluginFormat::Au]
+        );
+    }
 }

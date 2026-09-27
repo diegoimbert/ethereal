@@ -7,7 +7,7 @@ import { create } from "zustand";
  * does nothing.
  */
 
-export interface MenuItem {
+export interface ContextMenuItem {
   label: string;
   /** Shortcut hint shown on the right (display only). */
   shortcut?: string;
@@ -16,14 +16,14 @@ export interface MenuItem {
   onSelect: () => void;
 }
 
-export type MenuEntry = MenuItem | "separator";
+export type ContextMenuEntry = ContextMenuItem | "separator";
 
 export interface OpenMenu {
   /** Bumped on every open, so the menu remounts with fresh state. */
   id: number;
   x: number;
   y: number;
-  items: ReadonlyArray<MenuEntry>;
+  items: ReadonlyArray<ContextMenuEntry>;
 }
 
 interface MenuState {
@@ -41,7 +41,7 @@ let nextId = 1;
 /** Open the menu at the pointer. With no items it only suppresses the native menu. */
 export function openContextMenu(
   e: { clientX: number; clientY: number; preventDefault(): void; stopPropagation(): void },
-  items: ReadonlyArray<MenuEntry>,
+  items: ReadonlyArray<ContextMenuEntry>,
 ): void {
   e.preventDefault();
   e.stopPropagation();

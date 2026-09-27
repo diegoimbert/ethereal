@@ -1,0 +1,21 @@
+[package]
+name = "ether-vst3"
+description = "VST3 plugin hosting (PluginFormatHost for .vst3 bundles). Owned by the `vst3` node."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+# The `vst3` node adds what it needs from [workspace.dependencies] (`vst3`, `libloading`,
+# `objc2-core-foundation` for CFBundle on macOS, `objc2-app-kit` for editors, ...).
+[dependencies]
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+ether-core.workspace = true
+ether-plugin-host.workspace = true
+
+[lints]
+workspace = true

@@ -262,9 +262,9 @@ pub(crate) fn source_seconds(warp: Option<&WarpDesc>, ref_bpm: f64, c: f64) -> f
 /// Render (add) an audio clip into `out` for the sub-block. Reads through
 /// `scratch` (≥ 2 × frames recommended). Returns `false` on a source underrun.
 ///
-/// Warped clips play back by resampling (linear interpolation), i.e. `Repitch`
-/// semantics; `Complex` (Signalsmith time-stretch) is not wired in yet and falls back to
-/// the same resampling.
+/// Resamples (linear interpolation): unwarped and `Repitch` clips, and `Complex` clips
+/// without a stretcher (`crate::warp` handles the stretched path). Transpose changes the
+/// playback rate.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn render_audio(
     clip: &ClipDesc,
@@ -279,6 +279,7 @@ pub(crate) fn render_audio(
         fade_in,
         fade_out,
         warp,
+        transpose,
         ..
     } = &clip.content
     else {
@@ -304,7 +305,13 @@ pub(crate) fn render_audio(
         let o_b = timing.sample_ceil(p.t1);
         let frame_at = |o: usize| {
             let t = timing.beat_at(o as f64);
-            source_seconds(warp.as_ref(), ref_bpm, p.c0 + (t - p.t0)) * sr
+            crate::warp::repitch_source_seconds(
+                warp.as_ref(),
+                *transpose,
+                ref_bpm,
+                clip.offset,
+                p.c0 + (t - p.t0),
+            ) * sr
         };
         let mut o = o_a;
         while o < o_b {

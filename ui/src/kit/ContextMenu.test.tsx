@@ -37,7 +37,7 @@ describe("ContextMenu", () => {
     expect(screen.queryByRole("menu")).toBeNull();
   });
 
-  it("closes on outside press and Escape, and navigates with arrows", () => {
+  it("closes on outside press and Escape, and moves focus with the arrows", () => {
     const a = vi.fn();
     const b = vi.fn();
     setup([{ label: "A", onSelect: a }, "separator", { label: "B", disabled: true, onSelect: b }, { label: "C", onSelect: b }]);
@@ -47,9 +47,10 @@ describe("ContextMenu", () => {
 
     fireEvent.contextMenu(screen.getByTestId("target"));
     const menu = screen.getByRole("menu");
-    fireEvent.keyDown(menu, { key: "ArrowDown" });
+    expect(document.activeElement).toBe(screen.getByRole("menuitem", { name: "A" }));
     fireEvent.keyDown(menu, { key: "ArrowDown" }); // skips the disabled item
-    fireEvent.keyDown(menu, { key: "Enter" });
+    expect(document.activeElement).toBe(screen.getByRole("menuitem", { name: "C" }));
+    fireEvent.click(document.activeElement!);
     expect(b).toHaveBeenCalledOnce();
     expect(a).not.toHaveBeenCalled();
 

@@ -1,7 +1,8 @@
 .eth-shell {
   display: grid;
-  grid-template-columns: var(--eth-sidebar-width, 220px) minmax(0, 1fr);
-  grid-template-rows: auto minmax(0, 1fr) var(--eth-detail-height, 280px);
+  /* The splitters set --eth-sidebar-width / --eth-detail-height inline on the shell. */
+  grid-template-columns: var(--eth-sidebar-width, var(--eth-size-sidebar-width)) minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr) var(--eth-detail-height, var(--eth-size-detail-height));
   grid-template-areas:
     "top top"
     "sidebar main"
@@ -12,7 +13,7 @@
   background: var(--eth-color-border);
 }
 .eth-shell--detail-closed {
-  grid-template-rows: auto minmax(0, 1fr) 24px;
+  grid-template-rows: auto minmax(0, 1fr) var(--eth-size-detail-collapsed-height);
 }
 
 .eth-shell__top {
@@ -20,7 +21,7 @@
   display: flex;
   align-items: center;
   gap: var(--eth-space-md);
-  min-height: 36px;
+  min-height: var(--eth-size-top-bar-height);
   padding: var(--eth-space-sm) var(--eth-space-md);
   background: var(--eth-color-bg-panel);
   border-radius: var(--eth-radius-md);
@@ -48,15 +49,16 @@
 .eth-splitter:hover {
   background: color-mix(in srgb, var(--eth-color-selection) 50%, transparent);
 }
+/* Centered on the gap between the panes. */
 .eth-splitter--vertical {
-  width: 6px;
-  margin-left: -4px;
+  width: var(--eth-size-splitter-width);
+  margin-left: calc((var(--eth-size-splitter-width) + var(--eth-space-xs)) / -2);
   justify-self: start;
   cursor: ew-resize;
 }
 .eth-splitter--horizontal {
-  height: 6px;
-  margin-top: -4px;
+  height: var(--eth-size-splitter-width);
+  margin-top: calc((var(--eth-size-splitter-width) + var(--eth-space-xs)) / -2);
   align-self: start;
   cursor: ns-resize;
 }
@@ -72,7 +74,7 @@
   display: flex;
   gap: var(--eth-space-xs);
   text-transform: none;
-  letter-spacing: 0;
+  letter-spacing: var(--eth-tracking-normal);
 }
 
 /* Placeholder look for feature stubs (removed as features land). */
@@ -83,9 +85,9 @@
   justify-content: center;
   gap: var(--eth-space-xs);
   height: 100%;
-  min-height: 24px;
+  min-height: var(--eth-size-detail-collapsed-height);
   padding: var(--eth-space-sm);
-  border: 1px dashed var(--eth-color-border-light);
+  border: var(--eth-border-width) dashed var(--eth-color-border-light);
   border-radius: var(--eth-radius-sm);
   color: var(--eth-color-text-dim);
   font-size: var(--eth-fs-sm);

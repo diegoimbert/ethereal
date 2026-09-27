@@ -176,6 +176,8 @@ pub fn create(config: EngineConfig) -> EngineParts {
         .collect::<Vec<_>>()
         .into();
     let playhead = Arc::new(SharedPlayhead::default());
+    let (recording_rt, recording_io) = crate::recording::channel(&config);
+    let (warp_handle, warp_rt) = crate::warp::channel(&config);
     let snapshot =
         compile_with(RenderGraphDesc::default(), &config, &|_| None).expect("empty graph compiles");
     let tempo_bpm = snapshot.tempo.bpm_at(0.0);
@@ -207,6 +209,8 @@ pub fn create(config: EngineConfig) -> EngineParts {
         overflow: false,
         underruns: 0,
         leaked: 0,
+        recording: recording_rt,
+        warp: warp_rt,
         config: config.clone(),
     };
     let handle = EngineHandle {
@@ -223,6 +227,8 @@ pub fn create(config: EngineConfig) -> EngineParts {
         free: (0..config.max_nodes as u32).rev().collect(),
         node_latency,
         playhead,
+        recording: Some(recording_io),
+        warp: warp_handle,
         config,
     };
     EngineParts {
@@ -255,6 +261,9 @@ pub struct Engine {
     /// Objects that could not be handed to the GC (ring full) and were leaked instead of
     /// being freed on the audio thread.
     leaked: u64,
+    /// Recording hooks: input capture, live MIDI in/out ([`crate::recording`]).
+    pub(crate) recording: crate::recording::RecordingRt,
+    pub(crate) warp: crate::warp::WarpRt,
 }
 
 impl Engine {
@@ -274,6 +283,7 @@ impl Engine {
         }
         let frames = frames.min(self.config.max_block_size);
         self.drain_control();
+        self.warp.drain();
         self.drain_params();
         self.update_latencies();
 
@@ -486,6 +496,8 @@ impl Engine {
             next_note_id,
             overflow,
             underruns,
+            recording,
+            warp,
             ..
         } = self;
         let RenderSnapshot { desc, tempo, rt } = &mut **snapshot;
@@ -555,6 +567,7 @@ impl Engine {
             sample_rate: sr,
             frames: n,
         };
+        recording.process(&info, inputs, off, n, &desc.tracks, tracks);
 
         for bus in buses.iter_mut() {
             bus[0][..n].fill(0.0);
@@ -578,7 +591,7 @@ impl Engine {
             a[0][..n].copy_from_slice(&buses[ti][0][..n]);
             a[1][..n].copy_from_slice(&buses[ti][1][..n]);
             if track.monitor
-                && let Some((l, r)) = track.audio_input
+                && let Some((l, r)) = crate::recording::input_channels(track.audio_input)
             {
                 for (ch, hw) in [(0usize, l), (1, r)] {
                     if let Some(input) = inputs.get(hw as usize) {
@@ -641,7 +654,7 @@ impl Engine {
                     };
                     let ref_bpm = tempo.bpm_at(clip.start);
                     let [al, ar] = &mut *a;
-                    if !sched::render_audio(
+                    if !warp.render(
                         clip,
                         &*sources[si].1,
                         ref_bpm,
@@ -973,6 +986,8 @@ pub struct EngineHandle {
     free: Vec<u32>,
     node_latency: Arc<[AtomicU32]>,
     playhead: Arc<SharedPlayhead>,
+    pub(crate) recording: Option<crate::recording::RecordingIo>,
+    pub(crate) warp: crate::warp::WarpHandle,
 }
 
 struct HandleSlot {
@@ -1065,6 +1080,7 @@ impl EngineHandle {
     /// node's latency changes the controller re-publishes. Clips whose media has no
     /// registered source play silence (no error), so media can load asynchronously.
     pub fn publish(&mut self, desc: RenderGraphDesc) -> Result<(), EngineError> {
+        self.warp.sync(&desc);
         let snapshot = {
             let slots = &self.slots;
             let lat = &self.node_latency;

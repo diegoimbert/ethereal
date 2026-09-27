@@ -1,0 +1,109 @@
+{
+  "format": "ethereal-project",
+  "version": 2,
+  "app_version": "0.0.1",
+  "project": {
+    "id": "00000000-03e8-7e2e-8d72-7faffbd1aea6",
+    "settings": {
+      "name": "Untitled",
+      "loop_enabled": false,
+      "loop_region": {
+        "start": 0.0,
+        "end": 16.0
+      },
+      "metronome": false,
+      "count_in_bars": 0
+    },
+    "tracks": {
+      "00000000Z8TCH1Q3BRJMTQCWHE": {
+        "id": "00000000Z8TCH1Q3BRJMTQCWHE",
+        "kind": "Master",
+        "name": "Master",
+        "color": 10132122,
+        "order": "a0",
+        "parent": null,
+        "mixer": {
+          "volume": 0.0,
+          "pan": 0.0,
+          "mute": false,
+          "solo": false
+        },
+        "input": {
+          "type": "None"
+        },
+        "output": {
+          "type": "Default"
+        },
+        "monitor": "Auto"
+      },
+      "00000000Z95G8PGGRWXTXMYMKM": {
+        "id": "00000000Z95G8PGGRWXTXMYMKM",
+        "kind": "Audio",
+        "name": "t",
+        "color": 0,
+        "order": "a0",
+        "parent": null,
+        "mixer": {
+          "volume": 0.0,
+          "pan": 0.0,
+          "mute": false,
+          "solo": false
+        },
+        "input": {
+          "type": "None"
+        },
+        "output": {
+          "type": "Default"
+        },
+        "monitor": "Auto"
+      }
+    },
+    "clips": {},
+    "notes": {},
+    "devices": {
+      "00000000ZAH0NJQCV0Z1Z5RNA4": {
+        "id": "00000000ZAH0NJQCV0Z1Z5RNA4",
+        "track": "00000000Z95G8PGGRWXTXMYMKM",
+        "order": "a0",
+        "name": "P",
+        "enabled": true,
+        "kind": {
+          "type": "Plugin",
+          "plugin": {
+            "format": "Clap",
+            "plugin_id": "com.example.synth",
+            "name": "P",
+            "vendor": "V",
+            "version": "1.0",
+            "sandboxed": false,
+            "state": "AQID"
+          }
+        },
+        "params": {}
+      }
+    },
+    "sends": {},
+    "automation_lanes": {},
+    "automation_points": {},
+    "tempo_points": {
+      "00000000Z8TCH1Q3BRJMTQCWHF": {
+        "id": "00000000Z8TCH1Q3BRJMTQCWHF",
+        "time": 0.0,
+        "bpm": 120.0,
+        "curve": "Step"
+      }
+    },
+    "time_signatures": {
+      "00000000Z8TCH1Q3BRJMTQCWHG": {
+        "id": "00000000Z8TCH1Q3BRJMTQCWHG",
+        "time": 0.0,
+        "signature": {
+          "numerator": 4,
+          "denominator": 4
+        }
+      }
+    },
+    "warp_markers": {},
+    "media": {}
+  }
+}

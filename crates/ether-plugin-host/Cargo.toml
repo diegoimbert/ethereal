@@ -1,0 +1,19 @@
+[package]
+name = "ether-plugin-host"
+description = "Format-agnostic plugin loading (PluginFormatHost trait, format registry, out-of-process scan runner)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[dependencies]
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+ether-core.workspace = true
+serde_json.workspace = true
+
+[lints]
+workspace = true

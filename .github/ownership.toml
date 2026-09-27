@@ -15,7 +15,7 @@ allow = [
   "ui/src/generated/**",
 ]
 # May touch anything.
-unrestricted = ["foundation", "alpha", "v0.1"]
+unrestricted = ["foundation", "alpha", "v0.1", "formats-base"]
 unrestricted_prefixes = ["base-"]
 
 # --- Wave 1 ---------------------------------------------------------------------------
@@ -141,6 +141,10 @@ paths = [
   "apps/web/e2e/warp.spec.ts",
   # granted by manager (BCR, base-9)
   "crates/ether-native/tests/e2e_warp.rs",
+  # granted by manager (review follow-ups, base-12)
+  "crates/ether-controller/src/doc/clips.rs",
+  "crates/ether-controller/src/handlers.rs",
+  "ui/src/features/arrangement/clipDrag.ts",
 ]
 
 [nodes.recording]
@@ -177,4 +181,74 @@ paths = [
   "apps/web/e2e/recording.spec.ts",
   # granted by manager (base-10)
   "crates/ether-core/tests/recording_*.rs",
+  # granted by manager (ci-release discovery, base-14)
+  "apps/desktop/src-tauri/Info.plist",
+]
+
+# --- Roadmap (manager, base-13) --------------------------------------------------------
+
+[nodes.design-system]
+paths = [
+  "ui/src/kit/**",
+  "ui/src/theme/**",
+  "ui/src/app/App.css",
+  "ui/src/features/kit-gallery/**",
+  "docs/DESIGN-SYSTEM.md",
+  "ui/src/main.tsx",
+  # granted by manager (review follow-ups, base-15)
+  "ui/vite.config.ts",
+  "justfile",
+  "ui/src/features/mixer/**",
+  "ui/src/app/App.tsx",
+]
+
+[nodes.ci-release]
+paths = [
+  ".github/workflows/release.yml",
+  "scripts/release/**",
+  "VERSION",
+  "THIRD_PARTY_NOTICES*",
+  "docs/RELEASING.md",
+]
+
+# --- Plugin formats (formats-base; docs/PLUGIN-FORMATS.md) ----------------------------
+# `vst3` and `au` each implement one PluginFormatHost in their own crate (no shared files:
+# the scanner and sandbox helper already register both stubs). `formats-integration`
+# wires the formats into the native host/bridge/UI afterwards.
+
+[nodes.vst3]
+paths = [
+  "crates/ether-vst3/**",
+  # tests through the real scanner binary / sandbox helper (CARGO_BIN_EXE_* only exists there)
+  "crates/ether-plugin-scanner/tests/vst3.rs",
+  "crates/ether-sandbox/tests/vst3.rs",
+]
+
+[nodes.au]
+paths = [
+  "crates/ether-au/**",
+  # tests through the real scanner binary / sandbox helper (CARGO_BIN_EXE_* only exists there)
+  "crates/ether-plugin-scanner/tests/au.rs",
+  "crates/ether-sandbox/tests/au.rs",
+]
+
+[nodes.formats-integration]
+paths = [
+  "crates/ether-native/src/plugins.rs",
+  "crates/ether-native/src/sandbox.rs",
+  "crates/ether-native/src/bridge.rs",
+  "crates/ether-native/Cargo.toml",
+  "crates/ether-native/tests/plugins_e2e.rs",
+  "crates/ether-native/tests/formats_e2e.rs",
+  "crates/ether-plugin-host/**",
+  "crates/ether-plugin-scanner/**",
+  "crates/ether-sandbox/src/helper.rs",
+  "crates/ether-sandbox/src/host.rs",
+  "crates/ether-sandbox/src/lib.rs",
+  "ui/src/features/plugins/**",
+  "docs/PLUGIN-FORMATS.md",
+  # one-line change only: `spawn_scan` discovers targets via `Formats::discover` + `ScanRunner::scan_targets`
+  "crates/ether-native/src/host.rs",
+  # packaging: nothing new to ship (formats are linked into the scanner/helper/app), listed for codesign tweaks
+  "apps/desktop/src-tauri/Cargo.toml",
 ]
