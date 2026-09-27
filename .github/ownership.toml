@@ -721,6 +721,11 @@ paths = [
   "ui/src/transport/mock/roadmap/collab.*",
   # shared touch (base-54): collab_transport_intercept at the top of dispatch() and collab_listen_transport_state in transport_state()
   "crates/ether-controller/src/handlers.rs",
+  # shared touch (base-65): the host-side seam once stream-host merged:
+  # collab_host_is_listening / can_host via collab_listening_host(), collab_host_end_all
+  "crates/ether-controller/src/collab/stream_host.rs",
+  "crates/ether-controller/tests/collab_stream*.rs",
+  "apps/web/e2e/collab-stream*.spec.ts",
 ]
 
 [nodes.plugin-mirror]
