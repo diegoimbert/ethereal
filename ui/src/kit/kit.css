@@ -554,6 +554,10 @@
 }
 /* Context menu: flies out of the click point (transform-origin is set inline to it). */
 .eth-popover--context {
+  /* Size to the menu's content even when opened near the right edge (the clamp then moves it
+     left); without this the shrink-to-fit width is limited to the space right of the click. */
+  width: max-content;
+  max-width: calc(100vw - 2 * var(--eth-space-xs));
   animation: eth-context-menu-in var(--context-menu-enter-duration) var(--context-menu-enter-ease) both;
 }
 /* ---- Select ------------------------------------------------------------------------- */

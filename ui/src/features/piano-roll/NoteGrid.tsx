@@ -3,7 +3,7 @@
  * marquee. Draw / move / resize notes; every drag is one undo gesture.
  */
 
-import { memo, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { memo, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import clsx from "clsx";
 import { scaleTone } from "@/domain/scales";
 import type { Clip, Command, MusicalScale, Note, NoteId } from "@/generated";
@@ -28,6 +28,7 @@ import {
   type TimelineViewStore,
 } from "@/timeline";
 import { cmd, newId, useTransport } from "@/transport";
+import { EditorPresence, type EditorCursorMapping } from "@/features/collab/presence";
 import { contentEnd, contentToSong, songToContent } from "./clipTime";
 import { startDrag, useSend } from "./drag";
 import { isBlackKey, noteHitZone, noteRect, pitchToY, rowPitchDelta, yToPitch } from "./geometry";
@@ -60,6 +61,23 @@ export function NoteGrid({ clip, notes, view, vp, widthPx, keyH, rows, scale, hi
   const send = useSend();
   const rootRef = useRef<HTMLDivElement>(null);
   const height = rows.length * keyH;
+
+  // Collab: grid px ⇄ content beats and pitch (the key plus how far up it), for peers'
+  // cursors on this clip.
+  const cursorMapping = useRef<EditorCursorMapping>(null!);
+  useLayoutEffect(() => {
+    cursorMapping.current = {
+      fromScreen: (x, y) => {
+        const row = Math.min(rows.length - 1, Math.max(0, Math.floor(y / keyH)));
+        const within = Math.min(0.999, Math.max(0, 1 - (y - row * keyH) / keyH));
+        return { beats: pxToBeats(x, vp), pitch: rows[row]! + within };
+      },
+      toScreen: (beats, pitch) => {
+        const key = Math.floor(pitch);
+        return { x: beatsToPx(beats, vp), y: pitchToY(key, keyH, rows) + (1 - (pitch - key)) * keyH };
+      },
+    };
+  });
 
   const range = useMemo(() => visibleRange(vp, widthPx > 0 ? widthPx : 2000), [vp, widthPx]);
   const lines = useMemo(() => gridLines(tempo, range, step ?? BAR_STEP), [tempo, range, step]);
@@ -269,6 +287,7 @@ export function NoteGrid({ clip, notes, view, vp, widthPx, keyH, rows, scale, hi
         />
       )}
       <PlayheadLine view={view} mapping={(song) => songToContent(clip, song)} />
+      <EditorPresence clip={clip.id} gridRef={rootRef} mapping={cursorMapping} />
     </div>
   );
 }

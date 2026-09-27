@@ -2,6 +2,7 @@
 // and the other participants' presence.
 import { create } from "zustand";
 import type { CollabStatus, Color, Event, Presence } from "@/generated";
+import { usePointerStore } from "./presence/pointers";
 
 export interface CollabState {
   status: CollabStatus;
@@ -19,12 +20,19 @@ export const useCollabStore = create<CollabState>()((set) => ({
   onEvent: (event) => {
     if (event.type !== "Collab") return;
     const e = event.event;
-    if (e.type === "Session") set({ status: e.status });
-    else if (e.type === "Presence") set({ peers: e.peers });
-    // base-53 events (Pointer, Signal, ListenStatus, StreamClock, IceServers) are handled by
-    // the presence-v2 / stream-listen / stream-host nodes.
+    if (e.type === "Session") {
+      set({ status: e.status });
+      if (e.status.type !== "Online") usePointerStore.getState().clear();
+    } else if (e.type === "Presence") set({ peers: e.peers });
+    // presence-v2: peers' live pointers (their own store: they arrive at up to 30 Hz).
+    else if (e.type === "Pointer") usePointerStore.getState().onPointer(e.site, e.pointer);
+    // base-53 events (Signal, ListenStatus, StreamClock, IceServers) are handled by the
+    // stream-listen / stream-host nodes.
   },
-  reset: () => set({ ...INITIAL }),
+  reset: () => {
+    set({ ...INITIAL });
+    usePointerStore.getState().clear();
+  },
 }));
 
 /** A presence color (`0xRRGGBB`, data like track colors) as CSS. */

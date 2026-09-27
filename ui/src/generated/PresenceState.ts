@@ -40,6 +40,10 @@ activity?: Activity,
  */
 following?: SiteId, 
 /**
+ * The clip this user has open in the piano roll (others show who edits what).
+ */
+editing_clip?: ClipId, 
+/**
  * Controller-owned: the host this site listens to (docs/COLLAB.md §9).
  */
 listening_to?: SiteId, 

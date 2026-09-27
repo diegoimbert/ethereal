@@ -62,3 +62,35 @@
   align-items: center;
   gap: var(--eth-space-sm);
 }
+/* presence-v2: peer chips follow on click; listening badge (docs/COLLAB.md §8.4). */
+.eth-collab__chip {
+  position: relative;
+  padding: 0;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+}
+.eth-collab__chip:focus-visible {
+  outline: var(--eth-border-width-strong) solid var(--eth-color-focus);
+  outline-offset: var(--eth-border-width);
+}
+.eth-collab__chip[aria-pressed="true"] {
+  box-shadow:
+    0 0 0 var(--eth-border-width-strong) var(--eth-color-bg),
+    0 0 0 calc(2 * var(--eth-border-width-strong)) var(--eth-collab-peer);
+}
+.eth-collab__badge {
+  position: absolute;
+  right: calc(-1 * var(--eth-space-xs));
+  bottom: calc(-1 * var(--eth-space-xs));
+  display: inline-flex;
+  padding: var(--eth-space-hair);
+  border-radius: var(--eth-radius-round);
+  background: var(--eth-color-bg-raised);
+  color: var(--eth-collab-peer);
+}
+.eth-collab__badge svg {
+  width: var(--eth-size-icon-inline);
+  height: var(--eth-size-icon-inline);
+  fill: currentColor;
+}

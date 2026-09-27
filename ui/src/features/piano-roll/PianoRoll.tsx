@@ -17,6 +17,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { Beats, Clip, Command, MusicalScale, Note, NoteId, TrackScale } from "@/generated";
 import { CHROMATIC_SCALE, resolveScale } from "@/domain/scales";
 import { Button, Select } from "@/kit";
+import { EditingPeers } from "@/features/collab/presence";
 import { GrooveControls, grooveMenuItems, grooveQuantizeCommand, useGrooveSettings } from "@/features/groove";
 import { useClip, useEditedClipId, useNotesOfClip, useProjectStore } from "@/state";
 import {
@@ -206,6 +207,7 @@ export function PianoRollEditor({ clip, view: injectedView }: PianoRollEditorPro
         <span className="eth-pr__title" title={clip.name}>
           {clip.name || "MIDI Clip"}
         </span>
+        <EditingPeers clip={clip.id} />
         <span className="eth-pr__grid-select">
           Grid
           <Select
