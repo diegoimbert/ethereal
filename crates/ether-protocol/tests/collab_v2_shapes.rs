@@ -84,6 +84,7 @@ fn pointer_channel_shapes() {
         beats: Beats(3.5),
         track: Some(id(1)),
         y: 0.5,
+        editor: None,
     };
     let c = roundtrip(&CollabCommand::SetPointer {
         pointer: Some(pointer.clone()),
@@ -101,8 +102,25 @@ fn pointer_channel_shapes() {
     );
     roundtrip(&CollabEvent::Pointer {
         site: SiteId(2),
-        pointer: Some(pointer),
+        pointer: Some(pointer.clone()),
     });
+    // The arranger shape omits `editor`; a piano-roll pointer carries it.
+    assert!(c["pointer"].get("editor").is_none());
+    let in_editor = ArrangerPointer {
+        beats: Beats(0.0),
+        track: None,
+        y: 0.0,
+        editor: Some(ether_protocol::collab::EditorPointer {
+            clip: id(7),
+            beats: Beats(2.25),
+            pitch: 60.5,
+        }),
+    };
+    let e = roundtrip(&CollabCommand::SetPointer {
+        pointer: Some(in_editor),
+    });
+    assert_eq!(e["pointer"]["editor"]["beats"], 2.25);
+    assert_eq!(e["pointer"]["editor"]["pitch"], 60.5);
 }
 
 #[test]

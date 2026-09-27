@@ -35,4 +35,17 @@ describe("PointerTrail", () => {
     expect(mid.beats).toBeCloseTo(4);
     expect(t.at(5000 + INTERP_DELAY_MS)).toEqual(at(8));
   });
+
+  it("glides a piano-roll pointer within a clip and snaps between clips", () => {
+    const ed = (clip: string, beats: number, pitch: number) => ({ beats: 0, track: null, y: 0, editor: { clip, beats, pitch } });
+    const t = new PointerTrail();
+    t.push(ed("c1", 0, 60), 0);
+    t.push(ed("c1", 4, 64), 40);
+    expect(t.at(20 + INTERP_DELAY_MS)).toEqual(ed("c1", 2, 62));
+    t.push(ed("c2", 1, 50), 80);
+    expect(t.at(60 + INTERP_DELAY_MS)).toEqual(ed("c1", 4, 64));
+    // Out of the piano roll into the arranger: snaps too.
+    t.push(at(3), 120);
+    expect(t.at(100 + INTERP_DELAY_MS)).toEqual(ed("c2", 1, 50));
+  });
 });

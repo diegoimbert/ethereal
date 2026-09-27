@@ -65,6 +65,7 @@ export type * from "./DrumPadChange";
 export type * from "./DrumPadId";
 export type * from "./DrumRackCommand";
 export type * from "./EditCommand";
+export type * from "./EditorPointer";
 export type * from "./EngineCommand";
 export type * from "./EngineEvent";
 export type * from "./EngineStatus";

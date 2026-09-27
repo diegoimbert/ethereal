@@ -1,6 +1,7 @@
 // Smooth display of a peer's pointer (docs/COLLAB.md §8.3): pointers arrive at ≤ 30 Hz, the
 // overlay draws at display rate one sample interval in the past, interpolating linearly
-// between the two samples around that time, and snapping when the track changes.
+// between the two samples around that time, and snapping when the track (or piano-roll clip)
+// changes.
 import type { ArrangerPointer } from "@/generated";
 import { POINTER_MAX_HZ } from "./rate";
 
@@ -44,9 +45,18 @@ export class PointerTrail {
       const b = s[i]!;
       if (t >= b.t) continue;
       const a = s[i - 1]!;
-      if (a.p.track !== b.p.track) return a.p;
+      // Snap across tracks, and into, out of or between piano-roll clips.
+      if (a.p.track !== b.p.track || a.p.editor?.clip !== b.p.editor?.clip) return a.p;
       const k = (t - a.t) / (b.t - a.t);
-      return { beats: a.p.beats + (b.p.beats - a.p.beats) * k, track: b.p.track, y: a.p.y + (b.p.y - a.p.y) * k };
+      const lerp = (x: number, y: number) => x + (y - x) * k;
+      const ae = a.p.editor;
+      const be = b.p.editor;
+      return {
+        beats: lerp(a.p.beats, b.p.beats),
+        track: b.p.track,
+        y: lerp(a.p.y, b.p.y),
+        ...(ae && be ? { editor: { clip: be.clip, beats: lerp(ae.beats, be.beats), pitch: lerp(ae.pitch, be.pitch) } } : {}),
+      };
     }
     return s[s.length - 1]!.p;
   }

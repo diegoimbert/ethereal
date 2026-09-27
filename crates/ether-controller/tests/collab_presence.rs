@@ -16,6 +16,7 @@ fn at(beats: f64) -> ArrangerPointer {
         beats: Beats(beats),
         track: None,
         y: 0.0,
+        editor: None,
     }
 }
 

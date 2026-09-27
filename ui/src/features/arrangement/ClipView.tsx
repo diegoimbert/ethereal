@@ -5,6 +5,7 @@ import { useShallow } from "zustand/react/shallow";
 import type { Beats, Clip, Color, MediaRef, WarpMarker } from "@/generated";
 import { clipInk, colorCss } from "./helpers";
 import { useTheme } from "@/theme";
+import { useClipEditors } from "@/features/collab/presence/editors";
 import { useEditorStore, useNotesOfClip, useProjectStore, warpMarkersOfClip } from "@/state";
 import { useIsSelected, type TempoMap, type TimelineViewport } from "@/timeline";
 import { openContextMenu, useThemeColor } from "@/kit";
@@ -40,6 +41,8 @@ export interface ClipViewProps {
 export const ClipView = memo(function ClipView({ clip, bounds, trackColor, vp, visible, tempo, dragging, ghost }: ClipViewProps) {
   const ctx = useArrangement();
   const selected = useIsSelected("clip", clip.id);
+  // Collab: peers with this clip open in their piano roll (ring in the first one's color).
+  const editors = useClipEditors(ghost ? null : clip.id);
   const color = colorCss(clip.color ?? trackColor);
   // Positioned in beats at the live zoom (--ppb, see laneGeometry.ts), never narrower than
   // CLIP_MIN_PX so even tiny clips can be grabbed.
@@ -59,8 +62,14 @@ export const ClipView = memo(function ClipView({ clip, bounds, trackColor, vp, v
         clip.muted && "eth-clip--muted",
         dragging && "eth-clip--dragging",
         ghost && "eth-clip--ghost",
+        editors.length > 0 && "eth-clip--peer-editing",
       )}
-      style={{ left, width, ["--eth-clip-color" as string]: color }}
+      style={{
+        left,
+        width,
+        ["--eth-clip-color" as string]: color,
+        ...(editors.length > 0 ? { ["--eth-collab-peer" as string]: editors[0]!.color } : {}),
+      }}
       data-clip-id={ghost ? undefined : clip.id}
       data-ghost={ghost ? clip.id : undefined}
       role={ghost ? undefined : "button"}
@@ -85,6 +94,15 @@ export const ClipView = memo(function ClipView({ clip, bounds, trackColor, vp, v
         )}
         {clip.content.type === "Audio" && clip.content.reversed && <ReversedBadge />}
         {clip.name && <span className="eth-clip__name">{clip.name}</span>}
+        {editors.length > 0 && (
+          <span
+            className="eth-clip__editors"
+            data-testid="clip-editors"
+            title={`${editors.map((e) => e.name).join(", ")} ${editors.length === 1 ? "is" : "are"} editing this clip`}
+          >
+            {editors.map((e) => e.name).join(", ")}
+          </span>
+        )}
       </div>
       {to > from && (
         <div className="eth-clip__body" style={{ left: beatsCss(from - bounds.start), width: widthCss(to - from) }}>

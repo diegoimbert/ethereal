@@ -312,7 +312,8 @@ function PeerPointers({ layer }: { layer: LayerRef }) {
       const { trails } = usePointerStore.getState();
       for (const [site, el] of els.current) {
         const p = trails.get(site)?.at(now) ?? null;
-        const at = p && songToScreen(p, g.rows, g.lanes, parentOf, g.rulerY, g.free, DROP_AREA_HEIGHT);
+        // In a piano roll: drawn there (see EditorPointers), not over the arranger.
+        const at = p && !p.editor ? songToScreen(p, g.rows, g.lanes, parentOf, g.rulerY, g.free, DROP_AREA_HEIGHT) : null;
         if (!p || !at) {
           el.dataset.hidden = "true";
           continue;

@@ -64,3 +64,24 @@
 .eth-collab-pointer[data-edge="bottom"] .eth-collab-pointer__arrow {
   transform: rotate(-135deg);
 }
+
+/* Piano roll header: "Ada is editing" (peers with the same clip open). */
+.eth-collab-editing {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--eth-space-xs);
+  min-width: 0;
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+}
+.eth-collab-editing__chip {
+  padding: var(--eth-space-hair) var(--eth-space-xs);
+  border-radius: var(--eth-radius-sm);
+  background: var(--eth-collab-peer);
+  color: var(--eth-ink-dark);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.eth-collab-editing__text {
+  white-space: nowrap;
+}
