@@ -9,7 +9,6 @@ use ether_core::protocol::clips::ClipCommand;
 use ether_core::protocol::collab::CollabCommand;
 use ether_core::protocol::devices::{DeviceCommand, DeviceSpec};
 use ether_core::protocol::drum_rack::{DrumRackCommand, SliceCommand};
-use ether_core::protocol::export::ExportCommand;
 use ether_core::protocol::groove::GrooveCommand;
 use ether_core::protocol::markers::MarkerCommand;
 use ether_core::protocol::media::MediaCommand;
@@ -26,7 +25,6 @@ fn new_domains_reply_unsupported_until_implemented() {
     let marker: MarkerId = h.id();
     let pad: DrumPadId = h.id();
     let commands = vec![
-        Command::Export(ExportCommand::Cancel { job: "j".into() }),
         Command::Tempo(TempoCommand::RemoveTempoPoints { ids: vec![] }),
         Command::Marker(MarkerCommand::Add {
             id: marker,

@@ -7,8 +7,11 @@
 //! on the calling thread (the controller thread / Worker), so it works on native and web.
 //!
 //! Nodes are fresh instances (built from the document like the live ones), never the live
-//! engine's nodes, so exporting doesn't disturb playback. The metronome is never rendered
-//! offline (the export desc has `metronome: false`).
+//! engine's nodes, so exporting doesn't disturb playback.
+//!
+//! The engine renders the click whenever the published desc has `metronome` on (or a
+//! count-in), exactly like a live engine: callers that must not hear it (exports) publish
+//! with `metronome: false` and `click.count_in_end: None`.
 
 use ether_protocol::model::Beats;
 
@@ -16,6 +19,11 @@ use crate::config::EngineConfig;
 use crate::engine::{Engine, EngineError, EngineHandle, GarbageCollector, create};
 use crate::meter::EngineOutputs;
 use crate::transport::TransportControl;
+
+/// Block size of offline renders (`EngineConfig::max_block_size` of the export engine).
+/// Offline plugin instances are activated with it, so a host never has to know the live
+/// engine's block size to build one.
+pub const OFFLINE_MAX_BLOCK: usize = 512;
 
 pub struct OfflineRenderer {
     engine: Engine,
