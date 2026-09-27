@@ -230,11 +230,7 @@ impl<'a> PluginAudioProcessor<'a, Shared, MainThread<'a>> for Processor<'a> {
             for (c, pair) in channels.iter_mut().enumerate() {
                 match pair {
                     ChannelPair::InputOutput(i, o) => {
-                        for (k, (o, i)) in o[bounds]
-                            .iter_mut()
-                            .zip(&i[bounds])
-                            .enumerate()
-                        {
+                        for (k, (o, i)) in o[bounds].iter_mut().zip(&i[bounds]).enumerate() {
                             *o = *i * gain + dc + sc(c, start + k);
                         }
                     }

@@ -215,7 +215,7 @@ pub fn scan_bundle(bundle: &Path) -> Result<Vec<PluginDescriptor>, PluginError> 
             }
             let features = c.features();
             PluginDescriptor {
-                sidechain_inputs: Default::default(),
+                sidechain_inputs: crate::plugin::probe_sidechain_inputs(&module, &c.cid),
                 format: PluginFormat::Vst3,
                 id: c.id(),
                 name: c.name,
