@@ -97,13 +97,12 @@ pub fn class_id_to_string(tuid: &[u8; 16]) -> String {
 /// hex too; anything but exactly 32 hex chars is `None`.
 pub fn parse_class_id(id: &str) -> Option<[u8; 16]> {
     let bytes = id.as_bytes();
-    if bytes.len() != 32 {
+    if bytes.len() != 32 || !bytes.iter().all(u8::is_ascii_hexdigit) {
         return None;
     }
     let mut canonical = [0u8; 16];
-    for (i, pair) in bytes.chunks_exact(2).enumerate() {
-        let s = std::str::from_utf8(pair).ok()?;
-        canonical[i] = u8::from_str_radix(s, 16).ok()?;
+    for (i, byte) in canonical.iter_mut().enumerate() {
+        *byte = u8::from_str_radix(id.get(2 * i..2 * i + 2)?, 16).ok()?;
     }
     Some(if cfg!(windows) {
         com_tuid_swizzle(&canonical)
