@@ -3,15 +3,22 @@
 // (`following`). A leaf module: the arrangement's gesture code imports `setActivity` from
 // here, and `PresenceBar` merges these fields into the published `PresenceState`.
 import { create } from "zustand";
-import type { Activity, ArrangerViewport, Presence, PresenceState, SiteId } from "@/generated";
+import type { Activity, ArrangerViewport, ClipId, Presence, PresenceState, SiteId } from "@/generated";
 
 export interface LocalPresence {
   activity: Activity | null;
   viewport: ArrangerViewport | null;
   following: SiteId | null;
+  /** The clip open in this user's piano roll. */
+  editingClip: ClipId | null;
 }
 
-export const useLocalPresence = create<LocalPresence>()(() => ({ activity: null, viewport: null, following: null }));
+export const useLocalPresence = create<LocalPresence>()(() => ({ activity: null, viewport: null, following: null, editingClip: null }));
+
+/** The piano roll reports the clip it shows (`null` when it closes). */
+export function setEditingClip(editingClip: ClipId | null): void {
+  if (useLocalPresence.getState().editingClip !== editingClip) useLocalPresence.setState({ editingClip });
+}
 
 /** Set (at the start of a gesture) or clear (`null`, at its end) this user's activity. */
 export function setActivity(activity: Activity | null): void {
@@ -24,12 +31,13 @@ export function setFollowing(following: SiteId | null): void {
 }
 
 /** The v2 fields to merge into a `PresenceState` (unset ones are omitted). */
-export function presenceV2Fields(): Pick<PresenceState, "activity" | "viewport" | "following"> {
-  const { activity, viewport, following } = useLocalPresence.getState();
+export function presenceV2Fields(): Pick<PresenceState, "activity" | "viewport" | "following" | "editing_clip"> {
+  const { activity, viewport, following, editingClip } = useLocalPresence.getState();
   return {
     ...(activity ? { activity } : {}),
     ...(viewport ? { viewport } : {}),
     ...(following ? { following } : {}),
+    ...(editingClip ? { editing_clip: editingClip } : {}),
   };
 }
 

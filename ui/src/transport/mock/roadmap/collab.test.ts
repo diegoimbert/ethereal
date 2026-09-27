@@ -85,6 +85,79 @@ describe("MockCollab", () => {
   });
 });
 
+describe("MockCollab hosting (stream-host)", () => {
+  const listenStatus = (events: Event[]) =>
+    events.findLast((e) => e.type === "Collab" && e.event.type === "ListenStatus") as
+      | Extract<Event, { type: "Collab" }>
+      | undefined;
+  const join = (c: MockCollab) => c.command({ type: "Join", server: "ws://relay:1", session: "jam", token: null, name: "Me" });
+  const clock = {
+    rtp: 1000,
+    position: 4,
+    playing: true,
+    recording: false,
+    bpm: 120,
+    loop_enabled: false,
+    loop_region: { start: 0, end: 8 },
+    metronome: false,
+    discontinuity: true,
+  };
+
+  it("the mock peer listens after SetHosting, with the declared endpoint", () => {
+    const events: Event[] = [];
+    const c = new MockCollab(stubHost(events));
+    // Outside a session: accepted, nothing to host.
+    expect(c.command({ type: "SetHosting", allow: true, ui_sender: true, remote_transport: true })).toEqual({ type: "Unit" });
+    expect(listenStatus(events)).toBeUndefined();
+
+    join(c);
+    c.command({ type: "SetHosting", allow: true, ui_sender: true, remote_transport: true });
+    expect(listenStatus(events)?.event).toEqual({
+      type: "ListenStatus",
+      status: { listening: { type: "Off" }, listeners: [{ site: "2", stream: 1, endpoint: "Ui" }] },
+    });
+    c.command({ type: "SetHosting", allow: true, ui_sender: false, remote_transport: false });
+    expect(c.listeners).toEqual([{ site: "2", stream: 1, endpoint: "Engine" }]);
+    expect(c.hosting.remote_transport).toBe(false);
+
+    events.length = 0;
+    c.command({ type: "Get" });
+    expect(listenStatus(events)).toBeDefined();
+
+    c.command({ type: "SetHosting", allow: false, ui_sender: true, remote_transport: true });
+    expect(listenStatus(events)?.event).toMatchObject({ status: { listeners: [] } });
+  });
+
+  it("simulates listeners, and a leaving peer stops listening", () => {
+    const events: Event[] = [];
+    const c = new MockCollab(stubHost(events));
+    join(c);
+    c.command({ type: "SetHosting", allow: true, ui_sender: true, remote_transport: true });
+    c.simulatePeer("3", "Zoe", 0xff94a6, { cursor: null, selected_tracks: [], selected_clips: [], selected_notes: [], selected_devices: [], view: null });
+    c.simulateListener("3", 77);
+    expect(c.listeners.map((l) => l.site)).toEqual(["2", "3"]);
+    c.simulatePeer("3", "Zoe", 0, null);
+    expect(c.listeners.map((l) => l.site)).toEqual(["2"]);
+    c.simulateListener("2", null);
+    expect(listenStatus(events)?.event).toMatchObject({ status: { listeners: [] } });
+    c.command({ type: "SetHosting", allow: true, ui_sender: true, remote_transport: true });
+    c.command({ type: "Leave" });
+    expect(c.listeners).toEqual([]);
+  });
+
+  it("accepts signals and stream clocks in a session only", () => {
+    const c = new MockCollab(stubHost([]));
+    const send = { type: "SendStreamClock", to: "2", stream: 1, clock } as const;
+    expect(() => c.command(send)).toThrow(/session/);
+    expect(() => c.command({ type: "SendSignal", to: "2", stream: 1, signal: { type: "Bye", reason: null } })).toThrow(/session/);
+    join(c);
+    expect(c.command(send)).toEqual({ type: "Unit" });
+    expect(c.clocks.at(-1)).toEqual({ to: "2", stream: 1, clock });
+    expect(() => c.command({ ...send, clock: { ...clock, position: Number.NaN } })).toThrow(/finite/);
+    expect(c.command({ type: "SendSignal", to: "2", stream: 1, signal: { type: "Offer", sdp: "v=0" } })).toEqual({ type: "Unit" });
+  });
+});
+
 describe("MockTransport collab", () => {
   const f = useMock();
 

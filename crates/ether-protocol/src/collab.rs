@@ -25,6 +25,9 @@ use crate::model::{
     ParamId, SiteId, StampedTransaction, TrackId,
 };
 
+// `SetPresence` carries a whole `PresenceState` (presence v2 grew it). Commands are rare and
+// short-lived, so the variant size gap doesn't matter; boxing would only churn call sites.
+#[allow(clippy::large_enum_variant)]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
 #[serde(tag = "type")]
 pub enum CollabCommand {
@@ -166,6 +169,10 @@ pub struct PresenceState {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub following: Option<SiteId>,
+    /// The clip this user has open in the piano roll (others show who edits what).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub editing_clip: Option<ClipId>,
     /// Controller-owned: the host this site listens to (docs/COLLAB.md §9).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
@@ -200,8 +207,28 @@ pub struct ArrangerPointer {
     /// The track row under the pointer (including its expanded lanes); `None` = over the
     /// ruler/header area or below the last track.
     pub track: Option<TrackId>,
-    /// Vertical position within that row, 0 (top) ..= 1 (bottom); 0 when `track` is `None`.
+    /// Vertical position within that row, 0 (top) ..= 1 (bottom). With `track: None`: 0
+    /// over the ruler/header area; > 0 below the last track, as the fraction of the free
+    /// space there (from the last track down to the bottom of the view), which each user
+    /// maps onto their own free space.
     pub y: f32,
+    /// Set when the pointer is over a piano roll instead of the arranger (the arranger
+    /// fields are then `track: None, y: 0` and ignored).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub editor: Option<EditorPointer>,
+}
+
+/// A pointer inside the piano roll of `clip`, in its **content** coordinates (each user's
+/// zoom, scroll, key height and folded rows are local).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+pub struct EditorPointer {
+    pub clip: ClipId,
+    /// Position on the clip's content axis (beats from its content start).
+    pub beats: Beats,
+    /// The key under the pointer plus how far up it is: 60.0 = bottom edge of C3's row,
+    /// 60.5 = its middle.
+    pub pitch: f32,
 }
 
 /// The visible part of a user's arranger.

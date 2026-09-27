@@ -694,6 +694,10 @@ paths = [
   "ui/src/features/collab/PresenceBar.tsx",
   "ui/src/features/collab/index.tsx",
   "ui/src/transport/mock/roadmap/collab.*",
+  # shared touch (base-60): one test-all line running ether-collab --features turn
+  "justfile",
+  # shared touch (base-63): COLLAB.md §10 TURN experimental notice
+  "docs/COLLAB.md",
 ]
 
 [nodes.stream-listen]
@@ -717,6 +721,11 @@ paths = [
   "ui/src/transport/mock/roadmap/collab.*",
   # shared touch (base-54): collab_transport_intercept at the top of dispatch() and collab_listen_transport_state in transport_state()
   "crates/ether-controller/src/handlers.rs",
+  # shared touch (base-65): the host-side seam once stream-host merged:
+  # collab_host_is_listening / can_host via collab_listening_host(), collab_host_end_all
+  "crates/ether-controller/src/collab/stream_host.rs",
+  "crates/ether-controller/tests/collab_stream*.rs",
+  "apps/web/e2e/collab-stream*.spec.ts",
 ]
 
 [nodes.plugin-mirror]
@@ -732,4 +741,29 @@ paths = [
   "crates/ether-native/src/bridge.rs",
   "crates/ether-native/src/plugins.rs",
   "crates/ether-native/src/host.rs",
+]
+
+[nodes.collab-local-mix]
+# Follow-up to collab: mute/solo are site-local in a session (owner request).
+paths = [
+  "crates/ether-controller/src/collab/**",
+  "crates/ether-controller/tests/collab*.rs",
+  "docs/COLLAB.md",
+]
+
+[nodes.automation-anim]
+# automation-ux (branch node/automation-anim): lane open/close animation, lane resizing,
+# param-aware value axis/snapping, point copy/paste (owner requests).
+paths = [
+  "ui/src/features/automation/**",
+  # shared touch: slot heights into layoutRows + useLaneAnimation (three lines)
+  "ui/src/features/arrangement/ArrangementView.tsx",
+  # new: per-frame application of the lane animation (row transforms, hit-test rows)
+  "ui/src/features/arrangement/laneAnimation.ts",
+  # shared touch: rows that only move don't re-render; lane part memoized
+  "ui/src/features/arrangement/TrackRow.tsx",
+  # shared touch: semantic motion tokens (motion.lane, --automation-lane-*)
+  "ui/src/theme/tokens.ts",
+  "ui/src/theme/tokens.css",
+  "apps/web/e2e/automation-*",
 ]

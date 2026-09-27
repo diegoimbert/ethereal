@@ -141,8 +141,8 @@ where
             // Listening elsewhere: that stream ends first (one host at a time).
             self.collab_listen_end(End::Stopped, true, now, out);
         }
-        // TODO(stream-host): end our own streams first (no chains, §9.3):
-        // `self.collab_host_end_all("host started listening elsewhere", out);`
+        // A host that starts listening elsewhere ends its own streams first (no chains, §9.3).
+        self.collab_host_end_all("host started listening elsewhere", out);
         // Hold the local timeline stopped (previews and live input still sound).
         if self.transport.playing {
             self.bridge
@@ -158,6 +158,8 @@ where
         };
         let s = self.collab.session.as_mut().expect("checked above");
         s.listener.ended = None;
+        // `can_host` turns off while connecting (§9.3): republish.
+        s.presence_dirty = true;
         s.listener.link = Some(Link {
             host,
             name,
@@ -254,7 +256,6 @@ where
 
     /// The host this site listens to (connecting or listening), for the host side: a site
     /// that listens elsewhere cannot host (§9.3).
-    #[allow(dead_code)]
     pub(crate) fn collab_listening_host(&self) -> Option<SiteId> {
         self.collab_listen_link().map(|l| l.host)
     }

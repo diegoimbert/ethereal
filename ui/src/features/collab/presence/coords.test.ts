@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { TrackId } from "@/generated";
-import { clampToBox, screenToSong, scrollTopFor, songToScreen, viewportOf, visibleRowOf, type Lanes, type RowBox } from "./coords";
+import { clampToBox, FREE_SPACE_MIN_Y, screenToSong, scrollTopFor, songToScreen, viewportOf, visibleRowOf, type Lanes, type RowBox } from "./coords";
 
 // A group "g" with children "a" and "b", then "c". Parent map for fold fallbacks.
 const parents: Record<string, TrackId | null> = { g: null, a: "g", b: "g", c: null };
@@ -49,6 +49,22 @@ describe("song ↔ screen", () => {
     expect(songToScreen(p, bobRows, bobLanes, parentOf, 5)).toEqual({ x: 150 + 560, y: 80 + 20, folded: false });
     // And back.
     expect(screenToSong(710, 100, bobRows, bobLanes)).toEqual(p);
+  });
+
+  it("maps free space below the tracks proportionally between users (ruler stays y 0)", () => {
+    // Ada: tracks end at 400, her view ends at 600 (200 px free); Bob: 180 → 780 (600 px).
+    const adaFree = { top: 400, bottom: 600 };
+    const bobFree = { top: 180, bottom: 780 };
+    const p = screenToSong(320, 450, adaRows, adaLanes, adaFree, 80);
+    expect(p).toEqual({ beats: 14, track: null, y: 0.25 });
+    expect(songToScreen(p, bobRows, bobLanes, parentOf, 5, bobFree, 80)).toEqual({ x: 150 + 560, y: 180 + 150, folded: false });
+    // Right below the last track still reads as free space (not the ruler).
+    expect(screenToSong(320, 400, adaRows, adaLanes, adaFree, 80).y).toBe(FREE_SPACE_MIN_Y);
+    // Over the ruler (above the free space): y 0, drawn on the ruler.
+    expect(screenToSong(320, 10, adaRows, adaLanes, adaFree, 80)).toEqual({ beats: 14, track: null, y: 0 });
+    expect(songToScreen({ beats: 1, track: null, y: 0 }, bobRows, bobLanes, parentOf, 5, bobFree, 80)!.y).toBe(5);
+    // Little or no visible free space: the fraction spans at least `minFree` (edge-clamped by the caller).
+    expect(songToScreen({ beats: 1, track: null, y: 0.5 }, bobRows, bobLanes, parentOf, 5, { top: 900, bottom: 780 }, 80)!.y).toBe(940);
   });
 
   it("falls back to the folded group's row (middle) and hides unknown tracks", () => {

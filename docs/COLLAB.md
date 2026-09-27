@@ -70,7 +70,8 @@ invariants (routing cycles, "clip on an existing track of the right kind", tempo
   never reuses a sequenced `seq` (the relay would drop it as a resend).
 - **Convergence invariant** (checked by the property test): on every site, after the log is
   fully delivered, `confirmed` = `fold(resolve, join snapshot, relay log)` and `pending` is
-  empty, so `live` is identical everywhere (up to the site-local fields of §2.1). The
+  empty, so `live` is identical everywhere (up to the site-local fields of §2.1: the mix,
+  loop and metronome settings). The
   property test (random concurrent edits including track/group/clip/device deletes that
   cascade, concurrent undo/redo, random delivery interleavings) checks all replicas are
   equal and valid, and that a fresh site replaying only the relay's snapshot + log (no
@@ -105,17 +106,38 @@ invariants (routing cycles, "clip on an existing track of the right kind", tempo
 | Shared (ops are sent) | Site-local (never sent, remote values ignored) |
 |---|---|
 | every entity table (tracks, clips, notes, devices + params, sends, lanes/points, tempo, signatures, warp markers, media, markers, MIDI mappings, drum pads) | transport: play/stop/locate/record, playhead, count-in |
-| track mute, volume, pan, routing, names, colors, order | track **solo** (`TrackChange::Solo`), drum pad solo (`SetPadSolo`, runtime already), record-arm (runtime already) |
+| track volume, pan, routing, names, colors, order; drum pad volume, pan, choke group | **mute and solo, per user**: track mute and solo (`TrackChange::Mute`/`Solo`, group tracks included), drum pad mute (`DrumPadChange::Mute`), drum pad solo (`SetPadSolo`, runtime already); record-arm (runtime already) |
 | settings: project name, swing, swing grid | settings: loop enabled + loop region, metronome on/off, volume, accent, sound, count-in bars |
 | | MIDI learn mode/gestures, selection (shared only as presence), undo history |
 | | the live recording view (`RecordingEvent::Progress`, live chunks/notes): events, never ops; only the committed take (media pushed first, then its `Insert`s) replicates |
 | | missing-plugin bypass (runtime engine state, never an op) |
 
 Local-only ops are applied and undone locally as usual but filtered out of the stamped
-transaction (a transaction with only local ops is not sent). Remote `Update`s of local
-fields cannot arrive (senders filter them); a remote `Insert` carries the author's value,
-which the receiver keeps (e.g. a new track is not soloed). A joiner keeps its own local
-settings over the snapshot's and clears its track solos.
+transaction (a transaction with only local ops is not sent; a mixed one, e.g. a rename and
+a mute in one step or its undo, sends only its shared ops). Local undo/redo of a mute or
+solo never goes out. A receiver drops local-only ops anyway (older peers sent mute).
+
+**Mute and solo are per user** (`resolve::LocalMix`): each site mutes and solos for itself,
+the way each one has its own headphones.
+- Sent `Insert`s of tracks and drum pads carry no mute/solo (`resolve::outgoing`), and
+  session snapshots carry none (`collab_ether`), so nobody's mix is ever on the wire.
+- Applying a peer's transaction keeps this site's mix: it is read before the rebase and put
+  back after it (re-applied pending inserts, and legacy peers' inserts carrying a mix, would
+  otherwise change it). Tracks and pads created by others start unmuted and unsoloed; tracks
+  deleted remotely just disappear.
+- Join, re-join and snapshot adoption keep this site's mix: it is taken from its open copy of
+  the project, else from its stored copy, overlaid on the snapshot, and kept as a seed for
+  the log replay (tracks the log re-inserts that this site had get their mix back).
+- The replicated document converges with the mix masked out (`shared_part`, the property
+  test's `shared()`; the property test toggles random mutes/solos, and a fresh replaying
+  site ends with no mix at all). A stored copy differing only by its mix is not offline
+  work (no "(local copy)").
+- Persistence: each site saves its own mix in its own `.ether` file (a normal save).
+  Outside a session nothing changes: mute and solo are ordinary undoable edits.
+- **Listen on a peer** (§9) plays the host's mix, the host's mutes and solos included: the
+  listener hears the host's engine output, not its own mix.
+
+A joiner also keeps its own local settings over the snapshot's.
 
 ### 2.2 Writes that are not user edits
 
@@ -667,6 +689,20 @@ are the relay's, or the ones set in settings (`SetIceServers`; e.g. a self-hoste
   crate server (UDP allocations, RFC 8656) in its own tokio runtime thread; when on, it owns
   the UDP port and answers Binding requests itself. Relayed ports from a configurable range
   (`--turn-ports`), public address from `--public-ip`.
+  **Experimental: do not expose it publicly yet** (off by default; `--help` and a startup
+  warning say so). Every TURN request is rate-capped per source and globally before the
+  crate, and the crate's never-evicted nonce map is bounded by counting admitted requests:
+  past a soft budget only requests with a MESSAGE-INTEGRITY we verify pass (plus a global
+  trickle of 5 unverified requests/s), and the server is rotated (fresh nonce map) when no
+  allocation is live, or unconditionally at a hard budget. Known limitations (follow-up
+  node `turn-hardening`: a per-username verified cap, counting real nonce inserts,
+  rotation-decision tests):
+  - past the soft budget, `admitted` never decays until a rotation, so new clients share
+    the 5/s unverified trickle with whoever keeps sending unverified requests (an attacker
+    can crowd them out);
+  - a captured valid request replayed from spoofed sources counts as verified, so it can
+    push the count to the hard budget and force a rotation (dropping every live
+    allocation) about every 100 s.
 - **Credentials** (TURN REST API scheme, per site, time-limited), only for token-protected
   relays:
   - `secret` = 32 random bytes from the OS, generated when the relay starts, kept in memory

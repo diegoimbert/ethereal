@@ -5,6 +5,7 @@ import { Button, Dialog, openContextMenu, TextInput } from "@/kit";
 import { useSelectionStore } from "@/state/selection";
 import { itemSelection } from "@/timeline/selection";
 import { cmd, TransportContext, type EngineTransport } from "@/transport";
+import { HostingBadge, HostingSection, useHosting } from "./host";
 import { ListenBadge, ListenButton, listenMenuItems, useListenAgent } from "./listen";
 import { nameOf, peerSummary, presenceV2Fields, setFollowing, useLocalPresence } from "./presence/local";
 import { highlightCss, initials, peerColor, useCollabStore } from "./store";
@@ -152,6 +153,7 @@ function PresenceBarWith({ transport }: { transport: EngineTransport }) {
     void transport.send(cmd("Collab", { type: "Get" })).catch(() => undefined);
   }, [transport]);
   usePublishPresence(transport, status.type === "Online");
+  useHosting(transport, status.type === "Online" ? status.session : null);
 
   const inSession = status.type !== "Offline";
   const join = async (e?: FormEvent) => {
@@ -193,6 +195,7 @@ function PresenceBarWith({ transport }: { transport: EngineTransport }) {
       >
         {label}
       </Button>
+      <HostingBadge />
       {peers.length > 0 && (
         <span className="eth-collab__peers" aria-label="Participants" data-testid="collab-peers">
           {peers.map((p) => (
@@ -241,6 +244,7 @@ function PresenceBarWith({ transport }: { transport: EngineTransport }) {
                 </li>
               ))}
             </ul>
+            <HostingSection transport={transport} />
             <p className="eth-collab__hint">Everyone edits the same project; playback, solo, loop and metronome stay yours.</p>
           </div>
         ) : (
