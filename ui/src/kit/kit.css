@@ -738,6 +738,42 @@
   box-shadow: var(--dialog-shadow);
   outline: none;
 }
+/* Opening: the backdrop fades in and the dialog grows into place; closing reverses it. */
+.eth-dialog-backdrop {
+  animation: eth-fade-in var(--eth-duration-normal) var(--eth-ease-out) both;
+}
+.eth-dialog-backdrop--closing {
+  animation: eth-fade-out var(--eth-duration-normal) var(--eth-ease-in) both;
+  pointer-events: none;
+}
+.eth-dialog {
+  animation: eth-dialog-in var(--eth-duration-normal) var(--eth-ease-out) both;
+}
+.eth-dialog--closing {
+  animation: eth-dialog-out var(--eth-duration-normal) var(--eth-ease-in) both;
+}
+@keyframes eth-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes eth-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+@keyframes eth-dialog-in {
+  from {
+    opacity: 0;
+    transform: translateY(var(--eth-space-md)) scale(0.96);
+  }
+}
+@keyframes eth-dialog-out {
+  to {
+    opacity: 0;
+    transform: translateY(var(--eth-space-sm)) scale(0.97);
+  }
+}
 .eth-dialog__header {
   padding: var(--eth-space-md) var(--eth-space-lg);
   border-bottom: var(--eth-border-width) solid var(--eth-color-border);
