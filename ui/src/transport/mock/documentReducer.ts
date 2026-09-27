@@ -41,19 +41,12 @@ import { compareOrderKeys, keyBetween, keyForInsert } from "@/state/orderKey";
 import { CommandFailedError } from "../EngineTransport";
 import { BUILTIN_DESCRIPTORS, builtinDescriptor, clampParam } from "./builtinDevices";
 import { defaultParams, defaultTrackName, makeClip, makeTrack, MOCK_TRACK_COLORS } from "./demoProject";
-import {
-  clipV2Command,
-  deletePadCascade,
-  drumRackCommand,
-  grooveCommand,
-  mappingRefsTrack,
-  markerCommand,
-  midiMapCommand,
-  setSidechain,
-  sliceCommand,
-  swingOffset,
-  tempoCommand,
-} from "./roadmapReducer";
+import { isRoadmapDocumentCommand, reduceRoadmapCommand } from "./roadmap";
+import { clipV2Command } from "./roadmap/clipEditing";
+import { checkDeviceMove, copyRackPads, duplicateSiblings, onRackDeleted } from "./roadmap/drumRack";
+import { swingOffset } from "./roadmap/groove";
+import { onDeviceDeleted, onSendDeleted, onTrackDeleted } from "./roadmap/shared";
+import { setSidechain } from "./roadmap/sidechain";
 import { bpmAt, tempoPointAt, signaturePointAt } from "./tempo";
 import type { Tx } from "./tx";
 
@@ -102,17 +95,8 @@ export function isDocumentCommand(command: Command): boolean {
       return ["SetMonitor", "SetInput", "SetCountIn"].includes(c.type);
     case "Warp":
       return c.type !== "DetectTempo";
-    // Roadmap v2.
-    case "Tempo":
-    case "Marker":
-    case "Groove":
-    case "DrumRack":
-    case "Slice":
-      return true;
-    case "MidiMap":
-      return c.type !== "Learn" && c.type !== "List";
     default:
-      return false;
+      return isRoadmapDocumentCommand(command);
   }
 }
 
@@ -148,26 +132,11 @@ export function reduceDocumentCommand(ctx: ReducerContext, command: Command): Re
     case "Warp":
       warpCommand(ctx, command.command);
       break;
-    case "Tempo":
-      tempoCommand(ctx, command.command);
-      break;
-    case "Marker":
-      markerCommand(ctx, command.command);
-      break;
-    case "Groove":
-      grooveCommand(ctx, command.command);
-      break;
-    case "DrumRack":
-      drumRackCommand(ctx, command.command, (id) => deleteDeviceCascade(ctx, id));
-      break;
-    case "Slice":
-      sliceCommand(ctx, command.command);
-      break;
-    case "MidiMap":
-      midiMapCommand(ctx, command.command);
-      break;
     default:
-      fail("Internal", `not a document command: ${command.domain}`);
+      // Roadmap v2 domains (`./roadmap`).
+      if (!reduceRoadmapCommand(ctx, command, (id) => deleteDeviceCascade(ctx, id))) {
+        fail("Internal", `not a document command: ${command.domain}`);
+      }
   }
   return UNIT;
 }
@@ -228,19 +197,15 @@ function deleteClipCascade(ctx: ReducerContext, id: ClipId): void {
 
 function deleteSendCascade(ctx: ReducerContext, id: string): void {
   deleteLanesWhere(ctx, (l) => l.target.type === "SendLevel" && l.target.send === id);
-  for (const m of ctx.tx.all("MidiMapping")) {
-    if (m.target.type === "Param" && m.target.target.type === "SendLevel" && m.target.target.send === id) ctx.tx.remove("MidiMapping", m.id);
-  }
+  onSendDeleted(ctx, id);
   ctx.tx.remove("Send", id);
 }
 
 function deleteDeviceCascade(ctx: ReducerContext, id: string): void {
   deleteLanesWhere(ctx, (l) => l.target.type === "DeviceParam" && l.target.device === id);
-  for (const m of ctx.tx.all("MidiMapping")) {
-    if (m.target.type === "Param" && m.target.target.type === "DeviceParam" && m.target.target.device === id) ctx.tx.remove("MidiMapping", m.id);
-  }
+  onDeviceDeleted(ctx, id);
   // A drum rack takes its pads (and their chains) with it.
-  for (const p of ctx.tx.all("DrumPad")) if (p.rack === id) deletePadCascade(ctx, p.id, (d) => deleteDeviceCascade(ctx, d));
+  onRackDeleted(ctx, id, (d) => deleteDeviceCascade(ctx, d));
   ctx.tx.remove("Device", id);
 }
 
@@ -248,8 +213,7 @@ function deleteTrackCascade(ctx: ReducerContext, id: TrackId): void {
   for (const c of ctx.tx.all("Clip")) if (c.track === id) deleteClipCascade(ctx, c.id);
   // Pad devices go with their rack.
   for (const d of ctx.tx.all("Device")) if (d.track === id && d.pad === null) deleteDeviceCascade(ctx, d.id);
-  for (const m of ctx.tx.all("MidiMapping")) if (mappingRefsTrack(m, id)) ctx.tx.remove("MidiMapping", m.id);
-  for (const d of ctx.tx.all("Device")) if (d.sidechain === id) ctx.tx.upsert("Device", { ...d, sidechain: null });
+  onTrackDeleted(ctx, id);
   for (const s of ctx.tx.all("Send")) if (s.from === id || s.to === id) deleteSendCascade(ctx, s.id);
   deleteLanesWhere(
     ctx,
@@ -385,11 +349,13 @@ function duplicateTrack(ctx: ReducerContext, t: Track, newId: TrackId, order: st
   tx.upsert("Track", { ...t, id: newId, order, parent });
   const deviceIds = new Map<string, string>();
   const sendIds = new Map<string, string>();
+  // Track-chain devices; drum racks bring their pads and pad chains.
   for (const d of tx.all("Device")) {
-    if (d.track !== t.id) continue;
+    if (d.track !== t.id || d.pad !== null) continue;
     const id = ctx.newId();
     deviceIds.set(d.id, id);
     tx.upsert("Device", { ...d, id, track: newId });
+    copyRackPads(ctx, d.id, id, newId, deviceIds);
   }
   for (const s of tx.all("Send")) {
     if (s.from !== t.id) continue;
@@ -551,6 +517,7 @@ function deviceCommand(ctx: ReducerContext, c: DeviceCommand): ReplyValue {
       break;
     case "Move": {
       const d = device(ctx, c.id);
+      checkDeviceMove(ctx, d, c.track);
       const t = track(ctx, c.track);
       checkDeviceFits(t, d.kind);
       if (c.before === d.id) break;
@@ -561,9 +528,10 @@ function deviceCommand(ctx: ReducerContext, c: DeviceCommand): ReplyValue {
     case "Duplicate": {
       const d = device(ctx, c.id);
       if (tx.get("Device", c.new_id)) fail("InvalidArgument", `device ${c.new_id} already exists`);
-      const chain = chainOf(ctx, d.track);
+      const chain = duplicateSiblings(ctx, d, chainOf(ctx, d.track));
       const next = chain[chain.findIndex((x) => x.id === d.id) + 1];
       tx.upsert("Device", { ...d, id: c.new_id, order: keyBetween(d.order, next?.order ?? null) });
+      copyRackPads(ctx, d.id, c.new_id, d.track);
       break;
     }
     case "Rename":

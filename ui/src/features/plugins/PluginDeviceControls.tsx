@@ -1,8 +1,9 @@
 import { useState } from "react";
 import type { Command, Device } from "@/generated";
-import { Button } from "@/kit";
+import { Badge, Button } from "@/kit";
 import { cmd, useTransport } from "@/transport";
-import { usePluginEvents, usePluginStore } from "./pluginStore";
+import { FORMAT_LABEL, isInstalled } from "./filter";
+import { usePluginEvents, usePluginStore, useScannedPlugins } from "./pluginStore";
 
 export interface PluginDeviceControlsProps {
   device: Device;
@@ -10,8 +11,8 @@ export interface PluginDeviceControlsProps {
 
 /**
  * Plugin-specific controls in a device header (mounted by `DeviceView` for every device;
- * renders nothing for built-ins): editor window, sandbox toggle, and the crashed state
- * with its Reload action.
+ * renders nothing for built-ins): editor window, sandbox toggle, and the crashed and
+ * missing states (bypassed) with their Reload action. Works the same for every format.
  */
 export function PluginDeviceControls({ device }: PluginDeviceControlsProps) {
   usePluginEvents();
@@ -22,9 +23,12 @@ export function PluginDeviceControls({ device }: PluginDeviceControlsProps) {
   const clearCrash = usePluginStore((s) => s.clearCrash);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const plugins = useScannedPlugins(device.kind.type === "Plugin");
 
   if (device.kind.type !== "Plugin") return null;
-  const { sandboxed } = device.kind.plugin;
+  const { sandboxed, format, plugin_id } = device.kind.plugin;
+  // Not in the scanned list: the host couldn't load it and the device is bypassed.
+  const missing = plugins !== null && !isInstalled(plugins, { format, plugin_id });
   const name = device.name;
 
   const run = (command: Command, onOk?: () => void) => {
@@ -51,7 +55,18 @@ export function PluginDeviceControls({ device }: PluginDeviceControlsProps) {
 
   return (
     <span className="eth-plugin-controls" data-plugin-controls={device.id}>
-      {crash !== undefined ? (
+      {missing ? (
+        <>
+          <Badge tone="warn" className="eth-plugin-controls__missing">
+            <span role="status" title={`${FORMAT_LABEL[format]} plugin ${plugin_id} is not installed. Rescan plugins, then reload.`}>
+              missing · bypassed
+            </span>
+          </Badge>
+          <Button size="sm" variant="ghost" disabled={busy} aria-label={`Reload ${name}`} title="Load the plugin again (after a rescan)" onClick={reload}>
+            ⟳
+          </Button>
+        </>
+      ) : crash !== undefined ? (
         <>
           <span className="eth-plugin-controls__crashed" role="status" title={crash}>
             crashed · bypassed

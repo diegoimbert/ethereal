@@ -435,8 +435,9 @@ tables with field-level `Update`s, client-chosen ids, patches before replies.
   thread) with fresh nodes, never the live ones. The metronome is never rendered. Stems are
   one pass per track: that track's post-fader output into master, sends included, master
   chain excluded.
-- No UI paths: native writes `<project>/exports/<file>` (`ExportResult::Files`, project
-  relative); web and remote return `Download` tokens read with `Export::ReadChunk` →
+- No UI paths: `ProjectStore::write_export` writes `<project>/exports/<file>` natively
+  (`ExportResult::Files`, project relative); where it returns `Unsupported` (web, remote)
+  the result is `Download` tokens read with `Export::ReadChunk` →
   `ReplyValue::Bytes` (base64, or binary frames over WebSocket) and dropped by `Release`.
 - Plugins offline: `EngineBridge::create_offline_plugin` (defaulted `Unsupported`, which
   bypasses the plugin with a warning).
@@ -481,20 +482,26 @@ client }`, answered by `ServerHello::Welcome { server: ServerInfo, session }` or
 message's base64 `data` field travels raw; `Peaks`: f32 min/max arrays). The JSON forms stay
 valid on every transport. Token auth (no token only on loopback). Uploads: `BeginUpload` →
 ordered `UploadChunk`s → `Import { source: Upload }`, plus `CancelUpload` and
-`MediaEvent::UploadProgress`. `ether-server` (headless native host) and
+`MediaEvent::UploadProgress`, staged through the defaulted
+`ProjectStore::{begin, append, read, discard}_upload`. Dev port offset `remote: 4`
+(`scripts/dev-env.mjs`). `ether-server` (headless native host) and
 `ui/src/transport/ws/WsTransport` are stubs; the frame codec is implemented on both sides.
 
 ### 11.6 Collaboration (reserved)
 Model: `SiteId` (u64 as a decimal string), `ActorId`, `OpOrigin { site, actor, seq }`,
 `StampedTransaction`. Protocol: `CollabCommand` (Join, Leave, SetPresence), `CollabEvent`
 (Session, Presence), `Presence`/`PresenceState`, and the engine-to-engine `CollabMessage`
-(Hello, Transaction, Update, SyncRequest, Snapshot, Presence, Leave). Everything replies
+(Hello, Transaction, Update, SyncRequest, Snapshot, Presence, Leave), and
+`Patch::origin: Option<OpOrigin>` (omitted when `None`). Everything replies
 `Unsupported`; the `collab` node refines it through BCRs. Remote edits will reach UIs as
 ordinary patches, and undo stays per site.
 
 ### 11.7 Multicore partition contract
-`EngineConfig::worker_threads` (0 = everything on the audio thread, the default). The core
-never spawns threads; hosts supply an RT-safe `parallel::ParallelExecutor`. The snapshot is
+`EngineConfig::worker_threads` (0 = everything on the audio thread, the default; ignored on
+wasm32). The core never spawns threads; hosts supply an RT-safe `parallel::ParallelExecutor`
+through `Engine::set_executor`. Jobs get disjoint `&mut` access to their tracks through
+raw pointers on the engine side, sound only because the executor runs every index exactly
+once and returns after all jobs finished (see `parallel.rs`). The snapshot is
 partitioned into DAG levels (routing, sends, resampling inputs, sidechains). Tracks of one
 level run as independent jobs (clips → automation → chain → fader → meters, into their own
 buffers). Bus mixing happens after each level on the audio thread in a fixed order, so the
@@ -503,8 +510,9 @@ need no locks.
 
 ### 11.8 Web perf: graph codec
 `ether_core::codec::GraphCodec { encode, decode }` for the Worker → Worklet snapshot: exact
-round trip, version byte first, unknown versions rejected (`CodecError::Version`), decoding
-off the audio thread.
+round trip, version byte first, unknown versions rejected (`CodecError::Version`). On the
+web, `decode` runs in the AudioWorklet (no other thread there) and allocates, like today's
+JSON path: the documented RT exception on the web, to keep cheap and bounded.
 
 ### 11.9 MIDI learn
 `MidiMapping { id, source: MidiSource { port?, channel?, control: Cc | Note | PitchBend },
@@ -548,9 +556,14 @@ MIDI clips (`groove::swing_notes`).
   `PAD_PLAY_NOTE` = 60), applies choke groups, runs the pad chains (PDC-aligned to the
   longest), mixes them (volume/pan/mute) and runs the rack node.
 - Slicing: `BuiltinDevice::Sampler { sample, slices: SliceSettings { enabled, base_note,
-  markers } }`. The data travels with the node (the controller re-creates it on change).
-  `SliceCommand` edits markers by sorted index (a single LWW register, like other device
-  kind data); `ToDrumRack` turns slices into sampler pads.
+  markers } }`. The data travels with the node; edits reach a live sampler in place through
+  `EngineBridge::update_builtin` → `EngineHandle::set_node_data` → `Node::set_data`
+  (falling back to re-creating the node). `SliceCommand` edits markers by sorted index (a
+  single LWW register, like other device kind data); `ToDrumRack` turns slices into sampler
+  pads with client-chosen ids (`SlicePadIds`), so concurrent sites can't mint different ids.
+- Structure rules: `Device::Move` rejects pad devices (`DrumRack::MoveDevice` moves them) and
+  racks with pads across tracks; device and track duplication copy pads and pad chains; the
+  model checks pad devices from both sides (pad device and rack).
 
 ### 11.13 `.ether` v3 defaults
 Tables `markers`, `midi_mappings` and `drum_pads` start empty. Settings: `metronome_volume`

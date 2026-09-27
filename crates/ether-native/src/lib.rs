@@ -32,6 +32,7 @@ pub mod sandbox;
 pub mod store;
 #[doc(hidden)]
 pub mod test_util;
+pub mod uploads;
 
 pub use store::{DiskStore, LibraryRoot};
 

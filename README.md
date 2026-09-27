@@ -82,7 +82,7 @@ never hardcode ports or paths.
   (`scripts/dev-env.mjs` is the single source of truth).
 - **Ports.** No fixed ports. The base port is `20000 + fnv1a(instance) % 10000`, or
   `ETHER_DEV_PORT` when set. Offsets: `+0` UI/web dev server (and the Tauri `devUrl`),
-  `+1` vite preview, `+2` Playwright web server, `+3` reserved (collab server). Vite runs
+  `+1` vite preview, `+2` Playwright web server, `+3` reserved (collab server), `+4` remote engine server (`ether-server`). Vite runs
   with `strictPort`, so a collision fails loudly instead of silently moving. If two
   instance names ever hash to the same port, set `ETHER_DEV_PORT` for one of them. Other
   servers use the same scheme, or port 0.

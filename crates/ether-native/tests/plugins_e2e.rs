@@ -146,7 +146,7 @@ impl Rig {
             },
             PluginHost::new(Arc::new(DedicatedThread::new())),
             catalog,
-            Arc::new(ether_clap::instantiate),
+            ether_native::plugins::instantiate_any(),
             Arc::new(AudioShared::default()),
         );
         let mut library = MemoryLibrary::new();

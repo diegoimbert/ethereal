@@ -91,6 +91,10 @@
   white-space: nowrap;
 }
 
+.eth-plugins__format {
+  flex-shrink: 0;
+}
+
 .eth-plugin-controls {
   display: inline-flex;
   align-items: center;

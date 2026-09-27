@@ -10,6 +10,7 @@
 // `window.__ether` (apps/web/src/main.tsx).
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import type { Clip, Project, WarpMarker } from "@/generated";
+import { openClip } from "./clips";
 
 interface Handle {
   state(): { project: Project | null };
@@ -78,7 +79,7 @@ test("warp: markers, modes, transpose and playback", async ({ page }) => {
   const clip = Object.values((await doc(page)).clips)[0]!;
 
   // --- Double-click opens the Warp tab -----------------------------------------------------
-  await page.locator(`[data-clip-id="${clip.id}"]`).dblclick({ position: { x: 20, y: 30 } });
+  await openClip(page, clip.id);
   const editor = page.getByTestId("warp-editor");
   await expect(editor).toBeVisible();
   await expect(editor).toHaveAttribute("data-clip-id", clip.id);

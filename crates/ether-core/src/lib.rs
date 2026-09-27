@@ -29,7 +29,6 @@ pub mod buffer;
 pub mod codec;
 pub mod config;
 mod delay;
-#[allow(dead_code)]
 mod drum_rack;
 pub mod engine;
 pub mod event;
@@ -46,6 +45,7 @@ pub mod param;
 pub mod plugin;
 pub mod recording;
 mod sched;
+mod sidechain;
 pub mod tempo;
 pub mod transport;
 mod warp;

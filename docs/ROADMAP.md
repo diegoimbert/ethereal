@@ -15,17 +15,22 @@ Ground rules (same as wave 3):
 - Until a node lands, its commands reply `Unsupported` (`ether-controller/tests/roadmap_v2.rs`
   pins this; replace those assertions with real behaviour tests), and its built-in devices
   are pass-through placeholders.
-- **MockTransport already simulates every new command** (`ui/src/transport/mock/roadmapReducer.ts`,
-  `MockTransport.ts`, tests in `MockTransport.roadmap.test.ts`), so UI work can start before
-  the Rust side. Keep the mock in sync if a behaviour detail changes.
+- **MockTransport already simulates every new command**, one file per node under
+  `ui/src/transport/mock/roadmap/<feature>.ts` (+ its test), dispatched from
+  `roadmap/index.ts` (base-17 split), so UI work can start before the Rust side. Keep your
+  mock file in sync if a behaviour detail changes.
 - UI placeholders render the standard `eth-feature-placeholder` markup (or nothing, for
   top-bar/inline slots); no styling (the `design-system` node owns styling).
-- "Shared touch" = a minimal, additive edit in a shared file. **Hot files**:
-  `ether-core/src/{engine.rs, graph.rs, mixer.rs}` are shared by `tempo-metronome`,
-  `sidechain`, `drum-rack` and `multicore`. Keep engine work in your own module and call it
-  with one line from those files; merge `origin/dev` often. Recommended order for the engine
-  core: `sidechain` and `drum-rack` first, `multicore` last (it partitions whatever graph
-  shape exists when it lands).
+- "Shared touch" = a minimal, additive edit in a shared file. **Hot files**
+  (`ether-core/src/{engine.rs, graph.rs, mixer.rs}`) were pre-wired in base-17: the
+  metronome call, sidechain ordering/PDC/taps (`ether-core/src/sidechain.rs`), the drum-rack
+  pad hook (`ether-core/src/drum_rack`), and `Engine::set_executor`. `tempo-metronome`,
+  `sidechain` and `drum-rack` work only in their own core module; only `multicore` (which
+  lands last) edits the hot files. Need another hook there? Send a BCR.
+- Frozen store hooks (base-17): `ProjectStore::write_export` (implemented natively and in
+  `MemoryStore`; the web default means "download") and upload staging
+  (`begin/append/read/discard_upload`; native impl delegates to
+  `ether-native/src/uploads.rs`).
 
 ## `export`
 
@@ -36,12 +41,14 @@ Owns: `ui/src/features/export/**`, `crates/ether-controller/src/export/**`,
   (`crates/ether-protocol/src/export.rs`), `ReplyValue::{ExportStarted, Bytes}`,
   `Event::Export`.
 - Core: `ether_core::offline::OfflineRenderer` is implemented (fresh engine, no device,
-  renders on the caller's thread; tested).
+  renders on the caller's thread, drains engine outputs; `latency()` = frames to drop at the
+  start, `diagnostics()` = overflow/underrun flags; tested).
 - Controller: `EtherController::export_command` (dispatched from `handlers.rs`) and
   `export_tick` (called every tick) in `export/mod.rs`. Plugins offline:
   `EngineBridge::create_offline_plugin` (defaulted `Unsupported`; implement it in
-  `ether-native/src/bridge.rs`). Files: native writes `<project>/exports/` (`file::EXPORTS_DIR`);
-  web/remote keep bytes for `Export::ReadChunk`. Deps `hound`/`flacenc` are pre-declared in
+  `ether-native/src/bridge.rs`). Files: `ProjectStore::write_export` (native writes
+  `<project>/exports/`, already implemented); `Err(Unsupported)` (web) = keep the bytes for
+  `Export::ReadChunk`. Deps `hound`/`flacenc` are pre-declared in
   the workspace (versions are verified on first use).
 - UI: `ExportDialog` in the top bar (`data-slot="export"` in `App.tsx`).
 
@@ -67,8 +74,9 @@ Owns: `ui/src/features/tempo/**`, `crates/ether-controller/src/tempo/**`,
 - Model: `ProjectSettings::{metronome_volume, metronome_accent, metronome_sound}`,
   `SettingsChange::Metronome*`.
 - Core: `RenderGraphDesc::click: MetronomeDesc` (compiled by `tempo::metronome_desc`), and
-  `Metronome::render` (placeholder, silent). Add the one call in `engine.rs::render_sub`
-  after master is written to the hardware outputs.
+  `Metronome::render` (placeholder, silent), already called by `engine.rs` once per
+  sub-block after master reaches the hardware outputs (and `reset` on jumps). Implement it
+  in `metronome.rs` only.
 - Count-in (recording): the controller's record session pre-rolls `count_in_bars`
   (`ether-controller/src/recording/mod.rs`). Set `MetronomeDesc::count_in_end` to the record
   start on the published desc for the duration of the pre-roll; the click then sounds even
@@ -102,9 +110,10 @@ Owns: `crates/ether-server/**`, `ui/src/transport/ws/**`, `ui/src/features/remot
   (`MediaCommand::{BeginUpload, UploadChunk, CancelUpload}`, `MediaSource::Upload`,
   `MediaEvent::UploadProgress`).
 - `ether-server`: stub lib (`ServerConfig`, `serve`) + binary. Add `ether-native` and
-  `tungstenite` (pre-declared) as deps. Dev port: the instance base port `+4` (`+3` is
-  reserved for the collab server; `scripts/dev-env.mjs`).
-- Controller: `EtherController::upload_command` (`upload/mod.rs`).
+  `tungstenite` (pre-declared) as deps. Dev port: `PORT_OFFSETS.remote` = base `+4`
+  (`scripts/dev-env.mjs`; `+3` is reserved for the collab server).
+- Controller: `EtherController::upload_command` (`upload/mod.rs`) over the frozen
+  `ProjectStore` upload staging methods; native staging in `ether-native/src/uploads.rs`.
 - UI: `WsTransport` stub (`kind: "remote"`), `ConnectDialog` (top bar `data-slot="remote"`);
   runtime transport switching needs `TransportProvider`/`createDefaultTransport` (shared touch).
 
@@ -113,7 +122,9 @@ Owns: `crates/ether-server/**`, `ui/src/transport/ws/**`, `ui/src/features/remot
 Owns: `crates/ether-collab/**`, `crates/ether-controller/src/collab/**`,
 `ui/src/features/collab/**`.
 
-- Model: `SiteId` (u64 as decimal string), `ActorId`, `OpOrigin`, `StampedTransaction`.
+- Model: `SiteId` (u64 as decimal string), `ActorId`, `OpOrigin`, `StampedTransaction`;
+  `Patch::origin` (optional, omitted when `None`) marks patches caused by another site.
+  Per-site undo goes in `ether-model/src/history.rs` (granted).
 - Protocol: `CollabCommand`/`CollabEvent`/`Presence`/`PresenceState`/`CollabMessage`
   (`collab.rs`). All `CollabCommand`s reply `Unsupported`.
 - Refine through BCRs (CRDT library choice, extra variants). UI: `PresenceBar` (top bar
@@ -123,10 +134,12 @@ Owns: `crates/ether-collab/**`, `crates/ether-controller/src/collab/**`,
 
 Owns: `crates/ether-core/src/parallel.rs`, `crates/ether-native/src/workers.rs` (new).
 
-- `EngineConfig::worker_threads` (default 0 = v0.1 behaviour), `ParallelExecutor` trait +
-  `SequentialExecutor`. Partition contract: CONTRACTS.md §11.7 and `parallel.rs` docs.
-- Shared touches: `graph.rs` (levels), `engine.rs`/`mixer.rs` (per-level dispatch), native
-  host wiring. No protocol changes.
+- `EngineConfig::worker_threads` (default 0 = v0.1 behaviour; ignored on wasm32),
+  `ParallelExecutor` trait + `SequentialExecutor`, injected with `Engine::set_executor`
+  (stored, unused until you dispatch through it). Partition contract and the unsafe-sharing
+  argument: CONTRACTS.md §11.7 and `parallel.rs` docs.
+- You own the hot files: `graph.rs` (levels), `engine.rs`/`mixer.rs` (per-level dispatch),
+  plus native host wiring. Land last. No protocol changes.
 
 ## `web-perf`
 
@@ -134,7 +147,10 @@ Owns: `crates/ether-core/src/codec.rs`, `crates/ether-wasm/src/**`, `apps/web/sr
 
 - `GraphCodec` trait (+ `CodecError`) for a binary `RenderGraphDesc` encoding between the
   controller Worker and the AudioWorklet (today JSON in `ether-wasm/src/proto.rs`).
-  Round-trip exactness and versioning rules are in the trait docs.
+  Round-trip exactness and versioning rules are in the trait docs. On the web `decode`
+  (and the compile after it) runs in the AudioWorklet and allocates, like today's JSON path:
+  make it cheap and bounded. `ether-wasm/src/{store,bridge}.rs` are excluded from your
+  glob (shared with export/drum-rack).
 
 ## `midi-learn`
 
@@ -161,8 +177,11 @@ Owns: `ui/src/features/sidechain/**`, `crates/ether-controller/src/sidechain/**`
 - Protocol: `DeviceCommand::SetSidechain` (→ `sidechain::set_sidechain`),
   `DeviceDescriptor::sidechain_inputs` (0 everywhere for now).
 - Core: `ChainEntry::sidechain` (already compiled from the document), `Node::sidechain_inputs`
-  / `Node::process_sidechain` (defaulted). Implement ordering + PDC (CONTRACTS.md §11.10) in
-  `graph.rs` and the call in `mixer.rs`/`engine.rs`; give the compressor a sidechain input.
+  / `Node::process_sidechain` (defaulted). Ordering is done (sidechain edges join the
+  topological sort); PDC and the signal path are hooks in `ether-core/src/sidechain.rs`
+  (`required_input_latency`, `Taps::{compile, write, read}`) already called from
+  `graph.rs`/`engine.rs` — implement them there (CONTRACTS.md §11.10). Give the compressor
+  a sidechain input.
 - UI: `SidechainSelector` in every device header (`features/devices/DeviceView.tsx`, one
   line, renders nothing when `sidechain_inputs == 0`).
 
@@ -188,8 +207,17 @@ Owns: `ui/src/features/drum-rack/**`, `crates/ether-controller/src/drum_rack/**`
   cascades its pads and pad devices (`doc/mod.rs`, done).
 - Protocol: `DrumRackCommand`, `SliceCommand`, `AutoSlice` (`drum_rack.rs`), both document
   commands (→ `drum_rack::{rack_command, slice_command}`).
-- Core: `TrackDesc::racks: Vec<RackDesc>` (compiled by `drum_rack::racks_desc`, empty until
-  implemented), `PadDesc`; engine processing rules on `RackDesc`. Pad devices already get
-  engine nodes (every document device does); only their chain wiring is missing.
+- Core: `TrackDesc::racks: Vec<RackDesc>` (compiled by the controller's
+  `drum_rack::racks_desc`, empty until implemented), `PadDesc`. The engine hooks are wired:
+  `RacksRt::compile` (graph), `RacksRt::inherit` (swaps) and `RacksRt::run_pads` (called at
+  each rack chain entry before the rack node) in `ether-core/src/drum_rack/`. Pad devices
+  already get engine nodes (every document device does).
+- In-place slice edits: `EngineBridge::update_builtin` → `EngineHandle::set_node_data` →
+  `Node::set_data` (implemented plumbing; the sampler and bridges implement it), so slice
+  edits don't re-create the node and cut notes. `SliceCommand::ToDrumRack` takes
+  client-chosen ids.
+- Structure rules (done, base-17): `Device::Move` rejects pad devices (use
+  `DrumRack::MoveDevice`) and racks with pads across tracks; device/track duplication copies
+  pads and pad chains; the model re-checks pad devices when their rack changes.
 - Devices: `drum_rack.rs` (rack node, placeholder), slice mode in `sampler.rs` (shared touch).
 - UI: `DrumRackView` (detail tab "drum-rack").
