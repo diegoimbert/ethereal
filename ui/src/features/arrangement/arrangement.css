@@ -433,12 +433,12 @@
     filter var(--eth-duration-fast) var(--eth-ease-out);
 }
 
+/* Selected: a ring and glow in the clip's own color. */
 .eth-clip--selected {
-  border-color: var(--eth-color-selection);
   box-shadow:
-    inset 0 0 0 1px var(--eth-color-selection),
-    0 0 0 2px color-mix(in srgb, var(--eth-color-selection) 30%, transparent),
-    0 0 10px color-mix(in srgb, var(--eth-color-selection) 35%, transparent);
+    inset 0 0 0 1px var(--eth-clip-color),
+    0 0 0 2px color-mix(in srgb, var(--eth-clip-color) 45%, transparent),
+    0 0 12px color-mix(in srgb, var(--eth-clip-color) 55%, transparent);
 }
 
 .eth-clip--muted {
