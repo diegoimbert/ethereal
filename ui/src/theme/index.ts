@@ -40,6 +40,15 @@ function isTheme(v: unknown): v is ThemeName {
   return typeof v === "string" && (THEME_NAMES as string[]).includes(v);
 }
 
+function storedTheme(): ThemeName | null {
+  try {
+    const v = localStorage.getItem(STORAGE_KEY);
+    return isTheme(v) ? v : null;
+  } catch {
+    return null;
+  }
+}
+
 /** The theme currently applied to `<html data-theme>`. */
 export function getTheme(): ThemeName {
   if (typeof document === "undefined") return DEFAULT_THEME;
@@ -62,13 +71,7 @@ export function setTheme(theme: ThemeName): void {
 /** Applies the remembered theme (or the default). Called once when `@/kit` is imported. */
 export function initTheme(): void {
   if (typeof document === "undefined") return;
-  let stored: string | null = null;
-  try {
-    stored = localStorage.getItem(STORAGE_KEY);
-  } catch {
-    stored = null;
-  }
-  document.documentElement.dataset.theme = isTheme(stored) ? stored : DEFAULT_THEME;
+  document.documentElement.dataset.theme = storedTheme() ?? DEFAULT_THEME;
 }
 
 function subscribe(l: () => void): () => void {

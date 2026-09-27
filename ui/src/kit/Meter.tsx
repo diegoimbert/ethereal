@@ -13,7 +13,10 @@ export interface MeterProps {
   className?: string;
 }
 
-/** Vertical peak meter (dB scale). Pure display: the caller feeds it values at visual rate. */
+/**
+ * Vertical peak meter (dB scale). Pure display: the caller feeds it values at visual rate.
+ * Colors/stops/widths come from `--meter-*` component tokens.
+ */
 export function Meter({ levels, height = 120, minDb = -60, maxDb = 6, className }: MeterProps) {
   const channels = typeof levels === "number" ? [levels] : levels;
   return (
