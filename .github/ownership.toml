@@ -484,6 +484,12 @@ paths = [
   "crates/ether-native/tests/sidechain*.rs",
   # shared touch (base-25): one additive state field + initializer on EtherController
   "crates/ether-controller/src/lib.rs",
+  # shared touches (base-29): limiter sidechain detector; mock descriptors (sidechain_inputs, compressor param 5)
+  "crates/ether-devices/src/limiter.rs",
+  "ui/src/transport/mock/builtinDevices.ts",
+  "crates/ether-devices/tests/sidechain*.rs",
+  # shared touch (base-30): devices2 test expects Limiter sidechain_inputs = 2
+  "crates/ether-devices/tests/devices2.rs",
 ]
 
 [nodes.groove]
@@ -533,4 +539,6 @@ paths = [
   "crates/ether-native/tests/drum_rack*.rs",
   # shared touch (base-25): one additive state field + initializer on EtherController
   "crates/ether-controller/src/lib.rs",
+  # shared touch (base-29): DrumRack/Sampler-slice mock descriptors
+  "ui/src/transport/mock/builtinDevices.ts",
 ]
