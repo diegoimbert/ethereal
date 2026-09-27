@@ -212,7 +212,8 @@ where
             MediaSource::Location {
                 location: BrowseLocation::Library { .. },
                 ..
-            } => None,
+            }
+            | MediaSource::Upload { .. } => None,
             _ => Some(self.doc.as_ref().ok_or_else(no_project)?.project.id),
         };
         let key = CacheKey {

@@ -38,7 +38,7 @@ use ether_core::{
 use ether_devices::SampleResolver;
 use ether_media::InMemorySource;
 
-use crate::proto::{EngineMsg, EngineReport, Frame, MediaAssembler, REPORT_ERROR};
+use crate::proto::{EngineMsg, EngineReport, Frame, MediaAssembler, PREVIEW_MEDIA, REPORT_ERROR};
 use crate::ring::{RingMemory, RingReader, RingWriter};
 
 /// Web render quantum.
@@ -99,6 +99,8 @@ pub struct EngineHost<M: RingMemory> {
     blocks: u64,
     /// Errors not yet delivered (report ring was full).
     errors: Vec<String>,
+    /// `media-preview`: a natural preview end not yet delivered (reports are lossy).
+    preview_ended: Option<u64>,
 }
 
 impl<M: RingMemory> EngineHost<M> {
@@ -126,6 +128,7 @@ impl<M: RingMemory> EngineHost<M> {
             blocks_since_report: 0,
             blocks: 0,
             errors: Vec::new(),
+            preview_ended: None,
         }
     }
 
@@ -217,6 +220,10 @@ impl<M: RingMemory> EngineHost<M> {
     ) -> Result<(), String> {
         let source: Arc<dyn AudioSource> = Arc::new(InMemorySource::new(audio));
         self.sources.insert(media, source.clone());
+        if media == PREVIEW_MEDIA {
+            // Waits for its `Preview` message; not an engine (clip) source.
+            return Ok(());
+        }
         self.handle
             .add_source(media, source)
             .map_err(|e| e.to_string())
@@ -277,6 +284,22 @@ impl<M: RingMemory> EngineHost<M> {
             EngineMsg::Transport { control } => {
                 self.handle.transport(control).map_err(|e| e.to_string())
             }
+            EngineMsg::Preview { id, media, gain } => {
+                use ether_core::preview::PreviewControl;
+                let control = match media {
+                    Some(media) => PreviewControl::Play {
+                        id,
+                        // The voice owns it from now on (retired to the GC when done).
+                        source: self
+                            .sources
+                            .remove(&media)
+                            .ok_or_else(|| format!("preview of unknown media {media}"))?,
+                        gain,
+                    },
+                    None => PreviewControl::Stop,
+                };
+                self.handle.preview(control).map_err(|e| e.to_string())
+            }
         }
     }
 
@@ -336,10 +359,16 @@ impl<M: RingMemory> EngineHost<M> {
         self.report.event_overflow = self.outputs.event_overflow;
         self.report.underruns = self.outputs.underruns;
         self.report.blocks = self.blocks;
+        if self.outputs.preview_ended.is_some() {
+            self.preview_ended = self.outputs.preview_ended;
+        }
+        self.report.preview_ended = self.preview_ended;
         self.report.encode_into(&mut self.report_buf);
         // Lossy: if the Worker isn't reading, drop this report (meters are max-held per
-        // report, playhead is always the latest).
-        self.reports.try_send_now(&self.report_buf);
+        // report, playhead is always the latest; a preview end is kept until delivered).
+        if self.reports.try_send_now(&self.report_buf) {
+            self.preview_ended = None;
+        }
     }
 
     /// Control bytes written by the Worker but not applied yet.
