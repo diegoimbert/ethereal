@@ -12,7 +12,6 @@ use ether_core::protocol::drum_rack::{DrumRackCommand, SliceCommand};
 use ether_core::protocol::export::ExportCommand;
 use ether_core::protocol::groove::GrooveCommand;
 use ether_core::protocol::markers::MarkerCommand;
-use ether_core::protocol::media::MediaCommand;
 use ether_core::protocol::midi_map::MidiMapCommand;
 use ether_core::protocol::model::*;
 use ether_core::protocol::tempo::TempoCommand;
@@ -46,7 +45,6 @@ fn new_domains_reply_unsupported_until_implemented() {
             indices: vec![],
         }),
         Command::Collab(CollabCommand::Leave),
-        Command::Media(MediaCommand::CancelUpload { upload: "u".into() }),
         Command::Clip(ClipCommand::SetReversed {
             id: h.id(),
             reversed: true,
