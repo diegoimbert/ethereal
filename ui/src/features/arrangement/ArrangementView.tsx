@@ -24,8 +24,9 @@ import {
 } from "@/timeline";
 import { useAutomationHeight } from "@/features/automation";
 import { PresenceLayer } from "@/features/collab/presence";
+import { groupShortcut, groupTracks, ungroupSelected, UngroupConfirmDialog } from "@/features/groups";
 import { TransportContext, useTransport, useTransportEvent } from "@/transport";
-import { actionForKey, bindSingleSelection, locateIfStopped, newTrackMenu, runClipAction } from "./actions";
+import { actionForKey, bindSingleSelection, locateIfStopped, newTrackMenu, runClipAction, selectTrackEntity } from "./actions";
 import { dropBrowserMedia, hasBrowserDrag, readBrowserDrag } from "./browserDrop";
 import { ArrangementContext, type ArrangementContextValue } from "./context";
 import { clipRects, DROP_AREA_HEIGHT, HEADER_WIDTH, layoutRows, rowIndexAt, rowsHeight, type Row } from "./layout";
@@ -226,6 +227,18 @@ function ConnectedArrangementView() {
 
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     if (isTextEntry(e.target)) return;
+    // groups-buses: Cmd+G groups the selected tracks, Cmd+Shift+G ungroups.
+    const grouping = groupShortcut(e);
+    if (grouping) {
+      e.preventDefault();
+      e.stopPropagation();
+      const ui = useArrangementUi.getState();
+      const fallback = useSelectionStore.getState().selectedTrack;
+      const selected = ui.selectedTracks.size > 0 ? [...ui.selectedTracks] : fallback ? [fallback] : [];
+      if (grouping === "ungroup") void ungroupSelected(transport, selected);
+      else void groupTracks(transport, selected).then((g) => g && selectTrackEntity(g));
+      return;
+    }
     const action = actionForKey(e);
     if (!action) return;
     e.preventDefault();
@@ -316,6 +329,7 @@ function ConnectedArrangementView() {
         <HeaderColumnResizer />
         {/* presence-v2: peers' live pointers, pointer/viewport publishing, follow mode */}
         <PresenceLayer rootRef={rootRef} scrollRef={scrollRef} rows={rows} masterRow={masterRow} />
+        <UngroupConfirmDialog />
       </div>
     </ArrangementContext.Provider>
   );

@@ -10,6 +10,7 @@ import {
   Headphones,
   Piano,
   Speaker,
+  SlidersVertical,
   Spline,
   Volume2,
   VolumeX,
@@ -17,6 +18,7 @@ import {
 import type { Beats, Clip, ClipId, Color, Track, TrackId } from "@/generated";
 import { promptForInputIfNone } from "@/features/audio-settings";
 import { AutomationToggleButton, TrackAutomationLanes } from "@/features/automation";
+import { groupsTrackMenu, VcaLane } from "@/features/groups";
 import { LiveRecordLane } from "@/features/recording/live/LiveRecordLane";
 import { MOD_KEY, meterPosition, openContextMenu, setDragCursor } from "@/kit";
 import { useEditorStore, useProjectStore, useTrackMeter } from "@/state";
@@ -58,7 +60,13 @@ function RealTrackRow({ row }: { row: Row }) {
       <div className="eth-arr-row__main" style={{ height: row.laneHeight }}>
         <TrackHeader row={row} />
         <ResizeHandle row={row} />
-        {row.track.kind === "Group" ? <GroupLane track={row.track} /> : <TrackLane track={row.track} />}
+        {row.track.kind === "Group" ? (
+          <GroupLane track={row.track} />
+        ) : row.track.kind === "Vca" ? (
+          <VcaLane track={row.track} />
+        ) : (
+          <TrackLane track={row.track} />
+        )}
       </div>
       {/* Automation slot: its height is fed to `layoutRows` via `useAutomationHeight`. */}
       <div className="eth-arr-row__automation" data-slot="automation" data-track={row.track.id}>
@@ -86,8 +94,8 @@ const TRACK_ICONS: Record<Track["kind"], ReactNode> = {
   Group: <Folder />,
   Return: <CornerDownRight />,
   Master: <Speaker />,
-  // v0.2 (`groups-buses`): VCA tracks; the node refines the icon.
-  Vca: <Folder />,
+  // v0.2 (`groups-buses`): VCA faders.
+  Vca: <SlidersVertical />,
 };
 
 /**
@@ -138,7 +146,11 @@ function TrackHeader({ row }: { row: Row }) {
         if (!renaming) onTrackHeaderPointerDown(e, track, ctx);
       }}
       onClick={(e) => selectTrackEntity(track.id, selectModeFromEvent(e))}
-      onContextMenu={(e) => openContextMenu(e, trackMenu(transport, track))}
+      onContextMenu={(e) => {
+        const menu = trackMenu(transport, track);
+        // groups-buses: group/ungroup and VCA entries (after the owner's track menu).
+        openContextMenu(e, [...menu, ...groupsTrackMenu(transport, track, useArrangementUi.getState().selectedTracks)]);
+      }}
       role="group"
       aria-label={`${track.name} track`}
     >

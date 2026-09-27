@@ -9,6 +9,7 @@ import { cmd, newId } from "@/transport";
 import { useGestureSender, useSend, type GestureSender } from "@/features/devices/gesture";
 import { midiTarget } from "@/features/midi-learn/targets";
 import { formatDb, formatPan } from "@/features/devices/paramScale";
+import { takesTrackInput, TrackInputSelect, VcaSelect, VcaSummary } from "@/features/groups";
 import { dbToFader, defaultOutputLabel, faderToDb, MAX_DB, outputTargets, outputValue, parseOutputValue } from "./routing";
 import { useMeterLevels } from "./useMeterLevels";
 
@@ -124,7 +125,10 @@ export function MixerStrip({ track, returns, folded, onToggleFold }: MixerStripP
   const selectTrack = useSelectionStore((s) => s.selectTrack);
   const { volume, pan, mute, solo } = track.mixer;
   const isMaster = track.kind === "Master";
-  const sendTargets = isMaster ? [] : returns.filter((r) => r.id !== track.id);
+  // groups-buses: a VCA strip is a fader, mute and solo for the tracks assigned to it (no
+  // audio of its own: no routing, sends, pan or meter).
+  const isVca = track.kind === "Vca";
+  const sendTargets = isMaster || isVca ? [] : returns.filter((r) => r.id !== track.id);
 
   return (
     <div
@@ -158,7 +162,12 @@ export function MixerStrip({ track, returns, folded, onToggleFold }: MixerStripP
         </button>
       </div>
 
-      <div className="eth-strip__routing">{!isMaster && <OutputSelect track={track} />}</div>
+      <div className="eth-strip__routing">
+        {takesTrackInput(track) && <TrackInputSelect track={track} className="eth-groups-input" />}
+        {!isMaster && !isVca && <OutputSelect track={track} />}
+        {!isMaster && <VcaSelect track={track} className="eth-strip__vca" />}
+        {isVca && <VcaSummary vca={track} className="eth-groups-vca-summary" />}
+      </div>
 
       <div className="eth-strip__sends">
         {sendTargets.map((r) => (
@@ -166,7 +175,7 @@ export function MixerStrip({ track, returns, folded, onToggleFold }: MixerStripP
         ))}
       </div>
 
-      <Knob
+      {!isVca && <Knob
         className="eth-strip__pan"
         {...midiTarget({ type: "Param", target: { type: "TrackPan", track: track.id } })}
         size={parseFloat(size.knobStrip)}
@@ -177,7 +186,7 @@ export function MixerStrip({ track, returns, folded, onToggleFold }: MixerStripP
         onChange={(n) => void sender.send(cmd("Mixer", { type: "SetPan", track: track.id, pan: n * 2 - 1 }))}
         onChangeStart={sender.begin}
         onChangeEnd={sender.end}
-      />
+      />}
 
       <div className="eth-strip__fader-row">
         <Fader
@@ -190,7 +199,7 @@ export function MixerStrip({ track, returns, folded, onToggleFold }: MixerStripP
           onChangeStart={sender.begin}
           onChangeEnd={sender.end}
         />
-        <StripMeter track={track} />
+        {!isVca && <StripMeter track={track} />}
       </div>
       <div className="eth-strip__db">{formatDb(volume)}</div>
 
