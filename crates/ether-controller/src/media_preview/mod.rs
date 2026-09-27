@@ -4,9 +4,12 @@
 //! `MediaSource` (library file through `Library`, project media through the store), decode
 //! and resample it with `ether-media` to the engine rate (bounded work per tick for long
 //! files: start playing when the first chunk is ready, or cap preview length), hand it to
-//! `EngineBridge::preview`, and emit `MediaEvent::PreviewStarted`. [`EtherController::
-//! preview_tick`] (called every tick) turns `EngineOutputs::preview_ended` into
-//! `MediaEvent::PreviewEnded { Finished }`; stop/replace emit `Stopped`/`Replaced` directly.
+//! `EngineBridge::preview` with a new monotonic preview id, and emit
+//! `MediaEvent::PreviewStarted`. Stop/replace emit `PreviewEnded { Stopped | Replaced }`
+//! right away (the engine never reports them). [`EtherController::preview_tick`] (called
+//! every tick) reads `EngineOutputs::preview_ended = Some(id)` and emits
+//! `PreviewEnded { Finished }` only if `id` is still the current preview (a late report for a
+//! replaced preview is ignored). Every preview gets exactly one `PreviewEnded`.
 //! Keep a small cache of recently previewed decodes (auditioning the same sample twice
 //! should be instant).
 

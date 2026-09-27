@@ -91,7 +91,7 @@ enum Output {
     Meter(TrackMeter),
     Overflow,
     Underruns(u32),
-    PreviewEnded,
+    PreviewEnded(u64),
 }
 
 /// Single-writer seqlock holding the latest playhead.
@@ -1039,8 +1039,10 @@ impl Engine {
         if let Some(old) = self.preview.take_retired() {
             self.retire(Garbage::Source(old));
         }
-        if self.preview.ended && self.out.push(Output::PreviewEnded).is_ok() {
-            self.preview.ended = false;
+        if let Some(id) = self.preview.ended
+            && self.out.push(Output::PreviewEnded(id)).is_ok()
+        {
+            self.preview.ended = None;
         }
         if self.overflow && self.out.push(Output::Overflow).is_ok() {
             self.overflow = false;
@@ -1293,7 +1295,7 @@ impl EngineHandle {
                 Output::Meter(m) => merge_meter(&mut out.meters, m),
                 Output::Overflow => out.event_overflow = true,
                 Output::Underruns(n) => out.underruns += n,
-                Output::PreviewEnded => out.preview_ended = true,
+                Output::PreviewEnded(id) => out.preview_ended = Some(id),
             }
         }
         out.playhead = Some(self.playhead());

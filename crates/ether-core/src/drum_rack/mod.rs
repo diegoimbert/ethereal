@@ -12,8 +12,11 @@
 //!   events (with the chain's), then at every rack chain entry `engine.rs` calls
 //!   [`RacksRt::run_pads`] before processing the rack node.
 //!
-//! Implemented (base-24, basic): note routing by key (transposed to `PAD_PLAY_NOTE`),
-//! `AllNotesOff`/raw MIDI to every pad, pad chains processed like a track chain (bypass,
+//! Implemented (base-24, basic): note routing by key (transposed to `PAD_PLAY_NOTE`; other
+//! keys are dropped), raw MIDI routed the same way (note-on/off and poly aftertouch by key;
+//! channel-wide messages such as CC, pitch bend and channel pressure go to every pad),
+//! `AllNotesOff` once per pad chain (from [`RacksRt::begin_block`]), pad chains processed
+//! like a track chain (bypass,
 //! reset, note/MIDI output feeding the next device), PDC alignment of every pad to the
 //! longest pad chain (the incoming chain audio is delayed the same), pad volume/pan/mute
 //! (constant gain, no smoothing yet). **Left to the drum-rack node:** choke groups,
@@ -55,6 +58,15 @@ pub(crate) fn pad_latency(
                 .unwrap_or(0)
         })
         .unwrap_or(0)
+}
+
+/// Route a raw short MIDI message to the pad on `note`: note-on/off and poly aftertouch only
+/// if their key is `note` (re-keyed to `PAD_PLAY_NOTE`), channel-wide messages always.
+fn midi_route(data: [u8; 3], note: u8) -> Option<[u8; 3]> {
+    match data[0] & 0xf0 {
+        0x80 | 0x90 | 0xa0 => (data[1] == note).then_some([data[0], PAD_PLAY_NOTE, data[2]]),
+        _ => Some(data),
+    }
 }
 
 #[derive(Debug)]
@@ -100,9 +112,13 @@ impl RacksRt {
                     .pads
                     .iter()
                     .map(|p| {
+                        // Latency this pad actually adds: bypassed entries are skipped by
+                        // `run_pads` (the rack's total still counts them, like a track chain
+                        // counts bypassed devices).
                         let lat: u32 = p
                             .chain
                             .iter()
+                            .filter(|e| e.enabled)
                             .map(|e| node_info(e.node).map_or(0, |i| i.latency))
                             .sum();
                         let pan = p.pan.clamp(-1.0, 1.0);
@@ -249,7 +265,12 @@ impl RacksRt {
                             channel,
                             key: PAD_PLAY_NOTE,
                         },
-                        k @ (EventKind::AllNotesOff | EventKind::Midi { .. }) => k,
+                        EventKind::Midi { data } => match midi_route(data, pad.note) {
+                            Some(data) => EventKind::Midi { data },
+                            None => continue,
+                        },
+                        // AllNotesOff reached every pad chain in `begin_block`; params are
+                        // the rack node's own.
                         _ => continue,
                     };
                     overflow |= !first.events.push(ProcessEvent {

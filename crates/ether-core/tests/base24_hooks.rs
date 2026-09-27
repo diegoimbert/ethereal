@@ -300,19 +300,21 @@ fn pad_latency_counts_in_pdc() {
 
 // ─── Media preview ──────────────────────────────────────────────────────────────────────
 
+fn play(id: u64, frames: usize, level: f32) -> ether_core::preview::PreviewControl {
+    ether_core::preview::PreviewControl::Play {
+        id,
+        source: Arc::new(MemSource(vec![level; frames])),
+        gain: 1.0,
+    }
+}
+
 #[test]
-fn preview_plays_outside_the_transport_and_auto_stops() {
+fn preview_plays_outside_the_transport_and_reports_natural_ends_by_id() {
     use ether_core::EngineOutputs;
-    use ether_core::preview::PreviewControl;
     let mut p = create(config());
     p.handle.publish(desc(vec![master()])).unwrap();
     let len = BLOCK + 100;
-    p.handle
-        .preview(PreviewControl::Play {
-            source: Arc::new(MemSource(vec![0.5; len])),
-            gain: 0.5,
-        })
-        .unwrap();
+    p.handle.preview(play(1, len, 0.25)).unwrap();
     // Stopped transport: the preview still plays, on both channels (mono source).
     let (l, r) = render(&mut p.engine, 3 * BLOCK, BLOCK);
     assert!((l[0] - 0.25).abs() < 1e-6 && (r[0] - 0.25).abs() < 1e-6);
@@ -320,23 +322,246 @@ fn preview_plays_outside_the_transport_and_auto_stops() {
     assert!(l[len + 50..].iter().all(|&s| s == 0.0), "auto-stop");
     let mut out = EngineOutputs::default();
     p.handle.poll(&mut out);
-    assert!(out.preview_ended);
+    assert_eq!(out.preview_ended, Some(1));
     p.handle.poll(&mut out);
-    assert!(!out.preview_ended, "reported once");
+    assert_eq!(out.preview_ended, None, "reported once");
     // The finished source was retired to the GC, not dropped on the audio thread.
     assert!(p.gc.collect() >= 1);
+}
 
-    // Stop cuts a playing preview and reports its end.
-    p.handle
-        .preview(PreviewControl::Play {
-            source: Arc::new(MemSource(vec![0.5; 10 * BLOCK])),
-            gain: 1.0,
-        })
-        .unwrap();
+#[test]
+fn preview_replace_and_stop_are_not_reported() {
+    use ether_core::EngineOutputs;
+    use ether_core::preview::PreviewControl;
+    let mut p = create(config());
+    p.handle.publish(desc(vec![master()])).unwrap();
+    let mut out = EngineOutputs::default();
+
+    // Replace a long preview by a short one: only the short one's natural end is reported.
+    p.handle.preview(play(1, 10 * BLOCK, 0.25)).unwrap();
+    render(&mut p.engine, BLOCK, BLOCK);
+    p.handle.preview(play(2, 100, 0.5)).unwrap();
+    let (l, _) = render(&mut p.engine, BLOCK, BLOCK);
+    assert!(
+        (l[0] - 0.5).abs() < 1e-6,
+        "the new preview plays from its start"
+    );
+    assert!(
+        l[100..].iter().all(|&s| s == 0.0),
+        "the replaced one is gone"
+    );
+    p.handle.poll(&mut out);
+    assert_eq!(out.preview_ended, Some(2));
+
+    // Stop cuts a playing preview; nothing is reported.
+    p.handle.preview(play(3, 10 * BLOCK, 0.25)).unwrap();
     render(&mut p.engine, BLOCK, BLOCK);
     p.handle.preview(PreviewControl::Stop).unwrap();
-    let (l, _) = render(&mut p.engine, BLOCK, BLOCK);
+    let (l, _) = render(&mut p.engine, 2 * BLOCK, BLOCK);
     assert!(l.iter().all(|&s| s == 0.0));
     p.handle.poll(&mut out);
-    assert!(out.preview_ended);
+    assert_eq!(out.preview_ended, None);
+    assert!(
+        p.gc.collect() >= 3,
+        "replaced, finished and stopped sources are retired"
+    );
+}
+
+// ─── More rack / sidechain cases ────────────────────────────────────────────────────────
+
+/// Records note keys it receives, outputs `level` while any note is held.
+struct KeyProbe {
+    keys: Arc<Mutex<Vec<u8>>>,
+    level: f32,
+}
+
+impl Node for KeyProbe {
+    fn prepare(&mut self, _: &PrepareConfig) {}
+    fn reset(&mut self) {}
+    fn process(
+        &mut self,
+        ctx: &mut ProcessContext<'_>,
+        audio: &mut AudioBuffers<'_, '_>,
+    ) -> ProcessStatus {
+        let mut keys = self.keys.lock().unwrap();
+        for e in ctx.events {
+            match e.kind {
+                EventKind::NoteOn { key, .. } => keys.push(key),
+                EventKind::Midi { data } if data[0] & 0xf0 == 0x90 => keys.push(data[1] + 128),
+                _ => {}
+            }
+        }
+        for ch in audio.outputs.iter_mut() {
+            ch.fill(self.level);
+        }
+        ProcessStatus::Continue
+    }
+}
+
+/// Emits one NoteOn per key (and a raw MIDI note-on for 36) at the first block.
+struct Keys(Vec<u8>, bool);
+
+impl Node for Keys {
+    fn prepare(&mut self, _: &PrepareConfig) {}
+    fn reset(&mut self) {}
+    fn process(
+        &mut self,
+        ctx: &mut ProcessContext<'_>,
+        audio: &mut AudioBuffers<'_, '_>,
+    ) -> ProcessStatus {
+        if !self.1 {
+            self.1 = true;
+            for (i, &key) in self.0.iter().enumerate() {
+                let _ = ctx.out_events.push(ether_core::ProcessEvent {
+                    offset: 0,
+                    kind: EventKind::NoteOn {
+                        note_id: i as u32,
+                        channel: 0,
+                        key,
+                        velocity: 1.0,
+                    },
+                });
+            }
+            let _ = ctx.out_events.push(ether_core::ProcessEvent {
+                offset: 0,
+                kind: EventKind::Midi {
+                    data: [0x90, 36, 100],
+                },
+            });
+            let _ = ctx.out_events.push(ether_core::ProcessEvent {
+                offset: 0,
+                kind: EventKind::Midi {
+                    data: [0x90, 40, 100],
+                },
+            });
+        }
+        audio.clear_outputs();
+        ProcessStatus::Continue
+    }
+}
+
+#[test]
+fn rack_routes_notes_by_key_to_pad_play_note() {
+    let mut p = create(config());
+    let keys = Arc::new(Mutex::new(Vec::new()));
+    let emitter = p
+        .handle
+        .add_node(Box::new(Keys(vec![36, 38, 40], false)))
+        .unwrap();
+    let rack = p.handle.add_node(Box::new(Pass)).unwrap();
+    let pad_dev = p
+        .handle
+        .add_node(Box::new(KeyProbe {
+            keys: keys.clone(),
+            level: 0.0,
+        }))
+        .unwrap();
+    let mut t = rack_track(rack, &[pad_dev]);
+    t.chain.insert(
+        0,
+        ChainEntry {
+            node: emitter,
+            enabled: true,
+            sidechain: None,
+        },
+    );
+    p.handle.publish(desc(vec![master(), t])).unwrap();
+    render(&mut p.engine, 2 * BLOCK, BLOCK);
+    // Pad on 36: only key 36 arrives, as PAD_PLAY_NOTE (60); raw MIDI likewise (60 + 128).
+    let got = keys.lock().unwrap().clone();
+    assert_eq!(got, vec![60, 60 + 128]);
+}
+
+#[test]
+fn pad_volume_pan_and_mute_apply() {
+    let level = |volume: f32, pan: f32, mute: bool| -> (f32, f32) {
+        let mut p = create(config());
+        let rack = p.handle.add_node(Box::new(Pass)).unwrap();
+        let pad_dev = p
+            .handle
+            .add_node(Box::new(KeyProbe {
+                keys: Arc::new(Mutex::new(Vec::new())),
+                level: 0.5,
+            }))
+            .unwrap();
+        let mut t = rack_track(rack, &[pad_dev]);
+        let pad = &mut t.racks[0].pads[0];
+        (pad.volume, pad.pan, pad.mute) = (volume, pan, mute);
+        p.handle.publish(desc(vec![master(), t])).unwrap();
+        let (l, r) = render(&mut p.engine, 2 * BLOCK, BLOCK);
+        (l[2 * BLOCK - 1], r[2 * BLOCK - 1])
+    };
+    let (l0, r0) = level(1.0, 0.0, false);
+    assert!(l0 > 0.1 && (l0 - r0).abs() < 1e-6);
+    let (l, r) = level(0.5, 0.0, false);
+    assert!((l - l0 * 0.5).abs() < 1e-5 && (r - r0 * 0.5).abs() < 1e-5);
+    let (l, r) = level(1.0, 1.0, false);
+    assert!(
+        l.abs() < 1e-6 && (r - r0).abs() < 1e-5,
+        "hard right: {l} {r}"
+    );
+    let (l, r) = level(1.0, 0.0, true);
+    assert_eq!((l, r), (0.0, 0.0));
+}
+
+#[test]
+fn pads_align_on_enabled_latency_only() {
+    // Pad A: Impulse → Delay(40, bypassed). Pad B: Impulse → Delay(30). The rack counts
+    // 40 (bypassed latency still counts, like a track chain), so pad A (really 0) is
+    // delayed 40 and pad B (really 30) 10: both impulses leave the rack at sample 40.
+    let mut p = create(config());
+    let rack = p.handle.add_node(Box::new(Pass)).unwrap();
+    let a_imp = p.handle.add_node(Box::new(Impulse)).unwrap();
+    let a_del = p.handle.add_node(Box::new(Delay::new(40))).unwrap();
+    let b_imp = p.handle.add_node(Box::new(Impulse)).unwrap();
+    let b_del = p.handle.add_node(Box::new(Delay::new(30))).unwrap();
+    let mut t = rack_track(rack, &[a_imp, a_del]);
+    t.racks[0].pads[0].chain[1].enabled = false;
+    let mut b = t.racks[0].pads[0].clone();
+    b.pad = DrumPadId(Ulid(8));
+    b.note = 38;
+    b.chain[0].node = b_imp;
+    b.chain[1].node = b_del;
+    b.chain[1].enabled = true;
+    t.racks[0].pads.push(b);
+    p.handle.publish(desc(vec![master(), t])).unwrap();
+    let (l, _) = render(&mut p.engine, BLOCK, BLOCK);
+    let hits: Vec<usize> = l
+        .iter()
+        .enumerate()
+        .filter(|(_, s)| s.abs() > 1e-6)
+        .map(|(i, _)| i)
+        .collect();
+    assert_eq!(hits, vec![40], "both pads aligned: {hits:?}");
+}
+
+#[test]
+fn sidechain_consumer_with_input_latency() {
+    // T receives a bus with 60 samples of latency (in_lat(T) = 60) and plays its own
+    // impulse through a 60-sample delay too (so its main signal is aligned at 60); the
+    // sidechain source S has 150. The main signal is delayed 90 before the probe.
+    let mut p = create(config());
+    let seen = Arc::new(Mutex::new(Seen::default()));
+    let bus_imp = p.handle.add_node(Box::new(Impulse)).unwrap();
+    let bus_del = p.handle.add_node(Box::new(Delay::new(60))).unwrap();
+    let s_imp = p.handle.add_node(Box::new(Impulse)).unwrap();
+    let s_del = p.handle.add_node(Box::new(Delay::new(150))).unwrap();
+    let probe = p.handle.add_node(Box::new(Probe(seen.clone()))).unwrap();
+    let feeder = with_chain(
+        track(tid(4), TrackKind::Midi, Some(tid(3))),
+        &[bus_imp, bus_del],
+    );
+    let source = with_chain(
+        track(tid(2), TrackKind::Midi, Some(tid(1))),
+        &[s_imp, s_del],
+    );
+    let mut consumer = with_chain(track(tid(3), TrackKind::Group, Some(tid(1))), &[probe]);
+    consumer.chain[0].sidechain = Some(tid(2));
+    p.handle
+        .publish(desc(vec![consumer, feeder, master(), source]))
+        .unwrap();
+    render(&mut p.engine, 4 * BLOCK, BLOCK);
+    let seen = *seen.lock().unwrap();
+    assert_eq!(seen.sidechain, Some(150));
+    assert_eq!(seen.main, Some(150));
 }

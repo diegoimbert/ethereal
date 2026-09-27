@@ -1,23 +1,28 @@
-//! Media preview voice (roadmap, owned by the `media-preview` node; see `docs/ROADMAP.md`).
+//! Media preview voice (roadmap, owned by the `media-preview` node; see `docs/ROADMAP.md`
+//! and CONTRACTS.md §11.15).
 //!
 //! Auditions a sample from the browser: one voice, outside the tracks, mixed straight into
 //! the hardware outputs after master (not metered, not recorded, not exported, independent
 //! of the transport: it plays while stopped).
 //!
 //! Wired (base-24):
-//! - `EngineHandle::preview(PreviewControl)` sends play/stop through the control ring; the
-//!   source is an ordinary [`AudioSource`] (decoded and resampled to the engine rate by the
-//!   controller, like clip media), so the audio thread never allocates or frees it (a
-//!   replaced or finished source is retired to the GC).
+//! - `EngineHandle::preview(PreviewControl)` sends play/stop through the control ring. Each
+//!   `Play` carries a controller-chosen preview `id` (monotonic). The source is an ordinary
+//!   [`AudioSource`] (decoded and resampled to the engine rate by the controller, like clip
+//!   media), so the audio thread never allocates or frees it (a replaced, stopped or
+//!   finished source is retired to the GC).
 //! - `engine.rs::render_sub` calls [`PreviewVoice::render`] once per sub-block.
-//! - When the voice reaches the end of its source (auto-stop) or is stopped/replaced, the
-//!   engine reports it once through `EngineOutputs::preview_ended`, which the controller
-//!   turns into `MediaEvent::PreviewEnded`.
+//! - **End reporting (natural ends only).** When the voice reaches the end of its source,
+//!   the engine reports that preview's id through `EngineOutputs::preview_ended` (the most
+//!   recent one if several ended between two polls). Stop and replace are *not* reported:
+//!   the controller knows about them (it sent them) and emits `PreviewEnded { Stopped |
+//!   Replaced }` itself; it emits `PreviewEnded { Finished }` only if the reported id is
+//!   still its current preview. So every preview gets exactly one `PreviewEnded`.
 //!
 //! Implemented: play from the start at `gain`, mono sources on both channels, auto-stop at
 //! the end of the source. **Left to the media-preview node:** a short fade on stop/replace
-//! (today it cuts), optional looping/sync-to-tempo, and everything outside the engine
-//! (controller decode + `EngineBridge` plumbing, `MediaEvent`s, UI).
+//! (today it cuts), optional looping, and everything outside the engine (controller decode
+//! + `EngineBridge` plumbing, `MediaEvent`s, UI).
 
 use std::sync::Arc;
 
@@ -25,18 +30,26 @@ use crate::media::AudioSource;
 
 /// Preview control message (`EngineHandle::preview`).
 pub enum PreviewControl {
-    /// Start `source` from its beginning (replacing any playing preview) at linear `gain`.
+    /// Start `source` from its beginning (replacing any playing preview, which is not
+    /// reported) at linear `gain`. `id` identifies this preview in
+    /// `EngineOutputs::preview_ended`.
     Play {
+        id: u64,
         source: Arc<dyn AudioSource>,
         gain: f32,
     },
+    /// Stop the playing preview, if any (not reported).
     Stop,
 }
 
 impl std::fmt::Debug for PreviewControl {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Play { gain, .. } => f.debug_struct("Play").field("gain", gain).finish(),
+            Self::Play { id, gain, .. } => f
+                .debug_struct("Play")
+                .field("id", id)
+                .field("gain", gain)
+                .finish(),
             Self::Stop => f.write_str("Stop"),
         }
     }
@@ -45,11 +58,12 @@ impl std::fmt::Debug for PreviewControl {
 /// The audio-thread preview voice.
 pub(crate) struct PreviewVoice {
     source: Option<Arc<dyn AudioSource>>,
+    id: u64,
     gain: f32,
     position: u64,
     scratch: [Vec<f32>; 2],
-    /// Set when a preview ends (end reached, stopped or replaced); reported once.
-    pub(crate) ended: bool,
+    /// Id of the latest preview that reached its end (natural end), not yet reported.
+    pub(crate) ended: Option<u64>,
     /// A source that finished while rendering, to retire after the block.
     retired: Option<Arc<dyn AudioSource>>,
 }
@@ -59,10 +73,11 @@ impl PreviewVoice {
     pub(crate) fn new(max_block_size: usize) -> Self {
         Self {
             source: None,
+            id: 0,
             gain: 1.0,
             position: 0,
             scratch: [vec![0.0; max_block_size], vec![0.0; max_block_size]],
-            ended: false,
+            ended: None,
             retired: None,
         }
     }
@@ -70,11 +85,9 @@ impl PreviewVoice {
     /// RT. Apply a control; returns the source that must be retired (never dropped here).
     pub(crate) fn control(&mut self, control: PreviewControl) -> Option<Arc<dyn AudioSource>> {
         let old = self.source.take();
-        if old.is_some() {
-            self.ended = true;
-        }
-        if let PreviewControl::Play { source, gain } = control {
+        if let PreviewControl::Play { id, source, gain } = control {
             self.source = Some(source);
+            self.id = id;
             self.gain = gain.max(0.0);
             self.position = 0;
         }
@@ -109,7 +122,7 @@ impl PreviewVoice {
         }
         self.position += n as u64;
         if self.position >= source.frames() {
-            self.ended = true;
+            self.ended = Some(self.id);
             self.retired = self.source.take();
         }
     }

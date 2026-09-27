@@ -549,10 +549,12 @@ paths = [
   # shared touch: reset the "previewing" state on MediaEvent::PreviewEnded
   "ui/src/features/browser/index.tsx",
   "ui/src/features/browser/Browser.test.tsx",
-  # shared touch: EngineBridge::preview impls (native: in-memory source; web: ship the
-  # decoded audio to the worklet like load_media)
+  # shared touch: EngineBridge::preview impls (native: in-memory source)
   "crates/ether-native/src/bridge.rs",
   "crates/ether-wasm/src/bridge.rs",
+  # shared touch, web-perf's files, LIMITED to (ROADMAP.md): reusing LoadMedia chunks under
+  # a preview MediaId, one additive JsonMsg::Preview { media, gain, id }, one extra field in
+  # the engine report. No new frame tags; merge dev after web-perf lands.
   "crates/ether-wasm/src/worklet.rs",
   "crates/ether-wasm/src/proto.rs",
 ]

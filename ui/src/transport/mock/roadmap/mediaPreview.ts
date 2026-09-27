@@ -3,7 +3,9 @@
  * preview "plays" for a fixed number of playhead steps. `Preview` validates the source,
  * emits `PreviewEnded { Replaced }` for a playing one, then `PreviewStarted`; `StopPreview`
  * emits `PreviewEnded { Stopped }`; after `PREVIEW_STEPS` steps (`MockTransport.tick()`
- * with manual timers) it emits `PreviewEnded { Finished }`.
+ * with manual timers) it emits `PreviewEnded { Finished }`. Same rules as the real
+ * controller (CONTRACTS.md §11.15): exactly one `PreviewEnded` per preview; `Finished` only
+ * for the current preview (a replaced one never reports `Finished`).
  */
 
 import type { MediaSource, ReplyValue } from "@/generated";

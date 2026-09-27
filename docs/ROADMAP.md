@@ -233,9 +233,12 @@ files), its tests/e2e.
 
 - Protocol: `Media::{Preview, StopPreview}` (existing), `MediaEvent::{PreviewStarted,
   PreviewEnded { reason }}`, `PreviewEndReason` (CONTRACTS.md §11.15).
-- Core (implemented, tested in `tests/base24_hooks.rs`): `EngineHandle::preview(
-  PreviewControl)`, one voice mixed after master once per sub-block, auto-stop,
-  `EngineOutputs::preview_ended`. Left: a short fade on stop/replace.
+- Core (implemented, tested in `tests/base24_hooks.rs` and `tests/no_alloc.rs`):
+  `EngineHandle::preview(PreviewControl)`, one voice mixed after master once per
+  sub-block, auto-stop. Ids are frozen (CONTRACTS.md §11.15): every `Play` carries a
+  controller-chosen monotonic id; `EngineOutputs::preview_ended = Some(id)` reports natural
+  ends only; the controller emits `Stopped`/`Replaced` itself and `Finished` only for its
+  current id. Left: a short fade on stop/replace.
 - Controller: `media_preview::{preview_command, preview_tick}` (dispatched from
   `handlers.rs`, currently `Unsupported`): resolve the source (library or project media),
   decode + resample with `ether-media` (bounded per tick), `EngineBridge::preview`
@@ -244,3 +247,9 @@ files), its tests/e2e.
 - UI: the browser already sends `Preview`/`StopPreview` (`features/browser/index.tsx`,
   shared touch): reset the previewing row on `PreviewEnded`. The mock (`MockPreview`)
   already emits the events.
+- **Web (overlap with `web-perf`).** `ether-wasm/src/{proto,worklet}.rs` belong to
+  web-perf; your shared touch there is limited to: reusing the existing `LoadMedia`
+  chunk path under a dedicated preview `MediaId`; one additive
+  `JsonMsg::Preview { media, gain, id }` (with `media: None` = stop); and one extra field in
+  the worklet's engine report (`preview_ended`). Add **no new binary frame tags**, and merge
+  `origin/dev` after web-perf lands before touching these files.

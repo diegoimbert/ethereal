@@ -545,6 +545,10 @@ ordinary edits at tick rate (one gesture per control) and still reach monitored 
   whether T plays clips, receives buses or both, and whether the entry is bypassed or not);
   otherwise the **sidechain** is delayed by `L − L_sc`. Then `L += latency(entry k)`. T's
   output latency includes the main delays and downstream PDC absorbs it.
+- The tap is post-fader *and* post mute/solo gate: a muted (or solo-silenced) source gives
+  a silent sidechain.
+- Devices on drum pads cannot have a sidechain (the model rejects `sidechain` on a device
+  with `pad`); pad chains never carry one.
 
 ### 11.11 Groove
 `NoteCommand::Quantize::swing` (0..=1, destructive: odd grid positions are delayed by
@@ -572,9 +576,15 @@ MIDI clips (`groove::swing_notes`).
 - Pad-chain devices are first-class engine nodes (base-24): `SnapshotRt::pad_index` routes
   live params and automation to them, their latency is refreshed like chain nodes, and the
   rack entry's latency includes the longest pad chain (all pads aligned to it; the chain
-  audio entering the rack is delayed the same). Basic `run_pads` is implemented (note
-  routing, pad chains, alignment, pad gain); choke groups and pad mix smoothing are left to
-  `drum-rack`.
+  audio entering the rack is delayed the same). A pad is delayed by
+  `longest − Σ latency of its enabled entries` (bypassed pad devices are skipped when
+  processing but still count in the rack's latency, like bypassed track devices). Basic
+  `run_pads` is implemented: notes route by key (the pad's key becomes `PAD_PLAY_NOTE`,
+  other keys are dropped); raw MIDI note-on/off and poly aftertouch route the same way,
+  channel-wide raw messages (CC, pitch bend, channel pressure) reach every pad;
+  `AllNotesOff` reaches each pad chain once; pad chains, alignment and pad gain. Choke
+  groups and pad mix smoothing are left to `drum-rack`. Pad devices cannot have a
+  sidechain.
 - Structure rules: `Device::Move` rejects pad devices (`DrumRack::MoveDevice` moves them) and
   racks with pads across tracks; device and track duplication copy pads and pad chains; the
   model checks pad devices from both sides (pad device and rack).
@@ -607,10 +617,18 @@ fade curves Linear, `reversed` false. Tested on a realistic v2 fixture
 `Media::Preview { source }` / `StopPreview` → one engine preview voice
 (`ether_core::preview`), mixed into the hardware outputs after master (not metered,
 recorded or exported; plays while the transport is stopped), fed through
-`EngineHandle::preview(PreviewControl::{Play { source, gain }, Stop})` with an ordinary
-`AudioSource` (decoded and resampled engine-side; replaced/finished sources are retired to
-the GC). The voice auto-stops at the end of the source and reports it once as
-`EngineOutputs::preview_ended`. Events: `MediaEvent::PreviewStarted { source }`, then exactly
-one `MediaEvent::PreviewEnded { source, reason: Finished | Stopped | Replaced | Failed }`.
+`EngineHandle::preview(PreviewControl::{Play { id, source, gain }, Stop})` with an ordinary
+`AudioSource` (decoded and resampled engine-side; replaced/stopped/finished sources are
+retired to the GC). Events: `MediaEvent::PreviewStarted { source }`, then exactly one
+`MediaEvent::PreviewEnded { source, reason: Finished | Stopped | Replaced | Failed }` per
+preview. **Preview ids (frozen):**
+- the controller gives every `Play` a new monotonic `u64` id (`EngineBridge::preview(id,
+  audio, gain)`, `audio: None` = stop);
+- the engine reports **natural ends only**: `EngineOutputs::preview_ended = Some(id)` (the
+  latest if several ended between two polls); stop and replace are never reported;
+- the controller emits `Stopped`/`Replaced` itself when it sends them, and `Finished` only
+  when the reported id is still its current preview (a late end of a replaced preview is
+  ignored).
 Controller hook: `EngineBridge::preview` (defaulted `Unsupported`), `media_preview` module
-(`preview_command`, `preview_tick`).
+(`preview_command`, `preview_tick`). The MockTransport (`MockPreview`) follows the same
+event rules.
