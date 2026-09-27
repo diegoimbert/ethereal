@@ -325,6 +325,8 @@ paths = [
   "crates/ether-native/tests/tempo_metronome*.rs",
   # shared touch (base-25): one additive state field + initializer on EtherController
   "crates/ether-controller/src/lib.rs",
+  # shared touch (base-40): pass &TempoMapRt to Metronome::render at its call site only (multicore owns the rest of engine.rs)
+  "crates/ether-core/src/engine.rs",
 ]
 
 [nodes.clip-editing]
@@ -405,6 +407,10 @@ paths = [
   "crates/ether-native/tests/collab*.rs",
   # shared touch (base-25): one additive state field + initializer on EtherController
   "crates/ether-controller/src/lib.rs",
+  # base-36: collab design doc
+  "docs/COLLAB.md",
+  # shared touch (base-39): wire MockCollab into MockTransport (import, field, Collab case)
+  "ui/src/transport/mock/MockTransport.ts",
 ]
 
 [nodes.multicore]
@@ -543,6 +549,9 @@ paths = [
   # shared touch (base-31): pass sampler slices in create(); drop the placeholder module
   "crates/ether-devices/src/lib.rs",
   "crates/ether-devices/src/placeholder.rs",
+  # shared touch (base-33): `media: &self.media` in the EngineCtx literals only (transient auto-slice)
+  "crates/ether-controller/src/handlers.rs",
+  "crates/ether-controller/src/midi_learn/mod.rs",
 ]
 
 # --- media-preview (base-24) ------------------------------------------------------------
@@ -568,4 +577,8 @@ paths = [
   # the engine report. No new frame tags; merge dev after web-perf lands.
   "crates/ether-wasm/src/worklet.rs",
   "crates/ether-wasm/src/proto.rs",
+  # shared touch (base-37): preview assertions after the stop/replace fade
+  "crates/ether-core/tests/base24_hooks.rs",
+  # shared touch (base-38, as base-25 for other roadmap nodes): one additive state field + initializer on EtherController
+  "crates/ether-controller/src/lib.rs",
 ]

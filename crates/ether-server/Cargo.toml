@@ -9,12 +9,18 @@ repository.workspace = true
 authors.workspace = true
 publish.workspace = true
 
-# Native only. The `remote-engine` node adds `ether-native` (the host: controller + cpal/null
-# audio + store) and `tungstenite` (pre-declared in the workspace) when implementing.
+# Native only: the host is `ether-native` (controller + cpal/null audio + disk store +
+# plugins); the socket is `tungstenite` (blocking, one thread per connection).
 [dependencies]
 ether-protocol.workspace = true
+ether-native.workspace = true
+crossbeam-channel.workspace = true
+getrandom.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+tungstenite.workspace = true
 
 [lints]
 workspace = true

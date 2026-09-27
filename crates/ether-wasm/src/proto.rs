@@ -31,6 +31,9 @@ const TAG_MEDIA_CHUNK: u8 = b'C';
 const TAG_MEDIA_END: u8 = b'D';
 /// Samples per media chunk frame (64 KiB of `f32`).
 pub const MEDIA_CHUNK_SAMPLES: usize = 16 * 1024;
+/// `media-preview`: the reserved media id preview audio is shipped under (the ordinary
+/// `LoadMedia` chunk path), then played by [`EngineMsg::Preview`]. Never a project media.
+pub const PREVIEW_MEDIA: MediaId = MediaId(Ulid(u128::MAX));
 
 /// One engine call, Worker → Worklet. Node keys are *virtual*: allocated by the Worker
 /// (it must answer `create_builtin` synchronously) and mapped to real engine keys by the
@@ -62,6 +65,13 @@ pub enum EngineMsg {
     Transport {
         control: TransportControl,
     },
+    /// `media-preview`: play the audio loaded as `media` (always [`PREVIEW_MEDIA`]) on the
+    /// preview voice as preview `id` at `gain`; `media: None` stops the preview.
+    Preview {
+        id: u64,
+        media: Option<MediaId>,
+        gain: f32,
+    },
 }
 
 /// The JSON-encoded subset of [`EngineMsg`].
@@ -83,6 +93,11 @@ enum JsonMsg {
     },
     Transport {
         control: TransportControl,
+    },
+    Preview {
+        media: Option<MediaId>,
+        gain: f32,
+        id: u64,
     },
 }
 
@@ -128,6 +143,7 @@ impl EngineMsg {
             EngineMsg::UnloadMedia { media } => JsonMsg::UnloadMedia { media },
             EngineMsg::SetParam { change } => JsonMsg::SetParam { change },
             EngineMsg::Transport { control } => JsonMsg::Transport { control },
+            EngineMsg::Preview { id, media, gain } => JsonMsg::Preview { media, gain, id },
         };
         let mut out = vec![TAG_JSON];
         serde_json::to_writer(&mut out, &json).expect("engine messages serialize");
@@ -204,6 +220,7 @@ impl<'a> Frame<'a> {
                     JsonMsg::UnloadMedia { media } => EngineMsg::UnloadMedia { media },
                     JsonMsg::SetParam { change } => EngineMsg::SetParam { change },
                     JsonMsg::Transport { control } => EngineMsg::Transport { control },
+                    JsonMsg::Preview { media, gain, id } => EngineMsg::Preview { id, media, gain },
                 }))
             }
             t => Err(DecodeError::Tag(t)),
@@ -348,12 +365,16 @@ pub struct EngineReport {
     pub underruns: u32,
     /// Blocks rendered since the Worklet started (diagnostics / liveness).
     pub blocks: u64,
+    /// `media-preview`: id of the latest preview that played to its natural end since the
+    /// last delivered report (`EngineOutputs::preview_ended`).
+    pub preview_ended: Option<u64>,
 }
 
 // [R][flags u8][position f64][seconds f64][bpm f64][sample_time u64][blocks u64]
-// [underruns u32][count u16] then per meter: [track u128 LE][peak f32 x2][rms f32 x2][clipped u8]
+// [preview_ended u64, 0 = none][underruns u32][count u16]
+// then per meter: [track u128 LE][peak f32 x2][rms f32 x2][clipped u8]
 const METER_BYTES: usize = 16 + 16 + 1;
-const REPORT_FIXED: usize = 1 + 1 + 8 * 5 + 4 + 2;
+const REPORT_FIXED: usize = 1 + 1 + 8 * 6 + 4 + 2;
 
 impl EngineReport {
     /// Encoded size (to pre-size buffers).
@@ -372,6 +393,7 @@ impl EngineReport {
         out.extend_from_slice(&p.bpm.to_le_bytes());
         out.extend_from_slice(&p.sample_time.to_le_bytes());
         out.extend_from_slice(&self.blocks.to_le_bytes());
+        out.extend_from_slice(&self.preview_ended.unwrap_or(0).to_le_bytes());
         out.extend_from_slice(&self.underruns.to_le_bytes());
         let n = self.meters.len().min(u16::MAX as usize);
         out.extend_from_slice(&(n as u16).to_le_bytes());
@@ -399,6 +421,7 @@ impl EngineReport {
             sample_time: c.u64()?,
         };
         let blocks = c.u64()?;
+        let preview_ended = Some(c.u64()?).filter(|&id| id != 0);
         let underruns = c.u32()?;
         let n = c.u16()? as usize;
         let mut meters = Vec::with_capacity(n);
@@ -420,6 +443,7 @@ impl EngineReport {
             event_overflow: flags & 4 != 0,
             underruns,
             blocks,
+            preview_ended,
         })
     }
 }
@@ -526,6 +550,16 @@ mod tests {
                 control: TransportControl::Locate {
                     position: Beats(3.5),
                 },
+            },
+            EngineMsg::Preview {
+                id: 7,
+                media: Some(PREVIEW_MEDIA),
+                gain: 0.5,
+            },
+            EngineMsg::Preview {
+                id: 8,
+                media: None,
+                gain: 1.0,
             },
         ];
         for m in msgs {
@@ -652,6 +686,7 @@ mod tests {
             event_overflow: true,
             underruns: 3,
             blocks: 999,
+            preview_ended: Some(42),
         };
         let mut buf = Vec::with_capacity(EngineReport::encoded_len(1));
         let cap = buf.capacity();

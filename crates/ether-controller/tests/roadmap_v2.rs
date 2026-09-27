@@ -7,40 +7,36 @@ mod common;
 use common::*;
 use ether_core::protocol::collab::CollabCommand;
 use ether_core::protocol::devices::{DeviceCommand, DeviceSpec};
-use ether_core::protocol::drum_rack::{DrumRackCommand, SliceCommand};
-use ether_core::protocol::export::ExportCommand;
-use ether_core::protocol::media::MediaCommand;
 use ether_core::protocol::model::*;
 use ether_core::protocol::tempo::TempoCommand;
 use ether_core::protocol::tracks::TrackCommand;
 use ether_core::protocol::{Command, ErrorCode};
 
-#[test]
-fn new_domains_reply_unsupported_until_implemented() {
-    let mut h = Harness::with_project();
+/// Sends `c` and asserts it replies `Unsupported` without changing the document.
+fn assert_unsupported(h: &mut Harness, c: Command) {
     let before = h.project().clone();
-    let pad: DrumPadId = h.id();
-    let commands = vec![
-        Command::Export(ExportCommand::Cancel { job: "j".into() }),
+    let out = h.send(c.clone());
+    assert_eq!(err(&out).code, ErrorCode::Unsupported, "{c:?}");
+    assert!(patches(&out).is_empty(), "{c:?}");
+    assert_eq!(h.project(), &before, "{c:?}");
+}
+
+// One test per feature node, so each node deletes only its own function when it lands
+// (parallel removals from one shared list kept conflicting).
+
+#[test]
+fn tempo_unsupported_until_implemented() {
+    let mut h = Harness::with_project();
+    assert_unsupported(
+        &mut h,
         Command::Tempo(TempoCommand::RemoveTempoPoints { ids: vec![] }),
-        Command::DrumRack(DrumRackCommand::RemovePad { id: pad }),
-        Command::Slice(SliceCommand::Remove {
-            device: h.id(),
-            indices: vec![],
-        }),
-        Command::Collab(CollabCommand::Leave),
-        Command::Media(MediaCommand::CancelUpload { upload: "u".into() }),
-        Command::Device(DeviceCommand::SetSidechain {
-            device: h.id(),
-            source: None,
-        }),
-    ];
-    for c in commands {
-        let out = h.send(c.clone());
-        assert_eq!(err(&out).code, ErrorCode::Unsupported, "{c:?}");
-        assert!(patches(&out).is_empty(), "{c:?}");
-    }
-    assert_eq!(h.project(), &before);
+    );
+}
+
+#[test]
+fn collab_unsupported_until_implemented() {
+    let mut h = Harness::with_project();
+    assert_unsupported(&mut h, Command::Collab(CollabCommand::Leave));
 }
 
 #[test]
@@ -79,7 +75,9 @@ fn new_builtins_insert_and_compile_as_placeholders() {
     let t = graph.tracks.iter().find(|t| t.id == track).unwrap();
     assert_eq!(t.chain.len(), 5);
     assert!(t.chain.iter().all(|e| e.sidechain.is_none()));
-    assert!(t.racks.is_empty());
+    // The drum rack compiles to a rack desc (no pads yet).
+    assert_eq!(t.racks.len(), 1);
+    assert!(t.racks[0].pads.is_empty());
     // Click settings follow the project settings.
     let s = &h.project().settings;
     assert!((graph.click.volume - s.metronome_volume.to_linear()).abs() < 1e-6);

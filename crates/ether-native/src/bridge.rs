@@ -85,6 +85,8 @@ pub struct NativeBridge {
     audio: Arc<AudioShared>,
     sources: HashMap<MediaId, Arc<dyn AudioSource>>,
     devices: HashMap<DeviceId, DeviceEntry>,
+    /// Instances created for offline export so far (their private registry ids).
+    offline_seq: u64,
 }
 
 impl NativeBridge {
@@ -108,6 +110,7 @@ impl NativeBridge {
             audio,
             sources: HashMap::new(),
             devices: HashMap::new(),
+            offline_seq: 0,
         }
     }
 
@@ -142,6 +145,74 @@ impl NativeBridge {
     }
 }
 
+/// Registry ids of offline (export) plugin instances: a fixed high prefix plus a counter,
+/// so they never retire the live instance of the same device in the [`PluginHost`].
+const OFFLINE_DEVICE_PREFIX: u128 = 0xE0F1_0000_0000_0000_0000_0000_0000_0000;
+
+/// A registry id minted by [`NativeBridge::create_offline_plugin`].
+fn is_offline_id(device: DeviceId) -> bool {
+    device.0.0 >> 112 == OFFLINE_DEVICE_PREFIX >> 112
+}
+
+/// An offline plugin instance (export): the hosted node plus the registry entry it owns,
+/// released when the offline engine drops the node.
+struct OfflinePluginNode {
+    node: Option<Box<dyn ether_core::Node>>,
+    host: PluginHost,
+    registry_id: DeviceId,
+}
+
+impl OfflinePluginNode {
+    fn inner(&self) -> &dyn ether_core::Node {
+        self.node.as_deref().expect("present until drop")
+    }
+    fn inner_mut(&mut self) -> &mut dyn ether_core::Node {
+        self.node.as_deref_mut().expect("present until drop")
+    }
+}
+
+impl ether_core::Node for OfflinePluginNode {
+    fn prepare(&mut self, config: &PrepareConfig) {
+        self.inner_mut().prepare(config);
+    }
+    fn reset(&mut self) {
+        self.inner_mut().reset();
+    }
+    fn process(
+        &mut self,
+        ctx: &mut ether_core::ProcessContext<'_>,
+        audio: &mut ether_core::AudioBuffers<'_, '_>,
+    ) -> ether_core::ProcessStatus {
+        self.inner_mut().process(ctx, audio)
+    }
+    fn latency(&self) -> u32 {
+        self.inner().latency()
+    }
+    fn channels(&self) -> (u16, u16) {
+        self.inner().channels()
+    }
+    fn sidechain_inputs(&self) -> u16 {
+        self.inner().sidechain_inputs()
+    }
+    fn process_sidechain(
+        &mut self,
+        ctx: &mut ether_core::ProcessContext<'_>,
+        audio: &mut ether_core::AudioBuffers<'_, '_>,
+        sidechain: &[&[f32]],
+    ) -> ether_core::ProcessStatus {
+        self.inner_mut().process_sidechain(ctx, audio, sidechain)
+    }
+}
+
+impl Drop for OfflinePluginNode {
+    fn drop(&mut self) {
+        // The hosted node goes back to the main thread for `deactivate` first, then the
+        // controller is released (both run in order on the main thread).
+        drop(self.node.take());
+        self.host.destroy(self.registry_id);
+    }
+}
+
 impl EngineBridge for NativeBridge {
     fn create_builtin(
         &mut self,
@@ -163,6 +234,28 @@ impl EngineBridge for NativeBridge {
             },
         );
         Ok(key)
+    }
+
+    /// Sampler slice edits reach the live node in place (`Node::set_data` with the new
+    /// `SliceSettings`), so sounding notes aren't cut. Anything else: re-create.
+    fn update_builtin(
+        &mut self,
+        device: DeviceId,
+        kind: &BuiltinDevice,
+    ) -> Result<bool, BridgeError> {
+        let BuiltinDevice::Sampler { slices, .. } = kind else {
+            return Ok(false);
+        };
+        let Some(entry) = self.devices.get(&device) else {
+            return Ok(false);
+        };
+        if !matches!(entry.kind, DeviceKind::Builtin(BuiltinDeviceType::Sampler)) {
+            return Ok(false);
+        }
+        self.handle
+            .set_node_data(entry.key, Box::new(slices.clone()))
+            .map_err(engine_err)?;
+        Ok(true)
     }
 
     fn create_plugin(
@@ -211,6 +304,48 @@ impl EngineBridge for NativeBridge {
         Ok(key)
     }
 
+    fn create_offline_plugin(
+        &mut self,
+        device: DeviceId,
+        plugin: &PluginInstance,
+        state: Option<&Base64Bytes>,
+        sample_rate: u32,
+    ) -> Result<Box<dyn ether_core::Node>, BridgeError> {
+        let _ = device;
+        let desc = self
+            .catalog
+            .find_format(plugin.format, &plugin.plugin_id)
+            .ok_or_else(|| BridgeError::Other(not_installed(plugin)))?;
+        self.offline_seq += 1;
+        let registry_id = DeviceId(ether_core::protocol::model::Ulid(
+            OFFLINE_DEVICE_PREFIX | u128::from(self.offline_seq),
+        ));
+        let (node, _) = self
+            .plugins
+            .instantiate(
+                crate::sandbox::instantiator(plugin.sandboxed, &self.instantiate),
+                registry_id,
+                PluginSource {
+                    format: desc.format,
+                    path: PathBuf::from(desc.path),
+                    plugin_id: plugin.plugin_id.clone(),
+                },
+                state.map(|s| s.0.clone()),
+                // Activated for the offline engine's blocks (never larger).
+                PrepareConfig {
+                    sample_rate: sample_rate as f32,
+                    max_block_size: ether_core::offline::OFFLINE_MAX_BLOCK,
+                    max_events_per_block: self.prepare.max_events_per_block,
+                },
+            )
+            .map_err(plugin_err)?;
+        Ok(Box::new(OfflinePluginNode {
+            node: Some(node),
+            host: self.plugins.clone(),
+            registry_id,
+        }))
+    }
+
     fn destroy_node(&mut self, key: NodeKey) -> Result<(), BridgeError> {
         match self
             .devices
@@ -243,6 +378,35 @@ impl EngineBridge for NativeBridge {
             .map_err(engine_err)?;
         self.sources.insert(media.id, source);
         Ok(())
+    }
+
+    fn preview(
+        &mut self,
+        id: u64,
+        audio: Option<Arc<DecodedAudio>>,
+        gain: f32,
+    ) -> Result<(), BridgeError> {
+        use ether_core::preview::PreviewControl;
+        let control = match audio {
+            Some(audio) => {
+                let audio = if audio.sample_rate != self.sample_rate && audio.frames() > 0 {
+                    // Contract: the controller resamples; be lenient (off-RT), as load_media.
+                    Arc::new(
+                        ether_media::resample(&audio, self.sample_rate)
+                            .map_err(|e| BridgeError::Other(e.to_string()))?,
+                    )
+                } else {
+                    audio
+                };
+                PreviewControl::Play {
+                    id,
+                    source: Arc::new(InMemorySource::new(audio)),
+                    gain,
+                }
+            }
+            None => PreviewControl::Stop,
+        };
+        self.handle.preview(control).map_err(engine_err)
     }
 
     fn unload_media(&mut self, media: MediaId) -> Result<(), BridgeError> {
@@ -282,7 +446,18 @@ impl EngineBridge for NativeBridge {
             .values()
             .any(|d| matches!(d.kind, DeviceKind::Plugin(_)))
         {
+            let from = out.len();
             self.plugins.poll(out);
+            // Offline (export) instances are private to the export: their notifications
+            // (state dirty, GUI edits, latency) must not reach the document.
+            let mut i = from;
+            while i < out.len() {
+                if is_offline_id(out[i].0) {
+                    out.remove(i);
+                } else {
+                    i += 1;
+                }
+            }
         }
     }
 
@@ -406,6 +581,35 @@ mod tests {
     }
 
     #[test]
+    fn sampler_slices_update_in_place() {
+        let (mut b, _engine) = bridge();
+        let d = DeviceId(Ulid(4));
+        let sampler = |markers: Vec<f64>| BuiltinDevice::Sampler {
+            sample: None,
+            slices: ether_core::protocol::model::SliceSettings {
+                enabled: true,
+                base_note: 36,
+                markers: markers
+                    .into_iter()
+                    .map(ether_core::protocol::model::Seconds)
+                    .collect(),
+            },
+        };
+        let key = b.create_builtin(d, &sampler(vec![0.0]), &[]).unwrap();
+        assert_eq!(b.update_builtin(d, &sampler(vec![0.0, 0.5])), Ok(true));
+        assert_eq!(b.node_of(d), Some(key), "same node");
+        // Other devices (and unknown ones) are re-created by the controller.
+        let rack = DeviceId(Ulid(5));
+        b.create_builtin(rack, &BuiltinDevice::DrumRack, &[])
+            .unwrap();
+        assert_eq!(b.update_builtin(rack, &BuiltinDevice::DrumRack), Ok(false));
+        assert_eq!(
+            b.update_builtin(DeviceId(Ulid(6)), &sampler(vec![])),
+            Ok(false)
+        );
+    }
+
+    #[test]
     fn midi_input_reaches_the_controller_with_its_port() {
         let (mut b, _engine) = bridge();
         let mut out = Vec::new();
@@ -493,5 +697,47 @@ mod tests {
 
         b.destroy_node(key).unwrap();
         assert!(b.descriptor(d).is_none());
+    }
+
+    #[test]
+    fn offline_plugins_are_independent_instances() {
+        let (mut b, _engine) = bridge();
+        let d = DeviceId(Ulid(5));
+        let inst = PluginInstance {
+            format: PluginFormat::Clap,
+            plugin_id: "fake".into(),
+            name: "Fake".into(),
+            vendor: "T".into(),
+            version: "1".into(),
+            sandboxed: false,
+            state: None,
+        };
+        let state = Base64Bytes(b"abc".to_vec());
+        let key = b.create_plugin(d, &inst, Some(&state)).unwrap();
+        let live = b.plugins().live_count();
+        let offline = b
+            .create_offline_plugin(d, &inst, Some(&state), 44_100)
+            .unwrap();
+        assert_eq!(b.plugins().live_count(), live + 1);
+        // The offline instance's notifications (its state load) never reach the controller.
+        let mut notes = Vec::new();
+        b.poll_plugins(&mut notes);
+        assert!(notes.iter().all(|(dev, _)| *dev == d), "{notes:?}");
+        // The live instance is untouched.
+        assert_eq!(b.node_of(d), Some(key));
+        assert_eq!(b.plugin_state(d).unwrap(), Some(state.clone()));
+        // Dropping the offline node releases its instance.
+        drop(offline);
+        assert_eq!(b.plugins().live_count(), live);
+        assert_eq!(b.plugin_state(d).unwrap(), Some(state));
+
+        let missing = PluginInstance {
+            plugin_id: "not-installed".into(),
+            ..inst
+        };
+        match b.create_offline_plugin(d, &missing, None, 48_000) {
+            Err(BridgeError::Other(m)) => assert!(m.contains("is not installed"), "{m}"),
+            other => panic!("{:?}", other.map(|_| ())),
+        }
     }
 }

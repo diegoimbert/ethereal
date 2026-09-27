@@ -345,6 +345,7 @@ where
                         let mut host = EngineCtx {
                             bridge: &mut self.bridge,
                             eng: &mut self.engine,
+                            media: &self.media,
                         };
                         let desc = host.descriptor(d.id, &d.kind)?;
                         let info = desc.params.into_iter().find(|i| i.id == param)?;

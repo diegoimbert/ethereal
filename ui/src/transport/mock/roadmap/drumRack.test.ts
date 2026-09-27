@@ -84,4 +84,58 @@ describe("MockTransport drumRack", () => {
     expect(chainCopy).toHaveLength(2);
     expect(chainCopy.every((d) => d.track === copy)).toBe(true);
   });
+
+  it("pad solo is runtime: no document change, no undo step", async () => {
+    const t = trackNamed(f, "Keys");
+    const rack = newId();
+    await f.mock.send(cmd("Device", { type: "Insert", id: rack, track: t.id, device: { type: "Builtin", device: { type: "DrumRack" } }, before: null }));
+    const pad = newId();
+    await f.mock.send(cmd("DrumRack", { type: "AddPad", id: pad, rack, note: 36, name: null }));
+    const before = project(f);
+    await f.mock.send(cmd("DrumRack", { type: "SetPadSolo", id: pad, solo: true }));
+    expect(project(f)).toEqual(before);
+    await undo(f);
+    expect(project(f).drum_pads[pad]).toBeUndefined();
+    await expect(f.mock.send(cmd("DrumRack", { type: "SetPadSolo", id: newId(), solo: true }))).rejects.toMatchObject({ code: "NotFound" });
+  });
+
+  it("slices: auto-slice, then ToDrumRack with client ids (one undo step, retry-safe)", async () => {
+    const t = trackNamed(f, "Keys");
+    const media = Object.values(project(f).media)[0]!;
+    const s = newId();
+    await f.mock.send(
+      cmd("Device", {
+        type: "Insert",
+        id: s,
+        track: t.id,
+        device: { type: "Builtin", device: { type: "Sampler", sample: media.id, slices: { enabled: false, base_note: 36, markers: [] } } },
+        before: null,
+      }),
+    );
+    await f.mock.send(cmd("Slice", { type: "Auto", device: s, mode: { type: "Equal", count: 4 } }));
+    const d = project(f).devices[s]!;
+    const markers = d.kind.type === "Builtin" && d.kind.device.type === "Sampler" ? d.kind.device.slices.markers : [];
+    expect(markers).toEqual([0, 2, 4, 6]);
+    const before = project(f);
+    const rack = newId();
+    const pads = [0, 1, 2, 3].map(() => ({ pad: newId(), device: newId() }));
+    await expect(f.mock.send(cmd("Slice", { type: "ToDrumRack", device: s, rack, pads: pads.slice(0, 2) }))).rejects.toMatchObject({
+      code: "InvalidArgument",
+    });
+    await f.mock.send(cmd("Slice", { type: "ToDrumRack", device: s, rack, pads }));
+    const p = project(f);
+    expect(p.devices[s]).toBeUndefined();
+    expect(p.devices[rack]).toMatchObject({ track: t.id, order: d.order, pad: null });
+    pads.forEach(({ pad, device }, i) => {
+      expect(p.drum_pads[pad]).toMatchObject({ rack, note: 36 + i, name: `Slice ${i + 1}` });
+      const dev = p.devices[device]!;
+      expect(dev.pad).toBe(pad);
+      expect(dev.params[6]).toBeCloseTo(i * 25);
+      expect(dev.params[7]).toBeCloseTo((i + 1) * 25);
+    });
+    await f.mock.send(cmd("Slice", { type: "ToDrumRack", device: s, rack, pads }));
+    expect(project(f)).toEqual(p);
+    await undo(f);
+    expect(project(f)).toEqual(before);
+  });
 });

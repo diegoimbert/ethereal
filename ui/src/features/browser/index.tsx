@@ -9,12 +9,14 @@ import clsx from "clsx";
 import { useEffect, useState, type DragEvent, type KeyboardEvent, type ReactNode } from "react";
 import { AudioLines, CornerLeftUp, File, Folder, FolderOpen, Music, Pause, Play, Plus, Search, X } from "lucide-react";
 import type { BrowseLocation, BrowseRoot, DirectoryEntry, MediaSource } from "@/generated";
+import { useUploadDrop } from "@/features/remote";
 import { useEngineCommands, useEngineEvent } from "@/features/transport-bar/engine";
 import { Button, TextInput } from "@/kit";
 import { useProjectStore } from "@/state";
 import { cmd, newId } from "@/transport";
 import { writeBrowserDrag, type BrowserDragPayload } from "./dragPayload";
 import { formatSize, locationKey, parentPath, pathSegments, sameLocation, sourceOf } from "./paths";
+import { useBrowserPreview } from "./preview";
 
 interface Place {
   location: BrowseLocation;
@@ -65,7 +67,7 @@ export function Browser({ scope = "all" }: { scope?: BrowserScope } = {}) {
   const [locations, setLocations] = useState<BrowseRoot[] | null>(null);
   const [place, setPlace] = useState<Place | null>(null);
   const [listing, setListing] = useState<Listing | null>(null);
-  const [previewing, setPreviewing] = useState<string | null>(null);
+  const { previewing, toggle: togglePreview } = useBrowserPreview(send);
   const [message, setMessage] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [found, setFound] = useState<Found | null>(null);
@@ -163,21 +165,11 @@ export function Browser({ scope = "all" }: { scope?: BrowserScope } = {}) {
     if (reply?.type === "Media") setMessage(`Imported ${reply.media.name}`);
   };
 
-  const togglePreview = async (entry: DirectoryEntry, source: MediaSource) => {
-    if (previewing === entry.path) {
-      setPreviewing(null);
-      await send(cmd("Media", { type: "StopPreview" }));
-      return;
-    }
-    const reply = await send(cmd("Media", { type: "Preview", source }));
-    setPreviewing(reply ? entry.path : null);
-  };
-
   const entries = listing && listing.key === currentKey ? listing.entries : null;
   const currentRoot = current ? locations?.find((l) => sameLocation(l.location, current.location)) : undefined;
 
   return (
-    <div className="eth-browser" data-feature="browser">
+    <div className="eth-browser" data-feature="browser" {...useUploadDrop()}>
       <div className="eth-browser__search">
         <Search className="eth-browser__search-icon" aria-hidden />
         <TextInput
