@@ -4,10 +4,16 @@ import type { PluginFormat } from "./PluginFormat";
 
 /**
  * A plugin instance. `state` is the opaque blob from the plugin's state extension.
+ *
+ * The document never stores where a plugin lives on disk: the host resolves
+ * `(format, plugin_id)` against its scanned plugin catalog, so a project opens on any machine
+ * that has the plugin installed (see `docs/PLUGIN-FORMATS.md`).
  */
 export type PluginInstance = { format: PluginFormat, 
 /**
- * CLAP plugin id (reverse-DNS, e.g. `com.u-he.diva`).
+ * Format-specific plugin id (see [`PluginFormat`] for the per-format convention), e.g.
+ * `com.u-he.diva` (CLAP), `565354416D627261736F6E6963000000` (VST3),
+ * `aufx:dely:appl` (AU).
  */
 plugin_id: string, name: string, vendor: string, version: string, 
 /**

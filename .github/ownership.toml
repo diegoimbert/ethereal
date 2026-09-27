@@ -15,7 +15,7 @@ allow = [
   "ui/src/generated/**",
 ]
 # May touch anything.
-unrestricted = ["foundation", "alpha", "v0.1"]
+unrestricted = ["foundation", "alpha", "v0.1", "formats-base"]
 unrestricted_prefixes = ["base-"]
 
 # --- Wave 1 ---------------------------------------------------------------------------
@@ -209,4 +209,46 @@ paths = [
   "VERSION",
   "THIRD_PARTY_NOTICES*",
   "docs/RELEASING.md",
+]
+
+# --- Plugin formats (formats-base; docs/PLUGIN-FORMATS.md) ----------------------------
+# `vst3` and `au` each implement one PluginFormatHost in their own crate (no shared files:
+# the scanner and sandbox helper already register both stubs). `formats-integration`
+# wires the formats into the native host/bridge/UI afterwards.
+
+[nodes.vst3]
+paths = [
+  "crates/ether-vst3/**",
+  # tests through the real scanner binary / sandbox helper (CARGO_BIN_EXE_* only exists there)
+  "crates/ether-plugin-scanner/tests/vst3.rs",
+  "crates/ether-sandbox/tests/vst3.rs",
+]
+
+[nodes.au]
+paths = [
+  "crates/ether-au/**",
+  # tests through the real scanner binary / sandbox helper (CARGO_BIN_EXE_* only exists there)
+  "crates/ether-plugin-scanner/tests/au.rs",
+  "crates/ether-sandbox/tests/au.rs",
+]
+
+[nodes.formats-integration]
+paths = [
+  "crates/ether-native/src/plugins.rs",
+  "crates/ether-native/src/sandbox.rs",
+  "crates/ether-native/src/bridge.rs",
+  "crates/ether-native/Cargo.toml",
+  "crates/ether-native/tests/plugins_e2e.rs",
+  "crates/ether-native/tests/formats_e2e.rs",
+  "crates/ether-plugin-host/**",
+  "crates/ether-plugin-scanner/**",
+  "crates/ether-sandbox/src/helper.rs",
+  "crates/ether-sandbox/src/host.rs",
+  "crates/ether-sandbox/src/lib.rs",
+  "ui/src/features/plugins/**",
+  "docs/PLUGIN-FORMATS.md",
+  # one-line change only: `spawn_scan` discovers targets via `Formats::discover` + `ScanRunner::scan_targets`
+  "crates/ether-native/src/host.rs",
+  # packaging: nothing new to ship (formats are linked into the scanner/helper/app), listed for codesign tweaks
+  "apps/desktop/src-tauri/Cargo.toml",
 ]
