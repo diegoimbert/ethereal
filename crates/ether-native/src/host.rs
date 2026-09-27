@@ -188,6 +188,32 @@ pub fn load_audio_settings(data_dir: &std::path::Path) -> AudioSettings {
     s
 }
 
+/// Engine settings persisted next to the audio settings (`<data_dir>/config/engine.json`).
+#[derive(Debug, Default, serde::Deserialize)]
+#[serde(default)]
+struct EngineSettings {
+    /// Audio worker threads (`EngineConfig::worker_threads`); `None` = the default.
+    worker_threads: Option<usize>,
+}
+
+/// Worker threads for the engine: `ETHER_WORKERS`, else `worker_threads` of
+/// `<data_dir>/config/engine.json`, else [`crate::workers::default_workers`].
+pub fn worker_threads(data_dir: &std::path::Path) -> usize {
+    if let Some(n) = crate::workers::env_workers() {
+        return n;
+    }
+    std::fs::read_to_string(data_dir.join("config").join("engine.json"))
+        .ok()
+        .and_then(|j| serde_json::from_str::<EngineSettings>(&j).ok())
+        .and_then(|s| s.worker_threads)
+        .unwrap_or_else(crate::workers::default_workers)
+}
+
+fn pool_workers(pool: &crate::workers::WorkerPool) -> usize {
+    use ether_core::parallel::ParallelExecutor;
+    pool.workers()
+}
+
 fn save_audio_settings(data_dir: &std::path::Path, s: &AudioSettings) {
     if let Ok(json) = serde_json::to_string_pretty(s)
         && let Err(e) = crate::store::atomic_write(&settings_file(data_dir), json.as_bytes())
@@ -238,6 +264,7 @@ impl NativeHost {
         let engine_config = EngineConfig {
             sample_rate: resolved.info.sample_rate,
             max_block_size: settings.max_block_size.max(16),
+            worker_threads: worker_threads(&config.data_dir),
             ..Default::default()
         };
         let prepare = PrepareConfig {
@@ -245,7 +272,16 @@ impl NativeHost {
             max_block_size: engine_config.max_block_size,
             max_events_per_block: engine_config.max_events_per_block,
         };
-        let mut parts = ether_core::create(engine_config);
+        let mut parts = ether_core::create(engine_config.clone());
+        if engine_config.worker_threads > 0 {
+            // Multicore (`crate::workers`): independent tracks run on RT worker threads.
+            let block = std::time::Duration::from_secs_f64(
+                engine_config.max_block_size as f64 / engine_config.sample_rate.max(1) as f64,
+            );
+            let pool = crate::workers::WorkerPool::new(engine_config.worker_threads, block);
+            tracing::info!(workers = pool_workers(&pool), "audio worker pool started");
+            parts.engine.set_executor(Box::new(pool));
+        }
         parts
             .handle
             .set_stretcher_factory(Arc::new(ether_stretch::SignalsmithFactory::default()));
