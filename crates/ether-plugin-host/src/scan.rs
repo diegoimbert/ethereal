@@ -277,7 +277,11 @@ echo '{"type":"Ok","plugins":[]}'"#,
             .with_drain_timeout(Duration::from_millis(300))
             .scan_bundle(Path::new("/x/A.clap"));
         assert_eq!(r, Ok(vec![]));
-        assert!(start.elapsed() < Duration::from_secs(4), "{:?}", start.elapsed());
+        assert!(
+            start.elapsed() < Duration::from_secs(4),
+            "{:?}",
+            start.elapsed()
+        );
     }
 
     #[test]
@@ -297,7 +301,10 @@ printf '{"type":"Err","message":%s}\n' "$(printf '%s' "$req" | sed 's/"/\\"/g; s
             .unwrap_err();
         let req: ScanRequest = serde_json::from_str(&msg).unwrap();
         assert_eq!(req.bundle_path, "aufx:dely:appl");
-        assert_eq!(req.format, Some(ether_core::protocol::model::PluginFormat::Au));
+        assert_eq!(
+            req.format,
+            Some(ether_core::protocol::model::PluginFormat::Au)
+        );
         let msg = runner.scan_bundle(Path::new("/x/A.clap")).unwrap_err();
         assert_eq!(msg, r#"{"bundle_path":"/x/A.clap"}"#);
 

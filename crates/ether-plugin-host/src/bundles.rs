@@ -119,10 +119,17 @@ mod tests {
         assert_eq!(found, expected);
         assert_eq!(find_bundles(std::slice::from_ref(&a), shape), vec![a]);
         // Files only: matching directories are walked instead.
-        let files_only = BundleShape { dirs: false, ..shape };
+        let files_only = BundleShape {
+            dirs: false,
+            ..shape
+        };
         let found = find_bundles(std::slice::from_ref(&root), files_only);
         assert_eq!(found.len(), 2);
-        assert!(found.iter().any(|p| p.ends_with("Contents/x86_64-win/A.vst3")));
+        assert!(
+            found
+                .iter()
+                .any(|p| p.ends_with("Contents/x86_64-win/A.vst3"))
+        );
         assert!(find_bundles(&[root.join("missing")], shape).is_empty());
         let _ = std::fs::remove_dir_all(root);
     }

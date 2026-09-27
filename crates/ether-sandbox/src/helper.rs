@@ -197,9 +197,7 @@ fn handle(
     match req {
         Request::Params => Response::Params(plugin.params()),
         Request::ParamValue(id) => Response::ParamValue(plugin.param_value(ParamId(id))),
-        Request::SetParam { id, value } => {
-            result(plugin.set_param_value(ParamId(id), value))
-        }
+        Request::SetParam { id, value } => result(plugin.set_param_value(ParamId(id), value)),
         Request::Activate {
             sample_rate,
             max_block_size,

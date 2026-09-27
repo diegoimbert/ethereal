@@ -87,7 +87,10 @@ fn format_tags_are_stable() {
         (PluginFormat::Au, "Au", "au"),
     ] {
         assert_eq!(serde_json::to_value(f).unwrap(), Value::from(tag));
-        assert_eq!(serde_json::from_value::<PluginFormat>(tag.into()).unwrap(), f);
+        assert_eq!(
+            serde_json::from_value::<PluginFormat>(tag.into()).unwrap(),
+            f
+        );
         assert_eq!(f.as_str(), cli);
         assert_eq!(f.to_string(), cli);
         assert_eq!(PluginFormat::parse(cli), Some(f));
@@ -115,7 +118,10 @@ fn pre_vst3_file_still_loads() {
     if std::env::var_os("ETHER_BLESS").is_some() {
         let p = project_with(&[plugin(PluginFormat::Clap, "com.example.synth")]);
         let json = file::save(&p, "0.0.1").unwrap();
-        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/v2_clap_plugin.ether");
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/fixtures/v2_clap_plugin.ether"
+        );
         std::fs::write(path, json).unwrap();
         return;
     }

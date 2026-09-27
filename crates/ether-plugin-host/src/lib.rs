@@ -338,7 +338,10 @@ mod tests {
         }
         match f.handle_scan_request(&req("/x/A.vst3", Some(PluginFormat::Vst3))) {
             ScanResponse::Err { message } => {
-                assert!(message.contains("vst3 plugins are not supported"), "{message}")
+                assert!(
+                    message.contains("vst3 plugins are not supported"),
+                    "{message}"
+                )
             }
             other => panic!("{other:?}"),
         }

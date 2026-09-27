@@ -252,10 +252,25 @@ There is one file per domain: `transport`, `project` (also `EditCommand`), `trac
     state save/load, floating editor, `poll()` → `PluginNotification`s.
   - `PluginNode: Device` (audio thread): `is_faulted()`.
 
+  `PluginController::set_param_value` (defaulted) sets a param while inactive;
+  `PluginError::Unsupported` marks a format/platform feature that isn't available.
+
   In-process (`ether-clap`) and sandboxed (`ether-sandbox`: shared memory plus
   semaphores, +1 block latency reported for PDC, crash → faulted → bypass) implement the
   same traits. **IPC naming rule:** every global OS object is named with
   `ipc_name(instance, pid, purpose)`.
+- **Plugin formats (formats-base).** `PluginFormat { Clap, Vst3, Au }` (serde tags
+  `"Clap"`/`"Vst3"`/`"Au"`, stable, additive). Each format implements
+  `ether_plugin_host::PluginFormatHost` (`scan` in the scanner process only, `instantiate`
+  on the plugin main thread) in its own crate (`ether-clap`, `ether-vst3`, `ether-au`); the
+  scanner and sandbox helper (`--format`) dispatch through a `Formats` registry. **Id
+  convention** (`PluginInstance.plugin_id` = `PluginDescriptor.id`): CLAP = reverse-DNS
+  plugin id; VST3 = class id as 32 uppercase hex in canonical `FUID::toString` order (same
+  on every OS); AU = `type:subtype:manufacturer` four-char codes (`aufx:dely:appl`, non-
+  printable bytes as `\xHH`). The document stores no plugin location: hosts resolve
+  `(format, plugin_id)` through their scanned catalog (`PluginDescriptor.path` = bundle
+  path; for AU the id). `DeviceSpec::Plugin.format` and `ScanRequest.format` are optional
+  (omitted = CLAP / inferred from the path). Details: `docs/PLUGIN-FORMATS.md`.
 - **`Stretcher`** (`ether-stretch`): `configure`, `reset`, latencies,
   `set_transpose_semitones`, `seek`,
   `process(input, in_frames, output, out_frames)`, plus a `StretcherFactory`. The
@@ -284,7 +299,7 @@ There is one file per domain: `transport`, `project` (also `EditCommand`), `trac
 - `compile_graph(project, node_lookup, version) -> RenderGraphDesc` is a pure function
   that can be unit-tested without an engine.
 
-**Host-handled commands (base-6).** `Command::Engine(*)` (audio device list/config/status) and `Command::Plugin(Rescan | List | OpenEditor | CloseEditor)` are intercepted by the **native host** on the controller thread before `Controller::handle`, which replies itself (same ordering: one reply per message). The controller replies `Unsupported` if it ever receives them (web host). `EngineBridge::poll_plugins` (drained from the controller tick) and `EngineBridge::plugin_state` (read for every plugin device before serializing) are defaulted, so non-plugin hosts ignore them.
+**Host-handled commands (base-6).** `Command::Engine(*)` (audio device list/config/status) and `Command::Plugin(Rescan | List | OpenEditor | CloseEditor)` are intercepted by the **native host** on the controller thread before `Controller::handle`, which replies itself (same ordering: one reply per message). The controller replies `Unsupported` if it ever receives them (web host). `EngineBridge::poll_plugins` (drained from the controller tick) and `EngineBridge::plugin_state` (read for every plugin device before serializing) are defaulted, so non-plugin hosts ignore them. So is `EngineBridge::plugin_param_values` (current plain values of a plugin's params, read after (re)instantiating from a state blob to mirror them into `Device.params` without creating an undo step).
 
 ## 6. UI transport: `ui/src/transport`, `ui/src/state`
 

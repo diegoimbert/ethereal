@@ -100,7 +100,7 @@ vst3 = "0.3"
 objc2-audio-toolbox = "0.3"
 objc2-core-audio = "0.3"
 objc2-core-audio-types = "0.3"
-objc2-av-f-audio = "0.3"
+objc2-avf-audio = "0.3"
 objc2-core-foundation = "0.3"
 # Objective-C blocks (AU/AVAudioUnit completion handlers). License: MIT.
 block2 = "0.6"

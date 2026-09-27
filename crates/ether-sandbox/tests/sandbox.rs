@@ -539,7 +539,11 @@ fn helper_loads_through_the_requested_format() {
     // VST3/AU go through their (stub) format hosts: a clean `Unsupported`, not a crash.
     for (format, path, id) in [
         (PluginFormat::Vst3, "/nonexistent/X.vst3", "0".repeat(32)),
-        (PluginFormat::Au, "aufx:dely:appl", "aufx:dely:appl".to_string()),
+        (
+            PluginFormat::Au,
+            "aufx:dely:appl",
+            "aufx:dely:appl".to_string(),
+        ),
     ] {
         let e = SandboxedPlugin::spawn(
             Path::new(path),

@@ -47,7 +47,9 @@ fn parse_code(s: &str) -> Option<[u8; 4]> {
     let mut i = 0;
     while i < b.len() {
         if b[i] == b'\\' {
-            let hex = s.get(i + 2..i + 4).filter(|_| b.get(i + 1) == Some(&b'x'))?;
+            let hex = s
+                .get(i + 2..i + 4)
+                .filter(|_| b.get(i + 1) == Some(&b'x'))?;
             out.push(u8::from_str_radix(hex, 16).ok()?);
             i += 4;
         } else if (0x20..0x7F).contains(&b[i]) {
@@ -167,7 +169,9 @@ impl PluginFormatHost for AuFormat {
         Vec::new()
     }
     fn claims(&self, target: &Path) -> bool {
-        target.to_str().is_some_and(|s| AuComponentId::parse(s).is_some())
+        target
+            .to_str()
+            .is_some_and(|s| AuComponentId::parse(s).is_some())
     }
     fn scan(&self, target: &Path) -> Result<Vec<PluginDescriptor>, PluginError> {
         let _ = target;
@@ -221,7 +225,15 @@ mod tests {
         assert_eq!(AuComponentId::parse(&s), Some(odd));
         assert_eq!(odd.category(), DeviceCategory::NoteEffect);
 
-        for bad in ["aufx:dely", "aufx:dely:appl:x", "aufx:del:appl", "aufx:delay:appl", "aufx:d\\x4:appl", "aufx:dél:appl", ""] {
+        for bad in [
+            "aufx:dely",
+            "aufx:dely:appl:x",
+            "aufx:del:appl",
+            "aufx:delay:appl",
+            "aufx:d\\x4:appl",
+            "aufx:dél:appl",
+            "",
+        ] {
             assert_eq!(AuComponentId::parse(bad), None, "{bad}");
         }
     }
@@ -234,7 +246,10 @@ mod tests {
         assert!(!f.claims(Path::new("/p/A.vst3")));
         assert!(f.discover(&default_search_paths()).is_empty());
         assert!(f.discover_registry().is_empty());
-        assert_eq!(default_search_paths().is_empty(), !cfg!(target_os = "macos"));
+        assert_eq!(
+            default_search_paths().is_empty(),
+            !cfg!(target_os = "macos")
+        );
         let e = f.scan(Path::new("aufx:dely:appl")).unwrap_err();
         assert!(matches!(e, PluginError::Unsupported(_)), "{e:?}");
         let e = f
