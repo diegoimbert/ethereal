@@ -583,7 +583,8 @@ pub(crate) fn is_document_command(command: &Command, current: Option<ProjectId>)
         | Command::Marker(_)
         | Command::Groove(_)
         | Command::DrumRack(_)
-        | Command::Slice(_) => true,
+        | Command::Slice(_)
+        | Command::PinnedNote(_) => true,
         Command::MidiMap(c) => !matches!(c, M::Learn { .. } | M::List),
         Command::Project(ProjectCommand::SetScale { .. }) => true,
         Command::Project(ProjectCommand::Rename { id, .. }) => Some(*id) == current,
@@ -630,6 +631,7 @@ pub(crate) fn apply(ctx: &mut DocCtx, command: &Command) -> CmdResult<ReplyValue
         Command::DrumRack(c) => crate::drum_rack::rack_command(ctx, c),
         Command::Slice(c) => crate::drum_rack::slice_command(ctx, c),
         Command::MidiMap(c) => crate::midi_learn::apply(ctx, c),
+        Command::PinnedNote(c) => crate::social::pinned_note_command(ctx, c),
         Command::Project(ProjectCommand::SetScale { scale }) => {
             ctx.tx.settings(SettingsChange::Scale(*scale))
         }

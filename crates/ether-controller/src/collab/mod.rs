@@ -499,6 +499,7 @@ where
         };
         self.collab_listen_presence(&mut state);
         self.collab_host_presence(&mut state);
+        self.social_presence(&mut state);
         let Some(s) = self.collab.session.as_mut() else {
             return;
         };

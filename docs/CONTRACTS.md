@@ -680,3 +680,22 @@ Design: docs/COLLAB.md §8-§11. All additive and append-only in `ether_protocol
   plugin GUI mirrors `create/destroy_plugin_mirror`, `set_plugin_mirror_param`.
 - Relay limits (`relay::limits`): presence 20 Hz, pointer 40 Hz (clears always pass),
   site-to-site 200/s (dropped, not disconnected).
+
+### 11.17 Social: chat, pinned notes, peer playheads (base-62)
+Design: docs/COLLAB.md §12. Additive, no `.ether` version bump:
+- Model (`ether_model::social`): `ChatMessage { id, seq, author, text, sent_at }` and
+  `PinnedNote { id, position: NotePosition { beats, track, y }, text, author, created_at,
+  resolved }`, `Author { name, site, actor, color }`; tables `Project::{chat,
+  pinned_notes}` (`#[serde(default)]`); ids `ChatMessageId`, `PinnedNoteId`;
+  `EntityUpdate::PinnedNote` (`PinnedNoteChange::{Position, Text, Resolved}`); chat
+  messages have no updates. Caps: text ≤ 2000 chars (chat and notes), author name ≤ 64,
+  ≤ 2000 stored chat messages (oldest pruned by the sender, in the same transaction).
+  `note.position.track` is a weak reference (not validated, never cascaded).
+- Chat order is log order: `Project::apply` gives an `Insert` with `seq: 0` the next `seq`.
+  `History` applies chat ops without recording them (`social::is_untracked`).
+- Protocol: `Command::Chat(ChatCommand::Send { id, text })` (not a document command, not in
+  a `Batch`, `InvalidState` outside a session), `Command::PinnedNote(PinnedNoteCommand::{Add,
+  Edit, Delete})` (document command), `PresenceState::transport: Option<PeerTransport {
+  position, playing, sent_at_ms, loop_region }>` (controller-owned),
+  `CollabEvent::ChatReceived { ids }`. Until `collab-social` lands, `Chat::*` and
+  `PinnedNote::*` reply `Unsupported` (`ether-controller/tests/social_prewire.rs`).

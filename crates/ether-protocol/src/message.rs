@@ -21,6 +21,7 @@ use crate::notes::NoteCommand;
 use crate::plugins::{PluginCommand, PluginDescriptor, PluginEvent};
 use crate::project::{EditCommand, ProjectCommand, ProjectEvent, ProjectSummary};
 use crate::recording::{InputList, RecordingCommand, RecordingEvent};
+use crate::social::{ChatCommand, PinnedNoteCommand};
 use crate::tempo::TempoCommand;
 use crate::tracks::TrackCommand;
 use crate::transport::{PlayheadUpdate, TransportCommand, TransportState};
@@ -68,6 +69,11 @@ pub enum Command {
     DrumRack(DrumRackCommand),
     Slice(SliceCommand),
     Collab(CollabCommand),
+    // --- base-62 (`collab-social`, docs/COLLAB.md §12) ---
+    /// Session chat (not a document command: never an undo step).
+    Chat(ChatCommand),
+    /// Notes pinned on the arrangement (document command).
+    PinnedNote(PinnedNoteCommand),
 }
 
 /// Engine → UI. `Reply` answers exactly one `ClientMessage`; `Event`s are pushed;

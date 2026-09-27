@@ -36,6 +36,9 @@ export const TABLE_OF = {
   DrumPad: "drum_pads",
   Marker: "markers",
   MidiMapping: "midi_mappings",
+  // base-62 (collab-social): chat journal and pinned notes (no parents).
+  ChatMessage: "chat",
+  PinnedNote: "pinned_notes",
 } as const satisfies Record<EntityType, keyof Project>;
 
 /** Every entity type, parents before children (useful for ordered full-state dumps). */

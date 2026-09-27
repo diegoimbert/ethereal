@@ -105,9 +105,8 @@ fn chat_seq_is_assigned_in_apply_order() {
     assert_eq!(order, ["c", "a", "b"]);
     assert_eq!(f.p.chat[&b.id].seq, 3);
     // The inverse of a remove restores the message with its seq (not a new one).
-    let inv = f
-        .p
-        .apply(&Op::Remove {
+    let inv =
+        f.p.apply(&Op::Remove {
             key: EntityKey::ChatMessage(c.id),
         })
         .unwrap();
@@ -142,7 +141,9 @@ fn chat_is_exempt_from_history() {
     let m = f.chat("hello");
     // A chat-only transaction applies (and is returned for patches/collab) but records
     // nothing: undo still undoes the marker.
-    let applied = f.commit(vec![insert(Entity::ChatMessage(m.clone()))]).unwrap();
+    let applied = f
+        .commit(vec![insert(Entity::ChatMessage(m.clone()))])
+        .unwrap();
     assert_eq!(applied.len(), 1);
     assert!(f.p.chat.contains_key(&m.id));
     assert_eq!(f.h.state().undo_label.as_deref(), Some("t"));

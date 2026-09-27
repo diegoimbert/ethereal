@@ -46,6 +46,7 @@ mod plugins;
 mod project;
 mod recording;
 mod sidechain;
+mod social;
 pub mod store;
 pub mod streaming;
 mod tempo;

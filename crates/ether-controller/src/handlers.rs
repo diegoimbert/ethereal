@@ -143,6 +143,7 @@ where
             Command::Export(c) => self.export_command(c, out),
             Command::MidiMap(c) => self.midi_map_command(c, out),
             Command::Collab(c) => self.collab_command(c, out),
+            Command::Chat(c) => self.chat_command(c, now, out),
             other => Err(internal(format!(
                 "unhandled command {}",
                 doc::label_of(other)

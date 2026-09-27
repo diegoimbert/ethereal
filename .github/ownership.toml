@@ -743,3 +743,43 @@ paths = [
   "crates/ether-controller/tests/collab*.rs",
   "docs/COLLAB.md",
 ]
+
+[nodes.collab-social]
+# base-62: chat, pinned notes, peer playheads, "hide others" (docs/COLLAB.md §12).
+paths = [
+  "crates/ether-controller/src/social/**",
+  "crates/ether-controller/tests/social*.rs",
+  "ui/src/features/collab/social/**",
+  "ui/src/kit/Toast.tsx",
+  "ui/src/kit/toast.css",
+  "ui/src/transport/mock/roadmap/social.*",
+  "apps/web/e2e/collab-social.spec.ts",
+  # shared touch: chat rail tab (visible in a session only), palette entry
+  "ui/src/app/shell/shellStore.ts",
+  "ui/src/app/shell/tabs.tsx",
+  "ui/src/app/shell/LeftRail.tsx",
+  "ui/src/app/shell/commands.ts",
+  # shared touch: Toast export line
+  "ui/src/kit/index.ts",
+  # shared touch: notes + playhead overlays, "Leave a note" menu entry (owner UX authoritative)
+  "ui/src/features/arrangement/ArrangementView.tsx",
+  "ui/src/features/arrangement/TrackRow.tsx",
+  "ui/src/features/arrangement/arrangement.css",
+  # shared touch: ChatReceived, hide toggle in the collab dialog, renderers honour it
+  "ui/src/features/collab/store.ts",
+  "ui/src/features/collab/PresenceBar.tsx",
+  "ui/src/features/collab/PresenceBar.test.tsx",
+  "ui/src/features/collab/index.tsx",
+  "ui/src/features/collab/collab.css",
+  "ui/src/features/collab/presence/PresenceLayer.tsx",
+  "ui/src/features/collab/presence/EditorPresence.tsx",
+  "ui/src/transport/mock/roadmap/collab.*",
+  # shared touch: dispatch lines only (own colour, ChatReceived, transport refresh)
+  "crates/ether-controller/src/collab/mod.rs",
+  # shared touch: one hook after transport commands (publish the transport at once)
+  "crates/ether-controller/src/handlers.rs",
+  # shared touch: the relay sends a site its own presence (colour)
+  "crates/ether-collab/src/relay/mod.rs",
+  "crates/ether-collab/src/relay/tests.rs",
+  "docs/COLLAB.md",
+]

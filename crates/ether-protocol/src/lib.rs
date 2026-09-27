@@ -35,6 +35,7 @@ pub mod plugins;
 pub mod project;
 pub mod recording;
 pub mod remote;
+pub mod social;
 pub mod tempo;
 pub mod tracks;
 pub mod transport;

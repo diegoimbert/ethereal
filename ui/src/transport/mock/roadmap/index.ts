@@ -13,6 +13,7 @@
  * | `export.ts`     | export          | `Export::*` (`MockExports`)                       |
  * | `collab.ts`     | collab          | `Collab::*` (unsupported)                          |
  * | `remote.ts`     | remote-engine   | uploads (unsupported)                             |
+ * | `social.ts`     | collab-social   | `Chat::*`, `PinnedNote::*` (unsupported)          |
  *
  * `shared.ts` and `host.ts` are base files (cascades, the MockTransport host interface).
  * The core reducer / MockTransport call into these with one line per feature.
@@ -24,6 +25,7 @@ import { markerCommand } from "./clipEditing";
 import { drumRackCommand, sliceCommand } from "./drumRack";
 import { grooveCommand } from "./groove";
 import { midiMapCommand } from "./midiLearn";
+import { pinnedNoteCommand } from "./social";
 import { tempoCommand } from "./tempo";
 
 /** Roadmap domains that are document commands (undoable, allowed in a `Batch`). */
@@ -34,6 +36,7 @@ export function isRoadmapDocumentCommand(command: Command): boolean {
     case "Groove":
     case "DrumRack":
     case "Slice":
+    case "PinnedNote":
       return true;
     case "MidiMap":
       return command.command.type !== "Learn" && command.command.type !== "List";
@@ -65,6 +68,9 @@ export function reduceRoadmapCommand(ctx: ReducerContext, command: Command, dele
       return true;
     case "MidiMap":
       midiMapCommand(ctx, command.command);
+      return true;
+    case "PinnedNote":
+      pinnedNoteCommand(ctx, command.command);
       return true;
     default:
       return false;

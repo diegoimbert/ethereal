@@ -3,6 +3,8 @@ import type { AutomationLane } from "./AutomationLane";
 import type { AutomationLaneId } from "./AutomationLaneId";
 import type { AutomationPoint } from "./AutomationPoint";
 import type { AutomationPointId } from "./AutomationPointId";
+import type { ChatMessage } from "./ChatMessage";
+import type { ChatMessageId } from "./ChatMessageId";
 import type { Clip } from "./Clip";
 import type { ClipId } from "./ClipId";
 import type { Device } from "./Device";
@@ -17,6 +19,8 @@ import type { MidiMapping } from "./MidiMapping";
 import type { MidiMappingId } from "./MidiMappingId";
 import type { Note } from "./Note";
 import type { NoteId } from "./NoteId";
+import type { PinnedNote } from "./PinnedNote";
+import type { PinnedNoteId } from "./PinnedNoteId";
 import type { ProjectId } from "./ProjectId";
 import type { ProjectSettings } from "./ProjectSettings";
 import type { SendId } from "./SendId";
@@ -55,4 +59,12 @@ midi_mappings: { [key in MidiMappingId]: MidiMapping },
 /**
  * Drum rack pads (roadmap v2, `drum-rack`; `.ether` v3).
  */
-drum_pads: { [key in DrumPadId]: DrumPad }, };
+drum_pads: { [key in DrumPadId]: DrumPad }, 
+/**
+ * Chat journal (base-62, `collab-social`; absent in older files).
+ */
+chat: { [key in ChatMessageId]: ChatMessage }, 
+/**
+ * Notes pinned on the arrangement (base-62, `collab-social`; absent in older files).
+ */
+pinned_notes: { [key in PinnedNoteId]: PinnedNote }, };

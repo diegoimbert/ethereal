@@ -383,3 +383,62 @@ Owns: `crates/ether-controller/src/collab/mirror.rs` (new; one `mod` line in
 - Shared touches: `crates/ether-native/src/bridge.rs`, `crates/ether-native/src/plugins.rs`
   (editor routing), `crates/ether-native/src/host.rs` (`OpenEditor`),
   `crates/ether-controller/src/collab/mod.rs` (one mod line + dispatch).
+
+## `collab-social` (base-62): chat, pinned notes, peer playheads, "hide others"
+
+Design and frozen contract: [COLLAB.md §12](COLLAB.md), CONTRACTS.md §11.17. base-62
+landed the model entities (`ChatMessage`, `PinnedNote` in `ether_model::social`, tables
+`Project::{chat, pinned_notes}` with `#[serde(default)]`, no `.ether` bump), their
+validation (text caps, author, position ranges), the chat `seq` assignment in
+`Project::apply` and the **History exemption for chat** (implemented and tested in
+`ether-model/tests/social.rs`), the commands `Chat::Send` and `PinnedNote::{Add, Edit,
+Delete}`, `PresenceState::transport` (`PeerTransport`), `CollabEvent::ChatReceived`, and
+stubs replying `Unsupported` (engine `ether-controller/src/social/mod.rs`, pinned in
+`tests/social_prewire.rs`; mock `ui/src/transport/mock/roadmap/social.ts`). The owner's UX
+is authoritative: reuse their sidebar (rail tab), dialog and context-menu patterns, kit
+components and tokens.
+
+Owns: `crates/ether-controller/src/social/**`, `crates/ether-controller/tests/social*.rs`,
+`ui/src/features/collab/social/**` (new: chat panel, toasts host, notes overlay, playhead
+overlay, hide-others selector), `ui/src/kit/Toast.tsx` + `ui/src/kit/toast.css` (new kit
+component), `ui/src/transport/mock/roadmap/social.*`, `apps/web/e2e/collab-social.spec.ts`.
+
+- Controller: `Chat::Send` (validate, author snapshot from the session with its own relay
+  colour, `sent_at` from the host clock, `Insert { seq: 0 }` + overflow `Remove`s in one
+  `edit_with` transaction; `InvalidState` outside a session), `PinnedNote::*` (undoable
+  document edits like `MarkerCommand`, author from the session or `author_name`),
+  `social_presence` (controller-owned `transport`: position, playing, loop region;
+  refreshed every `PEER_TRANSPORT_REFRESH_MS` while playing and at once on
+  play/stop/locate/loop/tempo changes; `None` while listening), `ChatReceived` for peers'
+  live messages after the join catch-up, own colour learned from the relay.
+- Relay: send each site its own stamped default presence once synced (so it learns its
+  colour).
+- UI:
+  - **Chat section** in the left sidebar: a rail tab (`LeftTab` `"chat"`) shown only in a
+    session; ordered list (`seq`), author colours from the snapshot, input with the 2000
+    char cap. Hidden solo; messages still load with the project.
+  - **Toasts** (top right) for `ChatReceived` while the chat section is closed; the kit has
+    no toast, so a new kit component `Toast` (own path, tokens only, one export line in
+    `kit/index.ts`).
+  - **Shortcut** `Mod+Shift+M`: open the chat section and focus its input (Enter sends);
+    a palette entry "Chat: Focus input".
+  - **Notes overlay** in the arrangement (the presence-v2 `PresenceLayer` pattern and
+    `coords.ts` mapping): "Leave a note" in the arranger context menus, dots in the author's
+    colour, expandable text, edit/resolve/"Discard note", drag to move (one gesture).
+  - **Peer playheads** overlay: one line + ruler cap per peer in its colour, distinct from
+    ours, extrapolated with the replicated tempo map and wrapped in the loop (§12.3).
+  - **"Hide others"** toggle in the collab dialog: local setting (localStorage), never
+    replicated; `useHideOthers()` honoured by every presence/notes renderer (pointers,
+    editor pointers, selection outlines, playheads, notes, the "Leave a note" entry).
+- Shared touches: `ui/src/app/shell/{shellStore.ts, tabs.tsx, LeftRail.tsx}` (chat tab,
+  visible in a session only), `ui/src/app/shell/commands.ts` (palette entry),
+  `ui/src/kit/index.ts` (export line), `ui/src/features/arrangement/{ArrangementView.tsx,
+  TrackRow.tsx, arrangement.css}` (mount the overlays, the "Leave a note" menu entry),
+  `ui/src/features/collab/{store.ts, PresenceBar.tsx, PresenceBar.test.tsx, index.tsx,
+  collab.css}` (`ChatReceived`, the hide toggle in the dialog, `PeerHighlights` honours it),
+  `ui/src/features/collab/presence/{PresenceLayer.tsx, EditorPresence.tsx}` (honour hide
+  only), `ui/src/transport/mock/roadmap/collab.*` (simulate a peer's chat and transport),
+  `crates/ether-controller/src/collab/mod.rs` (dispatch lines only: own colour,
+  `ChatReceived`, transport refresh in the tick), `crates/ether-controller/src/handlers.rs`
+  (one hook after transport commands to publish the transport at once),
+  `crates/ether-collab/src/relay/{mod.rs, tests.rs}` (own presence to self), `docs/COLLAB.md`.
