@@ -174,6 +174,8 @@ export function runClipAction(transport: EngineTransport, action: ClipAction): P
     case "deselect":
       itemSelection.getState().clear("clip");
       useArrangementUi.getState().setTrackFocus(null);
+      // Escape also closes an unpinned piano roll.
+      useEditorStore.getState().dismiss();
       return Promise.resolve();
   }
 }

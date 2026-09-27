@@ -146,6 +146,25 @@ describe("App shell: connected", () => {
     mock.dispose();
   });
 
+  it("Escape closes an unpinned piano roll, from the arrangement or anywhere else", async () => {
+    const { container, mock } = await renderWithMock(<App />);
+    const arrangement = container.querySelector('[data-feature="arrangement"]')!;
+    const open = () => act(() => useShellStore.getState().openDrawer("piano-roll"));
+    open();
+    fireEvent.keyDown(arrangement, { key: "Escape" });
+    await waitFor(() => expect(pane("bottom")).toBeNull());
+    open();
+    fireEvent.keyDown(document.body, { key: "Escape" });
+    await waitFor(() => expect(pane("bottom")).toBeNull());
+    // Pinned, it stays.
+    open();
+    act(() => useShellStore.getState().setPinned("bottom", true));
+    fireEvent.keyDown(arrangement, { key: "Escape" });
+    fireEvent.keyDown(document.body, { key: "Escape" });
+    expect(pane("bottom")).not.toBeNull();
+    mock.dispose();
+  });
+
   it("the inspector appears with a selected clip or track and hides when nothing is selected", async () => {
     const { container, mock } = await renderWithMock(<App />);
     expect(pane("right")).toBeNull();
