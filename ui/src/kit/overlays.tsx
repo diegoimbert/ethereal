@@ -154,7 +154,8 @@ export interface MenuProps {
   "aria-label"?: string;
 }
 
-function MenuList({ items, close, label }: { items: ReadonlyArray<MenuEntry>; close: () => void; label?: string }) {
+/** The items of a menu (keyboard: ↑/↓ move focus); used by `Menu` and the context menu. */
+export function MenuList({ items, close, label }: { items: ReadonlyArray<MenuEntry>; close: () => void; label?: string }) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     ref.current?.querySelector<HTMLElement>('[role="menuitem"]:not(:disabled)')?.focus();
@@ -185,7 +186,11 @@ function MenuList({ items, close, label }: { items: ReadonlyArray<MenuEntry>; cl
             }}
           >
             <span className="eth-menu__label">{it.label}</span>
-            {it.shortcut && <span className="eth-menu__shortcut">{it.shortcut}</span>}
+            {it.shortcut && (
+              <span className="eth-menu__shortcut" aria-hidden>
+                {it.shortcut}
+              </span>
+            )}
           </button>
         ),
       )}

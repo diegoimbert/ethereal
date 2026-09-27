@@ -15,7 +15,9 @@ compare beats with `===`.
 | `marquee.ts` | marquee geometry and the `useMarquee` pointer hook |
 | `Ruler.tsx` | ruler component: ticks, labels, loop brace and playhead marker |
 | `PlayheadLine.tsx`, `playhead.ts` | full-height playhead line, playhead positioning and follow hooks |
-| `useTimelineWheel.ts` | wheel/trackpad zoom and scroll |
+| `useTimelineWheel.ts` | wheel/trackpad zoom and scroll (animated), vertical scroll and vertical zoom hooks |
+| `motion.ts`, `viewMotion.ts` | spring animation: `MOTION` tuning, `animateZoom`/`animatePan`, `ScaleFollower`, `ScrollYFollower` |
+| `useMiddleButtonPan.ts` | middle-button drag pans horizontally (view store) and vertically (element scroll) |
 | `format.ts` | `formatBarBeat` ("1.1.1"), `formatDuration`, `formatSeconds` ("m:ss.mmm") |
 | `rulerMarks.ts`, `loop.ts` | pure ruler layout and loop-drag math, for canvas rulers and tests |
 
@@ -138,9 +140,9 @@ const marquee = useMarquee({
 
 Ruler interactions:
 
-- **Click** locates the playhead with `Transport::Locate`, snapped to the grid. Hold alt to
-  bypass snapping.
-- **Drag** scrolls horizontally and zooms vertically (drag down to zoom in).
+- **Press** locates the playhead with `Transport::Locate`, snapped to the grid, and
+  **dragging** scrubs it: the playhead follows the pointer until release. Hold alt to
+  bypass snapping. The view itself never moves.
 - **Cmd/ctrl + wheel** zooms. A horizontal wheel scrolls.
 - **Loop brace:** drag the body to move it and the edges to resize it. Shift-drag on the
   ruler draws a new loop, and double-click toggles it. Each loop drag is sent with a
@@ -152,6 +154,20 @@ when the playhead leaves it.
 
 The playhead never re-renders React. `usePlayheadPosition(ref, view, mapping?)` writes a
 `transform` from `playheadStore`. `PlayheadLine` is the ready-made full-height line.
-`useTimelineWheel(ref, view)` adds the same wheel behavior to lanes.
+`useTimelineWheel(ref, view, { smoothScrollY, onVerticalZoom })` adds the same wheel behavior to lanes, and
+`useMiddleButtonPan(ref, view)` adds middle-button drag panning.
 
 Styles are in `timeline.css` and use kit tokens. Pass `className` to override them.
+
+## Motion (animated zoom, pan and scroll)
+
+Wheel and toolbar zoom/pan go through `animateZoom(view, factor, anchorPx)` and
+`animatePan(view, dx)`. Input moves a goal; a critically damped spring follows it each frame,
+carrying velocity, so bursts of wheel events add up and direction changes bend the motion
+instead of restarting it. Zoom stays locked on the beat under the pointer throughout.
+Direct manipulation (ruler drag, middle-button pan, playhead follow) is never animated and
+takes over from a running animation.
+
+Tune the feel in `MOTION` (`motion.ts`): half-lives per axis and the wheel zoom
+sensitivity. `MOTION.enabled = false` applies everything instantly. It is off with
+`prefers-reduced-motion` and in tests.

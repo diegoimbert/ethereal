@@ -1,7 +1,8 @@
 .eth-shell {
   display: grid;
-  grid-template-columns: var(--eth-size-sidebar-width) minmax(0, 1fr);
-  grid-template-rows: auto minmax(0, 1fr) var(--eth-size-detail-height);
+  /* The splitters set --eth-sidebar-width / --eth-detail-height inline on the shell. */
+  grid-template-columns: var(--eth-sidebar-width, var(--eth-size-sidebar-width)) minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr) var(--eth-detail-height, var(--eth-size-detail-height));
   grid-template-areas:
     "top top"
     "sidebar main"
@@ -37,6 +38,37 @@
 }
 .eth-shell__detail {
   grid-area: detail;
+}
+
+/* Pane splitters: thin grips laid over the gaps between panes. */
+.eth-splitter {
+  position: relative;
+  z-index: 10;
+  touch-action: none;
+}
+.eth-splitter:hover {
+  background: color-mix(in srgb, var(--eth-color-selection) 50%, transparent);
+}
+/* Centered on the gap between the panes. */
+.eth-splitter--vertical {
+  width: var(--eth-size-splitter-width);
+  margin-left: calc((var(--eth-size-splitter-width) + var(--eth-space-xs)) / -2);
+  justify-self: start;
+  cursor: ew-resize;
+}
+.eth-splitter--horizontal {
+  height: var(--eth-size-splitter-width);
+  margin-top: calc((var(--eth-size-splitter-width) + var(--eth-space-xs)) / -2);
+  align-self: start;
+  cursor: ns-resize;
+}
+.eth-shell__split-sidebar {
+  grid-column: 2;
+  grid-row: 2 / 4;
+}
+.eth-shell__split-detail {
+  grid-column: 2;
+  grid-row: 3;
 }
 .eth-shell__tabs {
   display: flex;

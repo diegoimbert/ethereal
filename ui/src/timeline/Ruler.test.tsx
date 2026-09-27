@@ -86,14 +86,24 @@ describe("Ruler", () => {
     await waitFor(() => expect(useProjectStore.getState().project!.settings.loop_enabled).toBe(true));
   });
 
-  it("vertical drag zooms, horizontal drag scrolls", async () => {
+  it("dragging scrubs the playhead and never moves the view", async () => {
     const { view } = await setup();
     const ruler = screen.getByTestId("ruler");
-    act(() => {
-      fireEvent.pointerDown(ruler, { button: 0, clientX: 200, clientY: 0 });
-      window.dispatchEvent(new MouseEvent("pointermove", { clientX: 200, clientY: 50 }));
-      window.dispatchEvent(new MouseEvent("pointerup", { clientX: 200, clientY: 50 }));
+    await act(async () => {
+      fireEvent.pointerDown(ruler, { button: 0, clientX: 40, clientY: 0 });
+      await Promise.resolve();
     });
-    expect(view.getState().pxPerBeat).toBeGreaterThan(20);
+    await waitFor(() => expect(playheadStore.getPlayhead()?.transport.position).toBe(2));
+    await act(async () => {
+      pointer("pointermove", 120, { clientY: 60 });
+      await Promise.resolve();
+    });
+    await waitFor(() => expect(playheadStore.getPlayhead()?.transport.position).toBe(6));
+    await act(async () => {
+      pointer("pointerup", 120);
+      await Promise.resolve();
+    });
+    expect(view.getState().pxPerBeat).toBe(20);
+    expect(view.getState().scrollBeats).toBe(0);
   });
 });

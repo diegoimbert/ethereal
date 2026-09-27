@@ -3,7 +3,7 @@ import { useState, type DragEvent } from "react";
 import type { Device, DeviceId } from "@/generated";
 import { PluginDeviceControls } from "@/features/plugins";
 import { SidechainSelector } from "@/features/sidechain";
-import { Button } from "@/kit";
+import { Button, openContextMenu } from "@/kit";
 import { cmd } from "@/transport";
 import { DEVICE_DRAG_TYPE, groupParams } from "./chainUtils";
 import { useDescriptor } from "./descriptors";
@@ -52,6 +52,16 @@ export function DeviceView({ device, prev, moveRightBefore, onDropBefore }: Devi
     >
       <header
         className="eth-device__header"
+        onContextMenu={(e) =>
+          openContextMenu(e, [
+            {
+              label: device.enabled ? "Bypass" : "Enable",
+              onSelect: () => void send(cmd("Device", { type: "SetEnabled", id: device.id, enabled: !device.enabled })),
+            },
+            "separator",
+            { label: "Delete Device", danger: true, onSelect: () => void send(cmd("Device", { type: "Remove", id: device.id })) },
+          ])
+        }
         draggable
         onDragStart={(e) => {
           e.dataTransfer.setData(DEVICE_DRAG_TYPE, device.id);

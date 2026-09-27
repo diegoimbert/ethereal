@@ -2,9 +2,9 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Command, Note } from "@/generated";
 import { useEditorStore, useProjectStore } from "@/state";
-import { itemSelection } from "@/timeline";
+import { itemSelection, wheelZoomFactor } from "@/timeline";
 import { cmd, MockTransport, TransportProvider } from "@/transport";
-import { DEFAULT_KEY_HEIGHT as KEY_H } from "./geometry";
+import { DEFAULT_KEY_HEIGHT as KEY_H, MAX_KEY_HEIGHT } from "./geometry";
 import { PianoRoll } from "./index";
 
 // The piano roll's own view starts at 40 px/beat, scrolled to 0. jsdom has no layout: the
@@ -124,6 +124,30 @@ describe("PianoRoll", () => {
     expect(screen.getByTestId("piano-roll-step").textContent).toBe("1/4");
   });
 
+  it("double-click and drag sets the new note's length", async () => {
+    const { clip } = await setup();
+    await doublePress(x(2.2), y(70), x(5.4));
+    const added = notesOf(clip).filter((n) => n.pitch === 70);
+    expect(added).toHaveLength(1);
+    expect(added[0]).toMatchObject({ start: 2, duration: 4 });
+    expect([...itemSelection.getState().selected.note]).toEqual([added[0]!.id]);
+  });
+
+  it("zooms the key height with cmd+shift+wheel, within limits", async () => {
+    const { a } = await setup();
+    const body = document.querySelector<HTMLElement>(".eth-pr__body")!;
+    act(() => {
+      fireEvent.wheel(body, { deltaY: -100, metaKey: true, shiftKey: true });
+    });
+    const k = KEY_H * wheelZoomFactor(-100);
+    expect(parseFloat((noteEl(a) as HTMLElement).style.height)).toBeCloseTo(k);
+    expect(parseFloat((noteEl(a) as HTMLElement).style.top)).toBeCloseTo((127 - 60) * k);
+    act(() => {
+      for (let i = 0; i < 20; i++) fireEvent.wheel(body, { deltaY: -200, ctrlKey: true, shiftKey: true });
+    });
+    expect((noteEl(a) as HTMLElement).style.height).toBe(`${MAX_KEY_HEIGHT}px`);
+  });
+
   it("moves the selection with snapping (time and pitch) as one undo step", async () => {
     const { clip, a, b } = await setup();
     act(() => itemSelection.getState().select("note", [a, b], "replace"));
@@ -154,6 +178,39 @@ describe("PianoRoll", () => {
     expect(notesOf(clip)[0]).toMatchObject({ start: 0, duration: 3 });
   });
 
+  it("cmd-drag duplicates the selection to the drop point as one undo step", async () => {
+    const { clip, a, b } = await setup();
+    act(() => itemSelection.getState().select("note", [a, b], "replace"));
+    // Drag note A's body by +2 beats and up 1 row with cmd held.
+    await drag(noteEl(a), [x(1.5), y(60)], [x(3.5), y(61)], { metaKey: true });
+    const all = notesOf(clip);
+    expect(all).toHaveLength(4);
+    expect(all.find((n) => n.id === a)).toMatchObject({ start: 1, pitch: 60 });
+    expect(all.find((n) => n.id === b)).toMatchObject({ start: 2, pitch: 64 });
+    const copies = all.filter((n) => n.id !== a && n.id !== b);
+    expect(copies.map((n) => [n.start, n.pitch])).toEqual([
+      [3, 61],
+      [4, 65],
+    ]);
+    expect(new Set(itemSelection.getState().selected.note)).toEqual(new Set(copies.map((n) => n.id)));
+    await undo();
+    expect(notesOf(clip)).toHaveLength(2);
+  });
+
+  it("keeps the resize (or move) cursor for the whole drag", async () => {
+    const { a } = await setup();
+    const root = document.documentElement;
+    fireEvent.pointerDown(noteEl(a), { button: 0, clientX: x(2) - 1, clientY: y(60) });
+    expect(root.style.getPropertyValue("--eth-drag-cursor")).toBe("ew-resize");
+    expect(root.dataset.dragCursor).toBeDefined();
+    fireEvent.pointerUp(window, { clientX: x(2) - 1, clientY: y(60) });
+    expect(root.dataset.dragCursor).toBeUndefined();
+    fireEvent.pointerDown(noteEl(a), { button: 0, clientX: x(1.5), clientY: y(60) });
+    expect(root.style.getPropertyValue("--eth-drag-cursor")).toBe("move");
+    fireEvent.pointerUp(window, { clientX: x(1.5), clientY: y(60) });
+    await flush();
+  });
+
   it("clicking a note selects it; shift adds; clicking empty space deselects", async () => {
     const { a, b } = await setup();
     await drag(noteEl(a), [x(1.5), y(60)], [x(1.5), y(60)]);
@@ -172,10 +229,17 @@ describe("PianoRoll", () => {
     expect(new Set(itemSelection.getState().selected.note)).toEqual(new Set([a, b]));
   });
 
+  /** Two presses at the same spot; the second one is held and dragged to `toX`. */
+  async function doublePress(atX: number, atY: number, toX = atX) {
+    fireEvent.pointerDown(grid(), { button: 0, clientX: atX, clientY: atY });
+    fireEvent.pointerUp(window, { clientX: atX, clientY: atY });
+    await flush();
+    await drag(grid(), [atX, atY], [toX, atY]);
+  }
+
   it("double-click on empty space adds a snapped note; double-click on a note deletes it", async () => {
     const { clip, a } = await setup();
-    fireEvent.doubleClick(grid(), { clientX: x(4.6), clientY: y(67) });
-    await flush();
+    await doublePress(x(4.6), y(67));
     const added = notesOf(clip).find((n) => n.pitch === 67)!;
     expect(added).toMatchObject({ start: 4.5 - 0.5, duration: 1 });
     expect([...itemSelection.getState().selected.note]).toEqual([added.id]);

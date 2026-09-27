@@ -85,7 +85,8 @@ buttons are `sm`, so to resize them edit `--button-height-sm` (etc.) in
 - **TextInput / Select / NumberField**: `--input-height`, `--input-padding-x`, `--input-font-size`,
   `--input-bg`, `--input-fg`, `--input-border`, `--input-border-focus`, `--input-radius`
 - **Popover / Menu**: `--popover-bg`, `--popover-border`, `--popover-radius`, `--popover-shadow`,
-  `--menu-item-height`, `--menu-item-bg-hover`
+  `--menu-item-height`, `--menu-item-bg-hover`; context menu entrance:
+  `--context-menu-enter-duration`, `--context-menu-enter-ease`, `--context-menu-enter-scale`
 - **Dialog**: `--dialog-width`, `--dialog-bg`, `--dialog-border`, `--dialog-radius`,
   `--dialog-shadow`, `--dialog-backdrop`
 - **Tooltip**: `--tooltip-bg`, `--tooltip-fg`, `--tooltip-border`, `--tooltip-radius`, `--tooltip-delay`
