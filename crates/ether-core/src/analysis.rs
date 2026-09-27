@@ -4,10 +4,11 @@
 //!
 //! # Contract
 //! - A node opts in with [`crate::Node::has_analysis`] (queried once when it is added to the
-//!   engine) and fills frames in [`crate::Node::analysis`]. Nodes accumulate what they need
+//!   engine) and fills frames in [`crate::Node::analysis`]; it is only asked while watched
+//!   (`EngineHandle::watch_analysis`). Nodes accumulate what they need
 //!   (FFT input, pitch estimate) inside `process` and only **copy** the latest result out in
 //!   `analysis` (RT: no allocation, bounded).
-//! - The engine calls `analysis` for every opted-in live node (bypassed ones too) on the audio
+//! - The engine calls `analysis` for every watched live node (bypassed ones too), round-robin, on the audio
 //!   thread, after all track jobs of a block, at most [`ANALYSIS_HZ`] times per second
 //!   (every `sample_rate / ANALYSIS_HZ` frames), and pushes the frame into a fixed-size SPSC
 //!   ring of `Copy` frames ([`ANALYSIS_RING`] slots). When the ring is full, frames are
@@ -18,7 +19,9 @@
 //!   (device, kind) per tick.
 //!
 //! # Frame encoding per [`AnalysisKind`] (`data[..len]`)
-//! - `Spectrum`: `[min_hz, max_hz, bin_0_db, ..., bin_{n-1}_db]`, `n <= 256`, bins log-spaced.
+//! - `Spectrum`: `[min_hz, max_hz, bin_0_db, ..., bin_{n-1}_db]`, `n <= 256`, bins log-spaced
+//!   (the device's output); `SpectrumPre`: the same, measured at its input (EQ pre/post
+//!   overlay, `graphical-eq`).
 //! - `Tuner`: `[hz (0 = none), note (-1 = none), cents, confidence 0..1, level_db]`.
 //! - `Levels`: device-defined values (e.g. per-band gain reduction in dB).
 //! - `Modulation`: triples `[f32::from_bits(param id), base, effective]` (normalized).
@@ -32,7 +35,7 @@ pub const ANALYSIS_MAX_VALUES: usize = 1024;
 /// Frames per second per node (upper bound).
 pub const ANALYSIS_HZ: u32 = 30;
 /// Ring capacity (frames).
-pub const ANALYSIS_RING: usize = 64;
+pub const ANALYSIS_RING: usize = 128;
 /// Most analysis nodes tracked at once (further opted-in nodes are ignored).
 pub const MAX_ANALYSIS_NODES: usize = 128;
 
@@ -43,6 +46,8 @@ pub enum AnalysisKind {
     Tuner,
     Levels,
     Modulation,
+    /// v0.2 (`graphical-eq`): input spectrum.
+    SpectrumPre,
 }
 
 /// One analysis frame (fixed size, `Copy`: travels through the ring by value).
@@ -99,8 +104,15 @@ impl AnalysisFrame {
 }
 
 /// Audio-thread side (owned by the `Engine`).
+///
+/// Nodes that opt in get a slot (`on_add`); only **watched** slots are collected
+/// (`EngineHandle::watch_analysis`, driven by the controller's per-connection, refcounted
+/// `Analysis::Watch`). Collection walks the slots round-robin from where the previous pass
+/// stopped, so when the ring is full the same nodes are not always the ones dropped.
 pub(crate) struct AnalysisRt {
-    keys: [Option<NodeKey>; MAX_ANALYSIS_NODES],
+    /// `(node, watched)`.
+    slots: [Option<(NodeKey, bool)>; MAX_ANALYSIS_NODES],
+    cursor: usize,
     interval: usize,
     elapsed: usize,
     ring: Producer<AnalysisFrame>,
@@ -113,7 +125,8 @@ impl AnalysisRt {
         let (ring, rx) = RingBuffer::new(ANALYSIS_RING);
         (
             Self {
-                keys: [None; MAX_ANALYSIS_NODES],
+                slots: [None; MAX_ANALYSIS_NODES],
+                cursor: 0,
                 interval: (sample_rate / ANALYSIS_HZ).max(1) as usize,
                 elapsed: 0,
                 ring,
@@ -123,19 +136,36 @@ impl AnalysisRt {
         )
     }
 
-    /// RT. A node was added to the engine.
+    /// RT. A node was added to the engine at `key` (any previous occupant of that slot
+    /// index, whatever its generation, is forgotten).
     pub(crate) fn on_add(&mut self, key: NodeKey, node: &dyn Node) {
+        self.forget(|n| n.index == key.index);
         if node.has_analysis()
-            && let Some(slot) = self.keys.iter_mut().find(|k| k.is_none())
+            && let Some(slot) = self.slots.iter_mut().find(|k| k.is_none())
         {
-            *slot = Some(key);
+            *slot = Some((key, false));
         }
     }
 
     /// RT. A node left the engine.
     pub(crate) fn on_remove(&mut self, key: NodeKey) {
-        for k in self.keys.iter_mut().filter(|k| **k == Some(key)) {
-            *k = None;
+        self.forget(|n| n == key);
+    }
+
+    fn forget(&mut self, matches: impl Fn(NodeKey) -> bool) {
+        for k in self.slots.iter_mut() {
+            if k.is_some_and(|(n, _)| matches(n)) {
+                *k = None;
+            }
+        }
+    }
+
+    /// RT. Start/stop collecting `key` (unknown keys are ignored).
+    pub(crate) fn watch(&mut self, key: NodeKey, on: bool) {
+        for (n, w) in self.slots.iter_mut().flatten() {
+            if *n == key {
+                *w = on;
+            }
         }
     }
 
@@ -152,18 +182,28 @@ impl AnalysisRt {
         }
     }
 
-    /// Opted-in node keys.
-    pub(crate) fn keys(&self) -> [Option<NodeKey>; MAX_ANALYSIS_NODES] {
-        self.keys
-    }
-
-    /// RT. Ask `node` for a frame and push it.
-    pub(crate) fn collect(&mut self, key: NodeKey, node: &mut dyn Node) {
-        self.scratch.begin(AnalysisKind::Levels);
-        if node.analysis(&mut self.scratch) {
-            self.scratch.node = key;
-            let _ = self.ring.push(*self.scratch);
+    /// RT. One frame from every watched node, round-robin, while the ring has room.
+    pub(crate) fn collect_all(&mut self, nodes: &mut [crate::engine::NodeSlot]) {
+        let n = MAX_ANALYSIS_NODES;
+        for step in 0..n {
+            let i = (self.cursor + step) % n;
+            let Some((key, true)) = self.slots[i] else {
+                continue;
+            };
+            if self.ring.slots() == 0 {
+                // Resume here next time.
+                self.cursor = i;
+                return;
+            }
+            if let Some(node) = crate::engine::NodeSlot::get(nodes, key) {
+                self.scratch.begin(AnalysisKind::Levels);
+                if node.analysis(&mut self.scratch) {
+                    self.scratch.node = key;
+                    let _ = self.ring.push(*self.scratch);
+                }
+            }
         }
+        self.cursor = (self.cursor + 1) % n;
     }
 
     /// RT. Push a frame (dropped when the ring is full). Used by `crate::modulation::readback`.

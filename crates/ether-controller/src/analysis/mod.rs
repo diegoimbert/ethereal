@@ -1,18 +1,23 @@
 //! Device → UI analysis channel, controller side (v0.2, implemented and frozen by
 //! contracts-3; CONTRACTS.md §12.4.3). Producers: `fx-analysis`, `fx-dynamics`,
-//! `racks-modulation` (engine side: `ether_core::analysis`).
+//! `graphical-eq`, `racks-modulation` (engine side: `ether_core::analysis`).
 //!
-//! - `Analysis::{Watch, Unwatch}` maintain the watched-device set (runtime, not saved;
-//!   cleared when a project is opened or closed).
-//! - Every tick, [`EtherController::analysis_tick`] drains `EngineBridge::poll_analysis`,
-//!   maps node keys to devices, keeps the **latest frame per (device, kind)** and emits one
-//!   `Event::Analysis` per watched device and kind. Frames of unwatched devices are dropped.
+//! - Watches are **refcounted**: every `Analysis::Watch` adds one, every `Unwatch` removes
+//!   one. Connections own their watches: the remote server's router sends an `Unwatch` for
+//!   each watch a disconnecting client still held (`ether-server/src/router.rs`); local hosts
+//!   have one connection, and every project load clears all watches.
+//! - Each tick, [`EtherController::analysis_tick`] tells the engine which nodes to collect
+//!   (`EngineBridge::watch_analysis`, diffed against what it sent; node re-creation changes
+//!   keys and is picked up the same way), drains `EngineBridge::poll_analysis`, maps node keys
+//!   to devices, keeps the **latest frame per (device, kind)** and emits one
+//!   `Event::Analysis` per watched device and kind.
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use ether_core::NodeKey;
 use ether_core::analysis::{AnalysisFrame, AnalysisKind};
 use ether_core::protocol::analysis::{
-    AnalysisCommand, AnalysisData, AnalysisEvent, ModulatedValue,
+    AnalysisCommand, AnalysisData, AnalysisEvent, ModulatedValue, SpectrumStage,
 };
 use ether_core::protocol::model::{DeviceId, ParamId};
 use ether_core::protocol::{Event, ReplyValue};
@@ -24,14 +29,23 @@ use crate::{EngineBridge, EtherController, HostServices, MessageSink};
 
 #[derive(Default)]
 pub(crate) struct AnalysisState {
-    watched: BTreeSet<DeviceId>,
+    /// Device → number of watches.
+    watched: BTreeMap<DeviceId, u32>,
+    /// Node keys the engine was told to collect.
+    sent: BTreeSet<NodeKey>,
     frames: Vec<AnalysisFrame>,
 }
 
 impl AnalysisState {
-    /// Forget every watch (project opened/closed).
+    /// Forget every watch (project opened/closed). The engine side follows at the next tick.
     pub(crate) fn clear(&mut self) {
         self.watched.clear();
+    }
+
+    /// Current refcount of `device` (tests, diagnostics).
+    #[cfg(test)]
+    pub(crate) fn count(&self, device: DeviceId) -> u32 {
+        self.watched.get(&device).copied().unwrap_or(0)
     }
 }
 
@@ -41,6 +55,7 @@ fn kind_tag(k: AnalysisKind) -> u8 {
         AnalysisKind::Tuner => 1,
         AnalysisKind::Levels => 2,
         AnalysisKind::Modulation => 3,
+        AnalysisKind::SpectrumPre => 4,
     }
 }
 
@@ -48,7 +63,7 @@ fn kind_tag(k: AnalysisKind) -> u8 {
 pub(crate) fn decode(frame: &AnalysisFrame) -> Option<AnalysisData> {
     let v = frame.values();
     Some(match frame.kind {
-        AnalysisKind::Spectrum => {
+        AnalysisKind::Spectrum | AnalysisKind::SpectrumPre => {
             if v.len() < 2 {
                 return None;
             }
@@ -56,6 +71,11 @@ pub(crate) fn decode(frame: &AnalysisFrame) -> Option<AnalysisData> {
                 min_hz: v[0],
                 max_hz: v[1],
                 bins_db: v[2..].to_vec(),
+                stage: if frame.kind == AnalysisKind::SpectrumPre {
+                    SpectrumStage::Pre
+                } else {
+                    SpectrumStage::Post
+                },
             }
         }
         AnalysisKind::Tuner => {
@@ -94,12 +114,16 @@ where
     L: Library,
 {
     pub(crate) fn analysis_command(&mut self, command: &AnalysisCommand) -> CmdResult<ReplyValue> {
+        let w = &mut self.analysis.watched;
         match command {
-            AnalysisCommand::Watch { device } => {
-                self.analysis.watched.insert(*device);
-            }
+            AnalysisCommand::Watch { device } => *w.entry(*device).or_insert(0) += 1,
             AnalysisCommand::Unwatch { device } => {
-                self.analysis.watched.remove(device);
+                if let Some(n) = w.get_mut(device) {
+                    *n -= 1;
+                    if *n == 0 {
+                        w.remove(device);
+                    }
+                }
             }
         }
         Ok(ReplyValue::Unit)
@@ -107,6 +131,22 @@ where
 
     /// Called every tick (see the module docs).
     pub(crate) fn analysis_tick(&mut self, out: &mut dyn MessageSink) {
+        // Engine-side watches follow the device watches (and node re-creation).
+        let want: BTreeSet<NodeKey> = self
+            .analysis
+            .watched
+            .keys()
+            .filter_map(|d| self.engine.node(*d))
+            .collect();
+        if want != self.analysis.sent {
+            for &k in self.analysis.sent.difference(&want) {
+                let _ = self.bridge.watch_analysis(k, false);
+            }
+            for &k in want.difference(&self.analysis.sent) {
+                let _ = self.bridge.watch_analysis(k, true);
+            }
+            self.analysis.sent = want;
+        }
         let mut frames = std::mem::take(&mut self.analysis.frames);
         frames.clear();
         self.bridge.poll_analysis(&mut frames);
@@ -114,7 +154,7 @@ where
             let mut latest: BTreeMap<(DeviceId, u8), usize> = BTreeMap::new();
             for (i, f) in frames.iter().enumerate() {
                 if let Some(device) = self.engine.device_of(f.node)
-                    && self.analysis.watched.contains(&device)
+                    && self.analysis.watched.contains_key(&device)
                 {
                     latest.insert((device, kind_tag(f.kind)), i);
                 }
@@ -169,12 +209,23 @@ mod tests {
                 }]
             })
         );
-        f.begin(AnalysisKind::Spectrum);
+        f.begin(AnalysisKind::SpectrumPre);
         for v in [20.0, 20000.0, -60.0, -50.0] {
             f.push(v);
         }
-        assert!(
-            matches!(decode(&f), Some(AnalysisData::Spectrum { bins_db, .. }) if bins_db.len() == 2)
-        );
+        assert!(matches!(
+            decode(&f),
+            Some(AnalysisData::Spectrum { bins_db, stage: SpectrumStage::Pre, .. }) if bins_db.len() == 2
+        ));
+    }
+
+    #[test]
+    fn watches_are_refcounted() {
+        let mut s = AnalysisState::default();
+        let d = DeviceId(ether_core::protocol::model::Ulid(1));
+        *s.watched.entry(d).or_insert(0) += 2;
+        assert_eq!(s.count(d), 2);
+        s.clear();
+        assert_eq!(s.count(d), 0);
     }
 }

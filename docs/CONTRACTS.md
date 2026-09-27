@@ -804,7 +804,12 @@ second, into a fixed ring of `Copy` frames (`ANALYSIS_RING` = 64, `ANALYSIS_MAX_
 `EngineBridge::poll_analysis` (native done; web: forward from the worklet, `fx-analysis`)
 → the controller keeps the latest frame per (device, kind) per tick and emits
 `Event::Analysis { Frame { device, data } }` only for devices watched with
-`Analysis::Watch` (per connection; cleared on project load). Kinds and encodings:
+`Analysis::Watch`. Watches are refcounted in the controller and owned per connection: the
+remote router releases a disconnecting client's watches (`Unwatch` per watch held; an
+`Unwatch` a client doesn't hold is a no-op); project loads clear them all. Only watched
+nodes are collected (`EngineHandle::watch_analysis`, synced by the controller each tick,
+node re-creation included), round-robin so a full ring never starves the same nodes; a
+node re-added into a reused slot index replaces the stale entry. Kinds and encodings:
 `Spectrum` (`[min_hz, max_hz, bins_db…]`, ≤ 256 log-spaced bins), `Tuner` (`[hz|0, note|-1,
 cents, confidence, level_db]`), `Levels` (device-defined meters, e.g. gain reduction),
 `Modulation` (`[param bits, base, effective]` triples, racks-modulation readback).
@@ -943,7 +948,7 @@ Migration: v0.1 media are `Project`; nothing moves.
   with the VCA id). VCA tracks are compiled into `RenderGraphDesc::vcas`, never `tracks`.
 
 ### 12.11 Engine pre-wiring (contracts-3, hot files touched once)
-`engine.rs`: analysis collection after the jobs; `freeze::render_frozen` in the clip stage;
+`engine.rs`: analysis collection after the jobs (watched nodes only); `freeze::render_frozen` in the clip stage;
 `bus_tap` gather/mix/write at PreFx/PostFx/PostFader; `vca.update` before the jobs and
 `vca.apply` after the fader; rack-chain `run` at the rack entry plus param/automation
 routing and latency refresh for chain nodes; `modulation::{intercept, render, pre_node,

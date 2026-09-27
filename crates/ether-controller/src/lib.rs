@@ -290,6 +290,13 @@ pub trait EngineBridge {
         let _ = out;
     }
 
+    /// Start/stop collecting a node's analysis frames (`EngineHandle::watch_analysis`;
+    /// driven by the watched devices). Default: nothing (hosts without the channel).
+    fn watch_analysis(&mut self, node: NodeKey, on: bool) -> Result<(), BridgeError> {
+        let _ = (node, on);
+        Ok(())
+    }
+
     // ─── base-53: "listen on <peer>" native sender (`stream-host`; docs/COLLAB.md §9) ───
 
     /// What this host can do for streaming. Default: nothing (the web build streams from

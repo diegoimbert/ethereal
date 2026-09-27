@@ -80,6 +80,11 @@ enum Control {
     Transport(TransportControl),
     Preview(crate::preview::PreviewControl),
     StreamTap(Option<Box<crate::stream_tap::StreamTapWriter>>),
+    /// v0.2: start/stop collecting a node's analysis frames (`crate::analysis`).
+    AnalysisWatch {
+        key: NodeKey,
+        on: bool,
+    },
 }
 
 enum Garbage {
@@ -347,11 +352,7 @@ impl Engine {
 
         // --- v0.2 analysis channel (`crate::analysis`): after every track job ---
         if self.analysis.due(frames) {
-            for key in self.analysis.keys().into_iter().flatten() {
-                if let Some(node) = NodeSlot::get(&mut self.nodes, key) {
-                    self.analysis.collect(key, node.as_mut());
-                }
-            }
+            self.analysis.collect_all(&mut self.nodes);
             crate::modulation::readback(&mut self.snapshot.rt.tracks, &mut self.analysis);
         }
 
@@ -401,7 +402,6 @@ impl Engine {
                         continue;
                     }
                     self.node_latency[i].store(node.latency(), Ordering::Relaxed);
-                    self.analysis.on_remove(key);
                     self.analysis.on_add(key, node.as_ref());
                     let slot = &mut self.nodes[i];
                     slot.generation = key.generation;
@@ -473,6 +473,7 @@ impl Engine {
                         self.retire(Garbage::Source(old));
                     }
                 }
+                Control::AnalysisWatch { key, on } => self.analysis.watch(key, on),
                 Control::StreamTap(w) => {
                     if let Some(old) = self.stream_tap.set(w) {
                         self.retire(Garbage::StreamTap(old));
@@ -1620,7 +1621,6 @@ impl EngineHandle {
         out.playhead = Some(self.playhead());
     }
 
-    /// Latest playhead published by the audio thread.
     /// Drain the analysis frames pushed since the last call ([`crate::analysis`], v0.2),
     /// oldest first. Non-blocking.
     pub fn poll_analysis(&mut self, mut f: impl FnMut(&crate::analysis::AnalysisFrame)) {
@@ -1629,6 +1629,13 @@ impl EngineHandle {
         }
     }
 
+    /// Start/stop collecting `node`'s analysis frames ([`crate::analysis`], v0.2; driven by
+    /// the controller's watches). Non-blocking.
+    pub fn watch_analysis(&mut self, node: NodeKey, on: bool) -> Result<(), EngineError> {
+        self.send(Control::AnalysisWatch { key: node, on })
+    }
+
+    /// Latest playhead published by the audio thread.
     pub fn playhead(&self) -> PlayheadState {
         self.playhead.read()
     }

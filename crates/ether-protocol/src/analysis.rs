@@ -45,6 +45,10 @@ pub enum AnalysisData {
         min_hz: f32,
         max_hz: f32,
         bins_db: Vec<f32>,
+        /// v0.2 (`graphical-eq`): input (`Pre`) or output (`Post`, the default) of the
+        /// device. Analyzers send `Post`.
+        #[serde(default)]
+        stage: SpectrumStage,
     },
     /// Pitch detection. `hz: None` = no stable pitch (silence/noise).
     Tuner {
@@ -63,6 +67,14 @@ pub enum AnalysisData {
     /// Modulated param values of the device (`racks-modulation` readback for depth rings):
     /// normalized `base` and `effective` values of every modulated param.
     Modulation { values: Vec<ModulatedValue> },
+}
+
+/// Which side of the device a spectrum was measured on.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+pub enum SpectrumStage {
+    Pre,
+    #[default]
+    Post,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize, TS)]

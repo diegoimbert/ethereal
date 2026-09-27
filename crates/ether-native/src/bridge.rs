@@ -438,6 +438,10 @@ impl EngineBridge for NativeBridge {
         self.handle.poll_analysis(|f| out.push(*f));
     }
 
+    fn watch_analysis(&mut self, node: NodeKey, on: bool) -> Result<(), BridgeError> {
+        self.handle.watch_analysis(node, on).map_err(engine_err)
+    }
+
     fn descriptor(&mut self, device: DeviceId) -> Option<DeviceDescriptor> {
         match &self.devices.get(&device)?.kind {
             DeviceKind::Builtin(t) => Some(ether_devices::descriptor(*t)),

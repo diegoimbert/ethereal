@@ -53,6 +53,7 @@ fn analysis_frames_are_throttled_and_allocation_free() {
         .handle
         .add_node(Box::new(Analyzer { blocks: 0.0 }))
         .unwrap();
+    // Unwatched nodes are never asked; watched ones are.
     let t = with_chain(track(tid(2), TrackKind::Audio, Some(tid(1))), &[key]);
     parts
         .handle
@@ -61,9 +62,18 @@ fn analysis_frames_are_throttled_and_allocation_free() {
             ..Default::default()
         })
         .unwrap();
-    // One second of audio.
+    // One second of audio, unwatched: nothing.
     let blocks = SR as usize / BLOCK;
     let mut out = [vec![0.0f32; BLOCK], vec![0.0f32; BLOCK]];
+    for _ in 0..blocks {
+        let (l, r) = out.split_at_mut(1);
+        let mut outs: [&mut [f32]; 2] = [&mut l[0], &mut r[0]];
+        assert_no_alloc(|| parts.engine.process(&[], &mut outs, BLOCK));
+    }
+    let mut none = 0;
+    parts.handle.poll_analysis(|_| none += 1);
+    assert_eq!(none, 0);
+    parts.handle.watch_analysis(key, true).unwrap();
     for _ in 0..blocks {
         let (l, r) = out.split_at_mut(1);
         let mut outs: [&mut [f32]; 2] = [&mut l[0], &mut r[0]];
@@ -119,6 +129,11 @@ fn placeholder_hooks_keep_v01_behaviour() {
             ..Default::default()
         })
         .unwrap();
-    let (l, r) = render(&mut parts.engine, 4 * BLOCK, BLOCK);
-    assert!(l.iter().chain(&r).all(|s| *s == 0.0));
+    let mut out = [vec![0.0f32; BLOCK], vec![0.0f32; BLOCK]];
+    for _ in 0..4 {
+        let (l, r) = out.split_at_mut(1);
+        let mut outs: [&mut [f32]; 2] = [&mut l[0], &mut r[0]];
+        assert_no_alloc(|| parts.engine.process(&[], &mut outs, BLOCK));
+        assert!(outs.iter().all(|o| o.iter().all(|s| *s == 0.0)));
+    }
 }
