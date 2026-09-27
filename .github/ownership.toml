@@ -90,6 +90,28 @@ paths = [
   "crates/ether-native/src/bridge.rs",
   # shared touch (one-line delegation only, WAVE3.md)
   "crates/ether-controller/src/handlers.rs",
+  # granted by manager (BCR, base-8)
+  "crates/ether-controller/src/lib.rs",
+  # granted by manager (BCR, base-8)
+  "ui/src/features/devices/DeviceView.tsx",
+  # granted by manager (BCR, base-8)
+  "apps/desktop/src-tauri/tauri.conf.json",
+  # granted by manager (BCR, base-8)
+  "apps/desktop/src-tauri/build.rs",
+  # granted by manager (BCR, base-8)
+  "scripts/build-sandbox-helper.mjs",
+  # granted by manager (BCR, base-8)
+  "justfile",
+  # granted by manager (BCR, base-8)
+  ".gitignore",
+  # granted by manager (BCR, base-8)
+  "crates/ether-native/tests/plugins_e2e.rs",
+  # granted by manager (BCR, base-8)
+  "apps/web/e2e/plugins.spec.ts",
+  # granted by manager (BCR, base-8)
+  "crates/ether-sandbox/src/shm.rs",
+  # granted by manager (BCR, base-8)
+  "crates/ether-sandbox/src/node.rs",
 ]
 
 [nodes.warp]
