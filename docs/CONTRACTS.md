@@ -457,7 +457,10 @@ every descriptor.
   count_in_end }`. The click goes to the hardware output after master (not metered, never
   exported) while playing with `metronome` on, and during a recording count-in (`recording`
   and position `< count_in_end`) regardless of `metronome`. Hook:
-  `ether_core::metronome::Metronome::render`, one call per sub-block in `engine.rs`.
+  `ether_core::metronome::Metronome::render`, one call per sub-block in `engine.rs`. It
+  receives the graph's total output latency: the click for beat `b` must be emitted
+  `latency` samples after the timeline crosses `b`, so it lines up with the (PDC-delayed)
+  music. Offline renders never contain it (`OfflineRenderer::publish` forces it off).
 
 ### 11.4 Clip editing
 - `AudioContent::{fade_in_curve, fade_out_curve}: FadeCurve { Linear | EqualPower |
@@ -528,15 +531,20 @@ ordinary edits at tick rate (one gesture per control) and still reach monitored 
 ### 11.10 Sidechain
 `Device::sidechain: Option<TrackId>`, `DeviceCommand::SetSidechain`, `ChainEntry::sidechain`,
 `Node::{sidechain_inputs, process_sidechain}` (defaulted).
-- Tap: the source track's **post-fader** output (after its PDC output delay).
+- Tap: the source track's **post-fader** output **before** its PDC output delay, so its
+  latency is exactly `out_lat(source)` (final when the consumer is compiled, since sources
+  come first).
 - Order: a sidechain is a routing edge `source → consumer track`. The model rejects cycles
-  and the compiler orders the source first.
-- PDC: the sidechain must reach device *k* of track T aligned with T's main signal there.
-  With `L_main(k) = in_lat(T) + Σ latency(chain[..k])` and `L_sc = out_lat(source)`: if
-  `L_sc < L_main(k)` the sidechain is delayed by the difference; if `L_sc > L_main(k)`, the
-  sidechain counts as an input of T when computing `in_lat(T)` (raised to
-  `L_sc − Σ latency(chain[..k])`), so it is never late. T's output latency grows and
-  downstream PDC absorbs it.
+  and the compiler orders the source first. It is not a bus connection (no effect on
+  `in_lat` of anything).
+- PDC (base-24, implemented in `ether-core/src/sidechain.rs`, tested in
+  `ether-core/tests/base24_hooks.rs`): the sidechain must reach device *k* of track T
+  aligned with T's main signal there. Walk T's chain with `L = in_lat(T)`; at a sidechained
+  entry with `L_sc = out_lat(source)`: if `L_sc > L`, the **main signal** is delayed by
+  `L_sc − L` just before entry *k* (a delay line counted into T's chain latency, applied
+  whether T plays clips, receives buses or both, and whether the entry is bypassed or not);
+  otherwise the **sidechain** is delayed by `L − L_sc`. Then `L += latency(entry k)`. T's
+  output latency includes the main delays and downstream PDC absorbs it.
 
 ### 11.11 Groove
 `NoteCommand::Quantize::swing` (0..=1, destructive: odd grid positions are delayed by
@@ -561,6 +569,12 @@ MIDI clips (`groove::swing_notes`).
   (falling back to re-creating the node). `SliceCommand` edits markers by sorted index (a
   single LWW register, like other device kind data); `ToDrumRack` turns slices into sampler
   pads with client-chosen ids (`SlicePadIds`), so concurrent sites can't mint different ids.
+- Pad-chain devices are first-class engine nodes (base-24): `SnapshotRt::pad_index` routes
+  live params and automation to them, their latency is refreshed like chain nodes, and the
+  rack entry's latency includes the longest pad chain (all pads aligned to it; the chain
+  audio entering the rack is delayed the same). Basic `run_pads` is implemented (note
+  routing, pad chains, alignment, pad gain); choke groups and pad mix smoothing are left to
+  `drum-rack`.
 - Structure rules: `Device::Move` rejects pad devices (`DrumRack::MoveDevice` moves them) and
   racks with pads across tracks; device and track duplication copy pads and pad chains; the
   model checks pad devices from both sides (pad device and rack).
@@ -588,3 +602,15 @@ fade curves Linear, `reversed` false. Tested on a realistic v2 fixture
    runtime state.
 7. `PatchChange` allows `clippy::large_enum_variant`: entities got larger, and boxing them
    would only add allocations.
+
+### 11.15 Media preview (base-24, `media-preview`)
+`Media::Preview { source }` / `StopPreview` → one engine preview voice
+(`ether_core::preview`), mixed into the hardware outputs after master (not metered,
+recorded or exported; plays while the transport is stopped), fed through
+`EngineHandle::preview(PreviewControl::{Play { source, gain }, Stop})` with an ordinary
+`AudioSource` (decoded and resampled engine-side; replaced/finished sources are retired to
+the GC). The voice auto-stops at the end of the source and reports it once as
+`EngineOutputs::preview_ended`. Events: `MediaEvent::PreviewStarted { source }`, then exactly
+one `MediaEvent::PreviewEnded { source, reason: Finished | Stopped | Replaced | Failed }`.
+Controller hook: `EngineBridge::preview` (defaulted `Unsupported`), `media_preview` module
+(`preview_command`, `preview_tick`).

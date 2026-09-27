@@ -297,3 +297,46 @@ fn pad_latency_counts_in_pdc() {
     let dup = rack_track(rack, &[pad_a, pad_a]);
     assert!(compile_with(desc(vec![master(), dup]), &config(), &info).is_err());
 }
+
+// ─── Media preview ──────────────────────────────────────────────────────────────────────
+
+#[test]
+fn preview_plays_outside_the_transport_and_auto_stops() {
+    use ether_core::EngineOutputs;
+    use ether_core::preview::PreviewControl;
+    let mut p = create(config());
+    p.handle.publish(desc(vec![master()])).unwrap();
+    let len = BLOCK + 100;
+    p.handle
+        .preview(PreviewControl::Play {
+            source: Arc::new(MemSource(vec![0.5; len])),
+            gain: 0.5,
+        })
+        .unwrap();
+    // Stopped transport: the preview still plays, on both channels (mono source).
+    let (l, r) = render(&mut p.engine, 3 * BLOCK, BLOCK);
+    assert!((l[0] - 0.25).abs() < 1e-6 && (r[0] - 0.25).abs() < 1e-6);
+    assert!((l[len - 1] - 0.25).abs() < 1e-6);
+    assert!(l[len + 50..].iter().all(|&s| s == 0.0), "auto-stop");
+    let mut out = EngineOutputs::default();
+    p.handle.poll(&mut out);
+    assert!(out.preview_ended);
+    p.handle.poll(&mut out);
+    assert!(!out.preview_ended, "reported once");
+    // The finished source was retired to the GC, not dropped on the audio thread.
+    assert!(p.gc.collect() >= 1);
+
+    // Stop cuts a playing preview and reports its end.
+    p.handle
+        .preview(PreviewControl::Play {
+            source: Arc::new(MemSource(vec![0.5; 10 * BLOCK])),
+            gain: 1.0,
+        })
+        .unwrap();
+    render(&mut p.engine, BLOCK, BLOCK);
+    p.handle.preview(PreviewControl::Stop).unwrap();
+    let (l, _) = render(&mut p.engine, BLOCK, BLOCK);
+    assert!(l.iter().all(|&s| s == 0.0));
+    p.handle.poll(&mut out);
+    assert!(out.preview_ended);
+}

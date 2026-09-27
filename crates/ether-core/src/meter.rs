@@ -27,6 +27,9 @@ pub struct EngineOutputs {
     pub event_overflow: bool,
     /// Audio source underruns since the last poll.
     pub underruns: u32,
+    /// The media preview ended (end of source, stopped or replaced) since the last poll
+    /// (`crate::preview`).
+    pub preview_ended: bool,
 }
 
 impl EngineOutputs {
@@ -35,5 +38,6 @@ impl EngineOutputs {
         self.meters.clear();
         self.event_overflow = false;
         self.underruns = 0;
+        self.preview_ended = false;
     }
 }

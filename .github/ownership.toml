@@ -288,7 +288,6 @@ paths = [
   "crates/ether-devices/src/utility.rs",
   "crates/ether-devices/src/dsp/**",
   "crates/ether-devices/tests/devices2*.rs",
-  "ui/src/transport/mock/roadmap/devices2.*",
   # shared touch: helpers (Smoother/param tables) and the placeholder removal
   "crates/ether-devices/src/util.rs",
   "crates/ether-devices/src/placeholder.rs",
@@ -505,4 +504,27 @@ paths = [
   # own e2e/integration test files (base-21)
   "apps/web/e2e/drum-rack.spec.ts",
   "crates/ether-native/tests/drum_rack*.rs",
+]
+
+# --- media-preview (base-24) ------------------------------------------------------------
+
+[nodes.media-preview]
+paths = [
+  "crates/ether-core/src/preview.rs",
+  "crates/ether-controller/src/media_preview/**",
+  "ui/src/transport/mock/roadmap/mediaPreview.*",
+  "ui/src/features/browser/preview*",
+  "crates/ether-core/tests/preview*.rs",
+  "crates/ether-controller/tests/media_preview*.rs",
+  "crates/ether-native/tests/media_preview*.rs",
+  "apps/web/e2e/media-preview.spec.ts",
+  # shared touch: reset the "previewing" state on MediaEvent::PreviewEnded
+  "ui/src/features/browser/index.tsx",
+  "ui/src/features/browser/Browser.test.tsx",
+  # shared touch: EngineBridge::preview impls (native: in-memory source; web: ship the
+  # decoded audio to the worklet like load_media)
+  "crates/ether-native/src/bridge.rs",
+  "crates/ether-wasm/src/bridge.rs",
+  "crates/ether-wasm/src/worklet.rs",
+  "crates/ether-wasm/src/proto.rs",
 ]

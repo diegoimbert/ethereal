@@ -75,8 +75,9 @@ Owns: `ui/src/features/tempo/**`, `crates/ether-controller/src/tempo/**`,
   `SettingsChange::Metronome*`.
 - Core: `RenderGraphDesc::click: MetronomeDesc` (compiled by `tempo::metronome_desc`), and
   `Metronome::render` (placeholder, silent), already called by `engine.rs` once per
-  sub-block after master reaches the hardware outputs (and `reset` on jumps). Implement it
-  in `metronome.rs` only.
+  sub-block after master reaches the hardware outputs (and `reset` on jumps), with the
+  graph's output latency: delay each click by it so it lines up with the PDC-delayed
+  music. Implement it in `metronome.rs` only.
 - Count-in (recording): the controller's record session pre-rolls `count_in_bars`
   (`ether-controller/src/recording/mod.rs`). Set `MetronomeDesc::count_in_end` to the record
   start on the published desc for the duration of the pre-roll; the click then sounds even
@@ -176,12 +177,11 @@ Owns: `ui/src/features/sidechain/**`, `crates/ether-controller/src/sidechain/**`
   the sidechain, done in `doc/mod.rs`).
 - Protocol: `DeviceCommand::SetSidechain` (→ `sidechain::set_sidechain`),
   `DeviceDescriptor::sidechain_inputs` (0 everywhere for now).
-- Core: `ChainEntry::sidechain` (already compiled from the document), `Node::sidechain_inputs`
-  / `Node::process_sidechain` (defaulted). Ordering is done (sidechain edges join the
-  topological sort); PDC and the signal path are hooks in `ether-core/src/sidechain.rs`
-  (`required_input_latency`, `Taps::{compile, write, read}`) already called from
-  `graph.rs`/`engine.rs` — implement them there (CONTRACTS.md §11.10). Give the compressor
-  a sidechain input.
+- Core: done in base-24 (`ether-core/src/sidechain.rs`: ordering, tap before the output
+  PDC delay, main/sidechain alignment delays, tested in `tests/base24_hooks.rs`,
+  CONTRACTS.md §11.10). `Node::sidechain_inputs` / `Node::process_sidechain` are
+  defaulted: give the compressor (and the limiter, with devices-2's params) a sidechain
+  input and use the signal.
 - UI: `SidechainSelector` in every device header (`features/devices/DeviceView.tsx`, one
   line, renders nothing when `sidechain_inputs == 0`).
 
@@ -208,9 +208,12 @@ Owns: `ui/src/features/drum-rack/**`, `crates/ether-controller/src/drum_rack/**`
 - Protocol: `DrumRackCommand`, `SliceCommand`, `AutoSlice` (`drum_rack.rs`), both document
   commands (→ `drum_rack::{rack_command, slice_command}`).
 - Core: `TrackDesc::racks: Vec<RackDesc>` (compiled by the controller's
-  `drum_rack::racks_desc`, empty until implemented), `PadDesc`. The engine hooks are wired:
-  `RacksRt::compile` (graph), `RacksRt::inherit` (swaps) and `RacksRt::run_pads` (called at
-  each rack chain entry before the rack node) in `ether-core/src/drum_rack/`. Pad devices
+  `drum_rack::racks_desc`, empty until implemented), `PadDesc`. The engine side is wired
+  and basic (base-24, `ether-core/src/drum_rack/`, tested in `tests/base24_hooks.rs`):
+  pad-chain nodes get live params, automation, latency refresh and PDC; `run_pads` routes
+  notes by key (→ `PAD_PLAY_NOTE`), runs pad chains aligned to the longest one and mixes
+  them with pad gain into the rack node's input. Left for you: choke groups, smoothing pad
+  mix changes, carrying pad state across snapshot swaps (`RacksRt::inherit`). Pad devices
   already get engine nodes (every document device does).
 - In-place slice edits: `EngineBridge::update_builtin` → `EngineHandle::set_node_data` →
   `Node::set_data` (implemented plumbing; the sampler and bridges implement it), so slice
@@ -221,3 +224,23 @@ Owns: `ui/src/features/drum-rack/**`, `crates/ether-controller/src/drum_rack/**`
   pads and pad chains; the model re-checks pad devices when their rack changes.
 - Devices: `drum_rack.rs` (rack node, placeholder), slice mode in `sampler.rs` (shared touch).
 - UI: `DrumRackView` (detail tab "drum-rack").
+
+## `media-preview` (base-24)
+
+Owns: `crates/ether-core/src/preview.rs`, `crates/ether-controller/src/media_preview/**`,
+`ui/src/transport/mock/roadmap/mediaPreview.*`, `ui/src/features/browser/preview*` (new
+files), its tests/e2e.
+
+- Protocol: `Media::{Preview, StopPreview}` (existing), `MediaEvent::{PreviewStarted,
+  PreviewEnded { reason }}`, `PreviewEndReason` (CONTRACTS.md §11.15).
+- Core (implemented, tested in `tests/base24_hooks.rs`): `EngineHandle::preview(
+  PreviewControl)`, one voice mixed after master once per sub-block, auto-stop,
+  `EngineOutputs::preview_ended`. Left: a short fade on stop/replace.
+- Controller: `media_preview::{preview_command, preview_tick}` (dispatched from
+  `handlers.rs`, currently `Unsupported`): resolve the source (library or project media),
+  decode + resample with `ether-media` (bounded per tick), `EngineBridge::preview`
+  (defaulted `Unsupported`; implement in `ether-native/src/bridge.rs` with an in-memory
+  source and in the web bridge/worklet like `load_media`), emit the events.
+- UI: the browser already sends `Preview`/`StopPreview` (`features/browser/index.tsx`,
+  shared touch): reset the previewing row on `PreviewEnded`. The mock (`MockPreview`)
+  already emits the events.

@@ -43,6 +43,7 @@ pub mod offline;
 pub mod parallel;
 pub mod param;
 pub mod plugin;
+pub mod preview;
 pub mod recording;
 mod sched;
 mod sidechain;

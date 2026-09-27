@@ -77,6 +77,7 @@ enum Control {
         media: MediaId,
     },
     Transport(TransportControl),
+    Preview(crate::preview::PreviewControl),
 }
 
 enum Garbage {
@@ -90,6 +91,7 @@ enum Output {
     Meter(TrackMeter),
     Overflow,
     Underruns(u32),
+    PreviewEnded,
 }
 
 /// Single-writer seqlock holding the latest playhead.
@@ -240,6 +242,7 @@ pub fn create(config: EngineConfig) -> EngineParts {
         leaked: 0,
         recording: recording_rt,
         metronome: crate::metronome::Metronome::new(config.sample_rate as f32),
+        preview: crate::preview::PreviewVoice::new(config.max_block_size),
         executor: Box::new(crate::parallel::SequentialExecutor),
         warp: warp_rt,
         config: config.clone(),
@@ -297,6 +300,8 @@ pub struct Engine {
     pub(crate) recording: crate::recording::RecordingRt,
     /// Click generator ([`crate::metronome`], roadmap v2).
     metronome: crate::metronome::Metronome,
+    /// Browser preview voice ([`crate::preview`]).
+    preview: crate::preview::PreviewVoice,
     /// Parallel track processing ([`crate::parallel`], roadmap v2; `multicore` node).
     /// Sequential until a host injects one with [`Engine::set_executor`].
     #[allow(dead_code)]
@@ -436,6 +441,11 @@ impl Engine {
                     }
                 }
                 Control::Transport(t) => self.apply_transport(t),
+                Control::Preview(c) => {
+                    if let Some(old) = self.preview.control(c) {
+                        self.retire(Garbage::Source(old));
+                    }
+                }
             }
         }
     }
@@ -573,6 +583,7 @@ impl Engine {
             recording,
             warp,
             metronome,
+            preview,
             ..
         } = self;
         let RenderSnapshot { desc, tempo, rt } = &mut **snapshot;
@@ -975,6 +986,8 @@ impl Engine {
             n,
             outputs,
         );
+        // --- browser preview (after master; not metered, transport-independent) ---
+        preview.render(off, n, outputs);
 
         // --- advance ---
         transport.release_notes = false;
@@ -1023,6 +1036,12 @@ impl Engine {
     }
 
     fn report(&mut self) {
+        if let Some(old) = self.preview.take_retired() {
+            self.retire(Garbage::Source(old));
+        }
+        if self.preview.ended && self.out.push(Output::PreviewEnded).is_ok() {
+            self.preview.ended = false;
+        }
         if self.overflow && self.out.push(Output::Overflow).is_ok() {
             self.overflow = false;
         }
@@ -1245,6 +1264,11 @@ impl EngineHandle {
         Ok(())
     }
 
+    /// Start or stop the browser preview voice ([`crate::preview`]). Non-blocking.
+    pub fn preview(&mut self, control: crate::preview::PreviewControl) -> Result<(), EngineError> {
+        self.send(Control::Preview(control))
+    }
+
     /// Total output latency (samples, PDC included) of the last successfully published
     /// graph: timeline position `p` reaches the hardware `latency()` samples later.
     pub fn latency(&self) -> u32 {
@@ -1269,6 +1293,7 @@ impl EngineHandle {
                 Output::Meter(m) => merge_meter(&mut out.meters, m),
                 Output::Overflow => out.event_overflow = true,
                 Output::Underruns(n) => out.underruns += n,
+                Output::PreviewEnded => out.preview_ended = true,
             }
         }
         out.playhead = Some(self.playhead());

@@ -62,7 +62,7 @@ function padsOf(ctx: ReducerContext, rackId: string): DrumPad[] {
 export function checkDeviceMove(ctx: ReducerContext, d: Device, track: TrackId): void {
   if (d.pad !== null) fail("InvalidArgument", `device ${d.id} is on a drum pad: use DrumRack::MoveDevice`);
   if (d.track !== track && padsOf(ctx, d.id).length > 0) {
-    fail("InvalidArgument", "moving a drum rack with pads to another track is not supported yet");
+    fail("InvalidArgument", "a drum rack with pads cannot move to another track (its pad chains live on its track); duplicate it there instead");
   }
 }
 

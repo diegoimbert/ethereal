@@ -32,13 +32,6 @@ pub struct Placeholder {
 }
 
 impl Placeholder {
-    pub fn new(descriptor: DeviceDescriptor) -> Self {
-        Self {
-            descriptor,
-            pass_through: false,
-        }
-    }
-
     /// A placeholder that always passes its input through.
     pub fn pass_through(descriptor: DeviceDescriptor) -> Self {
         Self {
