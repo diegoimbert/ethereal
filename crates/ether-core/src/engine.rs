@@ -141,9 +141,31 @@ impl SharedPlayhead {
     }
 }
 
-struct NodeSlot {
-    generation: u32,
-    node: Option<Box<dyn Node>>,
+pub(crate) struct NodeSlot {
+    pub(crate) generation: u32,
+    pub(crate) node: Option<Box<dyn Node>>,
+}
+
+impl std::fmt::Debug for NodeSlot {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("NodeSlot")
+            .field("generation", &self.generation)
+            .field("live", &self.node.is_some())
+            .finish()
+    }
+}
+
+impl NodeSlot {
+    /// RT. The live node behind `key`, if the slot still holds that generation (for
+    /// `crate::drum_rack`, which processes pad-chain nodes).
+    #[allow(dead_code)]
+    pub(crate) fn get(slots: &mut [NodeSlot], key: NodeKey) -> Option<&mut Box<dyn Node>> {
+        let slot = slots.get_mut(key.index as usize)?;
+        if slot.generation != key.generation {
+            return None;
+        }
+        slot.node.as_mut()
+    }
 }
 
 #[derive(Default)]
@@ -210,6 +232,8 @@ pub fn create(config: EngineConfig) -> EngineParts {
         underruns: 0,
         leaked: 0,
         recording: recording_rt,
+        metronome: crate::metronome::Metronome::new(config.sample_rate as f32),
+        executor: Box::new(crate::parallel::SequentialExecutor),
         warp: warp_rt,
         config: config.clone(),
     };
@@ -263,6 +287,12 @@ pub struct Engine {
     leaked: u64,
     /// Recording hooks: input capture, live MIDI in/out ([`crate::recording`]).
     pub(crate) recording: crate::recording::RecordingRt,
+    /// Click generator ([`crate::metronome`], roadmap v2).
+    metronome: crate::metronome::Metronome,
+    /// Parallel track processing ([`crate::parallel`], roadmap v2; `multicore` node).
+    /// Sequential until a host injects one with [`Engine::set_executor`].
+    #[allow(dead_code)]
+    executor: Box<dyn crate::parallel::ParallelExecutor>,
     pub(crate) warp: crate::warp::WarpRt,
 }
 
@@ -303,6 +333,13 @@ impl Engine {
 
     pub fn config(&self) -> &EngineConfig {
         &self.config
+    }
+
+    /// Non-RT (call before the audio thread starts processing, or while it is stopped):
+    /// the executor used to process independent tracks in parallel (roadmap v2,
+    /// `multicore`; see [`crate::parallel`]). Ignored on wasm32 (single-threaded).
+    pub fn set_executor(&mut self, executor: Box<dyn crate::parallel::ParallelExecutor>) {
+        self.executor = executor;
     }
 
     /// Objects leaked because the GC ring was full (should stay 0).
@@ -498,6 +535,7 @@ impl Engine {
             underruns,
             recording,
             warp,
+            metronome,
             ..
         } = self;
         let RenderSnapshot { desc, tempo, rt } = &mut **snapshot;
@@ -505,6 +543,7 @@ impl Engine {
             order,
             tracks,
             buses,
+            sidechain: rt_sidechain,
             ..
         } = rt;
 
@@ -584,6 +623,7 @@ impl Engine {
                 scratch,
                 out_events,
                 notes,
+                racks,
                 ..
             } = track;
 
@@ -746,6 +786,19 @@ impl Engine {
                 entry.events.sort();
                 *overflow |= entry.events.overflowed();
                 let key = entry.key;
+                // Drum rack: pad chains feed the rack node's input (`crate::drum_rack`).
+                if entry.enabled && !racks.is_empty() && racks.is_rack(key) {
+                    racks.run_pads(
+                        key,
+                        nodes,
+                        entry.events.as_slice(),
+                        &info,
+                        sr as f32,
+                        a,
+                        n,
+                        transport.reset_nodes,
+                    );
+                }
                 let Some(slot) = nodes.get_mut(key.index as usize) else {
                     continue;
                 };
@@ -782,7 +835,14 @@ impl Engine {
                         inputs: &ins[..n_in],
                         outputs: &mut outs[..n_out],
                     };
-                    node.process(&mut ctx, &mut buffers);
+                    // Sidechain (`crate::sidechain`): a tapped source's aligned signal.
+                    match entry
+                        .sidechain
+                        .and_then(|src| rt_sidechain.read(ti, k, src, n))
+                    {
+                        Some(sc) => node.process_sidechain(&mut ctx, &mut buffers, &sc),
+                        None => node.process(&mut ctx, &mut buffers),
+                    };
                 }
                 *overflow |= out_events.overflowed();
                 match n_out {
@@ -834,6 +894,7 @@ impl Engine {
                 let [al, ar] = &mut *a;
                 track.output_delay.process(&mut al[..n], &mut ar[..n]);
             }
+            rt_sidechain.write(ti, a, n);
             if let Some(o) = track.output {
                 let dst = &mut buses[o];
                 for ch in 0..2 {
@@ -853,6 +914,12 @@ impl Engine {
                 }
             }
         }
+
+        // --- metronome (after master reached the hardware outputs; not metered) ---
+        if transport.reset_nodes {
+            metronome.reset();
+        }
+        metronome.render(&desc.click, desc.metronome, &info, off, n, outputs);
 
         // --- advance ---
         transport.release_notes = false;

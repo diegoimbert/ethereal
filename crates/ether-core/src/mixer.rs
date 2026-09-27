@@ -35,6 +35,9 @@ pub(crate) struct ChainRt {
     pub events: EventBuffer,
     /// Live param changes waiting for the next sub-block.
     pub pending: EventBuffer,
+    /// Sidechain source track index (`ChainEntry::sidechain`, resolved), see
+    /// `crate::sidechain`.
+    pub sidechain: Option<usize>,
 }
 
 #[derive(Debug)]
@@ -133,6 +136,8 @@ pub(crate) struct TrackRt {
     pub meter: MeterAccum,
     /// Compiled latency of this track's output (for tests/diagnostics).
     pub out_latency: u32,
+    /// Drum rack pad chains (`crate::drum_rack`).
+    pub racks: crate::drum_rack::RacksRt,
 }
 
 impl TrackRt {
@@ -164,6 +169,7 @@ impl TrackRt {
         }
         std::mem::swap(&mut self.notes, &mut old.notes);
         self.meter = old.meter;
+        self.racks.inherit(&mut old.racks);
     }
 }
 

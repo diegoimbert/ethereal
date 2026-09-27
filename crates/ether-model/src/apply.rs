@@ -757,6 +757,21 @@ impl Project {
                         return Err(invariant("a device cannot sidechain its own track"));
                     }
                 }
+                // A rack's pad devices must stay on the rack's track (checked from the rack
+                // too, so moving or re-kinding a rack can't strand its pad chains).
+                if is_drum_rack(&d.kind)
+                    && let Some(stray) = self.devices.values().find(|o| {
+                        o.pad
+                            .and_then(|p| self.drum_pads.get(&p))
+                            .is_some_and(|p| p.rack == d.id)
+                            && o.track != d.track
+                    })
+                {
+                    return Err(invariant(format!(
+                        "pad device {} is not on its drum rack's track",
+                        stray.id
+                    )));
+                }
                 if let Some(pad) = d.pad {
                     let pad = self
                         .drum_pads

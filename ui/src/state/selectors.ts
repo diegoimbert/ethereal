@@ -15,6 +15,7 @@ import type {
   Clip,
   ClipId,
   Device,
+  DrumPadId,
   Note,
   Project,
   TempoPoint,
@@ -73,9 +74,17 @@ export function masterTrack(project: Project): Track | undefined {
 }
 
 /** Device chain of a track, in chain order. */
+/** The track's own device chain (devices on drum pads are excluded: see `devicesOfPad`). */
 export function devicesOfTrack(project: Project, track: TrackId): Device[] {
   return Object.values(project.devices)
-    .filter((d) => d.track === track)
+    .filter((d) => d.track === track && d.pad === null)
+    .sort(byOrder);
+}
+
+/** The device chain of a drum pad (mirrors `Project::pad_devices_of`). */
+export function devicesOfPad(project: Project, pad: DrumPadId): Device[] {
+  return Object.values(project.devices)
+    .filter((d) => d.pad === pad)
     .sort(byOrder);
 }
 

@@ -205,6 +205,41 @@ impl DocCtx<'_, '_> {
         self.tx.remove(EntityKey::Device(id))
     }
 
+    /// Copy the pads of drum rack `src` (with their device chains) onto rack `dst` on track
+    /// `track`, with new ids. `device_ids` receives old → new pad-device ids (for
+    /// retargeting automation). Used by device and track duplication.
+    pub fn copy_rack_pads(
+        &mut self,
+        src: DeviceId,
+        dst: DeviceId,
+        track: TrackId,
+        device_ids: &mut std::collections::BTreeMap<DeviceId, DeviceId>,
+    ) -> CmdResult<()> {
+        let pads: Vec<DrumPad> = self.p().pads_of(src).into_iter().cloned().collect();
+        for pad in pads {
+            let mut np = pad.clone();
+            np.id = self.new_id();
+            np.rack = dst;
+            let new_pad = np.id;
+            self.tx.insert(Entity::DrumPad(np))?;
+            let devices: Vec<Device> = self.p().pad_devices_of(pad.id).into_iter().cloned().collect();
+            for d in devices {
+                let mut nd = d.clone();
+                nd.id = self.new_id();
+                nd.track = track;
+                nd.pad = Some(new_pad);
+                if let DeviceKind::Plugin { plugin } = &mut nd.kind
+                    && let Some(state) = self.host.plugin_state(d.id)
+                {
+                    plugin.state = Some(state);
+                }
+                device_ids.insert(d.id, nd.id);
+                self.tx.insert(Entity::Device(nd))?;
+            }
+        }
+        Ok(())
+    }
+
     /// Delete a drum pad with its device chain.
     pub fn delete_pad(&mut self, id: DrumPadId) -> CmdResult<()> {
         let devices: Vec<DeviceId> = self.p().pad_devices_of(id).iter().map(|d| d.id).collect();
