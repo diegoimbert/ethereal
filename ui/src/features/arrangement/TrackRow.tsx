@@ -33,6 +33,7 @@ import { sendEdit, useArrangement } from "./context";
 import { beatsCss, useSettledZoom, widthCss } from "./laneGeometry";
 import { laneItems } from "./laneItems";
 import { DraftRow } from "./newTrack";
+import { midiTarget } from "@/features/midi-learn/targets";
 import { HeaderVolume } from "./HeaderVolume";
 import { onTrackHeaderPointerDown } from "./trackDrag";
 import { TRACK_HEIGHT_STEP, type Row } from "./layout";
@@ -180,6 +181,7 @@ function TrackHeader({ row }: { row: Row }) {
         <button
           type="button"
           className="eth-arr-header__toggle eth-arr-header__mute"
+          {...midiTarget({ type: "TrackMute", track: track.id })}
           aria-pressed={mute}
           aria-label={`Mute ${track.name}`}
           title={mute ? "Unmute" : "Mute"}
@@ -191,6 +193,7 @@ function TrackHeader({ row }: { row: Row }) {
           <button
             type="button"
             className="eth-arr-header__toggle eth-arr-header__solo"
+            {...midiTarget({ type: "TrackSolo", track: track.id })}
             aria-pressed={solo}
             aria-label={`Solo ${track.name}`}
             title="Solo (Ctrl/Cmd-click to add to the soloed tracks)"
@@ -208,6 +211,7 @@ function TrackHeader({ row }: { row: Row }) {
           <button
             type="button"
             className="eth-arr-header__toggle eth-arr-header__arm"
+            {...midiTarget({ type: "TrackArm", track: track.id })}
             aria-pressed={armed}
             aria-label={`Arm ${track.name}`}
             title="Record arm (Ctrl/Cmd-click to arm several tracks)"

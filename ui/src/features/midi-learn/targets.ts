@@ -155,24 +155,20 @@ export function parseMode(v: ModeValue): MidiMapMode {
 // ─── Resolving controls in the DOM ───────────────────────────────────────────────────
 
 /**
- * Explicit opt-in: any element with `data-midi-target='<MidiMapTarget JSON>'` is mappable.
- * Without it, targets are inferred from the stable hooks of the mixer strip (`data-track`,
- * `data-send-to`, `eth-strip__*`), device params (`data-device` + `data-param`) and the
- * transport bar (`eth-tb`).
+ * Controls opt in to MIDI learn with `data-midi-target='<MidiMapTarget JSON>'` on the
+ * element standing for the control (spread `midiTarget(target)` on it). Detection reads only
+ * this attribute, never class names, so restyling or restructuring a control keeps it
+ * mappable.
  */
 export const MIDI_TARGET_ATTR = "data-midi-target";
 
 /** Every element that may be a mappable control (resolve each with `resolveControl`). */
-export const MAPPABLE_SELECTOR = [
-  `[${MIDI_TARGET_ATTR}]`,
-  "[data-device] [data-param]",
-  "[data-track] .eth-strip__pan",
-  "[data-track] .eth-strip__fader-row .eth-fader",
-  "[data-track] .eth-strip__mute",
-  "[data-track] .eth-strip__solo",
-  "[data-track] [data-send-to]",
-  ".eth-tb button",
-].join(", ");
+export const MAPPABLE_SELECTOR = `[${MIDI_TARGET_ATTR}]`;
+
+/** Props marking an element as the control for `target`: `<div {...midiTarget(t)}>`. */
+export function midiTarget(target: MidiMapTarget): { [MIDI_TARGET_ATTR]: string } {
+  return { [MIDI_TARGET_ATTR]: JSON.stringify(target) };
+}
 
 export interface ResolvedControl {
   /** The element standing for the control (highlighted in MIDI mode). */
@@ -180,66 +176,42 @@ export interface ResolvedControl {
   target: MidiMapTarget;
 }
 
-function transportAction(button: Element): TransportAction | null {
-  const label = button.getAttribute("aria-label");
-  if (button.classList.contains("eth-tb__play")) return "TogglePlay";
-  if (button.classList.contains("eth-tb__record")) return "ToggleRecord";
-  if (label === "Stop") return "Stop";
-  if (label === "Loop") return "ToggleLoop";
-  if (label === "Metronome") return "ToggleMetronome";
-  if (button.getAttribute("title") === "Tap tempo") return "TapTempo";
-  return null;
+/** Whether the entity `target` points at is in the project (a stale control maps nothing). */
+export function targetExists(target: MidiMapTarget, project: Project): boolean {
+  switch (target.type) {
+    case "Param": {
+      const p = target.target;
+      switch (p.type) {
+        case "TrackVolume":
+        case "TrackPan":
+          return !!project.tracks[p.track];
+        case "SendLevel":
+          return !!project.sends[p.send];
+        case "DeviceParam":
+          return !!project.devices[p.device] && Number.isFinite(p.param);
+      }
+      return false;
+    }
+    case "TrackMute":
+    case "TrackSolo":
+    case "TrackArm":
+      return !!project.tracks[target.track];
+    case "Transport":
+      return true;
+  }
+  return false;
 }
 
 /** The mappable control containing `start` (`null` if none, or if its entity is gone). */
 export function resolveControl(start: Element, project: Project | null): ResolvedControl | null {
   if (!project) return null;
-  const explicit = start.closest(`[${MIDI_TARGET_ATTR}]`);
-  if (explicit) {
-    try {
-      return { element: explicit, target: JSON.parse(explicit.getAttribute(MIDI_TARGET_ATTR) ?? "") as MidiMapTarget };
-    } catch {
-      return null;
-    }
-  }
-
-  const param = start.closest("[data-param]");
-  const device = param?.closest("[data-device]");
-  if (param && device) {
-    const id = device.getAttribute("data-device") ?? "";
-    const p = Number(param.getAttribute("data-param"));
-    if (!project.devices[id] || !Number.isFinite(p)) return null;
-    return { element: param, target: { type: "Param", target: { type: "DeviceParam", device: id, param: p } } };
-  }
-
-  const strip = start.closest("[data-track]");
-  const track = strip?.getAttribute("data-track");
-  if (strip && track && project.tracks[track]) {
-    const sendEl = start.closest("[data-send-to]");
-    if (sendEl && strip.contains(sendEl)) {
-      // The pre/post button is not the level.
-      if (start.closest("button")) return null;
-      const to = sendEl.getAttribute("data-send-to");
-      const send = Object.values(project.sends).find((s) => s.from === track && s.to === to);
-      return send ? { element: sendEl, target: { type: "Param", target: { type: "SendLevel", send: send.id } } } : null;
-    }
-    const pan = start.closest(".eth-strip__pan");
-    if (pan) return { element: pan, target: { type: "Param", target: { type: "TrackPan", track } } };
-    const fader = start.closest(".eth-fader");
-    if (fader && fader.closest(".eth-strip__fader-row")) {
-      return { element: fader, target: { type: "Param", target: { type: "TrackVolume", track } } };
-    }
-    const mute = start.closest(".eth-strip__mute");
-    if (mute) return { element: mute, target: { type: "TrackMute", track } };
-    const solo = start.closest(".eth-strip__solo");
-    if (solo) return { element: solo, target: { type: "TrackSolo", track } };
+  const element = start.closest(`[${MIDI_TARGET_ATTR}]`);
+  if (!element) return null;
+  let target: MidiMapTarget;
+  try {
+    target = JSON.parse(element.getAttribute(MIDI_TARGET_ATTR) ?? "") as MidiMapTarget;
+  } catch {
     return null;
   }
-
-  const button = start.closest(".eth-tb button");
-  if (button) {
-    const action = transportAction(button);
-    return action ? { element: button, target: { type: "Transport", action } } : null;
-  }
-  return null;
+  return target && typeof target === "object" && targetExists(target, project) ? { element, target } : null;
 }
