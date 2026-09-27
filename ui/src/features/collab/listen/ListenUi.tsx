@@ -20,16 +20,19 @@ export function ListenButton({ transport, peer }: { transport: EngineTransport; 
   }
   const blocker = listenBlocker(peer);
   return (
-    <Button
-      size="sm"
-      className="eth-listen__action"
-      disabled={blocker !== null}
-      title={blocker ? `Unavailable: ${blocker}` : `Hear ${peerName(peer)}'s engine, with a shared playhead`}
-      aria-label={`Listen on ${peerName(peer)}'s computer`}
-      onClick={() => void listenTo(send(transport), peer.site, peer.name)}
-    >
-      Listen
-    </Button>
+    <>
+      {blocker && <span className="eth-listen__reason">{blocker}</span>}
+      <Button
+        size="sm"
+        className={blocker ? undefined : "eth-listen__action"}
+        disabled={blocker !== null}
+        title={blocker ? `Unavailable: ${blocker}` : `Hear ${peerName(peer)}'s engine, with a shared playhead`}
+        aria-label={`Listen on ${peerName(peer)}'s computer`}
+        onClick={() => void listenTo(send(transport), peer.site, peer.name)}
+      >
+        Listen
+      </Button>
+    </>
   );
 }
 

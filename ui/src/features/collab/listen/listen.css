@@ -16,6 +16,11 @@
 .eth-listen__text {
   white-space: nowrap;
 }
-.eth-listen__action {
+.eth-listen__action,
+.eth-listen__reason {
   margin-inline-start: auto;
+}
+.eth-listen__reason {
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
 }

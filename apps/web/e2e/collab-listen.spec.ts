@@ -13,6 +13,7 @@
 //
 // No sleeps: every step waits on UI or engine state.
 import { execFileSync, spawn, type ChildProcess } from "node:child_process";
+import { mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test, type Page } from "@playwright/test";
@@ -22,6 +23,14 @@ const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const TOKEN = `e2e-${Math.random().toString(36).slice(2)}`;
 const SESSION = `e2e-listen-${Math.random().toString(36).slice(2, 8)}`;
 const HOST_SITE = "777000111";
+/** `ETHER_SCREENSHOTS=<dir>`: also save PR screenshots (1440×900, dark theme) there. */
+const SHOTS = process.env.ETHER_SCREENSHOTS ?? "";
+
+async function shot(page: Page, name: string): Promise<void> {
+  if (!SHOTS) return;
+  mkdirSync(SHOTS, { recursive: true });
+  await page.screenshot({ path: resolve(SHOTS, `${name}.png`), animations: "disabled" });
+}
 
 // Same-browser WebRTC on loopback: expose host candidates instead of mDNS names.
 test.use({
@@ -34,8 +43,7 @@ interface Handle {
   state(): { project: Project | null; transport: TransportState | null };
 }
 
-const project = (page: Page): Promise<Project | null> =>
-  page.evaluate(() => (window as unknown as { __ether: Handle }).__ether.state().project);
+const project = (page: Page): Promise<Project | null> => page.evaluate(() => (window as unknown as { __ether: Handle }).__ether.state().project);
 const transportState = (page: Page): Promise<TransportState | null> =>
   page.evaluate(() => (window as unknown as { __ether: Handle }).__ether.state().transport);
 
@@ -102,6 +110,7 @@ async function join(page: Page, name: string) {
 interface ScriptedHost {
   log: { type: string; [k: string]: unknown }[];
   anchors: number;
+  setCanHost(can: boolean): void;
   leave(): void;
 }
 
@@ -113,7 +122,7 @@ interface ScriptedHost {
 async function startScriptedHost(page: Page, args: { url: string; token: string; site: string }): Promise<void> {
   await page.evaluate(async ({ url, token, site }) => {
     type Msg = { type: string; [k: string]: unknown };
-    const host = { log: [] as Msg[], anchors: 0, leave: () => undefined as void };
+    const host = { log: [] as Msg[], anchors: 0, leave: () => undefined as void, setCanHost: (_: boolean) => undefined as void };
     (window as unknown as { __host: typeof host }).__host = host;
     const ws = new WebSocket(url);
     const send = (m: Msg) => ws.send(JSON.stringify(m));
@@ -139,7 +148,9 @@ async function startScriptedHost(page: Page, args: { url: string; token: string;
     };
     send({ type: "Hello", site, actor: null, name: "Hal", protocol_version: 1 });
     send({ type: "SyncRequest", site, version: "" });
-    send({ type: "Presence", presence: { site, actor: null, name: "Hal", color: 0, state: presenceState } });
+    host.setCanHost = (can: boolean) =>
+      send({ type: "Presence", presence: { site, actor: null, name: "Hal", color: 0, state: { ...presenceState, can_host: can } } });
+    host.setCanHost(false);
     host.leave = () => {
       send({ type: "Leave", site });
       ws.close();
@@ -168,7 +179,9 @@ async function startScriptedHost(page: Page, args: { url: string; token: string;
         osc.start();
         const sender = pc.addTrack(dest.stream.getAudioTracks()[0]!, dest.stream);
         // Observe the RTP timestamp of every encoded frame (read-only).
-        const streams = (sender as unknown as { createEncodedStreams(): { readable: ReadableStream; writable: WritableStream } }).createEncodedStreams();
+        const streams = (
+          sender as unknown as { createEncodedStreams(): { readable: ReadableStream; writable: WritableStream } }
+        ).createEncodedStreams();
         void streams.readable
           .pipeThrough(
             new TransformStream({
@@ -189,7 +202,12 @@ async function startScriptedHost(page: Page, args: { url: string; token: string;
             stream,
             signal: {
               type: "Ice",
-              candidate: { candidate: c?.candidate ?? "", sdp_mid: c?.sdpMid ?? null, sdp_m_line_index: c?.sdpMLineIndex ?? null, username_fragment: c?.usernameFragment ?? null },
+              candidate: {
+                candidate: c?.candidate ?? "",
+                sdp_mid: c?.sdpMid ?? null,
+                sdp_m_line_index: c?.sdpMLineIndex ?? null,
+                username_fragment: c?.usernameFragment ?? null,
+              },
             },
           });
         };
@@ -218,10 +236,18 @@ async function startScriptedHost(page: Page, args: { url: string; token: string;
           });
         }, 100);
       } else if (m.type === "Signal" && pc && m.stream === stream) {
-        const signal = m.signal as { type: string; sdp?: string; candidate?: { candidate: string; sdp_mid: string | null; sdp_m_line_index: number | null } };
+        const signal = m.signal as {
+          type: string;
+          sdp?: string;
+          candidate?: { candidate: string; sdp_mid: string | null; sdp_m_line_index: number | null };
+        };
         if (signal.type === "Answer") await pc.setRemoteDescription({ type: "answer", sdp: signal.sdp! });
         else if (signal.type === "Ice" && signal.candidate)
-          await pc.addIceCandidate({ candidate: signal.candidate.candidate, sdpMid: signal.candidate.sdp_mid, sdpMLineIndex: signal.candidate.sdp_m_line_index });
+          await pc.addIceCandidate({
+            candidate: signal.candidate.candidate,
+            sdpMid: signal.candidate.sdp_mid,
+            sdpMLineIndex: signal.candidate.sdp_m_line_index,
+          });
       }
     };
   }, args);
@@ -232,21 +258,39 @@ const hostLog = (page: Page) => page.evaluate(() => (window as unknown as { __ho
 test("listen on a scripted host: stream, shared playhead, forwarded transport, host leaves", async ({ browser }) => {
   test.setTimeout(180_000);
   const errors: string[] = [];
-  const ctxA = await browser.newContext();
+  const ctxA = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   const ctxH = await browser.newContext();
   const a = await ctxA.newPage();
   const h = await ctxH.newPage();
   a.on("pageerror", (e) => errors.push(e.message));
 
   await open(a);
+  await a.evaluate(() => {
+    document.documentElement.dataset.theme = "dark";
+  });
   await join(a, "Ada");
   await a.keyboard.press("Escape");
   await startScriptedHost(h, { url: `${relayUrl}/${SESSION}`, token: TOKEN, site: HOST_SITE });
   const chip = a.locator('[data-testid="collab-peers"] [data-peer="Hal"]');
   await expect(chip).toBeVisible({ timeout: 10_000 });
 
+  // --- Hal cannot host yet: the entry is disabled with the reason.
+  await chip.click({ button: "right" });
+  const blocked = a.getByRole("menuitem", { name: "Listen on Hal's computer (Hal's computer cannot host a stream)" });
+  await expect(blocked).toBeDisabled();
+  await shot(a, "listen-disabled-menu");
+  await a.keyboard.press("Escape");
+  await a.getByTestId("collab-button").click();
+  await expect(a.getByRole("button", { name: "Listen on Hal's computer" })).toBeDisabled();
+  await shot(a, "listen-disabled-dialog");
+  await a.keyboard.press("Escape");
+  const host = (page: Page) => page.evaluate(() => (window as unknown as { __host: ScriptedHost }).__host.setCanHost(true));
+  await host(h);
+
   // --- Listen from the chip menu.
   await chip.click({ button: "right" });
+  await expect(a.getByRole("menuitem", { name: "Listen on Hal's computer" })).toBeEnabled({ timeout: 10_000 });
+  await shot(a, "listen-menu");
   await a.getByRole("menuitem", { name: "Listen on Hal's computer" }).click();
   await expect.poll(async () => (await hostLog(h)).some((m) => m.type === "Listen"), { timeout: 10_000 }).toBe(true);
   const status = a.getByTestId("listen-status");
@@ -255,24 +299,32 @@ test("listen on a scripted host: stream, shared playhead, forwarded transport, h
   // --- The transport shows the host playing; the playhead follows its clock (beat 16+).
   await expect.poll(async () => (await transportState(a))?.playing, { timeout: 10_000 }).toBe(true);
   await expect(a.getByRole("button", { name: "Stop", exact: true }).first()).toBeVisible();
-  await expect.poll(async () => Number((await a.getByTestId("position-bars").textContent())?.split(".")[0] ?? 0), { timeout: 10_000 }).toBeGreaterThanOrEqual(5);
+  await expect
+    .poll(async () => Number((await a.getByTestId("position-bars").textContent())?.split(".")[0] ?? 0), { timeout: 10_000 })
+    .toBeGreaterThanOrEqual(5);
+  await shot(a, "listen-listening");
   const bar1 = await a.getByTestId("position-bars").textContent();
   await expect.poll(async () => a.getByTestId("position-bars").textContent(), { timeout: 10_000 }).not.toBe(bar1);
 
   // --- Transport commands go to the host.
   await a.getByRole("button", { name: "Stop", exact: true }).first().click();
   await expect
-    .poll(async () => (await hostLog(h)).filter((m) => m.type === "TransportRequest").map((m) => (m.request as { type: string }).type), { timeout: 10_000 })
+    .poll(async () => (await hostLog(h)).filter((m) => m.type === "TransportRequest").map((m) => (m.request as { type: string }).type), {
+      timeout: 10_000,
+    })
     .toContain("Stop");
   // (The scripted host ignores it and keeps playing: last command handled by the host wins.)
   await a.keyboard.press("Space");
-  await expect.poll(async () => (await hostLog(h)).filter((m) => m.type === "TransportRequest").length, { timeout: 10_000 }).toBeGreaterThanOrEqual(2);
+  await expect
+    .poll(async () => (await hostLog(h)).filter((m) => m.type === "TransportRequest").length, { timeout: 10_000 })
+    .toBeGreaterThanOrEqual(2);
 
   // --- The host leaves: Ada is back on her stopped local transport, the reason is shown.
   await h.evaluate(() => (window as unknown as { __host: ScriptedHost }).__host.leave());
   await expect(status).toContainText("Stopped listening to Hal: Hal left", { timeout: 10_000 });
   await expect.poll(async () => (await transportState(a))?.playing, { timeout: 10_000 }).toBe(false);
   await expect(a.getByRole("button", { name: "Play", exact: true })).toBeVisible();
+  await shot(a, "listen-ended");
   await status.getByRole("button", { name: "Dismiss" }).click();
   await expect(status).toHaveCount(0);
 
