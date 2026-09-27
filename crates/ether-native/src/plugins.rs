@@ -228,11 +228,7 @@ impl PluginHost {
             Ok::<_, PluginError>((token, node, descriptor))
         })??;
         Ok((
-            Box::new(HostedPluginNode {
-                token,
-                node: Some(node),
-                host,
-            }),
+            Box::new(HostedPluginNode::new(token, node, host, prepare.max_block_size)),
             descriptor,
         ))
     }
@@ -318,13 +314,82 @@ impl PluginHost {
 
 /// Engine node for a hosted plugin: forwards to the plugin's audio half and, when dropped
 /// (GC thread), returns it to the main thread for `deactivate`.
+///
+/// Once the plugin is faulted (sandbox helper crashed/hung, or a fatal in-process error) the
+/// node is **bypassed**: the dry input is passed through, delayed by the latency the node
+/// reports, so plugin delay compensation keeps the track aligned. It stays bypassed until
+/// the device is re-instantiated (`PluginCommand::Reload`).
 pub struct HostedPluginNode {
     token: u64,
     node: Option<Box<dyn PluginNode>>,
     host: PluginHost,
+    bypass: BypassDelay,
+}
+
+/// Pre-allocated delay line used while the plugin is faulted (RT-safe: no allocation).
+struct BypassDelay {
+    /// One ring per output channel, `cap + 1` samples each.
+    rings: Vec<Vec<f32>>,
+    /// Longest delay the rings can apply.
+    cap: usize,
+    write: usize,
+}
+
+impl BypassDelay {
+    fn new(channels: usize, cap: usize) -> Self {
+        Self {
+            rings: vec![vec![0.0; cap + 1]; channels],
+            cap,
+            write: 0,
+        }
+    }
+
+    fn clear(&mut self) {
+        for r in &mut self.rings {
+            r.fill(0.0);
+        }
+        self.write = 0;
+    }
+
+    /// Outputs = inputs delayed by `delay` samples (clamped to the capacity).
+    fn process(&mut self, delay: usize, audio: &mut AudioBuffers<'_, '_>) {
+        let delay = delay.min(self.cap);
+        let len = self.cap + 1;
+        let frames = audio.outputs.first().map_or(0, |o| o.len());
+        for i in 0..frames {
+            for (c, out) in audio.outputs.iter_mut().enumerate() {
+                let x = audio.inputs.get(c).map_or(0.0, |ch| ch[i]);
+                match self.rings.get_mut(c) {
+                    Some(ring) => {
+                        ring[self.write] = x;
+                        out[i] = ring[(self.write + len - delay) % len];
+                    }
+                    None => out[i] = if delay == 0 { x } else { 0.0 },
+                }
+            }
+            self.write = (self.write + 1) % len;
+        }
+    }
 }
 
 impl HostedPluginNode {
+    fn new(token: u64, node: Box<dyn PluginNode>, host: PluginHost, max_block: usize) -> Self {
+        let channels = usize::from(node.channels().1).max(2);
+        // Room for the reported latency plus a block of headroom for later increases.
+        let cap = node.latency() as usize + max_block.max(1);
+        Self {
+            token,
+            node: Some(node),
+            host,
+            bypass: BypassDelay::new(channels, cap),
+        }
+    }
+
+    /// The plugin faulted: the node is bypassed.
+    pub fn is_bypassed(&self) -> bool {
+        self.inner().is_faulted()
+    }
+
     fn inner(&self) -> &dyn PluginNode {
         self.node
             .as_deref()
@@ -342,6 +407,7 @@ impl Node for HostedPluginNode {
         self.inner_mut().prepare(config);
     }
     fn reset(&mut self) {
+        self.bypass.clear();
         self.inner_mut().reset();
     }
     fn process(
@@ -349,6 +415,11 @@ impl Node for HostedPluginNode {
         ctx: &mut ProcessContext<'_>,
         audio: &mut AudioBuffers<'_, '_>,
     ) -> ProcessStatus {
+        if self.inner().is_faulted() {
+            let delay = self.inner().latency() as usize;
+            self.bypass.process(delay, audio);
+            return ProcessStatus::Continue;
+        }
         self.inner_mut().process(ctx, audio)
     }
     fn latency(&self) -> u32 {
