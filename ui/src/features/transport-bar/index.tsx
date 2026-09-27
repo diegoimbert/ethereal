@@ -9,6 +9,7 @@ import { Circle, Pause, Play, Redo2, Repeat, Square, Timer, Undo2 } from "lucide
 import { Button } from "@/kit";
 import { timeSignaturePoints, useCpuLoad, usePlayhead, useProjectStore } from "@/state";
 import { cmd, nextGestureId } from "@/transport";
+import { midiTarget } from "@/features/midi-learn/targets";
 import { CommitField } from "./CommitField";
 import { isTextEntry, useEngineCommands, useEngineEvent, useOptionalConnection, useOptionalTransport } from "./engine";
 import {
@@ -93,6 +94,7 @@ export function TransportBar() {
             title={playing ? "Stop (Space)" : "Play (Space)"}
             active={playing}
             className="eth-tb__btn eth-tb__play"
+            {...midiTarget({ type: "Transport", action: "TogglePlay" })}
             disabled={disabled}
             onClick={togglePlay}
           >
@@ -103,6 +105,7 @@ export function TransportBar() {
             aria-label="Stop"
             title="Stop (press again to return to start)"
             className="eth-tb__btn"
+            {...midiTarget({ type: "Transport", action: "Stop" })}
             disabled={disabled}
             onClick={() => void send(cmd("Transport", { type: "Stop" }))}
           >
@@ -114,6 +117,7 @@ export function TransportBar() {
             title="Arrangement record"
             active={recording}
             className="eth-tb__btn eth-tb__record"
+            {...midiTarget({ type: "Transport", action: "ToggleRecord" })}
             disabled={disabled}
             onClick={() => void send(cmd("Recording", { type: "SetRecording", enabled: !recording }))}
           >
@@ -148,6 +152,7 @@ export function TransportBar() {
             size="sm"
             tone="ghost"
             className="eth-tb__tap"
+            {...midiTarget({ type: "Transport", action: "TapTempo" })}
             title="Tap tempo"
             disabled={disabled}
             onClick={() => void send(cmd("Transport", { type: "TapTempo" }))}
@@ -177,6 +182,7 @@ export function TransportBar() {
             aria-label="Loop"
             title="Loop"
             className="eth-tb__btn eth-tb__toggle"
+            {...midiTarget({ type: "Transport", action: "ToggleLoop" })}
             active={state?.loop_enabled ?? false}
             disabled={disabled}
             onClick={() => void send(cmd("Transport", { type: "SetLoopEnabled", enabled: !(state?.loop_enabled ?? false) }))}
@@ -188,6 +194,7 @@ export function TransportBar() {
             aria-label="Metronome"
             title="Metronome"
             className="eth-tb__btn eth-tb__toggle"
+            {...midiTarget({ type: "Transport", action: "ToggleMetronome" })}
             active={state?.metronome ?? false}
             disabled={disabled}
             onClick={() => void send(cmd("Transport", { type: "SetMetronome", enabled: !(state?.metronome ?? false) }))}

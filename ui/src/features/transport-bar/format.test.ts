@@ -50,9 +50,20 @@ describe("barPosition", () => {
     expect(pos(13.5, map)).toBe("4.3.3");
   });
 
-  it("defaults to 4/4 and clamps negatives", () => {
+  it("defaults to 4/4", () => {
     expect(pos(5, [])).toBe("2.2.1");
-    expect(pos(-3)).toBe("1.1.1");
+  });
+
+  it("counts bars backwards before zero (count-in), with no bar 0", () => {
+    expect(pos(-4)).toBe("-1.1.1");
+    expect(pos(-3)).toBe("-1.2.1");
+    expect(pos(-0.25)).toBe("-1.4.4");
+    expect(pos(-4.5)).toBe("-2.4.3");
+    expect(pos(-8)).toBe("-2.1.1");
+    expect(pos(-1e-12)).toBe("1.1.1");
+    // Uses the signature at 0: one bar of 3/4 before zero is 3 beats.
+    expect(pos(-3, [sig(0, 3, 4)])).toBe("-1.1.1");
+    expect(pos(-1, [sig(0, 6, 8)])).toBe("-1.5.1");
   });
 });
 
@@ -60,7 +71,9 @@ describe("formatting and parsing", () => {
   it("formats seconds", () => {
     expect(formatSeconds(0)).toBe("0:00.000");
     expect(formatSeconds(65.25)).toBe("1:05.250");
-    expect(formatSeconds(-1)).toBe("0:00.000");
+    expect(formatSeconds(-1)).toBe("-0:01.000");
+    expect(formatSeconds(-61.5)).toBe("-1:01.500");
+    expect(formatSeconds(-0.0000001)).toBe("0:00.000");
   });
 
   it("parses tempo", () => {

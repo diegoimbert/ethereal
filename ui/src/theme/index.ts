@@ -5,8 +5,8 @@
  * In feature code prefer CSS (`var(--eth-color-accent)`); use `cssVar()` in inline styles and
  * the raw values (e.g. `TRACK_COLORS`, `readToken()`) only where CSS vars don't reach (canvas).
  */
-import { useSyncExternalStore } from "react";
-import { darkColors, DEFAULT_THEME, THEME_NAMES, tokenName, TRACK_COLORS, type ColorKey, type ThemeName } from "./tokens";
+import { useMemo, useSyncExternalStore } from "react";
+import { darkColors, DEFAULT_THEME, THEME_NAMES, themes, tokenName, TRACK_COLORS, type ColorKey, type ThemeName } from "./tokens";
 
 export * from "./tokens";
 
@@ -83,4 +83,15 @@ function subscribe(l: () => void): () => void {
 export function useTheme(): [ThemeName, (t: ThemeName) => void] {
   const theme = useSyncExternalStore(subscribe, getTheme, () => DEFAULT_THEME);
   return [theme, setTheme];
+}
+
+/**
+ * A color token's current value, for canvas drawing (CSS vars don't reach a canvas). Read from
+ * the page (so a restyled `tokens.css` or a devtools override applies), falling back to the
+ * theme's value in `tokens.ts` where no stylesheet is loaded (tests). Re-renders the caller
+ * when the theme changes: put the value in the canvas's redraw dependencies.
+ */
+export function useThemeColor(key: ColorKey): string {
+  const [theme] = useTheme();
+  return useMemo(() => readToken(tokenName("color", key) as `--${string}`) || themes[theme].color[key], [key, theme]);
 }
