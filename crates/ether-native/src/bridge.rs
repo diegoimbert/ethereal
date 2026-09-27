@@ -294,6 +294,10 @@ impl EngineBridge for NativeBridge {
     fn plugin_param_values(&mut self, device: DeviceId) -> Vec<(ParamId, f64)> {
         self.plugins.param_values(device)
     }
+
+    fn poll_midi_input(&mut self, out: &mut Vec<ether_core::protocol::midi_map::MidiInputEvent>) {
+        crate::recording::drain_midi_input(&self.audio, out);
+    }
 }
 
 /// Native [`HostServices`]: wall clock and OS entropy.
@@ -381,6 +385,18 @@ mod tests {
         assert!(b.destroy_node(key).is_err());
         b.destroy_node(key2).unwrap();
         assert!(b.descriptor(d).is_none());
+    }
+
+    #[test]
+    fn midi_input_reaches_the_controller_with_its_port() {
+        let (mut b, _engine) = bridge();
+        let mut out = Vec::new();
+        b.poll_midi_input(&mut out);
+        assert!(out.is_empty());
+        crate::recording::inject_midi_from(&b.audio, "Knobs", [0xb0, 21, 99]);
+        b.poll_midi_input(&mut out);
+        assert_eq!(out.len(), 1);
+        assert_eq!((out[0].port.as_str(), out[0].data), ("Knobs", [0xb0, 21, 99]));
     }
 
     #[test]

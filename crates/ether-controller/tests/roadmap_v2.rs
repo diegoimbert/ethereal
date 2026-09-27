@@ -13,7 +13,6 @@ use ether_core::protocol::export::ExportCommand;
 use ether_core::protocol::groove::GrooveCommand;
 use ether_core::protocol::markers::MarkerCommand;
 use ether_core::protocol::media::MediaCommand;
-use ether_core::protocol::midi_map::MidiMapCommand;
 use ether_core::protocol::model::*;
 use ether_core::protocol::tempo::TempoCommand;
 use ether_core::protocol::tracks::TrackCommand;
@@ -34,8 +33,6 @@ fn new_domains_reply_unsupported_until_implemented() {
             name: None,
             color: None,
         }),
-        Command::MidiMap(MidiMapCommand::List),
-        Command::MidiMap(MidiMapCommand::Unmap { ids: vec![] }),
         Command::Groove(GrooveCommand::SetSwing {
             amount: 0.5,
             grid: Beats(0.25),
