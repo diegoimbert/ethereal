@@ -18,8 +18,8 @@ export function endOf(clip: Clip): Beats {
   return startOf(clip) + clip.length;
 }
 
-export function isArrangementClip(_clip: Clip): boolean {
-  return true;
+export function isArrangementClip(clip: Clip): boolean {
+  return clip.lane == null;
 }
 
 /** A piece of a clip where timeline time maps linearly onto content time. */

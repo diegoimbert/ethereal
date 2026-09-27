@@ -91,6 +91,9 @@ pub struct AudioTake {
 pub struct RecordedMidi {
     pub position: f64,
     pub data: [u8; 3],
+    /// Loop pass (`comping`): 0 for the first, bumped by the host each time the timeline
+    /// position jumps back (loop wrap / locate). Each pass becomes its own take.
+    pub pass: u32,
 }
 
 /// What the host captured during a session.
@@ -120,6 +123,10 @@ struct Active {
     host: bool,
     /// Armed MIDI tracks (each gets a clip with the recorded notes).
     midi_tracks: Vec<TrackId>,
+    /// Punch recording (`comping`: every pass becomes a take).
+    punch: bool,
+    /// Loop region when looping was on at the start (MIDI loop passes span it).
+    loop_region: Option<(f64, f64)>,
     /// Live view not yet emitted.
     live: LiveProgress,
 }
@@ -372,6 +379,11 @@ where
             .map(|t| t.id)
             .collect();
         let tracks: Vec<TrackId> = armed.iter().map(|t| t.id).collect();
+        let loop_region = p
+            .settings
+            .loop_enabled
+            .then_some((p.settings.loop_region.start.0, p.settings.loop_region.end.0))
+            .filter(|(s, e)| e > s);
         self.recording.sessions += 1;
         let session = RecordSession {
             project: p.id,
@@ -447,6 +459,8 @@ where
             session,
             host,
             midi_tracks,
+            punch: self.recording.punch,
+            loop_region,
             live: LiveProgress::default(),
         });
         event(
@@ -523,6 +537,12 @@ where
     }
 
     /// Commit the takes as one undo step; returns the new clips.
+    ///
+    /// `comping`: when a track records several passes (loop), punches in, or records over
+    /// existing main-lane clips or comp regions, every pass becomes a take (a lane with its
+    /// clip and a comp region spanning the pass, newest selected); main-lane material inside
+    /// the recorded range first moves onto a new lane, the first take. Otherwise the take is
+    /// a plain main-lane clip, as in v0.1.
     fn commit_takes(
         &mut self,
         active: &Active,
@@ -550,13 +570,45 @@ where
             .filter(|e| e.position >= s.keep_from && s.keep_until.is_none_or(|u| e.position < u))
             .copied()
             .collect();
-        let notes = notes_from_midi(&midi, midi_start, midi_end);
-        if let Some(last) = notes
-            .iter()
-            .map(|n| midi_start + n.start + n.duration)
-            .reduce(f64::max)
-        {
-            midi_end = midi_end.max(last);
+        // One group of events per loop pass.
+        let mut groups: Vec<(u32, Vec<RecordedMidi>)> = Vec::new();
+        for e in &midi {
+            match groups.iter_mut().find(|g| g.0 == e.pass) {
+                Some(g) => g.1.push(*e),
+                None => groups.push((e.pass, vec![*e])),
+            }
+        }
+        groups.sort_by_key(|g| g.0);
+        let n_groups = groups.len();
+        let mut midi_passes: Vec<(f64, f64, Vec<NoteSpecDraft>)> = Vec::new();
+        for (i, (_, events)) in groups.iter().enumerate() {
+            let (from, until) = match (n_groups, active.loop_region) {
+                (1, _) => (midi_start, midi_end),
+                (_, Some((_, le))) if i == 0 && midi_start < le => (midi_start, le),
+                (_, Some((ls, le))) => (ls, le),
+                (_, None) => {
+                    let first = events.first().map_or(midi_start, |e| e.position);
+                    let last = events.last().map_or(midi_end, |e| e.position);
+                    (first, last.max(first) + MIN_LENGTH)
+                }
+            };
+            let notes = notes_from_midi(events, from, until);
+            if notes.is_empty() {
+                continue;
+            }
+            let mut until = until;
+            if let Some(last) = notes
+                .iter()
+                .map(|n| from + n.start + n.duration)
+                .reduce(f64::max)
+            {
+                until = until.max(last);
+            }
+            if n_groups == 1 {
+                midi_end = midi_end.max(until);
+                until = midi_end;
+            }
+            midi_passes.push((from, until, notes));
         }
         let mut clips = Vec::new();
         let takes_audio: Vec<&AudioTake> = takes
@@ -564,83 +616,131 @@ where
             .iter()
             .filter(|t| t.frames > 0 && t.start.is_finite())
             .collect();
-        if takes_audio.is_empty() && notes.is_empty() {
+        if takes_audio.is_empty() && midi_passes.is_empty() {
             return Ok(clips);
         }
         let midi_tracks = active.midi_tracks.clone();
+        let punch = active.punch;
         self.edit_with("Record", None, now, out, |ctx| {
+            // Audio passes per track, in recording order.
+            let mut audio_tracks: Vec<TrackId> = Vec::new();
+            for t in &takes_audio {
+                if !audio_tracks.contains(&t.track) {
+                    audio_tracks.push(t.track);
+                }
+            }
             let mut n_take = 0;
-            for take in &takes_audio {
-                let Some(track) = ctx.p().tracks.get(&take.track).cloned() else {
+            for track_id in audio_tracks {
+                let Some(track) = ctx.p().tracks.get(&track_id).cloned() else {
                     continue;
                 };
-                n_take += 1;
-                let media = MediaRef {
-                    location: Default::default(),
-                    id: ctx.ids.next(ctx.now),
-                    name: format!("{} Rec {n_take}.wav", track.name),
-                    file: take.file.clone(),
-                    sample_rate: take.sample_rate,
-                    channels: take.channels,
-                    frames: take.frames,
-                    hash: None,
+                let passes: Vec<&&AudioTake> =
+                    takes_audio.iter().filter(|t| t.track == track_id).collect();
+                let map = ctx.p().tempo_map();
+                let range = |t: &AudioTake| {
+                    let start = t.start.max(0.0);
+                    let secs = t.frames as f64 / f64::from(t.sample_rate.max(1));
+                    (start, start + secs * map.bpm_at(Beats(start)) / 60.0)
                 };
-                let media_id = media.id;
-                ctx.tx.insert(Entity::Media(media))?;
-                let id: ClipId = ctx.ids.next(ctx.now);
-                let start = Beats(take.start.max(0.0));
-                doc::apply(
-                    ctx,
-                    &Command::Clip(ClipCommand::CreateAudio {
-                        id,
-                        track: track.id,
-                        start,
-                        media: media_id,
-                    }),
-                )?;
-                // A take plays back exactly as recorded (warping stays one click away).
-                let warp = WarpSettings {
-                    enabled: false,
-                    mode: WarpMode::Complex,
-                    source_bpm: Some(ctx.p().tempo_map().bpm_at(start)),
-                };
-                doc::apply(ctx, &Command::Warp(WarpCommand::SetWarp { clip: id, warp }))?;
-                clips.push(id);
+                let from = passes
+                    .iter()
+                    .map(|t| range(t).0)
+                    .fold(f64::INFINITY, f64::min);
+                let until = passes.iter().map(|t| range(t).1).fold(0.0, f64::max);
+                let as_takes = punch
+                    || passes.len() > 1
+                    || crate::comping::range_is_used(ctx.p(), track_id, from, until);
+                if as_takes {
+                    crate::comping::begin_takes(ctx, track_id, from, until)?;
+                }
+                for take in passes {
+                    n_take += 1;
+                    let media = MediaRef {
+                        location: Default::default(),
+                        id: ctx.ids.next(ctx.now),
+                        name: format!("{} Rec {n_take}.wav", track.name),
+                        file: take.file.clone(),
+                        sample_rate: take.sample_rate,
+                        channels: take.channels,
+                        frames: take.frames,
+                        hash: None,
+                    };
+                    let media_id = media.id;
+                    ctx.tx.insert(Entity::Media(media))?;
+                    let id: ClipId = ctx.ids.next(ctx.now);
+                    let start = Beats(take.start.max(0.0));
+                    doc::apply(
+                        ctx,
+                        &Command::Clip(ClipCommand::CreateAudio {
+                            id,
+                            track: track.id,
+                            start,
+                            media: media_id,
+                        }),
+                    )?;
+                    // A take plays back exactly as recorded (warping stays one click away).
+                    let warp = WarpSettings {
+                        enabled: false,
+                        mode: WarpMode::Complex,
+                        source_bpm: Some(ctx.p().tempo_map().bpm_at(start)),
+                    };
+                    doc::apply(ctx, &Command::Warp(WarpCommand::SetWarp { clip: id, warp }))?;
+                    if as_takes {
+                        crate::comping::add_take(ctx, id)?;
+                    }
+                    clips.push(id);
+                }
             }
-            if !notes.is_empty() {
+            if !midi_passes.is_empty() {
+                let from = midi_passes
+                    .iter()
+                    .map(|p| p.0)
+                    .fold(f64::INFINITY, f64::min);
+                let until = midi_passes.iter().map(|p| p.1).fold(0.0, f64::max);
                 for track in &midi_tracks {
                     let Some(t) = ctx.p().tracks.get(track).cloned() else {
                         continue;
                     };
-                    let id: ClipId = ctx.ids.next(ctx.now);
-                    doc::apply(
-                        ctx,
-                        &Command::Clip(ClipCommand::CreateMidi {
-                            id,
-                            track: t.id,
-                            start: Beats(midi_start.max(0.0)),
-                            length: Beats((midi_end - midi_start).max(MIN_LENGTH)),
-                            name: Some(t.name.clone()),
-                        }),
-                    )?;
-                    let specs = notes
-                        .iter()
-                        .map(|n| NoteSpec {
-                            id: ctx.ids.next(ctx.now),
-                            pitch: n.pitch,
-                            velocity: n.velocity,
-                            start: Beats(n.start.max(0.0)),
-                            duration: Beats(n.duration),
-                        })
-                        .collect();
-                    doc::apply(
-                        ctx,
-                        &Command::Note(NoteCommand::Add {
-                            clip: id,
-                            notes: specs,
-                        }),
-                    )?;
-                    clips.push(id);
+                    let as_takes = punch
+                        || midi_passes.len() > 1
+                        || crate::comping::range_is_used(ctx.p(), t.id, from, until);
+                    if as_takes {
+                        crate::comping::begin_takes(ctx, t.id, from, until)?;
+                    }
+                    for (start, end, notes) in &midi_passes {
+                        let id: ClipId = ctx.ids.next(ctx.now);
+                        doc::apply(
+                            ctx,
+                            &Command::Clip(ClipCommand::CreateMidi {
+                                id,
+                                track: t.id,
+                                start: Beats(start.max(0.0)),
+                                length: Beats((end - start).max(MIN_LENGTH)),
+                                name: Some(t.name.clone()),
+                            }),
+                        )?;
+                        let specs = notes
+                            .iter()
+                            .map(|n| NoteSpec {
+                                id: ctx.ids.next(ctx.now),
+                                pitch: n.pitch,
+                                velocity: n.velocity,
+                                start: Beats(n.start.max(0.0)),
+                                duration: Beats(n.duration),
+                            })
+                            .collect();
+                        doc::apply(
+                            ctx,
+                            &Command::Note(NoteCommand::Add {
+                                clip: id,
+                                notes: specs,
+                            }),
+                        )?;
+                        if as_takes {
+                            crate::comping::add_take(ctx, id)?;
+                        }
+                        clips.push(id);
+                    }
                 }
             }
             Ok(())
