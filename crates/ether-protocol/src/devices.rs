@@ -59,6 +59,13 @@ pub enum DeviceCommand {
     GetDescriptor {
         device: DeviceId,
     },
+    /// Roadmap v2 (`sidechain`): feed `source`'s post-fader output into the device's
+    /// sidechain input (`None` = off). `InvalidArgument` if it would create a routing cycle
+    /// or the device has no sidechain input (`sidechain_inputs == 0`). Undoable.
+    SetSidechain {
+        device: DeviceId,
+        source: Option<TrackId>,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
@@ -99,6 +106,9 @@ pub struct DeviceDescriptor {
     pub audio_inputs: u16,
     pub audio_outputs: u16,
     pub midi_input: bool,
+    /// Roadmap v2 (`sidechain`): channels of the sidechain input (0 = none; the UI shows a
+    /// sidechain source selector when > 0).
+    pub sidechain_inputs: u16,
 }
 
 /// Parameter metadata. Plain values are what the document stores; normalized 0..=1 values

@@ -136,25 +136,18 @@ fn zero_crossing_hz(x: &[f32]) -> f32 {
 // ---------------------------------------------------------------------------------------
 // Descriptors
 
-const TYPES: [BuiltinDeviceType; 4] = [
-    BuiltinDeviceType::Synth,
-    BuiltinDeviceType::Sampler,
-    BuiltinDeviceType::Compressor,
-    BuiltinDeviceType::Delay,
-];
+const TYPES: [BuiltinDeviceType; 9] = BuiltinDeviceType::ALL;
 
 fn builtin(t: BuiltinDeviceType) -> BuiltinDevice {
-    match t {
-        BuiltinDeviceType::Synth => BuiltinDevice::Synth,
-        BuiltinDeviceType::Sampler => BuiltinDevice::Sampler { sample: None },
-        BuiltinDeviceType::Compressor => BuiltinDevice::Compressor,
-        BuiltinDeviceType::Delay => BuiltinDevice::Delay,
-    }
+    BuiltinDevice::new(t)
 }
 
 #[test]
 fn descriptors_are_consistent_and_identical_per_type() {
-    assert_eq!(ether_devices::all_descriptors().len(), 4);
+    assert_eq!(
+        ether_devices::all_descriptors().len(),
+        BuiltinDeviceType::ALL.len()
+    );
     for t in TYPES {
         let desc = ether_devices::descriptor(t);
         // Every instance (fresh, or after param changes / prepare) reports the same list.
@@ -423,7 +416,7 @@ fn sampler_pitched_note_off_releases() {
 
 #[test]
 fn sampler_without_sample_is_silent() {
-    let mut s = ether_devices::create(&BuiltinDevice::Sampler { sample: None }, &NoSamples);
+    let mut s = ether_devices::create(&BuiltinDevice::Sampler { sample: None, slices: Default::default() }, &NoSamples);
     prepared(&mut *s);
     let out = render(&mut *s, &silence(0), &[(0, note_on(1, 60))], 1024, 120.0);
     assert_eq!(peak(&out[0]), 0.0);
@@ -434,9 +427,7 @@ fn sampler_without_sample_is_silent() {
         channels: 1,
     }));
     let mut s = ether_devices::create(
-        &BuiltinDevice::Sampler {
-            sample: Some(media),
-        },
+        &BuiltinDevice::Sampler { sample: Some(media), slices: Default::default() },
         &resolver,
     );
     prepared(&mut *s);

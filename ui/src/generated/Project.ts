@@ -7,8 +7,14 @@ import type { Clip } from "./Clip";
 import type { ClipId } from "./ClipId";
 import type { Device } from "./Device";
 import type { DeviceId } from "./DeviceId";
+import type { DrumPad } from "./DrumPad";
+import type { DrumPadId } from "./DrumPadId";
+import type { Marker } from "./Marker";
+import type { MarkerId } from "./MarkerId";
 import type { MediaId } from "./MediaId";
 import type { MediaRef } from "./MediaRef";
+import type { MidiMapping } from "./MidiMapping";
+import type { MidiMappingId } from "./MidiMappingId";
 import type { Note } from "./Note";
 import type { NoteId } from "./NoteId";
 import type { ProjectId } from "./ProjectId";
@@ -37,4 +43,16 @@ import type { WarpMarkerId } from "./WarpMarkerId";
  * - every parent reference resolves; notes only in MIDI clips; sends target `Return`
  *   tracks; no routing cycles.
  */
-export type Project = { id: ProjectId, settings: ProjectSettings, tracks: { [key in TrackId]: Track }, clips: { [key in ClipId]: Clip }, notes: { [key in NoteId]: Note }, devices: { [key in DeviceId]: Device }, sends: { [key in SendId]: TrackSend }, automation_lanes: { [key in AutomationLaneId]: AutomationLane }, automation_points: { [key in AutomationPointId]: AutomationPoint }, tempo_points: { [key in TempoPointId]: TempoPoint }, time_signatures: { [key in TimeSignatureId]: TimeSignaturePoint }, warp_markers: { [key in WarpMarkerId]: WarpMarker }, media: { [key in MediaId]: MediaRef }, };
+export type Project = { id: ProjectId, settings: ProjectSettings, tracks: { [key in TrackId]: Track }, clips: { [key in ClipId]: Clip }, notes: { [key in NoteId]: Note }, devices: { [key in DeviceId]: Device }, sends: { [key in SendId]: TrackSend }, automation_lanes: { [key in AutomationLaneId]: AutomationLane }, automation_points: { [key in AutomationPointId]: AutomationPoint }, tempo_points: { [key in TempoPointId]: TempoPoint }, time_signatures: { [key in TimeSignatureId]: TimeSignaturePoint }, warp_markers: { [key in WarpMarkerId]: WarpMarker }, media: { [key in MediaId]: MediaRef }, 
+/**
+ * Arrangement markers (roadmap v2, `clip-editing`; `.ether` v3).
+ */
+markers: { [key in MarkerId]: Marker }, 
+/**
+ * MIDI controller mappings (roadmap v2, `midi-learn`; `.ether` v3).
+ */
+midi_mappings: { [key in MidiMappingId]: MidiMapping }, 
+/**
+ * Drum rack pads (roadmap v2, `drum-rack`; `.ether` v3).
+ */
+drum_pads: { [key in DrumPadId]: DrumPad }, };

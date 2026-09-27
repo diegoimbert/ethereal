@@ -1121,6 +1121,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "ether-collab"
+version = "0.0.1"
+dependencies = [
+ "ether-protocol",
+]
+
+[[package]]
 name = "ether-controller"
 version = "0.0.1"
 dependencies = [
@@ -1252,6 +1259,15 @@ dependencies = [
  "shared_memory",
  "thiserror 2.0.21",
  "tracing",
+]
+
+[[package]]
+name = "ether-server"
+version = "0.0.1"
+dependencies = [
+ "ether-protocol",
+ "serde_json",
+ "thiserror 2.0.21",
 ]
 
 [[package]]

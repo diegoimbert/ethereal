@@ -137,6 +137,7 @@ impl SandboxedPlugin {
                 audio_inputs: 0,
                 audio_outputs: 0,
                 midi_input: false,
+                sidechain_inputs: 0,
             },
             has_editor: false,
             active: false,

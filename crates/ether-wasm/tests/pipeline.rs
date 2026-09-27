@@ -199,6 +199,7 @@ fn media_streams_through_small_ring_and_plays() {
         armed: false,
         clips,
         automation: vec![],
+        racks: Vec::new(),
     };
     let clip = ClipDesc {
         id: ClipId(Ulid(3)),
@@ -213,6 +214,9 @@ fn media_streams_through_small_ring_and_plays() {
             transpose: 0.0,
             fade_in: 0.0,
             fade_out: 0.0,
+            fade_in_curve: Default::default(),
+            fade_out_curve: Default::default(),
+            reversed: false,
             warp: None,
         },
         envelopes: vec![],
@@ -293,7 +297,7 @@ fn builtin_synth_under_virtual_key_plays_notes() {
         kind: TrackKind::Midi,
         chain: vec![ChainEntry {
             node: key,
-            enabled: true,
+            enabled: true, sidechain: None,
         }],
         output: Some(master),
         group: None,
@@ -324,6 +328,7 @@ fn builtin_synth_under_virtual_key_plays_notes() {
             envelopes: vec![],
         }],
         automation: vec![],
+        racks: Vec::new(),
     };
     let mut master_desc = midi.clone();
     master_desc.id = master;
@@ -401,6 +406,7 @@ fn backlog_is_applied_in_bounded_steps_without_queue_overflow() {
             armed: false,
             clips: vec![],
             automation: vec![],
+            racks: Vec::new(),
         }],
         ..Default::default()
     };

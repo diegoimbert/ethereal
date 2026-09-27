@@ -358,6 +358,7 @@ impl PluginController for ClapPlugin {
             audio_inputs: io.0,
             audio_outputs: io.1,
             midi_input: io.2,
+            sidechain_inputs: 0,
         }
     }
 

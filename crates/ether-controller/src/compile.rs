@@ -195,8 +195,8 @@ fn lane_points(p: &Project, lane: AutomationLaneId) -> Vec<(f64, f64, CurveShape
 
 fn clip_desc(p: &Project, ctx: &CompileContext, clip: &Clip, start: Beats) -> ClipDesc {
     let content = match &clip.content {
-        ClipContent::Midi => ClipContentDesc::Midi {
-            notes: p
+        ClipContent::Midi => {
+            let mut notes: Vec<NoteDesc> = p
                 .notes_of(clip.id)
                 .into_iter()
                 .filter(|n| !n.muted)
@@ -207,14 +207,19 @@ fn clip_desc(p: &Project, ctx: &CompileContext, clip: &Clip, start: Beats) -> Cl
                     velocity: n.velocity,
                     release_velocity: n.release_velocity,
                 })
-                .collect(),
-        },
+                .collect();
+            crate::groove::swing_notes(&p.settings, clip.offset.0, &mut notes);
+            ClipContentDesc::Midi { notes }
+        }
         ClipContent::Audio(a) => ClipContentDesc::Audio {
             media: a.media,
             gain: a.gain.to_linear(),
             transpose: a.transpose,
             fade_in: a.fade_in.0,
             fade_out: a.fade_out.0,
+            fade_in_curve: a.fade_in_curve,
+            fade_out_curve: a.fade_out_curve,
+            reversed: a.reversed,
             warp: crate::warp::warp_desc(p, clip, a),
         },
     };
@@ -279,6 +284,7 @@ pub fn compile_graph_with(p: &Project, ctx: &CompileContext) -> RenderGraphDesc 
                         (ctx.nodes)(d.id).map(|node| ChainEntry {
                             node,
                             enabled: d.enabled,
+                            sidechain: d.sidechain,
                         })
                     })
                     .collect(),
@@ -310,6 +316,7 @@ pub fn compile_graph_with(p: &Project, ctx: &CompileContext) -> RenderGraphDesc 
                     .map(|(s, c)| clip_desc(p, ctx, c, s))
                     .collect(),
                 automation: Vec::new(),
+                racks: crate::drum_rack::racks_desc(p, t.id, ctx),
             }
         })
         .collect();
@@ -358,6 +365,7 @@ pub fn compile_graph_with(p: &Project, ctx: &CompileContext) -> RenderGraphDesc 
         loop_start: p.settings.loop_region.start.0,
         loop_end: p.settings.loop_region.end.0,
         metronome: p.settings.metronome,
+        click: crate::tempo::metronome_desc(&p.settings),
         tracks,
     }
 }

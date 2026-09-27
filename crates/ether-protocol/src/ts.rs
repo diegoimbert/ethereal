@@ -7,7 +7,10 @@ use ts_rs::{Config, TS};
 use crate::message::{ClientMessage, ServerMessage};
 use crate::model::file::EtherFile;
 use crate::model::{Op, Transaction};
+use crate::collab::CollabMessage;
+use crate::midi_map::MidiInputEvent;
 use crate::plugins::{ScanRequest, ScanResponse};
+use crate::remote::{BinaryKind, ClientHello, ServerHello};
 
 /// Export every protocol + model type reachable from the root messages into `dir` (one
 /// `.ts` file per type) and write an `index.ts` barrel. Existing `.ts` files in `dir` are
@@ -29,6 +32,12 @@ pub fn export_all(dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
     Transaction::export_all(&cfg)?;
     ScanRequest::export_all(&cfg)?;
     ScanResponse::export_all(&cfg)?;
+    // Roadmap v2 wire types not reachable from the root messages.
+    ClientHello::export_all(&cfg)?;
+    ServerHello::export_all(&cfg)?;
+    BinaryKind::export_all(&cfg)?;
+    MidiInputEvent::export_all(&cfg)?;
+    CollabMessage::export_all(&cfg)?;
 
     let mut names: Vec<String> = std::fs::read_dir(dir)?
         .filter_map(|e| e.ok())

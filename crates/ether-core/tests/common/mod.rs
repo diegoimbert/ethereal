@@ -53,6 +53,7 @@ pub fn track(id: TrackId, kind: TrackKind, output: Option<TrackId>) -> TrackDesc
         armed: false,
         clips: vec![],
         automation: vec![],
+        racks: Vec::new(),
     }
 }
 
@@ -65,7 +66,7 @@ pub fn with_chain(mut t: TrackDesc, nodes: &[NodeKey]) -> TrackDesc {
         .iter()
         .map(|&node| ChainEntry {
             node,
-            enabled: true,
+            enabled: true, sidechain: None,
         })
         .collect();
     t

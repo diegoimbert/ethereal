@@ -82,6 +82,9 @@ fn fixture(seconds: f64, warp: WarpSettings) -> Fixture {
             transpose: 0.0,
             fade_in: Beats::ZERO,
             fade_out: Beats::ZERO,
+            fade_in_curve: Default::default(),
+            fade_out_curve: Default::default(),
+            reversed: false,
             warp,
         }),
     };

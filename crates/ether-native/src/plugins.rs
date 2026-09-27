@@ -577,6 +577,7 @@ pub(crate) mod fake {
             audio_inputs: 2,
             audio_outputs: 2,
             midi_input: false,
+            sidechain_inputs: 0,
         }
     }
 

@@ -3,7 +3,8 @@ import type { Beats } from "./Beats";
 import type { ClipLoop } from "./ClipLoop";
 import type { Color } from "./Color";
 import type { Decibels } from "./Decibels";
+import type { FadeCurve } from "./FadeCurve";
 import type { TrackId } from "./TrackId";
 import type { WarpSettings } from "./WarpSettings";
 
-export type ClipChange = { "field": "Track", "value": TrackId } | { "field": "Start", "value": Beats } | { "field": "Name", "value": string } | { "field": "Color", "value": Color | null } | { "field": "Muted", "value": boolean } | { "field": "Length", "value": Beats } | { "field": "Offset", "value": Beats } | { "field": "Loop", "value": ClipLoop } | { "field": "Gain", "value": Decibels } | { "field": "Transpose", "value": number } | { "field": "FadeIn", "value": Beats } | { "field": "FadeOut", "value": Beats } | { "field": "Warp", "value": WarpSettings };
+export type ClipChange = { "field": "Track", "value": TrackId } | { "field": "Start", "value": Beats } | { "field": "Name", "value": string } | { "field": "Color", "value": Color | null } | { "field": "Muted", "value": boolean } | { "field": "Length", "value": Beats } | { "field": "Offset", "value": Beats } | { "field": "Loop", "value": ClipLoop } | { "field": "Gain", "value": Decibels } | { "field": "Transpose", "value": number } | { "field": "FadeIn", "value": Beats } | { "field": "FadeOut", "value": Beats } | { "field": "Warp", "value": WarpSettings } | { "field": "FadeInCurve", "value": FadeCurve } | { "field": "FadeOutCurve", "value": FadeCurve } | { "field": "Reversed", "value": boolean };

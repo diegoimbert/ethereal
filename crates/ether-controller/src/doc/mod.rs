@@ -444,6 +444,7 @@ pub(crate) fn order_after<I: PartialEq + Copy>(
 /// `true` if `command` edits the document (undoable, allowed inside a `Batch`).
 pub(crate) fn is_document_command(command: &Command, current: Option<ProjectId>) -> bool {
     use ether_core::protocol::devices::DeviceCommand as D;
+    use ether_core::protocol::midi_map::MidiMapCommand as M;
     use ether_core::protocol::recording::RecordingCommand as R;
     use ether_core::protocol::transport::TransportCommand as T;
     use ether_core::protocol::warp::WarpCommand as W;
@@ -467,6 +468,13 @@ pub(crate) fn is_document_command(command: &Command, current: Option<ProjectId>)
             R::SetMonitor { .. } | R::SetInput { .. } | R::SetCountIn { .. }
         ),
         Command::Warp(c) => !matches!(c, W::DetectTempo { .. }),
+        // Roadmap v2.
+        Command::Tempo(_)
+        | Command::Marker(_)
+        | Command::Groove(_)
+        | Command::DrumRack(_)
+        | Command::Slice(_) => true,
+        Command::MidiMap(c) => !matches!(c, M::Learn { .. } | M::List),
         Command::Project(ProjectCommand::Rename { id, .. }) => Some(*id) == current,
         _ => false,
     }
@@ -505,6 +513,12 @@ pub(crate) fn apply(ctx: &mut DocCtx, command: &Command) -> CmdResult<ReplyValue
         Command::Transport(c) => misc::transport(ctx, c),
         Command::Recording(c) => misc::recording(ctx, c),
         Command::Warp(c) => misc::warp(ctx, c),
+        Command::Tempo(c) => crate::tempo::apply(ctx, c),
+        Command::Marker(c) => crate::clip_editing::marker_command(ctx, c),
+        Command::Groove(c) => crate::groove::apply(ctx, c),
+        Command::DrumRack(c) => crate::drum_rack::rack_command(ctx, c),
+        Command::Slice(c) => crate::drum_rack::slice_command(ctx, c),
+        Command::MidiMap(c) => crate::midi_learn::apply(ctx, c),
         Command::Project(ProjectCommand::Rename { name, .. }) => misc::rename_project(ctx, name),
         other => Err(unsupported(format!(
             "{} is not a document command",
