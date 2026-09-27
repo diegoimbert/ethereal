@@ -2,14 +2,9 @@
 // Only edit files inside this folder. The app shell (ui/src/app/App.tsx) already mounts
 // `MarkerLane` (main panel, `data-slot="markers"` above the arrangement): keep the export names and keep them prop-less (read state via hooks).
 
-/**
- * Arrangement markers; clip fades, crossfades and reverse live in the arrangement.
- *
- * Inline slot: renders nothing until implemented, so the shell layout is unchanged.
- */
-export function MarkerLane() {
-  return null;
-}
+/** Arrangement markers (`MarkerLane`); clip fades, crossfades and reverse live in the arrangement clips (`ClipFades`). */
+export { MarkerLane } from "./MarkerLane";
+export { ClipFades, ReversedBadge } from "./ClipFades";
 
-// The fade law mirror (`fadeGain`) lives in `./fades` (import it from there; react-refresh
-// wants component-only index files).
+// The fade law mirror (`fadeGain`) lives in `./fades` and the command/menu helpers in
+// `./clipEditing` (import them from there; react-refresh wants component-only index files).
