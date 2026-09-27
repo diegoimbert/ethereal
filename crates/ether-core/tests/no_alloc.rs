@@ -153,6 +153,9 @@ fn process_never_allocates() {
             transpose: 0.0,
             fade_in: 0.25,
             fade_out: 0.25,
+            fade_in_curve: Default::default(),
+            fade_out_curve: Default::default(),
+            reversed: false,
             warp: Some(ether_core::graph::WarpDesc {
                 mode: ether_core::protocol::model::WarpMode::Repitch,
                 markers: vec![(0.0, 0.0), (2.0, 1.3), (6.0, 2.9)],

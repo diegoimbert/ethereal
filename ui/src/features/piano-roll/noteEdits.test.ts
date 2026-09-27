@@ -107,7 +107,7 @@ describe("velocity, new notes, quantize", () => {
   it("quantizes the selection, or the whole clip when nothing is selected", () => {
     expect(quantizeCommand("c", ["a"], 0.25)).toEqual({
       domain: "Note",
-      command: { type: "Quantize", clip: "c", notes: ["a"], grid: 0.25, strength: 1, ends: false },
+      command: { type: "Quantize", clip: "c", notes: ["a"], grid: 0.25, strength: 1, ends: false, swing: 0 },
     });
     expect(quantizeCommand("c", [], 0.5).command).toMatchObject({ notes: null, grid: 0.5 });
   });

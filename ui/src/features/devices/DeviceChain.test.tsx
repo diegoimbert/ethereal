@@ -31,8 +31,18 @@ describe("chain helpers", () => {
     const all = Object.values(BUILTIN_DESCRIPTORS);
     const midi = { kind: "Midi" } as Parameters<typeof insertableTypes>[1];
     const audio = { kind: "Audio" } as Parameters<typeof insertableTypes>[1];
-    expect(insertableTypes(all, midi).map((d) => d.name)).toEqual(["Synth", "Sampler", "Compressor", "Delay"]);
-    expect(insertableTypes(all, audio).map((d) => d.name)).toEqual(["Compressor", "Delay"]);
+    expect(insertableTypes(all, midi).map((d) => d.name)).toEqual([
+      "Synth",
+      "Sampler",
+      "Compressor",
+      "Delay",
+      "EQ",
+      "Reverb",
+      "Limiter",
+      "Utility",
+      "Drum Rack",
+    ]);
+    expect(insertableTypes(all, audio).map((d) => d.name)).toEqual(["Compressor", "Delay", "EQ", "Reverb", "Limiter", "Utility"]);
   });
 
   it("groups visible params by section", () => {

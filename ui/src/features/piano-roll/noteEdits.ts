@@ -121,5 +121,6 @@ export function quantizeCommand(clip: ClipId, selected: ReadonlyArray<NoteId>, g
     grid,
     strength,
     ends: false,
+    swing: 0,
   });
 }

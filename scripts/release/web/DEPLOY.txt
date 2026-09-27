@@ -1,0 +1,54 @@
+Ethereal web build: deployment
+==============================
+
+This folder is a static site. Serve it from the ROOT of a domain or subdomain (asset
+URLs are absolute, e.g. /assets/...), over HTTPS (or http://localhost).
+
+Required: cross-origin isolation
+--------------------------------
+The audio engine shares memory between the engine worker and the audio worklet
+(SharedArrayBuffer), which browsers only allow on cross-origin isolated pages. EVERY
+response (index.html, JS, the .wasm, workers) must carry these two headers:
+
+    Cross-Origin-Opener-Policy: same-origin
+    Cross-Origin-Embedder-Policy: require-corp
+
+Without them the app loads but cannot start the engine. Check in the browser console:
+`self.crossOriginIsolated` must be `true`.
+
+Also serve `.wasm` files as `application/wasm` (most servers already do).
+
+Netlify / Cloudflare Pages
+    The included `_headers` file sets both headers. Nothing else to do.
+
+nginx
+    location / {
+        add_header Cross-Origin-Opener-Policy same-origin always;
+        add_header Cross-Origin-Embedder-Policy require-corp always;
+        try_files $uri $uri/ /index.html;
+    }
+
+Caddy
+    header {
+        Cross-Origin-Opener-Policy same-origin
+        Cross-Origin-Embedder-Policy require-corp
+    }
+
+Apache (.htaccess, mod_headers)
+    Header always set Cross-Origin-Opener-Policy "same-origin"
+    Header always set Cross-Origin-Embedder-Policy "require-corp"
+
+Vercel (vercel.json)
+    { "headers": [ { "source": "/(.*)", "headers": [
+        { "key": "Cross-Origin-Opener-Policy", "value": "same-origin" },
+        { "key": "Cross-Origin-Embedder-Policy", "value": "require-corp" } ] } ] }
+
+GitHub Pages cannot set response headers; use another host (or a service-worker shim
+such as coi-serviceworker, at your own risk).
+
+Local test
+    npx serve is NOT enough (no headers). From the repo, `pnpm --filter @ethereal/web
+    preview` serves a build with the right headers.
+
+Licenses: Ethereal is GPL-3.0-or-later (LICENSE.txt); third-party components are listed in
+THIRD_PARTY_NOTICES.txt.

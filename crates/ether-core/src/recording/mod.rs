@@ -353,6 +353,7 @@ mod tests {
             armed: false,
             clips: vec![],
             automation: vec![],
+            racks: Vec::new(),
         }
     }
 
@@ -523,11 +524,13 @@ mod tests {
         midi.chain = vec![ChainEntry {
             node: key,
             enabled: true,
+            sidechain: None,
         }];
         let mut quiet = track(3, TrackKind::Midi, Some(master.id));
         quiet.chain = vec![ChainEntry {
             node: key2,
             enabled: true,
+            sidechain: None,
         }];
         parts
             .handle

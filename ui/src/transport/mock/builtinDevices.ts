@@ -34,6 +34,7 @@ export const BUILTIN_DESCRIPTORS: Readonly<Record<BuiltinDeviceType, DeviceDescr
     audio_inputs: 0,
     audio_outputs: 2,
     midi_input: true,
+    sidechain_inputs: 0,
     params: [
       param(0, "Waveform", "Oscillator", "None", 0, 3, 1, undefined, ["Sine", "Saw", "Square", "Triangle"]),
       param(1, "Detune", "Oscillator", "Semitones", -12, 12, 0),
@@ -53,6 +54,7 @@ export const BUILTIN_DESCRIPTORS: Readonly<Record<BuiltinDeviceType, DeviceDescr
     audio_inputs: 0,
     audio_outputs: 2,
     midi_input: true,
+    sidechain_inputs: 0,
     params: [
       param(0, "Root Key", "Sample", "None", 0, 127, 60),
       param(1, "Transpose", "Sample", "Semitones", -48, 48, 0),
@@ -69,6 +71,7 @@ export const BUILTIN_DESCRIPTORS: Readonly<Record<BuiltinDeviceType, DeviceDescr
     audio_inputs: 2,
     audio_outputs: 2,
     midi_input: false,
+    sidechain_inputs: 0,
     params: [
       param(0, "Threshold", null, "Decibels", -60, 0, -18),
       param(1, "Ratio", null, "Ratio", 1, 20, 4, LOG),
@@ -85,6 +88,7 @@ export const BUILTIN_DESCRIPTORS: Readonly<Record<BuiltinDeviceType, DeviceDescr
     audio_inputs: 2,
     audio_outputs: 2,
     midi_input: false,
+    sidechain_inputs: 0,
     params: [
       param(0, "Time", null, "Milliseconds", 1, 2000, 375, LOG),
       param(1, "Sync", null, "Toggle", 0, 1, 1, undefined, ["Off", "On"]),
@@ -93,7 +97,31 @@ export const BUILTIN_DESCRIPTORS: Readonly<Record<BuiltinDeviceType, DeviceDescr
       param(4, "Mix", null, "Percent", 0, 100, 30),
     ],
   },
+  Eq: placeholder("Eq", "EQ", false),
+  Reverb: placeholder("Reverb", "Reverb", false),
+  Limiter: placeholder("Limiter", "Limiter", false),
+  Utility: placeholder("Utility", "Utility", false),
+  DrumRack: placeholder("DrumRack", "Drum Rack", true),
 };
+
+/** Roadmap v2 built-ins: no params yet, like the Rust placeholders (`ether-devices/src/placeholder.rs`). */
+function placeholder(device: BuiltinDeviceType, name: string, instrument: boolean): DeviceDescriptor {
+  return {
+    device_type: { type: "Builtin", device },
+    name,
+    category: instrument ? "Instrument" : "AudioEffect",
+    audio_inputs: instrument ? 0 : 2,
+    audio_outputs: 2,
+    midi_input: instrument,
+    sidechain_inputs: 0,
+    params: [],
+  };
+}
+
+/** A fresh `BuiltinDevice` of `type` with default data (mirrors Rust `BuiltinDevice::new`). */
+export function newBuiltinDevice(type: BuiltinDeviceType): BuiltinDevice {
+  return type === "Sampler" ? { type: "Sampler", sample: null, slices: { enabled: false, base_note: 36, markers: [] } } : { type };
+}
 
 export function builtinDescriptor(device: BuiltinDevice | BuiltinDeviceType): DeviceDescriptor {
   return BUILTIN_DESCRIPTORS[typeof device === "string" ? device : device.type];

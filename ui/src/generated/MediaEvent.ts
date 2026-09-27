@@ -2,4 +2,4 @@
 import type { BrowseRoot } from "./BrowseRoot";
 import type { MediaId } from "./MediaId";
 
-export type MediaEvent = { "type": "ImportProgress", media: MediaId, progress: number, } | { "type": "PeaksReady", media: MediaId, } | { "type": "Missing", media: MediaId, } | { "type": "LocationsChanged", locations: Array<BrowseRoot>, };
+export type MediaEvent = { "type": "ImportProgress", media: MediaId, progress: number, } | { "type": "PeaksReady", media: MediaId, } | { "type": "Missing", media: MediaId, } | { "type": "LocationsChanged", locations: Array<BrowseRoot>, } | { "type": "UploadProgress", upload: string, received: number, };
