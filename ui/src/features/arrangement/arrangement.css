@@ -224,7 +224,8 @@
   position: relative;
   z-index: 5;
   box-sizing: border-box;
-  padding-right: calc(var(--eth-space-sm) + 4px);
+  /* Clears the card's right inset (4px) with room to spare. */
+  padding-right: 16px;
   /* The header is a floating card: drawn by ::before, inset from the row (the header box
      itself keeps the column width that clip positions rely on). */
   background: transparent;
