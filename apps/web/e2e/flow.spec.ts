@@ -187,7 +187,7 @@ test("full flow: build a song, play it, edit, save, reload", async ({ page }) =>
 
   // --- Edit, undo, redo ----------------------------------------------------------------------
   await selectClip(page, midiClip.id);
-  await page.getByRole("toolbar", { name: "Arrangement tools" }).getByRole("button", { name: "Duplicate" }).click();
+  await page.keyboard.press("ControlOrMeta+d");
   await expect.poll(async () => count((await doc(page)).clips)).toBe(3);
   await page.getByRole("button", { name: "Undo" }).click();
   await expect.poll(async () => count((await doc(page)).clips)).toBe(2);
