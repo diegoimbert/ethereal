@@ -386,7 +386,10 @@ export class MockTransport implements EngineTransport {
 
   private execute(command: Command, gesture: GestureId | null): ReplyValue {
     const isEndGesture = command.domain === "Edit" && command.command.type === "EndGesture";
-    if (!isEndGesture && gesture !== this.openGesture) this.openGesture = null;
+    // Upload chunks edit nothing: like the engine, they leave an open gesture open (an
+    // upload-then-import-with-clip is one undo step).
+    const isUpload = command.domain === "Media" && ["BeginUpload", "UploadChunk", "CancelUpload"].includes(command.command.type);
+    if (!isEndGesture && !isUpload && gesture !== this.openGesture) this.openGesture = null;
 
     // Project commands first: `Rename` is a document edit only for the current project.
     if (command.domain === "Project") return this.projectCommand(command.command, gesture);
