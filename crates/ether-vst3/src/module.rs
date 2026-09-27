@@ -31,6 +31,12 @@ pub(crate) struct Module {
     bundle: PathBuf,
 }
 
+// SAFETY: the library handle and the CFBundle are thread-safe; the factory is only called on
+// the plugin main thread. Other threads (a node on the audio/GC thread) only keep the module
+// alive through `Arc<Module>`, so the last one to drop runs the exit function.
+unsafe impl Send for Module {}
+unsafe impl Sync for Module {}
+
 impl std::fmt::Debug for Module {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Module")
@@ -220,7 +226,7 @@ pub(crate) fn binary_path(bundle: &Path) -> Result<PathBuf, PluginError> {
 fn arch_dirs() -> &'static [&'static str] {
     match (std::env::consts::ARCH, cfg!(windows)) {
         ("x86_64", true) => &["x86_64-win"],
-        ("aarch64", true) => &["arm64-win", "arm64x-win", "arm64ec-win"],
+        ("aarch64", true) => &["arm64-win", "arm64x-win"],
         ("x86", true) => &["x86-win"],
         ("x86_64", false) => &["x86_64-linux"],
         ("aarch64", false) => &["aarch64-linux"],

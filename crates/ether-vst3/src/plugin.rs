@@ -1,5 +1,6 @@
 //! Main-thread half of an in-process VST3 plugin ([`Vst3Plugin`]).
 
+use std::cell::Cell;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
@@ -77,10 +78,12 @@ pub struct Vst3Plugin {
     link: Option<ActiveLink>,
     /// Values set while inactive, delivered to the processor on activation (normalized).
     pending: Vec<ParamMsg>,
-    has_editor: bool,
+    /// Whether the controller has an editor view we can host: probed lazily (on the main
+    /// thread, where `createView` may be called), then cached.
+    has_editor: Cell<Option<bool>>,
     editor: Option<Editor>,
     /// Dropped last: the library must outlive every object it created.
-    _module: Option<Module>,
+    module: Arc<Module>,
 }
 
 impl std::fmt::Debug for Vst3Plugin {
@@ -134,7 +137,7 @@ impl Vst3Plugin {
     pub fn load(bundle: &Path, plugin_id: &str) -> Result<Self, PluginError> {
         let cid = crate::parse_class_id(plugin_id)
             .ok_or_else(|| PluginError::NotFound(format!("invalid VST3 class id {plugin_id}")))?;
-        let module = Module::load(bundle)?;
+        let module = Arc::new(Module::load(bundle)?);
         let host = ComWrapper::new(HostApplication);
         module.set_host_context(&host);
         let class = classes(&module)
@@ -189,9 +192,9 @@ impl Vst3Plugin {
             layout: BusLayout::default(),
             link: None,
             pending: Vec::new(),
-            has_editor: false,
+            has_editor: Cell::new(None),
             editor: None,
-            _module: Some(module),
+            module: module.clone(),
         };
 
         if let Some(ctrl) = plugin.controller.clone() {
@@ -218,7 +221,6 @@ impl Vst3Plugin {
             if let Some(h) = plugin.handler.as_com_ref::<IComponentHandler>() {
                 unsafe { ctrl.setComponentHandler(h.as_ptr()) };
             }
-            plugin.has_editor = HostWindow::SUPPORTED && plugin.create_view().is_some();
         }
         plugin.refresh_layout();
         plugin.refresh_params();
@@ -252,6 +254,23 @@ impl Vst3Plugin {
             outputs: bus_channels(&self.component, kOutput as i32),
             event_input: events > 0,
         };
+    }
+
+    /// `Some(has editor)`, probing (`createView` + platform check) at most once, and only on
+    /// the main thread; `None` = unknown (called off the main thread before any probe).
+    fn probe_editor(&self) -> Option<bool> {
+        if let Some(known) = self.has_editor.get() {
+            return Some(known);
+        }
+        let known = if !HostWindow::SUPPORTED {
+            false
+        } else if HostWindow::on_main_thread() {
+            self.create_view().is_some()
+        } else {
+            return None;
+        };
+        self.has_editor.set(Some(known));
+        Some(known)
     }
 
     fn create_view(&self) -> Option<ComPtr<IPlugView>> {
@@ -431,6 +450,7 @@ impl Vst3Plugin {
             descriptor,
             layout,
             config: *config,
+            module: self.module.clone(),
             steps: self.steps.clone(),
             values,
             pending: std::mem::take(&mut self.pending),
@@ -617,12 +637,18 @@ impl PluginController for Vst3Plugin {
     }
 
     fn has_editor(&self) -> bool {
-        self.has_editor
+        self.probe_editor().unwrap_or(false)
     }
 
     fn open_editor(&mut self) -> Result<(), PluginError> {
-        if !self.has_editor {
-            return Err(PluginError::NoEditor);
+        match self.probe_editor() {
+            Some(true) => {}
+            Some(false) => return Err(PluginError::NoEditor),
+            None => {
+                return Err(PluginError::Load(
+                    "editor: plugin editors must be opened on the main thread".into(),
+                ));
+            }
         }
         if let Some(e) = &self.editor {
             e.window.show();
@@ -763,7 +789,7 @@ impl Drop for Vst3Plugin {
         }
         let _ = &self.host;
         // `processor`/`component` are released when the fields drop, before `module`
-        // (declared last) unloads the library.
+        // (declared last) drops its reference; the library unloads with the last node.
     }
 }
 
