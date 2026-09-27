@@ -735,3 +735,11 @@ paths = [
   "crates/ether-native/src/plugins.rs",
   "crates/ether-native/src/host.rs",
 ]
+
+[nodes.collab-local-mix]
+# Follow-up to collab: mute/solo are site-local in a session (owner request).
+paths = [
+  "crates/ether-controller/src/collab/**",
+  "crates/ether-controller/tests/collab*.rs",
+  "docs/COLLAB.md",
+]
