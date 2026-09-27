@@ -35,6 +35,7 @@ use vst3::Steinberg::{kResultFalse, kResultOk, kResultTrue};
 use vst3::{ComPtr, ComWrapper};
 
 use crate::events::{EventList, ParamChanges};
+use crate::module::Module;
 use crate::params::{StepTable, to_normalized, to_plain};
 
 /// A normalized param value travelling between node and controller.
@@ -130,6 +131,9 @@ pub struct Vst3Node {
     /// Sounding notes per channel (bit = key), for `AllNotesOff` / `reset`.
     held: [u128; 16],
     release_all: bool,
+    /// Keeps the library loaded while this node (its `IAudioProcessor`) lives, even if the
+    /// controller is dropped first. Declared last: dropped after `processor`.
+    _module: Arc<Module>,
 }
 
 // SAFETY: the raw pointers in `Buses` point into buffers this node owns; the COM objects are
@@ -147,6 +151,7 @@ pub(crate) struct NodeInit {
     pub steps: StepTable,
     pub values: Vec<(u32, f64)>,
     pub pending: Vec<ParamMsg>,
+    pub module: Arc<Module>,
 }
 
 impl Vst3Node {
@@ -162,6 +167,7 @@ impl Vst3Node {
             steps,
             mut values,
             pending: initial,
+            module,
         } = init;
         values.sort_by_key(|(id, _)| *id);
         let max_frames = config.max_block_size.max(1);
@@ -194,6 +200,7 @@ impl Vst3Node {
             context,
             held: [0; 16],
             release_all: false,
+            _module: module,
         }
     }
 
@@ -465,6 +472,9 @@ impl Node for Vst3Node {
 
         let result = self.call_process(frames);
         if result != kResultOk && result != kResultTrue {
+            // A failing process() is a fatal plugin error: fault (silence + `Crashed`) rather
+            // than silently outputting nothing forever. (Foreign panics cannot be caught.)
+            self.shared.faulted.store(true, Ordering::Release);
             audio.clear_outputs();
             return ProcessStatus::Silent;
         }
