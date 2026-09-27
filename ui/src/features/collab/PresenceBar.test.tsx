@@ -1,12 +1,14 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
-import type { Command, ReplyValue } from "@/generated";
+import type { Command, PresenceState, ReplyValue } from "@/generated";
 import { useProjectStore } from "@/state/projectStore";
 import { useSelectionStore } from "@/state/selection";
 import { MockTransport, TransportProvider, type SendOptions } from "@/transport";
 import { MockCollab } from "@/transport/mock/roadmap/collab";
 import { PresenceBar } from ".";
 import { highlightCss, initials, peerColor, useCollabStore } from "./store";
+import { setActivity, setFollowing, useLocalPresence } from "./presence/local";
+import { usePointerStore } from "./presence/pointers";
 
 /** A MockTransport recording what the UI sent (its `MockCollab` simulates the session). */
 class CollabMock extends MockTransport {
@@ -36,6 +38,8 @@ async function setup() {
 
 afterEach(() => {
   useCollabStore.getState().reset();
+  setFollowing(null);
+  setActivity(null);
   useSelectionStore.getState().selectTrack(null);
   localStorage.clear();
 });
@@ -94,6 +98,64 @@ describe("PresenceBar", () => {
     fireEvent.click(screen.getByRole("button", { name: "Leave session" }));
     await waitFor(() => expect(screen.getByTestId("collab-button").textContent).toBe("Collab"));
     expect(screen.queryByTestId("collab-peers")).toBeNull();
+  });
+});
+
+describe("PresenceBar presence v2", () => {
+  const state = (s: Partial<PresenceState> = {}): PresenceState => ({
+    cursor: null,
+    selected_tracks: [],
+    selected_clips: [],
+    selected_notes: [],
+    selected_devices: [],
+    view: null,
+    ...s,
+  });
+
+  async function joined() {
+    const mock = await setup();
+    await act(() => mock.send({ domain: "Collab", command: { type: "Join", server: "ws://r:1", session: "jam", token: null, name: "Me" } }));
+    await waitFor(() => expect(screen.getByTestId("collab-button").textContent).toBe("● jam"));
+    return mock;
+  }
+
+  it("follows a peer on chip click (published as `following`) and stops on a second click", async () => {
+    const mock = await joined();
+    const chip = screen.getByRole("button", { name: "Follow Mock peer" });
+    fireEvent.click(chip);
+    expect(useLocalPresence.getState().following).toBe("2");
+    await waitFor(() => expect(mock.sim.presence.following).toBe("2"));
+    expect(chip.getAttribute("aria-pressed")).toBe("true");
+    fireEvent.click(screen.getByRole("button", { name: "Stop following Mock peer" }));
+    expect(useLocalPresence.getState().following).toBeNull();
+    await waitFor(() => expect(mock.sim.presence.following).toBeUndefined());
+  });
+
+  it("publishes the activity and shows peers' activity, listening and following", async () => {
+    const mock = await joined();
+    act(() => setActivity({ kind: "Dragging", target: { type: "Clip", clip: "c1" } }));
+    await waitFor(() => expect(mock.sim.presence.activity).toEqual({ kind: "Dragging", target: { type: "Clip", clip: "c1" } }));
+    act(() => setActivity(null));
+    await waitFor(() => expect(mock.sim.presence.activity).toBeUndefined());
+
+    act(() => mock.sim.simulatePeer("7", "Zoe", 0xff94a6, state({ listening_to: "1", following: "1", activity: { kind: "Resizing", target: { type: "Selection" } } })));
+    const zoe = screen.getByRole("button", { name: "Follow Zoe" });
+    expect(zoe.title).toContain("Zoe · resizing · listening to you · following you");
+    expect(zoe.dataset.followed).toBe("you");
+    expect(within(zoe).getByTestId("listening-badge").title).toBe("Zoe is listening to you");
+    expect(screen.getAllByTestId("listening-badge")).toHaveLength(1);
+  });
+
+  it("keeps peers' pointers in their store and drops them when the session ends", async () => {
+    const mock = await joined();
+    act(() => mock.sim.simulatePointer("2", { beats: 3, track: null, y: 0 }));
+    expect(usePointerStore.getState().sites).toEqual(["2"]);
+    expect(usePointerStore.getState().trails.get("2")?.latest()).toEqual({ beats: 3, track: null, y: 0 });
+    act(() => mock.sim.simulatePointer("2", null));
+    expect(usePointerStore.getState().sites).toEqual([]);
+    act(() => mock.sim.simulatePointer("2", { beats: 3, track: null, y: 0 }));
+    await act(() => mock.send({ domain: "Collab", command: { type: "Leave" } }));
+    expect(usePointerStore.getState().sites).toEqual([]);
   });
 });
 
