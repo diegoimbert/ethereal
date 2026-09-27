@@ -5,7 +5,6 @@
 mod common;
 
 use common::*;
-use ether_core::protocol::collab::CollabCommand;
 use ether_core::protocol::devices::{DeviceCommand, DeviceSpec};
 use ether_core::protocol::drum_rack::{DrumRackCommand, SliceCommand};
 use ether_core::protocol::model::*;
@@ -55,12 +54,6 @@ fn slice_unsupported_until_implemented() {
             indices: vec![],
         }),
     );
-}
-
-#[test]
-fn collab_unsupported_until_implemented() {
-    let mut h = Harness::with_project();
-    assert_unsupported(&mut h, Command::Collab(CollabCommand::Leave));
 }
 
 #[test]

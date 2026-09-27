@@ -27,3 +27,7 @@ flacenc.workspace = true
 
 [lints]
 workspace = true
+
+[dev-dependencies]
+# collab: convergence property test.
+proptest.workspace = true

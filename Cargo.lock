@@ -1196,6 +1196,7 @@ dependencies = [
 name = "ether-controller"
 version = "0.0.1"
 dependencies = [
+ "ether-collab",
  "ether-core",
  "ether-devices",
  "ether-media",
@@ -1203,6 +1204,7 @@ dependencies = [
  "ether-protocol",
  "flacenc",
  "hound",
+ "proptest",
  "rubato",
  "serde_json",
  "symphonia",
