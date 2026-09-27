@@ -114,7 +114,7 @@ fn creator_then_joiner_gets_snapshot_log_and_peers() {
     r.message(2, sync(2, None), &mut out).unwrap();
     assert_eq!(
         kinds(&to(&out, 2)),
-        ["Snapshot", "Transaction", "Hello", "Presence"]
+        ["Snapshot", "Transaction", "Presence", "Hello", "Presence"]
     );
     assert_eq!(kinds(&to(&out, 1)), ["Hello", "Presence"]);
     // Colors differ.
@@ -146,7 +146,10 @@ fn joiners_wait_for_the_first_snapshot_and_creator_is_reelected() {
     );
     out.clear();
     r.message(2, snapshot(0), &mut out).unwrap();
-    assert_eq!(kinds(&to(&out, 3)), ["Snapshot", "Hello", "Presence"]);
+    assert_eq!(
+        kinds(&to(&out, 3)),
+        ["Snapshot", "Presence", "Hello", "Presence"]
+    );
 }
 
 #[test]
@@ -269,7 +272,11 @@ fn a_half_open_holder_is_dropped_after_its_probe() {
         [1]
     );
     assert_eq!(r.peer_count("jam"), 1);
-    assert_eq!(kinds(&to(&out, 2)), ["Transaction"], "the newcomer resumes");
+    assert_eq!(
+        kinds(&to(&out, 2)),
+        ["Transaction", "Presence"],
+        "the newcomer resumes (then its own presence)"
+    );
     r.message(2, tx(1, 2), &mut out).unwrap();
     assert_eq!(r.log_len("jam"), (0, 2));
 }
@@ -324,7 +331,7 @@ fn resume_sends_only_what_is_missing() {
     r.message(2, sync(2, Some(2)), &mut out).unwrap();
     assert_eq!(
         kinds(&to(&out, 2)),
-        ["Transaction", "Hello", "Presence"],
+        ["Transaction", "Presence", "Hello", "Presence"],
         "only the 3rd transaction"
     );
     // An index past the log falls back to the full state.
@@ -426,7 +433,7 @@ fn media_is_cached_for_late_joiners_within_limits() {
     r.message(2, sync(2, None), &mut out).unwrap();
     assert_eq!(
         kinds(&to(&out, 2)),
-        ["Media", "Snapshot", "Hello", "Presence"],
+        ["Media", "Snapshot", "Presence", "Hello", "Presence"],
         "b.wav is over the cache limit"
     );
 }
@@ -591,10 +598,10 @@ fn ice_servers_are_advertised_per_site_and_refreshed() {
     let ice = to(&out, 1);
     assert_eq!(
         kinds(&ice),
-        ["IceServers"],
-        "the creator gets them once ready"
+        ["Presence", "IceServers"],
+        "the creator gets them once ready (after its own presence)"
     );
-    let CollabMessage::IceServers { servers } = &ice[0] else {
+    let CollabMessage::IceServers { servers } = &ice[1] else {
         unreachable!()
     };
     assert_eq!(servers[0].username.as_deref(), Some("0:1"));
@@ -613,4 +620,44 @@ fn ice_servers_are_advertised_per_site_and_refreshed() {
     r.tick(1_000, &mut out);
     assert_eq!(kinds(&to(&out, 1)), ["IceServers"], "refreshed");
     assert_eq!(kinds(&to(&out, 2)), ["IceServers"]);
+}
+
+/// docs/COLLAB.md §12.1: once synced, a site gets its own stamped presence (its colour),
+/// after its catch-up and before the peers'; the creator too.
+#[test]
+fn a_synced_site_learns_its_own_colour() {
+    let mut r = Relay::default();
+    let mut out = Vec::new();
+    r.connect(1, "jam").unwrap();
+    r.message(1, hello(1), &mut out).unwrap();
+    r.message(1, sync(1, None), &mut out).unwrap();
+    out.clear();
+    r.message(1, snapshot(0), &mut out).unwrap();
+    let own = |ms: Vec<CollabMessage>, site: u64| {
+        ms.into_iter()
+            .find_map(|m| match m {
+                CollabMessage::Presence { presence } if presence.site == SiteId(site) => {
+                    Some(presence)
+                }
+                _ => None,
+            })
+            .expect("own presence")
+    };
+    let first = own(to(&out, 1), 1);
+    out.clear();
+    r.message(1, tx(1, 1), &mut out).unwrap();
+    r.connect(2, "jam").unwrap();
+    r.message(2, hello(2), &mut out).unwrap();
+    out.clear();
+    r.message(2, sync(2, None), &mut out).unwrap();
+    let second = own(to(&out, 2), 2);
+    assert_ne!(first.color, second.color);
+    assert_eq!(second.state, PresenceState::default());
+    // Only to itself: the peer gets the newcomer's presence once, as before.
+    assert_eq!(kinds(&to(&out, 1)), ["Hello", "Presence"]);
+    // After the log.
+    assert_eq!(
+        kinds(&to(&out, 2))[..3],
+        ["Snapshot", "Transaction", "Presence"]
+    );
 }
