@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { tempoPoints, useProjectStore } from "@/state";
+import { cmd, CommandFailedError } from "@/transport";
 import { renderWithMock, resetStores } from "./testUtils";
 import { TransportBar } from "./index";
 
@@ -120,8 +121,12 @@ describe("TransportBar", () => {
     await waitFor(() => expect(field.value).toBe("7/8"));
   });
 
-  it("shows engine errors (record is unsupported by the mock)", async () => {
-    await renderWithMock(<TransportBar />);
+  it("shows engine errors", async () => {
+    const { mock } = await renderWithMock(<TransportBar />);
+    const command = cmd("Recording", { type: "SetRecording", enabled: true });
+    vi.spyOn(mock, "send").mockRejectedValueOnce(
+      new CommandFailedError({ code: "Unsupported", message: "recording is not available" }, command),
+    );
     fireEvent.click(screen.getByRole("button", { name: "Record" }));
     const alert = await screen.findByRole("alert");
     expect(alert.textContent).toMatch(/recording/);

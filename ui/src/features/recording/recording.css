@@ -89,3 +89,28 @@
   cursor: pointer;
   font-size: var(--eth-fs-xs);
 }
+
+/* Live recording view (live-record): an overlay clip in the lane, never a real clip. */
+.eth-clip--live {
+  pointer-events: none;
+  outline: var(--eth-border-width) solid var(--eth-color-record);
+  outline-offset: calc(-1 * var(--eth-border-width));
+}
+.eth-clip--live .eth-clip__name {
+  color: var(--eth-color-record);
+}
+.eth-clip__canvas--live {
+  position: absolute;
+  top: 0;
+  height: 100%;
+}
+/* Handoff: only the waveform/notes stay, over the committed clip, until it has its own. */
+.eth-clip--live-handoff {
+  outline: none;
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+.eth-clip--live-handoff .eth-clip__title {
+  visibility: hidden;
+}

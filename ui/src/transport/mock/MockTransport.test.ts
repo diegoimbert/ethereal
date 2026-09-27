@@ -362,7 +362,14 @@ describe("MockTransport documents", () => {
   });
 
   it("unsupported commands reply Err Unsupported", async () => {
-    const err = await env.mock.send(cmd("Recording", { type: "SetRecording", enabled: true })).catch((e: unknown) => e);
+    const err = await env.mock
+      .send(
+        cmd("Engine", {
+          type: "SetAudioConfig",
+          config: { backend: null, host: null, output_device: null, input_device: null, sample_rate: null, buffer_size: null },
+        }),
+      )
+      .catch((e: unknown) => e);
     expect((err as CommandFailedError).code).toBe("Unsupported");
     expect(await env.mock.send(cmd("Plugin", { type: "List" }))).toEqual({ type: "Plugins", plugins: [] });
   });

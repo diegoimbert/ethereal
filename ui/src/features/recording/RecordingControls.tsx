@@ -4,6 +4,7 @@ import type { AudioDeviceList, Command, Event, InputList, ReplyValue, Track } fr
 import { Button, Popover, Select } from "@/kit";
 import { tracksOrdered, useProjectStore } from "@/state";
 import { cmd, isCommandFailed, TransportContext, type EngineTransport } from "@/transport";
+import { useLiveRecordingFeed } from "./live/liveStore";
 import { COUNT_IN_CHOICES, countInLabel, inputOptions, inputValue, isRecordable, MONITOR_MODES } from "./inputs";
 
 /** Shown on the disabled record button when the host has no inputs (browser build). */
@@ -57,6 +58,8 @@ function useEvents(transport: EngineTransport | null, listener: (e: Event) => vo
 export function RecordingControls() {
   const ctx = useContext(TransportContext);
   const transport = ctx?.transport ?? null;
+  // Keep the live recording view fed even while no arrangement lane is mounted.
+  useLiveRecordingFeed(transport);
   const connected = ctx?.connection.status === "connected";
   const hasProject = useProjectStore((s) => s.project !== null);
   const recording = useProjectStore((s) => s.transport?.recording ?? false);
