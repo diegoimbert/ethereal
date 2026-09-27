@@ -587,7 +587,8 @@
   position: absolute;
   top: 0;
   bottom: 0;
-  width: 6px;
+  /* Narrow clips keep a grabbable middle: each edge handle is at most a quarter of it. */
+  width: min(6px, 25%);
   cursor: ew-resize;
   z-index: 1;
   pointer-events: auto;
