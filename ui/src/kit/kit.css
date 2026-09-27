@@ -532,6 +532,14 @@
   box-shadow: var(--popover-shadow);
   backdrop-filter: blur(var(--eth-space-md));
 }
+/* Opens/closes like the context menu and the Select list. */
+.eth-popover--enter {
+  animation: eth-context-menu-in var(--context-menu-enter-duration) var(--context-menu-enter-ease) both;
+}
+.eth-popover--closing {
+  animation: eth-context-menu-out var(--select-exit-duration) var(--eth-ease-in) both;
+  pointer-events: none;
+}
 .eth-popover--bottom-start,
 .eth-popover--bottom-end {
   margin-top: var(--eth-space-xs);

@@ -75,7 +75,21 @@ export interface PopoverProps {
   haspopup?: "menu" | "dialog";
 }
 
-/** Floating panel anchored to a trigger. Closes on outside pointer-down and Escape. */
+/** Unmount delay of a closing popover (its exit animation; see kit.css). */
+const POPOVER_EXIT_MS = 120;
+
+const ORIGIN: Record<Placement, string> = {
+  "bottom-start": "top left",
+  "bottom-end": "top right",
+  "top-start": "bottom left",
+  "top-end": "bottom right",
+};
+
+/**
+ * Floating panel anchored to a trigger. Closes on outside pointer-down and Escape.
+ * Animated like the context menu and the Select list: grows out of the trigger when it
+ * opens, fades back when it closes (hidden from assistive tech while it does).
+ */
 export function Popover({
   trigger,
   children,
@@ -91,7 +105,16 @@ export function Popover({
   const open = openProp ?? openState;
   const anchor = useRef<HTMLSpanElement>(null);
   const panel = useRef<HTMLDivElement>(null);
-  const rect = useAnchorRect(anchor, open);
+  // Mounted while open and during the exit animation.
+  const [shown, setShown] = useState(open);
+  if (open && !shown) setShown(true);
+  const closing = shown && !open;
+  useEffect(() => {
+    if (!closing) return;
+    const t = setTimeout(() => setShown(false), POPOVER_EXIT_MS);
+    return () => clearTimeout(t);
+  }, [closing]);
+  const rect = useAnchorRect(anchor, shown);
   const setOpen = (o: boolean) => {
     if (openProp === undefined) setOpenState(o);
     onOpenChange?.(o);
@@ -123,15 +146,20 @@ export function Popover({
   return (
     <span ref={anchor} className="eth-popover-anchor" onKeyDown={onKeyDown}>
       {trigger({ onClick: () => setOpen(!open), "aria-expanded": open, "aria-haspopup": haspopup })}
-      {open &&
+      {shown &&
         createPortal(
           // React events bubble through the portal to the anchor span (Escape handling).
           <div
             ref={panel}
-            className={clsx("eth-popover", `eth-popover--${placement}`, className)}
-            style={placementStyle(placement, rect)}
+            className={clsx("eth-popover", `eth-popover--${placement}`, closing ? "eth-popover--closing" : "eth-popover--enter", className)}
+            style={{
+              ...placementStyle(placement, rect),
+              transformOrigin: ORIGIN[placement],
+              ["--context-menu-dir" as string]: placement.startsWith("top") ? "-1" : "1",
+            }}
             role={role}
             aria-label={aria["aria-label"]}
+            aria-hidden={closing || undefined}
           >
             {typeof children === "function" ? children(close) : children}
           </div>,
