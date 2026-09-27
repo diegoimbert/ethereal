@@ -530,6 +530,8 @@ impl PluginController for Vst3Plugin {
             audio_inputs: i,
             audio_outputs: o,
             midi_input: self.layout.event_input,
+            // Aux (sidechain) input buses get silence until sidechain routing is wired.
+            sidechain_inputs: 0,
         }
     }
 
