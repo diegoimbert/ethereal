@@ -11,6 +11,8 @@ use ether_controller::{AudioTake, BridgeError, RecordSession, RecordedMidi, Reco
 use ether_core::recording::rtrb::Consumer;
 use ether_core::recording::{CaptureBlock, CaptureReader, RecordedMidi as EngineMidi};
 
+use super::live::{LiveNotes, LiveShared, PeakAcc};
+
 /// Warning for a take of pure digital silence (at least one second).
 pub(super) const SILENT_INPUT: &str = "The recorded audio input is completely silent. If the \
     system denied microphone access, allow Ethereal in the privacy settings (macOS: System \
@@ -42,11 +44,15 @@ pub(super) struct WriterHandle {
     tx: Sender<Msg>,
 }
 
-pub(super) fn spawn(capture: CaptureReader, midi: Consumer<EngineMidi>) -> Option<WriterHandle> {
+pub(super) fn spawn(
+    capture: CaptureReader,
+    midi: Consumer<EngineMidi>,
+    live: LiveShared,
+) -> Option<WriterHandle> {
     let (tx, rx) = unbounded();
     std::thread::Builder::new()
         .name("ether-rec-writer".into())
-        .spawn(move || run(rx, capture, midi))
+        .spawn(move || run(rx, capture, midi, live))
         .map_err(|e| tracing::error!(%e, "could not start the recording writer"))
         .ok()?;
     Some(WriterHandle { tx })
@@ -73,7 +79,12 @@ impl WriterHandle {
     }
 }
 
-fn run(rx: Receiver<Msg>, mut capture: CaptureReader, mut midi: Consumer<EngineMidi>) {
+fn run(
+    rx: Receiver<Msg>,
+    mut capture: CaptureReader,
+    mut midi: Consumer<EngineMidi>,
+    live: LiveShared,
+) {
     let mut session: Option<Session> = None;
     let mut buf = Vec::new();
     loop {
@@ -84,7 +95,8 @@ fn run(rx: Receiver<Msg>, mut capture: CaptureReader, mut midi: Consumer<EngineM
                 if let Some(old) = session.take() {
                     let _ = old.finish();
                 }
-                session = Some(Session::new(*config, capture.channels()));
+                live.lock().clear();
+                session = Some(Session::new(*config, capture.channels(), live.clone()));
                 let _ = ack.send(());
                 continue;
             }
@@ -100,6 +112,9 @@ fn run(rx: Receiver<Msg>, mut capture: CaptureReader, mut midi: Consumer<EngineM
             if let Some(s) = &mut session {
                 s.midi(m);
             }
+        }
+        if let Some(s) = &mut session {
+            s.flush_live();
         }
         match msg {
             // Everything captured before the stop was drained above.
@@ -137,9 +152,11 @@ struct TakeFile {
     first: usize,
     count: usize,
     out: WavWriter,
+    /// Live view of this file (`live-record`).
+    peaks: PeakAcc,
 }
 
-struct Session {
+pub(super) struct Session {
     config: StartConfig,
     channels: usize,
     segments: VecDeque<Segment>,
@@ -153,10 +170,13 @@ struct Session {
     /// microphone permission delivers pure digital silence).
     frames_kept: u64,
     heard: bool,
+    /// Live view (`live-record`).
+    live: LiveShared,
+    notes: LiveNotes,
 }
 
 impl Session {
-    fn new(config: StartConfig, channels: usize) -> Self {
+    pub(super) fn new(config: StartConfig, channels: usize, live: LiveShared) -> Self {
         Self {
             config,
             channels: channels.max(1),
@@ -169,6 +189,8 @@ impl Session {
             error: None,
             frames_kept: 0,
             heard: false,
+            live,
+            notes: LiveNotes::default(),
         }
     }
 
@@ -177,7 +199,7 @@ impl Session {
         position >= s.keep_from - 1e-9 && s.keep_until.is_none_or(|u| position < u - 1e-9)
     }
 
-    fn block(&mut self, b: &CaptureBlock, samples: &[f32]) {
+    pub(super) fn block(&mut self, b: &CaptureBlock, samples: &[f32]) {
         if self.config.session.audio.is_empty() || self.error.is_some() {
             return;
         }
@@ -236,11 +258,13 @@ impl Session {
                     for c in 0..f.count {
                         let s = frame.get(f.first + c).copied().unwrap_or(0.0);
                         self.heard |= s != 0.0;
+                        f.peaks.sample(s);
                         if let Err(e) = f.out.sample(s) {
                             failed = Some(e.to_string());
                         }
                     }
                     f.out.frames += 1;
+                    f.peaks.end_frame();
                 }
                 if let Some(e) = failed {
                     self.error = Some(e);
@@ -267,6 +291,7 @@ impl Session {
                     first: usize::from(target.first),
                     count,
                     out,
+                    peaks: PeakAcc::new(target.track, self.takes, start, cfg.sample_rate),
                 }),
                 Err(e) => {
                     self.error = Some(format!("{}: {e}", name));
@@ -279,9 +304,15 @@ impl Session {
 
     /// The current take (if any) ends here.
     fn gap(&mut self) {
-        let Some(take) = self.current.take() else {
+        let Some(mut take) = self.current.take() else {
             return;
         };
+        {
+            let mut live = self.live.lock();
+            for f in &mut take.files {
+                f.peaks.flush(&mut live, true);
+            }
+        }
         for f in take.files {
             let frames = f.out.frames;
             match f.out.finish() {
@@ -298,12 +329,24 @@ impl Session {
         }
     }
 
-    fn midi(&mut self, m: EngineMidi) {
+    /// Queue the live peaks completed since the last call (`live-record`).
+    pub(super) fn flush_live(&mut self) {
+        let Some(take) = &mut self.current else {
+            return;
+        };
+        let mut live = self.live.lock();
+        for f in &mut take.files {
+            f.peaks.flush(&mut live, false);
+        }
+    }
+
+    pub(super) fn midi(&mut self, m: EngineMidi) {
         if !self.config.session.midi {
             return;
         }
         let position = m.position - self.config.midi_latency as f64 * m.beats_per_sample;
         if self.keep(position) {
+            self.notes.message(m.data, position, &mut self.live.lock());
             self.midi.push(RecordedMidi {
                 position,
                 data: m.data,
@@ -311,7 +354,7 @@ impl Session {
         }
     }
 
-    fn finish(mut self) -> Result<RecordedTakes, String> {
+    pub(super) fn finish(mut self) -> Result<RecordedTakes, String> {
         self.gap();
         if let Some(e) = self.error {
             return Err(e);
