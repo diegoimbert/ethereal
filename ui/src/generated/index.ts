@@ -84,6 +84,8 @@ export type * from "./GrooveCommand";
 export type * from "./HelloRejection";
 export type * from "./HistoryState";
 export type * from "./InputList";
+export type * from "./LiveAudioChunk";
+export type * from "./LiveMidiNote";
 export type * from "./Marker";
 export type * from "./MarkerChange";
 export type * from "./MarkerCommand";
