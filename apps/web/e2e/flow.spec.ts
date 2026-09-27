@@ -172,8 +172,11 @@ test("full flow: build a song, play it, edit, save, reload", async ({ page }) =>
   await expect.poll(async () => (await doc(page)).settings.loop_enabled).toBe(true);
   await transportBar.getByRole("button", { name: "Play", exact: true }).click();
   await expect(transportBar.getByRole("button", { name: "Stop" }).first()).toBeVisible();
-  await expect.poll(() => peakOf(page, midi.id), { timeout: 10_000 }).toBeGreaterThan(0.001);
-  await expect.poll(() => peakOf(page, audio.id), { timeout: 10_000 }).toBeGreaterThan(0.001);
+  // The drawn notes are short (the piano roll's fine grid): sample the meter often, or the
+  // default back-off (up to 1 s between polls) can step over every note.
+  const often = { timeout: 10_000, intervals: [50] };
+  await expect.poll(() => peakOf(page, midi.id), often).toBeGreaterThan(0.001);
+  await expect.poll(() => peakOf(page, audio.id), often).toBeGreaterThan(0.001);
   // The loop region is 0..16 beats (8 s at 120 BPM): the position passes 2 s, then wraps
   // back below it.
   await expect.poll(() => positionSeconds(position), { timeout: 15_000 }).toBeGreaterThan(2);
