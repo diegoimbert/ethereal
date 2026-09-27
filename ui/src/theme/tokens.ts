@@ -214,10 +214,14 @@ export const opacity = {
   muted: "0.6",
 } as const;
 
+/**
+ * Stacking of floating layers: dialogs below popovers (so a Select or Popover opened from a
+ * dialog shows above it), tooltips on top.
+ */
 export const zIndex = {
-  popover: "100",
-  tooltip: "200",
-  dialog: "300",
+  dialog: "100",
+  popover: "200",
+  tooltip: "300",
 } as const;
 
 /** Component and layout dimensions (`--eth-size-*`). */

@@ -50,9 +50,9 @@
   --eth-ease-in: cubic-bezier(0.4, 0, 1, 1);
   --eth-opacity-disabled: 0.4;
   --eth-opacity-muted: 0.6;
-  --eth-z-popover: 100;
-  --eth-z-tooltip: 200;
-  --eth-z-dialog: 300;
+  --eth-z-dialog: 100;
+  --eth-z-popover: 200;
+  --eth-z-tooltip: 300;
   --eth-size-control-sm: 18px;
   --eth-size-control-md: 22px;
   --eth-size-control-lg: 28px;
