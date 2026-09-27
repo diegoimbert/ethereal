@@ -1,5 +1,7 @@
 // Shared UI primitives. Owned by `design-system` (docs/DESIGN-SYSTEM.md); every component reads
 // only design tokens (ui/src/theme). Feature code should build on these + tokens only.
+// The UI font (tokens `font.ui`), bundled so it works offline.
+import "@fontsource-variable/inter";
 import "./theme.css";
 import "./kit.css";
 import { initTheme } from "../theme";
@@ -7,6 +9,15 @@ import { initTheme } from "../theme";
 initTheme();
 
 export { Button, type ButtonProps } from "./Button";
+export { ContextMenuHost } from "./ContextMenu";
+export {
+  MOD_KEY,
+  openContextMenu,
+  useContextMenuStore,
+  type ContextMenuEntry,
+  type ContextMenuItem,
+} from "./contextMenuStore";
+export { setDragCursor } from "./dragCursor";
 export { Fader, type FaderProps } from "./Fader";
 export {
   NumberField,

@@ -2,8 +2,9 @@
 
 import type { EngineTransport } from "@/transport";
 import { cmd, newId } from "@/transport";
-import type { Command, TrackId } from "@/generated";
-import { useProjectStore, useSelectionStore } from "@/state";
+import type { Clip, Command, Track, TrackId } from "@/generated";
+import { MOD_KEY, type ContextMenuEntry } from "@/kit";
+import { useEditorStore, useProjectStore, useSelectionStore } from "@/state";
 import { itemSelection, playheadBeats } from "@/timeline";
 import { isArrangementClip } from "./clipTime";
 import { selectedClips, sendEdit } from "./context";
@@ -85,4 +86,50 @@ export function actionForKey(e: { key: string; metaKey: boolean; ctrlKey: boolea
   }
   if (mod && e.shiftKey && k === "l") return "loop";
   return null;
+}
+
+/**
+ * Right-click menu of a clip. Right-clicking an unselected clip selects just it (and its
+ * track) first, so the actions apply to what is highlighted.
+ */
+export function clipMenu(transport: EngineTransport, clip: Clip): ContextMenuEntry[] {
+  if (!itemSelection.getState().isSelected("clip", clip.id)) itemSelection.getState().select("clip", [clip.id], "replace");
+  useSelectionStore.getState().selectTrack(clip.track);
+  const clips = selectedClips();
+  const run = (a: ClipAction) => () => void runClipAction(transport, a);
+  const allMuted = clips.length > 0 && clips.every((c) => c.muted);
+  const allLooping = clips.length > 0 && clips.every((c) => c.looping.enabled);
+  return [
+    ...(clip.content.type === "Midi" && clips.length === 1
+      ? [{ label: "Open in Piano Roll", onSelect: () => useEditorStore.getState().openClip(clip.id) }, "separator" as const]
+      : []),
+    { label: "Split at Playhead", shortcut: `${MOD_KEY}E`, onSelect: run("split") },
+    { label: "Duplicate", shortcut: `${MOD_KEY}D`, onSelect: run("duplicate") },
+    { label: allLooping ? "Disable Loop" : "Enable Loop", shortcut: `⇧${MOD_KEY}L`, onSelect: run("loop") },
+    {
+      label: allMuted ? "Unmute" : "Mute",
+      onSelect: () => void sendEdit(transport, cmd("Clip", { type: "SetMuted", ids: clips.map((c) => c.id), muted: !allMuted })),
+    },
+    "separator",
+    { label: clips.length > 1 ? `Delete ${clips.length} Clips` : "Delete", shortcut: "⌫", danger: true, onSelect: run("delete") },
+  ];
+}
+
+/** Right-click menu of a track header (selects the track). */
+export function trackMenu(transport: EngineTransport, track: Track): ContextMenuEntry[] {
+  useSelectionStore.getState().selectTrack(track.id);
+  if (track.kind === "Master") return [];
+  return [
+    {
+      label: "Duplicate Track",
+      onSelect: () => {
+        const id = newId();
+        void sendEdit(transport, cmd("Track", { type: "Duplicate", id: track.id, new_id: id })).then(() => {
+          if (useProjectStore.getState().project?.tracks[id]) useSelectionStore.getState().selectTrack(id);
+        });
+      },
+    },
+    "separator",
+    { label: "Delete Track", danger: true, onSelect: () => void sendEdit(transport, cmd("Track", { type: "Delete", id: track.id })) },
+  ];
 }

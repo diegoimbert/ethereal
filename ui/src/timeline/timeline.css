@@ -31,7 +31,9 @@
 .eth-ruler__label {
   position: absolute;
   left: 0;
-  bottom: 50%;
+  /* Below the loop brace (4px strip along the top). */
+  top: 6px;
+  line-height: 10px;
   white-space: nowrap;
   pointer-events: none;
 }
@@ -40,12 +42,18 @@
   position: absolute;
   left: 0;
   top: 0;
-  height: 30%;
-  min-height: 6px;
+  height: 4px;
   background: var(--eth-color-accent);
   opacity: 0.85;
-  border-radius: var(--eth-radius-sm);
+  border-radius: 0 0 var(--eth-radius-sm) var(--eth-radius-sm);
   cursor: grab;
+}
+
+/* Taller invisible hit area so the thin brace stays easy to grab. */
+.eth-ruler__loop::after {
+  content: "";
+  position: absolute;
+  inset: 0 0 -3px;
 }
 
 .eth-ruler__loop--off {

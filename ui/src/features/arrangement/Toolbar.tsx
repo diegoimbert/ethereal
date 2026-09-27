@@ -1,5 +1,5 @@
 import type { GridSetting } from "@/timeline";
-import { useTimelineView } from "@/timeline";
+import { animateZoom, useTimelineView } from "@/timeline";
 import { Button } from "@/kit";
 import { useArrangement } from "./context";
 import { addTrack, runClipAction } from "./actions";
@@ -64,10 +64,10 @@ export function Toolbar() {
         Delete
       </Button>
       <span className="eth-arr-toolbar__sep" />
-      <Button size="sm" aria-label="Zoom out" onClick={() => arrangementView.getState().zoomBy(1 / 1.5)}>
+      <Button size="sm" aria-label="Zoom out" onClick={() => animateZoom(arrangementView, 1 / 1.5)}>
         −
       </Button>
-      <Button size="sm" aria-label="Zoom in" onClick={() => arrangementView.getState().zoomBy(1.5)}>
+      <Button size="sm" aria-label="Zoom in" onClick={() => animateZoom(arrangementView, 1.5)}>
         +
       </Button>
     </div>

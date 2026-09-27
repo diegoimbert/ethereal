@@ -5,6 +5,7 @@
 
 import { useCallback } from "react";
 import type { Command, GestureId } from "@/generated";
+import { setDragCursor } from "@/kit";
 import { cmd, nextGestureId, useTransport } from "@/transport";
 import type { EngineTransport } from "@/transport";
 
@@ -39,6 +40,8 @@ export interface DragOptions {
   afterInitial?: () => void;
   /** Pixels to travel before `move` is called (default 0). */
   threshold?: number;
+  /** Cursor shown everywhere until release (e.g. "ew-resize" while resizing). */
+  cursor?: string;
 }
 
 /**
@@ -77,7 +80,9 @@ export function startDrag(
     const command = handlers.move(dx, dy, ev);
     if (command) send(command);
   };
+  if (opts.cursor) setDragCursor(opts.cursor);
   const onUp = () => {
+    if (opts.cursor) setDragCursor(null);
     window.removeEventListener("pointermove", onMove);
     window.removeEventListener("pointerup", onUp);
     window.removeEventListener("pointercancel", onUp);

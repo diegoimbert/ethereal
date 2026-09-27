@@ -165,6 +165,8 @@ export const fontSize = {
 
 /** Font weights (`--eth-fw-*`). */
 export const fontWeight = {
+  /** Body text: between regular and medium, 400 looks thin on dark backgrounds at small sizes. */
+  text: "450",
   regular: "400",
   medium: "500",
   bold: "600",
@@ -183,7 +185,8 @@ export const letterSpacing = {
 } as const;
 
 export const font = {
-  ui: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
+  /** Inter Variable is bundled (`@fontsource-variable/inter`, imported by `@/kit`). */
+  ui: "'Inter Variable', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
   mono: "ui-monospace, 'SF Mono', Menlo, Consolas, monospace",
 } as const;
 
@@ -250,7 +253,13 @@ export const size = {
   panelHeaderHeight: "22px",
   topBarHeight: "36px",
   sidebarWidth: "220px",
+  sidebarMinWidth: "140px",
   detailHeight: "280px",
+  detailMinHeight: "80px",
+  /** Room the main view always keeps when the panes around it are resized. */
+  mainMinSize: "160px",
+  /** Grab width of the pane splitters (laid over the gaps between panes). */
+  splitterWidth: "6px",
   detailCollapsedHeight: "24px",
   popoverMinWidth: "140px",
   dialogWidth: "420px",
@@ -379,7 +388,8 @@ export const componentTokens = {
     "--panel-header-bg": v("color-bg-raised"),
     "--panel-header-fg": v("color-text-dim"),
     "--panel-header-font-size": v("fs-sm"),
-    "--panel-header-transform": "uppercase",
+    "--panel-header-transform": "none",
+    "--panel-header-tracking": v("tracking-normal"),
   },
   tabs: {
     "--tab-height": v("size-control-md"),
@@ -429,6 +439,10 @@ export const componentTokens = {
     "--input-font-size-lg": v("fs-md"),
   },
   popover: {
+    // Context menu entrance: grows out of the click point.
+    "--context-menu-enter-duration": v("duration-fast"),
+    "--context-menu-enter-ease": v("ease-out"),
+    "--context-menu-enter-scale": "0.92",
     "--popover-bg": v("color-bg-overlay"),
     "--popover-border": v("color-border-light"),
     "--popover-radius": v("radius-md"),

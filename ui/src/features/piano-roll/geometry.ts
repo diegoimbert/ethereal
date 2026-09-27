@@ -5,6 +5,9 @@ import { beatsToPx, type Rect, type TimelineViewport } from "@/timeline";
 
 export const PITCHES = 128;
 export const DEFAULT_KEY_HEIGHT = 12;
+/** Key height range of the vertical zoom (cmd/ctrl + shift + wheel). */
+export const MIN_KEY_HEIGHT = 5;
+export const MAX_KEY_HEIGHT = 40;
 export const KEYBOARD_WIDTH = 64;
 export const VELOCITY_LANE_HEIGHT = 72;
 /** Width of the resize zone at each end of a note (shrinks on short notes). */

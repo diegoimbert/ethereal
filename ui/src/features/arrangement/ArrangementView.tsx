@@ -11,6 +11,7 @@ import {
   Ruler,
   snapToGrid,
   useMarquee,
+  useMiddleButtonPan,
   useTempoMap,
   useTimelineView,
   useTimelineWheel,
@@ -28,6 +29,7 @@ import { Toolbar } from "./Toolbar";
 import { ImportPlaceholder, TrackRow } from "./TrackRow";
 import { arrangementView, useArrangementUi } from "./uiStore";
 import { useFollowWithMargin } from "./useFollowWithMargin";
+import { useTrackHeightZoom } from "./useTrackHeightZoom";
 
 function isTextEntry(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
@@ -66,9 +68,14 @@ function ConnectedArrangementView() {
 
   const tracks = useTracksOrdered();
   const folded = useArrangementUi((s) => s.folded);
+  const heights = useArrangementUi((s) => s.heights);
+  const defaultHeight = useArrangementUi((s) => s.defaultHeight);
   const grid = useArrangementUi((s) => s.grid);
   const automationHeight = useAutomationHeight();
-  const rows = useMemo(() => layoutRows(tracks, folded, automationHeight), [tracks, folded, automationHeight]);
+  const rows = useMemo(
+    () => layoutRows(tracks, folded, automationHeight, (id) => heights.get(id) ?? defaultHeight),
+    [tracks, folded, automationHeight, heights, defaultHeight],
+  );
   const rowsRef = useRef<ReadonlyArray<Row>>(rows);
   useEffect(() => {
     rowsRef.current = rows;
@@ -77,7 +84,9 @@ function ConnectedArrangementView() {
   const rootRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
-  useTimelineWheel(scrollRef, view);
+  const onVerticalZoom = useTrackHeightZoom(scrollRef, rows);
+  useTimelineWheel(scrollRef, view, { smoothScrollY: true, onVerticalZoom });
+  useMiddleButtonPan(scrollRef, view);
   useFollowWithMargin(view);
 
   const ctx = useMemo<ArrangementContextValue>(

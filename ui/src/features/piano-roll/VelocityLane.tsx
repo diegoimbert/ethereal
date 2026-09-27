@@ -38,9 +38,12 @@ export function VelocityLane({ notes, vp, widthPx, height = VELOCITY_LANE_HEIGHT
     }
     const selected = itemSelection.getState().selected.note;
     const originals = notes.filter((n) => selected.has(n.id));
-    startDrag(transport, e, {
-      move: (_dx, dy) => cmd("Note", { type: "Edit", edits: velocityEdits(originals, -dy / height) }),
-    });
+    startDrag(
+      transport,
+      e,
+      { move: (_dx, dy) => cmd("Note", { type: "Edit", edits: velocityEdits(originals, -dy / height) }) },
+      { cursor: "ns-resize" },
+    );
   };
 
   return (
