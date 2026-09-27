@@ -84,6 +84,7 @@ impl FakeBridge {
 
 pub fn plugin_descriptor(name: &str, category: DeviceCategory) -> DeviceDescriptor {
     DeviceDescriptor {
+        layout: None,
         device_type: DeviceTypeRef::Plugin {
             plugin_id: format!("com.test.{name}"),
         },

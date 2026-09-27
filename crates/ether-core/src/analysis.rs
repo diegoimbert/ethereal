@@ -143,7 +143,9 @@ impl AnalysisRt {
     pub(crate) fn due(&mut self, frames: usize) -> bool {
         self.elapsed += frames;
         if self.elapsed >= self.interval {
-            self.elapsed = 0;
+            // Keep the remainder so the average rate is `ANALYSIS_HZ` whatever the block
+            // size (at most one collection per block).
+            self.elapsed = (self.elapsed - self.interval).min(self.interval - 1);
             true
         } else {
             false

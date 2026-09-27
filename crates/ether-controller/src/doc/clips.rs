@@ -131,6 +131,7 @@ fn new_clip(
     content: ClipContent,
 ) -> Clip {
     Clip {
+        lane: None,
         id,
         track,
         start,

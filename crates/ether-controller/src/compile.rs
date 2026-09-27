@@ -193,7 +193,7 @@ fn lane_points(p: &Project, lane: AutomationLaneId) -> Vec<(f64, f64, CurveShape
         .collect()
 }
 
-fn clip_desc(p: &Project, ctx: &CompileContext, clip: &Clip, start: Beats) -> ClipDesc {
+pub(crate) fn clip_desc(p: &Project, ctx: &CompileContext, clip: &Clip, start: Beats) -> ClipDesc {
     let content = match &clip.content {
         ClipContent::Midi => {
             let mut notes: Vec<NoteDesc> = p
@@ -260,6 +260,8 @@ pub fn compile_graph_with(p: &Project, ctx: &CompileContext) -> RenderGraphDesc 
     let tempo_map = p.tempo_map();
     let mut tracks: Vec<TrackDesc> = tracks_in_order(p)
         .into_iter()
+        // v0.2: VCA tracks carry no audio (`RenderGraphDesc::vcas`, `crate::groups`).
+        .filter(|t| t.kind != TrackKind::Vca)
         .map(|t| {
             let armed = (ctx.armed)(t.id);
             let monitor = match t.monitor {
@@ -267,19 +269,37 @@ pub fn compile_graph_with(p: &Project, ctx: &CompileContext) -> RenderGraphDesc 
                 MonitorMode::Off => false,
                 MonitorMode::Auto => armed,
             };
+            // Main-lane clips only: take-lane clips play through comp regions (v0.2,
+            // `crate::comping`).
             let mut clips: Vec<(Beats, &Clip)> = p
                 .clips
                 .values()
-                .filter(|c| c.track == t.id)
+                .filter(|c| c.track == t.id && c.lane.is_none())
                 .map(|c| (clip_start(c), c))
                 .collect();
             clips.sort_by(|a, b| a.0.0.total_cmp(&b.0.0).then(a.1.id.cmp(&b.1.id)));
+            let mut clip_descs: Vec<ClipDesc> = clips
+                .into_iter()
+                .map(|(s, c)| clip_desc(p, ctx, c, s))
+                .collect();
+            let comp = crate::comping::comp_clips(p, ctx, t.id);
+            if !comp.is_empty() {
+                clip_descs.extend(comp);
+                clip_descs.sort_by(|a, b| a.start.total_cmp(&b.start).then(a.id.cmp(&b.id)));
+            }
+            // v0.2 (`freeze-bounce`): a frozen track plays its render instead of its clips and
+            // chain.
+            let frozen = crate::freeze::frozen_desc(p, t);
+            if frozen.is_some() {
+                clip_descs.clear();
+            }
             TrackDesc {
                 id: t.id,
                 kind: t.kind,
                 chain: p
                     .devices_of(t.id)
                     .into_iter()
+                    .filter(|_| frozen.is_none())
                     .filter_map(|d| {
                         (ctx.nodes)(d.id).map(|node| ChainEntry {
                             node,
@@ -311,12 +331,32 @@ pub fn compile_graph_with(p: &Project, ctx: &CompileContext) -> RenderGraphDesc 
                 },
                 monitor,
                 armed,
-                clips: clips
-                    .into_iter()
-                    .map(|(s, c)| clip_desc(p, ctx, c, s))
-                    .collect(),
+                clips: clip_descs,
                 automation: Vec::new(),
-                racks: crate::drum_rack::racks_desc(p, t.id, ctx),
+                racks: if frozen.is_some() {
+                    Vec::new()
+                } else {
+                    crate::drum_rack::racks_desc(p, t.id, ctx)
+                },
+                // --- v0.2 (contracts-3) ---
+                chain_racks: if frozen.is_some() {
+                    Vec::new()
+                } else {
+                    crate::racks::chain_racks_desc(p, t.id, ctx)
+                },
+                modulation: if frozen.is_some() {
+                    Default::default()
+                } else {
+                    crate::racks::modulation_desc(p, t.id, ctx)
+                },
+                input_tap: match t.input {
+                    TrackInput::Track { track, tap } => {
+                        Some(ether_core::InputTapDesc { track, point: tap })
+                    }
+                    _ => None,
+                },
+                vca: t.vca,
+                frozen,
             }
         })
         .collect();
@@ -367,5 +407,6 @@ pub fn compile_graph_with(p: &Project, ctx: &CompileContext) -> RenderGraphDesc 
         metronome: p.settings.metronome,
         click: crate::tempo::metronome_desc(&p.settings),
         tracks,
+        vcas: crate::groups::vca_descs(p, ctx),
     }
 }

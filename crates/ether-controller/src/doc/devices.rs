@@ -58,6 +58,15 @@ fn clamp_param(desc: &DeviceDescriptor, param: ParamId, value: f64) -> CmdResult
 }
 
 pub(super) fn apply(ctx: &mut DocCtx, c: &DeviceCommand) -> CmdResult<()> {
+    apply_inner(ctx, c)?;
+    // v0.2 (`midi-fx`): MIDI effects precede the instrument.
+    if let DeviceCommand::Insert { track, .. } | DeviceCommand::Move { track, .. } = c {
+        crate::midi_fx::check_chain_order(ctx.p(), *track)?;
+    }
+    Ok(())
+}
+
+fn apply_inner(ctx: &mut DocCtx, c: &DeviceCommand) -> CmdResult<()> {
     match c {
         DeviceCommand::Insert {
             id,
@@ -113,6 +122,7 @@ pub(super) fn apply(ctx: &mut DocCtx, c: &DeviceCommand) -> CmdResult<()> {
                 }
             };
             ctx.tx.insert(Entity::Device(Device {
+                chain: None,
                 id: *id,
                 track: t.id,
                 order,

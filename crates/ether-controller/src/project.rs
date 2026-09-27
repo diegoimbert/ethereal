@@ -288,6 +288,7 @@ where
     /// media, then announce it.
     fn load_project(&mut self, project: Project, now: u64, out: &mut dyn MessageSink) {
         self.engine.reset();
+        self.analysis.clear();
         self.media.reset(&mut self.bridge);
         self.armed.clear();
         self.plugin_gestures.clear();
