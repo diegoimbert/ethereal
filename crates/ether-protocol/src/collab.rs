@@ -25,6 +25,9 @@ use crate::model::{
     ParamId, SiteId, StampedTransaction, TrackId,
 };
 
+// `SetPresence` carries a whole `PresenceState` (sent at a few Hz); boxing it would only add
+// an allocation per message.
+#[allow(clippy::large_enum_variant)]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
 #[serde(tag = "type")]
 pub enum CollabCommand {
