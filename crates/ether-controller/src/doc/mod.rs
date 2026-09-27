@@ -651,7 +651,8 @@ pub(crate) fn is_document_command(command: &Command, current: Option<ProjectId>)
         | Command::Marker(_)
         | Command::Groove(_)
         | Command::DrumRack(_)
-        | Command::Slice(_) => true,
+        | Command::Slice(_)
+        | Command::PinnedNote(_) => true,
         Command::MidiMap(c) => !matches!(c, M::Learn { .. } | M::List),
         // v0.2 (contracts-3).
         Command::Take(_) | Command::Rack(_) => true,
@@ -707,6 +708,7 @@ pub(crate) fn apply(ctx: &mut DocCtx, command: &Command) -> CmdResult<ReplyValue
         Command::Take(c) => crate::comping::take_command(ctx, c),
         Command::Rack(c) => crate::racks::rack_command(ctx, c),
         Command::Modulation(c) => crate::racks::modulation_command(ctx, c),
+        Command::PinnedNote(c) => crate::social::pinned_note_command(ctx, c),
         Command::Project(ProjectCommand::SetScale { scale }) => {
             ctx.tx.settings(SettingsChange::Scale(*scale))
         }

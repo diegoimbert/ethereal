@@ -69,6 +69,12 @@ pub struct Project {
     /// Modulation mappings (`racks-modulation`).
     #[serde(default)]
     pub mod_mappings: BTreeMap<ModMappingId, ModMapping>,
+    /// Chat journal (base-62, `collab-social`; `.ether` v4).
+    #[serde(default)]
+    pub chat: BTreeMap<ChatMessageId, ChatMessage>,
+    /// Notes pinned on the arrangement (base-62, `collab-social`; `.ether` v4).
+    #[serde(default)]
+    pub pinned_notes: BTreeMap<PinnedNoteId, PinnedNote>,
 }
 
 /// Project-wide singleton settings (a single LWW register per field).
@@ -189,6 +195,8 @@ impl Project {
             rack_chains: BTreeMap::new(),
             modulators: BTreeMap::new(),
             mod_mappings: BTreeMap::new(),
+            chat: BTreeMap::new(),
+            pinned_notes: BTreeMap::new(),
         }
     }
 
@@ -226,7 +234,8 @@ impl Project {
     /// Order: media, tracks (by nesting depth), tempo points, time signatures, markers, take
     /// lanes, track-chain devices, drum pads, rack chains, pad-chain and rack-chain devices,
     /// modulators, sends, clips, comp regions, notes, warp markers, automation lanes,
-    /// automation points, MIDI mappings, modulation mappings.
+    /// automation points, MIDI mappings, modulation mappings, chat messages (by `seq`),
+    /// pinned notes.
     pub fn entities(&self) -> Vec<Entity> {
         let depth = |t: &Track| {
             let mut d = 0;
@@ -298,6 +307,13 @@ impl Project {
                 .map(Entity::MidiMapping),
         );
         out.extend(self.mod_mappings.values().cloned().map(Entity::ModMapping));
+        out.extend(
+            self.chat_ordered()
+                .into_iter()
+                .cloned()
+                .map(Entity::ChatMessage),
+        );
+        out.extend(self.pinned_notes.values().cloned().map(Entity::PinnedNote));
         out
     }
 

@@ -27,6 +27,7 @@ use crate::presets::{PresetCommand, PresetEvent, PresetInfo};
 use crate::project::{EditCommand, ProjectCommand, ProjectEvent, ProjectSummary};
 use crate::racks::{ModulationCommand, ModulatorDescriptor, RackCommand};
 use crate::recording::{InputList, RecordingCommand, RecordingEvent};
+use crate::social::{ChatCommand, PinnedNoteCommand};
 use crate::takes::TakeCommand;
 use crate::tempo::TempoCommand;
 use crate::time_edit::TimeEditCommand;
@@ -50,6 +51,9 @@ pub struct ClientMessage {
 /// Every command, grouped by domain (one Rust file per domain in this crate).
 ///
 /// JSON: `{ "domain": "Mixer", "command": { "type": "SetVolume", "track": "01H…", "volume": -6 } }`
+// `Collab(SetPresence)` carries a whole `PresenceState` (it grew with presence v2 and the
+// base-62 peer transport). Commands are short-lived, so the size gap doesn't matter.
+#[allow(clippy::large_enum_variant)]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
 #[serde(tag = "domain", content = "command")]
 pub enum Command {
@@ -86,6 +90,11 @@ pub enum Command {
     Rack(RackCommand),
     Modulation(ModulationCommand),
     MediaRef(MediaRefCommand),
+    // --- base-62 (`collab-social`, docs/COLLAB.md §12) ---
+    /// Session chat (not a document command: never an undo step).
+    Chat(ChatCommand),
+    /// Notes pinned on the arrangement (document command).
+    PinnedNote(PinnedNoteCommand),
 }
 
 /// Engine → UI. `Reply` answers exactly one `ClientMessage`; `Event`s are pushed;

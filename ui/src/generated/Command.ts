@@ -2,6 +2,7 @@
 import type { AnalysisCommand } from "./AnalysisCommand";
 import type { AutomationCommand } from "./AutomationCommand";
 import type { BrowserCommand } from "./BrowserCommand";
+import type { ChatCommand } from "./ChatCommand";
 import type { ClipCommand } from "./ClipCommand";
 import type { CollabCommand } from "./CollabCommand";
 import type { DeviceCommand } from "./DeviceCommand";
@@ -18,6 +19,7 @@ import type { MidiMapCommand } from "./MidiMapCommand";
 import type { MixerCommand } from "./MixerCommand";
 import type { ModulationCommand } from "./ModulationCommand";
 import type { NoteCommand } from "./NoteCommand";
+import type { PinnedNoteCommand } from "./PinnedNoteCommand";
 import type { PluginCommand } from "./PluginCommand";
 import type { PresetCommand } from "./PresetCommand";
 import type { ProjectCommand } from "./ProjectCommand";
@@ -36,4 +38,4 @@ import type { WarpCommand } from "./WarpCommand";
  *
  * JSON: `{ "domain": "Mixer", "command": { "type": "SetVolume", "track": "01H…", "volume": -6 } }`
  */
-export type Command = { "domain": "Transport", "command": TransportCommand } | { "domain": "Project", "command": ProjectCommand } | { "domain": "Edit", "command": EditCommand } | { "domain": "Track", "command": TrackCommand } | { "domain": "Clip", "command": ClipCommand } | { "domain": "Note", "command": NoteCommand } | { "domain": "Automation", "command": AutomationCommand } | { "domain": "Device", "command": DeviceCommand } | { "domain": "Mixer", "command": MixerCommand } | { "domain": "Plugin", "command": PluginCommand } | { "domain": "Recording", "command": RecordingCommand } | { "domain": "Warp", "command": WarpCommand } | { "domain": "Media", "command": MediaCommand } | { "domain": "Engine", "command": EngineCommand } | { "domain": "Export", "command": ExportCommand } | { "domain": "Tempo", "command": TempoCommand } | { "domain": "Marker", "command": MarkerCommand } | { "domain": "MidiMap", "command": MidiMapCommand } | { "domain": "Groove", "command": GrooveCommand } | { "domain": "DrumRack", "command": DrumRackCommand } | { "domain": "Slice", "command": SliceCommand } | { "domain": "Collab", "command": CollabCommand } | { "domain": "Take", "command": TakeCommand } | { "domain": "Freeze", "command": FreezeCommand } | { "domain": "TimeEdit", "command": TimeEditCommand } | { "domain": "Preset", "command": PresetCommand } | { "domain": "Browser", "command": BrowserCommand } | { "domain": "Analysis", "command": AnalysisCommand } | { "domain": "Rack", "command": RackCommand } | { "domain": "Modulation", "command": ModulationCommand } | { "domain": "MediaRef", "command": MediaRefCommand };
+export type Command = { "domain": "Transport", "command": TransportCommand } | { "domain": "Project", "command": ProjectCommand } | { "domain": "Edit", "command": EditCommand } | { "domain": "Track", "command": TrackCommand } | { "domain": "Clip", "command": ClipCommand } | { "domain": "Note", "command": NoteCommand } | { "domain": "Automation", "command": AutomationCommand } | { "domain": "Device", "command": DeviceCommand } | { "domain": "Mixer", "command": MixerCommand } | { "domain": "Plugin", "command": PluginCommand } | { "domain": "Recording", "command": RecordingCommand } | { "domain": "Warp", "command": WarpCommand } | { "domain": "Media", "command": MediaCommand } | { "domain": "Engine", "command": EngineCommand } | { "domain": "Export", "command": ExportCommand } | { "domain": "Tempo", "command": TempoCommand } | { "domain": "Marker", "command": MarkerCommand } | { "domain": "MidiMap", "command": MidiMapCommand } | { "domain": "Groove", "command": GrooveCommand } | { "domain": "DrumRack", "command": DrumRackCommand } | { "domain": "Slice", "command": SliceCommand } | { "domain": "Collab", "command": CollabCommand } | { "domain": "Take", "command": TakeCommand } | { "domain": "Freeze", "command": FreezeCommand } | { "domain": "TimeEdit", "command": TimeEditCommand } | { "domain": "Preset", "command": PresetCommand } | { "domain": "Browser", "command": BrowserCommand } | { "domain": "Analysis", "command": AnalysisCommand } | { "domain": "Rack", "command": RackCommand } | { "domain": "Modulation", "command": ModulationCommand } | { "domain": "MediaRef", "command": MediaRefCommand } | { "domain": "Chat", "command": ChatCommand } | { "domain": "PinnedNote", "command": PinnedNoteCommand };

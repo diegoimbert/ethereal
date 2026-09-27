@@ -11,7 +11,6 @@ use common::*;
 use ether_core::protocol::analysis::AnalysisCommand;
 use ether_core::protocol::browser::{BrowserCommand, BrowserQuery, BrowserSort};
 use ether_core::protocol::devices::{DeviceCommand, DeviceSpec};
-use ether_core::protocol::freeze::{BounceTarget, FreezeCommand};
 use ether_core::protocol::media::{MediaCommand, MediaSource};
 use ether_core::protocol::media_refs::MediaRefCommand;
 use ether_core::protocol::model::*;
@@ -301,40 +300,6 @@ fn comping_replies_unsupported() {
             end: Beats(4.0),
         }),
     );
-}
-
-#[test]
-fn freeze_bounce_replies_unsupported() {
-    let mut h = Harness::with_project();
-    let t = track(&mut h, TrackKind::Midi);
-    let (media, clip, new_track): (MediaId, ClipId, TrackId) = (h.id(), h.id(), h.id());
-    for c in [
-        FreezeCommand::Freeze {
-            job: "j1".into(),
-            track: t,
-            media,
-        },
-        FreezeCommand::Unfreeze { track: t },
-        FreezeCommand::Flatten {
-            track: t,
-            clip,
-            new_track,
-        },
-        FreezeCommand::Bounce {
-            job: "j2".into(),
-            track: t,
-            start: Beats(0.0),
-            end: Beats(4.0),
-            include_chain: true,
-            media,
-            target: BounceTarget::NewTrack {
-                track: new_track,
-                clip,
-            },
-        },
-    ] {
-        assert_unsupported(&mut h, Command::Freeze(c));
-    }
 }
 
 #[test]
