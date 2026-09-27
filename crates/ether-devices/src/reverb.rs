@@ -11,7 +11,11 @@ use ether_core::protocol::model::BuiltinDeviceType;
 
 /// Descriptor of the `Reverb` type.
 pub fn descriptor() -> DeviceDescriptor {
-    crate::placeholder::descriptor(BuiltinDeviceType::Reverb, "Reverb", DeviceCategory::AudioEffect)
+    crate::placeholder::descriptor(
+        BuiltinDeviceType::Reverb,
+        "Reverb",
+        DeviceCategory::AudioEffect,
+    )
 }
 
 /// Non-RT. A new instance with default params.

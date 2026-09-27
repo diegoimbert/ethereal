@@ -214,7 +214,10 @@ impl DocCtx<'_, '_> {
         self.tx.remove(EntityKey::DrumPad(id))
     }
 
-    pub fn delete_mappings_where(&mut self, pred: impl Fn(&MidiMapTarget) -> bool) -> CmdResult<()> {
+    pub fn delete_mappings_where(
+        &mut self,
+        pred: impl Fn(&MidiMapTarget) -> bool,
+    ) -> CmdResult<()> {
         let ids: Vec<MidiMappingId> = self
             .p()
             .midi_mappings

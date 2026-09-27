@@ -17,12 +17,16 @@ use crate::tx::{CmdResult, unsupported};
 
 pub(crate) fn rack_command(ctx: &mut DocCtx, c: &DrumRackCommand) -> CmdResult<()> {
     let _ = (ctx, c);
-    Err(unsupported("drum racks are not implemented yet (drum-rack node)"))
+    Err(unsupported(
+        "drum racks are not implemented yet (drum-rack node)",
+    ))
 }
 
 pub(crate) fn slice_command(ctx: &mut DocCtx, c: &SliceCommand) -> CmdResult<()> {
     let _ = (ctx, c);
-    Err(unsupported("slicing is not implemented yet (drum-rack node)"))
+    Err(unsupported(
+        "slicing is not implemented yet (drum-rack node)",
+    ))
 }
 
 /// Pad chains of the racks on `track`'s chain. Empty while unimplemented.

@@ -568,7 +568,8 @@ fn compile_rejects_cycles_and_unknown_tracks() {
     let mut t1 = track(tid(8), TrackKind::Audio, Some(tid(1)));
     t1.chain = vec![ChainEntry {
         node: key,
-        enabled: true, sidechain: None,
+        enabled: true,
+        sidechain: None,
     }];
     let mut t2 = t1.clone();
     t2.id = tid(9);

@@ -41,6 +41,19 @@ import { compareOrderKeys, keyBetween, keyForInsert } from "@/state/orderKey";
 import { CommandFailedError } from "../EngineTransport";
 import { BUILTIN_DESCRIPTORS, builtinDescriptor, clampParam } from "./builtinDevices";
 import { defaultParams, defaultTrackName, makeClip, makeTrack, MOCK_TRACK_COLORS } from "./demoProject";
+import {
+  clipV2Command,
+  deletePadCascade,
+  drumRackCommand,
+  grooveCommand,
+  mappingRefsTrack,
+  markerCommand,
+  midiMapCommand,
+  setSidechain,
+  sliceCommand,
+  swingOffset,
+  tempoCommand,
+} from "./roadmapReducer";
 import { bpmAt, tempoPointAt, signaturePointAt } from "./tempo";
 import type { Tx } from "./tx";
 
@@ -89,6 +102,15 @@ export function isDocumentCommand(command: Command): boolean {
       return ["SetMonitor", "SetInput", "SetCountIn"].includes(c.type);
     case "Warp":
       return c.type !== "DetectTempo";
+    // Roadmap v2.
+    case "Tempo":
+    case "Marker":
+    case "Groove":
+    case "DrumRack":
+    case "Slice":
+      return true;
+    case "MidiMap":
+      return c.type !== "Learn" && c.type !== "List";
     default:
       return false;
   }
@@ -125,6 +147,24 @@ export function reduceDocumentCommand(ctx: ReducerContext, command: Command): Re
       break;
     case "Warp":
       warpCommand(ctx, command.command);
+      break;
+    case "Tempo":
+      tempoCommand(ctx, command.command);
+      break;
+    case "Marker":
+      markerCommand(ctx, command.command);
+      break;
+    case "Groove":
+      grooveCommand(ctx, command.command);
+      break;
+    case "DrumRack":
+      drumRackCommand(ctx, command.command, (id) => deleteDeviceCascade(ctx, id));
+      break;
+    case "Slice":
+      sliceCommand(ctx, command.command);
+      break;
+    case "MidiMap":
+      midiMapCommand(ctx, command.command);
       break;
     default:
       fail("Internal", `not a document command: ${command.domain}`);
@@ -188,17 +228,28 @@ function deleteClipCascade(ctx: ReducerContext, id: ClipId): void {
 
 function deleteSendCascade(ctx: ReducerContext, id: string): void {
   deleteLanesWhere(ctx, (l) => l.target.type === "SendLevel" && l.target.send === id);
+  for (const m of ctx.tx.all("MidiMapping")) {
+    if (m.target.type === "Param" && m.target.target.type === "SendLevel" && m.target.target.send === id) ctx.tx.remove("MidiMapping", m.id);
+  }
   ctx.tx.remove("Send", id);
 }
 
 function deleteDeviceCascade(ctx: ReducerContext, id: string): void {
   deleteLanesWhere(ctx, (l) => l.target.type === "DeviceParam" && l.target.device === id);
+  for (const m of ctx.tx.all("MidiMapping")) {
+    if (m.target.type === "Param" && m.target.target.type === "DeviceParam" && m.target.target.device === id) ctx.tx.remove("MidiMapping", m.id);
+  }
+  // A drum rack takes its pads (and their chains) with it.
+  for (const p of ctx.tx.all("DrumPad")) if (p.rack === id) deletePadCascade(ctx, p.id, (d) => deleteDeviceCascade(ctx, d));
   ctx.tx.remove("Device", id);
 }
 
 function deleteTrackCascade(ctx: ReducerContext, id: TrackId): void {
   for (const c of ctx.tx.all("Clip")) if (c.track === id) deleteClipCascade(ctx, c.id);
-  for (const d of ctx.tx.all("Device")) if (d.track === id) deleteDeviceCascade(ctx, d.id);
+  // Pad devices go with their rack.
+  for (const d of ctx.tx.all("Device")) if (d.track === id && d.pad === null) deleteDeviceCascade(ctx, d.id);
+  for (const m of ctx.tx.all("MidiMapping")) if (mappingRefsTrack(m, id)) ctx.tx.remove("MidiMapping", m.id);
+  for (const d of ctx.tx.all("Device")) if (d.sidechain === id) ctx.tx.upsert("Device", { ...d, sidechain: null });
   for (const s of ctx.tx.all("Send")) if (s.from === id || s.to === id) deleteSendCascade(ctx, s.id);
   deleteLanesWhere(
     ctx,
@@ -460,7 +511,7 @@ function mixerCommand(ctx: ReducerContext, c: MixerCommand): void {
 function chainOf(ctx: ReducerContext, trackId: TrackId, except?: string): Device[] {
   return ctx.tx
     .all("Device")
-    .filter((d) => d.track === trackId && d.id !== except)
+    .filter((d) => d.track === trackId && d.pad === null && d.id !== except)
     .sort(byOrder);
 }
 
@@ -489,6 +540,8 @@ function deviceCommand(ctx: ReducerContext, c: DeviceCommand): ReplyValue {
         enabled: true,
         kind,
         params: defaultParams(c.device.device),
+        sidechain: null,
+        pad: null,
       });
       break;
     }
@@ -540,9 +593,13 @@ function deviceCommand(ctx: ReducerContext, c: DeviceCommand): ReplyValue {
         fail("InvalidArgument", `device ${d.id} is not a sampler`);
       }
       if (c.media !== null && !tx.get("Media", c.media)) fail("NotFound", `media ${c.media}`);
-      tx.upsert("Device", { ...d, kind: { type: "Builtin", device: { type: "Sampler", sample: c.media } } });
+      const slices = d.kind.device.type === "Sampler" ? d.kind.device.slices : { enabled: false, base_note: 36, markers: [] };
+      tx.upsert("Device", { ...d, kind: { type: "Builtin", device: { type: "Sampler", sample: c.media, slices } } });
       break;
     }
+    case "SetSidechain":
+      setSidechain(ctx, c.device, c.source);
+      break;
     case "ListBuiltin":
       return { type: "DeviceTypes", devices: Object.values(BUILTIN_DESCRIPTORS) };
     case "GetDescriptor": {
@@ -603,6 +660,11 @@ function mediaLengthBeats(ctx: ReducerContext, media: { frames: number; sample_r
 function clipCommand(ctx: ReducerContext, c: ClipCommand): void {
   const { tx } = ctx;
   switch (c.type) {
+    case "SetFadeCurves":
+    case "SetReversed":
+    case "Crossfade":
+      clipV2Command(ctx, c);
+      break;
     case "CreateMidi": {
       if (tx.get("Clip", c.id)) fail("InvalidArgument", `clip ${c.id} already exists`);
       const t = track(ctx, c.track);
@@ -633,7 +695,11 @@ function clipCommand(ctx: ReducerContext, c: ClipCommand): void {
           transpose: 0,
           fade_in: 0,
           fade_out: 0,
-          warp: { enabled: true, mode: "Complex", source_bpm: null },
+          fade_in_curve: { type: "Linear" },
+          fade_out_curve: { type: "Linear" },
+          reversed: false,
+          // Unwarped (native speed), like the real controller.
+          warp: { enabled: false, mode: "Repitch", source_bpm: null },
         },
       });
       tx.upsert("Clip", created);
@@ -784,7 +850,8 @@ function noteCommand(ctx: ReducerContext, c: NoteCommand): void {
       if (!(c.grid > 0)) fail("InvalidArgument", "grid must be > 0");
       const strength = clamp(c.strength, 0, 1);
       const ids = c.notes ? new Set(c.notes) : null;
-      const snap = (t: number) => t + (snapBeats(t, c.grid) - t) * strength;
+      const target = (t: number) => snapBeats(t, c.grid) + swingOffset(snapBeats(t, c.grid), c.grid, c.swing);
+      const snap = (t: number) => t + (target(t) - t) * strength;
       for (const n of tx.all("Note")) {
         if (n.clip !== c.clip || (ids && !ids.has(n.id))) continue;
         const start = Math.max(0, snap(n.start));

@@ -27,7 +27,10 @@ pub type ExportJobId = String;
 #[serde(tag = "type")]
 pub enum ExportCommand {
     /// Start rendering. Replies `ExportStarted`.
-    Render { job: ExportJobId, request: ExportRequest },
+    Render {
+        job: ExportJobId,
+        request: ExportRequest,
+    },
     /// Cancel a running job (`Event::Export { Cancelled }` follows). No-op if finished.
     Cancel { job: ExportJobId },
     /// Read bytes of a finished download. Replies `Bytes` (`eof` when `offset + data.len()`
@@ -62,7 +65,10 @@ pub enum ExportRange {
     Loop,
     /// From beat 0 to the end of the last clip (and last automation point).
     Project,
-    Custom { start: Beats, end: Beats },
+    Custom {
+        start: Beats,
+        end: Beats,
+    },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize, TS)]
@@ -104,10 +110,21 @@ pub enum ExportMode {
 #[serde(tag = "type")]
 pub enum ExportEvent {
     /// `progress` 0..=1 over the whole job (all stems).
-    Progress { job: ExportJobId, progress: f32 },
-    Done { job: ExportJobId, result: ExportResult },
-    Failed { job: ExportJobId, message: String },
-    Cancelled { job: ExportJobId },
+    Progress {
+        job: ExportJobId,
+        progress: f32,
+    },
+    Done {
+        job: ExportJobId,
+        result: ExportResult,
+    },
+    Failed {
+        job: ExportJobId,
+        message: String,
+    },
+    Cancelled {
+        job: ExportJobId,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]

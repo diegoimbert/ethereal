@@ -31,7 +31,7 @@ describe("shared warp vectors", () => {
     it(v.name, () => {
       const markers = v.markers.map(([beat, source]) => ({ beat, source }));
       expect(compileWarp(v.warp, markers)).toEqual(v.compiled);
-      const content: AudioContent = { media: "M", gain: 0, transpose: v.transpose, fade_in: 0, fade_out: 0, warp: v.warp };
+      const content: AudioContent = { media: "M", gain: 0, transpose: v.transpose, fade_in: 0, fade_out: 0, fade_in_curve: { type: "Linear" }, fade_out_curve: { type: "Linear" }, reversed: false, warp: v.warp };
       const map = clipSourceMapper(content, markers, v.ref_bpm, v.anchor, v.stretch ? "tauri" : "wasm");
       for (const [c, s] of v.points) expect(Math.abs(map(c) - s), `c=${c}`).toBeLessThan(1e-9);
     });

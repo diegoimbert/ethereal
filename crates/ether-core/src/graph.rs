@@ -64,7 +64,8 @@ pub struct TrackDesc {
     pub pan: f32,
     pub mute: bool,
     pub solo: bool,
-    /// Hardware input channels monitored/recorded by this track, if any.
+    /// Hardware input channels monitored/recorded by this track, if any, as
+    /// `(first, count)` (`TrackInput::Audio`: count 1 = mono, 2 = stereo).
     pub audio_input: Option<(u16, u16)>,
     /// Effective monitoring (controller resolves Auto/In/Off + its runtime arm state).
     pub monitor: bool,
@@ -82,7 +83,8 @@ pub struct TrackDesc {
 
 /// Click settings (roadmap v2, `tempo-metronome`). The click is rendered by
 /// [`crate::metronome`] straight into the hardware output after master (not metered, never
-/// part of exports), on every beat while playing and during count-in.
+/// part of exports), on every beat while playing when `RenderGraphDesc::metronome` is on,
+/// and during a recording count-in regardless of it.
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub struct MetronomeDesc {
     /// Linear gain.
@@ -90,6 +92,12 @@ pub struct MetronomeDesc {
     /// Accent (higher/louder click) on the first beat of each bar.
     pub accent: bool,
     pub sound: MetronomeSound,
+    /// Recording count-in: while playing and recording with the position before this beat,
+    /// the click sounds even if the metronome is off. Set by the controller for the
+    /// duration of a record session's pre-roll (`recording` computes it:
+    /// `EtherController::recording` knows the record start), `None` otherwise.
+    #[serde(default)]
+    pub count_in_end: Option<f64>,
 }
 
 impl Default for MetronomeDesc {
@@ -98,6 +106,7 @@ impl Default for MetronomeDesc {
             volume: 0.5,
             accent: true,
             sound: MetronomeSound::Classic,
+            count_in_end: None,
         }
     }
 }

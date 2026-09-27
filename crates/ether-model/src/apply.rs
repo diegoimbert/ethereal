@@ -187,7 +187,8 @@ fn is_drum_rack(kind: &DeviceKind) -> bool {
 fn mapping_refs_track(target: &MidiMapTarget, track: TrackId) -> bool {
     match target {
         MidiMapTarget::Param {
-            target: AutomationTarget::TrackVolume { track: t } | AutomationTarget::TrackPan { track: t },
+            target:
+                AutomationTarget::TrackVolume { track: t } | AutomationTarget::TrackPan { track: t },
         }
         | MidiMapTarget::TrackMute { track: t }
         | MidiMapTarget::TrackSolo { track: t }
@@ -666,9 +667,7 @@ impl Project {
     fn check_globals(&self, key: EntityKey) -> Result<(), ModelError> {
         match key {
             // Devices: sidechain edges are routing edges.
-            EntityKey::Track(_) | EntityKey::Send(_) | EntityKey::Device(_) => {
-                self.check_routing()
-            }
+            EntityKey::Track(_) | EntityKey::Send(_) | EntityKey::Device(_) => self.check_routing(),
             EntityKey::TempoPoint(_) => {
                 if !self
                     .tempo_points

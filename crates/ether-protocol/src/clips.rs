@@ -90,7 +90,10 @@ pub enum ClipCommand {
         fade_out: Option<FadeCurve>,
     },
     /// Roadmap v2 (`clip-editing`), audio clips only. See `AudioContent::reversed`.
-    SetReversed { id: ClipId, reversed: bool },
+    SetReversed {
+        id: ClipId,
+        reversed: bool,
+    },
     /// Roadmap v2 (`clip-editing`): crossfade two audio clips on the same track where
     /// `first` ends at or after `second` starts. Extends them into each other as needed so
     /// they overlap by `length` beats around the boundary (source material permitting) and

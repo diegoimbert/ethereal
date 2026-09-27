@@ -18,8 +18,19 @@ pub enum MarkerCommand {
         color: Option<Color>,
     },
     /// Send with a gesture while dragging.
-    Move { id: MarkerId, position: Beats },
-    Rename { id: MarkerId, name: String },
-    SetColor { id: MarkerId, color: Option<Color> },
-    Remove { ids: Vec<MarkerId> },
+    Move {
+        id: MarkerId,
+        position: Beats,
+    },
+    Rename {
+        id: MarkerId,
+        name: String,
+    },
+    SetColor {
+        id: MarkerId,
+        color: Option<Color>,
+    },
+    Remove {
+        ids: Vec<MarkerId>,
+    },
 }

@@ -33,9 +33,9 @@ mod collab;
 pub mod compile;
 mod doc;
 mod drum_rack;
+mod engine;
 mod export;
 mod groove;
-mod engine;
 mod handlers;
 mod media;
 pub mod memory;
@@ -155,10 +155,7 @@ pub trait EngineBridge {
     /// Roadmap v2 (`midi-learn`): drain incoming MIDI messages received since the last
     /// call (all ports), for MIDI mappings/learn. Called from every controller tick.
     /// Hosts without MIDI input keep the default.
-    fn poll_midi_input(
-        &mut self,
-        out: &mut Vec<ether_core::protocol::midi_map::MidiInputEvent>,
-    ) {
+    fn poll_midi_input(&mut self, out: &mut Vec<ether_core::protocol::midi_map::MidiInputEvent>) {
         let _ = out;
     }
 

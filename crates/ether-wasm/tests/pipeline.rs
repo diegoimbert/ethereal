@@ -297,7 +297,8 @@ fn builtin_synth_under_virtual_key_plays_notes() {
         kind: TrackKind::Midi,
         chain: vec![ChainEntry {
             node: key,
-            enabled: true, sidechain: None,
+            enabled: true,
+            sidechain: None,
         }],
         output: Some(master),
         group: None,

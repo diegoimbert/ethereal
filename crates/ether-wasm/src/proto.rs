@@ -486,7 +486,10 @@ mod tests {
         let msgs = vec![
             EngineMsg::CreateBuiltin {
                 key,
-                device: BuiltinDevice::Sampler { sample: None, slices: Default::default() },
+                device: BuiltinDevice::Sampler {
+                    sample: None,
+                    slices: Default::default(),
+                },
                 params: vec![(ParamId(1), 0.25)],
             },
             EngineMsg::DestroyNode { key },

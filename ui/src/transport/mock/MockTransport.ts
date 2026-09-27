@@ -45,6 +45,25 @@
  * - Everything crossing the "wire" is JSON-cloned, like a real host would serialize it.
  * - On connect the mock emits, in order: `Transport`, `Recording::ArmChanged`,
  *   `Project::ListChanged`, `Project::DirtyChanged`.
+ * - **New audio clips are unwarped** (`warp.enabled = false`, Repitch), like the real
+ *   controller.
+ *
+ * ## Roadmap v2 (contracts-2) simulations (see `roadmapReducer.ts`)
+ * - Undoable document commands: `Tempo::*` (tempo/signature CRUD; the points at beat 0
+ *   can't be removed or moved; metronome settings), `Marker::*`, `Clip::{SetFadeCurves,
+ *   SetReversed, Crossfade}` (the crossfade just extends the first clip), `Device::
+ *   SetSidechain`, `Groove::{Humanize (seeded, deterministic), SetSwing}`, quantize swing,
+ *   `DrumRack::*` (pads + pad chains), `Slice::*` (auto slicing: `Equal`/`Grid`;
+ *   `Transients` = 8 equal slices; `ToDrumRack` → `Unsupported`), `MidiMap::{Map, Edit,
+ *   Unmap}`. Deleting devices/sends/tracks cascades to MIDI mappings, drum pads and
+ *   sidechain sources like the Rust controller.
+ * - `MidiMap::Learn` arms learning (`Event::MidiMap LearnChanged`); feed input with
+ *   `simulateMidiInput(port, [status, d1, d2])` (completes a learn, or drives the mapped
+ *   target). `MidiMap::List` replies `MidiMappings`.
+ * - `Export::Render` replies `ExportStarted`, then advances one phase per playhead step
+ *   (16 ms, or `tick()` with manual timers): `Progress 0.5`, then `Progress 1` + `Done`
+ *   with `Download` results (silent 0.1 s WAV bytes, also for FLAC) readable with
+ *   `Export::ReadChunk`. `Cancel`/`Release` as specified; FLAC + Float32 is rejected.
  *
  * ## Mock limitations
  * - Tempo map is step-only (linear tempo ramps are treated as steps).
@@ -52,7 +71,8 @@
  *   volume/pan/mute, sends, group/default routing); CPU load is
  *   fake. Library files only have metadata; peaks are synthesized deterministically.
  * - Replies `Err { code: "Unsupported" }`: plugins (insert/editor/sandbox/reload),
- *   `Media::BeginUpload` and `MediaSource::Upload` (reserved for v0.2),
+ *   uploads (`Media::{BeginUpload, UploadChunk, CancelUpload}`, `MediaSource::Upload`),
+ *   `Collab::*`, `Slice::ToDrumRack`,
  *   `Recording::SetRecording`, `Warp::DetectTempo`, `Engine::SetAudioConfig`.
  * - Harmless answers: `Plugin::List` → no plugins, `Plugin::Rescan` → an empty scan,
  *   `Media::Preview/StopPreview` → Unit (after validating the source),
@@ -68,10 +88,14 @@
 
 import type {
   BrowseLocation,
+  CollabCommand,
   Command,
   EditCommand,
   EngineCommand,
   EtherFile,
+  ExportCommand,
+  ExportDownload,
+  ExportRequest,
   Event,
   GestureId,
   HistoryState,
@@ -79,6 +103,10 @@ import type {
   MediaRef,
   MediaSource,
   MeterFrame,
+  MidiControl,
+  MidiMapCommand,
+  MidiMapping,
+  MidiMapTarget,
   PatchChange,
   PlayheadFrame,
   PluginCommand,
@@ -96,6 +124,8 @@ import type {
 import { cmd } from "../cmd";
 import { CommandFailedError, Emitter, type EngineTransport, type SendOptions, type Unsubscribe } from "../EngineTransport";
 import { newId as defaultNewId } from "../ids";
+import { paramToPlain } from "@/features/devices/paramScale";
+import { builtinDescriptor } from "./builtinDevices";
 import { createDemoProjects, createEmptyProject } from "./demoProject";
 import { fail, isDocumentCommand, labelOf, reduceDocumentCommand } from "./documentReducer";
 import { findLibraryFile, LIBRARY_ID, listLibraryFolder, MOCK_LOCATIONS, normalize, wavSize } from "./library";
@@ -124,7 +154,7 @@ export interface MockTransportOptions {
 
 /** File format tag / version of `.ether` files (see `ether-model/src/file.rs`). */
 export const ETHER_FORMAT = "ethereal-project";
-export const ETHER_VERSION = 1;
+export const ETHER_VERSION = 3;
 const APP_VERSION = "0.0.1-mock";
 
 const PLAYHEAD_INTERVAL_MS = 16;
@@ -208,6 +238,11 @@ export class MockTransport implements EngineTransport {
   // Meters runtime.
   private readonly levels = new Map<TrackId, number>();
   private metersSilent = false;
+
+  // Roadmap v2 runtime state.
+  private learnTarget: MidiMapTarget | null = null;
+  private exportJob: { job: string; request: ExportRequest; phase: number } | null = null;
+  private readonly downloads = new Map<string, { info: ExportDownload; bytes: Uint8Array }>();
 
   constructor(opts: MockTransportOptions = {}) {
     this.manual = opts.timers === "manual";
@@ -344,6 +379,12 @@ export class MockTransport implements EngineTransport {
         return this.engineCommand(command.command);
       case "Warp":
         return fail("Unsupported", "tempo detection is not available in the mock engine");
+      case "Export":
+        return this.exportCommand(command.command);
+      case "MidiMap":
+        return this.midiMapCommand(command.command);
+      case "Collab":
+        return this.collabCommand(command.command);
       default:
         return fail("InvalidArgument", `unknown command domain`);
     }
@@ -730,7 +771,9 @@ export class MockTransport implements EngineTransport {
       case "StopPreview":
         return UNIT;
       case "BeginUpload":
-        return fail("Unsupported", "uploads are reserved for v0.2");
+      case "UploadChunk":
+      case "CancelUpload":
+        return fail("Unsupported", "uploads are not available in the mock engine");
     }
   }
 
@@ -755,7 +798,7 @@ export class MockTransport implements EngineTransport {
   private checkSource(source: MediaSource): MediaRef | null {
     switch (source.type) {
       case "Upload":
-        return fail("Unsupported", "uploads are reserved for v0.2");
+        return fail("Unsupported", "uploads are not available in the mock engine");
       case "Project":
         return this.project.media[source.media] ?? fail("NotFound", `media ${source.media}`);
       case "Location":
@@ -818,6 +861,195 @@ export class MockTransport implements EngineTransport {
     }
   }
 
+  // ─── Roadmap v2: export ───────────────────────────────────────────────────────────────
+
+  private exportCommand(c: ExportCommand): ReplyValue {
+    switch (c.type) {
+      case "Render": {
+        if (this.exportJob) fail("InvalidState", "an export is already running");
+        const r = c.request;
+        if (r.format.container === "Flac" && r.format.bit_depth === "Float32") fail("InvalidArgument", "FLAC does not support 32-bit float");
+        if (r.range.type === "Custom" && !(r.range.end > r.range.start)) fail("InvalidArgument", "invalid export range");
+        if (r.mode.type === "Stems") {
+          if (r.mode.tracks.length === 0) fail("InvalidArgument", "no stems selected");
+          for (const t of r.mode.tracks) if (!this.project.tracks[t]) fail("NotFound", `track ${t}`);
+        }
+        // Previous results are dropped by a new render.
+        this.downloads.clear();
+        this.exportJob = { job: c.job, request: r, phase: 0 };
+        return { type: "ExportStarted", job: c.job };
+      }
+      case "Cancel":
+        if (this.exportJob?.job === c.job) {
+          this.exportJob = null;
+          this.emit({ type: "Export", event: { type: "Cancelled", job: c.job } });
+        }
+        return UNIT;
+      case "ReadChunk": {
+        const d = this.downloads.get(c.token) ?? fail("NotFound", `download ${c.token}`);
+        const start = Math.max(0, Math.floor(c.offset));
+        const end = Math.min(d.bytes.length, start + Math.max(1, c.length));
+        let bin = "";
+        for (let i = start; i < end; i++) bin += String.fromCharCode(d.bytes[i]!);
+        return { type: "Bytes", chunk: { offset: start, data: btoa(bin), eof: end >= d.bytes.length } };
+      }
+      case "Release":
+        this.downloads.delete(c.token);
+        return UNIT;
+    }
+  }
+
+  /** Advance the running export by one phase per step: Progress 0.5, then 1.0 + Done. */
+  private exportStep(): void {
+    const job = this.exportJob;
+    if (!job) return;
+    job.phase += 1;
+    if (job.phase === 1) {
+      this.emit({ type: "Export", event: { type: "Progress", job: job.job, progress: 0.5 } });
+      return;
+    }
+    this.exportJob = null;
+    const r = job.request;
+    const ext = r.format.container === "Flac" ? "flac" : "wav";
+    const base = r.name ?? this.project.settings.name;
+    const names = r.mode.type === "Mix" ? [base] : r.mode.tracks.map((t) => `${base} - ${this.project.tracks[t]?.name ?? t}`);
+    const bits = r.format.bit_depth === "Int16" ? 16 : r.format.bit_depth === "Int24" ? 24 : 32;
+    const downloads = names.map((name) => {
+      const bytes = silentWav(r.format.sample_rate ?? 48000, bits);
+      const info: ExportDownload = { token: this.newId(), name: `${name}.${ext}`, mime: `audio/${ext}`, size: bytes.length };
+      this.downloads.set(info.token, { info, bytes });
+      return info;
+    });
+    this.emit({ type: "Export", event: { type: "Progress", job: job.job, progress: 1 } });
+    this.emit({ type: "Export", event: { type: "Done", job: job.job, result: { type: "Download", downloads } } });
+  }
+
+  // ─── Roadmap v2: MIDI learn ───────────────────────────────────────────────────────────
+
+  private midiMapCommand(c: MidiMapCommand): ReplyValue {
+    switch (c.type) {
+      case "Learn":
+        this.learnTarget = c.target;
+        this.emit({ type: "MidiMap", event: { type: "LearnChanged", target: c.target } });
+        return UNIT;
+      case "List": {
+        const mappings = Object.values(this.project.midi_mappings).sort((a, b) =>
+          JSON.stringify(a.source).localeCompare(JSON.stringify(b.source)),
+        );
+        return { type: "MidiMappings", mappings };
+      }
+      default:
+        return fail("Internal", `unreachable: ${c.type} is a document command`);
+    }
+  }
+
+  /**
+   * Test/debug helper: feed one incoming MIDI short message, as a host would through
+   * `EngineBridge::poll_midi_input`. Completes a pending learn, else drives the mapped target.
+   */
+  simulateMidiInput(port: string, data: [number, number, number]): void {
+    const [status, d1, d2] = data;
+    const kind = status & 0xf0;
+    const channel = status & 0x0f;
+    let control: MidiControl;
+    let value: number;
+    if (kind === 0xb0) {
+      control = { type: "Cc", number: d1 };
+      value = d2 / 127;
+    } else if (kind === 0x90 || kind === 0x80) {
+      control = { type: "Note", key: d1 };
+      value = kind === 0x90 ? d2 / 127 : 0;
+    } else if (kind === 0xe0) {
+      control = { type: "PitchBend" };
+      value = ((d2 << 7) | d1) / 16383;
+    } else {
+      return;
+    }
+    const source = { port, channel, control };
+    this.emit({ type: "MidiMap", event: { type: "Activity", source } });
+    if (this.learnTarget) {
+      const target = this.learnTarget;
+      const mapping: MidiMapping = { id: this.newId(), source, target, min: 0, max: 1, mode: { type: "Absolute" } };
+      this.applyDocument([cmd("MidiMap", { type: "Map", mapping })], "MIDI Learn", null);
+      this.learnTarget = null;
+      this.emit({ type: "MidiMap", event: { type: "Learned", mapping: mapping.id } });
+      this.emit({ type: "MidiMap", event: { type: "LearnChanged", target: null } });
+      return;
+    }
+    const same = JSON.stringify(control);
+    const m = Object.values(this.project.midi_mappings).find(
+      (x) =>
+        (x.source.port === null || x.source.port === port) &&
+        (x.source.channel === null || x.source.channel === channel) &&
+        JSON.stringify(x.source.control) === same,
+    );
+    if (!m) return;
+    const v = m.min + value * (m.max - m.min);
+    const faderDb = (n: number) => {
+      const amp = n * n * n * Math.pow(10, 6 / 20);
+      return amp <= 0 ? -144 : Math.max(-144, 20 * Math.log10(amp));
+    };
+    const apply = (c: Command) => {
+      try {
+        this.execute(c, null);
+      } catch {
+        // A stale mapping target is ignored, like on the real engine.
+      }
+    };
+    const t = m.target;
+    switch (t.type) {
+      case "Param":
+        switch (t.target.type) {
+          case "TrackVolume":
+            apply(cmd("Mixer", { type: "SetVolume", track: t.target.track, volume: faderDb(v) }));
+            break;
+          case "TrackPan":
+            apply(cmd("Mixer", { type: "SetPan", track: t.target.track, pan: v * 2 - 1 }));
+            break;
+          case "SendLevel":
+            apply(cmd("Mixer", { type: "SetSendLevel", send: t.target.send, level: faderDb(v) }));
+            break;
+          case "DeviceParam": {
+            const d = this.project.devices[t.target.device];
+            if (d?.kind.type !== "Builtin") return;
+            const param = t.target.param;
+            const info = builtinDescriptor(d.kind.device).params.find((p) => p.id === param);
+            if (info) apply(cmd("Device", { type: "SetParam", device: d.id, param, value: paramToPlain(info, v) }));
+            break;
+          }
+        }
+        break;
+      case "TrackMute":
+        apply(cmd("Mixer", { type: "SetMute", track: t.track, mute: v >= 0.5 }));
+        break;
+      case "TrackSolo":
+        apply(cmd("Mixer", { type: "SetSolo", track: t.track, solo: v >= 0.5, exclusive: false }));
+        break;
+      case "TrackArm":
+        apply(cmd("Recording", { type: "Arm", track: t.track, armed: v >= 0.5, exclusive: false }));
+        break;
+      case "Transport": {
+        if (v < 0.5) return;
+        const s = this.project.settings;
+        const byAction: Partial<Record<typeof t.action, Command>> = {
+          Play: cmd("Transport", { type: "Play" }),
+          Stop: cmd("Transport", { type: "Stop" }),
+          TogglePlay: cmd("Transport", { type: "TogglePlay" }),
+          ToggleLoop: cmd("Transport", { type: "SetLoopEnabled", enabled: !s.loop_enabled }),
+          ToggleMetronome: cmd("Transport", { type: "SetMetronome", enabled: !s.metronome }),
+          TapTempo: cmd("Transport", { type: "TapTempo" }),
+        };
+        const c = byAction[t.action];
+        if (c) apply(c);
+        break;
+      }
+    }
+  }
+
+  private collabCommand(c: CollabCommand): ReplyValue {
+    return fail("Unsupported", `collaboration is not available in the mock engine (${c.type})`);
+  }
+
   // ─── Time ─────────────────────────────────────────────────────────────────────────────
 
   private now(): number {
@@ -841,6 +1073,7 @@ export class MockTransport implements EngineTransport {
       this.syncTransport(); // tempo/signature at the playhead may change
     }
     if (this.playing || this.playheadDirty) this.emitPlayhead();
+    this.exportStep();
   }
 
   private emitPlayhead(): void {
@@ -919,6 +1152,33 @@ export class MockTransport implements EngineTransport {
   }
 }
 
+/** A valid, silent stereo WAV (0.1 s) with the given rate and bit depth (32 = float). */
+function silentWav(sampleRate: number, bits: 16 | 24 | 32): Uint8Array {
+  const channels = 2;
+  const frames = Math.round(sampleRate / 10);
+  const bytesPerSample = bits / 8;
+  const dataSize = frames * channels * bytesPerSample;
+  const buf = new ArrayBuffer(44 + dataSize);
+  const v = new DataView(buf);
+  const str = (off: number, s: string) => {
+    for (let i = 0; i < s.length; i++) v.setUint8(off + i, s.charCodeAt(i));
+  };
+  str(0, "RIFF");
+  v.setUint32(4, 36 + dataSize, true);
+  str(8, "WAVE");
+  str(12, "fmt ");
+  v.setUint32(16, 16, true);
+  v.setUint16(20, bits === 32 ? 3 : 1, true);
+  v.setUint16(22, channels, true);
+  v.setUint32(24, sampleRate, true);
+  v.setUint32(28, sampleRate * channels * bytesPerSample, true);
+  v.setUint16(32, channels * bytesPerSample, true);
+  v.setUint16(34, bits, true);
+  str(36, "data");
+  v.setUint32(40, dataSize, true);
+  return new Uint8Array(buf);
+}
+
 /** Hex FNV-1a hash of a string (fake content hash). */
 function hashHex(s: string): string {
   let h = 2166136261;
@@ -945,7 +1205,22 @@ export function parseEtherFile(json: string): Project {
     return fail("Decode", `unsupported project version ${String(file.version)}`);
   }
   const p = file.project;
-  const tables = ["tracks", "clips", "notes", "devices", "sends", "automation_lanes", "automation_points", "tempo_points", "time_signatures", "warp_markers", "media"] as const;
+  const tables = [
+    "tracks",
+    "clips",
+    "notes",
+    "devices",
+    "sends",
+    "automation_lanes",
+    "automation_points",
+    "tempo_points",
+    "time_signatures",
+    "warp_markers",
+    "media",
+    "markers",
+    "midi_mappings",
+    "drum_pads",
+  ] as const;
   if (!p || typeof p !== "object" || !p.settings || tables.some((t) => typeof p[t] !== "object" || p[t] === null)) {
     return fail("Decode", "malformed project");
   }

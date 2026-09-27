@@ -110,7 +110,10 @@ fn patch_and_entities_roundtrip() {
         name: "Sampler".into(),
         enabled: true,
         kind: DeviceKind::Builtin {
-            device: BuiltinDevice::Sampler { sample: Some(id(12)), slices: Default::default() },
+            device: BuiltinDevice::Sampler {
+                sample: Some(id(12)),
+                slices: Default::default(),
+            },
         },
         params: [(ParamId(1), 0.5)].into_iter().collect(),
         sidechain: None,

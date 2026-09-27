@@ -9,11 +9,14 @@
 //!    `t` (one undo step, patch emitted) and ends learning (`Learned` + `LearnChanged`).
 //! 3. `Learn { target: None }` cancels.
 //!
-//! Host → controller input: the host (native: `midir`, the `recording` node's input
-//! thread; web: Web MIDI later) delivers every incoming short message as a
-//! [`MidiInputEvent`] through `EngineBridge::poll_midi_input` (drained in the controller
-//! tick). The same messages keep flowing to armed tracks through the engine; a message
-//! consumed by a mapping is *not* filtered from them (like Ableton "remote" + "track").
+//! Host → controller input reuses the recording input path: natively every port is opened
+//! by `ether-native/src/recording/midi.rs` (`MidiInputs::refresh`), whose midir callback
+//! already forwards each short message (`[u8; 3]`, channel voice only) to the engine as
+//! `ether_core::recording::LiveMidi`. The midi-learn node extends that callback to also know
+//! the port id (`MidiPort::id`) and push a [`MidiInputEvent`] into a controller-bound queue
+//! drained by `EngineBridge::poll_midi_input` (controller tick). Web: Web MIDI later, same
+//! event. Messages keep flowing to monitored/armed tracks; a message consumed by a mapping
+//! is *not* filtered from them (like Ableton "remote" + "track").
 
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
@@ -24,10 +27,14 @@ use crate::model::{MidiMapMode, MidiMapTarget, MidiMapping, MidiMappingId, MidiS
 #[serde(tag = "type")]
 pub enum MidiMapCommand {
     /// Enter (`Some`) or leave (`None`) learn mode for a target. Not undoable.
-    Learn { target: Option<MidiMapTarget> },
+    Learn {
+        target: Option<MidiMapTarget>,
+    },
     /// Create a mapping explicitly (client-chosen id). A mapping with the same source is
     /// replaced in the same undo step.
-    Map { mapping: MidiMapping },
+    Map {
+        mapping: MidiMapping,
+    },
     /// Partial edit; `None` fields unchanged.
     Edit {
         id: MidiMappingId,
@@ -35,7 +42,9 @@ pub enum MidiMapCommand {
         max: Option<f64>,
         mode: Option<MidiMapMode>,
     },
-    Unmap { ids: Vec<MidiMappingId> },
+    Unmap {
+        ids: Vec<MidiMappingId>,
+    },
     /// Replies `MidiMappings` (the same data as the mirror, sorted by source).
     List,
 }

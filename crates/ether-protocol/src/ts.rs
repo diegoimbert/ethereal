@@ -4,11 +4,11 @@ use std::path::Path;
 
 use ts_rs::{Config, TS};
 
+use crate::collab::CollabMessage;
 use crate::message::{ClientMessage, ServerMessage};
+use crate::midi_map::MidiInputEvent;
 use crate::model::file::EtherFile;
 use crate::model::{Op, Transaction};
-use crate::collab::CollabMessage;
-use crate::midi_map::MidiInputEvent;
 use crate::plugins::{ScanRequest, ScanResponse};
 use crate::remote::{BinaryKind, ClientHello, ServerHello};
 

@@ -25,5 +25,8 @@ pub(crate) fn metronome_desc(s: &ProjectSettings) -> MetronomeDesc {
         volume: s.metronome_volume.to_linear(),
         accent: s.metronome_accent,
         sound: s.metronome_sound,
+        // Set on the published desc by the controller while a record count-in runs (the
+        // tempo-metronome node wires it from `EtherController::recording`).
+        count_in_end: None,
     }
 }

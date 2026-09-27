@@ -409,7 +409,10 @@ impl Gen<'_> {
                     },
                     1 => DeviceChange::Enabled(false),
                     2 => DeviceChange::Kind(DeviceKind::Builtin {
-                        device: BuiltinDevice::Sampler { sample: None, slices: SliceSettings::default() },
+                        device: BuiltinDevice::Sampler {
+                            sample: None,
+                            slices: SliceSettings::default(),
+                        },
                     }),
                     _ => DeviceChange::Track(self.some_track()?),
                 };

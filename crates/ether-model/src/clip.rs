@@ -95,5 +95,7 @@ pub enum FadeCurve {
     #[default]
     Linear,
     EqualPower,
-    Curve { tension: f32 },
+    Curve {
+        tension: f32,
+    },
 }

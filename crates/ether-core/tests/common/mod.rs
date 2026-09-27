@@ -66,7 +66,8 @@ pub fn with_chain(mut t: TrackDesc, nodes: &[NodeKey]) -> TrackDesc {
         .iter()
         .map(|&node| ChainEntry {
             node,
-            enabled: true, sidechain: None,
+            enabled: true,
+            sidechain: None,
         })
         .collect();
     t

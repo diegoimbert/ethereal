@@ -19,5 +19,7 @@ pub(crate) fn clip_command(ctx: &mut DocCtx, c: &ClipCommand) -> CmdResult<()> {
 
 pub(crate) fn marker_command(ctx: &mut DocCtx, c: &MarkerCommand) -> CmdResult<()> {
     let _ = (ctx, c);
-    Err(unsupported("markers are not implemented yet (clip-editing node)"))
+    Err(unsupported(
+        "markers are not implemented yet (clip-editing node)",
+    ))
 }

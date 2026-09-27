@@ -12,12 +12,14 @@ use ether_core::protocol::midi_map::MidiMapCommand;
 
 use crate::doc::DocCtx;
 use crate::store::{Library, ProjectStore};
-use crate::{EngineBridge, EtherController, HostServices, MessageSink};
 use crate::tx::{CmdResult, unsupported};
+use crate::{EngineBridge, EtherController, HostServices, MessageSink};
 
 pub(crate) fn apply(ctx: &mut DocCtx, c: &MidiMapCommand) -> CmdResult<()> {
     let _ = (ctx, c);
-    Err(unsupported("MIDI mapping is not implemented yet (midi-learn node)"))
+    Err(unsupported(
+        "MIDI mapping is not implemented yet (midi-learn node)",
+    ))
 }
 
 impl<B, H, S, L> EtherController<B, H, S, L>
@@ -34,7 +36,9 @@ where
         out: &mut dyn MessageSink,
     ) -> CmdResult<ReplyValue> {
         let _ = (c, out);
-        Err(unsupported("MIDI learn is not implemented yet (midi-learn node)"))
+        Err(unsupported(
+            "MIDI learn is not implemented yet (midi-learn node)",
+        ))
     }
 
     /// Called from every tick.

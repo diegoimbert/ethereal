@@ -58,12 +58,22 @@ pub enum MidiControl {
 pub enum MidiMapTarget {
     /// A continuous or stepped parameter: device param, track volume/pan or send level.
     /// Same target space (and normalized↔plain mapping) as automation.
-    Param { target: AutomationTarget },
-    TrackMute { track: TrackId },
-    TrackSolo { track: TrackId },
+    Param {
+        target: AutomationTarget,
+    },
+    TrackMute {
+        track: TrackId,
+    },
+    TrackSolo {
+        track: TrackId,
+    },
     /// Record-arm (runtime state: not undoable, like `Recording::Arm`).
-    TrackArm { track: TrackId },
-    Transport { action: TransportAction },
+    TrackArm {
+        track: TrackId,
+    },
+    Transport {
+        action: TransportAction,
+    },
 }
 
 /// Transport actions a MIDI control can trigger (fired when the control crosses the

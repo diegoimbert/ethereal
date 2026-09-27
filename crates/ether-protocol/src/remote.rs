@@ -140,8 +140,14 @@ mod tests {
         let f = encode_binary_frame(BinaryKind::Bytes, r#"{"id":1}"#, &[9, 8, 7]);
         assert_eq!(&f[..5], &[1, 8, 0, 0, 0]);
         let (k, h, p) = decode_binary_frame(&f).unwrap();
-        assert_eq!((k, h, p), (BinaryKind::Bytes, r#"{"id":1}"#, &[9u8, 8, 7][..]));
-        assert_eq!(decode_binary_frame(&f[..7]), Err(BinaryFrameError::TooShort));
+        assert_eq!(
+            (k, h, p),
+            (BinaryKind::Bytes, r#"{"id":1}"#, &[9u8, 8, 7][..])
+        );
+        assert_eq!(
+            decode_binary_frame(&f[..7]),
+            Err(BinaryFrameError::TooShort)
+        );
         assert_eq!(
             decode_binary_frame(&[3, 0, 0, 0, 0]),
             Err(BinaryFrameError::UnknownKind(3))

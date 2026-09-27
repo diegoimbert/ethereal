@@ -17,5 +17,7 @@ pub(crate) fn set_sidechain(
     source: Option<TrackId>,
 ) -> CmdResult<()> {
     let _ = (ctx, device, source);
-    Err(unsupported("sidechain is not implemented yet (sidechain node)"))
+    Err(unsupported(
+        "sidechain is not implemented yet (sidechain node)",
+    ))
 }

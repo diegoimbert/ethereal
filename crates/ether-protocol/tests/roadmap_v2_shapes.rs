@@ -141,7 +141,10 @@ fn tempo_midi_slice_clip_shapes() {
         roundtrip(&sampler),
         json!({"type": "Sampler", "sample": null, "slices": {"enabled": false, "base_note": 36, "markers": []}})
     );
-    assert_eq!(roundtrip(&BuiltinDevice::DrumRack), json!({"type": "DrumRack"}));
+    assert_eq!(
+        roundtrip(&BuiltinDevice::DrumRack),
+        json!({"type": "DrumRack"})
+    );
 }
 
 #[test]
@@ -157,7 +160,10 @@ fn remote_and_collab_shapes() {
         message: "no".into(),
     };
     let v = roundtrip(&rejected);
-    assert_eq!((v["type"].clone(), v["reason"].clone()), (json!("Rejected"), json!("BadToken")));
+    assert_eq!(
+        (v["type"].clone(), v["reason"].clone()),
+        (json!("Rejected"), json!("BadToken"))
+    );
 
     // SiteId is a decimal string (u64 does not fit a JS number).
     let msg = CollabMessage::Leave {

@@ -20,8 +20,8 @@ mod placeholder;
 pub mod reverb;
 pub mod sampler;
 pub mod synth;
-pub mod utility;
 mod util;
+pub mod utility;
 
 pub use compressor::Compressor;
 pub use delay::Delay;

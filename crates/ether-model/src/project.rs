@@ -255,7 +255,12 @@ impl Project {
                 .cloned()
                 .map(Entity::AutomationPoint),
         );
-        out.extend(self.midi_mappings.values().cloned().map(Entity::MidiMapping));
+        out.extend(
+            self.midi_mappings
+                .values()
+                .cloned()
+                .map(Entity::MidiMapping),
+        );
         out
     }
 

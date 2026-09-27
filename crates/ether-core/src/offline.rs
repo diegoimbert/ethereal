@@ -61,10 +61,8 @@ impl OfflineRenderer {
         let mut done = 0;
         while done < frames {
             let n = block.min(frames - done);
-            let mut chunk: Vec<&mut [f32]> = out
-                .iter_mut()
-                .map(|ch| &mut ch[done..done + n])
-                .collect();
+            let mut chunk: Vec<&mut [f32]> =
+                out.iter_mut().map(|ch| &mut ch[done..done + n]).collect();
             self.engine.process(&[], &mut chunk, n);
             done += n;
             self.gc.collect();

@@ -9,8 +9,8 @@ use ether_core::protocol::ReplyValue;
 use ether_core::protocol::media::MediaCommand;
 
 use crate::store::{Library, ProjectStore};
-use crate::{EngineBridge, EtherController, HostServices, MessageSink};
 use crate::tx::{CmdResult, unsupported};
+use crate::{EngineBridge, EtherController, HostServices, MessageSink};
 
 impl<B, H, S, L> EtherController<B, H, S, L>
 where
@@ -26,6 +26,8 @@ where
         out: &mut dyn MessageSink,
     ) -> CmdResult<ReplyValue> {
         let _ = (c, out);
-        Err(unsupported("uploads are not supported yet (remote-engine node)"))
+        Err(unsupported(
+            "uploads are not supported yet (remote-engine node)",
+        ))
     }
 }

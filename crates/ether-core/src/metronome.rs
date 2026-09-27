@@ -5,9 +5,10 @@
 //! to the hardware outputs of a sub-block, calls [`Metronome::render`] once with that
 //! sub-block's `TransportInfo` (one line in `engine.rs::render_sub`, added by this node).
 //! Clicks are synthesized (no samples), sample-accurate on every beat boundary inside the
-//! sub-block (accent on bar starts when `desc.accent`), only while playing with
-//! `RenderGraphDesc::metronome` on, and during recording count-in (`TransportInfo`
-//! `recording` with the position before the punch/record start). RT rules apply: no
+//! sub-block (accent on bar starts when `desc.accent`), while playing with
+//! `RenderGraphDesc::metronome` on, and during a recording count-in: `info.recording` with
+//! `info.position < desc.count_in_end` (the controller's record pre-roll, see
+//! `ether_controller::recording`), whatever `metronome` says. RT rules apply: no
 //! allocation after `new`.
 
 use crate::graph::MetronomeDesc;

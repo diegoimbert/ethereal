@@ -60,6 +60,8 @@ fn project_with(plugins: &[PluginInstance]) -> Project {
                     plugin: plugin.clone(),
                 },
                 params: Default::default(),
+                sidechain: None,
+                pad: None,
             }),
         })
         .unwrap();

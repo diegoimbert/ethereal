@@ -27,7 +27,11 @@ fn v2_fixture_migrates_to_v3_with_neutral_defaults() {
         ("warp_markers", p.warp_markers.len()),
         ("media", p.media.len()),
     ] {
-        assert_eq!(raw["project"][table].as_object().unwrap().len(), n, "{table}");
+        assert_eq!(
+            raw["project"][table].as_object().unwrap().len(),
+            n,
+            "{table}"
+        );
     }
     assert!(p.markers.is_empty() && p.midi_mappings.is_empty() && p.drum_pads.is_empty());
 
@@ -70,7 +74,10 @@ fn v2_fixture_migrates_to_v3_with_neutral_defaults() {
     assert_eq!(v["version"], file::CURRENT_VERSION);
     assert_eq!(file::CURRENT_VERSION, 3);
     assert_eq!(file::load(&saved).unwrap(), p);
-    assert_eq!(file::save(&file::load(&saved).unwrap(), "0.2.0").unwrap(), saved);
+    assert_eq!(
+        file::save(&file::load(&saved).unwrap(), "0.2.0").unwrap(),
+        saved
+    );
 }
 
 // ─── Invariants ─────────────────────────────────────────────────────────────────────────
@@ -155,9 +162,8 @@ fn markers_validate_and_patch() {
         ..m.clone()
     };
     assert!(f.insert(Entity::Marker(bad)).is_err());
-    let inv = f
-        .p
-        .apply(&Op::Update {
+    let inv =
+        f.p.apply(&Op::Update {
             update: EntityUpdate::Marker {
                 id: m.id,
                 change: MarkerChange::Position(Beats(4.0)),
@@ -196,7 +202,11 @@ fn drum_pads_and_pad_chains() {
     assert!(f.insert(Entity::DrumPad(on_synth)).is_err());
 
     // Pad chain device: on the rack's track, not in the track chain.
-    let sampler = f.device(t, BuiltinDevice::new(BuiltinDeviceType::Sampler), Some(pad.id));
+    let sampler = f.device(
+        t,
+        BuiltinDevice::new(BuiltinDeviceType::Sampler),
+        Some(pad.id),
+    );
     f.insert(Entity::Device(sampler.clone())).unwrap();
     assert_eq!(f.p.pad_devices_of(pad.id).len(), 1);
     assert!(f.p.devices_of(t).iter().all(|d| d.id != sampler.id));
@@ -380,15 +390,9 @@ fn slices_fades_and_settings_are_checked() {
         (SettingsChange::Swing(1.5), false),
         (SettingsChange::SwingGrid(Beats(0.0)), false),
         (SettingsChange::MetronomeVolume(Decibels(-12.0)), true),
-        (
-            SettingsChange::MetronomeSound(MetronomeSound::Wood),
-            true,
-        ),
+        (SettingsChange::MetronomeSound(MetronomeSound::Wood), true),
     ] {
-        assert_eq!(
-            f.p.apply(&Op::Settings { change }).is_ok(),
-            ok
-        );
+        assert_eq!(f.p.apply(&Op::Settings { change }).is_ok(), ok);
     }
     // Fade curve tension is range-checked on audio clips (see ops_proptest for the rest).
     assert_eq!(FadeCurve::default(), FadeCurve::Linear);

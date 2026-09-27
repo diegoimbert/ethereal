@@ -11,7 +11,11 @@ use ether_core::protocol::model::BuiltinDeviceType;
 
 /// Descriptor of the `DrumRack` type.
 pub fn descriptor() -> DeviceDescriptor {
-    crate::placeholder::descriptor(BuiltinDeviceType::DrumRack, "Drum Rack", DeviceCategory::Instrument)
+    crate::placeholder::descriptor(
+        BuiltinDeviceType::DrumRack,
+        "Drum Rack",
+        DeviceCategory::Instrument,
+    )
 }
 
 /// Non-RT. A new instance with default params.

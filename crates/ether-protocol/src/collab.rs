@@ -88,13 +88,27 @@ pub enum CollabMessage {
         protocol_version: u32,
     },
     /// Op-based sync: one committed transaction.
-    Transaction { transaction: StampedTransaction },
+    Transaction {
+        transaction: StampedTransaction,
+    },
     /// CRDT-based sync (Loro/Yrs): an opaque update blob.
-    Update { site: SiteId, data: Base64Bytes },
+    Update {
+        site: SiteId,
+        data: Base64Bytes,
+    },
     /// Ask for everything after `version` (opaque; empty = full state).
-    SyncRequest { site: SiteId, version: Base64Bytes },
+    SyncRequest {
+        site: SiteId,
+        version: Base64Bytes,
+    },
     /// Full state (reply to `SyncRequest` or on join).
-    Snapshot { data: Base64Bytes },
-    Presence { presence: Presence },
-    Leave { site: SiteId },
+    Snapshot {
+        data: Base64Bytes,
+    },
+    Presence {
+        presence: Presence,
+    },
+    Leave {
+        site: SiteId,
+    },
 }
