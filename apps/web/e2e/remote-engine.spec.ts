@@ -15,6 +15,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test, type Page } from "@playwright/test";
 import type { Project } from "@/generated";
+import { createTrack, openLibrary, playButton } from "./ui";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const TOKEN = `e2e-${Math.random().toString(36).slice(2)}`;
@@ -220,9 +221,7 @@ test("web UI drives a remote ether-server", async ({ page }) => {
   page.on("pageerror", (e) => errors.push(e.message));
 
   await page.goto("/");
-  await expect(
-    page.getByRole("button", { name: "Play", exact: true }),
-  ).toBeVisible({ timeout: 30_000 });
+  await expect(playButton(page)).toBeVisible({ timeout: 30_000 });
   await expect
     .poll(() => project(page).then((p) => p !== null), { timeout: 30_000 })
     .toBe(true);
@@ -237,6 +236,11 @@ test("web UI drives a remote ether-server", async ({ page }) => {
   // --- Connect: the UI now mirrors the server's project.
   await connect(page, TOKEN);
   await expect(page.getByTestId("remote-button")).toHaveText(/e2e-server/);
+  // The button shows the server as soon as the socket is open; the UI then opens (or
+  // creates) the server's project. Wait for that before asking the server for it.
+  await expect
+    .poll(async () => (await project(page))?.id ?? localId, { timeout: 20_000 })
+    .not.toBe(localId);
   const peer = new Peer();
   expect((await peer.open()).type).toBe("Welcome");
   const serverProject = (
@@ -249,7 +253,7 @@ test("web UI drives a remote ether-server", async ({ page }) => {
 
   // --- A UI edit reaches the server (and the other client).
   const baseTracks = count(serverProject.tracks);
-  await page.getByRole("button", { name: "+ MIDI track" }).click();
+  await createTrack(page, "Midi");
   await expect
     .poll(async () =>
       count(
@@ -268,6 +272,7 @@ test("web UI drives a remote ether-server", async ({ page }) => {
   await expect(page.getByTestId("project-name")).toHaveText("Shared remotely");
 
   // --- Drop a WAV on the sample browser: uploaded, then imported into the project.
+  await openLibrary(page, null);
   await page.locator('[data-feature="browser"]').evaluate((el, bytes) => {
     const dt = new DataTransfer();
     dt.items.add(
@@ -300,7 +305,7 @@ test("web UI drives a remote ether-server", async ({ page }) => {
     .toEqual([["tone.wav", 24_000]]);
 
   // --- Play on the server: its playhead drives the transport bar.
-  await page.getByRole("button", { name: "Play", exact: true }).click();
+  await playButton(page).click();
   await expect
     .poll(
       async () =>

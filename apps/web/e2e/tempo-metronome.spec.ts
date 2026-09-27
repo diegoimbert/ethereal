@@ -10,6 +10,7 @@
 // `window.__ether` (apps/web/src/main.tsx).
 import { expect, test, type Page } from "@playwright/test";
 import type { Project } from "@/generated";
+import { newProject, openEditor, pickOption, playButton, setNumberField } from "./ui";
 
 interface Handle {
   state(): { project: Project | null; transport: { playing: boolean } | null };
@@ -28,6 +29,11 @@ async function doc(page: Page): Promise<Project> {
 }
 
 const tempoPoints = async (page: Page) => Object.values((await doc(page)).tempo_points).sort((a, b) => a.time - b.time);
+// At the default 1280 px width the transport bar's right side (undo/redo, CPU, engine
+// status) overflows onto the Loop/Metronome buttons and takes their clicks (reported as an
+// app layout bug); a wider window keeps them clickable.
+test.use({ viewport: { width: 1600, height: 900 } });
+
 const signatures = async (page: Page) => Object.values((await doc(page)).time_signatures).sort((a, b) => a.time - b.time);
 
 test("tempo-metronome: metronome settings, tempo map editing", async ({ page }) => {
@@ -36,12 +42,10 @@ test("tempo-metronome: metronome settings, tempo map editing", async ({ page }) 
   page.on("pageerror", (e) => errors.push(e.message));
 
   await page.goto("/");
-  await expect(page.getByRole("button", { name: "Play" })).toBeVisible({ timeout: 30_000 });
+  await expect(playButton(page)).toBeVisible({ timeout: 30_000 });
   await expect.poll(() => project(page).then((p) => p !== null), { timeout: 30_000 }).toBe(true);
 
-  await page.getByRole("button", { name: "Projects" }).click();
-  await page.getByLabel("New project name").fill(`Tempo ${Date.now()}`);
-  await page.getByRole("dialog", { name: "Projects" }).getByRole("button", { name: "New" }).click();
+  await newProject(page, `Tempo ${Date.now()}`);
   await expect.poll(async () => Object.keys((await doc(page)).clips).length).toBe(0);
   await expect.poll(async () => (await tempoPoints(page)).length).toBe(1);
 
@@ -54,10 +58,9 @@ test("tempo-metronome: metronome settings, tempo map editing", async ({ page }) 
     "true",
   );
   const volume = page.getByRole("spinbutton", { name: "Metronome volume" });
-  await volume.fill("-12");
-  await volume.press("Enter");
+  await setNumberField(volume, -12);
   await expect.poll(async () => (await doc(page)).settings.metronome_volume).toBe(-12);
-  await page.getByLabel("Metronome sound").selectOption("Wood");
+  await pickOption(page, "Metronome sound", { value: "Wood" });
   await expect.poll(async () => (await doc(page)).settings.metronome_sound).toBe("Wood");
   await page.keyboard.press("Escape");
 
@@ -72,7 +75,7 @@ test("tempo-metronome: metronome settings, tempo map editing", async ({ page }) 
   await expect.poll(async () => (await doc(page)).settings.metronome).toBe(false);
 
   // --- Tempo tab ----------------------------------------------------------------------------
-  await page.getByRole("tablist", { name: "Detail view" }).getByRole("tab", { name: "Tempo" }).click();
+  await openEditor(page, "Tempo");
   const lane = page.getByTestId("tempo-lane-svg");
   await expect(lane).toBeVisible();
   const box = (await lane.boundingBox())!;
@@ -81,20 +84,18 @@ test("tempo-metronome: metronome settings, tempo map editing", async ({ page }) 
   const added = (await tempoPoints(page))[1]!;
   expect(added.time).toBeCloseTo(8, 6);
   const bpm = page.getByRole("spinbutton", { name: "Tempo point BPM" });
-  await bpm.fill("90");
-  await bpm.press("Enter");
+  await setNumberField(bpm, 90);
   await expect.poll(async () => (await doc(page)).tempo_points[added.id]?.bpm).toBe(90);
-  await page.getByLabel("Tempo curve").selectOption("Linear");
+  await pickOption(page, "Tempo curve", { value: "Linear" });
   await expect.poll(async () => (await doc(page)).tempo_points[added.id]?.curve).toBe("Linear");
 
   // A 7/8 change on bar 3 (beat 8).
   await page.getByTestId("signature-lane").dblclick({ position: { x: 12 * 8 + 2, y: 6 } });
   await expect.poll(async () => (await signatures(page)).length).toBe(2);
   const beats = page.getByRole("spinbutton", { name: "Beats per bar" });
-  await beats.fill("7");
-  await beats.press("Enter");
+  await setNumberField(beats, 7);
   await expect.poll(async () => (await signatures(page))[1]!.signature.numerator).toBe(7);
-  await page.getByLabel("Beat unit").selectOption("8");
+  await pickOption(page, "Beat unit", { value: "8" });
   await expect.poll(async () => (await signatures(page))[1]!.signature).toEqual({ numerator: 7, denominator: 8 });
 
   // --- Arrangement ruler: add a tempo change from the context menu, then undo ---------------
