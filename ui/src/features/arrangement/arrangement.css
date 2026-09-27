@@ -671,7 +671,9 @@
 .eth-clip__loop {
   display: inline-flex;
   flex: none;
-  color: var(--eth-color-text-dim);
+  /* Same ink as the title text on the colored band. */
+  color: inherit;
+  opacity: 0.85;
 }
 
 .eth-clip__body {
