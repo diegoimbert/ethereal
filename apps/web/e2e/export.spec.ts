@@ -3,6 +3,7 @@
 // `Export::ReadChunk` and the browser saves them.
 import { expect, test, type Page } from "@playwright/test";
 import type { Project } from "@/generated";
+import { createTrack, pickOption, playButton } from "./ui";
 
 interface Handle {
   state(): { project: Project | null };
@@ -19,7 +20,7 @@ test("export the loop region as a WAV download", async ({ page }) => {
   page.on("pageerror", (e) => errors.push(e.message));
 
   await page.goto("/");
-  await expect(page.getByRole("button", { name: "Play" })).toBeVisible({
+  await expect(playButton(page)).toBeVisible({
     timeout: 30_000,
   });
   await expect
@@ -34,14 +35,14 @@ test("export the loop region as a WAV download", async ({ page }) => {
     .getByRole("button", { name: "New" })
     .click();
   await expect(page.getByTestId("project-name")).toHaveText(name);
-  await page.getByRole("button", { name: "+ MIDI track" }).click();
+  await createTrack(page, "Midi");
 
   await page.getByRole("button", { name: "Export audio" }).click();
   const dialog = page.getByRole("dialog", { name: "Export audio" });
   await expect(dialog).toBeVisible();
-  await dialog.getByLabel("Range").selectOption("loop");
-  await dialog.getByLabel("Format").selectOption("Wav");
-  await dialog.getByLabel("Bit depth").selectOption("Int16");
+  await pickOption(dialog, "Range", { value: "loop" });
+  await pickOption(dialog, "Format", { value: "Wav" });
+  await pickOption(dialog, "Bit depth", { value: "Int16" });
   await dialog.getByLabel("File name").fill("Loop bounce");
 
   const download = page.waitForEvent("download", { timeout: 60_000 });
