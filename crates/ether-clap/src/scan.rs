@@ -98,6 +98,7 @@ pub fn scan_bundle(bundle: &Path) -> Result<Vec<PluginDescriptor>, PluginError> 
             .map(|f| f.to_string_lossy().into_owned())
             .collect();
         plugins.push(PluginDescriptor {
+            sidechain_inputs: Default::default(),
             format: PluginFormat::Clap,
             id: id.to_owned(),
             name: lossy(d.name()),

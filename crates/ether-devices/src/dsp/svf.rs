@@ -56,60 +56,26 @@ impl Coefs {
         self.m0 == 1.0 && self.m1 == 0.0 && self.m2 == 0.0
     }
 
-    /// Coefficients for `shape` at `freq` Hz, `gain_db` (shelves/bell) and `q`.
+    /// Coefficients for `shape` at `freq` Hz, `gain_db` (shelves/bell) and `q`: the shared
+    /// definition in `ether_protocol::eq_response::svf_coefs` (v0.2), which the UI's EQ curve
+    /// mirrors, so the drawn response is the device's response.
     pub(crate) fn new(shape: Shape, freq: f64, gain_db: f64, q: f64, sample_rate: f64) -> Self {
-        // Keep the cutoff below Nyquist (tan blows up at fs/2).
-        let fc = freq.clamp(1.0, sample_rate * 0.49);
-        let g = (PI * fc / sample_rate).tan();
-        let q = q.max(0.01);
-        let k = 1.0 / q;
-        let a = 10f64.powf(gain_db / 40.0);
-        match shape {
-            Shape::LowCut => Self {
-                g,
-                k,
-                m0: 1.0,
-                m1: -k,
-                m2: -1.0,
-            },
-            Shape::HighCut => Self {
-                g,
-                k,
-                m0: 0.0,
-                m1: 0.0,
-                m2: 1.0,
-            },
-            Shape::Notch => Self {
-                g,
-                k,
-                m0: 1.0,
-                m1: -k,
-                m2: 0.0,
-            },
-            Shape::Bell => {
-                let k = 1.0 / (q * a);
-                Self {
-                    g,
-                    k,
-                    m0: 1.0,
-                    m1: k * (a * a - 1.0),
-                    m2: 0.0,
-                }
-            }
-            Shape::LowShelf => Self {
-                g: g / a.sqrt(),
-                k,
-                m0: 1.0,
-                m1: k * (a - 1.0),
-                m2: a * a - 1.0,
-            },
-            Shape::HighShelf => Self {
-                g: g * a.sqrt(),
-                k,
-                m0: a * a,
-                m1: k * (1.0 - a) * a,
-                m2: 1.0 - a * a,
-            },
+        use ether_core::protocol::eq_response::{EqShape, svf_coefs};
+        let shape = match shape {
+            Shape::LowCut => EqShape::LowCut,
+            Shape::LowShelf => EqShape::LowShelf,
+            Shape::Bell => EqShape::Bell,
+            Shape::Notch => EqShape::Notch,
+            Shape::HighShelf => EqShape::HighShelf,
+            Shape::HighCut => EqShape::HighCut,
+        };
+        let c = svf_coefs(shape, freq, gain_db, q, sample_rate);
+        Self {
+            g: c.g,
+            k: c.k,
+            m0: c.m0,
+            m1: c.m1,
+            m2: c.m2,
         }
     }
 
@@ -221,6 +187,53 @@ mod tests {
         for s in [Shape::Bell, Shape::LowShelf, Shape::HighShelf] {
             let c = Coefs::new(s, 500.0, 0.0, 2.0, SR);
             assert_eq!((c.m0, c.m1, c.m2), (1.0, 0.0, 0.0), "{s:?}");
+        }
+    }
+
+    /// The device's filter (time domain) matches the shared response the UI draws
+    /// (`ether_protocol::eq_response::svf_magnitude`) for every shape.
+    #[test]
+    fn device_filter_matches_the_shared_response() {
+        use ether_core::protocol::eq_response::{SvfCoefs, svf_magnitude};
+        for shape in [
+            Shape::LowCut,
+            Shape::LowShelf,
+            Shape::Bell,
+            Shape::Notch,
+            Shape::HighShelf,
+            Shape::HighCut,
+        ] {
+            let c = Coefs::new(shape, 1000.0, 6.0, 1.5, SR);
+            let shared = SvfCoefs {
+                g: c.g,
+                k: c.k,
+                m0: c.m0,
+                m1: c.m1,
+                m2: c.m2,
+            };
+            for f in [100.0, 700.0, 3000.0] {
+                // Steady-state amplitude of a sine through the actual filter.
+                let mut svf = Svf::default();
+                let n = 48_000;
+                let (mut sum, mut count) = (0.0, 0.0);
+                for i in 0..n {
+                    let x = (2.0 * PI * f * i as f64 / SR).sin();
+                    let y = svf.tick(x, &c);
+                    if i >= n / 2 {
+                        sum += y * y;
+                        count += 1.0;
+                    }
+                }
+                // Sine amplitude from the RMS (the sample grid misses true peaks).
+                let peak = (2.0 * sum / count).sqrt();
+                let expect = svf_magnitude(&shared, f, SR);
+                assert!(
+                    (db(peak) - db(expect)).abs() < 0.05,
+                    "{shape:?} at {f} Hz: {} vs {}",
+                    db(peak),
+                    db(expect)
+                );
+            }
         }
     }
 }

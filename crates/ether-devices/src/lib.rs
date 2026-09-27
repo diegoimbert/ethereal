@@ -1,5 +1,10 @@
 //! Built-in devices: basic-shape synth, sampler, compressor, delay; roadmap v2 adds EQ,
 //! reverb, limiter, utility (`devices-2`) and the drum rack (`drum-rack`), one module each.
+//! v0.2 (contracts-3) adds one module per device group, each owned by its node:
+//! [`poly_synth`] (`synth-2`), [`multisampler`], [`fx_color`], [`fx_modulation`],
+//! [`fx_dynamics`], [`fx_analysis`], [`midi_fx`], [`racks`] + [`modulators`]
+//! (`racks-modulation`); shared scaffolding in [`contract`]; factory presets through
+//! [`factory_presets`] (v0.1 types: [`factory`], `presets`).
 //!
 //! Every device implements [`ether_core::Device`]; parameter ids and ranges are defined
 //! by each device's [`DeviceDescriptor`] (the UI renders a generic param UI from it).
@@ -12,11 +17,22 @@ use ether_core::protocol::model::{BuiltinDevice, BuiltinDeviceType};
 use ether_core::{AudioSource, Device};
 
 pub mod compressor;
+pub mod contract;
 pub mod delay;
 pub mod drum_rack;
 mod dsp;
 pub mod eq;
+pub mod factory;
+pub mod fx_analysis;
+pub mod fx_color;
+pub mod fx_dynamics;
+pub mod fx_modulation;
 pub mod limiter;
+pub mod midi_fx;
+pub mod modulators;
+pub mod multisampler;
+pub mod poly_synth;
+pub mod racks;
 pub mod reverb;
 pub mod sampler;
 pub mod synth;
@@ -46,6 +62,71 @@ pub fn descriptor(device: BuiltinDeviceType) -> DeviceDescriptor {
         BuiltinDeviceType::Limiter => limiter::descriptor(),
         BuiltinDeviceType::Utility => utility::descriptor(),
         BuiltinDeviceType::DrumRack => drum_rack::descriptor(),
+        // --- v0.2 groups ---
+        BuiltinDeviceType::PolySynth => poly_synth::descriptor(device),
+        BuiltinDeviceType::MultiSampler => multisampler::descriptor(device),
+        BuiltinDeviceType::Saturator
+        | BuiltinDeviceType::Bitcrusher
+        | BuiltinDeviceType::AutoFilter => fx_color::descriptor(device),
+        BuiltinDeviceType::Chorus
+        | BuiltinDeviceType::Phaser
+        | BuiltinDeviceType::Flanger
+        | BuiltinDeviceType::Tremolo => fx_modulation::descriptor(device),
+        BuiltinDeviceType::Gate
+        | BuiltinDeviceType::MultibandCompressor
+        | BuiltinDeviceType::TransientShaper => fx_dynamics::descriptor(device),
+        BuiltinDeviceType::SpectrumAnalyzer | BuiltinDeviceType::Tuner => {
+            fx_analysis::descriptor(device)
+        }
+        BuiltinDeviceType::Arpeggiator
+        | BuiltinDeviceType::Chord
+        | BuiltinDeviceType::ScaleQuantize
+        | BuiltinDeviceType::NoteLength
+        | BuiltinDeviceType::Velocity
+        | BuiltinDeviceType::Randomizer => midi_fx::descriptor(device),
+        BuiltinDeviceType::InstrumentRack
+        | BuiltinDeviceType::AudioEffectRack
+        | BuiltinDeviceType::MidiEffectRack => racks::descriptor(device),
+    }
+}
+
+/// Embedded factory presets of a built-in type (v0.2, `presets` and the device nodes; see
+/// [`contract::FactoryPreset`]). Ids are `"<device-key>/<slug>"`.
+pub fn factory_presets(device: BuiltinDeviceType) -> &'static [contract::FactoryPreset] {
+    match device {
+        BuiltinDeviceType::Synth
+        | BuiltinDeviceType::Sampler
+        | BuiltinDeviceType::Compressor
+        | BuiltinDeviceType::Delay
+        | BuiltinDeviceType::Eq
+        | BuiltinDeviceType::Reverb
+        | BuiltinDeviceType::Limiter
+        | BuiltinDeviceType::Utility
+        | BuiltinDeviceType::DrumRack => factory::factory_presets(device),
+        BuiltinDeviceType::PolySynth => poly_synth::factory_presets(device),
+        BuiltinDeviceType::MultiSampler => multisampler::factory_presets(device),
+        BuiltinDeviceType::Saturator
+        | BuiltinDeviceType::Bitcrusher
+        | BuiltinDeviceType::AutoFilter => fx_color::factory_presets(device),
+        BuiltinDeviceType::Chorus
+        | BuiltinDeviceType::Phaser
+        | BuiltinDeviceType::Flanger
+        | BuiltinDeviceType::Tremolo => fx_modulation::factory_presets(device),
+        BuiltinDeviceType::Gate
+        | BuiltinDeviceType::MultibandCompressor
+        | BuiltinDeviceType::TransientShaper => fx_dynamics::factory_presets(device),
+        BuiltinDeviceType::SpectrumAnalyzer | BuiltinDeviceType::Tuner => {
+            fx_analysis::factory_presets(device)
+        }
+        BuiltinDeviceType::Arpeggiator
+        | BuiltinDeviceType::Chord
+        | BuiltinDeviceType::ScaleQuantize
+        | BuiltinDeviceType::NoteLength
+        | BuiltinDeviceType::Velocity
+        | BuiltinDeviceType::Randomizer => midi_fx::factory_presets(device),
+        BuiltinDeviceType::InstrumentRack
+        | BuiltinDeviceType::AudioEffectRack
+        | BuiltinDeviceType::MidiEffectRack => racks::factory_presets(device),
     }
 }
 
@@ -77,6 +158,29 @@ pub fn create(device: &BuiltinDevice, samples: &dyn SampleResolver) -> Box<dyn D
         BuiltinDevice::Limiter => limiter::create(),
         BuiltinDevice::Utility => utility::create(),
         BuiltinDevice::DrumRack => drum_rack::create(),
+        // --- v0.2 groups (placeholders until their node lands) ---
+        BuiltinDevice::PolySynth => poly_synth::create(device),
+        BuiltinDevice::MultiSampler { .. } => multisampler::create(device),
+        BuiltinDevice::Saturator | BuiltinDevice::Bitcrusher | BuiltinDevice::AutoFilter => {
+            fx_color::create(device)
+        }
+        BuiltinDevice::Chorus
+        | BuiltinDevice::Phaser
+        | BuiltinDevice::Flanger
+        | BuiltinDevice::Tremolo => fx_modulation::create(device),
+        BuiltinDevice::Gate
+        | BuiltinDevice::MultibandCompressor
+        | BuiltinDevice::TransientShaper => fx_dynamics::create(device),
+        BuiltinDevice::SpectrumAnalyzer | BuiltinDevice::Tuner => fx_analysis::create(device),
+        BuiltinDevice::Arpeggiator
+        | BuiltinDevice::Chord
+        | BuiltinDevice::ScaleQuantize
+        | BuiltinDevice::NoteLength
+        | BuiltinDevice::Velocity
+        | BuiltinDevice::Randomizer => midi_fx::create(device),
+        BuiltinDevice::InstrumentRack
+        | BuiltinDevice::AudioEffectRack
+        | BuiltinDevice::MidiEffectRack => racks::create(device),
     }
 }
 

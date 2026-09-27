@@ -32,6 +32,7 @@ const plugin = (
   features: category === "Instrument" ? ["instrument", "synthesizer"] : ["audio-effect", "reverb"],
   category,
   path: `/plugins/${name}.clap`,
+  sidechain_inputs: 0,
 });
 
 const VERB = plugin("com.acme.verb", "Verb", "AudioEffect");

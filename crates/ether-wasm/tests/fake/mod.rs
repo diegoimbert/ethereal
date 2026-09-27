@@ -73,6 +73,7 @@ impl<B: EngineBridge, H: HostServices, S: ProjectStore> FakeController<B, H, S> 
         let p = self.project.as_ref().expect("open project");
         self.version += 1;
         RenderGraphDesc {
+            vcas: Default::default(),
             version: self.version,
             tempo: p
                 .tempo_points
@@ -101,6 +102,11 @@ impl<B: EngineBridge, H: HostServices, S: ProjectStore> FakeController<B, H, S> 
                 .values()
                 .filter(|t| t.kind == TrackKind::Master)
                 .map(|t| TrackDesc {
+                    modulation: Default::default(),
+                    vca: Default::default(),
+                    chain_racks: Default::default(),
+                    frozen: Default::default(),
+                    input_tap: Default::default(),
                     id: t.id,
                     kind: t.kind,
                     chain: vec![],

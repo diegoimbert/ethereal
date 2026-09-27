@@ -2,13 +2,18 @@
 import type { AutomationLaneId } from "./AutomationLaneId";
 import type { AutomationPointId } from "./AutomationPointId";
 import type { ClipId } from "./ClipId";
+import type { CompRegionId } from "./CompRegionId";
 import type { DeviceId } from "./DeviceId";
 import type { DrumPadId } from "./DrumPadId";
 import type { MarkerId } from "./MarkerId";
 import type { MediaId } from "./MediaId";
 import type { MidiMappingId } from "./MidiMappingId";
+import type { ModMappingId } from "./ModMappingId";
+import type { ModulatorId } from "./ModulatorId";
 import type { NoteId } from "./NoteId";
+import type { RackChainId } from "./RackChainId";
 import type { SendId } from "./SendId";
+import type { TakeLaneId } from "./TakeLaneId";
 import type { TempoPointId } from "./TempoPointId";
 import type { TimeSignatureId } from "./TimeSignatureId";
 import type { TrackId } from "./TrackId";
@@ -17,4 +22,4 @@ import type { WarpMarkerId } from "./WarpMarkerId";
 /**
  * The key of any entity.
  */
-export type EntityKey = { "type": "Track", "id": TrackId } | { "type": "Clip", "id": ClipId } | { "type": "Note", "id": NoteId } | { "type": "Device", "id": DeviceId } | { "type": "Send", "id": SendId } | { "type": "AutomationLane", "id": AutomationLaneId } | { "type": "AutomationPoint", "id": AutomationPointId } | { "type": "TempoPoint", "id": TempoPointId } | { "type": "TimeSignature", "id": TimeSignatureId } | { "type": "WarpMarker", "id": WarpMarkerId } | { "type": "Media", "id": MediaId } | { "type": "Marker", "id": MarkerId } | { "type": "MidiMapping", "id": MidiMappingId } | { "type": "DrumPad", "id": DrumPadId };
+export type EntityKey = { "type": "Track", "id": TrackId } | { "type": "Clip", "id": ClipId } | { "type": "Note", "id": NoteId } | { "type": "Device", "id": DeviceId } | { "type": "Send", "id": SendId } | { "type": "AutomationLane", "id": AutomationLaneId } | { "type": "AutomationPoint", "id": AutomationPointId } | { "type": "TempoPoint", "id": TempoPointId } | { "type": "TimeSignature", "id": TimeSignatureId } | { "type": "WarpMarker", "id": WarpMarkerId } | { "type": "Media", "id": MediaId } | { "type": "Marker", "id": MarkerId } | { "type": "MidiMapping", "id": MidiMappingId } | { "type": "DrumPad", "id": DrumPadId } | { "type": "TakeLane", "id": TakeLaneId } | { "type": "CompRegion", "id": CompRegionId } | { "type": "RackChain", "id": RackChainId } | { "type": "Modulator", "id": ModulatorId } | { "type": "ModMapping", "id": ModMappingId };

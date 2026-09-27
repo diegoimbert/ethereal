@@ -1,0 +1,3404 @@
+[
+  {
+    "at_hz": 20.0,
+    "db": -27.966129778797093,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 44100.0,
+    "shape": "LowCut"
+  },
+  {
+    "at_hz": 60.0,
+    "db": -9.404199463930727,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 44100.0,
+    "shape": "LowCut"
+  },
+  {
+    "at_hz": 250.0,
+    "db": -0.11015087696191064,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 44100.0,
+    "shape": "LowCut"
+  },
+  {
+    "at_hz": 1000.0,
+    "db": -0.00045751886204080806,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 44100.0,
+    "shape": "LowCut"
+  },
+  {
+    "at_hz": 3000.0,
+    "db": -7.869116398087697e-6,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 44100.0,
+    "shape": "LowCut"
+  },
+  {
+    "at_hz": 10000.0,
+    "db": -1.9862409469614397e-7,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 44100.0,
+    "shape": "LowCut"
+  },
+  {
+    "at_hz": 20000.0,
+    "db": -2.8861183172324298e-9,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 44100.0,
+    "shape": "LowCut"
+  },
+  {
+    "at_hz": 20.0,
+    "db": -27.96608586823792,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 48000.0,
+    "shape": "LowCut"
+  },
+  {
+    "at_hz": 60.0,
+    "db": -9.404173508922732,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 48000.0,
+    "shape": "LowCut"
+  },
+  {
+    "at_hz": 250.0,
+    "db": -0.11015689032034667,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 48000.0,
+    "shape": "LowCut"
+  },
+  {
+    "at_hz": 1000.0,
+    "db": -0.00045798424969105395,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 48000.0,
+    "shape": "LowCut"
+  },
+  {
+    "at_hz": 3000.0,
+    "db": -7.931832457211763e-6,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 48000.0,
+    "shape": "LowCut"
+  },
+  {
+    "at_hz": 10000.0,
+    "db": -2.138957759518686e-7,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 48000.0,
+    "shape": "LowCut"
+  },
+  {
+    "at_hz": 20000.0,
+    "db": -8.111332484024112e-9,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 48000.0,
+    "shape": "LowCut"
+  },
+  {
+    "at_hz": 20.0,
+    "db": -67.98517946153792,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 44100.0,
+    "shape": "LowCut"
+  },
+  {
+    "at_hz": 60.0,
+    "db": -48.87596731646656,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 44100.0,
+    "shape": "LowCut"
+  },
+  {
+    "at_hz": 250.0,
+    "db": -23.62750258819414,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 44100.0,
+    "shape": "LowCut"
+  },
+  {
+    "at_hz": 1000.0,
+    "db": 6.020599913279624,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 44100.0,
+    "shape": "LowCut"
+  },
+  {
+    "at_hz": 3000.0,
+    "db": 0.848657958753476,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 44100.0,
+    "shape": "LowCut"
+  },
+  {
+    "at_hz": 10000.0,
+    "db": 0.051989486565643755,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 44100.0,
+    "shape": "LowCut"
+  },
+  {
+    "at_hz": 20000.0,
+    "db": 0.000837271903538411,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 44100.0,
+    "shape": "LowCut"
+  },
+  {
+    "at_hz": 20.0,
+    "db": -67.98058838286865,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 48000.0,
+    "shape": "LowCut"
+  },
+  {
+    "at_hz": 60.0,
+    "db": -48.87137810252484,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 48000.0,
+    "shape": "LowCut"
+  },
+  {
+    "at_hz": 250.0,
+    "db": -23.622954003490754,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 48000.0,
+    "shape": "LowCut"
+  },
+  {
+    "at_hz": 1000.0,
+    "db": 6.020599913279624,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 48000.0,
+    "shape": "LowCut"
+  },
+  {
+    "at_hz": 3000.0,
+    "db": 0.8524431168016473,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 48000.0,
+    "shape": "LowCut"
+  },
+  {
+    "at_hz": 10000.0,
+    "db": 0.05557525999899664,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 48000.0,
+    "shape": "LowCut"
+  },
+  {
+    "at_hz": 20000.0,
+    "db": 0.002344372901041043,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 48000.0,
+    "shape": "LowCut"
+  },
+  {
+    "at_hz": 20.0,
+    "db": -106.12015614674128,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 44100.0,
+    "shape": "LowCut"
+  },
+  {
+    "at_hz": 60.0,
+    "db": -87.03555539471179,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 44100.0,
+    "shape": "LowCut"
+  },
+  {
+    "at_hz": 250.0,
+    "db": -62.2485950331701,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 44100.0,
+    "shape": "LowCut"
+  },
+  {
+    "at_hz": 1000.0,
+    "db": -38.238942196978634,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 44100.0,
+    "shape": "LowCut"
+  },
+  {
+    "at_hz": 3000.0,
+    "db": -19.75225996333919,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 44100.0,
+    "shape": "LowCut"
+  },
+  {
+    "at_hz": 10000.0,
+    "db": -3.8096595250018987,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 44100.0,
+    "shape": "LowCut"
+  },
+  {
+    "at_hz": 20000.0,
+    "db": -0.07682755577329438,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 44100.0,
+    "shape": "LowCut"
+  },
+  {
+    "at_hz": 20.0,
+    "db": -105.78006439328851,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 48000.0,
+    "shape": "LowCut"
+  },
+  {
+    "at_hz": 60.0,
+    "db": -86.69549201580729,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 48000.0,
+    "shape": "LowCut"
+  },
+  {
+    "at_hz": 250.0,
+    "db": -61.90905360065003,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 48000.0,
+    "shape": "LowCut"
+  },
+  {
+    "at_hz": 1000.0,
+    "db": -37.90762672478291,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 48000.0,
+    "shape": "LowCut"
+  },
+  {
+    "at_hz": 3000.0,
+    "db": -19.48536371511885,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 48000.0,
+    "shape": "LowCut"
+  },
+  {
+    "at_hz": 10000.0,
+    "db": -3.8965679560224356,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 48000.0,
+    "shape": "LowCut"
+  },
+  {
+    "at_hz": 20000.0,
+    "db": -0.2054244927776981,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 48000.0,
+    "shape": "LowCut"
+  },
+  {
+    "at_hz": 20.0,
+    "db": 5.989565927223865,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 44100.0,
+    "shape": "LowShelf"
+  },
+  {
+    "at_hz": 60.0,
+    "db": 5.274074033719204,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 44100.0,
+    "shape": "LowShelf"
+  },
+  {
+    "at_hz": 250.0,
+    "db": 0.1612004252942965,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 44100.0,
+    "shape": "LowShelf"
+  },
+  {
+    "at_hz": 1000.0,
+    "db": 0.0006628709723382706,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 44100.0,
+    "shape": "LowShelf"
+  },
+  {
+    "at_hz": 3000.0,
+    "db": 9.525006260737418e-6,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 44100.0,
+    "shape": "LowShelf"
+  },
+  {
+    "at_hz": 10000.0,
+    "db": 1.558198108116906e-7,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 44100.0,
+    "shape": "LowShelf"
+  },
+  {
+    "at_hz": 20000.0,
+    "db": 2.0376682956515437e-9,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 44100.0,
+    "shape": "LowShelf"
+  },
+  {
+    "at_hz": 20.0,
+    "db": 5.9895658221422,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 48000.0,
+    "shape": "LowShelf"
+  },
+  {
+    "at_hz": 60.0,
+    "db": 5.274069797713189,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 48000.0,
+    "shape": "LowShelf"
+  },
+  {
+    "at_hz": 250.0,
+    "db": 0.16120907164877932,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 48000.0,
+    "shape": "LowShelf"
+  },
+  {
+    "at_hz": 1000.0,
+    "db": 0.0006635553847645563,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 48000.0,
+    "shape": "LowShelf"
+  },
+  {
+    "at_hz": 3000.0,
+    "db": 9.607886828776792e-6,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 48000.0,
+    "shape": "LowShelf"
+  },
+  {
+    "at_hz": 10000.0,
+    "db": 1.6885869825261332e-7,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 48000.0,
+    "shape": "LowShelf"
+  },
+  {
+    "at_hz": 20000.0,
+    "db": 5.7476115654183156e-9,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 48000.0,
+    "shape": "LowShelf"
+  },
+  {
+    "at_hz": 20.0,
+    "db": -12.004528094653912,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 44100.0,
+    "shape": "LowShelf"
+  },
+  {
+    "at_hz": 60.0,
+    "db": -12.040851816164796,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 44100.0,
+    "shape": "LowShelf"
+  },
+  {
+    "at_hz": 250.0,
+    "db": -12.740878741364195,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 44100.0,
+    "shape": "LowShelf"
+  },
+  {
+    "at_hz": 1000.0,
+    "db": -6.0000000000000036,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 44100.0,
+    "shape": "LowShelf"
+  },
+  {
+    "at_hz": 3000.0,
+    "db": 1.3268668807804531,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 44100.0,
+    "shape": "LowShelf"
+  },
+  {
+    "at_hz": 10000.0,
+    "db": 0.07791686865483459,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 44100.0,
+    "shape": "LowShelf"
+  },
+  {
+    "at_hz": 20000.0,
+    "db": 0.0012510096891096049,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 44100.0,
+    "shape": "LowShelf"
+  },
+  {
+    "at_hz": 20.0,
+    "db": -12.004530488577913,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 48000.0,
+    "shape": "LowShelf"
+  },
+  {
+    "at_hz": 60.0,
+    "db": -12.040873396737677,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 48000.0,
+    "shape": "LowShelf"
+  },
+  {
+    "at_hz": 250.0,
+    "db": -12.741262461220249,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 48000.0,
+    "shape": "LowShelf"
+  },
+  {
+    "at_hz": 1000.0,
+    "db": -6.0000000000000036,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 48000.0,
+    "shape": "LowShelf"
+  },
+  {
+    "at_hz": 3000.0,
+    "db": 1.3330105581806704,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 48000.0,
+    "shape": "LowShelf"
+  },
+  {
+    "at_hz": 10000.0,
+    "db": 0.08330856891601554,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 48000.0,
+    "shape": "LowShelf"
+  },
+  {
+    "at_hz": 20000.0,
+    "db": 0.0035031598948835575,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 48000.0,
+    "shape": "LowShelf"
+  },
+  {
+    "at_hz": 20.0,
+    "db": 2.999985097128839,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 44100.0,
+    "shape": "LowShelf"
+  },
+  {
+    "at_hz": 60.0,
+    "db": 2.9998658780905183,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 44100.0,
+    "shape": "LowShelf"
+  },
+  {
+    "at_hz": 250.0,
+    "db": 2.9976727500698823,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 44100.0,
+    "shape": "LowShelf"
+  },
+  {
+    "at_hz": 1000.0,
+    "db": 2.963080838891896,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 44100.0,
+    "shape": "LowShelf"
+  },
+  {
+    "at_hz": 3000.0,
+    "db": 2.6902271628130565,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 44100.0,
+    "shape": "LowShelf"
+  },
+  {
+    "at_hz": 10000.0,
+    "db": 1.0661774435064975,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 44100.0,
+    "shape": "LowShelf"
+  },
+  {
+    "at_hz": 20000.0,
+    "db": 0.026546324218261565,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 44100.0,
+    "shape": "LowShelf"
+  },
+  {
+    "at_hz": 20.0,
+    "db": 2.9999845020400837,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 48000.0,
+    "shape": "LowShelf"
+  },
+  {
+    "at_hz": 60.0,
+    "db": 2.999860522907627,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 48000.0,
+    "shape": "LowShelf"
+  },
+  {
+    "at_hz": 250.0,
+    "db": 2.9975799747463276,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 48000.0,
+    "shape": "LowShelf"
+  },
+  {
+    "at_hz": 1000.0,
+    "db": 2.9616456560359343,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 48000.0,
+    "shape": "LowShelf"
+  },
+  {
+    "at_hz": 3000.0,
+    "db": 2.6805740118173467,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 48000.0,
+    "shape": "LowShelf"
+  },
+  {
+    "at_hz": 10000.0,
+    "db": 1.0854037787860489,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 48000.0,
+    "shape": "LowShelf"
+  },
+  {
+    "at_hz": 20000.0,
+    "db": 0.07044349239845828,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 48000.0,
+    "shape": "LowShelf"
+  },
+  {
+    "at_hz": 20.0,
+    "db": 0.5088939689703943,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 44100.0,
+    "shape": "Bell"
+  },
+  {
+    "at_hz": 60.0,
+    "db": 3.795634014659673,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 44100.0,
+    "shape": "Bell"
+  },
+  {
+    "at_hz": 250.0,
+    "db": 1.9092571592660732,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 44100.0,
+    "shape": "Bell"
+  },
+  {
+    "at_hz": 1000.0,
+    "db": 0.12873707291267,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 44100.0,
+    "shape": "Bell"
+  },
+  {
+    "at_hz": 3000.0,
+    "db": 0.013979471116144289,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 44100.0,
+    "shape": "Bell"
+  },
+  {
+    "at_hz": 10000.0,
+    "db": 0.0008831623617070655,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 44100.0,
+    "shape": "Bell"
+  },
+  {
+    "at_hz": 20000.0,
+    "db": 0.000014252496304786468,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 44100.0,
+    "shape": "Bell"
+  },
+  {
+    "at_hz": 20.0,
+    "db": 0.5088964933084762,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 48000.0,
+    "shape": "Bell"
+  },
+  {
+    "at_hz": 60.0,
+    "db": 3.795643664403501,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 48000.0,
+    "shape": "Bell"
+  },
+  {
+    "at_hz": 250.0,
+    "db": 1.909305298452291,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 48000.0,
+    "shape": "Bell"
+  },
+  {
+    "at_hz": 1000.0,
+    "db": 0.12880412523461673,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 48000.0,
+    "shape": "Bell"
+  },
+  {
+    "at_hz": 3000.0,
+    "db": 0.01404721243862917,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 48000.0,
+    "shape": "Bell"
+  },
+  {
+    "at_hz": 10000.0,
+    "db": 0.0009444324970874483,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 48000.0,
+    "shape": "Bell"
+  },
+  {
+    "at_hz": 20000.0,
+    "db": 0.00003992563391340795,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 48000.0,
+    "shape": "Bell"
+  },
+  {
+    "at_hz": 20.0,
+    "db": -0.0016153392120938246,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 44100.0,
+    "shape": "Bell"
+  },
+  {
+    "at_hz": 60.0,
+    "db": -0.014606601325119345,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 44100.0,
+    "shape": "Bell"
+  },
+  {
+    "at_hz": 250.0,
+    "db": -0.2766681891787574,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 44100.0,
+    "shape": "Bell"
+  },
+  {
+    "at_hz": 1000.0,
+    "db": -12.000000000000002,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 44100.0,
+    "shape": "Bell"
+  },
+  {
+    "at_hz": 3000.0,
+    "db": -0.5140564790978168,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 44100.0,
+    "shape": "Bell"
+  },
+  {
+    "at_hz": 10000.0,
+    "db": -0.02792397790630015,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 44100.0,
+    "shape": "Bell"
+  },
+  {
+    "at_hz": 20000.0,
+    "db": -0.0004461897055615374,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 44100.0,
+    "shape": "Bell"
+  },
+  {
+    "at_hz": 20.0,
+    "db": -0.0016161934564462316,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 48000.0,
+    "shape": "Bell"
+  },
+  {
+    "at_hz": 60.0,
+    "db": -0.014614337243482357,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 48000.0,
+    "shape": "Bell"
+  },
+  {
+    "at_hz": 250.0,
+    "db": -0.27681806639475753,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 48000.0,
+    "shape": "Bell"
+  },
+  {
+    "at_hz": 1000.0,
+    "db": -12.000000000000002,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 48000.0,
+    "shape": "Bell"
+  },
+  {
+    "at_hz": 3000.0,
+    "db": -0.5166397920501415,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 48000.0,
+    "shape": "Bell"
+  },
+  {
+    "at_hz": 10000.0,
+    "db": -0.029866336552193964,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 48000.0,
+    "shape": "Bell"
+  },
+  {
+    "at_hz": 20000.0,
+    "db": -0.001249626570356123,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 48000.0,
+    "shape": "Bell"
+  },
+  {
+    "at_hz": 20.0,
+    "db": 0.00006050223126961963,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 44100.0,
+    "shape": "Bell"
+  },
+  {
+    "at_hz": 60.0,
+    "db": 0.0005444777259492217,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 44100.0,
+    "shape": "Bell"
+  },
+  {
+    "at_hz": 250.0,
+    "db": 0.009439222035471033,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 44100.0,
+    "shape": "Bell"
+  },
+  {
+    "at_hz": 1000.0,
+    "db": 0.14765918720615784,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 44100.0,
+    "shape": "Bell"
+  },
+  {
+    "at_hz": 3000.0,
+    "db": 1.111269841291316,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 44100.0,
+    "shape": "Bell"
+  },
+  {
+    "at_hz": 10000.0,
+    "db": 2.744099684135917,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 44100.0,
+    "shape": "Bell"
+  },
+  {
+    "at_hz": 20000.0,
+    "db": 0.10661866619751846,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 44100.0,
+    "shape": "Bell"
+  },
+  {
+    "at_hz": 20.0,
+    "db": 0.00006291813959544486,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 48000.0,
+    "shape": "Bell"
+  },
+  {
+    "at_hz": 60.0,
+    "db": 0.0005662162505651629,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 48000.0,
+    "shape": "Bell"
+  },
+  {
+    "at_hz": 250.0,
+    "db": 0.009815144503031656,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 48000.0,
+    "shape": "Bell"
+  },
+  {
+    "at_hz": 1000.0,
+    "db": 0.15331040755105838,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 48000.0,
+    "shape": "Bell"
+  },
+  {
+    "at_hz": 3000.0,
+    "db": 1.1415027571525125,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 48000.0,
+    "shape": "Bell"
+  },
+  {
+    "at_hz": 10000.0,
+    "db": 2.766179979638133,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 48000.0,
+    "shape": "Bell"
+  },
+  {
+    "at_hz": 20000.0,
+    "db": 0.2779642961103203,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 48000.0,
+    "shape": "Bell"
+  },
+  {
+    "at_hz": 20.0,
+    "db": -0.3616110776668445,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 44100.0,
+    "shape": "Notch"
+  },
+  {
+    "at_hz": 60.0,
+    "db": -4.406356133177821,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 44100.0,
+    "shape": "Notch"
+  },
+  {
+    "at_hz": 250.0,
+    "db": -1.6242712980877339,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 44100.0,
+    "shape": "Notch"
+  },
+  {
+    "at_hz": 1000.0,
+    "db": -0.08745990920576521,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 44100.0,
+    "shape": "Notch"
+  },
+  {
+    "at_hz": 3000.0,
+    "db": -0.009371708264392061,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 44100.0,
+    "shape": "Notch"
+  },
+  {
+    "at_hz": 10000.0,
+    "db": -0.000591169962579099,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 44100.0,
+    "shape": "Notch"
+  },
+  {
+    "at_hz": 20000.0,
+    "db": -9.539359771613093e-6,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 44100.0,
+    "shape": "Notch"
+  },
+  {
+    "at_hz": 20.0,
+    "db": -0.36161298094799355,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 48000.0,
+    "shape": "Notch"
+  },
+  {
+    "at_hz": 60.0,
+    "db": -4.406375991872945,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 48000.0,
+    "shape": "Notch"
+  },
+  {
+    "at_hz": 250.0,
+    "db": -1.6243231226237984,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 48000.0,
+    "shape": "Notch"
+  },
+  {
+    "at_hz": 1000.0,
+    "db": -0.08750614552841171,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 48000.0,
+    "shape": "Notch"
+  },
+  {
+    "at_hz": 3000.0,
+    "db": -0.009417195057697355,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 48000.0,
+    "shape": "Notch"
+  },
+  {
+    "at_hz": 10000.0,
+    "db": -0.0006321873452587132,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 48000.0,
+    "shape": "Notch"
+  },
+  {
+    "at_hz": 20000.0,
+    "db": -0.000026722765292691563,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 48000.0,
+    "shape": "Notch"
+  },
+  {
+    "at_hz": 20.0,
+    "db": -0.0004331501925890275,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 44100.0,
+    "shape": "Notch"
+  },
+  {
+    "at_hz": 60.0,
+    "db": -0.003921813468369123,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 44100.0,
+    "shape": "Notch"
+  },
+  {
+    "at_hz": 250.0,
+    "db": -0.07625714516296508,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 44100.0,
+    "shape": "Notch"
+  },
+  {
+    "at_hz": 1000.0,
+    "db": -120.0,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 44100.0,
+    "shape": "Notch"
+  },
+  {
+    "at_hz": 3000.0,
+    "db": -0.14510660263902933,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 44100.0,
+    "shape": "Notch"
+  },
+  {
+    "at_hz": 10000.0,
+    "db": -0.007507447272784005,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 44100.0,
+    "shape": "Notch"
+  },
+  {
+    "at_hz": 20000.0,
+    "db": -0.00011963098070655117,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 44100.0,
+    "shape": "Notch"
+  },
+  {
+    "at_hz": 20.0,
+    "db": -0.000433379293553182,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 48000.0,
+    "shape": "Notch"
+  },
+  {
+    "at_hz": 60.0,
+    "db": -0.003923893560472581,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 48000.0,
+    "shape": "Notch"
+  },
+  {
+    "at_hz": 250.0,
+    "db": -0.07629960166417778,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 48000.0,
+    "shape": "Notch"
+  },
+  {
+    "at_hz": 1000.0,
+    "db": -120.0,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 48000.0,
+    "shape": "Notch"
+  },
+  {
+    "at_hz": 3000.0,
+    "db": -0.1458737325001168,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 48000.0,
+    "shape": "Notch"
+  },
+  {
+    "at_hz": 10000.0,
+    "db": -0.00803121335143803,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 48000.0,
+    "shape": "Notch"
+  },
+  {
+    "at_hz": 20000.0,
+    "db": -0.0003350728044920813,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 48000.0,
+    "shape": "Notch"
+  },
+  {
+    "at_hz": 20.0,
+    "db": -0.00008586944225006955,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 44100.0,
+    "shape": "Notch"
+  },
+  {
+    "at_hz": 60.0,
+    "db": -0.0007728333476962981,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 44100.0,
+    "shape": "Notch"
+  },
+  {
+    "at_hz": 250.0,
+    "db": -0.013419922439546416,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 44100.0,
+    "shape": "Notch"
+  },
+  {
+    "at_hz": 1000.0,
+    "db": -0.21541273831954297,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 44100.0,
+    "shape": "Notch"
+  },
+  {
+    "at_hz": 3000.0,
+    "db": -2.00125530669399,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 44100.0,
+    "shape": "Notch"
+  },
+  {
+    "at_hz": 10000.0,
+    "db": -10.755838702579661,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 44100.0,
+    "shape": "Notch"
+  },
+  {
+    "at_hz": 20000.0,
+    "db": -0.15434072775445568,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 44100.0,
+    "shape": "Notch"
+  },
+  {
+    "at_hz": 20.0,
+    "db": -0.00008929832554829883,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 48000.0,
+    "shape": "Notch"
+  },
+  {
+    "at_hz": 60.0,
+    "db": -0.0008036922750584584,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 48000.0,
+    "shape": "Notch"
+  },
+  {
+    "at_hz": 250.0,
+    "db": -0.01395534120680526,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 48000.0,
+    "shape": "Notch"
+  },
+  {
+    "at_hz": 1000.0,
+    "db": -0.22389704866169835,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 48000.0,
+    "shape": "Notch"
+  },
+  {
+    "at_hz": 3000.0,
+    "db": -2.071768985451023,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 48000.0,
+    "shape": "Notch"
+  },
+  {
+    "at_hz": 10000.0,
+    "db": -11.149418044140784,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 48000.0,
+    "shape": "Notch"
+  },
+  {
+    "at_hz": 20000.0,
+    "db": -0.415825279305482,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 48000.0,
+    "shape": "Notch"
+  },
+  {
+    "at_hz": 20.0,
+    "db": 0.010434072776137426,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 44100.0,
+    "shape": "HighShelf"
+  },
+  {
+    "at_hz": 60.0,
+    "db": 0.725925966280798,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 44100.0,
+    "shape": "HighShelf"
+  },
+  {
+    "at_hz": 250.0,
+    "db": 5.838799574705704,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 44100.0,
+    "shape": "HighShelf"
+  },
+  {
+    "at_hz": 1000.0,
+    "db": 5.999337129027662,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 44100.0,
+    "shape": "HighShelf"
+  },
+  {
+    "at_hz": 3000.0,
+    "db": 5.999990474993739,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 44100.0,
+    "shape": "HighShelf"
+  },
+  {
+    "at_hz": 10000.0,
+    "db": 5.9999998441801905,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 44100.0,
+    "shape": "HighShelf"
+  },
+  {
+    "at_hz": 20000.0,
+    "db": 5.999999997962333,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 44100.0,
+    "shape": "HighShelf"
+  },
+  {
+    "at_hz": 20.0,
+    "db": 0.010434177857802112,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 48000.0,
+    "shape": "HighShelf"
+  },
+  {
+    "at_hz": 60.0,
+    "db": 0.7259302022868142,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 48000.0,
+    "shape": "HighShelf"
+  },
+  {
+    "at_hz": 250.0,
+    "db": 5.838790928351224,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 48000.0,
+    "shape": "HighShelf"
+  },
+  {
+    "at_hz": 1000.0,
+    "db": 5.999336444615237,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 48000.0,
+    "shape": "HighShelf"
+  },
+  {
+    "at_hz": 3000.0,
+    "db": 5.999990392113172,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 48000.0,
+    "shape": "HighShelf"
+  },
+  {
+    "at_hz": 10000.0,
+    "db": 5.999999831141302,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 48000.0,
+    "shape": "HighShelf"
+  },
+  {
+    "at_hz": 20000.0,
+    "db": 5.999999994252389,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 48000.0,
+    "shape": "HighShelf"
+  },
+  {
+    "at_hz": 20.0,
+    "db": 0.004528094653914175,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 44100.0,
+    "shape": "HighShelf"
+  },
+  {
+    "at_hz": 60.0,
+    "db": 0.04085181616479829,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 44100.0,
+    "shape": "HighShelf"
+  },
+  {
+    "at_hz": 250.0,
+    "db": 0.7408787413641926,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 44100.0,
+    "shape": "HighShelf"
+  },
+  {
+    "at_hz": 1000.0,
+    "db": -6.000000000000001,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 44100.0,
+    "shape": "HighShelf"
+  },
+  {
+    "at_hz": 3000.0,
+    "db": -13.326866880780454,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 44100.0,
+    "shape": "HighShelf"
+  },
+  {
+    "at_hz": 10000.0,
+    "db": -12.077916868654837,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 44100.0,
+    "shape": "HighShelf"
+  },
+  {
+    "at_hz": 20000.0,
+    "db": -12.001251009689112,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 44100.0,
+    "shape": "HighShelf"
+  },
+  {
+    "at_hz": 20.0,
+    "db": 0.004530488577913583,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 48000.0,
+    "shape": "HighShelf"
+  },
+  {
+    "at_hz": 60.0,
+    "db": 0.04087339673767769,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 48000.0,
+    "shape": "HighShelf"
+  },
+  {
+    "at_hz": 250.0,
+    "db": 0.7412624612202465,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 48000.0,
+    "shape": "HighShelf"
+  },
+  {
+    "at_hz": 1000.0,
+    "db": -6.000000000000001,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 48000.0,
+    "shape": "HighShelf"
+  },
+  {
+    "at_hz": 3000.0,
+    "db": -13.333010558180671,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 48000.0,
+    "shape": "HighShelf"
+  },
+  {
+    "at_hz": 10000.0,
+    "db": -12.083308568916017,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 48000.0,
+    "shape": "HighShelf"
+  },
+  {
+    "at_hz": 20000.0,
+    "db": -12.003503159894883,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 48000.0,
+    "shape": "HighShelf"
+  },
+  {
+    "at_hz": 20.0,
+    "db": 0.000014902871161286849,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 44100.0,
+    "shape": "HighShelf"
+  },
+  {
+    "at_hz": 60.0,
+    "db": 0.00013412190948328373,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 44100.0,
+    "shape": "HighShelf"
+  },
+  {
+    "at_hz": 250.0,
+    "db": 0.0023272499301154144,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 44100.0,
+    "shape": "HighShelf"
+  },
+  {
+    "at_hz": 1000.0,
+    "db": 0.03691916110810339,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 44100.0,
+    "shape": "HighShelf"
+  },
+  {
+    "at_hz": 3000.0,
+    "db": 0.3097728371869429,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 44100.0,
+    "shape": "HighShelf"
+  },
+  {
+    "at_hz": 10000.0,
+    "db": 1.9338225564935032,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 44100.0,
+    "shape": "HighShelf"
+  },
+  {
+    "at_hz": 20000.0,
+    "db": 2.9734536757817382,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 44100.0,
+    "shape": "HighShelf"
+  },
+  {
+    "at_hz": 20.0,
+    "db": 0.00001549795991676969,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 48000.0,
+    "shape": "HighShelf"
+  },
+  {
+    "at_hz": 60.0,
+    "db": 0.00013947709237693292,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 48000.0,
+    "shape": "HighShelf"
+  },
+  {
+    "at_hz": 250.0,
+    "db": 0.0024200252536737974,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 48000.0,
+    "shape": "HighShelf"
+  },
+  {
+    "at_hz": 1000.0,
+    "db": 0.03835434396406843,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 48000.0,
+    "shape": "HighShelf"
+  },
+  {
+    "at_hz": 3000.0,
+    "db": 0.3194259881826552,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 48000.0,
+    "shape": "HighShelf"
+  },
+  {
+    "at_hz": 10000.0,
+    "db": 1.9145962212139522,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 48000.0,
+    "shape": "HighShelf"
+  },
+  {
+    "at_hz": 20000.0,
+    "db": 2.9295565076015393,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 48000.0,
+    "shape": "HighShelf"
+  },
+  {
+    "at_hz": 20.0,
+    "db": -0.0070474929432485615,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 44100.0,
+    "shape": "HighCut"
+  },
+  {
+    "at_hz": 60.0,
+    "db": -0.5300614036217448,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 44100.0,
+    "shape": "HighCut"
+  },
+  {
+    "at_hz": 250.0,
+    "db": -16.02929413956207,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 44100.0,
+    "shape": "HighCut"
+  },
+  {
+    "at_hz": 1000.0,
+    "db": -40.02958484668945,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 44100.0,
+    "shape": "HighCut"
+  },
+  {
+    "at_hz": 3000.0,
+    "db": -59.35189661178525,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 44100.0,
+    "shape": "HighCut"
+  },
+  {
+    "at_hz": 10000.0,
+    "db": -83.34525345098615,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 44100.0,
+    "shape": "HighCut"
+  },
+  {
+    "at_hz": 20000.0,
+    "db": -119.18853464482595,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 44100.0,
+    "shape": "HighCut"
+  },
+  {
+    "at_hz": 20.0,
+    "db": -0.007047563725664313,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 48000.0,
+    "shape": "HighCut"
+  },
+  {
+    "at_hz": 60.0,
+    "db": -0.5300647697130269,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 48000.0,
+    "shape": "HighCut"
+  },
+  {
+    "at_hz": 250.0,
+    "db": -16.029059597338588,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 48000.0,
+    "shape": "HighCut"
+  },
+  {
+    "at_hz": 1000.0,
+    "db": -40.025039816448746,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 48000.0,
+    "shape": "HighCut"
+  },
+  {
+    "at_hz": 3000.0,
+    "db": -59.30988591520379,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 48000.0,
+    "shape": "HighCut"
+  },
+  {
+    "at_hz": 10000.0,
+    "db": -82.76262567695456,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 48000.0,
+    "shape": "HighCut"
+  },
+  {
+    "at_hz": 20000.0,
+    "db": -110.24130844360354,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 48000.0,
+    "shape": "HighCut"
+  },
+  {
+    "at_hz": 20.0,
+    "db": 0.003030152144528635,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 44100.0,
+    "shape": "HighCut"
+  },
+  {
+    "at_hz": 60.0,
+    "db": 0.027298071669821136,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 44100.0,
+    "shape": "HighCut"
+  },
+  {
+    "at_hz": 250.0,
+    "db": 0.4824814770331143,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 44100.0,
+    "shape": "HighCut"
+  },
+  {
+    "at_hz": 1000.0,
+    "db": 6.020599913279624,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 44100.0,
+    "shape": "HighCut"
+  },
+  {
+    "at_hz": 3000.0,
+    "db": -18.474103456087956,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 44100.0,
+    "shape": "HighCut"
+  },
+  {
+    "at_hz": 10000.0,
+    "db": -43.264136437969,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 44100.0,
+    "shape": "HighCut"
+  },
+  {
+    "at_hz": 20000.0,
+    "db": -79.15857004220888,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 44100.0,
+    "shape": "HighCut"
+  },
+  {
+    "at_hz": 20.0,
+    "db": 0.0030317538425685304,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 48000.0,
+    "shape": "HighCut"
+  },
+  {
+    "at_hz": 60.0,
+    "db": 0.027312468883929075,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 48000.0,
+    "shape": "HighCut"
+  },
+  {
+    "at_hz": 250.0,
+    "db": 0.4827251216900541,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 48000.0,
+    "shape": "HighCut"
+  },
+  {
+    "at_hz": 1000.0,
+    "db": 6.020599913279624,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 48000.0,
+    "shape": "HighCut"
+  },
+  {
+    "at_hz": 3000.0,
+    "db": -18.432853034370638,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 48000.0,
+    "shape": "HighCut"
+  },
+  {
+    "at_hz": 10000.0,
+    "db": -42.68246837086073,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 48000.0,
+    "shape": "HighCut"
+  },
+  {
+    "at_hz": 20000.0,
+    "db": -70.2143822303921,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 48000.0,
+    "shape": "HighCut"
+  },
+  {
+    "at_hz": 20.0,
+    "db": -0.000042934615010960405,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 44100.0,
+    "shape": "HighCut"
+  },
+  {
+    "at_hz": 60.0,
+    "db": -0.000386408078422486,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 44100.0,
+    "shape": "HighCut"
+  },
+  {
+    "at_hz": 250.0,
+    "db": -0.006707369454451682,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 44100.0,
+    "shape": "HighCut"
+  },
+  {
+    "at_hz": 1000.0,
+    "db": -0.10703859849035956,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 44100.0,
+    "shape": "HighCut"
+  },
+  {
+    "at_hz": 3000.0,
+    "db": -0.9431177796923302,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 44100.0,
+    "shape": "HighCut"
+  },
+  {
+    "at_hz": 10000.0,
+    "db": -8.99388185104826,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 44100.0,
+    "shape": "HighCut"
+  },
+  {
+    "at_hz": 20000.0,
+    "db": -41.10433127139742,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 44100.0,
+    "shape": "HighCut"
+  },
+  {
+    "at_hz": 20.0,
+    "db": -0.000044649048016316914,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 48000.0,
+    "shape": "HighCut"
+  },
+  {
+    "at_hz": 60.0,
+    "db": -0.0004018368419748923,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 48000.0,
+    "shape": "HighCut"
+  },
+  {
+    "at_hz": 250.0,
+    "db": -0.006974867903630838,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 48000.0,
+    "shape": "HighCut"
+  },
+  {
+    "at_hz": 1000.0,
+    "db": -0.11122711721735427,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 48000.0,
+    "shape": "HighCut"
+  },
+  {
+    "at_hz": 3000.0,
+    "db": -0.9742602587256166,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 48000.0,
+    "shape": "HighCut"
+  },
+  {
+    "at_hz": 10000.0,
+    "db": -8.838211979316648,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 48000.0,
+    "shape": "HighCut"
+  },
+  {
+    "at_hz": 20000.0,
+    "db": -32.62575148850533,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 48000.0,
+    "shape": "HighCut"
+  },
+  {
+    "at_hz": 20.0,
+    "db": -55.932259557594186,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 44100.0,
+    "shape": "LowCut24"
+  },
+  {
+    "at_hz": 60.0,
+    "db": -18.808398927861454,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 44100.0,
+    "shape": "LowCut24"
+  },
+  {
+    "at_hz": 250.0,
+    "db": -0.22030175392382143,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 44100.0,
+    "shape": "LowCut24"
+  },
+  {
+    "at_hz": 1000.0,
+    "db": -0.0009150377240819762,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 44100.0,
+    "shape": "LowCut24"
+  },
+  {
+    "at_hz": 3000.0,
+    "db": -0.00001573823279604399,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 44100.0,
+    "shape": "LowCut24"
+  },
+  {
+    "at_hz": 10000.0,
+    "db": -3.972481891126758e-7,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 44100.0,
+    "shape": "LowCut24"
+  },
+  {
+    "at_hz": 20000.0,
+    "db": -5.772236635423849e-9,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 44100.0,
+    "shape": "LowCut24"
+  },
+  {
+    "at_hz": 20.0,
+    "db": -55.93217173647584,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 48000.0,
+    "shape": "LowCut24"
+  },
+  {
+    "at_hz": 60.0,
+    "db": -18.808347017845463,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 48000.0,
+    "shape": "LowCut24"
+  },
+  {
+    "at_hz": 250.0,
+    "db": -0.220313780640693,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 48000.0,
+    "shape": "LowCut24"
+  },
+  {
+    "at_hz": 1000.0,
+    "db": -0.0009159684993824153,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 48000.0,
+    "shape": "LowCut24"
+  },
+  {
+    "at_hz": 3000.0,
+    "db": -0.000015863664914591336,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 48000.0,
+    "shape": "LowCut24"
+  },
+  {
+    "at_hz": 10000.0,
+    "db": -4.277915523494246e-7,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 48000.0,
+    "shape": "LowCut24"
+  },
+  {
+    "at_hz": 20000.0,
+    "db": -1.6222664975623002e-8,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 48000.0,
+    "shape": "LowCut24"
+  },
+  {
+    "at_hz": 20.0,
+    "db": -120.0,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 44100.0,
+    "shape": "LowCut24"
+  },
+  {
+    "at_hz": 60.0,
+    "db": -97.75193463293311,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 44100.0,
+    "shape": "LowCut24"
+  },
+  {
+    "at_hz": 250.0,
+    "db": -47.25500517638828,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 44100.0,
+    "shape": "LowCut24"
+  },
+  {
+    "at_hz": 1000.0,
+    "db": 12.041199826559248,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 44100.0,
+    "shape": "LowCut24"
+  },
+  {
+    "at_hz": 3000.0,
+    "db": 1.6973159175069523,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 44100.0,
+    "shape": "LowCut24"
+  },
+  {
+    "at_hz": 10000.0,
+    "db": 0.10397897313128769,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 44100.0,
+    "shape": "LowCut24"
+  },
+  {
+    "at_hz": 20000.0,
+    "db": 0.0016745438070763518,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 44100.0,
+    "shape": "LowCut24"
+  },
+  {
+    "at_hz": 20.0,
+    "db": -120.0,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 48000.0,
+    "shape": "LowCut24"
+  },
+  {
+    "at_hz": 60.0,
+    "db": -97.74275620504967,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 48000.0,
+    "shape": "LowCut24"
+  },
+  {
+    "at_hz": 250.0,
+    "db": -47.24590800698151,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 48000.0,
+    "shape": "LowCut24"
+  },
+  {
+    "at_hz": 1000.0,
+    "db": 12.041199826559248,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 48000.0,
+    "shape": "LowCut24"
+  },
+  {
+    "at_hz": 3000.0,
+    "db": 1.7048862336032946,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 48000.0,
+    "shape": "LowCut24"
+  },
+  {
+    "at_hz": 10000.0,
+    "db": 0.11115051999799322,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 48000.0,
+    "shape": "LowCut24"
+  },
+  {
+    "at_hz": 20000.0,
+    "db": 0.004688745802082238,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 48000.0,
+    "shape": "LowCut24"
+  },
+  {
+    "at_hz": 20.0,
+    "db": -120.0,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 44100.0,
+    "shape": "LowCut24"
+  },
+  {
+    "at_hz": 60.0,
+    "db": -120.0,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 44100.0,
+    "shape": "LowCut24"
+  },
+  {
+    "at_hz": 250.0,
+    "db": -120.0,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 44100.0,
+    "shape": "LowCut24"
+  },
+  {
+    "at_hz": 1000.0,
+    "db": -76.47788439395727,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 44100.0,
+    "shape": "LowCut24"
+  },
+  {
+    "at_hz": 3000.0,
+    "db": -39.50451992667838,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 44100.0,
+    "shape": "LowCut24"
+  },
+  {
+    "at_hz": 10000.0,
+    "db": -7.6193190500037975,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 44100.0,
+    "shape": "LowCut24"
+  },
+  {
+    "at_hz": 20000.0,
+    "db": -0.15365511154658879,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 44100.0,
+    "shape": "LowCut24"
+  },
+  {
+    "at_hz": 20.0,
+    "db": -120.0,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 48000.0,
+    "shape": "LowCut24"
+  },
+  {
+    "at_hz": 60.0,
+    "db": -120.0,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 48000.0,
+    "shape": "LowCut24"
+  },
+  {
+    "at_hz": 250.0,
+    "db": -120.0,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 48000.0,
+    "shape": "LowCut24"
+  },
+  {
+    "at_hz": 1000.0,
+    "db": -75.81525344956582,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 48000.0,
+    "shape": "LowCut24"
+  },
+  {
+    "at_hz": 3000.0,
+    "db": -38.9707274302377,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 48000.0,
+    "shape": "LowCut24"
+  },
+  {
+    "at_hz": 10000.0,
+    "db": -7.793135912044871,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 48000.0,
+    "shape": "LowCut24"
+  },
+  {
+    "at_hz": 20000.0,
+    "db": -0.41084898555539623,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 48000.0,
+    "shape": "LowCut24"
+  },
+  {
+    "at_hz": 20.0,
+    "db": -0.014094985886497472,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 44100.0,
+    "shape": "HighCut24"
+  },
+  {
+    "at_hz": 60.0,
+    "db": -1.0601228072434896,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 44100.0,
+    "shape": "HighCut24"
+  },
+  {
+    "at_hz": 250.0,
+    "db": -32.05858827912414,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 44100.0,
+    "shape": "HighCut24"
+  },
+  {
+    "at_hz": 1000.0,
+    "db": -80.0591696933789,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 44100.0,
+    "shape": "HighCut24"
+  },
+  {
+    "at_hz": 3000.0,
+    "db": -118.7037932235705,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 44100.0,
+    "shape": "HighCut24"
+  },
+  {
+    "at_hz": 10000.0,
+    "db": -120.0,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 44100.0,
+    "shape": "HighCut24"
+  },
+  {
+    "at_hz": 20000.0,
+    "db": -120.0,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 44100.0,
+    "shape": "HighCut24"
+  },
+  {
+    "at_hz": 20.0,
+    "db": -0.014095127451328527,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 48000.0,
+    "shape": "HighCut24"
+  },
+  {
+    "at_hz": 60.0,
+    "db": -1.060129539426054,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 48000.0,
+    "shape": "HighCut24"
+  },
+  {
+    "at_hz": 250.0,
+    "db": -32.058119194677175,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 48000.0,
+    "shape": "HighCut24"
+  },
+  {
+    "at_hz": 1000.0,
+    "db": -80.05007963289749,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 48000.0,
+    "shape": "HighCut24"
+  },
+  {
+    "at_hz": 3000.0,
+    "db": -118.61977183040759,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 48000.0,
+    "shape": "HighCut24"
+  },
+  {
+    "at_hz": 10000.0,
+    "db": -120.0,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 48000.0,
+    "shape": "HighCut24"
+  },
+  {
+    "at_hz": 20000.0,
+    "db": -120.0,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 48000.0,
+    "shape": "HighCut24"
+  },
+  {
+    "at_hz": 20.0,
+    "db": 0.006060304289056722,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 44100.0,
+    "shape": "HighCut24"
+  },
+  {
+    "at_hz": 60.0,
+    "db": 0.05459614333964137,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 44100.0,
+    "shape": "HighCut24"
+  },
+  {
+    "at_hz": 250.0,
+    "db": 0.9649629540662288,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 44100.0,
+    "shape": "HighCut24"
+  },
+  {
+    "at_hz": 1000.0,
+    "db": 12.041199826559248,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 44100.0,
+    "shape": "HighCut24"
+  },
+  {
+    "at_hz": 3000.0,
+    "db": -36.94820691217591,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 44100.0,
+    "shape": "HighCut24"
+  },
+  {
+    "at_hz": 10000.0,
+    "db": -86.528272875938,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 44100.0,
+    "shape": "HighCut24"
+  },
+  {
+    "at_hz": 20000.0,
+    "db": -120.0,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 44100.0,
+    "shape": "HighCut24"
+  },
+  {
+    "at_hz": 20.0,
+    "db": 0.0060635076851372595,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 48000.0,
+    "shape": "HighCut24"
+  },
+  {
+    "at_hz": 60.0,
+    "db": 0.05462493776785814,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 48000.0,
+    "shape": "HighCut24"
+  },
+  {
+    "at_hz": 250.0,
+    "db": 0.9654502433801075,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 48000.0,
+    "shape": "HighCut24"
+  },
+  {
+    "at_hz": 1000.0,
+    "db": 12.041199826559248,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 48000.0,
+    "shape": "HighCut24"
+  },
+  {
+    "at_hz": 3000.0,
+    "db": -36.865706068741275,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 48000.0,
+    "shape": "HighCut24"
+  },
+  {
+    "at_hz": 10000.0,
+    "db": -85.36493674172146,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 48000.0,
+    "shape": "HighCut24"
+  },
+  {
+    "at_hz": 20000.0,
+    "db": -120.0,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 48000.0,
+    "shape": "HighCut24"
+  },
+  {
+    "at_hz": 20.0,
+    "db": -0.00008586923002167562,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 44100.0,
+    "shape": "HighCut24"
+  },
+  {
+    "at_hz": 60.0,
+    "db": -0.0007728161568445724,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 44100.0,
+    "shape": "HighCut24"
+  },
+  {
+    "at_hz": 250.0,
+    "db": -0.01341473890890291,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 44100.0,
+    "shape": "HighCut24"
+  },
+  {
+    "at_hz": 1000.0,
+    "db": -0.2140771969807187,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 44100.0,
+    "shape": "HighCut24"
+  },
+  {
+    "at_hz": 3000.0,
+    "db": -1.8862355593846611,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 44100.0,
+    "shape": "HighCut24"
+  },
+  {
+    "at_hz": 10000.0,
+    "db": -17.98776370209652,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 44100.0,
+    "shape": "HighCut24"
+  },
+  {
+    "at_hz": 20000.0,
+    "db": -82.20866254279484,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 44100.0,
+    "shape": "HighCut24"
+  },
+  {
+    "at_hz": 20.0,
+    "db": -0.00008929809603310921,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 48000.0,
+    "shape": "HighCut24"
+  },
+  {
+    "at_hz": 60.0,
+    "db": -0.0008036736839495616,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 48000.0,
+    "shape": "HighCut24"
+  },
+  {
+    "at_hz": 250.0,
+    "db": -0.01394973580726136,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 48000.0,
+    "shape": "HighCut24"
+  },
+  {
+    "at_hz": 1000.0,
+    "db": -0.2224542344347082,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 48000.0,
+    "shape": "HighCut24"
+  },
+  {
+    "at_hz": 3000.0,
+    "db": -1.948520517451233,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 48000.0,
+    "shape": "HighCut24"
+  },
+  {
+    "at_hz": 10000.0,
+    "db": -17.676423958633297,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 48000.0,
+    "shape": "HighCut24"
+  },
+  {
+    "at_hz": 20000.0,
+    "db": -65.25150297701066,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 48000.0,
+    "shape": "HighCut24"
+  },
+  {
+    "at_hz": 20.0,
+    "db": -10.974976911808161,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 44100.0,
+    "shape": "BandPass"
+  },
+  {
+    "at_hz": 60.0,
+    "db": -1.9555187097142237,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 44100.0,
+    "shape": "BandPass"
+  },
+  {
+    "at_hz": 250.0,
+    "db": -5.058110784199977,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 44100.0,
+    "shape": "BandPass"
+  },
+  {
+    "at_hz": 1000.0,
+    "db": -17.003409458713737,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 44100.0,
+    "shape": "BandPass"
+  },
+  {
+    "at_hz": 3000.0,
+    "db": -26.66434051638881,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 44100.0,
+    "shape": "BandPass"
+  },
+  {
+    "at_hz": 10000.0,
+    "db": -38.661015100743114,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 44100.0,
+    "shape": "BandPass"
+  },
+  {
+    "at_hz": 20000.0,
+    "db": -56.58265559979402,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 44100.0,
+    "shape": "BandPass"
+  },
+  {
+    "at_hz": 20.0,
+    "db": -10.97495499191978,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 48000.0,
+    "shape": "BandPass"
+  },
+  {
+    "at_hz": 60.0,
+    "db": -1.9555074152558682,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 48000.0,
+    "shape": "BandPass"
+  },
+  {
+    "at_hz": 250.0,
+    "db": -5.057996519767456,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 48000.0,
+    "shape": "BandPass"
+  },
+  {
+    "at_hz": 1000.0,
+    "db": -17.001137176287205,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 48000.0,
+    "shape": "BandPass"
+  },
+  {
+    "at_hz": 3000.0,
+    "db": -26.643335199456114,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 48000.0,
+    "shape": "BandPass"
+  },
+  {
+    "at_hz": 10000.0,
+    "db": -38.36970122136316,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 48000.0,
+    "shape": "BandPass"
+  },
+  {
+    "at_hz": 20000.0,
+    "db": -52.10904250179542,
+    "freq": 100.0,
+    "gain_db": 6.0,
+    "q": 0.707,
+    "sample_rate": 48000.0,
+    "shape": "BandPass"
+  },
+  {
+    "at_hz": 20.0,
+    "db": -40.01167456797573,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 44100.0,
+    "shape": "BandPass"
+  },
+  {
+    "at_hz": 60.0,
+    "db": -30.444934535678,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 44100.0,
+    "shape": "BandPass"
+  },
+  {
+    "at_hz": 250.0,
+    "db": -17.593110468860136,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 44100.0,
+    "shape": "BandPass"
+  },
+  {
+    "at_hz": 1000.0,
+    "db": 0.0,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 44100.0,
+    "shape": "BandPass"
+  },
+  {
+    "at_hz": 3000.0,
+    "db": -14.833322661946864,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 44100.0,
+    "shape": "BandPass"
+  },
+  {
+    "at_hz": 10000.0,
+    "db": -27.626673388981303,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 44100.0,
+    "shape": "BandPass"
+  },
+  {
+    "at_hz": 20000.0,
+    "db": -45.59946629843229,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 44100.0,
+    "shape": "BandPass"
+  },
+  {
+    "at_hz": 20.0,
+    "db": -40.00937822779271,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 48000.0,
+    "shape": "BandPass"
+  },
+  {
+    "at_hz": 60.0,
+    "db": -30.442632730100073,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 48000.0,
+    "shape": "BandPass"
+  },
+  {
+    "at_hz": 250.0,
+    "db": -17.590714354179976,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 48000.0,
+    "shape": "BandPass"
+  },
+  {
+    "at_hz": 1000.0,
+    "db": 0.0,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 48000.0,
+    "shape": "BandPass"
+  },
+  {
+    "at_hz": 3000.0,
+    "db": -14.810804872064118,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 48000.0,
+    "shape": "BandPass"
+  },
+  {
+    "at_hz": 10000.0,
+    "db": -27.334046468710493,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 48000.0,
+    "shape": "BandPass"
+  },
+  {
+    "at_hz": 20000.0,
+    "db": -41.12661884202516,
+    "freq": 1000.0,
+    "gain_db": -12.0,
+    "q": 2.0,
+    "sample_rate": 48000.0,
+    "shape": "BandPass"
+  },
+  {
+    "at_hz": 20.0,
+    "db": -47.03949962742016,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 44100.0,
+    "shape": "BandPass"
+  },
+  {
+    "at_hz": 60.0,
+    "db": -37.49737098811114,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 44100.0,
+    "shape": "BandPass"
+  },
+  {
+    "at_hz": 250.0,
+    "db": -25.107051288032597,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 44100.0,
+    "shape": "BandPass"
+  },
+  {
+    "at_hz": 1000.0,
+    "db": -13.152390484454878,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 44100.0,
+    "shape": "BandPass"
+  },
+  {
+    "at_hz": 3000.0,
+    "db": -4.327088958236133,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 44100.0,
+    "shape": "BandPass"
+  },
+  {
+    "at_hz": 10000.0,
+    "db": -0.3811707747454552,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 44100.0,
+    "shape": "BandPass"
+  },
+  {
+    "at_hz": 20000.0,
+    "db": -14.569979500305735,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 44100.0,
+    "shape": "BandPass"
+  },
+  {
+    "at_hz": 20.0,
+    "db": -46.86945460790681,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 48000.0,
+    "shape": "BandPass"
+  },
+  {
+    "at_hz": 60.0,
+    "db": -37.32734701304949,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 48000.0,
+    "shape": "BandPass"
+  },
+  {
+    "at_hz": 250.0,
+    "db": -24.937414320997174,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 48000.0,
+    "shape": "BandPass"
+  },
+  {
+    "at_hz": 1000.0,
+    "db": -12.988827007720491,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 48000.0,
+    "shape": "BandPass"
+  },
+  {
+    "at_hz": 3000.0,
+    "db": -4.209212073642609,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 48000.0,
+    "shape": "BandPass"
+  },
+  {
+    "at_hz": 10000.0,
+    "db": -0.34679005438991783,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 48000.0,
+    "shape": "BandPass"
+  },
+  {
+    "at_hz": 20000.0,
+    "db": -10.39498807736189,
+    "freq": 8000.0,
+    "gain_db": 3.0,
+    "q": 0.5,
+    "sample_rate": 48000.0,
+    "shape": "BandPass"
+  }
+]

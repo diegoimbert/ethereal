@@ -158,6 +158,7 @@ pub(crate) fn scan(id: &AuComponentId) -> Result<PluginDescriptor, PluginError> 
     let info = info(comp, id);
     let ty = String::from_utf8_lossy(&id.component_type).into_owned();
     Ok(PluginDescriptor {
+        sidechain_inputs: Default::default(),
         format: PluginFormat::Au,
         id: id.to_string(),
         name: info.name,

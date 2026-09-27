@@ -1,0 +1,1254 @@
+{
+  "audio_inputs": 2,
+  "audio_outputs": 2,
+  "category": "AudioEffect",
+  "device_type": {
+    "device": "Eq",
+    "type": "Builtin"
+  },
+  "layout": {
+    "sections": [
+      {
+        "columns": 8,
+        "id": "curve",
+        "items": [
+          {
+            "colspan": 8,
+            "label": null,
+            "size": "Large",
+            "widget": {
+              "bands": [
+                {
+                  "freq": 2,
+                  "gain": 3,
+                  "kind": 1,
+                  "on": 0,
+                  "q": 4,
+                  "shapes": [
+                    "LowCut",
+                    "LowShelf",
+                    "Bell",
+                    "Notch",
+                    "HighShelf",
+                    "HighCut"
+                  ]
+                },
+                {
+                  "freq": 7,
+                  "gain": 8,
+                  "kind": 6,
+                  "on": 5,
+                  "q": 9,
+                  "shapes": [
+                    "LowCut",
+                    "LowShelf",
+                    "Bell",
+                    "Notch",
+                    "HighShelf",
+                    "HighCut"
+                  ]
+                },
+                {
+                  "freq": 12,
+                  "gain": 13,
+                  "kind": 11,
+                  "on": 10,
+                  "q": 14,
+                  "shapes": [
+                    "LowCut",
+                    "LowShelf",
+                    "Bell",
+                    "Notch",
+                    "HighShelf",
+                    "HighCut"
+                  ]
+                },
+                {
+                  "freq": 17,
+                  "gain": 18,
+                  "kind": 16,
+                  "on": 15,
+                  "q": 19,
+                  "shapes": [
+                    "LowCut",
+                    "LowShelf",
+                    "Bell",
+                    "Notch",
+                    "HighShelf",
+                    "HighCut"
+                  ]
+                },
+                {
+                  "freq": 22,
+                  "gain": 23,
+                  "kind": 21,
+                  "on": 20,
+                  "q": 24,
+                  "shapes": [
+                    "LowCut",
+                    "LowShelf",
+                    "Bell",
+                    "Notch",
+                    "HighShelf",
+                    "HighCut"
+                  ]
+                },
+                {
+                  "freq": 27,
+                  "gain": 28,
+                  "kind": 26,
+                  "on": 25,
+                  "q": 29,
+                  "shapes": [
+                    "LowCut",
+                    "LowShelf",
+                    "Bell",
+                    "Notch",
+                    "HighShelf",
+                    "HighCut"
+                  ]
+                },
+                {
+                  "freq": 32,
+                  "gain": 33,
+                  "kind": 31,
+                  "on": 30,
+                  "q": 34,
+                  "shapes": [
+                    "LowCut",
+                    "LowShelf",
+                    "Bell",
+                    "Notch",
+                    "HighShelf",
+                    "HighCut"
+                  ]
+                },
+                {
+                  "freq": 37,
+                  "gain": 38,
+                  "kind": 36,
+                  "on": 35,
+                  "q": 39,
+                  "shapes": [
+                    "LowCut",
+                    "LowShelf",
+                    "Bell",
+                    "Notch",
+                    "HighShelf",
+                    "HighCut"
+                  ]
+                }
+              ],
+              "crossovers": [],
+              "spectrum": "PrePost",
+              "type": "EqCurve"
+            }
+          }
+        ],
+        "span": 4,
+        "title": null
+      },
+      {
+        "columns": 8,
+        "id": "bands",
+        "items": [
+          {
+            "colspan": 1,
+            "label": null,
+            "size": "Small",
+            "widget": {
+              "param": 0,
+              "type": "Toggle"
+            }
+          },
+          {
+            "colspan": 1,
+            "label": null,
+            "size": "Small",
+            "widget": {
+              "param": 5,
+              "type": "Toggle"
+            }
+          },
+          {
+            "colspan": 1,
+            "label": null,
+            "size": "Small",
+            "widget": {
+              "param": 10,
+              "type": "Toggle"
+            }
+          },
+          {
+            "colspan": 1,
+            "label": null,
+            "size": "Small",
+            "widget": {
+              "param": 15,
+              "type": "Toggle"
+            }
+          },
+          {
+            "colspan": 1,
+            "label": null,
+            "size": "Small",
+            "widget": {
+              "param": 20,
+              "type": "Toggle"
+            }
+          },
+          {
+            "colspan": 1,
+            "label": null,
+            "size": "Small",
+            "widget": {
+              "param": 25,
+              "type": "Toggle"
+            }
+          },
+          {
+            "colspan": 1,
+            "label": null,
+            "size": "Small",
+            "widget": {
+              "param": 30,
+              "type": "Toggle"
+            }
+          },
+          {
+            "colspan": 1,
+            "label": null,
+            "size": "Small",
+            "widget": {
+              "param": 35,
+              "type": "Toggle"
+            }
+          },
+          {
+            "colspan": 1,
+            "label": null,
+            "size": "Small",
+            "widget": {
+              "param": 1,
+              "type": "Choice"
+            }
+          },
+          {
+            "colspan": 1,
+            "label": null,
+            "size": "Small",
+            "widget": {
+              "param": 6,
+              "type": "Choice"
+            }
+          },
+          {
+            "colspan": 1,
+            "label": null,
+            "size": "Small",
+            "widget": {
+              "param": 11,
+              "type": "Choice"
+            }
+          },
+          {
+            "colspan": 1,
+            "label": null,
+            "size": "Small",
+            "widget": {
+              "param": 16,
+              "type": "Choice"
+            }
+          },
+          {
+            "colspan": 1,
+            "label": null,
+            "size": "Small",
+            "widget": {
+              "param": 21,
+              "type": "Choice"
+            }
+          },
+          {
+            "colspan": 1,
+            "label": null,
+            "size": "Small",
+            "widget": {
+              "param": 26,
+              "type": "Choice"
+            }
+          },
+          {
+            "colspan": 1,
+            "label": null,
+            "size": "Small",
+            "widget": {
+              "param": 31,
+              "type": "Choice"
+            }
+          },
+          {
+            "colspan": 1,
+            "label": null,
+            "size": "Small",
+            "widget": {
+              "param": 36,
+              "type": "Choice"
+            }
+          },
+          {
+            "colspan": 1,
+            "label": null,
+            "size": "Small",
+            "widget": {
+              "param": 2,
+              "type": "Knob"
+            }
+          },
+          {
+            "colspan": 1,
+            "label": null,
+            "size": "Small",
+            "widget": {
+              "param": 7,
+              "type": "Knob"
+            }
+          },
+          {
+            "colspan": 1,
+            "label": null,
+            "size": "Small",
+            "widget": {
+              "param": 12,
+              "type": "Knob"
+            }
+          },
+          {
+            "colspan": 1,
+            "label": null,
+            "size": "Small",
+            "widget": {
+              "param": 17,
+              "type": "Knob"
+            }
+          },
+          {
+            "colspan": 1,
+            "label": null,
+            "size": "Small",
+            "widget": {
+              "param": 22,
+              "type": "Knob"
+            }
+          },
+          {
+            "colspan": 1,
+            "label": null,
+            "size": "Small",
+            "widget": {
+              "param": 27,
+              "type": "Knob"
+            }
+          },
+          {
+            "colspan": 1,
+            "label": null,
+            "size": "Small",
+            "widget": {
+              "param": 32,
+              "type": "Knob"
+            }
+          },
+          {
+            "colspan": 1,
+            "label": null,
+            "size": "Small",
+            "widget": {
+              "param": 37,
+              "type": "Knob"
+            }
+          },
+          {
+            "colspan": 1,
+            "label": null,
+            "size": "Small",
+            "widget": {
+              "param": 3,
+              "type": "Knob"
+            }
+          },
+          {
+            "colspan": 1,
+            "label": null,
+            "size": "Small",
+            "widget": {
+              "param": 8,
+              "type": "Knob"
+            }
+          },
+          {
+            "colspan": 1,
+            "label": null,
+            "size": "Small",
+            "widget": {
+              "param": 13,
+              "type": "Knob"
+            }
+          },
+          {
+            "colspan": 1,
+            "label": null,
+            "size": "Small",
+            "widget": {
+              "param": 18,
+              "type": "Knob"
+            }
+          },
+          {
+            "colspan": 1,
+            "label": null,
+            "size": "Small",
+            "widget": {
+              "param": 23,
+              "type": "Knob"
+            }
+          },
+          {
+            "colspan": 1,
+            "label": null,
+            "size": "Small",
+            "widget": {
+              "param": 28,
+              "type": "Knob"
+            }
+          },
+          {
+            "colspan": 1,
+            "label": null,
+            "size": "Small",
+            "widget": {
+              "param": 33,
+              "type": "Knob"
+            }
+          },
+          {
+            "colspan": 1,
+            "label": null,
+            "size": "Small",
+            "widget": {
+              "param": 38,
+              "type": "Knob"
+            }
+          },
+          {
+            "colspan": 1,
+            "label": null,
+            "size": "Small",
+            "widget": {
+              "param": 4,
+              "type": "Knob"
+            }
+          },
+          {
+            "colspan": 1,
+            "label": null,
+            "size": "Small",
+            "widget": {
+              "param": 9,
+              "type": "Knob"
+            }
+          },
+          {
+            "colspan": 1,
+            "label": null,
+            "size": "Small",
+            "widget": {
+              "param": 14,
+              "type": "Knob"
+            }
+          },
+          {
+            "colspan": 1,
+            "label": null,
+            "size": "Small",
+            "widget": {
+              "param": 19,
+              "type": "Knob"
+            }
+          },
+          {
+            "colspan": 1,
+            "label": null,
+            "size": "Small",
+            "widget": {
+              "param": 24,
+              "type": "Knob"
+            }
+          },
+          {
+            "colspan": 1,
+            "label": null,
+            "size": "Small",
+            "widget": {
+              "param": 29,
+              "type": "Knob"
+            }
+          },
+          {
+            "colspan": 1,
+            "label": null,
+            "size": "Small",
+            "widget": {
+              "param": 34,
+              "type": "Knob"
+            }
+          },
+          {
+            "colspan": 1,
+            "label": null,
+            "size": "Small",
+            "widget": {
+              "param": 39,
+              "type": "Knob"
+            }
+          }
+        ],
+        "span": 4,
+        "title": "Bands"
+      },
+      {
+        "columns": 1,
+        "id": "output",
+        "items": [
+          {
+            "colspan": 1,
+            "label": null,
+            "size": "Medium",
+            "widget": {
+              "param": 40,
+              "type": "Knob"
+            }
+          }
+        ],
+        "span": 1,
+        "title": "Output"
+      }
+    ]
+  },
+  "midi_input": false,
+  "name": "EQ",
+  "params": [
+    {
+      "automatable": true,
+      "default": 0.0,
+      "group": "Band 1",
+      "hidden": false,
+      "id": 0,
+      "labels": [
+        "Off",
+        "On"
+      ],
+      "max": 1.0,
+      "min": 0.0,
+      "name": "On",
+      "scale": {
+        "type": "Linear"
+      },
+      "step": 1.0,
+      "unit": "Toggle"
+    },
+    {
+      "automatable": true,
+      "default": 0.0,
+      "group": "Band 1",
+      "hidden": false,
+      "id": 1,
+      "labels": [
+        "Low Cut",
+        "Low Shelf",
+        "Bell",
+        "Notch",
+        "High Shelf",
+        "High Cut"
+      ],
+      "max": 5.0,
+      "min": 0.0,
+      "name": "Type",
+      "scale": {
+        "type": "Linear"
+      },
+      "step": 1.0,
+      "unit": "None"
+    },
+    {
+      "automatable": true,
+      "default": 30.0,
+      "group": "Band 1",
+      "hidden": false,
+      "id": 2,
+      "labels": null,
+      "max": 20000.0,
+      "min": 20.0,
+      "name": "Freq",
+      "scale": {
+        "type": "Log"
+      },
+      "unit": "Hertz"
+    },
+    {
+      "automatable": true,
+      "default": 0.0,
+      "group": "Band 1",
+      "hidden": false,
+      "id": 3,
+      "labels": null,
+      "max": 24.0,
+      "min": -24.0,
+      "name": "Gain",
+      "scale": {
+        "type": "Linear"
+      },
+      "unit": "Decibels"
+    },
+    {
+      "automatable": true,
+      "default": 0.7071067811865476,
+      "group": "Band 1",
+      "hidden": false,
+      "id": 4,
+      "labels": null,
+      "max": 18.0,
+      "min": 0.1,
+      "name": "Q",
+      "scale": {
+        "type": "Log"
+      },
+      "unit": "None"
+    },
+    {
+      "automatable": true,
+      "default": 1.0,
+      "group": "Band 2",
+      "hidden": false,
+      "id": 5,
+      "labels": [
+        "Off",
+        "On"
+      ],
+      "max": 1.0,
+      "min": 0.0,
+      "name": "On",
+      "scale": {
+        "type": "Linear"
+      },
+      "step": 1.0,
+      "unit": "Toggle"
+    },
+    {
+      "automatable": true,
+      "default": 1.0,
+      "group": "Band 2",
+      "hidden": false,
+      "id": 6,
+      "labels": [
+        "Low Cut",
+        "Low Shelf",
+        "Bell",
+        "Notch",
+        "High Shelf",
+        "High Cut"
+      ],
+      "max": 5.0,
+      "min": 0.0,
+      "name": "Type",
+      "scale": {
+        "type": "Linear"
+      },
+      "step": 1.0,
+      "unit": "None"
+    },
+    {
+      "automatable": true,
+      "default": 100.0,
+      "group": "Band 2",
+      "hidden": false,
+      "id": 7,
+      "labels": null,
+      "max": 20000.0,
+      "min": 20.0,
+      "name": "Freq",
+      "scale": {
+        "type": "Log"
+      },
+      "unit": "Hertz"
+    },
+    {
+      "automatable": true,
+      "default": 0.0,
+      "group": "Band 2",
+      "hidden": false,
+      "id": 8,
+      "labels": null,
+      "max": 24.0,
+      "min": -24.0,
+      "name": "Gain",
+      "scale": {
+        "type": "Linear"
+      },
+      "unit": "Decibels"
+    },
+    {
+      "automatable": true,
+      "default": 0.7071067811865476,
+      "group": "Band 2",
+      "hidden": false,
+      "id": 9,
+      "labels": null,
+      "max": 18.0,
+      "min": 0.1,
+      "name": "Q",
+      "scale": {
+        "type": "Log"
+      },
+      "unit": "None"
+    },
+    {
+      "automatable": true,
+      "default": 1.0,
+      "group": "Band 3",
+      "hidden": false,
+      "id": 10,
+      "labels": [
+        "Off",
+        "On"
+      ],
+      "max": 1.0,
+      "min": 0.0,
+      "name": "On",
+      "scale": {
+        "type": "Linear"
+      },
+      "step": 1.0,
+      "unit": "Toggle"
+    },
+    {
+      "automatable": true,
+      "default": 2.0,
+      "group": "Band 3",
+      "hidden": false,
+      "id": 11,
+      "labels": [
+        "Low Cut",
+        "Low Shelf",
+        "Bell",
+        "Notch",
+        "High Shelf",
+        "High Cut"
+      ],
+      "max": 5.0,
+      "min": 0.0,
+      "name": "Type",
+      "scale": {
+        "type": "Linear"
+      },
+      "step": 1.0,
+      "unit": "None"
+    },
+    {
+      "automatable": true,
+      "default": 250.0,
+      "group": "Band 3",
+      "hidden": false,
+      "id": 12,
+      "labels": null,
+      "max": 20000.0,
+      "min": 20.0,
+      "name": "Freq",
+      "scale": {
+        "type": "Log"
+      },
+      "unit": "Hertz"
+    },
+    {
+      "automatable": true,
+      "default": 0.0,
+      "group": "Band 3",
+      "hidden": false,
+      "id": 13,
+      "labels": null,
+      "max": 24.0,
+      "min": -24.0,
+      "name": "Gain",
+      "scale": {
+        "type": "Linear"
+      },
+      "unit": "Decibels"
+    },
+    {
+      "automatable": true,
+      "default": 0.7071067811865476,
+      "group": "Band 3",
+      "hidden": false,
+      "id": 14,
+      "labels": null,
+      "max": 18.0,
+      "min": 0.1,
+      "name": "Q",
+      "scale": {
+        "type": "Log"
+      },
+      "unit": "None"
+    },
+    {
+      "automatable": true,
+      "default": 1.0,
+      "group": "Band 4",
+      "hidden": false,
+      "id": 15,
+      "labels": [
+        "Off",
+        "On"
+      ],
+      "max": 1.0,
+      "min": 0.0,
+      "name": "On",
+      "scale": {
+        "type": "Linear"
+      },
+      "step": 1.0,
+      "unit": "Toggle"
+    },
+    {
+      "automatable": true,
+      "default": 2.0,
+      "group": "Band 4",
+      "hidden": false,
+      "id": 16,
+      "labels": [
+        "Low Cut",
+        "Low Shelf",
+        "Bell",
+        "Notch",
+        "High Shelf",
+        "High Cut"
+      ],
+      "max": 5.0,
+      "min": 0.0,
+      "name": "Type",
+      "scale": {
+        "type": "Linear"
+      },
+      "step": 1.0,
+      "unit": "None"
+    },
+    {
+      "automatable": true,
+      "default": 1000.0,
+      "group": "Band 4",
+      "hidden": false,
+      "id": 17,
+      "labels": null,
+      "max": 20000.0,
+      "min": 20.0,
+      "name": "Freq",
+      "scale": {
+        "type": "Log"
+      },
+      "unit": "Hertz"
+    },
+    {
+      "automatable": true,
+      "default": 0.0,
+      "group": "Band 4",
+      "hidden": false,
+      "id": 18,
+      "labels": null,
+      "max": 24.0,
+      "min": -24.0,
+      "name": "Gain",
+      "scale": {
+        "type": "Linear"
+      },
+      "unit": "Decibels"
+    },
+    {
+      "automatable": true,
+      "default": 0.7071067811865476,
+      "group": "Band 4",
+      "hidden": false,
+      "id": 19,
+      "labels": null,
+      "max": 18.0,
+      "min": 0.1,
+      "name": "Q",
+      "scale": {
+        "type": "Log"
+      },
+      "unit": "None"
+    },
+    {
+      "automatable": true,
+      "default": 1.0,
+      "group": "Band 5",
+      "hidden": false,
+      "id": 20,
+      "labels": [
+        "Off",
+        "On"
+      ],
+      "max": 1.0,
+      "min": 0.0,
+      "name": "On",
+      "scale": {
+        "type": "Linear"
+      },
+      "step": 1.0,
+      "unit": "Toggle"
+    },
+    {
+      "automatable": true,
+      "default": 2.0,
+      "group": "Band 5",
+      "hidden": false,
+      "id": 21,
+      "labels": [
+        "Low Cut",
+        "Low Shelf",
+        "Bell",
+        "Notch",
+        "High Shelf",
+        "High Cut"
+      ],
+      "max": 5.0,
+      "min": 0.0,
+      "name": "Type",
+      "scale": {
+        "type": "Linear"
+      },
+      "step": 1.0,
+      "unit": "None"
+    },
+    {
+      "automatable": true,
+      "default": 2500.0,
+      "group": "Band 5",
+      "hidden": false,
+      "id": 22,
+      "labels": null,
+      "max": 20000.0,
+      "min": 20.0,
+      "name": "Freq",
+      "scale": {
+        "type": "Log"
+      },
+      "unit": "Hertz"
+    },
+    {
+      "automatable": true,
+      "default": 0.0,
+      "group": "Band 5",
+      "hidden": false,
+      "id": 23,
+      "labels": null,
+      "max": 24.0,
+      "min": -24.0,
+      "name": "Gain",
+      "scale": {
+        "type": "Linear"
+      },
+      "unit": "Decibels"
+    },
+    {
+      "automatable": true,
+      "default": 0.7071067811865476,
+      "group": "Band 5",
+      "hidden": false,
+      "id": 24,
+      "labels": null,
+      "max": 18.0,
+      "min": 0.1,
+      "name": "Q",
+      "scale": {
+        "type": "Log"
+      },
+      "unit": "None"
+    },
+    {
+      "automatable": true,
+      "default": 1.0,
+      "group": "Band 6",
+      "hidden": false,
+      "id": 25,
+      "labels": [
+        "Off",
+        "On"
+      ],
+      "max": 1.0,
+      "min": 0.0,
+      "name": "On",
+      "scale": {
+        "type": "Linear"
+      },
+      "step": 1.0,
+      "unit": "Toggle"
+    },
+    {
+      "automatable": true,
+      "default": 2.0,
+      "group": "Band 6",
+      "hidden": false,
+      "id": 26,
+      "labels": [
+        "Low Cut",
+        "Low Shelf",
+        "Bell",
+        "Notch",
+        "High Shelf",
+        "High Cut"
+      ],
+      "max": 5.0,
+      "min": 0.0,
+      "name": "Type",
+      "scale": {
+        "type": "Linear"
+      },
+      "step": 1.0,
+      "unit": "None"
+    },
+    {
+      "automatable": true,
+      "default": 6000.0,
+      "group": "Band 6",
+      "hidden": false,
+      "id": 27,
+      "labels": null,
+      "max": 20000.0,
+      "min": 20.0,
+      "name": "Freq",
+      "scale": {
+        "type": "Log"
+      },
+      "unit": "Hertz"
+    },
+    {
+      "automatable": true,
+      "default": 0.0,
+      "group": "Band 6",
+      "hidden": false,
+      "id": 28,
+      "labels": null,
+      "max": 24.0,
+      "min": -24.0,
+      "name": "Gain",
+      "scale": {
+        "type": "Linear"
+      },
+      "unit": "Decibels"
+    },
+    {
+      "automatable": true,
+      "default": 0.7071067811865476,
+      "group": "Band 6",
+      "hidden": false,
+      "id": 29,
+      "labels": null,
+      "max": 18.0,
+      "min": 0.1,
+      "name": "Q",
+      "scale": {
+        "type": "Log"
+      },
+      "unit": "None"
+    },
+    {
+      "automatable": true,
+      "default": 1.0,
+      "group": "Band 7",
+      "hidden": false,
+      "id": 30,
+      "labels": [
+        "Off",
+        "On"
+      ],
+      "max": 1.0,
+      "min": 0.0,
+      "name": "On",
+      "scale": {
+        "type": "Linear"
+      },
+      "step": 1.0,
+      "unit": "Toggle"
+    },
+    {
+      "automatable": true,
+      "default": 4.0,
+      "group": "Band 7",
+      "hidden": false,
+      "id": 31,
+      "labels": [
+        "Low Cut",
+        "Low Shelf",
+        "Bell",
+        "Notch",
+        "High Shelf",
+        "High Cut"
+      ],
+      "max": 5.0,
+      "min": 0.0,
+      "name": "Type",
+      "scale": {
+        "type": "Linear"
+      },
+      "step": 1.0,
+      "unit": "None"
+    },
+    {
+      "automatable": true,
+      "default": 10000.0,
+      "group": "Band 7",
+      "hidden": false,
+      "id": 32,
+      "labels": null,
+      "max": 20000.0,
+      "min": 20.0,
+      "name": "Freq",
+      "scale": {
+        "type": "Log"
+      },
+      "unit": "Hertz"
+    },
+    {
+      "automatable": true,
+      "default": 0.0,
+      "group": "Band 7",
+      "hidden": false,
+      "id": 33,
+      "labels": null,
+      "max": 24.0,
+      "min": -24.0,
+      "name": "Gain",
+      "scale": {
+        "type": "Linear"
+      },
+      "unit": "Decibels"
+    },
+    {
+      "automatable": true,
+      "default": 0.7071067811865476,
+      "group": "Band 7",
+      "hidden": false,
+      "id": 34,
+      "labels": null,
+      "max": 18.0,
+      "min": 0.1,
+      "name": "Q",
+      "scale": {
+        "type": "Log"
+      },
+      "unit": "None"
+    },
+    {
+      "automatable": true,
+      "default": 0.0,
+      "group": "Band 8",
+      "hidden": false,
+      "id": 35,
+      "labels": [
+        "Off",
+        "On"
+      ],
+      "max": 1.0,
+      "min": 0.0,
+      "name": "On",
+      "scale": {
+        "type": "Linear"
+      },
+      "step": 1.0,
+      "unit": "Toggle"
+    },
+    {
+      "automatable": true,
+      "default": 5.0,
+      "group": "Band 8",
+      "hidden": false,
+      "id": 36,
+      "labels": [
+        "Low Cut",
+        "Low Shelf",
+        "Bell",
+        "Notch",
+        "High Shelf",
+        "High Cut"
+      ],
+      "max": 5.0,
+      "min": 0.0,
+      "name": "Type",
+      "scale": {
+        "type": "Linear"
+      },
+      "step": 1.0,
+      "unit": "None"
+    },
+    {
+      "automatable": true,
+      "default": 18000.0,
+      "group": "Band 8",
+      "hidden": false,
+      "id": 37,
+      "labels": null,
+      "max": 20000.0,
+      "min": 20.0,
+      "name": "Freq",
+      "scale": {
+        "type": "Log"
+      },
+      "unit": "Hertz"
+    },
+    {
+      "automatable": true,
+      "default": 0.0,
+      "group": "Band 8",
+      "hidden": false,
+      "id": 38,
+      "labels": null,
+      "max": 24.0,
+      "min": -24.0,
+      "name": "Gain",
+      "scale": {
+        "type": "Linear"
+      },
+      "unit": "Decibels"
+    },
+    {
+      "automatable": true,
+      "default": 0.7071067811865476,
+      "group": "Band 8",
+      "hidden": false,
+      "id": 39,
+      "labels": null,
+      "max": 18.0,
+      "min": 0.1,
+      "name": "Q",
+      "scale": {
+        "type": "Log"
+      },
+      "unit": "None"
+    },
+    {
+      "automatable": true,
+      "default": 0.0,
+      "group": "Output",
+      "hidden": false,
+      "id": 40,
+      "labels": null,
+      "max": 24.0,
+      "min": -24.0,
+      "name": "Output",
+      "scale": {
+        "type": "Linear"
+      },
+      "unit": "Decibels"
+    }
+  ],
+  "sidechain_inputs": 0
+}

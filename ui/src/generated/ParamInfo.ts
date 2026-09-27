@@ -15,4 +15,11 @@ group: string | null, unit: ParamUnit, min: number, max: number, default: number
 /**
  * `Some(labels)` = discrete/enum param with `labels.len()` steps from `min` to `max`.
  */
-labels: Array<string> | null, automatable: boolean, hidden: boolean, };
+labels: Array<string> | null, automatable: boolean, hidden: boolean, 
+/**
+ * v0.2: plain-value step (`None` = continuous). Integer params (transpose, root key,
+ * voices, counts) and enum/toggle params use 1. Knobs, automation lanes, MIDI learn and
+ * the layout renderer snap to it (`min + round((v - min) / step) · step`); the scale
+ * helpers (`to_plain`/`to_normalized`) don't. Omitted from JSON when `None`.
+ */
+step?: number, };

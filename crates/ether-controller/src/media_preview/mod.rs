@@ -210,7 +210,8 @@ where
                 location: BrowseLocation::Library { .. },
                 ..
             }
-            | MediaSource::Upload { .. } => None,
+            | MediaSource::Upload { .. }
+            | MediaSource::Path { .. } => None,
             _ => Some(self.doc.as_ref().ok_or_else(no_project)?.project.id),
         };
         let key = CacheKey {
@@ -299,6 +300,7 @@ where
                 .and_then(|d| d.project.media.get(media))
                 .map_or_else(|| media.to_string(), |m| m.name.clone()),
             MediaSource::Upload { upload } => upload.clone(),
+            MediaSource::Path { path } => basename(path).to_string(),
         }
     }
 
@@ -335,6 +337,8 @@ where
                 Ok((bytes, name))
             }
             MediaSource::Upload { .. } => Err(unsupported("previewing uploads is not supported")),
+            // v0.2 (`file-import`, shared touch): preview an OS file before importing it.
+            MediaSource::Path { path } => crate::file_import::read_path(&mut self.library, path),
         }
     }
 

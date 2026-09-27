@@ -433,6 +433,7 @@ mod tests {
             sem,
             shared: Arc::new(Shared::default()),
             descriptor: DeviceDescriptor {
+                layout: None,
                 device_type: ether_core::protocol::devices::DeviceTypeRef::Plugin {
                     plugin_id: "t".into(),
                 },

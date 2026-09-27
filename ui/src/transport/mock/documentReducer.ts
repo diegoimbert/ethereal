@@ -42,6 +42,8 @@ import { CommandFailedError } from "../EngineTransport";
 import { BUILTIN_DESCRIPTORS, builtinDescriptor, clampParam } from "./builtinDevices";
 import { defaultParams, defaultTrackName, makeClip, makeTrack, MOCK_TRACK_COLORS } from "./demoProject";
 import { isRoadmapDocumentCommand, reduceRoadmapCommand } from "./roadmap";
+import { groupsTrackCommand } from "./roadmap/groupsBuses";
+import { setZones } from "./roadmap/multisampler";
 import { clipV2Command, isCrossfade } from "./roadmap/clipEditing";
 import { checkDeviceMove, copyRackPads, duplicateSiblings, onRackDeleted } from "./roadmap/drumRack";
 import { swingOffset } from "./roadmap/groove";
@@ -287,6 +289,11 @@ function validateParent(ctx: ReducerContext, kind: Track["kind"], parent: TrackI
 }
 
 function trackCommand(ctx: ReducerContext, c: TrackCommand): void {
+  // v0.2 (`groups-buses`, `roadmap/groupsBuses.ts`).
+  if (c.type === "GroupSelected" || c.type === "Ungroup" || c.type === "SetVca") {
+    groupsTrackCommand(ctx, c);
+    return;
+  }
   if (c.type === "SetScale") {
     const t = track(ctx, c.id);
     if (t.kind !== "Midi") fail("InvalidArgument", "track scales are only available on MIDI tracks");
@@ -574,6 +581,10 @@ function deviceCommand(ctx: ReducerContext, c: DeviceCommand): ReplyValue {
     }
     case "SetSidechain":
       setSidechain(ctx, c.device, c.source);
+      break;
+    case "SetZones":
+      // v0.2 (`multisampler`, `roadmap/multisampler.ts`).
+      setZones(ctx, c.device, c.zones);
       break;
     case "ListBuiltin":
       return { type: "DeviceTypes", devices: Object.values(BUILTIN_DESCRIPTORS) };

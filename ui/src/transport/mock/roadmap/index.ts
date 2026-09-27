@@ -14,6 +14,22 @@
  * | `collab.ts`     | collab          | `Collab::*` (unsupported)                          |
  * | `remote.ts`     | remote-engine   | uploads (unsupported)                             |
  *
+ * v0.2 (contracts-3), same rules (see docs/ROADMAP.md "v0.2"):
+ *
+ * | file                 | node              | commands                                  |
+ * |----------------------|-------------------|-------------------------------------------|
+ * | `comping.ts`         | comping           | `Take::*`                                 |
+ * | `freezeBounce.ts`    | freeze-bounce     | `Freeze::*`                               |
+ * | `timeEdits.ts`       | time-edits        | `TimeEdit::*`                             |
+ * | `presets.ts`         | presets           | `Preset::*`                               |
+ * | `browserV2.ts`       | browser-v2        | `Browser::*`                              |
+ * | `analysis.ts`        | fx-analysis       | `Analysis::*` (`MockAnalysis`)            |
+ * | `racksModulation.ts` | racks-modulation  | `Rack::*`, `Modulation::*`                |
+ * | `mediaReferences.ts` | media-references  | `MediaRef::*`                             |
+ * | `groupsBuses.ts`     | groups-buses      | `Track::{GroupSelected, Ungroup, SetVca}` |
+ *
+ * Device groups' mock descriptors are generated JSON in `../devices/` (one file per node).
+ *
  * `shared.ts` and `host.ts` are base files (cascades, the MockTransport host interface).
  * The core reducer / MockTransport call into these with one line per feature.
  */
@@ -25,6 +41,9 @@ import { drumRackCommand, sliceCommand } from "./drumRack";
 import { grooveCommand } from "./groove";
 import { midiMapCommand } from "./midiLearn";
 import { tempoCommand } from "./tempo";
+// v0.2 (contracts-3): one file per node.
+import { takeCommand } from "./comping";
+import { modulationCommand, rackCommand } from "./racksModulation";
 
 /** Roadmap domains that are document commands (undoable, allowed in a `Batch`). */
 export function isRoadmapDocumentCommand(command: Command): boolean {
@@ -37,6 +56,12 @@ export function isRoadmapDocumentCommand(command: Command): boolean {
       return true;
     case "MidiMap":
       return command.command.type !== "Learn" && command.command.type !== "List";
+    // v0.2 (contracts-3).
+    case "Take":
+    case "Rack":
+      return true;
+    case "Modulation":
+      return command.command.type !== "ListModulatorKinds";
     default:
       return false;
   }
@@ -65,6 +90,16 @@ export function reduceRoadmapCommand(ctx: ReducerContext, command: Command, dele
       return true;
     case "MidiMap":
       midiMapCommand(ctx, command.command);
+      return true;
+    // v0.2 (contracts-3).
+    case "Take":
+      takeCommand(ctx, command.command);
+      return true;
+    case "Rack":
+      rackCommand(ctx, command.command);
+      return true;
+    case "Modulation":
+      modulationCommand(ctx, command.command);
       return true;
     default:
       return false;

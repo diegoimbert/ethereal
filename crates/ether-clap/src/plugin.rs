@@ -349,6 +349,7 @@ impl PluginController for ClapPlugin {
         // and `poll` on rescan), since querying needs the mutable main-thread handle.
         let io = self.io;
         DeviceDescriptor {
+            layout: None,
             device_type: DeviceTypeRef::Plugin {
                 plugin_id: self.plugin_id.clone(),
             },

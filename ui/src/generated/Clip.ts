@@ -4,6 +4,7 @@ import type { ClipContent } from "./ClipContent";
 import type { ClipId } from "./ClipId";
 import type { ClipLoop } from "./ClipLoop";
 import type { Color } from "./Color";
+import type { TakeLaneId } from "./TakeLaneId";
 import type { TrackId } from "./TrackId";
 
 export type Clip = { id: ClipId, track: TrackId, 
@@ -22,4 +23,10 @@ length: Beats,
 /**
  * Content position played at the clip start.
  */
-offset: Beats, looping: ClipLoop, content: ClipContent, };
+offset: Beats, looping: ClipLoop, content: ClipContent, 
+/**
+ * Take lane this clip is on (v0.2, `comping`; see [`crate::take`]). `None` = the track's
+ * main lane. Take-lane clips never play directly; comp regions select what plays. Omitted
+ * from JSON when `None`.
+ */
+lane?: TakeLaneId, };

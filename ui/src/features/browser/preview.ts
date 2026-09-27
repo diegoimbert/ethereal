@@ -23,6 +23,8 @@ export function sameSource(a: MediaSource, b: MediaSource): boolean {
       return b.type === "Project" && a.media === b.media;
     case "Upload":
       return b.type === "Upload" && a.upload === b.upload;
+    case "Path":
+      return b.type === "Path" && a.path === b.path;
   }
 }
 

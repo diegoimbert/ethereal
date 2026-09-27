@@ -19,10 +19,13 @@ use crate::clip::{ClipLoop, FadeCurve};
 use crate::device::{DeviceKind, PluginInstance};
 use crate::entity::{Entity, EntityKey};
 use crate::ids::*;
+use crate::media::MediaLocation;
 use crate::midi_map::{MidiMapMode, MidiMapTarget, MidiSource};
+use crate::modulation::ModSource;
 use crate::project::MetronomeSound;
+use crate::rack::Zone;
 use crate::tempo::TempoCurve;
-use crate::track::{MonitorMode, TrackInput, TrackOutput};
+use crate::track::{MonitorMode, TrackFreeze, TrackInput, TrackOutput};
 use crate::value::*;
 use crate::warp::WarpSettings;
 
@@ -95,6 +98,27 @@ pub enum EntityUpdate {
         id: DrumPadId,
         change: DrumPadChange,
     },
+    // --- v0.2 ---
+    TakeLane {
+        id: TakeLaneId,
+        change: TakeLaneChange,
+    },
+    CompRegion {
+        id: CompRegionId,
+        change: CompRegionChange,
+    },
+    RackChain {
+        id: RackChainId,
+        change: RackChainChange,
+    },
+    Modulator {
+        id: ModulatorId,
+        change: ModulatorChange,
+    },
+    ModMapping {
+        id: ModMappingId,
+        change: ModMappingChange,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
@@ -131,6 +155,10 @@ pub enum TrackChange {
     Monitor(MonitorMode),
     /// Track musical scale (MIDI tracks only).
     Scale(crate::scale::TrackScale),
+    /// v0.2 (`freeze-bounce`): freeze state.
+    Freeze(Option<TrackFreeze>),
+    /// v0.2 (`groups-buses`): VCA assignment.
+    Vca(Option<TrackId>),
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
@@ -156,6 +184,8 @@ pub enum ClipChange {
     FadeInCurve(FadeCurve),
     FadeOutCurve(FadeCurve),
     Reversed(bool),
+    /// v0.2 (`comping`): move between the main lane (`None`) and a take lane of the same track.
+    Lane(Option<TakeLaneId>),
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
@@ -191,6 +221,9 @@ pub enum DeviceChange {
     /// Roadmap v2: move between the track chain (`None`) and a drum pad chain (combine with
     /// `Order`; the pad must be on a rack of the same track).
     Pad(Option<DrumPadId>),
+    /// v0.2 (`racks-modulation`): move between the track chain (`None`) and a rack chain
+    /// (combine with `Order`; the chain's rack must be on the same track).
+    Chain(Option<RackChainId>),
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
@@ -240,6 +273,10 @@ pub enum WarpMarkerChange {
 #[serde(tag = "field", content = "value")]
 pub enum MediaChange {
     Name(String),
+    /// v0.2 (`media-references`): relink / collect.
+    Location(MediaLocation),
+    /// v0.2 (`media-references`): content hash after a relink to different content.
+    Hash(Option<String>),
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
@@ -270,6 +307,60 @@ pub enum DrumPadChange {
     Volume(Decibels),
     Pan(Pan),
     Mute(bool),
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+#[serde(tag = "field", content = "value")]
+pub enum TakeLaneChange {
+    Order(OrderKey),
+    Name(String),
+    Color(Option<Color>),
+}
+
+/// Comp regions are edited as a whole range (start and end together keep the no-overlap
+/// invariant checkable per op).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+#[serde(tag = "field", content = "value")]
+pub enum CompRegionChange {
+    Range(BeatRange),
+    Lane(TakeLaneId),
+    Crossfade(Seconds),
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+#[serde(tag = "field", content = "value")]
+pub enum RackChainChange {
+    Order(OrderKey),
+    Name(String),
+    Color(Option<Color>),
+    Volume(Decibels),
+    Pan(Pan),
+    Mute(bool),
+    Solo(bool),
+    Keys(Zone),
+    Velocities(Zone),
+    Select(Zone),
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+#[serde(tag = "field", content = "value")]
+pub enum ModulatorChange {
+    Order(OrderKey),
+    Name(String),
+    /// Set a param's plain value; `None` resets it.
+    Param {
+        param: ParamId,
+        value: Option<f64>,
+    },
+    /// Envelope-follower sidechain source.
+    Sidechain(Option<TrackId>),
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+#[serde(tag = "field", content = "value")]
+pub enum ModMappingChange {
+    Depth(f64),
+    Source(ModSource),
 }
 
 /// A labeled group of ops applied atomically = one undo step.

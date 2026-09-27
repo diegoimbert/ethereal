@@ -49,6 +49,10 @@ pub struct FakeBridge {
     pub plugin_notes: Vec<(DeviceId, PluginNotification)>,
     pub playhead: Option<PlayheadState>,
     pub meters: Vec<TrackMeter>,
+    /// v0.2 analysis watches the controller sent (`watch_analysis`), in order.
+    pub analysis_watches: Vec<(NodeKey, bool)>,
+    /// Make `watch_analysis` fail (queue full) while set.
+    pub fail_watches: bool,
 }
 
 impl FakeBridge {
@@ -84,12 +88,14 @@ impl FakeBridge {
 
 pub fn plugin_descriptor(name: &str, category: DeviceCategory) -> DeviceDescriptor {
     DeviceDescriptor {
+        layout: None,
         device_type: DeviceTypeRef::Plugin {
             plugin_id: format!("com.test.{name}"),
         },
         name: name.into(),
         category,
         params: vec![ParamInfo {
+            step: None,
             id: ParamId(7),
             name: "Mix".into(),
             group: None,
@@ -207,6 +213,14 @@ impl EngineBridge for FakeBridge {
         out.clear();
         out.playhead = self.playhead;
         out.meters = std::mem::take(&mut self.meters);
+    }
+
+    fn watch_analysis(&mut self, node: NodeKey, on: bool) -> Result<(), BridgeError> {
+        if self.fail_watches {
+            return Err(BridgeError::Unsupported("queue full".into()));
+        }
+        self.analysis_watches.push((node, on));
+        Ok(())
     }
 
     fn descriptor(&mut self, device: DeviceId) -> Option<DeviceDescriptor> {

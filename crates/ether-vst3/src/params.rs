@@ -102,6 +102,7 @@ pub(crate) fn list(controller: &ComPtr<IEditController>) -> (Vec<ParamInfo>, Ste
         };
         steps.push((id, n as u32));
         out.push(ParamInfo {
+            step: None,
             id: ParamId(id),
             name,
             group: None,

@@ -45,7 +45,8 @@ async function renderChain() {
 
 describe("chain helpers", () => {
   it("only offers instruments on MIDI tracks", () => {
-    const all = Object.values(BUILTIN_DESCRIPTORS);
+    // The v0.1/v2 built-ins (the v0.2 ones follow them in `BUILTIN_DESCRIPTORS`).
+    const all = Object.values(BUILTIN_DESCRIPTORS).slice(0, 9);
     const midi = { kind: "Midi" } as Parameters<typeof insertableTypes>[1];
     const audio = { kind: "Audio" } as Parameters<typeof insertableTypes>[1];
     expect(insertableTypes(all, midi).map((d) => d.name)).toEqual([

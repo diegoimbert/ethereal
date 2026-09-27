@@ -58,6 +58,9 @@ use ether_core::parallel::ParallelExecutor;
 
 /// Upper bound of the default worker count (more rarely helps a DAW graph and costs power).
 pub const MAX_DEFAULT_WORKERS: usize = 8;
+/// How long `WorkerPool::with_options` waits for its workers to start before panicking.
+const WORKER_START_TIMEOUT: Duration = Duration::from_secs(10);
+
 /// Spin iterations (`spin_loop` hints, ~tens of µs) before a worker parks.
 pub const SPIN_ITERS: u32 = 1 << 12;
 /// Spin iterations of the audio thread waiting for the last jobs before it yields.
@@ -102,6 +105,10 @@ struct Shared {
     /// First panic payload of the epoch, re-raised on the audio thread by `execute` once
     /// every job finished. Only touched on the panic path (`try_lock`, never blocks).
     panic: Mutex<Option<Box<dyn Any + Send>>>,
+    /// Workers that finished their start-up (thread-local setup, RT promotion) and entered
+    /// the wait loop. `with_options` returns only once all did, so no thread-start
+    /// allocation can happen after the pool is handed to the engine.
+    started: AtomicUsize,
 }
 
 #[inline]
@@ -229,6 +236,7 @@ impl WorkerPool {
             sleeping: (0..workers).map(|_| AtomicBool::new(false)).collect(),
             poisoned: AtomicBool::new(false),
             panic: Mutex::new(None),
+            started: AtomicUsize::new(0),
         });
         let mut handles = Vec::with_capacity(workers);
         for w in 0..workers {
@@ -243,6 +251,25 @@ impl WorkerPool {
                     break;
                 }
             }
+        }
+        // Wait until every spawned worker is in its loop (non-RT: this is construction).
+        // Bounded: a worker that died before signalling (panic in RT setup) is a bug, not
+        // something to spin on forever.
+        let deadline = std::time::Instant::now() + WORKER_START_TIMEOUT;
+        while shared.started.load(Ordering::Acquire) < handles.len() {
+            if let Some(h) = handles.iter().find(|h| h.is_finished()) {
+                panic!(
+                    "audio worker {:?} exited before starting",
+                    h.thread().name().unwrap_or("?")
+                );
+            }
+            assert!(
+                std::time::Instant::now() < deadline,
+                "audio workers did not start within {WORKER_START_TIMEOUT:?} ({} of {})",
+                shared.started.load(Ordering::Acquire),
+                handles.len()
+            );
+            std::thread::yield_now();
         }
         Self {
             shared,
@@ -270,6 +297,7 @@ fn worker_main(s: &Shared, index: usize, options: PoolOptions) {
     }
     let mut seen = unpack(s.claim.load(Ordering::Acquire)).0;
     let sleeping = &s.sleeping[index];
+    s.started.fetch_add(1, Ordering::Release);
     loop {
         // Wait for a new epoch: spin, then park.
         let mut spins = 0u32;

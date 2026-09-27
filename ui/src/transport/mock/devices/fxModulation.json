@@ -1,0 +1,702 @@
+{
+  "Chorus": {
+    "audio_inputs": 2,
+    "audio_outputs": 2,
+    "category": "AudioEffect",
+    "device_type": {
+      "device": "Chorus",
+      "type": "Builtin"
+    },
+    "midi_input": false,
+    "name": "Chorus",
+    "params": [
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Chorus",
+        "hidden": false,
+        "id": 0,
+        "labels": [
+          "Chorus",
+          "Ensemble",
+          "Vibrato"
+        ],
+        "max": 2.0,
+        "min": 0.0,
+        "name": "Mode",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 0.8,
+        "group": "Chorus",
+        "hidden": false,
+        "id": 1,
+        "labels": null,
+        "max": 10.0,
+        "min": 0.01,
+        "name": "Rate",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Hertz"
+      },
+      {
+        "automatable": true,
+        "default": 50.0,
+        "group": "Chorus",
+        "hidden": false,
+        "id": 2,
+        "labels": null,
+        "max": 100.0,
+        "min": 0.0,
+        "name": "Depth",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Percent"
+      },
+      {
+        "automatable": true,
+        "default": 7.0,
+        "group": "Chorus",
+        "hidden": false,
+        "id": 3,
+        "labels": null,
+        "max": 40.0,
+        "min": 1.0,
+        "name": "Delay",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Milliseconds"
+      },
+      {
+        "automatable": true,
+        "default": 2.0,
+        "group": "Chorus",
+        "hidden": false,
+        "id": 4,
+        "labels": [
+          "1",
+          "2",
+          "3",
+          "4"
+        ],
+        "max": 4.0,
+        "min": 1.0,
+        "name": "Voices",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 100.0,
+        "group": "Chorus",
+        "hidden": false,
+        "id": 5,
+        "labels": null,
+        "max": 100.0,
+        "min": 0.0,
+        "name": "Spread",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Percent"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Chorus",
+        "hidden": false,
+        "id": 6,
+        "labels": null,
+        "max": 95.0,
+        "min": 0.0,
+        "name": "Feedback",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Percent"
+      },
+      {
+        "automatable": true,
+        "default": 20000.0,
+        "group": "Chorus",
+        "hidden": false,
+        "id": 7,
+        "labels": null,
+        "max": 20000.0,
+        "min": 1000.0,
+        "name": "High Cut",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Hertz"
+      },
+      {
+        "automatable": true,
+        "default": 50.0,
+        "group": "Output",
+        "hidden": false,
+        "id": 8,
+        "labels": null,
+        "max": 100.0,
+        "min": 0.0,
+        "name": "Mix",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Percent"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Output",
+        "hidden": false,
+        "id": 9,
+        "labels": null,
+        "max": 24.0,
+        "min": -24.0,
+        "name": "Output",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Decibels"
+      }
+    ],
+    "sidechain_inputs": 0
+  },
+  "Flanger": {
+    "audio_inputs": 2,
+    "audio_outputs": 2,
+    "category": "AudioEffect",
+    "device_type": {
+      "device": "Flanger",
+      "type": "Builtin"
+    },
+    "midi_input": false,
+    "name": "Flanger",
+    "params": [
+      {
+        "automatable": true,
+        "default": 0.2,
+        "group": "Flanger",
+        "hidden": false,
+        "id": 0,
+        "labels": null,
+        "max": 20.0,
+        "min": 0.01,
+        "name": "Rate",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Hertz"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Flanger",
+        "hidden": false,
+        "id": 1,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Sync",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      },
+      {
+        "automatable": true,
+        "default": 6.0,
+        "group": "Flanger",
+        "hidden": false,
+        "id": 2,
+        "labels": [
+          "1/64",
+          "1/32T",
+          "1/32",
+          "1/16T",
+          "1/16",
+          "1/8T",
+          "1/8",
+          "1/4T",
+          "1/4",
+          "1/2",
+          "1 bar",
+          "2 bars",
+          "4 bars",
+          "8 bars"
+        ],
+        "max": 13.0,
+        "min": 0.0,
+        "name": "Sync Rate",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 50.0,
+        "group": "Flanger",
+        "hidden": false,
+        "id": 3,
+        "labels": null,
+        "max": 100.0,
+        "min": 0.0,
+        "name": "Depth",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Percent"
+      },
+      {
+        "automatable": true,
+        "default": 2.0,
+        "group": "Flanger",
+        "hidden": false,
+        "id": 4,
+        "labels": null,
+        "max": 20.0,
+        "min": 0.1,
+        "name": "Delay",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Milliseconds"
+      },
+      {
+        "automatable": true,
+        "default": 50.0,
+        "group": "Flanger",
+        "hidden": false,
+        "id": 5,
+        "labels": null,
+        "max": 95.0,
+        "min": -95.0,
+        "name": "Feedback",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Percent"
+      },
+      {
+        "automatable": true,
+        "default": 90.0,
+        "group": "Flanger",
+        "hidden": false,
+        "id": 6,
+        "labels": null,
+        "max": 180.0,
+        "min": 0.0,
+        "name": "Stereo Phase",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 50.0,
+        "group": "Output",
+        "hidden": false,
+        "id": 7,
+        "labels": null,
+        "max": 100.0,
+        "min": 0.0,
+        "name": "Mix",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Percent"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Output",
+        "hidden": false,
+        "id": 8,
+        "labels": null,
+        "max": 24.0,
+        "min": -24.0,
+        "name": "Output",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Decibels"
+      }
+    ],
+    "sidechain_inputs": 0
+  },
+  "Phaser": {
+    "audio_inputs": 2,
+    "audio_outputs": 2,
+    "category": "AudioEffect",
+    "device_type": {
+      "device": "Phaser",
+      "type": "Builtin"
+    },
+    "midi_input": false,
+    "name": "Phaser",
+    "params": [
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Phaser",
+        "hidden": false,
+        "id": 0,
+        "labels": [
+          "2",
+          "4",
+          "6",
+          "8",
+          "12"
+        ],
+        "max": 4.0,
+        "min": 0.0,
+        "name": "Stages",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 0.3,
+        "group": "Phaser",
+        "hidden": false,
+        "id": 1,
+        "labels": null,
+        "max": 20.0,
+        "min": 0.01,
+        "name": "Rate",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Hertz"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Phaser",
+        "hidden": false,
+        "id": 2,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Sync",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      },
+      {
+        "automatable": true,
+        "default": 6.0,
+        "group": "Phaser",
+        "hidden": false,
+        "id": 3,
+        "labels": [
+          "1/64",
+          "1/32T",
+          "1/32",
+          "1/16T",
+          "1/16",
+          "1/8T",
+          "1/8",
+          "1/4T",
+          "1/4",
+          "1/2",
+          "1 bar",
+          "2 bars",
+          "4 bars",
+          "8 bars"
+        ],
+        "max": 13.0,
+        "min": 0.0,
+        "name": "Sync Rate",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 50.0,
+        "group": "Phaser",
+        "hidden": false,
+        "id": 4,
+        "labels": null,
+        "max": 100.0,
+        "min": 0.0,
+        "name": "Depth",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Percent"
+      },
+      {
+        "automatable": true,
+        "default": 800.0,
+        "group": "Phaser",
+        "hidden": false,
+        "id": 5,
+        "labels": null,
+        "max": 10000.0,
+        "min": 100.0,
+        "name": "Center",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Hertz"
+      },
+      {
+        "automatable": true,
+        "default": 30.0,
+        "group": "Phaser",
+        "hidden": false,
+        "id": 6,
+        "labels": null,
+        "max": 95.0,
+        "min": -95.0,
+        "name": "Feedback",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Percent"
+      },
+      {
+        "automatable": true,
+        "default": 90.0,
+        "group": "Phaser",
+        "hidden": false,
+        "id": 7,
+        "labels": null,
+        "max": 180.0,
+        "min": 0.0,
+        "name": "Stereo Phase",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 50.0,
+        "group": "Output",
+        "hidden": false,
+        "id": 8,
+        "labels": null,
+        "max": 100.0,
+        "min": 0.0,
+        "name": "Mix",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Percent"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Output",
+        "hidden": false,
+        "id": 9,
+        "labels": null,
+        "max": 24.0,
+        "min": -24.0,
+        "name": "Output",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Decibels"
+      }
+    ],
+    "sidechain_inputs": 0
+  },
+  "Tremolo": {
+    "audio_inputs": 2,
+    "audio_outputs": 2,
+    "category": "AudioEffect",
+    "device_type": {
+      "device": "Tremolo",
+      "type": "Builtin"
+    },
+    "midi_input": false,
+    "name": "Tremolo",
+    "params": [
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Tremolo",
+        "hidden": false,
+        "id": 0,
+        "labels": [
+          "Tremolo",
+          "Auto-Pan"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Mode",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Tremolo",
+        "hidden": false,
+        "id": 1,
+        "labels": [
+          "Sine",
+          "Triangle",
+          "Square",
+          "Saw Up",
+          "Saw Down"
+        ],
+        "max": 4.0,
+        "min": 0.0,
+        "name": "Shape",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 4.0,
+        "group": "Tremolo",
+        "hidden": false,
+        "id": 2,
+        "labels": null,
+        "max": 40.0,
+        "min": 0.1,
+        "name": "Rate",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Hertz"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Tremolo",
+        "hidden": false,
+        "id": 3,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Sync",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      },
+      {
+        "automatable": true,
+        "default": 6.0,
+        "group": "Tremolo",
+        "hidden": false,
+        "id": 4,
+        "labels": [
+          "1/64",
+          "1/32T",
+          "1/32",
+          "1/16T",
+          "1/16",
+          "1/8T",
+          "1/8",
+          "1/4T",
+          "1/4",
+          "1/2",
+          "1 bar",
+          "2 bars",
+          "4 bars",
+          "8 bars"
+        ],
+        "max": 13.0,
+        "min": 0.0,
+        "name": "Sync Rate",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 50.0,
+        "group": "Tremolo",
+        "hidden": false,
+        "id": 5,
+        "labels": null,
+        "max": 100.0,
+        "min": 0.0,
+        "name": "Depth",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Percent"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Tremolo",
+        "hidden": false,
+        "id": 6,
+        "labels": null,
+        "max": 180.0,
+        "min": 0.0,
+        "name": "Stereo Phase",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Output",
+        "hidden": false,
+        "id": 7,
+        "labels": null,
+        "max": 24.0,
+        "min": -24.0,
+        "name": "Output",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Decibels"
+      }
+    ],
+    "sidechain_inputs": 0
+  }
+}

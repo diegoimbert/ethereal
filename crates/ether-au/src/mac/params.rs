@@ -131,6 +131,7 @@ fn info(p: &AUParameter, id: u32, default: f64) -> ParamInfo {
     let writable = flags.contains(AudioUnitParameterOptions::Flag_IsWritable);
     let meter = flags.contains(AudioUnitParameterOptions::Flag_MeterReadOnly);
     ParamInfo {
+        step: None,
         id: ParamId(id),
         name,
         group: None,

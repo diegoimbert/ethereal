@@ -24,6 +24,7 @@ fn default_name(kind: TrackKind, n: usize) -> String {
             format!("{letter} Return")
         }
         TrackKind::Master => "Master".into(),
+        TrackKind::Vca => format!("{n} VCA"),
     }
 }
 
@@ -139,6 +140,8 @@ pub(super) fn apply(ctx: &mut DocCtx, c: &TrackCommand) -> CmdResult<()> {
             let same_kind = ctx.p().tracks.values().filter(|t| t.kind == *kind).count();
             let n_tracks = ctx.p().tracks.len();
             let track = Track {
+                freeze: None,
+                vca: Default::default(),
                 id: *id,
                 kind: *kind,
                 name: name
@@ -181,6 +184,10 @@ pub(super) fn apply(ctx: &mut DocCtx, c: &TrackCommand) -> CmdResult<()> {
             ctx.track(*id)?;
             ctx.set_track(*id, TrackChange::Name(name.clone()))
         }
+        // v0.2 (`groups-buses`).
+        TrackCommand::GroupSelected { .. }
+        | TrackCommand::Ungroup { .. }
+        | TrackCommand::SetVca { .. } => crate::groups::track_command(ctx, c),
         TrackCommand::SetColor { id, color } => {
             ctx.track(*id)?;
             ctx.set_track(*id, TrackChange::Color(*color))

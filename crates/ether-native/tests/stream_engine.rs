@@ -20,6 +20,11 @@ const BLOCK: usize = 480;
 
 fn master() -> TrackDesc {
     TrackDesc {
+        modulation: Default::default(),
+        vca: Default::default(),
+        chain_racks: Default::default(),
+        frozen: Default::default(),
+        input_tap: Default::default(),
         id: TrackId(Ulid(1)),
         kind: TrackKind::Master,
         chain: vec![],
