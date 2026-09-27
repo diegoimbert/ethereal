@@ -47,4 +47,27 @@ describe("App shell", () => {
     fireEvent.click(screen.getByRole("tab", { name: "Plugins" }));
     expect(container.querySelector('[data-feature="plugins"]')).not.toBeNull();
   });
+
+  it("resizes the sidebar and the detail view with the splitters", () => {
+    const { container } = render(<App />);
+    const shell = container.firstElementChild as HTMLElement;
+    const sidebar = screen.getByRole("separator", { name: "Resize sidebar" });
+    fireEvent.pointerDown(sidebar, { button: 0, clientX: 220 });
+    fireEvent.pointerMove(window, { clientX: 300 });
+    fireEvent.pointerUp(window);
+    expect(shell.style.getPropertyValue("--eth-sidebar-width")).toBe("300px");
+    fireEvent.pointerDown(sidebar, { button: 0, clientX: 300 });
+    fireEvent.pointerMove(window, { clientX: 0 });
+    fireEvent.pointerUp(window);
+    expect(shell.style.getPropertyValue("--eth-sidebar-width")).toBe("140px");
+
+    const detail = screen.getByRole("separator", { name: "Resize detail view" });
+    fireEvent.pointerDown(detail, { button: 0, clientY: 400 });
+    fireEvent.pointerMove(window, { clientY: 350 });
+    fireEvent.pointerUp(window);
+    expect(shell.style.getPropertyValue("--eth-detail-height")).toBe("330px");
+    fireEvent.doubleClick(detail);
+    expect(shell.style.getPropertyValue("--eth-detail-height")).toBe("280px");
+    localStorage.clear();
+  });
 });

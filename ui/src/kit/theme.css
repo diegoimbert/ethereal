@@ -38,7 +38,8 @@
   --eth-fs-md: 12px;
   --eth-fs-lg: 14px;
 
-  --eth-font-ui: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  /* Inter Variable is bundled (kit/index.ts imports it), so it works offline. */
+  --eth-font-ui: 'Inter Variable', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   --eth-font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
 
   --eth-track-0: #ff94a6;
@@ -79,9 +80,36 @@ body {
   color: var(--eth-color-text);
   font-family: var(--eth-font-ui);
   font-size: var(--eth-fs-md);
+  /* Between regular and medium: 400 looks thin on dark backgrounds at small sizes. */
+  font-weight: 450;
+  /* Inter: single-storey-looking alternates (cv11); numbers don't jitter as they change. */
+  font-feature-settings: "cv11";
+  font-variant-numeric: tabular-nums;
   -webkit-font-smoothing: antialiased;
-  user-select: none;
   overflow: hidden;
+}
+
+/* Desktop-app feel: nothing is text-selectable or drag-ghostable except text fields.
+   WebKit (Tauri on macOS) only honours the prefixed property. */
+*,
+*::before,
+*::after {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+img,
+svg,
+a {
+  -webkit-user-drag: none;
+}
+
+input,
+textarea,
+[contenteditable]:not([contenteditable="false"]) {
+  -webkit-user-select: text;
+  user-select: text;
 }
 
 button,

@@ -3,7 +3,8 @@
  * (`useEditedClipId()` from `@/state`). The time axis is the clip's content timeline.
  *
  * - Keyboard gutter (click a key: select its notes), note grid, velocity lane.
- * - Draw: double-click empty space, or drag in draw mode (B). Move: drag a note body
+ * - Draw: double-click empty space (keep holding and drag to set the length), or drag in
+ *   draw mode (B). Move: drag a note body
  *   (vertical = pitch). Resize: drag either edge. Delete: double-click a note, or
  *   Delete/Backspace. Alt bypasses snapping. Every drag is one undo gesture.
  * - Selection: click / shift / cmd-ctrl, marquee on empty space, cmd-A.
@@ -22,6 +23,7 @@ import {
   resolveGrid,
   Ruler,
   stepLength,
+  useMiddleButtonPan,
   useSelectedItems,
   useTempoMap,
   useTimelineView,
@@ -33,11 +35,12 @@ import {
 import { cmd, newId, useTransport } from "@/transport";
 import { clipTempoMap, contentEnd, contentToSong, songToContent } from "./clipTime";
 import { useSend } from "./drag";
-import { DEFAULT_KEY_HEIGHT, KEYBOARD_WIDTH, pitchToY } from "./geometry";
+import { KEYBOARD_WIDTH, pitchToY } from "./geometry";
 import { Keyboard } from "./Keyboard";
 import { NoteGrid } from "./NoteGrid";
 import { nudgeEdits, quantizeCommand } from "./noteEdits";
 import { GRID_OPTIONS } from "./gridOptions";
+import { useKeyHeightZoom } from "./useKeyHeightZoom";
 import { VelocityLane } from "./VelocityLane";
 import "./pianoRoll.css";
 
@@ -82,7 +85,6 @@ export function PianoRollEditor({ clip, view: injectedView }: PianoRollEditorPro
   const [gridIndex, setGridIndex] = useState(1);
   const [triplet, setTriplet] = useState(false);
   const [drawMode, setDrawMode] = useState(false);
-  const keyH = DEFAULT_KEY_HEIGHT;
 
   const grid: GridSetting = useMemo(() => {
     const g = GRID_OPTIONS[gridIndex]!.setting;
@@ -94,8 +96,11 @@ export function PianoRollEditor({ clip, view: injectedView }: PianoRollEditorPro
   const rootRef = useRef<HTMLDivElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
   const laneRef = useRef<HTMLDivElement>(null);
-  useTimelineWheel(bodyRef, view);
+  const [keyH, onVerticalZoom] = useKeyHeightZoom(bodyRef);
+  useTimelineWheel(bodyRef, view, { smoothScrollY: true, onVerticalZoom });
   useTimelineWheel(laneRef, view);
+  useMiddleButtonPan(bodyRef, view);
+  useMiddleButtonPan(laneRef, view);
 
   // Fit the clip horizontally and center its notes vertically when it opens.
   const fitted = useRef(false);

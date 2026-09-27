@@ -5,6 +5,8 @@ import type { Beats, Clip, Color, MediaRef, WarpMarker } from "@/generated";
 import { colorCss } from "./helpers";
 import { useEditorStore, useNotesOfClip, useProjectStore, warpMarkersOfClip } from "@/state";
 import { useIsSelected, type TempoMap, type TimelineViewport } from "@/timeline";
+import { openContextMenu } from "@/kit";
+import { clipMenu } from "./actions";
 import { onClipPointerDown } from "./clipDrag";
 import { drawNotes, drawWaveform, noteRects, pitchRange, type DrawArea } from "./clipDraw";
 import { contentSegments, sourceSecondsMapper } from "./clipTime";
@@ -55,6 +57,7 @@ export const ClipView = memo(function ClipView({ clip, bounds, trackColor, vp, v
       aria-label={ghost ? undefined : clip.name || "Clip"}
       aria-pressed={ghost ? undefined : selected}
       onPointerDown={ghost ? undefined : (e) => onClipPointerDown(e, clip, ctx)}
+      onContextMenu={ghost ? undefined : (e) => openContextMenu(e, clipMenu(ctx.transport, clip))}
       onDoubleClick={
         ghost
           ? undefined

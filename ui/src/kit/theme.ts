@@ -50,7 +50,7 @@ export const fontSize = {
 } as const;
 
 export const font = {
-  ui: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
+  ui: "'Inter Variable', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
   mono: "ui-monospace, 'SF Mono', Menlo, Consolas, monospace",
 } as const;
 

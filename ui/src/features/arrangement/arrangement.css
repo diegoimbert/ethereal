@@ -171,6 +171,24 @@
   flex: none;
 }
 
+/* Lane resize grip: along the bottom edge of the track header only. */
+.eth-arr-row__resize {
+  position: absolute;
+  left: 0;
+  height: 6px;
+  z-index: 6;
+  cursor: ns-resize;
+}
+
+.eth-arr-row__resize:hover {
+  background: color-mix(in srgb, var(--eth-color-selection) 40%, transparent);
+}
+
+body.eth-resizing-rows,
+body.eth-resizing-rows * {
+  cursor: ns-resize !important;
+}
+
 .eth-arr-row__automation {
   flex: 1;
 }

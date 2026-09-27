@@ -7,13 +7,14 @@
  * - Snapping follows the arrangement grid; hold alt/option to bypass it.
  * - Cmd/ctrl held on release copies instead of moving.
  * - A plain click on an already selected clip selects only it; shift adds; cmd/ctrl toggles.
+ * - While stopped, pressing a clip moves the playhead to its start.
  */
 
 import type { PointerEvent as ReactPointerEvent } from "react";
 import type { Beats, Clip, MediaRef } from "@/generated";
-import { useProjectStore, useSelectionStore, warpMarkersOfClip } from "@/state";
+import { playheadStore, useProjectStore, useSelectionStore, warpMarkersOfClip } from "@/state";
 import { itemSelection, resolveGrid, selectModeFromEvent, snapToGrid, TempoMap } from "@/timeline";
-import { newId } from "@/transport";
+import { cmd, newId } from "@/transport";
 import { isArrangementClip, mediaLengthInBeats, sourceSecondsMapper, startOf } from "./clipTime";
 import { sendEdit, type ArrangementContextValue } from "./context";
 import { boundsCommand, dragPreview, moveCommand, type DragMode } from "./editMath";
@@ -46,6 +47,9 @@ export function onClipPointerDown(e: ReactPointerEvent<HTMLElement>, clip: Clip,
   const selectMode = selectModeFromEvent(e);
   if (!wasSelected) sel.select("clip", [clip.id], selectMode === "replace" ? "replace" : "add");
   useSelectionStore.getState().selectTrack(clip.track);
+  if (!playheadStore.getPlayhead()?.transport.playing) {
+    ctx.transport.send(cmd("Transport", { type: "Locate", position: startOf(clip) })).catch(() => {});
+  }
 
   const project = useProjectStore.getState().project;
   if (!project) return;

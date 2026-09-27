@@ -3,11 +3,13 @@
  * marquee. Draw / move / resize notes; every drag is one undo gesture.
  */
 
-import { memo, useMemo, useRef, type PointerEvent as ReactPointerEvent } from "react";
+import { memo, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import clsx from "clsx";
 import type { Clip, Note, NoteId } from "@/generated";
+import { openContextMenu } from "@/kit";
 import {
   beatsToPx,
+  createDoublePress,
   gridLines,
   itemSelection,
   marqueeHits,
@@ -102,17 +104,17 @@ export function NoteGrid({ clip, notes, view, vp, widthPx, keyH, tempo, step, ne
     );
   };
 
+  const [isDoublePress] = useState(createDoublePress);
+
   const onBackgroundPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
-    if (drawMode && e.button === 0) {
+    // Draw mode: every press inserts. Otherwise the second press of a double-click on empty
+    // space inserts, and dragging before releasing sets the new note's length.
+    const insert = e.button === 0 && (drawMode || (e.target === e.currentTarget && isDoublePress(e)));
+    if (insert) {
       addNoteAt(e, true);
       return;
     }
     marquee.onPointerDown(e);
-  };
-
-  const onBackgroundDoubleClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (drawMode || e.target !== e.currentTarget) return;
-    addNoteAt(e, false);
   };
 
   const onNotePointerDown = (e: ReactPointerEvent<HTMLDivElement>, note: Note) => {
@@ -158,6 +160,23 @@ export function NoteGrid({ clip, notes, view, vp, widthPx, keyH, tempo, step, ne
     void send(cmd("Note", { type: "Remove", ids: [id] }));
   };
 
+  const onNoteContextMenu = (e: React.MouseEvent, id: NoteId) => {
+    const sel = itemSelection.getState();
+    if (!sel.selected.note.has(id)) sel.select("note", [id], "replace");
+    const ids = [...itemSelection.getState().selected.note].filter((n) => notes.some((x) => x.id === n));
+    openContextMenu(e, [
+      {
+        label: ids.length > 1 ? `Delete ${ids.length} Notes` : "Delete Note",
+        shortcut: "⌫",
+        danger: true,
+        onSelect: () => {
+          itemSelection.getState().select("note", ids, "remove");
+          void send(cmd("Note", { type: "Remove", ids }));
+        },
+      },
+    ]);
+  };
+
   // Playable region of the clip on its content axis.
   const regionStart = clip.looping.enabled ? clip.looping.start : clip.offset;
   const regionEnd = contentEnd(clip);
@@ -171,7 +190,6 @@ export function NoteGrid({ clip, notes, view, vp, widthPx, keyH, tempo, step, ne
       style={{ height }}
       data-testid="piano-roll-grid"
       onPointerDown={onBackgroundPointerDown}
-      onDoubleClick={onBackgroundDoubleClick}
     >
       <Rows keyH={keyH} />
       {lines.map((l) => {
@@ -181,7 +199,7 @@ export function NoteGrid({ clip, notes, view, vp, widthPx, keyH, tempo, step, ne
       <div className="eth-pr-grid__outside" style={{ left: 0, width: Math.max(0, xStart) }} />
       <div className="eth-pr-grid__outside" style={{ left: Math.max(0, xEnd), right: 0 }} data-testid="piano-roll-clip-end" />
       {visible.map((n) => (
-        <NoteView key={n.id} note={n} vp={vp} keyH={keyH} onPointerDown={onNotePointerDown} onDoubleClick={onNoteDoubleClick} />
+        <NoteView key={n.id} note={n} vp={vp} keyH={keyH} onPointerDown={onNotePointerDown} onDoubleClick={onNoteDoubleClick} onContextMenu={onNoteContextMenu} />
       ))}
       {marquee.rect && (
         <div
@@ -223,9 +241,10 @@ interface NoteViewProps {
   keyH: number;
   onPointerDown: (e: ReactPointerEvent<HTMLDivElement>, note: Note) => void;
   onDoubleClick: (e: React.MouseEvent, id: NoteId) => void;
+  onContextMenu: (e: React.MouseEvent, id: NoteId) => void;
 }
 
-function NoteView({ note, vp, keyH, onPointerDown, onDoubleClick }: NoteViewProps) {
+function NoteView({ note, vp, keyH, onPointerDown, onDoubleClick, onContextMenu }: NoteViewProps) {
   const selected = useIsSelected("note", note.id);
   const r = noteRect(note, vp, keyH);
   return (
@@ -243,6 +262,7 @@ function NoteView({ note, vp, keyH, onPointerDown, onDoubleClick }: NoteViewProp
       }}
       onPointerDown={(e) => onPointerDown(e, note)}
       onDoubleClick={(e) => onDoubleClick(e, note.id)}
+      onContextMenu={(e) => onContextMenu(e, note.id)}
     />
   );
 }

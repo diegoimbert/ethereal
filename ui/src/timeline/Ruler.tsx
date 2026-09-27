@@ -3,8 +3,8 @@
  * marker, driven by a `TimelineViewStore`.
  *
  * Interactions (Ableton-like):
- * - click: locate the playhead (snapped to the grid; alt/option bypasses snapping);
- * - drag: horizontal scrolls, vertical zooms around the press point (down = zoom in);
+ * - press: locate the playhead there; drag: the playhead follows the pointer (both snapped
+ *   to the grid; alt/option bypasses snapping). The view itself never moves;
  * - loop brace: drag the body to move it, the edges to resize (snapped); double-click
  *   toggles the loop; shift-drag on the ruler draws a new loop region;
  * - cmd/ctrl + wheel zooms, horizontal wheel scrolls (`useTimelineWheel`).
@@ -159,7 +159,6 @@ export function Ruler({
   const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
     if (e.button !== 0) return;
     const startX = localX(e);
-    const startY = e.clientY;
     const startBeats = pxToBeats(startX, view.getState());
 
     if (e.shiftKey && showLoop) {
@@ -182,28 +181,19 @@ export function Ruler({
       return;
     }
 
-    let lastX = startX;
-    let lastY = startY;
-    let dragged = false;
+    // Locate on press, then scrub: the playhead follows the pointer until release.
+    let located: Beats | null = null;
+    const locate = (x: number, bypass: boolean) => {
+      const beats = Math.max(0, snap(pxToBeats(x, view.getState()), bypass));
+      if (beats === located) return;
+      located = beats;
+      if (onLocate) onLocate(beats);
+      else send(cmd("Transport", { type: "Locate", position: beats }));
+    };
+    locate(startX, e.altKey);
     track(
-      (ev) => {
-        const x = localX(ev);
-        if (!dragged && Math.hypot(x - startX, ev.clientY - startY) < 3) return;
-        dragged = true;
-        const s = view.getState();
-        const dy = ev.clientY - lastY;
-        if (dy !== 0) s.zoomBy(Math.exp(dy * 0.01), startX);
-        const dx = x - lastX;
-        if (dx !== 0) s.scrollByPx(-dx);
-        lastX = x;
-        lastY = ev.clientY;
-      },
-      (ev) => {
-        if (dragged) return;
-        const beats = Math.max(0, snap(startBeats, ev.altKey));
-        if (onLocate) onLocate(beats);
-        else send(cmd("Transport", { type: "Locate", position: beats }));
-      },
+      (ev) => locate(localX(ev), ev.altKey),
+      () => {},
     );
   };
 
