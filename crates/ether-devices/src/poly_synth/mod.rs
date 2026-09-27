@@ -3,6 +3,8 @@
 //!
 //! The polyphonic synth: 2 oscillators (virtual-analog shapes + wavetable position), sub, noise, multimode filter with drive, amp/filter/mod envelopes, 2 LFOs, unison, glide, voice modes.
 //!
+//! Wavetables: `Type = Wavetable` plays table `OSC*_TABLE` (a small built-in set shipped with the device, one entry per `Table` label, e.g. 64 frames x 2048 samples each, generated or embedded under `poly_synth/tables/`, band-limited per octave; `Position` morphs through its frames). User wavetables come later (append a kind-data field then).
+//!
 //! Every device here starts as a [`Placeholder`] (pass-through / silent / MIDI-thru) with its
 //! final descriptor. **Param ids are stable and append-only** (documents, automation and
 //! presets store them): never renumber, only append. Split this module into files as you like.
@@ -70,6 +72,8 @@
 //! | 56 | LFO 2 | `Amount` | -100 ..= 100 Percent, default 0 |
 //! | 57 | Output | `Volume` | -70 ..= 6 dB (fader), default -6 |
 //! | 58 | Output | `Velocity` | 0 ..= 100 Percent, default 50 |
+//! | 59 | Osc 1 | `Table` | Basic Shapes / Harmonic Sweep / PWM / Formant / Digital / Organ / Vocal / Metallic (default Basic Shapes) |
+//! | 60 | Osc 2 | `Table` | Basic Shapes / Harmonic Sweep / PWM / Formant / Digital / Organ / Vocal / Metallic (default Basic Shapes) |
 
 use ether_core::Device;
 use ether_core::protocol::devices::{DeviceCategory, DeviceDescriptor, ParamScale, ParamUnit};
@@ -144,8 +148,10 @@ pub mod poly_synth {
     pub const LFO2_AMOUNT: ParamId = ParamId(56);
     pub const VOLUME: ParamId = ParamId(57);
     pub const VELOCITY: ParamId = ParamId(58);
+    pub const OSC1_TABLE: ParamId = ParamId(59);
+    pub const OSC2_TABLE: ParamId = ParamId(60);
     /// Number of params.
-    pub const COUNT: usize = 59;
+    pub const COUNT: usize = 61;
 }
 
 /// Descriptor of a type of this group.
@@ -560,6 +566,38 @@ pub fn descriptor(ty: BuiltinDeviceType) -> DeviceDescriptor {
                     ParamUnit::Percent,
                     (0.0, 100.0, 50.0),
                     ParamScale::Linear,
+                ),
+                choice(
+                    59,
+                    "Table",
+                    "Osc 1",
+                    &[
+                        "Basic Shapes",
+                        "Harmonic Sweep",
+                        "PWM",
+                        "Formant",
+                        "Digital",
+                        "Organ",
+                        "Vocal",
+                        "Metallic",
+                    ],
+                    0,
+                ),
+                choice(
+                    60,
+                    "Table",
+                    "Osc 2",
+                    &[
+                        "Basic Shapes",
+                        "Harmonic Sweep",
+                        "PWM",
+                        "Formant",
+                        "Digital",
+                        "Organ",
+                        "Vocal",
+                        "Metallic",
+                    ],
+                    0,
                 ),
             ],
             0,

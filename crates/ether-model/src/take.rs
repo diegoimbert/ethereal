@@ -36,7 +36,11 @@
 //! # Recording
 //! Loop recording with takes on creates one lane per loop pass (the pass's clip goes on its
 //! lane) and a comp region spanning the pass range that selects the newest lane. Punch
-//! recording creates one lane per punch pass the same way.
+//! recording creates one lane per punch pass the same way. When a pass records over
+//! existing main-lane clips of the track, the parts of those clips inside the recorded range
+//! move onto a new lane that becomes the **first take** (clips crossing the range edges are
+//! split, the outside parts stay on the main lane), so only the comp sounds there; all of it
+//! is one undo step with the recording.
 //!
 //! Deleting a track cascades its regions, then its lane clips, then its lanes (the
 //! controller emits the removals, children first).

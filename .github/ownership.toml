@@ -757,6 +757,9 @@ paths = [
   "crates/ether-native/tests/groups*.rs",
   "apps/web/e2e/groups*.spec.ts",
   "crates/ether-controller/tests/roadmap_v3.rs",
+  # acceptance: move your TrackDesc fields out of the codec JSON blob (bump VERSION)
+  "crates/ether-core/src/codec.rs",
+  "crates/ether-core/tests/codec*.rs",
   # shared touch: solo/mute compile rules (graph.rs `solo_ok` block and update_gates only)
   "crates/ether-core/src/graph.rs",
   # shared touch: recording from an input tap (record the aligned tap signal)
@@ -948,6 +951,9 @@ paths = [
   "crates/ether-devices/tests/racks*.rs",
   "apps/web/e2e/{racks,modulation}*.spec.ts",
   "crates/ether-controller/tests/roadmap_v3.rs",
+  # acceptance: move your TrackDesc fields out of the codec JSON blob (bump VERSION)
+  "crates/ether-core/src/codec.rs",
+  "crates/ether-core/tests/codec*.rs",
   # shared touch: live modulator params (ParamTarget::Modulator) and depth drags
   "crates/ether-controller/src/doc/devices.rs",
   # shared touch: ignore plugin ParamEdited echoes of modulated values
@@ -1063,8 +1069,6 @@ paths = [
   "crates/ether-controller/src/project.rs",
   # shared touch: Library::{external_path, read_external} natively
   "crates/ether-native/src/store.rs",
-  # shared touch (collab/mod.rs media-transfer lines only): peers fetch media by hash
-  "crates/ether-controller/src/collab/mod.rs",
   # shared touch: the mock's import (MediaLocation) and library
   "ui/src/transport/mock/MockTransport.ts",
   "ui/src/transport/mock/library.ts",
@@ -1094,4 +1098,19 @@ paths = [
   "crates/ether-sandbox/src/host.rs",
   # shared touch: plugin catalog (PluginDescriptor::sidechain_inputs)
   "crates/ether-plugin-host/src/**",
+]
+
+[nodes.graphical-eq]
+# Priority 2, after device-ui. The EqCurve widget + the EQ's pre/post spectrum (CONTRACTS §12.15).
+paths = [
+  "ui/src/features/devices/layout/eq/**",
+  "apps/web/e2e/graphical-eq*.spec.ts",
+  "crates/ether-devices/tests/eq_analysis*.rs",
+  # shared touch: the EQ's analysis producer (Node::{has_analysis, analysis}, pre/post spectrum)
+  "crates/ether-devices/src/eq.rs",
+  # shared touch: register the widget in the shared renderer (one line + the EqCurve case)
+  "ui/src/features/devices/layout/index.ts",
+  "ui/src/features/devices/layout/Widget.tsx",
+  # shared touch: regenerate the EQ mock descriptor if the layout changes
+  "ui/src/transport/mock/devices/eq.json",
 ]

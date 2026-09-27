@@ -117,6 +117,11 @@ fn mock_descriptors_match_rust() {
     // Every v0.2 type belongs to exactly one group (the 9 earlier ones are in
     // `builtinDevices.ts`).
     assert_eq!(covered, BuiltinDeviceType::ALL.len() - 9);
+    // The EQ (devices-2) carries the v0.2 `EqCurve` layout (graphical-eq): generated too.
+    check_file(
+        "eq",
+        &serde_json::to_value(ether_devices::descriptor(BuiltinDeviceType::Eq)).unwrap(),
+    );
     check_file(
         "modulators",
         &serde_json::to_value(ether_devices::modulators::all()).unwrap(),

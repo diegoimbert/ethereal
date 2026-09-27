@@ -732,7 +732,9 @@ half-open ranges). `arrangement_clips_of` lists main-lane clips only.
   `split_id`) or removed; adjacent same-lane regions are not merged. `ClearComp`,
   `SetCrossfade`, `Flatten` (bake the comp into main-lane clips, ids from the seeds).
 - Recording: each loop/punch pass becomes a lane with its clip and a region spanning the pass
-  that selects the newest lane.
+  that selects the newest lane. A pass over existing main-lane clips first moves their parts
+  inside the recorded range onto a new lane, the **first take** (edge-crossing clips are split),
+  so only the comp sounds there; one undo step with the recording.
 
 ### 12.3 Freeze, flatten, bounce, consolidate, time edits (`freeze-bounce`, `time-edits`)
 - `Track::freeze: Some(TrackFreeze { media, start })`: the track plays its render (post-chain,
@@ -768,7 +770,9 @@ half-open ranges). `arrangement_clips_of` lists main-lane clips only.
 `MultibandCompressor`, `TransientShaper` (fx-dynamics), `SpectrumAnalyzer`, `Tuner`
 (fx-analysis), `Arpeggiator`, `Chord`, `ScaleQuantize`, `NoteLength`, `Velocity`,
 `Randomizer` (midi-fx), `InstrumentRack`, `AudioEffectRack`, `MidiEffectRack`
-(racks-modulation). Devices with a detector take a sidechain (`sidechain_inputs = 2`,
+(racks-modulation). The poly synth's `Wavetable` oscillator type plays a table chosen by
+`OSC1_TABLE`/`OSC2_TABLE` from a small built-in set shipped with the device
+(`poly_synth/tables/`; user wavetables later, as appended kind data). Devices with a detector take a sidechain (`sidechain_inputs = 2`,
 keyed in `Node::process_sidechain` like the compressor/limiter): `Gate`,
 `MultibandCompressor` (the key drives all bands), `AutoFilter` (envelope follower). Each group
 module in `ether-devices` (`poly_synth`, `multisampler`,
@@ -789,10 +793,14 @@ Small/Medium/Large, `colspan`, `label`). Widget catalog (append-only, BCR to ext
 widgets `Knob`, `Slider`, `Toggle`, `Choice`, `Number`; typed widgets `Envelope`,
 `FilterCurve`, `TransferCurve`, `Oscillator`, `Lfo`, `StepEditor`, `XyPad`, `Crossover`;
 data widgets `SampleWaveform`, `ZoneMap`, `Spectrum`, `Tuner`, `Meter`, `RackChains`,
-`Macros`. **One shared renderer** (`ui/src/features/devices/layout/`, kit components and
+`Macros`, and `EqCurve` (§12.15). **One shared renderer** (`ui/src/features/devices/layout/`, kit components and
 tokens only) renders every built-in; devices without a layout (plugins, v0.1 devices until
 they add one) get the generic layout grouped by `ParamInfo::group`. Device nodes write
-specs and widget data only, never bespoke panels. The renderer adds MIDI-learn targets
+specs and widget data only, never bespoke panels. `ModulatorDescriptor::layout` uses the same
+catalog (the Steps editor is `StepEditor`). A shared validator
+(`ether-devices/tests/layouts.rs`) checks every built-in and modulator layout: referenced
+params exist (typed widgets included), `colspan <= columns`, spans/columns in range, unique
+section ids, one `EqCurve` shape per `kind` label. The renderer adds MIDI-learn targets
 (`midiTarget()`), modulation drop targets and depth rings to every param widget.
 
 #### 12.4.3 Analysis channel (implemented)
@@ -926,6 +934,8 @@ automatically, else `Candidates`), `Relink { media, source }` (undoable; hash up
 warning when content differs), `CollectAll` (copy every external reference into `media/`,
 switch to `Project`, save). Collab/remote: peers receive media by hash and store it at
 `MediaRef::file` in their own project (the document is shared; availability is per site).
+The collab push by hash (`collab/mod.rs`) belongs to `file-import` (§12.13), including
+external-path media; `media-references` doesn't touch it.
 Migration: v0.1 media are `Project`; nothing moves.
 
 ### 12.10 Groups, buses, input taps, VCAs (`groups-buses`, priority 1)
@@ -1014,3 +1024,25 @@ latency-aligned sidechain buffers (base-24, §11.10) through `Node::process_side
   max_block` floats after the main inputs) and the shm `VERSION` is bumped (3); the helper
   forwards them to the plugin the same way.
 - Offline renders (export, freeze, bounce) route sidechains like live playback.
+
+### 12.15 Graphical EQ (`graphical-eq`, priority 2)
+- Widget `EqCurve { bands: [EqBandBinding { on?, kind?, shapes, freq, gain?, q? }], crossovers,
+  spectrum: None | Post | PrePost }` (§12.4.2 catalog). It draws the combined magnitude
+  response of the bands (the sum of each enabled band's dB) on a log-frequency (20 Hz–20 kHz) /
+  dB grid, with one handle per band: drag = freq (x) + gain (y; x only without `gain`), wheel or
+  Alt-drag = Q, double-click = toggle `on`, context menu = `kind` (labels of the kind param,
+  `shapes[i]` per value). `crossovers` are vertical handles (drag = frequency). Each drag is
+  one gesture (one undo step). Canvas colours come from tokens (`readToken`).
+- Response math is shared: `ether_protocol::eq_response::{EqShape, svf_coefs, svf_magnitude,
+  magnitude_db}`, exactly the EQ's TPT SVF (`y = m0·x + m1·band + m2·low`, magnitude at
+  `s = j·tan(π·f/fs)/g`; `*24` shapes squared). The UI mirror
+  (`ui/src/features/devices/layout/eq/eqResponse.ts`) must match
+  `crates/ether-protocol/tests/fixtures/eq_response_vectors.json` within 1e-6 dB (regenerate
+  with `UPDATE_EQ_VECTORS=1 cargo test -p ether-protocol --test eq_response`). The widget uses
+  the engine sample rate when known (`EngineStatus`), else 48 kHz.
+- The EQ ships the layout (`eq::layout`: the curve over 8 bands with `PrePost` spectrum, then
+  the band controls). It publishes `AnalysisKind::SpectrumPre` (input) and `Spectrum` (output)
+  frames while watched (≤ 30 Hz, RT-safe: accumulate in `process`, copy in `analysis`); they
+  arrive as `AnalysisData::Spectrum { stage: Pre | Post }`.
+- The auto filter (fx-color: one band, `kind` = its filter type) and the multiband compressor
+  (fx-dynamics: `crossovers`) use the same widget.

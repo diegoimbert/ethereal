@@ -158,7 +158,7 @@ pub fn param_infos() -> Vec<ParamInfo> {
 /// Descriptor of the `Eq` type.
 pub fn descriptor() -> DeviceDescriptor {
     DeviceDescriptor {
-        layout: None,
+        layout: Some(layout()),
         device_type: DeviceTypeRef::Builtin {
             device: BuiltinDeviceType::Eq,
         },
@@ -170,6 +170,69 @@ pub fn descriptor() -> DeviceDescriptor {
         midi_input: false,
         sidechain_inputs: 0,
     }
+}
+
+/// Declarative panel (v0.2, `graphical-eq`): the interactive curve over all bands with a
+/// pre/post spectrum, then each band's controls and the output.
+pub fn layout() -> ether_core::protocol::layout::DeviceLayout {
+    use crate::contract::{item, knob, layout, section};
+    use ether_core::protocol::eq_response::EqShape;
+    use ether_core::protocol::layout::{EqBandBinding, SpectrumOverlay, Widget, WidgetSize};
+    const SHAPES: [EqShape; 6] = [
+        EqShape::LowCut,
+        EqShape::LowShelf,
+        EqShape::Bell,
+        EqShape::Notch,
+        EqShape::HighShelf,
+        EqShape::HighCut,
+    ];
+    let bands = (0..BANDS)
+        .map(|b| EqBandBinding {
+            on: Some(params::band(b, params::ON)),
+            kind: Some(params::band(b, params::TYPE)),
+            shapes: SHAPES.to_vec(),
+            freq: params::band(b, params::FREQ),
+            gain: Some(params::band(b, params::GAIN)),
+            q: Some(params::band(b, params::Q)),
+        })
+        .collect();
+    let mut curve = item(
+        Widget::EqCurve {
+            bands,
+            crossovers: vec![],
+            spectrum: SpectrumOverlay::PrePost,
+        },
+        WidgetSize::Large,
+    );
+    curve.colspan = 8;
+    let mut controls = Vec::new();
+    for offset in [
+        params::ON,
+        params::TYPE,
+        params::FREQ,
+        params::GAIN,
+        params::Q,
+    ] {
+        for b in 0..BANDS {
+            let p = params::band(b, offset);
+            controls.push(match offset {
+                params::ON => item(Widget::Toggle { param: p }, WidgetSize::Small),
+                params::TYPE => item(Widget::Choice { param: p }, WidgetSize::Small),
+                _ => knob(p, WidgetSize::Small),
+            });
+        }
+    }
+    layout(vec![
+        section("curve", None, 4, 8, vec![curve]),
+        section("bands", Some("Bands"), 4, 8, controls),
+        section(
+            "output",
+            Some("Output"),
+            1,
+            1,
+            vec![knob(params::OUTPUT, WidgetSize::Medium)],
+        ),
+    ])
 }
 
 /// Non-RT. A new instance with default params.

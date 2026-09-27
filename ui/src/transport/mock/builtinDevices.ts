@@ -7,7 +7,7 @@
  */
 
 import type { BuiltinDevice, BuiltinDeviceType, DeviceDescriptor, ParamInfo, ParamScale, ParamUnit } from "@/generated";
-import { V02_DESCRIPTORS } from "./devices";
+import { EQ_DESCRIPTOR, V02_DESCRIPTORS } from "./devices";
 
 function param(
   id: number,
@@ -104,7 +104,8 @@ export const BUILTIN_DESCRIPTORS: Readonly<Record<BuiltinDeviceType, DeviceDescr
     ],
   },
   // Roadmap v2 effects: mirror `ether-devices/src/{eq,reverb,limiter,utility}.rs` exactly.
-  Eq: effect("Eq", "EQ", eqParams()),
+  // Generated from `ether-devices/src/eq.rs` (carries the v0.2 EqCurve layout).
+  Eq: EQ_DESCRIPTOR,
   Reverb: effect("Reverb", "Reverb", [
     param(0, "Pre-Delay", "Reverb", "Milliseconds", 0, 250, 20, { type: "Power", exponent: 2 }),
     param(1, "Size", "Reverb", "Percent", 0, 100, 50),
@@ -156,33 +157,6 @@ function effect(device: BuiltinDeviceType, name: string, params: ParamInfo[]): D
     sidechain_inputs: 0,
     params,
   };
-}
-
-/** EQ: 8 bands x (On, Type, Freq, Gain, Q) at ids 5b..5b+4, then Output (40). */
-function eqParams(): ParamInfo[] {
-  const types = ["Low Cut", "Low Shelf", "Bell", "Notch", "High Shelf", "High Cut"];
-  const bands: [boolean, number, number][] = [
-    [false, 0, 30],
-    [true, 1, 100],
-    [true, 2, 250],
-    [true, 2, 1000],
-    [true, 2, 2500],
-    [true, 2, 6000],
-    [true, 4, 10000],
-    [false, 5, 18000],
-  ];
-  const params = bands.flatMap(([on, type, freq], b) => {
-    const group = `Band ${b + 1}`;
-    const id = 5 * b;
-    return [
-      param(id, "On", group, "Toggle", 0, 1, on ? 1 : 0, undefined, ONOFF),
-      param(id + 1, "Type", group, "None", 0, types.length - 1, type, undefined, types),
-      param(id + 2, "Freq", group, "Hertz", 20, 20000, freq, LOG),
-      param(id + 3, "Gain", group, "Decibels", -24, 24, 0),
-      param(id + 4, "Q", group, "None", 0.1, 18, Math.SQRT1_2, LOG),
-    ];
-  });
-  return [...params, param(40, "Output", "Output", "Decibels", -24, 24, 0)];
 }
 
 /** A fresh `BuiltinDevice` of `type` with default data (mirrors Rust `BuiltinDevice::new`). */

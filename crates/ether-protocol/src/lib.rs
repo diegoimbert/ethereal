@@ -24,6 +24,7 @@ pub mod collab;
 pub mod devices;
 pub mod drum_rack;
 pub mod engine;
+pub mod eq_response;
 pub mod export;
 pub mod freeze;
 pub mod groove;

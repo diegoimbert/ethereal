@@ -436,7 +436,9 @@ Ground rules (as for the roadmap v2 nodes above):
 4. **Descriptor ↔ mock parity.** After any descriptor change run
    `UPDATE_MOCK_DESCRIPTORS=1 cargo test -p ether-devices --test v02_descriptors` and commit
    your JSON (`ui/src/transport/mock/devices/<group>.json`). Never edit it by hand.
-5. **Layout.** Ship a `DeviceLayout` for every device in `descriptor().layout`
+5. **Layout.** Ship a `DeviceLayout` for every device in `descriptor().layout` (checked by
+   `tests/layouts.rs`; the auto filter uses a one-band `EqCurve`, the multiband compressor an
+   `EqCurve` with `crossovers`)
    (`ether_protocol::layout`; builders in `contract::{layout, section, item, knob}`): hero
    controls `Large`, typed widgets where they help (envelopes, filter curve, transfer curve,
    zone map, spectrum/tuner, step editor). Only specs and widget data: no bespoke panels,
@@ -466,6 +468,9 @@ Owns: `crates/ether-core/src/{bus_tap,vca}.rs`, `crates/ether-controller/src/gro
   VCA tracks and fills `TrackDesc::{input_tap, vca}`; deleting a VCA unassigns (done).
 - Engine: implement `bus_tap` (tap buffers, aligned delay, monitoring) and `vca` (gains,
   automation, live fader/mute); ordering/PDC for taps and the gate hook are pre-wired.
+- **Acceptance:** move `TrackDesc::{input_tap, vca}` and `RenderGraphDesc::vcas` out of the
+  codec's JSON blob into the binary layout (`ether-core/src/codec.rs`, shared touch; bump
+  `BinaryCodec::VERSION`, update the fixtures and proptests).
 - Shared touches: `graph.rs` (solo/mute rules only), recording from a tap
   (`ether-core/src/recording/mod.rs`, `ether-controller/src/recording/**`), mixer/inspector
   routing picker, sends, VCA assignment, "new bus from selection", Cmd+G, drag into/out of
@@ -564,7 +569,10 @@ modulation}/**`, mock `roadmap/racksModulation.*` + `devices/{racks,modulators}.
   ordering, tap and the per-job gather are wired; implement `write_sidechain` alignment and
   the command (same validation as `sidechain::set_sidechain`).
 - Controller: `rack_command`, `modulation_command`, `chain_racks_desc`, `modulation_desc`;
-  cascades are done. Shared touches: `doc/devices.rs` (live modulator params),
+  cascades are done.
+- **Acceptance:** move `TrackDesc::{chain_racks, modulation}` out of the codec's JSON blob
+  into the binary layout (`ether-core/src/codec.rs`, shared touch; bump the version, update
+  fixtures and proptests). Shared touches: `doc/devices.rs` (live modulator params),
   `plugins/**` (ignore echoes of modulated values), `DeviceView.tsx` (drop targets, rings).
 
 ## `comping`
@@ -613,8 +621,8 @@ Owns: `crates/ether-controller/src/media_refs/**`, `ui/src/features/media-refs/*
 `roadmap/mediaReferences.*`, tests. Shared touches: import as reference and resolution in
 `ether-controller/src/media/**`, `handlers.rs` (import), `project.rs` (missing check on
 open), `ether-native/src/store.rs` (`Library::{external_path, read_external}`),
-`collab/mod.rs` (media transfer by hash, those lines only), the mock import/library
-(`MockTransport.ts`, `library.ts`). Behaviour change and migration: CONTRACTS.md §12.9.
+the mock import/library (`MockTransport.ts`, `library.ts`). The collab push by hash belongs to
+`file-import`. Behaviour change and migration: CONTRACTS.md §12.9.
 
 ## `plugin-sidechain` (priority 2)
 
@@ -627,3 +635,13 @@ aux bus in `ether-clap/src/{node,plugin,scan}.rs`, `ether-vst3/src/{node,plugin,
 (`ether-plugin-host/src/**`, `PluginDescriptor::sidechain_inputs`). No controller or engine
 changes are needed: `Device::SetSidechain` already accepts any device whose descriptor has
 `sidechain_inputs > 0`, and the engine feeds `process_sidechain`.
+
+## `graphical-eq` (priority 2, after `device-ui`)
+
+Owns: `ui/src/features/devices/layout/eq/**` (the `EqCurve` widget, `eqResponse.ts`),
+`crates/ether-devices/tests/eq_analysis*.rs`, its e2e. Contract: CONTRACTS.md §12.15.
+Shared touches: the EQ's analysis producer (`ether-devices/src/eq.rs`: pre/post spectrum,
+`Node::{has_analysis, analysis}`), widget registration in the shared renderer
+(`layout/index.ts`, `layout/Widget.tsx`), `mock/devices/eq.json` (regenerated).
+Tests: TS response parity with the Rust vectors, gesture = one undo step per drag, the EQ's
+analysis under `assert_no_alloc`. Screenshots of the EQ panel in the dark theme.

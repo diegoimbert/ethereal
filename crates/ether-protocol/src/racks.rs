@@ -147,4 +147,9 @@ pub struct ModulatorDescriptor {
     /// Source range `-1..=1` (else `0..=1`).
     pub bipolar: bool,
     pub params: Vec<ParamInfo>,
+    /// Declarative panel (same catalog as devices, `crate::layout`; the Steps editor is the
+    /// `StepEditor` widget). `None` = generic layout. Omitted when `None`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub layout: Option<crate::layout::DeviceLayout>,
 }

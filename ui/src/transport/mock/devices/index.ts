@@ -10,6 +10,7 @@
  */
 
 import type { DeviceDescriptor, ModulatorDescriptor } from "@/generated";
+import eq from "./eq.json";
 import fxAnalysis from "./fxAnalysis.json";
 import fxColor from "./fxColor.json";
 import fxDynamics from "./fxDynamics.json";
@@ -54,6 +55,9 @@ const groups = [polySynth, multisampler, fxColor, fxModulation, fxDynamics, fxAn
 >[];
 
 export const V02_DESCRIPTORS: Readonly<Record<V02DeviceType, DeviceDescriptor>> = Object.assign({}, ...groups);
+
+/** The EQ (devices-2) with its v0.2 `EqCurve` layout (graphical-eq), from Rust. */
+export const EQ_DESCRIPTOR: DeviceDescriptor = eq as unknown as DeviceDescriptor;
 
 /** `Modulation::ListModulatorKinds` (from `ether_devices::modulators`). */
 export const MODULATOR_DESCRIPTORS: ReadonlyArray<ModulatorDescriptor> = modulators as unknown as ModulatorDescriptor[];

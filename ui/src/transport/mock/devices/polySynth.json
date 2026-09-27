@@ -1136,6 +1136,54 @@
           "type": "Linear"
         },
         "unit": "Percent"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Osc 1",
+        "hidden": false,
+        "id": 59,
+        "labels": [
+          "Basic Shapes",
+          "Harmonic Sweep",
+          "PWM",
+          "Formant",
+          "Digital",
+          "Organ",
+          "Vocal",
+          "Metallic"
+        ],
+        "max": 7.0,
+        "min": 0.0,
+        "name": "Table",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Osc 2",
+        "hidden": false,
+        "id": 60,
+        "labels": [
+          "Basic Shapes",
+          "Harmonic Sweep",
+          "PWM",
+          "Formant",
+          "Digital",
+          "Organ",
+          "Vocal",
+          "Metallic"
+        ],
+        "max": 7.0,
+        "min": 0.0,
+        "name": "Table",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "None"
       }
     ],
     "sidechain_inputs": 0

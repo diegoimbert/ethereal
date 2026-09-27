@@ -185,12 +185,77 @@ pub fn descriptor(kind: ModulatorKind) -> ModulatorDescriptor {
         ModulatorKind::Steps => "Steps",
         ModulatorKind::Random => "Random",
     };
+    let params = params(kind);
     ModulatorDescriptor {
         kind,
         name: name.to_owned(),
         bipolar: kind.bipolar(),
-        params: params(kind),
+        layout: Some(layout(kind, &params)),
+        params,
     }
+}
+
+/// Declarative panels: a knob row, typed widgets where they exist.
+fn layout(kind: ModulatorKind, params: &[ParamInfo]) -> ether_core::protocol::layout::DeviceLayout {
+    use crate::contract::{item, knob, layout, section};
+    use ether_core::protocol::layout::{Widget, WidgetSize};
+    use ether_core::protocol::model::ParamId;
+    let p = ParamId;
+    let items = match kind {
+        ModulatorKind::Lfo => vec![
+            item(
+                Widget::Lfo {
+                    shape: p(0),
+                    rate: p(1),
+                    amount: None,
+                },
+                WidgetSize::Medium,
+            ),
+            item(Widget::Toggle { param: p(2) }, WidgetSize::Small),
+            item(Widget::Choice { param: p(3) }, WidgetSize::Small),
+            knob(p(4), WidgetSize::Small),
+            item(Widget::Choice { param: p(5) }, WidgetSize::Small),
+            knob(p(6), WidgetSize::Small),
+        ],
+        ModulatorKind::Envelope => vec![
+            item(
+                Widget::Envelope {
+                    attack: p(0),
+                    decay: p(1),
+                    sustain: p(2),
+                    release: p(3),
+                    delay: None,
+                    hold: None,
+                },
+                WidgetSize::Medium,
+            ),
+            knob(p(4), WidgetSize::Small),
+        ],
+        ModulatorKind::Steps => {
+            let mut steps = item(
+                Widget::StepEditor {
+                    first: p(3),
+                    count: 16,
+                },
+                WidgetSize::Large,
+            );
+            steps.colspan = 4;
+            vec![
+                steps,
+                item(Widget::Number { param: p(0) }, WidgetSize::Small),
+                item(Widget::Choice { param: p(1) }, WidgetSize::Small),
+                knob(p(2), WidgetSize::Small),
+            ]
+        }
+        ModulatorKind::EnvelopeFollower | ModulatorKind::Random => params
+            .iter()
+            .map(|i| match &i.labels {
+                Some(_) => item(Widget::Choice { param: i.id }, WidgetSize::Small),
+                None => knob(i.id, WidgetSize::Small),
+            })
+            .collect(),
+    };
+    layout(vec![section("main", None, 1, 4, items)])
 }
 
 /// Every kind, in `ModulatorKind::ALL` order.

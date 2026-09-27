@@ -20,6 +20,7 @@
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
+use crate::eq_response::EqShape;
 use crate::model::ParamId;
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, TS)]
@@ -154,4 +155,43 @@ pub enum Widget {
     RackChains,
     /// The 8 macro knobs of a rack (params 0..8).
     Macros,
+    /// Interactive EQ curve (v0.2, `graphical-eq`): the combined magnitude response of
+    /// `bands` (`ether_protocol::eq_response`, mirrored in TS) on a log-frequency / dB grid,
+    /// with a draggable handle per band: drag = freq (x) + gain (y), wheel or Alt-drag = Q,
+    /// double-click = toggle `on`, context menu = `kind`. Each drag is one gesture (one undo
+    /// step). `crossovers` draws vertical handles (drag = frequency), e.g. multiband
+    /// crossovers. `spectrum` overlays `AnalysisData::Spectrum` frames (watched device).
+    /// Serves the EQ (8 bands), the auto filter (1 band) and the multiband compressor
+    /// (crossovers only).
+    EqCurve {
+        bands: Vec<EqBandBinding>,
+        crossovers: Vec<ParamId>,
+        spectrum: SpectrumOverlay,
+    },
+}
+
+/// One band of an [`Widget::EqCurve`].
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+pub struct EqBandBinding {
+    /// On/off toggle param (`None` = always on).
+    pub on: Option<ParamId>,
+    /// Enum param selecting the shape (`None` = `shapes[0]`).
+    pub kind: Option<ParamId>,
+    /// Response shape for each plain value of `kind` (index = value).
+    pub shapes: Vec<EqShape>,
+    pub freq: ParamId,
+    /// `None` = 0 dB (cuts, band-pass, notch).
+    pub gain: Option<ParamId>,
+    /// `None` = Q 1/√2.
+    pub q: Option<ParamId>,
+}
+
+/// Spectrum drawn behind an [`Widget::EqCurve`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, TS)]
+pub enum SpectrumOverlay {
+    None,
+    /// `SpectrumStage::Post` frames.
+    Post,
+    /// Both `Pre` (input) and `Post` (output) frames.
+    PrePost,
 }
