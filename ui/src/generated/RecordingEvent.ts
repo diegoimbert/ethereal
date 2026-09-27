@@ -3,4 +3,4 @@ import type { ClipId } from "./ClipId";
 import type { InputList } from "./InputList";
 import type { TrackId } from "./TrackId";
 
-export type RecordingEvent = { "type": "Started", tracks: Array<TrackId>, } | { "type": "Stopped", clips: Array<ClipId>, } | { "type": "InputsChanged", inputs: InputList, } | { "type": "ArmChanged", armed: Array<TrackId>, };
+export type RecordingEvent = { "type": "Started", tracks: Array<TrackId>, } | { "type": "Stopped", clips: Array<ClipId>, } | { "type": "InputsChanged", inputs: InputList, } | { "type": "ArmChanged", armed: Array<TrackId>, } | { "type": "PunchChanged", enabled: boolean, };

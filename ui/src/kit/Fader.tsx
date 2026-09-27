@@ -1,5 +1,9 @@
 import clsx from "clsx";
+import { size } from "../theme/tokens";
 import { useVerticalDrag } from "./useVerticalDrag";
+
+/** Used for drag sensitivity when the element has no layout (tests, hidden). */
+const FALLBACK_HEIGHT = Number.parseFloat(size.faderHeight);
 
 export interface FaderProps {
   /** Normalized value, 0..1 (mapping to dB is the caller's job). */
@@ -11,7 +15,7 @@ export interface FaderProps {
   onChangeEnd?: () => void;
   /** Double-click resets to this value. */
   defaultValue?: number;
-  /** Pixel height. */
+  /** Pixel height for one-offs; default is the `--fader-height` token. */
   height?: number;
   label?: string;
   valueText?: string;
@@ -26,7 +30,7 @@ export function Fader({
   onChangeStart,
   onChangeEnd,
   defaultValue,
-  height = 120,
+  height,
   label,
   valueText,
   disabled = false,
@@ -35,7 +39,8 @@ export function Fader({
   const handlers = useVerticalDrag({
     value,
     onChange: disabled ? undefined : onChange,
-    sensitivity: 1 / height,
+    // A full-height drag sweeps the whole range, whatever height the tokens give the fader.
+    sensitivity: (el) => 1 / (el.clientHeight || height || FALLBACK_HEIGHT),
     defaultValue,
     onChangeStart,
     onChangeEnd,
@@ -44,7 +49,7 @@ export function Fader({
   return (
     <div
       className={clsx("eth-fader", className)}
-      style={{ height }}
+      style={height !== undefined ? { height } : undefined}
       role="slider"
       aria-orientation="vertical"
       tabIndex={disabled ? -1 : 0}

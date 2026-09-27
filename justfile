@@ -49,6 +49,14 @@ e2e-web *args:
 e2e-native:
     ETHER_AUDIO=null cargo test -p ether-native --test e2e_flow --test null_host
 
+# Regenerate ui/src/theme/tokens.css from tokens.ts (the dev server also does this on save).
+gen-tokens:
+    cd ui && node src/theme/gen-css.mjs
+
+# Inventory of hard-coded colors/sizes left in ui/src/features (for the design sweep).
+report-hardcoded *dirs:
+    cd ui && node src/theme/report-hardcoded.mjs {{dirs}}
+
 # Regenerate TypeScript types from ether-protocol into ui/src/generated.
 gen-types:
     cargo run -q -p ether-protocol --example gen-ts -- ui/src/generated

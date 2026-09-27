@@ -69,7 +69,7 @@ function Tabs<Id extends string>({
         <Button
           key={s.id}
           size="sm"
-          variant="ghost"
+          tone="ghost"
           role="tab"
           aria-selected={s.id === active}
           active={s.id === active}
@@ -137,7 +137,7 @@ export function App() {
         actions={
           <Button
             size="sm"
-            variant="ghost"
+            tone="ghost"
             onClick={() => setDetailOpen((o) => !o)}
             aria-expanded={detailOpen}
             title={detailOpen ? "Hide detail view" : "Show detail view"}
