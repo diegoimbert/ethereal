@@ -133,7 +133,7 @@ pub fn param_infos() -> Vec<ParamInfo> {
 /// Descriptor of the sampler type.
 pub fn descriptor() -> DeviceDescriptor {
     DeviceDescriptor {
-        layout: None,
+        layout: Some(layout()),
         device_type: DeviceTypeRef::Builtin {
             device: BuiltinDeviceType::Sampler,
         },
@@ -145,6 +145,53 @@ pub fn descriptor() -> DeviceDescriptor {
         midi_input: true,
         sidechain_inputs: 0,
     }
+}
+
+/// Declarative panel (v0.2, `device-ui`; drawn by the shared device renderer).
+pub fn layout() -> ether_core::protocol::layout::DeviceLayout {
+    use crate::contract::{item, knob, layout, section};
+    use ether_core::protocol::layout::{Widget, WidgetSize::*};
+    let mut wave = item(
+        Widget::SampleWaveform {
+            start: Some(params::START),
+            end: Some(params::END),
+        },
+        Medium,
+    );
+    wave.colspan = 4;
+    layout(vec![
+        section("sample", Some("Sample"), 4, 4, vec![wave]),
+        section(
+            "playback",
+            Some("Playback"),
+            2,
+            3,
+            vec![
+                item(Widget::Choice { param: params::MODE }, Small),
+                item(
+                    Widget::Number {
+                        param: params::ROOT_KEY,
+                    },
+                    Small,
+                ),
+                knob(params::TRANSPOSE, Medium),
+            ],
+        ),
+        section(
+            "envelope",
+            Some("Envelope"),
+            1,
+            2,
+            vec![knob(params::ATTACK, Medium), knob(params::RELEASE, Medium)],
+        ),
+        section(
+            "output",
+            Some("Output"),
+            1,
+            1,
+            vec![knob(params::VOLUME, Large)],
+        ),
+    ])
 }
 
 #[derive(Clone, Copy, Debug)]

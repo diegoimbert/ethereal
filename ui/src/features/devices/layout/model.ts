@@ -5,6 +5,9 @@
  */
 
 import type { DeviceDescriptor, DeviceLayout, LayoutItem, LayoutSection, ParamId, ParamInfo, Widget } from "@/generated";
+import { groupParams, splitMainParams, type ParamGroup } from "../chainUtils";
+
+export { FOLD_OVER, MAIN_MAX, groupParams, splitMainParams } from "../chainUtils";
 
 /** Params a widget binds (mirror of `ether-devices/tests/layouts.rs::bound`). */
 export function boundParams(w: Widget): ParamId[] {
@@ -55,41 +58,7 @@ export function referencedParams(layout: DeviceLayout): Set<ParamId> {
   return out;
 }
 
-/** Visible params grouped by `ParamInfo.group`, in first-appearance order. */
-export function groupParams(params: ReadonlyArray<ParamInfo>): Array<{ group: string | null; params: ParamInfo[] }> {
-  const out: Array<{ group: string | null; params: ParamInfo[] }> = [];
-  for (const p of params) {
-    if (p.hidden) continue;
-    let g = out.find((x) => x.group === p.group);
-    if (!g) out.push((g = { group: p.group, params: [] }));
-    g.params.push(p);
-  }
-  return out;
-}
-
-type Group = ReturnType<typeof groupParams>[number];
-
-/** A device shows all its params up to this many; above it, the rest folds under "More". */
-export const FOLD_OVER = 6;
-/** Params in the always-visible main section (whole leading groups, at least one group). */
-export const MAIN_MAX = 4;
-
-/**
- * Split grouped params into the main part (large, always visible) and the rest (behind
- * "More"): small devices show everything; bigger ones keep leading whole groups up to
- * `MAIN_MAX` params. (The owner's generic device look, unchanged by the renderer.)
- */
-export function splitMainParams(groups: ReadonlyArray<Group>): { main: Group[]; more: Group[] } {
-  const total = groups.reduce((n, g) => n + g.params.length, 0);
-  if (total <= FOLD_OVER) return { main: [...groups], more: [] };
-  let count = 0;
-  let i = 0;
-  while (i < groups.length && (i === 0 || count + groups[i]!.params.length <= MAIN_MAX)) {
-    count += groups[i]!.params.length;
-    i++;
-  }
-  return { main: groups.slice(0, i), more: groups.slice(i) };
-}
+type Group = ParamGroup;
 
 /** Is `info` an on/off param (two labels, or a `Toggle` unit without labels)? */
 export function isToggleParam(info: ParamInfo): boolean {

@@ -93,7 +93,7 @@ pub fn param_infos() -> Vec<ParamInfo> {
 /// Descriptor of the delay type.
 pub fn descriptor() -> DeviceDescriptor {
     DeviceDescriptor {
-        layout: None,
+        layout: Some(layout()),
         device_type: DeviceTypeRef::Builtin {
             device: BuiltinDeviceType::Delay,
         },
@@ -105,6 +105,52 @@ pub fn descriptor() -> DeviceDescriptor {
         midi_input: false,
         sidechain_inputs: 0,
     }
+}
+
+/// Declarative panel (v0.2, `device-ui`; drawn by the shared device renderer).
+pub fn layout() -> ether_core::protocol::layout::DeviceLayout {
+    use crate::contract::{item, knob, layout, section};
+    use ether_core::protocol::layout::{Widget, WidgetSize::*};
+    layout(vec![
+        section(
+            "time",
+            Some("Time"),
+            2,
+            3,
+            vec![
+                knob(params::TIME, Large),
+                item(Widget::Toggle { param: params::SYNC }, Small),
+                item(
+                    Widget::Choice {
+                        param: params::DIVISION,
+                    },
+                    Small,
+                ),
+            ],
+        ),
+        section(
+            "delay",
+            Some("Delay"),
+            1,
+            2,
+            vec![
+                knob(params::FEEDBACK, Large),
+                item(
+                    Widget::Toggle {
+                        param: params::PING_PONG,
+                    },
+                    Small,
+                ),
+            ],
+        ),
+        section(
+            "output",
+            Some("Output"),
+            1,
+            1,
+            vec![knob(params::MIX, Large)],
+        ),
+    ])
 }
 
 /// The built-in delay.

@@ -115,7 +115,7 @@ pub fn param_infos() -> Vec<ParamInfo> {
 /// Descriptor of the synth type.
 pub fn descriptor() -> DeviceDescriptor {
     DeviceDescriptor {
-        layout: None,
+        layout: Some(layout()),
         device_type: DeviceTypeRef::Builtin {
             device: BuiltinDeviceType::Synth,
         },
@@ -127,6 +127,60 @@ pub fn descriptor() -> DeviceDescriptor {
         midi_input: true,
         sidechain_inputs: 0,
     }
+}
+
+/// Declarative panel (v0.2, `device-ui`; drawn by the shared device renderer).
+pub fn layout() -> ether_core::protocol::layout::DeviceLayout {
+    use crate::contract::{item, knob, layout, section};
+    use ether_core::protocol::layout::{Widget, WidgetSize::*};
+    let mut osc = item(
+        Widget::Oscillator {
+            shape: params::WAVEFORM,
+            position: None,
+        },
+        Medium,
+    );
+    osc.colspan = 2;
+    let mut filter = item(
+        Widget::FilterCurve {
+            cutoff: params::CUTOFF,
+            resonance: params::RESONANCE,
+            mode: None,
+            drive: None,
+            gain: None,
+        },
+        Large,
+    );
+    filter.colspan = 2;
+    let env = item(
+        Widget::Envelope {
+            attack: params::ATTACK,
+            decay: params::DECAY,
+            sustain: params::SUSTAIN,
+            release: params::RELEASE,
+            delay: None,
+            hold: None,
+        },
+        Medium,
+    );
+    layout(vec![
+        section(
+            "oscillator",
+            Some("Oscillator"),
+            1,
+            2,
+            vec![osc, knob(params::TRANSPOSE, Medium)],
+        ),
+        section("filter", Some("Filter"), 2, 2, vec![filter]),
+        section("envelope", Some("Envelope"), 2, 1, vec![env]),
+        section(
+            "output",
+            Some("Output"),
+            1,
+            1,
+            vec![knob(params::VOLUME, Large)],
+        ),
+    ])
 }
 
 #[derive(Clone, Copy, Debug)]

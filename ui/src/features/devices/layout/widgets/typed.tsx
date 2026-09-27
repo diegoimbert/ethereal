@@ -55,13 +55,13 @@ export function TypedFrame({
     <div className={clsx("eth-widget", `eth-widget--${type}`, `eth-widget--${size.toLowerCase()}`)} data-widget={type}>
       {label && <span className="eth-widget__label">{label}</span>}
       {children}
-      {controls && <ControlsRow ids={controls} />}
+      {controls && <ControlsRow ids={controls} size={size === "Large" ? "Medium" : "Small"} />}
     </div>
   );
 }
 
-/** Small generic controls (knob / toggle / choice) for the given params. */
-export function ControlsRow({ ids }: { ids: ReadonlyArray<ParamId | null | undefined> }) {
+/** Generic controls (knob / toggle / choice) for the given params: small, medium under a large graphic. */
+export function ControlsRow({ ids, size = "Small" }: { ids: ReadonlyArray<ParamId | null | undefined>; size?: WidgetSize }) {
   const ctx = useLayoutContext();
   const infos = ids.flatMap((id) => {
     const info = id == null ? undefined : ctx.params.get(id);
@@ -71,7 +71,7 @@ export function ControlsRow({ ids }: { ids: ReadonlyArray<ParamId | null | undef
   return (
     <div className="eth-widget__controls">
       {infos.map((info) => (
-        <WidgetView key={info.id} widget={genericWidget(info)} size="Small" label={info.name} />
+        <WidgetView key={info.id} widget={genericWidget(info)} size={size} label={info.name} />
       ))}
     </div>
   );

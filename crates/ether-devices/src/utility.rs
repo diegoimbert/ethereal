@@ -81,7 +81,7 @@ pub fn param_infos() -> Vec<ParamInfo> {
 /// Descriptor of the `Utility` type.
 pub fn descriptor() -> DeviceDescriptor {
     DeviceDescriptor {
-        layout: None,
+        layout: Some(layout()),
         device_type: DeviceTypeRef::Builtin {
             device: BuiltinDeviceType::Utility,
         },
@@ -93,6 +93,51 @@ pub fn descriptor() -> DeviceDescriptor {
         midi_input: false,
         sidechain_inputs: 0,
     }
+}
+
+/// Declarative panel (v0.2, `device-ui`; drawn by the shared device renderer).
+pub fn layout() -> ether_core::protocol::layout::DeviceLayout {
+    use crate::contract::{item, knob, layout, section};
+    use ether_core::protocol::layout::{Widget, WidgetSize::*};
+    layout(vec![
+        section(
+            "utility",
+            Some("Utility"),
+            1,
+            2,
+            vec![knob(params::GAIN, Large), knob(params::PAN, Large)],
+        ),
+        section(
+            "stereo",
+            Some("Stereo"),
+            1,
+            2,
+            vec![
+                knob(params::WIDTH, Medium),
+                item(Widget::Toggle { param: params::MONO }, Small),
+            ],
+        ),
+        section(
+            "phase",
+            Some("Phase"),
+            1,
+            2,
+            vec![
+                item(
+                    Widget::Toggle {
+                        param: params::INVERT_L,
+                    },
+                    Small,
+                ),
+                item(
+                    Widget::Toggle {
+                        param: params::INVERT_R,
+                    },
+                    Small,
+                ),
+            ],
+        ),
+    ])
 }
 
 /// Non-RT. A new instance with default params.
