@@ -981,6 +981,7 @@ impl Engine {
             &desc.click,
             desc.metronome,
             &info,
+            tempo,
             *graph_latency,
             off,
             n,

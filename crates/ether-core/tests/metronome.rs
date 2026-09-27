@@ -81,11 +81,11 @@ fn positions(buf: &[f32]) -> Vec<usize> {
     clicks(buf).into_iter().map(|c| c.0).collect()
 }
 
-/// Expected start sample of the click on `beat` when playback starts at `from`: the
-/// first sample at or after the beat on the engine's timeline. The engine ends a sub-block
-/// on the first sample at or after each tempo/signature boundary and restarts the timeline
-/// there, so each boundary lands on a whole sample (as the audio does); in between, time
-/// follows the tempo map exactly.
+/// Expected start sample of the click on `beat` when playback starts at `from`, on the
+/// engine's timeline (the sample `sched::Timing::offset` gives notes on that beat). The
+/// engine ends a sub-block on the first sample at or after each tempo/signature boundary
+/// and restarts the timeline there, so each boundary lands on a whole sample (as the audio
+/// does); in between, time follows the tempo map exactly.
 fn expected(map: &TempoMapRt, from: f64, beat: f64) -> usize {
     let sr = f64::from(SR);
     let sec = |b: f64| map.beats_to_seconds(b);
@@ -98,7 +98,7 @@ fn expected(map: &TempoMapRt, from: f64, beat: f64) -> usize {
         sample += ((sec(nb) - sec(start)) * sr - 1e-7).ceil().max(1.0) as usize;
         start = nb;
     }
-    sample + ((sec(beat) - sec(start)) * sr - 1e-4).ceil().max(0.0) as usize
+    sample + ((sec(beat) - sec(start)) * sr + 1e-4).floor().max(0.0) as usize
 }
 
 fn is_accent(peak: f32) -> bool {
@@ -409,6 +409,57 @@ fn steep_ramps_are_sample_exact_at_large_blocks() {
         let (l, _) = render(&mut p.engine, want.last().unwrap() + 100, block);
         assert_eq!(onsets(&l), want, "block {block}");
     }
+}
+
+/// Renders 32nd-note clicks (normal only) over `tempo` at each block size and checks
+/// every onset against the audio timeline.
+fn assert_sample_exact(tempo: &[TempoPointDesc], last_beat: f64, blocks: &[usize]) {
+    let sigs = vec![ts(0.0, 4, 32)];
+    let map = TempoMapRt::compile(tempo, &sigs);
+    let count = (last_beat / 0.125).round() as i32;
+    let want: Vec<usize> = (0..=count)
+        .map(|i| expected(&map, 0.0, f64::from(i) * 0.125))
+        .collect();
+    for &block in blocks {
+        let mut cfg = config();
+        cfg.max_block_size = block;
+        let mut p = create(cfg);
+        let mut d = graph(tempo.to_vec(), sigs.clone());
+        d.click.accent = false;
+        p.handle.publish(d).unwrap();
+        p.handle.transport(TransportControl::Play).unwrap();
+        let (l, _) = render(&mut p.engine, want.last().unwrap() + 100, block);
+        assert_eq!(onsets(&l), want, "block {block}");
+    }
+}
+
+#[test]
+fn short_ramp_between_steps_inside_one_block() {
+    // Regression: a ramp shorter than a block, cut at both ends by steps (100 → 900 BPM
+    // over a quarter beat).
+    assert_sample_exact(
+        &[
+            tp(0.0, 120.0, TempoCurve::Step),
+            tp(1.0, 100.0, TempoCurve::Linear),
+            tp(1.25, 900.0, TempoCurve::Step),
+            tp(2.0, 70.0, TempoCurve::Step),
+        ],
+        4.0,
+        &[8192, 4096, 1024, 97],
+    );
+}
+
+#[test]
+fn ramp_into_constant_at_the_same_bpm() {
+    // Regression: a 90 → 91 ramp then constant 91 (the slope changes, the BPM doesn't).
+    assert_sample_exact(
+        &[
+            tp(0.0, 90.0, TempoCurve::Linear),
+            tp(4.0, 91.0, TempoCurve::Step),
+        ],
+        12.0,
+        &[8192, 2048, 512, 97],
+    );
 }
 
 #[test]

@@ -13,16 +13,13 @@
 //!   count-in click stops for good once the playhead has reached `count_in_end` (until the
 //!   end changes or recording stops), so a loop wrapping back before the record start does
 //!   not click again.
-//! - **Where**: sample-accurate. The engine splits sub-blocks at tempo, signature and loop
-//!   boundaries, so inside one sub-block the tempo is constant or one linear ramp and the
-//!   signature is fixed. Tempo ramps are linear in *beats* (`ether_model::tempo`), so the
-//!   sub-block's ramp is recovered from its start tempo (`info.bpm`), its span in beats and
-//!   its duration (a bounded Newton solve), and beats are placed with the shared
-//!   `segment_beats_to_seconds` math. A sub-block cut short at a boundary lasts a fraction
-//!   of a sample less than its frame count; when it continues the previous sub-block's
-//!   ramp (and that ramp fits its duration) the previous slope is kept, so positions stay
-//!   exact. A beat starts its click on the first sample at or after it. Bars restart at
-//!   every signature change; the first beat of a bar is accented when `desc.accent`.
+//! - **Where**: sample-accurate, on the audio's own timeline. The engine passes its
+//!   compiled tempo map; a beat's sample offset in the sub-block is
+//!   `floor((tempo.beats_to_seconds(beat) - info.seconds) * sr + 1e-4)`, the formula the
+//!   scheduler uses for notes and clips (`sched::Timing::offset`), so clicks land on the
+//!   same samples as the music, ramps (linear in beats) and boundaries included. Bars
+//!   restart at every signature change; the first beat of a bar is accented when
+//!   `desc.accent`.
 //! - **Latency**: `render` gets the graph's output latency (PDC); a beat's click is emitted that
 //!   many samples after the sub-block crosses the beat, so it lines up with the audio.
 //! - **Sound**: synthesized once in [`Metronome::new`] (one normal + one accent buffer per
@@ -32,14 +29,15 @@
 //! sorted by due time so a latency decrease never stalls earlier clicks; clicks that don't
 //! fit are counted in [`Metronome::dropped_clicks`]).
 
-use ether_protocol::model::{MetronomeSound, segment_beats_to_seconds};
+use ether_protocol::model::MetronomeSound;
 
 use crate::graph::MetronomeDesc;
+use crate::tempo::TempoMapRt;
 use crate::transport::TransportInfo;
 
 /// Beat comparisons tolerance (beats).
 const EPS: f64 = 1e-7;
-/// Tolerance when rounding a beat's fractional sample offset up (samples).
+/// Float-error absorption when flooring a beat's sample offset (as `sched::Timing`).
 const SAMPLE_EPS: f64 = 1e-4;
 /// Pending clicks (scheduled, not started yet). Clicks beyond this are dropped.
 const QUEUE: usize = 256;
@@ -94,29 +92,8 @@ pub struct Metronome {
     count_in_end: Option<f64>,
     /// The playhead reached `count_in_end` while recording: no more count-in clicks.
     count_in_done: bool,
-    /// The last playing sub-block's ramp (continuity for sub-blocks cut at a boundary).
-    prev: Option<Ramp>,
     /// Clicks dropped because the pending queue was full.
     dropped: u64,
-}
-
-/// Tempo over one playing sub-block: from `start_bpm` at its start to `end_bpm` after
-/// `span` beats (linear in beats).
-#[derive(Clone, Copy, Debug)]
-struct Ramp {
-    start_bpm: f64,
-    end_bpm: f64,
-    span: f64,
-    /// Position and engine sample time right after the sub-block.
-    end_pos: f64,
-    end_time: u64,
-}
-
-impl Ramp {
-    /// Seconds from the sub-block start to `d` beats into it.
-    fn seconds(&self, d: f64) -> f64 {
-        segment_beats_to_seconds(self.start_bpm, self.end_bpm, self.span, d)
-    }
 }
 
 impl Metronome {
@@ -132,7 +109,6 @@ impl Metronome {
             voice: None,
             count_in_end: None,
             count_in_done: false,
-            prev: None,
             dropped: 0,
         }
     }
@@ -157,6 +133,7 @@ impl Metronome {
         desc: &MetronomeDesc,
         enabled: bool,
         info: &TransportInfo,
+        tempo: &TempoMapRt,
         latency: u32,
         offset: usize,
         frames: usize,
@@ -165,7 +142,7 @@ impl Metronome {
         if frames == 0 {
             return;
         }
-        self.schedule(desc, enabled, info, latency, frames);
+        self.schedule(desc, enabled, info, tempo, latency, frames);
         self.play(info.sample_time, offset, frames, out);
     }
 
@@ -174,7 +151,6 @@ impl Metronome {
         self.voice = None;
         self.head = 0;
         self.len = 0;
-        self.prev = None;
     }
 
     /// Queue the clicks of the beats inside this sub-block.
@@ -183,6 +159,7 @@ impl Metronome {
         desc: &MetronomeDesc,
         enabled: bool,
         info: &TransportInfo,
+        tempo: &TempoMapRt,
         latency: u32,
         frames: usize,
     ) {
@@ -202,20 +179,14 @@ impl Metronome {
             }
             _ => None,
         };
-        if !info.playing || info.beats_per_sample <= 0.0 {
-            self.prev = None;
-            return;
-        }
-        let ramp = self.ramp(info, frames);
-        self.prev = Some(ramp);
         let normal = enabled;
-        if !(normal || count_in_end.is_some()) {
+        if !info.playing || info.beats_per_sample <= 0.0 || !(normal || count_in_end.is_some()) {
             return;
         }
 
         let sr = f64::from(self.sample_rate);
         let b0 = info.position;
-        let b1 = ramp.end_pos;
+        let b1 = b0 + info.beats_per_sample * frames as f64;
         let den = f64::from(info.time_signature.denominator.max(1));
         let num = i64::from(info.time_signature.numerator.max(1));
         let unit = 4.0 / den;
@@ -229,8 +200,8 @@ impl Metronome {
             }
             let audible = normal || count_in_end.is_some_and(|end| beat < end - EPS);
             if audible {
-                let t = ramp.seconds((beat - b0).max(0.0)) * sr;
-                let at = (t - SAMPLE_EPS).ceil().max(0.0) as u64;
+                let t = (tempo.beats_to_seconds(beat) - info.seconds) * sr;
+                let at = (t + SAMPLE_EPS).floor().max(0.0) as u64;
                 let accent = desc.accent && (k as i64).rem_euclid(num) == 0;
                 self.push(Pending {
                     due: info.sample_time + at + u64::from(latency),
@@ -241,46 +212,6 @@ impl Metronome {
             }
             k += 1.0;
         }
-    }
-
-    /// The tempo ramp of this sub-block (see the module docs).
-    fn ramp(&self, info: &TransportInfo, frames: usize) -> Ramp {
-        let n = frames as f64;
-        let sr = f64::from(self.sample_rate);
-        let span = info.beats_per_sample * n;
-        let v0 = info.bpm;
-        let end_time = info.sample_time + frames as u64;
-        let end_pos = info.position + span;
-        let make = |end_bpm: f64| Ramp {
-            start_bpm: v0,
-            end_bpm,
-            span,
-            end_pos,
-            end_time,
-        };
-        if !(v0.is_finite() && v0 > 0.0 && span > 0.0) {
-            // Degenerate: constant at the average rate.
-            return make(span / n * sr * 60.0);
-        }
-        // Same ramp as the previous sub-block, if contiguous and consistent with this one's
-        // duration (it may be up to one sample shorter than `frames` at a boundary).
-        if let Some(p) = self.prev
-            && p.end_time == info.sample_time
-            && (p.end_pos - info.position).abs() <= 1e-9
-            && (p.end_bpm - v0).abs() <= 1e-9 * v0
-        {
-            let slope = if p.span > 0.0 {
-                (p.end_bpm - p.start_bpm) / p.span
-            } else {
-                0.0
-            };
-            let cand = make(v0 + slope * span);
-            let t = cand.seconds(span) * sr;
-            if cand.end_bpm > 0.0 && t > n - 1.0 - 1e-6 && t <= n + 1e-6 {
-                return cand;
-            }
-        }
-        make(v0 * solve_ramp_ratio(n / sr * v0 / (60.0 * span)))
     }
 
     /// Insert keeping the queue sorted by due time (a latency decrease can schedule a
@@ -339,41 +270,6 @@ impl Metronome {
     }
 }
 
-/// Ratio `r = end_bpm / start_bpm` of a linear-in-beats ramp whose duration is `c` times
-/// the duration at a constant `start_bpm`: `c = ln(r) / (r - 1)`. Solves
-/// `φ(u) = u / (e^u - 1) = c` for `u = ln r` with Newton's method (φ is decreasing and
-/// convex, so it converges from any start); bounded iterations, no allocation.
-fn solve_ramp_ratio(c: f64) -> f64 {
-    if !c.is_finite() || c <= 0.0 {
-        return 1.0;
-    }
-    if (c - 1.0).abs() < 1e-12 {
-        return 1.0;
-    }
-    let phi = |u: f64| {
-        if u.abs() < 1e-8 {
-            (1.0 - u / 2.0, -0.5 + u / 6.0)
-        } else {
-            let m = u.exp_m1();
-            (u / m, (m - u * u.exp()) / (m * m))
-        }
-    };
-    // Series start: φ(u) ≈ 1 - u/2.
-    let mut u = (2.0 * (1.0 - c)).clamp(-20.0, 20.0);
-    for _ in 0..64 {
-        let (f, df) = phi(u);
-        if df == 0.0 || !df.is_finite() {
-            break;
-        }
-        let step = (f - c) / df;
-        u = (u - step).clamp(-20.0, 20.0);
-        if step.abs() < 1e-15 * u.abs().max(1.0) {
-            break;
-        }
-    }
-    u.exp()
-}
-
 /// Synthesize one click buffer. Every click starts at full level on its first sample
 /// (a click, not a note), then decays.
 fn synth(sound: MetronomeSound, accent: bool, sample_rate: f32) -> Vec<f32> {
@@ -423,6 +319,7 @@ mod tests {
             playing: true,
             sample_time,
             position,
+            seconds: position * 60.0 / bpm,
             bpm,
             beats_per_sample: bpm / 60.0 / f64::from(SR),
             time_signature: TimeSignature {
@@ -463,7 +360,16 @@ mod tests {
             let i = info(pos, 120.0, t);
             let off = t as usize;
             let mut outs: [&mut [f32]; 2] = [&mut l, &mut r];
-            m.render(desc, enabled, &i, latency, off, n, &mut outs);
+            m.render(
+                desc,
+                enabled,
+                &i,
+                &TempoMapRt::default(),
+                latency,
+                off,
+                n,
+                &mut outs,
+            );
             pos += i.beats_per_sample * n as f64;
             t += n as u64;
         }
@@ -498,7 +404,16 @@ mod tests {
         let mut m = Metronome::new(SR);
         let mut l = vec![0.0f32; 512];
         let mut outs: [&mut [f32]; 1] = [&mut l];
-        m.render(&desc, true, &TransportInfo::STOPPED, 0, 0, 512, &mut outs);
+        m.render(
+            &desc,
+            true,
+            &TransportInfo::STOPPED,
+            &TempoMapRt::default(),
+            0,
+            0,
+            512,
+            &mut outs,
+        );
         assert!(l.iter().all(|s| *s == 0.0));
     }
 
@@ -508,7 +423,16 @@ mod tests {
         let mut m = Metronome::new(SR);
         let mut l = vec![0.0f32; 100];
         let mut outs: [&mut [f32]; 1] = [&mut l];
-        m.render(&desc, true, &info(0.0, 120.0, 0), 0, 0, 512, &mut outs);
+        m.render(
+            &desc,
+            true,
+            &info(0.0, 120.0, 0),
+            &TempoMapRt::default(),
+            0,
+            0,
+            512,
+            &mut outs,
+        );
         assert!(l[0] != 0.0);
     }
 
@@ -543,18 +467,5 @@ mod tests {
         }
         assert_eq!(m.len, QUEUE);
         assert_eq!(m.dropped_clicks(), 4);
-    }
-
-    #[test]
-    fn ramp_ratio_inverts_the_segment_duration() {
-        for r in [1.0, 1.001, 2.0, 49.95, 0.02, 0.5, 500.0] {
-            let c = if r == 1.0 {
-                1.0
-            } else {
-                f64::ln(r) / (r - 1.0)
-            };
-            let got = solve_ramp_ratio(c);
-            assert!((got - r).abs() <= 1e-9 * r, "{r}: {got}");
-        }
     }
 }
