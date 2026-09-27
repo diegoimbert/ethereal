@@ -9,7 +9,7 @@ use ether_controller::memory::MemoryLibrary;
 use ether_controller::store::ProjectStore;
 use ether_core::protocol::clips::{ClipCommand, ClipMove};
 use ether_core::protocol::collab::{CollabCommand, CollabStatus, PresenceState};
-use ether_core::protocol::devices::{DeviceCommand, DeviceSpec};
+use ether_core::protocol::devices::{DeviceCategory, DeviceCommand, DeviceSpec};
 use ether_core::protocol::media::{BrowseLocation, MediaCommand, MediaSource};
 use ether_core::protocol::mixer::MixerCommand;
 use ether_core::protocol::model::*;
@@ -320,6 +320,73 @@ fn site_local_state_is_not_shared() {
     // A local-only undo stays local too.
     undo(a);
     settle(&mut [a, b], &hub);
+    assert_converged(&[a, b]);
+}
+
+fn plugin_state(s: &Site, d: DeviceId) -> Option<Base64Bytes> {
+    match &s.project().devices[&d].kind {
+        DeviceKind::Plugin { plugin } => plugin.state.clone(),
+        DeviceKind::Builtin { .. } => None,
+    }
+}
+
+#[test]
+fn save_replicates_changed_plugin_state_once_and_missing_plugins_stay_local() {
+    let hub = Hub::default();
+    let mut sites = session(&hub, 2);
+    let [a, b] = sites.as_mut_slice() else {
+        unreachable!()
+    };
+    // `a` has the plugin, `b` does not (it is bypassed there: runtime state only).
+    a.ctl.bridge.plugins = Some(std::collections::BTreeMap::from([(
+        "com.test.Verb".to_string(),
+        plugin_descriptor("Verb", DeviceCategory::AudioEffect),
+    )]));
+    let t = add_track(a, TrackKind::Audio);
+    let d: DeviceId = a.id();
+    a.ok(Command::Device(DeviceCommand::Insert {
+        id: d,
+        track: t,
+        device: DeviceSpec::Plugin {
+            plugin_id: "com.test.Verb".into(),
+            sandboxed: None,
+            format: None,
+        },
+        before: None,
+    }));
+    settle(&mut [a, b], &hub);
+    assert_converged(&[a, b]);
+
+    // Opaque state changed in the plugin GUI: the next save replicates it, once.
+    a.ctl.bridge.plugin_states.insert(d, Base64Bytes(vec![1, 2, 3]));
+    a.ok(Command::Project(ProjectCommand::Save));
+    assert_eq!(a.ctl.collab_pending(), 1, "one stamped transaction");
+    settle(&mut [a, b], &hub);
+    assert_eq!(plugin_state(b, d), Some(Base64Bytes(vec![1, 2, 3])));
+    assert_converged(&[a, b]);
+    a.ok(Command::Project(ProjectCommand::Save));
+    assert_eq!(a.ctl.collab_pending(), 0, "unchanged state: nothing sent");
+
+    // `b` misses the plugin: no live state, its saves send nothing and keep `a`'s state.
+    b.ok(Command::Project(ProjectCommand::Save));
+    assert_eq!(b.ctl.collab_pending(), 0);
+
+    // `b` gets the plugin with its own live state: a peer's state is not its change, so
+    // its next save doesn't send it back (no ping-pong); `a`'s later change still flows.
+    b.ctl.bridge.plugin_states.insert(d, Base64Bytes(vec![9]));
+    a.ctl.bridge.plugin_states.insert(d, Base64Bytes(vec![4]));
+    a.ok(Command::Project(ProjectCommand::Save));
+    settle(&mut [a, b], &hub);
+    b.ok(Command::Project(ProjectCommand::Save));
+    assert_eq!(b.ctl.collab_pending(), 0);
+    settle(&mut [a, b], &hub);
+    assert_eq!(plugin_state(a, d), Some(Base64Bytes(vec![4])));
+    assert_eq!(plugin_state(b, d), Some(Base64Bytes(vec![4])));
+    assert_converged(&[a, b]);
+    // Captures are not undo steps: undo reverts the plugin insert.
+    undo(a);
+    settle(&mut [a, b], &hub);
+    assert!(!b.project().devices.contains_key(&d));
     assert_converged(&[a, b]);
 }
 
@@ -661,6 +728,13 @@ fn run_simulation(steps: &[Step]) {
                 .expect("every intermediate state validates");
         }
     }
+    let mut refs: Vec<&mut Site> = sites.iter_mut().collect();
+    settle(&mut refs, &hub);
+    // The convergence invariant (COLLAB.md §2): a fresh site that only replays the relay's
+    // snapshot + log (resolve fold, no optimistic state) reaches the same document.
+    let mut replay = Site::on_hub(0x7777, &hub);
+    replay.join("ws://hub", "jam", "Replay", None);
+    sites.push(replay);
     let mut refs: Vec<&mut Site> = sites.iter_mut().collect();
     settle(&mut refs, &hub);
     let refs: Vec<&Site> = sites.iter().collect();

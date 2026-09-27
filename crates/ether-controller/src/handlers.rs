@@ -13,7 +13,7 @@ use ether_core::protocol::meters::MeterFrame;
 use ether_core::protocol::model::file::MEDIA_DIR;
 use ether_core::protocol::model::*;
 use ether_core::protocol::plugins::{PluginCommand, PluginEvent};
-use ether_core::protocol::project::{EditCommand, ProjectEvent};
+use ether_core::protocol::project::{EditCommand, ProjectCommand, ProjectEvent};
 use ether_core::protocol::recording::RecordingEvent;
 use ether_core::protocol::transport::{PlayheadUpdate, TransportCommand, TransportState};
 use ether_core::protocol::warp::WarpCommand;
@@ -118,7 +118,13 @@ where
         }
         match command {
             Command::Edit(e) => self.edit_command(e, msg.gesture, now, out),
-            Command::Project(p) => self.project_command(p, now, out),
+            Command::Project(p) => {
+                if matches!(p, ProjectCommand::Save) {
+                    // Collab: replicate changed plugin states once (no-op outside a session).
+                    self.collab_before_save(now, out);
+                }
+                self.project_command(p, now, out)
+            }
             Command::Transport(t) => self.transport_command(t, now, out),
             Command::Device(DeviceCommand::ListBuiltin) => Ok(ReplyValue::DeviceTypes {
                 devices: ether_devices::all_descriptors(),
@@ -944,7 +950,10 @@ where
         if let (Some(after), Some(doc)) = (self.config.autosave_after_ms, self.doc.as_ref())
             && doc.dirty
             && now.saturating_sub(doc.last_edit_ms) >= after
-            && let Err(e) = self.save_current(out)
+            && let Err(e) = {
+                self.collab_before_save(now, out);
+                self.save_current(out)
+            }
         {
             notify(
                 out,

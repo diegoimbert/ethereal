@@ -92,6 +92,9 @@ struct Session {
     staged: Vec<(String, Vec<u8>)>,
     upload_counter: u64,
     status: Option<CollabStatus>,
+    /// Last plugin state this site sent, received, or started from, per device: a save
+    /// replicates a plugin's state only when its live state differs (COLLAB.md §2.2).
+    captured: BTreeMap<DeviceId, Base64Bytes>,
 }
 
 impl Session {
@@ -224,6 +227,7 @@ where
                     staged: Vec::new(),
                     upload_counter: 0,
                     status: None,
+                    captured: BTreeMap::new(),
                 }));
                 let _ = site;
                 self.collab_connect(now);
@@ -633,6 +637,10 @@ where
                 *last = (*last).max(origin.seq);
                 if origin.site == site {
                     // Our own echo: the head of `pending` (see docs/COLLAB.md §2).
+                    #[cfg(debug_assertions)]
+                    if let Some(doc) = self.doc.as_ref() {
+                        check_echo(&doc.project, &s.pending, &transaction);
+                    }
                     if s.pending
                         .front()
                         .is_some_and(|p| p.tx.origin.seq == origin.seq)
@@ -714,11 +722,33 @@ where
             .filter(|op| !resolve::is_local_only(op))
             .collect();
         let (applied, _) = resolve::resolve_all(project, &ops);
+        let replaced: Vec<DeviceId> = applied
+            .iter()
+            .filter_map(|op| match op {
+                Op::Update {
+                    update:
+                        EntityUpdate::Device {
+                            id,
+                            change: DeviceChange::Plugin(_),
+                        },
+                } => Some(*id),
+                _ => None,
+            })
+            .collect();
         touched.extend(applied);
         for p in s.pending.iter_mut() {
             let (applied, inverse) = resolve::resolve_all(project, &p.tx.transaction.ops);
             p.inverse = inverse;
             touched.extend(applied);
+        }
+        // A peer's plugin state is not a change of ours: our next save must not send our
+        // live state back over it.
+        for id in replaced {
+            if let Ok(Some(state)) = self.bridge.plugin_state(id)
+                && let Some(s) = self.collab.session.as_mut()
+            {
+                s.captured.insert(id, state);
+            }
         }
         self.after_ops_from(&touched, Some(t.origin), now, out);
     }
@@ -821,14 +851,73 @@ where
     fn collab_ether(&mut self) -> CmdResult<String> {
         let doc = self.doc.as_ref().ok_or_else(no_project)?;
         let mut copy = doc.project.clone();
+        let live = self.collab_live_plugin_states();
         for d in copy.devices.values_mut() {
             if let DeviceKind::Plugin { plugin } = &mut d.kind
-                && let Ok(Some(state)) = self.bridge.plugin_state(d.id)
+                && let Some(state) = live.get(&d.id)
             {
-                plugin.state = Some(state);
+                plugin.state = Some(state.clone());
             }
         }
         file::save(&copy, &self.config.app_version).map_err(|e| internal(e.to_string()))
+    }
+
+    /// The live state of every instantiated plugin of the open project (a missing,
+    /// bypassed plugin has none).
+    fn collab_live_plugin_states(&mut self) -> BTreeMap<DeviceId, Base64Bytes> {
+        let ids: Vec<DeviceId> = self.doc.as_ref().map_or_else(Vec::new, |d| {
+            d.project
+                .devices
+                .values()
+                .filter(|d| matches!(d.kind, DeviceKind::Plugin { .. }))
+                .map(|d| d.id)
+                .collect()
+        });
+        ids.into_iter()
+            .filter_map(|id| Some((id, self.bridge.plugin_state(id).ok().flatten()?)))
+            .collect()
+    }
+
+    /// Before a save (explicit or autosave) in a session: replicate the plugin states that
+    /// changed since this site last sent, received or started from them, once, as a
+    /// stamped transaction outside the undo history (COLLAB.md §2.2). Missing plugins have
+    /// no live state and never replicate anything.
+    pub(crate) fn collab_before_save(&mut self, now: u64, out: &mut dyn MessageSink) {
+        if !self.collab_active() {
+            return;
+        }
+        let live = self.collab_live_plugin_states();
+        let (Some(doc), Some(s)) = (self.doc.as_mut(), self.collab.session.as_mut()) else {
+            return;
+        };
+        let mut ops = Vec::new();
+        for (id, state) in live {
+            if s.captured.get(&id) == Some(&state) {
+                continue;
+            }
+            s.captured.insert(id, state.clone());
+            if let Some(Device {
+                kind: DeviceKind::Plugin { plugin },
+                ..
+            }) = doc.project.devices.get(&id)
+                && plugin.state.as_ref() != Some(&state)
+            {
+                let mut plugin = plugin.clone();
+                plugin.state = Some(state);
+                ops.push(Op::Update {
+                    update: EntityUpdate::Device {
+                        id,
+                        change: DeviceChange::Plugin(plugin),
+                    },
+                });
+            }
+        }
+        if ops.is_empty() {
+            return;
+        }
+        let (applied, inverse) = resolve::resolve_all(&mut doc.project, &ops);
+        self.collab_local_commit("Plugin State", &applied, &inverse);
+        self.after_ops(&applied, now, out);
     }
 
     /// We create the session: media first, then a snapshot of the open project (index 0).
@@ -840,7 +929,10 @@ where
         let pid = doc.project.id;
         let medias: Vec<MediaRef> = doc.project.media.values().cloned().collect();
         let ether = self.collab_ether()?;
+        let live = self.collab_live_plugin_states();
         let s = self.collab.session.as_mut().expect("in session");
+        // Peers start from these plugin states.
+        s.captured = live;
         // Pending edits are part of the snapshot.
         s.pending.clear();
         s.joined = true;
@@ -965,6 +1057,15 @@ where
         s.project = Some(pid);
         s.index = snap.index;
         s.sites = snap.sites;
+        // Our plugins are created from the snapshot's states.
+        s.captured = project
+            .devices
+            .values()
+            .filter_map(|d| match &d.kind {
+                DeviceKind::Plugin { plugin } => Some((d.id, plugin.state.clone()?)),
+                DeviceKind::Builtin { .. } => None,
+            })
+            .collect();
         // Pending edits (resync) go on top of the new state and are sent again.
         if !s.pending.is_empty() {
             let doc = self.doc.as_mut().expect("opened");
@@ -1006,4 +1107,29 @@ where
         self.emit_list_changed(out);
         Ok(())
     }
+}
+
+/// Debug check of the convergence invariant for an own echo (COLLAB.md §2): processing it
+/// like a peer's transaction (undo pending, apply it with resolve on the confirmed state,
+/// re-apply the rest) yields the live document we already have, so popping it is exact.
+#[cfg(debug_assertions)]
+fn check_echo(live: &Project, pending: &VecDeque<Pending>, echo: &StampedTransaction) {
+    let Some(head) = pending.front() else { return };
+    if head.tx.origin.seq != echo.origin.seq {
+        return;
+    }
+    let mut p = live.clone();
+    for q in pending.iter().rev() {
+        for inv in &q.inverse {
+            let _ = p.apply(inv);
+        }
+    }
+    resolve::resolve_all(&mut p, &echo.transaction.ops);
+    for q in pending.iter().skip(1) {
+        resolve::resolve_all(&mut p, &q.tx.transaction.ops);
+    }
+    debug_assert!(
+        &p == live,
+        "own echo processed like a remote transaction must give the live document"
+    );
 }
