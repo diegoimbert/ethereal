@@ -474,6 +474,10 @@
   --input-padding-x: var(--input-padding-x-lg);
   --input-font-size: var(--input-font-size-lg);
 }
+/* Number fields can be dragged up/down while not being typed in. */
+.eth-number:not(:focus-within) .eth-number__input:not(:disabled) {
+  cursor: ns-resize;
+}
 .eth-input:focus-visible,
 .eth-number:focus-within {
   outline: none;
