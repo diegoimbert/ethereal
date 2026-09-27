@@ -175,4 +175,6 @@ paths = [
   "crates/ether-native/tests/recording_e2e.rs",
   # granted by manager (BCR, base-9)
   "apps/web/e2e/recording.spec.ts",
+  # granted by manager (base-10)
+  "crates/ether-core/tests/recording_*.rs",
 ]
