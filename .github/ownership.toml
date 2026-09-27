@@ -85,6 +85,11 @@ paths = [
   "crates/ether-controller/src/plugins/**",
   "crates/ether-native/src/plugins.rs",
   "crates/ether-native/src/sandbox.rs",
+
+  # shared touch (one-line delegation only, WAVE3.md)
+  "crates/ether-native/src/bridge.rs",
+  # shared touch (one-line delegation only, WAVE3.md)
+  "crates/ether-controller/src/handlers.rs",
 ]
 
 [nodes.warp]
@@ -93,6 +98,15 @@ paths = [
   "crates/ether-model/src/warp.rs",
   "crates/ether-core/src/warp/**",
   "crates/ether-controller/src/warp/**",
+
+  # shared touch (one-line delegation only, WAVE3.md)
+  "crates/ether-core/src/sched.rs",
+  # shared touch (one-line delegation only, WAVE3.md)
+  "crates/ether-core/src/engine.rs",
+  # shared touch (one-line delegation only, WAVE3.md)
+  "crates/ether-controller/src/compile.rs",
+  # shared touch (one-line delegation only, WAVE3.md)
+  "crates/ether-controller/src/doc/misc.rs",
 ]
 
 [nodes.recording]
@@ -102,4 +116,11 @@ paths = [
   "crates/ether-core/src/recording/**",
   "crates/ether-controller/src/recording/**",
   "crates/ether-native/src/recording/**",
+
+  # shared touch (one-line delegation only, WAVE3.md)
+  "crates/ether-native/src/audio.rs",
+  # shared touch (one-line delegation only, WAVE3.md)
+  "crates/ether-controller/src/handlers.rs",
+  # shared touch (one-line delegation only, WAVE3.md)
+  "crates/ether-controller/src/compile.rs",
 ]
