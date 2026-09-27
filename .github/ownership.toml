@@ -1023,6 +1023,12 @@ paths = [
 
 [nodes.comping]
 paths = [
+  # BCR (base-75): overlap trimming per lane (1 line), mock overlap + take cascade on track delete,
+  # arrangement hides lane clips from the main row, MIDI loop-pass index in the native recording writer
+  "crates/ether-controller/src/doc/clips.rs",
+  "ui/src/transport/mock/documentReducer.ts",
+  "ui/src/features/arrangement/clipTime.ts",
+  "crates/ether-native/src/recording/writer.rs",
   "crates/ether-controller/src/comping/**",
   "ui/src/features/comping/**",
   "ui/src/transport/mock/roadmap/comping.*",
@@ -1064,6 +1070,10 @@ paths = [
 
 [nodes.time-edits]
 paths = [
+  # BCR (base-74): one runtime field for the time clipboard (+ Default in with_config)
+  "crates/ether-controller/src/lib.rs",
+  # BCR (base-74): route TimeEdit through MockTimeEdits in the mock (import, field, command case; mirrors MockFreeze)
+  "ui/src/transport/mock/MockTransport.ts",
   "crates/ether-controller/src/time_edit/**",
   "ui/src/features/time-edits/**",
   "ui/src/transport/mock/roadmap/timeEdits.*",
