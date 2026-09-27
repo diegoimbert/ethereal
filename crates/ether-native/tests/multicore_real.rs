@@ -13,12 +13,10 @@ use ether_core::graph::{
     ChainEntry, ClipContentDesc, ClipDesc, NoteDesc, PadDesc, RackDesc, SendDesc, TrackDesc,
 };
 use ether_core::parallel::ParallelExecutor;
-use ether_core::protocol::model::{
-    ClipId, DrumPadId, SendId, TrackId, TrackKind, Ulid,
-};
+use ether_core::protocol::model::{ClipId, DrumPadId, SendId, TrackId, TrackKind, Ulid};
 use ether_core::{
-    Device, Engine, EngineConfig, EngineHandle, EngineParts, RenderGraphDesc,
-    TransportControl, create,
+    Device, Engine, EngineConfig, EngineHandle, EngineParts, RenderGraphDesc, TransportControl,
+    create,
 };
 use ether_native::workers::{PoolOptions, WorkerPool};
 

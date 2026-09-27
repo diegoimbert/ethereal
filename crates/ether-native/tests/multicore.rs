@@ -75,7 +75,10 @@ fn oversubscribed_pool_never_deadlocks() {
     // A real render.
     let blocks = 60;
     let (reference, _) = run(&mut engine(16, None).engine, blocks);
-    let (out, _) = run(&mut engine(16, Some(Box::new(pool(workers)))).engine, blocks);
+    let (out, _) = run(
+        &mut engine(16, Some(Box::new(pool(workers)))).engine,
+        blocks,
+    );
     assert_eq!(first_diff(&reference, &out), None);
 
     // Pools come and go (threads joined, nothing left parked).

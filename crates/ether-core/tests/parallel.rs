@@ -85,7 +85,14 @@ fn pinned_tracks_are_bit_exact_and_run_on_the_caller() {
             max_jobs: Arc::new(AtomicUsize::new(0)),
             pinned: pinned.clone(),
         };
-        let out = render(seed, 256, FRAMES, Some(Box::new(spy)), stretch(), &mut |_| {});
+        let out = render(
+            seed,
+            256,
+            FRAMES,
+            Some(Box::new(spy)),
+            stretch(),
+            &mut |_| {},
+        );
         assert_eq!(first_diff(&reference, &out), None, "seed {seed}");
         pinned_seen += pinned.load(Ordering::Relaxed);
     }
@@ -103,7 +110,14 @@ fn levels_are_dispatched_in_parallel() {
         max_jobs: max_jobs.clone(),
         pinned: Arc::new(AtomicUsize::new(0)),
     };
-    render(3, MAX_BLOCK, 4 * MAX_BLOCK, Some(Box::new(spy)), None, &mut |_| {});
+    render(
+        3,
+        MAX_BLOCK,
+        4 * MAX_BLOCK,
+        Some(Box::new(spy)),
+        None,
+        &mut |_| {},
+    );
     assert!(calls.load(Ordering::Relaxed) > 0);
     assert!(max_jobs.load(Ordering::Relaxed) >= 4);
 }
@@ -124,7 +138,14 @@ fn job_order_does_not_matter() {
     }
     for seed in 40..46u64 {
         let reference = render(seed, 128, FRAMES / 2, None, None, &mut |_| {});
-        let out = render(seed, 128, FRAMES / 2, Some(Box::new(Reversed)), None, &mut |_| {});
+        let out = render(
+            seed,
+            128,
+            FRAMES / 2,
+            Some(Box::new(Reversed)),
+            None,
+            &mut |_| {},
+        );
         assert_eq!(first_diff(&reference, &out), None, "seed {seed}");
     }
 }

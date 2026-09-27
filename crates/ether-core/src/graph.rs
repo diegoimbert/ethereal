@@ -831,3 +831,136 @@ pub fn compile_with(
     let tempo = TempoMapRt::compile(&desc.tempo, &desc.signatures);
     Ok(RenderSnapshot { desc, tempo, rt })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ether_protocol::model::Ulid;
+
+    fn t(id: u128, kind: TrackKind, output: Option<u128>) -> TrackDesc {
+        TrackDesc {
+            id: TrackId(Ulid(id)),
+            kind,
+            chain: vec![],
+            output: output.map(|o| TrackId(Ulid(o))),
+            group: None,
+            sends: vec![],
+            volume: 1.0,
+            pan: 0.0,
+            mute: false,
+            solo: false,
+            audio_input: None,
+            monitor: false,
+            armed: false,
+            clips: vec![],
+            automation: vec![],
+            racks: vec![],
+        }
+    }
+
+    fn key(i: u32) -> NodeKey {
+        NodeKey {
+            index: i,
+            generation: 1,
+        }
+    }
+
+    /// Levels follow outputs, sends and sidechains; each level lists pinned tracks first;
+    /// bus inputs keep the sequential summation order.
+    #[test]
+    fn levels_partition_the_dag() {
+        let mut t1 = t(10, TrackKind::Midi, Some(2));
+        t1.sends.push(SendDesc {
+            id: SendId(Ulid(1)),
+            to: TrackId(Ulid(3)),
+            level: 1.0,
+            pre_fader: false,
+        });
+        let mut t2 = t(11, TrackKind::Audio, Some(1));
+        t2.chain.push(ChainEntry {
+            node: key(0),
+            enabled: true,
+            sidechain: Some(TrackId(Ulid(10))),
+        });
+        t2.clips.push(ClipDesc {
+            id: ClipId(Ulid(1)),
+            start: 0.0,
+            length: 1.0,
+            offset: 0.0,
+            looping: None,
+            muted: false,
+            content: ClipContentDesc::Audio {
+                media: MediaId(Ulid(1)),
+                gain: 1.0,
+                transpose: 0.0,
+                fade_in: 0.0,
+                fade_out: 0.0,
+                warp: Some(WarpDesc {
+                    mode: WarpMode::Complex,
+                    markers: vec![(0.0, 0.0), (1.0, 1.0)],
+                }),
+                fade_in_curve: FadeCurve::default(),
+                fade_out_curve: FadeCurve::default(),
+                reversed: false,
+            },
+            envelopes: vec![],
+        });
+        let t3 = t(12, TrackKind::Midi, Some(2));
+        let desc = RenderGraphDesc {
+            tracks: vec![
+                t(1, TrackKind::Master, None),
+                t(2, TrackKind::Group, Some(1)),
+                t(3, TrackKind::Return, Some(1)),
+                t1,
+                t2,
+                t3,
+            ],
+            ..Default::default()
+        };
+        let snap = compile(desc, &EngineConfig::default()).unwrap();
+        let rt = &snap.rt;
+        let level_of = |ti: usize| {
+            rt.levels
+                .iter()
+                .position(|l| rt.level_order[l.start..l.end].contains(&ti))
+                .unwrap()
+        };
+        // t1, t3 | group, return, t2 (sidechained by t1, pinned) | master
+        assert_eq!(rt.levels.len(), 3);
+        assert_eq!(level_of(3), 0);
+        assert_eq!(level_of(5), 0);
+        assert_eq!(level_of(4), 1);
+        assert_eq!(level_of(1), 1);
+        assert_eq!(level_of(2), 1);
+        assert_eq!(level_of(0), 2);
+        assert_eq!(rt.levels[1].pinned, 1);
+        assert_eq!(rt.level_order[rt.levels[1].start], 4);
+        for (ti, track) in rt.tracks.iter().enumerate() {
+            for input in &track.inputs {
+                let (BusInput::Output(c) | BusInput::Send(c, _)) = *input;
+                assert!(level_of(c) < level_of(ti));
+            }
+            for &s in &track.sc_sources {
+                assert!(level_of(s) < level_of(ti));
+            }
+        }
+        assert_eq!(rt.tracks[4].sc_sources, vec![3]);
+        assert!(rt.tracks[3].tap.is_some() && rt.tracks[5].tap.is_none());
+        // Group inputs in processing order (t1 before t3); the return gets t1's send.
+        assert_eq!(
+            rt.tracks[1].inputs,
+            vec![BusInput::Output(3), BusInput::Output(5)]
+        );
+        assert_eq!(rt.tracks[2].inputs, vec![BusInput::Send(3, 0)]);
+        // Master: in processing order (t1, return, t2, t3, group, master).
+        assert_eq!(rt.order, vec![3, 2, 4, 5, 1, 0]);
+        assert_eq!(
+            rt.tracks[0].inputs,
+            vec![
+                BusInput::Output(2),
+                BusInput::Output(4),
+                BusInput::Output(1)
+            ]
+        );
+    }
+}

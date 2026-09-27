@@ -94,7 +94,11 @@ fn pack(epoch: u32, jobs: usize, next: usize) -> u64 {
 
 #[inline]
 fn unpack(c: u64) -> (u32, usize, usize) {
-    ((c >> 32) as u32, ((c >> 16) & 0xffff) as usize, (c & 0xffff) as usize)
+    (
+        (c >> 32) as u32,
+        ((c >> 16) & 0xffff) as usize,
+        (c & 0xffff) as usize,
+    )
 }
 
 impl Shared {
@@ -287,7 +291,9 @@ impl ParallelExecutor for WorkerPool {
         // The pointer is only dereferenced for this epoch, while `batch` is alive (see
         // `Shared::work`); erase the lifetime to store it.
         s.batch.store(
-            (&batch as *const Batch<'_>).cast_mut().cast::<Batch<'static>>(),
+            (&batch as *const Batch<'_>)
+                .cast_mut()
+                .cast::<Batch<'static>>(),
             Ordering::Release,
         );
         s.claim.store(pack(epoch, jobs, pinned), Ordering::SeqCst);
@@ -420,8 +426,11 @@ mod os {
 
     unsafe extern "C" {
         fn pthread_self() -> std::ffi::c_ulong;
-        fn pthread_setschedparam(thread: std::ffi::c_ulong, policy: i32, param: *const SchedParam)
-        -> i32;
+        fn pthread_setschedparam(
+            thread: std::ffi::c_ulong,
+            policy: i32,
+            param: *const SchedParam,
+        ) -> i32;
     }
 
     /// `SCHED_FIFO` below typical audio-thread priorities; silently stays normal without
@@ -473,7 +482,10 @@ mod tests {
     #[test]
     fn claim_word_round_trips() {
         assert_eq!(unpack(pack(7, 300, 12)), (7, 300, 12));
-        assert_eq!(unpack(pack(u32::MAX, MAX_JOBS, MAX_JOBS)), (u32::MAX, MAX_JOBS, MAX_JOBS));
+        assert_eq!(
+            unpack(pack(u32::MAX, MAX_JOBS, MAX_JOBS)),
+            (u32::MAX, MAX_JOBS, MAX_JOBS)
+        );
     }
 
     #[test]

@@ -28,6 +28,7 @@ use std::time::{Duration, Instant};
 
 use crossbeam_channel::{Receiver, RecvTimeoutError, Sender, unbounded};
 use ether_controller::{Controller, ControllerConfig, EtherController, MessageSink};
+use ether_core::parallel::ParallelExecutor as _;
 use ether_core::protocol::engine::{EngineCommand, EngineEvent, EngineStatus};
 use ether_core::protocol::message::{
     Command, CommandError, ErrorCode, Event, NotificationLevel, Reply, ReplyResult, ReplyValue,
@@ -209,11 +210,6 @@ pub fn worker_threads(data_dir: &std::path::Path) -> usize {
         .unwrap_or_else(crate::workers::default_workers)
 }
 
-fn pool_workers(pool: &crate::workers::WorkerPool) -> usize {
-    use ether_core::parallel::ParallelExecutor;
-    pool.workers()
-}
-
 fn save_audio_settings(data_dir: &std::path::Path, s: &AudioSettings) {
     if let Ok(json) = serde_json::to_string_pretty(s)
         && let Err(e) = crate::store::atomic_write(&settings_file(data_dir), json.as_bytes())
@@ -279,7 +275,7 @@ impl NativeHost {
                 engine_config.max_block_size as f64 / engine_config.sample_rate.max(1) as f64,
             );
             let pool = crate::workers::WorkerPool::new(engine_config.worker_threads, block);
-            tracing::info!(workers = pool_workers(&pool), "audio worker pool started");
+            tracing::info!(workers = pool.workers(), "audio worker pool started");
             parts.engine.set_executor(Box::new(pool));
         }
         parts

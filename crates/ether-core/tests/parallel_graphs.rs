@@ -47,7 +47,7 @@ impl Rng {
     pub fn new(seed: u64) -> Self {
         Self(seed.wrapping_mul(0x9E37_79B9_7F4A_7C15) | 1)
     }
-    pub fn next(&mut self) -> u64 {
+    pub fn next_u64(&mut self) -> u64 {
         let mut x = self.0;
         x ^= x >> 12;
         x ^= x << 25;
@@ -56,10 +56,10 @@ impl Rng {
         x.wrapping_mul(0x2545_F491_4F6C_DD1D)
     }
     pub fn below(&mut self, n: usize) -> usize {
-        (self.next() % n.max(1) as u64) as usize
+        (self.next_u64() % n.max(1) as u64) as usize
     }
     pub fn unit(&mut self) -> f32 {
-        (self.next() >> 40) as f32 / (1u64 << 24) as f32
+        (self.next_u64() >> 40) as f32 / (1u64 << 24) as f32
     }
     pub fn chance(&mut self, p: f32) -> bool {
         self.unit() < p
@@ -176,7 +176,10 @@ impl Filter {
 
 impl Node for Filter {
     fn prepare(&mut self, _: &PrepareConfig) {
-        self.line = [vec![0.0; self.latency.max(1)], vec![0.0; self.latency.max(1)]];
+        self.line = [
+            vec![0.0; self.latency.max(1)],
+            vec![0.0; self.latency.max(1)],
+        ];
     }
     fn reset(&mut self) {
         self.state = [0.0; 2];
@@ -438,7 +441,10 @@ fn node_lane(track: TrackId, node: NodeKey) -> AutomationDesc {
             node,
             param: ParamId(0),
         },
-        points: vec![(0.0, 0.1, CurveShape::Linear), (6.0, 0.9, CurveShape::Linear)],
+        points: vec![
+            (0.0, 0.1, CurveShape::Linear),
+            (6.0, 0.9, CurveShape::Linear),
+        ],
         mapping: ParamMapping {
             min: 0.0,
             max: 1.0,
@@ -505,7 +511,11 @@ pub fn build(seed: u64, h: &mut EngineHandle, complex: bool) -> Project {
         let midi = r.chance(0.7);
         let mut t = track(
             id,
-            if midi { TrackKind::Midi } else { TrackKind::Audio },
+            if midi {
+                TrackKind::Midi
+            } else {
+                TrackKind::Audio
+            },
             Some(dest.unwrap_or(master_id)),
         );
         t.group = dest;
@@ -515,7 +525,8 @@ pub fn build(seed: u64, h: &mut EngineHandle, complex: bool) -> Project {
                 let rack = add(h, Box::new(Clip(1.0 + r.unit() * 3.0)));
                 let pads = (0..1 + r.below(4))
                     .map(|p| {
-                        let mut chain = vec![entry(add(h, Box::new(Saw::new(1.0 + p as f32 * 0.01))))];
+                        let mut chain =
+                            vec![entry(add(h, Box::new(Saw::new(1.0 + p as f32 * 0.01))))];
                         if r.chance(0.5) {
                             chain.push(effect(&mut r, h));
                         }
@@ -532,7 +543,8 @@ pub fn build(seed: u64, h: &mut EngineHandle, complex: bool) -> Project {
                     .collect();
                 t.chain.push(entry(rack));
                 t.racks.push(RackDesc { rack, pads });
-                t.clips.push(midi_clip(&mut r, 1 + i as u128, &[36, 37, 38, 39, 60]));
+                t.clips
+                    .push(midi_clip(&mut r, 1 + i as u128, &[36, 37, 38, 39, 60]));
             } else {
                 let saw = add(h, Box::new(Saw::new(1.0 + r.unit() * 0.02)));
                 t.chain.push(entry(saw));
