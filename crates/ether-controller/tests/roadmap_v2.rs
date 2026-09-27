@@ -13,26 +13,54 @@ use ether_core::protocol::tempo::TempoCommand;
 use ether_core::protocol::tracks::TrackCommand;
 use ether_core::protocol::{Command, ErrorCode};
 
-#[test]
-fn new_domains_reply_unsupported_until_implemented() {
-    let mut h = Harness::with_project();
+/// Sends `c` and asserts it replies `Unsupported` without changing the document.
+fn assert_unsupported(h: &mut Harness, c: Command) {
     let before = h.project().clone();
-    let pad: DrumPadId = h.id();
-    let commands = vec![
+    let out = h.send(c.clone());
+    assert_eq!(err(&out).code, ErrorCode::Unsupported, "{c:?}");
+    assert!(patches(&out).is_empty(), "{c:?}");
+    assert_eq!(h.project(), &before, "{c:?}");
+}
+
+// One test per feature node, so each node deletes only its own function when it lands
+// (parallel removals from one shared list kept conflicting).
+
+#[test]
+fn tempo_unsupported_until_implemented() {
+    let mut h = Harness::with_project();
+    assert_unsupported(
+        &mut h,
         Command::Tempo(TempoCommand::RemoveTempoPoints { ids: vec![] }),
+    );
+}
+
+#[test]
+fn drum_rack_unsupported_until_implemented() {
+    let mut h = Harness::with_project();
+    let pad: DrumPadId = h.id();
+    assert_unsupported(
+        &mut h,
         Command::DrumRack(DrumRackCommand::RemovePad { id: pad }),
+    );
+}
+
+#[test]
+fn slice_unsupported_until_implemented() {
+    let mut h = Harness::with_project();
+    let device = h.id();
+    assert_unsupported(
+        &mut h,
         Command::Slice(SliceCommand::Remove {
-            device: h.id(),
+            device,
             indices: vec![],
         }),
-        Command::Collab(CollabCommand::Leave),
-    ];
-    for c in commands {
-        let out = h.send(c.clone());
-        assert_eq!(err(&out).code, ErrorCode::Unsupported, "{c:?}");
-        assert!(patches(&out).is_empty(), "{c:?}");
-    }
-    assert_eq!(h.project(), &before);
+    );
+}
+
+#[test]
+fn collab_unsupported_until_implemented() {
+    let mut h = Harness::with_project();
+    assert_unsupported(&mut h, Command::Collab(CollabCommand::Leave));
 }
 
 #[test]

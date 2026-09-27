@@ -1182,9 +1182,10 @@ fn unreadable_plugin_state_warns_and_uses_the_saved_state() {
     for _ in 0..10_000 {
         for e in events(&d.tick()) {
             match e {
-                Event::Notification { level, message } if level == NotificationLevel::Warning => {
-                    warnings.push(message)
-                }
+                Event::Notification {
+                    level: NotificationLevel::Warning,
+                    message,
+                } => warnings.push(message),
                 Event::Export {
                     event: ExportEvent::Done { job: j, .. },
                 } if j == job => done = true,
