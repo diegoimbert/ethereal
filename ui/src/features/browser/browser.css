@@ -57,7 +57,7 @@
   flex-wrap: wrap;
   gap: var(--eth-space-xs);
   padding: var(--eth-space-sm);
-  border-bottom: 1px solid var(--eth-color-border-light);
+  border-bottom: var(--eth-border-width) solid var(--eth-color-border-light);
 }
 .eth-browser__crumbs {
   display: flex;
@@ -66,12 +66,12 @@
   padding: var(--eth-space-xs) var(--eth-space-sm);
   color: var(--eth-color-text-dim);
   font-size: var(--eth-fs-xs);
-  border-bottom: 1px solid var(--eth-color-border-light);
+  border-bottom: var(--eth-border-width) solid var(--eth-color-border-light);
 }
 .eth-browser__crumb {
   border: none;
   background: none;
-  padding: 0 2px;
+  padding: 0 var(--eth-space-xs);
   color: inherit;
   font: inherit;
   cursor: pointer;
@@ -94,7 +94,7 @@
   display: flex;
   align-items: center;
   gap: var(--eth-space-sm);
-  height: 24px;
+  height: var(--eth-size-browser-row-height);
   padding: 0 var(--eth-space-sm);
   border-radius: var(--eth-radius-sm);
   cursor: default;
@@ -113,7 +113,7 @@
   outline: none;
 }
 .eth-browser__row:focus-visible {
-  box-shadow: inset 0 0 0 1px var(--eth-color-focus);
+  box-shadow: inset 0 0 0 var(--eth-border-width) var(--eth-color-focus);
 }
 /* Row actions (preview, import) show on hover. */
 .eth-browser__row .eth-browser__actions .eth-button {
@@ -173,7 +173,7 @@
   text-align: center;
 }
 .eth-browser__empty .lucide {
-  font-size: 22px;
+  font-size: var(--eth-size-empty-state-icon);
   opacity: 0.6;
 }
 .eth-browser__empty-hint {
@@ -184,7 +184,7 @@
 .eth-browser__error {
   padding: var(--eth-space-xs) var(--eth-space-sm);
   border: none;
-  border-top: 1px solid var(--eth-color-border-light);
+  border-top: var(--eth-border-width) solid var(--eth-color-border-light);
   background: none;
   font-size: var(--eth-fs-xs);
   color: var(--eth-color-text-dim);
