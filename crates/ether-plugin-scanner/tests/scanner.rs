@@ -155,7 +155,10 @@ fn dispatches_by_format() {
         })
         .unwrap_err();
     let lower = err.to_lowercase();
-    assert!(lower.contains("unsupported") || lower.contains("not found"), "{err}");
+    assert!(
+        lower.contains("unsupported") || lower.contains("not found"),
+        "{err}"
+    );
 
     // Unknown extension, no format: not claimed by any format.
     let other = dir.join("Thing.vst");
