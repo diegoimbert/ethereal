@@ -9,7 +9,7 @@
  * undo).
  */
 
-import type { CollabCommand, CollabStatus, Command, ListenState, Presence, PresenceState, ReplyValue } from "@/generated";
+import type { ArrangerPointer, CollabCommand, CollabStatus, Command, ListenState, Presence, PresenceState, ReplyValue } from "@/generated";
 import { fail } from "../documentReducer";
 import type { MockHost } from "./host";
 
@@ -45,6 +45,8 @@ export class MockCollab {
   private nextStream = 0;
   /** This site's last published presence. */
   presence: PresenceState = emptyPresence();
+  /** This site's last published pointer (presence-v2). */
+  pointer: ArrangerPointer | null = null;
 
   constructor(private readonly host: MockHost) {}
 
@@ -65,6 +67,7 @@ export class MockCollab {
         }
         this.status = { type: "Offline" };
         this.peers.clear();
+        this.pointer = null;
         this.emitAll();
         return UNIT;
       case "SetPresence":
@@ -73,8 +76,12 @@ export class MockCollab {
       case "Get":
         this.emitAll();
         return UNIT;
-      // base-53 (docs/COLLAB.md §8-§10): like the engine until presence-v2, stream-host and
-      // stream-listen land (each node extends its cases).
+      // presence-v2: the pointer is stored (the engine throttles and sends it).
+      case "SetPointer":
+        this.pointer = c.pointer;
+        return UNIT;
+      // base-53 (docs/COLLAB.md §8-§10): like the engine until stream-host and stream-listen
+      // land (each node extends its cases).
       // stream-listen: the mock has no media; `Listen` stays connecting until stopped.
       case "Listen":
         if (this.status.type !== "Online") fail("InvalidState", "not in a collaboration session");
@@ -89,7 +96,6 @@ export class MockCollab {
           this.emitListen();
         }
         return UNIT;
-      case "SetPointer":
       case "SetHosting":
       case "SendStreamClock":
         return fail("Unsupported", `${c.type} is not implemented yet`);
@@ -120,6 +126,12 @@ export class MockCollab {
     if (state) this.peers.set(site, { site, actor: null, name, color, state });
     else this.peers.delete(site);
     this.emitPeers();
+  }
+
+  /** A peer's live arranger pointer (presence-v2; `null` clears it). */
+  simulatePointer(site: string, pointer: ArrangerPointer | null): void {
+    if (this.status.type !== "Online") return;
+    this.host.emit({ type: "Collab", event: { type: "Pointer", site, pointer } });
   }
 
   /** Document commands as if a peer made them. */

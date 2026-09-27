@@ -61,6 +61,21 @@ describe("MockCollab", () => {
     expect(events.at(-1)).toMatchObject({ event: { status: { listening: { type: "Ended", host: "2", reason: "no audio" } } } });
   });
 
+  it("stores this site's pointer and simulates a peer's (presence-v2)", () => {
+    const events: Event[] = [];
+    const c = new MockCollab(stubHost(events));
+    const p = { beats: 4, track: "t", y: 0.5 };
+    c.simulatePointer("2", p);
+    expect(events).toEqual([]); // offline: nothing
+    c.command({ type: "Join", server: "ws://relay:1", session: "jam", token: null, name: "Me" });
+    expect(c.command({ type: "SetPointer", pointer: p })).toEqual({ type: "Unit" });
+    expect(c.pointer).toEqual(p);
+    c.simulatePointer("2", p);
+    expect(events.at(-1)).toEqual({ type: "Collab", event: { type: "Pointer", site: "2", pointer: p } });
+    c.command({ type: "Leave" });
+    expect(c.pointer).toBeNull();
+  });
+
   it("validates joins like the engine", () => {
     const c = new MockCollab(stubHost([]));
     expect(() => c.command({ type: "Join", server: "http://x", session: "jam", token: null, name: "" })).toThrow(/ws:\/\//);

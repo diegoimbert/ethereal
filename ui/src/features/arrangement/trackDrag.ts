@@ -10,6 +10,7 @@
 import type { PointerEvent as ReactPointerEvent } from "react";
 import type { Track, TrackId } from "@/generated";
 import { setDragCursor } from "@/kit";
+import { setActivity } from "@/features/collab/presence/local";
 import { cmd } from "@/transport";
 import { sendEdit, type ArrangementContextValue } from "./context";
 import type { Row } from "./layout";
@@ -73,7 +74,11 @@ export function onTrackHeaderPointerDown(e: ReactPointerEvent<HTMLElement>, trac
 
   const move = (ev: PointerEvent) => {
     if (!active && Math.abs(ev.clientY - startY) < DRAG_THRESHOLD_PX) return;
-    if (!active) setDragCursor("grabbing");
+    if (!active) {
+      setDragCursor("grabbing");
+      // presence-v2: "Ada · dragging" for the peers, cleared in `done`.
+      setActivity({ kind: "Dragging", target: { type: "Track", track: track.id } });
+    }
     active = true;
     target = trackDropTarget(ctx.rowsRef.current, ev.clientY - top(), track.id);
     ui().setTrackDrag(target ? { track: track.id, y: target.y, into: target.into } : { track: track.id, y: null, into: null });
@@ -85,6 +90,7 @@ export function onTrackHeaderPointerDown(e: ReactPointerEvent<HTMLElement>, trac
   };
   const done = () => {
     setDragCursor(null);
+    if (active) setActivity(null);
     ui().setTrackDrag(null);
     window.removeEventListener("pointermove", move);
     window.removeEventListener("pointerup", up);

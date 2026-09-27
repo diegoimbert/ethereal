@@ -276,7 +276,7 @@ test("listen on a scripted host: stream, shared playhead, forwarded transport, h
 
   // --- Hal cannot host yet: the entry is disabled with the reason.
   await chip.click({ button: "right" });
-  const blocked = a.getByRole("menuitem", { name: "Listen on Hal's computer (Hal's computer cannot host a stream)" });
+  const blocked = a.getByRole("menuitem", { name: "Listen on Hal's computer (Hal can't host)" });
   await expect(blocked).toBeDisabled();
   await shot(a, "listen-disabled-menu");
   await a.keyboard.press("Escape");

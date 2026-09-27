@@ -14,7 +14,7 @@ export const peerName = (p: Pick<Presence, "name">) => p.name || "Anonymous";
 export function listenBlocker(peer: Presence): string | null {
   const unsupported = webrtcUnsupportedReason();
   if (unsupported) return unsupported;
-  if (!peer.state.can_host) return `${peerName(peer)}'s computer cannot host a stream`;
+  if (!peer.state.can_host) return `${peerName(peer)} can't host`;
   return null;
 }
 
