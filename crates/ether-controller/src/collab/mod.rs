@@ -50,6 +50,14 @@ struct Pending {
     inverse: Vec<Op>,
 }
 
+/// See [`Session::backup`].
+struct Backup {
+    /// The stored `.ether` file.
+    json: String,
+    /// Its shared part ([`resolve::shared_part`]; `None`: unreadable, always kept).
+    shared: Option<Project>,
+}
+
 /// A media file being received.
 struct Incoming {
     hash: String,
@@ -73,6 +81,8 @@ struct Session {
     project: Option<ProjectId>,
     /// Transactions applied from the log (the confirmed index).
     index: u64,
+    /// The session incarnation we are synced with (`SnapshotData::epoch`).
+    epoch: u64,
     /// Last sequenced `seq` per site.
     sites: BTreeMap<SiteId, u64>,
     /// Last local `seq` assigned.
@@ -92,6 +102,10 @@ struct Session {
     staged: Vec<(String, Vec<u8>)>,
     upload_counter: u64,
     status: Option<CollabStatus>,
+    /// Rejoin: the stored copy of the project differed from the snapshot. It is kept as a
+    /// backup project unless it turns out to be a state of the session log (no offline
+    /// work): compared after every sequenced transaction, decided at the first quiet tick.
+    backup: Option<Backup>,
     /// Last plugin state this site sent, received, or started from, per device: a save
     /// replicates a plugin's state only when its live state differs (COLLAB.md §2.2).
     captured: BTreeMap<DeviceId, Base64Bytes>,
@@ -128,6 +142,11 @@ pub(crate) struct CollabState {
     connector: Option<Connector>,
     site: Option<SiteId>,
     session: Option<Box<Session>>,
+    /// Sessions this controller created (for distinct epochs).
+    created: u64,
+    /// Last `seq` this site used, across sessions: a re-join of the same session (same
+    /// site id) must never reuse a `seq` the relay already sequenced.
+    last_seq: u64,
 }
 
 impl<B, H, S, L> EtherController<B, H, S, L>
@@ -212,8 +231,9 @@ where
                     joined: false,
                     project: None,
                     index: 0,
+                    epoch: 0,
                     sites: BTreeMap::new(),
-                    seq: 0,
+                    seq: self.collab.last_seq,
                     pending: VecDeque::new(),
                     owe_snapshot: false,
                     peers: BTreeMap::new(),
@@ -228,6 +248,7 @@ where
                     upload_counter: 0,
                     status: None,
                     captured: BTreeMap::new(),
+                    backup: None,
                 }));
                 let _ = site;
                 self.collab_connect(now);
@@ -277,6 +298,7 @@ where
         let Some(mut s) = self.collab.session.take() else {
             return;
         };
+        self.collab.last_seq = self.collab.last_seq.max(s.seq);
         if let Some(site) = self.collab.site {
             s.send(&CollabMessage::Leave { site });
         }
@@ -438,6 +460,7 @@ where
         if let Some(l) = self.collab.session.as_mut().and_then(|s| s.link.as_mut()) {
             l.poll(&mut messages);
         }
+        let quiet = messages.is_empty();
         for m in messages {
             if self.collab.session.is_none() {
                 break;
@@ -446,6 +469,9 @@ where
         }
         if self.collab.session.is_none() {
             return;
+        }
+        if quiet {
+            self.collab_flush_backup(now, out);
         }
         self.collab_flush_presence(now);
         self.collab_send_owed_snapshot();
@@ -472,7 +498,7 @@ where
         };
         s.send(&hello);
         let version = if s.joined {
-            encode_version(s.index)
+            encode_version(s.epoch, s.index)
         } else {
             Base64Bytes(Vec::new())
         };
@@ -540,6 +566,17 @@ where
         let (ops, inverse) = resolve::split_shared(ops, inverse);
         if ops.is_empty() {
             return;
+        }
+        if let Some(s) = self.collab.session.as_mut()
+            && let Some(b) = s.backup.take()
+        {
+            // Decided now: the document is about to diverge from any log state.
+            let now = self.host.now_ms();
+            let pid = s.project;
+            if let Some(pid) = pid {
+                let mut sink = Vec::new();
+                let _ = self.collab_backup(pid, &b.json, now, &mut sink);
+            }
         }
         let site = self.collab_site();
         let s = self.collab.session.as_mut().expect("active");
@@ -636,22 +673,25 @@ where
                 let last = s.sites.entry(origin.site).or_insert(0);
                 *last = (*last).max(origin.seq);
                 if origin.site == site {
-                    // Our own echo: the head of `pending` (see docs/COLLAB.md §2).
-                    #[cfg(debug_assertions)]
-                    if let Some(doc) = self.doc.as_ref() {
-                        check_echo(&doc.project, &s.pending, &transaction);
-                    }
+                    // Never reuse a sequenced `seq` (a re-join replays our older ones).
+                    s.seq = s.seq.max(origin.seq);
                     if s.pending
                         .front()
                         .is_some_and(|p| p.tx.origin.seq == origin.seq)
                     {
+                        // Our own echo: the head of `pending` (see docs/COLLAB.md §2).
+                        #[cfg(debug_assertions)]
+                        if let Some(doc) = self.doc.as_ref() {
+                            check_echo(&doc.project, &s.pending, &transaction);
+                        }
                         s.pending.pop_front();
-                    } else {
-                        s.pending.retain(|p| p.tx.origin.seq > origin.seq);
+                        self.collab_check_backup();
+                        return;
                     }
-                    return;
+                    // Ours from before a re-join (not in our document): like a peer's.
                 }
                 self.collab_apply_remote(transaction, now, out);
+                self.collab_check_backup();
             }
             CollabMessage::Hello {
                 site: peer, name, ..
@@ -705,6 +745,10 @@ where
             return;
         };
         let project = &mut doc.project;
+        // Derived, never-replicated data (media length from decode, mirrored plugin
+        // params) of entities our pending transactions created: the re-apply below
+        // re-inserts them as sent, so it is carried over (COLLAB.md §2).
+        let derived = derived_of_pending(project, &s.pending);
         let mut touched = Vec::new();
         for p in s.pending.iter().rev() {
             for inv in &p.inverse {
@@ -741,6 +785,7 @@ where
             p.inverse = inverse;
             touched.extend(applied);
         }
+        restore_derived(project, derived);
         // A peer replicated a plugin state (COLLAB.md §2.2): our running instance is
         // re-created from it (a missing plugin has no instance: the document keeps it), and
         // it is our new baseline, so our next save doesn't send it back.
@@ -846,7 +891,9 @@ where
         }
         match s.project.filter(|_| s.joined) {
             Some(pid) => {
-                if self.store.write(pid, &file, &bytes).is_ok()
+                let project = self.doc.as_ref().map(|d| &d.project);
+                if media_acceptable(&mut self.store, pid, project, &file, &bytes)
+                    && self.store.write(pid, &file, &bytes).is_ok()
                     && let Some(doc) = self.doc.as_ref()
                 {
                     // Media inserted before its bytes arrived (should not happen with the
@@ -943,6 +990,19 @@ where
         let medias: Vec<MediaRef> = doc.project.media.values().cloned().collect();
         let ether = self.collab_ether()?;
         let live = self.collab_live_plugin_states();
+        let epoch = {
+            let seed = self.host.random_seed();
+            let now = self.host.now_ms();
+            // Distinct per creating site, and per creation on one site.
+            let mut x = seed ^ site.0.rotate_left(17) ^ now.rotate_left(41);
+            x ^= self
+                .collab
+                .last_seq
+                .wrapping_add(1)
+                .wrapping_mul(0x9e37_79b9_7f4a_7c15);
+            self.collab.created += 1;
+            x ^ self.collab.created.wrapping_mul(0xbf58_476d_1ce4_e5b9)
+        };
         let s = self.collab.session.as_mut().expect("in session");
         // Peers start from these plugin states.
         s.captured = live;
@@ -951,12 +1011,15 @@ where
         s.joined = true;
         s.project = Some(pid);
         s.index = 0;
+        // A new incarnation of the session (it may have existed before on the relay).
+        s.epoch = epoch;
         s.sites = BTreeMap::from([(site, s.seq)]);
         for m in &medias {
             self.collab_push_media(pid, m);
         }
         let s = self.collab.session.as_mut().expect("in session");
         let data = SnapshotData {
+            epoch,
             index: 0,
             sites: s.sites.clone(),
             ether,
@@ -979,6 +1042,7 @@ where
         let s = self.collab.session.as_mut().expect("checked");
         s.owe_snapshot = false;
         let data = SnapshotData {
+            epoch: s.epoch,
             index: s.index,
             sites: s.sites.clone(),
             ether,
@@ -1036,11 +1100,24 @@ where
             .session
             .as_ref()
             .is_some_and(|s| s.joined && s.project == Some(pid));
+        let mut backup = None;
         match self.store.load(pid) {
             Ok(existing) => {
-                let differs = file::load(&existing).map_or(true, |p| p != project);
-                if differs && !resync {
-                    self.collab_backup(pid, now, out)?;
+                if !resync
+                    && let Ok(p) = file::load(&existing)
+                    && resolve::shared_part(&p) != resolve::shared_part(&project)
+                {
+                    // Maybe offline work, maybe just older than the log: decided once the
+                    // log is applied (see `Session::backup`).
+                    backup = Some(Backup {
+                        shared: Some(resolve::shared_part(&p)),
+                        json: existing,
+                    });
+                } else if !resync && file::load(&existing).is_err() {
+                    backup = Some(Backup {
+                        shared: None,
+                        json: existing,
+                    });
                 }
             }
             Err(_) => {
@@ -1055,7 +1132,9 @@ where
             .map(|s| std::mem::take(&mut s.staged))
             .unwrap_or_default();
         for (f, bytes) in staged {
-            let _ = self.store.write(pid, &f, &bytes);
+            if media_acceptable(&mut self.store, pid, Some(&project), &f, &bytes) {
+                let _ = self.store.write(pid, &f, &bytes);
+            }
         }
         if let Some(d) = self.doc.as_mut() {
             // Saved above: don't save the old state over the snapshot when switching.
@@ -1069,7 +1148,9 @@ where
         s.joined = true;
         s.project = Some(pid);
         s.index = snap.index;
+        s.epoch = snap.epoch;
         s.sites = snap.sites;
+        s.backup = backup;
         // Our plugins are created from the snapshot's states.
         s.captured = project
             .devices
@@ -1092,20 +1173,58 @@ where
             self.after_ops_from(&touched, None, now, out);
             self.collab_resend_pending(own);
         }
+        self.collab_check_backup();
         Ok(())
     }
 
-    /// Keep the stored copy of `pid` as a new project "<name> (local copy)".
+    /// Drop the backup candidate if the document is now the stored copy (it was a state of
+    /// the session, not offline work).
+    fn collab_check_backup(&mut self) {
+        let (Some(doc), Some(s)) = (self.doc.as_ref(), self.collab.session.as_mut()) else {
+            return;
+        };
+        if s.pending.is_empty()
+            && s.backup
+                .as_ref()
+                .is_some_and(|b| b.shared.as_ref() == Some(&resolve::shared_part(&doc.project)))
+        {
+            s.backup = None;
+        }
+    }
+
+    /// The log is applied (a quiet tick) and the stored copy never matched: keep it.
+    fn collab_flush_backup(&mut self, now: u64, out: &mut dyn MessageSink) {
+        let Some(s) = self.collab.session.as_mut() else {
+            return;
+        };
+        let (Some(b), Some(pid)) = (s.backup.take(), s.project) else {
+            return;
+        };
+        if let Err(e) = self.collab_backup(pid, &b.json, now, out) {
+            notify(
+                out,
+                NotificationLevel::Error,
+                format!(
+                    "collaboration: could not keep your local version: {}",
+                    e.message
+                ),
+            );
+        }
+    }
+
+    /// Keep `json` (the stored copy of `pid` before the session replaced it) as a new
+    /// project "<name> (local copy)", with `pid`'s media (media files are never removed and
+    /// are named per media id, so the old ones are all there).
     fn collab_backup(
         &mut self,
         pid: ProjectId,
+        json: &str,
         now: u64,
         out: &mut dyn MessageSink,
     ) -> CmdResult<()> {
         let backup = self.ids.next_project_id(now);
         self.store.duplicate(pid, backup).map_err(store_err)?;
-        let json = self.store.load(backup).map_err(store_err)?;
-        let mut copy = file::load(&json).map_err(|e| internal(e.to_string()))?;
+        let mut copy = file::load(json).map_err(|e| internal(e.to_string()))?;
         copy.id = backup;
         copy.settings.name = format!("{} (local copy)", copy.settings.name);
         let name = copy.settings.name.clone();
@@ -1145,4 +1264,147 @@ fn check_echo(live: &Project, pending: &VecDeque<Pending>, echo: &StampedTransac
         &p == live,
         "own echo processed like a remote transaction must give the live document"
     );
+}
+
+/// May `bytes` be written to `pid`'s `file`? Not if the document has a media with that file
+/// and a different hash, nor if a different file is already stored there (media files are
+/// named per media id: an existing one is never replaced). Identical content: rewriting is
+/// harmless.
+fn media_acceptable<S: ProjectStore>(
+    store: &mut S,
+    pid: ProjectId,
+    project: Option<&Project>,
+    file: &str,
+    bytes: &[u8],
+) -> bool {
+    let hash = content_hash(bytes);
+    if let Some(p) = project
+        && p.media
+            .values()
+            .any(|m| m.file == file && m.hash.as_ref().is_some_and(|h| *h != hash))
+    {
+        return false;
+    }
+    match store.read(pid, file) {
+        Ok(existing) => existing == bytes,
+        Err(_) => true,
+    }
+}
+
+/// Derived data of the entities pending transactions insert (see `collab_apply_remote`).
+struct Derived {
+    media: Vec<(MediaId, u64)>,
+    params: Vec<(DeviceId, BTreeMap<ParamId, f64>)>,
+}
+
+fn derived_of_pending(project: &Project, pending: &VecDeque<Pending>) -> Derived {
+    let mut d = Derived {
+        media: Vec::new(),
+        params: Vec::new(),
+    };
+    for p in pending {
+        for op in &p.tx.transaction.ops {
+            match op {
+                Op::Insert {
+                    entity: Entity::Media(m),
+                } => {
+                    if let Some(cur) = project.media.get(&m.id) {
+                        d.media.push((m.id, cur.frames));
+                    }
+                }
+                Op::Insert {
+                    entity: Entity::Device(dev),
+                } if matches!(dev.kind, DeviceKind::Plugin { .. }) => {
+                    if let Some(cur) = project.devices.get(&dev.id) {
+                        d.params.push((dev.id, cur.params.clone()));
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+    d
+}
+
+fn restore_derived(project: &mut Project, d: Derived) {
+    for (id, frames) in d.media {
+        if let Some(m) = project.media.get_mut(&id)
+            && m.frames == 0
+        {
+            m.frames = frames;
+        }
+    }
+    for (id, params) in d.params {
+        if let Some(dev) = project.devices.get_mut(&id) {
+            dev.params = params;
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::memory::MemoryStore;
+
+    #[test]
+    fn received_media_never_replaces_other_content() {
+        let mut ids = IdGen::new(7);
+        let mut project = Project::new(&mut ids, 0);
+        let pid = project.id;
+        let mut store = MemoryStore::new();
+        store.create(pid).unwrap();
+        let file = "media/01-kick.wav";
+        let good = b"kick".to_vec();
+        // The document's hash is authoritative (not only the sender's declared one).
+        let id = MediaId(ids.next_ulid(0));
+        project.media.insert(
+            id,
+            MediaRef {
+                id,
+                name: "kick.wav".into(),
+                file: file.into(),
+                sample_rate: 48_000,
+                channels: 1,
+                frames: 0,
+                hash: Some(content_hash(&good)),
+            },
+        );
+        assert!(!media_acceptable(
+            &mut store,
+            pid,
+            Some(&project),
+            file,
+            b"evil"
+        ));
+        assert!(media_acceptable(
+            &mut store,
+            pid,
+            Some(&project),
+            file,
+            &good
+        ));
+        // An existing file is never overwritten with different bytes (same bytes: fine).
+        store.write(pid, "media/02-snare.wav", b"snare").unwrap();
+        assert!(!media_acceptable(
+            &mut store,
+            pid,
+            None,
+            "media/02-snare.wav",
+            b"other"
+        ));
+        assert!(media_acceptable(
+            &mut store,
+            pid,
+            None,
+            "media/02-snare.wav",
+            b"snare"
+        ));
+        assert!(media_acceptable(
+            &mut store,
+            pid,
+            None,
+            "media/03-new.wav",
+            b"new"
+        ));
+    }
 }

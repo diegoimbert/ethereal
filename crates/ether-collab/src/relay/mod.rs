@@ -88,7 +88,7 @@ struct Peer {
     /// Asked to provide the session's first snapshot.
     creator: bool,
     /// A `SyncRequest` that arrived before the session had a snapshot.
-    waiting: Option<Option<u64>>,
+    waiting: Option<Option<(u64, u64)>>,
 }
 
 struct MediaChunk {
@@ -103,6 +103,8 @@ struct Session {
     snapshot: Option<Arc<CollabMessage>>,
     /// Log index of the snapshot (= index of `log[0]`).
     base: u64,
+    /// The session incarnation (`SnapshotData::epoch` of its first snapshot).
+    epoch: u64,
     log: Vec<Arc<CollabMessage>>,
     last_seq: HashMap<SiteId, u64>,
     media: Vec<MediaChunk>,
@@ -294,6 +296,15 @@ impl Relay {
         } = self.config;
         let total_media = self.media_bytes;
         let s = self.sessions.get_mut(&name).ok_or("unknown session")?;
+        // A site id is held by one live connection at a time (no impersonation; a
+        // reconnecting site's old connection is closed before it says hello again).
+        let taken = match &message {
+            CollabMessage::Hello { site, .. } => s
+                .peers
+                .iter()
+                .any(|(id, p)| *id != conn && p.site == Some(*site)),
+            _ => false,
+        };
         let peer = s.peers.get_mut(&conn).ok_or("unknown peer")?;
         match message {
             CollabMessage::Hello {
@@ -305,6 +316,12 @@ impl Relay {
                 if peer.site.is_some() {
                     return Err(Dropped {
                         reason: "second hello".into(),
+                        disconnect: true,
+                    });
+                }
+                if taken {
+                    return Err(Dropped {
+                        reason: "this site is already connected to the session".into(),
                         disconnect: true,
                     });
                 }
@@ -349,6 +366,7 @@ impl Relay {
                         return Err("the first snapshot must have index 0".into());
                     }
                     s.base = 0;
+                    s.epoch = snap.epoch;
                     s.log.clear();
                     s.last_seq = snap.sites.clone().into_iter().collect();
                     s.snapshot = Some(Arc::new(CollabMessage::Snapshot { data }));
@@ -356,7 +374,7 @@ impl Relay {
                     peer.waiting = None;
                     peer.ready = true;
                     // The creator already has this state; everyone else waiting gets it.
-                    let waiting: Vec<(ConnId, Option<u64>)> = s
+                    let waiting: Vec<(ConnId, Option<(u64, u64)>)> = s
                         .peers
                         .iter()
                         .filter_map(|(id, p)| p.waiting.map(|w| (*id, w)))
@@ -370,6 +388,9 @@ impl Relay {
                 }
                 if !s.compacting.is_some_and(|(c, _)| c == conn) {
                     return Err("unrequested snapshot".into());
+                }
+                if snap.epoch != s.epoch {
+                    return Err("snapshot of another session epoch".into());
                 }
                 if snap.index < s.base || snap.index > s.end() {
                     return Err("snapshot index outside the log".into());
@@ -496,8 +517,16 @@ impl Relay {
 
     /// Send `conn` what it is missing since `from` (media, snapshot, log), then the other
     /// peers, and mark it ready (it receives broadcasts from now on).
-    fn answer_sync(s: &mut Session, conn: ConnId, from: Option<u64>, out: &mut Vec<Outgoing>) {
-        let resume = from.filter(|&i| i >= s.base && i <= s.end());
+    fn answer_sync(
+        s: &mut Session,
+        conn: ConnId,
+        from: Option<(u64, u64)>,
+        out: &mut Vec<Outgoing>,
+    ) {
+        // Resume only within this incarnation of the session and the kept log.
+        let resume = from
+            .filter(|&(e, i)| e == s.epoch && i >= s.base && i <= s.end())
+            .map(|(_, i)| i);
         let media_from = resume.unwrap_or(0);
         for c in &s.media {
             if c.at >= media_from {

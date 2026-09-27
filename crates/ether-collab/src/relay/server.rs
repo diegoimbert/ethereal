@@ -52,6 +52,14 @@ const PRESENCE_INTERVAL: Duration = Duration::from_millis(50);
 /// reconnect).
 pub const CONN_QUEUE: usize = 8192;
 
+/// Outgoing queue of a connection: at least [`CONN_QUEUE`], and room for everything a late
+/// joiner is sent at once (cached media chunks, snapshot, the full log, peers), so a joiner
+/// is never disconnected by its own catch-up (and can't loop on reconnects).
+pub fn conn_queue(relay: &RelayConfig) -> usize {
+    let media_chunks = relay.max_media_bytes / crate::wire::MEDIA_CHUNK_BYTES + 1;
+    CONN_QUEUE.max(relay.max_log + media_chunks + 4 * relay.max_sites_per_session + 64)
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct RelayServerConfig {
     /// Default: `127.0.0.1:0`.
@@ -464,7 +472,8 @@ fn serve_connection(stream: TcpStream, shared: &Shared) -> Result<(), String> {
         return Err("bad token".into());
     }
     let conn = shared.next_conn.fetch_add(1, Ordering::Relaxed);
-    let (tx, rx) = crossbeam_channel::bounded::<Arc<CollabMessage>>(CONN_QUEUE);
+    let (tx, rx) =
+        crossbeam_channel::bounded::<Arc<CollabMessage>>(conn_queue(&shared.config.relay));
     // Register the queue before the relay can route anything to this connection.
     shared.queues.lock().expect("queues lock").insert(conn, tx);
     if let Err(refusal) = shared

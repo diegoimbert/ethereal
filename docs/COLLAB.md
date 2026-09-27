@@ -62,6 +62,11 @@ invariants (routing cycles, "clip on an existing track of the right kind", tempo
   pops it (and keeps its current inverse). In debug builds every own echo is also processed
   the long way on a copy (undo pending, resolve it on `confirmed`, re-apply the rest) and
   asserted equal to the live document (`check_echo`); every collab test runs with it.
+  An own-site transaction is an echo **only if it matches the head of `pending`**; any other
+  (ours from before a leave + re-join on the same controller, which the snapshot + log
+  replay) is applied exactly like a peer's. `seq` is per controller lifetime (it survives
+  Leave/Join) and is raised to the highest own `seq` seen in the log, so a re-joined site
+  never reuses a sequenced `seq` (the relay would drop it as a resend).
 - **Convergence invariant** (checked by the property test): on every site, after the log is
   fully delivered, `confirmed` = `fold(resolve, join snapshot, relay log)` and `pending` is
   empty, so `live` is identical everywhere (up to the site-local fields of §2.1). The
@@ -170,14 +175,23 @@ undo/redo go through `History::undo_with/redo_with` (`history.rs`) with
     session project into its own store under the **same `ProjectId`**, opens it (media is in
     its `media/` already), and applies the log. Its own undo history starts empty.
   - **Existing local copy**: if the store already has that `ProjectId` and its saved content
-    differs from the snapshot (unsynced local work, e.g. edits made offline after a
-    previous session), the local copy is first duplicated as a new project named
-    "<name> (local copy)" and a notification says so. Nothing is overwritten silently.
+    differs from the snapshot, it may be unsynced local work (edits made offline after a
+    previous session) or just an older state of the session. The stored file is kept in
+    memory and compared (shared part: site-local fields and opaque plugin states aside)
+    with the document after every sequenced transaction of the replay; if it ever matches,
+    it was a state of the session and nothing is kept. Otherwise, at the first quiet tick
+    (or before the first local edit), it is saved as a new project named
+    "<name> (local copy)" (with the project's media) and a notification says so. Nothing
+    is overwritten silently.
 - `Snapshot.data` (opaque on the wire, defined by `ether-collab`): JSON
-  `{ index, sites: { site: last_seq }, ether: "<.ether file JSON>" }`, base64.
+  `{ epoch, index, sites: { site: last_seq }, ether: "<.ether file JSON>" }`, base64. The
+  `epoch` is chosen by the site that creates the session (random) and kept by compaction
+  snapshots: it names this incarnation of the session.
 - Reconnect (socket dropped, relay restart is out of scope): status `Connecting`, exponential
-  backoff; on reconnect `Hello` + `SyncRequest { version = confirmed index (u64 LE) }`; the
-  relay replays the log after that index (or snapshot + log if it was compacted), then the
+  backoff; on reconnect `Hello` + `SyncRequest { version = (epoch, confirmed index) (2 × u64
+  LE) }`; the relay replays the log after that index (or snapshot + log if it was compacted,
+  or if the epoch differs: the session emptied and was created again from another replica,
+  whose indexes mean something else), then the
   site re-sends its pending transactions with `seq` above the last own `seq` seen in the log.
   The relay drops a transaction whose `seq` is not above the last sequenced one of that site
   (duplicate after a lost ack).
@@ -188,17 +202,26 @@ undo/redo go through `History::undo_with/redo_with` (`history.rs`) with
   normal local project (dirty; saving it is the user's choice). Opening/creating/closing
   another project while in a session leaves the session.
 
+- Rebase and derived data: re-applying a pending transaction re-inserts the entities it
+  created as they were sent, so derived local data written since (media `frames` from
+  background decode, mirrored plugin params) is carried over explicitly
+  (`derived_of_pending`/`restore_derived`; tested).
+
 ## 5. Media
 
 A site that imports audio (or records a take) **pushes** the file before the transaction
 that references it: `Media { file, hash, offset, total, data }` chunks of 1 MiB, sent as
 remote-engine binary frames (`BinaryKind::Bytes`, the JSON header carries `data: ""`). The
-relay caches blobs by hash per session (bounded: `max_media_bytes`, default 2 GiB) and sends
+relay caches blobs per session (bounded: `max_media_bytes`, default 1 GiB per session and
+`max_total_media_bytes`, 4 GiB across sessions) and sends
 them to late joiners before the snapshot. Because the relay keeps FIFO order, every site has
 the file before the `Insert Media` arrives, so media never shows as missing. Receivers
 stage chunks with the `ProjectStore` upload staging methods (in memory where the store has
-none, e.g. OPFS today), verify `content_hash`, check `file` is a relative path under
-`media/`, then `ProjectStore::write` it. Missing files at snapshot time are simply not sent
+none, e.g. OPFS today), verify `content_hash` against the declared hash, check `file` is a
+relative path under `media/`, and write it only if (a) the document's `MediaRef` for that
+file, when it has a `hash`, has **that** hash (not only the one the sender declared) and
+(b) no different file is already stored there: media files are named per media id, so an
+existing one is never replaced (identical bytes are a no-op). Then `ProjectStore::write`. Missing files at snapshot time are simply not sent
 (they show as missing, as they would locally).
 
 ## 6. Presence
@@ -215,6 +238,10 @@ tokens; peer colors are data, like track colors).
 
 ## 7. Security
 
+- Each connection's outgoing queue (`relay::server::conn_queue`) holds at least a full
+  catch-up (the cached media chunks, snapshot, `max_log` transactions, peers), so a late
+  joiner is never disconnected by its own catch-up and can't loop on reconnects; a site
+  that falls further behind than that is disconnected and resyncs.
 - Relay limits (all in `RelayConfig`): sessions per relay, sites per session, media cache per
   session and in total across sessions (chunks beyond it are still forwarded live but not
   cached for late joiners), log length before compaction and a hard log cap (past it the
@@ -227,6 +254,10 @@ tokens; peer colors are data, like track colors).
   loopback check when there is no token, handshake deadline + 64 KiB pre-auth limit +
   bounded pending handshakes, idle ping/timeout, write timeout, max sites per session and
   max sessions. Post-auth message limit 16 MiB (snapshots).
+- A `SiteId` is held by one live connection per session: a `Hello` claiming a site another
+  live connection has is refused (disconnect). A reconnecting site's old connection is gone
+  first (closed socket, or the idle timeout for a half-open one; the site retries with
+  backoff meanwhile).
 - The relay rewrites/validates identity: `Transaction.origin.site`, `Presence.site` and
   `Leave.site` must be the sender's `Hello` site (else dropped).
 - Receivers treat every remote op as untrusted input: it only enters the document through
@@ -253,8 +284,10 @@ tokens; peer colors are data, like track colors).
   loopback-only use).
 - Tests: `crates/ether-collab` (relay state machine, wire), `crates/ether-controller/tests/
   collab.rs` (convergence property test over 3 sites with random concurrent edits, undo,
-  cascades and delivery orders; per-site undo; late join; media; reconnect with pending
-  ops; rejoin backup; local-only state), `collab_relay.rs` (two controllers through the real
+  cascades, delivery orders, dropped links (reconnect with pending ops), leave + re-join
+  on the same controller and relay compaction, plus a fresh replay site; per-site undo;
+  late join; media; reconnect with pending ops; re-join on the same controller; rejoin
+  backup; rebase keeping derived data; plugin state; local-only state), `collab_relay.rs` (two controllers through the real
   relay over WebSockets, bad token), `apps/web/e2e/collab.spec.ts` (two browser contexts).
 - UI: `ui/src/features/collab/**` (`PresenceBar`, store, peer selection outlines injected as
   a `<style>` keyed on `[data-track]`/`[data-clip-id]`), mock simulation `MockCollab` in

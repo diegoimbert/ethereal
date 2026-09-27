@@ -508,6 +508,83 @@ fn reconnect_resends_pending_edits() {
 }
 
 #[test]
+fn leave_and_rejoin_on_the_same_controller_converges() {
+    let hub = Hub::default();
+    let mut sites = session(&hub, 2);
+    let [a, b] = sites.as_mut_slice() else {
+        unreachable!()
+    };
+    let pid = b.project().id;
+    let tb = add_track(b, TrackKind::Midi);
+    settle(&mut [a, b], &hub);
+    b.ok(Command::Collab(CollabCommand::Leave));
+    let ta = add_track(a, TrackKind::Audio);
+    settle(&mut [a], &hub);
+    b.join("ws://hub", "jam", "B again", None);
+    settle(&mut [a, b], &hub);
+    assert!(b.online());
+    // B's own transaction from before the re-join is applied from the log, not taken
+    // for an echo.
+    assert!(b.project().tracks.contains_key(&tb), "B kept its own track");
+    assert!(b.project().tracks.contains_key(&ta));
+    assert_converged(&[a, b]);
+    // B's new edits get fresh seqs: sequenced, not dropped as resends.
+    let tc = add_track(b, TrackKind::Midi);
+    settle(&mut [a, b], &hub);
+    assert_eq!(b.ctl.collab_pending(), 0);
+    assert!(a.project().tracks.contains_key(&tc));
+    assert_converged(&[a, b]);
+    // No offline work: the stored copy was a state of the log, so no "(local copy)".
+    let list = b.ctl.store.list().unwrap();
+    assert!(list.iter().all(|p| p.id == pid), "{list:?}");
+}
+
+#[test]
+fn rebase_keeps_derived_media_length_of_a_pending_import() {
+    let hub = Hub::default();
+    let mut lib = MemoryLibrary::new();
+    lib.add_root("lib", "Library");
+    lib.add_file(
+        "lib",
+        "kick.wav",
+        wav(48_000, &[vec![0.25; 4_800], vec![-0.25; 4_800]]),
+    );
+    let mut a = Site::new(41, hub.connector(), lib);
+    a.create_project("Media");
+    a.join("ws://hub", "m", "A", None);
+    settle(&mut [&mut a], &hub);
+    let mut b = Site::on_hub(42, &hub);
+    b.join("ws://hub", "m", "B", None);
+    settle(&mut [&mut a, &mut b], &hub);
+    let a_link = hub.links()[0];
+    let b_link = hub.links()[1];
+    let media: MediaId = a.id();
+    a.ok(Command::Media(MediaCommand::Import {
+        id: media,
+        source: MediaSource::Location {
+            location: BrowseLocation::Library { id: "lib".into() },
+            path: "kick.wav".into(),
+        },
+    }));
+    // A decodes (local, derived length) while its import is still pending.
+    for _ in 0..100 {
+        a.tick();
+    }
+    let frames = a.project().media[&media].frames;
+    assert!(frames > 0);
+    assert_eq!(a.ctl.collab_pending(), 1);
+    // A peer's edit is sequenced first: A rebases its pending import over it.
+    add_track(&mut b, TrackKind::Midi);
+    while hub.deliver_from(b_link) {}
+    a.tick();
+    assert_eq!(a.ctl.collab_pending(), 1, "still pending");
+    assert_eq!(a.project().media[&media].frames, frames, "length kept");
+    while hub.deliver_from(a_link) {}
+    settle(&mut [&mut a, &mut b], &hub);
+    assert_eq!(a.project().media[&media].frames, frames);
+}
+
+#[test]
 fn rejoin_keeps_a_differing_local_copy() {
     let hub = Hub::default();
     let mut sites = session(&hub, 2);
@@ -718,23 +795,67 @@ fn random_edit(s: &mut Site, action: u8, r1: u64, r2: u64) {
     s.send(cmd);
 }
 
+/// Tick (with time passing, so dropped links reconnect) and deliver until every site is
+/// online with nothing pending and nothing in flight.
+fn settle_with_reconnects(sites: &mut [Site], hub: &Hub) {
+    for _ in 0..200 {
+        for s in sites.iter_mut() {
+            s.advance(1_000);
+        }
+        let mut refs: Vec<&mut Site> = sites.iter_mut().collect();
+        for s in refs.iter_mut() {
+            s.tick();
+        }
+        hub.deliver();
+        if sites.iter().all(|s| s.online()) {
+            let mut refs: Vec<&mut Site> = sites.iter_mut().collect();
+            settle(&mut refs, hub);
+            return;
+        }
+    }
+    panic!("sites did not come back online");
+}
+
 fn run_simulation(steps: &[Step]) {
-    let hub = Hub::default();
+    // A small log so the relay compacts (through a peer's snapshot) during the run.
+    let hub = Hub::new(ether_collab::relay::RelayConfig {
+        compact_after: 6,
+        max_log: 60,
+        ..Default::default()
+    });
     let mut sites = session(&hub, 3);
     for &(site, action, r1, r2) in steps {
         let site = site % sites.len();
-        match action % 20 {
+        match action % 24 {
             // Deliver one message of one site to the relay.
-            16 | 17 => {
+            16 | 17 | 23 => {
                 if let Some(c) = pick(&hub.links(), r1) {
                     hub.deliver_from(c);
                 }
             }
-            // A site processes what the relay sent it.
+            // A site processes what the relay sent it (time passes: reconnects happen).
             18 | 19 => {
+                sites[site].advance(300);
                 sites[site].tick();
             }
-            a => random_edit(&mut sites[site], a, r1, r2),
+            // A link drops (pending transactions are resent on reconnect).
+            20 if r2.is_multiple_of(3) => {
+                if let Some(c) = pick(&hub.links(), r1) {
+                    hub.kill(c);
+                }
+            }
+            // A site leaves and joins again on the same controller.
+            21 if r2.is_multiple_of(4) => {
+                sites[site].ok(Command::Collab(CollabCommand::Leave));
+                sites[site].join("ws://hub", "jam", "again", None);
+            }
+            20..=22 => {
+                for s in sites.iter_mut() {
+                    s.advance(300);
+                    s.tick();
+                }
+            }
+            a => random_edit(&mut sites[site], a % 16, r1, r2),
         }
         for s in &sites {
             s.project()
@@ -742,8 +863,7 @@ fn run_simulation(steps: &[Step]) {
                 .expect("every intermediate state validates");
         }
     }
-    let mut refs: Vec<&mut Site> = sites.iter_mut().collect();
-    settle(&mut refs, &hub);
+    settle_with_reconnects(&mut sites, &hub);
     // The convergence invariant (COLLAB.md §2): a fresh site that only replays the relay's
     // snapshot + log (resolve fold, no optimistic state) reaches the same document.
     let mut replay = Site::on_hub(0x7777, &hub);
@@ -764,13 +884,14 @@ fn run_simulation(steps: &[Step]) {
         })
         .sum();
     eprintln!(
-        "sim: {} steps, {} tracks, {} clips, {} notes, {} devices, {remote} remote patches, {} relay msgs",
+        "sim: {} steps, {} tracks, {} clips, {} notes, {} devices, {remote} remote patches, {} relay msgs, relay log (base, len) {:?}",
         steps.len(),
         p.tracks.len(),
         p.clips.len(),
         p.notes.len(),
         p.devices.len(),
-        hub.delivered()
+        hub.delivered(),
+        hub.with_relay(|r| r.log_len("jam"))
     );
 }
 
@@ -779,7 +900,7 @@ proptest! {
 
     #[test]
     fn replicas_converge(steps in proptest::collection::vec(
-        (0usize..3, 0u8..20, any::<u64>(), any::<u64>()), 10..80)) {
+        (0usize..3, 0u8..24, any::<u64>(), any::<u64>()), 10..80)) {
         run_simulation(&steps);
     }
 }
@@ -797,7 +918,7 @@ fn convergence_long_run() {
     let steps: Vec<Step> = (0..600)
         .map(|_| {
             let a = next();
-            ((a % 3) as usize, ((a >> 8) % 20) as u8, next(), next())
+            ((a % 3) as usize, ((a >> 8) % 24) as u8, next(), next())
         })
         .collect();
     run_simulation(&steps);

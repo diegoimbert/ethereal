@@ -208,3 +208,23 @@ pub(crate) fn local_settings(from: &ProjectSettings) -> Vec<Op> {
     .map(|change| Op::Settings { change })
     .collect()
 }
+
+/// The part of `p` every site shares (site-local fields reset, opaque plugin states
+/// dropped): what "the same document" means when comparing a stored copy with the session.
+pub(crate) fn shared_part(p: &Project) -> Project {
+    let mut p = p.clone();
+    for op in local_settings(&ProjectSettings::default()) {
+        if let Op::Settings { change } = op {
+            let _ = p.apply(&Op::Settings { change });
+        }
+    }
+    for t in p.tracks.values_mut() {
+        t.mixer.solo = false;
+    }
+    for d in p.devices.values_mut() {
+        if let DeviceKind::Plugin { plugin } = &mut d.kind {
+            plugin.state = None;
+        }
+    }
+    p
+}

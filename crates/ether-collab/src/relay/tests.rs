@@ -22,13 +22,14 @@ fn hello(site: u64) -> CollabMessage {
 fn sync(site: u64, from: Option<u64>) -> CollabMessage {
     CollabMessage::SyncRequest {
         site: SiteId(site),
-        version: from.map_or(Base64Bytes(vec![]), encode_version),
+        version: from.map_or(Base64Bytes(vec![]), |i| encode_version(0, i)),
     }
 }
 
 fn snapshot(index: u64) -> CollabMessage {
     CollabMessage::Snapshot {
         data: SnapshotData {
+            epoch: 0,
             index,
             sites: BTreeMap::new(),
             ether: "{}".into(),
@@ -174,6 +175,57 @@ fn identity_and_duplicates_are_enforced() {
         r.message(2, hello(2), &mut out)
             .is_err_and(|e| e.disconnect)
     );
+}
+
+#[test]
+fn a_site_id_held_by_a_live_connection_cannot_be_claimed() {
+    let mut r = created();
+    let mut out = Vec::new();
+    r.connect(2, "jam").unwrap();
+    let e = r.message(2, hello(1), &mut out).unwrap_err();
+    assert!(e.disconnect, "impersonating site 1 is refused");
+    assert!(out.is_empty());
+    // Once the old connection is gone, the site may come back (reconnect).
+    r.disconnect(1, &mut out);
+    r.connect(3, "jam").unwrap();
+    r.message(3, hello(1), &mut out).unwrap();
+}
+
+#[test]
+fn a_recreated_session_is_never_resumed_at_an_old_index() {
+    let mut r = created();
+    let mut out = Vec::new();
+    r.message(1, tx(1, 1), &mut out).unwrap();
+    // Everybody leaves: the relay forgets the session; site 2 creates it again from its
+    // own replica, with another epoch.
+    r.disconnect(1, &mut out);
+    r.connect(2, "jam").unwrap();
+    r.message(2, hello(2), &mut out).unwrap();
+    r.message(2, sync(2, None), &mut out).unwrap();
+    let snap = CollabMessage::Snapshot {
+        data: SnapshotData {
+            epoch: 5,
+            index: 0,
+            sites: BTreeMap::new(),
+            ether: "{}".into(),
+        }
+        .encode(),
+    };
+    r.message(2, snap, &mut out).unwrap();
+    out.clear();
+    // Site 1 comes back with "epoch 0, index 0": it gets the new snapshot, not a resume.
+    r.connect(3, "jam").unwrap();
+    r.message(3, hello(1), &mut out).unwrap();
+    r.message(3, sync(1, Some(0)), &mut out).unwrap();
+    assert_eq!(kinds(&to(&out, 3))[0], "Snapshot");
+}
+
+#[test]
+fn conn_queue_holds_a_full_catch_up() {
+    let c = RelayConfig::default();
+    let q = server::conn_queue(&c);
+    assert!(q >= c.max_log + c.max_media_bytes / crate::wire::MEDIA_CHUNK_BYTES);
+    assert!(q >= server::CONN_QUEUE);
 }
 
 #[test]

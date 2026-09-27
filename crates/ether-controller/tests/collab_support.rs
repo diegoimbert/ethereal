@@ -205,7 +205,15 @@ pub fn settle(sites: &mut [&mut Site], hub: &Hub) {
             return;
         }
     }
-    panic!("collab sites did not settle");
+    let state: Vec<_> = sites
+        .iter()
+        .map(|s| (s.status(), s.ctl.collab_pending()))
+        .collect();
+    let waiting: Vec<_> = hub.links().iter().map(|c| (*c, hub.outgoing(*c))).collect();
+    panic!(
+        "collab sites did not settle: {state:?}, relay out {waiting:?}, queued {}",
+        hub.queued()
+    );
 }
 
 /// A session "jam" created by a new site `a` (with a project) and joined by `others`.

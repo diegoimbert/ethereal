@@ -2,8 +2,11 @@
 //! map to WebSocket frames.
 //!
 //! - `Snapshot.data` = JSON [`SnapshotData`] (bytes of the UTF-8 JSON).
-//! - `SyncRequest.version` = the requester's confirmed log index as 8 little-endian bytes
-//!   ([`encode_version`]); empty = "send everything" (relay → site: "send your state").
+//! - `SyncRequest.version` = the session epoch and the requester's confirmed log index, as
+//!   2 × 8 little-endian bytes ([`encode_version`]); empty = "send everything" (relay → site:
+//!   "send your state"). The epoch is chosen by the site that creates the session (in its
+//!   first snapshot): a session that disappeared from the relay and was created again from
+//!   another replica has another epoch, so nobody resumes it at an index of the old one.
 //! - Frames: every message is one JSON text frame; `Media` chunks go as remote-engine binary
 //!   frames (`BinaryKind::Bytes`, header = the message with `data: ""`).
 
@@ -39,6 +42,10 @@ pub const PEER_COLORS: [Color; 8] = [
 /// contains).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct SnapshotData {
+    /// Identity of this incarnation of the session (set by its creator, kept by
+    /// compaction snapshots).
+    #[serde(default)]
+    pub epoch: u64,
     pub index: u64,
     /// Last sequenced `seq` of every site whose transactions are included.
     pub sites: BTreeMap<SiteId, u64>,
@@ -56,19 +63,23 @@ impl SnapshotData {
     }
 }
 
-/// `SyncRequest.version` for "I have applied `index` transactions".
-pub fn encode_version(index: u64) -> Base64Bytes {
-    Base64Bytes(index.to_le_bytes().to_vec())
+/// `SyncRequest.version` for "I have applied `index` transactions of session `epoch`".
+pub fn encode_version(epoch: u64, index: u64) -> Base64Bytes {
+    let mut v = epoch.to_le_bytes().to_vec();
+    v.extend_from_slice(&index.to_le_bytes());
+    Base64Bytes(v)
 }
 
-/// `None` = empty version (full state wanted); `Err` = malformed.
-pub fn decode_version(v: &Base64Bytes) -> Result<Option<u64>, String> {
+/// `None` = empty version (full state wanted), else `(epoch, index)`; `Err` = malformed.
+pub fn decode_version(v: &Base64Bytes) -> Result<Option<(u64, u64)>, String> {
     match v.0.len() {
         0 => Ok(None),
-        8 => {
-            let mut b = [0u8; 8];
-            b.copy_from_slice(&v.0);
-            Ok(Some(u64::from_le_bytes(b)))
+        16 => {
+            let mut e = [0u8; 8];
+            let mut i = [0u8; 8];
+            e.copy_from_slice(&v.0[..8]);
+            i.copy_from_slice(&v.0[8..]);
+            Ok(Some((u64::from_le_bytes(e), u64::from_le_bytes(i))))
         }
         n => Err(format!("bad sync version ({n} bytes)")),
     }
@@ -203,7 +214,7 @@ mod tests {
 
     #[test]
     fn version_roundtrip() {
-        assert_eq!(decode_version(&encode_version(42)), Ok(Some(42)));
+        assert_eq!(decode_version(&encode_version(7, 42)), Ok(Some((7, 42))));
         assert_eq!(decode_version(&Base64Bytes(vec![])), Ok(None));
         assert!(decode_version(&Base64Bytes(vec![1, 2])).is_err());
     }
