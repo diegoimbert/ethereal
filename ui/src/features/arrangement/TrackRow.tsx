@@ -13,6 +13,7 @@ import { onLaneInsertPointerDown, type InsertSpan } from "./clipInsert";
 import { ClipView } from "./ClipView";
 import { colorCss, groupSummaryKey } from "./helpers";
 import { sendEdit, useArrangement } from "./context";
+import { beatsCss, useSettledZoom, widthCss } from "./laneGeometry";
 import { laneItems } from "./laneItems";
 import { HeaderVolume } from "./HeaderVolume";
 import { onTrackHeaderPointerDown } from "./trackDrag";
@@ -254,20 +255,26 @@ function ResizeHandle({ row }: { row: Row }) {
  * `visible`, which always covers the view with a viewport of margin on each side.
  */
 function useLaneView() {
-  const pxPerBeat = useTimelineView(arrangementView, (s) => s.pxPerBeat);
+  // Zoom: the settled one (see laneGeometry.ts); positions follow the live zoom via --ppb.
+  const pxPerBeat = useSettledZoom(arrangementView);
   const width = useTimelineView(arrangementView, (s) => s.widthPx) || 4000;
   const span = width / pxPerBeat;
-  const step = useTimelineView(arrangementView, (s) => Math.floor(s.scrollBeats / ((s.widthPx || 4000) / s.pxPerBeat)));
+  const step = useTimelineView(arrangementView, (s) => Math.floor(s.scrollBeats / span));
   return useMemo(() => {
     const origin = Math.max(0, (step - 1) * span);
     return {
       vp: { pxPerBeat, scrollBeats: origin },
-      visible: { start: origin, end: (step + 2) * span },
+      // One extra span on the right: until the zoom settles, zooming out shows up to
+      // MAX_DRIFT spans.
+      visible: { start: origin, end: (step + 3) * span },
     };
   }, [pxPerBeat, step, span]);
 }
 
-/** Slides lane content (laid out from `origin`) to the live scroll position, outside React. */
+/**
+ * Positions lane content (laid out in beats from `origin`, see laneGeometry.ts) at the live
+ * zoom and scroll, outside React: writes `--ppb` and the scroll transform on every change.
+ */
 function LaneLayer({ origin, children }: { origin: Beats; children: ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
@@ -276,6 +283,7 @@ function LaneLayer({ origin, children }: { origin: Beats; children: ReactNode })
     const view = arrangementView;
     const apply = () => {
       const s = view.getState();
+      el.style.setProperty("--ppb", `${s.pxPerBeat}px`);
       el.style.transform = `translateX(${(origin - s.scrollBeats) * s.pxPerBeat}px)`;
     };
     apply();
@@ -338,18 +346,18 @@ function TrackLane({ track }: { track: Track }) {
           className="eth-clip eth-clip--ghost"
           data-testid="insert-preview"
           style={{
-            left: (insert.start - vp.scrollBeats) * vp.pxPerBeat,
-            width: insert.length * vp.pxPerBeat,
+            left: beatsCss(insert.start - vp.scrollBeats),
+            width: widthCss(insert.length),
             ["--eth-clip-color" as string]: colorCss(track.color),
           }}
         />
       )}
       {dropHint !== null && (
-        <div className="eth-arr-lane__drop-hint" style={{ left: (dropHint - vp.scrollBeats) * vp.pxPerBeat }} />
+        <div className="eth-arr-lane__drop-hint" style={{ left: beatsCss(dropHint - vp.scrollBeats) }} />
       )}
       {imports.map((i) =>
         i.track === track.id ? (
-          <ImportPlaceholder key={i.id} item={i} style={{ left: (i.at - vp.scrollBeats) * vp.pxPerBeat }} />
+          <ImportPlaceholder key={i.id} item={i} style={{ left: beatsCss(i.at - vp.scrollBeats) }} />
         ) : null,
       )}
       </LaneLayer>
@@ -387,7 +395,7 @@ function GroupLane({ track }: { track: Track }) {
           <div
             key={i}
             className="eth-arr-lane__summary"
-            style={{ left: (s - vp.scrollBeats) * vp.pxPerBeat, width: Math.max(1, l * vp.pxPerBeat) }}
+            style={{ left: beatsCss(s - vp.scrollBeats), width: widthCss(l, 1) }}
           />
         ))}
       </LaneLayer>

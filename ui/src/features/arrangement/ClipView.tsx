@@ -17,9 +17,12 @@ import { ClipFades, ReversedBadge } from "@/features/clip-editing";
 import { withClipEditingEntries } from "@/features/clip-editing/clipEditing";
 import type { ClipBounds } from "./editMath";
 import { peakLevel, TILE_PEAKS } from "./peaks";
+import { beatsCss, widthCss } from "./laneGeometry";
 import { arrangementView } from "./uiStore";
 
 const SEAM_COLOR = "rgba(0, 0, 0, 0.25)";
+/** Narrowest a clip is drawn, so it stays grabbable (title bar) when zoomed far out. */
+const CLIP_MIN_PX = 8;
 
 
 export interface ClipViewProps {
@@ -38,8 +41,10 @@ export const ClipView = memo(function ClipView({ clip, bounds, trackColor, vp, v
   const ctx = useArrangement();
   const selected = useIsSelected("clip", clip.id);
   const color = colorCss(clip.color ?? trackColor);
-  const left = (bounds.start - vp.scrollBeats) * vp.pxPerBeat;
-  const width = Math.max(2, bounds.length * vp.pxPerBeat);
+  // Positioned in beats at the live zoom (--ppb, see laneGeometry.ts), never narrower than
+  // CLIP_MIN_PX so even tiny clips can be grabbed.
+  const left = beatsCss(bounds.start - vp.scrollBeats);
+  const width = widthCss(bounds.length, CLIP_MIN_PX);
   const from = Math.max(bounds.start, visible.start);
   const to = Math.min(bounds.start + bounds.length, visible.end);
   const body: BodyProps = { clip, bounds, from, to, pxWidth: (to - from) * vp.pxPerBeat, ink: color };
@@ -81,7 +86,7 @@ export const ClipView = memo(function ClipView({ clip, bounds, trackColor, vp, v
         {clip.name && <span className="eth-clip__name">{clip.name}</span>}
       </div>
       {to > from && (
-        <div className="eth-clip__body" style={{ left: (from - bounds.start) * vp.pxPerBeat, width: body.pxWidth }}>
+        <div className="eth-clip__body" style={{ left: beatsCss(from - bounds.start), width: widthCss(to - from) }}>
           {clip.content.type === "Midi" ? <MidiPreview {...body} /> : <AudioWaveform {...body} tempo={tempo} />}
         </div>
       )}
@@ -113,19 +118,15 @@ interface BodyProps {
 
 /** Longest canvas side in device px (browsers cap canvases around 16k–32k). */
 const MAX_CANVAS_PX = 8192;
-/** Redraw at once when the zoom drifts this far from the drawn one (stretching blurs). */
-const MAX_STRETCH = 1.5;
-/** After the zoom stops changing, redraw sharp at the final zoom. */
-const SETTLE_MS = 120;
 
 /**
  * A clip body canvas that survives scrolling and zooming cheaply. It is drawn for the
  * visible part of the clip plus about one viewport on each side (clamped to the clip),
- * then only repositioned while the view pans, and stretched by CSS while it zooms. It is
- * redrawn when the view leaves the drawn window, when the zoom drifts past
- * `MAX_STRETCH` (plus once, sharp, when the zoom settles), or when `content` changes
- * (a key for what `draw` depends on). This keeps animated pan/zoom smooth with many
- * waveforms: the expensive peak rendering happens rarely instead of every frame.
+ * and placed in beats with CSS (`--ppb`, see laneGeometry.ts), so while the view pans or
+ * zooms the browser just moves and stretches it. It is redrawn when a render finds the
+ * view outside the drawn window, the zoom changed (the lane re-renders once the zoom
+ * settles, or when it drifts too far), or `content` changed (a key for what `draw` depends
+ * on). The expensive peak rendering happens rarely instead of every frame.
  */
 function useCanvasDraw(
   ref: RefObject<HTMLCanvasElement | null>,
@@ -134,25 +135,27 @@ function useCanvasDraw(
   draw: (ctx: CanvasRenderingContext2D, area: DrawArea) => void,
 ) {
   const drawn = useRef<{ from: Beats; to: Beats; ppb: number; content: unknown; height: number } | null>(null);
-  const settle = useRef<ReturnType<typeof setTimeout> | null>(null);
   const drawRef = useRef(draw);
   useLayoutEffect(() => {
     drawRef.current = draw;
   });
-  useEffect(() => () => {
-    if (settle.current) clearTimeout(settle.current);
-  }, []);
 
   const { from, to, bounds } = body;
-  const ppb = body.pxWidth / Math.max(1e-9, to - from);
 
   useLayoutEffect(() => {
     const canvas = ref.current;
     if (!canvas || !(to > from)) return;
-
-    const paint = () => {
-      const view = arrangementView.getState();
-      const p = view.pxPerBeat;
+    const view = arrangementView.getState();
+    const p = view.pxPerBeat;
+    const d = drawn.current;
+    const stale =
+      !d ||
+      d.content !== content ||
+      d.ppb !== p ||
+      from < d.from - 1e-9 ||
+      to > d.to + 1e-9 ||
+      (canvas.clientHeight || 30) !== d.height;
+    if (stale) {
       const clipEnd = bounds.start + bounds.length;
       const dpr = window.devicePixelRatio || 1;
       const margin = Math.max(to - from, (view.widthPx || 1000) / p);
@@ -169,46 +172,21 @@ function useCanvasDraw(
       const w = Math.max(1, Math.round((wTo - wFrom) * p));
       canvas.width = Math.min(MAX_CANVAS_PX, Math.round(w * dpr));
       canvas.height = Math.round(height * dpr);
-      const ctx = canvas.getContext("2d");
       drawn.current = { from: wFrom, to: wTo, ppb: p, content, height };
+      const ctx = canvas.getContext("2d");
       if (ctx) {
         ctx.setTransform(canvas.width / w, 0, 0, dpr, 0, 0);
         ctx.clearRect(0, 0, w, height);
         drawRef.current(ctx, { from: wFrom, to: wTo, width: w, height });
       }
-    };
-
-    const d = drawn.current;
-    const stretch = d ? Math.max(ppb / d.ppb, d.ppb / ppb) : Infinity;
-    const stale =
-      !d ||
-      d.content !== content ||
-      from < d.from - 1e-9 ||
-      to > d.to + 1e-9 ||
-      stretch > MAX_STRETCH ||
-      (canvas.clientHeight || 30) !== d.height;
-    if (stale) paint();
-    else if (stretch > 1 + 1e-6) {
-      // Zooming: stretch now, redraw sharp once the zoom stops changing.
-      if (settle.current) clearTimeout(settle.current);
-      settle.current = setTimeout(() => {
-        settle.current = null;
-        paint();
-        place();
-      }, SETTLE_MS);
     }
-    place();
-
-    function place() {
-      const cur = drawn.current;
-      if (!canvas || !cur) return;
-      // Position the drawn window relative to the body (which starts at `from`).
-      canvas.style.position = "absolute";
-      canvas.style.top = "0";
-      canvas.style.height = "100%";
-      canvas.style.left = `${(cur.from - from) * ppb}px`;
-      canvas.style.width = `${(cur.to - cur.from) * ppb}px`;
-    }
+    // Place the drawn window relative to the body (which starts at `from`), in beats.
+    const cur = drawn.current!;
+    canvas.style.position = "absolute";
+    canvas.style.top = "0";
+    canvas.style.height = "100%";
+    canvas.style.left = beatsCss(cur.from - from);
+    canvas.style.width = beatsCss(cur.to - cur.from);
   });
 }
 

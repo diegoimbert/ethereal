@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { renderWithMock, resetStores } from "@/features/transport-bar/testUtils";
 import { resetArrangementUi } from "@/features/arrangement/uiStore";
 import { useEditorStore, useProjectStore } from "@/state";
+import { size as tokenSize } from "@/theme";
 import { itemSelection } from "@/timeline";
 import { App } from "./App";
 import { resetShell, useShellStore } from "./shell/shellStore";
@@ -61,7 +62,7 @@ describe("App shell", () => {
     expect(workspace().style.getPropertyValue("--pane-left-reserved")).toBe("0px");
     fireEvent.click(screen.getByRole("button", { name: "Pin Library" }));
     const { size } = useShellStore.getState().left;
-    expect(workspace().style.getPropertyValue("--pane-left-reserved")).toBe(`${size + 8}px`);
+    expect(workspace().style.getPropertyValue("--pane-left-reserved")).toBe(`${size + 2 * parseFloat(tokenSize.floatGap)}px`);
     expect(pane("left")).toHaveClass("eth-float--pinned");
     fireEvent.click(screen.getByRole("button", { name: "Unpin Library" }));
     expect(workspace().style.getPropertyValue("--pane-left-reserved")).toBe("0px");

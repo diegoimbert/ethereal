@@ -90,7 +90,8 @@ function Workspace() {
     [shell],
   );
 
-  const reserved = (p: { open: boolean; pinned: boolean; size: number }) => (p.open && p.pinned ? p.size + GAP : 0);
+  // A pinned pane reserves its size plus the gap on both of its sides (it floats inset).
+  const reserved = (p: { open: boolean; pinned: boolean; size: number }) => (p.open && p.pinned ? p.size + 2 * GAP : 0);
   const style = {
     "--pane-left-size": `${left.size}px`,
     "--pane-right-size": `${right.size}px`,
@@ -98,6 +99,9 @@ function Workspace() {
     "--pane-left-reserved": `${reserved(left)}px`,
     "--pane-right-reserved": `${reserved({ ...right, open: rightOpen })}px`,
     "--pane-bottom-reserved": `${reserved(bottom)}px`,
+    // Room taken by open side panes, pinned or not: the drawer sits between them.
+    "--pane-left-occupied": `${left.open ? left.size + GAP : 0}px`,
+    "--pane-right-occupied": `${rightOpen ? right.size + GAP : 0}px`,
   } as React.CSSProperties;
   const leftLabel = LEFT_TABS.find((t) => t.id === left.tab)?.label ?? "Browser";
 

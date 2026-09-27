@@ -32,6 +32,9 @@ export function ClipFades({ clip, length, pxPerBeat, transport }: ClipFadesProps
   const fin = Math.min(a.fade_in, length) * pxPerBeat;
   const fout = Math.min(a.fade_out, length) * pxPerBeat;
   const paths = { in: fadePaths("in", fin, width, a.fade_in_curve), out: fadePaths("out", fout, width, a.fade_out_curve) };
+  // Handles as a share of the clip's width: the arrangement stretches clips with CSS while
+  // zooming (before re-rendering at the settled zoom), and the SVG stretches with them.
+  const pct = (px: number) => `${((px / width) * 100).toFixed(3)}%`;
 
   const startLengthDrag = (side: Side) => (e: ReactPointerEvent<HTMLElement>) => {
     if (e.button !== 0) return;
@@ -98,7 +101,7 @@ export function ClipFades({ clip, length, pxPerBeat, transport }: ClipFadesProps
         data-handle={`fade-${side}-curve`}
         data-testid={`fade-${side}-curve`}
         title="Drag to bend the fade (double-click: linear)"
-        style={{ left: x, top }}
+        style={{ left: pct(x), top }}
         onPointerDown={startCurveDrag(side)}
         onDoubleClick={(e) => {
           e.stopPropagation();
@@ -126,7 +129,7 @@ export function ClipFades({ clip, length, pxPerBeat, transport }: ClipFadesProps
         data-handle="fade-in"
         data-testid="fade-in-handle"
         title="Fade in"
-        style={{ left: `max(${fin}px, var(--eth-space-md))` }}
+        style={{ left: `max(${pct(fin)}, var(--eth-space-md))` }}
         onPointerDown={startLengthDrag("in")}
       />
       <div
@@ -134,7 +137,7 @@ export function ClipFades({ clip, length, pxPerBeat, transport }: ClipFadesProps
         data-handle="fade-out"
         data-testid="fade-out-handle"
         title="Fade out"
-        style={{ left: `min(${width - fout}px, calc(100% - var(--eth-space-md)))` }}
+        style={{ left: `min(${pct(width - fout)}, calc(100% - var(--eth-space-md)))` }}
         onPointerDown={startLengthDrag("out")}
       />
       {curveHandle("in", fin, a.fade_in_curve)}

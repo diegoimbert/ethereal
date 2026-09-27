@@ -84,7 +84,8 @@
   overflow: hidden;
   border: var(--eth-border-width) solid var(--eth-color-border-light);
   border-radius: var(--eth-radius-xl);
-  background: var(--eth-color-bg-panel);
+  /* A step lighter than the arrangement under it, so the card reads as floating on top. */
+  background: var(--eth-color-bg-raised);
   box-shadow: var(--eth-shadow-lg);
   transition:
     left var(--eth-duration-slow) var(--eth-ease-standard),
@@ -99,28 +100,29 @@
   animation: var(--float-exit) var(--float-exit-duration) var(--eth-ease-in) both;
   pointer-events: none;
 }
+/* Panes float inset from the workspace edges (and each other) by --eth-size-float-gap. */
 .eth-float--left {
-  top: 0;
-  bottom: 0;
-  left: calc(var(--eth-size-rail-width));
+  top: var(--eth-size-float-gap);
+  bottom: var(--eth-size-float-gap);
+  left: calc(var(--eth-size-rail-width) + var(--eth-size-float-gap));
   width: var(--pane-left-size);
   --float-enter: eth-float-in-left;
   --float-exit: eth-float-out-left;
 }
 .eth-float--right {
-  top: 0;
-  bottom: 0;
-  right: 0;
+  top: var(--eth-size-float-gap);
+  bottom: var(--eth-size-float-gap);
+  right: var(--eth-size-float-gap);
   width: var(--pane-right-size);
   --float-enter: eth-float-in-right;
   --float-exit: eth-float-out-right;
 }
-/* The drawer spans between the pinned side panes (and floats under unpinned ones). */
+/* The drawer spans between the open side panes (panes never overlap each other). */
 .eth-float--bottom {
   z-index: 19;
-  bottom: 0;
-  left: calc(var(--eth-size-rail-width) + var(--pane-left-reserved));
-  right: var(--pane-right-reserved);
+  bottom: var(--eth-size-float-gap);
+  left: calc(var(--eth-size-rail-width) + var(--pane-left-occupied) + var(--eth-size-float-gap));
+  right: calc(var(--pane-right-occupied) + var(--eth-size-float-gap));
   height: var(--pane-bottom-size);
   --float-enter: eth-float-in-bottom;
   --float-exit: eth-float-out-bottom;

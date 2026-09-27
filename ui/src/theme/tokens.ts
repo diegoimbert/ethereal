@@ -256,7 +256,7 @@ export const size = {
   topBarHeight: "36px",
   /** Floating panes (browser, inspector, editor drawer) and the left icon rail. */
   railWidth: "44px",
-  floatGap: "8px",
+  floatGap: "12px",
   browserWidth: "280px",
   inspectorWidth: "320px",
   drawerHeight: "320px",
