@@ -317,9 +317,8 @@ impl RacksRt {
                 let [l, rr] = &mut pad.a;
                 pad.delay.process(&mut l[..n], &mut rr[..n]);
             }
-            for ch in 0..2 {
-                let g = pad.gain[ch];
-                for (d, s) in input[ch][..n].iter_mut().zip(&pad.a[ch][..n]) {
+            for ((dst, src), g) in input.iter_mut().zip(&pad.a).zip(pad.gain) {
+                for (d, s) in dst[..n].iter_mut().zip(&src[..n]) {
                     *d += s * g;
                 }
             }
