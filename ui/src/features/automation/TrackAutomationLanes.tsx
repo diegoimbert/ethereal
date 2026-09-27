@@ -9,7 +9,7 @@
  */
 
 import clsx from "clsx";
-import { useMemo } from "react";
+import { memo, useMemo } from "react";
 import type { AutomationLane, AutomationOwner, AutomationPoint, CurveShape, TrackId } from "@/generated";
 import { Select, type SelectOption } from "@/kit";
 import { useProjectStore } from "@/state";
@@ -19,8 +19,12 @@ import { setCurveCommand } from "./edit";
 import { sendEdit } from "./gesture";
 import { AutomationLaneView } from "./AutomationLaneView";
 import { useTrackTargets, type TargetInfo } from "./params";
-import { AUTOMATION_BAR_HEIGHT, LANE_HEIGHT, automationHeight, shownKeys, useAutomationUi } from "./uiStore";
+import { AUTOMATION_BAR_HEIGHT, automationHeight, laneHeightOf, laneUiKey, shownKeys, useAutomationUi } from "./uiStore";
+import { defaultRange, FULL_RANGE } from "./valueAxis";
+import { LANE_PAD } from "./geometry";
+import { LaneResizeHandle, ValueScale } from "./ValueScale";
 import { useTrackLanes } from "./toggle";
+import { useLaneAnimating, useShownLanes } from "./laneMotion";
 import "./automation.css";
 
 export interface TrackAutomationLanesProps {
@@ -35,36 +39,42 @@ export interface TrackAutomationLanesProps {
   selection?: ItemSelectionStore;
 }
 
-export function TrackAutomationLanes({
+export const TrackAutomationLanes = memo(function TrackAutomationLanes({
   trackId,
   view,
   headerWidth = 200,
   grid = DEFAULT_GRID,
   selection = itemSelection,
 }: TrackAutomationLanesProps) {
-  const open = useAutomationUi((s) => s.open.has(trackId));
-  const keys = useAutomationUi((s) => shownKeys(s, trackId));
+  const isOpen = useAutomationUi((s) => s.open.has(trackId));
+  const shownNow = useAutomationUi((s) => shownKeys(s, trackId));
+  // While the height animates, lanes that went away stay mounted to fade/collapse out
+  // (the arrangement row clips them), and new ones fade in.
+  const shown = useShownLanes(trackId, isOpen, shownNow);
+  const animating = useLaneAnimating(trackId);
   const height = useAutomationUi((s) => automationHeight(s, trackId));
   const targets = useTrackTargets(trackId);
   const lanes = useTrackLanes(trackId);
   const trackName = useProjectStore((s) => s.project?.tracks[trackId]?.name ?? "");
 
-  const hidden = targets.filter((t) => !keys.includes(t.key));
+  const hidden = targets.filter((t) => !shownNow.includes(t.key));
   const onShow = (key: string) => {
     if (key) useAutomationUi.getState().show(trackId, key);
   };
 
   return (
     <div
-      className="eth-auto-track"
-      style={{ height }}
+      className={clsx("eth-auto-track", animating && "eth-auto-track--animating", shown.closing && "eth-auto-track--closing")}
+      // Mid-animation: fills the slot the arrangement gives it (the tweened height) and
+      // clips the content, which keeps its natural height.
+      style={{ height: animating ? undefined : height }}
       data-automation-track={trackId}
       // Keep lane and header gestures away from the arrangement's own handlers.
       onPointerDown={(e) => e.stopPropagation()}
       onDoubleClick={(e) => e.stopPropagation()}
     >
-      {open && (
-      <div className="eth-auto-bar" style={{ height: AUTOMATION_BAR_HEIGHT }}>
+      {shown.open && (
+      <div className={clsx("eth-auto-bar", shown.barEntering && "eth-auto-enter")} style={{ height: AUTOMATION_BAR_HEIGHT }}>
         <div className="eth-auto-bar__header" style={{ width: headerWidth }} aria-label={`Automation of ${trackName}`}>
           {hidden.length > 0 && (
             <Select
@@ -80,14 +90,15 @@ export function TrackAutomationLanes({
         </div>
       </div>
       )}
-      {keys.map((key) => (
+      {shown.keys.map((key) => (
         <LaneRow
           key={key}
+          className={clsx(shown.entering.has(key) && "eth-auto-enter", shown.leaving.has(key) && "eth-auto-row--leaving")}
           trackId={trackId}
           targetKey={key}
           info={targets.find((t) => t.key === key)}
           targets={targets}
-          shown={keys}
+          shown={shownNow}
           lane={lanes.get(key) ?? null}
           view={view}
           headerWidth={headerWidth}
@@ -97,7 +108,7 @@ export function TrackAutomationLanes({
       ))}
     </div>
   );
-}
+});
 
 /** Parameter choices grouped by device (a dot marks parameters that already have a lane). */
 function targetOptions(
@@ -122,6 +133,7 @@ const CURVE_OPTIONS: ReadonlyArray<SelectOption<CurveChoice>> = [
 ];
 
 interface LaneRowProps {
+  className?: string;
   trackId: TrackId;
   targetKey: string;
   info: TargetInfo | undefined;
@@ -136,7 +148,7 @@ interface LaneRowProps {
 
 type CurveChoice = "" | "Linear" | "Step" | "Curve";
 
-function LaneRow({ trackId, targetKey: key, info, targets, shown, lane, view, headerWidth, grid, selection }: LaneRowProps) {
+function LaneRow({ className, trackId, targetKey: key, info, targets, shown, lane, view, headerWidth, grid, selection }: LaneRowProps) {
   const transport = useTransport();
   const owner: AutomationOwner = useMemo(() => ({ type: "Track", track: trackId }), [trackId]);
   const selected = useSelectedItems("automationPoint", selection);
@@ -150,6 +162,13 @@ function LaneRow({ trackId, targetKey: key, info, targets, shown, lane, view, he
     return types.size === 1 ? ([...types][0] as CurveChoice) : "";
   }, [laneSelection]);
 
+  const height = useAutomationUi((s) => laneHeightOf(s, trackId, key));
+  const storedRange = useAutomationUi((s) => s.ranges[laneUiKey(trackId, key)]);
+  const range = useMemo(
+    () => storedRange ?? (info ? defaultRange(info.info, height - 2 * LANE_PAD) : FULL_RANGE),
+    [storedRange, info, height],
+  );
+
   const ui = useAutomationUi.getState;
   const onChangeTarget = (next: string) => ui().replace(trackId, key, next);
   const onCurve = (choice: CurveChoice) => {
@@ -161,8 +180,18 @@ function LaneRow({ trackId, targetKey: key, info, targets, shown, lane, view, he
   };
 
   return (
-    <div className="eth-auto-row" style={{ height: LANE_HEIGHT }} data-target={key}>
+    <div className={clsx("eth-auto-row", className)} style={{ height }} data-target={key}>
       <div className="eth-auto-row__header" style={{ width: headerWidth }}>
+        {info && (
+          <ValueScale
+            info={info.info}
+            range={range}
+            height={height}
+            name={info.name}
+            onRange={(r) => ui().setRange(trackId, key, r)}
+          />
+        )}
+        <LaneResizeHandle trackId={trackId} targetKey={key} height={height} name={info?.name ?? "lane"} />
         <div className="eth-auto-row__line">
           {info ? (
             <Select
@@ -226,7 +255,8 @@ function LaneRow({ trackId, targetKey: key, info, targets, shown, lane, view, he
             target={info.target}
             info={info.info}
             view={view}
-            height={LANE_HEIGHT}
+            height={height}
+            range={range}
             grid={grid}
             selection={selection}
             label={`${info.name} automation`}
