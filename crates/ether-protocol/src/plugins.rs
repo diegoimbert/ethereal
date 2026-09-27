@@ -1,4 +1,5 @@
-//! CLAP plugins: scanning, editors, sandboxing. Also the scanner-process wire format.
+//! Plugins (CLAP, VST3, AU): scanning, editors, sandboxing. Also the scanner-process wire
+//! format. Per-format id rules: `ether_model::PluginFormat` and `docs/PLUGIN-FORMATS.md`.
 //!
 //! Plugins are native-only; the web host replies `Unsupported`.
 
@@ -37,16 +38,21 @@ pub enum PluginCommand {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
 pub struct PluginDescriptor {
     pub format: PluginFormat,
-    /// CLAP id.
+    /// Format-specific plugin id (`PluginInstance.plugin_id`; convention per format in
+    /// `ether_model::PluginFormat`): CLAP id, VST3 class id (32 hex), AU `type:subtype:manu`.
     pub id: String,
     pub name: String,
     pub vendor: String,
     pub version: String,
     pub description: String,
-    /// CLAP feature strings (`instrument`, `audio-effect`, `reverb`, ...).
+    /// Feature/category strings, lowercase. CLAP feature strings as-is (`instrument`,
+    /// `audio-effect`, `reverb`, ...); VST3 sub-categories split on `|` (`fx`, `instrument`,
+    /// `delay`, ...); AU the component type (`aufx`, `aumu`, `aumf`, `aumi`).
     pub features: Vec<String>,
     pub category: DeviceCategory,
-    /// Bundle path on disk.
+    /// Where the host loads the plugin from: the `.clap`/`.vst3` bundle path on disk. AU:
+    /// the scan target (the component id, same as `id`), since AUs are instantiated from
+    /// the system component registry, not from a path.
     pub path: String,
 }
 
@@ -84,11 +90,18 @@ pub struct ScanFailure {
 }
 
 /// Scanner process protocol: the host runs `ether-plugin-scanner` with a JSON `ScanRequest`
-/// on stdin and reads one JSON `ScanResponse` from stdout. One bundle per process (a crash
-/// only loses that bundle).
+/// on stdin and reads one JSON `ScanResponse` from stdout. One scan target per process (a
+/// crash only loses that target).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
 pub struct ScanRequest {
+    /// The scan target: a `.clap`/`.vst3` bundle path, or for AU a component id
+    /// (`type:subtype:manufacturer`, from the in-process registry listing).
     pub bundle_path: String,
+    /// Format of the target. Omitted/`null` = inferred from the path's extension (`.clap`,
+    /// `.vst3`), which is what hosts older than VST3/AU support sent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub format: Option<PluginFormat>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]

@@ -65,6 +65,16 @@ pub trait PluginController {
         let _ = param;
         None
     }
+
+    /// Set a parameter's plain value while the plugin is NOT active (main thread; e.g. CLAP
+    /// `params.flush`, VST3 `IEditController::setParamNormalized` + processor sync). While
+    /// active, send `ProcessEvent::Param` to the node instead. Default: `Unsupported`.
+    fn set_param_value(&mut self, param: ParamId, value: f64) -> Result<(), PluginError> {
+        let _ = (param, value);
+        Err(PluginError::Unsupported(
+            "setting params while inactive".into(),
+        ))
+    }
 }
 
 /// Things a plugin tells its host outside of audio processing.
@@ -113,6 +123,10 @@ pub enum PluginError {
     Crashed(String),
     #[error("ipc error: {0}")]
     Ipc(String),
+    /// The format, platform or build doesn't support this (e.g. a VST3/AU host that is not
+    /// implemented yet, AU off macOS, sandboxing on Windows).
+    #[error("unsupported: {0}")]
+    Unsupported(String),
 }
 
 /// Name for a globally visible IPC object: `ether-<instance>-<pid>-<purpose>`.

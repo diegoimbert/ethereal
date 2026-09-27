@@ -13,6 +13,7 @@ publish.workspace = true
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 ether-core.workspace = true
+ether-plugin-host.workspace = true
 thiserror.workspace = true
 clack-host.workspace = true
 clack-extensions.workspace = true

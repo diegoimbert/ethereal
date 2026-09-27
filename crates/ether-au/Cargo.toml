@@ -1,0 +1,23 @@
+[package]
+name = "ether-au"
+description = "Audio Unit hosting (PluginFormatHost over the macOS AudioComponent registry). Owned by the `au` node."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+# Builds everywhere (so hosts can register `AuFormat` unconditionally); off macOS every
+# operation is `PluginError::Unsupported`. The `au` node adds its Apple framework deps under
+# the macOS target from [workspace.dependencies] (`objc2-audio-toolbox`, `objc2-core-audio`,
+# `objc2-core-audio-types`, `objc2-avf-audio`, `objc2-core-foundation`, `block2`, ...).
+[dependencies]
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+ether-core.workspace = true
+ether-plugin-host.workspace = true
+
+[lints]
+workspace = true

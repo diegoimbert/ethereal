@@ -87,9 +87,10 @@ pub(super) fn apply(ctx: &mut DocCtx, c: &DeviceCommand) -> CmdResult<()> {
                 DeviceSpec::Plugin {
                     plugin_id,
                     sandboxed,
+                    format,
                 } => {
                     let plugin = PluginInstance {
-                        format: PluginFormat::Clap,
+                        format: format.unwrap_or(PluginFormat::Clap),
                         plugin_id: plugin_id.clone(),
                         name: plugin_id.clone(),
                         vendor: String::new(),
