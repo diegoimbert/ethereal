@@ -6,8 +6,11 @@ use ts_rs::TS;
 use crate::automation::{AutomationLane, AutomationPoint};
 use crate::clip::Clip;
 use crate::device::Device;
+use crate::drum_rack::DrumPad;
 use crate::ids::*;
+use crate::marker::Marker;
 use crate::media::MediaRef;
+use crate::midi_map::MidiMapping;
 use crate::mixer::TrackSend;
 use crate::note::Note;
 use crate::tempo::{TempoPoint, TimeSignaturePoint};
@@ -31,6 +34,10 @@ pub enum Entity {
     TimeSignature(TimeSignaturePoint),
     WarpMarker(WarpMarker),
     Media(MediaRef),
+    // --- roadmap v2 (`.ether` v3) ---
+    Marker(Marker),
+    MidiMapping(MidiMapping),
+    DrumPad(DrumPad),
 }
 
 /// The key of any entity.
@@ -48,6 +55,9 @@ pub enum EntityKey {
     TimeSignature(TimeSignatureId),
     WarpMarker(WarpMarkerId),
     Media(MediaId),
+    Marker(MarkerId),
+    MidiMapping(MidiMappingId),
+    DrumPad(DrumPadId),
 }
 
 impl Entity {
@@ -64,6 +74,9 @@ impl Entity {
             Self::TimeSignature(e) => EntityKey::TimeSignature(e.id),
             Self::WarpMarker(e) => EntityKey::WarpMarker(e.id),
             Self::Media(e) => EntityKey::Media(e.id),
+            Self::Marker(e) => EntityKey::Marker(e.id),
+            Self::MidiMapping(e) => EntityKey::MidiMapping(e.id),
+            Self::DrumPad(e) => EntityKey::DrumPad(e.id),
         }
     }
 }

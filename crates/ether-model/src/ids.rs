@@ -102,6 +102,12 @@ define_ids! {
     WarpMarkerId => "WarpMarker";
     /// An imported media file (audio sample) referenced by clips and samplers.
     MediaId => "Media";
+    /// An arrangement marker (locator). Roadmap v2 (`clip-editing`).
+    MarkerId => "Marker";
+    /// A MIDI controller mapping. Roadmap v2 (`midi-learn`).
+    MidiMappingId => "MidiMapping";
+    /// A pad of a drum rack device. Roadmap v2 (`drum-rack`).
+    DrumPadId => "DrumPad";
 }
 
 /// Identifies a project (stable across saves, renames and machines). UUIDv7.

@@ -5,6 +5,15 @@
 //! position that plays at the clip's start. With looping disabled the clip plays
 //! `[offset, offset + length)` of its content; with looping enabled it plays from `offset`
 //! and then repeats `[loop.start, loop.end)` until `length` is reached.
+//!
+//! # Overlaps and crossfades (roadmap v2, `clip-editing`)
+//! Clip edits (`Move`, `SetBounds`, ...) keep clips on a track from overlapping by trimming
+//! the covered clip, except where the overlap is a **crossfade**: the earlier clip `A`
+//! ends inside the later clip `B`, and the overlap `A.end - B.start` is at most both
+//! `A.fade_out` and `B.fade_in`. The engine renders every clip independently and sums them,
+//! so a crossfade is simply `A`'s fade-out overlapping `B`'s fade-in (use the same curve
+//! on both, e.g. `EqualPower`, for a symmetric crossfade). Overlaps are not a model
+//! invariant (documents may contain them); larger overlaps just sum.
 
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
@@ -58,4 +67,33 @@ pub struct AudioContent {
     pub fade_out: Beats,
     /// Warp settings; markers are separate `WarpMarker` entities.
     pub warp: WarpSettings,
+    /// Shape of the fade-in (roadmap v2, `clip-editing`; `.ether` v3).
+    pub fade_in_curve: FadeCurve,
+    /// Shape of the fade-out (roadmap v2, `clip-editing`; `.ether` v3).
+    pub fade_out_curve: FadeCurve,
+    /// Play the source backwards (roadmap v2, `clip-editing`; `.ether` v3). The clip then
+    /// behaves as if its media file were reversed: source time `t` reads the media at
+    /// `media_length - t`, and `offset`, the loop region and warp markers are all expressed
+    /// on that reversed timeline (toggling it does not move them; the controller may mirror
+    /// warp markers in the same transaction).
+    pub reversed: bool,
+}
+
+/// Gain shape of a clip fade, as a function of the normalized position `x` in the fade
+/// (0 = silent end, 1 = full level). Fade-outs use the same curve mirrored in time, so a
+/// fade-out of clip A overlapping a fade-in of clip B with the same curve is a symmetric
+/// crossfade.
+///
+/// - `Linear`: `g = x` (the v0.1 behaviour and the migration default).
+/// - `EqualPower`: `g = sin(x·π/2)`; constant power across a crossfade of uncorrelated
+///   material.
+/// - `Curve { tension }`: the automation curve law (`CurveShape::Curve`) with `tension` in
+///   -1..=1 (0 = linear, > 0 = slow start, < 0 = fast start).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize, TS)]
+#[serde(tag = "type")]
+pub enum FadeCurve {
+    #[default]
+    Linear,
+    EqualPower,
+    Curve { tension: f32 },
 }

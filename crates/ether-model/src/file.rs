@@ -1,7 +1,7 @@
 //! The `.ether` file format: versioned JSON with migrations from day one.
 //!
 //! ```json
-//! { "format": "ethereal-project", "version": 2, "app_version": "0.1.0", "project": { ... } }
+//! { "format": "ethereal-project", "version": 3, "app_version": "0.1.0", "project": { ... } }
 //! ```
 //!
 //! Loading: parse to `serde_json::Value`, read `version`, run every migration from that
@@ -20,7 +20,7 @@ use crate::project::Project;
 /// Magic string in the `format` field.
 pub const FORMAT_TAG: &str = "ethereal-project";
 /// Current `.ether` version. Bump + add a [`Migration`] for every breaking schema change.
-pub const CURRENT_VERSION: u32 = 2;
+pub const CURRENT_VERSION: u32 = 3;
 /// File extension (without dot).
 pub const EXTENSION: &str = "ether";
 /// Document file name inside a project folder.
@@ -29,6 +29,9 @@ pub const PROJECT_FILE: &str = "project.ether";
 pub const MEDIA_DIR: &str = "media";
 /// Regenerable caches (peak mipmaps, decoded audio) inside a project folder.
 pub const CACHE_DIR: &str = "cache";
+/// Rendered exports (roadmap v2, `export`) inside a project folder (native hosts). Not
+/// referenced by the document.
+pub const EXPORTS_DIR: &str = "exports";
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
 pub struct EtherFile {
@@ -47,7 +50,7 @@ pub trait Migration: Send + Sync {
 
 /// All migrations, in order.
 pub fn migrations() -> Vec<Box<dyn Migration>> {
-    vec![Box::new(V1RemoveSession)]
+    vec![Box::new(V1RemoveSession), Box::new(V2RoadmapDefaults)]
 }
 
 /// v1 → v2: Session view removed.
@@ -129,6 +132,82 @@ impl Migration for V1RemoveSession {
                     .as_str()
                     .is_some_and(|l| dropped_lanes.contains(l))
             });
+        }
+        Ok(())
+    }
+}
+
+/// v2 → v3: roadmap v2 fields and tables, all with neutral defaults (a migrated project
+/// sounds and behaves exactly as before).
+///
+/// - tables `markers`, `midi_mappings`, `drum_pads` (empty);
+/// - settings: `metronome_volume` -6 dB, `metronome_accent` true, `metronome_sound`
+///   `Classic`, `swing` 0, `swing_grid` 0.25;
+/// - devices: `sidechain` and `pad` null; samplers get default `slices` (off, base note 36,
+///   no markers);
+/// - audio clips: `fade_in_curve`/`fade_out_curve` `Linear` (the v2 fade law), `reversed`
+///   false.
+///
+/// Fields already present are kept (idempotent).
+pub struct V2RoadmapDefaults;
+
+impl Migration for V2RoadmapDefaults {
+    fn source_version(&self) -> u32 {
+        2
+    }
+
+    fn migrate(&self, doc: &mut serde_json::Value) -> Result<(), FileError> {
+        use serde_json::{Value, json};
+        fn set_default(obj: &mut serde_json::Map<String, Value>, key: &str, value: Value) {
+            obj.entry(key.to_string()).or_insert(value);
+        }
+        let project = doc["project"]
+            .as_object_mut()
+            .ok_or_else(|| FileError::Migration {
+                from: 2,
+                message: "no project object".into(),
+            })?;
+        for table in ["markers", "midi_mappings", "drum_pads"] {
+            set_default(project, table, json!({}));
+        }
+        if let Some(settings) = project.get_mut("settings").and_then(Value::as_object_mut) {
+            set_default(settings, "metronome_volume", json!(-6.0));
+            set_default(settings, "metronome_accent", json!(true));
+            set_default(settings, "metronome_sound", json!("Classic"));
+            set_default(settings, "swing", json!(0.0));
+            set_default(settings, "swing_grid", json!(0.25));
+        }
+        if let Some(devices) = project.get_mut("devices").and_then(Value::as_object_mut) {
+            for d in devices.values_mut().filter_map(Value::as_object_mut) {
+                set_default(d, "sidechain", Value::Null);
+                set_default(d, "pad", Value::Null);
+                if let Some(device) = d
+                    .get_mut("kind")
+                    .filter(|k| k["type"] == "Builtin")
+                    .and_then(|k| k.get_mut("device"))
+                    .and_then(Value::as_object_mut)
+                    .filter(|b| b.get("type").and_then(Value::as_str) == Some("Sampler"))
+                {
+                    set_default(
+                        device,
+                        "slices",
+                        json!({"enabled": false, "base_note": 36, "markers": []}),
+                    );
+                }
+            }
+        }
+        if let Some(clips) = project.get_mut("clips").and_then(Value::as_object_mut) {
+            for c in clips.values_mut() {
+                if let Some(content) = c
+                    .get_mut("content")
+                    .filter(|c| c["type"] == "Audio")
+                    .and_then(Value::as_object_mut)
+                {
+                    set_default(content, "fade_in_curve", json!({"type": "Linear"}));
+                    set_default(content, "fade_out_curve", json!({"type": "Linear"}));
+                    set_default(content, "reversed", json!(false));
+                }
+            }
         }
         Ok(())
     }
@@ -311,6 +390,33 @@ mod tests {
         ));
         // Without the migration the old shape fails to deserialize.
         assert!(matches!(load(&json), Err(FileError::Json(_))));
+    }
+
+    #[test]
+    fn v2_roadmap_migration_is_idempotent_and_neutral() {
+        let p = project();
+        let mut doc: serde_json::Value = serde_json::from_str(&save(&p, "0.1.0").unwrap()).unwrap();
+        // Already-v3 content passes through unchanged.
+        let before = doc.clone();
+        V2RoadmapDefaults.migrate(&mut doc).unwrap();
+        assert_eq!(doc, before);
+        // Strip the v3 additions: a v2 document loads back to the same project.
+        doc["version"] = 2.into();
+        let project = doc["project"].as_object_mut().unwrap();
+        for t in ["markers", "midi_mappings", "drum_pads"] {
+            project.remove(t);
+        }
+        let settings = project["settings"].as_object_mut().unwrap();
+        for f in [
+            "metronome_volume",
+            "metronome_accent",
+            "metronome_sound",
+            "swing",
+            "swing_grid",
+        ] {
+            settings.remove(f);
+        }
+        assert_eq!(load(&doc.to_string()).unwrap(), p);
     }
 
     #[test]

@@ -15,9 +15,11 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
 use crate::automation::CurveShape;
-use crate::clip::ClipLoop;
+use crate::clip::{ClipLoop, FadeCurve};
 use crate::device::{DeviceKind, PluginInstance};
 use crate::entity::{Entity, EntityKey};
+use crate::midi_map::{MidiMapMode, MidiMapTarget, MidiSource};
+use crate::project::MetronomeSound;
 use crate::ids::*;
 use crate::tempo::TempoCurve;
 use crate::track::{MonitorMode, TrackInput, TrackOutput};
@@ -81,6 +83,18 @@ pub enum EntityUpdate {
         id: MediaId,
         change: MediaChange,
     },
+    Marker {
+        id: MarkerId,
+        change: MarkerChange,
+    },
+    MidiMapping {
+        id: MidiMappingId,
+        change: MidiMappingChange,
+    },
+    DrumPad {
+        id: DrumPadId,
+        change: DrumPadChange,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
@@ -91,6 +105,12 @@ pub enum SettingsChange {
     LoopRegion(BeatRange),
     Metronome(bool),
     CountInBars(u32),
+    // --- roadmap v2 ---
+    MetronomeVolume(Decibels),
+    MetronomeAccent(bool),
+    MetronomeSound(MetronomeSound),
+    Swing(f32),
+    SwingGrid(Beats),
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
@@ -128,6 +148,10 @@ pub enum ClipChange {
     FadeIn(Beats),
     FadeOut(Beats),
     Warp(WarpSettings),
+    // Roadmap v2 (audio-only):
+    FadeInCurve(FadeCurve),
+    FadeOutCurve(FadeCurve),
+    Reversed(bool),
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
@@ -158,6 +182,11 @@ pub enum DeviceChange {
     Kind(DeviceKind),
     /// Replace plugin metadata/state/sandbox flag (plugins only).
     Plugin(PluginInstance),
+    /// Roadmap v2: sidechain source track.
+    Sidechain(Option<TrackId>),
+    /// Roadmap v2: move between the track chain (`None`) and a drum pad chain (combine with
+    /// `Order`; the pad must be on a rack of the same track).
+    Pad(Option<DrumPadId>),
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
@@ -207,6 +236,36 @@ pub enum WarpMarkerChange {
 #[serde(tag = "field", content = "value")]
 pub enum MediaChange {
     Name(String),
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+#[serde(tag = "field", content = "value")]
+pub enum MarkerChange {
+    Position(Beats),
+    Name(String),
+    Color(Option<Color>),
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+#[serde(tag = "field", content = "value")]
+pub enum MidiMappingChange {
+    Source(MidiSource),
+    Target(MidiMapTarget),
+    Min(f64),
+    Max(f64),
+    Mode(MidiMapMode),
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+#[serde(tag = "field", content = "value")]
+pub enum DrumPadChange {
+    Note(u8),
+    Name(String),
+    Color(Option<Color>),
+    ChokeGroup(Option<u8>),
+    Volume(Decibels),
+    Pan(Pan),
+    Mute(bool),
 }
 
 /// A labeled group of ops applied atomically = one undo step.

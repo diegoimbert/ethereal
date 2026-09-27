@@ -47,6 +47,12 @@ pub struct Project {
     pub time_signatures: BTreeMap<TimeSignatureId, TimeSignaturePoint>,
     pub warp_markers: BTreeMap<WarpMarkerId, WarpMarker>,
     pub media: BTreeMap<MediaId, MediaRef>,
+    /// Arrangement markers (roadmap v2, `clip-editing`; `.ether` v3).
+    pub markers: BTreeMap<MarkerId, Marker>,
+    /// MIDI controller mappings (roadmap v2, `midi-learn`; `.ether` v3).
+    pub midi_mappings: BTreeMap<MidiMappingId, MidiMapping>,
+    /// Drum rack pads (roadmap v2, `drum-rack`; `.ether` v3).
+    pub drum_pads: BTreeMap<DrumPadId, DrumPad>,
 }
 
 /// Project-wide singleton settings (a single LWW register per field).
@@ -58,6 +64,31 @@ pub struct ProjectSettings {
     pub metronome: bool,
     /// Count-in before recording, in bars (0 = off).
     pub count_in_bars: u32,
+    // --- roadmap v2 (`.ether` v3) ---
+    /// Metronome click level (`tempo-metronome`). -144 dB = silent.
+    pub metronome_volume: Decibels,
+    /// Accent the first beat of each bar (`tempo-metronome`).
+    pub metronome_accent: bool,
+    pub metronome_sound: MetronomeSound,
+    /// Project swing, 0..=1 (`groove`): a *playback* groove applied to every MIDI clip's
+    /// notes when compiling the render graph (non-destructive; notes are not moved). Notes
+    /// starting on the odd positions of `swing_grid` (within epsilon) are delayed by
+    /// `swing · swing_grid / 3` beats, so 1 = full triplet feel. 0 = straight.
+    pub swing: f32,
+    /// Swing grid in beats (0.5 = eighths, 0.25 = sixteenths). `> 0`.
+    pub swing_grid: Beats,
+}
+
+/// Metronome click sound (`tempo-metronome`; the engine synthesizes these, no samples).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize, TS)]
+pub enum MetronomeSound {
+    /// Short sine blip (high on accents).
+    #[default]
+    Classic,
+    /// Woodblock-like click.
+    Wood,
+    /// Square-wave beep.
+    Beep,
 }
 
 impl Default for ProjectSettings {
@@ -71,6 +102,11 @@ impl Default for ProjectSettings {
             },
             metronome: false,
             count_in_bars: 0,
+            metronome_volume: Decibels(-6.0),
+            metronome_accent: true,
+            metronome_sound: MetronomeSound::Classic,
+            swing: 0.0,
+            swing_grid: Beats(0.25),
         }
     }
 }
@@ -121,6 +157,9 @@ impl Project {
             time_signatures: BTreeMap::from([(sig.id, sig)]),
             warp_markers: BTreeMap::new(),
             media: BTreeMap::new(),
+            markers: BTreeMap::new(),
+            midi_mappings: BTreeMap::new(),
+            drum_pads: BTreeMap::new(),
         }
     }
 
@@ -155,8 +194,9 @@ impl Project {
 
     /// All entities, parents before children (useful for full-state patches and CRDT export).
     ///
-    /// Order: media, tracks (by nesting depth), tempo points, time signatures,
-    /// devices, sends, clips, notes, warp markers, automation lanes, automation points.
+    /// Order: media, tracks (by nesting depth), tempo points, time signatures, markers,
+    /// track-chain devices, drum pads, pad-chain devices, sends, clips, notes, warp markers,
+    /// automation lanes, automation points, MIDI mappings.
     pub fn entities(&self) -> Vec<Entity> {
         let depth = |t: &Track| {
             let mut d = 0;
@@ -182,7 +222,23 @@ impl Project {
                 .cloned()
                 .map(Entity::TimeSignature),
         );
-        out.extend(self.devices.values().cloned().map(Entity::Device));
+        out.extend(self.markers.values().cloned().map(Entity::Marker));
+        // Racks (track-chain devices) before their pads, pads before their devices.
+        out.extend(
+            self.devices
+                .values()
+                .filter(|d| d.pad.is_none())
+                .cloned()
+                .map(Entity::Device),
+        );
+        out.extend(self.drum_pads.values().cloned().map(Entity::DrumPad));
+        out.extend(
+            self.devices
+                .values()
+                .filter(|d| d.pad.is_some())
+                .cloned()
+                .map(Entity::Device),
+        );
         out.extend(self.sends.values().cloned().map(Entity::Send));
         out.extend(self.clips.values().cloned().map(Entity::Clip));
         out.extend(self.notes.values().cloned().map(Entity::Note));
@@ -199,6 +255,7 @@ impl Project {
                 .cloned()
                 .map(Entity::AutomationPoint),
         );
+        out.extend(self.midi_mappings.values().cloned().map(Entity::MidiMapping));
         out
     }
 
@@ -233,10 +290,40 @@ impl Project {
         v
     }
 
-    /// The device chain of a track, sorted by `order`.
+    /// The device chain of a track, sorted by `order`. Devices on drum pads
+    /// (`Device::pad`) are not part of it: see [`Self::pad_devices_of`].
     pub fn devices_of(&self, track: TrackId) -> Vec<&Device> {
-        let mut v: Vec<&Device> = self.devices.values().filter(|d| d.track == track).collect();
+        let mut v: Vec<&Device> = self
+            .devices
+            .values()
+            .filter(|d| d.track == track && d.pad.is_none())
+            .collect();
         v.sort_by(|a, b| by_order((&a.order, a.id), (&b.order, b.id)));
+        v
+    }
+
+    /// The device chain of a drum pad, sorted by `order`.
+    pub fn pad_devices_of(&self, pad: DrumPadId) -> Vec<&Device> {
+        let mut v: Vec<&Device> = self
+            .devices
+            .values()
+            .filter(|d| d.pad == Some(pad))
+            .collect();
+        v.sort_by(|a, b| by_order((&a.order, a.id), (&b.order, b.id)));
+        v
+    }
+
+    /// Pads of a drum rack device, sorted by note.
+    pub fn pads_of(&self, rack: DeviceId) -> Vec<&DrumPad> {
+        let mut v: Vec<&DrumPad> = self.drum_pads.values().filter(|p| p.rack == rack).collect();
+        v.sort_by(|a, b| a.note.cmp(&b.note).then(a.id.cmp(&b.id)));
+        v
+    }
+
+    /// Arrangement markers sorted by position (ties by id).
+    pub fn markers_sorted(&self) -> Vec<&Marker> {
+        let mut v: Vec<&Marker> = self.markers.values().collect();
+        v.sort_by(|a, b| a.position.0.total_cmp(&b.position.0).then(a.id.cmp(&b.id)));
         v
     }
 
