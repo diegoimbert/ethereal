@@ -37,6 +37,14 @@ const clamp01 = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v);
 /** Handle hit radius in px (pointer tolerance, not a visual size). */
 const HIT = 14;
 
+/** Catalog name of a kebab widget kind ("filter-curve" → "FilterCurve"). */
+function catalogName(kind: string): string {
+  return kind
+    .split("-")
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join("");
+}
+
 /** Frame of a typed widget: optional caption, the graphic and its controls row. */
 export function TypedFrame({
   type,
@@ -52,7 +60,7 @@ export function TypedFrame({
   controls?: ReadonlyArray<ParamId | null | undefined>;
 }) {
   return (
-    <div className={clsx("eth-widget", `eth-widget--${type}`, `eth-widget--${size.toLowerCase()}`)} data-widget={type}>
+    <div className={clsx("eth-widget", `eth-widget--${type}`, `eth-widget--${size.toLowerCase()}`)} data-widget={catalogName(type)}>
       {label && <span className="eth-widget__label">{label}</span>}
       {children}
       {controls && <ControlsRow ids={controls} size={size === "Large" ? "Medium" : "Small"} />}

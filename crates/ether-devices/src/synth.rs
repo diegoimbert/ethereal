@@ -138,7 +138,7 @@ pub fn layout() -> ether_core::protocol::layout::DeviceLayout {
             shape: params::WAVEFORM,
             position: None,
         },
-        Medium,
+        Small,
     );
     osc.colspan = 2;
     let mut filter = item(

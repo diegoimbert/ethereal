@@ -78,10 +78,14 @@ export function Plot({ className, label, drag, begin, end, onDoubleClick, childr
             ? (e) => {
                 if (e.button !== 0) return;
                 const [x, y] = local(e);
-                if (drag.start(x, y, e) === false) return;
+                // Open the gesture first: a press that sets values (pads, steps) is part of it.
+                begin?.();
+                if (drag.start(x, y, e) === false) {
+                  end?.();
+                  return;
+                }
                 e.currentTarget.setPointerCapture?.(e.pointerId);
                 active.current = true;
-                begin?.();
                 e.preventDefault();
               }
             : undefined

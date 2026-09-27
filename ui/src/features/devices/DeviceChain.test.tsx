@@ -64,16 +64,17 @@ describe("chain helpers", () => {
   });
 
   it("keeps leading whole groups as the main controls and folds the rest", () => {
+    // The generic layout (devices without a declared one, e.g. plugins).
     const { main, more } = splitMainParams(groupParams(BUILTIN_DESCRIPTORS.Synth.params));
-    expect(main.map((g) => g.group)).toEqual(["Oscillator", "Filter"]);
-    expect(more.map((g) => g.group)).toEqual(["Envelope", "Output"]);
+    expect(main.map((g) => g.group)).toEqual(["Oscillator"]);
+    expect(more.map((g) => g.group)).toEqual(["Envelope", "Filter", "Output"]);
     const small = groupParams(BUILTIN_DESCRIPTORS.Delay.params);
     expect(splitMainParams(small).more).toEqual([]);
   });
 
   it("groups visible params by section", () => {
     const groups = groupParams(BUILTIN_DESCRIPTORS.Synth.params);
-    expect(groups.map((g) => g.group)).toEqual(["Oscillator", "Filter", "Envelope", "Output"]);
+    expect(groups.map((g) => g.group)).toEqual(["Oscillator", "Envelope", "Filter", "Output"]);
     expect(groupParams([{ ...BUILTIN_DESCRIPTORS.Delay.params[0]!, hidden: true }])).toEqual([]);
   });
 });
@@ -85,7 +86,8 @@ describe("DeviceChain", () => {
     const list = screen.getByRole("list", { name: "Keys devices" });
     expect(within(list).getAllByRole("region").map((r) => r.getAttribute("aria-label"))).toEqual(["Synth", "Compressor"]);
     const synth = deviceEl("Synth");
-    // Enum param with 4 labels → select; log param → knob showing the formatted plain value.
+    // The Synth's declared layout: the oscillator's shape choice (4 labels → select) and the
+    // filter curve's cutoff knob showing the formatted plain value.
     expect(within(synth).getByRole("combobox", { name: "Waveform" })).toHaveTextContent("Saw");
     expect(within(synth).getByRole("slider", { name: "Cutoff" })).toHaveAttribute("aria-valuetext", "2.4 kHz");
 
@@ -160,15 +162,15 @@ describe("DeviceChain", () => {
 
   it("a knob drag is one undo step and maps through the param scale", async () => {
     await renderChain();
-    const before = deviceOf("Keys", "Synth").params[2] ?? 8000;
+    const before = deviceOf("Keys", "Synth").params[6] ?? 8000;
     const undoLabel = store().history.undo_label;
     await dragUp(within(deviceEl("Synth")).getByRole("slider", { name: "Cutoff" }), 3, 10);
     await flush();
-    const after = deviceOf("Keys", "Synth").params[2]!;
+    const after = deviceOf("Keys", "Synth").params[6]!;
     // Log scale: +30px at 1/150 per px = +0.2 normalized = ×(1000^0.2) in Hz.
     expect(after / before).toBeCloseTo(Math.pow(1000, 0.2), 6);
     await act(() => mock!.send(cmd("Edit", { type: "Undo" })));
-    expect(deviceOf("Keys", "Synth").params[2] ?? 8000).toBe(before);
+    expect(deviceOf("Keys", "Synth").params[6] ?? 8000).toBe(before);
     expect(store().history.undo_label).toBe(undoLabel);
   });
 
@@ -178,17 +180,14 @@ describe("DeviceChain", () => {
     await flush();
     expect(deviceOf("Keys", "Synth").params[0]).toBe(2);
 
-    // The envelope is folded under "More" (the Synth leads with oscillator and filter).
-    expect(within(deviceEl("Synth")).queryByRole("slider", { name: "Attack" })).toBeNull();
-    fireEvent.click(within(deviceEl("Synth")).getByRole("button", { name: "More Synth controls" }));
+    // The envelope widget's attack control (param 2 in `ether_devices::synth`).
     const attack = within(deviceEl("Synth")).getByRole("slider", { name: "Attack" });
     fireEvent.keyDown(attack, { key: "PageUp" });
     await flush();
-    expect(deviceOf("Keys", "Synth").params[4]).toBeGreaterThan(5);
+    expect(deviceOf("Keys", "Synth").params[2]).toBeGreaterThan(5);
     fireEvent.doubleClick(attack);
     await flush();
-    expect(deviceOf("Keys", "Synth").params[4]).toBeCloseTo(5, 9);
-  });
+    expect(deviceOf("Keys", "Synth").params[2]).toBeCloseTo(5, 9);  });
 
   it("moves a dragged device before the drop target", async () => {
     await renderChain();

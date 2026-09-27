@@ -178,7 +178,7 @@ export function createDemoProject(seed = 1): Project {
     name: "Synth",
     enabled: true,
     kind: { type: "Builtin", device: { type: "Synth" } },
-    params: { ...defaultParams("Synth"), 0: 1, 2: 2400, 3: 25, 7: 450 },
+    params: { ...defaultParams("Synth"), 0: 1, 6: 2400, 7: 25, 5: 450 },
     sidechain: null,
     pad: null,
   };
@@ -200,7 +200,7 @@ export function createDemoProject(seed = 1): Project {
     name: "Synth",
     enabled: true,
     kind: { type: "Builtin", device: { type: "Synth" } },
-    params: { ...defaultParams("Synth"), 0: 2, 2: 600, 8: -3 },
+    params: { ...defaultParams("Synth"), 0: 2, 6: 600, 8: -3 },
     sidechain: null,
     pad: null,
   };
@@ -375,7 +375,7 @@ export function createAmbientIdeaProject(seed = 3): Project {
     name: "Synth",
     enabled: true,
     kind: { type: "Builtin", device: { type: "Synth" } },
-    params: { ...defaultParams("Synth"), 0: 3, 4: 1200, 7: 4000 },
+    params: { ...defaultParams("Synth"), 0: 3, 2: 1200, 5: 4000 },
     sidechain: null,
     pad: null,
   };

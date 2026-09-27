@@ -20,7 +20,7 @@
   flex: var(--section-span, 1) 1 auto;
   min-width: 0;
 }
-.eth-layout__grid {
+.eth-device__params.eth-layout__grid {
   grid-template-columns: repeat(var(--section-columns, 2), minmax(var(--eth-size-device-param-min-width), auto));
   align-items: start;
 }
@@ -28,11 +28,17 @@
   grid-column: span var(--item-span, 1);
   min-width: 0;
 }
+/* Graphical widgets fill their cell (param widgets stay centred, as in the generic look). */
+.eth-layout__item,
+.eth-device__params > .eth-widget {
+  justify-self: stretch;
+  width: 100%;
+}
 .eth-layout__item--full {
   grid-column: 1 / -1;
 }
 /* Stacked cards (inspector): at most `columns` columns, fewer when narrow. */
-.eth-device--stack .eth-layout__grid {
+.eth-device--stack .eth-device__params.eth-layout__grid {
   grid-template-columns: repeat(
     auto-fill,
     minmax(
@@ -171,6 +177,7 @@
 }
 .eth-plot {
   position: relative;
+  width: 100%;
   height: var(--device-plot-height);
   min-width: 0;
   overflow: hidden;
@@ -198,7 +205,10 @@
   cursor: crosshair;
   touch-action: none;
 }
+/* The SVG never sizes its box (it is drawn at the box's measured size). */
 .eth-plot__svg {
+  position: absolute;
+  inset: 0;
   display: block;
 }
 .eth-plot__grid line {
