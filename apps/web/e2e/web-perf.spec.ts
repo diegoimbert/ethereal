@@ -13,6 +13,7 @@
 // engine state.
 import { expect, test, type Page } from "@playwright/test";
 import type { Command, Project } from "@/generated";
+import { playButton } from "./ui";
 
 interface Handle {
   state(): { project: Project | null };
@@ -100,7 +101,7 @@ test("large project: binary graph snapshots play while editing", async ({ page }
   });
 
   await page.goto("/");
-  await expect(page.getByRole("button", { name: "Play" })).toBeVisible({ timeout: 30_000 });
+  await expect(playButton(page)).toBeVisible({ timeout: 30_000 });
   await expect
     .poll(() => page.evaluate(() => (window as unknown as { __ether: Handle }).__ether.state().project !== null), {
       timeout: 30_000,
@@ -156,7 +157,7 @@ test("large project: binary graph snapshots play while editing", async ({ page }
 
   await send(page, { domain: "Transport", command: { type: "SetLoopRegion", region: { start: 0, end: 32 } } });
   await send(page, { domain: "Transport", command: { type: "SetLoopEnabled", enabled: true } });
-  await page.getByRole("button", { name: "Play" }).click();
+  await playButton(page).click();
   await expect(page.getByRole("button", { name: "Stop" }).first()).toBeVisible();
 
   // Every track sounds: its part of the snapshot was decoded and compiled in the worklet.

@@ -8,6 +8,7 @@
 //
 // No sleeps: every step waits on UI state.
 import { expect, test, type Page } from "@playwright/test";
+import { openLibrary, playButton } from "./ui";
 
 const files = (page: Page) => page.getByRole("list", { name: "Files" });
 // Clicking a row toggles its preview; the previewing row is pressed.
@@ -21,8 +22,8 @@ test("media preview: play to the end, replace and stop from the browser", async 
   page.on("pageerror", (e) => errors.push(e.message));
 
   await page.goto("/");
-  await expect(page.getByRole("button", { name: "Play" })).toBeVisible({ timeout: 30_000 });
-  await page.getByRole("tablist", { name: "Locations" }).getByRole("tab", { name: "Browser library" }).click();
+  await expect(playButton(page)).toBeVisible({ timeout: 30_000 });
+  await openLibrary(page);
   await files(page).getByRole("button", { name: "Demo Samples" }).click();
   await expect(previewButton(page, "Kick.wav")).toBeVisible({ timeout: 20_000 });
 

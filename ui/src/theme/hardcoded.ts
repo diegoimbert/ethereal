@@ -42,11 +42,22 @@ function stripComments(src: string, css: boolean): string {
   return src.replace(re, (m) => m.replace(/[^\n]/g, " "));
 }
 
+/**
+ * Marks an allowed exception: findings on the line with this marker (in a comment), or on
+ * the line after a comment line holding only the marker, are not reported. Always give the reason next to it, e.g.
+ * `/* eth-allow-hardcoded: container query conditions cannot use var() *\/`.
+ */
+export const ALLOW_MARKER = "eth-allow-hardcoded";
+
 export function scanSource(file: string, src: string, opts: ScanOptions = {}): Finding[] {
   const css = file.endsWith(".css");
+  const raw = src.split("\n");
+  const markerOnly = (l: string | undefined) => !!l && /^\s*(\/\*|\/\/)/.test(l) && l.includes(ALLOW_MARKER);
+  const allowed = (i: number) => raw[i]!.includes(ALLOW_MARKER) || markerOnly(raw[i - 1]);
   const lines = stripComments(src, css).split("\n");
   const out: Finding[] = [];
   lines.forEach((l, i) => {
+    if (allowed(i)) return;
     const taken: Array<[number, number]> = [];
     // Earlier (more specific) patterns win; a span already reported is not counted again.
     const add = (kind: FindingKind, re: RegExp) => {

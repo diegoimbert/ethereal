@@ -24,16 +24,24 @@ export interface BarPosition {
 }
 
 /**
- * Musical position (bar.beat.sixteenth, all 1-based) of `beats`, following the
+ * Musical position (bar.beat.sixteenth, beat and sixteenth 1-based) of `beats`, following the
  * time-signature map (`points` in any order; a missing point at 0 means 4/4 until the
- * first one). Values within `BEATS_EPSILON` of a grid line count as on it.
+ * first one). Values within `BEATS_EPSILON` of a grid line count as on it. Positions before
+ * zero (a count-in) count bars backwards in the signature at 0, like a DAW: -1.1.1 is one
+ * bar before 1.1.1 (there is no bar 0).
  */
 export function barPosition(beats: Beats, points: ReadonlyArray<TimeSignaturePoint>): BarPosition {
-  const pos = Math.max(0, beats);
   const sorted = [...points].sort((a, b) => a.time - b.time);
   if (sorted.length === 0 || sorted[0]!.time > BEATS_EPSILON) {
     sorted.unshift({ id: "", time: 0, signature: DEFAULT_SIGNATURE });
   }
+  if (beats < -BEATS_EPSILON) {
+    const signature = sorted[0]!.signature;
+    const bpb = beatsPerBar(signature);
+    const barsBack = Math.max(1, Math.ceil((-beats - BEATS_EPSILON) / bpb));
+    return { bar: -barsBack, ...beatInBar(beats + barsBack * bpb, signature) };
+  }
+  const pos = Math.max(0, beats);
   let barsBefore = 0;
   for (let i = 0; i < sorted.length; i++) {
     const { time: start, signature } = sorted[i]!;
@@ -42,13 +50,7 @@ export function barPosition(beats: Beats, points: ReadonlyArray<TimeSignaturePoi
     if (pos + BEATS_EPSILON < end) {
       const within = pos - start;
       const bars = Math.floor((within + BEATS_EPSILON) / bpb);
-      const inBar = Math.max(0, within - bars * bpb);
-      const unit = 4 / signature.denominator;
-      const beat = Math.min(signature.numerator - 1, Math.floor((inBar + BEATS_EPSILON) / unit));
-      const inBeat = Math.max(0, inBar - beat * unit);
-      const sixteenths = Math.max(1, Math.round(unit / 0.25));
-      const sixteenth = Math.min(sixteenths - 1, Math.floor((inBeat + BEATS_EPSILON) / 0.25));
-      return { bar: barsBefore + bars + 1, beat: beat + 1, sixteenth: sixteenth + 1 };
+      return { bar: barsBefore + bars + 1, ...beatInBar(within - bars * bpb, signature) };
     }
     // Signature changes fall on bar lines; a partial last bar still counts as one.
     barsBefore += Math.ceil((end - start - BEATS_EPSILON) / bpb);
@@ -56,18 +58,31 @@ export function barPosition(beats: Beats, points: ReadonlyArray<TimeSignaturePoi
   return { bar: barsBefore + 1, beat: 1, sixteenth: 1 };
 }
 
+/** 1-based beat and sixteenth of a position `inBar` beats into a bar of `signature`. */
+function beatInBar(inBar: Beats, signature: TimeSignature): Omit<BarPosition, "bar"> {
+  const offset = Math.max(0, inBar);
+  const unit = 4 / signature.denominator;
+  const beat = Math.min(signature.numerator - 1, Math.floor((offset + BEATS_EPSILON) / unit));
+  const inBeat = Math.max(0, offset - beat * unit);
+  const sixteenths = Math.max(1, Math.round(unit / 0.25));
+  const sixteenth = Math.min(sixteenths - 1, Math.floor((inBeat + BEATS_EPSILON) / 0.25));
+  return { beat: beat + 1, sixteenth: sixteenth + 1 };
+}
+
 /** `"12.3.1"` */
 export function formatBarPosition(p: BarPosition): string {
   return `${p.bar}.${p.beat}.${p.sixteenth}`;
 }
 
-/** `"1:05.250"` (minutes:seconds.millis; negative clamps to 0). */
+/** `"1:05.250"` (minutes:seconds.millis); before zero (a count-in) `"-0:01.500"`. */
 export function formatSeconds(seconds: number): string {
-  const totalMs = Math.max(0, Math.floor(seconds * 1000 + 1e-6));
+  const sign = seconds < 0 ? "-" : "";
+  const totalMs = Math.floor(Math.abs(seconds) * 1000 + 1e-6);
+  if (totalMs === 0) return "0:00.000";
   const m = Math.floor(totalMs / 60000);
   const s = Math.floor((totalMs % 60000) / 1000);
   const ms = totalMs % 1000;
-  return `${m}:${String(s).padStart(2, "0")}.${String(ms).padStart(3, "0")}`;
+  return `${sign}${m}:${String(s).padStart(2, "0")}.${String(ms).padStart(3, "0")}`;
 }
 
 /** `"120.00"` */
