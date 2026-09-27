@@ -181,6 +181,8 @@ paths = [
   "apps/web/e2e/recording.spec.ts",
   # granted by manager (base-10)
   "crates/ether-core/tests/recording_*.rs",
+  # granted by manager (ci-release discovery, base-14)
+  "apps/desktop/src-tauri/Info.plist",
 ]
 
 # --- Roadmap (manager, base-13) --------------------------------------------------------

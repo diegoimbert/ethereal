@@ -162,10 +162,8 @@ fn import_pipeline() {
         } => {
             assert_eq!(*media, id);
             assert_eq!(*gain, 1.0);
-            let w = warp
-                .as_ref()
-                .expect("warped at the tempo it was imported at");
-            assert_eq!(w.markers, vec![(0.0, 0.0), (1.0, 0.5)]);
+            // Unwarped by default (native speed, no stretcher).
+            assert_eq!(*warp, None);
         }
         other => panic!("{other:?}"),
     }
