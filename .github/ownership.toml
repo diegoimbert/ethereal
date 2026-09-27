@@ -276,6 +276,11 @@ paths = [
   "crates/ether-controller/src/store.rs",
   "crates/ether-native/src/store.rs",
   "crates/ether-wasm/src/store.rs",
+  # shared (base-18): remove ONLY your own entries from the "unsupported until implemented" test
+  "crates/ether-controller/tests/roadmap_v2.rs",
+  # own e2e/integration test files (base-21)
+  "apps/web/e2e/export.spec.ts",
+  "crates/ether-native/tests/export*.rs",
 ]
 
 [nodes.devices-2]
@@ -292,6 +297,11 @@ paths = [
   "crates/ether-devices/src/lib.rs",
   # shared touch: mock descriptors mirroring the real param lists
   "ui/src/transport/mock/builtinDevices.ts",
+  # shared (base-18): remove ONLY your own entries from the "unsupported until implemented" test
+  "crates/ether-controller/tests/roadmap_v2.rs",
+  # own e2e/integration test files (base-21)
+  "apps/web/e2e/devices-2.spec.ts",
+  "crates/ether-native/tests/devices_2*.rs",
 ]
 
 [nodes.tempo-metronome]
@@ -308,6 +318,11 @@ paths = [
   "crates/ether-controller/src/recording/mod.rs",
   # shared touch: tempo-map editing on the ruler
   "ui/src/timeline/Ruler.tsx",
+  # shared (base-18): remove ONLY your own entries from the "unsupported until implemented" test
+  "crates/ether-controller/tests/roadmap_v2.rs",
+  # own e2e/integration test files (base-21)
+  "apps/web/e2e/tempo-metronome.spec.ts",
+  "crates/ether-native/tests/tempo_metronome*.rs",
 ]
 
 [nodes.clip-editing]
@@ -324,6 +339,11 @@ paths = [
   # shared touch: fade handles / reversed badge on clips
   "ui/src/features/arrangement/ClipView.tsx",
   "ui/src/features/arrangement/clipDraw.ts",
+  # shared (base-18): remove ONLY your own entries from the "unsupported until implemented" test
+  "crates/ether-controller/tests/roadmap_v2.rs",
+  # own e2e/integration test files (base-21)
+  "apps/web/e2e/clip-editing.spec.ts",
+  "crates/ether-native/tests/clip_editing*.rs",
 ]
 
 [nodes.remote-engine]
@@ -345,6 +365,11 @@ paths = [
   "justfile",
   "scripts/dev-env.mjs",
   "README.md",
+  # shared (base-18): remove ONLY your own entries from the "unsupported until implemented" test
+  "crates/ether-controller/tests/roadmap_v2.rs",
+  # own e2e/integration test files (base-21)
+  "apps/web/e2e/remote-engine.spec.ts",
+  "crates/ether-native/tests/remote_engine*.rs",
 ]
 
 [nodes.collab]
@@ -355,6 +380,11 @@ paths = [
   "crates/ether-controller/tests/collab*.rs",
   # shared touch: stamping committed transactions (edit_with) and the tick hook
   "crates/ether-controller/src/handlers.rs",
+  # shared (base-18): remove ONLY your own entries from the "unsupported until implemented" test
+  "crates/ether-controller/tests/roadmap_v2.rs",
+  # own e2e/integration test files (base-21)
+  "apps/web/e2e/collab.spec.ts",
+  "crates/ether-native/tests/collab*.rs",
 ]
 
 [nodes.multicore]
@@ -370,6 +400,11 @@ paths = [
   "crates/ether-native/src/rt.rs",
   "crates/ether-native/src/host.rs",
   "crates/ether-native/src/lib.rs",
+  # shared (base-18): remove ONLY your own entries from the "unsupported until implemented" test
+  "crates/ether-controller/tests/roadmap_v2.rs",
+  # own e2e/integration test files (base-21)
+  "apps/web/e2e/multicore.spec.ts",
+  "crates/ether-native/tests/multicore*.rs",
 ]
 
 [nodes.web-perf]
@@ -379,6 +414,11 @@ paths = [
   "crates/ether-wasm/tests/**",
   "apps/web/src/engine/**",
   "crates/ether-core/tests/codec*.rs",
+  # shared (base-18): remove ONLY your own entries from the "unsupported until implemented" test
+  "crates/ether-controller/tests/roadmap_v2.rs",
+  # own e2e/integration test files (base-21)
+  "apps/web/e2e/web-perf.spec.ts",
+  "crates/ether-native/tests/web_perf*.rs",
 ]
 
 [nodes.midi-learn]
@@ -391,6 +431,13 @@ paths = [
   "crates/ether-native/src/recording/mod.rs",
   # shared touch: EngineBridge::poll_midi_input impl
   "crates/ether-native/src/bridge.rs",
+  # shared (base-18): remove ONLY your own entries from the "unsupported until implemented" test
+  "crates/ether-controller/tests/roadmap_v2.rs",
+  # granted (BCR, base-19): the midi_learn state field + its initializer only
+  "crates/ether-controller/src/lib.rs",
+  # own e2e/integration test files (base-21)
+  "apps/web/e2e/midi-learn.spec.ts",
+  "crates/ether-native/tests/midi_learn*.rs",
 ]
 
 [nodes.sidechain]
@@ -405,6 +452,11 @@ paths = [
   "crates/ether-core/src/engine.rs",
   # shared touch: compressor (and limiter, with devices-2) sidechain input
   "crates/ether-devices/src/compressor.rs",
+  # shared (base-18): remove ONLY your own entries from the "unsupported until implemented" test
+  "crates/ether-controller/tests/roadmap_v2.rs",
+  # own e2e/integration test files (base-21)
+  "apps/web/e2e/sidechain.spec.ts",
+  "crates/ether-native/tests/sidechain*.rs",
 ]
 
 [nodes.groove]
@@ -417,6 +469,13 @@ paths = [
   # shared touch: quantize-swing / humanize controls in the piano roll
   "ui/src/features/piano-roll/noteEdits.ts",
   "ui/src/features/piano-roll/PianoRoll.tsx",
+  # shared (base-18): remove ONLY your own entries from the "unsupported until implemented" test
+  "crates/ether-controller/tests/roadmap_v2.rs",
+  # granted (BCR, base-20): additive menuItems prop only; user-owned UX, do not restyle
+  "ui/src/features/piano-roll/NoteGrid.tsx",
+  # own e2e/integration test files (base-21)
+  "apps/web/e2e/groove.spec.ts",
+  "crates/ether-native/tests/groove*.rs",
 ]
 
 [nodes.drum-rack]
@@ -437,4 +496,9 @@ paths = [
   # shared touch: pad-chain node creation / cascade on device delete
   "crates/ether-controller/src/engine.rs",
   "crates/ether-controller/src/doc/mod.rs",
+  # shared (base-18): remove ONLY your own entries from the "unsupported until implemented" test
+  "crates/ether-controller/tests/roadmap_v2.rs",
+  # own e2e/integration test files (base-21)
+  "apps/web/e2e/drum-rack.spec.ts",
+  "crates/ether-native/tests/drum_rack*.rs",
 ]

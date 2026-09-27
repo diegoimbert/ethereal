@@ -4,10 +4,10 @@
 import "./transport-bar.css";
 import { useEffect, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
-import type { EngineStatus, TimeSignaturePoint } from "@/generated";
+import type { EngineStatus, GestureId, TimeSignaturePoint } from "@/generated";
 import { Button } from "@/kit";
 import { timeSignaturePoints, useCpuLoad, usePlayhead, useProjectStore } from "@/state";
-import { cmd } from "@/transport";
+import { cmd, nextGestureId } from "@/transport";
 import { CommitField } from "./CommitField";
 import { isTextEntry, useEngineCommands, useEngineEvent, useOptionalConnection, useOptionalTransport } from "./engine";
 import {
@@ -47,6 +47,29 @@ export function TransportBar() {
   const undo = () => void send(cmd("Edit", { type: "Undo" }));
   const redo = () => void send(cmd("Edit", { type: "Redo" }));
   const setTempo = (value: number) => void send(cmd("Transport", { type: "SetTempo", bpm: clampBpm(value) }));
+
+  // Hold-and-drag on the tempo field: 1 BPM per 2 px up (whole BPM), Shift: 0.01 BPM steps.
+  // The whole drag is one gesture, so one undo step.
+  const tempoDrag = useRef<{ start: number; last: number; gesture: GestureId } | null>(null);
+  const tempoDragHandlers = {
+    onStart: () => {
+      tempoDrag.current = { start: bpm, last: bpm, gesture: nextGestureId() };
+    },
+    onMove: (up: number, fine: boolean) => {
+      const d = tempoDrag.current;
+      if (!d) return;
+      const raw = fine ? d.start + up * 0.05 : d.start + up * 0.5;
+      const next = clampBpm(fine ? Math.round(raw * 100) / 100 : Math.round(raw));
+      if (next === d.last) return;
+      d.last = next;
+      void send(cmd("Transport", { type: "SetTempo", bpm: next }), { gesture: d.gesture });
+    },
+    onEnd: () => {
+      const d = tempoDrag.current;
+      tempoDrag.current = null;
+      if (d && d.last !== d.start) void send(cmd("Edit", { type: "EndGesture", gesture: d.gesture }));
+    },
+  };
 
   useTransportShortcuts({
     enabled: !disabled,
@@ -113,7 +136,7 @@ export function TransportBar() {
       <div className="eth-tb__group">
         <CommitField
           label="Tempo"
-          title="Tempo in BPM (↑/↓ to nudge, Shift for 0.1)"
+          title="Tempo in BPM (drag up/down or ↑/↓ to change, Shift for fine steps)"
           width="6ch"
           disabled={disabled}
           value={formatBpm(bpm)}
@@ -123,6 +146,7 @@ export function TransportBar() {
             setTempo(value);
           }}
           onStep={(dir, fine) => setTempo(bpm + dir * (fine ? 0.1 : 1))}
+          drag={tempoDragHandlers}
         />
         <span className="eth-tb__unit">BPM</span>
         <Button size="sm" title="Tap tempo" disabled={disabled} onClick={() => void send(cmd("Transport", { type: "TapTempo" }))}>

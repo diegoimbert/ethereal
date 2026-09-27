@@ -17,8 +17,9 @@
  * use `useTransport()` and read the document from `@/state`.
  */
 import { useEffect, useState, type ReactNode } from "react";
-import { Button, Panel } from "@/kit";
+import { Button, ContextMenuHost, Panel } from "@/kit";
 import { useEditorStore, useProjectStore } from "@/state";
+import { size } from "@/theme";
 import { ArrangementView } from "@/features/arrangement";
 import { AutomationLanes } from "@/features/automation";
 import { Browser } from "@/features/browser";
@@ -38,7 +39,15 @@ import { ConnectDialog } from "@/features/remote";
 import { MetronomeSettings, TempoEditor } from "@/features/tempo";
 import { TransportBar } from "@/features/transport-bar";
 import { WarpEditor } from "@/features/warp";
+import { Splitter } from "./Splitter";
+import { usePaneSize } from "./usePaneSize";
 import "./App.css";
+
+/** Pane sizes in px, from the design tokens (`size.*` in ui/src/theme/tokens.ts). */
+const px = (token: string) => parseFloat(token);
+const SIDEBAR_WIDTH = px(size.sidebarWidth);
+const DETAIL_HEIGHT = px(size.detailHeight);
+const MAIN_MIN = px(size.mainMinSize);
 
 interface Slot<Id extends string> {
   id: Id;
@@ -104,6 +113,8 @@ export function App() {
   const [sidebarTab, setSidebarTab] = useState<SidebarTabId>("browser");
   const [detailTab, setDetailTab] = useState<DetailTabId>("devices");
   const [detailOpen, setDetailOpen] = useState(true);
+  const [sidebarWidth, setSidebarWidth] = usePaneSize("sidebar", SIDEBAR_WIDTH);
+  const [detailHeight, setDetailHeight] = usePaneSize("detail", DETAIL_HEIGHT);
 
   // Opening a clip (arrangement double-click) focuses its editor in the detail view.
   useEffect(
@@ -119,7 +130,10 @@ export function App() {
   );
 
   return (
-    <div className={detailOpen ? "eth-shell" : "eth-shell eth-shell--detail-closed"}>
+    <div
+      className={detailOpen ? "eth-shell" : "eth-shell eth-shell--detail-closed"}
+      style={{ ["--eth-sidebar-width" as string]: `${sidebarWidth}px`, ["--eth-detail-height" as string]: `${detailHeight}px` }}
+    >
       <header className="eth-shell__top" data-slot="top">
         <div data-slot="project">
           <ProjectMenu />
@@ -177,6 +191,33 @@ export function App() {
       >
         {detailOpen && renderActive(DETAIL_TABS, detailTab)}
       </Panel>
+
+      <Splitter
+        orientation="vertical"
+        className="eth-shell__split-sidebar"
+        label="Resize sidebar"
+        size={sidebarWidth}
+        direction={1}
+        min={px(size.sidebarMinWidth)}
+        max={() => window.innerWidth - MAIN_MIN}
+        onResize={setSidebarWidth}
+        reset={SIDEBAR_WIDTH}
+      />
+      {detailOpen && (
+        <Splitter
+          orientation="horizontal"
+          className="eth-shell__split-detail"
+          label="Resize detail view"
+          size={detailHeight}
+          direction={-1}
+          min={px(size.detailMinHeight)}
+          max={() => window.innerHeight - MAIN_MIN - px(size.topBarHeight)}
+          onResize={setDetailHeight}
+          reset={DETAIL_HEIGHT}
+        />
+      )}
+
+      <ContextMenuHost />
     </div>
   );
 }
