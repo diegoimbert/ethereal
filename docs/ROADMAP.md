@@ -717,3 +717,17 @@ Shared touches: the EQ's analysis producer (`ether-devices/src/eq.rs`: pre/post 
 (`layout/index.ts`, `layout/Widget.tsx`), `mock/devices/eq.json` (regenerated).
 Tests: TS response parity with the Rust vectors, gesture = one undo step per drag, the EQ's
 analysis under `assert_no_alloc`. Screenshots of the EQ panel in the dark theme.
+
+## `turn-hardening` (follow-up to stream-host)
+
+Owns: `crates/ether-collab/src/relay/ice/turn.rs` (+ `turn/**` if split),
+`crates/ether-collab/tests/turn*.rs`; shared touch: `docs/COLLAB.md` §10 (TURN notice).
+Fixes the known limitations listed in COLLAB.md §10 so TURN can stop being experimental:
+- a **per-username** verified-request cap (a replayed valid request from spoofed sources must
+  not push the global count to the hard budget and force rotations);
+- count **real nonce-map inserts** (not admitted requests), so the soft budget reflects the
+  crate's actual memory and `admitted` decays; new clients are not crowded out of the
+  unverified trickle;
+- deterministic **rotation-decision tests** (soft/hard budget, live allocations, replay).
+Only when all three land, lift "Experimental: do not expose it publicly yet" (docs, `--help`,
+startup warning) — decision logged for the owner.
