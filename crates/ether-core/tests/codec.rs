@@ -4,18 +4,24 @@
 #[path = "codec_fixture.rs"]
 mod fixture;
 
+use ether_core::InputTapDesc;
 use ether_core::NodeKey;
 use ether_core::codec::{BinaryCodec, CodecError, GraphCodec};
+use ether_core::freeze::FrozenDesc;
 use ether_core::graph::{
     AutomationDesc, ChainEntry, ClipContentDesc, ClipDesc, MetronomeDesc, NoteDesc, PadDesc,
     ParamMapping, RackDesc, RenderGraphDesc, ResolvedTarget, SendDesc, TrackDesc, WarpDesc,
 };
+use ether_core::modulation::{ModMappingDesc, ModSourceDesc, ModulationDesc, ModulatorDesc};
 use ether_core::protocol::devices::ParamScale;
 use ether_core::protocol::model::{
     AutomationTarget, ClipId, CurveShape, DeviceId, DrumPadId, FadeCurve, MediaId, MetronomeSound,
     ParamId, SendId, TempoCurve, TimeSignature, TrackId, TrackKind, Ulid, WarpMode,
 };
+use ether_core::protocol::model::{InputTap, ModulatorId, ModulatorKind, RackChainId};
+use ether_core::rack_chains::{ChainRackDesc, ChainRackKind, RackChainDesc};
 use ether_core::tempo::{TempoPointDesc, TimeSignatureDesc};
+use ether_core::vca::VcaDesc;
 use proptest::collection::vec;
 use proptest::option;
 use proptest::prelude::*;
@@ -48,6 +54,15 @@ fn every_variant_roundtrips() {
         d.click.count_in_end = None;
         roundtrip(&d);
     }
+}
+
+/// The v0.2 fields (contracts-3; JSON blob in codec v2): every variant and `Option` state.
+#[test]
+fn v02_fields_roundtrip() {
+    let d = fixture::v02_filled();
+    assert!(d.tracks.iter().any(|t| t.kind == TrackKind::Vca));
+    roundtrip(&d);
+    roundtrip(&fixture::large_v02_project());
 }
 
 #[test]
@@ -357,6 +372,7 @@ fn track(nan: bool) -> impl Strategy<Value = TrackDesc> {
         Just(TrackKind::Group),
         Just(TrackKind::Return),
         Just(TrackKind::Master),
+        Just(TrackKind::Vca),
     ];
     let send =
         (ulid(), track_id(), f32s(nan), any::<bool>()).prop_map(|(id, to, level, pre_fader)| {
@@ -376,6 +392,7 @@ fn track(nan: bool) -> impl Strategy<Value = TrackDesc> {
         vec(clip(nan), 0..3),
         vec(automation(nan), 0..3),
         vec(rack(nan), 0..2),
+        track_ext(),
     )
         .prop_map(
             |(
@@ -387,12 +404,13 @@ fn track(nan: bool) -> impl Strategy<Value = TrackDesc> {
                 clips,
                 automation,
                 racks,
+                (frozen, chain_racks, modulation, input_tap, vca),
             )| TrackDesc {
-                modulation: Default::default(),
-                vca: Default::default(),
-                chain_racks: Default::default(),
-                frozen: Default::default(),
-                input_tap: Default::default(),
+                modulation,
+                vca,
+                chain_racks,
+                frozen,
+                input_tap,
                 id,
                 kind,
                 chain,
@@ -411,6 +429,149 @@ fn track(nan: bool) -> impl Strategy<Value = TrackDesc> {
                 racks,
             },
         )
+}
+
+/// Finite floats only: the v0.2 fields travel as a JSON blob (codec v2), which carries no
+/// NaN/infinity (the controller never produces them there).
+fn finite64() -> BoxedStrategy<f64> {
+    prop_oneof![
+        -1e6..1e6f64,
+        Just(-0.0),
+        Just(f64::MIN_POSITIVE / 2.0),
+        -1e300..1e300f64
+    ]
+    .boxed()
+}
+
+fn finite32() -> BoxedStrategy<f32> {
+    prop_oneof![-10.0..10.0f32, Just(-0.0f32), Just(f32::MIN_POSITIVE / 2.0)].boxed()
+}
+
+fn finite_mapping() -> impl Strategy<Value = ParamMapping> {
+    let scale = prop_oneof![
+        Just(ParamScale::Linear),
+        Just(ParamScale::Log),
+        finite64().prop_map(|exponent| ParamScale::Power { exponent }),
+        Just(ParamScale::Fader),
+    ];
+    (finite64(), finite64(), scale, option::of(any::<u32>())).prop_map(
+        |(min, max, scale, steps)| ParamMapping {
+            min,
+            max,
+            scale,
+            steps,
+        },
+    )
+}
+
+type TrackExt = (
+    Option<FrozenDesc>,
+    Vec<ChainRackDesc>,
+    ModulationDesc,
+    Option<InputTapDesc>,
+    Option<TrackId>,
+);
+
+/// The v0.2 track fields (contracts-3).
+fn track_ext() -> impl Strategy<Value = TrackExt> {
+    let frozen = (ulid(), finite64()).prop_map(|(m, start_seconds)| FrozenDesc {
+        media: MediaId(m),
+        start_seconds,
+    });
+    let chain = (
+        ulid(),
+        vec(chain_entry(), 0..3),
+        (finite32(), finite32(), any::<bool>()),
+        any::<[u8; 6]>(),
+    )
+        .prop_map(|(id, chain, (volume, pan, mute), z)| RackChainDesc {
+            id: RackChainId(id),
+            chain,
+            volume,
+            pan,
+            mute,
+            keys: (z[0], z[1]),
+            velocities: (z[2], z[3]),
+            select: (z[4], z[5]),
+        });
+    let rack_kind = prop_oneof![
+        Just(ChainRackKind::Instrument),
+        Just(ChainRackKind::AudioEffect),
+        Just(ChainRackKind::MidiEffect),
+    ];
+    let rack = (node_key(), rack_kind, vec(chain, 0..3))
+        .prop_map(|(rack, kind, chains)| ChainRackDesc { rack, kind, chains });
+    let kind = prop::sample::select(ModulatorKind::ALL.to_vec());
+    let modulator = (
+        ulid(),
+        node_key(),
+        kind,
+        vec((any::<u32>(), finite64()), 0..3),
+        option::of(track_id()),
+    )
+        .prop_map(|(id, host, kind, params, sidechain)| ModulatorDesc {
+            id: ModulatorId(id),
+            host,
+            kind,
+            params: params.into_iter().map(|(p, v)| (ParamId(p), v)).collect(),
+            sidechain,
+        });
+    let source = prop_oneof![
+        any::<u32>().prop_map(ModSourceDesc::Modulator),
+        (node_key(), any::<u8>()).prop_map(|(rack, index)| ModSourceDesc::Macro { rack, index }),
+    ];
+    let mapping = (
+        source,
+        node_key(),
+        any::<u32>(),
+        finite64(),
+        finite_mapping(),
+        finite64(),
+    )
+        .prop_map(|(source, node, p, depth, mapping, base)| ModMappingDesc {
+            source,
+            node,
+            param: ParamId(p),
+            depth,
+            mapping,
+            base,
+        });
+    let modulation =
+        (vec(modulator, 0..3), vec(mapping, 0..3)).prop_map(|(modulators, mappings)| {
+            ModulationDesc {
+                modulators,
+                mappings,
+            }
+        });
+    let tap = prop_oneof![
+        Just(InputTap::PreFx),
+        Just(InputTap::PostFx),
+        Just(InputTap::PostFader)
+    ];
+    let input_tap = (track_id(), tap).prop_map(|(track, point)| InputTapDesc { track, point });
+    (
+        option::of(frozen),
+        vec(rack, 0..2),
+        modulation,
+        option::of(input_tap),
+        option::of(track_id()),
+    )
+}
+
+fn vca() -> impl Strategy<Value = VcaDesc> {
+    (
+        track_id(),
+        finite32(),
+        any::<bool>(),
+        option::of(track_id()),
+    )
+        .prop_map(|(id, volume, mute, parent)| VcaDesc {
+            id,
+            volume,
+            mute,
+            parent,
+            automation: vec![],
+        })
 }
 
 fn desc(nan: bool) -> impl Strategy<Value = RenderGraphDesc> {
@@ -453,6 +614,7 @@ fn desc(nan: bool) -> impl Strategy<Value = RenderGraphDesc> {
         (any::<bool>(), f64s(nan), f64s(nan), any::<bool>()),
         click,
         vec(track(nan), 0..4),
+        vec(vca(), 0..3),
     )
         .prop_map(
             |(
@@ -462,9 +624,10 @@ fn desc(nan: bool) -> impl Strategy<Value = RenderGraphDesc> {
                 (loop_enabled, loop_start, loop_end, metronome),
                 click,
                 tracks,
+                vcas,
             )| {
                 RenderGraphDesc {
-                    vcas: Default::default(),
+                    vcas,
                     version,
                     tempo,
                     signatures,

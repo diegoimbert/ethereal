@@ -105,7 +105,18 @@ pub const DECODE_BOUND: Duration = Duration::from_millis(5);
 
 #[test]
 fn large_fixture_decodes_within_bound() {
-    let d = fixture::large_project();
+    decodes_within_bound(fixture::large_project());
+}
+
+/// The same bound with every v0.2 field filled on all 64 tracks (their JSON blob,
+/// contracts-3; `groups-buses` and `racks-modulation` move their fields into the binary
+/// layout as an acceptance item).
+#[test]
+fn large_v02_fixture_decodes_within_bound() {
+    decodes_within_bound(fixture::large_v02_project());
+}
+
+fn decodes_within_bound(d: RenderGraphDesc) {
     let mut bytes = Vec::new();
     BinaryCodec.encode(&d, &mut bytes);
     let best = (0..15)

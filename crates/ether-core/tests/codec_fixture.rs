@@ -326,6 +326,7 @@ pub fn all_variants() -> RenderGraphDesc {
         TrackKind::Group,
         TrackKind::Return,
         TrackKind::Master,
+        TrackKind::Vca,
     ];
     let targets = [
         (
@@ -541,6 +542,118 @@ pub fn all_variants() -> RenderGraphDesc {
         },
         tracks,
     }
+}
+
+/// Fill the v0.2 track fields (contracts-3) and `vcas` of `d`, covering every variant and
+/// `Option` state. Only finite floats: these fields travel as a JSON blob in codec v2.
+pub fn fill_v02(d: &mut RenderGraphDesc) {
+    use ether_core::InputTapDesc;
+    use ether_core::freeze::FrozenDesc;
+    use ether_core::modulation::{ModMappingDesc, ModSourceDesc, ModulationDesc, ModulatorDesc};
+    use ether_core::protocol::model::{InputTap, ModulatorId, ModulatorKind, RackChainId};
+    use ether_core::rack_chains::{ChainRackDesc, ChainRackKind, RackChainDesc};
+    use ether_core::vca::VcaDesc;
+    let taps = [InputTap::PreFx, InputTap::PostFx, InputTap::PostFader];
+    let racks = [
+        ChainRackKind::Instrument,
+        ChainRackKind::AudioEffect,
+        ChainRackKind::MidiEffect,
+    ];
+    let n = d.tracks.len();
+    for (i, t) in d.tracks.iter_mut().enumerate() {
+        t.frozen = (i % 2 == 0).then(|| FrozenDesc {
+            media: MediaId(ulid(9, i)),
+            start_seconds: 0.25 * i as f64,
+        });
+        t.input_tap = (i % 2 == 1).then(|| InputTapDesc {
+            track: TrackId(ulid(1, (i + 1) % n)),
+            point: taps[i % 3],
+        });
+        t.vca = (i % 3 == 0).then(|| TrackId(ulid(10, 0)));
+        t.chain_racks = vec![ChainRackDesc {
+            rack: key(i + 20),
+            kind: racks[i % 3],
+            chains: vec![RackChainDesc {
+                id: RackChainId(ulid(11, i)),
+                chain: vec![ChainEntry {
+                    node: key(i + 30),
+                    enabled: i % 2 == 0,
+                    sidechain: None,
+                }],
+                volume: 0.5,
+                pan: -0.25,
+                mute: i % 2 == 1,
+                keys: (0, 127),
+                velocities: (1, 100),
+                select: (i as u8, 127),
+            }],
+        }];
+        t.modulation = ModulationDesc {
+            modulators: ModulatorKind::ALL
+                .iter()
+                .enumerate()
+                .map(|(k, &kind)| ModulatorDesc {
+                    id: ModulatorId(ulid(12, i * 10 + k)),
+                    host: key(i),
+                    kind,
+                    params: vec![(ParamId(k as u32), 1.0 / 3.0)],
+                    sidechain: (kind == ModulatorKind::EnvelopeFollower)
+                        .then(|| TrackId(ulid(1, (i + 2) % n))),
+                })
+                .collect(),
+            mappings: vec![
+                ModMappingDesc {
+                    source: ModSourceDesc::Modulator(0),
+                    node: key(i),
+                    param: ParamId(3),
+                    depth: -0.5,
+                    mapping: mapping(i),
+                    base: 0.125,
+                },
+                ModMappingDesc {
+                    source: ModSourceDesc::Macro {
+                        rack: key(i + 20),
+                        index: 7,
+                    },
+                    node: key(i + 30),
+                    param: ParamId(0),
+                    depth: 1.0,
+                    mapping: mapping(i + 1),
+                    base: 0.0,
+                },
+            ],
+        };
+    }
+    d.vcas = vec![
+        VcaDesc {
+            id: TrackId(ulid(10, 0)),
+            volume: 0.5,
+            mute: false,
+            parent: Some(TrackId(ulid(10, 1))),
+            automation: vec![],
+        },
+        VcaDesc {
+            id: TrackId(ulid(10, 1)),
+            volume: 1.0,
+            mute: true,
+            parent: None,
+            automation: vec![],
+        },
+    ];
+}
+
+/// [`all_variants`] with the v0.2 fields filled ([`fill_v02`]).
+pub fn v02_filled() -> RenderGraphDesc {
+    let mut d = all_variants();
+    fill_v02(&mut d);
+    d
+}
+
+/// [`large_project`] with the v0.2 fields filled on every track.
+pub fn large_v02_project() -> RenderGraphDesc {
+    let mut d = large_project();
+    fill_v02(&mut d);
+    d
 }
 
 /// The remaining `MetronomeSound` variants (`all_variants` uses `Beep`).
