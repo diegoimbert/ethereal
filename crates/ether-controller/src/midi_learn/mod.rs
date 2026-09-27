@@ -23,21 +23,27 @@
 //! - **Continuous targets** (device param, volume, pan, send level): `Absolute` sets
 //!   `min + v·(max − min)`; `Relative` adds `steps · (max − min) / 127` to the current value
 //!   (clamped to the range; notes and pitch bend fall back to absolute); `Toggle` flips
-//!   between `min` and `max` on each press. Moves of one mapping share one controller-owned
-//!   gesture that ends after [`GESTURE_IDLE_MS`] without messages, so a knob turn is **one
-//!   undo step**, never one per message. Values equal to the current one send nothing.
+//!   between `min` and `max` on each press. All mapping-driven continuous moves share ONE
+//!   controller-owned gesture (the history has a single open gesture, so one per mapping
+//!   would alternate when two knobs move together) that ends after [`GESTURE_IDLE_MS`]
+//!   without mapped input: a movement, even of several knobs at once, is **one undo step**,
+//!   never one per message. Values equal to the current one send nothing.
 //! - **On/off targets** (mute, solo): `Absolute` sets on/off from the threshold (only when
 //!   the state changes), `Toggle` flips on each press, `Relative` turns on/off with the sign
 //!   of the increment. One undo step per state change. Record-arm is runtime state (never
 //!   undoable), as for `Recording::Arm`. Solo is not exclusive.
-//! - **Transport actions** fire on each press, whatever the mode. Play/stop/record/locate
+//! - **Transport actions** fire on each press, whatever the mode. `Relative` does not
+//!   decode increments for them: the raw value is compared with the threshold like
+//!   `Absolute` (so an encoder turned "up" sending small values never fires with the
+//!   default range); map transport actions to buttons (`Toggle`/`Absolute`). Play/stop/record/locate
 //!   are not undoable; loop and metronome toggles are one undo step each (project settings),
 //!   tap tempo is merged by the tap-tempo gesture.
 //!
 //! A "press" is the scaled value crossing the midpoint of `min..max` upwards (note-on with
 //! the default range; `min > max` inverts). The previous value is remembered per source.
 //! Mapped messages are never filtered from monitored tracks (the engine gets them on its own
-//! path). Mappings whose target vanished are skipped silently.
+//! path). Mappings whose target vanished are skipped silently. Opening or creating another
+//! project cancels a pending learn and drops the open gesture and remembered values.
 //!
 //! # Host input
 //! Natively, `ether-native/src/recording` queues a [`MidiInputEvent`] for every short message
@@ -47,7 +53,7 @@
 mod doc;
 mod input;
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::HashMap;
 
 use ether_core::protocol::devices::{DeviceCommand, ParamInfo};
 use ether_core::protocol::midi_map::{MidiInputEvent, MidiMapCommand, MidiMapEvent};
@@ -80,8 +86,10 @@ const MAX_REMEMBERED: usize = 4096;
 pub(crate) struct MidiLearnState {
     /// Target being learned.
     learn: Option<MidiMapTarget>,
-    /// Open gesture of each mapping and the time of its last message.
-    gestures: BTreeMap<MidiMappingId, (GestureId, u64)>,
+    /// The one gesture of mapping-driven continuous moves and the time of its last message.
+    gesture: Option<(GestureId, u64)>,
+    /// Project the state belongs to (reset when another project is opened/created).
+    project: Option<ProjectId>,
     /// Last control position per concrete source (port, channel, control).
     last: HashMap<(String, u8, MidiControl), f64>,
     /// Last source seen, not yet reported.
@@ -147,6 +155,8 @@ where
         let doc = self.doc.as_ref().ok_or_else(no_project)?;
         match c {
             MidiMapCommand::Learn { target } => {
+                // Learning belongs to the open project.
+                self.midi_learn.project = Some(doc.project.id);
                 self.set_learn(target.clone(), out);
                 Ok(ReplyValue::Unit)
             }
@@ -172,6 +182,16 @@ where
 
     /// Called from every tick.
     pub(crate) fn midi_learn_tick(&mut self, now: u64, out: &mut dyn MessageSink) {
+        // Another project: nothing carries over (learn, gesture, press detection).
+        let project = self.doc.as_ref().map(|d| d.project.id);
+        if project != self.midi_learn.project {
+            self.midi_learn.project = project;
+            self.midi_learn.gesture = None;
+            self.midi_learn.last.clear();
+            if self.midi_learn.learn.is_some() {
+                self.set_learn(None, out);
+            }
+        }
         // A learn whose target vanished (deleted, undone, other project) is cancelled.
         if let Some(target) = &self.midi_learn.learn
             && !self
@@ -189,16 +209,11 @@ where
         }
         self.midi_learn.buf = buf;
 
-        // Close idle gestures (one undo step per movement).
-        let idle: Vec<(MidiMappingId, GestureId)> = self
-            .midi_learn
-            .gestures
-            .iter()
-            .filter(|(_, (_, last))| now.saturating_sub(*last) >= GESTURE_IDLE_MS)
-            .map(|(m, (g, _))| (*m, *g))
-            .collect();
-        for (m, g) in idle {
-            self.midi_learn.gestures.remove(&m);
+        // Close the gesture after a pause (one undo step per movement).
+        if let Some((g, last)) = self.midi_learn.gesture
+            && now.saturating_sub(last) >= GESTURE_IDLE_MS
+        {
+            self.midi_learn.gesture = None;
             if let Some(doc) = self.doc.as_mut() {
                 doc.history.end_gesture(g);
             }
@@ -423,11 +438,11 @@ where
                         })
                     }
                 };
-                let gesture = match self.midi_learn.gestures.get(&m.id) {
-                    Some((g, _)) => *g,
+                let gesture = match self.midi_learn.gesture {
+                    Some((g, _)) => g,
                     None => self.new_gesture(),
                 };
-                self.midi_learn.gestures.insert(m.id, (gesture, now));
+                self.midi_learn.gesture = Some((gesture, now));
                 self.run(command, Some(gesture), now, out);
             }
             Action::OnOff { target, current } => {

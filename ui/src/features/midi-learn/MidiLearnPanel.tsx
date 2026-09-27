@@ -5,7 +5,7 @@ import type { MidiMapping, MidiMapTarget, Project } from "@/generated";
 import { Badge, Button, IconButton, NumberField, openContextMenu, Select, Toggle } from "@/kit";
 import { useProjectStore, useSelectionStore } from "@/state";
 import { cmd, TransportContext, type EngineTransport } from "@/transport";
-import { canLearn, WEB_NOTICE } from "./host";
+import { canLearn, isSimulated, MOCK_NOTICE, WEB_NOTICE } from "./host";
 import { useMidiLearnStore } from "./store";
 import {
   describeSource,
@@ -209,6 +209,12 @@ function ConnectedPanel({ transport }: { transport: EngineTransport }) {
         />
         {learning && <Badge tone="accent">Learning</Badge>}
       </div>
+
+      {supported && isSimulated(transport) && (
+        <p className="eth-midi__notice" role="note">
+          {MOCK_NOTICE}
+        </p>
+      )}
 
       {!supported ? (
         <p className="eth-midi__notice" role="note">

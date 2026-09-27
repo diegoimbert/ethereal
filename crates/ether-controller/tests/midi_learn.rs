@@ -495,6 +495,53 @@ fn absolute_moves_coalesce_into_one_undo_step_per_movement() {
 }
 
 #[test]
+fn two_knobs_moved_together_are_one_undo_step() {
+    let mut h = H::new();
+    let a = h.track(TrackKind::Audio);
+    let b = h.track(TrackKind::Audio);
+    let (va, vb) = (h.volume(a), h.volume(b));
+    h.map(cc(1), volume(a), MidiMapMode::Absolute);
+    h.map(cc(2), volume(b), MidiMapMode::Absolute);
+    // Interleaved messages, within one tick and across ticks.
+    h.midi("K", &[[CC, 1, 10], [CC, 2, 10], [CC, 1, 20], [CC, 2, 20]]);
+    for v in [30u8, 40, 50] {
+        h.advance(20);
+        h.midi("K", &[[CC, 1, v], [CC, 2, v]]);
+    }
+    assert_eq!(h.volume(a), fader_db(50.0 / 127.0));
+    assert_eq!(h.volume(b), fader_db(50.0 / 127.0));
+    h.advance(400);
+    h.tick();
+    h.undo();
+    assert_eq!((h.volume(a), h.volume(b)), (va, vb));
+    // The next undo is the second Map, not a leftover of the movement.
+    h.undo();
+    assert_eq!(h.project().midi_mappings.len(), 1);
+}
+
+#[test]
+fn another_project_cancels_learn() {
+    let mut h = H::new();
+    h.ok(Command::MidiMap(MidiMapCommand::Learn {
+        target: Some(MidiMapTarget::Transport {
+            action: TransportAction::Play,
+        }),
+    }));
+    h.tick();
+    let other = h.ids.next_project_id(T0);
+    h.ok(Command::Project(ProjectCommand::Create {
+        id: other,
+        name: "Other".into(),
+    }));
+    assert_eq!(
+        midi_events(&h.tick()),
+        vec![MidiMapEvent::LearnChanged { target: None }]
+    );
+    h.midi("K", &[[CC, 1, 64]]);
+    assert!(h.project().midi_mappings.is_empty());
+}
+
+#[test]
 fn ranges_scale_and_invert() {
     let mut h = H::new();
     let t = h.track(TrackKind::Audio);

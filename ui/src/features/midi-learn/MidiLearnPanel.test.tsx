@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import type { Command, ReplyValue } from "@/generated";
 import { playheadStore, useProjectStore } from "@/state";
 import { MockTransport, TransportProvider, type SendOptions } from "@/transport";
-import { WEB_NOTICE } from "./host";
+import { MOCK_NOTICE, WEB_NOTICE } from "./host";
 import { MidiLearnPanel } from "./index";
 import { useMidiLearnStore } from "./store";
 import { MIDI_MODE_CLASS } from "./useMidiMode";
@@ -63,6 +63,7 @@ describe("MidiLearnPanel", () => {
     const { mock } = await setup();
     const track = Object.values(store().project!.tracks)[0]!;
     expect(screen.getByText("No MIDI mappings.")).toBeInTheDocument();
+    expect(screen.getByRole("note")).toHaveTextContent(MOCK_NOTICE);
 
     fireEvent.click(screen.getByRole("switch", { name: "MIDI mode" }));
     await waitFor(() => expect(document.body).toHaveClass(MIDI_MODE_CLASS));
