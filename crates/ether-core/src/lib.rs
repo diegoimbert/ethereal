@@ -45,6 +45,7 @@ pub mod param;
 pub mod plugin;
 pub mod preview;
 pub mod recording;
+pub mod stream_tap;
 mod sched;
 mod sidechain;
 pub mod tempo;
