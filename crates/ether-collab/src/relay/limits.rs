@@ -83,7 +83,7 @@ mod tests {
     fn pointer(some: bool) -> CollabMessage {
         CollabMessage::Pointer {
             site: SiteId(1),
-            pointer: some.then(|| ArrangerPointer {
+            pointer: some.then_some(ArrangerPointer {
                 beats: Beats(1.0),
                 track: None,
                 y: 0.0,

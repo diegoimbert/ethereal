@@ -15,7 +15,11 @@
 //!
 //! [`local_commit`]: EtherController::collab_local_commit
 
+// base-53 (docs/COLLAB.md §8-§9): one module per node, dispatched from here.
+mod listen;
+mod presence;
 pub(crate) mod resolve;
+mod stream_host;
 
 use std::collections::{BTreeMap, VecDeque};
 
@@ -25,7 +29,8 @@ use ether_collab::wire::{
 };
 use ether_collab::{BoxTransport, ConnectRequest, Connector, LinkState};
 use ether_core::protocol::collab::{
-    CollabCommand, CollabEvent, CollabMessage, CollabStatus, Presence, PresenceState,
+    CollabCommand, CollabEvent, CollabMessage, CollabStatus, IceServer, IceServerSource, Presence,
+    PresenceState, StreamSignal,
 };
 use ether_core::protocol::model::file;
 use ether_core::protocol::model::*;
@@ -109,6 +114,16 @@ struct Session {
     /// Last plugin state this site sent, received, or started from, per device: a save
     /// replicates a plugin's state only when its live state differs (COLLAB.md §2.2).
     captured: BTreeMap<DeviceId, Base64Bytes>,
+    /// ICE servers the relay advertised (`CollabMessage::IceServers`).
+    ice_relay: Vec<IceServer>,
+    /// base-53 node state: live pointer (`presence-v2`), listener (`stream-listen`), host
+    /// (`stream-host`). Unused until those nodes land.
+    #[allow(dead_code)]
+    pointer: presence::PointerState,
+    #[allow(dead_code)]
+    listener: listen::ListenerState,
+    #[allow(dead_code)]
+    host: stream_host::HostState,
 }
 
 impl Session {
@@ -151,6 +166,8 @@ pub(crate) struct CollabState {
     /// session left with it: a site that later re-creates the session from this document
     /// seeds its snapshot with it (returning sites must not resend what it already has).
     left_sites: Option<(ProjectId, BTreeMap<SiteId, u64>)>,
+    /// ICE servers from the settings (`CollabCommand::SetIceServers`), over the relay's.
+    ice_override: Option<Vec<IceServer>>,
 }
 
 impl<B, H, S, L> EtherController<B, H, S, L>
@@ -253,6 +270,10 @@ where
                     status: None,
                     captured: BTreeMap::new(),
                     backup: None,
+                    ice_relay: Vec::new(),
+                    pointer: Default::default(),
+                    listener: Default::default(),
+                    host: Default::default(),
                 }));
                 let _ = site;
                 self.collab_connect(now);
@@ -277,9 +298,78 @@ where
             CollabCommand::Get => {
                 self.collab_emit_status_forced(out);
                 self.collab_emit_peers(out);
+                self.collab_listen_emit_status(out);
+                self.collab_emit_ice_servers(out);
+                Ok(ReplyValue::Unit)
+            }
+            // ─── base-53 ───
+            CollabCommand::SetPointer { pointer } => self.collab_set_pointer(pointer, now),
+            CollabCommand::Listen { .. } | CollabCommand::StopListening => {
+                self.collab_listen_command(c, now, out)
+            }
+            CollabCommand::SetHosting { .. } | CollabCommand::SendStreamClock { .. } => {
+                self.collab_host_command(c, now, out)
+            }
+            CollabCommand::SendSignal { to, stream, signal } => {
+                let me = self.collab_site();
+                if *to == me {
+                    return Err(invalid("cannot signal this site"));
+                }
+                if !self.collab.session.as_ref().is_some_and(|s| s.joined) {
+                    return Err(invalid_state("not in a collaboration session"));
+                }
+                self.collab_send_routed_signal(*to, *stream, signal.clone());
+                if self.collab_hosts_stream(*to, *stream) {
+                    self.collab_host_outgoing_signal(*to, *stream, signal, out);
+                } else {
+                    self.collab_listen_outgoing_signal(*to, *stream, signal, out);
+                }
+                Ok(ReplyValue::Unit)
+            }
+            CollabCommand::SetIceServers { servers } => {
+                self.collab.ice_override = servers.clone();
+                self.collab_emit_ice_servers(out);
                 Ok(ReplyValue::Unit)
             }
         }
+    }
+
+    /// Send a `Signal` from this site to `to` (the relay delivers it to `to` only).
+    pub(crate) fn collab_send_routed_signal(&mut self, to: SiteId, stream: u32, signal: StreamSignal) {
+        let from = self.collab_site();
+        if let Some(s) = self.collab.session.as_mut() {
+            s.send(&CollabMessage::Signal {
+                from,
+                to,
+                stream,
+                signal,
+            });
+        }
+    }
+
+    /// The ICE servers to use: the settings override, else what the relay advertised.
+    pub(crate) fn collab_ice_servers(&self) -> (Vec<IceServer>, IceServerSource) {
+        match &self.collab.ice_override {
+            Some(v) => (v.clone(), IceServerSource::Settings),
+            None => (
+                self.collab
+                    .session
+                    .as_ref()
+                    .map(|s| s.ice_relay.clone())
+                    .unwrap_or_default(),
+                IceServerSource::Relay,
+            ),
+        }
+    }
+
+    fn collab_emit_ice_servers(&mut self, out: &mut dyn MessageSink) {
+        let (servers, source) = self.collab_ice_servers();
+        event(
+            out,
+            Event::Collab {
+                event: CollabEvent::IceServers { servers, source },
+            },
+        );
     }
 
     // ─── Link ───────────────────────────────────────────────────────────────────────────
@@ -299,6 +389,10 @@ where
 
     /// Leave the session (the document stays open as a normal local project).
     pub(crate) fn collab_leave(&mut self, out: &mut dyn MessageSink) {
+        if self.collab.session.is_some() {
+            self.collab_listen_session_end(out);
+            self.collab_host_session_end(out);
+        }
         let Some(mut s) = self.collab.session.take() else {
             return;
         };
@@ -393,6 +487,13 @@ where
 
     fn collab_flush_presence(&mut self, now: u64) {
         let Some(site) = self.collab.site else { return };
+        // Controller-owned fields (base-53): whatever the UI put there is overwritten.
+        let mut state = match self.collab.session.as_ref() {
+            Some(s) => s.presence.clone(),
+            None => return,
+        };
+        self.collab_listen_presence(&mut state);
+        self.collab_host_presence(&mut state);
         let Some(s) = self.collab.session.as_mut() else {
             return;
         };
@@ -410,7 +511,7 @@ where
             actor: None,
             name: s.name.clone(),
             color: Color(0),
-            state: s.presence.clone(),
+            state,
         };
         s.send(&CollabMessage::Presence { presence });
     }
@@ -489,6 +590,12 @@ where
             self.collab_flush_backup(now, out);
         }
         self.collab_flush_presence(now);
+        self.collab_pointer_tick(now);
+        self.collab_listen_tick(now, out);
+        self.collab_host_tick(now, out);
+        if self.collab.session.is_none() {
+            return;
+        }
         self.collab_send_owed_snapshot();
         self.collab_emit_status(out);
     }
@@ -742,6 +849,9 @@ where
                 if s.peers.remove(&peer).is_some() {
                     self.collab_emit_peers(out);
                 }
+                self.collab_pointer_peer_left(peer, out);
+                self.collab_listen_peer_left(peer, out);
+                self.collab_host_peer_left(peer, out);
             }
             CollabMessage::Media {
                 file,
@@ -751,6 +861,53 @@ where
                 data,
             } => self.collab_media_chunk(file, hash, offset, total, data.0),
             CollabMessage::Update { .. } => {}
+            // ─── base-53 ───
+            CollabMessage::Pointer { site: peer, pointer } => {
+                if peer != site {
+                    self.collab_pointer_message(peer, pointer, out);
+                }
+            }
+            m @ (CollabMessage::Listen { .. }
+            | CollabMessage::Unlisten { .. }
+            | CollabMessage::TransportRequest { .. }) => {
+                if m.route().is_some_and(|(_, to)| to == site) {
+                    self.collab_host_message(m, out);
+                }
+            }
+            CollabMessage::Signal {
+                from,
+                to,
+                stream,
+                signal,
+            } => {
+                if to != site {
+                    return;
+                }
+                if self.collab_hosts_stream(from, stream) {
+                    self.collab_host_signal(from, stream, signal, out);
+                } else {
+                    self.collab_listen_signal(from, stream, signal, out);
+                }
+            }
+            CollabMessage::StreamClock {
+                from,
+                to,
+                stream,
+                clock,
+            } => {
+                if to == site {
+                    self.collab_listen_clock(from, stream, clock, out);
+                }
+            }
+            CollabMessage::IceServers { servers } => {
+                let s = self.collab.session.as_mut().expect("in session");
+                if s.ice_relay != servers {
+                    s.ice_relay = servers;
+                    if self.collab.ice_override.is_none() {
+                        self.collab_emit_ice_servers(out);
+                    }
+                }
+            }
         }
     }
 

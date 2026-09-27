@@ -369,7 +369,9 @@ pub enum StreamEndpoint {
     Ui,
 }
 
-/// Engine ↔ engine collaboration wire (append-only).
+/// Engine ↔ engine collaboration wire (append-only). Messages travel boxed in `Arc`s on
+/// the relay, so variant sizes do not matter.
+#[allow(clippy::large_enum_variant)]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
 #[serde(tag = "type")]
 pub enum CollabMessage {
