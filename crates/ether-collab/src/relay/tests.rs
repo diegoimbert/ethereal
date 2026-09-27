@@ -2,7 +2,9 @@
 
 use std::collections::BTreeMap;
 
-use ether_protocol::collab::{CollabMessage, Presence, PresenceState};
+use ether_protocol::collab::{
+    CollabMessage, IceServer, Presence, PresenceState, StreamSignal, TransportRequest,
+};
 use ether_protocol::model::{
     Base64Bytes, Color, OpOrigin, SiteId, StampedTransaction, Transaction,
 };
@@ -72,6 +74,13 @@ fn kinds(ms: &[CollabMessage]) -> Vec<&'static str> {
             CollabMessage::Presence { .. } => "Presence",
             CollabMessage::Media { .. } => "Media",
             CollabMessage::Leave { .. } => "Leave",
+            CollabMessage::Pointer { .. } => "Pointer",
+            CollabMessage::Signal { .. } => "Signal",
+            CollabMessage::Listen { .. } => "Listen",
+            CollabMessage::Unlisten { .. } => "Unlisten",
+            CollabMessage::TransportRequest { .. } => "TransportRequest",
+            CollabMessage::StreamClock { .. } => "StreamClock",
+            CollabMessage::IceServers { .. } => "IceServers",
         })
         .collect()
 }
@@ -428,4 +437,152 @@ fn limits_on_sessions_and_sites() {
     assert_eq!(r.connect(2, "b"), Err(Refusal::TooManySessions));
     assert_eq!(r.connect(3, "a"), Err(Refusal::SessionFull));
     assert_eq!(r.connect(4, "../x"), Err(Refusal::BadSession));
+}
+
+// ─── base-53: pointer, site-to-site routing, ICE advertisement ───────────────────────────
+
+/// `created()` plus sites 2 and 3 (conns 2 and 3) synced.
+fn three() -> Relay {
+    let mut r = created();
+    let mut out = Vec::new();
+    for c in [2, 3] {
+        r.connect(c, "jam").unwrap();
+        r.message(c, hello(c), &mut out).unwrap();
+        r.message(c, sync(c, None), &mut out).unwrap();
+    }
+    r
+}
+
+fn signal(from: u64, to: u64) -> CollabMessage {
+    CollabMessage::Signal {
+        from: SiteId(from),
+        to: SiteId(to),
+        stream: 7,
+        signal: StreamSignal::Offer { sdp: "v=0".into() },
+    }
+}
+
+#[test]
+fn pointer_is_stamped_and_broadcast_to_others() {
+    let mut r = three();
+    let mut out = Vec::new();
+    let p = CollabMessage::Pointer {
+        site: SiteId(99),
+        pointer: None,
+    };
+    r.message(2, p, &mut out).unwrap();
+    assert!(to(&out, 2).is_empty(), "not echoed");
+    for c in [1, 3] {
+        assert_eq!(
+            to(&out, c),
+            [CollabMessage::Pointer {
+                site: SiteId(2),
+                pointer: None
+            }],
+            "stamped with the sender's site"
+        );
+    }
+    // Not cached: a late joiner gets no pointers.
+    out.clear();
+    r.connect(4, "jam").unwrap();
+    r.message(4, hello(4), &mut out).unwrap();
+    r.message(4, sync(4, None), &mut out).unwrap();
+    assert!(!kinds(&to(&out, 4)).contains(&"Pointer"));
+}
+
+#[test]
+fn site_to_site_messages_reach_only_their_target() {
+    let mut r = three();
+    let mut out = Vec::new();
+    r.message(2, signal(2, 3), &mut out).unwrap();
+    assert_eq!(out.len(), 1);
+    assert_eq!(to(&out, 3), [signal(2, 3)]);
+    out.clear();
+    for m in [
+        CollabMessage::Listen {
+            from: SiteId(2),
+            to: SiteId(1),
+            stream: 7,
+        },
+        CollabMessage::TransportRequest {
+            from: SiteId(2),
+            to: SiteId(1),
+            stream: 7,
+            request: TransportRequest::Play,
+        },
+    ] {
+        r.message(2, m.clone(), &mut out).unwrap();
+        assert_eq!(to(&out, 1), [m]);
+        assert_eq!(out.len(), 1);
+        out.clear();
+    }
+    // Spoofed sender, self-target, unknown target, relay-only messages: dropped.
+    assert!(r.message(2, signal(3, 1), &mut out).is_err());
+    assert!(r.message(2, signal(2, 2), &mut out).is_err());
+    assert!(r.message(2, signal(2, 42), &mut out).is_err());
+    assert!(
+        r.message(2, CollabMessage::IceServers { servers: vec![] }, &mut out)
+            .is_err()
+    );
+    // Oversized SDP.
+    let big = CollabMessage::Signal {
+        from: SiteId(2),
+        to: SiteId(3),
+        stream: 7,
+        signal: StreamSignal::Answer {
+            sdp: "x".repeat(MAX_SDP_BYTES + 1),
+        },
+    };
+    assert!(r.message(2, big, &mut out).is_err());
+    assert!(out.is_empty());
+    // Other sessions are out of reach, and a site that has not synced cannot signal or
+    // be signaled.
+    r.connect(10, "other").unwrap();
+    r.message(10, hello(10), &mut out).unwrap();
+    assert!(r.message(10, signal(10, 1), &mut out).is_err());
+    r.connect(11, "jam").unwrap();
+    r.message(11, hello(11), &mut out).unwrap();
+    assert!(r.message(11, signal(11, 1), &mut out).is_err());
+    assert!(r.message(1, signal(1, 11), &mut out).is_err(), "not ready");
+    assert!(out.is_empty());
+}
+
+#[test]
+fn ice_servers_are_advertised_per_site_and_refreshed() {
+    let mut r = Relay::new(RelayConfig {
+        ice_refresh_ms: 1_000,
+        ..RelayConfig::default()
+    });
+    r.set_ice_provider(Box::new(|site, now| {
+        vec![IceServer {
+            urls: vec!["stun:relay.test:3478".into()],
+            username: Some(format!("{now}:{}", site.0)),
+            credential: None,
+        }]
+    }));
+    let mut out = Vec::new();
+    r.connect(1, "jam").unwrap();
+    r.message(1, hello(1), &mut out).unwrap();
+    r.message(1, sync(1, None), &mut out).unwrap();
+    assert_eq!(kinds(&to(&out, 1)), ["SyncRequest"], "not before sync");
+    out.clear();
+    r.message(1, snapshot(0), &mut out).unwrap();
+    let ice = to(&out, 1);
+    assert_eq!(kinds(&ice), ["IceServers"], "the creator gets them once ready");
+    let CollabMessage::IceServers { servers } = &ice[0] else {
+        unreachable!()
+    };
+    assert_eq!(servers[0].username.as_deref(), Some("0:1"));
+    out.clear();
+    r.connect(2, "jam").unwrap();
+    r.message(2, hello(2), &mut out).unwrap();
+    r.message(2, sync(2, None), &mut out).unwrap();
+    assert_eq!(kinds(&to(&out, 2)).last(), Some(&"IceServers"));
+    assert!(!kinds(&to(&out, 1)).contains(&"IceServers"), "once per site");
+    out.clear();
+    r.tick(500, &mut out);
+    assert!(out.is_empty());
+    r.tick(1_000, &mut out);
+    assert_eq!(kinds(&to(&out, 1)), ["IceServers"], "refreshed");
+    assert_eq!(kinds(&to(&out, 2)), ["IceServers"]);
 }
