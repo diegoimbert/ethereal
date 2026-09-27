@@ -2,12 +2,13 @@
 import { describe, expect, it } from "vitest";
 import type { BuiltinDeviceType, TrackId } from "@/generated";
 import { cmd } from "../../cmd";
+import { newBuiltinDevice } from "../builtinDevices";
 import { newId } from "../../ids";
 import { type MockFixture, project, trackNamed, undo, useMock } from "./testUtils";
 
 async function insert(f: MockFixture, track: TrackId, type: BuiltinDeviceType): Promise<string> {
   const id = newId();
-  await f.mock.send(cmd("Device", { type: "Insert", id, track, device: { type: "Builtin", device: { type } }, before: null }));
+  await f.mock.send(cmd("Device", { type: "Insert", id, track, device: { type: "Builtin", device: newBuiltinDevice(type) }, before: null }));
   return id;
 }
 
