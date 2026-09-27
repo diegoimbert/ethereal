@@ -16,6 +16,7 @@
  */
 
 import type {
+  ArrangerPointer,
   CollabCommand,
   CollabStatus,
   Command,
@@ -63,6 +64,8 @@ export class MockCollab {
   listeners: ListenerLink[] = [];
   /** Anchors sent with `SendStreamClock` (latest last). */
   clocks: { to: string; stream: number; clock: StreamClock }[] = [];
+  /** This site's last published pointer (presence-v2). */
+  pointer: ArrangerPointer | null = null;
 
   constructor(private readonly host: MockHost) {}
 
@@ -79,6 +82,7 @@ export class MockCollab {
       case "Leave":
         this.status = { type: "Offline" };
         this.peers.clear();
+        this.pointer = null;
         this.emitAll();
         if (this.listeners.length) this.setListeners([]);
         return UNIT;
@@ -110,7 +114,12 @@ export class MockCollab {
         this.clocks.push({ to: c.to, stream: c.stream, clock: c.clock });
         if (this.clocks.length > 64) this.clocks.shift();
         return UNIT;
+      // presence-v2: the pointer is stored (the engine throttles and sends it).
       case "SetPointer":
+        this.pointer = c.pointer;
+        return UNIT;
+      // base-53 (docs/COLLAB.md §8-§10): like the engine until stream-host and stream-listen
+      // land (each node extends its cases).
       case "Listen":
       case "StopListening":
         return fail("Unsupported", `${c.type} is not implemented yet`);
@@ -146,6 +155,12 @@ export class MockCollab {
     else if (this.status.type === "Online" && this.hosting.allow) {
       this.setListeners([...rest, { site, stream, endpoint: this.hosting.ui_sender ? "Ui" : "Engine" }]);
     }
+  }
+
+  /** A peer's live arranger pointer (presence-v2; `null` clears it). */
+  simulatePointer(site: string, pointer: ArrangerPointer | null): void {
+    if (this.status.type !== "Online") return;
+    this.host.emit({ type: "Collab", event: { type: "Pointer", site, pointer } });
   }
 
   /** Document commands as if a peer made them. */

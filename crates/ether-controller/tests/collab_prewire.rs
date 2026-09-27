@@ -38,8 +38,6 @@ fn node_commands_reply_unsupported_until_implemented() {
     let host = sites[0].ctl.collab_site();
     let s = &mut sites[1];
     for c in [
-        // presence-v2
-        CollabCommand::SetPointer { pointer: None },
         // stream-listen
         CollabCommand::Listen { host },
         CollabCommand::StopListening,
