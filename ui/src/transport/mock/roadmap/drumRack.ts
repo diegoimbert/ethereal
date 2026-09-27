@@ -5,13 +5,13 @@
  * Owned by `drum-rack`.
  */
 
-import type { Device, DrumPad, DrumRackCommand, SliceCommand, SliceSettings, TrackId } from "@/generated";
+import type { Device, DrumPad, DrumRackCommand, SliceCommand, SlicePadIds, SliceSettings, TrackId } from "@/generated";
 import { BEATS_EPSILON } from "@/state/beats";
 import { keyForInsert } from "@/state/orderKey";
 import { builtinDescriptor, newBuiltinDevice } from "../builtinDevices";
 import { defaultParams } from "../demoProject";
 import { fail, type ReducerContext } from "../documentReducer";
-import { byOrder, clamp } from "./shared";
+import { byOrder, clamp, onDeviceDeleted } from "./shared";
 
 const NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 
@@ -145,6 +145,11 @@ export function drumRackCommand(ctx: ReducerContext, c: DrumRackCommand, deleteD
     case "SetPadMute":
       tx.upsert("DrumPad", { ...pad(ctx, c.id), mute: c.mute });
       break;
+    case "SetPadSolo":
+      // Runtime state in the engine (compiled as mute of the other pads): no document
+      // change, no undo step. The UI keeps the solo buttons' state (`features/drum-rack`).
+      pad(ctx, c.id);
+      break;
     case "InsertDevice": {
       if (tx.get("Device", c.id)) fail("InvalidArgument", `device ${c.id} already exists`);
       const p = pad(ctx, c.pad);
@@ -205,6 +210,8 @@ export function drumRackCommand(ctx: ReducerContext, c: DrumRackCommand, deleteD
 }
 
 export function sliceCommand(ctx: ReducerContext, c: SliceCommand): void {
+  // A retried ToDrumRack (the sampler is already gone, the rack exists) is harmless.
+  if (c.type === "ToDrumRack" && ctx.tx.get("Device", c.rack) && !ctx.tx.get("Device", c.device)) return;
   const d = ctx.tx.get("Device", c.device) ?? fail("NotFound", `device ${c.device}`);
   if (d.kind.type !== "Builtin" || d.kind.device.type !== "Sampler") fail("InvalidArgument", `device ${d.id} is not a sampler`);
   const sampler = d.kind.device;
@@ -260,7 +267,64 @@ export function sliceCommand(ctx: ReducerContext, c: SliceCommand): void {
       break;
     }
     case "ToDrumRack":
-      return fail("Unsupported", "slice to drum rack is not available in the mock engine");
+      return toDrumRack(ctx, d, c.rack, c.pads, lengthSeconds);
   }
   ctx.tx.upsert("Device", { ...d, kind: { type: "Builtin", device: { ...sampler, slices: next } } });
+}
+
+/** Mirrors `ether-controller/src/drum_rack` `to_drum_rack`: one sampler pad per slice. */
+function toDrumRack(ctx: ReducerContext, d: Device, rackId: string, ids: SlicePadIds[], lengthSeconds: number): void {
+  const { tx } = ctx;
+  if (tx.get("Device", rackId) && !tx.get("Device", d.id)) return;
+  if (d.kind.type !== "Builtin" || d.kind.device.type !== "Sampler") fail("InvalidArgument", `device ${d.id} is not a sampler`);
+  const sampler = d.kind.device;
+  if (d.pad !== null) fail("InvalidArgument", "drum racks cannot be nested in pads");
+  if (tx.get("Device", rackId)) fail("InvalidArgument", `device ${rackId} already exists`);
+  if (sampler.sample === null) fail("InvalidState", "the sampler has no sample");
+  const s = sampler.slices;
+  const count = Math.min(s.markers.length, 128 - s.base_note);
+  if (count === 0) fail("InvalidState", "the sampler has no slices");
+  if (ids.length < count) fail("InvalidArgument", `${count} slices need ${count} pad ids (${ids.length} given)`);
+  const used = ids.slice(0, count);
+  const fresh = used.every((i) => !tx.get("DrumPad", i.pad) && !tx.get("Device", i.device));
+  if (!fresh || new Set(used.map((i) => i.device)).size !== count || new Set(used.map((i) => i.pad)).size !== count) {
+    fail("InvalidArgument", "pad and device ids must be new and distinct");
+  }
+  tx.upsert("Device", {
+    id: rackId,
+    track: d.track,
+    order: d.order,
+    name: "Drum Rack",
+    enabled: true,
+    kind: { type: "Builtin", device: { type: "DrumRack" } },
+    params: defaultParams("DrumRack"),
+    sidechain: null,
+    pad: null,
+  });
+  const percent = (t: number) => clamp((t / lengthSeconds) * 100, 0, 100);
+  used.forEach((pid, i) => {
+    addPad(ctx, pid.pad, rackId, s.base_note + i, `Slice ${i + 1}`);
+    const end = s.markers[i + 1] ?? lengthSeconds;
+    tx.upsert("Device", {
+      id: pid.device,
+      track: d.track,
+      order: keyForInsert([], null),
+      name: d.name,
+      enabled: true,
+      kind: { type: "Builtin", device: { ...sampler, slices: { ...s, enabled: false } } },
+      // The sampler's sound, playing just the slice at its original pitch (pads play C3):
+      // Root Key (1) = 60, Start (6) / End (7) in percent.
+      params: { ...defaultParams("Sampler"), ...d.params, 1: 60, 6: percent(s.markers[i]!), 7: percent(end) },
+      sidechain: null,
+      pad: pid.pad,
+    });
+  });
+  // The sampler goes with its automation lanes and MIDI mappings.
+  for (const l of tx.all("AutomationLane")) {
+    if (l.target.type !== "DeviceParam" || l.target.device !== d.id) continue;
+    for (const pt of tx.all("AutomationPoint")) if (pt.lane === l.id) tx.remove("AutomationPoint", pt.id);
+    tx.remove("AutomationLane", l.id);
+  }
+  onDeviceDeleted(ctx, d.id);
+  tx.remove("Device", d.id);
 }

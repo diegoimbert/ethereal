@@ -407,6 +407,8 @@ paths = [
   "crates/ether-controller/src/lib.rs",
   # base-36: collab design doc
   "docs/COLLAB.md",
+  # shared touch (base-39): wire MockCollab into MockTransport (import, field, Collab case)
+  "ui/src/transport/mock/MockTransport.ts",
 ]
 
 [nodes.multicore]
@@ -573,4 +575,8 @@ paths = [
   # the engine report. No new frame tags; merge dev after web-perf lands.
   "crates/ether-wasm/src/worklet.rs",
   "crates/ether-wasm/src/proto.rs",
+  # shared touch (base-37): preview assertions after the stop/replace fade
+  "crates/ether-core/tests/base24_hooks.rs",
+  # shared touch (base-38, as base-25 for other roadmap nodes): one additive state field + initializer on EtherController
+  "crates/ether-controller/src/lib.rs",
 ]

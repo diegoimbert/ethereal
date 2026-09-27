@@ -160,6 +160,7 @@ where
         let mut host = EngineCtx {
             bridge: &mut self.bridge,
             eng: &mut self.engine,
+            media: &self.media,
         };
         let mut ctx = DocCtx {
             tx: Tx::new(&mut doc.project),
@@ -481,6 +482,7 @@ where
         let mut host = EngineCtx {
             bridge: &mut self.bridge,
             eng: &mut self.engine,
+            media: &self.media,
         };
         host.descriptor(d.id, &d.kind)
             .map(|descriptor| ReplyValue::Descriptor { descriptor })

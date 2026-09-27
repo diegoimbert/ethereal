@@ -236,6 +236,28 @@ impl EngineBridge for NativeBridge {
         Ok(key)
     }
 
+    /// Sampler slice edits reach the live node in place (`Node::set_data` with the new
+    /// `SliceSettings`), so sounding notes aren't cut. Anything else: re-create.
+    fn update_builtin(
+        &mut self,
+        device: DeviceId,
+        kind: &BuiltinDevice,
+    ) -> Result<bool, BridgeError> {
+        let BuiltinDevice::Sampler { slices, .. } = kind else {
+            return Ok(false);
+        };
+        let Some(entry) = self.devices.get(&device) else {
+            return Ok(false);
+        };
+        if !matches!(entry.kind, DeviceKind::Builtin(BuiltinDeviceType::Sampler)) {
+            return Ok(false);
+        }
+        self.handle
+            .set_node_data(entry.key, Box::new(slices.clone()))
+            .map_err(engine_err)?;
+        Ok(true)
+    }
+
     fn create_plugin(
         &mut self,
         device: DeviceId,
@@ -527,6 +549,35 @@ mod tests {
         assert!(b.destroy_node(key).is_err());
         b.destroy_node(key2).unwrap();
         assert!(b.descriptor(d).is_none());
+    }
+
+    #[test]
+    fn sampler_slices_update_in_place() {
+        let (mut b, _engine) = bridge();
+        let d = DeviceId(Ulid(4));
+        let sampler = |markers: Vec<f64>| BuiltinDevice::Sampler {
+            sample: None,
+            slices: ether_core::protocol::model::SliceSettings {
+                enabled: true,
+                base_note: 36,
+                markers: markers
+                    .into_iter()
+                    .map(ether_core::protocol::model::Seconds)
+                    .collect(),
+            },
+        };
+        let key = b.create_builtin(d, &sampler(vec![0.0]), &[]).unwrap();
+        assert_eq!(b.update_builtin(d, &sampler(vec![0.0, 0.5])), Ok(true));
+        assert_eq!(b.node_of(d), Some(key), "same node");
+        // Other devices (and unknown ones) are re-created by the controller.
+        let rack = DeviceId(Ulid(5));
+        b.create_builtin(rack, &BuiltinDevice::DrumRack, &[])
+            .unwrap();
+        assert_eq!(b.update_builtin(rack, &BuiltinDevice::DrumRack), Ok(false));
+        assert_eq!(
+            b.update_builtin(DeviceId(Ulid(6)), &sampler(vec![])),
+            Ok(false)
+        );
     }
 
     #[test]
