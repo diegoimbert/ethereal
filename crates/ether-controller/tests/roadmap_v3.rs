@@ -408,34 +408,7 @@ fn media_references_reply_unsupported() {
     assert_unsupported(&mut h, Command::MediaRef(MediaRefCommand::CollectAll));
 }
 
-#[test]
-fn groups_buses_reply_unsupported() {
-    let mut h = Harness::with_project();
-    let a = track(&mut h, TrackKind::Audio);
-    let b = track(&mut h, TrackKind::Audio);
-    let group: TrackId = h.id();
-    assert_unsupported(
-        &mut h,
-        Command::Track(TrackCommand::GroupSelected {
-            ids: vec![a, b],
-            group,
-            name: None,
-        }),
-    );
-    // VCA tracks can be created; they never reach the render graph's tracks.
-    let vca = track(&mut h, TrackKind::Vca);
-    assert_unsupported(
-        &mut h,
-        Command::Track(TrackCommand::SetVca {
-            id: a,
-            vca: Some(vca),
-        }),
-    );
-    h.tick();
-    let graph = h.ctl.bridge.last_graph();
-    assert!(graph.tracks.iter().all(|t| t.id != vca));
-    assert!(graph.vcas.is_empty());
-}
+// groups-buses: see tests/groups.rs.
 
 #[test]
 fn file_import_path_replies_unsupported() {

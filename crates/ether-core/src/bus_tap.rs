@@ -19,14 +19,16 @@
 //!
 //! Hooks (pre-wired): [`TapBuffers::write`] at the three points of every tapped track's job,
 //! [`InputTapRt::gather`] at the start of the consumer's job (the source finished in an
-//! earlier level), [`InputTapRt::mix_into`] where hardware input is monitored. Placeholders
-//! until `groups-buses` lands (no buffers are allocated, nothing is mixed).
+//! earlier level), [`InputTapRt::mix_into`] where hardware input is monitored. Buffers are
+//! allocated at graph compile, only for the points some consumer taps; the audio thread
+//! only copies, delays and adds.
 
 use ether_protocol::model::{InputTap, TrackId};
 use serde::{Deserialize, Serialize};
 
 use crate::config::EngineConfig;
-use crate::mixer::Stereo;
+use crate::delay::DelayLine;
+use crate::mixer::{Stereo, stereo};
 
 /// `TrackInput::Track` compiled for the engine.
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
@@ -36,14 +38,19 @@ pub struct InputTapDesc {
 }
 
 /// Consumer side (in the consumer's `TrackRt`).
-#[allow(dead_code)] // read once groups-buses lands
 #[derive(Debug, Default)]
 pub(crate) struct InputTapRt {
     /// Source track index.
     pub source: Option<usize>,
     pub point: Option<InputTap>,
-    /// PDC delay applied to the tapped signal (samples).
+    /// PDC delay applied to the tapped signal (samples; the delay line's length).
+    #[allow(dead_code)] // kept for debugging; the line owns the delay
     pub delay: u32,
+    /// The aligned tapped signal of the current sub-block (empty without a source).
+    buf: Stereo,
+    line: DelayLine,
+    /// `buf` holds this sub-block's signal (set by [`Self::gather`]).
+    ready: bool,
 }
 
 impl InputTapRt {
@@ -54,27 +61,68 @@ impl InputTapRt {
         delay: u32,
         config: &EngineConfig,
     ) -> Self {
-        let _ = config;
+        let active = source.is_some() && point.is_some();
         Self {
             source,
             point,
             delay,
+            buf: if active {
+                stereo(config.max_block_size)
+            } else {
+                [Vec::new(), Vec::new()]
+            },
+            line: DelayLine::new(if active { delay as usize } else { 0 }),
+            ready: false,
         }
     }
 
-    /// RT. Take the source's tapped signal for this sub-block (placeholder: no-op).
+    /// RT. Take the source's tapped signal for this sub-block and align it (PDC delay).
     pub(crate) fn gather(&mut self, source: &TapBuffers, frames: usize) {
-        let _ = (source, frames);
+        let Some(point) = self.point else { return };
+        if self.buf[0].len() < frames {
+            return;
+        }
+        match source.get(point) {
+            Some(src) if src[0].len() >= frames => {
+                for ch in 0..2 {
+                    self.buf[ch][..frames].copy_from_slice(&src[ch][..frames]);
+                }
+            }
+            _ => {
+                for ch in 0..2 {
+                    self.buf[ch][..frames].fill(0.0);
+                }
+            }
+        }
+        let [l, r] = &mut self.buf;
+        self.line.process(&mut l[..frames], &mut r[..frames]);
+        self.ready = true;
     }
 
-    /// RT. Add the (aligned) tapped signal into the consumer's input (placeholder: no-op).
+    /// RT. Add the (aligned) tapped signal into the consumer's input when it monitors.
     pub(crate) fn mix_into(&mut self, a: &mut Stereo, frames: usize, monitor: bool) {
-        let _ = (a, frames, monitor);
+        if monitor && self.ready {
+            for ch in 0..2 {
+                for (d, s) in a[ch][..frames].iter_mut().zip(&self.buf[ch][..frames]) {
+                    *d += s;
+                }
+            }
+        }
+    }
+
+    /// RT. The aligned tapped signal of the current sub-block (`None` before the consumer's
+    /// job gathered it, or without a source): what recording from a tap captures.
+    #[allow(dead_code)] // read by the tap recorder
+    pub(crate) fn signal(&self, frames: usize) -> Option<[&[f32]; 2]> {
+        (self.ready && self.buf[0].len() >= frames)
+            .then(|| [&self.buf[0][..frames], &self.buf[1][..frames]])
     }
 
     /// RT. Carry delay-line state over a snapshot swap.
     pub(crate) fn inherit(&mut self, old: &mut InputTapRt) {
-        let _ = old;
+        if old.point == self.point {
+            self.line.inherit(&mut old.line);
+        }
     }
 }
 
@@ -87,11 +135,26 @@ pub(crate) struct TapBuffers {
 }
 
 impl TapBuffers {
-    /// Non-RT (graph compile): buffers for the points tapped by consumers (placeholder:
-    /// none).
+    /// Non-RT (graph compile): buffers for the points tapped by consumers.
     pub(crate) fn compile(points: &[InputTap], config: &EngineConfig) -> Self {
-        let _ = (points, config);
-        Self::default()
+        let has = |p: InputTap| {
+            points
+                .contains(&p)
+                .then(|| stereo(config.max_block_size))
+        };
+        Self {
+            pre_fx: has(InputTap::PreFx),
+            post_fx: has(InputTap::PostFx),
+            post_fader: has(InputTap::PostFader),
+        }
+    }
+
+    fn get(&self, point: InputTap) -> Option<&Stereo> {
+        match point {
+            InputTap::PreFx => self.pre_fx.as_ref(),
+            InputTap::PostFx => self.post_fx.as_ref(),
+            InputTap::PostFader => self.post_fader.as_ref(),
+        }
     }
 
     /// RT. Copy the track's current signal at `point` (no-op when not tapped there).
