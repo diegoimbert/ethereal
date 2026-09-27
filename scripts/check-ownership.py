@@ -3,7 +3,7 @@
 
 Usage: check-ownership.py [--branch BRANCH] [--base REF] [--files FILE...]
   BRANCH defaults to $GITHUB_HEAD_REF, then the current git branch.
-  BASE   defaults to origin/main (diff is BASE...HEAD, i.e. since the merge base).
+  BASE   defaults to origin/dev (diff is BASE...HEAD, i.e. since the merge base).
 Branches not named `node/*` are skipped (exit 0). Mapping: .github/ownership.toml.
 """
 
@@ -56,7 +56,7 @@ def git(*args: str) -> str:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--branch")
-    ap.add_argument("--base", default="origin/main")
+    ap.add_argument("--base", default="origin/dev")
     ap.add_argument("--files", nargs="*")
     args = ap.parse_args()
 
