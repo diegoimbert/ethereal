@@ -262,6 +262,7 @@ fn pad_devices_cannot_take_a_sidechain() {
         input: TrackInput::None,
         output: TrackOutput::Default,
         monitor: MonitorMode::Auto,
+        scale: Default::default(),
     };
     let kick = mk_track(&mut ids, "a1");
     let drums = mk_track(&mut ids, "a2");

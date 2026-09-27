@@ -2,5 +2,6 @@
 import type { Color } from "./Color";
 import type { TrackId } from "./TrackId";
 import type { TrackKind } from "./TrackKind";
+import type { TrackScale } from "./TrackScale";
 
-export type TrackCommand = { "type": "Create", id: TrackId, kind: TrackKind, name: string | null, color: Color | null, parent: TrackId | null, before: TrackId | null, } | { "type": "Delete", id: TrackId, } | { "type": "Duplicate", id: TrackId, new_id: TrackId, } | { "type": "Rename", id: TrackId, name: string, } | { "type": "SetColor", id: TrackId, color: Color, } | { "type": "Move", id: TrackId, parent: TrackId | null, before: TrackId | null, };
+export type TrackCommand = { "type": "Create", id: TrackId, kind: TrackKind, name: string | null, color: Color | null, parent: TrackId | null, before: TrackId | null, } | { "type": "Delete", id: TrackId, } | { "type": "Duplicate", id: TrackId, new_id: TrackId, } | { "type": "Rename", id: TrackId, name: string, } | { "type": "SetColor", id: TrackId, color: Color, } | { "type": "Move", id: TrackId, parent: TrackId | null, before: TrackId | null, } | { "type": "SetScale", id: TrackId, scale: TrackScale, };

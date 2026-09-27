@@ -7,5 +7,6 @@ import type { Pan } from "./Pan";
 import type { TrackId } from "./TrackId";
 import type { TrackInput } from "./TrackInput";
 import type { TrackOutput } from "./TrackOutput";
+import type { TrackScale } from "./TrackScale";
 
-export type TrackChange = { "field": "Name", "value": string } | { "field": "Color", "value": Color } | { "field": "Order", "value": OrderKey } | { "field": "Parent", "value": TrackId | null } | { "field": "Volume", "value": Decibels } | { "field": "Pan", "value": Pan } | { "field": "Mute", "value": boolean } | { "field": "Solo", "value": boolean } | { "field": "Input", "value": TrackInput } | { "field": "Output", "value": TrackOutput } | { "field": "Monitor", "value": MonitorMode };
+export type TrackChange = { "field": "Name", "value": string } | { "field": "Color", "value": Color } | { "field": "Order", "value": OrderKey } | { "field": "Parent", "value": TrackId | null } | { "field": "Volume", "value": Decibels } | { "field": "Pan", "value": Pan } | { "field": "Mute", "value": boolean } | { "field": "Solo", "value": boolean } | { "field": "Input", "value": TrackInput } | { "field": "Output", "value": TrackOutput } | { "field": "Monitor", "value": MonitorMode } | { "field": "Scale", "value": TrackScale };

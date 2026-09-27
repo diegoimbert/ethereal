@@ -113,6 +113,12 @@ fn descendants(p: &Project, id: TrackId) -> Vec<TrackId> {
 
 pub(super) fn apply(ctx: &mut DocCtx, c: &TrackCommand) -> CmdResult<()> {
     match c {
+        TrackCommand::SetScale { id, scale } => {
+            if ctx.track(*id)?.kind != TrackKind::Midi {
+                return Err(invalid("track scales are only available on MIDI tracks"));
+            }
+            ctx.set_track(*id, TrackChange::Scale(*scale))
+        }
         TrackCommand::Create {
             id,
             kind,
@@ -146,6 +152,7 @@ pub(super) fn apply(ctx: &mut DocCtx, c: &TrackCommand) -> CmdResult<()> {
                 input: default_input(*kind),
                 output: TrackOutput::Default,
                 monitor: MonitorMode::default(),
+                scale: Default::default(),
             };
             ctx.tx.insert(Entity::Track(track))
         }

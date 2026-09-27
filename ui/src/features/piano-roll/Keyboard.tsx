@@ -2,17 +2,21 @@
 
 import { memo } from "react";
 import clsx from "clsx";
-import type { Note } from "@/generated";
+import { scaleTone } from "@/domain/scales";
+import type { MusicalScale, Note } from "@/generated";
 import { itemSelection, selectModeFromEvent } from "@/timeline";
-import { isBlackKey, KEYBOARD_WIDTH, pitchName, pitchToY, PITCHES } from "./geometry";
+import { isBlackKey, KEYBOARD_WIDTH, pitchName, pitchToY } from "./geometry";
 
 export interface KeyboardProps {
   keyH: number;
+  rows: readonly number[];
+  scale: MusicalScale;
+  highlight: boolean;
   /** Notes of the clip (for click-to-select). */
   notes: ReadonlyArray<Note>;
 }
 
-export function Keyboard({ keyH, notes }: KeyboardProps) {
+export function Keyboard({ keyH, notes, rows, scale, highlight }: KeyboardProps) {
   const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     const pitch = Number((e.target as HTMLElement).dataset.pitch);
     if (e.button !== 0 || Number.isNaN(pitch)) return;
@@ -23,28 +27,30 @@ export function Keyboard({ keyH, notes }: KeyboardProps) {
   return (
     <div
       className="eth-pr-keys"
-      style={{ width: KEYBOARD_WIDTH, height: PITCHES * keyH }}
+      style={{ width: KEYBOARD_WIDTH, height: rows.length * keyH }}
       onPointerDown={onPointerDown}
       data-testid="piano-roll-keys"
     >
-      <Keys keyH={keyH} />
+      <Keys keyH={keyH} rows={rows} scale={scale} highlight={highlight} />
     </div>
   );
 }
 
-const Keys = memo(function Keys({ keyH }: { keyH: number }) {
+const Keys = memo(function Keys({ keyH, rows, scale, highlight }: Omit<KeyboardProps, "notes">) {
   const keys = [];
-  for (let p = PITCHES - 1; p >= 0; p--) {
+  for (const p of rows) {
+    const tone = scaleTone(p, scale, highlight);
     const black = isBlackKey(p);
     keys.push(
       <div
         key={p}
         data-pitch={p}
+        data-scale-tone={tone}
         className={clsx("eth-pr-key", black ? "eth-pr-key--black" : "eth-pr-key--white", p % 12 === 0 && "eth-pr-key--c")}
-        style={{ top: pitchToY(p, keyH), height: keyH }}
+        style={{ top: pitchToY(p, keyH, rows), height: keyH }}
         title={pitchName(p)}
       >
-        {p % 12 === 0 && keyH >= 9 ? pitchName(p) : null}
+        {(p % 12 === 0 || tone === "root") && keyH >= 9 ? pitchName(p) : null}
       </div>,
     );
   }

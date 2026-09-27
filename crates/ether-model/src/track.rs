@@ -42,6 +42,10 @@ pub struct Track {
     pub input: TrackInput,
     pub output: TrackOutput,
     pub monitor: MonitorMode,
+    /// Piano-roll scale (MIDI tracks only; others stay `FollowProject`). Older files load
+    /// as `FollowProject`.
+    #[serde(default)]
+    pub scale: crate::scale::TrackScale,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize, TS)]

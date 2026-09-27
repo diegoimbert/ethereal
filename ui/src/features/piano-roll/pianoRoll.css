@@ -305,3 +305,44 @@
   background: var(--eth-color-selection);
   outline: var(--eth-border-width) solid var(--eth-color-text);
 }
+
+/* Scale highlight (data-scale-tone = root | in | out; absent when off or chromatic). */
+.eth-pr-grid__row[data-scale-tone="in"] {
+  background: var(--eth-color-piano-scale-row);
+}
+
+.eth-pr-grid__row[data-scale-tone="root"] {
+  background: var(--eth-color-piano-scale-root-row);
+  box-shadow: inset 0 calc(-1 * var(--eth-border-width)) var(--eth-color-piano-scale-root-line);
+}
+
+.eth-pr-grid__row[data-scale-tone="out"] {
+  background: var(--eth-color-bg-inset);
+}
+
+.eth-pr-key[data-scale-tone="in"] {
+  box-shadow: inset var(--eth-size-piano-scale-mark) 0 var(--eth-color-piano-scale-key-mark);
+}
+
+.eth-pr-key[data-scale-tone="root"] {
+  box-shadow: inset var(--eth-size-piano-scale-root-mark) 0 var(--eth-color-accent);
+  color: var(--eth-color-accent);
+  font-weight: var(--eth-fw-bold);
+}
+
+.eth-pr-key[data-scale-tone="out"] {
+  opacity: var(--eth-opacity-scale-out-key);
+}
+
+/* Multiplies with the velocity opacity set inline. */
+.eth-pr-note[data-scale-tone="out"]:not(.eth-pr-note--selected) {
+  filter: opacity(var(--eth-opacity-scale-out-note));
+}
+
+.eth-pr-note--muted[data-scale-tone="out"]:not(.eth-pr-note--selected) {
+  filter: grayscale(1) opacity(var(--eth-opacity-scale-out-note));
+}
+
+.eth-pr-note[data-scale-tone="root"] {
+  border-top-color: var(--eth-color-text);
+}

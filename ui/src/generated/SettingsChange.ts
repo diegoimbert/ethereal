@@ -3,5 +3,6 @@ import type { BeatRange } from "./BeatRange";
 import type { Beats } from "./Beats";
 import type { Decibels } from "./Decibels";
 import type { MetronomeSound } from "./MetronomeSound";
+import type { MusicalScale } from "./MusicalScale";
 
-export type SettingsChange = { "field": "Name", "value": string } | { "field": "LoopEnabled", "value": boolean } | { "field": "LoopRegion", "value": BeatRange } | { "field": "Metronome", "value": boolean } | { "field": "CountInBars", "value": number } | { "field": "MetronomeVolume", "value": Decibels } | { "field": "MetronomeAccent", "value": boolean } | { "field": "MetronomeSound", "value": MetronomeSound } | { "field": "Swing", "value": number } | { "field": "SwingGrid", "value": Beats };
+export type SettingsChange = { "field": "Name", "value": string } | { "field": "LoopEnabled", "value": boolean } | { "field": "LoopRegion", "value": BeatRange } | { "field": "Metronome", "value": boolean } | { "field": "CountInBars", "value": number } | { "field": "MetronomeVolume", "value": Decibels } | { "field": "MetronomeAccent", "value": boolean } | { "field": "MetronomeSound", "value": MetronomeSound } | { "field": "Swing", "value": number } | { "field": "SwingGrid", "value": Beats } | { "field": "Scale", "value": MusicalScale };

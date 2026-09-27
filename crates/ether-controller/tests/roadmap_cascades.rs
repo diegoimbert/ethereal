@@ -47,6 +47,7 @@ impl Doc {
             input: TrackInput::None,
             output: TrackOutput::Default,
             monitor: MonitorMode::Auto,
+            scale: Default::default(),
         }));
         id
     }

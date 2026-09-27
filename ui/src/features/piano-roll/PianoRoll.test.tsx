@@ -100,6 +100,167 @@ async function drag(el: Element, from: [number, number], to: [number, number], i
 const undo = () => send(cmd("Edit", { type: "Undo" }));
 
 describe("PianoRoll", () => {
+  /** A control of the scale popover (opens it first if needed). */
+  function scaleControl(label: string): HTMLElement {
+    const trigger = screen.getByTestId("scale-trigger");
+    if (trigger.getAttribute("aria-expanded") !== "true") fireEvent.click(trigger);
+    // Not a Select's list (it shares the Select's label while it animates out).
+    return screen.getAllByLabelText(label).find((el) => el.getAttribute("role") !== "listbox")!;
+  }
+  const pickScale = async (label: string, value: string) => {
+    pickOption(scaleControl(label), { value });
+    await flush();
+  };
+  /** C minor with "Scale notes only" on: rows are the scale's pitches, 127 down to 0. */
+  async function foldToCMinor() {
+    await send(cmd("Project", { type: "SetScale", scale: { root: 0, kind: "Minor" } }));
+    fireEvent.click(scaleControl("Scale notes only"));
+    await flush();
+  }
+  const keys = () => [...document.querySelectorAll<HTMLElement>(".eth-pr-key")];
+  /** Center of `pitch`'s row with folded rows (from the rendered keys). */
+  const foldedY = (pitch: number) => keys().findIndex((key) => key.dataset.pitch === String(pitch)) * KEY_H + KEY_H / 2;
+
+  it("edits project and custom track scales independently and can undo them", async () => {
+    const { clip } = await setup();
+    const track = store().project!.clips[clip]!.track;
+    expect(screen.getByTestId("scale-trigger")).toHaveTextContent("Scale…");
+    expect(scaleControl("Active scale type")).toHaveTextContent("Chromatic / None");
+    await pickScale("Active scale type", "Minor");
+    expect(store().project!.settings.scale).toEqual({ root: 0, kind: "Minor" });
+    expect(screen.getByTestId("scale-trigger")).toHaveTextContent("C Minor…");
+    expect(screen.getByTestId("scale-popover")).toHaveTextContent("Project");
+    await pickScale("Track scale mode", "Custom");
+    await pickScale("Active scale root", "9");
+    expect(store().project!.tracks[track]!.scale).toEqual({ type: "Custom", scale: { root: 9, kind: "Minor" } });
+    await send(cmd("Project", { type: "SetScale", scale: { root: 2, kind: "Major" } }));
+    expect(scaleControl("Active scale root")).toHaveTextContent("A");
+    await pickScale("Track scale mode", "FollowProject");
+    expect(scaleControl("Active scale root")).toHaveTextContent("D");
+    await undo();
+    expect(scaleControl("Active scale root")).toHaveTextContent("A");
+    await pickScale("Track scale mode", "Chromatic");
+    expect(scaleControl("Active scale type")).toHaveTextContent("Chromatic / None");
+    expect(scaleControl("Active scale type")).toBeDisabled();
+  });
+
+  it("keeps highlight and folding as local view state (no document edit)", async () => {
+    await setup();
+    await send(cmd("Project", { type: "SetScale", scale: { root: 0, kind: "Minor" } }));
+    const before = store().project!;
+    fireEvent.click(scaleControl("Highlight"));
+    fireEvent.click(scaleControl("Scale notes only"));
+    await flush();
+    expect(store().project).toBe(before);
+    expect(screen.getByTestId("scale-trigger")).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("highlights roots, dims outside notes and still accepts any pitch", async () => {
+    const { clip, a, b } = await setup();
+    await send(cmd("Project", { type: "SetScale", scale: { root: 0, kind: "Minor" } }));
+    expect(noteEl(a)).toHaveAttribute("data-scale-tone", "root");
+    expect(noteEl(b)).toHaveAttribute("data-scale-tone", "out");
+    expect(document.querySelector('.eth-pr-key[data-pitch="63"]')).toHaveAttribute("data-scale-tone", "in");
+    await doublePress(x(4), y(61));
+    expect(notesOf(clip).some((n) => n.pitch === 61)).toBe(true);
+    fireEvent.click(scaleControl("Highlight"));
+    expect(noteEl(a)).not.toHaveAttribute("data-scale-tone");
+    expect(noteEl(b)).not.toHaveAttribute("data-scale-tone");
+  });
+
+  it("folds keys and notes together, draws and drags at the displayed pitches, and restores hidden notes", async () => {
+    const { clip, a, b } = await setup();
+    await foldToCMinor();
+    expect(keys().length).toBeLessThan(128);
+    expect(document.querySelector('.eth-pr-key[data-pitch="64"]')).toBeNull();
+    expect(noteEl(b)).toBeNull();
+    expect(notesOf(clip)).toHaveLength(2);
+    expect((noteEl(a) as HTMLElement).style.top).toBe(`${foldedY(60) - KEY_H / 2}px`);
+    await doublePress(x(4), foldedY(63));
+    expect(notesOf(clip).some((n) => n.pitch === 63 && n.start === 4)).toBe(true);
+    await drag(noteEl(a), [x(1.5), foldedY(60)], [x(1.5), foldedY(62)]);
+    expect(notesOf(clip).find((n) => n.id === a)!.pitch).toBe(62);
+    await undo();
+    expect(notesOf(clip).find((n) => n.id === a)!.pitch).toBe(60);
+    fireEvent.click(scaleControl("Scale notes only"));
+    expect(keys()).toHaveLength(128);
+    expect(noteEl(b)).toBeInTheDocument();
+    expect(notesOf(clip).find((n) => n.id === b)!.pitch).toBe(64);
+  });
+
+  it("cmd-drag copies to the displayed row when folded; one row up is the next scale pitch", async () => {
+    const { clip, a } = await setup();
+    await foldToCMinor();
+    act(() => itemSelection.getState().select("note", [a], "replace"));
+    // One folded row up from C (60) is D (62), two semitones.
+    await drag(noteEl(a), [x(1.5), foldedY(60)], [x(3.5), foldedY(60) - KEY_H], { metaKey: true });
+    const all = notesOf(clip);
+    expect(all.find((n) => n.id === a)).toMatchObject({ start: 1, pitch: 60 });
+    const copy = all.find((n) => n.id !== a && n.pitch !== 64)!;
+    expect(copy).toMatchObject({ start: 3, pitch: 62 });
+    expect([...itemSelection.getState().selected.note]).toEqual([copy.id]);
+    await undo();
+    expect(notesOf(clip)).toHaveLength(2);
+  });
+
+  it("maps drags to chromatic rows again once unfolded", async () => {
+    const { clip, a } = await setup();
+    await foldToCMinor();
+    fireEvent.click(scaleControl("Scale notes only"));
+    await flush();
+    await drag(noteEl(a), [x(1.5), y(60)], [x(1.5), y(61)]);
+    expect(notesOf(clip).find((n) => n.id === a)!.pitch).toBe(61);
+  });
+
+  it("clicking a folded key selects the notes on that pitch", async () => {
+    const { a } = await setup();
+    await foldToCMinor();
+    fireEvent.pointerDown(document.querySelector('.eth-pr-key[data-pitch="60"]')!, { button: 0 });
+    expect([...itemSelection.getState().selected.note]).toEqual([a]);
+  });
+
+  it("does not interpret scale selector keys as note-edit shortcuts", async () => {
+    const { clip, a } = await setup();
+    act(() => itemSelection.getState().select("note", [a], "replace"));
+    // Arrows on a closed Select open it (and are consumed): no transpose.
+    fireEvent.keyDown(scaleControl("Active scale root"), { key: "ArrowUp" });
+    fireEvent.keyDown(scaleControl("Track scale mode"), { key: "ArrowDown" });
+    await flush();
+    expect(notesOf(clip).find((n) => n.id === a)!.pitch).toBe(60);
+  });
+
+  it("uses folded coordinates for marquee and resize without selecting hidden notes", async () => {
+    const { clip, a, b } = await setup();
+    await foldToCMinor();
+    const top = parseFloat((noteEl(a) as HTMLElement).style.top);
+    await drag(grid(), [x(0.5), top - 1], [x(3.5), top + KEY_H + 1]);
+    expect([...itemSelection.getState().selected.note]).toEqual([a]);
+    await drag(noteEl(a), [x(2) - 1, top + KEY_H / 2], [x(3) - 1, top + KEY_H / 2]);
+    expect(notesOf(clip).find((n) => n.id === a)!.duration).toBe(2);
+    expect(notesOf(clip).find((n) => n.id === b)).toMatchObject({ pitch: 64, start: 2, duration: 1 });
+    await undo();
+    expect(notesOf(clip).find((n) => n.id === a)!.duration).toBe(1);
+  });
+
+  it("select-all takes only the displayed notes while folded", async () => {
+    const { a } = await setup();
+    await foldToCMinor();
+    fireEvent.keyDown(screen.getByTestId("piano-roll"), { key: "a", metaKey: true });
+    expect([...itemSelection.getState().selected.note]).toEqual([a]);
+  });
+
+  it("allows semitone nudges outside the scale even while rows are filtered", async () => {
+    const { clip, a } = await setup();
+    await foldToCMinor();
+    act(() => itemSelection.getState().select("note", [a], "replace"));
+    fireEvent.keyDown(screen.getByTestId("piano-roll"), { key: "ArrowUp" });
+    await flush();
+    expect(notesOf(clip).find((n) => n.id === a)!.pitch).toBe(61);
+    expect(noteEl(a)).toBeNull();
+    fireEvent.click(scaleControl("Scale notes only"));
+    expect(noteEl(a)).toHaveAttribute("data-pitch", "61");
+  });
+
   it("shows an empty state without an edited clip, for deleted ids and for audio clips", async () => {
     const { clip } = await setup({ open: false });
     expect(screen.getByTestId("piano-roll-empty")).toBeInTheDocument();

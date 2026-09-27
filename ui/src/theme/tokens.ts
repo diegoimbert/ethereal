@@ -65,6 +65,11 @@ export const darkColors = {
   pianoWhiteKeyBorder: "#aaa",
   pianoBlackKey: "#222",
   pianoKeyLabel: "#333",
+  /** Piano-roll scale highlight: in-scale and root rows, the root row's line, key marks. */
+  pianoScaleRow: "#25222c",
+  pianoScaleRootRow: "#362c3c",
+  pianoScaleRootLine: "rgba(212, 143, 208, 0.35)",
+  pianoScaleKeyMark: "rgba(212, 143, 208, 0.55)",
 } as const;
 
 export type ColorKey = keyof typeof darkColors;
@@ -111,6 +116,10 @@ export const lightColors: ColorTokens = {
   pianoWhiteKeyBorder: "#c3c8d3",
   pianoBlackKey: "#222",
   pianoKeyLabel: "#333",
+  pianoScaleRow: "#e7e2ec",
+  pianoScaleRootRow: "#e2d5e5",
+  pianoScaleRootLine: "rgba(178, 92, 168, 0.35)",
+  pianoScaleKeyMark: "rgba(178, 92, 168, 0.55)",
 };
 
 export const darkShadows = {
@@ -245,6 +254,9 @@ export const ease = {
 export const opacity = {
   disabled: "0.4",
   muted: "0.6",
+  /** Piano roll with scale highlight: out-of-scale keys, and unselected out-of-scale notes. */
+  scaleOutKey: "0.35",
+  scaleOutNote: "0.45",
 } as const;
 
 /**
@@ -343,6 +355,9 @@ export const size = {
   addTrackHeight: "32px",
   addTrackPadLeft: "18px",
   addTrackPadRight: "20px",
+  /** Piano-roll scale highlight: accent mark on in-scale keys, and the wider one on roots. */
+  pianoScaleMark: "3px",
+  pianoScaleRootMark: "5px",
   clipTitleHeight: "14px",
   clipTitleLineHeight: "12px",
   // Timeline ruler.

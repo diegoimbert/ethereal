@@ -10,7 +10,7 @@ use ether_core::protocol::devices::{DeviceCommand, DeviceSpec};
 use ether_core::protocol::mixer::MixerCommand;
 use ether_core::protocol::model::*;
 use ether_core::protocol::notes::{NoteCommand, NoteSpec};
-use ether_core::protocol::project::{EditCommand, ProjectEvent};
+use ether_core::protocol::project::{EditCommand, ProjectCommand, ProjectEvent};
 use ether_core::protocol::tracks::TrackCommand;
 use ether_core::protocol::transport::TransportCommand;
 use ether_core::protocol::*;
@@ -38,6 +38,97 @@ fn midi_clip(h: &mut Harness, track: TrackId, start: f64, length: f64) -> ClipId
         name: None,
     }));
     id
+}
+
+#[test]
+fn scales_are_undoable_metadata_and_never_restrict_notes() {
+    let mut h = Harness::with_project();
+    let track = create_track(&mut h, TrackKind::Midi);
+    let clip = midi_clip(&mut h, track, 0.0, 4.0);
+    assert_eq!(h.project().settings.scale, MusicalScale::default());
+    assert_eq!(h.project().tracks[&track].scale, TrackScale::FollowProject);
+    let minor = MusicalScale {
+        root: 0,
+        kind: ScaleKind::Minor,
+    };
+    let out = h.send(Command::Project(ProjectCommand::SetScale { scale: minor }));
+    ok(&out);
+    assert!(
+        matches!(&patches(&out)[0].changes[0], PatchChange::Settings { settings } if settings.scale == minor)
+    );
+    let custom = TrackScale::Custom {
+        scale: MusicalScale {
+            root: 9,
+            kind: ScaleKind::Dorian,
+        },
+    };
+    h.ok(Command::Track(TrackCommand::SetScale {
+        id: track,
+        scale: custom,
+    }));
+    assert_eq!(h.project().tracks[&track].scale, custom);
+    h.ok(Command::Edit(EditCommand::Undo));
+    assert_eq!(h.project().tracks[&track].scale, TrackScale::FollowProject);
+    h.ok(Command::Edit(EditCommand::Undo));
+    assert_eq!(h.project().settings.scale, MusicalScale::default());
+    h.ok(Command::Edit(EditCommand::Redo));
+    h.ok(Command::Edit(EditCommand::Redo));
+    let note = h.id();
+    h.ok(Command::Note(NoteCommand::Add {
+        clip,
+        notes: vec![NoteSpec {
+            id: note,
+            pitch: 61,
+            velocity: 0.8,
+            start: Beats::ZERO,
+            duration: Beats(1.0),
+        }],
+    }));
+    assert_eq!(h.project().notes[&note].pitch, 61);
+    let copy = h.id();
+    h.ok(Command::Track(TrackCommand::Duplicate {
+        id: track,
+        new_id: copy,
+    }));
+    assert_eq!(h.project().tracks[&copy].scale, custom);
+    let original = h.project().clone();
+    h.ok(Command::Project(ProjectCommand::Save));
+    h.create_project("Other");
+    h.ok(Command::Project(ProjectCommand::Open { id: original.id }));
+    assert_eq!(h.project(), &original);
+    for scale in [TrackScale::Chromatic, TrackScale::FollowProject] {
+        h.ok(Command::Track(TrackCommand::SetScale { id: track, scale }));
+        assert_eq!(h.project().tracks[&track].scale, scale);
+        assert_eq!(h.project().notes[&note].pitch, 61);
+    }
+}
+
+#[test]
+fn invalid_scales_are_rejected_atomically() {
+    let mut h = Harness::with_project();
+    let track = create_track(&mut h, TrackKind::Midi);
+    let audio = create_track(&mut h, TrackKind::Audio);
+    let original = h.project().clone();
+    let invalid = MusicalScale {
+        root: 12,
+        kind: ScaleKind::Major,
+    };
+    for command in [
+        Command::Project(ProjectCommand::SetScale { scale: invalid }),
+        Command::Track(TrackCommand::SetScale {
+            id: track,
+            scale: TrackScale::Custom { scale: invalid },
+        }),
+        Command::Track(TrackCommand::SetScale {
+            id: audio,
+            scale: TrackScale::Chromatic,
+        }),
+    ] {
+        let out = h.send(command);
+        assert_eq!(err(&out).code, ErrorCode::InvalidArgument);
+        assert!(patches(&out).is_empty());
+        assert_eq!(h.project(), &original);
+    }
 }
 
 #[test]

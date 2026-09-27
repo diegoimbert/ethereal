@@ -38,6 +38,7 @@ fn project_with(plugins: &[PluginInstance]) -> Project {
         input: TrackInput::None,
         output: TrackOutput::Default,
         monitor: MonitorMode::Auto,
+        scale: Default::default(),
     };
     let track_id = track.id;
     p.apply(&Op::Insert {
