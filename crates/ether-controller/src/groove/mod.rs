@@ -130,7 +130,8 @@ pub(crate) fn swing_delay(t: f64, grid: f64, swing: f32) -> f64 {
 /// starts on a grid line). Keeps `notes` sorted by start.
 pub(crate) fn swing_notes(settings: &ProjectSettings, offset: f64, notes: &mut [NoteDesc]) {
     let grid = settings.swing_grid.0;
-    if !(settings.swing > 0.0) || !(grid > 0.0) {
+    let active = settings.swing > 0.0 && grid > 0.0;
+    if !active {
         return;
     }
     let mut moved = false;
