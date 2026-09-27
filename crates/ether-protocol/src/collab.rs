@@ -34,6 +34,8 @@ pub enum CollabCommand {
     Leave,
     /// RESERVED. Publish this user's presence (throttled by the host to ~10 Hz).
     SetPresence { presence: PresenceState },
+    /// Re-emit the current `Session` and `Presence` events (UI mount/reload). Replies `Unit`.
+    Get,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
@@ -107,6 +109,15 @@ pub enum CollabMessage {
     },
     Presence {
         presence: Presence,
+    },
+    /// One chunk of a media file (sent by the importing site before the transaction that
+    /// inserts the media; the relay caches by `hash`). `file` is the project-relative path.
+    Media {
+        file: String,
+        hash: String,
+        offset: u64,
+        total: u64,
+        data: Base64Bytes,
     },
     Leave {
         site: SiteId,

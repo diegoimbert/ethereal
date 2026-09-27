@@ -405,6 +405,8 @@ paths = [
   "crates/ether-native/tests/collab*.rs",
   # shared touch (base-25): one additive state field + initializer on EtherController
   "crates/ether-controller/src/lib.rs",
+  # base-36: collab design doc
+  "docs/COLLAB.md",
 ]
 
 [nodes.multicore]
