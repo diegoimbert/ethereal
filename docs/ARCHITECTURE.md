@@ -44,7 +44,7 @@ crates/
   ether-clap            CLAP hosting (clack), PluginNode in-process         (native)
   ether-plugin-host     PluginFormatHost trait, format registry, scan runner (native)
   ether-vst3            VST3 hosting                                        (native)
-  ether-au              Audio Unit hosting                                  (macOS)
+  ether-au              Audio Unit hosting               (native; functional on macOS only)
   ether-plugin-scanner  scanner binary (all formats)                        (native)
   ether-sandbox         out-of-process PluginNode + helper binary           (native)
   ether-native          cpal host, RT thread, disk streaming, GC thread     (native)

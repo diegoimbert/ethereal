@@ -82,6 +82,12 @@ Documented on `ether_model::PluginFormat`. `.ether` tags are `"Clap"`, `"Vst3"` 
     - `IAudioProcessor` setup/activation goes in `PluginNode`: parameter changes as `IParameterChanges` (sample-accurate), notes as `IEventList`, and `ProcessContext` from `TransportInfo`. Keep this RT-safe: preallocate everything, no allocation in `process`.
     - State is the component state plus the controller state, both packed into one blob with your own versioned framing.
     - Editor: `IPlugView` in a floating window (reuse the approach in `ether-clap/src/gui.rs`).
+- **Plain values.** This is what goes into `Device.params` (`.ether`), `ProcessEvent::Param` and automation. `IEditController::normalizedParamToPlain` is main-thread-only, so it can't be used on the audio thread. Define plain values without it:
+  - Continuous params (`ParameterInfo.stepCount == 0`): plain = the normalized value, 0..1. Expose `ParamInfo { min: 0, max: 1, scale: Linear }`, with `default` = `defaultNormalizedValue`.
+  - Discrete params (`stepCount = n > 0`): plain = the step index, 0..=n. Expose `ParamInfo { min: 0, max: n, steps: n, scale: Linear }`, with `default` = `round(defaultNormalizedValue * n)`.
+  - Conversion on any thread: normalized = plain / n, and plain = round(normalized * n); continuous values pass through unchanged. The node converts to normalized when filling `IParameterChanges`; `ParamEdited` from `IComponentHandler::performEdit` converts back.
+  - `ParamId` = `ParamID`, a u32 that VST3 already guarantees stable.
+  - Display strings (`getParamStringByValue`) are a later, main-thread UI feature.
 - **Test strategy.** Build a minimal test plugin in-test with the `vst3` crate's plugin side: a `ComWrapper` factory with a gain processor and one param. See the `vst3` crate's `examples/gain.rs`, and mirror `ether-clap/examples/ether_test_plugin.rs` + `testing.rs`: a cdylib example wrapped into a `.vst3` bundle. Cover:
   - scan through the real scanner binary;
   - instantiate, process (under `assert_no_alloc`), state round-trip and params;
@@ -97,6 +103,11 @@ Documented on `ether_model::PluginFormat`. `.ether` tags are `"Clap"`, `"Vst3"` 
   - **`discover_registry`:** `AudioComponentFindNext` over `aufx`/`aumu`/`aumf`/`aumi`, returning one target per component id. Reading metadata doesn't instantiate anything.
   - **`scan(id)`:** name, manufacturer and version from the registry, and optionally a validation instantiation. This runs in the scanner process.
   - **`instantiate`:** `AudioComponentInstanceNew`, or `AUAudioUnit` for v3. Render via `AudioUnitRender` with a host-provided input callback, reading from pre-allocated buffers. Params via `AudioUnitParameter*`. State via `kAudioUnitProperty_ClassInfo` (plist → bytes). Editor via `kAudioUnitProperty_CocoaUI` or `AUAudioUnit.requestViewController` in a floating window. Everything off macOS stays `Unsupported`.
+- **Param ids.** `AUParameterAddress` is 64-bit, but `ParamId` is `u32` and ids must be stable across sessions, because they are stored in `.ether` and automation.
+  - AUv2: take `kAudioUnitScope_Global` params as-is when the id fits in u32, which it always does for v2 `AudioUnitParameterID`. Params in other scopes (Input/Output/Part/Group, per element) need a deterministic packed id, for example `scope << 24 | element << 16 | (id & 0xFFFF)` with a reserved high bit, or a table of every param you expose, recorded in the saved state. Document the choice in the crate.
+  - AUv3 (`AUParameterTree`): addresses up to `u32::MAX` map directly. Larger addresses need a stable hash (e.g. FNV-1a of the address with collision probing in tree order), and the address↔id table goes into the state blob so reload is exact.
+  - Plain values: AU params are already plain (`minValue`..`maxValue`, unit), so use `ParamScale` Linear, or Log for `kAudioUnitParameterFlag_DisplayLogarithmic`.
+- **Asynchronous instantiation.** AUv3 components, and v2 components bridged out-of-process, instantiate asynchronously (`AudioComponentInstantiate` / `AUAudioUnit.instantiateWithComponentDescription:options:completionHandler:`). `instantiate` runs on the plugin main thread, so blocking it on a channel can deadlock when the completion is delivered on the main run loop. Instead, pump the run loop while waiting, both in the host's main thread and in the sandbox helper: `CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0.01, true)` in a loop with a timeout. The same applies to `requestViewController`.
 - **Test strategy.** Use Apple's built-in AUs, which every Mac has:
   - AUDelay `aufx:dely:appl`;
   - AULowpass `aufx:lpas:appl`;

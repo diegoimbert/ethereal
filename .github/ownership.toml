@@ -212,10 +212,20 @@ paths = [
 # wires the formats into the native host/bridge/UI afterwards.
 
 [nodes.vst3]
-paths = ["crates/ether-vst3/**"]
+paths = [
+  "crates/ether-vst3/**",
+  # tests through the real scanner binary / sandbox helper (CARGO_BIN_EXE_* only exists there)
+  "crates/ether-plugin-scanner/tests/vst3.rs",
+  "crates/ether-sandbox/tests/vst3.rs",
+]
 
 [nodes.au]
-paths = ["crates/ether-au/**"]
+paths = [
+  "crates/ether-au/**",
+  # tests through the real scanner binary / sandbox helper (CARGO_BIN_EXE_* only exists there)
+  "crates/ether-plugin-scanner/tests/au.rs",
+  "crates/ether-sandbox/tests/au.rs",
+]
 
 [nodes.formats-integration]
 paths = [

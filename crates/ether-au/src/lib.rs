@@ -50,6 +50,9 @@ fn parse_code(s: &str) -> Option<[u8; 4]> {
             let hex = s
                 .get(i + 2..i + 4)
                 .filter(|_| b.get(i + 1) == Some(&b'x'))?;
+            if !hex.bytes().all(|c| c.is_ascii_hexdigit()) {
+                return None; // `from_str_radix` would accept a sign (`\x+1`)
+            }
             out.push(u8::from_str_radix(hex, 16).ok()?);
             i += 4;
         } else if (0x20..0x7F).contains(&b[i]) {
@@ -231,6 +234,7 @@ mod tests {
             "aufx:del:appl",
             "aufx:delay:appl",
             "aufx:d\\x4:appl",
+            "aufx:dl\\x+1:appl",
             "aufx:dél:appl",
             "",
         ] {
