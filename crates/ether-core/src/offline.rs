@@ -1,17 +1,17 @@
 //! Offline rendering (roadmap v2, used by the `export` node; see `docs/ROADMAP.md`).
 //!
 //! An [`OfflineRenderer`] is a private engine that renders as fast as the caller pulls,
-//! with no device and no threads: the caller adds nodes and sources and publishes a graph
-//! through [`OfflineRenderer::handle`] exactly as with a live engine, then calls
+//! with no device and no threads: the caller adds nodes and sources through
+//! [`OfflineRenderer::handle`] exactly as with a live engine, publishes the graph with
+//! [`OfflineRenderer::publish`], then calls
 //! [`OfflineRenderer::start`] and [`OfflineRenderer::render`] in a loop. Everything runs
 //! on the calling thread (the controller thread / Worker), so it works on native and web.
 //!
 //! Nodes are fresh instances (built from the document like the live ones), never the live
 //! engine's nodes, so exporting doesn't disturb playback.
 //!
-//! The engine renders the click whenever the published desc has `metronome` on (or a
-//! count-in), exactly like a live engine: callers that must not hear it (exports) publish
-//! with `metronome: false` and `click.count_in_end: None`.
+//! The click is never rendered: [`OfflineRenderer::publish`] forces `metronome` and any
+//! count-in off (publishing through the handle directly would render it like a live engine).
 
 use ether_protocol::model::Beats;
 

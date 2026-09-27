@@ -715,7 +715,7 @@ impl Job {
         {
             stem_graph(&mut desc, p, s);
         }
-        renderer.handle().publish(desc).map_err(engine_err)?;
+        renderer.publish(desc).map_err(engine_err)?;
         renderer.start(self.start).map_err(engine_err)?;
         let latency = renderer.latency() as usize;
         let total = self.frames + self.tail;
