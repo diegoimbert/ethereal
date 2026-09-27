@@ -8,6 +8,8 @@
 //!   ([`comp_clips`], called by `compile.rs`) and `Flatten`, so a flattened comp plays
 //!   exactly like the comp did. Take-lane clips are never compiled directly (`compile.rs`
 //!   skips `Clip::lane.is_some()`).
+//! - [`apply_audition`]: runtime take audition (`Take::Audition`, like drum pad solo: no
+//!   ops), applied after compile by `engine.rs`.
 //! - Recording (shared touch in `recording/`): loop/punch passes become take lanes + a comp
 //!   region per pass ([`begin_takes`], [`add_take`]).
 //! - Cascades are done (`doc/mod.rs`): deleting a track removes its comp regions, lane
@@ -22,6 +24,9 @@
 //! are cut exactly at region edges (notes starting before a piece don't sound, notes are cut
 //! at its end: the engine's clip-window rules).
 
+use std::collections::{BTreeMap, BTreeSet};
+
+use ether_core::RenderGraphDesc;
 use ether_core::graph::ClipDesc;
 use ether_core::protocol::model::*;
 use ether_core::protocol::takes::TakeCommand;
@@ -204,6 +209,46 @@ pub(crate) fn comp_clips(p: &Project, ctx: &CompileContext, track: TrackId) -> V
             Some(desc)
         })
         .collect()
+}
+
+/// Take audition (runtime, `Take::Audition`): each auditioned track plays its lane's clips
+/// instead of its comp (main-lane clips keep playing). Entries whose lane or track is gone
+/// are dropped. Clip envelopes on device params don't follow while auditioning (no device
+/// nodes here); volume/pan/send envelopes do.
+pub(crate) fn apply_audition(
+    desc: &mut RenderGraphDesc,
+    project: Option<&Project>,
+    audition: &mut BTreeMap<TrackId, TakeLaneId>,
+) {
+    let Some(p) = project else {
+        audition.clear();
+        return;
+    };
+    audition.retain(|t, l| p.take_lanes.get(l).is_some_and(|lane| lane.track == *t));
+    if audition.is_empty() {
+        return;
+    }
+    let ctx = CompileContext {
+        nodes: &|_| None,
+        descriptors: &crate::compile::builtin_descriptors,
+        armed: &|_| false,
+        version: desc.version,
+    };
+    for (track, lane) in audition.iter() {
+        let Some(t) = desc.tracks.iter_mut().find(|t| t.id == *track) else {
+            continue;
+        };
+        if t.frozen.is_some() {
+            continue;
+        }
+        let comp: BTreeSet<ClipId> = comp_pieces(p, *track).iter().map(piece_id).collect();
+        t.clips.retain(|c| !comp.contains(&c.id));
+        for c in p.lane_clips_of(*lane) {
+            t.clips.push(crate::compile::clip_desc(p, &ctx, c, c.start));
+        }
+        t.clips
+            .sort_by(|a, b| a.start.total_cmp(&b.start).then(a.id.cmp(&b.id)));
+    }
 }
 
 // ─── Commands ───────────────────────────────────────────────────────────────────────────
@@ -696,5 +741,15 @@ pub(crate) fn take_command(ctx: &mut DocCtx, command: &TakeCommand) -> CmdResult
             seed_notes,
             keep_lanes,
         } => flatten(ctx, *track, *seed, *seed_notes, *keep_lanes),
+        TakeCommand::Audition { track, lane: l } => {
+            ctx.track(*track)?;
+            if let Some(l) = l
+                && lane(ctx, *l)?.track != *track
+            {
+                return Err(invalid(format!("take lane {l} is not on track {track}")));
+            }
+            ctx.host.set_audition(*track, *l);
+            Ok(())
+        }
     }
 }

@@ -71,6 +71,9 @@ pub(crate) struct EngineState {
     /// Soloed drum pads (runtime, `DrumRack::SetPadSolo`): compiled as mute of the other
     /// pads of their rack (`crate::drum_rack::apply_solo`).
     pub pad_solo: BTreeSet<DrumPadId>,
+    /// Auditioned take lanes (runtime, `Take::Audition`): the track plays the lane instead
+    /// of its comp (`crate::comping::apply_audition`).
+    pub audition: BTreeMap<TrackId, TakeLaneId>,
 }
 
 pub(crate) fn bridge_err(e: BridgeError) -> ether_core::protocol::CommandError {
@@ -121,6 +124,7 @@ impl EngineState {
         self.recreate.clear();
         self.reload_from_doc.clear();
         self.pad_solo.clear();
+        self.audition.clear();
         self.graph_dirty = true;
     }
 
@@ -276,6 +280,7 @@ impl EngineState {
             self.pad_solo.retain(|pad| p.drum_pads.contains_key(pad));
         }
         crate::drum_rack::apply_solo(&mut desc, &self.pad_solo);
+        crate::comping::apply_audition(&mut desc, project, &mut self.audition);
         self.last_publish_ms = Some(now_ms);
         match bridge.publish(desc) {
             Ok(()) => {
@@ -399,6 +404,16 @@ impl<B: EngineBridge> DocHost for EngineCtx<'_, B> {
             self.eng.pad_solo.insert(pad)
         } else {
             self.eng.pad_solo.remove(&pad)
+        };
+        if changed {
+            self.eng.graph_dirty = true;
+        }
+    }
+
+    fn set_audition(&mut self, track: TrackId, lane: Option<TakeLaneId>) {
+        let changed = match lane {
+            Some(l) => self.eng.audition.insert(track, l) != Some(l),
+            None => self.eng.audition.remove(&track).is_some(),
         };
         if changed {
             self.eng.graph_dirty = true;

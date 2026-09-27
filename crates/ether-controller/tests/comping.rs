@@ -517,3 +517,53 @@ fn moving_clips_between_lanes_stays_on_the_track() {
     assert_ne!(err(&out).code, ErrorCode::Unsupported);
     assert_eq!(f.h.project().clips[&clip].lane, Some(a));
 }
+
+#[test]
+fn audition_plays_one_lane_without_editing_the_document() {
+    let mut f = fx(TrackKind::Audio);
+    let a = f.lane(None);
+    let b = f.lane(None);
+    let ca = f.take_clip(a, 0.0, 4.0, 0.0);
+    f.take_clip(b, 0.0, 4.0, 0.0);
+    f.comp(b, 0.0, 4.0);
+    let history = f.h.project().clone();
+    let out = f.h.send(take(TakeCommand::Audition {
+        track: f.track,
+        lane: Some(a),
+    }));
+    assert!(patches(&out).is_empty(), "no document change");
+    assert_eq!(f.h.project(), &history);
+    let clips = f.graph_clips();
+    assert_eq!(clips.len(), 1);
+    assert_eq!(
+        (clips[0].id, clips[0].start, clips[0].length),
+        (ca, 0.0, 4.0)
+    );
+    // Undo still undoes the last edit (the swipe), not the audition.
+    f.undo();
+    assert!(f.h.project().comp_of(f.track).is_empty());
+    f.h.ok(Command::Edit(EditCommand::Redo));
+    f.h.ok(take(TakeCommand::Audition {
+        track: f.track,
+        lane: None,
+    }));
+    let clips = f.graph_clips();
+    assert_eq!(clips.len(), 1);
+    assert_ne!(clips[0].id, ca, "back to the comp");
+    // Removing the auditioned lane ends the audition.
+    f.h.ok(take(TakeCommand::Audition {
+        track: f.track,
+        lane: Some(a),
+    }));
+    f.h.ok(take(TakeCommand::RemoveLane { id: a }));
+    let clips = f.graph_clips();
+    assert_eq!(clips.len(), 1);
+    assert_ne!(clips[0].id, ca);
+    // A lane of another track is rejected.
+    let other = new_track(&mut f.h, TrackKind::Audio);
+    let out = f.h.send(take(TakeCommand::Audition {
+        track: other,
+        lane: Some(b),
+    }));
+    assert_eq!(err(&out).code, ErrorCode::InvalidArgument);
+}
