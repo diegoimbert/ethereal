@@ -81,10 +81,24 @@ fn positions(buf: &[f32]) -> Vec<usize> {
     clicks(buf).into_iter().map(|c| c.0).collect()
 }
 
-/// Expected start sample of the click on `beat` when playback starts at `from`.
+/// Expected start sample of the click on `beat` when playback starts at `from`: the
+/// first sample at or after the beat on the engine's timeline. The engine ends a sub-block
+/// on the first sample at or after each tempo/signature boundary and restarts the timeline
+/// there, so each boundary lands on a whole sample (as the audio does); in between, time
+/// follows the tempo map exactly.
 fn expected(map: &TempoMapRt, from: f64, beat: f64) -> usize {
-    let s = map.beats_to_seconds(beat) - map.beats_to_seconds(from);
-    (s * f64::from(SR) - 1e-4).ceil() as usize
+    let sr = f64::from(SR);
+    let sec = |b: f64| map.beats_to_seconds(b);
+    let mut start = from;
+    let mut sample = 0usize;
+    while let Some(nb) = map.next_boundary(start) {
+        if nb > beat + 1e-9 {
+            break;
+        }
+        sample += ((sec(nb) - sec(start)) * sr - 1e-7).ceil().max(1.0) as usize;
+        start = nb;
+    }
+    sample + ((sec(beat) - sec(start)) * sr - 1e-4).ceil().max(0.0) as usize
 }
 
 fn is_accent(peak: f32) -> bool {
@@ -353,4 +367,74 @@ fn clicks_line_up_with_the_audio_under_pdc() {
         want,
         "clicks are delayed like the audio"
     );
+}
+
+/// Click onsets when every click is a normal one: a click starts at its full level
+/// (`VOLUME * 0.6`, the buffer's first sample) and only decays after, so a restart shows
+/// as the exact level even when fast clicks cut each other.
+fn onsets(buf: &[f32]) -> Vec<usize> {
+    let level = VOLUME * 0.6;
+    buf.iter()
+        .enumerate()
+        .filter(|(_, s)| (**s - level).abs() < 1e-6)
+        .map(|(i, _)| i)
+        .collect()
+}
+
+#[test]
+fn steep_ramps_are_sample_exact_at_large_blocks() {
+    // Ramps are linear in beats (the shared tempo model), so positions grow exponentially
+    // in time: 20 → 999 BPM over one beat, 999 → 20 over four, 32nd-note clicks.
+    let tempo = vec![
+        tp(0.0, 120.0, TempoCurve::Step),
+        tp(1.0, 20.0, TempoCurve::Linear),
+        tp(2.0, 999.0, TempoCurve::Step),
+        tp(3.0, 999.0, TempoCurve::Linear),
+        tp(7.0, 20.0, TempoCurve::Linear),
+        tp(7.5, 300.0, TempoCurve::Step),
+    ];
+    let sigs = vec![ts(0.0, 4, 32)];
+    let map = TempoMapRt::compile(&tempo, &sigs);
+    let want: Vec<usize> = (0..=64)
+        .map(|i| expected(&map, 0.0, f64::from(i) * 0.125))
+        .collect();
+    for block in [1024, 2048, 333] {
+        let mut cfg = config();
+        cfg.max_block_size = block;
+        let mut p = create(cfg);
+        let mut d = graph(tempo.clone(), sigs.clone());
+        d.click.accent = false;
+        p.handle.publish(d).unwrap();
+        p.handle.transport(TransportControl::Play).unwrap();
+        let (l, _) = render(&mut p.engine, want.last().unwrap() + 100, block);
+        assert_eq!(onsets(&l), want, "block {block}");
+    }
+}
+
+#[test]
+fn a_latency_decrease_keeps_clicks_in_order() {
+    let mut p = create(config());
+    let delay = p.handle.add_node(Box::new(Delay::new(20_000))).unwrap();
+    let mut d = graph(vec![tp(0.0, 120.0, TempoCurve::Step)], vec![]);
+    d.click.accent = false;
+    let mut latent = d.clone();
+    latent.tracks.push(with_chain(
+        track(
+            tid(2),
+            ether_core::protocol::model::TrackKind::Audio,
+            Some(tid(1)),
+        ),
+        &[delay],
+    ));
+    p.handle.publish(latent).unwrap();
+    p.handle.transport(TransportControl::Play).unwrap();
+    // Beat 0 is queued for sample 20000; then the latency drops to 0 before beat 1.
+    let (a, _) = render(&mut p.engine, 12_000, 500);
+    d.version = 2;
+    p.handle.publish(d).unwrap();
+    let (b, _) = render(&mut p.engine, 36_000, 500);
+    let mut all = a;
+    all.extend(b);
+    // Beat 0 (queued with the old latency) and beat 1 (no latency) both sound, in order.
+    assert_eq!(onsets(&all), vec![20_000, 24_000]);
 }
