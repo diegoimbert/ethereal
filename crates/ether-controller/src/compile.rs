@@ -17,7 +17,7 @@
 
 use ether_core::graph::{
     AutomationDesc, ChainEntry, ClipContentDesc, ClipDesc, NoteDesc, ParamMapping, ResolvedTarget,
-    SendDesc, TrackDesc, WarpDesc,
+    SendDesc, TrackDesc,
 };
 use ether_core::protocol::devices::{DeviceDescriptor, ParamInfo, ParamScale, ParamUnit};
 use ether_core::protocol::model::*;
@@ -193,31 +193,6 @@ fn lane_points(p: &Project, lane: AutomationLaneId) -> Vec<(f64, f64, CurveShape
         .collect()
 }
 
-fn warp_desc(p: &Project, clip: &Clip, audio: &AudioContent) -> Option<WarpDesc> {
-    if !audio.warp.enabled {
-        return None;
-    }
-    let mut markers: Vec<(f64, f64)> = p
-        .warp_markers_of(clip.id)
-        .into_iter()
-        .map(|m| (m.beat.0, m.source.0))
-        .collect();
-    markers.dedup_by(|b, a| Beats(a.0).approx_eq(Beats(b.0)));
-    if markers.len() < 2 {
-        // Derive the missing slope from the source tempo.
-        let bpm = audio
-            .warp
-            .source_bpm
-            .filter(|b| b.is_finite() && *b > 0.0)?;
-        let (b0, s0) = markers.first().copied().unwrap_or((0.0, 0.0));
-        markers = vec![(b0, s0), (b0 + 1.0, s0 + 60.0 / bpm)];
-    }
-    Some(WarpDesc {
-        mode: audio.warp.mode,
-        markers,
-    })
-}
-
 fn clip_desc(p: &Project, ctx: &CompileContext, clip: &Clip, start: Beats) -> ClipDesc {
     let content = match &clip.content {
         ClipContent::Midi => ClipContentDesc::Midi {
@@ -240,7 +215,7 @@ fn clip_desc(p: &Project, ctx: &CompileContext, clip: &Clip, start: Beats) -> Cl
             transpose: a.transpose,
             fade_in: a.fade_in.0,
             fade_out: a.fade_out.0,
-            warp: warp_desc(p, clip, a),
+            warp: crate::warp::warp_desc(p, clip, a),
         },
     };
     let envelopes = p
