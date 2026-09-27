@@ -67,6 +67,8 @@ fn relative(path: &str) -> Result<&str, StoreError> {
 fn join(base: &str, rel: &str) -> String {
     if rel.is_empty() {
         base.to_string()
+    } else if base.is_empty() {
+        rel.to_string()
     } else {
         format!("{base}/{rel}")
     }
@@ -724,6 +726,11 @@ mod tests {
         let names: Vec<_> = root.entries.iter().map(|e| e.name.as_str()).collect();
         assert_eq!(names, ["drums", "readme.txt"]);
         assert_eq!(root.entries[1].kind, FileKind::Other);
+        // Entry paths are relative to the root (no leading `/`) and can be listed/read back.
+        let paths: Vec<_> = root.entries.iter().map(|e| e.path.as_str()).collect();
+        assert_eq!(paths, ["drums", "readme.txt"]);
+        let drums = lib.list_dir(LIBRARY_ID, &root.entries[0].path).unwrap();
+        assert_eq!(drums.entries[0].path, "drums/kick.wav");
         assert_eq!(lib.read(LIBRARY_ID, "drums/kick.wav").unwrap(), b"K");
         assert!(lib.read(LIBRARY_ID, "../projects").is_err());
         assert!(lib.read("other", "drums/kick.wav").is_err());
