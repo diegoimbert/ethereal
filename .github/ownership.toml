@@ -764,7 +764,7 @@ paths = [
 ]
 
 [nodes.collab-social]
-# base-62: chat, pinned notes, peer playheads, "hide others" (docs/COLLAB.md §12).
+# base-62: chat, pinned notes, peer playheads, "hide users and notes" (docs/COLLAB.md §12).
 paths = [
   "crates/ether-controller/src/social/**",
   "crates/ether-controller/tests/social*.rs",

@@ -111,7 +111,7 @@ invariants (routing cycles, "clip on an existing track of the right kind", tempo
 | | MIDI learn mode/gestures, selection (shared only as presence), undo history |
 | | the live recording view (`RecordingEvent::Progress`, live chunks/notes): events, never ops; only the committed take (media pushed first, then its `Insert`s) replicates |
 | | missing-plugin bypass (runtime engine state, never an op) |
-| | UI preferences such as "hide others" (§12.4): never a command |
+| | UI preferences such as "hide users and notes" (§12.4): never a command |
 
 Local-only ops are applied and undone locally as usual but filtered out of the stamped
 transaction (a transaction with only local ops is not sent; a mixed one, e.g. a rename and
@@ -736,7 +736,7 @@ are the relay's, or the ones set in settings (`SetIceServers`; e.g. a self-hoste
 
 Four owner requests, one node. Chat and notes are **document** state (saved with the
 project, replicated as ordinary ops); peer playheads are **presence** (ephemeral); the
-"hide others" toggle is **UI state** (per user, never sent). Contract: `ether_model::social`
+"hide users and notes" toggle is **UI state** (per user, never sent). Contract: `ether_model::social`
 (entities, caps, `is_untracked`), `ether_protocol::social` (`ChatCommand`,
 `PinnedNoteCommand`), `ether_protocol::collab` (`PresenceState::transport`, `PeerTransport`,
 `CollabEvent::ChatReceived`). Until the node lands, `Chat::*` and `PinnedNote::*` reply
@@ -886,19 +886,27 @@ UI (`ui/src/features/collab/social/**`):
   colour, visibly distinct from our own playhead (thinner, dashed or with the peer's
   initials on the ruler cap), in the presence overlay layer (the PresenceLayer pattern,
   pointer-events: none), hidden when off screen.
+- **Optional** in `collab-social`'s scope: the peers' playheads in the piano roll too (the
+  same extrapolation, mapped to the open clip's content axis), and follow-mode parity there
+  (nice to have).
 
-### 12.4 "Hide others" (local preference)
+### 12.4 "Hide users and notes" (local preference)
 
-- A toggle in the collab ("jam") dialog, **"Hide others"**: while on, this user sees **no
-  peers' pointers, playheads, selection outlines, presence chips on the timeline and no
-  pinned notes**. Nothing else changes: peers' edits still apply, the chat and its toasts
-  still work, the participant list in the dialog and the top-bar chips stay (they are how to
-  turn it back off), and our own presence is still published.
+- A toggle in the collab ("jam") dialog labelled **"Hide users and notes"** (the owner's
+  wording): while on, this user sees **no peers' pointers (arranger and piano roll),
+  playheads, selection outlines, "peer editing" rings on clips, presence chips on the
+  timeline, and no pinned notes** (arranger and piano roll). Nothing else changes: peers'
+  edits still apply, the chat and its toasts still work, the participant list in the dialog
+  and the top-bar chips stay (they are how to turn it back off), and our own presence is
+  still published.
 - UI state only: stored in local settings (`localStorage`, next to the dialog's remembered
   join fields), never replicated, never a command. One selector (`useHideOthers()` in the
   collab store) that **every** presence and notes renderer honours: `PresenceLayer`,
-  `EditorPresence`, `PeerHighlights` (selection outlines), the playhead overlay, the notes
-  overlay and the "Leave a note" menu entry (hidden while hiding notes).
+  `EditorPresence`, `PeerHighlights` (selection outlines), `useClipEditors`
+  (`presence/editors.ts`, the ring `ClipView.tsx` draws on clips a peer is editing: it
+  returns no editors while hiding, so `ClipView.tsx` needs no change), the playhead
+  overlay, both notes overlays and both "Leave a note" menu entries (hidden while hiding
+  notes).
 
 ## 13. Code layout
 

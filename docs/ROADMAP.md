@@ -384,7 +384,7 @@ Owns: `crates/ether-controller/src/collab/mirror.rs` (new; one `mod` line in
   (editor routing), `crates/ether-native/src/host.rs` (`OpenEditor`),
   `crates/ether-controller/src/collab/mod.rs` (one mod line + dispatch).
 
-## `collab-social` (base-62): chat, pinned notes, peer playheads, "hide others"
+## `collab-social` (base-62): chat, pinned notes, peer playheads, "hide users and notes"
 
 Design and frozen contract: [COLLAB.md §12](COLLAB.md), CONTRACTS.md §11.17. base-62
 landed the model entities (`ChatMessage`, `PinnedNote` in `ether_model::social`, tables
@@ -430,9 +430,10 @@ component), `ui/src/transport/mock/roadmap/social.*`, `apps/web/e2e/collab-socia
   - Optional: peers' playheads in the piano roll too, and follow-mode parity there.
   - **Peer playheads** overlay: one line + ruler cap per peer in its colour, distinct from
     ours, extrapolated with the replicated tempo map and wrapped in the loop (§12.3).
-  - **"Hide others"** toggle in the collab dialog: local setting (localStorage), never
-    replicated; `useHideOthers()` honoured by every presence/notes renderer (pointers,
-    editor pointers, selection outlines, playheads, notes, the "Leave a note" entry).
+  - **"Hide users and notes"** toggle in the collab dialog: local setting (localStorage),
+    never replicated; `useHideOthers()` honoured by every presence/notes renderer
+    (pointers, editor pointers, selection outlines, the clip "peer editing" ring via
+    `useClipEditors`, playheads, notes, the "Leave a note" entries).
 - Shared touches: `ui/src/app/shell/{shellStore.ts, tabs.tsx, LeftRail.tsx}` (chat tab,
   visible in a session only), `ui/src/app/shell/commands.ts` (palette entry),
   `ui/src/kit/index.ts` (export line), `ui/src/features/arrangement/{ArrangementView.tsx,
