@@ -5,19 +5,21 @@
 //! 1. apply pending control frames through the `EngineHandle` (node creation, graph
 //!    compile, media chunks, sources), bounded per quantum: at most
 //!    [`CONTROL_BUDGET_BYTES`] bytes and [`MAX_FRAMES_PER_QUANTUM`] frames, and never more
-//!    than one heavy frame (a `Publish`, which decodes JSON and compiles a snapshot, or a
+//!    than one heavy frame (a `Publish`, which decodes a binary snapshot and compiles it, or a
 //!    `MediaBegin`, which allocates the media buffers),
 //! 2. `Engine::process` into the host's planar output buffers,
 //! 3. every [`REPORT_INTERVAL_BLOCKS`] blocks, poll the handle and write an
 //!    [`EngineReport`] to the report ring (dropped if the ring is full),
 //! 4. run the `GarbageCollector`.
 //!
-//! Only step 2 is the real-time render. Steps 1 and 4 allocate (JSON decode, snapshot
+//! Only step 2 is the real-time render. Steps 1 and 4 allocate (snapshot decode and
 //! compile, media buffers, dropping retired snapshots) but run on the same thread because
 //! an AudioWorkletGlobalScope has no other thread; the budgets bound their cost per block.
-//! This is the web-host trade-off accepted in ARCHITECTURE.md ("single-threaded"). Known
-//! limitation: decoding and compiling the JSON snapshot of a big project in one quantum
-//! can still cause a dropout.
+//! This is the web-host trade-off accepted in ARCHITECTURE.md ("single-threaded").
+//! Snapshots use the binary `ether_core::codec::BinaryCodec` (one allocation per `Vec`,
+//! no parsing): for a 64-track / 500-clip project the whole publish quantum costs ~0.8 ms
+//! in V8 against a 2.67 ms quantum at 48 kHz (the former JSON decode alone took ~4.5 ms);
+//! see [`crate::perf`].
 //!
 //! The frame cap also keeps core's queues from overflowing: every quantum drains them
 //! (control 1024, params 4096 entries), and at most [`MAX_FRAMES_PER_QUANTUM`] entries are
