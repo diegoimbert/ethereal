@@ -74,6 +74,14 @@ html[data-drag-cursor] * {
   cursor: var(--eth-drag-cursor) !important;
 }
 
+/* Lucide icons: sized by the surrounding font size, thin strokes (they default to 24px). */
+.lucide {
+  width: var(--eth-size-icon-inline);
+  height: var(--eth-size-icon-inline);
+  flex: none;
+  stroke-width: 1.75;
+}
+
 :focus-visible {
   outline: var(--eth-focus-ring-width) solid var(--eth-color-focus);
   outline-offset: var(--eth-focus-ring-offset);
