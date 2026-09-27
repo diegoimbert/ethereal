@@ -533,14 +533,14 @@ fn random_edit(s: &mut Site, action: u8, r1: u64, r2: u64) {
     let cmd = match action % 16 {
         0 | 1 => Command::Track(TrackCommand::Create {
             id: s.id(),
-            kind: if r1 % 4 == 0 {
+            kind: if r1.is_multiple_of(4) {
                 TrackKind::Group
             } else {
                 TrackKind::Midi
             },
             name: None,
             color: None,
-            parent: if r2 % 3 == 0 { pick(&groups, r1) } else { None },
+            parent: if r2.is_multiple_of(3) { pick(&groups, r1) } else { None },
             before: None,
         }),
         2 => match pick(&tracks, r1) {
@@ -607,7 +607,7 @@ fn random_edit(s: &mut Site, action: u8, r1: u64, r2: u64) {
         10 => match (pick(&tracks, r1), pick(&groups, r2)) {
             (Some(id), parent) => Command::Track(TrackCommand::Move {
                 id,
-                parent: if r2 % 2 == 0 { parent } else { None },
+                parent: if r2.is_multiple_of(2) { parent } else { None },
                 before: None,
             }),
             _ => return,
