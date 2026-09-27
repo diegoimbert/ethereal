@@ -129,6 +129,18 @@ paths = [
   "crates/ether-controller/src/compile.rs",
   # shared touch (one-line delegation only, WAVE3.md)
   "crates/ether-controller/src/doc/misc.rs",
+  # granted by manager (BCR, base-9)
+  "crates/ether-core/Cargo.toml",
+  # granted by manager (BCR, base-9)
+  "crates/ether-native/Cargo.toml",
+  # granted by manager (BCR, base-9)
+  "crates/ether-native/src/host.rs",
+  # granted by manager (BCR, base-9)
+  "ui/src/features/arrangement/ClipView.tsx",
+  # granted by manager (BCR, base-9)
+  "apps/web/e2e/warp.spec.ts",
+  # granted by manager (BCR, base-9)
+  "crates/ether-native/tests/e2e_warp.rs",
 ]
 
 [nodes.recording]
@@ -145,4 +157,24 @@ paths = [
   "crates/ether-controller/src/handlers.rs",
   # shared touch (one-line delegation only, WAVE3.md)
   "crates/ether-controller/src/compile.rs",
+  # granted by manager (BCR, base-9)
+  "crates/ether-core/src/lib.rs",
+  # granted by manager (BCR, base-9)
+  "crates/ether-core/src/engine.rs",
+  # granted by manager (BCR, base-9)
+  "crates/ether-controller/src/lib.rs",
+  # granted by manager (BCR, base-9)
+  "crates/ether-native/src/rt.rs",
+  # granted by manager (BCR, base-9)
+  "crates/ether-native/src/bridge.rs",
+  # granted by manager (BCR, base-9)
+  "crates/ether-native/src/host.rs",
+  # granted by manager (BCR, base-9)
+  "crates/ether-protocol/src/recording.rs",
+  # granted by manager (BCR, base-9)
+  "crates/ether-native/tests/recording_e2e.rs",
+  # granted by manager (BCR, base-9)
+  "apps/web/e2e/recording.spec.ts",
+  # granted by manager (base-10)
+  "crates/ether-core/tests/recording_*.rs",
 ]
