@@ -1,0 +1,250 @@
+/* Tempo editor, ruler tempo markers and metronome settings. Tokens only (docs/DESIGN-SYSTEM.md). */
+
+/* ─── Detail tab ─────────────────────────────────────────────────────────────── */
+
+.eth-tempo {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: var(--eth-color-bg);
+  color: var(--eth-color-text);
+  font-size: var(--eth-fs-sm);
+}
+
+.eth-tempo--empty {
+  align-items: center;
+  justify-content: center;
+  color: var(--eth-color-text-dim);
+}
+
+.eth-tempo__body {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.eth-tempo__row {
+  display: flex;
+  flex: none;
+  border-bottom: var(--eth-border-width) solid var(--eth-color-border);
+}
+
+.eth-tempo__row--grow {
+  flex: 1;
+  min-height: calc(var(--eth-size-row-height-lg) * 3);
+}
+
+.eth-tempo__corner,
+.eth-tempo__header {
+  display: flex;
+  flex: none;
+  box-sizing: border-box;
+  gap: var(--eth-space-xs);
+  padding: var(--eth-space-xs);
+  overflow: hidden;
+  background: var(--eth-color-bg-panel);
+  border-right: var(--eth-border-width) solid var(--eth-color-border);
+}
+
+.eth-tempo__corner {
+  align-items: center;
+}
+
+.eth-tempo__header {
+  flex-direction: column;
+}
+
+.eth-tempo__label {
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+  letter-spacing: var(--eth-tracking-caps);
+  text-transform: uppercase;
+}
+
+.eth-tempo__fields {
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-xs);
+}
+
+.eth-tempo__fields--column {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.eth-tempo__slash {
+  color: var(--eth-color-text-dim);
+}
+
+.eth-tempo__main {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+
+.eth-tempo__playhead {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/* Time-signature lane */
+
+.eth-tempo-sigs {
+  position: relative;
+  height: 100%;
+  min-height: var(--eth-size-row-height-lg);
+  overflow: hidden;
+  background: var(--eth-color-bg-inset);
+  outline: none;
+  touch-action: none;
+}
+
+.eth-tempo-sigs:focus-visible,
+.eth-tempo-lane:focus-visible {
+  box-shadow: inset 0 0 0 var(--eth-border-width) var(--eth-color-accent-dim);
+}
+
+.eth-tempo-sigs__marker {
+  position: absolute;
+  top: var(--eth-space-xs);
+  left: 0;
+  padding: 0 var(--eth-space-xs);
+  border-left: var(--eth-border-width-strong) solid var(--eth-color-accent);
+  background: var(--eth-color-bg-raised);
+  color: var(--eth-color-text);
+  font-family: var(--eth-font-mono);
+  font-size: var(--eth-fs-xs);
+  line-height: var(--eth-size-row-height-sm);
+  white-space: nowrap;
+  cursor: grab;
+  user-select: none;
+}
+
+.eth-tempo-sigs__marker--selected {
+  background: var(--eth-color-selection);
+  color: var(--eth-color-text-inverse);
+}
+
+/* Tempo lane */
+
+.eth-tempo-lane {
+  position: relative;
+  height: 100%;
+  background: var(--eth-color-bg-inset);
+  outline: none;
+  touch-action: none;
+}
+
+.eth-tempo-lane__svg {
+  display: block;
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  cursor: crosshair;
+}
+
+.eth-tempo-lane__line {
+  fill: none;
+  stroke: var(--eth-color-accent);
+  stroke-width: 1.5;
+  pointer-events: none;
+}
+
+.eth-tempo-lane__point {
+  fill: var(--eth-color-bg-inset);
+  stroke: var(--eth-color-accent);
+  stroke-width: 1.5;
+  cursor: grab;
+}
+
+.eth-tempo-lane__point--selected {
+  fill: var(--eth-color-selection);
+  stroke: var(--eth-color-text);
+}
+
+.eth-tempo-lane__readout {
+  fill: var(--eth-color-text);
+  font-family: var(--eth-font-mono);
+  font-size: var(--eth-fs-xs);
+  pointer-events: none;
+}
+
+/* ─── Ruler markers (rendered inside timeline/Ruler.tsx) ────────────────────── */
+
+.eth-ruler-tempo {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.eth-ruler-tempo__stop {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  display: flex;
+}
+
+.eth-ruler-tempo__marker {
+  padding: 0 var(--eth-space-xs);
+  border-left: var(--eth-border-width) solid var(--eth-color-text-dim);
+  color: var(--eth-color-text-dim);
+  font-family: var(--eth-font-mono);
+  font-size: var(--eth-fs-xs);
+  line-height: 1;
+  white-space: nowrap;
+  cursor: grab;
+  pointer-events: auto;
+  user-select: none;
+}
+
+.eth-ruler-tempo__marker:hover {
+  color: var(--eth-color-text);
+}
+
+.eth-ruler-tempo__marker--signature {
+  border-left-color: var(--eth-color-accent);
+}
+
+.eth-ruler-tempo__marker--tempo + .eth-ruler-tempo__marker--tempo,
+.eth-ruler-tempo__marker--signature + .eth-ruler-tempo__marker--tempo {
+  border-left: none;
+}
+
+/* ─── Metronome settings popover ────────────────────────────────────────────── */
+
+.eth-metronome {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-sm);
+  padding: var(--eth-space-sm);
+  min-width: var(--eth-size-popover-min-width);
+  color: var(--eth-color-text);
+  font-size: var(--eth-fs-sm);
+}
+
+.eth-metronome__field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--eth-space-sm);
+}
+
+.eth-metronome__label {
+  color: var(--eth-color-text-dim);
+}
+
+.eth-metronome__hint {
+  margin: 0;
+  max-width: var(--eth-size-tooltip-max-width);
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+}

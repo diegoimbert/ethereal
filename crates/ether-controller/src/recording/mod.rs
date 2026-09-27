@@ -295,6 +295,13 @@ where
             f64::from(p.settings.count_in_bars.min(MAX_COUNT_IN_BARS)) * bar
         };
 
+        // Count-in click (`tempo-metronome`): published with the arm state below, so the
+        // engine clicks from the first pre-roll sample even with the metronome off.
+        let count_in_end = (pre_roll > 0.0).then_some(start);
+        if self.engine.count_in_end != count_in_end {
+            self.engine.count_in_end = count_in_end;
+            self.engine.graph_dirty = true;
+        }
         // The engine must see the current arm state before it starts capturing.
         self.publish_if_due(now, true, out);
         let host = match self.bridge.start_recording(&session) {
@@ -323,6 +330,9 @@ where
             Ok(())
         })();
         if let Err(e) = engine {
+            if self.engine.count_in_end.take().is_some() {
+                self.engine.graph_dirty = true;
+            }
             if host {
                 let _ = self.bridge.stop_recording();
             }
@@ -353,6 +363,9 @@ where
 
     /// Disable recording and commit what was captured (no-op when not recording).
     pub(crate) fn finish_recording(&mut self, now: u64, out: &mut dyn MessageSink) {
+        if self.engine.count_in_end.take().is_some() {
+            self.engine.graph_dirty = true;
+        }
         if self.transport.recording || self.recording.session.is_some() {
             let _ = self
                 .bridge

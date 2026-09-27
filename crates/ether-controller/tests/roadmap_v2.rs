@@ -8,7 +8,6 @@ use common::*;
 use ether_core::protocol::collab::CollabCommand;
 use ether_core::protocol::devices::{DeviceCommand, DeviceSpec};
 use ether_core::protocol::model::*;
-use ether_core::protocol::tempo::TempoCommand;
 use ether_core::protocol::tracks::TrackCommand;
 use ether_core::protocol::{Command, ErrorCode};
 
@@ -23,15 +22,6 @@ fn assert_unsupported(h: &mut Harness, c: Command) {
 
 // One test per feature node, so each node deletes only its own function when it lands
 // (parallel removals from one shared list kept conflicting).
-
-#[test]
-fn tempo_unsupported_until_implemented() {
-    let mut h = Harness::with_project();
-    assert_unsupported(
-        &mut h,
-        Command::Tempo(TempoCommand::RemoveTempoPoints { ids: vec![] }),
-    );
-}
 
 #[test]
 fn collab_unsupported_until_implemented() {
