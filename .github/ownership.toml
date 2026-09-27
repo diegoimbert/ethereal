@@ -1064,6 +1064,10 @@ paths = [
 
 [nodes.time-edits]
 paths = [
+  # BCR (base-74): one runtime field for the time clipboard (+ Default in with_config)
+  "crates/ether-controller/src/lib.rs",
+  # BCR (base-74): route TimeEdit through MockTimeEdits in the mock (import, field, command case; mirrors MockFreeze)
+  "ui/src/transport/mock/MockTransport.ts",
   "crates/ether-controller/src/time_edit/**",
   "ui/src/features/time-edits/**",
   "ui/src/transport/mock/roadmap/timeEdits.*",
