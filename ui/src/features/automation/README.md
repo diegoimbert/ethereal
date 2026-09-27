@@ -68,7 +68,7 @@ Gestures and modifiers (for UX review). `⌘` is Ctrl off macOS.
 | Bar | `+ Parameter…` | show another parameter's lane (animates in) |
 | Lane header | parameter menu / `×` / `⏻` / curve menu / `⌫` | switch parameter / hide lane / enable / curve of selected points / delete lane |
 | Lane header, bottom edge | drag | resize the lane in 8 px steps (`⌥`: free); double-click: reset. UI state, like track heights |
-| Value scale (right of the lane header) | wheel / drag | scroll the visible value window |
+| Value scale (right of the lane header) | wheel (when zoomed in) / drag | scroll the visible value window (at full range the wheel scrolls the arrangement) |
 | Value scale | `⌘`-wheel | zoom the value window around the pointer |
 | Value scale | double-click | reset the window |
 | Lane | double-click empty space | add a point: time on the grid (`⌥`: free), value on the param's steps (`⌘`: whole increments) |
@@ -99,8 +99,9 @@ Gestures and modifiers (for UX review). `⌘` is Ctrl off macOS.
   open on a window where every step is at least 8 px tall, around their default (a default
   64 px Transpose lane shows ±3 st; resize the lane or scroll/zoom the value scale for
   more), and dragging moves them by whole steps at 8 px per step, whatever the lane height.
-  `ParamInfo` has no step field yet (BCR sent): steps come from `labels`, the `Toggle`
-  unit, and linear `Semitones`.
+  Steps come from `ParamInfo.step` (contracts-3 #106) when present; enums (`labels`) and
+  `Toggle` are stepped either way; only descriptors without the field (pre-#106)
+  also treat linear `Semitones` as whole semitones.
 - **Every drag is one `LaneGesture`**: all its `EditPoints` share one gesture id, closed
   with `Edit::EndGesture`, so it is one undo step. Moves are coalesced (latest wins while a
   command is in flight).

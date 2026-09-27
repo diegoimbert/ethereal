@@ -203,6 +203,43 @@ describe("copy / cut / paste / duplicate", () => {
     expect(lanePoints(lane.id)).toHaveLength(3);
   });
 
+  it("Edit-menu clipboard events reach the focused lane only (one shared listener)", async () => {
+    const track = await renderLanes();
+    const lane = laneOf(track, "TrackVolume")!;
+    const [a] = lanePoints(lane.id);
+    act(() => itemSelection.getState().select("automationPoint", [a!.id], "replace"));
+    // Not focused: left alone (the arrangement's clip handlers get it).
+    const outside = new Event("copy", { bubbles: true, cancelable: true });
+    window.dispatchEvent(outside);
+    expect(outside.defaultPrevented).toBe(false);
+    expect(pointClipboard()).toBeNull();
+    // Focused: copied here, and stopped.
+    act(() => lanes()[0]!.focus());
+    const inside = new Event("copy", { bubbles: true, cancelable: true });
+    window.dispatchEvent(inside);
+    expect(inside.defaultPrevented).toBe(true);
+    expect(pointClipboard()?.points).toHaveLength(1);
+  });
+
+  it("the value scale takes the wheel only when zoomed in or with ⌘/Ctrl", async () => {
+    await renderLanes();
+    const scale = screen.getByRole("scrollbar", { name: /Volume value range/ });
+    const plain = new WheelEvent("wheel", { deltaY: 40, bubbles: true, cancelable: true });
+    scale.dispatchEvent(plain);
+    expect(plain.defaultPrevented).toBe(false);
+    const zoom = new WheelEvent("wheel", { deltaY: -40, ctrlKey: true, bubbles: true, cancelable: true });
+    act(() => {
+      scale.dispatchEvent(zoom);
+    });
+    expect(zoom.defaultPrevented).toBe(true);
+    // Zoomed in now: a plain wheel scrolls the window.
+    const scroll = new WheelEvent("wheel", { deltaY: 40, bubbles: true, cancelable: true });
+    act(() => {
+      scale.dispatchEvent(scroll);
+    });
+    expect(scroll.defaultPrevented).toBe(true);
+  });
+
   it("offers the actions in the point menu", async () => {
     const track = await renderLanes();
     const lane = laneOf(track, "TrackVolume")!;

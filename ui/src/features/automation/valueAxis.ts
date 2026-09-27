@@ -14,8 +14,10 @@
  * - Dragging a stepped param moves it by whole steps at `DRAG_PX_PER_STEP`, whatever the
  *   lane height or window.
  *
- * `ParamInfo` has no step metadata yet (BCR sent): steps are inferred from `labels`, the
- * `Toggle` unit, and `Semitones` with a linear scale (whole semitones).
+ * Steps come from `ParamInfo.step` (contracts-3, #106) when the descriptor has the field;
+ * enums (`labels`) and the `Toggle` unit are stepped either way. Descriptors from before
+ * that field (no `step` key at all) also treat linear `Semitones` as whole semitones; with
+ * the field present, `step: null` means continuous and nothing is inferred.
  */
 
 import type { ParamInfo } from "@/generated";
@@ -45,7 +47,8 @@ export function paramStep(info: ParamInfo): number | null {
   if (typeof withStep.step === "number" && withStep.step > 0) return withStep.step;
   if (info.labels && info.labels.length > 1) return span / (info.labels.length - 1);
   if (info.unit === "Toggle") return span;
-  if (info.unit === "Semitones" && info.scale.type === "Linear") return 1;
+  // Inference only for descriptors without the field (pre-#106, e.g. old plugins/mocks).
+  if (!("step" in info) && info.unit === "Semitones" && info.scale.type === "Linear") return 1;
   return null;
 }
 

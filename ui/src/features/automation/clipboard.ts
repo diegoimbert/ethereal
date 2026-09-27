@@ -136,7 +136,13 @@ export function pasteCommand(
   return { command: cmd("Edit", { type: "Batch", label, commands }), ids: points.map((p) => p.id), laneId };
 }
 
-/** Where cmd-D puts a copy of the selection: right after it (one grid step for a lone point). */
+/**
+ * Where cmd-D puts a copy of the selection: right after it (one grid step for a lone point).
+ * The copy's first point then shares its time with the selection's last one. That is a
+ * deterministic step, not an ambiguity: points at the same time are ordered by id, in the
+ * engine (`Project::points_of`) and the UI (`pointsOfLane`) alike, and new ids (ULIDs) sort
+ * after existing ones, so the original holds up to that time and the copy continues it.
+ */
 export function duplicateAt(points: ReadonlyArray<AutomationPoint>, gridStep: Beats): Beats {
   const times = points.map((p) => p.time);
   const t0 = Math.min(...times);

@@ -82,6 +82,35 @@ export interface AutomationLaneViewProps {
   label?: string;
 }
 
+interface ClipboardLane {
+  root: { readonly current: HTMLElement | null };
+  handle(type: string): void;
+}
+
+/** Mounted lanes; one capture listener per event type routes to the focused one. */
+const clipboardLanes = new Set<ClipboardLane>();
+let clipboardInstalled = false;
+
+function registerClipboardLane(lane: ClipboardLane): () => void {
+  clipboardLanes.add(lane);
+  if (!clipboardInstalled && typeof window !== "undefined") {
+    clipboardInstalled = true;
+    const route = (e: Event) => {
+      for (const l of clipboardLanes) {
+        if (!l.root.current?.contains(document.activeElement)) continue;
+        e.preventDefault();
+        e.stopPropagation();
+        l.handle(e.type);
+        return;
+      }
+    };
+    for (const type of ["copy", "cut", "paste"]) window.addEventListener(type, route, true);
+  }
+  return () => {
+    clipboardLanes.delete(lane);
+  };
+}
+
 /** Pixels before a press on a point turns into a drag. */
 const DRAG_THRESHOLD = 2;
 const FALLBACK_WIDTH = 4000;
@@ -184,26 +213,20 @@ export function AutomationLaneView({
   };
 
   // Clipboard events (the desktop app's Edit menu sends these instead of the keys) while a
-  // lane has focus: handled here, before the arrangement's document-level clip handlers.
-  useEffect(() => {
-    const onClipboard = (e: ClipboardEvent) => {
-      const root = rootRef.current;
-      if (!root || !root.contains(document.activeElement)) return;
-      e.preventDefault();
-      e.stopPropagation();
-      if (e.type === "copy") copy();
-      else if (e.type === "cut") cut();
+  // lane has focus: routed here by one shared window listener (see `clipboardLanes`),
+  // before the arrangement's document-level clip handlers.
+  const onClipboard = useRef<(type: string) => void>(() => {});
+  useLayoutEffect(() => {
+    onClipboard.current = (type) => {
+      if (type === "copy") copy();
+      else if (type === "cut") cut();
       else void pasteAt(playheadBeats());
     };
-    window.addEventListener("copy", onClipboard, true);
-    window.addEventListener("cut", onClipboard, true);
-    window.addEventListener("paste", onClipboard, true);
-    return () => {
-      window.removeEventListener("copy", onClipboard, true);
-      window.removeEventListener("cut", onClipboard, true);
-      window.removeEventListener("paste", onClipboard, true);
-    };
   });
+  useEffect(() => {
+    const entry: ClipboardLane = { root: rootRef, handle: (type) => onClipboard.current(type) };
+    return registerClipboardLane(entry);
+  }, []);
 
   // ---- Pointer --------------------------------------------------------------------------
 

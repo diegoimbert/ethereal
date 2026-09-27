@@ -1,6 +1,7 @@
 /**
  * Lane header widgets: the value scale (step labels, and the visible value window: wheel to
- * scroll, cmd/ctrl+wheel to zoom, drag to scroll, double-click to reset) and the bottom-edge
+ * scroll it when zoomed in (else the wheel scrolls the arrangement), cmd/ctrl+wheel to
+ * zoom, drag to scroll, double-click to reset) and the bottom-edge
  * resize grip (the track header's interaction: drag in `TRACK_HEIGHT_STEP` increments,
  * alt = free, double-click = reset).
  */
@@ -47,12 +48,15 @@ export function ValueScale({ info, range, height, name, onRange }: ValueScalePro
     const el = ref.current;
     if (!el) return;
     const onWheel = (e: WheelEvent) => {
+      const { info: inf, range: r, height: h, onRange: set } = live.current;
+      const zoom = e.ctrlKey || e.metaKey;
+      // At full range a plain wheel scrolls the arrangement; only zooming is captured.
+      if (!zoom && isFullRange(r)) return;
       e.preventDefault();
       e.stopPropagation();
-      const { info: inf, range: r, height: h, onRange: set } = live.current;
       const usable = Math.max(1, h - 2 * LANE_PAD);
       const span = r.hi - r.lo;
-      if (e.ctrlKey || e.metaKey) {
+      if (zoom) {
         const box = el.getBoundingClientRect();
         const at = r.hi - ((e.clientY - box.top - LANE_PAD) / usable) * span;
         set(zoomRange(r, Math.exp(e.deltaY * WHEEL_ZOOM), at, inf));
