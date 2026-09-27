@@ -258,7 +258,7 @@ pub struct Engine {
     /// Objects that could not be handed to the GC (ring full) and were leaked instead of
     /// being freed on the audio thread.
     leaked: u64,
-    warp: crate::warp::WarpRt,
+    pub(crate) warp: crate::warp::WarpRt,
 }
 
 impl Engine {

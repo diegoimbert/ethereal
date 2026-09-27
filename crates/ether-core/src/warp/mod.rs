@@ -377,7 +377,8 @@ impl WarpRt {
             // Source frame fed once output up to sample `o` has been produced.
             let feed_at = |o: f64| (src_at(o + out_lat) + in_lat).floor();
 
-            if !((c_at(o_a as f64) - voice.next_c).abs() < CONTINUITY_EPS) {
+            let continuous = (c_at(o_a as f64) - voice.next_c).abs() < CONTINUITY_EPS;
+            if !continuous {
                 // Jump: prime the stretcher with the audio leading up to the feed position.
                 let span = (o_b - o_a) as f64;
                 let rate = ((src_at(o_b as f64) - src_at(o_a as f64)) / span).abs();
