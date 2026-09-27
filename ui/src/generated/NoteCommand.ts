@@ -6,4 +6,4 @@ import type { NoteEdit } from "./NoteEdit";
 import type { NoteId } from "./NoteId";
 import type { NoteSpec } from "./NoteSpec";
 
-export type NoteCommand = { "type": "Add", clip: ClipId, notes: Array<NoteSpec>, } | { "type": "Remove", ids: Array<NoteId>, } | { "type": "Edit", edits: Array<NoteEdit>, } | { "type": "Quantize", clip: ClipId, notes: Array<NoteId> | null, grid: Beats, strength: number, ends: boolean, } | { "type": "Duplicate", copies: Array<NoteCopy>, offset: Beats, transpose: number, };
+export type NoteCommand = { "type": "Add", clip: ClipId, notes: Array<NoteSpec>, } | { "type": "Remove", ids: Array<NoteId>, } | { "type": "Edit", edits: Array<NoteEdit>, } | { "type": "Quantize", clip: ClipId, notes: Array<NoteId> | null, grid: Beats, strength: number, ends: boolean, swing: number, } | { "type": "Duplicate", copies: Array<NoteCopy>, offset: Beats, transpose: number, };

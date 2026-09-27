@@ -7,8 +7,14 @@ import type { ClipChange } from "./ClipChange";
 import type { ClipId } from "./ClipId";
 import type { DeviceChange } from "./DeviceChange";
 import type { DeviceId } from "./DeviceId";
+import type { DrumPadChange } from "./DrumPadChange";
+import type { DrumPadId } from "./DrumPadId";
+import type { MarkerChange } from "./MarkerChange";
+import type { MarkerId } from "./MarkerId";
 import type { MediaChange } from "./MediaChange";
 import type { MediaId } from "./MediaId";
+import type { MidiMappingChange } from "./MidiMappingChange";
+import type { MidiMappingId } from "./MidiMappingId";
 import type { NoteChange } from "./NoteChange";
 import type { NoteId } from "./NoteId";
 import type { SendChange } from "./SendChange";
@@ -25,4 +31,4 @@ import type { WarpMarkerId } from "./WarpMarkerId";
 /**
  * A single-field change of one entity.
  */
-export type EntityUpdate = { "type": "Track", id: TrackId, change: TrackChange, } | { "type": "Clip", id: ClipId, change: ClipChange, } | { "type": "Note", id: NoteId, change: NoteChange, } | { "type": "Device", id: DeviceId, change: DeviceChange, } | { "type": "Send", id: SendId, change: SendChange, } | { "type": "AutomationLane", id: AutomationLaneId, change: AutomationLaneChange, } | { "type": "AutomationPoint", id: AutomationPointId, change: AutomationPointChange, } | { "type": "TempoPoint", id: TempoPointId, change: TempoPointChange, } | { "type": "TimeSignature", id: TimeSignatureId, change: TimeSignatureChange, } | { "type": "WarpMarker", id: WarpMarkerId, change: WarpMarkerChange, } | { "type": "Media", id: MediaId, change: MediaChange, };
+export type EntityUpdate = { "type": "Track", id: TrackId, change: TrackChange, } | { "type": "Clip", id: ClipId, change: ClipChange, } | { "type": "Note", id: NoteId, change: NoteChange, } | { "type": "Device", id: DeviceId, change: DeviceChange, } | { "type": "Send", id: SendId, change: SendChange, } | { "type": "AutomationLane", id: AutomationLaneId, change: AutomationLaneChange, } | { "type": "AutomationPoint", id: AutomationPointId, change: AutomationPointChange, } | { "type": "TempoPoint", id: TempoPointId, change: TempoPointChange, } | { "type": "TimeSignature", id: TimeSignatureId, change: TimeSignatureChange, } | { "type": "WarpMarker", id: WarpMarkerId, change: WarpMarkerChange, } | { "type": "Media", id: MediaId, change: MediaChange, } | { "type": "Marker", id: MarkerId, change: MarkerChange, } | { "type": "MidiMapping", id: MidiMappingId, change: MidiMappingChange, } | { "type": "DrumPad", id: DrumPadId, change: DrumPadChange, };

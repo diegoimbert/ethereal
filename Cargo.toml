@@ -17,6 +17,9 @@ members = [
     "crates/ether-sandbox",
     "crates/ether-native",
     "crates/ether-wasm",
+    # Roadmap v2 (contracts-2).
+    "crates/ether-server",
+    "crates/ether-collab",
     "apps/desktop/src-tauri",
 ]
 
@@ -48,6 +51,8 @@ ether-vst3 = { path = "crates/ether-vst3" }
 ether-au = { path = "crates/ether-au" }
 ether-sandbox = { path = "crates/ether-sandbox" }
 ether-native = { path = "crates/ether-native" }
+ether-server = { path = "crates/ether-server" }
+ether-collab = { path = "crates/ether-collab" }
 
 # --- serialization / ids / types ---
 serde = { version = "1.0.219", features = ["derive", "rc"] }
@@ -127,6 +132,13 @@ objc2-foundation = { version = "0.3", default-features = false, features = ["std
 tauri-build = { version = "2", features = [] }
 tauri-plugin-dialog = "2"
 tauri-plugin-fs = "2"
+
+# --- roadmap v2 (contracts-2; versions are checked when a crate first uses them) ---
+# remote-engine: WebSocket server (sync, no async runtime).
+tungstenite = "0.27"
+# export: WAV/FLAC writing.
+hound = "3.5"
+flacenc = "0.4"
 
 # --- tooling / tests ---
 globset = "0.4"

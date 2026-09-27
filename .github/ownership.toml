@@ -15,7 +15,7 @@ allow = [
   "ui/src/generated/**",
 ]
 # May touch anything.
-unrestricted = ["foundation", "alpha", "v0.1", "formats-base"]
+unrestricted = ["foundation", "alpha", "v0.1", "formats-base", "contracts-2"]
 unrestricted_prefixes = ["base-"]
 
 # --- Wave 1 ---------------------------------------------------------------------------
@@ -251,4 +251,190 @@ paths = [
   "crates/ether-native/src/host.rs",
   # packaging: nothing new to ship (formats are linked into the scanner/helper/app), listed for codesign tweaks
   "apps/desktop/src-tauri/Cargo.toml",
+]
+
+# --- Roadmap features (contracts-2) -----------------------------------------------------
+# contracts-2 pre-created one module per feature and layer, registered with one line in its
+# parent (see docs/ROADMAP.md for hook points). Each node owns its modules, UI feature
+# folder and test files. "shared touch" = minimal, additive edits in a shared file (a
+# one-line call into the node's module, a match arm, a trait impl); coordinate hot files
+# (engine.rs, graph.rs, mixer.rs) through the manager.
+
+[nodes.export]
+paths = [
+  "ui/src/features/export/**",
+  "crates/ether-controller/src/export/**",
+  "crates/ether-core/src/offline.rs",
+  "crates/ether-controller/tests/export*.rs",
+  "crates/ether-core/tests/offline*.rs",
+  "apps/web/e2e/export.spec.ts",
+  # shared touch: hound/flacenc deps (pre-declared in the workspace)
+  "crates/ether-controller/Cargo.toml",
+  # shared touch: EngineBridge::create_offline_plugin impl (native plugins)
+  "crates/ether-native/src/bridge.rs",
+  # shared touch: writing exports/<file> through the store
+  "crates/ether-controller/src/store.rs",
+  "crates/ether-native/src/store.rs",
+  "crates/ether-wasm/src/store.rs",
+]
+
+[nodes.devices-2]
+paths = [
+  "crates/ether-devices/src/eq.rs",
+  "crates/ether-devices/src/reverb.rs",
+  "crates/ether-devices/src/limiter.rs",
+  "crates/ether-devices/src/utility.rs",
+  "crates/ether-devices/src/dsp/**",
+  "crates/ether-devices/tests/devices2*.rs",
+  # shared touch: helpers (Smoother/param tables) and the placeholder removal
+  "crates/ether-devices/src/util.rs",
+  "crates/ether-devices/src/placeholder.rs",
+  "crates/ether-devices/src/lib.rs",
+  # shared touch: mock descriptors mirroring the real param lists
+  "ui/src/transport/mock/builtinDevices.ts",
+]
+
+[nodes.tempo-metronome]
+paths = [
+  "ui/src/features/tempo/**",
+  "crates/ether-controller/src/tempo/**",
+  "crates/ether-core/src/metronome.rs",
+  "crates/ether-controller/tests/tempo*.rs",
+  "crates/ether-core/tests/metronome*.rs",
+  # shared touch: one Metronome::render call per sub-block
+  "crates/ether-core/src/engine.rs",
+  # shared touch: MetronomeDesc::count_in_end from the record session
+  "crates/ether-controller/src/engine.rs",
+  "crates/ether-controller/src/recording/mod.rs",
+  # shared touch: tempo-map editing on the ruler
+  "ui/src/timeline/Ruler.tsx",
+]
+
+[nodes.clip-editing]
+paths = [
+  "ui/src/features/clip-editing/**",
+  "crates/ether-controller/src/clip_editing/**",
+  "crates/ether-core/src/fades.rs",
+  "crates/ether-controller/tests/clip_editing*.rs",
+  "crates/ether-core/tests/fades*.rs",
+  # shared touch: fade law + reverse playback in render_audio
+  "crates/ether-core/src/sched.rs",
+  # shared touch: overlap trimming keeps crossfades
+  "crates/ether-controller/src/doc/clips.rs",
+  # shared touch: fade handles / reversed badge on clips
+  "ui/src/features/arrangement/ClipView.tsx",
+  "ui/src/features/arrangement/clipDraw.ts",
+]
+
+[nodes.remote-engine]
+paths = [
+  "crates/ether-server/**",
+  "ui/src/transport/ws/**",
+  "ui/src/features/remote/**",
+  "crates/ether-controller/src/upload/**",
+  "crates/ether-controller/tests/upload*.rs",
+  "apps/web/e2e/remote.spec.ts",
+  # shared touch: runtime transport switching (connect dialog)
+  "ui/src/transport/createDefaultTransport.ts",
+  "ui/src/transport/TransportProvider.tsx",
+  # shared touch: upload staging in the stores
+  "crates/ether-controller/src/store.rs",
+  "crates/ether-native/src/store.rs",
+  "crates/ether-wasm/src/store.rs",
+  # shared touch: `just dev-server` recipe, dev port offset, README section
+  "justfile",
+  "scripts/dev-env.mjs",
+  "README.md",
+]
+
+[nodes.collab]
+paths = [
+  "crates/ether-collab/**",
+  "crates/ether-controller/src/collab/**",
+  "ui/src/features/collab/**",
+  "crates/ether-controller/tests/collab*.rs",
+  # shared touch: stamping committed transactions (edit_with) and the tick hook
+  "crates/ether-controller/src/handlers.rs",
+]
+
+[nodes.multicore]
+paths = [
+  "crates/ether-core/src/parallel.rs",
+  "crates/ether-native/src/workers.rs",
+  "crates/ether-core/tests/parallel*.rs",
+  # shared touch: level partition in the compiled snapshot, per-level job dispatch
+  "crates/ether-core/src/graph.rs",
+  "crates/ether-core/src/engine.rs",
+  "crates/ether-core/src/mixer.rs",
+  # shared touch: worker pool wiring (EngineConfig::worker_threads)
+  "crates/ether-native/src/rt.rs",
+  "crates/ether-native/src/host.rs",
+  "crates/ether-native/src/lib.rs",
+]
+
+[nodes.web-perf]
+paths = [
+  "crates/ether-core/src/codec.rs",
+  "crates/ether-wasm/src/**",
+  "crates/ether-wasm/tests/**",
+  "apps/web/src/engine/**",
+  "crates/ether-core/tests/codec*.rs",
+]
+
+[nodes.midi-learn]
+paths = [
+  "ui/src/features/midi-learn/**",
+  "crates/ether-controller/src/midi_learn/**",
+  "crates/ether-controller/tests/midi_learn*.rs",
+  # shared touch: forward port + message from the recording MIDI input path
+  "crates/ether-native/src/recording/midi.rs",
+  "crates/ether-native/src/recording/mod.rs",
+  # shared touch: EngineBridge::poll_midi_input impl
+  "crates/ether-native/src/bridge.rs",
+]
+
+[nodes.sidechain]
+paths = [
+  "ui/src/features/sidechain/**",
+  "crates/ether-controller/src/sidechain/**",
+  "crates/ether-controller/tests/sidechain*.rs",
+  "crates/ether-core/tests/sidechain*.rs",
+  # shared touch: sidechain edges (order + PDC) and the process_sidechain call
+  "crates/ether-core/src/graph.rs",
+  "crates/ether-core/src/mixer.rs",
+  "crates/ether-core/src/engine.rs",
+  # shared touch: compressor (and limiter, with devices-2) sidechain input
+  "crates/ether-devices/src/compressor.rs",
+]
+
+[nodes.groove]
+paths = [
+  "ui/src/features/groove/**",
+  "crates/ether-controller/src/groove/**",
+  "crates/ether-controller/tests/groove*.rs",
+  # shared touch: Quantize swing
+  "crates/ether-controller/src/doc/notes.rs",
+  # shared touch: quantize-swing / humanize controls in the piano roll
+  "ui/src/features/piano-roll/noteEdits.ts",
+  "ui/src/features/piano-roll/PianoRoll.tsx",
+]
+
+[nodes.drum-rack]
+paths = [
+  "ui/src/features/drum-rack/**",
+  "crates/ether-controller/src/drum_rack/**",
+  "crates/ether-core/src/drum_rack/**",
+  "crates/ether-devices/src/drum_rack.rs",
+  "crates/ether-controller/tests/drum_rack*.rs",
+  "crates/ether-core/tests/drum_rack*.rs",
+  "crates/ether-devices/tests/drum_rack*.rs",
+  # shared touch: slice mode in the sampler
+  "crates/ether-devices/src/sampler.rs",
+  # shared touch: rack pad chains (compile, PDC, processing)
+  "crates/ether-core/src/graph.rs",
+  "crates/ether-core/src/mixer.rs",
+  "crates/ether-core/src/engine.rs",
+  # shared touch: pad-chain node creation / cascade on device delete
+  "crates/ether-controller/src/engine.rs",
+  "crates/ether-controller/src/doc/mod.rs",
 ]

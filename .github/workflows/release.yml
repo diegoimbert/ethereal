@@ -1,0 +1,352 @@
+# Release: build the desktop app (macOS arm64 + x86_64, Linux x86_64, Windows x86_64) and
+# the web bundle, then publish a GitHub Release tagged from VERSION. See docs/RELEASING.md.
+#
+# Runs ONLY on push to `main` (and manual dispatch). `dev` and PR branches never trigger it.
+# Publishing happens only for `main`; a manual dispatch on another branch builds and uploads
+# workflow artifacts but publishes nothing.
+name: Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: "Publish a GitHub Release (only honored on main)"
+        type: boolean
+        default: true
+      allow_partial:
+        description: "Publish even if some platforms failed (as a prerelease)"
+        type: boolean
+        default: false
+
+# One release at a time per ref; never cancel a run that may be publishing.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: "0"
+  ETHER_AUDIO: "null"
+  NODE_VERSION: "24"
+
+jobs:
+  prepare:
+    name: Version + notices
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+      prerelease: ${{ steps.version.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Version and tag
+        id: version
+        run: |
+          version="$(tr -d '[:space:]' < VERSION)"
+          if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error file=VERSION::VERSION must be X.Y.Z, got '$version'"
+            exit 1
+          fi
+          tag="v$version"
+          prerelease=false
+          if git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null; then
+            tag="v$version+${GITHUB_SHA::7}"
+            prerelease=true
+            echo "::notice::$tag: v$version already exists, publishing as a prerelease"
+          fi
+          {
+            echo "version=$version"
+            echo "tag=$tag"
+            echo "prerelease=$prerelease"
+          } >> "$GITHUB_OUTPUT"
+          echo "Release $tag (prerelease=$prerelease)" >> "$GITHUB_STEP_SUMMARY"
+      - name: Toolchain (from rust-toolchain.toml)
+        run: rustup show active-toolchain || rustup toolchain install
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: THIRD_PARTY_NOTICES.txt
+        run: node scripts/release/third-party-notices.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: notices
+          path: THIRD_PARTY_NOTICES.txt
+          if-no-files-found: error
+
+  desktop:
+    name: Desktop (${{ matrix.name }})
+    needs: prepare
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macos-arm64
+            label: macOS (Apple Silicon)
+            os: macos-latest
+            target: aarch64-apple-darwin
+            bundles: app,dmg
+          - name: macos-x64
+            label: macOS (Intel)
+            os: macos-latest
+            target: x86_64-apple-darwin
+            bundles: app,dmg
+          - name: linux-x64
+            label: Linux (x86_64)
+            # Oldest supported runner = widest glibc compatibility for the AppImage/.deb.
+            os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            bundles: appimage,deb
+          - name: windows-x64
+            label: Windows (x86_64)
+            os: windows-latest
+            target: x86_64-pc-windows-msvc
+            bundles: msi,nsis
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Linux system deps (Tauri, ALSA, AppImage)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev \
+            librsvg2-dev libasound2-dev libssl-dev libxdo-dev pkg-config patchelf file
+      - name: Toolchain (from rust-toolchain.toml) + target
+        shell: bash
+        run: |
+          rustup show active-toolchain || rustup toolchain install
+          rustup target add ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: release-${{ matrix.target }}
+          cache-on-failure: true
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: actions/download-artifact@v4
+        with:
+          name: notices
+
+      # --- Signing: only when the secrets exist; otherwise build unsigned. ---------------
+      - name: macOS signing environment
+        if: runner.os == 'macOS'
+        shell: bash
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          # Tauri treats a set-but-empty APPLE_* variable as configured, so export only the
+          # ones that exist (a missing secret expands to an empty string).
+          export_var() { { echo "$1<<__EOF_$1__"; printf '%s\n' "${!1}"; echo "__EOF_$1__"; } >> "$GITHUB_ENV"; }
+          status="unsigned (ad-hoc signature, not notarized)"
+          if [ -n "$APPLE_CERTIFICATE" ] && [ -n "$APPLE_CERTIFICATE_PASSWORD" ] && [ -n "$APPLE_SIGNING_IDENTITY" ]; then
+            # Import the certificate into a temporary keychain on the search list ourselves
+            # (instead of letting Tauri do it from APPLE_CERTIFICATE during bundling): the
+            # sandbox helper is signed earlier, in beforeBuildCommand.
+            keychain="$RUNNER_TEMP/ethereal-signing.keychain-db"
+            kpw="$(openssl rand -hex 24)"
+            p12="$RUNNER_TEMP/ethereal-signing.p12"
+            security create-keychain -p "$kpw" "$keychain"
+            security set-keychain-settings -lut 21600 "$keychain"
+            security unlock-keychain -p "$kpw" "$keychain"
+            printf '%s' "$APPLE_CERTIFICATE" | base64 --decode > "$p12"
+            security import "$p12" -P "$APPLE_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$keychain"
+            rm -f "$p12"
+            security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$kpw" "$keychain" >/dev/null
+            # shellcheck disable=SC2046
+            security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
+            security find-identity -v -p codesigning "$keychain"
+            export_var APPLE_SIGNING_IDENTITY
+            status="signed, not notarized"
+            if [ -n "$APPLE_ID" ] && [ -n "$APPLE_PASSWORD" ] && [ -n "$APPLE_TEAM_ID" ]; then
+              export_var APPLE_ID; export_var APPLE_PASSWORD; export_var APPLE_TEAM_ID
+              status="signed and notarized"
+            fi
+          fi
+          echo "SIGNING_STATUS=$status" >> "$GITHUB_ENV"
+          echo "::notice::${{ matrix.label }}: $status"
+      - name: Windows signing certificate
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+          WINDOWS_TIMESTAMP_URL: ${{ secrets.WINDOWS_TIMESTAMP_URL }}
+        run: |
+          $status = "unsigned"
+          if ($env:WINDOWS_CERTIFICATE) {
+            $pfx = Join-Path $env:RUNNER_TEMP "ethereal-signing.pfx"
+            [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE))
+            $pw = ConvertTo-SecureString -String "$env:WINDOWS_CERTIFICATE_PASSWORD" -AsPlainText -Force
+            $cert = Import-PfxCertificate -FilePath $pfx -CertStoreLocation Cert:\CurrentUser\My -Password $pw
+            Remove-Item $pfx
+            Add-Content -Path $env:GITHUB_ENV -Value "WINDOWS_CERTIFICATE_THUMBPRINT=$($cert.Thumbprint)"
+            if ($env:WINDOWS_TIMESTAMP_URL) { Add-Content -Path $env:GITHUB_ENV -Value "WINDOWS_TIMESTAMP_URL=$env:WINDOWS_TIMESTAMP_URL" }
+            $status = "signed"
+          }
+          Add-Content -Path $env:GITHUB_ENV -Value "SIGNING_STATUS=$status"
+          Write-Output "::notice::${{ matrix.label }}: $status"
+      - name: Linux signing status
+        if: runner.os == 'Linux'
+        shell: bash
+        run: echo "SIGNING_STATUS=unsigned (checksums only)" >> "$GITHUB_ENV"
+
+      # --- Build ---------------------------------------------------------------------------
+      - name: Release config overlay (version, notices, signing)
+        shell: bash
+        run: node scripts/release/tauri-config.mjs "$RUNNER_TEMP/tauri.release.json"
+      - name: tauri build
+        shell: bash
+        working-directory: apps/desktop
+        # The sandbox helper sidecar is built and staged by tauri.conf.json's
+        # beforeBuildCommand (scripts/build-sandbox-helper.mjs, no-op on Windows).
+        run: >-
+          pnpm tauri build --ci
+          --target ${{ matrix.target }}
+          --bundles ${{ matrix.bundles }}
+          --config "$RUNNER_TEMP/tauri.release.json"
+      - name: Collect installers
+        shell: bash
+        run: |
+          node scripts/release/collect.mjs desktop ${{ matrix.target }} "$RUNNER_TEMP/out"
+          mkdir -p "$RUNNER_TEMP/meta"
+          echo "${{ matrix.label }}: $SIGNING_STATUS" > "$RUNNER_TEMP/meta/${{ matrix.name }}.txt"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktop-${{ matrix.name }}
+          path: ${{ runner.temp }}/out/*
+          if-no-files-found: error
+          compression-level: 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: meta-${{ matrix.name }}
+          path: ${{ runner.temp }}/meta/*
+
+  web:
+    name: Web bundle
+    needs: prepare
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Toolchain (from rust-toolchain.toml)
+        run: rustup show active-toolchain || rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: release-wasm
+          cache-on-failure: true
+      - name: wasm-bindgen version (from Cargo.lock)
+        id: wb
+        run: echo "version=$(grep -A1 '^name = "wasm-bindgen"$' Cargo.lock | sed -n 's/^version = "\(.*\)"/\1/p')" >> "$GITHUB_OUTPUT"
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: wasm-bindgen@${{ steps.wb.outputs.version }}
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: actions/download-artifact@v4
+        with:
+          name: notices
+      - name: Build (wasm engine + UI)
+        run: pnpm --filter @ethereal/web build
+      - name: Zip
+        run: node scripts/release/collect.mjs web ${{ needs.prepare.outputs.version }} "$RUNNER_TEMP/out"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: web
+          path: ${{ runner.temp }}/out/*
+          if-no-files-found: error
+          compression-level: 0
+
+  publish:
+    name: Publish GitHub Release
+    needs: [prepare, desktop, web]
+    # Only main publishes. A push always does; a dispatch unless `publish` is off. Failed
+    # platforms block publishing unless the dispatch sets `allow_partial`.
+    if: >-
+      always() && needs.prepare.result == 'success'
+      && github.ref == 'refs/heads/main'
+      && (github.event_name == 'push' || inputs.publish)
+      && ((needs.desktop.result == 'success' && needs.web.result == 'success') || inputs.allow_partial)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: ${{ runner.temp }}/artifacts
+      - name: Assemble assets, checksums and notes
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+          TAG: ${{ needs.prepare.outputs.tag }}
+          PRERELEASE: ${{ needs.prepare.outputs.prerelease }}
+          DESKTOP_RESULT: ${{ needs.desktop.result }}
+          WEB_RESULT: ${{ needs.web.result }}
+        run: |
+          a="$RUNNER_TEMP/artifacts"
+          assets="$RUNNER_TEMP/assets"
+          mkdir -p "$assets"
+          find "$a" -type f -path "$a/desktop-*/*" -exec cp {} "$assets/" \;
+          find "$a" -type f -path "$a/web/*" -exec cp {} "$assets/" \;
+          cp "$a/notices/THIRD_PARTY_NOTICES.txt" "$assets/"
+          (cd "$assets" && sha256sum -- * > SHA256SUMS.txt)
+          notes="$RUNNER_TEMP/notes.md"
+          {
+            echo "## Ethereal $TAG"
+            echo
+            [ "$PRERELEASE" = true ] && echo "> Prerelease build of commit ${GITHUB_SHA::7}: \`v$VERSION\` was already released. Bump \`VERSION\` for a new release." && echo
+            echo "### Downloads"
+            echo "- **macOS**: \`*_aarch64.dmg\` (Apple Silicon), \`*_x64.dmg\` (Intel). \`.app.zip\` is the same app, zipped."
+            echo "- **Linux**: \`*.AppImage\` (any x86_64 distro) or \`*.deb\` (Debian/Ubuntu)."
+            echo "- **Windows**: \`*-setup.exe\` (NSIS) or \`*.msi\`. Sandboxed plugins are not supported on Windows yet."
+            echo "- **Web**: \`*_web.zip\`, a static site; it needs COOP/COEP headers (see \`DEPLOY.txt\` inside)."
+            echo "- \`SHA256SUMS.txt\`: \`sha256sum -c SHA256SUMS.txt\`. \`THIRD_PARTY_NOTICES.txt\`: third-party licenses."
+            echo
+            echo "### Code signing"
+            for f in "$a"/meta-*/*.txt; do [ -f "$f" ] && echo "- $(cat "$f")"; done
+            if grep -qh unsigned "$a"/meta-*/*.txt 2>/dev/null; then
+              echo
+              echo "Unsigned builds trigger OS warnings. macOS: right-click the app → Open, or run \`xattr -dr com.apple.quarantine /Applications/Ethereal.app\`. Windows: SmartScreen → More info → Run anyway."
+            fi
+            if [ "$DESKTOP_RESULT" != success ] || [ "$WEB_RESULT" != success ]; then
+              echo
+              echo "> **Partial release**: some platforms failed to build (desktop: $DESKTOP_RESULT, web: $WEB_RESULT); their files are missing."
+            fi
+            echo
+          } > "$notes"
+          ls -la "$assets"
+          cat "$notes" >> "$GITHUB_STEP_SUMMARY"
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.prepare.outputs.tag }}
+          PRERELEASE: ${{ needs.prepare.outputs.prerelease }}
+          PARTIAL: ${{ needs.desktop.result != 'success' || needs.web.result != 'success' }}
+        run: |
+          flags=()
+          if [ "$PRERELEASE" = true ] || [ "$PARTIAL" = true ]; then flags+=(--prerelease); else flags+=(--latest); fi
+          # --generate-notes appends GitHub's changelog (PRs since the previous release) to
+          # the notes file.
+          gh release create "$TAG" "$RUNNER_TEMP"/assets/* \
+            --target "$GITHUB_SHA" \
+            --title "Ethereal $TAG" \
+            --notes-file "$RUNNER_TEMP/notes.md" \
+            --generate-notes \
+            "${flags[@]}"

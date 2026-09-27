@@ -120,6 +120,8 @@ pub(super) fn apply(ctx: &mut DocCtx, c: &DeviceCommand) -> CmdResult<()> {
                 enabled: true,
                 kind,
                 params,
+                sidechain: None,
+                pad: None,
             }))
         }
         DeviceCommand::Remove { id } => {
@@ -240,12 +242,24 @@ pub(super) fn apply(ctx: &mut DocCtx, c: &DeviceCommand) -> CmdResult<()> {
             {
                 return Err(not_found(format!("media {m}")));
             }
+            let DeviceKind::Builtin {
+                device: BuiltinDevice::Sampler { slices, .. },
+            } = d.kind
+            else {
+                unreachable!("checked above");
+            };
             ctx.set_device(
                 d.id,
                 DeviceChange::Kind(DeviceKind::Builtin {
-                    device: BuiltinDevice::Sampler { sample: *media },
+                    device: BuiltinDevice::Sampler {
+                        sample: *media,
+                        slices,
+                    },
                 }),
             )
+        }
+        DeviceCommand::SetSidechain { device, source } => {
+            crate::sidechain::set_sidechain(ctx, *device, *source)
         }
         DeviceCommand::ListBuiltin | DeviceCommand::GetDescriptor { .. } => {
             Err(unsupported("not a document command"))

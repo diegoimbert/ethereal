@@ -39,6 +39,11 @@ export function defaultSettings(name: string): ProjectSettings {
     loop_region: { start: 0, end: 16 },
     metronome: false,
     count_in_bars: 0,
+    metronome_volume: -6,
+    metronome_accent: true,
+    metronome_sound: "Classic",
+    swing: 0,
+    swing_grid: 0.25,
   };
 }
 
@@ -121,6 +126,9 @@ export function createEmptyProject(nextId: () => string, name: string, id: Proje
     time_signatures: { [sigId]: { id: sigId, time: 0, signature: { numerator: 4, denominator: 4 } } },
     warp_markers: {},
     media: {},
+    markers: {},
+    midi_mappings: {},
+    drum_pads: {},
   };
 }
 
@@ -161,6 +169,8 @@ export function createDemoProject(seed = 1): Project {
     enabled: true,
     kind: { type: "Builtin", device: { type: "Synth" } },
     params: { ...defaultParams("Synth"), 0: 1, 2: 2400, 3: 25, 7: 450 },
+    sidechain: null,
+    pad: null,
   };
   const keysComp: Device = {
     id: nextId(),
@@ -170,6 +180,8 @@ export function createDemoProject(seed = 1): Project {
     enabled: true,
     kind: { type: "Builtin", device: { type: "Compressor" } },
     params: defaultParams("Compressor"),
+    sidechain: null,
+    pad: null,
   };
   const bassSynth: Device = {
     id: nextId(),
@@ -179,6 +191,8 @@ export function createDemoProject(seed = 1): Project {
     enabled: true,
     kind: { type: "Builtin", device: { type: "Synth" } },
     params: { ...defaultParams("Synth"), 0: 2, 2: 600, 8: -3 },
+    sidechain: null,
+    pad: null,
   };
   const delay: Device = {
     id: nextId(),
@@ -188,6 +202,8 @@ export function createDemoProject(seed = 1): Project {
     enabled: true,
     kind: { type: "Builtin", device: { type: "Delay" } },
     params: { ...defaultParams("Delay"), 4: 100 },
+    sidechain: null,
+    pad: null,
   };
   for (const d of [synth, keysComp, bassSynth, delay]) p.devices[d.id] = d;
 
@@ -252,6 +268,9 @@ export function createDemoProject(seed = 1): Project {
       transpose: 0,
       fade_in: 0,
       fade_out: 0,
+      fade_in_curve: { type: "Linear" },
+      fade_out_curve: { type: "Linear" },
+      reversed: false,
       warp: { enabled: true, mode: "Repitch", source_bpm: 120 },
     },
   });
@@ -320,6 +339,8 @@ export function createBeatSketchProject(seed = 2): Project {
       enabled: true,
       kind: { type: "Builtin", device: { type: device } },
       params: defaultParams(device),
+      sidechain: null,
+      pad: null,
     };
     p.devices[d.id] = d;
   }
@@ -344,6 +365,8 @@ export function createAmbientIdeaProject(seed = 3): Project {
     enabled: true,
     kind: { type: "Builtin", device: { type: "Synth" } },
     params: { ...defaultParams("Synth"), 0: 3, 4: 1200, 7: 4000 },
+    sidechain: null,
+    pad: null,
   };
   p.devices[synth.id] = synth;
   const clip = makeClip({ id: nextId(), track: pad.id, start: 0, length: 32, name: "Drift" });

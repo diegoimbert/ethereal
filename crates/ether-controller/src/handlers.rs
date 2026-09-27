@@ -133,6 +133,10 @@ where
             Command::Engine(_) => Err(unsupported(
                 "audio engine configuration is handled by the host",
             )),
+            // Roadmap v2 (non-document parts; document parts go through `doc::apply`).
+            Command::Export(c) => self.export_command(c, out),
+            Command::MidiMap(c) => self.midi_map_command(c, out),
+            Command::Collab(c) => self.collab_command(c, out),
             other => Err(internal(format!(
                 "unhandled command {}",
                 doc::label_of(other)
@@ -675,9 +679,9 @@ where
             MediaCommand::Preview { .. } | MediaCommand::StopPreview => {
                 Err(unsupported("preview is not available on this host"))
             }
-            MediaCommand::BeginUpload { .. } => {
-                Err(unsupported("uploads are not supported in v0.1"))
-            }
+            MediaCommand::BeginUpload { .. }
+            | MediaCommand::UploadChunk { .. }
+            | MediaCommand::CancelUpload { .. } => self.upload_command(c, out),
         }
     }
 
@@ -860,6 +864,9 @@ where
             self.plugin_notification(device, n, now, out);
         }
         self.plugins_tick(now, out);
+        // Roadmap v2 hooks.
+        self.midi_learn_tick(now, out);
+        self.export_tick(now, out);
 
         // Media jobs.
         if let Some(pid) = self.doc.as_ref().map(|d| d.project.id)
@@ -892,7 +899,7 @@ where
                             .values()
                             .filter(|dev| {
                                 matches!(&dev.kind, DeviceKind::Builtin {
-                                    device: BuiltinDevice::Sampler { sample: Some(m) }
+                                    device: BuiltinDevice::Sampler { sample: Some(m), .. }
                                 } if loaded.contains(m))
                             })
                             .map(|dev| dev.id)

@@ -20,6 +20,11 @@ pub struct EngineConfig {
     pub param_queue_capacity: usize,
     pub control_queue_capacity: usize,
     pub output_queue_capacity: usize,
+    /// Roadmap v2 (`multicore`): worker threads the host may use to process independent
+    /// tracks in parallel, in addition to the audio thread. 0 (default) = everything on the
+    /// audio thread (the v0.1 behaviour). The engine never spawns threads: the host provides
+    /// a [`crate::parallel::ParallelExecutor`] (CONTRACTS.md §11.7).
+    pub worker_threads: usize,
 }
 
 impl Default for EngineConfig {
@@ -34,6 +39,7 @@ impl Default for EngineConfig {
             param_queue_capacity: 4096,
             control_queue_capacity: 1024,
             output_queue_capacity: 4096,
+            worker_threads: 0,
         }
     }
 }

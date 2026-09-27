@@ -109,6 +109,7 @@ pub fn descriptor() -> DeviceDescriptor {
         audio_inputs: 0,
         audio_outputs: 2,
         midi_input: true,
+        sidechain_inputs: 0,
     }
 }
 

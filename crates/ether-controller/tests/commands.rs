@@ -418,6 +418,7 @@ fn note_editing_and_quantize() {
         grid: Beats(1.0),
         strength: 1.0,
         ends: false,
+        swing: 0.0,
     }));
     ok(&out);
     assert!(h.project().notes[&n1].start.approx_eq(Beats(0.0)));

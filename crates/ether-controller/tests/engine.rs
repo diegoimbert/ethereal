@@ -331,7 +331,14 @@ fn continuous_controls_push_params_without_republish() {
 fn node_lifecycle_follows_the_document() {
     let mut h = Harness::with_project();
     let t = track(&mut h, TrackKind::Midi, None);
-    let sampler = device(&mut h, t, BuiltinDevice::Sampler { sample: None });
+    let sampler = device(
+        &mut h,
+        t,
+        BuiltinDevice::Sampler {
+            sample: None,
+            slices: Default::default(),
+        },
+    );
     let delay = device(&mut h, t, BuiltinDevice::Delay);
     h.tick();
     assert_eq!(h.ctl.bridge.live.len(), 2);
@@ -742,7 +749,9 @@ fn plugins_unsupported_on_web() {
 fn list_builtin_devices() {
     let mut h = Harness::with_project();
     let v = h.ok(Command::Device(DeviceCommand::ListBuiltin));
-    assert!(matches!(v, ReplyValue::DeviceTypes { devices } if devices.len() == 4));
+    assert!(
+        matches!(v, ReplyValue::DeviceTypes { devices } if devices.len() == BuiltinDeviceType::ALL.len())
+    );
 }
 
 fn midi_clip(h: &mut Harness, t: TrackId) -> ClipId {
