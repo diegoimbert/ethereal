@@ -90,7 +90,7 @@ fn analysis_frames_are_throttled_and_allocation_free() {
     assert_eq!(frames.len() % 2, 0);
     let passes = frames.len() as u32 / 2;
     assert!(
-        passes >= ANALYSIS_HZ - 2 && passes <= ANALYSIS_HZ + 1,
+        (ANALYSIS_HZ - 2..=ANALYSIS_HZ + 1).contains(&passes),
         "{passes} passes"
     );
     assert!(frames.iter().all(|f| f.node == key));
