@@ -330,6 +330,8 @@ where
     plugins: plugins::PluginsState,
     /// Offline export job and finished downloads (`export` module).
     export: export::ExportState,
+    /// MIDI learn runtime state (learn mode, mapping gestures; `midi_learn` module).
+    midi_learn: midi_learn::MidiLearnState,
     next_gesture: u32,
     last_transport: Option<TransportState>,
     outputs: EngineOutputs,
@@ -373,6 +375,7 @@ where
             plugin_gestures: BTreeMap::new(),
             plugins: Default::default(),
             export: Default::default(),
+            midi_learn: Default::default(),
             // Internal gestures (plugin GUI, tap tempo) live in the upper half of the id
             // space, away from UI-allocated ones.
             next_gesture: 0x8000_0000,

@@ -24,4 +24,29 @@ describe("MockTransport midiLearn", () => {
     await f.mock.send(cmd("Track", { type: "Delete", id: keys.id }));
     expect(Object.keys(project(f).midi_mappings)).toHaveLength(0);
   });
+
+  it("learns with the controller's defaults: Toggle for notes and on/off targets, replacing the target's mapping", async () => {
+    const keys = trackNamed(f, "Keys");
+    const mute = { type: "TrackMute", track: keys.id } as const;
+    await f.mock.send(cmd("MidiMap", { type: "Learn", target: mute }));
+    f.mock.simulateMidiInput("kbd", [0xb0, 5, 127]);
+    let maps = Object.values(project(f).midi_mappings);
+    expect(maps.map((m) => m.mode)).toEqual([{ type: "Toggle" }]);
+
+    // A note-off never completes a learn; the note-on does, and replaces the old mapping.
+    await f.mock.send(cmd("MidiMap", { type: "Learn", target: mute }));
+    f.mock.simulateMidiInput("kbd", [0x80, 60, 0]);
+    expect(Object.values(project(f).midi_mappings)[0]!.source.control).toEqual({ type: "Cc", number: 5 });
+    f.mock.simulateMidiInput("kbd", [0x90, 60, 100]);
+    maps = Object.values(project(f).midi_mappings);
+    expect(maps).toHaveLength(1);
+    expect(maps[0]!.source.control).toEqual({ type: "Note", key: 60 });
+    expect(maps[0]!.mode).toEqual({ type: "Toggle" });
+
+    // Continuous targets from a CC stay absolute.
+    await f.mock.send(cmd("MidiMap", { type: "Learn", target: { type: "Param", target: { type: "TrackVolume", track: keys.id } } }));
+    f.mock.simulateMidiInput("kbd", [0xb0, 7, 10]);
+    const vol = Object.values(project(f).midi_mappings).find((m) => m.target.type === "Param")!;
+    expect(vol.mode).toEqual({ type: "Absolute" });
+  });
 });
