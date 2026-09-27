@@ -21,10 +21,10 @@
   max-width: 100%;
 }
 .eth-devices__track {
-  min-width: 120px;
+  min-width: var(--eth-size-device-track-picker-min-width);
 }
 .eth-devices__add {
-  min-width: 140px;
+  min-width: var(--eth-size-device-add-min-width);
 }
 .eth-devices__chain {
   display: flex;
@@ -40,7 +40,7 @@
 }
 .eth-devices__end {
   flex: 1;
-  min-width: 48px;
+  min-width: var(--eth-size-device-chain-end-min-width);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -70,7 +70,7 @@
 .eth-device {
   display: flex;
   flex-direction: column;
-  min-width: 148px;
+  min-width: var(--eth-size-device-card-min-width);
   overflow: hidden;
   background: var(--eth-color-bg-raised);
   border: var(--eth-border-width) solid var(--eth-color-border-light);
@@ -148,7 +148,7 @@
 }
 .eth-device__params {
   display: grid;
-  grid-template-columns: repeat(2, minmax(52px, auto));
+  grid-template-columns: repeat(2, minmax(var(--eth-size-device-param-min-width), auto));
   gap: var(--eth-space-md) var(--eth-space-lg);
 }
 .eth-device__more {
@@ -246,14 +246,14 @@
   gap: var(--eth-space-md) var(--eth-space-lg);
   padding: var(--eth-space-md);
   /* Knob diameters follow the card width: main (lg) and folded (md) controls. */
-  --knob-size-lg: clamp(34px, 11cqi, 54px);
-  --knob-size: clamp(26px, 8cqi, 38px);
-  --device-param-min: calc(var(--knob-size-lg) + 22px);
-  --device-group-min: 220px;
+  --knob-size-lg: clamp(var(--eth-size-device-knob-lg-min), 11cqi, var(--eth-size-device-knob-lg-max));
+  --knob-size: clamp(var(--eth-size-device-knob-min), 8cqi, var(--eth-size-device-knob-max));
+  --device-param-min: calc(var(--knob-size-lg) + var(--eth-size-device-param-room));
+  --device-group-min: var(--eth-size-device-group-min-width);
 }
 .eth-device--stack .eth-device__body--more {
   padding-top: 0;
-  --device-param-min: calc(var(--knob-size) + 26px);
+  --device-param-min: calc(var(--knob-size) + var(--eth-size-device-param-room-more));
 }
 .eth-device--stack .eth-device__group {
   min-width: 0;
@@ -271,18 +271,20 @@
 .eth-device--stack .eth-param {
   width: 100%;
 }
+/* eth-allow-hardcoded: container query conditions cannot use var() */
 @container device (max-width: 240px) {
   .eth-device__body {
-    --device-param-min: calc(var(--knob-size-lg) + 14px);
+    --device-param-min: calc(var(--knob-size-lg) + var(--eth-size-device-param-room-narrow));
     --knob-center-font-size: var(--eth-fs-xs);
   }
   .eth-device__header {
     padding: 0 var(--eth-space-xs);
   }
 }
+/* eth-allow-hardcoded: container query conditions cannot use var() */
 @container device (min-width: 480px) {
   .eth-device__body {
-    --device-group-min: 200px;
+    --device-group-min: var(--eth-size-device-group-min-width-wide);
     --knob-center-font-size: var(--eth-fs-sm);
   }
   .eth-device__group-name {

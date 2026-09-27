@@ -7,7 +7,7 @@ import { clipInk, colorCss } from "./helpers";
 import { useTheme } from "@/theme";
 import { useEditorStore, useNotesOfClip, useProjectStore, warpMarkersOfClip } from "@/state";
 import { useIsSelected, type TempoMap, type TimelineViewport } from "@/timeline";
-import { openContextMenu } from "@/kit";
+import { openContextMenu, useThemeColor } from "@/kit";
 import { clipMenu } from "./actions";
 import { onClipPointerDown } from "./clipDrag";
 import { drawNotes, drawWaveform, noteRects, pitchRange, type DrawArea } from "./clipDraw";
@@ -21,7 +21,6 @@ import { peakLevel, TILE_PEAKS } from "./peaks";
 import { beatsCss, widthCss } from "./laneGeometry";
 import { arrangementView } from "./uiStore";
 
-const SEAM_COLOR = "rgba(0, 0, 0, 0.25)";
 /** Narrowest a clip is drawn, so it stays grabbable (title bar) when zoomed far out. */
 const CLIP_MIN_PX = 8;
 
@@ -196,15 +195,16 @@ function useCanvasDraw(
 function MidiPreview(body: BodyProps) {
   const { clip, bounds } = body;
   const notes = useNotesOfClip(clip.id);
+  const seam = useThemeColor("clipSeam");
   const ref = useRef<HTMLCanvasElement>(null);
   const content = useMemo(
-    () => [clip, bounds.start, bounds.length, bounds.offset, notes, body.ink],
-    [clip, bounds.start, bounds.length, bounds.offset, notes, body.ink],
+    () => [clip, bounds.start, bounds.length, bounds.offset, notes, body.ink, seam],
+    [clip, bounds.start, bounds.length, bounds.offset, notes, body.ink, seam],
   );
   useCanvasDraw(ref, body, content, (ctx, area) => {
     const shaped = { ...clip, length: bounds.length, offset: bounds.offset };
     drawNotes(ctx, area, noteRects(shaped, bounds.start, notes, area.from, area.to), pitchRange(notes), body.ink);
-    drawLoopSeams(ctx, area, shaped, bounds.start);
+    drawLoopSeams(ctx, area, shaped, bounds.start, seam);
   });
   return <canvas ref={ref} className="eth-clip__canvas" data-testid="clip-notes" data-notes={notes.length} />;
 }
@@ -219,13 +219,14 @@ function AudioWaveform({ tempo, ...body }: BodyProps & { tempo: TempoMap }) {
   const markers: WarpMarker[] = useProjectStore(
     useShallow((s) => (s.project ? warpMarkersOfClip(s.project, clip.id) : [])),
   );
+  const seam = useThemeColor("clipSeam");
   const [tiles, redraw] = useReducer((x: number) => x + 1, 0);
   // Tiles arrive asynchronously: redraw when they do (or when peaks are invalidated).
   useEffect(() => peaks.subscribe(redraw), [peaks]);
 
   const content = useMemo(
-    () => [clip, bounds.start, bounds.length, bounds.offset, media, markers, tempo, tiles, body.ink],
-    [clip, bounds.start, bounds.length, bounds.offset, media, markers, tempo, tiles, body.ink],
+    () => [clip, bounds.start, bounds.length, bounds.offset, media, markers, tempo, tiles, body.ink, seam],
+    [clip, bounds.start, bounds.length, bounds.offset, media, markers, tempo, tiles, body.ink, seam],
   );
   useCanvasDraw(ref, body, content, (ctx, area) => {
     if (!media || clip.content.type !== "Audio") return;
@@ -248,7 +249,7 @@ function AudioWaveform({ tempo, ...body }: BodyProps & { tempo: TempoMap }) {
       },
       body.ink,
     );
-    drawLoopSeams(ctx, area, shaped, bounds.start);
+    drawLoopSeams(ctx, area, shaped, bounds.start, seam);
   });
   return <canvas ref={ref} className="eth-clip__canvas" data-testid="clip-waveform" data-media={mediaId ?? ""} />;
 }
@@ -259,10 +260,11 @@ function drawLoopSeams(
   area: DrawArea,
   clip: Pick<Clip, "length" | "offset" | "looping">,
   start: Beats,
+  color: string,
 ) {
   if (!clip.looping.enabled) return;
   const ppb = area.width / Math.max(1e-9, area.to - area.from);
-  ctx.fillStyle = SEAM_COLOR;
+  ctx.fillStyle = color;
   for (const seg of contentSegments(clip, start, area.from, area.to)) {
     if (seg.t0 <= area.from || seg.c0 !== clip.looping.start) continue;
     ctx.fillRect(Math.round((seg.t0 - area.from) * ppb), 0, 1, area.height);

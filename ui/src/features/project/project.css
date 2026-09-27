@@ -31,7 +31,7 @@
 
 /* Project screen: a roomy kit Dialog over the whole app. */
 .eth-project-screen {
-  --dialog-width: 560px;
+  --dialog-width: var(--eth-size-project-screen-width);
 }
 .eth-project-screen__body {
   display: flex;
@@ -44,7 +44,7 @@
   font-size: var(--eth-fs-xs);
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: var(--eth-tracking-caps);
 }
 .eth-project-screen__current {
   display: grid;
@@ -73,7 +73,7 @@
   align-items: center;
   justify-content: center;
   gap: var(--eth-space-sm);
-  min-height: 72px;
+  min-height: var(--eth-size-project-new-height);
   border: none;
   border-radius: var(--eth-radius-lg);
   background: color-mix(in srgb, var(--eth-color-accent) 14%, transparent);
@@ -87,12 +87,12 @@
   background: color-mix(in srgb, var(--eth-color-accent) 22%, transparent);
 }
 .eth-project-screen__new:focus-visible {
-  outline: 2px solid var(--eth-color-focus);
-  outline-offset: 2px;
+  outline: var(--eth-focus-ring-width) solid var(--eth-color-focus);
+  outline-offset: var(--eth-focus-ring-offset);
 }
 .eth-project-screen__new .lucide {
-  width: 20px;
-  height: 20px;
+  width: var(--eth-size-project-new-icon);
+  height: var(--eth-size-project-new-icon);
 }
 .eth-project-screen__recent {
   display: flex;
@@ -111,7 +111,7 @@
   display: flex;
   align-items: center;
   gap: var(--eth-space-xs);
-  min-height: 32px;
+  min-height: var(--eth-size-project-row-height);
   border-radius: var(--eth-radius-md);
   transition: background-color var(--eth-duration-fast) var(--eth-ease-out);
 }
@@ -124,7 +124,7 @@
   min-width: 0;
   align-items: center;
   gap: var(--eth-space-md);
-  height: 32px;
+  height: var(--eth-size-project-row-height);
   padding: 0 var(--eth-space-sm);
   border: none;
   background: none;
@@ -133,7 +133,7 @@
   text-align: left;
 }
 .eth-project-screen__open:focus-visible {
-  outline: 1px solid var(--eth-color-focus);
+  outline: var(--eth-focus-ring-width) solid var(--eth-color-focus);
   border-radius: var(--eth-radius-md);
 }
 .eth-project-screen__name {

@@ -24,12 +24,12 @@
   align-items: center;
   gap: var(--eth-space-sm);
   padding: var(--eth-space-xs) var(--eth-space-sm);
-  border-bottom: 1px solid var(--eth-color-border);
+  border-bottom: var(--eth-border-width) solid var(--eth-color-border);
 }
 
 .eth-warp__title {
   font-weight: 600;
-  max-width: 16em;
+  max-width: var(--eth-size-editor-title-max-width);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -42,7 +42,7 @@
 }
 
 .eth-warp__number {
-  width: 4em;
+  width: var(--eth-size-number-field-narrow);
 }
 
 .eth-warp__note {
@@ -60,7 +60,7 @@
   overflow: hidden;
   outline: none;
   background: var(--eth-color-bg-inset);
-  border: 1px solid var(--eth-color-border);
+  border: var(--eth-border-width) solid var(--eth-color-border);
 }
 
 .eth-warp__view:focus-visible {
@@ -84,7 +84,7 @@
 
 .eth-warp__tick-label {
   fill: var(--eth-color-text-dim);
-  font-size: 10px;
+  font-size: var(--eth-fs-xs);
 }
 
 .eth-warp__marker {

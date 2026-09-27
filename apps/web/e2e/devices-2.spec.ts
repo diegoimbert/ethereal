@@ -5,7 +5,7 @@
 // track meter stays at the ceiling.
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import type { Project } from "@/generated";
-import { newProject } from "./projects";
+import { addDevice, createTrack, newProject, openDeviceTab, openLibrary, playButton } from "./ui";
 
 interface Handle {
   state(): { project: Project | null };
@@ -52,34 +52,21 @@ test("EQ, reverb, limiter and utility on an audio track", async ({ page }) => {
   });
 
   await page.goto("/");
-  await expect(page.getByRole("button", { name: "Play" })).toBeVisible({
+  await expect(playButton(page)).toBeVisible({
     timeout: 30_000,
   });
   await expect
     .poll(() => project(page).then((p) => p !== null), { timeout: 30_000 })
     .toBe(true);
 
-  const name = `Devices 2 ${Date.now()}`;
-  await newProject(page, name);
-  await expect(page.getByTestId("project-name")).toHaveText(name);
+  await newProject(page, `Devices 2 ${Date.now()}`);
   const baseTracks = count((await doc(page)).tracks);
 
   // Audio track with a looping demo sample.
-  await page.getByRole("button", { name: /New track/ }).click();
-  await page.getByRole("button", { name: "Create audio track" }).click();
-  await expect
-    .poll(async () => count((await doc(page)).tracks))
-    .toBe(baseTracks + 1);
-  const audio = Object.values((await doc(page)).tracks).find(
-    (t) => t.kind === "Audio",
-  )!;
+  const audio = await createTrack(page, "Audio");
+  expect(count((await doc(page)).tracks)).toBe(baseTracks + 1);
   // The sample browser is a pane opened from the rail; pinned, it doesn't cover the lanes.
-  await page.getByRole("button", { name: "Library", exact: true }).click();
-  await page.getByRole("button", { name: "Pin Library" }).click();
-  await page
-    .getByRole("tablist", { name: "Locations" })
-    .getByRole("tab", { name: "Browser library" })
-    .click();
+  await openLibrary(page);
   await page
     .getByRole("list", { name: "Files" })
     .getByRole("button", { name: "Demo Samples" })
@@ -103,7 +90,7 @@ test("EQ, reverb, limiter and utility on an audio track", async ({ page }) => {
 
   // Insert the four devices.
   // Selecting the track opens the inspector with its devices.
-  await page.getByRole("group", { name: `${audio.name} track` }).click();
+  await openDeviceTab(page, audio.name);
   const chainOf = async () =>
     Object.values((await doc(page)).devices)
       .filter((d) => d.track === audio.id)
@@ -111,8 +98,7 @@ test("EQ, reverb, limiter and utility on an audio track", async ({ page }) => {
   for (const [i, type] of (
     ["Eq", "Reverb", "Limiter", "Utility"] as const
   ).entries()) {
-    await page.getByRole("combobox", { name: "Add device" }).click();
-    await page.locator(`[role="option"][data-value="${type}"]`).click();
+    await addDevice(page, type);
     await expect.poll(async () => (await chainOf()).length).toBe(i + 1);
   }
   const chain = await chainOf();
@@ -130,6 +116,8 @@ test("EQ, reverb, limiter and utility on an audio track", async ({ page }) => {
 
   // Param panels come from the engine descriptors.
   const panel = (id: string) => page.locator(`[data-device="${id}"]`);
+  // A device card shows its main params; the rest fold under "More … controls".
+  await panel(eq.id).getByRole("button", { name: "More EQ controls" }).click();
   await expect(panel(eq.id).getByRole("slider", { name: "Freq" })).toHaveCount(
     8,
   );
@@ -180,7 +168,7 @@ test("EQ, reverb, limiter and utility on an audio track", async ({ page }) => {
   // Play: the loud (+24 dB) signal is held at the -24 dB ceiling.
   const ceiling = 10 ** (-24 / 20);
   const transportBar = page.getByRole("toolbar", { name: "Transport" });
-  await transportBar.getByRole("button", { name: "Play" }).click();
+  await transportBar.getByRole("button", { name: "Play", exact: true }).click();
   await expect
     .poll(() => peakOf(page, audio.id), { timeout: 10_000 })
     .toBeGreaterThan(ceiling * 0.5);

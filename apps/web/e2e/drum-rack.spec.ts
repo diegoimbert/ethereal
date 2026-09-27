@@ -9,7 +9,7 @@
 // `window.__ether` (apps/web/src/main.tsx).
 import { expect, test, type Page } from "@playwright/test";
 import type { Device, DrumPad, Project } from "@/generated";
-import { newProject } from "./projects";
+import { createTrack, newProject, openEditor, openLibrary, pickOption, playButton, selectTrack } from "./ui";
 
 interface Handle {
   state(): { project: Project | null };
@@ -42,18 +42,16 @@ test("drum rack: build a 2-pad kit from the browser", async ({ page }) => {
   });
 
   await page.goto("/");
-  await expect(page.getByRole("button", { name: "Play" })).toBeVisible({ timeout: 30_000 });
+  await expect(playButton(page)).toBeVisible({ timeout: 30_000 });
   await expect.poll(() => project(page).then((p) => p !== null), { timeout: 30_000 }).toBe(true);
 
   await newProject(page, `Drum Rack ${Date.now()}`);
   await expect.poll(async () => Object.keys((await doc(page)).drum_pads).length).toBe(0);
 
   // --- MIDI track, selected, with a drum rack --------------------------------------------
-  await page.getByRole("button", { name: "+ MIDI track" }).click();
-  await expect.poll(async () => Object.values((await doc(page)).tracks).some((t) => t.kind === "Midi")).toBe(true);
-  const midi = Object.values((await doc(page)).tracks).find((t) => t.kind === "Midi")!;
-  await page.getByRole("group", { name: `${midi.name} track` }).click();
-  await page.getByRole("tab", { name: "Drum Rack" }).click();
+  const midi = await createTrack(page, "Midi");
+  await selectTrack(page, midi.name);
+  await openEditor(page, "Drum Rack");
   const view = page.getByTestId("drum-rack-view");
   await expect(view).toContainText(midi.name);
   await view.getByRole("button", { name: "+ Drum Rack" }).click();
@@ -68,7 +66,7 @@ test("drum rack: build a 2-pad kit from the browser", async ({ page }) => {
   await expect(grid.getByRole("gridcell")).toHaveCount(16);
 
   // --- Two samples dropped on C1 and D1 --------------------------------------------------
-  await page.getByRole("tablist", { name: "Locations" }).getByRole("tab", { name: "Browser library" }).click();
+  await openLibrary(page);
   await page.getByRole("list", { name: "Files" }).getByRole("button", { name: "Demo Samples" }).click();
   const files = page.getByRole("list", { name: "Files" });
   await files.getByRole("button", { name: "Kick.wav", exact: true }).dragTo(grid.getByRole("gridcell", { name: /^C1 / }));
@@ -93,7 +91,7 @@ test("drum rack: build a 2-pad kit from the browser", async ({ page }) => {
   const settings = page.getByTestId("pad-settings");
   await expect(settings).toHaveAttribute("aria-label", "Pad Snare");
   await expect(settings.getByRole("region", { name: "Sampler" })).toBeVisible();
-  await settings.getByLabel("Choke group").selectOption("1");
+  await pickOption(settings, "Choke group", { value: "1" });
   await expect.poll(async () => (await doc(page)).drum_pads[snare!.id]!.choke_group).toBe(1);
   await settings.getByRole("button", { name: "Mute pad" }).click();
   await expect.poll(async () => (await doc(page)).drum_pads[snare!.id]!.mute).toBe(true);

@@ -11,7 +11,7 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import type { Clip, Project, WarpMarker } from "@/generated";
 import { openClip } from "./clips";
-import { newProject } from "./projects";
+import { createTrack, newProject, openLibrary, pickOption, playButton, setNumberField } from "./ui";
 
 interface Handle {
   state(): { project: Project | null };
@@ -60,21 +60,16 @@ test("warp: markers, modes, transpose and playback", async ({ page }) => {
   page.on("pageerror", (e) => errors.push(e.message));
 
   await page.goto("/");
-  await expect(page.getByRole("button", { name: "Play" })).toBeVisible({ timeout: 30_000 });
+  await expect(playButton(page)).toBeVisible({ timeout: 30_000 });
   await expect.poll(() => project(page).then((p) => p !== null), { timeout: 30_000 }).toBe(true);
 
   await newProject(page, `Warp ${Date.now()}`);
   await expect.poll(async () => Object.keys((await doc(page)).clips).length).toBe(0);
 
   // --- Audio track + library loop ----------------------------------------------------------
-  await page.getByRole("button", { name: /New track/ }).click();
-  await page.getByRole("button", { name: "Create audio track" }).click();
-  await expect.poll(async () => Object.values((await doc(page)).tracks).some((t) => t.kind === "Audio")).toBe(true);
-  const audio = Object.values((await doc(page)).tracks).find((t) => t.kind === "Audio")!;
+  const audio = await createTrack(page, "Audio");
   // The sample browser is a pane opened from the rail; pinned, it doesn't cover the lanes.
-  await page.getByRole("button", { name: "Library", exact: true }).click();
-  await page.getByRole("button", { name: "Pin Library" }).click();
-  await page.getByRole("tablist", { name: "Locations" }).getByRole("tab", { name: "Browser library" }).click();
+  await openLibrary(page);
   await page.getByRole("list", { name: "Files" }).getByRole("button", { name: "Demo Samples" }).click();
   const sample = page.getByRole("button", { name: "Bass Loop 120.wav", exact: true });
   await sample.dragTo(page.locator(`[data-lane="${audio.id}"]`), { targetPosition: { x: 5, y: 20 } });
@@ -90,7 +85,7 @@ test("warp: markers, modes, transpose and playback", async ({ page }) => {
 
   // --- New clips are unwarped; enabling warp lets the BPM stub pin start and end ---------
   // The checkbox is controlled by the document: click, then wait for the patch.
-  const warpBox = page.getByLabel("Warp", { exact: true });
+  const warpBox = editor.getByLabel("Warp", { exact: true });
   await expect(warpBox).not.toBeChecked();
   expect((await audioOf(page, clip.id)).warp.enabled).toBe(false);
   await warpBox.click();
@@ -98,9 +93,9 @@ test("warp: markers, modes, transpose and playback", async ({ page }) => {
   await expect.poll(async () => (await markersOf(page, clip.id)).length).toBe(2);
   await expect(page.getByTestId("warp-marker")).toHaveCount(2);
 
-  // Complex has no stretcher in the browser: the editor says it plays as Repitch.
-  await page.getByRole("combobox", { name: "Warp mode" }).click();
-  await page.getByRole("option", { name: "Complex" }).click();
+  // Complex has no stretcher in the browser: the editor says it plays as Repitch. (The
+  // inspector has a "Warp mode" picker too: use the editor's.)
+  await pickOption(editor, "Warp mode", "Complex");
   await expect(page.getByTestId("warp-web-fallback")).toBeVisible();
   await expect.poll(async () => (await audioOf(page, clip.id)).warp.mode).toBe("Complex");
 
@@ -133,9 +128,9 @@ test("warp: markers, modes, transpose and playback", async ({ page }) => {
   await expect.poll(async () => (await doc(page)).warp_markers[added.id]?.beat).toBe(2);
 
   // --- Transpose + play: the clip sounds -----------------------------------------------------
-  await page.getByRole("spinbutton", { name: "Transpose" }).fill("3");
+  await setNumberField(editor.getByRole("spinbutton", { name: "Transpose" }), 3);
   await expect.poll(async () => (await audioOf(page, clip.id)).transpose).toBe(3);
-  await page.getByRole("button", { name: "Play" }).click();
+  await playButton(page).click();
   await expect.poll(() => peakOf(page, audio.id), { timeout: 20_000 }).toBeGreaterThan(0.01);
   await page.getByRole("button", { name: "Stop", description: "Stop (Space)" }).click();
 

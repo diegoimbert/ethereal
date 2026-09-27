@@ -51,7 +51,7 @@
 .eth-auto-row {
   display: flex;
   flex: none;
-  border-top: 1px solid var(--eth-color-border);
+  border-top: var(--eth-border-width) solid var(--eth-color-border);
 }
 
 .eth-auto-row__header {
@@ -77,12 +77,12 @@
 
 .eth-auto-icon {
   flex: none;
-  min-width: 18px;
-  height: 18px;
-  padding: 0 2px;
+  min-width: var(--eth-size-control-sm);
+  height: var(--eth-size-control-sm);
+  padding: 0 var(--eth-space-xs);
   background: var(--eth-color-bg-raised);
   color: var(--eth-color-text-dim);
-  border: 1px solid var(--eth-color-border-light);
+  border: var(--eth-border-width) solid var(--eth-color-border-light);
   border-radius: var(--eth-radius-sm);
   font-size: var(--eth-fs-xs);
   line-height: 1;
@@ -109,7 +109,7 @@
 }
 
 .eth-auto-lane:focus-visible {
-  box-shadow: inset 0 0 0 1px var(--eth-color-accent-dim);
+  box-shadow: inset 0 0 0 var(--eth-border-width) var(--eth-color-accent-dim);
 }
 
 .eth-auto-lane__svg {
@@ -185,8 +185,8 @@
   white-space: nowrap;
   text-overflow: ellipsis;
   background: var(--eth-color-bg-panel);
-  border-right: 1px solid var(--eth-color-border);
-  border-bottom: 1px solid var(--eth-color-border);
+  border-right: var(--eth-border-width) solid var(--eth-color-border);
+  border-bottom: var(--eth-border-width) solid var(--eth-color-border);
   color: var(--eth-color-text);
 }
 

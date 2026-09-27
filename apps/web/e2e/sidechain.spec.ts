@@ -5,7 +5,7 @@
 // (Delay) show no selector.
 import { expect, test, type Page } from "@playwright/test";
 import type { Project } from "@/generated";
-import { newProject } from "./projects";
+import { addDevice, createTrack, newProject, openDeviceTab, pickOption, playButton } from "./ui";
 
 interface Handle {
   state(): { project: Project | null };
@@ -33,7 +33,7 @@ test("set a compressor sidechain from the device header", async ({ page }) => {
   });
 
   await page.goto("/");
-  await expect(page.getByRole("button", { name: "Play" })).toBeVisible({
+  await expect(playButton(page)).toBeVisible({
     timeout: 30_000,
   });
   await expect
@@ -47,7 +47,7 @@ test("set a compressor sidechain from the device header", async ({ page }) => {
 
   // Two audio tracks: the first is the source, the second gets the compressor.
   for (let i = 1; i <= 2; i++) {
-    await page.getByRole("button", { name: "+ Audio track" }).click();
+    await createTrack(page, "Audio");
     await expect
       .poll(async () => count((await doc(page)).tracks))
       .toBe(baseTracks + i);
@@ -57,14 +57,13 @@ test("set a compressor sidechain from the device header", async ({ page }) => {
     .sort((a, b) => (a.order < b.order ? -1 : 1));
   const [source, target] = audio as [(typeof audio)[0], (typeof audio)[0]];
 
-  await page.getByRole("group", { name: `${target.name} track` }).click();
-  await page.getByRole("tab", { name: "Devices" }).click();
+  await openDeviceTab(page, target.name);
   const chainOf = async () =>
     Object.values((await doc(page)).devices).filter(
       (d) => d.track === target.id,
     );
   for (const [i, type] of (["Compressor", "Delay"] as const).entries()) {
-    await page.getByLabel("Add device").selectOption(type);
+    await addDevice(page, type);
     await expect.poll(async () => (await chainOf()).length).toBe(i + 1);
   }
   const chain = await chainOf();
@@ -78,30 +77,36 @@ test("set a compressor sidechain from the device header", async ({ page }) => {
     name: `Sidechain source for ${comp.name}`,
   });
   await expect(selector).toBeVisible();
-  await expect(selector).toHaveValue("");
+  await expect(selector).toHaveText("No sidechain");
   await expect(
     panel(delay.id).getByRole("combobox", { name: /Sidechain source/ }),
   ).toHaveCount(0);
 
   // Only other non-master tracks are offered.
-  const labels = await selector.locator("option").allTextContents();
+  await selector.click();
+  const labels = await page
+    .locator(`[id="${await selector.getAttribute("aria-controls")}"]`)
+    .getByRole("option")
+    .allTextContents();
+  await page.keyboard.press("Escape");
+  await expect(selector).toHaveAttribute("aria-expanded", "false");
   expect(labels).toContain(source.name);
   expect(labels).not.toContain(target.name);
   expect(labels).not.toContain("Master");
 
   const sidechainOf = async () => (await doc(page)).devices[comp.id]?.sidechain;
-  await selector.selectOption({ label: source.name });
+  await pickOption(page, selector, source.name);
   await expect.poll(sidechainOf).toBe(source.id);
-  await expect(selector).toHaveValue(source.id);
+  await expect(selector).toHaveText(source.name);
 
   // One undo step.
   await page.getByRole("button", { name: "Undo" }).click();
   await expect.poll(sidechainOf).toBeNull();
-  await expect(selector).toHaveValue("");
+  await expect(selector).toHaveText("No sidechain");
 
-  await selector.selectOption({ label: source.name });
+  await pickOption(page, selector, source.name);
   await expect.poll(sidechainOf).toBe(source.id);
-  await selector.selectOption({ label: "No sidechain" });
+  await pickOption(page, selector, "No sidechain");
   await expect.poll(sidechainOf).toBeNull();
 
   expect(errors).toEqual([]);

@@ -874,6 +874,7 @@ where
         self.preview_tick(now, out);
         self.midi_learn_tick(now, out);
         self.export_tick(now, out);
+        self.recording_tick(now, out);
 
         // Media jobs.
         if let Some(pid) = self.doc.as_ref().map(|d| d.project.id)

@@ -124,6 +124,7 @@ CSS names are derived from `tokens.ts`: `--eth-<group>-<kebab-key>`.
 | `size` | `--eth-size-*` (controls, icons, knob, fader, meter, toggle, rows, shell, overlays) | no |
 | `meter` | `--eth-meter-{stop-mid,stop-high}` | no |
 | `knobGeometry` | `--eth-knob-geometry-*` (informational; read by Knob.tsx from TS) | no |
+| `ink` | `--eth-ink-{dark,light}` (text/icons on a track-colored fill) | no |
 | `TRACK_COLORS` | `--eth-track-{0..15}` | no |
 | `componentTokens` | `--button-*`, `--knob-*`, ... | follow theme |
 
@@ -175,8 +176,11 @@ anchor), so `overflow: hidden/auto` panels never clip them.
    may stay local, but consider adding a `size.*` token.
 3. **Inline styles**: use `cssVar("accent")` → `var(--eth-color-accent)`, or
    `var(--eth-track-<i>)`.
-4. **Canvas / WebGL** (no CSS vars): read computed values with `readToken("--eth-color-text")`
-   and re-read on theme change (`useTheme()` re-renders). Raw `TRACK_COLORS` are fine for data.
+4. **Canvas / WebGL** (no CSS vars): in a component, `const c = useThemeColor("clipSeam")`
+   (re-renders on theme change; put `c` in the redraw dependencies), or read computed values
+   with `readToken("--eth-color-text")` and re-read on theme change (`useTheme()` re-renders).
+   Canvas geometry that mirrors CSS reads the TS tokens (`parseFloat(size.clipTitleHeight)`).
+   Raw `TRACK_COLORS` are fine for data.
 5. Customize a kit component in a feature by setting its component tokens on a container, not
    by overriding `.eth-*` internals.
 
@@ -184,7 +188,20 @@ anchor), so `overflow: hidden/auto` panels never clip them.
 
 - `ui/src/theme/hardcoded.test.ts` fails on literal colors (hex, rgb()/hsl()…, named colors),
   px font sizes, px/em/rem lengths, numeric size props (`height={120}`) and numeric inline
-  styles (`style={{ width: 40 }}`) in `ui/src/kit`, `ui/src/app`, `ui/src/features/kit-gallery`
-  and `ui/src/theme/base.css`.
-- `just report-hardcoded [dir…]` lists what remains in `ui/src/features`, by kind and by file
-  (inventory for the design sweep; always exits 0).
+  styles (`style={{ width: 40 }}`) in `ui/src/kit`, `ui/src/app`, `ui/src/features`,
+  `ui/src/timeline` and `ui/src/theme/base.css`. It also fails when a `var(--eth-…)` names a
+  token that doesn't exist (typos silently drop a declaration).
+- An unavoidable literal (e.g. a width in an `@container`/`@media` condition, where `var()` is
+  not allowed) is marked with a comment giving the reason, on the same line or alone on the
+  line before: `/* eth-allow-hardcoded: container query conditions cannot use var() */`.
+- `just report-hardcoded [dir…]` lists what remains (default `ui/src/features`), by kind and
+  by file; always exits 0.
+- A value with no exact token gets a new token (named for what it is) rather than the nearest
+  existing one, so migrating never changes the look.
+
+### MIDI learn hooks
+
+A control that MIDI learn can map carries `data-midi-target='<MidiMapTarget JSON>'` on the
+element standing for it: spread `midiTarget(target)` from
+`ui/src/features/midi-learn/targets.ts` (Knob and Fader accept the attribute as a prop).
+Detection reads only this attribute, never class names.

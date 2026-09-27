@@ -52,6 +52,19 @@ export const darkColors = {
   meterMid: "#e3c46f",
   meterHigh: "#e58080",
   knobTrack: "#2e333e",
+  // Editors.
+  /** Shade over the part of an editor outside the clip (piano roll). */
+  outsideShade: "rgb(0 0 0 / 0.35)",
+  /** Loop seams drawn over clip previews (arrangement canvas). */
+  clipSeam: "rgba(0, 0, 0, 0.25)",
+  /** Waveform in the warp editor: the played range, and the rest of the file. */
+  warpWave: "rgba(120, 200, 255, 0.85)",
+  warpWaveDim: "rgba(120, 200, 255, 0.3)",
+  /** Piano roll keyboard (black keys stay dark in every theme). */
+  pianoWhiteKey: "#d8d8d8",
+  pianoWhiteKeyBorder: "#aaa",
+  pianoBlackKey: "#222",
+  pianoKeyLabel: "#333",
 } as const;
 
 export type ColorKey = keyof typeof darkColors;
@@ -90,6 +103,14 @@ export const lightColors: ColorTokens = {
   meterMid: "#c9a23a",
   meterHigh: "#cc5a5a",
   knobTrack: "#d7dbe3",
+  outsideShade: "rgba(24, 27, 36, 0.08)",
+  clipSeam: "rgba(0, 0, 0, 0.25)",
+  warpWave: "rgba(47, 124, 190, 0.85)",
+  warpWaveDim: "rgba(47, 124, 190, 0.3)",
+  pianoWhiteKey: "#fdfdfe",
+  pianoWhiteKeyBorder: "#c3c8d3",
+  pianoBlackKey: "#222",
+  pianoKeyLabel: "#333",
 };
 
 export const darkShadows = {
@@ -129,6 +150,8 @@ export const DEFAULT_THEME: ThemeName = "dark";
 
 export const space = {
   "0": "0",
+  /** One pixel: hairline insets and nudges. */
+  hair: "1px",
   xs: "2px",
   sm: "4px",
   md: "8px",
@@ -140,6 +163,10 @@ export const space = {
 
 export const radius = {
   none: "0",
+  "2xs": "1px",
+  xs: "2px",
+  /** Plugin browser search field and badges. */
+  compact: "3px",
   sm: "4px",
   md: "6px",
   lg: "8px",
@@ -155,6 +182,8 @@ export const border = {
 
 /** Font sizes (`--eth-fs-*`). */
 export const fontSize = {
+  /** Piano roll key labels. */
+  "2xs": "9px",
   xs: "10px",
   sm: "11px",
   md: "12px",
@@ -182,6 +211,8 @@ export const lineHeight = {
 export const letterSpacing = {
   normal: "0",
   caps: "0.04em",
+  /** Large numeric readouts (transport position). */
+  tight: "-0.01em",
 } as const;
 
 export const font = {
@@ -193,6 +224,8 @@ export const font = {
 export const focus = {
   ringWidth: "1px",
   ringOffset: "1px",
+  /** Soft halo around a focused transport field. */
+  halo: "3px",
 } as const;
 
 export const duration = {
@@ -278,6 +311,92 @@ export const size = {
   selectListMaxHeight: "320px",
   dialogWidth: "420px",
   tooltipMaxWidth: "240px",
+  /** Grab width of edge handles (clip and note resize). */
+  edgeHandle: "6px",
+  /** Editor title in the piano roll / warp toolbars (follows the font size). */
+  editorTitleMaxWidth: "16em",
+  /** Narrow number inputs in editor toolbars (follows the font size). */
+  numberFieldNarrow: "4em",
+  /** Status dots: recording, engine status and small "has something" indicators. */
+  dotSm: "4px",
+  statusDot: "7px",
+  statusDotGlow: "6px",
+  recordDot: "8px",
+  // Arrangement.
+  /** Default width of the track header column (matches layout.ts HEADER_WIDTH). */
+  trackHeaderWidth: "200px",
+  /** Track header card: vertical inset, left inset and extra left inset per group depth. */
+  trackCardInsetY: "3px",
+  trackCardInsetLeft: "6px",
+  trackIndent: "12px",
+  trackBadge: "26px",
+  trackButton: "20px",
+  trackMeterWidth: "3px",
+  trackFaderWidth: "44px",
+  trackFaderThumb: "8px",
+  /** Blur of the glow around a selected track header. */
+  trackSelectedGlow: "10px",
+  /** Two-layer halo around selected clips and notes (inner and outer blur). */
+  selectedGlowInner: "6px",
+  selectedGlowOuter: "14px",
+  /** "+ Add track" row below the tracks: height and horizontal padding. */
+  addTrackHeight: "32px",
+  addTrackPadLeft: "18px",
+  addTrackPadRight: "20px",
+  clipTitleHeight: "14px",
+  clipTitleLineHeight: "12px",
+  // Timeline ruler.
+  rulerLoopHeight: "4px",
+  /** Extra invisible grab area below the loop brace. */
+  rulerLoopHitExtra: "3px",
+  rulerLabelTop: "6px",
+  rulerLabelLineHeight: "10px",
+  playheadMarkerHalfWidth: "5px",
+  playheadMarkerHeight: "7px",
+  // Piano roll.
+  gridStepLabelMinWidth: "3.5em",
+  loopBarHeight: "8px",
+  velocityBarWidth: "4px",
+  // Browser, plugins, project, recording, transport.
+  browserRowHeight: "24px",
+  emptyStateIcon: "22px",
+  /** Project screen (dialog) width, its big "New project" button and list rows. */
+  projectScreenWidth: "560px",
+  projectNewHeight: "72px",
+  projectNewIcon: "20px",
+  projectRowHeight: "32px",
+  projectInputHeight: "20px",
+  recordPanelMinWidth: "320px",
+  transportIcon: "15px",
+  // Mixer strips.
+  stripWidth: "68px",
+  stripWidthMaster: "76px",
+  /** Group bracket above a group's strips (border and gap). */
+  stripGroupBracket: "3px",
+  stripClipWidth: "12px",
+  stripClipHeight: "4px",
+  stripClipOffset: "6px",
+  knobStrip: "28px",
+  // Device cards.
+  deviceTrackPickerMinWidth: "120px",
+  deviceAddMinWidth: "140px",
+  deviceChainEndMinWidth: "48px",
+  deviceCardMinWidth: "148px",
+  deviceParamMinWidth: "52px",
+  /** Stacked device card: knob diameter range for main (lg) and folded (md) controls. */
+  deviceKnobLgMin: "34px",
+  deviceKnobLgMax: "54px",
+  deviceKnobMin: "26px",
+  deviceKnobMax: "38px",
+  /** Room beside a knob in a parameter cell: main, folded and narrow cards. */
+  deviceParamRoom: "22px",
+  deviceParamRoomMore: "26px",
+  deviceParamRoomNarrow: "14px",
+  deviceGroupMinWidth: "220px",
+  deviceGroupMinWidthWide: "200px",
+  // Audio settings dialog.
+  audioSettingsDialogWidth: "520px",
+  audioSettingsMeterNameWidth: "120px",
 } as const;
 
 /** Meter gradient stop positions (`--eth-meter-*`); colors are `meterLow/Mid/High`. */
@@ -301,6 +420,21 @@ export const knobGeometry = {
   pointerLength: "30",
   /** Pointer start distance from the center (0 = from the center). */
   pointerInset: "0",
+} as const;
+
+/**
+ * Icon/text ink on a colored fill (track badges, clip titles), whichever contrasts more
+ * (`--eth-ink-<key>`). Theme-independent: the fill is a track color.
+ */
+export const ink = {
+  dark: "#14161b",
+  light: "#ffffff",
+} as const;
+
+/** Pure white/black to tint or shade a color with `color-mix()` (`--eth-mix-<key>`). */
+export const mix = {
+  white: "#ffffff",
+  black: "#000000",
 } as const;
 
 /** Track/clip color palette: soft, luminous hues (`--eth-track-<i>`). Index with `trackColor(i)`. */
@@ -520,6 +654,8 @@ export const sharedGroups: Record<string, Record<string, string>> = {
   size,
   meter,
   "knob-geometry": knobGeometry,
+  ink,
+  mix,
 };
 
 function kebab(s: string): string {

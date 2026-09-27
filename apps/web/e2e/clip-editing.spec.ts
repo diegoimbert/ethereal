@@ -7,7 +7,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import type { Clip, Project } from "@/generated";
 import { selectClip } from "./clips";
-import { newProject } from "./projects";
+import { newProject } from "./ui";
 
 interface Handle {
   state(): { project: Project | null };

@@ -5,6 +5,7 @@ import {
   describeSource,
   describeTarget,
   MAPPABLE_SELECTOR,
+  midiTarget,
   MODE_OPTIONS,
   modeValue,
   noteName,
@@ -65,53 +66,58 @@ describe("targets", () => {
     expect(parseMode("Relative:BinaryOffset")).toEqual({ type: "Relative", encoding: "BinaryOffset" });
   });
 
-  it("resolves mixer, device and transport controls from the DOM", () => {
+  it("resolves controls from their data-midi-target attribute only", () => {
     const p = project();
+    const t = (target: MidiMapTarget) => JSON.stringify(target);
     const root = dom(`
       <div class="eth-strip" data-track="t1">
-        <div class="eth-strip__send" data-send-to="t2"><div class="eth-knob"><svg><circle class="in-send"/></svg></div><button class="pre">Pre</button></div>
-        <div class="eth-knob eth-strip__pan"><svg><circle class="in-pan"/></svg></div>
-        <div class="eth-strip__fader-row"><div class="eth-fader"><div class="eth-fader__thumb"></div></div></div>
-        <button class="eth-strip__mute">M</button>
-        <button class="eth-strip__solo">S</button>
-        <button class="eth-strip__name">Bass</button>
+        <div data-midi-target='${t({ type: "Param", target: { type: "SendLevel", send: "s1" } })}'><svg><circle class="in-send"/></svg></div>
+        <button class="pre">Pre</button>
+        <div class="eth-knob eth-strip__pan" data-midi-target='${t({ type: "Param", target: { type: "TrackPan", track: "t1" } })}'><svg><circle class="in-pan"/></svg></div>
+        <div data-midi-target='${t({ type: "Param", target: { type: "TrackVolume", track: "t1" } })}'><div class="eth-fader__thumb"></div></div>
+        <button class="mute" data-midi-target='${t({ type: "TrackMute", track: "t1" })}'>M</button>
+        <button class="solo" data-midi-target='${t({ type: "TrackSolo", track: "t1" })}'>S</button>
+        <button class="arm" data-midi-target='${t({ type: "TrackArm", track: "t1" })}'>A</button>
+        <button class="eth-strip__mute eth-strip__name">Bass</button>
       </div>
-      <section data-device="d1"><div class="eth-param" data-param="4"><div class="eth-knob inner"></div></div></section>
-      <section data-device="gone"><div class="eth-param" data-param="4"><span class="ghost"></span></div></section>
+      <div data-midi-target='${t({ type: "Param", target: { type: "DeviceParam", device: "d1", param: 4 } })}'><div class="inner"></div></div>
+      <div data-midi-target='${t({ type: "Param", target: { type: "DeviceParam", device: "gone", param: 4 } })}'><span class="ghost"></span></div>
+      <div data-midi-target='${t({ type: "TrackArm", track: "gone" })}'><span class="ghost-track"></span></div>
+      <div data-midi-target='not json'><span class="broken"></span></div>
       <div class="eth-tb">
-        <button class="eth-tb__play" aria-label="Play"></button>
-        <button aria-label="Stop"></button>
+        <button class="play" data-midi-target='${t({ type: "Transport", action: "TogglePlay" })}'></button>
         <button class="eth-tb__record" aria-label="Record"></button>
-        <button aria-label="Loop"></button>
-        <button aria-label="Metronome"></button>
-        <button title="Tap tempo">TAP</button>
-        <button aria-label="Undo"></button>
       </div>
-      <div data-midi-target='{"type":"TrackArm","track":"t1"}'><span class="explicit"></span></div>
     `);
     const at = (sel: string) => resolveControl(root.querySelector(sel)!, p)?.target ?? null;
     expect(at(".in-send")).toEqual({ type: "Param", target: { type: "SendLevel", send: "s1" } });
     expect(at(".pre")).toBeNull();
     expect(at(".in-pan")).toEqual({ type: "Param", target: { type: "TrackPan", track: "t1" } });
     expect(at(".eth-fader__thumb")).toEqual({ type: "Param", target: { type: "TrackVolume", track: "t1" } });
-    expect(at(".eth-strip__mute")).toEqual({ type: "TrackMute", track: "t1" });
-    expect(at(".eth-strip__solo")).toEqual({ type: "TrackSolo", track: "t1" });
+    expect(at(".mute")).toEqual({ type: "TrackMute", track: "t1" });
+    expect(at(".solo")).toEqual({ type: "TrackSolo", track: "t1" });
+    expect(at(".arm")).toEqual({ type: "TrackArm", track: "t1" });
+    // Class names alone never make a control mappable.
     expect(at(".eth-strip__name")).toBeNull();
+    expect(at(".eth-tb__record")).toBeNull();
     expect(at(".inner")).toEqual({ type: "Param", target: { type: "DeviceParam", device: "d1", param: 4 } });
     expect(at(".ghost")).toBeNull();
-    expect(at(".eth-tb__play")).toEqual({ type: "Transport", action: "TogglePlay" });
-    expect(at('[aria-label="Stop"]')).toEqual({ type: "Transport", action: "Stop" });
-    expect(at(".eth-tb__record")).toEqual({ type: "Transport", action: "ToggleRecord" });
-    expect(at('[aria-label="Loop"]')).toEqual({ type: "Transport", action: "ToggleLoop" });
-    expect(at('[aria-label="Metronome"]')).toEqual({ type: "Transport", action: "ToggleMetronome" });
-    expect(at('[title="Tap tempo"]')).toEqual({ type: "Transport", action: "TapTempo" });
-    expect(at('[aria-label="Undo"]')).toBeNull();
-    expect(at(".explicit")).toEqual({ type: "TrackArm", track: "t1" });
+    expect(at(".ghost-track")).toBeNull();
+    expect(at(".broken")).toBeNull();
+    expect(at(".play")).toEqual({ type: "Transport", action: "TogglePlay" });
     expect(resolveControl(root.querySelector(".in-pan")!, null)).toBeNull();
 
     // Every mappable element is found by the selector and resolves to itself.
     const marked = [...root.querySelectorAll(MAPPABLE_SELECTOR)].filter((el) => resolveControl(el, p)?.element === el);
-    expect(marked.length).toBe(13);
+    expect(marked.length).toBe(8);
+  });
+
+  it("midiTarget() builds the attribute that resolveControl reads", () => {
+    const target: MidiMapTarget = { type: "Param", target: { type: "SendLevel", send: "s1" } };
+    const el = document.createElement("div");
+    for (const [k, v] of Object.entries(midiTarget(target))) el.setAttribute(k, v);
+    expect(el.getAttribute("data-midi-target")).toBe(JSON.stringify(target));
+    expect(resolveControl(el, project())).toEqual({ element: el, target });
   });
 
   it("reduces engine events", () => {

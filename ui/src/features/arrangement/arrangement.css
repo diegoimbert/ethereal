@@ -19,7 +19,7 @@
   align-items: center;
   gap: var(--eth-space-sm);
   padding: var(--eth-space-xs) var(--eth-space-sm);
-  border-bottom: 1px solid var(--eth-color-border);
+  border-bottom: var(--eth-border-width) solid var(--eth-color-border);
   background: var(--eth-color-bg-panel);
 }
 
@@ -33,13 +33,13 @@
 .eth-arr-toolbar__grid select {
   background: var(--eth-color-bg-inset);
   color: var(--eth-color-text);
-  border: 1px solid var(--eth-color-border-light);
+  border: var(--eth-border-width) solid var(--eth-color-border-light);
   border-radius: var(--eth-radius-sm);
   font-size: var(--eth-fs-sm);
 }
 
 .eth-arr-toolbar__sep {
-  width: 1px;
+  width: var(--eth-border-width);
   align-self: stretch;
   margin: 0 var(--eth-space-xs);
   background: var(--eth-color-border-light);
@@ -55,8 +55,8 @@
 .eth-arr__corner {
   flex: none;
   background: var(--eth-color-bg-inset);
-  border-bottom: 1px solid var(--eth-color-border);
-  border-right: 1px solid var(--eth-color-border);
+  border-bottom: var(--eth-border-width) solid var(--eth-color-border);
+  border-right: var(--eth-border-width) solid var(--eth-color-border);
 }
 
 .eth-arr__ruler {
@@ -111,7 +111,7 @@
   top: 0;
   bottom: 0;
   left: 0;
-  width: 1px;
+  width: var(--eth-border-width);
   background: color-mix(in srgb, var(--eth-color-text) 7%, transparent);
 }
 
@@ -134,7 +134,7 @@
 .eth-arr__marquee {
   position: absolute;
   z-index: 4;
-  border: 1px solid var(--eth-color-selection);
+  border: var(--eth-border-width) solid var(--eth-color-selection);
   background: color-mix(in srgb, var(--eth-color-selection) 15%, transparent);
   pointer-events: none;
 }
@@ -143,7 +143,7 @@
   position: relative;
   display: flex;
   align-items: center;
-  padding-left: calc(var(--eth-arr-header-width, 200px) + var(--eth-space-lg));
+  padding-left: calc(var(--eth-arr-header-width, var(--eth-size-track-header-width)) + var(--eth-space-lg));
   color: var(--eth-color-text-dim);
   font-size: var(--eth-fs-xs);
 }
@@ -158,8 +158,8 @@
   align-items: center;
   gap: var(--eth-space-sm);
   box-sizing: border-box;
-  height: 32px;
-  padding: 0 20px 0 18px;
+  height: var(--eth-size-add-track-height);
+  padding: 0 var(--eth-size-add-track-pad-right) 0 var(--eth-size-add-track-pad-left);
   z-index: 1;
   border: none;
   background: none;
@@ -173,7 +173,8 @@
 .eth-arr__add-track::before {
   content: "";
   position: absolute;
-  inset: 3px 12px 3px 6px;
+  inset: var(--eth-size-track-card-inset-y) var(--eth-space-lg) var(--eth-size-track-card-inset-y)
+    var(--eth-size-track-card-inset-left);
   z-index: -1;
   border-radius: var(--eth-radius-lg);
   background: transparent;
@@ -190,13 +191,13 @@
   background: var(--eth-color-bg-hover);
 }
 .eth-arr__add-track svg {
-  width: 14px;
-  height: 14px;
+  width: var(--eth-size-icon-md);
+  height: var(--eth-size-icon-md);
 }
 
 .eth-arr__drop-label {
   padding: var(--eth-space-sm) var(--eth-space-md);
-  border: 1px dashed var(--eth-color-border-light);
+  border: var(--eth-border-width) dashed var(--eth-color-border-light);
   border-radius: var(--eth-radius-md);
   transition:
     color var(--eth-duration-fast) var(--eth-ease-out),
@@ -212,8 +213,8 @@
 
 /* Pending browser-drop import (lane placeholder, or in the drop area for a new track). */
 .eth-arr-import {
-  padding: 2px var(--eth-space-sm);
-  border: 1px dashed var(--eth-color-accent);
+  padding: var(--eth-space-xs) var(--eth-space-sm);
+  border: var(--eth-border-width) dashed var(--eth-color-accent);
   border-radius: var(--eth-radius-sm);
   color: var(--eth-color-text-dim);
   font-size: var(--eth-fs-xs);
@@ -223,7 +224,7 @@
 
 .eth-arr-lane .eth-arr-import {
   position: absolute;
-  top: 4px;
+  top: var(--eth-space-sm);
 }
 
 .eth-arr-import--error {
@@ -236,7 +237,7 @@
   position: absolute;
   top: 0;
   bottom: 0;
-  width: 6px;
+  width: var(--eth-size-splitter-width);
   z-index: 8;
   cursor: ew-resize;
   transition: background var(--eth-duration-fast) var(--eth-ease-out);
@@ -263,7 +264,7 @@
 .eth-arr-row__resize {
   position: absolute;
   left: 0;
-  height: 6px;
+  height: var(--eth-size-splitter-width);
   z-index: 6;
   cursor: ns-resize;
 }
@@ -285,7 +286,7 @@
   z-index: 5;
   box-sizing: border-box;
   /* The card's right inset (12px, a gap before the lanes) plus room inside it. */
-  padding-right: 20px;
+  padding-right: calc(var(--eth-space-lg) + var(--eth-space-md));
   /* The header is a floating card: drawn by ::before, inset from the row (the header box
      itself keeps the column width that clip positions rely on). */
   background: transparent;
@@ -299,7 +300,8 @@
   content: "";
   position: absolute;
   /* Nested tracks' cards step in with their group depth. */
-  inset: 3px 12px 3px calc(6px + var(--eth-track-depth, 0) * 12px);
+  inset: var(--eth-size-track-card-inset-y) var(--eth-space-lg) var(--eth-size-track-card-inset-y)
+    calc(var(--eth-size-track-card-inset-left) + var(--eth-track-depth, 0) * var(--eth-size-track-indent));
   z-index: -1;
   border-radius: var(--eth-radius-lg);
   /* Only a selected track shows its card; hover gives a faint hint. */
@@ -319,14 +321,14 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 26px;
-  height: 26px;
+  width: var(--eth-size-track-badge);
+  height: var(--eth-size-track-badge);
   /* A bit more room before the track name than the header's gap. */
-  margin-right: 4px;
-  border-radius: 50%;
+  margin-right: var(--eth-space-sm);
+  border-radius: var(--eth-radius-round);
   background: var(--eth-track-color);
   /* Icon color: set inline from the track color's contrast (inkOn). */
-  font-size: 14px;
+  font-size: var(--eth-fs-lg);
 }
 
 .eth-arr-header--dragging {
@@ -334,7 +336,7 @@
 }
 
 .eth-arr-header--drop-into::before {
-  box-shadow: inset 0 0 0 2px var(--eth-color-accent);
+  box-shadow: inset 0 0 0 var(--eth-border-width-strong) var(--eth-color-accent);
 }
 
 .eth-arr-header:not(.eth-arr-header--master):not(.eth-arr-header--return) {
@@ -346,8 +348,8 @@
   position: absolute;
   left: 0;
   right: 0;
-  height: 2px;
-  margin-top: -1px;
+  height: var(--eth-border-width-strong);
+  margin-top: calc(var(--eth-border-width-strong) / -2);
   z-index: 6;
   background: var(--eth-color-accent);
   pointer-events: none;
@@ -357,8 +359,8 @@
 .eth-arr-header--selected:hover::before {
   background: color-mix(in srgb, var(--eth-track-color) 22%, var(--eth-color-bg-raised));
   box-shadow:
-    inset 0 0 0 1px color-mix(in srgb, var(--eth-track-color) 60%, transparent),
-    0 0 10px color-mix(in srgb, var(--eth-track-color) 25%, transparent);
+    inset 0 0 0 var(--eth-border-width) color-mix(in srgb, var(--eth-track-color) 60%, transparent),
+    0 0 var(--eth-size-track-selected-glow) color-mix(in srgb, var(--eth-track-color) 25%, transparent);
 }
 
 .eth-arr-header__fold {
@@ -389,9 +391,9 @@
 .eth-arr-header__rename {
   flex: 1;
   min-width: 0;
-  height: calc(var(--eth-fs-md) + 8px);
+  height: calc(var(--eth-fs-md) + var(--eth-space-md));
   padding: 0 var(--eth-space-xs);
-  border: 1px solid var(--eth-color-focus);
+  border: var(--eth-border-width) solid var(--eth-color-focus);
   border-radius: var(--eth-radius-sm);
   background: var(--eth-color-bg-inset);
   color: var(--eth-color-text);
@@ -405,8 +407,8 @@
   flex: none;
   display: flex;
   align-items: center;
-  width: 44px;
-  height: 18px;
+  width: var(--eth-size-track-fader-width);
+  height: var(--eth-size-control-sm);
   cursor: ew-resize;
   touch-action: none;
   outline: none;
@@ -414,7 +416,7 @@
 .eth-arr-vol__track {
   position: relative;
   width: 100%;
-  height: 4px;
+  height: var(--eth-size-fader-track-width);
   border-radius: var(--eth-radius-pill);
   background: var(--eth-color-knob-track);
   overflow: visible;
@@ -429,9 +431,9 @@
 .eth-arr-vol__thumb {
   position: absolute;
   top: 50%;
-  width: 8px;
-  height: 8px;
-  margin: -4px 0 0 -4px;
+  width: var(--eth-size-track-fader-thumb);
+  height: var(--eth-size-track-fader-thumb);
+  margin: calc(var(--eth-size-track-fader-thumb) / -2) 0 0 calc(var(--eth-size-track-fader-thumb) / -2);
   border-radius: var(--eth-radius-round);
   background: var(--eth-color-text);
   box-shadow: var(--eth-shadow-sm);
@@ -464,7 +466,7 @@
   white-space: nowrap;
   pointer-events: none;
   opacity: 0;
-  transform: translate(-50%, 2px);
+  transform: translate(-50%, var(--eth-space-xs));
   transition:
     opacity var(--eth-duration-fast) var(--eth-ease-out),
     transform var(--eth-duration-fast) var(--eth-ease-out);
@@ -477,15 +479,15 @@
 
 .eth-arr-header__buttons {
   display: flex;
-  gap: 2px;
+  gap: var(--eth-space-xs);
 }
 
 .eth-arr-header__toggle {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 20px;
+  width: var(--eth-size-track-button);
+  height: var(--eth-size-track-button);
   padding: 0;
   border: none;
   border-radius: var(--eth-radius-sm);
@@ -525,11 +527,11 @@
 .eth-arr-header__automation.eth-auto-toggle--has::after {
   content: "";
   position: absolute;
-  top: 2px;
-  right: 2px;
-  width: 4px;
-  height: 4px;
-  border-radius: 50%;
+  top: var(--eth-space-xs);
+  right: var(--eth-space-xs);
+  width: var(--eth-size-dot-sm);
+  height: var(--eth-size-dot-sm);
+  border-radius: var(--eth-radius-round);
   background: var(--eth-color-accent);
 }
 
@@ -557,8 +559,8 @@
   position: absolute;
   top: var(--eth-space-xs);
   bottom: var(--eth-space-xs);
-  right: 2px;
-  width: 3px;
+  right: var(--eth-space-xs);
+  width: var(--eth-size-track-meter-width);
   border-radius: var(--eth-radius-pill);
   background: color-mix(in srgb, var(--eth-color-text) 6%, transparent);
   overflow: hidden;
@@ -584,7 +586,7 @@
   min-width: 0;
   overflow: hidden;
   /* A faint line between tracks, in the lanes only (headers are floating cards). */
-  box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--eth-color-border-light) 45%, transparent);
+  box-shadow: inset 0 calc(-1 * var(--eth-border-width)) 0 color-mix(in srgb, var(--eth-color-border-light) 45%, transparent);
 }
 
 .eth-arr-lane--no-clips {
@@ -604,7 +606,7 @@
   position: absolute;
   top: 0;
   bottom: 0;
-  width: 2px;
+  width: var(--eth-border-width-strong);
   background: var(--eth-color-accent);
   pointer-events: none;
 }
@@ -629,8 +631,8 @@
 
 .eth-clip {
   position: absolute;
-  top: 2px;
-  bottom: 2px;
+  top: var(--eth-space-xs);
+  bottom: var(--eth-space-xs);
   box-sizing: border-box;
   overflow: hidden;
   border-radius: var(--eth-radius-md);
@@ -638,8 +640,8 @@
   /* Theme-aware shades of the clip color: in light mode the pastel palette is darkened so
      clips stand out on the light background (see the [data-theme="light"] rule below). */
   --clip-strong: var(--eth-clip-color);
-  --clip-rim: color-mix(in srgb, var(--eth-clip-color) 30%, white);
-  --clip-lift: white;
+  --clip-rim: color-mix(in srgb, var(--eth-clip-color) 30%, var(--eth-mix-white));
+  --clip-lift: var(--eth-mix-white);
   background: color-mix(in srgb, var(--clip-strong) 26%, var(--eth-color-bg-panel));
   border: none;
   /* Only the title bar and the edge handles take the pointer: a press on the body goes
@@ -659,8 +661,8 @@
   z-index: 2;
   background: color-mix(in srgb, var(--clip-strong) 36%, var(--eth-color-bg));
   box-shadow:
-    0 0 6px color-mix(in srgb, var(--clip-strong) 85%, transparent),
-    0 0 14px color-mix(in srgb, var(--clip-strong) 45%, transparent);
+    0 0 var(--eth-size-selected-glow-inner) color-mix(in srgb, var(--clip-strong) 85%, transparent),
+    0 0 var(--eth-size-selected-glow-outer) color-mix(in srgb, var(--clip-strong) 45%, transparent);
 }
 
 /* The light rim sits above the clip's content (the notes/waveform canvas would cover an
@@ -671,7 +673,7 @@
   inset: 0;
   z-index: 2;
   border-radius: inherit;
-  box-shadow: inset 0 0 0 1px var(--clip-rim);
+  box-shadow: inset 0 0 0 var(--eth-border-width) var(--clip-rim);
   pointer-events: none;
 }
 
@@ -700,12 +702,12 @@
   display: flex;
   align-items: center;
   gap: var(--eth-space-xs);
-  height: 14px;
-  padding: 1px var(--eth-space-xs) 0;
+  height: var(--eth-size-clip-title-height);
+  padding: var(--eth-space-hair) var(--eth-space-xs) 0;
   overflow: hidden;
   white-space: nowrap;
   font-size: var(--eth-fs-xs);
-  line-height: 12px;
+  line-height: var(--eth-size-clip-title-line-height);
   color: var(--eth-color-text-inverse);
   background: var(--clip-strong);
   pointer-events: auto;
@@ -736,7 +738,7 @@
 
 .eth-clip__body {
   position: absolute;
-  top: 14px;
+  top: var(--eth-size-clip-title-height);
   bottom: 0;
   pointer-events: none;
 }
@@ -752,7 +754,7 @@
   top: 0;
   bottom: 0;
   /* Narrow clips keep a grabbable middle: each edge handle is at most a quarter of it. */
-  width: min(6px, 25%);
+  width: min(var(--eth-size-edge-handle), 25%);
   cursor: ew-resize;
   z-index: 1;
   pointer-events: auto;
@@ -783,7 +785,7 @@
 .eth-arr-header--draft::before,
 .eth-arr-header--draft:hover::before {
   background: var(--eth-color-accent-subtle);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--eth-color-accent) 55%, transparent);
+  box-shadow: inset 0 0 0 var(--eth-border-width) color-mix(in srgb, var(--eth-color-accent) 55%, transparent);
 }
 
 .eth-arr-header--draft .eth-arr-header__name {
@@ -795,9 +797,9 @@
   display: flex;
   align-items: center;
   padding-left: var(--eth-space-lg);
-  border: 1px dashed color-mix(in srgb, var(--eth-color-accent) 45%, transparent);
+  border: var(--eth-border-width) dashed color-mix(in srgb, var(--eth-color-accent) 45%, transparent);
   border-radius: var(--eth-radius-md);
-  margin: 2px;
+  margin: var(--eth-space-xs);
   color: var(--eth-color-text-dim);
   font-size: var(--eth-fs-sm);
 }
@@ -805,7 +807,7 @@
 @keyframes eth-arr-draft-in {
   from {
     opacity: 0;
-    transform: translateY(-4px);
+    transform: translateY(calc(-1 * var(--eth-space-sm)));
   }
 }
 
@@ -815,9 +817,9 @@
 
 /* Light theme: darker clip shades for contrast on the light background. */
 [data-theme="light"] .eth-clip {
-  --clip-strong: color-mix(in srgb, var(--eth-clip-color) 70%, black);
+  --clip-strong: color-mix(in srgb, var(--eth-clip-color) 70%, var(--eth-mix-black));
   --clip-rim: var(--clip-strong);
-  --clip-lift: black;
+  --clip-lift: var(--eth-mix-black);
 }
 
 /* No glow in the light theme: the rim and the darker band mark the selection. */

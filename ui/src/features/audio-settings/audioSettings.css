@@ -1,6 +1,6 @@
 /* A roomier dialog than the default; the content fills it and never overflows it. */
 .eth-audio-settings {
-  --dialog-width: 520px;
+  --dialog-width: var(--eth-size-audio-settings-dialog-width);
 }
 .eth-audio-settings__body {
   display: flex;
@@ -51,7 +51,7 @@
   gap: var(--eth-space-md);
 }
 .eth-audio-settings__meter-name {
-  width: 120px;
+  width: var(--eth-size-audio-settings-meter-name-width);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

@@ -15,9 +15,9 @@
   font-weight: 600;
 }
 .eth-rec__dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
+  width: var(--eth-size-record-dot);
+  height: var(--eth-size-record-dot);
+  border-radius: var(--eth-radius-round);
   background: var(--eth-color-record);
   animation: eth-rec-blink 1s steps(2, start) infinite;
 }
@@ -45,8 +45,8 @@
   color: var(--eth-color-text-dim);
 }
 .eth-rec select {
-  height: 22px;
-  border: 1px solid var(--eth-color-border);
+  height: var(--eth-size-control-md);
+  border: var(--eth-border-width) solid var(--eth-color-border);
   border-radius: var(--eth-radius-sm);
   background: var(--eth-color-bg-inset);
   color: var(--eth-color-text);
@@ -57,7 +57,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--eth-space-md);
-  min-width: 320px;
+  min-width: var(--eth-size-record-panel-min-width);
   padding: var(--eth-space-sm);
 }
 .eth-rec__tracks {
@@ -88,4 +88,29 @@
   color: var(--eth-color-record);
   cursor: pointer;
   font-size: var(--eth-fs-xs);
+}
+
+/* Live recording view (live-record): an overlay clip in the lane, never a real clip. */
+.eth-clip--live {
+  pointer-events: none;
+  outline: var(--eth-border-width) solid var(--eth-color-record);
+  outline-offset: calc(-1 * var(--eth-border-width));
+}
+.eth-clip--live .eth-clip__name {
+  color: var(--eth-color-record);
+}
+.eth-clip__canvas--live {
+  position: absolute;
+  top: 0;
+  height: 100%;
+}
+/* Handoff: only the waveform/notes stay, over the committed clip, until it has its own. */
+.eth-clip--live-handoff {
+  outline: none;
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+.eth-clip--live-handoff .eth-clip__title {
+  visibility: hidden;
 }
