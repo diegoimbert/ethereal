@@ -184,7 +184,7 @@ export class LiveRecording {
         t = new LiveTake(c.track, c.take, c.start, c.sample_rate, c.frames_per_peak);
         this.takes.set(key, t);
       }
-      t.put(Number(c.first_peak), c.min, c.max);
+      t.put(c.first_peak, c.min, c.max);
       changed.add(c.track);
     }
     for (const n of midi) {

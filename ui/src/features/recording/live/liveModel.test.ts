@@ -14,7 +14,7 @@ function chunk(first: number, values: number[], take = 1): LiveAudioChunk {
     start: 4,
     sample_rate: 48_000,
     frames_per_peak: 256,
-    first_peak: first as unknown as bigint,
+    first_peak: first,
     min: values.map((v) => -v),
     max: values,
   };

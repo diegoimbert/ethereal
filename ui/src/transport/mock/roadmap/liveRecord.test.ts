@@ -38,7 +38,7 @@ describe("mock recording with live view", () => {
     for (const c of chunks) {
       expect(c.track).toBe(drums.id);
       expect(c.start).toBe(8);
-      expect(Number(c.first_peak)).toBe(next);
+      expect(c.first_peak).toBe(next);
       next += c.min.length;
     }
     expect(next * LIVE_FRAMES_PER_PEAK).toBeGreaterThan(40_000);

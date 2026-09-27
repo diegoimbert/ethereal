@@ -154,8 +154,7 @@ export class MockLiveRecord {
         start: this.start,
         sample_rate: LIVE_SAMPLE_RATE,
         frames_per_peak: LIVE_FRAMES_PER_PEAK,
-        // u64 typed `bigint` by the generator, a JSON number on the wire (BCR pending).
-        first_peak: t.sent as unknown as bigint,
+        first_peak: t.sent,
         min: peaks.min[0]!,
         max: peaks.max[0]!,
       });
