@@ -531,6 +531,16 @@ host's own playhead, plus `count_in_end: Some(record start)` while a count-in is
 (`None` otherwise). A listener shows "count-in" while its mapped position is before
 `count_in_end`, and hears the count-in clicks in the stream.
 
+Encoder delay (native): Opus has a fixed algorithmic delay of 312 samples at 48 kHz
+(6.5 ms). The native sender **pre-compensates RTP timestamps for it**: each Opus frame is
+stamped `o + n - 312`, so that the *decoded* sample with RTP timestamp `o + m` is stream
+sample `m`. The anchor formula above then holds for what the listener hears. A stop is sent
+as an anchor with `discontinuity: true` (so a listener never extrapolates a playing anchor
+past it), even though it is not a timeline jump. The native sender sets the encoder bitrate
+directly (target 128 kbit/s, 48-192 kbit/s from the bandwidth estimate), since str0m cannot
+put `maxaveragebitrate` in its SDP. Native host candidates are IPv4 only (default-route
+interface and loopback).
+
 Host math (web): the RTP timestamp is chosen by the browser. The UI sender observes it with a
 read-only encoded transform on the sender (`RTCRtpScriptTransform`, or
 `createEncodedStreams` on Chromium): each `RTCEncodedAudioFrame` has its RTP `timestamp`,
