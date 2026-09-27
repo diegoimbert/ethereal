@@ -17,6 +17,7 @@ import {
 import type { Beats, Clip, ClipId, Color, Track, TrackId } from "@/generated";
 import { promptForInputIfNone } from "@/features/audio-settings";
 import { AutomationToggleButton, TrackAutomationLanes } from "@/features/automation";
+import { LiveRecordLane } from "@/features/recording/live/LiveRecordLane";
 import { MOD_KEY, meterPosition, openContextMenu, setDragCursor } from "@/kit";
 import { useEditorStore, useProjectStore, useTrackMeter } from "@/state";
 import { pxToBeats, resolveGrid, selectModeFromEvent, snapToGrid, useSelectedItems, useTempoMap, useTimelineView } from "@/timeline";
@@ -468,6 +469,16 @@ function TrackLane({ track }: { track: Track }) {
         i.track === track.id ? (
           <ImportPlaceholder key={i.id} item={i} style={{ left: beatsCss(i.at - vp.scrollBeats) }} />
         ) : null,
+      )}
+      {(track.kind === "Audio" || track.kind === "Midi") && (
+        <LiveRecordLane
+          transport={ctx.transport}
+          track={track.id}
+          color={track.color}
+          origin={vp.scrollBeats}
+          visible={visible}
+          pxPerBeat={vp.pxPerBeat}
+        />
       )}
       </LaneLayer>
     </div>
