@@ -1,0 +1,64 @@
+/* Collaboration: top-bar presence bar, join dialog, peer selection outlines. Tokens only
+   (peer colors are data, like track colors). */
+:root {
+  --eth-collab-outline-width: var(--eth-border-width-strong);
+  --eth-collab-avatar-size: var(--eth-size-control-sm);
+}
+.eth-collab {
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-sm);
+  font-size: var(--eth-fs-sm);
+}
+.eth-collab__peers {
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-xs);
+}
+.eth-collab__avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--eth-collab-avatar-size);
+  height: var(--eth-collab-avatar-size);
+  border-radius: var(--eth-radius-round);
+  background: var(--eth-collab-peer);
+  color: var(--eth-color-bg);
+  font-size: var(--eth-fs-xs);
+  font-weight: 600;
+  line-height: 1;
+  user-select: none;
+}
+.eth-collab__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-md);
+}
+.eth-collab__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-xs);
+  color: var(--eth-color-text-dim);
+}
+.eth-collab__hint {
+  margin: 0;
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+}
+.eth-collab__error {
+  margin: 0;
+  color: var(--eth-color-danger);
+}
+.eth-collab__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-sm);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.eth-collab__member {
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-sm);
+}

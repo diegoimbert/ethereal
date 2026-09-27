@@ -13,7 +13,7 @@ use ether_core::protocol::meters::MeterFrame;
 use ether_core::protocol::model::file::MEDIA_DIR;
 use ether_core::protocol::model::*;
 use ether_core::protocol::plugins::{PluginCommand, PluginEvent};
-use ether_core::protocol::project::{EditCommand, ProjectEvent};
+use ether_core::protocol::project::{EditCommand, ProjectCommand, ProjectEvent};
 use ether_core::protocol::recording::RecordingEvent;
 use ether_core::protocol::transport::{PlayheadUpdate, TransportCommand, TransportState};
 use ether_core::protocol::warp::WarpCommand;
@@ -118,7 +118,13 @@ where
         }
         match command {
             Command::Edit(e) => self.edit_command(e, msg.gesture, now, out),
-            Command::Project(p) => self.project_command(p, now, out),
+            Command::Project(p) => {
+                if matches!(p, ProjectCommand::Save) {
+                    // Collab: replicate changed plugin states once (no-op outside a session).
+                    self.collab_before_save(now, out);
+                }
+                self.project_command(p, now, out)
+            }
             Command::Transport(t) => self.transport_command(t, now, out),
             Command::Device(DeviceCommand::ListBuiltin) => Ok(ReplyValue::DeviceTypes {
                 devices: ether_devices::all_descriptors(),
@@ -190,10 +196,12 @@ where
             label: label.to_string(),
             ops,
         };
-        let applied = doc
+        let (applied, inverse) = doc
             .history
-            .commit(&mut doc.project, tx, gesture)
+            .commit_with_inverse(&mut doc.project, tx, gesture)
             .map_err(model_err)?;
+        // Collab: stamp and send (no-op outside a session).
+        self.collab_local_commit(label, &applied, &inverse);
         self.after_ops(&applied, now, out);
         for w in warnings {
             notify(out, NotificationLevel::Warning, w);
@@ -203,13 +211,24 @@ where
 
     /// Patch + dirty flag + engine effects of ops applied to the document.
     pub(crate) fn after_ops(&mut self, applied: &[Op], now: u64, out: &mut dyn MessageSink) {
+        self.after_ops_from(applied, None, now, out);
+    }
+
+    /// [`Self::after_ops`] for ops made by another site (`origin`, collab).
+    pub(crate) fn after_ops_from(
+        &mut self,
+        applied: &[Op],
+        origin: Option<OpOrigin>,
+        now: u64,
+        out: &mut dyn MessageSink,
+    ) {
         let Some(doc) = self.doc.as_mut() else { return };
         self.revision += 1;
         let patch = Patch {
             revision: self.revision,
             changes: changes_for(&doc.project, applied),
             history: doc.history.state(),
-            origin: None,
+            origin,
         };
         event(out, Event::Patch { patch });
         doc.last_edit_ms = now;
@@ -275,13 +294,20 @@ where
     ) -> CmdResult<ReplyValue> {
         match c {
             EditCommand::Undo | EditCommand::Redo => {
-                let doc = self.doc.as_mut().ok_or_else(no_project)?;
-                let applied = if matches!(c, EditCommand::Undo) {
-                    doc.history.undo(&mut doc.project)
+                let undo = matches!(c, EditCommand::Undo);
+                let applied = if self.collab_active() {
+                    // Collab: per-site undo (only this site's steps; peers' later changes
+                    // win), stamped and sent like an edit.
+                    self.collab_undo_redo(undo)?
                 } else {
-                    doc.history.redo(&mut doc.project)
+                    let doc = self.doc.as_mut().ok_or_else(no_project)?;
+                    if undo {
+                        doc.history.undo(&mut doc.project)
+                    } else {
+                        doc.history.redo(&mut doc.project)
+                    }
+                    .map_err(model_err)?
                 }
-                .map_err(model_err)?
                 .ok_or_else(|| {
                     invalid_state(if matches!(c, EditCommand::Undo) {
                         "nothing to undo"
@@ -875,6 +901,7 @@ where
         self.midi_learn_tick(now, out);
         self.export_tick(now, out);
         self.recording_tick(now, out);
+        self.collab_tick(now, out);
 
         // Media jobs.
         if let Some(pid) = self.doc.as_ref().map(|d| d.project.id)
@@ -924,7 +951,10 @@ where
         if let (Some(after), Some(doc)) = (self.config.autosave_after_ms, self.doc.as_ref())
             && doc.dirty
             && now.saturating_sub(doc.last_edit_ms) >= after
-            && let Err(e) = self.save_current(out)
+            && let Err(e) = {
+                self.collab_before_save(now, out);
+                self.save_current(out)
+            }
         {
             notify(
                 out,

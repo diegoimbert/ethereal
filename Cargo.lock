@@ -1177,13 +1177,26 @@ dependencies = [
 name = "ether-collab"
 version = "0.0.1"
 dependencies = [
+ "crossbeam-channel",
  "ether-protocol",
+ "getrandom 0.3.4",
+ "js-sys",
+ "proptest",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+ "tracing",
+ "tracing-subscriber",
+ "tungstenite",
+ "wasm-bindgen",
+ "web-sys",
 ]
 
 [[package]]
 name = "ether-controller"
 version = "0.0.1"
 dependencies = [
+ "ether-collab",
  "ether-core",
  "ether-devices",
  "ether-media",
@@ -1191,6 +1204,7 @@ dependencies = [
  "ether-protocol",
  "flacenc",
  "hound",
+ "proptest",
  "rubato",
  "serde_json",
  "symphonia",
