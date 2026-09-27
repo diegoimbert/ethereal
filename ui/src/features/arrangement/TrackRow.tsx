@@ -17,6 +17,7 @@ import {
 import type { Beats, Clip, ClipId, Color, Track, TrackId } from "@/generated";
 import { promptForInputIfNone } from "@/features/audio-settings";
 import { AutomationToggleButton, TrackAutomationLanes } from "@/features/automation";
+import { FreezeHeaderStatus, withFreezeClipEntries, withFreezeTrackEntries } from "@/features/freeze";
 import { LiveRecordLane } from "@/features/recording/live/LiveRecordLane";
 import { MOD_KEY, meterPosition, openContextMenu, setDragCursor } from "@/kit";
 import { useEditorStore, useProjectStore, useTrackMeter } from "@/state";
@@ -54,7 +55,11 @@ function RealTrackRow({ row }: { row: Row }) {
   const headerWidth = useArrangementUi((s) => s.headerWidth);
   const grid = useArrangementUi((s) => s.grid);
   return (
-    <div className="eth-arr-row" style={{ height: row.height }} data-track={row.track.id}>
+    <div
+      className={clsx("eth-arr-row", row.track.freeze && "eth-arr-row--frozen")}
+      style={{ height: row.height }}
+      data-track={row.track.id}
+    >
       <div className="eth-arr-row__main" style={{ height: row.laneHeight }}>
         <TrackHeader row={row} />
         <ResizeHandle row={row} />
@@ -138,7 +143,11 @@ function TrackHeader({ row }: { row: Row }) {
         if (!renaming) onTrackHeaderPointerDown(e, track, ctx);
       }}
       onClick={(e) => selectTrackEntity(track.id, selectModeFromEvent(e))}
-      onContextMenu={(e) => openContextMenu(e, trackMenu(transport, track))}
+      onContextMenu={(e) => {
+        const items = trackMenu(transport, track);
+        const selected = [...useArrangementUi.getState().selectedTracks];
+        openContextMenu(e, withFreezeTrackEntries(items, transport, track, selected));
+      }}
       role="group"
       aria-label={`${track.name} track`}
     >
@@ -179,6 +188,7 @@ function TrackHeader({ row }: { row: Row }) {
           {track.name}
         </span>
       )}
+      <FreezeHeaderStatus track={track} transport={transport} />
       <HeaderVolume track={track} />
       <span className="eth-arr-header__buttons" onClick={stop}>
         <button
@@ -418,7 +428,7 @@ function TrackLane({ track }: { track: Track }) {
       onContextMenu={(e) => {
         const it = smallUnder(e);
         if (it) {
-          openContextMenu(e, clipMenu(ctx.transport, it.clip));
+          openContextMenu(e, withFreezeClipEntries(clipMenu(ctx.transport, it.clip), ctx.transport, it.clip));
           return;
         }
         // Empty space (or a clip's body, which lets clicks through): paste here.
