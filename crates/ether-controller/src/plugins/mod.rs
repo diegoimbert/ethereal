@@ -71,9 +71,11 @@ where
             return;
         };
         let devices = &doc.project.devices;
-        self.plugins
-            .mirrored
-            .retain(|d, _| devices.get(d).is_some_and(|d| matches!(d.kind, DeviceKind::Plugin { .. })));
+        self.plugins.mirrored.retain(|d, _| {
+            devices
+                .get(d)
+                .is_some_and(|d| matches!(d.kind, DeviceKind::Plugin { .. }))
+        });
         let fresh: Vec<(DeviceId, NodeKey)> = devices
             .values()
             .filter(|d| matches!(d.kind, DeviceKind::Plugin { .. }))
@@ -148,7 +150,10 @@ mod tests {
         else {
             panic!("expected a device upsert");
         };
-        assert_eq!(d.params, BTreeMap::from([(ParamId(1), 0.25), (ParamId(2), 3.0)]));
+        assert_eq!(
+            d.params,
+            BTreeMap::from([(ParamId(1), 0.25), (ParamId(2), 3.0)])
+        );
         assert_eq!(p.devices[&id].params, d.params);
         assert!(mirror_params(&mut p, DeviceId(Ulid(8)), &[(ParamId(1), 1.0)]).is_none());
     }

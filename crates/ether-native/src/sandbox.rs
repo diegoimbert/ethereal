@@ -14,6 +14,7 @@
 //! embedders) can override it with [`set_helper_path`].
 
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, RwLock};
 
 use ether_core::plugin::{PluginController, PluginError};
@@ -21,6 +22,13 @@ use ether_core::plugin::{PluginController, PluginError};
 use crate::plugins::Instantiate;
 
 static HELPER_OVERRIDE: RwLock<Option<PathBuf>> = RwLock::new(None);
+/// Pid of the most recently spawned helper (diagnostics and crash tests).
+static LAST_HELPER_PID: AtomicU32 = AtomicU32::new(0);
+
+/// Pid of the most recently spawned sandbox helper process, if any.
+pub fn last_helper_pid() -> Option<u32> {
+    Some(LAST_HELPER_PID.load(Ordering::SeqCst)).filter(|p| *p != 0)
+}
 
 /// Use `path` as the sandbox helper executable for every later sandboxed instance
 /// (`None` restores the default lookup).
@@ -48,9 +56,9 @@ pub fn spawn(bundle: &Path, plugin_id: &str) -> Result<Box<dyn PluginController>
             helper: helper_path(),
             ..ether_sandbox::SandboxOptions::default()
         };
-        Ok(Box::new(ether_sandbox::SandboxedPlugin::spawn(
-            bundle, plugin_id, &instance, options,
-        )?))
+        let plugin = ether_sandbox::SandboxedPlugin::spawn(bundle, plugin_id, &instance, options)?;
+        LAST_HELPER_PID.store(plugin.helper_pid(), Ordering::SeqCst);
+        Ok(Box::new(plugin))
     }
     #[cfg(not(any(target_os = "macos", target_os = "linux")))]
     {

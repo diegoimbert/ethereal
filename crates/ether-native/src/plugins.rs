@@ -228,7 +228,12 @@ impl PluginHost {
             Ok::<_, PluginError>((token, node, descriptor))
         })??;
         Ok((
-            Box::new(HostedPluginNode::new(token, node, host, prepare.max_block_size)),
+            Box::new(HostedPluginNode::new(
+                token,
+                node,
+                host,
+                prepare.max_block_size,
+            )),
             descriptor,
         ))
     }
