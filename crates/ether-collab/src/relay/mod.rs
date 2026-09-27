@@ -32,6 +32,8 @@
 //! - Past [`RelayConfig::compact_after`] log entries, one ready peer is asked for a snapshot
 //!   (`SyncRequest { site: it, version: [] }`); the log before its index is dropped.
 
+#[cfg(not(target_arch = "wasm32"))]
+pub mod ice;
 pub mod limits;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod server;

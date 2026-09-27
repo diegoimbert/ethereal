@@ -1557,6 +1557,7 @@ dependencies = [
 name = "ether-collab"
 version = "0.0.1"
 dependencies = [
+ "async-trait",
  "base64 0.22.1",
  "crossbeam-channel",
  "ether-protocol",
@@ -1576,6 +1577,7 @@ dependencies = [
  "turn",
  "wasm-bindgen",
  "web-sys",
+ "webrtc-util",
 ]
 
 [[package]]
