@@ -227,3 +227,42 @@
   background: var(--eth-color-accent-subtle);
   color: var(--eth-color-accent);
 }
+
+/* Opening/closing (laneMotion.ts): the row height is tweened in JS with the same
+   `--automation-lane-*` timing; the content fades and slides in the draft row's way. */
+.eth-auto-track--animating {
+  height: 100%;
+  overflow: hidden;
+}
+.eth-auto-enter {
+  animation: eth-auto-in var(--automation-lane-duration) var(--automation-lane-ease) both;
+}
+.eth-auto-track--closing > * {
+  animation: eth-auto-out var(--automation-lane-duration) var(--automation-lane-ease) both;
+  pointer-events: none;
+}
+/* A hidden lane collapses in place (the lanes below move up with it). */
+.eth-auto-row--leaving {
+  overflow: hidden;
+  animation: eth-auto-collapse var(--automation-lane-duration) var(--automation-lane-ease) both;
+  pointer-events: none;
+}
+@keyframes eth-auto-in {
+  from {
+    opacity: 0;
+    transform: translateY(calc(-1 * var(--eth-space-sm)));
+  }
+}
+@keyframes eth-auto-out {
+  to {
+    opacity: 0;
+    transform: translateY(calc(-1 * var(--eth-space-sm)));
+  }
+}
+@keyframes eth-auto-collapse {
+  to {
+    opacity: 0;
+    height: 0;
+    border-top-width: 0;
+  }
+}

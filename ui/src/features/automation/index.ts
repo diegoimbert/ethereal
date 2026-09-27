@@ -8,6 +8,7 @@
 
 export { AutomationLanes } from "./AutomationLanes";
 export { AutomationLaneView, type AutomationLaneViewProps } from "./AutomationLaneView";
+export { useAnimatedAutomationHeight } from "./laneMotion";
 export { TrackAutomationLanes, type TrackAutomationLanesProps } from "./TrackAutomationLanes";
 export { useAutomationToggle } from "./toggle";
 export { AutomationToggleButton, type AutomationToggleButtonProps } from "./AutomationToggleButton";

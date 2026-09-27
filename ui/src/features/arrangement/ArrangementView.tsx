@@ -22,7 +22,7 @@ import {
   useViewport,
   visibleRange,
 } from "@/timeline";
-import { useAutomationHeight } from "@/features/automation";
+import { useAnimatedAutomationHeight } from "@/features/automation";
 import { PresenceLayer } from "@/features/collab/presence";
 import { TransportContext, useTransport, useTransportEvent } from "@/transport";
 import { actionForKey, bindSingleSelection, locateIfStopped, newTrackMenu, runClipAction } from "./actions";
@@ -76,7 +76,8 @@ function ConnectedArrangementView() {
   const heights = useArrangementUi((s) => s.heights);
   const defaultHeight = useArrangementUi((s) => s.defaultHeight);
   const grid = useArrangementUi((s) => s.grid);
-  const automationHeight = useAutomationHeight();
+  // Animated while automation lanes open/close: rows below slide, hit tests follow.
+  const automationHeight = useAnimatedAutomationHeight();
   const draftTrack = useArrangementUi((s) => s.draftTrack);
   // The master track is pinned below the scrolling tracks (its own footer, at y 0); it is
   // laid out last, so the other rows keep their positions.

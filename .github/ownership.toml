@@ -743,3 +743,18 @@ paths = [
   "crates/ether-controller/tests/collab*.rs",
   "docs/COLLAB.md",
 ]
+
+[nodes.automation-anim]
+# automation-ux (branch node/automation-anim): lane open/close animation, lane resizing,
+# param-aware value axis/snapping, point copy/paste (owner requests).
+paths = [
+  "ui/src/features/automation/**",
+  # shared touch: animated automation heights into layoutRows (one line)
+  "ui/src/features/arrangement/ArrangementView.tsx",
+  # shared touch: rows that only move don't re-render; lane part memoized
+  "ui/src/features/arrangement/TrackRow.tsx",
+  # shared touch: semantic motion tokens (motion.lane, --automation-lane-*)
+  "ui/src/theme/tokens.ts",
+  "ui/src/theme/tokens.css",
+  "apps/web/e2e/automation-*",
+]
