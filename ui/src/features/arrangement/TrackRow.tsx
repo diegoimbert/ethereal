@@ -1,11 +1,11 @@
 import clsx from "clsx";
-import { memo, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type PointerEvent } from "react";
+import { memo, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type PointerEvent, type ReactNode } from "react";
 import { ChevronDown, ChevronRight, Circle, Headphones, Volume2, VolumeX } from "lucide-react";
-import type { Clip, ClipId, Track, TrackId } from "@/generated";
+import type { Beats, Clip, ClipId, Track, TrackId } from "@/generated";
 import { TrackAutomationLanes } from "@/features/automation";
 import { MOD_KEY, meterPosition, openContextMenu, setDragCursor } from "@/kit";
 import { useProjectStore, useTrackMeter } from "@/state";
-import { pxToBeats, resolveGrid, snapToGrid, useTempoMap, useTimelineView, useViewport, visibleRange } from "@/timeline";
+import { pxToBeats, resolveGrid, snapToGrid, useTempoMap, useTimelineView } from "@/timeline";
 import { cmd } from "@/transport";
 import { selectTrackEntity, trackMenu } from "./actions";
 import { hasClipboard, pasteClips } from "./clipboard";
@@ -244,15 +244,46 @@ function ResizeHandle({ row }: { row: Row }) {
   );
 }
 
-/** Visible beat range of the arrangement view (re-renders on scroll/zoom/resize). */
-function useVisible() {
-  const vp = useViewport(arrangementView);
-  const width = useTimelineView(arrangementView, (s) => s.widthPx);
-  const visible = useMemo(() => {
-    const r = visibleRange(vp, width || 4000);
-    return { start: r.start, end: r.end };
-  }, [vp, width]);
-  return { vp, visible };
+/**
+ * What the lanes render against, without re-rendering on every scroll frame: the zoom, and
+ * a coarse visible window that only moves after a whole viewport of scrolling. Lane
+ * content is laid out from `origin` (`vp.scrollBeats`) and slid by `LaneLayer`, which
+ * follows the exact scroll position through the DOM. Culling and clip canvases use
+ * `visible`, which always covers the view with a viewport of margin on each side.
+ */
+function useLaneView() {
+  const pxPerBeat = useTimelineView(arrangementView, (s) => s.pxPerBeat);
+  const width = useTimelineView(arrangementView, (s) => s.widthPx) || 4000;
+  const span = width / pxPerBeat;
+  const step = useTimelineView(arrangementView, (s) => Math.floor(s.scrollBeats / ((s.widthPx || 4000) / s.pxPerBeat)));
+  return useMemo(() => {
+    const origin = Math.max(0, (step - 1) * span);
+    return {
+      vp: { pxPerBeat, scrollBeats: origin },
+      visible: { start: origin, end: (step + 2) * span },
+    };
+  }, [pxPerBeat, step, span]);
+}
+
+/** Slides lane content (laid out from `origin`) to the live scroll position, outside React. */
+function LaneLayer({ origin, children }: { origin: Beats; children: ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const view = arrangementView;
+    const apply = () => {
+      const s = view.getState();
+      el.style.transform = `translateX(${(origin - s.scrollBeats) * s.pxPerBeat}px)`;
+    };
+    apply();
+    return view.subscribe(apply);
+  }, [origin]);
+  return (
+    <div className="eth-arr-lane__layer" ref={ref}>
+      {children}
+    </div>
+  );
 }
 
 /** The clip lane of an audio or MIDI (or return/master: empty) track. */
@@ -263,7 +294,7 @@ function TrackLane({ track }: { track: Track }) {
   const dropHint = useArrangementUi((s) => (s.dropHint?.track === track.id ? s.dropHint.at : null));
   const imports = useArrangementUi((s) => s.imports);
   const tempo = useTempoMap();
-  const { vp, visible } = useVisible();
+  const { vp, visible } = useLaneView();
   const items = useMemo(() => laneItems(clips, track.id, preview), [clips, track.id, preview]);
 
   const [insert, setInsert] = useState<InsertSpan | null>(null);
@@ -284,6 +315,7 @@ function TrackLane({ track }: { track: Track }) {
         ]);
       }}
     >
+      <LaneLayer origin={vp.scrollBeats}>
       {items.map((it) =>
         it.bounds.start + it.bounds.length < visible.start || it.bounds.start > visible.end ? null : (
           <ClipView
@@ -318,6 +350,7 @@ function TrackLane({ track }: { track: Track }) {
           <ImportPlaceholder key={i.id} item={i} style={{ left: (i.at - vp.scrollBeats) * vp.pxPerBeat }} />
         ) : null,
       )}
+      </LaneLayer>
     </div>
   );
 }
@@ -343,17 +376,19 @@ export function ImportPlaceholder({ item, style }: { item: PendingImport; style?
 /** Group lane: a summary of the clips of every track inside the group. */
 function GroupLane({ track }: { track: Track }) {
   const summary = useProjectStore((s) => (s.project ? groupSummaryKey(s.project.tracks, s.project.clips, track.id) : ""));
-  const { vp } = useVisible();
+  const { vp } = useLaneView();
   const spans = useMemo(() => (summary ? summary.split(";").map((p) => p.split(",").map(Number) as [number, number]) : []), [summary]);
   return (
     <div className="eth-arr-lane eth-arr-lane--group" data-lane={track.id} style={{ ["--eth-track-color" as string]: colorCss(track.color) }}>
-      {spans.map(([s, l], i) => (
-        <div
-          key={i}
-          className="eth-arr-lane__summary"
-          style={{ left: (s - vp.scrollBeats) * vp.pxPerBeat, width: Math.max(1, l * vp.pxPerBeat) }}
-        />
-      ))}
+      <LaneLayer origin={vp.scrollBeats}>
+        {spans.map(([s, l], i) => (
+          <div
+            key={i}
+            className="eth-arr-lane__summary"
+            style={{ left: (s - vp.scrollBeats) * vp.pxPerBeat, width: Math.max(1, l * vp.pxPerBeat) }}
+          />
+        ))}
+      </LaneLayer>
     </div>
   );
 }

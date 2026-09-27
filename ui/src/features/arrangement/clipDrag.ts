@@ -133,7 +133,7 @@ export function onClipPointerDown(e: ReactPointerEvent<HTMLElement>, clip: Clip,
       return;
     }
     copy = mode === "move" && (ev.metaKey || ev.ctrlKey);
-    const command = mode === "move" ? moveCommand(clips, last, copy, newId) : boundsCommand(clips, last);
+    const command = mode === "move" ? moveCommand(clips, last, copy, newId, Object.values(project.clips)) : boundsCommand(clips, last);
     void sendEdit(ctx.transport, command).finally(() => useArrangementUi.getState().setPreview(null));
   };
 

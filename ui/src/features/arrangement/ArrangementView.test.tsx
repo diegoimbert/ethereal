@@ -443,6 +443,21 @@ describe("ArrangementView: clip editing", () => {
     expect(screen.queryByRole("textbox", { name: "Track name" })).toBeNull();
   });
 
+  it("cmd-dragging a MIDI clip onto another track copies it and leaves the original", async () => {
+    const chords = clipByName("Chords");
+    const bass = clipByName("Bassline");
+    const count = Object.keys(project().clips).length;
+    // Chords (Keys, row 0) copied straight down onto Bass (row 1), overlapping in time.
+    await drag(clipEl(chords), 0, ROW, { x: 100, y: 5, up: { metaKey: true } });
+    expect(Object.keys(project().clips)).toHaveLength(count + 1);
+    expect(project().clips[chords.id]).toMatchObject({ track: chords.track, start: chords.start, length: chords.length });
+    const copy = Object.values(project().clips).find((c) => c.track === bass.track && c.name === chords.name);
+    expect(copy).toMatchObject({ start: chords.start, length: chords.length });
+    expect(Object.values(project().notes).filter((n) => n.clip === copy!.id).length).toBe(
+      Object.values(project().notes).filter((n) => n.clip === chords.id).length,
+    );
+  });
+
   it("reorders tracks by dragging their headers (one undo step)", async () => {
     const names = () => tracksOrdered(project()).map((t) => t.name);
     expect(names().slice(0, 3)).toEqual(["Keys", "Bass", "Drums"]);
@@ -598,6 +613,19 @@ describe("ArrangementView: clip editing", () => {
     expect(useArrangementUi.getState().heights.has(keys.id)).toBe(false);
   });
 
+  it("cmd+wheel zooms around the beat under the pointer (lanes start after the headers)", () => {
+    const scroll = document.querySelector<HTMLElement>(".eth-arr__scroll")!;
+    const x = 10 * PX; // beat 10 in the lanes
+    const beatAt = () => arrangementView.getState().scrollBeats + x / arrangementView.getState().pxPerBeat;
+    act(() => arrangementView.getState().scrollTo(4));
+    const before = beatAt();
+    act(() => {
+      fireEvent.wheel(scroll, { deltaY: -100, metaKey: true, clientX: HEADER_WIDTH + x });
+    });
+    expect(arrangementView.getState().pxPerBeat).not.toBe(PX);
+    expect(beatAt()).toBeCloseTo(before, 6);
+  });
+
   it("scales every track with cmd+shift+wheel, within the limits", () => {
     const keys = trackByName("Keys");
     useArrangementUi.getState().setHeight(keys.id, 100);
@@ -670,6 +698,17 @@ describe("ArrangementView: audio and drops", () => {
     expect(peaks.length).toBeGreaterThan(0);
     expect(screen.getAllByTestId("clip-waveform").length).toBeGreaterThan(0);
     expect(screen.getAllByTestId("clip-notes").length).toBeGreaterThan(0);
+  });
+
+  it("scrolling slides the lane layers instead of re-laying out the clips", async () => {
+    const chords = clipEl(clipByName("Chords"));
+    const view = arrangementView.getState();
+    act(() => view.setWidth(800));
+    const left = chords.style.left;
+    const layer = chords.closest<HTMLElement>(".eth-arr-lane__layer")!;
+    act(() => view.scrollByPx(30));
+    expect(chords.style.left).toBe(left);
+    expect(layer.style.transform).toBe("translateX(-30px)");
   });
 
   it("pans and small zooms reuse the clip canvases; they redraw once the zoom settles", async () => {

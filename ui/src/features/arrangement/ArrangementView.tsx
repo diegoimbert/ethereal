@@ -85,7 +85,7 @@ function ConnectedArrangementView() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const onVerticalZoom = useTrackHeightZoom(scrollRef, rows);
-  useTimelineWheel(scrollRef, view, { smoothScrollY: true, onVerticalZoom });
+  useTimelineWheel(scrollRef, view, { smoothScrollY: true, onVerticalZoom, originPx: HEADER_WIDTH });
   useMiddleButtonPan(scrollRef, view);
   useFollowWithMargin(view);
   useEffect(() => bindSingleSelection(), []);

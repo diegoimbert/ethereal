@@ -5,6 +5,12 @@ import { animatePan, animateZoom } from "./viewMotion";
 import type { TimelineViewStore } from "./viewStore";
 
 export interface TimelineWheelOptions {
+  /**
+   * Where the timeline's x = 0 is inside the element, in px from its left edge (e.g. a
+   * track-header or keyboard column before the lanes). Zoom anchors on the pointer from
+   * there. A function is read at each event (default 0).
+   */
+  originPx?: number | (() => number);
   /** Plain vertical wheel scrolls the timeline horizontally (for lanes that don't scroll vertically). */
   verticalScrolls?: boolean;
   /** Plain vertical wheel scrolls the element itself, animated (instead of natively). */
@@ -29,9 +35,11 @@ export interface TimelineWheelOptions {
  */
 export function useTimelineWheel(ref: RefObject<HTMLElement | null>, view: TimelineViewStore, opts: TimelineWheelOptions = {}): void {
   const { verticalScrolls = false, smoothScrollY = false } = opts;
+  const origin = useRef(opts.originPx);
   const onVerticalZoom = useRef(opts.onVerticalZoom);
   useEffect(() => {
     onVerticalZoom.current = opts.onVerticalZoom;
+    origin.current = opts.originPx;
   });
 
   useEffect(() => {
@@ -53,7 +61,9 @@ export function useTimelineWheel(ref: RefObject<HTMLElement | null>, view: Timel
       }
       if (mod) {
         e.preventDefault();
-        animateZoom(view, wheelZoomFactor(dy || dx), e.clientX - box.left);
+        const o = origin.current;
+        const originPx = typeof o === "function" ? o() : (o ?? 0);
+        animateZoom(view, wheelZoomFactor(dy || dx), e.clientX - box.left - originPx);
         return;
       }
       if (e.shiftKey || Math.abs(dx) > Math.abs(dy)) {

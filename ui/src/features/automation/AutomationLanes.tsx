@@ -17,7 +17,7 @@ export function AutomationLanes() {
   const track = useTrack(trackId);
   const view = useMemo(() => createTimelineViewStore({ pxPerBeat: 24 }), []);
   const bodyRef = useRef<HTMLDivElement>(null);
-  useTimelineWheel(bodyRef, view);
+  useTimelineWheel(bodyRef, view, { originPx: HEADER_WIDTH });
 
   if (!trackId || !track) {
     return (

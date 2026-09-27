@@ -273,7 +273,9 @@ describe("commands", () => {
     const c = moveCommand([a], p, true, ids)!;
     expect(c.domain).toBe("Edit");
     expect(commandsOf(c).map((x) => x.command.type)).toEqual(["Duplicate", "Move"]);
-    expect(commandsOf(c)[0]!.command).toMatchObject({ id: "a", new_id: "new1", start: 8 });
+    // Created clear of the source track's clips (so it can't trim the original), then moved.
+    expect(commandsOf(c)[0]!.command).toMatchObject({ id: "a", new_id: "new1", start: a.start + a.length + 1 });
+    expect(commandsOf(c)[1]!.command).toMatchObject({ moves: [{ id: "new1", start: 8 }] });
   });
 
   it("resizes with SetBounds", () => {

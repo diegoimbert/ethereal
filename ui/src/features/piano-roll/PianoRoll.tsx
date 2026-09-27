@@ -100,7 +100,7 @@ export function PianoRollEditor({ clip, view: injectedView }: PianoRollEditorPro
   const bodyRef = useRef<HTMLDivElement>(null);
   const laneRef = useRef<HTMLDivElement>(null);
   const [keyH, onVerticalZoom] = useKeyHeightZoom(bodyRef);
-  useTimelineWheel(bodyRef, view, { smoothScrollY: true, onVerticalZoom });
+  useTimelineWheel(bodyRef, view, { smoothScrollY: true, onVerticalZoom, originPx: KEYBOARD_WIDTH });
   useTimelineWheel(laneRef, view);
   useMiddleButtonPan(bodyRef, view);
   useMiddleButtonPan(laneRef, view);

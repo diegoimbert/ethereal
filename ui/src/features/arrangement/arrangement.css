@@ -403,6 +403,14 @@
   pointer-events: none;
 }
 
+/* Lane content, slid to the scroll position by LaneLayer (so scrolling doesn't re-render). */
+.eth-arr-lane__layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  will-change: transform;
+}
+
 /* ── Clips ────────────────────────────────────────────────────────── */
 
 .eth-clip {
@@ -414,7 +422,7 @@
   border-radius: var(--eth-radius-md);
   /* A soft tint of the clip color; the waveform/notes sit on it. */
   background: color-mix(in srgb, var(--eth-clip-color) 26%, var(--eth-color-bg-panel));
-  border: 1px solid var(--eth-clip-color);
+  border: none;
   /* Only the title bar and the edge handles take the pointer: a press on the body goes
      through to the lane, like on empty space (locate, marquee). */
   pointer-events: none;
