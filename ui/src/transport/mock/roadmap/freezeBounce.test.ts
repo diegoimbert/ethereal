@@ -5,7 +5,9 @@ import { newId } from "../../ids";
 import { createDemoProject } from "../demoProject";
 import { reduceDocumentCommand } from "../documentReducer";
 import { Tx } from "../tx";
-import { freezeCommand, MockFreeze, type FreezeHost } from "./freezeBounce";
+import { MockFreeze, type FreezeHost } from "./freezeBounce";
+import { cmd } from "../../cmd";
+import { project as snapshot, useMock } from "./testUtils";
 
 /** A `MockFreeze` over a demo project, with the host the MockTransport provides. */
 function harness() {
@@ -43,8 +45,22 @@ const withClips = (p: Project, kind: Track["kind"]) =>
   Object.values(p.tracks).find((t) => t.kind === kind && Object.values(p.clips).some((c) => c.track === t.id))!;
 
 describe("MockTransport Freeze (freeze-bounce)", () => {
-  it("the host-less routing replies Unsupported", () => {
-    expect(() => freezeCommand({ type: "Unfreeze", track: "01J00000000000000000000000" })).toThrow();
+  const f = useMock();
+
+  it("is routed by the MockTransport (playhead steps, undo)", async () => {
+    const p = snapshot(f);
+    const t = withClips(p, "Midi");
+    const media = newId();
+    await expect(f.mock.send(cmd("Freeze", { type: "Freeze", job: "j", track: t.id, media }))).resolves.toEqual({
+      type: "RenderStarted",
+      job: "j",
+    });
+    f.mock.tick(16);
+    f.mock.tick(16);
+    expect(snapshot(f).tracks[t.id]!.freeze).toEqual({ media, start: 0 });
+    expect(f.events).toContainEqual({ type: "Freeze", event: { type: "Done", job: "j" } });
+    await f.mock.send(cmd("Edit", { type: "Undo" }));
+    expect(snapshot(f).tracks[t.id]!.freeze).toBeUndefined();
   });
 
   it("freezes after two playhead steps, as one undo step", () => {

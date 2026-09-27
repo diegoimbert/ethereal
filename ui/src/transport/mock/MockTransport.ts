@@ -134,7 +134,7 @@ import { uploadCommand, uploadSource } from "./roadmap/remote";
 // v0.2 (contracts-3) runtime simulations, one file per node.
 import { MockAnalysis } from "./roadmap/analysis";
 import { browserCommand } from "./roadmap/browserV2";
-import { freezeCommand } from "./roadmap/freezeBounce";
+import { MockFreeze } from "./roadmap/freezeBounce";
 import { mediaRefCommand } from "./roadmap/mediaReferences";
 import { presetCommand } from "./roadmap/presets";
 import { listModulatorKinds } from "./roadmap/racksModulation";
@@ -255,6 +255,15 @@ export class MockTransport implements EngineTransport {
   };
   private readonly midiLearn = new MockMidiLearn(this.host);
   private readonly exports = new MockExports(this.host);
+  private readonly freeze = new MockFreeze({
+    ...this.host,
+    transact: (label, edit) =>
+      void this.transact(label, null, (tx) => {
+        const ctx = { tx, newId: this.newId, position: this.position };
+        edit(tx, (c) => void reduceDocumentCommand(ctx, c));
+        return UNIT;
+      }),
+  });
   private readonly collab = new MockCollab(this.host);
   private readonly analysis = new MockAnalysis();
   private readonly preview = new MockPreview(this.host);
@@ -416,7 +425,7 @@ export class MockTransport implements EngineTransport {
         return this.collab.command(command.command);
       // v0.2 (contracts-3).
       case "Freeze":
-        return freezeCommand(command.command);
+        return this.freeze.command(command.command);
       case "TimeEdit":
         return timeEditCommand(command.command);
       case "Preset":
@@ -954,6 +963,7 @@ export class MockTransport implements EngineTransport {
     }
     if (this.playing || this.playheadDirty) this.emitPlayhead();
     this.exports.step();
+    this.freeze.step();
     this.preview.step();
     this.liveRecord.step();
   }

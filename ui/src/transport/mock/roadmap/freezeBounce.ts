@@ -6,9 +6,6 @@
  * the Rust controller (`ether-controller/src/freeze`). The media is a silent placeholder
  * (no audio in the mock); ids the engine derives from seeds (`derive_id`) are fresh mock ids
  * here. `Unfreeze`, `Flatten` and MIDI-only `Consolidate` are instantaneous.
- *
- * `freezeCommand` (no host) is the pre-wired routing: it replies `Unsupported` until the
- * MockTransport routes `Freeze` to a `MockFreeze`.
  */
 
 import type {
@@ -56,11 +53,6 @@ interface Job {
   phase: number;
   media: MediaRef[];
   finish: Finish;
-}
-
-/** Pre-wired host-less routing (see the module docs). */
-export function freezeCommand(c: FreezeCommand): ReplyValue {
-  fail("Unsupported", `${c.type} is not implemented in this mock routing (freeze-bounce)`);
 }
 
 const clipEnd = (c: Clip) => c.start + c.length;
