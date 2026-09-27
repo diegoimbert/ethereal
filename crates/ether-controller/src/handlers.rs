@@ -129,7 +129,7 @@ where
             Command::Recording(r) => self.recording_command(r, out),
             Command::Plugin(p) => self.plugin_command(p, msg.gesture, now, out),
             Command::Warp(WarpCommand::DetectTempo { clip }) => self.detect_tempo(*clip),
-            Command::Media(m) => self.media_command(m, now, out),
+            Command::Media(m) => self.media_command(m, msg.gesture, now, out),
             Command::Engine(_) => Err(unsupported(
                 "audio engine configuration is handled by the host",
             )),
@@ -676,11 +676,12 @@ where
     fn media_command(
         &mut self,
         c: &MediaCommand,
+        gesture: Option<GestureId>,
         now: u64,
         out: &mut dyn MessageSink,
     ) -> CmdResult<ReplyValue> {
         match c {
-            MediaCommand::Import { id, source } => self.import(*id, source, now, out),
+            MediaCommand::Import { id, source } => self.import(*id, source, gesture, now, out),
             MediaCommand::GetPeaks { request } => {
                 if let Some(peaks) = self.media.peaks(request.media) {
                     return Ok(ReplyValue::Peaks {
@@ -752,6 +753,7 @@ where
         &mut self,
         id: MediaId,
         source: &MediaSource,
+        gesture: Option<GestureId>,
         now: u64,
         out: &mut dyn MessageSink,
     ) -> CmdResult<ReplyValue> {
@@ -840,7 +842,8 @@ where
             hash: Some(hash),
         };
         let entity = Entity::Media(media.clone());
-        self.edit_with("Import", None, now, out, |ctx| ctx.tx.insert(entity))?;
+        // In the caller's gesture, so "import + create clip" (a browser drop) is one undo step.
+        self.edit_with("Import", gesture, now, out, |ctx| ctx.tx.insert(entity))?;
         if chained {
             notify(out, NotificationLevel::Warning, chained_ogg_warning(&name));
         }

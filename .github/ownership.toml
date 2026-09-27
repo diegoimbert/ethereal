@@ -74,14 +74,17 @@ paths = ["ui/src/features/piano-roll/**"]
 [nodes.ui-automation]
 paths = ["ui/src/features/automation/**"]
 
-# --- Wave 3 (alpha pre-creates module files/hook points; the manager may refine) --------
+# --- Wave 3 (alpha pre-created the module files/hook points; see docs/WAVE3.md) -------
+# Each node owns exactly its module files + UI feature folder. One-line registrations in
+# shared files (`mod x;`, dispatch calls, Cargo.toml deps) are coordinated via the manager.
 
 [nodes.plugins]
 paths = [
   "ui/src/features/plugins/**",
   "crates/ether-model/src/plugins.rs",
   "crates/ether-controller/src/plugins/**",
-  "crates/ether-native/src/plugins/**",
+  "crates/ether-native/src/plugins.rs",
+  "crates/ether-native/src/sandbox.rs",
 ]
 
 [nodes.warp]

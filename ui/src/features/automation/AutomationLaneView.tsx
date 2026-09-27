@@ -239,11 +239,13 @@ export function AutomationLaneView({
 
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     if (e.key === "Delete" || e.key === "Backspace") {
+      // Always keep Delete in the focused lane, even with nothing to delete: bubbling up,
+      // it would delete the arrangement's selected clips.
+      e.preventDefault();
+      e.stopPropagation();
       const sel = selection.getState().selected.automationPoint;
       const ids = live.current.points.filter((p) => sel.has(p.id)).map((p) => p.id);
       if (ids.length === 0) return;
-      e.preventDefault();
-      e.stopPropagation();
       void sendEdit(transport, removePointsCommand(ids));
     } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "a") {
       e.preventDefault();

@@ -15,9 +15,6 @@ export function ringBuffer(dataBytes: number): SharedArrayBuffer {
   return new SharedArrayBuffer(RING_HEADER_BYTES + dataBytes);
 }
 
-/** `mode` of the Rust controller: the real `EtherController`, or the smoke-test fake. */
-export type ControllerMode = "ether" | "fake";
-
 /** Main → controller Worker. */
 export type ToController =
   | {
@@ -28,7 +25,6 @@ export type ToController =
       fsBuffer: SharedArrayBuffer;
       fsPort: MessagePort;
       seed: string;
-      mode: ControllerMode;
       /** AudioContext sample rate (the engine's rate). */
       sampleRate: number;
     }

@@ -67,6 +67,8 @@ fn relative(path: &str) -> Result<&str, StoreError> {
 fn join(base: &str, rel: &str) -> String {
     if rel.is_empty() {
         base.to_string()
+    } else if base.is_empty() {
+        rel.to_string()
     } else {
         format!("{base}/{rel}")
     }
@@ -281,9 +283,25 @@ impl<F: Fs> ProjectStore for WebStore<F> {
     }
 }
 
+/// Folder of the generated demo samples inside the library.
+pub const DEMO_SAMPLES_DIR: &str = "Demo Samples";
+
+/// Write the demo samples ([`ether_media::demo::demo_samples`]) into
+/// `library/Demo Samples/` (files that exist are left alone).
+pub fn ensure_demo_samples<F: Fs>(fs: &mut F) -> Result<(), StoreError> {
+    let dir = format!("{LIBRARY_ROOT}/{DEMO_SAMPLES_DIR}");
+    for (name, bytes) in ether_media::demo::demo_samples() {
+        let path = format!("{dir}/{name}");
+        if fs.stat(&path)?.is_none() {
+            fs.write(&path, &bytes)?;
+        }
+    }
+    Ok(())
+}
+
 /// The browser's sample library: one OPFS folder (`library/`). There is no way to add
-/// files to it from the UI in v0.1 (uploads are reserved in the protocol), so it is
-/// usually empty; it exists so the browser panel works the same as native.
+/// files to it from the UI in v0.1 (uploads are reserved in the protocol); it holds the
+/// generated demo samples ([`ensure_demo_samples`]).
 pub struct WebLibrary<F: Fs> {
     fs: F,
 }
@@ -708,9 +726,28 @@ mod tests {
         let names: Vec<_> = root.entries.iter().map(|e| e.name.as_str()).collect();
         assert_eq!(names, ["drums", "readme.txt"]);
         assert_eq!(root.entries[1].kind, FileKind::Other);
+        // Entry paths are relative to the root (no leading `/`) and can be listed/read back.
+        let paths: Vec<_> = root.entries.iter().map(|e| e.path.as_str()).collect();
+        assert_eq!(paths, ["drums", "readme.txt"]);
+        let drums = lib.list_dir(LIBRARY_ID, &root.entries[0].path).unwrap();
+        assert_eq!(drums.entries[0].path, "drums/kick.wav");
         assert_eq!(lib.read(LIBRARY_ID, "drums/kick.wav").unwrap(), b"K");
         assert!(lib.read(LIBRARY_ID, "../projects").is_err());
         assert!(lib.read("other", "drums/kick.wav").is_err());
         assert!(lib.list_dir(LIBRARY_ID, "missing").is_err());
+    }
+
+    #[test]
+    fn demo_samples_land_in_the_library_once() {
+        let mut fs = MemFs::new();
+        ensure_demo_samples(&mut fs).unwrap();
+        let mut lib = WebLibrary::new(fs.clone());
+        let demo = lib.list_dir(LIBRARY_ID, DEMO_SAMPLES_DIR).unwrap();
+        assert_eq!(demo.entries.len(), 5);
+        assert!(demo.entries.iter().all(|e| e.kind == FileKind::Audio));
+        // An existing file is kept.
+        fs.write("library/Demo Samples/Kick.wav", b"mine").unwrap();
+        ensure_demo_samples(&mut fs).unwrap();
+        assert_eq!(fs.read("library/Demo Samples/Kick.wav").unwrap(), b"mine");
     }
 }

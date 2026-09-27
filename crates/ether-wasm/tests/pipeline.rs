@@ -1,4 +1,5 @@
-//! Worker ↔ Worklet pipeline, natively: controller (fake) + `WebBridge` on one side,
+//! Worker ↔ Worklet pipeline, natively: controller (the test-only `fake` stand-in, and the
+//! real `EtherController` at the end) + `WebBridge` on one side,
 //! `EngineHost` on the other, connected by heap-backed rings (the SAB stand-in).
 
 use std::sync::Arc;
@@ -13,10 +14,11 @@ use ether_core::protocol::{ClientMessage, ServerMessage};
 use ether_core::{EngineOutputs, RenderGraphDesc, TransportControl};
 use ether_media::DecodedAudio;
 use ether_wasm::bridge::{self, WebBridge};
-use ether_wasm::fake::FakeController;
+mod fake;
 use ether_wasm::ring::HeapMemory;
 use ether_wasm::store::{MemFs, WebStore};
 use ether_wasm::worklet::{EngineHost, RENDER_QUANTUM};
+use fake::FakeController;
 
 struct TestHost;
 

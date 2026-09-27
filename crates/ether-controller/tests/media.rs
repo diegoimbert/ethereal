@@ -242,6 +242,55 @@ fn import_is_idempotent_dedupes_and_undoes() {
     assert!(h.ctl.bridge.calls.contains(&Call::UnloadMedia(c)));
 }
 
+/// A browser drop (import + track + clip, all in one gesture) is one undo step.
+#[test]
+fn import_joins_the_callers_gesture() {
+    let (mut h, _) = harness();
+    let g = GestureId(7);
+    let id: MediaId = h.id();
+    let out = h.send_with(
+        Command::Media(MediaCommand::Import {
+            id,
+            source: MediaSource::Location {
+                location: BrowseLocation::Library { id: "lib".into() },
+                path: "Drums/kick.wav".into(),
+            },
+        }),
+        Some(g),
+    );
+    ok(&out);
+    let t: TrackId = h.id();
+    let c: ClipId = h.id();
+    ok(&h.send_with(
+        Command::Track(TrackCommand::Create {
+            id: t,
+            kind: TrackKind::Audio,
+            name: None,
+            color: None,
+            parent: None,
+            before: None,
+        }),
+        Some(g),
+    ));
+    ok(&h.send_with(
+        Command::Clip(ClipCommand::CreateAudio {
+            id: c,
+            track: t,
+            start: Beats(0.0),
+            media: id,
+        }),
+        Some(g),
+    ));
+    h.ok(Command::Edit(EditCommand::EndGesture { gesture: g }));
+    h.ok(Command::Edit(EditCommand::Undo));
+    assert!(!h.project().media.contains_key(&id));
+    assert!(!h.project().tracks.contains_key(&t));
+    assert!(!h.project().clips.contains_key(&c));
+    h.ok(Command::Edit(EditCommand::Redo));
+    assert!(h.project().media.contains_key(&id));
+    assert!(h.project().clips.contains_key(&c));
+}
+
 #[test]
 fn import_errors() {
     let (mut h, _) = harness();

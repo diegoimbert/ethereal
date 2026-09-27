@@ -136,6 +136,27 @@
   color: var(--eth-color-accent);
 }
 
+/* Pending browser-drop import (lane placeholder, or in the drop area for a new track). */
+.eth-arr-import {
+  padding: 2px var(--eth-space-sm);
+  border: 1px dashed var(--eth-color-accent);
+  border-radius: 3px;
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.eth-arr-lane .eth-arr-import {
+  position: absolute;
+  top: 4px;
+}
+
+.eth-arr-import--error {
+  border-color: var(--eth-color-record);
+  color: var(--eth-color-record);
+}
+
 /* ── Rows ─────────────────────────────────────────────────────────── */
 
 .eth-arr-row {

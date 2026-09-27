@@ -1,6 +1,31 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { renderWithMock, resetStores } from "@/features/transport-bar/testUtils";
+import { useEditorStore, useProjectStore } from "@/state";
 import { App } from "./App";
+
+describe("App shell: connected", () => {
+  afterEach(() => {
+    cleanup();
+    resetStores();
+    useEditorStore.setState({ clip: null, request: 0 });
+    vi.restoreAllMocks();
+  });
+
+  it("opens a MIDI clip in the piano roll on double-click, with automation lanes under the tracks", async () => {
+    // jsdom has no canvas: clip waveforms just skip drawing.
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(null);
+    const { container, mock } = await renderWithMock(<App />);
+    expect(container.querySelectorAll('[data-slot="automation"] [data-automation-track]').length).toBeGreaterThan(0);
+    const chords = Object.values(useProjectStore.getState().project!.clips).find((c) => c.name === "Chords")!;
+    await act(async () => {
+      fireEvent.doubleClick(container.querySelector(`[data-clip-id="${chords.id}"]`)!);
+    });
+    expect(screen.getByRole("tab", { name: "Piano Roll" })).toHaveAttribute("aria-selected", "true");
+    expect(container.querySelector('[data-slot="detail"] [data-testid="piano-roll"]')).not.toBeNull();
+    mock.dispose();
+  });
+});
 
 describe("App shell", () => {
   it("mounts every feature slot", () => {

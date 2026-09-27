@@ -27,6 +27,9 @@ export const VOLUME_INFO: ParamInfo = mixerInfo("Volume", {
   scale: { type: "Fader" },
 });
 
+/** Send level: same law and range as volume, default silence (controller `track_param_info`). */
+export const SEND_INFO: ParamInfo = { ...VOLUME_INFO, name: "Send", default: SILENCE_DB };
+
 export const PAN_INFO: ParamInfo = mixerInfo("Pan", { unit: "Pan", min: -1, max: 1, default: 0, scale: { type: "Linear" } });
 
 /** Stable string key of a target (for UI state and React keys). */
@@ -79,7 +82,7 @@ export function trackTargets(project: TargetTables, track: TrackId, descriptors:
     .sort((a, b) => compareOrderKeys(project.tracks[a.to]?.order ?? "", project.tracks[b.to]?.order ?? ""));
   for (const s of sends) {
     const to = project.tracks[s.to]?.name ?? "Return";
-    add({ type: "SendLevel", send: s.id }, `Send → ${to}`, "Mixer", { ...VOLUME_INFO, name: `Send → ${to}` });
+    add({ type: "SendLevel", send: s.id }, `Send → ${to}`, "Mixer", { ...SEND_INFO, name: `Send → ${to}` });
   }
   const devices = Object.values(project.devices)
     .filter((d) => d.track === track)

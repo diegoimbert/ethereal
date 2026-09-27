@@ -2,7 +2,7 @@ import type { GridSetting } from "@/timeline";
 import { useTimelineView } from "@/timeline";
 import { Button } from "@/kit";
 import { useArrangement } from "./context";
-import { runClipAction } from "./actions";
+import { addTrack, runClipAction } from "./actions";
 import { GRID_OPTIONS } from "./helpers";
 import { arrangementView, useArrangementUi } from "./uiStore";
 
@@ -18,6 +18,13 @@ export function Toolbar() {
 
   return (
     <div className="eth-arr-toolbar" role="toolbar" aria-label="Arrangement tools">
+      <Button size="sm" onClick={() => void addTrack(transport, "Midi")} title="Add a MIDI track with the built-in synth">
+        + MIDI track
+      </Button>
+      <Button size="sm" onClick={() => void addTrack(transport, "Audio")} title="Add an audio track">
+        + Audio track
+      </Button>
+      <span className="eth-arr-toolbar__sep" />
       <label className="eth-arr-toolbar__grid">
         Grid
         <select

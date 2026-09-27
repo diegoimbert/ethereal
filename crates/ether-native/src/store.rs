@@ -24,7 +24,7 @@ use std::io::Write;
 use std::path::{Component, Path, PathBuf};
 use std::time::UNIX_EPOCH;
 
-use ether_controller::store::{Library, ProjectStore, StoreError};
+use ether_controller::store::{Library, ProjectStore, StoreError, file_kind};
 use ether_core::protocol::media::{
     BrowseLocation, BrowseRoot, DirectoryEntry, DirectoryListing, FileKind,
 };
@@ -58,7 +58,9 @@ fn io_err(e: std::io::Error) -> StoreError {
 }
 
 /// Validate a relative path and turn it into a `PathBuf` of normal components.
-/// `""` and `"."` mean the root itself.
+/// `""` and `"."` mean the root itself. Same rules as the shared
+/// [`ether_controller::store::check_relative_path`], except that `.` segments are tolerated
+/// (normalized away); [`resolve_in`] additionally canonicalizes against symlink escapes.
 pub fn sanitize_rel(rel: &str) -> Result<PathBuf, StoreError> {
     let bad = || StoreError::InvalidPath(rel.to_string());
     if rel.contains('\0') || rel.contains('\\') {
@@ -149,18 +151,6 @@ fn name_from_ether(json: &str) -> Option<String> {
         .map(str::to_string)
 }
 
-fn file_kind(path: &Path) -> FileKind {
-    let ext = path
-        .extension()
-        .map(|e| e.to_string_lossy().to_ascii_lowercase())
-        .unwrap_or_default();
-    match ext.as_str() {
-        "wav" | "wave" | "aif" | "aiff" | "flac" | "mp3" | "ogg" | "oga" => FileKind::Audio,
-        "mid" | "midi" => FileKind::Midi,
-        _ => FileKind::Other,
-    }
-}
-
 /// List `dir`; entry paths are `rel` + name. Hidden files are skipped; folders first, then
 /// by name (case-insensitive).
 fn list_folder(
@@ -187,7 +177,7 @@ fn list_folder(
         let (kind, size) = if meta.is_dir() {
             (FileKind::Directory, 0.0)
         } else {
-            (file_kind(Path::new(&name)), meta.len() as f64)
+            (file_kind(&name), meta.len() as f64)
         };
         entries.push(DirectoryEntry {
             name,
