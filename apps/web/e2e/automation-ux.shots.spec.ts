@@ -30,7 +30,7 @@ test("automation lanes: animation frames, step grid, paste, tooltip", async ({ p
   await shot(page, "01-closed");
 
   // Opening, frame by frame.
-  await page.clock.pauseAt(Date.now() + 1000);
+  await page.clock.pauseAt((await page.evaluate(() => Date.now())) + 500);
   await page.getByRole("button", { name: `Show automation of ${a.name}` }).click();
   for (const [i, ms] of [60, 60, 80].entries()) {
     await page.clock.runFor(ms);
@@ -54,6 +54,13 @@ test("automation lanes: animation frames, step grid, paste, tooltip", async ({ p
   const transpose = page.getByRole("group", { name: /Transpose automation/ });
   const tSvg = transpose.getByTestId("automation-lane-svg");
   await expect(tSvg).toBeVisible();
+  // Context menus animate in (real time, not the page clock).
+  const menuShown = async () => {
+    await expect(page.getByRole("menuitem").first()).toBeVisible();
+    await page.waitForTimeout(300);
+  };
+  const settled = () => page.waitForFunction(() => document.querySelector(".eth-auto-track--animating") === null);
+  await settled();
 
   // Resize the transpose lane taller (drag its header's bottom edge).
   const grip = page.getByRole("separator", { name: /Resize .*Transpose lane/ });
@@ -88,6 +95,7 @@ test("automation lanes: animation frames, step grid, paste, tooltip", async ({ p
   await page.keyboard.press("ControlOrMeta+A");
   await page.keyboard.press("ControlOrMeta+C");
   await volume.click({ button: "right", position: { x: 420, y: box.height / 2 } });
+  await menuShown();
   await shot(page, "07-lane-menu");
   await page.getByRole("menuitem", { name: "Paste Here" }).click();
   await expect.poll(async () => Object.keys((await doc(page)).automation_points).length).toBe(12);
@@ -95,13 +103,14 @@ test("automation lanes: animation frames, step grid, paste, tooltip", async ({ p
 
   // Point menu.
   await transpose.locator("circle[data-point]").nth(2).click({ button: "right" });
+  await menuShown();
   await shot(page, "09-point-menu");
   await page.keyboard.press("Escape");
 
   // Closing a track below, frame by frame (rows under it slide up).
   await page.getByRole("button", { name: `Show automation of ${b.name}` }).click();
   await page.waitForFunction(() => document.querySelector(".eth-auto-track--animating") === null);
-  await page.clock.pauseAt(Date.now() + 1000);
+  await page.clock.pauseAt((await page.evaluate(() => Date.now())) + 500);
   await page.getByRole("button", { name: `Hide automation of ${a.name}` }).click();
   for (const [i, ms] of [80, 80].entries()) {
     await page.clock.runFor(ms);

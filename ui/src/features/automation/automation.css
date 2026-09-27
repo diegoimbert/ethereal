@@ -59,7 +59,7 @@
   flex-direction: column;
   justify-content: center;
   /* Room for the value scale on the right. */
-  padding-right: calc(var(--eth-space-3xl) + var(--eth-space-xs));
+  padding-right: calc(var(--eth-space-3xl) + var(--eth-space-xl) + var(--eth-space-xs));
 }
 
 /* Value scale (step labels; scroll/zoom the visible value window). */
@@ -68,7 +68,7 @@
   top: 0;
   right: 0;
   bottom: 0;
-  width: var(--eth-space-3xl);
+  width: calc(var(--eth-space-3xl) + var(--eth-space-xl));
   overflow: hidden;
   border-left: var(--eth-border-width) solid var(--eth-color-border);
   color: var(--eth-color-text-dim);
