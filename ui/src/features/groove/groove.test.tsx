@@ -166,4 +166,13 @@ describe("GroovePanel", () => {
     expect(store().project!.settings.swing_grid).toBe(0.5);
     expect(store().project!.settings.swing).toBeCloseTo(0.6, 6);
   });
+
+  it("a grid change right after an amount change keeps the new amount (no stale mirror)", async () => {
+    await setup("panel");
+    setPercent("Project swing", 40);
+    fireEvent.change(screen.getByLabelText("Swing grid"), { target: { value: "1/8" } });
+    await flush();
+    expect(store().project!.settings.swing).toBeCloseTo(0.4, 6);
+    expect(store().project!.settings.swing_grid).toBe(0.5);
+  });
 });

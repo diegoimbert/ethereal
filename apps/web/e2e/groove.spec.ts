@@ -9,6 +9,7 @@
 // `window.__ether` (apps/web/src/main.tsx).
 import { expect, test, type Page } from "@playwright/test";
 import type { Note, Project } from "@/generated";
+import { openClip } from "./clips";
 
 interface Handle {
   state(): { project: Project | null };
@@ -54,7 +55,7 @@ test("groove: quantize with swing, humanize, project swing", async ({ page }) =>
   await page.locator(`[data-lane="${midi.id}"]`).dblclick({ position: { x: 10, y: 20 } });
   await expect.poll(async () => Object.keys((await doc(page)).clips).length).toBe(1);
   const clip = Object.values((await doc(page)).clips)[0]!;
-  await page.locator(`[data-clip-id="${clip.id}"]`).dblclick({ position: { x: 20, y: 30 } });
+  await openClip(page, clip.id);
   const grid = page.getByTestId("piano-roll-grid");
   await expect(grid).toBeVisible();
   // Grid off, so drawn notes start wherever we click.
