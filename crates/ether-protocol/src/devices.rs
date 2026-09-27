@@ -87,6 +87,11 @@ pub enum DeviceSpec {
     },
 }
 
+/// Device category (append-only).
+///
+/// `NoteEffect` = **MIDI effect** (v0.2 `midi-fx`, CONTRACTS.md §12.4.4): sits before the
+/// instrument, transforms note/MIDI events (`Node` MIDI-in → MIDI-out), audio passes through
+/// untouched (`audio_inputs == audio_outputs == 0`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, TS)]
 pub enum DeviceCategory {
     Instrument,
@@ -115,6 +120,11 @@ pub struct DeviceDescriptor {
     /// Roadmap v2 (`sidechain`): channels of the sidechain input (0 = none; the UI shows a
     /// sidechain source selector when > 0).
     pub sidechain_inputs: u16,
+    /// v0.2 (`device-ui`): declarative panel layout rendered by the shared renderer
+    /// ([`crate::layout`]). `None` = the generic layout. Omitted from JSON when `None`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub layout: Option<crate::layout::DeviceLayout>,
 }
 
 /// Parameter metadata. Plain values are what the document stores; normalized 0..=1 values

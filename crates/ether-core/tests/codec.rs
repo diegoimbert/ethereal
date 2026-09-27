@@ -388,6 +388,11 @@ fn track(nan: bool) -> impl Strategy<Value = TrackDesc> {
                 automation,
                 racks,
             )| TrackDesc {
+                modulation: Default::default(),
+                vca: Default::default(),
+                chain_racks: Default::default(),
+                frozen: Default::default(),
+                input_tap: Default::default(),
                 id,
                 kind,
                 chain,
@@ -459,6 +464,7 @@ fn desc(nan: bool) -> impl Strategy<Value = RenderGraphDesc> {
                 tracks,
             )| {
                 RenderGraphDesc {
+                    vcas: Default::default(),
                     version,
                     tempo,
                     signatures,

@@ -1,6 +1,6 @@
 //! Parameter changes from the UI (lock-free queue) and smoothing.
 
-use ether_protocol::model::{ParamId, SendId, TrackId};
+use ether_protocol::model::{ModulatorId, ParamId, SendId, TrackId};
 use serde::{Deserialize, Serialize};
 
 use crate::node::NodeKey;
@@ -9,16 +9,42 @@ use crate::node::NodeKey;
 /// engine owns the mixer nodes); device params by node.
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub enum ParamTarget {
-    TrackVolume { track: TrackId },
-    TrackPan { track: TrackId },
-    TrackMute { track: TrackId },
-    SendLevel { send: SendId },
-    Node { node: NodeKey, param: ParamId },
+    TrackVolume {
+        track: TrackId,
+    },
+    TrackPan {
+        track: TrackId,
+    },
+    TrackMute {
+        track: TrackId,
+    },
+    SendLevel {
+        send: SendId,
+    },
+    Node {
+        node: NodeKey,
+        param: ParamId,
+    },
+    /// v0.2 (`racks-modulation`): a modulator's param (plain), `crate::modulation`.
+    Modulator {
+        modulator: ModulatorId,
+        param: ParamId,
+    },
 }
 
 /// A parameter change pushed from the controller thread (`EngineHandle::set_param`). Values
 /// are plain (linear gain for volume/send level, -1..=1 for pan, 0/1 for mute). Applied at
-/// the start of the next block; continuous params are smoothed by the receiver.
+/// the start of the next block (offset 0 of its first sub-block); continuous params are
+/// smoothed by the receiver. `TrackVolume`/`TrackMute` of a VCA id reach `crate::vca` (v0.2).
+///
+/// **Node parameter-event API (v0.2, frozen; CONTRACTS.md §12.7).** Nodes receive every
+/// param change (live, automation, modulation) as `EventKind::Param { param, value }` at a
+/// sample `offset` in `ProcessContext::events`, sorted. Built-in devices apply them at their
+/// offset (`ether_devices::util::split_at_events` + per-param smoothing); plugin hosts
+/// forward the offset: CLAP `clap_event_param_value.header.time`, VST3
+/// `IParameterChanges`/`IParamValueQueue::addPoint(sampleOffset)`, AU
+/// `AudioUnitScheduleParameters` (`AUParameterEvent` with `eventSampleTime`). A node that
+/// ignores offsets applies them at block start (the backwards-compatible default).
 ///
 /// While an enabled automation lane drives a target, automation wins and manual changes are
 /// overwritten on the next automation value (no override/re-enable mechanism in v0.1).

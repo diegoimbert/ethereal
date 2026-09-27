@@ -244,6 +244,11 @@ pub fn large_project() -> RenderGraphDesc {
             Vec::new()
         };
         tracks.push(TrackDesc {
+            modulation: Default::default(),
+            vca: Default::default(),
+            chain_racks: Default::default(),
+            frozen: Default::default(),
+            input_tap: Default::default(),
             id,
             kind,
             chain,
@@ -264,6 +269,7 @@ pub fn large_project() -> RenderGraphDesc {
     }
     assert_eq!(clips_left, 0);
     RenderGraphDesc {
+        vcas: Default::default(),
         version: 1234,
         tempo: vec![
             TempoPointDesc {
@@ -365,6 +371,11 @@ pub fn all_variants() -> RenderGraphDesc {
         .iter()
         .enumerate()
         .map(|(i, &kind)| TrackDesc {
+            modulation: Default::default(),
+            vca: Default::default(),
+            chain_racks: Default::default(),
+            frozen: Default::default(),
+            input_tap: Default::default(),
             id: TrackId(ulid(1, i)),
             kind,
             chain: vec![
@@ -497,6 +508,7 @@ pub fn all_variants() -> RenderGraphDesc {
         })
         .collect();
     RenderGraphDesc {
+        vcas: Default::default(),
         version: u64::MAX,
         tempo: vec![
             TempoPointDesc {

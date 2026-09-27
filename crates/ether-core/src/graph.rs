@@ -6,8 +6,8 @@
 //! `MediaId` (sources registered with `EngineHandle::add_source`), never by pointer.
 
 use ether_protocol::model::{
-    AutomationTarget, ClipId, CurveShape, DrumPadId, FadeCurve, MediaId, MetronomeSound, ParamId,
-    SendId, TrackId, TrackKind, WarpMode,
+    AutomationTarget, ClipId, CurveShape, DrumPadId, FadeCurve, InputTap, MediaId, MetronomeSound,
+    ParamId, SendId, TrackId, TrackKind, WarpMode,
 };
 use std::collections::BTreeSet;
 
@@ -40,6 +40,9 @@ pub struct RenderGraphDesc {
     /// All tracks incl. groups, returns and master. Order is irrelevant: the compiler
     /// topologically sorts by routing (outputs, sends, resampling inputs) and rejects cycles.
     pub tracks: Vec<TrackDesc>,
+    /// v0.2 (`groups-buses`): VCA faders (`TrackKind::Vca` tracks are never in `tracks`).
+    #[serde(default)]
+    pub vcas: Vec<crate::vca::VcaDesc>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -79,6 +82,24 @@ pub struct TrackDesc {
     /// rack device, keyed by the rack's node). Empty for tracks without racks.
     #[serde(default)]
     pub racks: Vec<RackDesc>,
+    // --- v0.2 (contracts-3; each field's module owns its semantics) ---
+    /// Frozen track (`freeze-bounce`, [`crate::freeze`]): `clips` and `chain` are empty.
+    #[serde(default)]
+    pub frozen: Option<crate::freeze::FrozenDesc>,
+    /// Rack chains of the rack devices in `chain` (`racks-modulation`,
+    /// [`crate::rack_chains`]).
+    #[serde(default)]
+    pub chain_racks: Vec<crate::rack_chains::ChainRackDesc>,
+    /// Modulators and mappings of this track's devices (`racks-modulation`,
+    /// [`crate::modulation`]).
+    #[serde(default)]
+    pub modulation: crate::modulation::ModulationDesc,
+    /// Input from another track (`groups-buses`, [`crate::bus_tap`]).
+    #[serde(default)]
+    pub input_tap: Option<crate::bus_tap::InputTapDesc>,
+    /// VCA assignment (`groups-buses`, [`crate::vca`]): an id in `RenderGraphDesc::vcas`.
+    #[serde(default)]
+    pub vca: Option<TrackId>,
 }
 
 /// Click settings (roadmap v2, `tempo-metronome`). The click is rendered by
@@ -285,6 +306,10 @@ pub(crate) struct SnapshotRt {
     /// Drum-rack pad-chain nodes and their track index, sorted (live params, automation
     /// and latency refresh reach them through `TrackRt::racks`).
     pub pad_index: Vec<(NodeKey, usize)>,
+    /// v0.2: rack-chain nodes and their track index, sorted (`crate::rack_chains`).
+    pub rack_chain_index: Vec<(NodeKey, usize)>,
+    /// v0.2: VCA faders (`crate::vca`).
+    pub vcas: crate::vca::VcaRt,
 }
 
 impl RenderSnapshot {
@@ -349,11 +374,19 @@ impl SnapshotRt {
             .map(|i| (self.node_index[i].1, self.node_index[i].2))
     }
 
+    pub(crate) fn lookup_rack_chain_node(&self, node: NodeKey) -> Option<usize> {
+        self.rack_chain_index
+            .binary_search_by(|e| e.0.cmp(&node))
+            .ok()
+            .map(|i| self.rack_chain_index[i].1)
+    }
+
     /// RT. Recompute every track's mute/solo gate target (mute propagates from groups).
     pub(crate) fn update_gates(&mut self) {
         let n = self.tracks.len();
         for i in 0..n {
-            let mut muted = false;
+            // A muted VCA mutes its tracks (`crate::vca`, v0.2).
+            let mut muted = self.tracks[i].vca.muted;
             let mut cur = Some(i);
             let mut depth = 0;
             while let Some(t) = cur {
@@ -488,6 +521,20 @@ pub fn compile_with(
             }
         }
     }
+    // v0.2: track input from another track (`crate::bus_tap`): the source goes first.
+    let tap_source: Vec<Option<usize>> = desc
+        .tracks
+        .iter()
+        .map(|t| t.input_tap.and_then(|tap| track_of(tap.track)))
+        .collect();
+    for (i, s) in tap_source.iter().enumerate() {
+        if let Some(s) = *s {
+            if s == i {
+                return Err(CompileError::Cycle(desc.tracks[i].id));
+            }
+            order_succ[s].push(i);
+        }
+    }
 
     // --- topological sort (Kahn; ties broken by desc order, so it is deterministic) ---
     let mut indeg = vec![0usize; n];
@@ -579,6 +626,7 @@ pub fn compile_with(
     // --- nodes ---
     let mut node_index = Vec::new();
     let mut pad_index = Vec::new();
+    let mut rack_chain_index = Vec::new();
     let mut chain_info: Vec<Vec<NodeInfo>> = Vec::with_capacity(n);
     for (i, t) in desc.tracks.iter().enumerate() {
         let mut infos = Vec::with_capacity(t.chain.len());
@@ -586,6 +634,8 @@ pub fn compile_with(
             let mut info = node_info(e.node).ok_or(CompileError::UnknownNode(e.node))?;
             // A drum rack's entry also carries its longest pad chain (pads run before it).
             info.latency += crate::drum_rack::pad_latency(&t.racks, e.node, node_info);
+            // v0.2: a rack's entry carries its longest chain (`crate::rack_chains`).
+            info.latency += crate::rack_chains::chain_latency(&t.chain_racks, e.node, node_info);
             infos.push(info);
             node_index.push((e.node, i, k));
         }
@@ -601,10 +651,20 @@ pub fn compile_with(
             // `engine::NodeTable::get` only reads the slot's generation for it.
             pad_index.push((pad_node, i));
         }
+        for chain_node in t
+            .chain_racks
+            .iter()
+            .flat_map(|r| &r.chains)
+            .flat_map(|c| &c.chain)
+            .map(|e| e.node)
+        {
+            rack_chain_index.push((chain_node, i));
+        }
         chain_info.push(infos);
     }
     node_index.sort();
     pad_index.sort();
+    rack_chain_index.sort();
     {
         // A key is used once (parallel jobs get `&mut` to their live nodes through
         // `engine::NodeTable`; a slot has one live generation, so live keys never collide).
@@ -612,6 +672,7 @@ pub fn compile_with(
             .iter()
             .map(|e| e.0)
             .chain(pad_index.iter().map(|e| e.0))
+            .chain(rack_chain_index.iter().map(|e| e.0))
             .collect();
         all.sort();
         if let Some(w) = all.windows(2).find(|w| w[0] == w[1]) {
@@ -636,7 +697,17 @@ pub fn compile_with(
     // Sidechain PDC (`crate::sidechain::plan`): main-signal delays before sidechained
     // entries count into the track's chain latency.
     let mut sc_plans: Vec<Vec<crate::sidechain::EntryPlan>> = vec![Vec::new(); n];
+    // v0.2 (`crate::bus_tap`): a track input tap counts as an input of the consumer.
+    let mut tap_delay = vec![0u32; n];
     for &i in &order {
+        if let (Some(s), Some(tap)) = (tap_source[i], desc.tracks[i].input_tap) {
+            let tap_lat = match tap.point {
+                InputTap::PreFx => in_lat[s],
+                InputTap::PostFx | InputTap::PostFader => out_lat[s],
+            };
+            in_lat[i] = in_lat[i].max(tap_lat);
+            tap_delay[i] = in_lat[i] - tap_lat;
+        }
         sc_plans[i] = crate::sidechain::plan(
             i,
             &desc.tracks[i],
@@ -704,6 +775,13 @@ pub fn compile_with(
     let mut tapped = vec![false; n];
     for p in sc_plans.iter().flatten() {
         tapped[p.source] = true;
+    }
+    // v0.2: tap points each track must provide (`crate::bus_tap`).
+    let mut tap_points: Vec<Vec<InputTap>> = vec![Vec::new(); n];
+    for (i, s) in tap_source.iter().enumerate() {
+        if let (Some(s), Some(tap)) = (*s, desc.tracks[i].input_tap) {
+            tap_points[s].push(tap.point);
+        }
     }
 
     // --- runtime state ---
@@ -804,6 +882,20 @@ pub fn compile_with(
             pinned: pinned[i],
             overflow: false,
             underruns: 0,
+            chain_racks: crate::rack_chains::ChainRacksRt::compile(
+                &t.chain_racks,
+                node_info,
+                config,
+            ),
+            modulation: crate::modulation::ModulationRt::compile(&t.modulation, config),
+            input_tap: crate::bus_tap::InputTapRt::compile(
+                tap_source[i],
+                t.input_tap.map(|tap| tap.point),
+                tap_delay[i],
+                config,
+            ),
+            taps: crate::bus_tap::TapBuffers::compile(&tap_points[i], config),
+            vca: crate::vca::TrackVcaRt::default(),
         });
     }
     send_index.sort();
@@ -817,6 +909,8 @@ pub fn compile_with(
 
     let mut rt = SnapshotRt {
         pad_index,
+        rack_chain_index,
+        vcas: crate::vca::VcaRt::compile(&desc.vcas, config),
         order,
         level_order,
         levels,
@@ -844,6 +938,11 @@ mod tests {
 
     fn t(id: u128, kind: TrackKind, output: Option<u128>) -> TrackDesc {
         TrackDesc {
+            modulation: Default::default(),
+            vca: Default::default(),
+            chain_racks: Default::default(),
+            frozen: Default::default(),
+            input_tap: Default::default(),
             id: TrackId(Ulid(id)),
             kind,
             chain: vec![],

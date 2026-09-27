@@ -5,6 +5,7 @@ use ether_protocol::devices::DeviceDescriptor;
 use ether_protocol::model::ParamId;
 use serde::{Deserialize, Serialize};
 
+use crate::analysis::AnalysisFrame;
 use crate::buffer::AudioBuffers;
 use crate::config::PrepareConfig;
 use crate::event::{EventBuffer, ProcessEvent};
@@ -105,6 +106,21 @@ pub trait Node: Send {
     ) -> ProcessStatus {
         let _ = sidechain;
         self.process(ctx, audio)
+    }
+
+    /// v0.2 analysis channel ([`crate::analysis`]): whether this node produces analysis
+    /// frames. Queried once (on the audio thread) when the node is added to the engine.
+    fn has_analysis(&self) -> bool {
+        false
+    }
+
+    /// RT. Fill `out` (kind, values; `out.node` is set by the engine) with the latest analysis
+    /// and return `true`, or `false` for nothing new. Called at most
+    /// [`crate::analysis::ANALYSIS_HZ`] times per second, after `process`, on the audio
+    /// thread. Copy only: compute in `process`.
+    fn analysis(&mut self, out: &mut AnalysisFrame) -> bool {
+        let _ = out;
+        false
     }
 }
 
