@@ -822,12 +822,17 @@ impl<'a> NodeTable<'a> {
     /// `ptr..ptr+len` must be valid `NodeSlot`s for `'a`, not accessed through any other
     /// path for `'a` except other tables made by this function, and every table must only
     /// be asked for keys of *its own* track (its chain and pad chains). That holds for
-    /// track jobs (`crate::parallel`, "Unsafe sharing"): the compiler rejects a snapshot
-    /// that uses a node-table slot *index* twice (chain and pad-chain nodes, whatever their
-    /// generations; `graph::compile_with`), so each slot belongs to at most one track's
-    /// job, and the audio thread doesn't touch the table while a level runs. So two
-    /// concurrent tables never reach the same slot, and [`NodeTable::get`] never creates
-    /// two live `&mut` to one slot.
+    /// track jobs (`crate::parallel`, "Unsafe sharing"):
+    /// - a *live* key (generation equal to its slot's) is unique in a snapshot: the compiler
+    ///   rejects a key used twice, and a slot has one generation, so two live keys never
+    ///   share a slot; only live keys reach a `&mut` (to the slot's `node` field);
+    /// - a *stale* key (a pad node removed and its slot reused by another track: the
+    ///   compiler tolerates unknown pad nodes) only *reads* the slot's `generation`, which
+    ///   nothing writes while a level runs, and yields `None`;
+    /// - the audio thread doesn't touch the table while a level runs.
+    ///
+    /// So [`NodeTable::get`] never creates two live `&mut` to one node, nor a `&mut` to a
+    /// slot another job uses.
     pub(crate) unsafe fn shared(ptr: *mut NodeSlot, len: usize) -> Self {
         Self {
             ptr,
@@ -842,13 +847,19 @@ impl<'a> NodeTable<'a> {
         if i >= self.len {
             return None;
         }
-        // SAFETY: `i < len`; exclusive (`new`) or disjoint by the `shared` contract; the
-        // borrow of `self` keeps it to one slot at a time per table.
-        let slot = unsafe { &mut *self.ptr.add(i) };
-        if slot.generation != key.generation {
+        // Never a reference to the whole slot: read the generation through the raw pointer
+        // (nobody writes it while jobs run) and borrow only the `node` field, and only when
+        // the key is live. A stale key of another track's slot thus never forms a `&mut`.
+        let slot = self.ptr.wrapping_add(i);
+        // SAFETY: `i < len`: a valid `NodeSlot`; `generation` is only written on the audio
+        // thread between blocks (`drain_control`), never during a level.
+        if unsafe { std::ptr::addr_of!((*slot).generation).read() } != key.generation {
             return None;
         }
-        slot.node.as_mut()
+        // SAFETY: the key is live, so by the `shared` contract (or `new`'s exclusivity) this
+        // slot's node belongs to this table's track only; the borrow of `self` keeps it to
+        // one node at a time per table.
+        unsafe { (*std::ptr::addr_of_mut!((*slot).node)).as_mut() }
     }
 }
 

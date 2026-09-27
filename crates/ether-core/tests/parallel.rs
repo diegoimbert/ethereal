@@ -182,3 +182,74 @@ fn stopped_engine_does_not_dispatch() {
     }
     assert!(calls.load(Ordering::Relaxed) > 0);
 }
+
+/// A stale pad-node key (its slot reused by a live node of another track: the compiler
+/// tolerates unknown pad nodes) next to the live key, processed in parallel: the stale key
+/// only reads the slot's generation (`NodeTable::get`), the live node plays, and the
+/// result is bit-identical to sequential processing.
+#[test]
+fn stale_pad_key_sharing_a_live_slot_is_harmless() {
+    use ether_core::graph::{PadDesc, RackDesc, RenderGraphDesc};
+    use ether_core::protocol::model::{DrumPadId, TrackKind, Ulid};
+
+    let render_with = |exec: Option<Box<dyn ParallelExecutor>>| {
+        let mut p = ether_core::create(config());
+        let h = &mut p.handle;
+        let stale = h.add_node(Box::new(Saw::new(1.0))).unwrap();
+        h.remove_node(stale).unwrap();
+        let live = h.add_node(Box::new(Saw::new(1.01))).unwrap();
+        assert_eq!(live.index, stale.index);
+        let rack = h.add_node(Box::new(Clip(2.0))).unwrap();
+        let pad_saw = h.add_node(Box::new(Saw::new(0.99))).unwrap();
+        let mut rng = Rng::new(5);
+        let mut a = track(tid(10), TrackKind::Midi, Some(tid(1)));
+        a.chain.push(entry(live));
+        a.clips.push(midi_clip(&mut rng, 1, &[60, 64, 67]));
+        let mut b = track(tid(11), TrackKind::Midi, Some(tid(1)));
+        b.chain.push(entry(rack));
+        b.racks.push(RackDesc {
+            rack,
+            pads: [(stale, 36u8), (pad_saw, 37)]
+                .into_iter()
+                .enumerate()
+                .map(|(k, (node, note))| PadDesc {
+                    pad: DrumPadId(Ulid(k as u128 + 1)),
+                    note,
+                    choke_group: None,
+                    chain: vec![entry(node)],
+                    volume: 1.0,
+                    pan: 0.0,
+                    mute: false,
+                })
+                .collect(),
+        });
+        b.clips.push(midi_clip(&mut rng, 2, &[36, 37]));
+        let desc = RenderGraphDesc {
+            tracks: vec![track(tid(1), TrackKind::Master, None), a, b],
+            ..Default::default()
+        };
+        p.handle.publish(desc).unwrap();
+        p.handle
+            .transport(ether_core::TransportControl::Play)
+            .unwrap();
+        if let Some(e) = exec {
+            p.engine.set_executor(e);
+        }
+        let mut out = Vec::new();
+        let (mut l, mut r) = (vec![0.0f32; 128], vec![0.0f32; 128]);
+        for _ in 0..1500 {
+            let mut outs: [&mut [f32]; 2] = [&mut l, &mut r];
+            p.engine.process(&[], &mut outs, 128);
+            out.extend_from_slice(&l);
+            out.extend_from_slice(&r);
+            p.gc.collect();
+        }
+        out
+    };
+    let reference = render_with(None);
+    assert!(reference.iter().any(|s| *s != 0.0));
+    for _ in 0..5 {
+        let out = render_with(Some(Box::new(Threaded(4))));
+        assert_eq!(first_diff(&reference, &out), None);
+    }
+}

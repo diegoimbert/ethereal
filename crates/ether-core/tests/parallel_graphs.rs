@@ -324,11 +324,11 @@ pub fn source() -> Arc<dyn AudioSource> {
 // ---------------------------------------------------------------------------------------
 // Project generator.
 
-fn tid(n: u128) -> TrackId {
+pub fn tid(n: u128) -> TrackId {
     TrackId(Ulid(n))
 }
 
-fn track(id: TrackId, kind: TrackKind, output: Option<TrackId>) -> TrackDesc {
+pub fn track(id: TrackId, kind: TrackKind, output: Option<TrackId>) -> TrackDesc {
     TrackDesc {
         id,
         kind,
@@ -349,7 +349,7 @@ fn track(id: TrackId, kind: TrackKind, output: Option<TrackId>) -> TrackDesc {
     }
 }
 
-fn entry(node: NodeKey) -> ChainEntry {
+pub fn entry(node: NodeKey) -> ChainEntry {
     ChainEntry {
         node,
         enabled: true,
@@ -368,7 +368,7 @@ fn effect(r: &mut Rng, h: &mut EngineHandle) -> ChainEntry {
     e
 }
 
-fn midi_clip(r: &mut Rng, id: u128, keys: &[u8]) -> ClipDesc {
+pub fn midi_clip(r: &mut Rng, id: u128, keys: &[u8]) -> ClipDesc {
     let mut notes: Vec<NoteDesc> = (0..3 + r.below(12))
         .map(|_| NoteDesc {
             start: r.below(32) as f64 * 0.25,
