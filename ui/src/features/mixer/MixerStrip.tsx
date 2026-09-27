@@ -10,7 +10,6 @@ import { formatDb, formatPan } from "@/features/devices/paramScale";
 import { dbToFader, defaultOutputLabel, faderToDb, MAX_DB, outputTargets, outputValue, parseOutputValue } from "./routing";
 import { useMeterLevels } from "./useMeterLevels";
 
-const FADER_HEIGHT = 120;
 /** Sends use the same fader range as track volume (controller `MAX_SEND_DB` = +6 dB). */
 const SEND_MAX_DB = MAX_DB;
 
@@ -36,7 +35,7 @@ function SendKnob({ track, ret, send, sender }: { track: Track; ret: Track; send
   return (
     <div className={clsx("eth-strip__send", !send && "eth-strip__send--off")} data-send-to={ret.id}>
       <Knob
-        size={24}
+        size="sm"
         value={send ? dbToFader(level, SEND_MAX_DB) : 0}
         defaultValue={dbToFader(-144, SEND_MAX_DB)}
         label={`Send ${ret.name}`}
@@ -97,7 +96,7 @@ function StripMeter({ track }: { track: Track }) {
   const { levels, clipped, resetClip } = useMeterLevels(track.id);
   return (
     <>
-      <Meter levels={levels} height={FADER_HEIGHT} className="eth-strip__meter" />
+      <Meter levels={levels} className="eth-strip__meter" />
       <button
         type="button"
         className={clsx("eth-strip__clip", clipped && "eth-strip__clip--on")}
@@ -182,7 +181,7 @@ export function MixerStrip({ track, returns, folded, onToggleFold }: MixerStripP
 
       <div className="eth-strip__fader-row">
         <Fader
-          height={FADER_HEIGHT}
+         
           value={dbToFader(volume)}
           defaultValue={dbToFader(0)}
           label={`${track.name} volume`}

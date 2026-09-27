@@ -22,7 +22,7 @@ function blocks(text: string): Map<string, Map<string, string>> {
 }
 
 describe("design tokens", () => {
-  it("tokens.css is generated from tokens.ts (run `node ui/src/theme/gen-css.ts`)", () => {
+  it("tokens.css is generated from tokens.ts (run `just gen-tokens`)", () => {
     expect(css).toBe(renderTokensCss());
   });
 

@@ -5,7 +5,9 @@ import {
   Badge,
   Button,
   Dialog,
+  Fader,
   getTheme,
+  Popover,
   IconButton,
   Knob,
   Menu,
@@ -58,6 +60,21 @@ describe("Knob", () => {
   });
 });
 
+describe("Fader", () => {
+  it("drag sensitivity follows the measured height (full-height drag = full range)", () => {
+    const onChange = vi.fn();
+    render(<Fader value={0} onChange={onChange} label="Vol" />);
+    const f = screen.getByRole("slider", { name: "Vol" });
+    Object.defineProperty(f, "clientHeight", { value: 200 });
+    f.setPointerCapture = () => undefined;
+    f.hasPointerCapture = () => false;
+    fireEvent.pointerDown(f, { button: 0, clientY: 300, pointerId: 1 });
+    fireEvent.pointerMove(f, { clientY: 200, pointerId: 1 });
+    expect(onChange).toHaveBeenLastCalledWith(0.5);
+    expect(f.style.height).toBe("");
+  });
+});
+
 describe("Tabs", () => {
   function Harness() {
     const [v, setV] = useState<"a" | "b" | "c">("a");
@@ -88,7 +105,8 @@ describe("Tabs", () => {
 describe("fields", () => {
   it("Toggle flips", () => {
     const onChange = vi.fn();
-    render(<Toggle checked={false} onChange={onChange} label="Metronome" />);
+    render(<Toggle checked={false} onChange={onChange} label="Metronome" size="lg" />);
+    expect(screen.getByText("Metronome").parentElement).toHaveClass("eth-toggle--lg");
     fireEvent.click(screen.getByRole("switch", { name: "Metronome" }));
     expect(onChange).toHaveBeenCalledWith(true);
   });
@@ -156,6 +174,24 @@ describe("overlays", () => {
     fireEvent.click(trigger);
     fireEvent.keyDown(screen.getByRole("menu"), { key: "Escape" });
     expect(screen.queryByRole("menu")).toBeNull();
+  });
+
+  it("Popover renders in a portal on <body> (never clipped by panels) and closes on outside click", () => {
+    const { container } = render(
+      <div style={{ overflow: "hidden" }}>
+        <Popover trigger={(p) => <Button {...p}>Open</Button>} aria-label="Pop">
+          content
+        </Popover>
+      </div>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Open" }));
+    const pop = screen.getByRole("dialog", { name: "Pop" });
+    expect(container.contains(pop)).toBe(false);
+    expect(pop.parentElement).toBe(document.body);
+    fireEvent.pointerDown(pop);
+    expect(screen.getByRole("dialog", { name: "Pop" })).toBeInTheDocument();
+    fireEvent.pointerDown(document.body);
+    expect(screen.queryByRole("dialog", { name: "Pop" })).toBeNull();
   });
 
   it("Dialog is labelled and closes on Escape", () => {

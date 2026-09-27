@@ -3,14 +3,51 @@ import {
   cloneElement,
   useEffect,
   useId,
+  useLayoutEffect,
   useRef,
   useState,
+  type CSSProperties,
   type KeyboardEvent,
   type ReactElement,
+  type RefObject,
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
 import type { StatusTone } from "./variants";
+
+// ---- Anchoring ------------------------------------------------------------------------
+
+/**
+ * Viewport rect of `anchor` while `active`, kept fresh on scroll/resize. Floating layers
+ * (Popover, Menu, Tooltip) render in a portal on <body> with `position: fixed` at this rect,
+ * so panels with `overflow: hidden/auto` never clip them.
+ */
+function useAnchorRect(anchor: RefObject<HTMLElement | null>, active: boolean): DOMRect | null {
+  const [rect, setRect] = useState<DOMRect | null>(null);
+  useLayoutEffect(() => {
+    if (!active) return;
+    const update = () => {
+      if (anchor.current) setRect(anchor.current.getBoundingClientRect());
+    };
+    update();
+    window.addEventListener("scroll", update, true);
+    window.addEventListener("resize", update);
+    return () => {
+      window.removeEventListener("scroll", update, true);
+      window.removeEventListener("resize", update);
+    };
+  }, [anchor, active]);
+  return active ? rect : null;
+}
+
+function placementStyle(placement: Placement, r: DOMRect | null): CSSProperties {
+  if (!r) return {}; // first render only: the layout effect positions it before paint
+  const [side, align] = placement.split("-") as ["top" | "bottom", "start" | "end"];
+  return {
+    ...(side === "bottom" ? { top: r.bottom } : { bottom: window.innerHeight - r.top }),
+    ...(align === "start" ? { left: r.left } : { right: window.innerWidth - r.right }),
+  };
+}
 
 // ---- Popover --------------------------------------------------------------------------
 
@@ -53,6 +90,8 @@ export function Popover({
   const [openState, setOpenState] = useState(false);
   const open = openProp ?? openState;
   const anchor = useRef<HTMLSpanElement>(null);
+  const panel = useRef<HTMLDivElement>(null);
+  const rect = useAnchorRect(anchor, open);
   const setOpen = (o: boolean) => {
     if (openProp === undefined) setOpenState(o);
     onOpenChange?.(o);
@@ -66,7 +105,8 @@ export function Popover({
   useEffect(() => {
     if (!open) return;
     const onDown = (e: PointerEvent) => {
-      if (anchor.current && !anchor.current.contains(e.target as Node)) closeRef.current();
+      const t = e.target as Node;
+      if (!anchor.current?.contains(t) && !panel.current?.contains(t)) closeRef.current();
     };
     document.addEventListener("pointerdown", onDown);
     return () => document.removeEventListener("pointerdown", onDown);
@@ -83,11 +123,20 @@ export function Popover({
   return (
     <span ref={anchor} className="eth-popover-anchor" onKeyDown={onKeyDown}>
       {trigger({ onClick: () => setOpen(!open), "aria-expanded": open, "aria-haspopup": haspopup })}
-      {open && (
-        <div className={clsx("eth-popover", `eth-popover--${placement}`, className)} role={role} aria-label={aria["aria-label"]}>
-          {typeof children === "function" ? children(close) : children}
-        </div>
-      )}
+      {open &&
+        createPortal(
+          // React events bubble through the portal to the anchor span (Escape handling).
+          <div
+            ref={panel}
+            className={clsx("eth-popover", `eth-popover--${placement}`, className)}
+            style={placementStyle(placement, rect)}
+            role={role}
+            aria-label={aria["aria-label"]}
+          >
+            {typeof children === "function" ? children(close) : children}
+          </div>,
+          document.body,
+        )}
     </span>
   );
 }
@@ -221,8 +270,14 @@ export interface TooltipProps {
 export function Tooltip({ content, children, placement = "top" }: TooltipProps) {
   const [open, setOpen] = useState(false);
   const id = useId();
+  const anchor = useRef<HTMLSpanElement>(null);
+  const r = useAnchorRect(anchor, open);
+  const style: CSSProperties = r
+    ? { left: r.left + r.width / 2, top: placement === "top" ? r.top : r.bottom }
+    : {};
   return (
     <span
+      ref={anchor}
       className="eth-tooltip-anchor"
       onPointerEnter={() => setOpen(true)}
       onPointerLeave={() => setOpen(false)}
@@ -230,11 +285,13 @@ export function Tooltip({ content, children, placement = "top" }: TooltipProps) 
       onBlur={() => setOpen(false)}
     >
       {cloneElement(children, { "aria-describedby": open ? id : undefined })}
-      {open && (
-        <span id={id} role="tooltip" className={clsx("eth-tooltip", `eth-tooltip--${placement}`)}>
-          {content}
-        </span>
-      )}
+      {open &&
+        createPortal(
+          <span id={id} role="tooltip" className={clsx("eth-tooltip", `eth-tooltip--${placement}`)} style={style}>
+            {content}
+          </span>,
+          document.body,
+        )}
     </span>
   );
 }

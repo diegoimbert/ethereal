@@ -1,5 +1,6 @@
 import clsx from "clsx";
 import type { ReactNode } from "react";
+import type { Size } from "./variants";
 
 export interface ToggleProps {
   checked: boolean;
@@ -8,7 +9,7 @@ export interface ToggleProps {
   label?: ReactNode;
   /** Accessible name when there is no visible label. */
   "aria-label"?: string;
-  size?: "sm" | "md";
+  size?: Size;
   disabled?: boolean;
   className?: string;
 }

@@ -202,10 +202,10 @@ function Controls() {
         <Knob value={0.3} disabled label="Off" />
       </Row>
       <Row label="Fader / Meter">
-        <Fader value={fader} onChange={setFader} label="Volume" height={120} />
-        <Fader value={0.4} disabled label="Disabled" height={120} />
-        <Meter levels={[fader * 1.2, fader * 0.9]} height={120} />
-        <Meter levels={[0.1, 0.5, 1.3]} height={120} />
+        <Fader value={fader} onChange={setFader} label="Volume" />
+        <Fader value={0.4} disabled label="Disabled" />
+        <Meter levels={[fader * 1.2, fader * 0.9]} />
+        <Meter levels={[0.1, 0.5, 1.3]} />
       </Row>
     </>
   );
@@ -266,6 +266,7 @@ function Inputs() {
       <Row label="Toggle">
         <Toggle checked={on} onChange={setOn} label="Metronome" />
         <Toggle checked={!on} onChange={(v) => setOn(!v)} size="sm" label="Small" />
+        <Toggle checked={on} onChange={setOn} size="lg" label="Large" />
         <Toggle checked disabled label="Disabled" />
       </Row>
       {SIZES.map((size) => (

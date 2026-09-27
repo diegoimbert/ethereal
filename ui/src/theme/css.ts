@@ -10,7 +10,7 @@ import {
 } from "./tokens.ts";
 
 const HEADER = `/*
- * GENERATED from ui/src/theme/tokens.ts by \`node ui/src/theme/gen-css.ts\`. Do not edit:
+ * GENERATED from ui/src/theme/tokens.ts by the Vite plugin / \`just gen-tokens\`. Do not edit:
  * change tokens.ts and regenerate (tokens.test.ts fails when this file is stale).
  */`;
 

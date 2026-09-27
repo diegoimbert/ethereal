@@ -36,14 +36,14 @@
   cursor: default;
 }
 .eth-button--sm {
-  --button-height: var(--eth-size-control-sm);
-  --button-padding-x: var(--eth-space-sm);
-  --button-font-size: var(--eth-fs-xs);
+  --button-height: var(--button-height-sm);
+  --button-padding-x: var(--button-padding-x-sm);
+  --button-font-size: var(--button-font-size-sm);
 }
 .eth-button--lg {
-  --button-height: var(--eth-size-control-lg);
-  --button-padding-x: var(--eth-space-lg);
-  --button-font-size: var(--eth-fs-md);
+  --button-height: var(--button-height-lg);
+  --button-padding-x: var(--button-padding-x-lg);
+  --button-font-size: var(--button-font-size-lg);
 }
 .eth-button--accent,
 .eth-button[aria-pressed="true"] {
@@ -133,10 +133,10 @@
   color: var(--knob-label-fg);
 }
 .eth-knob--sm {
-  --knob-size: var(--eth-size-knob-sm);
+  --knob-size: var(--knob-size-sm);
 }
 .eth-knob--lg {
-  --knob-size: var(--eth-size-knob-lg);
+  --knob-size: var(--knob-size-lg);
 }
 .eth-knob[aria-disabled="true"] {
   opacity: var(--eth-opacity-disabled);
@@ -170,7 +170,7 @@
 .eth-knob__pointer {
   stroke: var(--knob-pointer);
   stroke-width: var(--knob-pointer-width);
-  stroke-linecap: round;
+  stroke-linecap: var(--knob-pointer-linecap);
   vector-effect: non-scaling-stroke;
 }
 
@@ -178,6 +178,7 @@
 .eth-fader {
   position: relative;
   width: var(--fader-width);
+  height: var(--fader-height);
   cursor: ns-resize;
   touch-action: none;
 }
@@ -219,6 +220,7 @@
   display: inline-flex;
   gap: var(--meter-gap);
   width: auto;
+  height: var(--meter-height);
 }
 .eth-meter__channel {
   position: relative;
@@ -264,25 +266,25 @@
   letter-spacing: var(--eth-tracking-normal);
 }
 .eth-tabs__tab {
-  height: var(--eth-size-control-md);
-  padding: 0 var(--eth-space-md);
+  height: var(--tab-height);
+  padding: 0 var(--tab-padding-x);
   border: var(--eth-border-width) solid transparent;
   border-radius: var(--tab-radius);
   background: transparent;
   color: var(--tab-fg);
-  font-size: var(--eth-fs-sm);
+  font-size: var(--tab-font-size);
   cursor: pointer;
   white-space: nowrap;
 }
-.eth-tabs--sm .eth-tabs__tab {
-  height: var(--eth-size-control-sm);
-  padding: 0 var(--eth-space-sm);
-  font-size: var(--eth-fs-xs);
+.eth-tabs--sm {
+  --tab-height: var(--tab-height-sm);
+  --tab-padding-x: var(--tab-padding-x-sm);
+  --tab-font-size: var(--tab-font-size-sm);
 }
-.eth-tabs--lg .eth-tabs__tab {
-  height: var(--eth-size-control-lg);
-  padding: 0 var(--eth-space-lg);
-  font-size: var(--eth-fs-md);
+.eth-tabs--lg {
+  --tab-height: var(--tab-height-lg);
+  --tab-padding-x: var(--tab-padding-x-lg);
+  --tab-font-size: var(--tab-font-size-lg);
 }
 .eth-tabs__tab:hover:not(:disabled) {
   background: var(--tab-bg-hover);
@@ -302,13 +304,18 @@
   display: inline-flex;
   align-items: center;
   gap: var(--eth-space-sm);
-  font-size: var(--eth-fs-sm);
+  font-size: var(--toggle-font-size);
   cursor: pointer;
 }
 .eth-toggle--sm {
-  --toggle-width: calc(var(--eth-size-toggle-width) * 0.75);
-  --toggle-height: calc(var(--eth-size-toggle-height) * 0.75);
-  font-size: var(--eth-fs-xs);
+  --toggle-width: var(--toggle-width-sm);
+  --toggle-height: var(--toggle-height-sm);
+  --toggle-font-size: var(--toggle-font-size-sm);
+}
+.eth-toggle--lg {
+  --toggle-width: var(--toggle-width-lg);
+  --toggle-height: var(--toggle-height-lg);
+  --toggle-font-size: var(--toggle-font-size-lg);
 }
 .eth-toggle--disabled {
   opacity: var(--eth-opacity-disabled);
@@ -356,13 +363,14 @@
   min-width: 0;
 }
 .eth-input--sm {
-  --input-height: var(--eth-size-control-sm);
-  --input-font-size: var(--eth-fs-xs);
+  --input-height: var(--input-height-sm);
+  --input-padding-x: var(--input-padding-x-sm);
+  --input-font-size: var(--input-font-size-sm);
 }
 .eth-input--lg {
-  --input-height: var(--eth-size-control-lg);
-  --input-font-size: var(--eth-fs-md);
-  --input-padding-x: var(--eth-space-md);
+  --input-height: var(--input-height-lg);
+  --input-padding-x: var(--input-padding-x-lg);
+  --input-font-size: var(--input-font-size-lg);
 }
 .eth-input:focus-visible,
 .eth-number:focus-within {
@@ -407,11 +415,11 @@
 
 /* ---- Popover / Menu ----------------------------------------------------------------- */
 .eth-popover-anchor {
-  position: relative;
   display: inline-flex;
 }
+/* Rendered in a portal on <body>; Popover sets top/left/right/bottom from the anchor rect. */
 .eth-popover {
-  position: absolute;
+  position: fixed;
   z-index: var(--eth-z-popover);
   min-width: var(--eth-size-popover-min-width);
   padding: var(--eth-space-xs);
@@ -420,21 +428,13 @@
   border-radius: var(--popover-radius);
   box-shadow: var(--popover-shadow);
 }
-.eth-popover--bottom-start {
-  top: calc(100% + var(--eth-space-xs));
-  left: 0;
-}
+.eth-popover--bottom-start,
 .eth-popover--bottom-end {
-  top: calc(100% + var(--eth-space-xs));
-  right: 0;
+  margin-top: var(--eth-space-xs);
 }
-.eth-popover--top-start {
-  bottom: calc(100% + var(--eth-space-xs));
-  left: 0;
-}
+.eth-popover--top-start,
 .eth-popover--top-end {
-  bottom: calc(100% + var(--eth-space-xs));
-  right: 0;
+  margin-bottom: var(--eth-space-xs);
 }
 .eth-menu {
   display: flex;
@@ -523,12 +523,11 @@
 
 /* ---- Tooltip ------------------------------------------------------------------------ */
 .eth-tooltip-anchor {
-  position: relative;
   display: inline-flex;
 }
+/* Rendered in a portal on <body>; Tooltip sets top/left from the anchor rect. */
 .eth-tooltip {
-  position: absolute;
-  left: 50%;
+  position: fixed;
   z-index: var(--eth-z-tooltip);
   max-width: var(--eth-size-tooltip-max-width);
   width: max-content;
@@ -543,12 +542,10 @@
   animation: eth-tooltip-in var(--eth-duration-normal) var(--eth-ease-out) var(--tooltip-delay) both;
 }
 .eth-tooltip--top {
-  bottom: calc(100% + var(--eth-space-xs));
-  transform: translateX(-50%);
+  transform: translate(-50%, calc(-100% - var(--eth-space-xs)));
 }
 .eth-tooltip--bottom {
-  top: calc(100% + var(--eth-space-xs));
-  transform: translateX(-50%);
+  transform: translate(-50%, var(--eth-space-xs));
 }
 @keyframes eth-tooltip-in {
   from {

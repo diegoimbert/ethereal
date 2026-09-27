@@ -1,5 +1,6 @@
 import clsx from "clsx";
 import type { CSSProperties } from "react";
+import { knobGeometry } from "../theme/tokens";
 import { useVerticalDrag } from "./useVerticalDrag";
 import type { Size } from "./variants";
 
@@ -24,12 +25,14 @@ export interface KnobProps {
   className?: string;
 }
 
-const START = -135; // degrees, 0 = up
-const SWEEP = 270;
-// Geometry in a 100×100 viewBox; strokes are in CSS pixels (non-scaling), see kit.css.
+// Geometry comes from the `knobGeometry` tokens (100×100 viewBox, 0° = up); strokes are
+// CSS-pixel tokens (`--knob-stroke`, non-scaling), see kit.css.
+const START = Number(knobGeometry.startAngle);
+const SWEEP = Number(knobGeometry.sweep);
 const C = 50;
-const R = 42;
-const POINTER = R - 12;
+const R = Number(knobGeometry.radius);
+const POINTER = Number(knobGeometry.pointerLength);
+const POINTER_INSET = Number(knobGeometry.pointerInset);
 
 function polar(r: number, deg: number): [number, number] {
   const rad = ((deg - 90) * Math.PI) / 180;
@@ -70,6 +73,7 @@ export function Knob({
   const angle = START + v * SWEEP;
   const origin = bipolar ? START + SWEEP / 2 : START;
   const [px, py] = polar(POINTER, angle);
+  const [qx, qy] = polar(POINTER_INSET, angle);
   const style = typeof size === "number" ? ({ "--knob-size": `${size}px` } as CSSProperties) : undefined;
 
   return (
@@ -91,7 +95,7 @@ export function Knob({
         <circle className="eth-knob__body" cx={C} cy={C} r={R} />
         <path className="eth-knob__track" d={arc(R, START, START + SWEEP)} />
         {angle !== origin && <path className="eth-knob__value" d={arc(R, origin, angle)} />}
-        <line className="eth-knob__pointer" x1={C} y1={C} x2={px} y2={py} />
+        <line className="eth-knob__pointer" x1={qx} y1={qy} x2={px} y2={py} />
       </svg>
       {label && <span className="eth-knob__label">{label}</span>}
     </div>

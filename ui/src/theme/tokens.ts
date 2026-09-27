@@ -1,16 +1,12 @@
 /**
  * Ethereal design tokens: THE single place to restyle the app.
  *
- * Edit values here, then regenerate the CSS custom properties:
- *
- *     node ui/src/theme/gen-css.ts        (writes ui/src/theme/tokens.css)
- *
+ * Edit values here. The dev server (`just dev-ui`) regenerates `tokens.css` automatically on
+ * save (Vite plugin in tokens-plugin.ts); otherwise run `just gen-tokens`.
  * `tokens.test.ts` fails if `tokens.css` is out of date. Every value becomes a CSS custom
  * property named `--eth-<group>-<kebab-key>` (e.g. `colors.bgPanel` → `--eth-color-bg-panel`),
  * except the track palette (`--eth-track-<i>`) and component tokens (`--knob-track`, ...),
  * which keep their own names. See docs/DESIGN-SYSTEM.md.
- *
- * This file must stay plain erasable TypeScript (no enums/namespaces) so `node` can run it.
  */
 
 // ---------------------------------------------------------------------------------------
@@ -237,11 +233,17 @@ export const size = {
   faderWidth: "24px",
   faderTrackWidth: "4px",
   faderThumbHeight: "10px",
+  faderHeight: "120px",
+  meterHeight: "120px",
   meterChannelWidth: "5px",
   meterGap: "1px",
   meterClipHeight: "3px",
+  toggleWidthSm: "20px",
+  toggleHeightSm: "11px",
   toggleWidth: "26px",
   toggleHeight: "14px",
+  toggleWidthLg: "34px",
+  toggleHeightLg: "18px",
   rowHeight: "22px",
   rowHeightSm: "18px",
   rowHeightLg: "28px",
@@ -259,6 +261,23 @@ export const size = {
 export const meter = {
   stopMid: "70%",
   stopHigh: "85%",
+} as const;
+
+/**
+ * Knob drawing geometry (`--eth-knob-geometry-*`), in a 100×100 viewBox with 0° = up.
+ * Read by Knob.tsx (SVG paths can't use CSS vars). Strokes are CSS tokens (`--knob-stroke`).
+ */
+export const knobGeometry = {
+  /** Angle of the minimum value, degrees. */
+  startAngle: "-135",
+  /** Total sweep from minimum to maximum, degrees. */
+  sweep: "270",
+  /** Arc radius (viewBox units, max 50). */
+  radius: "42",
+  /** Pointer end distance from the center (viewBox units). */
+  pointerLength: "30",
+  /** Pointer start distance from the center (0 = from the center). */
+  pointerInset: "0",
 } as const;
 
 /** Ableton-ish clip/track color palette (`--eth-track-<i>`). Index with `trackColor(i)`. */
@@ -294,6 +313,12 @@ export const componentTokens = {
     "--button-height": v("size-control-md"),
     "--button-padding-x": v("space-md"),
     "--button-font-size": v("fs-sm"),
+    "--button-height-sm": v("size-control-sm"),
+    "--button-padding-x-sm": v("space-sm"),
+    "--button-font-size-sm": v("fs-xs"),
+    "--button-height-lg": v("size-control-lg"),
+    "--button-padding-x-lg": v("space-lg"),
+    "--button-font-size-lg": v("fs-md"),
     "--button-radius": v("radius-sm"),
     "--button-border": v("color-border"),
     "--button-bg": v("color-bg-raised"),
@@ -308,11 +333,14 @@ export const componentTokens = {
   },
   knob: {
     "--knob-size": v("size-knob-md"),
+    "--knob-size-sm": v("size-knob-sm"),
+    "--knob-size-lg": v("size-knob-lg"),
     "--knob-track": v("color-knob-track"),
     "--knob-value": v("color-accent"),
     "--knob-pointer": v("color-text"),
     "--knob-stroke": v("size-knob-stroke"),
     "--knob-pointer-width": v("size-knob-pointer"),
+    "--knob-pointer-linecap": "round",
     "--knob-linecap": "butt",
     "--knob-body": "transparent",
     "--knob-body-border": "transparent",
@@ -320,6 +348,7 @@ export const componentTokens = {
   },
   fader: {
     "--fader-width": v("size-fader-width"),
+    "--fader-height": v("size-fader-height"),
     "--fader-track-width": v("size-fader-track-width"),
     "--fader-track-bg": v("color-bg-inset"),
     "--fader-track-radius": v("radius-sm"),
@@ -330,6 +359,7 @@ export const componentTokens = {
     "--fader-thumb-radius": v("radius-sm"),
   },
   meter: {
+    "--meter-height": v("size-meter-height"),
     "--meter-channel-width": v("size-meter-channel-width"),
     "--meter-gap": v("size-meter-gap"),
     "--meter-bg": v("color-bg-inset"),
@@ -352,6 +382,15 @@ export const componentTokens = {
     "--panel-header-transform": "uppercase",
   },
   tabs: {
+    "--tab-height": v("size-control-md"),
+    "--tab-padding-x": v("space-md"),
+    "--tab-font-size": v("fs-sm"),
+    "--tab-height-sm": v("size-control-sm"),
+    "--tab-padding-x-sm": v("space-sm"),
+    "--tab-font-size-sm": v("fs-xs"),
+    "--tab-height-lg": v("size-control-lg"),
+    "--tab-padding-x-lg": v("space-lg"),
+    "--tab-font-size-lg": v("fs-md"),
     "--tab-fg": v("color-text-dim"),
     "--tab-fg-active": v("color-text-inverse"),
     "--tab-bg-hover": v("color-bg-hover"),
@@ -361,6 +400,13 @@ export const componentTokens = {
   toggle: {
     "--toggle-width": v("size-toggle-width"),
     "--toggle-height": v("size-toggle-height"),
+    "--toggle-width-sm": v("size-toggle-width-sm"),
+    "--toggle-height-sm": v("size-toggle-height-sm"),
+    "--toggle-width-lg": v("size-toggle-width-lg"),
+    "--toggle-height-lg": v("size-toggle-height-lg"),
+    "--toggle-font-size": v("fs-sm"),
+    "--toggle-font-size-sm": v("fs-xs"),
+    "--toggle-font-size-lg": v("fs-md"),
     "--toggle-track-off": v("color-bg-inset"),
     "--toggle-track-on": v("color-accent"),
     "--toggle-thumb": v("color-text"),
@@ -375,6 +421,12 @@ export const componentTokens = {
     "--input-border": v("color-border"),
     "--input-border-focus": v("color-focus"),
     "--input-radius": v("radius-sm"),
+    "--input-height-sm": v("size-control-sm"),
+    "--input-padding-x-sm": v("space-sm"),
+    "--input-font-size-sm": v("fs-xs"),
+    "--input-height-lg": v("size-control-lg"),
+    "--input-padding-x-lg": v("space-md"),
+    "--input-font-size-lg": v("fs-md"),
   },
   popover: {
     "--popover-bg": v("color-bg-overlay"),
@@ -428,6 +480,7 @@ export const sharedGroups: Record<string, Record<string, string>> = {
   z: zIndex,
   size,
   meter,
+  "knob-geometry": knobGeometry,
 };
 
 function kebab(s: string): string {

@@ -1,5 +1,5 @@
 /*
- * GENERATED from ui/src/theme/tokens.ts by `node ui/src/theme/gen-css.ts`. Do not edit:
+ * GENERATED from ui/src/theme/tokens.ts by the Vite plugin / `just gen-tokens`. Do not edit:
  * change tokens.ts and regenerate (tokens.test.ts fails when this file is stale).
  */
 
@@ -66,11 +66,17 @@
   --eth-size-fader-width: 24px;
   --eth-size-fader-track-width: 4px;
   --eth-size-fader-thumb-height: 10px;
+  --eth-size-fader-height: 120px;
+  --eth-size-meter-height: 120px;
   --eth-size-meter-channel-width: 5px;
   --eth-size-meter-gap: 1px;
   --eth-size-meter-clip-height: 3px;
+  --eth-size-toggle-width-sm: 20px;
+  --eth-size-toggle-height-sm: 11px;
   --eth-size-toggle-width: 26px;
   --eth-size-toggle-height: 14px;
+  --eth-size-toggle-width-lg: 34px;
+  --eth-size-toggle-height-lg: 18px;
   --eth-size-row-height: 22px;
   --eth-size-row-height-sm: 18px;
   --eth-size-row-height-lg: 28px;
@@ -84,6 +90,11 @@
   --eth-size-tooltip-max-width: 240px;
   --eth-meter-stop-mid: 70%;
   --eth-meter-stop-high: 85%;
+  --eth-knob-geometry-start-angle: -135;
+  --eth-knob-geometry-sweep: 270;
+  --eth-knob-geometry-radius: 42;
+  --eth-knob-geometry-pointer-length: 30;
+  --eth-knob-geometry-pointer-inset: 0;
   --eth-track-0: #ff94a6;
   --eth-track-1: #ffa529;
   --eth-track-2: #cc9927;
@@ -191,6 +202,12 @@
   --button-height: var(--eth-size-control-md);
   --button-padding-x: var(--eth-space-md);
   --button-font-size: var(--eth-fs-sm);
+  --button-height-sm: var(--eth-size-control-sm);
+  --button-padding-x-sm: var(--eth-space-sm);
+  --button-font-size-sm: var(--eth-fs-xs);
+  --button-height-lg: var(--eth-size-control-lg);
+  --button-padding-x-lg: var(--eth-space-lg);
+  --button-font-size-lg: var(--eth-fs-md);
   --button-radius: var(--eth-radius-sm);
   --button-border: var(--eth-color-border);
   --button-bg: var(--eth-color-bg-raised);
@@ -203,16 +220,20 @@
   --button-danger-fg: var(--eth-color-text-inverse);
   --button-ghost-bg-hover: var(--eth-color-bg-hover);
   --knob-size: var(--eth-size-knob-md);
+  --knob-size-sm: var(--eth-size-knob-sm);
+  --knob-size-lg: var(--eth-size-knob-lg);
   --knob-track: var(--eth-color-knob-track);
   --knob-value: var(--eth-color-accent);
   --knob-pointer: var(--eth-color-text);
   --knob-stroke: var(--eth-size-knob-stroke);
   --knob-pointer-width: var(--eth-size-knob-pointer);
+  --knob-pointer-linecap: round;
   --knob-linecap: butt;
   --knob-body: transparent;
   --knob-body-border: transparent;
   --knob-label-fg: var(--eth-color-text-dim);
   --fader-width: var(--eth-size-fader-width);
+  --fader-height: var(--eth-size-fader-height);
   --fader-track-width: var(--eth-size-fader-track-width);
   --fader-track-bg: var(--eth-color-bg-inset);
   --fader-track-radius: var(--eth-radius-sm);
@@ -221,6 +242,7 @@
   --fader-thumb-bg: var(--eth-color-text-dim);
   --fader-thumb-border: var(--eth-color-border);
   --fader-thumb-radius: var(--eth-radius-sm);
+  --meter-height: var(--eth-size-meter-height);
   --meter-channel-width: var(--eth-size-meter-channel-width);
   --meter-gap: var(--eth-size-meter-gap);
   --meter-bg: var(--eth-color-bg-inset);
@@ -239,6 +261,15 @@
   --panel-header-fg: var(--eth-color-text-dim);
   --panel-header-font-size: var(--eth-fs-sm);
   --panel-header-transform: uppercase;
+  --tab-height: var(--eth-size-control-md);
+  --tab-padding-x: var(--eth-space-md);
+  --tab-font-size: var(--eth-fs-sm);
+  --tab-height-sm: var(--eth-size-control-sm);
+  --tab-padding-x-sm: var(--eth-space-sm);
+  --tab-font-size-sm: var(--eth-fs-xs);
+  --tab-height-lg: var(--eth-size-control-lg);
+  --tab-padding-x-lg: var(--eth-space-lg);
+  --tab-font-size-lg: var(--eth-fs-md);
   --tab-fg: var(--eth-color-text-dim);
   --tab-fg-active: var(--eth-color-text-inverse);
   --tab-bg-hover: var(--eth-color-bg-hover);
@@ -246,6 +277,13 @@
   --tab-radius: var(--eth-radius-sm);
   --toggle-width: var(--eth-size-toggle-width);
   --toggle-height: var(--eth-size-toggle-height);
+  --toggle-width-sm: var(--eth-size-toggle-width-sm);
+  --toggle-height-sm: var(--eth-size-toggle-height-sm);
+  --toggle-width-lg: var(--eth-size-toggle-width-lg);
+  --toggle-height-lg: var(--eth-size-toggle-height-lg);
+  --toggle-font-size: var(--eth-fs-sm);
+  --toggle-font-size-sm: var(--eth-fs-xs);
+  --toggle-font-size-lg: var(--eth-fs-md);
   --toggle-track-off: var(--eth-color-bg-inset);
   --toggle-track-on: var(--eth-color-accent);
   --toggle-thumb: var(--eth-color-text);
@@ -258,6 +296,12 @@
   --input-border: var(--eth-color-border);
   --input-border-focus: var(--eth-color-focus);
   --input-radius: var(--eth-radius-sm);
+  --input-height-sm: var(--eth-size-control-sm);
+  --input-padding-x-sm: var(--eth-space-sm);
+  --input-font-size-sm: var(--eth-fs-xs);
+  --input-height-lg: var(--eth-size-control-lg);
+  --input-padding-x-lg: var(--eth-space-md);
+  --input-font-size-lg: var(--eth-fs-md);
   --popover-bg: var(--eth-color-bg-overlay);
   --popover-border: var(--eth-color-border-light);
   --popover-radius: var(--eth-radius-md);

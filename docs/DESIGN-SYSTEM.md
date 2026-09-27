@@ -8,10 +8,11 @@ the tokens in that file.
 ui/src/theme/
   tokens.ts            ← the single source: edit this
   tokens.css           ← GENERATED CSS custom properties (never edit by hand)
-  css.ts / gen-css.ts  ← generator (tokens.ts → tokens.css)
+  css.ts               ← renderer (tokens.ts → CSS text)
+  tokens-plugin.ts     ← Vite plugin: regenerates tokens.css on save; gen-css.mjs = CLI
   base.css             ← global reset/body styles (tokens only)
   index.ts             ← runtime API: cssVar, readToken, trackColor, setTheme/useTheme
-  hardcoded.ts         ← hard-coded value scanner (test + report)
+  hardcoded.ts         ← hard-coded value scanner (test + report-hardcoded.mjs)
 ui/src/kit/            ← components (Button, Knob, Fader, ...); kit.css reads tokens only
 ui/src/features/kit-gallery/  ← visual gallery of every component, variant and token
 ```
@@ -21,9 +22,12 @@ ui/src/features/kit-gallery/  ← visual gallery of every component, variant and
 1. Run `just dev-ui` and open `http://localhost:<port>/?kit` (the port is printed by the
    recipe, or `just dev-port`). The gallery shows every component in every size/tone and every
    token, with a dark/light switch. `?kit` removed = the app.
-2. Edit `ui/src/theme/tokens.ts`.
-3. Regenerate the CSS: `node ui/src/theme/gen-css.ts` (Node ≥ 23.6; Vite hot-reloads it).
-4. `pnpm --filter @ethereal/ui test` — `tokens.test.ts` fails if `tokens.css` is stale.
+2. Edit `ui/src/theme/tokens.ts` and save. The dev server's Vite plugin regenerates
+   `tokens.css` and the page restyles live (no reload, no command).
+3. Without a dev server running, regenerate with `just gen-tokens` (Node ≥ 20; TS is loaded
+   through Vite's module runner).
+4. Commit both `tokens.ts` and `tokens.css`. `pnpm --filter @ethereal/ui test` fails
+   (`tokens.test.ts`) if `tokens.css` is stale.
 
 For quick experiments you can also override any custom property in the browser devtools on
 `<html>`; copy the value back into `tokens.ts` when happy.
@@ -44,7 +48,9 @@ For quick experiments you can also override any custom property in the browser d
 | Roundness of everything | `radius` (e.g. set `sm`/`md` to `0` for a square look) |
 | Button height / row heights | `size.controlSm/Md/Lg`, `size.rowHeight*` |
 | Knob diameter / stroke | `size.knobSm/Md/Lg`, `size.knobStroke`, `size.knobPointer` |
-| Fader width / thumb | `size.faderWidth`, `faderTrackWidth`, `faderThumbHeight` |
+| Knob arc angles / radius / pointer | `knobGeometry` (`startAngle`, `sweep`, `radius`, `pointerLength`, `pointerInset`) |
+| Fader width / height / thumb | `size.faderWidth`, `faderHeight`, `faderTrackWidth`, `faderThumbHeight` |
+| Meter height | `size.meterHeight` |
 | Shell layout | `size.sidebarWidth`, `detailHeight`, `topBarHeight` |
 | Shadows | `darkShadows` / `lightShadows` |
 | Animation speed | `duration`, `ease` (reduced-motion users get `duration.instant`) |
@@ -54,22 +60,28 @@ For quick experiments you can also override any custom property in the browser d
 
 Each kit component reads its own tokens, which default to global tokens:
 
+Size variants have their own component tokens: `--<c>-height-sm/-lg`, `--<c>-padding-x-sm/-lg`,
+`--<c>-font-size-sm/-lg` for button, tab and input; `--knob-size-sm/-lg`;
+`--toggle-width-sm/-lg`, `--toggle-height-sm/-lg`, `--toggle-font-size-sm/-lg`. Most app
+buttons are `sm`, so to resize them edit `--button-height-sm` (etc.) in
+`componentTokens.button`.
+
 - **Button / IconButton**: `--button-height`, `--button-padding-x`, `--button-font-size`,
   `--button-radius`, `--button-border`, `--button-bg`, `--button-bg-hover`, `--button-fg`,
   `--button-accent-bg(-hover)`, `--button-accent-fg`, `--button-danger-bg`, `--button-danger-fg`,
   `--button-ghost-bg-hover`
 - **Knob**: `--knob-size`, `--knob-track`, `--knob-value`, `--knob-pointer`, `--knob-stroke`,
-  `--knob-pointer-width`, `--knob-linecap` (`butt`/`round`), `--knob-body`, `--knob-body-border`
+  `--knob-pointer-width`, `--knob-linecap` (`butt`/`round`, arcs), `--knob-pointer-linecap`, `--knob-body`, `--knob-body-border`
   (fill/outline of a round body behind the arc: set them for a "cap" knob), `--knob-label-fg`
-- **Fader**: `--fader-width`, `--fader-track-width`, `--fader-track-bg`, `--fader-track-radius`,
+- **Fader**: `--fader-width`, `--fader-height`, `--fader-track-width`, `--fader-track-bg`, `--fader-track-radius`,
   `--fader-fill`, `--fader-thumb-height`, `--fader-thumb-bg`, `--fader-thumb-border`,
   `--fader-thumb-radius` (e.g. `var(--eth-radius-pill)` for a round thumb)
-- **Meter**: `--meter-channel-width`, `--meter-gap`, `--meter-bg`, `--meter-radius`,
+- **Meter**: `--meter-height`, `--meter-channel-width`, `--meter-gap`, `--meter-bg`, `--meter-radius`,
   `--meter-low/mid/high`, `--meter-stop-mid/high`, `--meter-clip-height`
 - **Panel**: `--panel-bg`, `--panel-border`, `--panel-radius`, `--panel-header-height`,
   `--panel-header-bg`, `--panel-header-fg`, `--panel-header-font-size`, `--panel-header-transform`
-- **Tabs**: `--tab-fg`, `--tab-fg-active`, `--tab-bg-hover`, `--tab-bg-active`, `--tab-radius`
-- **Toggle**: `--toggle-width`, `--toggle-height`, `--toggle-track-off/on`, `--toggle-thumb`, `--toggle-radius`
+- **Tabs**: `--tab-height`, `--tab-padding-x`, `--tab-font-size`, `--tab-fg`, `--tab-fg-active`, `--tab-bg-hover`, `--tab-bg-active`, `--tab-radius`
+- **Toggle**: `--toggle-width`, `--toggle-height`, `--toggle-font-size`, `--toggle-track-off/on`, `--toggle-thumb`, `--toggle-radius`
 - **TextInput / Select / NumberField**: `--input-height`, `--input-padding-x`, `--input-font-size`,
   `--input-bg`, `--input-fg`, `--input-border`, `--input-border-focus`, `--input-radius`
 - **Popover / Menu**: `--popover-bg`, `--popover-border`, `--popover-radius`, `--popover-shadow`,
@@ -83,9 +95,9 @@ Change a default for the whole app in `componentTokens` (then regenerate). To re
 only, set the token on a container in that feature's CSS:
 `.eth-strip { --knob-value: var(--eth-color-ok); }`.
 
-Size variants (`sm`/`lg`) re-point the component token to the matching global size token
-(e.g. `.eth-button--sm { --button-height: var(--eth-size-control-sm) }`), so resize via the
-global `size.*` tokens.
+Size variants (`sm`/`lg`) re-point the base token to the per-size component token
+(e.g. `.eth-button--sm { --button-height: var(--button-height-sm) }`), which defaults to the
+global `size.*` token.
 
 ## Token reference
 
@@ -110,6 +122,7 @@ CSS names are derived from `tokens.ts`: `--eth-<group>-<kebab-key>`.
 | `zIndex` | `--eth-z-{popover,tooltip,dialog}` | no |
 | `size` | `--eth-size-*` (controls, icons, knob, fader, meter, toggle, rows, shell, overlays) | no |
 | `meter` | `--eth-meter-{stop-mid,stop-high}` | no |
+| `knobGeometry` | `--eth-knob-geometry-*` (informational; read by Knob.tsx from TS) | no |
 | `TRACK_COLORS` | `--eth-track-{0..15}` | no |
 | `componentTokens` | `--button-*`, `--knob-*`, ... | follow theme |
 
@@ -135,16 +148,19 @@ status tones (Badge) `"default" | "accent" | "ok" | "warn" | "danger"`.
 | --- | --- |
 | `Button` | `tone`, `size`, `active` (aria-pressed). `variant` is deprecated (`primary` → `accent`). |
 | `IconButton` | glyph/icon only; `label` is required (accessible name + title). |
-| `Knob` | `size` = `sm`/`md`/`lg` or pixels; `bipolar`; drag/keys/double-click reset. |
-| `Fader` | vertical; `height` in px (drives drag sensitivity); width from tokens. |
-| `Meter` | dB peak meter; colors/stops/widths from `--meter-*`. |
+| `Knob` | `size` = `sm`/`md`/`lg` (or pixels for one-offs); `bipolar`; drag/keys/double-click reset. |
+| `Fader` | vertical; size from `--fader-width/-height` (`height` prop only for one-offs). Drag sensitivity uses the measured height: a full-height drag sweeps the whole range. |
+| `Meter` | dB peak meter; height/colors/stops/widths from `--meter-*`. |
 | `Panel` | titled container with header actions. |
 | `Tabs` | `role=tablist`; arrow-key navigation; content is yours. |
 | `Toggle` | `role=switch`. |
 | `TextInput`, `Select`, `NumberField` | share `--input-*` tokens; NumberField commits on Enter/blur, ↑/↓ step (Shift ×10), Esc reverts. |
 | `Popover`, `Menu` | anchored to a trigger render-prop; close on outside click/Escape. |
-| `Dialog` | modal in a portal; Escape/backdrop closes. |
+| `Dialog` | modal; Escape/backdrop closes. |
 | `Tooltip` | hover/focus; delay = `--tooltip-delay`. |
+
+Popover, Menu, Tooltip and Dialog render in a portal on `<body>` (fixed-positioned at the
+anchor), so `overflow: hidden/auto` panels never clip them.
 | `Badge` | status label/count. |
 
 ## Rules for feature code
@@ -165,7 +181,9 @@ status tones (Badge) `"default" | "accent" | "ok" | "warn" | "danger"`.
 
 ### Enforcement
 
-- `ui/src/theme/hardcoded.test.ts` fails on literal colors, px font sizes or px lengths in
-  `ui/src/kit`, `ui/src/app` and `ui/src/features/kit-gallery`.
-- `node ui/src/theme/report-hardcoded.ts [dir…]` lists what remains in `ui/src/features`
+- `ui/src/theme/hardcoded.test.ts` fails on literal colors (hex, rgb()/hsl()…, named colors),
+  px font sizes, px/em/rem lengths, numeric size props (`height={120}`) and numeric inline
+  styles (`style={{ width: 40 }}`) in `ui/src/kit`, `ui/src/app`, `ui/src/features/kit-gallery`
+  and `ui/src/theme/base.css`.
+- `just report-hardcoded [dir…]` lists what remains in `ui/src/features`, by kind and by file
   (inventory for the design sweep; always exits 0).
