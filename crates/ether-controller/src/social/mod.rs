@@ -474,6 +474,35 @@ mod tests {
     }
 
     #[test]
+    fn note_author_scope_never_outlives_its_command() {
+        let author = Author {
+            name: "A".into(),
+            site: Some(SiteId(1)),
+            actor: None,
+            color: None,
+        };
+        let current = || NOTE_AUTHOR.with(|a| a.borrow().clone());
+        {
+            let _g = NoteAuthorScope::enter(Some(author.clone()));
+            assert_eq!(current(), Some(author.clone()));
+            {
+                // Nested (a command dispatched while another runs): restored after.
+                let _inner = NoteAuthorScope::enter(None);
+                assert_eq!(current(), None);
+            }
+            assert_eq!(current(), Some(author.clone()));
+        }
+        assert_eq!(current(), None);
+        // Cleared on unwinding too.
+        let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let _g = NoteAuthorScope::enter(Some(author.clone()));
+            panic!("a command panicked");
+        }));
+        assert!(r.is_err());
+        assert_eq!(current(), None);
+    }
+
+    #[test]
     fn only_well_formed_chat_inserts_pass() {
         let origin = SiteId(2);
         assert!(!is_forged_chat(&insert(Some(origin), 0), origin));

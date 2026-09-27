@@ -287,6 +287,47 @@ fn pinned_notes_are_undoable_replicated_and_anyone_can_change_them() {
     assert_eq!(error_code(&out), ErrorCode::NotFound);
 }
 
+/// The session identity authors a note only for the command that adds it (scoped): undo and
+/// redo of the add, by anyone, keep the original author; other commands see no identity.
+#[test]
+fn undo_and_redo_of_an_add_keep_the_original_author() {
+    let hub = Hub::default();
+    let mut sites = session(&hub, 2);
+    let site_a = sites[0].ctl.collab_site();
+    let id: PinnedNoteId = sites[0].id();
+    sites[0].ok(Command::PinnedNote(PinnedNoteCommand::Add {
+        id,
+        position: pos(2.0),
+        text: "A's note".into(),
+        author_name: None,
+    }));
+    let original = sites[0].project().pinned_notes[&id].author.clone();
+    assert_eq!(original.site, Some(site_a));
+    sites[0].ok(Command::Edit(EditCommand::Undo));
+    assert!(sites[0].project().pinned_notes.is_empty());
+    sites[0].ok(Command::Edit(EditCommand::Redo));
+    assert_eq!(sites[0].project().pinned_notes[&id].author, original);
+    settle(&mut sites.iter_mut().collect::<Vec<_>>(), &hub);
+    // B discards it and undoes: back with A as the author, on both sites.
+    sites[1].ok(Command::PinnedNote(PinnedNoteCommand::Delete { ids: vec![id] }));
+    sites[1].ok(Command::Edit(EditCommand::Undo));
+    settle(&mut sites.iter_mut().collect::<Vec<_>>(), &hub);
+    for s in &sites {
+        assert_eq!(s.project().pinned_notes[&id].author, original);
+    }
+    // After leaving, a new note uses `author_name` (the scope never outlives a command).
+    sites[0].ok(Command::Collab(CollabCommand::Leave));
+    let solo: PinnedNoteId = sites[0].id();
+    sites[0].ok(Command::PinnedNote(PinnedNoteCommand::Add {
+        id: solo,
+        position: pos(3.0),
+        text: "offline".into(),
+        author_name: Some("Ada".into()),
+    }));
+    let a = &sites[0].project().pinned_notes[&solo].author;
+    assert_eq!((a.name.as_str(), a.site, a.color), ("Ada", None, None));
+}
+
 #[test]
 fn pinned_notes_work_outside_a_session() {
     let hub = Hub::default();
