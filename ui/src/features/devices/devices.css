@@ -181,6 +181,66 @@
   color: var(--eth-color-text-dim);
 }
 
+/* Card body: collapsible (stacked layout) with an animated height. The 1fr/0fr grid row
+   animates to the content's natural height without measuring it. */
+.eth-device__collapse {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition:
+    grid-template-rows var(--eth-duration-normal) var(--eth-ease-standard),
+    opacity var(--eth-duration-normal) var(--eth-ease-standard);
+}
+.eth-device__collapse--closed {
+  grid-template-rows: 0fr;
+  opacity: 0;
+}
+.eth-device__collapse-inner {
+  min-height: 0;
+  overflow: hidden;
+}
+.eth-device__collapse-toggle svg {
+  transition: transform var(--eth-duration-normal) var(--eth-ease-standard);
+}
+.eth-device--collapsed .eth-device__collapse-toggle svg {
+  transform: rotate(-90deg);
+}
+.eth-device--collapsed .eth-device__header {
+  border-bottom-color: transparent;
+}
+
+/* ---- Stacked layout (inspector): full-width cards, one above the other ---- */
+.eth-devices--stack {
+  height: auto;
+}
+.eth-devices__chain--stack {
+  flex-direction: column;
+  flex: none;
+  overflow: visible;
+  padding: 0;
+  gap: var(--eth-space-sm);
+}
+.eth-devices__chain--stack .eth-devices__slot {
+  display: block;
+}
+.eth-devices__chain--stack .eth-devices__end {
+  min-width: 0;
+  min-height: var(--eth-size-row-height-lg);
+}
+.eth-device--stack {
+  min-width: 0;
+}
+.eth-device--stack .eth-device__body {
+  flex-wrap: wrap;
+  gap: var(--eth-space-md) var(--eth-space-lg);
+}
+.eth-devices__footer {
+  display: flex;
+  padding-top: var(--eth-space-sm);
+}
+.eth-devices__footer .eth-devices__add {
+  flex: 1;
+}
+
 .eth-param {
   display: flex;
   flex-direction: column;

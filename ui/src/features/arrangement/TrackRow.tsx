@@ -14,6 +14,7 @@ import { ClipView } from "./ClipView";
 import { colorCss, groupSummaryKey } from "./helpers";
 import { sendEdit, useArrangement } from "./context";
 import { laneItems } from "./laneItems";
+import { HeaderVolume } from "./HeaderVolume";
 import { onTrackHeaderPointerDown } from "./trackDrag";
 import { HEADER_WIDTH, TRACK_HEIGHT_STEP, type Row } from "./layout";
 import { arrangementView, useArrangementUi, type PendingImport } from "./uiStore";
@@ -108,6 +109,7 @@ function TrackHeader({ row }: { row: Row }) {
           {track.name}
         </span>
       )}
+      <HeaderVolume track={track} />
       <span className="eth-arr-header__buttons" onClick={stop}>
         <button
           type="button"

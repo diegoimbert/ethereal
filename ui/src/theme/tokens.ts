@@ -254,6 +254,13 @@ export const size = {
   rowHeightLg: "28px",
   panelHeaderHeight: "22px",
   topBarHeight: "36px",
+  /** Floating panes (browser, inspector, editor drawer) and the left icon rail. */
+  railWidth: "44px",
+  floatGap: "8px",
+  browserWidth: "280px",
+  inspectorWidth: "320px",
+  drawerHeight: "320px",
+  floatMinSize: "180px",
   sidebarWidth: "220px",
   sidebarMinWidth: "140px",
   detailHeight: "280px",

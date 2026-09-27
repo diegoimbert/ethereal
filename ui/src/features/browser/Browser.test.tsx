@@ -53,6 +53,32 @@ describe("Browser", () => {
     expect(list.queryByRole("button", { name: "Readme.txt" })).toBeNull();
   });
 
+  it("scopes to the library or the project's media (no location tabs for one root)", async () => {
+    await renderWithMock(<Browser scope="project" />);
+    await screen.findByRole("list", { name: "Files" });
+    await waitFor(() => expect(screen.getByRole("searchbox", { name: "Search files" })).toHaveAttribute("placeholder", "Search Project media"));
+    expect(screen.queryByRole("button", { name: "Drums" })).toBeNull();
+  });
+
+  it("searches recursively from the current folder and navigates to a result's folder", async () => {
+    await renderWithMock(<Browser scope="library" />);
+    const list = await files();
+    await list.findByRole("button", { name: "Drums" });
+    fireEvent.change(screen.getByRole("searchbox", { name: "Search files" }), { target: { value: "kick" } });
+    const results = within(await screen.findByRole("list", { name: "Search results" }));
+    const kick = await results.findByRole("button", { name: "Kick.wav" });
+    expect(kick.textContent).toContain("Drums");
+    expect(results.queryByRole("button", { name: "Snare.wav" })).toBeNull();
+
+    fireEvent.change(screen.getByRole("searchbox", { name: "Search files" }), { target: { value: "zzz" } });
+    expect(await screen.findByText("No matches")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByRole("searchbox", { name: "Search files" }), { target: { value: "loop" } });
+    fireEvent.click(await within(await screen.findByRole("list", { name: "Search results" })).findByRole("button", { name: "Loops" }));
+    expect(await (await files()).findByRole("button", { name: "Break 120.wav" })).toBeInTheDocument();
+    expect(screen.getByRole("searchbox", { name: "Search files" })).toHaveValue("");
+  });
+
   it("imports on double-click and shows the file in project media", async () => {
     await renderWithMock(<Browser />);
     const list = await files();

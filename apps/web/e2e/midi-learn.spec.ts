@@ -18,7 +18,7 @@ test("MIDI tab on the web: learning needs the desktop app", async ({ page }) => 
   await expect(page.getByRole("button", { name: "Play" })).toBeVisible({ timeout: 30_000 });
   await expect.poll(() => state(page).then((s) => s.project !== null), { timeout: 30_000 }).toBe(true);
 
-  await page.getByRole("tab", { name: "MIDI" }).click();
+  await page.getByRole("button", { name: "MIDI mapping" }).click();
   const panel = page.locator('[data-feature="midi-learn"]');
   await expect(panel.getByRole("note")).toContainText("MIDI learn needs the desktop app");
   await expect(panel.getByRole("switch", { name: "MIDI mode" })).toBeDisabled();

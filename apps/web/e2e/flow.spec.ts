@@ -112,6 +112,9 @@ test("full flow: build a song, play it, edit, save, reload", async ({ page }) =>
   const audio = Object.values((await doc(page)).tracks).find((t) => t.kind === "Audio")!;
 
   // The library location lists the bundled demo samples.
+  // The sample browser is a pane opened from the rail; pinned, it doesn't cover the lanes.
+  await page.getByRole("button", { name: "Library", exact: true }).click();
+  await page.getByRole("button", { name: "Pin Library" }).click();
   await page.getByRole("tablist", { name: "Locations" }).getByRole("tab", { name: "Browser library" }).click();
   await page.getByRole("list", { name: "Files" }).getByRole("button", { name: "Demo Samples" }).click();
   const sample = page.getByRole("button", { name: "Bass Loop 120.wav", exact: true });
@@ -136,8 +139,8 @@ test("full flow: build a song, play it, edit, save, reload", async ({ page }) =>
   await expect.poll(() => inkedPixels(waveform), { timeout: 20_000 }).toBeGreaterThan(50);
 
   // --- Compressor and delay on the audio track ---------------------------------------------
+  // Selecting the track opens the inspector with its devices.
   await page.getByRole("group", { name: `${audio.name} track` }).click();
-  await page.getByRole("tab", { name: "Devices" }).click();
   await page.getByRole("combobox", { name: "Add device" }).click();
   await page.locator('[role="option"][data-value="Compressor"]').click();
   await expect.poll(async () => Object.values((await doc(page)).devices).filter((d) => d.track === audio.id).length).toBe(1);

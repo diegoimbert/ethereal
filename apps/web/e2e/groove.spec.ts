@@ -97,7 +97,7 @@ test("groove: quantize with swing, humanize, project swing", async ({ page }) =>
     .toBe(1);
 
   // --- Groove tab: project playback swing ----------------------------------------------------
-  await page.getByRole("tablist", { name: "Detail view" }).getByRole("tab", { name: "Groove" }).click();
+  await page.getByRole("tablist", { name: "Editors" }).getByRole("tab", { name: "Groove" }).click();
   const amount = page.getByRole("spinbutton", { name: "Project swing" });
   await amount.fill("50");
   await amount.press("Enter");

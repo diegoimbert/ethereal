@@ -1,12 +1,13 @@
-import { act, fireEvent, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, screen, within } from "@testing-library/react";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
 import type { Device } from "@/generated";
-import { devicesOfTrack, useSelectionStore } from "@/state";
+import { devicesOfTrack, useProjectStore, useSelectionStore } from "@/state";
 import { cmd, type MockTransport } from "@/transport";
 import { dragUp, flush, renderWithMock, resetStores, store, stubPointerCapture, trackByName } from "@/features/mixer/testUtils";
 import { groupParams, insertableTypes, splitMainParams } from "./chainUtils";
 import { BUILTIN_DESCRIPTORS } from "@/transport";
 import { DeviceChain } from "./index";
+import { resetCollapsed } from "./collapsed";
 import { pickOption } from "@/kit/testing";
 import { BROWSER_DRAG_MIME, type BrowserDragPayload } from "@/features/browser/dragPayload";
 
@@ -201,5 +202,64 @@ describe("DeviceChain", () => {
     fireEvent.drop(deviceEl("Synth"), { dataTransfer });
     await flush();
     expect(chainNames("Keys")).toEqual(["Compressor", "Synth"]);
+  });
+});
+
+describe("DeviceChain: stacked layout (inspector)", () => {
+  /** The Keys track's chain, stacked, once the project has loaded. */
+  function KeysStack() {
+    const id = useProjectStore((s) => Object.values(s.project?.tracks ?? {}).find((t) => t.name === "Keys")?.id);
+    return id ? <DeviceChain track={id} layout="stack" /> : null;
+  }
+
+  afterEach(() => resetCollapsed());
+
+  async function renderStack() {
+    mock = await renderWithMock(<KeysStack />);
+    await screen.findAllByRole("slider", { name: "Cutoff" });
+  }
+
+  it("shows the given track's chain as full-width cards, no track picker, add device at the bottom", async () => {
+    await renderStack();
+    expect(screen.queryByRole("combobox", { name: "Track" })).toBeNull();
+    const list = screen.getByRole("list", { name: "Keys devices" });
+    expect(list).toHaveClass("eth-devices__chain--stack");
+    expect(within(list).getAllByRole("region").map((r) => r.getAttribute("aria-label"))).toEqual(["Synth", "Compressor"]);
+    // The add-device select comes after the chain.
+    const add = screen.getByRole("combobox", { name: "Add device" });
+    expect(list.compareDocumentPosition(add) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("moves cards up/down", async () => {
+    await renderStack();
+    expect(screen.getByRole("button", { name: "Move Synth up" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Move Synth down" }));
+    await flush();
+    expect(chainNames("Keys")).toEqual(["Compressor", "Synth"]);
+  });
+
+  it("collapses a card (animated body) and remembers it per device", async () => {
+    await renderStack();
+    const toggle = screen.getByRole("button", { name: "Collapse Synth" });
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    fireEvent.click(toggle);
+    const card = deviceEl("Synth");
+    expect(card).toHaveClass("eth-device--collapsed");
+    expect(card.querySelector(".eth-device__collapse")).toHaveClass("eth-device__collapse--closed");
+    expect(screen.getByRole("button", { name: "Expand Synth" })).toHaveAttribute("aria-expanded", "false");
+    // Other cards stay open; the state survives a remount.
+    expect(deviceEl("Compressor")).not.toHaveClass("eth-device--collapsed");
+    resetStores(mock);
+    cleanup();
+    await renderStack();
+    expect(deviceEl("Synth")).toHaveClass("eth-device--collapsed");
+    fireEvent.click(screen.getByRole("button", { name: "Expand Synth" }));
+    expect(deviceEl("Synth")).not.toHaveClass("eth-device--collapsed");
+  });
+
+  it("the row layout has no collapse toggle and keeps left/right moves", async () => {
+    await renderChain();
+    expect(screen.queryByRole("button", { name: /Collapse / })).toBeNull();
+    expect(screen.getByRole("button", { name: "Move Synth right" })).toBeInTheDocument();
   });
 });

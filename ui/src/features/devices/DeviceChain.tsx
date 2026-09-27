@@ -1,7 +1,8 @@
 import { useState, type DragEvent } from "react";
 import { Select, type SelectOption } from "@/kit";
-import type { BuiltinDeviceType, DeviceDescriptor, DeviceId, Track } from "@/generated";
-import { useDevicesOfTrack, useSelectionStore, useTracksOrdered } from "@/state";
+import type { BuiltinDeviceType, DeviceDescriptor, DeviceId, Track, TrackId } from "@/generated";
+import clsx from "clsx";
+import { useDevicesOfTrack, useProjectStore, useSelectionStore, useTracksOrdered } from "@/state";
 import { cmd, newId } from "@/transport";
 import { builtinDevice, useBuiltinTypes } from "./descriptors";
 import { DEVICE_DRAG_TYPE, insertableTypes } from "./chainUtils";
@@ -70,7 +71,10 @@ function AddDevice({ track, firstDevice }: { track: Track; firstDevice: DeviceId
   );
 }
 
-function Chain({ track }: { track: Track }) {
+export type ChainLayout = "row" | "stack";
+
+function Chain({ track, layout, picker }: { track: Track; layout: ChainLayout; picker: boolean }) {
+  const stack = layout === "stack";
   const send = useSend();
   const devices = useDevicesOfTrack(track.id);
   const [endDrop, setEndDrop] = useState(false);
@@ -91,12 +95,14 @@ function Chain({ track }: { track: Track }) {
   };
 
   return (
-    <div className="eth-devices" data-feature="devices">
-      <div className="eth-devices__toolbar">
-        <TrackPicker track={track} />
-        <AddDevice track={track} firstDevice={devices[0]?.id ?? null} />
-      </div>
-      <div className="eth-devices__chain" role="list" aria-label={`${track.name} devices`}>
+    <div className={clsx("eth-devices", stack && "eth-devices--stack")} data-feature="devices">
+      {!stack && (
+        <div className="eth-devices__toolbar">
+          {picker && <TrackPicker track={track} />}
+          <AddDevice track={track} firstDevice={devices[0]?.id ?? null} />
+        </div>
+      )}
+      <div className={clsx("eth-devices__chain", stack && "eth-devices__chain--stack")} role="list" aria-label={`${track.name} devices`}>
         {devices.map((d, i) => (
           <div role="listitem" key={d.id} className="eth-devices__slot">
             <DeviceView
@@ -104,6 +110,7 @@ function Chain({ track }: { track: Track }) {
               prev={devices[i - 1]?.id ?? null}
               moveRightBefore={i === devices.length - 1 ? undefined : (devices[i + 2]?.id ?? null)}
               onDropBefore={(dragged) => moveTo(dragged, d.id)}
+              layout={layout}
             />
           </div>
         ))}
@@ -121,13 +128,27 @@ function Chain({ track }: { track: Track }) {
           )}
         </div>
       </div>
+      {stack && (
+        <div className="eth-devices__footer">
+          <AddDevice track={track} firstDevice={devices[0]?.id ?? null} />
+        </div>
+      )}
     </div>
   );
 }
 
-/** Device chain of the selected track, with the generic param UI. */
-export function DeviceChainView() {
-  const track = useSelectedTrack();
+export interface DeviceChainProps {
+  /** Show this track's chain (no track picker). Default: the selected track, with a picker. */
+  track?: TrackId;
+  /** "row" (default): cards side by side. "stack": full-width collapsible cards (inspector). */
+  layout?: ChainLayout;
+}
+
+/** Device chain of a track (the selected one by default), with the generic param UI. */
+export function DeviceChainView({ track: trackId, layout = "row" }: DeviceChainProps) {
+  const selected = useSelectedTrack();
+  const given = useProjectStore((s) => (trackId ? s.project?.tracks[trackId] : undefined));
+  const track = trackId ? given : selected;
   if (!track) return <div className="eth-devices eth-devices--empty" data-feature="devices">No project loaded</div>;
-  return <Chain key={track.id} track={track} />;
+  return <Chain key={track.id} track={track} layout={layout} picker={!trackId} />;
 }

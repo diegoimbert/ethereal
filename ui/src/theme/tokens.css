@@ -84,6 +84,12 @@
   --eth-size-row-height-lg: 28px;
   --eth-size-panel-header-height: 22px;
   --eth-size-top-bar-height: 36px;
+  --eth-size-rail-width: 44px;
+  --eth-size-float-gap: 8px;
+  --eth-size-browser-width: 280px;
+  --eth-size-inspector-width: 320px;
+  --eth-size-drawer-height: 320px;
+  --eth-size-float-min-size: 180px;
   --eth-size-sidebar-width: 220px;
   --eth-size-sidebar-min-width: 140px;
   --eth-size-detail-height: 280px;

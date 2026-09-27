@@ -458,6 +458,31 @@ describe("ArrangementView: clip editing", () => {
     );
   });
 
+  it("a header volume fader drag is one undo step; double-click resets to 0 dB", async () => {
+    const keys = trackByName("Keys");
+    const fader = screen.getByRole("slider", { name: "Keys volume" });
+    const before = keys.mixer.volume;
+    Object.defineProperty(fader, "clientWidth", { configurable: true, value: 40 });
+    await act(async () => {
+      fireEvent.pointerDown(fader, { button: 0, pointerId: 1, clientX: 20 });
+      fireEvent.pointerMove(fader, { pointerId: 1, clientX: 10 });
+      fireEvent.pointerMove(fader, { pointerId: 1, clientX: 4 });
+      fireEvent.pointerUp(fader, { pointerId: 1, clientX: 4 });
+    });
+    await flush();
+    const lowered = trackByName("Keys").mixer.volume;
+    expect(lowered).toBeLessThan(before);
+    expect(fader.getAttribute("aria-valuetext")).toMatch(/dB/);
+    // The drag didn't select or move the track.
+    expect(useArrangementUi.getState().trackFocus).toBeNull();
+    await undo();
+    expect(trackByName("Keys").mixer.volume).toBeCloseTo(before);
+
+    fireEvent.doubleClick(fader);
+    await flush();
+    expect(trackByName("Keys").mixer.volume).toBeCloseTo(0);
+  });
+
   it("reorders tracks by dragging their headers (one undo step)", async () => {
     const names = () => tracksOrdered(project()).map((t) => t.name);
     expect(names().slice(0, 3)).toEqual(["Keys", "Bass", "Drums"]);

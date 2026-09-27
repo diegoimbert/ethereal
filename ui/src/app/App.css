@@ -1,23 +1,14 @@
 .eth-shell {
-  display: grid;
-  /* The splitters set --eth-sidebar-width / --eth-detail-height inline on the shell. */
-  grid-template-columns: var(--eth-sidebar-width, var(--eth-size-sidebar-width)) minmax(0, 1fr);
-  grid-template-rows: auto minmax(0, 1fr) var(--eth-detail-height, var(--eth-size-detail-height));
-  grid-template-areas:
-    "top top"
-    "sidebar main"
-    "sidebar detail";
+  display: flex;
+  flex-direction: column;
   gap: var(--eth-space-sm);
   height: 100%;
   padding: var(--eth-space-sm);
   background: var(--eth-color-bg);
 }
-.eth-shell--detail-closed {
-  grid-template-rows: auto minmax(0, 1fr) var(--eth-size-detail-collapsed-height);
-}
 
 .eth-shell__top {
-  grid-area: top;
+  flex: none;
   display: flex;
   align-items: center;
   gap: var(--eth-space-md);
@@ -28,50 +19,211 @@
   flex: 1;
   min-width: 0;
 }
-.eth-shell__sidebar {
-  grid-area: sidebar;
+
+/* ---- Workspace: rail + arrangement + floating panes ---------------------------------- */
+.eth-workspace {
+  position: relative;
+  flex: 1;
+  min-height: 0;
 }
-.eth-shell__main {
-  grid-area: main;
+/* Pinned panes pad the arrangement by their size (animated); unpinned ones float over it. */
+.eth-workspace__main {
+  position: absolute;
+  inset: 0;
+  padding: 0 var(--pane-right-reserved) var(--pane-bottom-reserved) calc(var(--eth-size-rail-width) + var(--pane-left-reserved));
+  transition: padding var(--eth-duration-slow) var(--eth-ease-standard);
 }
-.eth-shell__detail {
-  grid-area: detail;
+.eth-workspace__stage {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-width: 0;
+  overflow: hidden;
+  border: var(--eth-border-width) solid var(--eth-color-border-light);
+  border-radius: var(--eth-radius-xl);
+  background: var(--eth-color-bg-panel);
+  box-shadow: var(--eth-shadow-sm);
+}
+.eth-workspace__stage > [data-feature="arrangement"] {
+  flex: 1;
+  min-height: 0;
 }
 
-/* Pane splitters: thin grips laid over the gaps between panes. */
-.eth-splitter {
-  position: relative;
-  z-index: 10;
-  touch-action: none;
+/* The icon rail on the left edge. */
+.eth-rail {
+  position: absolute;
+  /* Above the arrangement's container, which spans the whole workspace (under the rail). */
+  z-index: 1;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: var(--eth-size-rail-width);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--eth-space-xs);
+  padding-top: var(--eth-space-xs);
 }
-.eth-splitter {
-  border-radius: var(--eth-radius-pill);
+.eth-rail__button {
+  color: var(--eth-color-text-dim);
+  border-radius: var(--eth-radius-lg);
+}
+.eth-rail__button--active {
+  color: var(--eth-color-accent);
+  background: var(--eth-color-accent-subtle);
+}
+
+/* A floating pane: a card over (or, pinned, beside) the arrangement. */
+.eth-float {
+  position: absolute;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  border: var(--eth-border-width) solid var(--eth-color-border-light);
+  border-radius: var(--eth-radius-xl);
+  background: var(--eth-color-bg-panel);
+  box-shadow: var(--eth-shadow-lg);
+  transition:
+    left var(--eth-duration-slow) var(--eth-ease-standard),
+    right var(--eth-duration-slow) var(--eth-ease-standard),
+    box-shadow var(--eth-duration-normal) var(--eth-ease-out);
+  animation: var(--float-enter) var(--eth-duration-normal) var(--eth-ease-out) both;
+}
+.eth-float--pinned {
+  box-shadow: var(--eth-shadow-md);
+}
+.eth-float--closing {
+  animation: var(--float-exit) var(--float-exit-duration) var(--eth-ease-in) both;
+  pointer-events: none;
+}
+.eth-float--left {
+  top: 0;
+  bottom: 0;
+  left: calc(var(--eth-size-rail-width));
+  width: var(--pane-left-size);
+  --float-enter: eth-float-in-left;
+  --float-exit: eth-float-out-left;
+}
+.eth-float--right {
+  top: 0;
+  bottom: 0;
+  right: 0;
+  width: var(--pane-right-size);
+  --float-enter: eth-float-in-right;
+  --float-exit: eth-float-out-right;
+}
+/* The drawer spans between the pinned side panes (and floats under unpinned ones). */
+.eth-float--bottom {
+  z-index: 19;
+  bottom: 0;
+  left: calc(var(--eth-size-rail-width) + var(--pane-left-reserved));
+  right: var(--pane-right-reserved);
+  height: var(--pane-bottom-size);
+  --float-enter: eth-float-in-bottom;
+  --float-exit: eth-float-out-bottom;
+}
+.eth-float {
+  --float-exit-duration: var(--eth-duration-normal);
+}
+@keyframes eth-float-in-left {
+  from {
+    opacity: 0;
+    transform: translateX(calc(var(--eth-space-3xl) * -1));
+  }
+}
+@keyframes eth-float-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(var(--eth-space-3xl));
+  }
+}
+@keyframes eth-float-in-bottom {
+  from {
+    opacity: 0;
+    transform: translateY(var(--eth-space-3xl));
+  }
+}
+@keyframes eth-float-out-left {
+  to {
+    opacity: 0;
+    transform: translateX(calc(var(--eth-space-3xl) * -1));
+  }
+}
+@keyframes eth-float-out-right {
+  to {
+    opacity: 0;
+    transform: translateX(var(--eth-space-3xl));
+  }
+}
+@keyframes eth-float-out-bottom {
+  to {
+    opacity: 0;
+    transform: translateY(var(--eth-space-3xl));
+  }
+}
+.eth-float__header {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-xs);
+  height: var(--panel-header-height);
+  padding: 0 var(--eth-space-xs) 0 var(--eth-space-md);
+  border-bottom: var(--eth-border-width) solid var(--eth-color-border-light);
+}
+.eth-float__title {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+}
+.eth-float__heading {
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-sm);
+  font-weight: var(--eth-fw-medium);
+}
+.eth-float__body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+.eth-float__fill {
+  height: 100%;
+}
+/* Resize grip on the pane's inner edge. */
+.eth-float__resize {
+  position: absolute;
+  z-index: 1;
+  touch-action: none;
   transition: background var(--eth-duration-fast) var(--eth-ease-out);
 }
-.eth-splitter:hover {
+.eth-float__resize:hover {
   background: color-mix(in srgb, var(--eth-color-accent) 40%, transparent);
 }
-/* Centered on the gap between the panes. */
-.eth-splitter--vertical {
+.eth-float--left .eth-float__resize,
+.eth-float--right .eth-float__resize {
+  top: 0;
+  bottom: 0;
   width: var(--eth-size-splitter-width);
-  margin-left: calc((var(--eth-size-splitter-width) + var(--eth-space-sm)) / -2);
-  justify-self: start;
   cursor: ew-resize;
 }
-.eth-splitter--horizontal {
+.eth-float--left .eth-float__resize {
+  right: 0;
+}
+.eth-float--right .eth-float__resize {
+  left: 0;
+}
+.eth-float--bottom .eth-float__resize {
+  left: 0;
+  right: 0;
+  top: 0;
   height: var(--eth-size-splitter-width);
-  margin-top: calc((var(--eth-size-splitter-width) + var(--eth-space-sm)) / -2);
-  align-self: start;
   cursor: ns-resize;
 }
-.eth-shell__split-sidebar {
-  grid-column: 2;
-  grid-row: 2 / 4;
-}
-.eth-shell__split-detail {
-  grid-column: 2;
-  grid-row: 3;
-}
+
 .eth-shell__tabs {
   display: flex;
   gap: var(--eth-space-xs);

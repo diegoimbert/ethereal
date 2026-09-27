@@ -3,7 +3,7 @@ import { useState, type DragEvent, type ReactNode } from "react";
 import type { Device, DeviceId } from "@/generated";
 import { PluginDeviceControls } from "@/features/plugins";
 import { SidechainSelector } from "@/features/sidechain";
-import { ChevronDown, ChevronLeft, ChevronRight, Power, X } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Power, X } from "lucide-react";
 import { IconButton, openContextMenu } from "@/kit";
 import { cmd } from "@/transport";
 import { DEVICE_DRAG_TYPE, groupParams, splitMainParams, type ParamGroup } from "./chainUtils";
@@ -11,6 +11,7 @@ import { useDescriptor } from "./descriptors";
 import { useGestureSender, useSend } from "./gesture";
 import { ParamControl } from "./ParamControl";
 import { SampleSlot } from "./SampleSlot";
+import { setCollapsed, useCollapsed } from "./collapsed";
 
 export interface DeviceViewProps {
   device: Device;
@@ -20,9 +21,17 @@ export interface DeviceViewProps {
   moveRightBefore: DeviceId | null | undefined;
   /** Drop handler for a dragged device, inserted before this one. */
   onDropBefore(dragged: DeviceId): void;
+  /**
+   * "row" (default): cards side by side, move left/right. "stack": full-width cards one
+   * above the other (the inspector), move up/down, and a collapse chevron that animates
+   * the card body closed (remembered per device).
+   */
+  layout?: "row" | "stack";
 }
 
-export function DeviceView({ device, prev, moveRightBefore, onDropBefore }: DeviceViewProps) {
+export function DeviceView({ device, prev, moveRightBefore, onDropBefore, layout = "row" }: DeviceViewProps) {
+  const stack = layout === "stack";
+  const collapsed = useCollapsed(device.id) && stack;
   const send = useSend();
   const sender = useGestureSender();
   const { descriptor, error } = useDescriptor(device);
@@ -46,7 +55,13 @@ export function DeviceView({ device, prev, moveRightBefore, onDropBefore }: Devi
 
   return (
     <section
-      className={clsx("eth-device", !device.enabled && "eth-device--bypassed", dropTarget && "eth-device--drop")}
+      className={clsx(
+        "eth-device",
+        stack && "eth-device--stack",
+        collapsed && "eth-device--collapsed",
+        !device.enabled && "eth-device--bypassed",
+        dropTarget && "eth-device--drop",
+      )}
       data-device={device.id}
       aria-label={device.name}
       onDragOver={onDragOver}
@@ -71,6 +86,17 @@ export function DeviceView({ device, prev, moveRightBefore, onDropBefore }: Devi
           e.dataTransfer.effectAllowed = "move";
         }}
       >
+        {stack && (
+          <IconButton
+            size="sm"
+            tone="ghost"
+            className="eth-device__collapse-toggle"
+            aria-expanded={!collapsed}
+            label={collapsed ? `Expand ${device.name}` : `Collapse ${device.name}`}
+            icon={<ChevronDown />}
+            onClick={() => setCollapsed(device.id, !collapsed)}
+          />
+        )}
         <IconButton
           size="sm"
           tone="ghost"
@@ -88,16 +114,16 @@ export function DeviceView({ device, prev, moveRightBefore, onDropBefore }: Devi
           <IconButton
             size="sm"
             tone="ghost"
-            label={`Move ${device.name} left`}
-            icon={<ChevronLeft />}
+            label={`Move ${device.name} ${stack ? "up" : "left"}`}
+            icon={stack ? <ChevronUp /> : <ChevronLeft />}
             disabled={prev === null}
             onClick={() => prev !== null && move(prev)}
           />
           <IconButton
             size="sm"
             tone="ghost"
-            label={`Move ${device.name} right`}
-            icon={<ChevronRight />}
+            label={`Move ${device.name} ${stack ? "down" : "right"}`}
+            icon={stack ? <ChevronDown /> : <ChevronRight />}
             disabled={moveRightBefore === undefined}
             onClick={() => moveRightBefore !== undefined && move(moveRightBefore)}
           />
@@ -110,20 +136,25 @@ export function DeviceView({ device, prev, moveRightBefore, onDropBefore }: Devi
           />
         </span>
       </header>
-      <SampleSlot device={device} />
-      {descriptor ? (
-        <DeviceParams
-          groups={groupParams(descriptor.params)}
-          name={device.name}
-          expanded={expanded}
-          onToggle={() => setExpanded((x) => !x)}
-          render={(p, size) => <ParamControl key={p.id} device={device} info={p} sender={sender} size={size} />}
-        />
-      ) : (
-        <div className="eth-device__body">
-          <div className="eth-device__status">{error ? "Descriptor unavailable" : "Loading…"}</div>
+      {/* The card body; in the stacked layout it collapses (animated height). */}
+      <div className={clsx("eth-device__collapse", collapsed && "eth-device__collapse--closed")} inert={collapsed}>
+        <div className="eth-device__collapse-inner">
+          <SampleSlot device={device} />
+          {descriptor ? (
+            <DeviceParams
+              groups={groupParams(descriptor.params)}
+              name={device.name}
+              expanded={expanded}
+              onToggle={() => setExpanded((x) => !x)}
+              render={(p, size) => <ParamControl key={p.id} device={device} info={p} sender={sender} size={size} />}
+            />
+          ) : (
+            <div className="eth-device__body">
+              <div className="eth-device__status">{error ? "Descriptor unavailable" : "Loading…"}</div>
+            </div>
+          )}
         </div>
-      )}
+      </div>
     </section>
   );
 }

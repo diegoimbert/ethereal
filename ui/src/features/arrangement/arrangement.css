@@ -293,6 +293,82 @@
 }
 
 /* Mute / solo / arm: shown on hover (and whenever one is on). */
+/* Compact volume fader in the header (the mixer view is gone). */
+.eth-arr-vol {
+  position: relative;
+  flex: none;
+  display: flex;
+  align-items: center;
+  width: 44px;
+  height: 18px;
+  cursor: ew-resize;
+  touch-action: none;
+  outline: none;
+}
+.eth-arr-vol__track {
+  position: relative;
+  width: 100%;
+  height: 4px;
+  border-radius: var(--eth-radius-pill);
+  background: var(--eth-color-knob-track);
+  overflow: visible;
+}
+.eth-arr-vol__fill {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: color-mix(in srgb, var(--eth-track-color) 70%, var(--eth-color-text-dim));
+  transform-origin: left center;
+}
+.eth-arr-vol__thumb {
+  position: absolute;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  margin: -4px 0 0 -4px;
+  border-radius: var(--eth-radius-round);
+  background: var(--eth-color-text);
+  box-shadow: var(--eth-shadow-sm);
+  opacity: 0.7;
+  transition:
+    opacity var(--eth-duration-fast) var(--eth-ease-out),
+    transform var(--eth-duration-fast) var(--eth-ease-out);
+}
+.eth-arr-vol:hover .eth-arr-vol__thumb,
+.eth-arr-vol--active .eth-arr-vol__thumb,
+.eth-arr-vol:focus-visible .eth-arr-vol__thumb {
+  opacity: 1;
+  transform: scale(1.2);
+}
+.eth-arr-vol:focus-visible .eth-arr-vol__track {
+  box-shadow: 0 0 0 var(--eth-focus-ring-width) var(--eth-color-focus);
+}
+/* dB readout above the fader while hovering or dragging. */
+.eth-arr-vol__readout {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  z-index: 2;
+  padding: 0 var(--eth-space-xs);
+  border-radius: var(--eth-radius-sm);
+  background: var(--eth-color-bg-overlay);
+  box-shadow: var(--eth-shadow-sm);
+  color: var(--eth-color-text);
+  font-size: var(--eth-fs-xs);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transform: translate(-50%, 2px);
+  transition:
+    opacity var(--eth-duration-fast) var(--eth-ease-out),
+    transform var(--eth-duration-fast) var(--eth-ease-out);
+}
+.eth-arr-vol:hover .eth-arr-vol__readout,
+.eth-arr-vol--active .eth-arr-vol__readout {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
 .eth-arr-header__buttons {
   display: flex;
   gap: 2px;

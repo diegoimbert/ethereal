@@ -76,6 +76,9 @@ test("EQ, reverb, limiter and utility on an audio track", async ({ page }) => {
   const audio = Object.values((await doc(page)).tracks).find(
     (t) => t.kind === "Audio",
   )!;
+  // The sample browser is a pane opened from the rail; pinned, it doesn't cover the lanes.
+  await page.getByRole("button", { name: "Library", exact: true }).click();
+  await page.getByRole("button", { name: "Pin Library" }).click();
   await page
     .getByRole("tablist", { name: "Locations" })
     .getByRole("tab", { name: "Browser library" })
@@ -102,8 +105,8 @@ test("EQ, reverb, limiter and utility on an audio track", async ({ page }) => {
     .toBe(1);
 
   // Insert the four devices.
+  // Selecting the track opens the inspector with its devices.
   await page.getByRole("group", { name: `${audio.name} track` }).click();
-  await page.getByRole("tab", { name: "Devices" }).click();
   const chainOf = async () =>
     Object.values((await doc(page)).devices)
       .filter((d) => d.track === audio.id)
