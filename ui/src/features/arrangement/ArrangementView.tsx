@@ -31,13 +31,14 @@ import {
   useViewport,
   visibleRange,
 } from "@/timeline";
-import { useAutomationHeight } from "@/features/automation";
+import { useAutomationSlotHeight } from "@/features/automation";
 import { PresenceLayer } from "@/features/collab/presence";
 import { TransportContext, useTransport, useTransportEvent } from "@/transport";
 import { actionForKey, bindSingleSelection, locateIfStopped, newTrackMenu, runClipAction } from "./actions";
 import { dropBrowserMedia, hasBrowserDrag, readBrowserDrag } from "./browserDrop";
 import { ArrangementContext, type ArrangementContextValue } from "./context";
 import { clipRects, DROP_AREA_HEIGHT, HEADER_WIDTH, layoutRows, rowIndexAt, rowsHeight, type Row } from "./layout";
+import { useLaneAnimation } from "./laneAnimation";
 import { PeakCache } from "./peaks";
 import { Toolbar } from "./Toolbar";
 import { ImportPlaceholder, TrackRow } from "./TrackRow";
@@ -85,7 +86,8 @@ function ConnectedArrangementView() {
   const heights = useArrangementUi((s) => s.heights);
   const defaultHeight = useArrangementUi((s) => s.defaultHeight);
   const grid = useArrangementUi((s) => s.grid);
-  const automationHeight = useAutomationHeight();
+  // While automation lanes open/close: laid out once, animated by `useLaneAnimation`.
+  const automationHeight = useAutomationSlotHeight();
   const draftTrack = useArrangementUi((s) => s.draftTrack);
   // The master track is pinned below the scrolling tracks (its own footer, at y 0); it is
   // laid out last, so the other rows keep their positions.
@@ -102,6 +104,7 @@ function ConnectedArrangementView() {
   const rootRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
+  useLaneAnimation(contentRef, rows, rowsRef);
   const onVerticalZoom = useTrackHeightZoom(scrollRef, rows);
 
   // A new draft track scrolls into view.

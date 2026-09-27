@@ -251,6 +251,15 @@ export const ease = {
   in: "cubic-bezier(0.4, 0, 1, 1)",
 } as const;
 
+/**
+ * Semantic motion: which duration/easing a kind of movement uses (values are the tokens
+ * above). CSS reads the same pairs from the component tokens (e.g. `--automation-lane-*`).
+ */
+export const motion = {
+  /** Automation lanes opening/closing: the arrangement's rows slide (layout motion). */
+  lane: { duration: duration.slow, ease: ease.standard },
+} as const;
+
 export const opacity = {
   disabled: "0.4",
   muted: "0.6",
@@ -625,6 +634,11 @@ export const componentTokens = {
     "--popover-shadow": v("shadow-lg"),
     "--menu-item-height": v("size-row-height"),
     "--menu-item-bg-hover": v("color-accent-subtle"),
+  },
+  automation: {
+    // Automation lanes opening/closing: same timing as `motion.lane` (the row heights).
+    "--automation-lane-duration": v("duration-slow"),
+    "--automation-lane-ease": v("ease-standard"),
   },
   dialog: {
     "--dialog-width": v("size-dialog-width"),

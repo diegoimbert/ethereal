@@ -818,6 +818,8 @@ paths = [
 # Priority 1 (with groups-buses). The desktop path half depends on media-references
 # (reference in place); the web/remote upload half can land first.
 paths = [
+  # BCR (base-73): the upload assertion only (mock now stages uploads)
+  "ui/src/transport/mock/MockTransport.test.ts",
   # BCR (base-70): one palette entry "Import audio..." (Cmd+I)
   "ui/src/app/shell/commands.ts",
   "ui/src/features/import/**",
@@ -1040,6 +1042,8 @@ paths = [
 
 [nodes.freeze-bounce]
 paths = [
+  # BCR (base-72): route Freeze through MockFreeze in the mock (import, field, command case, step call; mirrors MockExports)
+  "ui/src/transport/mock/MockTransport.ts",
   "crates/ether-core/src/freeze.rs",
   "crates/ether-controller/src/freeze/**",
   "ui/src/features/freeze/**",
@@ -1134,6 +1138,8 @@ paths = [
 [nodes.plugin-sidechain]
 # Priority 2. CLAP/VST3/AU aux inputs fed from the device's sidechain source (CONTRACTS §12.14).
 paths = [
+  # BCR (base-71): HostedPluginNode forwards sidechain_inputs/process_sidechain (those two methods only)
+  "crates/ether-native/src/plugins.rs",
   # BCR (base-67): aux-input test fixtures (silent without a sidechain source) + per-crate tests
   "crates/ether-clap/examples/ether_test_plugin.rs",
   "crates/ether-vst3/examples/ether_vst3_test_plugin.rs",
