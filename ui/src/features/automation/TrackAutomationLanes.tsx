@@ -19,7 +19,9 @@ import { setCurveCommand } from "./edit";
 import { sendEdit } from "./gesture";
 import { AutomationLaneView } from "./AutomationLaneView";
 import { useTrackTargets, type TargetInfo } from "./params";
-import { AUTOMATION_BAR_HEIGHT, LANE_HEIGHT, automationHeight, shownKeys, useAutomationUi } from "./uiStore";
+import { AUTOMATION_BAR_HEIGHT, automationHeight, laneHeightOf, laneUiKey, shownKeys, useAutomationUi } from "./uiStore";
+import { defaultRange, FULL_RANGE } from "./valueAxis";
+import { LaneResizeHandle, ValueScale } from "./ValueScale";
 import { useTrackLanes } from "./toggle";
 import { useLaneAnimating, useShownLanes } from "./laneMotion";
 import "./automation.css";
@@ -159,6 +161,10 @@ function LaneRow({ className, trackId, targetKey: key, info, targets, shown, lan
     return types.size === 1 ? ([...types][0] as CurveChoice) : "";
   }, [laneSelection]);
 
+  const height = useAutomationUi((s) => laneHeightOf(s, trackId, key));
+  const storedRange = useAutomationUi((s) => s.ranges[laneUiKey(trackId, key)]);
+  const range = useMemo(() => storedRange ?? (info ? defaultRange(info.info) : FULL_RANGE), [storedRange, info]);
+
   const ui = useAutomationUi.getState;
   const onChangeTarget = (next: string) => ui().replace(trackId, key, next);
   const onCurve = (choice: CurveChoice) => {
@@ -170,8 +176,18 @@ function LaneRow({ className, trackId, targetKey: key, info, targets, shown, lan
   };
 
   return (
-    <div className={clsx("eth-auto-row", className)} style={{ height: LANE_HEIGHT }} data-target={key}>
+    <div className={clsx("eth-auto-row", className)} style={{ height }} data-target={key}>
       <div className="eth-auto-row__header" style={{ width: headerWidth }}>
+        {info && (
+          <ValueScale
+            info={info.info}
+            range={range}
+            height={height}
+            name={info.name}
+            onRange={(r) => ui().setRange(trackId, key, r)}
+          />
+        )}
+        <LaneResizeHandle trackId={trackId} targetKey={key} height={height} name={info?.name ?? "lane"} />
         <div className="eth-auto-row__line">
           {info ? (
             <Select
@@ -235,7 +251,8 @@ function LaneRow({ className, trackId, targetKey: key, info, targets, shown, lan
             target={info.target}
             info={info.info}
             view={view}
-            height={LANE_HEIGHT}
+            height={height}
+            range={range}
             grid={grid}
             selection={selection}
             label={`${info.name} automation`}

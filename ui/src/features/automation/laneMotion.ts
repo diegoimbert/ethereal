@@ -18,7 +18,7 @@ import { create } from "zustand";
 import type { TrackId } from "@/generated";
 import { motion } from "@/theme";
 import { MOTION } from "@/timeline/motion";
-import { automationHeight, useAutomationHeight, useAutomationUi, type AutomationUiState } from "./uiStore";
+import { automationHeight, useAutomationHeight, useAutomationUi, type HeightState } from "./uiStore";
 
 /** `"300ms"` / `"0.3s"` → milliseconds. */
 export function parseDuration(css: string): number {
@@ -138,6 +138,11 @@ export class HeightAnimator {
     return [...this.tweens.keys()];
   }
 
+  /** Stop animating `track` (it jumps to its target). */
+  cancel(track: TrackId): void {
+    this.tweens.delete(track);
+  }
+
   clear(): void {
     this.tweens.clear();
   }
@@ -145,8 +150,8 @@ export class HeightAnimator {
 
 /** Tracks whose automation height differs between two UI states, with both heights. */
 export function changedHeights(
-  prev: Pick<AutomationUiState, "open" | "shown">,
-  next: Pick<AutomationUiState, "open" | "shown">,
+  prev: HeightState,
+  next: HeightState,
 ): Array<{ track: TrackId; from: number; to: number }> {
   const ids = new Set<TrackId>([...prev.open, ...next.open, ...Object.keys(prev.shown), ...Object.keys(next.shown)] as TrackId[]);
   const out: Array<{ track: TrackId; from: number; to: number }> = [];
@@ -208,7 +213,12 @@ useAutomationUi.subscribe((next, prev) => {
   const changes = changedHeights(prev, next);
   if (changes.length === 0) return;
   const t = now();
-  for (const c of changes) laneAnimator.retarget(c.track, c.from, c.to, t);
+  // Opening/closing and showing/hiding lanes animate; resizing a lane is direct.
+  const structural = prev.open !== next.open || prev.shown !== next.shown;
+  for (const c of changes) {
+    if (structural) laneAnimator.retarget(c.track, c.from, c.to, t);
+    else laneAnimator.cancel(c.track);
+  }
   publishAnimating();
   if (laneAnimator.active) schedule();
 });
