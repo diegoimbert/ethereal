@@ -61,7 +61,7 @@ function desktop(triple) {
       // ditto keeps the bundle's symlinks, permissions and code signature intact.
       execFileSync("ditto", ["-c", "-k", "--sequesterRsrc", "--keepParent", f, zip], { stdio: "inherit" });
       collected.push(zip);
-    } else if (INSTALLER.test(name)) {
+    } else if (INSTALLER.test(name) && !name.startsWith("rw.")) {
       if (wantHelper && name.endsWith(".deb")) {
         const list = execFileSync("dpkg-deb", ["-c", f], { encoding: "utf8" });
         if (!list.includes(`/usr/bin/${HELPER}`)) fail(`${name} has no /usr/bin/${HELPER}`);
