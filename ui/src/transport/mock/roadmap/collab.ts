@@ -9,7 +9,7 @@
  * undo).
  */
 
-import type { CollabCommand, CollabStatus, Command, Presence, PresenceState, ReplyValue } from "@/generated";
+import type { ArrangerPointer, CollabCommand, CollabStatus, Command, Presence, PresenceState, ReplyValue } from "@/generated";
 import { fail } from "../documentReducer";
 import type { MockHost } from "./host";
 
@@ -42,6 +42,8 @@ export class MockCollab {
   private peers = new Map<string, Presence>();
   /** This site's last published presence. */
   presence: PresenceState = emptyPresence();
+  /** This site's last published pointer (presence-v2). */
+  pointer: ArrangerPointer | null = null;
 
   constructor(private readonly host: MockHost) {}
 
@@ -58,6 +60,7 @@ export class MockCollab {
       case "Leave":
         this.status = { type: "Offline" };
         this.peers.clear();
+        this.pointer = null;
         this.emitAll();
         return UNIT;
       case "SetPresence":
@@ -66,9 +69,12 @@ export class MockCollab {
       case "Get":
         this.emitAll();
         return UNIT;
-      // base-53 (docs/COLLAB.md §8-§10): like the engine until presence-v2, stream-host and
-      // stream-listen land (each node extends its cases).
+      // presence-v2: the pointer is stored (the engine throttles and sends it).
       case "SetPointer":
+        this.pointer = c.pointer;
+        return UNIT;
+      // base-53 (docs/COLLAB.md §8-§10): like the engine until stream-host and stream-listen
+      // land (each node extends its cases).
       case "Listen":
       case "StopListening":
       case "SetHosting":
@@ -96,6 +102,12 @@ export class MockCollab {
     if (state) this.peers.set(site, { site, actor: null, name, color, state });
     else this.peers.delete(site);
     this.emitPeers();
+  }
+
+  /** A peer's live arranger pointer (presence-v2; `null` clears it). */
+  simulatePointer(site: string, pointer: ArrangerPointer | null): void {
+    if (this.status.type !== "Online") return;
+    this.host.emit({ type: "Collab", event: { type: "Pointer", site, pointer } });
   }
 
   /** Document commands as if a peer made them. */

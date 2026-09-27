@@ -1,10 +1,11 @@
 import "./collab.css";
 import { useContext, useEffect, useState, type CSSProperties, type FormEvent } from "react";
-import type { PresenceState } from "@/generated";
-import { Button, Dialog, TextInput } from "@/kit";
+import type { Presence, PresenceState, SiteId } from "@/generated";
+import { Button, Dialog, openContextMenu, TextInput } from "@/kit";
 import { useSelectionStore } from "@/state/selection";
 import { itemSelection } from "@/timeline/selection";
 import { cmd, TransportContext, type EngineTransport } from "@/transport";
+import { nameOf, peerSummary, presenceV2Fields, setFollowing, useLocalPresence } from "./presence/local";
 import { highlightCss, initials, peerColor, useCollabStore } from "./store";
 
 /** Remembered join fields (never the token). */
@@ -46,6 +47,8 @@ function currentPresence(): PresenceState {
     selected_notes: [...sel.note],
     selected_devices: [],
     view: null,
+    // presence v2 (docs/COLLAB.md §8): activity, viewport, following.
+    ...presenceV2Fields(),
   };
 }
 
@@ -64,11 +67,50 @@ function usePublishPresence(transport: EngineTransport, active: boolean) {
     publish();
     const offTrack = useSelectionStore.subscribe(publish);
     const offItems = itemSelection.subscribe(publish);
+    const offV2 = useLocalPresence.subscribe(publish);
     return () => {
       offTrack();
       offItems();
+      offV2();
     };
   }, [active, transport]);
+}
+
+/**
+ * A peer's avatar: a click follows its view (click again, Escape, or a local scroll/zoom
+ * stops); right-click offers the same. A headphones badge shows when it listens to someone
+ * (docs/COLLAB.md §8.4).
+ */
+function PeerChip({ peer, peers, me }: { peer: Presence; peers: Presence[]; me: SiteId | null }) {
+  const following = useLocalPresence((s) => s.following === peer.site);
+  const name = peer.name || "Anonymous";
+  const toggle = () => setFollowing(following ? null : peer.site);
+  const listening = peer.state.listening_to;
+  const hint = following ? "Click or press Escape to stop following" : `Click to follow ${name}'s view`;
+  return (
+    <button
+      type="button"
+      className="eth-collab__avatar eth-collab__chip"
+      style={{ "--eth-collab-peer": peerColor(peer.color) } as CSSProperties}
+      title={`${peerSummary(peer, peers, me)}\n${hint}`}
+      aria-label={following ? `Stop following ${name}` : `Follow ${name}`}
+      aria-pressed={following}
+      data-peer={peer.name}
+      data-following={following || undefined}
+      data-followed={me !== null && peer.state.following === me ? "you" : undefined}
+      onClick={toggle}
+      onContextMenu={(e) => openContextMenu(e, [{ label: following ? "Stop following" : `Follow ${name}`, onSelect: toggle }])}
+    >
+      {initials(peer.name)}
+      {listening && (
+        <span className="eth-collab__badge" data-testid="listening-badge" title={`${name} is listening to ${nameOf(listening, peers, me)}`}>
+          <svg viewBox="0 0 16 16" aria-hidden>
+            <path d="M1.5 12V8.5a6.5 6.5 0 0 1 13 0V12h-1.5V8.5a5 5 0 0 0-10 0V12zM1.5 10h3v5h-3zM11.5 10h3v5h-3z" />
+          </svg>
+        </span>
+      )}
+    </button>
+  );
 }
 
 /** Outlines of the peers' selections, in their colors. */
@@ -150,15 +192,7 @@ function PresenceBarWith({ transport }: { transport: EngineTransport }) {
       {peers.length > 0 && (
         <span className="eth-collab__peers" aria-label="Participants" data-testid="collab-peers">
           {peers.map((p) => (
-            <span
-              key={p.site}
-              className="eth-collab__avatar"
-              style={{ "--eth-collab-peer": peerColor(p.color) } as CSSProperties}
-              title={p.name || "Anonymous"}
-              data-peer={p.name}
-            >
-              {initials(p.name)}
-            </span>
+            <PeerChip key={p.site} peer={p} peers={peers} me={status.type === "Online" ? status.site : null} />
           ))}
         </span>
       )}

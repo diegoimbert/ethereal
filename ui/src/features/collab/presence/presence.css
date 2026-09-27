@@ -1,0 +1,66 @@
+/* Presence v2: peers' live pointers over the arrangement (docs/COLLAB.md §8.3). Tokens only;
+   the peer colour is data (`--eth-collab-peer`, like track colours). */
+.eth-collab-pointers {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 4;
+}
+.eth-collab-pointer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--eth-space-hair);
+  color: var(--eth-collab-peer);
+  will-change: transform;
+}
+.eth-collab-pointer[data-hidden="true"] {
+  display: none;
+}
+.eth-collab-pointer[data-folded="true"] {
+  opacity: var(--eth-opacity-muted);
+}
+.eth-collab-pointer__arrow {
+  flex: none;
+  width: var(--eth-size-icon-md);
+  height: var(--eth-size-icon-md);
+  fill: currentColor;
+  stroke: var(--eth-ink-dark);
+  stroke-width: var(--eth-border-width);
+  transform-origin: center;
+}
+.eth-collab-pointer__label {
+  margin-top: calc(var(--eth-size-icon-md) * 0.75);
+  padding: var(--eth-space-hair) var(--eth-space-xs);
+  border-radius: var(--eth-radius-sm);
+  background: var(--eth-collab-peer);
+  color: var(--eth-ink-dark);
+  font-size: var(--eth-fs-xs);
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+  box-shadow: var(--eth-shadow-sm);
+}
+/* Off-screen: pinned to the edge, dimmed, the arrow turned towards where it is. */
+.eth-collab-pointer:is([data-edge="left"], [data-edge="right"], [data-edge="top"], [data-edge="bottom"]) {
+  opacity: var(--eth-opacity-muted);
+}
+.eth-collab-pointer[data-edge="left"] .eth-collab-pointer__arrow {
+  transform: rotate(-45deg);
+}
+.eth-collab-pointer[data-edge="right"] {
+  flex-direction: row-reverse;
+  translate: -100% 0;
+}
+.eth-collab-pointer[data-edge="right"] .eth-collab-pointer__arrow {
+  transform: rotate(135deg);
+}
+.eth-collab-pointer[data-edge="bottom"] {
+  translate: 0 -100%;
+}
+.eth-collab-pointer[data-edge="bottom"] .eth-collab-pointer__arrow {
+  transform: rotate(-135deg);
+}
