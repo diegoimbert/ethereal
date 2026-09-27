@@ -86,7 +86,12 @@ fn scope(p: &Project, tracks: &[TrackId], global: bool) -> CmdResult<Vec<TrackId
     let order = display_order(p);
     let mut wanted = std::collections::BTreeSet::new();
     if tracks.is_empty() {
-        wanted.extend(order.iter().copied().filter(|t| content_kind(p.tracks[t].kind)));
+        wanted.extend(
+            order
+                .iter()
+                .copied()
+                .filter(|t| content_kind(p.tracks[t].kind)),
+        );
     } else {
         for &t in tracks {
             if !p.tracks.contains_key(&t) {

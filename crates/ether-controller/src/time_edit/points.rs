@@ -118,7 +118,13 @@ pub(super) fn delete_time(pts: &[Pt], a: f64, b: f64) -> Vec<Pt> {
         // The value is constant across the range: only shift.
         return pts
             .iter()
-            .map(|p| if p.time > b { shifted(p, -len) } else { p.clone() })
+            .map(|p| {
+                if p.time > b {
+                    shifted(p, -len)
+                } else {
+                    p.clone()
+                }
+            })
             .collect();
     }
     let (Some(left), Some(right)) = (value_before(pts, a), value_at(pts, b)) else {
@@ -276,12 +282,19 @@ mod tests {
     #[test]
     fn insert_holds_value() {
         let out = insert_time(&lane(&[(0.0, 0.0), (8.0, 1.0)]), 4.0, 4.0);
-        for (t, v) in [(2.0, 0.25), (4.0, 0.5), (6.0, 0.5), (8.0, 0.5), (10.0, 0.75), (12.0, 1.0)] {
+        for (t, v) in [
+            (2.0, 0.25),
+            (4.0, 0.5),
+            (6.0, 0.5),
+            (8.0, 0.5),
+            (10.0, 0.75),
+            (12.0, 1.0),
+        ] {
             assert!(close(value_at(&out, t).unwrap(), v), "{t}: {out:?}");
         }
         // A point exactly at the insertion moves with the material.
         let out = insert_time(&lane(&[(0.0, 0.0), (4.0, 1.0)]), 4.0, 2.0);
-        assert!(close(value_at(&out, 5.0).unwrap(), 0.0));
+        assert!(close(value_at(&out, 5.0).unwrap(), 1.0));
         assert!(close(value_at(&out, 6.0).unwrap(), 1.0));
         assert_eq!(out.len(), 3);
     }

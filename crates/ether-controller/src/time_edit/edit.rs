@@ -419,10 +419,7 @@ pub(super) fn rewrite_lane(
         let id = p.id.expect("assigned above");
         match old.iter().find(|o| o.id == Some(id)) {
             Some(o) => {
-                let mut up = |change| {
-                    ctx.tx
-                        .update(EntityUpdate::AutomationPoint { id, change })
-                };
+                let mut up = |change| ctx.tx.update(EntityUpdate::AutomationPoint { id, change });
                 if (o.time - p.time).abs() > TIME_EPS {
                     up(AutomationPointChange::Time(Beats(p.time.max(0.0))))?;
                 }
