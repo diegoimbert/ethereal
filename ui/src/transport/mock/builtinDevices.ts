@@ -72,14 +72,14 @@ export const BUILTIN_DESCRIPTORS: Readonly<Record<BuiltinDeviceType, DeviceDescr
     audio_inputs: 2,
     audio_outputs: 2,
     midi_input: false,
-    sidechain_inputs: 0,
+    sidechain_inputs: 2,
     params: [
       param(0, "Threshold", null, "Decibels", -60, 0, -18),
       param(1, "Ratio", null, "Ratio", 1, 20, 4, LOG),
       param(2, "Attack", null, "Milliseconds", 0.1, 200, 10, LOG),
       param(3, "Release", null, "Milliseconds", 5, 2000, 150, LOG),
       param(4, "Makeup", null, "Decibels", 0, 24, 0),
-      param(5, "Mix", null, "Percent", 0, 100, 100),
+      param(5, "Sidechain HPF", "Sidechain", "Hertz", 20, 500, 20, LOG),
     ],
   },
   Delay: {
@@ -108,11 +108,14 @@ export const BUILTIN_DESCRIPTORS: Readonly<Record<BuiltinDeviceType, DeviceDescr
     param(4, "Width", "Output", "Percent", 0, 100, 100),
     param(5, "Mix", "Output", "Percent", 0, 100, 30),
   ]),
-  Limiter: effect("Limiter", "Limiter", [
-    param(0, "Gain", "Limiter", "Decibels", -12, 24, 0),
-    param(1, "Ceiling", "Limiter", "Decibels", -24, 0, -0.3),
-    param(2, "Release", "Limiter", "Milliseconds", 1, 1000, 100, LOG),
-  ]),
+  Limiter: {
+    ...effect("Limiter", "Limiter", [
+      param(0, "Gain", "Limiter", "Decibels", -12, 24, 0),
+      param(1, "Ceiling", "Limiter", "Decibels", -24, 0, -0.3),
+      param(2, "Release", "Limiter", "Milliseconds", 1, 1000, 100, LOG),
+    ]),
+    sidechain_inputs: 2,
+  },
   Utility: effect("Utility", "Utility", [
     param(0, "Gain", "Utility", "Decibels", -36, 36, 0),
     param(1, "Pan", "Utility", "Pan", -1, 1, 0),
