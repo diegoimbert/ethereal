@@ -3,7 +3,7 @@
 //! Also included by `crates/ether-wasm/tests/web_perf*.rs` via `#[path]`, so keep it
 //! dependency-free beyond `ether-core`.
 
-#![allow(dead_code)]
+#![allow(dead_code, clippy::manual_is_multiple_of)]
 
 use ether_core::NodeKey;
 use ether_core::graph::{
