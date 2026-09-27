@@ -20,10 +20,10 @@
 
 use std::sync::Arc;
 
+use ether_core::node::NodeData;
 use ether_core::protocol::devices::{
     DeviceCategory, DeviceDescriptor, DeviceTypeRef, ParamInfo, ParamScale, ParamUnit,
 };
-use ether_core::node::NodeData;
 use ether_core::protocol::model::{BuiltinDeviceType, ParamId, SliceSettings};
 use ether_core::{
     AudioBuffers, AudioSource, Device, EventKind, Node, PrepareConfig, ProcessContext,
@@ -439,7 +439,11 @@ impl Sampler {
                 let v = &mut self.voices[vi];
                 let end = v.end.min(src_frames);
                 // Declick a range end inside the sample.
-                let fade_from = if end < src_frames { end - fade * rate } else { end };
+                let fade_from = if end < src_frames {
+                    end - fade * rate
+                } else {
+                    end
+                };
                 let first = v.pos.floor();
                 // Frames needed for `n` outputs, +1 for interpolation.
                 let len = ((v.pos + (n - 1) as f64 * rate).floor() - first) as usize + 2;

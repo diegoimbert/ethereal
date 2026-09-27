@@ -176,7 +176,12 @@ fn notes_route_to_pads_by_key_and_choke_groups_fade_then_cut() {
             pad(3, 40, None, &[c]),
         ],
         // 36 at beat 0, 40 at beat 0.5, 38 at beat 1, 37 (no pad) at beat 1.5.
-        &[(0.0, 0.1, 36), (0.5, 0.1, 40), (1.0, 0.1, 38), (1.5, 0.1, 37)],
+        &[
+            (0.0, 0.1, 36),
+            (0.5, 0.1, 40),
+            (1.0, 0.1, 38),
+            (1.5, 0.1, 37),
+        ],
     );
     p.handle.publish(desc(1, t)).unwrap();
     p.handle.transport(TransportControl::Play).unwrap();
@@ -224,10 +229,16 @@ fn a_hit_on_a_fading_pad_chokes_its_old_notes_and_restores_it() {
     let log = la.lock().unwrap().clone();
     let hit = (BEAT + 48) as u64;
     let at_hit: Vec<_> = log.iter().filter(|(t, _)| *t == hit).map(|e| e.1).collect();
-    assert!(matches!(at_hit[0], EventKind::NoteChoke { .. }), "{at_hit:?}");
+    assert!(
+        matches!(at_hit[0], EventKind::NoteChoke { .. }),
+        "{at_hit:?}"
+    );
     assert!(matches!(at_hit[1], EventKind::NoteOn { .. }), "{at_hit:?}");
     assert_eq!(chokes(&lb), vec![hit + FADE as u64 - 1]);
-    assert!((l[BEAT + 48 + FADE + 10] - 0.5).abs() < 1e-6, "A alone again");
+    assert!(
+        (l[BEAT + 48 + FADE + 10] - 0.5).abs() < 1e-6,
+        "A alone again"
+    );
 }
 
 #[test]

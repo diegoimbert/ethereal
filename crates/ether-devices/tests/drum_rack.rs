@@ -195,7 +195,10 @@ fn set_data_swaps_slices_without_cutting_notes() {
     assert_eq!(old.markers, vec![Seconds(0.0), Seconds(0.05)]);
     assert_eq!(s.slices().markers.len(), 3);
     for k in [1023, 1024, 2000] {
-        assert!((out[0][k] - k as f32 / LEN as f32).abs() < 1e-5, "frame {k}");
+        assert!(
+            (out[0][k] - k as f32 / LEN as f32).abs() < 1e-5,
+            "frame {k}"
+        );
     }
     // Other data is rejected unchanged.
     let back = s.set_data(Box::new(42u32)).unwrap();

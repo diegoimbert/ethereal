@@ -7,7 +7,6 @@ mod common;
 use common::*;
 use ether_core::protocol::collab::CollabCommand;
 use ether_core::protocol::devices::{DeviceCommand, DeviceSpec};
-use ether_core::protocol::drum_rack::{DrumRackCommand, SliceCommand};
 use ether_core::protocol::export::ExportCommand;
 use ether_core::protocol::media::MediaCommand;
 use ether_core::protocol::model::*;
@@ -19,15 +18,9 @@ use ether_core::protocol::{Command, ErrorCode};
 fn new_domains_reply_unsupported_until_implemented() {
     let mut h = Harness::with_project();
     let before = h.project().clone();
-    let pad: DrumPadId = h.id();
     let commands = vec![
         Command::Export(ExportCommand::Cancel { job: "j".into() }),
         Command::Tempo(TempoCommand::RemoveTempoPoints { ids: vec![] }),
-        Command::DrumRack(DrumRackCommand::RemovePad { id: pad }),
-        Command::Slice(SliceCommand::Remove {
-            device: h.id(),
-            indices: vec![],
-        }),
         Command::Collab(CollabCommand::Leave),
         Command::Media(MediaCommand::CancelUpload { upload: "u".into() }),
         Command::Device(DeviceCommand::SetSidechain {
@@ -79,7 +72,9 @@ fn new_builtins_insert_and_compile_as_placeholders() {
     let t = graph.tracks.iter().find(|t| t.id == track).unwrap();
     assert_eq!(t.chain.len(), 5);
     assert!(t.chain.iter().all(|e| e.sidechain.is_none()));
-    assert!(t.racks.is_empty());
+    // The drum rack compiles to a rack desc (no pads yet).
+    assert_eq!(t.racks.len(), 1);
+    assert!(t.racks[0].pads.is_empty());
     // Click settings follow the project settings.
     let s = &h.project().settings;
     assert!((graph.click.volume - s.metronome_volume.to_linear()).abs() < 1e-6);
