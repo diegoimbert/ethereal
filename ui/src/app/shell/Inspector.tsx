@@ -6,6 +6,7 @@ import type { Clip, Command, Track, TrackId, TrackSend } from "@/generated";
 import { DeviceChain } from "@/features/devices";
 import { useGestureSender, useSend, type GestureSender } from "@/features/devices/gesture";
 import { formatDb, formatPan } from "@/features/devices/paramScale";
+import { midiTarget } from "@/features/midi-learn/targets";
 import { reverseCommand } from "@/features/clip-editing/clipEditing";
 import { dbToFader, defaultOutputLabel, faderToDb, outputTargets, outputValue, parseOutputValue } from "@/features/mixer/routing";
 import { Button, IconButton, Knob, NumberField, Select, TextInput, Toggle } from "@/kit";
@@ -391,6 +392,7 @@ function TrackMixer({ track, sender }: { track: Track; sender: GestureSender }) 
       <div className="eth-inspector__knobs">
         <Knob
           size="lg"
+          {...midiTarget({ type: "Param", target: { type: "TrackVolume", track: track.id } })}
           value={dbToFader(volume)}
           defaultValue={dbToFader(0)}
           label={`${track.name} volume`}
@@ -402,6 +404,7 @@ function TrackMixer({ track, sender }: { track: Track; sender: GestureSender }) 
         <Knob
           size="lg"
           bipolar
+          {...midiTarget({ type: "Param", target: { type: "TrackPan", track: track.id } })}
           value={(pan + 1) / 2}
           label={`${track.name} pan`}
           valueText={formatPan(pan)}
@@ -415,6 +418,7 @@ function TrackMixer({ track, sender }: { track: Track; sender: GestureSender }) 
             tone="ghost"
             active={mute}
             className="eth-inspector__mute"
+            {...midiTarget({ type: "TrackMute", track: track.id })}
             label={`Mute ${track.name}`}
             icon={mute ? <VolumeX /> : <Volume2 />}
             onClick={() => void send(cmd("Mixer", { type: "SetMute", track: track.id, mute: !mute }))}
@@ -425,6 +429,7 @@ function TrackMixer({ track, sender }: { track: Track; sender: GestureSender }) 
               tone="ghost"
               active={solo}
               className="eth-inspector__solo"
+              {...midiTarget({ type: "TrackSolo", track: track.id })}
               label={`Solo ${track.name}`}
               icon={<Headphones />}
               onClick={(e) =>
@@ -471,6 +476,7 @@ function SendKnob({ track, ret, send, sender }: { track: Track; ret: Track; send
   return (
     <Knob
       size="sm"
+      {...(send ? midiTarget({ type: "Param", target: { type: "SendLevel", send: send.id } }) : {})}
       value={send ? dbToFader(level) : 0}
       defaultValue={dbToFader(-144)}
       label={`Send ${ret.name}`}
