@@ -349,6 +349,8 @@ where
     plugins: plugins::PluginsState,
     /// MIDI learn runtime state (learn mode, mapping gestures; `midi_learn` module).
     midi_learn: midi_learn::MidiLearnState,
+    /// Browser preview runtime state (current preview id, decode, cache; `media_preview`).
+    preview: media_preview::PreviewState,
     next_gesture: u32,
     last_transport: Option<TransportState>,
     outputs: EngineOutputs,
@@ -392,6 +394,7 @@ where
             plugin_gestures: BTreeMap::new(),
             plugins: Default::default(),
             midi_learn: Default::default(),
+            preview: Default::default(),
             // Internal gestures (plugin GUI, tap tempo) live in the upper half of the id
             // space, away from UI-allocated ones.
             next_gesture: 0x8000_0000,

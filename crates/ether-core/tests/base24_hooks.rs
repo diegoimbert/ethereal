@@ -342,23 +342,25 @@ fn preview_replace_and_stop_are_not_reported() {
     render(&mut p.engine, BLOCK, BLOCK);
     p.handle.preview(play(2, 100, 0.5)).unwrap();
     let (l, _) = render(&mut p.engine, BLOCK, BLOCK);
+    // (media-preview) the replaced one fades out over FADE_FRAMES under the new one.
+    let fade = ether_core::preview::FADE_FRAMES as usize;
     assert!(
-        (l[0] - 0.5).abs() < 1e-6,
+        (l[0] - (0.5 + 0.25 * (1.0 - 1.0 / fade as f32))).abs() < 1e-5,
         "the new preview plays from its start"
     );
     assert!(
-        l[100..].iter().all(|&s| s == 0.0),
+        l[100.max(fade)..].iter().all(|&s| s == 0.0),
         "the replaced one is gone"
     );
     p.handle.poll(&mut out);
     assert_eq!(out.preview_ended, Some(2));
 
-    // Stop cuts a playing preview; nothing is reported.
+    // Stop fades a playing preview out; nothing is reported.
     p.handle.preview(play(3, 10 * BLOCK, 0.25)).unwrap();
     render(&mut p.engine, BLOCK, BLOCK);
     p.handle.preview(PreviewControl::Stop).unwrap();
     let (l, _) = render(&mut p.engine, 2 * BLOCK, BLOCK);
-    assert!(l.iter().all(|&s| s == 0.0));
+    assert!(l[fade..].iter().all(|&s| s == 0.0));
     p.handle.poll(&mut out);
     assert_eq!(out.preview_ended, None);
     assert!(
