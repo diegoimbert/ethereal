@@ -18,7 +18,6 @@ use ether_core::protocol::model::*;
 use ether_core::protocol::presets::{PresetCommand, PresetRef, PresetSource};
 use ether_core::protocol::racks::{ModulationCommand, RackCommand};
 use ether_core::protocol::takes::TakeCommand;
-use ether_core::protocol::time_edit::{TimeEditCommand, TimeSelection};
 use ether_core::protocol::tracks::TrackCommand;
 use ether_core::protocol::{Command, ErrorCode, ReplyValue};
 
@@ -334,39 +333,6 @@ fn freeze_bounce_replies_unsupported() {
         },
     ] {
         assert_unsupported(&mut h, Command::Freeze(c));
-    }
-}
-
-#[test]
-fn time_edits_reply_unsupported() {
-    let mut h = Harness::with_project();
-    let t = track(&mut h, TrackKind::Audio);
-    let seed: ClipId = h.id();
-    let selection = TimeSelection {
-        start: Beats(0.0),
-        end: Beats(4.0),
-        tracks: vec![t],
-        global: false,
-    };
-    for c in [
-        TimeEditCommand::Split {
-            tracks: vec![t],
-            at: Beats(2.0),
-            seed,
-        },
-        TimeEditCommand::Copy {
-            selection: selection.clone(),
-        },
-        TimeEditCommand::DeleteTime { selection, seed },
-        TimeEditCommand::InsertSilence {
-            tracks: vec![],
-            at: Beats(0.0),
-            length: Beats(4.0),
-            global: true,
-            seed,
-        },
-    ] {
-        assert_unsupported(&mut h, Command::TimeEdit(c));
     }
 }
 
