@@ -124,19 +124,19 @@ settings over the snapshot's and clears its track solos.
 ## 3. Per-site undo
 
 Undo only ever reverts **own** transactions: remote transactions never enter the local
-`History`. With peers editing, a naive inverse would clobber their work, so undo/redo go
-through `History::undo_with/redo_with` (new, `history.rs` is granted) with a collab
-resolver:
-- The collab module counts applied remote ops and remembers, per field
-  (`(EntityKey, field)`; `Param` includes the param id; `Settings` fields too), the counter
-  of the last remote op that touched it. Each undo step carries the counter at its (last)
-  commit.
-- Undoing a step: an inverse `Update` whose field was touched by a remote op after the step
-  is **skipped** (the peer's later value wins). Inverse `Insert`/`Remove` go through
-  resolve (re-inserting into a parent deleted by a peer is skipped; removing an entity a
-  peer added children to cascades). The ops actually applied become a new stamped
-  transaction; redo is the inverse of what undo applied.
-- Outside a session `History::undo/redo` behave exactly as today.
+`History`. With peers editing, a naive inverse would clobber their work, so in a session
+undo/redo go through `History::undo_with/redo_with` (`history.rs`) with
+`collab::resolve::apply_guarded`:
+- **Value guard.** Each inverse `Update`/`Settings` op is applied only if its field still
+  holds the value the step wrote (the step's forward op, aligned with the inverse). If a
+  peer (or anything else) changed the field since, the op is **skipped** and the later value
+  wins. No per-field bookkeeping is needed: the document itself is the witness.
+- Inverse `Insert`/`Remove` go through resolve: re-inserting into a parent a peer deleted is
+  skipped; removing an entity a peer added children to cascades (delete wins).
+- The ops actually applied become a new stamped transaction (sent like any edit; so an
+  undo made before a concurrent peer write reaches it is an ordinary later write and wins
+  by sequence order). Redo is the guarded inverse of what the undo applied.
+- Outside a session `History::undo/redo` behave exactly as before.
 
 ## 4. Join, late join, reconnect, leave
 
@@ -224,15 +224,28 @@ tokens; peer colors are data, like track colors).
   binary frames), `CollabTransport` implementations: native WebSocket client thread
   (tungstenite), wasm `web_sys::WebSocket` (inside the controller Worker), in-memory loopback
   for tests; the relay (`relay` module, native only) and the `ether-collab-relay` binary.
-- `ether-controller/src/collab/`: session state (site, seq, pending, touched fields,
-  presence), resolve, rebase, stamping hook in `edit_with`/undo/redo (`handlers.rs`), media
-  push/receive, tick polling. The controller opens the connection through
+- `ether-controller/src/collab/`: session state (site, seq, pending, presence), `resolve`
+  (resolve, cascades, value-guarded undo, local-only filter), rebase, stamping hook in
+  `edit_with`/undo/redo (`handlers.rs`), media push/receive, tick polling. The controller opens the connection through
   `ether_collab::connect(url)` by default; tests inject a connector
   (`EtherController::set_collab_connector`). No host crate changes.
-- `ether-model/src/history.rs`: `commit` also returns the transaction's own inverse;
-  `undo_with`/`redo_with` + a per-step mark.
-- UI: `ui/src/features/collab/**`, mock simulation in `ui/src/transport/mock/roadmap/collab.ts`
-  (fake peers with presence, remote edits as patches with `origin`).
+- `ether-model/src/history.rs`: `commit_with_inverse` (the transaction's own inverse, even
+  when merged into a gesture step); `undo_with`/`redo_with`.
+- Running a relay: `cargo run -p ether-collab --bin ether-collab-relay` (listens on
+  `$ETHER_COLLAB_PORT`, else the dev instance's `$ETHER_DEV_PORT + 3`, else an OS-chosen
+  port; prints its URL and a generated token; `--token`, `--listen`, `--no-token` for
+  loopback-only use).
+- Tests: `crates/ether-collab` (relay state machine, wire), `crates/ether-controller/tests/
+  collab.rs` (convergence property test over 3 sites with random concurrent edits, undo,
+  cascades and delivery orders; per-site undo; late join; media; reconnect with pending
+  ops; rejoin backup; local-only state), `collab_relay.rs` (two controllers through the real
+  relay over WebSockets, bad token), `apps/web/e2e/collab.spec.ts` (two browser contexts).
+- UI: `ui/src/features/collab/**` (`PresenceBar`, store, peer selection outlines injected as
+  a `<style>` keyed on `[data-track]`/`[data-clip-id]`), mock simulation `MockCollab` in
+  `ui/src/transport/mock/roadmap/collab.ts` (session status, simulated peers).
+- Limitations: `wss://` works from the browser; the native client speaks `ws://` only (put a
+  TLS proxy in front of a public relay). The relay keeps sessions in memory (a relay restart
+  makes the first site to reconnect re-create the session from its replica).
 
 ## 9. Base changes
 
