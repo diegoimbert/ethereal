@@ -653,3 +653,206 @@ mod tests {
         assert_eq!(status, ProcessStatus::Silent);
     }
 }
+
+/// The real formats-integration fixtures (CLAP + VST3), headless, through
+/// [`crate::NativeBridge`]: swap a live instance for a mirror and back, push params in, get
+/// GUI edits out.
+#[cfg(all(test, any(target_os = "macos", target_os = "linux")))]
+mod fixture_tests {
+    use std::sync::Arc;
+    use std::time::{Duration, Instant};
+
+    use ether_controller::EngineBridge;
+    use ether_core::PrepareConfig;
+    use ether_core::plugin::PluginNotification;
+    use ether_core::protocol::devices::DeviceCategory;
+    use ether_core::protocol::model::{
+        Base64Bytes, DeviceId, ParamId, PluginFormat, PluginInstance, Ulid,
+    };
+    use ether_core::protocol::plugins::PluginDescriptor;
+
+    use crate::NativeBridge;
+    use crate::plugins::{DedicatedThread, PluginCatalog, PluginHost};
+    use crate::rt::AudioShared;
+
+    const CLAP_ID: &str = "dev.ethereal.test-plugin";
+
+    fn bridge(
+        format: PluginFormat,
+        id: &str,
+        path: std::path::PathBuf,
+    ) -> (NativeBridge, ether_core::Engine) {
+        let ether_core::EngineParts { engine, handle, .. } =
+            ether_core::create(ether_core::EngineConfig {
+                max_block_size: 128,
+                ..Default::default()
+            });
+        let catalog = PluginCatalog::default();
+        catalog.replace(vec![PluginDescriptor {
+            sidechain_inputs: Default::default(),
+            format,
+            id: id.into(),
+            name: "Fixture".into(),
+            vendor: "Ethereal".into(),
+            version: "1".into(),
+            description: String::new(),
+            features: vec![],
+            category: DeviceCategory::AudioEffect,
+            path: path.display().to_string(),
+        }]);
+        let b = NativeBridge::new(
+            handle,
+            PrepareConfig {
+                sample_rate: 48_000.0,
+                max_block_size: 128,
+                max_events_per_block: 64,
+            },
+            PluginHost::new(Arc::new(DedicatedThread::new())),
+            catalog,
+            crate::plugins::instantiate_any(),
+            Arc::new(AudioShared::default()),
+        );
+        (b, engine)
+    }
+
+    fn instance(format: PluginFormat, id: &str) -> PluginInstance {
+        PluginInstance {
+            format,
+            plugin_id: id.into(),
+            name: "Fixture".into(),
+            vendor: "Ethereal".into(),
+            version: "1".into(),
+            sandboxed: false,
+            state: None,
+        }
+    }
+
+    /// Poll until `pred` matches a notification (or 2 s).
+    fn poll_until(
+        b: &mut NativeBridge,
+        pred: impl Fn(&(DeviceId, PluginNotification)) -> bool,
+    ) -> Vec<(DeviceId, PluginNotification)> {
+        let start = Instant::now();
+        let mut all = Vec::new();
+        while start.elapsed() < Duration::from_secs(2) {
+            let mut notes = Vec::new();
+            b.poll_plugins(&mut notes);
+            let hit = notes.iter().any(&pred);
+            all.extend(notes);
+            if hit {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        all
+    }
+
+    /// CLAP fixture state blob: gain, mode (f64 LE each).
+    fn clap_gain(state: &Base64Bytes) -> f64 {
+        f64::from_le_bytes(state.0[..8].try_into().unwrap())
+    }
+
+    #[test]
+    fn clap_fixture_mirror_swap_params_and_editor() {
+        let dir = ether_clap::testing::temp_dir("mirror-clap");
+        let bundle = ether_clap::testing::make_bundle(&dir, "EtherMirrorClap");
+        let (mut b, _engine) = bridge(PluginFormat::Clap, CLAP_ID, bundle);
+        let d = DeviceId(Ulid(0x3171));
+        let inst = instance(PluginFormat::Clap, CLAP_ID);
+
+        // A live instance at gain 0.5.
+        let mut state = 0.5f64.to_le_bytes().to_vec();
+        state.extend(0f64.to_le_bytes());
+        let live = b
+            .create_plugin(d, &inst, Some(&Base64Bytes(state)))
+            .unwrap();
+        assert_eq!(b.plugins().live_count(), 1);
+        let live_state = b.plugin_state(d).unwrap().unwrap();
+        assert_eq!(clap_gain(&live_state), 0.5);
+
+        // Swap (what the controller does): mirror from the live state, then re-create.
+        b.create_plugin_mirror(d, &inst, Some(&live_state)).unwrap();
+        assert_eq!(b.plugins().mirror_count(), 1);
+        let stand_in = b.create_plugin(d, &inst, None).unwrap();
+        assert_ne!(stand_in, live);
+        assert_eq!(b.node_of(d), Some(stand_in));
+        assert!(b.descriptor(d).is_some(), "the mirror's descriptor");
+        assert_eq!(b.plugins().param_value(d, ParamId(1)), None, "no live instance");
+        assert_eq!(b.plugins().mirror_param(d, ParamId(1)), Some(0.5));
+
+        // Document values pushed into the inactive mirror (CLAP params.flush).
+        b.set_plugin_mirror_param(d, ParamId(1), 1.5).unwrap();
+        assert_eq!(b.plugins().mirror_param(d, ParamId(1)), Some(1.5));
+        let mirror_state = b.plugin_state(d).unwrap().unwrap();
+        assert_eq!(clap_gain(&mirror_state), 1.5, "the device's state is the mirror's");
+
+        // OpenEditor falls back to the mirror (headless floating GUI: it reports itself
+        // closed on its 3rd timer tick, through the ordinary poll).
+        b.plugins().open_editor(d).unwrap();
+        let notes = poll_until(&mut b, |(_, n)| *n == PluginNotification::EditorClosed);
+        assert!(
+            notes.contains(&(d, PluginNotification::EditorClosed)),
+            "{notes:?}"
+        );
+        b.plugins().close_editor(d).unwrap();
+
+        // Back: the mirror's last state seeds the live instance.
+        b.destroy_plugin_mirror(d).unwrap();
+        assert_eq!(b.plugins().mirror_count(), 0);
+        let parked = b.plugin_state(d).unwrap().unwrap();
+        assert_eq!(clap_gain(&parked), 1.5);
+        b.create_plugin(d, &inst, Some(&parked)).unwrap();
+        assert_eq!(b.plugins().param_value(d, ParamId(1)), Some(1.5));
+        assert!(
+            b.set_plugin_mirror_param(d, ParamId(1), 1.0).is_err(),
+            "no mirror now"
+        );
+        std::fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn vst3_fixture_mirror_gui_edits_come_back() {
+        let dir = ether_vst3::testing::temp_dir("mirror-vst3");
+        let bundle = ether_vst3::testing::make_bundle(&dir, "EtherMirrorVst3");
+        let id = ether_vst3::testing::EFFECT_ID;
+        let (mut b, _engine) = bridge(PluginFormat::Vst3, id, bundle);
+        let d = DeviceId(Ulid(0x3172));
+        let inst = instance(PluginFormat::Vst3, id);
+
+        // Mirror only (the device was never live here).
+        b.create_plugin_mirror(d, &inst, None).unwrap();
+        assert_eq!(b.plugins().live_count(), 0);
+        b.create_plugin(d, &inst, None).unwrap();
+        assert_eq!(b.plugins().live_count(), 0, "a stand-in, not an instance");
+        b.set_plugin_mirror_param(d, ParamId(1), 0.25).unwrap();
+        assert_eq!(b.plugins().mirror_param(d, ParamId(1)), Some(0.25));
+
+        // The fixture's hidden Trigger param makes its controller edit Gain through the
+        // component handler, exactly like a GUI knob: it comes back as a gesture.
+        b.plugins().set_mirror_param(d, ParamId(4), 0.75).unwrap();
+        let notes = poll_until(&mut b, |(_, n)| {
+            matches!(n, PluginNotification::GestureEnd { .. })
+        });
+        let edits: Vec<PluginNotification> = notes
+            .into_iter()
+            .filter(|(dev, _)| *dev == d)
+            .map(|(_, n)| n)
+            .filter(|n| !matches!(n, PluginNotification::StateDirty))
+            .collect();
+        assert_eq!(
+            edits,
+            vec![
+                PluginNotification::GestureBegin { param: ParamId(1) },
+                PluginNotification::ParamEdited {
+                    param: ParamId(1),
+                    value: 0.75
+                },
+                PluginNotification::GestureEnd { param: ParamId(1) },
+            ]
+        );
+        assert_eq!(b.plugins().mirror_param(d, ParamId(1)), Some(0.75));
+        b.destroy_plugin_mirror(d).unwrap();
+        assert_eq!(b.plugins().mirror_count(), 0);
+        std::fs::remove_dir_all(dir).ok();
+    }
+}
