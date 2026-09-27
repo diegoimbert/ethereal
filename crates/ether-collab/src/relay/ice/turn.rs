@@ -8,13 +8,14 @@
 //!   crate answers unauthenticated or stale requests with a 401/438 bigger than the
 //!   request, and a MESSAGE-INTEGRITY attribute proves nothing until checked);
 //! - the crate remembers every nonce it hands out and only forgets one when it is presented
-//!   again stale: requests reaching it are counted, and past [`NONCE_SOFT_BUDGET`] only
-//!   requests whose MESSAGE-INTEGRITY we verified ourselves get through (plus a global
-//!   trickle of [`UNVERIFIED_TRICKLE_PER_SECOND`] unverified ones, so new clients can still
-//!   send their first Allocate), until the server
-//!   is rotated (a fresh `Server`, fresh nonce map) as soon as no allocation is live, or
-//!   unconditionally at [`NONCE_HARD_BUDGET`] (live allocations are then dropped): the nonce
-//!   map stays bounded;
+//!   again stale: [`gate`] mirrors that map from the 401/438 responses leaving the socket
+//!   ([`NonceLedger`]), and past [`NONCE_SOFT_BUDGET`] nonces only requests that cost no
+//!   insert pass freely; requests that do are capped per username and globally (their
+//!   MESSAGE-INTEGRITY verified by us: a replayed captured request is held to the per-username
+//!   rate) or, unverified, to a small per-source and global trickle (a new client's first
+//!   Allocate). The server is rotated (a fresh `Server`, fresh nonce map) as soon as no
+//!   allocation is live, or unconditionally at [`NONCE_HARD_BUDGET`] (live allocations are
+//!   then dropped; [`rotation`]): the nonce map stays bounded;
 //! - the auth handler recomputes the TURN REST credential ([`TurnCredentials`]);
 //! - the relay address generator enforces the allocation quotas (per username, per relay)
 //!   and hands out relay sockets wrapped in [`RelayConn`], which drops traffic to or from
@@ -25,7 +26,7 @@
 use std::collections::HashMap;
 use std::io::ErrorKind;
 use std::net::{IpAddr, SocketAddr};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
@@ -40,8 +41,12 @@ use webrtc_util::Conn;
 
 use super::credentials::{TurnCredentials, check_username, unix_now};
 use super::peers::PeerFilter;
-use super::stun::{RateCaps, StunResponder, is_binding_request};
+use super::stun::{StunResponder, is_binding_request};
 use super::{DEFAULT_TURN_PORTS, IceConfig};
+
+mod gate;
+
+pub use gate::*;
 
 /// Allocations one username (one site's credential) may hold.
 pub const MAX_ALLOCATIONS_PER_USERNAME: usize = 4;
@@ -55,13 +60,6 @@ pub const REALM: &str = "ether-collab";
 
 const STOP_POLL: Duration = Duration::from_millis(100);
 const REAP_EVERY: Duration = Duration::from_secs(10);
-/// Requests handed to the crate (each may add a nonce) before only verified ones are.
-pub const NONCE_SOFT_BUDGET: u64 = 50_000;
-/// Requests handed to the crate before the server is rotated even with live allocations.
-pub const NONCE_HARD_BUDGET: u64 = 100_000;
-/// Unverified requests let through per second (whole relay) past the soft budget.
-pub const UNVERIFIED_TRICKLE_PER_SECOND: f64 = 5.0;
-
 type TurnResult<T> = Result<T, turn::Error>;
 
 /// The username (and its expiry) of the last request the auth handler accepted. The
@@ -253,110 +251,22 @@ fn transient(e: &std::io::Error) -> bool {
     )
 }
 
-/// What reaches the crate from the listening socket (Binding requests excluded): every
-/// STUN request is rate-capped per source IP and globally; past [`NONCE_SOFT_BUDGET`]
-/// admitted requests only verified ones pass (see the module docs). Pure, for tests.
-#[derive(Debug)]
-pub struct RequestGate {
-    caps: RateCaps,
-    /// Requests handed to the current server (an upper bound of its nonces).
-    admitted: u64,
-    /// Token bucket of unverified requests past the soft budget (tokens, last refill).
-    trickle: Option<(f64, Instant)>,
-}
-
-impl Default for RequestGate {
-    fn default() -> Self {
-        Self::new(RateCaps::default())
-    }
-}
-
-impl RequestGate {
-    pub fn new(caps: RateCaps) -> Self {
-        Self {
-            caps,
-            admitted: 0,
-            trickle: None,
-        }
-    }
-
-    /// `packet` from `from`: `verified` tells whether its MESSAGE-INTEGRITY checks out
-    /// (only called when it matters). ChannelData, indications and responses get no answer
-    /// (they reflect nothing, and nonces only come from requests): always passed.
-    pub fn admit(
-        &mut self,
-        packet: &[u8],
-        from: IpAddr,
-        now: Instant,
-        verified: impl FnOnce() -> bool,
-    ) -> bool {
-        if !is_stun_request(packet) {
-            return true;
-        }
-        if !self.caps.admit(from, now) {
-            return false;
-        }
-        if self.admitted >= NONCE_SOFT_BUDGET && !verified() && !self.trickle(now) {
-            return false;
-        }
-        self.admitted += 1;
-        true
-    }
-
-    /// Past the soft budget, unverified requests (a new client's first Allocate) still get
-    /// through at [`UNVERIFIED_TRICKLE_PER_SECOND`] for the whole relay, so new clients can
-    /// join while the server waits to rotate.
-    fn trickle(&mut self, now: Instant) -> bool {
-        let rate = UNVERIFIED_TRICKLE_PER_SECOND;
-        let (tokens, at) = self.trickle.get_or_insert((rate, now));
-        *tokens = (*tokens + now.saturating_duration_since(*at).as_secs_f64() * rate).min(rate);
-        *at = now;
-        if *tokens < 1.0 {
-            return false;
-        }
-        *tokens -= 1.0;
-        true
-    }
-
-    /// Requests handed to the current server.
-    pub fn admitted(&self) -> u64 {
-        self.admitted
-    }
-
-    /// A fresh server (and nonce map) took over.
-    pub fn rotated(&mut self) {
-        self.admitted = 0;
-    }
-}
-
-/// A STUN request (not ChannelData, not an indication or response). Short datagrams
-/// that could be a truncated request count as one (dropped by the crate, but capped).
-fn is_stun_request(packet: &[u8]) -> bool {
-    if packet.len() < 2 {
-        return true;
-    }
-    let typ = u16::from_be_bytes([packet[0], packet[1]]);
-    typ & 0xc000 == 0 && typ & 0x0110 == 0
-}
-
-/// Whether `packet`'s MESSAGE-INTEGRITY is valid for a current TURN REST credential.
-fn verify_integrity(packet: &[u8], creds: &TurnCredentials) -> bool {
+/// The username whose current TURN REST credential `packet`'s MESSAGE-INTEGRITY checks
+/// against, if any.
+fn verify_integrity(packet: &[u8], creds: &TurnCredentials) -> Option<String> {
     let mut m = stun::message::Message::new();
-    if m.unmarshal_binary(packet).is_err() {
-        return false;
-    }
-    let Ok(username) = m.get(stun::attributes::ATTR_USERNAME) else {
-        return false;
-    };
-    let Ok(username) = String::from_utf8(username) else {
-        return false;
-    };
-    let Some(password) = creds.password_for(&username, unix_now()) else {
-        return false;
-    };
-    stun::integrity::MessageIntegrity::new_long_term_integrity(username, REALM.into(), password)
-        .check(&mut m)
-        .is_ok()
+    m.unmarshal_binary(packet).ok()?;
+    let username = m.get(stun::attributes::ATTR_USERNAME).ok()?;
+    let username = String::from_utf8(username).ok()?;
+    let password = creds.password_for(&username, unix_now())?;
+    stun::integrity::MessageIntegrity::new_long_term_integrity(
+        username.clone(),
+        REALM.into(),
+        password,
+    )
+    .check(&mut m)
+    .ok()?;
+    Some(username)
 }
 
 /// The TURN listening socket: Binding requests go to the capped [`StunResponder`], every
@@ -420,6 +330,11 @@ impl Conn for ListenConn {
     }
 
     async fn send_to(&self, buf: &[u8], target: SocketAddr) -> webrtc_util::Result<usize> {
+        // A 401/438 carrying a NONCE: the crate just stored it.
+        self.gate
+            .lock()
+            .expect("gate lock")
+            .sent(buf, Instant::now());
         Ok(self.socket.send_to(buf, target).await?)
     }
 
@@ -507,6 +422,19 @@ impl RelayAddressGenerator for Generator {
     }
 }
 
+/// Counters of the running server (for tests and the status line).
+#[derive(Debug, Default)]
+pub struct TurnStats {
+    /// Servers replaced to bound the nonce map.
+    pub rotations: AtomicU64,
+    /// Of those, rotations that dropped live allocations.
+    pub forced_rotations: AtomicU64,
+    /// Nonces the current server holds (as of the last poll).
+    pub nonces: AtomicU64,
+    /// Live allocations (as of the last poll).
+    pub live: AtomicUsize,
+}
+
 /// The TURN server thread; dropping it stops it.
 #[derive(Debug)]
 pub struct TurnThread {
@@ -514,6 +442,7 @@ pub struct TurnThread {
     relay_ip: IpAddr,
     ports: (u16, u16),
     allow_private: bool,
+    stats: Arc<TurnStats>,
     stop: Arc<AtomicBool>,
     thread: Option<JoinHandle<()>>,
 }
@@ -524,6 +453,15 @@ impl TurnThread {
     pub fn start(
         socket: std::net::UdpSocket,
         config: &IceConfig,
+    ) -> Result<(Self, Arc<TurnCredentials>), String> {
+        Self::start_with(socket, config, TurnBudgets::default())
+    }
+
+    /// [`Self::start`] with other budgets (tests).
+    pub fn start_with(
+        socket: std::net::UdpSocket,
+        config: &IceConfig,
+        budgets: TurnBudgets,
     ) -> Result<(Self, Arc<TurnCredentials>), String> {
         tracing::warn!(
             "TURN is EXPERIMENTAL: known denial-of-service limitations (docs/COLLAB.md §10); \
@@ -551,9 +489,19 @@ impl TurnThread {
         });
         socket.set_nonblocking(true).map_err(|e| e.to_string())?;
         let stop = Arc::new(AtomicBool::new(false));
+        let stats = Arc::new(TurnStats::default());
         let (ready_tx, ready_rx) = std::sync::mpsc::channel::<Result<(), String>>();
         let thread = {
-            let (stop, creds) = (stop.clone(), creds.clone());
+            let context = Serve {
+                listen_ip,
+                relay_ip,
+                ports,
+                creds: creds.clone(),
+                filter,
+                budgets,
+                stats: stats.clone(),
+                stop: stop.clone(),
+            };
             std::thread::Builder::new()
                 .name("collab-relay-turn".into())
                 .spawn(move || {
@@ -567,9 +515,7 @@ impl TurnThread {
                             return;
                         }
                     };
-                    rt.block_on(serve(
-                        socket, listen_ip, relay_ip, ports, creds, filter, stop, ready_tx,
-                    ));
+                    rt.block_on(serve(socket, context, ready_tx));
                 })
                 .map_err(|e| e.to_string())?
         };
@@ -578,6 +524,7 @@ impl TurnThread {
             relay_ip,
             ports,
             allow_private: config.turn_allow_private,
+            stats,
             stop,
             thread: Some(thread),
         };
@@ -590,6 +537,10 @@ impl TurnThread {
 
     pub fn local_addr(&self) -> SocketAddr {
         self.addr
+    }
+
+    pub fn stats(&self) -> &TurnStats {
+        &self.stats
     }
 
     /// For the status line.
@@ -617,15 +568,21 @@ impl Drop for TurnThread {
     }
 }
 
-#[allow(clippy::too_many_arguments)]
-async fn serve(
-    socket: std::net::UdpSocket,
+/// What the server loop needs besides its socket.
+struct Serve {
     listen_ip: IpAddr,
     relay_ip: IpAddr,
     ports: (u16, u16),
     creds: Arc<TurnCredentials>,
     filter: Arc<PeerFilter>,
+    budgets: TurnBudgets,
+    stats: Arc<TurnStats>,
     stop: Arc<AtomicBool>,
+}
+
+async fn serve(
+    socket: std::net::UdpSocket,
+    cx: Serve,
     ready: std::sync::mpsc::Sender<Result<(), String>>,
 ) {
     let socket = match UdpSocket::from_std(socket) {
@@ -640,11 +597,11 @@ async fn serve(
     let listener = Arc::new(ListenConn {
         socket,
         stun: Mutex::new(StunResponder::new()),
-        gate: Mutex::new(RequestGate::default()),
-        creds: creds.clone(),
+        gate: Mutex::new(RequestGate::new(cx.budgets, Instant::now())),
+        creds: cx.creds.clone(),
     });
     let auth: Arc<dyn AuthHandler + Send + Sync> = Arc::new(Auth {
-        creds,
+        creds: cx.creds.clone(),
         last: last.clone(),
     });
     let new_server = || {
@@ -653,12 +610,12 @@ async fn serve(
             conn_configs: vec![ConnConfig {
                 conn,
                 relay_addr_generator: Box::new(Generator {
-                    listen_ip,
-                    relay_ip,
-                    ports,
+                    listen_ip: cx.listen_ip,
+                    relay_ip: cx.relay_ip,
+                    ports: cx.ports,
                     last: last.clone(),
                     quota: quota.clone(),
-                    filter: filter.clone(),
+                    filter: cx.filter.clone(),
                 }),
             }],
             realm: REALM.into(),
@@ -676,19 +633,24 @@ async fn serve(
     };
     let _ = ready.send(Ok(()));
     let mut reaped = Instant::now();
-    while !stop.load(Ordering::Relaxed) {
+    while !cx.stop.load(Ordering::Relaxed) {
         tokio::time::sleep(STOP_POLL).await;
-        // Bound the crate's nonce map: rotate the server once enough requests reached it.
-        let admitted = listener.gate.lock().expect("gate lock").admitted();
+        // Bound the crate's nonce map: rotate the server once it holds enough nonces.
+        let nonces = listener.gate.lock().expect("gate lock").nonces();
         let live = quota.lock().expect("quota lock").total;
-        if (admitted >= NONCE_SOFT_BUDGET && live == 0) || admitted >= NONCE_HARD_BUDGET {
-            if live > 0 {
+        cx.stats.nonces.store(nonces, Ordering::Relaxed);
+        cx.stats.live.store(live, Ordering::Relaxed);
+        if let Some(why) = rotation(nonces, live, &cx.budgets) {
+            if why == Rotation::Forced && live > 0 {
                 tracing::warn!(
                     live,
                     "TURN nonce budget exhausted: dropping live allocations"
                 );
+                cx.stats.forced_rotations.fetch_add(1, Ordering::Relaxed);
             }
             let _ = server.close().await;
+            // The nonces the closed server handed out are gone with it.
+            listener.gate.lock().expect("gate lock").rotated();
             match new_server().await {
                 Ok(s) => server = s,
                 Err(e) => {
@@ -696,7 +658,7 @@ async fn serve(
                     return;
                 }
             }
-            listener.gate.lock().expect("gate lock").rotated();
+            cx.stats.rotations.fetch_add(1, Ordering::Relaxed);
         }
         if reaped.elapsed() < REAP_EVERY {
             continue;
@@ -721,8 +683,6 @@ async fn serve(
 
 #[cfg(test)]
 mod tests {
-    use std::net::Ipv4Addr;
-
     use super::*;
 
     fn request() -> Vec<u8> {
@@ -754,51 +714,6 @@ mod tests {
     }
 
     #[test]
-    fn every_request_is_capped_even_with_a_fake_integrity() {
-        let mut g = RequestGate::default();
-        let now = Instant::now();
-        let ip = IpAddr::V4(Ipv4Addr::new(203, 0, 113, 9));
-        let p = request();
-        let passed = (0..200).filter(|_| g.admit(&p, ip, now, || true)).count();
-        assert_eq!(passed, super::super::stun::PER_IP_PER_SECOND as usize);
-        // Other sources share the global cap.
-        let mut total = passed;
-        for i in 0..100u32 {
-            let ip = IpAddr::V4(Ipv4Addr::from(0xc633_6400 + i));
-            total += (0..60).filter(|_| g.admit(&p, ip, now, || true)).count();
-        }
-        assert_eq!(total, super::super::stun::GLOBAL_PER_SECOND as usize);
-        // ChannelData and indications are not requests: never capped here.
-        let channel_data = [0x40, 0x00, 0x00, 0x04, 1, 2, 3, 4];
-        let indication = [0x00, 0x16, 0x00, 0x00];
-        assert!(g.admit(&channel_data, ip, now, || false));
-        assert!(g.admit(&indication, ip, now, || false));
-    }
-
-    #[test]
-    fn past_the_soft_budget_verified_requests_pass_and_unverified_trickle() {
-        let mut g = RequestGate::new(RateCaps::new(u32::MAX, u32::MAX, 16));
-        let now = Instant::now();
-        let ip = IpAddr::V4(Ipv4Addr::LOCALHOST);
-        let p = request();
-        for _ in 0..NONCE_SOFT_BUDGET {
-            assert!(g.admit(&p, ip, now, || false));
-        }
-        // Unverified: a small global trickle (new clients can still join), then dropped.
-        let trickle = UNVERIFIED_TRICKLE_PER_SECOND as usize;
-        let passed = (0..50).filter(|_| g.admit(&p, ip, now, || false)).count();
-        assert_eq!(passed, trickle);
-        assert!(g.admit(&p, ip, now, || true), "verified: passes");
-        assert_eq!(g.admitted(), NONCE_SOFT_BUDGET + trickle as u64 + 1);
-        // One second later the trickle is back, never more than one second's worth.
-        let later = now + Duration::from_secs(5);
-        let passed = (0..50).filter(|_| g.admit(&p, ip, later, || false)).count();
-        assert_eq!(passed, trickle);
-        g.rotated();
-        assert!(g.admit(&p, ip, now, || false));
-    }
-
-    #[test]
     fn integrity_is_verified_against_the_turn_rest_credential() {
         let creds = TurnCredentials::new().unwrap();
         let cred = creds.mint(ether_protocol::model::SiteId(42), unix_now());
@@ -820,9 +735,9 @@ mod tests {
             )),
         ])
         .unwrap();
-        assert!(verify_integrity(&m.raw, &creds));
+        assert_eq!(verify_integrity(&m.raw, &creds), Some(cred.username));
         let other = TurnCredentials::new().unwrap();
-        assert!(!verify_integrity(&m.raw, &other), "another relay secret");
-        assert!(!verify_integrity(&request(), &creds), "a fake attribute");
+        assert_eq!(verify_integrity(&m.raw, &other), None, "another relay secret");
+        assert_eq!(verify_integrity(&request(), &creds), None, "a fake attribute");
     }
 }
