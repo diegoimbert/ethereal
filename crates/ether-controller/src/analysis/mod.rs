@@ -4,11 +4,14 @@
 //!
 //! - Watches are **refcounted**: every `Analysis::Watch` adds one, every `Unwatch` removes
 //!   one. Connections own their watches: the remote server's router sends an `Unwatch` for
-//!   each watch a disconnecting client still held (`ether-server/src/router.rs`); local hosts
-//!   have one connection, and every project load clears all watches.
+//!   each watch a disconnecting client still held (`ether-server/src/router.rs`). Project
+//!   loads keep them (a watch of a device that no longer exists is inert), so the router's
+//!   per-client counts stay exact; single-connection hosts call
+//!   [`EtherController::reset_analysis_watches`] when their UI reconnects.
 //! - Each tick, [`EtherController::analysis_tick`] tells the engine which nodes to collect
 //!   (`EngineBridge::watch_analysis`, diffed against what it sent; node re-creation changes
-//!   keys and is picked up the same way), drains `EngineBridge::poll_analysis`, maps node keys
+//!   keys and is picked up the same way; a failed push stays pending and is retried next
+//!   tick), drains `EngineBridge::poll_analysis`, maps node keys
 //!   to devices, keeps the **latest frame per (device, kind)** and emits one
 //!   `Event::Analysis` per watched device and kind.
 
@@ -37,11 +40,6 @@ pub(crate) struct AnalysisState {
 }
 
 impl AnalysisState {
-    /// Forget every watch (project opened/closed). The engine side follows at the next tick.
-    pub(crate) fn clear(&mut self) {
-        self.watched.clear();
-    }
-
     /// Current refcount of `device` (tests, diagnostics).
     #[cfg(test)]
     pub(crate) fn count(&self, device: DeviceId) -> u32 {
@@ -113,6 +111,12 @@ where
     S: ProjectStore,
     L: Library,
 {
+    /// Forget every analysis watch. For single-connection hosts when their UI reconnects
+    /// (a reload leaves the old UI's watches behind); the engine follows at the next tick.
+    pub fn reset_analysis_watches(&mut self) {
+        self.analysis.watched.clear();
+    }
+
     pub(crate) fn analysis_command(&mut self, command: &AnalysisCommand) -> CmdResult<ReplyValue> {
         let w = &mut self.analysis.watched;
         match command {
@@ -139,13 +143,19 @@ where
             .filter_map(|d| self.engine.node(*d))
             .collect();
         if want != self.analysis.sent {
-            for &k in self.analysis.sent.difference(&want) {
-                let _ = self.bridge.watch_analysis(k, false);
+            // Only what the engine accepted counts as sent; failures retry next tick.
+            let stale: Vec<NodeKey> = self.analysis.sent.difference(&want).copied().collect();
+            for k in stale {
+                if self.bridge.watch_analysis(k, false).is_ok() {
+                    self.analysis.sent.remove(&k);
+                }
             }
-            for &k in want.difference(&self.analysis.sent) {
-                let _ = self.bridge.watch_analysis(k, true);
+            let fresh: Vec<NodeKey> = want.difference(&self.analysis.sent).copied().collect();
+            for k in fresh {
+                if self.bridge.watch_analysis(k, true).is_ok() {
+                    self.analysis.sent.insert(k);
+                }
             }
-            self.analysis.sent = want;
         }
         let mut frames = std::mem::take(&mut self.analysis.frames);
         frames.clear();
@@ -225,7 +235,5 @@ mod tests {
         let d = DeviceId(ether_core::protocol::model::Ulid(1));
         *s.watched.entry(d).or_insert(0) += 2;
         assert_eq!(s.count(d), 2);
-        s.clear();
-        assert_eq!(s.count(d), 0);
     }
 }

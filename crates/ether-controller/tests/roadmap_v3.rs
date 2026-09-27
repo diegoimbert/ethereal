@@ -149,6 +149,30 @@ fn fx_analysis_devices_are_placeholders_and_watch_works() {
         h.ok(Command::Analysis(AnalysisCommand::Unwatch { device: d })),
         ReplyValue::Unit
     );
+    // Watches reach the engine (refcounted; a failed push is retried next tick).
+    h.tick();
+    let key = h
+        .ctl
+        .bridge
+        .live
+        .iter()
+        .find(|(_, dev)| **dev == d)
+        .map(|(k, _)| *k)
+        .unwrap();
+    h.ctl.bridge.fail_watches = true;
+    h.ok(Command::Analysis(AnalysisCommand::Watch { device: d }));
+    h.ok(Command::Analysis(AnalysisCommand::Watch { device: d }));
+    h.tick();
+    assert!(h.ctl.bridge.analysis_watches.is_empty());
+    h.ctl.bridge.fail_watches = false;
+    h.tick();
+    assert_eq!(h.ctl.bridge.analysis_watches, vec![(key, true)]);
+    h.ok(Command::Analysis(AnalysisCommand::Unwatch { device: d }));
+    h.tick();
+    assert_eq!(h.ctl.bridge.analysis_watches.len(), 1, "still watched once");
+    h.ok(Command::Analysis(AnalysisCommand::Unwatch { device: d }));
+    h.tick();
+    assert_eq!(h.ctl.bridge.analysis_watches.last(), Some(&(key, false)));
 }
 
 #[test]
