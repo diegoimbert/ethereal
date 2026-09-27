@@ -8,6 +8,9 @@
 //!   while keeping pitch; clip transpose goes to [`Stretcher::set_transpose_semitones`].
 //!   Without a stretcher (no factory: the web build, or not provisioned yet) Complex falls
 //!   back to Repitch.
+//! - **Reverse** and **fades** (clip-editing): both paths read the source through
+//!   [`sched::read_frames`] (reversed clips see the reversed media, so offset, loop and warp
+//!   markers are on the reversed timeline) and apply [`sched::ClipEnvelope`].
 //!
 //! # Threads
 //! - [`WarpHandle`] (inside `EngineHandle`, controller thread): on every `publish` it diffs
@@ -38,7 +41,7 @@ use rtrb::{Consumer, Producer, RingBuffer};
 use crate::config::EngineConfig;
 use crate::graph::{ClipContentDesc, ClipDesc, RenderGraphDesc, WarpDesc};
 use crate::media::AudioSource;
-use crate::sched::{self, DECLICK_SAMPLES, Timing, for_each_piece, source_seconds};
+use crate::sched::{self, Timing, for_each_piece, source_seconds};
 
 #[cfg(test)]
 mod tests;
@@ -327,10 +330,8 @@ impl WarpRt {
         out: [&mut [f32]; 2],
     ) -> bool {
         let ClipContentDesc::Audio {
-            gain,
             transpose,
-            fade_in,
-            fade_out,
+            reversed,
             ..
         } = &clip.content
         else {
@@ -346,18 +347,12 @@ impl WarpRt {
             ..
         } = self;
         let voice = &mut voices[vi];
-        if clip.muted || *gain == 0.0 {
+        let Some(env) = sched::ClipEnvelope::new(clip, timing) else {
             voice.next_c = f64::NAN;
             return true;
-        }
+        };
         voice.st.set_transpose_semitones(*transpose);
         let sr = timing.sample_rate;
-        let start = clip.start;
-        let clip_end = start + clip.length;
-        let bps = (timing.b1 - timing.b0) / timing.frames.max(1) as f64;
-        let declick = DECLICK_SAMPLES * bps;
-        let fin = fade_in.max(declick);
-        let fout = fade_out.max(declick);
         let in_lat = voice.st.input_latency() as f64;
         let out_lat = voice.st.output_latency() as f64;
         let cap = in_l.len();
@@ -389,8 +384,9 @@ impl WarpRt {
                 };
                 let end = feed_at(o_a as f64);
                 let n = *seek_len;
-                ok &= read_source(
+                ok &= sched::read_frames(
                     source,
+                    *reversed,
                     end as i64 - n as i64,
                     &mut in_l[..n],
                     &mut in_r[..n],
@@ -409,8 +405,9 @@ impl WarpRt {
                     voice.next_src += (n_in - cap) as f64;
                     n_in = cap;
                 }
-                ok &= read_source(
+                ok &= sched::read_frames(
                     source,
+                    *reversed,
                     voice.next_src as i64,
                     &mut in_l[..n_in],
                     &mut in_r[..n_in],
@@ -424,10 +421,7 @@ impl WarpRt {
                 voice.next_src += n_in as f64;
                 for k in 0..len {
                     let s = o + k;
-                    let t = timing.beat_at(s as f64);
-                    let g_in = ((t - start) / fin).min(1.0);
-                    let g_out = ((clip_end - t) / fout).min(1.0);
-                    let g = gain * (g_in.min(g_out).max(0.0) as f32);
+                    let g = env.at(timing.beat_at(s as f64));
                     dst_l[s] += out_l[k] * g;
                     dst_r[s] += out_r[k] * g;
                 }
@@ -440,28 +434,4 @@ impl WarpRt {
         });
         ok
     }
-}
-
-/// RT. Read `l.len()` frames of `source` starting at frame `start` (may be negative:
-/// silence before the source start) into `l`/`r` (mono sources are duplicated).
-fn read_source(source: &dyn AudioSource, start: i64, l: &mut [f32], r: &mut [f32]) -> bool {
-    let n = l.len();
-    let skip = if start < 0 {
-        ((-start) as u64).min(n as u64) as usize
-    } else {
-        0
-    };
-    l[..skip].fill(0.0);
-    r[..skip].fill(0.0);
-    if skip == n {
-        return true;
-    }
-    let from = start.max(0) as u64;
-    let mut ok = source.read(0, from, &mut l[skip..]);
-    if source.channels() > 1 {
-        ok &= source.read(1, from, &mut r[skip..]);
-    } else {
-        r[skip..].copy_from_slice(&l[skip..]);
-    }
-    ok
 }

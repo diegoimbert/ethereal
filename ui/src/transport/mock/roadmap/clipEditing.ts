@@ -5,6 +5,7 @@
 
 import type { Clip, ClipCommand, FadeCurve, MarkerCommand } from "@/generated";
 import { fail, type ReducerContext } from "../documentReducer";
+import { bpmAt } from "../tempo";
 
 function checkCurve(c: FadeCurve | null): void {
   if (c?.type === "Curve" && !(c.tension >= -1 && c.tension <= 1)) fail("InvalidArgument", "curve tension must be in -1..=1");
@@ -64,22 +65,90 @@ export function clipV2Command(ctx: ReducerContext, c: ClipV2Command): void {
       tx.upsert("Clip", { ...clip, content: { ...content, reversed: c.reversed } });
       break;
     }
-    case "Crossfade": {
-      checkCurve(c.curve);
-      if (!(c.length > 0)) fail("InvalidArgument", "crossfade length must be > 0");
-      const a = audioClip(ctx, c.first);
-      const b = audioClip(ctx, c.second);
-      if (a.clip.track !== b.clip.track) fail("InvalidArgument", "crossfaded clips must be on the same track");
-      // The mock simply extends the first clip so the overlap is `length` (no source checks).
-      const end = Math.max(a.clip.start + a.clip.length, b.clip.start + c.length);
-      const first: Clip = {
-        ...a.clip,
-        length: end - a.clip.start,
-        content: { ...a.content, fade_out: c.length, fade_out_curve: c.curve },
-      };
-      tx.upsert("Clip", first);
-      tx.upsert("Clip", { ...b.clip, content: { ...b.content, fade_in: c.length, fade_in_curve: c.curve } });
+    case "Crossfade":
+      crossfade(ctx, c);
       break;
-    }
   }
+}
+
+const EPS = 1e-9;
+
+/**
+ * Mirror of Rust `clip_editing::is_crossfade`: the earlier clip ends inside the later one
+ * and the overlap is covered by both fades (`ether_model::clip` overlap rules).
+ */
+export function isCrossfade(x: Clip, y: Clip): boolean {
+  const [a, b] = x.start <= y.start ? [x, y] : [y, x];
+  if (a.content.type !== "Audio" || b.content.type !== "Audio") return false;
+  const aEnd = a.start + a.length;
+  const overlap = aEnd - b.start;
+  return (
+    overlap > 0 &&
+    aEnd < b.start + b.length + EPS &&
+    a.start < b.start - EPS &&
+    overlap <= a.content.fade_out + EPS &&
+    overlap <= b.content.fade_in + EPS
+  );
+}
+
+/** Content beats of media (unwarped at the tempo of the clip start, repitched by transpose). */
+function mediaBeats(ctx: ReducerContext, clip: Clip): number {
+  if (clip.content.type !== "Audio") return 0;
+  const m = ctx.tx.get("Media", clip.content.media);
+  if (!m) return 0;
+  const seconds = m.frames / Math.max(1, m.sample_rate);
+  return (seconds * bpmAt(ctx.tx.project, clip.start)) / 60 / Math.pow(2, clip.content.transpose / 12);
+}
+
+const tailRoom = (ctx: ReducerContext, c: Clip, want: number) =>
+  c.looping.enabled ? want : Math.max(0, Math.min(want, mediaBeats(ctx, c) - (c.offset + c.length)));
+const headRoom = (c: Clip, want: number) => Math.max(0, Math.min(want, c.offset));
+
+/** Mirror of Rust `clip_editing::crossfade` (warp markers are ignored by the mock). */
+function crossfade(ctx: ReducerContext, c: Extract<ClipCommand, { type: "Crossfade" }>): void {
+  checkCurve(c.curve);
+  if (!(c.length > 0)) fail("InvalidArgument", "crossfade length must be > 0");
+  if (c.first === c.second) fail("InvalidArgument", "cannot crossfade a clip with itself");
+  const a = audioClip(ctx, c.first);
+  const b = audioClip(ctx, c.second);
+  if (a.clip.track !== b.clip.track) fail("InvalidArgument", "crossfaded clips must be on the same track");
+  const [aStart, bStart] = [a.clip.start, b.clip.start];
+  const [aEnd, bEnd] = [aStart + a.clip.length, bStart + b.clip.length];
+  if (!(aStart < bStart - EPS && aEnd >= bStart - EPS && aEnd < bEnd + EPS)) {
+    fail("InvalidArgument", "the first clip must start before the second and end where it starts or inside it");
+  }
+  const centre = (bStart + Math.min(aEnd, bEnd)) / 2;
+  const half = c.length / 2;
+  const wantA = Math.max(0, Math.min(centre + half - aEnd, bEnd - aEnd - EPS));
+  const wantB = Math.max(0, Math.min(bStart - (centre - half), bStart - aStart - EPS));
+  let extA = tailRoom(ctx, a.clip, wantA);
+  let extB = headRoom(b.clip, wantB);
+  const missing = wantA - extA + (wantB - extB);
+  if (missing > EPS) {
+    const moreA = Math.max(0, tailRoom(ctx, a.clip, Math.min(extA + missing, bEnd - aEnd - EPS)) - extA);
+    extA += moreA;
+    const rest = missing - moreA;
+    if (rest > EPS) extB += Math.max(0, headRoom(b.clip, Math.min(extB + rest, bStart - aStart - EPS)) - extB);
+  }
+  const newAEnd = aEnd + extA - Math.max(0, aEnd - (centre + half));
+  const newBStart = bStart - extB + Math.max(0, centre - half - bStart);
+  const overlap = newAEnd - newBStart;
+  if (overlap <= EPS) fail("InvalidState", "there is no source material left to crossfade these clips");
+  const aLen = newAEnd - aStart;
+  const bLen = bEnd - newBStart;
+  const delta = bStart - newBStart;
+  const first: Clip = {
+    ...a.clip,
+    length: aLen,
+    content: { ...a.content, fade_out: overlap, fade_out_curve: c.curve, fade_in: Math.min(a.content.fade_in, Math.max(0, aLen - overlap)) },
+  };
+  const second: Clip = {
+    ...b.clip,
+    start: newBStart,
+    length: bLen,
+    offset: Math.max(0, b.clip.offset - delta),
+    content: { ...b.content, fade_in: overlap, fade_in_curve: c.curve, fade_out: Math.min(b.content.fade_out, Math.max(0, bLen - overlap)) },
+  };
+  ctx.tx.upsert("Clip", first);
+  ctx.tx.upsert("Clip", second);
 }

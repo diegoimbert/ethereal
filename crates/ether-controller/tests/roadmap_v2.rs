@@ -5,12 +5,10 @@
 mod common;
 
 use common::*;
-use ether_core::protocol::clips::ClipCommand;
 use ether_core::protocol::collab::CollabCommand;
 use ether_core::protocol::devices::{DeviceCommand, DeviceSpec};
 use ether_core::protocol::drum_rack::{DrumRackCommand, SliceCommand};
 use ether_core::protocol::export::ExportCommand;
-use ether_core::protocol::markers::MarkerCommand;
 use ether_core::protocol::media::MediaCommand;
 use ether_core::protocol::model::*;
 use ether_core::protocol::tempo::TempoCommand;
@@ -21,17 +19,10 @@ use ether_core::protocol::{Command, ErrorCode};
 fn new_domains_reply_unsupported_until_implemented() {
     let mut h = Harness::with_project();
     let before = h.project().clone();
-    let marker: MarkerId = h.id();
     let pad: DrumPadId = h.id();
     let commands = vec![
         Command::Export(ExportCommand::Cancel { job: "j".into() }),
         Command::Tempo(TempoCommand::RemoveTempoPoints { ids: vec![] }),
-        Command::Marker(MarkerCommand::Add {
-            id: marker,
-            position: Beats(4.0),
-            name: None,
-            color: None,
-        }),
         Command::DrumRack(DrumRackCommand::RemovePad { id: pad }),
         Command::Slice(SliceCommand::Remove {
             device: h.id(),
@@ -39,10 +30,6 @@ fn new_domains_reply_unsupported_until_implemented() {
         }),
         Command::Collab(CollabCommand::Leave),
         Command::Media(MediaCommand::CancelUpload { upload: "u".into() }),
-        Command::Clip(ClipCommand::SetReversed {
-            id: h.id(),
-            reversed: true,
-        }),
         Command::Device(DeviceCommand::SetSidechain {
             device: h.id(),
             source: None,
