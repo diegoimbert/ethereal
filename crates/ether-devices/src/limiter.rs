@@ -12,9 +12,11 @@
 //! 5. the delayed audio times the gain, then a final safety clamp at the (delayed)
 //!    ceiling against float rounding. The output never exceeds the ceiling.
 //!
-//! Sample peaks only (no true-peak oversampling). Sidechain: the descriptor reports
-//! `sidechain_inputs: 0`; a sidechain input would only replace the detector signal of
-//! step 1 (`Limiter::step`'s `detect` argument), the gain path stays the same.
+//! Sample peaks only (no true-peak oversampling). Sidechain (roadmap v2, `sidechain`): a
+//! stereo sidechain input (`sidechain_inputs = 2`). When connected, the (input-gained)
+//! sidechain peak replaces the detector signal of step 1 (`Limiter::step`'s `detect`
+//! argument); the gain path and the final ceiling clamp stay the same, so the output still
+//! never exceeds the ceiling.
 //!
 //! # Parameter ids (stable, append-only)
 //!
@@ -45,6 +47,8 @@ pub mod params {
 }
 
 const NUM_PARAMS: usize = 3;
+/// Channels of the sidechain (detector) input.
+const SIDECHAIN_CHANNELS: usize = 2;
 /// Lookahead (= reported latency) in milliseconds.
 pub const LOOKAHEAD_MS: f32 = 5.0;
 
@@ -91,7 +95,7 @@ pub fn descriptor() -> DeviceDescriptor {
         audio_inputs: 2,
         audio_outputs: 2,
         midi_input: false,
-        sidechain_inputs: 0,
+        sidechain_inputs: SIDECHAIN_CHANNELS as u16,
     }
 }
 
@@ -260,7 +264,13 @@ impl Limiter {
         out
     }
 
-    fn render(&mut self, audio: &mut AudioBuffers<'_, '_>, start: usize, end: usize) {
+    fn render(
+        &mut self,
+        audio: &mut AudioBuffers<'_, '_>,
+        sidechain: &[&[f32]],
+        start: usize,
+        end: usize,
+    ) {
         let inputs = audio.inputs;
         let input = |c: usize, i: usize| {
             inputs
@@ -271,12 +281,46 @@ impl Limiter {
         for i in start..end {
             let g = self.input_gain.tick();
             let x = [input(0, i) * g, input(1, i) * g];
-            let detect = x[0].abs().max(x[1].abs());
+            let detect = if sidechain.is_empty() {
+                x[0].abs().max(x[1].abs())
+            } else {
+                sidechain.iter().fold(0.0f32, |m, ch| m.max(ch[i].abs())) * g
+            };
             let y = self.step(x, detect);
             for (c, out) in audio.outputs.iter_mut().enumerate() {
                 out[i] = if c < 2 { y[c] } else { 0.0 };
             }
         }
+    }
+}
+
+impl Limiter {
+    fn run(
+        &mut self,
+        ctx: &mut ProcessContext<'_>,
+        audio: &mut AudioBuffers<'_, '_>,
+        sidechain: &[&[f32]],
+    ) -> ProcessStatus {
+        let frames = ctx.frames;
+        // At most `SIDECHAIN_CHANNELS` channels, each at least `frames` long (else ignored).
+        let n = sidechain.len().min(SIDECHAIN_CHANNELS);
+        let sidechain = if sidechain[..n].iter().all(|c| c.len() >= frames) {
+            &sidechain[..n]
+        } else {
+            &[]
+        };
+        util::split_at_events(
+            self,
+            ctx.events,
+            frames,
+            |s, a, b| s.render(audio, sidechain, a, b),
+            |s, kind| {
+                if let EventKind::Param { param, value } = *kind {
+                    s.apply_param(param, value, true);
+                }
+            },
+        );
+        ProcessStatus::Continue
     }
 }
 
@@ -309,18 +353,20 @@ impl Node for Limiter {
         ctx: &mut ProcessContext<'_>,
         audio: &mut AudioBuffers<'_, '_>,
     ) -> ProcessStatus {
-        util::split_at_events(
-            self,
-            ctx.events,
-            ctx.frames,
-            |s, a, b| s.render(audio, a, b),
-            |s, kind| {
-                if let EventKind::Param { param, value } = *kind {
-                    s.apply_param(param, value, true);
-                }
-            },
-        );
-        ProcessStatus::Continue
+        self.run(ctx, audio, &[])
+    }
+
+    fn sidechain_inputs(&self) -> u16 {
+        SIDECHAIN_CHANNELS as u16
+    }
+
+    fn process_sidechain(
+        &mut self,
+        ctx: &mut ProcessContext<'_>,
+        audio: &mut AudioBuffers<'_, '_>,
+        sidechain: &[&[f32]],
+    ) -> ProcessStatus {
+        self.run(ctx, audio, sidechain)
     }
 
     fn latency(&self) -> u32 {

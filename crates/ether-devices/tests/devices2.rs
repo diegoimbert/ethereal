@@ -127,7 +127,13 @@ fn new_builtins_are_real_devices() {
         let desc = ether_devices::descriptor(ty);
         assert_eq!(desc.params.len(), count, "{ty:?}");
         assert_eq!((desc.audio_inputs, desc.audio_outputs), (2, 2));
-        assert_eq!(desc.sidechain_inputs, 0);
+        // The limiter has a stereo sidechain (detector) input (sidechain node).
+        let sidechain = if ty == BuiltinDeviceType::Limiter {
+            2
+        } else {
+            0
+        };
+        assert_eq!(desc.sidechain_inputs, sidechain);
         let mut d = ether_devices::create(&BuiltinDevice::new(ty), &NoSamples);
         prepared(&mut *d);
         let expected_latency = if ty == BuiltinDeviceType::Limiter {
@@ -136,7 +142,7 @@ fn new_builtins_are_real_devices() {
             0
         };
         assert_eq!(d.latency(), expected_latency, "{ty:?}");
-        assert_eq!(d.sidechain_inputs(), 0);
+        assert_eq!(d.sidechain_inputs(), sidechain);
     }
 }
 
