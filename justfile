@@ -30,7 +30,7 @@ dev-web:
 # Tauri desktop app (per-instance identifier, data dir and devUrl; ETHER_AUDIO=null for no device).
 # Builds the sandbox helper first (sandboxed plugins; ETHER_SANDBOX_HELPER overrides it).
 dev-desktop:
-    {{env}}; node scripts/build-sandbox-helper.mjs; cd apps/desktop && pnpm tauri dev --config "{\"identifier\":\"dev.ethereal.$ETHER_INSTANCE\",\"build\":{\"devUrl\":\"http://localhost:$ETHER_DEV_PORT\",\"beforeDevCommand\":\"pnpm --filter @ethereal/ui dev\"}}"
+    {{env}}; export ETHER_WORKERS="${ETHER_WORKERS:-1}"; node scripts/build-sandbox-helper.mjs; cd apps/desktop && pnpm tauri dev --config "{\"identifier\":\"dev.ethereal.$ETHER_INSTANCE\",\"build\":{\"devUrl\":\"http://localhost:$ETHER_DEV_PORT\",\"beforeDevCommand\":\"pnpm --filter @ethereal/ui dev\"}}"
 
 # Desktop app with the null audio backend (no device, no contention).
 dev-desktop-headless:
@@ -40,7 +40,7 @@ dev-desktop-headless:
 # The token is printed (dev convenience); connect from the web UI's "Remote" button.
 # Extra args go to ether-server (e.g. `just dev-server --listen 0.0.0.0`, see --help).
 dev-server *args:
-    {{env}}; ETHER_AUDIO="${ETHER_AUDIO:-null}" cargo run -p ether-server -- --print-token {{args}}
+    {{env}}; ETHER_WORKERS="${ETHER_WORKERS:-1}" ETHER_AUDIO="${ETHER_AUDIO:-null}" cargo run -p ether-server -- --print-token {{args}}
 
 # Install the headless Chromium used by the Playwright e2e suite (once per machine).
 e2e-install:
@@ -53,7 +53,7 @@ e2e-web *args:
 
 # Native smoke test: the desktop host (null audio backend) driven through the full user flow.
 e2e-native:
-    ETHER_AUDIO=null cargo test -p ether-native --test e2e_flow --test null_host
+    ETHER_WORKERS="${ETHER_WORKERS:-1}" ETHER_AUDIO=null cargo test -p ether-native --test e2e_flow --test null_host
 
 # Regenerate ui/src/theme/tokens.css from tokens.ts (the dev server also does this on save).
 gen-tokens:
@@ -89,7 +89,7 @@ check-all: check-wasm
 
 # All tests (Rust + vitest). Engine tests render offline and never need an audio device.
 test-all:
-    ETHER_AUDIO=null cargo test --workspace
+    ETHER_WORKERS="${ETHER_WORKERS:-1}" ETHER_AUDIO=null cargo test --workspace
     pnpm -r test
 
 # Format Rust.
