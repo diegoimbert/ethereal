@@ -1224,9 +1224,7 @@ extern "system" fn ModuleExit() -> bool {
 #[unsafe(no_mangle)]
 extern "system" fn GetPluginFactory() -> *mut IPluginFactory {
     misbehave();
-    ComWrapper::new(Factory {
-        _live: Live::new(),
-    })
-    .to_com_ptr::<IPluginFactory>()
-    .map_or(std::ptr::null_mut(), |p| p.into_raw())
+    ComWrapper::new(Factory { _live: Live::new() })
+        .to_com_ptr::<IPluginFactory>()
+        .map_or(std::ptr::null_mut(), |p| p.into_raw())
 }
