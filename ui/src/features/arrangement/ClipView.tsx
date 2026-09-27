@@ -12,6 +12,8 @@ import { drawNotes, drawWaveform, noteRects, pitchRange, type DrawArea } from ".
 import { contentSegments } from "./clipTime";
 import { clipSourceMapper } from "@/features/warp/warpMap";
 import { useArrangement } from "./context";
+import { ClipFades, ReversedBadge } from "@/features/clip-editing";
+import { withClipEditingEntries } from "@/features/clip-editing/clipEditing";
 import type { ClipBounds } from "./editMath";
 import { peakLevel, TILE_PEAKS } from "./peaks";
 
@@ -58,7 +60,7 @@ export const ClipView = memo(function ClipView({ clip, bounds, trackColor, vp, v
       aria-label={ghost ? undefined : clip.name || "Clip"}
       aria-pressed={ghost ? undefined : selected}
       onPointerDown={ghost ? undefined : (e) => onClipPointerDown(e, clip, ctx)}
-      onContextMenu={ghost ? undefined : (e) => openContextMenu(e, clipMenu(ctx.transport, clip))}
+      onContextMenu={ghost ? undefined : (e) => openContextMenu(e, withClipEditingEntries(clipMenu(ctx.transport, clip), ctx.transport, clip))}
       onDoubleClick={
         ghost
           ? undefined
@@ -74,11 +76,17 @@ export const ClipView = memo(function ClipView({ clip, bounds, trackColor, vp, v
             ⟳
           </span>
         )}
+        {clip.content.type === "Audio" && clip.content.reversed && <ReversedBadge />}
         {clip.name}
       </div>
       {to > from && (
         <div className="eth-clip__body" style={{ left: (from - bounds.start) * vp.pxPerBeat, width: body.pxWidth }}>
           {clip.content.type === "Midi" ? <MidiPreview {...body} /> : <AudioWaveform {...body} tempo={tempo} />}
+        </div>
+      )}
+      {!ghost && clip.content.type === "Audio" && (
+        <div className="eth-clip__body" style={{ left: 0, width }}>
+          <ClipFades clip={clip} length={bounds.length} pxPerBeat={vp.pxPerBeat} transport={ctx.transport} />
         </div>
       )}
       {!ghost && (
@@ -164,6 +172,7 @@ function AudioWaveform({ clip, bounds, from, to, pxWidth, tempo }: BodyProps & {
         sampleRate: media.sample_rate,
         toSeconds,
         frames: media.frames,
+        reversed: clip.content.reversed,
         level,
         tile: (i) => (i * TILE_PEAKS * level < media.frames ? peaks.tile(media.id, level, i) : null),
       },
