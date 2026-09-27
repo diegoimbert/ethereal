@@ -45,21 +45,36 @@ const SMALL_SLOP_PX = 3;
 const EMPTY_CLIPS: Readonly<Record<ClipId, Clip>> = {};
 const INDENT_PX = 12;
 
+// Rows stack in flow and nothing below reads `y`: rows that only move (automation lanes
+// animating above them) don't re-render.
 export const TrackRow = memo(function TrackRow({ row }: { row: Row }) {
   if (row.draft) return <DraftRow row={row} />;
   return <RealTrackRow row={row} />;
-});
+}, (a, b) => sameRowExceptY(a.row, b.row));
+
+function sameRowExceptY(a: Row, b: Row): boolean {
+  return a.track === b.track && a.draft === b.draft && a.depth === b.depth && a.laneHeight === b.laneHeight && a.height === b.height;
+}
 
 function RealTrackRow({ row }: { row: Row }) {
   const headerWidth = useArrangementUi((s) => s.headerWidth);
   const grid = useArrangementUi((s) => s.grid);
+  // The lane part doesn't depend on the automation height (animated per frame).
+  const { track, depth, laneHeight } = row;
+  const mainRow = useMemo(() => row, [track, depth, laneHeight]); // eslint-disable-line react-hooks/exhaustive-deps
+  const main = useMemo(
+    () => (
+      <div className="eth-arr-row__main" style={{ height: laneHeight }}>
+        <TrackHeader row={mainRow} />
+        <ResizeHandle row={mainRow} />
+        {track.kind === "Group" ? <GroupLane track={track} /> : <TrackLane track={track} />}
+      </div>
+    ),
+    [mainRow, track, laneHeight],
+  );
   return (
     <div className="eth-arr-row" style={{ height: row.height }} data-track={row.track.id}>
-      <div className="eth-arr-row__main" style={{ height: row.laneHeight }}>
-        <TrackHeader row={row} />
-        <ResizeHandle row={row} />
-        {row.track.kind === "Group" ? <GroupLane track={row.track} /> : <TrackLane track={row.track} />}
-      </div>
+      {main}
       {/* Automation slot: its height is fed to `layoutRows` via `useAutomationHeight`. */}
       <div className="eth-arr-row__automation" data-slot="automation" data-track={row.track.id}>
         <TrackAutomationLanes trackId={row.track.id} view={arrangementView} headerWidth={headerWidth} grid={grid} />

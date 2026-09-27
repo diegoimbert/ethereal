@@ -438,6 +438,8 @@
   --popover-shadow: var(--eth-shadow-lg);
   --menu-item-height: var(--eth-size-row-height);
   --menu-item-bg-hover: var(--eth-color-accent-subtle);
+  --automation-lane-duration: var(--eth-duration-slow);
+  --automation-lane-ease: var(--eth-ease-standard);
   --dialog-width: var(--eth-size-dialog-width);
   --dialog-bg: var(--eth-color-bg-panel);
   --dialog-border: var(--eth-color-border-light);

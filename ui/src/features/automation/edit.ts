@@ -58,8 +58,8 @@ export function setCurveCommand(ids: Iterable<AutomationPointId>, curve: CurveSh
  * Edits for dragging `points` (the selection, as it was when the drag started) by `dt`
  * beats and `dv` (normalized). The group keeps its shape: `dt` and `dv` are clamped so no
  * point goes below time 0 or outside 0..1. `snapTime` snaps the anchor's new time (the
- * dragged point); the others move by the same delta. `lockTime`/`lockValue` constrain the
- * drag to one axis.
+ * dragged point); the others move by the same delta. `snapValue` does the same for the
+ * anchor's value. `lockTime`/`lockValue` constrain the drag to one axis.
  */
 export function moveEdits(
   points: ReadonlyArray<AutomationPoint>,
@@ -67,7 +67,7 @@ export function moveEdits(
   dt: number,
   dv: number,
   snapTime: ((t: number) => number) | null,
-  opts: { lockTime?: boolean; lockValue?: boolean } = {},
+  opts: { lockTime?: boolean; lockValue?: boolean; snapValue?: (v: number) => number } = {},
 ): PointEdit[] {
   if (points.length === 0) return [];
   let minT = Infinity;
@@ -81,7 +81,10 @@ export function moveEdits(
   let t = opts.lockTime ? 0 : dt;
   if (!opts.lockTime && snapTime) t = snapTime(anchor.time + t) - anchor.time;
   t = Math.max(t, -minT);
-  const v = opts.lockValue ? 0 : Math.min(Math.max(dv, -minV), 1 - maxV);
+  let v = opts.lockValue ? 0 : dv;
+  // The anchor lands on a step (stepped params, or the step modifier); the others follow.
+  if (!opts.lockValue && opts.snapValue) v = opts.snapValue(anchor.value + v) - anchor.value;
+  v = Math.min(Math.max(v, -minV), 1 - maxV);
   return points.map((p) => ({
     id: p.id,
     time: opts.lockTime ? null : p.time + t,

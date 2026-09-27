@@ -55,8 +55,55 @@
 }
 
 .eth-auto-row__header {
+  position: relative;
   flex-direction: column;
   justify-content: center;
+  /* Room for the value scale on the right. */
+  padding-right: calc(var(--eth-space-3xl) + var(--eth-space-xl) + var(--eth-space-xs));
+}
+
+/* Value scale (step labels; scroll/zoom the visible value window). */
+.eth-auto-scale {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: calc(var(--eth-space-3xl) + var(--eth-space-xl));
+  overflow: hidden;
+  border-left: var(--eth-border-width) solid var(--eth-color-border);
+  color: var(--eth-color-text-dim);
+  font-family: var(--eth-font-mono);
+  font-size: var(--eth-fs-xs);
+  cursor: ns-resize;
+  touch-action: none;
+}
+.eth-auto-scale[data-zoomed] {
+  background: var(--eth-color-accent-subtle);
+}
+.eth-auto-scale__label {
+  position: absolute;
+  right: var(--eth-space-xs);
+  transform: translateY(-50%);
+  line-height: 1;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.eth-auto-scale__label[data-major] {
+  color: var(--eth-color-text);
+}
+
+/* Lane resize grip: along the bottom edge of the lane header only (like tracks). */
+.eth-auto-row__resize {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: var(--eth-size-splitter-width);
+  z-index: 6;
+  cursor: ns-resize;
+}
+.eth-auto-row__resize:hover {
+  background: color-mix(in srgb, var(--eth-color-selection) 40%, transparent);
 }
 
 .eth-auto-row__line {
@@ -149,11 +196,42 @@
   pointer-events: none;
 }
 
-.eth-auto-lane__readout {
-  fill: var(--eth-color-text);
-  font-family: var(--eth-font-mono);
-  font-size: var(--eth-fs-xs);
+/* Step gridlines of stepped params (the default value stronger). */
+.eth-auto-lane__step {
+  stroke: var(--eth-color-border);
+  stroke-width: 1;
   pointer-events: none;
+}
+.eth-auto-lane__step--major {
+  stroke: var(--eth-color-border-light);
+}
+
+/* Value + modifier hints while dragging a point. */
+.eth-auto-lane__tip {
+  position: absolute;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-hair);
+  padding: var(--eth-space-xs) var(--eth-space-sm);
+  transform: translate(var(--eth-space-md), calc(-100% - var(--eth-space-sm)));
+  background: var(--tooltip-bg);
+  color: var(--tooltip-fg);
+  border: var(--eth-border-width) solid var(--tooltip-border);
+  border-radius: var(--tooltip-radius);
+  font-size: var(--eth-fs-xs);
+  white-space: nowrap;
+  pointer-events: none;
+}
+.eth-auto-lane__tip--below {
+  transform: translate(var(--eth-space-md), var(--eth-space-sm));
+}
+.eth-auto-lane__tip-value {
+  font-family: var(--eth-font-mono);
+  color: var(--eth-color-text);
+}
+.eth-auto-lane__tip-hint {
+  color: var(--eth-color-text-dim);
 }
 
 /* Detail view */
@@ -226,4 +304,43 @@
 .eth-auto-toggle[aria-pressed="true"] {
   background: var(--eth-color-accent-subtle);
   color: var(--eth-color-accent);
+}
+
+/* Opening/closing (laneMotion.ts): the row height is tweened in JS with the same
+   `--automation-lane-*` timing; the content fades and slides in the draft row's way. */
+/* Mid-animation the arrangement clips the slot and slides this in/out (laneAnimation.ts). */
+.eth-auto-track--animating {
+  overflow: hidden;
+}
+.eth-auto-enter {
+  animation: eth-auto-in var(--automation-lane-duration) var(--automation-lane-ease) both;
+}
+.eth-auto-track--closing > * {
+  animation: eth-auto-out var(--automation-lane-duration) var(--automation-lane-ease) both;
+  pointer-events: none;
+}
+/* A hidden lane collapses in place (the lanes below move up with it). */
+.eth-auto-row--leaving {
+  overflow: hidden;
+  animation: eth-auto-collapse var(--automation-lane-duration) var(--automation-lane-ease) both;
+  pointer-events: none;
+}
+@keyframes eth-auto-in {
+  from {
+    opacity: 0;
+    transform: translateY(calc(-1 * var(--eth-space-sm)));
+  }
+}
+@keyframes eth-auto-out {
+  to {
+    opacity: 0;
+    transform: translateY(calc(-1 * var(--eth-space-sm)));
+  }
+}
+@keyframes eth-auto-collapse {
+  to {
+    opacity: 0;
+    height: 0;
+    border-top-width: 0;
+  }
 }
