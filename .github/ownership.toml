@@ -441,6 +441,8 @@ paths = [
   "ui/src/features/piano-roll/PianoRoll.tsx",
   # shared (base-18): remove ONLY your own entries from the "unsupported until implemented" test
   "crates/ether-controller/tests/roadmap_v2.rs",
+  # granted (BCR, base-20): additive menuItems prop only; user-owned UX, do not restyle
+  "ui/src/features/piano-roll/NoteGrid.tsx",
 ]
 
 [nodes.drum-rack]
