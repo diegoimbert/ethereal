@@ -409,6 +409,8 @@ paths = [
   "crates/ether-native/src/bridge.rs",
   # shared (base-18): remove ONLY your own entries from the "unsupported until implemented" test
   "crates/ether-controller/tests/roadmap_v2.rs",
+  # granted (BCR, base-19): the midi_learn state field + its initializer only
+  "crates/ether-controller/src/lib.rs",
 ]
 
 [nodes.sidechain]
