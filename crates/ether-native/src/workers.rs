@@ -102,6 +102,10 @@ struct Shared {
     /// First panic payload of the epoch, re-raised on the audio thread by `execute` once
     /// every job finished. Only touched on the panic path (`try_lock`, never blocks).
     panic: Mutex<Option<Box<dyn Any + Send>>>,
+    /// Workers that finished their start-up (thread-local setup, RT promotion) and entered
+    /// the wait loop. `with_options` returns only once all did, so no thread-start
+    /// allocation can happen after the pool is handed to the engine.
+    started: AtomicUsize,
 }
 
 #[inline]
@@ -229,6 +233,7 @@ impl WorkerPool {
             sleeping: (0..workers).map(|_| AtomicBool::new(false)).collect(),
             poisoned: AtomicBool::new(false),
             panic: Mutex::new(None),
+            started: AtomicUsize::new(0),
         });
         let mut handles = Vec::with_capacity(workers);
         for w in 0..workers {
@@ -243,6 +248,10 @@ impl WorkerPool {
                     break;
                 }
             }
+        }
+        // Wait until every spawned worker is in its loop (non-RT: this is construction).
+        while shared.started.load(Ordering::Acquire) < handles.len() {
+            std::thread::yield_now();
         }
         Self {
             shared,
@@ -270,6 +279,7 @@ fn worker_main(s: &Shared, index: usize, options: PoolOptions) {
     }
     let mut seen = unpack(s.claim.load(Ordering::Acquire)).0;
     let sleeping = &s.sleeping[index];
+    s.started.fetch_add(1, Ordering::Release);
     loop {
         // Wait for a new epoch: spin, then park.
         let mut spins = 0u32;
