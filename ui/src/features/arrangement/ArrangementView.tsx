@@ -24,8 +24,9 @@ import {
 } from "@/timeline";
 import { useAutomationSlotHeight } from "@/features/automation";
 import { PresenceLayer } from "@/features/collab/presence";
+import { groupShortcut, groupTracks, ungroupSelected, UngroupConfirmDialog } from "@/features/groups";
 import { TransportContext, useTransport, useTransportEvent } from "@/transport";
-import { actionForKey, bindSingleSelection, locateIfStopped, newTrackMenu, runClipAction } from "./actions";
+import { actionForKey, bindSingleSelection, locateIfStopped, newTrackMenu, runClipAction, selectTrackEntity } from "./actions";
 import { dropBrowserMedia, hasBrowserDrag, readBrowserDrag } from "./browserDrop";
 import { ArrangementContext, type ArrangementContextValue } from "./context";
 import { clipRects, DROP_AREA_HEIGHT, HEADER_WIDTH, layoutRows, rowIndexAt, rowsHeight, type Row } from "./layout";
@@ -132,6 +133,27 @@ function ConnectedArrangementView() {
       document.removeEventListener("cut", onClipboard);
       document.removeEventListener("paste", onClipboard);
     };
+  }, [transport]);
+
+  // groups-buses: Cmd+G groups the selected tracks, Cmd+Shift+G ungroups. On the document,
+  // so it still works after a menu or a click elsewhere took the focus (not in text fields
+  // or dialogs).
+  useEffect(() => {
+    const onKey = (e: globalThis.KeyboardEvent) => {
+      const grouping = groupShortcut(e);
+      if (!grouping || e.defaultPrevented || isTextEntry(e.target)) return;
+      const active = document.activeElement;
+      const root = rootRef.current;
+      if (active && active !== document.body && !root?.contains(active)) return;
+      e.preventDefault();
+      const ui = useArrangementUi.getState();
+      const fallback = useSelectionStore.getState().selectedTrack;
+      const selected = ui.selectedTracks.size > 0 ? [...ui.selectedTracks] : fallback ? [fallback] : [];
+      if (grouping === "ungroup") void ungroupSelected(transport, selected);
+      else void groupTracks(transport, selected).then((g) => g && selectTrackEntity(g));
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
   }, [transport]);
 
   const ctx = useMemo<ArrangementContextValue>(
@@ -319,6 +341,7 @@ function ConnectedArrangementView() {
         <HeaderColumnResizer />
         {/* presence-v2: peers' live pointers, pointer/viewport publishing, follow mode */}
         <PresenceLayer rootRef={rootRef} scrollRef={scrollRef} rows={rows} masterRow={masterRow} />
+        <UngroupConfirmDialog />
       </div>
     </ArrangementContext.Provider>
   );

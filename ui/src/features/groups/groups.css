@@ -1,0 +1,48 @@
+/* groups-buses: VCA lane, mixer routing controls, ungroup confirmation. Tokens only. */
+
+.eth-groups-vca-lane {
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-sm);
+  padding: 0 var(--eth-space-md);
+  background: color-mix(in srgb, var(--eth-color-bg-inset) 60%, transparent);
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+}
+.eth-groups-vca-lane__label {
+  padding: 0 var(--eth-space-xs);
+  border: var(--eth-border-width) solid var(--eth-color-border-light);
+  border-radius: var(--eth-radius-xs);
+  font-weight: 600;
+}
+.eth-groups-vca-lane__tracks {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Mixer: input source + tap, stacked. */
+.eth-groups-input {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-hair);
+  width: 100%;
+}
+
+/* A VCA strip's "controls" line. */
+.eth-groups-vca-summary {
+  width: 100%;
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-2xs);
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.eth-groups-confirm__text {
+  margin: 0;
+  color: var(--eth-color-text);
+  font-size: var(--eth-fs-sm);
+}
