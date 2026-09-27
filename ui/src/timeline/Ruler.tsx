@@ -7,6 +7,8 @@
  *   to the grid; alt/option bypasses snapping). The view itself never moves;
  * - loop brace: drag the body to move it, the edges to resize (snapped); double-click
  *   toggles the loop; shift-drag on the ruler draws a new loop region;
+ * - tempo map (shared touch, `features/tempo/RulerTempoMarkers`): tempo and time-signature
+ *   markers (drag to move), right-click to add a change there;
  * - cmd/ctrl + wheel zooms, horizontal wheel scrolls (`useTimelineWheel`).
  * Loop edits are undoable document edits sent with a gesture (one undo step per drag).
  */
@@ -20,6 +22,10 @@ import { DEFAULT_GRID, resolveGrid, snapToGrid, type GridSetting } from "./grid"
 import { useFollowPlayhead, usePlayheadPosition, type PlayheadMapping } from "./playhead";
 import { rulerMarks, type RulerFormat } from "./rulerMarks";
 import { useTempoMap, type TempoMap } from "./tempoMap";
+// Shared touch (tempo-metronome): tempo-map markers and menu on the ruler.
+import { openContextMenu } from "@/kit";
+import { rulerTempoMenu, useSortedTempoMap } from "@/features/tempo/menus";
+import { RulerTempoMarkers } from "@/features/tempo/RulerTempoMarkers";
 import { useTimelineWheel } from "./useTimelineWheel";
 import { beatsToPx, pxToBeats } from "./viewport";
 import { useTimelineView, useViewport, type TimelineViewStore } from "./viewStore";
@@ -35,6 +41,9 @@ export interface RulerProps {
   showLoop?: boolean;
   /** Override the tempo map (default: the project's). */
   tempo?: TempoMap;
+  /** Show and edit the tempo map (tempo/signature markers, right-click to add; default:
+   *  with the loop brace, on the project tempo map). */
+  showTempo?: boolean;
   /** Maps song beats to this view's axis (clip-relative views). Default identity. */
   playheadMapping?: PlayheadMapping;
   /** Locate handler (default: `Transport::Locate`). Receives beats on this view's axis. */
@@ -53,6 +62,7 @@ export function Ruler({
   grid = DEFAULT_GRID,
   showLoop = true,
   tempo: tempoOverride,
+  showTempo,
   playheadMapping,
   onLocate,
   syncWidth = true,
@@ -62,6 +72,8 @@ export function Ruler({
   const transport = useTransport();
   const projectTempo = useTempoMap();
   const tempo = tempoOverride ?? projectTempo;
+  const tempoEditable = (showTempo ?? (showLoop && tempoOverride === undefined)) && tempoOverride === undefined;
+  const tempoTables = useSortedTempoMap();
   const vp = useViewport(view);
   const widthPx = useTimelineView(view, (s) => s.widthPx);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -206,6 +218,15 @@ export function Ruler({
       className={className ? `eth-ruler ${className}` : "eth-ruler"}
       style={{ height }}
       onPointerDown={onPointerDown}
+      onContextMenu={
+        tempoEditable
+          ? (e) =>
+              openContextMenu(
+                e,
+                rulerTempoMenu(transport, tempo, tempoTables.points, tempoTables.signatures, snap(pxToBeats(localX(e), view.getState()), e.altKey)),
+              )
+          : undefined
+      }
       data-testid="ruler"
       role="slider"
       aria-label="Timeline ruler"
@@ -234,6 +255,7 @@ export function Ruler({
           title="Loop (drag to move, edges to resize, double-click to toggle)"
         />
       )}
+      {tempoEditable && <RulerTempoMarkers vp={vp} widthPx={widthPx} snap={snap} />}
       <div ref={playheadRef} className="eth-ruler__playhead" data-testid="ruler-playhead" aria-hidden />
     </div>
   );
