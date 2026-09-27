@@ -49,7 +49,7 @@ use ether_core::parallel::ParallelExecutor;
 /// Upper bound of the default worker count (more rarely helps a DAW graph and costs power).
 pub const MAX_DEFAULT_WORKERS: usize = 8;
 /// Spin iterations (`spin_loop` hints, ~tens of µs) before a worker parks.
-pub const SPIN_ITERS: u32 = 1 << 14;
+pub const SPIN_ITERS: u32 = 1 << 12;
 /// Jobs per level the claim word can address.
 const MAX_JOBS: usize = u16::MAX as usize;
 

@@ -13,10 +13,12 @@
 //!    parameter changes.
 //! 2. Split the block at loop ends and tempo/time-signature boundaries so transport
 //!    information is linear within each sub-block.
-//! 3. Per sub-block, process tracks in topological order: input bus (+ monitored hardware
-//!    input) → clips (audio rendered, MIDI notes scheduled sample-accurately) → automation
-//!    → device chain → pre-fader sends → fader/pan/mute gate → post-fader sends → meter →
-//!    PDC-aligned output into the destination bus (or the hardware for master).
+//! 3. Per sub-block, process tracks level by level of the routing DAG, one job per track
+//!    (in parallel through the host's [`crate::parallel::ParallelExecutor`], see there):
+//!    input bus gathered from the finished sources (+ monitored hardware input) → clips
+//!    (audio rendered, MIDI notes scheduled sample-accurately) → automation → device chain →
+//!    pre-fader sends → fader/pan/mute gate → post-fader sends → meter → PDC-aligned output
+//!    in the track's own buffers. Then master goes to the hardware.
 //! 4. Publish playhead; every ~33 ms push meter readings.
 
 use std::sync::Arc;
