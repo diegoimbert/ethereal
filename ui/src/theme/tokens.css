@@ -222,9 +222,9 @@
   --button-padding-x-lg: var(--eth-space-lg);
   --button-font-size-lg: var(--eth-fs-md);
   --button-radius: var(--eth-radius-sm);
-  --button-border: var(--eth-color-border);
-  --button-bg: var(--eth-color-bg-raised);
-  --button-bg-hover: var(--eth-color-bg-hover);
+  --button-border: transparent;
+  --button-bg: color-mix(in srgb, var(--eth-color-text) 10%, transparent);
+  --button-bg-hover: color-mix(in srgb, var(--eth-color-text) 16%, transparent);
   --button-fg: var(--eth-color-text);
   --button-accent-bg: var(--eth-color-accent);
   --button-accent-bg-hover: var(--eth-color-accent-hover);

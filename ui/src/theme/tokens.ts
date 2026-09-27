@@ -339,9 +339,11 @@ export const componentTokens = {
     "--button-padding-x-lg": v("space-lg"),
     "--button-font-size-lg": v("fs-md"),
     "--button-radius": v("radius-sm"),
-    "--button-border": v("color-border"),
-    "--button-bg": v("color-bg-raised"),
-    "--button-bg-hover": v("color-bg-hover"),
+    // Flat: no border, a light grey fill (the text color at low opacity, so it works in
+    // both themes).
+    "--button-border": "transparent",
+    "--button-bg": "color-mix(in srgb, var(--eth-color-text) 10%, transparent)",
+    "--button-bg-hover": "color-mix(in srgb, var(--eth-color-text) 16%, transparent)",
     "--button-fg": v("color-text"),
     "--button-accent-bg": v("color-accent"),
     "--button-accent-bg-hover": v("color-accent-hover"),
