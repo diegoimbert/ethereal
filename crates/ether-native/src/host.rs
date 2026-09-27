@@ -130,7 +130,7 @@ impl Default for HostOptions {
     fn default() -> Self {
         Self {
             main_thread: Arc::new(DedicatedThread::new()),
-            instantiate: Arc::new(ether_clap::instantiate),
+            instantiate: crate::plugins::instantiate_any(),
             controller: ether_controller(),
         }
     }
@@ -794,16 +794,16 @@ impl ControllerThread {
         let spawned = std::thread::Builder::new()
             .name("ether-plugin-scan".into())
             .spawn(move || {
-                let bundles = ether_clap::find_bundles(&ether_clap::default_search_paths());
-                let report = match ether_clap::ScanRunner::locate() {
-                    Some(runner) => runner.scan_all(&bundles, |done, total, current| {
+                let targets = crate::plugins::formats().discover(None);
+                let report = match ether_plugin_host::ScanRunner::locate() {
+                    Some(runner) => runner.scan_targets(&targets, |done, total, current| {
                         emit(PluginEvent::ScanProgress {
                             done,
                             total,
                             current: current.map(|p| p.display().to_string()),
                         });
                     }),
-                    None => ether_clap::ScanReport {
+                    None => ether_plugin_host::ScanReport {
                         plugins: Vec::new(),
                         failed: vec![ether_core::protocol::plugins::ScanFailure {
                             path: String::new(),

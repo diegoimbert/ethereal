@@ -1,6 +1,7 @@
 //! Out-of-process plugin sandbox (native only).
 //!
-//! [`spawn`] launches `ether-sandbox-helper`, which loads the plugin via `ether-clap`; the
+//! [`spawn`] launches `ether-sandbox-helper`, which loads the plugin (CLAP, VST3 or AU, per
+//! `SandboxOptions.format` / `--format`) through its `PluginFormatHost`; the
 //! returned [`SandboxedPlugin`] / [`SandboxedNode`] implement the same `PluginController` /
 //! `PluginNode` contracts as the in-process host and proxy everything to the helper:
 //! - control (params, state, editor, notifications): length-prefixed JSON frames over the

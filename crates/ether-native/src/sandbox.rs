@@ -9,6 +9,13 @@
 //! by the reported latency so PDC stays aligned) and the controller reports
 //! `PluginEvent::Crashed` until `PluginCommand::Reload`.
 //!
+//! Every format can be sandboxed: the helper loads the plugin through the same
+//! `PluginFormatHost` as the in-process host (`--format clap|vst3|au`). AUv3 extensions
+//! already run out of process (Apple's XPC bridge); sandboxing one is allowed anyway (the
+//! helper then hosts the `AUAudioUnit` proxy) because it is harmless, keeps the toggle
+//! uniform across formats, and still isolates in-process v2 units and the AU host code.
+//! It adds the usual +1 block of latency.
+//!
 //! The helper binary is found by `ether_sandbox::helper_path()`: `$ETHER_SANDBOX_HELPER`,
 //! else next to the running executable (the desktop bundle ships it there). Tests (and
 //! embedders) can override it with [`set_helper_path`].
@@ -18,6 +25,7 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, RwLock};
 
 use ether_core::plugin::{PluginController, PluginError};
+use ether_core::protocol::model::PluginFormat;
 
 use crate::plugins::Instantiate;
 
@@ -47,13 +55,19 @@ pub fn helper_path() -> PathBuf {
         .unwrap_or_else(ether_sandbox::helper_path)
 }
 
-/// Start `plugin_id` from `bundle` in a sandbox helper process (main thread).
-pub fn spawn(bundle: &Path, plugin_id: &str) -> Result<Box<dyn PluginController>, PluginError> {
+/// Start the `format` plugin `plugin_id` from `bundle` (the component id for AUs) in a
+/// sandbox helper process (main thread). The helper loads it with `--format`.
+pub fn spawn(
+    format: PluginFormat,
+    bundle: &Path,
+    plugin_id: &str,
+) -> Result<Box<dyn PluginController>, PluginError> {
     let instance = crate::instance::instance_id();
     #[cfg(any(target_os = "macos", target_os = "linux"))]
     {
         let options = ether_sandbox::SandboxOptions {
             helper: helper_path(),
+            format,
             ..ether_sandbox::SandboxOptions::default()
         };
         let plugin = ether_sandbox::SandboxedPlugin::spawn(bundle, plugin_id, &instance, options)?;
@@ -62,6 +76,7 @@ pub fn spawn(bundle: &Path, plugin_id: &str) -> Result<Box<dyn PluginController>
     }
     #[cfg(not(any(target_os = "macos", target_os = "linux")))]
     {
+        let _ = format;
         ether_sandbox::spawn(bundle, plugin_id, &instance)
     }
 }
