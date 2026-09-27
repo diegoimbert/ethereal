@@ -141,8 +141,9 @@ hound = "3.5"
 flacenc = "0.4"
 
 # --- listen-on-peer (stream-host; docs/COLLAB.md §11) ---
-# Native WebRTC sender (sans-IO). DTLS/SRTP via pure-Rust crypto: no system OpenSSL, no
-# aws-lc build. License: MIT OR Apache-2.0.
+# Native WebRTC sender (sans-IO). `rust-crypto`: SRTP and DTLS ciphers in pure Rust, no system
+# OpenSSL; its DTLS stack (`dimpl`, default features) still builds the vendored aws-lc
+# (aws-lc-sys: cmake, and NASM on Windows). License: MIT OR Apache-2.0.
 str0m = { version = "0.24", default-features = false, features = ["rust-crypto"] }
 # Opus encoder (libopus, BSD-3). `audiopus_sys/static` builds the vendored libopus
 # statically (never a system library). Licenses: MIT/Apache-2.0 (opus), ISC (audiopus_sys).

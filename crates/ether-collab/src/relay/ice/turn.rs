@@ -3,8 +3,16 @@
 //!
 //! Our hooks around it:
 //! - the listening socket is wrapped ([`ListenConn`]): Binding requests are answered by the
-//!   capped [`StunResponder`], and unauthenticated requests (which get a 401 bigger than
-//!   the request) are capped the same way, so the port stays a bounded reflector;
+//!   capped [`StunResponder`], and every other request is capped per source and globally
+//!   ([`RequestGate`]) before the crate sees it, so the port stays a bounded reflector (the
+//!   crate answers unauthenticated or stale requests with a 401/438 bigger than the
+//!   request, and a MESSAGE-INTEGRITY attribute proves nothing until checked);
+//! - the crate remembers every nonce it hands out and only forgets one when it is presented
+//!   again stale: requests reaching it are counted, and past [`NONCE_SOFT_BUDGET`] only
+//!   requests whose MESSAGE-INTEGRITY we verified ourselves get through, until the server
+//!   is rotated (a fresh `Server`, fresh nonce map) as soon as no allocation is live, or
+//!   unconditionally at [`NONCE_HARD_BUDGET`] (live allocations are then dropped): the nonce
+//!   map stays bounded;
 //! - the auth handler recomputes the TURN REST credential ([`TurnCredentials`]);
 //! - the relay address generator enforces the allocation quotas (per username, per relay)
 //!   and hands out relay sockets wrapped in [`RelayConn`], which drops traffic to or from
@@ -45,7 +53,10 @@ pub const REALM: &str = "ether-collab";
 
 const STOP_POLL: Duration = Duration::from_millis(100);
 const REAP_EVERY: Duration = Duration::from_secs(10);
-const STUN_ATTR_MESSAGE_INTEGRITY: u16 = 0x0008;
+/// Requests handed to the crate (each may add a nonce) before only verified ones are.
+pub const NONCE_SOFT_BUDGET: u64 = 50_000;
+/// Requests handed to the crate before the server is rotated even with live allocations.
+pub const NONCE_HARD_BUDGET: u64 = 100_000;
 
 type TurnResult<T> = Result<T, turn::Error>;
 
@@ -126,7 +137,7 @@ impl Drop for QuotaSlot {
     }
 }
 
-/// Token bucket in bytes.
+/// Token bucket in bytes ([`ALLOCATION_BYTES_PER_SECOND`], burst: one second's worth).
 #[derive(Debug)]
 struct ByteBucket {
     tokens: f64,
@@ -134,16 +145,15 @@ struct ByteBucket {
 }
 
 impl ByteBucket {
-    fn new() -> Self {
+    fn new(now: Instant) -> Self {
         Self {
             tokens: ALLOCATION_BYTES_PER_SECOND as f64,
-            at: Instant::now(),
+            at: now,
         }
     }
 
-    fn take(&mut self, bytes: usize) -> bool {
+    fn take(&mut self, bytes: usize, now: Instant) -> bool {
         let rate = ALLOCATION_BYTES_PER_SECOND as f64;
-        let now = Instant::now();
         self.tokens = (self.tokens + now.duration_since(self.at).as_secs_f64() * rate).min(rate);
         self.at = now;
         if self.tokens < bytes as f64 {
@@ -167,7 +177,11 @@ impl RelayConn {
     fn pass(&self, peer: SocketAddr, bytes: usize) -> bool {
         unix_now() < self.expiry
             && self.filter.allows(peer.ip())
-            && self.bucket.lock().expect("bucket lock").take(bytes)
+            && self
+                .bucket
+                .lock()
+                .expect("bucket lock")
+                .take(bytes, Instant::now())
     }
 }
 
@@ -235,42 +249,109 @@ fn transient(e: &std::io::Error) -> bool {
     )
 }
 
-/// The TURN listening socket: Binding requests go to the capped [`StunResponder`];
-/// unauthenticated requests are capped per source and globally; the rest goes to TURN.
+/// What reaches the crate from the listening socket (Binding requests excluded): every
+/// STUN request is rate-capped per source IP and globally; past [`NONCE_SOFT_BUDGET`]
+/// admitted requests only verified ones pass (see the module docs). Pure, for tests.
+#[derive(Debug)]
+pub struct RequestGate {
+    caps: RateCaps,
+    /// Requests handed to the current server (an upper bound of its nonces).
+    admitted: u64,
+}
+
+impl Default for RequestGate {
+    fn default() -> Self {
+        Self::new(RateCaps::default())
+    }
+}
+
+impl RequestGate {
+    pub fn new(caps: RateCaps) -> Self {
+        Self { caps, admitted: 0 }
+    }
+
+    /// `packet` from `from`: `verified` tells whether its MESSAGE-INTEGRITY checks out
+    /// (only called when it matters). ChannelData, indications and responses get no answer
+    /// (they reflect nothing, and nonces only come from requests): always passed.
+    pub fn admit(
+        &mut self,
+        packet: &[u8],
+        from: IpAddr,
+        now: Instant,
+        verified: impl FnOnce() -> bool,
+    ) -> bool {
+        if !is_stun_request(packet) {
+            return true;
+        }
+        if !self.caps.admit(from, now) {
+            return false;
+        }
+        if self.admitted >= NONCE_SOFT_BUDGET && !verified() {
+            return false;
+        }
+        self.admitted += 1;
+        true
+    }
+
+    /// Requests handed to the current server.
+    pub fn admitted(&self) -> u64 {
+        self.admitted
+    }
+
+    /// A fresh server (and nonce map) took over.
+    pub fn rotated(&mut self) {
+        self.admitted = 0;
+    }
+}
+
+/// A STUN request (not ChannelData, not an indication or response). Short datagrams
+/// that could be a truncated request count as one (dropped by the crate, but capped).
+fn is_stun_request(packet: &[u8]) -> bool {
+    if packet.len() < 2 {
+        return true;
+    }
+    let typ = u16::from_be_bytes([packet[0], packet[1]]);
+    typ & 0xc000 == 0 && typ & 0x0110 == 0
+}
+
+/// Whether `packet`'s MESSAGE-INTEGRITY is valid for a current TURN REST credential.
+fn verify_integrity(packet: &[u8], creds: &TurnCredentials) -> bool {
+    let mut m = stun::message::Message::new();
+    if m.unmarshal_binary(packet).is_err() {
+        return false;
+    }
+    let Ok(username) = m.get(stun::attributes::ATTR_USERNAME) else {
+        return false;
+    };
+    let Ok(username) = String::from_utf8(username) else {
+        return false;
+    };
+    let Some(password) = creds.password_for(&username, unix_now()) else {
+        return false;
+    };
+    stun::integrity::MessageIntegrity::new_long_term_integrity(username, REALM.into(), password)
+        .check(&mut m)
+        .is_ok()
+}
+
+/// The TURN listening socket: Binding requests go to the capped [`StunResponder`], every
+/// other request through the [`RequestGate`], ChannelData straight to TURN.
 struct ListenConn {
     socket: Arc<UdpSocket>,
     stun: Mutex<StunResponder>,
-    unauthenticated: Mutex<RateCaps>,
+    gate: Mutex<RequestGate>,
+    creds: Arc<TurnCredentials>,
 }
 
 impl ListenConn {
-    /// `false` if the datagram must be dropped (an unauthenticated request over the caps).
+    /// `false` if the datagram must be dropped.
     fn admit(&self, packet: &[u8], from: SocketAddr) -> bool {
-        // STUN requests only (ChannelData starts with bits 01; indications and responses
-        // get no answer, so they reflect nothing).
-        let typ = if packet.len() >= 20 {
-            u16::from_be_bytes([packet[0], packet[1]])
-        } else {
-            0xffff
-        };
-        if typ & 0xc000 != 0 || typ & 0x0110 != 0 {
-            return true;
-        }
-        let mut m = stun::message::Message::new();
-        if m.unmarshal_binary(packet).is_err() {
-            return false;
-        }
-        let authenticated = m
-            .attributes
-            .0
-            .iter()
-            .any(|a| a.typ.0 == STUN_ATTR_MESSAGE_INTEGRITY);
-        authenticated
-            || self
-                .unauthenticated
-                .lock()
-                .expect("caps lock")
-                .admit(from.ip(), Instant::now())
+        self.gate
+            .lock()
+            .expect("gate lock")
+            .admit(packet, from.ip(), Instant::now(), || {
+                verify_integrity(packet, &self.creds)
+            })
     }
 }
 
@@ -395,7 +476,7 @@ impl RelayAddressGenerator for Generator {
             slot,
             expiry,
             filter: self.filter.clone(),
-            bucket: Mutex::new(ByteBucket::new()),
+            bucket: Mutex::new(ByteBucket::new(Instant::now())),
         };
         Ok((Arc::new(conn), relay_addr))
     }
@@ -527,29 +608,37 @@ async fn serve(
     };
     let last: LastAuth = Arc::default();
     let quota: Arc<Mutex<Quota>> = Arc::default();
-    let listener = ListenConn {
+    let listener = Arc::new(ListenConn {
         socket,
         stun: Mutex::new(StunResponder::new()),
-        unauthenticated: Mutex::new(RateCaps::default()),
+        gate: Mutex::new(RequestGate::default()),
+        creds: creds.clone(),
+    });
+    let auth: Arc<dyn AuthHandler + Send + Sync> = Arc::new(Auth {
+        creds,
+        last: last.clone(),
+    });
+    let new_server = || {
+        let conn: Arc<dyn Conn + Send + Sync> = listener.clone();
+        Server::new(ServerConfig {
+            conn_configs: vec![ConnConfig {
+                conn,
+                relay_addr_generator: Box::new(Generator {
+                    listen_ip,
+                    relay_ip,
+                    ports,
+                    last: last.clone(),
+                    quota: quota.clone(),
+                    filter: filter.clone(),
+                }),
+            }],
+            realm: REALM.into(),
+            auth_handler: auth.clone(),
+            channel_bind_timeout: Duration::ZERO,
+            alloc_close_notify: None,
+        })
     };
-    let config = ServerConfig {
-        conn_configs: vec![ConnConfig {
-            conn: Arc::new(listener),
-            relay_addr_generator: Box::new(Generator {
-                listen_ip,
-                relay_ip,
-                ports,
-                last: last.clone(),
-                quota: quota.clone(),
-                filter,
-            }),
-        }],
-        realm: REALM.into(),
-        auth_handler: Arc::new(Auth { creds, last }),
-        channel_bind_timeout: Duration::ZERO,
-        alloc_close_notify: None,
-    };
-    let server = match Server::new(config).await {
+    let mut server = match new_server().await {
         Ok(s) => s,
         Err(e) => {
             let _ = ready.send(Err(format!("TURN server: {e}")));
@@ -560,6 +649,26 @@ async fn serve(
     let mut reaped = Instant::now();
     while !stop.load(Ordering::Relaxed) {
         tokio::time::sleep(STOP_POLL).await;
+        // Bound the crate's nonce map: rotate the server once enough requests reached it.
+        let admitted = listener.gate.lock().expect("gate lock").admitted();
+        let live = quota.lock().expect("quota lock").total;
+        if (admitted >= NONCE_SOFT_BUDGET && live == 0) || admitted >= NONCE_HARD_BUDGET {
+            if live > 0 {
+                tracing::warn!(
+                    live,
+                    "TURN nonce budget exhausted: dropping live allocations"
+                );
+            }
+            let _ = server.close().await;
+            match new_server().await {
+                Ok(s) => server = s,
+                Err(e) => {
+                    tracing::error!(%e, "TURN server rotation failed");
+                    return;
+                }
+            }
+            listener.gate.lock().expect("gate lock").rotated();
+        }
         if reaped.elapsed() < REAP_EVERY {
             continue;
         }
@@ -579,4 +688,105 @@ async fn serve(
         }
     }
     let _ = server.close().await;
+}
+
+#[cfg(test)]
+mod tests {
+    use std::net::Ipv4Addr;
+
+    use super::*;
+
+    fn request() -> Vec<u8> {
+        // An Allocate request (0x0003) with a bogus MESSAGE-INTEGRITY-sized body.
+        let mut p = vec![0x00, 0x03, 0x00, 0x18, 0x21, 0x12, 0xa4, 0x42];
+        p.extend_from_slice(&[7; 12]);
+        p.extend_from_slice(&[0x00, 0x08, 0x00, 0x14]);
+        p.extend_from_slice(&[0; 20]);
+        p
+    }
+
+    #[test]
+    fn byte_bucket_caps_and_refills() {
+        let t0 = Instant::now();
+        let mut b = ByteBucket::new(t0);
+        let rate = ALLOCATION_BYTES_PER_SECOND as usize;
+        // One second's worth as a burst, then nothing.
+        assert!(b.take(rate - 100, t0));
+        assert!(!b.take(200, t0));
+        assert!(b.take(100, t0));
+        assert!(!b.take(1, t0));
+        // Half a second later: half the rate is back, never more than the burst.
+        let t1 = t0 + Duration::from_millis(500);
+        assert!(b.take(rate / 2 - 10, t1));
+        assert!(!b.take(100, t1));
+        let t2 = t1 + Duration::from_secs(10);
+        assert!(b.take(rate, t2));
+        assert!(!b.take(1, t2));
+    }
+
+    #[test]
+    fn every_request_is_capped_even_with_a_fake_integrity() {
+        let mut g = RequestGate::default();
+        let now = Instant::now();
+        let ip = IpAddr::V4(Ipv4Addr::new(203, 0, 113, 9));
+        let p = request();
+        let passed = (0..200).filter(|_| g.admit(&p, ip, now, || true)).count();
+        assert_eq!(passed, super::super::stun::PER_IP_PER_SECOND as usize);
+        // Other sources share the global cap.
+        let mut total = passed;
+        for i in 0..100u32 {
+            let ip = IpAddr::V4(Ipv4Addr::from(0xc633_6400 + i));
+            total += (0..60).filter(|_| g.admit(&p, ip, now, || true)).count();
+        }
+        assert_eq!(total, super::super::stun::GLOBAL_PER_SECOND as usize);
+        // ChannelData and indications are not requests: never capped here.
+        let channel_data = [0x40, 0x00, 0x00, 0x04, 1, 2, 3, 4];
+        let indication = [0x00, 0x16, 0x00, 0x00];
+        assert!(g.admit(&channel_data, ip, now, || false));
+        assert!(g.admit(&indication, ip, now, || false));
+    }
+
+    #[test]
+    fn past_the_soft_budget_only_verified_requests_pass_until_rotation() {
+        let mut g = RequestGate::new(RateCaps::new(u32::MAX, u32::MAX, 16));
+        let now = Instant::now();
+        let ip = IpAddr::V4(Ipv4Addr::LOCALHOST);
+        let p = request();
+        for _ in 0..NONCE_SOFT_BUDGET {
+            assert!(g.admit(&p, ip, now, || false));
+        }
+        assert!(!g.admit(&p, ip, now, || false), "unverified: dropped");
+        assert!(g.admit(&p, ip, now, || true), "verified: passes");
+        assert_eq!(g.admitted(), NONCE_SOFT_BUDGET + 1);
+        g.rotated();
+        assert!(g.admit(&p, ip, now, || false));
+    }
+
+    #[test]
+    fn integrity_is_verified_against_the_turn_rest_credential() {
+        let creds = TurnCredentials::new().unwrap();
+        let cred = creds.mint(ether_protocol::model::SiteId(42), unix_now());
+        let mut m = stun::message::Message::new();
+        m.build(&[
+            Box::new(stun::agent::TransactionId::new()),
+            Box::new(stun::message::MessageType::new(
+                stun::message::METHOD_ALLOCATE,
+                stun::message::CLASS_REQUEST,
+            )),
+            Box::new(stun::textattrs::TextAttribute::new(
+                stun::attributes::ATTR_USERNAME,
+                cred.username.clone(),
+            )),
+            Box::new(stun::integrity::MessageIntegrity::new_long_term_integrity(
+                cred.username.clone(),
+                REALM.into(),
+                cred.credential.clone(),
+            )),
+        ])
+        .unwrap();
+        assert!(verify_integrity(&m.raw, &creds));
+        let other = TurnCredentials::new().unwrap();
+        assert!(!verify_integrity(&m.raw, &other), "another relay secret");
+        assert!(!verify_integrity(&request(), &creds), "a fake attribute");
+    }
 }

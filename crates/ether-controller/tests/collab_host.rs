@@ -924,3 +924,87 @@ fn transport_requests_are_throttled_per_listener() {
         })
     );
 }
+
+#[test]
+fn a_hosts_relay_reconnect_ends_its_streams() {
+    let (hub, mut host, mut peers) = setup(true, 1);
+    let me = host.site();
+    let p = &mut peers[0];
+    p.listen(me, 1);
+    settle(&hub, &mut host, &mut [p]);
+    host.stream_calls();
+    // The host's link drops (not fatal: it reconnects), so the streams do not survive it.
+    let conn = hub.links().into_iter().min().expect("the host's link");
+    hub.kill(conn);
+    host.tick(20);
+    assert_eq!(
+        host.stream_calls(),
+        [StreamCall::Close(p.site, 1), StreamCall::StopCapture]
+    );
+    // An old listener's signal after the reconnect goes nowhere near the sender.
+    settle(&hub, &mut host, &mut [p]);
+    p.send(CollabMessage::Signal {
+        from: p.site,
+        to: me,
+        stream: 1,
+        signal: StreamSignal::Answer { sdp: "late".into() },
+    });
+    settle(&hub, &mut host, &mut [p]);
+    assert!(host.stream_calls().is_empty());
+}
+
+#[test]
+fn transport_requests_are_ignored_while_the_host_records_or_counts_in() {
+    use ether_core::protocol::recording::RecordingCommand;
+    use ether_core::protocol::transport::TransportCommand;
+    for count_in in [0, 1] {
+        let (hub, mut host, mut peers) = setup(true, 1);
+        let me = host.site();
+        let p = &mut peers[0];
+        p.listen(me, 1);
+        settle(&hub, &mut host, &mut [p]);
+        host.ok(Command::Recording(RecordingCommand::SetCountIn {
+            bars: count_in,
+        }));
+        host.ok(Command::Recording(RecordingCommand::SetRecording {
+            enabled: true,
+        }));
+        let before = host.transport_calls().len();
+        p.request(me, 1, TransportRequest::Stop);
+        p.request(
+            me,
+            1,
+            TransportRequest::Locate {
+                position: Beats(3.0),
+            },
+        );
+        p.request(me, 1, TransportRequest::SetLoopEnabled { enabled: true });
+        settle(&hub, &mut host, &mut [p]);
+        assert_eq!(
+            host.transport_calls().len(),
+            before,
+            "count-in {count_in}: only the host stops its own recording"
+        );
+        assert!(!host.ctl.project().unwrap().settings.loop_enabled);
+        // Once the host stopped recording, requests apply again.
+        host.ok(Command::Recording(RecordingCommand::SetRecording {
+            enabled: false,
+        }));
+        host.ok(Command::Transport(TransportCommand::Stop));
+        let before = host.transport_calls().len();
+        p.request(
+            me,
+            1,
+            TransportRequest::Locate {
+                position: Beats(3.0),
+            },
+        );
+        settle(&hub, &mut host, &mut [p]);
+        assert_eq!(
+            host.transport_calls()[before..],
+            [TransportControl::Locate {
+                position: Beats(3.0)
+            }]
+        );
+    }
+}

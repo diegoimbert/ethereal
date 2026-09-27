@@ -77,7 +77,8 @@ describe("Hosting (mock transport, no UI sender)", () => {
     fireEvent.click(screen.getByTestId("collab-button"));
     const hosting = screen.getByTestId("collab-hosting");
     expect(screen.getByTestId("collab-listeners")).toHaveTextContent("Mock peer");
-    expect(screen.getByTestId("collab-listeners")).toHaveTextContent("listening");
+    // A native link is "connecting" until the peer's presence says it listens (next test).
+    expect(screen.getByTestId("collab-listeners")).toHaveTextContent("connecting…");
     const remote = screen.getByRole("switch", { name: /Listeners can play/ });
     expect(remote).toHaveAttribute("aria-checked", "true");
     fireEvent.click(remote);
@@ -91,6 +92,19 @@ describe("Hosting (mock transport, no UI sender)", () => {
     expect(screen.queryByTestId("collab-listening-badge")).toBeNull();
     expect(screen.getByRole("switch", { name: /Listeners can play/ })).toBeDisabled();
     expect(JSON.parse(localStorage.getItem("eth-collab-hosting")!)).toEqual({ allow: false, remoteTransport: false });
+  });
+
+  it("shows a native (engine) listener as connecting until its presence says it listens", async () => {
+    const mock = await setup();
+    await join();
+    fireEvent.click(screen.getByTestId("collab-button"));
+    // Media is not flowing yet: the peer's presence does not say it listens to us.
+    await waitFor(() => expect(screen.getByTestId("collab-listeners")).toHaveTextContent("connecting…"));
+    const peer = useCollabStore.getState().peers.find((p) => p.site === "2")!;
+    const listening = { ...peer, state: { ...peer.state, listening_to: "1" } };
+    act(() => mock.emitCollab({ type: "Collab", event: { type: "Presence", peers: [listening] } }));
+    await waitFor(() => expect(screen.getByTestId("collab-listeners")).not.toHaveTextContent("connecting…"));
+    expect(screen.getByTestId("collab-listeners")).toHaveTextContent("listening");
   });
 });
 

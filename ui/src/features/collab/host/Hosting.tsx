@@ -8,15 +8,21 @@ import { useCollabStore } from "../store";
 import { linkKey } from "./sender";
 import { useHostStore } from "./store";
 
-/** Display names of this site's listeners, with their link state. */
+/** Display names of this site's listeners, with their link state. A native (engine) link's
+ * state is not reported to the UI: that listener is "listening" once its presence says it
+ * listens to this site (set when its media flows), "connecting" before. */
 function useListenerRows() {
   const listeners = useHostStore((s) => s.listeners);
   const links = useHostStore((s) => s.links);
   const peers = useCollabStore((s) => s.peers);
+  const status = useCollabStore((s) => s.status);
+  const me = status.type === "Online" ? status.site : null;
   return listeners.map((l) => {
     const key = linkKey(l.site, l.stream);
-    const name = peers.find((p) => p.site === l.site)?.name || "Anonymous";
-    const state = l.endpoint === "Engine" ? "connected" : (links[key] ?? "connecting");
+    const peer = peers.find((p) => p.site === l.site);
+    const name = peer?.name || "Anonymous";
+    const engineState = me !== null && peer?.state.listening_to === me ? "connected" : "connecting";
+    const state = l.endpoint === "Engine" ? engineState : (links[key] ?? "connecting");
     return { key, name, state };
   });
 }
