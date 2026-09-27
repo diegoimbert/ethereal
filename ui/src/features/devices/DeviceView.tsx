@@ -1,16 +1,16 @@
 import clsx from "clsx";
-import { useState, type DragEvent, type ReactNode } from "react";
-import type { Device, DeviceId } from "@/generated";
+import { useState, type DragEvent } from "react";
+import type { Device, DeviceDescriptor, DeviceId } from "@/generated";
 import { PluginDeviceControls } from "@/features/plugins";
 import { SidechainSelector } from "@/features/sidechain";
 import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Power, X } from "lucide-react";
 import { IconButton, openContextMenu } from "@/kit";
 import { cmd } from "@/transport";
-import { DEVICE_DRAG_TYPE, groupParams, splitMainParams, type ParamGroup } from "./chainUtils";
+import { DEVICE_DRAG_TYPE } from "./chainUtils";
 import { useDescriptor } from "./descriptors";
 import { useGestureSender, useSend } from "./gesture";
-import { ParamControl } from "./ParamControl";
 import { SampleSlot } from "./SampleSlot";
+import { DeviceLayoutView } from "./layout";
 import { setCollapsed, useCollapsed } from "./collapsed";
 
 export interface DeviceViewProps {
@@ -36,7 +36,6 @@ export function DeviceView({ device, prev, moveRightBefore, onDropBefore, layout
   const sender = useGestureSender();
   const { descriptor, error } = useDescriptor(device);
   const [dropTarget, setDropTarget] = useState(false);
-  const [expanded, setExpanded] = useState(false);
   const move = (before: DeviceId | null) =>
     void send(cmd("Device", { type: "Move", id: device.id, track: device.track, before }));
 
@@ -139,15 +138,11 @@ export function DeviceView({ device, prev, moveRightBefore, onDropBefore, layout
       {/* The card body; in the stacked layout it collapses (animated height). */}
       <div className={clsx("eth-device__collapse", collapsed && "eth-device__collapse--closed")} inert={collapsed}>
         <div className="eth-device__collapse-inner">
-          <SampleSlot device={device} />
+          {/* The sample drop slot, unless the layout's waveform widget carries it. */}
+          {!hasWaveform(descriptor) && <SampleSlot device={device} />}
           {descriptor ? (
-            <DeviceParams
-              groups={groupParams(descriptor.params)}
-              name={device.name}
-              expanded={expanded}
-              onToggle={() => setExpanded((x) => !x)}
-              render={(p, size) => <ParamControl key={p.id} device={device} info={p} sender={sender} size={size} />}
-            />
+            // The one shared renderer: the declared layout, or the generic one.
+            <DeviceLayoutView device={device} descriptor={descriptor} sender={sender} />
           ) : (
             <div className="eth-device__body">
               <div className="eth-device__status">{error ? "Descriptor unavailable" : "Loading…"}</div>
@@ -159,50 +154,7 @@ export function DeviceView({ device, prev, moveRightBefore, onDropBefore, layout
   );
 }
 
-/**
- * A device's params: the main section (leading groups, large knobs) always shows; the rest
- * folds under a "More" disclosure (see `splitMainParams`).
- */
-function DeviceParams({
-  groups,
-  name,
-  expanded,
-  onToggle,
-  render,
-}: {
-  groups: ReadonlyArray<ParamGroup>;
-  name: string;
-  expanded: boolean;
-  onToggle(): void;
-  render(p: ParamGroup["params"][number], size: "md" | "lg"): ReactNode;
-}) {
-  const { main, more } = splitMainParams(groups);
-  const hidden = more.reduce((n, g) => n + g.params.length, 0);
-  const section = (list: ReadonlyArray<ParamGroup>, size: "md" | "lg") =>
-    list.map(({ group, params }) => (
-      <div className="eth-device__group" key={group ?? ""}>
-        {group && <div className="eth-device__group-name">{group}</div>}
-        <div className={`eth-device__params eth-device__params--${size}`}>{params.map((p) => render(p, size))}</div>
-      </div>
-    ));
-  return (
-    <>
-      <div className="eth-device__body">{section(main, "lg")}</div>
-      {more.length > 0 && (
-        <>
-          <button
-            type="button"
-            className="eth-device__more"
-            aria-expanded={expanded}
-            aria-label={`${expanded ? "Fewer" : "More"} ${name} controls`}
-            onClick={onToggle}
-          >
-            <ChevronDown className={expanded ? "eth-device__more-icon eth-device__more-icon--open" : "eth-device__more-icon"} />
-            {expanded ? "Fewer controls" : `More controls (${hidden})`}
-          </button>
-          {expanded && <div className="eth-device__body eth-device__body--more">{section(more, "md")}</div>}
-        </>
-      )}
-    </>
-  );
+/** Does the device's layout draw the sample waveform (with its own drop slot)? */
+function hasWaveform(descriptor: DeviceDescriptor | null): boolean {
+  return !!descriptor?.layout?.sections.some((s) => s.items.some((i) => i.widget.type === "SampleWaveform"));
 }

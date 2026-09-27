@@ -1,0 +1,367 @@
+/*
+ * The shared device renderer (layout/**). Tokens only: sizes derive from the global size
+ * tokens (row heights, knob sizes, spacing), colours from `--eth-color-*`. Generic sections
+ * keep the owner's device-card look (devices.css); declared layouts add a column grid,
+ * section weights and the graphical widgets below. Structure only: the owner styles it.
+ */
+
+.eth-layout {
+  /* Plot heights of the typed/data widgets (Small / Medium / Large). */
+  --device-plot-height-sm: calc(var(--eth-size-row-height-lg) * 2);
+  --device-plot-height: calc(var(--eth-size-row-height-lg) * 3);
+  --device-plot-height-lg: calc(var(--eth-size-row-height-lg) * 4);
+  --device-widget-min-width: calc(var(--eth-size-device-param-min-width) * 3);
+  --device-handle-r: var(--eth-space-sm);
+  --device-handle-r-lg: calc(var(--eth-space-sm) + var(--eth-space-xs));
+}
+
+/* ---- Declared layouts: section weights and column grids ---- */
+.eth-layout--declared .eth-layout__section {
+  flex: var(--section-span, 1) 1 auto;
+  min-width: 0;
+}
+.eth-layout__grid {
+  grid-template-columns: repeat(var(--section-columns, 2), minmax(var(--eth-size-device-param-min-width), auto));
+  align-items: start;
+}
+.eth-layout__item {
+  grid-column: span var(--item-span, 1);
+  min-width: 0;
+}
+.eth-layout__item--full {
+  grid-column: 1 / -1;
+}
+/* Stacked cards (inspector): at most `columns` columns, fewer when narrow. */
+.eth-device--stack .eth-layout__grid {
+  grid-template-columns: repeat(
+    auto-fill,
+    minmax(
+      max(
+        var(--device-param-min),
+        calc((100% - (var(--section-columns, 2) - 1) * var(--eth-space-sm)) / var(--section-columns, 2))
+      ),
+      1fr
+    )
+  );
+}
+.eth-device--stack .eth-layout__section--span-3,
+.eth-device--stack .eth-layout__section--span-4 {
+  grid-column: 1 / -1;
+}
+
+/* ---- Param widgets (on top of devices.css `.eth-param`) ---- */
+.eth-param {
+  position: relative;
+}
+.eth-param__row {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--eth-space-sm);
+  width: 100%;
+}
+/* Automation indicator: a dot in the corner of an automated control. */
+.eth-param__auto {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: var(--eth-space-sm);
+  height: var(--eth-space-sm);
+  border-radius: var(--eth-radius-round);
+  background: var(--eth-color-accent);
+}
+/* Modulation slot (racks-modulation fills it with depth rings / drop targets). */
+.eth-param__mod {
+  display: none;
+}
+.eth-param--segmented {
+  width: 100%;
+}
+.eth-segmented {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+}
+.eth-segmented__item {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.eth-segmented__item:not(:first-child) {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+.eth-segmented__item:not(:last-child) {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+  margin-right: calc(-1 * var(--eth-border-width));
+}
+.eth-param--number .eth-input {
+  width: 100%;
+  min-width: 0;
+}
+.eth-param--slider {
+  align-items: stretch;
+  width: 100%;
+  min-width: var(--device-widget-min-width);
+}
+.eth-hslider {
+  position: relative;
+  height: var(--eth-size-row-height-sm);
+  cursor: ew-resize;
+  touch-action: none;
+  outline: none;
+}
+.eth-hslider:focus-visible {
+  box-shadow: 0 0 0 var(--eth-focus-ring-width) var(--eth-color-focus);
+  border-radius: var(--eth-radius-sm);
+}
+.eth-hslider__track {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: var(--eth-space-xs);
+  transform: translateY(-50%);
+  border-radius: var(--eth-radius-pill);
+  background: var(--eth-color-knob-track);
+}
+.eth-hslider__fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: inherit;
+  background: var(--eth-color-accent);
+}
+.eth-hslider__thumb {
+  position: absolute;
+  top: 50%;
+  width: var(--eth-space-md);
+  height: var(--eth-space-md);
+  transform: translate(-50%, -50%);
+  border-radius: var(--eth-radius-round);
+  background: var(--eth-color-text);
+}
+
+/* ---- Typed and data widgets ---- */
+.eth-widget {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-xs);
+  min-width: var(--device-widget-min-width);
+  font-size: var(--eth-fs-xs);
+}
+.eth-widget__label {
+  color: var(--eth-color-text-dim);
+}
+.eth-widget__controls,
+.eth-widget__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(var(--eth-size-device-param-min-width), 1fr));
+  gap: var(--eth-space-sm);
+  justify-items: center;
+}
+.eth-widget--missing {
+  color: var(--eth-color-danger);
+}
+.eth-widget--meter {
+  align-items: center;
+  min-width: 0;
+}
+.eth-plot {
+  position: relative;
+  height: var(--device-plot-height);
+  min-width: 0;
+  overflow: hidden;
+  border: var(--eth-border-width) solid var(--eth-color-border-light);
+  border-radius: var(--eth-radius-md);
+  background: var(--eth-color-bg-inset);
+}
+.eth-widget--small .eth-plot {
+  height: var(--device-plot-height-sm);
+}
+.eth-widget--large .eth-plot {
+  height: var(--device-plot-height-lg);
+}
+.eth-plot--square {
+  aspect-ratio: 1;
+  height: auto;
+  max-height: var(--device-plot-height-lg);
+}
+.eth-widget--small .eth-plot--square,
+.eth-widget--medium .eth-plot--square,
+.eth-widget--large .eth-plot--square {
+  height: auto;
+}
+.eth-plot--interactive {
+  cursor: crosshair;
+  touch-action: none;
+}
+.eth-plot__svg {
+  display: block;
+}
+.eth-plot__grid line {
+  stroke: var(--eth-color-border-light);
+  stroke-width: var(--eth-border-width);
+}
+.eth-plot__ref {
+  stroke: var(--eth-color-border-strong);
+  stroke-width: var(--eth-border-width);
+  stroke-dasharray: var(--eth-space-xs) var(--eth-space-xs);
+}
+.eth-plot__line {
+  fill: none;
+  stroke: var(--eth-color-accent);
+  stroke-width: var(--eth-border-width-strong);
+  stroke-linejoin: round;
+}
+.eth-plot__fill {
+  fill: var(--eth-color-accent-subtle);
+  stroke: none;
+}
+.eth-plot__handle {
+  r: var(--device-handle-r);
+  fill: var(--eth-color-text);
+  stroke: var(--eth-color-accent);
+  stroke-width: var(--eth-border-width-strong);
+}
+.eth-plot__handle--lg {
+  r: var(--device-handle-r-lg);
+}
+.eth-plot__handle--off {
+  fill: var(--eth-color-bg-inset);
+  stroke: var(--eth-color-text-dim);
+}
+.eth-plot__cross {
+  stroke: var(--eth-color-accent-dim);
+  stroke-width: var(--eth-border-width);
+}
+.eth-plot__bar {
+  fill: var(--eth-color-accent);
+}
+.eth-plot__band {
+  fill: transparent;
+}
+.eth-plot__band--alt {
+  fill: var(--eth-color-accent-subtle);
+}
+.eth-plot__split line,
+.eth-plot__marker {
+  stroke: var(--eth-color-accent);
+  stroke-width: var(--eth-border-width-strong);
+}
+.eth-plot__wave {
+  stroke: var(--eth-color-accent);
+  stroke-width: var(--eth-border-width);
+}
+.eth-plot__dim {
+  fill: var(--eth-color-outside-shade);
+}
+.eth-plot__zone {
+  fill: var(--eth-color-accent-subtle);
+  stroke: var(--eth-color-accent);
+  stroke-width: var(--eth-border-width);
+}
+.eth-plot__empty {
+  fill: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+  text-anchor: middle;
+  dominant-baseline: middle;
+}
+
+/* Level meter (Meter widget: gain reduction and device-defined levels). */
+.eth-level {
+  position: relative;
+  width: var(--eth-space-md);
+  height: var(--device-plot-height);
+  overflow: hidden;
+  border-radius: var(--eth-radius-xs);
+  background: var(--eth-color-bg-inset);
+}
+.eth-widget--small .eth-level {
+  height: var(--device-plot-height-sm);
+}
+.eth-widget--large .eth-level {
+  height: var(--device-plot-height-lg);
+}
+.eth-level__fill {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--eth-color-meter-low);
+}
+.eth-level--down .eth-level__fill {
+  top: 0;
+  bottom: auto;
+  background: var(--eth-color-warn);
+}
+
+/* Tuner. */
+.eth-tuner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--eth-space-xs);
+  padding: var(--eth-space-sm);
+  border: var(--eth-border-width) solid var(--eth-color-border-light);
+  border-radius: var(--eth-radius-md);
+  background: var(--eth-color-bg-inset);
+}
+.eth-tuner__note {
+  font-size: var(--eth-fs-xl);
+  font-weight: var(--eth-fw-medium);
+  font-variant-numeric: tabular-nums;
+}
+.eth-tuner--in-tune .eth-tuner__note {
+  color: var(--eth-color-ok);
+}
+.eth-tuner--idle {
+  color: var(--eth-color-text-dim);
+}
+.eth-tuner__scale {
+  position: relative;
+  width: 100%;
+  height: var(--eth-space-sm);
+  border-radius: var(--eth-radius-pill);
+  background: var(--eth-color-knob-track);
+}
+.eth-tuner__needle {
+  position: absolute;
+  top: calc(-1 * var(--eth-space-xs));
+  bottom: calc(-1 * var(--eth-space-xs));
+  width: var(--eth-border-width-strong);
+  transform: translateX(-50%);
+  background: var(--eth-color-accent);
+}
+.eth-tuner__readout {
+  color: var(--eth-color-text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Rack chains. */
+.eth-rack-chains {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-xs);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.eth-rack-chains__row {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--eth-space-sm);
+  padding: var(--eth-space-xs) var(--eth-space-sm);
+  border-radius: var(--eth-radius-sm);
+  background: var(--eth-color-bg-inset);
+}
+.eth-rack-chains__row--muted {
+  opacity: var(--eth-opacity-muted);
+}
+.eth-rack-chains__meta,
+.eth-rack-chains__empty {
+  color: var(--eth-color-text-dim);
+  font-variant-numeric: tabular-nums;
+}
