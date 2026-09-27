@@ -4,7 +4,7 @@
  * mapped targets). Owned by `midi-learn`.
  */
 
-import type { Command, MidiControl, MidiMapCommand, MidiMapping, MidiMapTarget, ReplyValue } from "@/generated";
+import type { Command, MidiControl, MidiMapCommand, MidiMapMode, MidiMapping, MidiMapTarget, ReplyValue } from "@/generated";
 import { paramToPlain } from "@/features/devices/paramScale";
 import { cmd } from "../../cmd";
 import { builtinDescriptor } from "../builtinDevices";
@@ -78,6 +78,15 @@ export function midiMapCommand(ctx: ReducerContext, c: MidiMapCommand): void {
 
 const UNIT: ReplyValue = { type: "Unit" };
 
+/**
+ * Mode of a learned mapping, as the controller picks it: `Toggle` for notes and on/off
+ * targets (mute, solo, arm), `Absolute` otherwise.
+ */
+export function learnMode(target: MidiMapTarget, control: MidiControl): MidiMapMode {
+  const onOff = target.type === "TrackMute" || target.type === "TrackSolo" || target.type === "TrackArm";
+  return onOff || control.type === "Note" ? { type: "Toggle" } : { type: "Absolute" };
+}
+
 /** Runtime part: learn mode, `List`, and simulated MIDI input. */
 export class MockMidiLearn {
   private learnTarget: MidiMapTarget | null = null;
@@ -125,9 +134,19 @@ export class MockMidiLearn {
     const source = { port, channel, control };
     host.emit({ type: "MidiMap", event: { type: "Activity", source } });
     if (this.learnTarget) {
+      // Like the controller: note-offs never complete a learn.
+      if (control.type === "Note" && value === 0) return;
       const target = this.learnTarget;
-      const mapping: MidiMapping = { id: host.newId(), source, target, min: 0, max: 1, mode: { type: "Absolute" } };
-      host.applyDocument([cmd("MidiMap", { type: "Map", mapping })], "MIDI Learn");
+      const mapping: MidiMapping = { id: host.newId(), source, target, min: 0, max: 1, mode: learnMode(target, control) };
+      // The new mapping replaces every mapping of its target (and of its source, in `putMapping`).
+      const key = JSON.stringify(target);
+      const stale = Object.values(host.project().midi_mappings)
+        .filter((m) => JSON.stringify(m.target) === key)
+        .map((m) => m.id);
+      host.applyDocument(
+        [...(stale.length ? [cmd("MidiMap", { type: "Unmap", ids: stale })] : []), cmd("MidiMap", { type: "Map", mapping })],
+        "MIDI Learn",
+      );
       this.learnTarget = null;
       host.emit({ type: "MidiMap", event: { type: "Learned", mapping: mapping.id } });
       host.emit({ type: "MidiMap", event: { type: "LearnChanged", target: null } });
