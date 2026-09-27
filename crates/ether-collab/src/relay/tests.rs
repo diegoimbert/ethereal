@@ -150,6 +150,27 @@ fn joiners_wait_for_the_first_snapshot_and_creator_is_reelected() {
 }
 
 #[test]
+fn other_protocol_versions_are_refused_at_the_hello() {
+    let mut r = created();
+    let mut out = Vec::new();
+    r.connect(2, "jam").unwrap();
+    let old = CollabMessage::Hello {
+        site: SiteId(2),
+        actor: None,
+        name: "old build".into(),
+        protocol_version: COLLAB_PROTOCOL_VERSION - 1,
+    };
+    assert!(
+        r.message(2, old, &mut out)
+            .is_err_and(|e| e.disconnect && e.reason.contains("protocol"))
+    );
+    assert_eq!(
+        COLLAB_PROTOCOL_VERSION, 2,
+        "base-62 bumped it (COLLAB.md §12)"
+    );
+}
+
+#[test]
 fn identity_and_duplicates_are_enforced() {
     let mut r = created();
     let mut out = Vec::new();

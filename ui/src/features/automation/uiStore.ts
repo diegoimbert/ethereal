@@ -11,17 +11,34 @@
 import { useCallback } from "react";
 import { create } from "zustand";
 import type { TrackId } from "@/generated";
+import type { ValueRange } from "./valueAxis";
 
 /** Height of the per-track bar with the automation toggle and "show parameter" menu. */
 export const AUTOMATION_BAR_HEIGHT = 20;
-/** Height of one automation lane. */
+/** Default height of one automation lane. */
 export const LANE_HEIGHT = 64;
+/** Resized lanes stay within `[MIN_LANE_HEIGHT, MAX_LANE_HEIGHT]` (like tracks). */
+export const MIN_LANE_HEIGHT = 32;
+export const MAX_LANE_HEIGHT = 320;
+
+export function clampLaneHeight(h: number): number {
+  return Math.min(MAX_LANE_HEIGHT, Math.max(MIN_LANE_HEIGHT, Math.round(h)));
+}
+
+/** Key of one shown lane in per-lane UI state (`laneHeights`, `ranges`). */
+export function laneUiKey(track: TrackId, key: string): string {
+  return `${track}|${key}`;
+}
 
 export interface AutomationUiState {
   /** Tracks whose automation lanes are shown. */
   open: ReadonlySet<TrackId>;
   /** Target keys (`targetKey`) of the lanes shown per track, top to bottom. */
   shown: Readonly<Record<TrackId, ReadonlyArray<string>>>;
+  /** Resized lane heights by `laneUiKey` (absent: `LANE_HEIGHT`). */
+  laneHeights: Readonly<Record<string, number>>;
+  /** Visible value window by `laneUiKey` (absent: the param's default window). */
+  ranges: Readonly<Record<string, ValueRange>>;
 
   /** Open/close a track's lanes. `initial` seeds the shown list the first time. */
   setOpen(track: TrackId, open: boolean, initial?: ReadonlyArray<string>): void;
@@ -31,9 +48,19 @@ export interface AutomationUiState {
   hide(track: TrackId, key: string): void;
   /** Replace the lane at `from` with `to` (the lane header's parameter chooser). */
   replace(track: TrackId, from: string, to: string): void;
+  /** Resize a lane (`null`: back to `LANE_HEIGHT`). */
+  setLaneHeight(track: TrackId, key: string, height: number | null): void;
+  /** Set a lane's visible value window (`null`: the default). */
+  setRange(track: TrackId, key: string, range: ValueRange | null): void;
 }
 
-const INITIAL = { open: new Set<TrackId>() as ReadonlySet<TrackId>, shown: {} };
+const INITIAL = { open: new Set<TrackId>() as ReadonlySet<TrackId>, shown: {}, laneHeights: {}, ranges: {} };
+
+function without<T>(rec: Readonly<Record<string, T>>, key: string): Record<string, T> {
+  const next = { ...rec };
+  delete next[key];
+  return next;
+}
 
 export const useAutomationUi = create<AutomationUiState>()((set) => ({
   ...INITIAL,
@@ -66,11 +93,24 @@ export const useAutomationUi = create<AutomationUiState>()((set) => ({
       const next = cur.filter((k) => k !== to).map((k) => (k === from ? to : k));
       return { shown: { ...s.shown, [track]: next } };
     }),
+  setLaneHeight: (track, key, height) =>
+    set((s) => {
+      const k = laneUiKey(track, key);
+      if (height === null) return k in s.laneHeights ? { laneHeights: without(s.laneHeights, k) } : s;
+      const h = clampLaneHeight(height);
+      return s.laneHeights[k] === h ? s : { laneHeights: { ...s.laneHeights, [k]: h } };
+    }),
+  setRange: (track, key, range) =>
+    set((s) => {
+      const k = laneUiKey(track, key);
+      if (range === null) return k in s.ranges ? { ranges: without(s.ranges, k) } : s;
+      return { ranges: { ...s.ranges, [k]: range } };
+    }),
 }));
 
 /** Reset (tests). */
 export function resetAutomationUi(): void {
-  useAutomationUi.setState({ open: new Set(), shown: {} });
+  useAutomationUi.setState({ open: new Set(), shown: {}, laneHeights: {}, ranges: {} });
 }
 
 /** Keys of the lanes shown for `track` (empty when closed). */
@@ -80,12 +120,22 @@ export function shownKeys(state: Pick<AutomationUiState, "open" | "shown">, trac
 
 const EMPTY: ReadonlyArray<string> = [];
 
+/** The UI state heights depend on (`laneHeights` optional: default heights). */
+export type HeightState = Pick<AutomationUiState, "open" | "shown"> & Partial<Pick<AutomationUiState, "laneHeights">>;
+
+/** Height of one shown lane (resized, or `LANE_HEIGHT`). */
+export function laneHeightOf(state: Partial<Pick<AutomationUiState, "laneHeights">>, track: TrackId, key: string): number {
+  return state.laneHeights?.[laneUiKey(track, key)] ?? LANE_HEIGHT;
+}
+
 /** Total height of `<TrackAutomationLanes track>` for a UI state (pure). */
-export function automationHeight(state: Pick<AutomationUiState, "open" | "shown">, track: TrackId): number {
+export function automationHeight(state: HeightState, track: TrackId): number {
   // Closed: nothing (the toggle is an icon in the track header). Open: the parameter bar
   // and the lanes.
   if (!state.open.has(track)) return 0;
-  return AUTOMATION_BAR_HEIGHT + shownKeys(state, track).length * LANE_HEIGHT;
+  let h = AUTOMATION_BAR_HEIGHT;
+  for (const key of shownKeys(state, track)) h += laneHeightOf(state, track, key);
+  return h;
 }
 
 /**
@@ -103,5 +153,6 @@ export function automationLaneHeights(track: TrackId): number {
 export function useAutomationHeight(): (track: TrackId) => number {
   const open = useAutomationUi((s) => s.open);
   const shown = useAutomationUi((s) => s.shown);
-  return useCallback((track: TrackId) => automationHeight({ open, shown }, track), [open, shown]);
+  const laneHeights = useAutomationUi((s) => s.laneHeights);
+  return useCallback((track: TrackId) => automationHeight({ open, shown, laneHeights }, track), [open, shown, laneHeights]);
 }

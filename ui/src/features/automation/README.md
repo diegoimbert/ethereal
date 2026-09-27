@@ -13,7 +13,11 @@ clip envelopes. Import from `@/features/automation`.
 | `edit.ts` | protocol commands for add / move / delete / curve / bend (pure) |
 | `gesture.ts` | `LaneGesture`: one gesture id per drag, `Edit::EndGesture` on release |
 | `params.ts` | automatable targets of a track and their `ParamInfo` |
-| `uiStore.ts` | open tracks, shown lanes per track, heights |
+| `uiStore.ts` | open tracks, shown lanes per track, lane heights and value windows, total heights |
+| `laneMotion.ts` | open/close tween of the slot heights (`useAutomationSlotHeight`, `animatedSlotHeight`, `subscribeLaneFrames`) |
+| `valueAxis.ts` | param-aware value axis: steps, snapping, increments, visible window, step lines (pure) |
+| `ValueScale.tsx` | lane header value scale and resize grip |
+| `clipboard.ts` | point copy / paste (remap, one undo step) |
 
 ## Mounting in the arrangement
 
@@ -23,8 +27,9 @@ not from the DOM, so it must get the automation heights from here. Two changes i
 
 ```tsx
 // ArrangementView.tsx
-import { useAutomationHeight } from "@/features/automation";
-const automationHeight = useAutomationHeight();            // (track) => px; identity changes when heights change
+import { useAutomationSlotHeight } from "@/features/automation";
+const automationHeight = useAutomationSlotHeight();        // (track) => px; identity changes when heights change or a tween starts/ends
+useLaneAnimation(contentRef, rows, rowsRef);                 // features/arrangement/laneAnimation.ts: per-frame heights
 const rows = useMemo(() => layoutRows(tracks, folded, automationHeight), [tracks, folded, automationHeight]);
 
 // TrackRow.tsx: replace the empty slot div
@@ -45,35 +50,75 @@ const grid = useArrangementUi((s) => s.grid);
 | `grid` | `GridSetting` | `DEFAULT_GRID` | grid used to snap point times |
 | `selection` | `ItemSelectionStore` | `itemSelection` | where selected points live (kind `automationPoint`) |
 
-Its rendered height is always `automationHeight(useAutomationUi.getState(), trackId)`:
-`AUTOMATION_BAR_HEIGHT` (the bar with the toggle, always present) plus `LANE_HEIGHT` per
-shown lane when open. Non-React code can call `automationLaneHeights(trackId)`.
+At rest its rendered height is `automationHeight(useAutomationUi.getState(), trackId)`:
+`AUTOMATION_BAR_HEIGHT` plus each shown lane's height (`LANE_HEIGHT` unless resized) when
+open; mid-animation it fills the slot it is given and clips its content. Non-React code can call `automationLaneHeights(trackId)`.
 
 The component draws no playhead or grid lines: the arrangement's full-height overlays cover
 it. It reads lane x positions from `view` (content-relative px, 0 = left edge of the lane
 area), just like clips.
 
-## Interactions
+## Automation editing
 
-- **Bar:** `▸ Automation` opens/closes the track's lanes. The first open shows the track's
-  existing lanes (or Volume). `+ Parameter…` shows another parameter's lane.
-- **Lane header:** parameter chooser (switches what this row shows), `×` hides the row
-  (the document lane stays), `⏻` enables/disables the lane (`SetLaneEnabled`), the curve
-  menu sets Linear / Step / Curve on the selected points' segments, `⌫` deletes the lane.
-- **Lane:**
-  - double-click empty space: add a point, time snapped (alt: no snap), value from y;
-    the lane is created in the same undo step (`Edit::Batch`) if needed;
-  - click a point: select (shift adds, cmd/ctrl toggles); drag: move the selection, the
-    dragged point snaps and the others keep their offsets; the group is clamped to time
-    ≥ 0 and values 0..1; alt: no snap; shift while dragging: lock to one axis;
-  - double-click a point: delete it; Delete/Backspace: delete the selected points of the
-    focused lane; cmd/ctrl+A: select all points of the lane (both `preventDefault`, so the
-    global shortcuts don't fire);
-  - drag empty space: marquee (from `@/timeline`);
-  - alt-drag a segment up/down: bend it (`CurveShape::Curve { tension }`).
-- Every drag is one `LaneGesture`: all its `EditPoints` share one gesture id, closed with
-  `Edit::EndGesture`, so it is one undo step. Moves are coalesced (latest wins while a
+Gestures and modifiers (for UX review). `⌘` is Ctrl off macOS.
+
+| Where | Gesture | Does |
+|---|---|---|
+| Track header | automation icon | open/close the track's lanes (animated, see below) |
+| Bar | `+ Parameter…` | show another parameter's lane (animates in) |
+| Lane header | parameter menu / `×` / `⏻` / curve menu / `⌫` | switch parameter / hide lane / enable / curve of selected points / delete lane |
+| Lane header, bottom edge | drag | resize the lane in 8 px steps (`⌥`: free); double-click: reset. UI state, like track heights |
+| Value scale (right of the lane header) | wheel (when zoomed in) / drag | scroll the visible value window (at full range the wheel scrolls the arrangement) |
+| Value scale | `⌘`-wheel | zoom the value window around the pointer |
+| Value scale | double-click | reset the window |
+| Lane | double-click empty space | add a point: time on the grid (`⌥`: free), value on the param's steps (`⌘`: whole increments) |
+| Lane | click / `⇧`-click / `⌘`-click a point | select / add / toggle |
+| Lane | drag a point | move the selection: time on the grid; stepped params (semitones, enums, toggles) by whole steps, 8 px per step |
+| Lane, dragging | `⌘` held | continuous params: whole increments (1 dB, 1 %, 1 st, 0.01 pan, round Hz/ms). Stepped params always snap |
+| Lane, dragging | `⌥` | time off the grid (only that: the app-wide meaning) |
+| Lane, dragging | `⇧` | lock to the dominant axis |
+| Lane, dragging | — | a tooltip shows the value and these modifiers |
+| Lane | drag empty space | marquee select |
+| Lane | `⌥`-drag a segment | bend it (curve tension) |
+| Lane | double-click a point | delete it |
+| Lane (focused) | `⌘C` / `⌘X` / `⌘V` / `⌘D` | copy / cut / paste at the playhead / duplicate right after the selection |
+| Lane (focused) | `⌫` / `⌘A` | delete selected / select all points of the lane |
+| Lane (focused) | `↑` `↓` | nudge values one step (stepped) or 1 % (`⇧`: 0.1 %) |
+| Lane (focused) | `←` `→` | nudge times one grid step (`⇧`: a quarter step) |
+| Point | right-click | Cut, Copy, Paste at Playhead, Duplicate, Set Value…, Linear/Step/Smooth curve, Delete |
+| Lane | right-click empty space | Paste Here, Paste at Playhead, Select All Points, Copy, Delete |
+
+- **Paste** keeps relative timing, replaces the points in the pasted span, selects the
+  pasted points and (when stopped) moves the playhead to their end, like clip paste. Into
+  another parameter, values are remapped through the plain value when both share a unit
+  (clamped to the target's range), else by normalized value; then snapped to the target's
+  steps. Paste, cut and duplicate are each one undo step (`Edit::Batch`, creating the lane
+  if needed). The desktop Edit menu's copy/cut/paste reach the focused lane too.
+- **Stepped params** draw one gridline per step (every 2nd, 3rd, 4th, 6th, 12th... when
+  dense), labelled on the value scale where they fit; the default value is stronger. They
+  open on a window where every step is at least 8 px tall, around their default (a default
+  64 px Transpose lane shows ±3 st; resize the lane or scroll/zoom the value scale for
+  more), and dragging moves them by whole steps at 8 px per step, whatever the lane height.
+  Steps come from `ParamInfo.step` (contracts-3 #106) when present; enums (`labels`) and
+  `Toggle` are stepped either way; only descriptors without the field (pre-#106)
+  also treat linear `Semitones` as whole semitones.
+- **Every drag is one `LaneGesture`**: all its `EditPoints` share one gesture id, closed
+  with `Edit::EndGesture`, so it is one undo step. Moves are coalesced (latest wins while a
   command is in flight).
+
+### Opening/closing animation (`laneMotion.ts`)
+
+Opening/closing a track's lanes and showing/hiding a lane tween the automation slot height
+over `motion.lane` (`duration.slow`, `ease.standard`; CSS: `--automation-lane-duration/ease`).
+React lays the rows out once per tween, with the slot at the larger of its two heights
+(`useAutomationSlotHeight`); each frame, the arrangement's `useLaneAnimation` then puts the
+tweened heights into the row model used for hit testing (`rowsRef`, so clicks and drags
+land where things are drawn) and moves what is on screen with transforms only: rows below
+slide, and the lanes slide in/out of their clipped slot. Nothing re-renders per frame, so
+64 tracks with 512 clips stay at 60 fps (see the e2e perf test). New content also fades in,
+a closing track fades out, a hidden lane collapses in place. A change mid-animation
+continues from the current height. Resizing a lane is direct (not animated). Reduced
+motion (`MOTION.enabled`) is instant.
 
 ## Values
 

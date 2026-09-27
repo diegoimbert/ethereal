@@ -139,6 +139,8 @@ export function createEmptyProject(nextId: () => string, name: string, id: Proje
     markers: {},
     midi_mappings: {},
     drum_pads: {},
+    chat: {},
+    pinned_notes: {},
   };
 }
 

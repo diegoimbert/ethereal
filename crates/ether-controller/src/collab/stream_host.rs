@@ -206,9 +206,8 @@ where
 
     /// This site is listening to someone (the listener side's `listening_to`).
     fn collab_host_is_listening(&self) -> bool {
-        let mut state = PresenceState::default();
-        self.collab_listen_presence(&mut state);
-        state.listening_to.is_some()
+        // Connecting counts too (no chains, §9.3): `listening_to` is only set once media flows.
+        self.collab_listening_host().is_some()
     }
 
     /// The endpoint that would stream to a new listener, if any.
@@ -696,6 +695,6 @@ where
     pub(crate) fn collab_host_presence(&self, state: &mut PresenceState) {
         state.can_host = self.collab.session.as_ref().is_some_and(|s| s.host.allow)
             && self.collab_host_endpoint().is_some()
-            && state.listening_to.is_none();
+            && self.collab_listening_host().is_none();
     }
 }

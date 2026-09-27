@@ -728,6 +728,17 @@ paths = [
   "apps/web/e2e/collab-stream*.spec.ts",
 ]
 
+[nodes.turn-hardening]
+# Follow-up to stream-host (docs/COLLAB.md §10 known limitations): per-username verified cap,
+# counting real nonce inserts, rotation-decision tests. TURN stays experimental until merged.
+paths = [
+  "crates/ether-collab/src/relay/ice/turn.rs",
+  "crates/ether-collab/src/relay/ice/turn/**",
+  "crates/ether-collab/tests/turn*.rs",
+  # shared touch: lift the "known limitations" + experimental notice once fixed
+  "docs/COLLAB.md",
+]
+
 [nodes.plugin-mirror]
 # Later (after stream-host / stream-listen).
 paths = [
@@ -781,6 +792,8 @@ paths = [
 
 [nodes.groups-buses]
 paths = [
+  # BCR (base-70): Inspector TrackMixer routing rows (Input/VCA) + hide pan/output/sends for VCA tracks; additive, reuse the owner's Row
+  "ui/src/app/shell/Inspector.tsx",
   # BCR (base-67): one additive line in compile_graph_with to fold VCA solo (§12.10)
   "crates/ether-controller/src/compile.rs",
   "crates/ether-core/src/bus_tap.rs",
@@ -816,6 +829,10 @@ paths = [
 # Priority 1 (with groups-buses). The desktop path half depends on media-references
 # (reference in place); the web/remote upload half can land first.
 paths = [
+  # BCR (base-73): the upload assertion only (mock now stages uploads)
+  "ui/src/transport/mock/MockTransport.test.ts",
+  # BCR (base-70): one palette entry "Import audio..." (Cmd+I)
+  "ui/src/app/shell/commands.ts",
   "ui/src/features/import/**",
   "crates/ether-controller/src/file_import/**",
   "crates/ether-controller/tests/file_import*.rs",
@@ -842,7 +859,7 @@ paths = [
   "ui/src/features/remote/upload.ts",
   "ui/src/features/arrangement/ArrangementView.tsx",
   "ui/src/features/arrangement/TrackRow.tsx",
-  "ui/src/App.tsx",
+  "ui/src/app/App.tsx",
   # shared touch: collab push of external-path media (read the bytes; those lines only)
   "crates/ether-controller/src/collab/mod.rs",
   # shared touch: the mock's import/upload paths
@@ -1017,6 +1034,19 @@ paths = [
 
 [nodes.comping]
 paths = [
+  # BCR-2 (base-77): TakeCommand::Audition (runtime, site-local, like DrumRack::SetPadSolo):
+  # the variant + regenerated TS, one CONTRACTS §12.2 line, DocHost::set_audition (default no-op),
+  # engine.rs `audition` field + set_audition impl + one apply_audition call after apply_solo
+  "crates/ether-protocol/src/takes.rs",
+  "crates/ether-controller/src/doc/mod.rs",
+  "crates/ether-controller/src/engine.rs",
+  "docs/CONTRACTS.md",
+  # BCR (base-75): overlap trimming per lane (1 line), mock overlap + take cascade on track delete,
+  # arrangement hides lane clips from the main row, MIDI loop-pass index in the native recording writer
+  "crates/ether-controller/src/doc/clips.rs",
+  "ui/src/transport/mock/documentReducer.ts",
+  "ui/src/features/arrangement/clipTime.ts",
+  "crates/ether-native/src/recording/writer.rs",
   "crates/ether-controller/src/comping/**",
   "ui/src/features/comping/**",
   "ui/src/transport/mock/roadmap/comping.*",
@@ -1036,6 +1066,8 @@ paths = [
 
 [nodes.freeze-bounce]
 paths = [
+  # BCR (base-72): route Freeze through MockFreeze in the mock (import, field, command case, step call; mirrors MockExports)
+  "ui/src/transport/mock/MockTransport.ts",
   "crates/ether-core/src/freeze.rs",
   "crates/ether-controller/src/freeze/**",
   "ui/src/features/freeze/**",
@@ -1056,6 +1088,10 @@ paths = [
 
 [nodes.time-edits]
 paths = [
+  # BCR (base-74): one runtime field for the time clipboard (+ Default in with_config)
+  "crates/ether-controller/src/lib.rs",
+  # BCR (base-74): route TimeEdit through MockTimeEdits in the mock (import, field, command case; mirrors MockFreeze)
+  "ui/src/transport/mock/MockTransport.ts",
   "crates/ether-controller/src/time_edit/**",
   "ui/src/features/time-edits/**",
   "ui/src/transport/mock/roadmap/timeEdits.*",
@@ -1130,6 +1166,8 @@ paths = [
 [nodes.plugin-sidechain]
 # Priority 2. CLAP/VST3/AU aux inputs fed from the device's sidechain source (CONTRACTS §12.14).
 paths = [
+  # BCR (base-71): HostedPluginNode forwards sidechain_inputs/process_sidechain (those two methods only)
+  "crates/ether-native/src/plugins.rs",
   # BCR (base-67): aux-input test fixtures (silent without a sidechain source) + per-crate tests
   "crates/ether-clap/examples/ether_test_plugin.rs",
   "crates/ether-vst3/examples/ether_vst3_test_plugin.rs",
@@ -1173,4 +1211,55 @@ paths = [
   "ui/src/features/devices/layout/Widget.tsx",
   # shared touch: regenerate the EQ mock descriptor if the layout changes
   "ui/src/transport/mock/devices/eq.json",
+]
+
+[nodes.collab-social]
+# base-62: chat, pinned notes, peer playheads, "hide users and notes" (docs/COLLAB.md §12).
+paths = [
+  # BCR (base-78): mock Chat routing with the session + untracked (non-undoable) apply
+  "ui/src/transport/mock/MockTransport.ts",
+  "ui/src/transport/mock/roadmap/host.ts",
+  # BCR (base-78): optional `menuItems` prop on the ruler context menu ("Leave a note")
+  "ui/src/timeline/Ruler.tsx",
+  "crates/ether-controller/src/social/**",
+  "crates/ether-controller/tests/social*.rs",
+  "ui/src/features/collab/social/**",
+  "ui/src/kit/Toast.tsx",
+  "ui/src/kit/toast.css",
+  "ui/src/transport/mock/roadmap/social.*",
+  "apps/web/e2e/collab-social.spec.ts",
+  # shared touch: chat rail tab (visible in a session only), palette entry
+  "ui/src/app/shell/shellStore.ts",
+  "ui/src/app/shell/tabs.tsx",
+  "ui/src/app/shell/LeftRail.tsx",
+  "ui/src/app/shell/commands.ts",
+  # shared touch: Toast export line
+  "ui/src/kit/index.ts",
+  # shared touch: notes + playhead overlays, "Leave a note" menu entry (owner UX authoritative)
+  "ui/src/features/arrangement/ArrangementView.tsx",
+  "ui/src/features/arrangement/TrackRow.tsx",
+  "ui/src/features/arrangement/arrangement.css",
+  # shared touch: ChatReceived, hide toggle in the collab dialog, renderers honour it
+  "ui/src/features/collab/store.ts",
+  "ui/src/features/collab/PresenceBar.tsx",
+  "ui/src/features/collab/PresenceBar.test.tsx",
+  "ui/src/features/collab/index.tsx",
+  "ui/src/features/collab/collab.css",
+  "ui/src/features/collab/presence/PresenceLayer.tsx",
+  "ui/src/features/collab/presence/EditorPresence.tsx",
+  # shared touch: the "peer editing" clip ring (useClipEditors) honours the hide toggle
+  "ui/src/features/collab/presence/editors.ts",
+  # shared touch: notes in the piano roll (overlay mount, "Leave a note" menu entry)
+  "ui/src/features/piano-roll/NoteGrid.tsx",
+  "ui/src/features/piano-roll/PianoRoll.tsx",
+  "ui/src/features/piano-roll/pianoRoll.css",
+  "ui/src/transport/mock/roadmap/collab.*",
+  # shared touch: dispatch lines only (own colour, ChatReceived, transport refresh)
+  "crates/ether-controller/src/collab/mod.rs",
+  # shared touch: one hook after transport commands (publish the transport at once)
+  "crates/ether-controller/src/handlers.rs",
+  # shared touch: the relay sends a site its own presence (colour)
+  "crates/ether-collab/src/relay/mod.rs",
+  "crates/ether-collab/src/relay/tests.rs",
+  "docs/COLLAB.md",
 ]
