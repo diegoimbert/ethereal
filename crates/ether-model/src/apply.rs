@@ -756,6 +756,9 @@ impl Project {
                     if src == d.track {
                         return Err(invariant("a device cannot sidechain its own track"));
                     }
+                    if d.pad.is_some() {
+                        return Err(invariant("devices on drum pads cannot have a sidechain"));
+                    }
                 }
                 // A rack's pad devices must stay on the rack's track (checked from the rack
                 // too, so moving or re-kinding a rack can't strand its pad chains).

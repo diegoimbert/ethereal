@@ -37,16 +37,33 @@ impl Metronome {
     /// clamp). `enabled` = `RenderGraphDesc::metronome`. Called by `engine.rs` once per
     /// sub-block (already wired). Placeholder: renders nothing until the `tempo-metronome`
     /// node implements it.
+    ///
+    /// `latency` is the graph's total output latency (samples, PDC included): the audio of
+    /// timeline position `p` reaches the hardware `latency` samples after `p` is rendered,
+    /// so a click for beat `b` must be emitted `latency` samples after the sample where the
+    /// sub-block timeline crosses `b` (keep the pending clicks in a small preallocated
+    /// queue). Otherwise the click leads the music under PDC.
+    #[allow(clippy::too_many_arguments)]
     pub fn render(
         &mut self,
         desc: &MetronomeDesc,
         enabled: bool,
         info: &TransportInfo,
+        latency: u32,
         offset: usize,
         frames: usize,
         out: &mut [&mut [f32]],
     ) {
-        let _ = (desc, enabled, info, offset, frames, out, self.sample_rate);
+        let _ = (
+            desc,
+            enabled,
+            info,
+            latency,
+            offset,
+            frames,
+            out,
+            self.sample_rate,
+        );
         self.remaining = 0;
     }
 

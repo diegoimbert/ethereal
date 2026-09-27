@@ -140,6 +140,7 @@ export type * from "./PointEdit";
 export type * from "./PointSpec";
 export type * from "./Presence";
 export type * from "./PresenceState";
+export type * from "./PreviewEndReason";
 export type * from "./Project";
 export type * from "./ProjectCommand";
 export type * from "./ProjectEvent";

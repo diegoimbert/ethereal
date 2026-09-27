@@ -117,7 +117,12 @@ pub enum SliceCommand {
     /// Create a drum rack on the sampler's track holding one sampler pad per slice,
     /// replacing the sampler. One undo step. All ids are client-chosen (idempotent retries,
     /// collab-safe: two sites converting the same sampler must not mint different ids):
-    /// `pads[i]` is used for slice `i`; fewer entries than slices is `InvalidArgument`.
+    /// `pads[i]` is used for slice `i`; fewer entries than slices is `InvalidArgument`, extra
+    /// entries are ignored. Slice `i` gets pad note `slices.base_note + i` (slices past key
+    /// 127 are dropped), name "Slice i+1", no choke group, and a sampler on the same sample
+    /// whose own slice mode is off and whose sample range is that slice. The rack takes the
+    /// sampler's place in the chain (same order key); the sampler's automation lanes and
+    /// MIDI mappings are removed with it.
     ToDrumRack {
         device: DeviceId,
         rack: DeviceId,
