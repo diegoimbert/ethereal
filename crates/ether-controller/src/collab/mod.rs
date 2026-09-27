@@ -114,6 +114,9 @@ struct Session {
     /// Last plugin state this site sent, received, or started from, per device: a save
     /// replicates a plugin's state only when its live state differs (COLLAB.md §2.2).
     captured: BTreeMap<DeviceId, Base64Bytes>,
+    /// This site's mix (mute/solo) as of its copy of the project before it joined: the
+    /// tracks the log (re-)inserts get it back (COLLAB.md §2.1).
+    mix_seed: resolve::LocalMix,
     /// ICE servers the relay advertised (`CollabMessage::IceServers`).
     ice_relay: Vec<IceServer>,
     /// base-53 node state: live pointer (`presence-v2`), listener (`stream-listen`), host
@@ -269,6 +272,7 @@ where
                     upload_counter: 0,
                     status: None,
                     captured: BTreeMap::new(),
+                    mix_seed: Default::default(),
                     backup: None,
                     ice_relay: Vec::new(),
                     pointer: Default::default(),
@@ -931,6 +935,9 @@ where
         // params) of entities our pending transactions created: the re-apply below
         // re-inserts them as sent, so it is carried over (COLLAB.md §2).
         let derived = derived_of_pending(project, &s.pending);
+        // This site's mix (mute/solo, COLLAB.md §2.1) is kept across the rebase: re-applied
+        // pending inserts carry none; tracks a peer created start unmuted, unless ours before.
+        let mix = resolve::LocalMix::of(project).or(&s.mix_seed);
         let mut touched = Vec::new();
         for p in s.pending.iter().rev() {
             for inv in &p.inverse {
@@ -968,6 +975,7 @@ where
             touched.extend(applied);
         }
         restore_derived(project, derived);
+        touched.extend(mix.overlay(project));
         // A peer replicated a plugin state (COLLAB.md §2.2): our running instance is
         // re-created from it (a missing plugin has no instance: the document keeps it), and
         // it is our new baseline, so our next save doesn't send it back.
@@ -1089,10 +1097,13 @@ where
 
     // ─── Snapshots ──────────────────────────────────────────────────────────────────────
 
-    /// The open project as an `.ether` file with every plugin's live state (like saving).
+    /// The open project as a snapshot `.ether` file: every plugin's live state (like saving),
+    /// no site-local mix.
     fn collab_ether(&mut self) -> CmdResult<String> {
         let doc = self.doc.as_ref().ok_or_else(no_project)?;
         let mut copy = doc.project.clone();
+        // Snapshots carry no mix: mute/solo are per-site (COLLAB.md §2.1).
+        resolve::LocalMix::default().overlay(&mut copy);
         let live = self.collab_live_plugin_states();
         for d in copy.devices.values_mut() {
             if let DeviceKind::Plugin { plugin } = &mut d.kind
@@ -1266,25 +1277,26 @@ where
             .as_ref()
             .filter(|p| p.id == pid)
             .map(|p| p.settings.clone());
-        let mut local_ops: Vec<Op> = local_from
+        let local_ops: Vec<Op> = local_from
             .as_ref()
             .map(resolve::local_settings)
             .unwrap_or_default();
-        local_ops.extend(
-            project
-                .tracks
-                .values()
-                .filter(|t| t.mixer.solo)
-                .map(|t| Op::Update {
-                    update: EntityUpdate::Track {
-                        id: t.id,
-                        change: TrackChange::Solo(false),
-                    },
-                }),
-        );
         for op in &local_ops {
             let _ = project.apply(op);
         }
+        // Our mix (mute/solo, COLLAB.md §2.1): from the open copy of this project, else from
+        // the stored one (saved with our mix); tracks we don't know start unmuted/unsoloed.
+        let mix = match current.as_ref().filter(|p| p.id == pid) {
+            Some(p) => resolve::LocalMix::of(p),
+            None => self
+                .store
+                .load(pid)
+                .ok()
+                .and_then(|json| file::load(&json).ok())
+                .map(|p| resolve::LocalMix::of(&p))
+                .unwrap_or_default(),
+        };
+        mix.overlay(&mut project);
         // Save our current work first (it is not overwritten: see below).
         if self.doc.as_ref().is_some_and(|d| d.dirty) {
             self.save_current(out)?;
@@ -1349,6 +1361,7 @@ where
         s.epoch = snap.epoch;
         s.sites = snap.sites;
         s.backup = backup;
+        s.mix_seed = mix.or(&s.mix_seed);
         // Our plugins are created from the snapshot's states.
         s.captured = project
             .devices
@@ -1361,6 +1374,7 @@ where
         // Pending edits (resync) go on top of the new state and are sent again.
         if !s.pending.is_empty() {
             let doc = self.doc.as_mut().expect("opened");
+            let mix = resolve::LocalMix::of(&doc.project).or(&s.mix_seed);
             let mut touched = Vec::new();
             for p in s.pending.iter_mut() {
                 let (applied, inverse) =
@@ -1368,6 +1382,7 @@ where
                 p.inverse = inverse;
                 touched.extend(applied);
             }
+            touched.extend(mix.overlay(&mut doc.project));
             self.after_ops_from(&touched, None, now, out);
             self.collab_resend_pending(own);
         }
@@ -1454,10 +1469,18 @@ fn check_echo(live: &Project, pending: &VecDeque<Pending>, echo: &StampedTransac
             let _ = p.apply(inv);
         }
     }
-    resolve::resolve_all(&mut p, &echo.transaction.ops);
+    let ops: Vec<Op> = echo
+        .transaction
+        .ops
+        .iter()
+        .filter(|op| !resolve::is_local_only(op))
+        .cloned()
+        .collect();
+    resolve::resolve_all(&mut p, &ops);
     for q in pending.iter().skip(1) {
         resolve::resolve_all(&mut p, &q.tx.transaction.ops);
     }
+    resolve::LocalMix::of(live).overlay(&mut p);
     debug_assert!(
         &p == live,
         "own echo processed like a remote transaction must give the live document"

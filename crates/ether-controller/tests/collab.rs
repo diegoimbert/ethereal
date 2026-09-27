@@ -10,6 +10,7 @@ use ether_controller::store::ProjectStore;
 use ether_core::protocol::clips::{ClipCommand, ClipMove};
 use ether_core::protocol::collab::{CollabCommand, CollabStatus, PresenceState};
 use ether_core::protocol::devices::{DeviceCategory, DeviceCommand, DeviceSpec};
+use ether_core::protocol::drum_rack::DrumRackCommand;
 use ether_core::protocol::media::{BrowseLocation, MediaCommand, MediaSource};
 use ether_core::protocol::mixer::MixerCommand;
 use ether_core::protocol::model::*;
@@ -320,6 +321,367 @@ fn site_local_state_is_not_shared() {
     // A local-only undo stays local too.
     undo(a);
     settle(&mut [a, b], &hub);
+    assert_converged(&[a, b]);
+}
+
+// ─── Mute and solo are per-site (COLLAB.md §2.1) ────────────────────────────────────────
+
+fn set_mute(s: &mut Site, track: TrackId, mute: bool) {
+    s.ok(Command::Mixer(MixerCommand::SetMute { track, mute }));
+}
+
+fn set_solo(s: &mut Site, track: TrackId, solo: bool, exclusive: bool) {
+    s.ok(Command::Mixer(MixerCommand::SetSolo {
+        track,
+        solo,
+        exclusive,
+    }));
+}
+
+fn muted(s: &Site, track: TrackId) -> bool {
+    s.project().tracks[&track].mixer.mute
+}
+
+fn soloed(s: &Site, track: TrackId) -> bool {
+    s.project().tracks[&track].mixer.solo
+}
+
+/// Does `op` carry a mute or solo onto the wire?
+fn carries_mix(op: &Op) -> bool {
+    match op {
+        Op::Update {
+            update:
+                EntityUpdate::Track {
+                    change: TrackChange::Mute(_) | TrackChange::Solo(_),
+                    ..
+                }
+                | EntityUpdate::DrumPad {
+                    change: DrumPadChange::Mute(_),
+                    ..
+                },
+        } => true,
+        Op::Insert {
+            entity: Entity::Track(t),
+        } => t.mixer.mute || t.mixer.solo,
+        Op::Insert {
+            entity: Entity::DrumPad(d),
+        } => d.mute,
+        _ => false,
+    }
+}
+
+fn assert_no_mix_sent(taps: &[Tap]) {
+    for tap in taps {
+        let ops = tap.sent_ops();
+        assert!(!ops.iter().any(carries_mix), "mix on the wire: {ops:?}");
+    }
+}
+
+#[test]
+fn mute_is_per_site_both_ways() {
+    let hub = Hub::default();
+    let (mut sites, taps) = tapped_session(&hub, 2);
+    let t = add_track(&mut sites[0], TrackKind::Midi);
+    let [a, b] = sites.as_mut_slice() else {
+        unreachable!()
+    };
+    settle(&mut [a, b], &hub);
+    set_mute(a, t, true);
+    settle(&mut [a, b], &hub);
+    assert!(muted(a, t));
+    assert!(!muted(b, t), "A's mute is A's");
+    // The other way round, at the same time as A unmutes.
+    set_mute(b, t, true);
+    set_mute(a, t, false);
+    settle(&mut [a, b], &hub);
+    assert!(!muted(a, t));
+    assert!(muted(b, t), "B's mute is B's");
+    // Shared edits of the same track still flow and leave each mix alone.
+    set_volume(b, t, -6.0);
+    settle(&mut [a, b], &hub);
+    assert_eq!(volume(a, t), -6.0);
+    assert!(!muted(a, t) && muted(b, t));
+    assert_no_mix_sent(&taps);
+    assert_converged(&[a, b]);
+}
+
+#[test]
+fn solo_is_per_site_both_ways() {
+    let hub = Hub::default();
+    let (mut sites, taps) = tapped_session(&hub, 2);
+    let t = add_track(&mut sites[0], TrackKind::Midi);
+    let u = add_track(&mut sites[0], TrackKind::Audio);
+    let [a, b] = sites.as_mut_slice() else {
+        unreachable!()
+    };
+    settle(&mut [a, b], &hub);
+    set_solo(a, t, true, true);
+    set_solo(b, u, true, false);
+    settle(&mut [a, b], &hub);
+    assert!(soloed(a, t) && !soloed(a, u));
+    assert!(soloed(b, u) && !soloed(b, t));
+    // An exclusive solo only unsolos this site's other tracks.
+    set_solo(b, t, true, true);
+    settle(&mut [a, b], &hub);
+    assert!(soloed(a, t) && !soloed(a, u));
+    assert!(soloed(b, t) && !soloed(b, u));
+    set_solo(a, t, false, false);
+    settle(&mut [a, b], &hub);
+    assert!(!soloed(a, t) && soloed(b, t));
+    assert_no_mix_sent(&taps);
+    assert_converged(&[a, b]);
+}
+
+#[test]
+fn local_mix_undo_and_redo_never_leak() {
+    let hub = Hub::default();
+    let (mut sites, taps) = tapped_session(&hub, 2);
+    let t = add_track(&mut sites[0], TrackKind::Midi);
+    let [a, b] = sites.as_mut_slice() else {
+        unreachable!()
+    };
+    settle(&mut [a, b], &hub);
+    set_mute(b, t, true);
+    set_mute(a, t, true);
+    set_solo(a, t, true, false);
+    settle(&mut [a, b], &hub);
+    let sent = taps[0].sent().len();
+    undo(a);
+    assert!(muted(a, t) && !soloed(a, t));
+    undo(a);
+    assert!(!muted(a, t));
+    settle(&mut [a, b], &hub);
+    assert!(muted(b, t), "A's undo leaves B's mute alone");
+    redo(a);
+    assert!(muted(a, t));
+    settle(&mut [a, b], &hub);
+    assert!(muted(b, t) && !soloed(b, t));
+    assert_eq!(taps[0].sent().len(), sent, "local undo/redo sends nothing");
+    assert_eq!(a.ctl.collab_pending(), 0);
+    assert_no_mix_sent(&taps);
+    assert_converged(&[a, b]);
+}
+
+fn redo(s: &mut Site) -> Vec<ServerMessage> {
+    s.send(Command::Edit(EditCommand::Redo))
+}
+
+#[test]
+fn a_mixed_transaction_sends_only_its_shared_ops() {
+    let hub = Hub::default();
+    let (mut sites, taps) = tapped_session(&hub, 2);
+    let t = add_track(&mut sites[0], TrackKind::Midi);
+    let [a, b] = sites.as_mut_slice() else {
+        unreachable!()
+    };
+    settle(&mut [a, b], &hub);
+    // Rename + mute + solo in one step.
+    a.ok(Command::Edit(EditCommand::Batch {
+        label: "Rename and mute".into(),
+        commands: vec![
+            Command::Track(TrackCommand::Rename {
+                id: t,
+                name: "lead".into(),
+            }),
+            Command::Mixer(MixerCommand::SetMute {
+                track: t,
+                mute: true,
+            }),
+            Command::Mixer(MixerCommand::SetSolo {
+                track: t,
+                solo: true,
+                exclusive: false,
+            }),
+        ],
+    }));
+    let rename = Op::Update {
+        update: EntityUpdate::Track {
+            id: t,
+            change: TrackChange::Name("lead".into()),
+        },
+    };
+    assert_eq!(taps[0].sent().last().unwrap().transaction.ops, vec![rename]);
+    settle(&mut [a, b], &hub);
+    assert!(muted(a, t) && soloed(a, t));
+    assert_eq!(b.project().tracks[&t].name, "lead");
+    assert!(!muted(b, t) && !soloed(b, t));
+    // Its undo is mixed too: only the name goes back on the wire.
+    undo(a);
+    let last = taps[0].sent().last().unwrap().transaction.ops.clone();
+    assert_eq!(last.len(), 1, "{last:?}");
+    assert!(matches!(
+        &last[0],
+        Op::Update {
+            update: EntityUpdate::Track {
+                change: TrackChange::Name(_),
+                ..
+            }
+        }
+    ));
+    settle(&mut [a, b], &hub);
+    assert!(!muted(a, t) && !soloed(a, t));
+    assert_ne!(b.project().tracks[&t].name, "lead");
+    // A duplicate of a muted track: muted here, a plain new track for the others.
+    set_mute(a, t, true);
+    let dup: TrackId = a.id();
+    a.ok(Command::Track(TrackCommand::Duplicate {
+        id: t,
+        new_id: dup,
+    }));
+    settle(&mut [a, b], &hub);
+    assert!(muted(a, dup));
+    assert!(!muted(b, dup));
+    assert_no_mix_sent(&taps);
+    assert_converged(&[a, b]);
+}
+
+#[test]
+fn mix_ops_from_an_old_peer_are_ignored() {
+    let hub = Hub::default();
+    let (mut sites, taps) = tapped_session(&hub, 2);
+    let t = add_track(&mut sites[0], TrackKind::Midi);
+    let [a, b] = sites.as_mut_slice() else {
+        unreachable!()
+    };
+    settle(&mut [a, b], &hub);
+    set_mute(a, t, true);
+    // B acts as a peer from before mute/solo were per-site: its rename carries them.
+    let mix = |change| Op::Update {
+        update: EntityUpdate::Track { id: t, change },
+    };
+    taps[1].inject(vec![
+        mix(TrackChange::Mute(false)),
+        mix(TrackChange::Solo(true)),
+    ]);
+    b.ok(Command::Track(TrackCommand::Rename {
+        id: t,
+        name: "old peer".into(),
+    }));
+    settle(&mut [a, b], &hub);
+    assert_eq!(a.project().tracks[&t].name, "old peer");
+    assert!(muted(a, t), "a peer's unmute doesn't reach A's mix");
+    assert!(!soloed(a, t), "nor its solo");
+    assert!(!muted(b, t) && !soloed(b, t));
+    assert_converged(&[a, b]);
+}
+
+#[test]
+fn drum_pad_mute_is_per_site() {
+    let hub = Hub::default();
+    let mut sites = session(&hub, 2);
+    let [a, b] = sites.as_mut_slice() else {
+        unreachable!()
+    };
+    let t = add_track(a, TrackKind::Midi);
+    let rack: DeviceId = a.id();
+    a.ok(Command::Device(DeviceCommand::Insert {
+        id: rack,
+        track: t,
+        device: DeviceSpec::Builtin {
+            device: BuiltinDevice::DrumRack,
+        },
+        before: None,
+    }));
+    let pad: DrumPadId = a.id();
+    a.ok(Command::DrumRack(DrumRackCommand::AddPad {
+        id: pad,
+        rack,
+        note: 36,
+        name: None,
+    }));
+    a.ok(Command::DrumRack(DrumRackCommand::SetPadMute {
+        id: pad,
+        mute: true,
+    }));
+    settle(&mut [a, b], &hub);
+    assert!(a.project().drum_pads[&pad].mute);
+    assert!(!b.project().drum_pads[&pad].mute);
+    assert_converged(&[a, b]);
+}
+
+#[test]
+fn snapshots_carry_no_mix() {
+    // A small log: A's document (with A's mix) is compacted into a snapshot of A's.
+    let hub = Hub::new(ether_collab::relay::RelayConfig {
+        compact_after: 2,
+        ..Default::default()
+    });
+    let mut sites = session(&hub, 1);
+    let a = &mut sites[0];
+    let t = add_track(a, TrackKind::Midi);
+    set_mute(a, t, true);
+    set_solo(a, t, true, false);
+    for i in 0..6 {
+        a.ok(Command::Track(TrackCommand::Rename {
+            id: t,
+            name: format!("take {i}"),
+        }));
+        settle(&mut [a], &hub);
+    }
+    assert!(hub.with_relay(|r| r.log_len("jam")).0 > 0, "compacted");
+    let mut c = Site::on_hub(0xc0ffee, &hub);
+    c.join("ws://hub", "jam", "C", None);
+    settle(&mut [a, &mut c], &hub);
+    assert_eq!(c.project().tracks[&t].name, "take 5");
+    assert!(!muted(&c, t) && !soloed(&c, t));
+    assert!(muted(a, t) && soloed(a, t));
+    assert_converged(&[a, &c]);
+}
+
+#[test]
+fn snapshot_adoption_keeps_the_local_mix() {
+    let hub = Hub::default();
+    let mut sites = session(&hub, 2);
+    let [a, b] = sites.as_mut_slice() else {
+        unreachable!()
+    };
+    let t = add_track(a, TrackKind::Midi);
+    let u = add_track(a, TrackKind::Midi);
+    settle(&mut [a, b], &hub);
+    let pid = b.project().id;
+    set_mute(b, t, true);
+    set_solo(b, u, true, false);
+    set_mute(a, u, true);
+    b.ok(Command::Collab(CollabCommand::Leave));
+    // A keeps going: a new track A mutes, renames.
+    let n = add_track(a, TrackKind::Audio);
+    set_mute(a, n, true);
+    for i in 0..4 {
+        a.ok(Command::Track(TrackCommand::Rename {
+            id: t,
+            name: format!("take {i}"),
+        }));
+    }
+    settle(&mut [a], &hub);
+    b.join("ws://hub", "jam", "B", None);
+    settle(&mut [a, b], &hub);
+    assert!(b.online());
+    assert_eq!(b.project().tracks[&t].name, "take 3");
+    assert!(muted(b, t) && soloed(b, u), "B's mix survives the snapshot");
+    assert!(!muted(b, u) && !muted(b, n), "A's mutes never reach B");
+    assert!(muted(a, u) && muted(a, n) && !muted(a, t) && !soloed(a, u));
+    // The mix alone is no offline work: no "(local copy)".
+    let list = b.ctl.store.list().unwrap();
+    assert!(list.iter().all(|p| p.id == pid), "{list:?}");
+    assert_converged(&[a, b]);
+    // B saves (its own mix in its own file), leaves, opens something else, and joins back:
+    // the mix comes from its stored copy.
+    b.ok(Command::Project(ProjectCommand::Save));
+    let json = b.ctl.store.load(pid).unwrap();
+    let stored = file::load(&json).unwrap();
+    assert!(stored.tracks[&t].mixer.mute && stored.tracks[&u].mixer.solo);
+    b.ok(Command::Collab(CollabCommand::Leave));
+    b.create_project("Other");
+    a.ok(Command::Track(TrackCommand::Rename {
+        id: u,
+        name: "while away".into(),
+    }));
+    settle(&mut [a], &hub);
+    b.join("ws://hub", "jam", "B", None);
+    settle(&mut [a, b], &hub);
+    assert_eq!(b.project().id, pid);
+    assert_eq!(b.project().tracks[&u].name, "while away");
+    assert!(muted(b, t) && soloed(b, u) && !muted(b, n));
     assert_converged(&[a, b]);
 }
 
@@ -826,11 +1188,24 @@ fn random_edit(s: &mut Site, action: u8, r1: u64, r2: u64) {
             }),
             _ => return,
         },
+        // Shared volume, or a toggle of this site's own mute/solo (never replicated: the
+        // replicas are compared with the mix masked out).
         7 => match pick(&tracks, r1) {
-            Some(track) => Command::Mixer(MixerCommand::SetVolume {
-                track,
-                volume: Decibels(-((r2 % 24) as f32)),
-            }),
+            Some(track) => match (r1 >> 32) % 4 {
+                0 => Command::Mixer(MixerCommand::SetMute {
+                    track,
+                    mute: !p.tracks[&track].mixer.mute,
+                }),
+                1 => Command::Mixer(MixerCommand::SetSolo {
+                    track,
+                    solo: !p.tracks[&track].mixer.solo,
+                    exclusive: r2.is_multiple_of(2),
+                }),
+                _ => Command::Mixer(MixerCommand::SetVolume {
+                    track,
+                    volume: Decibels(-((r2 % 24) as f32)),
+                }),
+            },
             None => return,
         },
         8 => match pick(&clips, r1) {
@@ -966,6 +1341,15 @@ fn run_simulation(steps: &[Step]) {
     settle(&mut refs, &hub);
     let refs: Vec<&Site> = sites.iter().collect();
     assert_converged(&refs);
+    // Nobody's mix reached the relay: the replaying site has none.
+    let fresh = sites.last().unwrap().project();
+    assert!(
+        fresh
+            .tracks
+            .values()
+            .all(|t| !t.mixer.mute && !t.mixer.solo),
+        "a mute/solo replicated"
+    );
     let p = sites[0].project();
     let remote: usize = sites
         .iter()
