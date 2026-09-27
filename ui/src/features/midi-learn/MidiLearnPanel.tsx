@@ -1,10 +1,10 @@
 import clsx from "clsx";
-import { useEffect, useMemo, useState } from "react";
+import { useContext, useEffect, useMemo, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import type { MidiMapping, MidiMapTarget, Project } from "@/generated";
 import { Badge, Button, IconButton, NumberField, openContextMenu, Select, Toggle } from "@/kit";
 import { useProjectStore, useSelectionStore } from "@/state";
-import { cmd, useTransport, useTransportEvent, type EngineTransport } from "@/transport";
+import { cmd, TransportContext, type EngineTransport } from "@/transport";
 import { canLearn, WEB_NOTICE } from "./host";
 import { useMidiLearnStore } from "./store";
 import {
@@ -154,7 +154,19 @@ function extraTarget(v: ExtraTarget, track: string | null): MidiMapTarget | null
 
 /** MIDI learn: MIDI mode switch, learn status and the list of mappings. */
 export function MidiLearnPanel() {
-  const transport = useTransport();
+  // Tolerate a missing `<TransportProvider>` (bare App shell in tests).
+  const transport = useContext(TransportContext)?.transport ?? null;
+  if (!transport) {
+    return (
+      <div className="eth-midi" data-feature="midi-learn">
+        <p className="eth-midi__hint">No engine connected.</p>
+      </div>
+    );
+  }
+  return <ConnectedPanel transport={transport} />;
+}
+
+function ConnectedPanel({ transport }: { transport: EngineTransport }) {
   const project = useProjectStore((s) => s.project);
   const mappings = useProjectStore(useShallow((s) => sortedMappings(s.project)));
   const selectedTrack = useSelectionStore((s) => s.selectedTrack);
@@ -162,7 +174,7 @@ export function MidiLearnPanel() {
   const supported = canLearn(transport);
   const names = useParamNames(transport, mappings);
 
-  useTransportEvent(onEvent);
+  useEffect(() => transport.onEvent(onEvent), [transport, onEvent]);
   useMidiMode(transport, enabled && supported && !!project);
 
   // Connect the hardware ports (the host opens MIDI inputs when they are listed).
