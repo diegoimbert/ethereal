@@ -1,8 +1,8 @@
 import { useLayoutEffect, useRef } from "react";
 import type { Beats, ClipId, Color } from "@/generated";
+import { clipInk, colorCss } from "./helpers";
 import { useThemeColor } from "@/kit";
-import { fontSize, fontWeight, size, space } from "@/theme";
-import { colorCss } from "./helpers";
+import { fontSize, fontWeight, size, space, useTheme } from "@/theme";
 import { beatsCss } from "./laneGeometry";
 import type { LaneItem } from "./laneItems";
 
@@ -34,11 +34,11 @@ export interface SmallClipsLayerProps {
  */
 export function SmallClipsLayer({ items, origin, visible, pxPerBeat, trackColor, selected }: SmallClipsLayerProps) {
   const ref = useRef<HTMLCanvasElement>(null);
-  const from = visible.start;
-  const to = visible.end;
-  // Colors from the theme (re-rendered, so redrawn, when it changes).
+  const [theme] = useTheme();
   const bodyColor = useThemeColor("bgPanel");
   const textColor = useThemeColor("textInverse");
+  const from = visible.start;
+  const to = visible.end;
 
   useLayoutEffect(() => {
     const canvas = ref.current;
@@ -60,26 +60,30 @@ export function SmallClipsLayer({ items, origin, visible, pxPerBeat, trackColor,
     for (const it of items) {
       const end = it.bounds.start + it.bounds.length;
       if (end < from || it.bounds.start > to) continue;
-      const color = colorCss(it.clip.color ?? trackColor);
+      const color = clipInk(colorCss(it.clip.color ?? trackColor), theme);
       const x0 = (it.bounds.start - from) * pxPerBeat;
       const cw = Math.max(1, it.bounds.length * pxPerBeat);
       const sel = !it.ghost && selected.has(it.clip.id);
       const r = cw >= 2 * RADIUS ? RADIUS : 0;
       ctx.globalAlpha = (it.ghost ? 0.45 : it.dragging ? 0.85 : 1) * (it.clip.muted ? 0.55 : 1);
-      if (sel) {
+      if (sel && theme !== "light") {
+        // The same halo as selected clips/notes (a wide soft blur; the rim is drawn below).
+        // No glow in the light theme.
         ctx.shadowColor = color;
-        ctx.shadowBlur = 10;
+        ctx.shadowBlur = 14;
       }
       // Body: the clip color mixed into the panel, like `.eth-clip`.
       ctx.fillStyle = bodyColor;
       roundRect(ctx, x0, top, cw, height, r);
       ctx.fill();
       ctx.shadowBlur = 0;
-      ctx.globalAlpha *= 0.26;
+      const tint = sel ? 0.36 : 0.26;
+      ctx.globalAlpha *= tint;
       ctx.fillStyle = color;
       ctx.fill();
-      ctx.globalAlpha /= 0.26;
-      // Title band.
+      ctx.globalAlpha /= tint;
+      // Title band (brighter when selected).
+      if (sel) ctx.fillStyle = theme === "light" ? color : mixWhite(color, 0.3);
       ctx.save();
       roundRect(ctx, x0, top, cw, height, r);
       ctx.clip();
@@ -90,8 +94,8 @@ export function SmallClipsLayer({ items, origin, visible, pxPerBeat, trackColor,
       }
       ctx.restore();
       if (sel) {
-        ctx.strokeStyle = color;
-        ctx.lineWidth = 1.5;
+        ctx.strokeStyle = theme === "light" ? color : mixWhite(color, 0.7);
+        ctx.lineWidth = 1;
         roundRect(ctx, x0 + 0.75, top + 0.75, cw - 1.5, height - 1.5, r);
         ctx.stroke();
       }
@@ -108,6 +112,13 @@ export function SmallClipsLayer({ items, origin, visible, pxPerBeat, trackColor,
       style={{ left: beatsCss(from - origin), width: beatsCss(to - from) }}
     />
   );
+}
+
+/** `#rrggbb` mixed with white (`amount` of white, 0–1). */
+function mixWhite(hex: string, amount: number): string {
+  const n = parseInt(hex.slice(1), 16);
+  const c = (shift: number) => Math.round(((n >> shift) & 0xff) * (1 - amount) + 255 * amount);
+  return `rgb(${c(16)}, ${c(8)}, ${c(0)})`; // eth-allow-hardcoded: a computed color, not a literal
 }
 
 function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {

@@ -3,7 +3,8 @@ import { memo, useEffect, useLayoutEffect, useMemo, useReducer, useRef, type Ref
 import { Repeat } from "lucide-react";
 import { useShallow } from "zustand/react/shallow";
 import type { Beats, Clip, Color, MediaRef, WarpMarker } from "@/generated";
-import { colorCss } from "./helpers";
+import { clipInk, colorCss } from "./helpers";
+import { useTheme } from "@/theme";
 import { useEditorStore, useNotesOfClip, useProjectStore, warpMarkersOfClip } from "@/state";
 import { useIsSelected, type TempoMap, type TimelineViewport } from "@/timeline";
 import { openContextMenu, useThemeColor } from "@/kit";
@@ -46,7 +47,8 @@ export const ClipView = memo(function ClipView({ clip, bounds, trackColor, vp, v
   const width = widthCss(bounds.length, CLIP_MIN_PX);
   const from = Math.max(bounds.start, visible.start);
   const to = Math.min(bounds.start + bounds.length, visible.end);
-  const body: BodyProps = { clip, bounds, from, to, pxWidth: (to - from) * vp.pxPerBeat, ink: color };
+  const [theme] = useTheme();
+  const body: BodyProps = { clip, bounds, from, to, pxWidth: (to - from) * vp.pxPerBeat, ink: clipInk(color, theme) };
 
   return (
     <div

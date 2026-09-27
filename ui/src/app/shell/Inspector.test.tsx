@@ -7,7 +7,7 @@ import { useArrangementUi } from "@/features/arrangement/state";
 import { resetCollapsed } from "@/features/devices/collapsed";
 import { useEditorStore, useProjectStore } from "@/state";
 import { itemSelection } from "@/timeline";
-import type { MockTransport } from "@/transport";
+import { cmd, type MockTransport } from "@/transport";
 import { Inspector } from "./Inspector";
 import { useInspectorTarget, type InspectorTarget } from "./inspectorTarget";
 import { resetShell, useShellStore } from "./shellStore";
@@ -86,6 +86,21 @@ describe("Inspector: clip", () => {
     expect(rev.content.type === "Audio" && rev.content.reversed).toBe(true);
     expect(screen.getByRole("combobox", { name: "Warp mode" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Edit warp/ })).toBeInTheDocument();
+
+    // Dragging the gain field up: 1 dB (two 0.5 steps of 4 px), one undo step.
+    const field = screen.getByLabelText("Clip gain");
+    fireEvent.pointerDown(field, { button: 0, pointerId: 1, clientY: 100 });
+    fireEvent.pointerMove(field, { pointerId: 1, clientY: 96 });
+    fireEvent.pointerMove(field, { pointerId: 1, clientY: 92 });
+    fireEvent.pointerUp(field, { pointerId: 1, clientY: 92 });
+    await flush();
+    const dragged = store().project!.clips[clip.id]!;
+    expect(dragged.content.type === "Audio" && dragged.content.gain).toBe(-5);
+    await act(async () => {
+      await mock!.send(cmd("Edit", { type: "Undo" }));
+    });
+    const undone = store().project!.clips[clip.id]!;
+    expect(undone.content.type === "Audio" && undone.content.gain).toBe(-6);
   });
 
   it("several clips: a count and shared actions", async () => {

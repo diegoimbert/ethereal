@@ -1,7 +1,7 @@
 import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import type { AudioDeviceList, Command, Event, InputList, ReplyValue, Track } from "@/generated";
-import { Button, Select } from "@/kit";
+import { Button, Popover, Select } from "@/kit";
 import { tracksOrdered, useProjectStore } from "@/state";
 import { cmd, isCommandFailed, TransportContext, type EngineTransport } from "@/transport";
 import { COUNT_IN_CHOICES, countInLabel, inputOptions, inputValue, isRecordable, MONITOR_MODES } from "./inputs";
@@ -144,26 +144,35 @@ export function RecordingControls() {
       >
         PUNCH
       </Button>
-      <Button
-        size="sm"
-        aria-label="Inputs"
-        aria-expanded={open}
-        title="Inputs and monitoring"
-        active={open}
-        disabled={disabled}
-        onClick={() => setOpen((o) => !o)}
+      <Popover
+        open={open && !!transport}
+        onOpenChange={setOpen}
+        placement="bottom-end"
+        role="presentation"
+        className="eth-rec__popover"
+        trigger={(t) => (
+          <Button
+            {...t}
+            size="sm"
+            aria-label="Inputs"
+            title="Inputs and monitoring"
+            active={open}
+            disabled={disabled}
+          >
+            IN ▾
+          </Button>
+        )}
       >
-        IN ▾
-      </Button>
-      {open && transport && (
-        <InputsPanel
-          transport={transport}
-          inputs={support.state === "supported" ? support.inputs : null}
-          unsupported={unsupported}
-          send={send}
-          onDeviceChanged={() => setInputsVersion((v) => v + 1)}
-        />
-      )}
+        {transport && (
+          <InputsPanel
+            transport={transport}
+            inputs={support.state === "supported" ? support.inputs : null}
+            unsupported={unsupported}
+            send={send}
+            onDeviceChanged={() => setInputsVersion((v) => v + 1)}
+          />
+        )}
+      </Popover>
       {error && (
         <button type="button" className="eth-rec__error" role="alert" title="Dismiss" onClick={clearError}>
           {error}

@@ -174,6 +174,9 @@ function ManyClipsInspector({ clips }: { clips: ReadonlyArray<Clip> }) {
 
 function ClipInspector({ clip }: { clip: Clip }) {
   const send = useSend();
+  // Number fields: a drag is one undo step (the fields report its start and end).
+  const gesture = useGestureSender();
+  const drag = { onChangeStart: gesture.begin, onChangeEnd: gesture.end };
   const tempo = useTempoMap();
   const track = useProjectStore((s) => s.project?.tracks[clip.track]);
   const audio = clip.content.type === "Audio" ? clip.content : null;
@@ -237,6 +240,7 @@ function ClipInspector({ clip }: { clip: Clip }) {
         <Section title="Audio">
           <Row label="Gain">
             <NumberField
+              {...drag}
               size="sm"
               aria-label="Clip gain"
               value={audio.gain}
@@ -245,22 +249,24 @@ function ClipInspector({ clip }: { clip: Clip }) {
               step={0.5}
               precision={1}
               unit="dB"
-              onChange={(gain) => void send(cmd("Clip", { type: "SetGain", id: clip.id, gain }))}
+              onChange={(gain) => void gesture.send(cmd("Clip", { type: "SetGain", id: clip.id, gain }))}
             />
           </Row>
           <Row label="Transpose">
             <NumberField
+              {...drag}
               size="sm"
               aria-label="Clip transpose"
               value={audio.transpose}
               min={-48}
               max={48}
               unit="st"
-              onChange={(semitones) => void send(cmd("Clip", { type: "SetTranspose", id: clip.id, semitones }))}
+              onChange={(semitones) => void gesture.send(cmd("Clip", { type: "SetTranspose", id: clip.id, semitones }))}
             />
           </Row>
           <Row label="Fade in">
             <NumberField
+              {...drag}
               size="sm"
               aria-label="Fade in"
               value={audio.fade_in}
@@ -269,11 +275,12 @@ function ClipInspector({ clip }: { clip: Clip }) {
               step={0.25}
               precision={2}
               unit="beats"
-              onChange={(fade_in) => void send(cmd("Clip", { type: "SetFades", id: clip.id, fade_in, fade_out: audio.fade_out }))}
+              onChange={(fade_in) => void gesture.send(cmd("Clip", { type: "SetFades", id: clip.id, fade_in, fade_out: audio.fade_out }))}
             />
           </Row>
           <Row label="Fade out">
             <NumberField
+              {...drag}
               size="sm"
               aria-label="Fade out"
               value={audio.fade_out}
@@ -282,7 +289,7 @@ function ClipInspector({ clip }: { clip: Clip }) {
               step={0.25}
               precision={2}
               unit="beats"
-              onChange={(fade_out) => void send(cmd("Clip", { type: "SetFades", id: clip.id, fade_in: audio.fade_in, fade_out }))}
+              onChange={(fade_out) => void gesture.send(cmd("Clip", { type: "SetFades", id: clip.id, fade_in: audio.fade_in, fade_out }))}
             />
           </Row>
           <Row label="Reverse">

@@ -33,6 +33,8 @@ export interface BrowserPreview {
   previewing: string | null;
   /** Preview `entry`, or stop it if it is the one playing. */
   toggle(entry: DirectoryEntry, source: MediaSource): Promise<void>;
+  /** Preview `entry` (keeps it playing if it already is). */
+  play(entry: DirectoryEntry, source: MediaSource): Promise<void>;
 }
 
 export function useBrowserPreview(send: Send): BrowserPreview {
@@ -45,13 +47,9 @@ export function useBrowserPreview(send: Send): BrowserPreview {
     setCurrent((c) => (c && sameSource(c.source, ended) ? null : c));
   });
 
-  const toggle = useCallback(
+  const play = useCallback(
     async (entry: DirectoryEntry, source: MediaSource) => {
-      if (current?.path === entry.path) {
-        setCurrent(null);
-        await send(cmd("Media", { type: "StopPreview" }));
-        return;
-      }
+      if (current?.path === entry.path) return;
       // Current before the reply: the old preview's `Replaced` (sent before the reply) then
       // doesn't match it, and a `Failed` of this one does.
       const next = { path: entry.path, source };
@@ -62,5 +60,14 @@ export function useBrowserPreview(send: Send): BrowserPreview {
     [current, send],
   );
 
-  return { previewing: current?.path ?? null, toggle };
+  const toggle = useCallback(
+    async (entry: DirectoryEntry, source: MediaSource) => {
+      if (current?.path !== entry.path) return play(entry, source);
+      setCurrent(null);
+      await send(cmd("Media", { type: "StopPreview" }));
+    },
+    [current, play, send],
+  );
+
+  return { previewing: current?.path ?? null, toggle, play };
 }

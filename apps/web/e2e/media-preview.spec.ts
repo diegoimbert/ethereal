@@ -1,7 +1,7 @@
 // Browser sample preview on the web build, through the UI, against the real engine
 // (WasmTransport → controller Worker → AudioWorklet preview voice).
 //
-// library → Demo Samples → preview Kick.wav: the row shows "Stop preview", the sample plays
+// library → Demo Samples → preview Kick.wav: the row is pressed, the sample plays
 // to its natural end in the worklet and the row resets on PreviewEnded { Finished } →
 // preview a loop, replace it with the kick (the loop's row resets at once) → the kick ends →
 // preview the loop again and stop it.
@@ -10,8 +10,10 @@
 import { expect, test, type Page } from "@playwright/test";
 
 const files = (page: Page) => page.getByRole("list", { name: "Files" });
-const previewButton = (page: Page, name: string) => files(page).getByRole("button", { name: `Preview ${name}`, exact: true });
-const stopButton = (page: Page, name: string) => files(page).getByRole("button", { name: `Stop preview of ${name}`, exact: true });
+// Clicking a row toggles its preview; the previewing row is pressed.
+const row = (page: Page, name: string) => files(page).getByRole("button", { name, exact: true });
+const previewButton = (page: Page, name: string) => row(page, name).and(page.locator('[aria-pressed="false"]'));
+const stopButton = (page: Page, name: string) => row(page, name).and(page.locator('[aria-pressed="true"]'));
 
 test("media preview: play to the end, replace and stop from the browser", async ({ page }) => {
   test.setTimeout(120_000);
@@ -43,7 +45,7 @@ test("media preview: play to the end, replace and stop from the browser", async 
   await previewButton(page, "Chords Loop 120.wav").click();
   await stopButton(page, "Chords Loop 120.wav").click();
   await expect(previewButton(page, "Chords Loop 120.wav")).toBeVisible();
-  await expect(files(page).getByRole("button", { name: /^Stop preview/ })).toHaveCount(0);
+  await expect(files(page).locator('[aria-pressed="true"]')).toHaveCount(0);
   await expect(page.getByRole("alert")).toHaveCount(0);
   expect(errors).toEqual([]);
 });

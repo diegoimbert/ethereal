@@ -57,9 +57,9 @@
   --eth-ease-in: cubic-bezier(0.4, 0, 1, 1);
   --eth-opacity-disabled: 0.4;
   --eth-opacity-muted: 0.6;
-  --eth-z-popover: 100;
-  --eth-z-tooltip: 200;
-  --eth-z-dialog: 300;
+  --eth-z-dialog: 100;
+  --eth-z-popover: 200;
+  --eth-z-tooltip: 300;
   --eth-size-control-sm: 18px;
   --eth-size-control-md: 22px;
   --eth-size-control-lg: 28px;
@@ -125,7 +125,8 @@
   --eth-size-track-fader-width: 44px;
   --eth-size-track-fader-thumb: 8px;
   --eth-size-track-selected-glow: 10px;
-  --eth-size-clip-selected-glow: 12px;
+  --eth-size-selected-glow-inner: 6px;
+  --eth-size-selected-glow-outer: 14px;
   --eth-size-clip-title-height: 14px;
   --eth-size-clip-title-line-height: 12px;
   --eth-size-ruler-loop-height: 4px;
@@ -164,6 +165,8 @@
   --eth-size-device-param-room-narrow: 14px;
   --eth-size-device-group-min-width: 220px;
   --eth-size-device-group-min-width-wide: 200px;
+  --eth-size-audio-settings-dialog-width: 520px;
+  --eth-size-audio-settings-meter-name-width: 120px;
   --eth-meter-stop-mid: 70%;
   --eth-meter-stop-high: 85%;
   --eth-knob-geometry-start-angle: -135;
@@ -173,6 +176,8 @@
   --eth-knob-geometry-pointer-inset: 0;
   --eth-ink-dark: #14161b;
   --eth-ink-light: #ffffff;
+  --eth-mix-white: #ffffff;
+  --eth-mix-black: #000000;
   --eth-track-0: #e8919d;
   --eth-track-1: #e8a585;
   --eth-track-2: #e6c07e;
@@ -239,8 +244,6 @@
   --eth-shadow-md: 0 6px 18px rgba(5, 6, 9, 0.35), 0 0 0 1px rgba(255, 255, 255, 0.03);
   --eth-shadow-lg: 0 18px 48px rgba(5, 6, 9, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.04);
   --eth-shadow-inset: inset 0 1px 2px rgba(5, 6, 9, 0.45);
-  --eth-shadow-dropdown: 0 8px 24px rgb(0 0 0 / 0.4);
-  --eth-shadow-dropdown-sm: 0 4px 16px rgb(0 0 0 / 40%);
 }
 
 /* Theme: light. */
@@ -282,16 +285,14 @@
   --eth-color-clip-seam: rgba(0, 0, 0, 0.25);
   --eth-color-warp-wave: rgba(47, 124, 190, 0.85);
   --eth-color-warp-wave-dim: rgba(47, 124, 190, 0.3);
-  --eth-color-piano-white-key: #fbfbfc;
-  --eth-color-piano-white-key-border: #c4c9d3;
-  --eth-color-piano-black-key: #2a2d35;
-  --eth-color-piano-key-label: #666c7b;
+  --eth-color-piano-white-key: #fdfdfe;
+  --eth-color-piano-white-key-border: #c3c8d3;
+  --eth-color-piano-black-key: #222;
+  --eth-color-piano-key-label: #333;
   --eth-shadow-sm: 0 1px 2px rgba(22, 25, 37, 0.08);
   --eth-shadow-md: 0 6px 18px rgba(22, 25, 37, 0.1), 0 0 0 1px rgba(22, 25, 37, 0.04);
   --eth-shadow-lg: 0 18px 48px rgba(22, 25, 37, 0.16), 0 0 0 1px rgba(22, 25, 37, 0.05);
   --eth-shadow-inset: inset 0 1px 2px rgba(22, 25, 37, 0.08);
-  --eth-shadow-dropdown: 0 8px 24px rgba(22, 25, 37, 0.14);
-  --eth-shadow-dropdown-sm: 0 4px 16px rgba(22, 25, 37, 0.14);
 }
 
 /* Component tokens (re-declared on themed subtrees so they follow the theme). */
@@ -307,9 +308,9 @@
   --button-padding-x-lg: var(--eth-space-lg);
   --button-font-size-lg: var(--eth-fs-md);
   --button-radius: var(--eth-radius-sm);
-  --button-border: var(--eth-color-border);
-  --button-bg: var(--eth-color-bg-raised);
-  --button-bg-hover: var(--eth-color-bg-hover);
+  --button-border: transparent;
+  --button-bg: color-mix(in srgb, var(--eth-color-text) 10%, transparent);
+  --button-bg-hover: color-mix(in srgb, var(--eth-color-text) 16%, transparent);
   --button-fg: var(--eth-color-text);
   --button-accent-bg: var(--eth-color-accent);
   --button-accent-bg-hover: var(--eth-color-accent-hover);

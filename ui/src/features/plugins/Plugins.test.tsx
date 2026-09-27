@@ -202,6 +202,9 @@ describe("PluginBrowser", () => {
     await screen.findByText("Air EQ");
     expect(screen.getByText("1 plugin failed to load")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Rescan" })).toBeEnabled();
+    // A scan-level failure (no path) shows its reason.
+    t.emit({ type: "ScanFinished", plugins: 0, failed: [{ path: "", message: "plugin scanner binary not found" }] });
+    expect(await screen.findByText("Plugin scan failed: plugin scanner binary not found")).toBeInTheDocument();
   });
 });
 

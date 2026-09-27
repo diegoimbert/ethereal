@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Command, Note } from "@/generated";
-import { useEditorStore, useProjectStore } from "@/state";
+import { playheadStore, useEditorStore, useProjectStore } from "@/state";
 import { itemSelection, wheelZoomFactor } from "@/timeline";
 import { cmd, MockTransport, TransportProvider } from "@/transport";
 import { DEFAULT_KEY_HEIGHT as KEY_H, MAX_KEY_HEIGHT } from "./geometry";
@@ -246,6 +246,13 @@ describe("PianoRoll", () => {
     expect(itemSelection.getState().selected.note.size).toBe(2);
     await drag(grid(), [x(6), y(40)], [x(6), y(40)]);
     expect(itemSelection.getState().selected.note.size).toBe(0);
+  });
+
+  it("a click on empty space moves the playhead there (song time, snapped)", async () => {
+    await setup();
+    // The clip starts at song beat 64; a click at content beat 4.2 snaps to 4 (1/4 grid).
+    await drag(grid(), [x(4.2), y(70)], [x(4.2), y(70)]);
+    await waitFor(() => expect(playheadStore.getPlayhead()?.transport.position).toBe(68));
   });
 
   it("marquee-selects notes", async () => {

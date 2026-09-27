@@ -60,7 +60,7 @@ export const darkColors = {
   /** Waveform in the warp editor: the played range, and the rest of the file. */
   warpWave: "rgba(120, 200, 255, 0.85)",
   warpWaveDim: "rgba(120, 200, 255, 0.3)",
-  /** Piano roll keyboard. */
+  /** Piano roll keyboard (black keys stay dark in every theme). */
   pianoWhiteKey: "#d8d8d8",
   pianoWhiteKeyBorder: "#aaa",
   pianoBlackKey: "#222",
@@ -107,10 +107,10 @@ export const lightColors: ColorTokens = {
   clipSeam: "rgba(0, 0, 0, 0.25)",
   warpWave: "rgba(47, 124, 190, 0.85)",
   warpWaveDim: "rgba(47, 124, 190, 0.3)",
-  pianoWhiteKey: "#fbfbfc",
-  pianoWhiteKeyBorder: "#c4c9d3",
-  pianoBlackKey: "#2a2d35",
-  pianoKeyLabel: "#666c7b",
+  pianoWhiteKey: "#fdfdfe",
+  pianoWhiteKeyBorder: "#c3c8d3",
+  pianoBlackKey: "#222",
+  pianoKeyLabel: "#333",
 };
 
 export const darkShadows = {
@@ -118,9 +118,6 @@ export const darkShadows = {
   md: "0 6px 18px rgba(5, 6, 9, 0.35), 0 0 0 1px rgba(255, 255, 255, 0.03)",
   lg: "0 18px 48px rgba(5, 6, 9, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.04)",
   inset: "inset 0 1px 2px rgba(5, 6, 9, 0.45)",
-  /** Hand-made dropdown panels (project manager, recording settings). */
-  dropdown: "0 8px 24px rgb(0 0 0 / 0.4)",
-  dropdownSm: "0 4px 16px rgb(0 0 0 / 40%)",
 } as const;
 
 export type ShadowTokens = Record<keyof typeof darkShadows, string>;
@@ -130,8 +127,6 @@ export const lightShadows: ShadowTokens = {
   md: "0 6px 18px rgba(22, 25, 37, 0.1), 0 0 0 1px rgba(22, 25, 37, 0.04)",
   lg: "0 18px 48px rgba(22, 25, 37, 0.16), 0 0 0 1px rgba(22, 25, 37, 0.05)",
   inset: "inset 0 1px 2px rgba(22, 25, 37, 0.08)",
-  dropdown: "0 8px 24px rgba(22, 25, 37, 0.14)",
-  dropdownSm: "0 4px 16px rgba(22, 25, 37, 0.14)",
 };
 
 export interface ThemeTokens {
@@ -252,10 +247,14 @@ export const opacity = {
   muted: "0.6",
 } as const;
 
+/**
+ * Stacking of floating layers: dialogs below popovers (so a Select or Popover opened from a
+ * dialog shows above it), tooltips on top.
+ */
 export const zIndex = {
-  popover: "100",
-  tooltip: "200",
-  dialog: "300",
+  dialog: "100",
+  popover: "200",
+  tooltip: "300",
 } as const;
 
 /** Component and layout dimensions (`--eth-size-*`). */
@@ -335,9 +334,11 @@ export const size = {
   trackMeterWidth: "3px",
   trackFaderWidth: "44px",
   trackFaderThumb: "8px",
-  /** Blur of the glow around a selected track header / clip. */
+  /** Blur of the glow around a selected track header. */
   trackSelectedGlow: "10px",
-  clipSelectedGlow: "12px",
+  /** Two-layer halo around selected clips and notes (inner and outer blur). */
+  selectedGlowInner: "6px",
+  selectedGlowOuter: "14px",
   clipTitleHeight: "14px",
   clipTitleLineHeight: "12px",
   // Timeline ruler.
@@ -385,6 +386,9 @@ export const size = {
   deviceParamRoomNarrow: "14px",
   deviceGroupMinWidth: "220px",
   deviceGroupMinWidthWide: "200px",
+  // Audio settings dialog.
+  audioSettingsDialogWidth: "520px",
+  audioSettingsMeterNameWidth: "120px",
 } as const;
 
 /** Meter gradient stop positions (`--eth-meter-*`); colors are `meterLow/Mid/High`. */
@@ -417,6 +421,12 @@ export const knobGeometry = {
 export const ink = {
   dark: "#14161b",
   light: "#ffffff",
+} as const;
+
+/** Pure white/black to tint or shade a color with `color-mix()` (`--eth-mix-<key>`). */
+export const mix = {
+  white: "#ffffff",
+  black: "#000000",
 } as const;
 
 /** Track/clip color palette: soft, luminous hues (`--eth-track-<i>`). Index with `trackColor(i)`. */
@@ -459,9 +469,11 @@ export const componentTokens = {
     "--button-padding-x-lg": v("space-lg"),
     "--button-font-size-lg": v("fs-md"),
     "--button-radius": v("radius-sm"),
-    "--button-border": v("color-border"),
-    "--button-bg": v("color-bg-raised"),
-    "--button-bg-hover": v("color-bg-hover"),
+    // Flat: no border, a light grey fill (the text color at low opacity, so it works in
+    // both themes).
+    "--button-border": "transparent",
+    "--button-bg": "color-mix(in srgb, var(--eth-color-text) 10%, transparent)",
+    "--button-bg-hover": "color-mix(in srgb, var(--eth-color-text) 16%, transparent)",
     "--button-fg": v("color-text"),
     "--button-accent-bg": v("color-accent"),
     "--button-accent-bg-hover": v("color-accent-hover"),
@@ -635,6 +647,7 @@ export const sharedGroups: Record<string, Record<string, string>> = {
   meter,
   "knob-geometry": knobGeometry,
   ink,
+  mix,
 };
 
 function kebab(s: string): string {

@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { pickOption } from "@/kit/testing";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { TempoPoint, TimeSignaturePoint } from "@/generated";
 import { useContextMenuStore, type ContextMenuItem } from "@/kit";
@@ -175,7 +176,7 @@ describe("TempoEditor", () => {
     fireEvent.change(num, { target: { value: "7" } });
     fireEvent.keyDown(num, { key: "Enter" });
     await waitFor(() => expect(project().time_signatures[added.id]!.signature.numerator).toBe(7));
-    fireEvent.change(screen.getByRole("combobox", { name: "Beat unit" }), { target: { value: "8" } });
+    pickOption(screen.getByRole("combobox", { name: "Beat unit" }), { value: "8" });
     await waitFor(() => expect(project().time_signatures[added.id]!.signature).toEqual({ numerator: 7, denominator: 8 }));
 
     // Drag it one bar left (bars of the 4/4 before it).
@@ -261,7 +262,7 @@ describe("MetronomeSettings", () => {
     fireEvent.click(screen.getByRole("switch", { name: "Accent downbeat" }));
     await waitFor(() => expect(project().settings.metronome_accent).toBe(false));
 
-    fireEvent.change(screen.getByRole("combobox", { name: "Metronome sound" }), { target: { value: "Beep" } });
+    pickOption(screen.getByRole("combobox", { name: "Metronome sound" }), { value: "Beep" });
     await waitFor(() => expect(project().settings.metronome_sound).toBe("Beep"));
 
     // Each change is its own undo step.

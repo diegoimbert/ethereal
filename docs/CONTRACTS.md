@@ -522,7 +522,8 @@ raw pointers on the engine side, sound only because the executor runs every inde
 once and returns after all jobs finished (see `parallel.rs`). The snapshot is
 partitioned into DAG levels (routing, sends, resampling inputs, sidechains). Tracks of one
 level run as independent jobs (clips → automation → chain → fader → meters, into their own
-buffers). Bus mixing happens after each level on the audio thread in a fixed order, so the
+buffers). Bus mixing gathers each destination's inputs (at the start of that destination's
+job) in the same fixed order as sequential processing, independent of worker count, so the
 output is bit-identical to sequential processing. Each node belongs to one chain, so jobs
 need no locks.
 

@@ -52,20 +52,13 @@
   color: var(--eth-color-text);
   font-size: var(--eth-fs-sm);
 }
+/* Inside a kit Popover (portal, animated); the popover supplies the card. */
 .eth-rec__panel {
-  position: absolute;
-  top: calc(100% + var(--eth-space-sm));
-  right: 0;
-  z-index: 20;
   display: flex;
   flex-direction: column;
   gap: var(--eth-space-md);
   min-width: var(--eth-size-record-panel-min-width);
-  padding: var(--eth-space-md);
-  border: var(--eth-border-width) solid var(--eth-color-border-light);
-  border-radius: var(--eth-radius-md);
-  background: var(--eth-color-bg-raised);
-  box-shadow: var(--eth-shadow-dropdown-sm);
+  padding: var(--eth-space-sm);
 }
 .eth-rec__tracks {
   border-collapse: collapse;

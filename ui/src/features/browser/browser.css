@@ -115,15 +115,10 @@
 .eth-browser__row:focus-visible {
   box-shadow: inset 0 0 0 var(--eth-border-width) var(--eth-color-focus);
 }
-/* Row actions (preview, import) show on hover. */
-.eth-browser__row .eth-browser__actions .eth-button {
-  opacity: 0;
-  transition: opacity var(--eth-duration-fast) var(--eth-ease-out);
-}
-.eth-browser__row:hover .eth-browser__actions .eth-button,
-.eth-browser__row:focus-within .eth-browser__actions .eth-button,
-.eth-browser__actions .eth-button[aria-pressed="true"] {
-  opacity: 1;
+/* The row being previewed: accent icon and name. */
+.eth-browser__row--previewing .eth-browser__icon,
+.eth-browser__row--previewing .eth-browser__name {
+  color: var(--eth-color-accent);
 }
 .eth-browser__row--midi,
 .eth-browser__row--other {
@@ -147,11 +142,6 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-.eth-browser__actions {
-  display: flex;
-  align-items: center;
-  gap: var(--eth-space-xs);
 }
 .eth-browser__size {
   color: var(--eth-color-text-dim);
@@ -180,7 +170,7 @@
   font-size: var(--eth-fs-xs);
   color: var(--eth-color-text-disabled);
 }
-.eth-browser__status,
+
 .eth-browser__error {
   padding: var(--eth-space-xs) var(--eth-space-sm);
   border: none;

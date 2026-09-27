@@ -92,17 +92,19 @@
   z-index: 3;
 }
 
+/* Grid lines are a faint tint of the text color: darker than the background in light
+   mode, lighter in dark mode. */
 .eth-arr__gridline {
   position: absolute;
   top: 0;
   bottom: 0;
   left: 0;
   width: var(--eth-border-width);
-  background: var(--eth-color-bg-raised);
+  background: color-mix(in srgb, var(--eth-color-text) 7%, transparent);
 }
 
 .eth-arr__gridline--bar {
-  background: var(--eth-color-border-light);
+  background: color-mix(in srgb, var(--eth-color-text) 16%, transparent);
 }
 
 .eth-arr__gridline--sub {
@@ -224,7 +226,8 @@
   position: relative;
   z-index: 5;
   box-sizing: border-box;
-  padding-right: calc(var(--eth-space-sm) + var(--eth-space-sm));
+  /* The card's right inset (12px, a gap before the lanes) plus room inside it. */
+  padding-right: calc(var(--eth-space-lg) + var(--eth-space-md));
   /* The header is a floating card: drawn by ::before, inset from the row (the header box
      itself keeps the column width that clip positions rely on). */
   background: transparent;
@@ -238,7 +241,7 @@
   content: "";
   position: absolute;
   /* Nested tracks' cards step in with their group depth. */
-  inset: var(--eth-size-track-card-inset-y) var(--eth-space-sm) var(--eth-size-track-card-inset-y)
+  inset: var(--eth-size-track-card-inset-y) var(--eth-space-lg) var(--eth-size-track-card-inset-y)
     calc(var(--eth-size-track-card-inset-left) + var(--eth-track-depth, 0) * var(--eth-size-track-indent));
   z-index: -1;
   border-radius: var(--eth-radius-lg);
@@ -261,6 +264,8 @@
   justify-content: center;
   width: var(--eth-size-track-badge);
   height: var(--eth-size-track-badge);
+  /* A bit more room before the track name than the header's gap. */
+  margin-right: var(--eth-space-sm);
   border-radius: var(--eth-radius-round);
   background: var(--eth-track-color);
   /* Icon color: set inline from the track color's contrast (inkOn). */
@@ -573,7 +578,12 @@
   overflow: hidden;
   border-radius: var(--eth-radius-md);
   /* A soft tint of the clip color; the waveform/notes sit on it. */
-  background: color-mix(in srgb, var(--eth-clip-color) 26%, var(--eth-color-bg-panel));
+  /* Theme-aware shades of the clip color: in light mode the pastel palette is darkened so
+     clips stand out on the light background (see the [data-theme="light"] rule below). */
+  --clip-strong: var(--eth-clip-color);
+  --clip-rim: color-mix(in srgb, var(--eth-clip-color) 30%, var(--eth-mix-white));
+  --clip-lift: var(--eth-mix-white);
+  background: color-mix(in srgb, var(--clip-strong) 26%, var(--eth-color-bg-panel));
   border: none;
   /* Only the title bar and the edge handles take the pointer: a press on the body goes
      through to the lane, like on empty space (locate, marquee). */
@@ -586,11 +596,30 @@
 }
 
 /* Selected: a ring and glow in the clip's own color. */
+/* Selected clips glow like selected notes: a light rim, a brighter title band and body,
+   and a two-layer halo in the clip's own color. */
 .eth-clip--selected {
+  z-index: 2;
+  background: color-mix(in srgb, var(--clip-strong) 36%, var(--eth-color-bg));
   box-shadow:
-    inset 0 0 0 var(--eth-border-width) var(--eth-clip-color),
-    0 0 0 var(--eth-border-width-strong) color-mix(in srgb, var(--eth-clip-color) 45%, transparent),
-    0 0 var(--eth-size-clip-selected-glow) color-mix(in srgb, var(--eth-clip-color) 55%, transparent);
+    0 0 var(--eth-size-selected-glow-inner) color-mix(in srgb, var(--clip-strong) 85%, transparent),
+    0 0 var(--eth-size-selected-glow-outer) color-mix(in srgb, var(--clip-strong) 45%, transparent);
+}
+
+/* The light rim sits above the clip's content (the notes/waveform canvas would cover an
+   inset shadow on the clip itself). */
+.eth-clip--selected::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 var(--eth-border-width) var(--clip-rim);
+  pointer-events: none;
+}
+
+.eth-clip--selected .eth-clip__title {
+  background: color-mix(in srgb, var(--clip-strong) 70%, var(--clip-lift));
 }
 
 .eth-clip--muted {
@@ -621,14 +650,14 @@
   font-size: var(--eth-fs-xs);
   line-height: var(--eth-size-clip-title-line-height);
   color: var(--eth-color-text-inverse);
-  background: var(--eth-clip-color);
+  background: var(--clip-strong);
   pointer-events: auto;
   cursor: grab;
   transition: background-color var(--eth-duration-fast) var(--eth-ease-out);
 }
 
 .eth-clip__title:hover {
-  background: color-mix(in srgb, var(--eth-clip-color) 85%, var(--eth-ink-light));
+  background: color-mix(in srgb, var(--clip-strong) 85%, var(--clip-lift));
 }
 
 .eth-clip__name {
@@ -643,7 +672,9 @@
 .eth-clip__loop {
   display: inline-flex;
   flex: none;
-  color: var(--eth-color-text-dim);
+  /* Same ink as the title text on the colored band. */
+  color: inherit;
+  opacity: 0.85;
 }
 
 .eth-clip__body {
@@ -723,4 +754,16 @@
 
 .eth-arr-toolbar__new {
   cursor: grab;
+}
+
+/* Light theme: darker clip shades for contrast on the light background. */
+[data-theme="light"] .eth-clip {
+  --clip-strong: color-mix(in srgb, var(--eth-clip-color) 70%, var(--eth-mix-black));
+  --clip-rim: var(--clip-strong);
+  --clip-lift: var(--eth-mix-black);
+}
+
+/* No glow in the light theme: the rim and the darker band mark the selection. */
+[data-theme="light"] .eth-clip--selected {
+  box-shadow: none;
 }

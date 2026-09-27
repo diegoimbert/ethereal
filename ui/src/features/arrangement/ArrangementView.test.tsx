@@ -387,10 +387,10 @@ describe("ArrangementView: clip editing", () => {
     expect(project().clips[dup!.id]).toBeUndefined();
   });
 
-  it("toggles looping from the toolbar", async () => {
+  it("toggles looping with cmd+shift+L", async () => {
     const chords = clipByName("Chords");
     act(() => itemSelection.getState().select("clip", [chords.id]));
-    fireEvent.click(screen.getByRole("button", { name: "Loop" }));
+    fireEvent.keyDown(document.querySelector('[data-feature="arrangement"]')!, { key: "l", metaKey: true, shiftKey: true });
     await flush();
     expect(project().clips[chords.id]!.looping).toEqual({ enabled: true, start: 0, end: 16 });
     expect(clipEl(chords).querySelector(".eth-clip__loop")).toBeTruthy();
@@ -419,6 +419,16 @@ describe("ArrangementView: clip editing", () => {
     const bass = clipByName("Bassline");
     await drag(clipEl(bass), 0, 0, { x: 10, y: ROW + 5 });
     await waitFor(() => expect(playheadStore.getPlayhead()?.transport.position).toBe(startOf(bass)));
+  });
+
+  it("a click on a clip's body selects it and moves the playhead to the click (not the clip start)", async () => {
+    const bass = clipByName("Bassline");
+    const content = screen.getByTestId("arrangement-content");
+    // Bassline is on row 1; its body is below the title bar. Click 2 beats into it.
+    const x = HEADER_WIDTH + (bass.start + 2) * PX;
+    await drag(content, 0, 0, { x, y: ROW + 30 });
+    expect([...itemSelection.getState().selected.clip]).toEqual([bass.id]);
+    await waitFor(() => expect(playheadStore.getPlayhead()?.transport.position).toBe(bass.start + 2));
   });
 
   it("a click on empty space moves the playhead there (snapped), but not while playing", async () => {

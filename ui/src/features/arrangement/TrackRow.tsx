@@ -15,6 +15,7 @@ import {
   VolumeX,
 } from "lucide-react";
 import type { Beats, Clip, ClipId, Color, Track, TrackId } from "@/generated";
+import { promptForInputIfNone } from "@/features/audio-settings";
 import { AutomationToggleButton, TrackAutomationLanes } from "@/features/automation";
 import { MOD_KEY, meterPosition, openContextMenu, setDragCursor } from "@/kit";
 import { useEditorStore, useProjectStore, useTrackMeter } from "@/state";
@@ -219,6 +220,10 @@ function TrackHeader({ row }: { row: Row }) {
                 .send(
                   cmd("Recording", { type: "Arm", track: track.id, armed: !armed, exclusive: !(e.ctrlKey || e.metaKey) }),
                 )
+                // Arming an audio track with no input device open: offer to choose one.
+                .then(() => {
+                  if (!armed && track.kind === "Audio") void promptForInputIfNone(transport);
+                })
                 .catch((err: unknown) => console.warn("arm failed", err))
             }
           >

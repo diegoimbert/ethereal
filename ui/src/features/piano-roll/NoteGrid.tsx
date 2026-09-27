@@ -27,7 +27,7 @@ import {
   type TimelineViewStore,
 } from "@/timeline";
 import { cmd, newId, useTransport } from "@/transport";
-import { contentEnd, songToContent } from "./clipTime";
+import { contentEnd, contentToSong, songToContent } from "./clipTime";
 import { startDrag, useSend } from "./drag";
 import { isBlackKey, noteHitZone, noteRect, pitchToY, PITCHES, yToPitch } from "./geometry";
 import { moveEdits, newNote, noteEdit, resizeEdits } from "./noteEdits";
@@ -70,6 +70,13 @@ export function NoteGrid({ clip, notes, view, vp, widthPx, keyH, tempo, step, ne
   const marquee = useMarquee({
     kind: "note",
     hitTest: (rect) => marqueeHits(rect, notes.map((n) => ({ id: n.id, rect: noteRect(n, vp, keyH) }))),
+    // A click on empty space (no drag) also moves the playhead there, snapped to the grid
+    // (alt: free), while stopped, like in the arrangement.
+    onClick: (p, ev) => {
+      if (useProjectStore.getState().transport?.playing) return;
+      const content = Math.max(0, snapToGrid(pxToBeats(p.x, vp), ev.altKey ? null : step, tempo, "nearest"));
+      transport.send(cmd("Transport", { type: "Locate", position: contentToSong(clip, content) })).catch(() => {});
+    },
   });
 
   const local = (e: { clientX: number; clientY: number }) => {

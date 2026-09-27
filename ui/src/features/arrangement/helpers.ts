@@ -75,3 +75,14 @@ export function groupSummaryKey(
     .map(([s, l]) => `${s},${l}`)
     .join(";");
 }
+
+/**
+ * The clip color as drawn on canvases (notes, waveform, painted small clips): as is in the
+ * dark theme, darkened in the light theme (matches `--clip-strong` in arrangement.css).
+ */
+export function clipInk(hex: string, theme: "dark" | "light"): string {
+  if (theme !== "light") return hex;
+  const n = parseInt(hex.slice(1), 16);
+  const c = (shift: number) => Math.round(((n >> shift) & 0xff) * 0.7);
+  return `#${[c(16), c(8), c(0)].map((v) => v.toString(16).padStart(2, "0")).join("")}`;
+}
