@@ -37,7 +37,22 @@ export interface WasmEndpoint {
   onMessages(listener: (batchJson: string) => void): Unsubscribe;
   /** The engine died (worker/worklet error). Pending commands are rejected. */
   onFatal(listener: (error: Error) => void): Unsubscribe;
+  /**
+   * The engine's stream tap for the web sender ("listen on <peer>", docs/COLLAB.md §9.1),
+   * or `null` before `start()` resolved. Optional: endpoints without one cannot host.
+   */
+  streamOutput?(): StreamOutput | null;
   dispose(): void;
+}
+
+/** The engine's stream tap (worklet output 1: master + metronome, minus the preview voice). */
+export interface StreamOutput {
+  /** The tap as a stereo track. */
+  stream: MediaStream;
+  /** The engine's context (sample rate, `getOutputTimestamp`, latencies). */
+  context: AudioContext;
+  /** Transport state of the tap (`ui/src/features/collab/host/tapClock.ts`). */
+  tapClock: SharedArrayBuffer;
 }
 
 export interface WasmTransportOptions {
@@ -125,6 +140,15 @@ export class WasmTransport implements EngineTransport {
 
   subscribeMeters(listener: (frame: MeterFrame) => void): Unsubscribe {
     return this.meters.on(listener);
+  }
+
+  /**
+   * The engine's stream tap for the web sender (docs/COLLAB.md §9.1), or `null` when the
+   * endpoint has none, the engine has not started, or the transport is disposed.
+   */
+  streamOutput(): StreamOutput | null {
+    if (this.disposed || this.fatal) return null;
+    return this.endpoint?.streamOutput?.() ?? null;
   }
 
   dispose(): void {
