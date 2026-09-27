@@ -694,6 +694,8 @@ paths = [
   "ui/src/features/collab/PresenceBar.tsx",
   "ui/src/features/collab/index.tsx",
   "ui/src/transport/mock/roadmap/collab.*",
+  # shared touch (base-60): one test-all line running ether-collab --features turn
+  "justfile",
 ]
 
 [nodes.stream-listen]
@@ -732,6 +734,14 @@ paths = [
   "crates/ether-native/src/bridge.rs",
   "crates/ether-native/src/plugins.rs",
   "crates/ether-native/src/host.rs",
+]
+
+[nodes.collab-local-mix]
+# Follow-up to collab: mute/solo are site-local in a session (owner request).
+paths = [
+  "crates/ether-controller/src/collab/**",
+  "crates/ether-controller/tests/collab*.rs",
+  "docs/COLLAB.md",
 ]
 
 # --- v0.2 (contracts-3; docs/ROADMAP.md "v0.2", CONTRACTS.md §12) -------------------------
