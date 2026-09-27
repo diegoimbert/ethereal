@@ -62,7 +62,10 @@ fn recording_hook_never_allocates() {
     run(&mut p.engine, 2);
 
     // Live MIDI (due now, late, and in the future) while recording.
-    for (i, data) in [[0x90, 60, 100], [0x80, 60, 0], [0xb0, 1, 64]].into_iter().enumerate() {
+    for (i, data) in [[0x90, 60, 100], [0x80, 60, 0], [0xb0, 1, 64]]
+        .into_iter()
+        .enumerate()
+    {
         io.midi_in
             .push(LiveMidi {
                 sample_time: (i as u64) * 300,
