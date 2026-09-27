@@ -200,7 +200,10 @@ pub struct ArrangerPointer {
     /// The track row under the pointer (including its expanded lanes); `None` = over the
     /// ruler/header area or below the last track.
     pub track: Option<TrackId>,
-    /// Vertical position within that row, 0 (top) ..= 1 (bottom); 0 when `track` is `None`.
+    /// Vertical position within that row, 0 (top) ..= 1 (bottom). With `track: None`: 0
+    /// over the ruler/header area; > 0 below the last track, as the fraction of the free
+    /// space there (from the last track down to the bottom of the view), which each user
+    /// maps onto their own free space.
     pub y: f32,
 }
 
