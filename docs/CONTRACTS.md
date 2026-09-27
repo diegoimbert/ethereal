@@ -479,7 +479,7 @@ every descriptor.
 ### 11.5 Remote engine (WebSocket)
 `ether_protocol::remote`: the first text frame is `ClientHello { protocol_version, token,
 client }`, answered by `ServerHello::Welcome { server: ServerInfo, session }` or
-`Rejected { reason, message }` (then close 4001/4002). After that, text frames are
+`Rejected { reason, message }` (then close 4001 auth / 4002 version / 4003 busy; an idle client is later closed with 4004). After that, text frames are
 `ClientMessage`/`ServerMessage` JSON, and binary frames
 `[kind u8][header_len u32 LE][header JSON][payload]` carry bulk bytes (`Bytes`: the
 message's base64 `data` field travels raw; `Peaks`: f32 min/max arrays). The JSON forms stay
