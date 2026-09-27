@@ -172,6 +172,8 @@ pub(crate) struct CollabState {
     left_sites: Option<(ProjectId, BTreeMap<SiteId, u64>)>,
     /// ICE servers from the settings (`CollabCommand::SetIceServers`), over the relay's.
     ice_override: Option<Vec<IceServer>>,
+    /// Plugin GUI mirrors while listening (`plugin-mirror`; outlives a session).
+    mirror: mirror::MirrorState,
 }
 
 impl<B, H, S, L> EtherController<B, H, S, L>
@@ -528,6 +530,7 @@ where
 
     /// Controller tick: link upkeep, incoming messages, presence, owed snapshots.
     pub(crate) fn collab_tick(&mut self, now: u64, out: &mut dyn MessageSink) {
+        self.collab_mirror_tick();
         if self.collab.session.is_none() {
             return;
         }
