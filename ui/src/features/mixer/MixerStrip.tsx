@@ -7,6 +7,7 @@ import { useProjectStore, useSelectionStore } from "@/state";
 import { size } from "@/theme";
 import { cmd, newId } from "@/transport";
 import { useGestureSender, useSend, type GestureSender } from "@/features/devices/gesture";
+import { midiTarget } from "@/features/midi-learn/targets";
 import { formatDb, formatPan } from "@/features/devices/paramScale";
 import { dbToFader, defaultOutputLabel, faderToDb, MAX_DB, outputTargets, outputValue, parseOutputValue } from "./routing";
 import { useMeterLevels } from "./useMeterLevels";
@@ -37,6 +38,7 @@ function SendKnob({ track, ret, send, sender }: { track: Track; ret: Track; send
     <div className={clsx("eth-strip__send", !send && "eth-strip__send--off")} data-send-to={ret.id}>
       <Knob
         size="sm"
+        {...(send ? midiTarget({ type: "Param", target: { type: "SendLevel", send: send.id } }) : {})}
         value={send ? dbToFader(level, SEND_MAX_DB) : 0}
         defaultValue={dbToFader(-144, SEND_MAX_DB)}
         label={`Send ${ret.name}`}
@@ -166,6 +168,7 @@ export function MixerStrip({ track, returns, folded, onToggleFold }: MixerStripP
 
       <Knob
         className="eth-strip__pan"
+        {...midiTarget({ type: "Param", target: { type: "TrackPan", track: track.id } })}
         size={parseFloat(size.knobStrip)}
         bipolar
         value={(pan + 1) / 2}
@@ -178,7 +181,7 @@ export function MixerStrip({ track, returns, folded, onToggleFold }: MixerStripP
 
       <div className="eth-strip__fader-row">
         <Fader
-         
+          {...midiTarget({ type: "Param", target: { type: "TrackVolume", track: track.id } })}
           value={dbToFader(volume)}
           defaultValue={dbToFader(0)}
           label={`${track.name} volume`}
@@ -195,6 +198,7 @@ export function MixerStrip({ track, returns, folded, onToggleFold }: MixerStripP
         <Button
           size="sm"
           className="eth-strip__mute"
+          {...midiTarget({ type: "TrackMute", track: track.id })}
           active={mute}
           aria-label={`Mute ${track.name}`}
           onClick={() => void sender.send(cmd("Mixer", { type: "SetMute", track: track.id, mute: !mute }))}
@@ -205,6 +209,7 @@ export function MixerStrip({ track, returns, folded, onToggleFold }: MixerStripP
           <Button
             size="sm"
             className="eth-strip__solo"
+            {...midiTarget({ type: "TrackSolo", track: track.id })}
             active={solo}
             aria-label={`Solo ${track.name}`}
             title="Solo (Ctrl/Cmd-click to add to the soloed tracks)"
