@@ -62,6 +62,9 @@ pub(crate) struct EngineState {
     pub last_publish_ms: Option<u64>,
     /// The edit being applied came from this device's own GUI: don't echo its params back.
     pub echo_from: Option<DeviceId>,
+    /// Record count-in (`tempo-metronome`): the record start while a record session's
+    /// pre-roll may run, set on every published `MetronomeDesc::count_in_end`.
+    pub count_in_end: Option<f64>,
 }
 
 pub(crate) fn bridge_err(e: BridgeError) -> ether_core::protocol::CommandError {
@@ -211,7 +214,7 @@ impl EngineState {
             .map(|m| (NotificationLevel::Error, m))
             .collect();
         self.version += 1;
-        let desc = match project {
+        let mut desc = match project {
             Some(p) => {
                 let nodes = |d: DeviceId| self.node(d);
                 let descriptors = |d: &Device| self.descriptor(d);
@@ -231,6 +234,7 @@ impl EngineState {
                 ..Default::default()
             },
         };
+        desc.click.count_in_end = self.count_in_end;
         self.last_publish_ms = Some(now_ms);
         match bridge.publish(desc) {
             Ok(()) => {

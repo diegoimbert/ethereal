@@ -13,7 +13,6 @@ use ether_core::protocol::export::ExportCommand;
 use ether_core::protocol::markers::MarkerCommand;
 use ether_core::protocol::media::MediaCommand;
 use ether_core::protocol::model::*;
-use ether_core::protocol::tempo::TempoCommand;
 use ether_core::protocol::tracks::TrackCommand;
 use ether_core::protocol::{Command, ErrorCode};
 
@@ -25,7 +24,6 @@ fn new_domains_reply_unsupported_until_implemented() {
     let pad: DrumPadId = h.id();
     let commands = vec![
         Command::Export(ExportCommand::Cancel { job: "j".into() }),
-        Command::Tempo(TempoCommand::RemoveTempoPoints { ids: vec![] }),
         Command::Marker(MarkerCommand::Add {
             id: marker,
             position: Beats(4.0),
