@@ -4,6 +4,7 @@ import { useShallow } from "zustand/react/shallow";
 import type { SendId, Track, TrackSend } from "@/generated";
 import { Button, Fader, Knob, Meter, Select } from "@/kit";
 import { useProjectStore, useSelectionStore } from "@/state";
+import { size } from "@/theme";
 import { cmd, newId } from "@/transport";
 import { useGestureSender, useSend, type GestureSender } from "@/features/devices/gesture";
 import { formatDb, formatPan } from "@/features/devices/paramScale";
@@ -165,7 +166,7 @@ export function MixerStrip({ track, returns, folded, onToggleFold }: MixerStripP
 
       <Knob
         className="eth-strip__pan"
-        size={28}
+        size={parseFloat(size.knobStrip)}
         bipolar
         value={(pan + 1) / 2}
         label={`${track.name} pan`}
