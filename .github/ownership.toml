@@ -619,4 +619,6 @@ paths = [
   "ui/src/features/arrangement/clipDraw.ts",
   # shared touch: wire MockLiveRecord into MockTransport (import, field, event emission)
   "ui/src/transport/mock/MockTransport.ts",
+  # shared touch (base-45): one-line recording_tick delegation in tick_impl
+  "crates/ether-controller/src/handlers.rs",
 ]
