@@ -1,7 +1,8 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { renderWithMock, resetStores } from "@/features/transport-bar/testUtils";
 import { useProjectStore } from "@/state";
+import { PREVIEW_STEPS } from "@/transport/mock/roadmap/mediaPreview";
 import { BROWSER_DRAG_MIME, readBrowserDrag } from "./dragPayload";
 import { Browser } from "./index";
 
@@ -84,6 +85,22 @@ describe("Browser", () => {
     fireEvent.click(await list.findByRole("button", { name: "Preview Snare.wav" }));
     fireEvent.click(await list.findByRole("button", { name: "Stop preview of Snare.wav" }));
     expect(await list.findByRole("button", { name: "Preview Snare.wav" })).toBeInTheDocument();
+  });
+
+  it("follows replaced previews and resets the row when the preview ends", async () => {
+    const { mock } = await renderWithMock(<Browser />);
+    const list = await files();
+    fireEvent.click(await list.findByRole("button", { name: "Drums" }));
+    fireEvent.click(await list.findByRole("button", { name: "Preview Kick.wav" }));
+    await list.findByRole("button", { name: "Stop preview of Kick.wav" });
+    // Replaced: the old row resets, the new one is previewing.
+    fireEvent.click(list.getByRole("button", { name: "Preview Snare.wav" }));
+    await list.findByRole("button", { name: "Stop preview of Snare.wav" });
+    expect(list.getByRole("button", { name: "Preview Kick.wav" })).toBeInTheDocument();
+    // Played to its end (PreviewEnded { Finished }): the row resets by itself.
+    act(() => mock.tick(16 * (PREVIEW_STEPS + 2)));
+    expect(await list.findByRole("button", { name: "Preview Snare.wav" })).toBeInTheDocument();
+    expect(list.queryByRole("button", { name: /^Stop preview/ })).toBeNull();
   });
 
   it("puts a media drag payload on audio files", async () => {

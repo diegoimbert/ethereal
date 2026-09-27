@@ -15,7 +15,7 @@ use ether_core::protocol::model::{
 use ether_core::{EngineOutputs, NodeKey, ParamChange, RenderGraphDesc, TransportControl};
 use ether_media::DecodedAudio;
 
-use crate::proto::{EngineMsg, EngineReport, REPORT_ERROR, REPORT_STATE};
+use crate::proto::{EngineMsg, EngineReport, PREVIEW_MEDIA, REPORT_ERROR, REPORT_STATE};
 use crate::ring::{RingMemory, RingReader, RingWriter};
 
 /// Bytes of reports drained per poll (reports are small; this only bounds a backlog).
@@ -60,6 +60,9 @@ impl<M: RingMemory> BridgeShared<M> {
                         }
                         out.event_overflow |= r.event_overflow;
                         out.underruns += r.underruns;
+                        if r.preview_ended.is_some() {
+                            out.preview_ended = r.preview_ended;
+                        }
                         *blocks = r.blocks;
                     }
                     Err(e) => errors.push(format!("bad engine report: {e}")),
@@ -186,6 +189,25 @@ impl<M: RingMemory> EngineBridge for WebBridge<M> {
         Ok(())
     }
 
+    /// `media-preview`: the audio goes through the ordinary media chunk path under
+    /// [`PREVIEW_MEDIA`], then one `Preview` message plays it (`None` stops).
+    fn preview(
+        &mut self,
+        id: u64,
+        audio: Option<Arc<DecodedAudio>>,
+        gain: f32,
+    ) -> Result<(), BridgeError> {
+        let media = audio.map(|audio| {
+            self.send(EngineMsg::LoadMedia {
+                media: PREVIEW_MEDIA,
+                audio,
+            });
+            PREVIEW_MEDIA
+        });
+        self.send(EngineMsg::Preview { id, media, gain });
+        Ok(())
+    }
+
     fn poll(&mut self, out: &mut EngineOutputs) {
         out.clear();
         let mut shared = self.shared.borrow_mut();
@@ -196,5 +218,67 @@ impl<M: RingMemory> EngineBridge for WebBridge<M> {
     fn descriptor(&mut self, device: DeviceId) -> Option<DeviceDescriptor> {
         let (_, kind) = self.devices.get(&device)?;
         Some(ether_devices::descriptor(*kind))
+    }
+}
+
+#[cfg(test)]
+mod preview_tests {
+    //! `media-preview` over the rings: audio shipped under `PREVIEW_MEDIA`, played by one
+    //! `Preview` message, natural end reported back by id; stop fades to silence.
+    use super::*;
+    use crate::ring::HeapMemory;
+    use crate::worklet::{EngineHost, RENDER_QUANTUM};
+
+    fn setup() -> (WebBridge<HeapMemory>, EngineHost<HeapMemory>) {
+        let control = HeapMemory::new(1 << 20);
+        let reports = HeapMemory::new(1 << 14);
+        let bridge = WebBridge::new(shared(control.clone(), reports.clone()));
+        (bridge, EngineHost::new(48_000, control, reports))
+    }
+
+    fn dc(level: f32, frames: usize) -> Arc<DecodedAudio> {
+        Arc::new(DecodedAudio {
+            sample_rate: 48_000,
+            channels: vec![vec![level; frames]],
+        })
+    }
+
+    /// Render `blocks` quanta; returns the peak of the left output.
+    fn render(host: &mut EngineHost<HeapMemory>, blocks: usize) -> f32 {
+        (0..blocks)
+            .map(|_| {
+                host.render(RENDER_QUANTUM);
+                host.output(0).iter().fold(0.0f32, |m, s| m.max(s.abs()))
+            })
+            .fold(0.0, f32::max)
+    }
+
+    #[test]
+    fn preview_plays_through_the_worklet_and_reports_its_end() {
+        let (mut bridge, mut host) = setup();
+        let mut out = EngineOutputs::default();
+        bridge.preview(1, Some(dc(0.5, 4_000)), 1.0).unwrap();
+        bridge.poll(&mut out);
+        assert!(render(&mut host, 10) > 0.49, "the preview is audible");
+        bridge.poll(&mut out);
+        assert_eq!(out.preview_ended, None, "still playing");
+        render(&mut host, 40);
+        bridge.poll(&mut out);
+        assert_eq!(out.preview_ended, Some(1));
+        bridge.poll(&mut out);
+        assert_eq!(out.preview_ended, None, "reported once");
+        assert!(host.output(0).iter().all(|&s| s == 0.0));
+
+        // Stop fades a long preview out; it is never reported.
+        bridge.preview(2, Some(dc(0.5, 48_000)), 1.0).unwrap();
+        bridge.poll(&mut out);
+        assert!(render(&mut host, 10) > 0.49);
+        bridge.preview(2, None, 0.0).unwrap();
+        bridge.poll(&mut out);
+        render(&mut host, 3);
+        assert_eq!(render(&mut host, 10), 0.0, "silent after the fade");
+        bridge.poll(&mut out);
+        assert_eq!(out.preview_ended, None);
+        assert!(bridge.shared.borrow().errors.is_empty());
     }
 }

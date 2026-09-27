@@ -15,6 +15,7 @@ import { useProjectStore } from "@/state";
 import { cmd, newId } from "@/transport";
 import { writeBrowserDrag, type BrowserDragPayload } from "./dragPayload";
 import { formatSize, locationKey, parentPath, pathSegments, sameLocation, sourceOf } from "./paths";
+import { useBrowserPreview } from "./preview";
 
 interface Place {
   location: BrowseLocation;
@@ -48,7 +49,7 @@ export function Browser() {
   const [locations, setLocations] = useState<BrowseRoot[] | null>(null);
   const [place, setPlace] = useState<Place | null>(null);
   const [listing, setListing] = useState<Listing | null>(null);
-  const [previewing, setPreviewing] = useState<string | null>(null);
+  const { previewing, toggle: togglePreview } = useBrowserPreview(send);
   const [message, setMessage] = useState<string | null>(null);
 
   const ready = !!transport && hasProject;
@@ -107,16 +108,6 @@ export function Browser() {
     }
     const reply = await send(cmd("Media", { type: "Import", id: newId(), source }));
     if (reply?.type === "Media") setMessage(`Imported ${reply.media.name}`);
-  };
-
-  const togglePreview = async (entry: DirectoryEntry, source: MediaSource) => {
-    if (previewing === entry.path) {
-      setPreviewing(null);
-      await send(cmd("Media", { type: "StopPreview" }));
-      return;
-    }
-    const reply = await send(cmd("Media", { type: "Preview", source }));
-    setPreviewing(reply ? entry.path : null);
   };
 
   const entries = listing && listing.key === currentKey ? listing.entries : null;

@@ -354,6 +354,8 @@ where
     export: export::ExportState,
     /// MIDI learn runtime state (learn mode, mapping gestures; `midi_learn` module).
     midi_learn: midi_learn::MidiLearnState,
+    /// Browser preview runtime state (current preview id, decode, cache; `media_preview`).
+    preview: media_preview::PreviewState,
     /// Uploads from the UI machine in progress (`upload` module, remote-engine).
     uploads: upload::UploadState,
     next_gesture: u32,
@@ -400,6 +402,7 @@ where
             plugins: Default::default(),
             export: Default::default(),
             midi_learn: Default::default(),
+            preview: Default::default(),
             uploads: Default::default(),
             // Internal gestures (plugin GUI, tap tempo) live in the upper half of the id
             // space, away from UI-allocated ones.
