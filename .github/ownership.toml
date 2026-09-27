@@ -696,6 +696,8 @@ paths = [
   "ui/src/transport/mock/roadmap/collab.*",
   # shared touch (base-60): one test-all line running ether-collab --features turn
   "justfile",
+  # shared touch (base-63): COLLAB.md §10 TURN experimental notice
+  "docs/COLLAB.md",
 ]
 
 [nodes.stream-listen]
