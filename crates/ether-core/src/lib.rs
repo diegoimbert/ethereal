@@ -37,7 +37,7 @@ mod mixer;
 pub mod node;
 pub mod param;
 pub mod plugin;
-mod recording;
+pub mod recording;
 mod sched;
 pub mod tempo;
 pub mod transport;

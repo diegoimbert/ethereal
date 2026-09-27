@@ -3,4 +3,4 @@ import type { MonitorMode } from "./MonitorMode";
 import type { TrackId } from "./TrackId";
 import type { TrackInput } from "./TrackInput";
 
-export type RecordingCommand = { "type": "Arm", track: TrackId, armed: boolean, exclusive: boolean, } | { "type": "SetMonitor", track: TrackId, monitor: MonitorMode, } | { "type": "SetInput", track: TrackId, input: TrackInput, } | { "type": "SetRecording", enabled: boolean, } | { "type": "SetCountIn", bars: number, } | { "type": "ListInputs" };
+export type RecordingCommand = { "type": "Arm", track: TrackId, armed: boolean, exclusive: boolean, } | { "type": "SetMonitor", track: TrackId, monitor: MonitorMode, } | { "type": "SetInput", track: TrackId, input: TrackInput, } | { "type": "SetRecording", enabled: boolean, } | { "type": "SetPunch", enabled: boolean, } | { "type": "SetCountIn", bars: number, } | { "type": "ListInputs" };
