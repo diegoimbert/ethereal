@@ -42,7 +42,7 @@ import { CommandFailedError } from "../EngineTransport";
 import { BUILTIN_DESCRIPTORS, builtinDescriptor, clampParam } from "./builtinDevices";
 import { defaultParams, defaultTrackName, makeClip, makeTrack, MOCK_TRACK_COLORS } from "./demoProject";
 import { isRoadmapDocumentCommand, reduceRoadmapCommand } from "./roadmap";
-import { clipV2Command } from "./roadmap/clipEditing";
+import { clipV2Command, isCrossfade } from "./roadmap/clipEditing";
 import { checkDeviceMove, copyRackPads, duplicateSiblings, onRackDeleted } from "./roadmap/drumRack";
 import { swingOffset } from "./roadmap/groove";
 import { onDeviceDeleted, onSendDeleted, onTrackDeleted } from "./roadmap/shared";
@@ -602,6 +602,7 @@ function resolveOverlaps(ctx: ReducerContext, keep: Clip, ignore: ReadonlySet<Cl
     const os = o.start;
     const oe = os + o.length;
     if (oe <= s + EPS || os >= e - EPS) continue; // no overlap
+    if (isCrossfade(keep, o)) continue; // crossfade overlap (clip-editing)
     if (os >= s - EPS && oe <= e + EPS) {
       deleteClipCascade(ctx, o.id); // fully covered
     } else if (os < s && oe > e) {
