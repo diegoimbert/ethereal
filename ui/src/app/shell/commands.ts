@@ -1,3 +1,4 @@
+import { openAudioSettings } from "@/features/audio-settings";
 import type { DeviceDescriptor } from "@/generated";
 import { addTrack, selectTrackEntity } from "@/features/arrangement/actions";
 import { arrangementView } from "@/features/arrangement/uiStore";
@@ -145,6 +146,13 @@ export function buildCommands(transport: EngineTransport | null, devices: Readon
       run: () => useShellStore.getState().setPinned(side, !useShellStore.getState()[side].pinned),
     });
   }
+  out.push({
+    id: "audio-settings",
+    group: "Appearance",
+    label: "Audio settings…",
+    keywords: "audio device output input microphone sample rate buffer latency driver preferences",
+    run: () => openAudioSettings(),
+  });
   const dark = getTheme() === "dark";
   out.push({
     id: "theme",

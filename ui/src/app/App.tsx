@@ -16,11 +16,12 @@
  * use `useTransport()` and read the document from `@/state`.
  */
 import { useEffect } from "react";
-import { Moon, Sun } from "lucide-react";
+import { AudioLines, Moon, Sun } from "lucide-react";
 import { ContextMenuHost, IconButton } from "@/kit";
 import { useEditorStore, useProjectStore } from "@/state";
 import { size, useTheme } from "@/theme";
 import { ArrangementView } from "@/features/arrangement";
+import { AudioSettingsDialog, openAudioSettings } from "@/features/audio-settings";
 import { MarkerLane } from "@/features/clip-editing";
 import { PresenceBar } from "@/features/collab";
 import { ExportDialog } from "@/features/export";
@@ -194,11 +195,20 @@ export function App() {
         <div data-slot="collab">
           <PresenceBar />
         </div>
+        <IconButton
+          size="sm"
+          tone="ghost"
+          className="eth-shell__theme"
+          label="Audio settings"
+          icon={<AudioLines />}
+          onClick={() => openAudioSettings()}
+        />
         <ThemeToggle />
       </header>
       <Workspace />
       <DrawerShortcut />
       <CommandPalette />
+      <AudioSettingsDialog />
       <ContextMenuHost />
     </div>
   );

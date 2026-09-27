@@ -12,7 +12,7 @@ export interface ProjectManagerProps {
   onClose(): void;
 }
 
-/** Popover listing the engine-side project store, with create/open/save-as/duplicate/rename/delete. */
+/** Content of the Projects popover (kit Popover, see ProjectMenu): lists the engine-side project store, with create/open/save-as/duplicate/rename/delete. */
 export function ProjectManager({ commands, onClose }: ProjectManagerProps) {
   const { send, error, clearError } = commands;
   const projects = useProjectStore((s) => s.projects);
@@ -91,7 +91,7 @@ export function ProjectManager({ commands, onClose }: ProjectManagerProps) {
   };
 
   return (
-    <div className="eth-project-mgr" role="dialog" aria-label="Projects">
+    <div className="eth-project-mgr">
       <header className="eth-project-mgr__header">
         <span>Projects</span>
         <Button size="sm" variant="ghost" aria-label="Close" onClick={onClose}>

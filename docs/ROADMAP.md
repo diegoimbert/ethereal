@@ -253,3 +253,19 @@ files), its tests/e2e.
   `JsonMsg::Preview { media, gain, id }` (with `media: None` = stop); and one extra field in
   the worklet's engine report (`preview_ended`). Add **no new binary frame tags**, and merge
   `origin/dev` after web-perf lands before touching these files.
+
+## `live-record` (base-43)
+
+Owns: `crates/ether-native/src/recording/**`, `crates/ether-controller/src/recording/**`,
+`ui/src/features/recording/**`, its tests; shared touches in the native bridge, the
+arrangement `TrackRow.tsx`/`clipDraw.ts` (additive overlay) and `MockTransport.ts`.
+
+- Protocol (frozen): `RecordingEvent::Progress { audio: Vec<LiveAudioChunk>, midi:
+  Vec<LiveMidiNote> }`: only new data since the previous event, ~20 Hz, runtime only (never
+  in the document or collab). `LiveAudioChunk` carries merged-channel min/max peaks at a fixed
+  `frames_per_peak` with `first_peak` indexing and the take's latency-compensated `start`.
+- Host: the native recording writer thread computes peaks as it drains the capture ring
+  (off the audio thread); `EngineBridge::poll_recording` (defaulted no-op) returns them.
+- Controller: poll in the tick while recording, emit `Progress`.
+- UI: a live clip per armed track growing to the playhead (waveform / notes), replaced by
+  the committed clip on `Stopped`; punch/count-in show only the kept range; loop takes.

@@ -75,7 +75,21 @@ export interface PopoverProps {
   haspopup?: "menu" | "dialog";
 }
 
-/** Floating panel anchored to a trigger. Closes on outside pointer-down and Escape. */
+/** Unmount delay of a closing popover (its exit animation; see kit.css). */
+const POPOVER_EXIT_MS = 120;
+
+const ORIGIN: Record<Placement, string> = {
+  "bottom-start": "top left",
+  "bottom-end": "top right",
+  "top-start": "bottom left",
+  "top-end": "bottom right",
+};
+
+/**
+ * Floating panel anchored to a trigger. Closes on outside pointer-down and Escape.
+ * Animated like the context menu and the Select list: grows out of the trigger when it
+ * opens, fades back when it closes (hidden from assistive tech while it does).
+ */
 export function Popover({
   trigger,
   children,
@@ -91,7 +105,16 @@ export function Popover({
   const open = openProp ?? openState;
   const anchor = useRef<HTMLSpanElement>(null);
   const panel = useRef<HTMLDivElement>(null);
-  const rect = useAnchorRect(anchor, open);
+  // Mounted while open and during the exit animation.
+  const [shown, setShown] = useState(open);
+  if (open && !shown) setShown(true);
+  const closing = shown && !open;
+  useEffect(() => {
+    if (!closing) return;
+    const t = setTimeout(() => setShown(false), POPOVER_EXIT_MS);
+    return () => clearTimeout(t);
+  }, [closing]);
+  const rect = useAnchorRect(anchor, shown);
   const setOpen = (o: boolean) => {
     if (openProp === undefined) setOpenState(o);
     onOpenChange?.(o);
@@ -123,15 +146,20 @@ export function Popover({
   return (
     <span ref={anchor} className="eth-popover-anchor" onKeyDown={onKeyDown}>
       {trigger({ onClick: () => setOpen(!open), "aria-expanded": open, "aria-haspopup": haspopup })}
-      {open &&
+      {shown &&
         createPortal(
           // React events bubble through the portal to the anchor span (Escape handling).
           <div
             ref={panel}
-            className={clsx("eth-popover", `eth-popover--${placement}`, className)}
-            style={placementStyle(placement, rect)}
+            className={clsx("eth-popover", `eth-popover--${placement}`, closing ? "eth-popover--closing" : "eth-popover--enter", className)}
+            style={{
+              ...placementStyle(placement, rect),
+              transformOrigin: ORIGIN[placement],
+              ["--context-menu-dir" as string]: placement.startsWith("top") ? "-1" : "1",
+            }}
             role={role}
             aria-label={aria["aria-label"]}
+            aria-hidden={closing || undefined}
           >
             {typeof children === "function" ? children(close) : children}
           </div>,
@@ -220,42 +248,59 @@ export interface DialogProps {
 }
 
 /** Modal dialog, rendered in a portal. Escape or a backdrop click closes it. */
+/** Unmount delay of a closing dialog (its exit animation; see kit.css). */
+const DIALOG_EXIT_MS = 150;
+
 export function Dialog({ open, onClose, title, children, footer, className }: DialogProps) {
   const titleId = useId();
   const ref = useRef<HTMLDivElement>(null);
+  // Mounted while open and during the exit animation, still showing what it last showed
+  // (callers often render their content only while `open`).
+  const [shown, setShown] = useState(open);
+  const [last, setLast] = useState({ title, children, footer });
+  if (open && !shown) setShown(true);
+  if (open && (last.title !== title || last.children !== children || last.footer !== footer)) setLast({ title, children, footer });
+  const closing = shown && !open;
+  useEffect(() => {
+    if (!closing) return;
+    const t = setTimeout(() => setShown(false), DIALOG_EXIT_MS);
+    return () => clearTimeout(t);
+  }, [closing]);
   useEffect(() => {
     if (!open) return;
     const prev = document.activeElement as HTMLElement | null;
     ref.current?.focus();
     return () => prev?.focus?.();
   }, [open]);
-  if (!open) return null;
+  if (!shown) return null;
+  const view = open ? { title, children, footer } : last;
   return createPortal(
     <div
-      className="eth-dialog-backdrop"
+      className={clsx("eth-dialog-backdrop", closing && "eth-dialog-backdrop--closing")}
+      aria-hidden={closing || undefined}
       onPointerDown={(e) => {
-        if (e.target === e.currentTarget) onClose();
+        if (!closing && e.target === e.currentTarget) onClose();
       }}
     >
       <div
         ref={ref}
-        className={clsx("eth-dialog", className)}
+        className={clsx("eth-dialog", closing && "eth-dialog--closing", className)}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
         onKeyDown={(e) => {
-          if (e.key === "Escape") {
+          if (e.key === "Escape" && !closing) {
             e.stopPropagation();
             onClose();
           }
         }}
       >
         <header className="eth-dialog__header" id={titleId}>
-          {title}
+          {view.title}
         </header>
-        <div className="eth-dialog__body">{children}</div>
-        {footer !== undefined && <footer className="eth-dialog__footer">{footer}</footer>}
+        <div className="eth-dialog__body">{view.children}</div>
+        {view.footer !== undefined && <footer className="eth-dialog__footer">{view.footer}</footer>}
       </div>
     </div>,
     document.body,

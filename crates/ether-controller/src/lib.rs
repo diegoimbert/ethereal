@@ -241,6 +241,17 @@ pub trait EngineBridge {
         ))
     }
 
+    /// Live recording view (`live-record`): append the waveform peaks and MIDI notes captured
+    /// since the previous call (never blocks; called from the controller tick while
+    /// recording). Default: nothing (hosts without capture).
+    fn poll_recording(
+        &mut self,
+        audio: &mut Vec<ether_core::protocol::recording::LiveAudioChunk>,
+        midi: &mut Vec<ether_core::protocol::recording::LiveMidiNote>,
+    ) {
+        let _ = (audio, midi);
+    }
+
     /// Finish the capture (after engine recording was disabled): close the files and return
     /// the latency-compensated takes and MIDI. Default: unsupported.
     fn stop_recording(&mut self) -> Result<RecordedTakes, BridgeError> {

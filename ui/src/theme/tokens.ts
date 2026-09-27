@@ -214,10 +214,14 @@ export const opacity = {
   muted: "0.6",
 } as const;
 
+/**
+ * Stacking of floating layers: dialogs below popovers (so a Select or Popover opened from a
+ * dialog shows above it), tooltips on top.
+ */
 export const zIndex = {
-  popover: "100",
-  tooltip: "200",
-  dialog: "300",
+  dialog: "100",
+  popover: "200",
+  tooltip: "300",
 } as const;
 
 /** Component and layout dimensions (`--eth-size-*`). */
@@ -339,9 +343,11 @@ export const componentTokens = {
     "--button-padding-x-lg": v("space-lg"),
     "--button-font-size-lg": v("fs-md"),
     "--button-radius": v("radius-sm"),
-    "--button-border": v("color-border"),
-    "--button-bg": v("color-bg-raised"),
-    "--button-bg-hover": v("color-bg-hover"),
+    // Flat: no border, a light grey fill (the text color at low opacity, so it works in
+    // both themes).
+    "--button-border": "transparent",
+    "--button-bg": "color-mix(in srgb, var(--eth-color-text) 10%, transparent)",
+    "--button-bg-hover": "color-mix(in srgb, var(--eth-color-text) 16%, transparent)",
     "--button-fg": v("color-text"),
     "--button-accent-bg": v("color-accent"),
     "--button-accent-bg-hover": v("color-accent-hover"),

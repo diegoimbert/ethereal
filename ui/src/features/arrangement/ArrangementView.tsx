@@ -5,11 +5,13 @@ import type { Beats, TrackId } from "@/generated";
 import { useProjectStore, useSelectionStore, useTracksOrdered } from "@/state";
 import {
   gridLines,
+  itemSelection,
   marqueeHits,
   PlayheadLine,
   pxToBeats,
   resolveGrid,
   Ruler,
+  selectModeFromEvent,
   snapToGrid,
   useMarquee,
   useMiddleButtonPan,
@@ -141,6 +143,16 @@ function ConnectedArrangementView() {
       useArrangementUi.getState().setTrackFocus(null);
       const row = rowsRef.current[rowIndexAt(rowsRef.current, p.y)];
       if (row && !row.draft) useSelectionStore.getState().selectTrack(row.track.id);
+      // A click on a clip's body (which lets presses through to the lane) selects the clip,
+      // like its title bar does, but moves the playhead to the click, not the clip start.
+      const project = useProjectStore.getState().project;
+      if (project) {
+        const hw = useArrangementUi.getState().headerWidth;
+        const hit = clipRects(rowsRef.current, Object.values(project.clips), view.getState(), hw).find(
+          ({ rect: r }) => p.x >= r.x0 && p.x < r.x1 && p.y >= r.y0 && p.y < r.y1,
+        );
+        if (hit) itemSelection.getState().select("clip", [hit.id], selectModeFromEvent(ev));
+      }
       // A click on empty space also moves the playhead there (when stopped), snapped.
       const hw = useArrangementUi.getState().headerWidth;
       if (p.x >= hw) locateIfStopped(transport, snap(pxToBeats(p.x - hw, view.getState()), ev.altKey));

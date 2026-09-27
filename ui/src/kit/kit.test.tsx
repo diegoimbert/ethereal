@@ -170,6 +170,29 @@ describe("fields", () => {
     expect(screen.getByRole("textbox", { name: "T" })).toHaveAttribute("aria-invalid", "true");
   });
 
+  it("NumberField: hold and drag up/down changes the value (shift: fine); a click still types", () => {
+    const onChange = vi.fn();
+    const start = vi.fn();
+    const end = vi.fn();
+    render(<NumberField aria-label="N" value={10} onChange={onChange} step={1} min={0} max={20} onChangeStart={start} onChangeEnd={end} />);
+    const input = screen.getByRole("spinbutton", { name: "N" });
+    fireEvent.pointerDown(input, { button: 0, pointerId: 1, clientY: 100 });
+    fireEvent.pointerMove(input, { pointerId: 1, clientY: 88 }); // 12 px up, 4 px per step
+    expect(start).toHaveBeenCalledOnce();
+    expect(onChange).toHaveBeenLastCalledWith(13);
+    fireEvent.pointerMove(input, { pointerId: 1, clientY: 200, shiftKey: true }); // 100 px down, tenth steps
+    expect(onChange).toHaveBeenLastCalledWith(7.5);
+    fireEvent.pointerMove(input, { pointerId: 1, clientY: 400 });
+    expect(onChange).toHaveBeenLastCalledWith(0); // clamped
+    fireEvent.pointerUp(input, { pointerId: 1, clientY: 400 });
+    expect(end).toHaveBeenCalledOnce();
+    expect(document.activeElement).not.toBe(input);
+    // A click without a drag focuses it for typing.
+    fireEvent.pointerDown(input, { button: 0, pointerId: 2, clientY: 100 });
+    fireEvent.pointerUp(input, { pointerId: 2, clientY: 100 });
+    expect(document.activeElement).toBe(input);
+  });
+
   it("NumberField commits on Enter (clamped), steps with arrows, reverts on Escape", () => {
     const onChange = vi.fn();
     render(<NumberField aria-label="N" value={120} onChange={onChange} min={20} max={200} unit="BPM" />);

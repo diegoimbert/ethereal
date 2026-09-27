@@ -421,6 +421,16 @@ describe("ArrangementView: clip editing", () => {
     await waitFor(() => expect(playheadStore.getPlayhead()?.transport.position).toBe(startOf(bass)));
   });
 
+  it("a click on a clip's body selects it and moves the playhead to the click (not the clip start)", async () => {
+    const bass = clipByName("Bassline");
+    const content = screen.getByTestId("arrangement-content");
+    // Bassline is on row 1; its body is below the title bar. Click 2 beats into it.
+    const x = HEADER_WIDTH + (bass.start + 2) * PX;
+    await drag(content, 0, 0, { x, y: ROW + 30 });
+    expect([...itemSelection.getState().selected.clip]).toEqual([bass.id]);
+    await waitFor(() => expect(playheadStore.getPlayhead()?.transport.position).toBe(bass.start + 2));
+  });
+
   it("a click on empty space moves the playhead there (snapped), but not while playing", async () => {
     const content = screen.getByTestId("arrangement-content");
     await drag(content, 0, 0, { x: HEADER_WIDTH + 20.4 * PX, y: ROW * 3 + 5 });
