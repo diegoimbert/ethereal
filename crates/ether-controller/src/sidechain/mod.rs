@@ -46,10 +46,7 @@ pub(crate) fn set_sidechain(
             .descriptor(d.id, &d.kind)
             .map_or(0, |desc| desc.sidechain_inputs);
         if inputs == 0 {
-            return Err(invalid(format!(
-                "device {} has no sidechain input",
-                d.id
-            )));
+            return Err(invalid(format!("device {} has no sidechain input", d.id)));
         }
     }
     ctx.set_device(d.id, DeviceChange::Sidechain(source))
