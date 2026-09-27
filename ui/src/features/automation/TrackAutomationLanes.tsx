@@ -21,6 +21,7 @@ import { AutomationLaneView } from "./AutomationLaneView";
 import { useTrackTargets, type TargetInfo } from "./params";
 import { AUTOMATION_BAR_HEIGHT, automationHeight, laneHeightOf, laneUiKey, shownKeys, useAutomationUi } from "./uiStore";
 import { defaultRange, FULL_RANGE } from "./valueAxis";
+import { LANE_PAD } from "./geometry";
 import { LaneResizeHandle, ValueScale } from "./ValueScale";
 import { useTrackLanes } from "./toggle";
 import { useLaneAnimating, useShownLanes } from "./laneMotion";
@@ -163,7 +164,10 @@ function LaneRow({ className, trackId, targetKey: key, info, targets, shown, lan
 
   const height = useAutomationUi((s) => laneHeightOf(s, trackId, key));
   const storedRange = useAutomationUi((s) => s.ranges[laneUiKey(trackId, key)]);
-  const range = useMemo(() => storedRange ?? (info ? defaultRange(info.info) : FULL_RANGE), [storedRange, info]);
+  const range = useMemo(
+    () => storedRange ?? (info ? defaultRange(info.info, height - 2 * LANE_PAD) : FULL_RANGE),
+    [storedRange, info, height],
+  );
 
   const ui = useAutomationUi.getState;
   const onChangeTarget = (next: string) => ui().replace(trackId, key, next);

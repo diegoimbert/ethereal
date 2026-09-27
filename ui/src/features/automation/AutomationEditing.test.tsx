@@ -245,18 +245,27 @@ describe("value snapping", () => {
     });
     await flush();
     const svg = screen.getAllByTestId("automation-lane-svg")[1]!;
-    expect(svg.querySelectorAll(".eth-auto-lane__step").length).toBeGreaterThan(2);
-    // Detune: -12..12 st. Double-click a bit above +2 st.
-    fireEvent.doubleClick(svg, { clientX: 40, clientY: y((2.3 + 12) / 24) });
+    // Detune: -12..12 st. The default 64 px lane opens on ±3 st (9 px per step), one line
+    // per step.
+    expect(svg.querySelectorAll(".eth-auto-lane__step")).toHaveLength(7);
+    const st = (s: number) => LANE_PAD + (1 - (s + 3) / 6) * (LANE_HEIGHT - 2 * LANE_PAD);
+    // Double-click a bit above +1 st.
+    fireEvent.doubleClick(svg, { clientX: 40, clientY: st(1.3) });
     await flush();
     const detune = Object.values(project().automation_lanes).find((l) => l.target.type === "DeviceParam")!;
     const [p] = lanePoints(detune.id);
-    expect(p!.value * 24 - 12).toBeCloseTo(2, 9);
+    const semis = () => project().automation_points[p!.id]!.value * 24 - 12;
+    expect(semis()).toBeCloseTo(1, 9);
+
+    // A coarse 24 px drag up moves exactly 3 st (8 px per step, whatever the lane height).
+    const circle = document.querySelector(`circle[data-point="${p!.id}"]`)!;
+    await drag(circle, [40, st(1)], [41, st(1) - 24]);
+    expect(semis()).toBeCloseTo(4, 9);
 
     // Nudge up one semitone with the arrow key.
     act(() => itemSelection.getState().select("automationPoint", [p!.id], "replace"));
     await key(lanes()[1]!, "ArrowUp");
-    expect(project().automation_points[p!.id]!.value * 24 - 12).toBeCloseTo(3, 9);
+    expect(semis()).toBeCloseTo(5, 9);
   });
 });
 

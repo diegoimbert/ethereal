@@ -59,7 +59,7 @@ import { addPointCommand, bendTension, editPointsCommand, moveEdits, removePoint
 import { LANE_PAD, lanePath, pointRect, POINT_RADIUS, segmentAt, timeToX, valueToY, xToTime, yToValue, type LaneGeometry } from "./geometry";
 import { LaneGesture, sendEdit } from "./gesture";
 import { formatNormalized, targetKey as keyOfTarget } from "./params";
-import { dragHint, FULL_RANGE, nudgeSize, paramStep, snapValue, stepLines, type ValueRange } from "./valueAxis";
+import { dragHint, FULL_RANGE, nudgeSize, paramStep, snapValue, stepDragDelta, stepLines, type ValueRange } from "./valueAxis";
 import "./automation.css";
 
 export interface AutomationLaneViewProps {
@@ -261,7 +261,8 @@ export function AutomationLaneView({
         const g = live.current.geom;
         const span = (g.range ?? FULL_RANGE).hi - (g.range ?? FULL_RANGE).lo;
         const dt = dx / g.vp.pxPerBeat;
-        const dv = (-dy / usable) * span;
+        // Stepped params: whole steps at a fixed px-per-step; others follow the pointer.
+        const dv = stepDragDelta(live.current.info, -dy) ?? (-dy / usable) * span;
         const inf = live.current.info;
         const edits = moveEdits(originals, point, dt, dv, snapFn(ev.altKey), {
           lockTime,

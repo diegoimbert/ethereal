@@ -111,18 +111,15 @@ test("automation lanes animate open, snap stepped params, and copy/paste points"
   };
   await expect.poll(semis).toBeCloseTo(Math.round(await semis()), 9);
   const before = Math.round(await semis());
-  // Drag the point up by ~3 st: lands exactly on a whole semitone.
+  // A coarse 24 px drag up moves exactly 3 st (8 px per step at the default lane height).
   const circle = transpose.locator("circle[data-point]").first();
   const c = (await circle.boundingBox())!;
   await page.mouse.move(c.x + c.width / 2, c.y + c.height / 2);
   await page.mouse.down();
-  await page.mouse.move(c.x + c.width / 2, c.y + c.height / 2 - 3.4 * ((tBox.height - 10) / 48), { steps: 5 });
+  await page.mouse.move(c.x + c.width / 2 + 1, c.y + c.height / 2 - 24, { steps: 5 });
   await expect(transpose.getByTestId("automation-drag-tip")).toContainText("st");
   await page.mouse.up();
-  await expect.poll(async () => {
-    const s = await semis();
-    return Math.abs(s - Math.round(s)) < 1e-9 && Math.round(s) !== before;
-  }).toBe(true);
+  await expect.poll(semis).toBeCloseTo(before + 3, 9);
 
   expect(errors).toEqual([]);
 });

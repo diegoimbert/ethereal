@@ -16,6 +16,7 @@ import {
   scrollRange,
   snapValue,
   stepCount,
+  stepDragDelta,
   stepLines,
   zoomRange,
 } from "./valueAxis";
@@ -104,12 +105,31 @@ describe("steps", () => {
 });
 
 describe("visible range", () => {
-  it("wide stepped params open on 48 steps around the default", () => {
-    expect(defaultRange(TRANSPOSE)).toEqual(FULL_RANGE);
-    const r = defaultRange(WIDE);
-    expect(plain(WIDE, r.lo)).toBeCloseTo(-24, 9);
-    expect(plain(WIDE, r.hi)).toBeCloseTo(24, 9);
-    expect(defaultRange(PERCENT)).toEqual(FULL_RANGE);
+  it("stepped params open on a window with steps at least 8 px tall, around the default", () => {
+    // Default lane: 64 px - 2 × 5 px padding = 54 px → 6 steps (9 px each): ±3 st.
+    const r = defaultRange(TRANSPOSE, 54);
+    expect(plain(TRANSPOSE, r.lo)).toBeCloseTo(-3, 9);
+    expect(plain(TRANSPOSE, r.hi)).toBeCloseTo(3, 9);
+    expect(54 / ((r.hi - r.lo) * 48)).toBeGreaterThanOrEqual(8);
+    // A taller lane shows more; a lane with room for every step shows them all.
+    const tall = defaultRange(WIDE, 400);
+    expect(plain(WIDE, tall.lo)).toBeCloseTo(-25, 9);
+    expect(plain(WIDE, tall.hi)).toBeCloseTo(25, 9);
+    expect(defaultRange(TRANSPOSE, 400)).toEqual(FULL_RANGE);
+    expect(defaultRange(WAVE, 54)).toEqual(FULL_RANGE);
+    expect(defaultRange(PERCENT, 54)).toEqual(FULL_RANGE);
+    // Centred on a given value, slid back inside the range at the ends.
+    const top = defaultRange(TRANSPOSE, 54, 1);
+    expect(plain(TRANSPOSE, top.hi)).toBeCloseTo(24, 9);
+    expect(plain(TRANSPOSE, top.lo)).toBeCloseTo(18, 9);
+  });
+
+  it("stepped drags move whole steps at 8 px per step, whatever the lane height", () => {
+    expect(stepDragDelta(TRANSPOSE, 24)! * 48).toBeCloseTo(3, 12);
+    expect(stepDragDelta(TRANSPOSE, 27)! * 48).toBeCloseTo(3, 12);
+    expect(stepDragDelta(TRANSPOSE, -9)! * 48).toBeCloseTo(-1, 12);
+    expect(stepDragDelta(TRANSPOSE, 3)).toBe(0);
+    expect(stepDragDelta(PERCENT, 24)).toBeNull();
   });
 
   it("scrolls and zooms inside 0..1", () => {

@@ -73,7 +73,7 @@ Gestures and modifiers (for UX review). `⌘` is Ctrl off macOS.
 | Value scale | double-click | reset the window |
 | Lane | double-click empty space | add a point: time on the grid (`⌥`: free), value on the param's steps |
 | Lane | click / `⇧`-click / `⌘`-click a point | select / add / toggle |
-| Lane | drag a point | move the selection: time on the grid; stepped params (semitones, enums, toggles) on their steps |
+| Lane | drag a point | move the selection: time on the grid; stepped params (semitones, enums, toggles) by whole steps, 8 px per step |
 | Lane, dragging | `⌥` | continuous params: whole increments (1 dB, 1 %, 1 st, 0.01 pan, round Hz/ms); time off the grid |
 | Lane, dragging | `⇧` | lock to the dominant axis |
 | Lane, dragging | — | a tooltip shows the value and these modifiers |
@@ -94,8 +94,10 @@ Gestures and modifiers (for UX review). `⌘` is Ctrl off macOS.
   steps. Paste, cut and duplicate are each one undo step (`Edit::Batch`, creating the lane
   if needed). The desktop Edit menu's copy/cut/paste reach the focused lane too.
 - **Stepped params** draw one gridline per step (every 2nd, 3rd, 4th, 6th, 12th... when
-  dense), labelled on the value scale where they fit; the default value is stronger. Params
-  with more than 48 steps open on a 48-step window around their default.
+  dense), labelled on the value scale where they fit; the default value is stronger. They
+  open on a window where every step is at least 8 px tall, around their default (a default
+  64 px Transpose lane shows ±3 st; resize the lane or scroll/zoom the value scale for
+  more), and dragging moves them by whole steps at 8 px per step, whatever the lane height.
   `ParamInfo` has no step field yet (BCR sent): steps come from `labels`, the `Toggle`
   unit, and linear `Semitones`.
 - **Every drag is one `LaneGesture`**: all its `EditPoints` share one gesture id, closed

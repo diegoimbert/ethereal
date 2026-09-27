@@ -6,9 +6,12 @@
  *   one gridline per step (thinned when they get too dense), labelled where there is room.
  * - **Continuous** params snap to a sensible increment (1 dB, 1 %, two significant digits
  *   of Hz/ms...) only while the step modifier is held (see `snapValue`).
- * - The **visible range** is a window of normalized values (`ValueRange`): wide stepped
- *   params open on a window of `DEFAULT_VISIBLE_STEPS` around their default; the lane's
- *   value scale scrolls and zooms it.
+ * - The **visible range** is a window of normalized values (`ValueRange`): stepped params
+ *   open on a window where each step is at least `MIN_STEP_PX` tall, around their default
+ *   (so a 64 px Transpose lane shows ±3 st, a taller lane more); the lane's value scale
+ *   scrolls and zooms it.
+ * - Dragging a stepped param moves it by whole steps at `DRAG_PX_PER_STEP`, whatever the
+ *   lane height or window.
  *
  * `ParamInfo` has no step metadata yet (BCR sent): steps are inferred from `labels`, the
  * `Toggle` unit, and `Semitones` with a linear scale (whole semitones).
@@ -25,8 +28,10 @@ export interface ValueRange {
 
 export const FULL_RANGE: ValueRange = { lo: 0, hi: 1 };
 
-/** Stepped params with more steps than this open on a window of this many steps. */
-export const DEFAULT_VISIBLE_STEPS = 48;
+/** Stepped params open on a window where a step is at least this tall (px). */
+export const MIN_STEP_PX = 8;
+/** Vertical drag per step of a stepped param (px), independent of the lane height. */
+export const DRAG_PX_PER_STEP = 8;
 /** Narrowest window (steps for stepped params; else this fraction of the range). */
 export const MIN_VISIBLE_STEPS = 4;
 export const MIN_VISIBLE_FRACTION = 0.05;
@@ -141,13 +146,25 @@ export function nudgeSize(info: ParamInfo, fine = false): number {
   return fine ? 0.001 : 0.01;
 }
 
-/** Opening window of the value axis. */
-export function defaultRange(info: ParamInfo): ValueRange {
+/**
+ * Opening window of the value axis for a lane `usablePx` tall: stepped params with more
+ * steps than fit at `MIN_STEP_PX` show that many steps around `center` (normalized;
+ * default: the param's default value); everything else shows its whole range.
+ */
+export function defaultRange(info: ParamInfo, usablePx: number, center = paramToNormalized(info, info.default)): ValueRange {
   const n = stepCount(info);
-  if (n === null || n <= DEFAULT_VISIBLE_STEPS || info.scale.type !== "Linear") return FULL_RANGE;
-  const half = DEFAULT_VISIBLE_STEPS / 2 / n;
-  const center = paramToNormalized(info, info.default);
+  if (n === null || n <= 0) return FULL_RANGE;
+  const fit = Math.max(MIN_VISIBLE_STEPS, Math.floor(usablePx / MIN_STEP_PX));
+  if (n <= fit) return FULL_RANGE;
+  const half = fit / 2 / n;
   return clampRange({ lo: center - half, hi: center + half }, info);
+}
+
+/** Normalized change of a vertical drag of `dyUp` px on a stepped param (whole steps). */
+export function stepDragDelta(info: ParamInfo, dyUp: number): number | null {
+  const n = stepCount(info);
+  if (n === null || n <= 0) return null;
+  return Math.round(dyUp / DRAG_PX_PER_STEP) / n;
 }
 
 /** Keep a window inside 0..1, no narrower than the minimum (sliding it back in). */
