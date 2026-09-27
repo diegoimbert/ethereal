@@ -176,6 +176,7 @@ pub fn create(config: EngineConfig) -> EngineParts {
         .collect::<Vec<_>>()
         .into();
     let playhead = Arc::new(SharedPlayhead::default());
+    let (warp_handle, warp_rt) = crate::warp::channel(&config);
     let snapshot =
         compile_with(RenderGraphDesc::default(), &config, &|_| None).expect("empty graph compiles");
     let tempo_bpm = snapshot.tempo.bpm_at(0.0);
@@ -207,6 +208,7 @@ pub fn create(config: EngineConfig) -> EngineParts {
         overflow: false,
         underruns: 0,
         leaked: 0,
+        warp: warp_rt,
         config: config.clone(),
     };
     let handle = EngineHandle {
@@ -223,6 +225,7 @@ pub fn create(config: EngineConfig) -> EngineParts {
         free: (0..config.max_nodes as u32).rev().collect(),
         node_latency,
         playhead,
+        warp: warp_handle,
         config,
     };
     EngineParts {
@@ -255,6 +258,7 @@ pub struct Engine {
     /// Objects that could not be handed to the GC (ring full) and were leaked instead of
     /// being freed on the audio thread.
     leaked: u64,
+    warp: crate::warp::WarpRt,
 }
 
 impl Engine {
@@ -274,6 +278,7 @@ impl Engine {
         }
         let frames = frames.min(self.config.max_block_size);
         self.drain_control();
+        self.warp.drain();
         self.drain_params();
         self.update_latencies();
 
@@ -486,6 +491,7 @@ impl Engine {
             next_note_id,
             overflow,
             underruns,
+            warp,
             ..
         } = self;
         let RenderSnapshot { desc, tempo, rt } = &mut **snapshot;
@@ -641,7 +647,7 @@ impl Engine {
                     };
                     let ref_bpm = tempo.bpm_at(clip.start);
                     let [al, ar] = &mut *a;
-                    if !sched::render_audio(
+                    if !warp.render(
                         clip,
                         &*sources[si].1,
                         ref_bpm,
@@ -973,6 +979,7 @@ pub struct EngineHandle {
     free: Vec<u32>,
     node_latency: Arc<[AtomicU32]>,
     playhead: Arc<SharedPlayhead>,
+    pub(crate) warp: crate::warp::WarpHandle,
 }
 
 struct HandleSlot {
@@ -1065,6 +1072,7 @@ impl EngineHandle {
     /// node's latency changes the controller re-publishes. Clips whose media has no
     /// registered source play silence (no error), so media can load asynchronously.
     pub fn publish(&mut self, desc: RenderGraphDesc) -> Result<(), EngineError> {
+        self.warp.sync(&desc);
         let snapshot = {
             let slots = &self.slots;
             let lat = &self.node_latency;
