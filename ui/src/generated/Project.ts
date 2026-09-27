@@ -3,6 +3,8 @@ import type { AutomationLane } from "./AutomationLane";
 import type { AutomationLaneId } from "./AutomationLaneId";
 import type { AutomationPoint } from "./AutomationPoint";
 import type { AutomationPointId } from "./AutomationPointId";
+import type { ChatMessage } from "./ChatMessage";
+import type { ChatMessageId } from "./ChatMessageId";
 import type { Clip } from "./Clip";
 import type { ClipId } from "./ClipId";
 import type { CompRegion } from "./CompRegion";
@@ -23,6 +25,8 @@ import type { Modulator } from "./Modulator";
 import type { ModulatorId } from "./ModulatorId";
 import type { Note } from "./Note";
 import type { NoteId } from "./NoteId";
+import type { PinnedNote } from "./PinnedNote";
+import type { PinnedNoteId } from "./PinnedNoteId";
 import type { ProjectId } from "./ProjectId";
 import type { ProjectSettings } from "./ProjectSettings";
 import type { RackChain } from "./RackChain";
@@ -85,4 +89,12 @@ modulators: { [key in ModulatorId]: Modulator },
 /**
  * Modulation mappings (`racks-modulation`).
  */
-mod_mappings: { [key in ModMappingId]: ModMapping }, };
+mod_mappings: { [key in ModMappingId]: ModMapping }, 
+/**
+ * Chat journal (base-62, `collab-social`; `.ether` v4).
+ */
+chat: { [key in ChatMessageId]: ChatMessage }, 
+/**
+ * Notes pinned on the arrangement (base-62, `collab-social`; `.ether` v4).
+ */
+pinned_notes: { [key in PinnedNoteId]: PinnedNote }, };
