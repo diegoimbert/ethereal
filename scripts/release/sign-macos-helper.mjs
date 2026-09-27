@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// Signs the staged sandbox helper (apps/desktop/src-tauri/binaries/ether-sandbox-helper)
+// Signs the staged helpers (apps/desktop/src-tauri/binaries/ether-sandbox-helper and
+// ether-plugin-scanner)
 // with hardened runtime and the release entitlements: with APPLE_SIGNING_IDENTITY (Developer
 // ID, plus a secure timestamp, as notarization requires) or ad-hoc ("-") without it. Tauri
 // signs sidecars (`externalBin`) but not plain `bundle.macOS.files`, which is how the helper
@@ -16,19 +17,21 @@ import { fileURLToPath } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const identity = process.env.APPLE_SIGNING_IDENTITY || "-";
-const helper = join(root, "apps/desktop/src-tauri/binaries/ether-sandbox-helper");
+const helpers = ["ether-sandbox-helper", "ether-plugin-scanner"].map((b) => join(root, "apps/desktop/src-tauri/binaries", b));
 
 if (process.platform !== "darwin") {
   console.log("sign-macos-helper: not macOS; nothing to sign");
   process.exit(0);
 }
-if (!existsSync(helper)) {
-  console.error(`sign-macos-helper: ${helper} not found (did build-sandbox-helper.mjs --bundle run?)`);
-  process.exit(1);
-}
 const entitlements = join(root, "scripts/release/macos/entitlements.plist");
-const args = ["--force", "--options", "runtime", "--entitlements", entitlements, "--sign", identity, helper];
-if (identity !== "-") args.splice(1, 0, "--timestamp");
-execFileSync("codesign", args, { stdio: "inherit" });
-execFileSync("codesign", ["--verify", "--strict", "--verbose=2", helper], { stdio: "inherit" });
-console.log(`sign-macos-helper: signed ${helper} (${identity === "-" ? "ad-hoc" : identity})`);
+for (const helper of helpers) {
+  if (!existsSync(helper)) {
+    console.error(`sign-macos-helper: ${helper} not found (did build-sandbox-helper.mjs --bundle run?)`);
+    process.exit(1);
+  }
+  const args = ["--force", "--options", "runtime", "--entitlements", entitlements, "--sign", identity, helper];
+  if (identity !== "-") args.splice(1, 0, "--timestamp");
+  execFileSync("codesign", args, { stdio: "inherit" });
+  execFileSync("codesign", ["--verify", "--strict", "--verbose=2", helper], { stdio: "inherit" });
+  console.log(`sign-macos-helper: signed ${helper} (${identity === "-" ? "ad-hoc" : identity})`);
+}
