@@ -6,6 +6,7 @@ import { MockTransport, TransportProvider, type SendOptions } from "@/transport"
 import { MOCK_NOTICE, WEB_NOTICE } from "./host";
 import { MidiLearnPanel } from "./index";
 import { useMidiLearnStore } from "./store";
+import { midiTarget } from "./targets";
 import { MIDI_MODE_CLASS } from "./useMidiMode";
 import { pickOption } from "@/kit/testing";
 
@@ -37,13 +38,13 @@ async function setup(kind?: "wasm") {
   return { mock, ...utils };
 }
 
-/** A mixer-strip-like control (the real strip lives in the mixer feature). */
+/** A mixer-strip-like control (real controls carry `data-midi-target` the same way). */
 function FakeStrip() {
   const track = useProjectStore((s) => (s.project ? Object.keys(s.project.tracks)[0] : undefined));
   if (!track) return null;
   return (
     <div className="eth-strip" data-track={track}>
-      <div className="eth-knob eth-strip__pan" data-testid="pan">
+      <div className="eth-knob eth-strip__pan" data-testid="pan" {...midiTarget({ type: "Param", target: { type: "TrackPan", track } })}>
         <span data-testid="pan-inner" />
       </div>
       <button type="button" className="eth-strip__name">

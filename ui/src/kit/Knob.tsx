@@ -23,6 +23,8 @@ export interface KnobProps {
   valueText?: string;
   disabled?: boolean;
   className?: string;
+  /** MIDI learn hook (`midiTarget()` in features/midi-learn): marks this control as mappable. */
+  "data-midi-target"?: string;
 }
 
 // Geometry comes from the `knobGeometry` tokens (100×100 viewBox, 0° = up); strokes are
@@ -70,6 +72,7 @@ export function Knob({
   valueText,
   disabled = false,
   className,
+  "data-midi-target": midiTarget,
 }: KnobProps) {
   const handlers = useVerticalDrag({
     value,
@@ -100,6 +103,7 @@ export function Knob({
       aria-valuenow={v}
       aria-valuetext={valueText}
       aria-disabled={disabled || undefined}
+      data-midi-target={midiTarget}
       {...handlers}
     >
       <span className="eth-knob__dial">

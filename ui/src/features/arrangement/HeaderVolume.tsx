@@ -2,6 +2,7 @@ import { useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
 import type { Track } from "@/generated";
 import { useGestureSender } from "@/features/devices/gesture";
 import { formatDb } from "@/features/devices/paramScale";
+import { midiTarget } from "@/features/midi-learn/targets";
 import { dbToFader, faderToDb } from "@/features/mixer/routing";
 import { setDragCursor } from "@/kit";
 import { cmd } from "@/transport";
@@ -63,6 +64,7 @@ export function HeaderVolume({ track }: { track: Track }) {
       className={active ? "eth-arr-vol eth-arr-vol--active" : "eth-arr-vol"}
       role="slider"
       tabIndex={0}
+      {...midiTarget({ type: "Param", target: { type: "TrackVolume", track: track.id } })}
       aria-label={`${track.name} volume`}
       aria-valuemin={0}
       aria-valuemax={1}

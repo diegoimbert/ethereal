@@ -21,6 +21,8 @@ export interface FaderProps {
   valueText?: string;
   disabled?: boolean;
   className?: string;
+  /** MIDI learn hook (`midiTarget()` in features/midi-learn): marks this control as mappable. */
+  "data-midi-target"?: string;
 }
 
 /** Vertical fader. Drag to change (Shift = fine), double-click to reset. */
@@ -35,6 +37,7 @@ export function Fader({
   valueText,
   disabled = false,
   className,
+  "data-midi-target": midiTarget,
 }: FaderProps) {
   const handlers = useVerticalDrag({
     value,
@@ -59,6 +62,7 @@ export function Fader({
       aria-valuenow={v}
       aria-valuetext={valueText}
       aria-disabled={disabled || undefined}
+      data-midi-target={midiTarget}
       title={valueText}
       {...handlers}
     >

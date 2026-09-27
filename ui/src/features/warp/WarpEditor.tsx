@@ -16,7 +16,8 @@
 import { useEffect, useMemo, useReducer, useRef, useState, type KeyboardEvent, type PointerEvent, type RefObject } from "react";
 import { useShallow } from "zustand/react/shallow";
 import type { AudioContent, Beats, Clip, MediaRef, WarpMarker, WarpMarkerId, WarpMode } from "@/generated";
-import { Knob, Select, type SelectOption } from "@/kit";
+import { Knob, Select, useThemeColor, type SelectOption } from "@/kit";
+import { size } from "@/theme";
 import { useClip, useEditedClipId, useProjectStore, warpMarkersOfClip } from "@/state";
 import { useTempoMap } from "@/timeline";
 import { cmd, newId, useTransport } from "@/transport";
@@ -245,7 +246,7 @@ function TransposeControl({ clip, semitones }: { clip: Clip; semitones: number }
       <Knob
         value={(semitones + TRANSPOSE_RANGE) / (2 * TRANSPOSE_RANGE)}
         bipolar
-        size={24}
+        size={parseFloat(size.knobSm)}
         label="Transpose"
         valueText={`${semitones > 0 ? "+" : ""}${semitones} st`}
         onChangeStart={() => {
@@ -280,9 +281,6 @@ function TransposeControl({ clip, semitones }: { clip: Clip; semitones: number }
   );
 }
 
-const WAVE_COLOR = "rgba(120, 200, 255, 0.85)";
-const WAVE_DIM = "rgba(120, 200, 255, 0.3)";
-
 function Waveform({
   media,
   width,
@@ -304,6 +302,8 @@ function Waveform({
   const ref = useRef<HTMLCanvasElement>(null);
   const [tick, redraw] = useReducer((x: number) => x + 1, 0);
   useEffect(() => peaks.subscribe(redraw), [peaks]);
+  const waveColor = useThemeColor("warpWave");
+  const waveDim = useThemeColor("warpWaveDim");
 
   useEffect(() => {
     const canvas = ref.current;
@@ -321,8 +321,8 @@ function Waveform({
     const tile = (i: number) => (i * TILE_PEAKS * level < media.frames ? peaks.tile(media.id, level, i) : null);
     const mid = h / 2;
     for (const [color, inside] of [
-      [WAVE_DIM, false],
-      [WAVE_COLOR, true],
+      [waveDim, false],
+      [waveColor, true],
     ] as const) {
       ctx.fillStyle = color;
       ctx.beginPath();
@@ -341,7 +341,7 @@ function Waveform({
       }
       ctx.fill();
     }
-  }, [media, width, span, toSeconds, playedFrom, playedTo, peaks, tick]);
+  }, [media, width, span, toSeconds, playedFrom, playedTo, peaks, tick, waveColor, waveDim]);
 
   return (
     <canvas
