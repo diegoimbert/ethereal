@@ -224,8 +224,8 @@
   position: relative;
   z-index: 5;
   box-sizing: border-box;
-  /* Clears the card's right inset (4px) with room to spare. */
-  padding-right: 16px;
+  /* The card's right inset (12px, a gap before the lanes) plus room inside it. */
+  padding-right: 20px;
   /* The header is a floating card: drawn by ::before, inset from the row (the header box
      itself keeps the column width that clip positions rely on). */
   background: transparent;
@@ -239,7 +239,7 @@
   content: "";
   position: absolute;
   /* Nested tracks' cards step in with their group depth. */
-  inset: 3px 4px 3px calc(6px + var(--eth-track-depth, 0) * 12px);
+  inset: 3px 12px 3px calc(6px + var(--eth-track-depth, 0) * 12px);
   z-index: -1;
   border-radius: var(--eth-radius-lg);
   /* Only a selected track shows its card; hover gives a faint hint. */
