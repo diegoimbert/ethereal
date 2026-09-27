@@ -5,14 +5,16 @@ import "./project.css";
 import { useEffect, useRef, useState } from "react";
 import { Menu } from "lucide-react";
 import { useEngineCommands } from "@/features/transport-bar/engine";
-import { Button, Popover } from "@/kit";
+import { Button } from "@/kit";
 import { useProjectStore } from "@/state";
 import { cmd } from "@/transport";
-import { ProjectManager } from "./ProjectManager";
+import { ProjectScreen } from "./ProjectScreen";
+import { useProjectScreen } from "./screenStore";
 
 /**
- * Project menu: current project name + unsaved-changes dot, and the project manager
- * popover (list, new, open, save as, duplicate, rename, delete).
+ * Project menu: the Projects button, current project name and unsaved-changes dot. The
+ * button opens the project screen (`ProjectScreen`: a modal over the app, also shown once on
+ * launch: rename, new, open, duplicate, delete).
  *
  * The project saves itself: `AUTOSAVE_MS` after the last change (each edit restarts the
  * wait, so a burst of edits is one save). Ctrl/Cmd+S saves at once.
@@ -29,7 +31,7 @@ export function ProjectMenu() {
   const { transport, send, error, clearError } = commands;
   const name = useProjectStore((s) => s.project?.settings.name ?? null);
   const dirty = useProjectStore((s) => s.dirty);
-  const [open, setOpen] = useState(false);
+  const open = useProjectScreen((s) => s.open);
   const disabled = !transport || name === null;
 
   const revision = useProjectStore((s) => s.revision);
@@ -42,6 +44,12 @@ export function ProjectMenu() {
   useEffect(() => {
     saveRef.current = disabled ? () => undefined : save;
   });
+
+  // Launch: show the project screen once the first project is loaded.
+  const launchPending = useProjectScreen((s) => s.launchPending);
+  useEffect(() => {
+    if (launchPending && name !== null) useProjectScreen.setState({ launchPending: false, open: true });
+  }, [launchPending, name]);
 
   // Autosave: once there are unsaved changes and no edit for AUTOSAVE_MS (every document
   // revision restarts the wait).
@@ -65,20 +73,10 @@ export function ProjectMenu() {
 
   return (
     <div className="eth-project" data-feature="project">
-      <Popover
-        open={open}
-        onOpenChange={setOpen}
-        role="dialog"
-        aria-label="Projects"
-        className="eth-project-popover"
-        trigger={(t) => (
-          <Button {...t} tone="ghost" aria-label="Projects" title="Projects" disabled={!transport}>
-            <Menu aria-hidden />
-          </Button>
-        )}
-      >
-        {(close) => <ProjectManager commands={commands} onClose={close} />}
-      </Popover>
+      <Button tone="ghost" aria-label="Projects" title="Projects" disabled={!transport} onClick={() => useProjectScreen.getState().show()}>
+        <Menu aria-hidden />
+      </Button>
+      <ProjectScreen commands={commands} />
       <span className="eth-project__name" data-testid="project-name" title={name ?? undefined}>
         {name ?? "No project"}
       </span>

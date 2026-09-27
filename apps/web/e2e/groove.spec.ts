@@ -10,6 +10,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import type { Note, Project } from "@/generated";
 import { openClip } from "./clips";
+import { newProject } from "./projects";
 
 interface Handle {
   state(): { project: Project | null };
@@ -43,9 +44,7 @@ test("groove: quantize with swing, humanize, project swing", async ({ page }) =>
   await expect(page.getByRole("button", { name: "Play" })).toBeVisible({ timeout: 30_000 });
   await expect.poll(() => project(page).then((p) => p !== null), { timeout: 30_000 }).toBe(true);
 
-  await page.getByRole("button", { name: "Projects" }).click();
-  await page.getByLabel("New project name").fill(`Groove ${Date.now()}`);
-  await page.getByRole("dialog", { name: "Projects" }).getByRole("button", { name: "New" }).click();
+  await newProject(page, `Groove ${Date.now()}`);
   await expect.poll(async () => Object.keys((await doc(page)).clips).length).toBe(0);
 
   // --- MIDI clip in the piano roll, with notes off the grid ---------------------------------

@@ -11,6 +11,7 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import type { Project } from "@/generated";
 import { openClip, selectClip } from "./clips";
+import { newProject } from "./projects";
 
 interface Handle {
   state(): { project: Project | null; dirty: boolean; history: { can_undo: boolean; can_redo: boolean } };
@@ -68,9 +69,7 @@ test("full flow: build a song, play it, edit, save, reload", async ({ page }) =>
 
   // --- Create a project -----------------------------------------------------------------
   const name = `E2E Song ${Date.now()}`;
-  await page.getByRole("button", { name: "Projects" }).click();
-  await page.getByLabel("New project name").fill(name);
-  await page.getByRole("dialog", { name: "Projects" }).getByRole("button", { name: "New" }).click();
+  await newProject(page, name);
   await expect(page.getByTestId("project-name")).toHaveText(name);
   const projectId = (await doc(page)).id;
   const baseTracks = count((await doc(page)).tracks);

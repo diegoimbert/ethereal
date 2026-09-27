@@ -11,6 +11,7 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import type { Clip, Project, WarpMarker } from "@/generated";
 import { openClip } from "./clips";
+import { newProject } from "./projects";
 
 interface Handle {
   state(): { project: Project | null };
@@ -62,9 +63,7 @@ test("warp: markers, modes, transpose and playback", async ({ page }) => {
   await expect(page.getByRole("button", { name: "Play" })).toBeVisible({ timeout: 30_000 });
   await expect.poll(() => project(page).then((p) => p !== null), { timeout: 30_000 }).toBe(true);
 
-  await page.getByRole("button", { name: "Projects" }).click();
-  await page.getByLabel("New project name").fill(`Warp ${Date.now()}`);
-  await page.getByRole("dialog", { name: "Projects" }).getByRole("button", { name: "New" }).click();
+  await newProject(page, `Warp ${Date.now()}`);
   await expect.poll(async () => Object.keys((await doc(page)).clips).length).toBe(0);
 
   // --- Audio track + library loop ----------------------------------------------------------

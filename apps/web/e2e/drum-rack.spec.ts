@@ -9,6 +9,7 @@
 // `window.__ether` (apps/web/src/main.tsx).
 import { expect, test, type Page } from "@playwright/test";
 import type { Device, DrumPad, Project } from "@/generated";
+import { newProject } from "./projects";
 
 interface Handle {
   state(): { project: Project | null };
@@ -44,9 +45,7 @@ test("drum rack: build a 2-pad kit from the browser", async ({ page }) => {
   await expect(page.getByRole("button", { name: "Play" })).toBeVisible({ timeout: 30_000 });
   await expect.poll(() => project(page).then((p) => p !== null), { timeout: 30_000 }).toBe(true);
 
-  await page.getByRole("button", { name: "Projects" }).click();
-  await page.getByLabel("New project name").fill(`Drum Rack ${Date.now()}`);
-  await page.getByRole("dialog", { name: "Projects" }).getByRole("button", { name: "New" }).click();
+  await newProject(page, `Drum Rack ${Date.now()}`);
   await expect.poll(async () => Object.keys((await doc(page)).drum_pads).length).toBe(0);
 
   // --- MIDI track, selected, with a drum rack --------------------------------------------

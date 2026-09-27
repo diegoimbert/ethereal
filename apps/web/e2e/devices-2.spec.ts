@@ -5,6 +5,7 @@
 // track meter stays at the ceiling.
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import type { Project } from "@/generated";
+import { newProject } from "./projects";
 
 interface Handle {
   state(): { project: Project | null };
@@ -58,13 +59,8 @@ test("EQ, reverb, limiter and utility on an audio track", async ({ page }) => {
     .poll(() => project(page).then((p) => p !== null), { timeout: 30_000 })
     .toBe(true);
 
-  await page.getByRole("button", { name: "Projects" }).click();
   const name = `Devices 2 ${Date.now()}`;
-  await page.getByLabel("New project name").fill(name);
-  await page
-    .getByRole("dialog", { name: "Projects" })
-    .getByRole("button", { name: "New" })
-    .click();
+  await newProject(page, name);
   await expect(page.getByTestId("project-name")).toHaveText(name);
   const baseTracks = count((await doc(page)).tracks);
 

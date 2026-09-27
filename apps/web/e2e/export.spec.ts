@@ -3,6 +3,7 @@
 // `Export::ReadChunk` and the browser saves them.
 import { expect, test, type Page } from "@playwright/test";
 import type { Project } from "@/generated";
+import { newProject } from "./projects";
 
 interface Handle {
   state(): { project: Project | null };
@@ -26,13 +27,8 @@ test("export the loop region as a WAV download", async ({ page }) => {
     .poll(() => project(page).then((p) => p !== null), { timeout: 30_000 })
     .toBe(true);
 
-  await page.getByRole("button", { name: "Projects" }).click();
   const name = `Export ${Date.now()}`;
-  await page.getByLabel("New project name").fill(name);
-  await page
-    .getByRole("dialog", { name: "Projects" })
-    .getByRole("button", { name: "New" })
-    .click();
+  await newProject(page, name);
   await expect(page.getByTestId("project-name")).toHaveText(name);
   await page.getByRole("button", { name: "+ MIDI track" }).click();
 

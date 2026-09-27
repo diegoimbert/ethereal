@@ -7,6 +7,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import type { Clip, Project } from "@/generated";
 import { selectClip } from "./clips";
+import { newProject } from "./projects";
 
 interface Handle {
   state(): { project: Project | null };
@@ -38,9 +39,7 @@ test("clip editing: fade drag, reverse, markers", async ({ page }) => {
   await expect(page.getByRole("button", { name: "Play" })).toBeVisible({ timeout: 30_000 });
   await expect.poll(() => project(page).then((p) => p !== null), { timeout: 30_000 }).toBe(true);
 
-  await page.getByRole("button", { name: "Projects" }).click();
-  await page.getByLabel("New project name").fill(`Clip editing ${Date.now()}`);
-  await page.getByRole("dialog", { name: "Projects" }).getByRole("button", { name: "New" }).click();
+  await newProject(page, `Clip editing ${Date.now()}`);
   await expect.poll(async () => Object.keys((await doc(page)).clips).length).toBe(0);
 
   // --- Audio track + library loop ----------------------------------------------------------
