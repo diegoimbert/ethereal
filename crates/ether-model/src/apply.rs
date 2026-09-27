@@ -948,7 +948,19 @@ impl Project {
                 if !p.y.is_finite() {
                     return Err(invalid("note y must be finite"));
                 }
-                check_unit("note y", f64::from(p.y))
+                check_unit("note y", f64::from(p.y))?;
+                if let Some(e) = &p.editor {
+                    if p.track.is_some() || p.y != 0.0 || p.beats.0 != 0.0 {
+                        return Err(invalid(
+                            "a piano-roll note has no arranger position (beats 0, no track, y 0)",
+                        ));
+                    }
+                    check_beats_nonneg("note piano-roll position", e.beats)?;
+                    if !(e.pitch.is_finite() && (0.0..=128.0).contains(&e.pitch)) {
+                        return Err(invalid("note pitch must be in 0..=128"));
+                    }
+                }
+                Ok(())
             }
         }
     }

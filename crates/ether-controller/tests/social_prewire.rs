@@ -32,6 +32,7 @@ fn social_commands_reply_unsupported_until_implemented() {
         beats: Beats(4.0),
         track: None,
         y: 0.0,
+        editor: None,
     };
     for c in [
         Command::Chat(ChatCommand::Send {

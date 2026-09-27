@@ -422,9 +422,12 @@ component), `ui/src/transport/mock/roadmap/social.*`, `apps/web/e2e/collab-socia
     `kit/index.ts`).
   - **Shortcut** `Mod+Shift+M`: open the chat section and focus its input (Enter sends);
     a palette entry "Chat: Focus input".
-  - **Notes overlay** in the arrangement (the presence-v2 `PresenceLayer` pattern and
-    `coords.ts` mapping): "Leave a note" in the arranger context menus, dots in the author's
-    colour, expandable text, edit/resolve/"Discard note", drag to move (one gesture).
+  - **Notes overlays** wherever cursors are tracked: in the arrangement (the presence-v2
+    `PresenceLayer` pattern and `coords.ts` mapping) and in the piano roll
+    (`NotePosition::editor`, the `EditorPresence` mapping): "Leave a note" in the arranger
+    and note-grid context menus, dots in the author's colour, expandable text,
+    edit/resolve/"Discard note", drag to move (one gesture).
+  - Optional: peers' playheads in the piano roll too, and follow-mode parity there.
   - **Peer playheads** overlay: one line + ruler cap per peer in its colour, distinct from
     ours, extrapolated with the replicated tempo map and wrapped in the loop (§12.3).
   - **"Hide others"** toggle in the collab dialog: local setting (localStorage), never
@@ -434,6 +437,9 @@ component), `ui/src/transport/mock/roadmap/social.*`, `apps/web/e2e/collab-socia
   visible in a session only), `ui/src/app/shell/commands.ts` (palette entry),
   `ui/src/kit/index.ts` (export line), `ui/src/features/arrangement/{ArrangementView.tsx,
   TrackRow.tsx, arrangement.css}` (mount the overlays, the "Leave a note" menu entry),
+  `ui/src/features/piano-roll/{NoteGrid.tsx, PianoRoll.tsx, pianoRoll.css}` (the piano-roll
+  notes overlay and menu entry), `ui/src/features/collab/presence/editors.ts` (the "peer
+  editing" clip ring honours the hide toggle),
   `ui/src/features/collab/{store.ts, PresenceBar.tsx, PresenceBar.test.tsx, index.tsx,
   collab.css}` (`ChatReceived`, the hide toggle in the dialog, `PeerHighlights` honours it),
   `ui/src/features/collab/presence/{PresenceLayer.tsx, EditorPresence.tsx}` (honour hide

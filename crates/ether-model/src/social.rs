@@ -17,7 +17,7 @@ use ts_rs::TS;
 
 use crate::collab::{ActorId, SiteId};
 use crate::entity::EntityKey;
-use crate::ids::{ChatMessageId, PinnedNoteId, TrackId};
+use crate::ids::{ChatMessageId, ClipId, PinnedNoteId, TrackId};
 use crate::project::Project;
 use crate::value::{Beats, Color};
 
@@ -66,17 +66,40 @@ pub struct ChatMessage {
     pub sent_at: u64,
 }
 
-/// Where a note is pinned: the same song coordinates as `ArrangerPointer`.
+/// Where a note is pinned: the same coordinates as a presence pointer (`ArrangerPointer`,
+/// with its `editor` part), i.e. wherever cursors are tracked.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
 pub struct NotePosition {
-    /// Horizontal position (finite, `>= 0`).
+    /// Arranger: horizontal position (finite, `>= 0`).
     pub beats: Beats,
-    /// The track row it is pinned on; `None` = the ruler / off-track area. A **weak**
-    /// reference: not validated and never cascaded. A note whose track no longer exists
-    /// shows in the ruler row at `beats` (undoing the track delete puts it back).
+    /// Arranger: the track row it is pinned on; `None` = off-track. A **weak** reference:
+    /// not validated and never cascaded. A note whose track no longer exists shows in the
+    /// ruler row at `beats` (undoing the track delete puts it back).
     pub track: Option<TrackId>,
-    /// Vertical position in that row, 0 (top) ..= 1 (bottom); 0 with `track: None`.
+    /// Arranger: vertical position, 0..=1, with `ArrangerPointer::y`'s meaning. With a
+    /// track: 0 (top) ..= 1 (bottom) of that row, including its expanded lanes. With
+    /// `track: None`: 0 = over the ruler/header area; > 0 = below the last track, as the
+    /// fraction of the free space there (each user maps it onto their own free space).
     pub y: f32,
+    /// Set when the note is pinned in a piano roll instead of the arranger; the arranger
+    /// fields are then `beats: 0, track: None, y: 0` (validated) and ignored.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub editor: Option<EditorNotePosition>,
+}
+
+/// A note pinned in the piano roll of `clip`, in its **content** coordinates (the same as
+/// `EditorPointer`: each user's zoom, scroll and key height are local).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+pub struct EditorNotePosition {
+    /// A **weak** reference, like `NotePosition::track`: not validated, never cascaded. A
+    /// note whose clip is gone is not shown (undoing the clip delete brings it back).
+    pub clip: ClipId,
+    /// Position on the clip's content axis (beats from its content start; finite, `>= 0`).
+    pub beats: Beats,
+    /// The key under the note plus how far up it is (60.0 = bottom edge of C3's row,
+    /// 60.5 = its middle); `0.0..=128.0`.
+    pub pitch: f32,
 }
 
 /// A note pinned on the arrangement ("Leave a note").

@@ -812,33 +812,48 @@ UI (`ui/src/features/collab/social/**`):
   in the command palette as "Chat: Focus input"; Escape returns focus to where it was).
   Only in a session. The node checks the existing keymap for conflicts.
 
-### 12.2 Notes pinned on the arrangement
+### 12.2 Notes pinned wherever cursors are tracked (arranger and piano roll)
 
 - **Entity** `PinnedNote { id, position, text, author, created_at, resolved }` in
   `Project::pinned_notes` (`#[serde(default)]`; named `PinnedNote` because `Note` is the MIDI
-  note). `position = NotePosition { beats, track, y }`: the same song coordinates as
-  `ArrangerPointer` (§8.3): `beats` ≥ 0, `y` in 0..=1 inside the track's row, `track: None`
-  = ruler/off-track area (then `y` = 0). `text`: 1..=2000 chars (`NOTE_TEXT_MAX_CHARS`).
-  `resolved` defaults to `false`. Validated by `Project::apply` (text, author, position
-  ranges).
-- `track` is a **weak reference**: never validated, never cascaded, never blocks a track
-  delete. A note whose track is gone shows in the ruler row at its `beats`; undoing the
-  track delete puts it back in place.
+  note). `text`: 1..=2000 chars and ≤ 4096 UTF-8 bytes (`NOTE_TEXT_MAX_CHARS`,
+  `TEXT_MAX_BYTES`). `resolved` defaults to `false`. At most `MAX_PINNED_NOTES` (500) per
+  project: an insert past it is refused by `Project::apply` ("a project holds at most 500
+  notes"; the UI shows it). Validated by `Project::apply` (text, author, position ranges,
+  count).
+- `position = NotePosition { beats, track, y, editor? }`, the same coordinates as a
+  presence pointer (§8.3), so a note can be left **wherever cursors are tracked**:
+  - **Arranger** (`editor: None`): `beats` ≥ 0; `track` = the row, `y` in 0..=1 inside it
+    (including its expanded lanes); `track: None` = off-track, with `ArrangerPointer::y`'s
+    meaning: `y` = 0 over the ruler/header area, `y` > 0 below the last track as the
+    fraction of the free space there (each user maps it onto their own).
+  - **Piano roll** (`editor: Some(EditorNotePosition { clip, beats, pitch })`, mirroring
+    `EditorPointer`): content beats of that clip (≥ 0) and `pitch` in 0..=128 (60.5 = the
+    middle of C3's row). The arranger fields are then `beats: 0, track: None, y: 0`
+    (validated) and ignored.
+- `track` and `clip` are **weak references**: never validated, never cascaded, never block
+  a delete. A note whose track is gone shows in the ruler row at its `beats`; one whose
+  clip is gone is not shown. Undoing the delete puts it back in place.
 - **Commands** `PinnedNote::{Add { id, position, text, author_name }, Edit { id, text?,
   position?, resolved? }, Delete { ids }}`: document commands (undoable, replicated, allowed
   in a `Batch`, work outside a session). The controller fills `author` (in a session: the
   session identity; outside: `author_name` or "", no site/colour) and `created_at`. **Any
   user can edit, resolve, move or discard any note**, for everyone; discarding is undoable
-  (by whoever discarded it, per-site undo §3).
-- UI (`ui/src/features/collab/social/notes/**`): arranger context menu **"Leave a note"**
-  (the owner's context-menu pattern: one entry in the lane/ruler menus of
-  `ArrangementView.tsx` and `TrackRow.tsx`) at
-  the right-click position mapped to song coordinates with presence-v2's `coords.ts`; a
-  small dot in the author's colour drawn in an overlay layer over the arrangement (the
-  PresenceLayer pattern: one layer, pointer-events only on the dots, each user's own layout
-  maps song → screen); hover/click shows the text, collapsed to a few lines with "more"
-  when long; edit, resolve and "Discard note" from the dot's menu; drag the dot to move it
-  (one gesture). Resolved notes are dimmed.
+  (by whoever discarded it, per-site undo §3). Authorship is best-effort (§12.1): an undo
+  legitimately re-inserts another user's note, so receivers cannot verify it like chat.
+- UI (`ui/src/features/collab/social/notes/**`), the owner's context-menu pattern in both
+  places:
+  - **Arranger**: **"Leave a note"** in the lane/ruler menus of `ArrangementView.tsx` and
+    `TrackRow.tsx`, at the right-click position mapped to song coordinates with
+    presence-v2's `coords.ts`; dots drawn in an overlay layer over the arrangement (the
+    PresenceLayer pattern: one layer, pointer-events only on the dots, each user's own
+    layout maps song → screen).
+  - **Piano roll**: **"Leave a note"** in the note-grid context menu (`NoteGrid.tsx`), at
+    the right-click position in content coordinates (the `EditorPresence` mapping); dots
+    in an overlay over the grid (mounted in `PianoRoll.tsx`), shown only for the open clip.
+  - Both: a small dot in the author's colour; hover/click shows the text, collapsed to a
+    few lines with "more" when long; edit, resolve and "Discard note" from the dot's menu;
+    drag the dot to move it (one gesture). Resolved notes are dimmed.
 
 ### 12.3 Peers' playheads
 

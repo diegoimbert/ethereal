@@ -47,6 +47,7 @@ impl F {
                 beats: Beats(8.0),
                 track: None,
                 y: 0.0,
+                editor: None,
             },
             text: text.into(),
             author: Self::author(),
@@ -236,4 +237,40 @@ fn v3_files_without_the_tables_load_and_new_ones_round_trip() {
     let loaded = file::load(&doc.to_string()).unwrap();
     assert!(loaded.chat.is_empty() && loaded.pinned_notes.is_empty());
     assert_eq!(doc["version"], file::CURRENT_VERSION);
+}
+
+#[test]
+fn pinned_notes_in_the_piano_roll() {
+    let mut f = F::new();
+    let clip: ClipId = f.ids.next(2);
+    let mut n = f.note("sharp here");
+    n.position = NotePosition {
+        beats: Beats(0.0),
+        track: None,
+        y: 0.0,
+        editor: Some(EditorNotePosition {
+            clip,
+            beats: Beats(2.5),
+            pitch: 60.5,
+        }),
+    };
+    // The clip is a weak reference: it need not exist.
+    f.commit(vec![insert(Entity::PinnedNote(n.clone()))])
+        .unwrap();
+    for bad in [
+        |p: &mut NotePosition| p.track = Some(TrackId::NIL),
+        |p: &mut NotePosition| p.beats = Beats(1.0),
+        |p: &mut NotePosition| p.editor.as_mut().unwrap().pitch = 128.5,
+        |p: &mut NotePosition| p.editor.as_mut().unwrap().pitch = f32::NAN,
+        |p: &mut NotePosition| p.editor.as_mut().unwrap().beats = Beats(-1.0),
+    ] {
+        let mut m = f.note("x");
+        m.position = n.position.clone();
+        bad(&mut m.position);
+        assert!(
+            f.commit(vec![insert(Entity::PinnedNote(m))]).is_err(),
+            "{:?}",
+            n.position
+        );
+    }
 }

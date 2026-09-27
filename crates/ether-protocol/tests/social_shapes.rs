@@ -39,6 +39,7 @@ fn chat_and_note_commands() {
         beats: Beats(8.5),
         track: Some(track),
         y: 0.25,
+        editor: None,
     };
     let v = roundtrip(&Command::PinnedNote(PinnedNoteCommand::Add {
         id: note,
@@ -97,6 +98,7 @@ fn entities_and_updates() {
             beats: Beats(0.0),
             track: None,
             y: 0.0,
+            editor: None,
         },
         text: "intro".into(),
         author,
@@ -187,4 +189,32 @@ fn caps() {
     assert_eq!(CHAT_MAX_MESSAGES, 2000);
     assert_eq!(NOTE_TEXT_MAX_CHARS, 2000);
     assert_eq!(AUTHOR_NAME_MAX_CHARS, 64);
+}
+
+#[test]
+fn piano_roll_note_position() {
+    let clip: ClipId = id(9);
+    let arranger = NotePosition {
+        beats: Beats(1.0),
+        track: None,
+        y: 0.5,
+        editor: None,
+    };
+    let v = roundtrip(&arranger);
+    assert!(v.get("editor").is_none(), "unset editor is omitted");
+    let editor = NotePosition {
+        beats: Beats(0.0),
+        track: None,
+        y: 0.0,
+        editor: Some(EditorNotePosition {
+            clip,
+            beats: Beats(2.5),
+            pitch: 60.5,
+        }),
+    };
+    let v = roundtrip(&editor);
+    assert_eq!(
+        v["editor"],
+        json!({"clip": clip.to_string(), "beats": 2.5, "pitch": 60.5})
+    );
 }
