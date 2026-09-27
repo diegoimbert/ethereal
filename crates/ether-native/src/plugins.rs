@@ -1,16 +1,27 @@
-//! CLAP plugin hosting for the native host: main-thread executor, plugin registry, plugin
-//! catalog (scanner + on-disk DB).
+//! Plugin hosting for the native host (CLAP, VST3, AU through `ether-plugin-host`'s
+//! [`Formats`] registry): main-thread executor, plugin registry, plugin catalog (scanner +
+//! on-disk DB).
 //!
 //! # Threading
-//! CLAP main-thread calls (instantiate, activate, state, params, GUI) must run on the thread
-//! that owns the `PluginController`, and on macOS AppKit requires that to be the process
-//! main thread (floating editors). So every plugin controller lives in a registry that is
-//! only ever touched on the [`MainThread`] executor:
+//! Plugin main-thread calls (instantiate, activate, state, params, GUI) must run on the
+//! thread that owns the `PluginController`, and on macOS AppKit requires that to be the
+//! process main thread (floating editors). So every plugin controller lives in a registry
+//! that is only ever touched on the [`MainThread`] executor:
 //! - the desktop app implements [`MainThread`] with Tauri's `run_on_main_thread`;
 //! - headless hosts and tests use [`DedicatedThread`] (one thread owning every plugin).
 //!
 //! The controller thread calls into the registry synchronously ([`PluginHost::call`]),
 //! with a timeout so a stuck main thread can't hang the controller forever.
+//!
+//! # Re-entrancy
+//! Some plugin calls run a **nested run loop** on the main thread: AU `instantiate` (async
+//! units) and `open_editor` pump `CFRunLoopRunInMode` until their completion arrives, and
+//! anything queued with `run_on_main_thread` (other registry calls, returning nodes) can
+//! run inside them. So the registry is never borrowed across a plugin call: a controller is
+//! **checked out** of the registry (its slot left empty) for the duration of the call and
+//! checked back in afterwards. A nested call that needs the same controller sees it busy
+//! (`poll` skips it; a node returning from the engine is parked and deactivated at
+//! check-in; other calls fail with an `Ipc` "busy" error).
 //!
 //! Plugins are activated with the engine's `max_block_size` (the audio backends never call
 //! `process` with larger blocks). The audio half ([`PluginNode`]) goes to the engine wrapped
@@ -27,9 +38,10 @@ use std::time::{Duration, Instant};
 use crossbeam_channel::{RecvTimeoutError, Sender, bounded, unbounded};
 use ether_core::plugin::{PluginController, PluginError, PluginNode, PluginNotification};
 use ether_core::protocol::devices::DeviceDescriptor;
-use ether_core::protocol::model::{DeviceId, ParamId};
+use ether_core::protocol::model::{DeviceId, ParamId, PluginFormat};
 use ether_core::protocol::plugins::PluginDescriptor;
 use ether_core::{AudioBuffers, Device, Node, PrepareConfig, ProcessContext, ProcessStatus};
+use ether_plugin_host::Formats;
 
 /// Runs closures on the thread that owns plugin controllers.
 pub trait MainThread: Send + Sync {
@@ -71,13 +83,42 @@ impl MainThread for DedicatedThread {
     }
 }
 
+/// Every plugin format the native host loads: CLAP, VST3 and AU (AU is `Unsupported` off
+/// macOS).
+pub fn formats() -> Formats {
+    Formats::new(vec![
+        Arc::new(ether_clap::ClapFormat),
+        Arc::new(ether_vst3::Vst3Format),
+        Arc::new(ether_au::AuFormat),
+    ])
+}
+
+/// The in-process instantiator of the native host: [`formats`], by format.
+pub fn instantiate_any() -> Instantiate {
+    let formats = formats();
+    Arc::new(move |format, path, id| formats.instantiate(format, path, id))
+}
+
+/// Display name of a format (`CLAP`, `VST3`, `AU`) for user-facing messages.
+pub fn format_label(format: PluginFormat) -> &'static str {
+    match format {
+        PluginFormat::Clap => "CLAP",
+        PluginFormat::Vst3 => "VST3",
+        PluginFormat::Au => "AU",
+    }
+}
+
 pub(crate) struct Hosted {
     device: DeviceId,
-    controller: Box<dyn PluginController>,
+    /// `None` while checked out for a plugin call (see the module docs on re-entrancy).
+    controller: Option<Box<dyn PluginController>>,
     /// The device was destroyed or replaced while this instance's node was still in the
     /// engine: the controller is dropped once the node comes back.
     retired: bool,
     active: bool,
+    /// The node came back from the engine while the controller was checked out: it is
+    /// deactivated when the controller is checked back in.
+    returned: Option<Box<dyn PluginNode>>,
 }
 
 /// Main-thread plugin registry. Instances are keyed by a per-instance token, so an old
@@ -92,30 +133,86 @@ pub(crate) struct Registry {
 }
 
 impl Registry {
-    fn live_mut(&mut self, device: DeviceId) -> Option<&mut Hosted> {
-        let token = *self.live.get(&device)?;
-        self.instances.get_mut(&token)
-    }
-
     /// Retire the current instance of `device`: dropped now if its node is back, else when
-    /// its node returns.
-    fn retire(&mut self, device: DeviceId) {
-        let Some(token) = self.live.remove(&device) else {
-            return;
-        };
-        if let Some(h) = self.instances.get_mut(&token) {
-            if h.active {
-                h.retired = true;
-            } else {
-                self.instances.remove(&token);
-            }
+    /// its node returns (or at check-in, if a call has it checked out). Returns a controller
+    /// for the caller to drop outside the registry borrow.
+    fn retire(&mut self, device: DeviceId) -> Option<Box<dyn PluginController>> {
+        let token = self.live.remove(&device)?;
+        let h = self.instances.get_mut(&token)?;
+        if h.active {
+            h.retired = true;
+            None
+        } else {
+            self.instances.remove(&token)?.controller
         }
     }
 }
 
 thread_local! {
-    /// Plugin controllers. Only touched on the main-thread executor.
+    /// Plugin controllers. Only touched on the main-thread executor, and only borrowed for
+    /// bookkeeping: never across a call into a plugin.
     static REGISTRY: RefCell<Registry> = RefCell::new(Registry::default());
+}
+
+/// Run `f` with the registry (main thread). `f` must not call into a plugin.
+fn with_registry<R>(f: impl FnOnce(&mut Registry) -> R) -> R {
+    REGISTRY.with(|reg| f(&mut reg.borrow_mut()))
+}
+
+fn busy() -> PluginError {
+    PluginError::Ipc("plugin is busy (another main-thread call is running)".into())
+}
+
+/// Take the controller of instance `token` out of the registry. `None` if the instance is
+/// unknown or already checked out.
+fn checkout(token: u64) -> Option<Box<dyn PluginController>> {
+    with_registry(|reg| reg.instances.get_mut(&token)?.controller.take())
+}
+
+/// Put a checked-out controller back: deactivates a node that returned meanwhile, and drops
+/// the instance if it was retired and is inactive (or was removed meanwhile).
+fn checkin(token: u64, mut controller: Box<dyn PluginController>) {
+    while let Some(node) = with_registry(|reg| reg.instances.get_mut(&token)?.returned.take()) {
+        controller.deactivate(node);
+        with_registry(|reg| {
+            if let Some(h) = reg.instances.get_mut(&token) {
+                h.active = false;
+            }
+        });
+    }
+    let dropped = with_registry(|reg| match reg.instances.get_mut(&token) {
+        Some(h) if h.retired && !h.active => {
+            reg.instances.remove(&token);
+            Some(controller)
+        }
+        Some(h) => {
+            h.controller = Some(controller);
+            None
+        }
+        None => Some(controller),
+    });
+    drop(dropped);
+}
+
+/// Run `f` on the (checked-out) controller of instance `token`.
+fn with_instance<R>(
+    token: u64,
+    f: impl FnOnce(&mut dyn PluginController) -> R,
+) -> Result<R, PluginError> {
+    let mut controller = checkout(token).ok_or_else(busy)?;
+    let r = f(&mut *controller);
+    checkin(token, controller);
+    Ok(r)
+}
+
+/// Run `f` on the live instance of `device`; `NotFound` without one.
+fn with_live<R>(
+    device: DeviceId,
+    f: impl FnOnce(&mut dyn PluginController) -> R,
+) -> Result<R, PluginError> {
+    let token = with_registry(|reg| reg.live.get(&device).copied())
+        .ok_or_else(|| PluginError::NotFound(device.to_string()))?;
+    with_instance(token, f)
 }
 
 /// Handle to the main-thread plugin registry. Cheap to clone.
@@ -134,10 +231,23 @@ impl std::fmt::Debug for PluginHost {
     }
 }
 
-/// Instantiates a plugin controller on the main thread (`ether_clap::instantiate` in
-/// production; fakes in tests).
-pub type Instantiate =
-    Arc<dyn Fn(&Path, &str) -> Result<Box<dyn PluginController>, PluginError> + Send + Sync>;
+/// Instantiates a plugin controller on the main thread ([`instantiate_any`] in production;
+/// fakes in tests). Arguments: the format, `PluginDescriptor.path` (the component id for
+/// AUs) and the plugin id.
+pub type Instantiate = Arc<
+    dyn Fn(PluginFormat, &Path, &str) -> Result<Box<dyn PluginController>, PluginError>
+        + Send
+        + Sync,
+>;
+
+/// What [`PluginHost::instantiate`] loads.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PluginSource {
+    pub format: PluginFormat,
+    /// `PluginDescriptor.path`: the bundle, or the component id for AUs.
+    pub path: PathBuf,
+    pub plugin_id: String,
+}
 
 impl PluginHost {
     pub fn new(main: Arc<dyn MainThread>) -> Self {
@@ -153,15 +263,15 @@ impl PluginHost {
     /// Retired controllers whose node returns after this point are only dropped if the
     /// main loop still runs the queued `node_returned` work; if it has already exited
     /// they are left behind with the thread-local registry (reclaimed at process exit,
-    /// without a CLAP `deactivate`). That is acceptable at quit.
+    /// without a `deactivate`). That is acceptable at quit.
     pub fn close(&self) {
         self.closing.store(true, Ordering::SeqCst);
     }
 
-    /// Run `f` on the main thread with the registry and wait for its result.
+    /// Run `f` on the main thread and wait for its result.
     pub(crate) fn call<R: Send + 'static>(
         &self,
-        f: impl FnOnce(&mut Registry) -> R + Send + 'static,
+        f: impl FnOnce() -> R + Send + 'static,
     ) -> Result<R, PluginError> {
         let closed = || PluginError::Ipc("host is shutting down".into());
         if self.closing.load(Ordering::SeqCst) {
@@ -169,8 +279,7 @@ impl PluginHost {
         }
         let (tx, rx) = bounded(1);
         self.main.spawn(Box::new(move || {
-            let r = REGISTRY.with(|reg| f(&mut reg.borrow_mut()));
-            let _ = tx.send(r);
+            let _ = tx.send(f());
         }));
         let deadline = Instant::now() + self.timeout;
         loop {
@@ -199,32 +308,40 @@ impl PluginHost {
         &self,
         instantiate: Instantiate,
         device: DeviceId,
-        bundle: PathBuf,
-        plugin_id: String,
+        source: PluginSource,
         state: Option<Vec<u8>>,
         prepare: PrepareConfig,
     ) -> Result<(Box<dyn Node>, DeviceDescriptor), PluginError> {
         let host = self.clone();
-        let (token, node, descriptor) = self.call(move |reg| {
-            reg.retire(device);
-            let mut controller = instantiate(&bundle, &plugin_id)?;
+        let (token, node, descriptor) = self.call(move || {
+            drop(with_registry(|reg| reg.retire(device)));
+            // No registry borrow from here on: the plugin may pump a nested run loop.
+            let mut controller = instantiate(source.format, &source.path, &source.plugin_id)?;
             if let Some(state) = state.as_deref().filter(|s| !s.is_empty()) {
                 controller.load_state(state)?;
             }
             let node = controller.activate(&prepare)?;
             let descriptor = controller.descriptor();
-            let token = reg.next_token;
-            reg.next_token += 1;
-            reg.instances.insert(
-                token,
-                Hosted {
-                    device,
-                    controller,
-                    retired: false,
-                    active: true,
-                },
-            );
-            reg.live.insert(device, token);
+            let (token, old) = with_registry(|reg| {
+                let token = reg.next_token;
+                reg.next_token += 1;
+                reg.instances.insert(
+                    token,
+                    Hosted {
+                        device,
+                        controller: Some(controller),
+                        retired: false,
+                        active: true,
+                        returned: None,
+                    },
+                );
+                // A nested call may have created another instance of the device meanwhile:
+                // the latest one wins, the other is retired.
+                let old = reg.retire(device);
+                reg.live.insert(device, token);
+                (token, old)
+            });
+            drop(old);
             Ok::<_, PluginError>((token, node, descriptor))
         })??;
         Ok((
@@ -241,55 +358,65 @@ impl PluginHost {
     /// The device was destroyed: drop its controller now if its node is already back,
     /// otherwise when the node returns from the engine.
     pub fn destroy(&self, device: DeviceId) {
-        let _ = self.call(move |reg| reg.retire(device));
+        let _ = self.call(move || drop(with_registry(|reg| reg.retire(device))));
     }
 
     /// Called from [`HostedPluginNode::drop`] (GC thread): deactivate on the main thread.
     fn node_returned(&self, token: u64, node: Box<dyn PluginNode>) {
         self.main.spawn(Box::new(move || {
-            REGISTRY.with(|reg| {
-                let mut reg = reg.borrow_mut();
-                if let Some(h) = reg.instances.get_mut(&token) {
-                    h.controller.deactivate(node);
-                    h.active = false;
-                    if h.retired {
-                        reg.instances.remove(&token);
+            // Checked out (a call is running, maybe further up this stack): park the node
+            // for the check-in. Unknown instance: the controller is gone, `node` drops here.
+            let taken = with_registry(|reg| {
+                let Some(h) = reg.instances.get_mut(&token) else {
+                    return Err(Some(node));
+                };
+                match h.controller.take() {
+                    Some(c) => Ok((c, node)),
+                    None => {
+                        h.returned = Some(node);
+                        Err(None)
                     }
                 }
-                // Unknown instance: the controller is gone already; `node` drops here.
             });
+            if let Ok((mut controller, node)) = taken {
+                controller.deactivate(node);
+                with_registry(|reg| {
+                    if let Some(h) = reg.instances.get_mut(&token) {
+                        h.active = false;
+                    }
+                });
+                checkin(token, controller);
+            }
         }));
     }
 
     pub fn open_editor(&self, device: DeviceId) -> Result<(), PluginError> {
-        self.call(move |reg| {
-            let h = reg
-                .live_mut(device)
-                .ok_or_else(|| PluginError::NotFound(device.to_string()))?;
-            if !h.controller.has_editor() {
-                return Err(PluginError::NoEditor);
-            }
-            h.controller.open_editor()
+        self.call(move || {
+            with_live(device, |c| {
+                if !c.has_editor() {
+                    return Err(PluginError::NoEditor);
+                }
+                c.open_editor()
+            })?
         })?
     }
 
     pub fn close_editor(&self, device: DeviceId) -> Result<(), PluginError> {
-        self.call(move |reg| {
-            if let Some(h) = reg.live_mut(device) {
-                h.controller.close_editor();
-            }
+        self.call(move || {
+            let _ = with_live(device, |c| c.close_editor());
         })
     }
 
     pub fn save_state(&self, device: DeviceId) -> Result<Option<Vec<u8>>, PluginError> {
-        self.call(move |reg| match reg.live_mut(device) {
-            Some(h) => h.controller.save_state().map(Some),
-            None => Ok(None),
+        self.call(move || match with_live(device, |c| c.save_state()) {
+            Ok(r) => r.map(Some),
+            Err(PluginError::NotFound(_)) => Ok(None),
+            Err(e) => Err(e),
         })?
     }
 
     pub fn param_value(&self, device: DeviceId, param: ParamId) -> Option<f64> {
-        self.call(move |reg| reg.live_mut(device)?.controller.param_value(param))
+        self.call(move || with_live(device, |c| c.param_value(param)).ok().flatten())
             .ok()
             .flatten()
     }
@@ -297,28 +424,37 @@ impl PluginHost {
     /// Current plain values of every param of `device`'s live instance (one main-thread
     /// call; used to mirror a restored state into the document).
     pub fn param_values(&self, device: DeviceId) -> Vec<(ParamId, f64)> {
-        self.call(move |reg| {
-            let Some(h) = reg.live_mut(device) else {
-                return Vec::new();
-            };
-            let params = h.controller.params();
-            params
-                .iter()
-                .filter_map(|p| Some((p.id, h.controller.param_value(p.id)?)))
-                .collect()
+        self.call(move || {
+            with_live(device, |c| {
+                let params = c.params();
+                params
+                    .iter()
+                    .filter_map(|p| Some((p.id, c.param_value(p.id)?)))
+                    .collect()
+            })
+            .unwrap_or_default()
         })
         .unwrap_or_default()
     }
 
-    /// Poll every live controller (CLAP `on_main_thread`, timers, GUI) and collect their
-    /// notifications.
+    /// Poll every live controller (CLAP `on_main_thread`, timers, GUI, AU run loop work)
+    /// and collect their notifications. Controllers checked out by a running call are
+    /// skipped this time.
     pub fn poll(&self, out: &mut Vec<(DeviceId, PluginNotification)>) {
-        if let Ok(notes) = self.call(|reg| {
+        if let Ok(notes) = self.call(|| {
+            let live: Vec<(u64, DeviceId)> = with_registry(|reg| {
+                reg.instances
+                    .iter()
+                    .filter(|(_, h)| !h.retired && h.controller.is_some())
+                    .map(|(t, h)| (*t, h.device))
+                    .collect()
+            });
             let mut all = Vec::new();
             let mut buf = Vec::new();
-            for h in reg.instances.values_mut().filter(|h| !h.retired) {
-                h.controller.poll(&mut buf);
-                all.extend(buf.drain(..).map(|n| (h.device, n)));
+            for (token, device) in live {
+                if with_instance(token, |c| c.poll(&mut buf)).is_ok() {
+                    all.extend(buf.drain(..).map(|n| (device, n)));
+                }
             }
             all
         }) {
@@ -329,7 +465,8 @@ impl PluginHost {
     /// Plugin controllers alive on the main thread, incl. retired ones whose node hasn't
     /// come back yet (tests/diagnostics).
     pub fn live_count(&self) -> usize {
-        self.call(|reg| reg.instances.len()).unwrap_or(0)
+        self.call(|| with_registry(|reg| reg.instances.len()))
+            .unwrap_or(0)
     }
 }
 
@@ -497,12 +634,24 @@ impl PluginCatalog {
         self.inner.lock().map(|v| v.clone()).unwrap_or_default()
     }
 
+    /// The first plugin with id `plugin_id`, whatever its format. Ids are only unique per
+    /// format: to load a plugin use [`PluginCatalog::find_format`].
     pub fn find(&self, plugin_id: &str) -> Option<PluginDescriptor> {
         self.inner
             .lock()
             .ok()?
             .iter()
             .find(|p| p.id == plugin_id)
+            .cloned()
+    }
+
+    /// The plugin `(format, plugin_id)` (`PluginInstance.format` / `.plugin_id`).
+    pub fn find_format(&self, format: PluginFormat, plugin_id: &str) -> Option<PluginDescriptor> {
+        self.inner
+            .lock()
+            .ok()?
+            .iter()
+            .find(|p| p.format == format && p.id == plugin_id)
             .cloned()
     }
 
@@ -536,6 +685,8 @@ pub(crate) mod fake {
         pub state: Vec<u8>,
         pub main_thread: std::thread::ThreadId,
         pub max_block: usize,
+        /// Run inside `save_state` (tests of nested run loops).
+        pub on_save: Option<Box<dyn FnMut()>>,
     }
 
     pub struct FakeNode;
@@ -600,6 +751,9 @@ pub(crate) mod fake {
             DEACTIVATED_STATES.lock().unwrap().push(self.state.clone());
         }
         fn save_state(&mut self) -> Result<Vec<u8>, PluginError> {
+            if let Some(f) = &mut self.on_save {
+                f();
+            }
             Ok(self.state.clone())
         }
         fn load_state(&mut self, state: &[u8]) -> Result<(), PluginError> {
@@ -619,7 +773,7 @@ pub(crate) mod fake {
     }
 
     pub fn instantiate() -> Instantiate {
-        Arc::new(|_bundle, id| {
+        Arc::new(|_format, _path, id| {
             if id == "missing" {
                 return Err(PluginError::NotFound(id.into()));
             }
@@ -627,6 +781,7 @@ pub(crate) mod fake {
                 state: Vec::new(),
                 main_thread: std::thread::current().id(),
                 max_block: 0,
+                on_save: None,
             }) as Box<dyn PluginController>)
         })
     }
@@ -639,6 +794,14 @@ mod tests {
 
     fn device(n: u128) -> DeviceId {
         DeviceId(ether_core::protocol::model::Ulid(n))
+    }
+
+    fn src(id: &str) -> PluginSource {
+        PluginSource {
+            format: PluginFormat::Clap,
+            path: PathBuf::from("/x.clap"),
+            plugin_id: id.into(),
+        }
     }
 
     #[test]
@@ -654,8 +817,7 @@ mod tests {
             .instantiate(
                 fake::instantiate(),
                 d,
-                PathBuf::from("/x.clap"),
-                "fake".into(),
+                src("fake"),
                 Some(b"state".to_vec()),
                 prepare,
             )
@@ -679,8 +841,7 @@ mod tests {
             .instantiate(
                 fake::instantiate(),
                 device(2),
-                PathBuf::from("/x.clap"),
-                "missing".into(),
+                src("missing"),
                 None,
                 prepare,
             )
@@ -702,8 +863,7 @@ mod tests {
             host.instantiate(
                 fake::instantiate(),
                 d,
-                PathBuf::from("/x.clap"),
-                "fake".into(),
+                src("fake"),
                 Some(state.to_vec()),
                 prepare,
             )
@@ -809,6 +969,209 @@ mod tests {
         assert_eq!(run(&mut d, 10, &[1.0, 0.0, 0.0, 0.0]), [0.0, 0.0, 1.0, 0.0]);
         d.clear();
         assert_eq!(run(&mut d, 2, &[0.0, 0.0, 0.0]), [0.0; 3]);
+    }
+
+    /// A main thread whose queued jobs can also be run from inside a job ([`pump`]), like
+    /// Tauri's `run_on_main_thread` jobs running inside an AU's nested `CFRunLoopRunInMode`.
+    type Job = Box<dyn FnOnce() + Send>;
+
+    struct Pumping {
+        tx: crossbeam_channel::Sender<Job>,
+    }
+
+    thread_local! {
+        static PUMP_RX: RefCell<Option<crossbeam_channel::Receiver<Job>>> =
+            const { RefCell::new(None) };
+    }
+
+    impl Pumping {
+        fn new() -> Self {
+            let (tx, rx) = unbounded::<Job>();
+            std::thread::spawn(move || {
+                PUMP_RX.with(|r| *r.borrow_mut() = Some(rx.clone()));
+                while let Ok(f) = rx.recv() {
+                    f();
+                }
+            });
+            Self { tx }
+        }
+    }
+
+    impl MainThread for Pumping {
+        fn spawn(&self, f: Box<dyn FnOnce() + Send>) {
+            let _ = self.tx.send(f);
+        }
+    }
+
+    /// Nested "run loop": run queued main-thread jobs until `done` (or a timeout).
+    fn pump(done: &AtomicBool) {
+        let rx = PUMP_RX
+            .with(|r| r.borrow().clone())
+            .expect("on the pumping thread");
+        let start = Instant::now();
+        while !done.load(Ordering::SeqCst) && start.elapsed() < Duration::from_secs(10) {
+            if let Ok(f) = rx.recv_timeout(Duration::from_millis(5)) {
+                f();
+            }
+        }
+    }
+
+    #[test]
+    fn registry_is_not_borrowed_across_plugin_calls() {
+        let host = PluginHost::new(Arc::new(Pumping::new()));
+        let prepare = PrepareConfig {
+            sample_rate: 48_000.0,
+            max_block_size: 64,
+            max_events_per_block: 64,
+        };
+        let a = device(20);
+        let b = device(21);
+        let (node_a, _) = host
+            .instantiate(
+                fake::instantiate(),
+                a,
+                src("fake"),
+                Some(b"a".to_vec()),
+                prepare,
+            )
+            .unwrap();
+
+        // While B instantiates (and pumps a nested run loop), other registry calls and A's
+        // returning node run inside it.
+        let entered = Arc::new(AtomicBool::new(false));
+        let done = Arc::new(AtomicBool::new(false));
+        let (e2, d2) = (entered.clone(), done.clone());
+        let nested: Instantiate = Arc::new(move |_, _, _| {
+            e2.store(true, Ordering::SeqCst);
+            pump(&d2);
+            Ok(Box::new(fake::FakeController {
+                state: Vec::new(),
+                main_thread: std::thread::current().id(),
+                max_block: 0,
+                on_save: None,
+            }) as Box<dyn PluginController>)
+        });
+        let h2 = host.clone();
+        let (e3, d3) = (entered.clone(), done.clone());
+        let other = std::thread::spawn(move || {
+            while !e3.load(Ordering::SeqCst) {
+                std::thread::sleep(Duration::from_millis(1));
+            }
+            let mut notes = Vec::new();
+            h2.poll(&mut notes);
+            let state = h2.save_state(a).unwrap();
+            let b_state = h2.save_state(b).unwrap();
+            drop(node_a); // back to the main thread → deactivated inside the nested loop
+            h2.destroy(a);
+            let count = h2.live_count();
+            d3.store(true, Ordering::SeqCst);
+            (notes, state, b_state, count)
+        });
+        let (node_b, _) = host
+            .instantiate(nested, b, src("fake"), None, prepare)
+            .unwrap();
+        let (notes, state, b_state, count) = other.join().unwrap();
+        assert_eq!(notes, vec![(a, PluginNotification::StateDirty)]);
+        assert_eq!(state.as_deref(), Some(&b"a"[..]));
+        assert_eq!(b_state, None, "B is not live until its instantiate returns");
+        assert_eq!(count, 0, "A deactivated and dropped inside the nested loop");
+        assert_eq!(host.live_count(), 1);
+
+        // A call running a nested loop keeps its controller checked out: a node returning
+        // meanwhile is parked and deactivated at check-in; other calls see it busy.
+        let c = device(22);
+        let done = Arc::new(AtomicBool::new(false));
+        let d2 = done.clone();
+        let pumping_save: Instantiate = Arc::new(move |_, _, _| {
+            let d = d2.clone();
+            Ok(Box::new(fake::FakeController {
+                state: b"pump-save".to_vec(),
+                main_thread: std::thread::current().id(),
+                max_block: 0,
+                on_save: Some(Box::new(move || pump(&d))),
+            }) as Box<dyn PluginController>)
+        });
+        let (node_c, _) = host
+            .instantiate(
+                pumping_save,
+                c,
+                src("fake"),
+                Some(b"pump-save".to_vec()),
+                prepare,
+            )
+            .unwrap();
+        let h2 = host.clone();
+        let d3 = done.clone();
+        let saver = std::thread::spawn(move || h2.save_state(c));
+        std::thread::sleep(Duration::from_millis(50));
+        // Inside C's save_state: C is busy, B still answers.
+        assert!(matches!(host.save_state(c), Err(PluginError::Ipc(m)) if m.contains("busy")));
+        let mut notes = Vec::new();
+        host.poll(&mut notes);
+        assert!(notes.iter().all(|(d, _)| *d == b), "{notes:?}");
+        host.destroy(c);
+        let before = fake::DEACTIVATED_STATES
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|s| s.as_slice() == b"pump-save")
+            .count();
+        drop(node_c);
+        assert_eq!(
+            host.live_count(),
+            2,
+            "C parked, not dropped, while checked out"
+        );
+        d3.store(true, Ordering::SeqCst);
+        assert_eq!(
+            saver.join().unwrap().unwrap().as_deref(),
+            Some(&b"pump-save"[..])
+        );
+        assert_eq!(
+            host.live_count(),
+            1,
+            "C deactivated and dropped at check-in"
+        );
+        let after = fake::DEACTIVATED_STATES
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|s| s.as_slice() == b"pump-save")
+            .count();
+        assert_eq!(after, before + 1);
+        host.destroy(b);
+        drop(node_b);
+        assert_eq!(host.live_count(), 0);
+    }
+
+    #[test]
+    fn catalog_finds_by_format() {
+        let cat = PluginCatalog::default();
+        let desc = |format, path: &str| PluginDescriptor {
+            format,
+            id: "same.id".into(),
+            name: "Y".into(),
+            vendor: "X".into(),
+            version: "1".into(),
+            description: String::new(),
+            features: vec![],
+            category: ether_core::protocol::devices::DeviceCategory::AudioEffect,
+            path: path.into(),
+        };
+        cat.replace(vec![
+            desc(PluginFormat::Clap, "/p/y.clap"),
+            desc(PluginFormat::Vst3, "/p/y.vst3"),
+        ]);
+        assert_eq!(
+            cat.find_format(PluginFormat::Vst3, "same.id").unwrap().path,
+            "/p/y.vst3"
+        );
+        assert_eq!(
+            cat.find_format(PluginFormat::Clap, "same.id").unwrap().path,
+            "/p/y.clap"
+        );
+        assert!(cat.find_format(PluginFormat::Au, "same.id").is_none());
+        assert_eq!(format_label(PluginFormat::Vst3), "VST3");
     }
 
     #[test]

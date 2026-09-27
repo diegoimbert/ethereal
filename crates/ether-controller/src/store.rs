@@ -68,6 +68,67 @@ pub trait ProjectStore {
 
     /// List a folder relative to the project folder (browse location `ProjectMedia`).
     fn list_dir(&mut self, id: ProjectId, rel_path: &str) -> Result<DirectoryListing, StoreError>;
+
+    // --- Roadmap v2 (contracts-2), defaulted so existing stores keep compiling ------------
+
+    /// `export`: store a finished export as `<project>/exports/<file_name>` (see
+    /// [`export_path`]) and return that project-relative path. `Err(Unsupported)` (the
+    /// default) means this host doesn't keep exports on disk: the controller offers the
+    /// bytes as a download (`ExportResult::Download`) instead (web, remote).
+    fn write_export(
+        &mut self,
+        id: ProjectId,
+        file_name: &str,
+        bytes: &[u8],
+    ) -> Result<String, StoreError> {
+        let _ = (id, file_name, bytes);
+        Err(StoreError::Unsupported(
+            "exports are delivered as downloads".into(),
+        ))
+    }
+
+    /// `remote-engine`: start staging an upload (`Media::BeginUpload`) outside any project
+    /// (native: `<projects_root>/.uploads/<upload>`), `size` bytes expected. Replaces a
+    /// previous upload with the same id.
+    fn begin_upload(&mut self, upload: &str, size: u64) -> Result<(), StoreError> {
+        let _ = (upload, size);
+        Err(StoreError::Unsupported("uploads".into()))
+    }
+
+    /// Append bytes at `offset` (must equal the bytes received so far). Returns the new total.
+    fn append_upload(
+        &mut self,
+        upload: &str,
+        offset: u64,
+        bytes: &[u8],
+    ) -> Result<u64, StoreError> {
+        let _ = (upload, offset, bytes);
+        Err(StoreError::Unsupported("uploads".into()))
+    }
+
+    /// The complete staged bytes (read by `Media::Import { source: Upload }`).
+    fn read_upload(&mut self, upload: &str) -> Result<Vec<u8>, StoreError> {
+        let _ = upload;
+        Err(StoreError::Unsupported("uploads".into()))
+    }
+
+    /// Drop a staged upload (cancel, after import, on disconnect). Missing = `Ok`.
+    fn discard_upload(&mut self, upload: &str) -> Result<(), StoreError> {
+        let _ = upload;
+        Ok(())
+    }
+}
+
+/// Project-relative path of an export file (`exports/<file_name>`): `file_name` must be a
+/// single, non-hidden path segment.
+pub fn export_path(file_name: &str) -> Result<String, StoreError> {
+    if file_name.is_empty() || file_name.starts_with('.') || file_name.contains(['/', '\\', '\0']) {
+        return Err(StoreError::InvalidPath(file_name.to_string()));
+    }
+    Ok(format!(
+        "{}/{file_name}",
+        ether_core::protocol::model::file::EXPORTS_DIR
+    ))
 }
 
 /// Engine-visible sample library folders (configured on the engine side, never by path

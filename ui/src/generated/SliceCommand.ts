@@ -2,8 +2,9 @@
 import type { AutoSlice } from "./AutoSlice";
 import type { DeviceId } from "./DeviceId";
 import type { Seconds } from "./Seconds";
+import type { SlicePadIds } from "./SlicePadIds";
 
 /**
  * Slice markers of a sampler (`BuiltinDevice::Sampler { slices }`).
  */
-export type SliceCommand = { "type": "SetEnabled", device: DeviceId, enabled: boolean, } | { "type": "SetBaseNote", device: DeviceId, note: number, } | { "type": "Add", device: DeviceId, positions: Array<Seconds>, } | { "type": "Move", device: DeviceId, index: number, position: Seconds, } | { "type": "Remove", device: DeviceId, indices: Array<number>, } | { "type": "Auto", device: DeviceId, mode: AutoSlice, } | { "type": "ToDrumRack", device: DeviceId, rack: DeviceId, };
+export type SliceCommand = { "type": "SetEnabled", device: DeviceId, enabled: boolean, } | { "type": "SetBaseNote", device: DeviceId, note: number, } | { "type": "Add", device: DeviceId, positions: Array<Seconds>, } | { "type": "Move", device: DeviceId, index: number, position: Seconds, } | { "type": "Remove", device: DeviceId, indices: Array<number>, } | { "type": "Auto", device: DeviceId, mode: AutoSlice, } | { "type": "ToDrumRack", device: DeviceId, rack: DeviceId, pads: Array<SlicePadIds>, };

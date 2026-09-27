@@ -76,8 +76,12 @@ export const usePluginStore = create<PluginRuntimeState>((set) => ({
 /** Per-transport subscription shared by every mounted plugin component. */
 const subscriptions = new WeakMap<EngineTransport, { count: number; unsubscribe: () => void }>();
 
-function onEvent(e: Event) {
+function onEvent(e: Event, transport: EngineTransport) {
   if (e.type === "Plugin") usePluginStore.getState().apply(e.event);
+  // Device headers show missing plugins against the list: keep it current after a rescan.
+  if (e.type === "Plugin" && e.event.type === "ScanFinished" && usePluginStore.getState().plugins !== null) {
+    refreshPluginList(transport);
+  }
   // A new project has other devices: forget per-device runtime state.
   if (e.type === "ProjectLoaded") usePluginStore.setState({ crashed: {}, editors: {} });
 }
@@ -92,7 +96,7 @@ export function usePluginEvents(): void {
     if (!transport) return;
     let sub = subscriptions.get(transport);
     if (!sub) {
-      sub = { count: 0, unsubscribe: transport.onEvent(onEvent) };
+      sub = { count: 0, unsubscribe: transport.onEvent((e) => onEvent(e, transport)) };
       subscriptions.set(transport, sub);
     }
     sub.count += 1;
@@ -105,6 +109,36 @@ export function usePluginEvents(): void {
       }
     };
   }, [transport]);
+}
+
+/** In-flight `Plugin::List` per transport. */
+const listing = new WeakMap<EngineTransport, Promise<void>>();
+
+/** Fetch the scanned plugin list into the store (desktop only; one request at a time). */
+function refreshPluginList(transport: EngineTransport): void {
+  if (transport.kind !== "tauri" || listing.has(transport)) return;
+  const pending = transport
+    .send({ domain: "Plugin", command: { type: "List" } })
+    .then((reply) => {
+      if (reply.type === "Plugins") usePluginStore.getState().setPlugins(reply.plugins);
+    })
+    .catch(() => {})
+    .finally(() => listing.delete(transport));
+  listing.set(transport, pending);
+}
+
+/**
+ * The scanned plugin list (`null` until known). Fetches it once if nobody has yet (desktop
+ * only; never when `enabled` is false), so device headers can tell a missing plugin
+ * without the browser being open.
+ */
+export function useScannedPlugins(enabled: boolean): PluginDescriptor[] | null {
+  const transport = useOptionalTransport();
+  const plugins = usePluginStore((s) => s.plugins);
+  useEffect(() => {
+    if (enabled && plugins === null && transport) refreshPluginList(transport);
+  }, [enabled, plugins, transport]);
+  return plugins;
 }
 
 /** The transport, or `null` outside a `TransportProvider` (e.g. the bare app shell). */

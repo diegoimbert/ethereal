@@ -14,6 +14,7 @@ use ether_core::{AudioSource, Device};
 pub mod compressor;
 pub mod delay;
 pub mod drum_rack;
+mod dsp;
 pub mod eq;
 pub mod limiter;
 mod placeholder;
@@ -25,8 +26,12 @@ pub mod utility;
 
 pub use compressor::Compressor;
 pub use delay::Delay;
+pub use eq::Eq;
+pub use limiter::Limiter;
+pub use reverb::Reverb;
 pub use sampler::Sampler;
 pub use synth::Synth;
+pub use utility::Utility;
 
 /// Descriptor of a built-in device type (param list, category, I/O). Every instance of a
 /// type reports exactly this descriptor (`Device::descriptor` delegates here), so callers

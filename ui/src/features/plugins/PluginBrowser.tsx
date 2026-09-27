@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
 import type { PluginDescriptor } from "@/generated";
 import { resolveSelectedTrack } from "@/features/devices/selectedTrack";
-import { Button } from "@/kit";
+import { Badge, Button, Select, type SelectOption } from "@/kit";
 import { devicesOfTrack, useProjectStore, useSelectedTrackId } from "@/state";
 import { cmd, newId, useTransport, useTransportEvent } from "@/transport";
-import { canInsert, filterPlugins, insertCommand } from "./filter";
+import { canInsert, filterPlugins, FORMAT_LABEL, type FormatFilter, insertCommand, pluginKey } from "./filter";
 import { useOptionalTransport, usePluginEvents, usePluginStore } from "./pluginStore";
 
 const CATEGORY_LABEL: Record<PluginDescriptor["category"], string> = {
@@ -13,12 +13,20 @@ const CATEGORY_LABEL: Record<PluginDescriptor["category"], string> = {
   NoteEffect: "Note FX",
 };
 
+const FORMAT_OPTIONS: SelectOption<FormatFilter>[] = [
+  { value: "All", label: "All formats" },
+  { value: "Clap", label: FORMAT_LABEL.Clap },
+  { value: "Vst3", label: FORMAT_LABEL.Vst3 },
+  { value: "Au", label: FORMAT_LABEL.Au },
+];
+
 function errorText(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
 }
 
 /**
- * Scanned CLAP plugins (desktop only): search, rescan, and click (or Enter) to insert on
+ * Scanned plugins of every format (desktop only; CLAP, VST3, AU), with a format badge and
+ * filter: search, rescan, and click (or Enter) to insert on
  * the selected track's device chain. Instruments go to the start of MIDI tracks' chains.
  */
 export function PluginList() {
@@ -30,6 +38,7 @@ export function PluginList() {
   const setPlugins = usePluginStore((s) => s.setPlugins);
   const setScan = usePluginStore((s) => s.setScan);
   const [query, setQuery] = useState("");
+  const [format, setFormat] = useState<FormatFilter>("All");
   const [message, setMessage] = useState<string | null>(null);
   const selectedId = useSelectedTrackId();
   const track = useProjectStore((s) => (s.project ? resolveSelectedTrack(s.project, selectedId) : undefined));
@@ -68,7 +77,7 @@ export function PluginList() {
       .catch((e: unknown) => setMessage(`Could not insert ${plugin.name}: ${errorText(e)}`));
   };
 
-  const shown = plugins ? filterPlugins(plugins, query) : [];
+  const shown = plugins ? filterPlugins(plugins, query, format) : [];
 
   return (
     <div className="eth-plugins" data-feature="plugins">
@@ -81,6 +90,7 @@ export function PluginList() {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
+        <Select size="sm" aria-label="Plugin format" options={FORMAT_OPTIONS} value={format} onChange={setFormat} />
         <Button size="sm" onClick={rescan} disabled={scan !== null} title="Scan the plugin folders again">
           {scan ? "Scanning…" : "Rescan"}
         </Button>
@@ -99,19 +109,19 @@ export function PluginList() {
       <div className="eth-plugins__target">{track ? `Insert on: ${track.name}` : "No track selected"}</div>
       <ul className="eth-plugins__list" aria-label="Plugins">
         {plugins === null && <li className="eth-plugins__empty">Loading…</li>}
-        {plugins?.length === 0 && <li className="eth-plugins__empty">No plugins found. Install CLAP plugins and rescan.</li>}
+        {plugins?.length === 0 && <li className="eth-plugins__empty">No plugins found. Install CLAP, VST3 or AU plugins and rescan.</li>}
         {plugins && plugins.length > 0 && shown.length === 0 && <li className="eth-plugins__empty">No match.</li>}
         {shown.map((p) => {
           const ok = canInsert(p, track);
           return (
-            <li key={p.id}>
+            <li key={pluginKey(p)}>
               <button
                 type="button"
                 className="eth-plugins__item"
                 disabled={!ok}
                 title={
                   ok
-                    ? `${p.name} by ${p.vendor || "unknown vendor"}: click to insert on ${track?.name ?? "the track"}`
+                    ? `${p.name} (${FORMAT_LABEL[p.format]}) by ${p.vendor || "unknown vendor"}: click to insert on ${track?.name ?? "the track"}`
                     : `${CATEGORY_LABEL[p.category]}s can only be inserted on MIDI tracks`
                 }
                 onClick={() => insert(p)}
@@ -119,6 +129,7 @@ export function PluginList() {
                 <span className="eth-plugins__name">{p.name}</span>
                 <span className="eth-plugins__vendor">{p.vendor}</span>
                 <span className="eth-plugins__category">{CATEGORY_LABEL[p.category]}</span>
+                <Badge className="eth-plugins__format">{FORMAT_LABEL[p.format]}</Badge>
               </button>
             </li>
           );

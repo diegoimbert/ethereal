@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import type { ReactNode } from "react";
 import type { Command, Device, Event, PluginDescriptor, PluginEvent, ReplyValue } from "@/generated";
@@ -11,12 +11,18 @@ import {
   type SendOptions,
   type Unsubscribe,
 } from "@/transport";
-import { canInsert, filterPlugins } from "./filter";
+import { canInsert, filterPlugins, isInstalled } from "./filter";
 import { PluginBrowser, PluginDeviceControls } from "./index";
 import { usePluginStore } from "./pluginStore";
 
-const plugin = (id: string, name: string, category: PluginDescriptor["category"], vendor = "Acme"): PluginDescriptor => ({
-  format: "Clap",
+const plugin = (
+  id: string,
+  name: string,
+  category: PluginDescriptor["category"],
+  vendor = "Acme",
+  format: PluginDescriptor["format"] = "Clap",
+): PluginDescriptor => ({
+  format,
   id,
   name,
   vendor,
@@ -30,6 +36,8 @@ const plugin = (id: string, name: string, category: PluginDescriptor["category"]
 const VERB = plugin("com.acme.verb", "Verb", "AudioEffect");
 const SYNTH = plugin("com.acme.synth", "Big Synth", "Instrument");
 const EQ = plugin("org.other.eq", "Air EQ", "AudioEffect", "Other");
+const VST_VERB = plugin("E7E1E4A1000000000000000000000001", "Verb", "AudioEffect", "Acme", "Vst3");
+const AU_DELAY = plugin("aufx:dely:appl", "AUDelay", "AudioEffect", "Apple", "Au");
 
 /** The desktop host as seen by the UI: MockTransport's document + host-handled plugin commands. */
 class DesktopFake implements EngineTransport {
@@ -74,6 +82,8 @@ class DesktopFake implements EngineTransport {
 
 let transport: EngineTransport | undefined;
 afterEach(() => {
+  // Unmount before resetting the stores (mounted headers would refetch the plugin list).
+  cleanup();
   transport?.dispose();
   transport = undefined;
   useProjectStore.getState().reset();
@@ -104,6 +114,24 @@ describe("filter helpers", () => {
     expect(filterPlugins(all, "nothing")).toEqual([]);
   });
 
+  it("filters by format and searches format names", () => {
+    const all = [VERB, VST_VERB, AU_DELAY, EQ];
+    expect(filterPlugins(all, "").map((p) => `${p.name}/${p.format}`)).toEqual([
+      "Air EQ/Clap",
+      "AUDelay/Au",
+      "Verb/Clap",
+      "Verb/Vst3",
+    ]);
+    expect(filterPlugins(all, "", "Vst3")).toEqual([VST_VERB]);
+    expect(filterPlugins(all, "", "Au")).toEqual([AU_DELAY]);
+    expect(filterPlugins(all, "verb", "Clap")).toEqual([EQ, VERB]);
+    expect(filterPlugins(all, "vst3")).toEqual([VST_VERB]);
+    expect(filterPlugins(all, "au apple")).toEqual([AU_DELAY]);
+    // Ids are unique per format only.
+    expect(isInstalled(all, { format: "Vst3", plugin_id: VST_VERB.id })).toBe(true);
+    expect(isInstalled(all, { format: "Au", plugin_id: VST_VERB.id })).toBe(false);
+  });
+
   it("only allows instruments on MIDI tracks", () => {
     const midi = { kind: "Midi" } as Parameters<typeof canInsert>[1];
     const audio = { kind: "Audio" } as Parameters<typeof canInsert>[1];
@@ -125,8 +153,8 @@ describe("PluginBrowser", () => {
     const list = await screen.findByRole("list", { name: "Plugins" });
     await within(list).findByText("Verb");
     expect(within(list).getAllByRole("button").map((b) => b.textContent)).toEqual([
-      "Big SynthAcmeInstrument",
-      "VerbAcmeEffect",
+      "Big SynthAcmeInstrumentCLAP",
+      "VerbAcmeEffectCLAP",
     ]);
     expect(screen.getByText("Insert on: Keys")).toBeInTheDocument();
 
@@ -139,7 +167,7 @@ describe("PluginBrowser", () => {
       command: {
         type: "Insert",
         track: trackNamed("Keys").id,
-        device: { type: "Plugin", plugin_id: SYNTH.id, sandboxed: null },
+        device: { type: "Plugin", plugin_id: SYNTH.id, format: "Clap", sandboxed: null },
         before: firstDeviceOf("Keys").id,
       },
     });
@@ -155,7 +183,7 @@ describe("PluginBrowser", () => {
     });
 
     fireEvent.change(screen.getByRole("searchbox", { name: "Search plugins" }), { target: { value: "synth" } });
-    expect(within(list).getAllByRole("button").map((b) => b.textContent)).toEqual(["Big SynthAcmeInstrument"]);
+    expect(within(list).getAllByRole("button").map((b) => b.textContent)).toEqual(["Big SynthAcmeInstrumentCLAP"]);
     fireEvent.change(screen.getByRole("searchbox", { name: "Search plugins" }), { target: { value: "zzz" } });
     expect(within(list).getByText("No match.")).toBeInTheDocument();
   });
@@ -241,5 +269,109 @@ describe("PluginDeviceControls", () => {
     await screen.findByRole("button", { name: "Open Verb editor" });
     expect(screen.queryByText("crashed · bypassed")).toBeNull();
     expect(t.sent.at(-1)).toEqual({ domain: "Plugin", command: { type: "Reload", device: d.id } });
+  });
+});
+
+describe("plugin formats", () => {
+  const auDevice: Device = {
+    id: "01J00000000000000000000AUD",
+    track: "01J00000000000000000000TRK",
+    order: "a0",
+    name: "AUDelay",
+    enabled: true,
+    kind: {
+      type: "Plugin",
+      plugin: {
+        format: "Au",
+        plugin_id: AU_DELAY.id,
+        name: "AUDelay",
+        vendor: "Apple",
+        version: "1",
+        sandboxed: false,
+        state: null,
+      },
+    },
+    params: {},
+    sidechain: null,
+    pad: null,
+  };
+
+  it("badges every plugin with its format, filters by format and inserts with the format", async () => {
+    const t = new DesktopFake();
+    t.plugins = [VERB, VST_VERB, AU_DELAY, SYNTH];
+    await renderWith(t, <PluginBrowser />);
+    const list = await screen.findByRole("list", { name: "Plugins" });
+    await within(list).findByText("AUDelay");
+    expect(within(list).getAllByRole("button").map((b) => b.textContent)).toEqual([
+      "AUDelayAppleEffectAU",
+      "Big SynthAcmeInstrumentCLAP",
+      "VerbAcmeEffectCLAP",
+      "VerbAcmeEffectVST3",
+    ]);
+
+    const format = screen.getByRole("combobox", { name: "Plugin format" });
+    fireEvent.change(format, { target: { value: "Vst3" } });
+    expect(within(list).getAllByRole("button").map((b) => b.textContent)).toEqual(["VerbAcmeEffectVST3"]);
+    act(() => useSelectionStore.getState().selectTrack(trackNamed("Drums").id));
+    fireEvent.click(within(list).getByText("Verb"));
+    await screen.findByText("Inserted Verb on Drums");
+    expect(t.sent.at(-1)).toMatchObject({
+      command: {
+        type: "Insert",
+        device: { type: "Plugin", plugin_id: VST_VERB.id, format: "Vst3", sandboxed: null },
+      },
+    });
+
+    fireEvent.change(format, { target: { value: "Au" } });
+    fireEvent.click(within(list).getByText("AUDelay"));
+    await screen.findByText("Inserted AUDelay on Drums");
+    expect(t.sent.at(-1)).toMatchObject({
+      command: { type: "Insert", device: { type: "Plugin", plugin_id: AU_DELAY.id, format: "Au" } },
+    });
+
+    fireEvent.change(format, { target: { value: "All" } });
+    expect(within(list).getAllByRole("button")).toHaveLength(4);
+  });
+
+  it("shows a plugin missing from the scanned list as bypassed, until a rescan finds it", async () => {
+    const t = new DesktopFake();
+    // The same id in another format doesn't count: lookups are by (format, id).
+    t.plugins = [plugin(AU_DELAY.id, "AUDelay", "AudioEffect", "Apple", "Vst3")];
+    await renderWith(t, <PluginDeviceControls device={auDevice} />);
+    const missing = await screen.findByText("missing · bypassed");
+    expect(missing).toHaveAttribute(
+      "title",
+      "AU plugin aufx:dely:appl is not installed. Rescan plugins, then reload.",
+    );
+    expect(screen.queryByRole("button", { name: "Open AUDelay editor" })).toBeNull();
+    expect(t.sent.filter((c) => c.command.type === "List")).toHaveLength(1);
+
+    // A rescan (from anywhere) finds it.
+    t.plugins = [AU_DELAY];
+    t.emit({ type: "ScanFinished", plugins: 1, failed: [] });
+    await screen.findByRole("button", { name: "Open AUDelay editor" });
+    expect(screen.queryByText("missing · bypassed")).toBeNull();
+  });
+
+  it("reloads a missing plugin on request", async () => {
+    const t = new DesktopFake();
+    t.plugins = [];
+    await renderWith(t, <PluginDeviceControls device={auDevice} />);
+    await screen.findByText("missing · bypassed");
+    fireEvent.click(screen.getByRole("button", { name: "Reload AUDelay" }));
+    await waitFor(() =>
+      expect(t.sent.at(-1)).toEqual({ domain: "Plugin", command: { type: "Reload", device: auDevice.id } }),
+    );
+  });
+
+  it("crashes and reloads the same way for every format", async () => {
+    const t = new DesktopFake();
+    t.plugins = [AU_DELAY];
+    await renderWith(t, <PluginDeviceControls device={auDevice} />);
+    await screen.findByRole("button", { name: "Open AUDelay editor" });
+    t.emit({ type: "Crashed", device: auDevice.id, message: "plugin helper exited" });
+    expect(screen.getByText("crashed · bypassed")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Reload AUDelay" }));
+    await screen.findByRole("button", { name: "Open AUDelay editor" });
   });
 });

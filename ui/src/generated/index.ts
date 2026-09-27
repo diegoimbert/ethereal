@@ -165,6 +165,7 @@ export type * from "./ServerMessage";
 export type * from "./SettingsChange";
 export type * from "./SiteId";
 export type * from "./SliceCommand";
+export type * from "./SlicePadIds";
 export type * from "./SliceSettings";
 export type * from "./StampedTransaction";
 export type * from "./TempoCommand";

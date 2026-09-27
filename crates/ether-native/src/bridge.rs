@@ -26,7 +26,7 @@ use ether_core::{
 };
 use ether_media::{DecodedAudio, InMemorySource};
 
-use crate::plugins::{Instantiate, PluginCatalog, PluginHost};
+use crate::plugins::{Instantiate, PluginCatalog, PluginHost, PluginSource, format_label};
 use crate::rt::AudioShared;
 
 fn engine_err(e: EngineError) -> BridgeError {
@@ -38,6 +38,21 @@ fn engine_err(e: EngineError) -> BridgeError {
 
 fn plugin_err(e: PluginError) -> BridgeError {
     BridgeError::Other(e.to_string())
+}
+
+/// The error for a plugin missing from the scanned catalog (the device stays in the
+/// document without an engine node, i.e. bypassed, until a rescan finds it).
+fn not_installed(plugin: &PluginInstance) -> String {
+    let name = if plugin.name.is_empty() || plugin.name == plugin.plugin_id {
+        String::new()
+    } else {
+        format!("{} ", plugin.name)
+    };
+    format!(
+        "{} plugin {name}({}) is not installed (rescan plugins)",
+        format_label(plugin.format),
+        plugin.plugin_id
+    )
 }
 
 enum DeviceKind {
@@ -157,19 +172,22 @@ impl EngineBridge for NativeBridge {
         state: Option<&Base64Bytes>,
     ) -> Result<NodeKey, BridgeError> {
         self.replace_device(device);
-        let desc = self.catalog.find(&plugin.plugin_id).ok_or_else(|| {
-            BridgeError::Other(format!(
-                "plugin {} is not installed (rescan plugins)",
-                plugin.plugin_id
-            ))
-        })?;
+        // Ids are unique per format only: look the plugin up by (format, id).
+        let desc = self
+            .catalog
+            .find_format(plugin.format, &plugin.plugin_id)
+            .ok_or_else(|| BridgeError::Other(not_installed(plugin)))?;
         let (node, descriptor) = self
             .plugins
             .instantiate(
                 crate::sandbox::instantiator(plugin.sandboxed, &self.instantiate),
                 device,
-                PathBuf::from(desc.path),
-                plugin.plugin_id.clone(),
+                PluginSource {
+                    format: desc.format,
+                    // AUs have no bundle: their path is the component id.
+                    path: PathBuf::from(desc.path),
+                    plugin_id: plugin.plugin_id.clone(),
+                },
                 state.map(|s| s.0.clone()),
                 // Activated with the engine's max block size: backends never exceed it.
                 self.prepare,
@@ -452,7 +470,26 @@ mod tests {
             plugin_id: "not-installed".into(),
             ..inst.clone()
         };
-        assert!(b.create_plugin(DeviceId(Ulid(7)), &missing, None).is_err());
+        match b.create_plugin(DeviceId(Ulid(7)), &missing, None) {
+            Err(BridgeError::Other(m)) => assert_eq!(
+                m,
+                "CLAP plugin Fake (not-installed) is not installed (rescan plugins)"
+            ),
+            other => panic!("{other:?}"),
+        }
+        // Looked up by (format, id): the same id in another format is another plugin.
+        let other_format = PluginInstance {
+            format: PluginFormat::Vst3,
+            name: "fake".into(),
+            ..inst.clone()
+        };
+        match b.create_plugin(DeviceId(Ulid(8)), &other_format, None) {
+            Err(BridgeError::Other(m)) => {
+                assert_eq!(m, "VST3 plugin (fake) is not installed (rescan plugins)")
+            }
+            other => panic!("{other:?}"),
+        }
+        assert!(b.descriptor(DeviceId(Ulid(8))).is_none());
 
         b.destroy_node(key).unwrap();
         assert!(b.descriptor(d).is_none());

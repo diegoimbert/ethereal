@@ -159,6 +159,19 @@ pub trait EngineBridge {
         let _ = out;
     }
 
+    /// Roadmap v2 (`drum-rack`): update a live built-in node's non-parameter data in place
+    /// (sampler slices) instead of re-creating it, so an edit doesn't cut sounding notes.
+    /// Native: `EngineHandle::set_node_data`; web: serialized to the worklet. `Ok(false)`
+    /// (the default) = not supported for this change: the controller re-creates the node.
+    fn update_builtin(
+        &mut self,
+        device: DeviceId,
+        kind: &BuiltinDevice,
+    ) -> Result<bool, BridgeError> {
+        let _ = (device, kind);
+        Ok(false)
+    }
+
     /// Roadmap v2 (`export`): a fresh, independent plugin node for offline rendering
     /// (prepared at `sample_rate`, state loaded from `state`). Never the live instance.
     /// Default: unsupported (the export bypasses the plugin with a warning).

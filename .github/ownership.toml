@@ -15,7 +15,7 @@ allow = [
   "ui/src/generated/**",
 ]
 # May touch anything.
-unrestricted = ["foundation", "alpha", "v0.1", "formats-base", "contracts-2"]
+unrestricted = ["foundation", "alpha", "v0.1", "formats-base"]
 unrestricted_prefixes = ["base-"]
 
 # --- Wave 1 ---------------------------------------------------------------------------
@@ -253,16 +253,18 @@ paths = [
   "apps/desktop/src-tauri/Cargo.toml",
 ]
 
-# --- Roadmap features (contracts-2) -----------------------------------------------------
+# --- Roadmap features (contracts-2, revised in base-17) ----------------------------------
 # contracts-2 pre-created one module per feature and layer, registered with one line in its
 # parent (see docs/ROADMAP.md for hook points). Each node owns its modules, UI feature
-# folder and test files. "shared touch" = minimal, additive edits in a shared file (a
-# one-line call into the node's module, a match arm, a trait impl); coordinate hot files
-# (engine.rs, graph.rs, mixer.rs) through the manager.
+# folder, mock file (`ui/src/transport/mock/roadmap/<feature>.*`) and test files. "shared
+# touch" = minimal, additive edits in a shared file. The hot core files (ether-core
+# engine.rs, graph.rs, mixer.rs) were pre-wired in base-17: only `multicore` (which lands
+# last) edits them; the other engine features work in their own core module.
 
 [nodes.export]
 paths = [
   "ui/src/features/export/**",
+  "ui/src/transport/mock/roadmap/export.*",
   "crates/ether-controller/src/export/**",
   "crates/ether-core/src/offline.rs",
   "crates/ether-controller/tests/export*.rs",
@@ -272,14 +274,9 @@ paths = [
   "crates/ether-controller/Cargo.toml",
   # shared touch: EngineBridge::create_offline_plugin impl (native plugins)
   "crates/ether-native/src/bridge.rs",
-  # shared touch: writing exports/<file> through the store
-  "crates/ether-controller/src/store.rs",
-  "crates/ether-native/src/store.rs",
-  "crates/ether-wasm/src/store.rs",
   # shared (base-18): remove ONLY your own entries from the "unsupported until implemented" test
   "crates/ether-controller/tests/roadmap_v2.rs",
   # own e2e/integration test files (base-21)
-  "apps/web/e2e/export.spec.ts",
   "crates/ether-native/tests/export*.rs",
 ]
 
@@ -291,6 +288,7 @@ paths = [
   "crates/ether-devices/src/utility.rs",
   "crates/ether-devices/src/dsp/**",
   "crates/ether-devices/tests/devices2*.rs",
+  "ui/src/transport/mock/roadmap/devices2.*",
   # shared touch: helpers (Smoother/param tables) and the placeholder removal
   "crates/ether-devices/src/util.rs",
   "crates/ether-devices/src/placeholder.rs",
@@ -307,12 +305,11 @@ paths = [
 [nodes.tempo-metronome]
 paths = [
   "ui/src/features/tempo/**",
+  "ui/src/transport/mock/roadmap/tempo.*",
   "crates/ether-controller/src/tempo/**",
   "crates/ether-core/src/metronome.rs",
   "crates/ether-controller/tests/tempo*.rs",
   "crates/ether-core/tests/metronome*.rs",
-  # shared touch: one Metronome::render call per sub-block
-  "crates/ether-core/src/engine.rs",
   # shared touch: MetronomeDesc::count_in_end from the record session
   "crates/ether-controller/src/engine.rs",
   "crates/ether-controller/src/recording/mod.rs",
@@ -328,6 +325,7 @@ paths = [
 [nodes.clip-editing]
 paths = [
   "ui/src/features/clip-editing/**",
+  "ui/src/transport/mock/roadmap/clipEditing.*",
   "crates/ether-controller/src/clip_editing/**",
   "crates/ether-core/src/fades.rs",
   "crates/ether-controller/tests/clip_editing*.rs",
@@ -351,19 +349,16 @@ paths = [
   "crates/ether-server/**",
   "ui/src/transport/ws/**",
   "ui/src/features/remote/**",
+  "ui/src/transport/mock/roadmap/remote.*",
   "crates/ether-controller/src/upload/**",
+  "crates/ether-native/src/uploads.rs",
   "crates/ether-controller/tests/upload*.rs",
   "apps/web/e2e/remote.spec.ts",
   # shared touch: runtime transport switching (connect dialog)
   "ui/src/transport/createDefaultTransport.ts",
   "ui/src/transport/TransportProvider.tsx",
-  # shared touch: upload staging in the stores
-  "crates/ether-controller/src/store.rs",
-  "crates/ether-native/src/store.rs",
-  "crates/ether-wasm/src/store.rs",
-  # shared touch: `just dev-server` recipe, dev port offset, README section
+  # shared touch: `just dev-server` recipe, README section
   "justfile",
-  "scripts/dev-env.mjs",
   "README.md",
   # shared (base-18): remove ONLY your own entries from the "unsupported until implemented" test
   "crates/ether-controller/tests/roadmap_v2.rs",
@@ -377,9 +372,13 @@ paths = [
   "crates/ether-collab/**",
   "crates/ether-controller/src/collab/**",
   "ui/src/features/collab/**",
+  "ui/src/transport/mock/roadmap/collab.*",
   "crates/ether-controller/tests/collab*.rs",
   # shared touch: stamping committed transactions (edit_with) and the tick hook
   "crates/ether-controller/src/handlers.rs",
+  # shared touch: CRDT/transport deps; per-site undo in the history
+  "crates/ether-controller/Cargo.toml",
+  "crates/ether-model/src/history.rs",
   # shared (base-18): remove ONLY your own entries from the "unsupported until implemented" test
   "crates/ether-controller/tests/roadmap_v2.rs",
   # own e2e/integration test files (base-21)
@@ -396,7 +395,7 @@ paths = [
   "crates/ether-core/src/graph.rs",
   "crates/ether-core/src/engine.rs",
   "crates/ether-core/src/mixer.rs",
-  # shared touch: worker pool wiring (EngineConfig::worker_threads)
+  # shared touch: worker pool wiring (EngineConfig::worker_threads, Engine::set_executor)
   "crates/ether-native/src/rt.rs",
   "crates/ether-native/src/host.rs",
   "crates/ether-native/src/lib.rs",
@@ -420,10 +419,16 @@ paths = [
   "apps/web/e2e/web-perf.spec.ts",
   "crates/ether-native/tests/web_perf*.rs",
 ]
+# The web store and bridge are shared with other roadmap nodes (export, drum-rack).
+exclude = [
+  "crates/ether-wasm/src/store.rs",
+  "crates/ether-wasm/src/bridge.rs",
+]
 
 [nodes.midi-learn]
 paths = [
   "ui/src/features/midi-learn/**",
+  "ui/src/transport/mock/roadmap/midiLearn.*",
   "crates/ether-controller/src/midi_learn/**",
   "crates/ether-controller/tests/midi_learn*.rs",
   # shared touch: forward port + message from the recording MIDI input path
@@ -443,13 +448,11 @@ paths = [
 [nodes.sidechain]
 paths = [
   "ui/src/features/sidechain/**",
+  "ui/src/transport/mock/roadmap/sidechain.*",
   "crates/ether-controller/src/sidechain/**",
+  "crates/ether-core/src/sidechain.rs",
   "crates/ether-controller/tests/sidechain*.rs",
   "crates/ether-core/tests/sidechain*.rs",
-  # shared touch: sidechain edges (order + PDC) and the process_sidechain call
-  "crates/ether-core/src/graph.rs",
-  "crates/ether-core/src/mixer.rs",
-  "crates/ether-core/src/engine.rs",
   # shared touch: compressor (and limiter, with devices-2) sidechain input
   "crates/ether-devices/src/compressor.rs",
   # shared (base-18): remove ONLY your own entries from the "unsupported until implemented" test
@@ -462,6 +465,7 @@ paths = [
 [nodes.groove]
 paths = [
   "ui/src/features/groove/**",
+  "ui/src/transport/mock/roadmap/groove.*",
   "crates/ether-controller/src/groove/**",
   "crates/ether-controller/tests/groove*.rs",
   # shared touch: Quantize swing
@@ -481,6 +485,7 @@ paths = [
 [nodes.drum-rack]
 paths = [
   "ui/src/features/drum-rack/**",
+  "ui/src/transport/mock/roadmap/drumRack.*",
   "crates/ether-controller/src/drum_rack/**",
   "crates/ether-core/src/drum_rack/**",
   "crates/ether-devices/src/drum_rack.rs",
@@ -489,11 +494,10 @@ paths = [
   "crates/ether-devices/tests/drum_rack*.rs",
   # shared touch: slice mode in the sampler
   "crates/ether-devices/src/sampler.rs",
-  # shared touch: rack pad chains (compile, PDC, processing)
-  "crates/ether-core/src/graph.rs",
-  "crates/ether-core/src/mixer.rs",
-  "crates/ether-core/src/engine.rs",
-  # shared touch: pad-chain node creation / cascade on device delete
+  # shared touch: in-place slice updates (EngineBridge::update_builtin), pad-chain node
+  # creation, cascades
+  "crates/ether-native/src/bridge.rs",
+  "crates/ether-wasm/src/bridge.rs",
   "crates/ether-controller/src/engine.rs",
   "crates/ether-controller/src/doc/mod.rs",
   # shared (base-18): remove ONLY your own entries from the "unsupported until implemented" test

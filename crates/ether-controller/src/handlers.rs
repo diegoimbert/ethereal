@@ -208,6 +208,7 @@ where
             revision: self.revision,
             changes: changes_for(&doc.project, applied),
             history: doc.history.state(),
+            origin: None,
         };
         event(out, Event::Patch { patch });
         doc.last_edit_ms = now;
@@ -816,6 +817,7 @@ where
                     revision: self.revision,
                     changes: vec![PatchChange::Upsert { entity }],
                     history: doc.history.state(),
+                    origin: None,
                 },
             },
         );
