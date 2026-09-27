@@ -1211,6 +1211,7 @@ dependencies = [
  "ether-devices",
  "ether-media",
  "ether-sandbox",
+ "ether-stretch",
  "getrandom 0.3.4",
  "midir",
  "serde",
