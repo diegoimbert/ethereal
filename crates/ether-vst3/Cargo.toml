@@ -9,13 +9,33 @@ repository.workspace = true
 authors.workspace = true
 publish.workspace = true
 
-# The `vst3` node adds what it needs from [workspace.dependencies] (`vst3`, `libloading`,
-# `objc2-core-foundation` for CFBundle on macOS, `objc2-app-kit` for editors, ...).
 [dependencies]
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 ether-core.workspace = true
 ether-plugin-host.workspace = true
+# VST3 COM bindings (host side here; plugin side in the test fixture). MIT OR Apache-2.0.
+vst3.workspace = true
+libloading.workspace = true
+rtrb.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+
+# CFBundle for `bundleEntry`, AppKit host windows for editors.
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2.workspace = true
+objc2-core-foundation.workspace = true
+objc2-app-kit.workspace = true
+objc2-foundation.workspace = true
+
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+assert_no_alloc.workspace = true
+
+# Minimal VST3 plugin (a gain effect with a separate controller + a single-component
+# instrument) used by the tests of this crate, `ether-plugin-scanner` and `ether-sandbox`.
+[[example]]
+name = "ether_vst3_test_plugin"
+crate-type = ["cdylib"]
 
 [lints]
 workspace = true

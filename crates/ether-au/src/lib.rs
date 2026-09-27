@@ -4,9 +4,47 @@
 //! [`AuFormat`] is the [`PluginFormatHost`] for AUs. AUs are found through the system
 //! `AudioComponent` registry (`AudioComponentFindNext`), not by walking folders: that covers
 //! Apple's built-in units (AUDelay, AULowpass, DLSMusicDevice, ...), `.component` bundles and
-//! AUv3 app extensions alike. The id convention ([`AuComponentId`]) is real; registry
-//! listing, scanning and instantiation are stubs (`PluginError::Unsupported`, empty listing)
-//! until the `au` node implements them. Off macOS everything is `Unsupported` for good.
+//! AUv3 app extensions alike. Off macOS everything is `PluginError::Unsupported`.
+//!
+//! # Hosting model (macOS)
+//! - **Discovery** ([`AuFormat::discover_registry`]): `AudioComponentFindNext` over `aufx`,
+//!   `aumu`, `aumf`, `aumi`; one target per component id. No plugin code runs.
+//! - **Scan** ([`AuFormat::scan`], scanner process): name/vendor (`"Vendor: Name"`), version
+//!   (`0xMMMMmmDD`) and flags from the registry; features = `[component type]`. No
+//!   validation instantiation (it would load every unit's code at every rescan).
+//! - **Instantiation**: always through `AUAudioUnit` (v3 natively, v2 via Apple's bridge).
+//!   v2 components are created synchronously; v3 / `RequiresAsyncInstantiation` components
+//!   asynchronously while the calling thread's run loop is pumped
+//!   (`CFRunLoopRunInMode(default, 10 ms)` in a loop, 20 s timeout), since the completion
+//!   may be delivered on the main run loop.
+//! - **Processing** (`AuNode`): main busses set to the engine format (non-interleaved f32,
+//!   engine rate, stereo if accepted), `maximumFramesToRender` = max block size, render
+//!   block with a pull-input block feeding the node's input; params through
+//!   `scheduleParameterBlock` and notes through `scheduleMIDIEventBlock` at
+//!   `AUEventSampleTimeImmediate + offset` (sample accurate). All blocks are created or
+//!   copied at activation; the audio thread doesn't allocate. MIDI output (`aumi`) is
+//!   forwarded to `out_events`. Host musical-context / transport-state blocks read a
+//!   snapshot of the engine transport.
+//! - **Params**: `AUParameterTree`; ids per [`ids`] (stable, table saved in the state).
+//!   A parameter automation observer turns GUI edits into `ParamEdited` and touch/release
+//!   into gestures (echoes of host-scheduled values are dropped). Latency is polled from
+//!   `AUAudioUnit.latency` (→ `LatencyChanged`); a replaced parameter tree → `ParamsChanged`.
+//! - **State**: `fullStateForDocument` (else `fullState`) as a binary plist, framed with
+//!   the param-id table ([`ids::encode_state`]).
+//! - **Editor**: `requestViewControllerWithCompletionHandler:` (v3 views; v2 Cocoa views via
+//!   the bridge) in a floating `NSWindow`, main thread only.
+//! - **Busses**: only the main input/output bus is routed; extra input busses (sidechains)
+//!   are disabled and fed silence. `Node::channels` and the descriptor report at most 2.
+//! - **Reset**: in-process units are reset on the audio thread (cached IMP). For
+//!   out-of-process units `reset` is an XPC round trip that can block, so the node only
+//!   flags it and the controller's `poll` performs it on the main thread.
+//!
+//! # Re-entrancy (for hosts)
+//! [`AuFormat::instantiate`] (async units) and `open_editor` wait for their completion by
+//! running a **nested** `CFRunLoopRunInMode` on the calling thread. Anything the host has
+//! queued on that run loop (e.g. other `run_on_main_thread` jobs) can run inside those
+//! calls, so a host must not hold a borrow of its plugin registry (`RefCell`, lock) across
+//! `instantiate` / `open_editor`.
 //!
 //! # Ids
 //! `type:subtype:manufacturer`, each an `AudioComponentDescription` four-char code
@@ -15,12 +53,19 @@
 //! `PluginDescriptor.path` for an AU is the scan target, i.e. the same id string.
 #![cfg(not(target_arch = "wasm32"))]
 
+pub mod ids;
+#[cfg(target_os = "macos")]
+mod mac;
+
+#[cfg(target_os = "macos")]
+pub use mac::AuPlugin;
+
 use std::path::{Path, PathBuf};
 
 use ether_core::plugin::{PluginController, PluginError};
 use ether_core::protocol::model::PluginFormat;
 use ether_core::protocol::plugins::PluginDescriptor;
-use ether_plugin_host::{PluginFormatHost, unsupported};
+use ether_plugin_host::PluginFormatHost;
 
 /// An `AudioComponentDescription`'s identifying codes (`componentType`,
 /// `componentSubType`, `componentManufacturer`), as big-endian four-char bytes.
@@ -142,11 +187,42 @@ pub fn default_search_paths() -> Vec<PathBuf> {
     }
 }
 
-fn not_here(what: &str) -> PluginError {
-    if cfg!(target_os = "macos") {
-        unsupported(PluginFormat::Au, what)
-    } else {
-        PluginError::Unsupported("Audio Units are only available on macOS".into())
+#[cfg(not(target_os = "macos"))]
+fn not_here() -> PluginError {
+    PluginError::Unsupported("Audio Units are only available on macOS".into())
+}
+
+fn parse_target(target: &Path) -> Result<AuComponentId, PluginError> {
+    target
+        .to_str()
+        .and_then(AuComponentId::parse)
+        .ok_or_else(|| PluginError::NotFound(format!("not an AU id: {}", target.display())))
+}
+
+/// Run the calling thread's run loop for up to `d` (macOS; a plain sleep elsewhere). Hosts
+/// whose plugin main thread has no running run loop (the sandbox helper, tests) call this
+/// between `poll`s so completions/observers delivered on it are processed.
+pub fn pump_run_loop(d: std::time::Duration) {
+    #[cfg(target_os = "macos")]
+    {
+        mac::run_loop_for(d);
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        std::thread::sleep(d);
+    }
+}
+
+/// Every registered component (effects, instruments, music effects, MIDI processors), by
+/// id. Empty off macOS. Runs no plugin code.
+pub fn registry() -> Vec<AuComponentId> {
+    #[cfg(target_os = "macos")]
+    {
+        mac::list_registry()
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        Vec::new()
     }
 }
 
@@ -166,10 +242,12 @@ impl PluginFormatHost for AuFormat {
         let _ = paths;
         Vec::new()
     }
-    /// One target per registered component (its id). Stub: empty until the `au` node lists
-    /// the registry.
+    /// One target per registered component (its id).
     fn discover_registry(&self) -> Vec<PathBuf> {
-        Vec::new()
+        registry()
+            .into_iter()
+            .map(|id| PathBuf::from(id.to_string()))
+            .collect()
     }
     fn claims(&self, target: &Path) -> bool {
         target
@@ -177,16 +255,33 @@ impl PluginFormatHost for AuFormat {
             .is_some_and(|s| AuComponentId::parse(s).is_some())
     }
     fn scan(&self, target: &Path) -> Result<Vec<PluginDescriptor>, PluginError> {
-        let _ = target;
-        Err(not_here("scanning"))
+        let id = parse_target(target)?;
+        #[cfg(target_os = "macos")]
+        {
+            Ok(vec![mac::scan(&id)?])
+        }
+        #[cfg(not(target_os = "macos"))]
+        {
+            let _ = id;
+            Err(not_here())
+        }
     }
+    /// `path` is the component id too (`PluginDescriptor.path`); `plugin_id` wins.
     fn instantiate(
         &self,
         path: &Path,
         plugin_id: &str,
     ) -> Result<Box<dyn PluginController>, PluginError> {
-        let _ = (path, plugin_id);
-        Err(not_here("loading"))
+        let _ = path;
+        #[cfg(target_os = "macos")]
+        {
+            Ok(Box::new(AuPlugin::load(plugin_id)?))
+        }
+        #[cfg(not(target_os = "macos"))]
+        {
+            let _ = plugin_id;
+            Err(not_here())
+        }
     }
 }
 
@@ -243,23 +338,27 @@ mod tests {
     }
 
     #[test]
-    fn stub_reports_unsupported() {
+    fn format_basics() {
         let f = AuFormat;
         assert_eq!(f.format(), PluginFormat::Au);
         assert!(f.claims(Path::new("aufx:dely:appl")));
         assert!(!f.claims(Path::new("/p/A.vst3")));
         assert!(f.discover(&default_search_paths()).is_empty());
-        assert!(f.discover_registry().is_empty());
         assert_eq!(
             default_search_paths().is_empty(),
             !cfg!(target_os = "macos")
         );
-        let e = f.scan(Path::new("aufx:dely:appl")).unwrap_err();
-        assert!(matches!(e, PluginError::Unsupported(_)), "{e:?}");
-        let e = f
-            .instantiate(Path::new("aufx:dely:appl"), "aufx:dely:appl")
-            .err()
-            .unwrap();
-        assert!(matches!(e, PluginError::Unsupported(_)), "{e:?}");
+        let e = f.scan(Path::new("/p/A.vst3")).unwrap_err();
+        assert!(matches!(e, PluginError::NotFound(_)), "{e:?}");
+        if !cfg!(target_os = "macos") {
+            assert!(f.discover_registry().is_empty());
+            let e = f.scan(Path::new("aufx:dely:appl")).unwrap_err();
+            assert!(matches!(e, PluginError::Unsupported(_)), "{e:?}");
+            let e = f
+                .instantiate(Path::new("aufx:dely:appl"), "aufx:dely:appl")
+                .err()
+                .unwrap();
+            assert!(matches!(e, PluginError::Unsupported(_)), "{e:?}");
+        }
     }
 }
