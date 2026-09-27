@@ -236,7 +236,9 @@ fn no_auth_server_only_accepts_loopback_host_and_origin() {
             req.headers_mut()
                 .insert(*k, tungstenite::http::HeaderValue::from_str(v).unwrap());
         }
-        tungstenite::connect(req).map(|(ws, _)| ws)
+        tungstenite::connect(req)
+            .map(|(ws, _)| ws)
+            .map_err(Box::new)
     };
     for bad in [
         vec![("Origin", "https://evil.example")],
@@ -245,7 +247,12 @@ fn no_auth_server_only_accepts_loopback_host_and_origin() {
         vec![("Host", "evil.example")],
     ] {
         match attempt(&bad) {
-            Err(tungstenite::Error::Http(r)) => assert_eq!(r.status(), 403, "{bad:?}"),
+            Err(e) if matches!(*e, tungstenite::Error::Http(_)) => {
+                let tungstenite::Error::Http(r) = *e else {
+                    unreachable!()
+                };
+                assert_eq!(r.status(), 403, "{bad:?}");
+            }
             Err(e) => panic!("{bad:?}: {e}"),
             Ok(_) => panic!("{bad:?} was accepted"),
         }
