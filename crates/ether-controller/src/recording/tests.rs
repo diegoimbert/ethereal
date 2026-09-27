@@ -4,7 +4,9 @@ use std::sync::Arc;
 
 use ether_core::protocol::devices::DeviceDescriptor;
 use ether_core::protocol::project::{EditCommand, ProjectCommand};
-use ether_core::protocol::recording::{InputList, MidiPort, RecordingCommand, RecordingEvent};
+use ether_core::protocol::recording::{
+    InputList, LiveAudioChunk, LiveMidiNote, MidiPort, RecordingCommand, RecordingEvent,
+};
 use ether_core::protocol::tracks::TrackCommand;
 use ether_core::protocol::transport::TransportCommand;
 use ether_core::protocol::{
@@ -31,6 +33,9 @@ struct Capture {
     active: bool,
     result: RecordedTakes,
     stops: u32,
+    /// Live data returned by the next `poll_recording` calls.
+    live: std::collections::VecDeque<(Vec<LiveAudioChunk>, Vec<LiveMidiNote>)>,
+    polls: u32,
 }
 
 impl EngineBridge for Bridge {
@@ -105,6 +110,15 @@ impl EngineBridge for Bridge {
         c.active = true;
         c.sessions.push(session.clone());
         Ok(())
+    }
+    fn poll_recording(&mut self, audio: &mut Vec<LiveAudioChunk>, midi: &mut Vec<LiveMidiNote>) {
+        let c = self.capture.as_mut().expect("capture");
+        assert!(c.active, "polled while not capturing");
+        c.polls += 1;
+        if let Some((a, m)) = c.live.pop_front() {
+            audio.extend(a);
+            midi.extend(m);
+        }
     }
     fn stop_recording(&mut self) -> Result<RecordedTakes, BridgeError> {
         let c = self.capture.as_mut().expect("capture");
@@ -525,4 +539,122 @@ fn host_warnings_become_notifications() {
     let out = h.rec(RecordingCommand::SetRecording { enabled: false });
     assert!(out.iter().any(|m| matches!(m,
         ServerMessage::Event(Event::Notification { message, .. }) if message == "silent")));
+}
+
+fn chunk(track: TrackId, take: u32, first_peak: u64, n: usize) -> LiveAudioChunk {
+    LiveAudioChunk {
+        track,
+        take,
+        start: 8.0,
+        sample_rate: 48_000,
+        frames_per_peak: 256,
+        first_peak,
+        min: (0..n)
+            .map(|i| -((first_peak as usize + i) as f32) / 100.0)
+            .collect(),
+        max: (0..n)
+            .map(|i| (first_peak as usize + i) as f32 / 100.0)
+            .collect(),
+    }
+}
+
+fn tick(h: &mut H, now: u64) -> Vec<RecordingEvent> {
+    let mut out = Vec::new();
+    h.ctl.tick(now, &mut out);
+    recording_events(&out)
+}
+
+#[test]
+fn live_progress_is_throttled_merged_and_stops_with_the_recording() {
+    let mut h = H::new(true);
+    let audio = h.track(TrackKind::Audio);
+    let midi = h.track(TrackKind::Midi);
+    h.rec(RecordingCommand::SetInput {
+        track: audio,
+        input: TrackInput::Audio { first: 0, count: 1 },
+    });
+    for t in [audio, midi] {
+        h.rec(RecordingCommand::Arm {
+            track: t,
+            armed: true,
+            exclusive: false,
+        });
+    }
+    // Not recording: the host is not polled.
+    assert!(tick(&mut h, 900).is_empty());
+    assert_eq!(h.capture().polls, 0);
+    h.rec(RecordingCommand::SetRecording { enabled: true });
+    let revision = h.ctl.revision;
+    let history = h.ctl.doc.as_ref().unwrap().history.state();
+
+    // First data: emitted right away.
+    h.capture()
+        .live
+        .push_back((vec![chunk(audio, 1, 0, 2)], vec![]));
+    assert_eq!(
+        tick(&mut h, 1000),
+        vec![RecordingEvent::Progress {
+            audio: vec![chunk(audio, 1, 0, 2)],
+            midi: vec![],
+        }]
+    );
+    // Within 50 ms: buffered, then merged into one chunk per take.
+    let on = LiveMidiNote {
+        track: TrackId::NIL,
+        pitch: 60,
+        velocity: 100,
+        start: 8.5,
+        length: None,
+    };
+    h.capture()
+        .live
+        .push_back((vec![chunk(audio, 1, 2, 3)], vec![on.clone()]));
+    assert!(tick(&mut h, 1016).is_empty());
+    h.capture()
+        .live
+        .push_back((vec![chunk(audio, 1, 5, 1), chunk(audio, 2, 0, 1)], vec![]));
+    assert!(tick(&mut h, 1032).is_empty());
+    assert!(
+        tick(&mut h, 1040).is_empty(),
+        "nothing new, still throttled"
+    );
+    assert_eq!(
+        tick(&mut h, 1050),
+        vec![RecordingEvent::Progress {
+            audio: vec![chunk(audio, 1, 2, 4), chunk(audio, 2, 0, 1)],
+            // Host notes have no track: one per armed MIDI track.
+            midi: vec![LiveMidiNote { track: midi, ..on }],
+        }]
+    );
+    assert!(tick(&mut h, 1200).is_empty(), "nothing new: no event");
+    // Runtime only: no document change, no history step.
+    assert_eq!(h.ctl.revision, revision);
+    assert_eq!(h.ctl.doc.as_ref().unwrap().history.state(), history);
+
+    // Stop: whatever is pending is dropped; `Stopped` is the last recording event.
+    h.capture()
+        .live
+        .push_back((vec![chunk(audio, 2, 1, 5)], vec![]));
+    let out = h.rec(RecordingCommand::SetRecording { enabled: false });
+    let events = recording_events(&out);
+    assert!(
+        matches!(events.as_slice(), [RecordingEvent::Stopped { .. }]),
+        "{events:?}"
+    );
+    let polls = h.capture().polls;
+    assert!(tick(&mut h, 2000).is_empty());
+    assert_eq!(h.capture().polls, polls, "not polled after the stop");
+}
+
+#[test]
+fn hosts_without_capture_emit_no_progress() {
+    let mut h = H::new(false);
+    let midi = h.track(TrackKind::Midi);
+    h.rec(RecordingCommand::Arm {
+        track: midi,
+        armed: true,
+        exclusive: false,
+    });
+    h.rec(RecordingCommand::SetRecording { enabled: true });
+    assert!(tick(&mut h, 1000).is_empty());
 }
