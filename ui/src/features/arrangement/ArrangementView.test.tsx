@@ -204,7 +204,7 @@ describe("ArrangementView: tracks", () => {
     });
     await flush();
     const header = screen.getByRole("group", { name: "Bass track" });
-    expect(header.style.paddingLeft).toBe("20px");
+    expect(header.style.paddingLeft).toBe("26px");
     // The group lane summarizes the child's clip.
     expect(document.querySelectorAll(`[data-lane="${group}"] .eth-arr-lane__summary`)).toHaveLength(1);
     fireEvent.click(screen.getByRole("button", { name: "Fold Grp" }));

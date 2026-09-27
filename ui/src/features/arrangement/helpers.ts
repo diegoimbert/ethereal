@@ -4,6 +4,32 @@ import type { Beats, Clip, Color, Track } from "@/generated";
 import { beatsPerBar, snapToGrid, type GridSetting, type TempoMap } from "@/timeline";
 import { isArrangementClip, startOf } from "./clipTime";
 
+/** Icon/text colors readable on a colored fill (see `inkOn`). */
+export const DARK_INK = "#14161b";
+export const LIGHT_INK = "#ffffff";
+
+/** WCAG relative luminance of a 0xRRGGBB color (0 = black, 1 = white). */
+export function luminance(color: Color): number {
+  const lin = (c: number) => {
+    const v = c / 255;
+    return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+  };
+  return 0.2126 * lin((color >> 16) & 0xff) + 0.7152 * lin((color >> 8) & 0xff) + 0.0722 * lin(color & 0xff);
+}
+
+/** WCAG contrast ratio between two luminances (1–21). */
+export function contrastRatio(a: number, b: number): number {
+  return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+}
+
+/** Dark or light ink on a `color` fill: whichever has the higher WCAG contrast. */
+export function inkOn(color: Color): string {
+  const l = luminance(color);
+  const dark = contrastRatio(l, luminance(parseInt(DARK_INK.slice(1), 16)));
+  const light = contrastRatio(l, 1);
+  return dark >= light ? DARK_INK : LIGHT_INK;
+}
+
 export function colorCss(color: Color): string {
   return `#${(color & 0xffffff).toString(16).padStart(6, "0")}`;
 }

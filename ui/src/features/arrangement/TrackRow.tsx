@@ -1,7 +1,19 @@
 import clsx from "clsx";
 import { memo, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type PointerEvent, type ReactNode } from "react";
-import { ChevronDown, ChevronRight, Circle, Headphones, Volume2, VolumeX } from "lucide-react";
-import type { Beats, Clip, ClipId, Track, TrackId } from "@/generated";
+import {
+  AudioLines,
+  ChevronDown,
+  ChevronRight,
+  Circle,
+  CornerDownRight,
+  Folder,
+  Headphones,
+  Piano,
+  Speaker,
+  Volume2,
+  VolumeX,
+} from "lucide-react";
+import type { Beats, Clip, ClipId, Color, Track, TrackId } from "@/generated";
 import { TrackAutomationLanes } from "@/features/automation";
 import { MOD_KEY, meterPosition, openContextMenu, setDragCursor } from "@/kit";
 import { useEditorStore, useProjectStore, useTrackMeter } from "@/state";
@@ -14,7 +26,7 @@ import { SmallClipsLayer } from "./SmallClipsLayer";
 import { hasClipboard, pasteClips } from "./clipboard";
 import { onLaneInsertPointerDown, type InsertSpan } from "./clipInsert";
 import { ClipView } from "./ClipView";
-import { colorCss, groupSummaryKey } from "./helpers";
+import { colorCss, groupSummaryKey, inkOn } from "./helpers";
 import { sendEdit, useArrangement } from "./context";
 import { beatsCss, useSettledZoom, widthCss } from "./laneGeometry";
 import { laneItems } from "./laneItems";
@@ -51,6 +63,26 @@ function RealTrackRow({ row }: { row: Row }) {
   );
 }
 
+const TRACK_ICONS: Record<Track["kind"], ReactNode> = {
+  Midi: <Piano />,
+  Audio: <AudioLines />,
+  Group: <Folder />,
+  Return: <CornerDownRight />,
+  Master: <Speaker />,
+};
+
+/**
+ * A round badge in the track color with the track type's icon, in dark or light ink,
+ * whichever contrasts more with the color (`inkOn`).
+ */
+function TrackBadge({ kind, color }: { kind: Track["kind"]; color: Color }) {
+  return (
+    <span className="eth-arr-header__badge" aria-hidden title={`${kind} track`} style={{ color: inkOn(color) }}>
+      {TRACK_ICONS[kind]}
+    </span>
+  );
+}
+
 function TrackHeader({ row }: { row: Row }) {
   const { track, depth } = row;
   const ctx = useArrangement();
@@ -75,7 +107,12 @@ function TrackHeader({ row }: { row: Row }) {
         dropInto && "eth-arr-header--drop-into",
         `eth-arr-header--${track.kind.toLowerCase()}`,
       )}
-      style={{ width: HEADER_WIDTH, paddingLeft: 8 + depth * INDENT_PX, ["--eth-track-color" as string]: colorCss(track.color) }}
+      style={{
+        width: HEADER_WIDTH,
+        paddingLeft: 14 + depth * INDENT_PX,
+        ["--eth-track-color" as string]: colorCss(track.color),
+        ["--eth-track-depth" as string]: depth,
+      }}
       onPointerDown={(e) => {
         stop(e);
         if (!renaming) onTrackHeaderPointerDown(e, track, ctx);
@@ -99,6 +136,7 @@ function TrackHeader({ row }: { row: Row }) {
           {folded ? <ChevronRight /> : <ChevronDown />}
         </button>
       ) : null}
+      <TrackBadge kind={track.kind} color={track.color} />
       {renaming ? (
         <TrackNameInput
           name={track.name}

@@ -5,6 +5,7 @@ import { TempoMap } from "@/timeline";
 import type { EngineTransport } from "@/transport";
 import { actionForKey } from "./actions";
 import { smallClipAt, splitSmallClips } from "./smallClips";
+import { contrastRatio, DARK_INK, inkOn, LIGHT_INK, luminance } from "./helpers";
 import { trackDropTarget } from "./trackDrag";
 import { BROWSER_DRAG_MIME, readBrowserDrag } from "./browserDrop";
 import { noteRects, pitchRange } from "./clipDraw";
@@ -511,5 +512,17 @@ describe("splitSmallClips / smallClipAt", () => {
     expect(smallClipAt(small, 1.15, 0.1)?.clip.id).toBe("b"); // 0.05 before b, 0.15 after a
     expect(smallClipAt(small, 3, 0.1)).toBeNull();
     expect(smallClipAt(small, 5.5, 0.1)).toBeNull();
+  });
+});
+
+describe("inkOn (badge icon contrast)", () => {
+  it("uses dark ink on light fills and light ink on dark ones, by WCAG contrast", () => {
+    expect(luminance(0xffffff)).toBeCloseTo(1);
+    expect(luminance(0x000000)).toBe(0);
+    expect(contrastRatio(1, 0)).toBeCloseTo(21);
+    expect(inkOn(0xe6c07e)).toBe(DARK_INK); // pastel amber
+    expect(inkOn(0x8fa8e6)).toBe(DARK_INK); // pastel blue
+    expect(inkOn(0x1e3a8a)).toBe(LIGHT_INK); // deep navy
+    expect(inkOn(0x7a1f3d)).toBe(LIGHT_INK); // wine
   });
 });

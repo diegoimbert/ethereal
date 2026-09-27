@@ -12,7 +12,6 @@
 .eth-auto-bar {
   display: flex;
   flex: none;
-  border-top: 1px solid var(--eth-color-border);
 }
 
 .eth-auto-bar__header,
@@ -21,9 +20,8 @@
   box-sizing: border-box;
   display: flex;
   gap: var(--eth-space-xs);
-  padding: 0 var(--eth-space-xs);
-  background: var(--eth-color-bg-panel);
-  border-right: 1px solid var(--eth-color-border);
+  padding: 0 var(--eth-space-xs) 0 var(--eth-space-md);
+  background: transparent;
 }
 
 .eth-auto-bar__header {

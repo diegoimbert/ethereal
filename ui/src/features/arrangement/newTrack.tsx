@@ -93,7 +93,7 @@ export function DraftRow({ row }: { row: Row }) {
       <div className="eth-arr-row__main" style={{ height: row.laneHeight }}>
         <div
           className="eth-arr-header eth-arr-header--draft"
-          style={{ width: HEADER_WIDTH, paddingLeft: 8 + row.depth * INDENT_PX }}
+          style={{ width: HEADER_WIDTH, paddingLeft: 14 + row.depth * INDENT_PX, ["--eth-track-depth" as string]: row.depth }}
           role="group"
           aria-label="New track"
           onPointerDown={(e) => e.stopPropagation()}

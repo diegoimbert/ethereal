@@ -175,7 +175,6 @@
   position: relative;
   display: flex;
   flex-direction: column;
-  border-bottom: 1px solid var(--eth-color-border);
 }
 
 .eth-arr-row__main {
@@ -209,25 +208,52 @@
   z-index: 5;
   box-sizing: border-box;
   padding-right: calc(var(--eth-space-sm) + 4px);
-  /* A soft wash of the track color over the whole header. */
-  background: color-mix(in srgb, var(--eth-track-color) 12%, var(--eth-color-bg-panel));
-  border-right: 1px solid var(--eth-color-border);
-  box-shadow: inset 2px 0 0 color-mix(in srgb, var(--eth-track-color) 70%, transparent);
+  /* The header is a floating card: drawn by ::before, inset from the row (the header box
+     itself keeps the column width that clip positions rely on). */
+  background: transparent;
   cursor: default;
   transition:
     background-color var(--eth-duration-fast) var(--eth-ease-out),
     opacity var(--eth-duration-fast) var(--eth-ease-out);
 }
 
-.eth-arr-header:hover {
-  background: color-mix(in srgb, var(--eth-track-color) 17%, var(--eth-color-bg-panel));
+.eth-arr-header::before {
+  content: "";
+  position: absolute;
+  /* Nested tracks' cards step in with their group depth. */
+  inset: 3px 4px 3px calc(6px + var(--eth-track-depth, 0) * 12px);
+  z-index: -1;
+  border-radius: var(--eth-radius-lg);
+  background: color-mix(in srgb, var(--eth-track-color) 13%, var(--eth-color-bg-raised));
+  box-shadow: var(--eth-shadow-sm);
+  transition:
+    background-color var(--eth-duration-fast) var(--eth-ease-out),
+    box-shadow var(--eth-duration-fast) var(--eth-ease-out);
+}
+
+.eth-arr-header:hover::before {
+  background: color-mix(in srgb, var(--eth-track-color) 19%, var(--eth-color-bg-raised));
+}
+
+/* Round badge in the track color with the track type's icon. */
+.eth-arr-header__badge {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--eth-track-color);
+  /* Icon color: set inline from the track color's contrast (inkOn). */
+  font-size: 11px;
 }
 
 .eth-arr-header--dragging {
   opacity: 0.5;
 }
 
-.eth-arr-header--drop-into {
+.eth-arr-header--drop-into::before {
   box-shadow: inset 0 0 0 2px var(--eth-color-accent);
 }
 
@@ -247,12 +273,12 @@
   pointer-events: none;
 }
 
-.eth-arr-header--selected,
-.eth-arr-header--selected:hover {
-  background: color-mix(in srgb, var(--eth-track-color) 24%, var(--eth-color-bg-raised));
+.eth-arr-header--selected::before,
+.eth-arr-header--selected:hover::before {
+  background: color-mix(in srgb, var(--eth-track-color) 26%, var(--eth-color-bg-raised));
   box-shadow:
-    inset 2px 0 0 var(--eth-track-color),
-    inset 0 0 0 1px color-mix(in srgb, var(--eth-color-selection) 55%, transparent);
+    inset 0 0 0 1px color-mix(in srgb, var(--eth-track-color) 60%, transparent),
+    0 0 10px color-mix(in srgb, var(--eth-track-color) 25%, transparent);
 }
 
 .eth-arr-header__fold {
@@ -455,6 +481,8 @@
   flex: 1;
   min-width: 0;
   overflow: hidden;
+  /* A faint line between tracks, in the lanes only (headers are floating cards). */
+  box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--eth-color-border-light) 45%, transparent);
 }
 
 .eth-arr-lane--no-clips {
@@ -622,6 +650,10 @@
 
 .eth-arr-header--draft {
   gap: var(--eth-space-xs);
+}
+
+.eth-arr-header--draft::before,
+.eth-arr-header--draft:hover::before {
   background: var(--eth-color-accent-subtle);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--eth-color-accent) 55%, transparent);
 }
