@@ -64,6 +64,10 @@ enum Control {
     RemoveNode {
         key: NodeKey,
     },
+    NodeData {
+        key: NodeKey,
+        data: crate::node::NodeData,
+    },
     Swap(Box<RenderSnapshot>),
     AddSource {
         media: MediaId,
@@ -78,6 +82,7 @@ enum Control {
 enum Garbage {
     Snapshot(#[allow(dead_code)] Box<RenderSnapshot>),
     Node(#[allow(dead_code)] Box<dyn Node>),
+    Data(#[allow(dead_code)] crate::node::NodeData),
     Source(#[allow(dead_code)] Arc<dyn AudioSource>),
 }
 
@@ -156,9 +161,8 @@ impl std::fmt::Debug for NodeSlot {
 }
 
 impl NodeSlot {
-    /// RT. The live node behind `key`, if the slot still holds that generation (for
-    /// `crate::drum_rack`, which processes pad-chain nodes).
-    #[allow(dead_code)]
+    /// RT. The live node behind `key`, if the slot still holds that generation (also used
+    /// by `crate::drum_rack`, which processes pad-chain nodes).
     pub(crate) fn get(slots: &mut [NodeSlot], key: NodeKey) -> Option<&mut Box<dyn Node>> {
         let slot = slots.get_mut(key.index as usize)?;
         if slot.generation != key.generation {
@@ -252,6 +256,7 @@ pub fn create(config: EngineConfig) -> EngineParts {
         node_latency,
         playhead,
         recording: Some(recording_io),
+        latency: 0,
         warp: warp_handle,
         config,
     };
@@ -381,6 +386,15 @@ impl Engine {
                     });
                     if let Some(old) = old {
                         self.retire(Garbage::Node(old));
+                    }
+                }
+                Control::NodeData { key, data } => {
+                    let rejected = match NodeSlot::get(&mut self.nodes, key) {
+                        Some(node) => node.set_data(data),
+                        None => Some(data),
+                    };
+                    if let Some(old) = rejected {
+                        self.retire(Garbage::Data(old));
                     }
                 }
                 Control::Swap(mut new) => {
@@ -1055,6 +1069,8 @@ pub struct EngineHandle {
     playhead: Arc<SharedPlayhead>,
     pub(crate) recording: Option<crate::recording::RecordingIo>,
     pub(crate) warp: crate::warp::WarpHandle,
+    /// Output latency of the last published graph (samples).
+    latency: u32,
 }
 
 struct HandleSlot {
@@ -1127,6 +1143,21 @@ impl EngineHandle {
         Ok(())
     }
 
+    /// Hand non-parameter data to a live node in place (roadmap v2; e.g. new sampler slice
+    /// markers, so an edit doesn't re-create the node and cut sounding notes). Delivered at
+    /// the next block via [`Node::set_data`]; whatever the node returns (its previous data,
+    /// or `data` itself if it doesn't take it) is dropped on the GC thread.
+    pub fn set_node_data(
+        &mut self,
+        key: NodeKey,
+        data: crate::node::NodeData,
+    ) -> Result<(), EngineError> {
+        if !self.key_live(key) {
+            return Err(EngineError::UnknownNode(key));
+        }
+        self.send(Control::NodeData { key, data })
+    }
+
     /// Register (or replace) the audio source for `media` (used by audio clips/samplers).
     pub fn add_source(
         &mut self,
@@ -1159,7 +1190,16 @@ impl EngineHandle {
                 })
             })?
         };
-        self.send(Control::Swap(Box::new(snapshot)))
+        let latency = snapshot.latency();
+        self.send(Control::Swap(Box::new(snapshot)))?;
+        self.latency = latency;
+        Ok(())
+    }
+
+    /// Total output latency (samples, PDC included) of the last successfully published
+    /// graph: timeline position `p` reaches the hardware `latency()` samples later.
+    pub fn latency(&self) -> u32 {
+        self.latency
     }
 
     /// Live parameter change (fader, knob). Lock-free; applied next block.

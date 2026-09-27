@@ -82,7 +82,9 @@ pub trait ProjectStore {
         bytes: &[u8],
     ) -> Result<String, StoreError> {
         let _ = (id, file_name, bytes);
-        Err(StoreError::Unsupported("exports are delivered as downloads".into()))
+        Err(StoreError::Unsupported(
+            "exports are delivered as downloads".into(),
+        ))
     }
 
     /// `remote-engine`: start staging an upload (`Media::BeginUpload`) outside any project
@@ -94,7 +96,12 @@ pub trait ProjectStore {
     }
 
     /// Append bytes at `offset` (must equal the bytes received so far). Returns the new total.
-    fn append_upload(&mut self, upload: &str, offset: u64, bytes: &[u8]) -> Result<u64, StoreError> {
+    fn append_upload(
+        &mut self,
+        upload: &str,
+        offset: u64,
+        bytes: &[u8],
+    ) -> Result<u64, StoreError> {
         let _ = (upload, offset, bytes);
         Err(StoreError::Unsupported("uploads".into()))
     }
@@ -115,10 +122,7 @@ pub trait ProjectStore {
 /// Project-relative path of an export file (`exports/<file_name>`): `file_name` must be a
 /// single, non-hidden path segment.
 pub fn export_path(file_name: &str) -> Result<String, StoreError> {
-    if file_name.is_empty()
-        || file_name.starts_with('.')
-        || file_name.contains(['/', '\\', '\0'])
-    {
+    if file_name.is_empty() || file_name.starts_with('.') || file_name.contains(['/', '\\', '\0']) {
         return Err(StoreError::InvalidPath(file_name.to_string()));
     }
     Ok(format!(

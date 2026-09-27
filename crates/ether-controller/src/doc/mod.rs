@@ -222,7 +222,12 @@ impl DocCtx<'_, '_> {
             np.rack = dst;
             let new_pad = np.id;
             self.tx.insert(Entity::DrumPad(np))?;
-            let devices: Vec<Device> = self.p().pad_devices_of(pad.id).into_iter().cloned().collect();
+            let devices: Vec<Device> = self
+                .p()
+                .pad_devices_of(pad.id)
+                .into_iter()
+                .cloned()
+                .collect();
             for d in devices {
                 let mut nd = d.clone();
                 nd.id = self.new_id();

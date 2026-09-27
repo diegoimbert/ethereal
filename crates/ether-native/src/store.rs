@@ -380,7 +380,12 @@ impl ProjectStore for DiskStore {
         crate::uploads::begin(&self.projects_root, upload, size)
     }
 
-    fn append_upload(&mut self, upload: &str, offset: u64, bytes: &[u8]) -> Result<u64, StoreError> {
+    fn append_upload(
+        &mut self,
+        upload: &str,
+        offset: u64,
+        bytes: &[u8],
+    ) -> Result<u64, StoreError> {
         crate::uploads::append(&self.projects_root, upload, offset, bytes)
     }
 

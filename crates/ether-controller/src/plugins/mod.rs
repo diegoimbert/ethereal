@@ -104,6 +104,7 @@ where
                 revision: self.revision,
                 changes,
                 history: doc.history.state(),
+                origin: None,
             },
         }));
     }
