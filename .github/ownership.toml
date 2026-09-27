@@ -746,6 +746,23 @@ paths = [
   "docs/COLLAB.md",
 ]
 
+[nodes.automation-anim]
+# automation-ux (branch node/automation-anim): lane open/close animation, lane resizing,
+# param-aware value axis/snapping, point copy/paste (owner requests).
+paths = [
+  "ui/src/features/automation/**",
+  # shared touch: slot heights into layoutRows + useLaneAnimation (three lines)
+  "ui/src/features/arrangement/ArrangementView.tsx",
+  # new: per-frame application of the lane animation (row transforms, hit-test rows)
+  "ui/src/features/arrangement/laneAnimation.ts",
+  # shared touch: rows that only move don't re-render; lane part memoized
+  "ui/src/features/arrangement/TrackRow.tsx",
+  # shared touch: semantic motion tokens (motion.lane, --automation-lane-*)
+  "ui/src/theme/tokens.ts",
+  "ui/src/theme/tokens.css",
+  "apps/web/e2e/automation-*",
+]
+
 # --- v0.2 (contracts-3; docs/ROADMAP.md "v0.2", CONTRACTS.md §12) -------------------------
 # contracts-3 froze the types, pre-wired the hot engine files (engine.rs/graph.rs/mixer.rs/
 # codec.rs) once and pre-created one module per node, registered in its parent. Every node:
