@@ -8,6 +8,9 @@ import { useProjectStore, useSelectionStore } from "@/state";
 import { cmd, createDemoProject, MockTransport, newId, TransportProvider } from "@/transport";
 import { ArrangementView } from "@/features/arrangement";
 import { resetArrangementUi } from "@/features/arrangement/uiStore";
+import { layoutRows, TRACK_HEIGHT } from "@/features/arrangement/layout";
+import { trackDropTarget } from "@/features/arrangement/trackDrag";
+import { makeTrack } from "@/transport/mock/demoProject";
 import { resetAutomationUi } from "@/features/automation";
 import { Mixer } from "@/features/mixer";
 import { groupCommand, groupShortcut, inputSources, ungroupLosses, vcaTargets } from "./index";
@@ -111,6 +114,20 @@ describe("groups model", () => {
     expect(k("G", { ctrlKey: true, shiftKey: true })).toBe("ungroup");
     expect(k("g")).toBeNull();
     expect(k("g", { metaKey: true, altKey: true })).toBeNull();
+  });
+});
+
+describe("arrangement: dragging a VCA", () => {
+  it("never drops a VCA into a group", () => {
+    const t = (id: string, kind: Track["kind"], order: string, parent: string | null = null) =>
+      makeTrack({ id, kind, name: id, color: 0, order, parent });
+    const rows = layoutRows([t("g", "Group", "a"), t("g1", "Midi", "a", "g"), t("m", "Midi", "b"), t("v", "Vca", "c")], new Set());
+    const H = TRACK_HEIGHT;
+    // Over the group header: a MIDI track goes in, the VCA does not.
+    expect(trackDropTarget(rows, H / 2, "m")?.into).toBe("g");
+    expect(trackDropTarget(rows, H / 2, "v")).toMatchObject({ parent: null, into: null });
+    // Between the group's children: the VCA goes to the next top-level gap.
+    expect(trackDropTarget(rows, H + 5, "v")).toMatchObject({ parent: null, before: "m" });
   });
 });
 

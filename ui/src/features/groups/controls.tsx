@@ -3,13 +3,14 @@
  * tap point) and VCA assignment. Kit components and tokens only.
  */
 
+import type { ComponentType, ReactNode } from "react";
 import { useShallow } from "zustand/react/shallow";
 import type { InputTap, Track, TrackInput } from "@/generated";
 import { Select } from "@/kit";
 import { useProjectStore } from "@/state";
 import { cmd, useTransport } from "@/transport";
 import { assignVca, sendGroupsEdit } from "./actions";
-import { assignedTo, INPUT_TAPS, inputSources, trackInput, vcaTargets } from "./model";
+import { assignedTo, INPUT_TAPS, inputSources, takesTrackInput, trackInput, vcaTargets } from "./model";
 
 /** `Select` value of the input source: `keep` (a hardware/MIDI input), `none` or `track:<id>`. */
 function sourceValue(input: TrackInput): string {
@@ -86,6 +87,33 @@ export function VcaSelect({ track, className }: { track: Track; className?: stri
       onChange={(v) => void assignVca(transport, [track.id], v === "none" ? null : v)}
       options={[{ value: "none", label: "No VCA" }, ...targets.map((v) => ({ value: v.id, label: `VCA ${v.name}` }))]}
     />
+  );
+}
+
+/**
+ * Inspector rows (rendered with the host's own `Row`): "Input" for audio tracks and "VCA"
+ * when there is a VCA to assign to; a VCA itself lists what it controls.
+ */
+export function GroupsRoutingRows({ track, Row }: { track: Track; Row: ComponentType<{ label: string; children: ReactNode }> }) {
+  const hasVcaChoice = useProjectStore((s) => (s.project ? vcaTargets(s.project.tracks, track).length > 0 : false));
+  return (
+    <>
+      {takesTrackInput(track) && (
+        <Row label="Input">
+          <TrackInputSelect track={track} className="eth-groups-input" />
+        </Row>
+      )}
+      {track.kind !== "Master" && (hasVcaChoice || track.vca) && (
+        <Row label="VCA">
+          <VcaSelect track={track} />
+        </Row>
+      )}
+      {track.kind === "Vca" && (
+        <Row label="Controls">
+          <VcaSummary vca={track} className="eth-groups-vca-summary" />
+        </Row>
+      )}
+    </>
   );
 }
 

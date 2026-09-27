@@ -15,7 +15,7 @@ export {
   ungroupTrack,
   useUngroupConfirm,
 } from "./actions";
-export { TrackInputSelect, VcaSelect, VcaSummary } from "./controls";
+export { GroupsRoutingRows, TrackInputSelect, VcaSelect, VcaSummary } from "./controls";
 export {
   assignedTo,
   groupableSelection,
