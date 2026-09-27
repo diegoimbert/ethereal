@@ -11,7 +11,7 @@ use std::time::{Duration, Instant};
 use ether_core::config::PrepareConfig;
 use ether_core::plugin::{PluginController, PluginError, PluginNode, PluginNotification};
 use ether_core::protocol::devices::{DeviceDescriptor, ParamInfo};
-use ether_core::protocol::model::ParamId;
+use ether_core::protocol::model::{ParamId, PluginFormat};
 
 use crate::node::{NodeInit, SandboxedNode, Shared};
 use crate::shm::{Layout, Region};
@@ -23,6 +23,9 @@ use crate::wire::{self, Notification, Request, Response};
 pub struct SandboxOptions {
     /// Helper executable (default: [`crate::helper_path`]).
     pub helper: PathBuf,
+    /// Format of the plugin (passed as `--format`; the helper loads it through that
+    /// format's `PluginFormatHost`). Default: CLAP.
+    pub format: PluginFormat,
     /// Max time for the helper to load the plugin and report ready.
     pub startup_timeout: Duration,
     /// Max time for any other control request; a helper that doesn't answer in time is
@@ -37,6 +40,7 @@ impl Default for SandboxOptions {
     fn default() -> Self {
         Self {
             helper: crate::helper_path(),
+            format: PluginFormat::Clap,
             startup_timeout: Duration::from_secs(30),
             request_timeout: Duration::from_secs(10),
             wait_budget: None,
@@ -79,8 +83,8 @@ fn crashed(msg: impl Into<String>) -> PluginError {
 }
 
 impl SandboxedPlugin {
-    /// Start the helper, which loads `plugin_id` from `bundle`. `instance` is the dev
-    /// instance id used in IPC names.
+    /// Start the helper, which loads `plugin_id` from `bundle` (an AU component id for AUs)
+    /// as an `options.format` plugin. `instance` is the dev instance id used in IPC names.
     pub fn spawn(
         bundle: &Path,
         plugin_id: &str,
@@ -88,6 +92,8 @@ impl SandboxedPlugin {
         options: SandboxOptions,
     ) -> Result<Self, PluginError> {
         let mut child = Command::new(&options.helper)
+            .arg("--format")
+            .arg(options.format.as_str())
             .arg(bundle)
             .arg(plugin_id)
             .stdin(Stdio::piped())
@@ -370,6 +376,10 @@ impl PluginController for SandboxedPlugin {
             Ok(Response::ParamValue(v)) => v,
             _ => None,
         }
+    }
+
+    fn set_param_value(&mut self, param: ParamId, value: f64) -> Result<(), PluginError> {
+        SandboxedPlugin::set_param_value(self, param, value)
     }
 
     fn has_editor(&self) -> bool {

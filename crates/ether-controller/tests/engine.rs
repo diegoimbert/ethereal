@@ -560,10 +560,35 @@ fn insert_plugin(h: &mut Harness, t: TrackId) -> DeviceId {
         device: DeviceSpec::Plugin {
             plugin_id: "com.test.Verb".into(),
             sandboxed: None,
+            format: None,
         },
         before: None,
     }));
     d
+}
+
+#[test]
+fn plugin_format_is_recorded_and_defaults_to_clap() {
+    let mut h = plugin_harness();
+    let t = track(&mut h, TrackKind::Audio, None);
+    let clap = insert_plugin(&mut h, t);
+    let vst3: DeviceId = h.id();
+    h.ok(Command::Device(DeviceCommand::Insert {
+        id: vst3,
+        track: t,
+        device: DeviceSpec::Plugin {
+            plugin_id: "com.test.Verb".into(),
+            sandboxed: None,
+            format: Some(PluginFormat::Vst3),
+        },
+        before: None,
+    }));
+    let format = |h: &Harness, d: DeviceId| match &h.project().devices[&d].kind {
+        DeviceKind::Plugin { plugin } => plugin.format,
+        other => panic!("{other:?}"),
+    };
+    assert_eq!(format(&h, clap), PluginFormat::Clap);
+    assert_eq!(format(&h, vst3), PluginFormat::Vst3);
 }
 
 #[test]
@@ -705,6 +730,7 @@ fn plugins_unsupported_on_web() {
         device: DeviceSpec::Plugin {
             plugin_id: "com.test.Verb".into(),
             sandboxed: None,
+            format: None,
         },
         before: None,
     }));
