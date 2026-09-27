@@ -17,6 +17,8 @@ rtrb.workspace = true
 thiserror.workspace = true
 
 [dev-dependencies]
+# Real Signalsmith stretcher for the Complex-warp render tests (src/warp/tests.rs).
+ether-stretch = { workspace = true, features = ["signalsmith"] }
 assert_no_alloc.workspace = true
 proptest.workspace = true
 serde_json.workspace = true
