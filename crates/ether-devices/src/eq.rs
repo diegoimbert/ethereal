@@ -6,8 +6,10 @@
 //! series, in `f64`, followed by an output gain.
 //!
 //! No zipper noise: parameter events recompute each band's *target* coefficients, and the
-//! running coefficients glide to them per sample (≈5 ms one-pole). Switching a band off
-//! glides it to the pass-through coefficients, so on/off and type changes don't click.
+//! running coefficients glide to them per sample through two cascaded one-poles (an
+//! S-shaped ≈15 ms glide with no slope discontinuity; frequency moves in octaves).
+//! Switching a band off glides its output mix to pass-through (same frequency and Q), so
+//! on/off and type changes don't click either.
 //!
 //! # Parameter ids (stable, append-only)
 //!
@@ -91,8 +93,8 @@ const DEFAULT_BANDS: [(bool, usize, f64); BANDS] = [
 ];
 
 const NUM_PARAMS: usize = BANDS * BAND_PARAMS as usize + 1;
-/// Coefficient glide time constant.
-const GLIDE_MS: f32 = 5.0;
+/// Time constant of each of the two coefficient glide stages.
+const GLIDE_MS: f32 = 6.0;
 
 /// Parameter list (identical for every instance).
 pub fn param_infos() -> Vec<ParamInfo> {
@@ -177,6 +179,8 @@ pub fn create() -> Box<dyn Device> {
 #[derive(Clone, Copy, Debug)]
 struct Band {
     current: Coefs,
+    /// First glide stage (`target` → `mid` → `current`).
+    mid: Coefs,
     target: Coefs,
     /// `current != target` (gliding).
     moving: bool,
@@ -212,6 +216,7 @@ impl Eq {
         }
         let band = Band {
             current: Coefs::BYPASS,
+            mid: Coefs::BYPASS,
             target: Coefs::BYPASS,
             moving: false,
             state: [Svf::default(); 2],
@@ -243,17 +248,19 @@ impl Eq {
     /// Target coefficients of band `b` from its params.
     pub(crate) fn band_coefs(&self, b: usize) -> Coefs {
         let v = |o: u32| self.values[params::band(b, o).0 as usize];
-        if v(params::ON) < 0.5 {
-            return Coefs::BYPASS;
-        }
         let shape = SHAPES[util::index(v(params::TYPE), SHAPES.len())];
-        Coefs::new(
+        let coefs = Coefs::new(
             shape,
             v(params::FREQ),
             v(params::GAIN),
             v(params::Q),
             self.sample_rate as f64,
-        )
+        );
+        if v(params::ON) < 0.5 {
+            coefs.bypassed()
+        } else {
+            coefs
+        }
     }
 
     fn update_band(&mut self, b: usize, smooth: bool) {
@@ -264,6 +271,7 @@ impl Eq {
             band.moving = band.current != target;
         } else {
             band.current = target;
+            band.mid = target;
             band.moving = false;
         }
     }
@@ -305,8 +313,10 @@ impl Eq {
             }
             for band in &mut self.bands {
                 if band.moving {
-                    band.moving = band.current.glide(&band.target, self.glide);
-                } else if band.current == Coefs::BYPASS {
+                    let a = band.mid.glide(&band.target, self.glide);
+                    let b = band.current.glide(&band.mid, self.glide);
+                    band.moving = a | b;
+                } else if band.current.is_bypass() {
                     // Settled and off: exact pass-through. Clear the state so the band
                     // starts from rest when switched back on (its m1/m2 glide from 0).
                     band.state = [Svf::default(); 2];

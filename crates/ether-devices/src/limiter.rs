@@ -115,12 +115,12 @@ pub struct Limiter {
     lookahead: usize,
     input_gain: Smoother,
     ceiling: Smoother,
-    release_coef: f32,
+    release_coef: f64,
     delay: [DelayLine; 2],
     /// The ceiling travels with the audio so the safety clamp matches the gain path.
     ceiling_delay: DelayLine,
     min: SlidingMin,
-    env: f32,
+    env: f64,
     box_ring: Vec<f32>,
     box_pos: usize,
     box_sum: f64,
@@ -187,7 +187,7 @@ impl Limiter {
             20.0,
             self.sample_rate,
         );
-        self.release_coef = util::tau_coef(self.value(params::RELEASE), self.sample_rate);
+        self.release_coef = util::tau_coef(self.value(params::RELEASE), self.sample_rate) as f64;
         self.reset();
     }
 
@@ -200,7 +200,8 @@ impl Limiter {
             params::GAIN => &mut self.input_gain,
             params::CEILING => &mut self.ceiling,
             _ => {
-                self.release_coef = util::tau_coef(self.value(params::RELEASE), self.sample_rate);
+                self.release_coef =
+                    util::tau_coef(self.value(params::RELEASE), self.sample_rate) as f64;
                 return;
             }
         };
@@ -227,8 +228,10 @@ impl Limiter {
         } else {
             1.0
         };
-        let m = self.min.push(required);
-        self.env = if m < self.env {
+        let m = self.min.push(required) as f64;
+        self.env = if m < self.env || m - self.env < 1e-6 {
+            // Attack is instant here (the moving average below shapes it); the release
+            // snaps when settled so the gain returns to exactly `m` (unity).
             m
         } else {
             m - (m - self.env) * self.release_coef
@@ -236,8 +239,8 @@ impl Limiter {
         // Moving average over the window (running sum, re-summed on every wrap so f64
         // rounding never accumulates).
         let old = self.box_ring[self.box_pos];
-        self.box_ring[self.box_pos] = self.env;
-        self.box_sum += self.env as f64 - old as f64;
+        self.box_ring[self.box_pos] = self.env as f32;
+        self.box_sum += (self.env as f32) as f64 - old as f64;
         self.box_pos += 1;
         if self.box_pos == self.box_ring.len() {
             self.box_pos = 0;

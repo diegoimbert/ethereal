@@ -388,9 +388,9 @@ impl Reverb {
                 wet[0] += y * OUT_L[k];
                 wet[1] += y * OUT_R[k];
             }
-            for k in 0..LINES {
-                self.lp[k] = flush32(o[k] * (1.0 - damp) + self.lp[k] * damp);
-                o[k] = self.lp[k] * self.gains[k];
+            for ((v, lp), g) in o.iter_mut().zip(&mut self.lp).zip(self.gains) {
+                *lp = flush32(*v * (1.0 - damp) + *lp * damp);
+                *v = *lp * g;
             }
             hadamard8(&mut o);
             for (k, line) in self.lines.iter_mut().enumerate() {

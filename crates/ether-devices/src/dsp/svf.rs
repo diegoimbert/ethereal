@@ -40,6 +40,22 @@ impl Coefs {
         m2: 0.0,
     };
 
+    /// These coefficients switched to pass-through: same `g`/`k` (so an on/off glide only
+    /// fades the output mix, without sweeping the filter), `m = (1, 0, 0)`.
+    pub(crate) fn bypassed(self) -> Self {
+        Self {
+            m0: 1.0,
+            m1: 0.0,
+            m2: 0.0,
+            ..self
+        }
+    }
+
+    /// Output is exactly the input.
+    pub(crate) fn is_bypass(&self) -> bool {
+        self.m0 == 1.0 && self.m1 == 0.0 && self.m2 == 0.0
+    }
+
     /// Coefficients for `shape` at `freq` Hz, `gain_db` (shelves/bell) and `q`.
     pub(crate) fn new(shape: Shape, freq: f64, gain_db: f64, q: f64, sample_rate: f64) -> Self {
         // Keep the cutoff below Nyquist (tan blows up at fs/2).
@@ -111,8 +127,17 @@ impl Coefs {
                 true
             }
         };
+        // `g` glides in the log domain (frequency moves at a constant rate in octaves).
+        let g_moving = if (target.g - self.g).abs() < 1e-9 * target.g {
+            self.g = target.g;
+            false
+        } else {
+            let (lt, lc) = (target.g.ln(), self.g.ln());
+            self.g = (lt + (lc - lt) * coef).exp();
+            true
+        };
         // Evaluate all (no short-circuit).
-        let a = step(&mut self.g, target.g);
+        let a = g_moving;
         let b = step(&mut self.k, target.k);
         let c = step(&mut self.m0, target.m0);
         let d = step(&mut self.m1, target.m1);
