@@ -10,7 +10,6 @@ use ether_core::protocol::collab::CollabCommand;
 use ether_core::protocol::devices::{DeviceCommand, DeviceSpec};
 use ether_core::protocol::drum_rack::{DrumRackCommand, SliceCommand};
 use ether_core::protocol::export::ExportCommand;
-use ether_core::protocol::groove::GrooveCommand;
 use ether_core::protocol::markers::MarkerCommand;
 use ether_core::protocol::model::*;
 use ether_core::protocol::tempo::TempoCommand;
@@ -31,10 +30,6 @@ fn new_domains_reply_unsupported_until_implemented() {
             position: Beats(4.0),
             name: None,
             color: None,
-        }),
-        Command::Groove(GrooveCommand::SetSwing {
-            amount: 0.5,
-            grid: Beats(0.25),
         }),
         Command::DrumRack(DrumRackCommand::RemovePad { id: pad }),
         Command::Slice(SliceCommand::Remove {
