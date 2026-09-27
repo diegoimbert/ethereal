@@ -109,6 +109,11 @@ where
     ) -> CmdResult<ReplyValue> {
         let current = self.doc.as_ref().map(|d| d.project.id);
         let command = &msg.command;
+        // base-53: while listening on a peer, transport commands go to the host and
+        // recording is refused (loop changes are document commands: intercept first).
+        if let Some(r) = self.collab_transport_intercept(command, out) {
+            return r;
+        }
         if let Some(doc) = self.doc.as_ref() {
             // v0.2 (`freeze-bounce`): frozen tracks can't be edited.
             crate::freeze::check_editable(&doc.project, command)?;
@@ -378,10 +383,6 @@ where
         now: u64,
         out: &mut dyn MessageSink,
     ) -> CmdResult<ReplyValue> {
-        // base-53: while listening on a peer, transport commands go to the host.
-        if let Some(r) = self.collab_transport_intercept(c, out) {
-            return r;
-        }
         match c {
             TransportCommand::Play => self.play()?,
             TransportCommand::Stop => self.transport_stop(now, out)?,
@@ -471,6 +472,9 @@ where
     }
 
     pub(crate) fn transport_state(&self) -> Option<TransportState> {
+        if let Some(s) = self.collab_listen_transport_state() {
+            return Some(s);
+        }
         let doc = self.doc.as_ref()?;
         let p = &doc.project;
         let map = p.tempo_map();

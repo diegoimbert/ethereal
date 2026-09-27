@@ -818,6 +818,8 @@ paths = [
 # Priority 1 (with groups-buses). The desktop path half depends on media-references
 # (reference in place); the web/remote upload half can land first.
 paths = [
+  # BCR (base-73): the upload assertion only (mock now stages uploads)
+  "ui/src/transport/mock/MockTransport.test.ts",
   # BCR (base-70): one palette entry "Import audio..." (Cmd+I)
   "ui/src/app/shell/commands.ts",
   "ui/src/features/import/**",

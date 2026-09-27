@@ -10,6 +10,10 @@
   gap: var(--eth-space-sm);
   font-size: var(--eth-fs-sm);
 }
+/* stream-listen: the listen status floats under the bar, anchored here. */
+.eth-collab {
+  position: relative;
+}
 .eth-collab__peers {
   display: flex;
   align-items: center;
