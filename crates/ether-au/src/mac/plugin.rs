@@ -62,6 +62,8 @@ pub struct AuPlugin {
     link: Option<ActiveLink>,
     latency: u32,
     editor: Option<EditorWindow>,
+    /// Custom editor available (cached at load).
+    has_view: bool,
 }
 
 impl std::fmt::Debug for AuPlugin {
@@ -139,10 +141,12 @@ impl AuPlugin {
             link: None,
             latency: 0,
             editor: None,
+            has_view: false,
         };
         plugin.refresh_params(None);
         plugin.refresh_io();
         plugin.latency = plugin.query_latency(48_000.0);
+        plugin.has_view = editor::has_custom_view(&plugin.au);
         Ok(plugin)
     }
 
@@ -480,7 +484,7 @@ impl PluginController for AuPlugin {
     }
 
     fn has_editor(&self) -> bool {
-        editor::supported(&self.au) && unsafe { self.au.providesUserInterface() }
+        self.has_view
     }
 
     fn open_editor(&mut self) -> Result<(), PluginError> {

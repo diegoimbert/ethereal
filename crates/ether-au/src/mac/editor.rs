@@ -29,6 +29,43 @@ pub(crate) fn supported(au: &AUAudioUnit) -> bool {
     au.respondsToSelector(sel!(requestViewControllerWithCompletionHandler:))
 }
 
+/// Whether the unit has a custom editor: `providesUserInterface` (v3), or for a v2 unit
+/// behind the bridge a `kAudioUnitProperty_CocoaUI` view (read from the bridge's
+/// `audioUnit`, when the OS exposes it). Main thread, no view is created.
+pub(crate) fn has_custom_view(au: &AUAudioUnit) -> bool {
+    use objc2_audio_toolbox::{
+        AudioUnit, AudioUnitGetPropertyInfo, kAudioUnitProperty_CocoaUI, kAudioUnitScope_Global,
+    };
+    if !supported(au) {
+        return false;
+    }
+    // SAFETY: plain property getter.
+    if unsafe { au.providesUserInterface() } {
+        return true;
+    }
+    if !au.respondsToSelector(sel!(audioUnit)) {
+        return false;
+    }
+    // SAFETY: `-[AUAudioUnitV2Bridge audioUnit]` returns the wrapped v2 instance (or null).
+    let unit: AudioUnit = unsafe { msg_send![au, audioUnit] };
+    if unit.is_null() {
+        return false;
+    }
+    let mut size = 0u32;
+    // SAFETY: valid instance; out pointers valid or null.
+    let status = unsafe {
+        AudioUnitGetPropertyInfo(
+            unit,
+            kAudioUnitProperty_CocoaUI,
+            kAudioUnitScope_Global,
+            0,
+            &mut size,
+            std::ptr::null_mut(),
+        )
+    };
+    status == 0 && size > 0
+}
+
 /// Ask the unit for its view controller (main thread; pumps the run loop).
 fn request_view_controller(au: &AUAudioUnit) -> Result<Retained<NSViewController>, String> {
     if !supported(au) {
