@@ -6,7 +6,7 @@
 import { memo, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import clsx from "clsx";
 import type { Clip, Command, Note, NoteId } from "@/generated";
-import { openContextMenu } from "@/kit";
+import { openContextMenu, type ContextMenuEntry } from "@/kit";
 import { useProjectStore } from "@/state";
 import {
   beatsToPx,
@@ -45,11 +45,13 @@ export interface NoteGridProps {
   /** Length of a new note (the grid step, or a 1/16 when the grid is off). */
   newNoteBeats: number;
   drawMode: boolean;
+  /** Extra note context-menu items for the clicked selection (appended after Delete). */
+  menuItems?: (ids: NoteId[]) => ContextMenuEntry[];
 }
 
 const BAR_STEP: GridStep = { kind: "bars", bars: 1 };
 
-export function NoteGrid({ clip, notes, view, vp, widthPx, keyH, tempo, step, newNoteBeats, drawMode }: NoteGridProps) {
+export function NoteGrid({ clip, notes, view, vp, widthPx, keyH, tempo, step, newNoteBeats, drawMode, menuItems }: NoteGridProps) {
   const transport = useTransport();
   const send = useSend();
   const rootRef = useRef<HTMLDivElement>(null);
@@ -206,6 +208,7 @@ export function NoteGrid({ clip, notes, view, vp, widthPx, keyH, tempo, step, ne
           void send(cmd("Note", { type: "Remove", ids }));
         },
       },
+      ...(menuItems ? ["separator" as const, ...menuItems(ids)] : []),
     ]);
   };
 
