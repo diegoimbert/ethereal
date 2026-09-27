@@ -80,6 +80,7 @@ enum Control {
     },
     Transport(TransportControl),
     Preview(crate::preview::PreviewControl),
+    StreamTap(Option<Box<crate::stream_tap::StreamTapWriter>>),
 }
 
 enum Garbage {
@@ -87,6 +88,7 @@ enum Garbage {
     Node(#[allow(dead_code)] Box<dyn Node>),
     Data(#[allow(dead_code)] crate::node::NodeData),
     Source(#[allow(dead_code)] Arc<dyn AudioSource>),
+    StreamTap(#[allow(dead_code)] Box<crate::stream_tap::StreamTapWriter>),
 }
 
 enum Output {
@@ -194,6 +196,9 @@ struct TransportRt {
     /// Note chasing on the next played sub-block: start the clip notes already sounding at
     /// the position (after Play, Locate or a loop jump).
     chase_notes: bool,
+    /// The timeline jumps at the next sub-block (Play from stopped, Locate, loop wrap);
+    /// reported to the stream tap ([`crate::stream_tap::StreamBlock::jump`]), then cleared.
+    jump: bool,
 }
 
 /// Create an engine. Non-RT (allocates every ring and table up front).
@@ -243,6 +248,7 @@ pub fn create(config: EngineConfig) -> EngineParts {
         recording: recording_rt,
         metronome: crate::metronome::Metronome::new(config.sample_rate as f32),
         preview: crate::preview::PreviewVoice::new(config.max_block_size),
+        stream_tap: Default::default(),
         executor: Box::new(crate::parallel::SequentialExecutor),
         warp: warp_rt,
         config: config.clone(),
@@ -300,6 +306,9 @@ pub struct Engine {
     metronome: crate::metronome::Metronome,
     /// Browser preview voice ([`crate::preview`]).
     preview: crate::preview::PreviewVoice,
+    /// "Listen on <peer>" tap ([`crate::stream_tap`], base-53): after master + metronome,
+    /// before the preview voice.
+    stream_tap: crate::stream_tap::StreamTap,
     /// Parallel track processing ([`crate::parallel`], roadmap v2; `multicore` node).
     /// Sequential until a host injects one with [`Engine::set_executor`].
     executor: Box<dyn crate::parallel::ParallelExecutor>,
@@ -446,6 +455,11 @@ impl Engine {
                         self.retire(Garbage::Source(old));
                     }
                 }
+                Control::StreamTap(w) => {
+                    if let Some(old) = self.stream_tap.set(w) {
+                        self.retire(Garbage::StreamTap(old));
+                    }
+                }
             }
         }
     }
@@ -456,6 +470,7 @@ impl Engine {
             TransportControl::Play => {
                 if !t.playing {
                     t.chase_notes = true;
+                    t.jump = true;
                 }
                 t.playing = true;
             }
@@ -472,6 +487,7 @@ impl Engine {
                 t.all_notes_off = true;
                 t.reset_nodes = true;
                 t.chase_notes = true;
+                t.jump = true;
             }
             TransportControl::SetRecording { enabled } => t.recording = enabled,
             TransportControl::SetLoop { enabled, region } => {
@@ -582,6 +598,7 @@ impl Engine {
             warp,
             metronome,
             preview,
+            stream_tap,
             executor,
             ..
         } = self;
@@ -729,6 +746,9 @@ impl Engine {
             n,
             outputs,
         );
+        // --- stream tap (base-53): master + metronome/count-in, never the preview ---
+        stream_tap.write(&info, *graph_latency, transport.jump, off, n, outputs);
+        transport.jump = false;
         // --- browser preview (after master; not metered, transport-independent) ---
         preview.render(off, n, outputs);
 
@@ -743,6 +763,7 @@ impl Engine {
                 transport.position = loop_start;
                 transport.release_notes = true;
                 transport.chase_notes = true;
+                transport.jump = true;
             } else {
                 transport.position = b1;
             }
@@ -1500,6 +1521,16 @@ impl EngineHandle {
     /// Start or stop the browser preview voice ([`crate::preview`]). Non-blocking.
     pub fn preview(&mut self, control: crate::preview::PreviewControl) -> Result<(), EngineError> {
         self.send(Control::Preview(control))
+    }
+
+    /// Install (`Some`) or remove (`None`) the "listen on <peer>" stream tap
+    /// ([`crate::stream_tap`]; base-53). Non-blocking; the previous writer is retired to the
+    /// GC.
+    pub fn set_stream_tap(
+        &mut self,
+        writer: Option<crate::stream_tap::StreamTapWriter>,
+    ) -> Result<(), EngineError> {
+        self.send(Control::StreamTap(writer.map(Box::new)))
     }
 
     /// Total output latency (samples, PDC included) of the last successfully published

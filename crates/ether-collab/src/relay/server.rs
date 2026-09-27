@@ -54,8 +54,6 @@ const POLL: Duration = Duration::from_millis(4);
 const TICK: Duration = Duration::from_millis(100);
 const PRE_AUTH_POLL: Duration = Duration::from_millis(10);
 const MAX_PRE_AUTH_MESSAGE_BYTES: usize = 64 << 10;
-/// At most one presence update per site per this interval (20 Hz); extra ones are dropped.
-const PRESENCE_INTERVAL: Duration = Duration::from_millis(50);
 /// Outgoing queue per connection. A site this far behind is disconnected (it resyncs on
 /// reconnect).
 pub const CONN_QUEUE: usize = 8192;
@@ -629,11 +627,11 @@ fn pump(
 ) -> Result<(), String> {
     let mut last_inbound = Instant::now();
     let mut last_ping = Instant::now();
-    // Token bucket for the message rate limit, and the presence throttle.
+    // Token bucket for the message rate limit, and the presence/pointer/signal throttles.
     let rate = f64::from(shared.config.max_messages_per_second.max(1));
     let mut budget = rate;
     let mut refilled = Instant::now();
-    let mut last_presence: Option<Instant> = None;
+    let mut limiter = super::limits::SiteLimiter::default();
     loop {
         if shared.stop.load(Ordering::Relaxed) {
             close_with(ws, 1001, "relay shutting down");
@@ -718,11 +716,8 @@ fn pump(
             close_with(ws, 1008, "rate limit");
             return Err("rate limit".into());
         }
-        if matches!(message, CollabMessage::Presence { .. }) {
-            if last_presence.is_some_and(|t| t.elapsed() < PRESENCE_INTERVAL) {
-                continue;
-            }
-            last_presence = Some(Instant::now());
+        if !limiter.admit(&message, shared.started.elapsed().as_millis() as u64) {
+            continue;
         }
         let leave = matches!(message, CollabMessage::Leave { .. });
         let r = shared.with_relay(|relay, out| relay.message(conn, message, out));

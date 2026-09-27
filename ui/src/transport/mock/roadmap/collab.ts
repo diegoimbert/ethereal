@@ -66,6 +66,27 @@ export class MockCollab {
       case "Get":
         this.emitAll();
         return UNIT;
+      // base-53 (docs/COLLAB.md §8-§10): like the engine until presence-v2, stream-host and
+      // stream-listen land (each node extends its cases).
+      case "SetPointer":
+      case "Listen":
+      case "StopListening":
+      case "SetHosting":
+      case "SendStreamClock":
+        return fail("Unsupported", `${c.type} is not implemented yet`);
+      case "SendSignal":
+        if (this.status.type !== "Online") fail("InvalidState", "not in a collaboration session");
+        return UNIT;
+      case "SetIceServers":
+        this.host.emit({
+          type: "Collab",
+          event: {
+            type: "IceServers",
+            servers: c.servers ?? [],
+            source: c.servers ? "Settings" : "Relay",
+          },
+        });
+        return UNIT;
     }
   }
 
