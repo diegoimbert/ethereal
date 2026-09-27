@@ -3,7 +3,9 @@
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
-use crate::model::{BuiltinDevice, BuiltinDeviceType, DeviceId, MediaId, ParamId, TrackId};
+use crate::model::{
+    BuiltinDevice, BuiltinDeviceType, DeviceId, MediaId, ParamId, PluginFormat, TrackId,
+};
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
 #[serde(tag = "type")]
@@ -67,10 +69,14 @@ pub enum DeviceSpec {
     Builtin {
         device: BuiltinDevice,
     },
-    /// CLAP plugin id from the plugin list. `sandboxed: None` = user default.
+    /// A plugin from the plugin list (`PluginDescriptor { format, id }`). `sandboxed: None`
+    /// = user default. `format` omitted/`null` = CLAP (the only format before VST3/AU).
     Plugin {
         plugin_id: String,
         sandboxed: Option<bool>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[ts(optional)]
+        format: Option<PluginFormat>,
     },
 }
 

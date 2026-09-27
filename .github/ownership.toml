@@ -15,7 +15,7 @@ allow = [
   "ui/src/generated/**",
 ]
 # May touch anything.
-unrestricted = ["foundation", "alpha", "v0.1"]
+unrestricted = ["foundation", "alpha", "v0.1", "formats-base"]
 unrestricted_prefixes = ["base-"]
 
 # --- Wave 1 ---------------------------------------------------------------------------

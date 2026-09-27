@@ -11,6 +11,9 @@ members = [
     "crates/ether-stretch",
     "crates/ether-clap",
     "crates/ether-plugin-scanner",
+    "crates/ether-plugin-host",
+    "crates/ether-vst3",
+    "crates/ether-au",
     "crates/ether-sandbox",
     "crates/ether-native",
     "crates/ether-wasm",
@@ -40,6 +43,9 @@ ether-media = { path = "crates/ether-media", default-features = false }
 ether-controller = { path = "crates/ether-controller" }
 ether-stretch = { path = "crates/ether-stretch", default-features = false }
 ether-clap = { path = "crates/ether-clap" }
+ether-plugin-host = { path = "crates/ether-plugin-host" }
+ether-vst3 = { path = "crates/ether-vst3" }
+ether-au = { path = "crates/ether-au" }
 ether-sandbox = { path = "crates/ether-sandbox" }
 ether-native = { path = "crates/ether-native" }
 
@@ -82,6 +88,22 @@ clack-host = { git = "https://github.com/prokopyl/clack", rev = "27ca28391b57a61
 clack-extensions = { git = "https://github.com/prokopyl/clack", rev = "27ca28391b57a61bad4bb5099288a7bf9247350d", features = ["clack-host", "audio-ports", "gui", "latency", "log", "note-ports", "params", "state", "timer", "tail"] }
 clack-plugin = { git = "https://github.com/prokopyl/clack", rev = "27ca28391b57a61bad4bb5099288a7bf9247350d" }
 libloading = "0.8"
+
+# --- plugins: VST3 + AU (formats-base; used by ether-vst3 / ether-au). All GPL-3-compatible. ---
+# VST3 COM bindings, host and plugin side, pre-generated from the (MIT-licensed, since 3.8)
+# VST3 SDK headers; no SDK or bindgen needed at build time. License: MIT OR Apache-2.0.
+# Plugin-side test fixtures can be written with it too (`ComWrapper`, see its `gain` example).
+vst3 = "0.3"
+# Apple framework bindings for AU hosting (macOS only; same objc2 0.6 family as tauri/the
+# app). License: Zlib OR Apache-2.0 OR MIT. Default features = every framework item;
+# implementers may trim them.
+objc2-audio-toolbox = "0.3"
+objc2-core-audio = "0.3"
+objc2-core-audio-types = "0.3"
+objc2-av-f-audio = "0.3"
+objc2-core-foundation = "0.3"
+# Objective-C blocks (AU/AVAudioUnit completion handlers). License: MIT.
+block2 = "0.6"
 
 # --- out-of-process sandbox / IPC ---
 shared_memory = "0.12"

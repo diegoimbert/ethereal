@@ -86,6 +86,7 @@ pub(crate) enum WireError {
     NoEditor,
     Crashed(String),
     Ipc(String),
+    Unsupported(String),
 }
 
 impl From<PluginError> for WireError {
@@ -98,6 +99,7 @@ impl From<PluginError> for WireError {
             PluginError::NoEditor => Self::NoEditor,
             PluginError::Crashed(s) => Self::Crashed(s),
             PluginError::Ipc(s) => Self::Ipc(s),
+            PluginError::Unsupported(s) => Self::Unsupported(s),
         }
     }
 }
@@ -112,6 +114,7 @@ impl From<WireError> for PluginError {
             WireError::NoEditor => Self::NoEditor,
             WireError::Crashed(s) => Self::Crashed(s),
             WireError::Ipc(s) => Self::Ipc(s),
+            WireError::Unsupported(s) => Self::Unsupported(s),
         }
     }
 }
