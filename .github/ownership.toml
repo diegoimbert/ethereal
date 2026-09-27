@@ -872,6 +872,9 @@ paths = [
   "crates/ether-devices/tests/device_ui*.rs",
   "ui/src/transport/mock/devices/v01Layouts.json",
   "ui/src/transport/mock/builtinDevices.ts",
+  # BCR-2 (base-68): tests that encoded the old hand-written mock param ids (mock descriptors now generated from Rust)
+  "ui/src/features/devices/DeviceChain.test.tsx",
+  "ui/src/transport/mock/MockTransport.test.ts",
 ]
 
 [nodes.synth-2]
