@@ -262,6 +262,10 @@ fn apply_inner(ctx: &mut DocCtx, c: &DeviceCommand) -> CmdResult<()> {
                 },
             )
         }
+        // v0.2 (`multisampler`).
+        DeviceCommand::SetZones { device, zones } => {
+            crate::multisampler::set_zones(ctx, *device, zones)
+        }
         DeviceCommand::SetSample { device, media } => {
             let d = ctx.device(*device)?;
             if !matches!(

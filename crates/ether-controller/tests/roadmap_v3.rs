@@ -90,6 +90,16 @@ fn synth_2_poly_synth_is_a_placeholder() {
 #[test]
 fn multisampler_is_a_placeholder() {
     group_inserts_and_compiles(&[BuiltinDeviceType::MultiSampler]);
+    let mut h = Harness::with_project();
+    let t = track(&mut h, TrackKind::Midi);
+    let d = insert(&mut h, t, BuiltinDeviceType::MultiSampler);
+    assert_unsupported(
+        &mut h,
+        Command::Device(DeviceCommand::SetZones {
+            device: d,
+            zones: vec![SampleZone::default()],
+        }),
+    );
 }
 
 #[test]

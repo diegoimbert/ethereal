@@ -52,8 +52,11 @@ fn tid(n: u128) -> TrackId {
 
 fn track(id: TrackId, kind: TrackKind, output: Option<TrackId>) -> TrackDesc {
     TrackDesc {
-        modulation: Default::default(), vca: Default::default(),
-        chain_racks: Default::default(), frozen: Default::default(), input_tap: Default::default(),
+        modulation: Default::default(),
+        vca: Default::default(),
+        chain_racks: Default::default(),
+        frozen: Default::default(),
+        input_tap: Default::default(),
         id,
         kind,
         chain: vec![],

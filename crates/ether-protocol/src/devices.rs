@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
 use crate::model::{
-    BuiltinDevice, BuiltinDeviceType, DeviceId, MediaId, ParamId, PluginFormat, TrackId,
+    BuiltinDevice, BuiltinDeviceType, DeviceId, MediaId, ParamId, PluginFormat, SampleZone, TrackId,
 };
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
@@ -67,6 +67,13 @@ pub enum DeviceCommand {
     SetSidechain {
         device: DeviceId,
         source: Option<TrackId>,
+    },
+    /// v0.2 (`multisampler`): replace a multisampler's zones (`ether_model::multisampler`;
+    /// referenced media must exist). Undoable; live nodes update in place
+    /// (`EngineBridge::update_builtin`).
+    SetZones {
+        device: DeviceId,
+        zones: Vec<SampleZone>,
     },
 }
 

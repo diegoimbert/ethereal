@@ -21,8 +21,11 @@ const SPB: f64 = SR as f64 / 2.0;
 
 fn track(id: u128, kind: TrackKind, output: Option<TrackId>) -> TrackDesc {
     TrackDesc {
-        modulation: Default::default(), vca: Default::default(),
-        chain_racks: Default::default(), frozen: Default::default(), input_tap: Default::default(),
+        modulation: Default::default(),
+        vca: Default::default(),
+        chain_racks: Default::default(),
+        frozen: Default::default(),
+        input_tap: Default::default(),
         id: TrackId(Ulid(id)),
         kind,
         chain: vec![],

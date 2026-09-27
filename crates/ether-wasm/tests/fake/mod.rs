@@ -102,8 +102,11 @@ impl<B: EngineBridge, H: HostServices, S: ProjectStore> FakeController<B, H, S> 
                 .values()
                 .filter(|t| t.kind == TrackKind::Master)
                 .map(|t| TrackDesc {
-                    modulation: Default::default(), vca: Default::default(),
-                    chain_racks: Default::default(), frozen: Default::default(), input_tap: Default::default(),
+                    modulation: Default::default(),
+                    vca: Default::default(),
+                    chain_racks: Default::default(),
+                    frozen: Default::default(),
+                    input_tap: Default::default(),
                     id: t.id,
                     kind: t.kind,
                     chain: vec![],

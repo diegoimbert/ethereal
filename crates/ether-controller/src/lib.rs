@@ -49,6 +49,7 @@ mod media_refs;
 pub mod memory;
 mod midi_fx;
 mod midi_learn;
+mod multisampler;
 mod plugins;
 mod presets;
 mod project;
