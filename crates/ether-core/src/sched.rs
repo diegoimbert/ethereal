@@ -374,7 +374,6 @@ impl ClipEnvelope {
 /// `reversed`, the frames are those of the reversed media (`R[i] = M[N - 1 - i]`, see
 /// `ether_model::AudioContent::reversed`): the forward window is read, then flipped.
 /// Used by the stretched (Complex warp) path.
-#[allow(dead_code)]
 pub(crate) fn read_frames(
     source: &dyn AudioSource,
     reversed: bool,
