@@ -118,6 +118,8 @@ pub struct RecordingShared {
     writer: OnceLock<writer::WriterHandle>,
     /// Connected MIDI ports. Never held while taking `inner` or `midi_in`.
     midi: Mutex<midi::MidiInputs>,
+    /// Port-tagged input for the controller (MIDI learn / mappings; `midi-learn` node).
+    control: midi::ControlQueue,
     inner: Mutex<Inner>,
 }
 
@@ -151,6 +153,7 @@ impl Default for RecordingShared {
             midi_in: OnceLock::new(),
             writer: OnceLock::new(),
             midi: Mutex::new(midi::MidiInputs::default()),
+            control: midi::ControlQueue::default(),
             inner: Mutex::new(Inner::default()),
         }
     }
@@ -507,9 +510,10 @@ pub fn list_inputs(audio: &Arc<AudioShared>) -> Result<InputList, BridgeError> {
         .midi
         .lock()
         .unwrap_or_else(|p| p.into_inner())
-        .refresh(move |data| {
+        .refresh(move |port, data| {
             if let Some(a) = weak.upgrade() {
                 a.recording.push_live(data);
+                a.recording.control.push(port, data);
             }
         });
     // Closing a connection may join midir's callback thread: never under a lock.
@@ -524,6 +528,21 @@ pub fn list_inputs(audio: &Arc<AudioShared>) -> Result<InputList, BridgeError> {
 /// keyboards). Returns `false` if the engine is not attached or the queue is full.
 pub fn inject_midi(audio: &AudioShared, data: [u8; 3]) -> bool {
     audio.recording.push_live(data)
+}
+
+/// Like [`inject_midi`], tagged with a port id: the message also reaches the controller's
+/// MIDI mappings / learn ([`drain_midi_input`]), as a hardware port's would.
+pub fn inject_midi_from(audio: &AudioShared, port: &str, data: [u8; 3]) -> bool {
+    audio.recording.control.push(port, data);
+    audio.recording.push_live(data)
+}
+
+/// Messages received from every MIDI port since the last call (`EngineBridge::poll_midi_input`).
+pub fn drain_midi_input(
+    audio: &AudioShared,
+    out: &mut Vec<ether_core::protocol::midi_map::MidiInputEvent>,
+) {
+    audio.recording.control.drain(out);
 }
 
 /// Start capturing a session (controller thread, before engine recording is enabled).
