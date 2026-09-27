@@ -858,6 +858,18 @@ paths = [
   "ui/src/features/devices/DeviceChain.tsx",
   "ui/src/features/devices/devices.css",
   "ui/src/features/devices/descriptors.ts",
+  # BCR (base-66): declarative layouts for the v0.1 built-ins (additive: a layout() fn + the descriptor field; no DSP/param changes)
+  "crates/ether-devices/src/synth.rs",
+  "crates/ether-devices/src/sampler.rs",
+  "crates/ether-devices/src/drum_rack.rs",
+  "crates/ether-devices/src/compressor.rs",
+  "crates/ether-devices/src/delay.rs",
+  "crates/ether-devices/src/reverb.rs",
+  "crates/ether-devices/src/limiter.rs",
+  "crates/ether-devices/src/utility.rs",
+  "crates/ether-devices/tests/device_ui*.rs",
+  "ui/src/transport/mock/devices/v01Layouts.json",
+  "ui/src/transport/mock/builtinDevices.ts",
 ]
 
 [nodes.synth-2]
