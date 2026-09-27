@@ -7,6 +7,88 @@
       "device": "Compressor",
       "type": "Builtin"
     },
+    "layout": {
+      "sections": [
+        {
+          "columns": 4,
+          "id": "compressor",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Large",
+              "widget": {
+                "param": 0,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Large",
+              "widget": {
+                "param": 1,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 2,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 3,
+                "type": "Knob"
+              }
+            }
+          ],
+          "span": 2,
+          "title": "Compressor"
+        },
+        {
+          "columns": 1,
+          "id": "output",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Large",
+              "widget": {
+                "param": 4,
+                "type": "Knob"
+              }
+            }
+          ],
+          "span": 1,
+          "title": "Output"
+        },
+        {
+          "columns": 1,
+          "id": "sidechain",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 5,
+                "type": "Knob"
+              }
+            }
+          ],
+          "span": 1,
+          "title": "Sidechain"
+        }
+      ]
+    },
     "midi_input": false,
     "name": "Compressor",
     "params": [
@@ -110,6 +192,88 @@
     "device_type": {
       "device": "Delay",
       "type": "Builtin"
+    },
+    "layout": {
+      "sections": [
+        {
+          "columns": 3,
+          "id": "time",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Large",
+              "widget": {
+                "param": 1,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 0,
+                "type": "Toggle"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 2,
+                "type": "Choice"
+              }
+            }
+          ],
+          "span": 2,
+          "title": "Time"
+        },
+        {
+          "columns": 2,
+          "id": "delay",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Large",
+              "widget": {
+                "param": 3,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 5,
+                "type": "Toggle"
+              }
+            }
+          ],
+          "span": 1,
+          "title": "Delay"
+        },
+        {
+          "columns": 1,
+          "id": "output",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Large",
+              "widget": {
+                "param": 4,
+                "type": "Knob"
+              }
+            }
+          ],
+          "span": 1,
+          "title": "Output"
+        }
+      ]
     },
     "midi_input": false,
     "name": "Delay",
@@ -236,6 +400,36 @@
       "device": "DrumRack",
       "type": "Builtin"
     },
+    "layout": {
+      "sections": [
+        {
+          "columns": 2,
+          "id": "rack",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Large",
+              "widget": {
+                "param": 0,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Large",
+              "widget": {
+                "param": 1,
+                "type": "Knob"
+              }
+            }
+          ],
+          "span": 1,
+          "title": "Rack"
+        }
+      ]
+    },
     "midi_input": true,
     "name": "Drum Rack",
     "params": [
@@ -279,6 +473,45 @@
     "device_type": {
       "device": "Limiter",
       "type": "Builtin"
+    },
+    "layout": {
+      "sections": [
+        {
+          "columns": 3,
+          "id": "limiter",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Large",
+              "widget": {
+                "param": 0,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Large",
+              "widget": {
+                "param": 1,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 2,
+                "type": "Knob"
+              }
+            }
+          ],
+          "span": 1,
+          "title": "Limiter"
+        }
+      ]
     },
     "midi_input": false,
     "name": "Limiter",
@@ -338,6 +571,80 @@
     "device_type": {
       "device": "Reverb",
       "type": "Builtin"
+    },
+    "layout": {
+      "sections": [
+        {
+          "columns": 4,
+          "id": "reverb",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Large",
+              "widget": {
+                "param": 1,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Large",
+              "widget": {
+                "param": 2,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 0,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 3,
+                "type": "Knob"
+              }
+            }
+          ],
+          "span": 2,
+          "title": "Reverb"
+        },
+        {
+          "columns": 2,
+          "id": "output",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 4,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Large",
+              "widget": {
+                "param": 5,
+                "type": "Knob"
+              }
+            }
+          ],
+          "span": 1,
+          "title": "Output"
+        }
+      ]
     },
     "midi_input": false,
     "name": "Reverb",
@@ -443,6 +750,106 @@
     "device_type": {
       "device": "Sampler",
       "type": "Builtin"
+    },
+    "layout": {
+      "sections": [
+        {
+          "columns": 4,
+          "id": "sample",
+          "items": [
+            {
+              "colspan": 4,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "end": 7,
+                "start": 6,
+                "type": "SampleWaveform"
+              }
+            }
+          ],
+          "span": 4,
+          "title": "Sample"
+        },
+        {
+          "columns": 3,
+          "id": "playback",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 0,
+                "type": "Choice"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 1,
+                "type": "Number"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 2,
+                "type": "Knob"
+              }
+            }
+          ],
+          "span": 2,
+          "title": "Playback"
+        },
+        {
+          "columns": 2,
+          "id": "envelope",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 3,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 4,
+                "type": "Knob"
+              }
+            }
+          ],
+          "span": 1,
+          "title": "Envelope"
+        },
+        {
+          "columns": 1,
+          "id": "output",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Large",
+              "widget": {
+                "param": 5,
+                "type": "Knob"
+              }
+            }
+          ],
+          "span": 1,
+          "title": "Output"
+        }
+      ]
     },
     "midi_input": true,
     "name": "Sampler",
@@ -585,6 +992,97 @@
     "device_type": {
       "device": "Synth",
       "type": "Builtin"
+    },
+    "layout": {
+      "sections": [
+        {
+          "columns": 2,
+          "id": "oscillator",
+          "items": [
+            {
+              "colspan": 2,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "position": null,
+                "shape": 0,
+                "type": "Oscillator"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 1,
+                "type": "Knob"
+              }
+            }
+          ],
+          "span": 1,
+          "title": "Oscillator"
+        },
+        {
+          "columns": 2,
+          "id": "filter",
+          "items": [
+            {
+              "colspan": 2,
+              "label": null,
+              "size": "Large",
+              "widget": {
+                "cutoff": 6,
+                "drive": null,
+                "gain": null,
+                "mode": null,
+                "resonance": 7,
+                "type": "FilterCurve"
+              }
+            }
+          ],
+          "span": 2,
+          "title": "Filter"
+        },
+        {
+          "columns": 1,
+          "id": "envelope",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "attack": 2,
+                "decay": 3,
+                "delay": null,
+                "hold": null,
+                "release": 5,
+                "sustain": 4,
+                "type": "Envelope"
+              }
+            }
+          ],
+          "span": 2,
+          "title": "Envelope"
+        },
+        {
+          "columns": 1,
+          "id": "output",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Large",
+              "widget": {
+                "param": 8,
+                "type": "Knob"
+              }
+            }
+          ],
+          "span": 1,
+          "title": "Output"
+        }
+      ]
     },
     "midi_input": true,
     "name": "Synth",
@@ -744,6 +1242,88 @@
     "device_type": {
       "device": "Utility",
       "type": "Builtin"
+    },
+    "layout": {
+      "sections": [
+        {
+          "columns": 2,
+          "id": "utility",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Large",
+              "widget": {
+                "param": 0,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Large",
+              "widget": {
+                "param": 1,
+                "type": "Knob"
+              }
+            }
+          ],
+          "span": 1,
+          "title": "Utility"
+        },
+        {
+          "columns": 2,
+          "id": "stereo",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 2,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 5,
+                "type": "Toggle"
+              }
+            }
+          ],
+          "span": 1,
+          "title": "Stereo"
+        },
+        {
+          "columns": 2,
+          "id": "phase",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 3,
+                "type": "Toggle"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 4,
+                "type": "Toggle"
+              }
+            }
+          ],
+          "span": 1,
+          "title": "Phase"
+        }
+      ]
     },
     "midi_input": false,
     "name": "Utility",

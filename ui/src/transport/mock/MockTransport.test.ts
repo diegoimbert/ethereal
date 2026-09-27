@@ -209,10 +209,11 @@ describe("MockTransport documents", () => {
   it("device params are clamped and reset to default", async () => {
     const keys = env.trackNamed("Keys");
     const synth = devicesOfTrack(env.p(), keys.id)[0]!;
-    await env.mock.send(cmd("Device", { type: "SetParam", device: synth.id, param: 2, value: 99999 }));
-    expect(env.p().devices[synth.id]!.params[2]).toBe(20000);
-    await env.mock.send(cmd("Device", { type: "ResetParam", device: synth.id, param: 2 }));
-    expect(env.p().devices[synth.id]!.params[2]).toBeUndefined();
+    // Param 6 = Cutoff (20..20000 Hz), as in `ether_devices::synth`.
+    await env.mock.send(cmd("Device", { type: "SetParam", device: synth.id, param: 6, value: 99999 }));
+    expect(env.p().devices[synth.id]!.params[6]).toBe(20000);
+    await env.mock.send(cmd("Device", { type: "ResetParam", device: synth.id, param: 6 }));
+    expect(env.p().devices[synth.id]!.params[6]).toBeUndefined();
     const desc = await env.mock.send(cmd("Device", { type: "GetDescriptor", device: synth.id }));
     expect(desc.type === "Descriptor" && desc.descriptor.name).toBe("Synth");
   });
