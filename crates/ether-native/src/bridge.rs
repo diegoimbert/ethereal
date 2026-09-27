@@ -396,7 +396,10 @@ mod tests {
         crate::recording::inject_midi_from(&b.audio, "Knobs", [0xb0, 21, 99]);
         b.poll_midi_input(&mut out);
         assert_eq!(out.len(), 1);
-        assert_eq!((out[0].port.as_str(), out[0].data), ("Knobs", [0xb0, 21, 99]));
+        assert_eq!(
+            (out[0].port.as_str(), out[0].data),
+            ("Knobs", [0xb0, 21, 99])
+        );
     }
 
     #[test]

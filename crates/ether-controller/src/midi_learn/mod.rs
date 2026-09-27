@@ -289,9 +289,7 @@ where
             mode,
         };
         let id = mapping.id;
-        let result = self.edit_with("MIDI Learn", None, now, out, |ctx| {
-            doc::learn(ctx, mapping)
-        });
+        let result = self.edit_with("MIDI Learn", None, now, out, |ctx| doc::learn(ctx, mapping));
         match result {
             Ok(()) => event(
                 out,
@@ -444,10 +442,9 @@ where
                     return;
                 }
                 let command = match target {
-                    OnOffTarget::Mute(track) => Command::Mixer(MixerCommand::SetMute {
-                        track,
-                        mute: want,
-                    }),
+                    OnOffTarget::Mute(track) => {
+                        Command::Mixer(MixerCommand::SetMute { track, mute: want })
+                    }
                     OnOffTarget::Solo(track) => Command::Mixer(MixerCommand::SetSolo {
                         track,
                         solo: want,

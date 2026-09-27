@@ -92,7 +92,11 @@ pub(crate) fn relative_steps(raw: u8, encoding: RelativeEncoding) -> i32 {
         RelativeEncoding::BinaryOffset => raw - 64,
         RelativeEncoding::SignMagnitude => {
             let magnitude = raw & 0x3f;
-            if raw & 0x40 != 0 { -magnitude } else { magnitude }
+            if raw & 0x40 != 0 {
+                -magnitude
+            } else {
+                magnitude
+            }
         }
     }
 }

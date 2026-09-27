@@ -175,7 +175,12 @@ impl H {
         id
     }
 
-    fn map(&mut self, source: MidiSource, target: MidiMapTarget, mode: MidiMapMode) -> MidiMappingId {
+    fn map(
+        &mut self,
+        source: MidiSource,
+        target: MidiMapTarget,
+        mode: MidiMapMode,
+    ) -> MidiMappingId {
         self.map_range(source, target, mode, 0.0, 1.0)
     }
 
@@ -279,7 +284,10 @@ fn learn_binds_the_next_control_in_one_undo_step() {
             control: MidiControl::Cc { number: 21 },
         }
     );
-    assert_eq!((m.target.clone(), m.min, m.max, m.mode), (volume(t), 0.0, 1.0, MidiMapMode::Absolute));
+    assert_eq!(
+        (m.target.clone(), m.min, m.max, m.mode),
+        (volume(t), 0.0, 1.0, MidiMapMode::Absolute)
+    );
     assert_eq!(patches(&out).len(), 1);
     let evs = midi_events(&out);
     assert!(evs.contains(&MidiMapEvent::Learned { mapping: m.id }));
@@ -312,7 +320,11 @@ fn learn_replaces_mappings_of_the_target_and_of_the_source() {
     let mut h = H::new();
     let a = h.track(TrackKind::Audio);
     let b = h.track(TrackKind::Audio);
-    let old_target = h.map(cc(1), MidiMapTarget::TrackMute { track: a }, MidiMapMode::Toggle);
+    let old_target = h.map(
+        cc(1),
+        MidiMapTarget::TrackMute { track: a },
+        MidiMapMode::Toggle,
+    );
     let concrete = MidiSource {
         port: Some("P".into()),
         channel: Some(0),
@@ -342,7 +354,10 @@ fn learn_can_be_cancelled_and_note_learns_toggle() {
         target: Some(volume(t)),
     }));
     let out = h.send(Command::MidiMap(MidiMapCommand::Learn { target: None }));
-    assert_eq!(midi_events(&out), vec![MidiMapEvent::LearnChanged { target: None }]);
+    assert_eq!(
+        midi_events(&out),
+        vec![MidiMapEvent::LearnChanged { target: None }]
+    );
     h.midi("K", &[[CC, 1, 1]]);
     assert!(h.project().midi_mappings.is_empty());
 
@@ -380,7 +395,11 @@ fn map_edit_unmap_are_undoable_and_validated() {
     let t = h.track(TrackKind::Audio);
     let a = h.map(cc(1), volume(t), MidiMapMode::Absolute);
     // Same source: replaced in the same step.
-    let b = h.map(cc(1), MidiMapTarget::TrackMute { track: t }, MidiMapMode::Toggle);
+    let b = h.map(
+        cc(1),
+        MidiMapTarget::TrackMute { track: t },
+        MidiMapMode::Toggle,
+    );
     assert_eq!(h.project().midi_mappings.len(), 1);
     assert!(h.project().midi_mappings.contains_key(&b));
     h.undo();
@@ -534,15 +553,21 @@ fn relative_encoders_step_device_params() {
     h.advance(400);
     h.tick();
     h.undo();
-    assert!(!h.project().devices[&device].params.contains_key(&info.id)
-        || (h.project().devices[&device].params[&info.id] - info.default).abs() < 1e-9);
+    assert!(
+        !h.project().devices[&device].params.contains_key(&info.id)
+            || (h.project().devices[&device].params[&info.id] - info.default).abs() < 1e-9
+    );
 }
 
 #[test]
 fn toggle_flips_on_each_press() {
     let mut h = H::new();
     let t = h.track(TrackKind::Audio);
-    h.map(note(60), MidiMapTarget::TrackMute { track: t }, MidiMapMode::Toggle);
+    h.map(
+        note(60),
+        MidiMapTarget::TrackMute { track: t },
+        MidiMapMode::Toggle,
+    );
     let mute = |h: &H| h.project().tracks[&t].mixer.mute;
     h.midi("K", &[[NOTE_ON, 60, 100]]);
     assert!(mute(&h));
@@ -568,7 +593,11 @@ fn toggle_flips_on_each_press() {
 fn absolute_on_off_targets_follow_the_threshold() {
     let mut h = H::new();
     let t = h.track(TrackKind::Audio);
-    h.map(cc(30), MidiMapTarget::TrackSolo { track: t }, MidiMapMode::Absolute);
+    h.map(
+        cc(30),
+        MidiMapTarget::TrackSolo { track: t },
+        MidiMapMode::Absolute,
+    );
     let solo = |h: &H| h.project().tracks[&t].mixer.solo;
     h.midi("K", &[[CC, 30, 127]]);
     assert!(solo(&h));
@@ -579,7 +608,11 @@ fn absolute_on_off_targets_follow_the_threshold() {
 
     // Record-arm is runtime state.
     let midi = h.track(TrackKind::Midi);
-    h.map(note(1), MidiMapTarget::TrackArm { track: midi }, MidiMapMode::Toggle);
+    h.map(
+        note(1),
+        MidiMapTarget::TrackArm { track: midi },
+        MidiMapMode::Toggle,
+    );
     h.midi("K", &[[NOTE_ON, 1, 127]]);
     assert_eq!(h.ctl.armed(), vec![midi]);
     h.midi("K", &[[NOTE_OFF, 1, 0], [NOTE_ON, 1, 127]]);
@@ -611,9 +644,21 @@ fn transport_actions_fire_on_press() {
         MidiMapMode::Absolute,
     );
     h.midi("K", &[[NOTE_ON, 10, 127]]);
-    assert!(h.ctl.bridge.inner.calls.contains(&Call::Transport(TransportControl::Play)));
+    assert!(
+        h.ctl
+            .bridge
+            .inner
+            .calls
+            .contains(&Call::Transport(TransportControl::Play))
+    );
     h.midi("K", &[[NOTE_OFF, 10, 0], [NOTE_ON, 10, 127]]);
-    assert!(h.ctl.bridge.inner.calls.contains(&Call::Transport(TransportControl::Stop)));
+    assert!(
+        h.ctl
+            .bridge
+            .inner
+            .calls
+            .contains(&Call::Transport(TransportControl::Stop))
+    );
 
     assert!(!h.project().settings.loop_enabled);
     h.midi("K", &[[CC, 11, 127], [CC, 11, 120]]);
@@ -624,9 +669,11 @@ fn transport_actions_fire_on_press() {
     // No markers: nothing happens (and nothing fails).
     let calls = h.ctl.bridge.inner.calls.len();
     h.midi("K", &[[CC, 12, 127]]);
-    assert!(!h.ctl.bridge.inner.calls[calls..]
-        .iter()
-        .any(|c| matches!(c, Call::Transport(TransportControl::Locate { .. }))));
+    assert!(
+        !h.ctl.bridge.inner.calls[calls..]
+            .iter()
+            .any(|c| matches!(c, Call::Transport(TransportControl::Locate { .. })))
+    );
 }
 
 #[test]
