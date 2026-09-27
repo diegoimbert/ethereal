@@ -16,9 +16,9 @@ use vst3::Steinberg::Vst::RestartFlags_::{
 };
 use vst3::Steinberg::Vst::SymbolicSampleSizes_::kSample32;
 use vst3::Steinberg::Vst::{
-    BusInfo, IAudioProcessor, IAudioProcessorTrait, IComponent, IComponentHandler,
-    IComponentTrait, IConnectionPoint, IConnectionPointTrait, IEditController,
-    IEditControllerTrait, ProcessSetup, SpeakerArr, SpeakerArrangement,
+    BusInfo, IAudioProcessor, IAudioProcessorTrait, IComponent, IComponentHandler, IComponentTrait,
+    IConnectionPoint, IConnectionPointTrait, IEditController, IEditControllerTrait, ProcessSetup,
+    SpeakerArr, SpeakerArrangement,
 };
 use vst3::Steinberg::{
     FUnknown, IBStream, IPlugView, IPlugViewTrait, IPluginBaseTrait, IPluginFactoryTrait, TUID,
@@ -259,8 +259,7 @@ impl Vst3Plugin {
         let name = c"editor".as_ptr(); // Vst::ViewType::kEditor
         // SAFETY: valid controller; the returned view is owned (one reference).
         let view = unsafe { ComPtr::from_raw(ctrl.createView(name)) }?;
-        let supported =
-            unsafe { view.isPlatformTypeSupported(HostWindow::PLATFORM_TYPE.as_ptr()) };
+        let supported = unsafe { view.isPlatformTypeSupported(HostWindow::PLATFORM_TYPE.as_ptr()) };
         (supported == kResultTrue).then_some(view)
     }
 
@@ -689,7 +688,9 @@ impl PluginController for Vst3Plugin {
         // Edits from the plugin's GUI (IComponentHandler).
         for edit in self.handler.take_edits() {
             match edit {
-                Edit::Begin(id) => out.push(PluginNotification::GestureBegin { param: ParamId(id) }),
+                Edit::Begin(id) => {
+                    out.push(PluginNotification::GestureBegin { param: ParamId(id) })
+                }
                 Edit::End(id) => out.push(PluginNotification::GestureEnd { param: ParamId(id) }),
                 Edit::Perform(id, norm) => {
                     let steps = self.steps.steps(id).unwrap_or(0);
@@ -709,20 +710,20 @@ impl PluginController for Vst3Plugin {
         }
 
         let flags = self.handler.take_restart();
-        if flags & kLatencyChanged as i32 != 0 {
+        if flags & kLatencyChanged != 0 {
             let samples = self.query_latency();
             if let Some(link) = &self.link {
                 link.shared.latency.store(samples, Ordering::Relaxed);
             }
             out.push(PluginNotification::LatencyChanged { samples });
         }
-        if flags & (kReloadComponent | kIoChanged) as i32 != 0
-            || (flags & kLatencyChanged as i32 != 0 && self.link.is_some())
+        if flags & (kReloadComponent | kIoChanged) != 0
+            || (flags & kLatencyChanged != 0 && self.link.is_some())
         {
             // VST3 applies bus and latency changes on re-activation.
             out.push(PluginNotification::RestartRequested);
         }
-        if flags & (kParamTitlesChanged | kParamValuesChanged) as i32 != 0 {
+        if flags & (kParamTitlesChanged | kParamValuesChanged) != 0 {
             self.refresh_params();
             out.push(PluginNotification::ParamsChanged);
         }
@@ -780,9 +781,12 @@ fn encode_state(component: &[u8], controller: &[u8]) -> Vec<u8> {
 
 fn decode_state(state: &[u8]) -> Result<(&[u8], &[u8]), PluginError> {
     let bad = |what: &str| PluginError::State(format!("invalid VST3 state blob: {what}"));
-    let rest = state.strip_prefix(STATE_MAGIC).ok_or_else(|| bad("magic"))?;
+    let rest = state
+        .strip_prefix(STATE_MAGIC)
+        .ok_or_else(|| bad("magic"))?;
     let take_u32 = |r: &[u8]| -> Option<u32> {
-        r.get(..4).map(|b| u32::from_le_bytes([b[0], b[1], b[2], b[3]]))
+        r.get(..4)
+            .map(|b| u32::from_le_bytes([b[0], b[1], b[2], b[3]]))
     };
     let version = take_u32(rest).ok_or_else(|| bad("truncated"))?;
     if version != STATE_VERSION {

@@ -11,8 +11,8 @@
 use std::cell::UnsafeCell;
 
 use vst3::Steinberg::Vst::{
-    Event, IEventList, IEventListTrait, IParamValueQueue, IParamValueQueueTrait,
-    IParameterChanges, IParameterChangesTrait, ParamID, ParamValue,
+    Event, IEventList, IEventListTrait, IParamValueQueue, IParamValueQueueTrait, IParameterChanges,
+    IParameterChangesTrait, ParamID, ParamValue,
 };
 use vst3::Steinberg::{int32, kInvalidArgument, kResultFalse, kResultOk, tresult};
 use vst3::{Class, ComWrapper};
@@ -80,12 +80,7 @@ impl IParamValueQueueTrait for ParamQueue {
         self.inner().points.len() as int32
     }
 
-    unsafe fn getPoint(
-        &self,
-        index: int32,
-        offset: *mut int32,
-        value: *mut ParamValue,
-    ) -> tresult {
+    unsafe fn getPoint(&self, index: int32, offset: *mut int32, value: *mut ParamValue) -> tresult {
         let Some(&(o, v)) = usize::try_from(index)
             .ok()
             .and_then(|i| self.inner().points.get(i))
@@ -211,7 +206,11 @@ impl IParameterChangesTrait for ParamChanges {
             .map_or(std::ptr::null_mut(), |r| r.as_ptr())
     }
 
-    unsafe fn addParameterData(&self, id: *const ParamID, index: *mut int32) -> *mut IParamValueQueue {
+    unsafe fn addParameterData(
+        &self,
+        id: *const ParamID,
+        index: *mut int32,
+    ) -> *mut IParamValueQueue {
         if id.is_null() {
             return std::ptr::null_mut();
         }

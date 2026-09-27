@@ -63,8 +63,8 @@ use std::path::{Path, PathBuf};
 use ether_core::plugin::{PluginController, PluginError};
 use ether_core::protocol::model::PluginFormat;
 use ether_core::protocol::plugins::PluginDescriptor;
-use ether_plugin_host::bundles::{self, BundleShape};
 use ether_plugin_host::PluginFormatHost;
+use ether_plugin_host::bundles::{self, BundleShape};
 
 pub use node::Vst3Node;
 pub use plugin::Vst3Plugin;

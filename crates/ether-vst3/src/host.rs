@@ -15,8 +15,8 @@ use vst3::Steinberg::Vst::{
     IMessage, IMessageTrait, ParamID, ParamValue, String128, TChar,
 };
 use vst3::Steinberg::{
-    FIDString, TBool, TUID, int32, int64, kInvalidArgument, kNoInterface, kResultFalse,
-    kResultOk, tresult, uint32,
+    FIDString, TBool, TUID, int32, int64, kInvalidArgument, kNoInterface, kResultFalse, kResultOk,
+    tresult, uint32,
 };
 use vst3::{Class, ComWrapper, Interface};
 
@@ -318,10 +318,7 @@ impl Class for ComponentHandler {
 
 impl ComponentHandler {
     fn push(&self, e: Edit) -> tresult {
-        self.edits
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
-            .push(e);
+        self.edits.lock().unwrap_or_else(|e| e.into_inner()).push(e);
         kResultOk
     }
 
@@ -414,9 +411,15 @@ mod tests {
             assert_eq!(attrs.getInt(c"f".as_ptr(), &mut n), kResultFalse);
             let (mut p, mut len) = (std::ptr::null(), 0);
             assert_eq!(attrs.getBinary(c"b".as_ptr(), &mut p, &mut len), kResultOk);
-            assert_eq!(std::slice::from_raw_parts(p.cast::<u8>(), len as usize), bin);
+            assert_eq!(
+                std::slice::from_raw_parts(p.cast::<u8>(), len as usize),
+                bin
+            );
             let mut out = [0 as TChar; 8];
-            assert_eq!(attrs.getString(c"s".as_ptr(), out.as_mut_ptr(), 16), kResultOk);
+            assert_eq!(
+                attrs.getString(c"s".as_ptr(), out.as_mut_ptr(), 16),
+                kResultOk
+            );
             assert_eq!(read_tchar(&out), "hi");
         }
         let mut other = [0 as c_char; 16];

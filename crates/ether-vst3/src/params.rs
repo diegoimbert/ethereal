@@ -8,9 +8,7 @@
 use ether_core::protocol::devices::{ParamInfo, ParamScale, ParamUnit};
 use ether_core::protocol::model::ParamId;
 use vst3::ComPtr;
-use vst3::Steinberg::Vst::ParameterInfo_::ParameterFlags_::{
-    kCanAutomate, kIsHidden, kIsReadOnly,
-};
+use vst3::Steinberg::Vst::ParameterInfo_::ParameterFlags_::{kCanAutomate, kIsHidden, kIsReadOnly};
 use vst3::Steinberg::Vst::{IEditController, IEditControllerTrait, ParameterInfo, String128};
 use vst3::Steinberg::kResultOk;
 

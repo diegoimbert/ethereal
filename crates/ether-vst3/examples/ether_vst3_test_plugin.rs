@@ -29,7 +29,13 @@
 //! it contains `ether-hang` (scanner crash/timeout tests).
 //!
 //! Nothing here allocates on the audio thread.
-#![allow(non_snake_case, unsafe_op_in_unsafe_fn, clippy::missing_safety_doc)]
+// SDK enum constants are `u32` or `i32` depending on the OS, hence the casts.
+#![allow(
+    non_snake_case,
+    unsafe_op_in_unsafe_fn,
+    clippy::missing_safety_doc,
+    clippy::unnecessary_cast
+)]
 
 use std::cell::Cell;
 use std::ffi::{CStr, c_char, c_void};
@@ -87,7 +93,11 @@ unsafe fn write_bytes(stream: *mut IBStream, bytes: &[u8]) -> bool {
         return false;
     };
     let mut written = 0;
-    s.write(bytes.as_ptr() as *mut c_void, bytes.len() as i32, &mut written) == kResultOk
+    s.write(
+        bytes.as_ptr() as *mut c_void,
+        bytes.len() as i32,
+        &mut written,
+    ) == kResultOk
         && written == bytes.len() as i32
 }
 
@@ -274,7 +284,10 @@ impl IComponentTrait for EffectProcessor {
     unsafe fn getState(&self, state: *mut IBStream) -> tresult {
         let ok = write_bytes(state, &load_f64(&self.gain).to_le_bytes())
             && write_bytes(state, &self.mode.load(Ordering::Relaxed).to_le_bytes())
-            && write_bytes(state, &self.latency_step.load(Ordering::Relaxed).to_le_bytes());
+            && write_bytes(
+                state,
+                &self.latency_step.load(Ordering::Relaxed).to_le_bytes(),
+            );
         if ok { kResultOk } else { kResultFalse }
     }
 }
@@ -464,16 +477,15 @@ impl EffectController {
     }
 
     fn slot(id: ParamID) -> Option<usize> {
-        (GAIN..=TRIGGER)
-            .contains(&id)
-            .then(|| (id - GAIN) as usize)
+        (GAIN..=TRIGGER).contains(&id).then(|| (id - GAIN) as usize)
     }
 
     unsafe fn send_latency(&self, step: i64) {
         let (Some(host), Some(peer)) = (self.host.get(), self.peer.get()) else {
             return;
         };
-        let Some(host) = ComRef::<FUnknown>::from_raw(host).and_then(|h| h.cast::<IHostApplication>())
+        let Some(host) =
+            ComRef::<FUnknown>::from_raw(host).and_then(|h| h.cast::<IHostApplication>())
         else {
             return;
         };
@@ -875,7 +887,12 @@ impl IAudioProcessorTrait for Instrument {
         };
         let events = ComRef::from_raw(data.inputEvents);
         let count = events.map_or(0, |e| e.getEventCount());
-        let level = load_f64(&self.level) * if self.invert.load(Ordering::Relaxed) { -1.0 } else { 1.0 };
+        let level = load_f64(&self.level)
+            * if self.invert.load(Ordering::Relaxed) {
+                -1.0
+            } else {
+                1.0
+            };
         let mut velocity = load_f64(&self.velocity);
         let mut next = 0;
         for i in 0..frames {
@@ -986,9 +1003,24 @@ impl Class for Factory {
 }
 
 const CLASSES: [(TUID, &str, &str, &str); 3] = [
-    (EFFECT_CID, "Audio Module Class", "Ether VST3 Gain", "Fx|Dynamics"),
-    (INSTRUMENT_CID, "Audio Module Class", "Ether VST3 Synth", "Instrument|Synth"),
-    (EFFECT_CONTROLLER_CID, "Component Controller Class", "Ether VST3 Gain", ""),
+    (
+        EFFECT_CID,
+        "Audio Module Class",
+        "Ether VST3 Gain",
+        "Fx|Dynamics",
+    ),
+    (
+        INSTRUMENT_CID,
+        "Audio Module Class",
+        "Ether VST3 Synth",
+        "Instrument|Synth",
+    ),
+    (
+        EFFECT_CONTROLLER_CID,
+        "Component Controller Class",
+        "Ether VST3 Gain",
+        "",
+    ),
 ];
 
 impl IPluginFactoryTrait for Factory {

@@ -234,7 +234,11 @@ fn process_gain_sample_accurate_params() {
     assert!(h.out_l.iter().all(|s| *s == 0.5), "{:?}", &h.out_l[..4]);
 
     // Sample-accurate automation (plain values), several params in one block.
-    let ev = [param(16, MODE, 1.0), param(32, GAIN, 0.25), param(48, MODE, 0.0)];
+    let ev = [
+        param(16, MODE, 1.0),
+        param(32, GAIN, 0.25),
+        param(48, MODE, 0.0),
+    ];
     assert_no_alloc(|| h.run(node.as_mut(), &ev));
     assert_eq!(h.out_l[15], 0.5);
     assert_eq!(h.out_l[16], -0.5);

@@ -33,7 +33,9 @@ pub(crate) struct Module {
 
 impl std::fmt::Debug for Module {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Module").field("bundle", &self.bundle).finish()
+        f.debug_struct("Module")
+            .field("bundle", &self.bundle)
+            .finish()
     }
 }
 
@@ -216,18 +218,13 @@ pub(crate) fn binary_path(bundle: &Path) -> Result<PathBuf, PluginError> {
 /// `Contents/<dir>` names holding this platform's binary, best match first.
 #[cfg(not(target_os = "macos"))]
 fn arch_dirs() -> &'static [&'static str] {
-    #[cfg(all(windows, target_arch = "x86_64"))]
-    return &["x86_64-win"];
-    #[cfg(all(windows, target_arch = "aarch64"))]
-    return &["arm64-win", "arm64x-win", "arm64ec-win"];
-    #[cfg(all(windows, target_arch = "x86"))]
-    return &["x86-win"];
-    #[cfg(all(not(windows), target_arch = "x86_64"))]
-    return &["x86_64-linux"];
-    #[cfg(all(not(windows), target_arch = "aarch64"))]
-    return &["aarch64-linux"];
-    #[cfg(all(not(windows), target_arch = "x86"))]
-    return &["i386-linux", "i686-linux"];
-    #[allow(unreachable_code)]
-    &[]
+    match (std::env::consts::ARCH, cfg!(windows)) {
+        ("x86_64", true) => &["x86_64-win"],
+        ("aarch64", true) => &["arm64-win", "arm64x-win", "arm64ec-win"],
+        ("x86", true) => &["x86-win"],
+        ("x86_64", false) => &["x86_64-linux"],
+        ("aarch64", false) => &["aarch64-linux"],
+        ("x86", false) => &["i386-linux", "i686-linux"],
+        _ => &[],
+    }
 }

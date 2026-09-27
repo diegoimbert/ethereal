@@ -21,8 +21,8 @@ use ether_core::protocol::model::ParamId;
 use ether_core::transport::TransportInfo;
 use vst3::Steinberg::Vst::Event_::EventTypes_::{kNoteOffEvent, kNoteOnEvent};
 use vst3::Steinberg::Vst::ProcessContext_::StatesAndFlags_::{
-    kBarPositionValid, kContTimeValid, kCycleActive, kCycleValid, kPlaying,
-    kProjectTimeMusicValid, kRecording, kTempoValid, kTimeSigValid,
+    kBarPositionValid, kContTimeValid, kCycleActive, kCycleValid, kPlaying, kProjectTimeMusicValid,
+    kRecording, kTempoValid, kTimeSigValid,
 };
 use vst3::Steinberg::Vst::ProcessModes_::kRealtime;
 use vst3::Steinberg::Vst::SymbolicSampleSizes_::kSample32;
@@ -306,6 +306,7 @@ impl Vst3Node {
         }
     }
 
+    #[allow(clippy::unnecessary_cast)] // `StatesAndFlags` is `i32` on Windows
     fn fill_context(&mut self, t: &TransportInfo) {
         let sig = t.time_signature;
         let mut state = kTempoValid
@@ -401,6 +402,8 @@ impl Node for Vst3Node {
         self.release_all = true;
     }
 
+    // The SDK enum constants are `u32` or `i32` depending on the OS: keep the casts.
+    #[allow(clippy::unnecessary_cast)]
     fn process(
         &mut self,
         ctx: &mut ProcessContext<'_>,
