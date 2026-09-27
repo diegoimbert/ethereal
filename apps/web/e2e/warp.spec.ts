@@ -1,10 +1,10 @@
 // Warp editor on the web build, through the UI, against the real engine (WasmTransport →
 // controller Worker → AudioWorklet).
 //
-// audio track + library loop → double-click the clip: Warp tab → Complex shows the
-// browser fallback note (no stretcher in wasm: Complex plays as Repitch) → warp off/on:
-// the controller's BPM stub pins two markers → add a marker (double-click) → drag it (one
-// undo step) → transpose → play: signal on the track meter.
+// audio track + library loop (unwarped) → double-click the clip: Warp tab → warp on: the
+// controller's BPM stub pins two markers → Complex shows the browser fallback note (no
+// stretcher in wasm: Complex plays as Repitch) → warp off/on keeps them → add a marker
+// (double-click) → drag it (one undo step) → transpose → play: signal on the track meter.
 //
 // No sleeps: every step waits on UI or engine state. The mirror is read through
 // `window.__ether` (apps/web/src/main.tsx).
@@ -84,22 +84,27 @@ test("warp: markers, modes, transpose and playback", async ({ page }) => {
   await expect(editor).toHaveAttribute("data-clip-id", clip.id);
   await expect.poll(() => inkedPixels(page.getByTestId("warp-waveform")), { timeout: 20_000 }).toBeGreaterThan(50);
 
-  // Complex has no stretcher in the browser: the editor says it plays as Repitch.
+  // --- New clips are unwarped; enabling warp lets the BPM stub pin start and end ---------
   // The checkbox is controlled by the document: click, then wait for the patch.
   const warpBox = page.getByLabel("Warp", { exact: true });
-  await expect.poll(async () => (await audioOf(page, clip.id)).warp.enabled).toBe(true);
-  await page.getByLabel("Warp mode").selectOption("Complex");
-  await expect(page.getByTestId("warp-web-fallback")).toBeVisible();
-  await expect.poll(async () => (await audioOf(page, clip.id)).warp.mode).toBe("Complex");
-
-  // --- Warp off/on: the BPM stub pins the media start and end ------------------------------
-  await warpBox.click();
-  await expect.poll(async () => (await audioOf(page, clip.id)).warp.enabled).toBe(false);
   await expect(warpBox).not.toBeChecked();
+  expect((await audioOf(page, clip.id)).warp.enabled).toBe(false);
   await warpBox.click();
   await expect(warpBox).toBeChecked();
   await expect.poll(async () => (await markersOf(page, clip.id)).length).toBe(2);
   await expect(page.getByTestId("warp-marker")).toHaveCount(2);
+
+  // Complex has no stretcher in the browser: the editor says it plays as Repitch.
+  await page.getByLabel("Warp mode").selectOption("Complex");
+  await expect(page.getByTestId("warp-web-fallback")).toBeVisible();
+  await expect.poll(async () => (await audioOf(page, clip.id)).warp.mode).toBe("Complex");
+
+  // Off/on keeps the markers.
+  await warpBox.click();
+  await expect(warpBox).not.toBeChecked();
+  await warpBox.click();
+  await expect(warpBox).toBeChecked();
+  expect(await markersOf(page, clip.id)).toHaveLength(2);
   const [first] = await markersOf(page, clip.id);
   expect(first!.beat).toBe(0);
   expect(first!.source).toBe(0);

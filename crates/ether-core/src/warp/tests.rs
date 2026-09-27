@@ -438,3 +438,38 @@ fn complex_path_never_allocates() {
     p.handle.transport(TransportControl::Stop).unwrap();
     render(&mut p.engine, BLOCK * 4);
 }
+
+/// Shared vectors (`vectors.json`, also run by ether-controller and the UI): the engine's
+/// content beat → source seconds mapping, per mode, transpose and stretcher availability.
+#[test]
+fn shared_mapping_vectors() {
+    use super::repitch_source_seconds;
+    use crate::sched::source_seconds;
+    let doc: serde_json::Value = serde_json::from_str(include_str!("vectors.json")).unwrap();
+    let f = |v: &serde_json::Value| v.as_f64().unwrap();
+    for case in doc["vectors"].as_array().unwrap() {
+        let name = case["name"].as_str().unwrap();
+        let mode = if case["warp"]["mode"] == "Complex" {
+            WarpMode::Complex
+        } else {
+            WarpMode::Repitch
+        };
+        let desc = case["compiled"].as_array().map(|pins| WarpDesc {
+            mode,
+            markers: pins.iter().map(|p| (f(&p[0]), f(&p[1]))).collect(),
+        });
+        let stretch = case["stretch"].as_bool().unwrap();
+        let (ref_bpm, anchor) = (f(&case["ref_bpm"]), f(&case["anchor"]));
+        let transpose = f(&case["transpose"]) as f32;
+        let complex = matches!(&desc, Some(d) if d.mode == WarpMode::Complex) && stretch;
+        for p in case["points"].as_array().unwrap() {
+            let (c, want) = (f(&p[0]), f(&p[1]));
+            let got = if complex {
+                source_seconds(desc.as_ref(), ref_bpm, c)
+            } else {
+                repitch_source_seconds(desc.as_ref(), transpose, ref_bpm, anchor, c)
+            };
+            assert!((got - want).abs() < 1e-9, "{name}: c={c}: {got} vs {want}");
+        }
+    }
+}

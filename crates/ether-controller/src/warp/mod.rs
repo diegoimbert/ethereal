@@ -7,6 +7,7 @@
 //!   [`WarpDesc`] (`compile.rs` delegates here).
 
 use ether_core::graph::WarpDesc;
+use ether_core::protocol::ReplyValue;
 use ether_core::protocol::model::*;
 use ether_core::protocol::warp::WarpCommand;
 
@@ -31,6 +32,21 @@ pub(crate) fn detect_bpm(seconds: f64) -> Option<f64> {
         .map(|k| (1u32 << k) as f64 * 4.0 * 60.0 / seconds)
         .find(|bpm| (DETECT_MIN_BPM..DETECT_MAX_BPM).contains(bpm))
         .map(|bpm| (bpm * 100.0).round() / 100.0)
+}
+
+/// `WarpCommand::DetectTempo`: [`detect_bpm`] on the clip's media length.
+pub(crate) fn detect_tempo(p: &Project, clip: ClipId) -> CmdResult<ReplyValue> {
+    let c = p
+        .clips
+        .get(&clip)
+        .ok_or_else(|| not_found(format!("clip {clip}")))?;
+    let a = audio_of(c)?;
+    let m = p
+        .media
+        .get(&a.media)
+        .ok_or_else(|| not_found(format!("media {}", a.media)))?;
+    let bpm = detect_bpm(m.frames as f64 / m.sample_rate.max(1) as f64);
+    Ok(ReplyValue::Tempo { bpm })
 }
 
 /// Compile a clip's warp into a [`WarpDesc`] (`None` = unwarped: the engine plays content

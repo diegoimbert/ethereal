@@ -250,7 +250,9 @@ function TransposeControl({ clip, semitones }: { clip: Clip; semitones: number }
         }}
         onChange={(v) => {
           const st = Math.round(v * 2 * TRANSPOSE_RANGE - TRANSPOSE_RANGE);
-          (gesture.current ?? openGesture(transport)).send(set(st));
+          // Inside a drag: part of its gesture. Keyboard/wheel/reset: one undo step each.
+          if (gesture.current) gesture.current.send(set(st));
+          else sendOne(transport, set(st));
         }}
         onChangeEnd={() => {
           gesture.current?.end();

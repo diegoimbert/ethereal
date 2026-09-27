@@ -371,3 +371,25 @@ fn marker_commands() {
         ether_core::protocol::ErrorCode::Unsupported
     );
 }
+
+/// Shared vectors (`ether-core/src/warp/vectors.json`, also run by the engine and the UI):
+/// markers + settings compile to the expected pins.
+#[test]
+fn shared_compile_vectors() {
+    let doc: serde_json::Value =
+        serde_json::from_str(include_str!("../../../ether-core/src/warp/vectors.json")).unwrap();
+    for case in doc["vectors"].as_array().unwrap() {
+        let name = case["name"].as_str().unwrap();
+        let warp: WarpSettings = serde_json::from_value(case["warp"].clone()).unwrap();
+        let mut f = fixture(8.0, warp);
+        for m in case["markers"].as_array().unwrap() {
+            f.add(m[0].as_f64().unwrap(), m[1].as_f64().unwrap());
+        }
+        let want: Option<Vec<(f64, f64)>> =
+            serde_json::from_value(case["compiled"].clone()).unwrap();
+        assert_eq!(f.desc().map(|d| d.markers), want, "{name}");
+        if let Some(d) = f.desc() {
+            assert_eq!(d.mode, warp.mode, "{name}");
+        }
+    }
+}

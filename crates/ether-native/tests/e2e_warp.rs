@@ -2,7 +2,7 @@
 //! engine with the Signalsmith stretcher factory) driven by the JSON messages the Warp
 //! editor sends.
 //!
-//! import a loop → audio clip → warp off/on (BPM stub pins markers) → add + drag a marker
+//! import a loop → audio clip (unwarped by default) → warp on (BPM stub pins markers) → add + drag a marker
 //! (one gesture, one undo) → Complex + transpose → play: signal on the track meter →
 //! locate mid-clip: signal again → save → reopen: markers identical.
 
@@ -100,12 +100,14 @@ fn warp_markers_and_stretching_on_the_native_host() {
         120.0
     );
 
-    // --- Warp off, then on: the BPM stub pins the media start and end.
+    // --- New clips are unwarped (no stretcher); warp on: the BPM stub pins start and end.
     let warp = |enabled: bool, mode: &str| {
         json!({"type": "SetWarp", "clip": clip,
             "warp": {"enabled": enabled, "mode": mode, "source_bpm": null}})
     };
-    c.ok("Warp", warp(false, "Repitch"));
+    let p = c.project();
+    assert_eq!(p["clips"][&clip]["content"]["warp"]["enabled"], false);
+    assert!(markers_of(&p, &clip).is_empty());
     c.ok("Warp", warp(true, "Repitch"));
     let p = c.project();
     assert_eq!(markers_of(&p, &clip), vec![(0.0, 0.0), (8.0, 4.0)]);

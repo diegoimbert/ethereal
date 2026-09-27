@@ -165,6 +165,20 @@ describe("WarpEditor", () => {
     expect(markers(clip.id)).toHaveLength(0);
   });
 
+  it("keyboard changes on the transpose knob are single undo steps, not open gestures", async () => {
+    const { clip, sent } = await setup();
+    sent.length = 0;
+    const knob = screen.getByRole("slider", { name: "Transpose" });
+    fireEvent.keyDown(knob, { key: "ArrowRight" });
+    await flush();
+    fireEvent.keyDown(knob, { key: "End" });
+    await flush();
+    const transposes = sent.filter((s) => s.command.domain === "Clip");
+    expect(transposes.map((s) => s.gesture)).toEqual([null, null]);
+    expect(transposes.at(-1)!.command).toEqual(cmd("Clip", { type: "SetTranspose", id: clip.id, semitones: 48 }));
+    expect((clipNow(clip.id).content as Extract<Clip["content"], { type: "Audio" }>).transpose).toBe(48);
+  });
+
   it("says Complex plays as Repitch in the browser build", async () => {
     await setup({ kind: "wasm" });
     expect(screen.queryByTestId("warp-web-fallback")).toBeNull();
