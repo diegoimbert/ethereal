@@ -43,6 +43,9 @@ pub struct ClientMessage {
 /// Every command, grouped by domain (one Rust file per domain in this crate).
 ///
 /// JSON: `{ "domain": "Mixer", "command": { "type": "SetVolume", "track": "01H…", "volume": -6 } }`
+// `Collab(SetPresence)` carries a whole `PresenceState` (it grew with presence v2 and the
+// base-62 peer transport). Commands are short-lived, so the size gap doesn't matter.
+#[allow(clippy::large_enum_variant)]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
 #[serde(tag = "domain", content = "command")]
 pub enum Command {
