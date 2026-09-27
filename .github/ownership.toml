@@ -694,6 +694,8 @@ paths = [
   "ui/src/features/collab/PresenceBar.tsx",
   "ui/src/features/collab/index.tsx",
   "ui/src/transport/mock/roadmap/collab.*",
+  # shared touch (base-60): one test-all line running ether-collab --features turn
+  "justfile",
 ]
 
 [nodes.stream-listen]
