@@ -21,7 +21,7 @@ use ether_core::protocol::model::{MediaId, MediaRef, Project, ProjectId};
 use ether_media::{DecodedAudio, MediaError, PeakMipmap};
 
 pub(crate) use decode::{IncrementalDecoder, is_chained_ogg};
-use resample::IncrementalResampler;
+pub(crate) use resample::IncrementalResampler;
 
 use crate::EngineBridge;
 use crate::store::ProjectStore;

@@ -328,6 +328,8 @@ where
     plugin_gestures: BTreeMap<(DeviceId, ParamId), GestureId>,
     /// Plugin runtime bookkeeping (param mirroring after load; `plugins` module).
     plugins: plugins::PluginsState,
+    /// Offline export job and finished downloads (`export` module).
+    export: export::ExportState,
     next_gesture: u32,
     last_transport: Option<TransportState>,
     outputs: EngineOutputs,
@@ -370,6 +372,7 @@ where
             recording: Default::default(),
             plugin_gestures: BTreeMap::new(),
             plugins: Default::default(),
+            export: Default::default(),
             // Internal gestures (plugin GUI, tap tempo) live in the upper half of the id
             // space, away from UI-allocated ones.
             next_gesture: 0x8000_0000,

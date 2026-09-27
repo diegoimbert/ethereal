@@ -20,6 +20,10 @@ use crate::store::{Library, ProjectStore};
 use crate::tx::{CmdResult, unsupported};
 use crate::{EngineBridge, EtherController, HostServices, MessageSink};
 
+/// The running job and finished downloads.
+#[derive(Default)]
+pub(crate) struct ExportState {}
+
 impl<B, H, S, L> EtherController<B, H, S, L>
 where
     B: EngineBridge,
