@@ -17,7 +17,7 @@ use crate::config::EngineConfig;
 use crate::delay::DelayLine;
 use crate::event::EventBuffer;
 use crate::mixer::{
-    ChainRt, MAX_ACTIVE_NOTES, MAX_PENDING_EVENTS, MIX_RAMP_MS, MeterAccum, SendRt, Stereo,
+    BusInput, ChainRt, MAX_ACTIVE_NOTES, MAX_PENDING_EVENTS, MIX_RAMP_MS, MeterAccum, SendRt,
     TrackRt, stereo,
 };
 use crate::node::NodeKey;
@@ -259,20 +259,29 @@ pub struct RenderSnapshot {
     pub(crate) rt: SnapshotRt,
 }
 
+/// One level of the processing DAG (`crate::parallel`): `SnapshotRt::level_order[start..end]`,
+/// the first `pinned` of which must run on the audio thread.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct Level {
+    pub start: usize,
+    pub end: usize,
+    pub pinned: usize,
+}
+
 pub(crate) struct SnapshotRt {
     /// Track indices (into `desc.tracks` / `tracks`) in processing order.
     pub order: Vec<usize>,
+    /// Track indices grouped by level (`levels`), pinned tracks first within a level, then
+    /// processing order.
+    pub level_order: Vec<usize>,
+    pub levels: Vec<Level>,
     pub tracks: Vec<TrackRt>,
-    /// Input bus of every track (sum of routed tracks and sends).
-    pub buses: Vec<Stereo>,
     /// Sorted lookups (binary search on the audio thread).
     pub track_index: Vec<(TrackId, usize)>,
     pub send_index: Vec<(SendId, usize, usize)>,
     pub node_index: Vec<(NodeKey, usize, usize)>,
     /// Total latency from the timeline to the hardware output (samples).
     pub latency: u32,
-    /// Sidechain buffers (`crate::sidechain`).
-    pub sidechain: crate::sidechain::Taps,
     /// Drum-rack pad-chain nodes and their track index, sorted (live params, automation
     /// and latency refresh reach them through `TrackRt::racks`).
     pub pad_index: Vec<(NodeKey, usize)>,
@@ -503,6 +512,70 @@ pub fn compile_with(
         return Err(CompileError::Cycle(desc.tracks[stuck].id));
     }
 
+    // --- levels (`crate::parallel`) ---
+    // Level = 1 + max level of every source (outputs, sends, sidechains): tracks of one
+    // level never depend on each other. Tracks with Complex-warped clips are pinned to the
+    // audio thread (the stretchers live in the engine-wide `WarpRt`).
+    let mut level = vec![0usize; n];
+    for &i in &order {
+        for &d in &order_succ[i] {
+            level[d] = level[d].max(level[i] + 1);
+        }
+    }
+    let pinned: Vec<bool> = desc
+        .tracks
+        .iter()
+        .map(|t| {
+            t.clips.iter().any(|c| {
+                matches!(
+                    &c.content,
+                    ClipContentDesc::Audio {
+                        warp: Some(WarpDesc {
+                            mode: WarpMode::Complex,
+                            ..
+                        }),
+                        ..
+                    }
+                )
+            })
+        })
+        .collect();
+    let mut pos = vec![0usize; n];
+    for (p, &i) in order.iter().enumerate() {
+        pos[i] = p;
+    }
+    let mut level_order = order.clone();
+    level_order.sort_by_key(|&i| (level[i], !pinned[i], pos[i]));
+    let mut levels: Vec<Level> = Vec::new();
+    for (k, &i) in level_order.iter().enumerate() {
+        match levels.last_mut() {
+            Some(l) if level[level_order[l.start]] == level[i] => {
+                l.end = k + 1;
+                l.pinned += pinned[i] as usize;
+            }
+            _ => levels.push(Level {
+                start: k,
+                end: k + 1,
+                pinned: pinned[i] as usize,
+            }),
+        }
+    }
+
+    // --- bus inputs, in the sequential summation order (`crate::parallel`) ---
+    let mut bus_inputs: Vec<Vec<BusInput>> = vec![Vec::new(); n];
+    for &c in &order {
+        for pass_pre in [true, false] {
+            for (k, s) in desc.tracks[c].sends.iter().enumerate() {
+                if s.pre_fader == pass_pre {
+                    bus_inputs[find(s.to)?].push(BusInput::Send(c, k));
+                }
+            }
+        }
+        if let Some(o) = outputs[c] {
+            bus_inputs[o].push(BusInput::Output(c));
+        }
+    }
+
     // --- nodes ---
     let mut node_index = Vec::new();
     let mut pad_index = Vec::new();
@@ -618,10 +691,30 @@ pub fn compile_with(
         }
     }
 
+    // --- sidechains: each consumer gets its own taps (jobs never share them) ---
+    for p in sc_plans.iter().flatten() {
+        check(p.main_delay)?;
+        check(p.sc_delay)?;
+    }
+    let mut tapped = vec![false; n];
+    for p in sc_plans.iter().flatten() {
+        tapped[p.source] = true;
+    }
+
     // --- runtime state ---
     let mut tracks = Vec::with_capacity(n);
     let mut send_index = Vec::new();
     for (i, t) in desc.tracks.iter().enumerate() {
+        let (sidechain, sc_sources) = if sc_plans[i].is_empty() {
+            (crate::sidechain::Taps::default(), Vec::new())
+        } else {
+            let mut own = vec![Vec::new(); n];
+            own[i] = sc_plans[i].clone();
+            let mut sources: Vec<usize> = sc_plans[i].iter().map(|p| p.source).collect();
+            sources.sort_unstable();
+            sources.dedup();
+            (crate::sidechain::Taps::compile(&own, config), sources)
+        };
         let chain = t
             .chain
             .iter()
@@ -652,6 +745,7 @@ pub fn compile_with(
                 pre_fader: s.pre_fader,
                 level: Smoother::new(s.level.max(0.0), MIX_RAMP_MS, sr),
                 delay: DelayLine::new(check(in_lat[target] - out_lat[i])?),
+                buf: stereo(frames),
             });
         }
         let output_delay = match outputs[i] {
@@ -660,7 +754,6 @@ pub fn compile_with(
         };
         tracks.push(TrackRt {
             id: t.id,
-            output: outputs[i],
             parent: parents[i],
             to_hardware: t.output.is_none() && t.kind == TrackKind::Master,
             chain,
@@ -676,7 +769,6 @@ pub fn compile_with(
             monitor: t.monitor,
             a: stereo(frames),
             b: stereo(frames),
-            scratch: stereo(frames),
             out_events: EventBuffer::with_capacity(config.max_events_per_block),
             notes: Vec::with_capacity(MAX_ACTIVE_NOTES),
             auto_last: vec![f64::NAN; t.automation.len()],
@@ -694,6 +786,19 @@ pub fn compile_with(
             meter: MeterAccum::default(),
             out_latency: out_lat[i],
             racks: crate::drum_rack::RacksRt::compile(&t.racks, node_info, config),
+            inputs: std::mem::take(&mut bus_inputs[i]),
+            sidechain,
+            sc_sources,
+            tap: tapped[i].then(|| stereo(frames)),
+            next_note_id: 0,
+            src_scratch: if t.kind == TrackKind::Audio {
+                vec![0.0; frames * 8 + 64]
+            } else {
+                Vec::new()
+            },
+            pinned: pinned[i],
+            overflow: false,
+            underruns: 0,
         });
     }
     send_index.sort();
@@ -705,17 +810,12 @@ pub fn compile_with(
         .max()
         .unwrap_or(0);
 
-    for p in sc_plans.iter().flatten() {
-        check(p.main_delay)?;
-        check(p.sc_delay)?;
-    }
-    let sidechain = crate::sidechain::Taps::compile(&sc_plans, config);
     let mut rt = SnapshotRt {
-        sidechain,
         pad_index,
         order,
+        level_order,
+        levels,
         tracks,
-        buses: (0..n).map(|_| stereo(frames)).collect(),
         track_index,
         send_index,
         node_index,

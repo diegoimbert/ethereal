@@ -38,7 +38,7 @@ use ether_protocol::model::{DrumPadId, PAD_PLAY_NOTE};
 use crate::buffer::AudioBuffers;
 use crate::config::EngineConfig;
 use crate::delay::DelayLine;
-use crate::engine::NodeSlot;
+use crate::engine::NodeTable;
 use crate::event::{EventBuffer, EventKind, ProcessEvent};
 use crate::graph::{NodeInfo, RackDesc};
 use crate::mixer::{ChainRt, MAX_PENDING_EVENTS, Stereo, stereo};
@@ -412,7 +412,7 @@ impl RacksRt {
     pub(crate) fn run_pads(
         &mut self,
         rack: NodeKey,
-        nodes: &mut [NodeSlot],
+        nodes: &mut NodeTable<'_>,
         events: &[ProcessEvent],
         info: &TransportInfo,
         sample_rate: f32,
@@ -533,7 +533,7 @@ impl RacksRt {
                 let entry = &mut head[k];
                 entry.events.sort();
                 overflow |= entry.events.overflowed();
-                let Some(node) = NodeSlot::get(nodes, entry.key) else {
+                let Some(node) = nodes.get(entry.key) else {
                     continue;
                 };
                 if reset {
