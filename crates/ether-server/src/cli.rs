@@ -17,7 +17,9 @@ OPTIONS:
                     else exposes the engine to the network and requires a token.
   --token <T>       Shared token clients must send (or $ETHER_SERVER_TOKEN). Default: one
                     generated at first start and kept in <data-dir>/config/server-token.
-  --no-auth         Serve without a token (loopback only).
+  --no-auth         Serve without a token (loopback only). Upgrades whose Host or Origin
+                    header is not loopback are then refused, so other web pages open in
+                    a browser on this machine cannot drive the engine.
   --print-token     Print the token on stdout at start (it is never written to logs).
   --name <NAME>     Name shown to clients (default: host name).
   --single-client   Reject a second client while one is connected.
@@ -138,7 +140,7 @@ pub fn load_or_create_token(data_dir: &Path) -> std::io::Result<String> {
             return Ok(t);
         }
     }
-    let token = crate::random_hex(24);
+    let token = crate::random_hex(24).map_err(std::io::Error::other)?;
     std::fs::create_dir_all(path.parent().expect("has a parent"))?;
     let mut opts = std::fs::OpenOptions::new();
     opts.write(true).create(true).truncate(true);

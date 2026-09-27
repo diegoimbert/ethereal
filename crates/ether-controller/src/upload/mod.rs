@@ -10,7 +10,8 @@
 //! Rules:
 //! - `BeginUpload { upload, name, size }`: `size` in `1..=MAX_UPLOAD_BYTES`, `name` a
 //!   non-empty display name (its extension picks the decoder), at most
-//!   [`MAX_ACTIVE_UPLOADS`] at once. Reusing an id restarts that upload.
+//!   [`MAX_ACTIVE_UPLOADS`] at once, at most [`MAX_STAGED_BYTES`] announced in total.
+//!   Reusing an id restarts that upload.
 //! - `UploadChunk { offset, data }`: at most [`MAX_CHUNK_BYTES`]. `offset` must equal the
 //!   bytes received so far; a chunk that only repeats bytes already received is accepted
 //!   as a no-op (a client retrying after a lost reply). A gap is `InvalidState` whose
@@ -36,8 +37,10 @@ use crate::{EngineBridge, EtherController, HostServices, MessageSink};
 pub const MAX_UPLOAD_BYTES: u64 = 1 << 30;
 /// Largest accepted chunk (1 MiB, see `ether_protocol::media`).
 pub const MAX_CHUNK_BYTES: usize = 1 << 20;
-/// Concurrent uploads per controller.
+/// Concurrent uploads per controller (hosts serving several clients also cap each client).
 pub const MAX_ACTIVE_UPLOADS: usize = 16;
+/// Total announced size of the uploads in progress (staging disk space).
+pub const MAX_STAGED_BYTES: u64 = 2 << 30;
 /// An upload without a chunk for this long is abandoned.
 pub const UPLOAD_IDLE_MS: u64 = 10 * 60 * 1000;
 /// Minimum interval between two `UploadProgress` events of one upload.
@@ -92,6 +95,18 @@ where
                     )));
                 }
                 let size = *size as u64;
+                let staged: u64 = self
+                    .uploads
+                    .uploads
+                    .iter()
+                    .filter(|(id, _)| *id != upload)
+                    .map(|(_, u)| u.size)
+                    .sum();
+                if staged + size > MAX_STAGED_BYTES {
+                    return Err(invalid_state(format!(
+                        "not enough upload staging space ({MAX_STAGED_BYTES} bytes in total)"
+                    )));
+                }
                 self.store.begin_upload(upload, size).map_err(store_err)?;
                 self.uploads.uploads.insert(
                     upload.clone(),

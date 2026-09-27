@@ -265,6 +265,16 @@ fn limits_and_idle_cleanup() {
         err(&h.chunk("big", 0, &vec![0; (1 << 20) + 1])).code,
         ErrorCode::InvalidArgument
     );
+    // Total staging space.
+    ok(&h.begin("g1", "a.wav", 1 << 30));
+    assert_eq!(
+        err(&h.begin("g2", "a.wav", 1 << 30)).code,
+        ErrorCode::InvalidState,
+        "2 GiB in total"
+    );
+    h.ok(Command::Media(MediaCommand::CancelUpload {
+        upload: "g1".into(),
+    }));
     for i in 1..16 {
         ok(&h.begin(&format!("u{i}"), "a.wav", 1));
     }

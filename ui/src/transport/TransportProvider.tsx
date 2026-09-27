@@ -8,7 +8,6 @@ import type { EngineTransport } from "./EngineTransport";
 
 const CONNECTING: ConnectionStatus = { status: "connecting" };
 
-
 export interface TransportProviderProps {
   /** The engine connection. Owned by the caller (the provider never disposes it). */
   transport: EngineTransport;

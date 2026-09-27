@@ -116,8 +116,14 @@ serves the UI over WebSocket, so the browser UI can drive an engine on another m
 - It listens on `127.0.0.1` by default; `--listen <ip>` exposes it to the network and
   requires a token. The token comes from `--token`/`ETHER_SERVER_TOKEN`, or is generated
   on first start into `<data-dir>/config/server-token` (it is never logged; `--print-token`
-  shows it). `--no-auth` is allowed on loopback only. Use TLS (a reverse proxy) for
-  anything beyond a trusted network.
+  shows it). `--no-auth` is allowed on loopback only, and then only upgrades whose
+  `Host` and (browser) `Origin` are loopback are accepted, so other web pages open on the
+  machine cannot drive the engine. Use TLS (a reverse proxy) for anything beyond a
+  trusted network.
+- Connections must finish the upgrade and hello within 10 s (64 KiB message limit until
+  then, at most 32 at once). Afterwards the server pings quiet clients and drops those
+  silent for 60 s or whose writes block for 10 s; a dropped client's open gestures are
+  ended and its unfinished uploads cancelled. Each client may run 4 uploads at once.
 - Several UIs can connect at once: they share one project, see each other's edits live,
   and each gets only its own replies.
 - Dropping audio files onto the sample browser while connected uploads them to the server

@@ -18,7 +18,9 @@ use crossbeam_channel::{Sender, TrySendError};
 use ether_protocol::media::{MediaCommand, MediaSource};
 use ether_protocol::model::GestureId;
 use ether_protocol::project::EditCommand;
-use ether_protocol::{ClientMessage, Command, ServerMessage};
+use ether_protocol::{
+    ClientMessage, Command, CommandError, ErrorCode, Reply, ReplyResult, ServerMessage,
+};
 
 use crate::frames::{Frame, encode_server};
 
@@ -29,6 +31,13 @@ use crate::frames::{Frame, encode_server};
 pub const CLIENT_QUEUE: usize = 4096;
 
 pub type ClientId = u64;
+
+/// Uploads one client may have in progress at once (the controller also caps the total).
+pub const MAX_UPLOADS_PER_CLIENT: usize = 4;
+
+/// Why [`Router::add_if`] refused a client.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Full;
 
 struct Client {
     /// `None` once the queue overflowed (dropping the sender ends the connection).
@@ -76,8 +85,22 @@ impl Router {
 
     /// Register a client (after its hello was accepted).
     pub fn add(&self, tx: Sender<Frame>) -> ClientId {
+        self.add_if(tx, |_| true).expect("unconditional")
+    }
+
+    /// Register a client if `allow(current client count)`; the check and the insert are
+    /// atomic, so two hellos racing for the last slot can't both get in.
+    pub fn add_if(
+        &self,
+        tx: Sender<Frame>,
+        allow: impl FnOnce(usize) -> bool,
+    ) -> Result<ClientId, Full> {
+        let mut s = self.lock();
+        if !allow(s.clients.len()) {
+            return Err(Full);
+        }
         let id = self.next_client.fetch_add(1, Ordering::Relaxed);
-        self.lock().clients.insert(
+        s.clients.insert(
             id,
             Client {
                 tx: Some(tx),
@@ -85,11 +108,11 @@ impl Router {
                 uploads: HashSet::new(),
             },
         );
-        id
+        Ok(id)
     }
 
-    /// Forget a client. Returns the messages to send to the host on its behalf (cancel its
-    /// unfinished uploads); their replies go nowhere.
+    /// Forget a client. Returns the messages to send to the host on its behalf (end its
+    /// open gestures, cancel its unfinished uploads); their replies go nowhere.
     pub fn remove(&self, client: ClientId) -> Vec<ClientMessage> {
         let mut s = self.lock();
         s.pending.retain(|_, (c, _)| *c != client);
@@ -97,24 +120,59 @@ impl Router {
             return Vec::new();
         };
         drop(s);
+        let mut gestures: Vec<u32> = c.gestures.into_values().collect();
+        gestures.sort_unstable();
         let mut uploads: Vec<String> = c.uploads.into_iter().collect();
         uploads.sort();
-        uploads
+        gestures
             .into_iter()
-            .map(|upload| ClientMessage {
+            .map(|g| {
+                Command::Edit(EditCommand::EndGesture {
+                    gesture: GestureId(g),
+                })
+            })
+            .chain(
+                uploads
+                    .into_iter()
+                    .map(|upload| Command::Media(MediaCommand::CancelUpload { upload })),
+            )
+            .map(|command| ClientMessage {
                 id: self.next_request.fetch_add(1, Ordering::Relaxed),
                 gesture: None,
-                command: Command::Media(MediaCommand::CancelUpload { upload }),
+                command,
             })
             .collect()
     }
 
     /// Rewrite a client's message into the global id/gesture space (and remember where
-    /// its reply goes). `None` if the client is gone.
-    pub fn inbound(&self, client: ClientId, mut m: ClientMessage) -> Option<ClientMessage> {
+    /// its reply goes). `Ok(None)` if the client is gone; `Err` = answer the client with
+    /// this reply instead (per-client limits).
+    pub fn inbound(
+        &self,
+        client: ClientId,
+        mut m: ClientMessage,
+    ) -> Result<Option<ClientMessage>, Box<ServerMessage>> {
         let global = self.next_request.fetch_add(1, Ordering::Relaxed);
         let mut s = self.lock();
-        let c = s.clients.get_mut(&client)?;
+        let Some(c) = s.clients.get_mut(&client) else {
+            return Ok(None);
+        };
+        if let Command::Media(MediaCommand::BeginUpload { upload, .. }) = &m.command
+            && !c.uploads.contains(upload)
+            && c.uploads.len() >= MAX_UPLOADS_PER_CLIENT
+        {
+            return Err(Box::new(ServerMessage::Reply(Reply {
+                id: m.id,
+                result: ReplyResult::Err {
+                    error: CommandError {
+                        code: ErrorCode::InvalidState,
+                        message: format!(
+                            "too many uploads in progress (max {MAX_UPLOADS_PER_CLIENT} per client)"
+                        ),
+                    },
+                },
+            })));
+        }
         let next_gesture = &self.next_gesture;
         let mut map = |g: u32| {
             *c.gestures
@@ -144,7 +202,7 @@ impl Router {
         }
         s.pending.insert(global, (client, m.id));
         m.id = global;
-        Some(m)
+        Ok(Some(m))
     }
 
     /// Route one message from the host (called on the controller thread).
@@ -195,14 +253,20 @@ fn reliable(tx: &mut Option<Sender<Frame>>, frame: Frame) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ether_protocol::ReplyValue;
     use ether_protocol::transport::TransportCommand;
-    use ether_protocol::{Reply, ReplyResult, ReplyValue};
 
     fn msg(id: u32, gesture: Option<u32>, command: Command) -> ClientMessage {
         ClientMessage {
             id,
             gesture: gesture.map(GestureId),
             command,
+        }
+    }
+
+    impl Router {
+        fn inbound_ok(&self, c: ClientId, m: ClientMessage) -> Option<ClientMessage> {
+            self.inbound(c, m).expect("accepted")
         }
     }
 
@@ -223,18 +287,18 @@ mod tests {
         let a = r.add(ta);
         let b = r.add(tb);
         let play = Command::Transport(TransportCommand::Play);
-        let ga = r.inbound(a, msg(1, Some(5), play.clone())).unwrap();
-        let gb = r.inbound(b, msg(1, Some(5), play.clone())).unwrap();
+        let ga = r.inbound_ok(a, msg(1, Some(5), play.clone())).unwrap();
+        let gb = r.inbound_ok(b, msg(1, Some(5), play.clone())).unwrap();
         assert_ne!(ga.id, gb.id, "global request ids");
         assert_ne!(
             ga.gesture, gb.gesture,
             "gestures never merge across clients"
         );
         // Same client gesture maps to the same global gesture until EndGesture.
-        let ga2 = r.inbound(a, msg(2, Some(5), play)).unwrap();
+        let ga2 = r.inbound_ok(a, msg(2, Some(5), play)).unwrap();
         assert_eq!(ga.gesture, ga2.gesture);
         let end = r
-            .inbound(
+            .inbound_ok(
                 a,
                 msg(
                     3,
@@ -272,12 +336,20 @@ mod tests {
     }
 
     #[test]
-    fn disconnect_cancels_unfinished_uploads() {
+    fn disconnect_ends_gestures_and_cancels_unfinished_uploads() {
         let r = Router::default();
         let (t, _rx) = crossbeam_channel::bounded(16);
         let c = r.add(t);
+        let open = r
+            .inbound_ok(
+                c,
+                msg(9, Some(5), Command::Transport(TransportCommand::Stop)),
+            )
+            .unwrap()
+            .gesture
+            .unwrap();
         for u in ["u1", "u2", "u3"] {
-            r.inbound(
+            r.inbound_ok(
                 c,
                 msg(
                     1,
@@ -290,7 +362,7 @@ mod tests {
                 ),
             );
         }
-        r.inbound(
+        r.inbound_ok(
             c,
             msg(
                 2,
@@ -304,6 +376,7 @@ mod tests {
         assert_eq!(
             cancels,
             vec![
+                Command::Edit(EditCommand::EndGesture { gesture: open }),
                 Command::Media(MediaCommand::CancelUpload {
                     upload: "u1".into()
                 }),
@@ -314,9 +387,46 @@ mod tests {
         );
         assert_eq!(r.client_count(), 0);
         assert!(
-            r.inbound(c, msg(3, None, Command::Transport(TransportCommand::Stop)))
+            r.inbound_ok(c, msg(3, None, Command::Transport(TransportCommand::Stop)))
                 .is_none()
         );
+    }
+
+    #[test]
+    fn per_client_upload_cap_and_atomic_admission() {
+        let r = Router::default();
+        let (t, _rx) = crossbeam_channel::bounded(16);
+        let c = r.add(t);
+        let begin = |i: u32| {
+            msg(
+                i,
+                None,
+                Command::Media(MediaCommand::BeginUpload {
+                    upload: format!("u{i}"),
+                    name: "a.wav".into(),
+                    size: 1.0,
+                }),
+            )
+        };
+        for i in 0..MAX_UPLOADS_PER_CLIENT as u32 {
+            r.inbound_ok(c, begin(i));
+        }
+        let Err(reply) = r.inbound(c, begin(99)) else {
+            panic!("over the per-client cap")
+        };
+        let ServerMessage::Reply(reply) = *reply else {
+            panic!("over the per-client cap")
+        };
+        assert_eq!(reply.id, 99);
+        // Restarting an upload it already has is fine; another client has its own budget.
+        r.inbound_ok(c, begin(0));
+        let (t2, _rx2) = crossbeam_channel::bounded(16);
+        let c2 = r.add(t2);
+        r.inbound_ok(c2, begin(50));
+        // Admission is checked under the same lock as the insert.
+        let (t3, _rx3) = crossbeam_channel::bounded(16);
+        assert_eq!(r.add_if(t3, |n| n < 2), Err(Full));
+        assert_eq!(r.client_count(), 2);
     }
 
     #[test]
