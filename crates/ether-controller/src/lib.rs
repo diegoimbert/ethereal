@@ -21,7 +21,8 @@
 //! - **Idempotent creates.** Creating an entity whose (client-chosen) id already exists is
 //!   a successful no-op.
 //! - **Unsupported.** Host-handled commands (`Engine::*`, `Plugin::{Rescan, List, OpenEditor,
-//!   CloseEditor}`), media preview/upload and `Recording::ListInputs` reply `Unsupported`.
+//!   CloseEditor}`) and media preview/upload reply `Unsupported`; `Recording::ListInputs` and
+//!   record sessions go to the bridge (`EngineBridge::{list_inputs, start_recording, ...}`).
 //! - **Async media.** Import copies the file and probes its header in `handle` (the reply
 //!   carries the `MediaRef`); decoding, peaks and resampling are stepped from `tick`.
 //! - **Engine sample rate.** Media is resampled to [`ControllerConfig::engine_sample_rate`];
@@ -158,9 +159,7 @@ pub trait EngineBridge {
     }
 
     /// Hardware inputs for `RecordingCommand::ListInputs` (native). Default: unsupported (web).
-    fn list_inputs(
-        &mut self,
-    ) -> Result<ether_core::protocol::recording::InputList, BridgeError> {
+    fn list_inputs(&mut self) -> Result<ether_core::protocol::recording::InputList, BridgeError> {
         Err(BridgeError::Unsupported(
             "input listing is not available on this host".into(),
         ))

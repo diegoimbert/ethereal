@@ -30,6 +30,9 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use ether_protocol::model::TrackKind;
 use rtrb::{Consumer, Producer, RingBuffer};
 
+/// Re-exported so hosts can hold the ring halves (and build their own lock-free rings).
+pub use rtrb;
+
 use crate::config::EngineConfig;
 use crate::engine::EngineHandle;
 use crate::event::{EventKind, ProcessEvent};
@@ -203,10 +206,7 @@ impl RecordingRt {
         let recording = info.playing && info.recording;
 
         // Live MIDI due in this sub-block.
-        let record_midi = recording
-            && descs
-                .iter()
-                .any(|t| t.armed && t.kind == TrackKind::Midi);
+        let record_midi = recording && descs.iter().any(|t| t.armed && t.kind == TrackKind::Midi);
         while let Ok(ev) = self.midi_in.peek() {
             if ev.sample_time >= end {
                 break;
@@ -241,10 +241,7 @@ impl RecordingRt {
         }
 
         // Hardware input of armed audio tracks.
-        if recording
-            && frames > 0
-            && descs.iter().any(|t| t.armed && t.audio_input.is_some())
-        {
+        if recording && frames > 0 && descs.iter().any(|t| t.armed && t.audio_input.is_some()) {
             self.capture(info, inputs, off, frames);
         }
 
@@ -410,13 +407,20 @@ mod tests {
     fn midi_decoding() {
         assert!(matches!(
             midi_event([0x91, 60, 127]),
-            Some(EventKind::NoteOn { channel: 1, key: 60, .. })
+            Some(EventKind::NoteOn {
+                channel: 1,
+                key: 60,
+                ..
+            })
         ));
         assert!(matches!(
             midi_event([0x90, 60, 0]),
             Some(EventKind::NoteOff { key: 60, .. })
         ));
-        assert!(matches!(midi_event([0xb0, 1, 2]), Some(EventKind::Midi { .. })));
+        assert!(matches!(
+            midi_event([0xb0, 1, 2]),
+            Some(EventKind::Midi { .. })
+        ));
         assert_eq!(midi_event([0xf8, 0, 0]), None);
         // Note on/off of the same key share an id.
         let id = |e| match e {
@@ -447,11 +451,16 @@ mod tests {
         let click = |s: u64| if s == 3 * BLOCK as u64 + 10 { 1.0 } else { 0.0 };
         run(&mut parts.engine, 2, &click, &mut t);
         let mut buf = Vec::new();
-        assert!(io.capture.next_block(&mut buf).is_none(), "not recording yet");
+        assert!(
+            io.capture.next_block(&mut buf).is_none(),
+            "not recording yet"
+        );
 
         parts
             .handle
-            .transport(TransportControl::Locate { position: Beats(4.0) })
+            .transport(TransportControl::Locate {
+                position: Beats(4.0),
+            })
             .unwrap();
         parts
             .handle
@@ -482,7 +491,10 @@ mod tests {
             .collect();
         assert_eq!(hot, vec![BLOCK + 10, BLOCK + 10]);
         let b1 = blocks[1];
-        assert!((b1.position_at(10) - (4.0 + (BLOCK + 10) as f64 * first.beats_per_sample)).abs() < 1e-9);
+        assert!(
+            (b1.position_at(10) - (4.0 + (BLOCK + 10) as f64 * first.beats_per_sample)).abs()
+                < 1e-9
+        );
 
         // Stop recording: nothing more is captured.
         parts
@@ -500,7 +512,10 @@ mod tests {
         let log = Arc::new(Mutex::new(Vec::new()));
         let other = Arc::new(Mutex::new(Vec::new()));
         let key = parts.handle.add_node(Box::new(Probe(log.clone()))).unwrap();
-        let key2 = parts.handle.add_node(Box::new(Probe(other.clone()))).unwrap();
+        let key2 = parts
+            .handle
+            .add_node(Box::new(Probe(other.clone())))
+            .unwrap();
         let master = track(1, TrackKind::Master, None);
         let mut midi = track(2, TrackKind::Midi, Some(master.id));
         midi.armed = true;
@@ -551,8 +566,14 @@ mod tests {
             let offsets: Vec<u32> = log.iter().map(|(_, e)| e.offset).collect();
             assert_eq!(offsets, vec![0, 100], "{log:?}");
         }
-        assert!(other.lock().unwrap().is_empty(), "unmonitored track stays silent");
-        assert!(io.midi_out.pop().is_err(), "not recording: nothing recorded");
+        assert!(
+            other.lock().unwrap().is_empty(),
+            "unmonitored track stays silent"
+        );
+        assert!(
+            io.midi_out.pop().is_err(),
+            "not recording: nothing recorded"
+        );
         run(&mut parts.engine, 1, &|_| 0.0, &mut t);
         assert_eq!(log.lock().unwrap().last().unwrap().1.offset, 5);
 
@@ -575,6 +596,9 @@ mod tests {
         assert_eq!(rec.sample_time, start + 48);
         assert_eq!(rec.data, [0x90, 64, 90]);
         let expected = (BLOCK + 48) as f64 * 2.0 / SR as f64;
-        assert!((rec.position - expected).abs() < 1e-9, "{rec:?} vs {expected}");
+        assert!(
+            (rec.position - expected).abs() < 1e-9,
+            "{rec:?} vs {expected}"
+        );
     }
 }

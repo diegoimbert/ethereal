@@ -12,13 +12,14 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use ether_controller::{BridgeError, EngineBridge, HostServices};
+use ether_controller::{BridgeError, EngineBridge, HostServices, RecordSession, RecordedTakes};
 use ether_core::plugin::{PluginError, PluginNotification};
 use ether_core::protocol::devices::DeviceDescriptor;
 use ether_core::protocol::model::{
     Base64Bytes, BuiltinDevice, BuiltinDeviceType, DeviceId, MediaId, MediaRef, ParamId,
     PluginInstance,
 };
+use ether_core::protocol::recording::InputList;
 use ether_core::{
     AudioSource, EngineError, EngineHandle, EngineOutputs, NodeKey, ParamChange, PrepareConfig,
     RenderGraphDesc, TransportControl,
@@ -80,6 +81,8 @@ impl NativeBridge {
         instantiate: Instantiate,
         audio: Arc<AudioShared>,
     ) -> Self {
+        let mut handle = handle;
+        crate::recording::attach(&mut handle, &audio);
         Self {
             handle,
             sample_rate: prepare.sample_rate as u32,
@@ -278,6 +281,18 @@ impl EngineBridge for NativeBridge {
                 .map(Base64Bytes)),
             _ => Ok(None),
         }
+    }
+
+    fn list_inputs(&mut self) -> Result<InputList, BridgeError> {
+        crate::recording::list_inputs(&self.audio)
+    }
+
+    fn start_recording(&mut self, session: &RecordSession) -> Result<(), BridgeError> {
+        crate::recording::start(&self.audio, session)
+    }
+
+    fn stop_recording(&mut self) -> Result<RecordedTakes, BridgeError> {
+        crate::recording::stop(&self.audio, &self.handle)
     }
 }
 

@@ -247,6 +247,9 @@ impl NativeHost {
         };
         let parts = ether_core::create(engine_config);
         let shared = Arc::new(AudioShared::default());
+        shared
+            .recording
+            .set_projects_root(config.projects_root.clone());
         let (started, warning) = start_audio(Box::new(parts.engine), &settings, &shared);
         let (output, parked) = match started {
             Ok(out) => (Some(out), None),
@@ -540,8 +543,8 @@ impl AudioState {
             sample_rate: self.engine_rate,
             buffer_size: buffer,
             // cpal doesn't expose device latency portably: report one buffer.
-            output_latency: buffer,
-            input_latency: 0,
+            output_latency: self.shared.recording.output_latency_or(buffer),
+            input_latency: self.shared.recording.input_latency(),
             xruns: self.shared.xruns.load(Ordering::Relaxed),
             instance: self.instance.clone(),
         }

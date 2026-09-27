@@ -238,10 +238,16 @@ fn notes_pair_on_off_and_close_held_notes() {
         6.0,
     );
     assert_eq!(notes.len(), 2);
-    assert_eq!((notes[0].pitch, notes[0].start, notes[0].duration), (60, 0.5, 0.5));
+    assert_eq!(
+        (notes[0].pitch, notes[0].start, notes[0].duration),
+        (60, 0.5, 0.5)
+    );
     assert_eq!(notes[0].velocity, 1.0);
     // Still held at the end.
-    assert_eq!((notes[1].pitch, notes[1].start, notes[1].duration), (62, 0.75, 1.25));
+    assert_eq!(
+        (notes[1].pitch, notes[1].start, notes[1].duration),
+        (62, 0.75, 1.25)
+    );
 }
 
 #[test]
@@ -377,7 +383,10 @@ fn record_with_count_in_commits_takes_as_one_undo_step() {
     assert_eq!((midi_clip.track, midi_clip.start), (midi, Beats(8.0)));
     let notes = p.notes_of(midi_clip.id);
     assert_eq!(notes.len(), 1);
-    assert_eq!((notes[0].pitch, notes[0].start, notes[0].duration), (60, Beats(0.5), Beats(0.5)));
+    assert_eq!(
+        (notes[0].pitch, notes[0].start, notes[0].duration),
+        (60, Beats(0.5), Beats(0.5))
+    );
     assert!(!h.ctl.transport.recording);
 
     // One undo step removes everything the take added.
@@ -439,7 +448,10 @@ fn punch_keeps_the_loop_region_only() {
     let notes = p.notes_of(c.id);
     assert_eq!(notes.len(), 1);
     // Held to the punch-out.
-    assert_eq!((notes[0].pitch, notes[0].start, notes[0].duration), (60, Beats(1.0), Beats(3.0)));
+    assert_eq!(
+        (notes[0].pitch, notes[0].start, notes[0].duration),
+        (60, Beats(1.0), Beats(3.0))
+    );
 }
 
 #[test]
