@@ -6,6 +6,10 @@
  * Each row is its lane height (`TRACK_HEIGHT` unless resized, see `laneHeight`) plus the
  * height of its automation slot (0 until ui-automation mounts lanes there; pass their
  * heights via `automationHeight`).
+ *
+ * v0.2 (`comping`): expanded take lanes sit right under the main lane and count as part of
+ * the row's lane height (`laneHeight` = main lane + `takesHeight`), so the automation slot
+ * stays `height - laneHeight`. Clips live in the main lane only (`mainHeight`).
  */
 
 import type { Clip, Track, TrackId } from "@/generated";
@@ -54,8 +58,10 @@ export interface Row {
   depth: number;
   /** Top of the row in content px (0 = first row). */
   y: number;
-  /** Lane height (clips live here). */
+  /** Lane height: the main lane (clips live here) plus the take lanes (`takesHeight`). */
   laneHeight: number;
+  /** v0.2 (`comping`): height of the expanded take lanes under the main lane (0 = none). */
+  takesHeight?: number;
   /** Total height including the automation slot. */
   height: number;
 }
@@ -99,6 +105,7 @@ export function layoutRows(
   automationHeight: (track: TrackId) => number = () => 0,
   laneHeightOf: (track: TrackId) => number = () => TRACK_HEIGHT,
   draft: DraftTrack | null = null,
+  takesHeightOf: (track: TrackId) => number = () => 0,
 ): Row[] {
   const byId = new Map(ordered.map((t) => [t.id, t]));
   const tracks = arrangementTracks(ordered, folded);
@@ -116,9 +123,10 @@ export function layoutRows(
   };
   tracks.forEach((track, i) => {
     if (i === at) pushDraft();
-    const laneHeight = Math.round(laneHeightOf(track.id));
+    const takesHeight = Math.round(takesHeightOf(track.id));
+    const laneHeight = Math.round(laneHeightOf(track.id)) + takesHeight;
     const height = laneHeight + automationHeight(track.id);
-    rows.push({ track, depth: depthOf(track, byId), y, laneHeight, height });
+    rows.push({ track, depth: depthOf(track, byId), y, laneHeight, height, ...(takesHeight > 0 ? { takesHeight } : {}) });
     y += height;
   });
   if (at === tracks.length) pushDraft();
@@ -138,6 +146,11 @@ function draftRow(draft: DraftTrack, y: number, byId: ReadonlyMap<TrackId, Track
   const parent = draft.parent ? byId.get(draft.parent) : undefined;
   const depth = parent ? depthOf(parent, byId) + 1 : 0;
   return { track, draft, depth, y, laneHeight: TRACK_HEIGHT, height: TRACK_HEIGHT };
+}
+
+/** Height of a row's main lane (where its clips are), without the take lanes. */
+export function mainHeight(row: Row): number {
+  return row.laneHeight - (row.takesHeight ?? 0);
 }
 
 /** Total height of the rows. */
@@ -174,7 +187,7 @@ export function clipRects(
     const row = rowOf.get(c.track);
     if (!row || !isArrangementClip(c)) continue;
     const x0 = headerWidth + beatsToPx(startOf(c), vp);
-    out.push({ id: c.id, rect: { x0, x1: x0 + c.length * vp.pxPerBeat, y0: row.y, y1: row.y + row.laneHeight } });
+    out.push({ id: c.id, rect: { x0, x1: x0 + c.length * vp.pxPerBeat, y0: row.y, y1: row.y + mainHeight(row) } });
   }
   return out;
 }
