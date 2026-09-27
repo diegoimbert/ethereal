@@ -89,8 +89,9 @@ describe("steps", () => {
   });
 
   it("hints the modifiers", () => {
-    expect(dragHint(TRANSPOSE)).toContain("⌥ free time");
-    expect(dragHint(VOLUME_INFO)).toContain("1 dB");
+    expect(dragHint(TRANSPOSE)).toBe("⌥ off grid · ⇧ one axis");
+    expect(dragHint(VOLUME_INFO)).toBe("⌘ 1 dB steps · ⌥ off grid · ⇧ one axis");
+    expect(dragHint(VOLUME_INFO, "Ctrl")).toMatch(/^Ctrl 1 dB steps/);
   });
 
   it("drags of a stepped param land on steps (the group follows the anchor)", () => {

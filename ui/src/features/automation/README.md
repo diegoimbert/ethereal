@@ -71,10 +71,11 @@ Gestures and modifiers (for UX review). `⌘` is Ctrl off macOS.
 | Value scale (right of the lane header) | wheel / drag | scroll the visible value window |
 | Value scale | `⌘`-wheel | zoom the value window around the pointer |
 | Value scale | double-click | reset the window |
-| Lane | double-click empty space | add a point: time on the grid (`⌥`: free), value on the param's steps |
+| Lane | double-click empty space | add a point: time on the grid (`⌥`: free), value on the param's steps (`⌘`: whole increments) |
 | Lane | click / `⇧`-click / `⌘`-click a point | select / add / toggle |
 | Lane | drag a point | move the selection: time on the grid; stepped params (semitones, enums, toggles) by whole steps, 8 px per step |
-| Lane, dragging | `⌥` | continuous params: whole increments (1 dB, 1 %, 1 st, 0.01 pan, round Hz/ms); time off the grid |
+| Lane, dragging | `⌘` held | continuous params: whole increments (1 dB, 1 %, 1 st, 0.01 pan, round Hz/ms). Stepped params always snap |
+| Lane, dragging | `⌥` | time off the grid (only that: the app-wide meaning) |
 | Lane, dragging | `⇧` | lock to the dominant axis |
 | Lane, dragging | — | a tooltip shows the value and these modifiers |
 | Lane | drag empty space | marquee select |

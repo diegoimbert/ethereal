@@ -3,10 +3,11 @@
  * gridlines and the editing interactions (see README "Automation editing"):
  *
  * - double-click the background: add a point (time snapped to the grid, alt = no snap;
- *   value snapped to the param's steps);
+ *   value snapped to the param's steps, cmd/ctrl = whole increments);
  * - click a point: select it (shift = add, cmd/ctrl = toggle); drag: move the selection.
  *   Time snaps to the grid, stepped params (semitones, enums, toggles) snap to their steps;
- *   alt: free time and whole value increments (1 dB, 1 %...); shift while dragging: lock to
+ *   alt: off the time grid; cmd/ctrl held while dragging: whole value increments of
+ *   continuous params (1 dB, 1 %...); shift while dragging: lock to
  *   the dominant axis. A tooltip shows the value and the modifiers while dragging;
  * - double-click a point: delete it; Delete/Backspace: delete the selected points;
  * - drag the background: marquee selection; cmd/ctrl+A: select all points of the lane;
@@ -267,13 +268,14 @@ export function AutomationLaneView({
         const edits = moveEdits(originals, point, dt, dv, snapFn(ev.altKey), {
           lockTime,
           lockValue,
-          snapValue: (v) => snapValue(inf, v, ev.altKey),
+          // ⌘/Ctrl held mid-drag: whole increments (⌥ stays "off the time grid").
+          snapValue: (v) => snapValue(inf, v, ev.metaKey || ev.ctrlKey),
         });
         gesture.update(editPointsCommand(edits));
         const mine = edits.find((x) => x.id === point.id);
         const t = mine?.time ?? point.time;
         const v = mine?.value ?? point.value;
-        setTip({ x: timeToX(t, g), y: valueToY(v, g.height, g.range), value: formatNormalized(inf, v), hint: dragHint(inf) });
+        setTip({ x: timeToX(t, g), y: valueToY(v, g.height, g.range), value: formatNormalized(inf, v), hint: dragHint(inf, MOD_KEY.replace(/\+$/, "")) });
       },
       (moved) => {
         gesture.end();
@@ -327,7 +329,7 @@ export function AutomationLaneView({
     if (e.target !== e.currentTarget) return;
     const p = local(e);
     const time = timeAt(p.x, e.altKey);
-    const value = snapValue(info, yToValue(p.y, height, range), e.altKey);
+    const value = snapValue(info, yToValue(p.y, height, range), e.metaKey || e.ctrlKey);
     const id = newId();
     void sendEdit(transport, addPointCommand(live.current.lane, owner, target, { id, time, value, curve: { type: "Linear" } }, newId())).then(
       () => selection.getState().select("automationPoint", [id], "replace"),

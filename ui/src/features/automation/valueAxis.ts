@@ -5,7 +5,8 @@
  * - **Stepped** params (enums, toggles, semitones) snap to their steps by default and draw
  *   one gridline per step (thinned when they get too dense), labelled where there is room.
  * - **Continuous** params snap to a sensible increment (1 dB, 1 %, two significant digits
- *   of Hz/ms...) only while the step modifier is held (see `snapValue`).
+ *   of Hz/ms...) only while ⌘/Ctrl is held during a drag (see `snapValue`). ⌥ only ever
+ *   means "off the time grid".
  * - The **visible range** is a window of normalized values (`ValueRange`): stepped params
  *   open on a window where each step is at least `MIN_STEP_PX` tall, around their default
  *   (so a 64 px Transpose lane shows ±3 st, a taller lane more); the lane's value scale
@@ -113,14 +114,18 @@ export function incrementLabel(info: ParamInfo): string {
   }
 }
 
-/** Modifier hints of a point drag, for the tooltip. */
-export function dragHint(info: ParamInfo): string {
-  return paramStep(info) !== null ? "⌥ free time · ⇧ one axis" : `⌥ ${incrementLabel(info)} steps, free time · ⇧ one axis`;
+/**
+ * Modifier hints of a point drag, for the tooltip. `mod`: the platform's command key label
+ * ("⌘", or "Ctrl" off macOS).
+ */
+export function dragHint(info: ParamInfo, mod = "⌘"): string {
+  const common = "⌥ off grid · ⇧ one axis";
+  return paramStep(info) !== null ? common : `${mod} ${incrementLabel(info)} steps · ${common}`;
 }
 
 /**
  * Snap a normalized value: stepped params always snap to their steps; continuous ones
- * snap to their increment only when `increments` (the step modifier) is on.
+ * snap to their increment only when `increments` (the step modifier, ⌘/Ctrl) is on.
  */
 export function snapValue(info: ParamInfo, normalized: number, increments = false): number {
   const n = Math.min(1, Math.max(0, normalized));

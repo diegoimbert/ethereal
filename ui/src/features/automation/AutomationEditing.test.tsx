@@ -216,22 +216,47 @@ describe("copy / cut / paste / duplicate", () => {
 });
 
 describe("value snapping", () => {
-  it("alt drags continuous values in whole increments (1 dB) and shows a tip with the hint", async () => {
+  it("cmd/ctrl held mid-drag snaps continuous values to whole increments (1 dB); alt only frees time", async () => {
     const track = await renderLanes();
     const lane = laneOf(track, "TrackVolume")!;
     const [, b] = lanePoints(lane.id);
     const circle = document.querySelector(`circle[data-point="${b!.id}"]`)!;
-    await drag(circle, [80, y(0.9)], [80, y(0.83)], { altKey: true, release: false });
+    const dB = () => paramToPlain(VOLUME_INFO, project().automation_points[b!.id]!.value);
+    const press = async (x: number, yy: number) =>
+      act(async () => {
+        fireEvent.pointerDown(circle, { button: 0, clientX: x, clientY: yy });
+      });
+    const move = async (x: number, yy: number, mods: { ctrlKey?: boolean; altKey?: boolean }) => {
+      await act(async () => {
+        fireEvent.pointerMove(window, { clientX: x, clientY: yy, ...mods });
+      });
+      await flush();
+    };
+    const release = async () => {
+      await act(async () => {
+        fireEvent.pointerUp(window, {});
+      });
+      await flush();
+    };
+
+    // ⌘/Ctrl held after the press: whole dB, with the hint in the tooltip.
+    await press(80, y(0.9));
+    await move(80, y(0.87), { ctrlKey: true });
+    await move(80, y(0.83), { ctrlKey: true });
     const tip = screen.getByTestId("automation-drag-tip");
     expect(tip.textContent).toMatch(/dB/);
     expect(tip.textContent).toContain("1 dB steps");
-    await act(async () => {
-      fireEvent.pointerUp(window, { clientX: 80, clientY: y(0.83), altKey: true });
-    });
-    await flush();
-    const db = paramToPlain(VOLUME_INFO, project().automation_points[b!.id]!.value);
-    expect(db).toBeCloseTo(Math.round(db), 6);
+    expect(tip.textContent).toContain("⌥ off grid");
+    await release();
+    expect(dB()).toBeCloseTo(Math.round(dB()), 6);
     expect(screen.queryByTestId("automation-drag-tip")).toBeNull();
+
+    // ⌥ alone: values stay free (not whole dB).
+    await press(80, y(0.83));
+    await move(80, y(0.8), { altKey: true });
+    await move(80, y(0.7713), { altKey: true });
+    await release();
+    expect(Math.abs(dB() - Math.round(dB()))).toBeGreaterThan(1e-3);
   });
 
   it("stepped params (semitones) snap to whole steps and draw step lines", async () => {
