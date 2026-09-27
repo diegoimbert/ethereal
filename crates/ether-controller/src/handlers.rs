@@ -678,7 +678,7 @@ where
                 Ok(ReplyValue::Directory { listing })
             }
             MediaCommand::Preview { .. } | MediaCommand::StopPreview => {
-                Err(unsupported("preview is not available on this host"))
+                self.preview_command(c, out)
             }
             MediaCommand::BeginUpload { .. }
             | MediaCommand::UploadChunk { .. }
@@ -867,6 +867,7 @@ where
         }
         self.plugins_tick(now, out);
         // Roadmap v2 hooks.
+        self.preview_tick(now, out);
         self.midi_learn_tick(now, out);
         self.export_tick(now, out);
 

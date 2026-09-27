@@ -38,6 +38,7 @@ mod export;
 mod groove;
 mod handlers;
 mod media;
+mod media_preview;
 pub mod memory;
 mod midi_learn;
 mod plugins;
@@ -170,6 +171,24 @@ pub trait EngineBridge {
     ) -> Result<bool, BridgeError> {
         let _ = (device, kind);
         Ok(false)
+    }
+
+    /// `media-preview`: play decoded `audio` (at the engine rate) on the engine's preview
+    /// voice at linear `gain` as preview `id` (controller-chosen, monotonic), replacing any
+    /// playing preview; `audio: None` stops it (`id` ignored). Native: `EngineHandle::preview`
+    /// with an in-memory source; web: the audio is shipped to the worklet like `load_media`.
+    /// Natural ends come back as `EngineOutputs::preview_ended = Some(id)` (from `poll`);
+    /// stop/replace are never reported. Default: unsupported.
+    fn preview(
+        &mut self,
+        id: u64,
+        audio: Option<std::sync::Arc<ether_media::DecodedAudio>>,
+        gain: f32,
+    ) -> Result<(), BridgeError> {
+        let _ = (id, audio, gain);
+        Err(BridgeError::Unsupported(
+            "preview is not available on this host".into(),
+        ))
     }
 
     /// Roadmap v2 (`export`): a fresh, independent plugin node for offline rendering

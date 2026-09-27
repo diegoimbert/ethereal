@@ -125,6 +125,7 @@ import { beatsToSeconds, bpmAt, signatureAt } from "./tempo";
 import { changeKey, Tx } from "./tx";
 import { collabCommand } from "./roadmap/collab";
 import { MockExports } from "./roadmap/export";
+import { MockPreview } from "./roadmap/mediaPreview";
 import type { MockHost } from "./roadmap/host";
 import { MockMidiLearn } from "./roadmap/midiLearn";
 import { uploadCommand, uploadSource } from "./roadmap/remote";
@@ -244,6 +245,7 @@ export class MockTransport implements EngineTransport {
   };
   private readonly midiLearn = new MockMidiLearn(this.host);
   private readonly exports = new MockExports(this.host);
+  private readonly preview = new MockPreview(this.host);
 
   constructor(opts: MockTransportOptions = {}) {
     this.manual = opts.timers === "manual";
@@ -768,9 +770,9 @@ export class MockTransport implements EngineTransport {
       }
       case "Preview":
         this.checkSource(c.source);
-        return UNIT;
+        return this.preview.play(c.source);
       case "StopPreview":
-        return UNIT;
+        return this.preview.stop();
       case "BeginUpload":
       case "UploadChunk":
       case "CancelUpload":
@@ -895,6 +897,7 @@ export class MockTransport implements EngineTransport {
     }
     if (this.playing || this.playheadDirty) this.emitPlayhead();
     this.exports.step();
+    this.preview.step();
   }
 
   private emitPlayhead(): void {

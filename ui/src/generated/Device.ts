@@ -23,8 +23,9 @@ params: { [key in ParamId]: number },
 /**
  * Sidechain source (roadmap v2, `sidechain`; `.ether` v3): the post-fader output of this
  * track feeds the device's sidechain input. Ignored by devices without one
- * (`DeviceDescriptor::sidechain_inputs == 0`). Sidechain edges count as routing edges
- * (no cycles); see CONTRACTS.md §11.10 for processing order and PDC.
+ * (`DeviceDescriptor::sidechain_inputs == 0`). Not allowed on pad devices (`pad` set):
+ * the model rejects it. Sidechain edges count as routing edges (no cycles); see
+ * CONTRACTS.md §11.10 for processing order and PDC.
  */
 sidechain: TrackId | null, 
 /**

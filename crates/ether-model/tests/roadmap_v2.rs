@@ -397,3 +397,31 @@ fn slices_fades_and_settings_are_checked() {
     // Fade curve tension is range-checked on audio clips (see ops_proptest for the rest).
     assert_eq!(FadeCurve::default(), FadeCurve::Linear);
 }
+
+#[test]
+fn pad_devices_cannot_have_a_sidechain() {
+    let mut f = Fx::new();
+    let t = f.track(TrackKind::Midi);
+    let src = f.track(TrackKind::Audio);
+    let rack = f.device(t, BuiltinDevice::DrumRack, None);
+    f.insert(Entity::Device(rack.clone())).unwrap();
+    let pad = f.pad(rack.id, 36);
+    f.insert(Entity::DrumPad(pad.clone())).unwrap();
+    let mut comp = f.device(t, BuiltinDevice::Compressor, Some(pad.id));
+    comp.sidechain = Some(src);
+    assert!(matches!(
+        f.insert(Entity::Device(comp.clone())),
+        Err(ModelError::Invariant(_))
+    ));
+    comp.sidechain = None;
+    f.insert(Entity::Device(comp.clone())).unwrap();
+    assert!(
+        f.p.apply(&Op::Update {
+            update: EntityUpdate::Device {
+                id: comp.id,
+                change: DeviceChange::Sidechain(Some(src)),
+            },
+        })
+        .is_err()
+    );
+}
