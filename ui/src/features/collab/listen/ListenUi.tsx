@@ -26,7 +26,7 @@ export function ListenButton({ transport, peer }: { transport: EngineTransport; 
       disabled={blocker !== null}
       title={blocker ? `Unavailable: ${blocker}` : `Hear ${peerName(peer)}'s engine, with a shared playhead`}
       aria-label={`Listen on ${peerName(peer)}'s computer`}
-      onClick={() => void listenTo(send(transport), peer.site)}
+      onClick={() => void listenTo(send(transport), peer.site, peer.name)}
     >
       Listen
     </Button>
@@ -38,7 +38,9 @@ export function ListenBadge({ transport, peers }: { transport: EngineTransport; 
   const listening = useListenStore((s) => s.listening);
   const error = useListenStore((s) => s.error);
   const countIn = useListenStore((s) => s.countIn);
-  const nameOf = (site: SiteId) => peerName(peers.find((p) => p.site === site) ?? { name: "" });
+  const hostName = useListenStore((s) => s.hostName);
+  // A host that left is gone from `peers`: its name was kept when the listening started.
+  const nameOf = (site: SiteId) => peerName(peers.find((p) => p.site === site) ?? { name: hostName?.[0] === site ? hostName[1] : "" });
   const dismiss = () =>
     useListenStore.setState({
       error: null,

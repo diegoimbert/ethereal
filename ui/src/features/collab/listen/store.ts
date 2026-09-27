@@ -12,6 +12,8 @@ export interface ListenStoreState {
   error: string | null;
   /** The mapped position is before the host's record start (count-in). */
   countIn: boolean;
+  /** The name of the host last asked (it may leave before the "ended" message is read). */
+  hostName: [SiteId, string] | null;
   reset(): void;
 }
 
@@ -21,6 +23,7 @@ const INITIAL = {
   iceServers: [] as IceServer[],
   error: null as string | null,
   countIn: false,
+  hostName: null as [SiteId, string] | null,
 };
 
 export const useListenStore = create<ListenStoreState>()((set) => ({

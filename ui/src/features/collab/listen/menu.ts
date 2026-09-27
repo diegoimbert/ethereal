@@ -33,7 +33,7 @@ export function listenMenuItems(transport: EngineTransport, peer: Presence): Con
     {
       label: blocker ? `Listen on ${peerName(peer)}'s computer (${blocker})` : `Listen on ${peerName(peer)}'s computer`,
       disabled: blocker !== null,
-      onSelect: () => void listenTo(send(transport), peer.site),
+      onSelect: () => void listenTo(send(transport), peer.site, peer.name),
     },
   ];
 }

@@ -30,7 +30,7 @@ const describe = (e: unknown) => (e instanceof Error ? e.message : String(e));
  * "Listen on <host>'s computer": call from the click handler (the audio output is created
  * in the gesture, for autoplay).
  */
-export async function listenTo(send: Send, host: SiteId): Promise<void> {
+export async function listenTo(send: Send, host: SiteId, name = ""): Promise<void> {
   const unsupported = webrtcUnsupportedReason();
   if (unsupported) {
     useListenStore.setState({ error: `Cannot listen: ${unsupported}` });
@@ -39,7 +39,7 @@ export async function listenTo(send: Send, host: SiteId): Promise<void> {
   preparedSink?.close();
   const sink = createAudioSink();
   preparedSink = sink;
-  useListenStore.setState({ error: null });
+  useListenStore.setState({ error: null, hostName: [host, name] });
   try {
     await send({ type: "Listen", host });
   } catch (e) {
