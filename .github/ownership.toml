@@ -1040,6 +1040,8 @@ paths = [
 
 [nodes.freeze-bounce]
 paths = [
+  # BCR (base-72): route Freeze through MockFreeze in the mock (import, field, command case, step call; mirrors MockExports)
+  "ui/src/transport/mock/MockTransport.ts",
   "crates/ether-core/src/freeze.rs",
   "crates/ether-controller/src/freeze/**",
   "ui/src/features/freeze/**",
