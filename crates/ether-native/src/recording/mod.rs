@@ -48,8 +48,12 @@
 //! (see the tests).
 
 mod cpal_input;
+mod live;
 mod midi;
 mod writer;
+
+#[cfg(test)]
+mod live_tests;
 
 #[cfg(test)]
 mod tests;
@@ -120,6 +124,8 @@ pub struct RecordingShared {
     midi: Mutex<midi::MidiInputs>,
     /// Port-tagged input for the controller (MIDI learn / mappings; `midi-learn` node).
     control: midi::ControlQueue,
+    /// Live recording view (`live-record`): writer thread → controller thread.
+    live: live::LiveShared,
     inner: Mutex<Inner>,
 }
 
@@ -154,6 +160,7 @@ impl Default for RecordingShared {
             writer: OnceLock::new(),
             midi: Mutex::new(midi::MidiInputs::default()),
             control: midi::ControlQueue::default(),
+            live: live::LiveShared::default(),
             inner: Mutex::new(Inner::default()),
         }
     }
@@ -469,7 +476,7 @@ pub fn attach(handle: &mut EngineHandle, audio: &Arc<AudioShared>) {
         return;
     }
     let _ = rec.midi_in.set(Mutex::new(midi_in));
-    if let Some(writer) = writer::spawn(capture, midi_out) {
+    if let Some(writer) = writer::spawn(capture, midi_out, rec.live.clone()) {
         let _ = rec.writer.set(writer);
     }
 }
@@ -543,6 +550,21 @@ pub fn drain_midi_input(
     out: &mut Vec<ether_core::protocol::midi_map::MidiInputEvent>,
 ) {
     audio.recording.control.drain(out);
+}
+
+/// Live peaks and notes captured since the last call (`EngineBridge::poll_recording`;
+/// controller thread, never blocks on the audio thread).
+pub fn poll_live(
+    audio: &AudioShared,
+    chunks: &mut Vec<ether_core::protocol::recording::LiveAudioChunk>,
+    notes: &mut Vec<ether_core::protocol::recording::LiveMidiNote>,
+) {
+    audio.recording.live.lock().drain(chunks, notes);
+}
+
+/// Live entries dropped because the controller did not poll in time (diagnostics).
+pub fn live_dropped(audio: &AudioShared) -> u64 {
+    audio.recording.live.lock().dropped()
 }
 
 /// Start capturing a session (controller thread, before engine recording is enabled).

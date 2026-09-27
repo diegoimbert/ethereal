@@ -480,6 +480,14 @@ impl EngineBridge for NativeBridge {
         crate::recording::start(&self.audio, session)
     }
 
+    fn poll_recording(
+        &mut self,
+        audio: &mut Vec<ether_core::protocol::recording::LiveAudioChunk>,
+        midi: &mut Vec<ether_core::protocol::recording::LiveMidiNote>,
+    ) {
+        crate::recording::poll_live(&self.audio, audio, midi);
+    }
+
     fn stop_recording(&mut self) -> Result<RecordedTakes, BridgeError> {
         crate::recording::stop(&self.audio, &self.handle)
     }
