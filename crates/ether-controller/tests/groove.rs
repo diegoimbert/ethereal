@@ -181,6 +181,15 @@ fn humanize_is_deterministic_from_seed() {
     h.ok(cmd);
     assert!(close(start(&h, n[0]), expected[0].0));
     assert!(close(start(&h, n[1]), expected[1].0));
+    let humanized: Vec<Note> = n.iter().map(|id| h.project().notes[id].clone()).collect();
+
+    // Undo → Redo restores exactly the humanized notes (no re-randomization).
+    undo(&mut h);
+    assert!(close(start(&h, n[1]), 2.0));
+    h.ok(Command::Edit(EditCommand::Redo));
+    for (id, want) in n.iter().zip(&humanized) {
+        assert_eq!(&h.project().notes[id], want);
+    }
 }
 
 #[test]

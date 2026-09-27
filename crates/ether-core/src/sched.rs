@@ -24,6 +24,9 @@ pub(crate) struct Piece {
     /// Where this linear piece ends on the timeline if not cut by the query range (clip end
     /// or content loop end): notes are cut there.
     pub end: f64,
+    /// Where this linear piece begins on the timeline if not cut by the query range (clip
+    /// start or content loop start): notes before it don't sound in it.
+    pub begin: f64,
 }
 
 /// Call `f` for every linear piece of `clip` (at timeline `clip.start`) inside `[r0, r1)`.
@@ -44,6 +47,7 @@ pub(crate) fn for_each_piece(clip: &ClipDesc, r0: f64, r1: f64, mut f: impl FnMu
             t1: b,
             c0: clip.offset + (a - start),
             end: clip_end,
+            begin: start,
         });
         return;
     };
@@ -77,6 +81,7 @@ pub(crate) fn for_each_piece(clip: &ClipDesc, r0: f64, r1: f64, mut f: impl FnMu
                 t1,
                 c0: c_start + (t0 - t_start),
                 end: t_end,
+                begin: t_start,
             });
         }
     }
@@ -236,6 +241,34 @@ pub(crate) fn schedule_notes(clip: &ClipDesc, timing: &Timing<'_>, sink: &mut No
                 continue;
             }
             sink.note_on(timing.offset(t), n.key, n.velocity, end);
+        }
+    });
+}
+
+/// Note chasing: note-ons at the start of the sub-block for the clip's notes that are
+/// already sounding at `timing.b0` (playback started, located or looped back into the
+/// middle of them). They end where they would have. Notes starting in the sub-block are
+/// `schedule_notes`'s. Scans the notes before the position: bounded by the clip's notes,
+/// and only on the first sub-block after a jump.
+pub(crate) fn chase_notes(clip: &ClipDesc, timing: &Timing<'_>, sink: &mut NoteSink<'_>) {
+    let ClipContentDesc::Midi { notes } = &clip.content else {
+        return;
+    };
+    if clip.muted || notes.is_empty() {
+        return;
+    }
+    let (r0, _) = timing.event_range();
+    for_each_piece(clip, r0, r0 + EVENT_SHIFT, |p| {
+        let first = notes.partition_point(|n| n.start < p.c0);
+        for n in &notes[..first] {
+            let t = p.t0 + (n.start - p.c0);
+            if t < p.begin - EVENT_SHIFT {
+                continue; // before this piece (e.g. ahead of the content loop start)
+            }
+            let end = (t + n.duration.max(0.0)).min(p.end);
+            if end > timing.b0 {
+                sink.note_on(0, n.key, n.velocity, end);
+            }
         }
     });
 }

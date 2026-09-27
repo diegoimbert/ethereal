@@ -848,7 +848,8 @@ function noteCommand(ctx: ReducerContext, c: NoteCommand): void {
     case "Quantize": {
       clip(ctx, c.clip);
       if (!(c.grid > 0)) fail("InvalidArgument", "grid must be > 0");
-      const strength = clamp(c.strength, 0, 1);
+      // Non-finite strength = full quantize (mirrors doc/notes.rs).
+      const strength = Number.isFinite(c.strength) ? clamp(c.strength, 0, 1) : 1;
       const ids = c.notes ? new Set(c.notes) : null;
       const target = (t: number) => snapBeats(t, c.grid) + swingOffset(snapBeats(t, c.grid), c.grid, c.swing);
       const snap = (t: number) => t + (target(t) - t) * strength;

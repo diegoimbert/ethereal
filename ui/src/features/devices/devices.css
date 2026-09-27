@@ -128,3 +128,31 @@
   font-family: var(--eth-font-mono);
   color: var(--eth-color-text);
 }
+
+/* Sampler: the loaded sample, and the drop target for a new one. */
+.eth-sample-slot {
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-sm);
+  margin: var(--eth-space-md) var(--eth-space-md) 0;
+  padding: var(--eth-space-xs) var(--eth-space-sm);
+  border: var(--eth-border-width) solid var(--eth-color-border-light);
+  border-radius: var(--eth-radius-sm);
+  background: var(--eth-color-bg-inset);
+  font-size: var(--eth-fs-sm);
+}
+.eth-sample-slot--empty {
+  border-style: dashed;
+  color: var(--eth-color-text-dim);
+}
+.eth-sample-slot--over {
+  border-color: var(--eth-color-accent);
+  border-style: solid;
+}
+.eth-sample-slot__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
