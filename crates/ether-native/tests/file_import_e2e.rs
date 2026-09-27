@@ -31,7 +31,10 @@ fn import_os_files_by_path() {
 
     let mut c = Client::start(&Paths::new(tmp.path()));
     let pid = c.project_id();
-    c.ok("Project", json!({"type": "Create", "id": pid, "name": "Import"}));
+    c.ok(
+        "Project",
+        json!({"type": "Create", "id": pid, "name": "Import"}),
+    );
 
     // A path the dialog returned: imported (copied into the project until
     // `media-references` makes it a reference in place).
@@ -43,17 +46,31 @@ fn import_os_files_by_path() {
     let file = media["file"].as_str().unwrap().to_string();
     assert!(file.starts_with("media/"), "{file}");
     let copy = tmp.path().join("projects").join(&pid).join(&file);
-    assert_eq!(std::fs::read(copy).unwrap(), kick, "the project holds the bytes");
+    assert_eq!(
+        std::fs::read(copy).unwrap(),
+        kick,
+        "the project holds the bytes"
+    );
     let project = c.project();
     assert_eq!(project["media"].as_object().unwrap().len(), 1);
 
     // Errors: nothing changes.
     let code = |r: Result<Value, (String, String)>| r.expect_err("fails").0;
-    assert_eq!(code(import(&mut c, "Kick 01.wav")), "InvalidArgument", "relative");
+    assert_eq!(
+        code(import(&mut c, "Kick 01.wav")),
+        "InvalidArgument",
+        "relative"
+    );
     let txt = desktop.join("notes.txt");
-    assert_eq!(code(import(&mut c, txt.to_str().unwrap())), "InvalidArgument");
+    assert_eq!(
+        code(import(&mut c, txt.to_str().unwrap())),
+        "InvalidArgument"
+    );
     let dir = desktop.join("folder.wav");
-    assert_eq!(code(import(&mut c, dir.to_str().unwrap())), "InvalidArgument");
+    assert_eq!(
+        code(import(&mut c, dir.to_str().unwrap())),
+        "InvalidArgument"
+    );
     let missing = desktop.join("gone.wav");
     assert_eq!(code(import(&mut c, missing.to_str().unwrap())), "NotFound");
     let broken = desktop.join("broken.wav");

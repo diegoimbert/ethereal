@@ -678,8 +678,7 @@ where
 
     fn collab_push_media(&mut self, pid: ProjectId, m: &MediaRef) {
         // `file-import`: an external reference pushes the referenced file's bytes.
-        let Ok(bytes) =
-            crate::file_import::media_bytes(&mut self.store, &mut self.library, pid, m)
+        let Ok(bytes) = crate::file_import::media_bytes(&mut self.store, &mut self.library, pid, m)
         else {
             return;
         };

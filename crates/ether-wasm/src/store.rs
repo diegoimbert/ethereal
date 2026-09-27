@@ -332,7 +332,12 @@ impl<F: Fs> ProjectStore for WebStore<F> {
         Ok(())
     }
 
-    fn append_upload(&mut self, upload: &str, offset: u64, bytes: &[u8]) -> Result<u64, StoreError> {
+    fn append_upload(
+        &mut self,
+        upload: &str,
+        offset: u64,
+        bytes: &[u8],
+    ) -> Result<u64, StoreError> {
         let dir = Self::upload_dir(upload)?;
         let s = *self
             .uploads
@@ -378,7 +383,9 @@ impl<F: Fs> ProjectStore for WebStore<F> {
             out.extend_from_slice(&self.fs.read(&format!("{dir}/{}", p.name))?);
         }
         if out.len() as u64 != s.size {
-            return Err(StoreError::Io(format!("upload {upload}: staging is corrupt")));
+            return Err(StoreError::Io(format!(
+                "upload {upload}: staging is corrupt"
+            )));
         }
         Ok(out)
     }

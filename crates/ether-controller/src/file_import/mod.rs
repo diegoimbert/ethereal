@@ -31,7 +31,10 @@ fn is_absolute(path: &str) -> bool {
     let b = path.as_bytes();
     path.starts_with('/')
         || path.starts_with("\\\\")
-        || (b.len() >= 3 && b[0].is_ascii_alphabetic() && b[1] == b':' && matches!(b[2], b'/' | b'\\'))
+        || (b.len() >= 3
+            && b[0].is_ascii_alphabetic()
+            && b[1] == b':'
+            && matches!(b[2], b'/' | b'\\'))
 }
 
 /// The file name of a path (either separator).
@@ -89,6 +92,64 @@ pub(crate) fn media_bytes<S: ProjectStore, L: Library>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::memory::{MemoryLibrary, MemoryStore};
+    use ether_core::protocol::media::{BrowseRoot, DirectoryListing};
+
+    /// Reads one OS file.
+    struct Os(MemoryLibrary);
+
+    impl Library for Os {
+        fn roots(&self) -> Vec<BrowseRoot> {
+            self.0.roots()
+        }
+        fn list_dir(&mut self, root: &str, rel: &str) -> Result<DirectoryListing, StoreError> {
+            self.0.list_dir(root, rel)
+        }
+        fn read(&mut self, root: &str, rel: &str) -> Result<Vec<u8>, StoreError> {
+            self.0.read(root, rel)
+        }
+        fn read_external(&mut self, path: &str) -> Result<Vec<u8>, StoreError> {
+            match path {
+                "/Samples/kick.wav" => Ok(b"external".to_vec()),
+                _ => Err(StoreError::NotFound(path.into())),
+            }
+        }
+    }
+
+    #[test]
+    fn pushed_bytes_of_external_references() {
+        let mut store = MemoryStore::new();
+        let mut lib = Os(MemoryLibrary::new());
+        let pid = ProjectId::v7(1, [1; 10]);
+        store.create(pid).unwrap();
+        let mut m = MediaRef {
+            location: MediaLocation::External {
+                path: "/Samples/kick.wav".into(),
+            },
+            id: ether_core::protocol::model::MediaId(ether_core::protocol::model::Ulid(1)),
+            name: "kick.wav".into(),
+            file: "media/kick.wav".into(),
+            sample_rate: 48_000,
+            channels: 1,
+            frames: 1,
+            hash: None,
+        };
+        // Referenced in place: the external file.
+        assert_eq!(
+            media_bytes(&mut store, &mut lib, pid, &m).unwrap(),
+            b"external"
+        );
+        // Collected (or received) into the project: the project copy wins.
+        store.write(pid, "media/kick.wav", b"project").unwrap();
+        assert_eq!(
+            media_bytes(&mut store, &mut lib, pid, &m).unwrap(),
+            b"project"
+        );
+        // Project media without a copy: nothing to push.
+        m.location = MediaLocation::Project;
+        m.file = "media/gone.wav".into();
+        assert!(media_bytes(&mut store, &mut lib, pid, &m).is_err());
+    }
 
     #[test]
     fn paths() {

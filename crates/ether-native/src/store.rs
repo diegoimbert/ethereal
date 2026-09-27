@@ -451,7 +451,9 @@ pub fn read_external_file(path: &str) -> Result<Vec<u8>, StoreError> {
     }
     let name = p.file_name().and_then(|n| n.to_str()).unwrap_or_default();
     if file_kind(name) != FileKind::Audio {
-        return Err(StoreError::InvalidPath(format!("not an audio file: {path}")));
+        return Err(StoreError::InvalidPath(format!(
+            "not an audio file: {path}"
+        )));
     }
     let not_found = |e: std::io::Error| match e.kind() {
         std::io::ErrorKind::NotFound => StoreError::NotFound(path.to_string()),
