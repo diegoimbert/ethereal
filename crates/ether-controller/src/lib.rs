@@ -21,7 +21,8 @@
 //! - **Idempotent creates.** Creating an entity whose (client-chosen) id already exists is
 //!   a successful no-op.
 //! - **Unsupported.** Host-handled commands (`Engine::*`, `Plugin::{Rescan, List, OpenEditor,
-//!   CloseEditor}`) and media preview/upload reply `Unsupported`; `Recording::ListInputs` and
+//!   CloseEditor}`) and media preview reply `Unsupported` (uploads: `upload` module, over the
+//!   store's staging methods); `Recording::ListInputs` and
 //!   record sessions go to the bridge (`EngineBridge::{list_inputs, start_recording, ...}`).
 //! - **Async media.** Import copies the file and probes its header in `handle` (the reply
 //!   carries the `MediaRef`); decoding, peaks and resampling are stepped from `tick`.
@@ -353,6 +354,8 @@ where
     export: export::ExportState,
     /// MIDI learn runtime state (learn mode, mapping gestures; `midi_learn` module).
     midi_learn: midi_learn::MidiLearnState,
+    /// Uploads from the UI machine in progress (`upload` module, remote-engine).
+    uploads: upload::UploadState,
     next_gesture: u32,
     last_transport: Option<TransportState>,
     outputs: EngineOutputs,
@@ -397,6 +400,7 @@ where
             plugins: Default::default(),
             export: Default::default(),
             midi_learn: Default::default(),
+            uploads: Default::default(),
             // Internal gestures (plugin GUI, tap tempo) live in the upper half of the id
             // space, away from UI-allocated ones.
             next_gesture: 0x8000_0000,

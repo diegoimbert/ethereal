@@ -304,7 +304,7 @@ fn import_errors() {
         id,
         source: MediaSource::Upload { upload: "u".into() },
     }));
-    assert_eq!(err(&out).code, ErrorCode::Unsupported);
+    assert_eq!(err(&out).code, ErrorCode::NotFound);
     let pid = h.project().id;
     assert!(h.ctl.store.file(pid, "media/notes.txt").is_none());
 }

@@ -8,7 +8,6 @@ use common::*;
 use ether_core::protocol::collab::CollabCommand;
 use ether_core::protocol::devices::{DeviceCommand, DeviceSpec};
 use ether_core::protocol::drum_rack::{DrumRackCommand, SliceCommand};
-use ether_core::protocol::media::MediaCommand;
 use ether_core::protocol::model::*;
 use ether_core::protocol::tempo::TempoCommand;
 use ether_core::protocol::tracks::TrackCommand;
@@ -27,11 +26,6 @@ fn new_domains_reply_unsupported_until_implemented() {
             indices: vec![],
         }),
         Command::Collab(CollabCommand::Leave),
-        Command::Media(MediaCommand::CancelUpload { upload: "u".into() }),
-        Command::Device(DeviceCommand::SetSidechain {
-            device: h.id(),
-            source: None,
-        }),
     ];
     for c in commands {
         let out = h.send(c.clone());
