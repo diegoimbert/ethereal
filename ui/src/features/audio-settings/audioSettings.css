@@ -1,8 +1,12 @@
+/* A roomier dialog than the default; the content fills it and never overflows it. */
+.eth-audio-settings {
+  --dialog-width: 520px;
+}
 .eth-audio-settings__body {
   display: flex;
   flex-direction: column;
   gap: var(--eth-space-lg);
-  min-width: 420px;
+  min-width: 0;
 }
 .eth-audio-settings__grid {
   display: grid;
