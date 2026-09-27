@@ -165,6 +165,7 @@ where
             ) => Ok(ReplyValue::ModulatorKinds {
                 kinds: ether_devices::modulators::all(),
             }),
+            Command::Chat(c) => self.chat_command(c, now, out),
             other => Err(internal(format!(
                 "unhandled command {}",
                 doc::label_of(other)
