@@ -7,7 +7,7 @@
 //! bytes). The browser UI connects with `ui/src/transport/ws/WsTransport`.
 //!
 //! Ports: never hardcoded. `ServerConfig::bind` defaults to loopback on port 0 unless
-//! configured; dev instances use the `+3` offset of the instance base port
+//! configured; dev instances use the `+4` offset (`PORT_OFFSETS.remote`) of the instance base port
 //! (`scripts/dev-env.mjs`, README "Running multiple dev instances").
 
 use std::net::SocketAddr;
