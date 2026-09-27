@@ -198,8 +198,10 @@ struct EngineSettings {
 }
 
 /// Worker threads for the engine: `ETHER_WORKERS`, else `worker_threads` of
-/// `<data_dir>/config/engine.json`, else [`crate::workers::default_workers`].
-pub fn worker_threads(data_dir: &std::path::Path) -> usize {
+/// `<data_dir>/config/engine.json`, else [`crate::workers::default_workers`] with a real
+/// device, and [`HEADLESS_WORKERS`] with the `null`/`offline` backends (tests, CI and
+/// parallel dev instances share machines: a few workers still exercise the parallel path).
+pub fn worker_threads(data_dir: &std::path::Path, backend: AudioBackendKind) -> usize {
     if let Some(n) = crate::workers::env_workers() {
         return n;
     }
@@ -207,8 +209,14 @@ pub fn worker_threads(data_dir: &std::path::Path) -> usize {
         .ok()
         .and_then(|j| serde_json::from_str::<EngineSettings>(&j).ok())
         .and_then(|s| s.worker_threads)
-        .unwrap_or_else(crate::workers::default_workers)
+        .unwrap_or_else(|| match backend {
+            AudioBackendKind::Cpal => crate::workers::default_workers(),
+            _ => HEADLESS_WORKERS,
+        })
 }
+
+/// Default worker count without an audio device (see [`worker_threads`]).
+pub const HEADLESS_WORKERS: usize = 1;
 
 fn save_audio_settings(data_dir: &std::path::Path, s: &AudioSettings) {
     if let Ok(json) = serde_json::to_string_pretty(s)
@@ -260,7 +268,7 @@ impl NativeHost {
         let engine_config = EngineConfig {
             sample_rate: resolved.info.sample_rate,
             max_block_size: settings.max_block_size.max(16),
-            worker_threads: worker_threads(&config.data_dir),
+            worker_threads: worker_threads(&config.data_dir, settings.backend),
             ..Default::default()
         };
         let prepare = PrepareConfig {
@@ -274,7 +282,15 @@ impl NativeHost {
             let block = std::time::Duration::from_secs_f64(
                 engine_config.max_block_size as f64 / engine_config.sample_rate.max(1) as f64,
             );
-            let pool = crate::workers::WorkerPool::new(engine_config.worker_threads, block);
+            // Real-time priority only with a real device (headless hosts share machines).
+            let pool = crate::workers::WorkerPool::with_options(
+                engine_config.worker_threads,
+                crate::workers::PoolOptions {
+                    period: block,
+                    realtime: settings.backend == AudioBackendKind::Cpal,
+                    flush_denormals: true,
+                },
+            );
             tracing::info!(workers = pool.workers(), "audio worker pool started");
             parts.engine.set_executor(Box::new(pool));
         }

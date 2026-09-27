@@ -27,9 +27,14 @@
 //!   levels, so jobs need no locks. Shared engine state (transport, param queue, rings,
 //!   hardware outputs, metronome, preview, recording) is only touched on the audio thread
 //!   between levels.
+//! - While the transport is stopped and no track monitors live input, the engine runs the
+//!   jobs itself in level order (tails still ring out; same bits) and leaves the workers
+//!   parked, so an idle engine costs no worker wake-ups.
 //! - **Pinned jobs.** A few jobs must run on the calling (audio) thread: tracks with
 //!   Complex-warped audio clips (their stretchers live in the engine-wide warp state). The
 //!   engine lists them first in their level and passes their count as `pinned`.
+//!   Follow-up: Complex is the default warp mode, so audio-heavy projects pin most audio
+//!   tracks; per-track (or per-clip) stretcher ownership would let them run on workers.
 //!   Plugins are *not* pinned: CLAP (`process` is an `[audio-thread]` call, and the spec
 //!   lets a host run it on any of its audio/worker threads, never concurrently for one
 //!   instance), VST3 (`IAudioProcessor::process` from one processing thread at a time) and

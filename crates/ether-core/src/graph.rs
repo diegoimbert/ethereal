@@ -596,6 +596,8 @@ pub fn compile_with(
             .flat_map(|p| &p.chain)
             .map(|e| e.node)
         {
+            // Pad nodes must be live like chain nodes (the jobs' `NodeTable` relies on it).
+            node_info(pad_node).ok_or(CompileError::UnknownNode(pad_node))?;
             pad_index.push((pad_node, i));
         }
         chain_info.push(infos);
@@ -603,13 +605,16 @@ pub fn compile_with(
     node_index.sort();
     pad_index.sort();
     {
+        // One user per node-table *slot* (not just per key): parallel track jobs get
+        // `&mut` access to their nodes by slot index (`engine::NodeTable`), so two keys of
+        // one slot (a stale generation next to a live one) must never be compiled.
         let mut all: Vec<NodeKey> = node_index
             .iter()
             .map(|e| e.0)
             .chain(pad_index.iter().map(|e| e.0))
             .collect();
-        all.sort();
-        if let Some(w) = all.windows(2).find(|w| w[0] == w[1]) {
+        all.sort_by_key(|k| k.index);
+        if let Some(w) = all.windows(2).find(|w| w[0].index == w[1].index) {
             return Err(CompileError::Capacity(format!(
                 "node {:?} used more than once",
                 w[0]
@@ -863,6 +868,69 @@ mod tests {
             index: i,
             generation: 1,
         }
+    }
+
+    /// Two keys of one node-table slot (a stale generation next to a live one, as a chain
+    /// node and a pad node on different tracks) never compile: parallel jobs would both
+    /// reach that slot. Unknown pad nodes are rejected like chain nodes.
+    #[test]
+    fn one_slot_is_never_used_twice() {
+        let stale = NodeKey {
+            index: 5,
+            generation: 1,
+        };
+        let live = NodeKey {
+            index: 5,
+            generation: 2,
+        };
+        let mut a = t(10, TrackKind::Midi, Some(1));
+        a.chain.push(ChainEntry {
+            node: live,
+            enabled: true,
+            sidechain: None,
+        });
+        let mut b = t(11, TrackKind::Midi, Some(1));
+        b.chain.push(ChainEntry {
+            node: key(7),
+            enabled: true,
+            sidechain: None,
+        });
+        b.racks.push(RackDesc {
+            rack: key(7),
+            pads: vec![PadDesc {
+                pad: DrumPadId(Ulid(1)),
+                note: 36,
+                choke_group: None,
+                chain: vec![ChainEntry {
+                    node: stale,
+                    enabled: true,
+                    sidechain: None,
+                }],
+                volume: 1.0,
+                pan: 0.0,
+                mute: false,
+            }],
+        });
+        let desc = RenderGraphDesc {
+            tracks: vec![t(1, TrackKind::Master, None), a, b],
+            ..Default::default()
+        };
+        // Even with a node table that accepts every key:
+        assert!(matches!(
+            compile(desc.clone(), &EngineConfig::default()),
+            Err(CompileError::Capacity(_))
+        ));
+        // With the real rule (only live generations known), the stale pad key is unknown.
+        let info = |k: NodeKey| {
+            (k.generation == 2 || k.index == 7).then_some(NodeInfo {
+                latency: 0,
+                channels: (2, 2),
+            })
+        };
+        assert_eq!(
+            compile_with(desc, &EngineConfig::default(), &info).err(),
+            Some(CompileError::UnknownNode(stale))
+        );
     }
 
     /// Levels follow outputs, sends and sidechains; each level lists pinned tracks first;

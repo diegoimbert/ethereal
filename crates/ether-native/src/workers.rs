@@ -23,6 +23,14 @@
 //!   syscall) only the workers that announced they sleep, Dekker-style with SeqCst on both
 //!   sides so no wake-up is lost. The audio thread never blocks: it only spins on `done`.
 //! - More than 65535 jobs in one level (never in practice) run on the audio thread.
+//! - **Panics.** Every job runs under `catch_unwind` (free when nothing panics), on the
+//!   workers and on the audio thread alike, and always counts as done. The first payload
+//!   is kept and re-raised with `resume_unwind` on the audio thread once *every* job of
+//!   the epoch finished, so a panic never leaves `execute` waiting forever, never unwinds
+//!   the audio thread past the `Batch` workers still use, and reaches the host callback's
+//!   existing poison path (`audio.rs`: the stream goes silent).
+//! - The audio thread's final wait spins, then yields; see `execute_pinned` for the
+//!   priority-inversion note when workers don't get real-time priority.
 //!
 //! # Threads
 //! Workers enable flush-to-zero like the audio thread ([`crate::rt::enable_flush_denormals`]),
@@ -39,8 +47,10 @@
 //! works too) capped at [`MAX_DEFAULT_WORKERS`]. The native host also reads
 //! `<data_dir>/config/engine.json` (`{"worker_threads": n}`); the env var wins.
 
-use std::sync::Arc;
+use std::any::Any;
+use std::panic::AssertUnwindSafe;
 use std::sync::atomic::{AtomicBool, AtomicPtr, AtomicU64, AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 use std::time::Duration;
 
@@ -50,6 +60,8 @@ use ether_core::parallel::ParallelExecutor;
 pub const MAX_DEFAULT_WORKERS: usize = 8;
 /// Spin iterations (`spin_loop` hints, ~tens of µs) before a worker parks.
 pub const SPIN_ITERS: u32 = 1 << 12;
+/// Spin iterations of the audio thread waiting for the last jobs before it yields.
+const WAIT_SPIN_ITERS: u32 = 1 << 14;
 /// Jobs per level the claim word can address.
 const MAX_JOBS: usize = u16::MAX as usize;
 
@@ -85,6 +97,11 @@ struct Shared {
     shutdown: AtomicBool,
     /// Per worker: parked (or about to park) and wants an `unpark`.
     sleeping: Box<[AtomicBool]>,
+    /// A job panicked in the current epoch (fast check; the payload is in `panic`).
+    poisoned: AtomicBool,
+    /// First panic payload of the epoch, re-raised on the audio thread by `execute` once
+    /// every job finished. Only touched on the panic path (`try_lock`, never blocks).
+    panic: Mutex<Option<Box<dyn Any + Send>>>,
 }
 
 #[inline]
@@ -123,6 +140,20 @@ impl Shared {
         }
     }
 
+    /// Run one job, catching a panic (so `done` is always bumped and the audio thread never
+    /// unwinds past a `Batch` other threads still use). The payload is kept for `execute`.
+    #[inline]
+    fn run(&self, job: &(dyn Fn(usize) + Sync), i: usize) {
+        if let Err(payload) = std::panic::catch_unwind(AssertUnwindSafe(|| job(i))) {
+            self.poisoned.store(true, Ordering::Release);
+            if let Ok(mut slot) = self.panic.try_lock()
+                && slot.is_none()
+            {
+                *slot = Some(payload);
+            }
+        }
+    }
+
     /// Run claimed jobs of `epoch` until none is left; returns how many ran.
     #[inline]
     fn work(&self, epoch: u32) -> usize {
@@ -132,7 +163,7 @@ impl Shared {
             // returned: `batch` points to its live `Batch` (stored before the epoch was
             // published, which our Acquire claim observed).
             let batch = unsafe { &*self.batch.load(Ordering::Acquire) };
-            (batch.job)(i);
+            self.run(batch.job, i);
             self.done.fetch_add(1, Ordering::Release);
             ran += 1;
         }
@@ -196,6 +227,8 @@ impl WorkerPool {
             batch: AtomicPtr::new(std::ptr::null_mut()),
             shutdown: AtomicBool::new(false),
             sleeping: (0..workers).map(|_| AtomicBool::new(false)).collect(),
+            poisoned: AtomicBool::new(false),
+            panic: Mutex::new(None),
         });
         let mut handles = Vec::with_capacity(workers);
         for w in 0..workers {
@@ -301,12 +334,28 @@ impl ParallelExecutor for WorkerPool {
         self.wake(shared_jobs.saturating_sub(if pinned == 0 { 1 } else { 0 }));
 
         for i in 0..pinned {
-            job(i);
+            s.run(job, i);
         }
         s.work(epoch);
-        // Everything is claimed; wait for the workers still running theirs.
+        // Everything is claimed; wait for the workers still running theirs. Spin first
+        // (jobs are short); then yield so a preempted worker can finish on a busy core
+        // (bounded: every claimed job finishes, panics included). If the audio thread is
+        // real-time and a worker is not (e.g. SCHED_FIFO refused on Linux), this wait is
+        // a priority inversion bounded by that worker's scheduling latency.
+        let mut spins = 0u32;
         while s.done.load(Ordering::Acquire) < shared_jobs {
-            std::hint::spin_loop();
+            if spins < WAIT_SPIN_ITERS {
+                spins += 1;
+                std::hint::spin_loop();
+            } else {
+                std::thread::yield_now();
+            }
+        }
+        // Every job finished and `batch` is no longer reachable: re-raise a job's panic
+        // here, on the audio thread (the host's callback turns it into a silent stream).
+        if s.poisoned.swap(false, Ordering::AcqRel) {
+            let payload = s.panic.try_lock().ok().and_then(|mut p| p.take());
+            std::panic::resume_unwind(payload.unwrap_or_else(|| Box::new("audio job panicked")));
         }
     }
 
@@ -530,6 +579,72 @@ mod tests {
             });
             assert_eq!(wrong.load(Ordering::Relaxed), 0);
         }
+    }
+
+    fn quiet_pool(workers: usize) -> WorkerPool {
+        WorkerPool::with_options(
+            workers,
+            PoolOptions {
+                realtime: false,
+                ..Default::default()
+            },
+        )
+    }
+
+    /// A panicking job on a worker: every other job still runs, `execute` returns by
+    /// re-raising the panic on the caller, and the pool keeps working afterwards.
+    #[test]
+    fn panic_on_a_worker_is_reraised_on_the_caller() {
+        let mut pool = quiet_pool(3);
+        let me = std::thread::current().id();
+        let ran = AtomicU32::new(0);
+        let hit_worker = AtomicU32::new(0);
+        for _ in 0..20 {
+            ran.store(0, Ordering::Relaxed);
+            let r = std::panic::catch_unwind(AssertUnwindSafe(|| {
+                pool.execute(16, &|i| {
+                    ran.fetch_add(1, Ordering::Relaxed);
+                    // Panic on whichever worker gets a job (the caller never panics here).
+                    if i > 0 && std::thread::current().id() != me {
+                        hit_worker.fetch_add(1, Ordering::Relaxed);
+                        panic!("job {i} failed");
+                    }
+                })
+            }));
+            assert_eq!(ran.load(Ordering::Relaxed), 16);
+            if hit_worker.load(Ordering::Relaxed) > 0 {
+                assert!(r.is_err());
+            }
+        }
+        let n = AtomicU32::new(0);
+        pool.execute(8, &|_| {
+            n.fetch_add(1, Ordering::Relaxed);
+        });
+        assert_eq!(n.load(Ordering::Relaxed), 8);
+    }
+
+    /// A panic on the caller (a pinned job) waits for the workers' jobs before unwinding.
+    #[test]
+    fn panic_on_the_caller_waits_for_the_workers() {
+        let mut pool = quiet_pool(2);
+        let finished = AtomicU32::new(0);
+        let r = std::panic::catch_unwind(AssertUnwindSafe(|| {
+            pool.execute_pinned(6, 1, &|i| {
+                if i == 0 {
+                    panic!("pinned job failed");
+                }
+                std::thread::sleep(Duration::from_millis(5));
+                finished.fetch_add(1, Ordering::Relaxed);
+            })
+        }));
+        assert!(r.is_err());
+        // Nothing still runs on the (now gone) closure: all shared jobs completed first.
+        assert_eq!(finished.load(Ordering::Relaxed), 5);
+        let n = AtomicU32::new(0);
+        pool.execute(4, &|_| {
+            n.fetch_add(1, Ordering::Relaxed);
+        });
+        assert_eq!(n.load(Ordering::Relaxed), 4);
     }
 
     #[test]

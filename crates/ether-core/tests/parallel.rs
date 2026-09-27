@@ -149,3 +149,36 @@ fn job_order_does_not_matter() {
         assert_eq!(first_diff(&reference, &out), None, "seed {seed}");
     }
 }
+
+/// Stopped with no monitored input, the engine never wakes the executor (tails are
+/// rendered on the calling thread); playing dispatches again.
+#[test]
+fn stopped_engine_does_not_dispatch() {
+    let calls = Arc::new(AtomicUsize::new(0));
+    let spy = Spy {
+        inner: Threaded(2),
+        calls: calls.clone(),
+        max_jobs: Arc::new(AtomicUsize::new(0)),
+        pinned: Arc::new(AtomicUsize::new(0)),
+    };
+    let mut p = ether_core::create(config());
+    let project = build(3, &mut p.handle, false);
+    p.handle.publish(project.desc).unwrap();
+    p.engine.set_executor(Box::new(spy));
+    let (mut l, mut r) = (vec![0.0f32; 256], vec![0.0f32; 256]);
+    let mut block = |e: &mut ether_core::Engine| {
+        let mut outs: [&mut [f32]; 2] = [&mut l, &mut r];
+        e.process(&[], &mut outs, 256);
+    };
+    for _ in 0..8 {
+        block(&mut p.engine);
+    }
+    assert_eq!(calls.load(Ordering::Relaxed), 0);
+    p.handle
+        .transport(ether_core::TransportControl::Play)
+        .unwrap();
+    for _ in 0..8 {
+        block(&mut p.engine);
+    }
+    assert!(calls.load(Ordering::Relaxed) > 0);
+}

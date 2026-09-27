@@ -657,6 +657,9 @@ impl Engine {
         recording.process(&info, inputs, off, n, &desc.tracks, tracks);
 
         // --- tracks, level by level (`crate::parallel`) ---
+        // Stopped with nothing live (no monitored input): only tails ring out, so keep the
+        // workers parked and run the jobs here, in level order (same result, bit for bit).
+        let parallel = playing || tracks.iter().any(|t| t.monitor);
         let ctx = JobCtx {
             tracks: tracks.as_mut_ptr(),
             n_tracks: tracks.len(),
@@ -686,8 +689,10 @@ impl Engine {
             // tracks of earlier levels; the executor runs each `j` once, pinned jobs on this
             // thread, and returns after all of them finished.
             let job = |j: usize| unsafe { ctx.run(idx[j]) };
-            if idx.len() == 1 {
-                job(0);
+            if idx.len() == 1 || !parallel {
+                for j in 0..idx.len() {
+                    job(j);
+                }
             } else {
                 executor.execute_pinned(idx.len(), level.pinned, &job);
             }
@@ -818,10 +823,11 @@ impl<'a> NodeTable<'a> {
     /// path for `'a` except other tables made by this function, and every table must only
     /// be asked for keys of *its own* track (its chain and pad chains). That holds for
     /// track jobs (`crate::parallel`, "Unsafe sharing"): the compiler rejects a snapshot
-    /// that uses a node key twice, a snapshot holds at most one live generation per slot
-    /// index (keys are validated against the handle's table at compile time), and the audio
-    /// thread doesn't touch the table while a level runs. So two concurrent tables never
-    /// reach the same slot, and [`NodeTable::get`] never creates two live `&mut` to one slot.
+    /// that uses a node-table slot *index* twice (chain and pad-chain nodes, whatever their
+    /// generations; `graph::compile_with`), so each slot belongs to at most one track's
+    /// job, and the audio thread doesn't touch the table while a level runs. So two
+    /// concurrent tables never reach the same slot, and [`NodeTable::get`] never creates
+    /// two live `&mut` to one slot.
     pub(crate) unsafe fn shared(ptr: *mut NodeSlot, len: usize) -> Self {
         Self {
             ptr,
