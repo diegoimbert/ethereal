@@ -598,3 +598,23 @@ exclude = [
   "ui/src/features/collab/**",
   "ui/src/transport/mock/roadmap/collab.*",
 ]
+
+[nodes.live-record]
+# Live waveform/MIDI view while recording (base-43 froze RecordingEvent::Progress and
+# EngineBridge::poll_recording).
+paths = [
+  "crates/ether-native/src/recording/**",
+  "crates/ether-controller/src/recording/**",
+  "crates/ether-controller/tests/live_record*.rs",
+  "crates/ether-native/tests/live_record*.rs",
+  "ui/src/features/recording/**",
+  "ui/src/transport/mock/roadmap/liveRecord.*",
+  "apps/web/e2e/live-record.spec.ts",
+  # shared touch: poll_recording impl in the native bridge (one delegation)
+  "crates/ether-native/src/bridge.rs",
+  # shared touch: live recording clip overlay in the arrangement (additive; the user's UX is authoritative)
+  "ui/src/features/arrangement/TrackRow.tsx",
+  "ui/src/features/arrangement/clipDraw.ts",
+  # shared touch: wire MockLiveRecord into MockTransport (import, field, event emission)
+  "ui/src/transport/mock/MockTransport.ts",
+]
