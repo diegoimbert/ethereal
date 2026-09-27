@@ -1,5 +1,14 @@
 import "./arrangement.css";
-import { openContextMenu, setDragCursor } from "@/kit";
+import { MOD_KEY, openContextMenu, setDragCursor } from "@/kit";
+import {
+  droppedFiles,
+  hasOsFiles,
+  importAudio,
+  noteHover,
+  openImportDialog,
+  type DropPoint,
+  type ImportSource,
+} from "@/features/import";
 import { AddTrackRow } from "./newTrack";
 import { useContext, useEffect, useMemo, useRef, type DragEvent, type KeyboardEvent, type PointerEvent } from "react";
 import type { Beats, TrackId } from "@/generated";
@@ -195,7 +204,7 @@ function ConnectedArrangementView() {
     return snapToGrid(beats, resolveGrid(grid, s.pxPerBeat, tempo.signatureAt(s.scrollBeats)), tempo);
   };
 
-  const dropTarget = (e: DragEvent): DropTarget | "reject" => {
+  const dropTarget = (e: DropPoint): DropTarget | "reject" => {
     const box = contentRef.current?.getBoundingClientRect();
     const x = e.clientX - (box?.left ?? 0) - useArrangementUi.getState().headerWidth;
     const i = rowIndexAt(rowsRef.current, e.clientY - (box?.top ?? 0));
@@ -205,15 +214,32 @@ function ConnectedArrangementView() {
     return row && row.track.kind === "Audio" ? { track: row.track.id, at } : "reject";
   };
 
+  // `file-import`: OS files dropped on a lane (clips from the drop point, one after the
+  // other) or below the tracks (a new audio track per file). On the desktop the shell
+  // forwards the dropped paths instead of the drop: they land here via `noteHover`.
+  const importAt = (sources: ImportSource[], point: DropPoint) => {
+    useArrangementUi.getState().setDropHint(null);
+    const t = dropTarget(point);
+    if (t === "reject" || sources.length === 0) return;
+    void importAudio(transport, sources, t);
+  };
+
   const onDragOver = (e: DragEvent<HTMLDivElement>) => {
-    if (!hasBrowserDrag(e.dataTransfer)) return;
+    const files = hasOsFiles(e.dataTransfer);
+    if (!files && !hasBrowserDrag(e.dataTransfer)) return;
     e.preventDefault();
     const t = dropTarget(e);
     e.dataTransfer.dropEffect = t === "reject" ? "none" : "copy";
     useArrangementUi.getState().setDropHint(t === "reject" ? null : t);
+    if (files && t !== "reject") noteHover(e, importAt);
   };
 
   const onDrop = (e: DragEvent<HTMLDivElement>) => {
+    if (hasOsFiles(e.dataTransfer)) {
+      e.preventDefault();
+      importAt(droppedFiles(e.dataTransfer), e);
+      return;
+    }
     const payload = readBrowserDrag(e.dataTransfer);
     useArrangementUi.getState().setDropHint(null);
     if (!payload) return;
@@ -266,7 +292,13 @@ function ConnectedArrangementView() {
               // Empty space below the tracks (header column or lanes): add a track. Rows,
               // headers and clips open their own menus (and stop the event).
               const y = e.clientY - e.currentTarget.getBoundingClientRect().top;
-              if (y >= rowsHeight(rowsRef.current)) openContextMenu(e, newTrackMenu(transport));
+              if (y >= rowsHeight(rowsRef.current)) {
+                openContextMenu(e, [
+                  ...newTrackMenu(transport),
+                  "separator",
+                  { label: "Import audio…", shortcut: `${MOD_KEY}I`, onSelect: () => void openImportDialog(transport) },
+                ]);
+              }
             }}
             onDragOver={onDragOver}
             onDragLeave={() => useArrangementUi.getState().setDropHint(null)}
