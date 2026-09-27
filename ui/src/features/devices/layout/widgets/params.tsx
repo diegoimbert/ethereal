@@ -20,7 +20,7 @@ export interface ParamWidgetProps {
 }
 
 /** Kit size of a semantic widget size. */
-export function kitSize(size: WidgetSize): "sm" | "md" | "lg" {
+function kitSize(size: WidgetSize): "sm" | "md" | "lg" {
   return size === "Large" ? "lg" : size === "Medium" ? "md" : "sm";
 }
 
@@ -162,11 +162,11 @@ export function ToggleWidget({ binding: b, label }: ParamWidgetProps) {
 }
 
 /** Choices with at most this many labels (and short ones) render as a segmented control. */
-export const SEGMENTED_MAX = 5;
+const SEGMENTED_MAX = 5;
 /** Total characters of the labels a segmented control fits; longer sets use a dropdown. */
-export const SEGMENTED_CHARS = 18;
+const SEGMENTED_CHARS = 18;
 
-export function isSegmented(labels: ReadonlyArray<string>): boolean {
+function isSegmented(labels: ReadonlyArray<string>): boolean {
   return labels.length <= SEGMENTED_MAX && labels.join("").length <= SEGMENTED_CHARS;
 }
 

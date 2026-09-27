@@ -26,7 +26,7 @@ const HIT = 14;
 const OVERVIEW_PEAKS = 1024;
 
 /** Whole-sample min/max peaks of `media`, refetched when the engine reports new peaks. */
-export function useOverviewPeaks(media: MediaRef | undefined): PeakData | null {
+function useOverviewPeaks(media: MediaRef | undefined): PeakData | null {
   const transport = useTransport();
   const [peaks, setPeaks] = useState<{ media: string; data: PeakData } | null>(null);
   const [version, setVersion] = useState(0);
@@ -57,7 +57,7 @@ export function useOverviewPeaks(media: MediaRef | undefined): PeakData | null {
 }
 
 /** SVG path of min/max columns (`cols` wide, `h` tall) for `peaks` over `frames`. */
-export function peaksPath(peaks: PeakData, frames: number, cols: number, h: number): string {
+function peaksPath(peaks: PeakData, frames: number, cols: number, h: number): string {
   const n = peaks.max[0]?.length ?? 0;
   const spp = peaks.samples_per_peak;
   let d = "";
@@ -240,7 +240,7 @@ export function SpectrumWidget({ size, label }: TypedProps<"Spectrum">) {
 
 const NOTE_NAMES = ["C", "C♯", "D", "D♯", "E", "F", "F♯", "G", "G♯", "A", "A♯", "B"];
 
-export function noteName(note: number): string {
+function noteName(note: number): string {
   return `${NOTE_NAMES[((note % 12) + 12) % 12]}${Math.floor(note / 12) - 1}`;
 }
 

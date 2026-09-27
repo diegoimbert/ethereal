@@ -8,7 +8,8 @@
 export { DeviceLayoutView, type DeviceLayoutViewProps } from "./DeviceLayoutView";
 export { WidgetView, type WidgetViewProps } from "./Widget";
 export { bindParam, LayoutContext, useLayoutContext, useParam, type LayoutContextValue, type ParamBinding } from "./context";
-export { ParamShell, paramMenu, showAutomation, useAutomated } from "./ParamShell";
+export { ParamShell } from "./ParamShell";
+export { paramMenu, paramTarget, showAutomation, useAutomated } from "./automation";
 export {
   boundParams,
   genericLayout,
@@ -20,6 +21,7 @@ export {
   type ResolvedLayout,
 } from "./model";
 export { formatValue, snapPlain, toNormalized, toPlain } from "./values";
-export { Plot, GridLines, useBoxSize, type PlotDrag } from "./plot";
+export { Plot, GridLines, type PlotDrag } from "./plot";
+export { useBoxSize } from "./useBoxSize";
 export { TypedFrame, ControlsRow } from "./widgets/typed";
 export { ParamModulation, useDeviceAnalysis, type ParamModulationProps } from "./seams";
