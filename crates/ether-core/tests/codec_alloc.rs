@@ -97,7 +97,7 @@ fn decode_allocates_once_per_vec() {
     }
 }
 
-/// Documented bound for decoding the large fixture (64 tracks, 500 clips, ~11k notes, ~200
+/// Documented bound for decoding the large fixture (64 tracks, 500 clips, ~8.8k notes, ~190
 /// automation lanes; about 0.5 MB encoded). Measured at ~0.3 ms natively (release-like test
 /// profile, Apple M-series); the bound leaves ~10x headroom for slower machines and a
 /// loaded CI host. The fastest of several runs is compared, so load spikes don't flake it.
