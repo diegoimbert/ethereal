@@ -74,7 +74,10 @@ fn stop_fades_out_without_a_click() {
     );
     assert!(after[0] > 0.7, "the fade starts from the playing level");
     let fade = FADE_FRAMES as usize;
-    assert!(after[fade..].iter().all(|&s| s == 0.0), "silent after the fade");
+    assert!(
+        after[fade..].iter().all(|&s| s == 0.0),
+        "silent after the fade"
+    );
     let mut out = EngineOutputs::default();
     p.handle.poll(&mut out);
     assert_eq!(out.preview_ended, None, "a stop is never reported");

@@ -6,27 +6,25 @@
 
 mod common;
 
-use common::{Client, Paths, sine, wav};
+use common::{Client, Paths, Received, sine, wav};
 use ether_core::protocol::Event;
 use ether_core::protocol::media::{MediaEvent, MediaSource, PreviewEndReason};
 use serde_json::{Value, json};
 
 /// (path, `Some(reason)` for an end, `None` for a start), in order.
-fn preview_events(c: &Client) -> Vec<(String, Option<PreviewEndReason>)> {
-    c.with(|r| {
-        r.events
-            .iter()
-            .filter_map(|e| match e {
-                Event::Media {
-                    event: MediaEvent::PreviewStarted { source },
-                } => Some((path(source), None)),
-                Event::Media {
-                    event: MediaEvent::PreviewEnded { source, reason },
-                } => Some((path(source), Some(*reason))),
-                _ => None,
-            })
-            .collect()
-    })
+fn preview_events(r: &Received) -> Vec<(String, Option<PreviewEndReason>)> {
+    r.events
+        .iter()
+        .filter_map(|e| match e {
+            Event::Media {
+                event: MediaEvent::PreviewStarted { source },
+            } => Some((path(source), None)),
+            Event::Media {
+                event: MediaEvent::PreviewEnded { source, reason },
+            } => Some((path(source), Some(*reason))),
+            _ => None,
+        })
+        .collect()
 }
 
 fn path(source: &MediaSource) -> String {
@@ -38,8 +36,8 @@ fn path(source: &MediaSource) -> String {
 
 fn wait_events(c: &Client, n: usize, what: &str) -> Vec<(String, Option<PreviewEndReason>)> {
     c.wait(
-        |_| {
-            let evs = preview_events(c);
+        |r| {
+            let evs = preview_events(r);
             (evs.len() >= n).then_some(evs)
         },
         what,

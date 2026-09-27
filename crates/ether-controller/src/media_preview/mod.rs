@@ -148,10 +148,7 @@ fn advance(mut job: Job, budget: usize, rate: u32) -> Result<Progress, MediaErro
                 } else {
                     let audio = truncate(dec.finish()?, job.cap);
                     budget -= (audio.frames() / 16) as isize;
-                    Stage::Resample(Box::new(IncrementalResampler::new(
-                        Arc::new(audio),
-                        rate,
-                    )?))
+                    Stage::Resample(Box::new(IncrementalResampler::new(Arc::new(audio), rate)?))
                 }
             }
             Stage::Resample(mut r) => {
@@ -337,9 +334,7 @@ where
                 let bytes = self.store.read(pid, &file).map_err(store_err)?;
                 Ok((bytes, name))
             }
-            MediaSource::Upload { .. } => {
-                Err(unsupported("previewing uploads is not supported"))
-            }
+            MediaSource::Upload { .. } => Err(unsupported("previewing uploads is not supported")),
         }
     }
 

@@ -10,9 +10,7 @@ use std::sync::Arc;
 
 use common::*;
 use ether_controller::memory::{MemoryLibrary, MemoryStore};
-use ether_controller::{
-    BridgeError, Controller, ControllerConfig, EngineBridge, EtherController,
-};
+use ether_controller::{BridgeError, Controller, ControllerConfig, EngineBridge, EtherController};
 use ether_core::protocol::devices::DeviceDescriptor;
 use ether_core::protocol::media::*;
 use ether_core::protocol::model::*;
@@ -227,10 +225,21 @@ fn ended(p: &str, reason: PreviewEndReason) -> Ev {
 fn library() -> MemoryLibrary {
     let mut lib = MemoryLibrary::new();
     lib.add_root("lib", "Library");
-    let kick = [sine(SR, 60.0, SR as usize / 2, 0.8), sine(SR, 60.0, SR as usize / 2, 0.8)];
+    let kick = [
+        sine(SR, 60.0, SR as usize / 2, 0.8),
+        sine(SR, 60.0, SR as usize / 2, 0.8),
+    ];
     lib.add_file("lib", "kick.wav", wav(SR, &kick));
-    lib.add_file("lib", "snare.wav", wav(SR, &[sine(SR, 200.0, SR as usize / 4, 0.5)]));
-    lib.add_file("lib", "pad.wav", wav(SR, &[sine(SR, 300.0, 3 * SR as usize, 0.3)]));
+    lib.add_file(
+        "lib",
+        "snare.wav",
+        wav(SR, &[sine(SR, 200.0, SR as usize / 4, 0.5)]),
+    );
+    lib.add_file(
+        "lib",
+        "pad.wav",
+        wav(SR, &[sine(SR, 300.0, 3 * SR as usize, 0.3)]),
+    );
     lib.add_file("lib", "notes.txt", b"not audio".to_vec());
     lib
 }
@@ -417,7 +426,12 @@ fn long_files_decode_over_several_ticks_and_can_be_stopped_meanwhile() {
     assert!(ticks >= 10, "work is bounded per tick ({ticks} ticks)");
     assert_eq!(
         h.calls().last(),
-        Some(&PreviewCall::Play(1, resampled(3 * SR as usize), 1, ENGINE_SR))
+        Some(&PreviewCall::Play(
+            1,
+            resampled(3 * SR as usize),
+            1,
+            ENGINE_SR
+        ))
     );
 
     // Stopping while still decoding ends it at once; it never starts.
@@ -432,11 +446,7 @@ fn long_files_decode_over_several_ticks_and_can_be_stopped_meanwhile() {
     for _ in 0..50 {
         assert!(preview_events(&h.tick()).is_empty());
     }
-    assert!(
-        !h.calls()
-            .iter()
-            .any(|c| matches!(c, PreviewCall::Play(..)))
-    );
+    assert!(!h.calls().iter().any(|c| matches!(c, PreviewCall::Play(..))));
 }
 
 #[test]
@@ -444,7 +454,11 @@ fn previews_are_capped_in_length() {
     // 40 s at 8 kHz, engine at 8 kHz (no resampling): only the first 30 s are decoded.
     let rate = 8_000;
     let mut lib = MemoryLibrary::new();
-    lib.add_file("lib", "long.wav", wav(rate, &[vec![0.1; 40 * rate as usize]]));
+    lib.add_file(
+        "lib",
+        "long.wav",
+        wav(rate, &[vec![0.1; 40 * rate as usize]]),
+    );
     let mut h = H::new(
         lib,
         ControllerConfig {
@@ -475,7 +489,12 @@ fn a_repeated_preview_comes_from_the_cache() {
     assert_eq!(preview_events(&out), vec![started("kick.wav")]);
     assert_eq!(
         h.calls(),
-        vec![PreviewCall::Play(2, resampled(SR as usize / 2), 2, ENGINE_SR)]
+        vec![PreviewCall::Play(
+            2,
+            resampled(SR as usize / 2),
+            2,
+            ENGINE_SR
+        )]
     );
 }
 
@@ -505,7 +524,11 @@ fn project_media_can_be_previewed() {
         vec![started(&format!("project:{media}"))]
     );
     // The same file through the project's media folder.
-    let path = m.file.strip_prefix("media/").expect("in media/").to_string();
+    let path = m
+        .file
+        .strip_prefix("media/")
+        .expect("in media/")
+        .to_string();
     let out = h.preview(MediaSource::Location {
         location: BrowseLocation::ProjectMedia,
         path: path.clone(),
