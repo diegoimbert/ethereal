@@ -10,7 +10,10 @@ use std::sync::Arc;
 use common::*;
 use ether_controller::memory::{MemoryLibrary, MemoryStore};
 use ether_controller::store::{ProjectStore, StoreError};
-use ether_controller::{BridgeError, Controller, ControllerConfig, EngineBridge, EtherController};
+use ether_controller::{
+    BridgeError, Controller, ControllerConfig, EngineBridge, EtherController, HostServices,
+};
+use ether_core::protocol::automation::{AutomationCommand, PointSpec};
 use ether_core::protocol::clips::ClipCommand;
 use ether_core::protocol::devices::{DeviceCategory, DeviceCommand, DeviceDescriptor, DeviceSpec};
 use ether_core::protocol::export::*;
@@ -29,7 +32,12 @@ use ether_core::{
 use ether_media::{DecodedAudio, InMemorySource};
 
 const SR: u32 = 48_000;
-const BLOCK: usize = ether_core::offline::OFFLINE_MAX_BLOCK;
+/// The offline engine's block size. Automation and tempo ramps are evaluated at block
+/// rate by the engine, so sample-exact equality with a live render needs the live engine
+/// to run the same blocks (`offline_render_equals_realtime_render`); at another block size
+/// only rounding differs when there is no automation/ramp
+/// (`offline_render_is_block_size_independent_without_ramps`).
+const OFFLINE_BLOCK: usize = ether_core::offline::OFFLINE_MAX_BLOCK;
 
 // ─── A real engine behind the bridge (for the offline == realtime test) ─────────────────
 
@@ -41,6 +49,7 @@ impl ether_devices::SampleResolver for Sources<'_> {
 }
 
 struct RealBridge {
+    block: usize,
     engine: Engine,
     handle: EngineHandle,
     gc: GarbageCollector,
@@ -49,13 +58,14 @@ struct RealBridge {
 }
 
 impl RealBridge {
-    fn new() -> Self {
+    fn new(block: usize) -> Self {
         let parts = ether_core::create(EngineConfig {
             sample_rate: SR,
-            max_block_size: BLOCK,
+            max_block_size: block,
             ..Default::default()
         });
         Self {
+            block,
             engine: parts.engine,
             handle: parts.handle,
             gc: parts.gc,
@@ -67,11 +77,12 @@ impl RealBridge {
     /// Render `frames` of the live engine (stereo), in engine-sized blocks.
     fn render(&mut self, frames: usize) -> [Vec<f32>; 2] {
         let mut out = [Vec::new(), Vec::new()];
-        let mut l = vec![0.0f32; BLOCK];
-        let mut r = vec![0.0f32; BLOCK];
+        let block = self.block;
+        let mut l = vec![0.0f32; block];
+        let mut r = vec![0.0f32; block];
         let mut done = 0;
         while done < frames {
-            let n = BLOCK.min(frames - done);
+            let n = block.min(frames - done);
             self.engine.process(&[], &mut [&mut l[..n], &mut r[..n]], n);
             out[0].extend_from_slice(&l[..n]);
             out[1].extend_from_slice(&r[..n]);
@@ -189,8 +200,29 @@ impl ProjectStore for DownloadStore {
 
 // ─── A small generic driver ─────────────────────────────────────────────────────────────
 
+/// Manual clock, or the wall clock (`wall`) for the tick-duration test.
+struct TestHost {
+    now: u64,
+    wall: bool,
+}
+
+impl HostServices for TestHost {
+    fn now_ms(&self) -> u64 {
+        if self.wall {
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map_or(0, |d| d.as_millis() as u64)
+        } else {
+            self.now
+        }
+    }
+    fn random_seed(&mut self) -> u64 {
+        0x5eed
+    }
+}
+
 struct Drive<B: EngineBridge, S: ProjectStore> {
-    ctl: EtherController<B, FakeHost, S, MemoryLibrary>,
+    ctl: EtherController<B, TestHost, S, MemoryLibrary>,
     ids: IdGen,
     next: u32,
     pid: ProjectId,
@@ -202,7 +234,10 @@ impl<B: EngineBridge, S: ProjectStore> Drive<B, S> {
         let mut d = Self {
             ctl: EtherController::with_config(
                 bridge,
-                FakeHost { now: T0 },
+                TestHost {
+                    now: T0,
+                    wall: false,
+                },
                 store,
                 library,
                 ControllerConfig {
@@ -432,10 +467,10 @@ fn import<B: EngineBridge, S: ProjectStore>(d: &mut Drive<B, S>, track: TrackId,
 }
 
 /// Synth + audio clip + effects + a latency-reporting limiter on master.
-fn build_song<B: EngineBridge, S: ProjectStore>(d: &mut Drive<B, S>) {
+fn build_song<B: EngineBridge, S: ProjectStore>(d: &mut Drive<B, S>, automation: bool) {
     let midi = d.track(TrackKind::Midi, "Keys", None);
     d.device(midi, BuiltinDevice::Synth);
-    d.device(midi, BuiltinDevice::Delay);
+    let delay = d.device(midi, BuiltinDevice::Delay);
     d.notes(midi, 0.0, &[60, 64, 67, 72]);
     d.notes(midi, 4.0, &[62, 65, 69]);
     let audio = d.track(TrackKind::Audio, "Tone", None);
@@ -443,13 +478,92 @@ fn build_song<B: EngineBridge, S: ProjectStore>(d: &mut Drive<B, S>) {
     import(d, audio, 1.0);
     let master = d.master();
     d.device(master, BuiltinDevice::Limiter);
+    if !automation {
+        d.settle_media();
+        return;
+    }
+    // Automation: a track volume ramp and a device param ramp.
+    lane(
+        d,
+        AutomationTarget::TrackVolume { track: midi },
+        &[(0.0, 0.9), (3.0, 0.4), (7.0, 1.0)],
+    );
+    let param = ether_devices::descriptor(BuiltinDeviceType::Delay).params[0].id;
+    lane(
+        d,
+        AutomationTarget::DeviceParam {
+            device: delay,
+            param,
+        },
+        &[(0.0, 0.2), (8.0, 0.8)],
+    );
     d.settle_media();
 }
 
-#[test]
-fn offline_render_equals_realtime_render() {
-    let mut d = Drive::new(RealBridge::new(), MemoryStore::new(), library());
-    build_song(&mut d);
+fn lane<B: EngineBridge, S: ProjectStore>(
+    d: &mut Drive<B, S>,
+    target: AutomationTarget,
+    points: &[(f64, f64)],
+) {
+    let track = match target {
+        AutomationTarget::TrackVolume { track } => track,
+        AutomationTarget::DeviceParam { device, .. } => {
+            d.ctl.project().unwrap().devices[&device].track
+        }
+        _ => unreachable!(),
+    };
+    let id: AutomationLaneId = d.id();
+    d.ok(Command::Automation(AutomationCommand::CreateLane {
+        id,
+        owner: AutomationOwner::Track { track },
+        target,
+    }));
+    let points = points
+        .iter()
+        .map(|(t, v)| PointSpec {
+            id: d.id(),
+            time: Beats(*t),
+            value: *v,
+            curve: CurveShape::Linear,
+        })
+        .collect();
+    d.ok(Command::Automation(AutomationCommand::AddPoints {
+        lane: id,
+        points,
+    }));
+}
+
+/// Give the project a tempo ramp (120 → 150 bpm over beats 0..6, then constant) by
+/// rewriting its file and reopening it (no tempo commands needed).
+fn tempo_ramp<B: EngineBridge, S: ProjectStore>(d: &mut Drive<B, S>) {
+    let mut p = d.ctl.project().unwrap().clone();
+    for t in p.tempo_points.values_mut() {
+        t.curve = TempoCurve::Linear;
+    }
+    let id: TempoPointId = d.id();
+    p.tempo_points.insert(
+        id,
+        TempoPoint {
+            id,
+            time: Beats(6.0),
+            bpm: 150.0,
+            curve: TempoCurve::Step,
+        },
+    );
+    // Switch away first (the controller saves the open project on switch), then rewrite
+    // the file and reopen it.
+    let song = d.pid;
+    d.new_project("Scratch");
+    let json = ether_core::protocol::model::file::save(&p, "test").unwrap();
+    d.ctl.store.save(song, &json).unwrap();
+    d.pid = song;
+    d.ok(Command::Project(ProjectCommand::Open { id: song }));
+    d.settle_media();
+}
+
+/// Export 8 beats as float WAV, then play the live engine from 0 (its output is
+/// `latency` frames late). Returns (offline, live aligned) channels.
+fn render_both(d: &mut Drive<RealBridge, MemoryStore>) -> (Vec<Vec<f32>>, Vec<Vec<f32>>) {
     d.tick(); // publish
     let files = d.files(request(
         custom(0.0, 8.0),
@@ -458,21 +572,53 @@ fn offline_render_equals_realtime_render() {
     ));
     assert_eq!(files, vec!["exports/Song.wav".to_string()]);
     let exported = decode(&d.read(&files[0]), "wav");
-    // 8 beats at 120 bpm = 4 s.
-    assert_eq!(exported.frames(), 4 * SR as usize);
     assert_eq!(exported.sample_rate, SR);
     assert!(peak(&exported.channels) > 0.05, "audible");
-
-    // Realtime: play the live engine from 0; its output is `latency` frames late.
     let latency = d.ctl.bridge.handle.latency() as usize;
     assert!(latency > 0, "the limiter's lookahead is compensated");
     d.ok(Command::Transport(TransportCommand::Play));
     let live = d.ctl.bridge.render(latency + exported.frames());
+    let live = live.iter().map(|c| c[latency..].to_vec()).collect();
+    (exported.channels, live)
+}
+
+#[test]
+fn offline_render_equals_realtime_render() {
+    let mut d = Drive::new(
+        RealBridge::new(OFFLINE_BLOCK),
+        MemoryStore::new(),
+        library(),
+    );
+    build_song(&mut d, true);
+    tempo_ramp(&mut d);
+    assert_eq!(d.ctl.project().unwrap().tempo_points.len(), 2);
+    let (offline, live) = render_both(&mut d);
+    // 8 beats: 6 ramping 120 → 150 bpm (ln(150/120) · 60 · 6 / 30 s), then 2 at 150 bpm.
+    let seconds = (150.0f64 / 120.0).ln() * 60.0 * 6.0 / 30.0 + 2.0 * 60.0 / 150.0;
+    let expected = (seconds * SR as f64).round() as usize;
+    assert!(
+        offline[0].len().abs_diff(expected) <= 1,
+        "{} vs {expected}",
+        offline[0].len()
+    );
     for c in 0..2 {
-        let live = &live[c][latency..];
-        let off = &exported.channels[c];
-        let first = live.iter().zip(off).position(|(a, b)| a != b);
+        let first = live[c].iter().zip(&offline[c]).position(|(a, b)| a != b);
         assert_eq!(first, None, "channel {c} differs at frame {first:?}");
+    }
+}
+
+#[test]
+fn offline_render_is_block_size_independent_without_ramps() {
+    let mut d = Drive::new(RealBridge::new(128), MemoryStore::new(), library());
+    build_song(&mut d, false);
+    let (offline, live) = render_both(&mut d);
+    for c in 0..2 {
+        let max = live[c]
+            .iter()
+            .zip(&offline[c])
+            .map(|(a, b)| (a - b).abs())
+            .fold(0.0f32, f32::max);
+        assert!(max < 1e-6, "channel {c}: max difference {max}");
     }
 }
 
@@ -814,4 +960,95 @@ fn invalid_requests_and_plugin_failures() {
         }
         other => panic!("expected failure, got {other:?}"),
     }
+}
+
+#[test]
+fn ticks_stay_bounded() {
+    let mut d = Drive::new(FakeBridge::default(), MemoryStore::new(), library());
+    // Many devices (node creation is spread over units) and a long, heavy file.
+    for i in 0..4 {
+        let t = d.track(TrackKind::Midi, &format!("Keys {i}"), None);
+        d.device(t, BuiltinDevice::Synth);
+        for fx in [
+            BuiltinDevice::Delay,
+            BuiltinDevice::Compressor,
+            BuiltinDevice::Eq,
+            BuiltinDevice::Reverb,
+        ] {
+            d.device(t, fx);
+        }
+        d.notes(t, 0.0, &[60 + i, 64 + i]);
+    }
+    let t = d.track(TrackKind::Audio, "Tone", None);
+    import(&mut d, t, 0.0);
+    d.settle_media();
+    let mut req = request(custom(0.0, 60.0), AudioContainer::Flac, BitDepth::Int16);
+    req.normalize = true;
+    req.format.sample_rate = Some(44_100);
+    req.mode = ExportMode::Stems {
+        tracks: vec![
+            t,
+            d.ctl
+                .project()
+                .unwrap()
+                .tracks
+                .values()
+                .find(|t| t.kind == TrackKind::Midi)
+                .unwrap()
+                .id,
+        ],
+    };
+
+    // Work units are small whatever the export length (deterministic).
+    let job = d.render(req.clone());
+    let files = match d.finish(&job).0 {
+        ExportEvent::Done {
+            result: ExportResult::Files { files },
+            ..
+        } => files,
+        other => panic!("{other:?}"),
+    };
+    assert_eq!(files.len(), 2);
+    let stats = d.ctl.export_unit_stats();
+    assert!(stats.max_frames <= 4096, "{stats:?}");
+    assert!(stats.max_devices <= 8, "{stats:?}");
+    assert!(stats.max_plugins <= 1, "{stats:?}");
+    assert!(stats.units > 100, "{stats:?}");
+
+    // With the wall clock, a tick stops after its budget (12 ms) plus one small unit.
+    d.ctl.host.wall = true;
+    let job = d.render(req);
+    let mut durations = Vec::new();
+    loop {
+        let t0 = std::time::Instant::now();
+        let out = d.tick();
+        durations.push(t0.elapsed().as_secs_f64() * 1000.0);
+        if events(&out).iter().any(
+            |e| matches!(e, Event::Export { event: ExportEvent::Done { job: j, .. } } if *j == job),
+        ) {
+            break;
+        }
+        assert!(durations.len() < 100_000, "export finished");
+    }
+    durations.sort_by(f64::total_cmp);
+    let p90 = durations[durations.len() * 9 / 10];
+    let max = *durations.last().unwrap();
+    // Generous margins: the machine may be loaded.
+    assert!(p90 < 20.0, "90th percentile tick {p90:.1} ms");
+    assert!(max < 150.0, "worst tick {max:.1} ms");
+}
+
+#[test]
+fn exports_never_overwrite_files() {
+    let mut d = Drive::new(FakeBridge::default(), MemoryStore::new(), library());
+    let t = d.track(TrackKind::Audio, "Tone", None);
+    import(&mut d, t, 0.0);
+    d.settle_media();
+    let req = request(custom(0.0, 1.0), AudioContainer::Wav, BitDepth::Int16);
+    assert_eq!(d.files(req.clone()), vec!["exports/Song.wav".to_string()]);
+    assert_eq!(
+        d.files(req.clone()),
+        vec!["exports/Song (2).wav".to_string()]
+    );
+    assert_eq!(d.files(req), vec!["exports/Song (3).wav".to_string()]);
 }

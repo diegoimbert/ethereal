@@ -1,4 +1,11 @@
-import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import type { Event, ExportDownload, ExportResult } from "@/generated";
 import { Button, Dialog, NumberField, Select, TextInput, Toggle } from "@/kit";
 import { useProjectStore } from "@/state";
@@ -18,6 +25,9 @@ import {
   DEFAULT_FORM,
   defaultStemTracks,
   depthAllowed,
+  estimateBytes,
+  LARGE_EXPORT_BYTES,
+  STEMS_HELP,
   formProblem,
   MAX_TAIL_SECONDS,
   RANGE_OPTIONS,
@@ -101,15 +111,27 @@ function ExportPanel({
   const update = (patch: Partial<ExportForm>) =>
     setForm((f) => ({ ...f, ...patch }));
 
+  // Downloads being pulled from the engine, by token: their bytes are only released
+  // engine-side once they finished.
+  const inflight = useRef(new Map<string, Promise<void>>());
+
   const download = useCallback(
-    async (d: ExportDownload) => {
-      try {
-        const bytes = await fetchDownload(transport, d);
-        saveFile(d.name, d.mime, bytes);
-        setDownloaded((s) => new Set(s).add(d.token));
-      } catch (e) {
-        setStatus({ state: "failed", message: message(e) });
-      }
+    (d: ExportDownload): Promise<void> => {
+      const p = (async () => {
+        try {
+          const bytes = await fetchDownload(transport, d);
+          saveFile(d.name, d.mime, bytes);
+          setDownloaded((s) => new Set(s).add(d.token));
+        } catch (e) {
+          setStatus({ state: "failed", message: message(e) });
+        }
+      })();
+      inflight.current.set(d.token, p);
+      void p.finally(() => {
+        if (inflight.current.get(d.token) === p)
+          inflight.current.delete(d.token);
+      });
+      return p;
     },
     [transport],
   );
@@ -141,10 +163,14 @@ function ExportPanel({
   const release = useCallback(
     (result: ExportResult) => {
       if (result.type !== "Download") return;
-      for (const d of result.downloads)
-        void transport
-          .send(cmd("Export", { type: "Release", token: d.token }))
+      for (const d of result.downloads) {
+        const pending = inflight.current.get(d.token) ?? Promise.resolve();
+        void pending
+          .then(() =>
+            transport.send(cmd("Export", { type: "Release", token: d.token })),
+          )
           .catch(() => undefined);
+      }
     },
     [transport],
   );
@@ -189,6 +215,11 @@ function ExportPanel({
 
   const rendering = status.state === "rendering";
   const problem = formProblem(form, selection);
+  // The web/remote builds keep the files in memory until they are downloaded.
+  const estimate =
+    project && transport.kind !== "tauri"
+      ? estimateBytes(form, project, selection)
+      : 0;
   const pct = rendering ? Math.round(status.progress * 100) : 0;
 
   return (
@@ -330,6 +361,7 @@ function ExportPanel({
               onChange={(stems) => update({ stems })}
             />
           </div>
+          {form.stems && <p className="eth-export__help">{STEMS_HELP}</p>}
           {form.stems && (
             <ul className="eth-export__tracks" aria-label="Stem tracks">
               {candidates.map((t) => (
@@ -352,6 +384,12 @@ function ExportPanel({
             </ul>
           )}
         </div>
+        {estimate > LARGE_EXPORT_BYTES && !rendering && (
+          <p className="eth-export__warning" role="note">
+            Large export (about {Math.round(estimate / 1e6)} MB): the browser
+            keeps the files in memory until they are downloaded.
+          </p>
+        )}
         <ExportStatus
           status={status}
           downloaded={downloaded}

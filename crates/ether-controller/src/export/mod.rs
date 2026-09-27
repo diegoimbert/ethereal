@@ -7,13 +7,39 @@
 //! plugins, with their current state; a plugin that can't be instantiated offline fails the
 //! job with a clear error, it is never skipped silently), the project's media decoded and
 //! resampled again with the live pipeline's code (bit-identical sources), and a graph from
-//! `compile::compile_graph_with` with the click, looping and inputs off. Stems are one pass
-//! per track ([`job::stem_graph`]). Rendering is stepped from
-//! [`EtherController::export_tick`] a bounded amount per tick (so the controller stays
-//! responsive), `latency()` leading frames are dropped, then each file is resampled
-//! (optional), normalized (optional), dithered (16-bit) and encoded (WAV via `hound`, FLAC
-//! via `flacenc`). Native hosts write `exports/<name>` through the `ProjectStore`; hosts
-//! whose store says `Unsupported` (web/remote) keep the bytes for `Export::ReadChunk`.
+//! `compile::compile_graph_with` with the click, looping and inputs off. `latency()`
+//! leading frames are dropped, then each file is resampled (optional), normalized
+//! (optional), dithered (16-bit) and encoded (WAV via `hound`, FLAC via `flacenc`). Native
+//! hosts write `exports/<name>` through the `ProjectStore` (never overwriting: a taken name
+//! gets a ` (2)` suffix); hosts whose store says `Unsupported` (web/remote) keep the bytes
+//! for `Export::ReadChunk`.
+//!
+//! # Bounded ticks
+//! Everything runs from [`EtherController::export_tick`] as small units of work
+//! ([`job::UNIT_FRAMES`] frames of media decoding, one `OFFLINE_MAX_BLOCK` render block,
+//! [`job::UNIT_FRAMES`] frames of resampling/peak scan/encoding, [`job::UNIT_BUILTINS`]
+//! built-in nodes or one plugin instance per unit); a tick runs units until
+//! [`TICK_BUDGET_MS`] elapsed (at most [`MAX_UNITS_PER_TICK`]), so the controller stays
+//! responsive whatever the export length. The only unbounded step is the final store write
+//! of each file (native disk I/O).
+//!
+//! # Stem semantics
+//! Stems are one pass per listed track ([`job::stem_graph`]): the track's post-fader output
+//! (its device chain, fader and pan) goes straight into master, as if it were the only
+//! source.
+//! - Solo is ignored in stems, and a muted track is unmuted for its own stem (muted tracks
+//!   nested in a group stem stay muted).
+//! - A child of a group bypasses the group's processing (chain, fader) in its own stem; a
+//!   group's stem contains its children through the group's processing.
+//! - The track's sends feed the returns (return processing included); every other source
+//!   is silent. A return's stem is everything sent to it (through the return).
+//! - Stems overlap when a track is selected together with a return it sends to, or with a
+//!   group containing it: that audio is in both files.
+//! - Sidechain sources on other tracks are silent in a stem, so a compressor keyed from
+//!   another track doesn't duck there.
+//! - The master chain is excluded (master fader and pan are kept).
+//! - So stems sum to the mix only with neutral master devices, neutral groups (unity, no
+//!   devices) and linear returns, and without solo or sidechains.
 
 mod encode;
 mod job;
@@ -36,8 +62,8 @@ use job::{Delivered, Job, Step};
 
 /// Most bytes one `ReadChunk` serves (the protocol promises at least 256 KiB).
 pub(crate) const MAX_CHUNK_BYTES: usize = 1 << 20;
-/// Work per tick: at most this many units of [`job::CHUNK`] frames...
-const MAX_UNITS_PER_TICK: usize = 64;
+/// Work per tick: at most this many units of work (see "Bounded ticks")...
+const MAX_UNITS_PER_TICK: usize = 256;
 /// ...and no more than this long (when the host clock advances).
 const TICK_BUDGET_MS: u64 = 12;
 
@@ -52,7 +78,11 @@ pub(crate) struct ExportState {
     job: Option<Box<Job>>,
     downloads: BTreeMap<String, Download>,
     last_progress: Option<f32>,
+    /// Unit sizes of the last job (tests/diagnostics).
+    last_stats: job::UnitStats,
 }
+
+pub use job::UnitStats as ExportUnitStats;
 
 fn export_event(out: &mut dyn MessageSink, e: ExportEvent) {
     event(out, Event::Export { event: e });
@@ -123,10 +153,22 @@ where
                 let p = &doc.project;
                 let stems = validate(p, request)?;
                 let (start, end) = job::range_of(p, &request.range).map_err(invalid)?;
-                let passes = job::plan_passes(p, request, &stems);
+                // Names already in `exports/` (an export never overwrites a file).
+                let existing: BTreeSet<String> = self
+                    .store
+                    .list_dir(p.id, ether_core::protocol::model::file::EXPORTS_DIR)
+                    .map(|l| {
+                        l.entries
+                            .into_iter()
+                            .map(|e| e.name.to_lowercase())
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                let passes = job::plan_passes(p, request, &stems, &existing);
                 // A new render drops earlier downloads.
                 self.export.downloads.clear();
                 self.export.last_progress = None;
+                self.export.last_stats = Default::default();
                 self.export.job = Some(Box::new(Job::new(
                     job.clone(),
                     p,
@@ -176,6 +218,12 @@ where
         }
     }
 
+    /// Largest units of work of the running (or last) export job (tests/diagnostics).
+    #[doc(hidden)]
+    pub fn export_unit_stats(&self) -> ExportUnitStats {
+        self.export.last_stats
+    }
+
     /// Called from every tick: steps the running job, emits `Event::Export`.
     pub(crate) fn export_tick(&mut self, now: u64, out: &mut dyn MessageSink) {
         let current = self.doc.as_ref().map(|d| d.project.id);
@@ -198,9 +246,13 @@ where
         }
         let started = self.host.now_ms().max(now);
         for _ in 0..MAX_UNITS_PER_TICK {
-            match job.step(&mut self.bridge, &self.engine, &mut self.store) {
+            let step = job.step(&mut self.bridge, &self.engine, &mut self.store);
+            for message in job.warnings.drain(..) {
+                notify(out, NotificationLevel::Warning, message);
+            }
+            self.export.last_stats = job.stats;
+            match step {
                 Ok(Step::Working) => {}
-                Ok(Step::Warning(message)) => notify(out, NotificationLevel::Warning, message),
                 Ok(Step::Done(files)) => {
                     self.finish_job(&job, files, out);
                     return;

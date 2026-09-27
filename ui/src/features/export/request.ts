@@ -151,3 +151,64 @@ export function buildRequest(
     name: name === "" ? null : name,
   };
 }
+
+/** Stem semantics, shown under the stems toggle (see `ether-controller/src/export`). */
+export const STEMS_HELP =
+  "Each stem is the track's own output (chain, fader, pan) into master, plus what it sends to returns. " +
+  "Solo is ignored and a muted track is unmuted for its own stem. A track inside a group skips the group's processing; " +
+  "a group's stem includes its tracks. Choosing a track together with its group, or with a return it sends to, puts that audio in both files. " +
+  "Sidechain sources from other tracks are silent, and the master's devices are left out, " +
+  "so stems add up to the mix only with neutral master devices and groups, linear returns and no sidechains.";
+
+/** Above this, the web build warns that the files are held in memory. */
+export const LARGE_EXPORT_BYTES = 200e6;
+
+/** Beats covered by the form's range (0 when unknown). */
+function rangeBeats(
+  form: ExportForm,
+  project: Project,
+  selection: BeatRange | null,
+): number {
+  const range = rangeOf(form.range, selection);
+  if (!range) return 0;
+  switch (range.type) {
+    case "Custom":
+      return range.end - range.start;
+    case "Loop":
+      return (
+        project.settings.loop_region.end - project.settings.loop_region.start
+      );
+    case "Project": {
+      let end = 0;
+      for (const c of Object.values(project.clips))
+        end = Math.max(end, c.start + c.length);
+      for (const pt of Object.values(project.automation_points)) {
+        if (project.automation_lanes[pt.lane]?.owner.type === "Track")
+          end = Math.max(end, pt.time);
+      }
+      return end;
+    }
+  }
+}
+
+/**
+ * Rough size of the export in bytes (all files): the range at the first tempo, the
+ * requested rate (48 kHz for the engine rate), stereo; FLAC counted at ~60%.
+ */
+export function estimateBytes(
+  form: ExportForm,
+  project: Project,
+  selection: BeatRange | null,
+): number {
+  const first = Object.values(project.tempo_points).sort(
+    (a, b) => a.time - b.time,
+  )[0];
+  const bpm = first?.bpm ?? 120;
+  const seconds = (rangeBeats(form, project, selection) * 60) / bpm + form.tail;
+  const rate = form.rate === "engine" ? 48000 : Number(form.rate);
+  const bytesPerSample =
+    form.bitDepth === "Int16" ? 2 : form.bitDepth === "Int24" ? 3 : 4;
+  const files = form.stems ? form.tracks.length : 1;
+  const ratio = form.container === "Flac" ? 0.6 : 1;
+  return seconds * rate * 2 * bytesPerSample * files * ratio;
+}

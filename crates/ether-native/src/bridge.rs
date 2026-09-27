@@ -149,6 +149,11 @@ impl NativeBridge {
 /// so they never retire the live instance of the same device in the [`PluginHost`].
 const OFFLINE_DEVICE_PREFIX: u128 = 0xE0F1_0000_0000_0000_0000_0000_0000_0000;
 
+/// A registry id minted by [`NativeBridge::create_offline_plugin`].
+fn is_offline_id(device: DeviceId) -> bool {
+    device.0.0 >> 112 == OFFLINE_DEVICE_PREFIX >> 112
+}
+
 /// An offline plugin instance (export): the hosted node plus the registry entry it owns,
 /// released when the offline engine drops the node.
 struct OfflinePluginNode {
@@ -390,7 +395,18 @@ impl EngineBridge for NativeBridge {
             .values()
             .any(|d| matches!(d.kind, DeviceKind::Plugin(_)))
         {
+            let from = out.len();
             self.plugins.poll(out);
+            // Offline (export) instances are private to the export: their notifications
+            // (state dirty, GUI edits, latency) must not reach the document.
+            let mut i = from;
+            while i < out.len() {
+                if is_offline_id(out[i].0) {
+                    out.remove(i);
+                } else {
+                    i += 1;
+                }
+            }
         }
     }
 
@@ -623,6 +639,10 @@ mod tests {
             .create_offline_plugin(d, &inst, Some(&state), 44_100)
             .unwrap();
         assert_eq!(b.plugins().live_count(), live + 1);
+        // The offline instance's notifications (its state load) never reach the controller.
+        let mut notes = Vec::new();
+        b.poll_plugins(&mut notes);
+        assert!(notes.iter().all(|(dev, _)| *dev == d), "{notes:?}");
         // The live instance is untouched.
         assert_eq!(b.node_of(d), Some(key));
         assert_eq!(b.plugin_state(d).unwrap(), Some(state.clone()));

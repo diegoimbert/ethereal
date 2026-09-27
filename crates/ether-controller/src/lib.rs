@@ -174,7 +174,9 @@ pub trait EngineBridge {
 
     /// Roadmap v2 (`export`): a fresh, independent plugin node for offline rendering
     /// (prepared at `sample_rate`, state loaded from `state`). Never the live instance.
-    /// Default: unsupported (the export bypasses the plugin with a warning).
+    /// Default: unsupported. An export never skips a plugin: if this fails (unsupported
+    /// host, plugin not installed, instantiation error) the whole export fails with a
+    /// message naming the plugin. Disabled plugin devices are not instantiated.
     fn create_offline_plugin(
         &mut self,
         device: DeviceId,

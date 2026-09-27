@@ -1,12 +1,14 @@
-//! Post-processing and file encoding of a rendered export: peak normalization, TPDF dither
-//! for 16-bit, WAV (`hound`, one shot) and FLAC (`flacenc`, stepped a few frames at a time
-//! so a long file never blocks a tick).
+//! Post-processing and file encoding of a rendered export, all stepped a bounded number of
+//! frames at a time so a long file never blocks a controller tick: peak scan for
+//! normalization ([`PeakScan`]; the gain is applied while encoding), TPDF dither for 16-bit,
+//! WAV (`hound`) and FLAC (`flacenc`, frames written as they are encoded).
 
-use std::io::Cursor;
+use std::io::{Cursor, Seek, SeekFrom, Write};
+use std::sync::{Arc, Mutex};
 
 use ether_core::protocol::export::{AudioContainer, BitDepth};
 use flacenc::bitsink::ByteSink;
-use flacenc::component::{BitRepr, Frame, Stream, StreamInfo};
+use flacenc::component::{BitRepr, Stream, StreamInfo};
 use flacenc::config;
 use flacenc::error::{Verified, Verify};
 use flacenc::source::{Fill, FrameBuf};
@@ -17,24 +19,51 @@ pub(crate) const NORMALIZE_PEAK: f32 = 0.988_553_1;
 /// FLAC block size (per channel).
 const FLAC_BLOCK: usize = 4096;
 
-/// Largest absolute sample over all channels.
-pub(crate) fn peak(channels: &[Vec<f32>]) -> f32 {
-    channels.iter().flat_map(|c| c.iter()).fold(0.0f32, |m, s| {
-        if s.is_finite() { m.max(s.abs()) } else { m }
-    })
+/// Size of the FLAC header written in front of the frames: `fLaC` + one STREAMINFO block.
+const FLAC_HEADER: usize = 4 + 4 + 34;
+
+fn frames_of(channels: &[Vec<f32>]) -> usize {
+    channels.first().map_or(0, Vec::len)
 }
 
-/// Scale so the peak sits at [`NORMALIZE_PEAK`] (silence is left alone).
-pub(crate) fn normalize(channels: &mut [Vec<f32>]) {
-    let p = peak(channels);
-    if p <= 1e-9 {
-        return;
-    }
-    let gain = NORMALIZE_PEAK / p;
-    for c in channels.iter_mut() {
-        for s in c.iter_mut() {
-            *s *= gain;
+/// Peak of the signal, scanned in steps.
+#[derive(Default)]
+pub(crate) struct PeakScan {
+    pos: usize,
+    peak: f32,
+}
+
+impl PeakScan {
+    /// Scan about `budget` more frames. `Some(peak)` when done.
+    pub fn step(&mut self, channels: &[Vec<f32>], budget: usize) -> Option<f32> {
+        let total = frames_of(channels);
+        let end = self.pos.saturating_add(budget.max(1)).min(total);
+        for c in channels {
+            for s in &c[self.pos..end] {
+                if s.is_finite() {
+                    self.peak = self.peak.max(s.abs());
+                }
+            }
         }
+        self.pos = end;
+        (self.pos >= total).then_some(self.peak)
+    }
+
+    pub fn progress(&self, total: usize) -> f32 {
+        if total == 0 {
+            1.0
+        } else {
+            self.pos as f32 / total as f32
+        }
+    }
+}
+
+/// Gain that puts `peak` at [`NORMALIZE_PEAK`] (1 for silence).
+pub(crate) fn normalize_gain(peak: f32) -> f32 {
+    if peak <= 1e-9 {
+        1.0
+    } else {
+        NORMALIZE_PEAK / peak
     }
 }
 
@@ -82,89 +111,139 @@ pub(crate) fn quantize(x: f32, bits: u32, dither: Option<&mut Dither>) -> i32 {
 /// Seed of the 16-bit dither (fixed: identical renders give identical files).
 pub(crate) const DITHER_SEED: u64 = 0x9E37_79B9_7F4A_7C15;
 
-/// Interleaved integer samples of frames `from..to`.
-fn interleave_int(
-    channels: &[Vec<f32>],
-    from: usize,
-    to: usize,
-    bits: u32,
-    dither: &mut Option<Dither>,
-    out: &mut Vec<i32>,
-) {
-    out.clear();
-    for i in from..to {
-        for c in channels {
-            out.push(quantize(c[i], bits, dither.as_mut()));
-        }
+/// In-memory WAV target shared with the `hound` writer (which owns its writer and only
+/// gives it back through `finalize`).
+#[derive(Clone, Default)]
+struct SharedBuf(Arc<Mutex<Cursor<Vec<u8>>>>);
+
+impl Write for SharedBuf {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        self.0.lock().expect("unpoisoned").write(buf)
+    }
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
     }
 }
 
-/// Encode a whole WAV file in memory.
-pub(crate) fn encode_wav(
-    channels: &[Vec<f32>],
-    sample_rate: u32,
-    depth: BitDepth,
-) -> Result<Vec<u8>, String> {
-    let spec = hound::WavSpec {
-        channels: channels.len() as u16,
-        sample_rate,
-        bits_per_sample: match depth {
+impl Seek for SharedBuf {
+    fn seek(&mut self, pos: SeekFrom) -> std::io::Result<u64> {
+        self.0.lock().expect("unpoisoned").seek(pos)
+    }
+}
+
+/// WAV encoder stepped over an in-memory signal.
+pub(crate) struct WavEncoder {
+    writer: Option<hound::WavWriter<SharedBuf>>,
+    buf: SharedBuf,
+    bits: Option<u32>,
+    dither: Option<Dither>,
+    pos: usize,
+}
+
+fn wav_err(e: hound::Error) -> String {
+    format!("WAV encoding failed: {e}")
+}
+
+impl WavEncoder {
+    pub fn new(
+        channels: usize,
+        frames: usize,
+        sample_rate: u32,
+        depth: BitDepth,
+    ) -> Result<Self, String> {
+        let bits_per_sample = match depth {
             BitDepth::Int16 => 16,
             BitDepth::Int24 => 24,
             BitDepth::Float32 => 32,
-        },
-        sample_format: match depth {
-            BitDepth::Float32 => hound::SampleFormat::Float,
-            _ => hound::SampleFormat::Int,
-        },
-    };
-    let frames = channels.first().map_or(0, Vec::len);
-    let bytes_per_sample = spec.bits_per_sample as usize / 8;
-    let mut cursor = Cursor::new(Vec::with_capacity(
-        44 + frames * channels.len() * bytes_per_sample,
-    ));
-    let e = |e: hound::Error| format!("WAV encoding failed: {e}");
-    {
-        let mut w = hound::WavWriter::new(&mut cursor, spec).map_err(e)?;
-        match int_bits(depth) {
-            None => {
-                for i in 0..frames {
-                    for c in channels {
-                        let s = c[i];
-                        w.write_sample(if s.is_finite() { s } else { 0.0 })
-                            .map_err(e)?;
-                    }
-                }
-            }
-            Some(bits) => {
-                let mut dither = (bits == 16).then(|| Dither::new(DITHER_SEED));
-                for i in 0..frames {
-                    for c in channels {
-                        w.write_sample(quantize(c[i], bits, dither.as_mut()))
-                            .map_err(e)?;
-                    }
+        };
+        let spec = hound::WavSpec {
+            channels: channels as u16,
+            sample_rate,
+            bits_per_sample,
+            sample_format: match depth {
+                BitDepth::Float32 => hound::SampleFormat::Float,
+                _ => hound::SampleFormat::Int,
+            },
+        };
+        let buf = SharedBuf(Arc::new(Mutex::new(Cursor::new(Vec::with_capacity(
+            44 + frames * channels * bits_per_sample as usize / 8,
+        )))));
+        let writer = hound::WavWriter::new(buf.clone(), spec).map_err(wav_err)?;
+        let bits = int_bits(depth);
+        Ok(Self {
+            writer: Some(writer),
+            buf,
+            bits,
+            dither: (bits == Some(16)).then(|| Dither::new(DITHER_SEED)),
+            pos: 0,
+        })
+    }
+
+    /// Write about `budget` more frames (times `gain`). `Some(bytes)` once the file is done.
+    pub fn step(
+        &mut self,
+        channels: &[Vec<f32>],
+        gain: f32,
+        budget: usize,
+    ) -> Result<Option<Vec<u8>>, String> {
+        let total = frames_of(channels);
+        let end = self.pos.saturating_add(budget.max(1)).min(total);
+        let w = self.writer.as_mut().ok_or("WAV encoder finished")?;
+        for i in self.pos..end {
+            for c in channels {
+                let s = c[i] * gain;
+                match self.bits {
+                    None => w
+                        .write_sample(if s.is_finite() { s } else { 0.0 })
+                        .map_err(wav_err)?,
+                    Some(bits) => w
+                        .write_sample(quantize(s, bits, self.dither.as_mut()))
+                        .map_err(wav_err)?,
                 }
             }
         }
-        w.finalize().map_err(e)?;
+        self.pos = end;
+        if self.pos < total {
+            return Ok(None);
+        }
+        self.writer
+            .take()
+            .expect("checked")
+            .finalize()
+            .map_err(wav_err)?;
+        let bytes = std::mem::take(self.buf.0.lock().expect("unpoisoned").get_mut());
+        Ok(Some(bytes))
     }
-    Ok(cursor.into_inner())
+
+    pub fn progress(&self, total: usize) -> f32 {
+        if total == 0 {
+            1.0
+        } else {
+            self.pos as f32 / total as f32
+        }
+    }
 }
 
 /// FLAC encoder stepped over an in-memory signal (fixed block size; the last block may be
-/// shorter). MD5 is left unset (all zero = "not computed", allowed by the format).
+/// shorter). Frames are serialized as they are encoded after room for the header, which is
+/// filled in at the end. MD5 is left unset (all zero = "not computed", allowed).
 pub(crate) struct FlacEncoder {
     config: Verified<config::Encoder>,
     /// Verbatim coding for a last block shorter than the FLAC minimum (flacenc's
     /// predictors don't handle those).
     short_config: Verified<config::Encoder>,
     info: StreamInfo,
-    frames: Vec<Frame>,
+    bytes: Vec<u8>,
+    frame_count: usize,
     fb: FrameBuf,
     bits: u32,
     dither: Option<Dither>,
     pos: usize,
     interleaved: Vec<i32>,
+}
+
+fn flac_err(e: impl std::fmt::Display) -> String {
+    format!("FLAC: {e}")
 }
 
 impl FlacEncoder {
@@ -183,14 +262,15 @@ impl FlacEncoder {
         };
         let config = verify(cfg)?;
         let short_config = verify(short)?;
-        let info = StreamInfo::new(sample_rate as usize, channels, bits as usize)
-            .map_err(|e| format!("FLAC: {e}"))?;
-        let fb = FrameBuf::with_size(channels, FLAC_BLOCK).map_err(|e| format!("FLAC: {e}"))?;
+        let info =
+            StreamInfo::new(sample_rate as usize, channels, bits as usize).map_err(flac_err)?;
+        let fb = FrameBuf::with_size(channels, FLAC_BLOCK).map_err(flac_err)?;
         Ok(Self {
             config,
             short_config,
             info,
-            frames: Vec::new(),
+            bytes: vec![0; FLAC_HEADER],
+            frame_count: 0,
             fb,
             bits,
             dither: (bits == 16).then(|| Dither::new(DITHER_SEED)),
@@ -199,7 +279,6 @@ impl FlacEncoder {
         })
     }
 
-    /// Fraction of `total` frames encoded.
     pub fn progress(&self, total: usize) -> f32 {
         if total == 0 {
             1.0
@@ -208,60 +287,114 @@ impl FlacEncoder {
         }
     }
 
-    /// Encode about `budget` more frames of `channels`. `Ok(true)` when everything is in.
-    pub fn step(&mut self, channels: &[Vec<f32>], budget: usize) -> Result<bool, String> {
-        let total = channels.first().map_or(0, Vec::len);
+    /// Encode about `budget` more frames (times `gain`; at least one FLAC block).
+    /// `Some(bytes)` once the file is done.
+    pub fn step(
+        &mut self,
+        channels: &[Vec<f32>],
+        gain: f32,
+        budget: usize,
+    ) -> Result<Option<Vec<u8>>, String> {
+        let total = frames_of(channels);
         let stop = self.pos.saturating_add(budget.max(1));
         while self.pos < total && self.pos < stop {
             let n = FLAC_BLOCK.min(total - self.pos);
             if n != self.fb.size() {
                 self.fb.resize(n);
             }
-            interleave_int(
-                channels,
-                self.pos,
-                self.pos + n,
-                self.bits,
-                &mut self.dither,
-                &mut self.interleaved,
-            );
+            self.interleaved.clear();
+            for i in self.pos..self.pos + n {
+                for c in channels {
+                    self.interleaved
+                        .push(quantize(c[i] * gain, self.bits, self.dither.as_mut()));
+                }
+            }
             self.fb
                 .fill_interleaved(&self.interleaved)
-                .map_err(|e| format!("FLAC: {e}"))?;
+                .map_err(flac_err)?;
             let config = if n < 64 {
                 &self.short_config
             } else {
                 &self.config
             };
             let frame =
-                flacenc::encode_fixed_size_frame(config, &self.fb, self.frames.len(), &self.info)
+                flacenc::encode_fixed_size_frame(config, &self.fb, self.frame_count, &self.info)
                     .map_err(|e| format!("FLAC encoding failed: {e:?}"))?;
             self.info.update_frame_info(&frame);
-            self.frames.push(frame);
+            let mut sink = ByteSink::new();
+            frame.write(&mut sink).map_err(flac_err)?;
+            self.bytes.extend_from_slice(sink.as_slice());
+            self.frame_count += 1;
             self.pos += n;
         }
-        Ok(self.pos >= total)
+        if self.pos < total {
+            return Ok(None);
+        }
+        self.finish().map(Some)
     }
 
-    /// The finished file.
-    pub fn finish(mut self) -> Result<Vec<u8>, String> {
-        let e = |e: &dyn std::fmt::Display| format!("FLAC: {e}");
-        let total = self.pos;
-        self.info.set_total_samples(total);
+    fn finish(&mut self) -> Result<Vec<u8>, String> {
+        let mut info = self.info.clone();
+        info.set_total_samples(self.pos);
         // Fixed-size stream: the (shorter) last block doesn't count as the minimum.
-        self.info
-            .set_block_sizes(FLAC_BLOCK, FLAC_BLOCK)
-            .map_err(|x| e(&x))?;
-        if self.frames.is_empty() {
-            self.info.set_frame_sizes(0, 0).map_err(|x| e(&x))?;
+        info.set_block_sizes(FLAC_BLOCK, FLAC_BLOCK)
+            .map_err(flac_err)?;
+        if self.frame_count == 0 {
+            info.set_frame_sizes(0, 0).map_err(flac_err)?;
         }
-        let header = Stream::with_stream_info(self.info);
         let mut sink = ByteSink::new();
-        header.write(&mut sink).map_err(|x| e(&x))?;
-        for f in &self.frames {
-            f.write(&mut sink).map_err(|x| e(&x))?;
+        Stream::with_stream_info(info)
+            .write(&mut sink)
+            .map_err(flac_err)?;
+        let header = sink.as_slice();
+        if header.len() != FLAC_HEADER {
+            return Err(format!("FLAC: unexpected header size {}", header.len()));
         }
-        Ok(sink.into_inner())
+        let mut bytes = std::mem::take(&mut self.bytes);
+        bytes[..FLAC_HEADER].copy_from_slice(header);
+        Ok(bytes)
+    }
+}
+
+/// A file being encoded.
+pub(crate) enum Encoder {
+    Wav(Box<WavEncoder>),
+    Flac(Box<FlacEncoder>),
+}
+
+impl Encoder {
+    pub fn new(
+        container: AudioContainer,
+        depth: BitDepth,
+        channels: usize,
+        frames: usize,
+        rate: u32,
+    ) -> Result<Self, String> {
+        Ok(match container {
+            AudioContainer::Wav => {
+                Self::Wav(Box::new(WavEncoder::new(channels, frames, rate, depth)?))
+            }
+            AudioContainer::Flac => Self::Flac(Box::new(FlacEncoder::new(channels, rate, depth)?)),
+        })
+    }
+
+    pub fn step(
+        &mut self,
+        channels: &[Vec<f32>],
+        gain: f32,
+        budget: usize,
+    ) -> Result<Option<Vec<u8>>, String> {
+        match self {
+            Self::Wav(w) => w.step(channels, gain, budget),
+            Self::Flac(f) => f.step(channels, gain, budget),
+        }
+    }
+
+    pub fn progress(&self, total: usize) -> f32 {
+        match self {
+            Self::Wav(w) => w.progress(total),
+            Self::Flac(f) => f.progress(total),
+        }
     }
 }
 
@@ -287,14 +420,39 @@ mod tests {
             .collect()
     }
 
+    fn encode(
+        container: AudioContainer,
+        depth: BitDepth,
+        s: &[Vec<f32>],
+        gain: f32,
+        budget: usize,
+    ) -> (Vec<u8>, usize) {
+        let mut enc = Encoder::new(container, depth, s.len(), frames_of(s), 48_000).unwrap();
+        let mut steps = 1;
+        loop {
+            if let Some(b) = enc.step(s, gain, budget).unwrap() {
+                return (b, steps);
+            }
+            steps += 1;
+        }
+    }
+
     #[test]
-    fn normalize_hits_the_target_peak() {
-        let mut s = sine(1000, 0.25);
-        normalize(&mut s);
-        assert!((peak(&s) - NORMALIZE_PEAK).abs() < 1e-6);
-        let mut silent = vec![vec![0.0f32; 10]; 2];
-        normalize(&mut silent);
-        assert_eq!(peak(&silent), 0.0);
+    fn peak_scan_and_gain() {
+        let s = sine(10_000, 0.25);
+        let mut scan = PeakScan::default();
+        let mut steps = 1;
+        let p = loop {
+            if let Some(p) = scan.step(&s, 1000) {
+                break p;
+            }
+            steps += 1;
+        };
+        assert_eq!(steps, 10);
+        assert!((p - 0.25).abs() < 1e-3);
+        assert!((normalize_gain(p) * p - NORMALIZE_PEAK).abs() < 1e-6);
+        assert_eq!(normalize_gain(0.0), 1.0);
+        assert_eq!(PeakScan::default().step(&[vec![], vec![]], 10), Some(0.0));
     }
 
     #[test]
@@ -321,9 +479,10 @@ mod tests {
             (BitDepth::Int24, 2.0 / 8_388_607.0),
             (BitDepth::Int16, 2.5 / 32767.0),
         ] {
-            let bytes = encode_wav(&s, 44_100, depth).unwrap();
+            let (bytes, steps) = encode(AudioContainer::Wav, depth, &s, 1.0, 1000);
+            assert_eq!(steps, 3, "stepped");
             let d = decode(&bytes, "wav");
-            assert_eq!(d.sample_rate, 44_100);
+            assert_eq!(d.sample_rate, 48_000);
             assert_eq!(d.channels.len(), 2);
             assert_eq!(d.frames(), 3000);
             for (a, b) in d.channels.iter().zip(&s) {
@@ -332,6 +491,10 @@ mod tests {
                 }
             }
         }
+        // Gain is applied while encoding.
+        let (bytes, _) = encode(AudioContainer::Wav, BitDepth::Float32, &s, 0.5, 4096);
+        let d = decode(&bytes, "wav");
+        assert_eq!(d.channels[0][10], s[0][10] * 0.5);
     }
 
     #[test]
@@ -342,13 +505,8 @@ mod tests {
             (BitDepth::Int24, 2.0 / 8_388_607.0),
             (BitDepth::Int16, 2.5 / 32767.0),
         ] {
-            let mut enc = FlacEncoder::new(2, 48_000, depth).unwrap();
-            let mut steps = 0;
-            while !enc.step(&s, 1000).unwrap() {
-                steps += 1;
-            }
-            assert!(steps >= 2, "stepped");
-            let bytes = enc.finish().unwrap();
+            let (bytes, steps) = encode(AudioContainer::Flac, depth, &s, 1.0, 1000);
+            assert!(steps >= 3, "stepped");
             let d = decode(&bytes, "flac");
             assert_eq!(d.sample_rate, 48_000);
             assert_eq!(d.frames(), s[0].len());
@@ -365,9 +523,7 @@ mod tests {
     fn short_and_empty_flac() {
         for frames in [0usize, 10, 100] {
             let s = sine(frames, 0.5);
-            let mut enc = FlacEncoder::new(2, 48_000, BitDepth::Int16).unwrap();
-            while !enc.step(&s, 4096).unwrap() {}
-            let bytes = enc.finish().unwrap();
+            let (bytes, _) = encode(AudioContainer::Flac, BitDepth::Int16, &s, 1.0, 4096);
             assert_eq!(&bytes[..4], b"fLaC");
             if frames > 0 {
                 assert_eq!(decode(&bytes, "flac").frames(), frames);

@@ -10,6 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Command, ExportRequest, ReplyValue } from "@/generated";
 import { useProjectStore } from "@/state";
 import {
+  createEmptyProject,
   MockTransport,
   TransportProvider,
   type SendOptions,
@@ -19,7 +20,9 @@ import {
   buildRequest,
   DEFAULT_FORM,
   defaultStemTracks,
+  estimateBytes,
   formProblem,
+  LARGE_EXPORT_BYTES,
 } from "./request";
 
 class SpyMock extends MockTransport {
@@ -122,11 +125,49 @@ describe("ExportDialog", () => {
     expect(done).toHaveTextContent(".flac");
     // Closing releases the engine-side bytes.
     fireEvent.click(within(dialog).getByRole("button", { name: "Close" }));
-    expect(
-      mock.sent.some(
-        (c) => c.domain === "Export" && c.command.type === "Release",
-      ),
-    ).toBe(true);
+    await waitFor(() =>
+      expect(
+        mock.sent.some(
+          (c) => c.domain === "Export" && c.command.type === "Release",
+        ),
+      ).toBe(true),
+    );
+  });
+
+  it("releases a download only after it was pulled", async () => {
+    const { mock, dialog } = await setup();
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole("button", { name: "Export" }));
+    });
+    // Hold the chunk reads until the dialog was closed.
+    let unblock!: () => void;
+    const gate = new Promise<void>((r) => (unblock = r));
+    const send = mock.send.bind(mock);
+    mock.send = async (c, o) => {
+      if (c.domain === "Export" && c.command.type === "ReadChunk") await gate;
+      return send(c, o);
+    };
+    await act(async () => {
+      mock.tick(16);
+      mock.tick(16);
+    });
+    await within(dialog).findByTestId("export-done");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Close" }));
+    const order = () =>
+      mock.sent.flatMap((c) => (c.domain === "Export" ? [c.command.type] : []));
+    expect(order()).not.toContain("Release");
+    unblock();
+    await waitFor(() => expect(order()).toContain("Release"));
+    const o = order();
+    expect(o.lastIndexOf("ReadChunk")).toBeLessThan(o.indexOf("Release"));
+    expect(created).toHaveLength(1);
+  });
+
+  it("shows the stem semantics", async () => {
+    const { dialog } = await setup();
+    fireEvent.click(within(dialog).getByRole("switch", { name: "Stems" }));
+    expect(dialog).toHaveTextContent("Solo is ignored");
+    expect(within(dialog).queryByRole("note")).toBeNull();
   });
 
   it("exports stems of the chosen tracks and can be cancelled", async () => {
@@ -194,5 +235,35 @@ describe("export request", () => {
       tail_seconds: 60,
       name: "Mix",
     });
+  });
+});
+
+describe("export size estimate", () => {
+  it("scales with length, rate, depth and files", () => {
+    let n = 0;
+    const project = createEmptyProject(() => `id${n++}`, "P", "p" as never);
+    const form = {
+      ...DEFAULT_FORM,
+      range: "selection" as const,
+      bitDepth: "Float32" as const,
+      rate: "96000" as const,
+    };
+    // 20 min at 120 bpm = 2400 beats: 1200 s · 96 kHz · 2 ch · 4 B.
+    const one = estimateBytes(form, project, { start: 0, end: 2400 });
+    expect(one).toBeCloseTo(1200 * 96000 * 2 * 4);
+    expect(one).toBeGreaterThan(LARGE_EXPORT_BYTES);
+    expect(
+      estimateBytes({ ...form, stems: true, tracks: ["a", "b"] }, project, {
+        start: 0,
+        end: 2400,
+      }),
+    ).toBeCloseTo(2 * one);
+    expect(
+      estimateBytes(
+        { ...form, container: "Flac", bitDepth: "Int16" },
+        project,
+        { start: 0, end: 4 },
+      ),
+    ).toBeLessThan(LARGE_EXPORT_BYTES);
   });
 });
