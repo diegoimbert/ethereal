@@ -952,6 +952,7 @@ where
             .ops
             .into_iter()
             .filter(|op| !resolve::is_local_only(op))
+            .filter(|op| !crate::social::is_forged_chat(op, t.origin.site))
             .collect();
         let (applied, _) = resolve::resolve_all(project, &ops);
         let replaced: Vec<DeviceId> = applied
@@ -1473,6 +1474,7 @@ fn check_echo(live: &Project, pending: &VecDeque<Pending>, echo: &StampedTransac
         .ops
         .iter()
         .filter(|op| !resolve::is_local_only(op))
+        .filter(|op| !crate::social::is_forged_chat(op, echo.origin.site))
         .cloned()
         .collect();
     resolve::resolve_all(&mut p, &ops);

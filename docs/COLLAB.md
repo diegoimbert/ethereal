@@ -776,6 +776,15 @@ project, replicated as ordinary ops); peer playheads are **presence** (ephemeral
   emits `CollabEvent::ChatReceived { ids }` for peers' messages **sequenced after this
   site's join catch-up** (never for the join snapshot, the catch-up log, a project load, or
   own messages), so the UI toasts only live messages.
+- **Authorship is verified on receipt** (implemented: `social::is_forged_chat`, applied in
+  `collab_apply_remote` and in the debug echo check): a peer's `Insert ChatMessage` is
+  dropped unless `author.site == Some(origin.site)` (the relay-verified sender, §7) and
+  `seq == 0`. Deterministic (a function of the op and its stamped origin), so every
+  replica drops the same ops, and a dropped message never produces `ChatReceived`. No
+  legitimate path sends anything else, because chat is never undone or redone. Tested in
+  `ether-controller/tests/social_sanitize.rs`. **Note authorship is best-effort**: undoing a
+  discard legitimately re-inserts another user's note, so notes cannot use this rule; their
+  `author` is what the inserting op says.
 - **Own colour.** Today a site never learns its relay colour (the relay drops a site's own
   presence). The node adds it: the relay sends each site its own stamped default presence
   once synced (`relay/mod.rs`, next to the peers' presence it already sends a joiner), and
