@@ -37,7 +37,9 @@ pub enum CollabCommand {
     },
     Leave,
     /// Publish this user's presence (throttled by the host to ~10 Hz).
-    SetPresence { presence: PresenceState },
+    SetPresence {
+        presence: PresenceState,
+    },
     /// Re-emit the current `Session` and `Presence` events (UI mount/reload). Replies `Unit`.
     /// (Once their nodes land, also `ListenStatus` and `IceServers`.)
     Get,
@@ -45,12 +47,16 @@ pub enum CollabCommand {
     /// Presence v2 (`presence-v2`): this user's pointer over the arranger (`None` = the
     /// pointer left the arranger). A high-rate channel separate from `SetPresence`: the
     /// controller sends at most [`POINTER_MAX_HZ`] and always sends a clear. Replies `Unit`.
-    SetPointer { pointer: Option<ArrangerPointer> },
+    SetPointer {
+        pointer: Option<ArrangerPointer>,
+    },
     /// Listen on `host`'s computer (`stream-listen`): the local timeline goes silent (the
     /// local transport is held stopped), the host's output is streamed over WebRTC, and the
     /// transport follows the host. Replies `Unit`; progress comes as
     /// `CollabEvent::ListenStatus`. `Unsupported` where the UI has no WebRTC receiver.
-    Listen { host: SiteId },
+    Listen {
+        host: SiteId,
+    },
     /// Stop listening (back to the local engine). No-op when not listening. Replies `Unit`.
     StopListening,
     /// A WebRTC signal produced by this site's UI endpoint (the listener's
@@ -79,7 +85,9 @@ pub enum CollabCommand {
     },
     /// Override the ICE servers the relay advertises (settings). `None` = use the relay's.
     /// Re-emits `CollabEvent::IceServers`. Replies `Unit`.
-    SetIceServers { servers: Option<Vec<IceServer>> },
+    SetIceServers {
+        servers: Option<Vec<IceServer>>,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
@@ -237,13 +245,26 @@ pub enum ActivityKind {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
 #[serde(tag = "type")]
 pub enum ActivityTarget {
-    Clip { clip: ClipId },
-    Track { track: TrackId },
-    Device { device: DeviceId },
-    Param { device: DeviceId, param: ParamId },
+    Clip {
+        clip: ClipId,
+    },
+    Track {
+        track: TrackId,
+    },
+    Device {
+        device: DeviceId,
+    },
+    Param {
+        device: DeviceId,
+        param: ParamId,
+    },
     /// Notes of a MIDI clip (the piano roll).
-    Notes { clip: ClipId },
-    Lane { lane: AutomationLaneId },
+    Notes {
+        clip: ClipId,
+    },
+    Lane {
+        lane: AutomationLaneId,
+    },
     /// Several things, or nothing in particular.
     Selection,
 }
@@ -461,7 +482,9 @@ pub enum CollabMessage {
     },
     /// Relay → site (after its sync, and again before its TURN credentials expire): the
     /// ICE servers to use. Dropped when a site sends it.
-    IceServers { servers: Vec<IceServer> },
+    IceServers {
+        servers: Vec<IceServer>,
+    },
 }
 
 impl CollabMessage {

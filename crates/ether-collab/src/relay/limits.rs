@@ -56,9 +56,7 @@ impl SiteLimiter {
             }
             m if m.route().is_some() => {
                 let rate = f64::from(ROUTED_PER_SECOND);
-                let since = self
-                    .routed_refilled
-                    .map_or(0, |t| now_ms.saturating_sub(t));
+                let since = self.routed_refilled.map_or(0, |t| now_ms.saturating_sub(t));
                 self.routed_budget = (self.routed_budget + since as f64 * rate / 1000.0).min(rate);
                 self.routed_refilled = Some(now_ms);
                 if self.routed_budget >= 1.0 {

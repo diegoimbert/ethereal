@@ -335,7 +335,12 @@ where
     }
 
     /// Send a `Signal` from this site to `to` (the relay delivers it to `to` only).
-    pub(crate) fn collab_send_routed_signal(&mut self, to: SiteId, stream: u32, signal: StreamSignal) {
+    pub(crate) fn collab_send_routed_signal(
+        &mut self,
+        to: SiteId,
+        stream: u32,
+        signal: StreamSignal,
+    ) {
         let from = self.collab_site();
         if let Some(s) = self.collab.session.as_mut() {
             s.send(&CollabMessage::Signal {
@@ -862,7 +867,10 @@ where
             } => self.collab_media_chunk(file, hash, offset, total, data.0),
             CollabMessage::Update { .. } => {}
             // ─── base-53 ───
-            CollabMessage::Pointer { site: peer, pointer } => {
+            CollabMessage::Pointer {
+                site: peer,
+                pointer,
+            } => {
                 if peer != site {
                     self.collab_pointer_message(peer, pointer, out);
                 }

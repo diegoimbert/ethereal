@@ -33,7 +33,11 @@ fn presence_v2_is_additive() {
     let state: PresenceState = serde_json::from_value(v1.clone()).unwrap();
     assert_eq!(state.viewport, None);
     assert!(!state.can_host);
-    assert_eq!(serde_json::to_value(&state).unwrap(), v1, "unset fields are omitted");
+    assert_eq!(
+        serde_json::to_value(&state).unwrap(),
+        v1,
+        "unset fields are omitted"
+    );
 
     let track: TrackId = id(1);
     let full = PresenceState {
@@ -91,7 +95,10 @@ fn pointer_channel_shapes() {
         site: SiteId(1),
         pointer: None,
     });
-    assert_eq!(clear, json!({"type": "Pointer", "site": "1", "pointer": null}));
+    assert_eq!(
+        clear,
+        json!({"type": "Pointer", "site": "1", "pointer": null})
+    );
     roundtrip(&CollabEvent::Pointer {
         site: SiteId(2),
         pointer: Some(pointer),
@@ -115,7 +122,10 @@ fn signaling_shapes() {
         signal: ice.clone(),
     });
     assert_eq!(m["type"], "Signal");
-    assert_eq!((m["from"].clone(), m["to"].clone()), (json!("1"), json!("2")));
+    assert_eq!(
+        (m["from"].clone(), m["to"].clone()),
+        (json!("1"), json!("2"))
+    );
     assert_eq!(m["signal"]["type"], "Ice");
     assert_eq!(m["signal"]["candidate"]["sdp_m_line_index"], 0);
     for s in [

@@ -568,7 +568,11 @@ fn ice_servers_are_advertised_per_site_and_refreshed() {
     out.clear();
     r.message(1, snapshot(0), &mut out).unwrap();
     let ice = to(&out, 1);
-    assert_eq!(kinds(&ice), ["IceServers"], "the creator gets them once ready");
+    assert_eq!(
+        kinds(&ice),
+        ["IceServers"],
+        "the creator gets them once ready"
+    );
     let CollabMessage::IceServers { servers } = &ice[0] else {
         unreachable!()
     };
@@ -578,7 +582,10 @@ fn ice_servers_are_advertised_per_site_and_refreshed() {
     r.message(2, hello(2), &mut out).unwrap();
     r.message(2, sync(2, None), &mut out).unwrap();
     assert_eq!(kinds(&to(&out, 2)).last(), Some(&"IceServers"));
-    assert!(!kinds(&to(&out, 1)).contains(&"IceServers"), "once per site");
+    assert!(
+        !kinds(&to(&out, 1)).contains(&"IceServers"),
+        "once per site"
+    );
     out.clear();
     r.tick(500, &mut out);
     assert!(out.is_empty());

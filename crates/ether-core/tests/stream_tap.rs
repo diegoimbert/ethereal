@@ -90,7 +90,10 @@ fn the_tap_has_the_metronome_but_never_the_preview() {
     assert_ne!(heard, expected, "the host hears its preview");
     assert_eq!(tapped, expected, "the stream is master + metronome only");
     // Headers tile the sample clock with the transport state.
-    assert_eq!(blocks.iter().map(|b| b.frames as usize).sum::<usize>(), FRAMES);
+    assert_eq!(
+        blocks.iter().map(|b| b.frames as usize).sum::<usize>(),
+        FRAMES
+    );
     let mut t = blocks[0].sample_time;
     for b in &blocks {
         assert_eq!(b.sample_time, t);

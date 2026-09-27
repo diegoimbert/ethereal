@@ -94,7 +94,9 @@ fn ice_server_settings_override_the_relay() {
             source: IceServerSource::Settings
         }]
     );
-    let out = s.send(Command::Collab(CollabCommand::SetIceServers { servers: None }));
+    let out = s.send(Command::Collab(CollabCommand::SetIceServers {
+        servers: None,
+    }));
     assert_eq!(
         collab_events(&out),
         [CollabEvent::IceServers {
@@ -124,7 +126,11 @@ fn signals_are_forwarded_only_inside_a_session() {
         stream: 1,
         signal: StreamSignal::Bye { reason: None },
     }));
-    assert_eq!(error_code(&out), ErrorCode::InvalidArgument, "not to itself");
+    assert_eq!(
+        error_code(&out),
+        ErrorCode::InvalidArgument,
+        "not to itself"
+    );
     sites[1].ok(Command::Collab(CollabCommand::SendSignal {
         to: a,
         stream: 1,

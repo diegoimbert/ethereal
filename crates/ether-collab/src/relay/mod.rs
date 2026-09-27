@@ -206,7 +206,9 @@ pub const MAX_CANDIDATE_BYTES: usize = 1 << 10;
 fn check_routed(m: &CollabMessage) -> Result<(), Dropped> {
     let ok = match m {
         CollabMessage::Signal { signal, .. } => match signal {
-            StreamSignal::Offer { sdp } | StreamSignal::Answer { sdp } => sdp.len() <= MAX_SDP_BYTES,
+            StreamSignal::Offer { sdp } | StreamSignal::Answer { sdp } => {
+                sdp.len() <= MAX_SDP_BYTES
+            }
             StreamSignal::Ice { candidate } => {
                 candidate.candidate.len()
                     + candidate.sdp_mid.as_ref().map_or(0, String::len)
