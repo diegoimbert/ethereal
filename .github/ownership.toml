@@ -540,6 +540,9 @@ paths = [
   "crates/ether-controller/src/lib.rs",
   # shared touch (base-29): DrumRack/Sampler-slice mock descriptors
   "ui/src/transport/mock/builtinDevices.ts",
+  # shared touch (base-31): pass sampler slices in create(); drop the placeholder module
+  "crates/ether-devices/src/lib.rs",
+  "crates/ether-devices/src/placeholder.rs",
 ]
 
 # --- media-preview (base-24) ------------------------------------------------------------
