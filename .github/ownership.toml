@@ -350,6 +350,8 @@ paths = [
   "crates/ether-native/tests/clip_editing*.rs",
   # shared touch (base-25): one additive state field + initializer on EtherController
   "crates/ether-controller/src/lib.rs",
+  # shared touch (base-26): fade law + reverse in render_complex via sched helpers
+  "crates/ether-core/src/warp/mod.rs",
 ]
 
 [nodes.remote-engine]
