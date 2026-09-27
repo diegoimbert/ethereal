@@ -973,18 +973,20 @@ mod tests {
 
     /// A main thread whose queued jobs can also be run from inside a job ([`pump`]), like
     /// Tauri's `run_on_main_thread` jobs running inside an AU's nested `CFRunLoopRunInMode`.
+    type Job = Box<dyn FnOnce() + Send>;
+
     struct Pumping {
-        tx: crossbeam_channel::Sender<Box<dyn FnOnce() + Send>>,
+        tx: crossbeam_channel::Sender<Job>,
     }
 
     thread_local! {
-        static PUMP_RX: RefCell<Option<crossbeam_channel::Receiver<Box<dyn FnOnce() + Send>>>> =
+        static PUMP_RX: RefCell<Option<crossbeam_channel::Receiver<Job>>> =
             const { RefCell::new(None) };
     }
 
     impl Pumping {
         fn new() -> Self {
-            let (tx, rx) = unbounded::<Box<dyn FnOnce() + Send>>();
+            let (tx, rx) = unbounded::<Job>();
             std::thread::spawn(move || {
                 PUMP_RX.with(|r| *r.borrow_mut() = Some(rx.clone()));
                 while let Ok(f) = rx.recv() {
