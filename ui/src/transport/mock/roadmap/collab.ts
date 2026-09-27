@@ -7,8 +7,6 @@
  * `simulatePeerEdit` applies document commands as if a peer made them (the patch is a normal
  * mock patch; the mock has a single history, so it is only an approximation of per-site
  * undo).
- *
- * `collabCommand` is the stateless fallback used until MockTransport holds a `MockCollab`.
  */
 
 import type { CollabCommand, CollabStatus, Command, Presence, PresenceState, ReplyValue } from "@/generated";
@@ -92,10 +90,4 @@ export class MockCollab {
   private emitPeers() {
     this.host.emit({ type: "Collab", event: { type: "Presence", peers: [...this.peers.values()] } });
   }
-}
-
-/** Stateless fallback (no events): validates and replies. */
-export function collabCommand(c: CollabCommand): ReplyValue {
-  if (c.type === "Join") checkJoin(c);
-  return UNIT;
 }

@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
-import type { Command, Event, ReplyValue } from "@/generated";
+import type { Command, ReplyValue } from "@/generated";
 import { useProjectStore } from "@/state/projectStore";
 import { useSelectionStore } from "@/state/selection";
 import { MockTransport, TransportProvider, type SendOptions } from "@/transport";
@@ -8,20 +8,16 @@ import { MockCollab } from "@/transport/mock/roadmap/collab";
 import { PresenceBar } from ".";
 import { highlightCss, initials, peerColor, useCollabStore } from "./store";
 
-/** A MockTransport whose collab commands run through `MockCollab` (session simulation). */
+/** A MockTransport recording what the UI sent (its `MockCollab` simulates the session). */
 class CollabMock extends MockTransport {
   sent: Command[] = [];
-  readonly collab = new MockCollab({
-    project: () => this.snapshot(),
-    emit: (e: Event) => (this as unknown as { emit(e: Event): void }).emit(e),
-    newId: () => "x",
-    applyDocument: () => undefined,
-    execute: () => undefined,
-  });
   override async send(command: Command, opts?: SendOptions): Promise<ReplyValue> {
     this.sent.push(command);
-    if (command.domain === "Collab") return this.collab.command(command.command);
     return super.send(command, opts);
+  }
+  /** The mock's session simulation (private in MockTransport). */
+  get sim(): MockCollab {
+    return (this as unknown as { collab: MockCollab }).collab;
   }
 }
 
@@ -78,11 +74,11 @@ describe("PresenceBar", () => {
     // The local selection goes out as presence.
     const track = Object.values(useProjectStore.getState().project!.tracks)[0]!.id;
     act(() => useSelectionStore.getState().selectTrack(track));
-    await waitFor(() => expect(mock.collab.presence.selected_tracks).toEqual([track]));
+    await waitFor(() => expect(mock.sim.presence.selected_tracks).toEqual([track]));
 
     // A peer's selection is outlined.
     act(() =>
-      mock.collab.simulatePeer("7", "Zoe", 0xff94a6, {
+      mock.sim.simulatePeer("7", "Zoe", 0xff94a6, {
         cursor: null,
         selected_tracks: [track],
         selected_clips: [],

@@ -123,7 +123,7 @@ import { synthesizePeaks } from "./peaks";
 import { mulberry32, SEED_TIME, seededIdFactory } from "./random";
 import { beatsToSeconds, bpmAt, signatureAt } from "./tempo";
 import { changeKey, Tx } from "./tx";
-import { collabCommand } from "./roadmap/collab";
+import { MockCollab } from "./roadmap/collab";
 import { MockExports } from "./roadmap/export";
 import { MockPreview } from "./roadmap/mediaPreview";
 import type { MockHost } from "./roadmap/host";
@@ -245,6 +245,7 @@ export class MockTransport implements EngineTransport {
   };
   private readonly midiLearn = new MockMidiLearn(this.host);
   private readonly exports = new MockExports(this.host);
+  private readonly collab = new MockCollab(this.host);
   private readonly preview = new MockPreview(this.host);
 
   constructor(opts: MockTransportOptions = {}) {
@@ -387,7 +388,7 @@ export class MockTransport implements EngineTransport {
       case "MidiMap":
         return this.midiLearn.command(command.command);
       case "Collab":
-        return collabCommand(command.command);
+        return this.collab.command(command.command);
       default:
         return fail("InvalidArgument", `unknown command domain`);
     }

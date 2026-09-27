@@ -4,4 +4,3 @@
 
 /** Collaboration: session join/leave and the peers' presence (docs/COLLAB.md). */
 export { PresenceBar } from "./PresenceBar";
-export { useCollabStore } from "./store";

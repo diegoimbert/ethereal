@@ -2,7 +2,7 @@
 import { describe, expect, it } from "vitest";
 import type { Event } from "@/generated";
 import { cmd } from "../../cmd";
-import { MockCollab, collabCommand, validSessionName } from "./collab";
+import { MockCollab, validSessionName } from "./collab";
 import type { MockHost } from "./host";
 import { useMock } from "./testUtils";
 
@@ -51,9 +51,12 @@ describe("MockCollab", () => {
 describe("MockTransport collab", () => {
   const f = useMock();
 
-  it("accepts collab commands", async () => {
+  it("simulates a session", async () => {
     await expect(f.mock.send(cmd("Collab", { type: "Get" }))).resolves.toEqual({ type: "Unit" });
-    await expect(f.mock.send(cmd("Collab", { type: "Leave" }))).resolves.toEqual({ type: "Unit" });
-    expect(collabCommand({ type: "Leave" })).toEqual({ type: "Unit" });
+    expect(f.events).toContainEqual({ type: "Collab", event: { type: "Session", status: { type: "Offline" } } });
+    await f.mock.send(cmd("Collab", { type: "Join", server: "ws://r:1", session: "jam", token: null, name: "Me" }));
+    expect(f.events.at(-1)).toMatchObject({ type: "Collab", event: { type: "Presence", peers: [{ name: "Mock peer" }] } });
+    await f.mock.send(cmd("Collab", { type: "Leave" }));
+    expect(f.events.at(-1)).toEqual({ type: "Collab", event: { type: "Presence", peers: [] } });
   });
 });
