@@ -126,6 +126,7 @@ impl Gen<'_> {
                 input: TrackInput::None,
                 output,
                 monitor: MonitorMode::Auto,
+                scale: Default::default(),
             }),
         }
     }
@@ -724,7 +725,7 @@ proptest! {
                 id: track, kind: TrackKind::Midi, name: "m".into(), color: Color(1),
                 order: OrderKey::between(None, None), parent: None,
                 mixer: TrackMixer { volume: Decibels(db), pan: Pan(pan), mute: false, solo: false },
-                input: TrackInput::None, output: TrackOutput::Default, monitor: MonitorMode::Auto,
+                input: TrackInput::None, output: TrackOutput::Default, monitor: MonitorMode::Auto, scale: Default::default(),
             })},
             Op::Insert { entity: Entity::Clip(Clip {
                 id: clip, track, start: Beats(beats[0]),

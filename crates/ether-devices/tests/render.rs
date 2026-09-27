@@ -576,7 +576,11 @@ fn delay_echo_at_time_in_ms() {
 fn delay_ping_pong_alternates_channels() {
     let mut d = Delay::new();
     prepared(&mut d);
-    assert_eq!(d.param(delay::params::PING_PONG), Some(0.0), "off by default");
+    assert_eq!(
+        d.param(delay::params::PING_PONG),
+        Some(0.0),
+        "off by default"
+    );
     d.set_param(delay::params::TIME, 100.0);
     d.set_param(delay::params::FEEDBACK, 50.0);
     d.set_param(delay::params::MIX, 100.0);

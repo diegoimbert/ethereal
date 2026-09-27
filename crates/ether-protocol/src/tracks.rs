@@ -45,4 +45,9 @@ pub enum TrackCommand {
         parent: Option<TrackId>,
         before: Option<TrackId>,
     },
+    /// Set a MIDI track's piano-roll scale (undoable document edit; never restricts notes).
+    SetScale {
+        id: TrackId,
+        scale: crate::model::TrackScale,
+    },
 }

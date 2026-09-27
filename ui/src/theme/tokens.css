@@ -57,6 +57,8 @@
   --eth-ease-in: cubic-bezier(0.4, 0, 1, 1);
   --eth-opacity-disabled: 0.4;
   --eth-opacity-muted: 0.6;
+  --eth-opacity-scale-out-key: 0.35;
+  --eth-opacity-scale-out-note: 0.45;
   --eth-z-dialog: 100;
   --eth-z-popover: 200;
   --eth-z-tooltip: 300;
@@ -130,6 +132,8 @@
   --eth-size-add-track-height: 32px;
   --eth-size-add-track-pad-left: 18px;
   --eth-size-add-track-pad-right: 20px;
+  --eth-size-piano-scale-mark: 3px;
+  --eth-size-piano-scale-root-mark: 5px;
   --eth-size-clip-title-height: 14px;
   --eth-size-clip-title-line-height: 12px;
   --eth-size-ruler-loop-height: 4px;
@@ -246,6 +250,10 @@
   --eth-color-piano-white-key-border: #aaa;
   --eth-color-piano-black-key: #222;
   --eth-color-piano-key-label: #333;
+  --eth-color-piano-scale-row: #25222c;
+  --eth-color-piano-scale-root-row: #362c3c;
+  --eth-color-piano-scale-root-line: rgba(212, 143, 208, 0.35);
+  --eth-color-piano-scale-key-mark: rgba(212, 143, 208, 0.55);
   --eth-shadow-sm: 0 1px 2px rgba(5, 6, 9, 0.4);
   --eth-shadow-md: 0 6px 18px rgba(5, 6, 9, 0.35), 0 0 0 1px rgba(255, 255, 255, 0.03);
   --eth-shadow-lg: 0 18px 48px rgba(5, 6, 9, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.04);
@@ -295,6 +303,10 @@
   --eth-color-piano-white-key-border: #c3c8d3;
   --eth-color-piano-black-key: #222;
   --eth-color-piano-key-label: #333;
+  --eth-color-piano-scale-row: #e7e2ec;
+  --eth-color-piano-scale-root-row: #e2d5e5;
+  --eth-color-piano-scale-root-line: rgba(178, 92, 168, 0.35);
+  --eth-color-piano-scale-key-mark: rgba(178, 92, 168, 0.55);
   --eth-shadow-sm: 0 1px 2px rgba(22, 25, 37, 0.08);
   --eth-shadow-md: 0 6px 18px rgba(22, 25, 37, 0.1), 0 0 0 1px rgba(22, 25, 37, 0.04);
   --eth-shadow-lg: 0 18px 48px rgba(22, 25, 37, 0.16), 0 0 0 1px rgba(22, 25, 37, 0.05);

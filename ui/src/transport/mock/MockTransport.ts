@@ -675,6 +675,9 @@ export class MockTransport implements EngineTransport {
         this.store.delete(c.id);
         this.emitListChanged();
         return UNIT;
+      case "SetScale":
+        // A document edit (applied by `documentReducer`).
+        return this.applyDocument([{ domain: "Project", command: c }], "Set Scale", gesture);
     }
   }
 

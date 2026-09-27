@@ -5,7 +5,8 @@
 
 import { memo, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import clsx from "clsx";
-import type { Clip, Command, Note, NoteId } from "@/generated";
+import { scaleTone } from "@/domain/scales";
+import type { Clip, Command, MusicalScale, Note, NoteId } from "@/generated";
 import { openContextMenu, type ContextMenuEntry } from "@/kit";
 import { useProjectStore } from "@/state";
 import {
@@ -29,7 +30,7 @@ import {
 import { cmd, newId, useTransport } from "@/transport";
 import { contentEnd, contentToSong, songToContent } from "./clipTime";
 import { startDrag, useSend } from "./drag";
-import { isBlackKey, noteHitZone, noteRect, pitchToY, PITCHES, yToPitch } from "./geometry";
+import { isBlackKey, noteHitZone, noteRect, pitchToY, rowPitchDelta, yToPitch } from "./geometry";
 import { moveEdits, newNote, noteEdit, resizeEdits } from "./noteEdits";
 
 export interface NoteGridProps {
@@ -39,6 +40,9 @@ export interface NoteGridProps {
   vp: TimelineViewport;
   widthPx: number;
   keyH: number;
+  rows: readonly number[];
+  scale: MusicalScale;
+  highlight: boolean;
   tempo: TempoMap;
   /** Snap step (`null` = grid off). Alt bypasses snapping during a drag. */
   step: GridStep | null;
@@ -51,11 +55,11 @@ export interface NoteGridProps {
 
 const BAR_STEP: GridStep = { kind: "bars", bars: 1 };
 
-export function NoteGrid({ clip, notes, view, vp, widthPx, keyH, tempo, step, newNoteBeats, drawMode, menuItems }: NoteGridProps) {
+export function NoteGrid({ clip, notes, view, vp, widthPx, keyH, rows, scale, highlight, tempo, step, newNoteBeats, drawMode, menuItems }: NoteGridProps) {
   const transport = useTransport();
   const send = useSend();
   const rootRef = useRef<HTMLDivElement>(null);
-  const height = PITCHES * keyH;
+  const height = rows.length * keyH;
 
   const range = useMemo(() => visibleRange(vp, widthPx > 0 ? widthPx : 2000), [vp, widthPx]);
   const lines = useMemo(() => gridLines(tempo, range, step ?? BAR_STEP), [tempo, range, step]);
@@ -69,7 +73,7 @@ export function NoteGrid({ clip, notes, view, vp, widthPx, keyH, tempo, step, ne
 
   const marquee = useMarquee({
     kind: "note",
-    hitTest: (rect) => marqueeHits(rect, notes.map((n) => ({ id: n.id, rect: noteRect(n, vp, keyH) }))),
+    hitTest: (rect) => marqueeHits(rect, notes.map((n) => ({ id: n.id, rect: noteRect(n, vp, keyH, rows) }))),
     // A click on empty space (no drag) also moves the playhead there, snapped to the grid
     // (alt: free), while stopped, like in the arrangement.
     onClick: (p, ev) => {
@@ -89,7 +93,7 @@ export function NoteGrid({ clip, notes, view, vp, widthPx, keyH, tempo, step, ne
     const { x, y } = local(e);
     const snap = e.altKey ? null : step;
     const start = snapToGrid(pxToBeats(x, vp), snap, tempo, "floor");
-    const spec = newNote(newId(), yToPitch(y, keyH), start, newNoteBeats);
+    const spec = newNote(newId(), yToPitch(y, keyH, rows), start, newNoteBeats);
     const add = cmd("Note", { type: "Add", clip: clip.id, notes: [spec] });
     // Select once the note exists (the selection is pruned against the project).
     const selectIt = () => itemSelection.getState().select("note", [spec.id], "replace");
@@ -150,7 +154,7 @@ export function NoteGrid({ clip, notes, view, vp, widthPx, keyH, tempo, step, ne
           const snap = ev.altKey ? null : step;
           const dBeats = dx / vp.pxPerBeat;
           if (zone !== "body") return cmd("Note", { type: "Edit", edits: resizeEdits(originals, note, zone, dBeats, snap, tempo) });
-          const edits = moveEdits(originals, note, dBeats, -Math.round(dy / keyH), snap, tempo);
+          const edits = moveEdits(originals, note, dBeats, rowPitchDelta(note.pitch, dy, keyH, rows), snap, tempo);
           const wantCopy = ev.metaKey || ev.ctrlKey;
           if (wantCopy && !copies) {
             // Cmd pressed (at the start or mid-drag): the originals go back where they were
@@ -233,7 +237,7 @@ export function NoteGrid({ clip, notes, view, vp, widthPx, keyH, tempo, step, ne
       data-testid="piano-roll-grid"
       onPointerDown={onBackgroundPointerDown}
     >
-      <Rows keyH={keyH} />
+      <Rows keyH={keyH} rows={rows} scale={scale} highlight={highlight} />
       {lines.map((l) => {
         const x = beatsToPx(l.beats, vp);
         return <div key={l.beats} className={`eth-pr-grid__line eth-pr-grid__line--${l.level}`} style={{ transform: `translateX(${Math.round(x)}px)` }} />;
@@ -241,7 +245,17 @@ export function NoteGrid({ clip, notes, view, vp, widthPx, keyH, tempo, step, ne
       <div className="eth-pr-grid__outside" style={{ left: 0, width: Math.max(0, xStart) }} />
       <div className="eth-pr-grid__outside" style={{ left: Math.max(0, xEnd), right: 0 }} data-testid="piano-roll-clip-end" />
       {visible.map((n) => (
-        <NoteView key={n.id} note={n} vp={vp} keyH={keyH} onPointerDown={onNotePointerDown} onDoubleClick={onNoteDoubleClick} onContextMenu={onNoteContextMenu} />
+        <NoteView
+          key={n.id}
+          note={n}
+          vp={vp}
+          keyH={keyH}
+          rows={rows}
+          tone={scaleTone(n.pitch, scale, highlight)}
+          onPointerDown={onNotePointerDown}
+          onDoubleClick={onNoteDoubleClick}
+          onContextMenu={onNoteContextMenu}
+        />
       ))}
       {marquee.rect && (
         <div
@@ -265,17 +279,19 @@ function batch(label: string, commands: Command[]): Command {
 }
 
 /** Black-key row shading and octave (C) lines; static for a given key height. */
-const Rows = memo(function Rows({ keyH }: { keyH: number }) {
+const Rows = memo(function Rows({ keyH, rows: pitches, scale, highlight }: Pick<NoteGridProps, "keyH" | "rows" | "scale" | "highlight">) {
   const rows = [];
-  for (let p = 0; p < PITCHES; p++) {
+  for (const p of pitches) {
     const black = isBlackKey(p);
     const c = p % 12 === 0;
-    if (!black && !c) continue;
+    const tone = scaleTone(p, scale, highlight);
     rows.push(
       <div
         key={p}
+        data-pitch={p}
+        data-scale-tone={tone}
         className={clsx("eth-pr-grid__row", black && "eth-pr-grid__row--black", c && "eth-pr-grid__row--c")}
-        style={{ top: pitchToY(p, keyH), height: keyH }}
+        style={{ top: pitchToY(p, keyH, pitches), height: keyH }}
       />,
     );
   }
@@ -283,6 +299,8 @@ const Rows = memo(function Rows({ keyH }: { keyH: number }) {
 });
 
 interface NoteViewProps {
+  rows: readonly number[];
+  tone: ReturnType<typeof scaleTone>;
   note: Note;
   vp: TimelineViewport;
   keyH: number;
@@ -291,15 +309,16 @@ interface NoteViewProps {
   onContextMenu: (e: React.MouseEvent, id: NoteId) => void;
 }
 
-function NoteView({ note, vp, keyH, onPointerDown, onDoubleClick, onContextMenu }: NoteViewProps) {
+function NoteView({ note, vp, keyH, rows, tone, onPointerDown, onDoubleClick, onContextMenu }: NoteViewProps) {
   const selected = useIsSelected("note", note.id);
-  const r = noteRect(note, vp, keyH);
+  const r = noteRect(note, vp, keyH, rows);
   return (
     <div
       className={clsx("eth-pr-note", selected && "eth-pr-note--selected", note.muted && "eth-pr-note--muted")}
       data-testid="piano-roll-note"
       data-note-id={note.id}
       data-pitch={note.pitch}
+      data-scale-tone={tone}
       style={{
         left: r.x0,
         top: r.y0,

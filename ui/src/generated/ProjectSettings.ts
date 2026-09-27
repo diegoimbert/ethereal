@@ -3,6 +3,7 @@ import type { BeatRange } from "./BeatRange";
 import type { Beats } from "./Beats";
 import type { Decibels } from "./Decibels";
 import type { MetronomeSound } from "./MetronomeSound";
+import type { MusicalScale } from "./MusicalScale";
 
 /**
  * Project-wide singleton settings (a single LWW register per field).
@@ -30,4 +31,9 @@ swing: number,
 /**
  * Swing grid in beats (0.5 = eighths, 0.25 = sixteenths). `> 0`.
  */
-swing_grid: Beats, };
+swing_grid: Beats, 
+/**
+ * Project musical scale (piano-roll guide only; never restricts notes). Older files
+ * without it load as chromatic.
+ */
+scale: MusicalScale, };

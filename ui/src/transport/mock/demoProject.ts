@@ -44,6 +44,7 @@ export function defaultSettings(name: string): ProjectSettings {
     metronome_sound: "Classic",
     swing: 0,
     swing_grid: 0.25,
+    scale: { root: 0, kind: "Chromatic" },
   };
 }
 
@@ -80,6 +81,7 @@ export function makeTrack(fields: Pick<Track, "id" | "kind" | "name" | "color" |
     input: defaultTrackInput(fields.kind),
     output: { type: "Default" },
     monitor: "Auto",
+    scale: { type: "FollowProject" },
     ...fields,
   };
 }

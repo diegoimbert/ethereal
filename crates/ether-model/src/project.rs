@@ -77,6 +77,10 @@ pub struct ProjectSettings {
     pub swing: f32,
     /// Swing grid in beats (0.5 = eighths, 0.25 = sixteenths). `> 0`.
     pub swing_grid: Beats,
+    /// Project musical scale (piano-roll guide only; never restricts notes). Older files
+    /// without it load as chromatic.
+    #[serde(default)]
+    pub scale: MusicalScale,
 }
 
 /// Metronome click sound (`tempo-metronome`; the engine synthesizes these, no samples).
@@ -107,6 +111,7 @@ impl Default for ProjectSettings {
             metronome_sound: MetronomeSound::Classic,
             swing: 0.0,
             swing_grid: Beats(0.25),
+            scale: MusicalScale::default(),
         }
     }
 }
@@ -131,6 +136,7 @@ impl Project {
             input: TrackInput::None,
             output: TrackOutput::Default,
             monitor: MonitorMode::default(),
+            scale: Default::default(),
         };
         let tempo = TempoPoint {
             id: ids.next(now_ms),
