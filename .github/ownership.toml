@@ -407,6 +407,8 @@ paths = [
   "crates/ether-controller/src/lib.rs",
   # base-36: collab design doc
   "docs/COLLAB.md",
+  # shared touch (base-39): wire MockCollab into MockTransport (import, field, Collab case)
+  "ui/src/transport/mock/MockTransport.ts",
 ]
 
 [nodes.multicore]
