@@ -728,6 +728,17 @@ paths = [
   "apps/web/e2e/collab-stream*.spec.ts",
 ]
 
+[nodes.turn-hardening]
+# Follow-up to stream-host (docs/COLLAB.md §10 known limitations): per-username verified cap,
+# counting real nonce inserts, rotation-decision tests. TURN stays experimental until merged.
+paths = [
+  "crates/ether-collab/src/relay/ice/turn.rs",
+  "crates/ether-collab/src/relay/ice/turn/**",
+  "crates/ether-collab/tests/turn*.rs",
+  # shared touch: lift the "known limitations" + experimental notice once fixed
+  "docs/COLLAB.md",
+]
+
 [nodes.plugin-mirror]
 # Later (after stream-host / stream-listen).
 paths = [
