@@ -189,7 +189,10 @@ undo/redo go through `History::undo_with/redo_with` (`history.rs`) with
   host entropy (kept for the controller's lifetime, so a reconnect is the same site) and
   connects to `server` (`ws://host:port/`; the session name is the URL path
   `/<session>` percent-encoded). Handshake = remote-engine's `ClientHello`/`ServerHello`
-  (token, protocol version), then `CollabMessage::Hello { site, actor, name, ... }`.
+  (token, protocol version), then `CollabMessage::Hello { site, actor, name,
+  protocol_version }`. The relay refuses (disconnects) a `protocol_version` other than its
+  `COLLAB_PROTOCOL_VERSION` (`ether-collab/src/wire.rs`; 2 since base-62, §12), so sites of
+  different builds never share a session and drift apart on messages they can't decode.
 - Relay → joiner (after `Hello` + `SyncRequest`):
   - empty session: `SyncRequest { site: joiner, version: [] }` = "you create it": the site
     uploads its media (`Media` chunks) and a `Snapshot` of its open project. Other joiners
@@ -776,6 +779,9 @@ project, replicated as ordinary ops); peer playheads are **presence** (ephemeral
   emits `CollabEvent::ChatReceived { ids }` for peers' messages **sequenced after this
   site's join catch-up** (never for the join snapshot, the catch-up log, a project load, or
   own messages), so the UI toasts only live messages.
+- **Protocol version 2.** New entity variants travel in transactions, which an older
+  build cannot decode (it would drop them silently and diverge), so base-62 bumps
+  `COLLAB_PROTOCOL_VERSION` to 2: the relay refuses mixed-version sites at the hello (§4).
 - **Authorship is verified on receipt** (implemented: `social::is_forged_chat`, applied in
   `collab_apply_remote` and in the debug echo check): a peer's `Insert ChatMessage` is
   dropped unless `author.site == Some(origin.site)` (the relay-verified sender, §7) and
