@@ -9,6 +9,7 @@
 
 import { beatsToPx, pxToBeats, type Rect, type TimelineViewport } from "@/timeline";
 import { shapeFraction, type CurvePoint } from "./curve";
+import { rangeValueToY, rangeYToValue, type ValueRange } from "./valueAxis";
 
 /** Vertical padding so points at 0 and 1 stay fully visible. */
 export const LANE_PAD = 5;
@@ -21,16 +22,16 @@ export interface LaneGeometry {
   height: number;
   /** View beats of lane time 0 (default 0). */
   offset?: number;
+  /** Visible window of normalized values (default: all of 0..1). */
+  range?: ValueRange;
 }
 
-export function valueToY(value: number, height: number): number {
-  const h = Math.max(1, height - 2 * LANE_PAD);
-  return LANE_PAD + (1 - value) * h;
+export function valueToY(value: number, height: number, range?: ValueRange): number {
+  return rangeValueToY(value, height, LANE_PAD, range);
 }
 
-export function yToValue(y: number, height: number): number {
-  const h = Math.max(1, height - 2 * LANE_PAD);
-  return Math.min(1, Math.max(0, 1 - (y - LANE_PAD) / h));
+export function yToValue(y: number, height: number, range?: ValueRange): number {
+  return rangeYToValue(y, height, LANE_PAD, range);
 }
 
 export function timeToX(time: number, g: LaneGeometry): number {
@@ -44,7 +45,7 @@ export function xToTime(x: number, g: LaneGeometry): number {
 /** Hit box of a point (px, lane-local). */
 export function pointRect(p: CurvePoint, g: LaneGeometry, radius = POINT_RADIUS): Rect {
   const x = timeToX(p.time, g);
-  const y = valueToY(p.value, g.height);
+  const y = valueToY(p.value, g.height, g.range);
   return { x0: x - radius, y0: y - radius, x1: x + radius, y1: y + radius };
 }
 
@@ -59,7 +60,7 @@ const fmt = (n: number) => (Math.round(n * 100) / 100).toString();
 export function lanePath(points: ReadonlyArray<CurvePoint>, g: LaneGeometry, x0: number, x1: number, samplePx = 2): string {
   const first = points[0];
   if (!first) return "";
-  const y = (v: number) => fmt(valueToY(v, g.height));
+  const y = (v: number) => fmt(valueToY(v, g.height, g.range));
   const parts: string[] = [];
   const firstX = timeToX(first.time, g);
   parts.push(`M${fmt(Math.min(x0, firstX))},${y(first.value)}`, `L${fmt(firstX)},${y(first.value)}`);
