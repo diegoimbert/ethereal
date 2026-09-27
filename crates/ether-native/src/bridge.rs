@@ -451,7 +451,26 @@ mod tests {
             plugin_id: "not-installed".into(),
             ..inst.clone()
         };
-        assert!(b.create_plugin(DeviceId(Ulid(7)), &missing, None).is_err());
+        match b.create_plugin(DeviceId(Ulid(7)), &missing, None) {
+            Err(BridgeError::Other(m)) => assert_eq!(
+                m,
+                "CLAP plugin Fake (not-installed) is not installed (rescan plugins)"
+            ),
+            other => panic!("{other:?}"),
+        }
+        // Looked up by (format, id): the same id in another format is another plugin.
+        let other_format = PluginInstance {
+            format: PluginFormat::Vst3,
+            name: "fake".into(),
+            ..inst.clone()
+        };
+        match b.create_plugin(DeviceId(Ulid(8)), &other_format, None) {
+            Err(BridgeError::Other(m)) => {
+                assert_eq!(m, "VST3 plugin (fake) is not installed (rescan plugins)")
+            }
+            other => panic!("{other:?}"),
+        }
+        assert!(b.descriptor(DeviceId(Ulid(8))).is_none());
 
         b.destroy_node(key).unwrap();
         assert!(b.descriptor(d).is_none());

@@ -685,6 +685,8 @@ pub(crate) mod fake {
         pub state: Vec<u8>,
         pub main_thread: std::thread::ThreadId,
         pub max_block: usize,
+        /// Run inside `save_state` (tests of nested run loops).
+        pub on_save: Option<Box<dyn FnMut()>>,
     }
 
     pub struct FakeNode;
@@ -749,6 +751,9 @@ pub(crate) mod fake {
             DEACTIVATED_STATES.lock().unwrap().push(self.state.clone());
         }
         fn save_state(&mut self) -> Result<Vec<u8>, PluginError> {
+            if let Some(f) = &mut self.on_save {
+                f();
+            }
             Ok(self.state.clone())
         }
         fn load_state(&mut self, state: &[u8]) -> Result<(), PluginError> {
@@ -776,6 +781,7 @@ pub(crate) mod fake {
                 state: Vec::new(),
                 main_thread: std::thread::current().id(),
                 max_block: 0,
+                on_save: None,
             }) as Box<dyn PluginController>)
         })
     }
@@ -963,6 +969,207 @@ mod tests {
         assert_eq!(run(&mut d, 10, &[1.0, 0.0, 0.0, 0.0]), [0.0, 0.0, 1.0, 0.0]);
         d.clear();
         assert_eq!(run(&mut d, 2, &[0.0, 0.0, 0.0]), [0.0; 3]);
+    }
+
+    /// A main thread whose queued jobs can also be run from inside a job ([`pump`]), like
+    /// Tauri's `run_on_main_thread` jobs running inside an AU's nested `CFRunLoopRunInMode`.
+    struct Pumping {
+        tx: crossbeam_channel::Sender<Box<dyn FnOnce() + Send>>,
+    }
+
+    thread_local! {
+        static PUMP_RX: RefCell<Option<crossbeam_channel::Receiver<Box<dyn FnOnce() + Send>>>> =
+            const { RefCell::new(None) };
+    }
+
+    impl Pumping {
+        fn new() -> Self {
+            let (tx, rx) = unbounded::<Box<dyn FnOnce() + Send>>();
+            std::thread::spawn(move || {
+                PUMP_RX.with(|r| *r.borrow_mut() = Some(rx.clone()));
+                while let Ok(f) = rx.recv() {
+                    f();
+                }
+            });
+            Self { tx }
+        }
+    }
+
+    impl MainThread for Pumping {
+        fn spawn(&self, f: Box<dyn FnOnce() + Send>) {
+            let _ = self.tx.send(f);
+        }
+    }
+
+    /// Nested "run loop": run queued main-thread jobs until `done` (or a timeout).
+    fn pump(done: &AtomicBool) {
+        let rx = PUMP_RX
+            .with(|r| r.borrow().clone())
+            .expect("on the pumping thread");
+        let start = Instant::now();
+        while !done.load(Ordering::SeqCst) && start.elapsed() < Duration::from_secs(10) {
+            if let Ok(f) = rx.recv_timeout(Duration::from_millis(5)) {
+                f();
+            }
+        }
+    }
+
+    #[test]
+    fn registry_is_not_borrowed_across_plugin_calls() {
+        let host = PluginHost::new(Arc::new(Pumping::new()));
+        let prepare = PrepareConfig {
+            sample_rate: 48_000.0,
+            max_block_size: 64,
+            max_events_per_block: 64,
+        };
+        let a = device(20);
+        let b = device(21);
+        let (node_a, _) = host
+            .instantiate(
+                fake::instantiate(),
+                a,
+                src("fake"),
+                Some(b"a".to_vec()),
+                prepare,
+            )
+            .unwrap();
+
+        // While B instantiates (and pumps a nested run loop), other registry calls and A's
+        // returning node run inside it.
+        let entered = Arc::new(AtomicBool::new(false));
+        let done = Arc::new(AtomicBool::new(false));
+        let (e2, d2) = (entered.clone(), done.clone());
+        let nested: Instantiate = Arc::new(move |_, _, _| {
+            e2.store(true, Ordering::SeqCst);
+            pump(&d2);
+            Ok(Box::new(fake::FakeController {
+                state: Vec::new(),
+                main_thread: std::thread::current().id(),
+                max_block: 0,
+                on_save: None,
+            }) as Box<dyn PluginController>)
+        });
+        let h2 = host.clone();
+        let (e3, d3) = (entered.clone(), done.clone());
+        let other = std::thread::spawn(move || {
+            while !e3.load(Ordering::SeqCst) {
+                std::thread::sleep(Duration::from_millis(1));
+            }
+            let mut notes = Vec::new();
+            h2.poll(&mut notes);
+            let state = h2.save_state(a).unwrap();
+            let b_state = h2.save_state(b).unwrap();
+            drop(node_a); // back to the main thread → deactivated inside the nested loop
+            h2.destroy(a);
+            let count = h2.live_count();
+            d3.store(true, Ordering::SeqCst);
+            (notes, state, b_state, count)
+        });
+        let (node_b, _) = host
+            .instantiate(nested, b, src("fake"), None, prepare)
+            .unwrap();
+        let (notes, state, b_state, count) = other.join().unwrap();
+        assert_eq!(notes, vec![(a, PluginNotification::StateDirty)]);
+        assert_eq!(state.as_deref(), Some(&b"a"[..]));
+        assert_eq!(b_state, None, "B is not live until its instantiate returns");
+        assert_eq!(count, 0, "A deactivated and dropped inside the nested loop");
+        assert_eq!(host.live_count(), 1);
+
+        // A call running a nested loop keeps its controller checked out: a node returning
+        // meanwhile is parked and deactivated at check-in; other calls see it busy.
+        let c = device(22);
+        let done = Arc::new(AtomicBool::new(false));
+        let d2 = done.clone();
+        let pumping_save: Instantiate = Arc::new(move |_, _, _| {
+            let d = d2.clone();
+            Ok(Box::new(fake::FakeController {
+                state: b"pump-save".to_vec(),
+                main_thread: std::thread::current().id(),
+                max_block: 0,
+                on_save: Some(Box::new(move || pump(&d))),
+            }) as Box<dyn PluginController>)
+        });
+        let (node_c, _) = host
+            .instantiate(
+                pumping_save,
+                c,
+                src("fake"),
+                Some(b"pump-save".to_vec()),
+                prepare,
+            )
+            .unwrap();
+        let h2 = host.clone();
+        let d3 = done.clone();
+        let saver = std::thread::spawn(move || h2.save_state(c));
+        std::thread::sleep(Duration::from_millis(50));
+        // Inside C's save_state: C is busy, B still answers.
+        assert!(matches!(host.save_state(c), Err(PluginError::Ipc(m)) if m.contains("busy")));
+        let mut notes = Vec::new();
+        host.poll(&mut notes);
+        assert!(notes.iter().all(|(d, _)| *d == b), "{notes:?}");
+        host.destroy(c);
+        let before = fake::DEACTIVATED_STATES
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|s| s.as_slice() == b"pump-save")
+            .count();
+        drop(node_c);
+        assert_eq!(
+            host.live_count(),
+            2,
+            "C parked, not dropped, while checked out"
+        );
+        d3.store(true, Ordering::SeqCst);
+        assert_eq!(
+            saver.join().unwrap().unwrap().as_deref(),
+            Some(&b"pump-save"[..])
+        );
+        assert_eq!(
+            host.live_count(),
+            1,
+            "C deactivated and dropped at check-in"
+        );
+        let after = fake::DEACTIVATED_STATES
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|s| s.as_slice() == b"pump-save")
+            .count();
+        assert_eq!(after, before + 1);
+        host.destroy(b);
+        drop(node_b);
+        assert_eq!(host.live_count(), 0);
+    }
+
+    #[test]
+    fn catalog_finds_by_format() {
+        let cat = PluginCatalog::default();
+        let desc = |format, path: &str| PluginDescriptor {
+            format,
+            id: "same.id".into(),
+            name: "Y".into(),
+            vendor: "X".into(),
+            version: "1".into(),
+            description: String::new(),
+            features: vec![],
+            category: ether_core::protocol::devices::DeviceCategory::AudioEffect,
+            path: path.into(),
+        };
+        cat.replace(vec![
+            desc(PluginFormat::Clap, "/p/y.clap"),
+            desc(PluginFormat::Vst3, "/p/y.vst3"),
+        ]);
+        assert_eq!(
+            cat.find_format(PluginFormat::Vst3, "same.id").unwrap().path,
+            "/p/y.vst3"
+        );
+        assert_eq!(
+            cat.find_format(PluginFormat::Clap, "same.id").unwrap().path,
+            "/p/y.clap"
+        );
+        assert!(cat.find_format(PluginFormat::Au, "same.id").is_none());
+        assert_eq!(format_label(PluginFormat::Vst3), "VST3");
     }
 
     #[test]
