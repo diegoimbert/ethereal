@@ -57,6 +57,12 @@ pub enum DrumRackCommand {
         id: DrumPadId,
         mute: bool,
     },
+    /// Runtime state (not saved, not undoable, like record-arm): while any pad of a rack is
+    /// soloed, the controller compiles the rack's other pads as muted. Produces no ops.
+    SetPadSolo {
+        id: DrumPadId,
+        solo: bool,
+    },
     /// Insert a device into a pad chain before `before` (None = end).
     InsertDevice {
         id: DeviceId,

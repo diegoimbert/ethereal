@@ -39,3 +39,29 @@ export function decodeBinaryFrame(frame: Uint8Array): BinaryFrame {
   const headerJson = new TextDecoder("utf-8", { fatal: true }).decode(frame.subarray(5, 5 + len));
   return { kind, headerJson, payload: frame.subarray(5 + len) };
 }
+
+/** `ether_protocol::remote::PROTOCOL_VERSION` (pinned by the shared vectors). */
+export const PROTOCOL_VERSION = 1;
+
+/** Decode a `Peaks` payload: per channel `n` LE f32 mins then `n` maxes. */
+export function decodePeaksPayload(payload: Uint8Array, channels: number): { min: number[][]; max: number[][] } {
+  if (channels <= 0 || payload.length % (8 * channels) !== 0) throw new Error("bad peaks payload");
+  const n = payload.length / (8 * channels);
+  const view = new DataView(payload.buffer, payload.byteOffset, payload.byteLength);
+  const read = (start: number) => Array.from({ length: n }, (_, i) => view.getFloat32((start + i) * 4, true));
+  const min: number[][] = [];
+  const max: number[][] = [];
+  for (let c = 0; c < channels; c++) {
+    min.push(read(c * 2 * n));
+    max.push(read(c * 2 * n + n));
+  }
+  return { min, max };
+}
+
+/** Standard base64 of raw bytes (the JSON form of `Base64Bytes`). */
+export function bytesToBase64(bytes: Uint8Array): string {
+  let s = "";
+  const CHUNK = 0x8000;
+  for (let i = 0; i < bytes.length; i += CHUNK) s += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
+  return btoa(s);
+}
