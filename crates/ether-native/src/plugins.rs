@@ -785,6 +785,32 @@ mod tests {
     }
 
     #[test]
+    fn bypass_delays_the_dry_signal() {
+        let run = |d: &mut BypassDelay, delay: usize, input: &[f32]| {
+            let mut out = vec![9.0f32; input.len()];
+            let inputs: [&[f32]; 1] = [input];
+            let mut outputs: [&mut [f32]; 1] = [&mut out];
+            let mut audio = AudioBuffers {
+                inputs: &inputs,
+                outputs: &mut outputs,
+            };
+            d.process(delay, &mut audio);
+            out
+        };
+        let mut d = BypassDelay::new(2, 4);
+        assert_eq!(run(&mut d, 0, &[1.0, 2.0]), [1.0, 2.0]);
+        // Delay 3 across block boundaries.
+        let mut d = BypassDelay::new(2, 4);
+        assert_eq!(run(&mut d, 3, &[1.0, 0.0]), [0.0, 0.0]);
+        assert_eq!(run(&mut d, 3, &[0.0, 0.0]), [0.0, 1.0]);
+        // Longer than the capacity: clamped.
+        let mut d = BypassDelay::new(1, 2);
+        assert_eq!(run(&mut d, 10, &[1.0, 0.0, 0.0, 0.0]), [0.0, 0.0, 1.0, 0.0]);
+        d.clear();
+        assert_eq!(run(&mut d, 2, &[0.0, 0.0, 0.0]), [0.0; 3]);
+    }
+
+    #[test]
     fn catalog_persists() {
         let tmp = crate::test_util::TempDir::new("catalog");
         let cat = PluginCatalog::open(tmp.path());
