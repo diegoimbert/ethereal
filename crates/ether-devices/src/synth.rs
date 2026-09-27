@@ -51,7 +51,8 @@ pub fn param_infos() -> Vec<ParamInfo> {
             ParamUnit::Semitones,
             (-24.0, 24.0, 0.0),
             ParamScale::Linear,
-        ),
+        )
+        .with_step(1.0),
         param(
             2,
             "Attack",

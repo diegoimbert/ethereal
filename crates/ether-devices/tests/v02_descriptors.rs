@@ -216,6 +216,50 @@ fn placeholders_follow_their_category_without_allocating() {
     }
 }
 
+/// Every integer or stepped param of every built-in (and modulator) carries a plain step:
+/// enums/toggles (labels), semitone transposes (not fine tunes), keys, voices and counts.
+#[test]
+fn integer_params_have_a_step() {
+    use ether_core::protocol::devices::{ParamInfo, ParamUnit};
+    const INTEGER_NAMES: [&str; 11] = [
+        "Transpose",
+        "Root Key",
+        "Voices",
+        "Unison",
+        "Octave",
+        "Octaves",
+        "Steps",
+        "Seed",
+        "Semitones",
+        "Choke",
+        "Bend Range",
+    ];
+    let check = |owner: &str, p: &ParamInfo| {
+        let integer = p.labels.is_some()
+            || (p.unit == ParamUnit::Semitones && !p.name.contains("Fine"))
+            || INTEGER_NAMES.iter().any(|n| p.name.contains(n));
+        if integer {
+            assert_eq!(
+                p.step,
+                Some(1.0),
+                "{owner}: param {:?} ({}) needs step 1",
+                p.id,
+                p.name
+            );
+        }
+    };
+    for t in BuiltinDeviceType::ALL {
+        for p in &ether_devices::descriptor(t).params {
+            check(&format!("{t:?}"), p);
+        }
+    }
+    for m in ether_devices::modulators::all() {
+        for p in &m.params {
+            check(&m.name, p);
+        }
+    }
+}
+
 /// v0.2 devices with a detector take a sidechain (stereo), keyed through
 /// `Node::process_sidechain` like the compressor and limiter.
 #[test]

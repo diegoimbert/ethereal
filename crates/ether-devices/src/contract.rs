@@ -53,6 +53,7 @@ pub fn param(
     scale: ParamScale,
 ) -> ParamInfo {
     ParamInfo {
+        step: None,
         id: ParamId(id),
         name: name.to_owned(),
         group: Some(group.to_owned()),
@@ -81,6 +82,7 @@ pub fn choice(id: u32, name: &str, group: &str, labels: &[&str], default: usize)
         labels: Some(labels.iter().map(|s| (*s).to_owned()).collect()),
         automatable: true,
         hidden: false,
+        step: Some(1.0),
     }
 }
 
@@ -114,6 +116,7 @@ pub fn stepped(
         labels: Some((min..=max).map(|v| v.to_string()).collect()),
         automatable: true,
         hidden: false,
+        step: Some(1.0),
     }
 }
 

@@ -20,7 +20,9 @@ function param(
   scale: ParamScale = { type: "Linear" },
   labels: string[] | null = null,
 ): ParamInfo {
-  return { id, name, group, unit, min, max, default: def, scale, labels, automatable: true, hidden: false };
+  // Integer params step by 1 (Rust `ParamInfo::step`): enums/toggles, semitones, keys.
+  const integer = labels !== null || unit === "Semitones" || name === "Root Key";
+  return { id, name, group, unit, min, max, default: def, scale, labels, automatable: true, hidden: false, ...(integer ? { step: 1 } : {}) };
 }
 
 const LOG: ParamScale = { type: "Log" };

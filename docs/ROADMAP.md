@@ -421,6 +421,11 @@ Ground rules (as for the roadmap v2 nodes above):
    table in `descriptor()` is frozen by contracts-3: ids are dense and **append-only** (never
    renumber, rename freely only before a release). Use the named ids in
    `<group>::<device>::*`. Replace `Placeholder` in `create()` with your node.
+1b. **Steps.** Integer or stepped params carry `ParamInfo::step` (plain step; 1 for enums,
+   toggles, transposes in semitones, keys, voices, counts; `contract::{choice, toggle,
+   stepped}` set it, continuous `param(..)` + `.with_step(1.0)` otherwise). Knobs, automation
+   lanes, MIDI learn and the renderer snap to it; `tests/v02_descriptors.rs` fails when a
+   semitone/count param ships without one.
 2. **Real-time rules** (docs/ARCHITECTURE.md): no allocation, locks, I/O or unbounded work
    in `process`/`reset`/`set_data`/`analysis`; allocate in `new`/`prepare`. Apply
    `EventKind::Param` at its sample offset (`util::split_at_events`) and smooth continuous

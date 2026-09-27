@@ -781,7 +781,10 @@ module in `ether-devices` (`poly_synth`, `multisampler`,
 constants in `<group>::<device>::*`) and starts as a `contract::Placeholder` (audio effects
 and racks pass through, instruments are silent, MIDI effects forward events). Descriptor ↔
 mock parity is enforced (`ether-devices/tests/v02_descriptors.rs` against the generated
-`ui/src/transport/mock/devices/*.json`). `BuiltinDeviceType::key()` (kebab case) names preset
+`ui/src/transport/mock/devices/*.json`). `ParamInfo::step` (v0.2, `#[serde(default)]`, TS optional): the plain step of integer and
+stepped params (1 for every enum/toggle, transpose, root key, voice or count param of every
+built-in; `None` = continuous); knobs, automation lanes, MIDI learn and the renderer snap to
+it (`ParamInfo::snap`), the scale helpers don't. `BuiltinDeviceType::key()` (kebab case) names preset
 folders. Multisampler zones (`ether_model::multisampler::SampleZone`: key/velocity zones,
 root, tune, round-robin group, start/end, loop, gain, pan) live in the device kind and are
 edited with `Device::SetZones`; zone media may be external references.

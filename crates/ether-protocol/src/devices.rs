@@ -151,6 +151,13 @@ pub struct ParamInfo {
     pub labels: Option<Vec<String>>,
     pub automatable: bool,
     pub hidden: bool,
+    /// v0.2: plain-value step (`None` = continuous). Integer params (transpose, root key,
+    /// voices, counts) and enum/toggle params use 1. Knobs, automation lanes, MIDI learn and
+    /// the layout renderer snap to it (`min + round((v - min) / step) · step`); the scale
+    /// helpers (`to_plain`/`to_normalized`) don't. Omitted from JSON when `None`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub step: Option<f64>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, TS)]
@@ -224,6 +231,22 @@ pub fn scale_to_normalized(scale: ParamScale, min: f64, max: f64, plain: f64) ->
 }
 
 impl ParamInfo {
+    /// This param with a plain-value step (builder).
+    pub fn with_step(mut self, step: f64) -> Self {
+        self.step = Some(step);
+        self
+    }
+
+    /// Snap a plain value to [`ParamInfo::step`] (unchanged when continuous), clamped.
+    pub fn snap(&self, plain: f64) -> f64 {
+        let (lo, hi) = (self.min.min(self.max), self.max.max(self.min));
+        let v = plain.clamp(lo, hi);
+        match self.step {
+            Some(s) if s > 0.0 => (self.min + ((v - self.min) / s).round() * s).clamp(lo, hi),
+            _ => v,
+        }
+    }
+
     /// Map a normalized value 0..=1 to a plain value (snapped to steps for enum params).
     pub fn to_plain(&self, normalized: f64) -> f64 {
         let v = scale_to_plain(self.scale, self.min, self.max, normalized);

@@ -71,6 +71,7 @@ pub fn track_param_info(target: &AutomationTarget) -> Option<ParamInfo> {
         AutomationTarget::DeviceParam { .. } => return None,
     };
     Some(ParamInfo {
+        step: None,
         id: ParamId(0),
         name: name.into(),
         group: None,

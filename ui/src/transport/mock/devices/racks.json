@@ -272,6 +272,7 @@
         "scale": {
           "type": "Linear"
         },
+        "step": 1.0,
         "unit": "None"
       }
     ],
@@ -550,6 +551,7 @@
         "scale": {
           "type": "Linear"
         },
+        "step": 1.0,
         "unit": "None"
       }
     ],
@@ -828,6 +830,7 @@
         "scale": {
           "type": "Linear"
         },
+        "step": 1.0,
         "unit": "None"
       }
     ],

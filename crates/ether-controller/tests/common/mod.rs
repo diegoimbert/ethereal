@@ -91,6 +91,7 @@ pub fn plugin_descriptor(name: &str, category: DeviceCategory) -> DeviceDescript
         name: name.into(),
         category,
         params: vec![ParamInfo {
+            step: None,
             id: ParamId(7),
             name: "Mix".into(),
             group: None,
