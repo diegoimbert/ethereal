@@ -49,7 +49,14 @@ pub(crate) fn render_frozen(
         return true;
     };
     let source = &*sources[i].1;
-    add_frozen(source, desc.start_seconds, info.seconds, sample_rate, out, frames)
+    add_frozen(
+        source,
+        desc.start_seconds,
+        info.seconds,
+        sample_rate,
+        out,
+        frames,
+    )
 }
 
 /// RT. [`render_frozen`] for one source: media frame of output sample `o` is
