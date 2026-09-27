@@ -3,6 +3,7 @@ import type { Track, TrackId } from "@/generated";
 import { duration, ease, motion } from "@/theme";
 import { MOTION } from "@/timeline/motion";
 import { layoutRows, rowIndexAt, TRACK_HEIGHT } from "@/features/arrangement/layout";
+import { animatedRows } from "@/features/arrangement/laneAnimation";
 import {
   changedHeights,
   cubicBezier,
@@ -123,6 +124,13 @@ describe("HeightAnimator", () => {
     expect(rowIndexAt(rows, TRACK_HEIGHT + h)).toBe(1);
     // Where B will be once open is still A's automation mid-animation... and vice versa.
     expect(rowIndexAt(rows, TRACK_HEIGHT + OPEN - 1)).toBe(1);
+
+    // The arrangement lays out once at the larger height, then derives the on-screen rows
+    // each frame (`animatedRows`): same model as laying out with the animated height.
+    const laid = layoutRows(tracks, new Set(), (id: TrackId) => (id === "A" ? OPEN : 0));
+    const shown = animatedRows(laid, (r) => (r.track.id === "A" ? a.height("A", OPEN) : 0));
+    expect(shown.map((r) => [r.y, r.height])).toEqual(rows.map((r) => [r.y, r.height]));
+    expect(animatedRows(laid, (r) => r.height - r.laneHeight)[1]).toBe(laid[1]);
   });
 });
 

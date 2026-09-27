@@ -308,8 +308,8 @@
 
 /* Opening/closing (laneMotion.ts): the row height is tweened in JS with the same
    `--automation-lane-*` timing; the content fades and slides in the draft row's way. */
+/* Mid-animation the arrangement clips the slot and slides this in/out (laneAnimation.ts). */
 .eth-auto-track--animating {
-  height: 100%;
   overflow: hidden;
 }
 .eth-auto-enter {

@@ -2,12 +2,15 @@
  * Opening/closing animation of the automation lanes.
  *
  * The arrangement lays its rows out from a model (`layoutRows`), and hit testing and drags
- * use that model, so the animation moves the *layout* height, not a CSS clip: each time a
- * track's automation height changes (open/close, show/hide a lane), its height is tweened
- * from what is on screen now to the new target over `motion.lane` (a design token), one
- * value per animation frame. `useAnimatedAutomationHeight()` is the drop-in for
- * `useAutomationHeight()` that the arrangement feeds to `layoutRows`, so rows below slide
- * and clicks land where things are drawn mid-animation.
+ * use that model, so the animation moves the *layout* height, not just a CSS clip: each
+ * time a track's automation height changes (open/close, show/hide a lane), its height is
+ * tweened from what is on screen now to the new target over `motion.lane` (a design token),
+ * one value per animation frame (`animatedSlotHeight`, `subscribeLaneFrames`).
+ *
+ * For speed, React only lays the rows out at the start and end of a tween: meanwhile the
+ * slot takes the larger of its two heights (`useAutomationSlotHeight`), and the
+ * arrangement applies each frame's heights itself (its `laneAnimation.ts`: row transforms,
+ * slot clip, and the row model used for hit testing), so clips never re-render per frame.
  *
  * A change during a tween starts a new tween from the current value (no jump). Reduced
  * motion (`MOTION.enabled`, shared with the timeline) applies every change instantly.
@@ -125,6 +128,12 @@ export class HeightAnimator {
     return this.tweens.get(track)?.value ?? target;
   }
 
+  /** Largest height of `track`'s tween (the room its content needs meanwhile), or `null`. */
+  extent(track: TrackId): number | null {
+    const tw = this.tweens.get(track);
+    return tw ? Math.max(tw.from, tw.to) : null;
+  }
+
   isAnimating(track: TrackId): boolean {
     return this.tweens.has(track);
   }
@@ -166,13 +175,28 @@ export function changedHeights(
 // ---- App-wide instance -----------------------------------------------------------------
 
 interface LaneMotionState {
-  /** Bumped every animation frame while a tween runs (subscribers re-lay out). */
-  frame: number;
   /** Tracks being animated (changes only when a tween starts or ends). */
   animating: ReadonlySet<TrackId>;
+  /** Bumped whenever a tween starts or is retargeted (slot extents may change). */
+  version: number;
 }
 
-export const useLaneMotion = create<LaneMotionState>()(() => ({ frame: 0, animating: new Set<TrackId>() }));
+export const useLaneMotion = create<LaneMotionState>()(() => ({ animating: new Set<TrackId>(), version: 0 }));
+
+const frameListeners = new Set<() => void>();
+
+/** Call `cb` after every animation frame of a tween (the heights moved). Returns an unsubscribe. */
+export function subscribeLaneFrames(cb: () => void): () => void {
+  frameListeners.add(cb);
+  return () => {
+    frameListeners.delete(cb);
+  };
+}
+
+/** Slot height of `track` on screen now: tweened, else `target`. */
+export function animatedSlotHeight(track: TrackId, target: number): number {
+  return laneAnimator.height(track, target);
+}
 
 export const laneAnimator = new HeightAnimator({
   duration: parseDuration(motion.lane.duration),
@@ -193,8 +217,10 @@ function publishAnimating(): void {
 function frame(): void {
   raf = null;
   laneAnimator.tick(now());
+  // Listeners draw this frame (tweens that just ended at their targets) before React
+  // re-lays the rows out at those targets.
+  for (const cb of frameListeners) cb();
   publishAnimating();
-  useLaneMotion.setState((s) => ({ frame: s.frame + 1 }));
   if (laneAnimator.active) schedule();
 }
 
@@ -220,6 +246,7 @@ useAutomationUi.subscribe((next, prev) => {
     else laneAnimator.cancel(c.track);
   }
   publishAnimating();
+  useLaneMotion.setState((s) => ({ version: s.version + 1 }));
   if (laneAnimator.active) schedule();
 });
 
@@ -228,7 +255,7 @@ export function resetLaneMotion(): void {
   if (raf !== null && typeof cancelAnimationFrame === "function") cancelAnimationFrame(raf);
   raf = null;
   laneAnimator.clear();
-  useLaneMotion.setState({ frame: 0, animating: new Set() });
+  useLaneMotion.setState({ animating: new Set(), version: 0 });
 }
 
 /** Whether `track`'s automation height is being animated (re-renders on start/end only). */
@@ -237,19 +264,21 @@ export function useLaneAnimating(track: TrackId): boolean {
 }
 
 /**
- * `(track) => height` of the automation slot, animated: the drop-in for
- * `useAutomationHeight()` in the arrangement's `layoutRows`. Its identity changes every
- * animation frame while lanes open or close (and whenever a target changes).
+ * `(track) => height` of the automation slot to *lay out* (the drop-in for
+ * `useAutomationHeight()` in the arrangement's `layoutRows`): the target, or while a tween
+ * runs the larger of its two heights, so the content has room and React re-lays the rows
+ * out only when a tween starts or ends. The heights on screen each frame come from
+ * `animatedSlotHeight` (see the arrangement's `laneAnimation.ts`).
  */
-export function useAnimatedAutomationHeight(): (track: TrackId) => number {
+export function useAutomationSlotHeight(): (track: TrackId) => number {
   const target = useAutomationHeight();
-  const frameNo = useLaneMotion((s) => s.frame);
   const animating = useLaneMotion((s) => s.animating);
+  const version = useLaneMotion((s) => s.version);
   return useCallback(
-    (track: TrackId) => (animating.has(track) ? laneAnimator.height(track, target(track)) : target(track)),
-    // `frameNo`: a new function each frame, so memoized layouts recompute.
+    (track: TrackId) => (animating.has(track) ? Math.max(laneAnimator.extent(track) ?? 0, target(track)) : target(track)),
+    // `version`: extents change when a tween is retargeted.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [target, frameNo, animating],
+    [target, animating, version],
   );
 }
 
