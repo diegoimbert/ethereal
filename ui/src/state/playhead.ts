@@ -18,6 +18,7 @@ type Listener = () => void;
 
 class HighRateStore {
   private playhead: PlayheadFrame | null = null;
+  private overridden = false;
   private meters = new Map<TrackId, TrackMeter>();
   private cpuLoad = 0;
   private playheadListeners = new Set<Listener>();
@@ -27,7 +28,20 @@ class HighRateStore {
   // ── Playhead ──
   getPlayhead = (): PlayheadFrame | null => this.playhead;
 
+  /** An engine frame (ignored while an override is active). */
   setPlayhead(frame: PlayheadFrame): void {
+    if (this.overridden) return;
+    this.playhead = frame;
+    for (const l of this.playheadListeners) l();
+  }
+
+  /**
+   * Listen on a peer (docs/COLLAB.md §9.4): show `frame` (what is heard from the host)
+   * and ignore the local engine's frames until `setOverride(null)`.
+   */
+  setOverride(frame: PlayheadFrame | null): void {
+    this.overridden = frame !== null;
+    if (!frame) return;
     this.playhead = frame;
     for (const l of this.playheadListeners) l();
   }
@@ -75,6 +89,7 @@ class HighRateStore {
   /** Clear all values (listeners are kept) and notify. */
   reset(): void {
     this.playhead = null;
+    this.overridden = false;
     this.cpuLoad = 0;
     const tracks = [...this.meters.keys()];
     this.meters.clear();
