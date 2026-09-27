@@ -729,8 +729,10 @@ where
                 let bytes = self.store.read(pid, &m.file).map_err(store_err)?;
                 (bytes, m.name, Some(m.file))
             }
-            MediaSource::Upload { .. } => {
-                return Err(unsupported("uploads are not supported in v0.1"));
+            MediaSource::Upload { upload } => {
+                let (bytes, name) =
+                    crate::upload::take_upload(&mut self.uploads, &mut self.store, upload)?;
+                (bytes, name, None)
             }
         };
         let hash = content_hash(&bytes);
