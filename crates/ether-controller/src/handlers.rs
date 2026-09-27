@@ -781,6 +781,11 @@ where
                     crate::upload::take_upload(&mut self.uploads, &mut self.store, upload)?;
                 (bytes, name, None)
             }
+            // v0.2 (`file-import`): an OS file of the engine machine (desktop).
+            MediaSource::Path { path } => {
+                let (bytes, name) = crate::file_import::read_path(&mut self.library, path)?;
+                (bytes, name, None)
+            }
         };
         let hash = content_hash(&bytes);
         let chained = is_chained_ogg(&bytes);

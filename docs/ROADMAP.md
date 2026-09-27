@@ -409,7 +409,9 @@ Ground rules (as for the roadmap v2 nodes above):
   on new controls, existing context menus). **Every PR with a UI-visible change includes
   screenshots** uploaded with `.orchestra/pr-screenshot.sh <node-id> <file.png> "<caption>"`
   and embedded under `## Screenshots` in the PR body.
-- **Order.** `groups-buses` is priority 1 (lands first). `device-ui` lands early: device
+- **Order.** `groups-buses` and `file-import` are priority 1 (land first; the desktop path
+  half of `file-import` needs `media-references`, its web/remote upload half does not).
+  `device-ui` lands early: device
   nodes target its renderer (until then they test their layouts with the generic view and
   the JSON parity test). Everything else runs in parallel.
 
@@ -464,6 +466,21 @@ Owns: `crates/ether-core/src/{bus_tap,vca}.rs`, `crates/ether-controller/src/gro
   routing picker, sends, VCA assignment, "new bus from selection", Cmd+G, drag into/out of
   groups (`ui/src/features/mixer/**`, arrangement `trackDrag.ts`, `TrackRow.tsx`,
   `ArrangementView.tsx`, `arrangement.css`), the mock track reducer hook.
+
+## `file-import` (priority 1)
+
+Owns: `ui/src/features/import/**`, `crates/ether-controller/src/file_import/**`
+(`read_path`), upload staging for the web OPFS store and the local wasm controller
+(`ether-wasm/src/{store,bridge}.rs`, `apps/web/src/engine/**`, `ui/src/transport/wasm/**`),
+its tests/e2e. Contract: CONTRACTS.md §12.13 (`MediaSource::Path`, the OS-file handoff).
+Shared touches: `ether-native/src/store.rs` (`Library::read_external`), the desktop shell
+(`apps/desktop/src-tauri/**`: dialog plugin + dropped paths; `ui/src/transport/tauri/**`),
+drops on the browser panel and arrangement lanes and the "Import audio…" command
+(`features/browser/index.tsx`, `features/remote/{uploadDrop,upload}.ts`,
+`features/arrangement/{ArrangementView,TrackRow}.tsx`, `App.tsx`), the collab push of
+external-path media (`collab/mod.rs`, those lines only), the mock import/upload paths.
+The web/remote upload half can land before `media-references`; the desktop path half
+depends on it for referencing in place (copy until then).
 
 ## `device-ui` (early)
 

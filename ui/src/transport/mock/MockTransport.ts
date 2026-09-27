@@ -853,6 +853,9 @@ export class MockTransport implements EngineTransport {
     switch (source.type) {
       case "Upload":
         return uploadSource(source.upload);
+      case "Path":
+        // v0.2 (`file-import`): OS paths exist only on the desktop engine.
+        return fail("Unsupported", "importing OS files by path needs the desktop engine");
       case "Project":
         return this.project.media[source.media] ?? fail("NotFound", `media ${source.media}`);
       case "Location":

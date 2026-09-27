@@ -696,7 +696,7 @@ New domains: `Command::{Take, Freeze, TimeEdit, Preset, Browser, Analysis, Rack,
 MediaRef}`; `Event::{Freeze, Preset, Browser, Analysis, MediaRef}`; replies
 `RenderStarted`, `Presets`, `Preset`, `BrowserPage`, `BrowserRoots`, `ModulatorKinds`,
 `MissingMedia`. New variants on existing domains: `Track::{GroupSelected, Ungroup,
-SetVca}`, `Device::SetZones`.
+SetVca}`, `Device::SetZones`, `MediaSource::Path` (file-import).
 
 ### 12.1 Ids, entities, `.ether` v4
 - New tables (`#[serde(default)]`): `take_lanes`, `comp_regions`, `rack_chains`,
@@ -958,3 +958,23 @@ readback}`; `ParamTarget::Modulator`; `automation_rt::apply_automation` (moved).
    layout (bumping the version).
 6. **Library write access is new** (`Library::write_file` & co.) and presets/index share
    one writable user root.
+
+### 12.13 Importing audio from the user's computer (`file-import`, priority 1)
+- UI: an "Import audio…" command (toolbar/menu, ⌘I, following the owner's patterns), OS
+  drag-drop onto the browser panel and onto arrangement lanes (a clip at the drop position
+  on that track; below the tracks, a new track of the right kind). Several files at once;
+  progress (`MediaEvent::{UploadProgress, ImportProgress}`), errors (unsupported formats:
+  `Decode`), cancel (`CancelUpload`). One undo step per import-with-clip gesture (a `Batch`
+  or one gesture id).
+- Desktop: the Tauri file dialog and dropped-file paths → `Media::Import { source:
+  MediaSource::Path { path } }`. This is the one explicit OS-file handoff: the UI passes the
+  **path**, never the bytes, and never reads the file. The engine validates the path
+  (absolute, regular readable file, audio extension) and reads it through
+  `Library::read_external`; the media becomes an external reference in place once
+  `media-references` lands (copied into the project before that).
+- Web (local wasm controller) and remote: the bytes go through the frozen upload staging
+  (`BeginUpload` → `UploadChunk`s → `Import { source: Upload }`), which `file-import`
+  implements for the web OPFS store too; uploaded media is always copied into the project.
+  `Path` replies `Unsupported` there.
+- Collab: imported media replicates through the existing media push; an external-path
+  media pushes its bytes (read with `read_external`) and peers store it at `MediaRef::file`.

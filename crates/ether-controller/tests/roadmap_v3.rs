@@ -12,6 +12,7 @@ use ether_core::protocol::analysis::AnalysisCommand;
 use ether_core::protocol::browser::{BrowserCommand, BrowserQuery, BrowserSort};
 use ether_core::protocol::devices::{DeviceCommand, DeviceSpec};
 use ether_core::protocol::freeze::{BounceTarget, FreezeCommand};
+use ether_core::protocol::media::{MediaCommand, MediaSource};
 use ether_core::protocol::media_refs::MediaRefCommand;
 use ether_core::protocol::model::*;
 use ether_core::protocol::presets::{PresetCommand, PresetRef, PresetSource};
@@ -410,4 +411,19 @@ fn groups_buses_reply_unsupported() {
     let graph = h.ctl.bridge.last_graph();
     assert!(graph.tracks.iter().all(|t| t.id != vca));
     assert!(graph.vcas.is_empty());
+}
+
+#[test]
+fn file_import_path_replies_unsupported() {
+    let mut h = Harness::with_project();
+    let id: MediaId = h.id();
+    assert_unsupported(
+        &mut h,
+        Command::Media(MediaCommand::Import {
+            id,
+            source: MediaSource::Path {
+                path: "/Users/me/kick.wav".into(),
+            },
+        }),
+    );
 }

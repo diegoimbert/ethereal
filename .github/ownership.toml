@@ -742,7 +742,8 @@ paths = [
 # - keeps its mock file (ui/src/transport/mock/roadmap/<node>.*) in sync;
 # - device groups regenerate their mock descriptor JSON from Rust, never by hand
 #   (UPDATE_MOCK_DESCRIPTORS=1 cargo test -p ether-devices --test v02_descriptors).
-# Priority: groups-buses first, device-ui early (the renderer every device node targets).
+# Priority: groups-buses and file-import first, device-ui early (the renderer every device
+# node targets).
 
 [nodes.groups-buses]
 paths = [
@@ -770,6 +771,44 @@ paths = [
   "ui/src/features/arrangement/arrangement.css",
   # shared touch: the mock's track reducer for grouping (reducer hook only)
   "ui/src/transport/mock/documentReducer.ts",
+]
+
+[nodes.file-import]
+# Priority 1 (with groups-buses). The desktop path half depends on media-references
+# (reference in place); the web/remote upload half can land first.
+paths = [
+  "ui/src/features/import/**",
+  "crates/ether-controller/src/file_import/**",
+  "crates/ether-controller/tests/file_import*.rs",
+  "crates/ether-native/tests/file_import*.rs",
+  "crates/ether-wasm/tests/file_import*.rs",
+  "apps/web/e2e/file-import*.spec.ts",
+  "crates/ether-controller/tests/roadmap_v3.rs",
+  # upload staging for the web OPFS store and the local wasm controller
+  "crates/ether-wasm/src/store.rs",
+  "crates/ether-wasm/src/bridge.rs",
+  "apps/web/src/engine/**",
+  "ui/src/transport/wasm/**",
+  # shared touch: Library::read_external natively (path validation + read)
+  "crates/ether-native/src/store.rs",
+  # shared touch: desktop file dialog + OS drop paths (Tauri plugin/capabilities, transport)
+  "apps/desktop/src-tauri/**",
+  "apps/desktop/package.json",
+  "ui/src/transport/tauri/**",
+  # shared touch: drop onto the browser panel (reuse/extend useUploadDrop), the arrangement
+  # lanes (clip at the drop position, new track below the tracks), the "Import audio…" command
+  # (toolbar/menu, ⌘I) following the owner's patterns
+  "ui/src/features/browser/index.tsx",
+  "ui/src/features/remote/uploadDrop.ts",
+  "ui/src/features/remote/upload.ts",
+  "ui/src/features/arrangement/ArrangementView.tsx",
+  "ui/src/features/arrangement/TrackRow.tsx",
+  "ui/src/App.tsx",
+  # shared touch: collab push of external-path media (read the bytes; those lines only)
+  "crates/ether-controller/src/collab/mod.rs",
+  # shared touch: the mock's import/upload paths
+  "ui/src/transport/mock/MockTransport.ts",
+  "ui/src/transport/mock/roadmap/remote.*",
 ]
 
 [nodes.device-ui]

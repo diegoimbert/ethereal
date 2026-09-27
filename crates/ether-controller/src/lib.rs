@@ -39,6 +39,7 @@ mod doc;
 mod drum_rack;
 mod engine;
 mod export;
+mod file_import;
 mod freeze;
 mod groove;
 mod groups;
