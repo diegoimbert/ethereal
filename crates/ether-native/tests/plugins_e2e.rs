@@ -95,6 +95,7 @@ fn helper() -> PathBuf {
 
 fn descriptor() -> PluginDescriptor {
     PluginDescriptor {
+        sidechain_inputs: Default::default(),
         format: PluginFormat::Clap,
         id: PLUGIN_ID.into(),
         name: "Ether Test Plugin".into(),

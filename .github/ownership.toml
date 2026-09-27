@@ -1069,3 +1069,29 @@ paths = [
   "ui/src/transport/mock/MockTransport.ts",
   "ui/src/transport/mock/library.ts",
 ]
+
+[nodes.plugin-sidechain]
+# Priority 2. CLAP/VST3/AU aux inputs fed from the device's sidechain source (CONTRACTS §12.14).
+paths = [
+  "crates/ether-controller/tests/plugin_sidechain*.rs",
+  "crates/ether-native/tests/plugin_sidechain*.rs",
+  # shared touches: aux/sidechain input bus per format + descriptors
+  "crates/ether-clap/src/node.rs",
+  "crates/ether-clap/src/plugin.rs",
+  "crates/ether-clap/src/scan.rs",
+  "crates/ether-clap/src/testing.rs",
+  "crates/ether-vst3/src/node.rs",
+  "crates/ether-vst3/src/plugin.rs",
+  "crates/ether-vst3/src/scan.rs",
+  "crates/ether-vst3/src/testing.rs",
+  "crates/ether-au/src/mac/node.rs",
+  "crates/ether-au/src/mac/plugin.rs",
+  "crates/ether-au/src/mac/mod.rs",
+  # shared touch: sandbox shm layout (aux channels) + VERSION bump
+  "crates/ether-sandbox/src/shm.rs",
+  "crates/ether-sandbox/src/node.rs",
+  "crates/ether-sandbox/src/helper.rs",
+  "crates/ether-sandbox/src/host.rs",
+  # shared touch: plugin catalog (PluginDescriptor::sidechain_inputs)
+  "crates/ether-plugin-host/src/**",
+]

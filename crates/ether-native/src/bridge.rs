@@ -537,6 +537,7 @@ mod tests {
             });
         let catalog = PluginCatalog::default();
         catalog.replace(vec![PluginDescriptor {
+            sidechain_inputs: Default::default(),
             format: PluginFormat::Clap,
             id: "fake".into(),
             name: "Fake".into(),

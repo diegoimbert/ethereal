@@ -989,3 +989,20 @@ readback}`; `ParamTarget::Modulator`; `automation_rt::apply_automation` (moved).
   `Path` replies `Unsupported` there.
 - Collab: imported media replicates through the existing media push; an external-path
   media pushes its bytes (read with `read_external`) and peers store it at `MediaRef::file`.
+
+### 12.14 Plugin sidechain (`plugin-sidechain`, priority 2)
+Plugins with an aux/sidechain input bus take the device's sidechain source (`Device::
+sidechain`, `Device::SetSidechain`) exactly like built-ins: the engine already provides the
+latency-aligned sidechain buffers (base-24, §11.10) through `Node::process_sidechain`.
+- Discovery: `PluginDescriptor::sidechain_inputs` (scan, catalog; `#[serde(default)]` = 0) and
+  the instance's `DeviceDescriptor::sidechain_inputs` (authoritative, from the bus layout at
+  instantiation; the UI shows the sidechain selector when > 0). Only the first aux input bus
+  is used; mono aux buses get the left channel, wider ones the first two.
+- Hosts pass the buffers as their second input bus: CLAP (clack) the second input audio port
+  (`CLAP_PORT_IS_MAIN` unset), VST3 the first `kAux` input bus (activated with
+  `activateBus` when a source is set, silent when not), AU input bus 1 (render callback
+  supplying the sidechain). Without a source the aux bus gets silence.
+- Sandboxed plugins: the shared-memory block gains the aux input channels (`sidechain_inputs ×
+  max_block` floats after the main inputs) and the shm `VERSION` is bumped (3); the helper
+  forwards them to the plugin the same way.
+- Offline renders (export, freeze, bounce) route sidechains like live playback.

@@ -1149,6 +1149,7 @@ mod tests {
     fn catalog_finds_by_format() {
         let cat = PluginCatalog::default();
         let desc = |format, path: &str| PluginDescriptor {
+            sidechain_inputs: Default::default(),
             format,
             id: "same.id".into(),
             name: "Y".into(),
@@ -1181,6 +1182,7 @@ mod tests {
         let cat = PluginCatalog::open(tmp.path());
         assert!(cat.list().is_empty());
         cat.replace(vec![PluginDescriptor {
+            sidechain_inputs: Default::default(),
             format: ether_core::protocol::model::PluginFormat::Clap,
             id: "com.x.y".into(),
             name: "Y".into(),

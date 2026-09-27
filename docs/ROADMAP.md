@@ -615,3 +615,15 @@ Owns: `crates/ether-controller/src/media_refs/**`, `ui/src/features/media-refs/*
 open), `ether-native/src/store.rs` (`Library::{external_path, read_external}`),
 `collab/mod.rs` (media transfer by hash, those lines only), the mock import/library
 (`MockTransport.ts`, `library.ts`). Behaviour change and migration: CONTRACTS.md §12.9.
+
+## `plugin-sidechain` (priority 2)
+
+Owns: `crates/ether-controller/tests/plugin_sidechain*.rs`, `crates/ether-native/tests/
+plugin_sidechain*.rs`. Contract: CONTRACTS.md §12.14. Shared touches (format files): the
+aux bus in `ether-clap/src/{node,plugin,scan}.rs`, `ether-vst3/src/{node,plugin,scan}.rs`,
+`ether-au/src/mac/{node,plugin,mod}.rs` (`Node::{sidechain_inputs, process_sidechain}` +
+`sidechain_inputs` in the descriptors), the sandbox shm layout and version
+(`ether-sandbox/src/{shm,node,helper,host}.rs`), the plugin catalog
+(`ether-plugin-host/src/**`, `PluginDescriptor::sidechain_inputs`). No controller or engine
+changes are needed: `Device::SetSidechain` already accepts any device whose descriptor has
+`sidechain_inputs > 0`, and the engine feeds `process_sidechain`.
