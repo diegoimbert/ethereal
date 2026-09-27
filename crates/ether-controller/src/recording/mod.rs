@@ -28,6 +28,7 @@ use ether_core::protocol::clips::ClipCommand;
 use ether_core::protocol::model::*;
 use ether_core::protocol::notes::{NoteCommand, NoteSpec};
 use ether_core::protocol::recording::{RecordingCommand, RecordingEvent};
+use ether_core::protocol::warp::WarpCommand;
 use ether_core::protocol::{Command, Event, NotificationLevel, ReplyValue};
 
 use crate::engine::bridge_err;
@@ -292,6 +293,8 @@ where
             f64::from(p.settings.count_in_bars.min(MAX_COUNT_IN_BARS)) * bar
         };
 
+        // The engine must see the current arm state before it starts capturing.
+        self.publish_if_due(now, true, out);
         let host = match self.bridge.start_recording(&session) {
             Ok(()) => true,
             Err(e) if unsupported_host(&e) => false,
@@ -453,15 +456,23 @@ where
                 let media_id = media.id;
                 ctx.tx.insert(Entity::Media(media))?;
                 let id: ClipId = ctx.ids.next(ctx.now);
+                let start = Beats(take.start.max(0.0));
                 doc::apply(
                     ctx,
                     &Command::Clip(ClipCommand::CreateAudio {
                         id,
                         track: track.id,
-                        start: Beats(take.start.max(0.0)),
+                        start,
                         media: media_id,
                     }),
                 )?;
+                // A take plays back exactly as recorded (warping stays one click away).
+                let warp = WarpSettings {
+                    enabled: false,
+                    mode: WarpMode::Complex,
+                    source_bpm: Some(ctx.p().tempo_map().bpm_at(start)),
+                };
+                doc::apply(ctx, &Command::Warp(WarpCommand::SetWarp { clip: id, warp }))?;
                 clips.push(id);
             }
             if !notes.is_empty() {

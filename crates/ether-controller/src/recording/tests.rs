@@ -374,6 +374,8 @@ fn record_with_count_in_commits_takes_as_one_undo_step() {
     let ClipContent::Audio(a) = &audio_clip.content else {
         panic!()
     };
+    assert!(!a.warp.enabled, "takes play back unwarped");
+    assert_eq!(a.warp.source_bpm, Some(120.0));
     let media = &p.media[&a.media];
     assert_eq!(
         (media.file.as_str(), media.frames, media.channels),

@@ -27,7 +27,8 @@ pub(super) struct StartConfig {
 }
 
 enum Msg {
-    Start(Box<StartConfig>),
+    /// Acknowledged once the session is installed (so no captured block can be missed).
+    Start(Box<StartConfig>, Sender<()>),
     Stop(Sender<Result<RecordedTakes, String>>),
 }
 
@@ -48,9 +49,12 @@ pub(super) fn spawn(capture: CaptureReader, midi: Consumer<EngineMidi>) -> Optio
 
 impl WriterHandle {
     pub fn start(&self, config: StartConfig) -> Result<(), BridgeError> {
+        let (tx, rx) = bounded(1);
         self.tx
-            .send(Msg::Start(Box::new(config)))
-            .map_err(|_| BridgeError::Unavailable("recording writer stopped".into()))
+            .send(Msg::Start(Box::new(config), tx))
+            .map_err(|_| BridgeError::Unavailable("recording writer stopped".into()))?;
+        rx.recv_timeout(STOP_TIMEOUT)
+            .map_err(|_| BridgeError::Other("recording writer timed out".into()))
     }
 
     pub fn stop(&self) -> Result<RecordedTakes, BridgeError> {
@@ -71,11 +75,12 @@ fn run(rx: Receiver<Msg>, mut capture: CaptureReader, mut midi: Consumer<EngineM
         let msg = match rx.recv_timeout(POLL) {
             // A new session owns everything captured from now on (the engine only
             // captures after `start` returned and the controller enabled recording).
-            Ok(Msg::Start(config)) => {
+            Ok(Msg::Start(config, ack)) => {
                 if let Some(old) = session.take() {
                     let _ = old.finish();
                 }
                 session = Some(Session::new(*config, capture.channels()));
+                let _ = ack.send(());
                 continue;
             }
             other => other,
@@ -99,7 +104,7 @@ fn run(rx: Receiver<Msg>, mut capture: CaptureReader, mut midi: Consumer<EngineM
                     .map_or_else(|| Ok(RecordedTakes::default()), Session::finish);
                 let _ = reply.send(result);
             }
-            Ok(Msg::Start(_)) | Err(RecvTimeoutError::Timeout) => {}
+            Ok(Msg::Start(..)) | Err(RecvTimeoutError::Timeout) => {}
             Err(RecvTimeoutError::Disconnected) => break,
         }
     }
