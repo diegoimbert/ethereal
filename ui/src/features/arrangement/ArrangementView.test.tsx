@@ -121,6 +121,10 @@ describe("ArrangementView: tracks", () => {
   it("renders a header and lane per track, returns and master last", () => {
     const names = [...document.querySelectorAll(".eth-arr-header__name")].map((e) => e.textContent);
     expect(names).toEqual(["Keys", "Bass", "Drums", "A Delay", "Master"]);
+    // Master is pinned below the scrolling tracks, outside the scroll content.
+    const master = screen.getByTestId("arrangement-master");
+    expect(master.querySelector(".eth-arr-header__name")?.textContent).toBe("Master");
+    expect(screen.getByTestId("arrangement-content").textContent).not.toContain("Master");
     expect(document.querySelectorAll('[data-slot="automation"]')).toHaveLength(5);
     expect(clipEl(clipByName("Chords"))).toBeTruthy();
     expect(clipEl(clipByName("Bassline"))).toBeTruthy();

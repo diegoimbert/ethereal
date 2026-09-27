@@ -77,10 +77,13 @@ function ConnectedArrangementView() {
   const grid = useArrangementUi((s) => s.grid);
   const automationHeight = useAutomationHeight();
   const draftTrack = useArrangementUi((s) => s.draftTrack);
-  const rows = useMemo(
-    () => layoutRows(tracks, folded, automationHeight, (id) => heights.get(id) ?? defaultHeight, draftTrack),
-    [tracks, folded, automationHeight, heights, defaultHeight, draftTrack],
-  );
+  // The master track is pinned below the scrolling tracks (its own footer, at y 0); it is
+  // laid out last, so the other rows keep their positions.
+  const { rows, masterRow } = useMemo(() => {
+    const all = layoutRows(tracks, folded, automationHeight, (id) => heights.get(id) ?? defaultHeight, draftTrack);
+    const master = all.find((r) => r.track.kind === "Master");
+    return { rows: all.filter((r) => r !== master), masterRow: master ? { ...master, y: 0 } : null };
+  }, [tracks, folded, automationHeight, heights, defaultHeight, draftTrack]);
   const rowsRef = useRef<ReadonlyArray<Row>>(rows);
   useEffect(() => {
     rowsRef.current = rows;
@@ -274,6 +277,17 @@ function ConnectedArrangementView() {
             )}
           </div>
         </div>
+        {masterRow && (
+          <div className="eth-arr__master" data-testid="arrangement-master">
+            <div className="eth-arr__backdrop" style={{ left: headerWidth }}>
+              <GridLayer />
+            </div>
+            <TrackRow row={masterRow} />
+            <div className="eth-arr__overlay" style={{ left: headerWidth }}>
+              <PlayheadLine view={view} />
+            </div>
+          </div>
+        )}
         <HeaderColumnResizer />
       </div>
     </ArrangementContext.Provider>

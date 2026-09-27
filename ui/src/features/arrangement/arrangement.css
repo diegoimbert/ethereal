@@ -72,6 +72,18 @@
   scrollbar-gutter: stable;
 }
 
+/* The master track, pinned below the scrolling tracks (same scrollbar gutter, so the lanes
+   line up with the ones above). */
+.eth-arr__master {
+  position: relative;
+  flex: none;
+  max-height: 40%;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  border-top: var(--eth-border-width) solid var(--eth-color-border);
+}
+
 .eth-arr__content {
   position: relative;
   min-height: 100%;
