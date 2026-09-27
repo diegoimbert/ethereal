@@ -7,7 +7,7 @@
 #[path = "common/mod.rs"]
 mod common;
 
-pub use common::{FakeBridge, T0, ok, patches, plugin_descriptor, wav};
+pub use common::{Call, FakeBridge, T0, ok, patches, plugin_descriptor, wav};
 
 use ether_collab::Connector;
 use ether_collab::memory::Hub;

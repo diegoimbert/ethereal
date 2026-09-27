@@ -741,12 +741,25 @@ where
             p.inverse = inverse;
             touched.extend(applied);
         }
-        // A peer's plugin state is not a change of ours: our next save must not send our
-        // live state back over it.
+        // A peer replicated a plugin state (COLLAB.md §2.2): our running instance is
+        // re-created from it (a missing plugin has no instance: the document keeps it), and
+        // it is our new baseline, so our next save doesn't send it back.
         for id in replaced {
-            if let Ok(Some(state)) = self.bridge.plugin_state(id)
-                && let Some(s) = self.collab.session.as_mut()
-            {
+            let doc_state =
+                self.doc
+                    .as_ref()
+                    .and_then(|d| match &d.project.devices.get(&id)?.kind {
+                        DeviceKind::Plugin { plugin } => plugin.state.clone(),
+                        DeviceKind::Builtin { .. } => None,
+                    });
+            let Some(state) = doc_state else { continue };
+            let Ok(Some(live)) = self.bridge.plugin_state(id) else {
+                continue;
+            };
+            if live != state {
+                self.engine.request_reload_from_doc(id);
+            }
+            if let Some(s) = self.collab.session.as_mut() {
                 s.captured.insert(id, state);
             }
         }

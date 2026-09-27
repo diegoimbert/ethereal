@@ -59,11 +59,16 @@ invariants (routing cycles, "clip on an existing track of the right kind", tempo
   resolve on `confirmed`, re-apply the rest" gives exactly the state we already have, because
   the live doc is maintained as `fold(resolve, confirmed, pending)` at every step (pending
   ops are re-resolved against the latest `confirmed` on every rebase). So the implementation
-  pops it (and keeps its current inverse); a debug assertion and the tests check the
-  equivalence.
+  pops it (and keeps its current inverse). In debug builds every own echo is also processed
+  the long way on a copy (undo pending, resolve it on `confirmed`, re-apply the rest) and
+  asserted equal to the live document (`check_echo`); every collab test runs with it.
 - **Convergence invariant** (checked by the property test): on every site, after the log is
   fully delivered, `confirmed` = `fold(resolve, join snapshot, relay log)` and `pending` is
-  empty, so `live` is identical everywhere (up to the site-local fields of §2.1). Every
+  empty, so `live` is identical everywhere (up to the site-local fields of §2.1). The
+  property test (random concurrent edits including track/group/clip/device deletes that
+  cascade, concurrent undo/redo, random delivery interleavings) checks all replicas are
+  equal and valid, and that a fresh site replaying only the relay's snapshot + log (no
+  optimistic state) reaches the same document. Every
   derived op (delete-wins cascade, detached references) is computed by resolve from the
   state it is applied to, which for a sequenced transaction is the confirmed prefix: never
   from another site's optimistic state.
@@ -97,6 +102,8 @@ invariants (routing cycles, "clip on an existing track of the right kind", tempo
 | track mute, volume, pan, routing, names, colors, order | track **solo** (`TrackChange::Solo`), drum pad solo (`SetPadSolo`, runtime already), record-arm (runtime already) |
 | settings: project name, swing, swing grid | settings: loop enabled + loop region, metronome on/off, volume, accent, sound, count-in bars |
 | | MIDI learn mode/gestures, selection (shared only as presence), undo history |
+| | the live recording view (`RecordingEvent::Progress`, live chunks/notes): events, never ops; only the committed take (media pushed first, then its `Insert`s) replicates |
+| | missing-plugin bypass (runtime engine state, never an op) |
 
 Local-only ops are applied and undone locally as usual but filtered out of the stamped
 transaction (a transaction with only local ops is not sent). Remote `Update`s of local
@@ -108,13 +115,22 @@ settings over the snapshot's and clears its track solos.
 
 - Plugin GUI param edits (`ParamEdited`) already become undoable `Set Param` edits: they
   replicate like any edit.
-- Save-time plugin state capture works on a copy of the document (`serialize`), so it never
-  changes the document and never replicates. The session snapshot (creation and compaction)
-  is built the same way, with live plugin states, so a joiner gets each plugin's current
-  state once. Later opaque (non-parameter) plugin state changes don't replicate live; the
-  next compaction snapshot carries them to later joiners.
+- Save-time plugin state capture (opaque, non-parameter state, e.g. a preset loaded in the
+  plugin GUI) replicates **at most once per change**: before a save (explicit or autosave)
+  in a session, `collab_before_save` reads each instantiated plugin's live state and, only
+  if it differs from this site's baseline for that device (the last state it sent, received
+  or started from), applies one `DeviceChange::Plugin` update to the document and sends it
+  as a stamped transaction **outside the undo history** (label "Plugin State"). Saving again
+  with unchanged states sends nothing. The saved file itself is still written from a copy
+  (`serialize`). The session snapshot (creation and compaction) carries live states too.
+- A peer receiving a replicated state re-creates its running instance from the document's
+  state (`EngineState::request_reload_from_doc`, base-44; a normal re-create would keep the
+  instance's live state) and takes that state as its baseline, so its next save never sends
+  its old state back (no ping-pong).
 - Missing plugins on a peer: the existing handling (the engine bypasses a device it cannot
-  instantiate) applies. It is runtime state, never an op, so it never replicates.
+  instantiate) applies. It is runtime state, never an op, so it never replicates; such a
+  site has no live state, so its saves never overwrite the replicated state either (its
+  document and file keep the others' state).
 - Media length fix-ups from background decode and param mirroring after plugin load: local
   derived data (above).
 - ID minting (`copy_rack_pads`, duplicates, `SliceCommand::Auto`) is not a hazard: we sync
@@ -251,3 +267,5 @@ tokens; peer colors are data, like track colors).
 
 Landed in base-36: `CollabMessage::Media`, `CollabCommand::Get` (re-emits
 `CollabEvent::Session` + `CollabEvent::Presence`, replies `Unit`), ownership of this file.
+base-39: `MockTransport.ts` wiring of `MockCollab`. base-44: `engine.rs`
+(`EngineState::request_reload_from_doc`).

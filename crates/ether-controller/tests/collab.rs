@@ -358,7 +358,10 @@ fn save_replicates_changed_plugin_state_once_and_missing_plugins_stay_local() {
     assert_converged(&[a, b]);
 
     // Opaque state changed in the plugin GUI: the next save replicates it, once.
-    a.ctl.bridge.plugin_states.insert(d, Base64Bytes(vec![1, 2, 3]));
+    a.ctl
+        .bridge
+        .plugin_states
+        .insert(d, Base64Bytes(vec![1, 2, 3]));
     a.ok(Command::Project(ProjectCommand::Save));
     assert_eq!(a.ctl.collab_pending(), 1, "one stamped transaction");
     settle(&mut [a, b], &hub);
@@ -371,12 +374,23 @@ fn save_replicates_changed_plugin_state_once_and_missing_plugins_stay_local() {
     b.ok(Command::Project(ProjectCommand::Save));
     assert_eq!(b.ctl.collab_pending(), 0);
 
-    // `b` gets the plugin with its own live state: a peer's state is not its change, so
-    // its next save doesn't send it back (no ping-pong); `a`'s later change still flows.
+    // `b` gets the plugin, running with its own live state. `a` changes the state again:
+    // `b`'s instance is re-created from the replicated state (not its live one), and a
+    // peer's state is not `b`'s change, so its next save doesn't send it back.
+    b.ctl.bridge.plugins = a.ctl.bridge.plugins.clone();
     b.ctl.bridge.plugin_states.insert(d, Base64Bytes(vec![9]));
     a.ctl.bridge.plugin_states.insert(d, Base64Bytes(vec![4]));
     a.ok(Command::Project(ProjectCommand::Save));
     settle(&mut [a, b], &hub);
+    assert!(
+        b.ctl.bridge.calls.iter().any(|c| matches!(
+            c,
+            Call::CreatePlugin(dev, _, Some(st)) if *dev == d && st.0 == vec![4]
+        )),
+        "b's plugin reloaded from the replicated state"
+    );
+    // (The fake instance doesn't read its state back: do it for it.)
+    b.ctl.bridge.plugin_states.insert(d, Base64Bytes(vec![4]));
     b.ok(Command::Project(ProjectCommand::Save));
     assert_eq!(b.ctl.collab_pending(), 0);
     settle(&mut [a, b], &hub);
