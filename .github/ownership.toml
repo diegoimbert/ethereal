@@ -1216,6 +1216,11 @@ paths = [
 [nodes.collab-social]
 # base-62: chat, pinned notes, peer playheads, "hide users and notes" (docs/COLLAB.md §12).
 paths = [
+  # BCR (base-78): mock Chat routing with the session + untracked (non-undoable) apply
+  "ui/src/transport/mock/MockTransport.ts",
+  "ui/src/transport/mock/roadmap/host.ts",
+  # BCR (base-78): optional `menuItems` prop on the ruler context menu ("Leave a note")
+  "ui/src/timeline/Ruler.tsx",
   "crates/ether-controller/src/social/**",
   "crates/ether-controller/tests/social*.rs",
   "ui/src/features/collab/social/**",
