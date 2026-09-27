@@ -16,6 +16,13 @@ rtp: number, position: Beats, playing: boolean, recording: boolean,
  */
 bpm: number, loop_enabled: boolean, loop_region: BeatRange, metronome: boolean, 
 /**
- * `position` jumped here (play, stop, locate, loop wrap): never interpolate across it.
+ * `position` jumped here (play, stop, locate, loop wrap, latency change): never
+ * interpolate across it. `rtp` is when the first post-jump sample is *heard* (the jump
+ * sample plus the graph latency; docs/COLLAB.md §9.4).
  */
-discontinuity: boolean, };
+discontinuity: boolean, 
+/**
+ * The record start while a recording count-in is armed: the host plays the pre-roll
+ * (`playing` and `recording` true, `position` before this, possibly negative).
+ */
+count_in_end?: Beats, };

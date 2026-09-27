@@ -28,9 +28,15 @@ pub struct StreamBlock {
     pub playing: bool,
     pub recording: bool,
     pub bpm: f64,
-    /// Output latency (samples, PDC) of the published graph: the audio of this block is
-    /// the timeline at `position` minus `latency` samples.
+    /// Output latency (samples, PDC) of the published graph: the timeline rendered at
+    /// `sample_time` (at `position`) reaches the tap `latency` samples later; the audio of
+    /// this block is the timeline rendered `latency` samples earlier (docs/COLLAB.md §9.4).
     pub latency: u32,
+    /// The timeline jumped to `position` at this block's first frame: playback started
+    /// from stopped, a locate, or a loop wrap. Set on the first sub-block after the jump
+    /// only (carried to the next written block if that one was skipped), and on the first
+    /// block after the tap is installed.
+    pub jump: bool,
     /// Blocks were skipped right before this one (ring full).
     pub gap: bool,
 }
@@ -69,6 +75,8 @@ pub fn stream_tap_ring(frames: usize) -> (StreamTapWriter, StreamTapReader) {
 pub(crate) struct StreamTap {
     writer: Option<Box<StreamTapWriter>>,
     gap: bool,
+    /// A jump not yet reported (its block was skipped).
+    jump: bool,
 }
 
 impl StreamTap {
@@ -78,15 +86,20 @@ impl StreamTap {
         writer: Option<Box<StreamTapWriter>>,
     ) -> Option<Box<StreamTapWriter>> {
         self.gap = false;
+        // A fresh reader has no timeline yet: its first block starts one.
+        self.jump = true;
         std::mem::replace(&mut self.writer, writer)
     }
 
     /// **RT.** Copy `outputs[..2][off..off + n]` (mono is duplicated, missing channels are
-    /// silent) with the block's transport state.
+    /// silent) with the block's transport state. `jump`: the timeline jumped to
+    /// `info.position` at this sub-block (kept for the next written block if this one is
+    /// skipped).
     pub(crate) fn write(
         &mut self,
         info: &TransportInfo,
         latency: u32,
+        jump: bool,
         off: usize,
         n: usize,
         outputs: &[&mut [f32]],
@@ -94,12 +107,17 @@ impl StreamTap {
         let Some(w) = self.writer.as_mut() else {
             return;
         };
+        self.jump |= jump;
         if n == 0 {
             return;
         }
-        if w.audio.slots() < 2 * n || w.blocks.slots() < 1 {
+        let Ok(chunk) = w.audio.write_chunk_uninit(2 * n) else {
             self.gap = true;
             return;
+        };
+        if w.blocks.slots() < 1 {
+            self.gap = true;
+            return; // the unused chunk is dropped without committing
         }
         let block = StreamBlock {
             sample_time: info.sample_time,
@@ -109,20 +127,21 @@ impl StreamTap {
             recording: info.recording,
             bpm: info.bpm,
             latency,
+            jump: std::mem::take(&mut self.jump),
             gap: std::mem::take(&mut self.gap),
         };
         let _ = w.blocks.push(block);
-        let sample = |ch: usize, i: usize| -> f32 {
-            let ch = if outputs.len() > ch { ch } else { 0 };
-            outputs
-                .get(ch)
-                .and_then(|o| o.get(off + i))
-                .copied()
-                .unwrap_or(0.0)
-        };
-        for i in 0..n {
-            let _ = w.audio.push(sample(0, i));
-            let _ = w.audio.push(sample(1, i));
-        }
+        let silent: &[f32] = &[];
+        let left: &[f32] = outputs.first().map_or(silent, |o| &o[..]);
+        let right: &[f32] = outputs.get(1).map_or(left, |o| &o[..]);
+        let at = |ch: &[f32], i: usize| ch.get(off + i).copied().unwrap_or(0.0);
+        chunk.fill_from_iter((0..2 * n).map(|k| {
+            let i = k / 2;
+            if k % 2 == 0 {
+                at(left, i)
+            } else {
+                at(right, i)
+            }
+        }));
     }
 }

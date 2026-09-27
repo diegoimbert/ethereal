@@ -50,6 +50,7 @@ fn node_commands_reply_unsupported_until_implemented() {
         },
         metronome: false,
         discontinuity: true,
+        count_in_end: None,
     };
     for c in [
         // presence-v2

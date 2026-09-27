@@ -333,8 +333,15 @@ pub struct StreamClock {
     pub loop_enabled: bool,
     pub loop_region: BeatRange,
     pub metronome: bool,
-    /// `position` jumped here (play, stop, locate, loop wrap): never interpolate across it.
+    /// `position` jumped here (play, stop, locate, loop wrap, latency change): never
+    /// interpolate across it. `rtp` is when the first post-jump sample is *heard* (the jump
+    /// sample plus the graph latency; docs/COLLAB.md §9.4).
     pub discontinuity: bool,
+    /// The record start while a recording count-in is armed: the host plays the pre-roll
+    /// (`playing` and `recording` true, `position` before this, possibly negative).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub count_in_end: Option<Beats>,
 }
 
 /// A transport command a listener forwards to its host (the host's engine decides).

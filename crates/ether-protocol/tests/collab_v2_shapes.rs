@@ -198,6 +198,7 @@ fn listening_shapes() {
         },
         metronome: true,
         discontinuity: true,
+        count_in_end: Some(Beats(-4.0)),
     };
     let m = roundtrip(&CollabMessage::StreamClock {
         from: SiteId(1),
@@ -207,6 +208,21 @@ fn listening_shapes() {
     });
     assert_eq!(m["clock"]["rtp"], 4294967295u32);
     assert_eq!(m["clock"]["loop_region"]["end"], 16.0);
+    assert_eq!(m["clock"]["count_in_end"], -4.0);
+    // Without a count-in the field is omitted, and old anchors (without it) parse.
+    let mut plain = serde_json::to_value(StreamClock {
+        count_in_end: None,
+        ..clock.clone()
+    })
+    .unwrap();
+    assert!(plain.get("count_in_end").is_none());
+    plain.as_object_mut().unwrap().remove("count_in_end");
+    assert_eq!(
+        serde_json::from_value::<StreamClock>(plain)
+            .unwrap()
+            .count_in_end,
+        None
+    );
     roundtrip(&CollabEvent::StreamClock {
         from: SiteId(1),
         stream: 3,

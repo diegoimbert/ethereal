@@ -473,7 +473,7 @@ Ada UI        Ada controller        relay            Diego controller      Diego
 - The stream carries whatever the host hears minus previews: when the host is stopped the
   listeners hear silence (and metronome only if it plays), exactly like the host.
 - Clock anchors come from the tap headers (`StreamBlock { sample_time, position, playing,
-  recording, bpm, latency, gap }`), see §9.4. The web host builds them in the UI (§9.4).
+  recording, bpm, latency, jump, gap }`), see §9.4. The web host builds them in the UI (§9.4).
 
 ### 9.4 Stream clock: what the listener's playhead shows is what it hears
 
@@ -486,15 +486,50 @@ Host → listener: `StreamClock { rtp, position, playing, recording, bpm, loop_e
 loop_region, metronome, discontinuity }` = "the sample with RTP timestamp `rtp` (in *this
 listener's* RTP stream) is the timeline at `position`". Sent per listener (RTP timestamps
 start at a random offset per stream) every `STREAM_CLOCK_INTERVAL_MS` (100 ms) and
-immediately at every discontinuity (play, stop, locate, loop wrap, tap gap), with
-`discontinuity: true` and the `rtp` of the first sample after the jump.
+immediately at every discontinuity (play, stop, locate, loop wrap, latency change, tap
+gap), with `discontinuity: true` and the `rtp` at which the first post-jump sample is
+**heard** (the jump sample plus the graph latency; below).
 
-Host math (native): the sender knows, for each tapped block, its engine sample time `T`,
-position `P` (beats at `T`, before latency compensation), engine rate `sr`, graph latency
-`L` (samples). The audio in that block is the timeline at `beats(seconds(P) - L/sr)` (while
-playing; `P` when stopped). With the stream's 48 kHz sample counter `n(T)` (after
-resampling) and the stream's random RTP offset `o`: `rtp = o + n(T) (mod 2^32)`. str0m
-writes RTP timestamps from the same counter, so the anchor is exact.
+Host math (native). For each tapped block the sender knows (`StreamBlock`): its engine
+sample time `T`, the timeline position `P` rendered at `T`, `playing`, `jump`, the graph
+latency `L` (samples, PDC) and the engine rate `sr`. The engine renders the timeline at `T`
+but, because of PDC, **that material leaves the outputs (and the tap) `L` samples later**:
+the tap sample at `T + L` is the timeline at `P`. With the stream's 48 kHz sample counter
+`n(t)` (after resampling), the stream's random RTP offset `o`, and `L48 = round(L * 48000 /
+sr)`:
+
+```
+rtp(t)        = o + n(t)                  (mod 2^32; str0m stamps packets from the same counter)
+anchor(block) = { rtp: rtp(T) + L48, position: P, playing, discontinuity: jump }
+```
+
+This one rule holds for every anchor, periodic or not. For a **jump** (`StreamBlock::jump`:
+play from stopped, locate, loop wrap; set by the engine on the first sub-block after it),
+the anchor lies `L48` in the **future** of the jump sample: for the first `L` samples after
+a jump, the tap still carries the pre-jump timeline (the PDC delay lines are still
+emptying), and listeners keep mapping them with the previous anchor, which is exactly
+right. Worked example (48 kHz, `L` = 480 samples = 10 ms, 120 bpm = 2 beats/s, loop
+0..8 beats, `o` chosen so that `rtp(T) = 1_000_000` at the wrap):
+
+| engine block | tap audio at that time | anchor sent |
+|---|---|---|
+| `T - 4800`, `P` = 7.8 | timeline ≈ 7.78 | `{ rtp: 995_680, position: 7.8 }` |
+| `T` (wrap: `P` = 0, `jump`) | timeline ≈ 7.98 (pre-jump, still in PDC) | `{ rtp: 1_000_480, position: 0.0, discontinuity }` |
+
+The listener playing `r = 1_000_300` uses the first anchor: `7.8 + (1_000_300 - 995_680) /
+48000 s × 2 = 7.9925` (just before the loop end, what it hears); from `r = 1_000_480` on it
+uses the second: 0.0. Anchoring the wrap at `rtp(T)` instead would show 0.0 at 1_000_000
+while the listener still hears 7.99, i.e. map the wrap to `loop_start - L`.
+A change of `L` (a republished graph) is sent as a `discontinuity` anchor for the next
+block. Stop is not a `jump` (the position just stops advancing): the anchor with `playing:
+false` at `rtp(T) + L48` freezes the playhead when the last played sample is heard.
+
+**Count-in** (recording with count-in bars): the host's transport really plays the pre-roll,
+from `record start - count-in bars` up to the record start, so anchors carry `playing: true`,
+`recording: true` and the pre-roll `position` (which may be negative), exactly like the
+host's own playhead, plus `count_in_end: Some(record start)` while a count-in is armed
+(`None` otherwise). A listener shows "count-in" while its mapped position is before
+`count_in_end`, and hears the count-in clicks in the stream.
 
 Host math (web): the RTP timestamp is chosen by the browser. The UI sender observes it with a
 read-only encoded transform on the sender (`RTCRtpScriptTransform`, or
@@ -502,7 +537,10 @@ read-only encoded transform on the sender (`RTCRtpScriptTransform`, or
 observed at `performance.now()`. The UI maps that instant to the engine's position through
 its own playhead stream (`AudioContext.getOutputTimestamp()` relates context and
 performance time) minus the constant encoder pipeline delay (one 20 ms frame + 10 ms).
-Accuracy ±10 ms (under one display frame). A browser without encoded transforms cannot host
+Accuracy ±10 ms (under one display frame). The latency rule above applies unchanged: the
+worklet's tap output carries the timeline `L` samples after it was rendered, so the UI
+anchors a jump at the instant its first post-jump sample reaches the tap output (render
+time + `L`), never at the render time. A browser without encoded transforms cannot host
 (`can_host` false).
 
 Listener math (UI, per animation frame):
@@ -555,6 +593,9 @@ if A.playing && A.loop_enabled && A.position < loop_end && position >= loop_end:
   handles them: **last command handled by the host wins**, no locks, no ownership (a shared
   transport, like a band). Forwarded loop changes are site-local settings on the host,
   applied outside its undo history (like any remote change).
+- **The host throttles requests itself** (it cannot trust listeners to): per listener at
+  most 20 requests/s; beyond that it keeps only the latest `Locate` and the latest loop
+  change and drops the rest (the relay's 200/s bucket is only the outer bound).
 - Ignored by the host: requests while it records or counts in (only the host stops its own
   recording), requests from sites that are not its current listeners (stream id mismatch),
   and all requests when `remote_transport` is off.
@@ -605,19 +646,29 @@ are the relay's, or the ones set in settings (`SetIceServers`; e.g. a self-hoste
   protocols). `--no-stun` disables it.
 - **STUN** (always on): an RFC 8489 Binding responder (XOR-MAPPED-ADDRESS, FINGERPRINT) on a
   small thread, using the `stun` crate's message codec (webrtc-rs). Binding requests are
-  unauthenticated by design; responses are no bigger than requests (no amplification);
-  per-source-IP rate limit (50/s).
+  unauthenticated by design, and a response is **bigger** than a minimal request: a
+  20-byte attribute-less request (what browsers send to gather srflx candidates, so it
+  cannot be dropped) gets 40 bytes (IPv4: header + XOR-MAPPED-ADDRESS + FINGERPRINT) or 52
+  bytes (IPv6), an amplification of at most **2.6×** (no SOFTWARE or other optional
+  attribute is ever added). Bounds: 50 responses/s per source IP, and a **global cap of
+  1000 responses/s** for the whole responder (≤ 52 KB/s of reflected traffic); requests
+  over either limit, malformed, or not Binding requests are dropped silently.
 - **TURN** (optional, cargo feature `turn` of `ether-collab`, `--turn`): the webrtc-rs `turn`
   crate server (UDP allocations, RFC 8656) in its own tokio runtime thread; when on, it owns
   the UDP port and answers Binding requests itself. Relayed ports from a configurable range
   (`--turn-ports`), public address from `--public-ip`.
 - **Credentials** (TURN REST API scheme, per site, time-limited), only for token-protected
   relays:
-  - `secret = HMAC-SHA256(key = relay token, "ether-turn-v1")` (the token itself never
-    leaves the relay);
-  - `username = "<expiry unix seconds>:<site id>"`, TTL 12 h;
+  - `secret` = 32 random bytes from the OS, generated when the relay starts, kept in memory
+    only, **never sent to anyone and not derived from the relay token** (every site holds
+    the relay-wide token, so a token-derived secret would let any member mint credentials
+    for any site id and any expiry). A relay restart invalidates outstanding credentials;
+    sites get fresh ones with the `IceServers` that follows their re-sync;
+  - `username = "<expiry unix seconds>:<site id>"`, TTL 12 h, minted by the relay for the
+    site of the connection it sends them to;
   - `credential = base64(HMAC-SHA1(secret, username))`;
-  - the TURN auth handler recomputes it and rejects expired usernames. A relay without a
+  - the TURN auth handler recomputes it and rejects a username whose expiry is past, or
+    **later than now + 12 h + 60 s** (clock skew), or that does not parse. A relay without a
     token (loopback dev) serves STUN only.
 - **Advertisement**: after a site's sync, the relay sends `IceServers` built for that site
   (`Relay::set_ice_provider`), and again every `RelayConfig::ice_refresh_ms` (6 h) so

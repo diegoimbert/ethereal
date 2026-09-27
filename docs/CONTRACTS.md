@@ -666,12 +666,15 @@ Design: docs/COLLAB.md §8-§11. All additive and append-only in `ether_protocol
   node lands, `SetPointer` (presence-v2), `Listen`/`StopListening` (stream-listen),
   `SetHosting`/`SendStreamClock` (stream-host) reply `Unsupported`; `SendSignal` and
   `SetIceServers` work (`ether-controller/tests/collab_prewire.rs`).
-- Stream clock: `StreamClock { rtp, position, ... }` = "the sample with RTP timestamp `rtp`
-  in this listener's stream is the timeline at `position`" (48 kHz, wrapping u32), every
-  100 ms and at every discontinuity.
+- Stream clock: `StreamClock { rtp, position, ..., count_in_end }` = "the sample with RTP
+  timestamp `rtp` in this listener's stream is the timeline at `position`" (48 kHz,
+  wrapping u32), every 100 ms and at every discontinuity. `rtp` = the RTP time of the
+  rendered sample **plus the graph latency** (when it is heard), for jumps too
+  (COLLAB.md §9.4, worked example); count-in anchors carry the pre-roll position.
 - Engine: `ether_core::stream_tap` (`EngineHandle::set_stream_tap`): a copy of the render
   after master + metronome/count-in and before the preview voice, into pre-allocated `rtrb`
-  rings (block headers + interleaved stereo), RT-safe.
+  rings (block headers with `jump` on play/locate/loop wrap, + interleaved stereo),
+  RT-safe.
 - `EngineBridge` (defaulted): `stream_capabilities`, `start/stop_stream_capture`,
   `stream_open/stream_signal/stream_close`, `poll_stream` (`streaming::StreamOutput`), and
   plugin GUI mirrors `create/destroy_plugin_mirror`, `set_plugin_mirror_param`.

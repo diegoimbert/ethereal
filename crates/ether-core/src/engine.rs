@@ -196,6 +196,9 @@ struct TransportRt {
     /// Note chasing on the next played sub-block: start the clip notes already sounding at
     /// the position (after Play, Locate or a loop jump).
     chase_notes: bool,
+    /// The timeline jumps at the next sub-block (Play from stopped, Locate, loop wrap);
+    /// reported to the stream tap ([`crate::stream_tap::StreamBlock::jump`]), then cleared.
+    jump: bool,
 }
 
 /// Create an engine. Non-RT (allocates every ring and table up front).
@@ -467,6 +470,7 @@ impl Engine {
             TransportControl::Play => {
                 if !t.playing {
                     t.chase_notes = true;
+                    t.jump = true;
                 }
                 t.playing = true;
             }
@@ -483,6 +487,7 @@ impl Engine {
                 t.all_notes_off = true;
                 t.reset_nodes = true;
                 t.chase_notes = true;
+                t.jump = true;
             }
             TransportControl::SetRecording { enabled } => t.recording = enabled,
             TransportControl::SetLoop { enabled, region } => {
@@ -742,7 +747,8 @@ impl Engine {
             outputs,
         );
         // --- stream tap (base-53): master + metronome/count-in, never the preview ---
-        stream_tap.write(&info, *graph_latency, off, n, outputs);
+        stream_tap.write(&info, *graph_latency, transport.jump, off, n, outputs);
+        transport.jump = false;
         // --- browser preview (after master; not metered, transport-independent) ---
         preview.render(off, n, outputs);
 
@@ -757,6 +763,7 @@ impl Engine {
                 transport.position = loop_start;
                 transport.release_notes = true;
                 transport.chase_notes = true;
+                transport.jump = true;
             } else {
                 transport.position = b1;
             }

@@ -122,3 +122,87 @@ fn a_full_ring_skips_whole_blocks_and_flags_the_gap() {
     assert_eq!(audio.len(), Q);
     assert!(blocks[0].gap, "the reader learns it missed blocks");
 }
+
+#[test]
+fn jumps_are_flagged_on_play_loop_wrap_and_locate_only() {
+    use ether_core::protocol::model::{BeatRange, Beats};
+    let mut p = create(config());
+    p.handle
+        .publish(RenderGraphDesc {
+            version: 1,
+            tracks: vec![master()],
+            ..Default::default()
+        })
+        .unwrap();
+    let (writer, mut reader) = stream_tap_ring(4 * FRAMES);
+    p.handle.set_stream_tap(Some(writer)).unwrap();
+    // Stopped: the first block starts the reader's timeline, then no jumps.
+    run(&mut p.engine, 4 * Q);
+    let (_, blocks) = drain(&mut reader);
+    assert!(blocks[0].jump);
+    assert!(blocks[1..].iter().all(|b| !b.jump && !b.playing));
+
+    // Play with a one-beat loop: a jump at the start and exactly at every wrap.
+    p.handle
+        .transport(TransportControl::SetLoop {
+            enabled: true,
+            region: BeatRange {
+                start: Beats(0.0),
+                end: Beats(1.0),
+            },
+        })
+        .unwrap();
+    p.handle.transport(TransportControl::Play).unwrap();
+    run(&mut p.engine, FRAMES);
+    let (_, blocks) = drain(&mut reader);
+    assert!(blocks[0].jump && blocks[0].playing, "play from stopped");
+    let wraps: Vec<_> = blocks[1..].iter().filter(|b| b.jump).collect();
+    assert!(
+        !wraps.is_empty(),
+        "one second at 120 bpm wraps a one-beat loop"
+    );
+    assert!(
+        wraps.iter().all(|b| b.position == 0.0),
+        "wraps jump to loop start"
+    );
+    for w in blocks.windows(2) {
+        let wrapped = w[1].position < w[0].position;
+        assert_eq!(
+            w[1].jump, wrapped,
+            "a jump exactly where the position goes back"
+        );
+    }
+
+    // Play while playing is not a jump; a locate is.
+    p.handle.transport(TransportControl::Play).unwrap();
+    run(&mut p.engine, Q);
+    let (_, blocks) = drain(&mut reader);
+    assert!(!blocks[0].jump || blocks[0].position == 0.0);
+    p.handle
+        .transport(TransportControl::Locate {
+            position: Beats(0.5),
+        })
+        .unwrap();
+    run(&mut p.engine, Q);
+    let (_, blocks) = drain(&mut reader);
+    assert!(blocks[0].jump && blocks[0].position == 0.5);
+    assert!(blocks[1..].iter().all(|b| !b.jump));
+}
+
+#[test]
+fn a_jump_in_a_skipped_block_is_reported_by_the_next_written_one() {
+    let mut p = start();
+    let (writer, mut reader) = stream_tap_ring(4 * Q);
+    p.handle.set_stream_tap(Some(writer)).unwrap();
+    run(&mut p.engine, 8 * Q); // fills the ring
+    p.handle
+        .transport(TransportControl::Locate {
+            position: ether_core::protocol::model::Beats(2.0),
+        })
+        .unwrap();
+    run(&mut p.engine, Q); // skipped: ring full
+    drain(&mut reader);
+    run(&mut p.engine, Q);
+    let (_, blocks) = drain(&mut reader);
+    assert!(blocks[0].gap && blocks[0].jump);
+}
