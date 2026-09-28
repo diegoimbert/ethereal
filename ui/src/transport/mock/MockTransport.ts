@@ -299,7 +299,7 @@ export class MockTransport implements EngineTransport {
     save: () => void this.saveCurrent(),
     libraryHash: (rel) => hashHex(`library:${normalize(rel)}`),
   });
-  private readonly analysis = new MockAnalysis();
+  private readonly analysis = new MockAnalysis(this.host);
   private readonly preview = new MockPreview(this.host);
   private readonly uploads = new MockUploads((event) => this.emit(event));
   private readonly liveRecord = new MockLiveRecord({
@@ -1041,6 +1041,7 @@ export class MockTransport implements EngineTransport {
 
   /** Synthesize one meter frame (peak-hold with decay, beat pulse, a bit of noise). */
   private meterStep(): void {
+    this.analysis.step();
     const tracks = Object.values(this.project.tracks);
     const pulse = 0.7 + 0.3 * (1 - (this.position % 1));
     const decay = 0.82;
