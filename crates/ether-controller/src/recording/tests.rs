@@ -834,3 +834,7 @@ fn audio_loop_passes_become_takes_and_plain_recordings_stay_clips() {
         "the first recording stays"
     );
 }
+
+/// `tap-recording` (uses this module's bridge and helpers).
+#[path = "tap_tests.rs"]
+mod tap;

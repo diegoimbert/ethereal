@@ -763,6 +763,18 @@ paths = [
   "crates/ether-core/src/bus_tap.rs",
 ]
 
+[nodes.latency-republish]
+# Bugfix (fx-dynamics discovery): republish PDC when a built-in node's reported latency changes.
+paths = [
+  # BCR (base-89): native EngineBridge::node_latency forward (one method) + one CONTRACTS line
+  "crates/ether-native/src/bridge.rs",
+  "docs/CONTRACTS.md",
+  "crates/ether-controller/src/engine.rs",
+  "crates/ether-controller/tests/latency_republish*.rs",
+  # shared touch: one call from the controller tick
+  "crates/ether-controller/src/lib.rs",
+]
+
 [nodes.turn-hardening]
 # Follow-up to stream-host (docs/COLLAB.md §10 known limitations): per-username verified cap,
 # counting real nonce inserts, rotation-decision tests. TURN stays experimental until merged.
@@ -1063,6 +1075,15 @@ paths = [
 
 [nodes.racks-modulation]
 paths = [
+  # BCR-2 (base-90), those lines only: ignore modulated plugin ParamEdited echoes (handlers.rs), modulator
+  # param fast path (controller engine.rs apply_effects), Track::Duplicate copies racks (doc/tracks.rs),
+  # rack-chain devices out of the track chain (selectors.ts, mock documentReducer.ts), analysis doc fix
+  "crates/ether-controller/src/handlers.rs",
+  "crates/ether-controller/src/engine.rs",
+  "crates/ether-controller/src/doc/tracks.rs",
+  "ui/src/state/selectors.ts",
+  "ui/src/transport/mock/documentReducer.ts",
+  "crates/ether-core/src/analysis.rs",
   # BCR (base-87): (A) engine.rs one ChainRacksRt::finish line; (B) automation_rt.rs intercept_at call;
   # (C) graph.rs SidechainLatency 3rd arg to ModulationRt::compile; (D) ModulatorKind += Keytrack, Velocity
   # (append-only, owner T1 decision) + one CONTRACTS §12.6 line
