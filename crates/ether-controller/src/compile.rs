@@ -383,6 +383,8 @@ pub fn compile_graph_with(p: &Project, ctx: &CompileContext) -> RenderGraphDesc 
         }
     }
 
+    // v0.2 (`groups-buses`): soloing a VCA solos its tracks.
+    crate::groups::fold_vca_solo(p, &mut tracks);
     RenderGraphDesc {
         version: ctx.version,
         tempo: tempo_map
