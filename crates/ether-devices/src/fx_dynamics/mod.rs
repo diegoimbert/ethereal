@@ -176,7 +176,7 @@ fn device_layout(ty: BuiltinDeviceType) -> DeviceLayout {
                 min_db,
                 max_db,
             },
-            Medium,
+            Small,
         );
         it.label = Some(label.to_owned());
         it
@@ -238,12 +238,12 @@ fn device_layout(ty: BuiltinDeviceType) -> DeviceLayout {
                     1,
                     4,
                     vec![
-                        knob(pid(0), Large),
+                        knob(pid(0), Medium),
                         knob(pid(1), Medium),
+                        knob(pid(4), Medium),
+                        meter(index, -24.0, 0.0, "GR"),
                         knob(pid(2), Small),
                         knob(pid(3), Small),
-                        knob(pid(4), Small),
-                        meter(index, -24.0, 0.0, "GR"),
                         item(Widget::Toggle { param: pid(5) }, Small),
                         item(Widget::Toggle { param: pid(6) }, Small),
                     ],
