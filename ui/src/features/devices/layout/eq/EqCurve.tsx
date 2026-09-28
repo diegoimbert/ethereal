@@ -222,7 +222,7 @@ export function EqCurveWidget({ widget: w, size, label }: EqCurveProps) {
     setSelected(b.index);
   };
 
-  const shown = bands.find((b) => b.index === (dragging ? selected : (hover ?? selected)));
+  const shown = bands.find((b) => b.index === (dragging ? selected : hover));
   const summary = bands.filter((b) => b.on).length;
 
   return (
@@ -418,7 +418,6 @@ function EqGraphics({ box, bands, curves, sum, selected, hover, crossovers, spec
           data-testid="eq-band-curve"
         />
       )}
-      <polygon className="eth-eq__sum-fill" points={`0,${zero} ${sumPts} ${box.w},${zero}`} />
       <polyline className="eth-eq__sum" points={sumPts} data-testid="eq-sum" />
       {crossovers.map((c) => (
         <line key={c.info.id} className="eth-eq__crossover" x1={xOf(box, c.plain)} x2={xOf(box, c.plain)} y1={0} y2={box.h} data-handle={c.info.name} />

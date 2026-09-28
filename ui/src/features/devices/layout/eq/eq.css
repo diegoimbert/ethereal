@@ -11,15 +11,15 @@
   min-width: 0;
 }
 
-.eth-plot.eth-plot--eq {
+.eth-eq .eth-plot.eth-plot--eq {
   height: var(--eq-plot-height);
   background: var(--eth-color-bg-inset);
   cursor: default;
 }
-.eth-eq--over-handle .eth-plot--eq {
+.eth-eq--over-handle .eth-plot.eth-plot--eq {
   cursor: grab;
 }
-.eth-eq--dragging .eth-plot--eq {
+.eth-eq--dragging .eth-plot.eth-plot--eq {
   cursor: grabbing;
 }
 
@@ -54,11 +54,11 @@
 
 /* ---- Spectrum (input dim, output brighter) ---- */
 .eth-eq__spectrum-pre {
-  fill: color-mix(in srgb, var(--eth-color-text-dim) 16%, transparent);
+  fill: color-mix(in srgb, var(--eth-color-text-dim) 12%, transparent);
   stroke: none;
 }
 .eth-eq__spectrum-post-fill {
-  fill: color-mix(in srgb, var(--eth-color-accent) 10%, transparent);
+  fill: color-mix(in srgb, var(--eth-color-accent) 7%, transparent);
   stroke: none;
 }
 .eth-eq__spectrum-post {
@@ -69,10 +69,6 @@
 }
 
 /* ---- Response ---- */
-.eth-eq__sum-fill {
-  fill: var(--eth-color-accent-subtle);
-  stroke: none;
-}
 .eth-eq__sum {
   fill: none;
   stroke: var(--eth-color-accent);
@@ -134,7 +130,7 @@
   stroke: var(--eth-color-focus);
 }
 
-/* ---- Readout of the hovered / selected band ---- */
+/* ---- Readout of the hovered / dragged band ---- */
 .eth-eq__readout {
   position: absolute;
   top: var(--eth-space-xs);
