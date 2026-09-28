@@ -1,9 +1,20 @@
 //! Shared-memory block exchange between the host node and the helper's audio thread.
 //!
-//! Layout: a [`Header`] (capacities + sync atomics), a [`Block`] (the current block's plain
-//! request/result fields, never aliased with the atomics), then
-//! planar `f32` input audio, planar `f32` output audio, input events, output events, all at
-//! fixed offsets derived from the capacities stored in the header.
+//! Layout (version 3), each array starting on a 64-byte boundary at a fixed offset derived
+//! from the capacities stored in the header:
+//!
+//! | section        | size                                                   |
+//! |----------------|--------------------------------------------------------|
+//! | [`Header`]     | capacities (incl. `sc_channels`) + sync atomics        |
+//! | [`Block`]      | the current block's plain request/result fields (never aliased with the atomics; `sidechain` = 1 when the block carries a sidechain signal) |
+//! | input audio    | `in_channels × max_frames` planar `f32`                |
+//! | sidechain audio| `sc_channels × max_frames` planar `f32` (CONTRACTS §12.14; 0 bytes without a sidechain input) |
+//! | output audio   | `out_channels × max_frames` planar `f32`               |
+//! | input events   | `max_in_events` [`WireEvent`]s                         |
+//! | output events  | `max_out_events` [`WireEvent`]s                        |
+//!
+//! Version history: 2 = before sidechains; 3 = `plugin-sidechain` (the `sc_channels` header
+//! field in the former padding, the `Block::sidechain` flag, the sidechain audio array).
 //!
 //! Protocol (one block in flight at most):
 //! 1. host fills the request fields + input audio/events, stores `posted = seq` (Release),
@@ -24,7 +35,7 @@ use shared_memory::{Shmem, ShmemConf, ShmemError};
 
 const MAGIC: u32 = 0x4554_5342; // "ETSB"
 /// Layout version, checked by the helper on open. Bump on any change to the region layout.
-const VERSION: u32 = 2;
+const VERSION: u32 = 3;
 const ALIGN: usize = 64;
 
 /// Block transport, `repr(C)`.
@@ -207,7 +218,8 @@ pub(crate) struct Header {
     pub out_channels: u32,
     pub max_in_events: u32,
     pub max_out_events: u32,
-    _pad: u32,
+    /// Channels of the sidechain audio array (the node's `sidechain_inputs`; 0 = none).
+    pub sc_channels: u32,
     /// Last block sequence number posted by the host (0 = none yet).
     pub posted: AtomicU64,
     /// Last block sequence number completed by the helper.
@@ -223,7 +235,9 @@ pub(crate) struct Block {
     pub n_in_events: u32,
     /// 1 = call `Node::reset` before processing.
     pub reset: u32,
-    _pad: u32,
+    /// 1 = the sidechain audio array holds this block's sidechain signal: the helper calls
+    /// `Node::process_sidechain`; 0 = no source (`Node::process`, the aux bus gets silence).
+    pub sidechain: u32,
     pub transport: WireTransport,
     // --- result (helper phase) ---
     pub n_out_events: u32,
@@ -239,8 +253,10 @@ pub(crate) struct Layout {
     pub out_channels: usize,
     pub max_in_events: usize,
     pub max_out_events: usize,
+    pub sc_channels: usize,
     block: usize,
     in_audio: usize,
+    sc_audio: usize,
     out_audio: usize,
     in_events: usize,
     out_events: usize,
@@ -252,6 +268,8 @@ fn align(n: usize) -> usize {
 }
 
 impl Layout {
+    /// A layout without sidechain channels.
+    #[cfg(test)]
     pub fn new(
         max_frames: usize,
         in_channels: usize,
@@ -259,11 +277,31 @@ impl Layout {
         max_in_events: usize,
         max_out_events: usize,
     ) -> Self {
+        Self::with_sidechain(
+            max_frames,
+            in_channels,
+            out_channels,
+            max_in_events,
+            max_out_events,
+            0,
+        )
+    }
+
+    /// [`Layout::new`] plus `sc_channels` sidechain channels (after the main inputs).
+    pub fn with_sidechain(
+        max_frames: usize,
+        in_channels: usize,
+        out_channels: usize,
+        max_in_events: usize,
+        max_out_events: usize,
+        sc_channels: usize,
+    ) -> Self {
         let f = std::mem::size_of::<f32>();
         let e = std::mem::size_of::<WireEvent>();
         let block = align(std::mem::size_of::<Header>());
         let in_audio = align(block + std::mem::size_of::<Block>());
-        let out_audio = align(in_audio + in_channels * max_frames * f);
+        let sc_audio = align(in_audio + in_channels * max_frames * f);
+        let out_audio = align(sc_audio + sc_channels * max_frames * f);
         let in_events = align(out_audio + out_channels * max_frames * f);
         let out_events = align(in_events + max_in_events * e);
         let size = align(out_events + max_out_events * e);
@@ -273,8 +311,10 @@ impl Layout {
             out_channels,
             max_in_events,
             max_out_events,
+            sc_channels,
             block,
             in_audio,
+            sc_audio,
             out_audio,
             in_events,
             out_events,
@@ -330,6 +370,7 @@ impl Region {
             (*h).out_channels = layout.out_channels as u32;
             (*h).max_in_events = layout.max_in_events as u32;
             (*h).max_out_events = layout.max_out_events as u32;
+            (*h).sc_channels = layout.sc_channels as u32;
         }
         Ok(region)
     }
@@ -347,12 +388,13 @@ impl Region {
             if (*h).magic != MAGIC || (*h).version != VERSION {
                 return Err(RegionError::Invalid);
             }
-            Layout::new(
+            Layout::with_sidechain(
                 (*h).max_frames as usize,
                 (*h).in_channels as usize,
                 (*h).out_channels as usize,
                 (*h).max_in_events as usize,
                 (*h).max_out_events as usize,
+                (*h).sc_channels as usize,
             )
         };
         if shm.len() < layout.size {
@@ -408,6 +450,13 @@ impl Region {
     pub fn in_audio(&self) -> &mut [f32] {
         let l = &self.layout;
         self.slice(l.in_audio, l.in_channels * l.max_frames)
+    }
+
+    /// Planar sidechain audio, `sc_channels * max_frames`. Host phase: write; helper: read.
+    #[allow(clippy::mut_from_ref)]
+    pub fn sc_audio(&self) -> &mut [f32] {
+        let l = &self.layout;
+        self.slice(l.sc_audio, l.sc_channels * l.max_frames)
     }
 
     #[allow(clippy::mut_from_ref)]
@@ -499,5 +548,42 @@ mod tests {
         // Still shared after unlink.
         b.out_audio()[3] = 2.0;
         assert_eq!(a2.out_audio()[3], 2.0);
+        assert!(b.sc_audio().is_empty());
+    }
+
+    #[test]
+    fn sidechain_array_sits_between_main_inputs_and_outputs() {
+        let plain = Layout::new(100, 2, 2, 8, 8);
+        let sc = Layout::with_sidechain(100, 2, 2, 8, 8, 2);
+        assert_eq!(plain.sc_channels, 0);
+        assert_eq!(plain.sc_audio, plain.out_audio);
+        assert!(sc.sc_audio >= sc.in_audio + 2 * 100 * 4);
+        assert!(sc.out_audio >= sc.sc_audio + 2 * 100 * 4);
+        assert_eq!(sc.sc_audio % ALIGN, 0);
+        assert!(sc.size > plain.size);
+
+        let name = os_name("sandbox-unit", std::process::id(), "shm-sc-test");
+        let mut a = Region::create(&name, sc).unwrap();
+        let b = Region::open(&name).unwrap();
+        a.unlink();
+        assert_eq!(*b.layout(), sc);
+        a.in_audio().fill(1.0);
+        a.out_audio().fill(3.0);
+        a.sc_audio()[150] = 0.5;
+        assert_eq!(b.sc_audio().len(), 200);
+        assert_eq!(b.sc_audio()[150], 0.5);
+        // The arrays don't overlap.
+        assert!(b.in_audio().iter().all(|&x| x == 1.0));
+        assert!(b.out_audio().iter().all(|&x| x == 3.0));
+    }
+
+    #[test]
+    fn a_region_of_another_version_is_refused() {
+        let name = os_name("sandbox-unit", std::process::id(), "shm-ver-test");
+        let mut a = Region::create(&name, Layout::new(16, 1, 1, 4, 4)).unwrap();
+        // SAFETY: test-only; nobody else maps the region yet.
+        unsafe { (*a.header_ptr()).version = VERSION - 1 };
+        assert!(matches!(Region::open(&name), Err(RegionError::Invalid)));
+        a.unlink();
     }
 }

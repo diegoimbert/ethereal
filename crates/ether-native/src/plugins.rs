@@ -580,6 +580,22 @@ impl Node for HostedPluginNode {
         }
         self.inner_mut().process(ctx, audio)
     }
+    fn sidechain_inputs(&self) -> u16 {
+        self.inner().sidechain_inputs()
+    }
+    fn process_sidechain(
+        &mut self,
+        ctx: &mut ProcessContext<'_>,
+        audio: &mut AudioBuffers<'_, '_>,
+        sidechain: &[&[f32]],
+    ) -> ProcessStatus {
+        if self.inner().is_faulted() {
+            let delay = self.inner().latency() as usize;
+            self.bypass.process(delay, audio);
+            return ProcessStatus::Continue;
+        }
+        self.inner_mut().process_sidechain(ctx, audio, sidechain)
+    }
     fn latency(&self) -> u32 {
         self.inner().latency()
     }
