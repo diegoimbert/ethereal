@@ -149,6 +149,66 @@ fn joiners_wait_for_the_first_snapshot_and_creator_is_reelected() {
     assert_eq!(kinds(&to(&out, 3)), ["Snapshot", "Hello", "Presence"]);
 }
 
+/// The seqs of the transactions sent to `conn`, in order.
+fn seqs_to(out: &[Outgoing], conn: ConnId) -> Vec<u64> {
+    to(out, conn)
+        .into_iter()
+        .filter_map(|m| match m {
+            CollabMessage::Transaction { transaction } => Some(transaction.origin.seq),
+            _ => None,
+        })
+        .collect()
+}
+
+#[test]
+fn transactions_sent_while_waiting_for_the_first_snapshot_are_sequenced_in_order() {
+    // collab-converge: site 2 comes back to an emptied session and resends its pending
+    // edit (seq 1) right after its `SyncRequest`, before site 1 re-created the session.
+    // Dropping it and then sequencing its next edit (seq 2) would make seq 1 a "resend"
+    // forever: site 2 would keep it pending and never converge.
+    let mut r = Relay::default();
+    let mut out = Vec::new();
+    for c in 1..=2 {
+        r.connect(c, "s").unwrap();
+        r.message(c, hello(c), &mut out).unwrap();
+        r.message(c, sync(c, Some(7)), &mut out).unwrap();
+    }
+    assert_eq!(kinds(&to(&out, 1)), ["SyncRequest"], "site 1 re-creates");
+    r.message(2, tx(2, 1), &mut out).unwrap();
+    // The creator resends its own pending edit too: its snapshot includes it.
+    r.message(1, tx(1, 5), &mut out).unwrap();
+    assert!(seqs_to(&out, 2).is_empty(), "nothing sequenced yet");
+    out.clear();
+    let snap = CollabMessage::Snapshot {
+        data: SnapshotData {
+            epoch: 0,
+            index: 0,
+            sites: BTreeMap::from([(SiteId(1), 5)]),
+            ether: "{}".into(),
+        }
+        .encode(),
+    };
+    r.message(1, snap, &mut out).unwrap();
+    // Site 2 gets the snapshot, then its held edit is sequenced (and echoed); the
+    // creator's is a duplicate of its snapshot.
+    assert_eq!(kinds(&to(&out, 2))[0], "Snapshot");
+    assert_eq!(seqs_to(&out, 2), [1]);
+    assert_eq!(seqs_to(&out, 1), [1]);
+    out.clear();
+    r.message(2, tx(2, 2), &mut out).unwrap();
+    r.message(2, tx(2, 1), &mut out).unwrap();
+    assert_eq!(seqs_to(&out, 2), [2], "seq 2 after seq 1, the resend dropped");
+    assert_eq!(r.log_len("s"), (0, 2));
+    // A transaction before any `SyncRequest` is a protocol error: the link is closed (the
+    // site resends everything, in order, on its next link).
+    r.connect(3, "s").unwrap();
+    r.message(3, hello(3), &mut out).unwrap();
+    assert!(
+        r.message(3, tx(3, 1), &mut out)
+            .is_err_and(|e| e.disconnect)
+    );
+}
+
 #[test]
 fn other_protocol_versions_are_refused_at_the_hello() {
     let mut r = created();
