@@ -1139,6 +1139,8 @@ paths = [
 
 [nodes.sample-accurate-automation]
 paths = [
+  # base-83: VCA gain automation block-size independent too (reuse automation_rt::grid + Smoother::ramp_to)
+  "crates/ether-core/src/vca.rs",
   "crates/ether-core/src/automation_rt.rs",
   "crates/ether-core/src/automation.rs",
   "crates/ether-core/tests/sample_accurate*.rs",
