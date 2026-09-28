@@ -62,7 +62,7 @@ pub fn param_infos() -> Vec<ParamInfo> {
 /// Descriptor of the `DrumRack` type.
 pub fn descriptor() -> DeviceDescriptor {
     DeviceDescriptor {
-        layout: None,
+        layout: Some(layout()),
         device_type: DeviceTypeRef::Builtin {
             device: BuiltinDeviceType::DrumRack,
         },
@@ -74,6 +74,19 @@ pub fn descriptor() -> DeviceDescriptor {
         midi_input: true,
         sidechain_inputs: 0,
     }
+}
+
+/// Declarative panel (v0.2, `device-ui`; drawn by the shared device renderer).
+pub fn layout() -> ether_core::protocol::layout::DeviceLayout {
+    use crate::contract::{knob, layout, section};
+    use ether_core::protocol::layout::WidgetSize::*;
+    layout(vec![section(
+        "rack",
+        Some("Rack"),
+        1,
+        2,
+        vec![knob(params::VOLUME, Large), knob(params::PAN, Large)],
+    )])
 }
 
 /// Non-RT. A new instance with default params.

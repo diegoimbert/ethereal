@@ -86,7 +86,7 @@ pub fn param_infos() -> Vec<ParamInfo> {
 /// Descriptor of the `Limiter` type.
 pub fn descriptor() -> DeviceDescriptor {
     DeviceDescriptor {
-        layout: None,
+        layout: Some(layout()),
         device_type: DeviceTypeRef::Builtin {
             device: BuiltinDeviceType::Limiter,
         },
@@ -98,6 +98,23 @@ pub fn descriptor() -> DeviceDescriptor {
         midi_input: false,
         sidechain_inputs: SIDECHAIN_CHANNELS as u16,
     }
+}
+
+/// Declarative panel (v0.2, `device-ui`; drawn by the shared device renderer).
+pub fn layout() -> ether_core::protocol::layout::DeviceLayout {
+    use crate::contract::{knob, layout, section};
+    use ether_core::protocol::layout::WidgetSize::*;
+    layout(vec![section(
+        "limiter",
+        Some("Limiter"),
+        1,
+        3,
+        vec![
+            knob(params::GAIN, Large),
+            knob(params::CEILING, Large),
+            knob(params::RELEASE, Medium),
+        ],
+    )])
 }
 
 /// Non-RT. A new instance with default params.

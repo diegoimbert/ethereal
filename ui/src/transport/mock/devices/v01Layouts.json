@@ -1,0 +1,1436 @@
+{
+  "Compressor": {
+    "audio_inputs": 2,
+    "audio_outputs": 2,
+    "category": "AudioEffect",
+    "device_type": {
+      "device": "Compressor",
+      "type": "Builtin"
+    },
+    "layout": {
+      "sections": [
+        {
+          "columns": 4,
+          "id": "compressor",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Large",
+              "widget": {
+                "param": 0,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Large",
+              "widget": {
+                "param": 1,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 2,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 3,
+                "type": "Knob"
+              }
+            }
+          ],
+          "span": 2,
+          "title": "Compressor"
+        },
+        {
+          "columns": 1,
+          "id": "output",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Large",
+              "widget": {
+                "param": 4,
+                "type": "Knob"
+              }
+            }
+          ],
+          "span": 1,
+          "title": "Output"
+        },
+        {
+          "columns": 1,
+          "id": "sidechain",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 5,
+                "type": "Knob"
+              }
+            }
+          ],
+          "span": 1,
+          "title": "Sidechain"
+        }
+      ]
+    },
+    "midi_input": false,
+    "name": "Compressor",
+    "params": [
+      {
+        "automatable": true,
+        "default": -18.0,
+        "group": "Compressor",
+        "hidden": false,
+        "id": 0,
+        "labels": null,
+        "max": 0.0,
+        "min": -60.0,
+        "name": "Threshold",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Decibels"
+      },
+      {
+        "automatable": true,
+        "default": 4.0,
+        "group": "Compressor",
+        "hidden": false,
+        "id": 1,
+        "labels": null,
+        "max": 20.0,
+        "min": 1.0,
+        "name": "Ratio",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Ratio"
+      },
+      {
+        "automatable": true,
+        "default": 10.0,
+        "group": "Compressor",
+        "hidden": false,
+        "id": 2,
+        "labels": null,
+        "max": 200.0,
+        "min": 0.1,
+        "name": "Attack",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Milliseconds"
+      },
+      {
+        "automatable": true,
+        "default": 150.0,
+        "group": "Compressor",
+        "hidden": false,
+        "id": 3,
+        "labels": null,
+        "max": 2000.0,
+        "min": 5.0,
+        "name": "Release",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Milliseconds"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Output",
+        "hidden": false,
+        "id": 4,
+        "labels": null,
+        "max": 24.0,
+        "min": 0.0,
+        "name": "Makeup",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Decibels"
+      },
+      {
+        "automatable": true,
+        "default": 20.0,
+        "group": "Sidechain",
+        "hidden": false,
+        "id": 5,
+        "labels": null,
+        "max": 500.0,
+        "min": 20.0,
+        "name": "Sidechain HPF",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Hertz"
+      }
+    ],
+    "sidechain_inputs": 2
+  },
+  "Delay": {
+    "audio_inputs": 2,
+    "audio_outputs": 2,
+    "category": "AudioEffect",
+    "device_type": {
+      "device": "Delay",
+      "type": "Builtin"
+    },
+    "layout": {
+      "sections": [
+        {
+          "columns": 3,
+          "id": "time",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Large",
+              "widget": {
+                "param": 1,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 0,
+                "type": "Toggle"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 2,
+                "type": "Choice"
+              }
+            }
+          ],
+          "span": 2,
+          "title": "Time"
+        },
+        {
+          "columns": 2,
+          "id": "delay",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Large",
+              "widget": {
+                "param": 3,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 5,
+                "type": "Toggle"
+              }
+            }
+          ],
+          "span": 1,
+          "title": "Delay"
+        },
+        {
+          "columns": 1,
+          "id": "output",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Large",
+              "widget": {
+                "param": 4,
+                "type": "Knob"
+              }
+            }
+          ],
+          "span": 1,
+          "title": "Output"
+        }
+      ]
+    },
+    "midi_input": false,
+    "name": "Delay",
+    "params": [
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Time",
+        "hidden": false,
+        "id": 0,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Sync",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      },
+      {
+        "automatable": true,
+        "default": 375.0,
+        "group": "Time",
+        "hidden": false,
+        "id": 1,
+        "labels": null,
+        "max": 2000.0,
+        "min": 1.0,
+        "name": "Time",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Milliseconds"
+      },
+      {
+        "automatable": true,
+        "default": 4.0,
+        "group": "Time",
+        "hidden": false,
+        "id": 2,
+        "labels": [
+          "1/32",
+          "1/16",
+          "1/16 D",
+          "1/8 T",
+          "1/8",
+          "1/8 D",
+          "1/4 T",
+          "1/4",
+          "1/4 D",
+          "1/2",
+          "1/1"
+        ],
+        "max": 10.0,
+        "min": 0.0,
+        "name": "Division",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 35.0,
+        "group": "Delay",
+        "hidden": false,
+        "id": 3,
+        "labels": null,
+        "max": 95.0,
+        "min": 0.0,
+        "name": "Feedback",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Percent"
+      },
+      {
+        "automatable": true,
+        "default": 30.0,
+        "group": "Delay",
+        "hidden": false,
+        "id": 4,
+        "labels": null,
+        "max": 100.0,
+        "min": 0.0,
+        "name": "Mix",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Percent"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Delay",
+        "hidden": false,
+        "id": 5,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Ping-pong",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      }
+    ],
+    "sidechain_inputs": 0
+  },
+  "DrumRack": {
+    "audio_inputs": 0,
+    "audio_outputs": 2,
+    "category": "Instrument",
+    "device_type": {
+      "device": "DrumRack",
+      "type": "Builtin"
+    },
+    "layout": {
+      "sections": [
+        {
+          "columns": 2,
+          "id": "rack",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Large",
+              "widget": {
+                "param": 0,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Large",
+              "widget": {
+                "param": 1,
+                "type": "Knob"
+              }
+            }
+          ],
+          "span": 1,
+          "title": "Rack"
+        }
+      ]
+    },
+    "midi_input": true,
+    "name": "Drum Rack",
+    "params": [
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Rack",
+        "hidden": false,
+        "id": 0,
+        "labels": null,
+        "max": 6.0,
+        "min": -60.0,
+        "name": "Volume",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Decibels"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Rack",
+        "hidden": false,
+        "id": 1,
+        "labels": null,
+        "max": 1.0,
+        "min": -1.0,
+        "name": "Pan",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Pan"
+      }
+    ],
+    "sidechain_inputs": 0
+  },
+  "Limiter": {
+    "audio_inputs": 2,
+    "audio_outputs": 2,
+    "category": "AudioEffect",
+    "device_type": {
+      "device": "Limiter",
+      "type": "Builtin"
+    },
+    "layout": {
+      "sections": [
+        {
+          "columns": 3,
+          "id": "limiter",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Large",
+              "widget": {
+                "param": 0,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Large",
+              "widget": {
+                "param": 1,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 2,
+                "type": "Knob"
+              }
+            }
+          ],
+          "span": 1,
+          "title": "Limiter"
+        }
+      ]
+    },
+    "midi_input": false,
+    "name": "Limiter",
+    "params": [
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Limiter",
+        "hidden": false,
+        "id": 0,
+        "labels": null,
+        "max": 24.0,
+        "min": -12.0,
+        "name": "Gain",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Decibels"
+      },
+      {
+        "automatable": true,
+        "default": -0.3,
+        "group": "Limiter",
+        "hidden": false,
+        "id": 1,
+        "labels": null,
+        "max": 0.0,
+        "min": -24.0,
+        "name": "Ceiling",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Decibels"
+      },
+      {
+        "automatable": true,
+        "default": 100.0,
+        "group": "Limiter",
+        "hidden": false,
+        "id": 2,
+        "labels": null,
+        "max": 1000.0,
+        "min": 1.0,
+        "name": "Release",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Milliseconds"
+      }
+    ],
+    "sidechain_inputs": 2
+  },
+  "Reverb": {
+    "audio_inputs": 2,
+    "audio_outputs": 2,
+    "category": "AudioEffect",
+    "device_type": {
+      "device": "Reverb",
+      "type": "Builtin"
+    },
+    "layout": {
+      "sections": [
+        {
+          "columns": 4,
+          "id": "reverb",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Large",
+              "widget": {
+                "param": 1,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Large",
+              "widget": {
+                "param": 2,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 0,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 3,
+                "type": "Knob"
+              }
+            }
+          ],
+          "span": 2,
+          "title": "Reverb"
+        },
+        {
+          "columns": 2,
+          "id": "output",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 4,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Large",
+              "widget": {
+                "param": 5,
+                "type": "Knob"
+              }
+            }
+          ],
+          "span": 1,
+          "title": "Output"
+        }
+      ]
+    },
+    "midi_input": false,
+    "name": "Reverb",
+    "params": [
+      {
+        "automatable": true,
+        "default": 20.0,
+        "group": "Reverb",
+        "hidden": false,
+        "id": 0,
+        "labels": null,
+        "max": 250.0,
+        "min": 0.0,
+        "name": "Pre-Delay",
+        "scale": {
+          "exponent": 2.0,
+          "type": "Power"
+        },
+        "unit": "Milliseconds"
+      },
+      {
+        "automatable": true,
+        "default": 50.0,
+        "group": "Reverb",
+        "hidden": false,
+        "id": 1,
+        "labels": null,
+        "max": 100.0,
+        "min": 0.0,
+        "name": "Size",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Percent"
+      },
+      {
+        "automatable": true,
+        "default": 2.0,
+        "group": "Reverb",
+        "hidden": false,
+        "id": 2,
+        "labels": null,
+        "max": 20.0,
+        "min": 0.2,
+        "name": "Decay",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Seconds"
+      },
+      {
+        "automatable": true,
+        "default": 50.0,
+        "group": "Reverb",
+        "hidden": false,
+        "id": 3,
+        "labels": null,
+        "max": 100.0,
+        "min": 0.0,
+        "name": "Damping",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Percent"
+      },
+      {
+        "automatable": true,
+        "default": 100.0,
+        "group": "Output",
+        "hidden": false,
+        "id": 4,
+        "labels": null,
+        "max": 100.0,
+        "min": 0.0,
+        "name": "Width",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Percent"
+      },
+      {
+        "automatable": true,
+        "default": 30.0,
+        "group": "Output",
+        "hidden": false,
+        "id": 5,
+        "labels": null,
+        "max": 100.0,
+        "min": 0.0,
+        "name": "Mix",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Percent"
+      }
+    ],
+    "sidechain_inputs": 0
+  },
+  "Sampler": {
+    "audio_inputs": 0,
+    "audio_outputs": 2,
+    "category": "Instrument",
+    "device_type": {
+      "device": "Sampler",
+      "type": "Builtin"
+    },
+    "layout": {
+      "sections": [
+        {
+          "columns": 4,
+          "id": "sample",
+          "items": [
+            {
+              "colspan": 4,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "end": 7,
+                "start": 6,
+                "type": "SampleWaveform"
+              }
+            }
+          ],
+          "span": 4,
+          "title": "Sample"
+        },
+        {
+          "columns": 3,
+          "id": "playback",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 0,
+                "type": "Choice"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 1,
+                "type": "Number"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 2,
+                "type": "Knob"
+              }
+            }
+          ],
+          "span": 2,
+          "title": "Playback"
+        },
+        {
+          "columns": 2,
+          "id": "envelope",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 3,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 4,
+                "type": "Knob"
+              }
+            }
+          ],
+          "span": 1,
+          "title": "Envelope"
+        },
+        {
+          "columns": 1,
+          "id": "output",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Large",
+              "widget": {
+                "param": 5,
+                "type": "Knob"
+              }
+            }
+          ],
+          "span": 1,
+          "title": "Output"
+        }
+      ]
+    },
+    "midi_input": true,
+    "name": "Sampler",
+    "params": [
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Playback",
+        "hidden": false,
+        "id": 0,
+        "labels": [
+          "One-shot",
+          "Pitched"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Mode",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 60.0,
+        "group": "Playback",
+        "hidden": false,
+        "id": 1,
+        "labels": null,
+        "max": 127.0,
+        "min": 0.0,
+        "name": "Root Key",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Playback",
+        "hidden": false,
+        "id": 2,
+        "labels": null,
+        "max": 24.0,
+        "min": -24.0,
+        "name": "Transpose",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Semitones"
+      },
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Envelope",
+        "hidden": false,
+        "id": 3,
+        "labels": null,
+        "max": 5000.0,
+        "min": 0.0,
+        "name": "Attack",
+        "scale": {
+          "exponent": 3.0,
+          "type": "Power"
+        },
+        "unit": "Milliseconds"
+      },
+      {
+        "automatable": true,
+        "default": 100.0,
+        "group": "Envelope",
+        "hidden": false,
+        "id": 4,
+        "labels": null,
+        "max": 10000.0,
+        "min": 1.0,
+        "name": "Release",
+        "scale": {
+          "exponent": 3.0,
+          "type": "Power"
+        },
+        "unit": "Milliseconds"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Output",
+        "hidden": false,
+        "id": 5,
+        "labels": null,
+        "max": 6.0,
+        "min": -60.0,
+        "name": "Volume",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Decibels"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Playback",
+        "hidden": false,
+        "id": 6,
+        "labels": null,
+        "max": 100.0,
+        "min": 0.0,
+        "name": "Start",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Percent"
+      },
+      {
+        "automatable": true,
+        "default": 100.0,
+        "group": "Playback",
+        "hidden": false,
+        "id": 7,
+        "labels": null,
+        "max": 100.0,
+        "min": 0.0,
+        "name": "End",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Percent"
+      }
+    ],
+    "sidechain_inputs": 0
+  },
+  "Synth": {
+    "audio_inputs": 0,
+    "audio_outputs": 2,
+    "category": "Instrument",
+    "device_type": {
+      "device": "Synth",
+      "type": "Builtin"
+    },
+    "layout": {
+      "sections": [
+        {
+          "columns": 2,
+          "id": "oscillator",
+          "items": [
+            {
+              "colspan": 2,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "position": null,
+                "shape": 0,
+                "type": "Oscillator"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 1,
+                "type": "Knob"
+              }
+            }
+          ],
+          "span": 1,
+          "title": "Oscillator"
+        },
+        {
+          "columns": 2,
+          "id": "filter",
+          "items": [
+            {
+              "colspan": 2,
+              "label": null,
+              "size": "Large",
+              "widget": {
+                "cutoff": 6,
+                "drive": null,
+                "gain": null,
+                "mode": null,
+                "resonance": 7,
+                "type": "FilterCurve"
+              }
+            }
+          ],
+          "span": 2,
+          "title": "Filter"
+        },
+        {
+          "columns": 1,
+          "id": "envelope",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "attack": 2,
+                "decay": 3,
+                "delay": null,
+                "hold": null,
+                "release": 5,
+                "sustain": 4,
+                "type": "Envelope"
+              }
+            }
+          ],
+          "span": 2,
+          "title": "Envelope"
+        },
+        {
+          "columns": 1,
+          "id": "output",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Large",
+              "widget": {
+                "param": 8,
+                "type": "Knob"
+              }
+            }
+          ],
+          "span": 1,
+          "title": "Output"
+        }
+      ]
+    },
+    "midi_input": true,
+    "name": "Synth",
+    "params": [
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Oscillator",
+        "hidden": false,
+        "id": 0,
+        "labels": [
+          "Sine",
+          "Saw",
+          "Square",
+          "Triangle"
+        ],
+        "max": 3.0,
+        "min": 0.0,
+        "name": "Waveform",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Oscillator",
+        "hidden": false,
+        "id": 1,
+        "labels": null,
+        "max": 24.0,
+        "min": -24.0,
+        "name": "Transpose",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Semitones"
+      },
+      {
+        "automatable": true,
+        "default": 5.0,
+        "group": "Envelope",
+        "hidden": false,
+        "id": 2,
+        "labels": null,
+        "max": 5000.0,
+        "min": 0.0,
+        "name": "Attack",
+        "scale": {
+          "exponent": 3.0,
+          "type": "Power"
+        },
+        "unit": "Milliseconds"
+      },
+      {
+        "automatable": true,
+        "default": 300.0,
+        "group": "Envelope",
+        "hidden": false,
+        "id": 3,
+        "labels": null,
+        "max": 10000.0,
+        "min": 1.0,
+        "name": "Decay",
+        "scale": {
+          "exponent": 3.0,
+          "type": "Power"
+        },
+        "unit": "Milliseconds"
+      },
+      {
+        "automatable": true,
+        "default": 70.0,
+        "group": "Envelope",
+        "hidden": false,
+        "id": 4,
+        "labels": null,
+        "max": 100.0,
+        "min": 0.0,
+        "name": "Sustain",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Percent"
+      },
+      {
+        "automatable": true,
+        "default": 250.0,
+        "group": "Envelope",
+        "hidden": false,
+        "id": 5,
+        "labels": null,
+        "max": 10000.0,
+        "min": 1.0,
+        "name": "Release",
+        "scale": {
+          "exponent": 3.0,
+          "type": "Power"
+        },
+        "unit": "Milliseconds"
+      },
+      {
+        "automatable": true,
+        "default": 8000.0,
+        "group": "Filter",
+        "hidden": false,
+        "id": 6,
+        "labels": null,
+        "max": 20000.0,
+        "min": 20.0,
+        "name": "Cutoff",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Hertz"
+      },
+      {
+        "automatable": true,
+        "default": 10.0,
+        "group": "Filter",
+        "hidden": false,
+        "id": 7,
+        "labels": null,
+        "max": 100.0,
+        "min": 0.0,
+        "name": "Resonance",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Percent"
+      },
+      {
+        "automatable": true,
+        "default": -12.0,
+        "group": "Output",
+        "hidden": false,
+        "id": 8,
+        "labels": null,
+        "max": 6.0,
+        "min": -60.0,
+        "name": "Volume",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Decibels"
+      }
+    ],
+    "sidechain_inputs": 0
+  },
+  "Utility": {
+    "audio_inputs": 2,
+    "audio_outputs": 2,
+    "category": "AudioEffect",
+    "device_type": {
+      "device": "Utility",
+      "type": "Builtin"
+    },
+    "layout": {
+      "sections": [
+        {
+          "columns": 2,
+          "id": "utility",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Large",
+              "widget": {
+                "param": 0,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Large",
+              "widget": {
+                "param": 1,
+                "type": "Knob"
+              }
+            }
+          ],
+          "span": 1,
+          "title": "Utility"
+        },
+        {
+          "columns": 2,
+          "id": "stereo",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 2,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 5,
+                "type": "Toggle"
+              }
+            }
+          ],
+          "span": 1,
+          "title": "Stereo"
+        },
+        {
+          "columns": 2,
+          "id": "phase",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 3,
+                "type": "Toggle"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 4,
+                "type": "Toggle"
+              }
+            }
+          ],
+          "span": 1,
+          "title": "Phase"
+        }
+      ]
+    },
+    "midi_input": false,
+    "name": "Utility",
+    "params": [
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Utility",
+        "hidden": false,
+        "id": 0,
+        "labels": null,
+        "max": 36.0,
+        "min": -36.0,
+        "name": "Gain",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Decibels"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Utility",
+        "hidden": false,
+        "id": 1,
+        "labels": null,
+        "max": 1.0,
+        "min": -1.0,
+        "name": "Pan",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Pan"
+      },
+      {
+        "automatable": true,
+        "default": 100.0,
+        "group": "Stereo",
+        "hidden": false,
+        "id": 2,
+        "labels": null,
+        "max": 200.0,
+        "min": 0.0,
+        "name": "Width",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Percent"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Phase",
+        "hidden": false,
+        "id": 3,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Invert L",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Phase",
+        "hidden": false,
+        "id": 4,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Invert R",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Stereo",
+        "hidden": false,
+        "id": 5,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Mono",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      }
+    ],
+    "sidechain_inputs": 0
+  }
+}

@@ -124,7 +124,7 @@ pub fn param_infos() -> Vec<ParamInfo> {
 /// Descriptor of the `Reverb` type.
 pub fn descriptor() -> DeviceDescriptor {
     DeviceDescriptor {
-        layout: None,
+        layout: Some(layout()),
         device_type: DeviceTypeRef::Builtin {
             device: BuiltinDeviceType::Reverb,
         },
@@ -136,6 +136,33 @@ pub fn descriptor() -> DeviceDescriptor {
         midi_input: false,
         sidechain_inputs: 0,
     }
+}
+
+/// Declarative panel (v0.2, `device-ui`; drawn by the shared device renderer).
+pub fn layout() -> ether_core::protocol::layout::DeviceLayout {
+    use crate::contract::{knob, layout, section};
+    use ether_core::protocol::layout::WidgetSize::*;
+    layout(vec![
+        section(
+            "reverb",
+            Some("Reverb"),
+            2,
+            4,
+            vec![
+                knob(params::SIZE, Large),
+                knob(params::DECAY, Large),
+                knob(params::PRE_DELAY, Medium),
+                knob(params::DAMPING, Medium),
+            ],
+        ),
+        section(
+            "output",
+            Some("Output"),
+            1,
+            2,
+            vec![knob(params::WIDTH, Medium), knob(params::MIX, Large)],
+        ),
+    ])
 }
 
 /// Non-RT. A new instance with default params.
