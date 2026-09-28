@@ -15,6 +15,8 @@
 //! - `Transaction`s are appended to the log and sent to every ready peer, the author
 //!   included (the echo is its ack). A transaction whose `origin.site` is not the sender's
 //!   site, or whose `seq` is not above that site's last sequenced one (a resend), is dropped.
+//!   Those sent while waiting for the first snapshot are held and sequenced once the sender
+//!   is ready: per site, what is sequenced is always a gap-free prefix of what was sent.
 //! - `Presence` is stamped with the sender's site and color, `Pointer` with its site;
 //!   `Hello`, `Presence`, `Pointer` and `Leave` are forwarded to the other ready peers
 //!   (pointers are never cached). Once synced, a site also gets its own stamped default
@@ -43,7 +45,7 @@ use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 
 use ether_protocol::collab::{CollabMessage, IceServer, Presence, PresenceState, StreamSignal};
-use ether_protocol::model::{Base64Bytes, Color, SiteId};
+use ether_protocol::model::{Base64Bytes, Color, SiteId, StampedTransaction};
 
 use crate::wire::{PEER_COLORS, SnapshotData, decode_version, valid_session_name};
 
@@ -115,6 +117,10 @@ struct Peer {
     waiting: Option<Option<(u64, u64)>>,
     /// This connection said hello with a site id another connection holds.
     contest: Option<Contest>,
+    /// Transactions sent while waiting for the session's first snapshot, sequenced (in
+    /// order) once this peer is ready: dropping them would let a later `seq` be sequenced
+    /// first, and the dropped ones would then be refused as resends forever.
+    early: Vec<StampedTransaction>,
     /// When the ICE servers were last advertised to this peer (relay clock).
     ice_sent_ms: Option<u64>,
 }
@@ -310,6 +316,7 @@ impl Relay {
                 creator: false,
                 waiting: None,
                 contest: None,
+                early: Vec::new(),
                 ice_sent_ms: None,
             },
         );
@@ -469,9 +476,37 @@ impl Relay {
         let session = self.conns.get(&conn).cloned();
         let r = self.message_inner(conn, message, out);
         if let Some(name) = session {
+            self.sequence_early(&name, out);
             self.advertise_ice(&name, out);
         }
         r
+    }
+
+    /// Sequence the transactions peers of `session` sent before they were ready, now that
+    /// they are (see [`Peer::early`]).
+    fn sequence_early(&mut self, session: &str, out: &mut Vec<Outgoing>) {
+        loop {
+            let Some(s) = self.sessions.get_mut(session) else {
+                return;
+            };
+            let Some((conn, early)) = s
+                .peers
+                .iter_mut()
+                .find(|(_, p)| p.ready && !p.early.is_empty())
+                .map(|(id, p)| (*id, std::mem::take(&mut p.early)))
+            else {
+                return;
+            };
+            for transaction in early {
+                if let Err(e) =
+                    self.message_inner(conn, CollabMessage::Transaction { transaction }, out)
+                    && e.disconnect
+                {
+                    self.drop_conn(conn, e.reason, out);
+                    break;
+                }
+            }
+        }
     }
 
     /// Send the ICE servers to the ready peers of `session` that have none yet, or whose
@@ -648,7 +683,24 @@ impl Relay {
             CollabMessage::Transaction { transaction } => {
                 let site = peer.site.ok_or("transaction before hello")?;
                 if !peer.ready {
-                    return Err("transaction before sync".into());
+                    // Waiting for the first snapshot (a site re-creating an emptied session
+                    // resends its pending edits right after its `SyncRequest`): kept, in
+                    // order, until it is ready. Anything else is a protocol error: never
+                    // drop a transaction silently, a later one would be sequenced first.
+                    if peer.waiting.is_none() && !peer.creator {
+                        return Err(Dropped {
+                            reason: "transaction before sync".into(),
+                            disconnect: true,
+                        });
+                    }
+                    if peer.early.len() >= max_log {
+                        return Err(Dropped {
+                            reason: "too many transactions before the session was created".into(),
+                            disconnect: true,
+                        });
+                    }
+                    peer.early.push(transaction);
+                    return Ok(());
                 }
                 if transaction.origin.site != site {
                     return Err("transaction from another site".into());
