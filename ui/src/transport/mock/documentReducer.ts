@@ -290,10 +290,7 @@ function validateParent(ctx: ReducerContext, kind: Track["kind"], parent: TrackI
 
 function trackCommand(ctx: ReducerContext, c: TrackCommand): void {
   // v0.2 (`groups-buses`, `roadmap/groupsBuses.ts`).
-  if (c.type === "GroupSelected" || c.type === "Ungroup" || c.type === "SetVca") {
-    groupsTrackCommand(ctx, c);
-    return;
-  }
+  if (groupsTrackCommand(ctx, c, (id) => deleteTrackCascade(ctx, id))) return;
   if (c.type === "SetScale") {
     const t = track(ctx, c.id);
     if (t.kind !== "Midi") fail("InvalidArgument", "track scales are only available on MIDI tracks");

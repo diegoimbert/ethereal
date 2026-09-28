@@ -16,14 +16,20 @@
 //! - Solo: the controller folds VCA solo into the assigned tracks' `solo` when compiling
 //!   (solo changes republish the graph anyway).
 //! - Automation of a VCA's volume: `VcaDesc::automation`, evaluated once per sub-block by
-//!   [`VcaRt::update`] before the track jobs.
+//!   [`VcaRt::update`] before the track jobs. An enabled lane drives the VCA fader (like a
+//!   track's volume lane); without automation the fader value is the live one.
+//!
+//! Everything on the audio thread is allocation-free: the per-VCA and per-track tables are
+//! sized at compile time.
 
 use ether_protocol::model::TrackId;
 use serde::{Deserialize, Serialize};
 
+use crate::automation::{evaluate, gain_from_plain, to_plain};
 use crate::config::EngineConfig;
-use crate::graph::AutomationDesc;
-use crate::mixer::{Stereo, TrackRt};
+use crate::graph::{AutomationDesc, TrackDesc};
+use crate::mixer::{MIX_RAMP_MS, Stereo, TrackRt};
+use crate::param::Smoother;
 use crate::sched::Timing;
 
 /// A VCA fader.
@@ -39,19 +45,129 @@ pub struct VcaDesc {
     pub automation: Vec<AutomationDesc>,
 }
 
+/// Runtime state of one VCA.
+#[derive(Debug)]
+struct VcaState {
+    /// Current fader value (linear; live changes and automation land here).
+    volume: f32,
+    mute: bool,
+    /// Index of the parent VCA.
+    parent: Option<usize>,
+    automation: Vec<AutomationDesc>,
+}
+
 /// All VCAs of a snapshot (in `SnapshotRt`).
 #[derive(Debug, Default)]
-pub(crate) struct VcaRt {}
+pub(crate) struct VcaRt {
+    vcas: Vec<VcaState>,
+    /// Sorted `(id, index into vcas)`.
+    index: Vec<(TrackId, usize)>,
+    /// `track_vca[i]` = the VCA (index into `vcas`) of track `i`.
+    track_vca: Vec<Option<usize>>,
+}
+
+/// Effective (gain, muted) of VCA `v` in `vcas` (product of the chain; cycles are cut).
+fn effective(vcas: &[VcaState], v: usize) -> (f32, bool) {
+    let mut gain = 1.0f32;
+    let mut muted = false;
+    let mut cur = Some(v);
+    let mut steps = 0;
+    while let Some(i) = cur {
+        gain *= vcas[i].volume.max(0.0);
+        muted |= vcas[i].mute;
+        cur = vcas[i].parent;
+        steps += 1;
+        if steps > vcas.len() {
+            break;
+        }
+    }
+    (gain, muted)
+}
+
+/// Effective (gain, muted) of `vca` in a compiled desc (non-RT; unknown ids are ignored).
+pub(crate) fn effective_of_desc(vcas: &[VcaDesc], vca: Option<TrackId>) -> (f32, bool) {
+    let mut gain = 1.0f32;
+    let mut muted = false;
+    let mut cur = vca;
+    let mut steps = 0;
+    while let Some(id) = cur {
+        let Some(v) = vcas.iter().find(|v| v.id == id) else {
+            break;
+        };
+        gain *= v.volume.max(0.0);
+        muted |= v.mute;
+        cur = v.parent;
+        steps += 1;
+        if steps > vcas.len() {
+            break;
+        }
+    }
+    (gain, muted)
+}
 
 impl VcaRt {
-    /// Non-RT (graph compile). `track_vca[i]` = the VCA id of track `i`.
-    pub(crate) fn compile(vcas: &[VcaDesc], config: &EngineConfig) -> Self {
-        let _ = (vcas, config);
-        Self::default()
+    /// Non-RT (graph compile). `tracks[i].vca` = the VCA id of track `i`.
+    pub(crate) fn compile(vcas: &[VcaDesc], tracks: &[TrackDesc], config: &EngineConfig) -> Self {
+        let _ = config;
+        let mut index: Vec<(TrackId, usize)> =
+            vcas.iter().enumerate().map(|(i, v)| (v.id, i)).collect();
+        index.sort();
+        let find = |id: TrackId| {
+            index
+                .binary_search_by(|e| e.0.cmp(&id))
+                .ok()
+                .map(|k| index[k].1)
+        };
+        let states = vcas
+            .iter()
+            .map(|v| VcaState {
+                volume: v.volume.max(0.0),
+                mute: v.mute,
+                parent: v.parent.and_then(find),
+                automation: v
+                    .automation
+                    .iter()
+                    .filter(|a| !a.points.is_empty())
+                    .cloned()
+                    .collect(),
+            })
+            .collect();
+        let track_vca = tracks.iter().map(|t| t.vca.and_then(find)).collect();
+        Self {
+            vcas: states,
+            index,
+            track_vca,
+        }
+    }
+
+    fn lookup(&self, id: TrackId) -> Option<usize> {
+        self.index
+            .binary_search_by(|e| e.0.cmp(&id))
+            .ok()
+            .map(|k| self.index[k].1)
+    }
+
+    /// RT. Push the effective gain and mute of every VCA into its assigned tracks.
+    /// Returns `true` if any track's VCA mute changed.
+    fn push(&self, tracks: &mut [TrackRt]) -> bool {
+        let mut mute_changed = false;
+        for (i, v) in self.track_vca.iter().enumerate() {
+            let Some(v) = *v else { continue };
+            let Some(t) = tracks.get_mut(i) else { continue };
+            let (gain, muted) = effective(&self.vcas, v);
+            if t.vca.gain.target() != gain {
+                t.vca.gain.set_target(gain);
+            }
+            if t.vca.muted != muted {
+                t.vca.muted = muted;
+                mute_changed = true;
+            }
+        }
+        mute_changed
     }
 
     /// RT. A live `TrackVolume`/`TrackMute` change for `id`; `Some(gates_dirty)` when `id`
-    /// is a VCA (placeholder: never).
+    /// is a VCA.
     pub(crate) fn set_param(
         &mut self,
         id: TrackId,
@@ -59,35 +175,100 @@ impl VcaRt {
         volume: Option<f32>,
         tracks: &mut [TrackRt],
     ) -> Option<bool> {
-        let _ = (id, mute, volume, tracks);
-        None
+        let v = self.lookup(id)?;
+        if let Some(m) = mute {
+            self.vcas[v].mute = m;
+        }
+        if let Some(vol) = volume {
+            self.vcas[v].volume = vol.max(0.0);
+        }
+        Some(self.push(tracks))
     }
 
     /// RT. Once per sub-block before the track jobs: evaluate VCA automation and push the
-    /// resulting gains into the assigned tracks' [`TrackVcaRt`] (placeholder: no-op).
+    /// resulting gains into the assigned tracks' [`TrackVcaRt`].
     pub(crate) fn update(&mut self, tracks: &mut [TrackRt], timing: &Timing<'_>, playing: bool) {
-        let _ = (tracks, timing, playing);
+        let _ = playing;
+        if self.vcas.is_empty() {
+            return;
+        }
+        for v in self.vcas.iter_mut() {
+            // The last lane wins (the controller compiles at most one volume lane per VCA).
+            for lane in &v.automation {
+                if let Some(x) = evaluate(&lane.points, timing.b0) {
+                    v.volume = gain_from_plain(&lane.mapping, to_plain(&lane.mapping, x));
+                }
+            }
+        }
+        // Mute never changes here (no mute automation): gates stay as they are.
+        let _ = self.push(tracks);
     }
 
+    /// RT. Live fader/mute values survive a snapshot swap (the new desc carries the
+    /// document's values, which the live queue already applied to the old snapshot).
     pub(crate) fn inherit(&mut self, old: &mut VcaRt) {
+        // Nothing runs across a swap: the fader smoothing lives in the tracks
+        // ([`TrackVcaRt::inherit`]).
         let _ = old;
     }
 }
 
 /// Per assigned track (in `TrackRt`).
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub(crate) struct TrackVcaRt {
     /// Muted through a VCA.
     pub muted: bool,
+    /// Effective VCA gain (linear), smoothed like faders.
+    pub gain: Smoother,
+    /// Assigned to a VCA (else `apply` is a no-op).
+    pub assigned: bool,
+}
+
+impl Default for TrackVcaRt {
+    fn default() -> Self {
+        Self {
+            muted: false,
+            gain: Smoother::new(1.0, MIX_RAMP_MS, 48_000.0),
+            assigned: false,
+        }
+    }
 }
 
 impl TrackVcaRt {
-    /// RT. Apply the VCA gain to the post-fader signal (placeholder: unity).
-    pub(crate) fn apply(&mut self, a: &mut Stereo, frames: usize) {
-        let _ = (a, frames);
+    /// Non-RT (graph compile): the initial effective gain and mute of track `vca`.
+    pub(crate) fn compile(vca: Option<TrackId>, vcas: &[VcaDesc], config: &EngineConfig) -> Self {
+        let (gain, muted) = effective_of_desc(vcas, vca);
+        let assigned = vca.is_some_and(|id| vcas.iter().any(|v| v.id == id));
+        Self {
+            muted: assigned && muted,
+            gain: Smoother::new(
+                if assigned { gain } else { 1.0 },
+                MIX_RAMP_MS,
+                config.sample_rate as f32,
+            ),
+            assigned,
+        }
     }
 
+    /// RT. Apply the VCA gain to the post-fader signal.
+    pub(crate) fn apply(&mut self, a: &mut Stereo, frames: usize) {
+        if !self.assigned && !self.gain.is_smoothing() && self.gain.current() == 1.0 {
+            return;
+        }
+        let [l, r] = a;
+        for (sl, sr) in l[..frames].iter_mut().zip(r[..frames].iter_mut()) {
+            let g = self.gain.tick();
+            *sl *= g;
+            *sr *= g;
+        }
+    }
+
+    /// RT. Ramp from where the old snapshot's gain was to the new target.
     pub(crate) fn inherit(&mut self, old: &mut TrackVcaRt) {
-        let _ = old;
+        let target = self.gain.target();
+        self.gain = old.gain;
+        if self.gain.current() != target || self.gain.target() != target {
+            self.gain.set_target(target);
+        }
     }
 }

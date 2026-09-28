@@ -169,7 +169,22 @@ impl EngineState {
     ) -> Vec<String> {
         let mut errors = Vec::new();
         let empty = BTreeMap::new();
-        let devices = project.map_or(&empty, |p| &p.devices);
+        let all = project.map_or(&empty, |p| &p.devices);
+        // v0.2 (`freeze-bounce`): devices of frozen tracks get no node (their CPU is saved;
+        // the track plays its render). Their plugin state is in the document (kept at
+        // freeze), so unfreezing re-creates them as they were.
+        let live: BTreeMap<DeviceId, Device>;
+        let devices = match project {
+            Some(p) if p.tracks.values().any(|t| t.freeze.is_some()) => {
+                live = all
+                    .iter()
+                    .filter(|(_, d)| p.tracks.get(&d.track).is_none_or(|t| t.freeze.is_none()))
+                    .map(|(k, d)| (*k, d.clone()))
+                    .collect();
+                &live
+            }
+            _ => all,
+        };
         // Forget nodes of devices that are gone.
         let gone: Vec<DeviceId> = self
             .nodes
