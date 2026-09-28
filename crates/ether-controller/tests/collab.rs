@@ -995,6 +995,62 @@ fn a_recreated_session_keeps_what_it_has_of_returning_sites() {
 }
 
 #[test]
+fn edits_resent_while_the_session_is_recreated_are_all_sequenced() {
+    // collab-converge (the replicas_converge regression): every link drops, so the relay
+    // forgets the session. B edits offline and comes back while A re-creates the session:
+    // B's pending edit reaches the relay before A's snapshot, B's next one after it. Both
+    // must be sequenced, in order (a dropped seq 1 behind a sequenced seq 2 would be taken
+    // for a resend forever: B would never settle).
+    let hub = Hub::default();
+    let mut sites = session(&hub, 2);
+    let [a, b] = sites.as_mut_slice() else {
+        unreachable!()
+    };
+    let t = add_track(a, TrackKind::Midi);
+    settle(&mut [a, b], &hub);
+    for c in hub.links() {
+        hub.kill(c);
+    }
+    assert_eq!(
+        hub.with_relay(|r| r.session_count()),
+        0,
+        "the session is gone"
+    );
+    b.ok(Command::Track(TrackCommand::Rename {
+        id: t,
+        name: "offline".into(),
+    }));
+    // Both reconnect (A first) and greet; nothing reaches the relay yet.
+    for s in [&mut *a, &mut *b] {
+        s.advance(1_000);
+        s.tick();
+        s.advance(1_000);
+        s.tick();
+        s.tick();
+    }
+    let [a_link, b_link] = hub.links()[..] else {
+        panic!("two links: {:?}", hub.links())
+    };
+    assert_eq!(b.ctl.collab_pending(), 1);
+    // A asks first: it re-creates the session. B's hello, sync and resent edit arrive
+    // while the relay waits for A's snapshot.
+    while hub.deliver_from(a_link) {}
+    while hub.deliver_from(b_link) {}
+    a.tick();
+    while hub.deliver_from(a_link) {}
+    // B edits again before it sees the snapshot: sent at once, sequenced now.
+    let clip = add_clip(b, t, 0.0);
+    while hub.deliver_from(b_link) {}
+    settle(&mut [a, b], &hub);
+    assert_eq!(b.ctl.collab_pending(), 0);
+    for s in [&*a, &*b] {
+        assert_eq!(s.project().tracks[&t].name, "offline");
+        assert!(s.project().clips.contains_key(&clip));
+    }
+    assert_converged(&[a, b]);
+}
+
+#[test]
 fn rebase_keeps_derived_media_length_of_a_pending_import() {
     let hub = Hub::default();
     let mut lib = MemoryLibrary::new();
@@ -1373,7 +1429,11 @@ fn run_simulation(steps: &[Step]) {
 }
 
 proptest! {
-    #![proptest_config(ProptestConfig { cases: 48, ..ProptestConfig::default() })]
+    // 48 cases by default; `PROPTEST_CASES` (e.g. 2000) for a longer local run.
+    #![proptest_config(ProptestConfig {
+        cases: std::env::var("PROPTEST_CASES").ok().and_then(|v| v.parse().ok()).unwrap_or(48),
+        ..ProptestConfig::default()
+    })]
 
     #[test]
     fn replicas_converge(steps in proptest::collection::vec(
