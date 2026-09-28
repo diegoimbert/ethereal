@@ -3,9 +3,9 @@ import { Select, type SelectOption } from "@/kit";
 import type { BuiltinDeviceType, Command, Device, DeviceDescriptor, DeviceId, Track, TrackId } from "@/generated";
 import clsx from "clsx";
 import { useDevicesOfTrack, useProjectStore, useSelectionStore, useTracksOrdered } from "@/state";
-import { cmd, newId, useTransport, type EngineTransport } from "@/transport";
-import { asOneStep } from "@/features/arrangement/editMath";
-import { builtinDevice, fetchDescriptor, useBuiltinTypes } from "./descriptors";
+import { cmd, newId, useTransport } from "@/transport";
+import { builtinDevice, useBuiltinTypes } from "./descriptors";
+import { addInstrumentCommand } from "./instrument";
 import { DEVICE_DRAG_TYPE, insertableTypes } from "./chainUtils";
 import { DeviceView } from "./DeviceView";
 import { useSend } from "./gesture";
@@ -38,27 +38,6 @@ function groupByCategory(types: ReadonlyArray<DeviceDescriptor>): SelectOption<s
         : [],
     ),
   );
-}
-
-/**
- * The command adding an instrument to a chain (Ableton behaviour): it replaces the chain's
- * top-level instrument (built-in or plugin, by descriptor category), in place, as one undo
- * step; with none it goes first (its output feeds the effects). `insert(before)` builds the
- * new instrument's `Device::Insert`. A trailing instrument gets no notes (the engine only
- * forwards MIDI device to device) and would clear the new one's audio.
- */
-async function addInstrumentCommand(
-  transport: EngineTransport,
-  devices: ReadonlyArray<Device>,
-  insert: (before: DeviceId | null) => Command,
-): Promise<Command> {
-  for (const d of devices) {
-    if (d.chain) continue;
-    const descriptor = await fetchDescriptor(transport, d).catch(() => null);
-    if (descriptor?.category === "Instrument")
-      return asOneStep("Replace Instrument", [insert(d.id), cmd("Device", { type: "Remove", id: d.id })])!;
-  }
-  return insert(devices[0]?.id ?? null);
 }
 
 const CATEGORY_LABELS: Record<string, string> = { Instrument: "Instruments", AudioEffect: "Audio effects", NoteEffect: "MIDI effects" };

@@ -62,6 +62,12 @@ class DesktopFake implements EngineTransport {
       this.sent.push(command);
       return { type: "Unit" };
     }
+    // An instrument replacing the track's instrument: one batch holding the plugin Insert.
+    const isPluginInsert = (c: Command) => c.domain === "Device" && c.command.type === "Insert" && c.command.device.type === "Plugin";
+    if (command.domain === "Edit" && command.command.type === "Batch" && command.command.commands.some(isPluginInsert)) {
+      this.sent.push(command);
+      return { type: "Unit" };
+    }
     return this.mock.send(command, opts);
   }
   onEvent(listener: (event: Event) => void): Unsubscribe {
@@ -160,17 +166,27 @@ describe("PluginBrowser", () => {
     ]);
     expect(screen.getByText("Insert on: Keys")).toBeInTheDocument();
 
-    // Instrument on a MIDI track: at the start of the chain.
+    // Instrument on a MIDI track: it replaces the track's instrument (the Synth), in place, one step.
     fireEvent.click(within(list).getByText("Big Synth"));
     await screen.findByText("Inserted Big Synth on Keys");
-    const insert = t.sent.at(-1)!;
-    expect(insert).toMatchObject({
-      domain: "Device",
+    const synth = firstDeviceOf("Keys").id;
+    expect(t.sent.at(-1)).toMatchObject({
+      domain: "Edit",
       command: {
-        type: "Insert",
-        track: trackNamed("Keys").id,
-        device: { type: "Plugin", plugin_id: SYNTH.id, format: "Clap", sandboxed: null },
-        before: firstDeviceOf("Keys").id,
+        type: "Batch",
+        label: "Replace Instrument",
+        commands: [
+          {
+            domain: "Device",
+            command: {
+              type: "Insert",
+              track: trackNamed("Keys").id,
+              device: { type: "Plugin", plugin_id: SYNTH.id, format: "Clap", sandboxed: null },
+              before: synth,
+            },
+          },
+          { domain: "Device", command: { type: "Remove", id: synth } },
+        ],
       },
     });
 
