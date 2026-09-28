@@ -295,7 +295,7 @@ impl Node for SpectrumAnalyzer {
             self.fresh = false;
         }
         if watched && self.since_hop >= self.hop {
-            self.since_hop = 0;
+            self.since_hop = (self.since_hop - self.hop).min(self.hop);
             self.compute();
         }
         ProcessStatus::Continue

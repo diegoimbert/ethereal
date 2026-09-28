@@ -348,7 +348,7 @@ impl Node for Tuner {
             self.last = Pitch::NONE;
         }
         if watched && self.since_hop >= self.hop {
-            self.since_hop = 0;
+            self.since_hop = (self.since_hop - self.hop).min(self.hop);
             self.estimate();
         }
         if self.gain.current() == 0.0 && !self.gain.is_smoothing() {

@@ -128,12 +128,12 @@ fn fx_dynamics_devices_are_placeholders() {
 }
 
 #[test]
-fn fx_analysis_devices_are_placeholders_and_watch_works() {
+fn fx_analysis_devices_insert_and_watches_reach_the_engine() {
     group_inserts_and_compiles(&[
         BuiltinDeviceType::SpectrumAnalyzer,
         BuiltinDeviceType::Tuner,
     ]);
-    // The analysis channel's watch commands are implemented (contracts-3).
+    // Watch/Unwatch are refcounted and reach the engine (frames: tests/analysis_devices.rs).
     let mut h = Harness::with_project();
     let t = track(&mut h, TrackKind::Audio);
     let d = insert(&mut h, t, BuiltinDeviceType::SpectrumAnalyzer);
