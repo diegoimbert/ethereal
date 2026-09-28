@@ -219,6 +219,13 @@ export class TauriTransport implements EngineTransport {
     return (Array.isArray(picked) ? picked : [picked]).filter((p): p is string => typeof p === "string");
   }
 
+  /** The OS folder dialog (the Relink dialog's folder search): an absolute path, or `null`. */
+  async pickFolder(): Promise<string | null> {
+    const picked = await this.openDialog({ multiple: false, directory: true, title: "Search in folder", filters: [] });
+    const path = Array.isArray(picked) ? picked[0] : picked;
+    return typeof path === "string" ? path : null;
+  }
+
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;

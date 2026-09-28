@@ -672,42 +672,15 @@ where
                 self.collab_push_media(pid, m);
             }
         }
-        // `media-references`: a relink to other content changes the hash; peers get the
-        // new bytes after the transaction (they accept a replacement matching the document).
-        let rehashed: Vec<MediaId> = t
-            .transaction
-            .ops
-            .iter()
-            .filter_map(|op| match op {
-                Op::Update {
-                    update:
-                        EntityUpdate::Media {
-                            id,
-                            change: MediaChange::Hash(Some(_)),
-                        },
-                } => Some(*id),
-                _ => None,
-            })
-            .collect();
         if let Some(s) = self.collab.session.as_mut() {
             s.send(&CollabMessage::Transaction { transaction: t });
-        }
-        for id in rehashed {
-            if let Some(m) = self
-                .doc
-                .as_ref()
-                .and_then(|d| d.project.media.get(&id))
-                .cloned()
-            {
-                self.collab_push_media(pid, &m);
-            }
         }
     }
 
     fn collab_push_media(&mut self, pid: ProjectId, m: &MediaRef) {
         // `file-import`: an external reference pushes the referenced file's bytes. Sent
-        // inserts carry no location (`resolve::outgoing`): where this site reads it from is
-        // in the live document.
+        // inserts carry no location (`resolve::outgoing`, `media-references`): where this
+        // site reads it from is in the live document.
         let local = self
             .doc
             .as_ref()
@@ -1131,7 +1104,7 @@ where
                     && let Some(doc) = self.doc.as_ref()
                 {
                     // Media inserted before its bytes arrived (should not happen with the
-                    // relay's FIFO order), or relinked to new content, is (re)loaded now.
+                    // relay's FIFO order) is retried now.
                     self.media
                         .reload_file(&mut self.bridge, &doc.project, &file);
                     self.media.sync(&mut self.bridge, Some(&doc.project));
@@ -1537,9 +1510,8 @@ fn check_echo(live: &Project, pending: &VecDeque<Pending>, echo: &StampedTransac
 
 /// May `bytes` be written to `pid`'s `file`? Not if the document has a media with that file
 /// and a different hash, nor if a different file is already stored there (media files are
-/// named per media id: an existing one is never replaced), unless the document says that
-/// file now has these bytes' hash (a relink to other content, `media-references`).
-/// Identical content: rewriting is harmless.
+/// named per media id: an existing one is never replaced). Identical content: rewriting is
+/// harmless.
 fn media_acceptable<S: ProjectStore>(
     store: &mut S,
     pid: ProjectId,
@@ -1555,13 +1527,8 @@ fn media_acceptable<S: ProjectStore>(
     {
         return false;
     }
-    let expected = project.is_some_and(|p| {
-        p.media
-            .values()
-            .any(|m| m.file == file && m.hash.as_ref() == Some(&hash))
-    });
     match store.read(pid, file) {
-        Ok(existing) => existing == bytes || expected,
+        Ok(existing) => existing == bytes,
         Err(_) => true,
     }
 }

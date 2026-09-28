@@ -34,7 +34,7 @@ use ether_core::protocol::{ErrorCode, Event, NotificationLevel, ReplyValue};
 use crate::handlers::{event, no_project, notify, store_err};
 use crate::media::{IncrementalDecoder, extension_of, read_media_bytes};
 use crate::store::{Library, ProjectStore, StoreError, check_relative_path, file_kind};
-use crate::tx::{CmdResult, cmd_err, invalid, not_found};
+use crate::tx::{CmdResult, cmd_err, invalid, invalid_state, not_found};
 use crate::{EngineBridge, EtherController, HostServices, MessageSink, content_hash};
 
 /// Folders listed per tick by a search (a file read for the hash check counts as
@@ -516,6 +516,15 @@ where
         };
         let bytes = check_format(&m, bytes, &name)?;
         let hash = content_hash(&bytes);
+        let changed = m.hash.as_deref() != Some(hash.as_str());
+        if changed && self.collab_active() {
+            // Peers hold these bytes at `MediaRef::file` (and the relay caches them for late
+            // joiners): stored media are never replaced, so the content can't change here.
+            return Err(invalid_state(format!(
+                "\"{}\" has different content: in a session, relink to the same file (or import it as a new sample)",
+                m.name
+            )));
+        }
         if location == MediaLocation::Project {
             // Project media live at `MediaRef::file` (named per media id).
             let same = self.store.read(pid, &m.file).is_ok_and(|b| b == bytes);
@@ -523,7 +532,6 @@ where
                 self.store.write(pid, &m.file, &bytes).map_err(store_err)?;
             }
         }
-        let changed = m.hash.as_deref() != Some(hash.as_str());
         let moved = m.location != location;
         self.edit_with("Relink", None, now, out, |ctx| {
             if moved {

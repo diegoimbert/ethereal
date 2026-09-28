@@ -1,0 +1,178 @@
+/* Samples referenced in place (media-references): missing clips, notice, Relink dialog. */
+
+/* ── Clip ─────────────────────────────────────────────────────────── */
+
+/* A clip whose sample is missing: hatched body (it plays silence), warning in the title. */
+.eth-clip.eth-media-refs--missing {
+  background-image: repeating-linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--eth-color-warn) 22%, transparent) 0 var(--eth-space-xs),
+    transparent var(--eth-space-xs) var(--eth-space-md)
+  );
+  outline: var(--eth-border-width) dashed var(--eth-color-warn);
+  outline-offset: calc(-1 * var(--eth-border-width));
+}
+
+.eth-media-refs__clip-badge {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--eth-space-hair);
+  padding: 0 var(--eth-space-xs);
+  border-radius: var(--eth-radius-pill);
+  background: var(--eth-color-warn);
+  color: var(--eth-color-text-inverse);
+  font-size: var(--eth-fs-2xs);
+  font-weight: 600;
+  line-height: var(--eth-size-clip-title-line-height);
+}
+
+.eth-media-refs__clip-badge svg {
+  width: var(--eth-size-icon-inline);
+  height: var(--eth-size-icon-inline);
+}
+
+/* ── Notice ───────────────────────────────────────────────────────── */
+
+/* Floats at the bottom left of the window (the import status list is bottom center). */
+.eth-media-refs__notice {
+  position: fixed;
+  left: var(--eth-space-lg);
+  bottom: var(--eth-space-2xl);
+  z-index: var(--eth-z-popover);
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-sm);
+  padding: var(--eth-space-xs) var(--eth-space-xs) var(--eth-space-xs) var(--eth-space-md);
+  background: var(--eth-color-bg-overlay);
+  border: var(--eth-border-width) solid var(--eth-color-warn);
+  border-radius: var(--eth-radius-md);
+  box-shadow: var(--eth-shadow-lg);
+  color: var(--eth-color-text);
+  font-size: var(--eth-fs-xs);
+  animation: eth-fade-in var(--eth-duration-normal) var(--eth-ease-out);
+}
+
+.eth-media-refs__notice-icon {
+  width: var(--eth-size-icon-sm);
+  height: var(--eth-size-icon-sm);
+  color: var(--eth-color-warn);
+}
+
+/* ── Relink dialog ────────────────────────────────────────────────── */
+
+.eth-media-refs__summary {
+  margin: 0 0 var(--eth-space-md);
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-sm);
+}
+
+.eth-media-refs__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-xs);
+  max-height: calc(8 * var(--eth-size-row-height));
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.eth-media-refs__row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  column-gap: var(--eth-space-sm);
+  row-gap: var(--eth-space-xs);
+  padding: var(--eth-space-sm);
+  border: var(--eth-border-width) solid var(--eth-color-border-light);
+  border-radius: var(--eth-radius-sm);
+  background: var(--eth-color-bg-inset);
+}
+
+.eth-media-refs__row--found {
+  opacity: 0.7;
+}
+
+.eth-media-refs__icon {
+  width: var(--eth-size-icon-md);
+  height: var(--eth-size-icon-md);
+  color: var(--eth-color-text-dim);
+}
+
+.eth-media-refs__info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.eth-media-refs__name {
+  overflow: hidden;
+  color: var(--eth-color-text);
+  font-size: var(--eth-fs-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.eth-media-refs__path {
+  overflow: hidden;
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  /* Paths are most useful from the end (the file name). */
+  direction: rtl;
+  text-align: left;
+}
+
+.eth-media-refs__candidates {
+  grid-column: 2 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-hair);
+}
+
+.eth-media-refs__candidates ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.eth-media-refs__candidate {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--eth-space-sm);
+  min-width: 0;
+}
+
+.eth-media-refs__hint {
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+}
+
+.eth-media-refs__search {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--eth-space-sm);
+  margin-top: var(--eth-space-md);
+}
+
+.eth-media-refs__search svg {
+  width: var(--eth-size-icon-sm);
+  height: var(--eth-size-icon-sm);
+}
+
+.eth-media-refs__error {
+  margin: var(--eth-space-sm) 0 0;
+  color: var(--eth-color-danger);
+  font-size: var(--eth-fs-xs);
+  overflow-wrap: anywhere;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .eth-media-refs__notice {
+    animation: none;
+  }
+}
