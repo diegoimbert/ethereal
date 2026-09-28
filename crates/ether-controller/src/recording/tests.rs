@@ -238,7 +238,11 @@ fn recording_events(out: &[ServerMessage]) -> Vec<RecordingEvent> {
 
 #[test]
 fn notes_pair_on_off_and_close_held_notes() {
-    let ev = |position, data| RecordedMidi { position, data };
+    let ev = |position, data| RecordedMidi {
+        position,
+        data,
+        pass: 0,
+    };
     let notes = notes_from_midi(
         &[
             ev(4.5, [0x90, 60, 127]),
@@ -360,14 +364,17 @@ fn record_with_count_in_commits_takes_as_one_undo_step() {
             RecordedMidi {
                 position: 7.5, // during the count-in: dropped
                 data: [0x90, 50, 100],
+                pass: 0,
             },
             RecordedMidi {
                 position: 8.5,
                 data: [0x90, 60, 100],
+                pass: 0,
             },
             RecordedMidi {
                 position: 9.0,
                 data: [0x80, 60, 0],
+                pass: 0,
             },
         ],
         latency: 256,
@@ -443,14 +450,17 @@ fn punch_keeps_the_loop_region_only() {
         RecordedMidi {
             position: 3.0,
             data: [0x90, 40, 100],
+            pass: 0,
         },
         RecordedMidi {
             position: 5.0,
             data: [0x90, 60, 100],
+            pass: 0,
         },
         RecordedMidi {
             position: 9.0,
             data: [0x90, 70, 100],
+            pass: 0,
         },
     ];
     let out = h.rec(RecordingCommand::SetRecording { enabled: false });
@@ -467,6 +477,14 @@ fn punch_keeps_the_loop_region_only() {
     assert_eq!(
         (notes[0].pitch, notes[0].start, notes[0].duration),
         (60, Beats(1.0), Beats(3.0))
+    );
+    // A punch pass is a take, selected over the punch range.
+    let lane = c.lane.expect("take lane");
+    let region = p.comp_of(midi);
+    assert_eq!(region.len(), 1);
+    assert_eq!(
+        (region[0].lane, region[0].start, region[0].end),
+        (lane, Beats(4.0), Beats(8.0))
     );
 }
 
@@ -664,4 +682,155 @@ fn hosts_without_capture_emit_no_progress() {
     });
     h.rec(RecordingCommand::SetRecording { enabled: true });
     assert!(tick(&mut h, 1000).is_empty());
+}
+
+// ─── comping: loop / punch passes become takes ──────────────────────────────────────────
+
+fn midi_ev(position: f64, on: bool, key: u8, pass: u32) -> RecordedMidi {
+    RecordedMidi {
+        position,
+        data: if on { [0x90, key, 100] } else { [0x80, key, 0] },
+        pass,
+    }
+}
+
+fn comp_of(p: &Project, track: TrackId) -> Vec<(TakeLaneId, f64, f64)> {
+    p.comp_of(track)
+        .iter()
+        .map(|r| (r.lane, r.start.0, r.end.0))
+        .collect()
+}
+
+#[test]
+fn midi_loop_passes_become_takes_over_the_old_material() {
+    let mut h = H::new(true);
+    let midi = h.track(TrackKind::Midi);
+    h.ok(Command::Transport(TransportCommand::SetLoopRegion {
+        region: BeatRange {
+            start: Beats(4.0),
+            end: Beats(8.0),
+        },
+    }));
+    h.ok(Command::Transport(TransportCommand::SetLoopEnabled {
+        enabled: true,
+    }));
+    // Existing material crossing the recorded range's end.
+    let old: ClipId = h.ids.next(1);
+    h.ok(Command::Clip(ClipCommand::CreateMidi {
+        id: old,
+        track: midi,
+        start: Beats(6.0),
+        length: Beats(4.0),
+        name: None,
+    }));
+    let clips_before = h.project().clips.len();
+    h.rec(RecordingCommand::Arm {
+        track: midi,
+        armed: true,
+        exclusive: true,
+    });
+    h.ctl.transport.position = Beats(4.0);
+    h.rec(RecordingCommand::SetRecording { enabled: true });
+    h.capture().result.midi = vec![
+        midi_ev(5.0, true, 60, 0),
+        midi_ev(5.5, false, 60, 0),
+        midi_ev(4.5, true, 62, 1),
+        midi_ev(5.0, false, 62, 1),
+        midi_ev(6.0, true, 64, 2),
+        midi_ev(7.0, false, 64, 2),
+    ];
+    let out = h.rec(RecordingCommand::SetRecording { enabled: false });
+    let events = recording_events(&out);
+    let [RecordingEvent::Stopped { clips }] = events.as_slice() else {
+        panic!("{events:?}");
+    };
+    assert_eq!(clips.len(), 3, "one take clip per pass");
+    let p = h.project();
+    let lanes = p.lanes_of(midi);
+    let names: Vec<&str> = lanes.iter().map(|l| l.name.as_str()).collect();
+    assert_eq!(names, ["Take 1", "Take 2", "Take 3", "Take 4"]);
+    // The old clip's part inside [4, 8) is the first take; the rest stays on the main lane.
+    let first = p.lane_clips_of(lanes[0].id);
+    assert_eq!(first.len(), 1);
+    assert_eq!(
+        (first[0].start, first[0].length, first[0].offset),
+        (Beats(6.0), Beats(2.0), Beats(0.0))
+    );
+    let main = p.arrangement_clips_of(midi);
+    assert_eq!(main.len(), 1);
+    assert_eq!(
+        (main[0].start, main[0].length, main[0].offset),
+        (Beats(8.0), Beats(2.0), Beats(2.0))
+    );
+    // Each pass on its own lane, spanning the loop.
+    for (i, c) in clips.iter().enumerate() {
+        let clip = &p.clips[c];
+        assert_eq!(clip.lane, Some(lanes[i + 1].id));
+        assert_eq!((clip.start, clip.length), (Beats(4.0), Beats(4.0)));
+        assert_eq!(p.notes_of(*c).len(), 1);
+    }
+    // The newest take is what plays.
+    assert_eq!(comp_of(p, midi), vec![(lanes[3].id, 4.0, 8.0)]);
+    // One undo step restores the old clip on the main lane.
+    h.ok(Command::Edit(EditCommand::Undo));
+    let p = h.project();
+    assert!(p.take_lanes.is_empty() && p.comp_regions.is_empty());
+    assert_eq!(p.clips.len(), clips_before);
+    assert_eq!(p.clips[&old].lane, None);
+    assert_eq!(p.clips[&old].length, Beats(4.0));
+}
+
+#[test]
+fn audio_loop_passes_become_takes_and_plain_recordings_stay_clips() {
+    let mut h = H::new(true);
+    let audio = h.track(TrackKind::Audio);
+    h.rec(RecordingCommand::SetInput {
+        track: audio,
+        input: TrackInput::Audio { first: 0, count: 1 },
+    });
+    h.rec(RecordingCommand::Arm {
+        track: audio,
+        armed: true,
+        exclusive: true,
+    });
+    let take = |start: f64, file: &str| AudioTake {
+        track: audio,
+        file: file.into(),
+        start,
+        frames: 48_000,
+        channels: 1,
+        sample_rate: 48_000,
+    };
+    // A plain recording over nothing: a main-lane clip (v0.1).
+    h.rec(RecordingCommand::SetRecording { enabled: true });
+    h.capture().result = RecordedTakes {
+        audio: vec![take(0.0, "media/a.wav")],
+        ..Default::default()
+    };
+    h.rec(RecordingCommand::SetRecording { enabled: false });
+    assert!(h.project().take_lanes.is_empty());
+    assert_eq!(h.project().arrangement_clips_of(audio).len(), 1);
+
+    // Two loop passes elsewhere: two takes, the newest selected.
+    h.rec(RecordingCommand::SetRecording { enabled: true });
+    h.capture().result = RecordedTakes {
+        audio: vec![take(4.0, "media/b.wav"), take(4.0, "media/c.wav")],
+        ..Default::default()
+    };
+    let out = h.rec(RecordingCommand::SetRecording { enabled: false });
+    let events = recording_events(&out);
+    let [RecordingEvent::Stopped { clips }] = events.as_slice() else {
+        panic!("{events:?}");
+    };
+    let p = h.project();
+    let lanes = p.lanes_of(audio);
+    assert_eq!(lanes.len(), 2);
+    assert_eq!(p.clips[&clips[1]].lane, Some(lanes[1].id));
+    // 1 s at 120 bpm = 2 beats.
+    assert_eq!(comp_of(p, audio), vec![(lanes[1].id, 4.0, 6.0)]);
+    assert_eq!(
+        p.arrangement_clips_of(audio).len(),
+        1,
+        "the first recording stays"
+    );
 }

@@ -165,6 +165,9 @@ pub(super) struct Session {
     takes: u32,
     done: Vec<AudioTake>,
     midi: Vec<RecordedMidi>,
+    /// Loop pass of the next MIDI event (`comping`): bumped when the position jumps back.
+    midi_pass: u32,
+    midi_last: f64,
     error: Option<String>,
     /// Audio frames kept and whether any of them was not exactly zero (a denied
     /// microphone permission delivers pure digital silence).
@@ -186,6 +189,8 @@ impl Session {
             takes: 0,
             done: Vec::new(),
             midi: Vec::new(),
+            midi_pass: 0,
+            midi_last: f64::NEG_INFINITY,
             error: None,
             frames_kept: 0,
             heard: false,
@@ -347,9 +352,14 @@ impl Session {
         let position = m.position - self.config.midi_latency as f64 * m.beats_per_sample;
         if self.keep(position) {
             self.notes.message(m.data, position, &mut self.live.lock());
+            if position < self.midi_last - 1e-6 {
+                self.midi_pass += 1;
+            }
+            self.midi_last = position;
             self.midi.push(RecordedMidi {
                 position,
                 data: m.data,
+                pass: self.midi_pass,
             });
         }
     }
@@ -366,7 +376,8 @@ impl Session {
         if let Some(e) = self.error {
             return Err(e);
         }
-        self.midi.sort_by(|a, b| a.position.total_cmp(&b.position));
+        self.midi
+            .sort_by(|a, b| a.pass.cmp(&b.pass).then(a.position.total_cmp(&b.position)));
         let mut warnings = Vec::new();
         if !self.heard && self.frames_kept >= u64::from(self.config.sample_rate) {
             warnings.push(SILENT_INPUT.to_string());
