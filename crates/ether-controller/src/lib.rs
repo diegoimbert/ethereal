@@ -79,6 +79,7 @@ use ether_core::protocol::{ClientMessage, Reply, ReplyResult, ServerMessage};
 use ether_core::{EngineOutputs, NodeKey, ParamChange, RenderGraphDesc, TransportControl};
 
 pub use compile::{CompileContext, compile_graph_with};
+pub use engine::LATENCY_REPUBLISH_MS;
 pub use media::hash::content_hash;
 pub use recording::{AudioTake, AudioTarget, RecordSession, RecordedMidi, RecordedTakes};
 
