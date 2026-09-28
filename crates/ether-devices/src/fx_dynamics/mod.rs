@@ -3,9 +3,12 @@
 //!
 //! Dynamics: gate/expander, 3-band multiband compressor, transient shaper.
 //!
-//! Every device here starts as a [`Placeholder`] (pass-through / silent / MIDI-thru) with its
-//! final descriptor. **Param ids are stable and append-only** (documents, automation and
-//! presets store them): never renumber, only append. Split this module into files as you like.
+//! Implementations: [`Gate`] (`gate_device.rs`), [`MultibandCompressor`]
+//! (`multiband_device.rs`), [`TransientShaper`] (`shaper_device.rs`), shared DSP in
+//! `shared.rs`. **Param ids are stable and append-only** (documents, automation and presets
+//! store them): never renumber, only append. Each descriptor carries its declarative layout
+//! (drawn by the shared device renderer); gain reduction reaches the layout meters as
+//! `AnalysisKind::Levels` (values in dB, ≤ 0 = reduction).
 //!
 //! # Gate (`BuiltinDeviceType::Gate`)
 //!
@@ -72,13 +75,21 @@
 
 use ether_core::Device;
 use ether_core::protocol::devices::{DeviceCategory, DeviceDescriptor, ParamScale, ParamUnit};
+use ether_core::protocol::layout::{DeviceLayout, Widget, WidgetSize};
 use ether_core::protocol::model::{BuiltinDevice, BuiltinDeviceType};
 
-#[allow(unused_imports)]
 use crate::contract::{
-    FactoryPreset, Placeholder, PlaceholderMode, SYNC_RATES, choice, descriptor as build, param,
-    stepped, toggle,
+    FactoryPreset, choice, descriptor as build, item, knob, layout, param, section, toggle,
 };
+
+mod gate_device;
+mod multiband_device;
+mod shaper_device;
+mod shared;
+
+pub use gate_device::Gate;
+pub use multiband_device::MultibandCompressor;
+pub use shaper_device::TransientShaper;
 
 /// Param ids of `Gate` (stable, append-only).
 pub mod gate {
@@ -150,6 +161,165 @@ pub mod transient_shaper {
 /// # Panics
 /// For a type of another group.
 pub fn descriptor(ty: BuiltinDeviceType) -> DeviceDescriptor {
+    let mut d = params_descriptor(ty);
+    d.layout = Some(device_layout(ty));
+    d
+}
+
+/// Declarative panel of a type (CONTRACTS.md §12.4.2; drawn by the shared renderer).
+fn device_layout(ty: BuiltinDeviceType) -> DeviceLayout {
+    use WidgetSize::{Large, Medium, Small};
+    let meter = |index: u8, min_db: f32, max_db: f32, label: &str| {
+        let mut it = item(
+            Widget::Meter {
+                index,
+                min_db,
+                max_db,
+            },
+            Medium,
+        );
+        it.label = Some(label.to_owned());
+        it
+    };
+    match ty {
+        BuiltinDeviceType::Gate => {
+            use gate::*;
+            layout(vec![
+                section(
+                    "gate",
+                    Some("Gate"),
+                    2,
+                    4,
+                    vec![
+                        knob(THRESHOLD, Large),
+                        knob(HYSTERESIS, Medium),
+                        knob(RANGE, Medium),
+                        knob(RATIO, Medium),
+                        item(Widget::Choice { param: MODE }, Small),
+                        item(Widget::Toggle { param: FLIP }, Small),
+                    ],
+                ),
+                section(
+                    "meter",
+                    Some("Gain"),
+                    1,
+                    1,
+                    vec![meter(0, -60.0, 0.0, "Gain reduction")],
+                ),
+                section(
+                    "timing",
+                    Some("Timing"),
+                    2,
+                    4,
+                    vec![
+                        knob(ATTACK, Medium),
+                        knob(HOLD, Medium),
+                        knob(RELEASE, Medium),
+                        knob(LOOKAHEAD, Small),
+                    ],
+                ),
+                section(
+                    "sidechain",
+                    Some("Sidechain"),
+                    1,
+                    1,
+                    vec![knob(SIDECHAIN_HPF, Small)],
+                ),
+                section("output", Some("Output"), 1, 1, vec![knob(OUTPUT, Medium)]),
+            ])
+        }
+        BuiltinDeviceType::MultibandCompressor => {
+            use multiband_compressor::*;
+            let band = |id: &str, title: &str, first: u32, index: u8| {
+                let pid = |o: u32| ether_core::protocol::model::ParamId(first + o);
+                section(
+                    id,
+                    Some(title),
+                    1,
+                    4,
+                    vec![
+                        knob(pid(0), Large),
+                        knob(pid(1), Medium),
+                        knob(pid(2), Small),
+                        knob(pid(3), Small),
+                        knob(pid(4), Small),
+                        meter(index, -24.0, 0.0, "GR"),
+                        item(Widget::Toggle { param: pid(5) }, Small),
+                        item(Widget::Toggle { param: pid(6) }, Small),
+                    ],
+                )
+            };
+            layout(vec![
+                section(
+                    "crossover",
+                    Some("Crossover"),
+                    4,
+                    1,
+                    vec![item(
+                        Widget::Crossover {
+                            frequencies: vec![LOW_MID_FREQ, MID_HIGH_FREQ],
+                        },
+                        Large,
+                    )],
+                ),
+                band("low", "Low", LOW_THRESHOLD.0, 0),
+                band("mid", "Mid", MID_THRESHOLD.0, 1),
+                band("high", "High", HIGH_THRESHOLD.0, 2),
+                section(
+                    "output",
+                    Some("Output"),
+                    1,
+                    1,
+                    vec![knob(OUTPUT, Medium), knob(MIX, Medium)],
+                ),
+            ])
+        }
+        BuiltinDeviceType::TransientShaper => {
+            use transient_shaper::*;
+            layout(vec![
+                section(
+                    "shaper",
+                    Some("Shaper"),
+                    2,
+                    2,
+                    vec![
+                        knob(ATTACK, Large),
+                        knob(SUSTAIN, Large),
+                        knob(ATTACK_TIME, Medium),
+                        knob(RELEASE_TIME, Medium),
+                    ],
+                ),
+                section(
+                    "meter",
+                    Some("Gain"),
+                    1,
+                    1,
+                    vec![meter(
+                        0,
+                        -shaper_device::MAX_GAIN_DB,
+                        shaper_device::MAX_GAIN_DB,
+                        "Shaping",
+                    )],
+                ),
+                section(
+                    "output",
+                    Some("Output"),
+                    1,
+                    1,
+                    vec![
+                        knob(OUTPUT, Medium),
+                        knob(MIX, Medium),
+                        item(Widget::Toggle { param: CLIP }, Small),
+                    ],
+                ),
+            ])
+        }
+        other => unreachable!("{other:?} is not a `fx-dynamics` device"),
+    }
+}
+
+/// Param table of a type (frozen by contracts-3, append-only).
+fn params_descriptor(ty: BuiltinDeviceType) -> DeviceDescriptor {
     match ty {
         BuiltinDeviceType::Gate => build(
             BuiltinDeviceType::Gate,
@@ -477,16 +647,40 @@ pub fn descriptor(ty: BuiltinDeviceType) -> DeviceDescriptor {
     }
 }
 
-/// Non-RT. A new instance (placeholder until implemented).
+/// Non-RT. A new instance.
+///
+/// # Panics
+/// For a type of another group.
 pub fn create(device: &BuiltinDevice) -> Box<dyn Device> {
-    let ty = device.device_type();
-    let mode = PlaceholderMode::PassThrough;
-    Box::new(Placeholder::new(descriptor(ty), mode))
+    match device.device_type() {
+        BuiltinDeviceType::Gate => Box::new(Gate::new()),
+        BuiltinDeviceType::MultibandCompressor => Box::new(MultibandCompressor::new()),
+        BuiltinDeviceType::TransientShaper => Box::new(TransientShaper::new()),
+        other => unreachable!("{other:?} is not a `fx-dynamics` device"),
+    }
 }
 
-/// Factory presets of a type of this group (embedded; add `FactoryPreset { id, json:
-/// include_str!("../../presets/<device-key>/<slug>.etherpreset") }` entries).
+macro_rules! presets {
+    ($key:literal: $($slug:literal),* $(,)?) => {
+        &[$(FactoryPreset {
+            id: concat!($key, "/", $slug),
+            json: include_str!(concat!("../../presets/", $key, "/", $slug, ".etherpreset")),
+        }),*]
+    };
+}
+
+/// Factory presets of a type of this group (embedded from `presets/<device-key>/`).
 pub fn factory_presets(ty: BuiltinDeviceType) -> &'static [FactoryPreset] {
-    let _ = ty;
-    &[]
+    match ty {
+        BuiltinDeviceType::Gate => {
+            presets!("gate": "tight-drums", "gentle-expander", "noise-cleanup", "sidechain-trigger")
+        }
+        BuiltinDeviceType::MultibandCompressor => {
+            presets!("multiband-compressor": "gentle-glue", "tame-lows", "de-harsh", "heavy-squash")
+        }
+        BuiltinDeviceType::TransientShaper => {
+            presets!("transient-shaper": "punchy-drums", "tight-room", "soft-attack", "snappy-snare")
+        }
+        _ => &[],
+    }
 }
