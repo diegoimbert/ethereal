@@ -72,6 +72,8 @@ const READBACK_PARAMS: usize = crate::analysis::ANALYSIS_MAX_VALUES / 3;
 /// A readback frame is re-sent at least every this many passes even when nothing changed
 /// (so a device watched later gets its rings).
 const READBACK_REFRESH: u32 = 15;
+/// Unmodulated params restored to their base per snapshot swap.
+const MAX_RESTORE: usize = 256;
 /// Base/macro changes remembered per target and sub-block (later ones replace the last).
 const MAX_CHANGES: usize = 16;
 /// Length in beats of each sync rate (`ether_devices::contract::SYNC_RATES`).
@@ -539,6 +541,22 @@ fn push_change<T: Copy>(list: &mut [T; MAX_CHANGES], n: &mut usize, v: T) {
     }
 }
 
+/// This sub-block's event list of node `node` (track chain, drum pad or rack chain).
+fn target_events<'a>(
+    node: NodeKey,
+    chain: &'a mut [ChainRt],
+    racks: &'a mut RacksRt,
+    chain_racks: &'a mut ChainRacksRt,
+) -> Option<&'a mut EventBuffer> {
+    match chain.iter_mut().find(|c| c.key == node) {
+        Some(c) => Some(&mut c.events),
+        None => match racks.events_mut(node) {
+            Some(e) => Some(e),
+            None => chain_racks.events_mut(node),
+        },
+    }
+}
+
 /// Per-track modulation state (in `TrackRt`).
 #[derive(Debug, Default)]
 pub(crate) struct ModulationRt {
@@ -551,6 +569,9 @@ pub(crate) struct ModulationRt {
     knots: Vec<u32>,
     /// Note events of entry-0 hosts, sorted (preallocated).
     notes: Vec<ProcessEvent>,
+    /// Params no longer modulated after a snapshot swap: their base is re-sent once
+    /// (preallocated, filled by `inherit`).
+    restore: Vec<(NodeKey, ParamId, f64)>,
     sample_rate: f64,
     was_playing: bool,
     /// Readback: passes since the last frame per target group, and a change flag.
@@ -662,13 +683,18 @@ impl ModulationRt {
             }
         }
         targets.sort_by_key(|t| (t.node, t.param));
+        let knots = frames / crate::automation_rt::PARAM_GRID as usize
+            + 2
+            + MAX_CHANGES * (targets.len() + macros.len())
+            + config.max_events_per_block;
         Self {
             sidechain_sources,
             sources,
             macros,
             targets,
-            knots: Vec::with_capacity(frames / crate::automation_rt::PARAM_GRID as usize + 2 + 64),
+            knots: Vec::with_capacity(knots),
             notes: Vec::with_capacity(config.max_events_per_block),
+            restore: Vec::with_capacity(MAX_RESTORE),
             sample_rate: sr,
             was_playing: false,
             readback_age: READBACK_REFRESH,
@@ -731,6 +757,17 @@ impl ModulationRt {
                 .find(|o| o.node == t.node && o.param == t.param)
             {
                 t.base = o.base;
+            }
+        }
+        // Params that are no longer modulated go back to their base.
+        for o in &old.targets {
+            let kept = self
+                .targets
+                .binary_search_by(|t| (t.node, t.param).cmp(&(o.node, o.param)))
+                .is_ok();
+            if !kept && self.restore.len() < self.restore.capacity() {
+                self.restore
+                    .push((o.node, o.param, to_plain(&o.mapping, o.base)));
             }
         }
     }
@@ -798,6 +835,16 @@ impl ModulationRt {
         racks: &mut RacksRt,
         chain_racks: &mut ChainRacksRt,
     ) {
+        for &(node, param, value) in &self.restore {
+            let event = ProcessEvent {
+                offset: 0,
+                kind: EventKind::Param { param, value },
+            };
+            if let Some(buf) = target_events(node, chain, racks, chain_racks) {
+                buf.push(event);
+            }
+        }
+        self.restore.clear();
         if self.sources.is_empty() && self.targets.is_empty() {
             self.clear_changes();
             return;
@@ -951,14 +998,7 @@ impl ModulationRt {
                         value: plain,
                     },
                 };
-                let buf: Option<&mut EventBuffer> = match chain.iter_mut().find(|c| c.key == node) {
-                    Some(c) => Some(&mut c.events),
-                    None => match racks.events_mut(node) {
-                        Some(e) => Some(e),
-                        None => chain_racks.events_mut(node),
-                    },
-                };
-                if let Some(buf) = buf {
+                if let Some(buf) = target_events(node, chain, racks, chain_racks) {
                     buf.push(event);
                 }
             }

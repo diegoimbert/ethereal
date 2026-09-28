@@ -14,7 +14,6 @@ use ether_core::protocol::devices::{DeviceCommand, DeviceSpec};
 use ether_core::protocol::media::{MediaCommand, MediaSource};
 use ether_core::protocol::model::*;
 use ether_core::protocol::presets::{PresetCommand, PresetRef, PresetSource};
-use ether_core::protocol::racks::{ModulationCommand, RackCommand};
 use ether_core::protocol::tracks::TrackCommand;
 use ether_core::protocol::{Command, ErrorCode, ReplyValue};
 
@@ -225,51 +224,7 @@ fn presets_reply_unsupported() {
     }
 }
 
-#[test]
-fn racks_modulation_reply_unsupported() {
-    let mut h = Harness::with_project();
-    let t = track(&mut h, TrackKind::Midi);
-    let rack = insert(&mut h, t, BuiltinDeviceType::InstrumentRack);
-    insert(&mut h, t, BuiltinDeviceType::AudioEffectRack);
-    let chain: RackChainId = h.id();
-    assert_unsupported(
-        &mut h,
-        Command::Rack(RackCommand::AddChain {
-            id: chain,
-            rack,
-            name: None,
-            before: None,
-        }),
-    );
-    let modulator: ModulatorId = h.id();
-    assert_unsupported(
-        &mut h,
-        Command::Modulation(ModulationCommand::AddModulator {
-            id: modulator,
-            device: rack,
-            kind: ModulatorKind::Lfo,
-            name: None,
-        }),
-    );
-    let mapping: ModMappingId = h.id();
-    assert_unsupported(
-        &mut h,
-        Command::Modulation(ModulationCommand::Map {
-            id: mapping,
-            source: ModSource::Macro { rack, index: 0 },
-            device: rack,
-            param: RACK_SELECTOR_PARAM,
-            depth: 0.5,
-        }),
-    );
-    // Modulator kinds are listed from the frozen tables already.
-    match h.ok(Command::Modulation(ModulationCommand::ListModulatorKinds)) {
-        ReplyValue::ModulatorKinds { kinds } => assert_eq!(kinds.len(), ModulatorKind::ALL.len()),
-        other => panic!("{other:?}"),
-    }
-    // Rack params: 8 macros + chain selector.
-    assert_eq!(h.project().devices[&rack].params.len(), 9);
-}
+// racks-modulation: see tests/racks.rs and tests/modulation.rs.
 
 #[test]
 fn browser_v2_replies_unsupported() {
