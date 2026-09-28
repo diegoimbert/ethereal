@@ -309,7 +309,9 @@ fn undo_and_redo_of_an_add_keep_the_original_author() {
     assert_eq!(sites[0].project().pinned_notes[&id].author, original);
     settle(&mut sites.iter_mut().collect::<Vec<_>>(), &hub);
     // B discards it and undoes: back with A as the author, on both sites.
-    sites[1].ok(Command::PinnedNote(PinnedNoteCommand::Delete { ids: vec![id] }));
+    sites[1].ok(Command::PinnedNote(PinnedNoteCommand::Delete {
+        ids: vec![id],
+    }));
     sites[1].ok(Command::Edit(EditCommand::Undo));
     settle(&mut sites.iter_mut().collect::<Vec<_>>(), &hub);
     for s in &sites {
@@ -442,13 +444,15 @@ fn peers_see_our_transport() {
     sites[1].tick();
     assert_eq!(peer_transport(&sites[1], site_a), Some(stopped));
     // Whatever the UI sends is overwritten.
-    let mut presence = ether_core::protocol::collab::PresenceState::default();
-    presence.transport = Some(ether_core::protocol::collab::PeerTransport {
-        position: Beats(999.0),
-        playing: true,
-        sent_at_ms: 1,
-        loop_region: None,
-    });
+    let presence = ether_core::protocol::collab::PresenceState {
+        transport: Some(ether_core::protocol::collab::PeerTransport {
+            position: Beats(999.0),
+            playing: true,
+            sent_at_ms: 1,
+            loop_region: None,
+        }),
+        ..Default::default()
+    };
     sites[0].ok(Command::Collab(CollabCommand::SetPresence { presence }));
     publish(&mut sites, &hub);
     let t = peer_transport(&sites[1], site_a).unwrap();
