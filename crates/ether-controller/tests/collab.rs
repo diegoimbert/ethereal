@@ -1425,7 +1425,11 @@ fn run_simulation(steps: &[Step]) {
 }
 
 proptest! {
-    #![proptest_config(ProptestConfig { cases: 48, ..ProptestConfig::default() })]
+    // 48 cases by default; `PROPTEST_CASES` (e.g. 2000) for a longer local run.
+    #![proptest_config(ProptestConfig {
+        cases: std::env::var("PROPTEST_CASES").ok().and_then(|v| v.parse().ok()).unwrap_or(48),
+        ..ProptestConfig::default()
+    })]
 
     #[test]
     fn replicas_converge(steps in proptest::collection::vec(

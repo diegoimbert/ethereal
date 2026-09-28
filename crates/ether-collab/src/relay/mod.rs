@@ -15,6 +15,8 @@
 //! - `Transaction`s are appended to the log and sent to every ready peer, the author
 //!   included (the echo is its ack). A transaction whose `origin.site` is not the sender's
 //!   site, or whose `seq` is not above that site's last sequenced one (a resend), is dropped.
+//!   Those sent while waiting for the first snapshot are held and sequenced once the sender
+//!   is ready: per site, what is sequenced is always a gap-free prefix of what was sent.
 //! - `Presence` is stamped with the sender's site and color, `Pointer` with its site;
 //!   `Hello`, `Presence`, `Pointer` and `Leave` are forwarded to the other ready peers
 //!   (pointers are never cached).

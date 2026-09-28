@@ -226,6 +226,16 @@ undo/redo go through `History::undo_with/redo_with` (`history.rs`) with
   site re-sends its pending transactions with `seq` above the last own `seq` seen in the log.
   The relay drops a transaction whose `seq` is not above the last sequenced one of that site
   (duplicate after a lost ack).
+  **Invariant: per site, the relay sequences a gap-free prefix of what it received, in
+  `seq` order.** It never silently drops a transaction that is not a duplicate while
+  accepting a later one from the same site: that later `seq` would make the dropped one a
+  "duplicate" forever, and the site would keep it pending and never converge. So a site
+  that resends right after its `SyncRequest` while the relay has no snapshot yet (every
+  site left, the session is being re-created from another replica) has those transactions
+  **held** and sequenced in order once its sync is answered (duplicates of what the
+  creator's snapshot `sites` includes are then dropped as usual), and any other refusal
+  (a transaction before any `SyncRequest`, a full log) closes the link, so the site
+  resends everything, in order, on its next one.
 - Log compaction: past `N` entries the relay sends `SyncRequest { site, version: [] }` to one
   site with no pending ops, which answers with a `Snapshot` of its confirmed state; the relay
   truncates the log before it.
