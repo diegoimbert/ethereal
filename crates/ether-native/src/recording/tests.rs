@@ -381,3 +381,7 @@ fn a_silent_input_take_warns() {
     assert_eq!(takes.audio.len(), 1);
     assert_eq!(takes.warnings, vec![writer::SILENT_INPUT.to_string()]);
 }
+
+/// `tap-recording` (uses this module's rig and helpers).
+#[path = "tap_tests.rs"]
+mod tap;

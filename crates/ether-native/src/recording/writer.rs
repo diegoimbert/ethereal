@@ -7,14 +7,10 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use crossbeam_channel::{Receiver, RecvTimeoutError, Sender, bounded, unbounded};
-use ether_controller::{
-    AudioTake, BridgeError, RecordSession, RecordedMidi, RecordedTakes,
-};
+use ether_controller::{AudioTake, BridgeError, RecordSession, RecordedMidi, RecordedTakes};
 use ether_core::protocol::model::TrackId;
 use ether_core::recording::rtrb::Consumer;
-use ether_core::recording::{
-    CaptureBlock, CaptureReader, RecordedMidi as EngineMidi, TapCapture,
-};
+use ether_core::recording::{CaptureBlock, CaptureReader, RecordedMidi as EngineMidi, TapCapture};
 
 use super::live::{LiveNotes, LiveShared, PeakAcc};
 
@@ -305,13 +301,17 @@ impl Session {
                 return;
             }
         }
-        // Segments every lane has passed are no longer needed.
+        // Segments every lane has passed are no longer needed (the last one stays: the next
+        // block continues its run).
         let max_latency = self.lanes.iter().map(|l| l.latency).max().unwrap_or(0);
-        let passed = (b.sample_time + u64::from(b.frames)).saturating_sub(max_latency);
+        let Some(last_h) = (b.sample_time + u64::from(b.frames)).checked_sub(1 + max_latency)
+        else {
+            return;
+        };
         while self
             .segments
             .front()
-            .is_some_and(|s| s.start + s.frames <= passed)
+            .is_some_and(|s| s.start + s.frames <= last_h)
         {
             self.segments.pop_front();
         }

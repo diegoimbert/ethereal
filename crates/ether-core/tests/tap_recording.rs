@@ -11,8 +11,8 @@ use ether_core::graph::TrackDesc;
 use ether_core::protocol::model::{BeatRange, Beats, InputTap, TrackId, TrackKind};
 use ether_core::recording::{CaptureBlock, MAX_TAP_CAPTURES, RecordingIo, TapCapture};
 use ether_core::{
-    AudioBuffers, EngineParts, InputTapDesc, Node, PrepareConfig, ProcessContext,
-    ProcessStatus, RenderGraphDesc, TransportControl, create,
+    AudioBuffers, EngineParts, InputTapDesc, Node, PrepareConfig, ProcessContext, ProcessStatus,
+    RenderGraphDesc, TransportControl, create,
 };
 
 #[cfg(debug_assertions)]
@@ -148,10 +148,9 @@ fn check_aligned(captured: &[Captured], track: TrackId, latency: u32) -> usize {
                 continue;
             };
             // The block that rendered `h` (the first captured block starts at sample 0).
-            let Some(src) = captured
-                .iter()
-                .find(|b| b.block.sample_time <= h && h < b.block.sample_time + u64::from(b.block.frames))
-            else {
+            let Some(src) = captured.iter().find(|b| {
+                b.block.sample_time <= h && h < b.block.sample_time + u64::from(b.block.frames)
+            }) else {
                 continue;
             };
             let pos = src.block.position_at(h - src.block.sample_time);
@@ -175,7 +174,10 @@ fn post_fx_and_post_fader_taps_are_recorded_aligned_by_pdc() {
     let gen_node = p.handle.add_node(Box::new(Timeline)).unwrap();
     let lat = p.handle.add_node(Box::new(Delay::new(100))).unwrap();
     // Source: the known signal through 100 samples of latency, to master.
-    let src = with_chain(track(tid(2), TrackKind::Audio, Some(tid(1))), &[gen_node, lat]);
+    let src = with_chain(
+        track(tid(2), TrackKind::Audio, Some(tid(1))),
+        &[gen_node, lat],
+    );
     let fx = consumer(tid(3), tid(2), InputTap::PostFx);
     let fader = consumer(tid(4), tid(2), InputTap::PostFader);
     // Its own chain latency is after the tap: the take is the tap at its input.
@@ -185,7 +187,11 @@ fn post_fx_and_post_fader_taps_are_recorded_aligned_by_pdc() {
     run(&mut p, 40);
     let captured = drain(&mut io);
     assert_eq!(captured.len(), 40);
-    assert!(captured.iter().all(|c| c.taps.len() == 2 && !c.block.taps_dropped));
+    assert!(
+        captured
+            .iter()
+            .all(|c| c.taps.len() == 2 && !c.block.taps_dropped)
+    );
     let n = 40 * BLOCK - 100;
     assert_eq!(check_aligned(&captured, tid(3), 100), n);
     assert_eq!(check_aligned(&captured, tid(4), 100), n);
@@ -198,7 +204,10 @@ fn pre_fx_tap_latency_is_the_sources_input_latency() {
     let gen_node = p.handle.add_node(Box::new(Timeline)).unwrap();
     let lat = p.handle.add_node(Box::new(Delay::new(300))).unwrap();
     // Feeder (300 samples of latency) → group (its own 50 samples after the tap point).
-    let feeder = with_chain(track(tid(5), TrackKind::Audio, Some(tid(2))), &[gen_node, lat]);
+    let feeder = with_chain(
+        track(tid(5), TrackKind::Audio, Some(tid(2))),
+        &[gen_node, lat],
+    );
     let lat2 = p.handle.add_node(Box::new(Delay::new(50))).unwrap();
     let group = with_chain(track(tid(2), TrackKind::Group, Some(tid(1))), &[lat2]);
     let pre = consumer(tid(3), tid(2), InputTap::PreFx);
@@ -311,6 +320,9 @@ fn tap_capture_never_allocates_even_with_full_rings() {
         buf.clear();
     }
     assert!(blocks > 0);
-    assert!(taps_dropped, "a full tap ring drops taps instead of blocking");
+    assert!(
+        taps_dropped,
+        "a full tap ring drops taps instead of blocking"
+    );
     assert_eq!(p.engine.leaked(), 0);
 }
