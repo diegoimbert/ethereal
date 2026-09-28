@@ -93,7 +93,8 @@ export function applyMediaRefEvent(e: Event): void {
 export async function refreshMissing(transport: EngineTransport): Promise<void> {
   try {
     const reply = await transport.send(cmd("MediaRef", { type: "ListMissing" }));
-    if (reply.type === "MissingMedia") useMediaRefs.setState({ missing: new Set(reply.media) });
+    // Merged: `Missing` events may have arrived meanwhile (`Resolved` removes entries).
+    if (reply.type === "MissingMedia") useMediaRefs.setState((s) => ({ missing: new Set([...s.missing, ...reply.media]) }));
   } catch {
     // Unsupported on an engine without media references: nothing is missing.
   }

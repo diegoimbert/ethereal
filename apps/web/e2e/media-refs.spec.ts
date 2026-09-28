@@ -60,14 +60,14 @@ test("a sample deleted from the project is reported missing and relinked", async
   await page.goto("/");
   await expect(playButton(page)).toBeVisible({ timeout: 30_000 });
   await newProject(page, "Missing samples");
-  const kick = sineWav(0.8, 110);
+  const kick = sineWav(4, 110);
   const chooser = page.waitForEvent("filechooser");
   await page.keyboard.press("ControlOrMeta+i");
   await (
     await chooser
   ).setFiles([
     { name: "Kick.wav", mimeType: "audio/wav", buffer: kick },
-    { name: "Pad.wav", mimeType: "audio/wav", buffer: sineWav(2, 330) },
+    { name: "Pad.wav", mimeType: "audio/wav", buffer: sineWav(4, 330) },
   ]);
   await expect.poll(async () => Object.keys((await project(page)).clips).length, { timeout: 20_000 }).toBe(2);
   await page.keyboard.press("ControlOrMeta+s");
@@ -102,7 +102,7 @@ test("a sample deleted from the project is reported missing and relinked", async
   await shot(page, "01-missing-clip");
 
   // The clip's menu offers Relink too.
-  await clipEl.click({ button: "right", position: { x: 20, y: 30 } });
+  await clipEl.locator(".eth-clip__title").click({ button: "right" });
   await expect(page.getByRole("menuitem", { name: "Relink Sample…" })).toBeVisible();
   await page.keyboard.press("Escape");
 

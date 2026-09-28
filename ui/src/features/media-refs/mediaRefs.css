@@ -34,10 +34,11 @@
 
 /* ── Notice ───────────────────────────────────────────────────────── */
 
-/* Floats at the bottom left of the window (the import status list is bottom center). */
+/* Floats at the bottom left of the timeline, clear of the rail and the track headers (the
+   import status list is bottom center). */
 .eth-media-refs__notice {
   position: fixed;
-  left: var(--eth-space-lg);
+  left: calc(var(--eth-size-rail-width) + var(--eth-size-track-header-width) + var(--eth-space-lg));
   bottom: var(--eth-space-2xl);
   z-index: var(--eth-z-popover);
   display: flex;
