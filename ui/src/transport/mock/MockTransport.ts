@@ -70,8 +70,9 @@
  * - No audio. Meters are synthesized from what "would" play (clips under the playhead,
  *   volume/pan/mute, sends, group/default routing); CPU load is
  *   fake. Library files only have metadata; peaks are synthesized deterministically.
+ * - Uploads (`Media::{BeginUpload, UploadChunk, CancelUpload}`, `MediaSource::Upload`) are
+ *   staged in memory (`roadmap/remote.ts`); `MediaSource::Path` replies `Unsupported`.
  * - Replies `Err { code: "Unsupported" }`: plugins (insert/editor/sandbox/reload),
- *   uploads (`Media::{BeginUpload, UploadChunk, CancelUpload}`, `MediaSource::Upload`),
  *   `Collab::*`, `Chat::*` and `PinnedNote::*` (base-62 stubs), `Slice::ToDrumRack`,
  *   `Warp::DetectTempo`, `Engine::SetAudioConfig`.
  * - `Recording::SetRecording` simulates recording with its live view (`roadmap/liveRecord.ts`).
@@ -130,7 +131,7 @@ import { MockPreview } from "./roadmap/mediaPreview";
 import type { MockHost } from "./roadmap/host";
 import { MockMidiLearn } from "./roadmap/midiLearn";
 import { MockLiveRecord } from "./roadmap/liveRecord";
-import { uploadCommand, uploadSource } from "./roadmap/remote";
+import { MockUploads } from "./roadmap/remote";
 // v0.2 (contracts-3) runtime simulations, one file per node.
 import { MockAnalysis } from "./roadmap/analysis";
 import { browserCommand } from "./roadmap/browserV2";
@@ -276,6 +277,7 @@ export class MockTransport implements EngineTransport {
   private readonly collab = new MockCollab(this.host);
   private readonly analysis = new MockAnalysis();
   private readonly preview = new MockPreview(this.host);
+  private readonly uploads = new MockUploads((event) => this.emit(event));
   private readonly liveRecord = new MockLiveRecord({
     ...this.host,
     position: () => this.position,
@@ -402,7 +404,10 @@ export class MockTransport implements EngineTransport {
 
   private execute(command: Command, gesture: GestureId | null): ReplyValue {
     const isEndGesture = command.domain === "Edit" && command.command.type === "EndGesture";
-    if (!isEndGesture && gesture !== this.openGesture) this.openGesture = null;
+    // Upload chunks edit nothing: like the engine, they leave an open gesture open (an
+    // upload-then-import-with-clip is one undo step).
+    const isUpload = command.domain === "Media" && ["BeginUpload", "UploadChunk", "CancelUpload"].includes(command.command.type);
+    if (!isEndGesture && !isUpload && gesture !== this.openGesture) this.openGesture = null;
 
     // Project commands first: `Rename` is a document edit only for the current project.
     if (command.domain === "Project") return this.projectCommand(command.command, gesture);
@@ -847,7 +852,7 @@ export class MockTransport implements EngineTransport {
       case "BeginUpload":
       case "UploadChunk":
       case "CancelUpload":
-        return uploadCommand(c);
+        return this.uploads.command(c);
     }
   }
 
@@ -872,7 +877,8 @@ export class MockTransport implements EngineTransport {
   private checkSource(source: MediaSource): MediaRef | null {
     switch (source.type) {
       case "Upload":
-        return uploadSource(source.upload);
+        this.uploads.check(source.upload);
+        return null;
       case "Path":
         // v0.2 (`file-import`): OS paths exist only on the desktop engine.
         return fail("Unsupported", "importing OS files by path needs the desktop engine");
@@ -895,6 +901,12 @@ export class MockTransport implements EngineTransport {
   /** The `MediaRef` an import of `source` creates ("copying" the file into `media/`). */
   private resolveImport(id: string, source: MediaSource): MediaRef {
     if (source.type === "Project") fail("InvalidArgument", "media is already in the project");
+    if (source.type === "Upload") {
+      // `file-import`: a completed upload, copied into the project.
+      const u = this.uploads.take(source.upload);
+      const dup = Object.values(this.project.media).find((m) => m.hash === u.hash);
+      return { ...u, id, file: dup?.file ?? `media/${id}-${u.name}`, location: { type: "Project" } };
+    }
     const existing = this.checkSource(source);
     if (existing) return { ...existing, id };
     const path = normalize((source as { path: string }).path);

@@ -25,6 +25,7 @@ import { AudioSettingsDialog, openAudioSettings } from "@/features/audio-setting
 import { MarkerLane } from "@/features/clip-editing";
 import { PresenceBar } from "@/features/collab";
 import { ExportDialog } from "@/features/export";
+import { ImportRoot } from "@/features/import";
 import { ProjectMenu } from "@/features/project";
 import { RecordingControls } from "@/features/recording";
 import { ConnectDialog } from "@/features/remote";
@@ -226,6 +227,7 @@ export function App() {
       <DrawerShortcut />
       <CommandPalette />
       <AudioSettingsDialog />
+      <ImportRoot />
       <ContextMenuHost />
     </div>
   );
