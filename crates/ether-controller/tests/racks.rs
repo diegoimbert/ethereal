@@ -443,3 +443,42 @@ fn midi_racks_always_compile_and_racks_survive_save_and_reopen() {
     let td = graph_track(&mut h, t);
     assert_eq!(td.chain_racks[0].chains[0].chain.len(), 1);
 }
+
+#[test]
+fn duplicating_a_track_copies_its_racks_and_modulation() {
+    let mut h = Harness::with_project();
+    let t = track(&mut h, TrackKind::Midi);
+    let rack = insert(&mut h, t, BuiltinDeviceType::InstrumentRack);
+    let c = add_chain(&mut h, rack);
+    let synth = chain_insert(&mut h, c, BuiltinDeviceType::Synth);
+    let map: ModMappingId = h.id();
+    h.ok(Command::Modulation(ModulationCommand::Map {
+        id: map,
+        source: ModSource::Macro { rack, index: 0 },
+        device: synth,
+        param: ParamId(1),
+        depth: 0.5,
+    }));
+    let copy: TrackId = h.id();
+    h.ok(Command::Track(TrackCommand::Duplicate {
+        id: t,
+        new_id: copy,
+    }));
+    let p = h.project();
+    let racks = p.devices_of(copy);
+    assert_eq!(racks.len(), 1);
+    let chains = p.chains_of(racks[0].id);
+    assert_eq!(chains.len(), 1);
+    let devs = p.chain_devices_of(chains[0].id);
+    assert_eq!(devs.len(), 1);
+    assert_eq!(devs[0].track, copy);
+    let maps = p.mappings_to(devs[0].id);
+    assert_eq!(maps.len(), 1);
+    assert_eq!(
+        maps[0].source,
+        ModSource::Macro {
+            rack: racks[0].id,
+            index: 0
+        }
+    );
+}

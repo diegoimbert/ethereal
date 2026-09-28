@@ -613,9 +613,7 @@ pub(crate) fn copy_rack(ctx: &mut DocCtx, src: DeviceId, dst: DeviceId) -> CmdRe
 
 /// Track duplication: `devices` maps the original track's devices to their copies (already
 /// inserted). Copies every copied rack's chains with their devices (added to `devices`),
-/// then the modulators and mappings among all copied devices. (Called from
-/// `doc/tracks.rs` once the BCR wiring lands.)
-#[allow(dead_code)]
+/// then the modulators and mappings among all copied devices.
 pub(crate) fn copy_for_track(
     ctx: &mut DocCtx,
     devices: &mut BTreeMap<DeviceId, DeviceId>,

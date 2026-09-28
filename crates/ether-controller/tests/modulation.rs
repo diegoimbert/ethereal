@@ -385,3 +385,79 @@ fn keytrack_and_velocity_are_listed() {
         other => panic!("{other:?}"),
     }
 }
+
+#[test]
+fn modulator_param_drags_take_the_fast_path() {
+    let mut h = Harness::with_project();
+    let t = track(&mut h, TrackKind::Audio);
+    let d = insert(&mut h, t, BuiltinDeviceType::Delay);
+    let lfo = add_modulator(&mut h, d, ModulatorKind::Lfo);
+    h.tick();
+    let publishes = h.ctl.bridge.publishes();
+    modulation(
+        &mut h,
+        ModulationCommand::SetModulatorParam {
+            modulator: lfo,
+            param: ParamId(1),
+            value: 7.5,
+        },
+    );
+    h.tick();
+    assert_eq!(h.ctl.bridge.publishes(), publishes, "no republish");
+    assert!(h.ctl.bridge.param_changes().iter().any(|c| c.target
+        == ether_core::ParamTarget::Modulator {
+            modulator: lfo,
+            param: ParamId(1)
+        }
+        && c.value == 7.5));
+}
+
+#[test]
+fn plugin_echoes_of_modulated_params_are_ignored() {
+    use ether_core::plugin::PluginNotification;
+    use ether_core::protocol::devices::DeviceCategory;
+    use std::collections::BTreeMap;
+    let bridge = FakeBridge {
+        plugins: Some(BTreeMap::from([(
+            "com.test.Verb".to_string(),
+            plugin_descriptor("Verb", DeviceCategory::AudioEffect),
+        )])),
+        ..Default::default()
+    };
+    let mut h = Harness::with(bridge, Default::default(), Default::default());
+    h.create_project("Plugins");
+    let t = track(&mut h, TrackKind::Audio);
+    let d: DeviceId = h.id();
+    h.ok(Command::Device(DeviceCommand::Insert {
+        id: d,
+        track: t,
+        device: DeviceSpec::Plugin {
+            plugin_id: "com.test.Verb".into(),
+            sandboxed: None,
+            format: None,
+        },
+        before: None,
+    }));
+    let lfo = add_modulator(&mut h, d, ModulatorKind::Lfo);
+    ok(&map(
+        &mut h,
+        ModSource::Modulator { modulator: lfo },
+        d,
+        ParamId(7),
+        0.5,
+    ));
+    h.tick();
+    let base = h.project().devices[&d].params.get(&ParamId(7)).copied();
+    h.ctl.bridge.plugin_notes.push((
+        d,
+        PluginNotification::ParamEdited {
+            param: ParamId(7),
+            value: 91.0,
+        },
+    ));
+    h.tick();
+    assert_eq!(
+        h.project().devices[&d].params.get(&ParamId(7)).copied(),
+        base
+    );
+}
