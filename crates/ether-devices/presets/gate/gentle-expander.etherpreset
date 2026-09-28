@@ -1,0 +1,35 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "Gentle Expander",
+    "device": {
+      "type": "Builtin",
+      "device": "Gate"
+    },
+    "meta": {
+      "tags": [
+        "expander",
+        "subtle",
+        "vocal"
+      ],
+      "author": "Ethereal",
+      "description": "2:1 downward expander that lowers breaths and room noise between phrases by up to 20 dB."
+    },
+    "params": {
+      "0": -45.0,
+      "1": 3.0,
+      "2": -20.0,
+      "3": 2.0,
+      "4": 1.0,
+      "5": 2.0,
+      "6": 30.0,
+      "7": 250.0,
+      "8": 0.0,
+      "9": 20.0,
+      "10": 0.0,
+      "11": 0.0
+    }
+  }
+}

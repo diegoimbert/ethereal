@@ -1,0 +1,30 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "Soft Attack",
+    "device": {
+      "type": "Builtin",
+      "device": "TransientShaper"
+    },
+    "meta": {
+      "tags": [
+        "pluck",
+        "smooth",
+        "soft"
+      ],
+      "author": "Ethereal",
+      "description": "Rounds off sharp attacks and lifts the body: tames clicky plucks, picked bass or a harsh loop."
+    },
+    "params": {
+      "0": -60.0,
+      "1": 20.0,
+      "2": 15.0,
+      "3": 100.0,
+      "4": 0.0,
+      "5": 1.0,
+      "6": 100.0
+    }
+  }
+}
