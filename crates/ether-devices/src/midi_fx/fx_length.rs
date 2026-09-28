@@ -4,9 +4,9 @@
 //! note-on's velocity). Output notes use generated ids.
 
 use ether_core::protocol::model::BuiltinDeviceType;
-use ether_core::{EventBuffer, EventKind, ProcessEvent};
+use ether_core::{EventBuffer, EventKind};
 
-use super::core::{MAX_NOTES, MidiFx, Out, Params, Timing, midi_fx_node};
+use super::core::{MAX_NOTES, MidiFx, Out, Params, Timing, midi_fx_node, thru};
 use super::note_length as id;
 use crate::contract::SYNC_RATE_BEATS;
 
@@ -20,7 +20,7 @@ struct Held {
     velocity: f32,
 }
 
-pub(crate) struct NoteLength {
+pub struct NoteLength {
     params: Params,
     out: Out,
     clock: u64,
@@ -40,7 +40,7 @@ impl NoteLength {
     }
 
     /// Output note length in samples (at least one).
-    pub fn length(&self, t: &Timing) -> u64 {
+    pub(crate) fn length(&self, t: &Timing) -> u64 {
         let p = &self.params;
         let gate = p.get(id::GATE) / 100.0;
         let len = if p.index(id::MODE) == 1 {
@@ -133,7 +133,7 @@ impl MidiFx for NoteLength {
                 }
                 // Already running on its own length.
                 Some(_) => {}
-                None => out.push(ProcessEvent { offset, kind }),
+                None => thru(out, offset, kind),
             },
             EventKind::NoteChoke { note_id, .. } => match self.take(note_id) {
                 Some(h) if h.id != 0 => {
@@ -149,12 +149,9 @@ impl MidiFx for NoteLength {
                     );
                 }
                 Some(_) => {}
-                None => out.push(ProcessEvent { offset, kind }),
+                None => thru(out, offset, kind),
             },
-            other => out.push(ProcessEvent {
-                offset,
-                kind: other,
-            }),
+            other => thru(out, offset, other),
         }
     }
 }

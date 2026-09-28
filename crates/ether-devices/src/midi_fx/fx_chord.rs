@@ -4,10 +4,10 @@
 //! shift passes through untouched; chord notes use generated ids.
 
 use ether_core::protocol::model::BuiltinDeviceType;
-use ether_core::{EventBuffer, EventKind, ProcessEvent};
+use ether_core::{EventBuffer, EventKind};
 
 use super::chord as id;
-use super::core::{MAX_NOTES, MidiFx, Out, Params, Timing, midi_fx_node};
+use super::core::{MAX_NOTES, MidiFx, Out, Params, Timing, midi_fx_node, thru};
 
 /// Shifts (and velocities) per chord.
 const SHIFTS: usize = 6;
@@ -22,7 +22,7 @@ struct Voice {
     on_at: u64,
 }
 
-pub(crate) struct Chord {
+pub struct Chord {
     params: Params,
     out: Out,
     clock: u64,
@@ -46,10 +46,12 @@ impl Chord {
         out[0] = (key, velocity);
         let mut n = 1;
         for i in 0..SHIFTS {
-            let shift = self.params.int(ether_core::protocol::model::ParamId(id::SHIFT_1.0 + i as u32));
-            let pct = self
-                .params
-                .get(ether_core::protocol::model::ParamId(id::VELOCITY_1.0 + i as u32));
+            let shift = self.params.int(ether_core::protocol::model::ParamId(
+                id::SHIFT_1.0 + i as u32,
+            ));
+            let pct = self.params.get(ether_core::protocol::model::ParamId(
+                id::VELOCITY_1.0 + i as u32,
+            ));
             let k = i32::from(key) + shift;
             if shift == 0 || pct <= 0.0 || !(0..=127).contains(&k) {
                 continue;
@@ -77,7 +79,14 @@ impl Chord {
         t.ms(total * x.powf(4f64.powf(-tension)))
     }
 
-    fn release(&mut self, out: &mut EventBuffer, t: &Timing, offset: u32, input: u32, off: EventKind) -> bool {
+    fn release(
+        &mut self,
+        out: &mut EventBuffer,
+        t: &Timing,
+        offset: u32,
+        input: u32,
+        off: EventKind,
+    ) -> bool {
         let mut found = false;
         let mut i = 0;
         while i < self.voices.len() {
@@ -144,7 +153,7 @@ impl MidiFx for Chord {
                 let n = self.notes(key, velocity, &mut notes);
                 if n == 1 {
                     // No chord: pass through.
-                    out.push(ProcessEvent { offset, kind });
+                    thru(out, offset, kind);
                     return;
                 }
                 // A re-used input id releases its previous chord first.
@@ -189,13 +198,10 @@ impl MidiFx for Chord {
             }
             EventKind::NoteOff { note_id, .. } | EventKind::NoteChoke { note_id, .. } => {
                 if !self.release(out, t, offset, note_id, kind) {
-                    out.push(ProcessEvent { offset, kind });
+                    thru(out, offset, kind);
                 }
             }
-            other => out.push(ProcessEvent {
-                offset,
-                kind: other,
-            }),
+            other => thru(out, offset, other),
         }
     }
 }

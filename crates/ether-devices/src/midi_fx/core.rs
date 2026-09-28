@@ -3,12 +3,13 @@
 //! timing and deterministic randomness. Everything is allocated in `new`; the audio thread
 //! only pushes into pre-reserved vectors (never past their capacity).
 
+use ether_core::node::NodeData;
 use ether_core::protocol::devices::DeviceDescriptor;
 use ether_core::protocol::model::{MusicalScale, ParamId, ScaleKind};
-use ether_core::{EventBuffer, EventKind, NodeData, ProcessContext, ProcessEvent};
+use ether_core::{EventBuffer, EventKind, ProcessContext, ProcessEvent};
 
 /// Generated note ids: `GENERATED | n` (CONTRACTS.md §12.4.4).
-pub(crate) const GENERATED: u32 = 0x8000_0000;
+pub const GENERATED: u32 = 0x8000_0000;
 /// Scheduled events (delayed note-ons, note-offs) per instance.
 pub(crate) const MAX_SCHEDULED: usize = 1024;
 /// Generated notes sounding at once (flushed with note-offs on stop/reset).
@@ -66,7 +67,9 @@ impl Params {
         self.values[i] = if value.is_finite() {
             let v = value.clamp(lo, hi);
             match p.step {
-                Some(step) if step > 0.0 => (p.min + ((v - p.min) / step).round() * step).clamp(lo, hi),
+                Some(step) if step > 0.0 => {
+                    (p.min + ((v - p.min) / step).round() * step).clamp(lo, hi)
+                }
                 _ => v,
             }
         } else {
@@ -94,6 +97,11 @@ pub(crate) struct Out {
     queue: Vec<Scheduled>,
     active: Vec<Active>,
     next_id: u32,
+}
+
+/// Forward an event untouched (a full buffer drops it, like every `EventBuffer` push).
+pub(crate) fn thru(out: &mut EventBuffer, offset: u32, kind: EventKind) {
+    out.push(ProcessEvent { offset, kind });
 }
 
 pub(crate) fn note_id(kind: &EventKind) -> Option<u32> {
@@ -165,9 +173,8 @@ impl Out {
     /// Emit `kind` at absolute time `at` (now when `at <= now`, else scheduled). A note-off
     /// that doesn't fit in the queue is sent now rather than lost.
     pub fn at(&mut self, out: &mut EventBuffer, t: &Timing, now: u32, at: u64, kind: EventKind) {
-        if at <= t.abs(now) {
-            self.emit(out, now, kind);
-        } else if !self.schedule(at, kind) && !matches!(kind, EventKind::NoteOn { .. }) {
+        let due = at <= t.abs(now);
+        if due || (!self.schedule(at, kind) && !matches!(kind, EventKind::NoteOn { .. })) {
             self.emit(out, now, kind);
         }
     }
@@ -177,7 +184,9 @@ impl Out {
         let n = self.queue.partition_point(|s| s.at < until);
         for i in 0..n {
             let s = self.queue[i];
-            let offset = s.at.saturating_sub(t.base).min(u64::from(t.frames.max(1) - 1));
+            let offset =
+                s.at.saturating_sub(t.base)
+                    .min(u64::from(t.frames.max(1) - 1));
             self.emit(out, offset as u32, s.kind);
         }
         self.queue.drain(..n);
@@ -208,10 +217,6 @@ impl Out {
                 },
             });
         }
-    }
-
-    pub fn is_idle(&self) -> bool {
-        self.queue.is_empty() && self.active.is_empty()
     }
 }
 
@@ -465,6 +470,12 @@ pub(crate) fn vel01(v: f64) -> f32 {
 /// it takes the pushed `MusicalScale`).
 macro_rules! midi_fx_node {
     ($ty:ty $(, $scale:ident)?) => {
+        impl Default for $ty {
+            fn default() -> Self {
+                Self::new()
+            }
+        }
+
         impl ether_core::Node for $ty {
             fn prepare(&mut self, _config: &ether_core::PrepareConfig) {}
             fn reset(&mut self) {
@@ -482,7 +493,7 @@ macro_rules! midi_fx_node {
                 (0, 0)
             }
             $(
-                fn set_data(&mut self, data: ether_core::NodeData) -> Option<ether_core::NodeData> {
+                fn set_data(&mut self, data: ether_core::node::NodeData) -> Option<ether_core::node::NodeData> {
                     $crate::midi_fx::core::take_scale(data, &mut self.$scale)
                 }
             )?

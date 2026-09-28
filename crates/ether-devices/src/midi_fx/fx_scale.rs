@@ -3,14 +3,14 @@
 //! note ids pass through; note-offs use the key their note-on got.
 
 use ether_core::protocol::model::{BuiltinDeviceType, MusicalScale};
-use ether_core::{EventBuffer, EventKind, ProcessEvent};
+use ether_core::{EventBuffer, EventKind};
 
 use super::core::{
-    Direction, MAX_NOTES, MidiFx, Out, Params, SCALE_KINDS, Timing, midi_fx_node, quantize,
+    Direction, MAX_NOTES, MidiFx, Out, Params, SCALE_KINDS, Timing, midi_fx_node, quantize, thru,
 };
 use super::scale_quantize as id;
 
-pub(crate) struct ScaleQuantize {
+pub struct ScaleQuantize {
     params: Params,
     out: Out,
     clock: u64,
@@ -122,7 +122,7 @@ impl MidiFx for ScaleQuantize {
             },
             other => other,
         };
-        out.push(ProcessEvent { offset, kind });
+        thru(out, offset, kind);
     }
 }
 

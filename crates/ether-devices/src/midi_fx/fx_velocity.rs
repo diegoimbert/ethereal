@@ -3,12 +3,12 @@
 //! `Out High`. No timing change: note ids pass through.
 
 use ether_core::protocol::model::BuiltinDeviceType;
-use ether_core::{EventBuffer, EventKind, ProcessEvent};
+use ether_core::{EventBuffer, EventKind};
 
-use super::core::{MAX_NOTES, MidiFx, Out, Params, Timing, hash, midi_fx_node, unit, vel01};
+use super::core::{MAX_NOTES, MidiFx, Out, Params, Timing, hash, midi_fx_node, thru, unit, vel01};
 use super::velocity as id;
 
-pub(crate) struct Velocity {
+pub struct Velocity {
     params: Params,
     out: Out,
     clock: u64,
@@ -134,7 +134,7 @@ impl MidiFx for Velocity {
             }
             other => other,
         };
-        out.push(ProcessEvent { offset, kind });
+        thru(out, offset, kind);
     }
 }
 

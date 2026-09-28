@@ -29,6 +29,12 @@ const IMPLEMENTED: &[BuiltinDeviceType] = &[
     BuiltinDeviceType::Gate,
     BuiltinDeviceType::MultibandCompressor,
     BuiltinDeviceType::TransientShaper,
+    BuiltinDeviceType::Arpeggiator,
+    BuiltinDeviceType::Chord,
+    BuiltinDeviceType::ScaleQuantize,
+    BuiltinDeviceType::NoteLength,
+    BuiltinDeviceType::Velocity,
+    BuiltinDeviceType::Randomizer,
 ];
 
 const GROUPS: &[(&str, &[BuiltinDeviceType])] = &[

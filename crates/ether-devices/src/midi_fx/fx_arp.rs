@@ -13,10 +13,10 @@
 //!   (release, bypass, removal, stop and locate included).
 
 use ether_core::protocol::model::{BuiltinDeviceType, ParamId};
-use ether_core::{EventBuffer, EventKind, ProcessEvent};
+use ether_core::{EventBuffer, EventKind};
 
 use super::arpeggiator as id;
-use super::core::{MidiFx, Out, Params, Timing, hash, midi_fx_node, unit};
+use super::core::{MidiFx, Out, Params, Timing, hash, midi_fx_node, thru, unit};
 use crate::contract::SYNC_RATE_BEATS;
 
 /// Held keys (and latched ones).
@@ -61,7 +61,7 @@ const STYLES: [Style; 9] = [
     Style::Chord,
 ];
 
-pub(crate) struct Arpeggiator {
+pub struct Arpeggiator {
     params: Params,
     out: Out,
     clock: u64,
@@ -77,6 +77,8 @@ pub(crate) struct Arpeggiator {
     played: u64,
     /// Free-running clock (transport stopped): beat at the block start.
     free_beat: f64,
+    /// Device-clock sample of the last step (a step on a block boundary never plays twice).
+    last_at: Option<u64>,
     /// Scratch: the current pattern (key, velocity, channel) and a sort buffer.
     pattern: Vec<(u8, f32, u8)>,
     sorted: Vec<Held>,
@@ -95,6 +97,7 @@ impl Arpeggiator {
             step: 0,
             played: 0,
             free_beat: 0.0,
+            last_at: None,
             pattern: Vec::with_capacity(MAX_PATTERN),
             sorted: Vec::with_capacity(MAX_HELD),
         }
@@ -120,7 +123,8 @@ impl Arpeggiator {
         }
         let octaves = self.params.int(id::OCTAVES).clamp(1, MAX_OCTAVES as i32);
         let fixed = self.params.index(id::VELOCITY_MODE) == 1;
-        let fixed_vel = (self.params.get(id::FIXED_VELOCITY) / 127.0).clamp(1.0 / 127.0, 1.0) as f32;
+        let fixed_vel =
+            (self.params.get(id::FIXED_VELOCITY) / 127.0).clamp(1.0 / 127.0, 1.0) as f32;
         self.pattern.clear();
         for o in 0..octaves {
             for h in &self.sorted {
@@ -226,6 +230,7 @@ impl Arpeggiator {
         if fresh {
             self.notes.clear();
             self.step = 0;
+            self.last_at = None;
             if !t.playing {
                 // Restart the free clock so the first step plays now.
                 self.free_beat = -f64::from(offset) * t.bps;
@@ -305,13 +310,10 @@ impl MidiFx for Arpeggiator {
             EventKind::NoteOff { note_id, .. } | EventKind::NoteChoke { note_id, .. } => {
                 if !self.release(note_id) {
                     // Not ours (held before the arpeggiator was inserted).
-                    out.push(ProcessEvent { offset, kind });
+                    thru(out, offset, kind);
                 }
             }
-            other => out.push(ProcessEvent {
-                offset,
-                kind: other,
-            }),
+            other => thru(out, offset, other),
         }
     }
 
@@ -327,18 +329,19 @@ impl MidiFx for Arpeggiator {
         let mut k = (ba / rate).floor() as i64 - 1;
         loop {
             let tk = k as f64 * rate + if k.rem_euclid(2) == 1 { swing } else { 0.0 };
+            // Swing < one step, so step times increase with `k`.
             if tk >= bb - EPS {
-                // Odd steps are late: the next even one may still be earlier.
-                if k.rem_euclid(2) == 1 || (k as f64 + 1.0) * rate >= bb - EPS {
-                    break;
-                }
+                break;
             }
-            if tk >= ba - EPS && tk < bb - EPS {
-                let o = from + ((tk - ba) / t.bps).ceil().max(0.0) as u32;
+            if tk >= ba - EPS {
+                // First sample at or after the step (a hair of slack for rounding).
+                let o = from + ((tk - ba) / t.bps - 1e-6).ceil().max(0.0) as u32;
                 let o = o.min(to - 1);
-                self.play_step(out, t, o, tk);
-                if self.notes.is_empty() {
-                    break;
+                let at = t.abs(o);
+                // Rounding at a block boundary can see the same step in both blocks.
+                if self.last_at.is_none_or(|last| at > last + 1) {
+                    self.last_at = Some(at);
+                    self.play_step(out, t, o, tk);
                 }
             }
             k += 1;

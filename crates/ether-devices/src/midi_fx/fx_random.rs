@@ -6,10 +6,10 @@
 //! whose timing changes use generated ids.
 
 use ether_core::protocol::model::{BuiltinDeviceType, MusicalScale};
-use ether_core::{EventBuffer, EventKind, ProcessEvent};
+use ether_core::{EventBuffer, EventKind};
 
 use super::core::{
-    Direction, MAX_NOTES, MidiFx, Out, Params, Timing, hash, midi_fx_node, quantize, unit,
+    Direction, MAX_NOTES, MidiFx, Out, Params, Timing, hash, midi_fx_node, quantize, thru, unit,
 };
 use super::randomizer as id;
 
@@ -26,7 +26,7 @@ struct Voice {
     stretch: f32,
 }
 
-pub(crate) struct Randomizer {
+pub struct Randomizer {
     params: Params,
     out: Out,
     clock: u64,
@@ -64,11 +64,7 @@ impl Randomizer {
         (note_id, channel, key, velocity): (u32, u8, u8, f32),
     ) {
         let p = &self.params;
-        let h = hash(
-            p.int(id::SEED) as u64,
-            t.stamp(offset),
-            u64::from(key),
-        );
+        let h = hash(p.int(id::SEED) as u64, t.stamp(offset), u64::from(key));
         let range = p.int(id::PITCH_RANGE);
         let mut k = i32::from(key);
         if range > 0 && unit(h, 0) * 100.0 < p.get(id::CHANCE) {
@@ -178,9 +174,8 @@ impl MidiFx for Randomizer {
                 Some(v) => {
                     let now = t.abs(offset);
                     let length = now.saturating_sub(v.in_at) as f64;
-                    let extra =
-                        (length * f64::from(v.stretch) * self.params.get(id::LENGTH_RANDOM) / 100.0)
-                            as u64;
+                    let extra = (length * f64::from(v.stretch) * self.params.get(id::LENGTH_RANDOM)
+                        / 100.0) as u64;
                     let at = (now + (v.on_at - v.in_at) + extra).max(v.on_at);
                     self.out.at(
                         out,
@@ -195,7 +190,7 @@ impl MidiFx for Randomizer {
                         },
                     );
                 }
-                None => out.push(ProcessEvent { offset, kind }),
+                None => thru(out, offset, kind),
             },
             EventKind::NoteChoke { note_id, .. } => match self.take(note_id) {
                 Some(v) => {
@@ -211,12 +206,9 @@ impl MidiFx for Randomizer {
                         );
                     }
                 }
-                None => out.push(ProcessEvent { offset, kind }),
+                None => thru(out, offset, kind),
             },
-            other => out.push(ProcessEvent {
-                offset,
-                kind: other,
-            }),
+            other => thru(out, offset, other),
         }
     }
 }
