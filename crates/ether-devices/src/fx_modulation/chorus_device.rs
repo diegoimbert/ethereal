@@ -18,7 +18,9 @@ use ether_core::{
 };
 
 use super::chorus as p;
-use super::shared::{Glide, Lfo, LfoStep, ModLine, OnePoleLp, Params, Ramp, Rate, input, ms};
+use super::shared::{
+    DELAY_SLEW, Glide, Lfo, LfoStep, ModLine, OnePoleLp, Params, Ramp, Rate, input, ms, soft_clip,
+};
 use crate::util::{self, db_to_amp};
 
 const N: usize = p::COUNT;
@@ -87,6 +89,9 @@ impl Chorus {
             g.set_time(25.0, self.sample_rate);
         }
         self.cutoff.set_time(10.0, self.sample_rate);
+        // `delay_ms` is in ms: DELAY_SLEW samples per sample.
+        self.delay_ms
+            .set_slew(DELAY_SLEW * 1000.0 / self.sample_rate);
         for id in 0..N as u32 {
             self.sync_param(ParamId(id), false);
         }
@@ -160,17 +165,20 @@ impl Chorus {
             let excursion = depth * ms((0.8 * base_ms).min(MAX_EXCURSION_MS), sr);
             for ch in 0..channels {
                 let dry = input(inputs, ch, i);
-                self.lines[ch].push(dry + fbk * self.fb[ch]);
+                self.lines[ch].push(dry + fbk * soft_clip(self.fb[ch]));
                 // Right channel LFOs lag by up to a quarter cycle.
-                let offset = if ch == 1 { 0.25 * f64::from(spread) } else { 0.0 };
+                let offset = if ch == 1 {
+                    0.25 * f64::from(spread)
+                } else {
+                    0.0
+                };
                 let mut sum = 0.0;
                 for v in 0..voices {
                     let ph = self.lfo.phase() + v as f64 * f64::from(inv_v) + offset;
                     let m = match mode {
                         Mode::Ensemble => {
                             let fast = self.fast.phase() + v as f64 / 3.0 + offset;
-                            (1.0 - ENSEMBLE_FAST_SHARE) * sin(ph)
-                                + ENSEMBLE_FAST_SHARE * sin(fast)
+                            (1.0 - ENSEMBLE_FAST_SHARE) * sin(ph) + ENSEMBLE_FAST_SHARE * sin(fast)
                         }
                         _ => sin(ph),
                     };

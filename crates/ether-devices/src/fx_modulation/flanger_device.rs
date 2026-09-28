@@ -17,7 +17,9 @@ use ether_core::{
 };
 
 use super::flanger as p;
-use super::shared::{Glide, Lfo, LfoStep, ModLine, Params, Ramp, Rate, input, ms};
+use super::shared::{
+    DELAY_SLEW, Glide, Lfo, LfoStep, ModLine, Params, Ramp, Rate, input, ms, soft_clip,
+};
 use crate::util::{self, db_to_amp};
 
 const N: usize = p::COUNT;
@@ -82,6 +84,7 @@ impl Flanger {
             g.set_time(20.0, sr);
         }
         self.tz.set_time(TZ_FADE_MS / 3.0, sr);
+        self.delay_ms.set_slew(DELAY_SLEW * 1000.0 / sr);
         for id in 0..N as u32 {
             self.sync_param(ParamId(id), false);
         }
@@ -118,7 +121,8 @@ impl Flanger {
         let rate = Rate::of(
             self.params.on(p::SYNC),
             self.params.get(p::RATE),
-            self.params.index(p::SYNC_RATE, crate::contract::SYNC_RATES.len()),
+            self.params
+                .index(p::SYNC_RATE, crate::contract::SYNC_RATES.len()),
         );
         let step = LfoStep::new(rate, ctx.transport, sr);
         let tz_len = self.tz_samples as f32;
@@ -139,7 +143,7 @@ impl Flanger {
                 let ph = self.lfo.phase() + if ch == 1 { f64::from(stereo) } else { 0.0 };
                 let m = (std::f64::consts::TAU * ph).sin() as f32;
                 let x = input(inputs, ch, i);
-                self.wet[ch].push(x + fb * self.last[ch]);
+                self.wet[ch].push(x + fb * soft_clip(self.last[ch]));
                 self.dry[ch].push(x);
                 let (wet, dry) = if tz <= 0.0 {
                     (self.wet[ch].read(base * (1.0 + depth * m)), x)
@@ -150,10 +154,7 @@ impl Flanger {
                         (tz_wet, tz_dry)
                     } else {
                         let n_wet = self.wet[ch].read(base * (1.0 + depth * m));
-                        (
-                            n_wet + (tz_wet - n_wet) * tz,
-                            x + (tz_dry - x) * tz,
-                        )
+                        (n_wet + (tz_wet - n_wet) * tz, x + (tz_dry - x) * tz)
                     }
                 };
                 self.last[ch] = crate::dsp::flush32(wet);

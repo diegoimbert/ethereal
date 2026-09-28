@@ -99,7 +99,8 @@ impl Tremolo {
         let rate = Rate::of(
             self.params.on(p::SYNC),
             self.params.get(p::RATE),
-            self.params.index(p::SYNC_RATE, crate::contract::SYNC_RATES.len()),
+            self.params
+                .index(p::SYNC_RATE, crate::contract::SYNC_RATES.len()),
         );
         let step = LfoStep::new(rate, ctx.transport, self.sample_rate);
         let auto_pan = self.params.index(p::MODE, 2) == 1;

@@ -102,6 +102,8 @@ pub(super) struct Glide {
     current: f32,
     target: f32,
     coef: f32,
+    /// Largest change per sample (slew limit).
+    max_step: f32,
 }
 
 impl Glide {
@@ -110,7 +112,14 @@ impl Glide {
             current: value,
             target: value,
             coef: 0.0,
+            max_step: f32::INFINITY,
         }
+    }
+
+    /// Limit the change per sample to `max_step` (a delay time's slope is the read speed
+    /// deviation: bounding it bounds the pitch bend of a big jump).
+    pub(super) fn set_slew(&mut self, max_step: f32) {
+        self.max_step = max_step;
     }
 
     /// Non-RT (or RT, cheap). Time constant `ms` at `sample_rate`.
@@ -131,7 +140,8 @@ impl Glide {
         self.current = if d.abs() < 1e-9 * self.target.abs().max(1e-6) {
             self.target
         } else {
-            self.target + d * self.coef
+            let step = (d * self.coef - d).clamp(-self.max_step, self.max_step);
+            self.current + step
         };
         self.current
     }
@@ -373,6 +383,23 @@ impl OnePoleLp {
         self.s = 0.0;
     }
 }
+
+/// Soft limiter for feedback paths: identity up to ±1, then bends smoothly (continuous
+/// slope) toward ±2. Keeps resonant feedback bounded on hot input without touching normal
+/// levels.
+#[inline]
+pub(super) fn soft_clip(x: f32) -> f32 {
+    let a = x.abs();
+    if a <= 1.0 {
+        x
+    } else {
+        (2.0 - 1.0 / a).copysign(x)
+    }
+}
+
+/// Largest read-speed deviation of a gliding base delay (8 %: a big `Delay` jump bends the
+/// pitch by at most ~1.3 semitones instead of clicking).
+pub(super) const DELAY_SLEW: f32 = 0.08;
 
 /// Input sample of channel `ch` (mono input feeds both channels).
 #[inline]

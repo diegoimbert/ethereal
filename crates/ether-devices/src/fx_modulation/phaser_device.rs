@@ -11,7 +11,7 @@ use ether_core::{
 };
 
 use super::phaser as p;
-use super::shared::{Glide, Lfo, LfoStep, Params, Ramp, Rate, input};
+use super::shared::{Glide, Lfo, LfoStep, Params, Ramp, Rate, input, soft_clip};
 use crate::util::{self, db_to_amp};
 
 const N: usize = p::COUNT;
@@ -98,7 +98,8 @@ impl Phaser {
         let rate = Rate::of(
             self.params.on(p::SYNC),
             self.params.get(p::RATE),
-            self.params.index(p::SYNC_RATE, crate::contract::SYNC_RATES.len()),
+            self.params
+                .index(p::SYNC_RATE, crate::contract::SYNC_RATES.len()),
         );
         let step = LfoStep::new(rate, ctx.transport, sr);
         let stages = STAGES[self.params.index(p::STAGES, STAGES.len())];
@@ -121,7 +122,7 @@ impl Phaser {
                 let t = (pi_sr * hz).tan();
                 let a = (t - 1.0) / (t + 1.0);
                 let dry = input(inputs, ch, i);
-                let mut x = dry + fb * self.last[ch];
+                let mut x = dry + fb * soft_clip(self.last[ch]);
                 for z in &mut self.state[ch][..stages] {
                     let y = a * x + *z;
                     *z = crate::dsp::flush32(x - a * y);
