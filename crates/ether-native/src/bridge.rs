@@ -89,6 +89,8 @@ pub struct NativeBridge {
     offline_seq: u64,
     /// "Listen on <peer>" native sender (`stream-host`; [`crate::stream`]).
     stream: crate::stream::StreamHost,
+    /// GUI-only plugin mirrors while listening (`plugin-mirror`; [`crate::plugin_mirror`]).
+    mirrors: crate::plugin_mirror::Mirrors,
 }
 
 impl NativeBridge {
@@ -114,6 +116,7 @@ impl NativeBridge {
             devices: HashMap::new(),
             offline_seq: 0,
             stream: crate::stream::StreamHost::new(),
+            mirrors: Default::default(),
         }
     }
 
@@ -137,6 +140,7 @@ impl NativeBridge {
     }
 
     fn destroy_device(&mut self, device: DeviceId) -> Result<(), BridgeError> {
+        self.mirrors.unpark(device);
         let Some(entry) = self.devices.remove(&device) else {
             return Ok(());
         };
@@ -268,6 +272,19 @@ impl EngineBridge for NativeBridge {
         state: Option<&Base64Bytes>,
     ) -> Result<NodeKey, BridgeError> {
         self.replace_device(device);
+        // Mirrored (listening): the mirror is the instance; the slot gets a stand-in.
+        if let Some(descriptor) = self.mirrors.descriptor(device).cloned() {
+            let node = crate::plugin_mirror::MirrorStandIn::new(&descriptor);
+            let key = self.handle.add_node(Box::new(node)).map_err(engine_err)?;
+            self.devices.insert(
+                device,
+                DeviceEntry {
+                    key,
+                    kind: DeviceKind::Plugin(Box::new(descriptor)),
+                },
+            );
+            return Ok(key);
+        }
         // Ids are unique per format only: look the plugin up by (format, id).
         let desc = self
             .catalog
@@ -455,10 +472,11 @@ impl EngineBridge for NativeBridge {
     }
 
     fn poll_plugins(&mut self, out: &mut Vec<(DeviceId, PluginNotification)>) {
-        if self
-            .devices
-            .values()
-            .any(|d| matches!(d.kind, DeviceKind::Plugin(_)))
+        if !self.mirrors.is_empty()
+            || self
+                .devices
+                .values()
+                .any(|d| matches!(d.kind, DeviceKind::Plugin(_)))
         {
             let from = out.len();
             self.plugins.poll(out);
@@ -472,10 +490,23 @@ impl EngineBridge for NativeBridge {
                     i += 1;
                 }
             }
+            self.mirrors.observe(&out[from..]);
         }
     }
 
     fn plugin_state(&mut self, device: DeviceId) -> Result<Option<Base64Bytes>, BridgeError> {
+        // A mirrored device's state is its mirror's (COLLAB.md §9.6), or the last state of
+        // a dropped mirror until the live instance replacing it exists.
+        if self.mirrors.contains(device) {
+            return Ok(self
+                .plugins
+                .mirror_state(device)
+                .map_err(plugin_err)?
+                .map(Base64Bytes));
+        }
+        if let Some(state) = self.mirrors.parked(device) {
+            return Ok(Some(Base64Bytes(state.clone())));
+        }
         match self.devices.get(&device).map(|d| &d.kind) {
             Some(DeviceKind::Plugin(_)) => Ok(self
                 .plugins
@@ -557,6 +588,70 @@ impl EngineBridge for NativeBridge {
 
     fn poll_stream(&mut self, out: &mut Vec<ether_controller::streaming::StreamOutput>) {
         self.stream.poll(out);
+    }
+
+    // Plugin GUI mirrors (`plugin-mirror`): delegated to `crate::plugin_mirror`.
+
+    fn create_plugin_mirror(
+        &mut self,
+        device: DeviceId,
+        plugin: &PluginInstance,
+        state: Option<&Base64Bytes>,
+    ) -> Result<(), BridgeError> {
+        let desc = self
+            .catalog
+            .find_format(plugin.format, &plugin.plugin_id)
+            .ok_or_else(|| BridgeError::Other(not_installed(plugin)))?;
+        let descriptor = self
+            .plugins
+            .create_mirror(
+                crate::sandbox::instantiator(plugin.sandboxed, &self.instantiate),
+                device,
+                PluginSource {
+                    format: desc.format,
+                    path: PathBuf::from(desc.path),
+                    plugin_id: plugin.plugin_id.clone(),
+                },
+                state.map(|s| s.0.clone()),
+            )
+            .map_err(plugin_err)?;
+        self.mirrors.insert(device, descriptor);
+        Ok(())
+    }
+
+    fn destroy_plugin_mirror(&mut self, device: DeviceId) -> Result<(), BridgeError> {
+        if !self.mirrors.contains(device) {
+            return Ok(());
+        }
+        self.mirrors.remove(device);
+        let state = self.plugins.destroy_mirror(device).map_err(plugin_err)?;
+        // Its stand-in still holds the slot: the live instance replacing it starts here.
+        if let Some(state) = state
+            && self.devices.contains_key(&device)
+        {
+            self.mirrors.park(device, state);
+        }
+        Ok(())
+    }
+
+    fn set_plugin_mirror_param(
+        &mut self,
+        device: DeviceId,
+        param: ParamId,
+        value: f64,
+    ) -> Result<(), BridgeError> {
+        if !self.mirrors.contains(device) {
+            return Err(BridgeError::Other(format!("device {device} has no mirror")));
+        }
+        if !self.mirrors.push(device, param, value) {
+            return Ok(());
+        }
+        self.plugins
+            .set_mirror_param(device, param, value)
+            .map_err(|e| {
+                self.mirrors.forget(device, param);
+                plugin_err(e)
+            })
     }
 }
 

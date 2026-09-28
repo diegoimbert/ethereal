@@ -25,6 +25,7 @@ pub mod bridge;
 pub mod demo_samples;
 pub mod host;
 pub mod media;
+pub mod plugin_mirror;
 pub mod plugins;
 pub mod recording;
 pub mod rt;
