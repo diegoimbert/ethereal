@@ -607,6 +607,36 @@ fn group(
 /// Used by `Device::Duplicate` after the rack device itself was copied.
 pub(crate) fn copy_rack(ctx: &mut DocCtx, src: DeviceId, dst: DeviceId) -> CmdResult<()> {
     let mut devices: BTreeMap<DeviceId, DeviceId> = BTreeMap::from([(src, dst)]);
+    copy_chains(ctx, src, dst, &mut devices)?;
+    copy_modulation(ctx, &devices)
+}
+
+/// Track duplication: `devices` maps the original track's devices to their copies (already
+/// inserted). Copies every copied rack's chains with their devices (added to `devices`),
+/// then the modulators and mappings among all copied devices. (Called from
+/// `doc/tracks.rs` once the BCR wiring lands.)
+#[allow(dead_code)]
+pub(crate) fn copy_for_track(
+    ctx: &mut DocCtx,
+    devices: &mut BTreeMap<DeviceId, DeviceId>,
+) -> CmdResult<()> {
+    let racks: Vec<(DeviceId, DeviceId)> = devices
+        .iter()
+        .filter(|(src, _)| ctx.p().devices.get(src).is_some_and(is_chain_rack))
+        .map(|(a, b)| (*a, *b))
+        .collect();
+    for (src, dst) in racks {
+        copy_chains(ctx, src, dst, devices)?;
+    }
+    copy_modulation(ctx, devices)
+}
+
+fn copy_chains(
+    ctx: &mut DocCtx,
+    src: DeviceId,
+    dst: DeviceId,
+    devices: &mut BTreeMap<DeviceId, DeviceId>,
+) -> CmdResult<()> {
     let track = ctx.device(dst)?.track;
     let chains: Vec<RackChain> = ctx.p().chains_of(src).into_iter().cloned().collect();
     for c in chains {
@@ -635,7 +665,7 @@ pub(crate) fn copy_rack(ctx: &mut DocCtx, src: DeviceId, dst: DeviceId) -> CmdRe
             ctx.tx.insert(Entity::Device(nd))?;
         }
     }
-    copy_modulation(ctx, &devices)
+    Ok(())
 }
 
 /// Copy the modulators of the devices in `devices` (old → new) and the mappings between
