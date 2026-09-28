@@ -75,6 +75,9 @@
 //! | 59 | Osc 1 | `Table` | Basic Shapes / Harmonic Sweep / PWM / Formant / Digital / Organ / Vocal / Metallic (default Basic Shapes) |
 //! | 60 | Osc 2 | `Table` | Basic Shapes / Harmonic Sweep / PWM / Formant / Digital / Organ / Vocal / Metallic (default Basic Shapes) |
 
+#[allow(dead_code)]
+mod tables;
+
 use ether_core::Device;
 use ether_core::protocol::devices::{DeviceCategory, DeviceDescriptor, ParamScale, ParamUnit};
 use ether_core::protocol::model::{BuiltinDevice, BuiltinDeviceType};
