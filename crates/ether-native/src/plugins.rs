@@ -390,20 +390,28 @@ impl PluginHost {
         }));
     }
 
+    /// Open the device's editor: its live instance, else its GUI mirror
+    /// ([`crate::plugin_mirror`]; a listening site's plugins).
     pub fn open_editor(&self, device: DeviceId) -> Result<(), PluginError> {
         self.call(move || {
-            with_live(device, |c| {
+            match with_live(device, |c| {
                 if !c.has_editor() {
                     return Err(PluginError::NoEditor);
                 }
                 c.open_editor()
-            })?
+            }) {
+                Ok(r) => r,
+                Err(PluginError::NotFound(_)) => crate::plugin_mirror::open_editor_main(device),
+                Err(e) => Err(e),
+            }
         })?
     }
 
     pub fn close_editor(&self, device: DeviceId) -> Result<(), PluginError> {
         self.call(move || {
-            let _ = with_live(device, |c| c.close_editor());
+            if let Err(PluginError::NotFound(_)) = with_live(device, |c| c.close_editor()) {
+                crate::plugin_mirror::close_editor_main(device);
+            }
         })
     }
 
@@ -456,6 +464,7 @@ impl PluginHost {
                     all.extend(buf.drain(..).map(|n| (device, n)));
                 }
             }
+            crate::plugin_mirror::poll_main(&mut all);
             all
         }) {
             out.extend(notes);
@@ -579,6 +588,22 @@ impl Node for HostedPluginNode {
             return ProcessStatus::Continue;
         }
         self.inner_mut().process(ctx, audio)
+    }
+    fn sidechain_inputs(&self) -> u16 {
+        self.inner().sidechain_inputs()
+    }
+    fn process_sidechain(
+        &mut self,
+        ctx: &mut ProcessContext<'_>,
+        audio: &mut AudioBuffers<'_, '_>,
+        sidechain: &[&[f32]],
+    ) -> ProcessStatus {
+        if self.inner().is_faulted() {
+            let delay = self.inner().latency() as usize;
+            self.bypass.process(delay, audio);
+            return ProcessStatus::Continue;
+        }
+        self.inner_mut().process_sidechain(ctx, audio, sidechain)
     }
     fn latency(&self) -> u32 {
         self.inner().latency()

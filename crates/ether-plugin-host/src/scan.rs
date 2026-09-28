@@ -285,6 +285,34 @@ echo '{"type":"Ok","plugins":[]}'"#,
     }
 
     #[test]
+    fn sidechain_inputs_cross_the_scanner_and_default_to_none() {
+        // A current scanner reports the aux bus; an older one (no field) means none.
+        let plugin = |extra: &str| {
+            format!(
+                r#"{{"format":"Clap","id":"x","name":"X","vendor":"","version":"","description":"","features":[],"category":"AudioEffect","path":"/x/A.clap"{extra}}}"#
+            )
+        };
+        let s = script(
+            "scan-sidechain",
+            &format!(
+                "cat > /dev/null\necho '{{\"type\":\"Ok\",\"plugins\":[{},{}]}}'",
+                plugin(r#","sidechain_inputs":2"#),
+                plugin("")
+            ),
+        );
+        let plugins = ScanRunner::new(&s)
+            .scan_bundle(Path::new("/x/A.clap"))
+            .expect("scan");
+        assert_eq!(
+            plugins
+                .iter()
+                .map(|p| p.sidechain_inputs)
+                .collect::<Vec<_>>(),
+            [2, 0]
+        );
+    }
+
+    #[test]
     fn request_carries_the_format_of_a_target() {
         // Echo the request back as the error message.
         let s = script(

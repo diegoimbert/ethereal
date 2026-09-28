@@ -50,6 +50,10 @@ pub(crate) trait DocHost {
     fn set_pad_solo(&mut self, pad: DrumPadId, solo: bool) {
         let _ = (pad, solo);
     }
+    /// v0.2 (`comping`): runtime take audition (`Take::Audition`; not a document change).
+    fn set_audition(&mut self, track: TrackId, lane: Option<TakeLaneId>) {
+        let _ = (track, lane);
+    }
 }
 
 pub(crate) struct DocCtx<'a, 'p> {

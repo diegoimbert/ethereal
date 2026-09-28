@@ -1,0 +1,195 @@
+/* Take lanes and the comp (v0.2, `comping`). Tokens only (docs/DESIGN-SYSTEM.md). */
+
+.eth-takes {
+  position: relative;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  background: color-mix(in srgb, var(--eth-color-bg-inset) 70%, transparent);
+}
+
+.eth-takes__row {
+  display: flex;
+  flex: none;
+  position: relative;
+  box-shadow: inset 0 calc(-1 * var(--eth-border-width)) 0 color-mix(in srgb, var(--eth-color-border-light) 35%, transparent);
+}
+
+.eth-takes__header {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-sm);
+  box-sizing: border-box;
+  padding: 0 calc(var(--eth-space-lg) + var(--eth-space-md)) 0 calc(var(--eth-space-lg) + var(--eth-space-xl));
+  font-size: var(--eth-fs-sm);
+  color: var(--eth-color-text-dim);
+  cursor: default;
+}
+
+.eth-takes__row--in-comp .eth-takes__header {
+  color: var(--eth-color-text);
+}
+
+/* Filled when the lane plays somewhere in the comp. */
+.eth-takes__dot {
+  flex: none;
+  width: var(--eth-size-dot-sm);
+  height: var(--eth-size-dot-sm);
+  border-radius: var(--eth-radius-round);
+  box-shadow: inset 0 0 0 var(--eth-border-width) var(--eth-take-color);
+}
+
+.eth-takes__row--in-comp .eth-takes__dot {
+  background: var(--eth-take-color);
+}
+
+.eth-takes__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.eth-takes__rename {
+  flex: 1;
+  min-width: 0;
+  height: calc(var(--eth-fs-sm) + var(--eth-space-md));
+  padding: 0 var(--eth-space-xs);
+  border: var(--eth-border-width) solid var(--eth-color-focus);
+  border-radius: var(--eth-radius-sm);
+  background: var(--eth-color-bg-inset);
+  color: var(--eth-color-text);
+  font-size: var(--eth-fs-sm);
+  outline: none;
+}
+
+.eth-takes__audition {
+  opacity: 0;
+  transition: opacity var(--eth-duration-fast) var(--eth-ease-out);
+}
+
+.eth-takes__header:hover .eth-takes__audition,
+.eth-takes__audition:focus-visible,
+.eth-takes__audition[aria-pressed="true"] {
+  opacity: 1;
+}
+
+.eth-takes__audition[aria-pressed="true"] {
+  color: var(--eth-color-accent);
+}
+
+.eth-takes__lane {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  cursor: ew-resize;
+  touch-action: none;
+}
+
+/* Take clips: drawn like clips but dimmed and inert (the lane takes the swipe). */
+.eth-takes__clips {
+  position: absolute;
+  inset: 0;
+  opacity: var(--eth-opacity-muted);
+}
+
+.eth-takes__clips .eth-clip,
+.eth-takes__clips .eth-clip * {
+  pointer-events: none;
+}
+
+.eth-takes__row--audition .eth-takes__clips {
+  opacity: 1;
+}
+
+/* The parts of this take that play: a lit window in the take's color. */
+.eth-takes__region {
+  position: absolute;
+  top: var(--eth-space-xs);
+  bottom: var(--eth-space-xs);
+  box-sizing: border-box;
+  border-radius: var(--eth-radius-md);
+  background: color-mix(in srgb, var(--eth-take-color) 22%, transparent);
+  box-shadow: inset 0 0 0 var(--eth-border-width-strong) var(--eth-take-color);
+  pointer-events: none;
+}
+
+.eth-takes__region--selected {
+  box-shadow:
+    inset 0 0 0 var(--eth-border-width-strong) var(--eth-take-color),
+    0 0 0 var(--eth-border-width-strong) var(--eth-color-focus);
+}
+
+.eth-takes__swipe {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: color-mix(in srgb, var(--eth-take-color) 35%, transparent);
+  box-shadow: inset 0 0 0 var(--eth-border-width) var(--eth-take-color);
+  pointer-events: none;
+}
+
+.eth-takes__error {
+  position: absolute;
+  right: var(--eth-space-md);
+  bottom: var(--eth-space-xs);
+  z-index: 7;
+  padding: var(--eth-space-xs) var(--eth-space-sm);
+  border-radius: var(--eth-radius-sm);
+  background: var(--eth-color-bg-raised);
+  box-shadow: var(--eth-shadow-sm), inset 0 0 0 var(--eth-border-width) var(--eth-color-danger);
+  color: var(--eth-color-danger);
+  font-size: var(--eth-fs-sm);
+}
+
+/* The comp on the main lane: what plays, outlined as not-a-clip. */
+.eth-comp {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.eth-comp__piece {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.eth-comp__piece .eth-clip--ghost {
+  opacity: 1;
+  outline: var(--eth-border-width) dashed color-mix(in srgb, var(--eth-color-text) 45%, transparent);
+  outline-offset: calc(-1 * var(--eth-border-width));
+}
+
+.eth-comp__piece--selected .eth-clip--ghost {
+  outline: var(--eth-border-width-strong) solid var(--eth-color-focus);
+}
+
+.eth-comp--auditioning .eth-comp__piece {
+  opacity: var(--eth-opacity-muted);
+}
+
+/* Track header: takes toggle with the number of takes (always visible when there are takes). */
+.eth-takes-toggle.eth-arr-header__toggle {
+  position: relative;
+  opacity: 1;
+}
+
+.eth-takes-toggle[aria-pressed="true"] {
+  background: var(--eth-color-accent-subtle);
+  color: var(--eth-color-accent);
+}
+
+.eth-takes-toggle__count {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  font-size: var(--eth-fs-xs);
+  line-height: 1;
+  font-weight: var(--eth-fw-bold);
+}
