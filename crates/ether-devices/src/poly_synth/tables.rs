@@ -135,7 +135,11 @@ impl Wavetables {
                         peak = buf.iter().fold(0.0, |m, v| m.max(v.0.abs()));
                     }
                 }
-                let norm = if peak > 1e-9 { (1.0 / peak) as f32 } else { 1.0 };
+                let norm = if peak > 1e-9 {
+                    (1.0 / peak) as f32
+                } else {
+                    1.0
+                };
                 for v in &mut data[base..base + FRAME_STRIDE] {
                     *v *= norm;
                 }
@@ -154,10 +158,10 @@ fn frame_spectrum(table: usize, t: f64, fft: &mut Fft, spec: &mut [(f64, f64)]) 
         // Harmonic Sweep, Formant, Organ, Vocal: additive (sine partials).
         1 | 3 | 5 | 6 => {
             spec.fill((0.0, 0.0));
-            for k in 1..=MAX_HARMONIC {
+            for (k, bin) in spec.iter_mut().enumerate().take(MAX_HARMONIC + 1).skip(1) {
                 let a = harmonic_amp(table, t, k);
                 // Partial a·sin(2πkx) → bin k = -i·a·N/2.
-                spec[k] = (0.0, -a * n as f64 / 2.0);
+                *bin = (0.0, -a * n as f64 / 2.0);
             }
         }
         _ => {
@@ -253,7 +257,7 @@ fn harmonic_amp(table: usize, t: f64, k: usize) -> f64 {
         // Formant: a saw spectrum with a resonant peak sweeping harmonics 2 → 40.
         3 => {
             let center = 2.0 + 38.0 * t * t;
-            0.15 / kf + bump(kf, center, 1.2 + center * 0.08)
+            0.35 / kf + bump(kf, center, 1.2 + center * 0.08)
         }
         // Organ: drawbar registrations, crossfaded.
         5 => {
@@ -384,8 +388,10 @@ mod tests {
                 // The top level is a pure sine (one harmonic) at the frame's level.
                 let top = w.cycle(table, frame, LEVELS - 1);
                 let m = top.size as usize;
-                let mut fft_in: Vec<(f64, f64)> =
-                    top.samples[..m].iter().map(|&v| (f64::from(v), 0.0)).collect();
+                let mut fft_in: Vec<(f64, f64)> = top.samples[..m]
+                    .iter()
+                    .map(|&v| (f64::from(v), 0.0))
+                    .collect();
                 Fft::new(m).forward(&mut fft_in);
                 for (k, v) in fft_in.iter().enumerate().take(m / 2).skip(2) {
                     assert!(v.0.hypot(v.1) < 1e-3, "{table}/{frame}: harmonic {k}");
