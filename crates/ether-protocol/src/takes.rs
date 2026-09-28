@@ -75,4 +75,11 @@ pub enum TakeCommand {
         seed_notes: ClipId,
         keep_lanes: bool,
     },
+    /// Runtime, site-local (like `DrumRack::SetPadSolo`): the track plays `lane`'s clips
+    /// instead of its comp until `lane: None`. No document change (no ops, not undoable, not
+    /// saved or replicated); cleared when the lane or track goes and on project close.
+    Audition {
+        track: TrackId,
+        lane: Option<TakeLaneId>,
+    },
 }

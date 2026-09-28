@@ -38,7 +38,8 @@ import {
   withFreezeTrackEntries,
 } from "@/features/freeze";
 import { LiveRecordLane } from "@/features/recording/live/LiveRecordLane";
-import { MOD_KEY, meterPosition, openContextMenu, setDragCursor } from "@/kit";
+import { CompLayer, TakeLanes, TakesToggle, trackTakeEntries } from "@/features/comping";
+import { MOD_KEY, meterPosition, openContextMenu, setDragCursor, type ContextMenuEntry } from "@/kit";
 import { useEditorStore, useProjectStore, useTrackMeter } from "@/state";
 import {
   pxToBeats,
@@ -65,7 +66,7 @@ import { DraftRow } from "./newTrack";
 import { midiTarget } from "@/features/midi-learn/targets";
 import { HeaderVolume } from "./HeaderVolume";
 import { onTrackHeaderPointerDown } from "./trackDrag";
-import { TRACK_HEIGHT_STEP, type Row } from "./layout";
+import { mainHeight, TRACK_HEIGHT_STEP, type Row } from "./layout";
 import {
   arrangementView,
   useArrangementUi,
@@ -93,7 +94,8 @@ function sameRowExceptY(a: Row, b: Row): boolean {
     a.draft === b.draft &&
     a.depth === b.depth &&
     a.laneHeight === b.laneHeight &&
-    a.height === b.height
+    a.height === b.height &&
+    a.takesHeight === b.takesHeight
   );
 }
 
@@ -101,23 +103,27 @@ function RealTrackRow({ row }: { row: Row }) {
   const headerWidth = useArrangementUi((s) => s.headerWidth);
   const grid = useArrangementUi((s) => s.grid);
   // The lane part doesn't depend on the automation height (animated per frame).
-  const { track, depth, laneHeight } = row;
-  const mainRow = useMemo(() => row, [track, depth, laneHeight]); // eslint-disable-line react-hooks/exhaustive-deps
+  const { track, depth, laneHeight, takesHeight = 0 } = row;
+  const mainRow = useMemo(() => row, [track, depth, laneHeight, takesHeight]); // eslint-disable-line react-hooks/exhaustive-deps
   const main = useMemo(
     () => (
-      <div className="eth-arr-row__main" style={{ height: laneHeight }}>
-        <TrackHeader row={mainRow} />
-        <ResizeHandle row={mainRow} />
-        {track.kind === "Group" ? (
-          <GroupLane track={track} />
-        ) : track.kind === "Vca" ? (
-          <VcaLane track={track} />
-        ) : (
-          <TrackLane track={track} />
-        )}
-      </div>
+      <>
+        <div className="eth-arr-row__main" style={{ height: mainHeight(mainRow) }}>
+          <TrackHeader row={mainRow} />
+          <ResizeHandle row={mainRow} />
+          {track.kind === "Group" ? (
+            <GroupLane track={track} />
+          ) : track.kind === "Vca" ? (
+            <VcaLane track={track} />
+          ) : (
+            <TrackLane track={track} />
+          )}
+        </div>
+        {/* v0.2 (`comping`): expanded take lanes, part of the row's lane height. */}
+        {takesHeight > 0 && <TakesSection track={track} />}
+      </>
     ),
-    [mainRow, track, laneHeight],
+    [mainRow, track, takesHeight],
   );
   return (
     <div
@@ -227,7 +233,8 @@ function TrackHeader({ row }: { row: Row }) {
         const selected = [...useArrangementUi.getState().selectedTracks];
         // groups-buses: group/ungroup and VCA entries (after the owner's track menu + freeze entries).
         openContextMenu(e, [
-          ...withFreezeTrackEntries(items, transport, track, selected),
+          // comping: take entries go before the track menu's last group.
+          ...withFreezeTrackEntries(withTakeEntries(items, trackTakeEntries(transport, track.id)), transport, track, selected),
           ...groupsTrackMenu(
             transport,
             track,
@@ -353,6 +360,7 @@ function TrackHeader({ row }: { row: Row }) {
             <Circle />
           </button>
         )}
+        {canArm && <TakesToggle track={track} className="eth-arr-header__toggle" />}
         <AutomationToggle track={track} />
       </span>
       <HeaderMeter track={track.id} />
@@ -422,7 +430,7 @@ function ResizeHandle({ row }: { row: Row }) {
     e.stopPropagation();
     e.preventDefault();
     const startY = e.clientY;
-    const startH = row.laneHeight;
+    const startH = mainHeight(row);
     const ui = useArrangementUi.getState();
     const move = (ev: globalThis.PointerEvent) => {
       const h = startH + ev.clientY - startY;
@@ -445,7 +453,7 @@ function ResizeHandle({ row }: { row: Row }) {
   return (
     <div
       className="eth-arr-row__resize"
-      style={{ top: row.laneHeight - 3, width: headerWidth }}
+      style={{ top: mainHeight(row) - 3, width: headerWidth }}
       onPointerDown={onPointerDown}
       onDoubleClick={(e) => {
         e.stopPropagation();
@@ -660,6 +668,9 @@ function TrackLane({ track }: { track: Track }) {
           ) : null,
         )}
         {(track.kind === "Audio" || track.kind === "Midi") && (
+          <CompLayer track={track} vp={vp} visible={visible} tempo={tempo} />
+        )}
+        {(track.kind === "Audio" || track.kind === "Midi") && (
           <LiveRecordLane
             transport={ctx.transport}
             track={track.id}
@@ -672,6 +683,20 @@ function TrackLane({ track }: { track: Track }) {
       </LaneLayer>
     </div>
   );
+}
+
+/** v0.2 (`comping`): a track's take lanes, laid out against the same lane view as its clips. */
+function TakesSection({ track }: { track: Track }) {
+  const headerWidth = useArrangementUi((s) => s.headerWidth);
+  const { vp, visible } = useLaneView();
+  return <TakeLanes track={track} headerWidth={headerWidth} vp={vp} visible={visible} Layer={LaneLayer} />;
+}
+
+/** Take entries (`comping`) go before the track menu's last group (Delete). */
+function withTakeEntries(menu: ContextMenuEntry[], takes: ContextMenuEntry[]): ContextMenuEntry[] {
+  if (takes.length === 0) return menu;
+  const at = menu.lastIndexOf("separator");
+  return at < 0 ? [...menu, "separator", ...takes] : [...menu.slice(0, at), "separator", ...takes, ...menu.slice(at)];
 }
 
 /** A browser drop still importing (or failed), shown where the clip will go. */
