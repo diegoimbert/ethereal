@@ -1053,6 +1053,16 @@ paths = [
 
 [nodes.midi-fx]
 paths = [
+  # BCR-A (base-93): EngineBridge::set_node_scale (defaulted) + native/web delivery to Node::set_data
+  "crates/ether-controller/src/lib.rs",
+  "crates/ether-native/src/bridge.rs",
+  "crates/ether-wasm/src/proto.rs",
+  "crates/ether-wasm/src/bridge.rs",
+  "crates/ether-wasm/src/worklet.rs",
+  # BCR-B (base-93): bypassed MIDI effect = MIDI thru; notes_reset (AllNotesOff) when MIDI effects change
+  "crates/ether-core/src/engine.rs",
+  "crates/ether-core/src/mixer.rs",
+  "crates/ether-core/tests/midi_fx*.rs",
   # base-86: append-only line(s) in the IMPLEMENTED list of this test
   "crates/ether-devices/tests/v02_descriptors.rs",
   "crates/ether-devices/src/midi_fx/**",
