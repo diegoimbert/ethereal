@@ -37,6 +37,7 @@ import {
   withFreezeClipEntries,
   withFreezeTrackEntries,
 } from "@/features/freeze";
+import { leaveNoteEntries, withSeparator } from "@/features/collab/social";
 import { LiveRecordLane } from "@/features/recording/live/LiveRecordLane";
 import { CompLayer, TakeLanes, TakesToggle, trackTakeEntries } from "@/features/comping";
 import { MOD_KEY, meterPosition, openContextMenu, setDragCursor, type ContextMenuEntry } from "@/kit";
@@ -611,6 +612,8 @@ function TrackLane({ track }: { track: Track }) {
             disabled: !hasClipboard(),
             onSelect: () => void pasteClips(ctx.transport, at, track.id),
           },
+          // collab-social: pin a note here (hidden while "Hide users and notes" is on).
+          ...withSeparator(leaveNoteEntries({ kind: "arranger" }, e)),
         ]);
       }}
     >

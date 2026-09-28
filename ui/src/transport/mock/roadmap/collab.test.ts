@@ -15,6 +15,7 @@ function stubHost(events: Event[]): MockHost {
     newId: () => "id",
     applyDocument: () => undefined,
     execute: () => undefined,
+    applyUntracked: () => undefined,
   };
 }
 

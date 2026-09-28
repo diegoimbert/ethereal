@@ -172,6 +172,8 @@ pub(crate) struct CollabState {
     left_sites: Option<(ProjectId, BTreeMap<SiteId, u64>)>,
     /// ICE servers from the settings (`CollabCommand::SetIceServers`), over the relay's.
     ice_override: Option<Vec<IceServer>>,
+    /// base-62 (`collab-social`): own colour, catch-up, published transport.
+    pub(crate) social: crate::social::SocialState,
     /// Plugin GUI mirrors while listening (`plugin-mirror`; outlives a session).
     mirror: mirror::MirrorState,
 }
@@ -215,6 +217,11 @@ where
             .session
             .as_ref()
             .is_some_and(|s| s.joined && s.project.is_some() && s.project == open)
+    }
+
+    /// Our display name in the session (`None` outside one).
+    pub(crate) fn collab_session_name(&self) -> Option<String> {
+        self.collab.session.as_ref().map(|s| s.name.clone())
     }
 
     pub(crate) fn collab_command(
@@ -283,6 +290,7 @@ where
                     host: Default::default(),
                 }));
                 let _ = site;
+                self.social_reset();
                 self.collab_connect(now);
                 self.collab_emit_status(out);
                 self.collab_emit_peers(out);
@@ -499,15 +507,7 @@ where
 
     fn collab_flush_presence(&mut self, now: u64) {
         let Some(site) = self.collab.site else { return };
-        // Controller-owned fields (base-53): whatever the UI put there is overwritten.
-        let mut state = match self.collab.session.as_ref() {
-            Some(s) => s.presence.clone(),
-            None => return,
-        };
-        self.collab_listen_presence(&mut state);
-        self.collab_host_presence(&mut state);
-        self.social_presence(&mut state);
-        let Some(s) = self.collab.session.as_mut() else {
+        let Some(s) = self.collab.session.as_ref() else {
             return;
         };
         if !s.presence_dirty
@@ -517,6 +517,12 @@ where
         {
             return;
         }
+        // Controller-owned fields (base-53, base-62): whatever the UI put there is overwritten.
+        let mut state = s.presence.clone();
+        self.collab_listen_presence(&mut state);
+        self.collab_host_presence(&mut state);
+        self.social_presence(&mut state, now);
+        let s = self.collab.session.as_mut().expect("checked");
         s.presence_dirty = false;
         s.last_presence_ms = now;
         let presence = Presence {
@@ -605,6 +611,11 @@ where
         if quiet {
             self.collab_flush_backup(now, out);
         }
+        if self.social_transport_due(now)
+            && let Some(s) = self.collab.session.as_mut()
+        {
+            s.presence_dirty = true;
+        }
         self.collab_flush_presence(now);
         self.collab_pointer_tick(now);
         self.collab_listen_tick(now, out);
@@ -628,6 +639,10 @@ where
         s.awaiting_sync = true;
         s.backoff_ms = RECONNECT_MIN_MS;
         s.presence_dirty = true;
+        self.social_link_opened();
+        let Some(s) = self.collab.session.as_mut() else {
+            return;
+        };
         let hello = CollabMessage::Hello {
             site,
             actor: None,
@@ -848,6 +863,7 @@ where
             }
             CollabMessage::Presence { mut presence } => {
                 if presence.site == site {
+                    self.social_own_presence(&presence);
                     return;
                 }
                 let s = self.collab.session.as_mut().expect("in session");
@@ -963,6 +979,7 @@ where
             .collect();
         let ops = crate::social::sanitize_chat(project, &ops, t.origin.site);
         let (applied, _) = resolve::resolve_all(project, &ops);
+        let chat = crate::social::chat_inserts(&applied);
         let replaced: Vec<DeviceId> = applied
             .iter()
             .filter_map(|op| match op {
@@ -1010,7 +1027,9 @@ where
                 s.captured.insert(id, state);
             }
         }
+        let origin = t.origin.site;
         self.after_ops_from(&touched, Some(t.origin), now, out);
+        self.social_chat_received(origin, chat, out);
     }
 
     // ─── Media ──────────────────────────────────────────────────────────────────────────

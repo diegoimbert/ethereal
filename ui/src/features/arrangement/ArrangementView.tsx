@@ -10,9 +10,22 @@ import {
   type ImportSource,
 } from "@/features/import";
 import { AddTrackRow } from "./newTrack";
-import { useContext, useEffect, useMemo, useRef, type DragEvent, type KeyboardEvent, type PointerEvent } from "react";
+import {
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  type DragEvent,
+  type KeyboardEvent,
+  type PointerEvent,
+} from "react";
 import type { Beats, TrackId } from "@/generated";
-import { useEditorStore, useProjectStore, useSelectionStore, useTracksOrdered } from "@/state";
+import {
+  useEditorStore,
+  useProjectStore,
+  useSelectionStore,
+  useTracksOrdered,
+} from "@/state";
 import {
   gridLines,
   itemSelection,
@@ -34,13 +47,47 @@ import {
 import { useAutomationSlotHeight } from "@/features/automation";
 import { handleTakeKey, useTakesHeight } from "@/features/comping";
 import { PresenceLayer } from "@/features/collab/presence";
-import { TimeEditNotice, TimeSelectionLayer, useArrangementTimeEdits } from "@/features/time-edits";
-import { groupShortcut, groupTracks, ungroupSelected, UngroupConfirmDialog } from "@/features/groups";
+import {
+  ArrangerSocialLayer,
+  leaveNoteEntries,
+  rulerNoteEntries,
+  withSeparator,
+} from "@/features/collab/social";
+import {
+  TimeEditNotice,
+  TimeSelectionLayer,
+  useArrangementTimeEdits,
+} from "@/features/time-edits";
+import {
+  groupShortcut,
+  groupTracks,
+  ungroupSelected,
+  UngroupConfirmDialog,
+} from "@/features/groups";
 import { TransportContext, useTransport, useTransportEvent } from "@/transport";
-import { actionForKey, bindSingleSelection, locateIfStopped, newTrackMenu, runClipAction, selectTrackEntity } from "./actions";
-import { dropBrowserMedia, hasBrowserDrag, readBrowserDrag } from "./browserDrop";
+import {
+  actionForKey,
+  bindSingleSelection,
+  locateIfStopped,
+  newTrackMenu,
+  runClipAction,
+  selectTrackEntity,
+} from "./actions";
+import {
+  dropBrowserMedia,
+  hasBrowserDrag,
+  readBrowserDrag,
+} from "./browserDrop";
 import { ArrangementContext, type ArrangementContextValue } from "./context";
-import { clipRects, DROP_AREA_HEIGHT, HEADER_WIDTH, layoutRows, rowIndexAt, rowsHeight, type Row } from "./layout";
+import {
+  clipRects,
+  DROP_AREA_HEIGHT,
+  HEADER_WIDTH,
+  layoutRows,
+  rowIndexAt,
+  rowsHeight,
+  type Row,
+} from "./layout";
 import { useLaneAnimation } from "./laneAnimation";
 import { PeakCache } from "./peaks";
 import { Toolbar } from "./Toolbar";
@@ -51,7 +98,10 @@ import { useTrackHeightZoom } from "./useTrackHeightZoom";
 
 function isTextEntry(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
-  return target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName);
+  return (
+    target.isContentEditable ||
+    ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName)
+  );
 }
 
 /** Where a browser drop at a client point lands: a track (or `null` = new track) and a beat. */
@@ -81,7 +131,8 @@ function ConnectedArrangementView() {
   const view = arrangementView;
   const peaks = useMemo(() => new PeakCache(transport), [transport]);
   useTransportEvent((e) => {
-    if (e.type === "Media" && e.event.type === "PeaksReady") peaks.invalidate(e.event.media);
+    if (e.type === "Media" && e.event.type === "PeaksReady")
+      peaks.invalidate(e.event.media);
   });
 
   const tracks = useTracksOrdered();
@@ -97,10 +148,28 @@ function ConnectedArrangementView() {
   // The master track is pinned below the scrolling tracks (its own footer, at y 0); it is
   // laid out last, so the other rows keep their positions.
   const { rows, masterRow } = useMemo(() => {
-    const all = layoutRows(tracks, folded, automationHeight, (id) => heights.get(id) ?? defaultHeight, draftTrack, takesHeight);
+    const all = layoutRows(
+      tracks,
+      folded,
+      automationHeight,
+      (id) => heights.get(id) ?? defaultHeight,
+      draftTrack,
+      takesHeight,
+    );
     const master = all.find((r) => r.track.kind === "Master");
-    return { rows: all.filter((r) => r !== master), masterRow: master ? { ...master, y: 0 } : null };
-  }, [tracks, folded, automationHeight, heights, defaultHeight, draftTrack, takesHeight]);
+    return {
+      rows: all.filter((r) => r !== master),
+      masterRow: master ? { ...master, y: 0 } : null,
+    };
+  }, [
+    tracks,
+    folded,
+    automationHeight,
+    heights,
+    defaultHeight,
+    draftTrack,
+    takesHeight,
+  ]);
   const rowsRef = useRef<ReadonlyArray<Row>>(rows);
   useEffect(() => {
     rowsRef.current = rows;
@@ -119,12 +188,17 @@ function ConnectedArrangementView() {
     const el = scrollRef.current;
     if (!row || !el) return;
     if (row.y < el.scrollTop) el.scrollTop = row.y;
-    else if (row.y + row.height > el.scrollTop + el.clientHeight) el.scrollTop = row.y + row.height - el.clientHeight;
+    else if (row.y + row.height > el.scrollTop + el.clientHeight)
+      el.scrollTop = row.y + row.height - el.clientHeight;
     // Only when the draft appears or moves, not on every layout change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draftTrack]);
   const headerWidth = useArrangementUi((s) => s.headerWidth);
-  useTimelineWheel(scrollRef, view, { smoothScrollY: true, onVerticalZoom, originPx: () => useArrangementUi.getState().headerWidth });
+  useTimelineWheel(scrollRef, view, {
+    smoothScrollY: true,
+    onVerticalZoom,
+    originPx: () => useArrangementUi.getState().headerWidth,
+  });
   useMiddleButtonPan(scrollRef, view);
   useFollowWithMargin(view);
   useEffect(() => bindSingleSelection(), []);
@@ -134,7 +208,12 @@ function ConnectedArrangementView() {
   useEffect(() => {
     const onClipboard = (e: ClipboardEvent) => {
       const root = rootRef.current;
-      if (!root || !root.contains(document.activeElement) || isTextEntry(document.activeElement)) return;
+      if (
+        !root ||
+        !root.contains(document.activeElement) ||
+        isTextEntry(document.activeElement)
+      )
+        return;
       e.preventDefault();
       void runClipAction(transport, e.type as "copy" | "cut" | "paste");
     };
@@ -161,16 +240,30 @@ function ConnectedArrangementView() {
       e.preventDefault();
       const ui = useArrangementUi.getState();
       const fallback = useSelectionStore.getState().selectedTrack;
-      const selected = ui.selectedTracks.size > 0 ? [...ui.selectedTracks] : fallback ? [fallback] : [];
+      const selected =
+        ui.selectedTracks.size > 0
+          ? [...ui.selectedTracks]
+          : fallback
+            ? [fallback]
+            : [];
       if (grouping === "ungroup") void ungroupSelected(transport, selected);
-      else void groupTracks(transport, selected).then((g) => g && selectTrackEntity(g));
+      else
+        void groupTracks(transport, selected).then(
+          (g) => g && selectTrackEntity(g),
+        );
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [transport]);
 
   const ctx = useMemo<ArrangementContextValue>(
-    () => ({ transport, peaks, contentRef, rowsRef, focus: () => rootRef.current?.focus({ preventScroll: true }) }),
+    () => ({
+      transport,
+      peaks,
+      contentRef,
+      rowsRef,
+      focus: () => rootRef.current?.focus({ preventScroll: true }),
+    }),
     [transport, peaks],
   );
 
@@ -181,28 +274,56 @@ function ConnectedArrangementView() {
     hitTest: (rect) => {
       const project = useProjectStore.getState().project;
       const hw = useArrangementUi.getState().headerWidth;
-      const lanes = { ...rect, x0: Math.max(rect.x0, hw), x1: Math.max(rect.x1, hw) };
-      return project ? marqueeHits(lanes, clipRects(rowsRef.current, Object.values(project.clips), view.getState(), hw)) : [];
+      const lanes = {
+        ...rect,
+        x0: Math.max(rect.x0, hw),
+        x1: Math.max(rect.x1, hw),
+      };
+      return project
+        ? marqueeHits(
+            lanes,
+            clipRects(
+              rowsRef.current,
+              Object.values(project.clips),
+              view.getState(),
+              hw,
+            ),
+          )
+        : [];
     },
     onEnd: timeEdits.onMarqueeEnd,
     onClick: (p, ev) => {
       timeEdits.onMarqueeClick();
       useArrangementUi.getState().setTrackFocus(null);
       const row = rowsRef.current[rowIndexAt(rowsRef.current, p.y)];
-      if (row && !row.draft) useSelectionStore.getState().selectTrack(row.track.id);
+      if (row && !row.draft)
+        useSelectionStore.getState().selectTrack(row.track.id);
       // A click on a clip's body (which lets presses through to the lane) selects the clip,
       // like its title bar does, but moves the playhead to the click, not the clip start.
       const project = useProjectStore.getState().project;
       if (project) {
         const hw = useArrangementUi.getState().headerWidth;
-        const hit = clipRects(rowsRef.current, Object.values(project.clips), view.getState(), hw).find(
-          ({ rect: r }) => p.x >= r.x0 && p.x < r.x1 && p.y >= r.y0 && p.y < r.y1,
+        const hit = clipRects(
+          rowsRef.current,
+          Object.values(project.clips),
+          view.getState(),
+          hw,
+        ).find(
+          ({ rect: r }) =>
+            p.x >= r.x0 && p.x < r.x1 && p.y >= r.y0 && p.y < r.y1,
         );
-        if (hit) itemSelection.getState().select("clip", [hit.id], selectModeFromEvent(ev));
+        if (hit)
+          itemSelection
+            .getState()
+            .select("clip", [hit.id], selectModeFromEvent(ev));
       }
       // A click on empty space also moves the playhead there (when stopped), snapped.
       const hw = useArrangementUi.getState().headerWidth;
-      if (p.x >= hw) locateIfStopped(transport, snap(pxToBeats(p.x - hw, view.getState()), ev.altKey));
+      if (p.x >= hw)
+        locateIfStopped(
+          transport,
+          snap(pxToBeats(p.x - hw, view.getState()), ev.altKey),
+        );
     },
   });
 
@@ -221,12 +342,16 @@ function ConnectedArrangementView() {
     const y = e.clientY - box.top;
     const hw = useArrangementUi.getState().headerWidth;
     const hit = inTracks
-      ? clipRects(rowsRef.current, Object.values(project.clips), view.getState(), hw).find(
-          ({ rect: r }) => x >= r.x0 && x < r.x1 && y >= r.y0 && y < r.y1,
-        )
+      ? clipRects(
+          rowsRef.current,
+          Object.values(project.clips),
+          view.getState(),
+          hw,
+        ).find(({ rect: r }) => x >= r.x0 && x < r.x1 && y >= r.y0 && y < r.y1)
       : undefined;
     const clip = hit ? project.clips[hit.id] : undefined;
-    if (clip?.content.type === "Midi") useEditorStore.getState().openClip(clip.id);
+    if (clip?.content.type === "Midi")
+      useEditorStore.getState().openClip(clip.id);
     else useEditorStore.getState().dismiss();
   };
 
@@ -234,17 +359,27 @@ function ConnectedArrangementView() {
   const snap = (beats: Beats, bypass: boolean): Beats => {
     if (bypass) return beats;
     const s = view.getState();
-    return snapToGrid(beats, resolveGrid(grid, s.pxPerBeat, tempo.signatureAt(s.scrollBeats)), tempo);
+    return snapToGrid(
+      beats,
+      resolveGrid(grid, s.pxPerBeat, tempo.signatureAt(s.scrollBeats)),
+      tempo,
+    );
   };
 
   const dropTarget = (e: DropPoint): DropTarget | "reject" => {
     const box = contentRef.current?.getBoundingClientRect();
-    const x = e.clientX - (box?.left ?? 0) - useArrangementUi.getState().headerWidth;
+    const x =
+      e.clientX - (box?.left ?? 0) - useArrangementUi.getState().headerWidth;
     const i = rowIndexAt(rowsRef.current, e.clientY - (box?.top ?? 0));
-    const at = Math.max(0, snap(pxToBeats(Math.max(0, x), view.getState()), e.altKey));
+    const at = Math.max(
+      0,
+      snap(pxToBeats(Math.max(0, x), view.getState()), e.altKey),
+    );
     if (i >= rowsRef.current.length) return { track: null, at };
     const row = rowsRef.current[i];
-    return row && row.track.kind === "Audio" ? { track: row.track.id, at } : "reject";
+    return row && row.track.kind === "Audio"
+      ? { track: row.track.id, at }
+      : "reject";
   };
 
   // `file-import`: OS files dropped on a lane (clips from the drop point, one after the
@@ -280,7 +415,9 @@ function ConnectedArrangementView() {
     const t = dropTarget(e);
     if (t === "reject") return;
     // Import + (new track +) clip as one undo step; shows an "Importing…" placeholder.
-    dropBrowserMedia(transport, payload, t).catch((err: unknown) => console.warn("browser drop failed", err));
+    dropBrowserMedia(transport, payload, t).catch((err: unknown) =>
+      console.warn("browser drop failed", err),
+    );
   };
 
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
@@ -315,9 +452,18 @@ function ConnectedArrangementView() {
         <Toolbar />
         <div className="eth-arr__top">
           <div className="eth-arr__corner" style={{ width: headerWidth }} />
-          <Ruler view={view} grid={grid} className="eth-arr__ruler" />
+          <Ruler
+            view={view}
+            grid={grid}
+            className="eth-arr__ruler"
+            menuItems={rulerNoteEntries}
+          />
         </div>
-        <div className="eth-arr__scroll" ref={scrollRef} onPointerDownCapture={onTracksPointerDownCapture}>
+        <div
+          className="eth-arr__scroll"
+          ref={scrollRef}
+          onPointerDownCapture={onTracksPointerDownCapture}
+        >
           <div
             className="eth-arr__content"
             ref={contentRef}
@@ -326,8 +472,10 @@ function ConnectedArrangementView() {
               ctx.focus();
               timeEdits.onPointerDown(e);
               // The selection box only starts over the lanes, not the header column.
-              const x = e.clientX - e.currentTarget.getBoundingClientRect().left;
-              if (x >= useArrangementUi.getState().headerWidth) marquee.onPointerDown(e);
+              const x =
+                e.clientX - e.currentTarget.getBoundingClientRect().left;
+              if (x >= useArrangementUi.getState().headerWidth)
+                marquee.onPointerDown(e);
             }}
             onContextMenuCapture={timeEdits.onContextMenuCapture}
             onContextMenu={(e) => {
@@ -338,7 +486,12 @@ function ConnectedArrangementView() {
                 openContextMenu(e, [
                   ...newTrackMenu(transport),
                   "separator",
-                  { label: "Import audio…", shortcut: `${MOD_KEY}I`, onSelect: () => void openImportDialog(transport) },
+                  {
+                    label: "Import audio…",
+                    shortcut: `${MOD_KEY}I`,
+                    onSelect: () => void openImportDialog(transport),
+                  },
+                  ...withSeparator(leaveNoteEntries({ kind: "arranger" }, e)),
                 ]);
               }
             }}
@@ -354,7 +507,10 @@ function ConnectedArrangementView() {
             {rows.map((row) => (
               <TrackRow key={row.track.id} row={row} />
             ))}
-            <div className="eth-arr__drop-area" style={{ height: DROP_AREA_HEIGHT }}>
+            <div
+              className="eth-arr__drop-area"
+              style={{ height: DROP_AREA_HEIGHT }}
+            >
               <AddTrackRow />
               <NewTrackDropHint />
             </div>
@@ -378,7 +534,11 @@ function ConnectedArrangementView() {
           </div>
         </div>
         {masterRow && (
-          <div className="eth-arr__master" data-testid="arrangement-master" onPointerDownCapture={onTracksPointerDownCapture}>
+          <div
+            className="eth-arr__master"
+            data-testid="arrangement-master"
+            onPointerDownCapture={onTracksPointerDownCapture}
+          >
             <div className="eth-arr__backdrop" style={{ left: headerWidth }}>
               <GridLayer />
             </div>
@@ -391,7 +551,19 @@ function ConnectedArrangementView() {
         <HeaderColumnResizer />
         <TimeEditNotice />
         {/* presence-v2: peers' live pointers, pointer/viewport publishing, follow mode */}
-        <PresenceLayer rootRef={rootRef} scrollRef={scrollRef} rows={rows} masterRow={masterRow} />
+        <PresenceLayer
+          rootRef={rootRef}
+          scrollRef={scrollRef}
+          rows={rows}
+          masterRow={masterRow}
+        />
+        {/* collab-social: pinned notes and the peers' playheads */}
+        <ArrangerSocialLayer
+          rootRef={rootRef}
+          scrollRef={scrollRef}
+          rows={rows}
+          masterRow={masterRow}
+        />
         <UngroupConfirmDialog />
       </div>
     </ArrangementContext.Provider>
@@ -411,7 +583,8 @@ function HeaderColumnResizer() {
     const x0 = e.clientX;
     const w0 = headerWidth;
     setDragCursor("ew-resize");
-    const move = (ev: globalThis.PointerEvent) => useArrangementUi.getState().setHeaderWidth(w0 + ev.clientX - x0);
+    const move = (ev: globalThis.PointerEvent) =>
+      useArrangementUi.getState().setHeaderWidth(w0 + ev.clientX - x0);
     const up = () => {
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
@@ -431,15 +604,25 @@ function HeaderColumnResizer() {
       aria-label="Resize track headers"
       title="Drag to resize the track headers (double-click to reset)"
       onPointerDown={onPointerDown}
-      onDoubleClick={() => useArrangementUi.getState().setHeaderWidth(HEADER_WIDTH)}
+      onDoubleClick={() =>
+        useArrangementUi.getState().setHeaderWidth(HEADER_WIDTH)
+      }
     />
   );
 }
 
 /** Where a dragged track header will land (a line between rows). */
 function TrackDropLine() {
-  const y = useArrangementUi((s) => (s.trackDrag && !s.trackDrag.into ? s.trackDrag.y : null));
-  return y === null ? null : <div className="eth-arr__track-drop" style={{ top: y }} data-testid="track-drop-line" />;
+  const y = useArrangementUi((s) =>
+    s.trackDrag && !s.trackDrag.into ? s.trackDrag.y : null,
+  );
+  return y === null ? null : (
+    <div
+      className="eth-arr__track-drop"
+      style={{ top: y }}
+      data-testid="track-drop-line"
+    />
+  );
 }
 
 /** Bar/beat lines behind the lanes. */
@@ -449,7 +632,11 @@ function GridLayer() {
   const grid = useArrangementUi((s) => s.grid);
   const tempo = useTempoMap();
   const lines = useMemo(() => {
-    const step = resolveGrid(grid, vp.pxPerBeat, tempo.signatureAt(vp.scrollBeats));
+    const step = resolveGrid(
+      grid,
+      vp.pxPerBeat,
+      tempo.signatureAt(vp.scrollBeats),
+    );
     if (!step || width <= 0) return [];
     return gridLines(tempo, visibleRange(vp, width), step, 1000);
   }, [grid, vp, width, tempo]);
@@ -459,7 +646,9 @@ function GridLayer() {
         <div
           key={l.beats}
           className={`eth-arr__gridline eth-arr__gridline--${l.level}`}
-          style={{ transform: `translateX(${Math.round((l.beats - vp.scrollBeats) * vp.pxPerBeat)}px)` }}
+          style={{
+            transform: `translateX(${Math.round((l.beats - vp.scrollBeats) * vp.pxPerBeat)}px)`,
+          }}
         />
       ))}
     </>
@@ -469,22 +658,35 @@ function GridLayer() {
 /** The project loop region, shaded across the lanes when the loop is on. */
 function LoopLayer() {
   const vp = useViewport(arrangementView);
-  const enabled = useProjectStore((s) => s.project?.settings.loop_enabled ?? false);
-  const region = useProjectStore((s) => s.project?.settings.loop_region ?? null);
+  const enabled = useProjectStore(
+    (s) => s.project?.settings.loop_enabled ?? false,
+  );
+  const region = useProjectStore(
+    (s) => s.project?.settings.loop_region ?? null,
+  );
   if (!enabled || !region) return null;
   return (
     <div
       className="eth-arr__loop"
       data-testid="loop-region"
-      style={{ left: (region.start - vp.scrollBeats) * vp.pxPerBeat, width: (region.end - region.start) * vp.pxPerBeat }}
+      style={{
+        left: (region.start - vp.scrollBeats) * vp.pxPerBeat,
+        width: (region.end - region.start) * vp.pxPerBeat,
+      }}
     />
   );
 }
 
 function NewTrackDropHint() {
-  const hint = useArrangementUi((s) => (s.dropHint && s.dropHint.track === null ? s.dropHint.at : null));
-  const pending = useArrangementUi((s) => s.imports.find((i) => i.track === null));
-  const empty = useProjectStore((s) => !s.project || Object.keys(s.project.clips).length === 0);
+  const hint = useArrangementUi((s) =>
+    s.dropHint && s.dropHint.track === null ? s.dropHint.at : null,
+  );
+  const pending = useArrangementUi((s) =>
+    s.imports.find((i) => i.track === null),
+  );
+  const empty = useProjectStore(
+    (s) => !s.project || Object.keys(s.project.clips).length === 0,
+  );
   if (hint === null && pending) return <ImportPlaceholder item={pending} />;
   if (hint === null) {
     return (
@@ -495,5 +697,9 @@ function NewTrackDropHint() {
       </span>
     );
   }
-  return <span className="eth-arr__drop-label eth-arr__drop-label--active">Create an audio track</span>;
+  return (
+    <span className="eth-arr__drop-label eth-arr__drop-label--active">
+      Create an audio track
+    </span>
+  );
 }
