@@ -1,7 +1,8 @@
 // Time-selection edits on the web build, through the UI, against the real engine
 // (WasmTransport → controller Worker → AudioWorklet): a drag over two tracks' lanes makes a
 // time selection; its context menu deletes the time (later clips move left), undo restores
-// it, ⌘E splits both tracks at the selection edges, ⇧⌘D duplicates the selection.
+// it, ⌘E splits both tracks at the selection edges, ⇧⌘D duplicates the selection, and a
+// frozen track refuses a time edit with the engine's message.
 //
 // No sleeps: every step waits on UI or engine state. The mirror is read through
 // `window.__ether` (apps/web/src/main.tsx). `E2E_SHOTS=<dir>` saves PR screenshots.
@@ -61,6 +62,9 @@ test("time edits: select time over tracks, delete time, undo, split at the edges
     [4, 4],
   ]);
   await expect.poll(() => spans(page, b.id)).toEqual([[0, 4]]);
+  // Escape closes the piano roll the double-click opened (screenshots show the lanes).
+  await page.locator('[data-feature="arrangement"]').focus();
+  await page.keyboard.press("Escape");
 
   // Drag over both lanes from beat 2 to beat 6 (clip bodies let presses through).
   const selectTime = async (from: number, to: number) => {
@@ -126,6 +130,22 @@ test("time edits: select time over tracks, delete time, undo, split at the edges
   ]);
   await expect.poll(async () => (await spans(page, a.id)).length).toBe(5);
   await shot(page, "time-duplicate");
+
+  // A frozen track refuses time edits (freeze-bounce's check); the engine's message shows.
+  await page.keyboard.press("ControlOrMeta+z");
+  await expect.poll(() => spans(page, b.id)).toEqual([[0, 4]]);
+  await page.getByRole("group", { name: `${b.name} track` }).click({ button: "right", position: { x: 6, y: 10 } });
+  await page.getByRole("menuitem", { name: "Freeze Track", exact: true }).click();
+  await expect.poll(async () => (await doc(page)).tracks[b.id]!.freeze !== undefined, { timeout: 60_000 }).toBe(true);
+  await selectTime(2, 6);
+  await page.keyboard.press("ControlOrMeta+Shift+Backspace");
+  await expect(page.getByTestId("time-edit-notice")).toContainText("frozen");
+  await shot(page, "time-frozen-notice");
+  expect(await spans(page, b.id)).toEqual([[0, 4]]);
+  expect(await spans(page, a.id)).toEqual([
+    [0, 4],
+    [4, 4],
+  ]);
 
   expect(errors).toEqual([]);
 });

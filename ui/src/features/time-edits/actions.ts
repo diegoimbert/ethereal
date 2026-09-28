@@ -28,9 +28,11 @@ import { useTimeSelection, type TimeRangeSelection } from "./store";
 export type TimeAction = "split" | "split-tracks" | "cut" | "copy" | "paste" | "paste-insert" | "duplicate" | "delete" | "insert-silence";
 
 function errorText(err: unknown): string {
-  if (err && typeof err === "object" && "message" in err && typeof err.message === "string") return err.message;
-  if (err && typeof err === "object" && "error" in err) return String((err as { error: { message: string } }).error.message);
-  return String(err);
+  let message = String(err);
+  if (err && typeof err === "object" && "message" in err && typeof err.message === "string") message = err.message;
+  else if (err && typeof err === "object" && "error" in err) message = String((err as { error: { message: string } }).error.message);
+  // Transport errors read "<Code>: <message>"; the notice shows the message.
+  return message.replace(/^[A-Z][A-Za-z]+: /, "");
 }
 
 /** Send `commands` as one undo gesture; a refusal becomes the notice. `true` on success. */

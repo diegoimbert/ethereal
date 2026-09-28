@@ -14,7 +14,8 @@
   position: absolute;
   z-index: 6;
   left: 50%;
-  bottom: var(--eth-space-lg);
+  /* Near the top: the editor drawer may cover the bottom of the arrangement. */
+  top: var(--eth-space-3xl);
   transform: translateX(-50%);
   max-width: 80%;
   padding: var(--eth-space-sm) var(--eth-space-md);
