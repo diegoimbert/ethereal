@@ -32,6 +32,7 @@ import {
   visibleRange,
 } from "@/timeline";
 import { useAutomationSlotHeight } from "@/features/automation";
+import { handleTakeKey, useTakesHeight } from "@/features/comping";
 import { PresenceLayer } from "@/features/collab/presence";
 import { TimeEditNotice, TimeSelectionLayer, useArrangementTimeEdits } from "@/features/time-edits";
 import { groupShortcut, groupTracks, ungroupSelected, UngroupConfirmDialog } from "@/features/groups";
@@ -91,13 +92,15 @@ function ConnectedArrangementView() {
   // While automation lanes open/close: laid out once, animated by `useLaneAnimation`.
   const automationHeight = useAutomationSlotHeight();
   const draftTrack = useArrangementUi((s) => s.draftTrack);
+  // v0.2 (`comping`): expanded take lanes under their tracks.
+  const takesHeight = useTakesHeight();
   // The master track is pinned below the scrolling tracks (its own footer, at y 0); it is
   // laid out last, so the other rows keep their positions.
   const { rows, masterRow } = useMemo(() => {
-    const all = layoutRows(tracks, folded, automationHeight, (id) => heights.get(id) ?? defaultHeight, draftTrack);
+    const all = layoutRows(tracks, folded, automationHeight, (id) => heights.get(id) ?? defaultHeight, draftTrack, takesHeight);
     const master = all.find((r) => r.track.kind === "Master");
     return { rows: all.filter((r) => r !== master), masterRow: master ? { ...master, y: 0 } : null };
-  }, [tracks, folded, automationHeight, heights, defaultHeight, draftTrack]);
+  }, [tracks, folded, automationHeight, heights, defaultHeight, draftTrack, takesHeight]);
   const rowsRef = useRef<ReadonlyArray<Row>>(rows);
   useEffect(() => {
     rowsRef.current = rows;
@@ -283,6 +286,12 @@ function ConnectedArrangementView() {
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     if (isTextEntry(e.target)) return;
     if (timeEdits.onKeyDown(e)) return;
+    // v0.2 (`comping`): Up/Down pick the previous/next take for the selected comp region.
+    if (handleTakeKey(e, transport)) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
     const action = actionForKey(e);
     if (!action) return;
     e.preventDefault();

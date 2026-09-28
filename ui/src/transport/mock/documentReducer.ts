@@ -45,6 +45,7 @@ import { isRoadmapDocumentCommand, reduceRoadmapCommand } from "./roadmap";
 import { groupsTrackCommand } from "./roadmap/groupsBuses";
 import { setZones } from "./roadmap/multisampler";
 import { clipV2Command, isCrossfade } from "./roadmap/clipEditing";
+import { onTrackDeletedTakes } from "./roadmap/comping";
 import { checkDeviceMove, copyRackPads, duplicateSiblings, onRackDeleted } from "./roadmap/drumRack";
 import { swingOffset } from "./roadmap/groove";
 import { onDeviceDeleted, onSendDeleted, onTrackDeleted } from "./roadmap/shared";
@@ -216,6 +217,7 @@ function deleteTrackCascade(ctx: ReducerContext, id: TrackId): void {
   // Pad devices go with their rack.
   for (const d of ctx.tx.all("Device")) if (d.track === id && d.pad === null) deleteDeviceCascade(ctx, d.id);
   onTrackDeleted(ctx, id);
+  onTrackDeletedTakes(ctx, id);
   for (const s of ctx.tx.all("Send")) if (s.from === id || s.to === id) deleteSendCascade(ctx, s.id);
   deleteLanesWhere(
     ctx,
@@ -613,7 +615,7 @@ function resolveOverlaps(ctx: ReducerContext, keep: Clip, ignore: ReadonlySet<Cl
   const s = keep.start;
   const e = s + keep.length;
   for (const o of ctx.tx.all("Clip")) {
-    if (o.id === keep.id || ignore.has(o.id) || o.track !== keep.track) continue;
+    if (o.id === keep.id || ignore.has(o.id) || o.track !== keep.track || (o.lane ?? null) !== (keep.lane ?? null)) continue;
     const os = o.start;
     const oe = os + o.length;
     if (oe <= s + EPS || os >= e - EPS) continue; // no overlap

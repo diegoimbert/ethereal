@@ -754,6 +754,8 @@ half-open ranges). `arrangement_clips_of` lists main-lane clips only.
   the range becomes a region of `lane`; existing regions are trimmed, split (right part =
   `split_id`) or removed; adjacent same-lane regions are not merged. `ClearComp`,
   `SetCrossfade`, `Flatten` (bake the comp into main-lane clips, ids from the seeds).
+- `Audition { track, lane }` is runtime and site-local (like `DrumRack::SetPadSolo`: no ops):
+  the track plays that lane's clips instead of its comp until `lane: None`.
 - Recording: each loop/punch pass becomes a lane with its clip and a region spanning the pass
   that selects the newest lane. A pass over existing main-lane clips first moves their parts
   inside the recorded range onto a new lane, the **first take** (edge-crossing clips are split),
