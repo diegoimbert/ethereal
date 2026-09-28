@@ -7,6 +7,169 @@
       "device": "Gate",
       "type": "Builtin"
     },
+    "layout": {
+      "sections": [
+        {
+          "columns": 4,
+          "id": "gate",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Large",
+              "widget": {
+                "param": 0,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 1,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 2,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 3,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 4,
+                "type": "Choice"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 10,
+                "type": "Toggle"
+              }
+            }
+          ],
+          "span": 2,
+          "title": "Gate"
+        },
+        {
+          "columns": 1,
+          "id": "meter",
+          "items": [
+            {
+              "colspan": 1,
+              "label": "Gain reduction",
+              "size": "Small",
+              "widget": {
+                "index": 0,
+                "max_db": 0.0,
+                "min_db": -60.0,
+                "type": "Meter"
+              }
+            }
+          ],
+          "span": 1,
+          "title": "Gain"
+        },
+        {
+          "columns": 4,
+          "id": "timing",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 5,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 6,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 7,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 8,
+                "type": "Knob"
+              }
+            }
+          ],
+          "span": 2,
+          "title": "Timing"
+        },
+        {
+          "columns": 1,
+          "id": "sidechain",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 9,
+                "type": "Knob"
+              }
+            }
+          ],
+          "span": 1,
+          "title": "Sidechain"
+        },
+        {
+          "columns": 1,
+          "id": "output",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 11,
+                "type": "Knob"
+              }
+            }
+          ],
+          "span": 1,
+          "title": "Output"
+        }
+      ]
+    },
     "midi_input": false,
     "name": "Gate",
     "params": [
@@ -208,6 +371,302 @@
     "device_type": {
       "device": "MultibandCompressor",
       "type": "Builtin"
+    },
+    "layout": {
+      "sections": [
+        {
+          "columns": 1,
+          "id": "crossover",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Large",
+              "widget": {
+                "frequencies": [
+                  0,
+                  1
+                ],
+                "type": "Crossover"
+              }
+            }
+          ],
+          "span": 4,
+          "title": "Crossover"
+        },
+        {
+          "columns": 4,
+          "id": "low",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 2,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 3,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 6,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": "GR",
+              "size": "Small",
+              "widget": {
+                "index": 0,
+                "max_db": 0.0,
+                "min_db": -24.0,
+                "type": "Meter"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 4,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 5,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 7,
+                "type": "Toggle"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 8,
+                "type": "Toggle"
+              }
+            }
+          ],
+          "span": 1,
+          "title": "Low"
+        },
+        {
+          "columns": 4,
+          "id": "mid",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 9,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 10,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 13,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": "GR",
+              "size": "Small",
+              "widget": {
+                "index": 1,
+                "max_db": 0.0,
+                "min_db": -24.0,
+                "type": "Meter"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 11,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 12,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 14,
+                "type": "Toggle"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 15,
+                "type": "Toggle"
+              }
+            }
+          ],
+          "span": 1,
+          "title": "Mid"
+        },
+        {
+          "columns": 4,
+          "id": "high",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 16,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 17,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 20,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": "GR",
+              "size": "Small",
+              "widget": {
+                "index": 2,
+                "max_db": 0.0,
+                "min_db": -24.0,
+                "type": "Meter"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 18,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 19,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 21,
+                "type": "Toggle"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 22,
+                "type": "Toggle"
+              }
+            }
+          ],
+          "span": 1,
+          "title": "High"
+        },
+        {
+          "columns": 1,
+          "id": "output",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 23,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 24,
+                "type": "Knob"
+              }
+            }
+          ],
+          "span": 1,
+          "title": "Output"
+        }
+      ]
     },
     "midi_input": false,
     "name": "Multiband Compressor",
@@ -621,6 +1080,108 @@
     "device_type": {
       "device": "TransientShaper",
       "type": "Builtin"
+    },
+    "layout": {
+      "sections": [
+        {
+          "columns": 2,
+          "id": "shaper",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Large",
+              "widget": {
+                "param": 0,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Large",
+              "widget": {
+                "param": 1,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 2,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 3,
+                "type": "Knob"
+              }
+            }
+          ],
+          "span": 2,
+          "title": "Shaper"
+        },
+        {
+          "columns": 1,
+          "id": "meter",
+          "items": [
+            {
+              "colspan": 1,
+              "label": "Shaping",
+              "size": "Small",
+              "widget": {
+                "index": 0,
+                "max_db": 18.0,
+                "min_db": -18.0,
+                "type": "Meter"
+              }
+            }
+          ],
+          "span": 1,
+          "title": "Gain"
+        },
+        {
+          "columns": 1,
+          "id": "output",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 5,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 6,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 4,
+                "type": "Toggle"
+              }
+            }
+          ],
+          "span": 1,
+          "title": "Output"
+        }
+      ]
     },
     "midi_input": false,
     "name": "Transient Shaper",

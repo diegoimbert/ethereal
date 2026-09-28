@@ -151,13 +151,55 @@ fn fx_modulation_devices_are_placeholders() {
     ]);
 }
 
+/// fx-dynamics: the three devices insert and compile with their layouts; Gate and
+/// Multiband Compressor take a sidechain source (compiled into the chain entry), the
+/// Transient Shaper refuses one; their gain-reduction meters can be watched.
 #[test]
-fn fx_dynamics_devices_are_placeholders() {
+fn fx_dynamics_devices_insert_with_layouts_and_sidechains() {
     group_inserts_and_compiles(&[
         BuiltinDeviceType::Gate,
         BuiltinDeviceType::MultibandCompressor,
         BuiltinDeviceType::TransientShaper,
     ]);
+    let mut h = Harness::with_project();
+    let kick = track(&mut h, TrackKind::Audio);
+    let pad = track(&mut h, TrackKind::Audio);
+    let gate = insert(&mut h, pad, BuiltinDeviceType::Gate);
+    let mbc = insert(&mut h, pad, BuiltinDeviceType::MultibandCompressor);
+    let shaper = insert(&mut h, pad, BuiltinDeviceType::TransientShaper);
+    for d in [gate, mbc, shaper] {
+        let ReplyValue::Descriptor { descriptor } =
+            h.ok(Command::Device(DeviceCommand::GetDescriptor { device: d }))
+        else {
+            panic!("descriptor reply");
+        };
+        assert!(descriptor.layout.is_some(), "{:?}", descriptor.name);
+    }
+    for d in [gate, mbc] {
+        h.ok(Command::Device(DeviceCommand::SetSidechain {
+            device: d,
+            source: Some(kick),
+        }));
+        assert_eq!(h.project().devices[&d].sidechain, Some(kick));
+    }
+    let out = h.send(Command::Device(DeviceCommand::SetSidechain {
+        device: shaper,
+        source: Some(kick),
+    }));
+    assert_eq!(err(&out).code, ErrorCode::InvalidArgument);
+    h.tick();
+    let graph = h.ctl.bridge.last_graph();
+    let t = graph.tracks.iter().find(|t| t.id == pad).unwrap();
+    assert_eq!(t.chain.len(), 3);
+    assert!(t.chain[0].sidechain.is_some() && t.chain[1].sidechain.is_some());
+    assert!(t.chain[2].sidechain.is_none());
+    // The meters are watchable (the renderer's Meter widgets watch while mounted).
+    assert_eq!(
+        h.ok(Command::Analysis(AnalysisCommand::Watch { device: gate })),
+        ReplyValue::Unit
+    );
+    h.tick();
+    assert!(h.ctl.bridge.analysis_watches.iter().any(|(_, on)| *on));
 }
 
 #[test]

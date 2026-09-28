@@ -1,0 +1,48 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "De-Harsh",
+    "device": {
+      "type": "Builtin",
+      "device": "MultibandCompressor"
+    },
+    "meta": {
+      "tags": [
+        "cymbals",
+        "de-ess",
+        "highs"
+      ],
+      "author": "Ethereal",
+      "description": "Fast 4:1 compression above 3.5 kHz catches harsh cymbals and sibilance; lows and mids pass untouched."
+    },
+    "params": {
+      "0": 250.0,
+      "1": 3500.0,
+      "2": -20.0,
+      "3": 1.0,
+      "4": 10.0,
+      "5": 150.0,
+      "6": 0.0,
+      "7": 0.0,
+      "8": 0.0,
+      "9": -20.0,
+      "10": 1.0,
+      "11": 10.0,
+      "12": 150.0,
+      "13": 0.0,
+      "14": 0.0,
+      "15": 0.0,
+      "16": -32.0,
+      "17": 4.0,
+      "18": 1.0,
+      "19": 80.0,
+      "20": 0.0,
+      "21": 0.0,
+      "22": 0.0,
+      "23": 0.0,
+      "24": 100.0
+    }
+  }
+}
