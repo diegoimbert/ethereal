@@ -5,12 +5,13 @@
  */
 import { act, screen } from "@testing-library/react";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import type { BuiltinDeviceType, Device } from "@/generated";
+import type { BuiltinDeviceType, Device, DeviceLayout } from "@/generated";
 import { devicesOfTrack, useProjectStore } from "@/state";
 import { BUILTIN_DESCRIPTORS, cmd, newId, type MockTransport } from "@/transport";
 import { renderWithMock, resetStores, store, trackByName } from "@/features/mixer/testUtils";
 import { useGestureSender } from "../gesture";
 import { DeviceLayoutView } from "../layout/DeviceLayoutView";
+import { analysisStore } from ".";
 
 let mock: MockTransport | undefined;
 const rect = { left: 0, top: 0, right: 400, bottom: 120, width: 400, height: 120, x: 0, y: 0, toJSON: () => ({}) };
@@ -23,22 +24,22 @@ afterEach(() => {
   mock = undefined;
 });
 
-function Panel({ id, type }: { id: string; type: BuiltinDeviceType }) {
+function Panel({ id, type, layout }: { id: string; type: BuiltinDeviceType; layout?: DeviceLayout }) {
   const sender = useGestureSender();
   const device = useProjectStore((s) => s.project?.devices[id]) as Device | undefined;
   if (!device) return null;
   return (
     <section aria-label="panel">
-      <DeviceLayoutView device={device} descriptor={BUILTIN_DESCRIPTORS[type]!} sender={sender} />
+      <DeviceLayoutView device={device} descriptor={{ ...BUILTIN_DESCRIPTORS[type]!, ...(layout ? { layout } : {}) }} sender={sender} />
     </section>
   );
 }
 
 /** Inserts a `type` device on the Keys track and renders its panel. */
-async function mount(type: BuiltinDeviceType) {
+async function mount(type: BuiltinDeviceType, layout?: DeviceLayout) {
   const id = newId();
   function Root() {
-    return <Panel id={id} type={type} />;
+    return <Panel id={id} type={type} layout={layout} />;
   }
   mock = await renderWithMock(<Root />);
   const track = trackByName("Keys").id;
@@ -66,6 +67,16 @@ describe("analysis widgets", () => {
     expect([...plot.querySelectorAll('[data-axis="db"]')].map((e) => e.textContent)).toEqual(["-15", "-30", "-45"]);
     const peak = plot.querySelector('[data-testid="spectrum-peak"]');
     expect(peak?.getAttribute("points")?.split(" ").length).toBe(256);
+  });
+
+  it("a gain-reduction meter is empty until its first frame", async () => {
+    const id = await mount("Tuner", {
+      sections: [{ id: "gr", title: null, span: 1, columns: 1, items: [{ widget: { type: "Meter", index: 0, min_db: -24, max_db: 0 }, size: "Medium", colspan: 1, label: "GR" }] }],
+    });
+    const fill = () => (screen.getByTestId("widget-meter").querySelector(".eth-level__fill") as HTMLElement).style.height;
+    expect(fill()).toBe("0%");
+    act(() => analysisStore(mock!).handle({ type: "Analysis", event: { type: "Frame", device: id, data: { type: "Levels", values: [-6] } } }));
+    expect(fill()).toBe("25%");
   });
 
   it("the tuner panel shows the simulated note", async () => {

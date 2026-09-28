@@ -323,7 +323,7 @@ export function MeterWidget({ widget: w, size, label }: TypedProps<"Meter">) {
   // Fill from the end of the range nearest 0 dB (gain reduction meters grow downwards).
   const fromTop = Math.abs(w.max_db) < Math.abs(w.min_db) && w.max_db <= 0 && hi === 0;
   const f = v === undefined ? 0 : clamp01((v - lo) / (hi - lo || 1));
-  const fill = fromTop ? 1 - f : f;
+  const fill = v === undefined ? 0 : fromTop ? 1 - f : f;
   const text = v === undefined ? "–" : `${v.toFixed(1)} dB`;
   return (
     <div className={clsx("eth-widget", "eth-widget--meter", `eth-widget--${size.toLowerCase()}`)} data-widget="Meter">
