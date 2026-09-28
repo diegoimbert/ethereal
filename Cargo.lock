@@ -1620,6 +1620,8 @@ dependencies = [
  "assert_no_alloc",
  "ether-core",
  "ether-native",
+ "objc2",
+ "objc2-foundation",
  "serde",
  "serde_json",
  "tauri",

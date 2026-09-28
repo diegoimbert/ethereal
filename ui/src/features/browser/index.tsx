@@ -9,7 +9,7 @@ import clsx from "clsx";
 import { useEffect, useRef, useState, type DragEvent, type KeyboardEvent, type ReactNode } from "react";
 import { AudioLines, CornerLeftUp, File, Folder, FolderOpen, Music, Search, Volume2, X } from "lucide-react";
 import type { BrowseLocation, BrowseRoot, DirectoryEntry, MediaSource } from "@/generated";
-import { useUploadDrop } from "@/features/remote";
+import { BrowserImportBar, useImportDrop } from "@/features/import";
 import { useEngineCommands, useEngineEvent } from "@/features/transport-bar/engine";
 import { Button, TextInput } from "@/kit";
 import { useProjectStore } from "@/state";
@@ -61,7 +61,8 @@ const KIND_ICON: Record<DirectoryEntry["kind"], ReactNode> = {
  * Sample browser over the engine-visible locations (`Media::ListLocations`: library folders
  * and the current project's media). Folders navigate; clicking an audio file previews it
  * (click again to stop) and dragging it onto a drop target imports it there (payload:
- * `./dragPayload.ts`). The UI never accesses files itself.
+ * `./dragPayload.ts`). The UI never accesses files itself, except files the user drops from
+ * the OS or picks with "Import audio…" (`@/features/import`: uploaded to the engine).
  */
 export function Browser({ scope = "all" }: { scope?: BrowserScope } = {}) {
   const { transport, send, error, clearError } = useEngineCommands();
@@ -75,6 +76,12 @@ export function Browser({ scope = "all" }: { scope?: BrowserScope } = {}) {
   const [found, setFound] = useState<Found | null>(null);
 
   const ready = !!transport && hasProject;
+  // `file-import`: OS files dropped here are added to the project; show them there.
+  const showProjectMedia = () => {
+    const projectMedia = locations?.find((l) => l.location.type === "ProjectMedia");
+    if (projectMedia) setPlace({ location: projectMedia.location, path: "" });
+  };
+  const importDrop = useImportDrop(showProjectMedia);
 
   // Browse roots, once connected.
   useEffect(() => {
@@ -204,7 +211,7 @@ export function Browser({ scope = "all" }: { scope?: BrowserScope } = {}) {
   const currentRoot = current ? locations?.find((l) => sameLocation(l.location, current.location)) : undefined;
 
   return (
-    <div className="eth-browser" data-feature="browser" {...useUploadDrop()}>
+    <div className="eth-browser" data-feature="browser" {...importDrop}>
       <div className="eth-browser__search">
         <Search className="eth-browser__search-icon" aria-hidden />
         <TextInput
@@ -350,6 +357,7 @@ export function Browser({ scope = "all" }: { scope?: BrowserScope } = {}) {
           {error}
         </button>
       )}
+      {ready && transport && <BrowserImportBar transport={transport} onImport={showProjectMedia} />}
     </div>
   );
 }
