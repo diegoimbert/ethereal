@@ -81,7 +81,7 @@ pub struct CaptureBlock {
 }
 
 /// One track input tap captured with a [`CaptureBlock`].
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct TapCapture {
     /// The armed consumer track (its input is `TrackInput::Track`).
     pub track: TrackId,
@@ -423,6 +423,11 @@ impl CaptureReader {
     pub fn tap_samples(&self, i: usize) -> &[f32] {
         let n = self.tap_buf.len() / self.taps.len().max(1);
         self.tap_buf.get(i * n..(i + 1) * n).unwrap_or(&[])
+    }
+
+    /// The stereo samples of every tap of the last block read, tap after tap.
+    pub fn tap_buffer(&self) -> &[f32] {
+        &self.tap_buf
     }
 
     fn read_taps(&mut self, block: &CaptureBlock) {

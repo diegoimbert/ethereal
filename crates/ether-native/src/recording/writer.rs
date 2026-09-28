@@ -7,9 +7,14 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use crossbeam_channel::{Receiver, RecvTimeoutError, Sender, bounded, unbounded};
-use ether_controller::{AudioTake, BridgeError, RecordSession, RecordedMidi, RecordedTakes};
+use ether_controller::{
+    AudioTake, BridgeError, RecordSession, RecordedMidi, RecordedTakes,
+};
+use ether_core::protocol::model::TrackId;
 use ether_core::recording::rtrb::Consumer;
-use ether_core::recording::{CaptureBlock, CaptureReader, RecordedMidi as EngineMidi};
+use ether_core::recording::{
+    CaptureBlock, CaptureReader, RecordedMidi as EngineMidi, TapCapture,
+};
 
 use super::live::{LiveNotes, LiveShared, PeakAcc};
 
@@ -104,7 +109,7 @@ fn run(
         };
         while let Some(block) = capture.next_block(&mut buf) {
             if let Some(s) = &mut session {
-                s.block(&block, &buf);
+                s.block(&block, &buf, capture.taps(), capture.tap_buffer());
             }
             buf.clear();
         }
@@ -140,6 +145,24 @@ struct Segment {
     run: u64,
 }
 
+/// Where a lane's frames come from.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Source {
+    /// The hardware input channels (every `AudioTarget` of the session).
+    Hardware,
+    /// The aligned input tap of this armed track (`tap-recording`).
+    Tap(TrackId),
+}
+
+/// Takes placed with one latency: the hardware targets together (round-trip latency), or
+/// one tapped track (its PDC input latency, reported by the engine with every block). Each
+/// lane splits its own takes (loop wraps / locates reach lanes at different frames).
+struct Lane {
+    source: Source,
+    latency: u64,
+    current: Option<Take>,
+}
+
 struct Take {
     run: u64,
     start: f64,
@@ -147,8 +170,9 @@ struct Take {
 }
 
 struct TakeFile {
-    track: ether_core::protocol::model::TrackId,
+    track: TrackId,
     rel: String,
+    /// Channels `first..first + count` of the lane's frames.
     first: usize,
     count: usize,
     out: WavWriter,
@@ -161,7 +185,7 @@ pub(super) struct Session {
     channels: usize,
     segments: VecDeque<Segment>,
     runs: u64,
-    current: Option<Take>,
+    lanes: Vec<Lane>,
     takes: u32,
     done: Vec<AudioTake>,
     midi: Vec<RecordedMidi>,
@@ -169,7 +193,7 @@ pub(super) struct Session {
     midi_pass: u32,
     midi_last: f64,
     error: Option<String>,
-    /// Audio frames kept and whether any of them was not exactly zero (a denied
+    /// Hardware frames kept and whether any of them was not exactly zero (a denied
     /// microphone permission delivers pure digital silence).
     frames_kept: u64,
     heard: bool,
@@ -180,12 +204,27 @@ pub(super) struct Session {
 
 impl Session {
     pub(super) fn new(config: StartConfig, channels: usize, live: LiveShared) -> Self {
+        let mut lanes = Vec::new();
+        if !config.session.audio.is_empty() {
+            lanes.push(Lane {
+                source: Source::Hardware,
+                latency: config.latency,
+                current: None,
+            });
+        }
+        for &track in &config.session.taps {
+            lanes.push(Lane {
+                source: Source::Tap(track),
+                latency: 0,
+                current: None,
+            });
+        }
         Self {
             config,
             channels: channels.max(1),
             segments: VecDeque::new(),
             runs: 0,
-            current: None,
+            lanes,
             takes: 0,
             done: Vec::new(),
             midi: Vec::new(),
@@ -204,8 +243,17 @@ impl Session {
         position >= s.keep_from - 1e-9 && s.keep_until.is_none_or(|u| position < u - 1e-9)
     }
 
-    pub(super) fn block(&mut self, b: &CaptureBlock, samples: &[f32]) {
-        if self.config.session.audio.is_empty() || self.error.is_some() {
+    /// A captured block: `samples` are its interleaved hardware channels, `taps` the armed
+    /// tap tracks captured with it and `tap_samples` their stereo frames (tap-major, see
+    /// [`ether_core::recording::CaptureReader::tap_samples`]).
+    pub(super) fn block(
+        &mut self,
+        b: &CaptureBlock,
+        samples: &[f32],
+        taps: &[TapCapture],
+        tap_samples: &[f32],
+    ) {
+        if self.lanes.is_empty() || self.error.is_some() {
             return;
         }
         let run = match self.segments.back() {
@@ -227,76 +275,147 @@ impl Session {
             bps: b.beats_per_sample,
             run,
         });
-        let latency = self.config.latency;
-        for i in 0..u64::from(b.frames) {
-            let k = b.sample_time + i;
-            let frame = &samples[i as usize * self.channels..(i as usize + 1) * self.channels];
-            // Frame `k` was played while the performer heard engine sample `k - latency`.
+        let frames = b.frames as usize;
+        for li in 0..self.lanes.len() {
+            match self.lanes[li].source {
+                Source::Hardware => {
+                    let n = frames * self.channels;
+                    if samples.len() >= n {
+                        self.place(li, b, &samples[..n], self.channels);
+                    }
+                }
+                Source::Tap(track) => {
+                    let n = frames * 2;
+                    let found = taps.iter().position(|t| t.track == track).and_then(|j| {
+                        tap_samples
+                            .get(j * n..(j + 1) * n)
+                            .map(|s| (taps[j].latency, s))
+                    });
+                    match found {
+                        Some((latency, data)) => {
+                            self.lanes[li].latency = u64::from(latency);
+                            self.place(li, b, data, 2);
+                        }
+                        // Disarmed or no longer tapping while recording: the take ends.
+                        None => self.gap(li),
+                    }
+                }
+            }
+            if self.error.is_some() {
+                return;
+            }
+        }
+        // Segments every lane has passed are no longer needed.
+        let max_latency = self.lanes.iter().map(|l| l.latency).max().unwrap_or(0);
+        let passed = (b.sample_time + u64::from(b.frames)).saturating_sub(max_latency);
+        while self
+            .segments
+            .front()
+            .is_some_and(|s| s.start + s.frames <= passed)
+        {
+            self.segments.pop_front();
+        }
+    }
+
+    /// Place the frames of block `b` (`data`: `stride` interleaved channels per frame) of
+    /// lane `li` on the timeline, opening/closing its takes.
+    fn place(&mut self, li: usize, b: &CaptureBlock, data: &[f32], stride: usize) {
+        let latency = self.lanes[li].latency;
+        let hardware = self.lanes[li].source == Source::Hardware;
+        let mut si = 0;
+        for i in 0..b.frames as usize {
+            let k = b.sample_time + i as u64;
+            let frame = &data[i * stride..(i + 1) * stride];
+            // Frame `k` belongs to what the engine rendered at sample `k - latency`.
             let Some(h) = k.checked_sub(latency) else {
-                self.gap();
+                self.gap(li);
                 continue;
             };
             while self
                 .segments
-                .front()
+                .get(si)
                 .is_some_and(|s| s.start + s.frames <= h)
             {
-                self.segments.pop_front();
+                si += 1;
             }
-            let Some(seg) = self.segments.front().copied().filter(|s| s.start <= h) else {
-                self.gap();
+            let Some(seg) = self.segments.get(si).copied().filter(|s| s.start <= h) else {
+                self.gap(li);
                 continue;
             };
             let position = seg.position + (h - seg.start) as f64 * seg.bps;
             if !self.keep(position) {
-                self.gap();
+                self.gap(li);
                 continue;
             }
-            if self.current.as_ref().is_none_or(|t| t.run != seg.run) {
-                self.gap();
-                self.open_take(seg.run, position);
-            }
-            self.frames_kept += 1;
-            if let Some(take) = &mut self.current {
-                let mut failed = None;
-                for f in &mut take.files {
-                    for c in 0..f.count {
-                        let s = frame.get(f.first + c).copied().unwrap_or(0.0);
-                        self.heard |= s != 0.0;
-                        f.peaks.sample(s);
-                        if let Err(e) = f.out.sample(s) {
-                            failed = Some(e.to_string());
-                        }
-                    }
-                    f.out.frames += 1;
-                    f.peaks.end_frame();
-                }
-                if let Some(e) = failed {
-                    self.error = Some(e);
+            if self.lanes[li]
+                .current
+                .as_ref()
+                .is_none_or(|t| t.run != seg.run)
+            {
+                self.gap(li);
+                self.open_take(li, seg.run, position);
+                if self.error.is_some() {
                     return;
                 }
+            }
+            if hardware {
+                self.frames_kept += 1;
+            }
+            let Some(take) = &mut self.lanes[li].current else {
+                continue;
+            };
+            let mut failed = None;
+            for f in &mut take.files {
+                for c in 0..f.count {
+                    let s = frame.get(f.first + c).copied().unwrap_or(0.0);
+                    if hardware {
+                        self.heard |= s != 0.0;
+                    }
+                    f.peaks.sample(s);
+                    if let Err(e) = f.out.sample(s) {
+                        failed = Some(e.to_string());
+                    }
+                }
+                f.out.frames += 1;
+                f.peaks.end_frame();
+            }
+            if let Some(e) = failed {
+                self.error = Some(e);
+                return;
             }
         }
     }
 
-    fn open_take(&mut self, run: u64, start: f64) {
+    fn open_take(&mut self, li: usize, run: u64, start: f64) {
         self.takes += 1;
         let cfg = &self.config;
+        // (track, first channel, channel count) of each file of the take.
+        let targets: Vec<(TrackId, usize, usize)> = match self.lanes[li].source {
+            Source::Hardware => cfg
+                .session
+                .audio
+                .iter()
+                .map(|t| {
+                    (
+                        t.track,
+                        usize::from(t.first),
+                        usize::from(t.count.clamp(1, 2)),
+                    )
+                })
+                .collect(),
+            Source::Tap(track) => vec![(track, 0, 2)],
+        };
         let mut files = Vec::new();
-        for target in &cfg.session.audio {
-            let name = format!(
-                "rec-{}-{}-{}.wav",
-                cfg.session.tag, target.track, self.takes
-            );
-            let count = usize::from(target.count.clamp(1, 2));
+        for (track, first, count) in targets {
+            let name = format!("rec-{}-{}-{}.wav", cfg.session.tag, track, self.takes);
             match WavWriter::create(&cfg.media_dir.join(&name), count as u16, cfg.sample_rate) {
                 Ok(out) => files.push(TakeFile {
-                    track: target.track,
+                    track,
                     rel: format!("{}/{name}", ether_core::protocol::model::file::MEDIA_DIR),
-                    first: usize::from(target.first),
+                    first,
                     count,
                     out,
-                    peaks: PeakAcc::new(target.track, self.takes, start, cfg.sample_rate),
+                    peaks: PeakAcc::new(track, self.takes, start, cfg.sample_rate),
                 }),
                 Err(e) => {
                     self.error = Some(format!("{}: {e}", name));
@@ -304,12 +423,12 @@ impl Session {
                 }
             }
         }
-        self.current = Some(Take { run, start, files });
+        self.lanes[li].current = Some(Take { run, start, files });
     }
 
-    /// The current take (if any) ends here.
-    fn gap(&mut self) {
-        let Some(mut take) = self.current.take() else {
+    /// The current take of lane `li` (if any) ends here.
+    fn gap(&mut self, li: usize) {
+        let Some(mut take) = self.lanes[li].current.take() else {
             return;
         };
         {
@@ -336,12 +455,13 @@ impl Session {
 
     /// Queue the live peaks completed since the last call (`live-record`).
     pub(super) fn flush_live(&mut self) {
-        let Some(take) = &mut self.current else {
-            return;
-        };
         let mut live = self.live.lock();
-        for f in &mut take.files {
-            f.peaks.flush(&mut live, false);
+        for lane in &mut self.lanes {
+            if let Some(take) = &mut lane.current {
+                for f in &mut take.files {
+                    f.peaks.flush(&mut live, false);
+                }
+            }
         }
     }
 
@@ -365,7 +485,9 @@ impl Session {
     }
 
     pub(super) fn finish(mut self) -> Result<RecordedTakes, String> {
-        self.gap();
+        for li in 0..self.lanes.len() {
+            self.gap(li);
+        }
         let dropped = self.live.lock().take_dropped();
         if dropped > 0 {
             tracing::warn!(

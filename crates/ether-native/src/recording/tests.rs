@@ -126,6 +126,7 @@ fn session(project: ProjectId, audio: Vec<AudioTarget>, midi: bool) -> RecordSes
         project,
         tag: "t".into(),
         audio,
+        taps: Vec::new(),
         midi,
         keep_from: 0.0,
         keep_until: None,

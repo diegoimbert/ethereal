@@ -588,7 +588,7 @@ pub fn start(audio: &AudioShared, session: &RecordSession) -> Result<(), BridgeE
     let media_dir = root
         .join(session.project.to_string())
         .join(ether_core::protocol::model::file::MEDIA_DIR);
-    if !session.audio.is_empty() {
+    if !session.audio.is_empty() || !session.taps.is_empty() {
         std::fs::create_dir_all(&media_dir).map_err(|e| BridgeError::Other(e.to_string()))?;
     }
     writer.start(writer::StartConfig {
