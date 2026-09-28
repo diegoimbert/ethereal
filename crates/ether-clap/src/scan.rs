@@ -97,8 +97,12 @@ pub fn scan_bundle(bundle: &Path) -> Result<Vec<PluginDescriptor>, PluginError> 
             .features()
             .map(|f| f.to_string_lossy().into_owned())
             .collect();
+        // The sidechain (aux input port) is only known from an instance's audio ports: the
+        // scanner process may instantiate (a plugin failing to is listed without one).
+        let sidechain_inputs = crate::plugin::ClapPlugin::from_entry(entry.clone(), bundle, id)
+            .map_or(0, |p| p.sidechain_inputs());
         plugins.push(PluginDescriptor {
-            sidechain_inputs: Default::default(),
+            sidechain_inputs,
             format: PluginFormat::Clap,
             id: id.to_owned(),
             name: lossy(d.name()),
