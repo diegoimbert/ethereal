@@ -7,7 +7,7 @@
  * failure cancels the upload. Progress is published to `uploadStore` for the top bar.
  */
 import { useSyncExternalStore } from "react";
-import type { MediaRef, ReplyValue } from "@/generated";
+import type { GestureId, MediaRef, ReplyValue } from "@/generated";
 import { cmd, newId, type EngineTransport } from "@/transport";
 import { bytesToBase64 } from "@/transport/ws/binaryFrame";
 
@@ -40,15 +40,29 @@ export interface UploadProgress {
   done: boolean;
 }
 
+export interface UploadOptions {
+  /** The import joins this gesture (one undo step with the clip it lands in). */
+  gesture?: GestureId;
+  /** Aborting cancels the upload (`CancelUpload`) and rejects with the signal's reason. */
+  signal?: AbortSignal;
+}
+
 /** Upload `file` and import it into the open project. Resolves with the new media. */
-export async function uploadFile(transport: EngineTransport, file: UploadSource, onProgress?: (sent: number) => void): Promise<MediaRef> {
+export async function uploadFile(
+  transport: EngineTransport,
+  file: UploadSource,
+  onProgress?: (sent: number) => void,
+  opts: UploadOptions = {},
+): Promise<MediaRef> {
   if (file.size <= 0) throw new Error(`${file.name} is empty`);
+  opts.signal?.throwIfAborted();
   const upload = newId();
   await transport.send(cmd("Media", { type: "BeginUpload", upload, name: file.name, size: file.size }));
   try {
     const inFlight: Promise<unknown>[] = [];
     let sent = 0;
     for (let offset = 0; offset < file.size; offset += CHUNK_BYTES) {
+      opts.signal?.throwIfAborted();
       const end = Math.min(file.size, offset + CHUNK_BYTES);
       const bytes = new Uint8Array(await file.slice(offset, end).arrayBuffer());
       const reply = hasBinaryChunks(transport)
@@ -63,7 +77,10 @@ export async function uploadFile(transport: EngineTransport, file: UploadSource,
       if (inFlight.length >= IN_FLIGHT) await inFlight.shift();
     }
     await Promise.all(inFlight);
-    const reply = await transport.send(cmd("Media", { type: "Import", id: newId(), source: { type: "Upload", upload } }));
+    opts.signal?.throwIfAborted();
+    const reply = await transport.send(cmd("Media", { type: "Import", id: newId(), source: { type: "Upload", upload } }), {
+      gesture: opts.gesture,
+    });
     if (reply.type !== "Media") throw new Error(`unexpected reply ${reply.type}`);
     return reply.media;
   } catch (e) {

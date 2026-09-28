@@ -258,3 +258,41 @@ describe("TauriTransport", () => {
     await expect(t.connect()).rejects.toThrow("disposed");
   });
 });
+
+describe("TauriTransport OS files (file-import)", () => {
+  it("opens the OS dialog for audio files and returns the picked paths", async () => {
+    const openDialog = vi
+      .fn()
+      .mockResolvedValueOnce(["/a/Kick.wav", "/b/Loop.flac"])
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce("/c.wav");
+    const t = new TauriTransport({ invoke: fakeHost(() => []).invoke, openDialog });
+    expect(await t.pickAudioFiles()).toEqual(["/a/Kick.wav", "/b/Loop.flac"]);
+    expect(openDialog.mock.calls[0]![0]).toMatchObject({
+      multiple: true,
+      directory: false,
+      filters: [{ extensions: expect.arrayContaining(["wav", "flac", "mp3"]) }],
+    });
+    expect(await t.pickAudioFiles()).toBeNull();
+    expect(await t.pickAudioFiles()).toEqual(["/c.wav"]);
+  });
+
+  it("delivers path drops from the shell until unsubscribed", async () => {
+    let handler: ((e: { payload: unknown }) => void) | null = null;
+    const unlisten = vi.fn();
+    const listen = vi.fn((event: string, h: (e: { payload: unknown }) => void) => {
+      expect(event).toBe("ether://path-drop");
+      handler = h;
+      return Promise.resolve(unlisten);
+    });
+    const t = new TauriTransport({ invoke: fakeHost(() => []).invoke, listen: listen as never });
+    const got: string[][] = [];
+    const off = t.onPathDrop((p) => got.push(p));
+    await Promise.resolve();
+    handler!({ payload: { paths: ["/x/a.wav", 3] } });
+    handler!({ payload: {} });
+    expect(got).toEqual([["/x/a.wav"]]);
+    off();
+    expect(unlisten).toHaveBeenCalled();
+  });
+});
