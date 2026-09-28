@@ -329,7 +329,9 @@ fn local_paths_never_leave_the_site() {
     assert_eq!(a.stored(h), Some(hat));
 
     // Undo the collect (local again), then a late joiner gets the session state.
-    a.ok(Command::Edit(ether_core::protocol::project::EditCommand::Undo));
+    a.ok(Command::Edit(
+        ether_core::protocol::project::EditCommand::Undo,
+    ));
     let mut c = Site::new(53, &hub, &[]);
     c.join("C");
     settle(&mut [&mut a, &mut b, &mut c], &hub);

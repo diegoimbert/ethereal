@@ -11,17 +11,17 @@ use serde_json::{Value, json};
 
 fn import(c: &mut Client, source: Value) -> Value {
     let id = c.id();
-    c.ok("Media", json!({"type": "Import", "id": id, "source": source}))["media"].clone()
+    c.ok(
+        "Media",
+        json!({"type": "Import", "id": id, "source": source}),
+    )["media"]
+        .clone()
 }
 
-fn missing_reported(c: &Client, media: &str) -> bool {
-    c.with(|r| {
-        r.events.iter().any(|e| {
-            let v = serde_json::to_value(e).unwrap();
-            v["type"] == "Media"
-                && v["event"]["type"] == "Missing"
-                && v["event"]["media"] == media
-        })
+fn missing_reported(r: &common::Received, media: &str) -> bool {
+    r.events.iter().any(|e| {
+        let v = serde_json::to_value(e).unwrap();
+        v["type"] == "Media" && v["event"]["type"] == "Missing" && v["event"]["media"] == media
     })
 }
 
@@ -42,7 +42,10 @@ fn referenced_in_place_missing_relinked_collected() {
 
     let mut c = Client::start(&paths);
     let pid = c.project_id();
-    c.ok("Project", json!({"type": "Create", "id": pid, "name": "Refs"}));
+    c.ok(
+        "Project",
+        json!({"type": "Create", "id": pid, "name": "Refs"}),
+    );
     let k = import(
         &mut c,
         json!({"type": "Path", "path": kick_path.to_str().unwrap()}),
@@ -70,7 +73,7 @@ fn referenced_in_place_missing_relinked_collected() {
     let mut c = Client::start(&paths);
     c.ok("Project", json!({"type": "Open", "id": pid}));
     let kid = k["id"].as_str().unwrap().to_string();
-    c.wait(|_| missing_reported(&c, &kid).then_some(()), "missing kick");
+    c.wait(|r| missing_reported(r, &kid).then_some(()), "missing kick");
     let missing = c.ok("MediaRef", json!({"type": "ListMissing"}));
     assert_eq!(missing["media"], json!([kid]));
 
@@ -138,13 +141,15 @@ fn list_external_dir_lists_one_folder() {
     assert_eq!(
         entries,
         vec![
-            (tmp.path().join("a.wav").to_str().unwrap().to_string(), false),
+            (
+                tmp.path().join("a.wav").to_str().unwrap().to_string(),
+                false
+            ),
             (tmp.path().join("sub").to_str().unwrap().to_string(), true),
         ]
     );
     assert!(ether_native::store::list_external_dir("relative").is_err());
     assert!(
-        ether_native::store::list_external_dir(tmp.path().join("a.wav").to_str().unwrap())
-            .is_err()
+        ether_native::store::list_external_dir(tmp.path().join("a.wav").to_str().unwrap()).is_err()
     );
 }
