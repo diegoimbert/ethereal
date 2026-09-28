@@ -747,6 +747,10 @@ paths = [
 [nodes.tap-recording]
 # Follow-up to groups-buses: record takes from track-to-track input taps (resampling).
 paths = [
+  # BCR (base-82): web guard (arm disabled + reason for tapped tracks on wasm)
+  "ui/src/features/arrangement/TrackRow.tsx",
+  "ui/src/features/recording/tapRecording*.ts",
+  "ui/src/features/recording/RecordingControls.tsx",
   "crates/ether-core/src/recording/**",
   "crates/ether-core/tests/tap_recording*.rs",
   "crates/ether-native/src/recording/**",
