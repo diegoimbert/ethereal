@@ -1,0 +1,151 @@
+/*
+ * The EQ curve widget (graphical-eq). Tokens only: band colours come from the track palette
+ * (`--eth-track-*`), everything else from `--eth-color-*`, sizes from spacing/row tokens.
+ */
+
+.eth-eq {
+  --eq-plot-height: calc(var(--eth-size-row-height-lg) * 7);
+  --eq-handle-r: calc(var(--eth-space-sm) + var(--eth-space-xs));
+  position: relative;
+  width: 100%;
+  min-width: 0;
+}
+
+.eth-plot.eth-plot--eq {
+  height: var(--eq-plot-height);
+  background: var(--eth-color-bg-inset);
+  cursor: default;
+}
+.eth-eq--over-handle .eth-plot--eq {
+  cursor: grab;
+}
+.eth-eq--dragging .eth-plot--eq {
+  cursor: grabbing;
+}
+
+/* ---- Grid and captions ---- */
+.eth-eq__grid line {
+  stroke: var(--eth-color-border-light);
+  stroke-width: var(--eth-border-width);
+  opacity: var(--eth-opacity-muted);
+}
+.eth-eq__grid line.eth-eq__grid--major {
+  opacity: 1;
+}
+.eth-eq__grid line.eth-eq__grid--zero {
+  stroke: var(--eth-color-border-strong);
+  opacity: 1;
+}
+.eth-eq__label {
+  fill: var(--eth-color-text-dim);
+  font-family: var(--eth-font-mono);
+  font-size: var(--eth-fs-2xs);
+  pointer-events: none;
+  user-select: none;
+}
+.eth-eq__label--freq {
+  text-anchor: middle;
+  dominant-baseline: text-after-edge;
+}
+.eth-eq__label--db {
+  text-anchor: start;
+  dominant-baseline: middle;
+}
+
+/* ---- Spectrum (input dim, output brighter) ---- */
+.eth-eq__spectrum-pre {
+  fill: color-mix(in srgb, var(--eth-color-text-dim) 16%, transparent);
+  stroke: none;
+}
+.eth-eq__spectrum-post-fill {
+  fill: color-mix(in srgb, var(--eth-color-accent) 10%, transparent);
+  stroke: none;
+}
+.eth-eq__spectrum-post {
+  fill: none;
+  stroke: color-mix(in srgb, var(--eth-color-accent) 55%, transparent);
+  stroke-width: var(--eth-border-width);
+  stroke-linejoin: round;
+}
+
+/* ---- Response ---- */
+.eth-eq__sum-fill {
+  fill: var(--eth-color-accent-subtle);
+  stroke: none;
+}
+.eth-eq__sum {
+  fill: none;
+  stroke: var(--eth-color-accent);
+  stroke-width: var(--eth-border-width-strong);
+  stroke-linejoin: round;
+}
+.eth-eq__band-fill {
+  fill: color-mix(in srgb, var(--eq-band) 24%, transparent);
+  stroke: var(--eq-band);
+  stroke-width: var(--eth-border-width);
+  stroke-linejoin: round;
+}
+.eth-eq__crossover {
+  stroke: var(--eth-color-accent);
+  stroke-width: var(--eth-border-width-strong);
+}
+
+/* ---- Handles (one colour per band) ---- */
+.eth-eq__band--0 { --eq-band: var(--eth-track-0); }
+.eth-eq__band--1 { --eq-band: var(--eth-track-2); }
+.eth-eq__band--2 { --eq-band: var(--eth-track-4); }
+.eth-eq__band--3 { --eq-band: var(--eth-track-6); }
+.eth-eq__band--4 { --eq-band: var(--eth-track-7); }
+.eth-eq__band--5 { --eq-band: var(--eth-track-9); }
+.eth-eq__band--6 { --eq-band: var(--eth-track-10); }
+.eth-eq__band--7 { --eq-band: var(--eth-track-12); }
+
+.eth-eq__handle {
+  outline: none;
+}
+.eth-eq__handle-dot {
+  r: var(--eq-handle-r);
+  fill: var(--eq-band);
+  stroke: var(--eth-color-bg-inset);
+  stroke-width: var(--eth-border-width-strong);
+  transition: r var(--eth-duration-fast) var(--eth-ease-out);
+}
+.eth-eq__handle-num {
+  fill: var(--eth-color-text-inverse);
+  font-size: var(--eth-fs-2xs);
+  font-weight: var(--eth-fw-bold);
+  text-anchor: middle;
+  dominant-baseline: central;
+  pointer-events: none;
+  user-select: none;
+}
+.eth-eq__handle--off .eth-eq__handle-dot {
+  fill: var(--eth-color-bg-inset);
+  stroke: var(--eq-band);
+  stroke-dasharray: var(--eth-space-xs) var(--eth-space-hair);
+}
+.eth-eq__handle--off .eth-eq__handle-num {
+  fill: var(--eq-band);
+}
+.eth-eq__handle--selected .eth-eq__handle-dot {
+  stroke: var(--eth-color-text);
+}
+.eth-eq__handle:focus-visible .eth-eq__handle-dot {
+  stroke: var(--eth-color-focus);
+}
+
+/* ---- Readout of the hovered / selected band ---- */
+.eth-eq__readout {
+  position: absolute;
+  top: var(--eth-space-xs);
+  right: var(--eth-space-xs);
+  padding: var(--eth-space-hair) var(--eth-space-sm);
+  border-left: var(--eth-border-width-strong) solid var(--eq-band);
+  border-radius: var(--eth-radius-xs);
+  background: var(--eth-color-bg-overlay);
+  color: var(--eth-color-text);
+  font-family: var(--eth-font-mono);
+  font-size: var(--eth-fs-2xs);
+  pointer-events: none;
+  white-space: nowrap;
+}
