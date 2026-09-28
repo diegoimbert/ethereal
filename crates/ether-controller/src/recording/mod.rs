@@ -17,6 +17,10 @@
 //!   MIDI clip with the recorded notes per armed MIDI track. Clips are placed where the
 //!   host's latency compensation put them (see `ether-native`'s recording module for the
 //!   formula). `RecordingEvent::Stopped` lists the new clips.
+//! - **Track input taps** (`tap-recording`, resampling): an armed audio track whose input is
+//!   another track (`TrackInput::Track`) records that track's aligned signal
+//!   ([`RecordSession::taps`]); its takes are committed like hardware takes. Hosts without
+//!   capture (web) cannot record it: the UI disables arming such a track there.
 //! - **Inputs** (`ListInputs`): [`crate::EngineBridge::list_inputs`] (native: cpal input
 //!   channels + MIDI ports; web: `Unsupported`).
 //!
@@ -65,6 +69,11 @@ pub struct RecordSession {
     /// Unique per session: hosts name take files `media/rec-<tag>-<track>-<take>.wav`.
     pub tag: String,
     pub audio: Vec<AudioTarget>,
+    /// Armed audio tracks whose input is another track (`TrackInput::Track`,
+    /// `tap-recording`): each records its aligned input tap (stereo), placed with its own
+    /// PDC input latency instead of the round-trip latency. Takes are `AudioTake`s like
+    /// hardware ones (loop passes become take lanes, `comping`).
+    pub taps: Vec<TrackId>,
     /// An armed MIDI track exists: collect MIDI input.
     pub midi: bool,
     /// Keep only what was played at timeline positions `[keep_from, keep_until)` (beats,
@@ -373,6 +382,11 @@ where
                 _ => None,
             })
             .collect();
+        let taps = armed
+            .iter()
+            .filter(|t| t.kind == TrackKind::Audio && matches!(t.input, TrackInput::Track { .. }))
+            .map(|t| t.id)
+            .collect();
         let midi_tracks: Vec<TrackId> = armed
             .iter()
             .filter(|t| t.kind == TrackKind::Midi)
@@ -389,6 +403,7 @@ where
             project: p.id,
             tag: format!("{}-{}", now, self.recording.sessions),
             audio,
+            taps,
             midi: !midi_tracks.is_empty(),
             keep_from,
             keep_until,

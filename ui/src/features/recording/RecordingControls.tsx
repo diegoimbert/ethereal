@@ -6,6 +6,7 @@ import { tracksOrdered, useProjectStore } from "@/state";
 import { cmd, isCommandFailed, TransportContext, type EngineTransport } from "@/transport";
 import { useLiveRecordingFeed } from "./live/liveStore";
 import { COUNT_IN_CHOICES, countInLabel, inputOptions, inputValue, isRecordable, MONITOR_MODES } from "./inputs";
+import { tapArmBlocked } from "./tapRecording";
 
 /** Shown on the disabled record button when the host has no inputs (browser build). */
 export const UNSUPPORTED_TOOLTIP = "Recording needs the desktop app: audio and MIDI inputs aren't available in the browser";
@@ -262,20 +263,26 @@ function InputsPanel({ transport, inputs, unsupported, send, onDeviceChanged }: 
           <tbody>
             {tracks.map((t) => {
               const isArmed = armed.includes(t.id);
+              const armBlocked = tapArmBlocked(transport.kind, t.input, isArmed);
               const options = inputOptions(t.kind, inputs, t.input);
               return (
                 <tr key={t.id} data-track={t.id}>
                   <td className="eth-rec__track-name">{t.name}</td>
                   <td>
-                    <Button
-                      size="sm"
-                      aria-label={`Arm ${t.name}`}
-                      active={isArmed}
-                      className="eth-rec__arm"
-                      onClick={() => void send(cmd("Recording", { type: "Arm", track: t.id, armed: !isArmed, exclusive: false }))}
-                    >
-                      ●
-                    </Button>
+                    {/* A disabled button shows no tooltip in every browser: the wrapper carries it too. */}
+                    <span title={armBlocked ?? undefined}>
+                      <Button
+                        size="sm"
+                        aria-label={`Arm ${t.name}`}
+                        title={armBlocked ?? undefined}
+                        active={isArmed}
+                        className="eth-rec__arm"
+                        disabled={armBlocked !== null}
+                        onClick={() => void send(cmd("Recording", { type: "Arm", track: t.id, armed: !isArmed, exclusive: false }))}
+                      >
+                        ●
+                      </Button>
+                    </span>
                   </td>
                   <td>
                     <Select
