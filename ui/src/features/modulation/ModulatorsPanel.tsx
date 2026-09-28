@@ -148,7 +148,8 @@ function ModulatorCard({ host, modulator: m, kind }: { host: Device; modulator: 
           onDragStart={(e) => {
             e.dataTransfer.setData(MOD_DRAG_TYPE, JSON.stringify(source));
             e.dataTransfer.effectAllowed = "link";
-            start(source);
+            // Show the drop targets after the drag started (a DOM change in dragstart cancels it).
+            window.setTimeout(() => start(source), 0);
           }}
           onDragEnd={() => stop()}
         >

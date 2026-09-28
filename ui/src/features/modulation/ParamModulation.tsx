@@ -46,7 +46,7 @@ export interface ParamModulationProps {
 const START = Number(knobGeometry.startAngle);
 const SWEEP = Number(knobGeometry.sweep);
 /** Ring radius (viewBox units): just outside the knob's own arc. */
-const RING_R = 48;
+const RING_R = 52;
 
 function polar(r: number, deg: number): [number, number] {
   const rad = ((deg - 90) * Math.PI) / 180;
@@ -216,7 +216,7 @@ function MacroHandle({ rack, index, name }: { rack: string; index: number; name:
         e.stopPropagation();
         e.dataTransfer.setData(MOD_DRAG_TYPE, JSON.stringify(source));
         e.dataTransfer.effectAllowed = "link";
-        start(source);
+        window.setTimeout(() => start(source), 0);
       }}
       onDragEnd={() => stop()}
       onPointerDown={(e) => e.stopPropagation()}

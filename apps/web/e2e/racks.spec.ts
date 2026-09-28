@@ -2,9 +2,8 @@
 // controller Worker → AudioWorklet).
 //
 // MIDI track → Instrument Rack → "+ Chain" twice → a Synth on chain 1 → an LFO on the rack →
-// "Map LFO" → click the synth's highlighted param (a depth ring appears) → drag the depth
-// chip → map Macro 1 onto another synth param by dragging its handle → undo/redo (no page
-// errors).
+// drag the LFO onto a synth knob (a depth ring appears) → drag the depth chip → map Macro 1
+// onto another synth param (click its handle, then the param) → undo/redo (no page errors).
 //
 // Screenshots for the PR (skipped unless `RACKS_SHOTS=<dir>`; `RACKS_THEME=dark|light`):
 // the rack with chains + macros, and a modulator mapped onto a knob with its depth ring.
@@ -54,7 +53,7 @@ test("racks: chains, a modulator and a macro mapped onto a synth", async ({ page
   page.on("console", (m) => {
     if (m.type() === "error") errors.push(m.text());
   });
-  await page.setViewportSize({ width: 1600, height: 1000 });
+  await page.setViewportSize({ width: 1600, height: 1600 });
   await page.addInitScript((t) => localStorage.setItem("eth-theme", t), theme);
   await page.goto("/");
   await expect(playButton(page)).toBeVisible({ timeout: 30_000 });
@@ -76,7 +75,7 @@ test("racks: chains, a modulator and a macro mapped onto a synth", async ({ page
   await expect(chains.getByRole("option")).toHaveCount(1);
   await rackCard.getByRole("button", { name: "Chain", exact: true }).click();
   await expect(chains.getByRole("option")).toHaveCount(2);
-  await chains.getByRole("option", { name: "Chain 1" }).click();
+  await chains.getByRole("option", { name: "Chain 1" }).getByText("Chain 1").click();
   await expect(chains.getByRole("option", { name: "Chain 1" })).toHaveAttribute("aria-selected", "true");
   before = new Set(Object.keys((await doc(page)).devices));
   await pickOption(rackCard, "Add device to Chain 1", { value: "Synth" });
@@ -84,18 +83,36 @@ test("racks: chains, a modulator and a macro mapped onto a synth", async ({ page
   const synthCard = page.locator(`section[data-device="${synth.id}"]`);
   await expect(synthCard.getByText("Loading…")).toHaveCount(0);
   // Chain devices are not on the track chain.
-  expect(Object.values((await doc(page)).devices).filter((d) => d.track === midi.id && d.chain == null)).toHaveLength(1);
+  expect(Object.values((await doc(page)).devices).some((d) => d.id === synth.id && d.chain == null)).toBe(false);
+  await expect(page.locator(`.eth-devices__slot > section[data-device="${synth.id}"]`)).toHaveCount(0);
 
   // --- an LFO on the rack, mapped onto the synth ------------------------------------------
   await rackCard.getByRole("button", { name: `Add modulator to ${rack.name}` }).click();
   await page.getByRole("menuitem", { name: "Add LFO" }).click();
   const lfoCard = rackCard.locator("section[data-modulator]");
   await expect(lfoCard).toHaveCount(1);
+  // Mapping mode: only params the LFO may reach light up (the synth's, the rack's selector).
   await lfoCard.getByRole("button", { name: "Map LFO" }).click();
-  // Only params the LFO may reach light up: the synth's, and the rack's selector.
   await expect(synthCard.getByTestId("mod-target").first()).toBeVisible();
-  const cutoff = (await synthCard.locator("[data-param]").evaluateAll((els) => els.map((e) => Number(e.getAttribute("data-param")))))[0]!;
-  await param(synthCard, cutoff).getByTestId("mod-target").click();
+  await lfoCard.getByRole("button", { name: "Stop mapping LFO" }).click();
+  await expect(synthCard.getByTestId("mod-target")).toHaveCount(0);
+  // Drag the LFO onto a synth knob.
+  const paramId = async (name: string) =>
+    Number(await synthCard.locator("[data-param]", { has: page.getByRole("slider", { name, exact: true }) }).first().getAttribute("data-param"));
+  const cutoff = await paramId("Resonance");
+  // Both ends on screen (the inspector scrolls).
+  const grip = lfoCard.getByRole("button", { name: "Drag LFO onto a parameter" });
+  await param(synthCard, cutoff).scrollIntoViewIfNeeded();
+  const to = (await param(synthCard, cutoff).boundingBox())!;
+  const from = (await grip.boundingBox())!;
+  expect(from.y + from.height).toBeLessThan(page.viewportSize()!.height);
+  await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(to.x + to.width / 2, to.y + to.height / 3, { steps: 10 });
+  // The drop targets light up once the drag started.
+  await expect(param(synthCard, cutoff).getByTestId("mod-target")).toBeVisible();
+  await page.mouse.move(to.x + to.width / 2 + 1, to.y + to.height / 3, { steps: 2 });
+  await page.mouse.up();
   await expect.poll(async () => (await mappings(page)).length).toBe(1);
   await expect(synthCard.getByTestId("mod-target")).toHaveCount(0);
   await expect(param(synthCard, cutoff).getByTestId("mod-ring")).toBeVisible();
@@ -109,10 +126,11 @@ test("racks: chains, a modulator and a macro mapped onto a synth", async ({ page
   await page.mouse.up();
   await expect.poll(async () => (await mappings(page))[0]!.depth).toBeLessThan(0.5);
 
-  // --- Macro 1 dragged onto another synth param ---------------------------------------------
-  const other = (await synthCard.locator("[data-param]").evaluateAll((els) => els.map((e) => Number(e.getAttribute("data-param")))))[1]!;
+  // --- Macro 1 onto another synth param -------------------------------------------------------
+  const other = await paramId("Decay");
   const handle = rackCard.getByRole("button", { name: "Map Macro 1" });
-  await handle.dragTo(param(synthCard, other));
+  await handle.click();
+  await param(synthCard, other).getByTestId("mod-target").click();
   await expect.poll(async () => (await mappings(page)).some((m) => m.source.type === "Macro" && m.param === other)).toBe(true);
 
   // Undo the macro mapping, redo it.
