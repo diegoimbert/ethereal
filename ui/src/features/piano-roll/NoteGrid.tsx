@@ -29,6 +29,7 @@ import {
 } from "@/timeline";
 import { cmd, newId, useTransport } from "@/transport";
 import { EditorPresence, type EditorCursorMapping } from "@/features/collab/presence";
+import { EditorNotes, leaveNoteEntries, withSeparator } from "@/features/collab/social";
 import { contentEnd, contentToSong, songToContent } from "./clipTime";
 import { startDrag, useSend } from "./drag";
 import { isBlackKey, noteHitZone, noteRect, pitchToY, rowPitchDelta, yToPitch } from "./geometry";
@@ -238,8 +239,13 @@ export function NoteGrid({ clip, notes, view, vp, widthPx, keyH, rows, scale, hi
         },
       },
       ...(menuItems ? ["separator" as const, ...menuItems(ids)] : []),
+      // collab-social: pin a note here (hidden while "Hide users and notes" is on).
+      ...withSeparator(leaveNoteEntries({ kind: "editor", clip: clip.id }, e)),
     ]);
   };
+
+  /** Empty grid: "Leave a note" (collab-social); nothing else is offered there. */
+  const onBackgroundContextMenu = (e: React.MouseEvent) => openContextMenu(e, leaveNoteEntries({ kind: "editor", clip: clip.id }, e));
 
   // Playable region of the clip on its content axis.
   const regionStart = clip.looping.enabled ? clip.looping.start : clip.offset;
@@ -254,6 +260,7 @@ export function NoteGrid({ clip, notes, view, vp, widthPx, keyH, rows, scale, hi
       style={{ height }}
       data-testid="piano-roll-grid"
       onPointerDown={onBackgroundPointerDown}
+      onContextMenu={onBackgroundContextMenu}
     >
       <Rows keyH={keyH} rows={rows} scale={scale} highlight={highlight} />
       {lines.map((l) => {
@@ -288,6 +295,7 @@ export function NoteGrid({ clip, notes, view, vp, widthPx, keyH, rows, scale, hi
       )}
       <PlayheadLine view={view} mapping={(song) => songToContent(clip, song)} />
       <EditorPresence clip={clip.id} gridRef={rootRef} mapping={cursorMapping} />
+      <EditorNotes clip={clip.id} gridRef={rootRef} mapping={cursorMapping} layoutKey={`${vp.pxPerBeat}:${vp.scrollBeats}:${keyH}:${rows.length}:${rows[0] ?? 0}`} />
     </div>
   );
 }

@@ -503,6 +503,8 @@ where
     collab: collab::CollabState,
     /// v0.2: watched devices for the analysis channel (`analysis` module).
     analysis: analysis::AnalysisState,
+    /// v0.2: the time clipboard (`time_edit` module; runtime state, not undoable).
+    time_edit: time_edit::TimeEditState,
     next_gesture: u32,
     last_transport: Option<TransportState>,
     outputs: EngineOutputs,
@@ -551,6 +553,7 @@ where
             uploads: Default::default(),
             collab: Default::default(),
             analysis: Default::default(),
+            time_edit: Default::default(),
             // Internal gestures (plugin GUI, tap tempo) live in the upper half of the id
             // space, away from UI-allocated ones.
             next_gesture: 0x8000_0000,

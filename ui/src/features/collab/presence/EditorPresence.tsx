@@ -5,7 +5,7 @@
 import { useEffect, useLayoutEffect, useRef, type CSSProperties, type RefObject } from "react";
 import type { ArrangerPointer, ClipId, SiteId } from "@/generated";
 import { cmd, useTransport } from "@/transport";
-import { peerColor, useCollabStore } from "../store";
+import { peerColor, useCollabStore, useHideOthers } from "../store";
 import { useClipEditors } from "./editors";
 import { setEditingClip, useLocalPresence } from "./local";
 import { usePointerStore } from "./pointers";
@@ -37,6 +37,8 @@ const sameEditorPointer = (a: ArrangerPointer | null, b: ArrangerPointer | null)
 /** Render inside the grid (it fills it). Reports the edited clip even when offline. */
 export function EditorPresence({ clip, gridRef, mapping }: EditorPresenceProps) {
   const online = useCollabStore((s) => s.status.type === "Online");
+  // collab-social: "Hide users and notes" hides the peers' pointers (ours is still sent).
+  const hide = useHideOthers();
   useEffect(() => {
     setEditingClip(clip);
     return () => {
@@ -44,7 +46,7 @@ export function EditorPresence({ clip, gridRef, mapping }: EditorPresenceProps) 
     };
   }, [clip]);
   usePublishEditorPointer(clip, gridRef, mapping, online);
-  return online ? <EditorPointers clip={clip} mapping={mapping} /> : null;
+  return online && !hide ? <EditorPointers clip={clip} mapping={mapping} /> : null;
 }
 
 function usePublishEditorPointer(

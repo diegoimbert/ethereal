@@ -23,7 +23,7 @@ import { useFollowPlayhead, usePlayheadPosition, type PlayheadMapping } from "./
 import { rulerMarks, type RulerFormat } from "./rulerMarks";
 import { useTempoMap, type TempoMap } from "./tempoMap";
 // Shared touch (tempo-metronome): tempo-map markers and menu on the ruler.
-import { openContextMenu } from "@/kit";
+import { openContextMenu, type ContextMenuEntry } from "@/kit";
 import { rulerTempoMenu, useSortedTempoMap } from "@/features/tempo/menus";
 import { RulerTempoMarkers } from "@/features/tempo/RulerTempoMarkers";
 import { useTimelineWheel } from "./useTimelineWheel";
@@ -52,6 +52,8 @@ export interface RulerProps {
   syncWidth?: boolean;
   height?: number;
   className?: string;
+  /** Extra context-menu entries at a (song) beat position, after the tempo menu. */
+  menuItems?: (beats: Beats) => ContextMenuEntry[];
 }
 
 const EDGE_PX = 5;
@@ -68,6 +70,7 @@ export function Ruler({
   syncWidth = true,
   height = 28,
   className,
+  menuItems,
 }: RulerProps) {
   const transport = useTransport();
   const projectTempo = useTempoMap();
@@ -219,12 +222,15 @@ export function Ruler({
       style={{ height }}
       onPointerDown={onPointerDown}
       onContextMenu={
-        tempoEditable
-          ? (e) =>
-              openContextMenu(
-                e,
-                rulerTempoMenu(transport, tempo, tempoTables.points, tempoTables.signatures, snap(pxToBeats(localX(e), view.getState()), e.altKey)),
-              )
+        tempoEditable || menuItems
+          ? (e) => {
+              const at = pxToBeats(localX(e), view.getState());
+              const extra = menuItems?.(at) ?? [];
+              const tempoMenu = tempoEditable
+                ? rulerTempoMenu(transport, tempo, tempoTables.points, tempoTables.signatures, snap(at, e.altKey))
+                : [];
+              openContextMenu(e, tempoMenu.length && extra.length ? [...tempoMenu, "separator", ...extra] : [...tempoMenu, ...extra]);
+            }
           : undefined
       }
       data-testid="ruler"
