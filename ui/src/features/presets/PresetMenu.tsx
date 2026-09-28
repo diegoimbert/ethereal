@@ -1,13 +1,25 @@
 import { useCallback, useEffect, useState, type MouseEvent } from "react";
 import { ChevronDown, Ellipsis, Save } from "lucide-react";
 import type { Device, PresetInfo } from "@/generated";
-import { Button, IconButton, Popover, TextInput, openContextMenu } from "@/kit";
+import { Button, IconButton, Popover, TextInput, openContextMenu, type Placement } from "@/kit";
 import { cmd, useTransport, useTransportEvent } from "@/transport";
 import { groupPresets, presetDeviceOf, useCurrentPresets } from "./model";
 import { PresetDialogs, type PresetDialog } from "./PresetDialogs";
 
 export interface PresetMenuProps {
   device: Device;
+}
+
+/** Rough panel size (search + list + footer), to open it where it fits (the kit popover doesn't flip). */
+const PANEL_HEIGHT = 440;
+const PANEL_WIDTH = 300;
+
+/** Below the trigger unless there's more room above; aligned to the side with room. */
+function placeFor(r: DOMRect): Placement {
+  const below = window.innerHeight - r.bottom;
+  const side = below >= PANEL_HEIGHT || below >= r.top ? "bottom" : "top";
+  const align = window.innerWidth - r.left >= PANEL_WIDTH ? "start" : "end";
+  return `${side}-${align}`;
 }
 
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
@@ -27,6 +39,7 @@ export function PresetMenu({ device }: PresetMenuProps) {
   const [presets, setPresets] = useState<PresetInfo[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [dialog, setDialog] = useState<PresetDialog | null>(null);
+  const [placement, setPlacement] = useState<Placement>("bottom-start");
   const kind = presetDeviceOf(device);
   const kindKey = JSON.stringify(kind);
 
@@ -125,12 +138,16 @@ export function PresetMenu({ device }: PresetMenuProps) {
       <Popover
         open={open}
         onOpenChange={setOpenState}
-        placement="bottom-start"
+        placement={placement}
         aria-label={`Presets for ${device.name}`}
         className="eth-presets"
         trigger={(t) => (
           <Button
             {...t}
+            onClick={(e) => {
+              if (!open) setPlacement(placeFor(e.currentTarget.getBoundingClientRect()));
+              t.onClick();
+            }}
             size="sm"
             tone="ghost"
             className="eth-presets__trigger"
