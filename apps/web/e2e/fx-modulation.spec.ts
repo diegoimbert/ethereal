@@ -100,7 +100,12 @@ test("chorus, phaser, flanger and tremolo on an audio track", async ({ page }) =
   await panel(flanger).getByRole("button", { name: "Through Zero", exact: true }).click();
   await expect.poll(async () => (await doc(page)).devices[flanger]?.params[9], { timeout: 5_000 }).toBe(1);
 
-  // Plays through the whole chain.
+  // Plays through the whole chain, looping (default loop region: the first 4 bars) so the
+  // loop keeps sounding for the whole test.
+  const loop = page.getByRole("toolbar", { name: "Transport" }).getByRole("button", { name: "Loop", exact: true });
+  await loop.click();
+  await expect.poll(async () => (await doc(page)).settings.loop_enabled).toBe(true);
+  console.log("clip", JSON.stringify(Object.values((await doc(page)).clips).filter((c) => c.track === audio.id)));
   await playButton(page).click();
   await expect.poll(() => peakOf(page, audio.id), { timeout: 15_000 }).toBeGreaterThan(0.05);
   const full = await maxPeak(page, audio.id);
