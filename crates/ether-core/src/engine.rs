@@ -28,14 +28,13 @@ use ether_protocol::meters::TrackMeter;
 use ether_protocol::model::{InputTap, MediaId, TrackId, TrackKind};
 use rtrb::{Consumer, Producer, RingBuffer};
 
-use crate::automation::evaluate;
-use crate::automation_rt::apply_automation;
+use crate::automation_rt::{self, apply_automation};
 use crate::buffer::AudioBuffers;
 use crate::config::{EngineConfig, PrepareConfig};
 use crate::event::{EventKind, ProcessEvent};
 use crate::graph::{
-    ClipContentDesc, CompileError, NodeInfo, RenderGraphDesc, RenderSnapshot, ResolvedTarget,
-    SnapshotRt, compile_with,
+    ClipContentDesc, CompileError, NodeInfo, RenderGraphDesc, RenderSnapshot, SnapshotRt,
+    compile_with,
 };
 use crate::media::AudioSource;
 use crate::meter::EngineOutputs;
@@ -203,6 +202,12 @@ struct TransportRt {
     /// The timeline jumps at the next sub-block (Play from stopped, Locate, loop wrap);
     /// reported to the stream tap ([`crate::stream_tap::StreamBlock::jump`]), then cleared.
     jump: bool,
+    /// Exact tempo-ramp integration (`sched::Exact`, CONTRACTS.md §12.7): `(beat, seconds,
+    /// sample_time)` of the last timeline jump while playing a ramped tempo map. Every
+    /// position since is the tempo map's closed form of the sample clock. `None` = re-anchor
+    /// at `position` (after Play, Stop, Locate, a loop wrap, a tempo/signature boundary, which
+    /// restarts the timeline on a whole sample as in v0.1, or a new tempo map).
+    anchor: Option<(f64, f64, u64)>,
 }
 
 /// Create an engine. Non-RT (allocates every ring and table up front).
@@ -257,6 +262,7 @@ pub fn create(config: EngineConfig) -> EngineParts {
         executor: Box::new(crate::parallel::SequentialExecutor),
         warp: warp_rt,
         analysis: analysis_rt,
+        beat_table: vec![0.0; config.max_block_size + 1],
         config: config.clone(),
     };
     let handle = EngineHandle {
@@ -322,6 +328,9 @@ pub struct Engine {
     pub(crate) warp: crate::warp::WarpRt,
     /// Device → UI analysis frames ([`crate::analysis`], v0.2).
     analysis: crate::analysis::AnalysisRt,
+    /// Exact beats of the current sub-block's samples on ramped tempo maps
+    /// (`sched::Exact::beats`, `max_block_size + 1` entries).
+    beat_table: Vec<f64>,
 }
 
 impl Engine {
@@ -444,6 +453,10 @@ impl Engine {
                         fresh.vcas.inherit(&mut old.vcas);
                     }
                     self.transport.loop_override = None;
+                    if new.tempo != self.snapshot.tempo {
+                        // Re-anchor exact tempo integration on the new map (`sched::Exact`).
+                        self.transport.anchor = None;
+                    }
                     let old = std::mem::replace(&mut self.snapshot, new);
                     self.retire(Garbage::Snapshot(old));
                 }
@@ -486,6 +499,12 @@ impl Engine {
 
     fn apply_transport(&mut self, control: TransportControl) {
         let t = &mut self.transport;
+        if matches!(
+            control,
+            TransportControl::Play | TransportControl::Stop | TransportControl::Locate { .. }
+        ) {
+            t.anchor = None;
+        }
         match control {
             TransportControl::Play => {
                 if !t.playing {
@@ -661,6 +680,7 @@ impl Engine {
             preview,
             stream_tap,
             executor,
+            beat_table,
             ..
         } = self;
         let RenderSnapshot { desc, tempo, rt } = &mut **snapshot;
@@ -677,7 +697,25 @@ impl Engine {
         // --- sub-block extent ---
         let playing = transport.playing;
         let b0 = transport.position;
-        let s0 = tempo.beats_to_seconds(b0);
+        // Ramped tempo maps are integrated exactly from the sample clock (`sched::Exact`,
+        // CONTRACTS.md §12.7); others keep the v0.1 math, bit for bit.
+        let anchor = if playing && tempo.has_ramps() {
+            let sample_time = transport.sample_time;
+            Some(
+                *transport
+                    .anchor
+                    .get_or_insert_with(|| (b0, tempo.beats_to_seconds(b0), sample_time)),
+            )
+        } else {
+            transport.anchor = None;
+            None
+        };
+        let since = anchor.map_or(0, |(_, _, at)| transport.sample_time - at);
+        let s0 = match anchor {
+            Some((_, seconds, _)) if since > 0 => seconds + since as f64 / sr,
+            Some((_, seconds, _)) => seconds,
+            None => tempo.beats_to_seconds(b0),
+        };
         let mut n = max;
         let mut b1 = None;
         let mut hit_loop = false;
@@ -705,11 +743,31 @@ impl Engine {
                 }
             }
         }
-        let b1 = match (playing, b1) {
-            (false, _) => b0,
-            (true, Some(b)) => b,
-            (true, None) => tempo.seconds_to_beats(s0 + n as f64 / sr),
+        // A loop end or tempo/signature boundary ends the sub-block on the first sample at
+        // or after it, and the timeline restarts exactly there (v0.1: every boundary lands
+        // on a whole sample; exact integration re-anchors on it).
+        let split = b1.is_some();
+        let b1 = match (playing, b1, anchor) {
+            (false, _, _) => b0,
+            (true, Some(b), _) => b,
+            (true, None, Some((beat, seconds, _))) => {
+                sched::exact_beat(tempo, sr, (beat, seconds), since, n as f64)
+            }
+            (true, None, None) => tempo.seconds_to_beats(s0 + n as f64 / sr),
         };
+        let exact = anchor.map(|(beat, seconds, _)| {
+            let beats = &mut beat_table[..=n];
+            beats[0] = b0;
+            for (o, b) in beats.iter_mut().enumerate().skip(1) {
+                *b = sched::exact_beat(tempo, sr, (beat, seconds), since, o as f64);
+            }
+            sched::Exact {
+                beat,
+                seconds,
+                since,
+                beats,
+            }
+        });
         let (signature, bar_start) = tempo.signature_at(b0);
         let info = TransportInfo {
             playing,
@@ -732,6 +790,9 @@ impl Engine {
             s0,
             sample_rate: sr,
             frames: n,
+            sample_time: transport.sample_time,
+            wraps: hit_loop,
+            exact,
         };
         recording.process(&info, n, &desc.tracks, tracks);
         // VCA gains and automation for this sub-block (`crate::vca`), before the jobs.
@@ -827,11 +888,15 @@ impl Engine {
             transport.chase_notes = false;
             if hit_loop {
                 transport.position = loop_start;
+                transport.anchor = None;
                 transport.release_notes = true;
                 transport.chase_notes = true;
                 transport.jump = true;
             } else {
                 transport.position = b1;
+                if split {
+                    transport.anchor = None;
+                }
             }
         }
         n
@@ -1218,83 +1283,31 @@ impl JobCtx<'_> {
 
         taps.write(InputTap::PreFx, a, n);
 
-        // --- automation ---
-        // Each target is resolved once per sub-block (see docs/CONTRACTS.md §4
-        // "Automation precedence"): a clip envelope of an unmuted clip overlapping the
-        // sub-block (or containing the position while stopped) takes the target; the
-        // arrangement lane for that target is skipped and re-sends as soon as it is
-        // uncovered. Enabled lanes/envelopes always drive their target: mixer targets
-        // are re-applied every sub-block, node params are re-sent after a live change
-        // or a locate.
+        // --- automation (`crate::automation_rt`: sample-accurate, CONTRACTS.md §12.7) ---
+        // Enabled lanes/envelopes always drive their target (precedence per event, see
+        // docs/CONTRACTS.md §4 "Automation precedence"): node params are re-sent after a
+        // live change or a locate; mixer targets are ramped in the fader stage below.
         if track.auto_dirty || flags.reset_nodes {
             track.auto_last.fill(f64::NAN);
             track.env_last.fill(f64::NAN);
             track.auto_dirty = false;
         }
-        // Stopped: the "sub-block" is the position itself.
-        let env_end = if playing { b1 } else { b0 + 1e-9 };
-        let clips_end = tdesc.clips.partition_point(|c| c.start < env_end);
-        let active_clips = || {
-            tdesc.clips[..clips_end]
-                .iter()
-                .enumerate()
-                .filter(move |(_, c)| !c.muted && c.start + c.length > b0)
-        };
-        let covered = |target: ResolvedTarget| {
-            active_clips().any(|(_, c)| {
-                c.envelopes
-                    .iter()
-                    .any(|e| e.resolved == target && !e.points.is_empty())
-            })
-        };
-        for (li, lane) in tdesc.automation.iter().enumerate() {
-            let last = &mut track.auto_last[li];
-            if covered(lane.resolved) {
-                *last = f64::NAN;
-                continue;
-            }
-            apply_automation(
-                lane,
-                |t| evaluate(&lane.points, t),
-                timing,
-                playing,
-                last,
-                &mut track.volume,
-                &mut track.pan,
-                &mut track.sends,
-                chain,
-                racks,
-                chain_racks,
-                modulation,
-            );
-        }
-        // Envelopes of clips that stopped covering their target send again next time.
-        for (ci, clip) in tdesc.clips.iter().enumerate() {
-            let active = ci < clips_end && !clip.muted && clip.start + clip.length > b0;
-            if !active && !clip.envelopes.is_empty() {
-                let base = track.env_base[ci];
-                track.env_last[base..base + clip.envelopes.len()].fill(f64::NAN);
-            }
-        }
-        for (ci, clip) in active_clips() {
-            for (ei, env) in clip.envelopes.iter().enumerate() {
-                let last = &mut track.env_last[track.env_base[ci] + ei];
-                apply_automation(
-                    env,
-                    |t| sched::content_at(clip, t).and_then(|c| evaluate(&env.points, c)),
-                    timing,
-                    playing,
-                    last,
-                    &mut track.volume,
-                    &mut track.pan,
-                    &mut track.sends,
-                    chain,
-                    racks,
-                    chain_racks,
-                    modulation,
-                );
-            }
-        }
+        let mixer_auto = apply_automation(
+            tdesc,
+            timing,
+            playing,
+            flags.chase_notes,
+            &mut track.auto_last,
+            &mut track.env_last,
+            &track.env_base,
+            &mut track.volume,
+            &mut track.pan,
+            &mut track.sends,
+            chain,
+            racks,
+            chain_racks,
+            modulation,
+        );
         // --- modulation (`crate::modulation`, v0.2): base + Σ depth · source ---
         modulation.render(timing, info, chain, racks, chain_racks);
 
@@ -1402,7 +1415,18 @@ impl JobCtx<'_> {
         let gate = track.gate.current();
         for pass_pre in [true, false] {
             if !pass_pre {
-                apply_fader(a, &mut track.volume, &mut track.pan, &mut track.gate, n);
+                // Automated volume/pan: ramped per sample (`crate::automation_rt`).
+                if !automation_rt::fader(
+                    tdesc,
+                    timing,
+                    mixer_auto,
+                    a,
+                    &mut track.volume,
+                    &mut track.pan,
+                    &mut track.gate,
+                ) {
+                    apply_fader(a, &mut track.volume, &mut track.pan, &mut track.gate, n);
+                }
                 // VCA gain (`crate::vca`, v0.2), then the post-fader tap.
                 vca.apply(a, n);
                 taps.write(InputTap::PostFader, a, n);
@@ -1417,8 +1441,12 @@ impl JobCtx<'_> {
                     }
                 }
                 send.delay.process(&mut sl[..n], &mut sr_[..n]);
-                scale(&mut sl[..n], &mut send.level, false);
-                scale(&mut sr_[..n], &mut send.level, true);
+                // Automated send level: ramped per sample (`crate::automation_rt`).
+                if !automation_rt::send_level(tdesc, timing, mixer_auto, send) {
+                    let [sl, sr_] = &mut send.buf;
+                    scale(&mut sl[..n], &mut send.level, false);
+                    scale(&mut sr_[..n], &mut send.level, true);
+                }
             }
         }
 

@@ -10,6 +10,7 @@ import { useEditorStore, useNotesOfClip, useProjectStore, warpMarkersOfClip } fr
 import { useIsSelected, type TempoMap, type TimelineViewport } from "@/timeline";
 import { openContextMenu, useThemeColor } from "@/kit";
 import { withFreezeClipEntries } from "@/features/freeze";
+import { MissingClipBadge, useMediaMissing, withMediaRefClipEntries } from "@/features/media-refs";
 import { clipMenu } from "./actions";
 import { onClipPointerDown } from "./clipDrag";
 import { drawNotes, drawWaveform, noteRects, pitchRange, type DrawArea } from "./clipDraw";
@@ -53,6 +54,9 @@ export const ClipView = memo(function ClipView({ clip, bounds, trackColor, vp, v
   const to = Math.min(bounds.start + bounds.length, visible.end);
   const [theme] = useTheme();
   const body: BodyProps = { clip, bounds, from, to, pxWidth: (to - from) * vp.pxPerBeat, ink: clipInk(color, theme) };
+  // media-references: the clip's sample can't be found (plays silence until relinked).
+  const sample = clip.content.type === "Audio" ? clip.content.media : null;
+  const missing = useMediaMissing(ghost ? null : sample);
 
   return (
     <div
@@ -64,6 +68,7 @@ export const ClipView = memo(function ClipView({ clip, bounds, trackColor, vp, v
         dragging && "eth-clip--dragging",
         ghost && "eth-clip--ghost",
         editors.length > 0 && "eth-clip--peer-editing",
+        missing && "eth-media-refs--missing",
       )}
       style={{
         left,
@@ -77,7 +82,7 @@ export const ClipView = memo(function ClipView({ clip, bounds, trackColor, vp, v
       aria-label={ghost ? undefined : clip.name || "Clip"}
       aria-pressed={ghost ? undefined : selected}
       onPointerDown={ghost ? undefined : (e) => onClipPointerDown(e, clip, ctx)}
-      onContextMenu={ghost ? undefined : (e) => openContextMenu(e, withFreezeClipEntries(withClipEditingEntries(clipMenu(ctx.transport, clip), ctx.transport, clip), ctx.transport, clip))}
+      onContextMenu={ghost ? undefined : (e) => openContextMenu(e, withMediaRefClipEntries(withFreezeClipEntries(withClipEditingEntries(clipMenu(ctx.transport, clip), ctx.transport, clip), ctx.transport, clip), clip))}
       onDoubleClick={
         ghost
           ? undefined
@@ -94,6 +99,7 @@ export const ClipView = memo(function ClipView({ clip, bounds, trackColor, vp, v
           </span>
         )}
         {clip.content.type === "Audio" && clip.content.reversed && <ReversedBadge />}
+        {!ghost && <MissingClipBadge media={sample} />}
         {clip.name && <span className="eth-clip__name">{clip.name}</span>}
         {editors.length > 0 && (
           <span

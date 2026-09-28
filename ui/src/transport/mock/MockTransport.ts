@@ -31,8 +31,10 @@
  *   is set by any document patch and cleared by saves/loads.
  * - **Media**: browsed through engine-visible locations (`Media::ListLocations`: a fake
  *   "Library" of wav files and the current project's `media/` folder) with relative
- *   paths. `Media::Import` "copies" a file into the project (`MediaRef.file` =
- *   `media/<id>-<name>`), delivered as an undoable `Media` upsert patch.
+ *   paths. `Media::Import` of a library file references it in place
+ *   (`MediaLocation::External`, `media-references`; uploads are "copied" into the project:
+ *   `MediaRef.file` = `media/<id>-<name>`), delivered as an undoable `Media` upsert patch.
+ *   `mediaRefs.setOffline(path)` simulates a moved sample (missing on the next open).
  * - **Record-arm** is runtime state, not document: `Recording::Arm` is not undoable and is
  *   reported as `Event::Recording { ArmChanged { armed } }` on change and on connect.
  * - **Routing**: `TrackOutput::Default` = the parent group's bus for tracks inside a group,
@@ -136,7 +138,7 @@ import { MockUploads } from "./roadmap/remote";
 import { MockAnalysis } from "./roadmap/analysis";
 import { browserCommand } from "./roadmap/browserV2";
 import { MockFreeze } from "./roadmap/freezeBounce";
-import { mediaRefCommand } from "./roadmap/mediaReferences";
+import { libraryPath, MockMediaRefs } from "./roadmap/mediaReferences";
 import { presetCommand } from "./roadmap/presets";
 import { listModulatorKinds } from "./roadmap/racksModulation";
 import { MockTimeEdits } from "./roadmap/timeEdits";
@@ -285,6 +287,18 @@ export class MockTransport implements EngineTransport {
       }),
   });
   private readonly collab = new MockCollab(this.host);
+  /** `media-references`: missing media, relink, collect (`setOffline` for tests). */
+  readonly mediaRefs = new MockMediaRefs({
+    project: () => this.project,
+    emit: (event) => this.emit(event),
+    updateMedia: (label, media) =>
+      void this.transact(label, null, (tx) => {
+        for (const m of media) tx.upsert("Media", m);
+        return UNIT;
+      }),
+    save: () => void this.saveCurrent(),
+    libraryHash: (rel) => hashHex(`library:${normalize(rel)}`),
+  });
   private readonly analysis = new MockAnalysis();
   private readonly preview = new MockPreview(this.host);
   private readonly uploads = new MockUploads((event) => this.emit(event));
@@ -459,7 +473,7 @@ export class MockTransport implements EngineTransport {
       case "Analysis":
         return this.analysis.command(command.command);
       case "MediaRef":
-        return mediaRefCommand(command.command);
+        return this.mediaRefs.command(command.command);
       case "Modulation":
         return listModulatorKinds();
       case "Chat":
@@ -567,6 +581,10 @@ export class MockTransport implements EngineTransport {
     this.revision += 1;
     this.emit({ type: "Patch", patch: { revision: this.revision, changes, history: this.historyState() } });
     this.setDirty(true);
+    // `media-references`: a relink (or its undo) may resolve or lose media.
+    if (changes.some((c) => (c.type === "Upsert" && c.entity.type === "Media") || (c.type === "Remove" && c.key.type === "Media"))) {
+      this.mediaRefs.mediaChanged();
+    }
     // The current project's name is shown in the project list.
     if (changes.some((c) => c.type === "Settings")) this.emitListChanged();
     // Deleted tracks can't stay armed.
@@ -609,6 +627,7 @@ export class MockTransport implements EngineTransport {
     this.levels.clear();
     this.playheadDirty = true;
     this.emit({ type: "ProjectLoaded", project });
+    this.mediaRefs.projectOpened();
     this.setArmed([]);
     this.setDirty(false);
     this.syncTransport();
@@ -923,19 +942,16 @@ export class MockTransport implements EngineTransport {
     const f = findLibraryFile(path)!;
     const name = path.slice(path.lastIndexOf("/") + 1);
     const hash = hashHex(`library:${path}`);
-    // Dedupe: a file already imported (same hash) is not copied twice.
-    const dup = Object.values(this.project.media).find((m) => m.hash === hash);
     return {
       id,
       name,
-      file: dup?.file ?? `media/${id}-${name}`,
+      file: `media/${id}-${name}`,
       sample_rate: f.sample_rate,
       channels: f.channels,
       frames: f.frames,
       hash,
-      // v0.1 behaviour (copied into the project); `media-references` switches library
-      // imports to external references.
-      location: { type: "Project" },
+      // `media-references`: library files are referenced in place (like the desktop).
+      location: { type: "External", path: libraryPath(path) },
     };
   }
 

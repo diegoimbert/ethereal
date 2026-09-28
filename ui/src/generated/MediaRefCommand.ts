@@ -2,4 +2,4 @@
 import type { MediaId } from "./MediaId";
 import type { MediaSource } from "./MediaSource";
 
-export type MediaRefCommand = { "type": "ListMissing" } | { "type": "Search", media: MediaId | null, } | { "type": "Relink", media: MediaId, source: MediaSource, } | { "type": "CollectAll" };
+export type MediaRefCommand = { "type": "ListMissing" } | { "type": "Search", media: MediaId | null, folder?: string, } | { "type": "Relink", media: MediaId, source: MediaSource, } | { "type": "CollectAll" };

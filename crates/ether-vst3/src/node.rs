@@ -135,6 +135,11 @@ pub struct Vst3Node {
     steps: StepTable,
     /// Current plain values, sorted by id.
     values: Vec<(u32, f64)>,
+    /// Per param (parallel to `values`): `(block, offset)` of the last engine event queued,
+    /// for the step holds of sample-accurate automation ([`Vst3Node::param_event`]).
+    last_event: Vec<(u64, u32)>,
+    /// `run` calls so far (`last_event` generation).
+    block: u64,
     /// `Device::set_param` calls (and values set while inactive) not yet sent, normalized.
     pending: Vec<ParamMsg>,
     in_changes: ComWrapper<ParamChanges>,
@@ -205,6 +210,8 @@ impl Vst3Node {
             max_frames,
             sample_rate: f64::from(config.sample_rate),
             steps,
+            last_event: vec![(0, 0); values.len()],
+            block: 0,
             values,
             pending,
             // Every param may change in a block; points per param bounded by the event count.
@@ -224,6 +231,29 @@ impl Vst3Node {
         if let Ok(i) = self.values.binary_search_by_key(&id, |(k, _)| *k) {
             self.values[i].1 = plain;
         }
+    }
+
+    /// An engine param event at sample `offset` (CONTRACTS.md §12.7). VST3 plugins may
+    /// interpolate linearly between the points of a param's queue, while the engine's
+    /// events are steps (the value changes at that sample, as with CLAP and AU): a point
+    /// holding the previous value goes one sample before, unless an event of this block
+    /// already sits there.
+    fn param_event(&mut self, id: u32, offset: u32, plain: f64) {
+        let Some(steps) = self.steps.steps(id) else {
+            return;
+        };
+        let norm = to_normalized(plain, steps);
+        if let Ok(i) = self.values.binary_search_by_key(&id, |(k, _)| *k) {
+            let (block, at) = self.last_event[i];
+            let covered = block == self.block && at + 1 >= offset;
+            let prev = to_normalized(self.values[i].1, steps);
+            if offset > 0 && !covered && prev != norm {
+                self.in_changes.add(id, offset - 1, prev);
+            }
+            self.last_event[i] = (self.block, offset);
+        }
+        self.set_value(id, to_plain(norm, steps));
+        self.add_param(id, offset, norm);
     }
 
     fn add_param(&mut self, id: u32, offset: u32, normalized: f64) {
@@ -308,13 +338,7 @@ impl Vst3Node {
                 key,
             } => self.note(t, false, note_id, channel, key, 0.0),
             EventKind::AllNotesOff => self.release_held(t),
-            EventKind::Param { param, value } => {
-                if let Some(steps) = self.steps.steps(param.0) {
-                    let norm = to_normalized(value, steps);
-                    self.set_value(param.0, to_plain(norm, steps));
-                    self.add_param(param.0, t, norm);
-                }
-            }
+            EventKind::Param { param, value } => self.param_event(param.0, t, value),
             EventKind::Midi { data } => {
                 // Note on/off; other MIDI (CC, pitch bend) would need IMidiMapping.
                 let (status, ch) = (data[0] & 0xF0, data[0] & 0x0F);
@@ -491,6 +515,7 @@ impl Vst3Node {
         self.in_events.clear();
         self.out_changes.clear();
         self.out_events.clear();
+        self.block += 1;
         while let Ok((id, norm)) = self.from_main.pop() {
             if let Some(steps) = self.steps.steps(id) {
                 self.set_value(id, to_plain(norm, steps));

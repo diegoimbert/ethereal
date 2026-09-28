@@ -382,9 +382,12 @@ where
         }
         let started = self.host.now_ms().max(now);
         for _ in 0..MAX_UNITS_PER_TICK {
-            let step = running
-                .job
-                .step(&mut self.bridge, &self.engine, &mut self.store);
+            let step = running.job.step(
+                &mut self.bridge,
+                &self.engine,
+                &mut self.store,
+                &mut self.library,
+            );
             for message in running.job.warnings.drain(..) {
                 notify(out, NotificationLevel::Warning, message);
             }

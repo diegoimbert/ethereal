@@ -83,6 +83,20 @@ impl Smoother {
         self.step = (target - self.current) / self.ramp_samples as f32;
     }
 
+    /// RT. Linear ramp from the current value to `target` over exactly `samples` ticks
+    /// (the `samples`-th tick returns `target`). Sample-accurate automation drives mixer
+    /// targets with it, one ramp per [`crate::automation_rt::PARAM_GRID`] interval
+    /// (CONTRACTS.md §12.7). `samples == 0` jumps.
+    pub fn ramp_to(&mut self, target: f32, samples: u32) {
+        if samples == 0 {
+            self.set_immediate(target);
+            return;
+        }
+        self.target = target;
+        self.remaining = samples;
+        self.step = (target - self.current) / samples as f32;
+    }
+
     /// Jump without ramp.
     pub fn set_immediate(&mut self, value: f32) {
         self.current = value;
@@ -131,5 +145,18 @@ mod tests {
             s.tick();
         }
         assert_eq!(s.current(), 1.0);
+    }
+
+    #[test]
+    fn ramp_to_is_linear_and_exact_at_the_end() {
+        let mut s = Smoother::new(0.0, 10.0, 1000.0);
+        s.ramp_to(1.0, 4);
+        let v: Vec<f32> = (0..5).map(|_| s.tick()).collect();
+        assert_eq!(v, vec![0.25, 0.5, 0.75, 1.0, 1.0]);
+        // Re-targeting to the current value holds it exactly.
+        s.ramp_to(1.0, 32);
+        assert!((0..40).all(|_| s.tick() == 1.0));
+        s.ramp_to(0.5, 0);
+        assert_eq!(s.current(), 0.5);
     }
 }

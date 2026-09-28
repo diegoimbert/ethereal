@@ -26,6 +26,7 @@ import { MarkerLane } from "@/features/clip-editing";
 import { PresenceBar } from "@/features/collab";
 import { ExportDialog } from "@/features/export";
 import { ImportRoot } from "@/features/import";
+import { MediaRefsRoot } from "@/features/media-refs";
 import { ProjectMenu } from "@/features/project";
 import { RecordingControls } from "@/features/recording";
 import { ConnectDialog } from "@/features/remote";
@@ -228,6 +229,7 @@ export function App() {
       <CommandPalette />
       <AudioSettingsDialog />
       <ImportRoot />
+      <MediaRefsRoot />
       <ContextMenuHost />
     </div>
   );

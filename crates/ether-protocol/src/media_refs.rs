@@ -22,8 +22,18 @@ pub enum MediaRefCommand {
     /// Search the library roots and user folders for missing media (`None` = all missing) by
     /// content hash, then by file name. Unambiguous hash matches are relinked automatically
     /// (one undo step); the rest are reported as `MediaRefEvent::Candidates`. Progress:
-    /// `MediaRefEvent::SearchProgress`. Replies `Unit` when started.
-    Search { media: Option<MediaId> },
+    /// `MediaRefEvent::SearchProgress` (the last one has `total: Some(scanned)`). Replies
+    /// `Unit` when started.
+    ///
+    /// `folder` (v0.2 additive, `media-references`): also search this absolute engine-side
+    /// folder, recursively (the Relink dialog's "Search in folder…", desktop only: hosts
+    /// without OS files reply `Unsupported`). Missing = library roots only.
+    Search {
+        media: Option<MediaId>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[ts(optional)]
+        folder: Option<String>,
+    },
     /// Point `media` at another file (a library location; undoable). If its content hash
     /// differs, the hash is updated and a warning notification says so.
     Relink { media: MediaId, source: MediaSource },

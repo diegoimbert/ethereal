@@ -12,7 +12,6 @@ use ether_core::protocol::analysis::AnalysisCommand;
 use ether_core::protocol::browser::{BrowserCommand, BrowserQuery, BrowserSort};
 use ether_core::protocol::devices::{DeviceCommand, DeviceSpec};
 use ether_core::protocol::media::{MediaCommand, MediaSource};
-use ether_core::protocol::media_refs::MediaRefCommand;
 use ether_core::protocol::model::*;
 use ether_core::protocol::presets::{PresetCommand, PresetRef, PresetSource};
 use ether_core::protocol::racks::{ModulationCommand, RackCommand};
@@ -273,14 +272,6 @@ fn racks_modulation_reply_unsupported() {
 }
 
 #[test]
-fn sample_accurate_automation_has_no_commands() {
-    // Engine-only node: the API is `EventKind::Param` at an offset (already delivered) and
-    // `ether_core::automation_rt` (v0.1 behaviour moved verbatim). The node replaces this
-    // test with block-size-independence tests (ether-core/tests/sample_accurate*.rs).
-    assert_eq!(ether_core::automation_rt::PARAM_GRID, 32);
-}
-
-#[test]
 fn browser_v2_replies_unsupported() {
     let mut h = Harness::with_project();
     assert_unsupported(
@@ -303,12 +294,7 @@ fn browser_v2_replies_unsupported() {
     assert_unsupported(&mut h, Command::Browser(BrowserCommand::ListRoots));
 }
 
-#[test]
-fn media_references_reply_unsupported() {
-    let mut h = Harness::with_project();
-    assert_unsupported(&mut h, Command::MediaRef(MediaRefCommand::ListMissing));
-    assert_unsupported(&mut h, Command::MediaRef(MediaRefCommand::CollectAll));
-}
+// media-references: see tests/media_refs.rs.
 
 // groups-buses: see tests/groups.rs.
 

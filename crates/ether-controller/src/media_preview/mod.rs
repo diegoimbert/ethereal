@@ -332,9 +332,12 @@ where
                     .media
                     .get(media)
                     .ok_or_else(|| not_found(format!("media {media}")))?;
-                let (pid, file, name) = (doc.project.id, m.file.clone(), m.name.clone());
-                let bytes = self.store.read(pid, &file).map_err(store_err)?;
-                Ok((bytes, name))
+                let (pid, m) = (doc.project.id, m.clone());
+                // External references resolve like playback (`media-references`).
+                let bytes =
+                    crate::media::read_media_bytes(&mut self.store, &mut self.library, pid, &m)
+                        .map_err(store_err)?;
+                Ok((bytes, m.name))
             }
             MediaSource::Upload { .. } => Err(unsupported("previewing uploads is not supported")),
             // v0.2 (`file-import`, shared touch): preview an OS file before importing it.

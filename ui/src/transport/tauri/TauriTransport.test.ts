@@ -277,6 +277,14 @@ describe("TauriTransport OS files (file-import)", () => {
     expect(await t.pickAudioFiles()).toEqual(["/c.wav"]);
   });
 
+  it("opens the OS folder dialog for the Relink folder search (media-references)", async () => {
+    const openDialog = vi.fn().mockResolvedValueOnce("/Volumes/Samples").mockResolvedValueOnce(null);
+    const t = new TauriTransport({ invoke: fakeHost(() => []).invoke, openDialog });
+    expect(await t.pickFolder()).toBe("/Volumes/Samples");
+    expect(openDialog.mock.calls[0]![0]).toMatchObject({ multiple: false, directory: true });
+    expect(await t.pickFolder()).toBeNull();
+  });
+
   it("delivers path drops from the shell until unsubscribed", async () => {
     let handler: ((e: { payload: unknown }) => void) | null = null;
     const unlisten = vi.fn();

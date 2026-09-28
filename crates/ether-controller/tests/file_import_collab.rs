@@ -201,10 +201,17 @@ impl Site {
         self.ctl.project().expect("open project")
     }
 
-    /// The bytes this site stores for `media` (its project copy).
+    /// The bytes this site plays for `media`: its project copy, or the file an external
+    /// reference points at (`media-references`: path imports are referenced in place).
     fn media_bytes(&self, pid: ProjectId, media: MediaId) -> Option<Vec<u8>> {
         let m = self.project().media.get(&media)?;
-        self.ctl.store.inner.file(pid, &m.file).map(<[u8]>::to_vec)
+        if let Some(b) = self.ctl.store.inner.file(pid, &m.file) {
+            return Some(b.to_vec());
+        }
+        match &m.location {
+            MediaLocation::External { path } => self.ctl.library.os_files.get(path).cloned(),
+            MediaLocation::Project => None,
+        }
     }
 
     fn missing(&self) -> bool {
@@ -327,7 +334,33 @@ fn imported_files_play_on_every_site() {
         assert!(!s.missing(), "never missing");
         assert!(!s.ctl.media_pending(), "decoded");
     }
-    assert_eq!(a.project().media, b.project().media);
+    // A references its file in place; B stores the pushed bytes in its project and never
+    // sees A's path (a media's location is per-site).
+    assert_eq!(
+        a.project().media[&from_disk].location,
+        MediaLocation::External {
+            path: DESKTOP_KICK.into()
+        }
+    );
+    assert_eq!(
+        a.ctl
+            .store
+            .inner
+            .file(pid, &a.project().media[&from_disk].file),
+        None
+    );
+    assert_eq!(
+        b.project().media[&from_disk].location,
+        MediaLocation::Project
+    );
+    let shared = |p: &Project| {
+        let mut m = p.media.clone();
+        for v in m.values_mut() {
+            v.location = MediaLocation::Project;
+        }
+        m
+    };
+    assert_eq!(shared(a.project()), shared(b.project()));
 
     // A late joiner gets them too (relay cache).
     let mut c = Site::new(43, &hub, BTreeMap::new());

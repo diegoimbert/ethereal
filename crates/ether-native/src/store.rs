@@ -438,6 +438,57 @@ impl Library for DiskStore {
     fn read_external(&mut self, path: &str) -> Result<Vec<u8>, StoreError> {
         read_external_file(path)
     }
+
+    /// `media-references`: library files are referenced in place, by their absolute path
+    /// (the root joined with the checked relative path; symlinks are not resolved, so the
+    /// reference keeps the path the user sees).
+    fn external_path(&self, root: &str, rel_path: &str) -> Option<String> {
+        let lib = self.library_root(root).ok()?;
+        let path = resolve_in(&lib.path, rel_path).ok()?;
+        if !path.is_absolute() {
+            return None;
+        }
+        path.to_str().map(str::to_string)
+    }
+
+    /// `media-references`: the Relink dialog's folder search.
+    fn list_external_dir(&mut self, path: &str) -> Result<Vec<(String, bool)>, StoreError> {
+        list_external_dir(path)
+    }
+}
+
+/// See `Library::list_external_dir` for `DiskStore`: an absolute folder's entries
+/// (absolute path, is a folder), hidden ones left out, sorted by name. Symlinked entries are
+/// followed for the kind; unreadable entries are skipped.
+pub fn list_external_dir(path: &str) -> Result<Vec<(String, bool)>, StoreError> {
+    let p = Path::new(path);
+    if path.contains('\0') || !p.is_absolute() {
+        return Err(StoreError::InvalidPath(path.to_string()));
+    }
+    let meta = fs::metadata(p).map_err(|e| match e.kind() {
+        std::io::ErrorKind::NotFound => StoreError::NotFound(path.to_string()),
+        _ => io_err(e),
+    })?;
+    if !meta.is_dir() {
+        return Err(StoreError::InvalidPath(format!("not a folder: {path}")));
+    }
+    let mut out = Vec::new();
+    for entry in fs::read_dir(p).map_err(io_err)?.flatten() {
+        let name = entry.file_name();
+        let Some(name) = name.to_str() else { continue };
+        if name.starts_with('.') {
+            continue;
+        }
+        let child = entry.path();
+        let Ok(meta) = fs::metadata(&child) else {
+            continue;
+        };
+        if let Some(child) = child.to_str() {
+            out.push((child.to_string(), meta.is_dir()));
+        }
+    }
+    out.sort();
+    Ok(out)
 }
 
 /// Largest external file read (same as the upload limit: 1 GiB).

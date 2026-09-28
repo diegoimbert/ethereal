@@ -5,6 +5,7 @@ import type { DeviceDescriptor } from "@/generated";
 import { addTrack, selectTrackEntity } from "@/features/arrangement/actions";
 import { arrangementView } from "@/features/arrangement/uiStore";
 import { openImportDialog } from "@/features/import";
+import { mediaRefCommands } from "@/features/media-refs";
 import { tracksOrdered, useProjectStore } from "@/state";
 import { getTheme, setTheme } from "@/theme";
 import { cmd, type EngineTransport } from "@/transport";
@@ -50,6 +51,8 @@ export function buildCommands(transport: EngineTransport | null, devices: Readon
         keywords: "import file upload sample wav mp3 flac aiff open add",
         run: () => void openImportDialog(transport),
       },
+      // media-references: relink missing samples, collect referenced ones.
+      ...mediaRefCommands(transport, project),
     );
     const target = deviceTargetTrack(project);
     for (const d of devices) {

@@ -198,6 +198,16 @@ pub trait Library {
         None
     }
 
+    /// `media-references`: the entries of an absolute engine-side folder (the Relink
+    /// dialog's folder search): `(absolute path, is_dir)` per entry, hidden entries left out.
+    /// Default: unsupported (hosts without OS files).
+    fn list_external_dir(&mut self, path: &str) -> Result<Vec<(String, bool)>, StoreError> {
+        let _ = path;
+        Err(StoreError::Unsupported(
+            "external folders are not available on this host".into(),
+        ))
+    }
+
     /// `media-references`: read an external reference by its absolute path. Default:
     /// unsupported.
     fn read_external(&mut self, path: &str) -> Result<Vec<u8>, StoreError> {
