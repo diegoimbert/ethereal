@@ -2,6 +2,7 @@ import { openAudioSettings } from "@/features/audio-settings";
 import type { DeviceDescriptor } from "@/generated";
 import { addTrack, selectTrackEntity } from "@/features/arrangement/actions";
 import { arrangementView } from "@/features/arrangement/uiStore";
+import { openImportDialog } from "@/features/import";
 import { tracksOrdered, useProjectStore } from "@/state";
 import { getTheme, setTheme } from "@/theme";
 import { cmd, type EngineTransport } from "@/transport";
@@ -39,6 +40,14 @@ export function buildCommands(transport: EngineTransport | null, devices: Readon
     out.push(
       { id: "track:midi", group: "Tracks", label: "Add MIDI track", keywords: "new create", run: () => void addTrack(transport, "Midi") },
       { id: "track:audio", group: "Tracks", label: "Add audio track", keywords: "new create", run: () => void addTrack(transport, "Audio") },
+      {
+        id: "import:audio",
+        group: "Tracks",
+        label: "Import audio…",
+        shortcut: "⌘I",
+        keywords: "import file upload sample wav mp3 flac aiff open add",
+        run: () => void openImportDialog(transport),
+      },
     );
     const target = deviceTargetTrack(project);
     for (const d of devices) {

@@ -2,25 +2,23 @@
 //! [`OfflineRenderer`] a few nodes at a time, render it block by block, then
 //! resample/normalize/encode and deliver each file. Every step is a bounded unit of work.
 
-use std::collections::{BTreeMap, BTreeSet, VecDeque};
+use std::collections::BTreeSet;
 use std::sync::Arc;
 
+use ether_core::RenderGraphDesc;
 use ether_core::graph::ResolvedTarget;
-use ether_core::offline::{OFFLINE_MAX_BLOCK, OfflineRenderer};
 use ether_core::protocol::export::{
     ExportDownload, ExportJobId, ExportMode, ExportRange, ExportRequest,
 };
 use ether_core::protocol::model::*;
-use ether_core::tempo::{TempoMapRt, TempoPointDesc, TimeSignatureDesc};
-use ether_core::{AudioSource, EngineConfig, NodeKey, RenderGraphDesc};
-use ether_media::{DecodedAudio, InMemorySource};
+use ether_media::DecodedAudio;
 
 use super::encode::{self, Encoder, PeakScan, normalize_gain};
-use crate::compile::{CompileContext, compile_graph_with};
+use super::offline::{Capture, MediaLoader, NodeSetup, tempo_rt};
+use crate::EngineBridge;
 use crate::engine::EngineState;
-use crate::media::{IncrementalDecoder, IncrementalResampler, extension_of};
+use crate::media::IncrementalResampler;
 use crate::store::ProjectStore;
-use crate::{BridgeError, EngineBridge};
 
 /// Longest tail accepted (`ExportRequest::tail_seconds`).
 pub(crate) const MAX_TAIL_SECONDS: f64 = 60.0;
@@ -39,10 +37,6 @@ pub(crate) enum Delivered {
     Download(ExportDownload, Vec<u8>),
 }
 
-enum MediaLoad {
-    Decode(MediaRef, Box<IncrementalDecoder>),
-    Resample(Box<IncrementalResampler>, MediaId),
-}
 /// Frames of rendering, resampling, peak scanning, encoding or media decoding in one unit of
 /// work. The tick loops over units until its time budget (`export/mod.rs`), so this bounds
 /// how far a tick can overshoot it.
@@ -73,37 +67,10 @@ impl UnitStats {
     }
 }
 
-struct Resolver(std::collections::HashMap<MediaId, Arc<dyn AudioSource>>);
-
-impl ether_devices::SampleResolver for Resolver {
-    fn resolve(&self, media: MediaId) -> Option<Arc<dyn AudioSource>> {
-        self.0.get(&media).cloned()
-    }
-}
-
-/// A pass being set up: the offline engine exists, device nodes are created a few per unit.
-struct Setup {
-    renderer: OfflineRenderer,
-    sources: Resolver,
-    queue: VecDeque<DeviceId>,
-    nodes: BTreeMap<DeviceId, NodeKey>,
-}
-
-struct RenderPass {
-    renderer: OfflineRenderer,
-    /// Leading frames still to drop (graph latency).
-    skip: usize,
-    /// Frames still to keep.
-    remaining: usize,
-    total: usize,
-    out: Vec<Vec<f32>>,
-    scratch: Vec<Vec<f32>>,
-}
-
 enum Stage {
     Media,
-    Setup(Box<Setup>),
-    Render(Box<RenderPass>),
+    Setup(Box<NodeSetup>),
+    Render(Box<Capture>),
     Resample(Box<IncrementalResampler>),
     Peak {
         channels: Vec<Vec<f32>>,
@@ -134,9 +101,7 @@ pub(crate) struct Job {
     tail: usize,
     passes: Vec<Pass>,
     pass: usize,
-    media_queue: VecDeque<MediaRef>,
-    media_load: Option<MediaLoad>,
-    media: BTreeMap<MediaId, Arc<DecodedAudio>>,
+    media: MediaLoader,
     stage: Stage,
     delivered: Vec<Delivered>,
     downloads: bool,
@@ -192,28 +157,6 @@ pub(crate) fn range_of(p: &Project, range: &ExportRange) -> Result<(Beats, Beats
     Ok((start, end))
 }
 
-fn tempo_rt(p: &Project) -> TempoMapRt {
-    let map = p.tempo_map();
-    let tempo: Vec<TempoPointDesc> = map
-        .tempo
-        .iter()
-        .map(|t| TempoPointDesc {
-            beat: t.time.0,
-            bpm: t.bpm,
-            curve: t.curve,
-        })
-        .collect();
-    let sigs: Vec<TimeSignatureDesc> = map
-        .signatures
-        .iter()
-        .map(|s| TimeSignatureDesc {
-            beat: s.time.0,
-            signature: s.signature,
-        })
-        .collect();
-    TempoMapRt::compile(&tempo, &sigs)
-}
-
 /// Media the render needs (audio clips and samplers).
 fn used_media(p: &Project) -> Vec<MediaRef> {
     let mut ids = BTreeSet::new();
@@ -230,6 +173,12 @@ fn used_media(p: &Project) -> Vec<MediaRef> {
         } = &d.kind
         {
             ids.insert(*m);
+        }
+    }
+    // v0.2 (`freeze-bounce`): frozen tracks play their render.
+    for t in p.tracks.values() {
+        if let Some(f) = &t.freeze {
+            ids.insert(f.media);
         }
     }
     ids.into_iter()
@@ -312,10 +261,6 @@ pub(crate) fn stem_graph(desc: &mut RenderGraphDesc, p: &Project, stem: TrackId)
     }
 }
 
-fn engine_err(e: ether_core::EngineError) -> String {
-    format!("offline engine: {e}")
-}
-
 impl Job {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
@@ -337,7 +282,7 @@ impl Job {
             id,
             project_id: project.id,
             project: Box::new(project.clone()),
-            media_queue: used_media(project).into(),
+            media: MediaLoader::new(project.id, used_media(project), engine_rate),
             request,
             engine_rate,
             start,
@@ -345,8 +290,6 @@ impl Job {
             tail,
             passes,
             pass: 0,
-            media_load: None,
-            media: BTreeMap::new(),
             stage: Stage::Media,
             delivered: Vec::new(),
             downloads: false,
@@ -360,10 +303,7 @@ impl Job {
         let n = self.passes.len().max(1) as f32;
         let within = match &self.stage {
             Stage::Media | Stage::Setup(_) => 0.0,
-            Stage::Render(r) => {
-                let done = r.total - r.remaining;
-                0.8 * done as f32 / r.total.max(1) as f32
-            }
+            Stage::Render(r) => 0.8 * r.captured() as f32 / r.total().max(1) as f32,
             Stage::Resample(r) => 0.8 + 0.05 * r.progress(),
             Stage::Peak { channels, scan, .. } => {
                 0.85 + 0.05 * scan.progress(channels.first().map_or(0, Vec::len))
@@ -409,7 +349,7 @@ impl Job {
     ) -> Result<Step, String> {
         match &mut self.stage {
             Stage::Media => {
-                if self.step_media(store, frames)? {
+                if self.media.step(store, frames)? {
                     self.stage = Stage::Setup(Box::new(self.new_setup()?));
                 }
                 Ok(Step::Working)
@@ -422,41 +362,20 @@ impl Job {
             }
             Stage::Render(r) => {
                 // One engine block per unit.
-                let n = OFFLINE_MAX_BLOCK.min(r.skip + r.remaining);
-                for ch in &mut r.scratch {
-                    ch.resize(n, 0.0);
-                }
-                {
-                    let mut outs: Vec<&mut [f32]> =
-                        r.scratch.iter_mut().map(|c| &mut c[..n]).collect();
-                    r.renderer.render(n, &mut outs);
-                }
-                *frames = n;
-                let drop = r.skip.min(n);
-                r.skip -= drop;
-                let keep = (n - drop).min(r.remaining);
-                for (o, s) in r.out.iter_mut().zip(&r.scratch) {
-                    o.extend_from_slice(&s[drop..drop + keep]);
-                }
-                r.remaining -= keep;
-                if r.remaining > 0 || r.skip > 0 {
+                if !r.step(frames) {
                     return Ok(Step::Working);
                 }
-                let (overflow, underruns) = r.renderer.diagnostics();
-                let channels = std::mem::take(&mut r.out);
-                if overflow || underruns > 0 {
+                if let Some(why) = r.problem() {
                     self.warnings.push(format!(
-                        "export \"{}\": the render may be incomplete ({})",
+                        "export \"{}\": the render may be incomplete ({why})",
                         self.passes[self.pass].file_name,
-                        if overflow {
-                            "too many events in a block"
-                        } else {
-                            "audio sources could not keep up"
-                        }
                     ));
                 }
+                let Stage::Render(r) = std::mem::replace(&mut self.stage, Stage::Media) else {
+                    unreachable!()
+                };
                 // Drops the offline engine and its fresh nodes (plugins included).
-                self.stage = self.post_stage(channels)?;
+                self.stage = self.post_stage(r.into_channels())?;
                 Ok(Step::Working)
             }
             Stage::Resample(r) => {
@@ -507,61 +426,6 @@ impl Job {
         }
     }
 
-    /// Decode/resample the next media by one unit. `Ok(true)` once everything is loaded.
-    fn step_media<S: ProjectStore>(
-        &mut self,
-        store: &mut S,
-        frames: &mut usize,
-    ) -> Result<bool, String> {
-        let load = match self.media_load.take() {
-            Some(l) => l,
-            None => {
-                let Some(m) = self.media_queue.pop_front() else {
-                    return Ok(true);
-                };
-                let bytes = store
-                    .read(self.project_id, &m.file)
-                    .map_err(|e| format!("could not read \"{}\": {e}", m.name))?;
-                let dec = IncrementalDecoder::new(bytes.into(), extension_of(&m.file))
-                    .map_err(|e| format!("could not decode \"{}\": {e}", m.name))?;
-                MediaLoad::Decode(m, Box::new(dec))
-            }
-        };
-        *frames = UNIT_FRAMES;
-        match load {
-            MediaLoad::Decode(m, mut dec) => {
-                let done = dec
-                    .step(UNIT_FRAMES)
-                    .map_err(|e| format!("could not decode \"{}\": {e}", m.name))?;
-                if !done {
-                    self.media_load = Some(MediaLoad::Decode(m, dec));
-                    return Ok(false);
-                }
-                let mut audio = dec
-                    .finish()
-                    .map_err(|e| format!("could not decode \"{}\": {e}", m.name))?;
-                // Same sizing as the live media pipeline (the document is the reference).
-                if m.frames != 0 {
-                    for ch in &mut audio.channels {
-                        ch.resize(m.frames as usize, 0.0);
-                    }
-                }
-                let r = IncrementalResampler::new(Arc::new(audio), self.engine_rate)
-                    .map_err(|e| format!("could not resample \"{}\": {e}", m.name))?;
-                self.media_load = Some(MediaLoad::Resample(Box::new(r), m.id));
-                Ok(false)
-            }
-            MediaLoad::Resample(mut r, id) => {
-                if r.step(UNIT_FRAMES).map_err(|e| e.to_string())? {
-                    self.media.insert(id, Arc::new(r.finish()));
-                } else {
-                    self.media_load = Some(MediaLoad::Resample(r, id));
-                }
-                Ok(false)
-            }
-        }
-    }
-
     fn master(&self) -> Option<TrackId> {
         self.project
             .tracks
@@ -579,44 +443,22 @@ impl Job {
 
     /// A fresh offline engine for the current pass, with the media registered; its device
     /// nodes are created by [`Job::step_setup`].
-    fn new_setup(&self) -> Result<Setup, String> {
+    fn new_setup(&self) -> Result<NodeSetup, String> {
         let p = &*self.project;
-        let n_items = p.devices.len() + self.media.len();
-        let mut renderer = OfflineRenderer::new(EngineConfig {
-            sample_rate: self.engine_rate,
-            max_block_size: OFFLINE_MAX_BLOCK,
-            input_channels: 0,
-            output_channels: 2,
-            max_nodes: (n_items + 64).max(EngineConfig::default().max_nodes),
-            control_queue_capacity: 2 * n_items + 256,
-            ..EngineConfig::default()
-        });
-        let mut sources = std::collections::HashMap::new();
-        for (id, audio) in &self.media {
-            let src: Arc<dyn AudioSource> = Arc::new(InMemorySource::new(audio.clone()));
-            renderer
-                .handle()
-                .add_source(*id, src.clone())
-                .map_err(engine_err)?;
-            sources.insert(*id, src);
-        }
         let master = self.master();
         let is_stem = self.is_stem();
-        let queue = p
+        let devices = p
             .devices
             .values()
             // Master chain excluded from stems.
             .filter(|d| !(is_stem && Some(d.track) == master))
+            // Frozen tracks play their render (`freeze-bounce`): no nodes.
+            .filter(|d| p.tracks.get(&d.track).is_none_or(|t| t.freeze.is_none()))
             // Disabled plugins are bypassed anyway: no instance needed.
             .filter(|d| d.enabled || !matches!(d.kind, DeviceKind::Plugin { .. }))
             .map(|d| d.id)
             .collect();
-        Ok(Setup {
-            renderer,
-            sources: Resolver(sources),
-            queue,
-            nodes: BTreeMap::new(),
-        })
+        NodeSetup::new(p, &self.media.media, devices, self.engine_rate, "export")
     }
 
     /// Create a few device nodes (up to [`UNIT_BUILTINS`] built-ins, or one plugin); once
@@ -627,106 +469,34 @@ impl Job {
         engine: &EngineState,
         devices: &mut usize,
         plugins: &mut usize,
-    ) -> Result<Option<RenderPass>, String> {
+    ) -> Result<Option<Capture>, String> {
         let Stage::Setup(setup) = &mut self.stage else {
             unreachable!("setup stage")
         };
         let p = &*self.project;
-        while let Some(&id) = setup.queue.front() {
-            let Some(d) = p.devices.get(&id) else {
-                setup.queue.pop_front();
-                continue;
-            };
-            let is_plugin = matches!(d.kind, DeviceKind::Plugin { .. });
-            if *devices >= UNIT_BUILTINS || (is_plugin && *devices > 0) {
-                return Ok(None);
-            }
-            setup.queue.pop_front();
-            let node: Box<dyn ether_core::Node> = match &d.kind {
-                DeviceKind::Builtin { device } => {
-                    let mut node = ether_devices::create(device, &setup.sources);
-                    for (id, v) in &d.params {
-                        node.set_param(*id, *v);
-                    }
-                    node
-                }
-                DeviceKind::Plugin { plugin } => {
-                    let state = match bridge.plugin_state(d.id) {
-                        Ok(Some(live)) => Some(live),
-                        Ok(None) => plugin.state.clone(),
-                        Err(e) => {
-                            self.warnings.push(format!(
-                                "export: could not read the current state of \"{}\" ({e}); \
-                                 rendering it with its last saved state",
-                                d.name
-                            ));
-                            plugin.state.clone()
-                        }
-                    };
-                    *plugins += 1;
-                    bridge
-                        .create_offline_plugin(d.id, plugin, state.as_ref(), self.engine_rate)
-                        .map_err(|e| {
-                            let why = match e {
-                                BridgeError::Unsupported(m) | BridgeError::Other(m) => m,
-                                other => other.to_string(),
-                            };
-                            format!(
-                                "plugin \"{}\" on this host can't be rendered offline: {why}",
-                                d.name
-                            )
-                        })?
-                }
-            };
-            *devices += 1;
-            let key = setup.renderer.handle().add_node(node).map_err(engine_err)?;
-            setup.nodes.insert(d.id, key);
-            if is_plugin {
-                return Ok(None);
-            }
-        }
-        if *devices > 0 {
-            // Publishing (graph compile) is its own unit.
+        if !setup.step(
+            p,
+            bridge,
+            self.engine_rate,
+            &mut self.warnings,
+            devices,
+            plugins,
+        )? {
             return Ok(None);
         }
-
         let Stage::Setup(setup) = std::mem::replace(&mut self.stage, Stage::Media) else {
             unreachable!()
         };
-        let Setup {
-            mut renderer,
-            nodes,
-            ..
-        } = *setup;
-        let node_of = |d: DeviceId| nodes.get(&d).copied();
-        let descriptors = |d: &Device| engine.descriptor(d);
-        let mut desc = compile_graph_with(
-            p,
-            &CompileContext {
-                nodes: &node_of,
-                descriptors: &descriptors,
-                armed: &|_| false,
-                version: 1,
-            },
-        );
-        offline_overrides(&mut desc);
-        if self.is_stem()
-            && let Some(s) = self.passes[self.pass].stem
-        {
-            stem_graph(&mut desc, p, s);
-        }
-        renderer.publish(desc).map_err(engine_err)?;
-        renderer.start(self.start).map_err(engine_err)?;
-        let latency = renderer.latency() as usize;
-        let total = self.frames + self.tail;
-        Ok(Some(RenderPass {
-            renderer,
-            skip: latency,
-            remaining: total,
-            total,
-            out: (0..2).map(|_| Vec::with_capacity(total)).collect(),
-            scratch: vec![Vec::new(); 2],
-        }))
+        let stem = self
+            .is_stem()
+            .then_some(self.passes[self.pass].stem)
+            .flatten();
+        let renderer = setup.finish(p, engine, self.start, |desc| {
+            if let Some(s) = stem {
+                stem_graph(desc, p, s);
+            }
+        })?;
+        Ok(Some(Capture::new(renderer, self.frames + self.tail)))
     }
 
     /// After a pass rendered: resample to the requested rate, or go on to leveling.

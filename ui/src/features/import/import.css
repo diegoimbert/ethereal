@@ -1,0 +1,118 @@
+/* Import status list (file-import): floats at the bottom center of the window, above the
+   workspace panes and below popovers. */
+.eth-import {
+  position: fixed;
+  left: 50%;
+  bottom: var(--eth-space-2xl);
+  transform: translateX(-50%);
+  z-index: var(--eth-z-popover);
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-xs);
+  width: var(--eth-size-inspector-width);
+  max-width: calc(100vw - 2 * var(--eth-space-lg));
+  margin: 0;
+  padding: var(--eth-space-sm);
+  list-style: none;
+  background: var(--eth-color-bg-overlay);
+  border: var(--eth-border-width) solid var(--eth-color-border);
+  border-radius: var(--eth-radius-md);
+  box-shadow: var(--eth-shadow-lg);
+  animation: eth-fade-in var(--eth-duration-normal) var(--eth-ease-out);
+}
+
+.eth-import__row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-areas:
+    "text action"
+    "bar action";
+  align-items: center;
+  column-gap: var(--eth-space-sm);
+  row-gap: var(--eth-space-xs);
+  min-height: var(--eth-size-row-height);
+  font-size: var(--eth-fs-xs);
+  color: var(--eth-color-text);
+}
+
+.eth-import__row--error {
+  color: var(--eth-color-danger);
+}
+
+/* Errors wrap: the reason is the useful part. */
+.eth-import__row--error .eth-import__text {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.eth-import__text {
+  grid-area: text;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.eth-import__row > .eth-icon-button {
+  grid-area: action;
+}
+
+.eth-import__bar {
+  grid-area: bar;
+  position: relative;
+  display: block;
+  height: var(--eth-space-xs);
+  overflow: hidden;
+  border-radius: var(--eth-radius-pill);
+  background: var(--eth-color-bg-inset);
+}
+
+.eth-import__fill {
+  position: absolute;
+  inset: 0;
+  background: var(--eth-color-accent);
+  transform-origin: left center;
+  transform: scaleX(var(--eth-import-progress, 0));
+  transition: transform var(--eth-duration-fast) var(--eth-ease-out);
+}
+
+/* Unknown progress (a path read by the engine, a decode without progress): a sweeping bar. */
+.eth-import__bar--busy .eth-import__fill {
+  transform: none;
+  width: 30%;
+  animation: eth-import-sweep var(--eth-duration-slow) var(--eth-ease-standard) infinite alternate;
+}
+
+@keyframes eth-import-sweep {
+  from {
+    left: 0;
+  }
+  to {
+    left: 70%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .eth-import,
+  .eth-import__fill {
+    animation: none;
+    transition: none;
+  }
+}
+
+/* Sample browser footer: "Import audio…" + drop hint. */
+.eth-import-bar {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--eth-space-sm);
+  padding: var(--eth-space-xs) var(--eth-space-sm);
+  border-top: var(--eth-border-width) solid var(--eth-color-border-light);
+}
+
+.eth-import-bar__hint {
+  overflow: hidden;
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

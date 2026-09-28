@@ -11,7 +11,6 @@ use common::*;
 use ether_core::protocol::analysis::AnalysisCommand;
 use ether_core::protocol::browser::{BrowserCommand, BrowserQuery, BrowserSort};
 use ether_core::protocol::devices::{DeviceCommand, DeviceSpec};
-use ether_core::protocol::freeze::{BounceTarget, FreezeCommand};
 use ether_core::protocol::media::{MediaCommand, MediaSource};
 use ether_core::protocol::media_refs::MediaRefCommand;
 use ether_core::protocol::model::*;
@@ -275,40 +274,6 @@ fn racks_modulation_reply_unsupported() {
 }
 
 #[test]
-fn freeze_bounce_replies_unsupported() {
-    let mut h = Harness::with_project();
-    let t = track(&mut h, TrackKind::Midi);
-    let (media, clip, new_track): (MediaId, ClipId, TrackId) = (h.id(), h.id(), h.id());
-    for c in [
-        FreezeCommand::Freeze {
-            job: "j1".into(),
-            track: t,
-            media,
-        },
-        FreezeCommand::Unfreeze { track: t },
-        FreezeCommand::Flatten {
-            track: t,
-            clip,
-            new_track,
-        },
-        FreezeCommand::Bounce {
-            job: "j2".into(),
-            track: t,
-            start: Beats(0.0),
-            end: Beats(4.0),
-            include_chain: true,
-            media,
-            target: BounceTarget::NewTrack {
-                track: new_track,
-                clip,
-            },
-        },
-    ] {
-        assert_unsupported(&mut h, Command::Freeze(c));
-    }
-}
-
-#[test]
 fn time_edits_reply_unsupported() {
     let mut h = Harness::with_project();
     let t = track(&mut h, TrackKind::Audio);
@@ -379,46 +344,25 @@ fn media_references_reply_unsupported() {
     assert_unsupported(&mut h, Command::MediaRef(MediaRefCommand::CollectAll));
 }
 
-#[test]
-fn groups_buses_reply_unsupported() {
-    let mut h = Harness::with_project();
-    let a = track(&mut h, TrackKind::Audio);
-    let b = track(&mut h, TrackKind::Audio);
-    let group: TrackId = h.id();
-    assert_unsupported(
-        &mut h,
-        Command::Track(TrackCommand::GroupSelected {
-            ids: vec![a, b],
-            group,
-            name: None,
-        }),
-    );
-    // VCA tracks can be created; they never reach the render graph's tracks.
-    let vca = track(&mut h, TrackKind::Vca);
-    assert_unsupported(
-        &mut h,
-        Command::Track(TrackCommand::SetVca {
-            id: a,
-            vca: Some(vca),
-        }),
-    );
-    h.tick();
-    let graph = h.ctl.bridge.last_graph();
-    assert!(graph.tracks.iter().all(|t| t.id != vca));
-    assert!(graph.vcas.is_empty());
-}
+// groups-buses: see tests/groups.rs.
 
+/// `file-import` landed: `Path` is validated first, then read through
+/// `Library::read_external`; a host without OS files (web, this memory library) replies
+/// `Unsupported` (native coverage: `ether-native/tests/file_import_e2e.rs`).
 #[test]
-fn file_import_path_replies_unsupported() {
+fn file_import_path_needs_an_os_file_host() {
     let mut h = Harness::with_project();
-    let id: MediaId = h.id();
-    assert_unsupported(
-        &mut h,
+    let path_import = |h: &mut Harness, path: &str| {
+        let id: MediaId = h.id();
         Command::Media(MediaCommand::Import {
             id,
-            source: MediaSource::Path {
-                path: "/Users/me/kick.wav".into(),
-            },
-        }),
-    );
+            source: MediaSource::Path { path: path.into() },
+        })
+    };
+    let c = path_import(&mut h, "/Users/me/kick.wav");
+    assert_unsupported(&mut h, c);
+    for bad in ["kick.wav", "/Users/me/notes.txt"] {
+        let c = path_import(&mut h, bad);
+        assert_eq!(err(&h.send(c)).code, ErrorCode::InvalidArgument, "{bad}");
+    }
 }

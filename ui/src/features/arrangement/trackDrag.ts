@@ -41,15 +41,18 @@ function isInside(rows: ReadonlyArray<Row>, track: TrackId, ancestor: TrackId): 
 /** Where dropping `dragged` at content y lands, or null where it can't go. */
 export function trackDropTarget(rows: ReadonlyArray<Row>, y: number, dragged: TrackId): TrackDropTarget | null {
   const self = (t: Track) => t.id === dragged || isInside(rows, t.id, dragged);
+  // groups-buses: VCA tracks stay top-level (never into a group).
+  const topOnly = rows.find((r) => r.track.id === dragged)?.track.kind === "Vca";
   // Into a group: over the middle half of its lane.
   const over = rows.find((r) => y >= r.y && y < r.y + r.laneHeight);
-  if (over && over.track.kind === "Group" && !self(over.track)) {
+  if (over && over.track.kind === "Group" && !self(over.track) && !topOnly) {
     const q = (y - over.y) / over.laneHeight;
     if (q > 0.25 && q < 0.75) return { parent: over.track.id, before: null, y: over.y, into: over.track.id };
   }
   // Otherwise the gap nearest to the pointer: before the first row whose middle is below it.
   let i = rows.findIndex((r) => y < r.y + r.laneHeight / 2);
   if (i < 0) i = rows.length;
+  if (topOnly) while (i < rows.length && rows[i]!.track.parent !== null) i++;
   // Skip the dragged track (and its children): dropping inside them means "no move".
   while (i < rows.length && self(rows[i]!.track) && rows[i]!.track.id !== dragged) i++;
   const below = rows[i];

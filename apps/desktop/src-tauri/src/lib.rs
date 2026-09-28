@@ -17,6 +17,7 @@
 //! as AppKit requires for plugin editor windows on macOS.
 
 pub mod instance;
+pub mod path_drop;
 
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -231,6 +232,10 @@ pub fn run() {
                 data_dir,
                 projects_root,
             });
+            // `file-import`: OS file drops reach the UI as paths (macOS).
+            if let Some(window) = app.get_webview_window("main") {
+                path_drop::install(app.handle(), &window);
+            }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

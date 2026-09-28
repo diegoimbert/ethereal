@@ -21,8 +21,8 @@
 
 use ether_protocol::devices::ParamScale;
 use ether_protocol::model::{
-    AutomationTarget, ClipId, CurveShape, DeviceId, DrumPadId, FadeCurve, MediaId, MetronomeSound,
-    ParamId, SendId, TempoCurve, TimeSignature, TrackId, TrackKind, Ulid, WarpMode,
+    AutomationTarget, ClipId, CurveShape, DeviceId, DrumPadId, FadeCurve, InputTap, MediaId,
+    MetronomeSound, ParamId, SendId, TempoCurve, TimeSignature, TrackId, TrackKind, Ulid, WarpMode,
 };
 
 use crate::graph::{
@@ -84,8 +84,9 @@ pub struct BinaryCodec;
 
 impl BinaryCodec {
     /// Current format version (first byte of every encoding). 2 = v0.2 (contracts-3): track
-    /// kind `Vca`, the v0.2 track fields and `RenderGraphDesc::vcas`.
-    pub const VERSION: u8 = 2;
+    /// kind `Vca`, the v0.2 track fields and `RenderGraphDesc::vcas`. 3 = `groups-buses`:
+    /// `TrackDesc::{input_tap, vca}` and `RenderGraphDesc::vcas` in the binary layout.
+    pub const VERSION: u8 = 3;
 }
 
 /// v0.2 fields of a [`TrackDesc`] (contracts-3). Encoded as one tagged JSON blob (`0` = all
@@ -97,8 +98,6 @@ struct TrackExtRef<'a> {
     frozen: &'a Option<crate::freeze::FrozenDesc>,
     chain_racks: &'a Vec<crate::rack_chains::ChainRackDesc>,
     modulation: &'a crate::modulation::ModulationDesc,
-    input_tap: &'a Option<crate::bus_tap::InputTapDesc>,
-    vca: &'a Option<TrackId>,
 }
 
 #[derive(serde::Deserialize, Default)]
@@ -106,8 +105,6 @@ struct TrackExt {
     frozen: Option<crate::freeze::FrozenDesc>,
     chain_racks: Vec<crate::rack_chains::ChainRackDesc>,
     modulation: crate::modulation::ModulationDesc,
-    input_tap: Option<crate::bus_tap::InputTapDesc>,
-    vca: Option<TrackId>,
 }
 
 impl GraphCodec for BinaryCodec {
@@ -239,13 +236,21 @@ impl Writer<'_> {
         });
         self.opt(&count_in_end, |w, v| w.f64(*v));
         self.vec(tracks, Self::track);
-        // v0.2: VCAs as a JSON blob (see `TrackExt`).
-        if vcas.is_empty() {
-            self.u8(0);
-        } else {
-            self.u8(1);
-            self.json(vcas);
-        }
+        // v0.2 (`groups-buses`): VCA faders.
+        self.vec(vcas, |w, v| {
+            let crate::vca::VcaDesc {
+                id,
+                volume,
+                mute,
+                parent,
+                automation,
+            } = v;
+            w.ulid(id.0);
+            w.f32(*volume);
+            w.bool(*mute);
+            w.opt(parent, |w, p| w.ulid(p.0));
+            w.vec(automation, Self::automation);
+        });
     }
 
     fn json<T: serde::Serialize + ?Sized>(&mut self, v: &T) {
@@ -336,13 +341,19 @@ impl Writer<'_> {
                 w.bool(*mute);
             });
         });
-        // v0.2 fields (`TrackExt`).
-        if frozen.is_none()
-            && chain_racks.is_empty()
-            && modulation.is_empty()
-            && input_tap.is_none()
-            && vca.is_none()
-        {
+        // v0.2 (`groups-buses`): input tap and VCA assignment.
+        self.opt(input_tap, |w, tap| {
+            let crate::bus_tap::InputTapDesc { track, point } = *tap;
+            w.ulid(track.0);
+            w.u8(match point {
+                InputTap::PreFx => 0,
+                InputTap::PostFx => 1,
+                InputTap::PostFader => 2,
+            });
+        });
+        self.opt(vca, |w, v| w.ulid(v.0));
+        // Other v0.2 fields (`TrackExt`).
+        if frozen.is_none() && chain_racks.is_empty() && modulation.is_empty() {
             self.u8(0);
         } else {
             self.u8(1);
@@ -350,8 +361,6 @@ impl Writer<'_> {
                 frozen,
                 chain_racks,
                 modulation,
-                input_tap,
-                vca,
             });
         }
     }
@@ -529,8 +538,11 @@ impl Writer<'_> {
 mod min_size {
     pub const TEMPO: usize = 8 + 8 + 1;
     pub const SIGNATURE: usize = 8 + 1 + 1;
-    /// id, kind, 5 counts, 2 options, volume, pan, 4 bools, audio input option.
-    pub const TRACK: usize = 16 + 1 + 5 * 4 + 2 + 4 + 4 + 4 + 1;
+    /// id, kind, 5 counts, 2 options, volume, pan, 4 bools, audio input option, input tap
+    /// and VCA options, ext tag.
+    pub const TRACK: usize = 16 + 1 + 5 * 4 + 2 + 4 + 4 + 4 + 1 + 2 + 1;
+    /// id, volume, mute, parent option, automation count.
+    pub const VCA: usize = 16 + 4 + 1 + 1 + 4;
     pub const CHAIN: usize = 8 + 1 + 1;
     pub const SEND: usize = 16 + 16 + 4 + 1;
     /// id, start/length/offset, looping, muted, content tag + count, envelopes count.
@@ -687,11 +699,15 @@ impl Reader<'_> {
                 count_in_end: self.opt(Self::f64)?,
             },
             tracks: self.vec(min_size::TRACK, Self::track)?,
-            vcas: if self.bool()? {
-                self.json()?
-            } else {
-                Vec::new()
-            },
+            vcas: self.vec(min_size::VCA, |r| {
+                Ok(crate::vca::VcaDesc {
+                    id: r.track_id()?,
+                    volume: r.f32()?,
+                    mute: r.bool()?,
+                    parent: r.opt(Self::track_id)?,
+                    automation: r.vec(min_size::AUTOMATION, Self::automation)?,
+                })
+            })?,
         })
     }
 
@@ -707,13 +723,22 @@ impl Reader<'_> {
 
     fn track(&mut self) -> Result<TrackDesc, CodecError> {
         let mut t = self.track_v1()?;
+        t.input_tap = self.opt(|r| {
+            Ok(crate::bus_tap::InputTapDesc {
+                track: r.track_id()?,
+                point: match r.tag(3, "input tap")? {
+                    0 => InputTap::PreFx,
+                    1 => InputTap::PostFx,
+                    _ => InputTap::PostFader,
+                },
+            })
+        })?;
+        t.vca = self.opt(Self::track_id)?;
         if self.bool()? {
             let ext: TrackExt = self.json()?;
             t.frozen = ext.frozen;
             t.chain_racks = ext.chain_racks;
             t.modulation = ext.modulation;
-            t.input_tap = ext.input_tap;
-            t.vca = ext.vca;
         }
         Ok(t)
     }
