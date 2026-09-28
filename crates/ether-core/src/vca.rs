@@ -15,9 +15,13 @@
 //!   [`VcaRt::set_param`] handles them (pre-wired as the fallback when the id is not a track).
 //! - Solo: the controller folds VCA solo into the assigned tracks' `solo` when compiling
 //!   (solo changes republish the graph anyway).
-//! - Automation of a VCA's volume: `VcaDesc::automation`, evaluated once per sub-block by
-//!   [`VcaRt::update`] before the track jobs. An enabled lane drives the VCA fader (like a
-//!   track's volume lane); without automation the fader value is the live one.
+//! - Automation of a VCA's volume: `VcaDesc::automation`, evaluated by [`VcaRt::update`]
+//!   before the track jobs. An enabled lane drives the VCA fader (like a track's volume
+//!   lane); without automation the fader value is the live one. While playing it is
+//!   sample-accurate like track volume lanes (CONTRACTS.md §12.7,
+//!   `crate::automation_rt`): each assigned track's VCA gain ramps per sample to the
+//!   effective gain at every automation grid point ([`TrackVcaRt::knots`]), so renders don't
+//!   depend on the block size. Stopped, the lane is evaluated at the position.
 //!
 //! Everything on the audio thread is allocation-free: the per-VCA and per-track tables are
 //! sized at compile time.
@@ -82,6 +86,52 @@ fn effective(vcas: &[VcaState], v: usize) -> (f32, bool) {
         }
     }
     (gain, muted)
+}
+
+/// Linear gain of a VCA's volume lane at `beat` (the last lane wins: the controller compiles
+/// at most one volume lane per VCA).
+fn lane_gain(automation: &[AutomationDesc], beat: f64) -> Option<f32> {
+    let mut out = None;
+    for lane in automation {
+        if let Some(x) = evaluate(&lane.points, beat) {
+            out = Some(gain_from_plain(&lane.mapping, to_plain(&lane.mapping, x)));
+        }
+    }
+    out
+}
+
+/// Some VCA in the chain of `v` is automated.
+fn chain_automated(vcas: &[VcaState], v: usize) -> bool {
+    let mut cur = Some(v);
+    let mut steps = 0;
+    while let Some(i) = cur {
+        if !vcas[i].automation.is_empty() {
+            return true;
+        }
+        cur = vcas[i].parent;
+        steps += 1;
+        if steps > vcas.len() {
+            break;
+        }
+    }
+    false
+}
+
+/// Effective gain of VCA `v` at `beat`: automated VCAs of the chain at their lane's value.
+fn effective_at(vcas: &[VcaState], v: usize, beat: f64) -> f32 {
+    let mut gain = 1.0f32;
+    let mut cur = Some(v);
+    let mut steps = 0;
+    while let Some(i) = cur {
+        let volume = lane_gain(&vcas[i].automation, beat).unwrap_or(vcas[i].volume);
+        gain *= volume.max(0.0);
+        cur = vcas[i].parent;
+        steps += 1;
+        if steps > vcas.len() {
+            break;
+        }
+    }
+    gain
 }
 
 /// Effective (gain, muted) of `vca` in a compiled desc (non-RT; unknown ids are ignored).
@@ -188,19 +238,48 @@ impl VcaRt {
     /// RT. Once per sub-block before the track jobs: evaluate VCA automation and push the
     /// resulting gains into the assigned tracks' [`TrackVcaRt`].
     pub(crate) fn update(&mut self, tracks: &mut [TrackRt], timing: &Timing<'_>, playing: bool) {
-        let _ = playing;
         if self.vcas.is_empty() {
             return;
         }
-        for v in self.vcas.iter_mut() {
-            // The last lane wins (the controller compiles at most one volume lane per VCA).
-            for lane in &v.automation {
-                if let Some(x) = evaluate(&lane.points, timing.b0) {
-                    v.volume = gain_from_plain(&lane.mapping, to_plain(&lane.mapping, x));
+        for t in tracks.iter_mut() {
+            t.vca.knots.clear();
+        }
+        let automated = self.vcas.iter().any(|v| !v.automation.is_empty());
+        if playing && automated {
+            // Sample-accurate: the effective gain of each track's VCA chain at every grid
+            // knot; the track's job ramps to them ([`TrackVcaRt::apply`]).
+            for (i, v) in self.track_vca.iter().enumerate() {
+                let (Some(v), Some(t)) = (*v, tracks.get_mut(i)) else {
+                    continue;
+                };
+                if !chain_automated(&self.vcas, v) {
+                    continue;
+                }
+                for (start, end, knot, beat) in crate::automation_rt::chunks(timing) {
+                    let gain = effective_at(&self.vcas, v, beat);
+                    if t.vca.knots.len() < t.vca.knots.capacity() {
+                        t.vca
+                            .knots
+                            .push((start as u32, end as u32, (knot - start) as u32, gain));
+                    }
+                }
+            }
+            // The fader values follow the automation (live changes and stops start there).
+            let end = timing.beat_at(timing.frames as f64);
+            for v in self.vcas.iter_mut() {
+                if let Some(g) = lane_gain(&v.automation, end) {
+                    v.volume = g;
+                }
+            }
+        } else {
+            for v in self.vcas.iter_mut() {
+                if let Some(g) = lane_gain(&v.automation, timing.b0) {
+                    v.volume = g;
                 }
             }
         }
-        // Mute never changes here (no mute automation): gates stay as they are.
+        // Mute never changes here (no mute automation): gates stay as they are. Tracks with
+        // knots take their gain from them, `push` only sets the smoother target.
         let _ = self.push(tracks);
     }
 
@@ -222,6 +301,10 @@ pub(crate) struct TrackVcaRt {
     pub gain: Smoother,
     /// Assigned to a VCA (else `apply` is a no-op).
     pub assigned: bool,
+    /// This sub-block's automation ramps (sample-accurate, set by [`VcaRt::update`]):
+    /// `(start, end, ramp length, gain)` = ramp to `gain` over `ramp length` samples from
+    /// `start`, applied on `start..end`. Empty = plain smoothing. Capacity fixed at compile.
+    pub knots: Vec<(u32, u32, u32, f32)>,
 }
 
 impl Default for TrackVcaRt {
@@ -230,6 +313,7 @@ impl Default for TrackVcaRt {
             muted: false,
             gain: Smoother::new(1.0, MIX_RAMP_MS, 48_000.0),
             assigned: false,
+            knots: Vec::new(),
         }
     }
 }
@@ -247,6 +331,14 @@ impl TrackVcaRt {
                 config.sample_rate as f32,
             ),
             assigned,
+            // One chunk per grid interval of the largest block, plus the partial ends.
+            knots: if assigned {
+                Vec::with_capacity(
+                    config.max_block_size / crate::automation_rt::PARAM_GRID as usize + 2,
+                )
+            } else {
+                Vec::new()
+            },
         }
     }
 
@@ -256,10 +348,22 @@ impl TrackVcaRt {
             return;
         }
         let [l, r] = a;
-        for (sl, sr) in l[..frames].iter_mut().zip(r[..frames].iter_mut()) {
-            let g = self.gain.tick();
-            *sl *= g;
-            *sr *= g;
+        if self.knots.is_empty() {
+            for (sl, sr) in l[..frames].iter_mut().zip(r[..frames].iter_mut()) {
+                let g = self.gain.tick();
+                *sl *= g;
+                *sr *= g;
+            }
+            return;
+        }
+        for &(start, end, len, gain) in &self.knots {
+            self.gain.ramp_to(gain, len);
+            let (start, end) = (start as usize, (end as usize).min(frames));
+            for (sl, sr) in l[start..end].iter_mut().zip(r[start..end].iter_mut()) {
+                let g = self.gain.tick();
+                *sl *= g;
+                *sr *= g;
+            }
         }
     }
 
