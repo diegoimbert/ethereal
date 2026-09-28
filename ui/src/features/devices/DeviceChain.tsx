@@ -40,14 +40,25 @@ function groupByCategory(types: ReadonlyArray<DeviceDescriptor>): SelectOption<s
   );
 }
 
-/** The first instrument of a top-level chain (by descriptor category), if any. */
-async function findInstrument(transport: EngineTransport, devices: ReadonlyArray<Device>): Promise<Device | null> {
+/**
+ * The command adding an instrument to a chain (Ableton behaviour): it replaces the chain's
+ * top-level instrument (built-in or plugin, by descriptor category), in place, as one undo
+ * step; with none it goes first (its output feeds the effects). `insert(before)` builds the
+ * new instrument's `Device::Insert`. A trailing instrument gets no notes (the engine only
+ * forwards MIDI device to device) and would clear the new one's audio.
+ */
+async function addInstrumentCommand(
+  transport: EngineTransport,
+  devices: ReadonlyArray<Device>,
+  insert: (before: DeviceId | null) => Command,
+): Promise<Command> {
   for (const d of devices) {
     if (d.chain) continue;
     const descriptor = await fetchDescriptor(transport, d).catch(() => null);
-    if (descriptor?.category === "Instrument") return d;
+    if (descriptor?.category === "Instrument")
+      return asOneStep("Replace Instrument", [insert(d.id), cmd("Device", { type: "Remove", id: d.id })])!;
   }
-  return null;
+  return insert(devices[0]?.id ?? null);
 }
 
 const CATEGORY_LABELS: Record<string, string> = { Instrument: "Instruments", AudioEffect: "Audio effects", NoteEffect: "MIDI effects" };
@@ -59,12 +70,7 @@ function AddDevice({ track, devices }: { track: Track; devices: ReadonlyArray<De
   const add = async (type: BuiltinDeviceType, category: DeviceDescriptor["category"]) => {
     const insert = (before: DeviceId | null): Command =>
       cmd("Device", { type: "Insert", id: newId(), track: track.id, device: { type: "Builtin", device: builtinDevice(type) }, before });
-    if (category !== "Instrument") return void send(insert(null));
-    // An instrument replaces the track's instrument (built-in or plugin), in place, as one
-    // undo step; with none it goes first in the chain (its output feeds the effects).
-    const old = await findInstrument(transport, devices);
-    if (!old) return void send(insert(devices[0]?.id ?? null));
-    void send(asOneStep("Replace Instrument", [insert(old.id), cmd("Device", { type: "Remove", id: old.id })])!);
+    void send(category === "Instrument" ? await addInstrumentCommand(transport, devices, insert) : insert(null));
   };
   return (
     <Select
