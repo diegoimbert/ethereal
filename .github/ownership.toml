@@ -775,6 +775,17 @@ paths = [
   "crates/ether-controller/src/lib.rs",
 ]
 
+[nodes.instrument-replace]
+# Bugfix (found by synth-2, root-caused by an investigation agent): adding an instrument to a MIDI track
+# that already has one (e.g. the default Synth from "New track") put it in front, and the trailing
+# instrument (no notes in) cleared its audio -> silent track. Adding an instrument now replaces it.
+paths = [
+  "ui/src/features/devices/DeviceChain.tsx",
+  "ui/src/features/devices/DeviceChain.test.tsx",
+  "apps/web/e2e/instrument-replace*.spec.ts",
+  "crates/ether-controller/tests/instrument_replace*.rs",
+]
+
 [nodes.turn-hardening]
 # Follow-up to stream-host (docs/COLLAB.md §10 known limitations): per-username verified cap,
 # counting real nonce inserts, rotation-decision tests. TURN stays experimental until merged.
