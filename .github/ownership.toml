@@ -990,6 +990,9 @@ paths = [
 
 [nodes.fx-analysis]
 paths = [
+  # BCR (base-85): MockAnalysis gets the host + a step in meterStep; SpectrumWidget/TunerWidget display params only
+  "ui/src/transport/mock/MockTransport.ts",
+  "ui/src/features/devices/layout/widgets/data.tsx",
   "crates/ether-devices/src/fx_analysis/**",
   "crates/ether-devices/presets/{spectrum-analyzer,tuner}/**",
   "crates/ether-devices/tests/fx_analysis*.rs",
