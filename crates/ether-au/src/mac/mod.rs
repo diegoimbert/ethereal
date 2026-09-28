@@ -152,13 +152,15 @@ fn info(comp: AudioComponent, id: &AuComponentId) -> ComponentInfo {
     }
 }
 
-/// Describe one component (scanner process). Reads the registry only: no instantiation.
+/// Describe one component (scanner process). Reads the registry, then instantiates the unit
+/// only to read its sidechain (input bus 1; a unit failing to instantiate has none).
 pub(crate) fn scan(id: &AuComponentId) -> Result<PluginDescriptor, PluginError> {
     let comp = find(id).ok_or_else(|| PluginError::NotFound(id.to_string()))?;
     let info = info(comp, id);
     let ty = String::from_utf8_lossy(&id.component_type).into_owned();
+    let sidechain_inputs = instantiate(id).map_or(0, |(au, _, _)| plugin::sidechain_channels(&au));
     Ok(PluginDescriptor {
-        sidechain_inputs: Default::default(),
+        sidechain_inputs,
         format: PluginFormat::Au,
         id: id.to_string(),
         name: info.name,

@@ -59,6 +59,8 @@ pub struct AuPlugin {
     /// Tree the observer is installed on (to detect a replaced tree).
     observed_tree: Option<usize>,
     io: (u16, u16, bool),
+    /// Sidechain channels (input bus 1, capped at 2); set to what the node got at activation.
+    sidechain: u16,
     link: Option<ActiveLink>,
     latency: u32,
     editor: Option<EditorWindow>,
@@ -83,6 +85,17 @@ fn ns_error(e: &NSError) -> String {
 fn bus0(busses: &AUAudioUnitBusArray) -> Option<Retained<AUAudioUnitBus>> {
     // SAFETY: bounds checked by `count`.
     unsafe { (busses.count() > 0).then(|| busses.objectAtIndexedSubscript(0)) }
+}
+
+/// Sidechain channels of a unit (CONTRACTS §12.14): its input bus 1, capped at 2; 0 = none.
+pub(crate) fn sidechain_channels(au: &AUAudioUnit) -> u16 {
+    // SAFETY: plain getters; bounds checked by `count`.
+    let inputs = unsafe { au.inputBusses() };
+    if unsafe { inputs.count() } < 2 {
+        return 0;
+    }
+    let bus = unsafe { inputs.objectAtIndexedSubscript(1) };
+    bus_channels(&bus).min(2) as u16
 }
 
 fn bus_channels(bus: &AUAudioUnitBus) -> u32 {
@@ -138,6 +151,7 @@ impl AuPlugin {
             observer_token: std::ptr::null_mut(),
             observed_tree: None,
             io: (0, 0, false),
+            sidechain: 0,
             link: None,
             latency: 0,
             editor: None,
@@ -171,6 +185,9 @@ impl AuPlugin {
         let midi = matches!(&self.id.component_type, b"aumu" | b"aumf" | b"aumi")
             || unsafe { !self.au.scheduleMIDIEventBlock().is_null() };
         self.io = (i.min(2), o.min(2), midi);
+        if self.link.is_none() {
+            self.sidechain = sidechain_channels(&self.au);
+        }
     }
 
     fn query_latency(&self, sample_rate: f64) -> u32 {
@@ -330,8 +347,7 @@ impl PluginController for AuPlugin {
             audio_inputs: self.io.0,
             audio_outputs: self.io.1,
             midi_input: self.io.2,
-            // Extra input busses (AU sidechains) are not routed yet.
-            sidechain_inputs: 0,
+            sidechain_inputs: self.sidechain,
         }
     }
 
@@ -358,15 +374,21 @@ impl PluginController for AuPlugin {
             in_channels = set_bus_format(&in_bus, sample_rate, 2).map_err(act)? as usize;
             unsafe { in_bus.setEnabled(true) };
         }
-        // Other busses keep their defaults but must share the sample rate; extra input
-        // busses (sidechains) are disabled: they are not routed yet.
+        // Other busses keep their defaults but must share the sample rate. Input bus 1 is
+        // the sidechain (enabled; silent without a source); further input busses are
+        // disabled.
+        let mut sidechain = 0u16;
         for (is_input, busses) in [(true, &inputs), (false, &outputs)] {
             for i in 1..unsafe { busses.count() } {
                 let bus = unsafe { busses.objectAtIndexedSubscript(i) };
                 let ch = bus_channels(&bus);
-                let _ = set_bus_format(&bus, sample_rate, ch);
+                let set = set_bus_format(&bus, sample_rate, ch);
                 if is_input {
-                    unsafe { bus.setEnabled(false) };
+                    let enable = i == 1 && matches!(set, Ok(ch) if ch > 0);
+                    if enable {
+                        sidechain = ch.min(2) as u16;
+                    }
+                    unsafe { bus.setEnabled(enable) };
                 }
             }
         }
@@ -377,7 +399,7 @@ impl PluginController for AuPlugin {
         let frames = max_frames as u64;
         let _: () = unsafe { msg_send![&*self.au, setMaximumFramesToRender: frames] };
 
-        let parts = rt_parts(in_channels, max_frames);
+        let parts = rt_parts(in_channels, sidechain, max_frames);
         // Host blocks must be installed before allocating render resources.
         unsafe {
             self.au
@@ -406,6 +428,7 @@ impl PluginController for AuPlugin {
 
         self.refresh_params(None);
         self.refresh_io();
+        self.sidechain = sidechain;
         let links = Arc::new(ParamLinks::new(self.params.map.entries().to_vec()));
         if let Ok(mut l) = self.observed.links.lock() {
             *l = Some(links.clone());
@@ -440,6 +463,7 @@ impl PluginController for AuPlugin {
                 has_input,
                 in_channels,
                 out_channels,
+                sidechain,
                 max_frames,
                 sample_rate,
                 values,

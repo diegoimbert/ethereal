@@ -120,6 +120,13 @@ pub(crate) struct NodeInit {
     pub wait_budget: Duration,
 }
 
+impl NodeInit {
+    /// Sidechain channels: the region's (created from the activated descriptor).
+    fn sidechain(&self) -> u16 {
+        self.region.layout().sc_channels.min(usize::from(u16::MAX)) as u16
+    }
+}
+
 /// Audio-thread half of a sandboxed plugin.
 pub struct SandboxedNode {
     region: Region,
@@ -127,6 +134,8 @@ pub struct SandboxedNode {
     shared: Arc<Shared>,
     descriptor: DeviceDescriptor,
     channels: (u16, u16),
+    /// `Node::sidechain_inputs` (= the region's sidechain channels).
+    sidechain: u16,
     max_frames: usize,
     fifo: Fifo,
     seq: u64,
@@ -150,6 +159,7 @@ impl std::fmt::Debug for SandboxedNode {
 
 impl SandboxedNode {
     pub(crate) fn new(init: NodeInit) -> Self {
+        let sidechain = init.sidechain();
         let NodeInit {
             region,
             sem,
@@ -170,6 +180,7 @@ impl SandboxedNode {
             shared,
             descriptor,
             channels,
+            sidechain,
             max_frames,
             seq: 0,
             in_flight: None,
@@ -228,8 +239,14 @@ impl SandboxedNode {
         }
     }
 
-    /// Write this call's request and wake the helper.
-    fn post(&mut self, ctx: &ProcessContext<'_>, audio: &AudioBuffers<'_, '_>) {
+    /// Write this call's request and wake the helper. `sidechain`: this block's sidechain
+    /// signal (`None` = no source).
+    fn post(
+        &mut self,
+        ctx: &ProcessContext<'_>,
+        audio: &AudioBuffers<'_, '_>,
+        sidechain: Option<&[&[f32]]>,
+    ) {
         let frames = ctx.frames;
         let max = self.max_frames;
         let layout = *self.region.layout();
@@ -242,6 +259,22 @@ impl SandboxedNode {
                 None => dst.fill(0.0),
             }
         }
+        // Sidechain channels as the engine passed them (the helper's node maps them onto
+        // the plugin's aux bus); a missing channel repeats the last one.
+        let has_sidechain = match sidechain {
+            Some(sc) if layout.sc_channels > 0 && !sc.is_empty() => {
+                let dst_all = self.region.sc_audio();
+                for c in 0..layout.sc_channels {
+                    let src = sc.get(c).or(sc.last()).copied().unwrap_or(&[]);
+                    let dst = &mut dst_all[c * max..c * max + frames];
+                    let n = src.len().min(frames);
+                    dst[..n].copy_from_slice(&src[..n]);
+                    dst[n..].fill(0.0);
+                }
+                true
+            }
+            _ => false,
+        };
 
         let events = self.region.in_events();
         let mut n = 0;
@@ -274,6 +307,7 @@ impl SandboxedNode {
         h.frames = frames as u32;
         h.n_in_events = n as u32;
         h.reset = u32::from(std::mem::take(&mut self.reset_pending));
+        h.sidechain = u32::from(has_sidechain);
         h.transport = WireTransport::encode(ctx.transport);
         self.seq += 1;
         self.region
@@ -323,6 +357,38 @@ impl Node for SandboxedNode {
         ctx: &mut ProcessContext<'_>,
         audio: &mut AudioBuffers<'_, '_>,
     ) -> ProcessStatus {
+        self.run(ctx, audio, None)
+    }
+
+    fn sidechain_inputs(&self) -> u16 {
+        self.sidechain
+    }
+
+    fn process_sidechain(
+        &mut self,
+        ctx: &mut ProcessContext<'_>,
+        audio: &mut AudioBuffers<'_, '_>,
+        sidechain: &[&[f32]],
+    ) -> ProcessStatus {
+        self.run(ctx, audio, Some(sidechain))
+    }
+
+    fn latency(&self) -> u32 {
+        self.max_frames as u32 + self.shared.plugin_latency.load(Ordering::Relaxed)
+    }
+
+    fn channels(&self) -> (u16, u16) {
+        self.channels
+    }
+}
+
+impl SandboxedNode {
+    fn run(
+        &mut self,
+        ctx: &mut ProcessContext<'_>,
+        audio: &mut AudioBuffers<'_, '_>,
+        sidechain: Option<&[&[f32]]>,
+    ) -> ProcessStatus {
         let frames = ctx.frames;
         if self.crashed() || frames > self.max_frames {
             audio.clear_outputs();
@@ -362,7 +428,7 @@ impl Node for SandboxedNode {
 
         // 2. Post this call (or, if the helper still owns the region, replace it by silence).
         if self.in_flight.is_none() {
-            self.post(ctx, audio);
+            self.post(ctx, audio, sidechain);
         } else {
             self.fifo.push(frames, None);
         }
@@ -370,14 +436,6 @@ impl Node for SandboxedNode {
         // 3. Play the delayed output.
         self.fifo.pop(frames, audio.outputs);
         ProcessStatus::Continue
-    }
-
-    fn latency(&self) -> u32 {
-        self.max_frames as u32 + self.shared.plugin_latency.load(Ordering::Relaxed)
-    }
-
-    fn channels(&self) -> (u16, u16) {
-        self.channels
     }
 }
 
@@ -421,10 +479,15 @@ mod tests {
 
     /// A node over a real region, with the test acting as the helper.
     fn node(tag: &str, max_frames: usize) -> SandboxedNode {
+        node_sc(tag, max_frames, 0)
+    }
+
+    fn node_sc(tag: &str, max_frames: usize, sc: usize) -> SandboxedNode {
         let pid = std::process::id();
         let shm = os_name("sandbox-unit", pid, &format!("{tag}-shm"));
         let sem = os_name("sandbox-unit", pid, &format!("{tag}-sem"));
-        let mut region = Region::create(&shm, Layout::new(max_frames, 1, 1, 16, 16)).unwrap();
+        let layout = Layout::with_sidechain(max_frames, 1, 1, 16, 16, sc);
+        let mut region = Region::create(&shm, layout).unwrap();
         let mut sem = Semaphore::create(&sem).unwrap();
         region.unlink();
         sem.unlink();
@@ -443,7 +506,7 @@ mod tests {
                 audio_inputs: 1,
                 audio_outputs: 1,
                 midi_input: false,
-                sidechain_inputs: 0,
+                sidechain_inputs: sc as u16,
             },
             values: Vec::new(),
             channels: (1, 1),
@@ -495,6 +558,49 @@ mod tests {
         complete(&n, 0.5);
         assert_eq!(run(&mut n, 0.5, 4), [0.5; 4]);
         assert_eq!(n.shared.underruns.load(Ordering::Relaxed), 0);
+    }
+
+    #[test]
+    fn the_sidechain_reaches_the_region_with_its_flag() {
+        let mut n = node_sc("sc", 4, 2);
+        assert_eq!(n.sidechain_inputs(), 2);
+        let transport = TransportInfo::STOPPED;
+        let mut out_events = EventBuffer::with_capacity(16);
+        let inp = [0.0f32; 4];
+        let mut out = [0.0f32; 4];
+        let (l, r) = ([0.25f32; 4], [-0.5f32; 4]);
+        let mut call = |n: &mut SandboxedNode, sc: Option<&[&[f32]]>| {
+            let inputs: [&[f32]; 1] = [&inp];
+            let mut outputs: [&mut [f32]; 1] = [&mut out];
+            let mut ctx = ProcessContext {
+                sample_rate: 48_000.0,
+                frames: 4,
+                transport: &transport,
+                events: &[],
+                out_events: &mut out_events,
+            };
+            let mut audio = AudioBuffers {
+                inputs: &inputs,
+                outputs: &mut outputs,
+            };
+            match sc {
+                Some(sc) => n.process_sidechain(&mut ctx, &mut audio, sc),
+                None => n.process(&mut ctx, &mut audio),
+            };
+        };
+        call(&mut n, Some(&[&l, &r]));
+        assert_eq!(n.region.block().sidechain, 1);
+        assert_eq!(&n.region.sc_audio()[..4], &l);
+        assert_eq!(&n.region.sc_audio()[4..8], &r);
+        complete(&n, 0.0);
+        // No source: the flag drops (the helper calls `process`, the aux bus is silent).
+        call(&mut n, None);
+        assert_eq!(n.region.block().sidechain, 0);
+        complete(&n, 0.0);
+        // A mono sidechain feeds both channels.
+        call(&mut n, Some(&[&l]));
+        assert_eq!(n.region.block().sidechain, 1);
+        assert_eq!(&n.region.sc_audio()[4..8], &l);
     }
 
     #[test]
