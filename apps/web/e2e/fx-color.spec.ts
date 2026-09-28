@@ -100,7 +100,11 @@ test("saturator, bitcrusher and auto filter on an audio track", async ({ page })
   await expect(panel(filter).getByTestId("widget-lfo")).toBeVisible();
   await expect(panel(filter).getByRole("slider", { name: "Cutoff", exact: true })).toBeVisible();
 
-  // Plays through.
+  // Plays through, looping (the loop region covers the sample: 0..16 beats).
+  const transportBar = page.getByRole("toolbar", { name: "Transport" });
+  await transportBar.getByRole("button", { name: "Loop" }).click();
+  await expect.poll(async () => (await doc(page)).settings.loop_enabled).toBe(true);
+  console.log("clip", JSON.stringify(Object.values((await doc(page)).clips)[0]));
   await playButton(page).click();
   await expect.poll(() => peakOf(page, audio.id), { timeout: 15_000 }).toBeGreaterThan(0.05);
 
@@ -124,6 +128,6 @@ test("saturator, bitcrusher and auto filter on an audio track", async ({ page })
   await expect.poll(async () => (await doc(page)).devices[filter]?.params[1], { timeout: 5_000 }).toBe(20000);
   await expect.poll(() => peakOf(page, audio.id), { timeout: 15_000 }).toBeGreaterThan(open * 0.5);
 
-  await page.getByRole("toolbar", { name: "Transport" }).getByRole("button", { name: "Stop" }).first().click();
+  await transportBar.getByRole("button", { name: "Stop" }).first().click();
   expect(errors).toEqual([]);
 });
