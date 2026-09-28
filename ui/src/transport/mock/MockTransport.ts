@@ -141,7 +141,7 @@ import { MockFreeze } from "./roadmap/freezeBounce";
 import { libraryPath, MockMediaRefs } from "./roadmap/mediaReferences";
 import { presetCommand } from "./roadmap/presets";
 import { listModulatorKinds } from "./roadmap/racksModulation";
-import { timeEditCommand } from "./roadmap/timeEdits";
+import { MockTimeEdits } from "./roadmap/timeEdits";
 import { chatCommand } from "./roadmap/social";
 
 export interface MockTransportOptions {
@@ -256,9 +256,27 @@ export class MockTransport implements EngineTransport {
     newId: () => this.newId(),
     applyDocument: (commands, label) => void this.applyDocument(commands, label, null),
     execute: (command) => void this.execute(command, null),
+    applyUntracked: (body) => {
+      const tx = new Tx(this.project);
+      try {
+        body(tx);
+      } catch (e) {
+        tx.rollback();
+        throw e;
+      }
+      if (!tx.isEmpty) this.emitPatch(tx.changes());
+    },
   };
   private readonly midiLearn = new MockMidiLearn(this.host);
   private readonly exports = new MockExports(this.host);
+  private readonly timeEdits = new MockTimeEdits({
+    ...this.host,
+    transact: (label, edit) =>
+      void this.transact(label, null, (tx) => {
+        edit(tx);
+        return UNIT;
+      }),
+  });
   private readonly freeze = new MockFreeze({
     ...this.host,
     transact: (label, edit) =>
@@ -447,7 +465,7 @@ export class MockTransport implements EngineTransport {
       case "Freeze":
         return this.freeze.command(command.command);
       case "TimeEdit":
-        return timeEditCommand(command.command);
+        return this.timeEdits.command(command.command);
       case "Preset":
         return presetCommand(command.command);
       case "Browser":
@@ -459,7 +477,7 @@ export class MockTransport implements EngineTransport {
       case "Modulation":
         return listModulatorKinds();
       case "Chat":
-        return chatCommand(command.command);
+        return chatCommand(command.command, this.collab);
       default:
         return fail("InvalidArgument", `unknown command domain`);
     }

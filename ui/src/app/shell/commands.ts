@@ -1,4 +1,6 @@
 import { openAudioSettings } from "@/features/audio-settings";
+import { focusChat } from "@/features/collab/social";
+import { useCollabStore } from "@/features/collab/store";
 import type { DeviceDescriptor } from "@/generated";
 import { addTrack, selectTrackEntity } from "@/features/arrangement/actions";
 import { arrangementView } from "@/features/arrangement/uiStore";
@@ -129,7 +131,19 @@ export function buildCommands(transport: EngineTransport | null, devices: Readon
     }
   }
 
+  const inSession = useCollabStore.getState().status.type === "Online";
+  if (inSession) {
+    out.push({
+      id: "chat:focus",
+      group: "Chat",
+      label: "Chat: Focus input",
+      keywords: "chat message collab session talk send",
+      shortcut: "⇧⌘M",
+      run: () => focusChat(),
+    });
+  }
   for (const t of LEFT_TABS) {
+    if (t.session && !inSession) continue;
     out.push({
       id: `panel:${t.id}`,
       group: "Panels",
