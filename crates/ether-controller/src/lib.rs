@@ -298,6 +298,16 @@ pub trait EngineBridge {
         Ok(())
     }
 
+    /// `latency-republish`: the latency (samples) a live node last reported, as the next
+    /// publish would use it for PDC (`EngineHandle::node_latency`). The controller tick
+    /// compares it with the values of the last publish and republishes (debounced) when a
+    /// node's latency changed (e.g. a Gate's Lookahead). Cheap and non-blocking. Default:
+    /// `None` (latency changes then only republish through `LatencyChanged`).
+    fn node_latency(&self, key: NodeKey) -> Option<u32> {
+        let _ = key;
+        None
+    }
+
     // ─── base-53: "listen on <peer>" native sender (`stream-host`; docs/COLLAB.md §9) ───
 
     /// What this host can do for streaming. Default: nothing (the web build streams from
@@ -637,6 +647,9 @@ where
     }
 
     fn tick(&mut self, now_ms: u64, out: &mut dyn MessageSink) {
+        // `latency-republish`: a changed node latency marks the graph dirty; the tick's
+        // publish below then recomputes PDC.
+        self.engine.check_latencies(&self.bridge, now_ms);
         self.tick_impl(now_ms, out);
     }
 
