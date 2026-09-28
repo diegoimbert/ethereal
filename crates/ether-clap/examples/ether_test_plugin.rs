@@ -4,7 +4,10 @@
 //! - Stereo in/out audio effect with one CLAP note input port and 64 samples of latency.
 //! - Params: `1` Gain (0..2, default 1), `2` Mode (stepped 0..2: Clean/Warm/Hot), `3` Tempo
 //!   (read-only, hidden: the last transport tempo it saw).
-//! - Output = input * gain, plus 0.25 DC while any note is held.
+//! - Output = input * gain, plus 0.25 DC while any note is held, plus the sidechain.
+//! - A second, non-main stereo input port `sidechain` (the aux bus of `plugin-sidechain`,
+//!   CONTRACTS §12.14): added to the output channel by channel. Hosts feed it silence when
+//!   there's no sidechain source, so the output is unchanged then.
 //! - MIDI CC 7 sets the gain *from the plugin side* (as a GUI would): it emits gesture begin,
 //!   param value and gesture end output events.
 //! - State: gain + mode as 16 little-endian bytes.
@@ -159,6 +162,23 @@ impl<'a> PluginAudioProcessor<'a, Shared, MainThread<'a>> for Processor<'a> {
         if let Some(t) = process.transport {
             Shared::set(&self.shared.tempo, t.tempo);
         }
+        // Sidechain channels (port 1), as raw pointers: the port pair below borrows `audio`
+        // mutably. They stay valid for this call (host buffers).
+        let mut sidechain: [Option<(*const f32, usize)>; 2] = [None; 2];
+        if let Some(port) = audio.input_port(1)
+            && let Some(ch) = port.channels().ok().and_then(|c| c.into_f32())
+        {
+            for (c, slot) in sidechain.iter_mut().enumerate() {
+                *slot = ch.channel(c as u32).map(|s| (s.as_ptr(), s.len()));
+            }
+        }
+        let sc = |c: usize, i: usize| -> f32 {
+            match sidechain[c.min(1)] {
+                // SAFETY: a host input buffer of `len` samples, valid during `process`.
+                Some((p, len)) if i < len => unsafe { *p.add(i) },
+                _ => 0.0,
+            }
+        };
         let mut pair = audio.port_pair(0).ok_or(PluginError::Message("no port"))?;
         let mut channels = pair
             .channels()?
@@ -202,21 +222,26 @@ impl<'a> PluginAudioProcessor<'a, Shared, MainThread<'a>> for Processor<'a> {
             let gain = Shared::get(&self.shared.gain) as f32;
             let dc = if self.held > 0 { 0.25 } else { 0.0 };
             let bounds = batch.sample_bounds();
-            for pair in channels.iter_mut() {
+            let start = match bounds.0 {
+                std::ops::Bound::Included(s) => s,
+                std::ops::Bound::Excluded(s) => s + 1,
+                std::ops::Bound::Unbounded => 0,
+            };
+            for (c, pair) in channels.iter_mut().enumerate() {
                 match pair {
                     ChannelPair::InputOutput(i, o) => {
-                        for (o, i) in o[bounds].iter_mut().zip(&i[bounds]) {
-                            *o = *i * gain + dc;
+                        for (k, (o, i)) in o[bounds].iter_mut().zip(&i[bounds]).enumerate() {
+                            *o = *i * gain + dc + sc(c, start + k);
                         }
                     }
                     ChannelPair::InPlace(b) => {
-                        for s in b[bounds].iter_mut() {
-                            *s = *s * gain + dc;
+                        for (k, s) in b[bounds].iter_mut().enumerate() {
+                            *s = *s * gain + dc + sc(c, start + k);
                         }
                     }
                     ChannelPair::OutputOnly(o) => {
-                        for s in o[bounds].iter_mut() {
-                            *s = dc;
+                        for (k, s) in o[bounds].iter_mut().enumerate() {
+                            *s = dc + sc(c, start + k);
                         }
                     }
                     ChannelPair::InputOnly(_) => {}
@@ -228,11 +253,21 @@ impl<'a> PluginAudioProcessor<'a, Shared, MainThread<'a>> for Processor<'a> {
 }
 
 impl PluginAudioPortsImpl for MainThread<'_> {
-    fn count(&self, _is_input: bool) -> u32 {
-        1
+    fn count(&self, is_input: bool) -> u32 {
+        if is_input { 2 } else { 1 }
     }
 
-    fn get(&self, index: u32, _is_input: bool, writer: &mut AudioPortInfoWriter) {
+    fn get(&self, index: u32, is_input: bool, writer: &mut AudioPortInfoWriter) {
+        if is_input && index == 1 {
+            writer.set(&AudioPortInfo {
+                id: ClapId::new(1),
+                name: b"sidechain",
+                channel_count: 2,
+                flags: AudioPortFlags::empty(),
+                port_type: Some(AudioPortType::STEREO),
+                in_place_pair: None,
+            });
+        }
         if index == 0 {
             writer.set(&AudioPortInfo {
                 id: ClapId::new(0),

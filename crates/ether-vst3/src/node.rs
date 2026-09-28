@@ -54,9 +54,25 @@ pub(crate) struct BusLayout {
     pub inputs: Vec<u32>,
     pub outputs: Vec<u32>,
     pub event_input: bool,
+    /// The sidechain bus (CONTRACTS §12.14): the first `kAux` input bus (never the main
+    /// bus 0) with channels.
+    pub aux_in: Option<usize>,
 }
 
 impl BusLayout {
+    /// The sidechain bus among the input buses `(channels, is kAux)`.
+    pub fn find_aux(inputs: &[(u32, bool)]) -> Option<usize> {
+        (1..inputs.len()).find(|&i| inputs[i].1 && inputs[i].0 > 0)
+    }
+
+    /// Channels the engine feeds the sidechain bus with: its channel count capped at 2
+    /// (the engine's sidechain is stereo). 0 = no sidechain.
+    pub fn sidechain_channels(&self) -> u16 {
+        self.aux_in
+            .and_then(|i| self.inputs.get(i))
+            .map_or(0, |ch| (*ch).min(2) as u16)
+    }
+
     /// Main (first) input/output bus channel counts.
     pub fn main_channels(&self) -> (u16, u16) {
         let first = |v: &[u32]| v.first().copied().unwrap_or(0).min(u32::from(u16::MAX)) as u16;
@@ -409,12 +425,57 @@ impl Node for Vst3Node {
         self.release_all = true;
     }
 
-    // The SDK enum constants are `u32` or `i32` depending on the OS: keep the casts.
-    #[allow(clippy::unnecessary_cast)]
     fn process(
         &mut self,
         ctx: &mut ProcessContext<'_>,
         audio: &mut AudioBuffers<'_, '_>,
+    ) -> ProcessStatus {
+        self.run(ctx, audio, &[])
+    }
+
+    fn sidechain_inputs(&self) -> u16 {
+        self.layout.sidechain_channels()
+    }
+
+    fn process_sidechain(
+        &mut self,
+        ctx: &mut ProcessContext<'_>,
+        audio: &mut AudioBuffers<'_, '_>,
+        sidechain: &[&[f32]],
+    ) -> ProcessStatus {
+        self.run(ctx, audio, sidechain)
+    }
+
+    fn latency(&self) -> u32 {
+        self.shared.latency.load(Ordering::Relaxed)
+    }
+
+    fn channels(&self) -> (u16, u16) {
+        self.layout.main_channels()
+    }
+}
+
+/// The source of channel `c` of the sidechain bus from the engine's sidechain `sc`
+/// (CONTRACTS §12.14): mono buses get the left channel, wider ones the first two (a mono
+/// source feeds both), extra channels are silent. `None` = silence.
+fn sidechain_source<'a>(sc: &[&'a [f32]], c: usize) -> Option<&'a [f32]> {
+    match c {
+        0 => sc.first().copied(),
+        1 => sc.get(1).or(sc.first()).copied(),
+        _ => None,
+    }
+}
+
+impl Vst3Node {
+    /// `process` (no sidechain source: `sidechain` is empty, the aux bus gets silence) and
+    /// `process_sidechain`.
+    // The SDK enum constants are `u32` or `i32` depending on the OS: keep the casts.
+    #[allow(clippy::unnecessary_cast)]
+    fn run(
+        &mut self,
+        ctx: &mut ProcessContext<'_>,
+        audio: &mut AudioBuffers<'_, '_>,
+        sidechain: &[&[f32]],
     ) -> ProcessStatus {
         let frames = ctx.frames;
         if self.shared.faulted.load(Ordering::Relaxed) || frames > self.max_frames {
@@ -450,13 +511,17 @@ impl Node for Vst3Node {
         }
         self.fill_context(ctx.transport);
 
-        // Main input → first input bus (mono input feeds every channel); others silent.
+        // Main input → first input bus (mono input feeds every channel); the sidechain → the
+        // aux bus; others silent.
         let max = self.max_frames;
         for (b, buf) in self.ins.data.iter_mut().enumerate() {
+            let is_aux = self.layout.aux_in == Some(b);
             for (c, dst) in buf.chunks_exact_mut(max).enumerate() {
                 let dst = &mut dst[..frames];
                 let src = if b == 0 {
-                    audio.inputs.get(c).or(audio.inputs.last())
+                    audio.inputs.get(c).or(audio.inputs.last()).copied()
+                } else if is_aux {
+                    sidechain_source(sidechain, c)
                 } else {
                     None
                 };
@@ -527,14 +592,6 @@ impl Node for Vst3Node {
             ctx.out_events.push(ProcessEvent { offset, kind });
         }
         ProcessStatus::Continue
-    }
-
-    fn latency(&self) -> u32 {
-        self.shared.latency.load(Ordering::Relaxed)
-    }
-
-    fn channels(&self) -> (u16, u16) {
-        self.layout.main_channels()
     }
 }
 

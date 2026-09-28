@@ -755,9 +755,11 @@ pub fn compile_with(
         }
     };
 
-    // --- solo ---
+    // --- solo (CONTRACTS.md §12.10, `groups-buses`) ---
     // While anything is soloed, a track stays audible if it is soloed, inside a soloed
-    // group, a group on the path of a soloed track, a return, or the master.
+    // group, a group/bus on the output path of a soloed track (solo in place through the
+    // bus chain, explicit outputs included), a return, or the master. VCA solo is folded
+    // into `TrackDesc::solo` by the controller.
     let any_solo = desc.tracks.iter().any(|t| t.solo);
     let parents_ref = &parents;
     let ancestors = |i: usize| {
@@ -783,6 +785,17 @@ pub fn compile_with(
                 solo_ok[i] = true;
                 for p in ancestors(i) {
                     solo_ok[p] = true;
+                }
+                // Every bus the soloed track's output reaches.
+                let mut cur = outputs[i];
+                let mut guard = 0;
+                while let Some(o) = cur {
+                    solo_ok[o] = true;
+                    cur = outputs[o];
+                    guard += 1;
+                    if guard > n {
+                        break;
+                    }
                 }
             }
             if ancestors(i).any(|p| desc.tracks[p].solo) {
@@ -926,7 +939,7 @@ pub fn compile_with(
                 config,
             ),
             taps: crate::bus_tap::TapBuffers::compile(&tap_points[i], config),
-            vca: crate::vca::TrackVcaRt::default(),
+            vca: crate::vca::TrackVcaRt::compile(t.vca, &desc.vcas, config),
         });
     }
     send_index.sort();
@@ -941,7 +954,7 @@ pub fn compile_with(
     let mut rt = SnapshotRt {
         pad_index,
         rack_chain_index,
-        vcas: crate::vca::VcaRt::compile(&desc.vcas, config),
+        vcas: crate::vca::VcaRt::compile(&desc.vcas, &desc.tracks, config),
         order,
         level_order,
         levels,

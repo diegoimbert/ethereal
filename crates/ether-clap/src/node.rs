@@ -51,9 +51,25 @@ pub(crate) struct PortLayout {
     pub outputs: Vec<u32>,
     pub main_in: Option<usize>,
     pub main_out: Option<usize>,
+    /// The sidechain port (CONTRACTS §12.14): the first input port that isn't the main one
+    /// (`CLAP_PORT_IS_MAIN` unset) and has channels.
+    pub aux_in: Option<usize>,
 }
 
 impl PortLayout {
+    /// The sidechain port among `inputs` (see [`PortLayout::aux_in`]).
+    pub fn find_aux(inputs: &[u32], main_in: Option<usize>) -> Option<usize> {
+        (0..inputs.len()).find(|&i| Some(i) != main_in && inputs[i] > 0)
+    }
+
+    /// Channels the engine feeds the sidechain port with: its channel count capped at 2
+    /// (the engine's sidechain is stereo). 0 = no sidechain.
+    pub fn sidechain_channels(&self) -> u16 {
+        self.aux_in
+            .and_then(|i| self.inputs.get(i))
+            .map_or(0, |ch| (*ch).min(2) as u16)
+    }
+
     pub fn main_channels(&self) -> (u16, u16) {
         let ch = |ports: &[u32], main: Option<usize>| {
             main.and_then(|i| ports.get(i)).copied().unwrap_or(0) as u16
@@ -305,6 +321,51 @@ impl Node for ClapNode {
         ctx: &mut ProcessContext<'_>,
         audio: &mut AudioBuffers<'_, '_>,
     ) -> ProcessStatus {
+        self.run(ctx, audio, &[])
+    }
+
+    fn sidechain_inputs(&self) -> u16 {
+        self.layout.sidechain_channels()
+    }
+
+    fn process_sidechain(
+        &mut self,
+        ctx: &mut ProcessContext<'_>,
+        audio: &mut AudioBuffers<'_, '_>,
+        sidechain: &[&[f32]],
+    ) -> ProcessStatus {
+        self.run(ctx, audio, sidechain)
+    }
+
+    fn latency(&self) -> u32 {
+        self.shared.latency.load(Ordering::Relaxed)
+    }
+
+    fn channels(&self) -> (u16, u16) {
+        self.layout.main_channels()
+    }
+}
+
+/// The source of channel `c` of a sidechain port from the engine's sidechain `sc`
+/// (CONTRACTS §12.14): mono ports get the left channel, wider ones the first two (a mono
+/// source feeds both), extra channels are silent. `None` = silence.
+pub(crate) fn sidechain_source<'a>(sc: &[&'a [f32]], c: usize) -> Option<&'a [f32]> {
+    match c {
+        0 => sc.first().copied(),
+        1 => sc.get(1).or(sc.first()).copied(),
+        _ => None,
+    }
+}
+
+impl ClapNode {
+    /// `process` (no sidechain source: `sidechain` is empty, the aux port gets silence) and
+    /// `process_sidechain`.
+    fn run(
+        &mut self,
+        ctx: &mut ProcessContext<'_>,
+        audio: &mut AudioBuffers<'_, '_>,
+        sidechain: &[&[f32]],
+    ) -> ProcessStatus {
         let frames = ctx.frames;
         if self.shared.faulted.load(Ordering::Relaxed) || frames > self.max_frames {
             audio.clear_outputs();
@@ -331,14 +392,18 @@ impl Node for ClapNode {
         }
         let transport = transport_event(ctx.transport);
 
-        // Main input → plugin's main input port (mono input feeds every channel).
+        // Main input → plugin's main input port (mono input feeds every channel); the
+        // sidechain → the aux port; other ports get silence.
         let max = self.max_frames;
         for (p, buf) in self.in_bufs.iter_mut().enumerate() {
             let is_main = self.layout.main_in == Some(p);
+            let is_aux = self.layout.aux_in == Some(p);
             for (c, dst) in buf.chunks_exact_mut(max).enumerate() {
                 let dst = &mut dst[..frames];
                 let src = if is_main {
-                    audio.inputs.get(c).or(audio.inputs.last())
+                    audio.inputs.get(c).or(audio.inputs.last()).copied()
+                } else if is_aux {
+                    sidechain_source(sidechain, c)
                 } else {
                     None
                 };
@@ -473,14 +538,6 @@ impl Node for ClapNode {
             clack_host::process::ProcessStatus::Sleep => ProcessStatus::Silent,
             _ => ProcessStatus::Continue,
         }
-    }
-
-    fn latency(&self) -> u32 {
-        self.shared.latency.load(Ordering::Relaxed)
-    }
-
-    fn channels(&self) -> (u16, u16) {
-        self.layout.main_channels()
     }
 }
 

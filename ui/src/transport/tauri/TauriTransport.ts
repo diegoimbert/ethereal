@@ -19,6 +19,8 @@
  */
 
 import { Channel, invoke as tauriInvoke } from "@tauri-apps/api/core";
+import { listen as tauriListen } from "@tauri-apps/api/event";
+import { open as tauriOpen } from "@tauri-apps/plugin-dialog";
 import type {
   ClientMessage,
   Command,
@@ -40,8 +42,27 @@ export interface ChannelLike<T> {
   onmessage: (message: T) => void;
 }
 
+/** `listen` from `@tauri-apps/api/event` (injectable for tests). */
+export type ListenFn = <T>(event: string, handler: (e: { payload: T }) => void) => Promise<() => void>;
+
+/** `open` from `@tauri-apps/plugin-dialog` (injectable for tests). */
+export type OpenDialogFn = (options: {
+  multiple: boolean;
+  directory: boolean;
+  title: string;
+  filters: { name: string; extensions: string[] }[];
+}) => Promise<string | string[] | null>;
+
+/** Shell event carrying OS paths dropped on the window (`apps/desktop/src-tauri`). */
+export const PATH_DROP_EVENT = "ether://path-drop";
+
+/** Extensions offered by the import dialog (the engine's audio formats). */
+export const AUDIO_DIALOG_EXTENSIONS = ["wav", "wave", "aif", "aiff", "aifc", "flac", "mp3", "ogg", "oga"] as const;
+
 export interface TauriTransportOptions {
   invoke?: InvokeFn;
+  listen?: ListenFn;
+  openDialog?: OpenDialogFn;
   createChannel?: <T>() => ChannelLike<T>;
   /** Name of the project created when the store is empty (default "Untitled"). */
   untitledName?: string;
@@ -77,6 +98,8 @@ export class TauriTransport implements EngineTransport {
   info: EngineInfo | null = null;
 
   private readonly invoke: InvokeFn;
+  private readonly listen: ListenFn;
+  private readonly openDialog: OpenDialogFn;
   private readonly createChannel: <T>() => ChannelLike<T>;
   private readonly untitledName: string;
   private readonly events = new Emitter<Event>();
@@ -95,6 +118,8 @@ export class TauriTransport implements EngineTransport {
 
   constructor(options: TauriTransportOptions = {}) {
     this.invoke = options.invoke ?? ((cmd, args) => tauriInvoke(cmd, args));
+    this.listen = options.listen ?? ((event, handler) => tauriListen(event, handler));
+    this.openDialog = options.openDialog ?? ((o) => tauriOpen(o));
     this.createChannel = options.createChannel ?? (<T>() => new Channel<T>() as ChannelLike<T>);
     this.untitledName = options.untitledName ?? "Untitled";
   }
@@ -157,6 +182,41 @@ export class TauriTransport implements EngineTransport {
 
   subscribeMeters(listener: (frame: MeterFrame) => void): Unsubscribe {
     return this.meterEmitter.on(listener);
+  }
+
+  // ─── `file-import`: OS files by path (CONTRACTS.md §12.13) ───────────────────────────
+
+  /**
+   * OS paths dropped on the window (`PATH_DROP_EVENT`, emitted by the shell on macOS; other
+   * platforms deliver drops to the page as files).
+   */
+  onPathDrop(listener: (paths: string[]) => void): Unsubscribe {
+    let off: (() => void) | null = null;
+    let cancelled = false;
+    this.listen<{ paths: string[] }>(PATH_DROP_EVENT, (e) => {
+      if (Array.isArray(e.payload?.paths)) listener(e.payload.paths.filter((p) => typeof p === "string"));
+    })
+      .then((unlisten) => {
+        if (cancelled) unlisten();
+        else off = unlisten;
+      })
+      .catch((e: unknown) => console.warn("[ethereal] path drops unavailable:", e));
+    return () => {
+      cancelled = true;
+      off?.();
+    };
+  }
+
+  /** The OS file dialog for audio files: absolute paths, or `null` when dismissed. */
+  async pickAudioFiles(): Promise<string[] | null> {
+    const picked = await this.openDialog({
+      multiple: true,
+      directory: false,
+      title: "Import audio",
+      filters: [{ name: "Audio", extensions: [...AUDIO_DIALOG_EXTENSIONS] }],
+    });
+    if (picked === null) return null;
+    return (Array.isArray(picked) ? picked : [picked]).filter((p): p is string => typeof p === "string");
   }
 
   dispose(): void {

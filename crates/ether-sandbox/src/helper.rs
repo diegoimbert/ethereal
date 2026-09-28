@@ -278,7 +278,10 @@ fn attach(
     };
     let (i, o) = node.channels();
     let l = region.layout();
-    if l.in_channels != usize::from(i) || l.out_channels != usize::from(o) {
+    if l.in_channels != usize::from(i)
+        || l.out_channels != usize::from(o)
+        || l.sc_channels != usize::from(node.sidechain_inputs())
+    {
         return Err((node, ipc("shared memory layout mismatch".into())));
     }
     let sem = match Semaphore::open(sem) {
@@ -315,6 +318,7 @@ fn run_audio(
     let mut out_events = EventBuffer::with_capacity(layout.max_out_events);
     let mut inputs: Vec<&[f32]> = Vec::with_capacity(layout.in_channels);
     let mut outputs: Vec<&mut [f32]> = Vec::with_capacity(layout.out_channels);
+    let mut sidechain: Vec<&[f32]> = Vec::with_capacity(layout.sc_channels);
     let mut last = 0u64;
     loop {
         sem.wait();
@@ -357,6 +361,15 @@ fn run_audio(
                 .chunks_exact_mut(max.max(1))
                 .map(|c| &mut c[..frames]),
         );
+        sidechain.clear();
+        if h.sidechain != 0 {
+            sidechain.extend(
+                region
+                    .sc_audio()
+                    .chunks_exact(max.max(1))
+                    .map(|c| &c[..frames]),
+            );
+        }
         let status = {
             let mut ctx = ProcessContext {
                 sample_rate,
@@ -369,7 +382,11 @@ fn run_audio(
                 inputs: &inputs,
                 outputs: &mut outputs,
             };
-            node.process(&mut ctx, &mut audio)
+            if sidechain.is_empty() {
+                node.process(&mut ctx, &mut audio)
+            } else {
+                node.process_sidechain(&mut ctx, &mut audio, &sidechain)
+            }
         };
 
         let out = region.out_events();

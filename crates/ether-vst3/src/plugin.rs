@@ -10,6 +10,7 @@ use ether_core::plugin::{PluginController, PluginError, PluginNode, PluginNotifi
 use ether_core::protocol::devices::{DeviceCategory, DeviceDescriptor, DeviceTypeRef, ParamInfo};
 use ether_core::protocol::model::ParamId;
 use vst3::Steinberg::Vst::BusDirections_::{kInput, kOutput};
+use vst3::Steinberg::Vst::BusTypes_::kAux;
 use vst3::Steinberg::Vst::MediaTypes_::{kAudio, kEvent};
 use vst3::Steinberg::Vst::ProcessModes_::kRealtime;
 use vst3::Steinberg::Vst::RestartFlags_::{
@@ -117,19 +118,56 @@ fn create<I: Interface>(module: &Module, cid: &TUID) -> Option<ComPtr<I>> {
     unsafe { ComPtr::from_raw(obj.cast::<I>()) }
 }
 
-fn bus_channels(component: &ComPtr<IComponent>, dir: i32) -> Vec<u32> {
+/// `(channels, is a kAux bus)` of every audio bus of `dir`.
+fn bus_infos(component: &ComPtr<IComponent>, dir: i32) -> Vec<(u32, bool)> {
     // SAFETY (all calls): valid component; `BusInfo` is plain C data.
     let count = unsafe { component.getBusCount(kAudio as i32, dir) }.max(0);
     (0..count)
         .map(|i| {
             let mut info: BusInfo = unsafe { std::mem::zeroed() };
             if unsafe { component.getBusInfo(kAudio as i32, dir, i, &mut info) } == kResultOk {
-                info.channelCount.max(0) as u32
+                (
+                    info.channelCount.max(0) as u32,
+                    info.busType as i64 == kAux as i64,
+                )
             } else {
-                0
+                (0, false)
             }
         })
         .collect()
+}
+
+fn bus_channels(component: &ComPtr<IComponent>, dir: i32) -> Vec<u32> {
+    bus_infos(component, dir)
+        .into_iter()
+        .map(|(c, _)| c)
+        .collect()
+}
+
+/// Scanner: the sidechain channels of audio-module class `cid` of `module` (its first `kAux`
+/// input bus, capped at 2; 0 = none or the component can't be created). Only creates and
+/// initializes the component (no controller, no activation).
+pub(crate) fn probe_sidechain_inputs(module: &Module, cid: &[u8; 16]) -> u16 {
+    let host = ComWrapper::new(HostApplication);
+    let Some(host_ctx) = host.as_com_ref::<FUnknown>().map(|r| r.as_ptr()) else {
+        return 0;
+    };
+    let tuid: TUID = cid.map(|b| b as std::ffi::c_char);
+    let Some(component) = create::<IComponent>(module, &tuid) else {
+        return 0;
+    };
+    // SAFETY (all calls): valid component on this (the scanner's main) thread.
+    if unsafe { component.initialize(host_ctx) } != kResultOk {
+        return 0;
+    }
+    let inputs = bus_infos(&component, kInput as i32);
+    let layout = BusLayout {
+        aux_in: BusLayout::find_aux(&inputs),
+        inputs: inputs.into_iter().map(|(c, _)| c).collect(),
+        ..BusLayout::default()
+    };
+    unsafe { component.terminate() };
+    layout.sidechain_channels()
 }
 
 impl Vst3Plugin {
@@ -249,8 +287,10 @@ impl Vst3Plugin {
     fn refresh_layout(&mut self) {
         // SAFETY: valid component.
         let events = unsafe { self.component.getBusCount(kEvent as i32, kInput as i32) };
+        let inputs = bus_infos(&self.component, kInput as i32);
         self.layout = BusLayout {
-            inputs: bus_channels(&self.component, kInput as i32),
+            aux_in: BusLayout::find_aux(&inputs),
+            inputs: inputs.into_iter().map(|(c, _)| c).collect(),
             outputs: bus_channels(&self.component, kOutput as i32),
             event_input: events > 0,
         };
@@ -331,6 +371,7 @@ impl Vst3Plugin {
             inputs: channels(kInput as i32),
             outputs: channels(kOutput as i32),
             event_input: self.layout.event_input,
+            aux_in: self.layout.aux_in,
         }
     }
 
@@ -349,6 +390,13 @@ impl Vst3Plugin {
             if self.layout.event_input {
                 self.component
                     .activateBus(kEvent as i32, kInput as i32, 0, state);
+            }
+            // The sidechain bus is active whenever the plugin is: without a source it gets
+            // silence (the bus state can only change while inactive, a source can change
+            // any time).
+            if let Some(aux) = self.layout.aux_in {
+                self.component
+                    .activateBus(kAudio as i32, kInput as i32, aux as i32, state);
             }
         }
     }
@@ -550,8 +598,7 @@ impl PluginController for Vst3Plugin {
             audio_inputs: i,
             audio_outputs: o,
             midi_input: self.layout.event_input,
-            // Aux (sidechain) input buses get silence until sidechain routing is wired.
-            sidechain_inputs: 0,
+            sidechain_inputs: self.layout.sidechain_channels(),
         }
     }
 

@@ -354,8 +354,9 @@ describe("MockTransport documents", () => {
     const pm = await env.mock.send(cmd("Media", { type: "ListDirectory", location: { type: "ProjectMedia" }, path: "" }));
     expect(pm.type === "Directory" && pm.listing.entries.map((e) => e.name)).toContain(`${id}-Kick.wav`);
 
-    const upload = await env.mock.send(cmd("Media", { type: "BeginUpload", upload: "u1", name: "x.wav", size: 10 })).catch((e: unknown) => e);
-    expect((upload as CommandFailedError).code).toBe("Unsupported");
+    // Uploads are staged since `file-import` (`roadmap/remote.test.ts`).
+    const upload = await env.mock.send(cmd("Media", { type: "BeginUpload", upload: "u1", name: "x.wav", size: 10 }));
+    expect(upload).toEqual({ type: "Unit" });
     const missing = await env.mock
       .send(cmd("Media", { type: "Import", id: newId(), source: { type: "Location", location: lib!, path: "Nope.wav" } }))
       .catch((e: unknown) => e);
