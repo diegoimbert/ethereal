@@ -194,7 +194,10 @@ pub(super) const SIDECHAIN_CHANNELS: usize = 2;
 
 /// The sidechain slice `process_sidechain` got, if usable: at most
 /// [`SIDECHAIN_CHANNELS`] channels, each at least `frames` long (else ignored).
-pub(super) fn usable_sidechain<'a, 'b>(sidechain: &'a [&'b [f32]], frames: usize) -> &'a [&'b [f32]] {
+pub(super) fn usable_sidechain<'a, 'b>(
+    sidechain: &'a [&'b [f32]],
+    frames: usize,
+) -> &'a [&'b [f32]] {
     let n = sidechain.len().min(SIDECHAIN_CHANNELS);
     if n > 0 && sidechain[..n].iter().all(|c| c.len() >= frames) {
         &sidechain[..n]

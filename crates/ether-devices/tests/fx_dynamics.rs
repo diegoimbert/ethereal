@@ -7,8 +7,8 @@ use std::f32::consts::PI;
 use assert_no_alloc::assert_no_alloc;
 use ether_core::protocol::model::{BuiltinDevice, BuiltinDeviceType, ParamId};
 use ether_core::{
-    AnalysisFrame, AnalysisKind, AnalysisSink, AudioBuffers, Device, EventBuffer, EventKind,
-    Node, PrepareConfig, ProcessContext, ProcessEvent, TransportInfo,
+    AnalysisFrame, AnalysisKind, AnalysisSink, AudioBuffers, Device, EventBuffer, EventKind, Node,
+    PrepareConfig, ProcessContext, ProcessEvent, TransportInfo,
 };
 use ether_devices::NoSamples;
 use ether_devices::fx_dynamics::{
@@ -197,7 +197,9 @@ fn extreme_params_stay_finite_without_allocating() {
 /// Tiny (subnormal-range) input never produces NaN/inf and keeps silent output silent-ish.
 #[test]
 fn subnormal_input_is_harmless() {
-    let tiny: Vec<f32> = (0..20_000).map(|i| if i % 2 == 0 { 1e-38 } else { -1e-39 }).collect();
+    let tiny: Vec<f32> = (0..20_000)
+        .map(|i| if i % 2 == 0 { 1e-38 } else { -1e-39 })
+        .collect();
     for ty in TYPES {
         let mut d = ether_devices::create(&BuiltinDevice::new(ty), &NoSamples);
         d.prepare(&PrepareConfig {
@@ -206,7 +208,10 @@ fn subnormal_input_is_harmless() {
             max_events_per_block: 64,
         });
         let out = render(d.as_mut(), &tiny, None, &[]);
-        assert!(out.iter().all(|x| x.is_finite() && x.abs() < 1e-30), "{ty:?}");
+        assert!(
+            out.iter().all(|x| x.is_finite() && x.abs() < 1e-30),
+            "{ty:?}"
+        );
     }
 }
 
@@ -229,7 +234,11 @@ fn gate_passes_loud_and_silences_quiet_input() {
     // Floor -20 dB: attenuated by 20 dB instead.
     g.set_param(gate::RANGE, -20.0);
     let out = render(&mut g, &quiet, None, &[]);
-    assert!((db(peak(&out[12_000..])) + 70.0).abs() < 0.1, "{}", db(peak(&out[12_000..])));
+    assert!(
+        (db(peak(&out[12_000..])) + 70.0).abs() < 0.1,
+        "{}",
+        db(peak(&out[12_000..]))
+    );
 }
 
 #[test]
@@ -240,7 +249,11 @@ fn gate_hysteresis_keeps_it_open_between_close_and_open_levels() {
     x.extend(sine(440.0, amp(-45.0), 0.5));
     let out = render(&mut g, &x, None, &[]);
     let tail = &out[out.len() - 4800..];
-    assert!((db(peak(tail)) + 45.0).abs() < 0.1, "stayed open: {}", db(peak(tail)));
+    assert!(
+        (db(peak(tail)) + 45.0).abs() < 0.1,
+        "stayed open: {}",
+        db(peak(tail))
+    );
     // Starting at -45 from closed: stays closed.
     let mut g = prepared(set(Gate::new(), &[(gate::HYSTERESIS, 10.0)]));
     let quiet = sine(440.0, amp(-60.0), 0.3);
@@ -253,7 +266,10 @@ fn gate_hysteresis_keeps_it_open_between_close_and_open_levels() {
 fn gate_hold_and_release_timing() {
     // Hold 50 ms, release 100 ms, floor -80 (silent): after the input drops, the gain stays
     // at unity for ~50 ms, then falls to silence within 100 ms.
-    let mut g = prepared(set(Gate::new(), &[(gate::HOLD, 50.0), (gate::RELEASE, 100.0)]));
+    let mut g = prepared(set(
+        Gate::new(),
+        &[(gate::HOLD, 50.0), (gate::RELEASE, 100.0)],
+    ));
     let dc = |a: f32, secs: f32| vec![a; (secs * SR) as usize];
     render(&mut g, &dc(0.5, 0.1), None, &[]);
     let out = render(&mut g, &dc(0.001, 0.3), None, &[]); // -60 dBFS
@@ -276,7 +292,11 @@ fn gate_lookahead_is_latency() {
     // 1 ms attack is fully open when the step comes out.
     let mut g = prepared(set(
         Gate::new(),
-        &[(gate::LOOKAHEAD, 5.0), (gate::ATTACK, 1.0), (gate::HOLD, 0.0)],
+        &[
+            (gate::LOOKAHEAD, 5.0),
+            (gate::ATTACK, 1.0),
+            (gate::HOLD, 0.0),
+        ],
     ));
     let mut x = vec![0.0f32; 24_000];
     for v in &mut x[12_000..] {
@@ -408,7 +428,10 @@ fn multiband_compresses_each_band_independently() {
 fn multiband_solo_and_bypass() {
     let mut m = neutral_mbc();
     m.set_param(mbc::MID_SOLO, 1.0);
-    assert!(sine_gain(&mut m, 60.0, -6.0) < -35.0, "low muted by mid solo");
+    assert!(
+        sine_gain(&mut m, 60.0, -6.0) < -35.0,
+        "low muted by mid solo"
+    );
     // (LR4 skirts: -0.23 dB at 1 kHz between 200 Hz and 2.5 kHz)
     assert!(sine_gain(&mut m, 1000.0, -6.0).abs() < 0.5, "mid audible");
     m.set_param(mbc::MID_SOLO, 0.0);
@@ -421,7 +444,10 @@ fn multiband_solo_and_bypass() {
     // Solo toggled mid-stream crossfades (no step larger than the signal allows).
     let x = sine(1000.0, 0.5, 0.2);
     let out = render(&mut m, &x, None, &[(4800, param(mbc::LOW_SOLO, 1.0))]);
-    let max_step = out.windows(2).map(|w| (w[1] - w[0]).abs()).fold(0.0, f32::max);
+    let max_step = out
+        .windows(2)
+        .map(|w| (w[1] - w[0]).abs())
+        .fold(0.0, f32::max);
     assert!(max_step < 0.2, "{max_step}");
 }
 
@@ -487,10 +513,18 @@ fn multiband_crossover_automation_glides_without_clicks() {
     let mut m = neutral_mbc();
     let x = sine(300.0, 0.5, 0.5);
     let events: Vec<(usize, EventKind)> = (0..50)
-        .map(|i| (i * 256, param(mbc::LOW_MID_FREQ, if i % 2 == 0 { 50.0 } else { 900.0 })))
+        .map(|i| {
+            (
+                i * 256,
+                param(mbc::LOW_MID_FREQ, if i % 2 == 0 { 50.0 } else { 900.0 }),
+            )
+        })
         .collect();
     let out = render(&mut m, &x, None, &events);
-    let max_step = out.windows(2).map(|w| (w[1] - w[0]).abs()).fold(0.0, f32::max);
+    let max_step = out
+        .windows(2)
+        .map(|w| (w[1] - w[0]).abs())
+        .fold(0.0, f32::max);
     // A 300 Hz sine at 0.5 moves at most ~0.02 per sample.
     assert!(max_step < 0.05, "{max_step}");
 }

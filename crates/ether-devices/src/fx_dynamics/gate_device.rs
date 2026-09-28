@@ -117,7 +117,9 @@ impl Gate {
             return;
         }
         match id {
-            p::OUTPUT => self.output.set(db_to_amp(self.params.get(p::OUTPUT)), smooth),
+            p::OUTPUT => self
+                .output
+                .set(db_to_amp(self.params.get(p::OUTPUT)), smooth),
             p::SIDECHAIN_HPF => self.update_hpf(),
             p::LOOKAHEAD => self.update_lookahead(),
             _ => {}

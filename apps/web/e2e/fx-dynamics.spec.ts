@@ -74,16 +74,16 @@ test("gate, multiband compressor and transient shaper on an audio track", async 
     await addDevice(page, type);
     await expect.poll(async () => (await chainOf()).length).toBe(i + 1);
   }
-  const [shaper, mbc, gate] = (await chainOf()) as [{ id: string }, { id: string }, { id: string }];
+  const [shaper, mbc, gate] = (await chainOf()).map((d) => d.id) as [string, string, string];
   const panel = (id: string) => page.locator(`[data-device="${id}"]`);
 
   // Declarative panels: crossover display, one gain-reduction meter per band, gate meter.
-  await expect(panel(mbc.id).getByTestId("widget-crossover")).toBeVisible();
-  await expect(panel(mbc.id).getByTestId("widget-meter")).toHaveCount(3);
-  await expect(panel(gate.id).getByTestId("widget-meter")).toHaveCount(1);
-  await expect(panel(gate.id).getByRole("slider", { name: "Threshold" })).toBeVisible();
+  await expect(panel(mbc).getByTestId("widget-crossover")).toBeVisible();
+  await expect(panel(mbc).getByTestId("widget-meter")).toHaveCount(3);
+  await expect(panel(gate).getByTestId("widget-meter")).toHaveCount(1);
+  await expect(panel(gate).getByRole("slider", { name: "Threshold" })).toBeVisible();
   for (const name of ["Attack", "Sustain", "Attack Time", "Release Time", "Mix"]) {
-    await expect(panel(shaper.id).getByRole("slider", { name, exact: true })).toBeVisible();
+    await expect(panel(shaper).getByRole("slider", { name, exact: true })).toBeVisible();
   }
 
   // Plays through (gate open at -40 dB threshold).
@@ -92,14 +92,14 @@ test("gate, multiband compressor and transient shaper on an audio track", async 
 
   // Threshold all the way up (0 dB): the loop never reaches it, the gate closes (-80 dB
   // floor = silence).
-  const threshold = panel(gate.id).getByRole("slider", { name: "Threshold" });
+  const threshold = panel(gate).getByRole("slider", { name: "Threshold" });
   await dragKnob(page, threshold, -600);
-  await expect.poll(async () => (await doc(page)).devices[gate.id]?.params[0], { timeout: 5_000 }).toBe(0);
+  await expect.poll(async () => (await doc(page)).devices[gate]?.params[0], { timeout: 5_000 }).toBe(0);
   await expect.poll(() => peakOf(page, audio.id), { timeout: 15_000 }).toBeLessThan(0.001);
 
   // Back down: it plays again.
   await dragKnob(page, threshold, 600);
-  await expect.poll(async () => (await doc(page)).devices[gate.id]?.params[0], { timeout: 5_000 }).toBe(-80);
+  await expect.poll(async () => (await doc(page)).devices[gate]?.params[0], { timeout: 5_000 }).toBe(-80);
   await expect.poll(() => peakOf(page, audio.id), { timeout: 15_000 }).toBeGreaterThan(0.05);
 
   await page.getByRole("toolbar", { name: "Transport" }).getByRole("button", { name: "Stop" }).first().click();

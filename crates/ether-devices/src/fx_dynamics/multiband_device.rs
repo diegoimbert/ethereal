@@ -145,7 +145,10 @@ impl MultibandCompressor {
             bands: [Band::new(); BANDS],
             channels: [Channel::default(); 2],
             freq: [200.0, 2500.0],
-            coefs: [SvfCoefs::new(200.0, 48_000.0), SvfCoefs::new(2500.0, 48_000.0)],
+            coefs: [
+                SvfCoefs::new(200.0, 48_000.0),
+                SvfCoefs::new(2500.0, 48_000.0),
+            ],
             glide_coef: 0.0,
             output: GainRamp::new(1.0),
             mix: GainRamp::new(1.0),
@@ -165,11 +168,11 @@ impl MultibandCompressor {
         self.glide_coef = tau_coef(GLIDE_MS, self.sample_rate);
         self.freq = self.target_freqs();
         self.update_coefs();
-        for b in 0..BANDS {
+        for (b, ids) in BAND_IDS.iter().enumerate() {
             self.update_band_times(b);
-            let ids = &BAND_IDS[b];
             let band = &mut self.bands[b];
-            band.makeup.set(db_to_amp(self.params.get(ids.makeup)), false);
+            band.makeup
+                .set(db_to_amp(self.params.get(ids.makeup)), false);
             band.active
                 .set(if self.params.on(ids.bypass) { 0.0 } else { 1.0 }, false);
         }
@@ -198,7 +201,11 @@ impl MultibandCompressor {
         let any = BAND_IDS.iter().any(|ids| self.params.on(ids.solo));
         let n = samples(SWITCH_MS, self.sample_rate) as u32;
         for (b, ids) in BAND_IDS.iter().enumerate() {
-            let target = if !any || self.params.on(ids.solo) { 1.0 } else { 0.0 };
+            let target = if !any || self.params.on(ids.solo) {
+                1.0
+            } else {
+                0.0
+            };
             if smooth {
                 self.bands[b].audible.ramp(target, n);
             } else {
@@ -216,12 +223,13 @@ impl MultibandCompressor {
                 self.freq = self.target_freqs();
                 self.update_coefs();
             }
-            p::OUTPUT => self.output.set(db_to_amp(self.params.get(p::OUTPUT)), smooth),
+            p::OUTPUT => self
+                .output
+                .set(db_to_amp(self.params.get(p::OUTPUT)), smooth),
             p::MIX => self.mix.set(self.params.get(p::MIX) * 0.01, smooth),
             _ => {
                 let n = samples(SWITCH_MS, self.sample_rate) as u32;
-                for b in 0..BANDS {
-                    let ids = &BAND_IDS[b];
+                for (b, ids) in BAND_IDS.iter().enumerate() {
                     if id == ids.attack || id == ids.release {
                         self.update_band_times(b);
                     } else if id == ids.makeup {
