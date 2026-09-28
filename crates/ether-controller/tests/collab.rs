@@ -1011,7 +1011,11 @@ fn edits_resent_while_the_session_is_recreated_are_all_sequenced() {
     for c in hub.links() {
         hub.kill(c);
     }
-    assert_eq!(hub.with_relay(|r| r.session_count()), 0, "the session is gone");
+    assert_eq!(
+        hub.with_relay(|r| r.session_count()),
+        0,
+        "the session is gone"
+    );
     b.ok(Command::Track(TrackCommand::Rename {
         id: t,
         name: "offline".into(),

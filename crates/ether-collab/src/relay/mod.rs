@@ -694,8 +694,7 @@ impl Relay {
                     }
                     if peer.early.len() >= max_log {
                         return Err(Dropped {
-                            reason: "too many transactions before the session was created"
-                                .into(),
+                            reason: "too many transactions before the session was created".into(),
                             disconnect: true,
                         });
                     }

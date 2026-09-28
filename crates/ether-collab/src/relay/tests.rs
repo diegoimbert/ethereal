@@ -197,7 +197,11 @@ fn transactions_sent_while_waiting_for_the_first_snapshot_are_sequenced_in_order
     out.clear();
     r.message(2, tx(2, 2), &mut out).unwrap();
     r.message(2, tx(2, 1), &mut out).unwrap();
-    assert_eq!(seqs_to(&out, 2), [2], "seq 2 after seq 1, the resend dropped");
+    assert_eq!(
+        seqs_to(&out, 2),
+        [2],
+        "seq 2 after seq 1, the resend dropped"
+    );
     assert_eq!(r.log_len("s"), (0, 2));
     // A transaction before any `SyncRequest` is a protocol error: the link is closed (the
     // site resends everything, in order, on its next link).
