@@ -18,7 +18,7 @@ use crate::EngineBridge;
 use crate::engine::EngineState;
 use crate::export::encode::Encoder;
 use crate::export::offline::{Capture, MediaLoader, NodeSetup, UNIT_FRAMES, tempo_rt};
-use crate::store::ProjectStore;
+use crate::store::{Library, ProjectStore};
 
 /// Silence threshold of a freeze tail (-90 dBFS).
 pub(crate) const TAIL_SILENCE: f32 = 3.162_277_7e-5;
@@ -318,16 +318,17 @@ impl RenderJob {
     }
 
     /// Do one unit of work.
-    pub fn step<B: EngineBridge, S: ProjectStore>(
+    pub fn step<B: EngineBridge, S: ProjectStore, L: Library>(
         &mut self,
         bridge: &mut B,
         engine: &EngineState,
         store: &mut S,
+        library: &mut L,
     ) -> Result<Step, String> {
         match &mut self.stage {
             Stage::Media => {
                 let mut frames = 0;
-                if self.media.step(store, &mut frames)? {
+                if self.media.step(store, library, &mut frames)? {
                     self.stage = self.new_setup()?;
                 }
                 Ok(Step::Working)

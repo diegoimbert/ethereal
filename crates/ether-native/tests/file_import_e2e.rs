@@ -1,7 +1,8 @@
 //! Native e2e of importing an OS file by path (`file-import`, CONTRACTS.md §12.13): the real
 //! desktop host (null audio backend) gets `Media::Import { source: Path }` like the Tauri
-//! file dialog / OS drop sends it. The engine validates and reads the file itself; bad
-//! paths reply with clear errors and change nothing.
+//! file dialog / OS drop sends it. The engine validates and reads the file itself and
+//! references it in place (`media-references`, CONTRACTS.md §12.9: nothing is copied into
+//! the project); bad paths reply with clear errors and change nothing.
 
 mod common;
 
@@ -36,20 +37,25 @@ fn import_os_files_by_path() {
         json!({"type": "Create", "id": pid, "name": "Import"}),
     );
 
-    // A path the dialog returned: imported (copied into the project until
-    // `media-references` makes it a reference in place).
+    // A path the dialog returned: referenced in place.
     let path = desktop.join("Kick 01.wav");
     let media = import(&mut c, path.to_str().unwrap()).expect("imports")["media"].clone();
     assert_eq!(media["name"], "Kick 01.wav");
     assert_eq!(media["sample_rate"], 44_100);
     assert_eq!(media["channels"], 1);
+    assert_eq!(
+        media["location"],
+        json!({"type": "External", "path": path.to_str().unwrap()})
+    );
+    assert!(media["hash"].is_string());
     let file = media["file"].as_str().unwrap().to_string();
     assert!(file.starts_with("media/"), "{file}");
     let copy = tmp.path().join("projects").join(&pid).join(&file);
+    assert!(!copy.exists(), "nothing copied into the project");
     assert_eq!(
-        std::fs::read(copy).unwrap(),
+        std::fs::read(&path).unwrap(),
         kick,
-        "the project holds the bytes"
+        "the original is untouched"
     );
     let project = c.project();
     assert_eq!(project["media"].as_object().unwrap().len(), 1);

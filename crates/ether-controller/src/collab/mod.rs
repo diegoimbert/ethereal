@@ -697,7 +697,16 @@ where
     }
 
     fn collab_push_media(&mut self, pid: ProjectId, m: &MediaRef) {
-        // `file-import`: an external reference pushes the referenced file's bytes.
+        // `file-import`: an external reference pushes the referenced file's bytes. Sent
+        // inserts carry no location (`resolve::outgoing`, `media-references`): where this
+        // site reads it from is in the live document.
+        let local = self
+            .doc
+            .as_ref()
+            .and_then(|d| d.project.media.get(&m.id))
+            .filter(|l| l.file == m.file)
+            .cloned();
+        let m = local.as_ref().unwrap_or(m);
         let Ok(bytes) = crate::file_import::media_bytes(&mut self.store, &mut self.library, pid, m)
         else {
             return;
@@ -1119,6 +1128,8 @@ where
                 {
                     // Media inserted before its bytes arrived (should not happen with the
                     // relay's FIFO order) is retried now.
+                    self.media
+                        .reload_file(&mut self.bridge, &doc.project, &file);
                     self.media.sync(&mut self.bridge, Some(&doc.project));
                 }
             }
