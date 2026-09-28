@@ -1,0 +1,28 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "Low Cut 80 Hz",
+    "device": {
+      "type": "Builtin",
+      "device": "Eq"
+    },
+    "meta": {
+      "tags": [
+        "cleanup"
+      ],
+      "author": "Ethereal",
+      "description": "Removes rumble below 80 Hz."
+    },
+    "params": {
+      "0": 1.0,
+      "1": 0.0,
+      "2": 80.0,
+      "4": 0.7071067811865476
+    },
+    "kind": null,
+    "samples": [],
+    "state": null
+  }
+}
