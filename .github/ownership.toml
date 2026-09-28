@@ -763,6 +763,15 @@ paths = [
   "crates/ether-core/src/bus_tap.rs",
 ]
 
+[nodes.latency-republish]
+# Bugfix (fx-dynamics discovery): republish PDC when a built-in node's reported latency changes.
+paths = [
+  "crates/ether-controller/src/engine.rs",
+  "crates/ether-controller/tests/latency_republish*.rs",
+  # shared touch: one call from the controller tick
+  "crates/ether-controller/src/lib.rs",
+]
+
 [nodes.turn-hardening]
 # Follow-up to stream-host (docs/COLLAB.md §10 known limitations): per-username verified cap,
 # counting real nonce inserts, rotation-decision tests. TURN stays experimental until merged.
