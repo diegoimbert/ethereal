@@ -224,8 +224,21 @@ pub(crate) fn apply_fader(
     gate: &mut Smoother,
     frames: usize,
 ) {
+    apply_fader_range(a, volume, pan, gate, 0, frames);
+}
+
+/// RT. [`apply_fader`] on samples `start..end` only (sample-accurate automation ramps the
+/// smoothers between grid points, `crate::automation_rt::fader`).
+pub(crate) fn apply_fader_range(
+    a: &mut Stereo,
+    volume: &mut Smoother,
+    pan: &mut Smoother,
+    gate: &mut Smoother,
+    start: usize,
+    end: usize,
+) {
     let [l, r] = a;
-    for (sl, sr) in l[..frames].iter_mut().zip(r[..frames].iter_mut()) {
+    for (sl, sr) in l[start..end].iter_mut().zip(r[start..end].iter_mut()) {
         let g = volume.tick() * gate.tick();
         let p = pan.tick().clamp(-1.0, 1.0);
         // Balance law: centre is unity on both sides.

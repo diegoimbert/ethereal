@@ -103,6 +103,14 @@ pub(crate) fn content_at(clip: &ClipDesc, t: f64) -> Option<f64> {
 pub(crate) const EVENT_SHIFT: f64 = 1e-7;
 
 /// Context for converting beats to sample offsets inside the current sub-block.
+///
+/// Two modes (CONTRACTS.md §12.7):
+/// - **linear** (tempo maps without ramps, and while stopped): beats are linear within the
+///   sub-block (`b0..b1`), exactly the v0.1 math, so such projects render bit-identically;
+/// - **exact** (the tempo map ramps somewhere, playing): every sample's beat is the
+///   closed-form tempo integral of the engine's sample clock since the last timeline jump
+///   ([`Exact`]), never an accumulation of sub-block lengths, so positions are identical
+///   for every block size and match the tempo map to rounding error over any duration.
 pub(crate) struct Timing<'a> {
     pub tempo: &'a crate::tempo::TempoMapRt,
     /// Sub-block start/end in beats (`b1` exclusive).
@@ -112,6 +120,44 @@ pub(crate) struct Timing<'a> {
     pub s0: f64,
     pub sample_rate: f64,
     pub frames: usize,
+    /// Engine sample clock at the sub-block start (`TransportInfo::sample_time`): the
+    /// automation grid ([`crate::automation_rt::PARAM_GRID`]) is aligned on it.
+    pub sample_time: u64,
+    /// The sub-block ends at the loop end: the timeline jumps back after sample
+    /// `frames - 1` (mixer ramps aim at the loop end instead of a grid point past it).
+    pub wraps: bool,
+    /// Exact per-sample beats (tempo ramps), `None` = linear.
+    pub exact: Option<Exact<'a>>,
+}
+
+/// Exact timing of a sub-block on a ramped tempo map: beat of sample `o` =
+/// `tempo.seconds_to_beats(seconds + (since + o) / sample_rate)`, where the anchor
+/// (`beat`, `seconds`) is the last timeline jump (play, locate, loop wrap, new snapshot)
+/// and `since` counts the samples rendered since. `beats[o]` caches it for `o` in
+/// `0..=frames` (filled by the engine once per sub-block).
+#[derive(Clone, Copy)]
+pub(crate) struct Exact<'a> {
+    pub beat: f64,
+    pub seconds: f64,
+    pub since: u64,
+    pub beats: &'a [f64],
+}
+
+/// Beat `o` samples after the start of a sub-block `since` samples past the anchor
+/// (`beat`, `seconds`): the closed-form tempo integral (see [`Exact`]).
+#[inline]
+pub(crate) fn exact_beat(
+    tempo: &crate::tempo::TempoMapRt,
+    sample_rate: f64,
+    (beat, seconds): (f64, f64),
+    since: u64,
+    o: f64,
+) -> f64 {
+    let k = since as f64 + o;
+    if k == 0.0 {
+        return beat;
+    }
+    tempo.seconds_to_beats(seconds + k / sample_rate)
 }
 
 impl Timing<'_> {
@@ -129,20 +175,50 @@ impl Timing<'_> {
         (o.max(0.0) as usize).min(self.frames.saturating_sub(1)) as u32
     }
 
-    /// Timeline beat at sample `o` (linear within the sub-block).
+    /// Timeline beat at sample `o`: linear within the sub-block, or exact on tempo ramps
+    /// ([`Exact`]; any `o`, also past the sub-block end).
     #[inline]
     pub(crate) fn beat_at(&self, o: f64) -> f64 {
-        self.b0 + (self.b1 - self.b0) * o / self.frames as f64
+        match &self.exact {
+            None => self.b0 + (self.b1 - self.b0) * o / self.frames as f64,
+            Some(e) => {
+                let i = o as usize;
+                if i as f64 == o
+                    && let Some(b) = e.beats.get(i)
+                {
+                    return *b;
+                }
+                exact_beat(
+                    self.tempo,
+                    self.sample_rate,
+                    (e.beat, e.seconds),
+                    e.since,
+                    o,
+                )
+            }
+        }
     }
 
     /// First sample whose beat is `>= t`.
     #[inline]
     pub(crate) fn sample_ceil(&self, t: f64) -> usize {
+        if self.exact.is_some() {
+            return self.sample_at_or_after(t);
+        }
         let span = self.b1 - self.b0;
         if span <= 0.0 {
             return 0;
         }
         let o = ((t - self.b0) / span * self.frames as f64).ceil();
+        (o.max(0.0) as usize).min(self.frames)
+    }
+
+    /// First sample whose beat is `>= t`, through the tempo map (automation breakpoints:
+    /// the same sample for every block size, up to 1e-6 samples of float error), clamped
+    /// to `0..=frames`.
+    #[inline]
+    pub(crate) fn sample_at_or_after(&self, t: f64) -> usize {
+        let o = ((self.tempo.beats_to_seconds(t) - self.s0) * self.sample_rate - 1e-6).ceil();
         (o.max(0.0) as usize).min(self.frames)
     }
 }
