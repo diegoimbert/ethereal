@@ -26,13 +26,23 @@
 //!
 //! Default bands: 1 Low Cut 30 Hz (off), 2 Low Shelf 100 Hz, 3-6 Bell 250 / 1k / 2.5k /
 //! 6k Hz, 7 High Shelf 10 kHz, 8 High Cut 18 kHz (off); all gains 0 dB (flat).
+//!
+//! # Analysis (v0.2, `graphical-eq`, CONTRACTS.md §12.15)
+//! While watched, the EQ publishes its input (`SpectrumPre`) and output (`Spectrum`) spectra
+//! in the same pass: `process` feeds both mono sums into [`spectrum::Analyzer`]s and runs
+//! their FFTs once per `sample_rate / ANALYSIS_HZ` frames, only while `analysis` was asked
+//! within the last second; `analysis` copies the latest bins out (and, on a new watch, drops
+//! the stale ones: nothing is published until the next block has refreshed them). No allocation on the audio
+//! thread (all buffers are sized in `new`).
 
+use ether_core::analysis::{ANALYSIS_HZ, AnalysisSink};
 use ether_core::protocol::devices::{
     DeviceCategory, DeviceDescriptor, DeviceTypeRef, ParamInfo, ParamScale, ParamUnit,
 };
 use ether_core::protocol::model::{BuiltinDeviceType, ParamId};
 use ether_core::{
-    AudioBuffers, Device, EventKind, Node, PrepareConfig, ProcessContext, ProcessStatus, Smoother,
+    AnalysisKind, AudioBuffers, Device, EventKind, Node, PrepareConfig, ProcessContext,
+    ProcessStatus, Smoother,
 };
 
 use crate::dsp::svf::{Coefs, Shape, Svf};
@@ -260,6 +270,13 @@ pub struct Eq {
     glide: f64,
     bands: [Band; BANDS],
     output: Smoother,
+    /// Input / output spectrum (`SpectrumPre` / `Spectrum` analysis frames).
+    pre: spectrum::Analyzer,
+    post: spectrum::Analyzer,
+    /// Frames since `analysis` was last called (spectra are computed only while watched).
+    since_asked: usize,
+    /// Frames until the next spectrum update.
+    until_hop: usize,
 }
 
 impl Default for Eq {
@@ -292,6 +309,10 @@ impl Eq {
             glide: 0.0,
             bands: [band; BANDS],
             output: Smoother::new(1.0, 20.0, 48_000.0),
+            pre: spectrum::Analyzer::new(),
+            post: spectrum::Analyzer::new(),
+            since_asked: usize::MAX,
+            until_hop: 0,
         };
         eq.sync_all();
         eq
@@ -358,6 +379,23 @@ impl Eq {
         }
     }
 
+    /// RT. After a block of `frames`: refresh both spectra once per analysis period while
+    /// watched (`analysis` asked within the last second).
+    fn advance_analysis(&mut self, frames: usize) {
+        let sr = self.sample_rate as usize;
+        if self.since_asked >= sr {
+            return;
+        }
+        self.since_asked = self.since_asked.saturating_add(frames);
+        if self.until_hop > frames {
+            self.until_hop -= frames;
+            return;
+        }
+        self.until_hop = (sr / ANALYSIS_HZ as usize).max(1);
+        self.pre.compute(self.sample_rate);
+        self.post.compute(self.sample_rate);
+    }
+
     /// Magnitude response (linear) of the settled EQ at `freq` Hz, output gain included.
     pub fn magnitude(&self, freq: f64) -> f64 {
         let sr = self.sample_rate as f64;
@@ -375,6 +413,8 @@ impl Eq {
             for (c, v) in x.iter_mut().enumerate().take(channels) {
                 *v = inputs.get(c).map_or(0.0, |ch| ch[i]) as f64;
             }
+            // Always fed (two stores per sample) so a new watch starts from real audio.
+            self.pre.push(mono(&x, channels));
             for band in &mut self.bands {
                 if band.moving {
                     let a = band.mid.glide(&band.target, self.glide);
@@ -391,6 +431,7 @@ impl Eq {
                 }
             }
             let gain = self.output.tick() as f64;
+            self.post.push(mono(&x, channels) * gain as f32);
             for (c, out) in audio.outputs.iter_mut().enumerate() {
                 out[i] = if c < channels {
                     (x[c] * gain) as f32
@@ -431,7 +472,47 @@ impl Node for Eq {
                 }
             },
         );
+        self.advance_analysis(ctx.frames);
         ProcessStatus::Continue
+    }
+
+    fn has_analysis(&self) -> bool {
+        true
+    }
+
+    fn analysis(&mut self, out: &mut AnalysisSink<'_>) {
+        if self.since_asked >= self.sample_rate as usize {
+            // Just (re)watched: drop the stale spectra, publish from the next process block.
+            self.until_hop = 0;
+            self.pre.restart();
+            self.post.restart();
+        }
+        self.since_asked = 0;
+        let max_hz = spectrum::max_hz(self.sample_rate);
+        for (kind, a) in [
+            (AnalysisKind::SpectrumPre, &self.pre),
+            (AnalysisKind::Spectrum, &self.post),
+        ] {
+            if !a.ready() {
+                continue;
+            }
+            if let Some(f) = out.frame(kind) {
+                f.push(spectrum::MIN_HZ);
+                f.push(max_hz);
+                for &db in a.bins() {
+                    f.push(db);
+                }
+            }
+        }
+    }
+}
+
+/// Mono sum of the first `channels` (≤ 2) values.
+fn mono(x: &[f64; 2], channels: usize) -> f32 {
+    match channels {
+        0 => 0.0,
+        1 => x[0] as f32,
+        _ => ((x[0] + x[1]) * 0.5) as f32,
     }
 }
 
@@ -446,5 +527,183 @@ impl Device for Eq {
 
     fn set_param(&mut self, id: ParamId, value: f64) {
         self.apply_param(id, value, false);
+    }
+}
+
+/// Spectrum analysis of the EQ's input and output (RT after construction).
+pub mod spectrum {
+    use std::f32::consts::PI;
+
+    /// FFT size (≈ 11.7 Hz resolution at 48 kHz).
+    pub const FFT_SIZE: usize = 4096;
+    /// Log-spaced output bins (CONTRACTS §12.4.3: ≤ 256).
+    pub const BINS: usize = 192;
+    /// Lowest bin frequency.
+    pub const MIN_HZ: f32 = 20.0;
+    /// Highest bin frequency.
+    pub const MAX_HZ: f32 = 20_000.0;
+    /// dB floor of the published bins.
+    pub const FLOOR_DB: f32 = -120.0;
+    /// Weight of the newest spectrum in the per-bin power average (display smoothing).
+    const SMOOTH: f32 = 0.5;
+
+    /// Highest bin frequency at `sample_rate` (below Nyquist).
+    pub fn max_hz(sample_rate: f32) -> f32 {
+        MAX_HZ.min(sample_rate * 0.49)
+    }
+
+    /// One mono spectrum: a sliding window of the last [`FFT_SIZE`] samples, a Hann-windowed
+    /// radix-2 FFT, and [`BINS`] log-spaced dB bins (peak power of the FFT bins each covers,
+    /// interpolated where bins are narrower than the FFT resolution).
+    #[derive(Debug)]
+    pub struct Analyzer {
+        history: Box<[f32]>,
+        write: usize,
+        window: Box<[f32]>,
+        /// `cos`, `sin` of `2π·k/N` for `k < N/2`.
+        twiddle: Box<[(f32, f32)]>,
+        re: Box<[f32]>,
+        im: Box<[f32]>,
+        /// Smoothed power per output bin.
+        power: Box<[f32]>,
+        bins: Box<[f32]>,
+        ready: bool,
+    }
+
+    impl Default for Analyzer {
+        fn default() -> Self {
+            Self::new()
+        }
+    }
+
+    impl Analyzer {
+        /// Non-RT. All buffers are allocated here.
+        pub fn new() -> Self {
+            let n = FFT_SIZE;
+            let window = (0..n)
+                .map(|i| 0.5 - 0.5 * (2.0 * PI * i as f32 / n as f32).cos())
+                .collect();
+            let twiddle = (0..n / 2)
+                .map(|k| {
+                    let a = 2.0 * PI * k as f32 / n as f32;
+                    (a.cos(), a.sin())
+                })
+                .collect();
+            Self {
+                history: vec![0.0; n].into_boxed_slice(),
+                write: 0,
+                window,
+                twiddle,
+                re: vec![0.0; n].into_boxed_slice(),
+                im: vec![0.0; n].into_boxed_slice(),
+                power: vec![0.0; BINS].into_boxed_slice(),
+                bins: vec![FLOOR_DB; BINS].into_boxed_slice(),
+                ready: false,
+            }
+        }
+
+        /// RT. Append one sample.
+        #[inline]
+        pub fn push(&mut self, x: f32) {
+            self.history[self.write] = x;
+            self.write = (self.write + 1) & (FFT_SIZE - 1);
+        }
+
+        /// The latest bins (dB), valid once [`Self::ready`].
+        pub fn bins(&self) -> &[f32] {
+            &self.bins
+        }
+
+        /// RT. Forget the computed spectrum (the next [`Self::compute`] starts unsmoothed).
+        pub fn restart(&mut self) {
+            self.ready = false;
+        }
+
+        /// A spectrum has been computed since the last [`Self::restart`].
+        pub fn ready(&self) -> bool {
+            self.ready
+        }
+
+        /// RT. Recompute the bins from the last [`FFT_SIZE`] samples.
+        pub fn compute(&mut self, sample_rate: f32) {
+            let n = FFT_SIZE;
+            for i in 0..n {
+                self.re[i] = self.history[(self.write + i) & (n - 1)] * self.window[i];
+                self.im[i] = 0.0;
+            }
+            fft(&mut self.re, &mut self.im, &self.twiddle);
+            // Full-scale sine through a Hann window peaks at N/4.
+            let norm = (4.0 / n as f32) * (4.0 / n as f32);
+            let hz_per_bin = sample_rate / n as f32;
+            let top = max_hz(sample_rate);
+            let ratio = top / MIN_HZ;
+            let power_at = |re: &[f32], im: &[f32], k: usize| {
+                let k = k.min(n / 2);
+                (re[k] * re[k] + im[k] * im[k]) * norm
+            };
+            for b in 0..BINS {
+                let edge = |t: f32| MIN_HZ * ratio.powf(t / BINS as f32);
+                let (lo, hi) = (
+                    edge(b as f32) / hz_per_bin,
+                    edge(b as f32 + 1.0) / hz_per_bin,
+                );
+                let (k0, k1) = (lo.ceil() as usize, hi.floor() as usize);
+                let p = if k1 >= k0 {
+                    (k0..=k1).fold(0.0f32, |m, k| m.max(power_at(&self.re, &self.im, k)))
+                } else {
+                    // Narrower than one FFT bin: interpolate at the centre.
+                    let c = (lo + hi) * 0.5;
+                    let k = c.floor() as usize;
+                    let t = c - k as f32;
+                    power_at(&self.re, &self.im, k) * (1.0 - t)
+                        + power_at(&self.re, &self.im, k + 1) * t
+                };
+                let s = if self.ready {
+                    self.power[b] + SMOOTH * (p - self.power[b])
+                } else {
+                    p
+                };
+                // Flush tiny values (denormals) to zero.
+                self.power[b] = if s < 1e-20 { 0.0 } else { s };
+                self.bins[b] = (10.0 * self.power[b].max(1e-12).log10()).max(FLOOR_DB);
+            }
+            self.ready = true;
+        }
+    }
+
+    /// In-place iterative radix-2 FFT (`re.len()` a power of two, `twiddle` from `new`).
+    fn fft(re: &mut [f32], im: &mut [f32], twiddle: &[(f32, f32)]) {
+        let n = re.len();
+        let mut j = 0;
+        for i in 1..n {
+            let mut bit = n >> 1;
+            while j & bit != 0 {
+                j ^= bit;
+                bit >>= 1;
+            }
+            j |= bit;
+            if i < j {
+                re.swap(i, j);
+                im.swap(i, j);
+            }
+        }
+        let mut len = 2;
+        while len <= n {
+            let step = n / len;
+            let half = len / 2;
+            for start in (0..n).step_by(len) {
+                for k in 0..half {
+                    let (c, s) = twiddle[k * step];
+                    let (a, b) = (start + k, start + k + half);
+                    let tr = re[b] * c + im[b] * s;
+                    let ti = im[b] * c - re[b] * s;
+                    re[b] = re[a] - tr;
+                    im[b] = im[a] - ti;
+                    re[a] += tr;
+                    im[a] += ti;
+                }
+            }
+            len <<= 1;
+        }
     }
 }
