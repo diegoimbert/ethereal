@@ -108,10 +108,7 @@ fn racks_and_modulation_never_allocate() {
     let midi_fx = p.handle.add_node(Box::new(Thru)).unwrap();
     let kick_src = p.handle.add_node(Box::new(Dc(0.7))).unwrap();
 
-    let kick = {
-        let t = with_chain(track(tid(3), TrackKind::Audio, Some(tid(1))), &[kick_src]);
-        t
-    };
+    let kick = with_chain(track(tid(3), TrackKind::Audio, Some(tid(1))), &[kick_src]);
     let build = |with_mod: bool| -> TrackDesc {
         let mut t = with_chain(
             track(tid(2), TrackKind::Midi, Some(tid(1))),

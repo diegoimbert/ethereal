@@ -407,9 +407,9 @@ impl ChainRacksRt {
                 r.input_delay.process(&mut l[..n], &mut rr[..n]);
             }
             ChainRackKind::AudioEffect => {
-                for ch in 0..2 {
-                    r.dry[ch][..n].copy_from_slice(&input[ch][..n]);
-                    input[ch][..n].fill(0.0);
+                for (dry, inp) in r.dry.iter_mut().zip(input.iter_mut()) {
+                    dry[..n].copy_from_slice(&inp[..n]);
+                    inp[..n].fill(0.0);
                 }
             }
             ChainRackKind::MidiEffect => {}
