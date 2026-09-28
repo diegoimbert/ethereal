@@ -92,7 +92,7 @@ pub(crate) fn scale_for(p: &Project, device: &Device) -> Option<MusicalScale> {
     Some(match p.tracks.get(&device.track).map(|t| t.scale) {
         Some(TrackScale::Custom { scale }) => scale,
         Some(TrackScale::Chromatic) => MusicalScale {
-            root: p.settings.scale.root,
+            root: 0,
             kind: ScaleKind::Chromatic,
         },
         _ => p.settings.scale,
