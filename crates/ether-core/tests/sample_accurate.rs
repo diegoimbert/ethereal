@@ -224,7 +224,12 @@ fn project(nodes: [NodeKey; 3], tempo: Vec<TempoPointDesc>, automate: bool) -> R
 
 /// Render 11 s of [`project`] in blocks of `block` (interleaved). `audio = false` leaves
 /// the audio clip's media unregistered (it plays silence).
-fn render_project(tempo: Vec<TempoPointDesc>, automate: bool, audio: bool, block: usize) -> Vec<f32> {
+fn render_project(
+    tempo: Vec<TempoPointDesc>,
+    automate: bool,
+    audio: bool,
+    block: usize,
+) -> Vec<f32> {
     let mut p = create(cfg());
     if audio {
         p.handle.add_source(MEDIA, mem_source(400_000)).unwrap();
@@ -232,7 +237,9 @@ fn render_project(tempo: Vec<TempoPointDesc>, automate: bool, audio: bool, block
     let a = p.handle.add_node(Box::new(Level(0.5))).unwrap();
     let b = p.handle.add_node(Box::new(Level(0.5))).unwrap();
     let c = p.handle.add_node(Box::new(Pass)).unwrap();
-    p.handle.publish(project([a, b, c], tempo, automate)).unwrap();
+    p.handle
+        .publish(project([a, b, c], tempo, automate))
+        .unwrap();
     p.handle.transport(TransportControl::Play).unwrap();
     let (l, r) = render(&mut p.engine, 11 * 48_000, block);
     l.into_iter().zip(r).flat_map(|(l, r)| [l, r]).collect()
@@ -279,7 +286,10 @@ fn block_size_independent_with_automation_and_tempo_ramps() {
 
 #[test]
 fn block_size_independent_with_automation_at_constant_tempo() {
-    let tempo = vec![tp(0.0, 128.0, TempoCurve::Step), tp(7.5, 97.0, TempoCurve::Step)];
+    let tempo = vec![
+        tp(0.0, 128.0, TempoCurve::Step),
+        tp(7.5, 97.0, TempoCurve::Step),
+    ];
     let small = render_project(tempo.clone(), true, true, 64);
     let large = render_project(tempo, true, true, 512);
     let (d, i) = max_diff(&small, &large);
@@ -288,7 +298,10 @@ fn block_size_independent_with_automation_at_constant_tempo() {
 
 #[test]
 fn unautomated_constant_tempo_is_bit_identical() {
-    let tempo = vec![tp(0.0, 128.0, TempoCurve::Step), tp(7.5, 97.0, TempoCurve::Step)];
+    let tempo = vec![
+        tp(0.0, 128.0, TempoCurve::Step),
+        tp(7.5, 97.0, TempoCurve::Step),
+    ];
     let small = render_project(tempo.clone(), false, false, 64);
     let large = render_project(tempo.clone(), false, false, 512);
     assert!(small.iter().any(|s| *s != 0.0));
@@ -341,7 +354,10 @@ fn step_lands_on_the_exact_sample() {
             let (rec, mut rx) = Recorder::new();
             let rec = p.handle.add_node(Box::new(rec)).unwrap();
             let mut t = with_chain(track(tid(2), TrackKind::Midi, Some(tid(1))), &[lvl, rec]);
-            let points = vec![(0.0, 0.25, CurveShape::Step), (beat, 0.75, CurveShape::Step)];
+            let points = vec![
+                (0.0, 0.25, CurveShape::Step),
+                (beat, 0.75, CurveShape::Step),
+            ];
             let node = |node, param| ResolvedTarget::Node { node, param };
             t.automation = vec![
                 lane(node(lvl, ParamId(0)), points.clone(), linear(0.0, 1.0)),
@@ -371,7 +387,15 @@ fn step_lands_on_the_exact_sample() {
             // The node sees exactly two events: the start value and the step, on its sample.
             let params: Vec<_> = events(&drain(&mut rx))
                 .into_iter()
-                .filter(|(_, k)| matches!(k, EventKind::Param { param: ParamId(5), .. }))
+                .filter(|(_, k)| {
+                    matches!(
+                        k,
+                        EventKind::Param {
+                            param: ParamId(5),
+                            ..
+                        }
+                    )
+                })
                 .collect();
             let step = |value| EventKind::Param {
                 param: ParamId(5),
@@ -405,7 +429,10 @@ fn ten_minute_tempo_ramp_matches_the_closed_form() {
                 node: rec,
                 param: ParamId(1),
             },
-            vec![(0.0, 0.0, CurveShape::Linear), (len, 1.0, CurveShape::Linear)],
+            vec![
+                (0.0, 0.0, CurveShape::Linear),
+                (len, 1.0, CurveShape::Linear),
+            ],
             linear(0.0, len),
         )];
         p.handle
@@ -420,7 +447,8 @@ fn ten_minute_tempo_ramp_matches_the_closed_form() {
             })
             .unwrap();
         p.handle.transport(TransportControl::Play).unwrap();
-        let (mut blocks, mut worst_block, mut worst_event, mut n_events) = (vec![], 0.0f64, 0.0f64, 0);
+        let (mut blocks, mut worst_block, mut worst_event, mut n_events) =
+            (vec![], 0.0f64, 0.0f64, 0);
         let chunk = 94 * 512; // ~1 s, a multiple of both block sizes
         let mut done = 0u64;
         while done < total {
@@ -445,8 +473,14 @@ fn ten_minute_tempo_ramp_matches_the_closed_form() {
                 }
             }
         }
-        assert!(worst_block < 1e-9, "block {block}: sub-block starts off by {worst_block}");
-        assert!(worst_event < 1e-9, "block {block}: grid values off by {worst_event}");
+        assert!(
+            worst_block < 1e-9,
+            "block {block}: sub-block starts off by {worst_block}"
+        );
+        assert!(
+            worst_event < 1e-9,
+            "block {block}: grid values off by {worst_event}"
+        );
         assert!(n_events as u64 >= total / 32 - 1, "{n_events}");
         positions.push(blocks);
     }
