@@ -13,7 +13,6 @@ use ether_core::protocol::browser::{BrowserCommand, BrowserQuery, BrowserSort};
 use ether_core::protocol::devices::{DeviceCommand, DeviceSpec};
 use ether_core::protocol::media::{MediaCommand, MediaSource};
 use ether_core::protocol::model::*;
-use ether_core::protocol::presets::{PresetCommand, PresetRef, PresetSource};
 use ether_core::protocol::racks::{ModulationCommand, RackCommand};
 use ether_core::protocol::tracks::TrackCommand;
 use ether_core::protocol::{Command, ErrorCode, ReplyValue};
@@ -184,46 +183,6 @@ fn midi_fx_devices_are_placeholders() {
 }
 
 // ─── feature nodes ──────────────────────────────────────────────────────────────────────
-
-#[test]
-fn presets_reply_unsupported() {
-    let mut h = Harness::with_project();
-    let t = track(&mut h, TrackKind::Midi);
-    let d = insert(&mut h, t, BuiltinDeviceType::PolySynth);
-    let preset = PresetRef {
-        source: PresetSource::User,
-        id: "poly-synth/x.etherpreset".into(),
-    };
-    for c in [
-        PresetCommand::List {
-            device: None,
-            text: None,
-        },
-        PresetCommand::Load {
-            device: d,
-            preset: preset.clone(),
-        },
-        PresetCommand::Save {
-            device: d,
-            name: "X".into(),
-            meta: PresetMeta::default(),
-            overwrite: false,
-        },
-        PresetCommand::Rename {
-            preset: preset.clone(),
-            name: "Y".into(),
-        },
-        PresetCommand::Delete {
-            preset: preset.clone(),
-        },
-        PresetCommand::SetMeta {
-            preset,
-            meta: PresetMeta::default(),
-        },
-    ] {
-        assert_unsupported(&mut h, Command::Preset(c));
-    }
-}
 
 #[test]
 fn racks_modulation_reply_unsupported() {

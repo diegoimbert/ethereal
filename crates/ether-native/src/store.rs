@@ -462,7 +462,13 @@ impl Library for DiskStore {
         let dir = self.root_dir(root)?;
         let rel = sanitize_rel(rel_path)?;
         let path = resolve_in(&dir, rel_path)?;
-        list_folder(&path, &rel, BrowseLocation::Library { id: root.to_string() })
+        list_folder(
+            &path,
+            &rel,
+            BrowseLocation::Library {
+                id: root.to_string(),
+            },
+        )
     }
 
     fn read(&mut self, root: &str, rel_path: &str) -> Result<Vec<u8>, StoreError> {
@@ -510,7 +516,8 @@ impl Library for DiskStore {
             return Err(StoreError::NotFound(from.to_string()));
         }
         // Case-only renames on case-insensitive file systems see the target as existing.
-        let same_file = src.to_string_lossy().to_lowercase() == dst.to_string_lossy().to_lowercase();
+        let same_file =
+            src.to_string_lossy().to_lowercase() == dst.to_string_lossy().to_lowercase();
         if dst.exists() && !same_file {
             return Err(StoreError::AlreadyExists(to.to_string()));
         }
@@ -521,7 +528,9 @@ impl Library for DiskStore {
     }
 
     fn user_root(&self) -> Option<String> {
-        self.user_library.as_ref().map(|_| USER_LIBRARY_ID.to_string())
+        self.user_library
+            .as_ref()
+            .map(|_| USER_LIBRARY_ID.to_string())
     }
 
     /// `file-import` (shared with `media-references`): an OS file chosen by the user (file
@@ -663,24 +672,44 @@ mod tests {
             Err(StoreError::Unsupported(_))
         ));
         // Missing folders are created; atomic write leaves no temp file.
-        s.write_file("user", "Presets/synth/A.etherpreset", b"a").unwrap();
+        s.write_file("user", "Presets/synth/A.etherpreset", b"a")
+            .unwrap();
         let dir = tmp.path().join(USER_LIBRARY_DIR).join("Presets/synth");
         assert_eq!(fs::read(dir.join("A.etherpreset")).unwrap(), b"a");
-        assert_eq!(Library::read(&mut s, "user", "Presets/synth/A.etherpreset").unwrap(), b"a");
+        assert_eq!(
+            Library::read(&mut s, "user", "Presets/synth/A.etherpreset").unwrap(),
+            b"a"
+        );
         let listing = Library::list_dir(&mut s, "user", "Presets/synth").unwrap();
         assert_eq!(listing.entries.len(), 1);
         assert_eq!(listing.entries[0].path, "Presets/synth/A.etherpreset");
         // Rename: target must not exist; case-only renames work.
-        s.write_file("user", "Presets/synth/B.etherpreset", b"b").unwrap();
+        s.write_file("user", "Presets/synth/B.etherpreset", b"b")
+            .unwrap();
         assert!(matches!(
-            s.rename_file("user", "Presets/synth/A.etherpreset", "Presets/synth/B.etherpreset"),
+            s.rename_file(
+                "user",
+                "Presets/synth/A.etherpreset",
+                "Presets/synth/B.etherpreset"
+            ),
             Err(StoreError::AlreadyExists(_))
         ));
-        s.rename_file("user", "Presets/synth/A.etherpreset", "Presets/synth/a.etherpreset")
-            .unwrap();
-        s.rename_file("user", "Presets/synth/a.etherpreset", "Presets/other/C.etherpreset")
-            .unwrap();
-        assert_eq!(Library::read(&mut s, "user", "Presets/other/C.etherpreset").unwrap(), b"a");
+        s.rename_file(
+            "user",
+            "Presets/synth/A.etherpreset",
+            "Presets/synth/a.etherpreset",
+        )
+        .unwrap();
+        s.rename_file(
+            "user",
+            "Presets/synth/a.etherpreset",
+            "Presets/other/C.etherpreset",
+        )
+        .unwrap();
+        assert_eq!(
+            Library::read(&mut s, "user", "Presets/other/C.etherpreset").unwrap(),
+            b"a"
+        );
         assert!(matches!(
             s.rename_file("user", "Presets/synth/nope", "Presets/x"),
             Err(StoreError::NotFound(_))
@@ -690,7 +719,8 @@ mod tests {
             s.remove_file("user", "Presets"),
             Err(StoreError::InvalidPath(_))
         ));
-        s.remove_file("user", "Presets/other/C.etherpreset").unwrap();
+        s.remove_file("user", "Presets/other/C.etherpreset")
+            .unwrap();
         assert!(matches!(
             s.remove_file("user", "Presets/other/C.etherpreset"),
             Err(StoreError::NotFound(_))

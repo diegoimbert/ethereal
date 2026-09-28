@@ -12,6 +12,7 @@
 //!                        /media/
 //!                        /cache/
 //! library/                            the web sample library root
+//! user-library/                       the writable user library (v0.2: `Presets/`, ...)
 //! ```
 
 use std::collections::BTreeMap;
@@ -26,6 +27,10 @@ use ether_core::protocol::project::ProjectSummary;
 pub const PROJECTS_ROOT: &str = "projects";
 pub const LIBRARY_ROOT: &str = "library";
 pub const LIBRARY_ID: &str = "browser";
+/// v0.2 (`presets`): OPFS folder of the writable user library (`Library::user_root`).
+pub const USER_LIBRARY_ROOT: &str = "user-library";
+/// v0.2 (`presets`): root id of the user library (not listed in `roots()`).
+pub const USER_LIBRARY_ID: &str = "user";
 pub const PROJECT_FILE: &str = "project.ether";
 pub const MEDIA_DIR: &str = "media";
 pub const CACHE_DIR: &str = "cache";
@@ -429,11 +434,25 @@ impl<F: Fs> WebLibrary<F> {
     }
 
     fn base(&self, root: &str) -> Result<&'static str, StoreError> {
-        if root == LIBRARY_ID {
-            Ok(LIBRARY_ROOT)
-        } else {
-            Err(StoreError::NotFound(format!("library root {root}")))
+        match root {
+            LIBRARY_ID => Ok(LIBRARY_ROOT),
+            USER_LIBRARY_ID => Ok(USER_LIBRARY_ROOT),
+            _ => Err(StoreError::NotFound(format!("library root {root}"))),
         }
+    }
+
+    /// The writable user library's folder + a checked, non-empty relative path in it.
+    fn user_path(&self, root: &str, rel_path: &str) -> Result<String, StoreError> {
+        if root != USER_LIBRARY_ID {
+            return Err(StoreError::Unsupported(format!(
+                "library {root} is read-only"
+            )));
+        }
+        let rel = relative(rel_path)?;
+        if rel.is_empty() {
+            return Err(StoreError::InvalidPath(rel_path.to_string()));
+        }
+        Ok(join(USER_LIBRARY_ROOT, rel))
     }
 }
 
@@ -472,6 +491,46 @@ impl<F: Fs> Library for WebLibrary<F> {
             return Err(StoreError::InvalidPath(rel_path.to_string()));
         }
         self.fs.read(&join(base, rel))
+    }
+
+    /// v0.2 (`presets`): only the user library (`user-library/`) is writable.
+    fn write_file(&mut self, root: &str, rel_path: &str, bytes: &[u8]) -> Result<(), StoreError> {
+        let path = self.user_path(root, rel_path)?;
+        if self.fs.stat(&path)?.is_some_and(|e| e.is_dir) {
+            return Err(StoreError::InvalidPath(format!("{rel_path} is a folder")));
+        }
+        self.fs.write(&path, bytes)
+    }
+
+    /// v0.2 (`presets`): delete a file of the user library (never a folder).
+    fn remove_file(&mut self, root: &str, rel_path: &str) -> Result<(), StoreError> {
+        let path = self.user_path(root, rel_path)?;
+        match self.fs.stat(&path)? {
+            Some(e) if !e.is_dir => self.fs.remove(&path),
+            Some(_) => Err(StoreError::InvalidPath(format!("not a file: {rel_path}"))),
+            None => Err(StoreError::NotFound(rel_path.to_string())),
+        }
+    }
+
+    /// v0.2 (`presets`): rename/move a file inside the user library; the target must not
+    /// exist (OPFS names are case-sensitive).
+    fn rename_file(&mut self, root: &str, from: &str, to: &str) -> Result<(), StoreError> {
+        let src = self.user_path(root, from)?;
+        let dst = self.user_path(root, to)?;
+        if !self.fs.stat(&src)?.is_some_and(|e| !e.is_dir) {
+            return Err(StoreError::NotFound(from.to_string()));
+        }
+        if src == dst {
+            return Ok(());
+        }
+        if self.fs.stat(&dst)?.is_some() {
+            return Err(StoreError::AlreadyExists(to.to_string()));
+        }
+        self.fs.rename(&src, &dst)
+    }
+
+    fn user_root(&self) -> Option<String> {
+        Some(USER_LIBRARY_ID.to_string())
     }
 }
 
@@ -852,6 +911,73 @@ mod tests {
         assert!(lib.read(LIBRARY_ID, "../projects").is_err());
         assert!(lib.read("other", "drums/kick.wav").is_err());
         assert!(lib.list_dir(LIBRARY_ID, "missing").is_err());
+    }
+
+    #[test]
+    fn user_library_is_writable() {
+        let fs = MemFs::new();
+        let mut lib = WebLibrary::new(fs.clone());
+        assert_eq!(lib.user_root().as_deref(), Some(USER_LIBRARY_ID));
+        assert_eq!(
+            lib.roots().len(),
+            1,
+            "the user library is not a browse root"
+        );
+        assert!(matches!(
+            lib.write_file(LIBRARY_ID, "a.etherpreset", b"x"),
+            Err(StoreError::Unsupported(_))
+        ));
+        assert!(
+            lib.list_dir(USER_LIBRARY_ID, "")
+                .unwrap()
+                .entries
+                .is_empty()
+        );
+        lib.write_file(USER_LIBRARY_ID, "Presets/synth/A.etherpreset", b"a")
+            .unwrap();
+        assert_eq!(fs.files(), ["user-library/Presets/synth/A.etherpreset"]);
+        assert_eq!(
+            lib.read(USER_LIBRARY_ID, "Presets/synth/A.etherpreset")
+                .unwrap(),
+            b"a"
+        );
+        lib.write_file(USER_LIBRARY_ID, "Presets/synth/B.etherpreset", b"b")
+            .unwrap();
+        assert!(matches!(
+            lib.rename_file(
+                USER_LIBRARY_ID,
+                "Presets/synth/A.etherpreset",
+                "Presets/synth/B.etherpreset"
+            ),
+            Err(StoreError::AlreadyExists(_))
+        ));
+        lib.rename_file(
+            USER_LIBRARY_ID,
+            "Presets/synth/A.etherpreset",
+            "Presets/synth/C.etherpreset",
+        )
+        .unwrap();
+        let names: Vec<_> = lib
+            .list_dir(USER_LIBRARY_ID, "Presets/synth")
+            .unwrap()
+            .entries
+            .into_iter()
+            .map(|e| e.name)
+            .collect();
+        assert_eq!(names, ["B.etherpreset", "C.etherpreset"]);
+        assert!(matches!(
+            lib.remove_file(USER_LIBRARY_ID, "Presets"),
+            Err(StoreError::InvalidPath(_))
+        ));
+        lib.remove_file(USER_LIBRARY_ID, "Presets/synth/C.etherpreset")
+            .unwrap();
+        assert!(matches!(
+            lib.remove_file(USER_LIBRARY_ID, "Presets/synth/C.etherpreset"),
+            Err(StoreError::NotFound(_))
+        ));
+        for bad in ["../projects/x", "/x", ""] {
+            assert!(lib.write_file(USER_LIBRARY_ID, bad, b"x").is_err(), "{bad}");
+        }
     }
 
     #[test]
