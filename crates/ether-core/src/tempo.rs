@@ -83,6 +83,9 @@ pub struct TempoMapRt {
     signatures: Vec<SigSegment>,
     /// Sorted beats where either tempo segment or signature changes (excluding the first).
     boundaries: Vec<f64>,
+    /// Some segment ramps: the engine then derives positions from an anchor and the sample
+    /// clock ([`TempoMapRt::has_ramps`]).
+    ramps: bool,
 }
 
 impl Default for TempoMapRt {
@@ -182,10 +185,14 @@ impl TempoMapRt {
         boundaries.sort_by(f64::total_cmp);
         boundaries.dedup_by(|a, b| (*a - *b).abs() <= BEAT_EPS);
 
+        let ramps = segments
+            .iter()
+            .any(|s| ether_protocol::model::segment_is_ramp(s.bpm, s.end_bpm, s.length));
         Self {
             segments,
             signatures,
             boundaries,
+            ramps,
         }
     }
 
@@ -241,6 +248,14 @@ impl TempoMapRt {
         // Absorb float error: a position within epsilon of a bar line is on it.
         let bars = (rel + BEAT_EPS / sig.bar).floor();
         (sig.signature, sig.beat + bars * sig.bar)
+    }
+
+    /// `true` when some segment ramps (a `Linear` point followed by a different tempo).
+    /// Such maps are integrated exactly per sample (CONTRACTS.md §12.7): the engine derives
+    /// every position from an anchor and the sample clock instead of accumulating
+    /// sub-block lengths.
+    pub fn has_ramps(&self) -> bool {
+        self.ramps
     }
 
     /// Number of tempo segments (diagnostics/tests).
