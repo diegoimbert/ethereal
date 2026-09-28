@@ -300,6 +300,8 @@ export function TunerWidget({ size, label }: TypedProps<"Tuner">) {
   const frame = frameOf(useDeviceAnalysis(device.id), "Tuner");
   const has = !!frame && frame.note !== null && frame.hz !== null;
   const cents = has ? frame.cents : 0;
+  // Whole cents for the readout (no "-0 ct").
+  const shown = Math.round(cents) || 0;
   const inTune = has && Math.abs(cents) <= 5;
   return (
     <TypedFrame type="tuner" size={size} label={label}>
@@ -308,7 +310,7 @@ export function TunerWidget({ size, label }: TypedProps<"Tuner">) {
         <span className="eth-tuner__scale" aria-hidden="true">
           <span className="eth-tuner__needle" style={{ left: `${50 + cents}%` }} />
         </span>
-        <span className="eth-tuner__readout">{has ? `${cents > 0 ? "+" : ""}${cents.toFixed(0)} ct · ${frame.hz!.toFixed(1)} Hz` : "No pitch"}</span>
+        <span className="eth-tuner__readout">{has ? `${shown > 0 ? "+" : ""}${shown} ct · ${frame.hz!.toFixed(1)} Hz` : "No pitch"}</span>
       </div>
     </TypedFrame>
   );
