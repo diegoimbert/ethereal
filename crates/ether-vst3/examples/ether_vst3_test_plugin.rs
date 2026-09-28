@@ -17,6 +17,10 @@
 //!   `setDirty(true)` through the component handler, as if the user moved the gain knob in
 //!   the GUI.
 //! - An `IPlugView` editor (300×200, resizable) that accepts any parent.
+//! - A second, stereo `kAux` input bus `Sidechain` (not active by default; the aux bus of
+//!   `plugin-sidechain`, CONTRACTS §12.14): added to the output after the gain, when the
+//!   host activated it and passes it. Hosts feed it silence without a sidechain source, so
+//!   the output is unchanged then.
 //!
 //! **Instrument** (`E7E1E4A1000000000000000000000002`, `Instrument|Synth`): a single
 //! component (processor and controller in one object). No audio input, stereo output, one
@@ -51,7 +55,7 @@ use std::sync::atomic::{AtomicBool, AtomicIsize, AtomicU32, AtomicU64, Ordering}
 
 use vst3::Steinberg::Vst::BusDirections_::{kInput, kOutput};
 use vst3::Steinberg::Vst::BusInfo_::BusFlags_::kDefaultActive;
-use vst3::Steinberg::Vst::BusTypes_::kMain;
+use vst3::Steinberg::Vst::BusTypes_::{kAux, kMain};
 use vst3::Steinberg::Vst::Event_::EventTypes_::{kNoteOffEvent, kNoteOnEvent};
 use vst3::Steinberg::Vst::MediaTypes_::{kAudio, kEvent};
 use vst3::Steinberg::Vst::ParameterInfo_::ParameterFlags_::{kCanAutomate, kIsHidden};
@@ -233,10 +237,20 @@ unsafe fn channel_slices<'a>(
     count: i32,
     frames: usize,
 ) -> Option<(&'a mut [f32], &'a mut [f32])> {
-    if buses.is_null() || count < 1 {
+    bus_slices(buses, count, 0, frames)
+}
+
+/// Left/right channels of bus `index` (at least stereo) of `buses`.
+unsafe fn bus_slices<'a>(
+    buses: *mut AudioBusBuffers,
+    count: i32,
+    index: i32,
+    frames: usize,
+) -> Option<(&'a mut [f32], &'a mut [f32])> {
+    if buses.is_null() || count <= index {
         return None;
     }
-    let bus = &*buses;
+    let bus = &*buses.add(index as usize);
     if bus.numChannels < 2 {
         return None;
     }
@@ -257,6 +271,8 @@ struct EffectProcessor {
     gain: AtomicU64,
     mode: AtomicU32,
     latency_step: AtomicU32,
+    /// The host activated the `Sidechain` aux bus (`activateBus`).
+    aux_active: AtomicBool,
     peer: Mutex<Option<ComPtr<IConnectionPoint>>>,
 }
 
@@ -271,6 +287,7 @@ impl EffectProcessor {
             gain: AtomicU64::new(0.5f64.to_bits()),
             mode: AtomicU32::new(0),
             latency_step: AtomicU32::new(1),
+            aux_active: AtomicBool::new(false),
             peer: Mutex::new(None),
         }
     }
@@ -293,8 +310,12 @@ impl IComponentTrait for EffectProcessor {
     unsafe fn setIoMode(&self, _mode: IoMode) -> tresult {
         kResultOk
     }
-    unsafe fn getBusCount(&self, media: MediaType, _dir: BusDirection) -> i32 {
-        if media == kAudio as MediaType { 1 } else { 0 }
+    unsafe fn getBusCount(&self, media: MediaType, dir: BusDirection) -> i32 {
+        match (media == kAudio as MediaType, dir == kInput as BusDirection) {
+            (true, true) => 2,
+            (true, false) => 1,
+            _ => 0,
+        }
     }
     unsafe fn getBusInfo(
         &self,
@@ -303,6 +324,12 @@ impl IComponentTrait for EffectProcessor {
         index: i32,
         bus: *mut BusInfo,
     ) -> tresult {
+        if media == kAudio as MediaType && dir == kInput as BusDirection && index == 1 {
+            stereo_bus(bus, dir, "Sidechain");
+            (*bus).busType = kAux as BusType;
+            (*bus).flags = 0;
+            return kResultOk;
+        }
         if media != kAudio as MediaType || index != 0 {
             return kInvalidArgument;
         }
@@ -316,7 +343,10 @@ impl IComponentTrait for EffectProcessor {
     unsafe fn getRoutingInfo(&self, _i: *mut RoutingInfo, _o: *mut RoutingInfo) -> tresult {
         kNotImplemented
     }
-    unsafe fn activateBus(&self, _m: MediaType, _d: BusDirection, _i: i32, _s: TBool) -> tresult {
+    unsafe fn activateBus(&self, m: MediaType, d: BusDirection, i: i32, s: TBool) -> tresult {
+        if m == kAudio as MediaType && d == kInput as BusDirection && i == 1 {
+            self.aux_active.store(s != 0, Ordering::Relaxed);
+        }
         kResultOk
     }
     unsafe fn setActive(&self, _state: TBool) -> tresult {
@@ -355,9 +385,10 @@ impl IAudioProcessorTrait for EffectProcessor {
         outputs: *mut SpeakerArrangement,
         num_outs: i32,
     ) -> tresult {
-        if num_ins == 1
+        if (1..=2).contains(&num_ins)
             && num_outs == 1
             && *inputs == SpeakerArr::kStereo
+            && (num_ins == 1 || *inputs.add(1) == SpeakerArr::kStereo)
             && *outputs == SpeakerArr::kStereo
         {
             kResultTrue
@@ -367,11 +398,12 @@ impl IAudioProcessorTrait for EffectProcessor {
     }
     unsafe fn getBusArrangement(
         &self,
-        _dir: BusDirection,
+        dir: BusDirection,
         index: i32,
         arr: *mut SpeakerArrangement,
     ) -> tresult {
-        if index != 0 {
+        let buses = if dir == kInput as BusDirection { 2 } else { 1 };
+        if !(0..buses).contains(&index) {
             return kInvalidArgument;
         }
         *arr = SpeakerArr::kStereo;
@@ -438,6 +470,11 @@ impl IAudioProcessorTrait for EffectProcessor {
         let Some((out_l, out_r)) = channel_slices(data.outputs, data.numOutputs, frames) else {
             return kResultOk;
         };
+        let aux = if self.aux_active.load(Ordering::Relaxed) {
+            bus_slices(data.inputs, data.numInputs, 1, frames)
+        } else {
+            None
+        };
         // Replay the points sample-accurately, from the values at block start.
         let mut gain = start_gain;
         let mut mode = start_mode;
@@ -465,6 +502,10 @@ impl IAudioProcessorTrait for EffectProcessor {
                 };
             out_l[i] = in_l[i] * g;
             out_r[i] = in_r[i] * g;
+            if let Some((sc_l, sc_r)) = &aux {
+                out_l[i] += sc_l[i];
+                out_r[i] += sc_r[i];
+            }
         }
         kResultOk
     }

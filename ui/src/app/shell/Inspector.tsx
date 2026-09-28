@@ -9,6 +9,7 @@ import { formatDb, formatPan } from "@/features/devices/paramScale";
 import { midiTarget } from "@/features/midi-learn/targets";
 import { reverseCommand } from "@/features/clip-editing/clipEditing";
 import { dbToFader, defaultOutputLabel, faderToDb, outputTargets, outputValue, parseOutputValue } from "@/features/mixer/routing";
+import { GroupsRoutingRows } from "@/features/groups";
 import { Button, IconButton, Knob, NumberField, Select, TextInput, Toggle } from "@/kit";
 import { useEditorStore, useProjectStore } from "@/state";
 import { TRACK_COLORS } from "@/theme";
@@ -385,6 +386,8 @@ function TrackMixer({ track, sender }: { track: Track; sender: GestureSender }) 
   const send = useSend();
   const { volume, pan, mute, solo } = track.mixer;
   const isMaster = track.kind === "Master";
+  // groups-buses: a VCA carries no audio (no pan, output or sends).
+  const isVca = track.kind === "Vca";
   const returns = useProjectStore(
     useShallow((s) => (s.project ? Object.values(s.project.tracks).filter((t) => t.kind === "Return" && t.id !== track.id) : [])),
   );
@@ -408,7 +411,7 @@ function TrackMixer({ track, sender }: { track: Track; sender: GestureSender }) 
           onChangeStart={sender.begin}
           onChangeEnd={sender.end}
         />
-        <Knob
+        {!isVca && <Knob
           size="lg"
           bipolar
           {...midiTarget({ type: "Param", target: { type: "TrackPan", track: track.id } })}
@@ -418,7 +421,7 @@ function TrackMixer({ track, sender }: { track: Track; sender: GestureSender }) 
           onChange={(n) => void sender.send(cmd("Mixer", { type: "SetPan", track: track.id, pan: n * 2 - 1 }))}
           onChangeStart={sender.begin}
           onChangeEnd={sender.end}
-        />
+        />}
         <div className="eth-inspector__toggles">
           <IconButton
             size="sm"
@@ -449,7 +452,7 @@ function TrackMixer({ track, sender }: { track: Track; sender: GestureSender }) 
         </div>
       </div>
 
-      {!isMaster && (
+      {!isMaster && !isVca && (
         <Row label="Output">
           <Select
             size="sm"
@@ -465,7 +468,9 @@ function TrackMixer({ track, sender }: { track: Track; sender: GestureSender }) 
         </Row>
       )}
 
-      {!isMaster && returns.length > 0 && (
+      <GroupsRoutingRows track={track} Row={Row} />
+
+      {!isMaster && !isVca && returns.length > 0 && (
         <div className="eth-inspector__sends" aria-label="Sends">
           {returns.map((r) => (
             <SendKnob key={r.id} track={track} ret={r} send={sends.find((x) => x.to === r.id)} sender={sender} />

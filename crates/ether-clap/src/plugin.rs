@@ -43,6 +43,8 @@ pub struct ClapPlugin {
     params: Vec<ParamInfo>,
     /// Main audio input/output channel counts + note input (cached).
     io: (u16, u16, bool),
+    /// Sidechain channels (first aux input port, capped at 2; cached with `io`).
+    sidechain: u16,
     link: Option<ActiveLink>,
     editor: Option<GuiConfiguration<'static>>,
     editor_open: bool,
@@ -63,7 +65,15 @@ impl std::fmt::Debug for ClapPlugin {
 impl ClapPlugin {
     /// Load `bundle` and instantiate `plugin_id` (main thread).
     pub fn load(bundle: &Path, plugin_id: &str) -> Result<Self, PluginError> {
-        let entry = load_entry(bundle)?;
+        Self::from_entry(load_entry(bundle)?, bundle, plugin_id)
+    }
+
+    /// Instantiate `plugin_id` from an already loaded `entry` of `bundle` (main thread).
+    pub(crate) fn from_entry(
+        entry: PluginEntry,
+        bundle: &Path,
+        plugin_id: &str,
+    ) -> Result<Self, PluginError> {
         let factory = entry
             .get_plugin_factory()
             .ok_or_else(|| PluginError::Load("bundle has no plugin factory".into()))?;
@@ -99,6 +109,7 @@ impl ClapPlugin {
             category: category_from_features(&features),
             params: Vec::new(),
             io: (0, 0, false),
+            sidechain: 0,
             link: None,
             editor: None,
             editor_open: false,
@@ -122,6 +133,12 @@ impl ClapPlugin {
         self.link.is_some()
     }
 
+    /// Channels of the sidechain input (the first non-main input audio port, capped at 2;
+    /// 0 = none), as reported in `DeviceDescriptor::sidechain_inputs`.
+    pub fn sidechain_inputs(&self) -> u16 {
+        self.sidechain
+    }
+
     fn exts(&self) -> PluginExts {
         self.instance.access_handler(|h| h.exts.get())
     }
@@ -141,6 +158,7 @@ impl ClapPlugin {
                 outputs: vec![2],
                 main_in: Some(0),
                 main_out: Some(0),
+                aux_in: None,
             };
         };
         let handle = self.instance.plugin_handle();
@@ -165,18 +183,22 @@ impl ClapPlugin {
         };
         let (inputs, main_in) = side(true);
         let (outputs, main_out) = side(false);
+        let aux_in = PortLayout::find_aux(&inputs, main_in);
         PortLayout {
             inputs,
             outputs,
             main_in,
             main_out,
+            aux_in,
         }
     }
 
     fn refresh_io(&mut self) {
-        let (i, o) = self.port_layout().main_channels();
+        let layout = self.port_layout();
+        let (i, o) = layout.main_channels();
         let midi = self.has_note_input();
         self.io = (i, o, midi);
+        self.sidechain = layout.sidechain_channels();
     }
 
     fn has_note_input(&mut self) -> bool {
@@ -359,7 +381,7 @@ impl PluginController for ClapPlugin {
             audio_inputs: io.0,
             audio_outputs: io.1,
             midi_input: io.2,
-            sidechain_inputs: 0,
+            sidechain_inputs: self.sidechain,
         }
     }
 
@@ -372,8 +394,8 @@ impl PluginController for ClapPlugin {
         if self.link.is_some() {
             return Err(PluginError::Activation("plugin is already active".into()));
         }
-        let layout = self.port_layout();
         self.refresh_io();
+        let layout = self.port_layout();
         let latency = self.query_latency();
         self.params = self.query_params();
         let values: Vec<(u32, f64)> = self

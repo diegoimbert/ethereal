@@ -57,6 +57,13 @@ export function MixerView() {
           <StripTree key={n.track.id} node={n} returns={layout.returns} folded={folded} toggle={toggle} />
         ))}
       </div>
+      {layout.vcas.length > 0 && (
+        <div className="eth-mixer__vcas" data-testid="mixer-vcas">
+          {layout.vcas.map((t) => (
+            <MixerStrip key={t.id} track={t} returns={layout.returns} />
+          ))}
+        </div>
+      )}
       {layout.returns.length > 0 && (
         <div className="eth-mixer__returns">
           {layout.returns.map((t) => (
