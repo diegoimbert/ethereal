@@ -39,6 +39,7 @@ import {
 } from "@/features/freeze";
 import { leaveNoteEntries, withSeparator } from "@/features/collab/social";
 import { LiveRecordLane } from "@/features/recording/live/LiveRecordLane";
+import { tapArmBlocked } from "@/features/recording/tapRecording";
 import { CompLayer, TakeLanes, TakesToggle, trackTakeEntries } from "@/features/comping";
 import { MOD_KEY, meterPosition, openContextMenu, setDragCursor, type ContextMenuEntry } from "@/kit";
 import { useEditorStore, useProjectStore, useTrackMeter } from "@/state";
@@ -207,6 +208,7 @@ function TrackHeader({ row }: { row: Row }) {
   const [renaming, setRenaming] = useState(false);
   const { mute, solo } = track.mixer;
   const canArm = track.kind === "Audio" || track.kind === "Midi";
+  const armBlocked = tapArmBlocked(transport.kind, track.input, armed);
   const stop = (e: MouseEvent) => e.stopPropagation();
 
   return (
@@ -339,8 +341,12 @@ function TrackHeader({ row }: { row: Row }) {
             {...midiTarget({ type: "TrackArm", track: track.id })}
             aria-pressed={armed}
             aria-label={`Arm ${track.name}`}
-            title="Record arm (Ctrl/Cmd-click to arm several tracks)"
+            // Browser build: a tapped track can't record (no capture); say why (`tap-recording`).
+            aria-disabled={armBlocked ? true : undefined}
+            style={armBlocked ? { opacity: "var(--eth-opacity-disabled)", cursor: "not-allowed" } : undefined}
+            title={armBlocked ?? "Record arm (Ctrl/Cmd-click to arm several tracks)"}
             onClick={(e) =>
+              !armBlocked &&
               void transport
                 .send(
                   cmd("Recording", {
@@ -352,7 +358,7 @@ function TrackHeader({ row }: { row: Row }) {
                 )
                 // Arming an audio track with no input device open: offer to choose one.
                 .then(() => {
-                  if (!armed && track.kind === "Audio")
+                  if (!armed && track.kind === "Audio" && track.input.type !== "Track")
                     void promptForInputIfNone(transport);
                 })
                 .catch((err: unknown) => console.warn("arm failed", err))

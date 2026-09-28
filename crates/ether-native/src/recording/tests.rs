@@ -126,6 +126,7 @@ fn session(project: ProjectId, audio: Vec<AudioTarget>, midi: bool) -> RecordSes
         project,
         tag: "t".into(),
         audio,
+        taps: Vec::new(),
         midi,
         keep_from: 0.0,
         keep_until: None,
@@ -380,3 +381,7 @@ fn a_silent_input_take_warns() {
     assert_eq!(takes.audio.len(), 1);
     assert_eq!(takes.warnings, vec![writer::SILENT_INPUT.to_string()]);
 }
+
+/// `tap-recording` (uses this module's rig and helpers).
+#[path = "tap_tests.rs"]
+mod tap;
