@@ -220,14 +220,14 @@ impl Migration for V2RoadmapDefaults {
 /// v3 → v4: v0.2 (contracts-3) tables and fields, all neutral (a migrated project sounds and
 /// behaves exactly as before).
 ///
-/// - tables `take_lanes`, `comp_regions`, `rack_chains`, `modulators`, `mod_mappings`
-///   (empty);
+/// - tables `take_lanes`, `comp_regions`, `rack_chains`, `modulators`, `mod_mappings`,
+///   and base-62's `chat`, `pinned_notes` (empty);
 /// - media: `location` `Project` (v0.1 imports were copied into the project; v0.2 imports
 ///   reference library files in place, see `crate::media`);
 /// - `Clip::lane`, `Device::chain`, `Track::freeze` stay absent (= `None`).
 ///
 /// The version bump itself is the point: a v0.1 app refuses v4 files (`TooNew`) instead of
-/// silently dropping takes, racks and modulation on re-save. Fields already present are kept
+/// silently dropping takes, racks, modulation, the chat journal and pinned notes on re-save. Fields already present are kept
 /// (idempotent).
 pub struct V3ContractsV3Defaults;
 
@@ -250,6 +250,8 @@ impl Migration for V3ContractsV3Defaults {
             "rack_chains",
             "modulators",
             "mod_mappings",
+            "chat",
+            "pinned_notes",
         ] {
             project.entry(table.to_string()).or_insert(json!({}));
         }
@@ -484,6 +486,8 @@ mod tests {
             "rack_chains",
             "modulators",
             "mod_mappings",
+            "chat",
+            "pinned_notes",
         ] {
             assert!(project.remove(t).is_some(), "{t}");
         }

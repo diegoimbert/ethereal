@@ -13,6 +13,7 @@
  * | `export.ts`     | export          | `Export::*` (`MockExports`)                       |
  * | `collab.ts`     | collab          | `Collab::*` (unsupported)                          |
  * | `remote.ts`     | remote-engine   | uploads (unsupported)                             |
+ * | `social.ts`     | collab-social   | `Chat::*`, `PinnedNote::*` (unsupported)          |
  *
  * v0.2 (contracts-3), same rules (see docs/ROADMAP.md "v0.2"):
  *
@@ -40,6 +41,7 @@ import { markerCommand } from "./clipEditing";
 import { drumRackCommand, sliceCommand } from "./drumRack";
 import { grooveCommand } from "./groove";
 import { midiMapCommand } from "./midiLearn";
+import { pinnedNoteCommand } from "./social";
 import { tempoCommand } from "./tempo";
 // v0.2 (contracts-3): one file per node.
 import { takeCommand } from "./comping";
@@ -53,6 +55,7 @@ export function isRoadmapDocumentCommand(command: Command): boolean {
     case "Groove":
     case "DrumRack":
     case "Slice":
+    case "PinnedNote":
       return true;
     case "MidiMap":
       return command.command.type !== "Learn" && command.command.type !== "List";
@@ -100,6 +103,9 @@ export function reduceRoadmapCommand(ctx: ReducerContext, command: Command, dele
       return true;
     case "Modulation":
       modulationCommand(ctx, command.command);
+      return true;
+    case "PinnedNote":
+      pinnedNoteCommand(ctx, command.command);
       return true;
     default:
       return false;

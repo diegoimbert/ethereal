@@ -36,7 +36,9 @@ macro_rules! tables {
             CompRegion => comp_regions,
             RackChain => rack_chains,
             Modulator => modulators,
-            ModMapping => mod_mappings
+            ModMapping => mod_mappings,
+            ChatMessage => chat,
+            PinnedNote => pinned_notes
         }
     };
 }
@@ -73,6 +75,37 @@ fn check_beats_nonneg(what: &str, b: Beats) -> Result<(), ModelError> {
             "{what} must be a finite beat >= 0, got {}",
             b.0
         )));
+    }
+    Ok(())
+}
+
+fn check_text(what: &str, text: &str, max_chars: usize) -> Result<(), ModelError> {
+    if text.trim().is_empty() {
+        return Err(invalid(format!("{what} text is empty")));
+    }
+    let n = text.chars().count();
+    if n > max_chars {
+        return Err(invalid(format!(
+            "{what} text is {n} characters (max {max_chars})"
+        )));
+    }
+    if text.len() > TEXT_MAX_BYTES {
+        return Err(invalid(format!(
+            "{what} text is {} bytes (max {TEXT_MAX_BYTES})",
+            text.len()
+        )));
+    }
+    Ok(())
+}
+
+fn check_author(a: &Author) -> Result<(), ModelError> {
+    if a.name.chars().count() > AUTHOR_NAME_MAX_CHARS {
+        return Err(invalid(format!(
+            "author name is longer than {AUTHOR_NAME_MAX_CHARS} characters"
+        )));
+    }
+    if let Some(c) = a.color {
+        check_color(c)?;
     }
     Ok(())
 }
@@ -540,6 +573,18 @@ fn update_mapping(
     })
 }
 
+fn update_pinned_note(
+    n: &mut PinnedNote,
+    c: PinnedNoteChange,
+) -> Result<PinnedNoteChange, ModelError> {
+    use PinnedNoteChange as C;
+    Ok(match c {
+        C::Position(v) => swap!(C::Position, n.position, v),
+        C::Text(v) => swap!(C::Text, n.text, v),
+        C::Resolved(v) => swap!(C::Resolved, n.resolved, v),
+    })
+}
+
 fn update_pad(p: &mut DrumPad, c: DrumPadChange) -> Result<DrumPadChange, ModelError> {
     use DrumPadChange as C;
     Ok(match c {
@@ -593,6 +638,7 @@ impl EntityUpdate {
             Self::RackChain { id, .. } => EntityKey::RackChain(*id),
             Self::Modulator { id, .. } => EntityKey::Modulator(*id),
             Self::ModMapping { id, .. } => EntityKey::ModMapping(*id),
+            Self::PinnedNote { id, .. } => EntityKey::PinnedNote(*id),
         }
     }
 }
@@ -656,7 +702,18 @@ impl Project {
                 if self.contains(key) {
                     return Err(ModelError::AlreadyExists(key));
                 }
-                self.upsert_unchecked(entity.clone());
+                match entity {
+                    // Chat order = log order (social.rs): `seq: 0` takes the next one.
+                    Entity::ChatMessage(m) if m.seq == 0 => {
+                        let mut m = m.clone();
+                        // Saturating: a forged `u64::MAX` must not panic or wrap to 0 (ties
+                        // sort by id).
+                        let max = self.chat.values().map(|o| o.seq).max().unwrap_or(0);
+                        m.seq = max.saturating_add(1);
+                        self.chat.insert(m.id, m);
+                    }
+                    _ => self.upsert_unchecked(entity.clone()),
+                }
                 Ok(Op::Remove { key })
             }
             Op::Remove { key } => {
@@ -779,6 +836,13 @@ impl Project {
                             change,
                         )?,
                     },
+                    U::PinnedNote { id, change } => U::PinnedNote {
+                        id,
+                        change: update_pinned_note(
+                            self.pinned_notes.get_mut(&id).ok_or_else(nf)?,
+                            change,
+                        )?,
+                    },
                 };
                 Ok(Op::Update { update: inverse })
             }
@@ -872,6 +936,12 @@ impl Project {
                 }
                 Ok(())
             }
+            EntityKey::ChatMessage(_) if self.chat.len() > CHAT_HARD_MAX_MESSAGES => Err(invalid(
+                format!("a project holds at most {CHAT_HARD_MAX_MESSAGES} chat messages"),
+            )),
+            EntityKey::PinnedNote(_) if self.pinned_notes.len() > MAX_PINNED_NOTES => Err(invalid(
+                format!("a project holds at most {MAX_PINNED_NOTES} notes"),
+            )),
             _ => Ok(()),
         }
     }
@@ -1106,6 +1176,34 @@ impl Project {
                 Ok(())
             }
             EntityKey::ModMapping(id) => self.check_mod_mapping(&self.mod_mappings[&id]),
+            EntityKey::ChatMessage(id) => {
+                let m = &self.chat[&id];
+                check_author(&m.author)?;
+                check_text("chat message", &m.text, CHAT_TEXT_MAX_CHARS)
+            }
+            EntityKey::PinnedNote(id) => {
+                let n = &self.pinned_notes[&id];
+                check_author(&n.author)?;
+                check_text("note", &n.text, NOTE_TEXT_MAX_CHARS)?;
+                let p = &n.position;
+                check_beats_nonneg("note position", p.beats)?;
+                if !p.y.is_finite() {
+                    return Err(invalid("note y must be finite"));
+                }
+                check_unit("note y", f64::from(p.y))?;
+                if let Some(e) = &p.editor {
+                    if p.track.is_some() || p.y != 0.0 || p.beats.0 != 0.0 {
+                        return Err(invalid(
+                            "a piano-roll note has no arranger position (beats 0, no track, y 0)",
+                        ));
+                    }
+                    check_beats_nonneg("note piano-roll position", e.beats)?;
+                    if !(e.pitch.is_finite() && (0.0..=128.0).contains(&e.pitch)) {
+                        return Err(invalid("note pitch must be in 0..=128"));
+                    }
+                }
+                Ok(())
+            }
         }
     }
 
@@ -1811,7 +1909,9 @@ impl Project {
             | EntityKey::Marker(_)
             | EntityKey::MidiMapping(_)
             | EntityKey::CompRegion(_)
-            | EntityKey::ModMapping(_) => None,
+            | EntityKey::ModMapping(_)
+            | EntityKey::ChatMessage(_)
+            | EntityKey::PinnedNote(_) => None,
         }
     }
 
@@ -1842,6 +1942,8 @@ impl Project {
         self.check_routing()?;
         self.check_globals(EntityKey::TempoPoint(TempoPointId::NIL))?;
         self.check_globals(EntityKey::TimeSignature(TimeSignatureId::NIL))?;
+        self.check_globals(EntityKey::ChatMessage(ChatMessageId::NIL))?;
+        self.check_globals(EntityKey::PinnedNote(PinnedNoteId::NIL))?;
         Ok(())
     }
 }
