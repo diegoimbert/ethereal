@@ -91,6 +91,7 @@ export class MockCollab implements ChatSession {
   }
 
   applyUntracked(body: (tx: Tx) => void): void {
+    if (!this.host.applyUntracked) fail("Unsupported", "this mock host cannot apply untracked edits");
     this.host.applyUntracked(body);
   }
 
@@ -214,7 +215,7 @@ export class MockCollab implements ChatSession {
     const peer = this.peers.get(site);
     if (this.status.type !== "Online" || !peer) return null;
     const id = this.host.newId();
-    this.host.applyUntracked((tx) =>
+    this.applyUntracked((tx) =>
       insertChat(tx, { id, author: { name: peer.name, site, actor: null, color: peer.color }, text, sent_at: Date.now() }),
     );
     this.host.emit({ type: "Collab", event: { type: "ChatReceived", ids: [id] } });
