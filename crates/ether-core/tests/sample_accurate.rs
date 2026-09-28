@@ -493,3 +493,66 @@ fn ten_minute_tempo_ramp_matches_the_closed_form() {
     // Same positions for both block sizes, bit for bit.
     assert_eq!(positions[0], positions[1]);
 }
+
+/// Renders a track assigned to a VCA (itself under an automated parent VCA) whose volume
+/// lane has linear, curved and step segments, on a ramped tempo map.
+fn render_vca(block: usize) -> Vec<f32> {
+    use ether_core::vca::VcaDesc;
+    let mut p = create(cfg());
+    let dc = p.handle.add_node(Box::new(Level(0.8))).unwrap();
+    let mut t = with_chain(track(tid(2), TrackKind::Midi, Some(tid(1))), &[dc]);
+    t.vca = Some(tid(20));
+    let vca = |id, parent, points| VcaDesc {
+        id,
+        volume: 0.9,
+        mute: false,
+        parent,
+        automation: vec![lane(ResolvedTarget::TrackVolume, points, linear(0.0, 1.0))],
+    };
+    let child = vca(
+        tid(20),
+        Some(tid(21)),
+        vec![
+            (0.0, 0.1, CurveShape::Linear),
+            (2.61, 1.0, CurveShape::Curve { tension: -0.7 }),
+            (5.03, 0.3, CurveShape::Step),
+            (7.9, 0.8, CurveShape::Linear),
+        ],
+    );
+    let parent = vca(
+        tid(21),
+        None,
+        vec![
+            (1.0, 1.0, CurveShape::Step),
+            (4.44, 0.5, CurveShape::Linear),
+            (9.0, 0.9, CurveShape::Linear),
+        ],
+    );
+    p.handle
+        .publish(RenderGraphDesc {
+            version: 1,
+            tracks: vec![master(), t],
+            vcas: vec![child, parent],
+            tempo: ramps(),
+            ..Default::default()
+        })
+        .unwrap();
+    p.handle.transport(TransportControl::Play).unwrap();
+    render(&mut p.engine, 6 * 48_000, block).0
+}
+
+#[test]
+fn vca_automation_is_block_size_independent() {
+    let small = render_vca(64);
+    let large = render_vca(512);
+    assert!(small.iter().any(|s| *s > 0.1));
+    let (d, i) = max_diff(&small, &large);
+    assert!(d <= 1e-6, "64 vs 512: {d} at frame {i}");
+    // The gain ramps per sample: no block-sized stairs on the rising segment.
+    let (a, b) = (10_000, 10_000 + 512);
+    assert!(
+        small[a..b].windows(2).all(|w| w[1] > w[0]),
+        "{:?}",
+        &small[a..a + 8]
+    );
+}

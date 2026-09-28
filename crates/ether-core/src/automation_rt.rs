@@ -423,7 +423,9 @@ fn mixer_value<'s>(
 /// each aims at: the next grid point (possibly past the sub-block, which the next
 /// sub-block re-targets from where this one stopped), or the loop end when the timeline
 /// wraps first. Yields `(start, end, knot offset, knot beat)`.
-fn chunks<'a>(timing: &'a Timing<'a>) -> impl Iterator<Item = (usize, usize, usize, f64)> + 'a {
+pub(crate) fn chunks<'a>(
+    timing: &'a Timing<'a>,
+) -> impl Iterator<Item = (usize, usize, usize, f64)> + 'a {
     let n = timing.frames;
     let g = PARAM_GRID as usize;
     let mut c = 0;
