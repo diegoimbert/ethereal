@@ -694,19 +694,42 @@ are the relay's, or the ones set in settings (`SetIceServers`; e.g. a self-hoste
   the UDP port and answers Binding requests itself. Relayed ports from a configurable range
   (`--turn-ports`), public address from `--public-ip`.
   **Experimental: do not expose it publicly yet** (off by default; `--help` and a startup
-  warning say so). Every TURN request is rate-capped per source and globally before the
-  crate, and the crate's never-evicted nonce map is bounded by counting admitted requests:
-  past a soft budget only requests with a MESSAGE-INTEGRITY we verify pass (plus a global
-  trickle of 5 unverified requests/s), and the server is rotated (fresh nonce map) when no
-  allocation is live, or unconditionally at a hard budget. Known limitations (follow-up
-  node `turn-hardening`: a per-username verified cap, counting real nonce inserts,
-  rotation-decision tests):
-  - past the soft budget, `admitted` never decays until a rotation, so new clients share
-    the 5/s unverified trickle with whoever keeps sending unverified requests (an attacker
-    can crowd them out);
-  - a captured valid request replayed from spoofed sources counts as verified, so it can
-    push the count to the hard budget and force a rotation (dropping every live
-    allocation) about every 100 s.
+  warning say so). Every TURN request is rate-capped per source (50/s) and globally
+  (1000/s) before the crate. The crate stores a nonce in a map it never evicts each time it
+  answers a 401 (no MESSAGE-INTEGRITY) or a 438 (a NONCE it does not hold, or one older
+  than 1 h, which it removes first). The relay mirrors that map from the 401/438 responses
+  leaving the socket (`turn::gate::NonceLedger`: 64-bit hashes of the nonces), so the
+  budgets count **real inserts**, and the count shrinks when the crate drops a stale nonce.
+  Per request, the gate predicts whether the crate will insert: a request with a
+  MESSAGE-INTEGRITY and a nonce the crate holds (every Refresh, CreatePermission,
+  ChannelBind and authenticated Allocate of a live client) costs nothing and only faces
+  the rate caps. Limits, all in `crates/ether-collab/src/relay/ice/turn/gate.rs`:
+  - **soft budget, 50 000 nonces**: past it, requests that would insert pass only if
+    - their MESSAGE-INTEGRITY checks against a current credential (verified by the relay):
+      **0.1/s per username** (burst 8; a legitimate client needs about one per allocation
+      per hour, or one per allocation after a rotation) and **20/s for the whole relay**
+      (many usernames together), or
+    - unverified (a new client's first Allocate): a trickle of **5/s for the whole relay**,
+      of which one source IP gets **0.5/s** (burst 4: one first Allocate per allocation),
+      so a single sender cannot take it all;
+    - per-key state (source IPs, usernames) is bounded at 4096 entries each; idle keys are
+      forgotten first, and new keys are refused while none is idle;
+  - with no live allocation, the server is **rotated** (a fresh `Server` with an empty
+    nonce map) at the soft budget; nobody notices;
+  - **hard budget, 100 000 nonces**: rotated even with live allocations (dropped; clients
+    re-allocate through ICE restart). Past the soft budget the map grows by at most
+    5 + 20 = 25 nonces/s, so a forced rotation is ≥ 2000 s after reaching the soft budget
+    even under the worst flood (the old gate, counting admitted requests, could be forced
+    every ~100 s by one replayed request); one replayed captured request adds at most
+    0.1/s (≥ 5.7 days).
+  Residual risks (why TURN stays experimental until the owner decides): an attacker
+  spoofing many source IPs can still take the 5/s unverified trickle past the soft budget
+  (new clients' first Allocate then waits for the next idle rotation; live clients are not
+  affected); a member holding the relay token can mint credentials for many site ids and
+  use the 20/s verified allowance (with the trickle: a forced rotation ~33 min after the
+  soft budget at the earliest).
+  The ledger's own memory is bounded like the crate's map (≤ the hard budget + one 100 ms
+  poll of inserts, ~32 bytes each).
 - **Credentials** (TURN REST API scheme, per site, time-limited), only for token-protected
   relays:
   - `secret` = 32 random bytes from the OS, generated when the relay starts, kept in memory
