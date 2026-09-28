@@ -17,6 +17,7 @@
 
 // base-53 (docs/COLLAB.md §8-§9): one module per node, dispatched from here.
 mod listen;
+mod mirror;
 mod presence;
 pub(crate) mod resolve;
 mod stream_host;
@@ -173,6 +174,8 @@ pub(crate) struct CollabState {
     ice_override: Option<Vec<IceServer>>,
     /// base-62 (`collab-social`): own colour, catch-up, published transport.
     pub(crate) social: crate::social::SocialState,
+    /// Plugin GUI mirrors while listening (`plugin-mirror`; outlives a session).
+    mirror: mirror::MirrorState,
 }
 
 impl<B, H, S, L> EtherController<B, H, S, L>
@@ -534,6 +537,7 @@ where
 
     /// Controller tick: link upkeep, incoming messages, presence, owed snapshots.
     pub(crate) fn collab_tick(&mut self, now: u64, out: &mut dyn MessageSink) {
+        self.collab_mirror_tick();
         if self.collab.session.is_none() {
             return;
         }
