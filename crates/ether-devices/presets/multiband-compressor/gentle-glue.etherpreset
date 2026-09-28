@@ -1,0 +1,48 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "Gentle Glue",
+    "device": {
+      "type": "Builtin",
+      "device": "MultibandCompressor"
+    },
+    "meta": {
+      "tags": [
+        "bus",
+        "glue",
+        "subtle"
+      ],
+      "author": "Ethereal",
+      "description": "Low-ratio compression on all three bands with a dB of makeup: holds a mix or drum bus together."
+    },
+    "params": {
+      "0": 180.0,
+      "1": 3000.0,
+      "2": -18.0,
+      "3": 2.0,
+      "4": 30.0,
+      "5": 200.0,
+      "6": 1.0,
+      "7": 0.0,
+      "8": 0.0,
+      "9": -18.0,
+      "10": 1.8,
+      "11": 20.0,
+      "12": 150.0,
+      "13": 1.0,
+      "14": 0.0,
+      "15": 0.0,
+      "16": -20.0,
+      "17": 2.0,
+      "18": 10.0,
+      "19": 120.0,
+      "20": 1.0,
+      "21": 0.0,
+      "22": 0.0,
+      "23": 0.0,
+      "24": 100.0
+    }
+  }
+}

@@ -1,0 +1,48 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "Heavy Squash",
+    "device": {
+      "type": "Builtin",
+      "device": "MultibandCompressor"
+    },
+    "meta": {
+      "tags": [
+        "aggressive",
+        "parallel",
+        "squash"
+      ],
+      "author": "Ethereal",
+      "description": "Heavy, fast compression on every band with lots of makeup, blended in parallel at 60 % for loudness and density."
+    },
+    "params": {
+      "0": 120.0,
+      "1": 2500.0,
+      "2": -35.0,
+      "3": 6.0,
+      "4": 5.0,
+      "5": 80.0,
+      "6": 6.0,
+      "7": 0.0,
+      "8": 0.0,
+      "9": -35.0,
+      "10": 6.0,
+      "11": 3.0,
+      "12": 60.0,
+      "13": 6.0,
+      "14": 0.0,
+      "15": 0.0,
+      "16": -38.0,
+      "17": 8.0,
+      "18": 1.0,
+      "19": 40.0,
+      "20": 8.0,
+      "21": 0.0,
+      "22": 0.0,
+      "23": -2.0,
+      "24": 60.0
+    }
+  }
+}
