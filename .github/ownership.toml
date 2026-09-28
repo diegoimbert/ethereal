@@ -1053,6 +1053,9 @@ paths = [
 
 [nodes.midi-fx]
 paths = [
+  # BCR-C (base-94): export renders MIDI effects with their resolved scale (one line)
+  "crates/ether-controller/src/export/offline.rs",
+  "crates/ether-controller/tests/midi_fx*.rs",
   # BCR-A (base-93): EngineBridge::set_node_scale (defaulted) + native/web delivery to Node::set_data
   "crates/ether-controller/src/lib.rs",
   "crates/ether-native/src/bridge.rs",
