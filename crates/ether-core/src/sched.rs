@@ -132,7 +132,8 @@ pub(crate) struct Timing<'a> {
 
 /// Exact timing of a sub-block on a ramped tempo map: beat of sample `o` =
 /// `tempo.seconds_to_beats(seconds + (since + o) / sample_rate)`, where the anchor
-/// (`beat`, `seconds`) is the last timeline jump (play, locate, loop wrap, new snapshot)
+/// (`beat`, `seconds`) is the last timeline jump (play, locate, loop wrap, tempo/signature
+/// boundary, new tempo map)
 /// and `since` counts the samples rendered since. `beats[o]` caches it for `o` in
 /// `0..=frames` (filled by the engine once per sub-block).
 #[derive(Clone, Copy)]

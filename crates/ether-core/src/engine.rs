@@ -205,7 +205,8 @@ struct TransportRt {
     /// Exact tempo-ramp integration (`sched::Exact`, CONTRACTS.md §12.7): `(beat, seconds,
     /// sample_time)` of the last timeline jump while playing a ramped tempo map. Every
     /// position since is the tempo map's closed form of the sample clock. `None` = re-anchor
-    /// at `position` (after Play, Stop, Locate, a loop wrap or a snapshot swap).
+    /// at `position` (after Play, Stop, Locate, a loop wrap, a tempo/signature boundary, which
+    /// restarts the timeline on a whole sample as in v0.1, or a new tempo map).
     anchor: Option<(f64, f64, u64)>,
 }
 
