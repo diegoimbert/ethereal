@@ -22,24 +22,16 @@
               }
             }
           ],
-          "span": 2,
+          "span": 3,
           "title": "Macros"
         },
         {
-          "columns": 3,
+          "columns": 1,
           "id": "chains",
           "items": [
             {
-              "colspan": 2,
-              "label": null,
-              "size": "Medium",
-              "widget": {
-                "type": "RackChains"
-              }
-            },
-            {
               "colspan": 1,
-              "label": "Selector",
+              "label": "Chain Select",
               "size": "Small",
               "widget": {
                 "param": 8,
@@ -47,7 +39,7 @@
               }
             }
           ],
-          "span": 2,
+          "span": 1,
           "title": "Chains"
         }
       ]
@@ -346,24 +338,16 @@
               }
             }
           ],
-          "span": 2,
+          "span": 3,
           "title": "Macros"
         },
         {
-          "columns": 3,
+          "columns": 1,
           "id": "chains",
           "items": [
             {
-              "colspan": 2,
-              "label": null,
-              "size": "Medium",
-              "widget": {
-                "type": "RackChains"
-              }
-            },
-            {
               "colspan": 1,
-              "label": "Selector",
+              "label": "Chain Select",
               "size": "Small",
               "widget": {
                 "param": 8,
@@ -371,7 +355,7 @@
               }
             }
           ],
-          "span": 2,
+          "span": 1,
           "title": "Chains"
         }
       ]
@@ -670,24 +654,16 @@
               }
             }
           ],
-          "span": 2,
+          "span": 3,
           "title": "Macros"
         },
         {
-          "columns": 3,
+          "columns": 1,
           "id": "chains",
           "items": [
             {
-              "colspan": 2,
-              "label": null,
-              "size": "Medium",
-              "widget": {
-                "type": "RackChains"
-              }
-            },
-            {
               "colspan": 1,
-              "label": "Selector",
+              "label": "Chain Select",
               "size": "Small",
               "widget": {
                 "param": 8,
@@ -695,7 +671,7 @@
               }
             }
           ],
-          "span": 2,
+          "span": 1,
           "title": "Chains"
         }
       ]

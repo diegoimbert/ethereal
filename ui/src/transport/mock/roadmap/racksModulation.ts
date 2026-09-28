@@ -16,7 +16,6 @@ import type {
   Device,
   DeviceCategory,
   DeviceId,
-  ModMapping,
   ModSource,
   Modulator,
   ModulationCommand,
@@ -223,9 +222,18 @@ export function rackCommand(ctx: ReducerContext, c: RackCommand): void {
     case "SetChainZones": {
       const ch = chain(ctx, c.id);
       const next = { ...ch };
-      if (c.keys != null) (checkZone("key", c.keys), (next.keys = c.keys));
-      if (c.velocities != null) (checkZone("velocity", c.velocities), (next.velocities = c.velocities));
-      if (c.select != null) (checkZone("selector", c.select), (next.select = c.select));
+      if (c.keys != null) {
+        checkZone("key", c.keys);
+        next.keys = c.keys;
+      }
+      if (c.velocities != null) {
+        checkZone("velocity", c.velocities);
+        next.velocities = c.velocities;
+      }
+      if (c.select != null) {
+        checkZone("selector", c.select);
+        next.select = c.select;
+      }
       tx.upsert("RackChain", next);
       return;
     }
@@ -305,7 +313,7 @@ export function rackCommand(ctx: ReducerContext, c: RackCommand): void {
       for (const m of mods) {
         const id = ctx.newId();
         newIds.set(m.id, id);
-        const order = keyForInsert(last === null ? [] : [{ id: "_", order: last }], null);
+        const order: string = keyForInsert(last === null ? [] : [{ id: "_", order: last }], null);
         last = order;
         tx.remove("Modulator", m.id);
         tx.upsert("Modulator", { ...m, id, device: c.rack, order });

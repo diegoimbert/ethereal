@@ -1,6 +1,6 @@
 //! Rack device nodes (`racks-modulation`): audio through for instrument/audio effect
 //! racks, MIDI-thru (never params) for MIDI effect racks, macro/selector values clamped and
-//! read back, no allocation; layouts carry the macro bank, the chain list and the selector.
+//! read back, no allocation; layouts carry the macro bank and the selector.
 
 use assert_no_alloc::assert_no_alloc;
 use ether_core::protocol::layout::Widget;
@@ -103,7 +103,6 @@ fn rack_nodes_pass_through_and_keep_macro_values() {
             .flat_map(|s| s.items.iter().map(|i| &i.widget))
             .collect();
         assert!(widgets.contains(&&Widget::Macros));
-        assert!(widgets.contains(&&Widget::RackChains));
         assert!(widgets.contains(&&Widget::Knob { param: ParamId(8) }));
     }
 }

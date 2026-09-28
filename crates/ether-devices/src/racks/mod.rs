@@ -72,17 +72,17 @@ pub mod midi_effect_rack {
     pub use super::instrument_rack::*;
 }
 
-/// Declarative panel: the macro bank (hero), the chain list and the chain selector.
+/// Declarative panel: the macro bank (hero) and the chain selector. The chain list with the
+/// chains' devices is the rack view the device panel mounts under it (`ui/src/features/racks`),
+/// so the read-only `RackChains` widget is not repeated here.
 fn rack_layout() -> DeviceLayout {
     let mut macros = item(Widget::Macros, WidgetSize::Medium);
     macros.colspan = 4;
-    let mut chains = item(Widget::RackChains, WidgetSize::Medium);
-    chains.colspan = 2;
     let mut selector = knob(instrument_rack::CHAIN_SELECTOR, WidgetSize::Small);
-    selector.label = Some("Selector".into());
+    selector.label = Some("Chain Select".into());
     layout(vec![
-        section("macros", Some("Macros"), 2, 4, vec![macros]),
-        section("chains", Some("Chains"), 2, 3, vec![chains, selector]),
+        section("macros", Some("Macros"), 3, 4, vec![macros]),
+        section("chains", Some("Chains"), 1, 1, vec![selector]),
     ])
 }
 

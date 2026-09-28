@@ -1,0 +1,218 @@
+/*
+ * Modulation (racks-modulation): depth rings, depth chips and drop targets inside every
+ * param widget, macro handles, and the modulator cards. Tokens only.
+ */
+
+/* Source colour slots (per modulator order / macro index). */
+.eth-mod--slot-0 {
+  --mod-color: var(--eth-color-accent);
+}
+.eth-mod--slot-1 {
+  --mod-color: var(--eth-color-info);
+}
+.eth-mod--slot-2 {
+  --mod-color: var(--eth-color-warn);
+}
+.eth-mod--slot-3 {
+  --mod-color: var(--eth-color-ok);
+}
+
+/* ---- Depth ring (knobs) ---- */
+.eth-mod-ring {
+  display: none;
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: var(--knob-size);
+  height: var(--knob-size);
+  overflow: visible;
+  pointer-events: none;
+}
+.eth-param--knob > .eth-mod-ring {
+  display: block;
+}
+.eth-param--sm > .eth-mod-ring {
+  width: var(--knob-size-sm);
+  height: var(--knob-size-sm);
+}
+.eth-param--lg > .eth-mod-ring {
+  width: var(--knob-size-lg);
+  height: var(--knob-size-lg);
+}
+.eth-mod-ring__range {
+  fill: none;
+  stroke: var(--mod-color);
+  stroke-width: var(--knob-stroke);
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+  opacity: var(--eth-opacity-muted);
+}
+.eth-mod-ring__live {
+  fill: var(--eth-color-text);
+  stroke: var(--eth-color-bg-panel);
+  vector-effect: non-scaling-stroke;
+}
+
+/* ---- Range bar (sliders, toggles, choices, numbers) ---- */
+.eth-mod-bar {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: var(--eth-space-xs);
+  border-radius: var(--eth-radius-pill);
+  background: var(--eth-color-bg-inset);
+}
+.eth-param--knob > .eth-mod-bar {
+  display: none;
+}
+.eth-mod-bar__range {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: var(--eth-radius-pill);
+  background: var(--mod-color);
+}
+
+/* ---- Depth chips ---- */
+.eth-mod-chips {
+  display: flex;
+  gap: var(--eth-space-xs);
+  justify-content: center;
+  width: 100%;
+}
+.eth-mod-chip {
+  position: relative;
+  flex: 0 1 var(--eth-size-control-md);
+  min-width: var(--eth-space-lg);
+  height: var(--eth-space-sm);
+  border-radius: var(--eth-radius-pill);
+  background: var(--eth-color-bg-inset);
+  box-shadow: inset 0 0 0 var(--eth-border-width) var(--mod-color);
+  cursor: ns-resize;
+  touch-action: none;
+}
+.eth-mod-chip:focus-visible {
+  outline: var(--eth-focus-ring-width) solid var(--eth-color-focus);
+  outline-offset: var(--eth-focus-ring-offset);
+}
+.eth-mod-chip__fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: var(--eth-radius-pill);
+  background: var(--mod-color);
+}
+
+/* ---- Drop target (mapping in progress) ---- */
+.eth-mod-target {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  padding: 0;
+  border: var(--eth-border-width-strong) dashed var(--eth-color-accent);
+  border-radius: var(--eth-radius-md);
+  background: var(--eth-color-accent-subtle);
+  cursor: crosshair;
+  animation: eth-mod-pulse var(--eth-duration-slow) var(--eth-ease-out) infinite alternate;
+}
+.eth-mod-target:hover,
+.eth-mod-target:focus-visible {
+  background: var(--eth-color-accent-dim);
+}
+@keyframes eth-mod-pulse {
+  from {
+    border-color: var(--eth-color-accent);
+  }
+  to {
+    border-color: var(--eth-color-accent-dim);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .eth-mod-target {
+    animation: none;
+  }
+}
+
+/* ---- Macro handle (rack macros are sources) ---- */
+.eth-mod-handle {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 1;
+  width: var(--eth-space-md);
+  height: var(--eth-space-md);
+  padding: 0;
+  border: var(--eth-border-width) solid var(--eth-color-accent);
+  border-radius: var(--eth-radius-round);
+  background: var(--eth-color-bg-panel);
+  cursor: grab;
+}
+.eth-mod-handle--active,
+.eth-mod-handle:hover {
+  background: var(--eth-color-accent);
+}
+
+/* ---- Modulator cards ---- */
+.eth-mods {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--eth-space-sm);
+  padding: var(--eth-space-sm);
+  border-top: var(--eth-border-width) solid var(--eth-color-border);
+}
+.eth-mod {
+  flex: 1 1 var(--eth-size-device-card-min-width);
+  min-width: 0;
+  border: var(--eth-border-width) solid var(--eth-color-border);
+  border-left: var(--eth-border-width-strong) solid var(--mod-color);
+  border-radius: var(--eth-radius-md);
+  background: var(--eth-color-bg-inset);
+  container: device / inline-size;
+}
+.eth-mod--mapping {
+  box-shadow: 0 0 0 var(--eth-border-width-strong) var(--mod-color);
+}
+.eth-mod__header {
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-xs);
+  padding: var(--eth-space-xs) var(--eth-space-sm);
+  font-size: var(--eth-fs-xs);
+  color: var(--eth-color-text-dim);
+}
+.eth-mod__grip {
+  display: inline-flex;
+  color: var(--mod-color);
+  cursor: grab;
+}
+.eth-mod__grip svg {
+  width: var(--eth-size-icon-sm);
+  height: var(--eth-size-icon-sm);
+}
+.eth-mod__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: var(--eth-fw-medium);
+  color: var(--eth-color-text);
+}
+.eth-mod__source {
+  margin: 0 var(--eth-space-sm) var(--eth-space-sm);
+}
+.eth-mod__targets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--eth-space-sm);
+  margin: 0;
+  padding: var(--eth-space-sm);
+  list-style: none;
+  border-top: var(--eth-border-width) solid var(--eth-color-border);
+}
+.eth-mod__target {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--eth-space-xs);
+}
