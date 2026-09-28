@@ -1,5 +1,14 @@
 import "./arrangement.css";
-import { openContextMenu, setDragCursor } from "@/kit";
+import { MOD_KEY, openContextMenu, setDragCursor } from "@/kit";
+import {
+  droppedFiles,
+  hasOsFiles,
+  importAudio,
+  noteHover,
+  openImportDialog,
+  type DropPoint,
+  type ImportSource,
+} from "@/features/import";
 import { AddTrackRow } from "./newTrack";
 import { useContext, useEffect, useMemo, useRef, type DragEvent, type KeyboardEvent, type PointerEvent } from "react";
 import type { Beats, TrackId } from "@/generated";
@@ -25,8 +34,9 @@ import {
 import { useAutomationSlotHeight } from "@/features/automation";
 import { PresenceLayer } from "@/features/collab/presence";
 import { ArrangerSocialLayer, leaveNoteEntries, rulerNoteEntries, withSeparator } from "@/features/collab/social";
+import { groupShortcut, groupTracks, ungroupSelected, UngroupConfirmDialog } from "@/features/groups";
 import { TransportContext, useTransport, useTransportEvent } from "@/transport";
-import { actionForKey, bindSingleSelection, locateIfStopped, newTrackMenu, runClipAction } from "./actions";
+import { actionForKey, bindSingleSelection, locateIfStopped, newTrackMenu, runClipAction, selectTrackEntity } from "./actions";
 import { dropBrowserMedia, hasBrowserDrag, readBrowserDrag } from "./browserDrop";
 import { ArrangementContext, type ArrangementContextValue } from "./context";
 import { clipRects, DROP_AREA_HEIGHT, HEADER_WIDTH, layoutRows, rowIndexAt, rowsHeight, type Row } from "./layout";
@@ -135,6 +145,27 @@ function ConnectedArrangementView() {
     };
   }, [transport]);
 
+  // groups-buses: Cmd+G groups the selected tracks, Cmd+Shift+G ungroups. On the document,
+  // so it still works after a menu or a click elsewhere took the focus (not in text fields
+  // or dialogs).
+  useEffect(() => {
+    const onKey = (e: globalThis.KeyboardEvent) => {
+      const grouping = groupShortcut(e);
+      if (!grouping || e.defaultPrevented || isTextEntry(e.target)) return;
+      const active = document.activeElement;
+      const root = rootRef.current;
+      if (active && active !== document.body && !root?.contains(active)) return;
+      e.preventDefault();
+      const ui = useArrangementUi.getState();
+      const fallback = useSelectionStore.getState().selectedTrack;
+      const selected = ui.selectedTracks.size > 0 ? [...ui.selectedTracks] : fallback ? [fallback] : [];
+      if (grouping === "ungroup") void ungroupSelected(transport, selected);
+      else void groupTracks(transport, selected).then((g) => g && selectTrackEntity(g));
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [transport]);
+
   const ctx = useMemo<ArrangementContextValue>(
     () => ({ transport, peaks, contentRef, rowsRef, focus: () => rootRef.current?.focus({ preventScroll: true }) }),
     [transport, peaks],
@@ -199,7 +230,7 @@ function ConnectedArrangementView() {
     return snapToGrid(beats, resolveGrid(grid, s.pxPerBeat, tempo.signatureAt(s.scrollBeats)), tempo);
   };
 
-  const dropTarget = (e: DragEvent): DropTarget | "reject" => {
+  const dropTarget = (e: DropPoint): DropTarget | "reject" => {
     const box = contentRef.current?.getBoundingClientRect();
     const x = e.clientX - (box?.left ?? 0) - useArrangementUi.getState().headerWidth;
     const i = rowIndexAt(rowsRef.current, e.clientY - (box?.top ?? 0));
@@ -209,15 +240,32 @@ function ConnectedArrangementView() {
     return row && row.track.kind === "Audio" ? { track: row.track.id, at } : "reject";
   };
 
+  // `file-import`: OS files dropped on a lane (clips from the drop point, one after the
+  // other) or below the tracks (a new audio track per file). On the desktop the shell
+  // forwards the dropped paths instead of the drop: they land here via `noteHover`.
+  const importAt = (sources: ImportSource[], point: DropPoint) => {
+    useArrangementUi.getState().setDropHint(null);
+    const t = dropTarget(point);
+    if (t === "reject" || sources.length === 0) return;
+    void importAudio(transport, sources, t);
+  };
+
   const onDragOver = (e: DragEvent<HTMLDivElement>) => {
-    if (!hasBrowserDrag(e.dataTransfer)) return;
+    const files = hasOsFiles(e.dataTransfer);
+    if (!files && !hasBrowserDrag(e.dataTransfer)) return;
     e.preventDefault();
     const t = dropTarget(e);
     e.dataTransfer.dropEffect = t === "reject" ? "none" : "copy";
     useArrangementUi.getState().setDropHint(t === "reject" ? null : t);
+    if (files && t !== "reject") noteHover(e, importAt);
   };
 
   const onDrop = (e: DragEvent<HTMLDivElement>) => {
+    if (hasOsFiles(e.dataTransfer)) {
+      e.preventDefault();
+      importAt(droppedFiles(e.dataTransfer), e);
+      return;
+    }
     const payload = readBrowserDrag(e.dataTransfer);
     useArrangementUi.getState().setDropHint(null);
     if (!payload) return;
@@ -270,8 +318,14 @@ function ConnectedArrangementView() {
               // Empty space below the tracks (header column or lanes): add a track. Rows,
               // headers and clips open their own menus (and stop the event).
               const y = e.clientY - e.currentTarget.getBoundingClientRect().top;
-              if (y >= rowsHeight(rowsRef.current))
-                openContextMenu(e, [...newTrackMenu(transport), ...withSeparator(leaveNoteEntries({ kind: "arranger" }, e))]);
+              if (y >= rowsHeight(rowsRef.current)) {
+                openContextMenu(e, [
+                  ...newTrackMenu(transport),
+                  "separator",
+                  { label: "Import audio…", shortcut: `${MOD_KEY}I`, onSelect: () => void openImportDialog(transport) },
+                  ...withSeparator(leaveNoteEntries({ kind: "arranger" }, e)),
+                ]);
+              }
             }}
             onDragOver={onDragOver}
             onDragLeave={() => useArrangementUi.getState().setDropHint(null)}
@@ -323,6 +377,7 @@ function ConnectedArrangementView() {
         <PresenceLayer rootRef={rootRef} scrollRef={scrollRef} rows={rows} masterRow={masterRow} />
         {/* collab-social: pinned notes and the peers' playheads */}
         <ArrangerSocialLayer rootRef={rootRef} scrollRef={scrollRef} rows={rows} masterRow={masterRow} />
+        <UngroupConfirmDialog />
       </div>
     </ArrangementContext.Provider>
   );

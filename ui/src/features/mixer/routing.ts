@@ -37,16 +37,17 @@ export interface StripNode {
 
 /**
  * Mixer layout (Ableton order): regular tracks as a tree (groups contain their children),
- * then return tracks, then master.
+ * then VCAs (groups-buses), return tracks, then master.
  */
-export function mixerLayout(tracks: Tracks): { tracks: StripNode[]; returns: Track[]; master: Track | undefined } {
+export function mixerLayout(tracks: Tracks): { tracks: StripNode[]; vcas: Track[]; returns: Track[]; master: Track | undefined } {
   const build = (parent: TrackId | null): StripNode[] =>
     childTracks(tracks, parent)
-      .filter((t) => t.kind !== "Return" && t.kind !== "Master")
+      .filter((t) => t.kind !== "Return" && t.kind !== "Master" && t.kind !== "Vca")
       .map((t) => ({ track: t, children: t.kind === "Group" ? build(t.id) : [] }));
   const top = childTracks(tracks, null);
   return {
     tracks: build(null),
+    vcas: top.filter((t) => t.kind === "Vca"),
     returns: top.filter((t) => t.kind === "Return"),
     master: top.find((t) => t.kind === "Master"),
   };

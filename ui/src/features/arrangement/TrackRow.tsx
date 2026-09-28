@@ -1,5 +1,15 @@
 import clsx from "clsx";
-import { memo, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type PointerEvent, type ReactNode } from "react";
+import {
+  memo,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type MouseEvent,
+  type PointerEvent,
+  type ReactNode,
+} from "react";
 import {
   AudioLines,
   ChevronDown,
@@ -10,18 +20,36 @@ import {
   Headphones,
   Piano,
   Speaker,
+  SlidersVertical,
   Spline,
   Volume2,
   VolumeX,
 } from "lucide-react";
 import type { Beats, Clip, ClipId, Color, Track, TrackId } from "@/generated";
 import { promptForInputIfNone } from "@/features/audio-settings";
-import { AutomationToggleButton, TrackAutomationLanes } from "@/features/automation";
+import {
+  AutomationToggleButton,
+  TrackAutomationLanes,
+} from "@/features/automation";
+import { groupsTrackMenu, VcaLane } from "@/features/groups";
+import {
+  FreezeHeaderStatus,
+  withFreezeClipEntries,
+  withFreezeTrackEntries,
+} from "@/features/freeze";
 import { leaveNoteEntries, withSeparator } from "@/features/collab/social";
 import { LiveRecordLane } from "@/features/recording/live/LiveRecordLane";
 import { MOD_KEY, meterPosition, openContextMenu, setDragCursor } from "@/kit";
 import { useEditorStore, useProjectStore, useTrackMeter } from "@/state";
-import { pxToBeats, resolveGrid, selectModeFromEvent, snapToGrid, useSelectedItems, useTempoMap, useTimelineView } from "@/timeline";
+import {
+  pxToBeats,
+  resolveGrid,
+  selectModeFromEvent,
+  snapToGrid,
+  useSelectedItems,
+  useTempoMap,
+  useTimelineView,
+} from "@/timeline";
 import { cmd } from "@/transport";
 import { clipMenu, selectTrackEntity, trackMenu } from "./actions";
 import { smallClipAt, splitSmallClips } from "./smallClips";
@@ -39,7 +67,11 @@ import { midiTarget } from "@/features/midi-learn/targets";
 import { HeaderVolume } from "./HeaderVolume";
 import { onTrackHeaderPointerDown } from "./trackDrag";
 import { TRACK_HEIGHT_STEP, type Row } from "./layout";
-import { arrangementView, useArrangementUi, type PendingImport } from "./uiStore";
+import {
+  arrangementView,
+  useArrangementUi,
+  type PendingImport,
+} from "./uiStore";
 
 /** Pointer tolerance around painted small clips (px): very thin ones stay clickable. */
 const SMALL_SLOP_PX = 3;
@@ -48,13 +80,22 @@ const INDENT_PX = 12;
 
 // Rows stack in flow and nothing below reads `y`: rows that only move (automation lanes
 // animating above them) don't re-render.
-export const TrackRow = memo(function TrackRow({ row }: { row: Row }) {
-  if (row.draft) return <DraftRow row={row} />;
-  return <RealTrackRow row={row} />;
-}, (a, b) => sameRowExceptY(a.row, b.row));
+export const TrackRow = memo(
+  function TrackRow({ row }: { row: Row }) {
+    if (row.draft) return <DraftRow row={row} />;
+    return <RealTrackRow row={row} />;
+  },
+  (a, b) => sameRowExceptY(a.row, b.row),
+);
 
 function sameRowExceptY(a: Row, b: Row): boolean {
-  return a.track === b.track && a.draft === b.draft && a.depth === b.depth && a.laneHeight === b.laneHeight && a.height === b.height;
+  return (
+    a.track === b.track &&
+    a.draft === b.draft &&
+    a.depth === b.depth &&
+    a.laneHeight === b.laneHeight &&
+    a.height === b.height
+  );
 }
 
 function RealTrackRow({ row }: { row: Row }) {
@@ -68,17 +109,36 @@ function RealTrackRow({ row }: { row: Row }) {
       <div className="eth-arr-row__main" style={{ height: laneHeight }}>
         <TrackHeader row={mainRow} />
         <ResizeHandle row={mainRow} />
-        {track.kind === "Group" ? <GroupLane track={track} /> : <TrackLane track={track} />}
+        {track.kind === "Group" ? (
+          <GroupLane track={track} />
+        ) : track.kind === "Vca" ? (
+          <VcaLane track={track} />
+        ) : (
+          <TrackLane track={track} />
+        )}
       </div>
     ),
     [mainRow, track, laneHeight],
   );
   return (
-    <div className="eth-arr-row" style={{ height: row.height }} data-track={row.track.id}>
+    <div
+      className={clsx("eth-arr-row", row.track.freeze && "eth-arr-row--frozen")}
+      style={{ height: row.height }}
+      data-track={row.track.id}
+    >
       {main}
       {/* Automation slot: its height is fed to `layoutRows` via `useAutomationHeight`. */}
-      <div className="eth-arr-row__automation" data-slot="automation" data-track={row.track.id}>
-        <TrackAutomationLanes trackId={row.track.id} view={arrangementView} headerWidth={headerWidth} grid={grid} />
+      <div
+        className="eth-arr-row__automation"
+        data-slot="automation"
+        data-track={row.track.id}
+      >
+        <TrackAutomationLanes
+          trackId={row.track.id}
+          view={arrangementView}
+          headerWidth={headerWidth}
+          grid={grid}
+        />
       </div>
     </div>
   );
@@ -90,7 +150,11 @@ function RealTrackRow({ row }: { row: Row }) {
  */
 function AutomationToggle({ track }: { track: Track }) {
   return (
-    <AutomationToggleButton trackId={track.id} trackName={track.name} className="eth-arr-header__toggle eth-arr-header__automation">
+    <AutomationToggleButton
+      trackId={track.id}
+      trackName={track.name}
+      className="eth-arr-header__toggle eth-arr-header__automation"
+    >
       <Spline />
     </AutomationToggleButton>
   );
@@ -102,8 +166,8 @@ const TRACK_ICONS: Record<Track["kind"], ReactNode> = {
   Group: <Folder />,
   Return: <CornerDownRight />,
   Master: <Speaker />,
-  // v0.2 (`groups-buses`): VCA tracks; the node refines the icon.
-  Vca: <Folder />,
+  // v0.2 (`groups-buses`): VCA faders.
+  Vca: <SlidersVertical />,
 };
 
 /**
@@ -112,7 +176,12 @@ const TRACK_ICONS: Record<Track["kind"], ReactNode> = {
  */
 function TrackBadge({ kind, color }: { kind: Track["kind"]; color: Color }) {
   return (
-    <span className="eth-arr-header__badge" aria-hidden title={`${kind} track`} style={{ color: inkOn(color) }}>
+    <span
+      className="eth-arr-header__badge"
+      aria-hidden
+      title={`${kind} track`}
+      style={{ color: inkOn(color) }}
+    >
       {TRACK_ICONS[kind]}
     </span>
   );
@@ -154,7 +223,19 @@ function TrackHeader({ row }: { row: Row }) {
         if (!renaming) onTrackHeaderPointerDown(e, track, ctx);
       }}
       onClick={(e) => selectTrackEntity(track.id, selectModeFromEvent(e))}
-      onContextMenu={(e) => openContextMenu(e, trackMenu(transport, track))}
+      onContextMenu={(e) => {
+        const items = trackMenu(transport, track);
+        const selected = [...useArrangementUi.getState().selectedTracks];
+        // groups-buses: group/ungroup and VCA entries (after the owner's track menu + freeze entries).
+        openContextMenu(e, [
+          ...withFreezeTrackEntries(items, transport, track, selected),
+          ...groupsTrackMenu(
+            transport,
+            track,
+            useArrangementUi.getState().selectedTracks,
+          ),
+        ]);
+      }}
       role="group"
       aria-label={`${track.name} track`}
     >
@@ -179,7 +260,14 @@ function TrackHeader({ row }: { row: Row }) {
           onDone={(name) => {
             setRenaming(false);
             if (name !== null && name.trim() && name.trim() !== track.name) {
-              void sendEdit(transport, cmd("Track", { type: "Rename", id: track.id, name: name.trim() }));
+              void sendEdit(
+                transport,
+                cmd("Track", {
+                  type: "Rename",
+                  id: track.id,
+                  name: name.trim(),
+                }),
+              );
             }
           }}
         />
@@ -195,6 +283,7 @@ function TrackHeader({ row }: { row: Row }) {
           {track.name}
         </span>
       )}
+      <FreezeHeaderStatus track={track} transport={transport} />
       <HeaderVolume track={track} />
       <span className="eth-arr-header__buttons" onClick={stop}>
         <button
@@ -204,7 +293,12 @@ function TrackHeader({ row }: { row: Row }) {
           aria-pressed={mute}
           aria-label={`Mute ${track.name}`}
           title={mute ? "Unmute" : "Mute"}
-          onClick={() => void sendEdit(transport, cmd("Mixer", { type: "SetMute", track: track.id, mute: !mute }))}
+          onClick={() =>
+            void sendEdit(
+              transport,
+              cmd("Mixer", { type: "SetMute", track: track.id, mute: !mute }),
+            )
+          }
         >
           {mute ? <VolumeX /> : <Volume2 />}
         </button>
@@ -219,7 +313,12 @@ function TrackHeader({ row }: { row: Row }) {
             onClick={(e) =>
               void sendEdit(
                 transport,
-                cmd("Mixer", { type: "SetSolo", track: track.id, solo: !solo, exclusive: !solo && !(e.ctrlKey || e.metaKey) }),
+                cmd("Mixer", {
+                  type: "SetSolo",
+                  track: track.id,
+                  solo: !solo,
+                  exclusive: !solo && !(e.ctrlKey || e.metaKey),
+                }),
               )
             }
           >
@@ -237,11 +336,17 @@ function TrackHeader({ row }: { row: Row }) {
             onClick={(e) =>
               void transport
                 .send(
-                  cmd("Recording", { type: "Arm", track: track.id, armed: !armed, exclusive: !(e.ctrlKey || e.metaKey) }),
+                  cmd("Recording", {
+                    type: "Arm",
+                    track: track.id,
+                    armed: !armed,
+                    exclusive: !(e.ctrlKey || e.metaKey),
+                  }),
                 )
                 // Arming an audio track with no input device open: offer to choose one.
                 .then(() => {
-                  if (!armed && track.kind === "Audio") void promptForInputIfNone(transport);
+                  if (!armed && track.kind === "Audio")
+                    void promptForInputIfNone(transport);
                 })
                 .catch((err: unknown) => console.warn("arm failed", err))
             }
@@ -257,7 +362,13 @@ function TrackHeader({ row }: { row: Row }) {
 }
 
 /** Inline rename field: Enter or blur commits, Escape cancels (`onDone(null)`). */
-function TrackNameInput({ name, onDone }: { name: string; onDone: (name: string | null) => void }) {
+function TrackNameInput({
+  name,
+  onDone,
+}: {
+  name: string;
+  onDone: (name: string | null) => void;
+}) {
   const [value, setValue] = useState(name);
   const done = useRef(false);
   const finish = (v: string | null) => {
@@ -288,10 +399,15 @@ function TrackNameInput({ name, onDone }: { name: string; onDone: (name: string 
 /** Live level along the header's right edge (its own component: re-renders at meter rate). */
 function HeaderMeter({ track }: { track: TrackId }) {
   const meter = useTrackMeter(track);
-  const level = meter ? meterPosition(Math.max(meter.peak[0], meter.peak[1])) : 0;
+  const level = meter
+    ? meterPosition(Math.max(meter.peak[0], meter.peak[1]))
+    : 0;
   return (
     <span className="eth-arr-header__meter" aria-hidden>
-      <span className="eth-arr-header__meter-fill" style={{ transform: `scaleY(${level})` }} />
+      <span
+        className="eth-arr-header__meter-fill"
+        style={{ transform: `scaleY(${level})` }}
+      />
     </span>
   );
 }
@@ -311,7 +427,10 @@ function ResizeHandle({ row }: { row: Row }) {
     const ui = useArrangementUi.getState();
     const move = (ev: globalThis.PointerEvent) => {
       const h = startH + ev.clientY - startY;
-      ui.setHeight(row.track.id, ev.altKey ? h : Math.round(h / TRACK_HEIGHT_STEP) * TRACK_HEIGHT_STEP);
+      ui.setHeight(
+        row.track.id,
+        ev.altKey ? h : Math.round(h / TRACK_HEIGHT_STEP) * TRACK_HEIGHT_STEP,
+      );
     };
     const done = () => {
       window.removeEventListener("pointermove", move);
@@ -353,7 +472,9 @@ function useLaneView() {
   const pxPerBeat = useSettledZoom(arrangementView);
   const width = useTimelineView(arrangementView, (s) => s.widthPx) || 4000;
   const span = width / pxPerBeat;
-  const step = useTimelineView(arrangementView, (s) => Math.floor(s.scrollBeats / span));
+  const step = useTimelineView(arrangementView, (s) =>
+    Math.floor(s.scrollBeats / span),
+  );
   return useMemo(() => {
     const origin = Math.max(0, (step - 1) * span);
     return {
@@ -369,7 +490,13 @@ function useLaneView() {
  * Positions lane content (laid out in beats from `origin`, see laneGeometry.ts) at the live
  * zoom and scroll, outside React: writes `--ppb` and the scroll transform on every change.
  */
-function LaneLayer({ origin, children }: { origin: Beats; children: ReactNode }) {
+function LaneLayer({
+  origin,
+  children,
+}: {
+  origin: Beats;
+  children: ReactNode;
+}) {
   const ref = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
     const el = ref.current;
@@ -395,13 +522,21 @@ function TrackLane({ track }: { track: Track }) {
   const ctx = useArrangement();
   const clips = useProjectStore((s) => s.project?.clips ?? EMPTY_CLIPS);
   const preview = useArrangementUi((s) => s.preview);
-  const dropHint = useArrangementUi((s) => (s.dropHint?.track === track.id ? s.dropHint.at : null));
+  const dropHint = useArrangementUi((s) =>
+    s.dropHint?.track === track.id ? s.dropHint.at : null,
+  );
   const imports = useArrangementUi((s) => s.imports);
   const tempo = useTempoMap();
   const { vp, visible } = useLaneView();
-  const items = useMemo(() => laneItems(clips, track.id, preview), [clips, track.id, preview]);
+  const items = useMemo(
+    () => laneItems(clips, track.id, preview),
+    [clips, track.id, preview],
+  );
   // Clips too small to be elements are painted on one canvas per lane (smallClips.ts).
-  const { singles, small } = useMemo(() => splitSmallClips(items, vp.pxPerBeat), [items, vp.pxPerBeat]);
+  const { singles, small } = useMemo(
+    () => splitSmallClips(items, vp.pxPerBeat),
+    [items, vp.pxPerBeat],
+  );
   const selectedClips = useSelectedItems("clip");
 
   const [insert, setInsert] = useState<InsertSpan | null>(null);
@@ -416,7 +551,12 @@ function TrackLane({ track }: { track: Track }) {
 
   return (
     <div
-      className={clsx("eth-arr-lane", track.kind !== "Audio" && track.kind !== "Midi" && "eth-arr-lane--no-clips")}
+      className={clsx(
+        "eth-arr-lane",
+        track.kind !== "Audio" &&
+          track.kind !== "Midi" &&
+          "eth-arr-lane--no-clips",
+      )}
       data-lane={track.id}
       onPointerDown={(e) => {
         // A painted clip behaves like a clip's title bar (select, drag, cmd-copy).
@@ -425,7 +565,8 @@ function TrackLane({ track }: { track: Track }) {
           onClipPointerDown(e, it.clip, ctx);
           return;
         }
-        if (track.kind === "Midi") onLaneInsertPointerDown(e, track.id, ctx, setInsert);
+        if (track.kind === "Midi")
+          onLaneInsertPointerDown(e, track.id, ctx, setInsert);
       }}
       onDoubleClick={(e) => {
         const it = smallUnder(e);
@@ -434,83 +575,116 @@ function TrackLane({ track }: { track: Track }) {
       onContextMenu={(e) => {
         const it = smallUnder(e);
         if (it) {
-          openContextMenu(e, clipMenu(ctx.transport, it.clip));
+          openContextMenu(
+            e,
+            withFreezeClipEntries(
+              clipMenu(ctx.transport, it.clip),
+              ctx.transport,
+              it.clip,
+            ),
+          );
           return;
         }
         // Empty space (or a clip's body, which lets clicks through): paste here.
         const x = e.clientX - e.currentTarget.getBoundingClientRect().left;
         const s = arrangementView.getState();
-        const step = resolveGrid(useArrangementUi.getState().grid, s.pxPerBeat, tempo.signatureAt(s.scrollBeats));
-        const at = Math.max(0, snapToGrid(pxToBeats(x, s), e.altKey ? null : step, tempo, "floor"));
+        const step = resolveGrid(
+          useArrangementUi.getState().grid,
+          s.pxPerBeat,
+          tempo.signatureAt(s.scrollBeats),
+        );
+        const at = Math.max(
+          0,
+          snapToGrid(pxToBeats(x, s), e.altKey ? null : step, tempo, "floor"),
+        );
         openContextMenu(e, [
-          { label: "Paste", shortcut: `${MOD_KEY}V`, disabled: !hasClipboard(), onSelect: () => void pasteClips(ctx.transport, at, track.id) },
+          {
+            label: "Paste",
+            shortcut: `${MOD_KEY}V`,
+            disabled: !hasClipboard(),
+            onSelect: () => void pasteClips(ctx.transport, at, track.id),
+          },
           // collab-social: pin a note here (hidden while "Hide users and notes" is on).
           ...withSeparator(leaveNoteEntries({ kind: "arranger" }, e)),
         ]);
       }}
     >
       <LaneLayer origin={vp.scrollBeats}>
-      {small.length > 0 && (
-        <SmallClipsLayer
-          items={small}
-          origin={vp.scrollBeats}
-          visible={visible}
-          pxPerBeat={vp.pxPerBeat}
-          trackColor={track.color}
-          selected={selectedClips}
-        />
-      )}
-      {singles.map((it) =>
-        it.bounds.start + it.bounds.length < visible.start || it.bounds.start > visible.end ? null : (
-          <ClipView
-            key={(it.ghost ? "ghost:" : "") + it.clip.id}
-            clip={it.clip}
-            bounds={it.bounds}
-            trackColor={track.color}
-            vp={vp}
+        {small.length > 0 && (
+          <SmallClipsLayer
+            items={small}
+            origin={vp.scrollBeats}
             visible={visible}
-            tempo={tempo}
-            dragging={it.dragging}
-            ghost={it.ghost}
+            pxPerBeat={vp.pxPerBeat}
+            trackColor={track.color}
+            selected={selectedClips}
           />
-        ),
-      )}
-      {insert && (
-        <div
-          className="eth-clip eth-clip--ghost"
-          data-testid="insert-preview"
-          style={{
-            left: beatsCss(insert.start - vp.scrollBeats),
-            width: widthCss(insert.length),
-            ["--eth-clip-color" as string]: colorCss(track.color),
-          }}
-        />
-      )}
-      {dropHint !== null && (
-        <div className="eth-arr-lane__drop-hint" style={{ left: beatsCss(dropHint - vp.scrollBeats) }} />
-      )}
-      {imports.map((i) =>
-        i.track === track.id ? (
-          <ImportPlaceholder key={i.id} item={i} style={{ left: beatsCss(i.at - vp.scrollBeats) }} />
-        ) : null,
-      )}
-      {(track.kind === "Audio" || track.kind === "Midi") && (
-        <LiveRecordLane
-          transport={ctx.transport}
-          track={track.id}
-          color={track.color}
-          origin={vp.scrollBeats}
-          visible={visible}
-          pxPerBeat={vp.pxPerBeat}
-        />
-      )}
+        )}
+        {singles.map((it) =>
+          it.bounds.start + it.bounds.length < visible.start ||
+          it.bounds.start > visible.end ? null : (
+            <ClipView
+              key={(it.ghost ? "ghost:" : "") + it.clip.id}
+              clip={it.clip}
+              bounds={it.bounds}
+              trackColor={track.color}
+              vp={vp}
+              visible={visible}
+              tempo={tempo}
+              dragging={it.dragging}
+              ghost={it.ghost}
+            />
+          ),
+        )}
+        {insert && (
+          <div
+            className="eth-clip eth-clip--ghost"
+            data-testid="insert-preview"
+            style={{
+              left: beatsCss(insert.start - vp.scrollBeats),
+              width: widthCss(insert.length),
+              ["--eth-clip-color" as string]: colorCss(track.color),
+            }}
+          />
+        )}
+        {dropHint !== null && (
+          <div
+            className="eth-arr-lane__drop-hint"
+            style={{ left: beatsCss(dropHint - vp.scrollBeats) }}
+          />
+        )}
+        {imports.map((i) =>
+          i.track === track.id ? (
+            <ImportPlaceholder
+              key={i.id}
+              item={i}
+              style={{ left: beatsCss(i.at - vp.scrollBeats) }}
+            />
+          ) : null,
+        )}
+        {(track.kind === "Audio" || track.kind === "Midi") && (
+          <LiveRecordLane
+            transport={ctx.transport}
+            track={track.id}
+            color={track.color}
+            origin={vp.scrollBeats}
+            visible={visible}
+            pxPerBeat={vp.pxPerBeat}
+          />
+        )}
       </LaneLayer>
     </div>
   );
 }
 
 /** A browser drop still importing (or failed), shown where the clip will go. */
-export function ImportPlaceholder({ item, style }: { item: PendingImport; style?: CSSProperties }) {
+export function ImportPlaceholder({
+  item,
+  style,
+}: {
+  item: PendingImport;
+  style?: CSSProperties;
+}) {
   const text = item.error
     ? `Import failed: ${item.name}`
     : `Importing ${item.name}…${item.progress !== null ? ` ${Math.round(item.progress * 100)}%` : ""}`;
@@ -529,21 +703,39 @@ export function ImportPlaceholder({ item, style }: { item: PendingImport; style?
 
 /** Group lane: a summary of the clips of every track inside the group. */
 function GroupLane({ track }: { track: Track }) {
-  const summary = useProjectStore((s) => (s.project ? groupSummaryKey(s.project.tracks, s.project.clips, track.id) : ""));
+  const summary = useProjectStore((s) =>
+    s.project
+      ? groupSummaryKey(s.project.tracks, s.project.clips, track.id)
+      : "",
+  );
   const { vp } = useLaneView();
-  const spans = useMemo(() => (summary ? summary.split(";").map((p) => p.split(",").map(Number) as [number, number]) : []), [summary]);
+  const spans = useMemo(
+    () =>
+      summary
+        ? summary
+            .split(";")
+            .map((p) => p.split(",").map(Number) as [number, number])
+        : [],
+    [summary],
+  );
   return (
-    <div className="eth-arr-lane eth-arr-lane--group" data-lane={track.id} style={{ ["--eth-track-color" as string]: colorCss(track.color) }}>
+    <div
+      className="eth-arr-lane eth-arr-lane--group"
+      data-lane={track.id}
+      style={{ ["--eth-track-color" as string]: colorCss(track.color) }}
+    >
       <LaneLayer origin={vp.scrollBeats}>
         {spans.map(([s, l], i) => (
           <div
             key={i}
             className="eth-arr-lane__summary"
-            style={{ left: beatsCss(s - vp.scrollBeats), width: widthCss(l, 1) }}
+            style={{
+              left: beatsCss(s - vp.scrollBeats),
+              width: widthCss(l, 1),
+            }}
           />
         ))}
       </LaneLayer>
     </div>
   );
 }
-
