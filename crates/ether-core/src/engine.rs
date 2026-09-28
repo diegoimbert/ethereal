@@ -1386,6 +1386,9 @@ impl JobCtx<'_> {
                 };
             }
             *overflow |= out_events.overflowed();
+            if !chain_racks.is_empty() {
+                chain_racks.finish(key, out_events);
+            }
             match n_out {
                 0 => {}
                 1 => {

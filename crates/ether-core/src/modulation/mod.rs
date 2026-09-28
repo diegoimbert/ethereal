@@ -39,6 +39,8 @@
 //! - **Steps**: tempo-synced step sequencer (holds while stopped), `Smooth` glides.
 //! - **Random**: sample-and-hold, values derived from a hash of the period index (so
 //!   renders are deterministic and block-size independent), `Smooth` glides.
+//! - **Keytrack / Velocity**: the last note-on's key / velocity reaching the host, placed
+//!   between the kind's Low (0) and High (1) params (held until the next note).
 //! - **Macros**: the rack's macro value.
 //!
 //! RT rules apply (no allocation after compile); compiles on wasm32.
@@ -238,7 +240,11 @@ fn lfo_shape(shape: f64, phase: f64) -> f64 {
         1 => {
             // Triangle: 0 at phase 0, rising.
             let t = (x + 0.25) % 1.0;
-            if t < 0.5 { 4.0 * t - 1.0 } else { 3.0 - 4.0 * t }
+            if t < 0.5 {
+                4.0 * t - 1.0
+            } else {
+                3.0 - 4.0 * t
+            }
         }
         2 => 2.0 * x - 1.0,
         3 => 1.0 - 2.0 * x,
@@ -266,12 +272,11 @@ fn sync_beats(index: f64) -> f64 {
     SYNC_RATE_BEATS[(index.round().max(0.0) as usize).min(SYNC_RATE_BEATS.len() - 1)]
 }
 
-/// Sample clock of a knot: absolute samples and the beat there.
+/// Transport state at a knot.
 #[derive(Clone, Copy, Debug)]
 struct Clock {
     playing: bool,
     beat: f64,
-    sample: u64,
     sr: f64,
 }
 
@@ -281,7 +286,7 @@ impl Source {
     }
 
     /// A note-on reached the host.
-    fn note_on(&mut self, note_id: u32, velocity: f32, clock: Clock) {
+    fn note_on(&mut self, note_id: u32, key: u8, velocity: f32, clock: Clock) {
         match self.kind {
             ModulatorKind::Lfo => {
                 if self.p[5].round() as i64 == 1 {
@@ -289,6 +294,10 @@ impl Source {
                     self.st.since = 0.0;
                     self.st.trigger_beat = clock.beat;
                 }
+            }
+            ModulatorKind::Keytrack | ModulatorKind::Velocity => {
+                self.st.env_velocity = velocity.clamp(0.0, 1.0) as f64;
+                self.st.env_note = Some(key as u32);
             }
             ModulatorKind::Envelope => {
                 self.st.env_stage = EnvStage::Attack;
@@ -316,22 +325,27 @@ impl Source {
     fn notes(&mut self, e: &ProcessEvent, clock: Clock) {
         match e.kind {
             EventKind::NoteOn {
-                note_id, velocity, ..
-            } => self.note_on(note_id, velocity, clock),
+                note_id,
+                key,
+                velocity,
+                ..
+            } => self.note_on(note_id, key, velocity, clock),
             EventKind::NoteOff { note_id, .. } | EventKind::NoteChoke { note_id, .. } => {
                 self.note_off(Some(note_id))
             }
             EventKind::AllNotesOff => self.note_off(None),
             EventKind::Midi { data } if data[0] & 0xf0 == 0x90 && data[2] > 0 => {
-                self.note_on(u32::MAX, data[2] as f32 / 127.0, clock)
+                self.note_on(u32::MAX, data[1], data[2] as f32 / 127.0, clock)
             }
             _ => {}
         }
     }
 
     fn uses_notes(&self) -> bool {
-        matches!(self.kind, ModulatorKind::Envelope)
-            || (self.kind == ModulatorKind::Lfo && self.p[5].round() as i64 == 1)
+        matches!(
+            self.kind,
+            ModulatorKind::Envelope | ModulatorKind::Keytrack | ModulatorKind::Velocity
+        ) || (self.kind == ModulatorKind::Lfo && self.p[5].round() as i64 == 1)
     }
 
     /// Advance by `k` samples, ending at `clock`, and update `value`.
@@ -387,7 +401,8 @@ impl Source {
                         EnvStage::Decay => {
                             // Exponential towards sustain (time constant = decay / 5).
                             let c = (-5.0 / ms(self.p[1])).exp();
-                            self.st.env_level = sustain + (self.st.env_level - sustain) * c.powf(left);
+                            self.st.env_level =
+                                sustain + (self.st.env_level - sustain) * c.powf(left);
                             left = 0.0;
                         }
                         EnvStage::Release => {
@@ -404,6 +419,23 @@ impl Source {
                 let vel = (self.p[4] / 100.0).clamp(0.0, 1.0);
                 let scale = 1.0 - vel * (1.0 - self.st.env_velocity);
                 self.st.value = (self.st.env_level * scale).clamp(0.0, 1.0);
+            }
+            ModulatorKind::Keytrack | ModulatorKind::Velocity => {
+                // Position of the last key / velocity between Low (0) and High (1).
+                let Some(key) = self.st.env_note else {
+                    return;
+                };
+                let x = if self.kind == ModulatorKind::Keytrack {
+                    key as f64
+                } else {
+                    (self.st.env_velocity * 127.0).round()
+                };
+                let (lo, hi) = (self.p[0], self.p[1]);
+                self.st.value = if hi == lo {
+                    if x >= hi { 1.0 } else { 0.0 }
+                } else {
+                    ((x - lo) / (hi - lo)).clamp(0.0, 1.0)
+                };
             }
             ModulatorKind::EnvelopeFollower => {
                 let gain = 10f64.powf(self.p[2] / 20.0);
@@ -512,8 +544,6 @@ fn push_change<T: Copy>(list: &mut [T; MAX_CHANGES], n: &mut usize, v: T) {
 pub(crate) struct ModulationRt {
     /// Track indices of envelope-follower sidechain sources (distinct, sorted).
     sidechain_sources: Vec<usize>,
-    /// Per sidechain source: extra delay of its tap (PDC).
-    sidechain_delay: Vec<u32>,
     sources: Vec<Source>,
     macros: Vec<MacroRt>,
     targets: Vec<Target>,
@@ -531,24 +561,13 @@ pub(crate) struct ModulationRt {
 impl ModulationRt {
     /// Non-RT (graph compile). `sidechain_sources`: track indices of the envelope-follower
     /// sidechain sources of this track (finished before its job; their `tap` is kept).
+    /// Non-RT (graph compile). `sidechain_sources`: track indices of the envelope-follower
+    /// sidechain sources of this track (finished before its job; their `tap` is kept);
+    /// `latency`: their ids and output latencies, and the host entries' input positions.
     pub(crate) fn compile(
         desc: &ModulationDesc,
         sidechain_sources: Vec<usize>,
-        config: &EngineConfig,
-    ) -> Self {
-        Self::compile_with(
-            desc,
-            sidechain_sources,
-            &SidechainLatency::default(),
-            config,
-        )
-    }
-
-    /// Non-RT. [`Self::compile`] with PDC info for the follower sidechains.
-    pub(crate) fn compile_with(
-        desc: &ModulationDesc,
-        sidechain_sources: Vec<usize>,
-        latency: &SidechainLatency,
+        latency: SidechainLatency,
         config: &EngineConfig,
     ) -> Self {
         let frames = config.max_block_size;
@@ -575,14 +594,7 @@ impl ModulationRt {
                 let sidechain = m
                     .sidechain
                     .filter(|_| m.kind == ModulatorKind::EnvelopeFollower)
-                    .and_then(|t| {
-                        match latency.sources.iter().position(|(id, _)| *id == t) {
-                            Some(i) => Some(i),
-                            // Without latency info: the only source, if there is one.
-                            None if sidechain_sources.len() == 1 => Some(0),
-                            None => None,
-                        }
-                    })
+                    .and_then(|t| latency.sources.iter().position(|(id, _)| *id == t))
                     .filter(|&i| i < sidechain_sources.len());
                 let delay = sidechain
                     .and_then(|i| latency.sources.get(i))
@@ -650,12 +662,8 @@ impl ModulationRt {
             }
         }
         targets.sort_by_key(|t| (t.node, t.param));
-        let sidechain_delay = (0..sidechain_sources.len())
-            .map(|i| latency.sources.get(i).map_or(0, |s| s.1))
-            .collect();
         Self {
             sidechain_sources,
-            sidechain_delay,
             sources,
             macros,
             targets,
@@ -682,26 +690,18 @@ impl ModulationRt {
         let Some(i) = self.sidechain_sources.iter().position(|&s| s == source) else {
             return;
         };
-        let _ = self.sidechain_delay.get(i);
         let sr = self.sample_rate;
         for s in self.sources.iter_mut().filter(|s| s.sidechain == Some(i)) {
-            let [l, r] = &mut s.sc_buf;
-            l[..n].copy_from_slice(&tap[0][..n]);
-            r[..n].copy_from_slice(&tap[1][..n]);
-            s.sc_delay.process(&mut l[..n], &mut r[..n]);
-            let (l, r) = (&s.sc_buf[0][..n], &s.sc_buf[1][..n]);
-            // Borrow split: detect on the delayed copy.
-            let mut tmp = s.st;
-            let coef = |ms: f64| 1.0 - (-1.0 / (ms.max(0.01) * 0.001 * sr)).exp();
-            let (att, rel) = (coef(s.p[0]), coef(s.p[1]));
-            let mut env = tmp.follower;
-            for (a, b) in l.iter().zip(r) {
-                let x = a.abs().max(b.abs()) as f64;
-                let x = if x.is_finite() { x } else { 0.0 };
-                env += (x - env) * if x > env { att } else { rel };
+            // Swap the buffer out (no allocation) to detect on the delayed copy.
+            let mut buf = std::mem::take(&mut s.sc_buf);
+            {
+                let [l, r] = &mut buf;
+                l[..n].copy_from_slice(&tap[0][..n]);
+                r[..n].copy_from_slice(&tap[1][..n]);
+                s.sc_delay.process(&mut l[..n], &mut r[..n]);
             }
-            tmp.follower = if env < 1e-9 { 0.0 } else { env };
-            s.st = tmp;
+            s.follow(&buf[0][..n], &buf[1][..n], sr);
+            s.sc_buf = buf;
         }
     }
 
@@ -820,7 +820,10 @@ impl ModulationRt {
         self.notes.clear();
         let host0 = chain.first().map(|c| c.key);
         if let Some(first) = chain.first()
-            && self.sources.iter().any(|s| s.uses_notes() && Some(s.host) == host0)
+            && self
+                .sources
+                .iter()
+                .any(|s| s.uses_notes() && Some(s.host) == host0)
         {
             for e in first.events.as_slice() {
                 if matches!(
@@ -849,7 +852,7 @@ impl ModulationRt {
         self.knots.clear();
         let resend = self.targets.iter().any(|t| t.last.is_nan());
         let cap = self.knots.capacity();
-        let mut add = |knots: &mut Vec<u32>, o: u32| {
+        let add = |knots: &mut Vec<u32>, o: u32| {
             if knots.len() < cap {
                 knots.push(o);
             }
@@ -883,7 +886,6 @@ impl ModulationRt {
             } else {
                 timing.b0
             },
-            sample: timing.sample_time + o as u64,
             sr,
         };
         let mut pos = 0.0f64;
@@ -949,8 +951,7 @@ impl ModulationRt {
                         value: plain,
                     },
                 };
-                let buf: Option<&mut EventBuffer> = match chain.iter_mut().find(|c| c.key == node)
-                {
+                let buf: Option<&mut EventBuffer> = match chain.iter_mut().find(|c| c.key == node) {
                     Some(c) => Some(&mut c.events),
                     None => match racks.events_mut(node) {
                         Some(e) => Some(e),
@@ -998,7 +999,6 @@ impl ModulationRt {
         let clock = Clock {
             playing: self.was_playing,
             beat: 0.0,
-            sample: 0,
             sr,
         };
         for s in self.sources.iter_mut().filter(|s| s.host == key) {
@@ -1087,7 +1087,6 @@ mod tests {
         Clock {
             playing: true,
             beat,
-            sample: 0,
             sr: 48_000.0,
         }
     }
@@ -1148,7 +1147,7 @@ mod tests {
             ModulatorKind::Envelope,
             &[(0, 10.0), (1, 100.0), (2, 50.0), (3, 100.0)],
         );
-        s.note_on(1, 1.0, clock(0.0));
+        s.note_on(1, 60, 1.0, clock(0.0));
         s.advance(240.0, clock(0.0));
         assert!((s.st.value - 0.5).abs() < 1e-6, "{}", s.st.value);
         s.advance(240.0 + 48_000.0, clock(0.0));
@@ -1180,6 +1179,18 @@ mod tests {
         assert_eq!(s.st.value, 0.5);
         s.advance(1.0, clock(6.0));
         assert_eq!(s.st.value, 1.0);
+    }
+
+    #[test]
+    fn keytrack_and_velocity_place_the_last_note() {
+        let mut k = source(ModulatorKind::Keytrack, &[(0, 36.0), (1, 96.0)]);
+        k.note_on(1, 66, 0.5, clock(0.0));
+        k.advance(1.0, clock(0.0));
+        assert!((k.st.value - 0.5).abs() < 1e-9);
+        let mut v = source(ModulatorKind::Velocity, &[(0, 0.0), (1, 127.0)]);
+        v.note_on(1, 66, 1.0, clock(0.0));
+        v.advance(1.0, clock(0.0));
+        assert_eq!(v.st.value, 1.0);
     }
 
     #[test]

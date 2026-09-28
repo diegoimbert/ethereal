@@ -895,7 +895,7 @@ runtime; `PresetEvent::Changed` after user-set changes. Sample-based presets car
 - Modulators live **inside any track-chain device** (not on drum-pad or rack-chain devices in
   v0.2, so every host is an entry the engine's `pre_node` hook sees; a rack's modulators reach
   its chain devices) (`Modulator { device, order, name, kind, params, sidechain }`,
-  kinds `Lfo`, `Envelope`, `EnvelopeFollower`, `Steps`, `Random`; param tables frozen in
+  kinds `Lfo`, `Envelope`, `EnvelopeFollower`, `Steps`, `Random`, `Keytrack`, `Velocity` (appended by BCR base-87, unipolar); param tables frozen in
   `ether_devices::modulators`). `ModMapping { source: Modulator | Macro { rack, index },
   device, param, depth -1..=1 }`, one per (source, target). Scope: a modulator targets its
   host and, for a rack host, devices on the rack's chains, never the rack's own macros (no

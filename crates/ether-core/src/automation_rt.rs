@@ -367,7 +367,7 @@ impl NodeParams<'_, '_, '_, '_> {
             }
             *last = plain;
             // Modulated params: automation sets the base (`crate::modulation`).
-            if !self.modulation.intercept(node, param, plain) {
+            if !self.modulation.intercept_at(node, param, plain, o) {
                 events.push(ProcessEvent {
                     offset: o,
                     kind: EventKind::Param {
