@@ -26,6 +26,7 @@ static ALLOC: assert_no_alloc::AllocDisabler = assert_no_alloc::AllocDisabler;
 /// APPEND-ONLY: each device node adds one line per type it implements (base-86).
 const IMPLEMENTED: &[BuiltinDeviceType] = &[
     // (device nodes append here)
+    BuiltinDeviceType::PolySynth,
 ];
 
 const GROUPS: &[(&str, &[BuiltinDeviceType])] = &[

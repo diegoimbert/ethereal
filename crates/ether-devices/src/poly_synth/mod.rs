@@ -846,9 +846,62 @@ pub fn create(device: &BuiltinDevice) -> Box<dyn Device> {
     Box::new(PolySynth::new())
 }
 
-/// Factory presets of a type of this group (embedded; add `FactoryPreset { id, json:
-/// include_str!("../../presets/<device-key>/<slug>.etherpreset") }` entries).
+/// Factory presets (pads, basses, plucks, keys, leads), embedded.
+static FACTORY_PRESETS: [FactoryPreset; 12] = [
+    FactoryPreset {
+        id: "poly-synth/supersaw-pad",
+        json: include_str!("../../presets/poly-synth/supersaw-pad.etherpreset"),
+    },
+    FactoryPreset {
+        id: "poly-synth/glass-pad",
+        json: include_str!("../../presets/poly-synth/glass-pad.etherpreset"),
+    },
+    FactoryPreset {
+        id: "poly-synth/vocal-choir",
+        json: include_str!("../../presets/poly-synth/vocal-choir.etherpreset"),
+    },
+    FactoryPreset {
+        id: "poly-synth/deep-sub",
+        json: include_str!("../../presets/poly-synth/deep-sub.etherpreset"),
+    },
+    FactoryPreset {
+        id: "poly-synth/acid-bass",
+        json: include_str!("../../presets/poly-synth/acid-bass.etherpreset"),
+    },
+    FactoryPreset {
+        id: "poly-synth/reese-bass",
+        json: include_str!("../../presets/poly-synth/reese-bass.etherpreset"),
+    },
+    FactoryPreset {
+        id: "poly-synth/bright-pluck",
+        json: include_str!("../../presets/poly-synth/bright-pluck.etherpreset"),
+    },
+    FactoryPreset {
+        id: "poly-synth/soft-keys",
+        json: include_str!("../../presets/poly-synth/soft-keys.etherpreset"),
+    },
+    FactoryPreset {
+        id: "poly-synth/drawbar-organ",
+        json: include_str!("../../presets/poly-synth/drawbar-organ.etherpreset"),
+    },
+    FactoryPreset {
+        id: "poly-synth/sync-lead",
+        json: include_str!("../../presets/poly-synth/sync-lead.etherpreset"),
+    },
+    FactoryPreset {
+        id: "poly-synth/pwm-lead",
+        json: include_str!("../../presets/poly-synth/pwm-lead.etherpreset"),
+    },
+    FactoryPreset {
+        id: "poly-synth/metal-bell",
+        json: include_str!("../../presets/poly-synth/metal-bell.etherpreset"),
+    },
+];
+
+/// Factory presets of a type of this group.
 pub fn factory_presets(ty: BuiltinDeviceType) -> &'static [FactoryPreset] {
-    let _ = ty;
-    &[]
+    match ty {
+        BuiltinDeviceType::PolySynth => &FACTORY_PRESETS,
+        _ => &[],
+    }
 }

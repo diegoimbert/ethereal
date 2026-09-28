@@ -251,7 +251,7 @@ fn every_wavetable_sounds_across_its_positions_and_the_keyboard() {
             assert!(l.iter().all(|v| v.is_finite()));
             let pk = peak(&l[2_000..]);
             assert!(
-                pk > 0.02 && pk < 1.5,
+                pk > 0.01 && pk < 1.0,
                 "table {table} pos {pos} key {key}: {pk}"
             );
         }
@@ -570,6 +570,7 @@ fn factory_presets_load_and_sound() {
         "{} presets",
         presets.len()
     );
+    let mut bad = vec![];
     for fp in presets {
         let preset = load_preset(fp.json).unwrap();
         let mut rig = Rig::new();
@@ -591,14 +592,18 @@ fn factory_presets_load_and_sound() {
             ],
         );
         let pk = peak(&l).max(peak(&r));
-        assert!(
-            (0.05..1.0).contains(&pk),
-            "{}: chord peak {pk} ({:.1} dBFS)",
+        println!(
+            "{:28} chord peak {:6.1} dBFS, rms {:6.1} dBFS",
             fp.id,
-            20.0 * pk.log10()
+            20.0 * pk.log10(),
+            20.0 * rms(&l[..48_000]).log10()
         );
+        if !(0.1..0.95).contains(&pk) {
+            bad.push(format!("{}: chord peak {pk}", fp.id));
+        }
         assert!(l.iter().chain(&r).all(|v| v.is_finite()), "{}", fp.id);
     }
+    assert!(bad.is_empty(), "{bad:?}");
 }
 
 /// CPU budget: 16 voices × 4 unison (two oscillators, one a wavetable, ladder filter with

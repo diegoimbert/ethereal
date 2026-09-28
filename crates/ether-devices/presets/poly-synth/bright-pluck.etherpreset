@@ -1,0 +1,48 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "Bright Pluck",
+    "device": {
+      "type": "Builtin",
+      "device": "PolySynth"
+    },
+    "meta": {
+      "tags": [
+        "bright",
+        "pluck",
+        "short"
+      ],
+      "author": "Ethereal",
+      "description": "Saw and a narrow square an octave up, fast filter envelope."
+    },
+    "params": {
+      "0": 0.0,
+      "7": 1.0,
+      "9": 1.0,
+      "12": 30.0,
+      "13": -9.0,
+      "18": 2.0,
+      "19": 10.0,
+      "20": 55.0,
+      "25": 1.0,
+      "26": 500.0,
+      "27": 30.0,
+      "29": 50.0,
+      "30": 58.0,
+      "31": 0.0,
+      "32": 450.0,
+      "33": 0.0,
+      "34": 320.0,
+      "35": 0.0,
+      "36": 240.0,
+      "37": 0.0,
+      "38": 200.0,
+      "57": -11.0,
+      "58": 60.0
+    },
+    "kind": null,
+    "state": null
+  }
+}

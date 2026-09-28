@@ -1174,7 +1174,7 @@ fn render_voice(
     // Pre-filter headroom: the saturator sees about ±0.5 per oscillator at drive 0 dB.
     let pre = 0.5 * c.drive_comp.max(0.0);
     let drive = c.drive;
-    let post = 2.0 * c.drive_comp;
+    let post = c.drive_comp;
     let (left, rest) = outputs.split_at_mut(1);
     let out_l = &mut left[0][pos..pos + n];
     let mut out_r = rest.first_mut().map(|r| &mut r[pos..pos + n]);

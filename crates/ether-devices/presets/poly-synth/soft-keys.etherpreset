@@ -1,0 +1,44 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "Soft Keys",
+    "device": {
+      "type": "Builtin",
+      "device": "PolySynth"
+    },
+    "meta": {
+      "tags": [
+        "keys",
+        "mellow",
+        "soft"
+      ],
+      "author": "Ethereal",
+      "description": "Triangle with a sine octave, velocity-sensitive tone and level."
+    },
+    "params": {
+      "0": 2.0,
+      "7": 3.0,
+      "9": 1.0,
+      "13": -10.0,
+      "25": 1.0,
+      "26": 2200.0,
+      "27": 10.0,
+      "29": 60.0,
+      "30": 25.0,
+      "31": 3.0,
+      "32": 1400.0,
+      "33": 35.0,
+      "34": 450.0,
+      "35": 0.0,
+      "36": 900.0,
+      "37": 20.0,
+      "38": 400.0,
+      "57": -11.0,
+      "58": 80.0
+    },
+    "kind": null,
+    "state": null
+  }
+}

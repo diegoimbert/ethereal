@@ -80,8 +80,17 @@ fn group_inserts_and_compiles(types: &[BuiltinDeviceType]) {
 // ─── device groups (placeholders until each node lands) ─────────────────────────────────
 
 #[test]
-fn synth_2_poly_synth_is_a_placeholder() {
+fn synth_2_poly_synth_inserts_compiles_and_keeps_its_params() {
     group_inserts_and_compiles(&[BuiltinDeviceType::PolySynth]);
+    // The real device (not a placeholder) reports the document's param values.
+    let mut dev = ether_devices::create(
+        &BuiltinDevice::new(BuiltinDeviceType::PolySynth),
+        &ether_devices::NoSamples,
+    );
+    let cutoff = ether_devices::poly_synth::poly_synth::CUTOFF;
+    dev.set_param(cutoff, 1234.0);
+    assert_eq!(dev.param(cutoff), Some(1234.0));
+    assert_eq!(dev.channels(), (0, 2));
 }
 
 #[test]
