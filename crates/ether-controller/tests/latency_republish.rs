@@ -20,8 +20,8 @@ use ether_core::protocol::clips::ClipCommand;
 use ether_core::protocol::devices::{DeviceCommand, DeviceDescriptor, DeviceSpec};
 use ether_core::protocol::media::{BrowseLocation, MediaCommand, MediaSource};
 use ether_core::protocol::mixer::MixerCommand;
-use ether_core::protocol::project::ProjectCommand;
 use ether_core::protocol::model::*;
+use ether_core::protocol::project::ProjectCommand;
 use ether_core::protocol::tracks::TrackCommand;
 use ether_core::protocol::transport::TransportCommand;
 use ether_core::protocol::*;
@@ -188,7 +188,11 @@ impl EngineBridge for RealBridge {
     fn destroy_node(&mut self, key: NodeKey) -> Result<(), BridgeError> {
         self.handle.remove_node(key).map_err(other)
     }
-    fn load_media(&mut self, media: &MediaRef, audio: Arc<DecodedAudio>) -> Result<(), BridgeError> {
+    fn load_media(
+        &mut self,
+        media: &MediaRef,
+        audio: Arc<DecodedAudio>,
+    ) -> Result<(), BridgeError> {
         let src: Arc<dyn AudioSource> = Arc::new(InMemorySource::new(audio));
         self.sources.insert(media.id, src.clone());
         self.handle.add_source(media.id, src).map_err(other)
@@ -436,7 +440,11 @@ fn changed_lookahead_republishes_and_stays_aligned() {
         assert_eq!(d.ctl.bridge.handle.latency() as usize, samples(ms));
         let (t, r) = d.onsets(a);
         assert_eq!(t, r, "track misaligned after lookahead -> {ms} ms");
-        assert_eq!(r, base + samples(ms), "reference not delayed by the new PDC");
+        assert_eq!(
+            r,
+            base + samples(ms),
+            "reference not delayed by the new PDC"
+        );
     }
 }
 
@@ -450,7 +458,10 @@ fn no_republish_when_latencies_are_stable() {
         d.ctl.bridge.render(BLOCK);
         d.tick();
     }
-    assert_eq!(d.ctl.bridge.publishes, before, "republished with stable latencies");
+    assert_eq!(
+        d.ctl.bridge.publishes, before,
+        "republished with stable latencies"
+    );
     let gate = d.gate;
     d.ok(Command::Device(DeviceCommand::SetParam {
         device: gate,
@@ -461,7 +472,11 @@ fn no_republish_when_latencies_are_stable() {
         d.ctl.bridge.render(BLOCK);
         d.tick();
     }
-    assert_eq!(d.ctl.bridge.publishes, before + 1, "one republish per change");
+    assert_eq!(
+        d.ctl.bridge.publishes,
+        before + 1,
+        "one republish per change"
+    );
 }
 
 /// The republish is debounced: while the lookahead keeps changing every block (a knob being

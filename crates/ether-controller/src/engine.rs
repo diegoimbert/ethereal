@@ -312,7 +312,8 @@ impl EngineState {
         // republish instead of going unnoticed.
         self.published_latency.clear();
         for n in self.nodes.values() {
-            self.published_latency.push((n.key, bridge.node_latency(n.key)));
+            self.published_latency
+                .push((n.key, bridge.node_latency(n.key)));
         }
         match bridge.publish(desc) {
             Ok(()) => {
