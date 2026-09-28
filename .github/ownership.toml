@@ -728,6 +728,22 @@ paths = [
   "apps/web/e2e/collab-stream*.spec.ts",
 ]
 
+[nodes.collab-converge]
+# Bugfix: replicas_converge proptest finds a case where a site keeps pending transactions after
+# settle (leave/rejoin + link kill + compaction). Found by media-references; pre-existing on dev.
+paths = [
+  "crates/ether-controller/src/collab/mod.rs",
+  "crates/ether-controller/src/collab/resolve.rs",
+  "crates/ether-controller/tests/collab.rs",
+  "crates/ether-controller/tests/collab_converge*.rs",
+  "crates/ether-controller/tests/collab.proptest-regressions",
+  "crates/ether-collab/src/relay/**",
+  "crates/ether-collab/src/memory.rs",
+  "crates/ether-collab/src/wire.rs",
+  "crates/ether-collab/tests/**",
+  "docs/COLLAB.md",
+]
+
 [nodes.turn-hardening]
 # Follow-up to stream-host (docs/COLLAB.md §10 known limitations): per-username verified cap,
 # counting real nonce inserts, rotation-decision tests. TURN stays experimental until merged.
