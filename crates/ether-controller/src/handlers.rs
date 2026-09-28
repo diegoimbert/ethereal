@@ -118,6 +118,8 @@ where
             // v0.2 (`freeze-bounce`): frozen tracks can't be edited.
             crate::freeze::check_editable(&doc.project, command)?;
         }
+        // base-62: a note added by this command is authored by our session identity.
+        let _note_author = self.social_note_scope(command);
         if doc::is_document_command(command, current) {
             let label = doc::label_of(command);
             self.edit_with(&label, msg.gesture, now, out, |ctx| {
@@ -134,7 +136,12 @@ where
                 }
                 self.project_command(p, now, out)
             }
-            Command::Transport(t) => self.transport_command(t, now, out),
+            Command::Transport(t) => {
+                let r = self.transport_command(t, now, out);
+                // base-62: peers see our playhead move at once.
+                self.social_transport_changed();
+                r
+            }
             Command::Device(DeviceCommand::ListBuiltin) => Ok(ReplyValue::DeviceTypes {
                 devices: ether_devices::all_descriptors(),
             }),

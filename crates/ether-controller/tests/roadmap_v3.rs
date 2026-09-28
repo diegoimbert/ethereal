@@ -16,7 +16,6 @@ use ether_core::protocol::media_refs::MediaRefCommand;
 use ether_core::protocol::model::*;
 use ether_core::protocol::presets::{PresetCommand, PresetRef, PresetSource};
 use ether_core::protocol::racks::{ModulationCommand, RackCommand};
-use ether_core::protocol::takes::TakeCommand;
 use ether_core::protocol::time_edit::{TimeEditCommand, TimeSelection};
 use ether_core::protocol::tracks::TrackCommand;
 use ether_core::protocol::{Command, ErrorCode, ReplyValue};
@@ -272,34 +271,6 @@ fn racks_modulation_reply_unsupported() {
     }
     // Rack params: 8 macros + chain selector.
     assert_eq!(h.project().devices[&rack].params.len(), 9);
-}
-
-#[test]
-fn comping_replies_unsupported() {
-    let mut h = Harness::with_project();
-    let t = track(&mut h, TrackKind::Audio);
-    let lane: TakeLaneId = h.id();
-    assert_unsupported(
-        &mut h,
-        Command::Take(TakeCommand::CreateLane {
-            id: lane,
-            track: t,
-            name: None,
-            before: None,
-        }),
-    );
-    let (id, split_id): (CompRegionId, CompRegionId) = (h.id(), h.id());
-    assert_unsupported(
-        &mut h,
-        Command::Take(TakeCommand::SetComp {
-            id,
-            split_id,
-            track: t,
-            lane,
-            start: Beats(0.0),
-            end: Beats(4.0),
-        }),
-    );
 }
 
 #[test]

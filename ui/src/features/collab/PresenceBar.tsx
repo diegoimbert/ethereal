@@ -1,14 +1,15 @@
 import "./collab.css";
 import { useContext, useEffect, useState, type CSSProperties, type FormEvent } from "react";
 import type { Presence, PresenceState, SiteId } from "@/generated";
-import { Button, Dialog, openContextMenu, TextInput } from "@/kit";
+import { Button, Dialog, openContextMenu, TextInput, Toggle } from "@/kit";
 import { useSelectionStore } from "@/state/selection";
 import { itemSelection } from "@/timeline/selection";
 import { cmd, TransportContext, type EngineTransport } from "@/transport";
 import { HostingBadge, HostingSection, useHosting } from "./host";
 import { ListenBadge, ListenButton, listenMenuItems, useListenAgent } from "./listen";
 import { nameOf, peerSummary, presenceV2Fields, setFollowing, useLocalPresence } from "./presence/local";
-import { highlightCss, initials, peerColor, useCollabStore } from "./store";
+import { ChatToasts } from "./social";
+import { highlightCss, initials, peerColor, useCollabStore, useHideOthers } from "./store";
 
 /** Remembered join fields (never the token). */
 const FIELDS_KEY = "eth-collab-join";
@@ -120,8 +121,24 @@ function PeerChip({ peer, peers, me, transport }: { peer: Presence; peers: Prese
 /** Outlines of the peers' selections, in their colors. */
 function PeerHighlights() {
   const peers = useCollabStore((s) => s.peers);
-  const css = highlightCss(peers);
+  const hide = useHideOthers();
+  const css = hide ? "" : highlightCss(peers);
   return css ? <style data-testid="collab-highlights">{css}</style> : null;
+}
+
+/**
+ * "Hide users and notes" (docs/COLLAB.md §12.4): a local preference, never sent. Peers' edits,
+ * the chat and these avatars stay.
+ */
+function HideOthersToggle() {
+  const hide = useHideOthers();
+  const set = useCollabStore((s) => s.setHideOthers);
+  return (
+    <div className="eth-collab__hide" data-testid="collab-hide-others">
+      <Toggle size="sm" checked={hide} onChange={set} label="Hide users and notes" />
+      <p className="eth-collab__hint">Hides the others' pointers, playheads, selections and pinned notes on your screen only.</p>
+    </div>
+  );
 }
 
 /**
@@ -205,6 +222,7 @@ function PresenceBarWith({ transport }: { transport: EngineTransport }) {
       )}
       <ListenBadge transport={transport} peers={peers} />
       <PeerHighlights />
+      <ChatToasts />
       <Dialog
         open={open}
         onClose={() => setOpen(false)}
@@ -245,6 +263,7 @@ function PresenceBarWith({ transport }: { transport: EngineTransport }) {
               ))}
             </ul>
             <HostingSection transport={transport} />
+            <HideOthersToggle />
             <p className="eth-collab__hint">Everyone edits the same project; playback, solo, loop and metronome stay yours.</p>
           </div>
         ) : (

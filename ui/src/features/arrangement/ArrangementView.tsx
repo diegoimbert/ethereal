@@ -32,7 +32,9 @@ import {
   visibleRange,
 } from "@/timeline";
 import { useAutomationSlotHeight } from "@/features/automation";
+import { handleTakeKey, useTakesHeight } from "@/features/comping";
 import { PresenceLayer } from "@/features/collab/presence";
+import { ArrangerSocialLayer, leaveNoteEntries, rulerNoteEntries, withSeparator } from "@/features/collab/social";
 import { groupShortcut, groupTracks, ungroupSelected, UngroupConfirmDialog } from "@/features/groups";
 import { TransportContext, useTransport, useTransportEvent } from "@/transport";
 import { actionForKey, bindSingleSelection, locateIfStopped, newTrackMenu, runClipAction, selectTrackEntity } from "./actions";
@@ -90,13 +92,15 @@ function ConnectedArrangementView() {
   // While automation lanes open/close: laid out once, animated by `useLaneAnimation`.
   const automationHeight = useAutomationSlotHeight();
   const draftTrack = useArrangementUi((s) => s.draftTrack);
+  // v0.2 (`comping`): expanded take lanes under their tracks.
+  const takesHeight = useTakesHeight();
   // The master track is pinned below the scrolling tracks (its own footer, at y 0); it is
   // laid out last, so the other rows keep their positions.
   const { rows, masterRow } = useMemo(() => {
-    const all = layoutRows(tracks, folded, automationHeight, (id) => heights.get(id) ?? defaultHeight, draftTrack);
+    const all = layoutRows(tracks, folded, automationHeight, (id) => heights.get(id) ?? defaultHeight, draftTrack, takesHeight);
     const master = all.find((r) => r.track.kind === "Master");
     return { rows: all.filter((r) => r !== master), masterRow: master ? { ...master, y: 0 } : null };
-  }, [tracks, folded, automationHeight, heights, defaultHeight, draftTrack]);
+  }, [tracks, folded, automationHeight, heights, defaultHeight, draftTrack, takesHeight]);
   const rowsRef = useRef<ReadonlyArray<Row>>(rows);
   useEffect(() => {
     rowsRef.current = rows;
@@ -277,6 +281,12 @@ function ConnectedArrangementView() {
 
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     if (isTextEntry(e.target)) return;
+    // v0.2 (`comping`): Up/Down pick the previous/next take for the selected comp region.
+    if (handleTakeKey(e, transport)) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
     const action = actionForKey(e);
     if (!action) return;
     e.preventDefault();
@@ -300,7 +310,7 @@ function ConnectedArrangementView() {
         <Toolbar />
         <div className="eth-arr__top">
           <div className="eth-arr__corner" style={{ width: headerWidth }} />
-          <Ruler view={view} grid={grid} className="eth-arr__ruler" />
+          <Ruler view={view} grid={grid} className="eth-arr__ruler" menuItems={rulerNoteEntries} />
         </div>
         <div className="eth-arr__scroll" ref={scrollRef} onPointerDownCapture={onTracksPointerDownCapture}>
           <div
@@ -322,6 +332,7 @@ function ConnectedArrangementView() {
                   ...newTrackMenu(transport),
                   "separator",
                   { label: "Import audio…", shortcut: `${MOD_KEY}I`, onSelect: () => void openImportDialog(transport) },
+                  ...withSeparator(leaveNoteEntries({ kind: "arranger" }, e)),
                 ]);
               }
             }}
@@ -373,6 +384,8 @@ function ConnectedArrangementView() {
         <HeaderColumnResizer />
         {/* presence-v2: peers' live pointers, pointer/viewport publishing, follow mode */}
         <PresenceLayer rootRef={rootRef} scrollRef={scrollRef} rows={rows} masterRow={masterRow} />
+        {/* collab-social: pinned notes and the peers' playheads */}
+        <ArrangerSocialLayer rootRef={rootRef} scrollRef={scrollRef} rows={rows} masterRow={masterRow} />
         <UngroupConfirmDialog />
       </div>
     </ArrangementContext.Provider>

@@ -3,11 +3,18 @@
 import { create } from "zustand";
 import type { CollabStatus, Color, Event, Presence } from "@/generated";
 import { usePointerStore } from "./presence/pointers";
+import { onChatReceived } from "./social/chatStore";
 
 export interface CollabState {
   status: CollabStatus;
   /** The other participants (never this site). */
   peers: Presence[];
+  /**
+   * "Hide users and notes" (docs/COLLAB.md §12.4): a local preference (localStorage, never
+   * sent). Every presence and notes renderer honours it via `useHideOthers()`.
+   */
+  hideOthers: boolean;
+  setHideOthers(hide: boolean): void;
   /** Apply one engine event (ignores non-collab events). */
   onEvent(event: Event): void;
   reset(): void;
@@ -15,8 +22,28 @@ export interface CollabState {
 
 const INITIAL = { status: { type: "Offline" } as CollabStatus, peers: [] as Presence[] };
 
+/** Stored next to the dialog's remembered join fields. */
+const HIDE_KEY = "eth-collab-hide-others";
+
+function loadHide(): boolean {
+  try {
+    return localStorage.getItem(HIDE_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
 export const useCollabStore = create<CollabState>()((set) => ({
   ...INITIAL,
+  hideOthers: loadHide(),
+  setHideOthers: (hide) => {
+    set({ hideOthers: hide });
+    try {
+      localStorage.setItem(HIDE_KEY, hide ? "1" : "0");
+    } catch {
+      // storage unavailable: this session only
+    }
+  },
   onEvent: (event) => {
     if (event.type !== "Collab") return;
     const e = event.event;
@@ -26,6 +53,8 @@ export const useCollabStore = create<CollabState>()((set) => ({
     } else if (e.type === "Presence") set({ peers: e.peers });
     // presence-v2: peers' live pointers (their own store: they arrive at up to 30 Hz).
     else if (e.type === "Pointer") usePointerStore.getState().onPointer(e.site, e.pointer);
+    // collab-social: peers' live chat messages (toasted while the chat is closed).
+    else if (e.type === "ChatReceived") onChatReceived(e.ids);
     // base-53 events (Signal, ListenStatus, StreamClock, IceServers) are handled by the
     // stream-listen / stream-host nodes.
   },
@@ -34,6 +63,11 @@ export const useCollabStore = create<CollabState>()((set) => ({
     usePointerStore.getState().clear();
   },
 }));
+
+/** "Hide users and notes" is on: draw no peers' pointers, playheads, outlines or notes. */
+export function useHideOthers(): boolean {
+  return useCollabStore((s) => s.hideOthers);
+}
 
 /** A presence color (`0xRRGGBB`, data like track colors) as CSS. */
 export function peerColor(color: Color): string {

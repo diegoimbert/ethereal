@@ -83,7 +83,9 @@ fn resolve_overlaps(ctx: &mut DocCtx, keep: ClipId, ignore: &BTreeSet<ClipId>) -
         .p()
         .clips
         .values()
-        .filter(|o| o.id != keep && o.track == k.track && !ignore.contains(&o.id))
+        .filter(|o| {
+            o.id != keep && o.track == k.track && o.lane == k.lane && !ignore.contains(&o.id)
+        })
         .cloned()
         .collect();
     for o in others {
