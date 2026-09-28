@@ -44,8 +44,9 @@
 //! - So stems sum to the mix only with neutral master devices, neutral groups (unity, no
 //!   devices) and linear returns, and without solo or sidechains.
 
-mod encode;
+pub(crate) mod encode;
 mod job;
+pub(crate) mod offline;
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -83,6 +84,9 @@ pub(crate) struct ExportState {
     last_progress: Option<f32>,
     /// Unit sizes of the last job (tests/diagnostics).
     last_stats: job::UnitStats,
+    /// v0.2 (`freeze-bounce`): the running freeze/bounce/consolidate render, independent of
+    /// the export job (kept here so the controller struct needs no new field).
+    pub(crate) render: crate::freeze::RenderState,
 }
 
 pub use job::UnitStats as ExportUnitStats;

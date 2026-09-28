@@ -56,7 +56,8 @@ fn every_variant_roundtrips() {
     }
 }
 
-/// The v0.2 fields (contracts-3; JSON blob in codec v2): every variant and `Option` state.
+/// The v0.2 fields (contracts-3; `input_tap`, `vca` and `vcas` binary since codec v3, the
+/// others a JSON blob): every variant and `Option` state.
 #[test]
 fn v02_fields_roundtrip() {
     let d = fixture::v02_filled();
@@ -558,33 +559,14 @@ fn track_ext() -> impl Strategy<Value = TrackExt> {
     )
 }
 
-/// VCA volume automation (finite: JSON blob).
-fn vca_automation() -> impl Strategy<Value = AutomationDesc> {
-    let curve = prop_oneof![
-        Just(CurveShape::Linear),
-        Just(CurveShape::Step),
-        finite32().prop_map(|tension| CurveShape::Curve { tension }),
-    ];
+/// VCAs (binary since codec v3, `groups-buses`: NaN payloads round-trip too).
+fn vca(nan: bool) -> impl Strategy<Value = VcaDesc> {
     (
         track_id(),
-        vec((finite64(), finite64(), curve), 0..4),
-        finite_mapping(),
-    )
-        .prop_map(|(track, points, mapping)| AutomationDesc {
-            target: AutomationTarget::TrackVolume { track },
-            resolved: ResolvedTarget::TrackVolume,
-            points,
-            mapping,
-        })
-}
-
-fn vca() -> impl Strategy<Value = VcaDesc> {
-    (
-        track_id(),
-        finite32(),
+        f32s(nan),
         any::<bool>(),
         option::of(track_id()),
-        vec(vca_automation(), 0..3),
+        vec(automation(nan), 0..3),
     )
         .prop_map(|(id, volume, mute, parent, automation)| VcaDesc {
             id,
@@ -635,7 +617,7 @@ fn desc(nan: bool) -> impl Strategy<Value = RenderGraphDesc> {
         (any::<bool>(), f64s(nan), f64s(nan), any::<bool>()),
         click,
         vec(track(nan), 0..4),
-        vec(vca(), 0..3),
+        vec(vca(nan), 0..3),
     )
         .prop_map(
             |(
