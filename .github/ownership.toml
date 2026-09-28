@@ -766,6 +766,9 @@ paths = [
 [nodes.latency-republish]
 # Bugfix (fx-dynamics discovery): republish PDC when a built-in node's reported latency changes.
 paths = [
+  # BCR (base-89): native EngineBridge::node_latency forward (one method) + one CONTRACTS line
+  "crates/ether-native/src/bridge.rs",
+  "docs/CONTRACTS.md",
   "crates/ether-controller/src/engine.rs",
   "crates/ether-controller/tests/latency_republish*.rs",
   # shared touch: one call from the controller tick
