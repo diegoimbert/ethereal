@@ -1042,6 +1042,8 @@ paths = [
 
 [nodes.presets]
 paths = [
+  # BCR (base-87): Preset dispatch through MockPresets(this.host) only
+  "ui/src/transport/mock/MockTransport.ts",
   "crates/ether-controller/src/presets/**",
   "crates/ether-devices/src/factory.rs",
   "crates/ether-devices/presets/{synth,sampler,compressor,delay,eq,reverb,limiter,utility,drum-rack}/**",
@@ -1061,6 +1063,14 @@ paths = [
 
 [nodes.racks-modulation]
 paths = [
+  # BCR (base-87): (A) engine.rs one ChainRacksRt::finish line; (B) automation_rt.rs intercept_at call;
+  # (C) graph.rs SidechainLatency 3rd arg to ModulationRt::compile; (D) ModulatorKind += Keytrack, Velocity
+  # (append-only, owner T1 decision) + one CONTRACTS §12.6 line
+  "crates/ether-core/src/engine.rs",
+  "crates/ether-core/src/automation_rt.rs",
+  "crates/ether-core/src/graph.rs",
+  "crates/ether-model/src/modulation.rs",
+  "docs/CONTRACTS.md",
   # base-86: append-only line(s) in the IMPLEMENTED list of this test
   "crates/ether-devices/tests/v02_descriptors.rs",
   "crates/ether-core/src/rack_chains/**",
