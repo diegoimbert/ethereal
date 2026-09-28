@@ -1,15 +1,21 @@
 //! Engine-side recording (owned by the `recording` wave-3 node; see `docs/WAVE3.md`).
 //!
 //! The engine calls [`RecordingRt::process`] once per sub-block (before any track is
-//! rendered). It:
+//! rendered) and [`RecordingRt::capture`] once the sub-block's track jobs finished. They:
 //!
-//! - **captures hardware input**: while the transport is playing and recording and at least
+//! - **capture hardware input**: while the transport is playing and recording and at least
 //!   one armed track has an audio input, the sub-block's input channels are queued
 //!   (interleaved) together with a [`CaptureBlock`] header carrying the engine sample time
 //!   and the song position of the first frame. The host drains them off the audio thread
 //!   ([`CaptureReader`]) and streams takes to disk. The header lets the host place every
 //!   frame on the timeline after latency compensation, across loop wraps and locates
 //!   (sub-blocks are linear in time, see [`crate::ProcessContext`]).
+//! - **capture track input taps** (`tap-recording`, resampling): every armed audio track
+//!   whose input is another track (`TrackDesc::input_tap`) also queues its aligned tapped
+//!   signal (`crate::bus_tap`, stereo) with its track id and its PDC input latency
+//!   ([`TapCapture`]): the tapped frame rendered at engine sample `k` belongs to the timeline
+//!   position the engine rendered at `k - latency` (the alignment the monitor path hears).
+//!   Up to [`MAX_TAP_CAPTURES`] tracks per block; recorded whether monitored or not.
 //! - **plays live MIDI**: host-stamped [`LiveMidi`] events (engine sample time) are
 //!   delivered, sample-accurately within the block they fall into, to the first device of
 //!   every monitored MIDI track (`TrackDesc::monitor`: armed with monitoring `Auto`, or `In`).
@@ -27,7 +33,7 @@
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use ether_protocol::model::TrackKind;
+use ether_protocol::model::{TrackId, TrackKind};
 use rtrb::{Consumer, Producer, RingBuffer};
 
 /// Re-exported so hosts can hold the ring halves (and build their own lock-free rings).
@@ -48,11 +54,17 @@ pub const CAPTURE_HEADERS: usize = 8192;
 pub const LIVE_MIDI_CAPACITY: usize = 1024;
 /// Recorded MIDI events queued towards the host.
 pub const RECORDED_MIDI_CAPACITY: usize = 8192;
+/// Armed tap tracks captured per sub-block (more are ignored).
+pub const MAX_TAP_CAPTURES: usize = 8;
+/// Stereo tap tracks the tap sample ring holds [`CAPTURE_RING_SECONDS`] of.
+pub const TAP_RING_TRACKS: usize = 2;
+/// [`TapCapture`] entries queued towards the host.
+pub const TAP_INFOS: usize = 4096;
 /// Note ids of live notes live in the upper half of the id space (clip notes count up from 0).
 const LIVE_NOTE_ID: u32 = 0x8000_0000;
 
-/// One captured sub-block of hardware input.
-#[derive(Clone, Copy, Debug, PartialEq)]
+/// One captured sub-block of hardware input (and of armed track input taps).
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct CaptureBlock {
     /// Engine sample time of the first frame.
     pub sample_time: u64,
@@ -62,6 +74,20 @@ pub struct CaptureBlock {
     pub beats_per_sample: f64,
     /// The sample ring was full: this block's audio is missing (the reader yields silence).
     pub dropped: bool,
+    /// Armed track input taps captured with this block ([`CaptureReader::taps`]).
+    pub taps: u8,
+    /// The tap sample ring was full: the taps' audio is missing (the reader yields silence).
+    pub taps_dropped: bool,
+}
+
+/// One track input tap captured with a [`CaptureBlock`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct TapCapture {
+    /// The armed consumer track (its input is `TrackInput::Track`).
+    pub track: TrackId,
+    /// The consumer's PDC input latency (samples): a frame captured at engine sample `k`
+    /// belongs to the timeline position rendered at `k - latency`.
+    pub latency: u32,
 }
 
 impl CaptureBlock {
@@ -97,6 +123,8 @@ pub struct RecordingRt {
     midi_in: Consumer<LiveMidi>,
     midi_out: Producer<RecordedMidi>,
     clock: Arc<AtomicU64>,
+    tap_info: Producer<TapCapture>,
+    tap_samples: Producer<f32>,
 }
 
 /// Host half: taken once from the [`EngineHandle`]. Its parts are meant for different
@@ -116,6 +144,11 @@ pub struct CaptureReader {
     blocks: Consumer<CaptureBlock>,
     samples: Consumer<f32>,
     channels: usize,
+    tap_info: Consumer<TapCapture>,
+    tap_samples: Consumer<f32>,
+    /// Taps of the last block read and their samples (tap-major, interleaved stereo).
+    taps: Vec<TapCapture>,
+    tap_buf: Vec<f32>,
 }
 
 /// Allocate the recording rings for an engine (non-RT; called by [`crate::create`]).
@@ -127,6 +160,10 @@ pub fn channel(config: &EngineConfig) -> (RecordingRt, RecordingIo) {
     let (midi_in_tx, midi_in_rx) = RingBuffer::new(LIVE_MIDI_CAPACITY);
     let (midi_out_tx, midi_out_rx) = RingBuffer::new(RECORDED_MIDI_CAPACITY);
     let clock = Arc::new(AtomicU64::new(0));
+    let (tap_info_tx, tap_info_rx) = RingBuffer::new(TAP_INFOS);
+    let (tap_samples_tx, tap_samples_rx) = RingBuffer::new(
+        (config.sample_rate as usize).max(1) * CAPTURE_RING_SECONDS * 2 * TAP_RING_TRACKS,
+    );
     (
         RecordingRt {
             blocks: blocks_tx,
@@ -135,12 +172,18 @@ pub fn channel(config: &EngineConfig) -> (RecordingRt, RecordingIo) {
             midi_in: midi_in_rx,
             midi_out: midi_out_tx,
             clock: clock.clone(),
+            tap_info: tap_info_tx,
+            tap_samples: tap_samples_tx,
         },
         RecordingIo {
             capture: CaptureReader {
                 blocks: blocks_rx,
                 samples: samples_rx,
                 channels,
+                tap_info: tap_info_rx,
+                tap_samples: tap_samples_rx,
+                taps: Vec::with_capacity(MAX_TAP_CAPTURES),
+                tap_buf: Vec::new(),
             },
             midi_in: midi_in_tx,
             midi_out: midi_out_rx,
@@ -190,14 +233,11 @@ pub fn midi_event(data: [u8; 3]) -> Option<EventKind> {
 }
 
 impl RecordingRt {
-    /// **RT.** Called by the engine once per sub-block, before the tracks are rendered.
-    /// `off`/`frames` locate the sub-block in the host's `inputs`; `descs[i]` and
-    /// `tracks[i]` are the same track.
+    /// **RT.** Called by the engine once per sub-block, before the tracks are rendered
+    /// (live MIDI, engine clock). `descs[i]` and `tracks[i]` are the same track.
     pub(crate) fn process(
         &mut self,
         info: &TransportInfo,
-        inputs: &[&[f32]],
-        off: usize,
         frames: usize,
         descs: &[TrackDesc],
         tracks: &mut [TrackRt],
@@ -240,20 +280,93 @@ impl RecordingRt {
             }
         }
 
-        // Hardware input of armed audio tracks.
-        if recording && frames > 0 && descs.iter().any(|t| t.armed && t.audio_input.is_some()) {
-            self.capture(info, inputs, off, frames);
-        }
-
         self.clock.store(end, Ordering::Release);
     }
 
-    fn capture(&mut self, info: &TransportInfo, inputs: &[&[f32]], off: usize, frames: usize) {
-        if self.blocks.slots() == 0 {
+    /// **RT.** Called by the engine once per sub-block, after the track jobs (the taps are
+    /// gathered then): while recording, queue the hardware input of armed audio tracks and
+    /// the aligned input taps of armed tap tracks.
+    pub(crate) fn capture(
+        &mut self,
+        info: &TransportInfo,
+        inputs: &[&[f32]],
+        off: usize,
+        frames: usize,
+        descs: &[TrackDesc],
+        tracks: &[TrackRt],
+    ) {
+        if !(info.playing && info.recording) || frames == 0 {
             return;
         }
+        let hardware = descs.iter().any(|t| t.armed && t.audio_input.is_some());
+        let mut taps = [0usize; MAX_TAP_CAPTURES];
+        let mut n_taps = 0;
+        for (i, (desc, track)) in descs.iter().zip(tracks).enumerate() {
+            if n_taps < MAX_TAP_CAPTURES
+                && desc.armed
+                && desc.kind == TrackKind::Audio
+                && desc.input_tap.is_some()
+                && track.input_tap.signal(frames).is_some()
+            {
+                taps[n_taps] = i;
+                n_taps += 1;
+            }
+        }
+        if !hardware && n_taps == 0 {
+            return;
+        }
+        if self.blocks.slots() == 0 || self.tap_info.slots() < n_taps {
+            return;
+        }
+        let dropped = self.write_input(inputs, off, frames);
+        let taps_dropped = n_taps > 0 && self.write_taps(&taps[..n_taps], frames, tracks);
+        for &ti in &taps[..n_taps] {
+            let _ = self.tap_info.push(TapCapture {
+                track: descs[ti].id,
+                latency: crate::bus_tap::input_latency(tracks, ti),
+            });
+        }
+        let _ = self.blocks.push(CaptureBlock {
+            sample_time: info.sample_time,
+            frames: frames as u32,
+            position: info.position,
+            beats_per_sample: info.beats_per_sample,
+            dropped,
+            taps: n_taps as u8,
+            taps_dropped,
+        });
+    }
+
+    /// RT. Queue the aligned taps of `taps` (tap-major, interleaved stereo); `true` if the
+    /// ring was full.
+    fn write_taps(&mut self, taps: &[usize], frames: usize, tracks: &[TrackRt]) -> bool {
+        let Ok(mut chunk) = self.tap_samples.write_chunk(taps.len() * frames * 2) else {
+            return true;
+        };
+        let (a, b) = chunk.as_mut_slices();
+        let mut i = 0;
+        for &ti in taps {
+            let signal = tracks[ti].input_tap.signal(frames);
+            for f in 0..frames {
+                for ch in 0..2 {
+                    let s = signal.map_or(0.0, |sig| sig[ch][f]);
+                    if i < a.len() {
+                        a[i] = s;
+                    } else {
+                        b[i - a.len()] = s;
+                    }
+                    i += 1;
+                }
+            }
+        }
+        chunk.commit_all();
+        false
+    }
+
+    /// RT. Queue the hardware input channels (interleaved); `true` if the ring was full.
+    fn write_input(&mut self, inputs: &[&[f32]], off: usize, frames: usize) -> bool {
         let channels = self.channels;
-        let dropped = match self.samples.write_chunk(frames * channels) {
+        match self.samples.write_chunk(frames * channels) {
             Ok(mut chunk) => {
                 let (a, b) = chunk.as_mut_slices();
                 let mut i = 0;
@@ -276,14 +389,7 @@ impl RecordingRt {
                 false
             }
             Err(_) => true,
-        };
-        let _ = self.blocks.push(CaptureBlock {
-            sample_time: info.sample_time,
-            frames: frames as u32,
-            position: info.position,
-            beats_per_sample: info.beats_per_sample,
-            dropped,
-        });
+        }
     }
 }
 
@@ -294,15 +400,61 @@ impl CaptureReader {
     }
 
     /// Next captured block; its interleaved samples are appended to `out`
-    /// (`frames * channels`, silence for a dropped block). Non-RT.
+    /// (`frames * channels`, silence for a dropped block). Its taps are then in
+    /// [`Self::taps`] / [`Self::tap_samples`]. Non-RT.
     pub fn next_block(&mut self, out: &mut Vec<f32>) -> Option<CaptureBlock> {
         let block = self.blocks.pop().ok()?;
         let n = block.frames as usize * self.channels;
+        self.read_taps(&block);
         if block.dropped {
             out.resize(out.len() + n, 0.0);
             return Some(block);
         }
-        match self.samples.read_chunk(n) {
+        Self::read(&mut self.samples, n, out);
+        Some(block)
+    }
+
+    /// The track input taps captured with the last block read.
+    pub fn taps(&self) -> &[TapCapture] {
+        &self.taps
+    }
+
+    /// Stereo samples of tap `i` of the last block read (`frames * 2`, interleaved).
+    pub fn tap_samples(&self, i: usize) -> &[f32] {
+        let n = self.tap_buf.len() / self.taps.len().max(1);
+        self.tap_buf.get(i * n..(i + 1) * n).unwrap_or(&[])
+    }
+
+    /// The stereo samples of every tap of the last block read, tap after tap.
+    pub fn tap_buffer(&self) -> &[f32] {
+        &self.tap_buf
+    }
+
+    fn read_taps(&mut self, block: &CaptureBlock) {
+        self.taps.clear();
+        self.tap_buf.clear();
+        for _ in 0..block.taps {
+            match self.tap_info.pop() {
+                Ok(t) => self.taps.push(t),
+                Err(_) => break,
+            }
+        }
+        let n = usize::from(block.taps) * block.frames as usize * 2;
+        if block.taps_dropped {
+            self.tap_buf.resize(n, 0.0);
+        } else {
+            Self::read(&mut self.tap_samples, n, &mut self.tap_buf);
+        }
+        // Stay consistent even if the info ring was short (cannot happen: checked on push).
+        self.tap_buf
+            .resize(self.taps.len() * block.frames as usize * 2, 0.0);
+    }
+
+    fn read(ring: &mut Consumer<f32>, n: usize, out: &mut Vec<f32>) {
+        if n == 0 {
+            return;
+        }
+        match ring.read_chunk(n) {
             Ok(chunk) => {
                 let (a, b) = chunk.as_slices();
                 out.extend_from_slice(a);
@@ -312,7 +464,6 @@ impl CaptureReader {
             // Cannot happen (samples are committed before their header); stay aligned.
             Err(_) => out.resize(out.len() + n, 0.0),
         }
-        Some(block)
     }
 
     /// Drop everything queued (before a new take).

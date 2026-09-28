@@ -45,6 +45,7 @@ impl Rig {
                 project,
                 tag: "live".into(),
                 audio,
+                taps: Vec::new(),
                 midi: true,
                 keep_from: keep.0,
                 keep_until: keep.1,
@@ -74,6 +75,7 @@ impl Rig {
             position,
             beats_per_sample: BPS,
             dropped: false,
+            ..Default::default()
         };
         let samples: Vec<f32> = (0..BLOCK as u64 * CHANNELS as u64)
             .map(|i| {
@@ -84,7 +86,7 @@ impl Rig {
             .collect();
         self.sample_time += u64::from(BLOCK);
         let s = self.session.as_mut().unwrap();
-        s.block(&b, &samples);
+        s.block(&b, &samples, &[], &[]);
         // The writer publishes after each drain.
         if self.sample_time.is_multiple_of(u64::from(BLOCK) * 3) {
             s.flush_live();
