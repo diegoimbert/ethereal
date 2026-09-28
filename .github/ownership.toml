@@ -935,6 +935,8 @@ paths = [
 
 [nodes.synth-2]
 paths = [
+  # base-86: append-only line(s) in the IMPLEMENTED list of this test
+  "crates/ether-devices/tests/v02_descriptors.rs",
   "crates/ether-devices/src/poly_synth/**",
   "crates/ether-devices/presets/poly-synth/**",
   "crates/ether-devices/tests/poly_synth*.rs",
@@ -945,6 +947,8 @@ paths = [
 
 [nodes.multisampler]
 paths = [
+  # base-86: append-only line(s) in the IMPLEMENTED list of this test
+  "crates/ether-devices/tests/v02_descriptors.rs",
   "crates/ether-devices/src/multisampler/**",
   "crates/ether-devices/presets/multisampler/**",
   "crates/ether-devices/tests/multisampler*.rs",
@@ -963,6 +967,8 @@ paths = [
 
 [nodes.fx-color]
 paths = [
+  # base-86: append-only line(s) in the IMPLEMENTED list of this test
+  "crates/ether-devices/tests/v02_descriptors.rs",
   "crates/ether-devices/src/fx_color/**",
   "crates/ether-devices/presets/{saturator,bitcrusher,auto-filter}/**",
   "crates/ether-devices/tests/fx_color*.rs",
@@ -972,6 +978,8 @@ paths = [
 
 [nodes.fx-modulation]
 paths = [
+  # base-86: append-only line(s) in the IMPLEMENTED list of this test
+  "crates/ether-devices/tests/v02_descriptors.rs",
   "crates/ether-devices/src/fx_modulation/**",
   "crates/ether-devices/presets/{chorus,phaser,flanger,tremolo}/**",
   "crates/ether-devices/tests/fx_modulation*.rs",
@@ -981,6 +989,9 @@ paths = [
 
 [nodes.fx-dynamics]
 paths = [
+  # base-86: append-only line(s) in the IMPLEMENTED list of this test
+  "crates/ether-devices/tests/v02_descriptors.rs",
+  "apps/web/e2e/fx-dynamics*.spec.ts",
   "crates/ether-devices/src/fx_dynamics/**",
   "crates/ether-devices/presets/{gate,multiband-compressor,transient-shaper}/**",
   "crates/ether-devices/tests/fx_dynamics*.rs",
@@ -990,6 +1001,8 @@ paths = [
 
 [nodes.fx-analysis]
 paths = [
+  # base-86: append-only line(s) in the IMPLEMENTED list of this test
+  "crates/ether-devices/tests/v02_descriptors.rs",
   # BCR (base-85): MockAnalysis gets the host + a step in meterStep; SpectrumWidget/TunerWidget display params only
   "ui/src/transport/mock/MockTransport.ts",
   "ui/src/features/devices/layout/widgets/data.tsx",
@@ -1013,6 +1026,8 @@ paths = [
 
 [nodes.midi-fx]
 paths = [
+  # base-86: append-only line(s) in the IMPLEMENTED list of this test
+  "crates/ether-devices/tests/v02_descriptors.rs",
   "crates/ether-devices/src/midi_fx/**",
   "crates/ether-devices/presets/{arpeggiator,chord,scale-quantize,note-length,velocity,randomizer}/**",
   "crates/ether-devices/tests/midi_fx*.rs",
@@ -1046,6 +1061,8 @@ paths = [
 
 [nodes.racks-modulation]
 paths = [
+  # base-86: append-only line(s) in the IMPLEMENTED list of this test
+  "crates/ether-devices/tests/v02_descriptors.rs",
   "crates/ether-core/src/rack_chains/**",
   "crates/ether-core/src/modulation/**",
   "crates/ether-devices/src/racks/**",
