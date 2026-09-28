@@ -728,6 +728,22 @@ paths = [
   "apps/web/e2e/collab-stream*.spec.ts",
 ]
 
+[nodes.collab-converge]
+# Bugfix: replicas_converge proptest finds a case where a site keeps pending transactions after
+# settle (leave/rejoin + link kill + compaction). Found by media-references; pre-existing on dev.
+paths = [
+  "crates/ether-controller/src/collab/mod.rs",
+  "crates/ether-controller/src/collab/resolve.rs",
+  "crates/ether-controller/tests/collab.rs",
+  "crates/ether-controller/tests/collab_converge*.rs",
+  "crates/ether-controller/tests/collab.proptest-regressions",
+  "crates/ether-collab/src/relay/**",
+  "crates/ether-collab/src/memory.rs",
+  "crates/ether-collab/src/wire.rs",
+  "crates/ether-collab/tests/**",
+  "docs/COLLAB.md",
+]
+
 [nodes.turn-hardening]
 # Follow-up to stream-host (docs/COLLAB.md §10 known limitations): per-username verified cap,
 # counting real nonce inserts, rotation-decision tests. TURN stays experimental until merged.
@@ -1145,6 +1161,30 @@ paths = [
 
 [nodes.media-references]
 paths = [
+  # BCR (base-79) A: path imports become references (file-import docs + its tests' assertions)
+  "crates/ether-controller/src/file_import/mod.rs",
+  "crates/ether-native/tests/file_import_e2e.rs",
+  "crates/ether-controller/tests/file_import_collab.rs",
+  # B: offline readers (export/freeze/preview) read media through the resolution
+  "crates/ether-controller/src/export/offline.rs",
+  "crates/ether-controller/src/export/job.rs",
+  "crates/ether-controller/src/export/mod.rs",
+  "crates/ether-controller/src/freeze/job.rs",
+  "crates/ether-controller/src/freeze/mod.rs",
+  "crates/ether-controller/src/media_preview/mod.rs",
+  # C: media location is per-site in collab (local paths never on the wire; overlay like LocalMix)
+  "crates/ether-controller/src/collab/mod.rs",
+  "crates/ether-controller/src/collab/resolve.rs",
+  # D: additive contract: MediaRefCommand::Search { folder }, Library::list_external_dir
+  "crates/ether-protocol/src/media_refs.rs",
+  "crates/ether-controller/src/store.rs",
+  # E: UI mounts (missing clip state + Relink menu, root, palette entries, native folder picker, project menu)
+  "ui/src/features/arrangement/ClipView.tsx",
+  "ui/src/app/App.tsx",
+  "ui/src/app/shell/commands.ts",
+  "ui/src/transport/tauri/TauriTransport.ts",
+  "ui/src/transport/tauri/TauriTransport.test.ts",
+  "ui/src/features/project/index.tsx",
   "crates/ether-controller/src/media_refs/**",
   "ui/src/features/media-refs/**",
   "ui/src/transport/mock/roadmap/mediaReferences.*",

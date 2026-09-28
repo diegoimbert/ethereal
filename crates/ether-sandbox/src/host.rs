@@ -263,12 +263,15 @@ impl SandboxedPlugin {
         let sem_name = os_name(&self.instance, pid, &format!("sbx-{id}-sem"));
         let max_frames = config.max_block_size.max(1);
         let max_in_events = config.max_events_per_block + self.descriptor.params.len().max(16);
-        let layout = Layout::new(
+        // The activated descriptor's sidechain channels (the helper checks them against its
+        // node's `sidechain_inputs` on attach).
+        let layout = Layout::with_sidechain(
             max_frames,
             usize::from(channels.0),
             usize::from(channels.1),
             max_in_events,
             config.max_events_per_block.max(256),
+            usize::from(self.descriptor.sidechain_inputs),
         );
         let mut region =
             Region::create(&shm_name, layout).map_err(|e| PluginError::Ipc(e.to_string()))?;
