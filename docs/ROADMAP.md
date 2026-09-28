@@ -731,3 +731,14 @@ Fixes the known limitations listed in COLLAB.md §10 so TURN can stop being expe
 - deterministic **rotation-decision tests** (soft/hard budget, live allocations, replay).
 Only when all three land, lift "Experimental: do not expose it publicly yet" (docs, `--help`,
 startup warning) — decision logged for the owner.
+
+## `tap-recording` (follow-up to groups-buses)
+
+Record a take from a track-to-track input tap (resampling), native first. The engine's capture
+(`RecordingRt::process`) runs before the track jobs and captures only hardware channels: add a
+post-jobs capture hook in `engine.rs` pushing each armed tap consumer's aligned tap
+(`InputTapRt::signal`, `bus_tap.rs`) as extra capture channels with the consumer's `in_lat`;
+the native writer (`ether-native/src/recording/{mod,writer}.rs`) maps `TrackInput::Track`
+tracks to those channels; loop/punch passes become take lanes like hardware takes (comping).
+Web has no capture yet: disable arming a tapped track on web with a clear reason. RT rules apply
+(no allocation on the audio thread; tests with assert_no_alloc).

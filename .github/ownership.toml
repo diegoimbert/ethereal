@@ -744,6 +744,21 @@ paths = [
   "docs/COLLAB.md",
 ]
 
+[nodes.tap-recording]
+# Follow-up to groups-buses: record takes from track-to-track input taps (resampling).
+paths = [
+  "crates/ether-core/src/recording/**",
+  "crates/ether-core/tests/tap_recording*.rs",
+  "crates/ether-native/src/recording/**",
+  "crates/ether-native/tests/tap_recording*.rs",
+  "crates/ether-controller/src/recording/**",
+  "crates/ether-controller/tests/tap_recording*.rs",
+  "apps/web/e2e/tap-recording*.spec.ts",
+  # shared touch: a post-jobs capture hook in the engine (additive)
+  "crates/ether-core/src/engine.rs",
+  "crates/ether-core/src/bus_tap.rs",
+]
+
 [nodes.turn-hardening]
 # Follow-up to stream-host (docs/COLLAB.md §10 known limitations): per-username verified cap,
 # counting real nonce inserts, rotation-decision tests. TURN stays experimental until merged.
