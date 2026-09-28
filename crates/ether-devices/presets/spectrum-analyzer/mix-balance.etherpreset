@@ -1,0 +1,31 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "Mix Balance",
+    "device": {
+      "type": "Builtin",
+      "device": "SpectrumAnalyzer"
+    },
+    "meta": {
+      "tags": [
+        "mixing",
+        "tonal-balance"
+      ],
+      "author": "Ethereal",
+      "description": "4096-point analysis with moderate averaging and a 3 dB/oct tilt: a balanced mix reads roughly flat."
+    },
+    "params": {
+      "0": 2.0,
+      "1": 60.0,
+      "2": 0.0,
+      "3": -90.0,
+      "4": 3.0,
+      "5": 0.0
+    },
+    "kind": null,
+    "samples": [],
+    "state": null
+  }
+}

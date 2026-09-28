@@ -1,0 +1,30 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "Flat (No Tilt)",
+    "device": {
+      "type": "Builtin",
+      "device": "SpectrumAnalyzer"
+    },
+    "meta": {
+      "tags": [
+        "measurement"
+      ],
+      "author": "Ethereal",
+      "description": "Raw dBFS per bin with no display tilt, e.g. to read test tones."
+    },
+    "params": {
+      "0": 2.0,
+      "1": 40.0,
+      "2": 0.0,
+      "3": -120.0,
+      "4": 0.0,
+      "5": 1.0
+    },
+    "kind": null,
+    "samples": [],
+    "state": null
+  }
+}
