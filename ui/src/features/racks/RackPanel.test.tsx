@@ -73,6 +73,17 @@ describe("RackPanel", () => {
     expect(within(delay).getByTestId("mod-ring")).toBeInTheDocument();
     const chip = within(delay).getByTestId("mod-depth");
     expect(chip).toHaveAttribute("aria-valuetext", "+50 %");
+    // The decoration never touches the label: the knob keeps its name, the value shows
+    // once, and the ring/chips come after the knob (chips below it).
+    const shell = chip.closest("[data-param]")!;
+    const knob = shell.querySelector(".eth-knob")!;
+    const name = knob.querySelector(".eth-knob__name")!.textContent!;
+    expect(name).not.toBe("");
+    expect(knob.getAttribute("aria-label")).toBe(name);
+    // The value: under the knob (sm/md) or in its center (lg), exactly once.
+    expect(shell.querySelectorAll(".eth-param__value, .eth-knob__center")).toHaveLength(1);
+    expect(shell.querySelector(".eth-mod-chips")!.textContent).toBe("");
+    expect(knob.compareDocumentPosition(chip) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     // The modulator lists its target with a depth knob; removing it unmaps.
     fireEvent.click(within(lfo).getByRole("button", { name: /^Remove modulation of Delay/ }));
     await flush();

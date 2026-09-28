@@ -144,7 +144,9 @@ test("racks: chains, a modulator and a macro mapped onto a synth", async ({ page
     await rackCard.scrollIntoViewIfNeeded();
     await rackCard.screenshot({ path: `${shots}/rack-chains-macros-${theme}.png`, timeout: 15_000 });
     await synthCard.scrollIntoViewIfNeeded();
-    await param(synthCard, cutoff).hover();
+    // No hover or focus on a knob: the kit turns its label into the value readout then.
+    await page.mouse.move(0, 0);
+    await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
     await synthCard.screenshot({ path: `${shots}/modulated-knob-${theme}.png`, timeout: 15_000 });
   }
   expect(errors).toEqual([]);
