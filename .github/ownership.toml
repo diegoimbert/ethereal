@@ -990,6 +990,8 @@ paths = [
 
 [nodes.fx-color]
 paths = [
+  # base-92: device e2e (device agent guide item 9)
+  "apps/web/e2e/fx-color*.spec.ts",
   # base-86: append-only line(s) in the IMPLEMENTED list of this test
   "crates/ether-devices/tests/v02_descriptors.rs",
   "crates/ether-devices/src/fx_color/**",
@@ -1001,6 +1003,8 @@ paths = [
 
 [nodes.fx-modulation]
 paths = [
+  # base-92: device e2e (device agent guide item 9)
+  "apps/web/e2e/fx-modulation*.spec.ts",
   # base-86: append-only line(s) in the IMPLEMENTED list of this test
   "crates/ether-devices/tests/v02_descriptors.rs",
   "crates/ether-devices/src/fx_modulation/**",
