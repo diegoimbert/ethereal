@@ -1,0 +1,35 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "Sidechain Trigger",
+    "device": {
+      "type": "Builtin",
+      "device": "Gate"
+    },
+    "meta": {
+      "tags": [
+        "rhythmic",
+        "sidechain",
+        "trance"
+      ],
+      "author": "Ethereal",
+      "description": "Hard gate meant to be keyed from another track (set the device's sidechain source to a hi-hat or kick) to chop pads in rhythm."
+    },
+    "params": {
+      "0": -24.0,
+      "1": 3.0,
+      "2": -80.0,
+      "3": 4.0,
+      "4": 0.0,
+      "5": 0.05,
+      "6": 40.0,
+      "7": 120.0,
+      "8": 2.0,
+      "9": 60.0,
+      "10": 0.0,
+      "11": 0.0
+    }
+  }
+}
