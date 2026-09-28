@@ -929,6 +929,8 @@ paths = [
   "ui/src/transport/mock/MockTransport.test.ts",
   # BCR-2 addendum (base-69): remap the demo Synth param ids to the Rust ids, values unchanged
   "ui/src/transport/mock/demoProject.ts",
+  # BCR-3 (base-84): the automation test reading mock Synth param 1 (now Rust's Transpose -24..24)
+  "ui/src/features/automation/AutomationEditing.test.tsx",
 ]
 
 [nodes.synth-2]
@@ -1139,6 +1141,8 @@ paths = [
 
 [nodes.sample-accurate-automation]
 paths = [
+  # base-83: VCA gain automation block-size independent too (reuse automation_rt::grid + Smoother::ramp_to)
+  "crates/ether-core/src/vca.rs",
   "crates/ether-core/src/automation_rt.rs",
   "crates/ether-core/src/automation.rs",
   "crates/ether-core/tests/sample_accurate*.rs",

@@ -776,9 +776,10 @@ project, replicated as ordinary ops); peer playheads are **presence** (ephemeral
 "hide users and notes" toggle is **UI state** (per user, never sent). Contract: `ether_model::social`
 (entities, caps, `is_untracked`), `ether_protocol::social` (`ChatCommand`,
 `PinnedNoteCommand`), `ether_protocol::collab` (`PresenceState::transport`, `PeerTransport`,
-`CollabEvent::ChatReceived`). Until the node lands, `Chat::*` and `PinnedNote::*` reply
-`Unsupported` (engine: `ether-controller/src/social/mod.rs`, pinned in
-`tests/social_prewire.rs`; mock: `ui/src/transport/mock/roadmap/social.ts`).
+`CollabEvent::ChatReceived`). Implemented by `collab-social`: engine
+`ether-controller/src/social/mod.rs` (tests `tests/social.rs`, `tests/social_sanitize.rs`),
+relay `ether-collab/src/relay/mod.rs` (own presence), mock
+`ui/src/transport/mock/roadmap/social.ts`, UI `ui/src/features/collab/social/**` (§12.5).
 
 ### 12.1 Chat (a project journal)
 
@@ -960,6 +961,32 @@ UI (`ui/src/features/collab/social/**`):
   overlay, both notes overlays and both "Leave a note" menu entries (hidden while hiding
   notes).
 
+### 12.5 Implementation notes (`collab-social`)
+
+- **End of catch-up.** The relay sends a synced site its own stamped default presence right
+  after the snapshot and log it answers a `SyncRequest` with (also to the creator after its
+  first snapshot, and after a resume). The controller records its colour from it
+  (`Author::color`) and treats it as the end of the catch-up: `ChatReceived` is emitted only
+  for peers' messages sequenced after it on the current link (a re-join or reconnect
+  catches up silently again).
+- **Note author.** Document commands only get a `DocCtx`, so the session identity reaches
+  `PinnedNote::Add` through a scoped guard (`social::NoteAuthorScope`, set by `dispatch`
+  for the one command and cleared on drop, unwinding included). Undo/redo re-applies the
+  recorded insert, so the original author is kept.
+- **Transport publishing.** `social_transport_due` (collab tick) marks the presence dirty
+  when the transport key (playing, stopped position, loop region, tempo points, listening)
+  changes, after any `Transport` command (a locate while playing), and every
+  `PEER_TRANSPORT_REFRESH_MS` while playing. The 10 Hz presence throttle still applies.
+- **UI.** Chat: `ChatPanel` (rail tab `chat`, `LEFT_TABS` entry with `session: true`; the
+  pane closes when the session ends), `ChatToasts` (mounted by the presence bar; kit
+  `Toast`/`ToastStack`; at most 3, 6 s, hover pauses), `Mod+Shift+M` / palette "Chat: Focus
+  input" (`focusChat`). Notes: `ArrangerSocialLayer` (mounted next to `PresenceLayer`,
+  sharing `social/arrangerGeometry.ts` with it) and `EditorNotes` (inside the note grid);
+  "Leave a note" in the lane, below-tracks, ruler (`Ruler` `menuItems`) and note-grid menus
+  (`leaveNoteEntries`). Playheads: `social/playheads/extrapolate.ts` (arrival-time
+  extrapolation over the tempo map, loop wrap, hold after 2 s without a sample); the host
+  this site listens to is not drawn (our own playhead already follows it).
+
 ## 13. Code layout
 
 - `ether-collab` (native + wasm): wire helpers (snapshot/version encoding, media chunking,
@@ -997,9 +1024,10 @@ UI (`ui/src/features/collab/social/**`):
   `ether-controller/tests/collab_prewire.rs`. Node boundaries: docs/ROADMAP.md.
 - base-62 (§12): `ether-model/src/social.rs` (entities, caps, `is_untracked`, used by
   `history.rs`), `ether-protocol/src/social.rs` (commands), `ether-controller/src/social/`
-  (stubs; `social_presence` called from `collab_flush_presence`), tests
-  `ether-model/tests/social.rs`, `ether-protocol/tests/social_shapes.rs`,
-  `ether-controller/tests/social_prewire.rs`; mock `ui/src/transport/mock/roadmap/social.ts`.
+  (chat, notes, own colour, `ChatReceived`, peer transport; `social_presence` called from
+  `collab_flush_presence`), tests `ether-model/tests/social.rs`,
+  `ether-protocol/tests/social_shapes.rs`, `ether-controller/tests/social*.rs`; mock
+  `ui/src/transport/mock/roadmap/social.ts`; UI `ui/src/features/collab/social/`.
 - Limitations: `wss://` works from the browser; the native client speaks `ws://` only (put a
   TLS proxy in front of a public relay). The relay keeps sessions in memory (a relay restart
   makes the first site to reconnect re-create the session from its replica).

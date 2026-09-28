@@ -12,7 +12,8 @@ import { size } from "@/theme";
  * arrangement shrinks), still drawn as floating cards.
  */
 
-export type LeftTab = "library" | "project" | "plugins" | "devices" | "midi";
+/** `chat`: collab-social's Chat section, shown only in a collaboration session. */
+export type LeftTab = "library" | "project" | "plugins" | "devices" | "midi" | "chat";
 export type DrawerTab = "piano-roll" | "warp" | "automation" | "tempo" | "groove" | "drum-rack";
 export type PaneSide = "left" | "right" | "bottom";
 
