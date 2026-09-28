@@ -20,6 +20,14 @@ static ALLOC: assert_no_alloc::AllocDisabler = assert_no_alloc::AllocDisabler;
 
 /// Mock descriptor file per group (`ui/src/transport/mock/devices/<file>.json`), owned by
 /// the group's node.
+/// v0.2 device types whose real DSP has landed: the placeholder test below keeps the
+/// no-allocation run and the param readback for them, but skips the placeholder category
+/// behaviour (pass-through, MIDI-thru), which a real device legitimately breaks.
+/// APPEND-ONLY: each device node adds one line per type it implements (base-86).
+const IMPLEMENTED: &[BuiltinDeviceType] = &[
+    // (device nodes append here)
+];
+
 const GROUPS: &[(&str, &[BuiltinDeviceType])] = &[
     ("polySynth", &[BuiltinDeviceType::PolySynth]),
     ("multisampler", &[BuiltinDeviceType::MultiSampler]),
@@ -193,6 +201,9 @@ fn placeholders_follow_their_category_without_allocating() {
                 Some(desc.params[0].max),
                 "{t:?}"
             );
+            if IMPLEMENTED.contains(&t) {
+                continue;
+            }
             match desc.category {
                 DeviceCategory::NoteEffect => {
                     assert_eq!(
