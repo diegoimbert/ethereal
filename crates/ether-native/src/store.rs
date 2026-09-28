@@ -46,11 +46,21 @@ pub struct LibraryRoot {
     pub path: PathBuf,
 }
 
+/// Id of the writable user library root (`Library::user_root`; presets, the browser index).
+pub const USER_LIBRARY_ID: &str = "user";
+/// Folder name of the default user library, next to the projects root
+/// (`~/Documents/Ethereal/User Library`, or `<instance data>/User Library` in dev builds).
+pub const USER_LIBRARY_DIR: &str = "User Library";
+
 /// Disk-backed project store and sample library. Cheap to clone (paths only).
 #[derive(Clone, Debug)]
 pub struct DiskStore {
     pub projects_root: PathBuf,
     pub library_roots: Vec<LibraryRoot>,
+    /// v0.2 (`presets`): the writable user library (`Library::user_root`, id
+    /// [`USER_LIBRARY_ID`]). Created on first write. Not listed in `roots()` (the sample
+    /// browser shows the configured folders); presets live under its `Presets/` folder.
+    pub user_library: Option<PathBuf>,
 }
 
 fn io_err(e: std::io::Error) -> StoreError {
@@ -228,11 +238,43 @@ fn copy_dir(from: &Path, to: &Path, skip_top: &[&str]) -> std::io::Result<()> {
 }
 
 impl DiskStore {
+    /// The user library defaults to [`USER_LIBRARY_DIR`] next to `projects_root`; see
+    /// [`Self::with_user_library`].
     pub fn new(projects_root: impl Into<PathBuf>, library_roots: Vec<LibraryRoot>) -> Self {
+        let projects_root: PathBuf = projects_root.into();
+        let user_library = projects_root.parent().map(|p| p.join(USER_LIBRARY_DIR));
         Self {
-            projects_root: projects_root.into(),
+            projects_root,
             library_roots,
+            user_library,
         }
+    }
+
+    /// Use `path` as the writable user library (`None`: read-only library).
+    pub fn with_user_library(mut self, path: Option<PathBuf>) -> Self {
+        self.user_library = path;
+        self
+    }
+
+    /// The user library folder, created if missing (so `resolve_in` can canonicalize it).
+    fn user_dir(&self, root: &str) -> Result<PathBuf, StoreError> {
+        match &self.user_library {
+            Some(dir) if root == USER_LIBRARY_ID => {
+                fs::create_dir_all(dir).map_err(io_err)?;
+                Ok(dir.clone())
+            }
+            _ => Err(StoreError::Unsupported(format!(
+                "library {root} is read-only"
+            ))),
+        }
+    }
+
+    /// Folder of a library root id (configured roots, then the user library).
+    fn root_dir(&self, root: &str) -> Result<PathBuf, StoreError> {
+        if root == USER_LIBRARY_ID && self.user_library.is_some() {
+            return self.user_dir(root);
+        }
+        self.library_root(root).map(|r| r.path.clone())
     }
 
     /// Folder of a project (the id is a UUID, so it is always a safe single component).
@@ -417,19 +459,69 @@ impl Library for DiskStore {
     }
 
     fn list_dir(&mut self, root: &str, rel_path: &str) -> Result<DirectoryListing, StoreError> {
-        let lib = self.library_root(root)?;
+        let dir = self.root_dir(root)?;
         let rel = sanitize_rel(rel_path)?;
-        let path = resolve_in(&lib.path, rel_path)?;
-        list_folder(&path, &rel, BrowseLocation::Library { id: lib.id.clone() })
+        let path = resolve_in(&dir, rel_path)?;
+        list_folder(&path, &rel, BrowseLocation::Library { id: root.to_string() })
     }
 
     fn read(&mut self, root: &str, rel_path: &str) -> Result<Vec<u8>, StoreError> {
-        let lib = self.library_root(root)?;
-        let path = resolve_in(&lib.path, rel_path)?;
+        let dir = self.root_dir(root)?;
+        let path = resolve_in(&dir, rel_path)?;
         fs::read(&path).map_err(|e| match e.kind() {
             std::io::ErrorKind::NotFound => StoreError::NotFound(rel_path.to_string()),
             _ => io_err(e),
         })
+    }
+
+    /// v0.2 (`presets`): only the user library is writable (atomic write, parents created).
+    fn write_file(&mut self, root: &str, rel_path: &str, bytes: &[u8]) -> Result<(), StoreError> {
+        let dir = self.user_dir(root)?;
+        if sanitize_rel(rel_path)?.as_os_str().is_empty() {
+            return Err(StoreError::InvalidPath(rel_path.to_string()));
+        }
+        atomic_write(&resolve_in(&dir, rel_path)?, bytes)
+    }
+
+    /// v0.2 (`presets`): delete a file of the user library (never a folder).
+    fn remove_file(&mut self, root: &str, rel_path: &str) -> Result<(), StoreError> {
+        let dir = self.user_dir(root)?;
+        let path = resolve_in(&dir, rel_path)?;
+        match fs::symlink_metadata(&path) {
+            Ok(m) if m.is_file() => fs::remove_file(&path).map_err(io_err),
+            Ok(_) => Err(StoreError::InvalidPath(format!("not a file: {rel_path}"))),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                Err(StoreError::NotFound(rel_path.to_string()))
+            }
+            Err(e) => Err(io_err(e)),
+        }
+    }
+
+    /// v0.2 (`presets`): rename/move a file inside the user library. The target must not
+    /// exist (`AlreadyExists`); parents are created.
+    fn rename_file(&mut self, root: &str, from: &str, to: &str) -> Result<(), StoreError> {
+        let dir = self.user_dir(root)?;
+        let src = resolve_in(&dir, from)?;
+        if sanitize_rel(to)?.as_os_str().is_empty() {
+            return Err(StoreError::InvalidPath(to.to_string()));
+        }
+        let dst = resolve_in(&dir, to)?;
+        if !fs::symlink_metadata(&src).is_ok_and(|m| m.is_file()) {
+            return Err(StoreError::NotFound(from.to_string()));
+        }
+        // Case-only renames on case-insensitive file systems see the target as existing.
+        let same_file = src.to_string_lossy().to_lowercase() == dst.to_string_lossy().to_lowercase();
+        if dst.exists() && !same_file {
+            return Err(StoreError::AlreadyExists(to.to_string()));
+        }
+        if let Some(parent) = dst.parent() {
+            fs::create_dir_all(parent).map_err(io_err)?;
+        }
+        fs::rename(&src, &dst).map_err(io_err)
+    }
+
+    fn user_root(&self) -> Option<String> {
+        self.user_library.as_ref().map(|_| USER_LIBRARY_ID.to_string())
     }
 
     /// `file-import` (shared with `media-references`): an OS file chosen by the user (file
@@ -443,8 +535,8 @@ impl Library for DiskStore {
     /// (the root joined with the checked relative path; symlinks are not resolved, so the
     /// reference keeps the path the user sees).
     fn external_path(&self, root: &str, rel_path: &str) -> Option<String> {
-        let lib = self.library_root(root).ok()?;
-        let path = resolve_in(&lib.path, rel_path).ok()?;
+        let dir = self.root_dir(root).ok()?;
+        let path = resolve_in(&dir, rel_path).ok()?;
         if !path.is_absolute() {
             return None;
         }
@@ -557,6 +649,59 @@ mod tests {
                 path: lib,
             }],
         )
+    }
+
+    #[test]
+    fn user_library_write_rename_remove() {
+        let tmp = TempDir::new("store-user-lib");
+        let mut s = store(&tmp);
+        assert_eq!(s.user_root().as_deref(), Some(USER_LIBRARY_ID));
+        // Not a browse root; the configured roots are read-only.
+        assert_eq!(s.roots().len(), 1);
+        assert!(matches!(
+            s.write_file("lib", "x.etherpreset", b"x"),
+            Err(StoreError::Unsupported(_))
+        ));
+        // Missing folders are created; atomic write leaves no temp file.
+        s.write_file("user", "Presets/synth/A.etherpreset", b"a").unwrap();
+        let dir = tmp.path().join(USER_LIBRARY_DIR).join("Presets/synth");
+        assert_eq!(fs::read(dir.join("A.etherpreset")).unwrap(), b"a");
+        assert_eq!(Library::read(&mut s, "user", "Presets/synth/A.etherpreset").unwrap(), b"a");
+        let listing = Library::list_dir(&mut s, "user", "Presets/synth").unwrap();
+        assert_eq!(listing.entries.len(), 1);
+        assert_eq!(listing.entries[0].path, "Presets/synth/A.etherpreset");
+        // Rename: target must not exist; case-only renames work.
+        s.write_file("user", "Presets/synth/B.etherpreset", b"b").unwrap();
+        assert!(matches!(
+            s.rename_file("user", "Presets/synth/A.etherpreset", "Presets/synth/B.etherpreset"),
+            Err(StoreError::AlreadyExists(_))
+        ));
+        s.rename_file("user", "Presets/synth/A.etherpreset", "Presets/synth/a.etherpreset")
+            .unwrap();
+        s.rename_file("user", "Presets/synth/a.etherpreset", "Presets/other/C.etherpreset")
+            .unwrap();
+        assert_eq!(Library::read(&mut s, "user", "Presets/other/C.etherpreset").unwrap(), b"a");
+        assert!(matches!(
+            s.rename_file("user", "Presets/synth/nope", "Presets/x"),
+            Err(StoreError::NotFound(_))
+        ));
+        // Remove files only; escapes are rejected.
+        assert!(matches!(
+            s.remove_file("user", "Presets"),
+            Err(StoreError::InvalidPath(_))
+        ));
+        s.remove_file("user", "Presets/other/C.etherpreset").unwrap();
+        assert!(matches!(
+            s.remove_file("user", "Presets/other/C.etherpreset"),
+            Err(StoreError::NotFound(_))
+        ));
+        for bad in ["../x", "/etc/x", ""] {
+            assert!(s.write_file("user", bad, b"x").is_err(), "{bad}");
+        }
+        // Read-only without a user library.
+        let mut ro = store(&tmp).with_user_library(None);
+        assert_eq!(ro.user_root(), None);
+        assert!(ro.write_file("user", "a", b"x").is_err());
     }
 
     #[test]
