@@ -129,8 +129,8 @@
 }
 .eth-note__dot {
   display: block;
-  width: var(--eth-size-status-dot);
-  height: var(--eth-size-status-dot);
+  width: var(--eth-size-icon-sm);
+  height: var(--eth-size-icon-sm);
   padding: 0;
   border: var(--eth-border-width-strong) solid var(--eth-color-bg);
   border-radius: var(--eth-radius-round);

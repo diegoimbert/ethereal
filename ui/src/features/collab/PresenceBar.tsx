@@ -135,7 +135,7 @@ function HideOthersToggle() {
   const set = useCollabStore((s) => s.setHideOthers);
   return (
     <div className="eth-collab__hide" data-testid="collab-hide-others">
-      <Toggle checked={hide} onChange={set} label="Hide users and notes" />
+      <Toggle size="sm" checked={hide} onChange={set} label="Hide users and notes" />
       <p className="eth-collab__hint">Hides the others' pointers, playheads, selections and pinned notes on your screen only.</p>
     </div>
   );
