@@ -99,7 +99,9 @@ struct Sources<'a> {
 impl<'a> Sources<'a> {
     fn new(tdesc: &'a TrackDesc, timing: &Timing<'_>, playing: bool) -> Self {
         let (lo, end) = if playing {
-            (timing.beat_at(-1.0), timing.b1)
+            // Mixer ramps look up to one grid interval past the sub-block end.
+            let ahead = timing.beat_at((timing.frames as u64 + PARAM_GRID) as f64);
+            (timing.beat_at(-1.0), ahead.max(timing.b1))
         } else {
             (timing.b0, timing.b0 + 1e-9)
         };

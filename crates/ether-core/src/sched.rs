@@ -209,7 +209,9 @@ impl Timing<'_> {
         if span <= 0.0 {
             return 0;
         }
-        let o = ((t - self.b0) / span * self.frames as f64).ceil();
+        // Absorb float error (1e-6 samples) so a boundary on a sample lands on that sample
+        // whatever the sub-block split (adjacent pieces never both render it, or skip it).
+        let o = ((t - self.b0) / span * self.frames as f64 - 1e-6).ceil();
         (o.max(0.0) as usize).min(self.frames)
     }
 
