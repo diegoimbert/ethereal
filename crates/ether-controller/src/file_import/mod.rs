@@ -5,14 +5,17 @@
 //!   OS drop; the UI passes the path, never the bytes). [`read_path`] validates the path
 //!   (absolute, audio extension via `store::file_kind`, no NUL) and reads it with
 //!   `Library::read_external` (the host checks it is a regular readable file within
-//!   [`MAX_IMPORT_BYTES`]). Until `media-references` lands the import copies the file into
-//!   the project (v0.1 behaviour); then it becomes an external reference in place.
+//!   [`MAX_IMPORT_BYTES`]). The media is an external reference in place
+//!   (`MediaLocation::External { path }`, nothing copied; `media-references`, CONTRACTS.md
+//!   §12.9).
 //! - Web (local wasm controller) and remote: bytes go through the frozen upload staging
 //!   (`Media::{BeginUpload, UploadChunk, CancelUpload}` → `MediaSource::Upload`, copied into
 //!   the project); the web OPFS store stages them (`ether-wasm/src/store.rs`). Hosts without
 //!   OS paths (web) reply `Unsupported` to `Path` (the default `read_external`).
 //! - Collab: imported media replicate through the existing media push (`collab_push_media`);
 //!   an external-path media pushes its bytes, read with `read_external` ([`media_bytes`]).
+//!   Peers never see the path (a media's location is per-site, `collab/resolve.rs`): they
+//!   store the bytes at `MediaRef::file`.
 
 use ether_core::protocol::media::FileKind;
 use ether_core::protocol::model::{MediaLocation, MediaRef, ProjectId};

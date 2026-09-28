@@ -147,7 +147,9 @@ pub(crate) fn apply_guarded(
 }
 
 /// Ops that are site-local (docs/COLLAB.md §2.1): never sent, ignored when received.
-/// Mute and solo are per-user (each site mixes for itself), like the settings below.
+/// Mute and solo are per-user (each site mixes for itself), like the settings below. A
+/// media's location is per-site too (`media-references`): an external reference is a path
+/// on this machine, which never leaves it (peers store the bytes at `MediaRef::file`).
 pub(crate) fn is_local_only(op: &Op) -> bool {
     match op {
         Op::Settings { change } => matches!(
@@ -169,6 +171,10 @@ pub(crate) fn is_local_only(op: &Op) -> bool {
                 | EntityUpdate::DrumPad {
                     change: DrumPadChange::Mute(_),
                     ..
+                }
+                | EntityUpdate::Media {
+                    change: MediaChange::Location(_),
+                    ..
                 },
         } => true,
         _ => false,
@@ -176,7 +182,8 @@ pub(crate) fn is_local_only(op: &Op) -> bool {
 }
 
 /// `op` as sent to the relay: `None` if it is local-only; an `Insert` of a track or drum pad
-/// carries no mute/solo (the receiver's new entity starts unmuted and unsoloed).
+/// carries no mute/solo (the receiver's new entity starts unmuted and unsoloed), and one of
+/// a media no location (`Project`: the receiver stores the pushed bytes at its `file`).
 pub(crate) fn outgoing(op: &Op) -> Option<Op> {
     if is_local_only(op) {
         return None;
@@ -201,6 +208,15 @@ pub(crate) fn outgoing(op: &Op) -> Option<Op> {
                 entity: Entity::DrumPad(d),
             }
         }
+        Op::Insert {
+            entity: Entity::Media(m),
+        } => {
+            let mut m = m.clone();
+            m.location = MediaLocation::Project;
+            Op::Insert {
+                entity: Entity::Media(m),
+            }
+        }
         op => op.clone(),
     })
 }
@@ -223,11 +239,13 @@ pub(crate) fn split_shared(ops: &[Op], inverse: &[Op]) -> (Vec<Op>, Vec<Op>) {
     (sent.into_iter().flatten().collect(), kept_inv)
 }
 
-/// This site's mix (docs/COLLAB.md §2.1): track mute/solo and drum pad mute.
+/// This site's mix (docs/COLLAB.md §2.1): track mute/solo and drum pad mute, plus where
+/// this site reads each media from (`media-references`: external paths are per-site).
 #[derive(Clone, Debug, Default, PartialEq)]
 pub(crate) struct LocalMix {
     tracks: BTreeMap<TrackId, (bool, bool)>,
     pads: BTreeMap<DrumPadId, bool>,
+    media: BTreeMap<MediaId, MediaLocation>,
 }
 
 impl LocalMix {
@@ -239,6 +257,12 @@ impl LocalMix {
                 .map(|t| (t.id, (t.mixer.mute, t.mixer.solo)))
                 .collect(),
             pads: p.drum_pads.values().map(|d| (d.id, d.mute)).collect(),
+            media: p
+                .media
+                .values()
+                .filter(|m| m.location != MediaLocation::Project)
+                .map(|m| (m.id, m.location.clone()))
+                .collect(),
         }
     }
 
@@ -250,11 +274,15 @@ impl LocalMix {
         for (id, v) in &other.pads {
             self.pads.entry(*id).or_insert(*v);
         }
+        for (id, v) in &other.media {
+            self.media.entry(*id).or_insert_with(|| v.clone());
+        }
         self
     }
 
     /// Put this mix on `p`: tracks and pads it doesn't know (created by others) end up
-    /// unmuted and unsoloed. Returns the ops applied (for the patch and the engine).
+    /// unmuted and unsoloed, media it doesn't reference in place are project media. Returns
+    /// the ops applied (for the patch and the engine).
     pub(crate) fn overlay(&self, p: &mut Project) -> Vec<Op> {
         let mut ops = Vec::new();
         for t in p.tracks.values() {
@@ -283,6 +311,17 @@ impl LocalMix {
                     update: EntityUpdate::DrumPad {
                         id: d.id,
                         change: DrumPadChange::Mute(mute),
+                    },
+                });
+            }
+        }
+        for m in p.media.values() {
+            let location = self.media.get(&m.id).cloned().unwrap_or_default();
+            if m.location != location {
+                ops.push(Op::Update {
+                    update: EntityUpdate::Media {
+                        id: m.id,
+                        change: MediaChange::Location(location),
                     },
                 });
             }
@@ -374,6 +413,76 @@ mod tests {
         assert!(!sent_track.mixer.mute && !sent_track.mixer.solo);
         assert_eq!(sent[1], ops[1]);
         assert_eq!(inv, inverse[2..].to_vec());
+    }
+
+    fn media(ids: &mut IdGen, location: MediaLocation) -> MediaRef {
+        MediaRef {
+            id: MediaId(ids.next_ulid(0)),
+            name: "kick.wav".into(),
+            file: "media/kick.wav".into(),
+            sample_rate: 48_000,
+            channels: 1,
+            frames: 10,
+            hash: Some("h".into()),
+            location,
+        }
+    }
+
+    #[test]
+    fn media_locations_are_per_site() {
+        let mut ids = IdGen::new(9);
+        let mut p = Project::new(&mut ids, 0);
+        let external = MediaLocation::External {
+            path: "/Users/me/Samples/kick.wav".into(),
+        };
+        let m = media(&mut ids, external.clone());
+        // An import in place is sent without its path.
+        let insert = Op::Insert {
+            entity: Entity::Media(m.clone()),
+        };
+        let (sent, _) = split_shared(std::slice::from_ref(&insert), &[]);
+        let Op::Insert {
+            entity: Entity::Media(sent_media),
+        } = &sent[0]
+        else {
+            panic!("{sent:?}")
+        };
+        assert_eq!(sent_media.location, MediaLocation::Project);
+        assert_eq!(sent_media.hash, m.hash);
+        // Relinks and collects are local; hash changes are shared.
+        let located = Op::Update {
+            update: EntityUpdate::Media {
+                id: m.id,
+                change: MediaChange::Location(external.clone()),
+            },
+        };
+        let hashed = Op::Update {
+            update: EntityUpdate::Media {
+                id: m.id,
+                change: MediaChange::Hash(Some("h2".into())),
+            },
+        };
+        assert!(is_local_only(&located));
+        assert!(!is_local_only(&hashed));
+        // Our locations survive an overlay; unknown media are project media.
+        p.apply(&insert).unwrap();
+        let ours = LocalMix::of(&p);
+        p.apply(&Op::Update {
+            update: EntityUpdate::Media {
+                id: m.id,
+                change: MediaChange::Location(MediaLocation::Project),
+            },
+        })
+        .unwrap();
+        assert_eq!(ours.overlay(&mut p).len(), 1);
+        assert_eq!(p.media[&m.id].location, external);
+        LocalMix::default().overlay(&mut p);
+        assert_eq!(p.media[&m.id].location, MediaLocation::Project);
+        assert_eq!(shared_part(&p), {
+            let mut q = p.clone();
+            ours.overlay(&mut q);
+            shared_part(&q)
+        });
     }
 
     #[test]

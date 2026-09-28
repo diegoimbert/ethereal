@@ -72,7 +72,7 @@ fn basename(path: &str) -> &str {
 }
 
 /// File name for an imported copy: `media/<id>-<sanitized name>`.
-fn media_file_name(id: MediaId, name: &str) -> String {
+pub(crate) fn media_file_name(id: MediaId, name: &str) -> String {
     let mut clean: String = name
         .chars()
         .map(|c| {
@@ -753,15 +753,22 @@ where
             return Ok(ReplyValue::Media { media: m.clone() });
         }
         let pid = doc.project.id;
+        // v0.2 (`media-references`, CONTRACTS.md §12.9): library files and OS paths are
+        // referenced in place where the host can (`External`, nothing copied); the rest is
+        // copied into the project's `media/`.
+        let mut location = MediaLocation::Project;
         let (bytes, name, existing_file) = match source {
-            MediaSource::Location { location, path } => {
+            MediaSource::Location { location: at, path } => {
                 check_relative_path(path).map_err(store_err)?;
                 if path.is_empty() {
                     return Err(invalid("path must name a file"));
                 }
-                match location {
+                match at {
                     BrowseLocation::Library { id: root } => {
                         let bytes = self.library.read(root, path).map_err(store_err)?;
+                        if let Some(path) = self.library.external_path(root, path) {
+                            location = MediaLocation::External { path };
+                        }
                         (bytes, basename(path).to_string(), None)
                     }
                     BrowseLocation::ProjectMedia => {
@@ -778,7 +785,11 @@ where
                     .get(media)
                     .cloned()
                     .ok_or_else(|| not_found(format!("media {media}")))?;
-                let bytes = self.store.read(pid, &m.file).map_err(store_err)?;
+                let bytes =
+                    crate::media::read_media_bytes(&mut self.store, &mut self.library, pid, &m)
+                        .map_err(store_err)?;
+                // The same file: referenced where the original is.
+                location = m.location.clone();
                 (bytes, m.name, Some(m.file))
             }
             MediaSource::Upload { upload } => {
@@ -786,9 +797,11 @@ where
                     crate::upload::take_upload(&mut self.uploads, &mut self.store, upload)?;
                 (bytes, name, None)
             }
-            // v0.2 (`file-import`): an OS file of the engine machine (desktop).
+            // v0.2 (`file-import`): an OS file of the engine machine (desktop), referenced in
+            // place (`media-references`).
             MediaSource::Path { path } => {
                 let (bytes, name) = crate::file_import::read_path(&mut self.library, path)?;
+                location = MediaLocation::External { path: path.clone() };
                 (bytes, name, None)
             }
         };
@@ -808,8 +821,11 @@ where
         if decoder.sample_rate == 0 || decoder.channels == 0 {
             return Err(cmd_err(ErrorCode::Decode, "no decodable audio"));
         }
+        let external = matches!(location, MediaLocation::External { .. });
         let file = match existing_file {
             Some(f) => f,
+            // Referenced in place: `file` is where "collect all" (or a collaborator) puts it.
+            None if external => media_file_name(id, &name),
             None => match doc
                 .project
                 .media
@@ -831,7 +847,7 @@ where
             },
         };
         let media = MediaRef {
-            location: Default::default(),
+            location,
             id,
             name: name.clone(),
             file,
@@ -948,6 +964,7 @@ where
             let loaded = self.media.step(
                 pid,
                 &mut self.store,
+                &mut self.library,
                 &mut self.bridge,
                 self.config.engine_sample_rate,
                 self.config.media_frames_per_tick,

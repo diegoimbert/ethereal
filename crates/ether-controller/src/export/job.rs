@@ -18,7 +18,7 @@ use super::offline::{Capture, MediaLoader, NodeSetup, tempo_rt};
 use crate::EngineBridge;
 use crate::engine::EngineState;
 use crate::media::IncrementalResampler;
-use crate::store::ProjectStore;
+use crate::store::{Library, ProjectStore};
 
 /// Longest tail accepted (`ExportRequest::tail_seconds`).
 pub(crate) const MAX_TAIL_SECONDS: f64 = 60.0;
@@ -317,11 +317,12 @@ impl Job {
 
     /// Do one unit of work (bounded: [`UNIT_FRAMES`] frames, [`UNIT_BUILTINS`] built-in
     /// nodes or one plugin instance).
-    pub fn step<B: EngineBridge, S: ProjectStore>(
+    pub fn step<B: EngineBridge, S: ProjectStore, L: Library>(
         &mut self,
         bridge: &mut B,
         engine: &EngineState,
         store: &mut S,
+        library: &mut L,
     ) -> Result<Step, String> {
         let mut frames = 0;
         let mut devices = 0;
@@ -330,6 +331,7 @@ impl Job {
             bridge,
             engine,
             store,
+            library,
             &mut frames,
             &mut devices,
             &mut plugins,
@@ -338,18 +340,20 @@ impl Job {
         r
     }
 
-    fn unit<B: EngineBridge, S: ProjectStore>(
+    #[allow(clippy::too_many_arguments)]
+    fn unit<B: EngineBridge, S: ProjectStore, L: Library>(
         &mut self,
         bridge: &mut B,
         engine: &EngineState,
         store: &mut S,
+        library: &mut L,
         frames: &mut usize,
         devices: &mut usize,
         plugins: &mut usize,
     ) -> Result<Step, String> {
         match &mut self.stage {
             Stage::Media => {
-                if self.media.step(store, frames)? {
+                if self.media.step(store, library, frames)? {
                     self.stage = Stage::Setup(Box::new(self.new_setup()?));
                 }
                 Ok(Step::Working)

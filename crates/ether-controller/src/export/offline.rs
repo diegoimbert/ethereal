@@ -17,7 +17,7 @@ pub(crate) use super::job::UNIT_FRAMES;
 use crate::compile::{CompileContext, compile_graph_with};
 use crate::engine::EngineState;
 use crate::media::{IncrementalDecoder, IncrementalResampler, extension_of};
-use crate::store::ProjectStore;
+use crate::store::{Library, ProjectStore};
 use crate::{BridgeError, EngineBridge};
 
 pub(crate) fn engine_err(e: ether_core::EngineError) -> String {
@@ -74,9 +74,10 @@ impl MediaLoader {
     }
 
     /// Decode/resample the next media by one unit. `Ok(true)` once everything is loaded.
-    pub fn step<S: ProjectStore>(
+    pub fn step<S: ProjectStore, L: Library>(
         &mut self,
         store: &mut S,
+        library: &mut L,
         frames: &mut usize,
     ) -> Result<bool, String> {
         let load = match self.load.take() {
@@ -85,8 +86,8 @@ impl MediaLoader {
                 let Some(m) = self.queue.pop_front() else {
                     return Ok(true);
                 };
-                let bytes = store
-                    .read(self.project, &m.file)
+                // External references resolve like live playback (`media-references`).
+                let bytes = crate::media::read_media_bytes(store, library, self.project, &m)
                     .map_err(|e| format!("could not read \"{}\": {e}", m.name))?;
                 let dec = IncrementalDecoder::new(bytes.into(), extension_of(&m.file))
                     .map_err(|e| format!("could not decode \"{}\": {e}", m.name))?;
