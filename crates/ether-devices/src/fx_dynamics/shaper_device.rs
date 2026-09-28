@@ -1,19 +1,20 @@
 //! Transient shaper (`BuiltinDeviceType::TransientShaper`).
 //!
-//! Level-independent (differential envelope) design: three stereo-linked peak followers
-//! of the input level in dB:
-//! - `fast`: instant attack, `Release Time` release (the signal's peak envelope);
-//! - `slow`: `Attack Time` attack, `Release Time` release (lags behind onsets);
-//! - `short`: instant attack, `Attack Time` release (follows the decay closely).
+//! Level-independent (differential envelope) design, stereo-linked:
+//! 1. `level`: the input peak held over [`HOLD_MS`] (a sliding maximum, so the envelope of
+//!    anything above ~35 Hz is ripple-free), in dB, floored at [`FLOOR_DB`] so noise isn't
+//!    pumped;
+//! 2. `slow`: follows `level` up with the `Attack Time` constant and down instantly, so
+//!    `level - slow` (>= 0) is the transient part (right after an onset only);
+//! 3. `tail`: follows `level` up instantly and down with the `Release Time` constant, so
+//!    `tail - level` (>= 0) is the sustain part (while a sound decays faster than that).
 //!
-//! `fast - slow` (>= 0) is the transient part (only right after an onset) and `fast -
-//! short` (>= 0) the sustain/tail part. The gain in dB is `Attack · (fast - slow) +
-//! Sustain · (fast - short)` (amounts -100..=100 % = -1..=1), clamped to ±[`MAX_GAIN_DB`],
-//! so steady signals pass unchanged and the effect doesn't depend on the input level.
-//! Levels below [`FLOOR_DB`] are floored so noise isn't pumped. `Clip` soft-clips the
-//! output at 0 dBFS (tanh). `Mix` is a parallel blend (no latency). The applied shaping
-//! gain (dB, the largest |gain| since the last read, sign kept) is published as
-//! `AnalysisKind::Levels [gain dB]` for the layout meter.
+//! The gain in dB is `Attack · (level - slow) + Sustain · (tail - level)` (amounts
+//! -100..=100 % = -1..=1), clamped to ±[`MAX_GAIN_DB`]: steady signals pass unchanged and
+//! the effect doesn't depend on the input level. `Clip` soft-clips the output at 0 dBFS
+//! (tanh). `Mix` is a parallel blend (no latency). The applied shaping gain (dB, the largest
+//! |gain| since the last read, sign kept) is published as `AnalysisKind::Levels [gain dB]`
+//! for the layout meter.
 
 use ether_core::protocol::devices::DeviceDescriptor;
 use ether_core::protocol::model::{BuiltinDeviceType, ParamId};
@@ -24,14 +25,16 @@ use ether_core::{
 
 use super::shared::{GainRamp, Params};
 use super::transient_shaper as p;
+use crate::dsp::sliding_min::SlidingMin;
 use crate::util::{db_to_amp, split_at_events, tau_coef};
 
 /// Largest boost/cut of the shaping gain (dB).
 pub const MAX_GAIN_DB: f32 = 18.0;
 /// Detector floor (dB): quieter input is treated as this level.
 const FLOOR_DB: f32 = -60.0;
-/// Attack time of the "instant" followers (ms).
-const INSTANT_MS: f32 = 0.1;
+/// Peak hold of the level detector (ms): bridges the gaps between the peaks of a
+/// waveform down to ~35 Hz.
+const HOLD_MS: f32 = 15.0;
 
 /// A peak follower in dB with separate attack/release coefficients.
 #[derive(Clone, Copy, Debug)]
@@ -54,12 +57,12 @@ impl Follower {
 pub struct TransientShaper {
     params: Params<{ p::COUNT }>,
     sample_rate: f32,
-    instant: f32,
     attack_coef: f32,
     release_coef: f32,
-    fast: Follower,
+    /// Sliding maximum of the input peak (as a minimum of its negation).
+    hold: SlidingMin,
     slow: Follower,
-    short: Follower,
+    tail: Follower,
     attack: GainRamp,
     sustain: GainRamp,
     output: GainRamp,
@@ -81,24 +84,29 @@ impl TransientShaper {
         let mut s = Self {
             params,
             sample_rate: 48_000.0,
-            instant: 0.0,
             attack_coef: 0.0,
             release_coef: 0.0,
-            fast: Follower::IDLE,
+            hold: SlidingMin::new(1),
             slow: Follower::IDLE,
-            short: Follower::IDLE,
+            tail: Follower::IDLE,
             attack: GainRamp::new(0.0),
             sustain: GainRamp::new(0.0),
             output: GainRamp::new(1.0),
             mix: GainRamp::new(1.0),
             meter_db: 0.0,
         };
-        s.sync();
+        s.alloc(48_000.0);
         s
     }
 
+    /// Non-RT: size the peak hold for `sample_rate`.
+    fn alloc(&mut self, sample_rate: f32) {
+        self.sample_rate = sample_rate.max(1.0);
+        self.hold = SlidingMin::new((HOLD_MS * 0.001 * self.sample_rate) as usize);
+        self.sync();
+    }
+
     fn sync(&mut self) {
-        self.instant = tau_coef(INSTANT_MS, self.sample_rate);
         self.update_times();
         for id in [p::ATTACK, p::SUSTAIN, p::OUTPUT, p::MIX] {
             self.apply_param(id, self.params.get(id).into(), false);
@@ -135,12 +143,12 @@ impl TransientShaper {
             } else {
                 FLOOR_DB
             };
-            let fast = self.fast.tick(x_db, self.instant, self.release_coef);
-            let slow = self.slow.tick(x_db, self.attack_coef, self.release_coef);
-            let short = self.short.tick(x_db, self.instant, self.attack_coef);
-            let transient = (fast - slow).max(0.0);
-            let tail = (fast - short).max(0.0);
-            let gain_db = (self.attack.tick() * transient + self.sustain.tick() * tail)
+            let level = -self.hold.push(-x_db);
+            let slow = self.slow.tick(level, self.attack_coef, 0.0);
+            let tail = self.tail.tick(level, 0.0, self.release_coef);
+            let transient = (level - slow).max(0.0);
+            let sustain = (tail - level).max(0.0);
+            let gain_db = (self.attack.tick() * transient + self.sustain.tick() * sustain)
                 .clamp(-MAX_GAIN_DB, MAX_GAIN_DB);
             if gain_db.abs() > self.meter_db.abs() {
                 self.meter_db = gain_db;
@@ -160,15 +168,14 @@ impl TransientShaper {
 
 impl Node for TransientShaper {
     fn prepare(&mut self, config: &PrepareConfig) {
-        self.sample_rate = config.sample_rate.max(1.0);
-        self.sync();
+        self.alloc(config.sample_rate);
         self.reset();
     }
 
     fn reset(&mut self) {
-        self.fast = Follower::IDLE;
+        self.hold.clear();
         self.slow = Follower::IDLE;
-        self.short = Follower::IDLE;
+        self.tail = Follower::IDLE;
         self.meter_db = 0.0;
     }
 
