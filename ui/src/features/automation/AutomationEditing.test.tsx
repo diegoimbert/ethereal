@@ -307,7 +307,7 @@ describe("value snapping", () => {
     });
     await flush();
     const svg = screen.getAllByTestId("automation-lane-svg")[1]!;
-    // Detune: -12..12 st. The default 64 px lane opens on ±3 st (9 px per step), one line
+    // Transpose: -24..24 st. The default 64 px lane opens on ±3 st (9 px per step), one line
     // per step.
     expect(svg.querySelectorAll(".eth-auto-lane__step")).toHaveLength(7);
     const st = (s: number) => LANE_PAD + (1 - (s + 3) / 6) * (LANE_HEIGHT - 2 * LANE_PAD);
@@ -316,7 +316,7 @@ describe("value snapping", () => {
     await flush();
     const detune = Object.values(project().automation_lanes).find((l) => l.target.type === "DeviceParam")!;
     const [p] = lanePoints(detune.id);
-    const semis = () => project().automation_points[p!.id]!.value * 24 - 12;
+    const semis = () => project().automation_points[p!.id]!.value * 48 - 24;
     expect(semis()).toBeCloseTo(1, 9);
 
     // A coarse 24 px drag up moves exactly 3 st (8 px per step, whatever the lane height).
