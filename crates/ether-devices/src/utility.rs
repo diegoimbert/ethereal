@@ -114,7 +114,12 @@ pub fn layout() -> ether_core::protocol::layout::DeviceLayout {
             2,
             vec![
                 knob(params::WIDTH, Medium),
-                item(Widget::Toggle { param: params::MONO }, Small),
+                item(
+                    Widget::Toggle {
+                        param: params::MONO,
+                    },
+                    Small,
+                ),
             ],
         ),
         section(

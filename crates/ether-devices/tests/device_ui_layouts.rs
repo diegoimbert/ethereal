@@ -130,11 +130,9 @@ fn bound(w: &Widget) -> Vec<u32> {
             .flatten()
             .map(|p| p.0)
             .collect(),
-        W::SampleWaveform { start, end } => [*start, *end]
-            .into_iter()
-            .flatten()
-            .map(|p| p.0)
-            .collect(),
+        W::SampleWaveform { start, end } => {
+            [*start, *end].into_iter().flatten().map(|p| p.0).collect()
+        }
         W::XyPad { x, y } => vec![x.0, y.0],
         W::TransferCurve { drive, curve, bias } => [Some(*drive), *curve, *bias]
             .into_iter()

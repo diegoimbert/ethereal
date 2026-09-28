@@ -167,7 +167,12 @@ pub fn layout() -> ether_core::protocol::layout::DeviceLayout {
             2,
             3,
             vec![
-                item(Widget::Choice { param: params::MODE }, Small),
+                item(
+                    Widget::Choice {
+                        param: params::MODE,
+                    },
+                    Small,
+                ),
                 item(
                     Widget::Number {
                         param: params::ROOT_KEY,

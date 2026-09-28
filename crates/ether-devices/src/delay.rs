@@ -119,7 +119,12 @@ pub fn layout() -> ether_core::protocol::layout::DeviceLayout {
             3,
             vec![
                 knob(params::TIME, Large),
-                item(Widget::Toggle { param: params::SYNC }, Small),
+                item(
+                    Widget::Toggle {
+                        param: params::SYNC,
+                    },
+                    Small,
+                ),
                 item(
                     Widget::Choice {
                         param: params::DIVISION,
