@@ -8,9 +8,12 @@
 //!   gets through `Node::set_data` when it is created and whenever the track/project scale
 //!   (or its `Scale` source param) changes.
 
+use std::collections::BTreeMap;
+
 use ether_core::protocol::devices::DeviceCategory;
 use ether_core::protocol::model::{
-    BuiltinDeviceType, Device, DeviceKind, MusicalScale, Project, ScaleKind, TrackId, TrackScale,
+    BuiltinDeviceType, Device, DeviceId, DeviceKind, MusicalScale, Project, ScaleKind, TrackId,
+    TrackScale,
 };
 
 use crate::tx::{CmdResult, invalid};
@@ -84,14 +87,43 @@ pub(crate) fn scale_for(p: &Project, device: &Device) -> Option<MusicalScale> {
         .copied()
         .unwrap_or(0.0);
     if ty == BuiltinDeviceType::ScaleQuantize && source.round() == SOURCE_PROJECT {
-        return Some(p.scale);
+        return Some(p.settings.scale);
     }
     Some(match p.tracks.get(&device.track).map(|t| t.scale) {
         Some(TrackScale::Custom { scale }) => scale,
         Some(TrackScale::Chromatic) => MusicalScale {
-            root: p.scale.root,
+            root: p.settings.scale.root,
             kind: ScaleKind::Chromatic,
         },
-        _ => p.scale,
+        _ => p.settings.scale,
     })
+}
+
+/// Push the resolved scale to every live Scale Quantize / Random node whose scale changed
+/// since the last push (`sent`; a re-created node is removed from it by the caller).
+/// Called after node sync (creation, track/project scale edits republish) and after a
+/// Scale Quantize's params change (its `Scale` source picks track or project).
+pub(crate) fn push_scales<B: crate::EngineBridge>(
+    bridge: &mut B,
+    project: Option<&Project>,
+    live: impl Fn(DeviceId) -> bool,
+    sent: &mut BTreeMap<DeviceId, MusicalScale>,
+) {
+    let Some(p) = project else {
+        sent.clear();
+        return;
+    };
+    sent.retain(|d, _| p.devices.contains_key(d) && live(*d));
+    for d in p.devices.values() {
+        let Some(scale) = scale_for(p, d) else {
+            continue;
+        };
+        if sent.get(&d.id) == Some(&scale) || !live(d.id) {
+            continue;
+        }
+        // Unsupported hosts (`Ok(false)`) and failures aren't retried until the scale
+        // changes again; the node keeps its last scale.
+        let _ = bridge.set_node_scale(d.id, scale);
+        sent.insert(d.id, scale);
+    }
 }

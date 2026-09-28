@@ -74,6 +74,8 @@ pub(crate) struct EngineState {
     /// Auditioned take lanes (runtime, `Take::Audition`): the track plays the lane instead
     /// of its comp (`crate::comping::apply_audition`).
     pub audition: BTreeMap<TrackId, TakeLaneId>,
+    /// v0.2 (`midi-fx`): scale last pushed to each Scale Quantize / Random node.
+    midi_fx_scales: BTreeMap<DeviceId, MusicalScale>,
 }
 
 pub(crate) fn bridge_err(e: BridgeError) -> ether_core::protocol::CommandError {
@@ -125,6 +127,7 @@ impl EngineState {
         self.reload_from_doc.clear();
         self.pad_solo.clear();
         self.audition.clear();
+        self.midi_fx_scales.clear();
         self.graph_dirty = true;
     }
 
@@ -245,6 +248,7 @@ impl EngineState {
                         self.set_plugin_descriptor(device.id, desc);
                     }
                     self.nodes.insert(device.id, NodeEntry { key, sig });
+                    self.midi_fx_scales.remove(&device.id);
                 }
                 Err(e) => {
                     errors.push(format!("could not create device \"{}\": {e}", device.name));
@@ -269,6 +273,14 @@ impl EngineState {
             .into_iter()
             .map(|m| (NotificationLevel::Error, m))
             .collect();
+        // v0.2 (`midi-fx`): new nodes and scale edits (which republish) get their scale.
+        let nodes = &self.nodes;
+        crate::midi_fx::push_scales(
+            bridge,
+            project,
+            |d| nodes.contains_key(&d),
+            &mut self.midi_fx_scales,
+        );
         self.version += 1;
         let mut desc = match project {
             Some(p) => {
@@ -324,6 +336,18 @@ impl EngineState {
         project: &Project,
         applied: &[Op],
     ) {
+        // v0.2 (`midi-fx`): a Scale Quantize's `Scale` source picks the pushed scale.
+        if applied.iter().any(|op| {
+            matches!(op, Op::Update { update: EntityUpdate::Device { .. } })
+        }) {
+            let nodes = &self.nodes;
+            crate::midi_fx::push_scales(
+                bridge,
+                Some(project),
+                |d| nodes.contains_key(&d),
+                &mut self.midi_fx_scales,
+            );
+        }
         for op in applied {
             let change = match op {
                 Op::Update {

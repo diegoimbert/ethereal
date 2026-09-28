@@ -421,6 +421,12 @@ impl<M: RingMemory> EngineHost<M> {
                 };
                 self.handle.preview(control).map_err(|e| e.to_string())
             }
+            EngineMsg::NodeScale { key, scale } => {
+                let real = self.real_key(key)?;
+                self.handle
+                    .set_node_data(real, Box::new(scale))
+                    .map_err(|e| e.to_string())
+            }
         }
     }
 

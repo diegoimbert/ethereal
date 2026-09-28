@@ -1355,6 +1355,15 @@ impl JobCtx<'_> {
                 node.reset();
             }
             if !entry.enabled {
+                // Bypassed = MIDI thru (v0.2 `midi-fx`): its notes reach the next device
+                // (its own params don't).
+                if let Some(next) = tail.first_mut() {
+                    for e in entry.events.as_slice() {
+                        if !matches!(e.kind, EventKind::Param { .. }) {
+                            next.events.push(*e);
+                        }
+                    }
+                }
                 continue;
             }
             out_events.clear();

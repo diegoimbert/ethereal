@@ -243,6 +243,21 @@ impl EngineBridge for NativeBridge {
         Ok(key)
     }
 
+    /// v0.2 (`midi-fx`): the resolved scale reaches the live node (`Node::set_data`).
+    fn set_node_scale(
+        &mut self,
+        device: DeviceId,
+        scale: ether_core::protocol::model::MusicalScale,
+    ) -> Result<bool, BridgeError> {
+        let Some(entry) = self.devices.get(&device) else {
+            return Ok(false);
+        };
+        self.handle
+            .set_node_data(entry.key, Box::new(scale))
+            .map_err(engine_err)?;
+        Ok(true)
+    }
+
     /// Sampler slice edits reach the live node in place (`Node::set_data` with the new
     /// `SliceSettings`), so sounding notes aren't cut. Anything else: re-create.
     fn update_builtin(
