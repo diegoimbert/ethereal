@@ -1,7 +1,10 @@
 import clsx from "clsx";
 import { Command } from "lucide-react";
+import { useEffect } from "react";
 import { IconButton, MOD_KEY } from "@/kit";
 import { Browser } from "@/features/browser";
+import { useCollabStore } from "@/features/collab/store";
+import { ChatPanel } from "@/features/collab/social";
 import { MidiLearnPanel } from "@/features/midi-learn";
 import { PluginBrowser } from "@/features/plugins";
 import { DevicesPanel } from "./DevicesPanel";
@@ -17,9 +20,16 @@ export function LeftRail() {
   const left = useShellStore((s) => s.left);
   const toggle = useShellStore((s) => s.toggleLeft);
   const setPalette = useShellStore((s) => s.setPalette);
+  // collab-social: the Chat tab only exists in a session (its pane closes when it ends).
+  const online = useCollabStore((s) => s.status.type === "Online");
+  const offline = useCollabStore((s) => s.status.type === "Offline");
+  useEffect(() => {
+    const { left, setOpen } = useShellStore.getState();
+    if (offline && left.open && left.tab === "chat") setOpen("left", false);
+  }, [offline]);
   return (
     <nav className="eth-rail" aria-label="Panels">
-      {LEFT_TABS.map((t) => (
+      {LEFT_TABS.filter((t) => !t.session || online).map((t) => (
         <IconButton
           key={t.id}
           size="lg"
@@ -58,5 +68,7 @@ export function LeftPanel({ tab }: { tab: LeftTab }) {
       return <MidiLearnPanel />;
     case "devices":
       return <DevicesPanel />;
+    case "chat":
+      return <ChatPanel />;
   }
 }

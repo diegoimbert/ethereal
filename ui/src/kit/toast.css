@@ -1,0 +1,102 @@
+/* Toast: a short notification card, stacked at the top right. Tokens only. */
+.eth-toast-stack {
+  position: fixed;
+  top: calc(var(--eth-size-top-bar-height) + var(--eth-space-sm));
+  right: var(--eth-space-md);
+  z-index: var(--eth-z-popover);
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-sm);
+  width: var(--eth-size-tooltip-max-width);
+  pointer-events: none;
+}
+.eth-toast {
+  --eth-toast-accent: var(--eth-color-accent);
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  overflow: hidden;
+  border: var(--eth-border-width) solid var(--popover-border);
+  border-radius: var(--popover-radius);
+  background: var(--popover-bg);
+  box-shadow: var(--popover-shadow);
+  backdrop-filter: blur(var(--eth-space-md));
+  color: var(--eth-color-text);
+  font-size: var(--eth-fs-sm);
+  pointer-events: auto;
+  animation: eth-context-menu-in var(--context-menu-enter-duration) var(--context-menu-enter-ease) both;
+}
+/* The accent stripe (e.g. the author's colour). */
+.eth-toast::before {
+  content: "";
+  flex: none;
+  align-self: stretch;
+  width: var(--eth-border-width-strong);
+  background: var(--eth-toast-accent);
+}
+.eth-toast__body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--eth-space-hair);
+  min-width: 0;
+  padding: var(--eth-space-sm) var(--eth-space-md);
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+.eth-toast--clickable .eth-toast__body {
+  cursor: pointer;
+}
+.eth-toast--clickable .eth-toast__body:hover {
+  background: var(--eth-color-bg-hover);
+}
+.eth-toast__body:focus-visible {
+  outline: var(--eth-focus-ring-width) solid var(--eth-color-focus);
+  outline-offset: calc(-1 * var(--eth-focus-ring-width));
+}
+.eth-toast__title {
+  color: var(--eth-toast-accent);
+  font-weight: var(--eth-fw-medium);
+}
+.eth-toast__text {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  color: var(--eth-color-text);
+  line-height: var(--eth-lh-normal);
+  overflow-wrap: anywhere;
+  white-space: pre-line;
+}
+.eth-toast__close {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: var(--eth-size-control-sm);
+  height: var(--eth-size-control-sm);
+  margin: var(--eth-space-xs);
+  padding: 0;
+  border: none;
+  border-radius: var(--eth-radius-sm);
+  background: none;
+  color: var(--eth-color-text-dim);
+  cursor: pointer;
+}
+.eth-toast__close:hover {
+  background: var(--eth-color-bg-hover);
+  color: var(--eth-color-text);
+}
+.eth-toast__close svg {
+  width: var(--eth-size-icon-sm);
+  height: var(--eth-size-icon-sm);
+}
+@media (prefers-reduced-motion: reduce) {
+  .eth-toast {
+    animation: none;
+  }
+}

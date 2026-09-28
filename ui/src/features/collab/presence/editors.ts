@@ -5,7 +5,8 @@ import { peerColor, useCollabStore } from "../store";
 export function useClipEditors(clip: ClipId | null): Array<{ site: SiteId; name: string; color: string }> {
   // A primitive key so the component only re-renders when the answer changes.
   const key = useCollabStore((s) =>
-    clip === null
+    // collab-social: nobody is shown editing while "Hide users and notes" is on.
+    clip === null || s.hideOthers
       ? ""
       : s.peers
           .filter((p) => p.state.editing_clip === clip)
