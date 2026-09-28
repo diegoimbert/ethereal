@@ -28,7 +28,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::config::EngineConfig;
 use crate::delay::DelayLine;
-use crate::mixer::{Stereo, stereo};
+use crate::mixer::{BusInput, Stereo, TrackRt, stereo};
 
 /// `TrackInput::Track` compiled for the engine.
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
@@ -44,7 +44,6 @@ pub(crate) struct InputTapRt {
     pub source: Option<usize>,
     pub point: Option<InputTap>,
     /// PDC delay applied to the tapped signal (samples; the delay line's length).
-    #[allow(dead_code)] // kept for debugging; the line owns the delay
     pub delay: u32,
     /// The aligned tapped signal of the current sub-block (empty without a source).
     buf: Stereo,
@@ -111,8 +110,8 @@ impl InputTapRt {
     }
 
     /// RT. The aligned tapped signal of the current sub-block (`None` before the consumer's
-    /// job gathered it, or without a source): what recording from a tap captures.
-    #[allow(dead_code)] // read by the tap recorder
+    /// job gathered it, or without a source): what recording from a tap captures
+    /// (`crate::recording`, `tap-recording`).
     pub(crate) fn signal(&self, frames: usize) -> Option<[&[f32]; 2]> {
         (self.ready && self.buf[0].len() >= frames)
             .then(|| [&self.buf[0][..frames], &self.buf[1][..frames]])
@@ -124,6 +123,45 @@ impl InputTapRt {
             self.line.inherit(&mut old.line);
         }
     }
+}
+
+/// RT. The PDC input latency of track `i` (`in_lat` in `graph.rs`, not kept in the compiled
+/// snapshot): every input of a track is delayed to it, so any one input gives it. A bus
+/// input: the source's output latency plus that connection's PDC delay; else the input tap:
+/// its latency (`in_lat(source)` for `PreFx`, else `out_lat(source)`) plus
+/// [`InputTapRt::delay`]; else 0. Recording from a tap compensates the consumer's latency
+/// (`crate::recording`, `tap-recording`).
+pub(crate) fn input_latency(tracks: &[TrackRt], i: usize) -> u32 {
+    let mut i = i;
+    let mut extra = 0u32;
+    // Every step follows a `PreFx` tap to an earlier track (no cycles): at most n steps.
+    for _ in 0..tracks.len() {
+        let Some(t) = tracks.get(i) else { break };
+        let bus = t.inputs.first().and_then(|input| match *input {
+            BusInput::Output(j) => tracks
+                .get(j)
+                .map(|s| s.out_latency + s.output_delay.delay() as u32),
+            BusInput::Send(j, k) => tracks.get(j).and_then(|s| {
+                s.sends
+                    .get(k)
+                    .map(|send| s.out_latency + send.delay.delay() as u32)
+            }),
+        });
+        if let Some(lat) = bus {
+            return extra + lat;
+        }
+        let (Some(s), Some(point)) = (t.input_tap.source, t.input_tap.point) else {
+            break;
+        };
+        extra += t.input_tap.delay;
+        match point {
+            InputTap::PreFx => i = s,
+            InputTap::PostFx | InputTap::PostFader => {
+                return extra + tracks.get(s).map_or(0, |s| s.out_latency);
+            }
+        }
+    }
+    extra
 }
 
 /// Source side (in every tapped track's `TrackRt`): one buffer per tapped point.
