@@ -17,7 +17,8 @@
 //!   site, or whose `seq` is not above that site's last sequenced one (a resend), is dropped.
 //! - `Presence` is stamped with the sender's site and color, `Pointer` with its site;
 //!   `Hello`, `Presence`, `Pointer` and `Leave` are forwarded to the other ready peers
-//!   (pointers are never cached).
+//!   (pointers are never cached). Once synced, a site also gets its own stamped default
+//!   presence (its colour; the end of its catch-up).
 //! - Site-to-site messages (`Signal`, `Listen`, `Unlisten`, `TransportRequest`,
 //!   `StreamClock`; [`CollabMessage::route`]) must come from the sender's own site, between
 //!   synced members of the session, and go to their `to` site only. `IceServers` only goes
@@ -831,9 +832,12 @@ impl Relay {
         Self::introduce(s, conn, out);
     }
 
-    /// Exchange `Hello`/`Presence` between `conn` and the other ready peers.
+    /// Exchange `Hello`/`Presence` between `conn` and the other ready peers. `conn` first
+    /// gets its own stamped default presence (docs/COLLAB.md §12.1): it learns its colour,
+    /// and it marks the end of its catch-up (the snapshot and log were sent before it).
     fn introduce(s: &Session, conn: ConnId, out: &mut Vec<Outgoing>) {
         let Some(me) = s.peers.get(&conn) else { return };
+        out.push((conn, default_presence(me)));
         for (id, p) in &s.peers {
             if *id == conn || !p.ready || p.site == me.site {
                 continue;

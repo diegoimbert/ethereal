@@ -1,4 +1,4 @@
-import { Boxes, FolderOpen, Library, Plug, SlidersHorizontal } from "lucide-react";
+import { Boxes, FolderOpen, Library, MessageSquare, Plug, SlidersHorizontal } from "lucide-react";
 import type { ReactNode } from "react";
 import { AutomationLanes } from "@/features/automation";
 import { DrumRackView } from "@/features/drum-rack";
@@ -8,13 +8,14 @@ import { TempoEditor } from "@/features/tempo";
 import { WarpEditor } from "@/features/warp";
 import type { DrawerTab, LeftTab } from "./shellStore";
 
-/** Panels of the left rail. */
-export const LEFT_TABS: ReadonlyArray<{ id: LeftTab; label: string; icon: ReactNode }> = [
+/** Panels of the left rail (`session`: only shown in a collaboration session). */
+export const LEFT_TABS: ReadonlyArray<{ id: LeftTab; label: string; icon: ReactNode; session?: boolean }> = [
   { id: "library", label: "Library", icon: <Library /> },
   { id: "project", label: "Project media", icon: <FolderOpen /> },
   { id: "plugins", label: "Plugins", icon: <Plug /> },
   { id: "devices", label: "Devices", icon: <Boxes /> },
   { id: "midi", label: "MIDI mapping", icon: <SlidersHorizontal /> },
+  { id: "chat", label: "Chat", icon: <MessageSquare />, session: true },
 ];
 
 /** Editors of the bottom drawer. */

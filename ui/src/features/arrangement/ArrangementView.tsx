@@ -34,6 +34,7 @@ import {
 import { useAutomationSlotHeight } from "@/features/automation";
 import { handleTakeKey, useTakesHeight } from "@/features/comping";
 import { PresenceLayer } from "@/features/collab/presence";
+import { ArrangerSocialLayer, leaveNoteEntries, rulerNoteEntries, withSeparator } from "@/features/collab/social";
 import { groupShortcut, groupTracks, ungroupSelected, UngroupConfirmDialog } from "@/features/groups";
 import { TransportContext, useTransport, useTransportEvent } from "@/transport";
 import { actionForKey, bindSingleSelection, locateIfStopped, newTrackMenu, runClipAction, selectTrackEntity } from "./actions";
@@ -309,7 +310,7 @@ function ConnectedArrangementView() {
         <Toolbar />
         <div className="eth-arr__top">
           <div className="eth-arr__corner" style={{ width: headerWidth }} />
-          <Ruler view={view} grid={grid} className="eth-arr__ruler" />
+          <Ruler view={view} grid={grid} className="eth-arr__ruler" menuItems={rulerNoteEntries} />
         </div>
         <div className="eth-arr__scroll" ref={scrollRef} onPointerDownCapture={onTracksPointerDownCapture}>
           <div
@@ -331,6 +332,7 @@ function ConnectedArrangementView() {
                   ...newTrackMenu(transport),
                   "separator",
                   { label: "Import audio…", shortcut: `${MOD_KEY}I`, onSelect: () => void openImportDialog(transport) },
+                  ...withSeparator(leaveNoteEntries({ kind: "arranger" }, e)),
                 ]);
               }
             }}
@@ -382,6 +384,8 @@ function ConnectedArrangementView() {
         <HeaderColumnResizer />
         {/* presence-v2: peers' live pointers, pointer/viewport publishing, follow mode */}
         <PresenceLayer rootRef={rootRef} scrollRef={scrollRef} rows={rows} masterRow={masterRow} />
+        {/* collab-social: pinned notes and the peers' playheads */}
+        <ArrangerSocialLayer rootRef={rootRef} scrollRef={scrollRef} rows={rows} masterRow={masterRow} />
         <UngroupConfirmDialog />
       </div>
     </ArrangementContext.Provider>
