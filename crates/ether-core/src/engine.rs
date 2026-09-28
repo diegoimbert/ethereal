@@ -794,7 +794,7 @@ impl Engine {
             wraps: hit_loop,
             exact,
         };
-        recording.process(&info, inputs, off, n, &desc.tracks, tracks);
+        recording.process(&info, n, &desc.tracks, tracks);
         // VCA gains and automation for this sub-block (`crate::vca`), before the jobs.
         vcas.update(tracks, &timing, playing);
 
@@ -839,6 +839,8 @@ impl Engine {
                 executor.execute_pinned(idx.len(), level.pinned, &job);
             }
         }
+        // --- recording capture: hardware input + aligned input taps (`tap-recording`) ---
+        recording.capture(&info, inputs, off, n, &desc.tracks, tracks);
 
         // --- collect job flags; master to the hardware (fixed order) ---
         for &ti in order.iter() {
