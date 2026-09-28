@@ -1,7 +1,8 @@
 // Time-selection edits on the web build, through the UI, against the real engine
 // (WasmTransport → controller Worker → AudioWorklet): a drag over two tracks' lanes makes a
 // time selection; its context menu deletes the time (later clips move left), undo restores
-// it, ⌘E splits both tracks at the selection edges, ⇧⌘D duplicates the selection, and a
+// it, ⌘E splits both tracks at the selection edges, ⇧⌘I inserts silence, ⇧⌘D duplicates the
+// selection, and a
 // frozen track refuses a time edit with the engine's message.
 //
 // No sleeps: every step waits on UI or engine state. The mirror is read through
@@ -114,6 +115,24 @@ test("time edits: select time over tracks, delete time, undo, split at the edges
   await expect.poll(() => spans(page, b.id)).toEqual([
     [0, 2],
     [2, 2],
+  ]);
+  await page.keyboard.press("ControlOrMeta+z");
+  await expect.poll(() => spans(page, a.id)).toEqual([
+    [0, 4],
+    [4, 4],
+  ]);
+
+  // ⇧⌘I inserts the selection's length of silence at its start (plain ⌘I is Import audio…).
+  await selectTime(2, 6);
+  await page.keyboard.press("ControlOrMeta+Shift+i");
+  await expect.poll(() => spans(page, a.id)).toEqual([
+    [0, 2],
+    [6, 2],
+    [8, 4],
+  ]);
+  await expect.poll(() => spans(page, b.id)).toEqual([
+    [0, 2],
+    [6, 2],
   ]);
   await page.keyboard.press("ControlOrMeta+z");
   await expect.poll(() => spans(page, a.id)).toEqual([

@@ -11,7 +11,7 @@
  * | paste-insert    | ⇧⌘V     | paste, shifting what follows right                       |
  * | duplicate       | ⇧⌘D     | insert a copy of the selection right after it            |
  * | delete          | ⇧⌘⌫     | remove the selected time (later material moves left)     |
- * | insert-silence  | ⌘I      | insert the selection's length of silence at its start    |
+ * | insert-silence  | ⇧⌘I     | insert the selection's length of silence at its start    |
  *
  * Each is one undo step (split at both edges: two commands under one gesture). Refused
  * edits (a frozen track, ...) show their engine message as a notice.
@@ -190,9 +190,10 @@ export function timeActionForKey(
     else if (k === "c") action = "copy";
     else if (k === "v") action = "paste-insert";
     else if (k === "d") action = "duplicate";
+    else if (k === "i") action = "insert-silence";
     else if (e.key === "Backspace" || e.key === "Delete") action = "delete";
-  } else if (k === "i") action = "insert-silence";
-  else if (k === "e") action = useTimeSelection.getState().selection ? "split" : "split-tracks";
+    // Plain ⌘I is "Import audio…" (file-import): never taken here.
+  } else if (k === "e") action = useTimeSelection.getState().selection ? "split" : "split-tracks";
   return action && canRun(action, ctx) ? action : null;
 }
 
@@ -227,7 +228,7 @@ export function timeSelectionMenu(transport: EngineTransport): ContextMenuEntry[
     },
     {
       label: "Insert Silence",
-      shortcut: `${MOD_KEY}I`,
+      shortcut: `⇧${MOD_KEY}I`,
       onSelect: run("insert-silence"),
     },
     "separator",

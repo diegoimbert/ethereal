@@ -142,9 +142,13 @@ describe("time selection", () => {
     expect(clipsOf("Bass")).toEqual([[16, 16, 0]]);
   });
 
-  it("⇧⌘⌫ deletes the selected time and ⌘I inserts silence", async () => {
+  it("⇧⌘⌫ deletes the selected time and ⇧⌘I inserts silence (plain ⌘I is left to import)", async () => {
     await selectTime(4, 20);
-    await key("i");
+    // Plain ⌘I is not taken (nor default-prevented), so the import shortcut still sees it.
+    expect(fireEvent.keyDown(view(), { key: "i", metaKey: true })).toBe(true);
+    await flush();
+    expect(sent.some((c) => c.domain === "TimeEdit")).toBe(false);
+    await key("i", { shift: true });
     expect(clipsOf("Bass")).toEqual([[32, 16, 0]]);
     expect(useTimeSelection.getState().selection).not.toBeNull();
     await key("Backspace", { shift: true });
@@ -198,6 +202,8 @@ describe("time selection", () => {
     for (const label of ["Cut Time", "Copy Time", "Paste Time", "Split at Selection", "Duplicate Time", "Insert Silence", "Delete Time"]) {
       expect(screen.getByText(label)).toBeTruthy();
     }
+    // Insert Silence is ⇧⌘I (plain ⌘I is Import audio…).
+    expect(screen.getByText("Insert Silence").parentElement!.textContent).toMatch(/⇧(⌘|Ctrl\+)I/);
     await act(async () => fireEvent.click(screen.getByText("Delete Time")));
     await flush();
     expect(clipsOf("Bass")).toEqual([[4, 12, 4]]);
