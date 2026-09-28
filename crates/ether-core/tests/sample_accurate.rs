@@ -340,7 +340,7 @@ fn step_lands_on_the_exact_sample() {
                 tp(0.0, 70.0, TempoCurve::Linear),
                 tp(16.0, 190.0, TempoCurve::Step),
             ],
-            3.141_59,
+            3.217_59,
         ),
     ] {
         let expected = if tempo.len() == 1 {
@@ -463,7 +463,13 @@ fn ten_minute_tempo_ramp_matches_the_closed_form() {
                             blocks.push((at, pos));
                         }
                     }
-                    Seen::Event(at, EventKind::Param { param, value }) if param == ParamId(1) => {
+                    Seen::Event(
+                        at,
+                        EventKind::Param {
+                            param: ParamId(1),
+                            value,
+                        },
+                    ) => {
                         let err = (value - ramp_beat(bpm0, bpm1, len, at as f64 / sr)).abs();
                         worst_event = worst_event.max(err);
                         n_events += 1;
