@@ -1,0 +1,31 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "Plate",
+    "device": {
+      "type": "Builtin",
+      "device": "Reverb"
+    },
+    "meta": {
+      "tags": [
+        "plate",
+        "vocal"
+      ],
+      "author": "Ethereal",
+      "description": "Bright, dense plate."
+    },
+    "params": {
+      "0": 10.0,
+      "1": 55.0,
+      "2": 1.8,
+      "3": 35.0,
+      "4": 100.0,
+      "5": 25.0
+    },
+    "kind": null,
+    "samples": [],
+    "state": null
+  }
+}

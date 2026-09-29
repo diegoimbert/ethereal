@@ -1,0 +1,35 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "Tight Drums",
+    "device": {
+      "type": "Builtin",
+      "device": "Gate"
+    },
+    "meta": {
+      "tags": [
+        "drums",
+        "gate",
+        "tight"
+      ],
+      "author": "Ethereal",
+      "description": "Fast, hard gate for close drum mics: 1 ms lookahead keeps the stick attack, the key high-pass ignores kick bleed."
+    },
+    "params": {
+      "0": -30.0,
+      "1": 4.0,
+      "2": -80.0,
+      "3": 4.0,
+      "4": 0.0,
+      "5": 0.1,
+      "6": 20.0,
+      "7": 60.0,
+      "8": 1.0,
+      "9": 120.0,
+      "10": 0.0,
+      "11": 0.0
+    }
+  }
+}

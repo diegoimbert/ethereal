@@ -2,6 +2,7 @@ import clsx from "clsx";
 import { useState, type DragEvent } from "react";
 import type { Device, DeviceDescriptor, DeviceId } from "@/generated";
 import { PluginDeviceControls } from "@/features/plugins";
+import { PresetMenu } from "@/features/presets";
 import { SidechainSelector } from "@/features/sidechain";
 import { AddModulatorButton, addModulatorEntries, ModulatorsPanel, useModulatorKinds } from "@/features/modulation";
 import { groupEntries, isChainRack, RackPanel } from "@/features/racks";
@@ -115,6 +116,7 @@ export function DeviceView({ device, prev, moveRightBefore, onDropBefore, layout
           onClick={() => void send(cmd("Device", { type: "SetEnabled", id: device.id, enabled: !device.enabled }))}
         />
         <span className="eth-device__name">{device.name}</span>
+        <PresetMenu device={device} />
         <PluginDeviceControls device={device} />
         <SidechainSelector device={device} />
         <AddModulatorButton device={device} />

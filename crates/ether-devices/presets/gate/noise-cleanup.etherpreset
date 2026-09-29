@@ -1,0 +1,35 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "Noise Cleanup",
+    "device": {
+      "type": "Builtin",
+      "device": "Gate"
+    },
+    "meta": {
+      "tags": [
+        "cleanup",
+        "guitar",
+        "noise"
+      ],
+      "author": "Ethereal",
+      "description": "Slow-releasing gate that pulls amp hiss down 30 dB when the part stops, without chopping tails."
+    },
+    "params": {
+      "0": -55.0,
+      "1": 6.0,
+      "2": -30.0,
+      "3": 4.0,
+      "4": 0.0,
+      "5": 1.0,
+      "6": 50.0,
+      "7": 400.0,
+      "8": 0.0,
+      "9": 80.0,
+      "10": 0.0,
+      "11": 0.0
+    }
+  }
+}

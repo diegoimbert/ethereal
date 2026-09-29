@@ -780,6 +780,12 @@ paths = [
 # that already has one (e.g. the default Synth from "New track") put it in front, and the trailing
 # instrument (no notes in) cleared its audio -> silent track. Adding an instrument now replaces it.
 paths = [
+  # BCR (base-96): the plugin-insert assertion now expects the Replace Instrument batch
+  "ui/src/features/plugins/Plugins.test.tsx",
+  # BCR (base-95): shared helper + the plugin browser's instrument insert path (same bug)
+  "ui/src/features/devices/instrument.ts",
+  "ui/src/features/devices/instrument.test.ts",
+  "ui/src/features/plugins/PluginBrowser.tsx",
   "ui/src/features/devices/DeviceChain.tsx",
   "ui/src/features/devices/DeviceChain.test.tsx",
   "apps/web/e2e/instrument-replace*.spec.ts",
@@ -990,6 +996,8 @@ paths = [
 
 [nodes.fx-color]
 paths = [
+  # base-92: device e2e (device agent guide item 9)
+  "apps/web/e2e/fx-color*.spec.ts",
   # base-86: append-only line(s) in the IMPLEMENTED list of this test
   "crates/ether-devices/tests/v02_descriptors.rs",
   "crates/ether-devices/src/fx_color/**",
@@ -1001,6 +1009,8 @@ paths = [
 
 [nodes.fx-modulation]
 paths = [
+  # base-92: device e2e (device agent guide item 9)
+  "apps/web/e2e/fx-modulation*.spec.ts",
   # base-86: append-only line(s) in the IMPLEMENTED list of this test
   "crates/ether-devices/tests/v02_descriptors.rs",
   "crates/ether-devices/src/fx_modulation/**",
@@ -1049,6 +1059,19 @@ paths = [
 
 [nodes.midi-fx]
 paths = [
+  # BCR-C (base-94): export renders MIDI effects with their resolved scale (one line)
+  "crates/ether-controller/src/export/offline.rs",
+  "crates/ether-controller/tests/midi_fx*.rs",
+  # BCR-A (base-93): EngineBridge::set_node_scale (defaulted) + native/web delivery to Node::set_data
+  "crates/ether-controller/src/lib.rs",
+  "crates/ether-native/src/bridge.rs",
+  "crates/ether-wasm/src/proto.rs",
+  "crates/ether-wasm/src/bridge.rs",
+  "crates/ether-wasm/src/worklet.rs",
+  # BCR-B (base-93): bypassed MIDI effect = MIDI thru; notes_reset (AllNotesOff) when MIDI effects change
+  "crates/ether-core/src/engine.rs",
+  "crates/ether-core/src/mixer.rs",
+  "crates/ether-core/tests/midi_fx*.rs",
   # base-86: append-only line(s) in the IMPLEMENTED list of this test
   "crates/ether-devices/tests/v02_descriptors.rs",
   "crates/ether-devices/src/midi_fx/**",

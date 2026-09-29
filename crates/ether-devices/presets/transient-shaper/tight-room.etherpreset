@@ -1,0 +1,30 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "Tight Room",
+    "device": {
+      "type": "Builtin",
+      "device": "TransientShaper"
+    },
+    "meta": {
+      "tags": [
+        "drums",
+        "room",
+        "tight"
+      ],
+      "author": "Ethereal",
+      "description": "Pulls down the sustain to dry out roomy drums or a reverberant loop."
+    },
+    "params": {
+      "0": 10.0,
+      "1": -70.0,
+      "2": 8.0,
+      "3": 150.0,
+      "4": 0.0,
+      "5": 0.0,
+      "6": 100.0
+    }
+  }
+}

@@ -5,7 +5,8 @@
 
 import type { Widget, WidgetSize } from "@/generated";
 import { useParam } from "./context";
-import { EqCurvePlaceholder, MacrosWidget, MeterWidget, RackChainsWidget, SampleWaveformWidget, SpectrumWidget, TunerWidget, ZoneMapWidget } from "./widgets/data";
+import { EqCurveWidget } from "./eq";
+import { MacrosWidget, MeterWidget, RackChainsWidget, SampleWaveformWidget, SpectrumWidget, TunerWidget, ZoneMapWidget } from "./widgets/data";
 import { ChoiceWidget, KnobWidget, NumberWidget, SliderWidget, ToggleWidget } from "./widgets/params";
 import {
   CrossoverWidget,
@@ -86,7 +87,6 @@ export function WidgetView({ widget, size, label }: WidgetViewProps) {
     case "Macros":
       return <MacrosWidget widget={widget} size={size} label={label} />;
     case "EqCurve":
-      // graphical-eq: replace with the interactive `EqCurve` from ./eq.
-      return <EqCurvePlaceholder widget={widget} size={size} label={label} />;
+      return <EqCurveWidget widget={widget} size={size} label={label} />;
   }
 }
