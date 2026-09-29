@@ -1,0 +1,33 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "Pluck",
+    "device": {
+      "type": "Builtin",
+      "device": "Synth"
+    },
+    "meta": {
+      "tags": [
+        "bright",
+        "pluck"
+      ],
+      "author": "Ethereal",
+      "description": "Short, bright saw pluck."
+    },
+    "params": {
+      "0": 1.0,
+      "2": 1.0,
+      "3": 250.0,
+      "4": 0.0,
+      "5": 200.0,
+      "6": 3500.0,
+      "7": 25.0,
+      "8": -12.0
+    },
+    "kind": null,
+    "samples": [],
+    "state": null
+  }
+}

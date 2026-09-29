@@ -1,0 +1,25 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "Wide",
+    "device": {
+      "type": "Builtin",
+      "device": "Utility"
+    },
+    "meta": {
+      "tags": [
+        "stereo"
+      ],
+      "author": "Ethereal",
+      "description": "Widens the stereo image."
+    },
+    "params": {
+      "2": 150.0
+    },
+    "kind": null,
+    "samples": [],
+    "state": null
+  }
+}

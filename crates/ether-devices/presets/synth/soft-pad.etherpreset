@@ -1,0 +1,33 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "Soft Pad",
+    "device": {
+      "type": "Builtin",
+      "device": "Synth"
+    },
+    "meta": {
+      "tags": [
+        "pad",
+        "warm"
+      ],
+      "author": "Ethereal",
+      "description": "Slow saw pad with a mellow filter."
+    },
+    "params": {
+      "0": 1.0,
+      "2": 800.0,
+      "3": 1500.0,
+      "4": 80.0,
+      "5": 2000.0,
+      "6": 2500.0,
+      "7": 15.0,
+      "8": -14.0
+    },
+    "kind": null,
+    "samples": [],
+    "state": null
+  }
+}

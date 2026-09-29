@@ -1,0 +1,25 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "Minus 6 dB",
+    "device": {
+      "type": "Builtin",
+      "device": "Utility"
+    },
+    "meta": {
+      "tags": [
+        "gain"
+      ],
+      "author": "Ethereal",
+      "description": "Six decibels quieter."
+    },
+    "params": {
+      "0": -6.0
+    },
+    "kind": null,
+    "samples": [],
+    "state": null
+  }
+}

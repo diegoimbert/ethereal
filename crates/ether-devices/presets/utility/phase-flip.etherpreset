@@ -1,0 +1,26 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "Phase Flip",
+    "device": {
+      "type": "Builtin",
+      "device": "Utility"
+    },
+    "meta": {
+      "tags": [
+        "phase"
+      ],
+      "author": "Ethereal",
+      "description": "Inverts both channels."
+    },
+    "params": {
+      "3": 1.0,
+      "4": 1.0
+    },
+    "kind": null,
+    "samples": [],
+    "state": null
+  }
+}
