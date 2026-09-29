@@ -1,0 +1,30 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "Large Hall",
+    "device": {
+      "type": "Builtin",
+      "device": "Reverb"
+    },
+    "meta": {
+      "tags": [
+        "hall"
+      ],
+      "author": "Ethereal",
+      "description": "Big concert hall."
+    },
+    "params": {
+      "0": 30.0,
+      "1": 85.0,
+      "2": 4.5,
+      "3": 45.0,
+      "4": 100.0,
+      "5": 30.0
+    },
+    "kind": null,
+    "samples": [],
+    "state": null
+  }
+}
