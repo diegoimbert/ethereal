@@ -6,7 +6,7 @@
 
 import clsx from "clsx";
 import { useEffect, useRef, useState } from "react";
-import type { AnalysisData, MediaRef, PeakData, Widget, WidgetSize } from "@/generated";
+import type { AnalysisData, MediaRef, ParamInfo, PeakData, Widget, WidgetSize } from "@/generated";
 import { useProjectStore } from "@/state";
 import { cmd, useTransport } from "@/transport";
 import { SampleSlot } from "../../SampleSlot";
@@ -194,36 +194,87 @@ function frameOf<T extends AnalysisData["type"]>(frames: ReadonlyArray<AnalysisD
   return frames.find((f): f is Extract<AnalysisData, { type: T }> => f.type === type && (!pick || pick(f as Extract<AnalysisData, { type: T }>)));
 }
 
-/** dB range of the spectrum plot. */
+/** Default dB range of the spectrum plot (devices with a `Range` param set the floor). */
 const SPECTRUM_DB: [number, number] = [-96, 0];
+/** Fall of the UI-held peak line, dB per received frame (~30 Hz → ~9 dB/s). */
+const PEAK_FALL_DB = 0.3;
+/** Frequency labels of the spectrum axis. */
+const SPECTRUM_HZ: ReadonlyArray<[number, string]> = [
+  [100, "100"],
+  [1000, "1k"],
+  [10000, "10k"],
+];
+
+/**
+ * The value of the device's display param named `name` with `unit` (generic: any device
+ * exposing e.g. a `Range` in dB or a `Peak Hold` toggle), or `undefined`.
+ */
+function useDisplayParam(name: string, unit: ParamInfo["unit"]): number | undefined {
+  const { device, params } = useLayoutContext();
+  for (const info of params.values()) {
+    if (info.name === name && info.unit === unit) return device.params[info.id] ?? info.default;
+  }
+  return undefined;
+}
+
+/** A max-held copy of `bins` that falls by `PEAK_FALL_DB` per new frame (`null` when off). */
+function usePeakHold(bins: ReadonlyArray<number> | undefined, on: boolean): ReadonlyArray<number> | null {
+  const [held, setHeld] = useState<{ from: ReadonlyArray<number> | undefined; peaks: ReadonlyArray<number> }>({ from: undefined, peaks: [] });
+  if (!on || !bins) {
+    if (held.from !== undefined) setHeld({ from: undefined, peaks: [] });
+    return null;
+  }
+  if (held.from === bins) return held.peaks;
+  // Derived from the previous frame's peaks (state updated during render, React's pattern).
+  const peaks = held.peaks.length === bins.length ? bins.map((v, i) => Math.max(v, held.peaks[i]! - PEAK_FALL_DB)) : bins;
+  setHeld({ from: bins, peaks });
+  return peaks;
+}
 
 export function SpectrumWidget({ size, label }: TypedProps<"Spectrum">) {
   const { device } = useLayoutContext();
   const frame = frameOf(useDeviceAnalysis(device.id), "Spectrum", (f) => f.stage !== "Pre");
+  const floor = useDisplayParam("Range", "Decibels");
+  const peakHold = (useDisplayParam("Peak Hold", "Toggle") ?? 0) >= 0.5;
+  const peaks = usePeakHold(frame?.bins_db, peakHold);
+  const [lo, hi] = [Math.min(floor ?? SPECTRUM_DB[0], SPECTRUM_DB[1] - 6), SPECTRUM_DB[1]];
   return (
     <TypedFrame type="spectrum" size={size} label={label}>
-      <Plot className="eth-plot--spectrum" label="Spectrum" testId="widget-spectrum">
+      <Plot className="eth-plot--spectrum" label={`Spectrum, ${lo.toFixed(0)} to ${hi} dB`} testId="widget-spectrum">
         {({ w: wpx, h }) => {
-          const [lo, hi] = SPECTRUM_DB;
-          const bins = frame?.bins_db ?? [];
-          const n = bins.length;
           const yOf = (db: number) => h - clamp01((db - lo) / (hi - lo)) * h;
-          const path =
-            frame && n > 1
-              ? bins
-                  .map((db, i) => {
-                    const f = frame.min_hz * Math.pow(frame.max_hz / frame.min_hz, i / (n - 1));
-                    return `${(freqToX(f) * wpx).toFixed(1)},${yOf(db).toFixed(1)}`;
-                  })
-                  .join(" ")
-              : "";
+          const pathOf = (bins: ReadonlyArray<number>) => {
+            const n = bins.length;
+            if (!frame || n < 2) return "";
+            return bins
+              .map((db, i) => {
+                const f = frame.min_hz * Math.pow(frame.max_hz / frame.min_hz, i / (n - 1));
+                return `${(freqToX(f) * wpx).toFixed(1)},${yOf(db).toFixed(1)}`;
+              })
+              .join(" ");
+          };
+          const path = pathOf(frame?.bins_db ?? []);
+          const peakPath = peaks ? pathOf(peaks) : "";
+          // dB grid every quarter of the range, labelled at the left edge.
+          const dbTicks = [0.25, 0.5, 0.75].map((f) => hi - f * (hi - lo));
           return (
             <>
-              <GridLines w={wpx} h={h} ys={[0.25, 0.5, 0.75]} xs={[freqToX(100), freqToX(1000), freqToX(10000)]} />
+              <GridLines w={wpx} h={h} ys={[0.25, 0.5, 0.75]} xs={SPECTRUM_HZ.map(([f]) => freqToX(f))} />
+              {dbTicks.map((db) => (
+                <text key={`db${db}`} className="eth-plot__empty" x={0} y={yOf(db)} style={{ textAnchor: "start" }} data-axis="db">
+                  {db.toFixed(0)}
+                </text>
+              ))}
+              {SPECTRUM_HZ.map(([f, text]) => (
+                <text key={`hz${f}`} className="eth-plot__empty" x={freqToX(f) * wpx} y={h} style={{ dominantBaseline: "auto" }} data-axis="hz">
+                  {text}
+                </text>
+              ))}
               {path ? (
                 <>
                   <polygon className="eth-plot__fill" points={`0,${h} ${path} ${wpx},${h}`} />
                   <polyline className="eth-plot__line" points={path} />
+                  {peakPath && <polyline className="eth-plot__ref" fill="none" points={peakPath} data-testid="spectrum-peak" />}
                 </>
               ) : (
                 <text className="eth-plot__empty" x={wpx / 2} y={h / 2}>
@@ -249,6 +300,8 @@ export function TunerWidget({ size, label }: TypedProps<"Tuner">) {
   const frame = frameOf(useDeviceAnalysis(device.id), "Tuner");
   const has = !!frame && frame.note !== null && frame.hz !== null;
   const cents = has ? frame.cents : 0;
+  // Whole cents for the readout (no "-0 ct").
+  const shown = Math.round(cents) || 0;
   const inTune = has && Math.abs(cents) <= 5;
   return (
     <TypedFrame type="tuner" size={size} label={label}>
@@ -257,7 +310,7 @@ export function TunerWidget({ size, label }: TypedProps<"Tuner">) {
         <span className="eth-tuner__scale" aria-hidden="true">
           <span className="eth-tuner__needle" style={{ left: `${50 + cents}%` }} />
         </span>
-        <span className="eth-tuner__readout">{has ? `${cents > 0 ? "+" : ""}${cents.toFixed(0)} ct · ${frame.hz!.toFixed(1)} Hz` : "No pitch"}</span>
+        <span className="eth-tuner__readout">{has ? `${shown > 0 ? "+" : ""}${shown} ct · ${frame.hz!.toFixed(1)} Hz` : "No pitch"}</span>
       </div>
     </TypedFrame>
   );
@@ -272,7 +325,7 @@ export function MeterWidget({ widget: w, size, label }: TypedProps<"Meter">) {
   // Fill from the end of the range nearest 0 dB (gain reduction meters grow downwards).
   const fromTop = Math.abs(w.max_db) < Math.abs(w.min_db) && w.max_db <= 0 && hi === 0;
   const f = v === undefined ? 0 : clamp01((v - lo) / (hi - lo || 1));
-  const fill = fromTop ? 1 - f : f;
+  const fill = v === undefined ? 0 : fromTop ? 1 - f : f;
   const text = v === undefined ? "–" : `${v.toFixed(1)} dB`;
   return (
     <div className={clsx("eth-widget", "eth-widget--meter", `eth-widget--${size.toLowerCase()}`)} data-widget="Meter">
