@@ -1,0 +1,31 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "Fine Resolution",
+    "device": {
+      "type": "Builtin",
+      "device": "SpectrumAnalyzer"
+    },
+    "meta": {
+      "tags": [
+        "bass",
+        "detail"
+      ],
+      "author": "Ethereal",
+      "description": "8192-point analysis for the low end, heavy averaging and a deep floor."
+    },
+    "params": {
+      "0": 3.0,
+      "1": 80.0,
+      "2": 0.0,
+      "3": -120.0,
+      "4": 4.5,
+      "5": 0.0
+    },
+    "kind": null,
+    "samples": [],
+    "state": null
+  }
+}

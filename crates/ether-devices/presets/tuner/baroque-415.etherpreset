@@ -1,0 +1,27 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "Baroque A 415",
+    "device": {
+      "type": "Builtin",
+      "device": "Tuner"
+    },
+    "meta": {
+      "tags": [
+        "early-music"
+      ],
+      "author": "Ethereal",
+      "description": "A4 = 415 Hz for baroque pitch."
+    },
+    "params": {
+      "0": 415.0,
+      "1": 0.0,
+      "2": 0.0
+    },
+    "kind": null,
+    "samples": [],
+    "state": null
+  }
+}

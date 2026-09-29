@@ -13,7 +13,6 @@ use ether_core::protocol::browser::{BrowserCommand, BrowserQuery, BrowserSort};
 use ether_core::protocol::devices::{DeviceCommand, DeviceSpec};
 use ether_core::protocol::media::{MediaCommand, MediaSource};
 use ether_core::protocol::model::*;
-use ether_core::protocol::presets::{PresetCommand, PresetRef, PresetSource};
 use ether_core::protocol::racks::{ModulationCommand, RackCommand};
 use ether_core::protocol::tracks::TrackCommand;
 use ether_core::protocol::{Command, ErrorCode, ReplyValue};
@@ -179,12 +178,12 @@ fn fx_dynamics_devices_insert_with_layouts_and_sidechains() {
 }
 
 #[test]
-fn fx_analysis_devices_are_placeholders_and_watch_works() {
+fn fx_analysis_devices_insert_and_watches_reach_the_engine() {
     group_inserts_and_compiles(&[
         BuiltinDeviceType::SpectrumAnalyzer,
         BuiltinDeviceType::Tuner,
     ]);
-    // The analysis channel's watch commands are implemented (contracts-3).
+    // Watch/Unwatch are refcounted and reach the engine (frames: tests/analysis_devices.rs).
     let mut h = Harness::with_project();
     let t = track(&mut h, TrackKind::Audio);
     let d = insert(&mut h, t, BuiltinDeviceType::SpectrumAnalyzer);
@@ -235,46 +234,6 @@ fn midi_fx_devices_are_placeholders() {
 }
 
 // ─── feature nodes ──────────────────────────────────────────────────────────────────────
-
-#[test]
-fn presets_reply_unsupported() {
-    let mut h = Harness::with_project();
-    let t = track(&mut h, TrackKind::Midi);
-    let d = insert(&mut h, t, BuiltinDeviceType::PolySynth);
-    let preset = PresetRef {
-        source: PresetSource::User,
-        id: "poly-synth/x.etherpreset".into(),
-    };
-    for c in [
-        PresetCommand::List {
-            device: None,
-            text: None,
-        },
-        PresetCommand::Load {
-            device: d,
-            preset: preset.clone(),
-        },
-        PresetCommand::Save {
-            device: d,
-            name: "X".into(),
-            meta: PresetMeta::default(),
-            overwrite: false,
-        },
-        PresetCommand::Rename {
-            preset: preset.clone(),
-            name: "Y".into(),
-        },
-        PresetCommand::Delete {
-            preset: preset.clone(),
-        },
-        PresetCommand::SetMeta {
-            preset,
-            meta: PresetMeta::default(),
-        },
-    ] {
-        assert_unsupported(&mut h, Command::Preset(c));
-    }
-}
 
 #[test]
 fn racks_modulation_reply_unsupported() {

@@ -29,6 +29,8 @@ const IMPLEMENTED: &[BuiltinDeviceType] = &[
     BuiltinDeviceType::Gate,
     BuiltinDeviceType::MultibandCompressor,
     BuiltinDeviceType::TransientShaper,
+    BuiltinDeviceType::SpectrumAnalyzer,
+    BuiltinDeviceType::Tuner,
     BuiltinDeviceType::PolySynth,
 ];
 
