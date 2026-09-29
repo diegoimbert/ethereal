@@ -296,7 +296,12 @@ fn save_rename_set_meta_delete_user_presets() {
     }));
     let meta = saved(&out).meta;
     assert_eq!(meta.tags, ["dark"]);
-    assert_eq!(list(&mut h, None, Some("dark")).len(), 1);
+    // Only this user preset carries the tag; factory presets (e.g. Poly Synth's) may too.
+    let user_dark: Vec<_> = list(&mut h, None, Some("dark"))
+        .into_iter()
+        .filter(|p| p.preset.source == PresetSource::User)
+        .collect();
+    assert_eq!(user_dark.len(), 1);
 
     // Delete.
     let out = h.send(p(PresetCommand::Delete {
