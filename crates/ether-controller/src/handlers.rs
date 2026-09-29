@@ -589,7 +589,13 @@ where
             .as_ref()
             .is_some_and(|d| d.project.devices.contains_key(&device));
         match n {
-            PluginNotification::ParamEdited { param, value } if exists && value.is_finite() => {
+            PluginNotification::ParamEdited { param, value }
+                if exists
+                    && value.is_finite()
+                    && !self.doc.as_ref().is_some_and(|d| {
+                        crate::plugins::is_modulated(&d.project, device, param)
+                    }) =>
+            {
                 let gesture = self.plugin_gestures.get(&(device, param)).copied();
                 self.engine.echo_from = Some(device);
                 let _ = self.edit_with("Set Param", gesture, now, out, |ctx| {

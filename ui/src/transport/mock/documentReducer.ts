@@ -47,6 +47,7 @@ import { setZones } from "./roadmap/multisampler";
 import { clipV2Command, isCrossfade } from "./roadmap/clipEditing";
 import { onTrackDeletedTakes } from "./roadmap/comping";
 import { checkDeviceMove, copyRackPads, duplicateSiblings, onRackDeleted } from "./roadmap/drumRack";
+import { copyRackExtras, copyTrackRackExtras, onDeviceDeletedRacks } from "./roadmap/racksModulation";
 import { swingOffset } from "./roadmap/groove";
 import { onDeviceDeleted, onSendDeleted, onTrackDeleted } from "./roadmap/shared";
 import { setSidechain } from "./roadmap/sidechain";
@@ -209,6 +210,7 @@ function deleteDeviceCascade(ctx: ReducerContext, id: string): void {
   onDeviceDeleted(ctx, id);
   // A drum rack takes its pads (and their chains) with it.
   onRackDeleted(ctx, id, (d) => deleteDeviceCascade(ctx, d));
+  onDeviceDeletedRacks(ctx, id, (d) => deleteDeviceCascade(ctx, d));
   ctx.tx.remove("Device", id);
 }
 
@@ -364,12 +366,13 @@ function duplicateTrack(ctx: ReducerContext, t: Track, newId: TrackId, order: st
   const sendIds = new Map<string, string>();
   // Track-chain devices; drum racks bring their pads and pad chains.
   for (const d of tx.all("Device")) {
-    if (d.track !== t.id || d.pad !== null) continue;
+    if (d.track !== t.id || d.pad !== null || d.chain != null) continue;
     const id = ctx.newId();
     deviceIds.set(d.id, id);
     tx.upsert("Device", { ...d, id, track: newId });
     copyRackPads(ctx, d.id, id, newId, deviceIds);
   }
+  copyTrackRackExtras(ctx, deviceIds);
   for (const s of tx.all("Send")) {
     if (s.from !== t.id) continue;
     const id = ctx.newId();
@@ -490,7 +493,7 @@ function mixerCommand(ctx: ReducerContext, c: MixerCommand): void {
 function chainOf(ctx: ReducerContext, trackId: TrackId, except?: string): Device[] {
   return ctx.tx
     .all("Device")
-    .filter((d) => d.track === trackId && d.pad === null && d.id !== except)
+    .filter((d) => d.track === trackId && d.pad === null && d.chain == null && d.id !== except)
     .sort(byOrder);
 }
 
@@ -545,6 +548,7 @@ function deviceCommand(ctx: ReducerContext, c: DeviceCommand): ReplyValue {
       const next = chain[chain.findIndex((x) => x.id === d.id) + 1];
       tx.upsert("Device", { ...d, id: c.new_id, order: keyBetween(d.order, next?.order ?? null) });
       copyRackPads(ctx, d.id, c.new_id, d.track);
+      copyRackExtras(ctx, d.id, c.new_id);
       break;
     }
     case "Rename":

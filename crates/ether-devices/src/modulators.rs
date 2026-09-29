@@ -25,6 +25,10 @@
 //! | Random | 1 | `Sync` | toggle, off |
 //! | Random | 2 | `Sync Rate` | `SYNC_RATES`, 1/8 |
 //! | Random | 3 | `Smooth` | 0 ..= 100 %, 0 |
+//! | Keytrack | 0 | `Low Key` | 0 ..= 127 (stepped), 36 (C2 → 0) |
+//! | Keytrack | 1 | `High Key` | 0 ..= 127 (stepped), 96 (C7 → 1) |
+//! | Velocity | 0 | `Low` | 0 ..= 127 (stepped), 1 (→ 0) |
+//! | Velocity | 1 | `High` | 0 ..= 127 (stepped), 127 (→ 1) |
 
 use ether_core::protocol::devices::{ParamInfo, ParamScale, ParamUnit};
 use ether_core::protocol::model::ModulatorKind;
@@ -173,6 +177,14 @@ fn params(kind: ModulatorKind) -> Vec<ParamInfo> {
                 ParamScale::Linear,
             ),
         ],
+        ModulatorKind::Keytrack => vec![
+            stepped(0, "Low Key", "Keytrack", ParamUnit::None, 0, 127, 36),
+            stepped(1, "High Key", "Keytrack", ParamUnit::None, 0, 127, 96),
+        ],
+        ModulatorKind::Velocity => vec![
+            stepped(0, "Low", "Velocity", ParamUnit::None, 0, 127, 1),
+            stepped(1, "High", "Velocity", ParamUnit::None, 0, 127, 127),
+        ],
     }
 }
 
@@ -184,6 +196,8 @@ pub fn descriptor(kind: ModulatorKind) -> ModulatorDescriptor {
         ModulatorKind::EnvelopeFollower => "Envelope Follower",
         ModulatorKind::Steps => "Steps",
         ModulatorKind::Random => "Random",
+        ModulatorKind::Keytrack => "Keytrack",
+        ModulatorKind::Velocity => "Velocity",
     };
     let params = params(kind);
     ModulatorDescriptor {
@@ -247,7 +261,10 @@ fn layout(kind: ModulatorKind, params: &[ParamInfo]) -> ether_core::protocol::la
                 knob(p(2), WidgetSize::Small),
             ]
         }
-        ModulatorKind::EnvelopeFollower | ModulatorKind::Random => params
+        ModulatorKind::EnvelopeFollower
+        | ModulatorKind::Random
+        | ModulatorKind::Keytrack
+        | ModulatorKind::Velocity => params
             .iter()
             .map(|i| match &i.labels {
                 Some(_) => item(Widget::Choice { param: i.id }, WidgetSize::Small),

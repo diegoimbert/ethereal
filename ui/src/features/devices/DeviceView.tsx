@@ -4,6 +4,8 @@ import type { Device, DeviceDescriptor, DeviceId } from "@/generated";
 import { PluginDeviceControls } from "@/features/plugins";
 import { PresetMenu } from "@/features/presets";
 import { SidechainSelector } from "@/features/sidechain";
+import { AddModulatorButton, addModulatorEntries, ModulatorsPanel, useModulatorKinds } from "@/features/modulation";
+import { groupEntries, isChainRack, RackPanel } from "@/features/racks";
 import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Power, X } from "lucide-react";
 import { IconButton, openContextMenu } from "@/kit";
 import { cmd } from "@/transport";
@@ -28,17 +30,20 @@ export interface DeviceViewProps {
    * the card body closed (remembered per device).
    */
   layout?: "row" | "stack";
+  /** v0.2 (racks-modulation): move handler for rack-chain devices (default `Device::Move`). */
+  onMove?(before: DeviceId | null): void;
 }
 
-export function DeviceView({ device, prev, moveRightBefore, onDropBefore, layout = "row" }: DeviceViewProps) {
+export function DeviceView({ device, prev, moveRightBefore, onDropBefore, layout = "row", onMove }: DeviceViewProps) {
   const stack = layout === "stack";
   const collapsed = useCollapsed(device.id) && stack;
   const send = useSend();
   const sender = useGestureSender();
   const { descriptor, error } = useDescriptor(device);
   const [dropTarget, setDropTarget] = useState(false);
+  const modulatorKinds = useModulatorKinds();
   const move = (before: DeviceId | null) =>
-    void send(cmd("Device", { type: "Move", id: device.id, track: device.track, before }));
+    onMove ? onMove(before) : void send(cmd("Device", { type: "Move", id: device.id, track: device.track, before }));
 
   const onDragOver = (e: DragEvent) => {
     if (!e.dataTransfer.types.includes(DEVICE_DRAG_TYPE)) return;
@@ -76,6 +81,9 @@ export function DeviceView({ device, prev, moveRightBefore, onDropBefore, layout
               label: device.enabled ? "Bypass" : "Enable",
               onSelect: () => void send(cmd("Device", { type: "SetEnabled", id: device.id, enabled: !device.enabled })),
             },
+            // v0.2 (racks-modulation): group into a rack, add modulators.
+            ...groupEntries(device, descriptor, send),
+            ...(device.pad === null && device.chain == null ? addModulatorEntries(modulatorKinds, device, send) : []),
             "separator",
             { label: "Delete Device", danger: true, onSelect: () => void send(cmd("Device", { type: "Remove", id: device.id })) },
           ])
@@ -111,6 +119,7 @@ export function DeviceView({ device, prev, moveRightBefore, onDropBefore, layout
         <PresetMenu device={device} />
         <PluginDeviceControls device={device} />
         <SidechainSelector device={device} />
+        <AddModulatorButton device={device} />
         <span className="eth-device__actions">
           <IconButton
             size="sm"
@@ -150,6 +159,23 @@ export function DeviceView({ device, prev, moveRightBefore, onDropBefore, layout
               <div className="eth-device__status">{error ? "Descriptor unavailable" : "Loading…"}</div>
             </div>
           )}
+          {/* v0.2 (racks-modulation): a rack's chains, then the device's modulators. */}
+          {isChainRack(device) && (
+            <RackPanel
+              rack={device}
+              renderDevice={(p) => (
+                <DeviceView
+                  device={p.device}
+                  prev={p.prev}
+                  moveRightBefore={p.moveRightBefore}
+                  onDropBefore={p.onDropBefore}
+                  onMove={p.onMove}
+                  layout={layout}
+                />
+              )}
+            />
+          )}
+          <ModulatorsPanel device={device} />
         </div>
       </div>
     </section>

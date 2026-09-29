@@ -545,11 +545,13 @@ pub fn all_variants() -> RenderGraphDesc {
 }
 
 /// Fill the v0.2 track fields (contracts-3) and `vcas` of `d`, covering every variant and
-/// `Option` state. Only finite floats: these fields travel as a JSON blob in codec v2.
+/// `Option` state. Only finite floats (`frozen` still travels as a JSON blob).
 pub fn fill_v02(d: &mut RenderGraphDesc) {
     use ether_core::InputTapDesc;
     use ether_core::freeze::FrozenDesc;
-    use ether_core::modulation::{ModMappingDesc, ModSourceDesc, ModulationDesc, ModulatorDesc};
+    use ether_core::modulation::{
+        MacroDesc, ModMappingDesc, ModSourceDesc, ModulationDesc, ModulatorDesc,
+    };
     use ether_core::protocol::model::{InputTap, ModulatorId, ModulatorKind, RackChainId};
     use ether_core::rack_chains::{ChainRackDesc, ChainRackKind, RackChainDesc};
     use ether_core::vca::VcaDesc;
@@ -587,6 +589,7 @@ pub fn fill_v02(d: &mut RenderGraphDesc) {
                 velocities: (1, 100),
                 select: (i as u8, 127),
             }],
+            selector: (i * 7 % 128) as u8,
         }];
         t.modulation = ModulationDesc {
             modulators: ModulatorKind::ALL
@@ -622,6 +625,10 @@ pub fn fill_v02(d: &mut RenderGraphDesc) {
                     base: 0.0,
                 },
             ],
+            macros: vec![MacroDesc {
+                rack: key(i + 20),
+                values: [0.0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 1.0],
+            }],
         };
     }
     d.vcas = vec![
