@@ -1,0 +1,47 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "Tame Lows",
+    "device": {
+      "type": "Builtin",
+      "device": "MultibandCompressor"
+    },
+    "meta": {
+      "tags": [
+        "bass",
+        "low-end"
+      ],
+      "author": "Ethereal",
+      "description": "Only the lows are compressed (4:1 below 150 Hz): steadies a boomy bass or kick; mid and high bands pass untouched."
+    },
+    "params": {
+      "0": 150.0,
+      "1": 2500.0,
+      "2": -28.0,
+      "3": 4.0,
+      "4": 15.0,
+      "5": 180.0,
+      "6": 2.0,
+      "7": 0.0,
+      "8": 0.0,
+      "9": -20.0,
+      "10": 1.0,
+      "11": 10.0,
+      "12": 150.0,
+      "13": 0.0,
+      "14": 0.0,
+      "15": 0.0,
+      "16": -20.0,
+      "17": 1.0,
+      "18": 10.0,
+      "19": 150.0,
+      "20": 0.0,
+      "21": 0.0,
+      "22": 0.0,
+      "23": 0.0,
+      "24": 100.0
+    }
+  }
+}

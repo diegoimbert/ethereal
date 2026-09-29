@@ -25,3 +25,4 @@ export { Plot, GridLines, type PlotDrag } from "./plot";
 export { useBoxSize } from "./useBoxSize";
 export { TypedFrame, ControlsRow } from "./widgets/typed";
 export { ParamModulation, useDeviceAnalysis, type ParamModulationProps } from "./seams";
+export { EqCurveWidget, magnitudeDb } from "./eq";
