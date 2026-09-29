@@ -1,0 +1,48 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "Vocal Choir",
+    "device": {
+      "type": "Builtin",
+      "device": "PolySynth"
+    },
+    "meta": {
+      "tags": [
+        "choir",
+        "pad",
+        "vocal"
+      ],
+      "author": "Ethereal",
+      "description": "Vowel wavetable morphing a-e-i-o-u, gentle ensemble."
+    },
+    "params": {
+      "0": 4.0,
+      "1": 20.0,
+      "18": 4.0,
+      "19": 18.0,
+      "20": 75.0,
+      "25": 1.0,
+      "26": 4500.0,
+      "27": 10.0,
+      "31": 500.0,
+      "32": 1000.0,
+      "33": 90.0,
+      "34": 1800.0,
+      "45": 1.0,
+      "46": 0.18,
+      "49": 5.0,
+      "50": 45.0,
+      "51": 0.0,
+      "52": 5.0,
+      "55": 1.0,
+      "56": 10.0,
+      "57": -8.0,
+      "58": 35.0,
+      "59": 6.0
+    },
+    "kind": null,
+    "state": null
+  }
+}
