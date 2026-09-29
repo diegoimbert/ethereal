@@ -424,6 +424,26 @@ impl EngineState {
                         _ => continue,
                     }
                 }
+                // v0.2 (`racks-modulation`): live modulator params.
+                Op::Update {
+                    update:
+                        EntityUpdate::Modulator {
+                            id,
+                            change: ModulatorChange::Param { param, .. },
+                        },
+                } => project.modulators.get(id).map(|m| ParamChange {
+                    target: ParamTarget::Modulator {
+                        modulator: *id,
+                        param: *param,
+                    },
+                    value: m.params.get(param).copied().unwrap_or_else(|| {
+                        ether_devices::modulators::descriptor(m.kind)
+                            .params
+                            .iter()
+                            .find(|p| p.id == *param)
+                            .map_or(0.0, |p| p.default)
+                    }),
+                }),
                 _ => None,
             };
             match change {

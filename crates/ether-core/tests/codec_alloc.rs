@@ -50,6 +50,8 @@ fn vec_count(d: &RenderGraphDesc) -> usize {
         |a: &[AutomationDesc]| nz(a.len()) + a.iter().map(|l| nz(l.points.len())).sum::<usize>();
     nz(d.tempo.len())
         + nz(d.signatures.len())
+        + nz(d.vcas.len())
+        + d.vcas.iter().map(|v| lanes(&v.automation)).sum::<usize>()
         + nz(d.tracks.len())
         + d.tracks
             .iter()
@@ -59,6 +61,22 @@ fn vec_count(d: &RenderGraphDesc) -> usize {
                     + nz(t.clips.len())
                     + lanes(&t.automation)
                     + nz(t.racks.len())
+                    + nz(t.chain_racks.len())
+                    + t.chain_racks
+                        .iter()
+                        .map(|r| {
+                            nz(r.chains.len())
+                                + r.chains.iter().map(|c| nz(c.chain.len())).sum::<usize>()
+                        })
+                        .sum::<usize>()
+                    + nz(t.modulation.modulators.len())
+                    + t.modulation
+                        .modulators
+                        .iter()
+                        .map(|m| nz(m.params.len()))
+                        .sum::<usize>()
+                    + nz(t.modulation.mappings.len())
+                    + nz(t.modulation.macros.len())
                     + t.racks
                         .iter()
                         .map(|r| {
@@ -84,10 +102,16 @@ fn vec_count(d: &RenderGraphDesc) -> usize {
 
 #[test]
 fn decode_allocates_once_per_vec() {
+    // v0.2 fields in the binary layout (`frozen`, still a JSON blob, left out).
+    let mut v02 = fixture::v02_filled();
+    for t in &mut v02.tracks {
+        t.frozen = None;
+    }
     for d in [
         RenderGraphDesc::default(),
         fixture::all_variants(),
         fixture::large_project(),
+        v02,
     ] {
         let mut bytes = Vec::new();
         BinaryCodec.encode(&d, &mut bytes);
@@ -110,7 +134,8 @@ fn large_fixture_decodes_within_bound() {
 
 /// The same bound with every v0.2 field filled on all 64 tracks (a JSON blob for the fields
 /// still in it; `groups-buses` moved `input_tap`, `vca` and `vcas` into the binary layout in
-/// codec v3, `racks-modulation` moves its own as an acceptance item).
+/// codec v3, `chain_racks` and `modulation` since v4 (`racks-modulation`); `frozen` is
+/// the last field in the blob).
 #[test]
 fn large_v02_fixture_decodes_within_bound() {
     decodes_within_bound(fixture::large_v02_project());
