@@ -48,6 +48,7 @@ where
             // share-engine (identity, servers, host lifecycle, links, members, joiner flow).
             ShareCommand::SetIdentity { .. }
             | ShareCommand::SetServers { .. }
+            | ShareCommand::SetPreferences { .. }
             | ShareCommand::Start
             | ShareCommand::Stop
             | ShareCommand::ResetLink { .. }
