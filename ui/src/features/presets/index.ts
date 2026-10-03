@@ -3,4 +3,4 @@
 import "./presets.css";
 
 export { PresetMenu, type PresetMenuProps } from "./PresetMenu";
-export { presetDeviceOf, useCurrentPresets } from "./model";
+export { loadPresetCommand, presetDeviceOf, useCurrentPresets } from "./model";

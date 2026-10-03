@@ -21,6 +21,7 @@ import { compOf, lanesOf, nextTakeName } from "@/features/comping/model";
 import { cmd } from "../../cmd";
 import { synthesizePeaks } from "../peaks";
 import { bpmAt } from "../tempo";
+import { mpeTakeCommands } from "./mpe";
 
 const UNIT: ReplyValue = { type: "Unit" };
 export const LIVE_SAMPLE_RATE = 48_000;
@@ -305,6 +306,8 @@ export class MockLiveRecord {
             cmd("Clip", { type: "CreateMidi", id, track, start, length: end - start, name: project.tracks[track]?.name ?? null }),
           );
           commands.push(cmd("Note", { type: "Add", clip: id, notes }));
+          // v0.3 (`mpe`): the simulated MPE controller's per-note curves (MPE tracks only).
+          commands.push(...mpeTakeCommands(project, track, notes, () => this.host.newId()));
           if (asTakes) asTake(track, id, start, end);
           clips.push(id);
         });

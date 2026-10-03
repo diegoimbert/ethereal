@@ -267,6 +267,43 @@ fn record_expression(
     Ok(())
 }
 
+/// v0.3 (`mpe`): per-note expressions read from an MPE pass (`(note index, kind, curve)`).
+fn record_note_expressions(
+    ctx: &mut doc::DocCtx,
+    note_ids: &[NoteId],
+    curves: &[(usize, NoteExpressionKind, Vec<ExpressionPoint>)],
+) -> CmdResult<()> {
+    for (i, kind, points) in curves {
+        let Some(&note) = note_ids.get(*i) else {
+            continue;
+        };
+        let id: NoteExpressionId = ctx.ids.next(ctx.now);
+        doc::apply(
+            ctx,
+            &Command::Expression(ExpressionCommand::SetNoteExpression {
+                id,
+                note,
+                kind: *kind,
+                points: points.clone(),
+            }),
+        )?;
+    }
+    Ok(())
+}
+
+/// One loop pass of recorded MIDI, before it becomes a clip per armed MIDI track.
+struct MidiPass {
+    from: f64,
+    until: f64,
+    notes: Vec<NoteSpecDraft>,
+    /// Read as plain MIDI (non-MPE tracks).
+    expression: RecordedExpression,
+    /// The pass's messages (re-read per track with MPE settings, `mpe`).
+    events: Vec<RecordedMidi>,
+    /// Thinning window (beats).
+    gap: f64,
+}
+
 /// A recorded note before it gets an id.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct NoteSpecDraft {
@@ -641,7 +678,7 @@ where
         }
         groups.sort_by_key(|g| g.0);
         let n_groups = groups.len();
-        let mut midi_passes: Vec<(f64, f64, Vec<NoteSpecDraft>, RecordedExpression)> = Vec::new();
+        let mut midi_passes: Vec<MidiPass> = Vec::new();
         for (i, (_, events)) in groups.iter().enumerate() {
             let (from, until) = match (n_groups, active.loop_region) {
                 (1, _) => (midi_start, midi_end),
@@ -679,7 +716,14 @@ where
                 midi_end = midi_end.max(until);
                 until = midi_end;
             }
-            midi_passes.push((from, until, notes, expression));
+            midi_passes.push(MidiPass {
+                from,
+                until,
+                notes,
+                expression,
+                events: events.clone(),
+                gap,
+            });
         }
         let mut clips = Vec::new();
         let takes_audio: Vec<&AudioTake> = takes
@@ -765,9 +809,9 @@ where
             if !midi_passes.is_empty() {
                 let from = midi_passes
                     .iter()
-                    .map(|p| p.0)
+                    .map(|p| p.from)
                     .fold(f64::INFINITY, f64::min);
-                let until = midi_passes.iter().map(|p| p.1).fold(0.0, f64::max);
+                let until = midi_passes.iter().map(|p| p.until).fold(0.0, f64::max);
                 for track in &midi_tracks {
                     let Some(t) = ctx.p().tracks.get(track).cloned() else {
                         continue;
@@ -778,7 +822,8 @@ where
                     if as_takes {
                         crate::comping::begin_takes(ctx, t.id, from, until)?;
                     }
-                    for (start, end, notes, expression) in &midi_passes {
+                    for pass in &midi_passes {
+                        let (start, end, notes) = (&pass.from, &pass.until, &pass.notes);
                         let id: ClipId = ctx.ids.next(ctx.now);
                         doc::apply(
                             ctx,
@@ -810,7 +855,27 @@ where
                                 }),
                             )?;
                         }
-                        record_expression(ctx, id, &note_ids, expression)?;
+                        match &t.mpe {
+                            // v0.3 (`mpe`): member channels are per-note expression.
+                            Some(m) => {
+                                let read = crate::mpe::record::read(
+                                    &pass.events,
+                                    *start,
+                                    notes,
+                                    pass.gap,
+                                    m,
+                                );
+                                let channel = crate::expression::record::recorded_expression(
+                                    &read.channel_events,
+                                    *start,
+                                    notes,
+                                    pass.gap,
+                                );
+                                record_expression(ctx, id, &note_ids, &channel)?;
+                                record_note_expressions(ctx, &note_ids, &read.notes)?;
+                            }
+                            None => record_expression(ctx, id, &note_ids, &pass.expression)?,
+                        }
                         if as_takes {
                             crate::comping::add_take(ctx, id)?;
                         }

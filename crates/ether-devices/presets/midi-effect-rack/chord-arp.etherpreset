@@ -1,0 +1,119 @@
+{
+  "format": "ethereal-preset",
+  "version": 2,
+  "app_version": "0.3.0",
+  "preset": {
+    "name": "Chord Arp",
+    "device": {
+      "type": "Builtin",
+      "device": "MidiEffectRack"
+    },
+    "meta": {
+      "tags": [
+        "arp",
+        "chord"
+      ],
+      "author": "Ethereal",
+      "description": "Each note becomes a minor-seventh chord, arpeggiated up over two octaves. Macro 1 lengthens the gate, Macro 2 adds strum."
+    },
+    "params": {
+      "0": 0.0,
+      "1": 0.0,
+      "2": 0.0,
+      "3": 0.0,
+      "4": 0.0,
+      "5": 0.0,
+      "6": 0.0,
+      "7": 0.0,
+      "8": 0.0
+    },
+    "kind": null,
+    "state": null,
+    "rack": {
+      "chains": [
+        {
+          "name": "Chord Arp",
+          "color": null,
+          "volume": 0.0,
+          "pan": 0.0,
+          "mute": false,
+          "solo": false,
+          "keys": {
+            "lo": 0,
+            "hi": 127
+          },
+          "velocities": {
+            "lo": 0,
+            "hi": 127
+          },
+          "select": {
+            "lo": 0,
+            "hi": 127
+          },
+          "devices": [
+            {
+              "name": "Minor 7",
+              "enabled": true,
+              "device": {
+                "type": "Builtin",
+                "device": "Chord"
+              },
+              "params": {
+                "0": 3.0,
+                "1": 7.0,
+                "2": 10.0
+              },
+              "kind": null,
+              "state": null
+            },
+            {
+              "name": "Arp",
+              "enabled": true,
+              "device": {
+                "type": "Builtin",
+                "device": "Arpeggiator"
+              },
+              "params": {
+                "0": 0.0,
+                "1": 6.0,
+                "2": 60.0,
+                "3": 2.0
+              },
+              "kind": null,
+              "state": null
+            }
+          ]
+        }
+      ],
+      "modulators": [],
+      "mappings": [
+        {
+          "source": {
+            "type": "Macro",
+            "index": 0
+          },
+          "target": {
+            "type": "ChainDevice",
+            "chain": 0,
+            "device": 1
+          },
+          "param": 2,
+          "depth": 0.4
+        },
+        {
+          "source": {
+            "type": "Macro",
+            "index": 1
+          },
+          "target": {
+            "type": "ChainDevice",
+            "chain": 0,
+            "device": 0
+          },
+          "param": 12,
+          "depth": 0.25
+        }
+      ]
+    }
+  }
+}

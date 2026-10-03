@@ -4,6 +4,7 @@
 import "./project.css";
 import { useEffect, useRef } from "react";
 import { Menu } from "lucide-react";
+import { TemplateDialogs } from "@/features/templates";
 import { useEngineCommands } from "@/features/transport-bar/engine";
 import { Button } from "@/kit";
 import { useProjectStore } from "@/state";
@@ -73,6 +74,8 @@ export function ProjectMenu() {
         <Menu aria-hidden />
       </Button>
       <ProjectScreen commands={commands} />
+      {/* templates: save/insert/rename/delete template dialogs (track menu, palette, project screen). */}
+      <TemplateDialogs />
       <span className="eth-project__name" data-testid="project-name" title={name ?? undefined}>
         {name ?? "No project"}
       </span>
