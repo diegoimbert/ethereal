@@ -316,25 +316,22 @@ mod tests {
         let server = std::thread::spawn(move || {
             let (s, _) = listener.accept().unwrap();
             let mut ws = tungstenite::accept(s).unwrap();
-            loop {
-                match ws.read().unwrap() {
-                    Message::Text(t) => {
-                        let m: SignalClientMessage = serde_json::from_str(&t).unwrap();
-                        assert_eq!(m, SignalClientMessage::Ping);
-                        ws.send(Message::text("not json")).unwrap();
-                        ws.send(Message::text(
-                            serde_json::to_string(&SignalServerMessage::Pong).unwrap(),
-                        ))
-                        .unwrap();
-                        ws.close(None).unwrap();
-                        let _ = ws.flush();
-                        // Drain until the client's close reply.
-                        while ws.read().is_ok() {}
-                        return;
-                    }
-                    _ => {}
+            let t = loop {
+                if let Message::Text(t) = ws.read().unwrap() {
+                    break t;
                 }
-            }
+            };
+            let m: SignalClientMessage = serde_json::from_str(&t).unwrap();
+            assert_eq!(m, SignalClientMessage::Ping);
+            ws.send(Message::text("not json")).unwrap();
+            ws.send(Message::text(
+                serde_json::to_string(&SignalServerMessage::Pong).unwrap(),
+            ))
+            .unwrap();
+            ws.close(None).unwrap();
+            let _ = ws.flush();
+            // Drain until the client's close reply.
+            while ws.read().is_ok() {}
         });
         let mut link = WsSignal::connect(&format!("http://127.0.0.1:{port}/v1/rooms/r/join"));
         // Queued before the upgrade: sent once open.

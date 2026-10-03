@@ -85,8 +85,8 @@ fn exchange(joiner: &mut Side, host: &mut Side) {
 fn pair() -> (Side, Side) {
     let mut joiner = Side::new(loopback(Duration::from_secs(30)));
     let mut host = Side::new(loopback(Duration::from_secs(30)));
-    host.ep.open(PEER, false, &[]);
-    joiner.ep.open(PEER, true, &[]);
+    host.ep.open(PEER, false, &[], false);
+    joiner.ep.open(PEER, true, &[], false);
     let t = Instant::now();
     while joiner.link.is_none() || host.link.is_none() {
         assert!(
@@ -257,7 +257,7 @@ fn unreachable_peer_fails_in_time() {
     // The joiner offers; the "host" answers nothing and its only candidate is a dead port.
     let timeout = Duration::from_secs(3);
     let mut joiner = Side::new(loopback(timeout));
-    joiner.ep.open(PEER, true, &[]);
+    joiner.ep.open(PEER, true, &[], false);
     let t = Instant::now();
     let mut answered = false;
     while joiner.failed.is_none() {
@@ -296,7 +296,7 @@ fn unreachable_peer_fails_in_time() {
 #[test]
 fn bye_fails_a_pending_pairing_and_unknown_peers_are_ignored() {
     let mut host = Side::new(loopback(Duration::from_secs(30)));
-    host.ep.open(PEER, false, &[]);
+    host.ep.open(PEER, false, &[], false);
     host.ep.signal(PEER + 1, StreamSignal::Bye { reason: None });
     host.ep.signal(
         PEER,

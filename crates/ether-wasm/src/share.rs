@@ -75,10 +75,16 @@ impl ShareProbe {
     }
 
     /// `ice_json`: `IceServer[]`.
-    pub fn open(&mut self, peer: u32, offer: bool, ice_json: &str) -> Result<(), JsError> {
+    pub fn open(
+        &mut self,
+        peer: u32,
+        offer: bool,
+        ice_json: &str,
+        relay_only: bool,
+    ) -> Result<(), JsError> {
         let ice: Vec<IceServer> = serde_json::from_str(ice_json)?;
         self.links.remove(&peer);
-        self.peers.open(peer, offer, &ice);
+        self.peers.open(peer, offer, &ice, relay_only);
         Ok(())
     }
 
@@ -176,9 +182,5 @@ impl ShareProbe {
             l.close();
         }
         self.peers.close(peer);
-    }
-
-    pub fn set_relay_only(&mut self, relay_only: bool) {
-        self.peers.set_relay_only(relay_only);
     }
 }

@@ -85,11 +85,6 @@ pub trait PeerEndpoint {
     fn poll(&mut self, out: &mut Vec<PeerOutput>);
     /// Close `peer` (its link too, if connected).
     fn close(&mut self, peer: PeerId);
-    /// "Hide my IP" (`ShareCommand::SetPreferences { relay_only }`): later pairings use
-    /// relay (TURN) candidates only. The web endpoint sets `iceTransportPolicy: "relay"`;
-    /// the native one has no TURN client (docs/SHARING.md §11), so its pairings fail at once
-    /// while it is on. Default: ignored (fakes).
-    fn set_relay_only(&mut self, _relay_only: bool) {}
 }
 
 #[cfg(not(target_arch = "wasm32"))]

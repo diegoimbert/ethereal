@@ -15,9 +15,9 @@
 //!   (consent freshness), whose channel closes, or that receives a bad fragment closes
 //!   (its [`PeerLink::state`] becomes `Closed`).
 //!
-//! - "Hide my IP (relay only)" ([`PeerEndpoint::set_relay_only`]): this endpoint has no
-//!   TURN client, so with it on every `open` fails at once ([`RELAY_ONLY_UNSUPPORTED`])
-//!   rather than leaking host and srflx candidates.
+//! - "Hide my IP" (`open(.., relay_only: true)`): this endpoint has no TURN client, so
+//!   such an `open` fails at once ([`RELAY_ONLY_UNSUPPORTED`]) rather than leaking host and
+//!   srflx candidates.
 //!
 //! The thread starts on the first `open` (a build that never shares spawns nothing) and
 //! stops when the endpoint is dropped.
@@ -233,7 +233,6 @@ struct Running {
 /// The native [`PeerEndpoint`] (see the module docs).
 pub struct NativePeers {
     config: NativeConfig,
-    relay_only: bool,
     running: Option<Running>,
     /// Failures produced without the thread (it could not start).
     failed: VecDeque<PeerOutput>,
@@ -243,7 +242,6 @@ impl NativePeers {
     pub fn new(config: NativeConfig) -> Self {
         Self {
             config,
-            relay_only: false,
             running: None,
             failed: VecDeque::new(),
         }
@@ -292,8 +290,8 @@ impl Default for NativePeers {
 }
 
 impl PeerEndpoint for NativePeers {
-    fn open(&mut self, peer: PeerId, offer: bool, ice_servers: &[IceServer]) {
-        if self.relay_only {
+    fn open(&mut self, peer: PeerId, offer: bool, ice_servers: &[IceServer], relay_only: bool) {
+        if relay_only {
             self.failed.push_back(PeerOutput::Failed {
                 peer,
                 reason: RELAY_ONLY_UNSUPPORTED.into(),
@@ -323,10 +321,6 @@ impl PeerEndpoint for NativePeers {
 
     fn close(&mut self, peer: PeerId) {
         self.command(Cmd::Close { peer });
-    }
-
-    fn set_relay_only(&mut self, relay_only: bool) {
-        self.relay_only = relay_only;
     }
 }
 
@@ -394,6 +388,7 @@ mod tests {
                 username: Some("u".into()),
                 credential: Some("p".into()),
             }],
+            false,
         );
         assert!(ep.port().is_some());
         let mut out = Vec::new();
@@ -423,8 +418,8 @@ mod tests {
     fn the_host_answers_before_it_trickles() {
         let mut joiner = NativePeers::new(config());
         let mut host = NativePeers::new(config());
-        host.open(1, false, &[]);
-        joiner.open(1, true, &[]);
+        host.open(1, false, &[], false);
+        joiner.open(1, true, &[], false);
         let mut out = Vec::new();
         let t = Instant::now();
         let offer = loop {
@@ -462,8 +457,7 @@ mod tests {
     #[test]
     fn relay_only_fails_at_once_without_a_socket() {
         let mut ep = NativePeers::new(config());
-        ep.set_relay_only(true);
-        ep.open(4, true, &[]);
+        ep.open(4, true, &[], true);
         let mut out = Vec::new();
         ep.poll(&mut out);
         assert!(matches!(
@@ -471,8 +465,7 @@ mod tests {
             [PeerOutput::Failed { peer: 4, reason }] if reason == RELAY_ONLY_UNSUPPORTED
         ));
         assert!(ep.port().is_none(), "nothing was opened");
-        ep.set_relay_only(false);
-        ep.open(4, true, &[]);
+        ep.open(4, true, &[], false);
         assert!(ep.port().is_some());
     }
 }

@@ -47,8 +47,7 @@ export type ShareProbeMethod =
   | "recv"
   | "buffered"
   | "state"
-  | "close"
-  | "set_relay_only";
+  | "close";
 
 /** Controller Worker → main. */
 export type FromController =

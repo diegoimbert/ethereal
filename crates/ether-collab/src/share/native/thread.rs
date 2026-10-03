@@ -591,20 +591,16 @@ impl Thread {
     /// One blocking read (bounded by the read timeout), then whatever else is waiting.
     fn read_burst(&mut self) {
         let mut n_read = 0;
-        loop {
-            match self.socket.recv_from(&mut self.buf) {
-                Ok((n, source)) => {
-                    self.datagram(n, source);
-                    n_read += 1;
-                    if n_read == 1 {
-                        let _ = self.socket.set_nonblocking(true);
-                    }
-                    if n_read >= MAX_BURST {
-                        break;
-                    }
-                }
-                // Timeout, drained, or ICMP port unreachable surfacing as a recv error.
-                Err(_) => break,
+        // Ends on the timeout, once drained, or on ICMP port unreachable surfacing as a recv
+        // error.
+        while let Ok((n, source)) = self.socket.recv_from(&mut self.buf) {
+            self.datagram(n, source);
+            n_read += 1;
+            if n_read == 1 {
+                let _ = self.socket.set_nonblocking(true);
+            }
+            if n_read >= MAX_BURST {
+                break;
             }
         }
         if n_read > 0 {

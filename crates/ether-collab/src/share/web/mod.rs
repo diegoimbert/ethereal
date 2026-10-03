@@ -383,14 +383,12 @@ impl Drop for WebLink {
 /// fails at once.
 pub struct WebPeers {
     outputs: Rc<RefCell<VecDeque<PeerOutput>>>,
-    relay_only: bool,
 }
 
 impl WebPeers {
     pub fn new() -> Self {
         Self {
             outputs: Rc::new(RefCell::new(VecDeque::new())),
-            relay_only: false,
         }
     }
 
@@ -436,7 +434,7 @@ impl Default for WebPeers {
 }
 
 impl PeerEndpoint for WebPeers {
-    fn open(&mut self, peer: PeerId, offer: bool, ice_servers: &[IceServer]) {
+    fn open(&mut self, peer: PeerId, offer: bool, ice_servers: &[IceServer], relay_only: bool) {
         self.close_peer(peer);
         let ch = HUB.with(|h| {
             let mut h = h.borrow_mut();
@@ -458,7 +456,7 @@ impl PeerEndpoint for WebPeers {
                 ch,
                 offer,
                 ice: ice_servers,
-                relay: self.relay_only,
+                relay: relay_only,
             }),
             None => self.outputs.borrow_mut().push_back(PeerOutput::Failed {
                 peer,
@@ -482,10 +480,6 @@ impl PeerEndpoint for WebPeers {
 
     fn close(&mut self, peer: PeerId) {
         self.close_peer(peer);
-    }
-
-    fn set_relay_only(&mut self, relay_only: bool) {
-        self.relay_only = relay_only;
     }
 }
 
