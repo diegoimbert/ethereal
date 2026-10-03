@@ -41,7 +41,9 @@ fn setup(clips: Vec<ClipDesc>, expression: TrackExpressionDesc) -> (EngineParts,
     let mut p = create(config());
     let (rec, rx) = Recorder::new();
     let rec = p.handle.add_node(Box::new(rec)).unwrap();
-    p.handle.publish(desc(rec, clips, expression, None)).unwrap();
+    p.handle
+        .publish(desc(rec, clips, expression, None))
+        .unwrap();
     (p, rec, rx)
 }
 
@@ -88,13 +90,19 @@ fn notes(seen: &[Seen]) -> Vec<(u64, EventKind)> {
         .filter(|(_, k)| {
             matches!(
                 k,
-                EventKind::NoteOn { .. } | EventKind::NoteOff { .. } | EventKind::NoteExpression { .. }
+                EventKind::NoteOn { .. }
+                    | EventKind::NoteOff { .. }
+                    | EventKind::NoteExpression { .. }
             )
         })
         .collect()
 }
 
-fn one_clip_expression(clip: ClipDesc, lanes: Vec<ExpressionLaneDesc>, n: Vec<NoteExpressionDesc>) -> (Vec<ClipDesc>, TrackExpressionDesc) {
+fn one_clip_expression(
+    clip: ClipDesc,
+    lanes: Vec<ExpressionLaneDesc>,
+    n: Vec<NoteExpressionDesc>,
+) -> (Vec<ClipDesc>, TrackExpressionDesc) {
     let x = TrackExpressionDesc {
         clips: vec![ClipExpressionDesc {
             clip: clip.id,
@@ -152,7 +160,12 @@ fn lanes_and_note_expressions_are_block_size_independent() {
         assert_eq!(midi(&got), midi(&reference), "block {block}");
         let (a, b) = (notes(&got), notes(&reference));
         if let Some(i) = (0..a.len().min(b.len())).find(|&i| a[i] != b[i]) {
-            panic!("block {block}: event {i}: {:?} vs {:?} (prev {:?})", a[i], b[i], &b[i.saturating_sub(2)..i]);
+            panic!(
+                "block {block}: event {i}: {:?} vs {:?} (prev {:?})",
+                a[i],
+                b[i],
+                &b[i.saturating_sub(2)..i]
+            );
         }
         assert_eq!(a.len(), b.len(), "block {block}");
     }
@@ -171,7 +184,10 @@ fn lanes_send_only_changes_on_the_grid_and_breakpoints() {
     // Starts at 0 on the first sample, rises to 127 at beat 2, lands on 0.2 at beat 3.
     assert_eq!(cc[0], (0, 0));
     assert!(cc.windows(2).all(|w| w[0].1 != w[1].1), "only changes");
-    assert!(cc.iter().all(|(t, _)| t % 32 == 0 || *t == 2 * SPB || *t == 3 * SPB));
+    assert!(
+        cc.iter()
+            .all(|(t, _)| t % 32 == 0 || *t == 2 * SPB || *t == 3 * SPB)
+    );
     let top = cc.iter().find(|&&(_, v)| v == 127).unwrap();
     assert!(top.0 <= 2 * SPB && top.0 > 2 * SPB - 64 * 32, "{top:?}");
     assert_eq!(cc.last().unwrap().1, (0.2f32 * 127.0).round() as u8);
@@ -243,8 +259,7 @@ fn note_expressions_track_their_voice() {
     // Pressure of the first note rises to (almost) 1 before its note-off at beat 1.
     let last_60 = ev
         .iter()
-        .filter(|(_, k)| matches!(k, EventKind::NoteExpression { key: 60, .. }))
-        .next_back()
+        .rfind(|(_, k)| matches!(k, EventKind::NoteExpression { key: 60, .. }))
         .unwrap();
     assert!(last_60.0 < SPB);
     assert!(matches!(last_60.1, EventKind::NoteExpression { value, .. } if value > 0.99));
@@ -257,7 +272,11 @@ fn note_expressions_follow_their_note_across_loop_wraps_and_clip_moves() {
     let (clips, x) = one_clip_expression(
         clip,
         vec![],
-        vec![note_curve(0, NoteExpressionKind::Pressure, &[(0.0, 0.0), (1.0, 1.0)])],
+        vec![note_curve(
+            0,
+            NoteExpressionKind::Pressure,
+            &[(0.0, 0.0), (1.0, 1.0)],
+        )],
     );
     let mut p = create(config());
     let (rec, mut rx) = Recorder::new();
@@ -314,16 +333,15 @@ fn note_expressions_follow_their_note_across_loop_wraps_and_clip_moves() {
     let exprs: Vec<(u64, f32)> = ev
         .iter()
         .filter_map(|(t, k)| match k {
-            EventKind::NoteExpression { note_id, value, .. } if *note_id == id => Some((*t, *value)),
+            EventKind::NoteExpression { note_id, value, .. } if *note_id == id => {
+                Some((*t, *value))
+            }
             _ => None,
         })
         .collect();
     assert_eq!(exprs[0], (on.0, 0.0));
     // Half way through the note (half a beat in): about 0.5.
-    let mid = exprs
-        .iter()
-        .find(|(t, _)| *t >= on.0 + SPB / 2)
-        .unwrap();
+    let mid = exprs.iter().find(|(t, _)| *t >= on.0 + SPB / 2).unwrap();
     assert!((mid.1 - 0.5).abs() < 0.01, "{mid:?}");
 }
 
@@ -333,9 +351,15 @@ fn locate_resends_current_values_and_stop_centres_the_bend() {
     let (clips, x) = one_clip_expression(
         clip,
         vec![
-            lane(ExpressionKind::Cc { controller: 11 }, &[(0.0, 0.5, CurveShape::Step)]),
+            lane(
+                ExpressionKind::Cc { controller: 11 },
+                &[(0.0, 0.5, CurveShape::Step)],
+            ),
             lane(ExpressionKind::PitchBend, &[(0.0, 0.25, CurveShape::Step)]),
-            lane(ExpressionKind::ChannelPressure, &[(0.0, 1.0, CurveShape::Step)]),
+            lane(
+                ExpressionKind::ChannelPressure,
+                &[(0.0, 1.0, CurveShape::Step)],
+            ),
         ],
         vec![],
     );
@@ -386,7 +410,10 @@ fn muted_clips_and_missing_curves_send_nothing() {
     clip.muted = true;
     let (clips, x) = one_clip_expression(
         clip,
-        vec![lane(ExpressionKind::Cc { controller: 1 }, &[(0.0, 0.5, CurveShape::Step)])],
+        vec![lane(
+            ExpressionKind::Cc { controller: 1 },
+            &[(0.0, 0.5, CurveShape::Step)],
+        )],
         vec![note_curve(0, NoteExpressionKind::Pressure, &[(0.0, 0.5)])],
     );
     let seen = run(clips, x, 2 * SPB as usize, 512);
@@ -396,7 +423,10 @@ fn muted_clips_and_missing_curves_send_nothing() {
     let clip = midi_clip(cid(8), 0.0, 4.0, &[(0.0, 1.0, 60)]);
     let (clips, mut x) = one_clip_expression(
         clip,
-        vec![lane(ExpressionKind::Cc { controller: 1 }, &[(0.0, 0.5, CurveShape::Step)])],
+        vec![lane(
+            ExpressionKind::Cc { controller: 1 },
+            &[(0.0, 0.5, CurveShape::Step)],
+        )],
         vec![note_curve(0, NoteExpressionKind::Pressure, &[(0.0, 0.5)])],
     );
     x.clips[0].clip = cid(9);
@@ -407,4 +437,62 @@ fn muted_clips_and_missing_curves_send_nothing() {
             .iter()
             .any(|(_, k)| matches!(k, EventKind::NoteExpression { .. }))
     );
+}
+
+/// CPU cost (run with `cargo test --release -p ether-core --test expression -- --ignored
+/// --nocapture`): a 512-frame block of one track with 4 dense lanes and 16 sounding notes
+/// with pressure curves vs the same track without expression.
+#[test]
+#[ignore]
+fn cpu_cost() {
+    let dense = |n: usize| -> Vec<(f64, f32, CurveShape)> {
+        (0..n)
+            .map(|i| (i as f64 * 0.01, (i % 13) as f32 / 13.0, CurveShape::Linear))
+            .collect()
+    };
+    let notes: Vec<(f64, f64, u8)> = (0..16).map(|i| (0.0, 8.0, 48 + i as u8)).collect();
+    let clip = midi_clip(cid(7), 0.0, 8.0, &notes);
+    let with = TrackExpressionDesc {
+        clips: vec![ClipExpressionDesc {
+            clip: cid(7),
+            lanes: [
+                ExpressionKind::Cc { controller: 1 },
+                ExpressionKind::Cc { controller: 11 },
+                ExpressionKind::PitchBend,
+                ExpressionKind::ChannelPressure,
+            ]
+            .into_iter()
+            .map(|kind| ExpressionLaneDesc {
+                kind,
+                points: dense(800),
+            })
+            .collect(),
+            notes: (0..16)
+                .map(|note| NoteExpressionDesc {
+                    note,
+                    kind: NoteExpressionKind::Pressure,
+                    points: dense(800),
+                })
+                .collect(),
+        }],
+        mpe: None,
+    };
+    for (label, x) in [("without", TrackExpressionDesc::default()), ("with", with)] {
+        let (mut p, _, mut rx) = setup(vec![clip.clone()], x);
+        p.handle.transport(TransportControl::Play).unwrap();
+        let blocks = 4 * SPB as usize / 512;
+        let t = std::time::Instant::now();
+        let mut l = vec![0.0f32; 512];
+        let mut r = vec![0.0f32; 512];
+        for _ in 0..blocks {
+            let mut outs: [&mut [f32]; 2] = [&mut l, &mut r];
+            p.engine.process(&[], &mut outs, 512);
+            drain(&mut rx);
+        }
+        let per = t.elapsed().as_nanos() as f64 / blocks as f64;
+        println!(
+            "{label}: {per:.0} ns per 512-frame block ({:.3}% of real time)",
+            per / (512.0 / 48_000.0 * 1e9) * 100.0
+        );
+    }
 }

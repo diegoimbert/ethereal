@@ -453,17 +453,19 @@ pub(crate) fn consolidate_midi(
         played_clips(ctx.p(), track, start.0, end.0)
             .into_iter()
             .flat_map(|c| {
-                clip_pieces(c).into_iter().filter_map(move |(song, c0, c1)| {
-                    // The piece clamped to `[start, end)`.
-                    let s0 = song.max(start.0);
-                    let s1 = (song + (c1 - c0)).min(end.0);
-                    (s1 > s0).then_some(crate::expression::copy::Piece {
-                        clip: c.id,
-                        at: s0 - start.0,
-                        c0: c0 + (s0 - song),
-                        c1: c0 + (s1 - song),
+                clip_pieces(c)
+                    .into_iter()
+                    .filter_map(move |(song, c0, c1)| {
+                        // The piece clamped to `[start, end)`.
+                        let s0 = song.max(start.0);
+                        let s1 = (song + (c1 - c0)).min(end.0);
+                        (s1 > s0).then_some(crate::expression::copy::Piece {
+                            clip: c.id,
+                            at: s0 - start.0,
+                            c0: c0 + (s0 - song),
+                            c1: c0 + (s1 - song),
+                        })
                     })
-                })
             })
             .collect();
     pieces.sort_by(|a, b| a.at.total_cmp(&b.at));

@@ -13,9 +13,9 @@ use ether_core::protocol::clips::ClipCommand;
 use ether_core::protocol::devices::{DeviceCommand, DeviceSpec};
 use ether_core::protocol::expression::ExpressionCommand;
 use ether_core::protocol::freeze::FreezeCommand;
+use ether_core::protocol::groove::GrooveCommand;
 use ether_core::protocol::model::*;
 use ether_core::protocol::notes::{NoteCommand, NoteCopy, NoteSpec};
-use ether_core::protocol::groove::GrooveCommand;
 use ether_core::protocol::project::EditCommand;
 use ether_core::protocol::takes::TakeCommand;
 use ether_core::protocol::time_edit::{TimeEditCommand, TimeSelection};
@@ -592,7 +592,10 @@ fn offline_render_through_the_poly_synth_is_block_size_independent() {
     let small = render_poly(&mut h, t, 64);
     let large = render_poly(&mut h, t, 512);
     assert!(small.iter().any(|s| s.abs() > 1e-3), "the synth plays");
-    assert_eq!(small, large, "offline render identical for blocks of 64 and 512");
+    assert_eq!(
+        small, large,
+        "offline render identical for blocks of 64 and 512"
+    );
     // And the bend is audible: without the lane the render differs.
     h.ok(x(ExpressionCommand::RemoveLane { id: bend }));
     h.tick();

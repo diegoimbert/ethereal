@@ -72,7 +72,10 @@ pub(crate) struct Piece {
 /// `c0`, its inner points and its value at the end (so a later piece or the end of the
 /// curve jumps exactly there); pieces of later clips overwrite overlaps. Curves are capped
 /// at [`MAX_EXPRESSION_POINTS`] (the rest is dropped).
-pub(crate) fn unroll_lanes(p: &Project, pieces: &[Piece]) -> Vec<(ExpressionKind, Vec<ExpressionPoint>)> {
+pub(crate) fn unroll_lanes(
+    p: &Project,
+    pieces: &[Piece],
+) -> Vec<(ExpressionKind, Vec<ExpressionPoint>)> {
     let mut out: Vec<(ExpressionKind, Vec<ExpressionPoint>)> = Vec::new();
     for piece in pieces {
         if piece.c1 <= piece.c0 {

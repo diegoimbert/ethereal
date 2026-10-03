@@ -43,10 +43,14 @@ pub(crate) fn track_expression(project: &Project, track: &Track) -> TrackExpress
             continue;
         }
         entry(&mut clips, l.clip);
-        clips.get_mut(&l.clip).unwrap().lanes.push(ExpressionLaneDesc {
-            kind: l.kind,
-            points: curve(&l.points),
-        });
+        clips
+            .get_mut(&l.clip)
+            .unwrap()
+            .lanes
+            .push(ExpressionLaneDesc {
+                kind: l.kind,
+                points: curve(&l.points),
+            });
     }
     // Note expressions, grouped by clip; indices resolved once per clip.
     let mut by_clip: BTreeMap<ClipId, Vec<&NoteExpression>> = BTreeMap::new();
@@ -125,7 +129,10 @@ pub(crate) fn compiled_note_order(project: &Project, clip: ClipId) -> Vec<NoteId
         })
         .collect();
     crate::groove::swing_notes(&project.settings, c.offset.0, &mut descs);
-    descs.iter().map(|d| notes[d.velocity as usize].id).collect()
+    descs
+        .iter()
+        .map(|d| notes[d.velocity as usize].id)
+        .collect()
 }
 
 /// Value of a model curve at `t` (`ether_core::expression::evaluate`) and the shape to

@@ -76,7 +76,9 @@ pub(crate) fn recorded_expression(
                 let note = notes
                     .iter()
                     .enumerate()
-                    .filter(|(_, n)| n.pitch == d1 && n.start <= t + 1e-9 && t < n.start + n.duration)
+                    .filter(|(_, n)| {
+                        n.pitch == d1 && n.start <= t + 1e-9 && t < n.start + n.duration
+                    })
                     .max_by(|a, b| a.1.start.total_cmp(&b.1.start))
                     .map(|(i, n)| (i, n.start));
                 if let Some((i, s)) = note {

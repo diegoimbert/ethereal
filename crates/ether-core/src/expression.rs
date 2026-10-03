@@ -542,9 +542,7 @@ impl ExpressionRt {
                 knots.insert(on as usize, n.source.start);
             }
             for c in cs {
-                let first = c
-                    .points
-                    .partition_point(|q| n.source.start + q.0 <= lo);
+                let first = c.points.partition_point(|q| n.source.start + q.0 <= lo);
                 for q in &c.points[first..] {
                     let t = n.source.start + q.0;
                     if t >= timing.b1 || t >= n.end {

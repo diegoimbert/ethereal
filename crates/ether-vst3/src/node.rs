@@ -30,8 +30,8 @@ use vst3::Steinberg::Vst::SymbolicSampleSizes_::kSample32;
 use vst3::Steinberg::Vst::{
     AudioBusBuffers, AudioBusBuffers__type0, Event, Event__type0, IAudioProcessor,
     IAudioProcessorTrait, IEditController, IEventList, IMidiMapping, IMidiMappingTrait,
-    IParameterChanges, NoteOffEvent, NoteOnEvent, PolyPressureEvent,
-    ProcessContext as Vst3Context, ProcessData,
+    IParameterChanges, NoteOffEvent, NoteOnEvent, PolyPressureEvent, ProcessContext as Vst3Context,
+    ProcessData,
 };
 use vst3::Steinberg::{kResultFalse, kResultOk, kResultTrue};
 use vst3::{ComPtr, ComWrapper};
@@ -169,8 +169,16 @@ impl MidiMap {
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum Vst3Midi {
     /// A mapped controller (`IMidiMapping` number) at a normalized value.
-    Controller { channel: u8, ctrl: usize, value: f64 },
-    PolyPressure { channel: u8, key: u8, pressure: f32 },
+    Controller {
+        channel: u8,
+        ctrl: usize,
+        value: f64,
+    },
+    PolyPressure {
+        channel: u8,
+        key: u8,
+        pressure: f32,
+    },
 }
 
 fn vst3_midi(data: [u8; 3]) -> Option<Vst3Midi> {

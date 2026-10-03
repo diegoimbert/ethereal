@@ -32,7 +32,9 @@ fn run(engine: &mut Engine, blocks: usize, frames: usize) {
 
 fn desc(rec: ether_core::NodeKey, shift: f64) -> RenderGraphDesc {
     let mut t = with_chain(track(tid(2), TrackKind::Midi, Some(tid(1))), &[rec]);
-    let notes: Vec<(f64, f64, u8)> = (0..32).map(|i| (i as f64 * 0.125, 0.4, 60 + (i % 12) as u8)).collect();
+    let notes: Vec<(f64, f64, u8)> = (0..32)
+        .map(|i| (i as f64 * 0.125, 0.4, 60 + (i % 12) as u8))
+        .collect();
     let mut clip = midi_clip(cid(3), shift, 6.0, &notes);
     clip.looping = Some((0.0, 4.0));
     let curve = |n: usize| -> Vec<(f64, f32, CurveShape)> {
@@ -50,7 +52,10 @@ fn desc(rec: ether_core::NodeKey, shift: f64) -> RenderGraphDesc {
                 },
                 ExpressionLaneDesc {
                     kind: ExpressionKind::PitchBend,
-                    points: vec![(0.0, -1.0, CurveShape::Curve { tension: 0.3 }), (3.0, 1.0, CurveShape::Step)],
+                    points: vec![
+                        (0.0, -1.0, CurveShape::Curve { tension: 0.3 }),
+                        (3.0, 1.0, CurveShape::Step),
+                    ],
                 },
             ],
             notes: (0..32)
