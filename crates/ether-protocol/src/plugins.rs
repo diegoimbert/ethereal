@@ -12,8 +12,14 @@ use crate::model::{DeviceId, PluginFormat};
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
 #[serde(tag = "type")]
 pub enum PluginCommand {
-    /// Re-scan the plugin search paths out-of-process. Progress via `Event::Plugin`.
-    Rescan,
+    /// Re-scan the plugin folders out-of-process. Progress via `Event::Plugin`. Only new
+    /// or changed plugins are loaded again (the rest come from the scan cache); `full`
+    /// ignores the cache and loads every plugin (also retries failed ones).
+    Rescan {
+        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+        #[ts(as = "Option<bool>", optional)]
+        full: bool,
+    },
     /// Replies `Plugins` from the cached plugin DB.
     List,
     /// Open the plugin's floating editor window.
@@ -32,6 +38,49 @@ pub enum PluginCommand {
     Reload {
         device: DeviceId,
     },
+    /// Replies `PluginFolders`: the folders scanned for plugins.
+    ListFolders,
+    /// Add a user plugin folder (`format`: only that format's plugins; `null` = any) and
+    /// rescan (incrementally). Adding a folder already listed updates its format filter.
+    /// Replies `PluginFolders`.
+    AddFolder {
+        path: String,
+        format: Option<PluginFormat>,
+    },
+    /// Remove a user plugin folder and rescan. Replies `PluginFolders`.
+    RemoveFolder { path: String },
+    /// Whether the OS default plugin folders (and, for AU, the system component registry)
+    /// are scanned; on by default. Rescans. Replies `PluginFolders`.
+    SetIncludeDefaults { include: bool },
+}
+
+/// The folders scanned for plugins (`Plugin::ListFolders`).
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, TS)]
+pub struct PluginFolders {
+    /// Scan the OS default folders (`defaults`).
+    pub include_defaults: bool,
+    /// The OS default folders of each format (read-only; may not exist), including the
+    /// `CLAP_PATH`/`VST3_PATH`-style environment overrides.
+    pub defaults: Vec<DefaultPluginFolder>,
+    /// Folders the user added, in the order added.
+    pub folders: Vec<PluginFolder>,
+}
+
+/// A user plugin folder.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, TS)]
+pub struct PluginFolder {
+    pub path: String,
+    /// Only plugins of this format are looked for here; `null` = any format.
+    pub format: Option<PluginFormat>,
+}
+
+/// An OS default plugin folder of one format.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, TS)]
+pub struct DefaultPluginFolder {
+    pub path: String,
+    pub format: PluginFormat,
+    /// The folder exists on this machine.
+    pub exists: bool,
 }
 
 /// One plugin found by the scanner.
@@ -115,4 +164,22 @@ pub struct ScanRequest {
 pub enum ScanResponse {
     Ok { plugins: Vec<PluginDescriptor> },
     Err { message: String },
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn rescan_full_is_optional_on_the_wire() {
+        // Clients that predate `full` keep sending (and receiving) the bare variant.
+        let bare: PluginCommand = serde_json::from_str(r#"{"type":"Rescan"}"#).unwrap();
+        assert_eq!(bare, PluginCommand::Rescan { full: false });
+        assert_eq!(serde_json::to_string(&bare).unwrap(), r#"{"type":"Rescan"}"#);
+        let full = PluginCommand::Rescan { full: true };
+        assert_eq!(
+            serde_json::to_string(&full).unwrap(),
+            r#"{"type":"Rescan","full":true}"#
+        );
+    }
 }

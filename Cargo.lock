@@ -1721,6 +1721,7 @@ name = "ether-plugin-host"
 version = "0.0.1"
 dependencies = [
  "ether-core",
+ "serde",
  "serde_json",
 ]
 

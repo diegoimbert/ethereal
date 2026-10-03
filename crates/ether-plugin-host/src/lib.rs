@@ -22,6 +22,7 @@
 #![cfg(not(target_arch = "wasm32"))]
 
 pub mod bundles;
+mod cache;
 mod scan;
 
 use std::path::{Path, PathBuf};
@@ -31,7 +32,8 @@ use ether_core::plugin::{PluginController, PluginError};
 use ether_core::protocol::model::PluginFormat;
 use ether_core::protocol::plugins::{PluginDescriptor, ScanRequest, ScanResponse};
 
-pub use scan::{SCANNER_BIN, ScanReport, ScanRunner};
+pub use cache::{CachedScan, Fingerprint, SCAN_CACHE_FILE, SCANNER_VERSION, ScanCache, fingerprint};
+pub use scan::{SCAN_JOBS_ENV, SCANNER_BIN, ScanReport, ScanRunner};
 
 /// One plugin format's loader. Implementations are stateless or internally synchronized
 /// (`Send + Sync`): one registry is shared by every thread of a process.
@@ -171,6 +173,49 @@ impl Formats {
         }
         out.sort();
         out.dedup();
+        out
+    }
+
+    /// Scan targets under the OS default folders (plus the registry, which lists the
+    /// components installed in those folders) if `include_defaults`, and under each user
+    /// folder for the formats its filter allows (`None` = every format). Folders and
+    /// targets reached twice (overlapping folders, symlinks) are kept once, by canonical
+    /// path; the first spelling wins.
+    pub fn discover_folders(
+        &self,
+        include_defaults: bool,
+        folders: &[(PathBuf, Option<PluginFormat>)],
+    ) -> Vec<ScanTarget> {
+        let canon = |p: &Path| std::fs::canonicalize(p).unwrap_or_else(|_| p.to_path_buf());
+        let mut out = Vec::new();
+        for h in &self.hosts {
+            let format = h.format();
+            let mut roots: Vec<PathBuf> = Vec::new();
+            let mut seen_roots = std::collections::HashSet::new();
+            let defaults = if include_defaults {
+                h.default_search_paths()
+            } else {
+                Vec::new()
+            };
+            let user = folders
+                .iter()
+                .filter(|(_, f)| f.is_none_or(|f| f == format))
+                .map(|(p, _)| p.clone());
+            for root in defaults.into_iter().chain(user) {
+                if seen_roots.insert(canon(&root)) {
+                    roots.push(root);
+                }
+            }
+            let mut found = h.discover(&roots);
+            if include_defaults {
+                found.extend(h.discover_registry());
+            }
+            out.extend(found.into_iter().map(|path| ScanTarget { format, path }));
+        }
+        out.sort();
+        out.dedup();
+        let mut seen = std::collections::HashSet::new();
+        out.retain(|t| seen.insert((t.format, canon(&t.path))));
         out
     }
 
@@ -316,6 +361,46 @@ mod tests {
         let some = f.discover(Some(&[PathBuf::from("/p")]));
         assert_eq!(some.len(), 2);
         assert!(some.iter().all(|t| t.path.starts_with("/p")));
+    }
+
+    #[test]
+    fn discover_folders_filters_by_format_toggles_defaults_and_dedupes() {
+        let f = formats();
+        let user = vec![
+            (PathBuf::from("/u/any"), None),
+            (PathBuf::from("/u/clap-only"), Some(PluginFormat::Clap)),
+            // The same folder twice (and a default listed again) is walked once.
+            (PathBuf::from("/u/any"), Some(PluginFormat::Au)),
+            (PathBuf::from("/default/clap"), None),
+        ];
+        let paths = |v: Vec<ScanTarget>| {
+            v.into_iter()
+                .map(|t| format!("{:?} {}", t.format, t.path.display()))
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(
+            paths(f.discover_folders(true, &user)),
+            [
+                "Clap /default/clap/x.clap",
+                "Clap /u/any/x.clap",
+                "Clap /u/clap-only/x.clap",
+                // An `Any` user folder is walked for every format.
+                "Au /default/clap/x.component",
+                "Au /default/component/x.component",
+                "Au /u/any/x.component",
+                "Au aufx:dely:appl",
+            ]
+        );
+        // Defaults off: no default folders and no registry.
+        assert_eq!(
+            paths(f.discover_folders(false, &user[..2])),
+            [
+                "Clap /u/any/x.clap",
+                "Clap /u/clap-only/x.clap",
+                "Au /u/any/x.component",
+            ]
+        );
+        assert_eq!(f.discover_folders(true, &[]), f.discover(None));
     }
 
     #[test]
