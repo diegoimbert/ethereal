@@ -31,8 +31,8 @@ export class IpBudgets {
   }
 
   /**
-   * `true` while `ip` is under the limit for `kind`. `spend` records one use first, so the
-   * call that reaches the limit already answers `false`.
+   * `true` while `ip` is within the limit for `kind`. `peek`: one more use would be allowed.
+   * `spend`: records one use, then answers whether that use was within the limit.
    */
   check(kind: BudgetKind, ip: string, op: BudgetOp, now: number): boolean {
     const { max, ms } = WINDOW[kind];
