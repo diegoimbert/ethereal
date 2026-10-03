@@ -7,7 +7,7 @@
 // `RACK_PRESETS_THEME=dark|light`): the preset menu of the rack, and the rack after loading.
 import { expect, test, type Page } from "@playwright/test";
 import type { Device, Project } from "@/generated";
-import { addDevice, createTrack, newProject, openDeviceTab, playButton } from "./ui";
+import { addDevice, createTrack, newProject, openDeviceTab, openLibrary, playButton } from "./ui";
 
 interface Handle {
   state(): { project: Project | null };
@@ -130,5 +130,29 @@ test("rack presets: load a factory rack with chains, undo, save and reload it on
   await user.getByRole("button", { name: "More actions for E2E Layers" }).click();
   await page.getByRole("menuitem", { name: "Delete Preset…" }).click();
   await page.getByRole("dialog", { name: "Delete “E2E Layers”?" }).getByRole("button", { name: "Delete" }).click();
+  expect(errors).toEqual([]);
+});
+
+test("rack presets: a factory rack preset loads from the library browser", async ({ page }) => {
+  test.setTimeout(120_000);
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/");
+  await expect(playButton(page)).toBeVisible({ timeout: 30_000 });
+  await expect.poll(() => project(page).then((p) => p !== null), { timeout: 30_000 }).toBe(true);
+  await newProject(page, `Rack presets browser ${Date.now()}`);
+  // The new track is selected: the browser loads presets onto its matching device.
+  const rack = await instrumentRack(page);
+
+  await openLibrary(page, "Factory Presets");
+  const browser = page.locator('[data-feature="browser"][data-browser="v2"]');
+  await expect(browser).toBeVisible({ timeout: 20_000 });
+  await browser.getByRole("searchbox", { name: "Search files" }).fill("Key Split");
+  const row = browser.getByRole("list", { name: "Search results" }).getByRole("button", { name: "Key Split", exact: true });
+  await expect(row).toBeVisible({ timeout: 30_000 });
+  await row.dblclick();
+  await expect.poll(() => chainNames(page, rack.id)).toEqual(["Bass", "Keys"]);
+  expect(await structure(page, rack.id)).toEqual({ chains: 2, devices: 2, modulators: 0, mappings: 2 });
   expect(errors).toEqual([]);
 });
