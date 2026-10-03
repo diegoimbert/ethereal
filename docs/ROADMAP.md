@@ -948,3 +948,140 @@ code (`ether-controller/src/racks/**`), factory rack preset registration. Contra
 (CONTRACTS.md §13.9): saving a rack device stores its chains, chain devices, the rack's
 modulators and the mappings inside it; `Preset::Load { seed }` replaces them as one undo step
 with `derive_id(seed, i)` ids; v1 rack presets (macros and params only) load unchanged.
+## Sharing: P2P host hub, invite links (base-115)
+
+Design and frozen contract: [SHARING.md](SHARING.md) (T1, owner review), CONTRACTS.md §11.18.
+base-115 landed:
+- the protocol (`ether_protocol::share`), with `Command::Share` / `Event::Share` and
+  `ProjectSummary::share`;
+- the controller stub (`crates/ether-controller/src/share/`, every command but `Get` replies
+  `Unsupported`, pinned in `tests/share_prewire.rs`; each node removes ONLY its own
+  assertions);
+- `ether-collab::share` (invite format and data-channel fragmentation implemented,
+  `share.json` shape, and the seams `PeerLink`/`SignalLink`/`PeerEndpoint`/`ShareServices`);
+- the `services/signal` skeleton;
+- `MockShare`;
+- the TS invite parser `ui/src/domain/invite.ts`.
+
+The first six nodes run in parallel. Each builds against fakes (the signal adapter, the
+in-memory `PeerEndpoint`, `MockShare`). `share-integration` joins them. The owner's UX on dev
+is authoritative.
+
+### `signal-service`
+
+Owns `services/signal/**`, `scripts/release/web/functions/**`.
+- `RoomCore` per SHARING.md §3.3:
+  - claim (TOFU host token), `HostWelcome` with ICE servers (STUN from `STUN_URLS`, TURN
+    credentials when secrets exist);
+  - doors (`SetDoors`), `JoinHello` → `JoinWelcome` + `PeerArrived`, or `HostOffline` and a
+    later welcome when the host connects;
+  - signal routing with `peer` stamping, `EndPeer`, `PeerLeft`, `CloseRoom`, the TTL alarm;
+  - every limit in `LIMITS` (per-socket token bucket, per-IP bad doors and claims, joiners per
+    room, signals per pairing, hello timeout, offline wait).
+- A Node `ws` adapter (`services/signal/test/server.ts`) running `RoomCore` for the e2e of
+  other nodes. The Pages Function proxy (`functions/signal/[[path]].ts`, a DO binding).
+- Acceptance:
+  - unit tests for each transition and limit;
+  - `wrangler dev` smoke steps in the README;
+  - no deployment (owner).
+
+### `p2p-transport`
+
+Owns `crates/ether-collab/src/share/{native,web,signal}/**`, `ui/src/features/share/endpoint/**`;
+shared touches listed in `.github/ownership.toml`.
+- `SignalLink`: native over tungstenite with rustls (`wss://`), wasm over the Worker's
+  `WebSocket`. `PeerEndpoint` native: one `ether-share` thread, one UDP socket, a str0m
+  `Rtc` per pairing with one data channel (`DC_LABEL`), host + srflx candidates (the
+  `ether-native/src/stream/stun.rs` approach), trickle ICE, fingerprints from the SDP.
+  `PeerEndpoint` web: the share `MessagePort` between the UI and the controller Worker
+  (transferable `ArrayBuffer`s), with the UI agent creating `RTCPeerConnection`s on
+  `ShareEvent::PeerEndpoint`. Backpressure through `buffered()`. `default_services()` returns
+  the real services.
+- Acceptance:
+  - two native endpoints pair over loopback through an in-memory `SignalLink` and exchange
+    20 MiB of fragmented frames in order, with backpressure;
+  - ICE failure → `PeerOutput::Failed` within 30 s;
+  - web: vitest with a fake RTC, and a Playwright two-context data-channel echo through the
+    port;
+  - `just check-wasm` stays green.
+
+### `share-engine`
+
+Owns `crates/ether-controller/src/share/**`,
+`crates/ether-collab/src/share/{hub,handshake,keys,fake}.rs`, tests `share*.rs`, the mock
+`share.ts`; shared touches in `collab/mod.rs` (connector per session, `left_sites` seed,
+sync signals), `relay/mod.rs` (`set_snapshot_source`, `set_color`), `handlers.rs` (view-only
+refusal), `lib.rs`, `project.rs` (SaveAs/Duplicate skip `share.json`, resume/reconnect on
+Open).
+- The hub: drives `Relay` over `PeerLink`s plus a loopback, with the role filter of SHARING.md
+  §2.3, pinned names and colours, and ICE servers from the signaling service.
+- Key derivations and proofs (HMAC-SHA256) with **frozen test vectors** written into
+  SHARING.md §4.2.
+- Every `ShareCommand`, `ShareState`/`ShareNotice` and `share.json` per §4.5 and §7.
+- Acceptance:
+  - with the fake signal and in-memory peers, a host and 2 joiners converge (the collab
+    property test runs through the hub);
+  - listen role: refused edits, chat allowed;
+  - reset link keeps members; remove; stop; role change;
+  - host restart: new epoch, pending resent, members dedupe via `sites`;
+  - joiner reconnect with backoff; `HostOffline` → back;
+  - rejoin of an offline copy with offline work → "(local copy)";
+  - `SaveAs`/`Duplicate` without `share.json`.
+
+### `share-ui`
+
+Owns `ui/src/features/share/**` (except `endpoint/`, `join/`); shared touches: top-bar slot
+in `App.tsx`, `features/collab/{PresenceBar,index,store,collab.css}`, `features/audio-settings/**`,
+`features/remote/**`.
+- SHARING.md §8.1 (Share button / session pill), §8.2 (Share popover, host and joiner),
+  §8.4 (view only, offline banner), §8.6 (Settings dialog with Audio | Sharing | Advanced
+  tabs; Remote engine and the relay join form move to Advanced), §8.7 (toasts).
+- Acceptance:
+  - RTL tests against `MockShare` (`simulateJoin`, `simulateLeave`,
+    `simulateHostOnline`);
+  - exactly one session element in the top bar;
+  - screenshots light and dark;
+  - coordinate with base-114 if it already moved Remote engine.
+
+### `join-flow`
+
+Owns `ui/src/features/share/join/**`, `apps/web/src/join/**`, `apps/web/src/main.tsx`,
+`apps/desktop/src-tauri/**`, `ui/src/domain/invite.*`.
+- SHARING.md §5 and §8.3:
+  - `tauri-plugin-deep-link` (`ethereal` scheme) and `tauri-plugin-single-instance`
+    (`deep-link`), forwarding the URL to the webview (cold and warm start);
+  - the web `/join/` landing before engine boot ("Open in the app" / "Continue in browser",
+    remembered), stripping the key from the URL;
+  - `JoinScreen` for every `JoinStage`;
+  - "Join with a link…" in the popover and the palette.
+- Acceptance:
+  - Playwright `/join/...` → landing → Continue → Ready → Join (mock);
+  - an invalid link shows the right message;
+  - desktop deep link checked manually on the owner's laptop (listed in the PR).
+
+### `recents-shared`
+
+Owns `ui/src/features/project/**`, the stores (`ether-native`/`ether-wasm` `store.rs`,
+`ether-controller/src/{memory,store}.rs`).
+- `ProjectSummary.share` from `share.json` (role, host name, ≤ 8 participants, `active`,
+  `last_synced_ms`; never keys). `SaveAs`/`Duplicate` never copy `share.json`, and deleting a
+  project deletes it.
+- Recents: badge, avatar stack and menu entries per SHARING.md §8.5.
+- Acceptance: store tests with fixture files (native and wasm), RTL tests of the badges and
+  menus.
+
+### `share-integration` (after all of the above)
+
+Owns `apps/web/e2e/share*.spec.ts`, `crates/ether-native/tests/share*.rs`, SHARING.md and
+COLLAB.md updates.
+- Two browser contexts through the Node signal adapter:
+  1. share, copy the link, open it in the other context, Join;
+  2. edits both ways, chat, listen;
+  3. the host closes (the joiner keeps an offline copy) and reopens (the joiner
+     reconnects);
+  4. Stop sharing ends it.
+- Native↔web on the devbox (loopback).
+- The PR lists the owner's laptop checks (desktop deep link, macOS).
+
+Later, optional: `share-handover` (SHARING.md §7.4), `native-turn-client` (§11),
+`offline-merge` (decision 9).

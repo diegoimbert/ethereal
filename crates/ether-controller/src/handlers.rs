@@ -186,6 +186,8 @@ where
             Command::Template(c) => self.template_command(c, now, out),
             Command::Version(c) => self.version_command(c, now, out),
             Command::Keymap(c) => self.keymap_command(c, out),
+            // base-115 (docs/SHARING.md).
+            Command::Share(c) => self.share_command(c, out),
             // `agent-api`: LLM tools (each edit tool call is one undo step).
             Command::Agent(c) => self.agent_command(c, now, out),
             other => Err(internal(format!(
