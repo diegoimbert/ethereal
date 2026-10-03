@@ -10,6 +10,7 @@ import { useListenStore } from "@/features/collab/listen/store";
 import { ShareControl } from ".";
 import { shareCommands } from "./commands";
 import { useConfirm } from "./confirmStore";
+import { useJoinStore } from "./join/store";
 import { DEFAULT_SHARE_SETTINGS, useShareSettings } from "./settings";
 import { useShareStore } from "./store";
 import { useShareToasts } from "./toasts";
@@ -173,6 +174,15 @@ describe("ShareControl (host)", () => {
     fireEvent.click(within(stop).getByRole("button", { name: "Stop sharing" }));
     await waitFor(() => expect(mock.shareSent("Stop")).toHaveLength(1));
     await waitFor(() => expect(screen.getByTestId("share-button")).toBeInTheDocument());
+  });
+
+  it("offers Join with a link… from the popover menu", async () => {
+    const mock = await setup();
+    await share(mock);
+    fireEvent.click(within(popover()).getByRole("button", { name: "More sharing actions" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Join with a link…" }));
+    await waitFor(() => expect(useJoinStore.getState().pasteOpen).toBe(true));
+    act(() => useJoinStore.getState().setPasteOpen(false));
   });
 
   it("shows the signaling service states on the pill and in the popover", async () => {

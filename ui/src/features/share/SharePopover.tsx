@@ -15,6 +15,7 @@ import { setFollowing, useLocalPresence } from "@/features/collab/presence/local
 import { peerColor, useCollabStore, useHideOthers } from "@/features/collab/store";
 import { attempt, ROLE_LABEL } from "./actions";
 import { useConfirm } from "./confirmStore";
+import { openJoinWithLink } from "./join/store";
 import { PeerAvatar } from "./PeerAvatar";
 import { NAME_MAX, nameError, PEER_COLORS, pushIdentity, useShareSettings } from "./settings";
 import { lastSeenText } from "./status";
@@ -76,6 +77,16 @@ function HostPanel({ transport, state, projectName, close }: { transport: Engine
   const menu: MenuEntry[] = [
     { id: "reset-edit", label: "Reset edit link", onSelect: () => reset("Edit") },
     { id: "reset-listen", label: "Reset listen link", onSelect: () => reset("Listen") },
+    { separator: true, id: "sep-join" },
+    // Joining someone else's project (docs/SHARING.md §5): paste their link.
+    {
+      id: "join",
+      label: "Join with a link…",
+      onSelect: () => {
+        close();
+        openJoinWithLink();
+      },
+    },
   ];
   return (
     <div className="eth-share-pop" data-testid="share-popover">

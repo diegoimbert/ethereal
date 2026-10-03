@@ -515,6 +515,48 @@ fn stop_sharing_revokes_everything() {
     assert_ne!(room_of(&edit2), room);
 }
 
+/// Accepted v1 behaviour (docs/SHARING.md §6.3): Stop while the service is unreachable
+/// cannot send `CloseRoom`, so joiners are told the host went offline, not that sharing
+/// ended. Their copy stays theirs and editable.
+#[test]
+fn stop_while_the_service_is_unreachable_reads_as_host_offline() {
+    let net = FakeNet::new();
+    let (mut h, pid) = host(&net);
+    let (edit, _) = links(&h);
+    let room = room_of(&edit);
+    let mut ada = site(&net, 0x2002, "Ada");
+    join(&mut h, &mut ada, &edit);
+    net.set_down(true);
+    run(&mut [&mut h, &mut ada], 5);
+    share(&mut h, ShareCommand::Stop);
+    assert_eq!(state(&h), ShareState::Off);
+    assert!(share_file(&mut h, pid).is_none(), "the host forgets its secrets anyway");
+    net.set_down(false);
+    run(&mut [&mut h, &mut ada], 60);
+    assert!(net.room_exists(&room), "the service never got CloseRoom");
+    assert!(
+        notices(&ada).contains(&ShareNotice::HostOffline {
+            host_name: "Diego".into()
+        }),
+        "{:?}",
+        notices(&ada)
+    );
+    assert!(!notices(&ada).iter().any(|n| matches!(n, ShareNotice::SharingEnded { .. })));
+    assert!(
+        matches!(
+            state(&ada),
+            ShareState::Joined {
+                link: HostLink::HostOffline { .. } | HostLink::Connecting { .. },
+                ..
+            }
+        ),
+        "{:?}",
+        state(&ada)
+    );
+    add_track(&mut ada);
+    assert_eq!(ada.project().id, pid);
+}
+
 // ─── Lifecycle ──────────────────────────────────────────────────────────────────────────
 
 #[test]

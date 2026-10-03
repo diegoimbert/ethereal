@@ -82,9 +82,14 @@ test.afterAll(() => {
 
 // --- people ---------------------------------------------------------------------------------
 
-/** A browser profile with a name and Settings > Advanced > Signaling server set. */
-async function person(browser: Browser, name: string): Promise<BrowserContext> {
+/**
+ * A browser profile with a name and Settings > Advanced > Signaling server set.
+ * `realLaunch`: behave like a user's browser, not a WebDriver one (the app then shows the
+ * project screen at launch, which joining from a link must not leave over the join).
+ */
+async function person(browser: Browser, name: string, { realLaunch = false } = {}): Promise<BrowserContext> {
   const ctx = await browser.newContext({ permissions: ["clipboard-read", "clipboard-write"] });
+  if (realLaunch) await ctx.addInitScript(() => Object.defineProperty(Navigator.prototype, "webdriver", { get: () => false }));
   await ctx.addInitScript(
     ([n, s]) => {
       localStorage.setItem("eth.share.identity", JSON.stringify({ name: n, color: null }));
@@ -136,7 +141,7 @@ test("share → link → join → edits and chat both ways → host away and bac
   const errors: string[] = [];
   const watch = (p: Page) => p.on("pageerror", (e) => errors.push(`${e.message}`));
   const diegoCtx = await person(browser, "Diego");
-  const adaCtx = await person(browser, "Ada");
+  const adaCtx = await person(browser, "Ada", { realLaunch: true });
   let diego = await diegoCtx.newPage();
   const ada = await adaCtx.newPage();
   watch(diego);
@@ -169,6 +174,7 @@ test("share → link → join → edits and chat both ways → host away and bac
   await diego.keyboard.press("Escape");
 
   await ada.goto(local(link, diego));
+  expect(await ada.evaluate(() => navigator.webdriver), "Ada's browser takes the real launch path").toBe(false);
   await ada.getByTestId("join-landing").getByRole("button", { name: "Continue in browser" }).click();
   const ready = ada.getByTestId("join-ready");
   await expect(ready).toContainText(`Diego invites you to ${songName}`, { timeout: 30_000 });
@@ -176,6 +182,8 @@ test("share → link → join → edits and chat both ways → host away and bac
   await expect.poll(() => ada.evaluate(() => location.href)).not.toContain("#");
   await ada.getByTestId("join-accept").click();
   await expect(ada.getByText(`You're in ${songName} with Diego`)).toBeVisible({ timeout: 30_000 });
+  // Joining from a link at launch: the project screen never covers the joined project.
+  await expect(ada.getByRole("dialog", { name: "Projects" })).toHaveCount(0);
   await expect.poll(() => shareState(ada)).toBe("Joined");
   await expect.poll(() => project(ada).then((p) => p?.settings.name)).toBe(songName);
   const start = await trackNames(diego);
