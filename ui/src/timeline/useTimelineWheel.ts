@@ -4,6 +4,15 @@ import { wheelZoomFactor } from "./viewport";
 import { animatePan, animateZoom } from "./viewMotion";
 import type { TimelineViewStore } from "./viewStore";
 
+/**
+ * Zoom anchor in timeline px for a pointer at `pointerPx` inside the element. Over the left
+ * pane (track headers, piano keys) the pointer sits left of the timeline: anchor on the
+ * timeline's left edge instead, so zooming never shifts the visible start.
+ */
+export function zoomAnchorPx(pointerPx: number, originPx: number): number {
+  return Math.max(0, pointerPx - originPx);
+}
+
 export interface TimelineWheelOptions {
   /**
    * Where the timeline's x = 0 is inside the element, in px from its left edge (e.g. a
@@ -33,7 +42,11 @@ export interface TimelineWheelOptions {
  *
  * Uses a non-passive native listener so it can `preventDefault()` (React's is passive).
  */
-export function useTimelineWheel(ref: RefObject<HTMLElement | null>, view: TimelineViewStore, opts: TimelineWheelOptions = {}): void {
+export function useTimelineWheel(
+  ref: RefObject<HTMLElement | null>,
+  view: TimelineViewStore,
+  opts: TimelineWheelOptions = {},
+): void {
   const { verticalScrolls = false, smoothScrollY = false } = opts;
   const origin = useRef(opts.originPx);
   const onVerticalZoom = useRef(opts.onVerticalZoom);
@@ -47,7 +60,8 @@ export function useTimelineWheel(ref: RefObject<HTMLElement | null>, view: Timel
     if (!el) return;
     const scrollY = smoothScrollY ? new ScrollYFollower(el) : null;
     const onWheel = (e: WheelEvent) => {
-      const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? el.clientWidth : 1;
+      const unit =
+        e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? el.clientWidth : 1;
       const dx = e.deltaX * unit;
       const dy = e.deltaY * unit;
       const mod = e.ctrlKey || e.metaKey;
@@ -63,7 +77,11 @@ export function useTimelineWheel(ref: RefObject<HTMLElement | null>, view: Timel
         e.preventDefault();
         const o = origin.current;
         const originPx = typeof o === "function" ? o() : (o ?? 0);
-        animateZoom(view, wheelZoomFactor(dy || dx), e.clientX - box.left - originPx);
+        animateZoom(
+          view,
+          wheelZoomFactor(dy || dx),
+          zoomAnchorPx(e.clientX - box.left, originPx),
+        );
         return;
       }
       if (e.shiftKey || Math.abs(dx) > Math.abs(dy)) {
