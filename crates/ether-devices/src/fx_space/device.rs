@@ -43,6 +43,8 @@ const PENDING_UNITS: usize = 4 * BUILD_UNITS_PER_TICK;
 /// node let go of.
 pub struct IrSwap {
     pub(crate) next: Option<Box<Convolver>>,
+    // Boxed on purpose: unboxing a node's convolver would free its box on the audio thread.
+    #[allow(clippy::vec_box)]
     pub(crate) replaced: Vec<Box<Convolver>>,
     pub(crate) replaced_input: Option<IrInput>,
 }
@@ -423,6 +425,7 @@ fn set(s: &mut Smoother, v: f32, smooth: bool) {
 }
 
 /// Push without growing past the reserved capacity (never allocates on the audio thread).
+#[allow(clippy::vec_box)]
 fn push_bounded(v: &mut Vec<Box<Convolver>>, c: Box<Convolver>) {
     if v.len() < v.capacity() {
         v.push(c);

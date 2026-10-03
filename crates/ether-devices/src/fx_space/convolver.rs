@@ -181,7 +181,7 @@ fn inverse(
 #[inline]
 fn dot(a: &[f32], b: &[f32]) -> f32 {
     let mut acc = [0.0f32; 8];
-    for (x, y) in a.chunks_exact(8).zip(b.chunks_exact(8)) {
+    for (x, y) in a.as_chunks::<8>().0.iter().zip(b.as_chunks::<8>().0) {
         for l in 0..8 {
             acc[l] += x[l] * y[l];
         }
