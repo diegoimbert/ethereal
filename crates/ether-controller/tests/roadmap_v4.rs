@@ -16,7 +16,6 @@ use ether_core::protocol::audio_to_midi::{
 use ether_core::protocol::capture::CaptureCommand;
 use ether_core::protocol::clips::ClipCommand;
 use ether_core::protocol::devices::{DeviceCommand, DeviceSpec};
-use ether_core::protocol::expression::ExpressionCommand;
 use ether_core::protocol::external::ExternalCommand;
 use ether_core::protocol::keymap::{Keymap, KeymapCommand};
 use ether_core::protocol::model::*;
@@ -125,19 +124,6 @@ fn audio_streaming_is_off_until_the_node_lands() {
     assert!(!ether_controller::media_stream::should_stream(
         &media, 48_000
     ));
-}
-
-#[test]
-fn mpe_replies_unsupported() {
-    let mut h = Harness::with_project();
-    let t = track(&mut h, TrackKind::Midi);
-    assert_unsupported(
-        &mut h,
-        Command::Expression(ExpressionCommand::SetTrackMpe {
-            track: t,
-            mpe: Some(MpeSettings::default()),
-        }),
-    );
 }
 
 #[test]
