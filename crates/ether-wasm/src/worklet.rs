@@ -122,6 +122,28 @@ impl SampleResolver for Sources<'_> {
     }
 }
 
+/// `Node::set_data` payload of a data-only built-in change (`EngineMsg::UpdateBuiltin`;
+/// the same data the native bridge's `update_builtin` sends): sampler slices,
+/// multisampler zones, a convolution reverb's IR (read and partitioned here: the web has no
+/// other thread, like node creation). `None` for devices without in-place updates.
+pub fn node_data(
+    device: &ether_core::protocol::model::BuiltinDevice,
+    sources: &dyn SampleResolver,
+    sample_rate: u32,
+) -> Option<ether_core::node::NodeData> {
+    use ether_core::protocol::model::BuiltinDevice;
+    match device {
+        BuiltinDevice::Sampler { slices, .. } => Some(Box::new(slices.clone())),
+        BuiltinDevice::MultiSampler { .. } => Some(Box::new(
+            ether_devices::multisampler::zone_set(device, sources),
+        )),
+        BuiltinDevice::ConvolutionReverb { .. } => {
+            ether_devices::fx_space::ir_swap(device, sources, sample_rate as f32)
+        }
+        _ => None,
+    }
+}
+
 /// The Worklet-side engine host. Generic over the ring memory so it runs natively in tests.
 pub struct EngineHost<M: RingMemory> {
     engine: ether_core::Engine,
@@ -155,6 +177,8 @@ pub struct EngineHost<M: RingMemory> {
     preview_ended: Option<u64>,
     /// `web-latency`: node latency changes reported to the Worker (PDC republish).
     latency: LatencyTracker,
+    /// Engine rate (node data built here, e.g. convolution IRs, is made at this rate).
+    sample_rate: u32,
 }
 
 impl<M: RingMemory> EngineHost<M> {
@@ -194,6 +218,7 @@ impl<M: RingMemory> EngineHost<M> {
             errors: Vec::new(),
             preview_ended: None,
             latency,
+            sample_rate,
         }
     }
 
@@ -456,6 +481,16 @@ impl<M: RingMemory> EngineHost<M> {
                 let real = self.real_key(key)?;
                 self.handle
                     .watch_analysis(real, on)
+                    .map_err(|e| e.to_string())
+            }
+            EngineMsg::UpdateBuiltin { key, device } => {
+                let real = self.real_key(key)?;
+                let Some(data) = node_data(&device, &Sources(&self.sources), self.sample_rate)
+                else {
+                    return Err(format!("{:?} has no in-place update", device.device_type()));
+                };
+                self.handle
+                    .set_node_data(real, data)
                     .map_err(|e| e.to_string())
             }
         }

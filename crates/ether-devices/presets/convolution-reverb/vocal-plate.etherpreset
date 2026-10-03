@@ -1,0 +1,40 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.3.0",
+  "preset": {
+    "name": "Vocal Plate",
+    "device": {
+      "type": "Builtin",
+      "device": "ConvolutionReverb"
+    },
+    "meta": {
+      "tags": [
+        "plate",
+        "vocal"
+      ],
+      "author": "Ethereal",
+      "description": "Bright plate with a little pre-delay, lows trimmed."
+    },
+    "params": {
+      "0": 30.0,
+      "1": 25.0,
+      "2": 100.0,
+      "3": 100.0,
+      "4": 220.0,
+      "5": 10000.0,
+      "6": 100.0,
+      "7": 0.0,
+      "8": 0.0
+    },
+    "kind": {
+      "type": "ConvolutionReverb",
+      "ir": {
+        "type": "Factory",
+        "id": "plate"
+      }
+    },
+    "samples": [],
+    "state": null
+  }
+}

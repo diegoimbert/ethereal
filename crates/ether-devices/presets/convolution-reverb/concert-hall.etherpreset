@@ -1,0 +1,41 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.3.0",
+  "preset": {
+    "name": "Concert Hall",
+    "device": {
+      "type": "Builtin",
+      "device": "ConvolutionReverb"
+    },
+    "meta": {
+      "tags": [
+        "hall",
+        "strings",
+        "piano"
+      ],
+      "author": "Ethereal",
+      "description": "A large, natural hall."
+    },
+    "params": {
+      "0": 35.0,
+      "1": 15.0,
+      "2": 100.0,
+      "3": 100.0,
+      "4": 120.0,
+      "5": 16000.0,
+      "6": 110.0,
+      "7": 0.0,
+      "8": 0.0
+    },
+    "kind": {
+      "type": "ConvolutionReverb",
+      "ir": {
+        "type": "Factory",
+        "id": "hall"
+      }
+    },
+    "samples": [],
+    "state": null
+  }
+}

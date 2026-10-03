@@ -11,3 +11,5 @@ export function PluginBrowser() {
 }
 
 export { PluginDeviceControls, type PluginDeviceControlsProps } from "./PluginDeviceControls";
+/** Settings > Plugins: plugin folders (system + user, format filters), Rescan / Full rescan. */
+export { PluginFoldersPanel } from "./PluginFolders";
