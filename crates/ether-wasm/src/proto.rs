@@ -10,7 +10,8 @@
 //! - Worklet → Worker: [`EngineReport`] (playhead, max-held meters, diagnostics; compact
 //!   binary encoded into a reused buffer so the audio thread doesn't allocate),
 //!   [`REPORT_ANALYSIS`] device analysis frames (`fx-analysis`, [`encode_analysis_into`])
-//!   and [`REPORT_ERROR`] text messages (compile errors etc.).
+//!   [`REPORT_LATENCY`] node latency changes (`web-latency`, [`crate::latency`]) and
+//!   [`REPORT_ERROR`] text messages (compile errors etc.).
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -383,6 +384,9 @@ pub const REPORT_STATE: u8 = b'R';
 pub const REPORT_ERROR: u8 = b'E';
 /// Tag of an analysis frame (Worklet → Worker; `fx-analysis`).
 pub const REPORT_ANALYSIS: u8 = b'A';
+/// Tag of a node latency report (Worklet → Worker; `web-latency`,
+/// [`crate::latency::LatencyReport`]).
+pub const REPORT_LATENCY: u8 = b'L';
 
 // [A][node index u32][node generation u32][kind u8][len u16][len x f32 LE]; the node key is
 // the Worker's virtual key.
