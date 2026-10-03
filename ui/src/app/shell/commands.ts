@@ -1,5 +1,6 @@
 import { openAiChat } from "@/features/ai-chat";
 import { openAudioSettings } from "@/features/audio-settings";
+import { captureMidi } from "@/features/capture";
 import { focusChat } from "@/features/collab/social";
 import { useCollabStore } from "@/features/collab/store";
 import type { DeviceDescriptor } from "@/generated";
@@ -93,6 +94,14 @@ export function buildCommands(transport: EngineTransport | null, devices: Readon
         label: state?.recording ? "Stop recording" : "Record",
         keywords: "record arm",
         run: () => send(cmd("Recording", { type: "SetRecording", enabled: !state?.recording })),
+      },
+      {
+        // capture-midi: the command replies InvalidState when nothing was played.
+        id: "transport:capture",
+        group: "Transport",
+        label: "Capture MIDI",
+        keywords: "capture midi record recent played notes take clip",
+        run: () => void captureMidi(transport).catch((e: unknown) => console.warn("[ethereal] capture failed:", e)),
       },
       {
         id: "transport:loop",
