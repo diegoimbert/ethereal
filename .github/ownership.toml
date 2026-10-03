@@ -1494,6 +1494,13 @@ paths = [
   "crates/ether-protocol/src/media.rs",
   # shared touch (v0.3 grant): one additive state field + initializer on EtherController
   "crates/ether-controller/src/lib.rs",
+  # shared touch (BCR): RecordingShared::projects_root getter; WebBridge ranged reader; readRange fs op
+  "crates/ether-native/src/recording/mod.rs",
+  "crates/ether-wasm/src/web.rs",
+  "apps/web/src/engine/syncFs.ts",
+  "apps/web/src/engine/protocol.ts",
+  "apps/web/src/engine/opfs.worker.ts",
+  "apps/web/src/engine/ether-wasm.d.ts",
 ]
 
 [nodes.midi-expression]
@@ -1539,6 +1546,8 @@ paths = [
   "crates/ether-core/src/sched.rs",
   "crates/ether-core/src/graph.rs",
   "crates/ether-core/tests/roadmap_v4_hooks.rs",
+  # shared touch (BCR): one NodeInit field (midi_map from IMidiMapping) in activate
+  "crates/ether-vst3/src/plugin.rs",
 ]
 
 [nodes.mpe]
@@ -1716,6 +1725,10 @@ paths = [
   "crates/ether-controller/src/project.rs",
   # shared touch (v0.3 grant): one additive state field + initializer on EtherController
   "crates/ether-controller/src/lib.rs",
+  # shared touch (BCR): template insert hook + template scope in dispatch (one gesture, one undo step)
+  "crates/ether-controller/src/handlers.rs",
+  # shared touch (BCR): MockTemplates construction + Template domain routing
+  "ui/src/transport/mock/MockTransport.ts",
 ]
 
 [nodes.project-versions]
