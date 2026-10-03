@@ -2102,4 +2102,14 @@ paths = [
   "crates/ether-native/tests/share*.rs",
   "docs/SHARING.md",
   "docs/COLLAB.md",
+  # Grants (BCR): fixes the two-context e2e found in share-engine/share-ui code.
+  "crates/ether-controller/src/share/host.rs",
+  "crates/ether-controller/src/share/join.rs",
+  "crates/ether-controller/src/share/mod.rs",
+  "crates/ether-controller/tests/share.rs",
+  "crates/ether-collab/src/share/fake.rs",
+  "ui/src/features/share/SharePopover.tsx",
+  "ui/src/features/share/ShareControl.tsx",
+  "ui/src/features/share/ShareControl.test.tsx",
+  "ui/src/features/collab/PresenceBar.tsx",
 ]
