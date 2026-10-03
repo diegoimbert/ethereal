@@ -44,11 +44,12 @@ fn tempo_map_and_metronome_drive_the_native_engine() {
     assert_eq!(settings["metronome_volume"], -12.0);
     assert_eq!(settings["metronome_sound"], "Beep");
 
-    // Invalid edits are rejected.
+    // Invalid edits are rejected (a second change at the same position; mid-bar changes
+    // are allowed, CONTRACTS.md §11.3).
     let bad = c.id();
     let id = c.post(
         "Tempo",
-        json!({"type": "AddTimeSignature", "id": bad, "time": 5.0,
+        json!({"type": "AddTimeSignature", "id": bad, "time": 4.0,
                "signature": {"numerator": 7, "denominator": 8}}),
         None,
     );

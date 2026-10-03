@@ -1,0 +1,72 @@
+/*
+ * External Instrument / External Audio Effect routing panel (HardwareRouting widget).
+ * Tokens only (docs/DESIGN-SYSTEM.md).
+ */
+
+.eth-hw {
+  min-width: calc(var(--device-widget-min-width) * 2);
+}
+
+.eth-hw__rows {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr) max-content;
+  align-items: center;
+  gap: var(--eth-space-xs) var(--eth-space-sm);
+}
+
+.eth-hw__row {
+  display: contents;
+}
+
+.eth-hw__row > .eth-select:last-child:nth-child(2) {
+  grid-column: 2 / -1;
+}
+
+.eth-hw__caption {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--eth-space-xs);
+  color: var(--eth-color-text-dim);
+  white-space: nowrap;
+}
+
+.eth-hw svg {
+  width: var(--eth-size-icon-sm);
+  height: var(--eth-size-icon-sm);
+  flex: none;
+}
+
+.eth-hw__row--measure > .eth-button {
+  grid-column: 1;
+  justify-self: start;
+  gap: var(--eth-space-xs);
+}
+
+.eth-hw__status {
+  grid-column: 2 / -1;
+  color: var(--eth-color-text-dim);
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.eth-hw__status[data-state="done"] {
+  color: var(--eth-color-ok);
+}
+.eth-hw__status[data-state="failed"] {
+  color: var(--eth-color-warn);
+  white-space: normal;
+}
+
+.eth-hw__note {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--eth-space-xs);
+  padding: var(--eth-space-xs) var(--eth-space-sm);
+  border-radius: var(--eth-radius-sm);
+  background: var(--eth-color-bg-inset);
+  color: var(--eth-color-text-dim);
+}
+.eth-hw__note--warn {
+  color: var(--eth-color-warn);
+}

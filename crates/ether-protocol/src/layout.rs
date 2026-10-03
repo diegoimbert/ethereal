@@ -169,6 +169,11 @@ pub enum Widget {
         crossovers: Vec<ParamId>,
         spectrum: SpectrumOverlay,
     },
+    /// v0.3 (`external-instrument`): the hardware routing of an External Instrument /
+    /// External Audio Effect (`BuiltinDevice::{ExternalInstrument, ExternalAudioEffect}::
+    /// routing`): MIDI output + channel, audio send / return channels, missing ports, and
+    /// the `External::MeasureLatency` button. No params.
+    HardwareRouting,
 }
 
 /// One band of an [`Widget::EqCurve`].

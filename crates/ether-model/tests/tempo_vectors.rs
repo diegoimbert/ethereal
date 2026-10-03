@@ -88,6 +88,14 @@ fn cases() -> Vec<(&'static str, Vec<P>, Vec<S>)> {
                 (18.5, 2, 2),
             ],
         ),
+        (
+            // A 7/8 change at beat 2.5, mid bar 1 of 4/4 (CONTRACTS.md §11.3): bar 1 is a
+            // partial bar of 2.5 beats, bar 2 (7/8) starts at the change; then 3/4 mid bar
+            // at 9.25 (beat 3.5 of 7/8 bar 3, an eighth-note off the quarter grid).
+            "mid_bar_changes",
+            vec![(0.0, 120.0, Step), (6.0, 90.0, Step)],
+            vec![(0.0, 4, 4), (2.5, 7, 8), (9.25, 3, 4)],
+        ),
     ]
 }
 
@@ -317,4 +325,102 @@ fn vectors_match_closed_forms() {
     assert_eq!(bb(21.0), (7, 2)); // half-note beats
     assert_eq!(bb(3.999_999_9), (2, 1));
     assert_eq!(bb(-4.0), (0, 1));
+
+    let mid = case("mid_bar_changes");
+    let bbf = |b: f64| {
+        let e = mid["bar_beat"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|p| p[0].as_f64().unwrap() == b)
+            .unwrap()[1]
+            .clone();
+        (
+            e["bar"].as_i64().unwrap(),
+            e["beat"].as_u64().unwrap(),
+            e["fraction"].as_f64().unwrap(),
+        )
+    };
+    assert_eq!(bbf(2.0), (1, 3, 0.0)); // partial bar 1: beats 1..3 of 4/4
+    assert_eq!(bbf(2.75), (2, 1, 0.5)); // 7/8 bar 2 from 2.5, eighth-note beats
+    assert_eq!(bbf(6.0), (3, 1, 0.0)); // 2.5 + 3.5
+    assert_eq!(bbf(7.125), (3, 3, 0.25));
+    assert_eq!(bbf(9.5), (4, 1, 0.25)); // partial 7/8 bar 3 ends at 9.25; 3/4 bar 4
+    assert_eq!(bbf(13.0), (5, 1, 0.75)); // 3/4 bar 5 from 12.25
+}
+
+/// Pre-partial-bar rule (base-108): every change sat on a bar line of the signature before
+/// it, so bars before a change were all whole. Bar numbers of such maps must not change.
+fn legacy_bar_beat(sigs: &[(f64, u8, u8)], b: f64) -> (i32, u32, f64) {
+    let per_bar = |n: u8, d: u8| f64::from(n) * 4.0 / f64::from(d);
+    let mut bars_before = 0.0;
+    let mut i = 0;
+    while i + 1 < sigs.len() && sigs[i + 1].0 <= b + 1e-6 {
+        let (t, n, d) = sigs[i];
+        bars_before += ((sigs[i + 1].0 - t) / per_bar(n, d)).round();
+        i += 1;
+    }
+    let (t, n, d) = sigs[i];
+    let rel = b - t;
+    let bar_n = ((rel + 1e-6) / per_bar(n, d)).floor();
+    let rem = rel - bar_n * per_bar(n, d);
+    let unit = 4.0 / f64::from(d);
+    let beat = ((rem + 1e-6) / unit).floor().min(f64::from(n - 1));
+    let fraction = (rem - beat * unit) / unit;
+    (
+        (bars_before + bar_n + 1.0) as i32,
+        beat as u32 + 1,
+        if fraction < 1e-6 { 0.0 } else { fraction },
+    )
+}
+
+#[test]
+fn old_projects_keep_their_numbering() {
+    // A saved project (v2 fixture: 4/4, then 7/8 at bar 5) loads unchanged.
+    let p = file::load(include_str!("fixtures/v2_full.ether")).expect("fixture loads");
+    let map = p.tempo_map();
+    let sigs: Vec<(f64, u8, u8)> = map
+        .signatures
+        .iter()
+        .map(|s| (s.time.0, s.signature.numerator, s.signature.denominator))
+        .collect();
+    assert_eq!(sigs, vec![(0.0, 4, 4), (16.0, 7, 8)]);
+    let r = map.bar_beat(Beats(16.0));
+    assert_eq!((r.bar, r.beat), (5, 1));
+    // Every on-bar-line map numbers exactly as before, on and between grid lines.
+    let maps: Vec<Vec<(f64, u8, u8)>> = vec![
+        sigs,
+        vec![
+            (0.0, 4, 4),
+            (8.0, 3, 4),
+            (14.0, 6, 8),
+            (20.0, 7, 8),
+            (27.0, 5, 16),
+        ],
+        vec![(0.0, 7, 8), (7.0, 2, 2), (15.0, 9, 8)],
+        vec![(0.0, 3, 4)],
+    ];
+    for sigs in maps {
+        let m = TempoMap {
+            tempo: vec![],
+            signatures: sigs
+                .iter()
+                .map(|&(t, n, d)| TimeSignaturePoint {
+                    id: TimeSignatureId::NIL,
+                    time: Beats(t),
+                    signature: TimeSignature {
+                        numerator: n,
+                        denominator: d,
+                    },
+                })
+                .collect(),
+        };
+        for i in 0..=480 {
+            let b = f64::from(i) * 0.125;
+            let r = m.bar_beat(Beats(b));
+            let (bar, beat, fraction) = legacy_bar_beat(&sigs, b);
+            assert_eq!((r.bar, r.beat), (bar, beat), "{sigs:?} at {b}");
+            assert!((r.fraction - fraction).abs() < 1e-9, "{sigs:?} at {b}");
+        }
+    }
 }

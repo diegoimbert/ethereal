@@ -43,6 +43,7 @@ export function boundParams(w: Widget): ParamId[] {
       // The 8 macro knobs of a rack are params 0..8 (CONTRACTS.md §12.6).
       return [0, 1, 2, 3, 4, 5, 6, 7];
     case "ZoneMap":
+    case "HardwareRouting":
     case "Spectrum":
     case "Tuner":
     case "Meter":

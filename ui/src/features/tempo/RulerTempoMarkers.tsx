@@ -2,8 +2,9 @@
  * Tempo-map editing on the timeline ruler (rendered by `timeline/Ruler.tsx`): markers for
  * tempo points and time-signature changes along the ruler's bottom edge.
  *
- * - drag a marker to move it (tempo: grid-snapped, Alt bypasses; signature: along the bar
- *   lines of the signature before it); the ones at beat 0 stay. One undo step per drag;
+ * - drag a marker to move it (grid-snapped, Alt bypasses; a signature change snaps to at
+ *   least a beat of the signature in effect and may sit mid-bar); the ones at beat 0 stay.
+ *   One undo step per drag;
  * - right-click a marker: ramp on/off or common signatures, delete;
  * - right-click the ruler: add a tempo change or a time signature there
  *   (`rulerTempoMenu` in `menus.ts`).
@@ -12,6 +13,7 @@
 import { useLayoutEffect, useRef, type PointerEvent as ReactPointerEvent } from "react";
 import type { Beats, Command, TempoPoint, TimeSignaturePoint } from "@/generated";
 import { openContextMenu, setDragCursor } from "@/kit";
+import type { GridStep } from "@/timeline/grid";
 import { beatsToPx, type TimelineViewport } from "@/timeline/viewport";
 import { sendEdit, TempoGesture, trackDrag, useTempoTransport } from "./gesture";
 import { signatureMenu, useSortedTempoMap } from "./menus";
@@ -33,9 +35,11 @@ export interface RulerTempoMarkersProps {
   widthPx: number;
   /** Snap a raw beat position (the ruler's grid; `bypass` = Alt). */
   snap: (beats: Beats, bypass: boolean) => Beats;
+  /** The ruler's resolved grid step (signature changes snap to it or to a beat). */
+  gridStep: () => GridStep | null;
 }
 
-export function RulerTempoMarkers({ vp, widthPx, snap }: RulerTempoMarkersProps) {
+export function RulerTempoMarkers({ vp, widthPx, snap, gridStep }: RulerTempoMarkersProps) {
   const transport = useTempoTransport();
   const { points, signatures } = useSortedTempoMap();
   const live = useRef({ points, signatures, vp });
@@ -83,7 +87,7 @@ export function RulerTempoMarkers({ vp, widthPx, snap }: RulerTempoMarkersProps)
     e.stopPropagation();
     if (e.button !== 0 || isAtZero(p)) return;
     e.preventDefault();
-    startDrag(e, p.time, (raw) => snapSignatureTime(live.current.signatures, raw, p.id), (t) =>
+    startDrag(e, p.time, (raw, alt) => snapSignatureTime(live.current.signatures, raw, { except: p.id, step: gridStep(), free: alt }), (t) =>
       editSignatureCommand(p.id, { time: t }),
     );
   };

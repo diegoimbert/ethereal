@@ -11,11 +11,10 @@
 //! - times are finite and `>= 0`; the points at beat 0 can be edited but not moved or
 //!   removed; two tempo points (or two time signatures) never share a position;
 //! - BPM is clamped to `MIN_BPM..=MAX_BPM`; metronome volume to -144..=+6 dB;
-//! - a time-signature change must fall on a bar line of the signature in effect before it
-//!   (bars restart at every change, as in the engine). The rule holds after every edit:
-//!   changing, moving, adding or removing a signature is **rejected** (`InvalidArgument`)
-//!   if a later change would end up off its bar line; later changes are never moved
-//!   implicitly (move or remove them first).
+//! - a time-signature change may sit anywhere (not only on a bar line). Bars restart at
+//!   every change: a change inside a bar ends that bar early (a partial bar, counted as one
+//!   bar) and a new bar in the new signature starts at the change (`TempoMap::bar_beat`, and
+//!   `TempoMapRt::signature_at` in the engine). Later changes never move implicitly.
 
 use ether_core::graph::MetronomeDesc;
 use ether_core::protocol::model::*;
@@ -117,13 +116,12 @@ pub(crate) fn apply(ctx: &mut DocCtx, c: &TempoCommand) -> CmdResult<()> {
             }
             check_time("time signature", *time)?;
             check_signature(*signature)?;
-            check_signature_time(ctx.p(), *time, None)?;
+            check_free_signature_time(ctx.p(), *time, None)?;
             ctx.tx.insert(Entity::TimeSignature(TimeSignaturePoint {
                 id: *id,
                 time: *time,
                 signature: *signature,
-            }))?;
-            check_later_bar_lines(ctx.p(), *time)
+            }))
         }
         TempoCommand::EditTimeSignature {
             id,
@@ -146,7 +144,7 @@ pub(crate) fn apply(ctx: &mut DocCtx, c: &TempoCommand) -> CmdResult<()> {
                 if p.time.approx_eq(Beats::ZERO) {
                     return Err(invalid("the time signature at beat 0 cannot be moved"));
                 }
-                check_signature_time(ctx.p(), t, Some(*id))?;
+                check_free_signature_time(ctx.p(), t, Some(*id))?;
                 ctx.tx.update(EntityUpdate::TimeSignature {
                     id: *id,
                     change: TimeSignatureChange::Time(t),
@@ -160,10 +158,9 @@ pub(crate) fn apply(ctx: &mut DocCtx, c: &TempoCommand) -> CmdResult<()> {
                     change: TimeSignatureChange::Signature(s),
                 })?;
             }
-            check_later_bar_lines(ctx.p(), Beats(p.time.0.min(time.unwrap_or(p.time).0)))
+            Ok(())
         }
         TempoCommand::RemoveTimeSignatures { ids } => {
-            let mut from = f64::INFINITY;
             for id in ids {
                 let p = ctx
                     .p()
@@ -173,10 +170,9 @@ pub(crate) fn apply(ctx: &mut DocCtx, c: &TempoCommand) -> CmdResult<()> {
                 if p.time.approx_eq(Beats::ZERO) {
                     return Err(invalid("the time signature at beat 0 cannot be removed"));
                 }
-                from = from.min(p.time.0);
                 ctx.tx.remove(EntityKey::TimeSignature(*id))?;
             }
-            check_later_bar_lines(ctx.p(), Beats(from))
+            Ok(())
         }
         TempoCommand::SetMetronomeSettings {
             volume,
@@ -246,65 +242,22 @@ fn check_free_tempo_time(p: &Project, t: Beats, except: Option<TempoPointId>) ->
     Ok(())
 }
 
-/// `t` is free (no other change there) and on a bar line of the signature in effect just
-/// before it, ignoring `except` (the point being moved).
-fn check_signature_time(p: &Project, t: Beats, except: Option<TimeSignatureId>) -> CmdResult<()> {
-    let mut sigs: Vec<&TimeSignaturePoint> = p
-        .time_signatures
+/// No other time-signature change (than `except`, the one being moved) sits at `t`.
+fn check_free_signature_time(
+    p: &Project,
+    t: Beats,
+    except: Option<TimeSignatureId>,
+) -> CmdResult<()> {
+    if p.time_signatures
         .values()
-        .filter(|s| Some(s.id) != except)
-        .collect();
-    if sigs.iter().any(|s| s.time.approx_eq(t)) {
+        .any(|s| Some(s.id) != except && s.time.approx_eq(t))
+    {
         return Err(invalid(format!(
             "there is already a time signature at beat {}",
             t.0
         )));
     }
-    sigs.sort_by(|a, b| a.time.0.total_cmp(&b.time.0));
-    let Some(prev) = sigs.iter().rev().find(|s| s.time.0 < t.0) else {
-        return Ok(());
-    };
-    if !on_bar_line(prev, t) {
-        return Err(invalid(format!(
-            "a time signature change must fall on a bar line ({}/{} from beat {})",
-            prev.signature.numerator, prev.signature.denominator, prev.time.0
-        )));
-    }
     Ok(())
-}
-
-/// Bar length in quarter-note beats.
-pub(crate) fn bar_length(s: TimeSignature) -> f64 {
-    f64::from(s.numerator.max(1)) * 4.0 / f64::from(s.denominator.max(1))
-}
-
-/// Every time-signature change at or after `from` still falls on a bar line of the one
-/// before it. Edits that would break this (changing, moving, adding or removing an earlier
-/// signature) are rejected rather than moving later changes. Changes before `from`
-/// (untouched by the edit, e.g. from an older document) are not checked.
-fn check_later_bar_lines(p: &Project, from: Beats) -> CmdResult<()> {
-    let mut sigs: Vec<&TimeSignaturePoint> = p.time_signatures.values().collect();
-    sigs.sort_by(|a, b| a.time.0.total_cmp(&b.time.0));
-    for w in sigs.windows(2) {
-        let (prev, s) = (w[0], w[1]);
-        if s.time.0 + Beats::EPSILON < from.0 {
-            continue;
-        }
-        if !on_bar_line(prev, s.time) {
-            return Err(invalid(format!(
-                "the time signature change at beat {} would no longer fall on a bar line \
-                 ({}/{} from beat {}); move or remove it first",
-                s.time.0, prev.signature.numerator, prev.signature.denominator, prev.time.0
-            )));
-        }
-    }
-    Ok(())
-}
-
-fn on_bar_line(prev: &TimeSignaturePoint, t: Beats) -> bool {
-    let bar = bar_length(prev.signature);
-    let bars = (t.0 - prev.time.0) / bar;
-    ((bars - bars.round()) * bar).abs() <= Beats::EPSILON
 }
 
 /// Click settings for the render graph (`count_in_end` is set on the published desc by

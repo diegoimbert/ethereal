@@ -2,7 +2,8 @@
  * Tempo map editing helpers (pure): commands, sorting, snapping and the tempo lane's
  * geometry. The rules mirror the controller (`crates/ether-controller/src/tempo/mod.rs`):
  * BPM 20..=999, the points at beat 0 can't move or be removed, two points never share a
- * position, and a time-signature change sits on a bar line of the signature before it.
+ * position. A time-signature change may sit anywhere (CONTRACTS.md §11.3): one inside a
+ * bar ends that bar early and starts bar 1 of the new signature there.
  */
 
 import type {
@@ -17,7 +18,8 @@ import type {
 } from "@/generated";
 import { BEATS_EPSILON, beatsApproxEq } from "@/state/beats";
 import { cmd, newId } from "@/transport";
-import { beatsPerBar } from "@/timeline/tempoMap";
+import { snapToGrid, type GridStep } from "@/timeline/grid";
+import { beatUnit, TempoMap } from "@/timeline/tempoMap";
 
 export const MIN_BPM = 20;
 export const MAX_BPM = 999;
@@ -102,23 +104,44 @@ export function tempoTimeTaken(points: ReadonlyArray<TempoPoint>, time: Beats, e
 }
 
 /**
- * Nearest valid position for a time-signature change near `raw` (bars restart at every
- * change): a bar line of the signature in effect before it (ignoring `except`, the change
- * being moved), after beat 0 and not on another change. `null` if none is close.
+ * Snap step for placing or moving a time-signature change: the current grid step when it
+ * is finer than a beat of `sig` (the signature in effect there), else one beat of `sig`
+ * (bars, half notes or an adaptive coarse grid still allow any beat). `null` (grid off)
+ * stays off.
+ */
+export function signatureSnapStep(step: GridStep | null | undefined, sig: TimeSignature): GridStep | null {
+  if (step === null) return null;
+  const unit = beatUnit(sig);
+  if (step?.kind === "beats" && step.beats > 0 && step.beats < unit - BEATS_EPSILON) return step;
+  return { kind: "beats", beats: unit };
+}
+
+export interface SignatureSnapOptions {
+  /** The change being moved (ignored for the grid and the occupied check). */
+  except?: string;
+  /** The view's resolved grid step (`undefined`: one beat; `null`: grid off). */
+  step?: GridStep | null;
+  /** Alt held: no snapping. */
+  free?: boolean;
+}
+
+/**
+ * Position for a time-signature change near `raw` (anywhere on the grid, CONTRACTS.md
+ * §11.3): snapped to `signatureSnapStep` in the bars of the map without the moved change
+ * (`except`), unless `free`. `null` at or before beat 0, or on another change.
  */
 export function snapSignatureTime(
   sigs: ReadonlyArray<TimeSignaturePoint>,
   raw: Beats,
-  except?: string,
+  opts: SignatureSnapOptions = {},
 ): Beats | null {
-  const others = sigs.filter((s) => s.id !== except).sort(byTime);
-  const prev = [...others].reverse().find((s) => s.time < raw + BEATS_EPSILON) ?? others[0];
-  if (!prev) return null;
-  const bar = beatsPerBar(prev.signature);
-  const next = others.find((s) => s.time > prev.time + BEATS_EPSILON);
-  let t = prev.time + Math.max(1, Math.round((raw - prev.time) / bar)) * bar;
-  // A bar line past the next change belongs to that change's grid.
-  if (next && t > next.time + BEATS_EPSILON) t = prev.time + Math.max(1, Math.floor((next.time - prev.time - BEATS_EPSILON) / bar)) * bar;
+  const others = sigs.filter((s) => s.id !== opts.except);
+  if (others.length === 0 || !Number.isFinite(raw)) return null;
+  let t = raw;
+  if (!opts.free) {
+    const map = new TempoMap([], others);
+    t = snapToGrid(raw, signatureSnapStep(opts.step, map.signatureAt(raw)), map);
+  }
   if (t <= BEATS_EPSILON) return null;
   if (others.some((s) => beatsApproxEq(s.time, t))) return null;
   return t;

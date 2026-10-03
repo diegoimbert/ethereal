@@ -74,7 +74,13 @@ fn bound(w: &Widget) -> Vec<ParamId> {
             .flatten()
             .chain(crossovers.iter().copied())
             .collect(),
-        W::ZoneMap | W::Spectrum | W::Tuner | W::Meter { .. } | W::RackChains | W::Macros => {
+        W::ZoneMap
+        | W::HardwareRouting
+        | W::Spectrum
+        | W::Tuner
+        | W::Meter { .. }
+        | W::RackChains
+        | W::Macros => {
             vec![]
         }
     }
