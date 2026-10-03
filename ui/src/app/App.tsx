@@ -29,6 +29,7 @@ import { ImportRoot } from "@/features/import";
 import { MediaRefsRoot } from "@/features/media-refs";
 import { ProjectMenu } from "@/features/project";
 import { RecordingControls } from "@/features/recording";
+import { JoinRoot } from "@/features/share/join";
 import { ConnectDialog } from "@/features/remote";
 import { MetronomeSettings } from "@/features/tempo";
 import { TransportBar } from "@/features/transport-bar";
@@ -230,6 +231,7 @@ export function App() {
       <AudioSettingsDialog />
       <ImportRoot />
       <MediaRefsRoot />
+      <JoinRoot />
       <ContextMenuHost />
     </div>
   );

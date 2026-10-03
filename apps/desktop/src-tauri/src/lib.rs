@@ -10,12 +10,15 @@
 //!   `messages`).
 //! - `ether_disconnect()`: drop the channels.
 //! - `engine_info()`: instance/data dir/audio diagnostics.
+//! - `take_deep_links()`: drains the `ethereal://` links received so far ([`deep_link`];
+//!   the shell emits `ether://deep-link` when one arrives).
 //!
 //! # Threads
 //! The host runs its own controller, GC and audio threads. CLAP plugin controllers run on
 //! the **process main thread** through [`TauriMainThread`] (`AppHandle::run_on_main_thread`),
 //! as AppKit requires for plugin editor windows on macOS.
 
+pub mod deep_link;
 pub mod instance;
 pub mod path_drop;
 
@@ -130,6 +133,11 @@ fn ether_send(host: tauri::State<'_, HostSlot>, message: ClientMessage) -> Resul
 }
 
 #[tauri::command]
+fn take_deep_links(inbox: tauri::State<'_, deep_link::DeepLinkInbox>) -> Vec<String> {
+    inbox.take()
+}
+
+#[tauri::command]
 fn ether_disconnect(host: tauri::State<'_, HostSlot>) -> Result<(), String> {
     host.with(|h| h.unsubscribe())
 }
@@ -193,10 +201,21 @@ fn user_library_roots(app: &AppHandle) -> Vec<LibraryRoot> {
 pub fn run() {
     init_tracing();
 
-    let app = tauri::Builder::default()
+    let mut builder = tauri::Builder::default();
+    // A second launch (e.g. a clicked invite link) hands its URL to this instance instead of
+    // starting another app. Release builds only: dev instances (`ETHER_INSTANCE`) run side
+    // by side and never own the `ethereal://` scheme.
+    if !cfg!(debug_assertions) {
+        builder = builder.plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+            deep_link::focus_main(app);
+        }));
+    }
+    let app = builder
+        .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .manage(HostSlot::default())
+        .manage(deep_link::DeepLinkInbox::default())
         .setup(|app| {
             let instance = instance::instance_id();
             let data_dir = instance::app_data_dir(app.handle())?;
@@ -236,13 +255,16 @@ pub fn run() {
             if let Some(window) = app.get_webview_window("main") {
                 path_drop::install(app.handle(), &window);
             }
+            // `join-flow`: `ethereal://join/...` links reach the UI's join screen.
+            deep_link::install(app.handle());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             engine_info,
             ether_connect,
             ether_send,
-            ether_disconnect
+            ether_disconnect,
+            take_deep_links
         ])
         .build(tauri::generate_context!())
         .expect("error while building the Ethereal desktop app");
