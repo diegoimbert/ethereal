@@ -780,6 +780,8 @@ paths = [
 # that already has one (e.g. the default Synth from "New track") put it in front, and the trailing
 # instrument (no notes in) cleared its audio -> silent track. Adding an instrument now replaces it.
 paths = [
+  # BCR (base-101): the rack test expected a trailing Synth after an added Instrument Rack (the bug itself)
+  "ui/src/features/racks/RackPanel.test.tsx",
   # BCR (base-98): third insert path (shell Devices pane + Cmd-K Add <device>) replaces instruments too
   "ui/src/app/shell/deviceInsert.ts",
   "ui/src/app/shell/deviceInsert.test.ts",
@@ -797,6 +799,25 @@ paths = [
   "ui/src/features/devices/DeviceChain.test.tsx",
   "apps/web/e2e/instrument-replace*.spec.ts",
   "crates/ether-controller/tests/instrument_replace*.rs",
+]
+
+[nodes.section-edit]
+# Owner report (2026-10-03): time-selection copy/paste copies whole MIDI clips; piano roll copy/paste
+# doesn't work; duplicating a section must keep its exact length (gaps included).
+paths = [
+  "crates/ether-controller/src/time_edit/**",
+  "crates/ether-controller/tests/time_edit*.rs",
+  "crates/ether-controller/tests/section_edit*.rs",
+  "ui/src/features/time-edits/**",
+  "ui/src/features/piano-roll/**",
+  "ui/src/transport/mock/roadmap/timeEdits.*",
+  "apps/web/e2e/time-edits*.spec.ts",
+  "apps/web/e2e/section-edit*.spec.ts",
+  "apps/web/e2e/piano-roll*.spec.ts",
+  # shared touches: arrangement clipboard + key routing (plain Cmd+C/X/V/D act on a time selection)
+  "ui/src/features/arrangement/clipboard.ts",
+  "ui/src/features/arrangement/ArrangementView.tsx",
+  "ui/src/features/arrangement/actions.ts",
 ]
 
 [nodes.turn-hardening]
@@ -983,6 +1004,12 @@ paths = [
 
 [nodes.multisampler]
 paths = [
+  # BCR (base-99): create() passes the SampleResolver; in-place zone updates; zone editor UI + renderer case
+  "crates/ether-devices/src/lib.rs",
+  "crates/ether-controller/src/engine.rs",
+  "ui/src/features/devices/layout/zones/**",
+  "ui/src/features/devices/layout/Widget.tsx",
+  "ui/src/features/devices/layout/widgets/data.tsx",
   # base-86: append-only line(s) in the IMPLEMENTED list of this test
   "crates/ether-devices/tests/v02_descriptors.rs",
   "crates/ether-devices/src/multisampler/**",
@@ -1066,6 +1093,10 @@ paths = [
 
 [nodes.midi-fx]
 paths = [
+  # BCR (base-100): MIDI effects insert before the instrument (chain order rule); coordinate with instrument-replace
+  "ui/src/app/shell/deviceInsert.ts",
+  "ui/src/app/shell/deviceInsert.midiFx.test.ts",
+  "ui/src/features/devices/DeviceChain.tsx",
   # BCR-C (base-94): export renders MIDI effects with their resolved scale (one line)
   "crates/ether-controller/src/export/offline.rs",
   "crates/ether-controller/tests/midi_fx*.rs",
@@ -1258,6 +1289,10 @@ paths = [
 
 [nodes.browser-v2]
 paths = [
+  # BCR (base-100): MockBrowser(this.host) routing (import, field, Browser case)
+  "ui/src/transport/mock/MockTransport.ts",
+  # BCR (base-99): the controller's browser state field (+ Default in with_config)
+  "crates/ether-controller/src/lib.rs",
   "crates/ether-controller/src/browser/**",
   "ui/src/features/browser/v2/**",
   "ui/src/transport/mock/roadmap/browserV2.*",
