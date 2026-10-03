@@ -1453,3 +1453,140 @@ paths = [
   "crates/ether-collab/src/relay/tests.rs",
   "docs/COLLAB.md",
 ]
+
+# --- Sharing: P2P host hub, invite links (base-115, docs/SHARING.md §12) ---------------
+# All depend on base-115; signal-service, p2p-transport, share-engine, share-ui, join-flow
+# and recents-shared run in parallel; share-integration comes last.
+
+[nodes.signal-service]
+# Cloudflare Worker + Durable Object signaling (docs/SHARING.md §3).
+paths = [
+  "services/signal/**",
+  # the Pages Function that mounts the service at <web origin>/signal
+  "scripts/release/web/functions/**",
+  # shared touch: deploy notes
+  "scripts/release/web/DEPLOY.txt",
+]
+
+[nodes.p2p-transport]
+# Platform ShareServices: signaling sockets + WebRTC data channels (docs/SHARING.md §6).
+paths = [
+  "crates/ether-collab/src/share/native/**",
+  "crates/ether-collab/src/share/web/**",
+  "crates/ether-collab/src/share/signal/**",
+  "crates/ether-collab/tests/p2p*.rs",
+  "ui/src/features/share/endpoint/**",
+  "apps/web/e2e/p2p*.spec.ts",
+  # shared touch: `mod` lines and `default_services()` only
+  "crates/ether-collab/src/share/mod.rs",
+  # shared touch: str0m (native), tungstenite rustls feature, web-sys MessagePort features
+  "crates/ether-collab/Cargo.toml",
+  "Cargo.toml",
+  "THIRD_PARTY_NOTICES.txt",
+  # shared touch: the share MessagePort between the UI and the controller Worker
+  "crates/ether-wasm/src/share.rs",
+  "crates/ether-wasm/src/lib.rs",
+  "crates/ether-wasm/Cargo.toml",
+  "apps/web/src/engine/controller.worker.ts",
+  "apps/web/src/engine/endpoint.ts",
+  "apps/web/src/engine/protocol.ts",
+  "ui/src/transport/wasm/WasmTransport.ts",
+  "ui/src/transport/wasm/WasmTransport.test.ts",
+]
+
+[nodes.share-engine]
+# Hub with roles, handshake + keys, ShareCommand lifecycle, share.json (docs/SHARING.md §2, §4, §7).
+paths = [
+  "crates/ether-controller/src/share/**",
+  "crates/ether-controller/tests/share*.rs",
+  "crates/ether-collab/src/share/hub*.rs",
+  "crates/ether-collab/src/share/hub/**",
+  "crates/ether-collab/src/share/handshake.rs",
+  "crates/ether-collab/src/share/keys.rs",
+  "crates/ether-collab/src/share/fake.rs",
+  "crates/ether-collab/tests/share*.rs",
+  "ui/src/transport/mock/roadmap/share.*",
+  # shared touch: `mod` lines only
+  "crates/ether-collab/src/share/mod.rs",
+  # shared touch: hmac/sha2 on every target
+  "crates/ether-collab/Cargo.toml",
+  # shared touch: Relay hooks `set_snapshot_source`, `set_color` (+ their tests)
+  "crates/ether-collab/src/relay/mod.rs",
+  "crates/ether-collab/src/relay/tests.rs",
+  # shared touch: connector per session, `left_sites` seed, sync/catch-up signals
+  "crates/ether-controller/src/collab/mod.rs",
+  # shared touch: view-only refusal (listen role), share tick
+  "crates/ether-controller/src/handlers.rs",
+  # shared touch: one state field, `set_share_services`
+  "crates/ether-controller/src/lib.rs",
+  # shared touch: SaveAs/Duplicate skip share.json; resume/reconnect on Open
+  "crates/ether-controller/src/project.rs",
+  "crates/ether-controller/Cargo.toml",
+  "crates/ether-controller/tests/collab_support.rs",
+]
+
+[nodes.share-ui]
+# Share button, popover, session pill, settings tabs, toasts (docs/SHARING.md §8.1-§8.2, §8.4, §8.6-§8.7).
+paths = [
+  "ui/src/features/share/**",
+  # shared touch: the top-bar slot
+  "ui/src/app/App.tsx",
+  "ui/src/app/App.test.tsx",
+  "ui/src/app/shell/commands.ts",
+  # shared touch: peer chips move into the popover; relay join form moves to Settings
+  "ui/src/features/collab/PresenceBar.tsx",
+  "ui/src/features/collab/PresenceBar.test.tsx",
+  "ui/src/features/collab/index.tsx",
+  "ui/src/features/collab/store.ts",
+  "ui/src/features/collab/collab.css",
+  # Settings dialog with tabs (Audio | Sharing | Advanced); Remote engine moves there
+  "ui/src/features/audio-settings/**",
+  "ui/src/features/remote/**",
+  "apps/web/e2e/share-ui*.spec.ts",
+]
+exclude = [
+  "ui/src/features/share/endpoint/**",
+  "ui/src/features/share/join/**",
+]
+
+[nodes.join-flow]
+# Desktop deep links, web /join route + landing, JoinScreen (docs/SHARING.md §5, §8.3).
+paths = [
+  "ui/src/features/share/join/**",
+  "apps/web/src/join/**",
+  "apps/web/src/main.tsx",
+  "apps/web/index.html",
+  "apps/web/e2e/join*.spec.ts",
+  "scripts/release/web/_redirects",
+  # deep-link + single-instance plugins, `ethereal` scheme, event to the webview
+  "apps/desktop/src-tauri/**",
+  "apps/desktop/package.json",
+  # shared touch: mount the join screen; deep-link event subscription
+  "ui/src/app/App.tsx",
+  "ui/src/transport/tauri/TauriTransport.ts",
+  "ui/src/transport/tauri/TauriTransport.test.ts",
+  "ui/src/domain/invite.ts",
+  "ui/src/domain/invite.test.ts",
+]
+
+[nodes.recents-shared]
+# ProjectSummary.share from share.json; Recents badges, avatars, menus (docs/SHARING.md §8.5).
+paths = [
+  "ui/src/features/project/**",
+  "crates/ether-native/src/store.rs",
+  "crates/ether-native/tests/store*.rs",
+  "crates/ether-wasm/src/store.rs",
+  "crates/ether-controller/src/memory.rs",
+  "crates/ether-controller/src/store.rs",
+  "crates/ether-controller/tests/project.rs",
+]
+
+[nodes.share-integration]
+# End-to-end flows across the sharing nodes (docs/SHARING.md §12).
+paths = [
+  "apps/web/e2e/share*.spec.ts",
+  "apps/web/playwright.config.ts",
+  "crates/ether-native/tests/share*.rs",
+  "docs/SHARING.md",
+  "docs/COLLAB.md",
+]

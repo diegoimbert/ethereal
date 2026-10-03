@@ -1,5 +1,5 @@
 //! `share.json`: the host-local sharing state stored next to a project's `project.ether`
-//! (docs/SHARING.md §6.4). Frozen shape (versioned like `.ether`).
+//! (docs/SHARING.md §4.5). Frozen shape (versioned like `.ether`).
 //!
 //! It holds secrets (link keys, member keys, the host token), so it is **never** part of the
 //! replicated document, a snapshot, a media push, an export, or a copy: `SaveAs` and

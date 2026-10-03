@@ -54,7 +54,7 @@ pub struct ProjectSummary {
     /// Last save time, Unix epoch milliseconds.
     pub modified_ms: f64,
     /// base-115: shared by this app, or an offline copy of someone's shared project
-    /// (Recents badge and avatars; docs/SHARING.md §8.3). Omitted when not shared.
+    /// (Recents badge and avatars; docs/SHARING.md §8.5). Omitted when not shared.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub share: Option<crate::share::ProjectShareInfo>,
