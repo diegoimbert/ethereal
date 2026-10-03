@@ -556,6 +556,65 @@ impl Library for DiskStore {
     fn list_external_dir(&mut self, path: &str) -> Result<Vec<(String, bool)>, StoreError> {
         list_external_dir(path)
     }
+
+    /// `browser-v2`: a user folder becomes a library root (listed by `roots()`, browsable,
+    /// importable, referenced in place) with the stable id [`user_folder_id`]. The folder
+    /// must be an existing absolute directory. Not persisted here: the controller's browser
+    /// index remembers user folders and re-adds them on start.
+    fn add_folder(&mut self, path: &str) -> Result<String, StoreError> {
+        let p = Path::new(path);
+        if path.contains('\0') || !p.is_absolute() {
+            return Err(StoreError::InvalidPath(path.to_string()));
+        }
+        let meta = fs::metadata(p).map_err(|e| match e.kind() {
+            std::io::ErrorKind::NotFound => StoreError::NotFound(path.to_string()),
+            _ => io_err(e),
+        })?;
+        if !meta.is_dir() {
+            return Err(StoreError::InvalidPath(format!("not a folder: {path}")));
+        }
+        let id = user_folder_id(path);
+        if !self.library_roots.iter().any(|r| r.id == id) {
+            let name = p
+                .file_name()
+                .map_or_else(|| path.to_string(), |n| n.to_string_lossy().into_owned());
+            self.library_roots.push(LibraryRoot {
+                id: id.clone(),
+                name,
+                path: p.to_path_buf(),
+            });
+        }
+        Ok(id)
+    }
+
+    /// `browser-v2`: forget a user folder (files untouched). Configured roots can't be
+    /// removed.
+    fn remove_folder(&mut self, root: &str) -> Result<(), StoreError> {
+        if !root.starts_with(USER_FOLDER_PREFIX) {
+            return Err(StoreError::InvalidPath(format!(
+                "{root} is not a user folder"
+            )));
+        }
+        let before = self.library_roots.len();
+        self.library_roots.retain(|r| r.id != root);
+        if self.library_roots.len() == before {
+            return Err(StoreError::NotFound(root.to_string()));
+        }
+        Ok(())
+    }
+}
+
+/// Id prefix of user folders (`Library::add_folder`).
+pub const USER_FOLDER_PREFIX: &str = "folder-";
+
+/// Stable root id of a user folder: [`USER_FOLDER_PREFIX`] + the FNV-1a hash of its path.
+pub fn user_folder_id(path: &str) -> String {
+    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+    for b in path.as_bytes() {
+        h ^= u64::from(*b);
+        h = h.wrapping_mul(0x0100_0000_01b3);
+    }
+    format!("{USER_FOLDER_PREFIX}{h:016x}")
 }
 
 /// See `Library::list_external_dir` for `DiskStore`: an absolute folder's entries
@@ -992,5 +1051,36 @@ mod tests {
             Library::list_dir(&mut s, "nope", ""),
             Err(StoreError::NotFound(_))
         ));
+    }
+    #[test]
+    fn user_folders_add_list_remove() {
+        let tmp = TempDir::new("store-folders");
+        let mut s = store(&tmp);
+        let dir = tmp.path().join("My Samples");
+        fs::create_dir_all(dir.join("sub")).unwrap();
+        fs::write(dir.join("sub/hit.wav"), b"RIFF").unwrap();
+        let path = dir.to_str().unwrap();
+        let id = s.add_folder(path).unwrap();
+        assert_eq!(id, user_folder_id(path));
+        assert_eq!(s.add_folder(path).unwrap(), id, "idempotent");
+        let roots = s.roots();
+        assert_eq!(roots.len(), 2);
+        assert_eq!(roots[1].name, "My Samples");
+        let sub = Library::list_dir(&mut s, &id, "sub").unwrap();
+        assert_eq!(sub.entries[0].path, "sub/hit.wav");
+        assert!(s.external_path(&id, "sub/hit.wav").unwrap().ends_with("hit.wav"));
+        assert!(matches!(s.add_folder("relative"), Err(StoreError::InvalidPath(_))));
+        assert!(matches!(
+            s.add_folder(dir.join("sub/hit.wav").to_str().unwrap()),
+            Err(StoreError::InvalidPath(_))
+        ));
+        assert!(matches!(
+            s.add_folder(tmp.path().join("missing").to_str().unwrap()),
+            Err(StoreError::NotFound(_))
+        ));
+        assert!(matches!(s.remove_folder("lib"), Err(StoreError::InvalidPath(_))));
+        s.remove_folder(&id).unwrap();
+        assert_eq!(s.roots().len(), 1);
+        assert!(matches!(s.remove_folder(&id), Err(StoreError::NotFound(_))));
     }
 }

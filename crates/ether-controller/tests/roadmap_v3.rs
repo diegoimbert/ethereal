@@ -9,7 +9,6 @@ mod common;
 
 use common::*;
 use ether_core::protocol::analysis::AnalysisCommand;
-use ether_core::protocol::browser::{BrowserCommand, BrowserQuery, BrowserSort};
 use ether_core::protocol::devices::{DeviceCommand, DeviceSpec};
 use ether_core::protocol::media::{MediaCommand, MediaSource};
 use ether_core::protocol::model::*;
@@ -236,28 +235,7 @@ fn midi_fx_devices_are_placeholders() {
 
 // presets: see tests/presets.rs. racks-modulation: see tests/racks.rs and tests/modulation.rs.
 
-#[test]
-fn browser_v2_replies_unsupported() {
-    let mut h = Harness::with_project();
-    assert_unsupported(
-        &mut h,
-        Command::Browser(BrowserCommand::Query {
-            query: BrowserQuery {
-                text: "kick".into(),
-                kinds: vec![],
-                tags: vec![],
-                favourites_only: false,
-                roots: vec![],
-                folder: None,
-                device: None,
-                sort: BrowserSort::Name,
-                offset: 0,
-                limit: 50,
-            },
-        }),
-    );
-    assert_unsupported(&mut h, Command::Browser(BrowserCommand::ListRoots));
-}
+// browser-v2: see tests/browser.rs.
 
 // media-references: see tests/media_refs.rs.
 
