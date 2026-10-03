@@ -107,12 +107,45 @@ fn multisampler_is_a_placeholder() {
 }
 
 #[test]
-fn fx_color_devices_are_placeholders() {
+fn fx_color_devices_insert_with_layouts_and_an_auto_filter_sidechain() {
     group_inserts_and_compiles(&[
         BuiltinDeviceType::Saturator,
         BuiltinDeviceType::Bitcrusher,
         BuiltinDeviceType::AutoFilter,
     ]);
+    let mut h = Harness::with_project();
+    let kick = track(&mut h, TrackKind::Audio);
+    let pad = track(&mut h, TrackKind::Audio);
+    let sat = insert(&mut h, pad, BuiltinDeviceType::Saturator);
+    let crush = insert(&mut h, pad, BuiltinDeviceType::Bitcrusher);
+    let filter = insert(&mut h, pad, BuiltinDeviceType::AutoFilter);
+    for d in [sat, crush, filter] {
+        let ReplyValue::Descriptor { descriptor } =
+            h.ok(Command::Device(DeviceCommand::GetDescriptor { device: d }))
+        else {
+            panic!("descriptor reply");
+        };
+        assert!(descriptor.layout.is_some(), "{:?}", descriptor.name);
+    }
+    // The auto filter's envelope follower keys from a sidechain; the others have none.
+    h.ok(Command::Device(DeviceCommand::SetSidechain {
+        device: filter,
+        source: Some(kick),
+    }));
+    assert_eq!(h.project().devices[&filter].sidechain, Some(kick));
+    for d in [sat, crush] {
+        let out = h.send(Command::Device(DeviceCommand::SetSidechain {
+            device: d,
+            source: Some(kick),
+        }));
+        assert_eq!(err(&out).code, ErrorCode::InvalidArgument);
+    }
+    h.tick();
+    let graph = h.ctl.bridge.last_graph();
+    let t = graph.tracks.iter().find(|t| t.id == pad).unwrap();
+    assert_eq!(t.chain.len(), 3);
+    assert!(t.chain[0].sidechain.is_none() && t.chain[1].sidechain.is_none());
+    assert!(t.chain[2].sidechain.is_some());
 }
 
 #[test]

@@ -1,0 +1,38 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "Envelope Wah",
+    "device": {
+      "type": "Builtin",
+      "device": "AutoFilter"
+    },
+    "meta": {
+      "tags": [
+        "envelope",
+        "funk",
+        "wah"
+      ],
+      "author": "Ethereal",
+      "description": "Band-pass that opens with playing dynamics: an auto-wah for guitars and keys."
+    },
+    "params": {
+      "0": 4.0,
+      "1": 400.0,
+      "2": 60.0,
+      "3": 0.0,
+      "4": 70.0,
+      "5": 3.0,
+      "6": 150.0,
+      "7": 0.0,
+      "8": 0.0,
+      "9": 1.0,
+      "10": 0.0,
+      "11": 8.0,
+      "12": 0.0,
+      "13": 100.0,
+      "14": 0.0
+    }
+  }
+}
