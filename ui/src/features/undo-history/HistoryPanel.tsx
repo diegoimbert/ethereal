@@ -6,16 +6,10 @@ import { IconButton, openContextMenu, TextInput } from "@/kit";
 import { useCollabStore } from "@/features/collab/store";
 import { useOptionalTransport } from "@/features/transport-bar/engine";
 import { cmd, type EngineTransport } from "@/transport";
+import { MAX_CHECKPOINT_CHARS, stepTime } from "./format";
 import { useUndoHistoryUi } from "./store";
 import { useHistoryList } from "./useHistoryList";
 
-/** Longest checkpoint name the engine keeps. */
-export const MAX_CHECKPOINT_CHARS = 120;
-
-/** Clock time of a step ("14:03:12"); the full date is in the row's tooltip. */
-export function stepTime(ms: number): string {
-  return new Date(ms).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" });
-}
 
 function stepTitle(step: HistoryStep): string {
   const when = new Date(step.time_ms).toLocaleString();
