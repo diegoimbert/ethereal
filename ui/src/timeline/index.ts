@@ -9,6 +9,7 @@
 export * from "./doublePress";
 export * from "./format";
 export * from "./grid";
+export * from "./inputSettings";
 export * from "./loop";
 export * from "./marquee";
 export * from "./motion";
@@ -23,3 +24,4 @@ export * from "./useTimelineWheel";
 export * from "./viewMotion";
 export * from "./viewport";
 export * from "./viewStore";
+export * from "./wheelInput";
