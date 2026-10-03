@@ -1,7 +1,8 @@
 /**
  * Preview state of the indexed browser: `../preview.ts` with library items. Indexed items
  * preview through `Browser::Preview { item, sync }` (tempo-synced); files without an item
- * (project media) and engines without the command (`Unsupported`) use `Media::Preview`.
+ * (project media), files not indexed yet (`NotFound`) and engines without the command
+ * (`Unsupported`) use `Media::Preview`.
  * Rows reset on `PreviewEnded` matching their source, exactly like the folder browser.
  */
 import { useCallback, useState } from "react";
@@ -42,7 +43,8 @@ export function useItemPreview(transport: EngineTransport | null, send: Send, sy
           await transport.send(cmd("Browser", { type: "Preview", item: t.item, sync }));
           return true;
         } catch (e) {
-          if (!isCommandFailed(e, "Unsupported")) {
+          // Old engines, and folder rows the index has not reached yet: plain preview.
+          if (!isCommandFailed(e, "Unsupported") && !isCommandFailed(e, "NotFound")) {
             onError(errorMessage(e));
             return false;
           }
