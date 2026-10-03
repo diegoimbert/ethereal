@@ -105,7 +105,6 @@ function Home({ commands, onNew, onDone }: { commands: EngineCommands; onNew(): 
           <Button variant="primary" onClick={onDone}>
             Continue
           </Button>
-          <ProjectScale send={send} />
           {/* templates: save the open project as a project template. */}
           <Button
             tone="ghost"
@@ -115,6 +114,7 @@ function Home({ commands, onNew, onDone }: { commands: EngineCommands; onNew(): 
           >
             Save as template…
           </Button>
+          <ProjectScale send={send} />
         </section>
       )}
 

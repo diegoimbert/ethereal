@@ -177,3 +177,9 @@
   justify-content: flex-end;
   gap: var(--eth-space-sm);
 }
+
+/* templates: "Save as template…" under Continue, right-aligned. */
+.eth-project-screen__save-template {
+  grid-column: 2;
+  justify-self: end;
+}
