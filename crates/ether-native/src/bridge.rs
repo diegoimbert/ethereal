@@ -282,6 +282,30 @@ impl EngineBridge for NativeBridge {
                 .map_err(engine_err)?;
             return Ok(true);
         }
+        // v0.3 (`fx-space`): a new IR, read and partitioned here (off the audio thread);
+        // the node crossfades to it.
+        if let BuiltinDevice::ConvolutionReverb { .. } = kind {
+            let Some(entry) = self.devices.get(&device) else {
+                return Ok(false);
+            };
+            if !matches!(
+                entry.kind,
+                DeviceKind::Builtin(BuiltinDeviceType::ConvolutionReverb)
+            ) {
+                return Ok(false);
+            }
+            let Some(data) = ether_devices::fx_space::ir_swap(
+                kind,
+                &Sources(&self.sources),
+                self.prepare.sample_rate,
+            ) else {
+                return Ok(false);
+            };
+            self.handle
+                .set_node_data(entry.key, data)
+                .map_err(engine_err)?;
+            return Ok(true);
+        }
         let BuiltinDevice::Sampler { slices, .. } = kind else {
             return Ok(false);
         };

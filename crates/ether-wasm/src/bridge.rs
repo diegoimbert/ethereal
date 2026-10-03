@@ -186,6 +186,33 @@ impl<M: RingMemory> EngineBridge for WebBridge<M> {
         Ok(true)
     }
 
+    /// Data-only changes of a live built-in (sampler slices, multisampler zones,
+    /// convolution reverb IR) go to the Worklet as `UpdateBuiltin`: the node takes them in
+    /// place (`Node::set_data`), so they don't click. Anything else: re-create.
+    fn update_builtin(
+        &mut self,
+        device: DeviceId,
+        kind: &BuiltinDevice,
+    ) -> Result<bool, BridgeError> {
+        let Some(&(key, ty)) = self.devices.get(&device) else {
+            return Ok(false);
+        };
+        let updatable = matches!(
+            kind,
+            BuiltinDevice::Sampler { .. }
+                | BuiltinDevice::MultiSampler { .. }
+                | BuiltinDevice::ConvolutionReverb { .. }
+        );
+        if !updatable || ty != kind.device_type() {
+            return Ok(false);
+        }
+        self.send(EngineMsg::UpdateBuiltin {
+            key,
+            device: kind.clone(),
+        });
+        Ok(true)
+    }
+
     fn load_media(
         &mut self,
         media: &MediaRef,

@@ -7,6 +7,125 @@
       "device": "ConvolutionReverb",
       "type": "Builtin"
     },
+    "layout": {
+      "sections": [
+        {
+          "columns": 4,
+          "id": "ir",
+          "items": [
+            {
+              "colspan": 4,
+              "label": "Impulse Response",
+              "size": "Large",
+              "widget": {
+                "end": null,
+                "start": null,
+                "type": "SampleWaveform"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Large",
+              "widget": {
+                "param": 2,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 3,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 1,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 8,
+                "type": "Toggle"
+              }
+            }
+          ],
+          "span": 3,
+          "title": "Impulse Response"
+        },
+        {
+          "columns": 1,
+          "id": "eq",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 4,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 5,
+                "type": "Knob"
+              }
+            }
+          ],
+          "span": 1,
+          "title": "EQ"
+        },
+        {
+          "columns": 2,
+          "id": "output",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Large",
+              "widget": {
+                "param": 0,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 7,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 6,
+                "type": "Knob"
+              }
+            }
+          ],
+          "span": 1,
+          "title": "Output"
+        }
+      ]
+    },
     "midi_input": false,
     "name": "Convolution Reverb",
     "params": [

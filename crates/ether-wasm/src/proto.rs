@@ -86,6 +86,14 @@ pub enum EngineMsg {
         key: NodeKey,
         on: bool,
     },
+    /// v0.3 (`fx-space`): a data-only change of a live built-in (sampler slices,
+    /// multisampler zones, convolution reverb IR; `EngineBridge::update_builtin`). The
+    /// Worklet builds the node data from `device` and its sources and hands it to the node
+    /// (`Node::set_data`), so the change doesn't re-create the node (no click).
+    UpdateBuiltin {
+        key: NodeKey,
+        device: BuiltinDevice,
+    },
 }
 
 /// The JSON-encoded subset of [`EngineMsg`].
@@ -120,6 +128,10 @@ enum JsonMsg {
     WatchAnalysis {
         key: NodeKey,
         on: bool,
+    },
+    UpdateBuiltin {
+        key: NodeKey,
+        device: BuiltinDevice,
     },
 }
 
@@ -168,6 +180,7 @@ impl EngineMsg {
             EngineMsg::Preview { id, media, gain } => JsonMsg::Preview { media, gain, id },
             EngineMsg::NodeScale { key, scale } => JsonMsg::NodeScale { key, scale },
             EngineMsg::WatchAnalysis { key, on } => JsonMsg::WatchAnalysis { key, on },
+            EngineMsg::UpdateBuiltin { key, device } => JsonMsg::UpdateBuiltin { key, device },
         };
         let mut out = vec![TAG_JSON];
         serde_json::to_writer(&mut out, &json).expect("engine messages serialize");
@@ -247,6 +260,9 @@ impl<'a> Frame<'a> {
                     JsonMsg::Preview { media, gain, id } => EngineMsg::Preview { id, media, gain },
                     JsonMsg::NodeScale { key, scale } => EngineMsg::NodeScale { key, scale },
                     JsonMsg::WatchAnalysis { key, on } => EngineMsg::WatchAnalysis { key, on },
+                    JsonMsg::UpdateBuiltin { key, device } => {
+                        EngineMsg::UpdateBuiltin { key, device }
+                    }
                 }))
             }
             t => Err(DecodeError::Tag(t)),

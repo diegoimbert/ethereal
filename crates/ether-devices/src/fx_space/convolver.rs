@@ -47,6 +47,21 @@ const MAC_TICKS: usize = TICKS - 2;
 pub const BUILD_UNITS_PER_TICK: usize = 2 * T2_UNITS;
 const T2_UNITS: usize = TICKS;
 
+/// Touch every page of `v` (a fresh `vec![0; n]` is lazily mapped zero memory: its first
+/// writes would page-fault on the audio thread).
+fn prefault<T: Copy>(v: &mut [T]) {
+    let step = (4096 / std::mem::size_of::<T>().max(1)).max(1);
+    let mut i = 0;
+    while i < v.len() {
+        // SAFETY: `i < v.len()`; a volatile write of the same value can't be elided.
+        unsafe {
+            let p = v.as_mut_ptr().add(i);
+            std::ptr::write_volatile(p, *p);
+        }
+        i += step;
+    }
+}
+
 /// Stage partition counts for a kernel of `len` samples.
 fn parts(len: usize) -> (usize, usize) {
     let p1 = if len > B { (len - B).div_ceil(B).min(P1) } else { 0 };
@@ -270,8 +285,22 @@ impl Convolver {
             build_task(&base, &mut kernels[0], task, &mut f);
         }
         let z = Complex32::new(0.0, 0.0);
-        let v = |n: usize| [vec![0.0f32; n], vec![0.0f32; n]];
-        let c = |n: usize| [vec![z; n], vec![z; n]];
+        let v = |n: usize| {
+            let mut a = [vec![0.0f32; n], vec![0.0f32; n]];
+            a.iter_mut().for_each(|x| prefault(x));
+            a
+        };
+        let c = |n: usize| {
+            let mut a = [vec![z; n], vec![z; n]];
+            a.iter_mut().for_each(|x| prefault(x));
+            a
+        };
+        for k in &mut kernels {
+            for ch in 0..2 {
+                prefault(&mut k.h1[ch]);
+                prefault(&mut k.h2[ch]);
+            }
+        }
         Self {
             input,
             base,

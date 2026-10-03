@@ -26,7 +26,7 @@ use ether_core::protocol::templates::TemplateCommand;
 use ether_core::protocol::tracks::TrackCommand;
 use ether_core::protocol::undo_history::HistoryCommand;
 use ether_core::protocol::versions::VersionCommand;
-use ether_core::protocol::{Command, ErrorCode};
+use ether_core::protocol::{Command, ErrorCode, ReplyValue};
 
 /// Sends `c` and asserts it replies `Unsupported` without changing the document.
 fn assert_unsupported(h: &mut Harness, c: Command) {
@@ -272,8 +272,10 @@ fn audio_to_midi_replies_unsupported() {
     );
 }
 
+/// `fx-space` landed: the reverb is a real device and its commands are implemented (behaviour
+/// tests in `tests/fx_space.rs`).
 #[test]
-fn fx_space_reverb_is_a_placeholder() {
+fn fx_space_reverb_is_implemented() {
     let mut h = Harness::with_project();
     let t = track(&mut h, TrackKind::Audio);
     let d = insert(
@@ -288,14 +290,14 @@ fn fx_space_reverb_is_a_placeholder() {
     h.tick();
     let g = h.ctl.bridge.last_graph();
     assert_eq!(g.tracks.iter().find(|x| x.id == t).unwrap().chain.len(), 1);
-    assert_unsupported(
-        &mut h,
-        Command::Device(DeviceCommand::SetIr {
-            device: d,
-            ir: Some(IrSource::Factory { id: "hall".into() }),
-        }),
-    );
-    assert_unsupported(&mut h, Command::Device(DeviceCommand::ListFactoryIrs));
+    h.ok(Command::Device(DeviceCommand::SetIr {
+        device: d,
+        ir: Some(IrSource::Factory { id: "hall".into() }),
+    }));
+    assert!(matches!(
+        h.ok(Command::Device(DeviceCommand::ListFactoryIrs)),
+        ReplyValue::FactoryIrs { .. }
+    ));
 }
 
 #[test]

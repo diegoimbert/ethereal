@@ -32,6 +32,9 @@ const MAX_PRE_DELAY_MS: f32 = 250.0;
 const PRE_GLIDE_MS: f32 = 60.0;
 const FILTER_GLIDE_MS: f32 = 15.0;
 const Q: f64 = std::f64::consts::FRAC_1_SQRT_2;
+/// Filter settings that mean "off" (the ends of their ranges).
+const LOW_CUT_OFF: f64 = 20.0;
+const HIGH_CUT_OFF: f64 = 20_000.0;
 /// Rebuild budget per block for a convolver waiting to be swapped in.
 const PENDING_UNITS: usize = 4 * BUILD_UNITS_PER_TICK;
 
@@ -52,6 +55,11 @@ impl IrSwap {
             replaced: Vec::with_capacity(RETIRED + 1),
             replaced_input: None,
         }
+    }
+
+    /// Convolvers handed back by the node (retired or superseded), for tests.
+    pub fn replaced_count(&self) -> usize {
+        self.replaced.len()
     }
 }
 
@@ -203,12 +211,16 @@ impl ConvolutionReverb {
         Coefs::new(shape, hz.min(sr * 0.45), 0.0, Q, sr)
     }
 
+    /// Low cut; off at its minimum (20 Hz), so the default wet path is the plain IR.
     fn low_target(&self) -> Coefs {
-        self.cut(Shape::LowCut, self.v(p::LOW_CUT))
+        let c = self.cut(Shape::LowCut, self.v(p::LOW_CUT));
+        if self.v(p::LOW_CUT) <= LOW_CUT_OFF { c.bypassed() } else { c }
     }
 
+    /// High cut; off at its maximum (20 kHz).
     fn high_target(&self) -> Coefs {
-        self.cut(Shape::HighCut, self.v(p::HIGH_CUT))
+        let c = self.cut(Shape::HighCut, self.v(p::HIGH_CUT));
+        if self.v(p::HIGH_CUT) >= HIGH_CUT_OFF { c.bypassed() } else { c }
     }
 
     fn apply_param(&mut self, id: ParamId, value: f64, smooth: bool) {
