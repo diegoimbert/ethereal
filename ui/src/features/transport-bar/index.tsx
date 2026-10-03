@@ -8,6 +8,7 @@ import type { EngineStatus, GestureId, TimeSignaturePoint } from "@/generated";
 import { Circle, Pause, Play, Redo2, Repeat, Square, Timer, Undo2 } from "lucide-react";
 import { Button } from "@/kit";
 import { timeSignaturePoints, useCpuLoad, usePlayhead, useProjectStore } from "@/state";
+import { inputSettings } from "@/timeline";
 import { cmd, nextGestureId } from "@/transport";
 import { CaptureButton } from "@/features/capture";
 import { midiTarget } from "@/features/midi-learn/targets";
@@ -369,7 +370,29 @@ function useTransportShortcuts(handlers: ShortcutHandlers): void {
         redoIfPossible(h);
       }
     };
+    // Mouse side buttons (Settings > Input): Back = undo, Forward = redo when enabled. The
+    // press is swallowed then, so the webview never navigates back/forward.
+    const sideButton = (e: MouseEvent) => (e.button === 3 || e.button === 4) && inputSettings().sideButtons === "undoRedo";
+    const onSideDown = (e: MouseEvent) => {
+      if (sideButton(e)) e.preventDefault();
+    };
+    const onSideUp = (e: MouseEvent) => {
+      const h = ref.current;
+      if (!sideButton(e)) return;
+      e.preventDefault();
+      if (!h.enabled) return;
+      if (e.button === 3) undoIfPossible(h);
+      else redoIfPossible(h);
+    };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener("mousedown", onSideDown);
+    window.addEventListener("mouseup", onSideUp);
+    window.addEventListener("auxclick", onSideDown);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("mousedown", onSideDown);
+      window.removeEventListener("mouseup", onSideUp);
+      window.removeEventListener("auxclick", onSideDown);
+    };
   }, []);
 }

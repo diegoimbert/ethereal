@@ -1,5 +1,5 @@
 import { openAiChat } from "@/features/ai-chat";
-import { openAudioSettings } from "@/features/audio-settings";
+import { openAudioSettings, openSettings } from "@/features/audio-settings";
 import { captureMidi } from "@/features/capture";
 import { focusChat } from "@/features/collab/social";
 import { useCollabStore } from "@/features/collab/store";
@@ -200,6 +200,13 @@ export function buildCommands(transport: EngineTransport | null, devices: Readon
     label: "Audio settings…",
     keywords: "audio device output input microphone sample rate buffer latency driver preferences",
     run: () => openAudioSettings(),
+  });
+  out.push({
+    id: "input-settings",
+    group: "Appearance",
+    label: "Mouse and wheel settings…",
+    keywords: "input mouse wheel scroll zoom trackpad sensitivity invert reverse direction middle button back forward preferences",
+    run: () => openSettings("input"),
   });
   const dark = getTheme() === "dark";
   out.push({
