@@ -2,7 +2,9 @@
  * Pointer handling for clips: click selection, then move / resize drags with a live local
  * preview (`useArrangementUi.preview`) committed as one edit on release.
  *
- * - Move: drag the body; vertical movement moves clips between compatible tracks.
+ * - Move: drag the body; vertical movement moves clips between compatible tracks. Below the
+ *   last track (the empty canvas above the pinned master) the clips go to new tracks, shown
+ *   as ghost lanes meanwhile (see newTrackDrag.ts).
  * - Resize: drag the left/right edge handles (`data-handle="resize-start" | "resize-end"`).
  * - Snapping follows the arrangement grid; hold alt/option to bypass it.
  * - Cmd/ctrl held on release copies instead of moving.
@@ -23,6 +25,7 @@ import { locateIfStopped } from "./actions";
 import { sendEdit, type ArrangementContextValue } from "./context";
 import { boundsCommand, dragPreview, moveCommand, type DragMode } from "./editMath";
 import { rowIndexAt } from "./layout";
+import { inNewTrackZone, newTrackDropCommand, newTrackLanes, onNewLanes, type NewLane } from "./newTrackDrag";
 import { arrangementView, useArrangementUi } from "./uiStore";
 
 const DRAG_THRESHOLD_PX = 3;
@@ -89,6 +92,15 @@ export function onClipPointerDown(
   let active = false;
   let last: ReturnType<typeof dragPreview> | null = null;
   let copy = false;
+  // The tracks a drop below the last track would create (ids fixed for the whole drag).
+  let lanes: NewLane[] | null = null;
+  let below = false;
+  /** Pointer in the empty canvas below the last track (not over the pinned master). */
+  const belowLastTrack = (clientY: number) => {
+    const scroller = ctx.contentRef.current?.parentElement;
+    const bottom = scroller ? scroller.getBoundingClientRect().bottom - contentTop() : Infinity;
+    return inNewTrackZone(rows, clientY - contentTop(), bottom);
+  };
 
   const snapFor = (bypass: boolean) => {
     if (bypass) return (b: Beats) => b;
@@ -103,6 +115,7 @@ export function onClipPointerDown(
   const update = (ev: Mods) => {
     const dx = pointer.x - startX;
     copy = mode === "move" && (ev.metaKey || ev.ctrlKey);
+    below = mode === "move" && belowLastTrack(pointer.y);
     setDragCursor(mode === "move" ? (copy ? "copy" : "grabbing") : "ew-resize");
     last = dragPreview(
       {
@@ -114,9 +127,13 @@ export function onClipPointerDown(
       },
       mode,
       dx / pxPerBeat,
-      mode === "move" ? rowAt(pointer.y) - startRow : 0,
+      mode === "move" && !below ? rowAt(pointer.y) - startRow : 0,
     );
-    useArrangementUi.getState().setPreview({ bounds: last, copy });
+    if (below) {
+      lanes ??= newTrackLanes(clips, rows, newId);
+      last = onNewLanes(last, clips, lanes);
+    }
+    useArrangementUi.getState().setPreview(below && lanes ? { bounds: last, copy, newTracks: lanes } : { bounds: last, copy });
   };
 
   const move = (ev: PointerEvent) => {
@@ -148,7 +165,13 @@ export function onClipPointerDown(
       return;
     }
     copy = mode === "move" && (ev.metaKey || ev.ctrlKey);
-    const command = mode === "move" ? moveCommand(clips, last, copy, newId, Object.values(project.clips)) : boundsCommand(clips, last);
+    const all = Object.values(project.clips);
+    const command =
+      mode !== "move"
+        ? boundsCommand(clips, last)
+        : below && lanes
+          ? newTrackDropCommand(lanes, clips, last, copy, newId, all)
+          : moveCommand(clips, last, copy, newId, all);
     void sendEdit(ctx.transport, command).finally(() => useArrangementUi.getState().setPreview(null));
   };
 
