@@ -780,6 +780,8 @@ paths = [
 # that already has one (e.g. the default Synth from "New track") put it in front, and the trailing
 # instrument (no notes in) cleared its audio -> silent track. Adding an instrument now replaces it.
 paths = [
+  # BCR (base-101): the rack test expected a trailing Synth after an added Instrument Rack (the bug itself)
+  "ui/src/features/racks/RackPanel.test.tsx",
   # BCR (base-98): third insert path (shell Devices pane + Cmd-K Add <device>) replaces instruments too
   "ui/src/app/shell/deviceInsert.ts",
   "ui/src/app/shell/deviceInsert.test.ts",
@@ -797,6 +799,25 @@ paths = [
   "ui/src/features/devices/DeviceChain.test.tsx",
   "apps/web/e2e/instrument-replace*.spec.ts",
   "crates/ether-controller/tests/instrument_replace*.rs",
+]
+
+[nodes.section-edit]
+# Owner report (2026-10-03): time-selection copy/paste copies whole MIDI clips; piano roll copy/paste
+# doesn't work; duplicating a section must keep its exact length (gaps included).
+paths = [
+  "crates/ether-controller/src/time_edit/**",
+  "crates/ether-controller/tests/time_edit*.rs",
+  "crates/ether-controller/tests/section_edit*.rs",
+  "ui/src/features/time-edits/**",
+  "ui/src/features/piano-roll/**",
+  "ui/src/transport/mock/roadmap/timeEdits.*",
+  "apps/web/e2e/time-edits*.spec.ts",
+  "apps/web/e2e/section-edit*.spec.ts",
+  "apps/web/e2e/piano-roll*.spec.ts",
+  # shared touches: arrangement clipboard + key routing (plain Cmd+C/X/V/D act on a time selection)
+  "ui/src/features/arrangement/clipboard.ts",
+  "ui/src/features/arrangement/ArrangementView.tsx",
+  "ui/src/features/arrangement/actions.ts",
 ]
 
 [nodes.turn-hardening]
