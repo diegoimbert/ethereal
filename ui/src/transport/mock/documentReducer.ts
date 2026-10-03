@@ -52,6 +52,12 @@ import { copyRackExtras, copyTrackRackExtras, onDeviceDeletedRacks } from "./roa
 import { swingOffset } from "./roadmap/groove";
 import { onDeviceDeleted, onSendDeleted, onTrackDeleted } from "./roadmap/shared";
 import { setSidechain } from "./roadmap/sidechain";
+import {
+  copyClipExpression,
+  copyNoteExpressions,
+  deleteClipExpression,
+  deleteNoteExpressions,
+} from "./roadmap/expression";
 import { bpmAt, tempoPointAt, signaturePointAt } from "./tempo";
 import type { Tx } from "./tx";
 
@@ -194,6 +200,15 @@ function deleteLanesWhere(ctx: ReducerContext, pred: (l: AutomationLane) => bool
 }
 
 function deleteClipCascade(ctx: ReducerContext, id: ClipId): void {
+  // v0.3 (midi-expression): lanes and note expressions go with the clip.
+  deleteNoteExpressions(
+    ctx.tx,
+    ctx.tx
+      .all("Note")
+      .filter((n) => n.clip === id)
+      .map((n) => n.id),
+  );
+  deleteClipExpression(ctx.tx, id);
   for (const n of ctx.tx.all("Note")) if (n.clip === id) ctx.tx.remove("Note", n.id);
   for (const m of ctx.tx.all("WarpMarker")) if (m.clip === id) ctx.tx.remove("WarpMarker", m.id);
   deleteLanesWhere(ctx, (l) => l.owner.type === "Clip" && l.owner.clip === id);
@@ -245,7 +260,13 @@ function copyClip(ctx: ReducerContext, src: Clip, newId: ClipId, overrides: Part
   if (ctx.tx.get("Clip", newId)) fail("InvalidArgument", `clip ${newId} already exists`);
   const copy: Clip = { ...src, ...overrides, id: newId };
   ctx.tx.upsert("Clip", copy);
-  for (const n of ctx.tx.all("Note")) if (n.clip === src.id) ctx.tx.upsert("Note", { ...n, id: ctx.newId(), clip: newId });
+  for (const n of ctx.tx.all("Note")) {
+    if (n.clip !== src.id) continue;
+    const id = ctx.newId();
+    ctx.tx.upsert("Note", { ...n, id, clip: newId });
+    copyNoteExpressions(ctx, n.id, id);
+  }
+  copyClipExpression(ctx, src.id, newId);
   for (const m of ctx.tx.all("WarpMarker")) {
     if (m.clip === src.id) ctx.tx.upsert("WarpMarker", { ...m, id: ctx.newId(), clip: newId });
   }
@@ -824,6 +845,7 @@ function noteCommand(ctx: ReducerContext, c: NoteCommand): void {
     case "Remove":
       for (const id of c.ids) {
         note(ctx, id);
+        deleteNoteExpressions(tx, [id]);
         tx.remove("Note", id);
       }
       break;
@@ -866,6 +888,7 @@ function noteCommand(ctx: ReducerContext, c: NoteCommand): void {
           start: Math.max(0, n.start + c.offset),
           pitch: clamp(n.pitch + c.transpose, 0, 127),
         });
+        copyNoteExpressions(ctx, cp.from, cp.new_id);
       }
       break;
   }

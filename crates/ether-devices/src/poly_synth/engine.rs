@@ -910,8 +910,13 @@ impl PolySynth {
         for r in self.ramps.iter_mut() {
             r.advance(n as u32);
         }
-        let bend_coef = 1.0 - (-(n as f32) / (0.003 * self.sr)).exp();
-        self.bend += (self.bend_target - self.bend) * bend_coef;
+        if self.any_active() {
+            let bend_coef = 1.0 - (-(n as f32) / (0.003 * self.sr)).exp();
+            self.bend += (self.bend_target - self.bend) * bend_coef;
+        } else {
+            // No voice hears the glide: settle, as in the silent path of `process`.
+            self.bend = self.bend_target;
+        }
         let unison = self.count(id::UNISON_VOICES, MAX_UNISON);
         let detune = self.ramp(id::UNISON_DETUNE).cur;
         let spread = self.ramp(id::UNISON_SPREAD).cur;
@@ -1289,6 +1294,9 @@ impl Node for PolySynth {
             for r in self.ramps.iter_mut() {
                 r.advance(u32::MAX);
             }
+            // So does the pitch bend (v0.3 `midi-expression`: bend lanes move while no
+            // note sounds; the render must not depend on where blocks fall).
+            self.bend = self.bend_target;
             audio.clear_outputs();
             return ProcessStatus::Silent;
         }

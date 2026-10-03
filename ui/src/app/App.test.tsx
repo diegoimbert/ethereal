@@ -41,6 +41,19 @@ describe("App shell", () => {
     expect(container.querySelector('[data-feature="mixer"]')).toBeNull(); // the mixer view is gone
   });
 
+  it("has exactly one session element in the top bar: the Share button (base-115)", async () => {
+    await renderWithMock(<App />);
+    const top = document.querySelector<HTMLElement>('[data-slot="top"]')!;
+    await waitFor(() => expect(top.querySelector('[data-testid="share-button"]')).not.toBeNull());
+    // No relay "Collab" button, no peer chips, no idle "Remote" button.
+    for (const id of ["collab-button", "collab-peers", "remote-button", "session-pill"]) {
+      expect(top.querySelector(`[data-testid="${id}"]`), id).toBeNull();
+    }
+    // The settings (Audio | Sharing | Advanced) open from the gear.
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    expect(await screen.findByRole("tab", { name: "Sharing" })).toBeInTheDocument();
+  });
+
   it("the rail opens each panel in the left pane, and closes it on a second click", async () => {
     const { container } = render(<App />);
     expect(pane("left")).toBeNull();

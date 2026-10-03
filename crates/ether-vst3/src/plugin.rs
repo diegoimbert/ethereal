@@ -502,6 +502,11 @@ impl Vst3Plugin {
             steps: self.steps.clone(),
             values,
             pending: std::mem::take(&mut self.pending),
+            midi_map: self
+                .controller
+                .as_ref()
+                .map(crate::node::MidiMap::query)
+                .unwrap_or_default(),
         }))
     }
 

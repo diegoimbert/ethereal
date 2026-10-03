@@ -1,0 +1,24 @@
+/* ---- Knob center value (ux-followups) ---------------------------------------------------
+ * Large rings show the number in the middle and its unit in the gap at the bottom of the
+ * arc; Knob.tsx measures both and shrinks their font to fit (`--knob-center-scale`, applied
+ * to the font size so the text stays crisp). The middle box itself is `.eth-knob__center`
+ * in kit.css. */
+.eth-knob__center-value,
+.eth-knob__center-unit {
+  font-size: calc(var(--knob-center-font-size) * var(--knob-center-scale, 1));
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.eth-knob__center-value {
+  display: block;
+}
+.eth-knob__center-unit {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  width: max-content;
+  translate: -50% 0;
+  color: var(--knob-label-fg);
+  line-height: var(--eth-lh-tight);
+  pointer-events: none;
+}
