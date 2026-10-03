@@ -73,6 +73,7 @@ import { TransportContext, useTransport, useTransportEvent } from "@/transport";
 import {
   actionForKey,
   bindSingleSelection,
+  locateIfStopped,
   newTrackMenu,
   runClipAction,
   selectTrackEntity,
@@ -330,13 +331,14 @@ function ConnectedArrangementView() {
       // A click on empty space (or a clip body) places the insert marker there on that
       // track, snapped (Alt: free); it never moves a playing playhead (see time-edits
       // `marker.ts`: while stopped, Play then starts from the marker).
+      // Rows without a timeline of their own (returns, master) just locate while stopped.
       const hw = useArrangementUi.getState().headerWidth;
-      if (p.x >= hw && row && !row.draft && isTimeTrack(row.track))
-        placeInsertMarker(
-          transport,
-          snap(pxToBeats(p.x - hw, view.getState()), ev.altKey),
-          [row.track.id],
-        );
+      if (p.x >= hw) {
+        const at = snap(pxToBeats(p.x - hw, view.getState()), ev.altKey);
+        if (row && !row.draft && isTimeTrack(row.track))
+          placeInsertMarker(transport, at, [row.track.id]);
+        else locateIfStopped(transport, at);
+      }
     },
   });
 

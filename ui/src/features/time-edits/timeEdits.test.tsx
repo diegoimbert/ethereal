@@ -117,10 +117,13 @@ describe("time selection", () => {
     });
     expect(itemSelection.getState().timeRange).toEqual({ start: 4, end: 20 });
     expect(screen.getAllByTestId("time-selection")).toHaveLength(2);
-    // A click clears it.
+    // A click replaces it with the insert marker (a zero-length selection, not a range).
     await drag(screen.getByTestId("arrangement-content"), HEADER_WIDTH + 30 * PX, 5, 0, 0);
-    expect(useTimeSelection.getState().selection).toBeNull();
+    const sel = useTimeSelection.getState().selection;
+    expect(sel && sel.end - sel.start).toBe(0);
+    expect(itemSelection.getState().timeRange).toBeNull();
     expect(screen.queryByTestId("time-selection")).toBeNull();
+    expect(screen.getAllByTestId("insert-marker")).toHaveLength(1);
   });
 
   it("⌘E splits every selected track at both edges, one undo step", async () => {
@@ -313,8 +316,8 @@ describe("section-edit: plain ⌘C/X/V/D and ⌫ act on the time selection", () 
     const at = playheadBeats();
     await plain("v");
     expect(timeEdits().at(-1)).toMatchObject({ type: "Paste", at, insert: false });
-    // The playhead moves to the end of the pasted section (so ⌘V again continues it).
-    expect(playheadBeats()).toBe(at + 4);
+    // Pasting never moves the playhead (insert marker, owner request).
+    expect(playheadBeats()).toBe(at);
     // A clip copy after that: ⌘V is the clip paste again.
     act(() => itemSelection.getState().select("clip", [keys.id], "replace"));
     await plain("c");
@@ -377,5 +380,90 @@ describe("time selection helpers", () => {
     expect(expandTracks(p, [group])).toEqual([group, track("Keys").id]);
     expect(pasteTracks(p, null)).toEqual([]);
     expect(pasteTracks(p, track("Keys").id)[0]).toBe(track("Keys").id);
+  });
+});
+
+describe("section-edit: the insert marker (Ableton's edit cursor, separate from the playhead)", () => {
+  const timeEdits = () => sent.filter((c) => c.domain === "TimeEdit").map((c) => (c as Extract<Command, { domain: "TimeEdit" }>).command);
+  const locates = () => sent.filter((c) => c.domain === "Transport" && c.command.type === "Locate").map((c) => (c.command as { position: number }).position);
+  const plain = async (k: string) => {
+    fireEvent.keyDown(view(), { key: k, metaKey: true });
+    await flush();
+  };
+  const click = (beats: number, row: number) => drag(screen.getByTestId("arrangement-content"), HEADER_WIDTH + beats * PX, row * ROW + 5, 0, 0);
+  const transport = async (type: "Play" | "Stop") => {
+    await act(async () => {
+      await mock.send(cmd("Transport", { type }));
+    });
+    await waitFor(() => expect(useProjectStore.getState().transport?.playing).toBe(type === "Play"));
+    await flush();
+  };
+
+  it("a click on a lane places it there (snapped, on that track) and draws it; while stopped Play starts from it", async () => {
+    await click(10.3, 1);
+    expect(useTimeSelection.getState().selection).toEqual({ start: 10, end: 10, tracks: [track("Bass").id] });
+    const marker = screen.getByTestId("insert-marker");
+    expect(marker.dataset.track).toBe(track("Bass").id);
+    // A zero-length selection is not a range: no time range, no time menu.
+    expect(itemSelection.getState().timeRange).toBeNull();
+    // Stopped: the playhead goes there, so Play starts from the marker.
+    expect(locates()).toEqual([10]);
+    await waitFor(() => expect(playheadBeats()).toBe(10));
+  });
+
+  it("while playing, a click and a paste never move the playhead; ⌘V targets the marker; Stop returns to it", async () => {
+    await selectTime(0, 4, 1);
+    await plain("c");
+    await transport("Play");
+    const before = locates().length;
+    await click(10.3, 1);
+    expect(useTimeSelection.getState().selection).toMatchObject({ start: 10, end: 10 });
+    await plain("v");
+    expect(timeEdits().at(-1)).toMatchObject({ type: "Paste", at: 10, insert: false });
+    expect(timeEdits().at(-1)).toMatchObject({ tracks: expect.arrayContaining([track("Bass").id]) });
+    expect(locates()).toHaveLength(before);
+    // The pasted range is selected, so ⌘V again tiles after it.
+    expect(useTimeSelection.getState().selection).toMatchObject({ start: 10, end: 14 });
+    await plain("v");
+    expect(timeEdits().at(-1)).toMatchObject({ type: "Paste", at: 14 });
+    expect(locates()).toHaveLength(before);
+    // On Stop the playhead goes to the marker placed while playing (Play then starts there).
+    await transport("Stop");
+    expect(locates().at(-1)).toBe(10);
+  });
+
+  it("⌘C needs a range: with only the marker it acts on clips; ⌘E splits at the marker, not the playhead", async () => {
+    // The click lands on the Keys clip's body: it selects the clip and places the marker.
+    await click(2.2, 0);
+    expect(useTimeSelection.getState().selection).toMatchObject({ start: 2, end: 2 });
+    await plain("c");
+    expect(timeEdits()).toEqual([]);
+    act(() => useTimeSelection.setState({ clipboard: null }));
+    await act(async () => {
+      await mock.send(cmd("Transport", { type: "Locate", position: 7 }));
+    });
+    await plain("e");
+    expect(clipsOf("Keys").map(([start]) => start)).toContain(2);
+    expect(clipsOf("Keys").map(([start]) => start)).not.toContain(7);
+  });
+
+  it("⌘E with only the marker on empty lane space splits that track at the marker", async () => {
+    act(() => useTimeSelection.getState().setSelection({ start: 3, end: 3, tracks: [track("Bass").id] }));
+    await plain("e");
+    expect(timeEdits()).toMatchObject([{ type: "Split", at: 3, tracks: [track("Bass").id] }]);
+  });
+
+  it("clip paste lands at the marker and moves the marker (not the playhead) to the pasted end", async () => {
+    const keys = Object.values(project().clips).find((c) => c.track === track("Keys").id)!;
+    act(() => itemSelection.getState().select("clip", [keys.id], "replace"));
+    await plain("c");
+    await click(40, 0);
+    const playhead = playheadBeats();
+    const locatesBefore = locates().length;
+    await plain("v");
+    expect(clipsOf("Keys").some(([start]) => start === 40)).toBe(true);
+    expect(useTimeSelection.getState().selection).toMatchObject({ start: 40 + keys.length, end: 40 + keys.length });
+    expect(locates()).toHaveLength(locatesBefore);
+    expect(playheadBeats()).toBe(playhead);
   });
 });

@@ -149,8 +149,8 @@ export async function runTimeAction(
       // The pasted range becomes the selection (so the next ⌘V lands right after it).
       const cb = store.clipboard!;
       const target = tracks.length ? tracks.slice(0, cb.tracks) : sel?.tracks;
+      // Never the playhead: edits stay dissociated from playback (insert marker, owner).
       if (ok && target?.length) select({ start: at, end: at + cb.length, tracks: target });
-      else if (ok && !insert) locateIfStopped(transport, at + cb.length);
       return;
     }
     case "duplicate": {
@@ -190,11 +190,6 @@ export async function runTimeAction(
  */
 export function pasteAt(sel: TimeRangeSelection | null): number {
   return pasteTarget(sel);
-}
-
-function locateIfStopped(transport: EngineTransport, beats: number): void {
-  if (useProjectStore.getState().transport?.playing) return;
-  transport.send(cmd("Transport", { type: "Locate", position: Math.max(0, beats) })).catch(() => {});
 }
 
 /** The time action for a key press in the arrangement, or null (then the clip actions apply). */
