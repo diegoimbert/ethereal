@@ -1548,6 +1548,10 @@ paths = [
   "crates/ether-core/tests/roadmap_v4_hooks.rs",
   # shared touch (BCR): one NodeInit field (midi_map from IMidiMapping) in activate
   "crates/ether-vst3/src/plugin.rs",
+  # shared touch (BCR): Poly Synth bend settles while no voice is active (block-size independent render)
+  "crates/ether-devices/src/poly_synth/engine.rs",
+  # shared touch (BCR): mock cascades/copies for the expression tables
+  "ui/src/transport/mock/documentReducer.ts",
 ]
 
 [nodes.mpe]
