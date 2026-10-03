@@ -780,6 +780,8 @@ paths = [
 # that already has one (e.g. the default Synth from "New track") put it in front, and the trailing
 # instrument (no notes in) cleared its audio -> silent track. Adding an instrument now replaces it.
 paths = [
+  # BCR (base-101): the rack test expected a trailing Synth after an added Instrument Rack (the bug itself)
+  "ui/src/features/racks/RackPanel.test.tsx",
   # BCR (base-98): third insert path (shell Devices pane + Cmd-K Add <device>) replaces instruments too
   "ui/src/app/shell/deviceInsert.ts",
   "ui/src/app/shell/deviceInsert.test.ts",
