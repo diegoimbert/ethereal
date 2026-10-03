@@ -780,6 +780,12 @@ paths = [
 # that already has one (e.g. the default Synth from "New track") put it in front, and the trailing
 # instrument (no notes in) cleared its audio -> silent track. Adding an instrument now replaces it.
 paths = [
+  # BCR (base-96): the plugin-insert assertion now expects the Replace Instrument batch
+  "ui/src/features/plugins/Plugins.test.tsx",
+  # BCR (base-95): shared helper + the plugin browser's instrument insert path (same bug)
+  "ui/src/features/devices/instrument.ts",
+  "ui/src/features/devices/instrument.test.ts",
+  "ui/src/features/plugins/PluginBrowser.tsx",
   "ui/src/features/devices/DeviceChain.tsx",
   "ui/src/features/devices/DeviceChain.test.tsx",
   "apps/web/e2e/instrument-replace*.spec.ts",

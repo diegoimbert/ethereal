@@ -1,0 +1,28 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "Loud Master",
+    "device": {
+      "type": "Builtin",
+      "device": "Limiter"
+    },
+    "meta": {
+      "tags": [
+        "loud",
+        "master"
+      ],
+      "author": "Ethereal",
+      "description": "Pushes the level into the ceiling."
+    },
+    "params": {
+      "0": 6.0,
+      "1": -0.3,
+      "2": 60.0
+    },
+    "kind": null,
+    "samples": [],
+    "state": null
+  }
+}

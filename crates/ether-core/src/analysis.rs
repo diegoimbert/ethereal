@@ -229,7 +229,8 @@ impl AnalysisRt {
         }
     }
 
-    /// RT. One frame from every watched node, round-robin, while the ring has room.
+    /// RT. Up to [`ANALYSIS_FRAMES_PER_PASS`] frames from every watched node, round-robin,
+    /// while the ring has room.
     pub(crate) fn collect_all(&mut self, nodes: &mut [crate::engine::NodeSlot]) {
         let n = MAX_ANALYSIS_NODES;
         for step in 0..n {

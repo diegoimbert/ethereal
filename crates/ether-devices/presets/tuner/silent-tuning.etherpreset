@@ -1,0 +1,27 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "Silent Tuning",
+    "device": {
+      "type": "Builtin",
+      "device": "Tuner"
+    },
+    "meta": {
+      "tags": [
+        "live"
+      ],
+      "author": "Ethereal",
+      "description": "Mutes the output while tuning (A4 = 440 Hz)."
+    },
+    "params": {
+      "0": 440.0,
+      "1": 0.0,
+      "2": 1.0
+    },
+    "kind": null,
+    "samples": [],
+    "state": null
+  }
+}

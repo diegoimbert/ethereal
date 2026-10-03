@@ -199,6 +199,13 @@ fn apply_inner(ctx: &mut DocCtx, c: &DeviceCommand) -> CmdResult<()> {
                     .into_iter()
                     .map(|d| (d.order.clone(), d.id))
                     .collect(),
+                // v0.2: rack-chain devices within their chain.
+                None if d.chain.is_some() => ctx
+                    .p()
+                    .chain_devices_of(d.chain.expect("checked"))
+                    .into_iter()
+                    .map(|d| (d.order.clone(), d.id))
+                    .collect(),
                 None => chain(ctx.p(), d.track, None),
             };
             let order = order_after(&siblings, d.id)?;
@@ -212,7 +219,14 @@ fn apply_inner(ctx: &mut DocCtx, c: &DeviceCommand) -> CmdResult<()> {
             }
             ctx.tx.insert(Entity::Device(copy))?;
             // A drum rack is copied with its pads and their chains.
-            ctx.copy_rack_pads(d.id, *new_id, d.track, &mut Default::default())
+            ctx.copy_rack_pads(d.id, *new_id, d.track, &mut Default::default())?;
+            // v0.2 (`racks-modulation`): a rack with its chains; modulators and their
+            // mappings inside the copy.
+            if crate::racks::is_chain_rack(&d) {
+                crate::racks::copy_rack(ctx, d.id, *new_id)
+            } else {
+                crate::racks::copy_modulation(ctx, &BTreeMap::from([(d.id, *new_id)]))
+            }
         }
         DeviceCommand::Rename { id, name } => {
             ctx.device(*id)?;

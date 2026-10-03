@@ -1,0 +1,30 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "Bass Tamer",
+    "device": {
+      "type": "Builtin",
+      "device": "Compressor"
+    },
+    "meta": {
+      "tags": [
+        "bass"
+      ],
+      "author": "Ethereal",
+      "description": "Controls a dynamic bass line."
+    },
+    "params": {
+      "0": -22.0,
+      "1": 5.0,
+      "2": 10.0,
+      "3": 200.0,
+      "4": 3.0,
+      "5": 20.0
+    },
+    "kind": null,
+    "samples": [],
+    "state": null
+  }
+}

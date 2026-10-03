@@ -45,7 +45,10 @@ use ether_core::{
 use ether_devices::SampleResolver;
 use ether_media::InMemorySource;
 
-use crate::proto::{EngineMsg, EngineReport, Frame, MediaAssembler, PREVIEW_MEDIA, REPORT_ERROR};
+use crate::proto::{
+    ANALYSIS_REPORT_BYTES, EngineMsg, EngineReport, Frame, MediaAssembler, PREVIEW_MEDIA,
+    REPORT_ERROR, encode_analysis_into,
+};
 use crate::ring::{RingMemory, RingReader, RingWriter};
 
 /// Web render quantum.
@@ -127,6 +130,10 @@ pub struct EngineHost<M: RingMemory> {
     reports: RingWriter<M>,
     /// Worker's virtual key → real engine key.
     keys: BTreeMap<NodeKey, NodeKey>,
+    /// Real → virtual node keys (analysis frames are reported under the Worker's keys).
+    virtual_keys: BTreeMap<NodeKey, NodeKey>,
+    /// Reused encoding buffer of analysis reports ([`ANALYSIS_REPORT_BYTES`]).
+    analysis_buf: Vec<u8>,
     /// Registered sources (also resolves sampler media).
     sources: BTreeMap<MediaId, Arc<dyn AudioSource>>,
     outputs: EngineOutputs,
@@ -159,6 +166,8 @@ impl<M: RingMemory> EngineHost<M> {
             media: MediaAssembler::default(),
             reports: RingWriter::new(reports),
             keys: BTreeMap::new(),
+            virtual_keys: BTreeMap::new(),
+            analysis_buf: Vec::with_capacity(ANALYSIS_REPORT_BYTES),
             sources: BTreeMap::new(),
             outputs: EngineOutputs {
                 meters: Vec::with_capacity(256),
@@ -370,8 +379,10 @@ impl<M: RingMemory> EngineHost<M> {
                 }
                 let real = self.handle.add_node(node).map_err(|e| e.to_string())?;
                 if let Some(old) = self.keys.insert(key, real) {
+                    self.virtual_keys.remove(&old);
                     let _ = self.handle.remove_node(old);
                 }
+                self.virtual_keys.insert(real, key);
                 Ok(())
             }
             EngineMsg::DestroyNode { key } => {
@@ -379,6 +390,7 @@ impl<M: RingMemory> EngineHost<M> {
                     .keys
                     .remove(&key)
                     .ok_or_else(|| format!("unknown node {key:?}"))?;
+                self.virtual_keys.remove(&real);
                 self.handle.remove_node(real).map_err(|e| e.to_string())
             }
             EngineMsg::LoadMedia { media, audio } => self.add_source(media, audio),
@@ -421,7 +433,32 @@ impl<M: RingMemory> EngineHost<M> {
                 };
                 self.handle.preview(control).map_err(|e| e.to_string())
             }
+            EngineMsg::WatchAnalysis { key, on } => {
+                let real = self.real_key(key)?;
+                self.handle
+                    .watch_analysis(real, on)
+                    .map_err(|e| e.to_string())
+            }
         }
+    }
+
+    /// **RT.** Forward the engine's analysis frames to the Worker, one report each, under
+    /// the Worker's virtual node keys. Lossy like the other reports: a frame that doesn't
+    /// fit the report ring is dropped (the controller keeps the latest per device anyway).
+    fn send_analysis(&mut self) {
+        let Self {
+            handle,
+            reports,
+            virtual_keys,
+            analysis_buf,
+            ..
+        } = self;
+        handle.poll_analysis(|f| {
+            if let Some(&key) = virtual_keys.get(&f.node) {
+                encode_analysis_into(f, key, analysis_buf);
+                let _ = reports.try_send_now(analysis_buf);
+            }
+        });
     }
 
     /// Map virtual node keys to real ones; drop chain entries/automation whose node is
@@ -490,6 +527,7 @@ impl<M: RingMemory> EngineHost<M> {
         if self.reports.try_send_now(&self.report_buf) {
             self.preview_ended = None;
         }
+        self.send_analysis();
     }
 
     /// Control bytes written by the Worker but not applied yet.

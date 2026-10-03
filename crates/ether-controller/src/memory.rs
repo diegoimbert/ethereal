@@ -220,10 +220,13 @@ impl ProjectStore for MemoryStore {
     }
 }
 
-/// In-memory sample library: roots of files keyed by relative path.
+/// In-memory sample library: roots of files keyed by relative path, plus an optional
+/// writable user library (v0.2, [`MemoryLibrary::with_user_root`]).
 #[derive(Debug, Clone, Default)]
 pub struct MemoryLibrary {
     roots: BTreeMap<String, (String, BTreeMap<String, Vec<u8>>)>,
+    /// Writable user root id (`Library::user_root`); not listed in `roots()`.
+    user: Option<String>,
 }
 
 impl MemoryLibrary {
@@ -236,6 +239,39 @@ impl MemoryLibrary {
         self.roots
             .entry(id.to_string())
             .or_insert_with(|| (name.to_string(), BTreeMap::new()));
+    }
+
+    /// v0.2 (`presets`): a library with a writable user root `id` (presets live under its
+    /// `Presets/` folder).
+    pub fn with_user_root(mut self, id: &str) -> Self {
+        self.add_root(id, "User Library");
+        self.user = Some(id.to_string());
+        self
+    }
+
+    /// The files of root `id` (for assertions).
+    pub fn files(&self, id: &str) -> Vec<String> {
+        self.roots
+            .get(id)
+            .map(|(_, f)| f.keys().cloned().collect())
+            .unwrap_or_default()
+    }
+
+    fn user_files(
+        &mut self,
+        root: &str,
+        rel_path: &str,
+    ) -> Result<&mut BTreeMap<String, Vec<u8>>, StoreError> {
+        if self.user.as_deref() != Some(root) {
+            return Err(StoreError::Unsupported(format!(
+                "library {root} is read-only"
+            )));
+        }
+        check_relative_path(rel_path)?;
+        if rel_path.is_empty() {
+            return Err(StoreError::InvalidPath(rel_path.to_string()));
+        }
+        Ok(&mut self.roots.get_mut(root).expect("user root exists").1)
     }
 
     /// Add a file under root `id` (created if needed).
@@ -253,6 +289,7 @@ impl Library for MemoryLibrary {
     fn roots(&self) -> Vec<BrowseRoot> {
         self.roots
             .iter()
+            .filter(|(id, _)| self.user.as_deref() != Some(id.as_str()))
             .map(|(id, (name, _))| BrowseRoot {
                 location: BrowseLocation::Library { id: id.clone() },
                 name: name.clone(),
@@ -282,6 +319,45 @@ impl Library for MemoryLibrary {
             .and_then(|(_, f)| f.get(rel_path))
             .cloned()
             .ok_or_else(|| StoreError::NotFound(format!("{root}/{rel_path}")))
+    }
+
+    fn write_file(&mut self, root: &str, rel_path: &str, bytes: &[u8]) -> Result<(), StoreError> {
+        let files = self.user_files(root, rel_path)?;
+        let dir = format!("{rel_path}/");
+        if files.keys().any(|k| k.starts_with(&dir)) {
+            return Err(StoreError::InvalidPath(format!("{rel_path} is a folder")));
+        }
+        files.insert(rel_path.to_string(), bytes.to_vec());
+        Ok(())
+    }
+
+    fn remove_file(&mut self, root: &str, rel_path: &str) -> Result<(), StoreError> {
+        let files = self.user_files(root, rel_path)?;
+        match files.remove(rel_path) {
+            Some(_) => Ok(()),
+            None => Err(StoreError::NotFound(rel_path.to_string())),
+        }
+    }
+
+    fn rename_file(&mut self, root: &str, from: &str, to: &str) -> Result<(), StoreError> {
+        self.user_files(root, to)?;
+        let files = self.user_files(root, from)?;
+        if !files.contains_key(from) {
+            return Err(StoreError::NotFound(from.to_string()));
+        }
+        if from == to {
+            return Ok(());
+        }
+        if files.contains_key(to) {
+            return Err(StoreError::AlreadyExists(to.to_string()));
+        }
+        let bytes = files.remove(from).expect("checked");
+        files.insert(to.to_string(), bytes);
+        Ok(())
+    }
+
+    fn user_root(&self) -> Option<String> {
+        self.user.clone()
     }
 }
 

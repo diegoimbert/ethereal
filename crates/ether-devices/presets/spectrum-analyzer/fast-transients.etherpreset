@@ -1,0 +1,31 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "Fast Transients",
+    "device": {
+      "type": "Builtin",
+      "device": "SpectrumAnalyzer"
+    },
+    "meta": {
+      "tags": [
+        "drums",
+        "fast"
+      ],
+      "author": "Ethereal",
+      "description": "Short blocks and little averaging to follow hits and transients."
+    },
+    "params": {
+      "0": 0.0,
+      "1": 15.0,
+      "2": 0.0,
+      "3": -78.0,
+      "4": 3.0,
+      "5": 1.0
+    },
+    "kind": null,
+    "samples": [],
+    "state": null
+  }
+}

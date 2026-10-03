@@ -85,26 +85,24 @@ pub struct BinaryCodec;
 impl BinaryCodec {
     /// Current format version (first byte of every encoding). 2 = v0.2 (contracts-3): track
     /// kind `Vca`, the v0.2 track fields and `RenderGraphDesc::vcas`. 3 = `groups-buses`:
-    /// `TrackDesc::{input_tap, vca}` and `RenderGraphDesc::vcas` in the binary layout.
-    pub const VERSION: u8 = 3;
+    /// `TrackDesc::{input_tap, vca}` and `RenderGraphDesc::vcas` in the binary layout. 4 =
+    /// `racks-modulation`: `TrackDesc::{chain_racks, modulation}` in the binary layout.
+    pub const VERSION: u8 = 4;
 }
 
-/// v0.2 fields of a [`TrackDesc`] (contracts-3). Encoded as one tagged JSON blob (`0` = all
-/// default, the common case: no allocation; `1` + `u32` length + JSON), so the v0.2 nodes
-/// can refine their own desc types without touching the binary layout. A node that needs a
-/// hot, compact encoding moves its field into the binary layout (bumping `VERSION`).
+/// v0.2 fields of a [`TrackDesc`] (contracts-3) still outside the binary layout. Encoded as
+/// one tagged JSON blob (`0` = all default, the common case: no allocation; `1` + `u32`
+/// length + JSON), so the v0.2 nodes can refine their own desc types without touching the
+/// binary layout. A node that needs a hot, compact encoding moves its field into the binary
+/// layout (bumping `VERSION`): `groups-buses` did (v3), so did `racks-modulation` (v4).
 #[derive(serde::Serialize)]
 struct TrackExtRef<'a> {
     frozen: &'a Option<crate::freeze::FrozenDesc>,
-    chain_racks: &'a Vec<crate::rack_chains::ChainRackDesc>,
-    modulation: &'a crate::modulation::ModulationDesc,
 }
 
 #[derive(serde::Deserialize, Default)]
 struct TrackExt {
     frozen: Option<crate::freeze::FrozenDesc>,
-    chain_racks: Vec<crate::rack_chains::ChainRackDesc>,
-    modulation: crate::modulation::ModulationDesc,
 }
 
 impl GraphCodec for BinaryCodec {
@@ -352,17 +350,115 @@ impl Writer<'_> {
             });
         });
         self.opt(vca, |w, v| w.ulid(v.0));
+        // v0.2 (`racks-modulation`, v4): rack chains and modulation.
+        self.vec(chain_racks, Self::chain_rack);
+        self.modulation(modulation);
         // Other v0.2 fields (`TrackExt`).
-        if frozen.is_none() && chain_racks.is_empty() && modulation.is_empty() {
+        if frozen.is_none() {
             self.u8(0);
         } else {
             self.u8(1);
-            self.json(&TrackExtRef {
-                frozen,
-                chain_racks,
-                modulation,
-            });
+            self.json(&TrackExtRef { frozen });
         }
+    }
+
+    fn chain_rack(&mut self, r: &crate::rack_chains::ChainRackDesc) {
+        use crate::rack_chains::{ChainRackDesc, ChainRackKind, RackChainDesc};
+        let ChainRackDesc {
+            rack,
+            kind,
+            chains,
+            selector,
+        } = r;
+        self.key(*rack);
+        self.u8(match kind {
+            ChainRackKind::Instrument => 0,
+            ChainRackKind::AudioEffect => 1,
+            ChainRackKind::MidiEffect => 2,
+        });
+        self.vec(chains, |w, c| {
+            let RackChainDesc {
+                id,
+                chain,
+                volume,
+                pan,
+                mute,
+                keys,
+                velocities,
+                select,
+            } = c;
+            w.ulid(id.0);
+            w.vec(chain, Self::chain_entry);
+            w.f32(*volume);
+            w.f32(*pan);
+            w.bool(*mute);
+            for (lo, hi) in [*keys, *velocities, *select] {
+                w.u8(lo);
+                w.u8(hi);
+            }
+        });
+        self.u8(*selector);
+    }
+
+    fn modulation(&mut self, m: &crate::modulation::ModulationDesc) {
+        use crate::modulation::{
+            MacroDesc, ModMappingDesc, ModSourceDesc, ModulationDesc, ModulatorDesc,
+        };
+        let ModulationDesc {
+            modulators,
+            mappings,
+            macros,
+        } = m;
+        self.vec(modulators, |w, m| {
+            let ModulatorDesc {
+                id,
+                host,
+                kind,
+                params,
+                sidechain,
+            } = m;
+            w.ulid(id.0);
+            w.key(*host);
+            w.u8(modulator_kind_tag(*kind));
+            w.vec(params, |w, &(p, v)| {
+                w.u32(p.0);
+                w.f64(v);
+            });
+            w.opt(sidechain, |w, t| w.ulid(t.0));
+        });
+        self.vec(mappings, |w, m| {
+            let ModMappingDesc {
+                source,
+                node,
+                param,
+                depth,
+                mapping,
+                base,
+            } = m;
+            match *source {
+                ModSourceDesc::Modulator(i) => {
+                    w.u8(0);
+                    w.u32(i);
+                }
+                ModSourceDesc::Macro { rack, index } => {
+                    w.u8(1);
+                    w.key(rack);
+                    w.u8(index);
+                }
+            }
+            w.key(*node);
+            w.u32(param.0);
+            w.f64(*depth);
+            w.mapping(mapping);
+            w.f64(*base);
+        });
+        self.vec(macros, |w, m| {
+            let MacroDesc { rack, values } = m;
+            w.key(*rack);
+            for v in values {
+                w.f64(*v);
+            }
+        });
     }
 
     fn chain_entry(&mut self, e: &ChainEntry) {
@@ -512,6 +608,10 @@ impl Writer<'_> {
                 }
             }
         });
+        self.mapping(mapping);
+    }
+
+    fn mapping(&mut self, mapping: &ParamMapping) {
         let ParamMapping {
             min,
             max,
@@ -539,8 +639,8 @@ mod min_size {
     pub const TEMPO: usize = 8 + 8 + 1;
     pub const SIGNATURE: usize = 8 + 1 + 1;
     /// id, kind, 5 counts, 2 options, volume, pan, 4 bools, audio input option, input tap
-    /// and VCA options, ext tag.
-    pub const TRACK: usize = 16 + 1 + 5 * 4 + 2 + 4 + 4 + 4 + 1 + 2 + 1;
+    /// and VCA options, chain racks + 3 modulation counts, ext tag.
+    pub const TRACK: usize = 16 + 1 + 5 * 4 + 2 + 4 + 4 + 4 + 1 + 2 + 4 * 4 + 1;
     /// id, volume, mute, parent option, automation count.
     pub const VCA: usize = 16 + 4 + 1 + 1 + 4;
     pub const CHAIN: usize = 8 + 1 + 1;
@@ -554,6 +654,30 @@ mod min_size {
     pub const POINT: usize = 8 + 8 + 1;
     pub const RACK: usize = 8 + 4;
     pub const PAD: usize = 16 + 1 + 1 + 4 + 4 + 4 + 1;
+    /// rack key, kind tag, chains count, selector.
+    pub const CHAIN_RACK: usize = 8 + 1 + 4 + 1;
+    /// id, chain count, volume, pan, mute, 3 zones.
+    pub const RACK_CHAIN: usize = 16 + 4 + 4 + 4 + 1 + 6;
+    /// id, host, kind, params count, sidechain option.
+    pub const MODULATOR: usize = 16 + 8 + 1 + 4 + 1;
+    pub const MOD_PARAM: usize = 4 + 8;
+    /// source (tag + index), node, param, depth, mapping (min/max, scale tag, steps option),
+    /// base.
+    pub const MOD_MAPPING: usize = 1 + 4 + 8 + 4 + 8 + 16 + 1 + 1 + 8;
+    pub const MACRO: usize = 8 + 8 * 8;
+}
+
+fn modulator_kind_tag(kind: ether_protocol::model::ModulatorKind) -> u8 {
+    use ether_protocol::model::ModulatorKind as K;
+    match kind {
+        K::Lfo => 0,
+        K::Envelope => 1,
+        K::EnvelopeFollower => 2,
+        K::Steps => 3,
+        K::Random => 4,
+        K::Keytrack => 5,
+        K::Velocity => 6,
+    }
 }
 
 struct Reader<'a> {
@@ -734,13 +858,88 @@ impl Reader<'_> {
             })
         })?;
         t.vca = self.opt(Self::track_id)?;
+        t.chain_racks = self.vec(min_size::CHAIN_RACK, Self::chain_rack)?;
+        t.modulation = self.modulation()?;
         if self.bool()? {
             let ext: TrackExt = self.json()?;
             t.frozen = ext.frozen;
-            t.chain_racks = ext.chain_racks;
-            t.modulation = ext.modulation;
         }
         Ok(t)
+    }
+
+    fn chain_rack(&mut self) -> Result<crate::rack_chains::ChainRackDesc, CodecError> {
+        use crate::rack_chains::{ChainRackDesc, ChainRackKind, RackChainDesc};
+        Ok(ChainRackDesc {
+            rack: self.key()?,
+            kind: match self.tag(3, "rack kind")? {
+                0 => ChainRackKind::Instrument,
+                1 => ChainRackKind::AudioEffect,
+                _ => ChainRackKind::MidiEffect,
+            },
+            chains: self.vec(min_size::RACK_CHAIN, |r| {
+                Ok(RackChainDesc {
+                    id: ether_protocol::model::RackChainId(r.ulid()?),
+                    chain: r.vec(min_size::CHAIN, Self::chain_entry)?,
+                    volume: r.f32()?,
+                    pan: r.f32()?,
+                    mute: r.bool()?,
+                    keys: (r.u8()?, r.u8()?),
+                    velocities: (r.u8()?, r.u8()?),
+                    select: (r.u8()?, r.u8()?),
+                })
+            })?,
+            selector: self.u8()?,
+        })
+    }
+
+    fn modulation(&mut self) -> Result<crate::modulation::ModulationDesc, CodecError> {
+        use crate::modulation::{
+            MACROS, MacroDesc, ModMappingDesc, ModSourceDesc, ModulationDesc, ModulatorDesc,
+        };
+        use ether_protocol::model::{ModulatorId, ModulatorKind as K};
+        Ok(ModulationDesc {
+            modulators: self.vec(min_size::MODULATOR, |r| {
+                Ok(ModulatorDesc {
+                    id: ModulatorId(r.ulid()?),
+                    host: r.key()?,
+                    kind: match r.tag(7, "modulator kind")? {
+                        0 => K::Lfo,
+                        1 => K::Envelope,
+                        2 => K::EnvelopeFollower,
+                        3 => K::Steps,
+                        4 => K::Random,
+                        5 => K::Keytrack,
+                        _ => K::Velocity,
+                    },
+                    params: r.vec(min_size::MOD_PARAM, |r| Ok((ParamId(r.u32()?), r.f64()?)))?,
+                    sidechain: r.opt(Self::track_id)?,
+                })
+            })?,
+            mappings: self.vec(min_size::MOD_MAPPING, |r| {
+                Ok(ModMappingDesc {
+                    source: match r.tag(2, "modulation source")? {
+                        0 => ModSourceDesc::Modulator(r.u32()?),
+                        _ => ModSourceDesc::Macro {
+                            rack: r.key()?,
+                            index: r.u8()?,
+                        },
+                    },
+                    node: r.key()?,
+                    param: ParamId(r.u32()?),
+                    depth: r.f64()?,
+                    mapping: r.mapping()?,
+                    base: r.f64()?,
+                })
+            })?,
+            macros: self.vec(min_size::MACRO, |r| {
+                let rack = r.key()?;
+                let mut values = [0.0; MACROS];
+                for v in values.iter_mut() {
+                    *v = r.f64()?;
+                }
+                Ok(MacroDesc { rack, values })
+            })?,
+        })
     }
 
     fn track_v1(&mut self) -> Result<TrackDesc, CodecError> {
@@ -899,19 +1098,23 @@ impl Reader<'_> {
                     },
                 ))
             })?,
-            mapping: ParamMapping {
-                min: self.f64()?,
-                max: self.f64()?,
-                scale: match self.tag(4, "param scale")? {
-                    0 => ParamScale::Linear,
-                    1 => ParamScale::Log,
-                    2 => ParamScale::Power {
-                        exponent: self.f64()?,
-                    },
-                    _ => ParamScale::Fader,
+            mapping: self.mapping()?,
+        })
+    }
+
+    fn mapping(&mut self) -> Result<ParamMapping, CodecError> {
+        Ok(ParamMapping {
+            min: self.f64()?,
+            max: self.f64()?,
+            scale: match self.tag(4, "param scale")? {
+                0 => ParamScale::Linear,
+                1 => ParamScale::Log,
+                2 => ParamScale::Power {
+                    exponent: self.f64()?,
                 },
-                steps: self.opt(Self::u32)?,
+                _ => ParamScale::Fader,
             },
+            steps: self.opt(Self::u32)?,
         })
     }
 }
