@@ -2,3 +2,4 @@ packages:
   - ui
   - apps/web
   - apps/desktop
+  - services/signal
