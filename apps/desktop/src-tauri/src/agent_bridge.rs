@@ -199,4 +199,83 @@ mod tests {
         assert!(state.set_running(None, true).is_err(), "no engine");
         let _ = std::fs::remove_dir_all(&dir);
     }
+
+    /// The real wiring: a null-audio host whose subscriber is the fan-out; enabling the
+    /// bridge writes the 0600 runtime file and keeps the UI fed; disabling removes it.
+    #[test]
+    fn enable_disable_with_a_real_host() {
+        use ether_core::protocol::project::ProjectCommand;
+        use ether_core::protocol::{ClientMessage, Command, ReplyResult};
+        use ether_native::audio::{AudioBackendKind, AudioSettings};
+        use ether_native::host::{HostConfig, HostOptions};
+
+        let tmp = ether_native::test_util::TempDir::new("desktop-agent-bridge");
+        let host = Arc::new(
+            NativeHost::start(
+                HostConfig {
+                    audio: Some(AudioSettings {
+                        backend: AudioBackendKind::Null,
+                        ..Default::default()
+                    }),
+                    data_dir: tmp.path().join("data"),
+                    instance: "test".into(),
+                    projects_root: tmp.path().join("projects"),
+                    library_roots: Vec::new(),
+                },
+                HostOptions::default(),
+            )
+            .unwrap(),
+        );
+        let state = AgentBridgeState::new(tmp.path().join("app"), "test".into());
+        {
+            let fanout = state.fanout.clone();
+            host.subscribe(Arc::new(move |m| fanout.deliver(m)));
+        }
+        let (tx, rx) = std::sync::mpsc::channel();
+        let tx = Mutex::new(tx);
+        state.fanout.set_ui(Some(Arc::new(move |m| {
+            let _ = tx.lock().unwrap().send(m);
+        })));
+
+        state.set_enabled(Some(host.clone()), true).unwrap();
+        assert!(load_enabled(&tmp.path().join("app")), "persisted");
+        let st = state.status();
+        assert!(st.enabled && st.port.is_some());
+        let info = ether_server::agent_bridge::read_runtime_file(&state.runtime_file()).unwrap();
+        assert_eq!(Some(info.port), st.port);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mode = std::fs::metadata(state.runtime_file())
+                .unwrap()
+                .permissions()
+                .mode();
+            assert_eq!(mode & 0o777, 0o600);
+        }
+        // The UI still gets its replies through the fan-out.
+        host.send(ClientMessage {
+            id: 7,
+            gesture: None,
+            command: Command::Project(ProjectCommand::List),
+        })
+        .unwrap();
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
+        loop {
+            let m = rx
+                .recv_timeout(deadline - std::time::Instant::now())
+                .expect("UI reply");
+            if let ServerMessage::Reply(r) = m {
+                assert_eq!(r.id, 7);
+                assert!(matches!(r.result, ReplyResult::Ok { .. }));
+                break;
+            }
+        }
+
+        state.set_enabled(None, false).unwrap();
+        assert!(!state.runtime_file().exists(), "runtime file removed");
+        assert!(!state.status().enabled);
+        assert!(!load_enabled(&tmp.path().join("app")));
+        state.restore(host.clone());
+        assert!(!state.status().enabled, "stays off after restart");
+    }
 }
