@@ -17,7 +17,7 @@ import { cmd, newId, useTransport } from "@/transport";
 import { startDrag } from "../piano-roll/drag";
 import { curvePath, StrokeSampler, valueToY, yToValue } from "./curve";
 import { useNoteExpressions } from "./hooks";
-import { noteExpressionRange, noteKindLabel, replaceRange, strokePoints } from "./model";
+import { noteExpressionRange, noteKindLabel, replaceRange, strokePoints, type Range } from "./model";
 
 export interface NoteExpressionLaneViewProps {
   kind: NoteExpressionKind;
@@ -25,14 +25,19 @@ export interface NoteExpressionLaneViewProps {
   vp: TimelineViewport;
   widthPx: number;
   height: number;
+  /**
+   * Values shown, inside the kind's range (`mpe`: the Pitch lane shows the track's per-note
+   * bend range, not the full ±96 semitones). Default: the kind's range.
+   */
+  range?: Range;
 }
 
 const PENCIL_PX = 3;
 
-export function NoteExpressionLaneView({ kind, notes, vp, widthPx, height }: NoteExpressionLaneViewProps) {
+export function NoteExpressionLaneView({ kind, notes, vp, widthPx, height, range: shownRange }: NoteExpressionLaneViewProps) {
   const transport = useTransport();
   const svgRef = useRef<SVGSVGElement>(null);
-  const range = noteExpressionRange(kind);
+  const range = shownRange ?? noteExpressionRange(kind);
   const label = noteKindLabel(kind);
   const selectedIds = useSelectedItems("note");
   const noteIds = useMemo(() => notes.map((n) => n.id), [notes]);
@@ -117,6 +122,7 @@ export function NoteExpressionLaneView({ kind, notes, vp, widthPx, height }: Not
       onPointerDown={onPointerDown}
       onContextMenu={onContextMenu}
     >
+      {range[0] < 0 && range[1] > 0 && <line className="eth-expr-lane__centre" x1={0} x2={width} y1={toY(0)} y2={toY(0)} />}
       {shown.map((n) => {
         const xa = beatsToPx(n.start, vp);
         const xb = beatsToPx(n.start + n.duration, vp);

@@ -145,6 +145,9 @@
   --eth-size-playhead-marker-height: 7px;
   --eth-size-grid-step-label-min-width: 3.5em;
   --eth-size-loop-bar-height: 8px;
+  --eth-size-note-stretch-bar-height: 6px;
+  --eth-size-note-stretch-edge-width: 4px;
+  --eth-size-note-stretch-hit-extra: 4px;
   --eth-size-velocity-bar-width: 4px;
   --eth-size-browser-row-height: 24px;
   --eth-size-empty-state-icon: 22px;
