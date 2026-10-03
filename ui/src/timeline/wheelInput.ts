@@ -166,8 +166,13 @@ export function normalizeWheel(e: WheelSample, pagePx: { width: number; height: 
   if (e.deltaMode === LINE) return { dx: e.deltaX * LINE_PX, dy: e.deltaY * LINE_PX, discrete: true };
   if (e.deltaMode === PAGE) return { dx: e.deltaX * pagePx.width, dy: e.deltaY * pagePx.height, discrete: true };
   if (isDiscreteWheel(e)) {
-    const notches = (delta: number, legacy: number | undefined) =>
-      legacy && Math.abs(legacy) % 120 === 0 ? Math.sign(delta) * (Math.abs(legacy) / 120) : delta / NOTCH_PX;
+    // Whole notches from wheelDelta (the pixel step varies with display scaling), unless the
+    // pixels say clearly more (synthetic/automation events cap wheelDelta at one notch).
+    const notches = (delta: number, legacy: number | undefined) => {
+      if (!legacy || Math.abs(legacy) % 120 !== 0) return delta / NOTCH_PX;
+      const n = Math.abs(legacy) / 120;
+      return Math.sign(delta) * (Math.abs(delta) > 1.6 * NOTCH_PX * n ? Math.abs(delta) / NOTCH_PX : n);
+    };
     return { dx: notches(e.deltaX, e.wheelDeltaX) * NOTCH_PX, dy: notches(e.deltaY, e.wheelDeltaY) * NOTCH_PX, discrete: true };
   }
   return { dx: e.deltaX, dy: e.deltaY, discrete: false };

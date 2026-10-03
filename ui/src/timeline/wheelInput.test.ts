@@ -50,7 +50,10 @@ describe("normalizeWheel", () => {
       dy: NOTCH_PX,
       discrete: true,
     });
-    expect(normalizeWheel({ deltaX: 0, deltaY: -150, deltaMode: PIXEL, wheelDeltaY: 240 }).dy).toBe(-2 * NOTCH_PX);
+    expect(normalizeWheel({ deltaX: 0, deltaY: -150, deltaMode: PIXEL, wheelDeltaY: 120 }).dy).toBe(-NOTCH_PX);
+    expect(normalizeWheel({ deltaX: 0, deltaY: -250, deltaMode: PIXEL, wheelDeltaY: 240 }).dy).toBe(-2 * NOTCH_PX);
+    // wheelDelta capped at one notch (automation) while the pixels say three: trust the pixels.
+    expect(normalizeWheel({ deltaX: 0, deltaY: -300, deltaMode: PIXEL, wheelDeltaY: 120 }).dy).toBe(-3 * NOTCH_PX);
   });
 });
 
