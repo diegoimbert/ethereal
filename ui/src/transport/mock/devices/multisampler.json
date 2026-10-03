@@ -7,6 +7,205 @@
       "device": "MultiSampler",
       "type": "Builtin"
     },
+    "layout": {
+      "sections": [
+        {
+          "columns": 1,
+          "id": "zones",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Large",
+              "widget": {
+                "type": "ZoneMap"
+              }
+            }
+          ],
+          "span": 4,
+          "title": "Zones"
+        },
+        {
+          "columns": 2,
+          "id": "pitch",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 1,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 2,
+                "type": "Knob"
+              }
+            }
+          ],
+          "span": 1,
+          "title": "Pitch"
+        },
+        {
+          "columns": 2,
+          "id": "voice",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 3,
+                "type": "Number"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 19,
+                "type": "Choice"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 4,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 5,
+                "type": "Knob"
+              }
+            }
+          ],
+          "span": 1,
+          "title": "Voice"
+        },
+        {
+          "columns": 2,
+          "id": "amp-env",
+          "items": [
+            {
+              "colspan": 2,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "attack": 6,
+                "decay": 7,
+                "delay": null,
+                "hold": null,
+                "release": 9,
+                "sustain": 8,
+                "type": "Envelope"
+              }
+            }
+          ],
+          "span": 1,
+          "title": "Amp Envelope"
+        },
+        {
+          "columns": 2,
+          "id": "filter",
+          "items": [
+            {
+              "colspan": 2,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "cutoff": 11,
+                "drive": null,
+                "gain": null,
+                "mode": 10,
+                "resonance": 12,
+                "type": "FilterCurve"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 13,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 14,
+                "type": "Knob"
+              }
+            }
+          ],
+          "span": 2,
+          "title": "Filter"
+        },
+        {
+          "columns": 2,
+          "id": "filter-env",
+          "items": [
+            {
+              "colspan": 2,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "attack": 15,
+                "decay": 16,
+                "delay": null,
+                "hold": null,
+                "release": 18,
+                "sustain": 17,
+                "type": "Envelope"
+              }
+            }
+          ],
+          "span": 1,
+          "title": "Filter Envelope"
+        },
+        {
+          "columns": 1,
+          "id": "output",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Large",
+              "widget": {
+                "param": 0,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 20,
+                "type": "Knob"
+              }
+            }
+          ],
+          "span": 1,
+          "title": "Output"
+        }
+      ]
+    },
     "midi_input": true,
     "name": "Multisampler",
     "params": [

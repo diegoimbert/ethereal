@@ -45,6 +45,7 @@ const IMPLEMENTED: &[BuiltinDeviceType] = &[
     BuiltinDeviceType::Saturator,
     BuiltinDeviceType::Bitcrusher,
     BuiltinDeviceType::AutoFilter,
+    BuiltinDeviceType::MultiSampler,
 ];
 
 const GROUPS: &[(&str, &[BuiltinDeviceType])] = &[
