@@ -20,7 +20,12 @@ thiserror.workspace = true
 tracing.workspace = true
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-tungstenite.workspace = true
+# `rustls-tls-webpki-roots`: `wss://` for the sharing signaling socket (docs/SHARING.md §6.1).
+tungstenite = { workspace = true, features = ["rustls-tls-webpki-roots"] }
+rustls.workspace = true
+webpki-roots.workspace = true
+# Sharing data channels (docs/SHARING.md §6.1): one str0m `Rtc` per pairing on one UDP socket.
+str0m.workspace = true
 crossbeam-channel.workspace = true
 getrandom.workspace = true
 tracing-subscriber.workspace = true
@@ -39,7 +44,7 @@ async-trait = { workspace = true, optional = true }
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 wasm-bindgen.workspace = true
 js-sys.workspace = true
-web-sys = { workspace = true, features = ["WebSocket", "MessageEvent", "BinaryType", "CloseEvent", "Event"] }
+web-sys = { workspace = true, features = ["WebSocket", "MessageEvent", "BinaryType", "CloseEvent", "Event", "MessagePort"] }
 
 [features]
 default = []

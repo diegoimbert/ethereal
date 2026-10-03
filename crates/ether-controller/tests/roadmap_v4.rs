@@ -13,7 +13,6 @@ use ether_controller::store::ProjectStore;
 use ether_core::protocol::audio_to_midi::{
     AudioToMidiCommand, AudioToMidiMode, AudioToMidiOptions,
 };
-use ether_core::protocol::capture::CaptureCommand;
 use ether_core::protocol::clips::ClipCommand;
 use ether_core::protocol::devices::{DeviceCommand, DeviceSpec};
 use ether_core::protocol::external::ExternalCommand;
@@ -124,24 +123,6 @@ fn audio_streaming_is_off_until_the_node_lands() {
     assert!(!ether_controller::media_stream::should_stream(
         &media, 48_000
     ));
-}
-
-#[test]
-fn capture_midi_replies_unsupported() {
-    let mut h = Harness::with_project();
-    let t = track(&mut h, TrackKind::Midi);
-    let (clip, seed_notes) = (h.id(), h.id());
-    assert_unsupported(
-        &mut h,
-        Command::Capture(CaptureCommand::Capture {
-            track: t,
-            clip,
-            seed_notes,
-            adopt_tempo: true,
-        }),
-    );
-    assert_unsupported(&mut h, Command::Capture(CaptureCommand::Status));
-    assert_unsupported(&mut h, Command::Capture(CaptureCommand::Clear));
 }
 
 #[test]

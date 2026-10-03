@@ -3,7 +3,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AudioConfig, Command } from "@/generated";
 import { pickOption } from "@/kit/testing";
 import { renderWithMock, resetStores } from "@/features/transport-bar/testUtils";
-import { AudioSettingsDialog, openAudioSettings, promptForInputIfNone, useAudioSettings } from "./index";
+import { useCollabStore } from "@/features/collab/store";
+import { useShareSettings } from "@/features/share";
+import { AudioSettingsDialog, openAudioSettings, openSettings, promptForInputIfNone, useAudioSettings } from "./index";
 import { loadAudioDevices } from "./store";
 
 afterEach(() => {
@@ -64,5 +66,68 @@ describe("AudioSettingsDialog", () => {
     await act(async () => promptForInputIfNone(mock));
     expect(useAudioSettings.getState()).toMatchObject({ open: true, reason: "input" });
     expect(await screen.findByText(/Choose an input device to record from/)).toBeInTheDocument();
+  });
+
+  it("has Audio | Sharing | Advanced tabs (base-115)", async () => {
+    const { mock } = await setup();
+    const sent: Command[] = [];
+    // Record on top of setup()'s stub.
+    const stub = vi.mocked(mock.send).getMockImplementation()!;
+    vi.mocked(mock.send).mockImplementation(async (c, o) => {
+      sent.push(c);
+      return stub(c, o);
+    });
+    act(() => openSettings("sharing"));
+    const dialog = screen.getByRole("dialog", { name: "Settings" });
+    expect(screen.getByRole("tab", { name: "Sharing" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByTestId("settings-sharing")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Your name"), { target: { value: "Ada" } });
+    fireEvent.blur(screen.getByLabelText("Your name"));
+    await waitFor(() => expect(sent).toContainEqual({ domain: "Share", command: { type: "SetIdentity", name: "Ada", color: null } }));
+    fireEvent.click(screen.getByRole("switch", { name: /Resume sharing/ }));
+    expect(useShareSettings.getState().resumeOnOpen).toBe(false);
+    await waitFor(() =>
+      expect(sent).toContainEqual({ domain: "Share", command: { type: "SetPreferences", resume_on_open: false, auto_listen: true, relay_only: false } }),
+    );
+
+    fireEvent.click(screen.getByRole("tab", { name: "Advanced" }));
+    const signal = screen.getByLabelText("Signaling server");
+    fireEvent.change(signal, { target: { value: "ftp://nope" } });
+    expect(screen.getByRole("alert")).toHaveTextContent(/http\(s\) address/);
+    fireEvent.change(signal, { target: { value: "https://signal.example.com" } });
+    fireEvent.blur(signal);
+    await waitFor(() =>
+      expect(sent).toContainEqual({ domain: "Share", command: { type: "SetServers", signal_url: "https://signal.example.com", invite_origin: null } }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Add a STUN or TURN server" }));
+    fireEvent.change(screen.getByLabelText("ICE server 1"), { target: { value: "turn:turn.example.com:3478" } });
+    fireEvent.change(screen.getByLabelText("ICE server 1 username"), { target: { value: "u" } });
+    fireEvent.blur(screen.getByLabelText("ICE server 1 username"));
+    await waitFor(() =>
+      expect(sent).toContainEqual({
+        domain: "Collab",
+        command: { type: "SetIceServers", servers: [{ urls: ["turn:turn.example.com:3478"], username: "u", credential: null }] },
+      }),
+    );
+    fireEvent.click(screen.getByRole("switch", { name: "Hide my IP (relay only)" }));
+    await waitFor(() =>
+      expect(sent).toContainEqual({ domain: "Share", command: { type: "SetPreferences", resume_on_open: false, auto_listen: true, relay_only: true } }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Remove ICE server 1" }));
+    await waitFor(() => expect(sent.at(-1)).toEqual({ domain: "Collab", command: { type: "SetIceServers", servers: null } }));
+
+    // The relay join form opens from here (the settings close).
+    fireEvent.click(screen.getByRole("button", { name: "Join a relay session…" }));
+    expect(useCollabStore.getState().dialogOpen).toBe(true);
+    expect(useAudioSettings.getState().open).toBe(false);
+    expect(dialog).toBeInTheDocument();
+    act(() => useCollabStore.getState().setDialogOpen(false));
+    // The gear reopens the last tab.
+    act(() => openSettings());
+    expect(screen.getByRole("tab", { name: "Advanced" })).toHaveAttribute("aria-selected", "true");
+    act(() => openAudioSettings());
+    expect(screen.getByRole("tab", { name: "Audio" })).toHaveAttribute("aria-selected", "true");
+    localStorage.clear();
+    useShareSettings.getState().reload();
   });
 });
