@@ -32,6 +32,7 @@ const IMPLEMENTED: &[BuiltinDeviceType] = &[
     BuiltinDeviceType::SpectrumAnalyzer,
     BuiltinDeviceType::Tuner,
     BuiltinDeviceType::PolySynth,
+    BuiltinDeviceType::MultiSampler,
 ];
 
 const GROUPS: &[(&str, &[BuiltinDeviceType])] = &[

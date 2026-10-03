@@ -1003,6 +1003,7 @@ where
                                 matches!(&dev.kind, DeviceKind::Builtin {
                                     device: BuiltinDevice::Sampler { sample: Some(m), .. }
                                 } if loaded.contains(m))
+                                    || crate::multisampler::uses_media(&dev.kind, &loaded)
                             })
                             .map(|dev| dev.id)
                             .collect()

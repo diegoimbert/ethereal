@@ -250,6 +250,23 @@ impl EngineBridge for NativeBridge {
         device: DeviceId,
         kind: &BuiltinDevice,
     ) -> Result<bool, BridgeError> {
+        // Multisampler zone edits: the resolved zone set, swapped in by `Node::set_data`.
+        if let BuiltinDevice::MultiSampler { .. } = kind {
+            let Some(entry) = self.devices.get(&device) else {
+                return Ok(false);
+            };
+            if !matches!(
+                entry.kind,
+                DeviceKind::Builtin(BuiltinDeviceType::MultiSampler)
+            ) {
+                return Ok(false);
+            }
+            let set = ether_devices::multisampler::zone_set(kind, &Sources(&self.sources));
+            self.handle
+                .set_node_data(entry.key, Box::new(set))
+                .map_err(engine_err)?;
+            return Ok(true);
+        }
         let BuiltinDevice::Sampler { slices, .. } = kind else {
             return Ok(false);
         };
@@ -776,6 +793,24 @@ mod tests {
             b.update_builtin(DeviceId(Ulid(6)), &sampler(vec![])),
             Ok(false)
         );
+    }
+
+    #[test]
+    fn multisampler_zones_update_in_place() {
+        use ether_core::protocol::model::SampleZone;
+        let (mut b, _engine) = bridge();
+        let d = DeviceId(Ulid(7));
+        let ms = |n: usize| BuiltinDevice::MultiSampler {
+            zones: vec![SampleZone::default(); n],
+        };
+        let key = b.create_builtin(d, &ms(1), &[]).unwrap();
+        assert_eq!(b.update_builtin(d, &ms(2)), Ok(true));
+        assert_eq!(b.node_of(d), Some(key), "same node");
+        // A multisampler kind sent for another device type is refused.
+        let s = DeviceId(Ulid(8));
+        b.create_builtin(s, &BuiltinDevice::Compressor, &[])
+            .unwrap();
+        assert_eq!(b.update_builtin(s, &ms(1)), Ok(false));
     }
 
     #[test]

@@ -91,19 +91,32 @@ fn synth_2_poly_synth_inserts_compiles_and_keeps_its_params() {
     assert_eq!(dev.channels(), (0, 2));
 }
 
+/// multisampler: inserts and compiles; `SetZones` edits the zones (empty zones need no
+/// media); behaviour tests in `tests/multisampler.rs`.
 #[test]
-fn multisampler_is_a_placeholder() {
+fn multisampler_inserts_and_sets_zones() {
     group_inserts_and_compiles(&[BuiltinDeviceType::MultiSampler]);
     let mut h = Harness::with_project();
     let t = track(&mut h, TrackKind::Midi);
     let d = insert(&mut h, t, BuiltinDeviceType::MultiSampler);
-    assert_unsupported(
-        &mut h,
-        Command::Device(DeviceCommand::SetZones {
-            device: d,
-            zones: vec![SampleZone::default()],
-        }),
+    h.ok(Command::Device(DeviceCommand::SetZones {
+        device: d,
+        zones: vec![SampleZone::default()],
+    }));
+    assert_eq!(
+        h.project().devices[&d].kind,
+        DeviceKind::Builtin {
+            device: BuiltinDevice::MultiSampler {
+                zones: vec![SampleZone::default()]
+            }
+        }
     );
+    let dev = ether_devices::create(
+        &BuiltinDevice::new(BuiltinDeviceType::MultiSampler),
+        &ether_devices::NoSamples,
+    );
+    assert_eq!(dev.channels(), (0, 2));
+    assert!(dev.descriptor().layout.is_some());
 }
 
 #[test]
