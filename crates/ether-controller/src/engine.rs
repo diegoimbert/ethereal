@@ -376,7 +376,12 @@ impl EngineState {
     ) {
         // v0.2 (`midi-fx`): a Scale Quantize's `Scale` source picks the pushed scale.
         if applied.iter().any(|op| {
-            matches!(op, Op::Update { update: EntityUpdate::Device { .. } })
+            matches!(
+                op,
+                Op::Update {
+                    update: EntityUpdate::Device { .. }
+                }
+            )
         }) {
             let nodes = &self.nodes;
             crate::midi_fx::push_scales(

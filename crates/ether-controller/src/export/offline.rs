@@ -215,6 +215,10 @@ impl NodeSetup {
                     for (id, v) in &d.params {
                         node.set_param(*id, *v);
                     }
+                    // v0.2 (`midi-fx`, BCR-C): Scale Quantize / Random render with their scale.
+                    if let Some(s) = crate::midi_fx::scale_for(p, d) {
+                        drop(node.set_data(Box::new(s)));
+                    }
                     node
                 }
                 DeviceKind::Plugin { plugin } => {
