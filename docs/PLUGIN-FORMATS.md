@@ -39,6 +39,9 @@ Scanning stays out-of-process and crash-safe:
 - One scan target per child process. A `ScanRequest` carries an optional `format`; without one, the scanner infers the format from the path.
 - A timeout kills hung scans.
 - The pipe drain is bounded (`ScanRunner::drain_timeout`), so a daemon left behind by a plugin can't hang a scan.
+- Children run in a bounded pool (`ScanRunner::jobs`, base-129): `min(cores / 2, 8)`, at least 1, overridable with `ETHER_SCAN_JOBS`. Each child still scans one target with its own timeout. The report lists results in input order, whatever order the children finish in. Every format runs in parallel, AU included: each AU is loaded in its own scanner process, so there is no shared in-process registry state to lock. If a format ever needs serializing, give it its own one-job pass.
+- Scans are incremental (`ScanCache`, `<data>/plugin-db/scan-cache.json`, next to `plugins.json`). Each target's result is cached, failures included, keyed by format + canonical path. It is validated by a fingerprint: the newest mtime, total size and entry count of the bundle tree. The whole cache is dropped when the crate version or the scanner binary changes. A rescan runs the scanner only on new or changed targets, and drops removed ones. `Plugin::Rescan { full: true }` ("Full rescan") ignores the cache and retries failures. If the scanner fails to start, that failure isn't cached. AU component ids have nothing on disk to fingerprint, so an updated AU keeps its old descriptor until a full rescan. New and removed AUs are still picked up.
+- What is scanned (`PluginFolderSettings`, `<data>/plugin-db/folders.json`): the OS default folders when "System folders" is on (the default; it also covers the AU registry), plus the user's folders, each limited to one format or to any. Overlapping folders are walked once, deduplicated by canonical path. `Plugin::{ListFolders, AddFolder, RemoveFolder, SetIncludeDefaults}` edit these settings and start an incremental rescan. The UI is in Settings > Plugins.
 
 The sandbox helper takes `--format <clap|vst3|au>` (default `clap`) through `SandboxOptions.format`. It loads through `Formats::instantiate`, so sandboxing works for every format as soon as its host does.
 
@@ -149,8 +152,9 @@ Done by the `formats-integration` node:
   the track plays the dry signal (bypassed). A rescan followed by a reload (or reopening the
   project) loads it with its saved state. The UI shows such a device as "missing · bypassed",
   checked against the scanned list by `(format, id)`.
-- **Rescan.** `spawn_scan` scans `formats().discover(None)` (every format's search paths
-  plus the AU component registry) with `ScanRunner::scan_targets`.
+- **Rescan.** `spawn_scan` scans `PluginFolderSettings::discover` (the default search paths
+  and AU registry if enabled, plus the user folders) with `ScanRunner::scan_targets_cached`
+  (parallel, incremental; see above). A rescan asked for during a scan runs right after it.
 - **Sandbox.** `SandboxOptions.format` is passed to the helper (`--format`), so the per-plugin
   sandbox toggle works for every format. **AUv3 decision:** AUv3 extensions already run out of
   process (Apple's XPC bridge), but sandboxing one is *allowed*: the helper then hosts the

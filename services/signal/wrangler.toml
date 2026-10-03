@@ -1,0 +1,31 @@
+# Ethereal signaling service (docs/SHARING.md §3). NOT deployed by CI: see README.md.
+name = "ethereal-signal"
+main = "src/index.ts"
+compatibility_date = "2026-09-01"
+
+# One Durable Object per room: the host's socket, waiting/paired joiners, door hashes.
+[[durable_objects.bindings]]
+name = "ROOMS"
+class_name = "SignalRoom"
+
+# One Durable Object per client IP: room claims per hour and bad doors per minute.
+[[durable_objects.bindings]]
+name = "BUDGETS"
+class_name = "IpBudget"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["SignalRoom", "IpBudget"]
+
+[vars]
+# Web origins allowed to open sockets from a browser (comma-separated; `*` suffix = any
+# subdomain, for Pages previews). Native clients send no Origin and are allowed.
+ALLOWED_ORIGINS = "https://etherealws.pages.dev,https://*.etherealws.pages.dev,tauri://localhost,http://tauri.localhost,http://localhost:*"
+# ICE servers advertised to hosts and joiners (comma-separated `stun:` URLs).
+STUN_URLS = "stun:stun.cloudflare.com:3478"
+# Days a room survives without its host connecting.
+ROOM_TTL_DAYS = "30"
+
+# Optional TURN (Cloudflare Realtime TURN or coturn REST): set as secrets, never here.
+#   wrangler secret put TURN_KEY_ID
+#   wrangler secret put TURN_KEY_API_TOKEN

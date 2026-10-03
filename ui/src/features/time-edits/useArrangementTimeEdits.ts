@@ -12,6 +12,7 @@ import { openContextMenu } from "@/kit";
 import { itemSelection, pxToBeats, resolveGrid, snapToGrid, useTempoMap, type Rect } from "@/timeline";
 import type { EngineTransport } from "@/transport";
 import { arrangementView, useArrangementUi } from "@/features/arrangement/uiStore";
+import { matchesAction } from "@/features/keymap";
 import { bindTimeSelection, inTimeSelection, runTimeAction, timeActionForKey, timeSelectionMenu, type TimeActionContext } from "./actions";
 import { selectionFromRect, type SelectionRow } from "./commands";
 import { clearTimeSelection, useTimeSelection } from "./store";
@@ -66,7 +67,7 @@ export function useArrangementTimeEdits(transport: EngineTransport, rowsRef: Ref
     onKeyDown: (e) => {
       const action = timeActionForKey(e, context());
       if (!action) {
-        if (e.key === "Escape") clearTimeSelection();
+        if (matchesAction("edit.deselect", e)) clearTimeSelection();
         return false;
       }
       e.preventDefault();

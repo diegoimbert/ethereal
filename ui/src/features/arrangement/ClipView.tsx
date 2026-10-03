@@ -10,6 +10,7 @@ import { useEditorStore, useNotesOfClip, useProjectStore, warpMarkersOfClip } fr
 import { useIsSelected, type TempoMap, type TimelineViewport } from "@/timeline";
 import { openContextMenu, useThemeColor } from "@/kit";
 import { withFreezeClipEntries } from "@/features/freeze";
+import { AudioToMidiClipStatus, withAudioToMidiEntries } from "@/features/audio-to-midi";
 import { MissingClipBadge, useMediaMissing, withMediaRefClipEntries } from "@/features/media-refs";
 import { clipMenu } from "./actions";
 import { onClipPointerDown } from "./clipDrag";
@@ -82,7 +83,22 @@ export const ClipView = memo(function ClipView({ clip, bounds, trackColor, vp, v
       aria-label={ghost ? undefined : clip.name || "Clip"}
       aria-pressed={ghost ? undefined : selected}
       onPointerDown={ghost ? undefined : (e) => onClipPointerDown(e, clip, ctx)}
-      onContextMenu={ghost ? undefined : (e) => openContextMenu(e, withMediaRefClipEntries(withFreezeClipEntries(withClipEditingEntries(clipMenu(ctx.transport, clip), ctx.transport, clip), ctx.transport, clip), clip))}
+      onContextMenu={
+        ghost
+          ? undefined
+          : (e) =>
+              openContextMenu(
+                e,
+                withMediaRefClipEntries(
+                  withAudioToMidiEntries(
+                    withFreezeClipEntries(withClipEditingEntries(clipMenu(ctx.transport, clip), ctx.transport, clip), ctx.transport, clip),
+                    ctx.transport,
+                    clip,
+                  ),
+                  clip,
+                ),
+              )
+      }
       onDoubleClick={
         ghost
           ? undefined
@@ -101,6 +117,7 @@ export const ClipView = memo(function ClipView({ clip, bounds, trackColor, vp, v
         {clip.content.type === "Audio" && clip.content.reversed && <ReversedBadge />}
         {!ghost && <MissingClipBadge media={sample} />}
         {clip.name && <span className="eth-clip__name">{clip.name}</span>}
+        {!ghost && clip.content.type === "Audio" && <AudioToMidiClipStatus clip={clip} transport={ctx.transport} />}
         {editors.length > 0 && (
           <span
             className="eth-clip__editors"

@@ -109,7 +109,7 @@ where
     }
 
     /// Serialize a project, with every plugin's live state read from the engine.
-    fn serialize(&mut self, project: &Project) -> CmdResult<String> {
+    pub(crate) fn serialize(&mut self, project: &Project) -> CmdResult<String> {
         let mut copy = project.clone();
         for d in copy.devices.values_mut() {
             if let DeviceKind::Plugin { plugin } = &mut d.kind
@@ -140,7 +140,7 @@ where
         Ok(summary)
     }
 
-    fn autosave_before_switch(&mut self, out: &mut dyn MessageSink) -> CmdResult<()> {
+    pub(crate) fn autosave_before_switch(&mut self, out: &mut dyn MessageSink) -> CmdResult<()> {
         if self.doc.as_ref().is_some_and(|d| d.dirty) {
             self.save_current(out)?;
         }
@@ -153,6 +153,20 @@ where
         name: &str,
         now: u64,
         out: &mut dyn MessageSink,
+    ) -> CmdResult<ReplyValue> {
+        self.create_with(id, name, now, out, |_, _| Ok(()))
+    }
+
+    /// `Project::Create`; `init` fills the new document (and may write files to the new
+    /// project folder) before it is saved and opened (v0.3 `templates`: `NewProject`). Its
+    /// id and name are set afterwards; if `init` fails the folder is removed again.
+    pub(crate) fn create_with(
+        &mut self,
+        id: ProjectId,
+        name: &str,
+        now: u64,
+        out: &mut dyn MessageSink,
+        init: impl FnOnce(&mut Self, &mut Project) -> CmdResult<()>,
     ) -> CmdResult<ReplyValue> {
         let name = check_name(name)?;
         if let Some(doc) = &self.doc
@@ -169,6 +183,10 @@ where
             e => store_err(e),
         })?;
         let mut project = Project::new(&mut self.ids, now);
+        if let Err(e) = init(self, &mut project) {
+            let _ = self.store.delete(id);
+            return Err(e);
+        }
         project.id = id;
         project.settings.name = name;
         let json = file::save(&project, &self.config.app_version).map_err(file_err)?;
@@ -216,6 +234,8 @@ where
             StoreError::AlreadyExists(_) => invalid(format!("project {new_id} already exists")),
             e => store_err(e),
         })?;
+        // base-115: a copy is a private project (never the original's `share.json`).
+        crate::share::clear_share_file(&mut self.store, new_id);
         let mut project = doc.project.clone();
         project.id = new_id;
         project.settings.name = name;
@@ -247,6 +267,9 @@ where
                 },
             );
         }
+        // project-versions: the session moves to the new folder.
+        let now = self.host.now_ms();
+        self.versions_on_identity_change(now);
         self.emit_list_changed(out);
         Ok(ReplyValue::Project {
             project: Box::new(project),
@@ -266,6 +289,10 @@ where
             return Ok(ReplyValue::Saved { project: existing });
         }
         self.store.duplicate(id, new_id).map_err(store_err)?;
+        // base-115: a duplicate is a private project (never the original's `share.json`).
+        crate::share::clear_share_file(&mut self.store, new_id);
+        // project-versions: the copy is not open anywhere.
+        self.versions_forget_marker(new_id);
         let current = self
             .doc
             .as_ref()
@@ -286,7 +313,7 @@ where
 
     /// Make `project` the open document: reset history, runtime state, engine nodes and
     /// media, then announce it.
-    fn load_project(&mut self, project: Project, now: u64, out: &mut dyn MessageSink) {
+    pub(crate) fn load_project(&mut self, project: Project, now: u64, out: &mut dyn MessageSink) {
         self.engine.reset();
         self.media.reset(&mut self.bridge);
         self.armed.clear();
@@ -324,5 +351,11 @@ where
         self.media.sync(&mut self.bridge, Some(&doc.project));
         self.engine.graph_dirty = true;
         self.publish_if_due(now, true, out);
+        // base-115: hosting/joined sessions of another project pause; this one resumes
+        // sharing or reconnects (docs/SHARING.md §7).
+        let pid = self.doc.as_ref().expect("just set").project.id;
+        self.share_project_loaded(pid, out);
+        // project-versions: session marker and version clock.
+        self.versions_on_load(now);
     }
 }

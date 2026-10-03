@@ -243,6 +243,21 @@ impl EngineBridge for NativeBridge {
         Ok(key)
     }
 
+    /// v0.2 (`midi-fx`): the resolved scale reaches the live node (`Node::set_data`).
+    fn set_node_scale(
+        &mut self,
+        device: DeviceId,
+        scale: ether_core::protocol::model::MusicalScale,
+    ) -> Result<bool, BridgeError> {
+        let Some(entry) = self.devices.get(&device) else {
+            return Ok(false);
+        };
+        self.handle
+            .set_node_data(entry.key, Box::new(scale))
+            .map_err(engine_err)?;
+        Ok(true)
+    }
+
     /// Sampler slice edits reach the live node in place (`Node::set_data` with the new
     /// `SliceSettings`), so sounding notes aren't cut. Anything else: re-create.
     fn update_builtin(
@@ -250,6 +265,47 @@ impl EngineBridge for NativeBridge {
         device: DeviceId,
         kind: &BuiltinDevice,
     ) -> Result<bool, BridgeError> {
+        // Multisampler zone edits: the resolved zone set, swapped in by `Node::set_data`.
+        if let BuiltinDevice::MultiSampler { .. } = kind {
+            let Some(entry) = self.devices.get(&device) else {
+                return Ok(false);
+            };
+            if !matches!(
+                entry.kind,
+                DeviceKind::Builtin(BuiltinDeviceType::MultiSampler)
+            ) {
+                return Ok(false);
+            }
+            let set = ether_devices::multisampler::zone_set(kind, &Sources(&self.sources));
+            self.handle
+                .set_node_data(entry.key, Box::new(set))
+                .map_err(engine_err)?;
+            return Ok(true);
+        }
+        // v0.3 (`fx-space`): a new IR, read and partitioned here (off the audio thread);
+        // the node crossfades to it.
+        if let BuiltinDevice::ConvolutionReverb { .. } = kind {
+            let Some(entry) = self.devices.get(&device) else {
+                return Ok(false);
+            };
+            if !matches!(
+                entry.kind,
+                DeviceKind::Builtin(BuiltinDeviceType::ConvolutionReverb)
+            ) {
+                return Ok(false);
+            }
+            let Some(data) = ether_devices::fx_space::ir_swap(
+                kind,
+                &Sources(&self.sources),
+                self.prepare.sample_rate,
+            ) else {
+                return Ok(false);
+            };
+            self.handle
+                .set_node_data(entry.key, data)
+                .map_err(engine_err)?;
+            return Ok(true);
+        }
         let BuiltinDevice::Sampler { slices, .. } = kind else {
             return Ok(false);
         };
@@ -776,6 +832,43 @@ mod tests {
             b.update_builtin(DeviceId(Ulid(6)), &sampler(vec![])),
             Ok(false)
         );
+    }
+
+    #[test]
+    fn multisampler_zones_update_in_place() {
+        use ether_core::protocol::model::SampleZone;
+        let (mut b, _engine) = bridge();
+        let d = DeviceId(Ulid(7));
+        let ms = |n: usize| BuiltinDevice::MultiSampler {
+            zones: vec![SampleZone::default(); n],
+        };
+        let key = b.create_builtin(d, &ms(1), &[]).unwrap();
+        assert_eq!(b.update_builtin(d, &ms(2)), Ok(true));
+        assert_eq!(b.node_of(d), Some(key), "same node");
+        // A multisampler kind sent for another device type is refused.
+        let s = DeviceId(Ulid(8));
+        b.create_builtin(s, &BuiltinDevice::Compressor, &[])
+            .unwrap();
+        assert_eq!(b.update_builtin(s, &ms(1)), Ok(false));
+    }
+
+    #[test]
+    fn convolution_ir_updates_in_place() {
+        use ether_core::protocol::model::IrSource;
+        let (mut b, _engine) = bridge();
+        let d = DeviceId(Ulid(9));
+        let reverb = |id: Option<&str>| BuiltinDevice::ConvolutionReverb {
+            ir: id.map(|id| IrSource::Factory { id: id.into() }),
+        };
+        let key = b.create_builtin(d, &reverb(Some("room")), &[]).unwrap();
+        assert_eq!(b.update_builtin(d, &reverb(Some("hall"))), Ok(true));
+        assert_eq!(b.update_builtin(d, &reverb(None)), Ok(true));
+        assert_eq!(b.node_of(d), Some(key), "same node");
+        // A reverb kind sent for another device type is refused.
+        let s = DeviceId(Ulid(10));
+        b.create_builtin(s, &BuiltinDevice::Compressor, &[])
+            .unwrap();
+        assert_eq!(b.update_builtin(s, &reverb(Some("hall"))), Ok(false));
     }
 
     #[test]

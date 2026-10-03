@@ -1,0 +1,33 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "Lush Ensemble",
+    "device": {
+      "type": "Builtin",
+      "device": "Chorus"
+    },
+    "meta": {
+      "tags": [
+        "ensemble",
+        "strings",
+        "pads"
+      ],
+      "author": "Ethereal",
+      "description": "String-machine ensemble: three voices with slow and fast LFOs for thick pads."
+    },
+    "params": {
+      "0": 1.0,
+      "1": 0.6,
+      "2": 70.0,
+      "3": 12.0,
+      "4": 3.0,
+      "5": 100.0,
+      "6": 10.0,
+      "7": 9000.0,
+      "8": 60.0,
+      "9": 0.0
+    }
+  }
+}

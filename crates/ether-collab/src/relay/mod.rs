@@ -157,6 +157,9 @@ struct Session {
     media_bytes: usize,
     /// A compaction snapshot was requested from this connection, at this log length.
     compacting: Option<(ConnId, u64)>,
+    /// base-115 (share hub): only this connection creates the session and answers
+    /// compaction requests ([`Relay::set_snapshot_source`]).
+    snapshot_source: Option<ConnId>,
 }
 
 impl Session {
@@ -273,6 +276,43 @@ impl Relay {
         self.ice = Some(provider);
     }
 
+    /// base-115 (share hub, docs/SHARING.md §2.3): only `conn` (the host's own site) is
+    /// asked to create its session and to send compaction snapshots; other connections
+    /// (view-only joiners) never are. No-op for an unknown connection.
+    pub fn set_snapshot_source(&mut self, conn: ConnId) {
+        if let Some(s) = self.conns.get(&conn).and_then(|n| self.sessions.get_mut(n)) {
+            s.snapshot_source = Some(conn);
+        }
+    }
+
+    /// base-115 (share hub): give `conn` the presence colour `color` (a joiner's
+    /// preference) if no other connection of its session has it. Call it before the
+    /// connection says hello. Returns whether the colour was set.
+    pub fn set_color(&mut self, conn: ConnId, color: Color) -> bool {
+        let Some(s) = self.conns.get(&conn).and_then(|n| self.sessions.get_mut(n)) else {
+            return false;
+        };
+        if s.peers
+            .iter()
+            .any(|(id, p)| *id != conn && p.color == color)
+        {
+            return false;
+        }
+        match s.peers.get_mut(&conn) {
+            Some(p) => {
+                p.color = color;
+                true
+            }
+            None => false,
+        }
+    }
+
+    /// The presence colour of `conn`.
+    pub fn color(&self, conn: ConnId) -> Option<Color> {
+        let s = self.sessions.get(self.conns.get(&conn)?)?;
+        s.peers.get(&conn).map(|p| p.color)
+    }
+
     pub fn session_count(&self) -> usize {
         self.sessions.len()
     }
@@ -343,6 +383,9 @@ impl Relay {
         }
         if s.compacting.is_some_and(|(c, _)| c == conn) {
             s.compacting = None;
+        }
+        if s.snapshot_source == Some(conn) {
+            s.snapshot_source = None;
         }
         if s.peers.is_empty() {
             // Nobody left: the session (log, snapshot, media) is dropped. Sites keep their
@@ -448,11 +491,10 @@ impl Relay {
         if s.peers.values().any(|p| p.creator) {
             return;
         }
-        if let Some((id, p)) = s
-            .peers
-            .iter_mut()
-            .find(|(_, p)| p.waiting.is_some() && p.site.is_some())
-        {
+        let source = s.snapshot_source;
+        if let Some((id, p)) = s.peers.iter_mut().find(|(id, p)| {
+            p.waiting.is_some() && p.site.is_some() && source.is_none_or(|c| c == **id)
+        }) {
             p.creator = true;
             let site = p.site.expect("checked");
             out.push((
@@ -728,12 +770,14 @@ impl Relay {
                     .is_some_and(|(_, at)| len >= at + compact_after as u64);
                 if s.log.len() > compact_after && (s.compacting.is_none() || stale) {
                     let skip = s.compacting.map(|(c, _)| c);
+                    let source = s.snapshot_source;
+                    let can = |id: &ConnId, p: &Peer| p.ready && source.is_none_or(|c| c == *id);
                     // Any ready peer can answer; prefer the oldest connection.
                     if let Some((id, p)) = s
                         .peers
                         .iter()
-                        .find(|(id, p)| p.ready && Some(**id) != skip)
-                        .or_else(|| s.peers.iter().find(|(_, p)| p.ready))
+                        .find(|(id, p)| can(id, p) && Some(**id) != skip)
+                        .or_else(|| s.peers.iter().find(|(id, p)| can(id, p)))
                     {
                         s.compacting = Some((*id, len));
                         out.push((

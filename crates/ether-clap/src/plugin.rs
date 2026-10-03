@@ -8,6 +8,7 @@ use std::time::Instant;
 
 use clack_extensions::audio_ports::{AudioPortFlags, AudioPortInfoBuffer};
 use clack_extensions::gui::{GuiConfiguration, GuiSize, PluginGui, Window as ClapWindow};
+use clack_extensions::note_ports::{NoteDialects, NotePortInfoBuffer};
 use clack_host::events::event_types::ParamValueEvent;
 use clack_host::events::spaces::CoreEventSpace;
 use clack_host::prelude::*;
@@ -144,10 +145,17 @@ impl ClapPlugin {
     }
 
     fn query_params(&mut self) -> Vec<ParamInfo> {
-        match self.exts().params {
-            Some(ext) => crate::params::list(&ext, &self.instance.plugin_handle()),
+        let exts = self.exts();
+        let handle = self.instance.plugin_handle();
+        let mut params = match exts.params {
+            Some(ext) => crate::params::list(&ext, &handle),
             None => Vec::new(),
+        };
+        if let Some(rc) = exts.remote_controls {
+            let slots = crate::params::remote_slots(&rc, &handle);
+            crate::params::apply_remote_slots(&mut params, &slots);
         }
+        params
     }
 
     fn port_layout(&mut self) -> PortLayout {
@@ -199,6 +207,19 @@ impl ClapPlugin {
         let midi = self.has_note_input();
         self.io = (i, o, midi);
         self.sidechain = layout.sidechain_channels();
+    }
+
+    /// v0.3 (`mpe`): the plugin's first note input port takes the CLAP dialect, so it gets
+    /// `clap_event_note_expression` (TUNING / PRESSURE / BRIGHTNESS); otherwise per-note
+    /// expression goes out as MPE MIDI (`ether_core::expression::mpe::MpeOut`).
+    fn takes_note_expressions(&mut self) -> bool {
+        let Some(ext) = self.exts().note_ports else {
+            return false;
+        };
+        let handle = self.instance.plugin_handle();
+        let mut buffer = NotePortInfoBuffer::new();
+        ext.get(&handle, 0, true, &mut buffer)
+            .is_some_and(|info| info.supported_dialects.contains(NoteDialects::CLAP))
     }
 
     fn has_note_input(&mut self) -> bool {
@@ -405,6 +426,7 @@ impl PluginController for ClapPlugin {
             .map(|p| (p.id.0, self.param_value(p.id).unwrap_or(p.default)))
             .collect();
         let descriptor = self.descriptor();
+        let note_expressions = self.takes_note_expressions();
 
         let max_frames = config.max_block_size.max(1);
         let processor = self
@@ -436,6 +458,7 @@ impl PluginController for ClapPlugin {
             max_frames,
             max_events: config.max_events_per_block,
             values,
+            note_expressions,
         })))
     }
 

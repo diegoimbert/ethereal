@@ -3,6 +3,7 @@
 // and exposes them to `WasmTransport` as a `WasmEndpoint`.
 import wasmUrl from "@ether-wasm/ether_wasm_bg.wasm?url";
 import { tapClockBuffer } from "@/features/collab/host/tapClock";
+import { startShareEndpoint } from "@/features/share/endpoint";
 import { Emitter } from "@/transport/EngineTransport";
 import type { StreamOutput, WasmEndpoint } from "@/transport/wasm/WasmTransport";
 import workletUrl from "./engine.worklet.ts?worker&url";
@@ -13,6 +14,7 @@ import {
   REPORT_RING_BYTES,
   ringBuffer,
   type FromController,
+  type ShareProbeMethod,
   type ToController,
 } from "./protocol";
 
@@ -51,8 +53,21 @@ function resumeOnGesture(context: AudioContext): () => void {
   };
 }
 
-export function createWebEndpoint(): WasmEndpoint & { handles(): WebEngineHandles | null; streamOutput(): StreamOutput | null } {
+/** What `createWebEndpoint` returns (`window.__etherEngine`). */
+export interface WebEndpoint extends WasmEndpoint {
+  handles(): WebEngineHandles | null;
+  streamOutput(): StreamOutput | null;
+  /**
+   * Diagnostics and e2e: call a method of the Worker's `ShareProbe` (a bare web peer
+   * endpoint on the share port, crates/ether-wasm/src/share.rs).
+   */
+  shareProbe(method: ShareProbeMethod, ...args: unknown[]): Promise<unknown>;
+}
+
+export function createWebEndpoint(): WebEndpoint {
   const batches = new Emitter<string>();
+  const probeCalls = new Map<number, { resolve(v: unknown): void; reject(e: Error): void }>();
+  let nextProbe = 1;
   const fatal = new Emitter<Error>();
   let handles: WebEngineHandles | null = null;
   let cleanup: (() => void)[] = [];
@@ -104,6 +119,9 @@ export function createWebEndpoint(): WasmEndpoint & { handles(): WebEngineHandle
     });
     handles = { context, node, controller, fs, tapClock, streamDestination: null };
     cleanup.push(resumeOnGesture(context));
+    // The share port (docs/SHARING.md §6.2): this thread's peer connections for the Worker.
+    const share = new MessageChannel();
+    cleanup.push(startShareEndpoint(share.port1));
 
     await new Promise<void>((resolve, reject) => {
       controller.onerror = (e) => {
@@ -123,6 +141,13 @@ export function createWebEndpoint(): WasmEndpoint & { handles(): WebEngineHandle
             reject(new Error(msg.message));
             die(`controller: ${msg.message}`);
             break;
+          case "share-probe": {
+            const call = probeCalls.get(msg.id);
+            probeCalls.delete(msg.id);
+            if (msg.error !== undefined) call?.reject(new Error(msg.error));
+            else call?.resolve(msg.result);
+            break;
+          }
         }
       };
       const init: ToController = {
@@ -134,8 +159,9 @@ export function createWebEndpoint(): WasmEndpoint & { handles(): WebEngineHandle
         fsPort: channel.port2,
         seed: randomSeed(),
         sampleRate: context.sampleRate,
+        sharePort: share.port2,
       };
-      controller.postMessage(init, [channel.port2]);
+      controller.postMessage(init, [channel.port2, share.port2]);
     });
   };
 
@@ -147,6 +173,15 @@ export function createWebEndpoint(): WasmEndpoint & { handles(): WebEngineHandle
     onMessages: (l) => batches.on(l),
     onFatal: (l) => fatal.on(l),
     handles: () => handles,
+    shareProbe(method, ...args) {
+      const h = handles;
+      if (!h) return Promise.reject(new Error("the engine is not started"));
+      const id = nextProbe++;
+      return new Promise((resolve, reject) => {
+        probeCalls.set(id, { resolve, reject });
+        h.controller.postMessage({ type: "share-probe", id, method, args } satisfies ToController);
+      });
+    },
     streamOutput() {
       const h = handles;
       if (!h) return null;
@@ -168,6 +203,8 @@ export function createWebEndpoint(): WasmEndpoint & { handles(): WebEngineHandle
         void handles.context.close();
         handles = null;
       }
+      for (const call of probeCalls.values()) call.reject(new Error("engine disposed"));
+      probeCalls.clear();
       batches.clear();
       fatal.clear();
     },

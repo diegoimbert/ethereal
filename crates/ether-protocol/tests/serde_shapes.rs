@@ -74,6 +74,7 @@ fn sample_track(id_: TrackId) -> Track {
         output: TrackOutput::Default,
         monitor: MonitorMode::Auto,
         scale: Default::default(),
+        mpe: None,
     }
 }
 
@@ -217,6 +218,7 @@ fn project_store_and_browser_shapes() {
             id: pid,
             name: "Song".into(),
             modified_ms: 1.0,
+            share: None,
         }],
     });
     let json = roundtrip(&Command::Media(MediaCommand::Import {

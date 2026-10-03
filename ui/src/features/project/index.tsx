@@ -4,6 +4,8 @@
 import "./project.css";
 import { useEffect, useRef } from "react";
 import { Menu } from "lucide-react";
+import { matchesAction } from "@/features/keymap";
+import { TemplateDialogs } from "@/features/templates";
 import { useEngineCommands } from "@/features/transport-bar/engine";
 import { Button } from "@/kit";
 import { useProjectStore } from "@/state";
@@ -55,10 +57,11 @@ export function ProjectMenu() {
     return () => clearTimeout(t);
   }, [dirty, disabled, revision]);
 
-  // Ctrl/Cmd+S saves (also from text fields: the browser's own "save page" is never wanted).
+  // Ctrl/Cmd+S saves (keymap `project.save`; also from text fields: the browser's own "save
+  // page" is never wanted).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === "s") {
+      if (matchesAction("project.save", e)) {
         e.preventDefault();
         saveRef.current();
       }
@@ -73,6 +76,8 @@ export function ProjectMenu() {
         <Menu aria-hidden />
       </Button>
       <ProjectScreen commands={commands} />
+      {/* templates: save/insert/rename/delete template dialogs (track menu, palette, project screen). */}
+      <TemplateDialogs />
       <span className="eth-project__name" data-testid="project-name" title={name ?? undefined}>
         {name ?? "No project"}
       </span>

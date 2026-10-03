@@ -128,6 +128,7 @@ import { mulberry32, SEED_TIME, seededIdFactory } from "./random";
 import { beatsToSeconds, bpmAt, signatureAt } from "./tempo";
 import { changeKey, Tx } from "./tx";
 import { MockCollab } from "./roadmap/collab";
+import { MockShare } from "./roadmap/share";
 import { MockExports } from "./roadmap/export";
 import { MockPreview } from "./roadmap/mediaPreview";
 import type { MockHost } from "./roadmap/host";
@@ -136,13 +137,23 @@ import { MockLiveRecord } from "./roadmap/liveRecord";
 import { MockUploads } from "./roadmap/remote";
 // v0.2 (contracts-3) runtime simulations, one file per node.
 import { MockAnalysis } from "./roadmap/analysis";
-import { browserCommand } from "./roadmap/browserV2";
+import { MockBrowser } from "./roadmap/browserV2";
 import { MockFreeze } from "./roadmap/freezeBounce";
 import { libraryPath, MockMediaRefs } from "./roadmap/mediaReferences";
 import { MockPresets } from "./roadmap/presets";
 import { listModulatorKinds } from "./roadmap/racksModulation";
 import { MockTimeEdits } from "./roadmap/timeEdits";
 import { chatCommand } from "./roadmap/social";
+// v0.3 (contracts-4): one file per node (`./roadmap/index.ts`).
+import { audioToMidiCommand } from "./roadmap/audioToMidi";
+import { MockCapture } from "./roadmap/capture";
+import { externalCommand } from "./roadmap/external";
+import { MockKeymap } from "./roadmap/keymap";
+import { MockTemplates } from "./roadmap/templates";
+import { MockUndoHistory } from "./roadmap/undoHistory";
+// ai-chat: the agent API (Command::Agent) over the mock document.
+import { MockAgent, type MockAgentCommand } from "./roadmap/agent";
+import { MockVersions } from "./roadmap/versions";
 
 export interface MockTransportOptions {
   /**
@@ -173,6 +184,12 @@ const HOUR_MS = 3_600_000;
 const UNIT: ReplyValue = { type: "Unit" };
 
 interface HistoryEntry {
+  /** undo-history: step id (monotonic per project, never reused). */
+  id: number;
+  /** undo-history: wall clock of the step's first commit. */
+  time_ms: number;
+  /** undo-history: checkpoint name. */
+  checkpoint: string | null;
   label: string;
   gesture: GestureId | null;
   /** Final entity states (reapply to redo). */
@@ -213,6 +230,8 @@ export class MockTransport implements EngineTransport {
   private undoStack: HistoryEntry[] = [];
   private redoStack: HistoryEntry[] = [];
   private openGesture: GestureId | null = null;
+  private nextStepId = 1;
+  private historyTruncated = false;
 
   private readonly events = new Emitter<Event>();
   private readonly playheadEmitter = new Emitter<PlayheadFrame>();
@@ -269,6 +288,8 @@ export class MockTransport implements EngineTransport {
   };
   private readonly midiLearn = new MockMidiLearn(this.host);
   private readonly presets = new MockPresets(this.host);
+  private readonly keymap = new MockKeymap(this.host);
+  private readonly browser = new MockBrowser(this.host);
   private readonly exports = new MockExports(this.host);
   private readonly timeEdits = new MockTimeEdits({
     ...this.host,
@@ -288,6 +309,16 @@ export class MockTransport implements EngineTransport {
       }),
   });
   private readonly collab = new MockCollab(this.host);
+  /** undo-history: the history panel over the undo/redo stacks. */
+  private readonly undoHistory = new MockUndoHistory({
+    emit: (event) => this.emit(event),
+    undoStack: () => this.undoStack,
+    redoStack: () => this.redoStack,
+    truncated: () => this.historyTruncated,
+    move: (n) => this.moveHistory(n),
+  });
+  /** base-115 sharing simulation (docs/SHARING.md; `simulateJoin`, `simulateHostOnline`). */
+  readonly share = new MockShare(this.host);
   /** `media-references`: missing media, relink, collect (`setOffline` for tests). */
   readonly mediaRefs = new MockMediaRefs({
     project: () => this.project,
@@ -300,7 +331,22 @@ export class MockTransport implements EngineTransport {
     save: () => void this.saveCurrent(),
     libraryHash: (rel) => hashHex(`library:${normalize(rel)}`),
   });
+  /** v0.3 (`templates`): the template library (`roadmap/templates.ts`). */
+  private readonly templates = new MockTemplates({
+    ...this.host,
+    now: () => this.wallNow(),
+    newProject: (id, name, template) => {
+      const checked = this.checkNewProject(id, name);
+      if (this.dirty) this.saveCurrent();
+      const project = template ? { ...template, id, settings: { ...template.settings, name: checked } } : createEmptyProject(this.newId, checked, id);
+      this.storeProject(project, this.wallNow());
+      this.loadProject(project);
+      this.emitListChanged();
+      return { type: "Project", project: this.project };
+    },
+  });
   private readonly analysis = new MockAnalysis(this.host);
+  private readonly agent = new MockAgent(this.host);
   private readonly preview = new MockPreview(this.host);
   private readonly uploads = new MockUploads((event) => this.emit(event));
   private readonly liveRecord = new MockLiveRecord({
@@ -318,6 +364,41 @@ export class MockTransport implements EngineTransport {
       }),
   });
 
+  /** `capture-midi`: the always-on MIDI capture buffer (fed by `simulateMidiInput`). */
+  private readonly capture = new MockCapture({
+    ...this.host,
+    now: () => this.now(),
+    position: () => this.position,
+    playing: () => this.playing,
+    commit: (commands, lanes) =>
+      void this.transact("Capture", null, (tx) => {
+        const ctx = { tx, newId: this.newId, position: this.position };
+        for (const c of commands) reduceDocumentCommand(ctx, c);
+        for (const lane of lanes) tx.upsert("ExpressionLane", lane);
+        return UNIT;
+      }),
+  });
+  /** `project-versions`: rolling versions and crash recovery (`simulateCrash` for tests). */
+  readonly versions = new MockVersions(
+    {
+      project: () => this.project,
+      revision: () => this.revision,
+      now: () => this.wallNow(),
+      emit: (event) => this.emit(event),
+      summaries: () => this.summaries(),
+      savedJson: (id) => this.store.get(id)?.json,
+      replaceDocument: (project) => {
+        this.loadProject(project);
+        this.setDirty(true);
+      },
+      saveIfDirty: () => {
+        if (this.dirty) this.saveCurrent();
+      },
+    },
+    parseEtherFile,
+    serializeEtherFile,
+  );
+
   constructor(opts: MockTransportOptions = {}) {
     this.manual = opts.timers === "manual";
     const initial = opts.projects ?? (opts.project ? [opts.project] : createDemoProjects());
@@ -329,6 +410,7 @@ export class MockTransport implements EngineTransport {
     this.historyLimit = opts.historyLimit ?? 500;
     this.newId = opts.seed !== undefined ? seededIdFactory(opts.seed + 1000) : defaultNewId;
     this.rand = mulberry32(opts.seed ?? 1);
+    this.versions.projectLoaded();
   }
 
   // ─── EngineTransport ──────────────────────────────────────────────────────────────────
@@ -438,6 +520,10 @@ export class MockTransport implements EngineTransport {
     if (command.domain === "Project") return this.projectCommand(command.command, gesture);
     if (isDocumentCommand(command)) return this.applyDocument([command], labelOf(command), gesture);
 
+    // ai-chat: `Command::Agent` (not in the generated `Command` until agent-api lands).
+    const agent = command as unknown as { domain: string; command: MockAgentCommand };
+    if (agent.domain === "Agent") return this.agent.command(agent.command);
+
     switch (command.domain) {
       case "Transport":
         return this.transportCommand(command.command);
@@ -470,7 +556,7 @@ export class MockTransport implements EngineTransport {
       case "Preset":
         return this.presets.command(command.command);
       case "Browser":
-        return browserCommand(command.command);
+        return this.browser.command(command.command);
       case "Analysis":
         return this.analysis.command(command.command);
       case "MediaRef":
@@ -479,9 +565,31 @@ export class MockTransport implements EngineTransport {
         return listModulatorKinds();
       case "Chat":
         return chatCommand(command.command, this.collab);
+      // v0.3 (contracts-4). Document commands (`Expression::*`, `External::SetRouting`,
+      // `Template::Insert`) went through `applyDocument` above.
+      case "Capture":
+        return this.capture.command(command.command);
+      case "AudioToMidi":
+        return audioToMidiCommand(command.command, this.host);
+      case "External":
+        if (command.command.type === "SetRouting") break;
+        return externalCommand(command.command);
+      case "History":
+        return this.undoHistory.command(command.command);
+      case "Template":
+        if (command.command.type === "Insert") break;
+        return this.templates.command(command.command);
+      case "Version":
+        return this.versions.command(command.command);
+      case "Keymap":
+        return this.keymap.command(command.command);
+      // base-115 (docs/SHARING.md).
+      case "Share":
+        return this.share.command(command.command);
       default:
         return fail("InvalidArgument", `unknown command domain`);
     }
+    return fail("InvalidArgument", `unknown command`);
   }
 
   /** Apply document commands as one transaction / undo step and emit its patch. */
@@ -520,11 +628,38 @@ export class MockTransport implements EngineTransport {
       top.redo = mergeChanges(top.redo, tx.changes(), "last");
       top.undo = mergeChanges(top.undo, tx.inverse(), "first");
     } else {
-      this.undoStack.push({ label, gesture, redo: tx.changes(), undo: tx.inverse() });
-      if (this.undoStack.length > this.historyLimit) this.undoStack.shift();
+      this.undoStack.push({
+        id: this.nextStepId++,
+        time_ms: this.wallNow(),
+        checkpoint: null,
+        label,
+        gesture,
+        redo: tx.changes(),
+        undo: tx.inverse(),
+      });
+      if (this.undoStack.length > this.historyLimit) {
+        this.undoStack.shift();
+        this.historyTruncated = true;
+      }
     }
     this.openGesture = gesture;
     this.redoStack = [];
+    this.undoHistory.changed();
+  }
+
+  /** undo-history: undo (`n < 0`) or redo (`n > 0`) `|n|` steps as one patch. */
+  private moveHistory(n: number): void {
+    const tx = new Tx(this.project);
+    for (let i = 0; i < Math.abs(n); i++) {
+      const entry = n < 0 ? this.undoStack.pop() : this.redoStack.pop();
+      if (!entry) break;
+      (n < 0 ? this.redoStack : this.undoStack).push(entry);
+      for (const c of n < 0 ? entry.undo : entry.redo) tx.write(c);
+    }
+    this.openGesture = null;
+    this.emitPatch(tx.changes());
+    this.syncTransport();
+    this.undoHistory.changed();
   }
 
   private historyState(): HistoryState {
@@ -550,6 +685,7 @@ export class MockTransport implements EngineTransport {
         this.redoStack.push(entry);
         this.openGesture = null;
         this.replay(entry.undo);
+        this.undoHistory.changed();
         return UNIT;
       }
       case "Redo": {
@@ -557,6 +693,7 @@ export class MockTransport implements EngineTransport {
         this.undoStack.push(entry);
         this.openGesture = null;
         this.replay(entry.redo);
+        this.undoHistory.changed();
         return UNIT;
       }
       case "EndGesture":
@@ -609,6 +746,7 @@ export class MockTransport implements EngineTransport {
 
   /** Emit `Event::Transport` if any field changed (or `force`). */
   private syncTransport(force = false): void {
+    this.capture.sync();
     const state = this.transportState();
     const json = JSON.stringify(state);
     if (!force && json === this.lastTransportJson) return;
@@ -622,14 +760,19 @@ export class MockTransport implements EngineTransport {
     this.undoStack = [];
     this.redoStack = [];
     this.openGesture = null;
+    this.nextStepId = 1;
+    this.historyTruncated = false;
     this.playing = false;
     this.position = 0;
     this.startPosition = 0;
     this.levels.clear();
     this.playheadDirty = true;
     this.emit({ type: "ProjectLoaded", project });
+    this.undoHistory.changed();
     this.mediaRefs.projectOpened();
+    this.versions.projectLoaded();
     this.setArmed([]);
+    this.capture.projectChanged();
     this.setDirty(false);
     this.syncTransport();
   }
@@ -986,6 +1129,8 @@ export class MockTransport implements EngineTransport {
    * (see `roadmap/midiLearn.ts`).
    */
   simulateMidiInput(port: string, data: [number, number, number]): void {
+    // v0.3 (`capture-midi`): every message also feeds the capture buffer.
+    this.capture.input(port, data);
     this.midiLearn.input(port, data);
   }
 
@@ -1016,6 +1161,7 @@ export class MockTransport implements EngineTransport {
     this.freeze.step();
     this.preview.step();
     this.liveRecord.step();
+    this.versions.step();
   }
 
   private emitPlayhead(): void {

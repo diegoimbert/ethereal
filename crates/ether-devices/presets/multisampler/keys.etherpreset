@@ -1,0 +1,35 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "Keys",
+    "device": {
+      "type": "Builtin",
+      "device": "MultiSampler"
+    },
+    "meta": {
+      "tags": [
+        "keys",
+        "piano"
+      ],
+      "author": "Ethereal",
+      "description": "Natural decay with a velocity-opened low-pass for sampled keys."
+    },
+    "params": {
+      "5": 80.0,
+      "6": 2.0,
+      "7": 1500.0,
+      "8": 40.0,
+      "9": 400.0,
+      "10": 2.0,
+      "11": 8000.0,
+      "13": 50.0,
+      "14": 20.0,
+      "16": 900.0
+    },
+    "kind": null,
+    "samples": [],
+    "state": null
+  }
+}

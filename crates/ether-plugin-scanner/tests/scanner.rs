@@ -83,9 +83,12 @@ fn scan_all_collects_plugins_and_failures() {
     assert_eq!(bundles, vec![ok.clone(), crash.clone()]);
 
     let mut calls = Vec::new();
-    let report = runner().scan_all(&bundles, |done, total, current| {
-        calls.push((done, total, current.map(Path::to_path_buf)));
-    });
+    // One job: the sequential progress contract (the pool is covered by ether-plugin-host).
+    let report = runner()
+        .with_jobs(1)
+        .scan_all(&bundles, |done, total, current| {
+            calls.push((done, total, current.map(Path::to_path_buf)));
+        });
     assert_eq!(report.plugins.len(), 1);
     check_descriptor(&report.plugins[0], &ok);
     assert_eq!(report.failed.len(), 1);

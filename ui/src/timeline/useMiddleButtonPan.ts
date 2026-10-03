@@ -1,4 +1,5 @@
 import { useEffect, type RefObject } from "react";
+import { inputSettings } from "./inputSettings";
 import type { TimelineViewStore } from "./viewStore";
 
 /**
@@ -7,6 +8,8 @@ import type { TimelineViewStore } from "./viewStore";
  *
  * Listens in the capture phase and stops the event, so items and marquees underneath never
  * see the middle-button press. Also suppresses the browser's middle-click autoscroll.
+ * Off when Settings > Input > Middle-button drag is "Off" (the press then reaches the items
+ * underneath like any other; autoscroll stays suppressed).
  */
 export function useMiddleButtonPan(ref: RefObject<HTMLElement | null>, view: TimelineViewStore): void {
   useEffect(() => {
@@ -15,7 +18,7 @@ export function useMiddleButtonPan(ref: RefObject<HTMLElement | null>, view: Tim
     let drag: { id: number; x: number; y: number } | null = null;
 
     const onDown = (e: PointerEvent) => {
-      if (e.button !== 1) return;
+      if (e.button !== 1 || inputSettings().middleButton !== "pan") return;
       e.preventDefault();
       e.stopPropagation();
       drag = { id: e.pointerId, x: e.clientX, y: e.clientY };

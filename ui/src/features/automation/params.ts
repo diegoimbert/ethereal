@@ -90,12 +90,33 @@ export function trackTargets(project: TargetTables, track: TrackId, descriptors:
   for (const d of devices) {
     const desc = descriptors.get(d.id);
     if (!desc) continue;
-    for (const p of desc.params) {
-      if (!p.automatable || p.hidden) continue;
-      add({ type: "DeviceParam", device: d.id, param: p.id }, `${d.name}: ${p.name}`, d.name, p);
-    }
+    for (const t of deviceTargets(d, desc)) out.push(t);
   }
   return out;
+}
+
+/** Per descriptor, per `device id + name`: its targets (plugins can have thousands). */
+const deviceTargetCache = new WeakMap<DeviceDescriptor, Map<string, TargetInfo[]>>();
+
+/**
+ * The visible automatable params of one device as targets, cached: a param value change
+ * (a new `Device` object, same descriptor and name) doesn't rebuild thousands of entries.
+ */
+function deviceTargets(d: Pick<Device, "id" | "name">, desc: DeviceDescriptor): ReadonlyArray<TargetInfo> {
+  let byDevice = deviceTargetCache.get(desc);
+  if (!byDevice) deviceTargetCache.set(desc, (byDevice = new Map()));
+  const k = `${d.id}\u0000${d.name}`;
+  let list = byDevice.get(k);
+  if (!list) {
+    list = [];
+    for (const p of desc.params) {
+      if (!p.automatable || p.hidden) continue;
+      const target: AutomationTarget = { type: "DeviceParam", device: d.id, param: p.id };
+      list.push({ key: targetKey(target), target, name: `${d.name}: ${p.name}`, group: d.name, info: p });
+    }
+    byDevice.set(k, list);
+  }
+  return list;
 }
 
 /** Info for one target, if it (still) exists. */

@@ -1,0 +1,31 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "Warm Tape",
+    "device": {
+      "type": "Builtin",
+      "device": "Saturator"
+    },
+    "meta": {
+      "tags": [
+        "subtle",
+        "tape",
+        "warm"
+      ],
+      "author": "Ethereal",
+      "description": "Gentle tape-style rounding with a slightly darker top; sits well on buses."
+    },
+    "params": {
+      "0": 3.0,
+      "1": 8.0,
+      "2": 0.0,
+      "3": -25.0,
+      "4": 1.0,
+      "5": 1.0,
+      "6": 0.0,
+      "7": 100.0
+    }
+  }
+}

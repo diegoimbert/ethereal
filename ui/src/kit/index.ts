@@ -20,7 +20,8 @@ export {
 export { setDragCursor } from "./dragCursor";
 export { Fader, type FaderProps } from "./Fader";
 export { NumberField, TextInput, type NumberFieldProps, type TextInputProps } from "./fields";
-export { Select, type SelectOption, type SelectProps } from "./Select";
+export { SEARCH_OVER, Select, type SelectOption, type SelectProps } from "./Select";
+export { VIRTUAL_MAX_ROWS, VirtualList, type VirtualListProps } from "./VirtualList";
 export { IconButton, type IconButtonProps } from "./IconButton";
 export { Knob, type KnobProps } from "./Knob";
 export { Meter, type MeterProps } from "./Meter";

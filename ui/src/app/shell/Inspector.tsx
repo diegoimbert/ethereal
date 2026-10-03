@@ -10,6 +10,7 @@ import { midiTarget } from "@/features/midi-learn/targets";
 import { reverseCommand } from "@/features/clip-editing/clipEditing";
 import { dbToFader, defaultOutputLabel, faderToDb, outputTargets, outputValue, parseOutputValue } from "@/features/mixer/routing";
 import { GroupsRoutingRows } from "@/features/groups";
+import { MpeSettingsFields } from "@/features/mpe";
 import { Button, IconButton, Knob, NumberField, Select, TextInput, Toggle } from "@/kit";
 import { useEditorStore, useProjectStore } from "@/state";
 import { TRACK_COLORS } from "@/theme";
@@ -375,9 +376,18 @@ function TrackInspector({ id }: { id: TrackId }) {
         <TrackMixer track={track} sender={sender} />
       </Section>
 
-      <Section title="Devices">
-        <DeviceChain track={track.id} layout="stack" />
-      </Section>
+      {track.kind === "Midi" && (
+        <Section title="MPE">
+          <MpeSettingsFields track={track} Row={Row} />
+        </Section>
+      )}
+
+      {/* A VCA carries no audio, so it takes no devices (the engine rejects inserts). */}
+      {track.kind !== "Vca" && (
+        <Section title="Devices">
+          <DeviceChain track={track.id} layout="stack" />
+        </Section>
+      )}
     </>
   );
 }

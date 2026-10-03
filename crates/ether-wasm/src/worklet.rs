@@ -10,7 +10,9 @@
 //! 2. `Engine::process` into the host's planar output buffers,
 //! 3. every [`REPORT_INTERVAL_BLOCKS`] blocks, poll the handle and write an
 //!    [`EngineReport`] to the report ring (dropped if the ring is full),
-//! 4. run the `GarbageCollector`.
+//! 4. every [`crate::latency::REPORT_INTERVAL_MS`], send a [`crate::latency::LatencyReport`]
+//!    of the nodes whose latency changed (`web-latency`; pre-sized buffer, no allocation),
+//! 5. run the `GarbageCollector`.
 //!
 //! The engine's stream tap (`ether_core::stream_tap`: master + metronome/count-in, minus the
 //! preview voice; "listen on <peer>", docs/COLLAB.md §9.1) is installed once at construction
@@ -45,6 +47,7 @@ use ether_core::{
 use ether_devices::SampleResolver;
 use ether_media::InMemorySource;
 
+use crate::latency::LatencyTracker;
 use crate::proto::{
     ANALYSIS_REPORT_BYTES, EngineMsg, EngineReport, Frame, MediaAssembler, PREVIEW_MEDIA,
     REPORT_ERROR, encode_analysis_into,
@@ -119,6 +122,28 @@ impl SampleResolver for Sources<'_> {
     }
 }
 
+/// `Node::set_data` payload of a data-only built-in change (`EngineMsg::UpdateBuiltin`;
+/// the same data the native bridge's `update_builtin` sends): sampler slices,
+/// multisampler zones, a convolution reverb's IR (read and partitioned here: the web has no
+/// other thread, like node creation). `None` for devices without in-place updates.
+pub fn node_data(
+    device: &ether_core::protocol::model::BuiltinDevice,
+    sources: &dyn SampleResolver,
+    sample_rate: u32,
+) -> Option<ether_core::node::NodeData> {
+    use ether_core::protocol::model::BuiltinDevice;
+    match device {
+        BuiltinDevice::Sampler { slices, .. } => Some(Box::new(slices.clone())),
+        BuiltinDevice::MultiSampler { .. } => Some(Box::new(
+            ether_devices::multisampler::zone_set(device, sources),
+        )),
+        BuiltinDevice::ConvolutionReverb { .. } => {
+            ether_devices::fx_space::ir_swap(device, sources, sample_rate as f32)
+        }
+        _ => None,
+    }
+}
+
 /// The Worklet-side engine host. Generic over the ring memory so it runs natively in tests.
 pub struct EngineHost<M: RingMemory> {
     engine: ether_core::Engine,
@@ -150,11 +175,17 @@ pub struct EngineHost<M: RingMemory> {
     errors: Vec<String>,
     /// `media-preview`: a natural preview end not yet delivered (reports are lossy).
     preview_ended: Option<u64>,
+    /// `web-latency`: node latency changes reported to the Worker (PDC republish).
+    latency: LatencyTracker,
+    /// Engine rate (node data built here, e.g. convolution IRs, is made at this rate).
+    sample_rate: u32,
 }
 
 impl<M: RingMemory> EngineHost<M> {
     pub fn new(sample_rate: u32, control: M, reports: M) -> Self {
-        let mut parts = ether_core::create(web_engine_config(sample_rate));
+        let config = web_engine_config(sample_rate);
+        let latency = LatencyTracker::new(sample_rate, RENDER_QUANTUM, config.max_nodes);
+        let mut parts = ether_core::create(config);
         let (tap_writer, tap) = stream_tap_ring(TAP_RING_FRAMES);
         // Applied on the first render; the queue is empty at creation.
         let _ = parts.handle.set_stream_tap(Some(tap_writer));
@@ -186,6 +217,8 @@ impl<M: RingMemory> EngineHost<M> {
             blocks: 0,
             errors: Vec::new(),
             preview_ended: None,
+            latency,
+            sample_rate,
         }
     }
 
@@ -232,6 +265,7 @@ impl<M: RingMemory> EngineHost<M> {
             self.blocks_since_report = 0;
             self.send_report();
         }
+        self.send_latency();
         self.gc.collect();
     }
 
@@ -378,6 +412,9 @@ impl<M: RingMemory> EngineHost<M> {
                     node.set_param(id, v);
                 }
                 let real = self.handle.add_node(node).map_err(|e| e.to_string())?;
+                // The latency the engine compiles PDC with until it changes (not reported).
+                self.latency
+                    .add(key, self.handle.node_latency(real).unwrap_or(0));
                 if let Some(old) = self.keys.insert(key, real) {
                     self.virtual_keys.remove(&old);
                     let _ = self.handle.remove_node(old);
@@ -391,6 +428,7 @@ impl<M: RingMemory> EngineHost<M> {
                     .remove(&key)
                     .ok_or_else(|| format!("unknown node {key:?}"))?;
                 self.virtual_keys.remove(&real);
+                self.latency.remove(key);
                 self.handle.remove_node(real).map_err(|e| e.to_string())
             }
             EngineMsg::LoadMedia { media, audio } => self.add_source(media, audio),
@@ -433,10 +471,26 @@ impl<M: RingMemory> EngineHost<M> {
                 };
                 self.handle.preview(control).map_err(|e| e.to_string())
             }
+            EngineMsg::NodeScale { key, scale } => {
+                let real = self.real_key(key)?;
+                self.handle
+                    .set_node_data(real, Box::new(scale))
+                    .map_err(|e| e.to_string())
+            }
             EngineMsg::WatchAnalysis { key, on } => {
                 let real = self.real_key(key)?;
                 self.handle
                     .watch_analysis(real, on)
+                    .map_err(|e| e.to_string())
+            }
+            EngineMsg::UpdateBuiltin { key, device } => {
+                let real = self.real_key(key)?;
+                let Some(data) = node_data(&device, &Sources(&self.sources), self.sample_rate)
+                else {
+                    return Err(format!("{:?} has no in-place update", device.device_type()));
+                };
+                self.handle
+                    .set_node_data(real, data)
                     .map_err(|e| e.to_string())
             }
         }
@@ -459,6 +513,24 @@ impl<M: RingMemory> EngineHost<M> {
                 let _ = reports.try_send_now(analysis_buf);
             }
         });
+    }
+
+    /// **RT.** `web-latency`: every report interval, send the latencies that changed since
+    /// the last delivered report. Lossy like the other reports, but never lost: an
+    /// undelivered change is still a change at the next scan.
+    fn send_latency(&mut self) {
+        let Self {
+            latency,
+            keys,
+            handle,
+            reports,
+            ..
+        } = self;
+        if let Some(report) = latency.tick(keys, handle)
+            && reports.try_send_now(report)
+        {
+            latency.commit();
+        }
     }
 
     /// Map virtual node keys to real ones; drop chain entries/automation whose node is

@@ -265,6 +265,8 @@ pub fn large_project() -> RenderGraphDesc {
             clips,
             automation,
             racks,
+            expression: Default::default(),
+            hw_io: Vec::new(),
         });
     }
     assert_eq!(clips_left, 0);
@@ -506,6 +508,8 @@ pub fn all_variants() -> RenderGraphDesc {
             } else {
                 vec![]
             },
+            expression: Default::default(),
+            hw_io: Vec::new(),
         })
         .collect();
     RenderGraphDesc {

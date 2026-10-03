@@ -314,8 +314,10 @@ fn apply_inner(ctx: &mut DocCtx, c: &DeviceCommand) -> CmdResult<()> {
         DeviceCommand::SetSidechain { device, source } => {
             crate::sidechain::set_sidechain(ctx, *device, *source)
         }
-        DeviceCommand::ListBuiltin | DeviceCommand::GetDescriptor { .. } => {
-            Err(unsupported("not a document command"))
-        }
+        // v0.3 (`fx-space`).
+        DeviceCommand::SetIr { device, ir } => crate::fx_space::set_ir(ctx, *device, ir.as_ref()),
+        DeviceCommand::ListBuiltin
+        | DeviceCommand::GetDescriptor { .. }
+        | DeviceCommand::ListFactoryIrs => Err(unsupported("not a document command")),
     }
 }
