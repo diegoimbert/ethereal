@@ -11,7 +11,9 @@ import { useProjectScreen } from "@/features/project/screenStore";
 import { placementAfter, tracksToSave, useTemplateDialog } from "@/features/templates";
 import { useArrangementUi } from "@/features/arrangement/uiStore";
 import { mediaRefCommands } from "@/features/media-refs";
+import { nameCurrentCheckpoint } from "@/features/undo-history";
 import { shareCommands } from "@/features/share/commands";
+import { joinPaletteCommands } from "@/features/share/join";
 import { tracksOrdered, useProjectStore } from "@/state";
 import { getTheme, setTheme } from "@/theme";
 import { cmd, type EngineTransport } from "@/transport";
@@ -117,6 +119,14 @@ export function buildCommands(transport: EngineTransport | null, devices: Readon
       },
       { id: "edit:undo", group: "Edit", label: "Undo", shortcut: "⌘Z", run: () => send(cmd("Edit", { type: "Undo" })) },
       { id: "edit:redo", group: "Edit", label: "Redo", shortcut: "⇧⌘Z", run: () => send(cmd("Edit", { type: "Redo" })) },
+      // undo-history: name the current step from anywhere (opens the History tab).
+      {
+        id: "history:checkpoint",
+        group: "Edit",
+        label: "Name checkpoint…",
+        keywords: "history undo checkpoint mark bookmark snapshot",
+        run: () => nameCurrentCheckpoint(),
+      },
     );
 
     for (const t of tracksOrdered(project)) {
@@ -145,6 +155,9 @@ export function buildCommands(transport: EngineTransport | null, devices: Readon
       });
     }
   }
+
+  // join-flow: "Join shared project…" (paste an invite link).
+  out.push(...joinPaletteCommands());
 
   const inSession = useCollabStore.getState().status.type === "Online";
   if (inSession) {

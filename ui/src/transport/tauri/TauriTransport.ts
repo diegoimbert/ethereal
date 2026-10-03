@@ -12,6 +12,8 @@
  * - `invoke("ether_send", { message })` queues one `ClientMessage`; its reply arrives on
  *   `messages`, matched by `id`.
  * - `invoke("ether_disconnect")` drops the channels (on `dispose`).
+ * - `ethereal://` deep links (docs/SHARING.md §5): the shell emits `DEEP_LINK_EVENT` when one
+ *   arrives and `invoke("take_deep_links")` drains them (`onDeepLink`).
  *
  * `connect()` resolves with the current project. If the engine has none open yet (fresh
  * start), it opens the most recently saved project from the engine-side store, or creates
@@ -55,6 +57,9 @@ export type OpenDialogFn = (options: {
 
 /** Shell event carrying OS paths dropped on the window (`apps/desktop/src-tauri`). */
 export const PATH_DROP_EVENT = "ether://path-drop";
+
+/** Shell event: an `ethereal://` link arrived (no payload; drain with `take_deep_links`). */
+export const DEEP_LINK_EVENT = "ether://deep-link";
 
 /** Extensions offered by the import dialog (the engine's audio formats). */
 export const AUDIO_DIALOG_EXTENSIONS = ["wav", "wave", "aif", "aiff", "aifc", "flac", "mp3", "ogg", "oga"] as const;
@@ -201,6 +206,40 @@ export class TauriTransport implements EngineTransport {
         else off = unlisten;
       })
       .catch((e: unknown) => console.warn("[ethereal] path drops unavailable:", e));
+    return () => {
+      cancelled = true;
+      off?.();
+    };
+  }
+
+  // ─── `join-flow`: `ethereal://` deep links (docs/SHARING.md §5) ─────────────────────────
+
+  /**
+   * `ethereal://` links opened with the app: the one it was started with (cold start) and
+   * every later one (warm start; a second launch hands its link to this instance). Each
+   * link is delivered once, oldest first.
+   */
+  onDeepLink(listener: (url: string) => void): Unsubscribe {
+    let off: (() => void) | null = null;
+    let cancelled = false;
+    let draining = Promise.resolve();
+    const drain = () => {
+      draining = draining
+        .then(() => (cancelled ? [] : this.invoke("take_deep_links")))
+        .then((urls) => {
+          if (cancelled || !Array.isArray(urls)) return;
+          for (const u of urls) if (typeof u === "string") listener(u);
+        })
+        .catch((e: unknown) => console.warn("[ethereal] deep links unavailable:", e));
+    };
+    this.listen<unknown>(DEEP_LINK_EVENT, drain)
+      .then((unlisten) => {
+        if (cancelled) unlisten();
+        else off = unlisten;
+      })
+      .catch((e: unknown) => console.warn("[ethereal] deep links unavailable:", e))
+      // Links that arrived before we listened (cold start).
+      .finally(drain);
     return () => {
       cancelled = true;
       off?.();

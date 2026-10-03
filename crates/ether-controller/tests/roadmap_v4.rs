@@ -15,14 +15,12 @@ use ether_core::protocol::audio_to_midi::{
 };
 use ether_core::protocol::clips::ClipCommand;
 use ether_core::protocol::devices::{DeviceCommand, DeviceSpec};
-use ether_core::protocol::expression::ExpressionCommand;
 use ether_core::protocol::external::ExternalCommand;
 use ether_core::protocol::keymap::{Keymap, KeymapCommand};
 use ether_core::protocol::model::*;
 use ether_core::protocol::notes::{NoteCommand, NoteSpec};
 use ether_core::protocol::project::ProjectCommand;
 use ether_core::protocol::tracks::TrackCommand;
-use ether_core::protocol::undo_history::HistoryCommand;
 use ether_core::protocol::{Command, ErrorCode};
 
 /// Sends `c` and asserts it replies `Unsupported` without changing the document.
@@ -124,19 +122,6 @@ fn audio_streaming_is_off_until_the_node_lands() {
     ));
 }
 
-#[test]
-fn mpe_replies_unsupported() {
-    let mut h = Harness::with_project();
-    let t = track(&mut h, TrackKind::Midi);
-    assert_unsupported(
-        &mut h,
-        Command::Expression(ExpressionCommand::SetTrackMpe {
-            track: t,
-            mpe: Some(MpeSettings::default()),
-        }),
-    );
-}
-
 /// Implemented (`audio-to-midi`; behaviour in `tests/audio_to_midi.rs`): a MIDI clip is
 /// refused without touching the document, cancelling an unknown job is a no-op.
 #[test]
@@ -229,23 +214,7 @@ fn external_instrument_devices_are_placeholders() {
 
 // ─── workflow ───────────────────────────────────────────────────────────────────────────
 
-#[test]
-fn undo_history_replies_unsupported() {
-    let mut h = Harness::with_project();
-    track(&mut h, TrackKind::Audio);
-    assert_unsupported(&mut h, Command::History(HistoryCommand::List));
-    assert_unsupported(
-        &mut h,
-        Command::History(HistoryCommand::JumpTo { step: None }),
-    );
-    assert_unsupported(
-        &mut h,
-        Command::History(HistoryCommand::SetCheckpoint {
-            step: 0,
-            name: Some("Before mix".into()),
-        }),
-    );
-}
+// undo-history: implemented (tests/undo_history.rs).
 
 // templates: implemented (tests/templates.rs).
 

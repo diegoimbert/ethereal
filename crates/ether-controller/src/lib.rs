@@ -573,6 +573,8 @@ where
     agent: agent::AgentState,
     /// v0.3: rolling versions and the crash-recovery session marker (`versions` module).
     versions: versions::VersionsState,
+    /// v0.3: the history panel (`undo_history` module; runtime).
+    undo_history: undo_history::UndoHistoryState,
     next_gesture: u32,
     last_transport: Option<TransportState>,
     outputs: EngineOutputs,
@@ -627,6 +629,7 @@ where
             audio_to_midi: Default::default(),
             agent: Default::default(),
             versions: Default::default(),
+            undo_history: Default::default(),
             // Internal gestures (plugin GUI, tap tempo) live in the upper half of the id
             // space, away from UI-allocated ones.
             next_gesture: 0x8000_0000,
