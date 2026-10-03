@@ -41,10 +41,10 @@ export function DevicesPanel() {
     };
   }, [transport]);
 
-  const add = (d: DeviceDescriptor) => {
+  const add = async (d: DeviceDescriptor) => {
     const p = useProjectStore.getState().project;
     const t = p ? deviceTargetTrack(p) : undefined;
-    const command = p && t ? insertDeviceCommand(p, t, d) : null;
+    const command = transport && p && t ? await insertDeviceCommand(transport, p, t, d) : null;
     if (!transport || !command || !t) return;
     transport.send(command).then(
       () => setMessage(`Added ${d.name} to ${t.name}`),
@@ -81,7 +81,7 @@ export function DevicesPanel() {
                     disabled={!ok}
                     aria-label={`Add ${d.name}`}
                     title={ok ? `Add ${d.name} to ${track?.name ?? "the track"}` : "Instruments go on MIDI tracks"}
-                    onClick={() => add(d)}
+                    onClick={() => void add(d)}
                   >
                     <span className="eth-devices-panel__icon" aria-hidden>
                       {CATEGORY_ICON[d.category]}
