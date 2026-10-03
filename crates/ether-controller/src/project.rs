@@ -154,6 +154,20 @@ where
         now: u64,
         out: &mut dyn MessageSink,
     ) -> CmdResult<ReplyValue> {
+        self.create_with(id, name, now, out, |_, _| Ok(()))
+    }
+
+    /// `Project::Create`; `init` fills the new document (and may write files to the new
+    /// project folder) before it is saved and opened (v0.3 `templates`: `NewProject`). Its
+    /// id and name are set afterwards; if `init` fails the folder is removed again.
+    pub(crate) fn create_with(
+        &mut self,
+        id: ProjectId,
+        name: &str,
+        now: u64,
+        out: &mut dyn MessageSink,
+        init: impl FnOnce(&mut Self, &mut Project) -> CmdResult<()>,
+    ) -> CmdResult<ReplyValue> {
         let name = check_name(name)?;
         if let Some(doc) = &self.doc
             && doc.project.id == id
@@ -169,6 +183,10 @@ where
             e => store_err(e),
         })?;
         let mut project = Project::new(&mut self.ids, now);
+        if let Err(e) = init(self, &mut project) {
+            let _ = self.store.delete(id);
+            return Err(e);
+        }
         project.id = id;
         project.settings.name = name;
         let json = file::save(&project, &self.config.app_version).map_err(file_err)?;
