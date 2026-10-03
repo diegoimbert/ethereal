@@ -243,6 +243,25 @@ impl ClapNode {
                 ));
             }
             EventKind::Midi { data } => self.push_in(&MidiEvent::new(t, 0, data)),
+            // v0.3 (`midi-expression`): `Pressure` goes out as poly aftertouch on the
+            // note's channel/key; `mpe` adds `clap_event_note_expression` (TUNING,
+            // PRESSURE, BRIGHTNESS) for plugins that support them.
+            EventKind::NoteExpression {
+                channel,
+                key,
+                expression: ether_core::protocol::model::NoteExpressionKind::Pressure,
+                value,
+                ..
+            } => self.push_in(&MidiEvent::new(
+                t,
+                0,
+                [
+                    0xA0 | (channel & 0x0F),
+                    key & 0x7F,
+                    (value.clamp(0.0, 1.0) * 127.0).round() as u8,
+                ],
+            )),
+            EventKind::NoteExpression { .. } => {}
         }
     }
 }

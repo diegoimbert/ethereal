@@ -1,0 +1,411 @@
+/* Sharing (docs/SHARING.md §8): top-bar Share button / session pill, the Share popover, the
+   host-offline banner and the sharing settings. Tokens only (peer colours are data, like
+   track colours). */
+:root {
+  --eth-share-avatar-size: var(--eth-size-control-sm);
+  --eth-share-avatar-size-lg: var(--eth-size-control-lg);
+  --eth-share-dot-size: var(--eth-size-status-dot);
+  --eth-share-popover-width: var(--eth-size-dialog-width);
+}
+
+.eth-share {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-sm);
+  font-size: var(--eth-fs-sm);
+}
+.eth-share__icon,
+.eth-share-pop__icon {
+  width: var(--eth-size-icon-sm);
+  height: var(--eth-size-icon-sm);
+  flex: none;
+}
+.eth-share .eth-button .eth-share__icon {
+  margin-right: var(--eth-space-xs);
+}
+
+/* ─── avatars ─── */
+.eth-share-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: var(--eth-share-avatar-size);
+  height: var(--eth-share-avatar-size);
+  border-radius: var(--eth-radius-round);
+  background: var(--eth-share-peer);
+  color: var(--eth-ink-dark);
+  font-size: var(--eth-fs-2xs);
+  font-weight: var(--eth-fw-bold);
+  line-height: 1;
+  user-select: none;
+}
+.eth-share-avatar--lg {
+  width: var(--eth-share-avatar-size-lg);
+  height: var(--eth-share-avatar-size-lg);
+  font-size: var(--eth-fs-md);
+}
+.eth-share-avatar--offline {
+  opacity: var(--eth-opacity-muted);
+  filter: grayscale(1);
+}
+.eth-share-stack {
+  display: inline-flex;
+  align-items: center;
+}
+.eth-share-stack > .eth-share-avatar {
+  box-shadow: 0 0 0 var(--eth-border-width-strong) var(--eth-color-bg);
+}
+.eth-share-stack > .eth-share-avatar + .eth-share-avatar {
+  margin-left: calc(-1 * var(--eth-space-sm));
+}
+.eth-share-stack__more {
+  margin-left: var(--eth-space-xs);
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+}
+
+/* ─── session pill ─── */
+.eth-share-pill {
+  --eth-share-dot: var(--eth-color-text-dim);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--eth-space-sm);
+  height: var(--eth-size-control-md);
+  padding: 0 var(--eth-space-md) 0 var(--eth-space-xs);
+  border: var(--eth-border-width) solid var(--eth-color-border);
+  border-radius: var(--eth-radius-pill);
+  background: var(--eth-color-bg-raised);
+  color: var(--eth-color-text);
+  font: inherit;
+  font-size: var(--eth-fs-sm);
+  cursor: pointer;
+  transition: background var(--eth-duration-fast) var(--eth-ease-standard);
+}
+.eth-share-pill:hover {
+  background: var(--eth-color-bg-hover);
+}
+.eth-share-pill:focus-visible {
+  outline: var(--eth-focus-ring-width) solid var(--eth-color-focus);
+  outline-offset: var(--eth-focus-ring-offset);
+}
+.eth-share-pill[aria-expanded="true"] {
+  background: var(--eth-color-bg-active);
+}
+/* No avatars (alone in the session): the dot keeps the left padding even. */
+.eth-share-pill:not(:has(.eth-share-stack)) {
+  padding-left: var(--eth-space-md);
+}
+.eth-share-pill[data-tone="live"] {
+  --eth-share-dot: var(--eth-color-ok);
+}
+.eth-share-pill[data-tone="busy"] {
+  --eth-share-dot: var(--eth-color-warn);
+}
+.eth-share-pill__dot {
+  flex: none;
+  width: var(--eth-share-dot-size);
+  height: var(--eth-share-dot-size);
+  border-radius: var(--eth-radius-round);
+  background: var(--eth-share-dot);
+}
+.eth-share-pill[data-tone="live"] .eth-share-pill__dot {
+  box-shadow: 0 0 var(--eth-size-status-dot-glow) var(--eth-share-dot);
+}
+.eth-share-pill[data-tone="busy"] .eth-share-pill__dot {
+  animation: eth-share-pulse var(--eth-duration-slow) var(--eth-ease-standard) infinite alternate;
+}
+.eth-share-pill__label {
+  white-space: nowrap;
+  max-width: var(--eth-size-editor-title-max-width);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+@keyframes eth-share-pulse {
+  to {
+    opacity: var(--eth-opacity-muted);
+  }
+}
+
+/* ─── popover ─── */
+.eth-share-popover {
+  width: var(--eth-share-popover-width);
+  max-width: calc(100vw - 2 * var(--eth-space-md));
+  padding: 0;
+}
+.eth-share-pop {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-lg);
+  padding: var(--eth-space-lg);
+  max-height: calc(100vh - var(--eth-size-top-bar-height) - 2 * var(--eth-space-lg));
+  overflow-y: auto;
+}
+.eth-share-pop__title {
+  margin: 0;
+  font-size: var(--eth-fs-lg);
+  font-weight: var(--eth-fw-medium);
+  color: var(--eth-color-text);
+  overflow-wrap: anywhere;
+}
+.eth-share-pop__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-sm);
+}
+.eth-share-pop__label {
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+  font-weight: var(--eth-fw-medium);
+  letter-spacing: var(--eth-tracking-caps);
+  text-transform: uppercase;
+}
+.eth-share-pop__count {
+  margin-left: var(--eth-space-sm);
+  font-weight: var(--eth-fw-regular);
+  text-transform: none;
+  letter-spacing: var(--eth-tracking-normal);
+}
+.eth-share-pop__hint {
+  margin: 0;
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+}
+.eth-share-pop__warn {
+  margin: 0;
+  color: var(--eth-color-warn);
+  font-size: var(--eth-fs-xs);
+}
+.eth-share-pop__status {
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-sm);
+  margin: 0;
+  height: var(--eth-size-control-md);
+  color: var(--eth-color-text-dim);
+}
+.eth-share-pop__link {
+  display: flex;
+  gap: var(--eth-space-sm);
+}
+.eth-share-pop__link .eth-input {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--eth-font-mono);
+  color: var(--eth-color-text-dim);
+}
+.eth-share-pop__link .eth-button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--eth-space-xs);
+}
+.eth-share-pop__me,
+.eth-share-pop__listen {
+  flex-direction: row;
+  align-items: center;
+}
+.eth-share-pop__me .eth-share-pop__label {
+  margin-right: var(--eth-space-xs);
+}
+.eth-share-pop__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.eth-share-pop__identity {
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-sm);
+}
+.eth-share-pop__identity .eth-input {
+  flex: 1;
+}
+.eth-share-swatches {
+  display: flex;
+  gap: var(--eth-space-sm);
+}
+.eth-share-swatch {
+  width: var(--eth-share-avatar-size);
+  height: var(--eth-share-avatar-size);
+  padding: 0;
+  border: none;
+  border-radius: var(--eth-radius-round);
+  background: var(--eth-share-peer);
+  cursor: pointer;
+}
+.eth-share-swatch:focus-visible {
+  outline: var(--eth-focus-ring-width) solid var(--eth-color-focus);
+  outline-offset: var(--eth-focus-ring-offset);
+}
+.eth-share-swatch[aria-pressed="true"] {
+  box-shadow:
+    0 0 0 var(--eth-border-width-strong) var(--eth-color-bg),
+    0 0 0 calc(2 * var(--eth-border-width-strong)) var(--eth-share-peer);
+}
+.eth-share-pop__more {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-sm);
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+}
+.eth-share-pop__more > summary {
+  cursor: pointer;
+  user-select: none;
+}
+.eth-share-pop__more[open] > summary {
+  margin-bottom: var(--eth-space-sm);
+}
+.eth-share-pop__more .eth-collab-host {
+  margin-bottom: var(--eth-space-sm);
+}
+.eth-share-pop__toggle {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-xs);
+}
+.eth-share-pop__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--eth-space-md);
+  padding-top: var(--eth-space-md);
+  border-top: var(--eth-border-width) solid var(--eth-color-border);
+}
+
+/* ─── people ─── */
+.eth-share-people {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-xs);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.eth-share-person {
+  display: grid;
+  grid-template-columns: auto 1fr auto var(--eth-size-control-sm);
+  align-items: center;
+  gap: var(--eth-space-sm);
+  min-height: var(--eth-size-row-height-lg);
+}
+.eth-share-person--offline .eth-share-person__name {
+  color: var(--eth-color-text-dim);
+}
+.eth-share-person__name {
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-sm);
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.eth-share-person__you,
+.eth-share-person__seen {
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+}
+.eth-share-person__dot {
+  flex: none;
+  width: var(--eth-size-dot-sm);
+  height: var(--eth-size-dot-sm);
+  border-radius: var(--eth-radius-round);
+  background: var(--eth-color-text-disabled);
+}
+.eth-share-person__dot--on {
+  background: var(--eth-color-ok);
+}
+.eth-share-person .eth-select {
+  min-width: calc(var(--eth-size-popover-min-width) * 0.7);
+}
+
+/* ─── view only, offline banner ─── */
+.eth-share__view-only {
+  display: inline-flex;
+}
+.eth-share-banner {
+  position: fixed;
+  top: var(--eth-size-top-bar-height);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: var(--eth-z-popover);
+  max-width: calc(100vw - 2 * var(--eth-space-xl));
+  padding: var(--eth-space-xs) var(--eth-space-lg);
+  border: var(--eth-border-width) solid var(--eth-color-border);
+  border-radius: var(--eth-radius-pill);
+  background: var(--eth-color-bg-raised);
+  box-shadow: var(--eth-shadow-sm);
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.eth-share-banner strong {
+  color: var(--eth-color-text);
+  font-weight: var(--eth-fw-medium);
+}
+
+.eth-share-confirm {
+  margin: 0;
+  color: var(--eth-color-text-dim);
+}
+
+.eth-share-spin {
+  animation: eth-share-spin var(--eth-duration-slow) linear infinite;
+}
+@keyframes eth-share-spin {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
+/* ─── settings ─── */
+.eth-share-settings {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-xl);
+}
+.eth-share-settings__group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-sm);
+}
+.eth-share-settings__heading {
+  margin: 0;
+  font-size: var(--eth-fs-md);
+  font-weight: var(--eth-fw-medium);
+  color: var(--eth-color-text);
+}
+.eth-share-settings__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-xs);
+  color: var(--eth-color-text-dim);
+}
+.eth-share-settings__label {
+  color: var(--eth-color-text-dim);
+}
+.eth-share-ice {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--eth-space-xs);
+}
+.eth-share-ice__row {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr auto;
+  gap: var(--eth-space-xs);
+  width: 100%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .eth-share-spin,
+  .eth-share-pill[data-tone="busy"] .eth-share-pill__dot {
+    animation: none;
+  }
+}

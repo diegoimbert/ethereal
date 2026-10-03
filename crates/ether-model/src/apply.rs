@@ -38,7 +38,9 @@ macro_rules! tables {
             Modulator => modulators,
             ModMapping => mod_mappings,
             ChatMessage => chat,
-            PinnedNote => pinned_notes
+            PinnedNote => pinned_notes,
+            ExpressionLane => expression_lanes,
+            NoteExpression => note_expressions
         }
     };
 }
@@ -312,6 +314,27 @@ fn update_track(t: &mut Track, c: TrackChange) -> Result<TrackChange, ModelError
         C::Scale(v) => swap!(C::Scale, t.scale, v),
         C::Freeze(v) => swap!(C::Freeze, t.freeze, v),
         C::Vca(v) => swap!(C::Vca, t.vca, v),
+        C::Mpe(v) => swap!(C::Mpe, t.mpe, v),
+    })
+}
+
+fn update_expression_lane(
+    l: &mut ExpressionLane,
+    c: ExpressionLaneChange,
+) -> Result<ExpressionLaneChange, ModelError> {
+    use ExpressionLaneChange as C;
+    Ok(match c {
+        C::Points(v) => swap!(C::Points, l.points, v),
+    })
+}
+
+fn update_note_expression(
+    e: &mut NoteExpression,
+    c: NoteExpressionChange,
+) -> Result<NoteExpressionChange, ModelError> {
+    use NoteExpressionChange as C;
+    Ok(match c {
+        C::Points(v) => swap!(C::Points, e.points, v),
     })
 }
 
@@ -639,6 +662,8 @@ impl EntityUpdate {
             Self::Modulator { id, .. } => EntityKey::Modulator(*id),
             Self::ModMapping { id, .. } => EntityKey::ModMapping(*id),
             Self::PinnedNote { id, .. } => EntityKey::PinnedNote(*id),
+            Self::ExpressionLane { id, .. } => EntityKey::ExpressionLane(*id),
+            Self::NoteExpression { id, .. } => EntityKey::NoteExpression(*id),
         }
     }
 }
@@ -843,6 +868,20 @@ impl Project {
                             change,
                         )?,
                     },
+                    U::ExpressionLane { id, change } => U::ExpressionLane {
+                        id,
+                        change: update_expression_lane(
+                            self.expression_lanes.get_mut(&id).ok_or_else(nf)?,
+                            change,
+                        )?,
+                    },
+                    U::NoteExpression { id, change } => U::NoteExpression {
+                        id,
+                        change: update_note_expression(
+                            self.note_expressions.get_mut(&id).ok_or_else(nf)?,
+                            change,
+                        )?,
+                    },
                 };
                 Ok(Op::Update { update: inverse })
             }
@@ -1005,6 +1044,15 @@ impl Project {
                     match device {
                         BuiltinDevice::Sampler { slices, .. } => check_slices(slices)?,
                         BuiltinDevice::MultiSampler { zones } => check_sample_zones(zones)?,
+                        BuiltinDevice::ConvolutionReverb {
+                            ir: Some(IrSource::Factory { id }),
+                        } if id.is_empty() || id.len() > 64 => {
+                            return Err(invalid("factory IR ids are 1..=64 bytes"));
+                        }
+                        BuiltinDevice::ExternalInstrument { routing }
+                        | BuiltinDevice::ExternalAudioEffect { routing } => {
+                            check_routing(routing).map_err(invalid)?;
+                        }
                         _ => {}
                     }
                 }
@@ -1203,6 +1251,46 @@ impl Project {
                     }
                 }
                 Ok(())
+            }
+            EntityKey::ExpressionLane(id) => {
+                let l = &self.expression_lanes[&id];
+                let clip = self
+                    .clips
+                    .get(&l.clip)
+                    .ok_or(ModelError::DanglingReference {
+                        entity: key,
+                        missing: EntityKey::Clip(l.clip),
+                    })?;
+                if !matches!(clip.content, ClipContent::Midi) {
+                    return Err(invariant("expression lanes can only live in MIDI clips"));
+                }
+                if let ExpressionKind::Cc { controller } = l.kind
+                    && controller > MAX_EXPRESSION_CC
+                {
+                    return Err(invalid(format!(
+                        "expression CC {controller} > {MAX_EXPRESSION_CC}"
+                    )));
+                }
+                if self
+                    .expression_lanes
+                    .values()
+                    .any(|o| o.id != l.id && o.clip == l.clip && o.kind == l.kind)
+                {
+                    return Err(invariant("a clip has at most one expression lane per kind"));
+                }
+                check_points(&l.points, l.kind.range()).map_err(invalid)
+            }
+            EntityKey::NoteExpression(id) => {
+                let e = &self.note_expressions[&id];
+                self.require(key, EntityKey::Note(e.note))?;
+                if self
+                    .note_expressions
+                    .values()
+                    .any(|o| o.id != e.id && o.note == e.note && o.kind == e.kind)
+                {
+                    return Err(invariant("a note has at most one expression per kind"));
+                }
+                check_points(&e.points, e.kind.range()).map_err(invalid)
             }
         }
     }
@@ -1481,6 +1569,12 @@ impl Project {
         }
         if t.kind != TrackKind::Midi && t.scale != crate::scale::TrackScale::FollowProject {
             return Err(invalid("track scales are only available on MIDI tracks"));
+        }
+        if let Some(mpe) = &t.mpe {
+            if t.kind != TrackKind::Midi {
+                return Err(invalid("MPE settings are only available on MIDI tracks"));
+            }
+            check_mpe(mpe).map_err(invalid)?;
         }
         let key = EntityKey::Track(t.id);
         if let Some(f) = &t.freeze {
@@ -1801,7 +1895,18 @@ impl Project {
                         .values()
                         .find(|l| matches!(l.owner, AutomationOwner::Clip { clip } if clip == id))
                         .map(|l| EntityKey::AutomationLane(l.id))
+                })
+                .or_else(|| {
+                    self.expression_lanes
+                        .values()
+                        .find(|l| l.clip == id)
+                        .map(|l| EntityKey::ExpressionLane(l.id))
                 }),
+            EntityKey::Note(id) => self
+                .note_expressions
+                .values()
+                .find(|e| e.note == id)
+                .map(|e| EntityKey::NoteExpression(e.id)),
             EntityKey::Device(id) => self
                 .automation_lanes
                 .values()
@@ -1901,8 +2006,7 @@ impl Project {
                 .values()
                 .find(|m| m.source == ModSource::Modulator { modulator: id })
                 .map(|m| EntityKey::ModMapping(m.id)),
-            EntityKey::Note(_)
-            | EntityKey::AutomationPoint(_)
+            EntityKey::AutomationPoint(_)
             | EntityKey::TempoPoint(_)
             | EntityKey::TimeSignature(_)
             | EntityKey::WarpMarker(_)
@@ -1911,7 +2015,9 @@ impl Project {
             | EntityKey::CompRegion(_)
             | EntityKey::ModMapping(_)
             | EntityKey::ChatMessage(_)
-            | EntityKey::PinnedNote(_) => None,
+            | EntityKey::PinnedNote(_)
+            | EntityKey::ExpressionLane(_)
+            | EntityKey::NoteExpression(_) => None,
         }
     }
 

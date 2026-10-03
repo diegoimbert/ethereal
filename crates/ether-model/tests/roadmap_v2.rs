@@ -116,6 +116,7 @@ impl Fx {
             output: TrackOutput::Default,
             monitor: MonitorMode::Auto,
             scale: Default::default(),
+            mpe: None,
         }))
         .unwrap();
         id

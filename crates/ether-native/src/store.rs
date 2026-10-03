@@ -301,6 +301,8 @@ impl DiskStore {
             id,
             name: name_from_ether(&json).unwrap_or_else(|| "Untitled".to_string()),
             modified_ms: modified_ms(&file),
+            // base-115: `recents-shared` reads the project's `share.json`.
+            share: None,
         })
     }
 
@@ -439,6 +441,21 @@ impl ProjectStore for DiskStore {
         crate::uploads::discard(&self.projects_root, upload)
     }
 
+    /// v0.3 (`project-versions`): delete one file (never a folder); missing = `Ok`.
+    fn remove(&mut self, id: ProjectId, rel_path: &str) -> Result<(), StoreError> {
+        let dir = self.existing_project_dir(id)?;
+        if sanitize_rel(rel_path)?.as_os_str().is_empty() {
+            return Err(StoreError::InvalidPath(rel_path.to_string()));
+        }
+        let path = resolve_in(&dir, rel_path)?;
+        match fs::symlink_metadata(&path) {
+            Ok(m) if m.is_dir() => Err(StoreError::InvalidPath(format!("{rel_path} is a folder"))),
+            Ok(_) => fs::remove_file(&path).map_err(io_err),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+            Err(e) => Err(io_err(e)),
+        }
+    }
+
     fn list_dir(&mut self, id: ProjectId, rel_path: &str) -> Result<DirectoryListing, StoreError> {
         let dir = self.existing_project_dir(id)?;
         let rel = sanitize_rel(rel_path)?;
@@ -556,6 +573,65 @@ impl Library for DiskStore {
     fn list_external_dir(&mut self, path: &str) -> Result<Vec<(String, bool)>, StoreError> {
         list_external_dir(path)
     }
+
+    /// `browser-v2`: a user folder becomes a library root (listed by `roots()`, browsable,
+    /// importable, referenced in place) with the stable id [`user_folder_id`]. The folder
+    /// must be an existing absolute directory. Not persisted here: the controller's browser
+    /// index remembers user folders and re-adds them on start.
+    fn add_folder(&mut self, path: &str) -> Result<String, StoreError> {
+        let p = Path::new(path);
+        if path.contains('\0') || !p.is_absolute() {
+            return Err(StoreError::InvalidPath(path.to_string()));
+        }
+        let meta = fs::metadata(p).map_err(|e| match e.kind() {
+            std::io::ErrorKind::NotFound => StoreError::NotFound(path.to_string()),
+            _ => io_err(e),
+        })?;
+        if !meta.is_dir() {
+            return Err(StoreError::InvalidPath(format!("not a folder: {path}")));
+        }
+        let id = user_folder_id(path);
+        if !self.library_roots.iter().any(|r| r.id == id) {
+            let name = p
+                .file_name()
+                .map_or_else(|| path.to_string(), |n| n.to_string_lossy().into_owned());
+            self.library_roots.push(LibraryRoot {
+                id: id.clone(),
+                name,
+                path: p.to_path_buf(),
+            });
+        }
+        Ok(id)
+    }
+
+    /// `browser-v2`: forget a user folder (files untouched). Configured roots can't be
+    /// removed.
+    fn remove_folder(&mut self, root: &str) -> Result<(), StoreError> {
+        if !root.starts_with(USER_FOLDER_PREFIX) {
+            return Err(StoreError::InvalidPath(format!(
+                "{root} is not a user folder"
+            )));
+        }
+        let before = self.library_roots.len();
+        self.library_roots.retain(|r| r.id != root);
+        if self.library_roots.len() == before {
+            return Err(StoreError::NotFound(root.to_string()));
+        }
+        Ok(())
+    }
+}
+
+/// Id prefix of user folders (`Library::add_folder`).
+pub const USER_FOLDER_PREFIX: &str = "folder-";
+
+/// Stable root id of a user folder: [`USER_FOLDER_PREFIX`] + the FNV-1a hash of its path.
+pub fn user_folder_id(path: &str) -> String {
+    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+    for b in path.as_bytes() {
+        h ^= u64::from(*b);
+        h = h.wrapping_mul(0x0100_0000_01b3);
+    }
+    format!("{USER_FOLDER_PREFIX}{h:016x}")
 }
 
 /// See `Library::list_external_dir` for `DiskStore`: an absolute folder's entries
@@ -928,6 +1004,29 @@ mod tests {
     }
 
     #[test]
+    fn remove_deletes_files_only() {
+        let tmp = TempDir::new("store-remove");
+        let mut s = store(&tmp);
+        let a = pid(8);
+        s.create(a).unwrap();
+        s.write(a, "versions/.session", b"{}").unwrap();
+        s.write(a, "versions/1-manual.ether", b"{}").unwrap();
+        s.remove(a, "versions/.session").unwrap();
+        assert!(!s.project_dir(a).join("versions/.session").exists());
+        s.remove(a, "versions/.session").unwrap();
+        assert!(matches!(
+            s.remove(a, "versions"),
+            Err(StoreError::InvalidPath(_))
+        ));
+        assert!(matches!(s.remove(a, ""), Err(StoreError::InvalidPath(_))));
+        assert!(matches!(
+            s.remove(a, "../x"),
+            Err(StoreError::InvalidPath(_))
+        ));
+        assert!(s.project_dir(a).join("versions/1-manual.ether").exists());
+    }
+
+    #[test]
     fn duplicate_and_delete() {
         let tmp = TempDir::new("store-dup");
         let mut s = store(&tmp);
@@ -992,5 +1091,46 @@ mod tests {
             Library::list_dir(&mut s, "nope", ""),
             Err(StoreError::NotFound(_))
         ));
+    }
+    #[test]
+    fn user_folders_add_list_remove() {
+        let tmp = TempDir::new("store-folders");
+        let mut s = store(&tmp);
+        let dir = tmp.path().join("My Samples");
+        fs::create_dir_all(dir.join("sub")).unwrap();
+        fs::write(dir.join("sub/hit.wav"), b"RIFF").unwrap();
+        let path = dir.to_str().unwrap();
+        let id = s.add_folder(path).unwrap();
+        assert_eq!(id, user_folder_id(path));
+        assert_eq!(s.add_folder(path).unwrap(), id, "idempotent");
+        let roots = s.roots();
+        assert_eq!(roots.len(), 2);
+        assert_eq!(roots[1].name, "My Samples");
+        let sub = Library::list_dir(&mut s, &id, "sub").unwrap();
+        assert_eq!(sub.entries[0].path, "sub/hit.wav");
+        assert!(
+            s.external_path(&id, "sub/hit.wav")
+                .unwrap()
+                .ends_with("hit.wav")
+        );
+        assert!(matches!(
+            s.add_folder("relative"),
+            Err(StoreError::InvalidPath(_))
+        ));
+        assert!(matches!(
+            s.add_folder(dir.join("sub/hit.wav").to_str().unwrap()),
+            Err(StoreError::InvalidPath(_))
+        ));
+        assert!(matches!(
+            s.add_folder(tmp.path().join("missing").to_str().unwrap()),
+            Err(StoreError::NotFound(_))
+        ));
+        assert!(matches!(
+            s.remove_folder("lib"),
+            Err(StoreError::InvalidPath(_))
+        ));
+        s.remove_folder(&id).unwrap();
+        assert_eq!(s.roots().len(), 1);
+        assert!(matches!(s.remove_folder(&id), Err(StoreError::NotFound(_))));
     }
 }

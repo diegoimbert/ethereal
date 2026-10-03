@@ -1,0 +1,38 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "Resonant Rise",
+    "device": {
+      "type": "Builtin",
+      "device": "AutoFilter"
+    },
+    "meta": {
+      "tags": [
+        "high-pass",
+        "resonant",
+        "riser"
+      ],
+      "author": "Ethereal",
+      "description": "Resonant high-pass stepping with sample & hold for build-ups."
+    },
+    "params": {
+      "0": 3.0,
+      "1": 300.0,
+      "2": 70.0,
+      "3": 3.0,
+      "4": 0.0,
+      "5": 5.0,
+      "6": 200.0,
+      "7": 50.0,
+      "8": 5.0,
+      "9": 4.0,
+      "10": 1.0,
+      "11": 4.0,
+      "12": 0.0,
+      "13": 100.0,
+      "14": 0.0
+    }
+  }
+}

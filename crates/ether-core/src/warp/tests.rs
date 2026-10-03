@@ -102,6 +102,8 @@ fn track(id: TrackId, kind: TrackKind, output: Option<TrackId>, clips: Vec<ClipD
         clips,
         automation: vec![],
         racks: Vec::new(),
+        expression: Default::default(),
+        hw_io: Vec::new(),
     }
 }
 

@@ -109,6 +109,8 @@ where
     ) -> CmdResult<ReplyValue> {
         let current = self.doc.as_ref().map(|d| d.project.id);
         let command = &msg.command;
+        // `agent-api`: remember what the agent tools report (the UI's selection).
+        self.agent_observe(command);
         // base-53: while listening on a peer, transport commands go to the host and
         // recording is refused (loop changes are document commands: intercept first).
         if let Some(r) = self.collab_transport_intercept(command, out) {
@@ -120,6 +122,12 @@ where
         }
         // base-62: a note added by this command is authored by our session identity.
         let _note_author = self.social_note_scope(command);
+        // v0.3 (`templates`): `Template::Insert` loads its file and imports its samples
+        // first (alone: in one gesture; in a `Batch`: scoped for the batch).
+        if let Some(r) = self.template_insert_command(msg, now, out) {
+            return r;
+        }
+        let _templates = self.template_scope(command, msg.gesture, now, out)?;
         if doc::is_document_command(command, current) {
             let label = doc::label_of(command);
             self.edit_with(&label, msg.gesture, now, out, |ctx| {
@@ -148,6 +156,8 @@ where
             Command::Device(DeviceCommand::GetDescriptor { device }) => {
                 self.get_descriptor(*device)
             }
+            // v0.3 (`fx-space`).
+            Command::Device(DeviceCommand::ListFactoryIrs) => crate::fx_space::list_factory_irs(),
             Command::Recording(r) => self.recording_command(r, now, out),
             Command::Plugin(p) => self.plugin_command(p, msg.gesture, now, out),
             Command::Warp(WarpCommand::DetectTempo { clip }) => self.detect_tempo(*clip),
@@ -173,6 +183,19 @@ where
                 kinds: ether_devices::modulators::all(),
             }),
             Command::Chat(c) => self.chat_command(c, now, out),
+            // v0.3 (contracts-4; document parts of `Expression`, `External` and `Template`
+            // go through `doc::apply`).
+            Command::Capture(c) => self.capture_command(c, now, out),
+            Command::AudioToMidi(c) => self.audio_to_midi_command(c, now, out),
+            Command::External(c) => self.external_command(c, now, out),
+            Command::History(c) => self.history_command(c, now, out),
+            Command::Template(c) => self.template_command(c, now, out),
+            Command::Version(c) => self.version_command(c, now, out),
+            Command::Keymap(c) => self.keymap_command(c, out),
+            // base-115 (docs/SHARING.md).
+            Command::Share(c) => self.share_command(c, out),
+            // `agent-api`: LLM tools (each edit tool call is one undo step).
+            Command::Agent(c) => self.agent_command(c, now, out),
             other => Err(internal(format!(
                 "unhandled command {}",
                 doc::label_of(other)
@@ -968,6 +991,11 @@ where
         self.freeze_tick(now, out);
         self.browser_tick(now, out);
         self.media_refs_tick(now, out);
+        // v0.3 hooks.
+        self.capture_tick(now, out);
+        self.audio_to_midi_tick(now, out);
+        self.history_tick(now, out);
+        self.versions_tick(now, out);
 
         // Media jobs.
         if let Some(pid) = self.doc.as_ref().map(|d| d.project.id)
@@ -1003,6 +1031,7 @@ where
                                 matches!(&dev.kind, DeviceKind::Builtin {
                                     device: BuiltinDevice::Sampler { sample: Some(m), .. }
                                 } if loaded.contains(m))
+                                    || crate::multisampler::uses_media(&dev.kind, &loaded)
                             })
                             .map(|dev| dev.id)
                             .collect()

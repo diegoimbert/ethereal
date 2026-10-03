@@ -13,6 +13,8 @@ import type { Device } from "./Device";
 import type { DeviceId } from "./DeviceId";
 import type { DrumPad } from "./DrumPad";
 import type { DrumPadId } from "./DrumPadId";
+import type { ExpressionLane } from "./ExpressionLane";
+import type { ExpressionLaneId } from "./ExpressionLaneId";
 import type { Marker } from "./Marker";
 import type { MarkerId } from "./MarkerId";
 import type { MediaId } from "./MediaId";
@@ -24,6 +26,8 @@ import type { ModMappingId } from "./ModMappingId";
 import type { Modulator } from "./Modulator";
 import type { ModulatorId } from "./ModulatorId";
 import type { Note } from "./Note";
+import type { NoteExpression } from "./NoteExpression";
+import type { NoteExpressionId } from "./NoteExpressionId";
 import type { NoteId } from "./NoteId";
 import type { PinnedNote } from "./PinnedNote";
 import type { PinnedNoteId } from "./PinnedNoteId";
@@ -97,4 +101,12 @@ chat: { [key in ChatMessageId]: ChatMessage },
 /**
  * Notes pinned on the arrangement (base-62, `collab-social`; `.ether` v4).
  */
-pinned_notes: { [key in PinnedNoteId]: PinnedNote }, };
+pinned_notes: { [key in PinnedNoteId]: PinnedNote }, 
+/**
+ * Clip expression lanes: CC, pitch bend, channel pressure (`midi-expression`).
+ */
+expression_lanes: { [key in ExpressionLaneId]: ExpressionLane }, 
+/**
+ * Per-note expressions: pitch, pressure, timbre (`midi-expression`, `mpe`).
+ */
+note_expressions: { [key in NoteExpressionId]: NoteExpression }, };

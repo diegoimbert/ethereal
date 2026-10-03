@@ -10,7 +10,8 @@
 //! - Worklet → Worker: [`EngineReport`] (playhead, max-held meters, diagnostics; compact
 //!   binary encoded into a reused buffer so the audio thread doesn't allocate),
 //!   [`REPORT_ANALYSIS`] device analysis frames (`fx-analysis`, [`encode_analysis_into`])
-//!   and [`REPORT_ERROR`] text messages (compile errors etc.).
+//!   [`REPORT_LATENCY`] node latency changes (`web-latency`, [`crate::latency`]) and
+//!   [`REPORT_ERROR`] text messages (compile errors etc.).
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -18,7 +19,7 @@ use std::sync::Arc;
 use ether_core::analysis::{ANALYSIS_MAX_VALUES, AnalysisFrame, AnalysisKind};
 use ether_core::codec::{BinaryCodec, CodecError, GraphCodec};
 use ether_core::protocol::meters::TrackMeter;
-use ether_core::protocol::model::{BuiltinDevice, MediaId, ParamId, TrackId, Ulid};
+use ether_core::protocol::model::{BuiltinDevice, MediaId, MusicalScale, ParamId, TrackId, Ulid};
 use ether_core::{NodeKey, ParamChange, PlayheadState, RenderGraphDesc, TransportControl};
 use ether_media::DecodedAudio;
 use serde::{Deserialize, Serialize};
@@ -74,6 +75,12 @@ pub enum EngineMsg {
         media: Option<MediaId>,
         gain: f32,
     },
+    /// v0.2 (`midi-fx`): the resolved scale for a live node (`Node::set_data` with a
+    /// `Box<MusicalScale>`; `EngineBridge::set_node_scale`).
+    NodeScale {
+        key: NodeKey,
+        scale: MusicalScale,
+    },
     /// v0.2 analysis channel: start/stop collecting a node's analysis frames
     /// (`EngineHandle::watch_analysis`; the Worklet reports them as [`REPORT_ANALYSIS`]).
     WatchAnalysis {
@@ -106,6 +113,10 @@ enum JsonMsg {
         media: Option<MediaId>,
         gain: f32,
         id: u64,
+    },
+    NodeScale {
+        key: NodeKey,
+        scale: MusicalScale,
     },
     WatchAnalysis {
         key: NodeKey,
@@ -156,6 +167,7 @@ impl EngineMsg {
             EngineMsg::SetParam { change } => JsonMsg::SetParam { change },
             EngineMsg::Transport { control } => JsonMsg::Transport { control },
             EngineMsg::Preview { id, media, gain } => JsonMsg::Preview { media, gain, id },
+            EngineMsg::NodeScale { key, scale } => JsonMsg::NodeScale { key, scale },
             EngineMsg::WatchAnalysis { key, on } => JsonMsg::WatchAnalysis { key, on },
         };
         let mut out = vec![TAG_JSON];
@@ -234,6 +246,7 @@ impl<'a> Frame<'a> {
                     JsonMsg::SetParam { change } => EngineMsg::SetParam { change },
                     JsonMsg::Transport { control } => EngineMsg::Transport { control },
                     JsonMsg::Preview { media, gain, id } => EngineMsg::Preview { id, media, gain },
+                    JsonMsg::NodeScale { key, scale } => EngineMsg::NodeScale { key, scale },
                     JsonMsg::WatchAnalysis { key, on } => EngineMsg::WatchAnalysis { key, on },
                 }))
             }
@@ -371,6 +384,9 @@ pub const REPORT_STATE: u8 = b'R';
 pub const REPORT_ERROR: u8 = b'E';
 /// Tag of an analysis frame (Worklet → Worker; `fx-analysis`).
 pub const REPORT_ANALYSIS: u8 = b'A';
+/// Tag of a node latency report (Worklet → Worker; `web-latency`,
+/// [`crate::latency::LatencyReport`]).
+pub const REPORT_LATENCY: u8 = b'L';
 
 // [A][node index u32][node generation u32][kind u8][len u16][len x f32 LE]; the node key is
 // the Worker's virtual key.
@@ -603,6 +619,8 @@ mod tests {
                 clips: vec![],
                 automation: vec![],
                 racks: Vec::new(),
+                expression: Default::default(),
+                hw_io: Vec::new(),
             }],
             ..Default::default()
         };
@@ -616,6 +634,13 @@ mod tests {
                 params: vec![(ParamId(1), 0.25)],
             },
             EngineMsg::DestroyNode { key },
+            EngineMsg::NodeScale {
+                key,
+                scale: MusicalScale {
+                    root: 2,
+                    kind: ether_core::protocol::model::ScaleKind::Dorian,
+                },
+            },
             EngineMsg::Publish {
                 graph: Box::new(graph),
             },

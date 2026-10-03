@@ -1,0 +1,37 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "Slow Strum",
+    "device": {
+      "type": "Builtin",
+      "device": "Chord"
+    },
+    "meta": {
+      "tags": [
+        "chord",
+        "strum",
+        "guitar"
+      ],
+      "author": "Ethereal",
+      "description": "A spread major chord strummed low to high over 180 ms."
+    },
+    "params": {
+      "0": 4.0,
+      "1": 7.0,
+      "2": 12.0,
+      "3": 16.0,
+      "4": 0.0,
+      "5": 0.0,
+      "6": 95.0,
+      "7": 90.0,
+      "8": 85.0,
+      "9": 80.0,
+      "10": 100.0,
+      "11": 100.0,
+      "12": 180.0,
+      "13": 30.0
+    }
+  }
+}

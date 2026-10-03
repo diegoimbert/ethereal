@@ -75,6 +75,13 @@ pub struct Project {
     /// Notes pinned on the arrangement (base-62, `collab-social`; `.ether` v4).
     #[serde(default)]
     pub pinned_notes: BTreeMap<PinnedNoteId, PinnedNote>,
+    // --- v0.3 (`.ether` v5, contracts-4) ---
+    /// Clip expression lanes: CC, pitch bend, channel pressure (`midi-expression`).
+    #[serde(default)]
+    pub expression_lanes: BTreeMap<ExpressionLaneId, ExpressionLane>,
+    /// Per-note expressions: pitch, pressure, timbre (`midi-expression`, `mpe`).
+    #[serde(default)]
+    pub note_expressions: BTreeMap<NoteExpressionId, NoteExpression>,
 }
 
 /// Project-wide singleton settings (a single LWW register per field).
@@ -161,6 +168,7 @@ impl Project {
             monitor: MonitorMode::default(),
             scale: Default::default(),
             freeze: None,
+            mpe: None,
         };
         let tempo = TempoPoint {
             id: ids.next(now_ms),
@@ -197,6 +205,8 @@ impl Project {
             mod_mappings: BTreeMap::new(),
             chat: BTreeMap::new(),
             pinned_notes: BTreeMap::new(),
+            expression_lanes: BTreeMap::new(),
+            note_expressions: BTreeMap::new(),
         }
     }
 
@@ -235,7 +245,7 @@ impl Project {
     /// lanes, track-chain devices, drum pads, rack chains, pad-chain and rack-chain devices,
     /// modulators, sends, clips, comp regions, notes, warp markers, automation lanes,
     /// automation points, MIDI mappings, modulation mappings, chat messages (by `seq`),
-    /// pinned notes.
+    /// pinned notes, expression lanes, note expressions.
     pub fn entities(&self) -> Vec<Entity> {
         let depth = |t: &Track| {
             let mut d = 0;
@@ -314,6 +324,18 @@ impl Project {
                 .map(Entity::ChatMessage),
         );
         out.extend(self.pinned_notes.values().cloned().map(Entity::PinnedNote));
+        out.extend(
+            self.expression_lanes
+                .values()
+                .cloned()
+                .map(Entity::ExpressionLane),
+        );
+        out.extend(
+            self.note_expressions
+                .values()
+                .cloned()
+                .map(Entity::NoteExpression),
+        );
         out
     }
 
@@ -446,6 +468,28 @@ impl Project {
             .filter(|r| r.track == track)
             .collect();
         v.sort_by(|a, b| a.start.0.total_cmp(&b.start.0).then(a.id.cmp(&b.id)));
+        v
+    }
+
+    /// Expression lanes of a MIDI clip, sorted by (kind, id) (v0.3).
+    pub fn expression_lanes_of(&self, clip: ClipId) -> Vec<&ExpressionLane> {
+        let mut v: Vec<&ExpressionLane> = self
+            .expression_lanes
+            .values()
+            .filter(|l| l.clip == clip)
+            .collect();
+        v.sort_by(|a, b| a.kind.cmp(&b.kind).then(a.id.cmp(&b.id)));
+        v
+    }
+
+    /// Expressions of a note, sorted by (kind, id) (v0.3).
+    pub fn note_expressions_of(&self, note: NoteId) -> Vec<&NoteExpression> {
+        let mut v: Vec<&NoteExpression> = self
+            .note_expressions
+            .values()
+            .filter(|e| e.note == note)
+            .collect();
+        v.sort_by(|a, b| a.kind.cmp(&b.kind).then(a.id.cmp(&b.id)));
         v
     }
 

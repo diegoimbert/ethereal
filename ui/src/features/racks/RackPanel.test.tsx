@@ -41,9 +41,10 @@ describe("RackPanel", () => {
     const p = store().project!;
     const d = Object.values(p.devices).find((x) => x.name === "Delay" && x.chain != null);
     expect(d).toBeDefined();
-    // The track chain list shows the rack only once, not its chain devices.
+    // The track chain list shows the rack only once, not its chain devices (the rack, an
+    // instrument, replaced the Synth: rack + Compressor).
     const list = screen.getByRole("list", { name: "Keys devices" });
-    expect(within(list).getAllByRole("region").filter((r) => r.parentElement?.parentElement === list)).toHaveLength(3);
+    expect(within(list).getAllByRole("region").filter((r) => r.parentElement?.parentElement === list)).toHaveLength(2);
     // Mute and solo.
     fireEvent.click(within(rack).getByRole("button", { name: "Mute Chain 1" }));
     await flush();

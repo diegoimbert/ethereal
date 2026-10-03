@@ -11,6 +11,8 @@ import type { DeviceChange } from "./DeviceChange";
 import type { DeviceId } from "./DeviceId";
 import type { DrumPadChange } from "./DrumPadChange";
 import type { DrumPadId } from "./DrumPadId";
+import type { ExpressionLaneChange } from "./ExpressionLaneChange";
+import type { ExpressionLaneId } from "./ExpressionLaneId";
 import type { MarkerChange } from "./MarkerChange";
 import type { MarkerId } from "./MarkerId";
 import type { MediaChange } from "./MediaChange";
@@ -22,6 +24,8 @@ import type { ModMappingId } from "./ModMappingId";
 import type { ModulatorChange } from "./ModulatorChange";
 import type { ModulatorId } from "./ModulatorId";
 import type { NoteChange } from "./NoteChange";
+import type { NoteExpressionChange } from "./NoteExpressionChange";
+import type { NoteExpressionId } from "./NoteExpressionId";
 import type { NoteId } from "./NoteId";
 import type { PinnedNoteChange } from "./PinnedNoteChange";
 import type { PinnedNoteId } from "./PinnedNoteId";
@@ -43,4 +47,4 @@ import type { WarpMarkerId } from "./WarpMarkerId";
 /**
  * A single-field change of one entity.
  */
-export type EntityUpdate = { "type": "Track", id: TrackId, change: TrackChange, } | { "type": "Clip", id: ClipId, change: ClipChange, } | { "type": "Note", id: NoteId, change: NoteChange, } | { "type": "Device", id: DeviceId, change: DeviceChange, } | { "type": "Send", id: SendId, change: SendChange, } | { "type": "AutomationLane", id: AutomationLaneId, change: AutomationLaneChange, } | { "type": "AutomationPoint", id: AutomationPointId, change: AutomationPointChange, } | { "type": "TempoPoint", id: TempoPointId, change: TempoPointChange, } | { "type": "TimeSignature", id: TimeSignatureId, change: TimeSignatureChange, } | { "type": "WarpMarker", id: WarpMarkerId, change: WarpMarkerChange, } | { "type": "Media", id: MediaId, change: MediaChange, } | { "type": "Marker", id: MarkerId, change: MarkerChange, } | { "type": "MidiMapping", id: MidiMappingId, change: MidiMappingChange, } | { "type": "DrumPad", id: DrumPadId, change: DrumPadChange, } | { "type": "TakeLane", id: TakeLaneId, change: TakeLaneChange, } | { "type": "CompRegion", id: CompRegionId, change: CompRegionChange, } | { "type": "RackChain", id: RackChainId, change: RackChainChange, } | { "type": "Modulator", id: ModulatorId, change: ModulatorChange, } | { "type": "ModMapping", id: ModMappingId, change: ModMappingChange, } | { "type": "PinnedNote", id: PinnedNoteId, change: PinnedNoteChange, };
+export type EntityUpdate = { "type": "Track", id: TrackId, change: TrackChange, } | { "type": "Clip", id: ClipId, change: ClipChange, } | { "type": "Note", id: NoteId, change: NoteChange, } | { "type": "Device", id: DeviceId, change: DeviceChange, } | { "type": "Send", id: SendId, change: SendChange, } | { "type": "AutomationLane", id: AutomationLaneId, change: AutomationLaneChange, } | { "type": "AutomationPoint", id: AutomationPointId, change: AutomationPointChange, } | { "type": "TempoPoint", id: TempoPointId, change: TempoPointChange, } | { "type": "TimeSignature", id: TimeSignatureId, change: TimeSignatureChange, } | { "type": "WarpMarker", id: WarpMarkerId, change: WarpMarkerChange, } | { "type": "Media", id: MediaId, change: MediaChange, } | { "type": "Marker", id: MarkerId, change: MarkerChange, } | { "type": "MidiMapping", id: MidiMappingId, change: MidiMappingChange, } | { "type": "DrumPad", id: DrumPadId, change: DrumPadChange, } | { "type": "TakeLane", id: TakeLaneId, change: TakeLaneChange, } | { "type": "CompRegion", id: CompRegionId, change: CompRegionChange, } | { "type": "RackChain", id: RackChainId, change: RackChainChange, } | { "type": "Modulator", id: ModulatorId, change: ModulatorChange, } | { "type": "ModMapping", id: ModMappingId, change: ModMappingChange, } | { "type": "PinnedNote", id: PinnedNoteId, change: PinnedNoteChange, } | { "type": "ExpressionLane", id: ExpressionLaneId, change: ExpressionLaneChange, } | { "type": "NoteExpression", id: NoteExpressionId, change: NoteExpressionChange, };

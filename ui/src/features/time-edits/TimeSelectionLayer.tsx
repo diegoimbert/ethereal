@@ -2,7 +2,7 @@ import "./time-edits.css";
 import { useEffect } from "react";
 import type { TrackId } from "@/generated";
 import { useViewport, type TimelineViewStore } from "@/timeline";
-import { useTimeSelection } from "./store";
+import { isMarker, useTimeSelection } from "./store";
 
 interface LayerRow {
   track: { id: TrackId };
@@ -12,7 +12,8 @@ interface LayerRow {
 
 /**
  * The time selection drawn over the lanes of its tracks (content px, lanes start at
- * `headerWidth`), with its edges. Pointer events pass through.
+ * `headerWidth`), with its edges; at zero length, the insert marker (a thin blinking line).
+ * Pointer events pass through.
  */
 export function TimeSelectionLayer({
   rows,
@@ -29,6 +30,23 @@ export function TimeSelectionLayer({
   const left = headerWidth + (sel.start - vp.scrollBeats) * vp.pxPerBeat;
   const width = (sel.end - sel.start) * vp.pxPerBeat;
   const shown = rows.filter((r) => sel.tracks.includes(r.track.id));
+  if (isMarker(sel)) {
+    if (left < headerWidth) return null;
+    return (
+      <>
+        {shown.map((r) => (
+          <div
+            key={r.track.id}
+            className="eth-insert-marker"
+            data-testid="insert-marker"
+            data-track={r.track.id}
+            data-beats={sel.start}
+            style={{ left, top: r.y, height: r.height }}
+          />
+        ))}
+      </>
+    );
+  }
   return (
     <>
       {shown.map((r) => (

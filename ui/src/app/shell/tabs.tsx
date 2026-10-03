@@ -1,4 +1,4 @@
-import { Boxes, FolderOpen, Library, MessageSquare, Plug, SlidersHorizontal } from "lucide-react";
+import { Boxes, FolderOpen, Library, MessageSquare, Plug, SlidersHorizontal, Sparkles } from "lucide-react";
 import type { ReactNode } from "react";
 import { AutomationLanes } from "@/features/automation";
 import { DrumRackView } from "@/features/drum-rack";
@@ -16,6 +16,8 @@ export const LEFT_TABS: ReadonlyArray<{ id: LeftTab; label: string; icon: ReactN
   { id: "devices", label: "Devices", icon: <Boxes /> },
   { id: "midi", label: "MIDI mapping", icon: <SlidersHorizontal /> },
   { id: "chat", label: "Chat", icon: <MessageSquare />, session: true },
+  // ai-chat: Claude edits the project through the agent API.
+  { id: "ai", label: "Ask AI", icon: <Sparkles /> },
 ];
 
 /** Editors of the bottom drawer. */

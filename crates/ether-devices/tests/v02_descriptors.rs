@@ -7,7 +7,9 @@ use std::collections::BTreeMap;
 
 use assert_no_alloc::assert_no_alloc;
 use ether_core::protocol::devices::{DeviceCategory, DeviceDescriptor};
-use ether_core::protocol::model::{BuiltinDevice, BuiltinDeviceType, PresetDevice, load_preset};
+use ether_core::protocol::model::{
+    BuiltinDevice, BuiltinDeviceType, PresetDevice, PresetModTarget, PresetRack, load_preset,
+};
 use ether_core::{
     AudioBuffers, EventBuffer, EventKind, Node, PrepareConfig, ProcessContext, ProcessEvent,
     TransportInfo,
@@ -32,6 +34,20 @@ const IMPLEMENTED: &[BuiltinDeviceType] = &[
     BuiltinDeviceType::SpectrumAnalyzer,
     BuiltinDeviceType::Tuner,
     BuiltinDeviceType::PolySynth,
+    BuiltinDeviceType::Arpeggiator,
+    BuiltinDeviceType::Chord,
+    BuiltinDeviceType::ScaleQuantize,
+    BuiltinDeviceType::NoteLength,
+    BuiltinDeviceType::Velocity,
+    BuiltinDeviceType::Randomizer,
+    BuiltinDeviceType::Chorus,
+    BuiltinDeviceType::Phaser,
+    BuiltinDeviceType::Flanger,
+    BuiltinDeviceType::Tremolo,
+    BuiltinDeviceType::Saturator,
+    BuiltinDeviceType::Bitcrusher,
+    BuiltinDeviceType::AutoFilter,
+    BuiltinDeviceType::MultiSampler,
 ];
 
 const GROUPS: &[(&str, &[BuiltinDeviceType])] = &[
@@ -129,8 +145,8 @@ fn mock_descriptors_match_rust() {
         check_file(file, &serde_json::to_value(map).unwrap());
     }
     // Every v0.2 type belongs to exactly one group (the 9 earlier ones are in
-    // `builtinDevices.ts`).
-    assert_eq!(covered, BuiltinDeviceType::ALL.len() - 9);
+    // `builtinDevices.ts`, the 3 v0.3 ones in `v03_descriptors.rs`).
+    assert_eq!(covered, BuiltinDeviceType::ALL.len() - 9 - 3);
     // The EQ (devices-2) carries the v0.2 `EqCurve` layout (graphical-eq): generated too.
     check_file(
         "eq",
@@ -315,6 +331,79 @@ fn factory_presets_parse_and_match_their_type() {
                     p.id
                 );
             }
+            if let Some(rack) = &preset.rack {
+                check_rack_preset(p.id, t, rack);
+            }
         }
+    }
+}
+
+/// v0.3 (`rack-presets`): factory rack presets use built-in devices only, that fit the rack
+/// (audio effect rack: audio effects, MIDI effect rack: MIDI effects, no nested racks), with
+/// known in-range params, and map only automatable params.
+fn check_rack_preset(id: &str, rack_type: BuiltinDeviceType, rack: &PresetRack) {
+    use ether_core::protocol::devices::DeviceCategory;
+    let mut descs = Vec::new();
+    for c in &rack.chains {
+        let mut row = Vec::new();
+        for d in &c.devices {
+            let PresetDevice::Builtin { device } = d.device else {
+                panic!("{id}: factory rack presets use built-in devices only");
+            };
+            assert!(
+                !device.is_rack() && device != BuiltinDeviceType::DrumRack,
+                "{id}: nested rack"
+            );
+            let desc = ether_devices::descriptor(device);
+            match rack_type {
+                BuiltinDeviceType::AudioEffectRack => {
+                    assert_eq!(desc.category, DeviceCategory::AudioEffect, "{id}")
+                }
+                BuiltinDeviceType::MidiEffectRack => {
+                    assert_eq!(desc.category, DeviceCategory::NoteEffect, "{id}")
+                }
+                _ => {}
+            }
+            for (pid, v) in &d.params {
+                let info = desc
+                    .params
+                    .iter()
+                    .find(|q| q.id == *pid)
+                    .unwrap_or_else(|| panic!("{id}: {device:?} has no param {pid:?}"));
+                assert_eq!(
+                    info.snap(*v),
+                    *v,
+                    "{id}: {device:?} param {pid:?} out of range"
+                );
+            }
+            assert!(d.state.is_none() && d.kind.is_none(), "{id}");
+            row.push(desc);
+        }
+        descs.push(row);
+    }
+    for m in &rack.modulators {
+        let desc = ether_devices::modulators::descriptor(m.kind);
+        for pid in m.params.keys() {
+            assert!(
+                desc.params.iter().any(|q| q.id == *pid),
+                "{id}: modulator param {pid:?}"
+            );
+        }
+    }
+    for m in &rack.mappings {
+        let desc = match m.target {
+            PresetModTarget::Rack => ether_devices::descriptor(rack_type),
+            PresetModTarget::ChainDevice { chain, device } => {
+                descs[chain as usize][device as usize].clone()
+            }
+        };
+        let info = desc.params.iter().find(|q| q.id == m.param);
+        assert!(
+            info.is_some_and(|q| q.automatable),
+            "{id}: mapping to {:?} param {:?}",
+            m.target,
+            m.param
+        );
+        assert!((-1.0..=1.0).contains(&m.depth), "{id}: depth");
     }
 }

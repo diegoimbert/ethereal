@@ -77,7 +77,7 @@ pub(super) fn apply(ctx: &mut DocCtx, c: &NoteCommand) -> CmdResult<()> {
         NoteCommand::Remove { ids } => {
             for id in ids {
                 note(ctx, *id)?;
-                ctx.tx.remove(EntityKey::Note(*id))?;
+                ctx.delete_note(*id)?;
             }
             Ok(())
         }
@@ -173,6 +173,10 @@ pub(super) fn apply(ctx: &mut DocCtx, c: &NoteCommand) -> CmdResult<()> {
                 n.start = Beats((n.start.0 + offset.0).max(0.0));
                 n.pitch = (n.pitch as i16 + *transpose as i16).clamp(0, 127) as u8;
                 ctx.tx.insert(Entity::Note(n))?;
+                // v0.3 (`midi-expression`): the copy keeps the note's expressions.
+                crate::expression::copy::copy_note_expressions(ctx, cp.from, cp.new_id, |c, _| {
+                    c.new_id()
+                })?;
             }
             Ok(())
         }

@@ -1,17 +1,18 @@
 /**
- * Data widgets of the catalog: SampleWaveform, ZoneMap (device kind data), Spectrum, Tuner,
- * Meter (`AnalysisData` through the `fx-analysis` seam), RackChains and Macros (racks), and
- * the EqCurve placeholder (the interactive curve is `graphical-eq`'s, in `layout/eq/`).
+ * Data widgets of the catalog: SampleWaveform (device kind data), Spectrum, Tuner,
+ * Meter (`AnalysisData` through the `fx-analysis` seam), RackChains and Macros (racks). The
+ * EqCurve is `graphical-eq`'s, in `layout/eq/`; the ZoneMap is `multisampler`'s, in
+ * `layout/zones/`.
  */
 
 import clsx from "clsx";
 import { useEffect, useRef, useState } from "react";
-import type { AnalysisData, MediaRef, ParamInfo, PeakData, Widget, WidgetSize } from "@/generated";
+import type { AnalysisData, MediaRef, ParamInfo, PeakData } from "@/generated";
 import { useProjectStore } from "@/state";
 import { cmd, useTransport } from "@/transport";
 import { SampleSlot } from "../../SampleSlot";
 import { useLayoutContext, useParam, type ParamBinding } from "../context";
-import { freqToX, samplePath } from "../curves";
+import { freqToX } from "../curves";
 import { GridLines, Plot } from "../plot";
 import { useDeviceAnalysis } from "../seams";
 import { WidgetView } from "../Widget";
@@ -146,41 +147,6 @@ export function SampleWaveformWidget({ widget: w, size, label }: TypedProps<"Sam
             {handles.map((b) => (
               <line key={b.info.id} className="eth-plot__marker" x1={b.normalized * wpx} x2={b.normalized * wpx} y1={0} y2={h} data-handle={b.info.name} />
             ))}
-          </>
-        )}
-      </Plot>
-    </TypedFrame>
-  );
-}
-
-// ---- Zone map --------------------------------------------------------------------------
-
-export function ZoneMapWidget({ size, label }: TypedProps<"ZoneMap">) {
-  const { device } = useLayoutContext();
-  const kind = device.kind;
-  const zones = kind.type === "Builtin" && kind.device.type === "MultiSampler" ? kind.device.zones : [];
-  return (
-    <TypedFrame type="zone-map" size={size} label={label}>
-      <Plot className="eth-plot--zones" label={`${zones.length} zones`} testId="widget-zone-map">
-        {({ w: wpx, h }) => (
-          <>
-            <GridLines w={wpx} h={h} ys={[0.5]} xs={[1, 2, 3, 4, 5, 6, 7, 8, 9].map((o) => (o * 12) / 128)} />
-            {zones.map((z, i) => {
-              const x0 = (z.keys.lo / 128) * wpx;
-              const x1 = ((z.keys.hi + 1) / 128) * wpx;
-              const y0 = (1 - (z.velocities.hi + 1) / 128) * h;
-              const y1 = (1 - Math.max(0, z.velocities.lo - 1) / 128) * h;
-              return (
-                <rect key={i} className="eth-plot__zone" x={x0} y={y0} width={Math.max(1, x1 - x0)} height={Math.max(1, y1 - y0)}>
-                  <title>{`Keys ${z.keys.lo}–${z.keys.hi}, velocity ${z.velocities.lo}–${z.velocities.hi}`}</title>
-                </rect>
-              );
-            })}
-            {zones.length === 0 && (
-              <text className="eth-plot__empty" x={wpx / 2} y={h / 2}>
-                No zones
-              </text>
-            )}
           </>
         )}
       </Plot>
@@ -381,36 +347,6 @@ export function RackChainsWidget({ size, label }: TypedProps<"RackChains">) {
         ))}
         {list.length === 0 && <li className="eth-rack-chains__empty">No chains</li>}
       </ul>
-    </TypedFrame>
-  );
-}
-
-// ---- EQ curve (placeholder until graphical-eq) ------------------------------------------
-
-/**
- * Static stand-in for the EQ curve: the band frequencies on the log axis. `graphical-eq`
- * replaces it with the interactive curve (`layout/eq/`), registered in `Widget.tsx`.
- */
-export function EqCurvePlaceholder({ widget: w, size, label }: { widget: Extract<Widget, { type: "EqCurve" }>; size: WidgetSize; label: string | null }) {
-  const ctx = useLayoutContext();
-  const bands = w.bands.flatMap((b) => {
-    const info = ctx.params.get(b.freq);
-    const on = b.on == null ? 1 : (ctx.device.params[b.on] ?? ctx.params.get(b.on)?.default ?? 1);
-    return info ? [{ f: ctx.device.params[info.id] ?? info.default, on: on >= 0.5, id: info.id }] : [];
-  });
-  return (
-    <TypedFrame type="eq-curve" size={size} label={label}>
-      <Plot className="eth-plot--eq" label="EQ bands" testId="widget-eq-curve">
-        {({ w: wpx, h }) => (
-          <>
-            <GridLines w={wpx} h={h} ys={[0.5]} xs={[freqToX(100), freqToX(1000), freqToX(10000)]} />
-            <polyline className="eth-plot__line" points={samplePath(2, wpx, () => h / 2)} />
-            {bands.map((b) => (
-              <circle key={b.id} className={clsx("eth-plot__handle", !b.on && "eth-plot__handle--off")} cx={freqToX(b.f) * wpx} cy={h / 2} r={4} />
-            ))}
-          </>
-        )}
-      </Plot>
     </TypedFrame>
   );
 }
