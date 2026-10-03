@@ -13,12 +13,18 @@ use std::collections::BTreeMap;
 
 use ether_core::RenderGraphDesc;
 use ether_core::graph::{ClipContentDesc, ClipDesc, WarpDesc};
-use ether_core::protocol::model::MediaId;
+use ether_core::protocol::model::{MediaId, WarpMode};
 use ether_core::tempo::TempoMapRt;
 
-/// Frames before a jump target also kept (the stretcher and interpolation read a little
-/// before the content position).
-pub const ANCHOR_PREROLL: u64 = 2048;
+/// Seconds before a jump target also kept: after a jump the stretcher (Complex warp) is
+/// primed with 0.2 s of audio leading up to its feed position, which runs ahead of the
+/// content position by its latencies.
+pub const PREROLL_SECONDS: f64 = 0.3;
+
+/// [`PREROLL_SECONDS`] in frames at `engine_rate`.
+pub fn preroll_frames(engine_rate: u32) -> u64 {
+    (PREROLL_SECONDS * engine_rate as f64) as u64
+}
 
 const MIN_LOOP: f64 = 1e-6;
 
@@ -66,7 +72,10 @@ fn frame_of(clip: &ClipDesc, c: f64, tempo: &TempoMapRt, rate: f64, total: u64) 
     };
     let ref_bpm = tempo.bpm_at(clip.start);
     let mut s = source_seconds(warp.as_ref(), ref_bpm, c);
-    if *transpose != 0.0 && transpose.is_finite() {
+    // Transpose repitches (changes the read speed) except on the stretched path, where
+    // the stretcher shifts the pitch.
+    let stretched = matches!(warp, Some(w) if w.mode == WarpMode::Complex);
+    if !stretched && *transpose != 0.0 && transpose.is_finite() {
         let s0 = source_seconds(warp.as_ref(), ref_bpm, clip.offset);
         s = s0 + (s - s0) * (*transpose as f64 / 12.0).exp2();
     }
@@ -83,7 +92,8 @@ fn media_of(clip: &ClipDesc) -> Option<MediaId> {
     }
 }
 
-/// Engine frames each streamed media is read at when the playhead is at beat `beat`.
+/// Engine frames each streamed media is read at when the playhead is at beat `beat`
+/// (each target preceded by its preroll, see [`PREROLL_SECONDS`]).
 /// `frames(media)` = the media's engine-rate length if it streams, `None` otherwise.
 pub fn positions_at(
     graph: &RenderGraphDesc,
@@ -101,6 +111,10 @@ pub fn positions_at(
         if let Some(c) = content_at(clip, beat)
             && let Some(f) = frame_of(clip, c, &tempo, engine_rate as f64, total)
         {
+            let pre = f.saturating_sub(preroll_frames(engine_rate));
+            if pre != f {
+                out.push((media, pre));
+            }
             out.push((media, f));
         }
     }
@@ -108,7 +122,7 @@ pub fn positions_at(
 }
 
 /// Anchors per streamed media: clip starts, clip content-loop starts and, with the
-/// transport loop on, the loop start (each with [`ANCHOR_PREROLL`]), as engine frames.
+/// transport loop on, the loop start (each with its preroll), as engine frames.
 pub fn anchors(
     graph: &RenderGraphDesc,
     engine_rate: u32,
@@ -119,7 +133,7 @@ pub fn anchors(
     let mut out: BTreeMap<MediaId, Vec<u64>> = BTreeMap::new();
     let mut add = |media: MediaId, f: u64| {
         let v = out.entry(media).or_default();
-        for x in [f.saturating_sub(ANCHOR_PREROLL), f] {
+        for x in [f.saturating_sub(preroll_frames(engine_rate)), f] {
             if !v.contains(&x) {
                 v.push(x);
             }
@@ -154,7 +168,7 @@ pub fn anchors(
 mod tests {
     use super::*;
     use ether_core::graph::TrackDesc;
-    use ether_core::protocol::model::{ClipId, TrackId, TrackKind, Ulid, WarpMode};
+    use ether_core::protocol::model::{ClipId, TrackId, TrackKind, Ulid};
     use ether_core::tempo::TempoPointDesc;
 
     fn audio_clip(start: f64, length: f64, offset: f64, looping: Option<(f64, f64)>) -> ClipDesc {
@@ -239,7 +253,7 @@ mod tests {
         let mut g = graph(vec![audio_clip(8.0, 100.0, 4.0, None)]);
         assert_eq!(
             positions_at(&g, 10.0, 48_000, &frames),
-            vec![(M, 6 * 24_000)]
+            vec![(M, 6 * 24_000 - 14_400), (M, 6 * 24_000)]
         );
         assert!(positions_at(&g, 7.0, 48_000, &frames).is_empty());
         g.loop_enabled = true;
@@ -248,7 +262,7 @@ mod tests {
         let v = &a[&M];
         assert!(v.contains(&(16 * 24_000)), "loop start: {v:?}");
         assert!(v.contains(&(4 * 24_000)), "clip start: {v:?}");
-        assert!(v.contains(&(4 * 24_000 - ANCHOR_PREROLL)));
+        assert!(v.contains(&(4 * 24_000 - preroll_frames(48_000))));
         // Media that don't stream have no anchors.
         assert!(anchors(&g, 48_000, &|_| None).is_empty());
     }
@@ -265,13 +279,13 @@ mod tests {
         }
         let g = graph(vec![clip.clone()]);
         // Beat 2 → 2 s.
-        assert_eq!(positions_at(&g, 2.0, 48_000, &frames)[0].1, 96_000);
+        assert_eq!(positions_at(&g, 2.0, 48_000, &frames)[1].1, 96_000);
         if let ClipContentDesc::Audio { reversed, .. } = &mut clip.content {
             *reversed = true;
         }
         let g = graph(vec![clip]);
         assert_eq!(
-            positions_at(&g, 2.0, 48_000, &frames)[0].1,
+            positions_at(&g, 2.0, 48_000, &frames)[1].1,
             48_000 * 100 - 1 - 96_000
         );
     }

@@ -339,7 +339,11 @@ impl AudioSource for StreamCache {
         if let Some(chunk) = first_miss {
             self.underruns.fetch_add(1, Ordering::Relaxed);
             self.missed.store(chunk + 1, Ordering::Relaxed);
-            self.hint(start);
+        }
+        // Reads are hints too (readers that never call `prefetch_hint`, e.g. frozen
+        // tracks, still move a cursor; one channel is enough).
+        if channel == 0 || first_miss.is_some() {
+            self.hint(start + out.len() as u64);
         }
         ok
     }
