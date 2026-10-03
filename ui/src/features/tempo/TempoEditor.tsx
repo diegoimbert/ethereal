@@ -101,7 +101,7 @@ function TempoEditorBody() {
           <div className="eth-tempo__header" style={{ width: HEADER_WIDTH }}>
             <span className="eth-tempo__label">Signature</span>
             {selSig && (
-              <span className="eth-tempo__fields" data-testid="signature-fields">
+              <span className="eth-tempo__fields eth-tempo__fields--signature" data-testid="signature-fields">
                 <NumberField
                   size="sm"
                   aria-label="Beats per bar"

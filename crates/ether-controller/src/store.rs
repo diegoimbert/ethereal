@@ -118,6 +118,16 @@ pub trait ProjectStore {
         Ok(())
     }
 
+    // --- v0.3 (contracts-4), defaulted ---
+
+    /// `project-versions`: delete a file relative to the project folder (old versions, the
+    /// session marker). Missing = `Ok`. Default: unsupported (the node implements it in the
+    /// native, OPFS and memory stores).
+    fn remove(&mut self, id: ProjectId, rel_path: &str) -> Result<(), StoreError> {
+        let _ = (id, rel_path);
+        Err(StoreError::Unsupported("removing project files".into()))
+    }
+
     // --- base-114 (project bundles), defaulted ---
 
     /// Write a project bundle to an absolute engine-machine path chosen in the desktop's OS

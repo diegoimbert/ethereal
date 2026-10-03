@@ -104,7 +104,7 @@ impl Saw {
             }
             EventKind::AllNotesOff => self.voices.clear(),
             EventKind::Param { value, .. } => self.target = value as f32,
-            EventKind::Midi { .. } => {}
+            EventKind::Midi { .. } | EventKind::NoteExpression { .. } => {}
         }
     }
 }
@@ -351,6 +351,8 @@ pub fn track(id: TrackId, kind: TrackKind, output: Option<TrackId>) -> TrackDesc
         clips: vec![],
         automation: vec![],
         racks: Vec::new(),
+        expression: Default::default(),
+        hw_io: Vec::new(),
     }
 }
 

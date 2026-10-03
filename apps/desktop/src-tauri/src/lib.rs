@@ -10,12 +10,15 @@
 //!   `messages`).
 //! - `ether_disconnect()`: drop the channels.
 //! - `engine_info()`: instance/data dir/audio diagnostics.
+//! - `agent_bridge_status()` / `agent_bridge_set_enabled(enabled)`: the opt-in loopback
+//!   bridge for AI agents (`ether-mcp`), see [`agent_bridge`].
 //!
 //! # Threads
 //! The host runs its own controller, GC and audio threads. CLAP plugin controllers run on
 //! the **process main thread** through [`TauriMainThread`] (`AppHandle::run_on_main_thread`),
 //! as AppKit requires for plugin editor windows on macOS.
 
+pub mod agent_bridge;
 pub mod instance;
 pub mod path_drop;
 
@@ -27,6 +30,8 @@ use ether_core::protocol::meters::MeterFrame;
 use ether_core::protocol::{ClientMessage, ServerMessage};
 use ether_native::host::{HostConfig, HostOptions};
 use ether_native::{LibraryRoot, MainThread, NativeHost};
+
+use agent_bridge::{AgentBridgeState, AgentBridgeStatus};
 use serde::Serialize;
 use tauri::ipc::Channel;
 use tauri::{AppHandle, Manager, RunEvent};
@@ -39,11 +44,16 @@ pub struct AppPaths {
     pub projects_root: PathBuf,
 }
 
-/// The running host (taken on exit for an orderly shutdown).
+/// The running host (taken on exit for an orderly shutdown). Shared with the agent
+/// bridge's listener while it is enabled.
 #[derive(Default)]
-pub struct HostSlot(Mutex<Option<NativeHost>>);
+pub struct HostSlot(Mutex<Option<Arc<NativeHost>>>);
 
 impl HostSlot {
+    fn get(&self) -> Option<Arc<NativeHost>> {
+        self.0.lock().ok().and_then(|g| g.clone())
+    }
+
     fn with<R>(&self, f: impl FnOnce(&NativeHost) -> R) -> Result<R, String> {
         let guard = self
             .0
@@ -51,7 +61,7 @@ impl HostSlot {
             .map_err(|_| "host lock poisoned".to_string())?;
         guard
             .as_ref()
-            .map(f)
+            .map(|h| f(h))
             .ok_or_else(|| "engine is not running".to_string())
     }
 }
@@ -105,12 +115,14 @@ fn engine_info(
 fn ether_connect(
     paths: tauri::State<'_, AppPaths>,
     host: tauri::State<'_, HostSlot>,
+    bridge: tauri::State<'_, AgentBridgeState>,
     messages: Channel<ServerMessage>,
     playhead: Channel<PlayheadFrame>,
     meters: Channel<MeterFrame>,
 ) -> Result<EngineInfo, String> {
     host.with(|h| {
-        h.subscribe(Arc::new(move |m| {
+        // The host's subscriber is the fan-out (UI + agent bridge); this swaps the UI part.
+        bridge.fanout.set_ui(Some(Arc::new(move |m| {
             let r = match m {
                 ServerMessage::Playhead(p) => playhead.send(p),
                 ServerMessage::Meters(f) => meters.send(f),
@@ -119,7 +131,7 @@ fn ether_connect(
             if let Err(e) = r {
                 tracing::debug!(%e, "channel send failed");
             }
-        }));
+        })));
         info(&paths, h)
     })
 }
@@ -130,8 +142,24 @@ fn ether_send(host: tauri::State<'_, HostSlot>, message: ClientMessage) -> Resul
 }
 
 #[tauri::command]
-fn ether_disconnect(host: tauri::State<'_, HostSlot>) -> Result<(), String> {
-    host.with(|h| h.unsubscribe())
+fn ether_disconnect(bridge: tauri::State<'_, AgentBridgeState>) -> Result<(), String> {
+    bridge.fanout.set_ui(None);
+    Ok(())
+}
+
+#[tauri::command]
+fn agent_bridge_status(bridge: tauri::State<'_, AgentBridgeState>) -> AgentBridgeStatus {
+    bridge.status()
+}
+
+#[tauri::command]
+fn agent_bridge_set_enabled(
+    host: tauri::State<'_, HostSlot>,
+    bridge: tauri::State<'_, AgentBridgeState>,
+    enabled: bool,
+) -> Result<AgentBridgeStatus, String> {
+    bridge.set_enabled(host.get(), enabled)?;
+    Ok(bridge.status())
 }
 
 /// base-114: file holding the remembered collaboration relay token (in the app data dir).
@@ -265,6 +293,16 @@ pub fn run() {
             )
             .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)?;
             tracing::info!(audio = ?host.audio_info(), "engine started");
+            let host = Arc::new(host);
+            // `agent-api`: everything the engine emits goes through the fan-out (UI, and
+            // the agent bridge when enabled).
+            let bridge = AgentBridgeState::new(data_dir.clone(), instance.clone());
+            {
+                let fanout = bridge.fanout.clone();
+                host.subscribe(Arc::new(move |m| fanout.deliver(m)));
+            }
+            bridge.restore(host.clone());
+            app.manage(bridge);
             if let Ok(mut slot) = app.state::<HostSlot>().0.lock() {
                 *slot = Some(host);
             }
@@ -285,21 +323,33 @@ pub fn run() {
             ether_send,
             ether_disconnect,
             collab_token_load,
-            collab_token_save
+            collab_token_save,
+            agent_bridge_status,
+            agent_bridge_set_enabled
         ])
         .build(tauri::generate_context!())
         .expect("error while building the Ethereal desktop app");
 
     app.run(|app, event| {
         if let RunEvent::Exit = event {
+            // Stop the agent bridge first (deletes its runtime file, releases the host),
+            // without changing the persisted setting.
+            if let Some(bridge) = app.try_state::<AgentBridgeState>()
+                && let Err(e) = bridge.set_running(None, false)
+            {
+                tracing::warn!(%e, "agent bridge");
+            }
             let host = app
                 .state::<HostSlot>()
                 .0
                 .lock()
                 .ok()
                 .and_then(|mut s| s.take());
-            if let Some(host) = host {
-                host.shutdown();
+            match host.map(Arc::try_unwrap) {
+                Some(Ok(host)) => host.shutdown(),
+                // Still referenced elsewhere: the last reference stops it on drop.
+                Some(Err(host)) => drop(host),
+                None => {}
             }
         }
     });

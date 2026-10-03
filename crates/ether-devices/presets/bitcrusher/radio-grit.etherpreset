@@ -1,0 +1,29 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "Radio Grit",
+    "device": {
+      "type": "Builtin",
+      "device": "Bitcrusher"
+    },
+    "meta": {
+      "tags": [
+        "grit",
+        "parallel",
+        "radio"
+      ],
+      "author": "Ethereal",
+      "description": "Coarse 6-bit crunch at 8 kHz blended under the dry signal."
+    },
+    "params": {
+      "0": 6.0,
+      "1": 8000.0,
+      "2": 10.0,
+      "3": 0.0,
+      "4": 0.0,
+      "5": 40.0
+    }
+  }
+}

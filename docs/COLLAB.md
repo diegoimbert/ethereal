@@ -1,5 +1,11 @@
 # Real-time collaboration (`collab` node)
 
+> **base-115**: the user-facing "Share" flow (P2P over WebRTC data channels, the sharer's app as
+> the hub, invite links) is designed in [SHARING.md](SHARING.md). It reuses everything below
+> unchanged: the hub *is* this relay's state machine, run in the host's process, and the
+> wire is the same `CollabMessage` stream. The relay itself stays as Settings > Advanced >
+> Relay session.
+
 Status: approved design (manager, with the clarifications folded in below). Contracts it relies on:
 CONTRACTS.md §11.6 (`SiteId`, `ActorId`, `OpOrigin`, `StampedTransaction`,
 `CollabCommand`/`CollabEvent`/`CollabMessage`, `Patch::origin`) and §11.5 (remote engine).

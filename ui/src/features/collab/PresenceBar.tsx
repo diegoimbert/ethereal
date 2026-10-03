@@ -1,5 +1,5 @@
 import "./collab.css";
-import { useContext, useEffect, useMemo, useState, type CSSProperties, type FormEvent } from "react";
+import { useContext, useEffect, useMemo, useState, type FormEvent } from "react";
 import type { Presence, PresenceState, SiteId } from "@/generated";
 import { Button, Dialog, openContextMenu, TextInput, Toggle } from "@/kit";
 import { useSelectionStore } from "@/state/selection";
@@ -9,9 +9,10 @@ import { useEngineNotifications } from "@/features/notifications";
 import { HostingBadge, HostingSection, useHosting } from "./host";
 import { relayError, sessionNameError, tokenStorage } from "./joinFields";
 import { ListenBadge, ListenButton, listenMenuItems, useListenAgent } from "./listen";
+import { avatarStyle } from "./presence/avatar";
 import { nameOf, peerSummary, presenceV2Fields, setFollowing, useLocalPresence } from "./presence/local";
 import { ChatToasts } from "./social";
-import { highlightCss, initials, peerColor, useCollabStore, useHideOthers } from "./store";
+import { highlightCss, initials, useCollabStore, useHideOthers } from "./store";
 
 /** Remembered join fields (the token is kept apart: `tokenStorage`). */
 const FIELDS_KEY = "eth-collab-join";
@@ -99,7 +100,7 @@ function PeerChip({ peer, peers, me, transport }: { peer: Presence; peers: Prese
     <button
       type="button"
       className="eth-collab__avatar eth-collab__chip"
-      style={{ "--eth-collab-peer": peerColor(peer.color) } as CSSProperties}
+      style={avatarStyle(peer.color)}
       title={`${peerSummary(peer, peers, me)}\n${hint}`}
       aria-label={following ? `Stop following ${name}` : `Follow ${name}`}
       aria-pressed={following}
@@ -278,7 +279,7 @@ function PresenceBarWith({ transport }: { transport: EngineTransport }) {
               <li className="eth-collab__member">You ({fields.name || "this device"})</li>
               {peers.map((p) => (
                 <li key={p.site} className="eth-collab__member">
-                  <span className="eth-collab__avatar" style={{ "--eth-collab-peer": peerColor(p.color) } as CSSProperties}>
+                  <span className="eth-collab__avatar" style={avatarStyle(p.color)}>
                     {initials(p.name)}
                   </span>
                   {p.name || "Anonymous"}

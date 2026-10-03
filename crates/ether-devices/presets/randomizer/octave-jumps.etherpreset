@@ -1,0 +1,30 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "Octave Jumps",
+    "device": {
+      "type": "Builtin",
+      "device": "Randomizer"
+    },
+    "meta": {
+      "tags": [
+        "random",
+        "octave"
+      ],
+      "author": "Ethereal",
+      "description": "A quarter of the notes jump an octave, alternating up and down."
+    },
+    "params": {
+      "0": 25.0,
+      "1": 12.0,
+      "2": 1.0,
+      "3": 0.0,
+      "4": 0.0,
+      "5": 0.0,
+      "6": 0.0,
+      "7": 7.0
+    }
+  }
+}

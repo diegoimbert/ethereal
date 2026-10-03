@@ -463,7 +463,7 @@ impl Sampler {
                 }
             }
             EventKind::Param { param, value } => self.apply_param(param, value, true),
-            EventKind::Midi { .. } => {}
+            EventKind::Midi { .. } | EventKind::NoteExpression { .. } => {}
         }
     }
 
