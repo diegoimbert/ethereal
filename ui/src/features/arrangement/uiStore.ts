@@ -9,6 +9,7 @@ import { create } from "zustand";
 import type { Beats, ClipId, TrackId } from "@/generated";
 import { createTimelineViewStore, DEFAULT_GRID, type GridSetting, type TimelineViewStore } from "@/timeline";
 import type { ClipBounds } from "./editMath";
+import type { NewLane } from "./newTrackDrag";
 import { clampHeaderWidth, clampTrackHeight, HEADER_WIDTH, TRACK_HEIGHT, type DraftTrack } from "./layout";
 
 export interface DragPreview {
@@ -16,6 +17,11 @@ export interface DragPreview {
   bounds: ReadonlyMap<ClipId, ClipBounds>;
   /** Copy drag: the originals stay and ghosts are drawn at `bounds`. */
   copy: boolean;
+  /**
+   * Dragged below the last track: the tracks the drop creates (ghost lanes under the last
+   * track; `bounds` targets their ids). See newTrackDrag.ts.
+   */
+  newTracks?: ReadonlyArray<NewLane>;
 }
 
 /** A browser drop still importing (placeholder in the lane), or one that failed. */

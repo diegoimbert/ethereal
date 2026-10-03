@@ -59,7 +59,7 @@ in-app AI chat ─────────────────────�
 | `get_track` | One track: mixer, routing, sends, devices, all clips (paginated). |
 | `get_clip_notes` | The notes of a MIDI clip (paginated). |
 | `list_device_types` | Built-in instruments, audio effects and MIDI effects you can add. |
-| `get_device_params` | A device's parameters: id, name, unit, range, value, labels. |
+| `get_device_params` | A device's parameters: id, name, unit, range, value, labels. 64 per call by default (`total` + a `note` when more exist); `query` filters by name/group, `offset` pages. |
 | `create_track` | `{kind: midi\|audio\|group\|return, name?}`. MIDI tracks get an instrument (default `synth`). Returns `{track_id}`. |
 | `delete_track`, `rename_track` | `{track_id}`, `{track_id, name}`. |
 | `set_track_mix` | `{track_id, volume_db?, pan?, mute?, solo?, arm?}`. |
@@ -147,6 +147,44 @@ Add the server to `claude_desktop_config.json` (Settings → Developer → Edit 
 
 For headless use, set `"args": ["--project", "/path/to/song.ether"]`.
 
+## In-app AI chat: providers
+
+The chat (`ui/src/features/ai-chat`) works with any model provider. The tool loop
+(`loop.ts`: tool calls, results, Stop, the per-turn round cap) is provider-agnostic. It talks
+to a `ChatSession` (`providers/types.ts`), and each adapter keeps its own native history:
+
+| Adapter | Providers | Transport |
+|---|---|---|
+| `providers/anthropic.ts` (default) | Anthropic (Claude) | `@anthropic-ai/sdk`, Messages API, prompt caching |
+| `providers/openai.ts` | OpenAI, DeepSeek, Google Gemini (its OpenAI-compatible endpoint), Mistral, Groq, OpenRouter, Together, Ollama, LM Studio, any other OpenAI-compatible server | `fetch` + SSE, Chat Completions with `tools` (no SDK) |
+
+- **The same system prompt and tools for every provider.** The registry's `input_schema`
+  becomes Anthropic's `input_schema` or OpenAI's `function.parameters`. Tool results go back as
+  `tool_result` blocks (with `is_error`) or as `role: "tool"` messages. Chat Completions has no
+  error flag, so error results are sent as `Error: …` text.
+- **Streaming tool calls.** `delta.tool_calls` fragments are assembled per `index`. A call
+  sent whole without an `index` or `id` (Gemini, Mistral) works too. A call runs only once
+  its arguments are complete. If they aren't valid JSON, the call isn't run and the model
+  gets an error. Calls run one at a time and in order, so providers without parallel tool
+  calls behave the same.
+- **Models without tool support.** When a server says the model can't use tools (for
+  example Ollama's "does not support tools"), the panel says so and suggests picking another
+  model.
+- **Settings** (per provider, in the chat's settings): base URL, model (free text with
+  suggestions), API key, and "Test connection". Test connection makes a free request:
+  `GET /models` (OpenAI-compatible) or `models.retrieve` (Anthropic). Keys live in
+  `localStorage`. The Anthropic key keeps `eth.ai.apiKey`, and each other provider uses
+  `eth.ai.apiKey.<provider>`. Keys are kept apart from the other settings, never logged, and
+  sent only to that provider's base URL. Local servers (Ollama, LM Studio) need no key.
+- **CORS.** Browsers only let the page call providers that allow cross-origin requests. A
+  fetch that fails without a response is either an unreachable server or a CORS block, and
+  the browser doesn't say which. The adapter tells them apart by repeating the request as a
+  `no-cors` probe, with no key and no body. If the probe gets through, the server is up and
+  the panel says the provider blocked the request. It adds a fix for that provider: set
+  `OLLAMA_ORIGINS` for Ollama, turn on "Enable CORS" in LM Studio, or use OpenRouter or a
+  proxy for cloud APIs. The desktop webview applies CORS too: the app has no Tauri HTTP
+  plugin yet, so requests aren't routed around it (see Follow-ups).
+
 ## Desktop agent bridge
 
 The bridge is off by default. The setting is stored in `<app data dir>/config/agent.json`.
@@ -206,3 +244,8 @@ agents) and deletes the file.
   `claude mcp add` command in the app (out of scope for `agent-api`).
 - `search_browser` and `load_browser_item` light up once the browser index is available on
   the host.
+- AI chat on the desktop: send provider requests through `tauri-plugin-http`, which isn't a
+  dependency yet. That would avoid CORS for providers that block web origins. It needs a
+  scoped allowlist of the configured base URLs.
+- AI chat: carry a conversation over when the provider changes. Today the new provider
+  starts fresh, and the panel says so.

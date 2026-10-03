@@ -304,6 +304,55 @@ fn tracks() {
     assert!(!h.project().tracks.contains_key(&id));
 }
 
+/// base-132: plugins can have thousands of params, so `get_device_params` pages at 64 by
+/// default, says so in a note, and filters by name/group with `query`.
+#[test]
+fn device_params_are_paged_and_filterable() {
+    let mut h = Harness::with_project();
+    let t = s(&ok_call(
+        &mut h,
+        "create_track",
+        json!({ "kind": "midi", "instrument": "poly-synth" }),
+    )["track_id"]);
+    let tid: TrackId = t.parse().unwrap();
+    let dev = h.project().devices_of(tid)[0].id.to_string();
+
+    let all = ok_call(&mut h, "get_device_params", json!({ "device_id": dev }));
+    let total = all["total"].as_u64().unwrap() as usize;
+    let list = all["params"].as_array().unwrap();
+    assert_eq!(list.len(), total.min(64), "default page is 64");
+    assert_eq!(all["note"].is_string(), total > 64);
+
+    let two = ok_call(
+        &mut h,
+        "get_device_params",
+        json!({ "device_id": dev, "limit": 2 }),
+    );
+    assert_eq!(two["params"].as_array().unwrap().len(), 2);
+    let note = s(&two["note"]);
+    assert!(
+        note.contains("offset 2") && note.contains("query"),
+        "{note}"
+    );
+
+    let name = s(&list[0]["name"]);
+    let q = ok_call(
+        &mut h,
+        "get_device_params",
+        json!({ "device_id": dev, "query": name.to_uppercase() }),
+    );
+    let found = q["params"].as_array().unwrap();
+    assert!(!found.is_empty() && found.len() < total);
+    assert!(found.iter().any(|p| s(&p["name"]) == name));
+    assert_eq!(q["total"].as_u64().unwrap() as usize, found.len());
+    let none = ok_call(
+        &mut h,
+        "get_device_params",
+        json!({ "device_id": dev, "query": "zzz-no-such-param" }),
+    );
+    assert_eq!(none["total"], 0);
+}
+
 #[test]
 fn devices_and_params() {
     let mut h = Harness::with_project();

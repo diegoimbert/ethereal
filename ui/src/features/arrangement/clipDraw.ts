@@ -7,6 +7,7 @@
 import type { Beats, Clip, Note, PeakData } from "@/generated";
 import { contentSegments } from "./clipTime";
 import { peakRange } from "./peaks";
+import { SILENCE_DB } from "@/features/devices/paramScale";
 
 /** A note placed on the timeline (loops unrolled), clipped to the drawn range. */
 export interface NoteRect {
@@ -81,6 +82,50 @@ export function drawNotes(
   ctx.globalAlpha = 1;
 }
 
+/** Clip gain (dB) as a linear factor; at or below `SILENCE_DB` (-inf) it is 0. */
+export function dbToGain(db: number): number {
+  return !(db > SILENCE_DB) ? 0 : Math.pow(10, db / 20);
+}
+
+/** Height (css px) of the mark drawn where a scaled peak runs past full scale. */
+export const CLIP_MARK_PX = 2;
+
+/** One waveform column: y range in px and whether either side was clamped at full scale. */
+export interface WaveColumn {
+  top: number;
+  bottom: number;
+  clipTop: boolean;
+  clipBottom: boolean;
+}
+
+/**
+ * Column of a centered waveform (`mid` = half the lane height): the cached peaks scaled by
+ * the clip gain at draw time (Ableton-style taller / shorter waveform), clamped to the lane.
+ */
+export function waveColumn(min: number, max: number, gain: number, mid: number): WaveColumn {
+  const hi = max * gain;
+  const lo = min * gain;
+  const top = mid - Math.min(1, Math.max(-1, hi)) * mid;
+  const bottom = mid - Math.min(1, Math.max(-1, lo)) * mid;
+  return { top, bottom, clipTop: hi > 1, clipBottom: lo < -1 };
+}
+
+/** Fill the full-scale marks of the clamped columns (`[x, WaveColumn]`) in `color`. */
+export function drawClipMarks(
+  ctx: CanvasRenderingContext2D,
+  marks: ReadonlyArray<readonly [number, WaveColumn]>,
+  height: number,
+  color: string,
+): void {
+  if (marks.length === 0) return;
+  const mark = Math.min(CLIP_MARK_PX, height / 2);
+  ctx.fillStyle = color;
+  for (const [x, col] of marks) {
+    if (col.clipTop) ctx.fillRect(x, 0, 1, mark);
+    if (col.clipBottom) ctx.fillRect(x, height - mark, 1, mark);
+  }
+}
+
 export interface WaveformSource {
   /** Timeline start of the clip. */
   start: Beats;
@@ -92,15 +137,36 @@ export interface WaveformSource {
   frames: number;
   /** Reversed clip (clip-editing): source times are on the reversed media, frame `f` reads `frames - f`. */
   reversed?: boolean;
+  /** Clip gain in dB (default 0): peaks are scaled at draw time, never recomputed. */
+  gainDb?: number;
   level: number;
   tile: (index: number) => PeakData | null;
 }
 
-/** Draw a centered min/max waveform, one column per css px. Returns false if peaks were missing. */
-export function drawWaveform(ctx: CanvasRenderingContext2D, area: DrawArea, src: WaveformSource, color: string): boolean {
+export interface WaveformResult {
+  /** False if some peaks were missing (not loaded yet). */
+  complete: boolean;
+  /** Columns whose scaled peaks ran past full scale. */
+  clipped: number;
+}
+
+/**
+ * Draw a centered min/max waveform, one column per css px, scaled by the clip gain. Where
+ * the scaled peaks pass full scale the column is flattened at the lane edge and marked in
+ * `clipColor` (if given).
+ */
+export function drawWaveform(
+  ctx: CanvasRenderingContext2D,
+  area: DrawArea,
+  src: WaveformSource,
+  color: string,
+  clipColor?: string,
+): WaveformResult {
   const bpp = (area.to - area.from) / Math.max(1, area.width);
   const mid = area.height / 2;
+  const gain = dbToGain(src.gainDb ?? 0);
   const segs = contentSegments(src.clip, src.start, area.from, area.to);
+  const marks: Array<[number, WaveColumn]> = [];
   let complete = true;
   ctx.fillStyle = color;
   ctx.beginPath();
@@ -120,10 +186,11 @@ export function drawWaveform(ctx: CanvasRenderingContext2D, area: DrawArea, src:
       complete = false;
       continue;
     }
-    const top = mid - p.max * mid;
-    const bottom = mid - p.min * mid;
-    ctx.rect(x, top, 1, Math.max(1, bottom - top));
+    const col = waveColumn(p.min, p.max, gain, mid);
+    if (col.clipTop || col.clipBottom) marks.push([x, col]);
+    ctx.rect(x, col.top, 1, Math.max(1, col.bottom - col.top));
   }
   ctx.fill();
-  return complete;
+  if (clipColor) drawClipMarks(ctx, marks, area.height, clipColor);
+  return { complete, clipped: marks.length };
 }

@@ -4,18 +4,22 @@
 import "./project.css";
 import { useEffect, useRef } from "react";
 import { Menu } from "lucide-react";
+import { matchesAction } from "@/features/keymap";
 import { TemplateDialogs } from "@/features/templates";
 import { useEngineCommands } from "@/features/transport-bar/engine";
 import { Button } from "@/kit";
 import { useProjectStore } from "@/state";
 import { cmd } from "@/transport";
+import { LeaveSessionDialog } from "./LeaveSessionDialog";
 import { ProjectScreen } from "./ProjectScreen";
 import { useProjectScreen } from "./screenStore";
+import { useRecordSessionProjects } from "./sessionMarks";
 
 /**
  * Project menu: the Projects button, current project name and unsaved-changes dot. The
  * button opens the project screen (`ProjectScreen`: a modal over the app, also shown once on
- * launch: rename, new, open, duplicate, delete).
+ * launch: rename, new, open, save as, duplicate, export/import a `.ether` bundle, delete).
+ * Switching projects while in a collaboration session asks first (`LeaveSessionDialog`).
  *
  * The project saves itself: `AUTOSAVE_MS` after the last change (each edit restarts the
  * wait, so a burst of edits is one save). Ctrl/Cmd+S saves at once.
@@ -36,6 +40,8 @@ export function ProjectMenu() {
   const disabled = !transport || name === null;
 
   const revision = useProjectStore((s) => s.revision);
+  // Recents badges: remember projects used in a collaboration session.
+  useRecordSessionProjects();
   const save = () => void send(cmd("Project", { type: "Save" }));
   const saveRef = useRef(save);
   useEffect(() => {
@@ -56,10 +62,11 @@ export function ProjectMenu() {
     return () => clearTimeout(t);
   }, [dirty, disabled, revision]);
 
-  // Ctrl/Cmd+S saves (also from text fields: the browser's own "save page" is never wanted).
+  // Ctrl/Cmd+S saves (keymap `project.save`; also from text fields: the browser's own "save
+  // page" is never wanted).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === "s") {
+      if (matchesAction("project.save", e)) {
         e.preventDefault();
         saveRef.current();
       }
@@ -74,6 +81,7 @@ export function ProjectMenu() {
         <Menu aria-hidden />
       </Button>
       <ProjectScreen commands={commands} />
+      <LeaveSessionDialog transport={transport} />
       {/* templates: save/insert/rename/delete template dialogs (track menu, palette, project screen). */}
       <TemplateDialogs />
       <span className="eth-project__name" data-testid="project-name" title={name ?? undefined}>

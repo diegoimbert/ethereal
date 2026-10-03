@@ -110,6 +110,19 @@ export class MockUploads {
     return u;
   }
 
+  /** Consume a completed upload's raw bytes (base-114: `Project::ImportBundle`). */
+  takeBytes(upload: string): Uint8Array {
+    const u = this.check(upload);
+    this.uploads.delete(upload);
+    const bytes = new Uint8Array(u.size);
+    let at = 0;
+    for (const c of u.chunks) {
+      bytes.set(c, at);
+      at += c.length;
+    }
+    return bytes;
+  }
+
   /** Consume a completed upload for `Import { source: Upload }` (see the module docs). */
   take(upload: string): UploadedAudio {
     const u = this.check(upload);

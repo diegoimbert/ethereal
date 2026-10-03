@@ -148,7 +148,7 @@ import { chatCommand } from "./roadmap/social";
 import { audioToMidiCommand } from "./roadmap/audioToMidi";
 import { MockCapture } from "./roadmap/capture";
 import { externalCommand } from "./roadmap/external";
-import { keymapCommand } from "./roadmap/keymap";
+import { MockKeymap } from "./roadmap/keymap";
 import { MockTemplates } from "./roadmap/templates";
 import { MockUndoHistory } from "./roadmap/undoHistory";
 // ai-chat: the agent API (Command::Agent) over the mock document.
@@ -288,6 +288,7 @@ export class MockTransport implements EngineTransport {
   };
   private readonly midiLearn = new MockMidiLearn(this.host);
   private readonly presets = new MockPresets(this.host);
+  private readonly keymap = new MockKeymap(this.host);
   private readonly browser = new MockBrowser(this.host);
   private readonly exports = new MockExports(this.host);
   private readonly timeEdits = new MockTimeEdits({
@@ -581,7 +582,7 @@ export class MockTransport implements EngineTransport {
       case "Version":
         return this.versions.command(command.command);
       case "Keymap":
-        return keymapCommand(command.command);
+        return this.keymap.command(command.command);
       // base-115 (docs/SHARING.md).
       case "Share":
         return this.share.command(command.command);
@@ -899,6 +900,33 @@ export class MockTransport implements EngineTransport {
       case "SetScale":
         // A document edit (applied by `documentReducer`).
         return this.applyDocument([{ domain: "Project", command: c }], "Set Scale", gesture);
+      // base-114: the mock's bundle is the bare `.ether` document (no media, no archive;
+      // the engine accepts both). OS paths are desktop-only.
+      case "ExportBundle": {
+        if (c.path !== null) fail("Unsupported", "bundles are delivered as downloads on this host");
+        const json = c.id === this.project.id ? serializeEtherFile(this.project) : this.stored(c.id).json;
+        const bytes = new TextEncoder().encode(json);
+        const name = (parseEtherFile(json).settings.name.replace(/[\\/:*?"<>|]/g, "_").trim() || "Project") + ".ether";
+        const download = { token: `bundle-${c.id}`, name, mime: "application/zip", size: bytes.length };
+        this.exports.addDownload(download, bytes);
+        return { type: "Bundle", download };
+      }
+      case "ImportBundle": {
+        const existing = this.store.get(c.new_id);
+        if (existing) return { type: "Saved", project: { id: c.new_id, name: existing.name, modified_ms: existing.modified_ms } };
+        if (c.source.type === "Path") fail("Unsupported", "bundles are uploaded on this host");
+        const bytes = this.uploads.takeBytes(c.source.upload);
+        let project: Project;
+        try {
+          project = { ...parseEtherFile(new TextDecoder().decode(bytes)), id: c.new_id };
+        } catch (e) {
+          return fail("InvalidArgument", `this file is not a valid Ethereal project bundle (${e instanceof Error ? e.message : String(e)})`);
+        }
+        if (c.name !== null) project.settings = { ...project.settings, name: this.checkNewProject(c.new_id, c.name) };
+        const summary = this.storeProject(project, this.wallNow());
+        this.emitListChanged();
+        return { type: "Saved", project: summary };
+      }
     }
   }
 

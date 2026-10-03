@@ -4,7 +4,7 @@
 //!  Tauri command ──ClientMessage──▶ controller thread ──ServerMessage──▶ subscriber
 //!                                    │  Controller::handle / tick (60 Hz)   (Tauri channels)
 //!                                    │  host-handled: Engine::*, Plugin::{Rescan,List,
-//!                                    │                OpenEditor,CloseEditor}
+//!                                    │                OpenEditor,CloseEditor,*Folder*}
 //!                                    ▼
 //!                                 NativeBridge ── EngineHandle ─rings─▶ audio thread (cpal
 //!                                    │                                  callback / null thread)
@@ -21,7 +21,7 @@
 
 use std::panic::AssertUnwindSafe;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
@@ -41,6 +41,7 @@ use ether_core::{Engine, EngineConfig, PrepareConfig};
 
 use crate::audio::{self, AudioBackendKind, AudioOutput, AudioSettings, StreamInfo};
 use crate::bridge::{NativeBridge, NativeServices};
+use crate::plugin_folders::{FolderError, PluginFolderSettings};
 use crate::plugins::{DedicatedThread, Instantiate, MainThread, PluginCatalog, PluginHost};
 use crate::rt::AudioShared;
 use crate::store::{DiskStore, LibraryRoot};
@@ -341,7 +342,9 @@ impl NativeHost {
         let (tx, rx) = unbounded();
         let subscriber: Arc<Mutex<Option<Subscriber>>> = Arc::default();
         let plugins = PluginHost::new(options.main_thread);
-        let catalog = PluginCatalog::open(&config.data_dir.join("plugin-db"));
+        let plugin_db = config.data_dir.join("plugin-db");
+        let catalog = PluginCatalog::open(&plugin_db);
+        let plugin_folders = PluginFolderSettings::open(&plugin_db);
         let store = DiskStore::new(config.projects_root.clone(), config.library_roots.clone());
         let bridge = NativeBridge::new(
             parts.handle,
@@ -370,6 +373,9 @@ impl NativeHost {
             plugins: plugins.clone(),
             catalog,
             scanning: Arc::new(AtomicBool::new(false)),
+            rescan_pending: Arc::new(AtomicU8::new(RESCAN_NONE)),
+            plugin_folders,
+            plugin_db,
             startup_warning: warning,
         };
         let controller_thread = std::thread::Builder::new()
@@ -671,6 +677,12 @@ struct ControllerThread {
     plugins: PluginHost,
     catalog: PluginCatalog,
     scanning: Arc<AtomicBool>,
+    /// A rescan asked for while one runs: [`RESCAN_NONE`], [`RESCAN_INCREMENTAL`] or
+    /// [`RESCAN_FULL`]; the running scan starts another when it ends.
+    rescan_pending: Arc<AtomicU8>,
+    plugin_folders: PluginFolderSettings,
+    /// Plugin list, folder settings and scan cache live here.
+    plugin_db: PathBuf,
     startup_warning: Option<String>,
 }
 
@@ -746,7 +758,11 @@ impl ControllerThread {
             }
             Command::Plugin(
                 cmd @ (PluginCommand::List
-                | PluginCommand::Rescan
+                | PluginCommand::Rescan { .. }
+                | PluginCommand::ListFolders
+                | PluginCommand::AddFolder { .. }
+                | PluginCommand::RemoveFolder { .. }
+                | PluginCommand::SetIncludeDefaults { .. }
                 | PluginCommand::OpenEditor { .. }
                 | PluginCommand::CloseEditor { .. }),
             ) => {
@@ -833,24 +849,73 @@ impl ControllerThread {
                 Ok(()) => reply_ok(id, ReplyValue::Unit),
                 Err(e) => plugin_err(e),
             },
-            PluginCommand::Rescan => {
-                if self.scanning.swap(true, Ordering::SeqCst) {
-                    return reply_ok(id, ReplyValue::Unit);
-                }
-                self.spawn_scan();
+            PluginCommand::Rescan { full } => {
+                self.request_scan(full);
                 reply_ok(id, ReplyValue::Unit)
+            }
+            PluginCommand::ListFolders => self.folders_reply(id),
+            PluginCommand::AddFolder { path, format } => {
+                match self.plugin_folders.add(&path, format) {
+                    Ok(()) => {
+                        self.request_scan(false);
+                        self.folders_reply(id)
+                    }
+                    Err(e) => folder_err(id, e),
+                }
+            }
+            PluginCommand::RemoveFolder { path } => match self.plugin_folders.remove(&path) {
+                Ok(()) => {
+                    self.request_scan(false);
+                    self.folders_reply(id)
+                }
+                Err(e) => folder_err(id, e),
+            },
+            PluginCommand::SetIncludeDefaults { include } => {
+                self.plugin_folders.set_include_defaults(include);
+                self.request_scan(false);
+                self.folders_reply(id)
             }
             // Routed to the controller by `handle`.
             _ => reply_err(id, ErrorCode::Internal, "unexpected plugin command"),
         }
     }
 
-    /// Scan plugin bundles out-of-process on a background thread; progress arrives as
-    /// `Event::Plugin` messages.
-    fn spawn_scan(&self) {
+    fn folders_reply(&self, id: u32) -> ServerMessage {
+        reply_ok(
+            id,
+            ReplyValue::PluginFolders {
+                folders: self.plugin_folders.list(&crate::plugins::formats()),
+            },
+        )
+    }
+
+    /// Start a scan, or (one is running) queue another for when it ends. A queued full
+    /// scan wins over a queued incremental one.
+    fn request_scan(&self, full: bool) {
+        if self.scanning.swap(true, Ordering::SeqCst) {
+            self.rescan_pending.fetch_max(
+                if full {
+                    RESCAN_FULL
+                } else {
+                    RESCAN_INCREMENTAL
+                },
+                Ordering::SeqCst,
+            );
+            return;
+        }
+        self.spawn_scan(full);
+    }
+
+    /// Scan the plugin folders out-of-process on a background thread (parallel children;
+    /// unchanged plugins come from the scan cache unless `full`); progress arrives as
+    /// `Event::Plugin` messages. Runs again while rescans were queued meanwhile.
+    fn spawn_scan(&self, full: bool) {
         let tx = self.tx.clone();
         let catalog = self.catalog.clone();
         let scanning = self.scanning.clone();
+        let pending = self.rescan_pending.clone();
+        let folders = self.plugin_folders.clone();
+        let cache_file = self.plugin_db.join(ether_plugin_host::SCAN_CACHE_FILE);
         let emit = move |e: PluginEvent| {
             let _ = tx.send(HostMsg::Emit(ServerMessage::Event(Event::Plugin {
                 event: e,
@@ -859,34 +924,79 @@ impl ControllerThread {
         let spawned = std::thread::Builder::new()
             .name("ether-plugin-scan".into())
             .spawn(move || {
-                let targets = crate::plugins::formats().discover(None);
-                let report = match ether_plugin_host::ScanRunner::locate() {
-                    Some(runner) => runner.scan_targets(&targets, |done, total, current| {
-                        emit(PluginEvent::ScanProgress {
-                            done,
-                            total,
-                            current: current.map(|p| p.display().to_string()),
-                        });
-                    }),
-                    None => ether_plugin_host::ScanReport {
-                        plugins: Vec::new(),
-                        failed: vec![ether_core::protocol::plugins::ScanFailure {
-                            path: String::new(),
-                            message: "plugin scanner binary not found".into(),
-                        }],
-                    },
-                };
-                let count = report.plugins.len() as u32;
-                catalog.replace(report.plugins);
-                emit(PluginEvent::ScanFinished {
-                    plugins: count,
-                    failed: report.failed,
-                });
-                scanning.store(false, Ordering::SeqCst);
+                let mut full = full;
+                loop {
+                    let targets = folders.discover(&crate::plugins::formats());
+                    let report = match ether_plugin_host::ScanRunner::locate() {
+                        Some(runner) => {
+                            let mut cache = ether_plugin_host::ScanCache::open(&cache_file);
+                            let scan = runner.scan_targets_cached(
+                                &targets,
+                                &mut cache,
+                                full,
+                                |done, total, current| {
+                                    emit(PluginEvent::ScanProgress {
+                                        done,
+                                        total,
+                                        current: current.map(|p| p.display().to_string()),
+                                    });
+                                },
+                            );
+                            if let Err(e) = cache.save() {
+                                tracing::warn!(%e, "failed to write the plugin scan cache");
+                            }
+                            tracing::info!(
+                                scanned = scan.scanned,
+                                reused = scan.reused,
+                                jobs = runner.jobs,
+                                full,
+                                "plugin scan done"
+                            );
+                            scan.report
+                        }
+                        None => ether_plugin_host::ScanReport {
+                            plugins: Vec::new(),
+                            failed: vec![ether_core::protocol::plugins::ScanFailure {
+                                path: String::new(),
+                                message: "plugin scanner binary not found".into(),
+                            }],
+                        },
+                    };
+                    let count = report.plugins.len() as u32;
+                    catalog.replace(report.plugins);
+                    emit(PluginEvent::ScanFinished {
+                        plugins: count,
+                        failed: report.failed,
+                    });
+                    let next = pending.swap(RESCAN_NONE, Ordering::SeqCst);
+                    if next != RESCAN_NONE {
+                        full = next == RESCAN_FULL;
+                        continue;
+                    }
+                    scanning.store(false, Ordering::SeqCst);
+                    // A request that saw `scanning` just before it was cleared queued
+                    // itself: take it over unless a new scan already started.
+                    let next = pending.load(Ordering::SeqCst);
+                    if next == RESCAN_NONE || scanning.swap(true, Ordering::SeqCst) {
+                        break;
+                    }
+                    full = pending.swap(RESCAN_NONE, Ordering::SeqCst) == RESCAN_FULL;
+                }
             });
         if spawned.is_err() {
             self.scanning.store(false, Ordering::SeqCst);
         }
+    }
+}
+
+const RESCAN_NONE: u8 = 0;
+const RESCAN_INCREMENTAL: u8 = 1;
+const RESCAN_FULL: u8 = 2;
+
+fn folder_err(id: u32, e: FolderError) -> ServerMessage {
+    match e {
+        FolderError::Invalid(m) => reply_err(id, ErrorCode::InvalidArgument, m),
+        FolderError::NotFound(m) => reply_err(id, ErrorCode::NotFound, m),
     }
 }
 

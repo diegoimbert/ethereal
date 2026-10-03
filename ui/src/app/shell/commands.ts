@@ -1,5 +1,5 @@
 import { openAiChat } from "@/features/ai-chat";
-import { openAudioSettings } from "@/features/audio-settings";
+import { openAudioSettings, openSettings } from "@/features/audio-settings";
 import { captureMidi } from "@/features/capture";
 import { focusChat } from "@/features/collab/social";
 import { useCollabStore } from "@/features/collab/store";
@@ -7,10 +7,15 @@ import type { DeviceDescriptor, Project } from "@/generated";
 import { addTrack, selectTrackEntity } from "@/features/arrangement/actions";
 import { arrangementView } from "@/features/arrangement/uiStore";
 import { openImportDialog } from "@/features/import";
+import { openKeymapEditor, printCheatSheet } from "@/features/keymap";
 import { useProjectScreen } from "@/features/project/screenStore";
 import { placementAfter, tracksToSave, useTemplateDialog } from "@/features/templates";
 import { useArrangementUi } from "@/features/arrangement/uiStore";
 import { mediaRefCommands } from "@/features/media-refs";
+import { notify } from "@/features/notifications";
+import { duplicateProject, exportProject, importProject, saveProject } from "@/features/project/actions";
+import { guardLeave } from "@/features/project/leaveGuard";
+import { errorMessage } from "@/features/transport-bar/engine";
 import { nameCurrentCheckpoint } from "@/features/undo-history";
 import { shareCommands } from "@/features/share/commands";
 import { joinPaletteCommands } from "@/features/share/join";
@@ -27,14 +32,25 @@ export interface PaletteCommand {
   label: string;
   /** Section shown next to the label. */
   group: string;
-  /** Shortcut hint (display only). */
+  /**
+   * Shortcut hint. The palette shows the keymap's chord for the command instead (keymap):
+   * a hint here is the command's default chord in the keymap unless it is a built-in action.
+   */
   shortcut?: string;
+  /** The keymap action this command is (`ui/src/features/keymap/registry.ts`), if any. */
+  action?: string;
+  /** `false`: not bindable in the keymap (per-project entries). */
+  bindable?: boolean;
   /** Extra words that match (not shown). */
   keywords?: string;
   run(): void;
 }
 
-const PANE_NAMES: Record<PaneSide, string> = { left: "browser", right: "inspector", bottom: "editor drawer" };
+const PANE_NAMES: Record<PaneSide, string> = {
+  left: "browser",
+  right: "inspector",
+  bottom: "editor drawer",
+};
 
 /**
  * The commands available now, built from the current app state (the palette calls it when
@@ -49,8 +65,20 @@ export function buildCommands(transport: EngineTransport | null, devices: Readon
 
   if (transport && project) {
     out.push(
-      { id: "track:midi", group: "Tracks", label: "Add MIDI track", keywords: "new create", run: () => void addTrack(transport, "Midi") },
-      { id: "track:audio", group: "Tracks", label: "Add audio track", keywords: "new create", run: () => void addTrack(transport, "Audio") },
+      {
+        id: "track:midi",
+        group: "Tracks",
+        label: "Add MIDI track",
+        keywords: "new create",
+        run: () => void addTrack(transport, "Midi"),
+      },
+      {
+        id: "track:audio",
+        group: "Tracks",
+        label: "Add audio track",
+        keywords: "new create",
+        run: () => void addTrack(transport, "Audio"),
+      },
       {
         id: "import:audio",
         group: "Tracks",
@@ -93,7 +121,13 @@ export function buildCommands(transport: EngineTransport | null, devices: Readon
         group: "Transport",
         label: state?.recording ? "Stop recording" : "Record",
         keywords: "record arm",
-        run: () => send(cmd("Recording", { type: "SetRecording", enabled: !state?.recording })),
+        run: () =>
+          send(
+            cmd("Recording", {
+              type: "SetRecording",
+              enabled: !state?.recording,
+            }),
+          ),
       },
       {
         // capture-midi: the command replies InvalidState when nothing was played.
@@ -108,17 +142,41 @@ export function buildCommands(transport: EngineTransport | null, devices: Readon
         group: "Transport",
         label: state?.loop_enabled ? "Turn loop off" : "Turn loop on",
         keywords: "loop cycle toggle",
-        run: () => send(cmd("Transport", { type: "SetLoopEnabled", enabled: !state?.loop_enabled })),
+        run: () =>
+          send(
+            cmd("Transport", {
+              type: "SetLoopEnabled",
+              enabled: !state?.loop_enabled,
+            }),
+          ),
       },
       {
         id: "transport:metronome",
         group: "Transport",
         label: state?.metronome ? "Turn metronome off" : "Turn metronome on",
         keywords: "metronome click toggle",
-        run: () => send(cmd("Transport", { type: "SetMetronome", enabled: !state?.metronome })),
+        run: () =>
+          send(
+            cmd("Transport", {
+              type: "SetMetronome",
+              enabled: !state?.metronome,
+            }),
+          ),
       },
-      { id: "edit:undo", group: "Edit", label: "Undo", shortcut: "⌘Z", run: () => send(cmd("Edit", { type: "Undo" })) },
-      { id: "edit:redo", group: "Edit", label: "Redo", shortcut: "⇧⌘Z", run: () => send(cmd("Edit", { type: "Redo" })) },
+      {
+        id: "edit:undo",
+        group: "Edit",
+        label: "Undo",
+        shortcut: "⌘Z",
+        run: () => send(cmd("Edit", { type: "Undo" })),
+      },
+      {
+        id: "edit:redo",
+        group: "Edit",
+        label: "Redo",
+        shortcut: "⇧⌘Z",
+        run: () => send(cmd("Edit", { type: "Redo" })),
+      },
       // undo-history: name the current step from anywhere (opens the History tab).
       {
         id: "history:checkpoint",
@@ -135,6 +193,7 @@ export function buildCommands(transport: EngineTransport | null, devices: Readon
         group: "Go to",
         label: `Go to track ${t.name}`,
         keywords: "select jump track",
+        bindable: false,
         run: () => selectTrackEntity(t.id),
       });
     }
@@ -156,10 +215,32 @@ export function buildCommands(transport: EngineTransport | null, devices: Readon
     }
   }
 
+  if (transport && project) out.push(...projectCommands(transport, project.id, project.settings.name));
+  const collabStatus = useCollabStore.getState().status;
+  if (transport) {
+    out.push(
+      collabStatus.type === "Offline"
+        ? {
+            id: "collab:join",
+            group: "Collab",
+            label: "Collab: Join session…",
+            keywords: "collaboration session relay join share together",
+            run: () => useCollabStore.getState().setDialogOpen(true),
+          }
+        : {
+            id: "collab:leave",
+            group: "Collab",
+            label: "Collab: Leave session",
+            keywords: `collaboration session leave quit disconnect ${collabStatus.session}`,
+            run: () => send(cmd("Collab", { type: "Leave" })),
+          },
+    );
+  }
+
   // join-flow: "Join shared project…" (paste an invite link).
   out.push(...joinPaletteCommands());
 
-  const inSession = useCollabStore.getState().status.type === "Online";
+  const inSession = collabStatus.type === "Online";
   if (inSession) {
     out.push({
       id: "chat:focus",
@@ -219,6 +300,29 @@ export function buildCommands(transport: EngineTransport | null, devices: Readon
     keywords: "audio device output input microphone sample rate buffer latency driver preferences",
     run: () => openAudioSettings(),
   });
+  out.push(
+    {
+      id: "keymap:open",
+      group: "Appearance",
+      label: "Keyboard shortcuts…",
+      keywords: "keymap hotkeys keys bindings shortcuts rebind preset ableton",
+      run: () => openKeymapEditor(),
+    },
+    {
+      id: "keymap:print",
+      group: "Appearance",
+      label: "Print keyboard shortcuts",
+      keywords: "keymap cheat sheet hotkeys print",
+      run: () => printCheatSheet(),
+    },
+  );
+  out.push({
+    id: "input-settings",
+    group: "Appearance",
+    label: "Mouse and wheel settings…",
+    keywords: "input mouse wheel scroll zoom trackpad sensitivity invert reverse direction middle button back forward preferences",
+    run: () => openSettings("input"),
+  });
   const dark = getTheme() === "dark";
   out.push({
     id: "theme",
@@ -228,6 +332,79 @@ export function buildCommands(transport: EngineTransport | null, devices: Readon
     run: () => setTheme(dark ? "light" : "dark"),
   });
   return out;
+}
+
+/** Run a project action from the palette; a failure shows as an error toast. */
+function attempt(action: () => Promise<unknown>): void {
+  action().catch((e: unknown) => notify("Error", errorMessage(e)));
+}
+
+/** base-114: the project actions (the project screen offers the same). */
+function projectCommands(transport: EngineTransport, id: string, name: string): PaletteCommand[] {
+  const screen = () => useProjectScreen.getState();
+  return [
+    {
+      id: "project:new",
+      group: "Project",
+      label: "New project",
+      keywords: "create start empty song",
+      run: () => screen().show("new"),
+    },
+    {
+      id: "project:open",
+      group: "Project",
+      label: "Open project…",
+      keywords: "projects recent switch load",
+      run: () => screen().show(),
+    },
+    {
+      id: "project:save",
+      group: "Project",
+      label: "Save",
+      shortcut: "⌘S",
+      keywords: "save project store",
+      run: () => attempt(() => saveProject(transport)),
+    },
+    {
+      id: "project:save-as",
+      group: "Project",
+      label: "Save as…",
+      keywords: "save copy new name project",
+      run: () => screen().show("saveAs"),
+    },
+    {
+      id: "project:duplicate",
+      group: "Project",
+      label: "Duplicate project",
+      keywords: "copy clone project",
+      run: () => attempt(() => duplicateProject(transport, id, name)),
+    },
+    {
+      id: "project:rename",
+      group: "Project",
+      label: "Rename project",
+      keywords: "name title project",
+      run: () => screen().rename(),
+    },
+    {
+      id: "project:export",
+      group: "Project",
+      label: "Export project…",
+      keywords: "export bundle .ether file download backup share project",
+      run: () => attempt(() => exportProject(transport, id, name)),
+    },
+    {
+      id: "project:import",
+      group: "Project",
+      label: "Import project…",
+      keywords: "import bundle .ether file upload open project",
+      run: () =>
+        attempt(async () => {
+          const summary = await importProject(transport);
+          if (summary) await guardLeave(() => transport.send(cmd("Project", { type: "Open", id: summary.id })));
+        }),
+    },
+  ];
 }
 
 /** templates: palette entries (save the project or the selected tracks, insert, new project). */

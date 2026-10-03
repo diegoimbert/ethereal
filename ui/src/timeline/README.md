@@ -18,6 +18,7 @@ compare beats with `===`.
 | `useTimelineWheel.ts` | wheel/trackpad zoom and scroll (animated), vertical scroll and vertical zoom hooks |
 | `motion.ts`, `viewMotion.ts` | spring animation: `MOTION` tuning, `animateZoom`/`animatePan`, `ScaleFollower`, `ScrollYFollower` |
 | `useMiddleButtonPan.ts` | middle-button drag pans horizontally (view store) and vertically (element scroll) |
+| `wheelInput.ts`, `inputSettings.ts` | wheel normalization (notches vs trackpads) and the user's Settings > Input |
 | `format.ts` | `formatBarBeat` ("1.1.1"), `formatDuration`, `formatSeconds` ("m:ss.mmm") |
 | `rulerMarks.ts`, `loop.ts` | pure ruler layout and loop-drag math, for canvas rulers and tests |
 
@@ -167,6 +168,28 @@ carrying velocity, so bursts of wheel events add up and direction changes bend t
 instead of restarting it. Zoom stays locked on the beat under the pointer throughout.
 Direct manipulation (ruler drag, middle-button pan, playhead follow) is never animated and
 takes over from a running animation.
+
+## Wheel input and Settings > Input
+
+Every wheel handler (timelines, value axes, the EQ's wheel-adjusted Q) goes through
+`wheelInput.ts` and reads the user's settings at event time (`inputSettings()`):
+
+- `readWheel(e, el)` / `normalizeWheel` convert `deltaMode` LINE/PAGE to px and flag discrete
+  mouse notches (LINE/PAGE, or a legacy `wheelDelta` in whole 120 steps that isn't the
+  WebKit/Blink trackpad `-3 × delta`). A notch counts as `NOTCH_PX` (100 px) and zooms by
+  `NOTCH_ZOOM` (×1.12); smooth trackpad input keeps its pixels and its zoom feel
+  (`MOTION.wheelZoomSensitivity` per px).
+- `wheelIntent` picks zoom / vertical zoom / horizontal / vertical scroll from the modifiers
+  and the settings (which modifier zooms, whether the plain wheel zooms, Shift = horizontal).
+  A trackpad pinch (ctrl + wheel without the Ctrl key physically down, `isPinch`) always
+  zooms and is never inverted.
+- `wheelZoomFactorFor` (exponential, so in then out is symmetric) and `wheelScrollPx` apply
+  sensitivity and inversion.
+
+The settings live in `useInputSettings` (localStorage `eth-input-settings`, this device only),
+with per-platform defaults from `defaultInputSettings` (Windows flips the zoom direction to
+match the Mac's natural scrolling). `useMiddleButtonPan` is off when the middle button is set
+to "Off"; the transport shortcuts map the Back/Forward mouse buttons to undo/redo when set.
 
 Tune the feel in `MOTION` (`motion.ts`): half-lives per axis and the wheel zoom
 sensitivity. `MOTION.enabled = false` applies everything instantly. It is off with

@@ -4,6 +4,7 @@
  * picker elsewhere (files; uploaded). The picked files land on the selected audio track at
  * the playhead, else on new audio tracks there.
  */
+import { matchesAction } from "@/features/keymap";
 import { playheadStore, useProjectStore, useSelectionStore } from "@/state";
 import type { EngineTransport } from "@/transport";
 import { commandTarget, importAudio, type ImportOutcome } from "./importAudio";
@@ -53,5 +54,6 @@ export async function openImportDialog(transport: EngineTransport): Promise<Impo
 
 /** ⌘I / Ctrl+I (no other modifier). */
 export function isImportShortcut(e: Pick<KeyboardEvent, "key" | "metaKey" | "ctrlKey" | "shiftKey" | "altKey">): boolean {
-  return (e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "i";
+  // keymap: `file.import` (default Mod+I).
+  return matchesAction("file.import", e);
 }

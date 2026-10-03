@@ -22,6 +22,7 @@ import { useClip, useEditedClipId, useProjectStore, warpMarkersOfClip } from "@/
 import { useTempoMap } from "@/timeline";
 import { cmd, newId, useTransport } from "@/transport";
 import { PeakCache, peakLevel, peakRange, TILE_PEAKS } from "@/features/arrangement/peaks";
+import { dbToGain, drawClipMarks, waveColumn, type WaveColumn } from "@/features/arrangement/clipDraw";
 import { openGesture, sendOne, startDrag } from "./drag";
 import { beatAtSource, clipSourceMapper, compileWarp, complexStretches, sourceSecondsAt } from "./warpMap";
 import "./warp.css";
@@ -197,6 +198,7 @@ function WarpClipEditor({ clip, content }: { clip: Clip; content: AudioContent }
             toSeconds={toSeconds}
             playedFrom={clip.offset}
             playedTo={contentEnd}
+            gainDb={content.gain}
           />
         )}
         <svg className="eth-warp__overlay" width={width} height={HEIGHT} data-testid="warp-overlay">
@@ -288,6 +290,7 @@ function Waveform({
   toSeconds,
   playedFrom,
   playedTo,
+  gainDb,
 }: {
   media: MediaRef;
   width: number;
@@ -296,6 +299,8 @@ function Waveform({
   /** Content range the clip plays (drawn brighter). */
   playedFrom: Beats;
   playedTo: Beats;
+  /** Clip gain (dB): the cached peaks are scaled by it at draw time, like the arrangement. */
+  gainDb: number;
 }) {
   const transport = useTransport();
   const peaks = useMemo(() => new PeakCache(transport), [transport]);
@@ -304,6 +309,7 @@ function Waveform({
   useEffect(() => peaks.subscribe(redraw), [peaks]);
   const waveColor = useThemeColor("warpWave");
   const waveDim = useThemeColor("warpWaveDim");
+  const over = useThemeColor("meterHigh");
 
   useEffect(() => {
     const canvas = ref.current;
@@ -320,6 +326,8 @@ function Waveform({
     const level = peakLevel(Math.abs(toSeconds(bpp) - toSeconds(0)) * sr);
     const tile = (i: number) => (i * TILE_PEAKS * level < media.frames ? peaks.tile(media.id, level, i) : null);
     const mid = h / 2;
+    const gain = dbToGain(gainDb);
+    const marks: Array<[number, WaveColumn]> = [];
     for (const [color, inside] of [
       [waveDim, false],
       [waveColor, true],
@@ -336,12 +344,15 @@ function Waveform({
         if (b <= a) continue;
         const p = peakRange(a, b, level, tile);
         if (!p) continue;
-        const top = mid - p.max * mid;
-        ctx.rect(x, top, 1, Math.max(1, mid - p.min * mid - top));
+        const col = waveColumn(p.min, p.max, gain, mid);
+        if (col.clipTop || col.clipBottom) marks.push([x, col]);
+        ctx.rect(x, col.top, 1, Math.max(1, col.bottom - col.top));
       }
       ctx.fill();
     }
-  }, [media, width, span, toSeconds, playedFrom, playedTo, peaks, tick, waveColor, waveDim]);
+    drawClipMarks(ctx, marks, h, over);
+    canvas.dataset.clipped = String(marks.length);
+  }, [media, width, span, toSeconds, playedFrom, playedTo, gainDb, peaks, tick, waveColor, waveDim, over]);
 
   return (
     <canvas
@@ -349,6 +360,7 @@ function Waveform({
       className="eth-warp__canvas"
       style={{ width, height: HEIGHT - RULER, top: RULER }}
       data-testid="warp-waveform"
+      data-gain={gainDb}
     />
   );
 }

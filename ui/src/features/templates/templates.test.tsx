@@ -17,7 +17,7 @@ const project = () => store().project!;
 afterEach(() => {
   resetStores();
   useTemplateDialog.setState({ dialog: null });
-  useProjectScreen.setState({ open: false, launchPending: false, naming: false });
+  useProjectScreen.setState({ open: false, launchPending: false, mode: "home" });
 });
 
 const regular = (p: Project): Track[] =>

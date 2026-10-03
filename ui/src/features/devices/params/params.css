@@ -1,0 +1,99 @@
+/* "All parameters" list of a device (AllParams.tsx): search bar + windowed rows. */
+.eth-params-dialog {
+  --dialog-width: var(--eth-size-param-list-dialog-width);
+}
+.eth-params {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-sm);
+  min-height: 0;
+}
+.eth-params__bar {
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-sm);
+}
+.eth-params__search {
+  flex: 1;
+  min-width: 0;
+}
+.eth-params__count {
+  flex: none;
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+  font-variant-numeric: tabular-nums;
+}
+.eth-params__list {
+  height: var(--eth-size-param-list-height);
+  max-height: calc(100vh - 12 * var(--eth-space-xl));
+  border: var(--eth-border-width) solid var(--eth-color-border);
+  border-radius: var(--eth-radius-md);
+  background: var(--eth-color-bg-inset);
+}
+.eth-params__row {
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-sm);
+  padding: 0 var(--eth-space-sm);
+  border-bottom: var(--eth-border-width) solid var(--eth-color-border);
+  font-size: var(--eth-fs-sm);
+}
+.eth-params__row:hover {
+  background: var(--eth-color-bg-hover);
+}
+.eth-params__row--pinned .eth-params__pin {
+  color: var(--eth-color-accent);
+}
+.eth-params__pin {
+  flex: none;
+  color: var(--eth-color-text-dim);
+}
+.eth-params__name {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.eth-params__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.eth-params__group {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+}
+.eth-params__control {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  width: var(--eth-size-device-group-min-width);
+}
+/* Rows lay their control out horizontally (knob + value), without the name (the row has it). */
+.eth-params__control .eth-param {
+  flex-direction: row;
+  justify-content: flex-end;
+  width: 100%;
+}
+.eth-params__control .eth-param__name {
+  display: none;
+}
+.eth-params__control .eth-param__value {
+  min-width: var(--eth-size-device-param-min-width);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.eth-params__empty {
+  padding: var(--eth-space-md);
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-sm);
+}
+/* "Show all N parameters…" under a capped device card. */
+.eth-device__all {
+  color: var(--eth-color-accent);
+}
