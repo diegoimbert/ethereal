@@ -136,6 +136,23 @@ pub(crate) fn hw_io_descs(
         .collect()
 }
 
+/// Whether a live node built from `old` takes `new` in place (`engine.rs`, next to the
+/// sampler slices): only the routing of an external device changed. The node holds no
+/// routing (it is compiled into `TrackDesc::hw_io`), so the bridge accepts it as a no-op
+/// and the node keeps its state (no dropout on a routing edit).
+pub(crate) fn updatable_in_place(old: &BuiltinDevice, new: &BuiltinDevice) -> bool {
+    matches!(
+        (old, new),
+        (
+            BuiltinDevice::ExternalInstrument { .. },
+            BuiltinDevice::ExternalInstrument { .. }
+        ) | (
+            BuiltinDevice::ExternalAudioEffect { .. },
+            BuiltinDevice::ExternalAudioEffect { .. }
+        )
+    )
+}
+
 impl<B, H, S, L> EtherController<B, H, S, L>
 where
     B: EngineBridge,

@@ -86,6 +86,12 @@ impl EngineBridge for HwBridge {
     fn plugin_state(&mut self, device: DeviceId) -> Result<Option<Base64Bytes>, BridgeError> {
         self.fake.plugin_state(device)
     }
+    fn update_builtin(&mut self, _: DeviceId, kind: &BuiltinDevice) -> Result<bool, BridgeError> {
+        Ok(matches!(
+            kind,
+            BuiltinDevice::ExternalInstrument { .. } | BuiltinDevice::ExternalAudioEffect { .. }
+        ))
+    }
     fn list_hardware_ports(&mut self) -> Result<HardwarePorts, BridgeError> {
         Ok(self.ports.clone())
     }
@@ -492,4 +498,28 @@ fn port_changes_are_announced_while_external_devices_exist() {
     );
     h.advance(2500);
     assert!(external_events(&h.tick()).is_empty(), "unchanged");
+}
+
+#[test]
+fn routing_edits_keep_the_live_node() {
+    let mut h = H::new();
+    let a = h.track(TrackKind::Audio);
+    let e = h.insert(a, BuiltinDeviceType::ExternalAudioEffect);
+    h.tick();
+    let creates = |h: &H| {
+        h.ctl
+            .bridge
+            .fake
+            .calls
+            .iter()
+            .filter(|c| matches!(c, Call::CreateBuiltin(d, _) if *d == e))
+            .count()
+    };
+    assert_eq!(creates(&h), 1);
+    h.ok(set_routing(e, effect_routing()));
+    h.tick();
+    assert_eq!(creates(&h), 1, "updated in place, not re-created");
+    let g = h.ctl.bridge.fake.last_graph();
+    let desc = g.tracks.iter().find(|x| x.id == a).unwrap();
+    assert_eq!(desc.hw_io[0].routing, effect_routing());
 }

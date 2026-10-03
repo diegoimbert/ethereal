@@ -97,5 +97,6 @@ export function builtinDevice(type: BuiltinDeviceType): BuiltinDevice {
   if (type === "ExternalInstrument" || type === "ExternalAudioEffect") {
     return { type, routing: { midi_out: null, midi_channel: 1, audio_send: null, audio_return: null } };
   }
+  if (type === "ConvolutionReverb") return { type, ir: null };
   return { type } as BuiltinDevice;
 }

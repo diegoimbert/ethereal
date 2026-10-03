@@ -304,6 +304,15 @@ impl EngineBridge for NativeBridge {
         device: DeviceId,
         kind: &BuiltinDevice,
     ) -> Result<bool, BridgeError> {
+        // External devices (`external-instrument`): the routing is compiled into the graph's
+        // `hw_io`, the node holds none, so a routing edit keeps the node as is.
+        if let BuiltinDevice::ExternalInstrument { .. }
+        | BuiltinDevice::ExternalAudioEffect { .. } = kind
+        {
+            return Ok(self.devices.get(&device).is_some_and(
+                |e| matches!(e.kind, DeviceKind::Builtin(t) if t == kind.device_type()),
+            ));
+        }
         // Multisampler zone edits: the resolved zone set, swapped in by `Node::set_data`.
         if let BuiltinDevice::MultiSampler { .. } = kind {
             let Some(entry) = self.devices.get(&device) else {
@@ -1334,6 +1343,21 @@ mod tests {
             frame,
             data,
         }
+    }
+
+    #[test]
+    fn external_routing_updates_in_place() {
+        let (mut b, _engine) = bridge();
+        let d = DeviceId(Ulid(9));
+        let kind = BuiltinDevice::new(BuiltinDeviceType::ExternalAudioEffect);
+        b.create_builtin(d, &kind, &[]).unwrap();
+        assert!(b.update_builtin(d, &kind).unwrap());
+        let other = BuiltinDevice::new(BuiltinDeviceType::ExternalInstrument);
+        assert!(
+            !b.update_builtin(d, &other).unwrap(),
+            "another type is re-created"
+        );
+        assert!(!b.update_builtin(DeviceId(Ulid(10)), &kind).unwrap());
     }
 
     #[test]

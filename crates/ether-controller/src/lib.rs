@@ -29,6 +29,7 @@
 //! - **Engine sample rate.** Media is resampled to [`ControllerConfig::engine_sample_rate`];
 //!   hosts call [`EtherController::set_engine_sample_rate`] when the device changes.
 
+pub mod agent;
 mod analysis;
 mod audio_to_midi;
 mod browser;
@@ -64,6 +65,7 @@ mod presets;
 mod project;
 mod racks;
 mod recording;
+mod share;
 mod sidechain;
 mod social;
 pub mod store;
@@ -585,6 +587,8 @@ where
     audio_to_midi: audio_to_midi::AudioToMidiState,
     /// v0.3: external devices' measurements and ports (`external` module; runtime).
     external: external::ExternalState,
+    /// `agent-api`: agent tool runtime state (shared selection, export jobs).
+    agent: agent::AgentState,
     next_gesture: u32,
     last_transport: Option<TransportState>,
     outputs: EngineOutputs,
@@ -638,6 +642,7 @@ where
             capture: Default::default(),
             audio_to_midi: Default::default(),
             external: Default::default(),
+            agent: Default::default(),
             // Internal gestures (plugin GUI, tap tempo) live in the upper half of the id
             // space, away from UI-allocated ones.
             next_gesture: 0x8000_0000,
@@ -708,16 +713,19 @@ where
 {
     fn handle(&mut self, message: ClientMessage, out: &mut dyn MessageSink) {
         let now = self.host.now_ms();
-        let result = self.dispatch(&message, now, out);
-        self.emit_transport_if_changed(out);
-        out.send(ServerMessage::Reply(Reply {
+        // `agent-api`: export events are remembered for `get_export_status`.
+        let mut tap = agent::ExportTap::new(out);
+        let result = self.dispatch(&message, now, &mut tap);
+        self.emit_transport_if_changed(&mut tap);
+        tap.send(ServerMessage::Reply(Reply {
             id: message.id,
             result: match result {
                 Ok(value) => ReplyResult::Ok { value },
                 Err(error) => ReplyResult::Err { error },
             },
         }));
-        self.publish_if_due(now, false, out);
+        self.publish_if_due(now, false, &mut tap);
+        self.agent_absorb(tap);
     }
 
     fn tick(&mut self, now_ms: u64, out: &mut dyn MessageSink) {
@@ -726,7 +734,9 @@ where
         self.engine.check_latencies(&self.bridge, now_ms);
         // v0.3 `external-instrument`: latency measurements and hardware port changes.
         self.external_tick(now_ms, out);
-        self.tick_impl(now_ms, out);
+        let mut tap = agent::ExportTap::new(out);
+        self.tick_impl(now_ms, &mut tap);
+        self.agent_absorb(tap);
     }
 
     fn project(&self) -> Option<&Project> {
