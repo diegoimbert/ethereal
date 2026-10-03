@@ -67,7 +67,7 @@ async function send(page: Page, command: Command) {
     .toMatchObject({ status: "Ok" });
 }
 
-test("64 tracks: opening/closing automation keeps the frame rate", async ({ page }) => {
+test("64 tracks: opening/closing automation keeps the frame rate @frames", async ({ page }) => {
   test.setTimeout(180_000);
   await page.goto("/");
   await newProject(page, `Automation perf ${Date.now()}`);

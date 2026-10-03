@@ -24,6 +24,7 @@
 use ether_core::protocol::media::{BrowseRoot, DirectoryListing};
 use ether_core::protocol::model::ProjectId;
 use ether_core::protocol::project::ProjectSummary;
+use ether_core::protocol::share::ProjectShareInfo;
 
 #[derive(Debug, Clone, PartialEq, thiserror::Error)]
 pub enum StoreError {
@@ -53,8 +54,9 @@ pub trait ProjectStore {
     /// Atomically replace `project.ether` (write temp + rename). Returns the new summary.
     fn save(&mut self, id: ProjectId, ether_json: &str) -> Result<ProjectSummary, StoreError>;
 
-    /// Copy the whole folder (document + media; cache optional) to `to`. The caller then
-    /// rewrites the copy's name via `load`/`save`.
+    /// Copy the whole folder (document + media; cache optional) to `to`, **except
+    /// [`SHARE_FILE`]** (a copy is a private project). The caller then rewrites the copy's
+    /// name via `load`/`save`.
     fn duplicate(&mut self, from: ProjectId, to: ProjectId) -> Result<(), StoreError>;
 
     /// Delete the project folder.
@@ -263,6 +265,67 @@ pub trait Library {
     }
 }
 
+/// base-115 (`recents-shared`): the host-local sharing file next to `project.ether`
+/// (docs/SHARING.md §4.5). Every store reads it into [`ProjectSummary::share`], never copies
+/// it on `duplicate` (so `SaveAs`/`Duplicate` make a private project) and deletes it with the
+/// project folder.
+pub use ether_collab::share::file::SHARE_FILE;
+
+/// At most this many participants in [`ProjectShareInfo::participants`] (Recents avatars).
+pub const SHARE_SUMMARY_PARTICIPANTS: usize = 8;
+
+/// The Recents view of a project's `share.json` bytes: role, host name, last known
+/// participants, `active`. The secrets (room, host token, link and member keys) never leave
+/// this function. `None` when the file is unreadable (a newer or corrupt file lists the
+/// project as not shared rather than hiding it).
+///
+/// - **Host**: `host_name` is empty (the host is this user, whose identity lives in the UI);
+///   `participants` are the remembered members, most recently seen first. `active` = some
+///   link or member key is still valid (`Stop` deletes the file or leaves it with neither).
+/// - **Copy**: `participants` as last synced (host first). `active` = the member key is still
+///   stored: when the host stops sharing or removes this member, the copy's `key` is cleared
+///   (empty), which Recents shows as "Sharing ended".
+pub fn share_info(share_json: &[u8]) -> Option<ProjectShareInfo> {
+    use ether_collab::share::file::ShareFile;
+    use ether_core::protocol::share::{ParticipantRole, ParticipantSummary, ShareRole};
+
+    let file: ShareFile = serde_json::from_slice(share_json).ok()?;
+    Some(match file {
+        ShareFile::Host(h) => {
+            let mut members: Vec<_> = h.members.iter().collect();
+            members.sort_by(|a, b| b.last_seen_ms.total_cmp(&a.last_seen_ms));
+            ProjectShareInfo {
+                role: ParticipantRole::Host,
+                host_name: String::new(),
+                participants: members
+                    .into_iter()
+                    .take(SHARE_SUMMARY_PARTICIPANTS)
+                    .map(|m| ParticipantSummary {
+                        name: m.name.clone(),
+                        color: m.color,
+                    })
+                    .collect(),
+                active: h.edit_key.is_some() || h.listen_key.is_some() || !h.members.is_empty(),
+                last_synced_ms: None,
+            }
+        }
+        ShareFile::Copy(c) => ProjectShareInfo {
+            role: match c.role {
+                ShareRole::Edit => ParticipantRole::Edit,
+                ShareRole::Listen => ParticipantRole::Listen,
+            },
+            host_name: c.host_name,
+            participants: c
+                .participants
+                .into_iter()
+                .take(SHARE_SUMMARY_PARTICIPANTS)
+                .collect(),
+            active: !c.key.is_empty(),
+            last_synced_ms: c.last_synced_ms,
+        },
+    })
+}
+
 /// `base-136`: the folder name of an imported folder: `name` without path separators,
 /// control characters, `:` and leading dots, trimmed and at most 64 characters; `None` when
 /// nothing is left.
@@ -344,5 +407,118 @@ pub fn file_kind(name: &str) -> ether_core::protocol::media::FileKind {
         }
         "mid" | "midi" => FileKind::Midi,
         _ => FileKind::Other,
+    }
+}
+
+/// Fixture `share.json`s (the frozen shape of `ether_collab::share::file`) for store tests in
+/// this crate and the host crates.
+#[doc(hidden)]
+pub mod share_fixtures {
+    /// A host's file: edit link on, listen link off, three members (last seen 1, 3, 2).
+    pub const HOST: &str = r#"{
+  "kind": "Host", "version": 1, "room": "AAAAAAAAAAAAAAAAAAAAAA", "signal_url": null,
+  "host_token": "SECRET-HOST-TOKEN", "edit_key": "1SECRET-EDIT-KEY", "listen_key": null,
+  "members": [
+    {"member": "m1", "key": "1SECRET-M1", "role": "Edit", "name": "Ada", "color": 1, "last_seen_ms": 1.0},
+    {"member": "m2", "key": "1SECRET-M2", "role": "Listen", "name": "Tom", "color": 2, "last_seen_ms": 3.0},
+    {"member": "m3", "key": "1SECRET-M3", "role": "Edit", "name": "Kim", "color": 3, "last_seen_ms": 2.0}
+  ],
+  "sites": {"7": 12}, "resume": true
+}"#;
+
+    /// An offline copy of Diego's project, joined with an edit link.
+    pub const COPY: &str = r#"{
+  "kind": "Copy", "version": 1, "room": "AAAAAAAAAAAAAAAAAAAAAA", "signal_url": null,
+  "member": "m1", "key": "1SECRET-MEMBER-KEY", "role": "Edit", "host_name": "Diego",
+  "participants": [{"name": "Diego", "color": 4}, {"name": "Ada", "color": 1}],
+  "last_synced_ms": 1700000000000.0
+}"#;
+
+    /// A listen copy after the host stopped sharing (the member key is cleared).
+    pub const COPY_ENDED: &str = r#"{
+  "kind": "Copy", "version": 1, "room": "AAAAAAAAAAAAAAAAAAAAAA", "signal_url": null,
+  "member": "m1", "key": "", "role": "Listen", "host_name": "Diego",
+  "participants": [{"name": "Diego", "color": 4}],
+  "last_synced_ms": null
+}"#;
+
+    /// Every secret in the fixtures (none may reach a `ProjectSummary`).
+    pub const SECRETS: &[&str] = &["SECRET", "AAAAAAAAAAAAAAAAAAAAAA"];
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ether_core::protocol::share::ParticipantRole;
+
+    #[test]
+    fn share_info_of_a_host_file() {
+        let info = share_info(share_fixtures::HOST.as_bytes()).unwrap();
+        assert_eq!(info.role, ParticipantRole::Host);
+        assert_eq!(info.host_name, "");
+        let names: Vec<_> = info.participants.iter().map(|p| p.name.as_str()).collect();
+        assert_eq!(names, ["Tom", "Kim", "Ada"], "most recently seen first");
+        assert!(info.active);
+        assert_eq!(info.last_synced_ms, None);
+    }
+
+    #[test]
+    fn share_info_of_copies() {
+        let info = share_info(share_fixtures::COPY.as_bytes()).unwrap();
+        assert_eq!(info.role, ParticipantRole::Edit);
+        assert_eq!(info.host_name, "Diego");
+        assert_eq!(info.participants.len(), 2);
+        assert_eq!(info.participants[0].name, "Diego");
+        assert!(info.active);
+        assert_eq!(info.last_synced_ms, Some(1_700_000_000_000.0));
+
+        let ended = share_info(share_fixtures::COPY_ENDED.as_bytes()).unwrap();
+        assert_eq!(ended.role, ParticipantRole::Listen);
+        assert!(!ended.active);
+    }
+
+    #[test]
+    fn share_info_never_carries_secrets() {
+        for f in [
+            share_fixtures::HOST,
+            share_fixtures::COPY,
+            share_fixtures::COPY_ENDED,
+        ] {
+            let json = serde_json::to_string(&share_info(f.as_bytes()).unwrap()).unwrap();
+            for s in share_fixtures::SECRETS {
+                assert!(!json.contains(s), "{s} leaked: {json}");
+            }
+        }
+    }
+
+    #[test]
+    fn share_info_caps_participants_and_reads_stopped_hosts() {
+        let members: Vec<String> = (0..12)
+            .map(|i| {
+                format!(
+                    r#"{{"member":"m{i}","key":"k","role":"Edit","name":"P{i}","color":{i},"last_seen_ms":{i}.0}}"#
+                )
+            })
+            .collect();
+        let host = format!(
+            r#"{{"kind":"Host","version":1,"room":"r","signal_url":null,"host_token":"t",
+                "edit_key":null,"listen_key":null,"members":[{}],"resume":false}}"#,
+            members.join(",")
+        );
+        let info = share_info(host.as_bytes()).unwrap();
+        assert_eq!(info.participants.len(), SHARE_SUMMARY_PARTICIPANTS);
+        assert_eq!(info.participants[0].name, "P11");
+        assert!(info.active, "members still hold keys");
+
+        let stopped = r#"{"kind":"Host","version":1,"room":"r","signal_url":null,"host_token":"t",
+            "edit_key":null,"listen_key":null,"members":[],"resume":false}"#;
+        assert!(!share_info(stopped.as_bytes()).unwrap().active);
+    }
+
+    #[test]
+    fn unreadable_share_files_are_ignored() {
+        assert_eq!(share_info(b""), None);
+        assert_eq!(share_info(b"{\"kind\":\"Future\"}"), None);
+        assert_eq!(share_info(b"not json"), None);
     }
 }

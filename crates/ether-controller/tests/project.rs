@@ -271,3 +271,60 @@ fn get_resends_runtime_state() {
     assert!(evs.iter().any(|e| matches!(e, Event::Transport { .. })));
     assert!(evs.iter().any(|e| matches!(e, Event::Recording { .. })));
 }
+
+/// base-115 (`recents-shared`): the project list carries `share` from `share.json`; Save As
+/// and Duplicate make private copies (no `share.json`, so no secrets either).
+#[test]
+fn share_json_in_the_list_and_never_in_copies() {
+    use ether_controller::store::{ProjectStore, SHARE_FILE, share_fixtures as fx};
+    use ether_core::protocol::share::ParticipantRole;
+
+    let mut h = Harness::with_project();
+    let a = h.project().id;
+    h.ok(Command::Project(ProjectCommand::Save));
+    h.ctl
+        .store
+        .write(a, SHARE_FILE, fx::HOST.as_bytes())
+        .unwrap();
+    let ReplyValue::Projects { projects } = h.ok(Command::Project(ProjectCommand::List)) else {
+        panic!()
+    };
+    let share = projects[0].share.as_ref().expect("shared");
+    assert_eq!(share.role, ParticipantRole::Host);
+    let json = serde_json::to_string(&projects).unwrap();
+    for secret in fx::SECRETS {
+        assert!(!json.contains(secret), "{secret} leaked to the UI");
+    }
+
+    // Duplicate (not opened).
+    let c = h.project_id();
+    let v = h.ok(Command::Project(ProjectCommand::Duplicate {
+        id: a,
+        new_id: c,
+        name: "Copy".into(),
+    }));
+    assert!(matches!(v, ReplyValue::Saved { project } if project.share.is_none()));
+    assert!(h.ctl.store.file(c, SHARE_FILE).is_none());
+
+    // Save As (switches to the copy).
+    let d = h.project_id();
+    let out = h.send(Command::Project(ProjectCommand::SaveAs {
+        new_id: d,
+        name: "Version 2".into(),
+    }));
+    ok(&out);
+    assert!(h.ctl.store.file(d, SHARE_FILE).is_none());
+    assert!(
+        h.ctl.store.file(a, SHARE_FILE).is_some(),
+        "the original keeps it"
+    );
+    let ReplyValue::Projects { projects } = h.ok(Command::Project(ProjectCommand::List)) else {
+        panic!()
+    };
+    let shared: Vec<_> = projects
+        .iter()
+        .filter(|p| p.share.is_some())
+        .map(|p| p.id)
+        .collect();
+    assert_eq!(shared, [a]);
+}
