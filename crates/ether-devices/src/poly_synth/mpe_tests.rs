@@ -47,7 +47,8 @@ fn saw() -> PolySynth {
     ])
 }
 
-/// Render `frames` (mono, left) with `events` at absolute sample times, in `block`s.
+/// Render `frames` (mono, left) with `events` (sorted by their absolute sample times), in
+/// `block`s.
 fn run(s: &mut PolySynth, frames: usize, block: usize, events: &[(u64, EventKind)]) -> Vec<f32> {
     let mut l = vec![0.0f32; frames];
     let mut r = vec![0.0f32; frames];
@@ -56,9 +57,10 @@ fn run(s: &mut PolySynth, frames: usize, block: usize, events: &[(u64, EventKind
     while done < frames {
         let n = block.min(frames - done);
         let t0 = done as u64;
-        let evs: Vec<ProcessEvent> = events
+        let a = events.partition_point(|e| e.0 < t0);
+        let b = events.partition_point(|e| e.0 < t0 + n as u64);
+        let evs: Vec<ProcessEvent> = events[a..b]
             .iter()
-            .filter(|e| e.0 >= t0 && e.0 < t0 + n as u64)
             .map(|e| ProcessEvent {
                 offset: (e.0 - t0) as u32,
                 kind: e.1,
@@ -266,4 +268,42 @@ fn expression_renders_are_independent_of_the_block_size() {
     for block in [16, 64, 128] {
         assert_eq!(render(block), a, "block {block}");
     }
+}
+
+/// CPU cost of per-note expression (`cargo test -p ether-devices --lib cpu_cost_mpe --
+/// --ignored --nocapture`): 16 voices of the default patch for 10 s, with and without a
+/// pitch / pressure / timbre change on every voice every 64 samples.
+#[test]
+#[ignore = "benchmark"]
+fn cpu_cost_mpe() {
+    let frames = 480_000usize;
+    let plain: Vec<(u64, EventKind)> = (0..16).map(|i| (0, on(48 + i as u8, i))).collect();
+    let mut moving = plain.clone();
+    for t in (64..frames as u64).step_by(64) {
+        for i in 0..16u32 {
+            let x = ((t / 64) as f32 * 0.01 + i as f32).sin();
+            moving.push((t, expr(i, 48 + i as u8, NoteExpressionKind::Pitch, x)));
+            moving.push((
+                t,
+                expr(i, 48 + i as u8, NoteExpressionKind::Pressure, x.abs()),
+            ));
+            moving.push((
+                t,
+                expr(i, 48 + i as u8, NoteExpressionKind::Timbre, 0.5 + x / 2.0),
+            ));
+        }
+    }
+    let time = |events: &[(u64, EventKind)]| {
+        let mut s = synth(&[(p::AMP_SUSTAIN, 100.0)]);
+        let t0 = std::time::Instant::now();
+        run(&mut s, frames, 256, events);
+        t0.elapsed().as_secs_f64()
+    };
+    let (a, b) = (time(&plain), time(&moving));
+    println!(
+        "poly synth 16 voices, 10 s: plain {:.1} ms, per-note expression every 64 samples {:.1} ms ({:+.1} %)",
+        a * 1e3,
+        b * 1e3,
+        (b / a - 1.0) * 100.0
+    );
 }
