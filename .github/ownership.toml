@@ -1646,6 +1646,10 @@ paths = [
   # shared touch (BCR): live MPE monitoring, one call in RecordingRt::process (identity without MPE)
   "crates/ether-core/src/recording/mod.rs",
   "crates/ether-core/tests/mpe*.rs",
+  # shared touch (BCR): the test plugin echoes NoteExpression events as MIDI out; CLAP/VST3 mpe tests
+  "crates/ether-clap/examples/ether_test_plugin.rs",
+  "crates/ether-clap/tests/mpe*.rs",
+  "crates/ether-vst3/tests/mpe*.rs",
 ]
 
 [nodes.capture-midi]
@@ -1917,4 +1921,6 @@ paths = [
   "crates/ether-devices/tests/v02_descriptors.rs",
   # shared touch (v0.3 grant): one additive state field + initializer on EtherController
   "crates/ether-controller/src/lib.rs",
+  # shared touch (BCR): browser v2 loads presets through loadPresetCommand (seed for rack presets)
+  "ui/src/features/browser/v2/BrowserV2.tsx",
 ]
