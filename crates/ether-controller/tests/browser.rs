@@ -742,3 +742,201 @@ fn tempo_synced_preview_repitches_and_waits_for_the_beat() {
         SR as usize,
     );
 }
+
+/// Upload `bytes` (`Media::BeginUpload` + one chunk); returns the upload id.
+fn upload(h: &mut H, id: &str, name: &str, bytes: &[u8]) -> String {
+    use ether_core::protocol::media::MediaCommand;
+    ok(&h.send(Command::Media(MediaCommand::BeginUpload {
+        upload: id.into(),
+        name: name.into(),
+        size: bytes.len() as f64,
+    })));
+    ok(&h.send(Command::Media(MediaCommand::UploadChunk {
+        upload: id.into(),
+        offset: 0.0,
+        data: Base64Bytes(bytes.to_vec()),
+    })));
+    id.to_string()
+}
+
+fn import_file(h: &mut H, root: &str, path: &str, n: u32) -> Vec<ServerMessage> {
+    let name = path.rsplit('/').next().unwrap();
+    let up = upload(h, &format!("up-{n}"), name, &tone(0.2));
+    h.send(Command::Browser(BrowserCommand::ImportFile {
+        root: root.into(),
+        path: path.into(),
+        upload: up,
+    }))
+}
+
+fn in_root(root: &str) -> BrowserQuery {
+    BrowserQuery {
+        roots: vec![root.into()],
+        ..q("")
+    }
+}
+
+/// `base-136`: a folder copied from the UI machine becomes a user folder: created empty,
+/// filled file by file from uploads, indexed by a rescan, renamed, and back after a restart;
+/// removing it deletes the copy.
+#[test]
+fn imported_folder_is_indexed_renamed_and_survives_a_restart() {
+    use ether_core::protocol::media::MediaEvent;
+    let mut h = indexed();
+    let out = h.send(Command::Browser(BrowserCommand::ImportFolder {
+        name: "My: Drums/".into(),
+    }));
+    let ReplyValue::BrowserRoots { roots } = ok(&out) else {
+        panic!("{out:?}")
+    };
+    assert!(
+        events(&out).iter().any(|e| matches!(
+            e,
+            Event::Media {
+                event: MediaEvent::LocationsChanged { locations }
+            } if locations.len() == 2
+        )),
+        "the folder view sees the new location"
+    );
+    let folder = roots
+        .iter()
+        .find(|r| r.kind == BrowserRootKind::Folder)
+        .unwrap();
+    assert_eq!(folder.name, "My  Drums");
+    assert_eq!(folder.path.as_deref(), Some("imported/My  Drums"));
+    let root = folder.id.clone();
+
+    // Same name again: a second folder.
+    let ReplyValue::BrowserRoots { roots } = h.ok(BrowserCommand::ImportFolder {
+        name: "my  drums".into(),
+    }) else {
+        panic!()
+    };
+    let second = roots
+        .iter()
+        .find(|r| r.kind == BrowserRootKind::Folder && r.id != root)
+        .unwrap();
+    assert_eq!(second.name, "my  drums 2");
+
+    for (n, path) in ["Kick 01.wav", "Loops/Break 120.wav", "Loops/Deep/Hat.flac"]
+        .iter()
+        .enumerate()
+    {
+        assert_eq!(
+            ok(&import_file(&mut h, &root, path, n as u32)),
+            ReplyValue::Unit
+        );
+    }
+    // Not audio, outside the folder, unknown or read-only roots: refused, upload consumed.
+    for (r, path, code) in [
+        (root.as_str(), "notes.txt", ErrorCode::InvalidArgument),
+        (root.as_str(), "../x.wav", ErrorCode::InvalidArgument),
+        (root.as_str(), ".hidden.wav", ErrorCode::InvalidArgument),
+        ("folder-nope", "x.wav", ErrorCode::NotFound),
+        (LIB, "x.wav", ErrorCode::NotFound),
+    ] {
+        assert_eq!(
+            err(&import_file(&mut h, r, path, 9)).code,
+            code,
+            "{r} {path}"
+        );
+        assert_eq!(
+            err(&h.send(Command::Browser(BrowserCommand::ImportFile {
+                root: root.clone(),
+                path: "again.wav".into(),
+                upload: "up-9".into(),
+            })))
+            .code,
+            ErrorCode::NotFound,
+            "the upload was consumed"
+        );
+    }
+    let mut files = h.ctl.library.files(&root);
+    files.sort();
+    assert_eq!(
+        files,
+        ["Kick 01.wav", "Loops/Break 120.wav", "Loops/Deep/Hat.flac"]
+    );
+
+    h.ok(BrowserCommand::Rescan {
+        root: Some(root.clone()),
+    });
+    h.index();
+    let page = h.query(in_root(&root));
+    assert_eq!(page.total, 3);
+    let brk = page
+        .items
+        .iter()
+        .find(|i| i.name == "Break 120.wav")
+        .unwrap();
+    assert_eq!(brk.id, format!("{root}/Loops/Break 120.wav"));
+    assert_eq!(brk.meta.pack.as_deref(), Some("My  Drums"));
+    assert!(brk.meta.duration_seconds.is_some(), "probed");
+    assert_eq!(
+        brk.source,
+        Some(MediaSource::Location {
+            location: BrowseLocation::Library { id: root.clone() },
+            path: "Loops/Break 120.wav".into(),
+        })
+    );
+
+    // Rename (display only): the root and its items' pack follow.
+    let ReplyValue::BrowserRoots { roots } = h.ok(BrowserCommand::RenameFolder {
+        root: root.clone(),
+        name: "  Kit A ".into(),
+    }) else {
+        panic!()
+    };
+    assert_eq!(roots.iter().find(|r| r.id == root).unwrap().name, "Kit A");
+    h.index();
+    let found = h.query(BrowserQuery {
+        roots: vec![root.clone()],
+        ..q("break")
+    });
+    assert_eq!(found.items[0].meta.pack.as_deref(), Some("Kit A"));
+    assert_eq!(
+        h.err(BrowserCommand::RenameFolder {
+            root: LIB.into(),
+            name: "x".into()
+        })
+        .code,
+        ErrorCode::NotFound
+    );
+
+    // Restart: the folder (renamed), its files and the index are back.
+    h.advance(20_000);
+    h.tick();
+    let lib = h.ctl.library.restarted();
+    let mut h = H::new(lib);
+    let roots = h.roots();
+    let back = roots
+        .iter()
+        .find(|r| r.id == root)
+        .expect("folder restored");
+    assert_eq!(back.kind, BrowserRootKind::Folder);
+    assert_eq!(back.name, "Kit A");
+    assert_eq!(h.query(in_root(&root)).total, 3, "from the persisted index");
+    h.index();
+    assert_eq!(h.query(in_root(&root)).total, 3, "after the rescan");
+    // An empty name restores the folder's own.
+    let ReplyValue::BrowserRoots { roots } = h.ok(BrowserCommand::RenameFolder {
+        root: root.clone(),
+        name: " ".into(),
+    }) else {
+        panic!()
+    };
+    assert_eq!(
+        roots.iter().find(|r| r.id == root).unwrap().name,
+        "My  Drums"
+    );
+
+    // Removing deletes the copy.
+    h.ok(BrowserCommand::RemoveFolder { root: root.clone() });
+    assert_eq!(h.query(in_root(&root)).total, 0);
+    assert_eq!(h.ctl.library.imported_folders(), ["imported/my  drums 2"]);
+    assert_eq!(
+        h.err(BrowserCommand::ImportFolder { name: " ..".into() })
+            .code,
+        ErrorCode::InvalidArgument
+    );
+}

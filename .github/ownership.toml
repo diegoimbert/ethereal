@@ -2083,6 +2083,9 @@ paths = [
 # ProjectSummary.share from share.json; Recents badges, avatars, menus (docs/SHARING.md §8.5).
 paths = [
   "ui/src/features/project/**",
+  # Grant: replaces base-114's localStorage session badge, so its project-actions specs.
+  "apps/web/e2e/project-actions.spec.ts",
+  "apps/web/e2e/project-actions.shots.spec.ts",
   "crates/ether-native/src/store.rs",
   "crates/ether-native/tests/store*.rs",
   "crates/ether-wasm/src/store.rs",

@@ -393,6 +393,61 @@ mod tests {
     }
 
     #[test]
+    fn downbeats_follow_a_partial_bar() {
+        // 4/4 with a 7/8 change at beat 2.5 (mid bar 1, CONTRACTS.md §11.3): quarter
+        // clicks at 0, 1, 2, then eighth clicks from 2.5. Accents on bar 1 (0), on the new
+        // bar 2 at the change (2.5) and on bar 3 (2.5 + 3.5 = 6).
+        let sig = |beat: f64, numerator: u8, denominator: u8| crate::tempo::TimeSignatureDesc {
+            beat,
+            signature: TimeSignature {
+                numerator,
+                denominator,
+            },
+        };
+        let tempo = TempoMapRt::compile(&[], &[sig(0.0, 4, 4), sig(2.5, 7, 8)]);
+        let desc = MetronomeDesc::default();
+        let mut m = Metronome::new(SR);
+        const PER_BEAT: f64 = 24_000.0; // 120 BPM at 48 kHz
+        let total = 7 * 24_000;
+        let mut l = vec![0.0f32; total];
+        let mut t = 0usize;
+        while t < total {
+            let pos = t as f64 / PER_BEAT;
+            // Blocks split at signature changes, as in the engine.
+            let mut n = 500.min(total - t);
+            if let Some(b) = tempo.next_boundary(pos) {
+                let until = (b * PER_BEAT).round() as usize - t;
+                n = n.min(until.max(1));
+            }
+            let (time_signature, bar_start) = tempo.signature_at(pos);
+            let i = TransportInfo {
+                time_signature,
+                bar_start,
+                ..info(pos, 120.0, t as u64)
+            };
+            let mut outs: [&mut [f32]; 1] = [&mut l];
+            m.render(&desc, true, &i, &tempo, 0, t, n, &mut outs);
+            t += n;
+        }
+        let on = onsets(&l);
+        assert_eq!(
+            &on[..11],
+            &[
+                0, 24_000, 48_000, 60_000, 72_000, 84_000, 96_000, 108_000, 120_000, 132_000,
+                144_000
+            ]
+        );
+        let peak = |i: usize| l[i..i + 50].iter().fold(0.0f32, |m, s| m.max(s.abs()));
+        let weak = peak(24_000);
+        for accent in [0, 60_000, 144_000] {
+            assert!(peak(accent) > weak * 1.3, "accent at {accent}");
+        }
+        for plain in [48_000, 72_000, 132_000] {
+            assert!(peak(plain) < weak * 1.1, "no accent at {plain}");
+        }
+    }
+
+    #[test]
     fn silent_when_disabled_or_stopped() {
         let desc = MetronomeDesc::default();
         let mut m = Metronome::new(SR);

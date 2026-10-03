@@ -3,6 +3,7 @@
  * queues one before the engine is up) and the "Join with a link…" dialog.
  */
 import { create } from "zustand";
+import { useProjectScreen } from "@/features/project/screenStore";
 
 export interface QueuedInvite {
   link: string;
@@ -39,6 +40,9 @@ export const useJoinStore = create<JoinStore>((set, get) => ({
  * soon as the engine is connected, which shows the join screen.
  */
 export function openInvite(link: string, onDelivered?: () => void): void {
+  // Joining takes over from the project screen: no launch screen once the shared project
+  // loads, and an open one (a deep link arriving at launch) closes for the join screen.
+  useProjectScreen.setState({ launchPending: false, open: false, mode: "home" });
   useJoinStore.getState().enqueue({ link, onDelivered });
 }
 

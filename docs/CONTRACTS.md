@@ -474,6 +474,18 @@ every descriptor.
 ### 11.3 Tempo map and metronome
 - `TempoCommand`: tempo-point and time-signature CRUD (the points at beat 0 can't be
   removed or moved), `SetMetronomeSettings { volume, accent, sound }` (partial). Undoable.
+- Time signatures sit **anywhere** on the timeline (base-108, Ableton-style). Rules: time
+  finite and `>= 0`, no two changes at the same position, numerator `1..=99`, denominator
+  `1|2|4|8|16|32`; no bar-line rule. Bars restart at every change: a change inside a bar
+  ends that bar early (a **partial bar**, still counted as one bar) and bar 1 of the new
+  signature starts at the change (4/4 with 7/8 at beat 2.5: bar 1 = beats 0..2.5, bar 2 =
+  2.5..6, bar 3 from 6). Maps whose changes all sit on bar lines (every older project)
+  number exactly as before. Single source of the math: `ether_model::TempoMap::bar_beat`,
+  mirrored by `ether_core::tempo::TempoMapRt::signature_at` (metronome downbeats, plugin
+  bar start) and the UI's `timeline/tempoMap.ts` (ruler, grid lines, snapping, bar-based
+  commands), kept in lockstep by `crates/ether-model/tests/tempo_vectors.json`. Editors
+  place/move a change on the view's grid, at least a beat of the signature in effect
+  (finer if the grid is finer); Alt disables snapping.
 - Settings: `metronome_volume` (dB), `metronome_accent`, `metronome_sound: Classic | Wood |
   Beep`. The on/off switch stays `metronome` / `Transport::SetMetronome`.
 - Engine: `RenderGraphDesc::click: MetronomeDesc { volume (linear), accent, sound,
@@ -984,7 +996,10 @@ key, pack, modified, size } }`. `Browser::Query { text, kinds, tags, favourites_
 folder, device, sort: Name | Recent | Duration | Bpm | Relevance, offset, limit ≤ 200 }` →
 `BrowserPage { items, total, offset }`. `ListRoots` (library, packs, user folders, factory
 presets), `SetFavourite`, `SetTags`, `AddFolder { path }` (native only; the desktop shell
-picks it), `RemoveFolder`, `Rescan`; background indexing with `BrowserEvent::{IndexProgress,
+picks it), `RemoveFolder`, `Rescan`; folders from the UI machine (web, remote; `base-136`):
+`ImportFolder { name }` (an engine-owned copy) + `ImportFile { root, path, upload }` per
+uploaded audio file, then `Rescan`; removing it deletes the copy; `RenameFolder { root,
+name }` (display only, any user folder); background indexing with `BrowserEvent::{IndexProgress,
 IndexChanged}`. `Preview { item, sync }` uses the media-preview voice; `sync` repitches by
 project bpm / item bpm and starts on the next beat while playing. Presets appear as items
 (kind `Preset`).

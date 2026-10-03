@@ -293,7 +293,7 @@ export class MockTransport implements EngineTransport {
   private readonly midiLearn = new MockMidiLearn(this.host);
   private readonly presets = new MockPresets(this.host);
   private readonly keymap = new MockKeymap(this.host);
-  private readonly browser = new MockBrowser(this.host);
+  private readonly browser = new MockBrowser(this.host, (upload) => this.uploads.take(upload));
   private readonly exports = new MockExports(this.host);
   private readonly timeEdits = new MockTimeEdits({
     ...this.host,

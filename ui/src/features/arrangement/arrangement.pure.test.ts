@@ -202,6 +202,13 @@ describe("layout", () => {
 
   it("finds the bar around a position", () => {
     expect(barAround(tempo, 5.5)).toEqual({ start: 4, length: 4 });
+    // A 7/8 change at 2.5 cuts bar 1 short (a partial bar of 2.5 beats).
+    const mid = new TempoMap([], [
+      { id: "a", time: 0, signature: { numerator: 4, denominator: 4 } },
+      { id: "b", time: 2.5, signature: { numerator: 7, denominator: 8 } },
+    ]);
+    expect(barAround(mid, 1)).toEqual({ start: 0, length: 2.5 });
+    expect(barAround(mid, 3)).toEqual({ start: 2.5, length: 3.5 });
   });
 });
 

@@ -24,7 +24,10 @@ use std::io::Write;
 use std::path::{Component, Path, PathBuf};
 use std::time::UNIX_EPOCH;
 
-use ether_controller::store::{Library, ProjectStore, StoreError, file_kind};
+use ether_controller::store::{
+    Library, ProjectStore, StoreError, file_kind, import_folder_name, unique_folder_name,
+};
+pub use ether_controller::store::{USER_FOLDER_PREFIX, user_folder_id};
 use ether_core::protocol::media::{
     BrowseLocation, BrowseRoot, DirectoryEntry, DirectoryListing, FileKind,
 };
@@ -51,6 +54,9 @@ pub const USER_LIBRARY_ID: &str = "user";
 /// Folder name of the default user library, next to the projects root
 /// (`~/Documents/Ethereal/User Library`, or `<instance data>/User Library` in dev builds).
 pub const USER_LIBRARY_DIR: &str = "User Library";
+/// `base-136`: folder of the folders imported from a remote UI (`Library::create_import_folder`),
+/// next to the user library (`~/Documents/Ethereal/Imported Folders`).
+pub const IMPORTED_FOLDERS_DIR: &str = "Imported Folders";
 
 /// Disk-backed project store and sample library. Cheap to clone (paths only).
 #[derive(Clone, Debug)]
@@ -266,6 +272,35 @@ impl DiskStore {
             _ => Err(StoreError::Unsupported(format!(
                 "library {root} is read-only"
             ))),
+        }
+    }
+
+    /// `base-136`: the folder holding imported folders (next to the user library; none
+    /// without a user library).
+    pub fn imports_dir(&self) -> Option<PathBuf> {
+        Some(
+            self.user_library
+                .as_ref()?
+                .parent()?
+                .join(IMPORTED_FOLDERS_DIR),
+        )
+    }
+
+    /// `base-136`: the folder of root `root` if it is an imported folder.
+    fn imported_dir(&self, root: &str) -> Option<PathBuf> {
+        let imports = self.imports_dir()?;
+        let r = self.library_roots.iter().find(|r| r.id == root)?;
+        (r.path.parent() == Some(imports.as_path())).then(|| r.path.clone())
+    }
+
+    /// A writable root's folder: the user library or an imported folder.
+    fn writable_dir(&self, root: &str) -> Result<PathBuf, StoreError> {
+        match self.imported_dir(root) {
+            Some(dir) => {
+                fs::create_dir_all(&dir).map_err(io_err)?;
+                Ok(dir)
+            }
+            None => self.user_dir(root),
         }
     }
 
@@ -517,9 +552,10 @@ impl Library for DiskStore {
         })
     }
 
-    /// v0.2 (`presets`): only the user library is writable (atomic write, parents created).
+    /// v0.2 (`presets`): only the user library (and, `base-136`, imported folders) is
+    /// writable (atomic write, parents created).
     fn write_file(&mut self, root: &str, rel_path: &str, bytes: &[u8]) -> Result<(), StoreError> {
-        let dir = self.user_dir(root)?;
+        let dir = self.writable_dir(root)?;
         if sanitize_rel(rel_path)?.as_os_str().is_empty() {
             return Err(StoreError::InvalidPath(rel_path.to_string()));
         }
@@ -624,34 +660,49 @@ impl Library for DiskStore {
         Ok(id)
     }
 
-    /// `browser-v2`: forget a user folder (files untouched). Configured roots can't be
-    /// removed.
+    /// `browser-v2`: forget a user folder (files untouched; `base-136`: an imported
+    /// folder's copy is deleted). Configured roots can't be removed.
     fn remove_folder(&mut self, root: &str) -> Result<(), StoreError> {
         if !root.starts_with(USER_FOLDER_PREFIX) {
             return Err(StoreError::InvalidPath(format!(
                 "{root} is not a user folder"
             )));
         }
+        let imported = self.imported_dir(root);
         let before = self.library_roots.len();
         self.library_roots.retain(|r| r.id != root);
         if self.library_roots.len() == before {
             return Err(StoreError::NotFound(root.to_string()));
         }
+        if let Some(dir) = imported {
+            match fs::remove_dir_all(&dir) {
+                Err(e) if e.kind() != std::io::ErrorKind::NotFound => return Err(io_err(e)),
+                _ => {}
+            }
+        }
         Ok(())
     }
-}
 
-/// Id prefix of user folders (`Library::add_folder`).
-pub const USER_FOLDER_PREFIX: &str = "folder-";
-
-/// Stable root id of a user folder: [`USER_FOLDER_PREFIX`] + the FNV-1a hash of its path.
-pub fn user_folder_id(path: &str) -> String {
-    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
-    for b in path.as_bytes() {
-        h ^= u64::from(*b);
-        h = h.wrapping_mul(0x0100_0000_01b3);
+    /// `base-136`: `<imports_dir>/<name>` (de-duplicated against existing folders), created.
+    fn create_import_folder(&mut self, name: &str) -> Result<String, StoreError> {
+        let base = import_folder_name(name)
+            .ok_or_else(|| StoreError::InvalidPath(format!("bad folder name {name:?}")))?;
+        let imports = self
+            .imports_dir()
+            .ok_or_else(|| StoreError::Unsupported("this host has no writable library".into()))?;
+        fs::create_dir_all(&imports).map_err(io_err)?;
+        let existing: Vec<String> = fs::read_dir(&imports)
+            .map_err(io_err)?
+            .filter_map(|e| e.ok()?.file_name().into_string().ok())
+            .map(|n| n.to_lowercase())
+            .collect();
+        let name = unique_folder_name(&base, |c| existing.contains(&c.to_lowercase()));
+        let dir = imports.join(&name);
+        fs::create_dir(&dir).map_err(io_err)?;
+        dir.to_str()
+            .map(str::to_string)
+            .ok_or(StoreError::InvalidPath(name))
     }
-    format!("{USER_FOLDER_PREFIX}{h:016x}")
 }
 
 /// See `Library::list_external_dir` for `DiskStore`: an absolute folder's entries

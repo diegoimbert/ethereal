@@ -1,0 +1,79 @@
+/* Folder imports (base-136): rows at the foot of the browser, above "Import audio…". */
+.eth-folder-import {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: var(--eth-space-xs);
+  margin: 0;
+  padding: var(--eth-space-xs) var(--eth-space-sm);
+  list-style: none;
+  border-top: var(--eth-border-width) solid var(--eth-color-border-light);
+}
+
+.eth-folder-import__row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-areas:
+    "text action"
+    "bar action";
+  align-items: center;
+  column-gap: var(--eth-space-sm);
+  row-gap: var(--eth-space-xs);
+  min-height: var(--eth-size-row-height);
+  font-size: var(--eth-fs-xs);
+  color: var(--eth-color-text);
+}
+
+.eth-folder-import__row--error {
+  color: var(--eth-color-danger);
+}
+
+.eth-folder-import__text {
+  grid-area: text;
+  overflow-wrap: anywhere;
+}
+
+.eth-folder-import__row > .eth-icon-button {
+  grid-area: action;
+}
+
+.eth-folder-import__bar {
+  grid-area: bar;
+  position: relative;
+  display: block;
+  height: var(--eth-space-xs);
+  overflow: hidden;
+  border-radius: var(--eth-radius-pill);
+  background: var(--eth-color-bg-inset);
+}
+
+.eth-folder-import__fill {
+  position: absolute;
+  inset: 0;
+  background: var(--eth-color-accent);
+  transform-origin: left center;
+  transform: scaleX(var(--eth-folder-import-progress, 0));
+  transition: transform var(--eth-duration-fast) var(--eth-ease-out);
+}
+
+.eth-folder-import__bar--busy .eth-folder-import__fill {
+  transform: none;
+  width: 30%;
+  animation: eth-folder-import-sweep var(--eth-duration-slow) var(--eth-ease-standard) infinite alternate;
+}
+
+@keyframes eth-folder-import-sweep {
+  from {
+    left: 0;
+  }
+  to {
+    left: 70%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .eth-folder-import__fill {
+    animation: none;
+    transition: none;
+  }
+}

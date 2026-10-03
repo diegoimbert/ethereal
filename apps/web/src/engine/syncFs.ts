@@ -45,6 +45,9 @@ export class SyncFs implements JsFsHost {
   stat(path: string): string {
     return decoder.decode(this.call({ op: "stat", path }));
   }
+  readRange(path: string, offset: number, length: number): Uint8Array {
+    return this.call({ op: "readRange", path, offset, length });
+  }
 
   private call(req: Omit<FsRequest, "seq">, transfer: Transferable[] = []): Uint8Array {
     this.seq = (this.seq + 1) | 0;

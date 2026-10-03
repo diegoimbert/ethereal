@@ -1,7 +1,7 @@
 /** Small helpers shared by the arrangement components (kept out of component files for fast refresh). */
 
 import type { Beats, Clip, Color, Track } from "@/generated";
-import { beatsPerBar, snapToGrid, type GridSetting, type TempoMap } from "@/timeline";
+import type { GridSetting, TempoMap } from "@/timeline";
 import { ink } from "@/theme";
 import { isArrangementClip, startOf } from "./clipTime";
 
@@ -47,10 +47,10 @@ export const GRID_OPTIONS: ReadonlyArray<{ id: string; label: string; grid: Grid
   { id: "off", label: "Off", grid: { type: "Off" } },
 ];
 
-/** The bar containing `at`: its start and length. */
+/** The bar containing `at`: its start and length (shorter for a partial bar). */
 export function barAround(tempo: TempoMap, at: Beats): { start: Beats; length: Beats } {
-  const start = snapToGrid(Math.max(0, at), { kind: "bars", bars: 1 }, tempo, "floor");
-  return { start, length: beatsPerBar(tempo.signatureAt(start)) };
+  const bar = tempo.barAt(Math.max(0, at));
+  return { start: bar.beats, length: tempo.nextBar(bar).beats - bar.beats };
 }
 
 /** `"start,length;..."` of the clips inside group `group` (a string, so the selector is stable). */

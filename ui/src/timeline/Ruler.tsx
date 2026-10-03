@@ -106,11 +106,11 @@ export function Ruler({
 
   const marks = useMemo(() => rulerMarks(tempo, vp, widthPx, format), [tempo, vp, widthPx, format]);
 
-  const snap = (beats: Beats, bypass: boolean): Beats => {
-    if (bypass) return beats;
+  const gridStep = () => {
     const st = view.getState();
-    return snapToGrid(beats, resolveGrid(grid, st.pxPerBeat, tempo.signatureAt(st.scrollBeats)), tempo);
+    return resolveGrid(grid, st.pxPerBeat, tempo.signatureAt(st.scrollBeats));
   };
+  const snap = (beats: Beats, bypass: boolean): Beats => (bypass ? beats : snapToGrid(beats, gridStep(), tempo));
 
   const send = (command: Command, gesture?: number) => {
     transport.send(command, gesture === undefined ? undefined : { gesture }).catch((err: unknown) => {
@@ -239,7 +239,11 @@ export function Ruler({
               const at = pxToBeats(localX(e), view.getState());
               const extra = menuItems?.(at) ?? [];
               const tempoMenu = tempoEditable
-                ? rulerTempoMenu(transport, tempo, tempoTables.points, tempoTables.signatures, snap(at, e.altKey))
+                ? rulerTempoMenu(transport, tempo, tempoTables.points, tempoTables.signatures, snap(at, e.altKey), {
+                    raw: at,
+                    step: gridStep(),
+                    free: e.altKey,
+                  })
                 : [];
               openContextMenu(e, tempoMenu.length && extra.length ? [...tempoMenu, "separator", ...extra] : [...tempoMenu, ...extra]);
             }
@@ -274,7 +278,7 @@ export function Ruler({
           title="Loop (drag to move, edges to resize, double-click to toggle)"
         />
       )}
-      {tempoEditable && <RulerTempoMarkers vp={vp} widthPx={widthPx} snap={snap} />}
+      {tempoEditable && <RulerTempoMarkers vp={vp} widthPx={widthPx} snap={snap} gridStep={gridStep} />}
       <div ref={playheadRef} className="eth-ruler__playhead" data-testid="ruler-playhead" aria-hidden />
     </div>
   );

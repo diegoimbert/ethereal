@@ -5,6 +5,7 @@
 
 import type { Widget, WidgetSize } from "@/generated";
 import { useLayoutContext, useParam } from "./context";
+import { HardwareRoutingWidget } from "@/features/external";
 import { EqCurveWidget } from "./eq";
 import { IrWidget } from "./ir";
 import { MacrosWidget, MeterWidget, RackChainsWidget, SampleWaveformWidget, SpectrumWidget, TunerWidget } from "./widgets/data";
@@ -97,5 +98,7 @@ export function WidgetView({ widget, size, label }: WidgetViewProps) {
       return <MacrosWidget widget={widget} size={size} label={label} />;
     case "EqCurve":
       return <EqCurveWidget widget={widget} size={size} label={label} />;
+    case "HardwareRouting":
+      return <HardwareRoutingWidget widget={widget} size={size} label={label} />;
   }
 }

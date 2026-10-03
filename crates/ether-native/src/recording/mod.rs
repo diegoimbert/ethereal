@@ -188,6 +188,11 @@ impl RecordingShared {
         self.inner().projects_root = Some(root);
     }
 
+    /// The project store root, if set (`audio-streaming` opens streamed media under it).
+    pub fn projects_root(&self) -> Option<PathBuf> {
+        self.inner().projects_root.clone()
+    }
+
     /// Why the configured audio input is unavailable (device missing, unsupported rate,
     /// permission denied), if it is.
     pub fn input_error(&self) -> Option<String> {
