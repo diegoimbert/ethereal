@@ -49,10 +49,8 @@ export function AiSettingsView({ onDone }: { onDone(): void }) {
             precision={0}
             onChange={setMaxIterations}
           />
-          <span className="eth-ai__hint">
-            The AI pauses after this many rounds of tool calls in one reply (default {DEFAULT_MAX_ITERATIONS}).
-          </span>
         </div>
+        <p className="eth-ai__hint">The AI pauses after this many rounds of tool calls in one reply (default {DEFAULT_MAX_ITERATIONS}).</p>
       </section>
 
       {isTauri() && <McpSection />}

@@ -27,7 +27,7 @@ export function KeySetup({ rejected = false }: { rejected?: boolean }) {
   return (
     <form
       className={clsx("eth-ai__setup", rejected && "eth-ai__setup--rejected")}
-      aria-label="Anthropic API key"
+      aria-label="Connect Claude"
       onSubmit={(e) => {
         e.preventDefault();
         save();

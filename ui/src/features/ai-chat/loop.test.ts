@@ -127,13 +127,13 @@ describe("runTurn", () => {
         ],
       },
     ]);
-    let abort!: AbortController;
+    const held: { abort?: AbortController } = {};
     const callTool = vi.fn(async (): Promise<ToolOutcome> => {
-      abort.abort(); // the user presses Stop while the first tool runs
+      held.abort!.abort(); // the user presses Stop while the first tool runs
       return { content: "ok", is_error: false };
     });
     const s = setup(api, callTool);
-    abort = s.abort;
+    held.abort = s.abort;
     await expect(runTurn(s.opts)).resolves.toEqual({ reason: "stopped" });
     expect(callTool).toHaveBeenCalledTimes(1);
     expect(api.requests).toHaveLength(1);
