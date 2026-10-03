@@ -9,6 +9,7 @@ import { Circle, Pause, Play, Redo2, Repeat, Square, Timer, Undo2 } from "lucide
 import { Button } from "@/kit";
 import { timeSignaturePoints, useCpuLoad, usePlayhead, useProjectStore } from "@/state";
 import { cmd, nextGestureId } from "@/transport";
+import { CaptureButton } from "@/features/capture";
 import { midiTarget } from "@/features/midi-learn/targets";
 import { CommitField } from "./CommitField";
 import { isTextEntry, useEngineCommands, useEngineEvent, useOptionalConnection, useOptionalTransport } from "./engine";
@@ -123,6 +124,8 @@ export function TransportBar() {
           >
             <Circle aria-hidden />
           </Button>
+          {/* capture-midi: always listening; turns what was just played into a clip. */}
+          <CaptureButton className="eth-tb__btn" />
         </div>
 
         <span className="eth-tb__divider" aria-hidden />

@@ -375,9 +375,12 @@ function TrackInspector({ id }: { id: TrackId }) {
         <TrackMixer track={track} sender={sender} />
       </Section>
 
-      <Section title="Devices">
-        <DeviceChain track={track.id} layout="stack" />
-      </Section>
+      {/* A VCA carries no audio, so it takes no devices (the engine rejects inserts). */}
+      {track.kind !== "Vca" && (
+        <Section title="Devices">
+          <DeviceChain track={track.id} layout="stack" />
+        </Section>
+      )}
     </>
   );
 }

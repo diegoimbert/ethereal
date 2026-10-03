@@ -34,6 +34,9 @@ pub const CLIENT_QUEUE: usize = 4096;
 
 pub type ClientId = u64;
 
+/// Owner of the replies nobody waits for (requests of departed clients).
+const NOBODY: ClientId = 0;
+
 /// Uploads one client may have in progress at once (the controller also caps the total).
 pub const MAX_UPLOADS_PER_CLIENT: usize = 4;
 
@@ -68,17 +71,31 @@ pub struct Router {
 
 impl Default for Router {
     fn default() -> Self {
-        Self {
-            state: Mutex::default(),
-            next_client: AtomicU64::new(1),
-            next_request: AtomicU32::new(1),
-            // UI gesture ids live in the lower half; the controller's own in the upper.
-            next_gesture: AtomicU32::new(1),
-        }
+        // UI gesture ids live in the lower half; the controller's own in the upper.
+        Self::with_id_base(1, 1)
     }
 }
 
 impl Router {
+    /// A router whose global request ids start at `request_base` and gesture ids at
+    /// `gesture_base` (kept below `0x8000_0000`, the controller's own gestures). For an
+    /// engine that other clients drive directly too (the desktop agent bridge,
+    /// `agent-api`): pick bases their ids never reach.
+    pub fn with_id_base(request_base: u32, gesture_base: u32) -> Self {
+        Self {
+            state: Mutex::default(),
+            next_client: AtomicU64::new(1),
+            next_request: AtomicU32::new(request_base),
+            next_gesture: AtomicU32::new(gesture_base & 0x7fff_ffff),
+        }
+    }
+
+    /// `true` if `reply_id` answers a request this router forwarded (and is still
+    /// waiting for).
+    pub fn owns_reply(&self, reply_id: u32) -> bool {
+        self.lock().pending.contains_key(&reply_id)
+    }
+
     fn lock(&self) -> std::sync::MutexGuard<'_, State> {
         self.state.lock().unwrap_or_else(|p| p.into_inner())
     }
@@ -117,14 +134,19 @@ impl Router {
     }
 
     /// Forget a client. Returns the messages to send to the host on its behalf (end its
-    /// open gestures, cancel its unfinished uploads); their replies go nowhere.
+    /// open gestures, cancel its unfinished uploads); their replies go nowhere (they, and
+    /// the replies to the client's requests still in flight, stay [owned](Self::owns_reply)
+    /// until they arrive, so an attached engine's other clients never see them).
     pub fn remove(&self, client: ClientId) -> Vec<ClientMessage> {
         let mut s = self.lock();
-        s.pending.retain(|_, (c, _)| *c != client);
+        for (c, _) in s.pending.values_mut() {
+            if *c == client {
+                *c = NOBODY;
+            }
+        }
         let Some(c) = s.clients.remove(&client) else {
             return Vec::new();
         };
-        drop(s);
         let mut gestures: Vec<u32> = c.gestures.into_values().collect();
         gestures.sort_unstable();
         let mut uploads: Vec<String> = c.uploads.into_iter().collect();
@@ -152,10 +174,14 @@ impl Router {
                     .into_iter()
                     .map(|device| Command::Analysis(AnalysisCommand::Unwatch { device })),
             )
-            .map(|command| ClientMessage {
-                id: self.next_request.fetch_add(1, Ordering::Relaxed),
-                gesture: None,
-                command,
+            .map(|command| {
+                let id = self.next_request.fetch_add(1, Ordering::Relaxed);
+                s.pending.insert(id, (NOBODY, 0));
+                ClientMessage {
+                    id,
+                    gesture: None,
+                    command,
+                }
             })
             .collect()
     }
