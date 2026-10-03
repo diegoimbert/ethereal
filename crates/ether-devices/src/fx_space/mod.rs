@@ -284,7 +284,6 @@ fn reverb_layout() -> ether_core::protocol::layout::DeviceLayout {
         Large,
     );
     ir.colspan = 4;
-    ir.label = Some("Impulse Response".to_owned());
     layout(vec![
         section(
             "ir",
@@ -303,14 +302,14 @@ fn reverb_layout() -> ether_core::protocol::layout::DeviceLayout {
             "eq",
             Some("EQ"),
             1,
-            1,
+            2,
             vec![knob(p::LOW_CUT, Medium), knob(p::HIGH_CUT, Medium)],
         ),
         section(
             "output",
             Some("Output"),
             1,
-            2,
+            3,
             vec![
                 knob(p::MIX, Large),
                 knob(p::GAIN, Medium),
@@ -370,11 +369,34 @@ pub fn ir_swap(
     Some(Box::new(IrSwap::new(next)))
 }
 
-/// Factory presets of a type of this group (embedded; add `FactoryPreset { id, json:
-/// include_str!("../../presets/<device-key>/<slug>.etherpreset") }` entries).
+macro_rules! preset {
+    ($slug:literal) => {
+        FactoryPreset {
+            id: concat!("convolution-reverb/", $slug),
+            json: include_str!(concat!(
+                "../../presets/convolution-reverb/",
+                $slug,
+                ".etherpreset"
+            )),
+        }
+    };
+}
+
+/// Factory presets (a factory IR in `kind` plus params).
+const PRESETS: &[FactoryPreset] = &[
+    preset!("small-room"),
+    preset!("vocal-plate"),
+    preset!("concert-hall"),
+    preset!("cathedral-wash"),
+    preset!("reverse-swell"),
+];
+
+/// Factory presets of a type of this group.
 pub fn factory_presets(ty: BuiltinDeviceType) -> &'static [FactoryPreset] {
-    let _ = ty;
-    &[]
+    match ty {
+        BuiltinDeviceType::ConvolutionReverb => PRESETS,
+        _ => &[],
+    }
 }
 
 #[cfg(test)]

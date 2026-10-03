@@ -144,7 +144,7 @@ export function IrWidget({ size, label }: { size: WidgetSize; label: string | nu
     ? `Load failed: ${error}`
     : missing
       ? "The IR file is missing: the reverb passes the dry signal through."
-      : "Drop audio from the Browser or your files to use it as the impulse response.";
+      : "Drop audio here to use it as the impulse response.";
 
   return (
     <TypedFrame type="ir" size={size} label={label}>

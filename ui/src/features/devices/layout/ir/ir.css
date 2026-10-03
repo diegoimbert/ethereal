@@ -45,7 +45,7 @@
   stroke-dasharray: var(--eth-space-xs) var(--eth-space-xs);
 }
 .eth-ir__tick {
-  dominant-baseline: auto;
+  dominant-baseline: text-after-edge;
 }
 .eth-ir__badge {
   text-anchor: end;

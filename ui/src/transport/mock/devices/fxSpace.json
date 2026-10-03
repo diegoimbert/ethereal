@@ -15,7 +15,7 @@
           "items": [
             {
               "colspan": 4,
-              "label": "Impulse Response",
+              "label": null,
               "size": "Large",
               "widget": {
                 "end": null,
@@ -64,7 +64,7 @@
           "title": "Impulse Response"
         },
         {
-          "columns": 1,
+          "columns": 2,
           "id": "eq",
           "items": [
             {
@@ -90,7 +90,7 @@
           "title": "EQ"
         },
         {
-          "columns": 2,
+          "columns": 3,
           "id": "output",
           "items": [
             {

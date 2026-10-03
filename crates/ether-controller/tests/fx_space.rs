@@ -254,3 +254,65 @@ fn ir_media_load_rebuilds_the_reverb() {
         "rebuilt after its IR media loaded"
     );
 }
+
+#[test]
+fn factory_presets_set_the_ir_and_params_in_one_step() {
+    use ether_core::protocol::presets::{PresetCommand, PresetRef, PresetSource};
+    let Setup { mut h, device, .. } = setup();
+    let out = h.send(Command::Preset(PresetCommand::Load {
+        device,
+        preset: PresetRef {
+            source: PresetSource::Factory,
+            id: "convolution-reverb/reverse-swell".into(),
+        },
+        seed: None,
+    }));
+    ok(&out);
+    assert_eq!(ir_of(&h, device), factory("hall"));
+    let params = &h.project().devices[&device].params;
+    assert_eq!(params.get(&ParamId(8)), Some(&1.0), "reverse");
+    assert_eq!(params.get(&ParamId(2)), Some(&70.0), "decay");
+    h.ok(Command::Edit(EditCommand::Undo));
+    assert_eq!(ir_of(&h, device), None);
+    assert_eq!(
+        h.project().devices[&device].params.get(&ParamId(8)),
+        Some(&0.0)
+    );
+}
+
+#[test]
+fn user_presets_carry_their_ir_file() {
+    use ether_core::protocol::model::PresetMeta;
+    use ether_core::protocol::presets::PresetCommand;
+    let mut lib = MemoryLibrary::new().with_user_root("user");
+    lib.add_root("lib", "Library");
+    let ir = ir_samples(SR as usize / 4, 5);
+    lib.add_file("lib", "space.wav", wav(SR, &[ir]));
+    let mut h = Harness::with(FakeBridge::default(), lib, Default::default());
+    h.create_project("Space");
+    let device = insert_reverb(&mut h);
+    let media = import(&mut h, "space.wav");
+    h.drain_media();
+    h.ok(set_ir(device, Some(IrSource::Media { media })));
+    let saved = match h.ok(Command::Preset(PresetCommand::Save {
+        device,
+        name: "My Space".into(),
+        meta: PresetMeta::default(),
+        overwrite: false,
+    })) {
+        ReplyValue::Preset { preset } => preset,
+        other => panic!("{other:?}"),
+    };
+    // Another project: the IR file comes back from the user library with the preset.
+    h.create_project("Other");
+    let other = insert_reverb(&mut h);
+    h.ok(Command::Preset(PresetCommand::Load {
+        device: other,
+        preset: saved.preset.clone(),
+        seed: None,
+    }));
+    match ir_of(&h, other) {
+        Some(IrSource::Media { media }) => assert!(h.project().media.contains_key(&media)),
+        other => panic!("IR not restored: {other:?}"),
+    }
+}

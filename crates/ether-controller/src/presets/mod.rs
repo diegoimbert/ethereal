@@ -32,8 +32,9 @@ use std::collections::BTreeMap;
 
 use ether_core::protocol::media::{BrowseLocation, MediaCommand, MediaSource};
 use ether_core::protocol::model::{
-    BuiltinDevice, Device, DeviceChange, DeviceId, DeviceKind, GestureId, MediaId, MediaLocation,
-    PRESET_EXTENSION, PRESETS_DIR, ParamId, Preset, PresetDevice, PresetSample, save_preset,
+    BuiltinDevice, Device, DeviceChange, DeviceId, DeviceKind, GestureId, IrSource, MediaId,
+    MediaLocation, PRESET_EXTENSION, PRESETS_DIR, ParamId, Preset, PresetDevice, PresetSample,
+    save_preset,
 };
 use ether_core::protocol::presets::{
     PresetCommand, PresetEvent, PresetInfo, PresetRef, PresetSource,
@@ -58,15 +59,19 @@ fn kind_media(kind: &BuiltinDevice) -> Vec<MediaId> {
     match kind {
         BuiltinDevice::Sampler { sample, .. } => sample.iter().copied().collect(),
         BuiltinDevice::MultiSampler { zones } => zones.iter().filter_map(|z| z.media).collect(),
+        // v0.3 (`fx-space`): a convolution reverb's IR file.
+        BuiltinDevice::ConvolutionReverb { .. } => kind.media(),
         _ => Vec::new(),
     }
 }
 
-/// Kind data carried by presets (sample-based types only).
+/// Kind data carried by presets (sample-based types and the convolution reverb's IR).
 fn preset_kind(kind: &BuiltinDevice) -> Option<BuiltinDevice> {
     matches!(
         kind,
-        BuiltinDevice::Sampler { .. } | BuiltinDevice::MultiSampler { .. }
+        BuiltinDevice::Sampler { .. }
+            | BuiltinDevice::MultiSampler { .. }
+            | BuiltinDevice::ConvolutionReverb { .. }
     )
     .then(|| kind.clone())
 }
@@ -81,6 +86,11 @@ fn remap_kind(kind: &BuiltinDevice, map: &BTreeMap<MediaId, MediaId>) -> Builtin
         BuiltinDevice::MultiSampler { zones } => {
             for z in zones {
                 z.media = z.media.and_then(|m| map.get(&m).copied());
+            }
+        }
+        BuiltinDevice::ConvolutionReverb { ir } => {
+            if let Some(IrSource::Media { media }) = ir {
+                *ir = map.get(media).map(|&media| IrSource::Media { media });
             }
         }
         _ => {}
