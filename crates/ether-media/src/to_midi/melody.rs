@@ -135,15 +135,11 @@ impl Melody {
         // Cumulative-mean normalised difference.
         self.cmnd[0] = 1.0;
         let mut sum = 0.0f32;
-        for tau in 1..=tmax {
+        for (tau, r) in r_re.iter().enumerate().take(tmax + 1).skip(1) {
             let et = self.prefix[tau + w] - self.prefix[tau];
-            let d = (e0 + et - 2.0 * r_re[tau]).max(0.0);
+            let d = (e0 + et - 2.0 * r).max(0.0);
             sum += d;
-            self.cmnd[tau] = if sum > 0.0 {
-                d * tau as f32 / sum
-            } else {
-                1.0
-            };
+            self.cmnd[tau] = if sum > 0.0 { d * tau as f32 / sum } else { 1.0 };
         }
         let lo = self.tau_min.min(tmax);
         let mut best = None;
@@ -214,12 +210,6 @@ impl Melody {
             }
         }
 
-        if std::env::var("TO_MIDI_DEBUG").is_ok() {
-            for i in 0..n.min(400) {
-                eprintln!("{:.3} {:?} m={:.2} ap={:.3} db={:.1}", frame_t(i), q[i], self.pitch[i], self.ap[i], self.db[i]);
-            }
-            eprintln!("runs {runs:?}");
-        }
         let env = Envelope::new(x, self.rate);
         let gmax_env = env.max_db();
         let mut notes: Vec<DetectedNote> = Vec::new();

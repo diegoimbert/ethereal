@@ -21,8 +21,8 @@ use ether_core::protocol::tracks::TrackCommand;
 use ether_core::protocol::warp::WarpCommand;
 use ether_core::protocol::*;
 use ether_core::{
-    AudioBuffers, EventBuffer, EventKind, Node, PrepareConfig, ProcessContext,
-    ProcessEvent, TransportInfo,
+    AudioBuffers, EventBuffer, EventKind, Node, PrepareConfig, ProcessContext, ProcessEvent,
+    TransportInfo,
 };
 use ether_model::derive_id;
 
@@ -40,7 +40,10 @@ fn sines(len: f64, notes: &[Tone]) -> Vec<f32> {
     let n = (len * SR as f64) as usize;
     let mut x = vec![0.0f32; n];
     for &(s, d, k) in notes {
-        let (a, b) = ((s * SR as f64) as usize, (((s + d) * SR as f64) as usize).min(n));
+        let (a, b) = (
+            (s * SR as f64) as usize,
+            (((s + d) * SR as f64) as usize).min(n),
+        );
         for (i, v) in x.iter_mut().enumerate().take(b).skip(a) {
             let t = (i - a) as f64 / SR as f64;
             let ramp = (t / 0.003).min(1.0).min((d - t).max(0.0) / 0.003);
@@ -185,7 +188,11 @@ fn assert_notes(notes: &[Note], expected: &[(f64, u8)], beats_per_sec: f64) {
     for (n, &(beat, key)) in notes.iter().zip(expected) {
         assert_eq!(n.pitch, key, "{n:?}");
         let err_s = (n.start.0 - beat).abs() / beats_per_sec;
-        assert!(err_s <= 0.020, "{n:?} vs beat {beat} ({:.1} ms)", err_s * 1000.0);
+        assert!(
+            err_s <= 0.020,
+            "{n:?} vs beat {beat} ({:.1} ms)",
+            err_s * 1000.0
+        );
     }
 }
 
@@ -229,11 +236,21 @@ fn converts_a_melody_into_a_midi_track_below_in_one_undo_step() {
     else {
         panic!("{ev:#?}")
     };
-    assert_eq!((job.as_str(), track, new_clip, notes), ("job-1", ids.track, ids.clip, 6));
+    assert_eq!(
+        (job.as_str(), track, new_clip, notes),
+        ("job-1", ids.track, ids.clip, 6)
+    );
     // The patch precedes Done.
     let done_at = out
         .iter()
-        .position(|m| matches!(m, ServerMessage::Event(Event::AudioToMidi { event: AudioToMidiEvent::Done { .. } })))
+        .position(|m| {
+            matches!(
+                m,
+                ServerMessage::Event(Event::AudioToMidi {
+                    event: AudioToMidiEvent::Done { .. }
+                })
+            )
+        })
         .unwrap();
     let patch_at = out
         .iter()
@@ -248,12 +265,17 @@ fn converts_a_melody_into_a_midi_track_below_in_one_undo_step() {
     assert_eq!(t.color, p.tracks[&src].color);
     assert!(p.tracks[&src].order < t.order && t.order < p.tracks[&other].order);
     let c = &p.clips[&ids.clip];
-    assert_eq!((c.track, c.start, c.length), (ids.track, Beats(2.0), p.clips[&clip].length));
+    assert_eq!(
+        (c.track, c.start, c.length),
+        (ids.track, Beats(2.0), p.clips[&clip].length)
+    );
     let dev = &p.devices[&ids.instrument];
     assert_eq!(dev.track, ids.track);
     assert!(matches!(
         &dev.kind,
-        DeviceKind::Builtin { device: BuiltinDevice::PolySynth }
+        DeviceKind::Builtin {
+            device: BuiltinDevice::PolySynth
+        }
     ));
     // Pitches exact, onsets within 20 ms, ids derived in (start, pitch) order.
     let bps = bpm(&h) / 60.0;
@@ -288,7 +310,10 @@ fn work_is_bounded_per_tick_with_progress() {
         .filter(|e| matches!(e, AudioToMidiEvent::Progress { .. }))
         .count();
     assert!(ticks >= 8, "{ticks} ticks");
-    assert!(progress >= ticks - 1, "{progress} progress events in {ticks} ticks");
+    assert!(
+        progress >= ticks - 1,
+        "{progress} progress events in {ticks} ticks"
+    );
     assert_eq!(notes_of(&h, ids.clip).len(), 40);
 }
 
@@ -306,7 +331,9 @@ fn cancel_one_job_at_a_time_and_clip_or_project_going_away() {
     assert_eq!(err(&h.send(c2)).code, ErrorCode::InvalidState);
     h.tick();
     // Cancel: `Cancelled`, the document is untouched, nothing more happens.
-    let out = h.send(Command::AudioToMidi(AudioToMidiCommand::Cancel { job: "j1".into() }));
+    let out = h.send(Command::AudioToMidi(AudioToMidiCommand::Cancel {
+        job: "j1".into(),
+    }));
     assert_eq!(
         a2m(&out),
         vec![AudioToMidiEvent::Cancelled { job: "j1".into() }]
@@ -316,7 +343,9 @@ fn cancel_one_job_at_a_time_and_clip_or_project_going_away() {
     }
     assert_eq!(h.project(), &before);
     // Cancelling an unknown (or finished) job is a no-op.
-    let out = h.send(Command::AudioToMidi(AudioToMidiCommand::Cancel { job: "nope".into() }));
+    let out = h.send(Command::AudioToMidi(AudioToMidiCommand::Cancel {
+        job: "nope".into(),
+    }));
     assert!(a2m(&out).is_empty());
 
     // The clip is deleted mid-job.
@@ -325,7 +354,10 @@ fn cancel_one_job_at_a_time_and_clip_or_project_going_away() {
     h.tick();
     h.ok(Command::Clip(ClipCommand::Delete { ids: vec![clip] }));
     let (out, _) = run(&mut h);
-    assert_eq!(a2m(&out), vec![AudioToMidiEvent::Cancelled { job: "j3".into() }]);
+    assert_eq!(
+        a2m(&out),
+        vec![AudioToMidiEvent::Cancelled { job: "j3".into() }]
+    );
 
     // The project is closed (another one opened) mid-job.
     h.ok(Command::Edit(EditCommand::Undo));
@@ -338,7 +370,10 @@ fn cancel_one_job_at_a_time_and_clip_or_project_going_away() {
         name: "Other".into(),
     }));
     let (out, _) = run(&mut h);
-    assert_eq!(a2m(&out), vec![AudioToMidiEvent::Cancelled { job: "j4".into() }]);
+    assert_eq!(
+        a2m(&out),
+        vec![AudioToMidiEvent::Cancelled { job: "j4".into() }]
+    );
 }
 
 #[test]
@@ -360,10 +395,19 @@ fn start_is_validated() {
     let fresh: TrackId = h.id();
     let d = AudioToMidiOptions::default();
     let code = |h: &mut Harness, c| err(&h.send(c)).code;
-    assert_eq!(code(&mut h, start("", clip, fresh, d.clone())), ErrorCode::InvalidArgument);
+    assert_eq!(
+        code(&mut h, start("", clip, fresh, d.clone())),
+        ErrorCode::InvalidArgument
+    );
     let missing: ClipId = h.id();
-    assert_eq!(code(&mut h, start("j", missing, fresh, d.clone())), ErrorCode::NotFound);
-    assert_eq!(code(&mut h, start("j", clip, src, d.clone())), ErrorCode::InvalidArgument);
+    assert_eq!(
+        code(&mut h, start("j", missing, fresh, d.clone())),
+        ErrorCode::NotFound
+    );
+    assert_eq!(
+        code(&mut h, start("j", clip, src, d.clone())),
+        ErrorCode::InvalidArgument
+    );
     for bad in [
         AudioToMidiOptions {
             sensitivity: 1.5,
@@ -383,11 +427,17 @@ fn start_is_validated() {
             ..d.clone()
         },
     ] {
-        assert_eq!(code(&mut h, start("j", clip, fresh, bad)), ErrorCode::InvalidArgument);
+        assert_eq!(
+            code(&mut h, start("j", clip, fresh, bad)),
+            ErrorCode::InvalidArgument
+        );
     }
     // No project open.
     let mut empty = Harness::new();
-    assert_eq!(code(&mut empty, start("j", clip, fresh, d)), ErrorCode::InvalidState);
+    assert_eq!(
+        code(&mut empty, start("j", clip, fresh, d)),
+        ErrorCode::InvalidState
+    );
 }
 
 #[test]
@@ -462,7 +512,11 @@ fn notes_map_through_warp_window_transpose_and_reverse() {
     assert_eq!(keys, [72, 69, 67, 64, 62, 60]);
     let (s, d, _) = melody()[5];
     let want = (3.6 - (s + d)) * bps;
-    assert!((notes[0].start.0 - want).abs() / bps < 0.03, "{:?} vs {want}", notes[0]);
+    assert!(
+        (notes[0].start.0 - want).abs() / bps < 0.03,
+        "{:?} vs {want}",
+        notes[0]
+    );
 }
 
 #[test]
@@ -482,7 +536,9 @@ fn drums_and_harmony_modes() {
             hits.push((t, 36));
             for j in 0..(0.2 * SR as f64) as usize {
                 let tt = j as f64 / SR as f64;
-                x[a + j] += (0.6 * (2.0 * std::f64::consts::PI * 60.0 * tt).sin() * (-tt / 0.08).exp()) as f32;
+                x[a + j] += (0.6
+                    * (2.0 * std::f64::consts::PI * 60.0 * tt).sin()
+                    * (-tt / 0.08).exp()) as f32;
             }
         } else {
             hits.push((t, 42));
@@ -518,17 +574,26 @@ fn drums_and_harmony_modes() {
     assert_notes(&notes_of(&h, ids.clip), &expected, bps);
     assert!(matches!(
         &h.project().devices[&ids.instrument].kind,
-        DeviceKind::Builtin { device: BuiltinDevice::DrumRack }
+        DeviceKind::Builtin {
+            device: BuiltinDevice::DrumRack
+        }
     ));
 
     let (_, clip) = audio_clip(&mut h, "keys.wav", 0.0);
     let (c, ids) = start_cmd(&mut h, "k", clip, AudioToMidiMode::Harmony);
     h.ok(c);
     run(&mut h);
-    let expected: Vec<(f64, u8)> = [(0.2, 60), (0.2, 64), (0.2, 67), (1.6, 57), (1.6, 60), (1.6, 65)]
-        .iter()
-        .map(|&(t, k)| (t * bps, k))
-        .collect();
+    let expected: Vec<(f64, u8)> = [
+        (0.2, 60),
+        (0.2, 64),
+        (0.2, 67),
+        (1.6, 57),
+        (1.6, 60),
+        (1.6, 65),
+    ]
+    .iter()
+    .map(|&(t, k)| (t * bps, k))
+    .collect();
     assert_notes(&notes_of(&h, ids.clip), &expected, bps);
 }
 

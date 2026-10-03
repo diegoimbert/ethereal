@@ -147,7 +147,9 @@ impl Detector {
         let factor = self.prep.factor;
         let x = &self.prep.out;
         let analyser = self.analyser.get_or_insert_with(|| match self.mode {
-            Mode::Melody => Analyser::Melody(melody::Melody::new(self.rate, x.len(), &self.options)),
+            Mode::Melody => {
+                Analyser::Melody(melody::Melody::new(self.rate, x.len(), &self.options))
+            }
             Mode::Harmony => Analyser::Harmony(harmony::Harmony::new(self.rate, x.len())),
             Mode::Drums => Analyser::Drums(drums::Drums::new(self.rate, x.len())),
         });
@@ -238,10 +240,15 @@ mod tests {
         let mut x = vec![0.0f32; n];
         for &(s, d, p) in notes {
             let f = hz_of(p as f32) as f64;
-            let (a, b) = ((s * sr as f64) as usize, (((s + d) * sr as f64) as usize).min(n));
+            let (a, b) = (
+                (s * sr as f64) as usize,
+                (((s + d) * sr as f64) as usize).min(n),
+            );
             for (i, v) in x.iter_mut().enumerate().take(b).skip(a) {
                 let t = (i - a) as f64 / sr as f64;
-                let ramp = (t / 0.003).min(1.0).min(((b - i) as f64 / sr as f64) / 0.003);
+                let ramp = (t / 0.003)
+                    .min(1.0)
+                    .min(((b - i) as f64 / sr as f64) / 0.003);
                 *v += (0.4 * ramp * (2.0 * std::f64::consts::PI * f * t).sin()) as f32;
             }
         }

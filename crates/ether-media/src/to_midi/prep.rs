@@ -226,7 +226,11 @@ mod tests {
         // Same phase at the same time (linear phase, centred).
         for k in [1000usize, 5000, 9000] {
             let want = (2.0 * std::f32::consts::PI * 440.0 * (k * 4) as f32 / sr as f32).sin();
-            assert!((p.out[k] - want).abs() < 0.02, "{k}: {} vs {want}", p.out[k]);
+            assert!(
+                (p.out[k] - want).abs() < 0.02,
+                "{k}: {} vs {want}",
+                p.out[k]
+            );
         }
     }
 

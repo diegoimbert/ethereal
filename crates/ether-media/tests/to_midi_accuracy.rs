@@ -70,7 +70,11 @@ impl Score {
     }
     fn f1(&self) -> f64 {
         let (p, r) = (self.precision(), self.recall());
-        if p + r == 0.0 { 0.0 } else { 2.0 * p * r / (p + r) }
+        if p + r == 0.0 {
+            0.0
+        } else {
+            2.0 * p * r / (p + r)
+        }
     }
 }
 
@@ -181,8 +185,7 @@ fn render(sr: u32, len: f64, notes: &[Ref], voice: Voice) -> Arc<DecodedAudio> {
                         if fh > 0.45 * srf {
                             break;
                         }
-                        s += (2.0 * PI * fh * t).sin() * (-(1.2 + 0.7 * h) * t).exp()
-                            / h.powf(1.3);
+                        s += (2.0 * PI * fh * t).sin() * (-(1.2 + 0.7 * h) * t).exp() / h.powf(1.3);
                     }
                     attack * release * s
                 }
@@ -269,7 +272,11 @@ fn render_drums(sr: u32, len: f64, hits: &[Ref], noise_db: Option<f64>) -> Arc<D
                 for (i, out) in x.iter_mut().enumerate().skip(a).take((0.5 * srf) as usize) {
                     let t = (i - a) as f64 / srf;
                     phase += (45.0 + 80.0 * (-t / 0.03).exp()) / srf;
-                    let click = if t < 0.002 { 0.1 * rng.next() as f64 } else { 0.0 };
+                    let click = if t < 0.002 {
+                        0.1 * rng.next() as f64
+                    } else {
+                        0.0
+                    };
                     let v = (2.0 * PI * phase).sin() * (-t / 0.22).exp() * (t / 0.001).min(1.0);
                     *out += (amp * (v + click)) as f32;
                 }
@@ -435,7 +442,13 @@ fn drum_pattern(bpm: f64, bars: usize, steps: &[(usize, u8, f32)]) -> Vec<Ref> {
 }
 
 fn basic_beat() -> Vec<Ref> {
-    let mut steps = vec![(0, 36, 1.0), (8, 36, 1.0), (10, 36, 0.8), (4, 38, 1.0), (12, 38, 1.0)];
+    let mut steps = vec![
+        (0, 36, 1.0),
+        (8, 36, 1.0),
+        (10, 36, 0.8),
+        (4, 38, 1.0),
+        (12, 38, 1.0),
+    ];
     for s in (0..16).step_by(2) {
         steps.push((s, 42, if s % 4 == 0 { 0.8 } else { 0.55 }));
     }
@@ -713,7 +726,10 @@ fn options_are_honoured() {
     };
     let notes = Detector::run(audio, Mode::Melody, opts);
     assert!(!notes.is_empty());
-    assert!(notes.iter().all(|n| (62..=72).contains(&n.pitch)), "{notes:?}");
+    assert!(
+        notes.iter().all(|n| (62..=72).contains(&n.pitch)),
+        "{notes:?}"
+    );
 
     let beat = basic_beat();
     let audio = render_drums(44_100, 4.6, &beat, None);
@@ -729,7 +745,11 @@ fn options_are_honoured() {
     keys.dedup();
     assert_eq!(keys, [35, 40, 44]);
     // Notes are sorted by (start, pitch).
-    assert!(notes.windows(2).all(|w| (w[0].start, w[0].pitch) <= (w[1].start, w[1].pitch)));
+    assert!(
+        notes
+            .windows(2)
+            .all(|w| (w[0].start, w[0].pitch) <= (w[1].start, w[1].pitch))
+    );
 }
 
 /// Louder notes get higher velocities.
@@ -740,58 +760,4 @@ fn velocity_follows_the_level() {
     let d = Detector::run(audio, Mode::Melody, Options::default());
     assert_eq!(d.len(), 2, "{d:?}");
     assert!(d[0].velocity > d[1].velocity + 0.2, "{d:?}");
-}
-
-#[test]
-#[ignore]
-fn debug_bass() {
-    let bass = bass_line();
-    let audio = render(44_100, 5.0, &bass, Voice::Saw { vibrato: 0.0 });
-    let notes = Detector::run(audio, Mode::Melody, Options::default());
-    eprintln!("{notes:?}");
-}
-
-#[test]
-#[ignore]
-fn debug_chords() {
-    let which = std::env::var("FIX").unwrap_or_default();
-    let (sc, audio, mode) = match which.as_str() {
-        "drums" => {
-            let b = basic_beat();
-            let a = render_drums(44_100, 4.6, &b, None);
-            (b, a, Mode::Drums)
-        }
-        "busy" => {
-            let b = busy_beat();
-            let a = render_drums(48_000, 4.2, &b, Some(-50.0));
-            (b, a, Mode::Drums)
-        }
-        "piano" => {
-            let b = piano_chords();
-            let a = render(48_000, 7.5, &b, Voice::Piano);
-            (b, a, Mode::Harmony)
-        }
-        "melody" => {
-            let b = sine_melody();
-            let a = render(44_100, 9.0, &b, Voice::Sine);
-            (b, a, Mode::Melody)
-        }
-        "saw" => {
-            let b = saw_lead();
-            let a = render(48_000, 6.0, &b, Voice::Saw { vibrato: 0.15 });
-            (b, a, Mode::Melody)
-        }
-        _ => {
-            let sc = sine_chords();
-            let a = render(44_100, 8.0, &sc, Voice::Sine);
-            (sc, a, Mode::Harmony)
-        }
-    };
-    let notes = Detector::run(audio, mode, Options::default());
-    for n in &notes {
-        eprintln!("{:.4} {:.3} {}", n.start, n.duration, n.pitch);
-    }
-    for g in &sc {
-        eprintln!("{:.4} ref {}", g.start, g.pitch);
-    }
 }

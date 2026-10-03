@@ -124,7 +124,10 @@ fn options_of(o: &AudioToMidiOptions) -> CmdResult<Options> {
     if o.min_pitch > o.max_pitch || o.max_pitch > 127 {
         return Err(invalid("the pitch range must satisfy min <= max <= 127"));
     }
-    if [o.kick_key, o.snare_key, o.hihat_key].iter().any(|k| *k > 127) {
+    if [o.kick_key, o.snare_key, o.hihat_key]
+        .iter()
+        .any(|k| *k > 127)
+    {
         return Err(invalid("drum keys must be MIDI keys (0..=127)"));
     }
     Ok(Options {
@@ -175,7 +178,9 @@ where
                     return Err(invalid("empty job id"));
                 }
                 if self.audio_to_midi.running.is_some() {
-                    return Err(invalid_state("an audio to MIDI conversion is already running"));
+                    return Err(invalid_state(
+                        "an audio to MIDI conversion is already running",
+                    ));
                 }
                 let options = options_of(options)?;
                 let p = &self
@@ -240,9 +245,9 @@ where
         // Cancelled when its project or clip goes away (or stops being that audio clip).
         let alive = self.doc.as_ref().is_some_and(|d| {
             d.project.id == job.project
-                && d.project.clips.get(&job.clip).is_some_and(|c| {
-                    matches!(&c.content, ClipContent::Audio(a) if a.media == job.media.id)
-                })
+                && d.project.clips.get(&job.clip).is_some_and(
+                    |c| matches!(&c.content, ClipContent::Audio(a) if a.media == job.media.id),
+                )
         });
         if !alive {
             a2m_event(out, AudioToMidiEvent::Cancelled { job: job.id });
@@ -279,7 +284,13 @@ where
                 self.audio_to_midi.running = Some(job);
             }
             Outcome::Failed(message) => {
-                a2m_event(out, AudioToMidiEvent::Failed { job: job.id, message });
+                a2m_event(
+                    out,
+                    AudioToMidiEvent::Failed {
+                        job: job.id,
+                        message,
+                    },
+                );
             }
             Outcome::Detected(notes) => self.finish(&job, &notes, now, out),
         }
@@ -336,10 +347,9 @@ where
                         )),
                     }
                 }
-                Err(e) => Outcome::Failed(format!(
-                    "\"{}\" could not be decoded: {e}",
-                    job.media.name
-                )),
+                Err(e) => {
+                    Outcome::Failed(format!("\"{}\" could not be decoded: {e}", job.media.name))
+                }
             },
             Stage::Detect(det) => {
                 if det.step(UNIT_FRAMES) >= 1.0 {

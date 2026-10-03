@@ -85,7 +85,9 @@ impl SourceMap {
         match &self.warp {
             Some(w) if w.markers.len() >= 2 => {
                 let m = &w.markers;
-                let i = m.partition_point(|&(_, src)| src <= s).clamp(1, m.len() - 1);
+                let i = m
+                    .partition_point(|&(_, src)| src <= s)
+                    .clamp(1, m.len() - 1);
                 let (b0, s0) = m[i - 1];
                 let (b1, s1) = m[i];
                 if (s1 - s0).abs() <= 1e-12 {
@@ -299,6 +301,9 @@ mod tests {
             vec![(0.0, 1.0, 4.0), (3.0, 0.0, 4.0), (7.0, 0.0, 1.0)]
         );
         // Offset past the loop end: plays straight.
-        assert_eq!(pieces(&clip(5.0, 2.0, Some((0.0, 4.0)))), vec![(0.0, 5.0, 7.0)]);
+        assert_eq!(
+            pieces(&clip(5.0, 2.0, Some((0.0, 4.0)))),
+            vec![(0.0, 5.0, 7.0)]
+        );
     }
 }

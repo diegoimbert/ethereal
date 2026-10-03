@@ -79,9 +79,7 @@ impl Harmony {
     }
 
     pub(crate) fn done(&self) -> bool {
-        self.onsets
-            .as_ref()
-            .is_some_and(|o| self.seg >= o.len())
+        self.onsets.as_ref().is_some_and(|o| self.seg >= o.len())
     }
 
     pub(crate) fn progress(&self) -> f32 {
@@ -169,9 +167,6 @@ impl Harmony {
         let mut out: Vec<f64> = Vec::with_capacity(picked.len());
         for i in picked {
             let t = env.refine_onset(i as f64 * frame_sec, 0.03, 0.05);
-            if std::env::var("TO_MIDI_DEBUG").is_ok() {
-                eprintln!("onset coarse {:.4} refined {:.4}", i as f64 * frame_sec, t);
-            }
             if out.last().is_none_or(|&l| t - l >= 0.03) {
                 out.push(t);
             }
@@ -387,7 +382,11 @@ fn select(peaks: &[Peak], rate: f32, opts: &Options) -> Vec<(u8, f32)> {
                 if h == 0 {
                     return Some((i, res[i]));
                 }
-                let next = if h + 1 < m.len() { amp(h + 1) } else { amp(h - 1) };
+                let next = if h + 1 < m.len() {
+                    amp(h + 1)
+                } else {
+                    amp(h - 1)
+                };
                 Some((i, amp(h - 1).min(next).min(res[i])))
             })
             .collect();

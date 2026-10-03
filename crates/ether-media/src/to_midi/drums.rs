@@ -66,7 +66,10 @@ impl Drums {
             re: vec![0.0; n],
             im: vec![0.0; n],
             band_db: Default::default(),
-            low: [Biquad::lowpass(LOW_CUTOFF, rate), Biquad::lowpass(LOW_CUTOFF, rate)],
+            low: [
+                Biquad::lowpass(LOW_CUTOFF, rate),
+                Biquad::lowpass(LOW_CUTOFF, rate),
+            ],
             low_pos: 0,
             low_peak: Vec::new(),
             level: Vec::new(),
@@ -114,7 +117,8 @@ impl Drums {
             let at = (times[self.gains.len()] * self.rate) as isize;
             let pre = self.band_energy(x, at - lead - n as isize);
             let post = self.band_energy(x, at - lead);
-            self.gains.push([0, 1, 2].map(|b| (post[b] - pre[b]).max(0.0)));
+            self.gains
+                .push([0, 1, 2].map(|b| (post[b] - pre[b]).max(0.0)));
             used += n;
         }
         self.times = Some(times);
@@ -222,14 +226,6 @@ impl Drums {
                 let j = (i + 5).min(level.len() - 1);
                 level[i].max(level[j]) >= floor
             });
-            if std::env::var("TO_MIDI_DEBUG").is_ok() {
-                let t: Vec<String> = p.iter().map(|&i| format!("{:.3}", i as f64 * frame_sec)).collect();
-                eprintln!("band picks {t:?}");
-                let m = f.iter().copied().fold(0.0f32, f32::max);
-                for (i, v) in f.iter().enumerate().take(260).skip(140) {
-                    eprintln!("  {:.3} {:.3}", i as f64 * frame_sec, v / m);
-                }
-            }
             frames.extend(p);
         }
         frames.sort_unstable();
@@ -271,12 +267,6 @@ impl Drums {
             .iter()
             .map(|g| [0, 1, 2].map(|b| g[b] / reference[b]))
             .collect();
-        if std::env::var("TO_MIDI_DEBUG").is_ok() {
-            eprintln!("reference {reference:?}");
-            for (t, nb) in times.iter().zip(&norm) {
-                eprintln!("onset {t:.3} {:.3} {:.3} {:.3}", nb[0], nb[1], nb[2]);
-            }
-        }
         let keys = [opts.kick_key, opts.snare_key, opts.hihat_key];
         let mut notes = Vec::new();
         for ((&t, g), nb) in times.iter().zip(gains).zip(&norm) {
@@ -297,7 +287,9 @@ impl Drums {
                 hit[2] = nb[2] >= 0.5 * nb[1];
             }
             if !hit.iter().any(|h| *h) {
-                let b = (0..3).max_by(|&a, &b| share[a].total_cmp(&share[b])).unwrap();
+                let b = (0..3)
+                    .max_by(|&a, &b| share[a].total_cmp(&share[b]))
+                    .unwrap();
                 if nb[b] >= tau * 0.5 {
                     hit[b] = true;
                 }
@@ -337,7 +329,11 @@ fn rise(db: &[f32], back: usize) -> Vec<f32> {
                 .iter()
                 .copied()
                 .fold(f32::MIN, f32::max);
-            if prev == f32::MIN { 0.0 } else { (db[i] - prev).max(0.0) }
+            if prev == f32::MIN {
+                0.0
+            } else {
+                (db[i] - prev).max(0.0)
+            }
         })
         .collect()
 }
