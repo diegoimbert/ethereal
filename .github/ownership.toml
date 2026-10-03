@@ -1543,6 +1543,20 @@ paths = [
   "ui/src/features/audio-settings/**",
   "ui/src/features/remote/**",
   "apps/web/e2e/share-ui*.spec.ts",
+  # shared touch (BCR, selector-level only): top-bar Collab/Remote entries move to Settings > Advanced
+  "apps/web/e2e/ui.ts",
+  "apps/web/e2e/collab.spec.ts",
+  "apps/web/e2e/collab-host.spec.ts",
+  "apps/web/e2e/collab-listen.spec.ts",
+  "apps/web/e2e/collab-presence.spec.ts",
+  "apps/web/e2e/collab-social.spec.ts",
+  "apps/web/e2e/collab-stream.spec.ts",
+  "apps/web/e2e/file-import-collab.spec.ts",
+  "apps/web/e2e/comping.spec.ts",
+  "apps/web/e2e/live-record.spec.ts",
+  "apps/web/e2e/tap-recording.spec.ts",
+  "apps/web/e2e/remote-engine.spec.ts",
+  "apps/web/e2e/project-actions.spec.ts",
 ]
 exclude = [
   "ui/src/features/share/endpoint/**",
@@ -1567,6 +1581,9 @@ paths = [
   "ui/src/transport/tauri/TauriTransport.test.ts",
   "ui/src/domain/invite.ts",
   "ui/src/domain/invite.test.ts",
+  # shared touch (BCR): one palette entry, `out.push(...joinPaletteCommands())`
+  "ui/src/app/shell/commands.ts",
+  "ui/src/app/shell/commands.test.ts",
 ]
 
 [nodes.recents-shared]
