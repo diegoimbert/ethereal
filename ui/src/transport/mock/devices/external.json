@@ -1,0 +1,139 @@
+{
+  "ExternalAudioEffect": {
+    "audio_inputs": 2,
+    "audio_outputs": 2,
+    "category": "AudioEffect",
+    "device_type": {
+      "device": "ExternalAudioEffect",
+      "type": "Builtin"
+    },
+    "midi_input": false,
+    "name": "External Audio Effect",
+    "params": [
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Send",
+        "hidden": false,
+        "id": 0,
+        "labels": null,
+        "max": 24.0,
+        "min": -24.0,
+        "name": "Send Gain",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Decibels"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Return",
+        "hidden": false,
+        "id": 1,
+        "labels": null,
+        "max": 24.0,
+        "min": -24.0,
+        "name": "Return Gain",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Decibels"
+      },
+      {
+        "automatable": true,
+        "default": 100.0,
+        "group": "Output",
+        "hidden": false,
+        "id": 2,
+        "labels": null,
+        "max": 100.0,
+        "min": 0.0,
+        "name": "Mix",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Percent"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Hardware",
+        "hidden": false,
+        "id": 3,
+        "labels": null,
+        "max": 500.0,
+        "min": 0.0,
+        "name": "Latency",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Milliseconds"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Return",
+        "hidden": false,
+        "id": 4,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Invert Phase",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      }
+    ],
+    "sidechain_inputs": 0
+  },
+  "ExternalInstrument": {
+    "audio_inputs": 0,
+    "audio_outputs": 2,
+    "category": "Instrument",
+    "device_type": {
+      "device": "ExternalInstrument",
+      "type": "Builtin"
+    },
+    "midi_input": true,
+    "name": "External Instrument",
+    "params": [
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Return",
+        "hidden": false,
+        "id": 0,
+        "labels": null,
+        "max": 24.0,
+        "min": -60.0,
+        "name": "Gain",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Decibels"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Hardware",
+        "hidden": false,
+        "id": 1,
+        "labels": null,
+        "max": 500.0,
+        "min": 0.0,
+        "name": "Latency",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Milliseconds"
+      }
+    ],
+    "sidechain_inputs": 0
+  }
+}
