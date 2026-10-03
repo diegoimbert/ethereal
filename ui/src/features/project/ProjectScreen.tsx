@@ -191,7 +191,7 @@ function Home({ commands, onNew, onDone }: { commands: EngineCommands; onNew(): 
             currentActions.length > 0 && (
               <div className="eth-project-screen__share-actions" role="group" aria-label="Sharing">
                 {currentActions.map((a) => (
-                  <Button key={a.label} size="sm" tone={a.danger ? "danger" : "ghost"} disabled={busy} onClick={a.onSelect}>
+                  <Button key={a.label} size="sm" tone="ghost" disabled={busy} onClick={a.onSelect}>
                     {a.label}
                   </Button>
                 ))}

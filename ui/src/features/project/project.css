@@ -213,6 +213,7 @@
 .eth-project-share__avatars {
   display: inline-flex;
   align-items: center;
+  gap: var(--eth-space-hair);
 }
 .eth-project-share__avatar,
 .eth-project-share__more {
@@ -231,10 +232,6 @@
   background: var(--eth-project-peer);
   color: var(--eth-color-bg);
   box-shadow: 0 0 0 var(--eth-border-width-strong) var(--dialog-bg, var(--eth-color-bg-raised));
-}
-.eth-project-share__avatar + .eth-project-share__avatar,
-.eth-project-share__avatar + .eth-project-share__more {
-  margin-left: calc(-1 * var(--eth-space-sm));
 }
 .eth-project-share__more {
   padding: 0 var(--eth-space-xs);
