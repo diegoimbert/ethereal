@@ -154,3 +154,75 @@ fn user_folder_index_import_preview_and_restart() {
     assert!(abs.exists());
     c.quit();
 }
+
+/// `base-136`: a folder imported from a remote UI (uploads, as the web UI sends them) is
+/// copied under `Imported Folders/`, indexed, renamed, restored after a restart, and deleted
+/// with its folder.
+#[test]
+fn imported_folder_copy_index_restart_and_remove() {
+    use ether_core::protocol::model::Base64Bytes;
+    let tmp = ether_native::test_util::TempDir::new("e2e-browser-import");
+    let paths = Paths::new(tmp.path());
+    let mut c = Client::start(&paths);
+    let roots = c.ok(
+        "Browser",
+        json!({"type": "ImportFolder", "name": "Field Recordings"}),
+    )["roots"]
+        .clone();
+    let folder = roots
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|r| r["kind"] == "Folder")
+        .expect("the imported folder is a root")
+        .clone();
+    assert_eq!(folder["name"], "Field Recordings");
+    let root = folder["id"].as_str().unwrap().to_string();
+    let dir = tmp.path().join("Imported Folders/Field Recordings");
+    assert_eq!(folder["path"], dir.to_str().unwrap());
+
+    let rain = wav(48_000, &[sine(48_000, 330.0, 12_000, 0.5)]);
+    for (n, path) in ["Rain.wav", "Night/Rain Close.wav"].iter().enumerate() {
+        let upload = format!("up-{n}");
+        c.ok(
+            "Media",
+            json!({"type": "BeginUpload", "upload": upload, "name": "x.wav", "size": rain.len()}),
+        );
+        c.ok(
+            "Media",
+            json!({"type": "UploadChunk", "upload": upload, "offset": 0,
+                   "data": serde_json::to_value(Base64Bytes(rain.clone())).unwrap()}),
+        );
+        c.ok(
+            "Browser",
+            json!({"type": "ImportFile", "root": root, "path": path, "upload": upload}),
+        );
+    }
+    assert_eq!(
+        std::fs::read(dir.join("Night/Rain Close.wav")).unwrap(),
+        rain
+    );
+    c.ok("Browser", json!({"type": "Rescan", "root": root}));
+    wait_for(&mut c, "rain", 2);
+    c.ok(
+        "Browser",
+        json!({"type": "RenameFolder", "root": root, "name": "Rain"}),
+    );
+    c.quit();
+
+    let mut c = Client::start(&paths);
+    let roots = c.ok("Browser", json!({"type": "ListRoots"}))["roots"].clone();
+    assert!(
+        roots
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|r| r["id"] == root.as_str() && r["kind"] == "Folder" && r["name"] == "Rain"),
+        "{roots}"
+    );
+    wait_for(&mut c, "rain", 2);
+    c.ok("Browser", json!({"type": "RemoveFolder", "root": root}));
+    assert_eq!(query(&mut c, "rain")["total"], 0);
+    assert!(!dir.exists(), "the copy is deleted");
+    c.quit();
+}

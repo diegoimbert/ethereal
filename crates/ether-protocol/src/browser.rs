@@ -7,6 +7,12 @@
 //! path (native only: the desktop shell picks the folder with a native dialog and sends the
 //! path; web and remote reply `Unsupported`). Indexing runs in the background (bounded work
 //! per tick) and reports `BrowserEvent::IndexProgress`.
+//!
+//! Folders from the UI machine (`base-136`, additive): where the engine can't see the user's
+//! folder (web: OPFS; a remote engine), the UI copies it: `ImportFolder { name }` creates an
+//! empty, engine-owned user folder, `ImportFile` writes each uploaded audio file into it
+//! (`Media::BeginUpload`/`UploadChunk` first), then `Rescan` indexes it. Removing an imported
+//! folder deletes the copy. `RenameFolder` renames any user folder (display only).
 
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
@@ -28,8 +34,25 @@ pub enum BrowserCommand {
     SetTags { item: String, tags: Vec<String> },
     /// Add a user folder (absolute engine-side path; native only). Replies `BrowserRoots`.
     AddFolder { path: String },
-    /// Remove a user folder from the index (files untouched).
+    /// Remove a user folder from the index (files untouched; an imported folder's copy is
+    /// deleted).
     RemoveFolder { root: String },
+    /// `base-136`: create an empty user folder for files copied from the UI machine, named
+    /// after `name` (made unique; web: an OPFS folder, native: under the app data). Fill it
+    /// with `ImportFile`, then `Rescan` it. Replies `BrowserRoots` (the new root is the
+    /// `Folder` root that was not listed before).
+    ImportFolder { name: String },
+    /// `base-136`: write a completed upload (`Media::BeginUpload`/`UploadChunk`) to `path`
+    /// (relative; an audio or MIDI file name; parents created) inside an imported folder
+    /// `root`, replacing an existing file. The upload is consumed either way.
+    ImportFile {
+        root: String,
+        path: String,
+        upload: String,
+    },
+    /// `base-136`: rename a user folder (display only, persisted; files untouched). An empty
+    /// name restores the folder's own name. Replies `BrowserRoots`.
+    RenameFolder { root: String, name: String },
     /// Re-scan one root (`None` = all).
     Rescan { root: Option<String> },
     /// Preview an item: audio through the preview voice (`Media::Preview` semantics and

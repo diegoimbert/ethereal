@@ -721,7 +721,7 @@ where
 
     // ─── Media ──────────────────────────────────────────────────────────────────────────
 
-    fn locations(&self) -> Vec<BrowseRoot> {
+    pub(crate) fn locations(&self) -> Vec<BrowseRoot> {
         let mut roots = self.library.roots();
         if self.doc.is_some() {
             roots.push(BrowseRoot {
