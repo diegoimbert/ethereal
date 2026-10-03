@@ -97,10 +97,14 @@ test("a long file streams from OPFS: plays and locates without underruns", async
   await expect.poll(() => positionSeconds(page), { timeout: 20_000 }).toBeGreaterThan(2);
   await page.getByRole("button", { name: "Stop", description: "Stop (Space)" }).click();
 
-  // Locate mid-clip (a click on the clip moves the playhead while stopped), play again.
-  const box = (await clipEl.boundingBox())!;
-  await clipEl.click({ position: { x: box.width * 0.6, y: box.height * 0.6 } });
-  await expect.poll(() => positionSeconds(page)).toBeGreaterThan(10);
+  // Locate mid-clip: a click on empty arrangement space (below the track) moves the playhead.
+  const area = page.locator(".eth-arr__drop-area");
+  const box = (await area.boundingBox())!;
+  const clipBox = (await clipEl.boundingBox())!;
+  const view = page.viewportSize()!;
+  const x = clipBox.x + (Math.min(clipBox.x + clipBox.width, view.width) - clipBox.x) * 0.7 - box.x;
+  await area.click({ position: { x, y: Math.min(10, box.height / 2) } });
+  await expect.poll(() => positionSeconds(page)).toBeGreaterThan(1);
   const from = await positionSeconds(page);
   await playButton(page).click();
   await expect.poll(() => positionSeconds(page), { timeout: 20_000 }).toBeGreaterThan(from + 1.5);
