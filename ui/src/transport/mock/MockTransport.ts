@@ -136,7 +136,7 @@ import { MockLiveRecord } from "./roadmap/liveRecord";
 import { MockUploads } from "./roadmap/remote";
 // v0.2 (contracts-3) runtime simulations, one file per node.
 import { MockAnalysis } from "./roadmap/analysis";
-import { browserCommand } from "./roadmap/browserV2";
+import { MockBrowser } from "./roadmap/browserV2";
 import { MockFreeze } from "./roadmap/freezeBounce";
 import { libraryPath, MockMediaRefs } from "./roadmap/mediaReferences";
 import { MockPresets } from "./roadmap/presets";
@@ -277,6 +277,7 @@ export class MockTransport implements EngineTransport {
   };
   private readonly midiLearn = new MockMidiLearn(this.host);
   private readonly presets = new MockPresets(this.host);
+  private readonly browser = new MockBrowser(this.host);
   private readonly exports = new MockExports(this.host);
   private readonly timeEdits = new MockTimeEdits({
     ...this.host,
@@ -478,7 +479,7 @@ export class MockTransport implements EngineTransport {
       case "Preset":
         return this.presets.command(command.command);
       case "Browser":
-        return browserCommand(command.command);
+        return this.browser.command(command.command);
       case "Analysis":
         return this.analysis.command(command.command);
       case "MediaRef":

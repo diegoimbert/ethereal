@@ -201,6 +201,19 @@ pub trait EngineBridge {
         Ok(false)
     }
 
+    /// v0.2 (`midi-fx`, CONTRACTS.md §12.4.4): push the resolved `MusicalScale` to a live
+    /// built-in node (`Node::set_data` with a `Box<MusicalScale>`: Scale Quantize, Random).
+    /// Native: `EngineHandle::set_node_data`; web: `EngineMsg::NodeScale` to the worklet.
+    /// `Ok(false)` (the default) = unsupported or unknown device.
+    fn set_node_scale(
+        &mut self,
+        device: DeviceId,
+        scale: ether_core::protocol::model::MusicalScale,
+    ) -> Result<bool, BridgeError> {
+        let _ = (device, scale);
+        Ok(false)
+    }
+
     /// `media-preview`: play decoded `audio` (at the engine rate) on the engine's preview
     /// voice at linear `gain` as preview `id` (controller-chosen, monotonic), replacing any
     /// playing preview; `audio: None` stops it (`id` ignored). Native: `EngineHandle::preview`
@@ -540,6 +553,8 @@ where
     midi_learn: midi_learn::MidiLearnState,
     /// Browser preview runtime state (current preview id, decode, cache; `media_preview`).
     preview: media_preview::PreviewState,
+    /// v0.2: the library index (`browser` module).
+    browser: browser::BrowserState,
     /// Uploads from the UI machine in progress (`upload` module, remote-engine).
     uploads: upload::UploadState,
     /// Collaboration session (`collab` module).
@@ -597,6 +612,7 @@ where
             export: Default::default(),
             midi_learn: Default::default(),
             preview: Default::default(),
+            browser: Default::default(),
             uploads: Default::default(),
             collab: Default::default(),
             analysis: Default::default(),

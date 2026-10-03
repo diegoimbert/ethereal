@@ -172,7 +172,7 @@ pub fn create(device: &BuiltinDevice, samples: &dyn SampleResolver) -> Box<dyn D
         BuiltinDevice::DrumRack => drum_rack::create(),
         // --- v0.2 groups (placeholders until their node lands) ---
         BuiltinDevice::PolySynth => poly_synth::create(device),
-        BuiltinDevice::MultiSampler { .. } => multisampler::create(device),
+        BuiltinDevice::MultiSampler { .. } => multisampler::create(device, samples),
         BuiltinDevice::Saturator | BuiltinDevice::Bitcrusher | BuiltinDevice::AutoFilter => {
             fx_color::create(device)
         }

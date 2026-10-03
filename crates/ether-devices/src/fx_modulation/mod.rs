@@ -3,9 +3,16 @@
 //!
 //! Modulation effects: chorus, phaser, flanger, tremolo/auto-pan.
 //!
-//! Every device here starts as a [`Placeholder`] (pass-through / silent / MIDI-thru) with its
-//! final descriptor. **Param ids are stable and append-only** (documents, automation and
-//! presets store them): never renumber, only append. Split this module into files as you like.
+//! DSP in [`chorus`](self::chorus_device), [`phaser`](self::phaser_device),
+//! [`flanger`](self::flanger_device) and [`tremolo`](self::tremolo_device); shared building
+//! blocks (tempo-lockable LFO, Hermite-interpolated modulated delay line, param ramps) in
+//! `shared`. Rules: no allocation after `prepare`, params applied at their sample offset
+//! (`util::split_at_events`), gains ramped over one automation grid interval, delay times /
+//! depths / frequencies glided, states flushed (denormal-safe). Synced LFOs lock their phase
+//! to the song position while the transport plays.
+//!
+//! **Param ids are stable and append-only** (documents, automation and presets store them):
+//! never renumber, only append.
 //!
 //! # Chorus (`BuiltinDeviceType::Chorus`)
 //!
@@ -50,6 +57,7 @@
 //! | 6 | Flanger | `Stereo Phase` | 0 ..= 180 None, default 90 |
 //! | 7 | Output | `Mix` | 0 ..= 100 Percent, default 50 |
 //! | 8 | Output | `Output` | -24 ..= 24 Decibels, default 0 |
+//! | 9 | Flanger | `Through Zero` | toggle, default off (appended by `fx-modulation`) |
 //!
 //! # Tremolo (`BuiltinDeviceType::Tremolo`)
 //!
@@ -66,13 +74,21 @@
 //! | 6 | Tremolo | `Stereo Phase` | 0 ..= 180 None, default 0 |
 //! | 7 | Output | `Output` | -24 ..= 24 Decibels, default 0 |
 
+mod chorus_device;
+mod flanger_device;
+mod phaser_device;
+mod shared;
+mod tremolo_device;
+
+pub use flanger_device::TZ_MS as FLANGER_THROUGH_ZERO_MS;
+
 use ether_core::Device;
 use ether_core::protocol::devices::{DeviceCategory, DeviceDescriptor, ParamScale, ParamUnit};
-use ether_core::protocol::model::{BuiltinDevice, BuiltinDeviceType};
+use ether_core::protocol::layout::{DeviceLayout, Widget, WidgetSize};
+use ether_core::protocol::model::{BuiltinDevice, BuiltinDeviceType, ParamId};
 
-#[allow(unused_imports)]
 use crate::contract::{
-    FactoryPreset, Placeholder, PlaceholderMode, SYNC_RATES, choice, descriptor as build, param,
+    FactoryPreset, SYNC_RATES, choice, descriptor as build, item, knob, layout, param, section,
     stepped, toggle,
 };
 
@@ -122,8 +138,10 @@ pub mod flanger {
     pub const STEREO_PHASE: ParamId = ParamId(6);
     pub const MIX: ParamId = ParamId(7);
     pub const OUTPUT: ParamId = ParamId(8);
+    /// Appended (fx-modulation): through-zero flanging (fixed dry delay, reported latency).
+    pub const THROUGH_ZERO: ParamId = ParamId(9);
     /// Number of params.
-    pub const COUNT: usize = 9;
+    pub const COUNT: usize = 10;
 }
 
 /// Param ids of `Tremolo` (stable, append-only).
@@ -141,11 +159,17 @@ pub mod tremolo {
     pub const COUNT: usize = 8;
 }
 
-/// Descriptor of a type of this group.
+/// Descriptor of a type of this group (param table + declarative layout).
 ///
 /// # Panics
 /// For a type of another group.
 pub fn descriptor(ty: BuiltinDeviceType) -> DeviceDescriptor {
+    let mut d = params_descriptor(ty);
+    d.layout = Some(device_layout(ty));
+    d
+}
+
+fn params_descriptor(ty: BuiltinDeviceType) -> DeviceDescriptor {
     match ty {
         BuiltinDeviceType::Chorus => build(
             BuiltinDeviceType::Chorus,
@@ -357,6 +381,7 @@ pub fn descriptor(ty: BuiltinDeviceType) -> DeviceDescriptor {
                     (-24.0, 24.0, 0.0),
                     ParamScale::Linear,
                 ),
+                toggle(9, "Through Zero", "Flanger", false),
             ],
             2,
             2,
@@ -420,16 +445,202 @@ pub fn descriptor(ty: BuiltinDeviceType) -> DeviceDescriptor {
     }
 }
 
-/// Non-RT. A new instance (placeholder until implemented).
-pub fn create(device: &BuiltinDevice) -> Box<dyn Device> {
-    let ty = device.device_type();
-    let mode = PlaceholderMode::PassThrough;
-    Box::new(Placeholder::new(descriptor(ty), mode))
+// --- layouts (drawn by the shared renderer) ---
+
+fn toggle_item(param: ParamId) -> ether_core::protocol::layout::LayoutItem {
+    item(Widget::Toggle { param }, WidgetSize::Small)
 }
 
-/// Factory presets of a type of this group (embedded; add `FactoryPreset { id, json:
-/// include_str!("../../presets/<device-key>/<slug>.etherpreset") }` entries).
+fn choice_item(param: ParamId) -> ether_core::protocol::layout::LayoutItem {
+    item(Widget::Choice { param }, WidgetSize::Small)
+}
+
+/// Rate (free) + Sync + Sync Rate.
+fn rate_items(
+    rate: ParamId,
+    sync: ParamId,
+    sync_rate: ParamId,
+) -> [ether_core::protocol::layout::LayoutItem; 3] {
+    [
+        knob(rate, WidgetSize::Large),
+        toggle_item(sync),
+        choice_item(sync_rate),
+    ]
+}
+
+fn device_layout(ty: BuiltinDeviceType) -> DeviceLayout {
+    use WidgetSize::{Large, Medium, Small};
+    match ty {
+        BuiltinDeviceType::Chorus => layout(vec![
+            section(
+                "modulation",
+                Some("Modulation"),
+                2,
+                3,
+                vec![
+                    choice_item(chorus::MODE),
+                    knob(chorus::RATE, Large),
+                    knob(chorus::DEPTH, Large),
+                ],
+            ),
+            section(
+                "voices",
+                Some("Voices"),
+                2,
+                3,
+                vec![
+                    knob(chorus::DELAY, Medium),
+                    choice_item(chorus::VOICES),
+                    knob(chorus::SPREAD, Medium),
+                    knob(chorus::FEEDBACK, Medium),
+                    knob(chorus::HIGH_CUT, Medium),
+                ],
+            ),
+            section(
+                "output",
+                Some("Output"),
+                1,
+                1,
+                vec![knob(chorus::MIX, Large), knob(chorus::OUTPUT, Small)],
+            ),
+        ]),
+        BuiltinDeviceType::Phaser => {
+            let mut lfo = rate_items(phaser::RATE, phaser::SYNC, phaser::SYNC_RATE).to_vec();
+            lfo.push(knob(phaser::DEPTH, Large));
+            layout(vec![
+                section("lfo", Some("LFO"), 2, 2, lfo),
+                section(
+                    "phaser",
+                    Some("Phaser"),
+                    2,
+                    2,
+                    vec![
+                        knob(phaser::CENTER, Large),
+                        choice_item(phaser::STAGES),
+                        knob(phaser::FEEDBACK, Medium),
+                        knob(phaser::STEREO_PHASE, Medium),
+                    ],
+                ),
+                section(
+                    "output",
+                    Some("Output"),
+                    1,
+                    1,
+                    vec![knob(phaser::MIX, Large), knob(phaser::OUTPUT, Small)],
+                ),
+            ])
+        }
+        BuiltinDeviceType::Flanger => {
+            let mut lfo = rate_items(flanger::RATE, flanger::SYNC, flanger::SYNC_RATE).to_vec();
+            lfo.push(knob(flanger::DEPTH, Large));
+            layout(vec![
+                section("lfo", Some("LFO"), 2, 2, lfo),
+                section(
+                    "flanger",
+                    Some("Flanger"),
+                    2,
+                    2,
+                    vec![
+                        knob(flanger::DELAY, Large),
+                        toggle_item(flanger::THROUGH_ZERO),
+                        knob(flanger::FEEDBACK, Medium),
+                        knob(flanger::STEREO_PHASE, Medium),
+                    ],
+                ),
+                section(
+                    "output",
+                    Some("Output"),
+                    1,
+                    1,
+                    vec![knob(flanger::MIX, Large), knob(flanger::OUTPUT, Small)],
+                ),
+            ])
+        }
+        BuiltinDeviceType::Tremolo => layout(vec![
+            section(
+                "lfo",
+                Some("LFO"),
+                2,
+                2,
+                vec![
+                    ether_core::protocol::layout::LayoutItem {
+                        colspan: 2,
+                        ..item(
+                            Widget::Lfo {
+                                shape: tremolo::SHAPE,
+                                rate: tremolo::RATE,
+                                amount: Some(tremolo::DEPTH),
+                            },
+                            Large,
+                        )
+                    },
+                    toggle_item(tremolo::SYNC),
+                    choice_item(tremolo::SYNC_RATE),
+                ],
+            ),
+            section(
+                "tremolo",
+                Some("Tremolo"),
+                1,
+                1,
+                vec![
+                    choice_item(tremolo::MODE),
+                    knob(tremolo::STEREO_PHASE, Medium),
+                ],
+            ),
+            section(
+                "output",
+                Some("Output"),
+                1,
+                1,
+                vec![knob(tremolo::OUTPUT, Medium)],
+            ),
+        ]),
+        other => unreachable!("{other:?} is not a `fx-modulation` device"),
+    }
+}
+
+/// Non-RT. A new instance.
+///
+/// # Panics
+/// For a type of another group.
+pub fn create(device: &BuiltinDevice) -> Box<dyn Device> {
+    let ty = device.device_type();
+    let desc = params_descriptor(ty);
+    match ty {
+        BuiltinDeviceType::Chorus => Box::new(chorus_device::Chorus::new(&desc)),
+        BuiltinDeviceType::Phaser => Box::new(phaser_device::Phaser::new(&desc)),
+        BuiltinDeviceType::Flanger => Box::new(flanger_device::Flanger::new(&desc)),
+        BuiltinDeviceType::Tremolo => Box::new(tremolo_device::Tremolo::new(&desc)),
+        other => unreachable!("{other:?} is not a `fx-modulation` device"),
+    }
+}
+
+macro_rules! presets {
+    ($key:literal: $($slug:literal),* $(,)?) => {
+        &[$(FactoryPreset {
+            id: concat!($key, "/", $slug),
+            json: include_str!(concat!("../../presets/", $key, "/", $slug, ".etherpreset")),
+        }),*]
+    };
+}
+
+const CHORUS_PRESETS: &[FactoryPreset] =
+    presets!("chorus": "classic-chorus", "lush-ensemble", "subtle-width", "vibrato");
+const PHASER_PRESETS: &[FactoryPreset] =
+    presets!("phaser": "slow-swirl", "synced-quarters", "deep-twelve", "negative-bite");
+const FLANGER_PRESETS: &[FactoryPreset] =
+    presets!("flanger": "jet-sweep", "through-zero", "metallic-comb", "synced-flange");
+const TREMOLO_PRESETS: &[FactoryPreset] =
+    presets!("tremolo": "vintage-trem", "stereo-ping-pong", "synced-chop", "slow-auto-pan");
+
+/// Factory presets of a type of this group (embedded).
 pub fn factory_presets(ty: BuiltinDeviceType) -> &'static [FactoryPreset] {
-    let _ = ty;
-    &[]
+    match ty {
+        BuiltinDeviceType::Chorus => CHORUS_PRESETS,
+        BuiltinDeviceType::Phaser => PHASER_PRESETS,
+        BuiltinDeviceType::Flanger => FLANGER_PRESETS,
+        BuiltinDeviceType::Tremolo => TREMOLO_PRESETS,
+        _ => &[],
+    }
 }

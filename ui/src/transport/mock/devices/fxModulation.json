@@ -7,6 +7,124 @@
       "device": "Chorus",
       "type": "Builtin"
     },
+    "layout": {
+      "sections": [
+        {
+          "columns": 3,
+          "id": "modulation",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 0,
+                "type": "Choice"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Large",
+              "widget": {
+                "param": 1,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Large",
+              "widget": {
+                "param": 2,
+                "type": "Knob"
+              }
+            }
+          ],
+          "span": 2,
+          "title": "Modulation"
+        },
+        {
+          "columns": 3,
+          "id": "voices",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 3,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 4,
+                "type": "Choice"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 5,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 6,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 7,
+                "type": "Knob"
+              }
+            }
+          ],
+          "span": 2,
+          "title": "Voices"
+        },
+        {
+          "columns": 1,
+          "id": "output",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Large",
+              "widget": {
+                "param": 8,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 9,
+                "type": "Knob"
+              }
+            }
+          ],
+          "span": 1,
+          "title": "Output"
+        }
+      ]
+    },
     "midi_input": false,
     "name": "Chorus",
     "params": [
@@ -182,6 +300,124 @@
       "device": "Flanger",
       "type": "Builtin"
     },
+    "layout": {
+      "sections": [
+        {
+          "columns": 2,
+          "id": "lfo",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Large",
+              "widget": {
+                "param": 0,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 1,
+                "type": "Toggle"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 2,
+                "type": "Choice"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Large",
+              "widget": {
+                "param": 3,
+                "type": "Knob"
+              }
+            }
+          ],
+          "span": 2,
+          "title": "LFO"
+        },
+        {
+          "columns": 2,
+          "id": "flanger",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Large",
+              "widget": {
+                "param": 4,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 9,
+                "type": "Toggle"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 5,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 6,
+                "type": "Knob"
+              }
+            }
+          ],
+          "span": 2,
+          "title": "Flanger"
+        },
+        {
+          "columns": 1,
+          "id": "output",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Large",
+              "widget": {
+                "param": 7,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 8,
+                "type": "Knob"
+              }
+            }
+          ],
+          "span": 1,
+          "title": "Output"
+        }
+      ]
+    },
     "midi_input": false,
     "name": "Flanger",
     "params": [
@@ -339,6 +575,25 @@
           "type": "Linear"
         },
         "unit": "Decibels"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Flanger",
+        "hidden": false,
+        "id": 9,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Through Zero",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
       }
     ],
     "sidechain_inputs": 0
@@ -350,6 +605,124 @@
     "device_type": {
       "device": "Phaser",
       "type": "Builtin"
+    },
+    "layout": {
+      "sections": [
+        {
+          "columns": 2,
+          "id": "lfo",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Large",
+              "widget": {
+                "param": 1,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 2,
+                "type": "Toggle"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 3,
+                "type": "Choice"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Large",
+              "widget": {
+                "param": 4,
+                "type": "Knob"
+              }
+            }
+          ],
+          "span": 2,
+          "title": "LFO"
+        },
+        {
+          "columns": 2,
+          "id": "phaser",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Large",
+              "widget": {
+                "param": 5,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 0,
+                "type": "Choice"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 6,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 7,
+                "type": "Knob"
+              }
+            }
+          ],
+          "span": 2,
+          "title": "Phaser"
+        },
+        {
+          "columns": 1,
+          "id": "output",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Large",
+              "widget": {
+                "param": 8,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 9,
+                "type": "Knob"
+              }
+            }
+          ],
+          "span": 1,
+          "title": "Output"
+        }
+      ]
     },
     "midi_input": false,
     "name": "Phaser",
@@ -541,6 +914,90 @@
     "device_type": {
       "device": "Tremolo",
       "type": "Builtin"
+    },
+    "layout": {
+      "sections": [
+        {
+          "columns": 2,
+          "id": "lfo",
+          "items": [
+            {
+              "colspan": 2,
+              "label": null,
+              "size": "Large",
+              "widget": {
+                "amount": 5,
+                "rate": 2,
+                "shape": 1,
+                "type": "Lfo"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 3,
+                "type": "Toggle"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 4,
+                "type": "Choice"
+              }
+            }
+          ],
+          "span": 2,
+          "title": "LFO"
+        },
+        {
+          "columns": 1,
+          "id": "tremolo",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 0,
+                "type": "Choice"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 6,
+                "type": "Knob"
+              }
+            }
+          ],
+          "span": 1,
+          "title": "Tremolo"
+        },
+        {
+          "columns": 1,
+          "id": "output",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 7,
+                "type": "Knob"
+              }
+            }
+          ],
+          "span": 1,
+          "title": "Output"
+        }
+      ]
     },
     "midi_input": false,
     "name": "Tremolo",

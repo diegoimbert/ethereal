@@ -32,6 +32,20 @@ const IMPLEMENTED: &[BuiltinDeviceType] = &[
     BuiltinDeviceType::SpectrumAnalyzer,
     BuiltinDeviceType::Tuner,
     BuiltinDeviceType::PolySynth,
+    BuiltinDeviceType::Arpeggiator,
+    BuiltinDeviceType::Chord,
+    BuiltinDeviceType::ScaleQuantize,
+    BuiltinDeviceType::NoteLength,
+    BuiltinDeviceType::Velocity,
+    BuiltinDeviceType::Randomizer,
+    BuiltinDeviceType::Chorus,
+    BuiltinDeviceType::Phaser,
+    BuiltinDeviceType::Flanger,
+    BuiltinDeviceType::Tremolo,
+    BuiltinDeviceType::Saturator,
+    BuiltinDeviceType::Bitcrusher,
+    BuiltinDeviceType::AutoFilter,
+    BuiltinDeviceType::MultiSampler,
 ];
 
 const GROUPS: &[(&str, &[BuiltinDeviceType])] = &[

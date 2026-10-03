@@ -1,0 +1,38 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "Sidechain Pump",
+    "device": {
+      "type": "Builtin",
+      "device": "AutoFilter"
+    },
+    "meta": {
+      "tags": [
+        "ducking",
+        "edm",
+        "sidechain"
+      ],
+      "author": "Ethereal",
+      "description": "Low-pass that closes when the key hits: route a kick to the sidechain for a filtered pump."
+    },
+    "params": {
+      "0": 1.0,
+      "1": 12000.0,
+      "2": 25.0,
+      "3": 0.0,
+      "4": -70.0,
+      "5": 1.0,
+      "6": 250.0,
+      "7": 0.0,
+      "8": 0.0,
+      "9": 1.0,
+      "10": 0.0,
+      "11": 8.0,
+      "12": 0.0,
+      "13": 100.0,
+      "14": 0.0
+    }
+  }
+}

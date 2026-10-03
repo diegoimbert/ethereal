@@ -1,0 +1,27 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "C Minor Pentatonic",
+    "device": {
+      "type": "Builtin",
+      "device": "ScaleQuantize"
+    },
+    "meta": {
+      "tags": [
+        "scale",
+        "pentatonic"
+      ],
+      "author": "Ethereal",
+      "description": "Its own scale: C minor pentatonic, whatever the track says."
+    },
+    "params": {
+      "0": 2.0,
+      "1": 0.0,
+      "2": 6.0,
+      "3": 0.0,
+      "4": 0.0
+    }
+  }
+}

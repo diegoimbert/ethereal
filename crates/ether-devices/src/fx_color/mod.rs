@@ -3,13 +3,14 @@
 //!
 //! Color effects: saturator (several curves), bitcrusher, auto-filter (multimode + envelope follower + LFO).
 //!
-//! Every device here starts as a [`Placeholder`] (pass-through / silent / MIDI-thru) with its
-//! final descriptor. **Param ids are stable and append-only** (documents, automation and
-//! presets store them): never renumber, only append. Split this module into files as you like.
+//! Implementations: [`saturator_device`], [`bitcrusher_device`], [`auto_filter_device`]
+//! (DSP notes in each). **Param ids are stable and append-only** (documents, automation and
+//! presets store them): never renumber, only append.
 //!
 //! # Saturator (`BuiltinDeviceType::Saturator`)
 //!
-//! Oversampling adds latency: report it with `Node::latency` (PDC).
+//! Oversampling adds latency: the device always reports the 4x round trip
+//! ([`saturator_device::LATENCY`] = 29 samples) so a mode change never moves PDC.
 //!
 //! | id | group | name | range |
 //! |----|-------|------|-------|
@@ -57,13 +58,23 @@
 
 use ether_core::Device;
 use ether_core::protocol::devices::{DeviceCategory, DeviceDescriptor, ParamScale, ParamUnit};
+use ether_core::protocol::layout::{DeviceLayout, Widget, WidgetSize};
 use ether_core::protocol::model::{BuiltinDevice, BuiltinDeviceType};
 
-#[allow(unused_imports)]
 use crate::contract::{
-    FactoryPreset, Placeholder, PlaceholderMode, SYNC_RATES, choice, descriptor as build, param,
-    stepped, toggle,
+    FactoryPreset, SYNC_RATES, choice, descriptor as build, item, knob, layout, param, section,
+    toggle,
 };
+
+pub mod auto_filter_device;
+pub mod bitcrusher_device;
+mod oversample;
+pub mod saturator_device;
+mod shared;
+
+pub use auto_filter_device::AutoFilter;
+pub use bitcrusher_device::Bitcrusher;
+pub use saturator_device::Saturator;
 
 /// Param ids of `Saturator` (stable, append-only).
 pub mod saturator {
@@ -120,6 +131,12 @@ pub mod auto_filter {
 /// # Panics
 /// For a type of another group.
 pub fn descriptor(ty: BuiltinDeviceType) -> DeviceDescriptor {
+    let mut d = params_descriptor(ty);
+    d.layout = Some(device_layout(ty));
+    d
+}
+
+fn params_descriptor(ty: BuiltinDeviceType) -> DeviceDescriptor {
     match ty {
         BuiltinDeviceType::Saturator => build(
             BuiltinDeviceType::Saturator,
@@ -367,16 +384,189 @@ pub fn descriptor(ty: BuiltinDeviceType) -> DeviceDescriptor {
     }
 }
 
-/// Non-RT. A new instance (placeholder until implemented).
-pub fn create(device: &BuiltinDevice) -> Box<dyn Device> {
-    let ty = device.device_type();
-    let mode = PlaceholderMode::PassThrough;
-    Box::new(Placeholder::new(descriptor(ty), mode))
+/// Declarative panel of a type of this group (drawn by the shared device renderer). Typed
+/// widgets own the params they bind (the transfer curve shows Curve/Drive/Bias, the filter
+/// curve Type/Cutoff/Resonance/Drive, the LFO preview Shape/Rate/Amount).
+fn device_layout(ty: BuiltinDeviceType) -> DeviceLayout {
+    use WidgetSize::*;
+    let wide = |w: Widget, size: WidgetSize, colspan: u8| {
+        let mut i = item(w, size);
+        i.colspan = colspan;
+        i
+    };
+    match ty {
+        BuiltinDeviceType::Saturator => {
+            use saturator as p;
+            layout(vec![
+                section(
+                    "shape",
+                    Some("Shape"),
+                    2,
+                    3,
+                    vec![
+                        wide(
+                            Widget::TransferCurve {
+                                drive: p::DRIVE,
+                                curve: Some(p::CURVE),
+                                bias: Some(p::BIAS),
+                            },
+                            Large,
+                            2,
+                        ),
+                        knob(p::TONE, Medium),
+                    ],
+                ),
+                section(
+                    "output",
+                    Some("Output"),
+                    2,
+                    3,
+                    vec![
+                        knob(p::OUTPUT, Medium),
+                        knob(p::MIX, Large),
+                        item(
+                            Widget::Toggle {
+                                param: p::AUTO_GAIN,
+                            },
+                            Small,
+                        ),
+                        wide(
+                            Widget::Choice {
+                                param: p::OVERSAMPLING,
+                            },
+                            Small,
+                            3,
+                        ),
+                    ],
+                ),
+            ])
+        }
+        BuiltinDeviceType::Bitcrusher => {
+            use bitcrusher as p;
+            layout(vec![
+                section(
+                    "crush",
+                    Some("Crush"),
+                    2,
+                    4,
+                    vec![
+                        knob(p::BITS, Large),
+                        knob(p::RATE, Large),
+                        knob(p::JITTER, Medium),
+                        item(Widget::Toggle { param: p::DITHER }, Small),
+                    ],
+                ),
+                section(
+                    "output",
+                    Some("Output"),
+                    1,
+                    2,
+                    vec![knob(p::OUTPUT, Medium), knob(p::MIX, Large)],
+                ),
+            ])
+        }
+        BuiltinDeviceType::AutoFilter => {
+            use auto_filter as p;
+            layout(vec![
+                section(
+                    "filter",
+                    Some("Filter"),
+                    2,
+                    2,
+                    vec![wide(
+                        Widget::FilterCurve {
+                            cutoff: p::CUTOFF,
+                            resonance: p::RESONANCE,
+                            mode: Some(p::TYPE),
+                            drive: Some(p::DRIVE),
+                            gain: None,
+                        },
+                        Large,
+                        2,
+                    )],
+                ),
+                section(
+                    "envelope",
+                    Some("Envelope"),
+                    1,
+                    3,
+                    vec![
+                        knob(p::ENV_AMOUNT, Medium),
+                        knob(p::ENV_ATTACK, Small),
+                        knob(p::ENV_RELEASE, Small),
+                    ],
+                ),
+                section(
+                    "lfo",
+                    Some("LFO"),
+                    2,
+                    3,
+                    vec![
+                        wide(
+                            Widget::Lfo {
+                                shape: p::LFO_SHAPE,
+                                rate: p::LFO_RATE,
+                                amount: Some(p::LFO_AMOUNT),
+                            },
+                            Medium,
+                            3,
+                        ),
+                        item(Widget::Toggle { param: p::LFO_SYNC }, Small),
+                        item(
+                            Widget::Choice {
+                                param: p::LFO_SYNC_RATE,
+                            },
+                            Small,
+                        ),
+                        knob(p::LFO_PHASE, Small),
+                    ],
+                ),
+                section(
+                    "output",
+                    Some("Output"),
+                    1,
+                    1,
+                    vec![knob(p::MIX, Large), knob(p::OUTPUT, Medium)],
+                ),
+            ])
+        }
+        other => unreachable!("{other:?} is not a `fx-color` device"),
+    }
 }
 
-/// Factory presets of a type of this group (embedded; add `FactoryPreset { id, json:
-/// include_str!("../../presets/<device-key>/<slug>.etherpreset") }` entries).
+/// Non-RT. A new instance.
+pub fn create(device: &BuiltinDevice) -> Box<dyn Device> {
+    match device.device_type() {
+        BuiltinDeviceType::Saturator => Box::new(Saturator::new()),
+        BuiltinDeviceType::Bitcrusher => Box::new(Bitcrusher::new()),
+        BuiltinDeviceType::AutoFilter => Box::new(AutoFilter::new()),
+        other => unreachable!("{other:?} is not a `fx-color` device"),
+    }
+}
+
+/// `FactoryPreset` entries for `presets/<key>/<slug>.etherpreset` files.
+macro_rules! presets {
+    ($key:literal: $($slug:literal),* $(,)?) => {
+        &[$(FactoryPreset {
+            id: concat!($key, "/", $slug),
+            json: include_str!(concat!("../../presets/", $key, "/", $slug, ".etherpreset")),
+        }),*]
+    };
+}
+
+/// Factory presets of a type of this group (embedded).
 pub fn factory_presets(ty: BuiltinDeviceType) -> &'static [FactoryPreset] {
-    let _ = ty;
-    &[]
+    match ty {
+        BuiltinDeviceType::Saturator => presets!(
+            "saturator": "warm-tape", "tube-drive", "hard-clip", "wavefolder", "octave-fuzz"
+        ),
+        BuiltinDeviceType::Bitcrusher => presets!(
+            "bitcrusher": "8-bit-console", "lo-fi-sampler", "radio-grit", "broken-clock"
+        ),
+        BuiltinDeviceType::AutoFilter => presets!(
+            "auto-filter": "envelope-wah", "sidechain-pump", "slow-sweep", "tempo-wobble",
+            "resonant-rise"
+        ),
+        _ => &[],
+    }
 }
