@@ -205,6 +205,8 @@ where
         let mut buf = std::mem::take(&mut self.midi_learn.buf);
         self.bridge.poll_midi_input(&mut buf);
         for e in buf.drain(..) {
+            // v0.3 (`capture-midi`): every message also feeds the capture buffer.
+            self.capture_input(&e, now);
             self.midi_input(&e, now, out);
         }
         self.midi_learn.buf = buf;

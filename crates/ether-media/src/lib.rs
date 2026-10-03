@@ -13,6 +13,8 @@ mod decode;
 pub mod demo;
 mod peaks;
 mod resample;
+pub mod stream;
+pub mod to_midi;
 
 pub use decode::{decode, decode_owned};
 pub use peaks::{BASE_SAMPLES_PER_PEAK, PeakMipmap};

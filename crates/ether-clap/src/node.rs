@@ -243,6 +243,8 @@ impl ClapNode {
                 ));
             }
             EventKind::Midi { data } => self.push_in(&MidiEvent::new(t, 0, data)),
+            // v0.3: `midi-expression`/`mpe` forward this as `clap_event_note_expression`.
+            EventKind::NoteExpression { .. } => {}
         }
     }
 }

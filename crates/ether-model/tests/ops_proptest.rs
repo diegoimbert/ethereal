@@ -129,6 +129,7 @@ impl Gen<'_> {
                 output,
                 monitor: MonitorMode::Auto,
                 scale: Default::default(),
+                mpe: None,
             }),
         }
     }
@@ -736,6 +737,7 @@ proptest! {
                 order: OrderKey::between(None, None), parent: None,
                 mixer: TrackMixer { volume: Decibels(db), pan: Pan(pan), mute: false, solo: false },
                 input: TrackInput::None, output: TrackOutput::Default, monitor: MonitorMode::Auto, scale: Default::default(),
+                mpe: None,
             })},
             Op::Insert { entity: Entity::Clip(Clip {
                 lane: None,

@@ -162,7 +162,11 @@ describe("ConnectDialog", () => {
     await connectWith("ws://studio:1/", "tok");
     await waitFor(() => expect(screen.getByTestId("probe").dataset.kind).toBe("remote"));
     act(() => sockets[0]!.close(1006, ""));
-    await waitFor(() => expect(screen.getByTestId("probe").dataset.kind).toBe("mock"));
+    // Falling back boots a fresh local engine, which can exceed waitFor's 1 s default on a
+    // loaded machine (seen on the shared Linux devbox during the full suite).
+    await waitFor(() => expect(screen.getByTestId("probe").dataset.kind).toBe("mock"), {
+      timeout: 5000,
+    });
     expect(screen.getByRole("alert").textContent).toMatch(/Connection to studio lost/);
   });
 });
