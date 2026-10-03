@@ -152,6 +152,8 @@ import { keymapCommand } from "./roadmap/keymap";
 import { templateCommand } from "./roadmap/templates";
 import { historyCommand } from "./roadmap/undoHistory";
 import { versionCommand } from "./roadmap/versions";
+// ai-chat: the agent API (Command::Agent) over the mock document.
+import { MockAgent, type MockAgentCommand } from "./roadmap/agent";
 
 export interface MockTransportOptions {
   /**
@@ -313,6 +315,7 @@ export class MockTransport implements EngineTransport {
     libraryHash: (rel) => hashHex(`library:${normalize(rel)}`),
   });
   private readonly analysis = new MockAnalysis(this.host);
+  private readonly agent = new MockAgent(this.host);
   private readonly preview = new MockPreview(this.host);
   private readonly uploads = new MockUploads((event) => this.emit(event));
   private readonly liveRecord = new MockLiveRecord({
@@ -449,6 +452,10 @@ export class MockTransport implements EngineTransport {
     // Project commands first: `Rename` is a document edit only for the current project.
     if (command.domain === "Project") return this.projectCommand(command.command, gesture);
     if (isDocumentCommand(command)) return this.applyDocument([command], labelOf(command), gesture);
+
+    // ai-chat: `Command::Agent` (not in the generated `Command` until agent-api lands).
+    const agent = command as unknown as { domain: string; command: MockAgentCommand };
+    if (agent.domain === "Agent") return this.agent.command(agent.command);
 
     switch (command.domain) {
       case "Transport":
