@@ -611,9 +611,11 @@ where
                         events.push(DialEvent::Failed(reason, message));
                         return events;
                     }
+                    // The service did its part: from here on the problem is the host (or
+                    // the path to it), not "can't reach the sharing service".
                     _ => {
                         events.push(DialEvent::Failed(
-                            JoinFailure::Network,
+                            JoinFailure::Unreachable,
                             "unexpected answer from the host".into(),
                         ));
                         return events;
@@ -622,7 +624,7 @@ where
             }
             if matches!(c.link.state(), LinkState::Closed { .. }) {
                 events.push(DialEvent::Failed(
-                    JoinFailure::Network,
+                    JoinFailure::Unreachable,
                     "the connection to the host was lost".into(),
                 ));
                 return events;
@@ -717,7 +719,7 @@ where
         {
             j.ready = None;
             j.phase = Phase::Failed(
-                JoinFailure::Network,
+                JoinFailure::Unreachable,
                 format!("the connection to {} was lost", j.host.name),
             );
         }

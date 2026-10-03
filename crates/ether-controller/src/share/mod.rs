@@ -162,7 +162,12 @@ where
 {
     /// The platform's sharing services (signaling sockets, WebRTC endpoints; node
     /// `p2p-transport`), or in-memory fakes in tests (`ether_collab::share::fake`). Default:
-    /// [`default_services`] (fails cleanly).
+    /// [`default_services`], the real ones (native: tungstenite + rustls signaling and str0m
+    /// data channels, used as is by the desktop app and `ether-server`; web: the Worker's
+    /// `WebSocket` and the UI's peer connections behind the share port). So hosts don't call
+    /// this; the signaling URL defaults to `DEFAULT_SIGNAL_URL` and the ICE servers to the
+    /// ones the service advertises (Cloudflare STUN), both overridable (`SetServers`,
+    /// `Collab::SetIceServers`).
     pub fn set_share_services(&mut self, services: ShareServices) {
         self.share.services = Some(services);
     }

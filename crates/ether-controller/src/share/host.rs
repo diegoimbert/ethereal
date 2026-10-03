@@ -37,6 +37,11 @@ const SAVE_EVERY_MS: u64 = 2_000;
 const MAX_PAIRINGS: usize = 32;
 /// ICE + DTLS must complete within this.
 const ICE_TIMEOUT_MS: u64 = 30_000;
+/// A joiner closes its signaling socket as soon as *its* end of the data channel is open,
+/// which can be before this side reports `Connected` (the web endpoint's `open` crosses the
+/// share port; str0m's comes at a later poll). So a `PeerLeft` during ICE ends the pairing
+/// only if the channel is still not up after this grace.
+const LEFT_GRACE_MS: u64 = 5_000;
 
 struct Conn {
     link: BoxPeerLink,
@@ -61,6 +66,8 @@ enum Stage {
 struct Pairing {
     since: u64,
     stage: Stage,
+    /// When the joiner's signaling socket closed (`PeerLeft`) while still in [`Stage::Ice`].
+    left_at: Option<u64>,
 }
 
 pub(crate) struct HostRt {
@@ -491,6 +498,7 @@ where
                         Pairing {
                             since: now,
                             stage: Stage::Ice,
+                            left_at: None,
                         },
                     );
                 }
@@ -500,13 +508,12 @@ where
                     }
                 }
                 SignalServerMessage::PeerLeft { peer } => {
-                    // Joiners close their socket once the data channel is up.
-                    if h.pairings
-                        .get(&peer)
-                        .is_some_and(|p| matches!(p.stage, Stage::Ice))
+                    // Joiners close their socket once their end of the data channel is up,
+                    // possibly before ours reports it: wait a little (`LEFT_GRACE_MS`).
+                    if let Some(p) = h.pairings.get_mut(&peer)
+                        && matches!(p.stage, Stage::Ice)
                     {
-                        h.pairings.remove(&peer);
-                        self.share_services().peers.close(peer);
+                        p.left_at.get_or_insert(now);
                     }
                 }
                 SignalServerMessage::Refused { message, .. } => {
@@ -581,6 +588,10 @@ where
             Stage::Ice => {
                 if now >= p.since + ICE_TIMEOUT_MS {
                     end(self, h, None, "timed out");
+                    return;
+                }
+                if p.left_at.is_some_and(|t| now >= t + LEFT_GRACE_MS) {
+                    end(self, h, None, "left before the data channel opened");
                     return;
                 }
                 h.pairings.insert(peer, p);
