@@ -86,6 +86,7 @@ fn scanned() -> Vec<PluginDescriptor> {
         let dir = ether_clap::testing::temp_dir("formats-e2e");
         let clap = ether_clap::testing::make_bundle(&dir, "EtherFormatsClap");
         let vst3 = ether_vst3::testing::make_bundle(&dir, "EtherFormatsVst3");
+        #[cfg_attr(not(target_os = "macos"), allow(unused_mut))]
         let mut targets = ether_native::plugins::formats().discover(Some(&[dir]));
         assert_eq!(
             targets,

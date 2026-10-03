@@ -9,6 +9,7 @@
 //!   most every [`REPORT_INTERVAL_MS`], and only when a value changed since its last report;
 //! - the Worker's bridge keeps the latest values and answers `node_latency(key)` from them,
 //!   so `EngineState::check_latencies` republishes exactly like natively.
+//!
 //! No allocation on the audio side: the worklet fills a pre-sized buffer.
 
 use ether_core::NodeKey;
