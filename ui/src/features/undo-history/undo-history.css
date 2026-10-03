@@ -45,7 +45,7 @@
   position: absolute;
   top: 0;
   bottom: 0;
-  left: calc(var(--eth-space-sm) + var(--eth-size-dot-sm) / 2 - var(--eth-border-width) / 2);
+  left: calc(var(--eth-space-sm) + var(--eth-size-status-dot) / 2 - var(--eth-border-width) / 2);
   width: var(--eth-border-width);
   background: var(--eth-color-border-strong);
 }
@@ -61,8 +61,8 @@
 .eth-history__dot {
   position: relative;
   flex: none;
-  width: var(--eth-size-dot-sm);
-  height: var(--eth-size-dot-sm);
+  width: var(--eth-size-status-dot);
+  height: var(--eth-size-status-dot);
   border: var(--eth-border-width) solid var(--eth-color-text-dim);
   border-radius: var(--eth-radius-round);
   background: var(--eth-color-text-dim);

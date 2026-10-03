@@ -1,6 +1,6 @@
 // Undo history panel on the web build (real wasm controller): the History tab lists the
-// edits, clicking a step jumps there (undo/redo), checkpoints are named, and edits made
-// elsewhere (Undo in the menu, new tracks) show up while the panel is open.
+// edits, clicking a step jumps there (undo/redo), checkpoints are named, and undo/redo from
+// the keyboard show up while the panel is open.
 import { expect, test, type Page } from "@playwright/test";
 import type { Project } from "@/generated";
 import { createTrack, newProject } from "./ui";
@@ -25,15 +25,18 @@ test("History tab: list, jump, checkpoints", async ({ page }) => {
   await expect(page.getByRole("button", { name: "Play" })).toBeVisible({ timeout: 30_000 });
   await newProject(page, "History e2e");
 
-  await page.getByRole("button", { name: "History", exact: true }).click();
   const panel = page.locator('[data-feature="undo-history"]');
   const list = panel.getByRole("list", { name: "Undo history" });
+  const historyButton = page.getByRole("button", { name: "History", exact: true });
+  await historyButton.click();
   await expect(list.getByRole("listitem")).toHaveCount(1);
   await expect(panel).toContainText("Project opened");
+  await historyButton.click();
 
-  // Edits made while the panel is open show up (HistoryEvent::Changed).
+  // (The floating pane covers the arrangement: edit with it closed.)
   await createTrack(page, "Midi");
   await createTrack(page, "Midi");
+  await historyButton.click();
   await expect(list.getByRole("listitem")).toHaveCount(3);
   await expect(panel).toContainText("2 steps");
 
@@ -61,6 +64,11 @@ test("History tab: list, jump, checkpoints", async ({ page }) => {
   await expect(list.locator('[aria-current="step"]')).toContainText("Project opened");
   // The checkpoint stays on its (now undone) step.
   await expect(rows.nth(1)).toContainText("One track");
+
+  // Redo from the keyboard while the panel is open (HistoryEvent::Changed).
+  await page.keyboard.press("ControlOrMeta+Shift+z");
+  await expect.poll(() => trackCount(page)).toBe(1);
+  await expect(rows.nth(1).locator(".eth-history__jump")).toHaveAttribute("aria-current", "step");
 
   expect(errors).toEqual([]);
 });
