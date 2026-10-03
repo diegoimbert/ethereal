@@ -1,0 +1,27 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "Eighth Notes",
+    "device": {
+      "type": "Builtin",
+      "device": "NoteLength"
+    },
+    "meta": {
+      "tags": [
+        "length",
+        "sync"
+      ],
+      "author": "Ethereal",
+      "description": "Every note an eighth long, synced to the tempo."
+    },
+    "params": {
+      "0": 1.0,
+      "1": 250.0,
+      "2": 6.0,
+      "3": 100.0,
+      "4": 0.0
+    }
+  }
+}

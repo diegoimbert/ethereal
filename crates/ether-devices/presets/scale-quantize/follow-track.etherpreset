@@ -1,0 +1,27 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "Follow Track",
+    "device": {
+      "type": "Builtin",
+      "device": "ScaleQuantize"
+    },
+    "meta": {
+      "tags": [
+        "scale",
+        "quantize"
+      ],
+      "author": "Ethereal",
+      "description": "Snaps every note to the track's scale (the project scale when the track follows it)."
+    },
+    "params": {
+      "0": 0.0,
+      "1": 0.0,
+      "2": 1.0,
+      "3": 0.0,
+      "4": 0.0
+    }
+  }
+}

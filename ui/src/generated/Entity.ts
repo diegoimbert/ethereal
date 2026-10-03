@@ -6,12 +6,14 @@ import type { Clip } from "./Clip";
 import type { CompRegion } from "./CompRegion";
 import type { Device } from "./Device";
 import type { DrumPad } from "./DrumPad";
+import type { ExpressionLane } from "./ExpressionLane";
 import type { Marker } from "./Marker";
 import type { MediaRef } from "./MediaRef";
 import type { MidiMapping } from "./MidiMapping";
 import type { ModMapping } from "./ModMapping";
 import type { Modulator } from "./Modulator";
 import type { Note } from "./Note";
+import type { NoteExpression } from "./NoteExpression";
 import type { PinnedNote } from "./PinnedNote";
 import type { RackChain } from "./RackChain";
 import type { TakeLane } from "./TakeLane";
@@ -26,4 +28,4 @@ import type { WarpMarker } from "./WarpMarker";
  *
  * JSON: `{ "type": "Track", "value": { ...Track } }` so the UI can store `value` as-is.
  */
-export type Entity = { "type": "Track", "value": Track } | { "type": "Clip", "value": Clip } | { "type": "Note", "value": Note } | { "type": "Device", "value": Device } | { "type": "Send", "value": TrackSend } | { "type": "AutomationLane", "value": AutomationLane } | { "type": "AutomationPoint", "value": AutomationPoint } | { "type": "TempoPoint", "value": TempoPoint } | { "type": "TimeSignature", "value": TimeSignaturePoint } | { "type": "WarpMarker", "value": WarpMarker } | { "type": "Media", "value": MediaRef } | { "type": "Marker", "value": Marker } | { "type": "MidiMapping", "value": MidiMapping } | { "type": "DrumPad", "value": DrumPad } | { "type": "TakeLane", "value": TakeLane } | { "type": "CompRegion", "value": CompRegion } | { "type": "RackChain", "value": RackChain } | { "type": "Modulator", "value": Modulator } | { "type": "ModMapping", "value": ModMapping } | { "type": "ChatMessage", "value": ChatMessage } | { "type": "PinnedNote", "value": PinnedNote };
+export type Entity = { "type": "Track", "value": Track } | { "type": "Clip", "value": Clip } | { "type": "Note", "value": Note } | { "type": "Device", "value": Device } | { "type": "Send", "value": TrackSend } | { "type": "AutomationLane", "value": AutomationLane } | { "type": "AutomationPoint", "value": AutomationPoint } | { "type": "TempoPoint", "value": TempoPoint } | { "type": "TimeSignature", "value": TimeSignaturePoint } | { "type": "WarpMarker", "value": WarpMarker } | { "type": "Media", "value": MediaRef } | { "type": "Marker", "value": Marker } | { "type": "MidiMapping", "value": MidiMapping } | { "type": "DrumPad", "value": DrumPad } | { "type": "TakeLane", "value": TakeLane } | { "type": "CompRegion", "value": CompRegion } | { "type": "RackChain", "value": RackChain } | { "type": "Modulator", "value": Modulator } | { "type": "ModMapping", "value": ModMapping } | { "type": "ChatMessage", "value": ChatMessage } | { "type": "PinnedNote", "value": PinnedNote } | { "type": "ExpressionLane", "value": ExpressionLane } | { "type": "NoteExpression", "value": NoteExpression };

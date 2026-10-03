@@ -29,7 +29,7 @@
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use ether_core::event::{EventKind, ProcessEvent};
-use ether_core::protocol::model::{ParamId, TimeSignature};
+use ether_core::protocol::model::{NoteExpressionKind, ParamId, TimeSignature};
 use ether_core::transport::TransportInfo;
 use shared_memory::{Shmem, ShmemConf, ShmemError};
 
@@ -129,6 +129,10 @@ const E_CHOKE: u32 = 3;
 const E_ALL_OFF: u32 = 4;
 const E_PARAM: u32 = 5;
 const E_MIDI: u32 = 6;
+/// v0.3 (`midi-expression`/`mpe`): `a` = note id, `b` = channel | key << 8 | kind << 16
+/// (`NoteExpressionKind`: 0 pitch, 1 pressure, 2 timbre), `value` = the value. A new kind
+/// code, not a layout change (both ends come from one build).
+const E_NOTE_EXPRESSION: u32 = 7;
 
 impl WireEvent {
     pub fn encode(e: &ProcessEvent) -> Self {
@@ -166,6 +170,25 @@ impl WireEvent {
                 0,
                 0.0,
             ),
+            EventKind::NoteExpression {
+                note_id,
+                channel,
+                key,
+                expression,
+                value,
+            } => {
+                let kind: u32 = match expression {
+                    NoteExpressionKind::Pitch => 0,
+                    NoteExpressionKind::Pressure => 1,
+                    NoteExpressionKind::Timbre => 2,
+                };
+                ev(
+                    E_NOTE_EXPRESSION,
+                    note_id,
+                    ck(channel, key) | (kind << 16),
+                    f64::from(value),
+                )
+            }
         }
     }
 
@@ -199,6 +222,18 @@ impl WireEvent {
                 let [d0, d1, d2, _] = self.a.to_le_bytes();
                 EventKind::Midi { data: [d0, d1, d2] }
             }
+            E_NOTE_EXPRESSION => EventKind::NoteExpression {
+                note_id: self.a,
+                channel,
+                key,
+                expression: match (self.b >> 16) & 0xff {
+                    0 => NoteExpressionKind::Pitch,
+                    1 => NoteExpressionKind::Pressure,
+                    2 => NoteExpressionKind::Timbre,
+                    _ => return None,
+                },
+                value: self.value as f32,
+            },
             _ => return None,
         };
         Some(ProcessEvent {
@@ -514,6 +549,13 @@ mod tests {
             },
             EventKind::Midi {
                 data: [0xB0, 7, 127],
+            },
+            EventKind::NoteExpression {
+                note_id: 9,
+                channel: 2,
+                key: 61,
+                expression: NoteExpressionKind::Timbre,
+                value: 0.75,
             },
         ];
         for (i, kind) in kinds.into_iter().enumerate() {
