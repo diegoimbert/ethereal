@@ -1567,6 +1567,9 @@ paths = [
   "ui/src/transport/tauri/TauriTransport.test.ts",
   "ui/src/domain/invite.ts",
   "ui/src/domain/invite.test.ts",
+  # shared touch (BCR): one palette entry, `out.push(...joinPaletteCommands())`
+  "ui/src/app/shell/commands.ts",
+  "ui/src/app/shell/commands.test.ts",
 ]
 
 [nodes.recents-shared]
