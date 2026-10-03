@@ -99,10 +99,9 @@ mod tests {
             }
         );
         assert_eq!(
-            parse(
-                ["--server", "ws://h:1"].map(String::from),
-                |k| (k == "ETHER_SERVER_TOKEN").then(|| "e".into())
-            )
+            parse(["--server", "ws://h:1"].map(String::from), |k| (k
+                == "ETHER_SERVER_TOKEN")
+                .then(|| "e".into()))
             .unwrap()
             .mode,
             Mode::Server {

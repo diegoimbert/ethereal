@@ -298,10 +298,7 @@ where
         now: u64,
         out: &mut dyn MessageSink,
     ) -> Result<(), ToolError> {
-        let doc = self
-            .doc
-            .as_ref()
-            .ok_or_else(crate::handlers::no_project)?;
+        let doc = self.doc.as_ref().ok_or_else(crate::handlers::no_project)?;
         let current = Some(doc.project.id);
         for c in commands {
             if !doc::is_document_command(c, current) {
@@ -396,9 +393,7 @@ mod tests {
         for t in tools::TOOLS {
             assert!(names.insert(t.name), "duplicate tool {}", t.name);
             assert!(
-                t.name
-                    .chars()
-                    .all(|c| c.is_ascii_lowercase() || c == '_'),
+                t.name.chars().all(|c| c.is_ascii_lowercase() || c == '_'),
                 "{} is not snake_case",
                 t.name
             );

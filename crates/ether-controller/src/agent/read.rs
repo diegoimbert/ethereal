@@ -1,10 +1,10 @@
 //! Read tools: compact JSON views of the document for the model.
 
+use ether_core::protocol::Command;
 use ether_core::protocol::ReplyValue;
 use ether_core::protocol::browser::{BrowserCommand, BrowserQuery, BrowserSort, LibraryItemKind};
 use ether_core::protocol::devices::{DeviceCategory, DeviceDescriptor, DeviceTypeRef};
 use ether_core::protocol::model::*;
-use ether_core::protocol::Command;
 use serde_json::{Map, Value, json};
 
 use super::schema::Args;
@@ -148,7 +148,12 @@ impl AgentState {
             return Value::Null;
         };
         fn list<I: ToString>(ids: &[I], max: usize) -> Value {
-            json!(ids.iter().take(max).map(ToString::to_string).collect::<Vec<_>>())
+            json!(
+                ids.iter()
+                    .take(max)
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+            )
         }
         let mut m = Map::new();
         if !s.selected_tracks.is_empty() {
@@ -525,8 +530,12 @@ where
             offset: a.u64("offset").unwrap_or(0) as u32,
             limit: a.u64("limit").unwrap_or(20) as u32,
         };
-        let reply =
-            self.agent_dispatch(Command::Browser(BrowserCommand::Query { query }), None, now, out)?;
+        let reply = self.agent_dispatch(
+            Command::Browser(BrowserCommand::Query { query }),
+            None,
+            now,
+            out,
+        )?;
         let ReplyValue::BrowserPage { page } = reply else {
             return Err(ToolError::Command(crate::tx::internal(
                 "unexpected browser reply",
@@ -538,10 +547,7 @@ where
             .map(|i| {
                 let mut m = Map::new();
                 m.insert("id".into(), json!(i.id));
-                m.insert(
-                    "kind".into(),
-                    json!(format!("{:?}", i.kind).to_lowercase()),
-                );
+                m.insert("kind".into(), json!(format!("{:?}", i.kind).to_lowercase()));
                 m.insert("name".into(), json!(i.name));
                 m.insert("path".into(), json!(i.path));
                 if let Some(d) = i.meta.duration_seconds {

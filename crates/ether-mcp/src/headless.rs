@@ -116,7 +116,11 @@ impl HeadlessBackend {
                 .map_err(|e| e.to_string())?
                 .join(path)
         };
-        let work = std::env::temp_dir().join(format!("ether-mcp-{}-{:x}", std::process::id(), seed() as u32));
+        let work = std::env::temp_dir().join(format!(
+            "ether-mcp-{}-{:x}",
+            std::process::id(),
+            seed() as u32
+        ));
         std::fs::create_dir_all(&work).map_err(|e| format!("work dir: {e}"))?;
         let mut ids = IdGen::new(seed());
         let created = !path.exists();

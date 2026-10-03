@@ -233,7 +233,11 @@ mod tests {
             let mode = std::fs::metadata(&path).unwrap().permissions().mode();
             assert_eq!(mode & 0o777, 0o600);
         }
-        assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 1, "no temp file left");
+        assert_eq!(
+            std::fs::read_dir(&dir).unwrap().count(),
+            1,
+            "no temp file left"
+        );
         let _ = std::fs::remove_dir_all(&dir);
     }
 

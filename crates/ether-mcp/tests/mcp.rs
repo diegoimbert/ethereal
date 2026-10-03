@@ -22,7 +22,10 @@ fn headless_project_file() {
     let (track, clip) = drum_scenario(&mut c);
     assert!(file.is_file(), "a new project file is written at start");
     let saved = c.ok("save_project", json!({}));
-    assert!(saved["file"].as_str().unwrap().contains("beat.ether"), "{saved}");
+    assert!(
+        saved["file"].as_str().unwrap().contains("beat.ether"),
+        "{saved}"
+    );
     c.finish();
     let doc: Value = serde_json::from_str(&std::fs::read_to_string(&file).unwrap()).unwrap();
     assert_eq!(doc["project"]["settings"]["name"], "beat");
@@ -60,7 +63,9 @@ fn desktop_bridge() {
         .count();
     assert!(patches >= 3, "UI got the agent's patches ({patches})");
     // The UI's document is the agent's.
-    let (ReplyValue::Project { project }, _) = desktop.ui_request(Command::Project(ProjectCommand::Get)) else {
+    let (ReplyValue::Project { project }, _) =
+        desktop.ui_request(Command::Project(ProjectCommand::Get))
+    else {
         panic!("project");
     };
     let doc = json!({ "project": serde_json::to_value(&project).unwrap() });

@@ -118,7 +118,11 @@ impl AgentBridgeState {
     /// Start or stop the bridge (no-op if already in that state).
     pub fn set_running(&self, host: Option<Arc<NativeHost>>, enabled: bool) -> Result<(), String> {
         if enabled {
-            let mut slot = self.fanout.bridge.lock().map_err(|_| "bridge lock poisoned")?;
+            let mut slot = self
+                .fanout
+                .bridge
+                .lock()
+                .map_err(|_| "bridge lock poisoned")?;
             if slot.is_none() {
                 let host = host.ok_or("engine is not running")?;
                 *slot = Some(

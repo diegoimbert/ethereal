@@ -50,7 +50,10 @@ pub(crate) fn validate(schema: &Value, v: &Value, path: &str) -> Result<(), Inpu
     if let Some(ty) = schema.get("type") {
         let ok = match ty {
             Value::String(t) => type_matches(t, v),
-            Value::Array(ts) => ts.iter().filter_map(Value::as_str).any(|t| type_matches(t, v)),
+            Value::Array(ts) => ts
+                .iter()
+                .filter_map(Value::as_str)
+                .any(|t| type_matches(t, v)),
             _ => true,
         };
         if !ok {

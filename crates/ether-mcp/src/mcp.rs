@@ -170,9 +170,7 @@ impl ServerHandler for EtherMcp {
                 None,
             ));
         }
-        let (content, is_error) = self
-            .call("get_project_overview", &JsonObject::new())
-            .await;
+        let (content, is_error) = self.call("get_project_overview", &JsonObject::new()).await;
         if is_error {
             return Err(McpError::internal_error(content, None));
         }

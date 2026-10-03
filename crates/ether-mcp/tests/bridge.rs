@@ -46,7 +46,9 @@ fn runtime_file_token_and_disable() {
     let b = RemoteBackend::new(Target::Desktop {
         candidates: vec![tmp.path().join("missing.json"), runtime.clone()],
     });
-    let ReplyValue::AgentTools { tools } = b.request(Command::Agent(AgentCommand::ListTools)).unwrap() else {
+    let ReplyValue::AgentTools { tools } =
+        b.request(Command::Agent(AgentCommand::ListTools)).unwrap()
+    else {
         panic!("tools");
     };
     assert!(tools.iter().any(|t| t.name == "add_notes"));
@@ -55,7 +57,12 @@ fn runtime_file_token_and_disable() {
     // Disable: listener closed, file gone, clients see a clear error.
     desktop.disable_bridge();
     assert!(!runtime.exists(), "runtime file removed on disable");
-    assert!(TcpStream::connect(("127.0.0.1", port)).is_err(), "listener closed");
-    let e = b.request(Command::Agent(AgentCommand::ListTools)).unwrap_err();
+    assert!(
+        TcpStream::connect(("127.0.0.1", port)).is_err(),
+        "listener closed"
+    );
+    let e = b
+        .request(Command::Agent(AgentCommand::ListTools))
+        .unwrap_err();
     assert!(e.contains("Allow AI agents (MCP)"), "{e}");
 }

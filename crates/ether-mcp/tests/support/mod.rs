@@ -110,7 +110,10 @@ impl McpClient {
 
     /// `tools/call`: `(text content, isError)`.
     pub fn call(&mut self, name: &str, arguments: Value) -> (String, bool) {
-        let r = self.request("tools/call", json!({ "name": name, "arguments": arguments }));
+        let r = self.request(
+            "tools/call",
+            json!({ "name": name, "arguments": arguments }),
+        );
         let res = &r["result"];
         assert!(res.is_object(), "tools/call {name}: {r}");
         let text = res["content"][0]["text"].as_str().unwrap_or("").to_string();
@@ -154,10 +157,21 @@ pub fn drum_scenario(c: &mut McpClient) -> (String, String) {
     assert!(info["capabilities"]["tools"].is_object());
     assert!(info["capabilities"]["resources"].is_object());
     let names = c.tool_names();
-    for t in ["create_track", "create_midi_clip", "add_notes", "get_project_overview"] {
-        assert!(names.iter().any(|n| n == t), "tools/list has {t}: {names:?}");
+    for t in [
+        "create_track",
+        "create_midi_clip",
+        "add_notes",
+        "get_project_overview",
+    ] {
+        assert!(
+            names.iter().any(|n| n == t),
+            "tools/list has {t}: {names:?}"
+        );
     }
-    let track = c.ok("create_track", json!({ "kind": "midi", "name": "Drums", "instrument": "drum-rack" }));
+    let track = c.ok(
+        "create_track",
+        json!({ "kind": "midi", "name": "Drums", "instrument": "drum-rack" }),
+    );
     let track_id = track["track_id"].as_str().unwrap().to_string();
     let clip = c.ok(
         "create_midi_clip",
@@ -181,12 +195,21 @@ pub fn drum_scenario(c: &mut McpClient) -> (String, String) {
     assert!(is_error && text.contains("unknown tool"), "{text}");
     // The overview resource.
     let r = c.request("resources/list", json!({}));
-    assert_eq!(r["result"]["resources"][0]["uri"], "ethereal://project/overview");
-    let r = c.request("resources/read", json!({ "uri": "ethereal://project/overview" }));
+    assert_eq!(
+        r["result"]["resources"][0]["uri"],
+        "ethereal://project/overview"
+    );
+    let r = c.request(
+        "resources/read",
+        json!({ "uri": "ethereal://project/overview" }),
+    );
     let overview: Value =
         serde_json::from_str(r["result"]["contents"][0]["text"].as_str().unwrap()).unwrap();
     let tracks = overview["tracks"].as_array().unwrap();
-    let drums = tracks.iter().find(|t| t["id"] == track_id.as_str()).expect("track in overview");
+    let drums = tracks
+        .iter()
+        .find(|t| t["id"] == track_id.as_str())
+        .expect("track in overview");
     assert_eq!(drums["name"], "Drums");
     assert_eq!(drums["clips"][0]["notes"], 4);
     (track_id, clip_id)
@@ -288,7 +311,11 @@ impl Desktop {
     }
 
     pub fn bridge_clients(&self) -> usize {
-        self.bridge.lock().unwrap().as_ref().map_or(0, |b| b.client_count())
+        self.bridge
+            .lock()
+            .unwrap()
+            .as_ref()
+            .map_or(0, |b| b.client_count())
     }
 
     /// A UI request; returns the reply and the events received before it.
@@ -314,7 +341,11 @@ impl Desktop {
                 .expect("UI reply");
             match m {
                 ServerMessage::Reply(r) => {
-                    assert!(r.id < ether_server::agent_bridge::REQUEST_BASE, "the UI never sees bridge replies: {}", r.id);
+                    assert!(
+                        r.id < ether_server::agent_bridge::REQUEST_BASE,
+                        "the UI never sees bridge replies: {}",
+                        r.id
+                    );
                     if r.id == id {
                         match r.result {
                             ReplyResult::Ok { value } => return (value, events),

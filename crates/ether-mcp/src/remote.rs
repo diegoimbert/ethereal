@@ -38,10 +38,7 @@ pub enum Target {
 
 /// Message shown when the desktop app can't be reached.
 pub fn desktop_unreachable(candidates: &[PathBuf], why: &str) -> String {
-    let files: Vec<String> = candidates
-        .iter()
-        .map(|p| p.display().to_string())
-        .collect();
+    let files: Vec<String> = candidates.iter().map(|p| p.display().to_string()).collect();
     format!(
         "Ethereal is not reachable ({why}). Open the Ethereal desktop app and turn on \
          'Allow AI agents (MCP)' in its settings (it writes {}). Or run ether-mcp with \
@@ -106,10 +103,11 @@ impl RemoteBackend {
             return Ok(c.tx.clone());
         }
         let (url, token) = self.target.resolve()?;
-        let c = open(&url, token.as_deref(), self.pending.clone()).map_err(|e| match &self.target {
-            Target::Desktop { candidates } => desktop_unreachable(candidates, &e),
-            Target::Fixed { .. } => format!("cannot connect to {url}: {e}"),
-        })?;
+        let c =
+            open(&url, token.as_deref(), self.pending.clone()).map_err(|e| match &self.target {
+                Target::Desktop { candidates } => desktop_unreachable(candidates, &e),
+                Target::Fixed { .. } => format!("cannot connect to {url}: {e}"),
+            })?;
         let tx = c.tx.clone();
         *conn = Some(c);
         Ok(tx)

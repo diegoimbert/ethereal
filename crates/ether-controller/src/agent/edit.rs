@@ -2,6 +2,7 @@
 //! commands so validation, engine effects, patches and collab replication are the same as
 //! for UI edits.
 
+use ether_core::protocol::Command;
 use ether_core::protocol::ReplyValue;
 use ether_core::protocol::browser::{BrowserCommand, BrowserQuery, BrowserSort, LibraryItem};
 use ether_core::protocol::clips::{ClipCommand, ClipMove};
@@ -18,7 +19,6 @@ use ether_core::protocol::project::{EditCommand, ProjectCommand};
 use ether_core::protocol::recording::RecordingCommand;
 use ether_core::protocol::tracks::TrackCommand;
 use ether_core::protocol::transport::TransportCommand;
-use ether_core::protocol::Command;
 use serde_json::{Value, json};
 
 use super::read::{category_name, r2f, r3};
@@ -53,9 +53,7 @@ pub(super) fn builtin_type(key: &str) -> Result<BuiltinDeviceType, ToolError> {
 fn parse_color(s: &str) -> Result<Color, ToolError> {
     let hex = s.trim().trim_start_matches('#');
     if hex.len() != 6 {
-        return Err(ToolError::input(format!(
-            "color `{s}` must be \"#RRGGBB\""
-        )));
+        return Err(ToolError::input(format!("color `{s}` must be \"#RRGGBB\"")));
     }
     u32::from_str_radix(hex, 16)
         .map(Color)
@@ -93,7 +91,10 @@ where
         notes
             .iter()
             .map(|n| {
-                let n = Args(n.as_object().ok_or_else(|| ToolError::input("notes must be objects"))?);
+                let n = Args(
+                    n.as_object()
+                        .ok_or_else(|| ToolError::input("notes must be objects"))?,
+                );
                 Ok(NoteSpec {
                     id: self.agent_id(now),
                     pitch: n.req_f64("pitch")?.clamp(0.0, 127.0) as u8,
@@ -360,8 +361,7 @@ where
                         // "Filter Cutoff" = group + name; or a numeric id passed as text.
                         desc.params.iter().find(|p| {
                             p.group.as_ref().is_some_and(|g| {
-                                format!("{} {}", g.to_lowercase(), p.name.to_lowercase())
-                                    == wanted
+                                format!("{} {}", g.to_lowercase(), p.name.to_lowercase()) == wanted
                             }) || wanted.parse::<u32>().is_ok_and(|n| p.id.0 == n)
                         })
                     })
@@ -558,7 +558,9 @@ where
                 .map(|n| n.id)
                 .collect()
         } else {
-            return Err(ToolError::input("pass `note_ids`, or `clip_id` (with optional filters)"));
+            return Err(ToolError::input(
+                "pass `note_ids`, or `clip_id` (with optional filters)",
+            ));
         };
         if ids.is_empty() {
             return Ok(json!({ "removed": 0 }));
@@ -619,7 +621,9 @@ where
                 le = c.offset.0 + a.f64("length_beats").unwrap_or(c.length.0);
             }
             if le <= ls + Beats::EPSILON {
-                return Err(ToolError::input("loop_end_beats must be after loop_start_beats"));
+                return Err(ToolError::input(
+                    "loop_end_beats must be after loop_start_beats",
+                ));
             }
             commands.push(Command::Clip(ClipCommand::SetLoop {
                 id,
@@ -647,7 +651,9 @@ where
                 "muted": c.muted,
                 "loop": { "enabled": c.looping.enabled, "start_beats": r3(c.looping.start.0), "end_beats": r3(c.looping.end.0) },
             })),
-            None => Ok(json!({ "clip_id": id.to_string(), "note": "the clip was removed by the move (fully covered by another clip)" })),
+            None => Ok(
+                json!({ "clip_id": id.to_string(), "note": "the clip was removed by the move (fully covered by another clip)" }),
+            ),
         }
     }
 
@@ -801,11 +807,16 @@ where
                 if a.has("loop_start_beats") || a.has("loop_end_beats") {
                     let current = self.agent_project()?.settings.loop_region;
                     let region = BeatRange {
-                        start: a.f64("loop_start_beats").map(Beats).unwrap_or(current.start),
+                        start: a
+                            .f64("loop_start_beats")
+                            .map(Beats)
+                            .unwrap_or(current.start),
                         end: a.f64("loop_end_beats").map(Beats).unwrap_or(current.end),
                     };
                     if region.end.0 <= region.start.0 + Beats::EPSILON {
-                        return Err(ToolError::input("loop_end_beats must be after loop_start_beats"));
+                        return Err(ToolError::input(
+                            "loop_end_beats must be after loop_start_beats",
+                        ));
                     }
                     commands.push(t(TransportCommand::SetLoopRegion { region }));
                 }
@@ -865,7 +876,9 @@ where
         out: &mut dyn MessageSink,
     ) -> Result<LibraryItem, ToolError> {
         let (root, path) = item.split_once('/').ok_or_else(|| {
-            ToolError::input(format!("`{item}` is not a library item id (use search_browser)"))
+            ToolError::input(format!(
+                "`{item}` is not a library item id (use search_browser)"
+            ))
         })?;
         let query = BrowserQuery {
             text: String::new(),
@@ -879,7 +892,12 @@ where
             offset: 0,
             limit: 200,
         };
-        match self.agent_dispatch(Command::Browser(BrowserCommand::Query { query }), None, now, out)? {
+        match self.agent_dispatch(
+            Command::Browser(BrowserCommand::Query { query }),
+            None,
+            now,
+            out,
+        )? {
             ReplyValue::BrowserPage { page } => page
                 .items
                 .into_iter()
@@ -907,7 +925,9 @@ where
                 return Ok(json!({ "device_id": device.to_string(), "preset": item.name }));
             }
             let track: TrackId = a.id("track_id", "track")?.ok_or_else(|| {
-                ToolError::input("presets need `device_id` (apply to it) or `track_id` (add a new device)")
+                ToolError::input(
+                    "presets need `device_id` (apply to it) or `track_id` (add a new device)",
+                )
             })?;
             let list = self.agent_dispatch(
                 Command::Preset(PresetCommand::List {
@@ -946,7 +966,9 @@ where
                 now,
                 out,
             )?;
-            return Ok(json!({ "device_id": device.to_string(), "preset": item.name, "type": ty.key() }));
+            return Ok(
+                json!({ "device_id": device.to_string(), "preset": item.name, "type": ty.key() }),
+            );
         }
         let Some(source) = item.source.clone() else {
             return Err(ToolError::input(format!(
@@ -954,17 +976,22 @@ where
                 item.name
             )));
         };
-        if !matches!(item.kind, ether_core::protocol::browser::LibraryItemKind::Audio) {
+        if !matches!(
+            item.kind,
+            ether_core::protocol::browser::LibraryItemKind::Audio
+        ) {
             return Err(ToolError::input(format!(
                 "`{}` is not an audio sample; only audio and presets can be loaded",
                 item.name
             )));
         }
-        let track: TrackId = a.id("track_id", "track")?.ok_or_else(|| {
-            ToolError::input("audio items need `track_id` (an audio track)")
-        })?;
+        let track: TrackId = a
+            .id("track_id", "track")?
+            .ok_or_else(|| ToolError::input("audio items need `track_id` (an audio track)"))?;
         if self.track_of(track)?.kind != TrackKind::Audio {
-            return Err(ToolError::input(format!("track {track} is not an audio track")));
+            return Err(ToolError::input(format!(
+                "track {track} is not an audio track"
+            )));
         }
         let media: MediaId = self.agent_id(now);
         let clip: ClipId = self.agent_id(now);
@@ -1003,7 +1030,9 @@ where
             "loop" => ExportRange::Loop,
             "custom" => {
                 let (Some(start), Some(end)) = (a.f64("start_beats"), a.f64("end_beats")) else {
-                    return Err(ToolError::input("a custom range needs `start_beats` and `end_beats`"));
+                    return Err(ToolError::input(
+                        "a custom range needs `start_beats` and `end_beats`",
+                    ));
                 };
                 if end <= start {
                     return Err(ToolError::input("`end_beats` must be after `start_beats`"));
@@ -1068,9 +1097,18 @@ mod tests {
 
     #[test]
     fn device_type_keys() {
-        assert_eq!(builtin_type("poly-synth").unwrap(), BuiltinDeviceType::PolySynth);
-        assert_eq!(builtin_type("Poly Synth").unwrap(), BuiltinDeviceType::PolySynth);
-        assert_eq!(builtin_type("drum_rack").unwrap(), BuiltinDeviceType::DrumRack);
+        assert_eq!(
+            builtin_type("poly-synth").unwrap(),
+            BuiltinDeviceType::PolySynth
+        );
+        assert_eq!(
+            builtin_type("Poly Synth").unwrap(),
+            BuiltinDeviceType::PolySynth
+        );
+        assert_eq!(
+            builtin_type("drum_rack").unwrap(),
+            BuiltinDeviceType::DrumRack
+        );
         assert!(matches!(builtin_type("kazoo"), Err(ToolError::Input(_))));
         assert_eq!(parse_color("#FF8800").unwrap(), Color(0xff8800));
         assert!(parse_color("red").is_err());

@@ -31,7 +31,11 @@ fn tool_edits_replicate_and_undo_everywhere() {
     let (a, b) = sites.split_at_mut(1);
     let (a, b) = (&mut a[0], &mut b[0]);
 
-    let track = tool(a, "create_track", json!({ "kind": "midi", "name": "Drums" }));
+    let track = tool(
+        a,
+        "create_track",
+        json!({ "kind": "midi", "name": "Drums" }),
+    );
     let track_id: TrackId = track["track_id"].as_str().unwrap().parse().unwrap();
     let clip = tool(
         a,
@@ -54,7 +58,11 @@ fn tool_edits_replicate_and_undo_everywhere() {
     assert_eq!(b.project().notes_of(clip_id).len(), 2, "notes replicated");
 
     // B (another agent or user) edits through a tool too.
-    tool(b, "set_track_mix", json!({ "track_id": track["track_id"], "volume_db": -3 }));
+    tool(
+        b,
+        "set_track_mix",
+        json!({ "track_id": track["track_id"], "volume_db": -3 }),
+    );
     settle(&mut [&mut *a, &mut *b], &hub);
     assert_converged(&[&*a, &*b]);
     assert_eq!(a.project().tracks[&track_id].mixer.volume.0, -3.0);
