@@ -28,6 +28,10 @@ objc2-core-foundation.workspace = true
 objc2-app-kit.workspace = true
 objc2-foundation.workspace = true
 
+# Win32 host windows for editors.
+[target.'cfg(windows)'.dependencies]
+windows-sys.workspace = true
+
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 assert_no_alloc.workspace = true
 
