@@ -86,10 +86,15 @@ impl McpClient {
 
     /// `initialize` + `notifications/initialized`; returns the server's result.
     pub fn initialize(&mut self) -> Value {
+        self.initialize_with("2025-06-18")
+    }
+
+    /// `initialize` asking for MCP protocol `version`.
+    pub fn initialize_with(&mut self, version: &str) -> Value {
         let r = self.request(
             "initialize",
             json!({
-                "protocolVersion": "2025-06-18",
+                "protocolVersion": version,
                 "capabilities": {},
                 "clientInfo": { "name": "ether-mcp-test", "version": "1" }
             }),
@@ -152,8 +157,14 @@ impl Drop for McpClient {
 /// The scenario every mode runs: a MIDI track with a one-bar drum clip. Returns
 /// `(track_id, clip_id)`.
 pub fn drum_scenario(c: &mut McpClient) -> (String, String) {
-    let info = c.initialize();
+    // The newest protocol (Claude Code negotiates it): list results carry cache hints.
+    let info = c.initialize_with("2026-07-28");
     assert_eq!(info["serverInfo"]["name"], "ethereal");
+    for method in ["tools/list", "resources/list"] {
+        let r = c.request(method, json!({}));
+        assert_eq!(r["result"]["ttlMs"], 0, "{method}: {r}");
+        assert_eq!(r["result"]["cacheScope"], "private", "{method}");
+    }
     assert!(info["capabilities"]["tools"].is_object());
     assert!(info["capabilities"]["resources"].is_object());
     let names = c.tool_names();

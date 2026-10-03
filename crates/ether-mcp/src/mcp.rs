@@ -5,8 +5,8 @@ use std::sync::Arc;
 use ether_protocol::agent::{AgentCommand, AgentToolSpec};
 use ether_protocol::{Command, ReplyValue};
 use rmcp::model::{
-    CallToolRequestParams, CallToolResponse, CallToolResult, ContentBlock, Implementation,
-    JsonObject, ListResourcesResult, ListToolsResult, PaginatedRequestParams,
+    CacheScope, CallToolRequestParams, CallToolResponse, CallToolResult, ContentBlock,
+    Implementation, JsonObject, ListResourcesResult, ListToolsResult, PaginatedRequestParams,
     ReadResourceRequestParams, ReadResourceResponse, ReadResourceResult, Resource,
     ResourceContents, ServerCapabilities, ServerConfig, Tool,
 };
@@ -127,7 +127,10 @@ impl ServerHandler for EtherMcp {
         _context: RequestContext<RoleServer>,
     ) -> Result<ListToolsResult, McpError> {
         let tools = self.tool_specs().await.into_iter().map(to_tool).collect();
-        Ok(ListToolsResult::with_all_items(tools))
+        // MCP 2026-07-28 requires cache hints: the tools depend on the engine (never cache).
+        Ok(ListToolsResult::with_all_items(tools)
+            .with_ttl_ms(0)
+            .with_cache_scope(CacheScope::Private))
     }
 
     async fn call_tool(
@@ -156,7 +159,9 @@ impl ServerHandler for EtherMcp {
                 "The open project: tempo, time signature, tracks with their devices and clips (ids, beats), selection, transport. Same JSON as the get_project_overview tool.",
             );
         overview.mime_type = Some("application/json".into());
-        Ok(ListResourcesResult::with_all_items(vec![overview]))
+        Ok(ListResourcesResult::with_all_items(vec![overview])
+            .with_ttl_ms(0)
+            .with_cache_scope(CacheScope::Private))
     }
 
     async fn read_resource(
@@ -177,6 +182,8 @@ impl ServerHandler for EtherMcp {
         Ok(ReadResourceResult::new(vec![
             ResourceContents::text(content, OVERVIEW_URI).with_mime_type("application/json"),
         ])
+        .with_ttl_ms(0)
+        .with_cache_scope(CacheScope::Private)
         .into())
     }
 }
