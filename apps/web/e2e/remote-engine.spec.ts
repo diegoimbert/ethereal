@@ -230,7 +230,7 @@ test("web UI drives a remote ether-server", async ({ page }) => {
   // --- A wrong token is refused; the UI stays on the local engine.
   await connect(page, "wrong");
   await expect(page.getByText("Wrong or missing token.")).toBeVisible();
-  await page.getByRole("button", { name: "Cancel" }).click();
+  await page.getByRole("button", { name: "Done" }).click();
   expect((await project(page))!.id).toBe(localId);
 
   // --- Connect: the UI now mirrors the server's project.

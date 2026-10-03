@@ -150,6 +150,8 @@ async function openAdvancedSettings(page: Page): Promise<void> {
 export async function openRelayJoin(page: Page): Promise<void> {
   await openAdvancedSettings(page);
   await page.getByRole("button", { name: "Join a relay session…" }).click();
+  // The settings close first (their exit animation keeps them in the DOM for a moment).
+  await expect(page.getByTestId("settings-advanced")).toHaveCount(0);
   await expect(page.getByLabel("Relay address")).toBeVisible();
 }
 
