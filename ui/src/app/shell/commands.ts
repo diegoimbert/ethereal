@@ -6,6 +6,7 @@ import { addTrack, selectTrackEntity } from "@/features/arrangement/actions";
 import { arrangementView } from "@/features/arrangement/uiStore";
 import { openImportDialog } from "@/features/import";
 import { mediaRefCommands } from "@/features/media-refs";
+import { joinPaletteCommands } from "@/features/share/join";
 import { tracksOrdered, useProjectStore } from "@/state";
 import { getTheme, setTheme } from "@/theme";
 import { cmd, type EngineTransport } from "@/transport";
@@ -129,6 +130,9 @@ export function buildCommands(transport: EngineTransport | null, devices: Readon
       });
     }
   }
+
+  // join-flow: "Join shared project…" (paste an invite link).
+  out.push(...joinPaletteCommands());
 
   const inSession = useCollabStore.getState().status.type === "Online";
   if (inSession) {
