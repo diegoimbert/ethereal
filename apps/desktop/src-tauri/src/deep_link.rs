@@ -81,10 +81,8 @@ pub fn deliver<R: Runtime>(app: &AppHandle<R>, urls: impl IntoIterator<Item = St
             tracing::debug!(len = url.len(), "ignored a non-ethereal deep link");
         }
     }
-    if kept {
-        if let Err(e) = app.emit(DEEP_LINK_EVENT, ()) {
-            tracing::warn!(%e, "could not emit the deep-link event");
-        }
+    if kept && let Err(e) = app.emit(DEEP_LINK_EVENT, ()) {
+        tracing::warn!(%e, "could not emit the deep-link event");
     }
 }
 
@@ -94,10 +92,10 @@ pub fn install<R: Runtime>(app: &AppHandle<R>) {
     use tauri_plugin_deep_link::DeepLinkExt;
 
     #[cfg(any(target_os = "linux", windows))]
-    if !cfg!(debug_assertions) {
-        if let Err(e) = app.deep_link().register_all() {
-            tracing::warn!(%e, "could not register the ethereal:// scheme");
-        }
+    if !cfg!(debug_assertions)
+        && let Err(e) = app.deep_link().register_all()
+    {
+        tracing::warn!(%e, "could not register the ethereal:// scheme");
     }
 
     let handle = app.clone();
@@ -147,7 +145,10 @@ mod tests {
         assert!(inbox.push(&format!("  {INVITE}\n")));
         assert!(!inbox.push("file:///etc/passwd"));
         assert!(inbox.push("ethereal://join/second"));
-        assert_eq!(inbox.take(), vec![INVITE.to_owned(), "ethereal://join/second".into()]);
+        assert_eq!(
+            inbox.take(),
+            vec![INVITE.to_owned(), "ethereal://join/second".into()]
+        );
         assert!(inbox.take().is_empty());
     }
 
@@ -160,6 +161,9 @@ mod tests {
         let all = inbox.take();
         assert_eq!(all.len(), MAX_PENDING);
         assert_eq!(all[0], "ethereal://join/3");
-        assert_eq!(all[MAX_PENDING - 1], format!("ethereal://join/{}", MAX_PENDING + 2));
+        assert_eq!(
+            all[MAX_PENDING - 1],
+            format!("ethereal://join/{}", MAX_PENDING + 2)
+        );
     }
 }
