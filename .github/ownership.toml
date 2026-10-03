@@ -1492,6 +1492,8 @@ paths = [
   "crates/ether-wasm/src/lib.rs",
   # shared touch: underrun reporting (append-only MediaEvent variant) if needed
   "crates/ether-protocol/src/media.rs",
+  # shared touch (v0.3 grant): one additive state field + initializer on EtherController
+  "crates/ether-controller/src/lib.rs",
 ]
 
 [nodes.midi-expression]
@@ -1529,6 +1531,8 @@ paths = [
   # shared touch: lanes under the piano roll (mount, lane picker, curve editing)
   "ui/src/features/piano-roll/**",
   "ui/src/transport/mock/roadmap/liveRecord.*",
+  # shared touch (v0.3 grant): one additive state field + initializer on EtherController
+  "crates/ether-controller/src/lib.rs",
 ]
 
 [nodes.mpe]
@@ -1561,6 +1565,8 @@ paths = [
   "ui/src/app/shell/Inspector.tsx",
   "ui/src/features/piano-roll/**",
   "ui/src/features/expression/**",
+  # shared touch (v0.3 grant): one additive state field + initializer on EtherController
+  "crates/ether-controller/src/lib.rs",
 ]
 
 [nodes.capture-midi]
@@ -1579,6 +1585,8 @@ paths = [
   "ui/src/app/shell/commands.ts",
   # shared touch: mock MIDI input simulation for the capture buffer
   "ui/src/transport/mock/MockTransport.ts",
+  # shared touch (v0.3 grant): one additive state field + initializer on EtherController
+  "crates/ether-controller/src/lib.rs",
 ]
 
 [nodes.audio-to-midi]
@@ -1594,6 +1602,8 @@ paths = [
   "crates/ether-controller/tests/roadmap_v4.rs",
   # shared touch: clip context menu entry ("Convert to MIDI...")
   "ui/src/features/arrangement/ClipView.tsx",
+  # shared touch (v0.3 grant): one additive state field + initializer on EtherController
+  "crates/ether-controller/src/lib.rs",
 ]
 
 [nodes.fx-space]
@@ -1619,6 +1629,8 @@ paths = [
   # shared touch: an IR widget (BCR to the widget catalog if a new widget kind is needed)
   "ui/src/features/devices/layout/Widget.tsx",
   "ui/src/features/devices/layout/widgets/data.tsx",
+  # shared touch (v0.3 grant): one additive state field + initializer on EtherController
+  "crates/ether-controller/src/lib.rs",
 ]
 
 [nodes.external-instrument]
@@ -1694,6 +1706,8 @@ paths = [
   "ui/src/app/shell/commands.ts",
   # shared touch: NewProject next to Project::Create
   "crates/ether-controller/src/project.rs",
+  # shared touch (v0.3 grant): one additive state field + initializer on EtherController
+  "crates/ether-controller/src/lib.rs",
 ]
 
 [nodes.project-versions]
@@ -1717,6 +1731,8 @@ paths = [
   "ui/src/app/App.tsx",
   # shared touch: the mock project store keeps versions
   "ui/src/transport/mock/MockTransport.ts",
+  # shared touch (v0.3 grant): one additive state field + initializer on EtherController
+  "crates/ether-controller/src/lib.rs",
 ]
 
 [nodes.keymap]
@@ -1739,6 +1755,8 @@ paths = [
   "ui/src/features/transport-bar/index.tsx",
   "ui/src/features/time-edits/useArrangementTimeEdits.ts",
   "ui/src/features/comping/actions.ts",
+  # shared touch (v0.3 grant): one additive state field + initializer on EtherController
+  "crates/ether-controller/src/lib.rs",
 ]
 
 [nodes.web-latency]
@@ -1751,6 +1769,8 @@ paths = [
   "crates/ether-wasm/src/worklet.rs",
   "crates/ether-wasm/src/bridge.rs",
   "apps/web/e2e/web-latency*.spec.ts",
+  # shared touch (v0.3 grant): one additive state field + initializer on EtherController
+  "crates/ether-controller/src/lib.rs",
 ]
 
 [nodes.ux-followups]
@@ -1775,6 +1795,8 @@ paths = [
   # drop EqCurvePlaceholder
   "ui/src/features/devices/layout/**",
   "apps/web/e2e/ux-followups*.spec.ts",
+  # shared touch (v0.3 grant): one additive state field + initializer on EtherController
+  "crates/ether-controller/src/lib.rs",
 ]
 
 [nodes.rack-presets]
@@ -1795,4 +1817,6 @@ paths = [
   # shared touch: register factory rack presets
   "crates/ether-devices/src/racks/**",
   "crates/ether-devices/tests/v02_descriptors.rs",
+  # shared touch (v0.3 grant): one additive state field + initializer on EtherController
+  "crates/ether-controller/src/lib.rs",
 ]
