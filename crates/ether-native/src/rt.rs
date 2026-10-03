@@ -73,6 +73,9 @@ pub fn flush_denormals_enabled() -> bool {
     }
 }
 
+/// Hardware output channels the engine renders (more device channels are silent).
+pub const MAX_OUTPUT_CHANNELS: usize = 32;
+
 /// Lock-free status the audio thread publishes for the host (engine status, meters).
 #[derive(Debug, Default)]
 pub struct AudioShared {
@@ -87,6 +90,79 @@ pub struct AudioShared {
     pub frames: AtomicU64,
     /// Input capture / recording state ([`crate::recording`]).
     pub recording: crate::recording::RecordingShared,
+    /// Output channels of the running stream (hardware sends of external devices may use
+    /// all of them; the master bus is on the first two).
+    pub output_channels: AtomicU32,
+    /// Wall clock ↔ engine sample time at the start of the last rendered chunk (hardware MIDI
+    /// out scheduling, `external-instrument`).
+    pub clock: EngineClock,
+}
+
+/// Single-writer seqlock: the wall time (ns since the clock's creation) at which the engine
+/// started rendering sample `sample`.
+#[derive(Debug)]
+pub struct EngineClock {
+    epoch: Instant,
+    seq: AtomicU64,
+    ns: AtomicU64,
+    sample: AtomicU64,
+}
+
+impl Default for EngineClock {
+    fn default() -> Self {
+        Self {
+            epoch: Instant::now(),
+            seq: AtomicU64::new(0),
+            ns: AtomicU64::new(0),
+            sample: AtomicU64::new(0),
+        }
+    }
+}
+
+impl EngineClock {
+    /// Nanoseconds since the clock's creation.
+    pub fn now_ns(&self) -> u64 {
+        self.epoch.elapsed().as_nanos() as u64
+    }
+
+    /// **RT.** The engine is about to render `sample` now.
+    pub fn publish(&self, sample: u64) {
+        let ns = self.now_ns();
+        let s = self.seq.load(Ordering::Relaxed);
+        self.seq.store(s.wrapping_add(1), Ordering::Relaxed);
+        std::sync::atomic::fence(Ordering::Release);
+        self.ns.store(ns, Ordering::Relaxed);
+        self.sample.store(sample, Ordering::Relaxed);
+        self.seq.store(s.wrapping_add(2), Ordering::Release);
+    }
+
+    /// `(ns, sample)` of the last publish (`(0, 0)` before the first).
+    pub fn read(&self) -> (u64, u64) {
+        loop {
+            let s1 = self.seq.load(Ordering::Acquire);
+            if s1 & 1 == 1 {
+                std::hint::spin_loop();
+                continue;
+            }
+            let ns = self.ns.load(Ordering::Relaxed);
+            let sample = self.sample.load(Ordering::Relaxed);
+            std::sync::atomic::fence(Ordering::Acquire);
+            if self.seq.load(Ordering::Relaxed) == s1 {
+                return (ns, sample);
+            }
+        }
+    }
+
+    /// The engine sample being rendered now (extrapolated at `sample_rate`), or `None`
+    /// before the first block.
+    pub fn sample_now(&self, sample_rate: f64) -> Option<f64> {
+        let (ns, sample) = self.read();
+        if ns == 0 && sample == 0 {
+            return None;
+        }
+        let elapsed = self.now_ns().saturating_sub(ns) as f64 * 1e-9;
+        Some(sample as f64 + elapsed * sample_rate)
+    }
 }
 
 impl AudioShared {
@@ -98,9 +174,9 @@ impl AudioShared {
 /// Callback state owned by the audio thread.
 pub struct RtRenderer {
     engine: Option<Box<Engine>>,
-    /// Planar output scratch (2 × max block).
-    out_l: Vec<f32>,
-    out_r: Vec<f32>,
+    /// Planar output scratch ([`MAX_OUTPUT_CHANNELS`] × max block; the master bus is on the
+    /// first two, external devices' hardware sends may use any).
+    outs: Vec<Vec<f32>>,
     /// Engine input: hardware input, loopback or silence ([`crate::recording`]).
     input: crate::recording::InputFeed,
     max_block: usize,
@@ -120,8 +196,7 @@ impl RtRenderer {
         let sample_rate = engine.config().sample_rate as f64;
         Self {
             engine: Some(engine),
-            out_l: vec![0.0; max_block],
-            out_r: vec![0.0; max_block],
+            outs: (0..MAX_OUTPUT_CHANNELS).map(|_| vec![0.0; max_block]).collect(),
             input: crate::recording::InputFeed::new(&shared, max_block, sample_rate),
             max_block,
             sample_rate,
@@ -136,8 +211,9 @@ impl RtRenderer {
 
     /// **RT.** Fill an interleaved device buffer with `channels` channels. The buffer may be
     /// larger than the engine's max block: it is rendered in chunks of at most
-    /// `max_block_size` frames. Stereo goes to the first two channels (extra channels are
-    /// silent; mono devices get the L/R average).
+    /// `max_block_size` frames. The engine renders up to [`MAX_OUTPUT_CHANNELS`] channels:
+    /// the master bus on the first two, external devices' hardware sends on theirs (extra
+    /// channels are silent; mono devices get the L/R average).
     pub fn render<T>(&mut self, out: &mut [T], channels: usize)
     where
         T: Sample + FromSample<f32>,
@@ -149,25 +225,36 @@ impl RtRenderer {
             out.fill(T::EQUILIBRIUM);
             return;
         };
+        let n_out = channels.clamp(2, MAX_OUTPUT_CHANNELS);
+        self.shared
+            .output_channels
+            .store(channels as u32, Ordering::Relaxed);
         let mut done = 0;
         while done < total {
             let n = (total - done).min(self.max_block);
+            self.shared.clock.publish(engine.sample_time());
             {
                 let inputs = self.input.read(n);
-                let mut outputs: [&mut [f32]; 2] = [&mut self.out_l[..n], &mut self.out_r[..n]];
-                process_guarded(engine, &inputs, &mut outputs, n);
+                let mut outputs: [&mut [f32]; MAX_OUTPUT_CHANNELS] = {
+                    let mut it = self.outs.iter_mut();
+                    std::array::from_fn(|_| match it.next() {
+                        Some(v) => &mut v[..n],
+                        None => &mut [],
+                    })
+                };
+                process_guarded(engine, &inputs, &mut outputs[..n_out], n);
             }
-            self.input.after_process(&self.out_l[..n], &self.out_r[..n]);
+            self.input.after_process(&self.outs[0][..n], &self.outs[1][..n]);
             let frames = &mut out[done * channels..(done + n) * channels];
             for (i, frame) in frames.chunks_exact_mut(channels).enumerate() {
-                let (l, r) = (self.out_l[i], self.out_r[i]);
                 if channels == 1 {
-                    frame[0] = T::from_sample((l + r) * 0.5);
+                    frame[0] = T::from_sample((self.outs[0][i] + self.outs[1][i]) * 0.5);
                 } else {
-                    frame[0] = T::from_sample(l);
-                    frame[1] = T::from_sample(r);
-                    for s in &mut frame[2..] {
-                        *s = T::EQUILIBRIUM;
+                    for (c, s) in frame.iter_mut().enumerate() {
+                        *s = match self.outs.get(c) {
+                            Some(o) => T::from_sample(o[i]),
+                            None => T::EQUILIBRIUM,
+                        };
                     }
                 }
             }
@@ -257,5 +344,100 @@ mod tests {
         assert_eq!(shared.frames.load(Ordering::Relaxed), 300);
         drop(r);
         assert!(rx.try_recv().is_ok());
+    }
+
+    /// `external-instrument`: an External Audio Effect's hardware send reaches device
+    /// channels 3/4 (the master stays on 1/2), and the clock follows the engine.
+    #[test]
+    fn hardware_sends_reach_extra_device_channels() {
+        use ether_core::graph::{ChainEntry, RenderGraphDesc};
+        use ether_core::hw_io::HwIoDesc;
+        use ether_core::protocol::model::{
+            BuiltinDevice, BuiltinDeviceType, ExternalRouting, HwChannels, TrackId, TrackKind,
+            Ulid,
+        };
+
+        struct Dc;
+        impl ether_core::Node for Dc {
+            fn prepare(&mut self, _: &ether_core::PrepareConfig) {}
+            fn reset(&mut self) {}
+            fn process(
+                &mut self,
+                _: &mut ether_core::ProcessContext<'_>,
+                audio: &mut ether_core::AudioBuffers<'_, '_>,
+            ) -> ether_core::ProcessStatus {
+                for ch in audio.outputs.iter_mut() {
+                    ch.fill(0.5);
+                }
+                ether_core::ProcessStatus::Continue
+            }
+            fn channels(&self) -> (u16, u16) {
+                (0, 2)
+            }
+        }
+
+        let mut parts = ether_core::create(ether_core::EngineConfig {
+            max_block_size: 64,
+            max_nodes: 8,
+            ..Default::default()
+        });
+        let dc = parts.handle.add_node(Box::new(Dc)).unwrap();
+        let mut fx = ether_devices::create(
+            &BuiltinDevice::new(BuiltinDeviceType::ExternalAudioEffect),
+            &ether_devices::NoSamples,
+        );
+        fx.prepare(&ether_core::PrepareConfig {
+            sample_rate: 48_000.0,
+            max_block_size: 64,
+            max_events_per_block: 16,
+        });
+        fx.set_param(ether_devices::external::external_audio_effect::MIX, 0.0);
+        let fx = parts.handle.add_node(fx).unwrap();
+        let json = serde_json::json!({
+            "version": 1, "tempo": [], "signatures": [], "loop_enabled": false,
+            "loop_start": 0.0, "loop_end": 0.0, "metronome": false, "tracks": []
+        });
+        let mut desc: RenderGraphDesc = serde_json::from_value(json).unwrap();
+        let track = |id: u128, kind, output: Option<TrackId>| {
+            let mut t = serde_json::from_value::<ether_core::graph::TrackDesc>(serde_json::json!({
+                "id": TrackId(Ulid(id)), "kind": kind, "chain": [], "output": output,
+                "group": null, "sends": [], "volume": 1.0, "pan": 0.0, "mute": false,
+                "solo": false, "audio_input": null, "monitor": false, "armed": false,
+                "clips": [], "automation": [], "racks": []
+            }))
+            .unwrap();
+            t.output = output;
+            t
+        };
+        let mut t = track(2, TrackKind::Audio, Some(TrackId(Ulid(1))));
+        t.chain = [dc, fx]
+            .into_iter()
+            .map(|node| ChainEntry {
+                node,
+                enabled: true,
+                sidechain: None,
+            })
+            .collect();
+        t.hw_io = vec![HwIoDesc {
+            node: fx,
+            routing: ExternalRouting {
+                audio_send: Some(HwChannels { first: 2, count: 2 }),
+                ..ExternalRouting::default()
+            },
+        }];
+        desc.tracks = vec![track(1, TrackKind::Master, None), t];
+        parts.handle.publish(desc).unwrap();
+        let (tx, _rx) = crossbeam_channel::unbounded();
+        let shared = Arc::new(AudioShared::default());
+        let mut r = RtRenderer::new(Box::new(parts.engine), shared.clone(), tx);
+        let mut buf = vec![0.0f32; 64 * 6];
+        r.render(&mut buf, 6);
+        r.render(&mut buf, 6);
+        let frame = &buf[6 * 10..6 * 11];
+        // Mix 0: the dry signal on the master; the send on 3/4; 5/6 silent.
+        assert_eq!(frame, &[0.5, 0.5, 0.5, 0.5, 0.0, 0.0]);
+        assert_eq!(shared.output_channels.load(Ordering::Relaxed), 6);
+        assert_eq!(shared.clock.read().1, 64);
+        assert!(shared.clock.sample_now(48_000.0).unwrap() >= 64.0);
     }
 }

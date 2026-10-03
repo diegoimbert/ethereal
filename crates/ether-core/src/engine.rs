@@ -386,6 +386,12 @@ impl Engine {
         &self.config
     }
 
+    /// Engine sample time of the next block (hosts map it to wall time, e.g. to schedule
+    /// hardware MIDI out, `crate::hw_io`).
+    pub fn sample_time(&self) -> u64 {
+        self.transport.sample_time
+    }
+
     /// Non-RT (call before the audio thread starts processing, or while it is stopped):
     /// the executor used to process independent tracks in parallel (roadmap v2,
     /// `multicore`; see [`crate::parallel`]). Ignored on wasm32 (single-threaded).
