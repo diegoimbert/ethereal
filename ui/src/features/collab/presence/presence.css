@@ -85,3 +85,43 @@
 .eth-collab-editing__text {
   white-space: nowrap;
 }
+
+/* Peers' playheads in the piano roll (ux-followups), like the arranger's: a dashed line in
+   the peer's colour, dimmed while that peer is stopped. The initials cap rides the top of
+   the visible grid (`--eth-collab-cap-top`, set per frame by EditorPlayheads.tsx). */
+.eth-collab-editor-playheads {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 3;
+}
+.eth-collab-editor-playhead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 0;
+  border-left: var(--eth-border-width) dashed var(--eth-collab-peer);
+  will-change: transform;
+}
+.eth-collab-editor-playhead[data-hidden="true"] {
+  display: none;
+}
+.eth-collab-editor-playhead[data-playing="false"] {
+  opacity: var(--eth-opacity-muted);
+}
+.eth-collab-editor-playhead__cap {
+  position: absolute;
+  top: var(--eth-collab-cap-top, 0);
+  left: 0;
+  translate: -50% 0;
+  padding: 0 var(--eth-space-xs);
+  border-radius: var(--eth-radius-sm);
+  background: var(--eth-collab-peer);
+  color: var(--eth-collab-peer-ink, var(--eth-ink-dark));
+  font-size: var(--eth-fs-2xs);
+  font-weight: var(--eth-fw-bold);
+  line-height: var(--eth-lh-tight);
+  white-space: nowrap;
+}

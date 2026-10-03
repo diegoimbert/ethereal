@@ -17,7 +17,7 @@ import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointer
 import type { BeatRange, Beats, Command } from "@/generated";
 import { useProjectStore } from "@/state/projectStore";
 import { cmd, nextGestureId, useTransport } from "@/transport";
-import { applyLoopDrag, loopFromPoints, type LoopHandle } from "./loop";
+import { applyLoopDrag, loopFromPoints, loopHandleAt, type LoopHandle } from "./loop";
 import { DEFAULT_GRID, resolveGrid, snapToGrid, type GridSetting } from "./grid";
 import { useFollowPlayhead, usePlayheadPosition, type PlayheadMapping } from "./playhead";
 import { rulerMarks, type RulerFormat } from "./rulerMarks";
@@ -56,7 +56,7 @@ export interface RulerProps {
   menuItems?: (beats: Beats) => ContextMenuEntry[];
 }
 
-const EDGE_PX = 5;
+const LOOP_CURSOR: Record<LoopHandle, string> = { start: "ew-resize", end: "ew-resize", move: "grab" };
 
 export function Ruler({
   view,
@@ -146,7 +146,11 @@ export function Ruler({
     e.stopPropagation();
     const box = e.currentTarget.getBoundingClientRect();
     const offset = e.clientX - box.left;
-    const handle: LoopHandle = offset <= EDGE_PX ? "start" : offset >= box.width - EDGE_PX ? "end" : "move";
+    const handle = loopHandleAt(offset, box.width);
+    // Keep the hover cursor for the whole drag, even when the pointer leaves the thin brace.
+    const root = document.documentElement;
+    const prevCursor = root.style.cursor;
+    root.style.cursor = LOOP_CURSOR[handle] === "grab" ? "grabbing" : LOOP_CURSOR[handle];
     const startX = localX(e);
     const base = loopRegion;
     const gesture = nextGestureId();
@@ -161,10 +165,18 @@ export function Ruler({
         }
       },
       () => {
+        root.style.cursor = prevCursor;
         if (last !== base) endGesture(gesture);
         setDragRegion(null);
       },
     );
+  };
+
+  /** Resize cursor over the edges (the same zones the drag uses), grab over the body. */
+  const onLoopPointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
+    const box = e.currentTarget.getBoundingClientRect();
+    const cursor = LOOP_CURSOR[loopHandleAt(e.clientX - box.left, box.width)];
+    if (e.currentTarget.style.cursor !== cursor) e.currentTarget.style.cursor = cursor;
   };
 
   const onLoopDoubleClick = () => {
@@ -256,6 +268,7 @@ export function Ruler({
           className={loopEnabled ? "eth-ruler__loop" : "eth-ruler__loop eth-ruler__loop--off"}
           style={{ transform: `translateX(${Math.round(loopLeft)}px)`, width: loopWidth }}
           onPointerDown={onLoopPointerDown}
+          onPointerMove={onLoopPointerMove}
           onDoubleClick={onLoopDoubleClick}
           data-testid="ruler-loop"
           title="Loop (drag to move, edges to resize, double-click to toggle)"
