@@ -10,4 +10,4 @@ export type SignalServerMessage = { "type": "HostWelcome", ice_servers: Array<Ic
 /**
  * The room is forgotten this long after the host was last connected.
  */
-room_ttl_s: bigint, } | { "type": "PeerArrived", peer: number, } | { "type": "PeerLeft", peer: number, } | { "type": "JoinWelcome", peer: number, ice_servers: Array<IceServer>, } | { "type": "HostOffline", last_seen_ms: number | null, } | { "type": "Signal", peer: number, signal: StreamSignal, } | { "type": "Refused", reason: SignalRefusal, message: string, } | { "type": "Pong" };
+room_ttl_s: number, } | { "type": "PeerArrived", peer: number, } | { "type": "PeerLeft", peer: number, } | { "type": "JoinWelcome", peer: number, ice_servers: Array<IceServer>, } | { "type": "HostOffline", last_seen_ms: number | null, } | { "type": "Signal", peer: number, signal: StreamSignal, } | { "type": "Refused", reason: SignalRefusal, message: string, } | { "type": "Pong" };
