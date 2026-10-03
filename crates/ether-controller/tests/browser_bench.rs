@@ -30,7 +30,7 @@ fn item(i: usize) -> (String, String) {
     let dir = (i / ROOTS) % DIRS;
     let a = WORDS[i % WORDS.len()];
     let b = WORDS[(i / 7) % WORDS.len()];
-    let loops = if dir % 3 == 0 { "Loops/" } else { "" };
+    let loops = if dir.is_multiple_of(3) { "Loops/" } else { "" };
     let tempo = 80 + (i % 90);
     let key = KEYS[i % KEYS.len()];
     (
