@@ -58,7 +58,10 @@ describe("PresenceBar", () => {
     fireEvent.click(screen.getByTestId("collab-button"));
     fireEvent.change(screen.getByLabelText("Relay address"), { target: { value: "http://nope" } });
     fireEvent.click(screen.getByRole("button", { name: "Join" }));
-    expect((await screen.findByRole("alert")).textContent).toMatch(/relay address/);
+    // Inline errors under the fields (base-114): nothing is sent.
+    const alerts = (await screen.findAllByRole("alert")).map((a) => a.textContent);
+    expect(alerts).toEqual([expect.stringMatching(/relay address/), "Enter a session name."]);
+    expect(mock.sent.some((c) => c.domain === "Collab" && c.command.type === "Join")).toBe(false);
 
     fireEvent.change(screen.getByLabelText("Relay address"), { target: { value: "ws://relay:9003" } });
     fireEvent.change(screen.getByLabelText("Session"), { target: { value: "jam" } });
@@ -70,8 +73,9 @@ describe("PresenceBar", () => {
       domain: "Collab",
       command: { type: "Join", server: "ws://relay:9003", session: "jam", token: "secret", name: "Ada" },
     });
-    // Remembered, without the token.
+    // Remembered; the token apart (base-114: this browser's storage on the web build).
     expect(localStorage.getItem("eth-collab-join")).toBe(JSON.stringify({ server: "ws://relay:9003", session: "jam", name: "Ada" }));
+    expect(localStorage.getItem("eth-collab-token")).toBe("secret");
 
     const avatar = screen.getByTestId("collab-peers").querySelector<HTMLElement>(".eth-collab__avatar")!;
     expect(avatar.textContent).toBe("MP");

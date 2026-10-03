@@ -4,9 +4,10 @@
  */
 
 import type { Widget, WidgetSize } from "@/generated";
-import { useParam } from "./context";
+import { useLayoutContext, useParam } from "./context";
 import { HardwareRoutingWidget } from "@/features/external";
 import { EqCurveWidget } from "./eq";
+import { IrWidget } from "./ir";
 import { MacrosWidget, MeterWidget, RackChainsWidget, SampleWaveformWidget, SpectrumWidget, TunerWidget } from "./widgets/data";
 import { ZoneMapWidget } from "./zones";
 import { ChoiceWidget, KnobWidget, NumberWidget, SliderWidget, ToggleWidget } from "./widgets/params";
@@ -49,6 +50,13 @@ function ParamWidgetView({ widget, size, label }: WidgetViewProps & { widget: Ex
   }
 }
 
+/** The device's waveform slot: the IR widget for a Convolution Reverb (`fx-space`). */
+function SampleWaveformView({ widget, size, label }: WidgetViewProps & { widget: Extract<Widget, { type: "SampleWaveform" }> }) {
+  const { device } = useLayoutContext();
+  if (device.kind.type === "Builtin" && device.kind.device.type === "ConvolutionReverb") return <IrWidget size={size} label={label} />;
+  return <SampleWaveformWidget widget={widget} size={size} label={label} />;
+}
+
 /** Render one catalog widget inside a `LayoutContext`. */
 export function WidgetView({ widget, size, label }: WidgetViewProps) {
   switch (widget.type) {
@@ -75,7 +83,7 @@ export function WidgetView({ widget, size, label }: WidgetViewProps) {
     case "Crossover":
       return <CrossoverWidget widget={widget} size={size} label={label} />;
     case "SampleWaveform":
-      return <SampleWaveformWidget widget={widget} size={size} label={label} />;
+      return <SampleWaveformView widget={widget} size={size} label={label} />;
     case "ZoneMap":
       return <ZoneMapWidget widget={widget} size={size} label={label} />;
     case "Spectrum":

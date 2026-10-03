@@ -16,7 +16,10 @@ export const MOTION = {
   zoomHalfLife: 0.03,
   panHalfLife: 0.03,
   scrollHalfLife: 0.025,
-  /** Zoom per pixel of wheel delta (exponential): a 100px mouse notch zooms by e^0.4 ≈ 1.5x. */
+  /**
+   * Zoom per pixel of smooth (trackpad) wheel delta, exponential. Mouse-wheel notches zoom by
+   * a fixed `NOTCH_ZOOM` instead (wheelInput.ts); the user scales both (Settings > Input).
+   */
   wheelZoomSensitivity: 0.004,
   /** Longest frame step (s): after a stall, don't jump the whole way at once. */
   maxFrameDt: 1 / 30,

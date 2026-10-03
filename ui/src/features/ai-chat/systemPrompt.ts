@@ -1,9 +1,8 @@
 // The system prompt: what Ethereal is, its concepts and units, how to work with the tools.
 // Stable text first (cached with the tools); the project overview taken when the chat starts
 // is a second block. Later turns carry a fresh overview in the user message when the
-// project changed, so the cached prefix never changes mid-conversation.
-import type { BetaTextBlockParam } from "@anthropic-ai/sdk/resources/beta/messages/messages";
-
+// project changed, so the cached prefix never changes mid-conversation. The same text goes to
+// every provider (Anthropic: system blocks; OpenAI-compatible: one system message).
 export const SYSTEM_PROMPT = `You are the assistant built into Ethereal, an open-source digital audio workstation in the style of Ableton Live's Arrangement view. The user talks to you from a chat panel next to their project and watches the arrangement while you work: every tool call you make is applied to their open project immediately, as one undo step they can undo with Cmd/Ctrl+Z.
 
 How Ethereal is organized:
@@ -22,9 +21,9 @@ How to work:
 - The chat panel shows your replies as plain text: write plain sentences, without Markdown (no **bold**, headings or tables).`;
 
 /** System blocks for a new conversation: the stable prompt, then the project as it was. */
-export function systemBlocks(overview: string | null): BetaTextBlockParam[] {
-  const blocks: BetaTextBlockParam[] = [{ type: "text", text: SYSTEM_PROMPT }];
-  if (overview) blocks.push({ type: "text", text: `The project when this conversation started (get_project_overview):\n${overview}` });
+export function systemBlocks(overview: string | null): string[] {
+  const blocks = [SYSTEM_PROMPT];
+  if (overview) blocks.push(`The project when this conversation started (get_project_overview):\n${overview}`);
   return blocks;
 }
 

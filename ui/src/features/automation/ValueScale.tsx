@@ -9,14 +9,12 @@
 import { useEffect, useMemo, useRef, type PointerEvent } from "react";
 import type { ParamInfo, TrackId } from "@/generated";
 import { setDragCursor } from "@/kit";
+import { inputSettings, isPinch, readWheel, wheelIntent, wheelScrollPx, wheelZoomFactorFor } from "@/timeline";
 import { TRACK_HEIGHT_STEP } from "@/features/arrangement/layout";
 import { LANE_PAD, valueToY } from "./geometry";
 import { formatNormalized } from "./params";
 import { useAutomationUi } from "./uiStore";
 import { isFullRange, scrollRange, stepLines, zoomRange, type ValueRange } from "./valueAxis";
-
-/** Wheel zoom per pixel of delta (exponential, like the timeline's). */
-const WHEEL_ZOOM = 0.004;
 
 interface ValueScaleProps {
   info: ParamInfo;
@@ -49,9 +47,16 @@ export function ValueScale({ info, range, height, name, onRange }: ValueScalePro
     if (!el) return;
     const onWheel = (e: WheelEvent) => {
       const { info: inf, range: r, height: h, onRange: set } = live.current;
-      const zoom = e.ctrlKey || e.metaKey;
-      // At full range a plain wheel scrolls the arrangement; only zooming is captured.
-      if (!zoom && isFullRange(r)) return;
+      // Same wheel settings as the timeline (Settings > Input): zoom like it, scroll like a list.
+      const settings = inputSettings();
+      const n = readWheel(e, el);
+      const pinch = isPinch(e);
+      const mods = { ctrlKey: e.ctrlKey, metaKey: e.metaKey, altKey: e.altKey, shiftKey: e.shiftKey, pinch };
+      const intent = wheelIntent(mods, n, settings, false);
+      const zoom = intent === "zoom";
+      // Horizontal scrolling is the arrangement's; at full range a plain wheel scrolls the
+      // arrangement too. Only zooming is captured then.
+      if (intent === "scrollX" || (!zoom && isFullRange(r))) return;
       e.preventDefault();
       e.stopPropagation();
       const usable = Math.max(1, h - 2 * LANE_PAD);
@@ -59,9 +64,10 @@ export function ValueScale({ info, range, height, name, onRange }: ValueScalePro
       if (zoom) {
         const box = el.getBoundingClientRect();
         const at = r.hi - ((e.clientY - box.top - LANE_PAD) / usable) * span;
-        set(zoomRange(r, Math.exp(e.deltaY * WHEEL_ZOOM), at, inf));
+        // zoomRange scales the span: the inverse of the zoom factor.
+        set(zoomRange(r, 1 / wheelZoomFactorFor(n.dy || n.dx, n.discrete, settings, pinch), at, inf));
       } else {
-        set(scrollRange(r, (-e.deltaY / usable) * span, inf));
+        set(scrollRange(r, (-wheelScrollPx(n.dy, "y", settings) / usable) * span, inf));
       }
     };
     el.addEventListener("wheel", onWheel, { passive: false });

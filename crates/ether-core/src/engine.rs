@@ -1207,6 +1207,7 @@ impl JobCtx<'_> {
             input_tap,
             taps,
             vca,
+            expression,
             ..
         } = track;
 
@@ -1256,7 +1257,14 @@ impl JobCtx<'_> {
             }
             if playing {
                 let end = tdesc.clips.partition_point(|c| c.start < b1);
-                for clip in &tdesc.clips[..end] {
+                let clips = &tdesc.clips[..end];
+                // MIDI expression (`crate::expression`, v0.3): lanes before the note-ons,
+                // note expressions of the sounding notes before their note-offs.
+                if flags.chase_notes {
+                    expression.reset();
+                }
+                expression.render_lanes(&tdesc.expression, clips, timing, sink.events);
+                for clip in clips {
                     if matches!(clip.content, ClipContentDesc::Midi { .. }) {
                         if flags.chase_notes {
                             sched::chase_notes(clip, timing, &mut sink);
@@ -1264,7 +1272,10 @@ impl JobCtx<'_> {
                         sched::schedule_notes(clip, timing, &mut sink);
                     }
                 }
+                expression.render_notes(&tdesc.expression, clips, timing, sink.notes, sink.events);
                 sink.end_notes(timing);
+            } else if flags.release_notes {
+                expression.stop(0, sink.events);
             }
         } else if flags.release_notes {
             notes.clear();

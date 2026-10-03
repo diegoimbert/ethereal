@@ -1,18 +1,20 @@
 import "./collab.css";
-import { useContext, useEffect, useState, type FormEvent } from "react";
+import { useContext, useEffect, useMemo, useState, type FormEvent } from "react";
 import type { Presence, PresenceState, SiteId } from "@/generated";
 import { Button, Dialog, openContextMenu, TextInput, Toggle } from "@/kit";
 import { useSelectionStore } from "@/state/selection";
 import { itemSelection } from "@/timeline/selection";
 import { cmd, TransportContext, type EngineTransport } from "@/transport";
+import { useEngineNotifications } from "@/features/notifications";
 import { HostingBadge, HostingSection, useHosting } from "./host";
+import { relayError, sessionNameError, tokenStorage } from "./joinFields";
 import { ListenBadge, ListenButton, listenMenuItems, useListenAgent } from "./listen";
 import { avatarStyle } from "./presence/avatar";
 import { nameOf, peerSummary, presenceV2Fields, setFollowing, useLocalPresence } from "./presence/local";
 import { ChatToasts } from "./social";
 import { highlightCss, initials, useCollabStore, useHideOthers } from "./store";
 
-/** Remembered join fields (never the token). */
+/** Remembered join fields (the token is kept apart: `tokenStorage`). */
 const FIELDS_KEY = "eth-collab-join";
 
 interface JoinFields {
@@ -37,6 +39,9 @@ function saveFields(f: JoinFields) {
     // storage unavailable: nothing to remember
   }
 }
+
+/** The session field accepts a few characters past the limit, so the inline error can show. */
+const SESSION_INPUT_MAX = 80;
 
 const describe = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
@@ -153,17 +158,45 @@ export function PresenceBar() {
   return <PresenceBarWith transport={ctx.transport} />;
 }
 
-function PresenceBarWith({ transport }: { transport: EngineTransport }) {
+/**
+ * The collaboration runtime for the Share control (base-115 `share-ui`): presence, listen,
+ * highlights, chat toasts and the relay dialog (opened from Settings > Advanced > Relay
+ * session with `setDialogOpen`). The relay button and chips show only during a relay session.
+ */
+export function CollabRuntime() {
+  const ctx = useContext(TransportContext);
+  if (!ctx) return null;
+  return <PresenceBarWith transport={ctx.transport} bar={false} />;
+}
+
+function PresenceBarWith({ transport, bar = true }: { transport: EngineTransport; bar?: boolean }) {
   const status = useCollabStore((s) => s.status);
   const peers = useCollabStore((s) => s.peers);
   const onEvent = useCollabStore((s) => s.onEvent);
-  const [open, setOpen] = useState(false);
+  const open = useCollabStore((s) => s.dialogOpen);
+  const setOpen = useCollabStore((s) => s.setDialogOpen);
   const [fields, setFields] = useState(loadFields);
   const [token, setToken] = useState("");
+  const [remember, setRemember] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** Inline errors show once a join was attempted (the session one also while typing). */
+  const [tried, setTried] = useState(false);
+  const tokens = useMemo(() => tokenStorage(transport), [transport]);
 
   useEffect(() => transport.onEvent(onEvent), [transport, onEvent]);
+  // base-114: the engine's notifications as toasts (shared stack, see ChatToasts).
+  useEngineNotifications(transport);
+  // The remembered token (never logged).
+  useEffect(() => {
+    let active = true;
+    void tokens.load().then((t) => {
+      if (active && t) setToken((cur) => cur || t);
+    });
+    return () => {
+      active = false;
+    };
+  }, [tokens]);
   useListenAgent(transport);
   // Current state after (re)connecting to an engine (it may already be in a session).
   useEffect(() => {
@@ -174,18 +207,19 @@ function PresenceBarWith({ transport }: { transport: EngineTransport }) {
   useHosting(transport, status.type === "Online" ? status.session : null);
 
   const inSession = status.type !== "Offline";
+  // As the Share control's runtime, the relay bar shows only during a relay session.
+  const showBar = bar || inSession;
   const join = async (e?: FormEvent) => {
     e?.preventDefault();
     const f = { server: fields.server.trim(), session: fields.session.trim(), name: fields.name.trim() };
-    if (!/^wss?:\/\//.test(f.server)) {
-      setError("Enter the relay address, such as ws://studio.local:9003");
-      return;
-    }
+    setTried(true);
+    if (relayError(f.server) || sessionNameError(f.session)) return;
     setBusy(true);
     setError(null);
     try {
       await transport.send(cmd("Collab", { type: "Join", server: f.server, session: f.session, token: token || null, name: f.name }));
       saveFields(f);
+      void tokens.save(remember && token ? token : null);
       setOpen(false);
     } catch (err) {
       setError(describe(err));
@@ -200,21 +234,26 @@ function PresenceBarWith({ transport }: { transport: EngineTransport }) {
 
   const label =
     status.type === "Online" ? `● ${status.session}` : status.type === "Connecting" ? `Connecting to ${status.session}…` : "Collab";
+  const sessionField = fields.session.trim();
+  const sessionProblem = tried || sessionField ? sessionNameError(sessionField) : null;
+  const relayProblem = tried ? relayError(fields.server.trim()) : null;
   return (
     <div className="eth-collab" data-feature="collab" data-status={status.type}>
-      <Button
-        size="sm"
-        active={status.type === "Online"}
-        aria-label="Collaboration"
-        aria-haspopup="dialog"
-        title={inSession ? "Collaboration session" : "Join or start a collaboration session"}
-        data-testid="collab-button"
-        onClick={() => setOpen(true)}
-      >
-        {label}
-      </Button>
-      <HostingBadge />
-      {peers.length > 0 && (
+      {showBar && (
+        <Button
+          size="sm"
+          active={status.type === "Online"}
+          aria-label="Collaboration"
+          aria-haspopup="dialog"
+          title={inSession ? "Collaboration session" : "Join or start a collaboration session"}
+          data-testid="collab-button"
+          onClick={() => setOpen(true)}
+        >
+          {label}
+        </Button>
+      )}
+      {showBar && <HostingBadge />}
+      {showBar && peers.length > 0 && (
         <span className="eth-collab__peers" aria-label="Participants" data-testid="collab-peers">
           {peers.map((p) => (
             <PeerChip key={p.site} peer={p} peers={peers} me={status.type === "Online" ? status.site : null} transport={transport} />
@@ -276,13 +315,33 @@ function PresenceBarWith({ transport }: { transport: EngineTransport }) {
                 placeholder="ws://host:port"
                 value={fields.server}
                 autoFocus
+                invalid={!!relayProblem}
+                aria-describedby={relayProblem ? "eth-collab-relay-error" : undefined}
                 onChange={(e) => setFields({ ...fields, server: e.target.value })}
               />
             </label>
+            {relayProblem && (
+              <p className="eth-collab__error eth-collab__field-error" id="eth-collab-relay-error" role="alert">
+                {relayProblem}
+              </p>
+            )}
             <label className="eth-collab__field">
               <span>Session</span>
-              <TextInput aria-label="Session" placeholder="my-song" value={fields.session} onChange={(e) => setFields({ ...fields, session: e.target.value })} />
+              <TextInput
+                aria-label="Session"
+                placeholder="my-song"
+                value={fields.session}
+                maxLength={SESSION_INPUT_MAX}
+                invalid={!!sessionProblem}
+                aria-describedby={sessionProblem ? "eth-collab-session-error" : undefined}
+                onChange={(e) => setFields({ ...fields, session: e.target.value })}
+              />
             </label>
+            {sessionProblem && (
+              <p className="eth-collab__error eth-collab__field-error" id="eth-collab-session-error" role="alert">
+                {sessionProblem}
+              </p>
+            )}
             <label className="eth-collab__field">
               <span>Your name</span>
               <TextInput aria-label="Your name" value={fields.name} onChange={(e) => setFields({ ...fields, name: e.target.value })} />
@@ -291,6 +350,14 @@ function PresenceBarWith({ transport }: { transport: EngineTransport }) {
               <span>Token</span>
               <TextInput aria-label="Token" type="password" autoComplete="off" value={token} onChange={(e) => setToken(e.target.value)} />
             </label>
+            <div className="eth-collab__remember">
+              <Toggle size="sm" checked={remember} onChange={setRemember} label="Remember" />
+              <p className="eth-collab__hint">
+                {tokens.where === "app"
+                  ? "Kept in Ethereal's app data folder on this computer."
+                  : "Kept in this browser's local storage: anyone using this browser profile can read it."}
+              </p>
+            </div>
             <p className="eth-collab__hint">
               The first participant shares the open project; others get a copy. Start a relay with <code>ether-collab-relay</code>, which prints its
               address and token.

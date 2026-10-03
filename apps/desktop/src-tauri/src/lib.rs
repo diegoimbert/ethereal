@@ -10,6 +10,8 @@
 //!   `messages`).
 //! - `ether_disconnect()`: drop the channels.
 //! - `engine_info()`: instance/data dir/audio diagnostics.
+//! - `take_deep_links()`: drains the `ethereal://` links received so far ([`deep_link`];
+//!   the shell emits `ether://deep-link` when one arrives).
 //! - `agent_bridge_status()` / `agent_bridge_set_enabled(enabled)`: the opt-in loopback
 //!   bridge for AI agents (`ether-mcp`), see [`agent_bridge`].
 //!
@@ -19,6 +21,7 @@
 //! as AppKit requires for plugin editor windows on macOS.
 
 pub mod agent_bridge;
+pub mod deep_link;
 pub mod instance;
 pub mod path_drop;
 
@@ -142,6 +145,11 @@ fn ether_send(host: tauri::State<'_, HostSlot>, message: ClientMessage) -> Resul
 }
 
 #[tauri::command]
+fn take_deep_links(inbox: tauri::State<'_, deep_link::DeepLinkInbox>) -> Vec<String> {
+    inbox.take()
+}
+
+#[tauri::command]
 fn ether_disconnect(bridge: tauri::State<'_, AgentBridgeState>) -> Result<(), String> {
     bridge.fanout.set_ui(None);
     Ok(())
@@ -160,6 +168,47 @@ fn agent_bridge_set_enabled(
 ) -> Result<AgentBridgeStatus, String> {
     bridge.set_enabled(host.get(), enabled)?;
     Ok(bridge.status())
+}
+
+/// base-114: file holding the remembered collaboration relay token (in the app data dir).
+const COLLAB_TOKEN_FILE: &str = "collab-token";
+
+/// The remembered collaboration token, if any. The token is never logged.
+#[tauri::command]
+fn collab_token_load(paths: tauri::State<'_, AppPaths>) -> Option<String> {
+    std::fs::read_to_string(paths.data_dir.join(COLLAB_TOKEN_FILE))
+        .ok()
+        .map(|t| t.trim().to_string())
+        .filter(|t| !t.is_empty())
+}
+
+/// Remember (or, with `None`/empty, forget) the collaboration token. Owner-only file on Unix.
+#[tauri::command]
+fn collab_token_save(
+    paths: tauri::State<'_, AppPaths>,
+    token: Option<String>,
+) -> Result<(), String> {
+    let path = paths.data_dir.join(COLLAB_TOKEN_FILE);
+    let token = token.unwrap_or_default();
+    if token.trim().is_empty() {
+        return match std::fs::remove_file(&path) {
+            Err(e) if e.kind() != std::io::ErrorKind::NotFound => {
+                Err("could not forget the token".into())
+            }
+            _ => Ok(()),
+        };
+    }
+    std::fs::create_dir_all(&paths.data_dir)
+        .map_err(|_| "could not create the app data folder".to_string())?;
+    let mut options = std::fs::OpenOptions::new();
+    options.write(true).create(true).truncate(true);
+    #[cfg(unix)]
+    std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
+    let mut f = options
+        .open(&path)
+        .map_err(|_| "could not remember the token".to_string())?;
+    std::io::Write::write_all(&mut f, token.trim().as_bytes())
+        .map_err(|_| "could not remember the token".to_string())
 }
 
 fn init_tracing() {
@@ -221,10 +270,21 @@ fn user_library_roots(app: &AppHandle) -> Vec<LibraryRoot> {
 pub fn run() {
     init_tracing();
 
-    let app = tauri::Builder::default()
+    let mut builder = tauri::Builder::default();
+    // A second launch (e.g. a clicked invite link) hands its URL to this instance instead of
+    // starting another app. Release builds only: dev instances (`ETHER_INSTANCE`) run side
+    // by side and never own the `ethereal://` scheme.
+    if !cfg!(debug_assertions) {
+        builder = builder.plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+            deep_link::focus_main(app);
+        }));
+    }
+    let app = builder
+        .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .manage(HostSlot::default())
+        .manage(deep_link::DeepLinkInbox::default())
         .setup(|app| {
             let instance = instance::instance_id();
             let data_dir = instance::app_data_dir(app.handle())?;
@@ -274,6 +334,8 @@ pub fn run() {
             if let Some(window) = app.get_webview_window("main") {
                 path_drop::install(app.handle(), &window);
             }
+            // `join-flow`: `ethereal://join/...` links reach the UI's join screen.
+            deep_link::install(app.handle());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -281,6 +343,9 @@ pub fn run() {
             ether_connect,
             ether_send,
             ether_disconnect,
+            collab_token_load,
+            collab_token_save,
+            take_deep_links,
             agent_bridge_status,
             agent_bridge_set_enabled
         ])

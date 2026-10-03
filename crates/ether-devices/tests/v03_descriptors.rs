@@ -23,6 +23,7 @@ const IMPLEMENTED: &[BuiltinDeviceType] = &[
     // (device nodes append here)
     BuiltinDeviceType::ExternalInstrument,
     BuiltinDeviceType::ExternalAudioEffect,
+    BuiltinDeviceType::ConvolutionReverb,
 ];
 
 /// Mock descriptor file per group (`ui/src/transport/mock/devices/<file>.json`), owned by

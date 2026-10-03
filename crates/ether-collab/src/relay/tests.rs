@@ -725,3 +725,73 @@ fn a_synced_site_learns_its_own_colour() {
         ["Snapshot", "Transaction", "Presence"]
     );
 }
+
+// ─── base-115 hub hooks (docs/SHARING.md §2.3) ──────────────────────────────────────────
+
+#[test]
+fn only_the_snapshot_source_creates_and_compacts() {
+    let mut r = Relay::new(RelayConfig {
+        compact_after: 2,
+        ..RelayConfig::default()
+    });
+    let mut out = Vec::new();
+    // A view-only joiner says hello first: it is never asked to create the session.
+    r.connect(1, "share").unwrap();
+    r.connect(2, "share").unwrap();
+    r.set_snapshot_source(2);
+    r.message(1, hello(1), &mut out).unwrap();
+    r.message(1, sync(1, None), &mut out).unwrap();
+    assert!(to(&out, 1).is_empty(), "not the snapshot source");
+    r.message(2, hello(2), &mut out).unwrap();
+    r.message(2, sync(2, None), &mut out).unwrap();
+    assert_eq!(kinds(&to(&out, 2)), ["SyncRequest"]);
+    r.message(2, snapshot(0), &mut out).unwrap();
+    assert_eq!(kinds(&to(&out, 1))[0], "Snapshot");
+    out.clear();
+    // Compaction asks the source even though conn 1 is older.
+    for seq in 1..=3 {
+        r.message(1, tx(1, seq), &mut out).unwrap();
+    }
+    let asked = |out: &[Outgoing], c| {
+        to(out, c)
+            .iter()
+            .any(|m| matches!(m, CollabMessage::SyncRequest { .. }))
+    };
+    assert!(asked(&out, 2) && !asked(&out, 1));
+    // The source left before creating: nobody else is asked.
+    out.clear();
+    r.disconnect(2, &mut out);
+    r.disconnect(1, &mut out);
+    r.connect(3, "share").unwrap();
+    r.connect(4, "share").unwrap();
+    r.set_snapshot_source(4);
+    r.message(3, hello(3), &mut out).unwrap();
+    r.message(3, sync(3, None), &mut out).unwrap();
+    r.disconnect(4, &mut out);
+    assert!(to(&out, 3).is_empty());
+}
+
+#[test]
+fn set_color_takes_a_free_colour_only() {
+    let mut r = Relay::default();
+    r.connect(1, "share").unwrap();
+    r.connect(2, "share").unwrap();
+    let c1 = r.color(1).unwrap();
+    assert!(!r.set_color(2, c1), "taken");
+    assert!(r.set_color(2, Color(0x123456)));
+    assert_eq!(r.color(2), Some(Color(0x123456)));
+    assert!(r.set_color(1, c1), "its own colour");
+    assert!(!r.set_color(9, c1), "unknown connection");
+    let mut out = Vec::new();
+    r.message(2, hello(2), &mut out).unwrap();
+    r.message(1, hello(1), &mut out).unwrap();
+    r.message(1, sync(1, None), &mut out).unwrap();
+    r.message(1, snapshot(0), &mut out).unwrap();
+    out.clear();
+    r.message(2, sync(2, None), &mut out).unwrap();
+    let own = to(&out, 2).into_iter().find_map(|m| match m {
+        CollabMessage::Presence { presence } if presence.site == SiteId(2) => Some(presence.color),
+        _ => None,
+    });
+    assert_eq!(own, Some(Color(0x123456)), "stamped with the set colour");
+}

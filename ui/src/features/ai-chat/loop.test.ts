@@ -1,29 +1,36 @@
+// The tool loop over the Anthropic adapter (SDK + scripted SSE). The OpenAI-compatible
+// adapter runs the same scenarios in providers/openai.test.ts.
 import type { BetaMessageParam } from "@anthropic-ai/sdk/resources/beta/messages/messages";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ToolOutcome } from "./agentApi";
-import { cappedResult, runTurn, STOPPED_RESULT, toApiTools, type LoopEvent, type TurnOptions } from "./loop";
+import { cappedResult, runTurn, STOPPED_RESULT, type LoopEvent, type TurnOptions } from "./loop";
+import { toolDefs } from "./providers";
+import { AnthropicSession, clientFactory, toApiTools } from "./providers/anthropic";
 import { fakeApi, fakeClient, type FakeApi } from "./testing";
 
-const TOOLS = toApiTools([
+const TOOLS = toolDefs([
   { name: "create_track", description: "Create a track", input_schema: JSON.stringify({ type: "object", properties: { kind: { type: "string" } }, required: ["kind"] }) },
   { name: "get_project_overview", description: "Overview", input_schema: "{}" },
 ]);
 
-function setup(api: FakeApi, callTool: TurnOptions["callTool"], extra: Partial<TurnOptions> = {}) {
+afterEach(() => vi.restoreAllMocks());
+
+function setup(api: FakeApi, callTool: TurnOptions["callTool"], extra: Partial<TurnOptions> & { model?: string } = {}) {
+  vi.spyOn(clientFactory, "create").mockImplementation((key) => fakeClient(api, key));
   const events: LoopEvent[] = [];
-  const messages: BetaMessageParam[] = [{ role: "user", content: "Make a bass track" }];
+  const session = new AnthropicSession(["system"], TOOLS);
+  session.addUser(["Make a bass track"]);
+  const messages = session.history;
   const abort = new AbortController();
+  const { model = "claude-sonnet-5-5", ...rest } = extra;
   const opts: TurnOptions = {
-    client: fakeClient(api),
-    model: "claude-sonnet-5-5",
-    system: [{ type: "text", text: "system" }],
-    tools: TOOLS,
-    messages,
+    session,
+    conn: { baseUrl: "https://api.anthropic.com", apiKey: "sk-ant-test-0000000000000000", model },
     maxIterations: 25,
     signal: abort.signal,
     callTool,
     onEvent: (e) => events.push(e),
-    ...extra,
+    ...rest,
   };
   return { opts, events, messages, abort };
 }
@@ -188,10 +195,12 @@ describe("runTurn", () => {
 
 describe("toApiTools", () => {
   it("parses input_schema JSON text and tolerates bad schemas", () => {
-    const [a, b] = toApiTools([
-      { name: "a", description: "A", input_schema: '{"type":"object","properties":{"x":{"type":"number"}}}' },
-      { name: "b", description: "B", input_schema: "not json" },
-    ]);
+    const [a, b] = toApiTools(
+      toolDefs([
+        { name: "a", description: "A", input_schema: '{"type":"object","properties":{"x":{"type":"number"}}}' },
+        { name: "b", description: "B", input_schema: "not json" },
+      ]),
+    );
     expect(a).toEqual({ name: "a", description: "A", input_schema: { type: "object", properties: { x: { type: "number" } } } });
     expect(b!.input_schema).toEqual({ type: "object" });
   });

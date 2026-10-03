@@ -12,6 +12,8 @@
  * - `invoke("ether_send", { message })` queues one `ClientMessage`; its reply arrives on
  *   `messages`, matched by `id`.
  * - `invoke("ether_disconnect")` drops the channels (on `dispose`).
+ * - `ethereal://` deep links (docs/SHARING.md §5): the shell emits `DEEP_LINK_EVENT` when one
+ *   arrives and `invoke("take_deep_links")` drains them (`onDeepLink`).
  *
  * `connect()` resolves with the current project. If the engine has none open yet (fresh
  * start), it opens the most recently saved project from the engine-side store, or creates
@@ -20,7 +22,7 @@
 
 import { Channel, invoke as tauriInvoke } from "@tauri-apps/api/core";
 import { listen as tauriListen } from "@tauri-apps/api/event";
-import { open as tauriOpen } from "@tauri-apps/plugin-dialog";
+import { open as tauriOpen, save as tauriSave } from "@tauri-apps/plugin-dialog";
 import type {
   ClientMessage,
   Command,
@@ -53,8 +55,18 @@ export type OpenDialogFn = (options: {
   filters: { name: string; extensions: string[] }[];
 }) => Promise<string | string[] | null>;
 
+/** `save` from `@tauri-apps/plugin-dialog` (injectable for tests). */
+export type SaveDialogFn = (options: {
+  title: string;
+  defaultPath?: string;
+  filters: { name: string; extensions: string[] }[];
+}) => Promise<string | null>;
+
 /** Shell event carrying OS paths dropped on the window (`apps/desktop/src-tauri`). */
 export const PATH_DROP_EVENT = "ether://path-drop";
+
+/** Shell event: an `ethereal://` link arrived (no payload; drain with `take_deep_links`). */
+export const DEEP_LINK_EVENT = "ether://deep-link";
 
 /** Extensions offered by the import dialog (the engine's audio formats). */
 export const AUDIO_DIALOG_EXTENSIONS = ["wav", "wave", "aif", "aiff", "aifc", "flac", "mp3", "ogg", "oga"] as const;
@@ -63,6 +75,7 @@ export interface TauriTransportOptions {
   invoke?: InvokeFn;
   listen?: ListenFn;
   openDialog?: OpenDialogFn;
+  saveDialog?: SaveDialogFn;
   createChannel?: <T>() => ChannelLike<T>;
   /** Name of the project created when the store is empty (default "Untitled"). */
   untitledName?: string;
@@ -100,6 +113,7 @@ export class TauriTransport implements EngineTransport {
   private readonly invoke: InvokeFn;
   private readonly listen: ListenFn;
   private readonly openDialog: OpenDialogFn;
+  private readonly saveDialog: SaveDialogFn;
   private readonly createChannel: <T>() => ChannelLike<T>;
   private readonly untitledName: string;
   private readonly events = new Emitter<Event>();
@@ -120,6 +134,7 @@ export class TauriTransport implements EngineTransport {
     this.invoke = options.invoke ?? ((cmd, args) => tauriInvoke(cmd, args));
     this.listen = options.listen ?? ((event, handler) => tauriListen(event, handler));
     this.openDialog = options.openDialog ?? ((o) => tauriOpen(o));
+    this.saveDialog = options.saveDialog ?? ((o) => tauriSave(o));
     this.createChannel = options.createChannel ?? (<T>() => new Channel<T>() as ChannelLike<T>);
     this.untitledName = options.untitledName ?? "Untitled";
   }
@@ -207,6 +222,40 @@ export class TauriTransport implements EngineTransport {
     };
   }
 
+  // ─── `join-flow`: `ethereal://` deep links (docs/SHARING.md §5) ─────────────────────────
+
+  /**
+   * `ethereal://` links opened with the app: the one it was started with (cold start) and
+   * every later one (warm start; a second launch hands its link to this instance). Each
+   * link is delivered once, oldest first.
+   */
+  onDeepLink(listener: (url: string) => void): Unsubscribe {
+    let off: (() => void) | null = null;
+    let cancelled = false;
+    let draining = Promise.resolve();
+    const drain = () => {
+      draining = draining
+        .then(() => (cancelled ? [] : this.invoke("take_deep_links")))
+        .then((urls) => {
+          if (cancelled || !Array.isArray(urls)) return;
+          for (const u of urls) if (typeof u === "string") listener(u);
+        })
+        .catch((e: unknown) => console.warn("[ethereal] deep links unavailable:", e));
+    };
+    this.listen<unknown>(DEEP_LINK_EVENT, drain)
+      .then((unlisten) => {
+        if (cancelled) unlisten();
+        else off = unlisten;
+      })
+      .catch((e: unknown) => console.warn("[ethereal] deep links unavailable:", e))
+      // Links that arrived before we listened (cold start).
+      .finally(drain);
+    return () => {
+      cancelled = true;
+      off?.();
+    };
+  }
+
   /** The OS file dialog for audio files: absolute paths, or `null` when dismissed. */
   async pickAudioFiles(): Promise<string[] | null> {
     const picked = await this.openDialog({
@@ -224,6 +273,43 @@ export class TauriTransport implements EngineTransport {
     const picked = await this.openDialog({ multiple: false, directory: true, title: "Search in folder", filters: [] });
     const path = Array.isArray(picked) ? picked[0] : picked;
     return typeof path === "string" ? path : null;
+  }
+
+  /**
+   * base-114: the OS save dialog for a project bundle: an absolute path ending in `.ether`
+   * (added when the dialog leaves it out), or `null` when dismissed. The engine writes it.
+   */
+  async pickBundleSavePath(defaultName: string): Promise<string | null> {
+    const path = await this.saveDialog({
+      title: "Export project",
+      defaultPath: defaultName,
+      filters: [{ name: "Ethereal project", extensions: ["ether"] }],
+    });
+    if (typeof path !== "string" || !path) return null;
+    return /\.ether$/i.test(path) ? path : `${path}.ether`;
+  }
+
+  /** base-114: the OS open dialog for a project bundle (absolute path), or `null`. */
+  async pickBundleFile(): Promise<string | null> {
+    const picked = await this.openDialog({
+      multiple: false,
+      directory: false,
+      title: "Import project",
+      filters: [{ name: "Ethereal project", extensions: ["ether"] }],
+    });
+    const path = Array.isArray(picked) ? picked[0] : picked;
+    return typeof path === "string" ? path : null;
+  }
+
+  /** base-114: the remembered collaboration token (app data dir, owner-only file). */
+  async loadCollabToken(): Promise<string | null> {
+    const token = await this.invoke("collab_token_load");
+    return typeof token === "string" && token ? token : null;
+  }
+
+  /** Remember (or forget, with `null`) the collaboration token. */
+  async saveCollabToken(token: string | null): Promise<void> {
+    await this.invoke("collab_token_save", { token });
   }
 
   dispose(): void {

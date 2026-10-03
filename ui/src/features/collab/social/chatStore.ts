@@ -4,6 +4,7 @@
 import { create } from "zustand";
 import type { ChatMessageId } from "@/generated";
 import { useShellStore } from "@/app/shell/shellStore";
+import { matchesAction } from "@/features/keymap";
 
 /** Toasts on screen at most (older ones are dropped). */
 export const MAX_TOASTS = 3;
@@ -64,5 +65,6 @@ export function returnFocus(): void {
 
 /** `Mod+Shift+M` (not Alt): the chat shortcut. */
 export function isChatShortcut(e: Pick<KeyboardEvent, "metaKey" | "ctrlKey" | "shiftKey" | "altKey" | "key" | "code">): boolean {
-  return (e.metaKey || e.ctrlKey) && e.shiftKey && !e.altKey && (e.code === "KeyM" || e.key.toLowerCase() === "m");
+  // keymap: `collab.focusChat` (default Mod+Shift+M).
+  return matchesAction("collab.focusChat", e);
 }

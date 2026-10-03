@@ -10,7 +10,8 @@
 //! - Worklet → Worker: [`EngineReport`] (playhead, max-held meters, diagnostics; compact
 //!   binary encoded into a reused buffer so the audio thread doesn't allocate),
 //!   [`REPORT_ANALYSIS`] device analysis frames (`fx-analysis`, [`encode_analysis_into`])
-//!   and [`REPORT_ERROR`] text messages (compile errors etc.).
+//!   [`REPORT_LATENCY`] node latency changes (`web-latency`, [`crate::latency`]) and
+//!   [`REPORT_ERROR`] text messages (compile errors etc.).
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -31,6 +32,12 @@ const GRAPH_FRAME_RESERVE: usize = 64 * 1024;
 const TAG_MEDIA_BEGIN: u8 = b'B';
 const TAG_MEDIA_CHUNK: u8 = b'C';
 const TAG_MEDIA_END: u8 = b'D';
+/// `audio-streaming`: one channel of a streamed chunk (see [`encode_stream_chunk`]).
+const TAG_STREAM_CHUNK: u8 = b'S';
+/// [`Frame::StreamChunk`] flags: first frame of the chunk (claims the slot), last one
+/// (publishes it).
+pub const STREAM_BEGIN: u8 = 1;
+pub const STREAM_END: u8 = 2;
 /// Samples per media chunk frame (64 KiB of `f32`).
 pub const MEDIA_CHUNK_SAMPLES: usize = 16 * 1024;
 /// `media-preview`: the reserved media id preview audio is shipped under (the ordinary
@@ -86,6 +93,24 @@ pub enum EngineMsg {
         key: NodeKey,
         on: bool,
     },
+    /// v0.3 (`audio-streaming`): register a streamed media: allocate its chunk cache
+    /// (`slots` chunks of `CHUNK_FRAMES` frames, `frames` long at the engine rate) and add
+    /// it as the media's source. Chunks follow as [`Frame::StreamChunk`]s
+    /// ([`crate::media_stream`]).
+    StreamOpen {
+        media: MediaId,
+        channels: u16,
+        frames: u64,
+        slots: u32,
+    },
+    /// v0.3 (`fx-space`): a data-only change of a live built-in (sampler slices,
+    /// multisampler zones, convolution reverb IR; `EngineBridge::update_builtin`). The
+    /// Worklet builds the node data from `device` and its sources and hands it to the node
+    /// (`Node::set_data`), so the change doesn't re-create the node (no click).
+    UpdateBuiltin {
+        key: NodeKey,
+        device: BuiltinDevice,
+    },
 }
 
 /// The JSON-encoded subset of [`EngineMsg`].
@@ -120,6 +145,16 @@ enum JsonMsg {
     WatchAnalysis {
         key: NodeKey,
         on: bool,
+    },
+    StreamOpen {
+        media: MediaId,
+        channels: u16,
+        frames: u64,
+        slots: u32,
+    },
+    UpdateBuiltin {
+        key: NodeKey,
+        device: BuiltinDevice,
     },
 }
 
@@ -168,6 +203,18 @@ impl EngineMsg {
             EngineMsg::Preview { id, media, gain } => JsonMsg::Preview { media, gain, id },
             EngineMsg::NodeScale { key, scale } => JsonMsg::NodeScale { key, scale },
             EngineMsg::WatchAnalysis { key, on } => JsonMsg::WatchAnalysis { key, on },
+            EngineMsg::StreamOpen {
+                media,
+                channels,
+                frames,
+                slots,
+            } => JsonMsg::StreamOpen {
+                media,
+                channels,
+                frames,
+                slots,
+            },
+            EngineMsg::UpdateBuiltin { key, device } => JsonMsg::UpdateBuiltin { key, device },
         };
         let mut out = vec![TAG_JSON];
         serde_json::to_writer(&mut out, &json).expect("engine messages serialize");
@@ -197,6 +244,17 @@ pub enum Frame<'a> {
     MediaEnd {
         media: MediaId,
     },
+    /// `audio-streaming`: channel `channel` of chunk `chunk`, for cache slot `slot`.
+    StreamChunk {
+        media: MediaId,
+        slot: u32,
+        chunk: u64,
+        channel: u16,
+        /// [`STREAM_BEGIN`] | [`STREAM_END`].
+        flags: u8,
+        /// `CHUNK_FRAMES` `f32` LE samples.
+        samples: &'a [u8],
+    },
 }
 
 impl<'a> Frame<'a> {
@@ -224,6 +282,23 @@ impl<'a> Frame<'a> {
                 })
             }
             TAG_MEDIA_END => Ok(Frame::MediaEnd { media: c.media()? }),
+            TAG_STREAM_CHUNK => {
+                let media = c.media()?;
+                let slot = c.u32()?;
+                let chunk = c.u64()?;
+                let channel = c.u16()?;
+                let flags = c.u8()?;
+                let count = c.u32()? as usize;
+                let samples = c.take(count * 4)?;
+                Ok(Frame::StreamChunk {
+                    media,
+                    slot,
+                    chunk,
+                    channel,
+                    flags,
+                    samples,
+                })
+            }
             TAG_GRAPH => Ok(Frame::Msg(EngineMsg::Publish {
                 graph: Box::new(BinaryCodec.decode(rest)?),
             })),
@@ -247,6 +322,20 @@ impl<'a> Frame<'a> {
                     JsonMsg::Preview { media, gain, id } => EngineMsg::Preview { id, media, gain },
                     JsonMsg::NodeScale { key, scale } => EngineMsg::NodeScale { key, scale },
                     JsonMsg::WatchAnalysis { key, on } => EngineMsg::WatchAnalysis { key, on },
+                    JsonMsg::StreamOpen {
+                        media,
+                        channels,
+                        frames,
+                        slots,
+                    } => EngineMsg::StreamOpen {
+                        media,
+                        channels,
+                        frames,
+                        slots,
+                    },
+                    JsonMsg::UpdateBuiltin { key, device } => {
+                        EngineMsg::UpdateBuiltin { key, device }
+                    }
                 }))
             }
             t => Err(DecodeError::Tag(t)),
@@ -285,6 +374,43 @@ fn encode_media(media: MediaId, audio: &DecodedAudio) -> Vec<Vec<u8>> {
     end.extend_from_slice(&id);
     out.push(end);
     out
+}
+
+// [S][media u128][slot u32][chunk u64][channel u16][flags u8][count u32][count x f32 LE]
+/// `audio-streaming`: one frame per channel of a decoded chunk (`channels[c]`).
+pub fn encode_stream_chunk(
+    media: MediaId,
+    slot: u32,
+    chunk: u64,
+    channels: &[Vec<f32>],
+) -> Vec<Vec<u8>> {
+    let id = media.0.0.to_le_bytes();
+    let n = channels.len();
+    channels
+        .iter()
+        .enumerate()
+        .map(|(c, data)| {
+            let mut flags = 0;
+            if c == 0 {
+                flags |= STREAM_BEGIN;
+            }
+            if c + 1 == n {
+                flags |= STREAM_END;
+            }
+            let mut f = Vec::with_capacity(1 + 16 + 4 + 8 + 2 + 1 + 4 + data.len() * 4);
+            f.push(TAG_STREAM_CHUNK);
+            f.extend_from_slice(&id);
+            f.extend_from_slice(&slot.to_le_bytes());
+            f.extend_from_slice(&chunk.to_le_bytes());
+            f.extend_from_slice(&(c as u16).to_le_bytes());
+            f.push(flags);
+            f.extend_from_slice(&(data.len() as u32).to_le_bytes());
+            for s in data {
+                f.extend_from_slice(&s.to_le_bytes());
+            }
+            f
+        })
+        .collect()
 }
 
 struct Cursor<'a>(&'a [u8]);
@@ -383,6 +509,9 @@ pub const REPORT_STATE: u8 = b'R';
 pub const REPORT_ERROR: u8 = b'E';
 /// Tag of an analysis frame (Worklet → Worker; `fx-analysis`).
 pub const REPORT_ANALYSIS: u8 = b'A';
+/// Tag of a node latency report (Worklet → Worker; `web-latency`,
+/// [`crate::latency::LatencyReport`]).
+pub const REPORT_LATENCY: u8 = b'L';
 
 // [A][node index u32][node generation u32][kind u8][len u16][len x f32 LE]; the node key is
 // the Worker's virtual key.
@@ -577,9 +706,44 @@ mod tests {
                 } => asm.chunk(media, channel, offset, samples).unwrap(),
                 Frame::MediaEnd { media } => done = asm.end(media).map(|a| (media, a)),
                 Frame::Msg(m) => panic!("unexpected {m:?}"),
+                Frame::StreamChunk { .. } => panic!("unexpected stream chunk"),
             }
         }
         done
+    }
+
+    #[test]
+    fn stream_messages_roundtrip() {
+        let media = MediaId(Ulid(0x5EED));
+        let open = EngineMsg::StreamOpen {
+            media,
+            channels: 2,
+            frames: 48_000 * 600,
+            slots: 26,
+        };
+        assert_eq!(decode_one(&open), open);
+        let chans = vec![vec![0.25f32; 8], vec![-0.5f32; 8]];
+        let frames = encode_stream_chunk(media, 3, 77, &chans);
+        assert_eq!(frames.len(), 2);
+        for (c, f) in frames.iter().enumerate() {
+            match Frame::decode(f).unwrap() {
+                Frame::StreamChunk {
+                    media: m,
+                    slot,
+                    chunk,
+                    channel,
+                    flags,
+                    samples,
+                } => {
+                    assert_eq!((m, slot, chunk, channel as usize), (media, 3, 77, c));
+                    let want = if c == 0 { STREAM_BEGIN } else { STREAM_END };
+                    assert_eq!(flags, want);
+                    assert_eq!(samples.len(), 8 * 4);
+                    assert_eq!(&samples[..4], &chans[c][0].to_le_bytes());
+                }
+                other => panic!("{other:?}"),
+            }
+        }
     }
 
     #[test]

@@ -72,6 +72,7 @@ pub fn track_param_info(target: &AutomationTarget) -> Option<ParamInfo> {
     };
     Some(ParamInfo {
         step: None,
+        remote: None,
         id: ParamId(0),
         name: name.into(),
         group: None,

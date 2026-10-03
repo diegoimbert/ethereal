@@ -14,7 +14,7 @@ import { fileURLToPath } from "node:url";
 import { expect, test, type Page } from "@playwright/test";
 import type { Clip, Project } from "@/generated";
 import { openClip } from "./clips";
-import { createTrack, playButton } from "./ui";
+import { createTrack, openRelayJoin, playButton } from "./ui";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const TOKEN = `e2e-${Math.random().toString(36).slice(2)}`;
@@ -80,7 +80,7 @@ async function open(page: Page): Promise<void> {
 }
 
 async function join(page: Page, name: string) {
-  await page.getByTestId("collab-button").click();
+  await openRelayJoin(page);
   await page.getByLabel("Relay address").fill(relayUrl);
   await page.getByLabel("Session").fill(SESSION);
   await page.getByLabel("Your name").fill(name);
@@ -159,8 +159,9 @@ test("chat, pinned notes, peers' playheads and 'Hide users and notes' through a 
   await b.keyboard.press("Escape");
 
   // --- A note in the piano roll (the open clip's content coordinates).
-  // The chat pane floats over the lanes: close it first.
-  await a.getByRole("button", { name: "Chat", exact: true }).click();
+  // The chat pane floats over the lanes: close it first (an arranger click may already
+  // have collapsed it).
+  await closeLeftPane(a);
   await openClip(a, clip.id);
   const grid = a.getByTestId("piano-roll-grid");
   await expect(grid).toBeVisible();
@@ -170,7 +171,7 @@ test("chat, pinned notes, peers' playheads and 'Hide users and notes' through a 
   await a.getByTestId("note-input").fill("Ghost note on the 'and' of 2");
   await a.getByTestId("note-input").press("Enter");
   await expect(a.getByTestId("editor-notes").getByTestId("pinned-note")).toHaveCount(1);
-  await b.getByRole("button", { name: "Chat", exact: true }).click();
+  await closeLeftPane(b);
   await openClip(b, clip.id);
   await expect(b.getByTestId("editor-notes").getByTestId("pinned-note")).toHaveCount(1, { timeout: 10_000 });
   const pinned = Object.values((await project(b))!.pinned_notes);
@@ -212,3 +213,10 @@ test("chat, pinned notes, peers' playheads and 'Hide users and notes' through a 
   await ctxB.close();
   expect(errors.filter((e) => /panicked|RuntimeError|unreachable/.test(e))).toEqual([]);
 });
+
+/** Closes the floating left pane if it is open (its rail button toggles it). */
+async function closeLeftPane(page: Page): Promise<void> {
+  const pane = page.locator('section[data-pane="left"]');
+  if (await pane.isVisible()) await page.getByRole("button", { name: "Chat", exact: true }).click();
+  await expect(pane).toBeHidden();
+}

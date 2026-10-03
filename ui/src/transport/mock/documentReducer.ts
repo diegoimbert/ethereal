@@ -40,6 +40,7 @@ import { BEATS_EPSILON, snapBeats } from "@/state/beats";
 import { compareOrderKeys, keyBetween, keyForInsert } from "@/state/orderKey";
 import { CommandFailedError } from "../EngineTransport";
 import { BUILTIN_DESCRIPTORS, builtinDescriptor, clampParam } from "./builtinDevices";
+import { mockPluginDescriptor, mockPluginInstance } from "./plugins";
 import { defaultParams, defaultTrackName, makeClip, makeTrack, MOCK_TRACK_COLORS } from "./demoProject";
 import { isRoadmapDocumentCommand, reduceRoadmapCommand } from "./roadmap";
 import { groupsTrackCommand } from "./roadmap/groupsBuses";
@@ -52,6 +53,12 @@ import { copyRackExtras, copyTrackRackExtras, onDeviceDeletedRacks } from "./roa
 import { swingOffset } from "./roadmap/groove";
 import { onDeviceDeleted, onSendDeleted, onTrackDeleted } from "./roadmap/shared";
 import { setSidechain } from "./roadmap/sidechain";
+import {
+  copyClipExpression,
+  copyNoteExpressions,
+  deleteClipExpression,
+  deleteNoteExpressions,
+} from "./roadmap/expression";
 import { bpmAt, tempoPointAt, signaturePointAt } from "./tempo";
 import type { Tx } from "./tx";
 
@@ -194,6 +201,15 @@ function deleteLanesWhere(ctx: ReducerContext, pred: (l: AutomationLane) => bool
 }
 
 function deleteClipCascade(ctx: ReducerContext, id: ClipId): void {
+  // v0.3 (midi-expression): lanes and note expressions go with the clip.
+  deleteNoteExpressions(
+    ctx.tx,
+    ctx.tx
+      .all("Note")
+      .filter((n) => n.clip === id)
+      .map((n) => n.id),
+  );
+  deleteClipExpression(ctx.tx, id);
   for (const n of ctx.tx.all("Note")) if (n.clip === id) ctx.tx.remove("Note", n.id);
   for (const m of ctx.tx.all("WarpMarker")) if (m.clip === id) ctx.tx.remove("WarpMarker", m.id);
   deleteLanesWhere(ctx, (l) => l.owner.type === "Clip" && l.owner.clip === id);
@@ -245,7 +261,13 @@ function copyClip(ctx: ReducerContext, src: Clip, newId: ClipId, overrides: Part
   if (ctx.tx.get("Clip", newId)) fail("InvalidArgument", `clip ${newId} already exists`);
   const copy: Clip = { ...src, ...overrides, id: newId };
   ctx.tx.upsert("Clip", copy);
-  for (const n of ctx.tx.all("Note")) if (n.clip === src.id) ctx.tx.upsert("Note", { ...n, id: ctx.newId(), clip: newId });
+  for (const n of ctx.tx.all("Note")) {
+    if (n.clip !== src.id) continue;
+    const id = ctx.newId();
+    ctx.tx.upsert("Note", { ...n, id, clip: newId });
+    copyNoteExpressions(ctx, n.id, id);
+  }
+  copyClipExpression(ctx, src.id, newId);
   for (const m of ctx.tx.all("WarpMarker")) {
     if (m.clip === src.id) ctx.tx.upsert("WarpMarker", { ...m, id: ctx.newId(), clip: newId });
   }
@@ -512,7 +534,23 @@ function deviceCommand(ctx: ReducerContext, c: DeviceCommand): ReplyValue {
     case "Insert": {
       if (tx.get("Device", c.id)) fail("InvalidArgument", `device ${c.id} already exists`);
       const t = track(ctx, c.track);
-      if (c.device.type === "Plugin") fail("Unsupported", "plugins are not available in the mock engine");
+      if (c.device.type === "Plugin") {
+        // Only the fake plugins of `./plugins.ts` (e.g. the 10,000-param "Mock Mega").
+        const desc = mockPluginDescriptor(c.device.plugin_id);
+        if (!desc) fail("Unsupported", "plugins are not available in the mock engine");
+        tx.upsert("Device", {
+          id: c.id,
+          track: t.id,
+          order: keyForInsert(chainOf(ctx, t.id), c.before),
+          name: desc.name,
+          enabled: true,
+          kind: { type: "Plugin", plugin: mockPluginInstance(c.device.plugin_id, c.device.format ?? "Clap") },
+          params: {},
+          sidechain: null,
+          pad: null,
+        });
+        break;
+      }
       const kind: Device["kind"] = { type: "Builtin", device: c.device.device };
       checkDeviceFits(t, kind);
       tx.upsert("Device", {
@@ -560,7 +598,10 @@ function deviceCommand(ctx: ReducerContext, c: DeviceCommand): ReplyValue {
       break;
     case "SetParam": {
       const d = device(ctx, c.device);
-      const info = d.kind.type === "Builtin" ? builtinDescriptor(d.kind.device).params.find((p) => p.id === c.param) : undefined;
+      const info =
+        d.kind.type === "Builtin"
+          ? builtinDescriptor(d.kind.device).params.find((p) => p.id === c.param)
+          : mockPluginDescriptor(d.kind.plugin.plugin_id)?.params.find((p) => p.id === c.param);
       if (d.kind.type === "Builtin" && !info) fail("NotFound", `param ${c.param} of device ${d.id}`);
       const value = info ? clampParam(info, c.value) : c.value;
       tx.upsert("Device", { ...d, params: { ...d.params, [c.param]: value } });
@@ -600,7 +641,11 @@ function deviceCommand(ctx: ReducerContext, c: DeviceCommand): ReplyValue {
       return { type: "DeviceTypes", devices: Object.values(BUILTIN_DESCRIPTORS) };
     case "GetDescriptor": {
       const d = device(ctx, c.device);
-      if (d.kind.type !== "Builtin") fail("Unsupported", "plugins are not available in the mock engine");
+      if (d.kind.type !== "Builtin") {
+        const desc = mockPluginDescriptor(d.kind.plugin.plugin_id);
+        if (!desc) fail("Unsupported", "plugins are not available in the mock engine");
+        return { type: "Descriptor", descriptor: desc };
+      }
       return { type: "Descriptor", descriptor: builtinDescriptor(d.kind.device) };
     }
   }
@@ -824,6 +869,7 @@ function noteCommand(ctx: ReducerContext, c: NoteCommand): void {
     case "Remove":
       for (const id of c.ids) {
         note(ctx, id);
+        deleteNoteExpressions(tx, [id]);
         tx.remove("Note", id);
       }
       break;
@@ -866,6 +912,7 @@ function noteCommand(ctx: ReducerContext, c: NoteCommand): void {
           start: Math.max(0, n.start + c.offset),
           pitch: clamp(n.pitch + c.transpose, 0, 127),
         });
+        copyNoteExpressions(ctx, cp.from, cp.new_id);
       }
       break;
   }

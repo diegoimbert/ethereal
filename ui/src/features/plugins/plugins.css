@@ -113,3 +113,92 @@
   font-weight: bold;
   cursor: help;
 }
+
+/* Settings > Plugins (base-129): plugin folders. */
+.eth-plugin-folders {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-md);
+  font-size: var(--eth-fs-sm);
+  min-width: 0;
+}
+.eth-plugin-folders__note {
+  margin: 0;
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-sm);
+}
+.eth-plugin-folders__error {
+  margin: 0;
+  color: var(--eth-color-danger);
+  font-size: var(--eth-fs-sm);
+}
+.eth-plugin-folders__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-xs);
+  min-width: 0;
+}
+.eth-plugin-folders__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--eth-space-sm);
+}
+.eth-plugin-folders__heading {
+  margin: 0;
+  font-size: var(--eth-fs-sm);
+  font-weight: var(--eth-fw-medium);
+}
+.eth-plugin-folders__add {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--eth-space-xs);
+}
+.eth-plugin-folders__add svg {
+  width: var(--eth-size-icon-sm);
+  height: var(--eth-size-icon-sm);
+}
+.eth-plugin-folders__list {
+  list-style: none;
+  margin: 0;
+  padding: var(--eth-space-xs);
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-xs);
+  background: var(--eth-color-bg-inset);
+  border: var(--eth-border-width) solid var(--eth-color-border);
+  border-radius: var(--eth-radius-sm);
+}
+.eth-plugin-folders__list--defaults[data-off] {
+  opacity: 0.5;
+}
+.eth-plugin-folders__row {
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-sm);
+  min-width: 0;
+}
+.eth-plugin-folders__path {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--eth-font-mono);
+  font-size: var(--eth-fs-xs);
+}
+.eth-plugin-folders__missing {
+  color: var(--eth-color-text-disabled);
+  font-size: var(--eth-fs-xs);
+  white-space: nowrap;
+}
+.eth-plugin-folders__scan {
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-xs);
+  flex-wrap: wrap;
+}
+.eth-plugin-folders__status {
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+}

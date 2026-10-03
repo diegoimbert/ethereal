@@ -9,7 +9,10 @@ import { AUTOSAVE_MS, ProjectMenu } from "./index";
 import { useProjectScreen } from "./screenStore";
 
 const store = () => useProjectStore.getState();
-const names = () => store().projects.map((p) => p.name).sort();
+const names = () =>
+  store()
+    .projects.map((p) => p.name)
+    .sort();
 
 afterEach(() => {
   resetStores();

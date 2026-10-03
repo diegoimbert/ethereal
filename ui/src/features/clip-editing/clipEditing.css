@@ -38,9 +38,25 @@
   background: var(--eth-color-text);
   border: var(--eth-border-width) solid var(--eth-color-bg);
   pointer-events: auto;
-  z-index: 1;
+  /* Above the clip's edge resize handles (z-index 1): near a corner, the fade wins. */
+  z-index: 2;
   opacity: 0;
   transition: opacity var(--eth-duration-fast) var(--eth-ease-standard);
+}
+
+/* Invisible grab area around the small visible dot, so the fade handles are easy to catch
+   next to the clip edges instead of the resize strip. */
+.eth-clip-fades__handle::before,
+.eth-clip-fades__curve::before {
+  content: "";
+  position: absolute;
+  inset: calc(-1 * var(--eth-space-md));
+}
+
+/* The handle under the pointer lights up (the resize strip no longer does). */
+.eth-clip-fades__handle:hover,
+.eth-clip-fades__curve:hover {
+  background: var(--eth-color-selection);
 }
 
 .eth-clip-fades__handle {

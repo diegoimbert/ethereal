@@ -96,6 +96,13 @@ pub struct NativeBridge {
     hw_midi_io: Option<ether_core::hw_io::HwIoIo>,
     hw_midi: Option<hw_midi::HwMidiOut>,
     hw_routes: Arc<hw_midi::Routes>,
+    /// `audio-streaming`: the shared disk reader thread (started with the first stream).
+    disk: Option<crate::disk_stream::DiskStreams>,
+    /// `audio-streaming`: the last published graph while media are streamed (anchors,
+    /// locate targets), and a `SetLoop` override of its loop.
+    stream_graph: Option<RenderGraphDesc>,
+    /// `audio-streaming` on (default; `ETHER_DISK_STREAMING=0` turns it off).
+    disk_streaming: bool,
 }
 
 impl NativeBridge {
@@ -126,6 +133,10 @@ impl NativeBridge {
             hw_midi_io,
             hw_midi: None,
             hw_routes: Default::default(),
+            disk: None,
+            stream_graph: None,
+            disk_streaming: !std::env::var("ETHER_DISK_STREAMING")
+                .is_ok_and(|v| v == "0" || v == "off"),
         }
     }
 
@@ -156,6 +167,55 @@ impl NativeBridge {
                 Ok(t) => self.hw_midi = Some(t),
                 Err(e) => tracing::warn!(error = %e, "could not start the hardware MIDI thread"),
             }
+        }
+    }
+
+    /// `audio-streaming`: stream long media from disk (on by default) or decode them whole
+    /// (v0.2). Applies to media loaded from now on.
+    pub fn set_disk_streaming(&mut self, enabled: bool) {
+        self.disk_streaming = enabled;
+    }
+
+    /// `audio-streaming`: media currently streamed from disk (tests/diagnostics).
+    pub fn streamed_media(&self) -> Vec<MediaId> {
+        self.disk.as_ref().map_or_else(Vec::new, |d| {
+            self.sources
+                .keys()
+                .copied()
+                .filter(|m| d.get(*m).is_some())
+                .collect()
+        })
+    }
+
+    /// `audio-streaming`: the stream cache of `media`, if streamed (tests/diagnostics).
+    pub fn stream_cache(&self, media: MediaId) -> Option<Arc<ether_media::stream::StreamCache>> {
+        self.disk.as_ref()?.get(media).map(|s| s.cache.clone())
+    }
+
+    /// `audio-streaming`: re-derive the anchors of every stream from the last graph.
+    fn update_stream_anchors(&mut self) {
+        let (Some(disk), Some(graph)) = (self.disk.as_mut(), self.stream_graph.as_ref()) else {
+            return;
+        };
+        let frames = |m: MediaId| disk.frames(m);
+        let anchors = ether_media::stream::anchors::anchors(graph, self.sample_rate, &frames);
+        disk.set_anchors(anchors);
+    }
+
+    /// `audio-streaming`: make sure what plays at `beat` is decoded before the engine jumps
+    /// there (bounded wait on the controller thread).
+    fn prime_streams_at(&mut self, beat: f64) {
+        let (Some(disk), Some(graph)) = (self.disk.as_ref(), self.stream_graph.as_ref()) else {
+            return;
+        };
+        if disk.is_empty() {
+            return;
+        }
+        let frames = |m: MediaId| disk.frames(m);
+        let targets =
+            ether_media::stream::anchors::positions_at(graph, beat, self.sample_rate, &frames);
+        if !disk.prime(targets, crate::disk_stream::PRIME_TIMEOUT) {
+            tracing::debug!(beat, "stream prime timed out");
         }
     }
 
@@ -327,6 +387,30 @@ impl EngineBridge for NativeBridge {
             let set = ether_devices::multisampler::zone_set(kind, &Sources(&self.sources));
             self.handle
                 .set_node_data(entry.key, Box::new(set))
+                .map_err(engine_err)?;
+            return Ok(true);
+        }
+        // v0.3 (`fx-space`): a new IR, read and partitioned here (off the audio thread);
+        // the node crossfades to it.
+        if let BuiltinDevice::ConvolutionReverb { .. } = kind {
+            let Some(entry) = self.devices.get(&device) else {
+                return Ok(false);
+            };
+            if !matches!(
+                entry.kind,
+                DeviceKind::Builtin(BuiltinDeviceType::ConvolutionReverb)
+            ) {
+                return Ok(false);
+            }
+            let Some(data) = ether_devices::fx_space::ir_swap(
+                kind,
+                &Sources(&self.sources),
+                self.prepare.sample_rate,
+            ) else {
+                return Ok(false);
+            };
+            self.handle
+                .set_node_data(entry.key, data)
                 .map_err(engine_err)?;
             return Ok(true);
         }
@@ -510,6 +594,9 @@ impl EngineBridge for NativeBridge {
     }
 
     fn unload_media(&mut self, media: MediaId) -> Result<(), BridgeError> {
+        if let Some(disk) = self.disk.as_mut() {
+            disk.remove(media);
+        }
         if self.sources.remove(&media).is_some() {
             self.handle.remove_source(media).map_err(engine_err)?;
         }
@@ -519,6 +606,12 @@ impl EngineBridge for NativeBridge {
     fn publish(&mut self, graph: RenderGraphDesc) -> Result<(), BridgeError> {
         self.stream.observe_graph(&graph);
         self.route_hw_midi(&graph);
+        if self.disk.as_ref().is_some_and(|d| !d.is_empty()) {
+            self.stream_graph = Some(graph.clone());
+            self.update_stream_anchors();
+        } else {
+            self.stream_graph = None;
+        }
         self.handle.publish(graph).map_err(engine_err)
     }
 
@@ -528,7 +621,54 @@ impl EngineBridge for NativeBridge {
 
     fn transport(&mut self, control: TransportControl) -> Result<(), BridgeError> {
         self.stream.observe_transport(&control);
+        // `audio-streaming`: decode the jump target first; keep the loop anchor current.
+        match &control {
+            TransportControl::Locate { position } => self.prime_streams_at(position.0),
+            TransportControl::Play => {
+                let at = self.handle.playhead().position.0;
+                self.prime_streams_at(at);
+            }
+            TransportControl::SetLoop { enabled, region } => {
+                if let Some(g) = self.stream_graph.as_mut() {
+                    g.loop_enabled = *enabled;
+                    g.loop_start = region.start.0;
+                    g.loop_end = region.end.0;
+                    self.update_stream_anchors();
+                }
+            }
+            _ => {}
+        }
         self.handle.transport(control).map_err(engine_err)
+    }
+
+    /// `audio-streaming` (CONTRACTS.md §13.1): stream long media from disk
+    /// ([`crate::disk_stream`]). `ETHER_DISK_STREAMING=0` turns it off (whole-file decode,
+    /// as v0.2).
+    fn stream_media(
+        &mut self,
+        source: &ether_controller::media_stream::StreamSource,
+    ) -> Result<bool, BridgeError> {
+        if !self.disk_streaming {
+            return Ok(false);
+        }
+        let id = source.media.id;
+        // Replacing a stream (reload at another rate, relink): drop the old one first.
+        let _ = self.unload_media(id);
+        let root = self.audio.recording.projects_root();
+        let disk = self
+            .disk
+            .get_or_insert_with(crate::disk_stream::DiskStreams::new);
+        let info = disk
+            .open(source, root.as_deref(), self.sample_rate)
+            .map_err(|e| BridgeError::Other(e.to_string()))?;
+        let src: Arc<dyn AudioSource> = info.cache;
+        if let Err(e) = self.handle.add_source(id, src.clone()) {
+            disk.remove(id);
+            return Err(engine_err(e));
+        }
+        self.sources.insert(id, src);
+        self.update_stream_anchors();
+        Ok(true)
     }
 
     fn poll(&mut self, out: &mut EngineOutputs) {
@@ -1176,6 +1316,25 @@ mod tests {
         b.create_builtin(s, &BuiltinDevice::Compressor, &[])
             .unwrap();
         assert_eq!(b.update_builtin(s, &ms(1)), Ok(false));
+    }
+
+    #[test]
+    fn convolution_ir_updates_in_place() {
+        use ether_core::protocol::model::IrSource;
+        let (mut b, _engine) = bridge();
+        let d = DeviceId(Ulid(9));
+        let reverb = |id: Option<&str>| BuiltinDevice::ConvolutionReverb {
+            ir: id.map(|id| IrSource::Factory { id: id.into() }),
+        };
+        let key = b.create_builtin(d, &reverb(Some("room")), &[]).unwrap();
+        assert_eq!(b.update_builtin(d, &reverb(Some("hall"))), Ok(true));
+        assert_eq!(b.update_builtin(d, &reverb(None)), Ok(true));
+        assert_eq!(b.node_of(d), Some(key), "same node");
+        // A reverb kind sent for another device type is refused.
+        let s = DeviceId(Ulid(10));
+        b.create_builtin(s, &BuiltinDevice::Compressor, &[])
+            .unwrap();
+        assert_eq!(b.update_builtin(s, &reverb(Some("hall"))), Ok(false));
     }
 
     #[test]

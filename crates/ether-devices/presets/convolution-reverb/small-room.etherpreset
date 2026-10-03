@@ -1,0 +1,41 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.3.0",
+  "preset": {
+    "name": "Small Room",
+    "device": {
+      "type": "Builtin",
+      "device": "ConvolutionReverb"
+    },
+    "meta": {
+      "tags": [
+        "room",
+        "drums",
+        "short"
+      ],
+      "author": "Ethereal",
+      "description": "Tight room ambience for drums and percussion."
+    },
+    "params": {
+      "0": 25.0,
+      "1": 0.0,
+      "2": 100.0,
+      "3": 100.0,
+      "4": 150.0,
+      "5": 12000.0,
+      "6": 100.0,
+      "7": 0.0,
+      "8": 0.0
+    },
+    "kind": {
+      "type": "ConvolutionReverb",
+      "ir": {
+        "type": "Factory",
+        "id": "room"
+      }
+    },
+    "samples": [],
+    "state": null
+  }
+}
