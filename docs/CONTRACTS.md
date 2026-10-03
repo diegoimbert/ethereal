@@ -704,6 +704,31 @@ Design: docs/COLLAB.md §12. Additive; the tables ship with `.ether` v4 (contrac
   `CollabEvent::ChatReceived { ids }`. Until `collab-social` lands, `Chat::*` and
   `PinnedNote::*` reply `Unsupported` (`ether-controller/tests/social_prewire.rs`).
 
+### 11.18 Sharing: P2P host hub, invite links (base-115)
+Design: docs/SHARING.md (T1, owner review). Additive and append-only:
+- Protocol (`ether_protocol::share`): `Command::Share(ShareCommand)` (`Get`, `SetIdentity`,
+  `SetServers`, host `Start`/`Stop`/`ResetLink`/`RemoveParticipant`/`SetParticipantRole`,
+  joiner `OpenInvite`/`AcceptInvite`/`Leave`/`Reconnect`/`Detach`, web `PeerSignal`) and
+  `Event::Share { event: ShareEvent }` (`State { ShareState }`, `Notice`, web
+  `PeerEndpoint`/`PeerSignal`). `ShareState` = `Off | Hosting | Joining { JoinStage } |
+  Joined`; `Participant`, `ParticipantRole` (Host/Edit/Listen), `ShareRole` (Edit/Listen),
+  `InvitePreview`. `ProjectSummary::share: Option<ProjectShareInfo>` (omitted when `None`).
+  Signaling wire `SignalClientMessage`/`SignalServerMessage` (`SIGNAL_PROTOCOL_VERSION` 1)
+  and the data-channel handshake `PeerHandshake` (`SHARE_PROTOCOL_VERSION` 1), both exported
+  to TS. Until their nodes land every `Share::*` but `Get` (reports `Off`) replies
+  `Unsupported` (`ether-controller/tests/share_prewire.rs`).
+- `ether-collab::share`: invite link format (`invite`, implemented; TS mirror
+  `ui/src/domain/invite.ts`, same vectors), data-channel fragmentation (`dc`, implemented),
+  `share.json` shape (`file`), and the node seams `PeerLink`, `SignalLink`, `PeerEndpoint`
+  (`PeerOutput::Connected` carries both DTLS fingerprints), `ShareServices`
+  (`default_services()` fails cleanly until `p2p-transport`). The hub is the existing `Relay`.
+- `services/signal/`: Cloudflare Worker + Durable Object skeleton (routes, origin checks,
+  frame validation, limits; room logic by `signal-service`), a pnpm workspace package.
+- Mock: `MockShare` (`ui/src/transport/mock/roadmap/share.ts`) simulates hosting, joining,
+  participants and the host going offline, so UI nodes start now.
+- Workspace deps added (unused until their nodes): `sha2`, `tauri-plugin-deep-link`,
+  `tauri-plugin-single-instance`.
+
 ## 12. v0.2 contracts (contracts-3)
 
 Frozen for the v0.2 nodes; per-node files, hook points and shared touches are in

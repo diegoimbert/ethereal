@@ -184,6 +184,8 @@ where
             Command::Template(c) => self.template_command(c, now, out),
             Command::Version(c) => self.version_command(c, now, out),
             Command::Keymap(c) => self.keymap_command(c, out),
+            // base-115 (docs/SHARING.md).
+            Command::Share(c) => self.share_command(c, out),
             other => Err(internal(format!(
                 "unhandled command {}",
                 doc::label_of(other)

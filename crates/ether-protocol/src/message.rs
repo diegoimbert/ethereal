@@ -33,6 +33,7 @@ use crate::presets::{PresetCommand, PresetEvent, PresetInfo};
 use crate::project::{EditCommand, ProjectCommand, ProjectEvent, ProjectSummary};
 use crate::racks::{ModulationCommand, ModulatorDescriptor, RackCommand};
 use crate::recording::{InputList, RecordingCommand, RecordingEvent};
+use crate::share::{ShareCommand, ShareEvent};
 use crate::social::{ChatCommand, PinnedNoteCommand};
 use crate::takes::TakeCommand;
 use crate::templates::{TemplateCommand, TemplateEvent, TemplateInfo};
@@ -121,6 +122,9 @@ pub enum Command {
     Version(VersionCommand),
     /// User keymap storage (`keymap`).
     Keymap(KeymapCommand),
+    // --- base-115 (sharing, docs/SHARING.md) ---
+    /// Share / join: P2P host hub, invite links (not a document command).
+    Share(ShareCommand),
 }
 
 /// Engine → UI. `Reply` answers exactly one `ClientMessage`; `Event`s are pushed;
@@ -386,6 +390,11 @@ pub enum Event {
     },
     Keymap {
         event: KeymapEvent,
+    },
+    // --- base-115 ---
+    /// Sharing state, notices and the web UI peer endpoint (docs/SHARING.md).
+    Share {
+        event: ShareEvent,
     },
     /// User-facing message (toast).
     Notification {
