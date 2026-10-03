@@ -164,14 +164,18 @@ export async function openEngineServer(page: Page): Promise<void> {
   await expect(page.getByLabel("Server address")).toBeVisible();
 }
 
-/** Creates and opens a new, empty project from the project screen (Projects button). */
+/**
+ * Creates and opens a new, empty project from the project screen (Projects button, or the
+ * screen already shown on launch, base-131).
+ */
 export async function newProject(page: Page, name: string): Promise<void> {
-  await page.getByRole("button", { name: "Projects" }).click();
   const screen = page.getByRole("dialog", { name: "Projects" });
+  if (!(await screen.isVisible())) await page.getByRole("button", { name: "Projects" }).click();
   await screen.getByRole("button", { name: "New project" }).click();
   await screen.getByLabel("New project name").fill(name);
   await screen.getByRole("button", { name: "Create" }).click();
   await expect(page.getByTestId("project-name")).toHaveText(name);
+  await expect(screen).toHaveCount(0);
 }
 
 /** The project screen (a dialog named "Projects"). */

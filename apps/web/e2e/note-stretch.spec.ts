@@ -10,7 +10,7 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import type { Project } from "@/generated";
 import { openClip } from "./clips";
-import { createTrack, newProject } from "./ui";
+import { createTrack, launch } from "./ui";
 
 test.use({ viewport: { width: 1440, height: 900 }, colorScheme: "dark" });
 
@@ -75,10 +75,7 @@ test("note stretch: drag the ruler bar's right edge to double the selected secti
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
 
-  await page.goto("/");
-  await expect(page.getByRole("button", { name: "Play" })).toBeVisible({ timeout: 30_000 });
-  await expect.poll(() => project(page).then((p) => p !== null), { timeout: 30_000 }).toBe(true);
-  await newProject(page, `Note stretch ${Date.now()}`);
+  await launch(page, `Note stretch ${Date.now()}`);
 
   // --- A one-bar MIDI clip with notes at beats 0 and 2 ---------------------------------------
   const t = await createTrack(page, "Midi");

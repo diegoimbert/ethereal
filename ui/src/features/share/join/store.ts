@@ -14,6 +14,8 @@ interface JoinStore {
   queue: QueuedInvite[];
   /** "Join with a link…" dialog. */
   pasteOpen: boolean;
+  /** The join screen is showing (base-131: the launch project screen steps aside). */
+  screenShown: boolean;
   enqueue(invite: QueuedInvite): void;
   take(): QueuedInvite[];
   setPasteOpen(open: boolean): void;
@@ -22,6 +24,7 @@ interface JoinStore {
 export const useJoinStore = create<JoinStore>((set, get) => ({
   queue: [],
   pasteOpen: false,
+  screenShown: false,
   enqueue: (invite) => set((s) => ({ queue: [...s.queue, invite] })),
   take: () => {
     const q = get().queue;
@@ -38,6 +41,9 @@ export const useJoinStore = create<JoinStore>((set, get) => ({
 export function openInvite(link: string, onDelivered?: () => void): void {
   useJoinStore.getState().enqueue({ link, onDelivered });
 }
+
+/** Whether the join screen is showing. */
+export const useJoinScreenShown = (): boolean => useJoinStore((s) => s.screenShown);
 
 /** Show the "Join with a link…" dialog (Share popover, command palette). */
 export function openJoinWithLink(): void {

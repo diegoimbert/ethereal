@@ -5,7 +5,7 @@
 // the cheat sheet prints.
 import { expect, test, type Page } from "@playwright/test";
 import type { Project, TransportState } from "@/generated";
-import { createTrack, newProject, playButton } from "./ui";
+import { createTrack, playButton, launch, openOnLaunch } from "./ui";
 
 interface Handle {
   state(): { project: Project | null; transport: TransportState | null };
@@ -56,9 +56,7 @@ test("keymap: rebind, conflicts, persistence, Ableton-like preset, cheat sheet",
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
 
-  await page.goto("/");
-  await expect(playButton(page)).toBeVisible({ timeout: 30_000 });
-  await newProject(page, `Keymap ${Date.now()}`);
+  await launch(page, `Keymap ${Date.now()}`);
   await createTrack(page, "Midi");
 
   // Defaults unchanged: Space plays/stops.
@@ -104,7 +102,8 @@ test("keymap: rebind, conflicts, persistence, Ableton-like preset, cheat sheet",
 
   // Stored by the engine in the user library: a reload keeps it.
   await page.reload();
-  await expect(playButton(page)).toBeVisible({ timeout: 30_000 });
+  // base-131: nothing opens on launch; reopen the project from Recents.
+  await openOnLaunch(page);
   await expect(playButton(page)).toHaveAttribute("title", "Play (P)");
   await openEditor(page);
   await expect(row(page, "transport.metronome").locator("kbd")).toHaveText(["Alt+M"]);

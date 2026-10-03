@@ -7,7 +7,7 @@
 // node, the Worker never heard about the change and the latency stayed at its first value.
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import type { Project } from "@/generated";
-import { addDevice, createTrack, newProject, openDeviceTab, playButton } from "./ui";
+import { addDevice, createTrack, openDeviceTab, launch } from "./ui";
 
 interface Handle {
   state(): { project: Project | null };
@@ -55,10 +55,7 @@ test("a Gate lookahead change republishes delay compensation in the browser", as
     if (m.type() === "error") errors.push(m.text());
   });
 
-  await page.goto("/");
-  await expect(playButton(page)).toBeVisible({ timeout: 30_000 });
-  await expect.poll(() => project(page).then((p) => p !== null), { timeout: 30_000 }).toBe(true);
-  await newProject(page, `Web Latency ${Date.now()}`);
+  await launch(page, `Web Latency ${Date.now()}`);
 
   const audio = await createTrack(page, "Audio");
   await openDeviceTab(page, audio.name);

@@ -122,7 +122,7 @@ export class MockShare {
             type: "Ready",
             invite: {
               host: { name: "Mock host", color: MOCK_HOST_COLOR },
-              project: this.host.project().id,
+              project: this.inviteProject(),
               project_name: "Shared song",
               role,
               online: [{ name: "Mock host", color: MOCK_HOST_COLOR }],
@@ -209,6 +209,15 @@ export class MockShare {
 
   private mockHost(): Participant {
     return { member: null, site: "2", name: "Mock host", color: MOCK_HOST_COLOR, role: "Host", online: true, you: false, last_seen_ms: null };
+  }
+
+  /** The invite's project: the open one, or a stand-in when none is open (base-131 launch). */
+  private inviteProject(): string {
+    try {
+      return this.host.project().id;
+    } catch {
+      return "mock-shared-project";
+    }
   }
 
   private requireHosting(): Extract<ShareState, { type: "Hosting" }> {

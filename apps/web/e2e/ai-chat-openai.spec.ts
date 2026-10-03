@@ -10,7 +10,7 @@ import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { expect, test, type Page, type Route } from "@playwright/test";
 import type { Project } from "@/generated";
-import { newProject } from "./ui";
+import { launch } from "./ui";
 
 interface Handle {
   state(): { project: Project | null };
@@ -133,9 +133,7 @@ test("ai-chat (OpenAI-compatible): the scripted conversation edits the arrangeme
   });
   const api = await stubOpenAi(page);
 
-  await page.goto("/");
-  await expect(page.getByRole("button", { name: "Play", exact: true })).toBeVisible({ timeout: 30_000 });
-  await newProject(page, `AI chat OpenAI ${Date.now()}`);
+  await launch(page, `AI chat OpenAI ${Date.now()}`);
   await expect.poll(async () => Object.keys((await project(page)).clips).length).toBe(0);
   const before = new Set(Object.keys((await project(page)).tracks));
 
@@ -198,9 +196,7 @@ for (const theme of ["dark", "light"] as const) {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.addInitScript((t) => localStorage.setItem("eth-theme", t), theme);
     await stubOpenAi(page);
-    await page.goto("/");
-    await expect(page.getByRole("button", { name: "Play", exact: true })).toBeVisible({ timeout: 30_000 });
-    await newProject(page, `AI chat shots ${Date.now()}`);
+    await launch(page, `AI chat shots ${Date.now()}`);
     await palette(page, "Ask AI");
     const panel = page.getByTestId("ai-chat-panel");
     await panel.getByRole("combobox", { name: "Provider" }).click();

@@ -3,7 +3,7 @@
 //   TEMPLATES_SHOTS=/tmp/shots npx playwright test templates
 import { expect, test, type Page } from "@playwright/test";
 import type { Project, Track } from "@/generated";
-import { addDevice, createTrack, openDeviceTab, playButton } from "./ui";
+import { addDevice, createTrack, openDeviceTab, launch, openOnLaunch } from "./ui";
 
 interface Handle {
   state(): { project: Project | null };
@@ -14,9 +14,7 @@ const project = (page: Page): Promise<Project> => page.evaluate(() => (window as
 async function start(page: Page, theme?: string) {
   await page.setViewportSize({ width: 1440, height: 900 });
   if (theme) await page.addInitScript((t) => localStorage.setItem("eth-theme", t), theme);
-  await page.goto("/");
-  await expect(playButton(page)).toBeVisible({ timeout: 30_000 });
-  await expect.poll(() => project(page).then((p) => p !== null), { timeout: 15_000 }).toBe(true);
+  await launch(page);
 }
 
 const header = (page: Page, name: string) => page.getByRole("group", { name: `${name} track`, exact: true });
@@ -52,7 +50,8 @@ test("save a track as a template and insert it (one undo step), across a reload"
   await page.keyboard.press("ControlOrMeta+s");
   await expect(page.getByRole("status", { name: "Unsaved changes" })).toBeHidden();
   await page.reload();
-  await expect(playButton(page)).toBeVisible({ timeout: 30_000 });
+  // base-131: nothing opens on launch; reopen the project from Recents.
+  await openOnLaunch(page);
   await expect.poll(async () => (await project(page))?.tracks[lead.id] !== undefined, { timeout: 15_000 }).toBe(true);
   const before = await project(page);
   await trackMenu(page, lead.name, "Insert Track Template…");

@@ -7,7 +7,7 @@
 // `RACK_PRESETS_THEME=dark|light`): the preset menu of the rack, and the rack after loading.
 import { expect, test, type Page } from "@playwright/test";
 import type { Device, Project } from "@/generated";
-import { addDevice, createTrack, newProject, openDeviceTab, openLibrary, playButton } from "./ui";
+import { addDevice, createTrack, openDeviceTab, openLibrary, launch } from "./ui";
 
 interface Handle {
   state(): { project: Project | null };
@@ -70,10 +70,7 @@ test("rack presets: load a factory rack with chains, undo, save and reload it on
   });
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.addInitScript((t) => localStorage.setItem("eth-theme", t), theme);
-  await page.goto("/");
-  await expect(playButton(page)).toBeVisible({ timeout: 30_000 });
-  await expect.poll(() => project(page).then((p) => p !== null), { timeout: 30_000 }).toBe(true);
-  await newProject(page, `Rack presets ${Date.now()}`);
+  await launch(page, `Rack presets ${Date.now()}`);
 
   const rack = await instrumentRack(page);
   const card = page.locator(`section[data-device="${rack.id}"]`);
@@ -138,10 +135,7 @@ test("rack presets: a factory rack preset loads from the library browser", async
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   await page.setViewportSize({ width: 1440, height: 900 });
-  await page.goto("/");
-  await expect(playButton(page)).toBeVisible({ timeout: 30_000 });
-  await expect.poll(() => project(page).then((p) => p !== null), { timeout: 30_000 }).toBe(true);
-  await newProject(page, `Rack presets browser ${Date.now()}`);
+  await launch(page, `Rack presets browser ${Date.now()}`);
   // The new track is selected: the browser loads presets onto its matching device.
   const rack = await instrumentRack(page);
 

@@ -12,7 +12,7 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import type { Project } from "@/generated";
 import { openClip } from "./clips";
-import { createTrack, newProject, pickOption, selectTrack, setNumberField } from "./ui";
+import { createTrack, pickOption, selectTrack, setNumberField, launch } from "./ui";
 
 const shots = process.env.MPE_SHOTS;
 test.use({ viewport: { width: 1440, height: 900 }, colorScheme: "dark" });
@@ -48,10 +48,7 @@ test("mpe: track settings, per-note pitch and timbre curves", async ({ page }) =
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
 
-  await page.goto("/");
-  await expect(page.getByRole("button", { name: "Play", exact: true })).toBeVisible({ timeout: 30_000 });
-  await expect.poll(() => project(page).then((p) => p !== null), { timeout: 30_000 }).toBe(true);
-  await newProject(page, `MPE ${Date.now()}`);
+  await launch(page, `MPE ${Date.now()}`);
 
   // --- MPE settings in the inspector ---------------------------------------------------------
   const midi = await createTrack(page, "Midi");

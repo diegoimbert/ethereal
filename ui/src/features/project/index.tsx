@@ -5,6 +5,7 @@ import "./project.css";
 import { useEffect, useRef } from "react";
 import { Menu } from "lucide-react";
 import { matchesAction } from "@/features/keymap";
+import { useJoinScreenShown } from "@/features/share/join";
 import { TemplateDialogs } from "@/features/templates";
 import { useEngineCommands, useOptionalConnection } from "@/features/transport-bar/engine";
 import { Button } from "@/kit";
@@ -68,6 +69,12 @@ export function ProjectMenu() {
     if (launchPending && name !== null) useProjectScreen.setState({ launchPending: false, open: true });
   }, [launchPending, name]);
   useLaunchBookkeeping(transport);
+  // A join (an invite link, possibly the one the app was launched with) replaces the
+  // project screen: joining opens the shared project.
+  const joinShown = useJoinScreenShown();
+  useEffect(() => {
+    if (joinShown && open) useProjectScreen.getState().hide();
+  }, [joinShown, open]);
 
   // Autosave: once there are unsaved changes and no edit for AUTOSAVE_MS (every document
   // revision restarts the wait).

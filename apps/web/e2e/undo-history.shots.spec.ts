@@ -1,15 +1,14 @@
 // Screenshots of the History panel for the PR (not part of the regular suite):
 // `UNDO_HISTORY_SHOTS=<dir> npx playwright test undo-history.shots`.
 import { expect, test, type Page } from "@playwright/test";
-import { createTrack, newProject } from "./ui";
+import { createTrack, launch } from "./ui";
 
 const dir = process.env.UNDO_HISTORY_SHOTS;
 test.skip(!dir, "set UNDO_HISTORY_SHOTS=<dir> to capture");
 test.use({ viewport: { width: 1440, height: 900 } });
 
 async function scene(page: Page) {
-  await page.goto("/");
-  await newProject(page, "Verse ideas");
+  await launch(page, "Verse ideas");
   const a = await createTrack(page, "Midi");
   await createTrack(page, "Midi");
   const c = await createTrack(page, "Midi");

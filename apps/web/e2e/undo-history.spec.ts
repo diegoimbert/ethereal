@@ -3,7 +3,7 @@
 // the keyboard show up while the panel is open.
 import { expect, test, type Page } from "@playwright/test";
 import type { Project } from "@/generated";
-import { createTrack, newProject } from "./ui";
+import { createTrack, launch } from "./ui";
 
 interface Handle {
   state(): { project: Project | null };
@@ -21,9 +21,7 @@ test("History tab: list, jump, checkpoints", async ({ page }) => {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
 
-  await page.goto("/");
-  await expect(page.getByRole("button", { name: "Play" })).toBeVisible({ timeout: 30_000 });
-  await newProject(page, "History e2e");
+  await launch(page, "History e2e");
 
   const panel = page.locator('[data-feature="undo-history"]');
   const list = panel.getByRole("list", { name: "Undo history" });

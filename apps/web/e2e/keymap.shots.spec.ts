@@ -1,7 +1,7 @@
 // Screenshots of the keymap editor and cheat sheet for the PR (not part of the regular
 // suite): `KEYMAP_SHOTS=<dir> npx playwright test keymap.shots`.
 import { expect, test, type Page } from "@playwright/test";
-import { createTrack, newProject, playButton } from "./ui";
+import { createTrack, createOnLaunch } from "./ui";
 
 const dir = process.env.KEYMAP_SHOTS;
 test.skip(!dir, "set KEYMAP_SHOTS=<dir> to capture");
@@ -15,8 +15,7 @@ async function open(page: Page, theme: "dark" | "light") {
   await page.evaluate((t) => {
     document.documentElement.dataset.theme = t;
   }, theme);
-  await expect(playButton(page)).toBeVisible({ timeout: 30_000 });
-  await newProject(page, "Keymap demo");
+  await createOnLaunch(page, "Keymap demo");
   await createTrack(page, "Midi");
   await page.keyboard.press("ControlOrMeta+k");
   await page.getByRole("combobox", { name: "Search commands" }).fill("keyboard shortcuts");
