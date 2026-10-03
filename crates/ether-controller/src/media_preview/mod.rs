@@ -24,6 +24,13 @@
 //!
 //! Hosts whose bridge doesn't support previews reply `Unsupported` to both commands (the
 //! engine is asked to stop first, which is how support is probed).
+//!
+//! **Tempo sync** (v0.2, `browser-v2` shared touch: `Browser::Preview { sync }`). A
+//! [`PreviewSync`] repitches the preview by `ratio` (project bpm / item bpm): the decode is
+//! resampled to `engine rate / ratio` and handed to the engine labelled with the engine
+//! rate, so it plays `ratio` times faster (repitch, like a warp in Repitch mode). With
+//! `align`, while the transport plays, the audio is delayed by silence to the next beat at
+//! hand-off (from the last polled playhead and the tempo map). The engine voice is unchanged.
 
 use std::collections::VecDeque;
 use std::sync::Arc;
@@ -31,7 +38,7 @@ use std::sync::Arc;
 use ether_core::protocol::media::{
     BrowseLocation, MediaCommand, MediaEvent, MediaSource, PreviewEndReason,
 };
-use ether_core::protocol::model::ProjectId;
+use ether_core::protocol::model::{Beats, ProjectId};
 use ether_core::protocol::model::file::MEDIA_DIR;
 use ether_core::protocol::{CommandError, ErrorCode, Event, NotificationLevel, ReplyValue};
 use ether_media::{DecodedAudio, MediaError};
@@ -68,6 +75,8 @@ struct Job {
     key: CacheKey,
     /// Source frames to decode at most.
     cap: u64,
+    /// The engine rate the result is labelled with (differs from `key.rate` when synced).
+    play_rate: u32,
 }
 
 struct Current {
@@ -76,6 +85,17 @@ struct Current {
     name: String,
     /// Still decoding (`None` once handed to the engine).
     job: Option<Job>,
+    /// Start on the next beat if the transport plays at hand-off.
+    align: bool,
+}
+
+/// Tempo sync of a preview (`Browser::Preview { sync: true }`).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct PreviewSync {
+    /// Playback speed (project bpm / item bpm; 1 = unchanged).
+    pub ratio: f64,
+    /// Delay the start to the next beat while the transport plays.
+    pub align: bool,
 }
 
 /// Preview runtime state (one field on `EtherController`).
@@ -155,7 +175,9 @@ fn advance(mut job: Job, budget: usize, rate: u32) -> Result<Progress, MediaErro
                 let done = r.step(budget as usize)?;
                 budget = 0;
                 if done {
-                    return Ok(Progress::Done(job.key, Arc::new(r.finish())));
+                    let mut audio = r.finish();
+                    audio.sample_rate = job.play_rate;
+                    return Ok(Progress::Done(job.key, Arc::new(audio)));
                 }
                 Stage::Resample(r)
             }
@@ -178,7 +200,7 @@ where
         out: &mut dyn MessageSink,
     ) -> CmdResult<ReplyValue> {
         match c {
-            MediaCommand::Preview { source } => self.start_preview(source, out)?,
+            MediaCommand::Preview { source } => self.start_preview(source, None, out)?,
             _ => {
                 let id = self.preview.current.as_ref().map_or(0, |c| c.id);
                 self.bridge.preview(id, None, 0.0).map_err(bridge_err)?;
@@ -203,8 +225,22 @@ where
         self.step_preview(out);
     }
 
-    fn start_preview(&mut self, source: &MediaSource, out: &mut dyn MessageSink) -> CmdResult<()> {
-        let rate = self.config.engine_sample_rate;
+    /// Start a preview (`sync`: tempo sync, see the module docs).
+    pub(crate) fn start_preview(
+        &mut self,
+        source: &MediaSource,
+        sync: Option<PreviewSync>,
+        out: &mut dyn MessageSink,
+    ) -> CmdResult<()> {
+        let play_rate = self.config.engine_sample_rate;
+        let ratio = sync.map_or(1.0, |s| s.ratio);
+        let align = sync.is_some_and(|s| s.align);
+        // Resample to `play_rate / ratio`, then play at `play_rate`.
+        let rate = if (ratio - 1.0).abs() < 1e-9 {
+            play_rate
+        } else {
+            ((play_rate as f64 / ratio).round() as u32).max(1)
+        };
         let project = match source {
             MediaSource::Location {
                 location: BrowseLocation::Library { .. },
@@ -241,6 +277,7 @@ where
                     stage: Stage::Decode(Box::new(decoder)),
                     key,
                     cap,
+                    play_rate,
                 };
                 (name, Err(job))
             }
@@ -251,6 +288,7 @@ where
             Ok(audio) => {
                 // Cached: straight to the engine (this replaces the playing one, with a
                 // crossfade).
+                let audio = self.preview_aligned(audio, align);
                 self.bridge
                     .preview(id, Some(audio), PREVIEW_GAIN)
                     .map_err(bridge_err)?;
@@ -260,6 +298,7 @@ where
                     source: source.clone(),
                     name,
                     job: None,
+                    align,
                 });
                 event(
                     out,
@@ -277,6 +316,7 @@ where
                     source: source.clone(),
                     name,
                     job: Some(job),
+                    align,
                 });
                 self.step_preview(out);
             }
@@ -355,11 +395,14 @@ where
             return;
         };
         let (id, name, source) = (current.id, current.name.clone(), current.source.clone());
+        let align = current.align;
         let budget = self.config.media_frames_per_tick;
-        match advance(job, budget, self.config.engine_sample_rate) {
+        let rate = job.key.rate;
+        match advance(job, budget, rate) {
             Ok(Progress::Pending(job)) => current.job = Some(job),
             Ok(Progress::Done(key, audio)) => {
-                match self.bridge.preview(id, Some(audio.clone()), PREVIEW_GAIN) {
+                let played = self.preview_aligned(audio.clone(), align);
+                match self.bridge.preview(id, Some(played), PREVIEW_GAIN) {
                     Ok(()) => {
                         self.preview.remember(key, audio);
                         event(
@@ -374,6 +417,41 @@ where
             }
             Err(e) => self.fail_preview(&name, &e.to_string(), out),
         }
+    }
+
+    /// `audio` delayed to the next beat when `align` and the transport plays (silence
+    /// prepended; see the module docs). Off the beat grid by less than 1 ms = no delay.
+    fn preview_aligned(&self, audio: Arc<DecodedAudio>, align: bool) -> Arc<DecodedAudio> {
+        let pad = match (&self.doc, align && self.transport.playing) {
+            (Some(doc), true) => {
+                let tempo = doc.project.tempo_map();
+                let now = self.transport.position;
+                let next = Beats(now.0.ceil());
+                let seconds = tempo.beats_to_seconds(next).0 - tempo.beats_to_seconds(now).0;
+                if seconds < 1e-3 {
+                    0
+                } else {
+                    (seconds * self.config.engine_sample_rate as f64).round() as usize
+                }
+            }
+            _ => 0,
+        };
+        if pad == 0 {
+            return audio;
+        }
+        let channels = audio
+            .channels
+            .iter()
+            .map(|c| {
+                let mut v = vec![0.0; pad + c.len()];
+                v[pad..].copy_from_slice(c);
+                v
+            })
+            .collect();
+        Arc::new(DecodedAudio {
+            sample_rate: audio.sample_rate,
+            channels,
+        })
     }
 
     fn fail_preview(&mut self, name: &str, error: &str, out: &mut dyn MessageSink) {
