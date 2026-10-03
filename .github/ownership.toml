@@ -801,6 +801,25 @@ paths = [
   "crates/ether-controller/tests/instrument_replace*.rs",
 ]
 
+[nodes.section-edit]
+# Owner report (2026-10-03): time-selection copy/paste copies whole MIDI clips; piano roll copy/paste
+# doesn't work; duplicating a section must keep its exact length (gaps included).
+paths = [
+  "crates/ether-controller/src/time_edit/**",
+  "crates/ether-controller/tests/time_edit*.rs",
+  "crates/ether-controller/tests/section_edit*.rs",
+  "ui/src/features/time-edits/**",
+  "ui/src/features/piano-roll/**",
+  "ui/src/transport/mock/roadmap/timeEdits.*",
+  "apps/web/e2e/time-edits*.spec.ts",
+  "apps/web/e2e/section-edit*.spec.ts",
+  "apps/web/e2e/piano-roll*.spec.ts",
+  # shared touches: arrangement clipboard + key routing (plain Cmd+C/X/V/D act on a time selection)
+  "ui/src/features/arrangement/clipboard.ts",
+  "ui/src/features/arrangement/ArrangementView.tsx",
+  "ui/src/features/arrangement/actions.ts",
+]
+
 [nodes.turn-hardening]
 # Follow-up to stream-host (docs/COLLAB.md §10 known limitations): per-username verified cap,
 # counting real nonce inserts, rotation-decision tests. TURN stays experimental until merged.
