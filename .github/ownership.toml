@@ -1533,6 +1533,12 @@ paths = [
   "ui/src/transport/mock/roadmap/liveRecord.*",
   # shared touch (v0.3 grant): one additive state field + initializer on EtherController
   "crates/ether-controller/src/lib.rs",
+  # shared touch (BCR): ExpressionRt on TrackRt (+inherit); ActiveNote source (clip, note index, start);
+  # NoteSink records it; ExpressionRt::compile at TrackRt construction; prewire hook test
+  "crates/ether-core/src/mixer.rs",
+  "crates/ether-core/src/sched.rs",
+  "crates/ether-core/src/graph.rs",
+  "crates/ether-core/tests/roadmap_v4_hooks.rs",
 ]
 
 [nodes.mpe]
