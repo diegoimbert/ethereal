@@ -32,6 +32,11 @@
 //! - **Incremental.** A rescan keeps the probed metadata of files whose size did not change
 //!   and drops items no longer found. Favourites and tags are keyed by item id and survive
 //!   rescans (and items that come back). A full rescan also runs every [`RESCAN_EVERY_MS`].
+//! - **Imported folders** (`base-136`). `ImportFolder` asks the library for an engine-owned
+//!   folder (`Library::create_import_folder`) and adds it like `AddFolder`; `ImportFile`
+//!   writes a completed upload into it (`Library::write_file`); the UI then sends `Rescan`.
+//!   `RenameFolder` stores a display name with the user folder (the root's and its items'
+//!   pack name). Folder changes emit `Media::LocationsChanged` for the folder view.
 //! - **Preview.** `Preview { item, sync }` plays the item's source through the media preview
 //!   (`media_preview`): with `sync`, repitched by project bpm / item bpm (a resample to
 //!   `engine rate / ratio`, played back at the engine rate) and, while the transport plays,
@@ -48,7 +53,7 @@ use ether_core::protocol::browser::{
     BrowserCommand, BrowserEvent, BrowserRoot, BrowserRootKind, LibraryItem, LibraryItemKind,
     LibraryItemMeta,
 };
-use ether_core::protocol::media::{BrowseLocation, FileKind, MediaSource};
+use ether_core::protocol::media::{BrowseLocation, FileKind, MediaEvent, MediaSource};
 use ether_core::protocol::model::{BuiltinDeviceType, PRESET_EXTENSION, PRESETS_DIR, load_preset};
 use ether_core::protocol::presets::{PresetRef, PresetSource};
 use ether_core::protocol::{Event, ReplyValue};
@@ -60,8 +65,9 @@ use symphonia::core::probe::Hint;
 use crate::handlers::{event, store_err};
 use crate::media::extension_of;
 use crate::media_preview::PreviewSync;
-use crate::store::{Library, ProjectStore};
+use crate::store::{Library, ProjectStore, check_relative_path, file_kind, import_folder_name};
 use crate::tx::{CmdResult, invalid, not_found};
+use crate::upload::take_upload;
 use crate::{EngineBridge, EtherController, HostServices, MessageSink};
 
 use index::{Entry, Index};
@@ -97,6 +103,8 @@ pub(crate) const FACTORY_ROOT: &str = "factory";
 pub(crate) const PROJECTS_ROOT: &str = "projects";
 const USER_LIBRARY_NAME: &str = "User Library";
 const PACK_FILE: &str = "pack.json";
+/// Longest user folder name (`RenameFolder`).
+const MAX_FOLDER_NAME: usize = 120;
 
 /// One root being walked.
 struct RootScan {
@@ -413,15 +421,49 @@ where
                 if path.trim().is_empty() {
                     return Err(invalid("folder path is empty"));
                 }
-                let id = self.library.add_folder(path).map_err(store_err)?;
-                let st = &mut self.browser;
-                st.folders.retain(|f| f.id != id);
-                st.folders.push(UserFolder {
-                    id: id.clone(),
-                    path: path.clone(),
-                });
-                self.browser_queue_scan(&id);
+                self.browser_add_folder(path, out)?;
+                Ok(ReplyValue::BrowserRoots {
+                    roots: self.browser_roots(),
+                })
+            }
+            BrowserCommand::ImportFolder { name } => {
+                let name = import_folder_name(name)
+                    .ok_or_else(|| invalid(format!("bad folder name {name:?}")))?;
+                let path = self
+                    .library
+                    .create_import_folder(&name)
+                    .map_err(store_err)?;
+                self.browser_add_folder(&path, out)?;
+                Ok(ReplyValue::BrowserRoots {
+                    roots: self.browser_roots(),
+                })
+            }
+            BrowserCommand::ImportFile { root, path, upload } => {
+                let checked = self.browser_check_import_file(root, path);
+                // The upload is consumed whether or not the file can be written.
+                let taken = take_upload(&mut self.uploads, &mut self.store, upload);
+                checked?;
+                let (bytes, _) = taken?;
+                self.library
+                    .write_file(root, path, &bytes)
+                    .map_err(store_err)?;
+                Ok(ReplyValue::Unit)
+            }
+            BrowserCommand::RenameFolder { root, name } => {
+                let name = name.trim();
+                if name.chars().count() > MAX_FOLDER_NAME {
+                    return Err(invalid(format!(
+                        "folder names are at most {MAX_FOLDER_NAME} characters"
+                    )));
+                }
+                let Some(folder) = self.browser.folders.iter_mut().find(|f| &f.id == root) else {
+                    return Err(not_found(format!("user folder {root}")));
+                };
+                folder.name = (!name.is_empty()).then(|| name.to_string());
                 self.browser_save_user();
+                // Items carry the folder's name as their pack.
+                self.browser_queue_scan(root);
+                changed(out);
                 Ok(ReplyValue::BrowserRoots {
                     roots: self.browser_roots(),
                 })
@@ -439,6 +481,7 @@ where
                 st.mark_dirty(now);
                 self.browser_save_user();
                 changed(out);
+                self.browser_locations_changed(out);
                 Ok(ReplyValue::Unit)
             }
             BrowserCommand::Rescan { root } => {
@@ -555,6 +598,55 @@ where
         }
     }
 
+    /// Add (or re-add) a user folder by engine-side path, remember it and queue its scan.
+    fn browser_add_folder(&mut self, path: &str, out: &mut dyn MessageSink) -> CmdResult<String> {
+        let id = self.library.add_folder(path).map_err(store_err)?;
+        let st = &mut self.browser;
+        let name = st
+            .folders
+            .iter()
+            .find(|f| f.id == id)
+            .and_then(|f| f.name.clone());
+        st.folders.retain(|f| f.id != id);
+        st.folders.push(UserFolder {
+            id: id.clone(),
+            path: path.to_string(),
+            name,
+        });
+        self.browser_queue_scan(&id);
+        self.browser_save_user();
+        self.browser_locations_changed(out);
+        Ok(id)
+    }
+
+    /// `ImportFile`'s target: a user folder and an audio/MIDI file path in it.
+    fn browser_check_import_file(&self, root: &str, path: &str) -> CmdResult<()> {
+        if !self.browser.folders.iter().any(|f| f.id == root) {
+            return Err(not_found(format!("user folder {root}")));
+        }
+        check_relative_path(path).map_err(store_err)?;
+        let name = file_name(path);
+        if path.is_empty() || name.starts_with('.') {
+            return Err(invalid(format!("bad file path {path:?}")));
+        }
+        if !matches!(file_kind(name), FileKind::Audio | FileKind::Midi) {
+            return Err(invalid(format!("{name} is not an audio or MIDI file")));
+        }
+        Ok(())
+    }
+
+    /// Library roots changed: the folder view's locations follow.
+    fn browser_locations_changed(&self, out: &mut dyn MessageSink) {
+        event(
+            out,
+            Event::Media {
+                event: MediaEvent::LocationsChanged {
+                    locations: self.locations(),
+                },
+            },
+        );
+    }
+
     /// Load the persisted index and queue the first scan (once).
     fn browser_start(&mut self, now: u64) {
         if self.browser.started {
@@ -572,6 +664,7 @@ where
                     self.browser.folders.push(UserFolder {
                         id,
                         path: folder.path,
+                        name: folder.name,
                     });
                 }
             }
@@ -613,12 +706,19 @@ where
 
     /// Scanned roots: (id, display name). Library roots, user folders, the user library.
     fn browser_scan_roots(&self) -> Vec<(String, String)> {
+        let folders = &self.browser.folders;
         let mut roots: Vec<(String, String)> = self
             .library
             .roots()
             .into_iter()
             .filter_map(|r| match r.location {
-                BrowseLocation::Library { id } => Some((id, r.name)),
+                BrowseLocation::Library { id } => {
+                    let renamed = folders
+                        .iter()
+                        .find(|f| f.id == id)
+                        .and_then(|f| f.name.clone());
+                    Some((id, renamed.unwrap_or(r.name)))
+                }
                 BrowseLocation::ProjectMedia => None,
             })
             .collect();

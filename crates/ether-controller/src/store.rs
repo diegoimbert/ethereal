@@ -200,6 +200,20 @@ pub trait Library {
         ))
     }
 
+    /// `base-136`: create an empty, engine-owned folder for a folder copied from the UI
+    /// machine (`Browser::ImportFolder`), named after `name` ([`import_folder_name`], made
+    /// unique among the imported folders). Returns its engine-side path, which
+    /// [`Library::add_folder`] accepts (the controller then treats it as a user folder and
+    /// remembers it). Once added, the folder's root is writable with
+    /// [`Library::write_file`], and [`Library::remove_folder`] deletes it. Default:
+    /// unsupported.
+    fn create_import_folder(&mut self, name: &str) -> Result<String, StoreError> {
+        let _ = name;
+        Err(StoreError::Unsupported(
+            "importing folders is not available on this host".into(),
+        ))
+    }
+
     /// `media-references`: the absolute engine-side path of a library file, for an external
     /// reference (`MediaLocation::External`). `None` = cannot be referenced in place (web,
     /// remote): the import copies it into the project instead.
@@ -227,6 +241,55 @@ pub trait Library {
         ))
     }
 }
+
+/// `base-136`: the folder name of an imported folder: `name` without path separators,
+/// control characters, `:` and leading dots, trimmed and at most 64 characters; `None` when
+/// nothing is left.
+pub fn import_folder_name(name: &str) -> Option<String> {
+    let cleaned: String = name
+        .chars()
+        .map(|c| {
+            if c == '/' || c == '\\' || c == ':' || c.is_control() {
+                ' '
+            } else {
+                c
+            }
+        })
+        .collect();
+    let trimmed = cleaned.trim().trim_start_matches('.').trim();
+    let out: String = trimmed.chars().take(64).collect();
+    let out = out.trim_end().to_string();
+    (!out.is_empty()).then_some(out)
+}
+
+/// `base-136`: `base`, or `base 2`, `base 3`… the first one `taken` refuses
+/// (case-insensitively: OPFS and most desktop file systems).
+pub fn unique_folder_name(base: &str, taken: impl Fn(&str) -> bool) -> String {
+    (1..)
+        .map(|n| {
+            if n == 1 {
+                base.to_string()
+            } else {
+                format!("{base} {n}")
+            }
+        })
+        .find(|c| !taken(c))
+        .expect("unbounded")
+}
+
+/// Stable root id of a user folder: `folder-` + the FNV-1a hash of its engine-side path
+/// (native absolute paths and web OPFS paths alike).
+pub fn user_folder_id(path: &str) -> String {
+    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+    for b in path.as_bytes() {
+        h ^= u64::from(*b);
+        h = h.wrapping_mul(0x0100_0000_01b3);
+    }
+    format!("{USER_FOLDER_PREFIX}{h:016x}")
+}
+
+/// Id prefix of user folders ([`user_folder_id`]).
+pub const USER_FOLDER_PREFIX: &str = "folder-";
 
 /// Validate a relative path from the UI or a document: no absolute paths, drive letters,
 /// backslashes, `.`/`..` or empty components. `""` (a location root) is accepted.
