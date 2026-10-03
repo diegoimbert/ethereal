@@ -1,7 +1,7 @@
 // Sharing preferences (docs/SHARING.md §8.6, decision 16): the anonymous identity (name and
 // colour) and the Sharing / Advanced settings. They live in UI settings (localStorage) and
 // are pushed to the engine at startup and on every change (`Share::SetIdentity`,
-// `Share::SetServers`, `Collab::SetIceServers`).
+// `Share::SetPreferences`, `Share::SetServers`, `Collab::SetIceServers`).
 import { create } from "zustand";
 import type { Color, IceServer } from "@/generated";
 import { cmd, type EngineTransport } from "@/transport";
@@ -42,28 +42,44 @@ export const DEFAULT_SHARE_SETTINGS: ShareSettings = {
   relayOnly: false,
 };
 
-const KEY = "eth-share-settings";
+/** The preferences (everything but the identity). */
+export const SETTINGS_KEY = "eth-share-settings";
+/**
+ * The identity, `{ name, color }`: join-flow's key (`@/features/share/join` `IDENTITY_KEY`;
+ * its "Join as" field writes it too), so both read the same identity.
+ */
+export const IDENTITY_KEY = "eth.share.identity";
 
-function load(): ShareSettings {
+function read<T>(key: string, fallback: T): T {
   try {
-    const v = JSON.parse(localStorage.getItem(KEY) ?? "{}") as Partial<ShareSettings>;
-    return { ...DEFAULT_SHARE_SETTINGS, ...v };
+    return (JSON.parse(localStorage.getItem(key) ?? "null") as T | null) ?? fallback;
   } catch {
-    return { ...DEFAULT_SHARE_SETTINGS };
+    return fallback;
   }
 }
 
-function save(s: ShareSettings) {
+function write(key: string, value: unknown) {
   try {
-    localStorage.setItem(KEY, JSON.stringify(s));
+    localStorage.setItem(key, JSON.stringify(value));
   } catch {
     // storage unavailable: this session only
   }
 }
 
+function load(): ShareSettings {
+  const prefs = read<Partial<ShareSettings>>(SETTINGS_KEY, {});
+  const id = read<Partial<Pick<ShareSettings, "name" | "color">>>(IDENTITY_KEY, {});
+  return {
+    ...DEFAULT_SHARE_SETTINGS,
+    ...prefs,
+    name: typeof id.name === "string" ? id.name : "",
+    color: typeof id.color === "number" ? id.color : null,
+  };
+}
+
 interface SettingsStore extends ShareSettings {
   update(patch: Partial<ShareSettings>): void;
-  /** Re-read localStorage (tests). */
+  /** Re-read localStorage (the join screen may have saved an identity; tests). */
   reload(): void;
 }
 
@@ -71,8 +87,9 @@ export const useShareSettings = create<SettingsStore>()((set, get) => ({
   ...load(),
   update: (patch) => {
     set(patch);
-    const { update: _u, reload: _r, ...rest } = get();
-    save(rest);
+    const { update: _u, reload: _r, name, color, ...prefs } = get();
+    if ("name" in patch || "color" in patch) write(IDENTITY_KEY, { name: name.trim(), color });
+    else write(SETTINGS_KEY, prefs);
   },
   reload: () => set(load()),
 }));
@@ -122,10 +139,20 @@ export function pushIce(transport: EngineTransport, servers: ReadonlyArray<IceSe
   quiet(transport.send(cmd("Collab", { type: "SetIceServers", servers: ice.length ? ice : null })));
 }
 
-/** At startup (or on a new engine): push what differs from the engine's defaults. */
+/** Send the Sharing preferences (`Share::SetPreferences`). */
+export function pushPreferences(transport: EngineTransport, s: Pick<ShareSettings, "resumeOnOpen" | "autoListen" | "relayOnly"> = useShareSettings.getState()): void {
+  quiet(
+    transport.send(
+      cmd("Share", { type: "SetPreferences", resume_on_open: s.resumeOnOpen, auto_listen: s.autoListen, relay_only: s.relayOnly }),
+    ),
+  );
+}
+
+/** At startup (or on a new engine): the identity, the preferences, and non-default servers. */
 export function pushShareSettings(transport: EngineTransport): void {
   const s = useShareSettings.getState();
   pushIdentity(transport, s);
+  pushPreferences(transport, s);
   if (s.signalUrl.trim()) pushSignal(transport, s.signalUrl);
   if (validIceServers(s.iceServers).length) pushIce(transport, s.iceServers);
 }

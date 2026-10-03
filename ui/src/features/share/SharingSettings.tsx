@@ -1,28 +1,35 @@
 // Settings > Sharing and the sharing part of Settings > Advanced (docs/SHARING.md §8.6).
 import { Plus, X } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { IceServer } from "@/generated";
 import { Button, IconButton, TextInput, Toggle } from "@/kit";
 import type { EngineTransport } from "@/transport";
 import { IdentitySection } from "./SharePopover";
-import { iceUrlError, pushIce, pushSignal, signalUrlError, useShareSettings } from "./settings";
+import { iceUrlError, pushIce, pushPreferences, pushSignal, signalUrlError, useShareSettings, type ShareSettings } from "./settings";
+
+/** Change a preference and send all three (`Share::SetPreferences`). */
+function setPreference(transport: EngineTransport, patch: Partial<Pick<ShareSettings, "resumeOnOpen" | "autoListen" | "relayOnly">>) {
+  useShareSettings.getState().update(patch);
+  pushPreferences(transport);
+}
 import "./share.css";
 
 /** Settings > Sharing: identity and the two preferences. */
 export function SharingSettings({ transport }: { transport: EngineTransport }) {
   const resume = useShareSettings((s) => s.resumeOnOpen);
   const autoListen = useShareSettings((s) => s.autoListen);
-  const update = useShareSettings((s) => s.update);
+  // The join screen may have saved a name since.
+  useEffect(() => useShareSettings.getState().reload(), []);
   return (
     <div className="eth-share-settings" data-testid="settings-sharing">
       <IdentitySection transport={transport} alwaysOpen />
       <section className="eth-share-settings__group" aria-label="Sharing preferences">
-        <Toggle size="sm" checked={resume} onChange={(v) => update({ resumeOnOpen: v })} label="Resume sharing when I open a shared project" />
+        <Toggle size="sm" checked={resume} onChange={(v) => setPreference(transport, { resumeOnOpen: v })} label="Resume sharing when I open a shared project" />
         <p className="eth-share-pop__hint">Links stay valid while a project is closed. Turned off, you share again with the Share button.</p>
         <Toggle
           size="sm"
           checked={autoListen}
-          onChange={(v) => update({ autoListen: v })}
+          onChange={(v) => setPreference(transport, { autoListen: v })}
           label="Automatically listen to the host when joining with a listen link"
         />
       </section>
@@ -66,7 +73,7 @@ export function SharingAdvancedSettings({ transport }: { transport: EngineTransp
         <p className="eth-share-pop__hint">Introduces people to your computer; it never sees your project. New links carry this address.</p>
       )}
       <IceServersEditor transport={transport} />
-      <Toggle size="sm" checked={relayOnly} onChange={(v) => update({ relayOnly: v })} label="Hide my IP (relay only)" />
+      <Toggle size="sm" checked={relayOnly} onChange={(v) => setPreference(transport, { relayOnly: v })} label="Hide my IP (relay only)" />
       <p className="eth-share-pop__hint">Connects through a TURN relay only, so others never see your address. Needs a TURN server above.</p>
     </section>
   );

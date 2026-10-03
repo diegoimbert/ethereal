@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import type { Participant, ShareState } from "@/generated";
 import { iceUrlError, nameError, PEER_COLORS, signalUrlError, validIceServers } from "./settings";
-import { othersOnline, sessionStatus } from "./status";
+import { lastSeenText, othersOnline, sessionStatus } from "./status";
 import { noticeToast } from "./toasts";
 
 const person = (name: string, extra: Partial<Participant> = {}): Participant => ({
@@ -15,6 +15,7 @@ const person = (name: string, extra: Partial<Participant> = {}): Participant => 
   role: "Edit",
   online: true,
   you: false,
+  last_seen_ms: null,
   ...extra,
 });
 const host = person("Diego", { member: null, role: "Host" });
@@ -59,6 +60,19 @@ describe("sessionStatus", () => {
       "Diego",
       "Ada",
     ]);
+  });
+});
+
+describe("lastSeenText", () => {
+  it("says how long ago an offline member was here", () => {
+    const now = Date.UTC(2026, 9, 3, 12);
+    expect(lastSeenText(null, now)).toBe("offline");
+    expect(lastSeenText(now - 20_000, now)).toBe("last seen just now");
+    expect(lastSeenText(now - 5 * 60_000, now)).toBe("last seen 5 min ago");
+    expect(lastSeenText(now - 3 * 3_600_000, now)).toBe("last seen 3 h ago");
+    expect(lastSeenText(now - 26 * 3_600_000, now)).toBe("last seen yesterday");
+    expect(lastSeenText(now - 3 * 86_400_000, now)).toBe("last seen 3 days ago");
+    expect(lastSeenText(now - 30 * 86_400_000, now)).toMatch(/^last seen \w+/);
   });
 });
 

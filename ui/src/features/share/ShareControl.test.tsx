@@ -129,6 +129,7 @@ describe("ShareControl (host)", () => {
     act(() => mock.share.simulateLeave(ada));
     expect(toastTitles()).toContain("Ada Lovelace left");
     expect(row().className).toMatch(/offline/);
+    expect(row()).toHaveTextContent("last seen just now");
     expect(within(screen.getByTestId("session-pill")).queryByTestId("share-avatars")).toBeNull();
 
     fireEvent.click(within(row()).getByRole("button", { name: "Actions for Ada Lovelace" }));
@@ -205,17 +206,18 @@ describe("ShareControl (host)", () => {
     fireEvent.click(within(popover()).getByRole("button", { name: "Colour 3" }));
     await waitFor(() => expect(mock.shareSent("SetIdentity").at(-1)).toEqual({ type: "SetIdentity", name: "Diego", color: 0xffa529 }));
     expect(within(popover()).getByRole("button", { name: "Colour 3" })).toHaveAttribute("aria-pressed", "true");
-    expect(JSON.parse(localStorage.getItem("eth-share-settings")!)).toMatchObject({ name: "Diego", color: 0xffa529 });
+    // join-flow's identity key (its "Join as" field reads and writes the same).
+    expect(JSON.parse(localStorage.getItem("eth.share.identity")!)).toEqual({ name: "Diego", color: 0xffa529 });
   });
 
-  it("pushes a saved identity and servers at startup", async () => {
-    localStorage.setItem(
-      "eth-share-settings",
-      JSON.stringify({ ...DEFAULT_SHARE_SETTINGS, name: "Ada", color: 0x92a7ff, signalUrl: "https://signal.example.com" }),
-    );
+  it("pushes a saved identity, the preferences and servers at startup", async () => {
+    localStorage.setItem("eth.share.identity", JSON.stringify({ name: "Ada", color: 0x92a7ff }));
+    localStorage.setItem("eth-share-settings", JSON.stringify({ ...DEFAULT_SHARE_SETTINGS, autoListen: false, signalUrl: "https://signal.example.com" }));
     useShareSettings.getState().reload();
     const mock = await setup();
     expect(mock.shareSent("SetIdentity")).toEqual([{ type: "SetIdentity", name: "Ada", color: 0x92a7ff }]);
+    expect(mock.shareSent("SetPreferences")).toEqual([{ type: "SetPreferences", resume_on_open: true, auto_listen: false, relay_only: false }]);
+    expect(mock.share.preferences).toEqual({ resumeOnOpen: true, autoListen: false, relayOnly: false });
     expect(mock.shareSent("SetServers")).toEqual([{ type: "SetServers", signal_url: "https://signal.example.com", invite_origin: null }]);
     // No ICE servers configured: the engine keeps its own.
     expect(mock.sent.some((c) => c.domain === "Collab" && c.command.type === "SetIceServers")).toBe(false);
@@ -265,13 +267,6 @@ describe("ShareControl (joiner)", () => {
     expect(toastTitles()).toContain("Mock host is back");
   });
 
-  it("auto-listen off: stops the automatic listen after a listen join", async () => {
-    useShareSettings.getState().update({ autoListen: false });
-    const mock = await setup();
-    await join(mock, LISTEN_INVITE);
-    act(() => useListenStore.setState({ listening: { type: "Connecting", host: "2", stream: 1 } as never }));
-    await waitFor(() => expect(mock.sent.some((c) => c.domain === "Collab" && c.command.type === "StopListening")).toBe(true));
-  });
 });
 
 describe("palette commands", () => {

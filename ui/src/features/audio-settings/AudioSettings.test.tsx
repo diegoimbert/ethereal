@@ -86,6 +86,9 @@ describe("AudioSettingsDialog", () => {
     await waitFor(() => expect(sent).toContainEqual({ domain: "Share", command: { type: "SetIdentity", name: "Ada", color: null } }));
     fireEvent.click(screen.getByRole("switch", { name: /Resume sharing/ }));
     expect(useShareSettings.getState().resumeOnOpen).toBe(false);
+    await waitFor(() =>
+      expect(sent).toContainEqual({ domain: "Share", command: { type: "SetPreferences", resume_on_open: false, auto_listen: true, relay_only: false } }),
+    );
 
     fireEvent.click(screen.getByRole("tab", { name: "Advanced" }));
     const signal = screen.getByLabelText("Signaling server");
@@ -105,6 +108,10 @@ describe("AudioSettingsDialog", () => {
         domain: "Collab",
         command: { type: "SetIceServers", servers: [{ urls: ["turn:turn.example.com:3478"], username: "u", credential: null }] },
       }),
+    );
+    fireEvent.click(screen.getByRole("switch", { name: "Hide my IP (relay only)" }));
+    await waitFor(() =>
+      expect(sent).toContainEqual({ domain: "Share", command: { type: "SetPreferences", resume_on_open: false, auto_listen: true, relay_only: true } }),
     );
     fireEvent.click(screen.getByRole("button", { name: "Remove ICE server 1" }));
     await waitFor(() => expect(sent.at(-1)).toEqual({ domain: "Collab", command: { type: "SetIceServers", servers: null } }));

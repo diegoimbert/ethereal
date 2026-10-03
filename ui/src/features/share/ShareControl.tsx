@@ -7,8 +7,6 @@ import { useContext, useEffect, useRef } from "react";
 import { Badge, Button, Popover, Toast, ToastStack } from "@/kit";
 import { cmd, TransportContext, type EngineTransport } from "@/transport";
 import { CollabRuntime } from "@/features/collab";
-import { stopListening } from "@/features/collab/listen/agent";
-import { useListenStore } from "@/features/collab/listen/store";
 import { useCollabStore } from "@/features/collab/store";
 import { ShareConfirmDialog } from "./confirm";
 import { SessionPill } from "./SessionPill";
@@ -37,7 +35,6 @@ function ShareControlWith({ transport }: { transport: EngineTransport }) {
   const inRelay = useCollabStore((s) => s.status.type !== "Offline");
   const viewOnly = useViewOnly();
   useShareEngine(transport);
-  useAutoListenPreference(transport);
 
   // A press in another floating layer (a row menu, the role list, a confirm dialog: all
   // portaled outside the popover) is not an outside click.
@@ -52,6 +49,8 @@ function ShareControlWith({ transport }: { transport: EngineTransport }) {
       lastDown.current = null;
       return;
     }
+    // The join screen may have saved a name since.
+    if (o) useShareSettings.getState().reload();
     useShareStore.getState().setPopoverOpen(o);
   };
 
@@ -115,32 +114,6 @@ function useShareEngine(transport: EngineTransport) {
     useShareStore.getState().reset();
     pushShareSettings(transport);
     void transport.send(cmd("Share", { type: "Get" })).catch(() => undefined);
-  }, [transport]);
-}
-
-/**
- * "Automatically listen to the host when joining with a listen link" off: the controller
- * starts listening by itself after a listen join (docs/SHARING.md §2.3), so stop that first
- * automatic listen. "Listen again" in the popover still works.
- */
-function useAutoListenPreference(transport: EngineTransport) {
-  useEffect(() => {
-    let armed = false;
-    const offShare = useShareStore.subscribe((s, prev) => {
-      const now = s.state.type === "Joined" && s.state.role === "Listen";
-      const before = prev.state.type === "Joined" && prev.state.role === "Listen";
-      if (now && !before) armed = !useShareSettings.getState().autoListen;
-      if (!now) armed = false;
-    });
-    const offListen = useListenStore.subscribe((s) => {
-      if (!armed || (s.listening.type !== "Connecting" && s.listening.type !== "Listening")) return;
-      armed = false;
-      void stopListening((c) => transport.send(cmd("Collab", c))).catch(() => undefined);
-    });
-    return () => {
-      offShare();
-      offListen();
-    };
   }, [transport]);
 }
 

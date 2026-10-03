@@ -17,6 +17,7 @@ import { attempt, ROLE_LABEL } from "./actions";
 import { useConfirm } from "./confirmStore";
 import { PeerAvatar } from "./PeerAvatar";
 import { NAME_MAX, nameError, PEER_COLORS, pushIdentity, useShareSettings } from "./settings";
+import { lastSeenText } from "./status";
 import { hostOf } from "./store";
 import { shareToast } from "./toasts";
 
@@ -318,7 +319,7 @@ function PersonRow({ transport, person: p, hosting }: { transport: EngineTranspo
         {name}
         {p.you && <span className="eth-share-person__you"> (you)</span>}
         <span className={clsx("eth-share-person__dot", p.online && "eth-share-person__dot--on")} aria-label={p.online ? "online" : "offline"} role="img" />
-        {!p.online && <span className="eth-share-person__seen">offline</span>}
+        {!p.online && <span className="eth-share-person__seen">{lastSeenText(p.last_seen_ms)}</span>}
         {listening && <Headphones className="eth-share-pop__icon" aria-label={`Listening to ${name}`} />}
       </span>
       {p.role === "Host" ? (

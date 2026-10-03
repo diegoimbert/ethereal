@@ -44,3 +44,16 @@ export function sessionStatus(state: ShareState): SessionStatus | null {
 export function othersOnline(participants: ReadonlyArray<Participant>): Participant[] {
   return participants.filter((p) => p.online && !p.you);
 }
+
+/** "last seen 5 min ago" for an offline member (`Participant.last_seen_ms`). */
+export function lastSeenText(lastSeenMs: number | null, now: number = Date.now()): string {
+  if (lastSeenMs === null) return "offline";
+  const min = Math.floor((now - lastSeenMs) / 60_000);
+  if (min < 1) return "last seen just now";
+  if (min < 60) return `last seen ${min} min ago`;
+  const h = Math.floor(min / 60);
+  if (h < 24) return `last seen ${h} h ago`;
+  const d = Math.floor(h / 24);
+  if (d < 7) return d === 1 ? "last seen yesterday" : `last seen ${d} days ago`;
+  return `last seen ${new Date(lastSeenMs).toLocaleDateString(undefined, { month: "short", day: "numeric" })}`;
+}
