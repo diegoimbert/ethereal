@@ -91,6 +91,11 @@ pub struct NativeBridge {
     stream: crate::stream::StreamHost,
     /// GUI-only plugin mirrors while listening (`plugin-mirror`; [`crate::plugin_mirror`]).
     mirrors: crate::plugin_mirror::Mirrors,
+    /// External Instruments' MIDI (`external-instrument`, [`hw_midi`]): the engine ring until
+    /// a graph routes MIDI to hardware, then the output thread.
+    hw_midi_io: Option<ether_core::hw_io::HwIoIo>,
+    hw_midi: Option<hw_midi::HwMidiOut>,
+    hw_routes: Arc<hw_midi::Routes>,
     /// `audio-streaming`: the shared disk reader thread (started with the first stream).
     disk: Option<crate::disk_stream::DiskStreams>,
     /// `audio-streaming`: the last published graph while media are streamed (anchors,
@@ -111,6 +116,7 @@ impl NativeBridge {
     ) -> Self {
         let mut handle = handle;
         crate::recording::attach(&mut handle, &audio);
+        let hw_midi_io = handle.take_hw_io();
         Self {
             handle,
             sample_rate: prepare.sample_rate as u32,
@@ -124,10 +130,43 @@ impl NativeBridge {
             offline_seq: 0,
             stream: crate::stream::StreamHost::new(),
             mirrors: Default::default(),
+            hw_midi_io,
+            hw_midi: None,
+            hw_routes: Default::default(),
             disk: None,
             stream_graph: None,
             disk_streaming: !std::env::var("ETHER_DISK_STREAMING")
                 .is_ok_and(|v| v == "0" || v == "off"),
+        }
+    }
+
+    /// `external-instrument`: the MIDI routes of `graph` (node → port); starts the MIDI
+    /// output thread the first time a graph has one.
+    fn route_hw_midi(&mut self, graph: &RenderGraphDesc) {
+        let routes: HashMap<NodeKey, String> = graph
+            .tracks
+            .iter()
+            .flat_map(|t| t.hw_io.iter())
+            .filter_map(|d| Some((d.node, d.routing.midi_out.clone()?)))
+            .collect();
+        if routes.is_empty() && self.hw_midi.is_none() {
+            return;
+        }
+        self.hw_routes.set(routes);
+        if self.hw_midi.is_none()
+            && let Some(io) = self.hw_midi_io.take()
+        {
+            match hw_midi::spawn(
+                io,
+                self.hw_routes.clone(),
+                self.audio.clone(),
+                f64::from(self.sample_rate),
+                self.prepare.max_block_size as u32,
+                Box::new(hw_midi::MidirOut::default()),
+            ) {
+                Ok(t) => self.hw_midi = Some(t),
+                Err(e) => tracing::warn!(error = %e, "could not start the hardware MIDI thread"),
+            }
         }
     }
 
@@ -325,6 +364,15 @@ impl EngineBridge for NativeBridge {
         device: DeviceId,
         kind: &BuiltinDevice,
     ) -> Result<bool, BridgeError> {
+        // External devices (`external-instrument`): the routing is compiled into the graph's
+        // `hw_io`, the node holds none, so a routing edit keeps the node as is.
+        if let BuiltinDevice::ExternalInstrument { .. }
+        | BuiltinDevice::ExternalAudioEffect { .. } = kind
+        {
+            return Ok(self.devices.get(&device).is_some_and(
+                |e| matches!(e.kind, DeviceKind::Builtin(t) if t == kind.device_type()),
+            ));
+        }
         // Multisampler zone edits: the resolved zone set, swapped in by `Node::set_data`.
         if let BuiltinDevice::MultiSampler { .. } = kind {
             let Some(entry) = self.devices.get(&device) else {
@@ -557,6 +605,7 @@ impl EngineBridge for NativeBridge {
 
     fn publish(&mut self, graph: RenderGraphDesc) -> Result<(), BridgeError> {
         self.stream.observe_graph(&graph);
+        self.route_hw_midi(&graph);
         if self.disk.as_ref().is_some_and(|d| !d.is_empty()) {
             self.stream_graph = Some(graph.clone());
             self.update_stream_anchors();
@@ -696,6 +745,38 @@ impl EngineBridge for NativeBridge {
 
     fn list_inputs(&mut self) -> Result<InputList, BridgeError> {
         crate::recording::list_inputs(&self.audio)
+    }
+
+    /// `external-instrument`: MIDI outputs (midir), the audio input channels the engine
+    /// gets (as for recording) and the running stream's output channels.
+    fn list_hardware_ports(
+        &mut self,
+    ) -> Result<ether_core::protocol::external::HardwarePorts, BridgeError> {
+        use ether_core::protocol::recording::AudioInputChannel;
+        let inputs = crate::recording::list_inputs(&self.audio)?.audio;
+        let outputs = self
+            .audio
+            .output_channels
+            .load(std::sync::atomic::Ordering::Relaxed)
+            .min(crate::rt::MAX_OUTPUT_CHANNELS as u32) as u16;
+        Ok(ether_core::protocol::external::HardwarePorts {
+            midi_outputs: hw_midi::list_outputs(),
+            audio_inputs: inputs,
+            audio_outputs: (0..outputs)
+                .map(|i| AudioInputChannel {
+                    index: i,
+                    name: format!("Out {}", i + 1),
+                })
+                .collect(),
+        })
+    }
+
+    fn measure_hw_latency(&mut self, node: NodeKey) -> Result<(), BridgeError> {
+        self.handle.measure_hw_latency(node).map_err(engine_err)
+    }
+
+    fn poll_hw_latency(&mut self) -> Option<ether_core::hw_io::HwLatencyResult> {
+        self.handle.poll_hw_latency()
     }
 
     fn start_recording(&mut self, session: &RecordSession) -> Result<(), BridgeError> {
@@ -845,6 +926,275 @@ impl HostServices for NativeServices {
 
     fn random_seed(&mut self) -> u64 {
         getrandom::u64().unwrap_or_else(|_| self.now_ms() ^ u64::from(std::process::id()) << 32)
+    }
+}
+
+/// Hardware MIDI out of External Instruments (`external-instrument`, CONTRACTS.md §13.7):
+/// a thread drains the engine's [`ether_core::hw_io::HwMidiEvent`] ring and sends each
+/// message to its device's `midi_out` port when its engine sample reaches the speakers.
+///
+/// - **Timing.** [`crate::rt::EngineClock`] maps engine samples to wall time (the renderer
+///   publishes it before every chunk); a message for engine sample `f` goes out at the wall
+///   time of `f` plus the output latency (`RecordingShared::output_latency_or(block)`), so
+///   it is jitter-free (the audio thread renders ahead by about that much). Whatever offset
+///   remains between the note and its returned audio is the hardware round trip that
+///   `External::MeasureLatency` measures and PDC compensates.
+/// - **Routing.** `node → port id` comes from every published graph (`TrackDesc::hw_io`).
+///   Unresolved ports drop their messages (the device is silent) and are retried at most
+///   every [`RETRY_MS`], so a device that comes back resumes. When a node's port changes or
+///   the node goes away, its sounding notes get note-offs on the old port.
+/// - midir has no timestamped output, so the thread sleeps until each message is due
+///   (≈1 ms resolution).
+pub mod hw_midi {
+    use std::collections::HashMap;
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::{Arc, Mutex};
+    use std::thread::JoinHandle;
+    use std::time::{Duration, Instant};
+
+    use ether_core::NodeKey;
+    use ether_core::hw_io::{HwIoIo, HwMidiEvent};
+    use ether_core::protocol::recording::MidiPort;
+
+    use crate::rt::AudioShared;
+
+    /// Client name of the MIDI output connections.
+    const CLIENT: &str = "Ethereal";
+    /// Minimum time between two attempts to open a missing port.
+    pub const RETRY_MS: u64 = 1000;
+    /// Messages kept waiting for their time (beyond: the oldest are sent late rather than
+    /// growing memory without bound).
+    const MAX_PENDING: usize = 16_384;
+
+    /// Where the thread sends messages: midir, or a test double.
+    pub trait MidiOutSink: Send + 'static {
+        /// Send `data` to `port`; `false` = the port is not available (now).
+        fn send(&mut self, port: &str, data: &[u8]) -> bool;
+    }
+
+    /// Hardware MIDI outputs (`MidiPort::id` = the port name, like inputs).
+    pub fn list_outputs() -> Vec<MidiPort> {
+        let Ok(probe) = midir::MidiOutput::new(CLIENT) else {
+            return Vec::new();
+        };
+        probe
+            .ports()
+            .iter()
+            .filter_map(|p| probe.port_name(p).ok())
+            .map(|name| MidiPort {
+                id: name.clone(),
+                name,
+            })
+            .collect()
+    }
+
+    /// midir output connections, opened on first use and re-opened after a failure.
+    #[derive(Default)]
+    pub struct MidirOut {
+        conns: HashMap<String, midir::MidiOutputConnection>,
+        failed: HashMap<String, Instant>,
+    }
+
+    impl MidirOut {
+        fn connect(&mut self, port: &str) -> Option<&mut midir::MidiOutputConnection> {
+            if !self.conns.contains_key(port) {
+                if self
+                    .failed
+                    .get(port)
+                    .is_some_and(|t| t.elapsed() < Duration::from_millis(RETRY_MS))
+                {
+                    return None;
+                }
+                let conn = midir::MidiOutput::new(CLIENT).ok().and_then(|out| {
+                    let p = out
+                        .ports()
+                        .into_iter()
+                        .find(|p| out.port_name(p).is_ok_and(|n| n == port))?;
+                    out.connect(&p, "ethereal-out").ok()
+                });
+                match conn {
+                    Some(c) => {
+                        self.failed.remove(port);
+                        self.conns.insert(port.to_string(), c);
+                    }
+                    None => {
+                        self.failed.insert(port.to_string(), Instant::now());
+                        return None;
+                    }
+                }
+            }
+            self.conns.get_mut(port)
+        }
+    }
+
+    impl MidiOutSink for MidirOut {
+        fn send(&mut self, port: &str, data: &[u8]) -> bool {
+            let ok = self.connect(port).is_some_and(|c| c.send(data).is_ok());
+            if !ok && self.conns.remove(port).is_some() {
+                // The port went away: retry later.
+                self.failed.insert(port.to_string(), Instant::now());
+            }
+            ok
+        }
+    }
+
+    /// `node → port id` of the published graph, shared with the thread.
+    #[derive(Debug, Default)]
+    pub struct Routes {
+        inner: Mutex<(u64, HashMap<NodeKey, String>)>,
+    }
+
+    impl Routes {
+        /// Replace the routes (a publish); no-op when unchanged.
+        pub fn set(&self, routes: HashMap<NodeKey, String>) {
+            let mut g = self.inner.lock().unwrap_or_else(|p| p.into_inner());
+            if g.1 != routes {
+                g.0 += 1;
+                g.1 = routes;
+            }
+        }
+
+        fn get_if_newer(&self, version: u64) -> Option<(u64, HashMap<NodeKey, String>)> {
+            let g = self.inner.lock().unwrap_or_else(|p| p.into_inner());
+            (g.0 != version).then(|| (g.0, g.1.clone()))
+        }
+
+        pub fn is_empty(&self) -> bool {
+            self.inner
+                .lock()
+                .unwrap_or_else(|p| p.into_inner())
+                .1
+                .is_empty()
+        }
+    }
+
+    /// The thread's state: due-time ordering, routing, sounding notes.
+    #[derive(Default)]
+    pub struct Scheduler {
+        pending: Vec<HwMidiEvent>,
+        routes: HashMap<NodeKey, String>,
+        version: u64,
+        /// Sounding notes: node, port, status channel nibble, key.
+        sounding: Vec<(NodeKey, String, u8, u8)>,
+    }
+
+    impl Scheduler {
+        pub fn push(&mut self, m: HwMidiEvent) {
+            if self.pending.len() >= MAX_PENDING {
+                self.pending.remove(0);
+            }
+            // Keep sorted by frame (stable: equal frames keep their order).
+            let at = self.pending.partition_point(|p| p.frame <= m.frame);
+            self.pending.insert(at, m);
+        }
+
+        /// New routes: release notes whose node is gone or moved to another port.
+        pub fn set_routes(
+            &mut self,
+            version: u64,
+            routes: HashMap<NodeKey, String>,
+            sink: &mut dyn MidiOutSink,
+        ) {
+            self.version = version;
+            self.routes = routes;
+            let routes = &self.routes;
+            self.sounding.retain(|(node, port, ch, key)| {
+                let keep = routes.get(node) == Some(port);
+                if !keep {
+                    sink.send(port, &[0x80 | ch, *key, 0]);
+                }
+                keep
+            });
+        }
+
+        /// Send every message due at engine sample `now` (its frame `+ offset <= now`);
+        /// returns the frame of the next pending one.
+        pub fn step(&mut self, now: f64, offset: f64, sink: &mut dyn MidiOutSink) -> Option<u64> {
+            let due = self
+                .pending
+                .partition_point(|m| m.frame as f64 + offset <= now);
+            for m in self.pending.drain(..due) {
+                let Some(port) = self.routes.get(&m.node) else {
+                    continue;
+                };
+                if !sink.send(port, &m.data) {
+                    continue;
+                }
+                let (status, ch, key) = (m.data[0] & 0xf0, m.data[0] & 0x0f, m.data[1]);
+                let same = |s: &(NodeKey, String, u8, u8)| s.0 == m.node && s.2 == ch;
+                match status {
+                    0x90 if m.data[2] > 0 => {
+                        if !self.sounding.iter().any(|s| same(s) && s.3 == key) {
+                            self.sounding.push((m.node, port.clone(), ch, key));
+                        }
+                    }
+                    0x80 | 0x90 => self.sounding.retain(|s| !(same(s) && s.3 == key)),
+                    0xb0 if matches!(key, 120 | 123) => self.sounding.retain(|s| !same(s)),
+                    _ => {}
+                }
+            }
+            self.pending.first().map(|m| m.frame)
+        }
+
+        pub fn version(&self) -> u64 {
+            self.version
+        }
+    }
+
+    /// The running thread; dropping it stops and joins it.
+    pub struct HwMidiOut {
+        stop: Arc<AtomicBool>,
+        thread: Option<JoinHandle<()>>,
+    }
+
+    impl Drop for HwMidiOut {
+        fn drop(&mut self) {
+            self.stop.store(true, Ordering::Relaxed);
+            if let Some(t) = self.thread.take() {
+                let _ = t.join();
+            }
+        }
+    }
+
+    /// Start the MIDI output thread.
+    pub fn spawn(
+        mut io: HwIoIo,
+        routes: Arc<Routes>,
+        audio: Arc<AudioShared>,
+        sample_rate: f64,
+        block: u32,
+        mut sink: Box<dyn MidiOutSink>,
+    ) -> std::io::Result<HwMidiOut> {
+        let stop = Arc::new(AtomicBool::new(false));
+        let flag = stop.clone();
+        let thread = std::thread::Builder::new()
+            .name("ether-hw-midi".into())
+            .spawn(move || {
+                let mut s = Scheduler::default();
+                while !flag.load(Ordering::Relaxed) {
+                    if let Some((v, r)) = routes.get_if_newer(s.version()) {
+                        s.set_routes(v, r, sink.as_mut());
+                    }
+                    while let Ok(m) = io.midi.pop() {
+                        s.push(m);
+                    }
+                    let offset = f64::from(audio.recording.output_latency_or(block));
+                    let wait = match audio.clock.sample_now(sample_rate) {
+                        Some(now) => match s.step(now, offset, sink.as_mut()) {
+                            Some(next) => {
+                                ((next as f64 + offset - now) / sample_rate).clamp(0.0, 0.002)
+                            }
+                            None => 0.002,
+                        },
+                        None => 0.01,
+                    };
+                    std::thread::sleep(Duration::from_secs_f64(wait.max(0.0002)));
+                }
+            })?;
+        Ok(HwMidiOut {
+            stop,
+            thread: Some(thread),
+        })
     }
 }
 
@@ -1117,5 +1467,293 @@ mod tests {
             Err(BridgeError::Other(m)) => assert!(m.contains("is not installed"), "{m}"),
             other => panic!("{:?}", other.map(|_| ())),
         }
+    }
+
+    // ─── external-instrument ───
+
+    /// Records what the MIDI thread sends, with the time.
+    type Sent = Vec<(std::time::Instant, String, Vec<u8>)>;
+    #[derive(Clone, Default)]
+    struct RecordingSink(Arc<std::sync::Mutex<Sent>>);
+
+    impl hw_midi::MidiOutSink for RecordingSink {
+        fn send(&mut self, port: &str, data: &[u8]) -> bool {
+            if port == "Gone" {
+                return false;
+            }
+            self.0
+                .lock()
+                .unwrap()
+                .push((std::time::Instant::now(), port.into(), data.to_vec()));
+            true
+        }
+    }
+
+    fn key(i: u32) -> NodeKey {
+        NodeKey {
+            index: i,
+            generation: 1,
+        }
+    }
+
+    fn ev(node: u32, frame: u64, data: [u8; 3]) -> ether_core::hw_io::HwMidiEvent {
+        ether_core::hw_io::HwMidiEvent {
+            node: key(node),
+            frame,
+            data,
+        }
+    }
+
+    #[test]
+    fn external_routing_updates_in_place() {
+        let (mut b, _engine) = bridge();
+        let d = DeviceId(Ulid(9));
+        let kind = BuiltinDevice::new(BuiltinDeviceType::ExternalAudioEffect);
+        b.create_builtin(d, &kind, &[]).unwrap();
+        assert!(b.update_builtin(d, &kind).unwrap());
+        let other = BuiltinDevice::new(BuiltinDeviceType::ExternalInstrument);
+        assert!(
+            !b.update_builtin(d, &other).unwrap(),
+            "another type is re-created"
+        );
+        assert!(!b.update_builtin(DeviceId(Ulid(10)), &kind).unwrap());
+    }
+
+    #[test]
+    fn hw_midi_scheduler_orders_routes_and_releases_notes() {
+        let sink = RecordingSink::default();
+        let mut out = sink.clone();
+        let mut s = hw_midi::Scheduler::default();
+        s.set_routes(
+            1,
+            [(key(1), "A".to_string()), (key(2), "Gone".to_string())].into(),
+            &mut out,
+        );
+        s.push(ev(1, 200, [0x90, 60, 100]));
+        s.push(ev(1, 100, [0x90, 62, 100]));
+        s.push(ev(2, 100, [0x90, 64, 100]));
+        s.push(ev(3, 100, [0x90, 65, 100]));
+        // Nothing due before frame + offset.
+        assert_eq!(s.step(149.0, 50.0, &mut out), Some(100));
+        assert!(sink.0.lock().unwrap().is_empty());
+        // Frame 100 is due: node 1 sends, node 2's port is gone (dropped), node 3 has no
+        // route (dropped).
+        assert_eq!(s.step(150.0, 50.0, &mut out), Some(200));
+        assert_eq!(sink.0.lock().unwrap().len(), 1);
+        assert_eq!(s.step(250.0, 50.0, &mut out), None);
+        let sent: Vec<Vec<u8>> = sink.0.lock().unwrap().iter().map(|e| e.2.clone()).collect();
+        assert_eq!(sent, vec![vec![0x90, 62, 100], vec![0x90, 60, 100]]);
+        // A note-off releases one; the port changing releases the rest on the old port.
+        s.push(ev(1, 300, [0x80, 62, 0]));
+        s.step(400.0, 0.0, &mut out);
+        sink.0.lock().unwrap().clear();
+        s.set_routes(2, [(key(1), "B".to_string())].into(), &mut out);
+        let sent: Vec<(String, Vec<u8>)> = sink
+            .0
+            .lock()
+            .unwrap()
+            .iter()
+            .map(|e| (e.1.clone(), e.2.clone()))
+            .collect();
+        assert_eq!(sent, vec![("A".to_string(), vec![0x80, 60, 0])]);
+    }
+
+    /// Messages leave when their engine sample plays: clock time of the frame plus the
+    /// output latency (here the block, no device latency reported).
+    #[test]
+    fn hw_midi_thread_sends_on_time() {
+        let audio = Arc::new(AudioShared::default());
+        let (mut tx, rx) = ether_core::recording::rtrb::RingBuffer::new(64);
+        let routes = Arc::new(hw_midi::Routes::default());
+        routes.set([(key(1), "A".to_string())].into());
+        let sink = RecordingSink::default();
+        let t = hw_midi::spawn(
+            ether_core::hw_io::HwIoIo { midi: rx },
+            routes,
+            audio.clone(),
+            48_000.0,
+            480,
+            Box::new(sink.clone()),
+        )
+        .unwrap();
+        // The engine starts rendering sample 0 now; a note at 100 ms (4800).
+        audio.clock.publish(0);
+        let start = std::time::Instant::now();
+        tx.push(ev(1, 4800, [0x90, 60, 100])).unwrap();
+        tx.push(ev(1, 9600, [0x80, 60, 0])).unwrap();
+        let deadline = start + std::time::Duration::from_secs(5);
+        while sink.0.lock().unwrap().len() < 2 && std::time::Instant::now() < deadline {
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        drop(t);
+        let sent = sink.0.lock().unwrap().clone();
+        assert_eq!(sent.len(), 2);
+        // Due at (4800 + 480) / 48 kHz = 110 ms and 210 ms.
+        for ((at, _, _), want) in sent.iter().zip([110.0, 210.0]) {
+            let ms = at.duration_since(start).as_secs_f64() * 1000.0;
+            assert!(
+                ms >= want - 1.0 && ms < want + 15.0,
+                "sent at {ms} ms, due {want}"
+            );
+        }
+    }
+
+    /// Acceptance with the null backend's loopback input: the controller measures an
+    /// External Audio Effect's round trip (send → loopback → return) through the native
+    /// bridge, and sets its `Latency` to it.
+    #[test]
+    fn measure_latency_through_the_null_loopback() {
+        use ether_controller::memory::{MemoryLibrary, MemoryStore};
+        use ether_controller::{Controller, EtherController};
+        use ether_core::protocol::Command;
+        use ether_core::protocol::devices::{DeviceCommand, DeviceSpec};
+        use ether_core::protocol::external::{ExternalCommand, ExternalEvent};
+        use ether_core::protocol::message::{ClientMessage, Event, ServerMessage};
+        use ether_core::protocol::model::{
+            ExternalRouting, HwChannels, ProjectId, TrackId, TrackKind,
+        };
+        use ether_core::protocol::project::ProjectCommand;
+        use ether_core::protocol::tracks::TrackCommand;
+
+        let delay = 2048usize;
+        let block = 256usize;
+        let parts = ether_core::create(ether_core::EngineConfig {
+            sample_rate: 48_000,
+            max_block_size: block,
+            max_nodes: 32,
+            ..Default::default()
+        });
+        let shared = Arc::new(AudioShared::default());
+        let settings = crate::audio::AudioSettings {
+            backend: crate::audio::AudioBackendKind::Null,
+            input_device: Some(format!("loopback:{delay}")),
+            max_block_size: block,
+            ..Default::default()
+        };
+        let out =
+            crate::audio::AudioOutput::start(Box::new(parts.engine), &settings, shared.clone())
+                .map_err(|(e, _)| e)
+                .expect("null backend starts");
+        let mut gc = parts.gc;
+        let gc_stop = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let gc_flag = gc_stop.clone();
+        let gc_thread = std::thread::spawn(move || {
+            while !gc_flag.load(std::sync::atomic::Ordering::Relaxed) {
+                gc.collect();
+                std::thread::sleep(std::time::Duration::from_millis(10));
+            }
+        });
+        let b = NativeBridge::new(
+            parts.handle,
+            PrepareConfig {
+                sample_rate: 48_000.0,
+                max_block_size: block,
+                max_events_per_block: 256,
+            },
+            PluginHost::new(Arc::new(DedicatedThread::new())),
+            PluginCatalog::default(),
+            fake::instantiate(),
+            shared.clone(),
+        );
+        let mut ctl =
+            EtherController::new(b, NativeServices, MemoryStore::new(), MemoryLibrary::new());
+        let mut n = 0;
+        let mut send = |ctl: &mut EtherController<_, _, _, _>, command: Command| {
+            n += 1;
+            let mut out = Vec::new();
+            ctl.handle(
+                ClientMessage {
+                    id: n,
+                    gesture: None,
+                    command,
+                },
+                &mut out,
+            );
+            out
+        };
+        send(
+            &mut ctl,
+            Command::Project(ProjectCommand::Create {
+                id: ProjectId::v7(1_750_000_000_000, [7; 10]),
+                name: "Loop".into(),
+            }),
+        );
+        let track = TrackId(Ulid(10));
+        send(
+            &mut ctl,
+            Command::Track(TrackCommand::Create {
+                id: track,
+                kind: TrackKind::Audio,
+                name: None,
+                color: None,
+                parent: None,
+                before: None,
+            }),
+        );
+        let fx = DeviceId(Ulid(11));
+        send(
+            &mut ctl,
+            Command::Device(DeviceCommand::Insert {
+                id: fx,
+                track,
+                device: DeviceSpec::Builtin {
+                    device: BuiltinDevice::new(BuiltinDeviceType::ExternalAudioEffect),
+                },
+                before: None,
+            }),
+        );
+        // The loopback returns the stereo output on inputs 1/2.
+        send(
+            &mut ctl,
+            Command::External(ExternalCommand::SetRouting {
+                device: fx,
+                routing: ExternalRouting {
+                    audio_send: Some(HwChannels { first: 0, count: 2 }),
+                    audio_return: Some(HwChannels { first: 0, count: 2 }),
+                    ..ExternalRouting::default()
+                },
+            }),
+        );
+        let ports = send(&mut ctl, Command::External(ExternalCommand::ListPorts));
+        assert!(
+            format!("{ports:?}").contains("Loopback L"),
+            "the loopback input is listed: {ports:?}"
+        );
+        send(
+            &mut ctl,
+            Command::External(ExternalCommand::MeasureLatency { device: fx }),
+        );
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+        let mut result = None;
+        while result.is_none() && std::time::Instant::now() < deadline {
+            let mut out = Vec::new();
+            ctl.tick(NativeServices.now_ms(), &mut out);
+            for m in out {
+                if let ServerMessage::Event(Event::External { event }) = m {
+                    result = Some(event);
+                }
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        let want = delay as f64 * 1000.0 / 48_000.0;
+        match result {
+            Some(ExternalEvent::LatencyMeasured { device, latency_ms }) => {
+                assert_eq!(device, fx);
+                assert!((latency_ms - want).abs() < 1e-6, "{latency_ms} vs {want}");
+            }
+            other => panic!("no measurement: {other:?}"),
+        }
+        let p = ctl.project().unwrap();
+        assert_eq!(
+            p.devices[&fx]
+                .params
+                .get(&ether_devices::external::external_audio_effect::LATENCY)
+                .copied(),
+            Some(want)
+        );
+        drop(ctl);
+        drop(out.stop());
+        gc_stop.store(true, std::sync::atomic::Ordering::Relaxed);
+        let _ = gc_thread.join();
     }
 }

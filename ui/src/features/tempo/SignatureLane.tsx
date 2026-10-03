@@ -1,19 +1,19 @@
 /**
  * Time-signature lane of the tempo editor: one marker per signature change.
  *
- * - drag a marker: it moves along the bar lines of the signature before it (one undo step);
- *   the one at beat 0 stays;
- * - double-click the lane: add a change on the nearest bar line (same signature, edit it
- *   in the header or from the marker's menu); double-click a marker: remove it;
+ * - drag a marker: it moves anywhere on the grid (a beat of the signature in effect, finer
+ *   if the grid is finer; Alt bypasses snapping), one undo step; the one at beat 0 stays;
+ * - double-click the lane: add a change there, snapped the same way (same signature, edit
+ *   it in the header or from the marker's menu); double-click a marker: remove it;
  * - right-click a marker: common signatures, delete.
- * The controller rejects an edit that would leave a later change off its bar line (the
- * lane then keeps the previous state); move or remove the later change first.
+ * A change inside a bar ends that bar early (CONTRACTS.md §11.3).
  */
 
 import { useLayoutEffect, useRef, type KeyboardEvent, type MouseEvent, type PointerEvent as ReactPointerEvent } from "react";
 import type { TimeSignaturePoint } from "@/generated";
 import { openContextMenu, setDragCursor } from "@/kit";
 import { newId } from "@/transport";
+import { DEFAULT_GRID, resolveGrid } from "@/timeline/grid";
 import type { TempoMap } from "@/timeline/tempoMap";
 import { beatsToPx, pxToBeats } from "@/timeline/viewport";
 import { useViewport, type TimelineViewStore } from "@/timeline/viewStore";
@@ -46,6 +46,11 @@ export function SignatureLane({ view, tempo, signatures, selected, onSelect }: S
   });
 
   const localX = (e: { clientX: number }) => e.clientX - (rootRef.current?.getBoundingClientRect().left ?? 0);
+  /** The lane's grid step (adaptive, as in the tempo lane). */
+  const gridStep = () => {
+    const st = view.getState();
+    return resolveGrid(DEFAULT_GRID, st.pxPerBeat, tempo.signatureAt(st.scrollBeats));
+  };
 
   const remove = (p: TimeSignaturePoint) => {
     if (isAtZero(p)) return;
@@ -68,7 +73,7 @@ export function SignatureLane({ view, tempo, signatures, selected, onSelect }: S
       (ev) => {
         setDragCursor("grabbing");
         const raw = p.time + (localX(ev) - startX) / view.getState().pxPerBeat;
-        const t = snapSignatureTime(live.current, raw, p.id);
+        const t = snapSignatureTime(live.current, raw, { except: p.id, step: gridStep(), free: ev.altKey });
         if (t === null || t === last) return;
         last = t;
         gesture.update(editSignatureCommand(p.id, { time: t }));
@@ -84,7 +89,7 @@ export function SignatureLane({ view, tempo, signatures, selected, onSelect }: S
     e.stopPropagation();
     if (e.target !== e.currentTarget) return;
     const raw = pxToBeats(localX(e), view.getState());
-    const t = snapSignatureTime(live.current, raw);
+    const t = snapSignatureTime(live.current, raw, { step: gridStep(), free: e.altKey });
     if (t === null) return;
     const id = newId();
     void sendEdit(transport, addSignatureCommand(t, tempo.signatureAt(t), id)).then(() => onSelect(id));

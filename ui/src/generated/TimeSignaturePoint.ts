@@ -4,7 +4,9 @@ import type { TimeSignature } from "./TimeSignature";
 import type { TimeSignatureId } from "./TimeSignatureId";
 
 /**
- * A time-signature change. `time` must fall on a bar line of the previous signature.
+ * A time-signature change, anywhere on the timeline. A change inside a bar ends that bar
+ * early (a partial bar); a new bar in the new signature starts at the change (see
+ * `TempoMap::bar_beat`).
  * There is always one at beat 0.
  */
 export type TimeSignaturePoint = { id: TimeSignatureId, time: Beats, signature: TimeSignature, };

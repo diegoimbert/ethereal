@@ -124,6 +124,31 @@ describe("ruler marks", () => {
     const m = rulerMarks(tempo, { pxPerBeat: 60, scrollBeats: 0 }, 250, "bars");
     expect(m.labels.map((l) => l.text)).toEqual(["1", "1.2", "1.3", "1.4", "2"]);
   });
+  it("labels a partial bar and restarts at a mid-bar signature change", () => {
+    // 4/4, then 7/8 at beat 2.5 (CONTRACTS.md §11.3): bar 1 ends early, bar 2 starts there.
+    const mid = new TempoMap([], [
+      { id: "a", time: 0, signature: { numerator: 4, denominator: 4 } },
+      { id: "b", time: 2.5, signature: { numerator: 7, denominator: 8 } },
+    ]);
+    const m = rulerMarks(mid, { pxPerBeat: 60, scrollBeats: 0 }, 400, "bars");
+    expect(m.labels.map((l) => [l.text, l.x])).toEqual([
+      ["1", 0],
+      ["1.2", 60],
+      ["1.3", 120],
+      ["2", 150],
+      ["2.3", 210],
+      ["2.5", 270],
+      ["2.7", 330],
+      ["3", 360],
+    ]);
+    const z = rulerMarks(mid, { pxPerBeat: 10, scrollBeats: 0 }, 400, "bars");
+    // Zoomed out: every 2 bars, counted through the partial bar (3 = 6 beats, 5 = 13).
+    expect(z.labels.slice(0, 3).map((l) => [l.text, l.x])).toEqual([
+      ["1", 0],
+      ["3", 60],
+      ["5", 130],
+    ]);
+  });
   it("seconds ruler", () => {
     const m = rulerMarks(tempo, { pxPerBeat: 20, scrollBeats: 0 }, 400, "seconds");
     // 40 px per second → labels every 2 s.

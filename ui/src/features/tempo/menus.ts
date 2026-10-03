@@ -4,6 +4,7 @@
 
 import { useMemo } from "react";
 import type { Beats, TempoPoint, TimeSignature, TimeSignaturePoint } from "@/generated";
+import type { GridStep } from "@/timeline/grid";
 import type { ContextMenuEntry } from "@/kit";
 import { useProjectStore } from "@/state/projectStore";
 import type { EngineTransport } from "@/transport";
@@ -47,16 +48,21 @@ export function signatureMenu(
 const EMPTY_TEMPO: Record<string, TempoPoint> = {};
 const EMPTY_SIGS: Record<string, TimeSignaturePoint> = {};
 
-/** Ruler context-menu entries at `beats`: add a tempo change / a time signature there. */
+/**
+ * Ruler context-menu entries at `beats` (snapped to the ruler's grid): add a tempo change /
+ * a time signature there. The signature change snaps `sig.raw` (default `beats`) to at
+ * least a beat of the signature in effect (`snapSignatureTime`), so it may sit mid-bar.
+ */
 export function rulerTempoMenu(
   transport: EngineTransport,
   tempo: TempoMap,
   points: ReadonlyArray<TempoPoint>,
   signatures: ReadonlyArray<TimeSignaturePoint>,
   beats: Beats,
+  sig: { raw?: Beats; step?: GridStep | null; free?: boolean } = {},
 ): ContextMenuEntry[] {
   const at = Math.max(0, beats);
-  const sigAt = snapSignatureTime(signatures, at);
+  const sigAt = snapSignatureTime(signatures, sig.raw ?? at, { step: sig.step, free: sig.free });
   return [
     {
       label: "Add Tempo Change Here",
