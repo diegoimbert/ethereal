@@ -10,6 +10,7 @@ import { useProjectStore } from "@/state";
 import { cmd } from "@/transport";
 import { ProjectScreen } from "./ProjectScreen";
 import { useProjectScreen } from "./screenStore";
+import { useShareSessionSync } from "./shareState";
 
 /**
  * Project menu: the Projects button, current project name and unsaved-changes dot. The
@@ -33,6 +34,7 @@ export function ProjectMenu() {
   const dirty = useProjectStore((s) => s.dirty);
   const open = useProjectScreen((s) => s.open);
   const disabled = !transport || name === null;
+  useShareSessionSync();
 
   const revision = useProjectStore((s) => s.revision);
   const save = () => void send(cmd("Project", { type: "Save" }));

@@ -1,13 +1,15 @@
 import { useEffect, useMemo, useState, type FormEvent, type MouseEvent } from "react";
 import { MoreHorizontal, Plus } from "lucide-react";
 import type { ProjectSummary } from "@/generated";
-import type { EngineCommands } from "@/features/transport-bar/engine";
-import { Button, Dialog, IconButton, openContextMenu, TextInput } from "@/kit";
+import { errorMessage, type EngineCommands } from "@/features/transport-bar/engine";
+import { Button, Dialog, IconButton, openContextMenu, TextInput, type ContextMenuEntry } from "@/kit";
 import { ProjectScale } from "@/features/scale/ProjectScale";
 import { useProjectStore } from "@/state";
-import { cmd, newProjectId } from "@/transport";
+import { cmd, newProjectId, type EngineTransport } from "@/transport";
 import { copyName, formatModified, sortProjects, uniqueName } from "./projectNames";
 import { useProjectScreen } from "./screenStore";
+import { ShareBadges } from "./ShareBadges";
+import { copyInviteLink, makePrivateCopy, reconnectCopy, stopSharing } from "./shareActions";
 
 /**
  * The project screen: a modal over the whole app, shown on launch and from the Projects
@@ -51,7 +53,9 @@ function Home({ commands, onNew, onDone }: { commands: EngineCommands; onNew(): 
   const others = useMemo(() => sortProjects(projects).filter((p) => p.id !== current?.id), [projects, current?.id]);
   const [busy, setBusy] = useState(false);
   const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(null);
-  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [confirm, setConfirm] = useState<Confirm | null>(null);
+  // Outcome of a sharing action ("Link copied", or why it failed).
+  const [notice, setNotice] = useState<{ text: string; error: boolean } | null>(null);
 
   // Refresh the list when shown (it is also kept current by `Project::ListChanged`).
   useEffect(() => {
@@ -85,27 +89,115 @@ function Home({ commands, onNew, onDone }: { commands: EngineCommands; onNew(): 
     rename(renaming.id, renaming.name);
   };
 
-  const menu = (e: MouseEvent, p: ProjectSummary) =>
-    openContextMenu(e, [
+  /** Run a sharing action (they may open the project first), reporting its outcome. */
+  const share = async (action: (t: EngineTransport) => Promise<unknown>, done?: string, close = false) => {
+    if (!commands.transport) return;
+    setBusy(true);
+    setNotice(null);
+    try {
+      await action(commands.transport);
+      if (done) setNotice({ text: done, error: false });
+      if (close) onDone();
+    } catch (err) {
+      setNotice({ text: errorMessage(err), error: true });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  /** The sharing entries of a project's menu (SHARING.md §8.5). */
+  const shareActions = (p: ProjectSummary): ShareAction[] => {
+    const s = p.share;
+    if (!s) return [];
+    if (s.role === "Host") {
+      if (!s.active) return [];
+      return [
+        { label: "Copy invite link", onSelect: () => void share((t) => copyInviteLink(t, p.id), "Link copied") },
+        { label: "Stop sharing…", danger: true, onSelect: () => setConfirm({ id: p.id, kind: "stop" }) },
+      ];
+    }
+    const actions: ShareAction[] = [];
+    if (s.active) actions.push({ label: "Reconnect", onSelect: () => void share((t) => reconnectCopy(t, p.id), undefined, true) });
+    actions.push({ label: "Make a private copy…", onSelect: () => setConfirm({ id: p.id, kind: "detach" }) });
+    return actions;
+  };
+
+  const menu = (e: MouseEvent, p: ProjectSummary) => {
+    const sharing = shareActions(p);
+    const entries: ContextMenuEntry[] = [
       { label: "Open", onSelect: () => void run(cmd("Project", { type: "Open", id: p.id })).then((r) => r && onDone()) },
       { label: "Rename", onSelect: () => setRenaming({ id: p.id, name: p.name }) },
       {
         label: "Duplicate",
         onSelect: () => void run(cmd("Project", { type: "Duplicate", id: p.id, new_id: newProjectId(), name: copyName(p.name, projects) })),
       },
+      ...(sharing.length > 0 ? (["separator", ...sharing] as ContextMenuEntry[]) : []),
       "separator",
-      { label: "Delete…", danger: true, onSelect: () => setConfirmDelete(p.id) },
-    ]);
+      { label: "Delete…", danger: true, onSelect: () => setConfirm({ id: p.id, kind: "delete" }) },
+    ];
+    openContextMenu(e, entries);
+  };
+
+  /** "Stop sharing" / "Make private" inline confirmation for project `p`. */
+  const shareConfirm = (p: ProjectSummary, kind: "stop" | "detach") => {
+    const people = (p.share?.participants ?? []).map((x) => x.name);
+    const text =
+      kind === "stop"
+        ? `Stop sharing “${p.name}”? ${people.length > 0 ? `${listNames(people)} keep an offline copy. ` : ""}Links stop working.`
+        : `Make “${p.name}” private? It stops syncing with ${p.share?.host_name || "the host"}.`;
+    const label = kind === "stop" ? "Stop sharing" : "Make private";
+    return (
+      <span className="eth-project-screen__confirm">
+        <span className="eth-project-screen__name" title={text}>
+          {text}
+        </span>
+        <Button size="sm" onClick={() => setConfirm(null)}>
+          Cancel
+        </Button>
+        <Button
+          size="sm"
+          className="eth-project-screen__danger"
+          disabled={busy}
+          aria-label={`Confirm ${label.toLowerCase()} ${p.name}`}
+          onClick={() => {
+            setConfirm(null);
+            void share((t) => (kind === "stop" ? stopSharing(t, p.id) : makePrivateCopy(t, p.id)));
+          }}
+        >
+          {label}
+        </Button>
+      </span>
+    );
+  };
+
+  const currentSummary = current ? projects.find((p) => p.id === current.id) : undefined;
+  const currentActions = currentSummary ? shareActions(currentSummary) : [];
 
   return (
     <div className="eth-project-screen__body">
       {current && (
         <section className="eth-project-screen__current" aria-label="Open project">
-          <span className="eth-project-screen__label">Open project</span>
+          <span className="eth-project-screen__label eth-project-screen__heading">
+            Open project
+            {currentSummary && <ShareBadges project={currentSummary} />}
+          </span>
           <CurrentName key={current.id} name={current.settings.name} onRename={(name) => rename(current.id, name)} />
           <Button variant="primary" onClick={onDone}>
             Continue
           </Button>
+          {currentSummary && confirm?.id === current.id && confirm.kind !== "delete" ? (
+            <div className="eth-project-screen__share-actions">{shareConfirm({ ...currentSummary, name: current.settings.name }, confirm.kind)}</div>
+          ) : (
+            currentActions.length > 0 && (
+              <div className="eth-project-screen__share-actions" role="group" aria-label="Sharing">
+                {currentActions.map((a) => (
+                  <Button key={a.label} size="sm" tone={a.danger ? "danger" : "ghost"} disabled={busy} onClick={a.onSelect}>
+                    {a.label}
+                  </Button>
+                ))}
+              </div>
+            )
+          )}
           <ProjectScale send={send} />
         </section>
       )}
@@ -116,6 +208,17 @@ function Home({ commands, onNew, onDone }: { commands: EngineCommands; onNew(): 
       </button>
 
       <ErrorLine commands={commands} />
+      {notice && (
+        <button
+          type="button"
+          className={notice.error ? "eth-project__error" : "eth-project-screen__notice"}
+          role={notice.error ? "alert" : "status"}
+          title="Dismiss"
+          onClick={() => setNotice(null)}
+        >
+          {notice.text}
+        </button>
+      )}
 
       {others.length > 0 && (
         <section className="eth-project-screen__recent" aria-label="Recent projects">
@@ -139,10 +242,12 @@ function Home({ commands, onNew, onDone }: { commands: EngineCommands; onNew(): 
                       }}
                     />
                   </form>
-                ) : confirmDelete === p.id ? (
+                ) : confirm?.id === p.id && confirm.kind !== "delete" ? (
+                  shareConfirm(p, confirm.kind)
+                ) : confirm?.id === p.id ? (
                   <span className="eth-project-screen__confirm">
                     <span className="eth-project-screen__name">Delete “{p.name}”?</span>
-                    <Button size="sm" onClick={() => setConfirmDelete(null)}>
+                    <Button size="sm" onClick={() => setConfirm(null)}>
                       Cancel
                     </Button>
                     <Button
@@ -151,7 +256,7 @@ function Home({ commands, onNew, onDone }: { commands: EngineCommands; onNew(): 
                       disabled={busy}
                       aria-label={`Confirm delete ${p.name}`}
                       onClick={() => {
-                        setConfirmDelete(null);
+                        setConfirm(null);
                         void run(cmd("Project", { type: "Delete", id: p.id }));
                       }}
                     >
@@ -169,6 +274,7 @@ function Home({ commands, onNew, onDone }: { commands: EngineCommands; onNew(): 
                     <span className="eth-project-screen__name" title={p.name}>
                       {p.name}
                     </span>
+                    <ShareBadges project={p} />
                     <span className="eth-project-screen__date">{formatModified(p.modified_ms)}</span>
                   </button>
                 )}
@@ -189,6 +295,24 @@ function Home({ commands, onNew, onDone }: { commands: EngineCommands; onNew(): 
       )}
     </div>
   );
+}
+
+/** A pending inline confirmation in the project screen. */
+interface Confirm {
+  id: string;
+  kind: "delete" | "stop" | "detach";
+}
+
+interface ShareAction {
+  label: string;
+  danger?: boolean;
+  onSelect(): void;
+}
+
+/** "Ada", "Ada and Tom", "Ada, Tom and Kim". */
+function listNames(names: ReadonlyArray<string>): string {
+  if (names.length <= 1) return names.join("");
+  return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
 }
 
 /** The open project's name, renamed on Enter or blur (Escape reverts). */

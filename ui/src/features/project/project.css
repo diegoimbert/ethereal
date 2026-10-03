@@ -177,3 +177,80 @@
   justify-content: flex-end;
   gap: var(--eth-space-sm);
 }
+
+/* Sharing (recents-shared, docs/SHARING.md §8.5): badge, avatars, "Live". */
+.eth-project-screen__heading {
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-md);
+}
+.eth-project-screen__share-actions {
+  display: flex;
+  grid-column: 1 / -1;
+  align-items: center;
+  gap: var(--eth-space-sm);
+  min-width: 0;
+}
+.eth-project-screen__notice {
+  align-self: flex-start;
+  border: none;
+  background: none;
+  color: var(--eth-color-ok);
+  font-size: var(--eth-fs-xs);
+  cursor: pointer;
+  text-align: left;
+}
+.eth-project-share {
+  --eth-project-avatar-size: var(--eth-size-control-sm);
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--eth-space-sm);
+  font-weight: normal;
+  letter-spacing: normal;
+  text-transform: none;
+}
+.eth-project-share__avatars {
+  display: inline-flex;
+  align-items: center;
+}
+.eth-project-share__avatar,
+.eth-project-share__more {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--eth-project-avatar-size);
+  height: var(--eth-project-avatar-size);
+  border-radius: var(--eth-radius-round);
+  font-size: var(--eth-fs-2xs);
+  font-weight: 600;
+  line-height: 1;
+  user-select: none;
+}
+.eth-project-share__avatar {
+  background: var(--eth-project-peer);
+  color: var(--eth-color-bg);
+  box-shadow: 0 0 0 var(--eth-border-width-strong) var(--dialog-bg, var(--eth-color-bg-raised));
+}
+.eth-project-share__avatar + .eth-project-share__avatar,
+.eth-project-share__avatar + .eth-project-share__more {
+  margin-left: calc(-1 * var(--eth-space-sm));
+}
+.eth-project-share__more {
+  padding: 0 var(--eth-space-xs);
+  color: var(--eth-color-text-dim);
+}
+.eth-project-share__live {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--eth-space-xs);
+  color: var(--eth-color-ok);
+  font-size: var(--eth-fs-xs);
+  font-weight: 600;
+}
+.eth-project-share__dot {
+  width: var(--eth-space-sm);
+  height: var(--eth-space-sm);
+  border-radius: var(--eth-radius-round);
+  background: var(--eth-color-ok);
+}
