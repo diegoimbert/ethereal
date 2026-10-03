@@ -5,7 +5,7 @@ import type { Clip, PeerTransport, Presence } from "@/generated";
 import { renderWithMock, resetStores } from "@/features/transport-bar/testUtils";
 import { useProjectStore } from "@/state";
 import { useCollabStore } from "../store";
-import { editorPlayheadX } from "./EditorPlayheads";
+import { editorPlayheadX } from "./editorPlayheadX";
 import { EditorPresence, type EditorCursorMapping } from "./EditorPresence";
 import { useLocalPresence } from "./local";
 
@@ -36,7 +36,7 @@ const peer = (site: string, name: string, transport: PeerTransport | null): Pres
   actor: null,
   name,
   color: 0x5cffe8,
-  state: { cursor: null, selected_tracks: [], selected_clips: [], selected_notes: [], selected_devices: [], view: null, transport },
+  state: { cursor: null, selected_tracks: [], selected_clips: [], selected_notes: [], selected_devices: [], view: null, ...(transport ? { transport } : {}) },
 });
 
 const stopped = (position: number): PeerTransport => ({ position, playing: false, sent_at_ms: 1, loop_region: null });

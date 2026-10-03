@@ -7,7 +7,7 @@
 
 import clsx from "clsx";
 import { useEffect, useRef, useState } from "react";
-import type { AnalysisData, MediaRef, ParamInfo, PeakData, Widget, WidgetSize } from "@/generated";
+import type { AnalysisData, MediaRef, ParamInfo, PeakData } from "@/generated";
 import { useProjectStore } from "@/state";
 import { cmd, useTransport } from "@/transport";
 import { SampleSlot } from "../../SampleSlot";

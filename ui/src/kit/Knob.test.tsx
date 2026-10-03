@@ -1,6 +1,7 @@
 import { render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { CENTER_MIN_SCALE, centerParts, centerRoom, fitScale, Knob } from "./Knob";
+import { Knob } from "./Knob";
+import { CENTER_MIN_SCALE, centerParts, centerRoom, fitScale } from "./knobFit";
 
 describe("Knob center value", () => {
   it("splits the unit off the number", () => {

@@ -4,8 +4,7 @@
 // playing outside the clip (or in a part of the song the clip doesn't cover) has no line.
 // Mounted by `EditorPresence`, so it shares its "online and not hidden" gate.
 import { useEffect, useRef, type RefObject } from "react";
-import type { Beats, ClipId, SiteId } from "@/generated";
-import { songToContent } from "@/features/piano-roll/clipTime";
+import type { ClipId, SiteId } from "@/generated";
 import { useProjectStore } from "@/state";
 import { useTempoMap } from "@/timeline";
 import { activeHost } from "../listen/store";
@@ -15,20 +14,7 @@ import { initials, useCollabStore } from "../store";
 import { avatarStyle } from "./avatar";
 import "./presence.css";
 import type { EditorCursorMapping } from "./EditorPresence";
-
-/**
- * Content x of a peer at song position `song` in `clip`, or `null` when the clip doesn't
- * play there. Pure (the per-frame part of `EditorPlayheads`).
- */
-export function editorPlayheadX(
-  clip: Parameters<typeof songToContent>[0] | undefined,
-  song: Beats,
-  mapping: Pick<EditorCursorMapping, "toScreen">,
-): number | null {
-  if (!clip) return null;
-  const content = songToContent(clip, song);
-  return content === null ? null : mapping.toScreen(content, 0).x;
-}
+import { editorPlayheadX } from "./editorPlayheadX";
 
 /** The nearest ancestor that scrolls vertically (the editor's body), if any. */
 function scrollParent(el: HTMLElement): HTMLElement | null {
