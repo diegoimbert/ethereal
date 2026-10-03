@@ -151,9 +151,9 @@ import { externalCommand } from "./roadmap/external";
 import { keymapCommand } from "./roadmap/keymap";
 import { templateCommand } from "./roadmap/templates";
 import { historyCommand } from "./roadmap/undoHistory";
-import { versionCommand } from "./roadmap/versions";
 // ai-chat: the agent API (Command::Agent) over the mock document.
 import { MockAgent, type MockAgentCommand } from "./roadmap/agent";
+import { MockVersions } from "./roadmap/versions";
 
 export interface MockTransportOptions {
   /**
@@ -347,6 +347,26 @@ export class MockTransport implements EngineTransport {
         return UNIT;
       }),
   });
+  /** `project-versions`: rolling versions and crash recovery (`simulateCrash` for tests). */
+  readonly versions = new MockVersions(
+    {
+      project: () => this.project,
+      revision: () => this.revision,
+      now: () => this.wallNow(),
+      emit: (event) => this.emit(event),
+      summaries: () => this.summaries(),
+      savedJson: (id) => this.store.get(id)?.json,
+      replaceDocument: (project) => {
+        this.loadProject(project);
+        this.setDirty(true);
+      },
+      saveIfDirty: () => {
+        if (this.dirty) this.saveCurrent();
+      },
+    },
+    parseEtherFile,
+    serializeEtherFile,
+  );
 
   constructor(opts: MockTransportOptions = {}) {
     this.manual = opts.timers === "manual";
@@ -359,6 +379,7 @@ export class MockTransport implements EngineTransport {
     this.historyLimit = opts.historyLimit ?? 500;
     this.newId = opts.seed !== undefined ? seededIdFactory(opts.seed + 1000) : defaultNewId;
     this.rand = mulberry32(opts.seed ?? 1);
+    this.versions.projectLoaded();
   }
 
   // ─── EngineTransport ──────────────────────────────────────────────────────────────────
@@ -528,7 +549,7 @@ export class MockTransport implements EngineTransport {
         if (command.command.type === "Insert") break;
         return templateCommand(command.command);
       case "Version":
-        return versionCommand(command.command);
+        return this.versions.command(command.command);
       case "Keymap":
         return keymapCommand(command.command);
       // base-115 (docs/SHARING.md).
@@ -686,6 +707,7 @@ export class MockTransport implements EngineTransport {
     this.playheadDirty = true;
     this.emit({ type: "ProjectLoaded", project });
     this.mediaRefs.projectOpened();
+    this.versions.projectLoaded();
     this.setArmed([]);
     this.capture.projectChanged();
     this.setDirty(false);
@@ -1076,6 +1098,7 @@ export class MockTransport implements EngineTransport {
     this.freeze.step();
     this.preview.step();
     this.liveRecord.step();
+    this.versions.step();
   }
 
   private emitPlayhead(): void {

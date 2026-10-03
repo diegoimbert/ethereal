@@ -24,7 +24,6 @@ use ether_core::protocol::project::ProjectCommand;
 use ether_core::protocol::templates::TemplateCommand;
 use ether_core::protocol::tracks::TrackCommand;
 use ether_core::protocol::undo_history::HistoryCommand;
-use ether_core::protocol::versions::VersionCommand;
 use ether_core::protocol::{Command, ErrorCode};
 
 /// Sends `c` and asserts it replies `Unsupported` without changing the document.
@@ -287,18 +286,7 @@ fn templates_reply_unsupported() {
     );
 }
 
-#[test]
-fn project_versions_reply_unsupported() {
-    let mut h = Harness::with_project();
-    assert_unsupported(&mut h, Command::Version(VersionCommand::List));
-    assert_unsupported(
-        &mut h,
-        Command::Version(VersionCommand::Create {
-            name: Some("v1".into()),
-        }),
-    );
-    assert_unsupported(&mut h, Command::Version(VersionCommand::ListRecoverable));
-}
+// project-versions: implemented (tests/versions.rs).
 
 #[test]
 fn keymap_replies_unsupported() {
