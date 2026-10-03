@@ -556,6 +556,23 @@ fn host_offline_and_back() {
     assert_converged(&[&h, &ada]);
 }
 
+/// Real endpoints may open the joiner's end of the data channel first; the joiner then
+/// closes its signaling socket and the host sees `PeerLeft` before its own `Connected`
+/// (share-integration found this in the browser e2e: "the connection to the host was lost").
+#[test]
+fn a_joiner_leaving_signaling_before_the_host_sees_the_channel_still_joins() {
+    let net = FakeNet::new();
+    net.set_answerer_lag(true);
+    let (mut h, _) = host(&net);
+    let (edit, _) = links(&h);
+    let mut ada = site(&net, 0x2002, "Ada");
+    join(&mut h, &mut ada, &edit);
+    add_track(&mut ada);
+    settle(&mut [&mut h, &mut ada]);
+    assert_eq!(h.tracks().len(), 1);
+    assert_converged(&[&h, &ada]);
+}
+
 #[test]
 fn a_restarted_host_starts_a_new_epoch_and_dedupes_resends() {
     let net = FakeNet::new();

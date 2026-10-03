@@ -4,8 +4,9 @@
 //! in-process pipes ([`pipe`]) carrying [`dc`](super::dc) fragments, like the real ones.
 //!
 //! Controls: the service going down ([`FakeNet::set_down`]), no ICE route
-//! ([`FakeNet::set_unreachable`]), dropped connections ([`FakeNet::kill_links`]), and a
-//! tampering service that swaps the host's fingerprint ([`FakeNet::set_tamper`]).
+//! ([`FakeNet::set_unreachable`]), dropped connections ([`FakeNet::kill_links`]), a
+//! tampering service that swaps the host's fingerprint ([`FakeNet::set_tamper`]), and an
+//! answerer whose channel opens after the offerer's ([`FakeNet::set_answerer_lag`]).
 
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::{Arc, Mutex};
@@ -141,6 +142,8 @@ struct Answered {
     peer: PeerId,
     link: BoxPeerLink,
     host_fingerprint: String,
+    /// The answerer's own `Connected`, held back until the offerer's ([`FakeNet::set_answerer_lag`]).
+    held: Option<(u64, PeerOutput)>,
 }
 
 #[derive(Default)]
@@ -152,6 +155,7 @@ struct Net {
     down: bool,
     unreachable: bool,
     tamper: bool,
+    answerer_lag: bool,
     clock: f64,
     ice: Vec<IceServer>,
     offers: HashMap<u64, Offer>,
@@ -216,6 +220,13 @@ impl FakeNet {
     /// The service swaps the host's fingerprint in what the joiner sees (a man in the middle).
     pub fn set_tamper(&self, tamper: bool) {
         self.lock().tamper = tamper;
+    }
+
+    /// The answerer (the host) reports `Connected` only once the offerer (the joiner) has,
+    /// as real endpoints may: the joiner then closes its signaling socket first, and the
+    /// host sees `PeerLeft` before its own end of the channel is up.
+    pub fn set_answerer_lag(&self, lag: bool) {
+        self.lock().answerer_lag = lag;
     }
 
     /// ICE servers advertised in the welcomes.
@@ -633,6 +644,13 @@ impl PeerEndpoint for FakeEndpoint {
                 } else {
                     self.fingerprint.clone()
                 };
+                let connected = PeerOutput::Connected {
+                    peer,
+                    link: host,
+                    local_fingerprint: self.fingerprint.clone(),
+                    remote_fingerprint: offer.fingerprint,
+                };
+                let lag = n.answerer_lag;
                 n.answered.insert(
                     token,
                     Answered {
@@ -640,6 +658,7 @@ impl PeerEndpoint for FakeEndpoint {
                         peer: offer.peer,
                         link: joiner,
                         host_fingerprint: host_fp,
+                        held: None,
                     },
                 );
                 let out = n.outputs.entry(self.id).or_default();
@@ -649,12 +668,11 @@ impl PeerEndpoint for FakeEndpoint {
                         sdp: format!("fake-answer {token}"),
                     },
                 });
-                out.push(PeerOutput::Connected {
-                    peer,
-                    link: host,
-                    local_fingerprint: self.fingerprint.clone(),
-                    remote_fingerprint: offer.fingerprint,
-                });
+                if lag {
+                    n.answered.get_mut(&token).expect("inserted").held = Some((self.id, connected));
+                } else {
+                    out.push(connected);
+                }
             }
             StreamSignal::Answer { sdp } => {
                 let Some(a) = token_of(&sdp, "fake-answer ").and_then(|t| n.answered.remove(&t))
@@ -663,6 +681,9 @@ impl PeerEndpoint for FakeEndpoint {
                 };
                 if a.endpoint != self.id {
                     return;
+                }
+                if let Some((answerer, connected)) = a.held {
+                    n.outputs.entry(answerer).or_default().push(connected);
                 }
                 n.outputs
                     .entry(self.id)
