@@ -106,8 +106,10 @@ export function gridLines(tempo: TempoMap, range: BeatRange, step: GridStep, max
   if (step.beats <= 0) return out;
   let bar = tempo.barAt(range.start);
   while (bar.beats < range.end - BEATS_EPSILON && out.length < maxLines) {
-    const len = beatsPerBar(bar.signature);
     const unit = beatUnit(bar.signature);
+    // The bar's real length: a partial bar ends early at a mid-bar signature change.
+    const next = tempo.nextBar(bar);
+    const len = next.beats - bar.beats;
     if (bar.beats >= range.start - BEATS_EPSILON) out.push({ beats: bar.beats, level: "bar", bar: bar.bar });
     const first = Math.max(step.beats, ceilBeats(range.start - bar.beats, step.beats));
     for (let rel = first; rel < len - BEATS_EPSILON && out.length < maxLines; rel += step.beats) {
@@ -116,7 +118,7 @@ export function gridLines(tempo: TempoMap, range: BeatRange, step: GridStep, max
       const onBeat = Math.abs(rel - snapBeats(rel, unit)) <= BEATS_EPSILON;
       out.push({ beats, level: onBeat ? "beat" : "sub" });
     }
-    bar = tempo.nextBar(bar);
+    bar = next;
   }
   return out;
 }
@@ -125,7 +127,8 @@ export type SnapMode = "nearest" | "floor" | "ceil";
 
 /**
  * Snap a position to the grid. `step === null` (grid off) returns `beats` unchanged.
- * Sub-bar steps snap relative to the containing bar line (the bar end is a valid target);
+ * Sub-bar steps snap relative to the containing bar line (the bar end, early for a partial
+ * bar, is a valid target);
  * bar steps snap to bar lines `1, 1 + bars, ...`.
  */
 export function snapToGrid(beats: Beats, step: GridStep | null, tempo: TempoMap, mode: SnapMode = "nearest"): Beats {
@@ -133,7 +136,8 @@ export function snapToGrid(beats: Beats, step: GridStep | null, tempo: TempoMap,
   if (step.kind === "beats") {
     if (step.beats <= 0) return beats;
     const bar = tempo.barAt(beats);
-    const len = beatsPerBar(bar.signature);
+    // The bar's real length (a partial bar ends early at a mid-bar signature change).
+    const len = tempo.nextBar(bar).beats - bar.beats;
     const rel = beats - bar.beats;
     const snapped =
       mode === "floor" ? floorBeats(rel, step.beats) : mode === "ceil" ? ceilBeats(rel, step.beats) : snapBeats(rel, step.beats);
