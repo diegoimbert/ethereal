@@ -63,8 +63,62 @@
 }
 
 .eth-pr__ruler {
+  position: relative;
   flex: 1;
   min-width: 0;
+}
+
+/* Note-stretch bar (base-109): over the top of the ruler, spanning the selection. */
+.eth-pr-stretch-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: calc(var(--eth-size-note-stretch-bar-height) + var(--eth-size-note-stretch-hit-extra));
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.eth-pr-stretch {
+  position: absolute;
+  top: 0;
+  height: var(--eth-size-note-stretch-bar-height);
+  pointer-events: auto;
+  background: color-mix(in srgb, var(--eth-color-selection) 45%, transparent);
+  border-radius: 0 0 var(--eth-radius-sm) var(--eth-radius-sm);
+  cursor: grab;
+  touch-action: none;
+}
+
+/* Taller invisible hit area so the thin bar stays easy to grab. */
+.eth-pr-stretch::after {
+  content: "";
+  position: absolute;
+  inset: 0 0 calc(-1 * var(--eth-size-note-stretch-hit-extra));
+}
+
+.eth-pr-stretch--dragging {
+  background: color-mix(in srgb, var(--eth-color-selection) 70%, transparent);
+}
+
+.eth-pr-stretch__edge {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: var(--eth-size-note-stretch-edge-width);
+  background: var(--eth-color-selection);
+  pointer-events: none;
+}
+
+.eth-pr-stretch__edge--start {
+  left: 0;
+  border-bottom-left-radius: var(--eth-radius-sm);
+}
+
+.eth-pr-stretch__edge--end {
+  right: 0;
+  border-bottom-right-radius: var(--eth-radius-sm);
 }
 
 .eth-pr__loopbar {

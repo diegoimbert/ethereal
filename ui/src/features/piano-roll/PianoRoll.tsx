@@ -14,6 +14,8 @@
  * - Sections (section-edit): a marquee or a drag on the strip under the ruler selects a time
  *   range; cmd-C / X / V / D copy, cut, paste and duplicate notes with the section's exact
  *   length, gaps included (see `section.ts`). The desktop Edit menu's copy/cut/paste too.
+ * - Stretch (base-109): a bar on the ruler spans the selection; drag its edges to time-scale
+ *   the notes, its body to move them; ×2 / ÷2 in the toolbar (see `stretch.ts`).
  */
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
@@ -54,6 +56,7 @@ import { GRID_OPTIONS } from "./gridOptions";
 import { useKeyHeightZoom } from "./useKeyHeightZoom";
 import { VelocityLane } from "./VelocityLane";
 import { ScaleControls } from "./ScaleControls";
+import { StretchBar, StretchButtons } from "./StretchBar";
 import { clearSection, copyOf, editSource, notesIn, pasteAt, pasteCommand, regionOf, sectionOf, usePianoRollSection } from "./section";
 import "./pianoRoll.css";
 
@@ -314,6 +317,7 @@ export function PianoRollEditor({ clip, view: injectedView }: PianoRollEditorPro
         <Button size="sm" onClick={quantize} title="Quantize to the grid (Cmd/Ctrl+U)">
           Quantize
         </Button>
+        <StretchButtons clip={clip} notes={shownNotes} />
         <GrooveControls clip={clip.id} selected={selected.map((n) => n.id)} rollStep={stepBeats} />
         <ScaleControls
           scale={scale}
@@ -339,6 +343,7 @@ export function PianoRollEditor({ clip, view: injectedView }: PianoRollEditorPro
             onLocate={locate}
             syncWidth={!injectedView}
           />
+          <StretchBar clip={clip} notes={shownNotes} vp={vp} step={step} tempo={tempo} />
           <div className="eth-pr__loopbar" data-testid="piano-roll-loopbar" onPointerDown={onStripPointerDown} title="Drag to select a section">
             {section && (
               <div
