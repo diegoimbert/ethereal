@@ -1,0 +1,186 @@
+/* History panel (left rail tab "History"): the undo steps as a timeline. Tokens only. */
+.eth-history {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  font-size: var(--eth-fs-sm);
+}
+.eth-history__hint,
+.eth-history__empty,
+.eth-history__error {
+  margin: 0;
+  padding: var(--eth-space-sm) var(--eth-space-md);
+  color: var(--eth-color-text-dim);
+}
+.eth-history__error {
+  color: var(--eth-color-danger);
+}
+.eth-history__list {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  list-style: none;
+  margin: 0;
+  padding: var(--eth-space-xs) var(--eth-space-xs) var(--eth-space-sm);
+}
+
+/* One step: dot on the timeline line, label + time (a jump button), checkpoint flag. */
+.eth-history__row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-xs);
+  min-height: var(--eth-size-row-height-lg);
+  padding-left: var(--eth-space-sm);
+  border-radius: var(--eth-radius-md);
+  transition: background-color var(--eth-duration-fast) var(--eth-ease-out);
+}
+.eth-history__row:hover {
+  background: var(--eth-color-bg-hover);
+}
+/* The timeline line, through the dots' centres (none above the first row, none below the last). */
+.eth-history__row::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(var(--eth-space-sm) + var(--eth-size-dot-sm) / 2 - var(--eth-border-width) / 2);
+  width: var(--eth-border-width);
+  background: var(--eth-color-border-strong);
+}
+.eth-history__row:first-child::before {
+  top: 50%;
+}
+.eth-history__row:last-child::before {
+  bottom: 50%;
+}
+.eth-history__row--undone::before {
+  background: var(--eth-color-border);
+}
+.eth-history__dot {
+  position: relative;
+  flex: none;
+  width: var(--eth-size-dot-sm);
+  height: var(--eth-size-dot-sm);
+  border: var(--eth-border-width) solid var(--eth-color-text-dim);
+  border-radius: var(--eth-radius-round);
+  background: var(--eth-color-text-dim);
+}
+.eth-history__row--undone .eth-history__dot {
+  border-color: var(--eth-color-text-disabled);
+  background: var(--eth-color-bg-panel);
+}
+.eth-history__row--checkpoint .eth-history__dot {
+  border-color: var(--eth-color-accent);
+  background: var(--eth-color-accent);
+}
+.eth-history__row--current {
+  background: var(--eth-color-accent-subtle);
+}
+.eth-history__row--current:hover {
+  background: var(--eth-color-accent-subtle);
+}
+.eth-history__row--current .eth-history__dot {
+  border-color: var(--eth-color-accent);
+  background: var(--eth-color-accent);
+  box-shadow: 0 0 0 var(--eth-focus-ring-width) var(--eth-color-accent-dim);
+}
+
+.eth-history__jump {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  align-items: center;
+  gap: var(--eth-space-sm);
+  align-self: stretch;
+  padding: 0 var(--eth-space-xs);
+  border: none;
+  border-radius: var(--eth-radius-sm);
+  background: none;
+  color: var(--eth-color-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.eth-history__jump:focus-visible {
+  outline: var(--eth-focus-ring-width) solid var(--eth-color-focus);
+  outline-offset: calc(var(--eth-focus-ring-width) * -1);
+}
+.eth-history__row--current .eth-history__jump {
+  font-weight: var(--eth-fw-medium);
+  cursor: default;
+}
+.eth-history__row--undone .eth-history__jump {
+  color: var(--eth-color-text-disabled);
+}
+.eth-history__text {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  line-height: var(--eth-lh-tight);
+}
+.eth-history__label,
+.eth-history__checkpoint {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.eth-history__checkpoint {
+  color: var(--eth-color-accent);
+  font-weight: var(--eth-fw-medium);
+}
+.eth-history__row--checkpoint .eth-history__label {
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+}
+.eth-history__row--origin .eth-history__label {
+  color: var(--eth-color-text-dim);
+}
+.eth-history__time {
+  flex: none;
+  color: var(--eth-color-text-dim);
+  font-family: var(--eth-font-mono);
+  font-size: var(--eth-fs-xs);
+  font-variant-numeric: tabular-nums;
+}
+.eth-history__row--undone .eth-history__time {
+  color: var(--eth-color-text-disabled);
+}
+
+/* The flag shows on hover/focus, and always on a named step. */
+.eth-history__flag {
+  flex: none;
+  opacity: 0;
+  transition: opacity var(--eth-duration-fast) var(--eth-ease-out);
+}
+.eth-history__row:hover .eth-history__flag,
+.eth-history__row:focus-within .eth-history__flag,
+.eth-history__row--checkpoint .eth-history__flag {
+  opacity: 1;
+}
+.eth-history__row--checkpoint .eth-history__flag {
+  color: var(--eth-color-accent);
+}
+.eth-history__edit {
+  flex: 1;
+  min-width: 0;
+  padding: var(--eth-space-xs);
+}
+.eth-history__name-input {
+  width: 100%;
+}
+
+.eth-history__footer {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--eth-space-sm);
+  padding: var(--eth-space-sm) var(--eth-space-md);
+  border-top: var(--eth-border-width) solid var(--eth-color-border-light);
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+}
+.eth-history__footer-note {
+  color: var(--eth-color-text-disabled);
+}
