@@ -19,7 +19,8 @@ use ether_core::plugin::PluginNode;
 use ether_core::protocol::devices::DeviceDescriptor;
 use ether_core::protocol::model::ParamId;
 use ether_core::transport::TransportInfo;
-use vst3::Steinberg::Vst::Event_::EventTypes_::{kNoteOffEvent, kNoteOnEvent};
+use vst3::Steinberg::Vst::ControllerNumbers_::{kAfterTouch, kPitchBend};
+use vst3::Steinberg::Vst::Event_::EventTypes_::{kNoteOffEvent, kNoteOnEvent, kPolyPressureEvent};
 use vst3::Steinberg::Vst::ProcessContext_::StatesAndFlags_::{
     kBarPositionValid, kContTimeValid, kCycleActive, kCycleValid, kPlaying, kProjectTimeMusicValid,
     kRecording, kTempoValid, kTimeSigValid,
@@ -28,7 +29,8 @@ use vst3::Steinberg::Vst::ProcessModes_::kRealtime;
 use vst3::Steinberg::Vst::SymbolicSampleSizes_::kSample32;
 use vst3::Steinberg::Vst::{
     AudioBusBuffers, AudioBusBuffers__type0, Event, Event__type0, IAudioProcessor,
-    IAudioProcessorTrait, IEventList, IParameterChanges, NoteOffEvent, NoteOnEvent,
+    IAudioProcessorTrait, IEditController, IEventList, IMidiMapping, IMidiMappingTrait,
+    IParameterChanges, NoteOffEvent, NoteOnEvent, PolyPressureEvent,
     ProcessContext as Vst3Context, ProcessData,
 };
 use vst3::Steinberg::{kResultFalse, kResultOk, kResultTrue};
@@ -121,6 +123,84 @@ impl Buses {
     }
 }
 
+/// MIDI controllers a VST3 plugin can map to params (`IMidiMapping`): CC 0..=127,
+/// channel aftertouch (`kAfterTouch` = 128) and pitch bend (`kPitchBend` = 129).
+const MIDI_CTRLS: usize = 130;
+
+/// v0.3 (`midi-expression`): the plugin's `IMidiMapping` (MIDI controller → param id) per
+/// channel, queried once on the main thread when the node is built. VST3 plugins receive
+/// CC, pitch bend and channel pressure only as changes of the params they map them to.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct MidiMap(Option<Box<[[u32; MIDI_CTRLS]; 16]>>);
+
+impl MidiMap {
+    const NONE: u32 = u32::MAX;
+
+    /// Main thread: ask the controller for every assignment (empty without `IMidiMapping`).
+    pub(crate) fn query(controller: &ComPtr<IEditController>) -> Self {
+        let Some(mapping) = controller.cast::<IMidiMapping>() else {
+            return Self(None);
+        };
+        let mut table = Box::new([[Self::NONE; MIDI_CTRLS]; 16]);
+        let mut any = false;
+        for (ch, row) in table.iter_mut().enumerate() {
+            for (ctrl, slot) in row.iter_mut().enumerate() {
+                let mut id = 0;
+                // SAFETY: valid interface (main thread); `id` is a valid out pointer.
+                let r = unsafe {
+                    mapping.getMidiControllerAssignment(0, ch as i16, ctrl as i16, &mut id)
+                };
+                if r == kResultOk || r == kResultTrue {
+                    *slot = id;
+                    any = true;
+                }
+            }
+        }
+        Self(any.then_some(table))
+    }
+
+    fn param(&self, channel: u8, ctrl: usize) -> Option<u32> {
+        let id = self.0.as_ref()?[usize::from(channel & 0x0F)][ctrl];
+        (id != Self::NONE).then_some(id)
+    }
+}
+
+/// A short MIDI message as VST3 input (besides notes).
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Vst3Midi {
+    /// A mapped controller (`IMidiMapping` number) at a normalized value.
+    Controller { channel: u8, ctrl: usize, value: f64 },
+    PolyPressure { channel: u8, key: u8, pressure: f32 },
+}
+
+fn vst3_midi(data: [u8; 3]) -> Option<Vst3Midi> {
+    let (status, channel) = (data[0] & 0xF0, data[0] & 0x0F);
+    let (d1, d2) = (data[1] & 0x7F, data[2] & 0x7F);
+    Some(match status {
+        0xA0 => Vst3Midi::PolyPressure {
+            channel,
+            key: d1,
+            pressure: f32::from(d2) / 127.0,
+        },
+        0xB0 => Vst3Midi::Controller {
+            channel,
+            ctrl: usize::from(d1),
+            value: f64::from(d2) / 127.0,
+        },
+        0xD0 => Vst3Midi::Controller {
+            channel,
+            ctrl: kAfterTouch as usize,
+            value: f64::from(d1) / 127.0,
+        },
+        0xE0 => Vst3Midi::Controller {
+            channel,
+            ctrl: kPitchBend as usize,
+            value: f64::from((u16::from(d2) << 7) | u16::from(d1)) / 16383.0,
+        },
+        _ => return None,
+    })
+}
+
 pub struct Vst3Node {
     processor: ComPtr<IAudioProcessor>,
     shared: Arc<NodeShared>,
@@ -152,6 +232,8 @@ pub struct Vst3Node {
     /// Sounding notes per channel (bit = key), for `AllNotesOff` / `reset`.
     held: [u128; 16],
     release_all: bool,
+    /// v0.3 (`midi-expression`): CC / bend / channel pressure → params.
+    midi_map: MidiMap,
     /// Keeps the library loaded while this node (its `IAudioProcessor`) lives, even if the
     /// controller is dropped first. Declared last: dropped after `processor`.
     _module: Arc<Module>,
@@ -173,6 +255,8 @@ pub(crate) struct NodeInit {
     pub values: Vec<(u32, f64)>,
     pub pending: Vec<ParamMsg>,
     pub module: Arc<Module>,
+    /// v0.3 (`midi-expression`): `MidiMap::query` of the plugin's controller.
+    pub midi_map: MidiMap,
 }
 
 impl Vst3Node {
@@ -189,6 +273,7 @@ impl Vst3Node {
             mut values,
             pending: initial,
             module,
+            midi_map,
         } = init;
         values.sort_by_key(|(id, _)| *id);
         let max_frames = config.max_block_size.max(1);
@@ -223,6 +308,7 @@ impl Vst3Node {
             context,
             held: [0; 16],
             release_all: false,
+            midi_map,
             _module: module,
         }
     }
@@ -306,6 +392,24 @@ impl Vst3Node {
         });
     }
 
+    fn poly_pressure(&mut self, offset: u32, note_id: u32, channel: u8, key: u8, pressure: f32) {
+        self.in_events.push(Event {
+            busIndex: 0,
+            sampleOffset: offset as i32,
+            ppqPosition: 0.0,
+            flags: 0,
+            r#type: kPolyPressureEvent as u16,
+            __field0: Event__type0 {
+                polyPressure: PolyPressureEvent {
+                    channel: i16::from(channel.min(15)),
+                    pitch: i16::from(key.min(127)),
+                    pressure,
+                    noteId: note_id as i32,
+                },
+            },
+        });
+    }
+
     /// Note-off for every sounding note (VST3 has no "all notes off" event).
     fn release_held(&mut self, offset: u32) {
         for ch in 0..16u8 {
@@ -340,17 +444,42 @@ impl Vst3Node {
             EventKind::AllNotesOff => self.release_held(t),
             EventKind::Param { param, value } => self.param_event(param.0, t, value),
             EventKind::Midi { data } => {
-                // Note on/off; other MIDI (CC, pitch bend) would need IMidiMapping.
                 let (status, ch) = (data[0] & 0xF0, data[0] & 0x0F);
                 let (key, vel) = (data[1] & 0x7F, data[2] & 0x7F);
                 let v = f32::from(vel) / 127.0;
                 match status {
                     0x90 if vel > 0 => self.note(t, true, u32::MAX, ch, key, v),
                     0x80 | 0x90 => self.note(t, false, u32::MAX, ch, key, v),
-                    _ => {}
+                    // v0.3 (`midi-expression`): CC / bend / channel pressure through
+                    // `IMidiMapping`, poly pressure as `PolyPressureEvent`.
+                    _ => match vst3_midi(data) {
+                        Some(Vst3Midi::Controller {
+                            channel,
+                            ctrl,
+                            value,
+                        }) => {
+                            if let Some(id) = self.midi_map.param(channel, ctrl) {
+                                self.add_param(id, t, value);
+                            }
+                        }
+                        Some(Vst3Midi::PolyPressure {
+                            channel,
+                            key,
+                            pressure,
+                        }) => self.poly_pressure(t, u32::MAX, channel, key, pressure),
+                        None => {}
+                    },
                 }
             }
-            // v0.3: `mpe` forwards this as a VST3 `NoteExpressionValueEvent`.
+            // v0.3: `Pressure` goes out as poly pressure (`midi-expression`); `mpe` adds
+            // `NoteExpressionValueEvent` for pitch/timbre (and pressure with MPE).
+            EventKind::NoteExpression {
+                note_id,
+                channel,
+                key,
+                expression: ether_core::protocol::model::NoteExpressionKind::Pressure,
+                value,
+            } => self.poly_pressure(t, note_id, channel, key, value.clamp(0.0, 1.0)),
             EventKind::NoteExpression { .. } => {}
         }
     }
@@ -651,5 +780,51 @@ impl Device for Vst3Node {
 impl PluginNode for Vst3Node {
     fn is_faulted(&self) -> bool {
         self.shared.faulted.load(Ordering::Relaxed)
+    }
+}
+
+#[cfg(test)]
+mod midi_tests {
+    use super::*;
+
+    #[test]
+    fn expression_midi_maps_to_vst3_controllers() {
+        assert_eq!(
+            vst3_midi([0xB2, 74, 127]),
+            Some(Vst3Midi::Controller {
+                channel: 2,
+                ctrl: 74,
+                value: 1.0
+            })
+        );
+        assert_eq!(
+            vst3_midi([0xE0, 0, 0x40]),
+            Some(Vst3Midi::Controller {
+                channel: 0,
+                ctrl: kPitchBend as usize,
+                value: 8192.0 / 16383.0
+            })
+        );
+        assert_eq!(
+            vst3_midi([0xD0, 127, 0]),
+            Some(Vst3Midi::Controller {
+                channel: 0,
+                ctrl: kAfterTouch as usize,
+                value: 1.0
+            })
+        );
+        assert_eq!(
+            vst3_midi([0xA1, 60, 0]),
+            Some(Vst3Midi::PolyPressure {
+                channel: 1,
+                key: 60,
+                pressure: 0.0
+            })
+        );
+        assert_eq!(vst3_midi([0xC0, 1, 0]), None);
+        assert_eq!(MidiMap::default().param(0, 1), None);
+        let mut t = Box::new([[MidiMap::NONE; MIDI_CTRLS]; 16]);
+        t[0][kPitchBend as usize] = 7;
+        assert_eq!(MidiMap(Some(t)).param(0, kPitchBend as usize), Some(7));
     }
 }

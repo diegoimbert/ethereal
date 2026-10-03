@@ -38,6 +38,7 @@
 
 use ether_core::TransportControl;
 use ether_core::protocol::clips::ClipCommand;
+use ether_core::protocol::expression::ExpressionCommand;
 use ether_core::protocol::model::*;
 use ether_core::protocol::notes::{NoteCommand, NoteSpec};
 use ether_core::protocol::recording::{
@@ -47,6 +48,7 @@ use ether_core::protocol::warp::WarpCommand;
 use ether_core::protocol::{Command, Event, NotificationLevel, ReplyValue};
 
 use crate::engine::bridge_err;
+use crate::expression::record::RecordedExpression;
 use crate::handlers::{event, no_project, notify};
 use crate::store::{Library, ProjectStore};
 use crate::tx::{CmdResult, internal, not_found};
@@ -219,6 +221,50 @@ pub(crate) fn notes_from_midi(events: &[RecordedMidi], start: f64, end: f64) -> 
     }
     notes.sort_by(|a, b| a.start.total_cmp(&b.start).then(a.pitch.cmp(&b.pitch)));
     notes
+}
+
+/// Apply a pass's recorded expression to its new clip `clip` (notes `note_ids`, in the
+/// pass's note order).
+fn record_expression(
+    ctx: &mut doc::DocCtx,
+    clip: ClipId,
+    note_ids: &[NoteId],
+    expression: &RecordedExpression,
+) -> CmdResult<()> {
+    for (kind, points) in &expression.lanes {
+        let lane: ExpressionLaneId = ctx.ids.next(ctx.now);
+        doc::apply(
+            ctx,
+            &Command::Expression(ExpressionCommand::CreateLane {
+                id: lane,
+                clip,
+                kind: *kind,
+            }),
+        )?;
+        doc::apply(
+            ctx,
+            &Command::Expression(ExpressionCommand::SetPoints {
+                lane,
+                points: points.clone(),
+            }),
+        )?;
+    }
+    for (i, points) in &expression.note_pressure {
+        let Some(&note) = note_ids.get(*i) else {
+            continue;
+        };
+        let id: NoteExpressionId = ctx.ids.next(ctx.now);
+        doc::apply(
+            ctx,
+            &Command::Expression(ExpressionCommand::SetNoteExpression {
+                id,
+                note,
+                kind: NoteExpressionKind::Pressure,
+                points: points.clone(),
+            }),
+        )?;
+    }
+    Ok(())
 }
 
 /// A recorded note before it gets an id.
@@ -595,7 +641,7 @@ where
         }
         groups.sort_by_key(|g| g.0);
         let n_groups = groups.len();
-        let mut midi_passes: Vec<(f64, f64, Vec<NoteSpecDraft>)> = Vec::new();
+        let mut midi_passes: Vec<(f64, f64, Vec<NoteSpecDraft>, RecordedExpression)> = Vec::new();
         for (i, (_, events)) in groups.iter().enumerate() {
             let (from, until) = match (n_groups, active.loop_region) {
                 (1, _) => (midi_start, midi_end),
@@ -608,7 +654,13 @@ where
                 }
             };
             let notes = notes_from_midi(events, from, until);
-            if notes.is_empty() {
+            // v0.3 (`midi-expression`): CC / bend / pressure become lanes and note pressure.
+            let gap = crate::expression::record::THIN_SECONDS
+                * doc.project.tempo_map().bpm_at(Beats(from.max(0.0)))
+                / 60.0;
+            let expression =
+                crate::expression::record::recorded_expression(events, from, until, &notes, gap);
+            if notes.is_empty() && expression.is_empty() {
                 continue;
             }
             let mut until = until;
@@ -623,7 +675,7 @@ where
                 midi_end = midi_end.max(until);
                 until = midi_end;
             }
-            midi_passes.push((from, until, notes));
+            midi_passes.push((from, until, notes, expression));
         }
         let mut clips = Vec::new();
         let takes_audio: Vec<&AudioTake> = takes
@@ -722,7 +774,7 @@ where
                     if as_takes {
                         crate::comping::begin_takes(ctx, t.id, from, until)?;
                     }
-                    for (start, end, notes) in &midi_passes {
+                    for (start, end, notes, expression) in &midi_passes {
                         let id: ClipId = ctx.ids.next(ctx.now);
                         doc::apply(
                             ctx,
@@ -734,7 +786,7 @@ where
                                 name: Some(t.name.clone()),
                             }),
                         )?;
-                        let specs = notes
+                        let specs: Vec<NoteSpec> = notes
                             .iter()
                             .map(|n| NoteSpec {
                                 id: ctx.ids.next(ctx.now),
@@ -744,13 +796,17 @@ where
                                 duration: Beats(n.duration),
                             })
                             .collect();
-                        doc::apply(
-                            ctx,
-                            &Command::Note(NoteCommand::Add {
-                                clip: id,
-                                notes: specs,
-                            }),
-                        )?;
+                        let note_ids: Vec<NoteId> = specs.iter().map(|n| n.id).collect();
+                        if !specs.is_empty() {
+                            doc::apply(
+                                ctx,
+                                &Command::Note(NoteCommand::Add {
+                                    clip: id,
+                                    notes: specs,
+                                }),
+                            )?;
+                        }
+                        record_expression(ctx, id, &note_ids, expression)?;
                         if as_takes {
                             crate::comping::add_take(ctx, id)?;
                         }
