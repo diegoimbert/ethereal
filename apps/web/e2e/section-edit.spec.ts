@@ -230,3 +230,75 @@ test("section edit: copy/paste a section (not the clip) and duplicate it with it
 
   expect(errors).toEqual([]);
 });
+
+test("insert marker: a lane click while playing sets the paste point, never the playhead", async ({ page }) => {
+  test.setTimeout(120_000);
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+
+  await page.goto("/");
+  await expect(page.getByRole("button", { name: "Play" })).toBeVisible({ timeout: 30_000 });
+  await expect.poll(() => project(page).then((p) => p !== null), { timeout: 30_000 }).toBe(true);
+  await newProject(page, `Insert marker ${Date.now()}`);
+
+  // A one-bar MIDI clip; select it as a time section and copy it.
+  const t = await createTrack(page, "Midi");
+  const lane = page.locator(`[data-lane="${t.id}"]`);
+  await lane.dblclick({ position: { x: 5, y: 30 } });
+  await expect.poll(() => spans(page, t.id)).toEqual([[0, 4]]);
+  const clip = Object.values((await doc(page)).clips).find((c) => c.track === t.id)!;
+  const arrangement = page.locator('[data-feature="arrangement"]');
+  await arrangement.focus();
+  await page.keyboard.press("Escape");
+  const px = (await page.locator(`[data-clip-id="${clip.id}"]`).boundingBox())!.width / 4;
+  const box = (await lane.boundingBox())!;
+  await page.mouse.move(box.x + 4 * px + 3, box.y + box.height - 8);
+  await page.mouse.down();
+  await page.mouse.move(box.x + 2 * px, box.y + box.height - 6, { steps: 3 });
+  await page.mouse.move(box.x + 1, box.y + box.height - 8, { steps: 3 });
+  await page.mouse.up();
+  await expect(page.getByTestId("time-selection")).toHaveCount(1);
+  await page.keyboard.press("ControlOrMeta+c");
+
+  // Play, then click the lane at beat 12: the marker goes there, the playhead keeps playing
+  // from where it was (well left of the marker).
+  const transportBar = page.locator('[data-feature="transport-bar"]');
+  await transportBar.getByRole("button", { name: "Play", exact: true }).click();
+  const playing = () =>
+    page.evaluate(() => (window as unknown as { __ether: { state(): { transport: { playing: boolean } | null } } }).__ether.state().transport?.playing);
+  await expect.poll(playing).toBe(true);
+  await page.mouse.click(box.x + 12 * px, box.y + box.height - 8);
+  const marker = page.getByTestId("insert-marker");
+  await expect(marker).toHaveCount(1);
+  await expect(marker).toHaveAttribute("data-beats", "12");
+  const markerX = (await marker.boundingBox())!.x;
+  const playheadX = async () => (await page.getByTestId("playhead-line").first().boundingBox())!.x;
+  expect(await playheadX()).toBeLessThan(markerX - 2 * px);
+  await shot(arrangement, "insert-marker-arrangement");
+
+  // ⌘V pastes the section at the marker (not at the playhead), still playing.
+  await arrangement.focus();
+  await page.keyboard.press("ControlOrMeta+v");
+  await expect.poll(() => spans(page, t.id)).toEqual([
+    [0, 4],
+    [12, 4],
+  ]);
+  expect(await playheadX()).toBeLessThan(markerX - px);
+
+  // Stop: the playhead goes to the marker placed while playing, so Play starts from it.
+  await transportBar.getByRole("button", { name: "Stop" }).first().click();
+  await expect.poll(playing).toBe(false);
+  await expect.poll(async () => Math.abs((await playheadX()) - markerX)).toBeLessThan(4);
+
+  // Piano roll: a click on empty grid places its marker too.
+  await openClip(page, clip.id);
+  await expect(page.getByTestId("piano-roll-grid")).toBeVisible();
+  await pickOption(page.getByTestId("piano-roll"), "Grid", "1/4");
+  await fitRoll(page, 8);
+  const g = await rollGeometry(page, 4);
+  await page.mouse.click(g.x(2.1), g.y);
+  await expect(page.getByTestId("piano-roll-marker")).toHaveAttribute("data-beats", "2");
+  await shot(page.getByTestId("piano-roll"), "insert-marker-piano-roll");
+
+  expect(errors).toEqual([]);
+});

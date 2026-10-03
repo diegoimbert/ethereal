@@ -818,8 +818,6 @@ paths = [
   "ui/src/features/arrangement/clipboard.ts",
   "ui/src/features/arrangement/ArrangementView.tsx",
   "ui/src/features/arrangement/actions.ts",
-  # shared touch (insert marker): one assertion encoded "paste moves the playhead"
-  "ui/src/features/arrangement/ArrangementView.test.tsx",
 ]
 
 [nodes.turn-hardening]
