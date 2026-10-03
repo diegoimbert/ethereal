@@ -24,7 +24,9 @@ use std::io::Write;
 use std::path::{Component, Path, PathBuf};
 use std::time::UNIX_EPOCH;
 
-use ether_controller::store::{Library, ProjectStore, StoreError, file_kind};
+use ether_controller::store::{
+    Library, ProjectStore, SHARE_FILE, StoreError, file_kind, share_info,
+};
 use ether_core::protocol::media::{
     BrowseLocation, BrowseRoot, DirectoryEntry, DirectoryListing, FileKind,
 };
@@ -301,8 +303,9 @@ impl DiskStore {
             id,
             name: name_from_ether(&json).unwrap_or_else(|| "Untitled".to_string()),
             modified_ms: modified_ms(&file),
-            // base-115: `recents-shared` reads the project's `share.json`.
-            share: None,
+            share: fs::read(self.project_dir(id).join(SHARE_FILE))
+                .ok()
+                .and_then(|b| share_info(&b)),
         })
     }
 
@@ -375,7 +378,8 @@ impl ProjectStore for DiskStore {
             .projects_root
             .join(format!(".dup-{to}-{}.tmp", std::process::id()));
         let _ = fs::remove_dir_all(&tmp);
-        let result = copy_dir(&src, &tmp, &["cache"])
+        // A copy is private: no cache, and never the sharing state (and its secrets).
+        let result = copy_dir(&src, &tmp, &["cache", SHARE_FILE])
             .and_then(|()| fs::create_dir_all(tmp.join("cache")))
             .and_then(|()| fs::rename(&tmp, &dst));
         if let Err(e) = result {
@@ -960,6 +964,67 @@ mod tests {
         assert!(!s.project_dir(a).exists());
         assert!(matches!(s.delete(a), Err(StoreError::NotFound(_))));
         assert_eq!(ProjectStore::list(&mut s).unwrap().len(), 1);
+    }
+
+    /// base-115 (`recents-shared`): `share.json` → `ProjectSummary.share`; never copied by
+    /// `duplicate` (SaveAs/Duplicate), deleted with the project.
+    #[test]
+    fn share_json_summary_duplicate_delete() {
+        use ether_controller::store::share_fixtures as fx;
+        use ether_core::protocol::share::ParticipantRole;
+
+        let tmp = TempDir::new("store-share");
+        let mut s = store(&tmp);
+        let (host, copy, plain, dup) = (pid(10), pid(11), pid(12), pid(13));
+        for (id, name) in [(host, "Song"), (copy, "Their song"), (plain, "Mine")] {
+            s.create(id).unwrap();
+            s.save(id, &ether(name)).unwrap();
+        }
+        s.write(host, SHARE_FILE, fx::HOST.as_bytes()).unwrap();
+        s.write(copy, SHARE_FILE, fx::COPY.as_bytes()).unwrap();
+
+        let list = ProjectStore::list(&mut s).unwrap();
+        let by_id = |id| list.iter().find(|p| p.id == id).unwrap().clone();
+        let h = by_id(host).share.expect("host share");
+        assert_eq!(h.role, ParticipantRole::Host);
+        assert_eq!(h.participants.len(), 3);
+        let c = by_id(copy).share.expect("copy share");
+        assert_eq!(
+            (c.role, c.host_name.as_str(), c.active),
+            (ParticipantRole::Edit, "Diego", true)
+        );
+        assert_eq!(by_id(plain).share, None);
+        // `save` reports the share info too (the `Saved` event's summary).
+        assert!(s.save(copy, &ether("Their song")).unwrap().share.is_some());
+        let json = serde_json::to_string(&list).unwrap();
+        for secret in fx::SECRETS {
+            assert!(!json.contains(secret), "{secret} leaked");
+        }
+
+        // An ended copy, and an unreadable file (listed as not shared, never hidden).
+        s.write(copy, SHARE_FILE, fx::COPY_ENDED.as_bytes())
+            .unwrap();
+        s.write(plain, SHARE_FILE, b"{ corrupt").unwrap();
+        let list = ProjectStore::list(&mut s).unwrap();
+        assert_eq!(list.len(), 3);
+        let ended = list.iter().find(|p| p.id == copy).unwrap();
+        assert!(!ended.share.as_ref().unwrap().active);
+        assert_eq!(list.iter().find(|p| p.id == plain).unwrap().share, None);
+
+        // Duplicate (also SaveAs) makes a private project.
+        s.write(host, "media/a.wav", b"A").unwrap();
+        s.duplicate(host, dup).unwrap();
+        assert!(!s.project_dir(dup).join(SHARE_FILE).exists());
+        assert_eq!(
+            ProjectStore::read(&mut s, dup, "media/a.wav").unwrap(),
+            b"A"
+        );
+        let list = ProjectStore::list(&mut s).unwrap();
+        assert_eq!(list.iter().find(|p| p.id == dup).unwrap().share, None);
+
+        // Deleting the project deletes its share.json.
+        s.delete(host).unwrap();
+        assert!(!s.project_dir(host).join(SHARE_FILE).exists());
     }
 
     #[test]
