@@ -57,6 +57,18 @@
   align-items: center;
   gap: var(--eth-space-md);
 }
+.eth-gallery__vlist {
+  width: var(--eth-size-select-search-width);
+  height: var(--eth-size-detail-min-height);
+  border: var(--eth-border-width) solid var(--eth-color-border);
+  border-radius: var(--eth-radius-sm);
+}
+.eth-gallery__vrow {
+  display: flex;
+  align-items: center;
+  padding: 0 var(--eth-space-sm);
+  font-size: var(--eth-fs-sm);
+}
 .eth-gallery__label {
   flex: none;
   width: var(--eth-size-sidebar-width);

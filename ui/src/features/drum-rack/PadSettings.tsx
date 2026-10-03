@@ -1,8 +1,12 @@
+import { useMemo } from "react";
 import { useShallow } from "zustand/react/shallow";
-import type { BuiltinDeviceType, Device, DeviceId, DrumPad, ParamScale } from "@/generated";
+import type { BuiltinDeviceType, Device, DeviceDescriptor, DeviceId, DrumPad, ParamScale } from "@/generated";
 import { groupParams } from "@/features/devices/chainUtils";
 import { builtinDevice, useBuiltinTypes, useDescriptor } from "@/features/devices/descriptors";
-import { useGestureSender, useSend } from "@/features/devices/gesture";
+import { useGestureSender, useSend, type GestureSender } from "@/features/devices/gesture";
+import { cardParams, PARAM_CARD_CAP, UNCAPPED_MAX } from "@/features/devices/layout/model";
+import { AllParamsButton } from "@/features/devices/params/AllParams";
+import { pinKey, usePins } from "@/features/devices/params/pins";
 import { ParamControl } from "@/features/devices/ParamControl";
 import { scaleToNormalized, scaleToPlain } from "@/features/devices/paramScale";
 import { SampleSlot } from "@/features/devices/SampleSlot";
@@ -267,13 +271,35 @@ function PadDevice({ device, onLeft, onRight }: { device: Device; onLeft?: () =>
         </Button>
       </header>
       <SampleSlot device={device} />
-      <div className="eth-drum-rack__params">
-        {descriptor
-          ? groupParams(descriptor.params).flatMap(({ params }) =>
-              params.map((p) => <ParamControl key={p.id} device={device} info={p} sender={sender} />),
-            )
-          : null}
-      </div>
+      {descriptor && <PadDeviceParams device={device} descriptor={descriptor} sender={sender} />}
     </section>
+  );
+}
+
+/**
+ * A pad device's params: all of them for small devices; a plugin with many params shows the
+ * capped set (pins, quick controls, first params) and "Show all N parameters…".
+ */
+function PadDeviceParams({ device, descriptor, sender }: { device: Device; descriptor: DeviceDescriptor; sender: GestureSender }) {
+  const key = pinKey(device);
+  const pinned = usePins(key);
+  const { shown, capped, total } = useMemo(() => {
+    const visible = groupParams(descriptor.params).flatMap((g) => g.params);
+    const cap = descriptor.device_type.type === "Plugin" ? PARAM_CARD_CAP : UNCAPPED_MAX;
+    return visible.length > cap
+      ? { shown: cardParams(descriptor.params, pinned), capped: true, total: visible.length }
+      : { shown: visible, capped: false, total: visible.length };
+  }, [descriptor, pinned]);
+  return (
+    <>
+      <div className="eth-drum-rack__params">
+        {shown.map((p) => (
+          <ParamControl key={p.id} device={device.id} plain={device.params[p.id] ?? p.default} info={p} sender={sender} />
+        ))}
+      </div>
+      {capped && (
+        <AllParamsButton device={device.id} deviceName={device.name} params={descriptor.params} sender={sender} pins={key} total={total} />
+      )}
+    </>
   );
 }

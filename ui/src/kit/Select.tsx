@@ -4,6 +4,7 @@ import {
   useEffect,
   useId,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   type ButtonHTMLAttributes,
@@ -11,7 +12,9 @@ import {
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
+import { size as sizeTokens } from "../theme/tokens";
 import type { Size } from "./variants";
+import { VirtualList } from "./VirtualList";
 
 export interface SelectOption<V extends string> {
   value: V;
@@ -32,17 +35,34 @@ export interface SelectProps<V extends string>
   size?: Size;
   /** Shown when `value` matches no option (e.g. "+ Show parameter…"). */
   placeholder?: string;
+  /**
+   * A search field above a windowed list (only the visible options are mounted). Default:
+   * on above `SEARCH_OVER` options (e.g. a plugin's thousands of parameters).
+   */
+  searchable?: boolean;
 }
 
+/** Above this many options a Select is searchable and windowed by default. */
+export const SEARCH_OVER = 50;
 /** Keep the list inside the window. */
 const VIEWPORT_MARGIN = 4;
 /** Must match the close animation (`--select-exit-duration`); unmounts if no animationend. */
 const CLOSE_MS = 120;
+/** Row height of the windowed list (= `--menu-item-height`, the `rowHeight` size token). */
+const ROW_PX = parseFloat(sizeTokens.rowHeight);
+
+/** Does `o` match a search (case-insensitive, on its label or group)? */
+function matches(o: SelectOption<string>, q: string): boolean {
+  return o.label.toLowerCase().includes(q) || (o.group?.toLowerCase().includes(q) ?? false);
+}
 
 /**
  * Drop-down select: a button showing the current option and our own animated list (not the
  * system one). Keyboard: ↑/↓ or Enter/Space opens; ↑/↓, Home/End and typing a letter move;
  * Enter/Space picks; Escape or Tab closes. ARIA: a `combobox` button controlling a `listbox`.
+ *
+ * Long lists (`searchable`) get a search field (focused on open; typing filters, ↑/↓ and
+ * Enter work from it) and a windowed list that mounts only the visible options.
  */
 export function Select<V extends string>({
   options,
@@ -52,17 +72,26 @@ export function Select<V extends string>({
   placeholder,
   className,
   disabled,
+  searchable = options.length > SEARCH_OVER,
   ...rest
 }: SelectProps<V>) {
   const id = useId();
   const trigger = useRef<HTMLButtonElement>(null);
   const [state, setState] = useState<"closed" | "open" | "closing">("closed");
   const [active, setActive] = useState(-1);
+  const [query, setQuery] = useState("");
   const current = options.find((o) => o.value === value);
-  const enabled = options.flatMap((o, i) => (o.disabled ? [] : [i]));
+  const q = searchable ? query.trim().toLowerCase() : "";
+  /** Indices of the options listed (all, or the search matches). */
+  const shown = useMemo(
+    () => (q ? options.flatMap((o, i) => (matches(o, q) ? [i] : [])) : options.map((_, i) => i)),
+    [options, q],
+  );
+  const enabled = shown.filter((i) => !options[i]!.disabled);
 
   const open = () => {
     if (disabled) return;
+    setQuery("");
     setActive(Math.max(0, options.findIndex((o) => o.value === value)));
     setState("open");
   };
@@ -81,8 +110,14 @@ export function Select<V extends string>({
     const at = enabled.indexOf(from);
     return enabled[at < 0 ? (dir > 0 ? 0 : enabled.length - 1) : (at + dir + enabled.length) % enabled.length]!;
   };
+  const search = (text: string) => {
+    setQuery(text);
+    const t = text.trim().toLowerCase();
+    const first = options.findIndex((o) => !o.disabled && (!t || matches(o, t)));
+    setActive(first);
+  };
 
-  const onKeyDown = (e: KeyboardEvent) => {
+  const onKeyDown = (e: KeyboardEvent, fromSearch = false) => {
     const isOpen = state === "open";
     if (!isOpen) {
       if (["ArrowDown", "ArrowUp", "Enter", " "].includes(e.key)) {
@@ -94,17 +129,18 @@ export function Select<V extends string>({
     e.stopPropagation();
     if (e.key === "Escape" || e.key === "Tab") {
       if (e.key === "Escape") e.preventDefault();
-      close(e.key === "Escape");
+      close(e.key === "Escape" || fromSearch);
     } else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
       e.preventDefault();
       setActive((a) => move(a, e.key === "ArrowDown" ? 1 : -1));
     } else if (e.key === "Home" || e.key === "End") {
+      if (fromSearch) return; // caret moves in the search field
       e.preventDefault();
       setActive(e.key === "Home" ? (enabled[0] ?? -1) : (enabled[enabled.length - 1] ?? -1));
-    } else if (e.key === "Enter" || e.key === " ") {
+    } else if (e.key === "Enter" || (e.key === " " && !fromSearch)) {
       e.preventDefault();
       pick(active);
-    } else if (e.key.length === 1 && /\S/.test(e.key)) {
+    } else if (!fromSearch && e.key.length === 1 && /\S/.test(e.key)) {
       // Type-ahead: the next option starting with that letter.
       const k = e.key.toLowerCase();
       const order = [...enabled.filter((i) => i > active), ...enabled.filter((i) => i <= active)];
@@ -126,7 +162,7 @@ export function Select<V extends string>({
         className={clsx("eth-select", `eth-select--${size}`, state === "open" && "eth-select--open", className)}
         disabled={disabled}
         onClick={() => (state === "open" ? close() : open())}
-        onKeyDown={onKeyDown}
+        onKeyDown={(e) => onKeyDown(e)}
         {...rest}
       >
         <span className={clsx("eth-select__value", !current && "eth-select__value--placeholder")}>
@@ -140,6 +176,8 @@ export function Select<V extends string>({
           label={rest["aria-label"]}
           anchor={trigger}
           options={options}
+          shown={shown}
+          search={searchable ? { query, onQuery: search, onKeyDown: (e) => onKeyDown(e, true) } : null}
           value={value}
           active={active}
           closing={state === "closing"}
@@ -159,6 +197,10 @@ interface SelectListProps<V extends string> {
   label: string | undefined;
   anchor: React.RefObject<HTMLButtonElement | null>;
   options: ReadonlyArray<SelectOption<V>>;
+  /** Indices of the options to list. */
+  shown: ReadonlyArray<number>;
+  /** Searchable (windowed) list, or `null` for the plain one. */
+  search: { query: string; onQuery: (q: string) => void; onKeyDown: (e: KeyboardEvent) => void } | null;
   value: V;
   active: number;
   closing: boolean;
@@ -169,9 +211,12 @@ interface SelectListProps<V extends string> {
   onClosed: () => void;
 }
 
+type Row = { group: string } | { index: number };
+
 function SelectList<V extends string>(p: SelectListProps<V>) {
   const ref = useRef<HTMLDivElement>(null);
-  const { anchor, closing, onDismiss, onClosed } = p;
+  const { anchor, closing, onDismiss, onClosed, search } = p;
+  const searchRef = useRef<HTMLInputElement>(null);
 
   // Outside press / window blur / resize closes (scrolling the list itself doesn't).
   useEffect(() => {
@@ -214,65 +259,140 @@ function SelectList<V extends string>(p: SelectListProps<V>) {
     el.style.visibility = "visible";
   }, [anchor]);
 
-  // Keep the active option in view.
+  // The search field takes the keyboard when the list opens.
+  const searching = search !== null;
   useEffect(() => {
+    if (searching) searchRef.current?.focus({ preventScroll: true });
+  }, [searching]);
+
+  // Keep the active option in view (the windowed list scrolls itself).
+  useEffect(() => {
+    if (searching) return;
     ref.current?.querySelector<HTMLElement>(`[data-index="${p.active}"]`)?.scrollIntoView?.({ block: "nearest" });
-  }, [p.active]);
+  }, [p.active, searching]);
+
+  /** Group headings and options, in list order. */
+  const rows = useMemo(() => {
+    const out: Row[] = [];
+    let prev: string | undefined;
+    for (const i of p.shown) {
+      const g = p.options[i]!.group;
+      if (g !== undefined && g !== prev) out.push({ group: g });
+      prev = g;
+      out.push({ index: i });
+    }
+    return out;
+  }, [p.options, p.shown]);
+
+  const option = (i: number) => {
+    const o = p.options[i]!;
+    return (
+      <div
+        id={p.optionId(i)}
+        data-index={i}
+        data-value={o.value}
+        role="option"
+        aria-selected={o.value === p.value}
+        aria-disabled={o.disabled || undefined}
+        className={clsx(
+          "eth-menu__item",
+          "eth-select-list__option",
+          i === p.active && "eth-select-list__option--active",
+          o.disabled && "eth-select-list__option--disabled",
+        )}
+        onPointerEnter={() => !o.disabled && p.onActive(i)}
+        onClick={() => p.onPick(i)}
+      >
+        <span className="eth-select-list__check" aria-hidden>
+          {o.value === p.value && <Check />}
+        </span>
+        {o.icon && (
+          <span className="eth-select-list__icon" aria-hidden>
+            {o.icon}
+          </span>
+        )}
+        <span className="eth-menu__label" title={searching ? o.label : undefined}>
+          {o.label}
+        </span>
+      </div>
+    );
+  };
+  const heading = (g: string) => (
+    <div className="eth-select-list__group" role="presentation">
+      {g}
+    </div>
+  );
+
+  const activeRow = searching ? rows.findIndex((r) => "index" in r && r.index === p.active) : -1;
 
   return createPortal(
     <div
       ref={ref}
-      id={p.id}
-      role="listbox"
+      id={searching ? undefined : p.id}
+      role={searching ? "dialog" : "listbox"}
       aria-label={p.label}
-      className={clsx("eth-popover", "eth-popover--menu", "eth-select-list", closing ? "eth-select-list--closing" : "eth-popover--context")}
+      className={clsx(
+        "eth-popover",
+        "eth-popover--menu",
+        "eth-select-list",
+        searching && "eth-select-list--search",
+        closing ? "eth-select-list--closing" : "eth-popover--context",
+      )}
       style={{ visibility: "hidden" }}
       onAnimationEnd={() => closing && onClosed()}
       onPointerDown={(e) => {
-        // Keep focus on the trigger, and don't let a Popover around the trigger (the list is
-        // portaled outside it) take this press for an outside click and close.
-        e.preventDefault();
+        // Don't let a Popover around the trigger (the list is portaled outside it) take this
+        // press for an outside click and close.
         e.stopPropagation();
+        // Keep focus on the trigger (or in the search field), except to click into that field.
+        if (e.target !== searchRef.current) e.preventDefault();
       }}
     >
-      {p.options.map((o, i) => {
-        const heading = o.group !== undefined && o.group !== p.options[i - 1]?.group ? o.group : null;
-        return (
-          <div key={o.value} role="presentation">
-            {heading !== null && (
-              <div className="eth-select-list__group" role="presentation">
-                {heading}
-              </div>
-            )}
-            <div
-              id={p.optionId(i)}
-              data-index={i}
-              data-value={o.value}
-              role="option"
-              aria-selected={o.value === p.value}
-              aria-disabled={o.disabled || undefined}
-              className={clsx(
-                "eth-menu__item",
-                "eth-select-list__option",
-                i === p.active && "eth-select-list__option--active",
-                o.disabled && "eth-select-list__option--disabled",
-              )}
-              onPointerEnter={() => !o.disabled && p.onActive(i)}
-              onClick={() => p.onPick(i)}
-            >
-              <span className="eth-select-list__check" aria-hidden>
-                {o.value === p.value && <Check />}
-              </span>
-              {o.icon && (
-                <span className="eth-select-list__icon" aria-hidden>
-                  {o.icon}
-                </span>
-              )}
-              <span className="eth-menu__label">{o.label}</span>
+      {search ? (
+        <>
+          <input
+            ref={searchRef}
+            type="search"
+            className="eth-input eth-input--sm eth-select-list__search"
+            placeholder="Search…"
+            aria-label={`Search ${p.label ?? "options"}`}
+            aria-controls={p.id}
+            aria-activedescendant={p.active >= 0 ? p.optionId(p.active) : undefined}
+            value={search.query}
+            onChange={(e) => search.onQuery(e.target.value)}
+            onKeyDown={search.onKeyDown}
+          />
+          <VirtualList
+            id={p.id}
+            role="listbox"
+            aria-label={p.label}
+            className="eth-select-list__rows"
+            count={rows.length}
+            rowHeight={ROW_PX}
+            activeIndex={activeRow}
+            rowKey={(r) => {
+              const row = rows[r]!;
+              return "group" in row ? `g:${row.group}:${r}` : `o:${p.options[row.index]!.value}`;
+            }}
+            renderRow={(r) => {
+              const row = rows[r]!;
+              return "group" in row ? heading(row.group) : option(row.index);
+            }}
+            empty={<div className="eth-select-list__empty">No matches</div>}
+          />
+        </>
+      ) : (
+        p.shown.map((i) => {
+          const o = p.options[i]!;
+          const g = o.group !== undefined && o.group !== p.options[i - 1]?.group ? o.group : null;
+          return (
+            <div key={o.value} role="presentation">
+              {g !== null && heading(g)}
+              {option(i)}
             </div>
-          </div>
-        );
-      })}
+          );
+        })
+      )}
     </div>,
     document.body,
   );

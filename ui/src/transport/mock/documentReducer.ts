@@ -40,6 +40,7 @@ import { BEATS_EPSILON, snapBeats } from "@/state/beats";
 import { compareOrderKeys, keyBetween, keyForInsert } from "@/state/orderKey";
 import { CommandFailedError } from "../EngineTransport";
 import { BUILTIN_DESCRIPTORS, builtinDescriptor, clampParam } from "./builtinDevices";
+import { mockPluginDescriptor, mockPluginInstance } from "./plugins";
 import { defaultParams, defaultTrackName, makeClip, makeTrack, MOCK_TRACK_COLORS } from "./demoProject";
 import { isRoadmapDocumentCommand, reduceRoadmapCommand } from "./roadmap";
 import { groupsTrackCommand } from "./roadmap/groupsBuses";
@@ -533,7 +534,23 @@ function deviceCommand(ctx: ReducerContext, c: DeviceCommand): ReplyValue {
     case "Insert": {
       if (tx.get("Device", c.id)) fail("InvalidArgument", `device ${c.id} already exists`);
       const t = track(ctx, c.track);
-      if (c.device.type === "Plugin") fail("Unsupported", "plugins are not available in the mock engine");
+      if (c.device.type === "Plugin") {
+        // Only the fake plugins of `./plugins.ts` (e.g. the 10,000-param "Mock Mega").
+        const desc = mockPluginDescriptor(c.device.plugin_id);
+        if (!desc) fail("Unsupported", "plugins are not available in the mock engine");
+        tx.upsert("Device", {
+          id: c.id,
+          track: t.id,
+          order: keyForInsert(chainOf(ctx, t.id), c.before),
+          name: desc.name,
+          enabled: true,
+          kind: { type: "Plugin", plugin: mockPluginInstance(c.device.plugin_id, c.device.format ?? "Clap") },
+          params: {},
+          sidechain: null,
+          pad: null,
+        });
+        break;
+      }
       const kind: Device["kind"] = { type: "Builtin", device: c.device.device };
       checkDeviceFits(t, kind);
       tx.upsert("Device", {
@@ -581,7 +598,10 @@ function deviceCommand(ctx: ReducerContext, c: DeviceCommand): ReplyValue {
       break;
     case "SetParam": {
       const d = device(ctx, c.device);
-      const info = d.kind.type === "Builtin" ? builtinDescriptor(d.kind.device).params.find((p) => p.id === c.param) : undefined;
+      const info =
+        d.kind.type === "Builtin"
+          ? builtinDescriptor(d.kind.device).params.find((p) => p.id === c.param)
+          : mockPluginDescriptor(d.kind.plugin.plugin_id)?.params.find((p) => p.id === c.param);
       if (d.kind.type === "Builtin" && !info) fail("NotFound", `param ${c.param} of device ${d.id}`);
       const value = info ? clampParam(info, c.value) : c.value;
       tx.upsert("Device", { ...d, params: { ...d.params, [c.param]: value } });
@@ -621,7 +641,11 @@ function deviceCommand(ctx: ReducerContext, c: DeviceCommand): ReplyValue {
       return { type: "DeviceTypes", devices: Object.values(BUILTIN_DESCRIPTORS) };
     case "GetDescriptor": {
       const d = device(ctx, c.device);
-      if (d.kind.type !== "Builtin") fail("Unsupported", "plugins are not available in the mock engine");
+      if (d.kind.type !== "Builtin") {
+        const desc = mockPluginDescriptor(d.kind.plugin.plugin_id);
+        if (!desc) fail("Unsupported", "plugins are not available in the mock engine");
+        return { type: "Descriptor", descriptor: desc };
+      }
       return { type: "Descriptor", descriptor: builtinDescriptor(d.kind.device) };
     }
   }

@@ -92,7 +92,7 @@ signalsmith-stretch = "0.1"
 
 # --- plugins (CLAP via clack; git-only, pinned) ---
 clack-host = { git = "https://github.com/prokopyl/clack", rev = "27ca28391b57a61bad4bb5099288a7bf9247350d" }
-clack-extensions = { git = "https://github.com/prokopyl/clack", rev = "27ca28391b57a61bad4bb5099288a7bf9247350d", features = ["clack-host", "audio-ports", "gui", "latency", "log", "note-ports", "params", "state", "timer", "tail"] }
+clack-extensions = { git = "https://github.com/prokopyl/clack", rev = "27ca28391b57a61bad4bb5099288a7bf9247350d", features = ["clack-host", "audio-ports", "gui", "latency", "log", "note-ports", "params", "remote-controls", "state", "timer", "tail"] }
 clack-plugin = { git = "https://github.com/prokopyl/clack", rev = "27ca28391b57a61bad4bb5099288a7bf9247350d" }
 libloading = "0.8"
 
