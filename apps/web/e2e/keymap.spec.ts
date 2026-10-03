@@ -19,8 +19,17 @@ const state = (page: Page) =>
 const editor = (page: Page) => page.getByRole("dialog", { name: "Keyboard shortcuts" });
 const row = (page: Page, id: string) => editor(page).locator(`[data-action="${id}"]`);
 
-async function openEditor(page: Page) {
+const paletteInput = (page: Page) => page.getByRole("combobox", { name: "Search commands" });
+
+/** Open the palette once any previous one has closed (⌘K on an open palette toggles it shut). */
+async function openPalette(page: Page) {
+  await expect(paletteInput(page)).toBeHidden();
   await page.keyboard.press("ControlOrMeta+k");
+  await expect(paletteInput(page)).toBeVisible();
+}
+
+async function openEditor(page: Page) {
+  await openPalette(page);
   await page.getByRole("combobox", { name: "Search commands" }).fill("keyboard shortcuts");
   await page.keyboard.press("Enter");
   await expect(editor(page)).toBeVisible();
@@ -58,6 +67,11 @@ test("keymap: rebind, conflicts, persistence, Ableton-like preset, cheat sheet",
   await expect.poll(async () => (await state(page)).playing).toBe(true);
   await page.keyboard.press("Space");
   await expect.poll(async () => (await state(page)).playing).toBe(false);
+  // The old lenient Shift+Space is kept as an alias.
+  await page.keyboard.press("Shift+Space");
+  await expect.poll(async () => (await state(page)).playing).toBe(true);
+  await page.keyboard.press("Shift+Space");
+  await expect.poll(async () => (await state(page)).playing).toBe(false);
 
   // Bind the metronome to Alt+M; move Play/Stop from Space to P.
   await openEditor(page);
@@ -65,6 +79,7 @@ test("keymap: rebind, conflicts, persistence, Ableton-like preset, cheat sheet",
   await expect(row(page, "transport.metronome").locator("kbd")).toHaveText(["Alt+M"]);
   await addChord(page, "transport.play", "p");
   await row(page, "transport.play").getByRole("button", { name: "Remove Space from Play / Stop" }).click();
+  await row(page, "transport.play").getByRole("button", { name: "Remove ⇧Space from Play / Stop" }).click();
   await expect(row(page, "transport.play").locator("kbd")).toHaveText(["P"]);
 
   // A conflict shows on both rows while it lasts.
@@ -107,7 +122,7 @@ test("keymap: rebind, conflicts, persistence, Ableton-like preset, cheat sheet",
   await expect.poll(async () => (await state(page)).loop).toBe(!loop);
 
   // The palette shows the keymap's chords.
-  await page.keyboard.press("ControlOrMeta+k");
+  await openPalette(page);
   await page.getByRole("combobox", { name: "Search commands" }).fill("metronome");
   await expect(page.getByRole("option", { name: /metronome/i }).first().locator("kbd")).toHaveText("Alt+M");
   await page.keyboard.press("Escape");
@@ -117,8 +132,9 @@ test("keymap: rebind, conflicts, persistence, Ableton-like preset, cheat sheet",
     (window as unknown as { printed: number }).printed = 0;
     window.print = () => void ((window as unknown as { printed: number }).printed += 1);
   });
-  await page.keyboard.press("ControlOrMeta+k");
+  await openPalette(page);
   await page.getByRole("combobox", { name: "Search commands" }).fill("print keyboard");
+  await expect(page.getByRole("option", { name: /print keyboard/i }).first()).toBeVisible();
   await page.keyboard.press("Enter");
   await expect.poll(() => page.evaluate(() => (window as unknown as { printed: number }).printed)).toBe(1);
   const sheet = page.getByTestId("keymap-cheat-sheet");
@@ -129,7 +145,7 @@ test("keymap: rebind, conflicts, persistence, Ableton-like preset, cheat sheet",
   await page.evaluate(() => window.dispatchEvent(new Event("afterprint")));
   await openEditor(page);
   await editor(page).getByRole("button", { name: /Reset all/ }).click();
-  await expect(row(page, "transport.play").locator("kbd")).toHaveText(["Space"]);
+  await expect(row(page, "transport.play").locator("kbd")).toHaveText(["Space", "⇧Space"]);
   await closeEditor(page);
   expect(errors).toEqual([]);
 });
