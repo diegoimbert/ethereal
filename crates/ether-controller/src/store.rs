@@ -127,6 +127,27 @@ pub trait ProjectStore {
         let _ = (id, rel_path);
         Err(StoreError::Unsupported("removing project files".into()))
     }
+
+    // --- base-114 (project bundles), defaulted ---
+
+    /// Write a project bundle to an absolute engine-machine path chosen in the desktop's OS
+    /// save dialog (`Project::ExportBundle { path }`). Implementations require a `.ether`
+    /// extension. Default: unsupported (hosts without OS files deliver a download instead).
+    fn write_bundle_file(&mut self, path: &str, bytes: &[u8]) -> Result<(), StoreError> {
+        let _ = (path, bytes);
+        Err(StoreError::Unsupported(
+            "bundles are delivered as downloads on this host".into(),
+        ))
+    }
+
+    /// Read a project bundle from an absolute engine-machine path chosen in the desktop's
+    /// OS open dialog (`BundleSource::Path`). Default: unsupported (upload it instead).
+    fn read_bundle_file(&mut self, path: &str) -> Result<Vec<u8>, StoreError> {
+        let _ = path;
+        Err(StoreError::Unsupported(
+            "bundles are uploaded on this host".into(),
+        ))
+    }
 }
 
 /// Project-relative path of an export file (`exports/<file_name>`): `file_name` must be a

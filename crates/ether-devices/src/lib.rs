@@ -194,7 +194,7 @@ pub fn create(device: &BuiltinDevice, samples: &dyn SampleResolver) -> Box<dyn D
         | BuiltinDevice::AudioEffectRack
         | BuiltinDevice::MidiEffectRack => racks::create(device),
         // --- v0.3 groups (placeholders until their node lands) ---
-        BuiltinDevice::ConvolutionReverb { .. } => fx_space::create(device),
+        BuiltinDevice::ConvolutionReverb { .. } => fx_space::create(device, samples),
         BuiltinDevice::ExternalInstrument { .. } | BuiltinDevice::ExternalAudioEffect { .. } => {
             external::create(device)
         }

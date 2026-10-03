@@ -13,6 +13,7 @@ import clsx from "clsx";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
 import type { Widget, WidgetSize } from "@/generated";
 import { openContextMenu } from "@/kit";
+import { inputSettings, readWheel, wheelScrollPx } from "@/timeline";
 import { labelIndex, labelValue } from "../../paramScale";
 import { bindParam, useLayoutContext, type ParamBinding } from "../context";
 import { freqToX, xToFreq } from "../curves";
@@ -151,7 +152,11 @@ export function EqCurveWidget({ widget: w, size, label }: EqCurveProps) {
       }, WHEEL_GESTURE_MS);
       setSelected(b.index);
       const info = b.bindings.q.info;
-      setQ(b, clamp(qAfter(b.q, e.deltaY * (e.shiftKey ? 0.05 : 0.25)), info.min, info.max));
+      // Normalized like every wheel (Settings > Input: scroll sensitivity, vertical inversion).
+      // Shift = fine; some platforms turn a shifted vertical wheel into a horizontal one.
+      const n = readWheel(e, el);
+      const d = wheelScrollPx(n.dy || n.dx, "y", inputSettings());
+      setQ(b, clamp(qAfter(b.q, d * (e.shiftKey ? 0.05 : 0.25)), info.min, info.max));
     };
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => {

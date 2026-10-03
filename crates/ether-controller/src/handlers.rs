@@ -1014,6 +1014,7 @@ where
         self.plugins_tick(now, out);
         // Roadmap v2 hooks.
         self.preview_tick(now, out);
+        self.stream_tick(now, out);
         self.midi_learn_tick(now, out);
         self.export_tick(now, out);
         self.recording_tick(now, out);
@@ -1066,6 +1067,7 @@ where
                                     device: BuiltinDevice::Sampler { sample: Some(m), .. }
                                 } if loaded.contains(m))
                                     || crate::multisampler::uses_media(&dev.kind, &loaded)
+                                    || crate::fx_space::uses_media(&dev.kind, &loaded)
                             })
                             .map(|dev| dev.id)
                             .collect()

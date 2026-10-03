@@ -48,6 +48,7 @@ export type * from "./BrowserRootKind";
 export type * from "./BrowserSort";
 export type * from "./BuiltinDevice";
 export type * from "./BuiltinDeviceType";
+export type * from "./BundleSource";
 export type * from "./ByteChunk";
 export type * from "./CaptureCommand";
 export type * from "./CaptureEvent";

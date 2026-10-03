@@ -1,0 +1,40 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.3.0",
+  "preset": {
+    "name": "Reverse Swell",
+    "device": {
+      "type": "Builtin",
+      "device": "ConvolutionReverb"
+    },
+    "meta": {
+      "tags": [
+        "reverse",
+        "fx"
+      ],
+      "author": "Ethereal",
+      "description": "The hall played backwards: tails swell into each note."
+    },
+    "params": {
+      "0": 40.0,
+      "1": 0.0,
+      "2": 70.0,
+      "3": 100.0,
+      "4": 150.0,
+      "5": 14000.0,
+      "6": 120.0,
+      "7": 0.0,
+      "8": 1.0
+    },
+    "kind": {
+      "type": "ConvolutionReverb",
+      "ir": {
+        "type": "Factory",
+        "id": "hall"
+      }
+    },
+    "samples": [],
+    "state": null
+  }
+}

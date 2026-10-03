@@ -91,6 +91,14 @@ pub(crate) struct ExportState {
 
 pub use job::UnitStats as ExportUnitStats;
 
+impl ExportState {
+    /// Keep `bytes` engine-side as a download for `Export::ReadChunk` (base-114 bundles).
+    /// Dropped with the others when `project` is no longer open.
+    pub(crate) fn add_download(&mut self, token: String, project: ProjectId, bytes: Vec<u8>) {
+        self.downloads.insert(token, Download { project, bytes });
+    }
+}
+
 fn export_event(out: &mut dyn MessageSink, e: ExportEvent) {
     event(out, Event::Export { event: e });
 }

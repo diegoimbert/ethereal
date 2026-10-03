@@ -7,7 +7,8 @@
 use std::io::Cursor;
 use std::sync::Arc;
 
-use ether_media::{DecodedAudio, MediaError};
+use ether_media::stream::PeakBuilder;
+use ether_media::{DecodedAudio, MediaError, PeakMipmap};
 use symphonia::core::audio::{AudioBuffer, Signal};
 use symphonia::core::codecs::{CODEC_TYPE_NULL, Decoder, DecoderOptions};
 use symphonia::core::errors::Error as SymError;
@@ -37,6 +38,15 @@ pub(crate) struct IncrementalDecoder {
     /// A chained stream was cut off (only the first stream is imported).
     pub truncated: bool,
     done: bool,
+    /// `audio-streaming`: peaks-only mode (the samples feed the peaks and are dropped).
+    peaks: Option<PeaksSink>,
+}
+
+struct PeaksSink {
+    /// Document length (source frames).
+    frames: u64,
+    builder: Option<PeakBuilder>,
+    fed: usize,
 }
 
 impl IncrementalDecoder {
@@ -95,12 +105,40 @@ impl IncrementalDecoder {
             scratch: None,
             truncated: false,
             done: false,
+            peaks: None,
         })
+    }
+
+    /// `audio-streaming`: keep only the waveform peaks of a media streamed from disk (cut
+    /// or padded to `frames`, the document length, like the whole-file path), dropping the
+    /// samples as they are decoded. Call before the first [`Self::step`].
+    pub fn peaks_only(&mut self, frames: u64) {
+        let channels = self.out.len();
+        // Drop the reservation for the whole file.
+        self.out = vec![Vec::new(); channels];
+        self.peaks = Some(PeaksSink {
+            frames,
+            builder: (channels > 0).then(|| PeakBuilder::new(channels, frames)),
+            fed: 0,
+        });
     }
 
     /// Frames decoded so far.
     pub fn decoded_frames(&self) -> usize {
-        self.out.first().map_or(0, Vec::len)
+        match &self.peaks {
+            Some(p) => p.fed,
+            None => self.out.first().map_or(0, Vec::len),
+        }
+    }
+
+    /// The peaks of a [`Self::peaks_only`] decode.
+    pub fn finish_peaks(self) -> Result<PeakMipmap, MediaError> {
+        let Some(p) = self.peaks else {
+            return Err(MediaError::Decode("not a peaks-only decode".into()));
+        };
+        p.builder
+            .unwrap_or_else(|| PeakBuilder::new(self.channels.max(1), p.frames))
+            .finish()
     }
 
     /// Decode until at least `budget` more frames are produced or the stream ends.
@@ -152,6 +190,15 @@ impl IncrementalDecoder {
                 slot => slot.insert(AudioBuffer::new(decoded.capacity() as u64, spec)),
             };
             decoded.convert(buf);
+            if let Some(p) = &mut self.peaks {
+                let builder = p
+                    .builder
+                    .get_or_insert_with(|| PeakBuilder::new(n_ch, p.frames));
+                let chans: Vec<&[f32]> = (0..n_ch).map(|c| buf.chan(c)).collect();
+                builder.push(&chans);
+                p.fed += buf.frames();
+                continue;
+            }
             for (c, out) in self.out.iter_mut().enumerate() {
                 out.extend_from_slice(buf.chan(c));
             }

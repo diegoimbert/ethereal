@@ -122,6 +122,28 @@ impl SampleResolver for Sources<'_> {
     }
 }
 
+/// `Node::set_data` payload of a data-only built-in change (`EngineMsg::UpdateBuiltin`;
+/// the same data the native bridge's `update_builtin` sends): sampler slices,
+/// multisampler zones, a convolution reverb's IR (read and partitioned here: the web has no
+/// other thread, like node creation). `None` for devices without in-place updates.
+pub fn node_data(
+    device: &ether_core::protocol::model::BuiltinDevice,
+    sources: &dyn SampleResolver,
+    sample_rate: u32,
+) -> Option<ether_core::node::NodeData> {
+    use ether_core::protocol::model::BuiltinDevice;
+    match device {
+        BuiltinDevice::Sampler { slices, .. } => Some(Box::new(slices.clone())),
+        BuiltinDevice::MultiSampler { .. } => Some(Box::new(
+            ether_devices::multisampler::zone_set(device, sources),
+        )),
+        BuiltinDevice::ConvolutionReverb { .. } => {
+            ether_devices::fx_space::ir_swap(device, sources, sample_rate as f32)
+        }
+        _ => None,
+    }
+}
+
 /// The Worklet-side engine host. Generic over the ring memory so it runs natively in tests.
 pub struct EngineHost<M: RingMemory> {
     engine: ether_core::Engine,
@@ -153,8 +175,12 @@ pub struct EngineHost<M: RingMemory> {
     errors: Vec<String>,
     /// `media-preview`: a natural preview end not yet delivered (reports are lossy).
     preview_ended: Option<u64>,
+    /// `audio-streaming`: streamed media caches ([`crate::media_stream`]).
+    streams: crate::media_stream::WorkletStreams,
     /// `web-latency`: node latency changes reported to the Worker (PDC republish).
     latency: LatencyTracker,
+    /// Engine rate (node data built here, e.g. convolution IRs, is made at this rate).
+    sample_rate: u32,
 }
 
 impl<M: RingMemory> EngineHost<M> {
@@ -193,7 +219,9 @@ impl<M: RingMemory> EngineHost<M> {
             blocks: 0,
             errors: Vec::new(),
             preview_ended: None,
+            streams: Default::default(),
             latency,
+            sample_rate,
         }
     }
 
@@ -324,7 +352,25 @@ impl<M: RingMemory> EngineHost<M> {
     fn apply_frame(&mut self, bytes: &[u8]) -> bool {
         let (heavy, res) = match Frame::decode(bytes) {
             Err(e) => (false, Err(format!("bad engine message: {e}"))),
-            Ok(Frame::Msg(msg)) => (matches!(msg, EngineMsg::Publish { .. }), self.apply(msg)),
+            Ok(Frame::Msg(msg)) => (
+                matches!(
+                    msg,
+                    EngineMsg::Publish { .. } | EngineMsg::StreamOpen { .. }
+                ),
+                self.apply(msg),
+            ),
+            Ok(Frame::StreamChunk {
+                media,
+                slot,
+                chunk,
+                channel,
+                flags,
+                samples,
+            }) => {
+                self.streams
+                    .chunk(media, slot, chunk, channel, flags, samples);
+                (false, Ok(()))
+            }
             Ok(Frame::MediaBegin {
                 media,
                 sample_rate,
@@ -409,6 +455,7 @@ impl<M: RingMemory> EngineHost<M> {
             EngineMsg::LoadMedia { media, audio } => self.add_source(media, audio),
             EngineMsg::UnloadMedia { media } => {
                 self.media.cancel(media);
+                self.streams.remove(media);
                 self.sources.remove(&media);
                 self.handle.remove_source(media).map_err(|e| e.to_string())
             }
@@ -456,6 +503,29 @@ impl<M: RingMemory> EngineHost<M> {
                 let real = self.real_key(key)?;
                 self.handle
                     .watch_analysis(real, on)
+                    .map_err(|e| e.to_string())
+            }
+            EngineMsg::StreamOpen {
+                media,
+                channels,
+                frames,
+                slots,
+            } => {
+                let cache = self.streams.open(media, channels, frames, slots);
+                let source: Arc<dyn AudioSource> = cache;
+                self.sources.insert(media, source.clone());
+                self.handle
+                    .add_source(media, source)
+                    .map_err(|e| e.to_string())
+            }
+            EngineMsg::UpdateBuiltin { key, device } => {
+                let real = self.real_key(key)?;
+                let Some(data) = node_data(&device, &Sources(&self.sources), self.sample_rate)
+                else {
+                    return Err(format!("{:?} has no in-place update", device.device_type()));
+                };
+                self.handle
+                    .set_node_data(real, data)
                     .map_err(|e| e.to_string())
             }
         }
@@ -563,6 +633,11 @@ impl<M: RingMemory> EngineHost<M> {
         // report, playhead is always the latest; a preview end is kept until delivered).
         if self.reports.try_send_now(&self.report_buf) {
             self.preview_ended = None;
+        }
+        if !self.streams.is_empty() {
+            // Lossy too: the next report carries the cursors again.
+            let report = self.streams.encode_report();
+            let _ = self.reports.try_send_now(report);
         }
         self.send_analysis();
     }

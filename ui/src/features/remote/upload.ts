@@ -48,47 +48,68 @@ export interface UploadOptions {
 }
 
 /** Upload `file` and import it into the open project. Resolves with the new media. */
-export function uploadFile(
+export async function uploadFile(
   transport: EngineTransport,
   file: UploadSource,
   onProgress?: (sent: number) => void,
   opts: UploadOptions = {},
 ): Promise<MediaRef> {
-  return stageUpload(transport, file, onProgress, opts.signal, async (upload) => {
-    const reply = await transport.send(cmd("Media", { type: "Import", id: newId(), source: { type: "Upload", upload } }), {
-      gesture: opts.gesture,
-    });
+  return withUpload(transport, file, onProgress, opts, async (upload) => {
+    const reply = await transport.send(
+      cmd("Media", {
+        type: "Import",
+        id: newId(),
+        source: { type: "Upload", upload },
+      }),
+      {
+        gesture: opts.gesture,
+      },
+    );
     if (reply.type !== "Media") throw new Error(`unexpected reply ${reply.type}`);
     return reply.media;
   });
 }
 
 /**
- * Upload `file` (`BeginUpload` → `UploadChunk`s) and hand the completed upload id to `consume`
- * (which consumes it: `Import { source: Upload }`, `Browser::ImportFile`, …). Any failure,
- * or aborting `signal`, cancels the upload.
+ * Upload `file` engine-side, then run `consume` with the staged upload id (base-114: project
+ * bundles are imported with `Project::ImportBundle { source: Upload }`). A failure anywhere
+ * cancels the upload.
  */
-export async function stageUpload<T>(
+export async function withUpload<T>(
   transport: EngineTransport,
   file: UploadSource,
   onProgress: ((sent: number) => void) | undefined,
-  signal: AbortSignal | undefined,
+  opts: UploadOptions,
   consume: (upload: string) => Promise<T>,
 ): Promise<T> {
   if (file.size <= 0) throw new Error(`${file.name} is empty`);
-  signal?.throwIfAborted();
+  opts.signal?.throwIfAborted();
   const upload = newId();
-  await transport.send(cmd("Media", { type: "BeginUpload", upload, name: file.name, size: file.size }));
+  await transport.send(
+    cmd("Media", {
+      type: "BeginUpload",
+      upload,
+      name: file.name,
+      size: file.size,
+    }),
+  );
   try {
     const inFlight: Promise<unknown>[] = [];
     let sent = 0;
     for (let offset = 0; offset < file.size; offset += CHUNK_BYTES) {
-      signal?.throwIfAborted();
+      opts.signal?.throwIfAborted();
       const end = Math.min(file.size, offset + CHUNK_BYTES);
       const bytes = new Uint8Array(await file.slice(offset, end).arrayBuffer());
       const reply = hasBinaryChunks(transport)
         ? transport.uploadChunk(upload, offset, bytes)
-        : transport.send(cmd("Media", { type: "UploadChunk", upload, offset, data: bytesToBase64(bytes) }));
+        : transport.send(
+            cmd("Media", {
+              type: "UploadChunk",
+              upload,
+              offset,
+              data: bytesToBase64(bytes),
+            }),
+          );
       const done = reply.then(() => {
         sent += bytes.length;
         onProgress?.(sent);
@@ -98,7 +119,7 @@ export async function stageUpload<T>(
       if (inFlight.length >= IN_FLIGHT) await inFlight.shift();
     }
     await Promise.all(inFlight);
-    signal?.throwIfAborted();
+    opts.signal?.throwIfAborted();
     return await consume(upload);
   } catch (e) {
     transport.send(cmd("Media", { type: "CancelUpload", upload })).catch(() => {});
@@ -146,12 +167,22 @@ export async function uploadFiles(transport: EngineTransport, files: readonly Up
   const out: MediaRef[] = [];
   for (const file of files) {
     const id = newId();
-    uploadStore.start({ id, name: file.name, size: file.size, sent: 0, error: null, done: false });
+    uploadStore.start({
+      id,
+      name: file.name,
+      size: file.size,
+      sent: 0,
+      error: null,
+      done: false,
+    });
     try {
       out.push(await uploadFile(transport, file, (sent) => uploadStore.update(id, { sent })));
       uploadStore.remove(id);
     } catch (e) {
-      uploadStore.update(id, { error: e instanceof Error ? e.message : String(e), done: true });
+      uploadStore.update(id, {
+        error: e instanceof Error ? e.message : String(e),
+        done: true,
+      });
     }
   }
   return out;

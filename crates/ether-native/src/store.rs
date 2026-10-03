@@ -476,6 +476,26 @@ impl ProjectStore for DiskStore {
         crate::uploads::discard(&self.projects_root, upload)
     }
 
+    fn write_bundle_file(&mut self, path: &str, bytes: &[u8]) -> Result<(), StoreError> {
+        let p = bundle_path(path)?;
+        atomic_write(p, bytes)
+    }
+
+    fn read_bundle_file(&mut self, path: &str) -> Result<Vec<u8>, StoreError> {
+        let p = bundle_path(path)?;
+        let meta = fs::metadata(p).map_err(|e| match e.kind() {
+            std::io::ErrorKind::NotFound => StoreError::NotFound(path.to_string()),
+            _ => io_err(e),
+        })?;
+        if !meta.is_file() {
+            return Err(StoreError::InvalidPath(format!("not a file: {path}")));
+        }
+        if meta.len() > u32::MAX as u64 {
+            return Err(StoreError::Io(format!("{path} is larger than 4 GiB")));
+        }
+        fs::read(p).map_err(io_err)
+    }
+
     /// v0.3 (`project-versions`): delete one file (never a folder); missing = `Ok`.
     fn remove(&mut self, id: ProjectId, rel_path: &str) -> Result<(), StoreError> {
         let dir = self.existing_project_dir(id)?;
@@ -723,6 +743,21 @@ pub fn list_external_dir(path: &str) -> Result<Vec<(String, bool)>, StoreError> 
 pub const MAX_EXTERNAL_BYTES: u64 = 1 << 30;
 
 /// See `Library::read_external` for `DiskStore`.
+/// base-114: an absolute `.ether` path from the desktop's OS save/open dialog.
+fn bundle_path(path: &str) -> Result<&Path, StoreError> {
+    let p = Path::new(path);
+    let ether = p
+        .extension()
+        .and_then(|e| e.to_str())
+        .is_some_and(|e| e.eq_ignore_ascii_case("ether"));
+    if path.contains('\0') || !p.is_absolute() || !ether {
+        return Err(StoreError::InvalidPath(format!(
+            "not an absolute .ether path: {path}"
+        )));
+    }
+    Ok(p)
+}
+
 pub fn read_external_file(path: &str) -> Result<Vec<u8>, StoreError> {
     let p = Path::new(path);
     if path.contains('\0') || !p.is_absolute() {
@@ -1052,6 +1087,27 @@ mod tests {
         std::os::unix::fs::symlink(dir.join("cache"), dir.join("alias")).unwrap();
         s.write(a, "alias/ok.bin", b"ok").unwrap();
         assert_eq!(fs::read(dir.join("cache/ok.bin")).unwrap(), b"ok");
+    }
+
+    #[test]
+    fn bundle_files_at_absolute_ether_paths_only() {
+        let tmp = TempDir::new("store-bundle");
+        let mut s = store(&tmp);
+        let path = tmp.path().join("Song.ether");
+        let path = path.to_str().unwrap();
+        s.write_bundle_file(path, b"PK").unwrap();
+        assert_eq!(s.read_bundle_file(path).unwrap(), b"PK");
+        for bad in ["Song.ether", "/tmp/song.wav", "/tmp/a\0.ether"] {
+            assert!(matches!(
+                s.write_bundle_file(bad, b"x"),
+                Err(StoreError::InvalidPath(_))
+            ));
+        }
+        let missing = tmp.path().join("missing.ether");
+        assert!(matches!(
+            s.read_bundle_file(missing.to_str().unwrap()),
+            Err(StoreError::NotFound(_))
+        ));
     }
 
     #[test]

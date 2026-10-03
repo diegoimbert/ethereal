@@ -90,6 +90,11 @@ export class MockExports {
     }
   }
 
+  /** Keep `bytes` as a download (base-114: `Project::ExportBundle`). */
+  addDownload(info: ExportDownload, bytes: Uint8Array): void {
+    this.downloads.set(info.token, { info, bytes });
+  }
+
   /** Advance the running export by one phase (called on every playhead step). */
   step(): void {
     const job = this.job;

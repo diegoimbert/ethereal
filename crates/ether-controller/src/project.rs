@@ -3,11 +3,13 @@
 //! media state are rebuilt for the new document).
 
 use ether_core::TransportControl;
+use ether_core::protocol::export::ExportDownload;
 use ether_core::protocol::model::file;
 use ether_core::protocol::model::*;
-use ether_core::protocol::project::{ProjectCommand, ProjectEvent, ProjectSummary};
+use ether_core::protocol::project::{BundleSource, ProjectCommand, ProjectEvent, ProjectSummary};
 use ether_core::protocol::{CommandError, ErrorCode, Event, ReplyValue};
 
+use crate::bundle;
 use crate::handlers::{event, no_project, store_err};
 use crate::store::{Library, ProjectStore, StoreError};
 use crate::tx::{CmdResult, cmd_err, invalid, invalid_state};
@@ -71,6 +73,12 @@ where
                 self.emit_list_changed(out);
                 Ok(ReplyValue::Unit)
             }
+            ProjectCommand::ExportBundle { id, path } => self.export_bundle(*id, path.as_deref()),
+            ProjectCommand::ImportBundle {
+                new_id,
+                source,
+                name,
+            } => self.import_bundle(*new_id, source, name.as_deref(), out),
             ProjectCommand::Get => {
                 let project = self.doc.as_ref().ok_or_else(no_project)?.project.clone();
                 // (Re)connect: resend the runtime state the UI cannot derive.
@@ -311,6 +319,115 @@ where
         Ok(ReplyValue::Saved { project: summary })
     }
 
+    /// `ExportBundle`: the project's document (the open one: its current state, plugin
+    /// states included) and its `media/` files, packed (see [`bundle`]).
+    fn export_bundle(&mut self, id: ProjectId, path: Option<&str>) -> CmdResult<ReplyValue> {
+        let current = self.doc.as_ref().map(|d| d.project.id);
+        let (json, name) = if current == Some(id) {
+            let project = self.doc.as_ref().expect("checked").project.clone();
+            (self.serialize(&project)?, project.settings.name)
+        } else {
+            let json = self.store.load(id).map_err(store_err)?;
+            let name = file::load(&json).map_err(file_err)?.settings.name;
+            (json, name)
+        };
+        let mut entries = vec![(bundle::DOCUMENT.to_string(), json.into_bytes())];
+        // Breadth-first walk of `media/` (missing = no media).
+        let mut dirs = vec![bundle::MEDIA_PREFIX.trim_end_matches('/').to_string()];
+        while let Some(dir) = dirs.pop() {
+            let listing = match self.store.list_dir(id, &dir) {
+                Ok(l) => l,
+                Err(StoreError::NotFound(_)) => continue,
+                Err(e) => return Err(store_err(e)),
+            };
+            for e in listing.entries {
+                if e.kind == ether_core::protocol::media::FileKind::Directory {
+                    dirs.push(e.path);
+                } else {
+                    let bytes = self.store.read(id, &e.path).map_err(store_err)?;
+                    entries.push((e.path, bytes));
+                }
+            }
+        }
+        let bytes = bundle::pack(&entries).map_err(invalid)?;
+        if let Some(path) = path {
+            self.store
+                .write_bundle_file(path, &bytes)
+                .map_err(store_err)?;
+            return Ok(ReplyValue::Unit);
+        }
+        let token = format!("bundle-{id}");
+        let download = ExportDownload {
+            token: token.clone(),
+            name: format!("{}.ether", bundle_file_name(&name)),
+            mime: "application/zip".into(),
+            size: bytes.len() as f64,
+        };
+        self.export
+            .add_download(token, current.unwrap_or(id), bytes);
+        Ok(ReplyValue::Bundle { download })
+    }
+
+    /// `ImportBundle`: a new stored project from a bundle (or a bare `project.ether`).
+    fn import_bundle(
+        &mut self,
+        new_id: ProjectId,
+        source: &BundleSource,
+        name: Option<&str>,
+        out: &mut dyn MessageSink,
+    ) -> CmdResult<ReplyValue> {
+        let name = name.map(check_name).transpose()?;
+        if let Some(existing) = self.list_projects()?.into_iter().find(|s| s.id == new_id) {
+            // Retried message.
+            return Ok(ReplyValue::Saved { project: existing });
+        }
+        let bytes = match source {
+            BundleSource::Upload { upload } => {
+                let bytes = self.store.read_upload(upload).map_err(store_err)?;
+                let _ = self.store.discard_upload(upload);
+                bytes
+            }
+            BundleSource::Path { path } => self.store.read_bundle_file(path).map_err(store_err)?,
+        };
+        let entries: Vec<(String, &[u8])> = if bundle::is_archive(&bytes) {
+            bundle::unpack(&bytes).map_err(invalid)?
+        } else {
+            vec![(bundle::DOCUMENT.to_string(), bytes.as_slice())]
+        };
+        let doc = entries
+            .iter()
+            .find(|(n, _)| n == bundle::DOCUMENT)
+            .ok_or_else(|| invalid("the bundle has no project.ether"))?;
+        let json = std::str::from_utf8(doc.1)
+            .map_err(|_| invalid("project.ether is not a text document"))?;
+        let mut project = file::load(json).map_err(|e| invalid(format!("project file: {e}")))?;
+        project.id = new_id;
+        if let Some(name) = name {
+            project.settings.name = name;
+        }
+        let json = file::save(&project, &self.config.app_version).map_err(file_err)?;
+        self.store.create(new_id).map_err(|e| match e {
+            StoreError::AlreadyExists(_) => invalid(format!("project {new_id} already exists")),
+            e => store_err(e),
+        })?;
+        let written = (|| {
+            for (rel, data) in entries.iter().filter(|(n, _)| n != bundle::DOCUMENT) {
+                self.store.write(new_id, rel, data)?;
+            }
+            self.store.save(new_id, &json)
+        })();
+        let summary = match written {
+            Ok(s) => s,
+            Err(e) => {
+                // No half-imported project left behind.
+                let _ = self.store.delete(new_id);
+                return Err(store_err(e));
+            }
+        };
+        self.emit_list_changed(out);
+        Ok(ReplyValue::Saved { project: summary })
+    }
+
     /// Make `project` the open document: reset history, runtime state, engine nodes and
     /// media, then announce it.
     pub(crate) fn load_project(&mut self, project: Project, now: u64, out: &mut dyn MessageSink) {
@@ -357,5 +474,27 @@ where
         self.share_project_loaded(pid, out);
         // project-versions: session marker and version clock.
         self.versions_on_load(now);
+    }
+}
+
+/// A project name as a file name: path separators and control/reserved characters become
+/// `_`; never empty.
+fn bundle_file_name(name: &str) -> String {
+    let cleaned: String = name
+        .trim()
+        .chars()
+        .map(|c| {
+            if c.is_control() || matches!(c, '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|') {
+                '_'
+            } else {
+                c
+            }
+        })
+        .collect();
+    let cleaned = cleaned.trim_start_matches('.').trim();
+    if cleaned.is_empty() {
+        "Project".into()
+    } else {
+        cleaned.into()
     }
 }

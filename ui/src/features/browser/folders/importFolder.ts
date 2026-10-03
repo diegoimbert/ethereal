@@ -2,7 +2,7 @@
  * Copying a folder of the user's computer into the engine's library (`base-136`; web, a
  * remote engine, and desktop drops that arrive as files): read it (`walk.ts`), keep the
  * supported audio (`plan.ts`), check the browser's storage quota (local web engine), then
- * `Browser::ImportFolder` → per file an upload (`stageUpload`) consumed by
+ * `Browser::ImportFolder` → per file an upload (`withUpload`) consumed by
  * `Browser::ImportFile` (sub-folders preserved) → `Browser::Rescan`, which indexes it like
  * any library root.
  *
@@ -12,7 +12,7 @@
  */
 import { create } from "zustand";
 import type { BrowserRoot } from "@/generated";
-import { stageUpload } from "@/features/remote/upload";
+import { withUpload } from "@/features/remote/upload";
 import { cmd, isCommandFailed, newId, type EngineTransport } from "@/transport";
 import { estimateStorage, planImport, quotaProblem, type StorageEstimate } from "./plan";
 import type { PickedFolder } from "./walk";
@@ -126,11 +126,11 @@ async function runJob(
     for (const f of plan.files) {
       signal.throwIfAborted();
       try {
-        await stageUpload(
+        await withUpload(
           transport,
           f.file,
           (n) => update(id, { sent: sent + n }),
-          signal,
+          { signal },
           (upload) => transport.send(cmd("Browser", { type: "ImportFile", root: root!, path: f.path, upload })),
         );
         update(id, { done: current().done + 1 });

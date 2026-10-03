@@ -20,7 +20,7 @@ use ether_core::protocol::model::*;
 use ether_core::protocol::notes::{NoteCommand, NoteSpec};
 use ether_core::protocol::project::ProjectCommand;
 use ether_core::protocol::tracks::TrackCommand;
-use ether_core::protocol::{Command, ErrorCode};
+use ether_core::protocol::{Command, ErrorCode, ReplyValue};
 
 /// Sends `c` and asserts it replies `Unsupported` without changing the document.
 fn assert_unsupported(h: &mut Harness, c: Command) {
@@ -102,9 +102,10 @@ fn reopen(h: &mut Harness, p: &Project) {
 // ─── engine + editing ───────────────────────────────────────────────────────────────────
 
 #[test]
-fn audio_streaming_is_off_until_the_node_lands() {
+fn audio_streaming_policy_streams_long_media() {
     let mut h = Harness::with_project();
-    // Ten minutes of stereo: long enough to stream, but the policy says no yet.
+    // Ten minutes of stereo: long enough to stream (the pipeline tests are in
+    // tests/media_stream.rs).
     let media = MediaRef {
         id: h.id(),
         name: "long.wav".into(),
@@ -116,8 +117,20 @@ fn audio_streaming_is_off_until_the_node_lands() {
         location: MediaLocation::Project,
     };
     assert!(media.frames as f64 / 48_000.0 > ether_controller::media_stream::STREAM_MIN_SECONDS);
-    assert!(!ether_controller::media_stream::should_stream(
+    assert!(ether_controller::media_stream::should_stream(
         &media, 48_000
+    ));
+    // Short media and media of unknown length are decoded whole.
+    let short = MediaRef {
+        frames: 48_000 * 10,
+        ..media.clone()
+    };
+    assert!(!ether_controller::media_stream::should_stream(
+        &short, 48_000
+    ));
+    let unknown = MediaRef { frames: 0, ..media };
+    assert!(!ether_controller::media_stream::should_stream(
+        &unknown, 48_000
     ));
 }
 
@@ -147,7 +160,7 @@ fn audio_to_midi_is_implemented() {
 }
 
 #[test]
-fn fx_space_reverb_is_a_placeholder() {
+fn fx_space_reverb_is_implemented() {
     let mut h = Harness::with_project();
     let t = track(&mut h, TrackKind::Audio);
     let d = insert(
@@ -162,14 +175,14 @@ fn fx_space_reverb_is_a_placeholder() {
     h.tick();
     let g = h.ctl.bridge.last_graph();
     assert_eq!(g.tracks.iter().find(|x| x.id == t).unwrap().chain.len(), 1);
-    assert_unsupported(
-        &mut h,
-        Command::Device(DeviceCommand::SetIr {
-            device: d,
-            ir: Some(IrSource::Factory { id: "hall".into() }),
-        }),
-    );
-    assert_unsupported(&mut h, Command::Device(DeviceCommand::ListFactoryIrs));
+    h.ok(Command::Device(DeviceCommand::SetIr {
+        device: d,
+        ir: Some(IrSource::Factory { id: "hall".into() }),
+    }));
+    assert!(matches!(
+        h.ok(Command::Device(DeviceCommand::ListFactoryIrs)),
+        ReplyValue::FactoryIrs { .. }
+    ));
 }
 
 #[test]

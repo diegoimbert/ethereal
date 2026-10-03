@@ -43,19 +43,31 @@ pub(crate) fn read_media_bytes<S: ProjectStore, L: Library>(
     project: ProjectId,
     m: &MediaRef,
 ) -> Result<Vec<u8>, StoreError> {
+    resolve_media_bytes(store, library, project, m).map(|(bytes, _)| bytes)
+}
+
+/// [`read_media_bytes`], plus the external path the bytes came from (`None` = the project
+/// copy at `MediaRef::file`).
+pub(crate) fn resolve_media_bytes<S: ProjectStore, L: Library>(
+    store: &mut S,
+    library: &mut L,
+    project: ProjectId,
+    m: &MediaRef,
+) -> Result<(Vec<u8>, Option<String>), StoreError> {
     if let MediaLocation::External { path } = &m.location {
         if let Ok(bytes) = library.read_external(path)
             && m.hash
                 .as_deref()
                 .is_none_or(|h| h == hash::content_hash(&bytes))
         {
-            return Ok(bytes);
+            return Ok((bytes, Some(path.clone())));
         }
         return store
             .read(project, &m.file)
+            .map(|b| (b, None))
             .map_err(|_| StoreError::NotFound(path.clone()));
     }
-    store.read(project, &m.file)
+    store.read(project, &m.file).map(|b| (b, None))
 }
 
 pub(crate) fn peaks_cache_path(hash: &str) -> String {
@@ -85,6 +97,13 @@ struct Job {
     report: bool,
     /// The chained-Ogg warning was already given (at import).
     warned: bool,
+    /// `audio-streaming`: the host streams this media from disk; the job only builds the
+    /// peaks (the decoder runs in peaks-only mode).
+    streamed: bool,
+    /// Streaming was considered (at the start of the decode stage).
+    stream_checked: bool,
+    /// The external file the bytes were read from (`None` = the project copy).
+    external_path: Option<String>,
 }
 
 #[derive(Default)]
@@ -105,6 +124,14 @@ pub(crate) struct MediaState {
     recheck: bool,
     /// Background search for missing media (`media_refs`).
     pub refs: RefsState,
+    /// Media handed to the engine during the current [`Self::step`] (streamed media are
+    /// available before their job ends: the job still builds the peaks).
+    just_loaded: Vec<MediaId>,
+    /// `audio-streaming`: media the host streams from disk (vs decoded into memory).
+    streamed: BTreeSet<MediaId>,
+    /// `audio-streaming`: engine underruns not reported yet, and the last report (ms).
+    pub(crate) underruns_pending: u32,
+    pub(crate) underruns_at: u64,
 }
 
 /// Decoded audio sized to the document's frame count (headers and decoders can disagree
@@ -135,6 +162,11 @@ impl MediaState {
         !self.jobs.is_empty()
     }
 
+    /// `audio-streaming`: are any media of the project streamed?
+    pub fn any_streamed(&self) -> bool {
+        !self.streamed.is_empty()
+    }
+
     /// The currently unresolved media (`MediaRef::ListMissing`).
     pub fn missing(&self) -> Vec<MediaId> {
         self.missing.keys().copied().collect()
@@ -149,6 +181,7 @@ impl MediaState {
     /// The next [`Self::sync`] queues them again.
     pub fn reload_file<B: EngineBridge>(&mut self, bridge: &mut B, project: &Project, file: &str) {
         for m in project.media.values().filter(|m| m.file == file) {
+            self.streamed.remove(&m.id);
             if self.loaded.remove(&m.id).is_some() {
                 let _ = bridge.unload_media(m.id);
             }
@@ -173,6 +206,9 @@ impl MediaState {
             stage: Stage::Decode(Box::new(decoder)),
             report: true,
             warned,
+            streamed: false,
+            stream_checked: false,
+            external_path: None,
         });
     }
 
@@ -181,6 +217,7 @@ impl MediaState {
         for m in std::mem::take(&mut self.loaded).into_keys() {
             let _ = bridge.unload_media(m);
         }
+        self.streamed.clear();
         self.peaks.clear();
         self.jobs.clear();
         self.missing.clear();
@@ -191,6 +228,7 @@ impl MediaState {
     /// Reload every media (engine sample rate changed).
     pub fn reload_all(&mut self) {
         self.loaded.clear();
+        self.streamed.clear();
         self.jobs.clear();
         self.missing.clear();
     }
@@ -209,6 +247,7 @@ impl MediaState {
             .collect();
         for m in gone {
             self.loaded.remove(&m);
+            self.streamed.remove(&m);
             self.peaks.remove(&m);
             let _ = bridge.unload_media(m);
         }
@@ -234,6 +273,9 @@ impl MediaState {
                     stage: Stage::Read,
                     report: false,
                     warned: false,
+                    streamed: false,
+                    stream_checked: false,
+                    external_path: None,
                 });
             }
         }
@@ -260,7 +302,7 @@ impl MediaState {
             let Some(mut job) = self.jobs.pop_front() else {
                 break;
             };
-            match self.advance(
+            let res = self.advance(
                 &mut job,
                 project,
                 store,
@@ -269,9 +311,10 @@ impl MediaState {
                 engine_rate,
                 &mut budget,
                 events,
-            ) {
+            );
+            loaded.append(&mut self.just_loaded);
+            match res {
                 Ok(true) => {
-                    loaded.push(job.media.id);
                     self.missing.remove(&job.media.id);
                     if self.reported.remove(&job.media.id) {
                         events.push(Event::MediaRef {
@@ -313,7 +356,8 @@ impl MediaState {
         loaded
     }
 
-    /// Run one job until done or out of budget. `Ok(true)` = loaded into the engine.
+    /// Run one job until done or out of budget. `Ok(true)` = done (the media was handed to
+    /// the engine: listed in `just_loaded`, possibly by an earlier call for streamed media).
     #[allow(clippy::too_many_arguments)]
     fn advance<S: ProjectStore, L: Library, B: EngineBridge>(
         &mut self,
@@ -329,22 +373,23 @@ impl MediaState {
         loop {
             match &mut job.stage {
                 Stage::Read => {
-                    let bytes = match read_media_bytes(store, library, project, &job.media) {
-                        Ok(b) => b,
-                        Err(e) => {
-                            self.missing.insert(
-                                job.media.id,
-                                (job.media.location.clone(), job.media.hash.clone()),
-                            );
-                            self.reported.insert(job.media.id);
-                            events.push(Event::Media {
-                                event: MediaEvent::Missing {
-                                    media: job.media.id,
-                                },
-                            });
-                            return Err(MediaError::Decode(e.to_string()));
-                        }
-                    };
+                    let (bytes, external_path) =
+                        match resolve_media_bytes(store, library, project, &job.media) {
+                            Ok(b) => b,
+                            Err(e) => {
+                                self.missing.insert(
+                                    job.media.id,
+                                    (job.media.location.clone(), job.media.hash.clone()),
+                                );
+                                self.reported.insert(job.media.id);
+                                events.push(Event::Media {
+                                    event: MediaEvent::Missing {
+                                        media: job.media.id,
+                                    },
+                                });
+                                return Err(MediaError::Decode(e.to_string()));
+                            }
+                        };
                     *budget -= (bytes.len() / 64) as isize;
                     if !self.peaks.contains_key(&job.media.id)
                         && let Some(hash) = &job.media.hash
@@ -368,9 +413,46 @@ impl MediaState {
                             message: chained_ogg_warning(&job.media.name),
                         });
                     }
+                    job.external_path = external_path;
                     job.stage = Stage::Decode(Box::new(decoder));
                 }
                 Stage::Decode(dec) => {
+                    // `audio-streaming`: long media stream from disk when the host can (once
+                    // per job, before decoding: imports arrive here directly).
+                    if !job.stream_checked {
+                        job.stream_checked = true;
+                        if crate::media_stream::should_stream(&job.media, engine_rate) {
+                            let external_path = match &job.media.location {
+                                // An import references the file it just read.
+                                MediaLocation::External { path } if job.report => {
+                                    Some(path.clone())
+                                }
+                                _ => job.external_path.take(),
+                            };
+                            let source = crate::media_stream::StreamSource {
+                                project,
+                                media: job.media.clone(),
+                                external_path,
+                                engine_sample_rate: engine_rate,
+                            };
+                            match bridge.stream_media(&source) {
+                                Ok(true) => {
+                                    job.streamed = true;
+                                    self.loaded.insert(job.media.id, job.media.hash.clone());
+                                    self.streamed.insert(job.media.id);
+                                    self.just_loaded.push(job.media.id);
+                                    if self.peaks.contains_key(&job.media.id) {
+                                        return Ok(true);
+                                    }
+                                    dec.peaks_only(job.media.frames);
+                                }
+                                Ok(false) => {}
+                                // The host could not stream it (file unreadable by path,
+                                // ...): decode it whole as before.
+                                Err(_) => {}
+                            }
+                        }
+                    }
                     let before = dec.decoded_frames();
                     let done = dec.step((*budget).max(1) as usize)?;
                     *budget -= (dec.decoded_frames() - before) as isize;
@@ -381,6 +463,28 @@ impl MediaState {
                         unreachable!()
                     };
                     let truncated = dec.truncated;
+                    if job.streamed {
+                        // Peaks-only pass of a streamed media: the engine already has it.
+                        if truncated && !job.warned {
+                            job.warned = true;
+                            events.push(Event::Notification {
+                                level: NotificationLevel::Warning,
+                                message: chained_ogg_warning(&job.media.name),
+                            });
+                        }
+                        let peaks = dec.finish_peaks()?;
+                        if let Some(hash) = &job.media.hash {
+                            let _ =
+                                store.write(project, &peaks_cache_path(hash), &peaks.to_bytes());
+                        }
+                        self.peaks.insert(job.media.id, peaks);
+                        events.push(Event::Media {
+                            event: MediaEvent::PeaksReady {
+                                media: job.media.id,
+                            },
+                        });
+                        return Ok(true);
+                    }
                     let audio = dec.finish()?;
                     let audio = if job.media.frames == 0 {
                         let frames = audio.frames() as u64;
@@ -430,6 +534,7 @@ impl MediaState {
                         .load_media(&job.media, audio)
                         .map_err(|e| MediaError::Decode(format!("engine: {e}")))?;
                     self.loaded.insert(job.media.id, job.media.hash.clone());
+                    self.just_loaded.push(job.media.id);
                     return Ok(true);
                 }
             }
@@ -442,7 +547,9 @@ fn job_progress(job: &Job) -> f32 {
         Stage::Read => 0.0,
         Stage::Decode(d) => {
             let total = job.media.frames.max(1) as f32;
-            0.5 * (d.decoded_frames() as f32 / total).min(1.0)
+            let done = (d.decoded_frames() as f32 / total).min(1.0);
+            // A streamed media's job is only the peaks pass.
+            if job.streamed { done } else { 0.5 * done }
         }
         Stage::Resample(r) => 0.5 + 0.5 * r.progress(),
     }
