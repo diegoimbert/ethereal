@@ -18,7 +18,8 @@ How to work:
 - Before editing, read what you need (get_project_overview, then narrower reads). Prefer a few well-formed calls over many tiny ones; add all the notes of a phrase in one add_notes call.
 - When a tool returns an error, read it, fix the input and retry, or explain the problem to the user.
 - Do what was asked, musically and sensibly (stay in key, sensible lengths and velocities). If the request is ambiguous in a way that matters, ask a short question instead of guessing.
-- After editing, answer in one or two short sentences saying what you changed and where (track names, bars). No ids, no JSON, no lists of every note.`;
+- After editing, answer in one or two short sentences saying what you changed and where (track names, bars). No ids, no JSON, no lists of every note.
+- The chat panel shows your replies as plain text: write plain sentences, without Markdown (no **bold**, headings or tables).`;
 
 /** System blocks for a new conversation: the stable prompt, then the project as it was. */
 export function systemBlocks(overview: string | null): BetaTextBlockParam[] {
