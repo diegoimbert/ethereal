@@ -1643,6 +1643,9 @@ paths = [
   "ui/src/features/expression/**",
   # shared touch (v0.3 grant): one additive state field + initializer on EtherController
   "crates/ether-controller/src/lib.rs",
+  # shared touch (BCR): live MPE monitoring, one call in RecordingRt::process (identity without MPE)
+  "crates/ether-core/src/recording/mod.rs",
+  "crates/ether-core/tests/mpe*.rs",
 ]
 
 [nodes.capture-midi]
