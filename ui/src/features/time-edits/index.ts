@@ -6,6 +6,7 @@
 export {
   bindTimeSelection,
   canRun,
+  clipboardAction,
   inTimeSelection,
   runTimeAction,
   timeActionForKey,

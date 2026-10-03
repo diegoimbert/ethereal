@@ -54,6 +54,8 @@ import {
   withSeparator,
 } from "@/features/collab/social";
 import {
+  clipboardAction,
+  runTimeAction,
   TimeEditNotice,
   TimeSelectionLayer,
   useArrangementTimeEdits,
@@ -215,7 +217,11 @@ function ConnectedArrangementView() {
       )
         return;
       e.preventDefault();
-      void runClipAction(transport, e.type as "copy" | "cut" | "paste");
+      // section-edit: a time selection (or a time copy, for paste) takes it as a section.
+      const kind = e.type as "copy" | "cut" | "paste";
+      const time = clipboardAction(kind);
+      if (time) void runTimeAction(transport, time);
+      else void runClipAction(transport, kind);
     };
     document.addEventListener("copy", onClipboard);
     document.addEventListener("cut", onClipboard);

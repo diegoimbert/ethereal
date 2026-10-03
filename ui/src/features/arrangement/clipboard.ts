@@ -17,6 +17,7 @@
 import type { Beats, Clip, ClipId, Command, Note, TrackId, WarpMarker } from "@/generated";
 import { notesOfClip, useProjectStore, warpMarkersOfClip } from "@/state";
 import { itemSelection } from "@/timeline";
+import { useTimeSelection } from "@/features/time-edits/store";
 import { cmd, newId, type EngineTransport } from "@/transport";
 import { startOf } from "./clipTime";
 import { selectedClips, sendEdit } from "./context";
@@ -30,6 +31,12 @@ interface Entry {
 }
 
 let clipboard: { entries: Entry[]; start: Beats; end: Beats } | null = null;
+
+// section-edit: the most recent copy wins ⌘V. A time copy/cut (the time-selection section)
+// replaces the clip clipboard, and a clip copy forgets the time one (`copyClips`).
+useTimeSelection.subscribe((s, prev) => {
+  if (s.clipboard && s.clipboard !== prev.clipboard) clipboard = null;
+});
 
 export function hasClipboard(): boolean {
   return clipboard !== null && clipboard.entries.length > 0;
@@ -45,6 +52,7 @@ export function copyClips(): number {
     start: Math.min(...clips.map(startOf)),
     end: Math.max(...clips.map((c) => startOf(c) + c.length)),
   };
+  useTimeSelection.getState().setClipboard(null);
   return clips.length;
 }
 

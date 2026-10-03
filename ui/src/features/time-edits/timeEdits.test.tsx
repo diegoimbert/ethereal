@@ -3,7 +3,7 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Clip, Command, Project, Track } from "@/generated";
 import { useProjectStore, useSelectionStore } from "@/state";
-import { itemSelection } from "@/timeline";
+import { itemSelection, playheadBeats } from "@/timeline";
 import { cmd, MockTransport, TransportProvider } from "@/transport";
 import { ContextMenuHost } from "@/kit";
 import { ArrangementView } from "@/features/arrangement";
@@ -232,6 +232,96 @@ describe("time selection", () => {
     expect(sent.find((c) => c.domain === "TimeEdit")).toMatchObject({
       command: { type: "Split", tracks: [track("Keys").id] },
     });
+  });
+});
+
+describe("section-edit: plain ⌘C/X/V/D and ⌫ act on the time selection", () => {
+  const timeEdits = () => sent.filter((c) => c.domain === "TimeEdit").map((c) => (c as Extract<Command, { domain: "TimeEdit" }>).command);
+  const plain = async (k: string) => {
+    fireEvent.keyDown(view(), { key: k, metaKey: !["Backspace", "Delete"].includes(k) });
+    await flush();
+  };
+
+  it("with a time selection, ⌘C copies the section (not the clips) and ⌘D tiles it", async () => {
+    await selectTime(0, 4, 1);
+    // The marquee also selected the clip it crossed: the section still wins.
+    expect(itemSelection.getState().selected.clip.size).toBe(1);
+    await plain("c");
+    expect(timeEdits()).toMatchObject([{ type: "Copy", selection: { start: 0, end: 4, tracks: [track("Keys").id] } }]);
+    expect(useTimeSelection.getState().clipboard).toEqual({ tracks: 1, length: 4 });
+    expect(sent.some((c) => c.domain === "Clip")).toBe(false);
+    await plain("d");
+    await plain("d");
+    expect(timeEdits().filter((c) => c.type === "DuplicateTime")).toHaveLength(2);
+    // Each copy is exactly 4 beats, placed right after the previous one.
+    expect(clipsOf("Keys")).toEqual([
+      [0, 4, 0],
+      [4, 4, 0],
+      [8, 4, 0],
+      [12, 12, 4],
+    ]);
+    expect(useTimeSelection.getState().selection).toMatchObject({ start: 8, end: 12 });
+  });
+
+  it("⌘V pastes the section right after the selection; repeated ⌘V tiles it", async () => {
+    await selectTime(0, 4, 1);
+    await plain("c");
+    await plain("v");
+    await plain("v");
+    const pastes = timeEdits().filter((c) => c.type === "Paste");
+    expect(pastes).toMatchObject([
+      { at: 4, insert: false },
+      { at: 8, insert: false },
+    ]);
+    expect(useTimeSelection.getState().selection).toMatchObject({ start: 8, end: 12 });
+  });
+
+  it("⌘X cuts the section and ⌫ deletes the selected time", async () => {
+    await selectTime(0, 4, 1);
+    await plain("x");
+    expect(timeEdits()).toMatchObject([{ type: "Cut", selection: { start: 0, end: 4 } }]);
+    expect(useTimeSelection.getState().selection).toBeNull();
+    await selectTime(0, 4, 1);
+    await plain("Backspace");
+    expect(timeEdits().at(-1)).toMatchObject({ type: "DeleteTime", selection: { start: 0, end: 4 } });
+    // Nothing went through the clip actions.
+    expect(sent.some((c) => c.domain === "Clip")).toBe(false);
+  });
+
+  it("the desktop Edit menu's copy/paste events take the section too", async () => {
+    await selectTime(0, 4, 1);
+    view().focus();
+    await act(async () => void document.dispatchEvent(new Event("copy", { bubbles: true, cancelable: true })));
+    await flush();
+    expect(timeEdits()).toMatchObject([{ type: "Copy" }]);
+    await act(async () => void document.dispatchEvent(new Event("paste", { bubbles: true, cancelable: true })));
+    await flush();
+    expect(timeEdits().at(-1)).toMatchObject({ type: "Paste", at: 4 });
+  });
+
+  it("without a time selection the clip shortcuts keep working; the latest copy wins ⌘V", async () => {
+    const keys = Object.values(project().clips).find((c) => c.track === track("Keys").id)!;
+    act(() => itemSelection.getState().select("clip", [keys.id], "replace"));
+    await plain("c");
+    await plain("d");
+    expect(timeEdits()).toEqual([]);
+    expect(clipsOf("Keys")).toHaveLength(2);
+    // A time copy, then a click elsewhere (no selection): ⌘V pastes the section at the playhead.
+    await selectTime(0, 4, 1);
+    await plain("c");
+    act(() => useTimeSelection.getState().setSelection(null));
+    const at = playheadBeats();
+    await plain("v");
+    expect(timeEdits().at(-1)).toMatchObject({ type: "Paste", at, insert: false });
+    // The playhead moves to the end of the pasted section (so ⌘V again continues it).
+    expect(playheadBeats()).toBe(at + 4);
+    // A clip copy after that: ⌘V is the clip paste again.
+    act(() => itemSelection.getState().select("clip", [keys.id], "replace"));
+    await plain("c");
+    expect(useTimeSelection.getState().clipboard).toBeNull();
+    const before = timeEdits().length;
+    await plain("v");
+    expect(timeEdits()).toHaveLength(before);
   });
 });
 
