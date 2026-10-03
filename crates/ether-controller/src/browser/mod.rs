@@ -12,7 +12,8 @@
 //!   scan cache after scans settle.
 //! - **Never blocks the controller.** Scanning is a breadth-first walk of each root, a
 //!   bounded number of folder listings and entries per tick ([`DIRS_PER_TICK`],
-//!   [`ENTRIES_PER_TICK`]); queries answer from the partial index meanwhile. A second,
+//!   [`ENTRIES_PER_TICK`], and a wall-clock budget [`TICK_BUDGET_MS`]); queries answer from
+//!   the partial index meanwhile. A second,
 //!   lower-priority pass probes audio headers (duration, rate, channels) within a byte
 //!   budget per tick, only for files up to [`MAX_PROBE_BYTES`], once per file (persisted).
 //!   `IndexProgress` is throttled; `IndexChanged` follows each finished root, probe batches
@@ -71,7 +72,10 @@ use persist::{IndexFile, StoredItem, UserFolder};
 /// Folder listings per tick.
 pub(crate) const DIRS_PER_TICK: usize = 24;
 /// Directory entries handled per tick (a listing is never split).
-pub(crate) const ENTRIES_PER_TICK: usize = 4000;
+pub(crate) const ENTRIES_PER_TICK: usize = 2000;
+/// Wall-clock budget of the scan and probe work in one tick (`HostServices::now_ms`; the
+/// count limits above still bound it on hosts with a coarse or frozen clock).
+pub(crate) const TICK_BUDGET_MS: u64 = 8;
 /// Header probes per tick, and the bytes they may read.
 const PROBE_FILES_PER_TICK: usize = 16;
 const PROBE_BYTES_PER_TICK: f64 = (4 << 20) as f64;
@@ -477,7 +481,11 @@ where
         let user_root = self.library.user_root();
         let (mut dirs, mut entries) = (0, 0);
         let mut worked = false;
-        while dirs < DIRS_PER_TICK && entries < ENTRIES_PER_TICK {
+        let started = self.host.now_ms();
+        while dirs < DIRS_PER_TICK
+            && entries < ENTRIES_PER_TICK
+            && self.host.now_ms().saturating_sub(started) < TICK_BUDGET_MS
+        {
             let Some(scan) = self.browser.scans.front_mut() else {
                 break;
             };
@@ -755,7 +763,11 @@ where
     /// Probe audio headers within the per-tick budget.
     fn browser_probe(&mut self, now: u64, out: &mut dyn MessageSink) {
         let (mut files, mut bytes) = (0, 0.0);
-        while files < PROBE_FILES_PER_TICK && bytes < PROBE_BYTES_PER_TICK {
+        let started = self.host.now_ms();
+        while files < PROBE_FILES_PER_TICK
+            && bytes < PROBE_BYTES_PER_TICK
+            && self.host.now_ms().saturating_sub(started) < TICK_BUDGET_MS
+        {
             let Some(id) = self.browser.probe.pop_front() else {
                 break;
             };

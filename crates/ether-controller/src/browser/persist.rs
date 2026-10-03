@@ -9,7 +9,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use serde_json::{Map, Value, json};
+use serde_json::{Value, json};
 
 /// Path inside the user library root.
 pub(crate) const INDEX_PATH: &str = ".ethereal/index.json";
@@ -152,36 +152,63 @@ pub(crate) fn serialize(file: &IndexFile) -> Vec<u8> {
     serde_json::to_vec(&v).unwrap_or_default()
 }
 
-/// `items.json`.
+/// `items.json`, written by hand (no `Value` tree: 50k items serialize in a few ms).
 pub(crate) fn serialize_items(items: &[StoredItem]) -> Vec<u8> {
-    let items: Vec<Value> = items
-        .iter()
-        .map(|i| {
-            let mut o = Map::new();
-            o.insert("r".into(), json!(i.root));
-            o.insert("p".into(), json!(i.path));
-            o.insert("s".into(), json!(i.size));
-            if i.midi {
-                o.insert("m".into(), json!(true));
+    use std::fmt::Write;
+    let mut out = String::with_capacity(items.len() * 96 + 32);
+    let _ = write!(out, "{{\"version\":{VERSION},\"items\":[");
+    for (n, i) in items.iter().enumerate() {
+        if n > 0 {
+            out.push(',');
+        }
+        out.push_str("{\"r\":");
+        push_json_str(&mut out, &i.root);
+        out.push_str(",\"p\":");
+        push_json_str(&mut out, &i.path);
+        let _ = write!(out, ",\"s\":{}", finite(i.size));
+        if i.midi {
+            out.push_str(",\"m\":true");
+        }
+        if i.probed {
+            out.push_str(",\"pr\":true");
+        }
+        if let Some(a) = i.added {
+            let _ = write!(out, ",\"a\":{}", finite(a));
+        }
+        if let Some(d) = i.duration {
+            let _ = write!(out, ",\"d\":{}", finite(d));
+        }
+        if let Some(r) = i.rate {
+            let _ = write!(out, ",\"sr\":{r}");
+        }
+        if let Some(c) = i.channels {
+            let _ = write!(out, ",\"ch\":{c}");
+        }
+        out.push('}');
+    }
+    out.push_str("]}");
+    out.into_bytes()
+}
+
+fn finite(v: f64) -> f64 {
+    if v.is_finite() { v } else { 0.0 }
+}
+
+/// A JSON string literal.
+fn push_json_str(out: &mut String, s: &str) {
+    use std::fmt::Write;
+    out.push('"');
+    for c in s.chars() {
+        match c {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            c if (c as u32) < 0x20 => {
+                let _ = write!(out, "\\u{:04x}", c as u32);
             }
-            if i.probed {
-                o.insert("pr".into(), json!(true));
-            }
-            for (k, v) in [("a", i.added), ("d", i.duration)] {
-                if let Some(v) = v {
-                    o.insert(k.into(), json!(v));
-                }
-            }
-            if let Some(r) = i.rate {
-                o.insert("sr".into(), json!(r));
-            }
-            if let Some(c) = i.channels {
-                o.insert("ch".into(), json!(c));
-            }
-            Value::Object(o)
-        })
-        .collect();
-    serde_json::to_vec(&json!({ "version": VERSION, "items": items })).unwrap_or_default()
+            c => out.push(c),
+        }
+    }
+    out.push('"');
 }
 
 #[cfg(test)]
@@ -212,7 +239,7 @@ mod tests {
                 },
                 StoredItem {
                     root: "a".into(),
-                    path: "c.mid".into(),
+                    path: "quote\" back\\ tab\t é.mid".into(),
                     midi: true,
                     ..Default::default()
                 },
