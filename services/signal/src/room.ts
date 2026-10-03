@@ -321,8 +321,7 @@ export class RoomCore {
     socket.send({
       type: "HostWelcome",
       ice_servers: ice,
-      // `u64` is generated as `bigint`, but the wire is a JSON number.
-      room_ttl_s: Math.round(this.ttlMs / 1000) as unknown as bigint,
+      room_ttl_s: Math.round(this.ttlMs / 1000),
     });
     this.dropRevoked(now);
     for (const j of this.joiners.values()) this.introduce(j, ice);
