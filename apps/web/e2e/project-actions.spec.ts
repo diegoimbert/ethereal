@@ -9,7 +9,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test, type Page } from "@playwright/test";
 import type { Project, ProjectSummary } from "@/generated";
-import { newProject } from "./ui";
+import { newProject, openRelayJoin } from "./ui";
 
 interface Handle {
   state(): { project: Project | null; projects: ProjectSummary[] };
@@ -169,8 +169,9 @@ test.describe("in a collaboration session", () => {
     await newProject(page, "Other");
     await newProject(page, "Shared");
 
-    // Join (the session name is checked inline first).
-    await page.getByTestId("collab-button").click();
+    // Join (the session name is checked inline first). The relay join lives in
+    // Settings > Advanced since the Share rework (#202).
+    await openRelayJoin(page);
     await page.getByLabel("Relay address").fill(relayUrl);
     await page.getByLabel("Session").fill("not valid!");
     await expect(page.getByRole("alert").filter({ hasText: "Use only letters, digits" })).toBeVisible();
@@ -196,7 +197,8 @@ test.describe("in a collaboration session", () => {
     await screen.getByRole("button", { name: /^Open Other/ }).click();
     await ask.getByRole("button", { name: "Leave & open" }).click();
     await expect(page.getByTestId("project-name")).toHaveText("Other");
-    await expect(page.getByTestId("collab-button")).toHaveText("Collab");
+    // Out of a session the collab button is hidden.
+    await expect(page.getByTestId("collab-button")).toHaveCount(0);
     await page.getByRole("button", { name: "Projects" }).click();
     await expect(screen.getByRole("button", { name: /^Open Shared/ }).getByText("Collab")).toBeVisible();
   });
