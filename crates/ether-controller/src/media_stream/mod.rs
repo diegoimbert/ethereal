@@ -20,10 +20,24 @@
 //! - offline renders (export, freeze, bounce, audio-to-MIDI) read the file synchronously
 //!   (they may block).
 //!
-//! [`should_stream`] is the policy hook the `media/` pipeline calls (shared touch of this
-//! node); until it lands it always says no (v0.2 behaviour).
+//! [`should_stream`] is the policy hook the `media/` pipeline calls: media of known length
+//! at least [`STREAM_MIN_SECONDS`] long. Hosts that can't stream (`stream_media` returns
+//! `Ok(false)`, the default) or fail to (`Err`) get the whole-file decode as before.
+//!
+//! Underruns: the engine counts reads that returned `false` (`EngineOutputs::underruns`);
+//! while media are streamed, [`EtherController::stream_tick`] reports new ones as
+//! `MediaEvent::StreamUnderruns`, at most every [`UNDERRUN_REPORT_MS`].
 
+use ether_core::protocol::Event;
+use ether_core::protocol::media::MediaEvent;
 use ether_core::protocol::model::{MediaRef, ProjectId};
+
+use crate::handlers::event;
+use crate::store::{Library, ProjectStore};
+use crate::{EngineBridge, EtherController, HostServices, MessageSink};
+
+/// Minimum interval between two `MediaEvent::StreamUnderruns`.
+pub const UNDERRUN_REPORT_MS: u64 = 1000;
 
 /// Media at least this long (at their own rate) stream instead of being decoded whole.
 pub const STREAM_MIN_SECONDS: f64 = 30.0;
@@ -43,8 +57,48 @@ pub struct StreamSource {
     pub engine_sample_rate: u32,
 }
 
-/// Policy: stream `media`? Placeholder: never.
+/// Policy: stream `media`? Yes when its length is known (`frames > 0`; media imported
+/// without a length are decoded whole, which learns it) and at least
+/// [`STREAM_MIN_SECONDS`]. Shorter media (one-shots, loops) stay in memory: instant random
+/// access for samplers and no disk traffic.
 pub fn should_stream(media: &MediaRef, engine_sample_rate: u32) -> bool {
-    let _ = (media, engine_sample_rate);
-    false
+    engine_sample_rate > 0
+        && media.sample_rate > 0
+        && media.frames > 0
+        && media.frames as f64 / media.sample_rate as f64 >= STREAM_MIN_SECONDS
+}
+
+impl<B, H, S, L> EtherController<B, H, S, L>
+where
+    B: EngineBridge,
+    H: HostServices,
+    S: ProjectStore,
+    L: Library,
+{
+    /// Called every tick after the engine outputs were polled: report new underruns while
+    /// media are streamed.
+    pub(crate) fn stream_tick(&mut self, now: u64, out: &mut dyn MessageSink) {
+        let media = &mut self.media;
+        if !media.any_streamed() {
+            media.underruns_pending = 0;
+            return;
+        }
+        // `EngineOutputs::underruns` counts since the previous poll.
+        media.underruns_pending = media
+            .underruns_pending
+            .saturating_add(self.outputs.underruns);
+        if media.underruns_pending == 0
+            || now.saturating_sub(media.underruns_at) < UNDERRUN_REPORT_MS
+        {
+            return;
+        }
+        let count = std::mem::take(&mut media.underruns_pending);
+        media.underruns_at = now;
+        event(
+            out,
+            Event::Media {
+                event: MediaEvent::StreamUnderruns { count },
+            },
+        );
+    }
 }

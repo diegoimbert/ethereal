@@ -131,6 +131,11 @@ async function perform(req: FsRequest): Promise<Uint8Array> {
   switch (req.op) {
     case "read":
       return readFile(req.path);
+    case "readRange": {
+      const file = await (await fileHandle(req.path)).getFile();
+      const start = req.offset ?? 0;
+      return new Uint8Array(await file.slice(start, start + (req.length ?? 0)).arrayBuffer());
+    }
     case "write":
       await writeFile(req.path, req.bytes ?? EMPTY);
       return EMPTY;

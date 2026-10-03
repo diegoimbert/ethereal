@@ -101,6 +101,14 @@ extern "C" {
     /// JSON entry or `null`.
     #[wasm_bindgen(method, catch)]
     fn stat(this: &JsFsHost, path: &str) -> Result<String, JsValue>;
+    /// `audio-streaming`: `length` bytes of a file from `offset` (fewer at the end).
+    #[wasm_bindgen(method, catch, js_name = readRange)]
+    fn read_range(
+        this: &JsFsHost,
+        path: &str,
+        offset: f64,
+        length: u32,
+    ) -> Result<Uint8Array, JsValue>;
 }
 
 /// [`Fs`] over the JS sync file system.
@@ -172,6 +180,23 @@ impl Fs for JsFs {
     }
 }
 
+/// `audio-streaming`: ranged reads of OPFS media ([`crate::media_stream`]).
+impl crate::media_stream::RangeFs for JsFs {
+    fn size(&mut self, path: &str) -> Result<u64, String> {
+        match self.stat(path) {
+            Ok(Some(e)) => Ok(e.size),
+            Ok(None) => Err(format!("{path}: not found")),
+            Err(e) => Err(e.to_string()),
+        }
+    }
+    fn read_range(&mut self, path: &str, offset: u64, len: usize) -> Result<Vec<u8>, String> {
+        self.0
+            .read_range(path, offset as f64, len as u32)
+            .map(|a| a.to_vec())
+            .map_err(|e| js_err(e).to_string())
+    }
+}
+
 /// Clock + entropy for the controller.
 pub struct WebHost {
     state: u64,
@@ -224,8 +249,9 @@ impl WasmController {
     ) -> Result<WasmController, JsError> {
         console_error_panic_hook::set_once();
         let shared = bridge::shared(SabMemory::new(control)?, SabMemory::new(reports)?);
-        let bridge = WebBridge::new(shared.clone());
+        let mut bridge = WebBridge::new(shared.clone());
         let mut fs = JsFs(fs);
+        bridge.set_stream_opener(crate::media_stream::range_opener(fs.clone()));
         let startup_warning = crate::store::ensure_demo_samples(&mut fs)
             .err()
             .map(|e| format!("Demo samples could not be written: {e}"));

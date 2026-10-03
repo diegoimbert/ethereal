@@ -41,6 +41,15 @@ describe("barPosition", () => {
     expect(pos(3, six8)).toBe("2.1.1");
   });
 
+  it("a mid-bar change ends the bar early (partial bar)", () => {
+    // 4/4, then 7/8 at beat 2.5 (CONTRACTS.md §11.3).
+    const map = [sig(0, 4, 4), sig(2.5, 7, 8)];
+    expect(pos(2, map)).toBe("1.3.1");
+    expect(pos(2.5, map)).toBe("2.1.1");
+    expect(pos(3, map)).toBe("2.2.1");
+    expect(pos(6, map)).toBe("3.1.1");
+  });
+
   it("follows signature changes", () => {
     // 2 bars of 4/4 (8 beats), then 3/4.
     const map = [sig(8, 3, 4), sig(0, 4, 4)];

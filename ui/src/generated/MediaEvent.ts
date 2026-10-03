@@ -4,4 +4,4 @@ import type { MediaId } from "./MediaId";
 import type { MediaSource } from "./MediaSource";
 import type { PreviewEndReason } from "./PreviewEndReason";
 
-export type MediaEvent = { "type": "ImportProgress", media: MediaId, progress: number, } | { "type": "PeaksReady", media: MediaId, } | { "type": "Missing", media: MediaId, } | { "type": "LocationsChanged", locations: Array<BrowseRoot>, } | { "type": "UploadProgress", upload: string, received: number, } | { "type": "PreviewStarted", source: MediaSource, } | { "type": "PreviewEnded", source: MediaSource, reason: PreviewEndReason, };
+export type MediaEvent = { "type": "ImportProgress", media: MediaId, progress: number, } | { "type": "PeaksReady", media: MediaId, } | { "type": "Missing", media: MediaId, } | { "type": "LocationsChanged", locations: Array<BrowseRoot>, } | { "type": "UploadProgress", upload: string, received: number, } | { "type": "PreviewStarted", source: MediaSource, } | { "type": "PreviewEnded", source: MediaSource, reason: PreviewEndReason, } | { "type": "StreamUnderruns", count: number, };

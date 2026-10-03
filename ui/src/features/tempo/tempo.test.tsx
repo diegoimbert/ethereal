@@ -52,17 +52,22 @@ const ts = (id: string, time: number, numerator: number, denominator: number): T
 });
 
 describe("tempo helpers", () => {
-  it("snaps signature changes to bar lines of the signature before them", () => {
-    const sigs = [ts("a", 0, 4, 4), ts("b", 8, 3, 4)];
-    expect(snapSignatureTime(sigs, 5.1)).toBe(4);
-    expect(snapSignatureTime(sigs, 0.2)).toBe(4); // never onto beat 0
+  it("snaps signature changes anywhere on the grid (a beat, finer if the grid is)", () => {
+    const sigs = [ts("a", 0, 4, 4), ts("b", 8, 7, 8)];
+    expect(snapSignatureTime(sigs, 5.1)).toBe(5); // a 4/4 beat, mid bar 2
+    expect(snapSignatureTime(sigs, 0.2)).toBeNull(); // never onto beat 0
     expect(snapSignatureTime(sigs, 7.9)).toBeNull(); // taken by "b"
-    expect(snapSignatureTime(sigs, 12.4)).toBe(11); // 3/4 bars from 8
-    // Moving "b": it follows the 4/4 grid, ignoring itself.
-    expect(snapSignatureTime(sigs, 13, "b")).toBe(12);
-    // A bar line past the next (off-grid) change is pulled back before it.
-    const legacy = [ts("a", 0, 4, 4), ts("b", 7, 3, 4)];
-    expect(snapSignatureTime(legacy, 6.5)).toBe(4);
+    expect(snapSignatureTime(sigs, 9.7)).toBe(9.5); // eighth-note beats of the 7/8
+    // A finer grid (1/16) wins; a coarser one (bars) still allows any beat.
+    expect(snapSignatureTime(sigs, 2.6, { step: { kind: "beats", beats: 0.25 } })).toBe(2.5);
+    expect(snapSignatureTime(sigs, 2.6, { step: { kind: "bars", bars: 1 } })).toBe(3);
+    expect(snapSignatureTime(sigs, 2.6, { step: null })).toBe(2.6); // grid off
+    expect(snapSignatureTime(sigs, 2.6, { free: true })).toBe(2.6); // Alt
+    // Moving "b": it snaps in the 4/4 bars of the map without it.
+    expect(snapSignatureTime(sigs, 9.7, { except: "b" })).toBe(10);
+    // Beats count from each bar line: a partial bar from 2.5 shifts the grid.
+    const mid = [ts("a", 0, 4, 4), ts("b", 2.5, 3, 4), ts("c", 20, 2, 4)];
+    expect(snapSignatureTime(mid, 4.4)).toBe(4.5);
   });
 
   it("lane range and path follow steps and ramps", () => {
@@ -166,11 +171,11 @@ describe("TempoEditor", () => {
   it("adds, edits, moves and removes time signatures", async () => {
     await setup(<TempoEditor />);
     const lane = screen.getByTestId("signature-lane");
-    // Beat 7 → nearest 4/4 bar line: 8.
+    // Beat 7 → a 4/4 beat, mid bar 2 (a partial bar).
     fireEvent.doubleClick(lane, { clientX: 84 });
     await waitFor(() => expect(signatures()).toHaveLength(2));
     const added = signatures()[1]!;
-    expect(added.time).toBe(8);
+    expect(added.time).toBe(7);
 
     const num = await screen.findByRole("spinbutton", { name: "Beats per bar" });
     fireEvent.change(num, { target: { value: "7" } });
@@ -179,7 +184,7 @@ describe("TempoEditor", () => {
     pickOption(screen.getByRole("combobox", { name: "Beat unit" }), { value: "8" });
     await waitFor(() => expect(project().time_signatures[added.id]!.signature).toEqual({ numerator: 7, denominator: 8 }));
 
-    // Drag it one bar left (bars of the 4/4 before it).
+    // Drag it left: it lands on a 4/4 beat (7 - 46 px / 12 px per beat → 3.17 → 3).
     const marker = document.querySelector(`[data-signature="${added.id}"]`)!;
     fireEvent.pointerDown(marker, { button: 0, clientX: 96, clientY: 5 });
     await act(async () => {
@@ -190,7 +195,7 @@ describe("TempoEditor", () => {
       window.dispatchEvent(new MouseEvent("pointerup", { clientX: 50, clientY: 5 }) as PointerEvent);
     });
     await flush();
-    expect(project().time_signatures[added.id]!.time).toBe(4);
+    expect(project().time_signatures[added.id]!.time).toBe(3);
 
     fireEvent.contextMenu(document.querySelector(`[data-signature="${added.id}"]`)!, { clientX: 1, clientY: 1 });
     const items = useContextMenuStore.getState().menu!.items.filter((i) => i !== "separator") as ContextMenuItem[];
@@ -221,9 +226,11 @@ describe("ruler tempo editing", () => {
     items = useContextMenuStore.getState().menu!.items.filter((i) => i !== "separator") as ContextMenuItem[];
     act(() => items.find((i) => i.label === "Add Time Signature Change Here")!.onSelect());
     await waitFor(() => expect(signatures()).toHaveLength(2));
-    expect(signatures()[1]!.time).toBe(12);
+    // Beat 13 (the ruler's grid is a bar here, but a signature change snaps to a beat).
+    expect(signatures()[1]!.time).toBe(13);
 
-    // Drag the tempo marker 4 beats right: one undo step.
+    // Drag the tempo marker 4 beats right (to 20): one undo step. It snaps to the ruler's
+    // bar grid, which restarts at the mid-bar change at 13 (bars at 13, 17, 21).
     const id = tempoPoints()[1]!.id;
     const marker = ruler.querySelector(`[data-tempo-point="${id}"]`)!;
     fireEvent.pointerDown(marker, { button: 0, clientX: 160 });
@@ -235,7 +242,7 @@ describe("ruler tempo editing", () => {
       window.dispatchEvent(new MouseEvent("pointerup", { clientX: 200 }) as PointerEvent);
     });
     await flush();
-    expect(project().tempo_points[id]!.time).toBe(20);
+    expect(project().tempo_points[id]!.time).toBe(21);
     expect(store().transport?.playing ?? false).toBe(false);
   });
 

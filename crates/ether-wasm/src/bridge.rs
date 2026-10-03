@@ -39,6 +39,8 @@ pub struct BridgeShared<M: RingMemory> {
     pub blocks: u64,
     /// Analysis frames received since the last `EngineBridge::poll_analysis` (virtual keys).
     pub analysis: Vec<AnalysisFrame>,
+    /// `audio-streaming`: stream reports (cursors, misses) since the last poll.
+    pub stream_reports: Vec<crate::media_stream::StreamReport>,
     /// `web-latency`: latest node latencies reported by the Worklet (virtual keys), read by
     /// `EngineBridge::node_latency`.
     pub latencies: LatencyTable,
@@ -52,6 +54,7 @@ impl<M: RingMemory> BridgeShared<M> {
             errors,
             blocks,
             analysis,
+            stream_reports,
             latencies,
             ..
         } = self;
@@ -90,6 +93,16 @@ impl<M: RingMemory> BridgeShared<M> {
                     }
                     Err(e) => errors.push(format!("bad analysis report: {e}")),
                 },
+                Some(&crate::media_stream::REPORT_STREAM) => {
+                    match crate::media_stream::decode_report(bytes) {
+                        Ok(r) => {
+                            // Only the latest matters per stream.
+                            stream_reports.retain(|o| r.iter().all(|n| n.media != o.media));
+                            stream_reports.extend(r);
+                        }
+                        Err(e) => errors.push(format!("bad stream report: {e}")),
+                    }
+                }
                 Some(&REPORT_LATENCY) => match LatencyReport::decode(bytes) {
                     Ok(r) => latencies.apply(&r),
                     Err(e) => errors.push(format!("bad latency report: {e}")),
@@ -117,6 +130,7 @@ pub fn shared<M: RingMemory>(control: M, reports: M) -> Shared<M> {
         errors: Vec::new(),
         blocks: 0,
         analysis: Vec::new(),
+        stream_reports: Vec::new(),
         latencies: LatencyTable::default(),
     }))
 }
@@ -127,6 +141,10 @@ pub struct WebBridge<M: RingMemory> {
     shared: Shared<M>,
     next_node: u32,
     devices: BTreeMap<DeviceId, (NodeKey, BuiltinDeviceType)>,
+    /// `audio-streaming`: long media streamed from OPFS ([`crate::media_stream`]).
+    streams: crate::media_stream::WebStreams,
+    /// Last known playhead beat (where `Play` starts).
+    playhead_beat: f64,
 }
 
 impl<M: RingMemory> WebBridge<M> {
@@ -135,7 +153,37 @@ impl<M: RingMemory> WebBridge<M> {
             shared,
             next_node: 0,
             devices: BTreeMap::new(),
+            streams: Default::default(),
+            playhead_beat: 0.0,
         }
+    }
+
+    /// `audio-streaming`: how the Worker opens media files for streaming (the host's
+    /// OPFS, by byte ranges). Without one, `stream_media` declines (whole-file loads).
+    pub fn set_stream_opener(&mut self, opener: crate::media_stream::Opener) {
+        self.streams.set_opener(opener);
+    }
+
+    /// `audio-streaming`: is `media` streamed (tests/diagnostics)?
+    pub fn is_streamed(&self, media: MediaId) -> bool {
+        self.streams.contains(media)
+    }
+
+    fn send_frames(&mut self, frames: Vec<Vec<u8>>) {
+        let mut shared = self.shared.borrow_mut();
+        for frame in frames {
+            shared.control.send(&frame);
+        }
+    }
+
+    /// Stream work outside a borrow of `self.streams`: frames are queued then sent.
+    fn with_streams(
+        &mut self,
+        f: impl FnOnce(&mut crate::media_stream::WebStreams, &mut dyn FnMut(Vec<Vec<u8>>)),
+    ) {
+        let mut queued: Vec<Vec<u8>> = Vec::new();
+        f(&mut self.streams, &mut |frames| queued.extend(frames));
+        self.send_frames(queued);
     }
 
     fn send(&mut self, msg: EngineMsg) {
@@ -238,11 +286,13 @@ impl<M: RingMemory> EngineBridge for WebBridge<M> {
     }
 
     fn unload_media(&mut self, media: MediaId) -> Result<(), BridgeError> {
+        self.streams.remove(media);
         self.send(EngineMsg::UnloadMedia { media });
         Ok(())
     }
 
     fn publish(&mut self, graph: RenderGraphDesc) -> Result<(), BridgeError> {
+        self.streams.observe_graph(&graph);
         self.send(EngineMsg::Publish {
             graph: Box::new(graph),
         });
@@ -255,6 +305,28 @@ impl<M: RingMemory> EngineBridge for WebBridge<M> {
     }
 
     fn transport(&mut self, control: TransportControl) -> Result<(), BridgeError> {
+        // `audio-streaming`: the jump target's chunks go first (the ring is FIFO).
+        if !self.streams.is_empty() {
+            let now = crate::media_stream::now_ms();
+            match &control {
+                TransportControl::Locate { position } => {
+                    let beat = position.0;
+                    self.with_streams(|s, send| s.prime_at(beat, now, send));
+                }
+                TransportControl::Play => {
+                    let beat = self.playhead_beat;
+                    self.with_streams(|s, send| s.prime_at(beat, now, send));
+                }
+                TransportControl::SetLoop { enabled, region } => {
+                    self.streams
+                        .observe_loop(*enabled, region.start.0, region.end.0);
+                }
+                _ => {}
+            }
+        }
+        if let TransportControl::Locate { position } = &control {
+            self.playhead_beat = position.0;
+        }
         self.send(EngineMsg::Transport { control });
         Ok(())
     }
@@ -280,9 +352,51 @@ impl<M: RingMemory> EngineBridge for WebBridge<M> {
 
     fn poll(&mut self, out: &mut EngineOutputs) {
         out.clear();
-        let mut shared = self.shared.borrow_mut();
-        shared.control.flush();
-        shared.poll_reports(out);
+        let reports = {
+            let mut shared = self.shared.borrow_mut();
+            shared.control.flush();
+            shared.poll_reports(out);
+            std::mem::take(&mut shared.stream_reports)
+        };
+        if let Some(p) = &out.playhead {
+            self.playhead_beat = p.position.0;
+        }
+        // `audio-streaming`: follow the worklet's cursors, keep the read-ahead filled.
+        if !self.streams.is_empty() {
+            let now = crate::media_stream::now_ms();
+            for r in reports {
+                self.streams.report(r.media, r.cursors, r.missed, now);
+            }
+            let pending = self.shared.borrow().control.pending_bytes();
+            if pending < crate::media_stream::MAX_PENDING_BYTES {
+                self.with_streams(|s, send| s.pump(now, send));
+                self.shared.borrow_mut().control.flush();
+            }
+        }
+    }
+
+    /// `audio-streaming` (CONTRACTS.md §13.1): stream long media from OPFS through the
+    /// worklet's chunk cache ([`crate::media_stream`]).
+    fn stream_media(
+        &mut self,
+        source: &ether_controller::media_stream::StreamSource,
+    ) -> Result<bool, BridgeError> {
+        if !self.streams.can_stream() {
+            return Ok(false);
+        }
+        let id = source.media.id;
+        if self.streams.remove(id) {
+            self.send(EngineMsg::UnloadMedia { media: id });
+        }
+        let now = crate::media_stream::now_ms();
+        let rate = source.engine_sample_rate;
+        let mut queued: Vec<Vec<u8>> = Vec::new();
+        let res = self
+            .streams
+            .open(source, rate, now, &mut |frames| queued.extend(frames));
+        self.send_frames(queued);
+        res.map_err(|e| BridgeError::Other(e.to_string()))?;
+        Ok(true)
     }
 
     fn descriptor(&mut self, device: DeviceId) -> Option<DeviceDescriptor> {

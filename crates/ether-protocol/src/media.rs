@@ -187,6 +187,12 @@ pub enum MediaEvent {
         source: MediaSource,
         reason: PreviewEndReason,
     },
+    /// v0.3 (`audio-streaming`): media streamed from disk could not be read in time
+    /// `count` times since the last report (silence was played instead). Throttled to
+    /// about one per second while it happens.
+    StreamUnderruns {
+        count: u32,
+    },
 }
 
 /// Why a preview ended.
