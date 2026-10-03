@@ -459,3 +459,85 @@ mod analysis_tests {
         assert!(frames.len() <= 1, "{}", frames.len());
     }
 }
+
+#[cfg(test)]
+mod update_tests {
+    //! v0.3 (`fx-space`): data-only built-in changes (convolution IR, sampler slices,
+    //! multisampler zones) reach the Worklet's live node as `UpdateBuiltin` instead of a
+    //! re-create; other changes are left to the controller (re-create).
+    use super::*;
+    use crate::proto::Frame;
+    use crate::ring::HeapMemory;
+    use crate::worklet::{EngineHost, RENDER_QUANTUM};
+    use ether_core::protocol::model::{IrSource, SampleZone, SliceSettings, Ulid};
+
+    fn reverb(id: Option<&str>) -> BuiltinDevice {
+        BuiltinDevice::ConvolutionReverb {
+            ir: id.map(|id| IrSource::Factory { id: id.into() }),
+        }
+    }
+
+    #[test]
+    fn update_builtin_round_trips_through_the_ring() {
+        let msg = EngineMsg::UpdateBuiltin {
+            key: NodeKey {
+                index: 3,
+                generation: 1,
+            },
+            device: reverb(Some("hall")),
+        };
+        let frames = msg.encode();
+        assert_eq!(frames.len(), 1);
+        match Frame::decode(&frames[0]).unwrap() {
+            Frame::Msg(decoded) => assert_eq!(decoded, msg),
+            _ => panic!("expected a message frame"),
+        }
+    }
+
+    #[test]
+    fn data_only_changes_update_the_live_node() {
+        let control = HeapMemory::new(1 << 20);
+        let reports = HeapMemory::new(1 << 16);
+        let mut bridge = WebBridge::new(shared(control.clone(), reports.clone()));
+        let mut host = EngineHost::new(48_000, control, reports);
+        let mut out = EngineOutputs::default();
+        let d = DeviceId(Ulid(1));
+        bridge.create_builtin(d, &reverb(Some("room")), &[]).unwrap();
+        assert_eq!(bridge.update_builtin(d, &reverb(Some("hall"))), Ok(true));
+        assert_eq!(bridge.update_builtin(d, &reverb(None)), Ok(true));
+        let s = DeviceId(Ulid(2));
+        let sampler = |markers: usize| BuiltinDevice::Sampler {
+            sample: None,
+            slices: SliceSettings {
+                enabled: true,
+                base_note: 36,
+                markers: vec![ether_core::protocol::model::Seconds(0.0); markers],
+            },
+        };
+        bridge.create_builtin(s, &sampler(1), &[]).unwrap();
+        assert_eq!(bridge.update_builtin(s, &sampler(2)), Ok(true));
+        let m = DeviceId(Ulid(3));
+        let ms = |n: usize| BuiltinDevice::MultiSampler {
+            zones: vec![SampleZone::default(); n],
+        };
+        bridge.create_builtin(m, &ms(1), &[]).unwrap();
+        assert_eq!(bridge.update_builtin(m, &ms(2)), Ok(true));
+        // Another type's kind, devices without in-place updates, unknown devices: refused.
+        assert_eq!(bridge.update_builtin(s, &reverb(Some("hall"))), Ok(false));
+        let c = DeviceId(Ulid(4));
+        bridge
+            .create_builtin(c, &BuiltinDevice::Compressor, &[])
+            .unwrap();
+        assert_eq!(bridge.update_builtin(c, &BuiltinDevice::Compressor), Ok(false));
+        assert_eq!(
+            bridge.update_builtin(DeviceId(Ulid(9)), &reverb(None)),
+            Ok(false)
+        );
+        for _ in 0..8 {
+            host.render(RENDER_QUANTUM);
+        }
+        bridge.poll(&mut out);
+        let errors = bridge.shared.borrow().errors.clone();
+        assert!(errors.is_empty(), "{errors:?}");
+    }
+}

@@ -853,6 +853,25 @@ mod tests {
     }
 
     #[test]
+    fn convolution_ir_updates_in_place() {
+        use ether_core::protocol::model::IrSource;
+        let (mut b, _engine) = bridge();
+        let d = DeviceId(Ulid(9));
+        let reverb = |id: Option<&str>| BuiltinDevice::ConvolutionReverb {
+            ir: id.map(|id| IrSource::Factory { id: id.into() }),
+        };
+        let key = b.create_builtin(d, &reverb(Some("room")), &[]).unwrap();
+        assert_eq!(b.update_builtin(d, &reverb(Some("hall"))), Ok(true));
+        assert_eq!(b.update_builtin(d, &reverb(None)), Ok(true));
+        assert_eq!(b.node_of(d), Some(key), "same node");
+        // A reverb kind sent for another device type is refused.
+        let s = DeviceId(Ulid(10));
+        b.create_builtin(s, &BuiltinDevice::Compressor, &[])
+            .unwrap();
+        assert_eq!(b.update_builtin(s, &reverb(Some("hall"))), Ok(false));
+    }
+
+    #[test]
     fn midi_input_reaches_the_controller_with_its_port() {
         let (mut b, _engine) = bridge();
         let mut out = Vec::new();
