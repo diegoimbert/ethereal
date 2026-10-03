@@ -1646,6 +1646,10 @@ paths = [
   # shared touch (BCR): live MPE monitoring, one call in RecordingRt::process (identity without MPE)
   "crates/ether-core/src/recording/mod.rs",
   "crates/ether-core/tests/mpe*.rs",
+  # shared touch (BCR): the test plugin echoes NoteExpression events as MIDI out; CLAP/VST3 mpe tests
+  "crates/ether-clap/examples/ether_test_plugin.rs",
+  "crates/ether-clap/tests/mpe*.rs",
+  "crates/ether-vst3/tests/mpe*.rs",
 ]
 
 [nodes.capture-midi]
