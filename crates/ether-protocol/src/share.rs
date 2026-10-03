@@ -159,6 +159,9 @@ pub enum PeerEndpointAction {
     Open {
         offer: bool,
         ice_servers: Vec<IceServer>,
+        /// `ShareCommand::SetPreferences { relay_only }`: `iceTransportPolicy: "relay"`.
+        #[serde(default)]
+        relay_only: bool,
     },
     Close,
 }
