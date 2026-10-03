@@ -742,3 +742,9 @@ the native writer (`ether-native/src/recording/{mod,writer}.rs`) maps `TrackInpu
 tracks to those channels; loop/punch passes become take lanes like hardware takes (comping).
 Web has no capture yet: disable arming a tapped track on web with a clear reason. RT rules apply
 (no allocation on the audio thread; tests with assert_no_alloc).
+
+# v0.3 (contracts-4)
+
+`contracts-4` freezes the v0.3 contracts ([CONTRACTS.md §13](CONTRACTS.md)) and pre-creates
+one module per node and layer (work in progress: this section is filled in by the
+contracts-4 PR).
