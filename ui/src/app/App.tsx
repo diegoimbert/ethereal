@@ -26,6 +26,7 @@ import { MarkerLane } from "@/features/clip-editing";
 import { PresenceBar } from "@/features/collab";
 import { ExportDialog } from "@/features/export";
 import { ImportRoot } from "@/features/import";
+import { KeymapRoot } from "@/features/keymap";
 import { MediaRefsRoot } from "@/features/media-refs";
 import { ProjectMenu } from "@/features/project";
 import { RecordingControls } from "@/features/recording";
@@ -230,6 +231,7 @@ export function App() {
       <AudioSettingsDialog />
       <ImportRoot />
       <MediaRefsRoot />
+      <KeymapRoot />
       <ContextMenuHost />
     </div>
   );

@@ -3,8 +3,8 @@ import { Search } from "lucide-react";
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import type { DeviceDescriptor } from "@/generated";
 import { fetchBuiltinTypes } from "@/features/devices/descriptors";
+import { derivePaletteActions, matchesAction, paletteShortcut, setPaletteSource, useKeymapStore, useShortcutLabel } from "@/features/keymap";
 import { useOptionalTransport } from "@/features/transport-bar/engine";
-import { MOD_KEY } from "@/kit";
 import { buildCommands, fuzzyScore, type PaletteCommand } from "./commands";
 import { useShellStore } from "./shellStore";
 import "./palette.css";
@@ -37,8 +37,17 @@ function saveRecent(id: string): void {
   }
 }
 
+function Shortcut({ command }: { command: PaletteCommand }) {
+  const label = paletteShortcut(command);
+  return label ? (
+    <kbd className="eth-palette__kbd" aria-hidden>
+      {label}
+    </kbd>
+  ) : null;
+}
+
 /**
- * Command palette: ⌘K / Ctrl+K anywhere (not while typing in a text field), or the rail's
+ * Command palette: ⌘K / Ctrl+K (keymap `palette.open`) anywhere (not while typing in a text field), or the rail's
  * last button. Search, ↑/↓, Enter runs, Escape closes. Recently run commands come first.
  */
 export function CommandPalette() {
@@ -47,10 +56,28 @@ export function CommandPalette() {
   const [mounted, setMounted] = useState(open);
   if (open && !mounted) setMounted(true);
   const closing = mounted && !open;
+  const transport = useOptionalTransport();
+
+  // keymap: the palette's commands are actions too (listed, bindable, run by the keymap's
+  // dispatcher); it lists them through this source.
+  useEffect(() => {
+    let devices: DeviceDescriptor[] = [];
+    let alive = true;
+    if (transport)
+      fetchBuiltinTypes(transport).then(
+        (d) => alive && (devices = d),
+        () => undefined,
+      );
+    setPaletteSource(() => buildCommands(transport, devices));
+    return () => {
+      alive = false;
+      setPaletteSource(null);
+    };
+  }, [transport]);
 
   useEffect(() => {
     const onKey = (e: globalThis.KeyboardEvent) => {
-      if (!(e.metaKey || e.ctrlKey) || e.shiftKey || e.altKey || e.key.toLowerCase() !== "k") return;
+      if (!matchesAction("palette.open", e)) return;
       const open = useShellStore.getState().paletteOpen;
       if (!open && isTextEntry(e.target)) return;
       e.preventDefault();
@@ -82,6 +109,11 @@ function Palette({ closing, onClose, onClosed }: { closing: boolean; onClose(): 
   const [recent] = useState(loadRecent);
   // Built when the palette opens (and again once the device list arrives).
   const commands = useMemo(() => buildCommands(transport, devices), [transport, devices]);
+  // Shortcut hints follow the keymap.
+  useKeymapStore((s) => s.keymap);
+  useKeymapStore((s) => s.paletteVersion);
+  useEffect(() => void derivePaletteActions(commands), [commands]);
+  const paletteKey = useShortcutLabel("palette.open");
 
   useEffect(() => {
     restoreFocus.current = document.activeElement;
@@ -173,7 +205,7 @@ function Palette({ closing, onClose, onClosed }: { closing: boolean; onClose(): 
               setActive(0);
             }}
           />
-          <kbd className="eth-palette__kbd">{MOD_KEY}K</kbd>
+          {paletteKey && <kbd className="eth-palette__kbd">{paletteKey}</kbd>}
         </div>
         <div ref={list} id={`${id}-list`} className="eth-palette__list" role="listbox" aria-label="Commands">
           {shown.length === 0 && <div className="eth-palette__empty">No matching command</div>}
@@ -190,11 +222,7 @@ function Palette({ closing, onClose, onClosed }: { closing: boolean; onClose(): 
             >
               <span className="eth-palette__label">{c.label}</span>
               <span className="eth-palette__group">{c.group}</span>
-              {c.shortcut && (
-                <kbd className="eth-palette__kbd" aria-hidden>
-                  {c.shortcut}
-                </kbd>
-              )}
+              <Shortcut command={c} />
             </div>
           ))}
         </div>

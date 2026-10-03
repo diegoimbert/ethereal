@@ -147,7 +147,7 @@ import { chatCommand } from "./roadmap/social";
 import { audioToMidiCommand } from "./roadmap/audioToMidi";
 import { captureCommand } from "./roadmap/capture";
 import { externalCommand } from "./roadmap/external";
-import { keymapCommand } from "./roadmap/keymap";
+import { MockKeymap } from "./roadmap/keymap";
 import { templateCommand } from "./roadmap/templates";
 import { historyCommand } from "./roadmap/undoHistory";
 import { versionCommand } from "./roadmap/versions";
@@ -277,6 +277,7 @@ export class MockTransport implements EngineTransport {
   };
   private readonly midiLearn = new MockMidiLearn(this.host);
   private readonly presets = new MockPresets(this.host);
+  private readonly keymap = new MockKeymap(this.host);
   private readonly browser = new MockBrowser(this.host);
   private readonly exports = new MockExports(this.host);
   private readonly timeEdits = new MockTimeEdits({
@@ -505,7 +506,7 @@ export class MockTransport implements EngineTransport {
       case "Version":
         return versionCommand(command.command);
       case "Keymap":
-        return keymapCommand(command.command);
+        return this.keymap.command(command.command);
       default:
         return fail("InvalidArgument", `unknown command domain`);
     }
