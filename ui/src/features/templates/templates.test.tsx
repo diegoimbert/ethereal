@@ -1,6 +1,6 @@
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
-import type { Project, Track } from "@/generated";
+import type { Project, TemplateInfo, Track } from "@/generated";
 import { useArrangementUi } from "@/features/arrangement/uiStore";
 import { ProjectMenu } from "@/features/project";
 import { useProjectScreen } from "@/features/project/screenStore";
@@ -39,7 +39,7 @@ describe("templates model", () => {
     expect(placementAfter(p, p.tracks.c!)).toEqual({ parent: "b", before: null });
     expect(tracksToSave("a", new Set(["a", "b", "m"]), p)).toEqual(["a", "b"]);
     expect(tracksToSave("c", new Set(["a"]), p)).toEqual(["c"]);
-    const info = { id: "tracks/Vox", kind: "Tracks", name: "Vox", meta: { tags: ["vocal"], author: null, description: "Lead" }, factory: false, default: false, modified_ms: 0 } as const;
+    const info: TemplateInfo = { id: "tracks/Vox", kind: "Tracks", name: "Vox", meta: { tags: ["vocal"], author: null, description: "Lead" }, factory: false, default: false, modified_ms: 0 };
     expect(findByName([info], "Tracks", " vox ")).toBe(info);
     expect(findByName([info], "Tracks", "vox", "tracks/Vox")).toBeUndefined();
     expect(findByName([info], "Project", "vox")).toBeUndefined();
