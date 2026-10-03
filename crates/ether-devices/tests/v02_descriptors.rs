@@ -32,6 +32,20 @@ const IMPLEMENTED: &[BuiltinDeviceType] = &[
     BuiltinDeviceType::SpectrumAnalyzer,
     BuiltinDeviceType::Tuner,
     BuiltinDeviceType::PolySynth,
+    BuiltinDeviceType::Arpeggiator,
+    BuiltinDeviceType::Chord,
+    BuiltinDeviceType::ScaleQuantize,
+    BuiltinDeviceType::NoteLength,
+    BuiltinDeviceType::Velocity,
+    BuiltinDeviceType::Randomizer,
+    BuiltinDeviceType::Chorus,
+    BuiltinDeviceType::Phaser,
+    BuiltinDeviceType::Flanger,
+    BuiltinDeviceType::Tremolo,
+    BuiltinDeviceType::Saturator,
+    BuiltinDeviceType::Bitcrusher,
+    BuiltinDeviceType::AutoFilter,
+    BuiltinDeviceType::MultiSampler,
 ];
 
 const GROUPS: &[(&str, &[BuiltinDeviceType])] = &[
@@ -129,8 +143,8 @@ fn mock_descriptors_match_rust() {
         check_file(file, &serde_json::to_value(map).unwrap());
     }
     // Every v0.2 type belongs to exactly one group (the 9 earlier ones are in
-    // `builtinDevices.ts`).
-    assert_eq!(covered, BuiltinDeviceType::ALL.len() - 9);
+    // `builtinDevices.ts`, the 3 v0.3 ones in `v03_descriptors.rs`).
+    assert_eq!(covered, BuiltinDeviceType::ALL.len() - 9 - 3);
     // The EQ (devices-2) carries the v0.2 `EqCurve` layout (graphical-eq): generated too.
     check_file(
         "eq",

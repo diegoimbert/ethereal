@@ -123,6 +123,8 @@ impl<B: EngineBridge, H: HostServices, S: ProjectStore> FakeController<B, H, S> 
                     clips: vec![],
                     automation: vec![],
                     racks: Vec::new(),
+                    expression: Default::default(),
+                    hw_io: Vec::new(),
                 })
                 .collect(),
         }

@@ -206,6 +206,8 @@ fn media_streams_through_small_ring_and_plays() {
         clips,
         automation: vec![],
         racks: Vec::new(),
+        expression: Default::default(),
+        hw_io: Vec::new(),
     };
     let clip = ClipDesc {
         id: ClipId(Ulid(3)),
@@ -341,6 +343,8 @@ fn builtin_synth_under_virtual_key_plays_notes() {
         }],
         automation: vec![],
         racks: Vec::new(),
+        expression: Default::default(),
+        hw_io: Vec::new(),
     };
     let mut master_desc = midi.clone();
     master_desc.id = master;
@@ -424,6 +428,8 @@ fn backlog_is_applied_in_bounded_steps_without_queue_overflow() {
             clips: vec![],
             automation: vec![],
             racks: Vec::new(),
+            expression: Default::default(),
+            hw_io: Vec::new(),
         }],
         ..Default::default()
     };
