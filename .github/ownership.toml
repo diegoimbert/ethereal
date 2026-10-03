@@ -818,6 +818,63 @@ paths = [
   "ui/src/features/arrangement/clipboard.ts",
   "ui/src/features/arrangement/ArrangementView.tsx",
   "ui/src/features/arrangement/actions.ts",
+  # shared touch (BCR, insert marker): paste no longer moves the playhead
+  "ui/src/features/arrangement/ArrangementView.test.tsx",
+]
+
+[nodes.agent-api]
+# Owner request (2026-10-03): MCP support. One agent tool registry in the controller (works native + wasm),
+# exposed as Command::Agent {ListTools, CallTool}; `ether-mcp` stdio server bridging to the running desktop
+# app over a loopback remote-engine socket (opt-in, token in a 0600 runtime file), or headless on a project.
+# The in-app AI chat (`ai-chat`) uses the same commands.
+paths = [
+  "crates/ether-mcp/**",
+  "crates/ether-protocol/src/agent.rs",
+  "crates/ether-controller/src/agent/**",
+  "crates/ether-controller/tests/agent*.rs",
+  "crates/ether-native/tests/agent*.rs",
+  "apps/desktop/src-tauri/src/agent_bridge*.rs",
+  "apps/desktop/src-tauri/src/agent_bridge/**",
+  "docs/MCP.md",
+  # shared touches (additive): Agent domain + ReplyValue variants, ts exports, dispatch arm, state field
+  "crates/ether-protocol/src/lib.rs",
+  "crates/ether-protocol/src/message.rs",
+  "crates/ether-protocol/src/ts.rs",
+  "crates/ether-controller/src/lib.rs",
+  "crates/ether-controller/src/handlers.rs",
+  # shared touches: reuse the remote-engine router/listener as a library for the desktop bridge
+  "crates/ether-server/src/**",
+  "crates/ether-server/Cargo.toml",
+  "crates/ether-native/src/lib.rs",
+  "apps/desktop/src-tauri/src/lib.rs",
+  "apps/desktop/src-tauri/Cargo.toml",
+  # shared touches: workspace member, `just mcp` recipe, README + CONTRACTS sections
+  "Cargo.toml",
+  "justfile",
+  "README.md",
+  "docs/CONTRACTS.md",
+  # shared (roadmap_v*.rs "unsupported until implemented" lists): remove only Agent entries
+  "crates/ether-controller/tests/roadmap_v*.rs",
+]
+
+[nodes.ai-chat]
+# Owner request (2026-10-03): AI chat mode inside the app, driving it through the same agent API
+# (Command::Agent ListTools/CallTool) as the MCP server. BYOK Anthropic API key.
+paths = [
+  "ui/src/features/ai-chat/**",
+  "ui/src/transport/mock/roadmap/agent.*",
+  "apps/web/e2e/ai-chat*.spec.ts",
+  # shared touch (approved BCR): one dependency line, @anthropic-ai/sdk
+  "ui/package.json",
+  # shared touches: MockAgent routing (import, field, Agent case)
+  "ui/src/transport/mock/MockTransport.ts",
+  "ui/src/transport/mock/MockTransport.test.ts",
+  # shared touches: chat panel tab + "Ask AI" palette command + shortcut
+  "ui/src/app/shell/LeftRail.tsx",
+  "ui/src/app/shell/tabs.tsx",
+  "ui/src/app/shell/shellStore.ts",
+  "ui/src/app/shell/commands.ts",
+  "ui/src/app/shell/FloatingPane.tsx",
 ]
 
 [nodes.turn-hardening]
@@ -1452,4 +1509,409 @@ paths = [
   "crates/ether-collab/src/relay/mod.rs",
   "crates/ether-collab/src/relay/tests.rs",
   "docs/COLLAB.md",
+]
+
+# --- v0.3 (contracts-4; docs/ROADMAP.md "v0.3", CONTRACTS.md §13) -------------------------
+# contracts-4 froze the v0.3 types (protocol domains, model entities, .ether v5, core desc
+# fields) and pre-created one module per node and layer, registered in its parent with one
+# line. Every node:
+# - owns its modules below; "shared touch" entries are additive and limited as commented;
+# - in crates/ether-controller/tests/roadmap_v4.rs deletes/rewrites ONLY its own test fn;
+# - keeps its mock file (ui/src/transport/mock/roadmap/<file>.*) in sync (the pin there is
+#   its own test file);
+# - device nodes regenerate their mock descriptor JSON from Rust, never by hand
+#   (UPDATE_MOCK_DESCRIPTORS=1 cargo test -p ether-devices --test v03_descriptors).
+# The hot engine file (ether-core/src/engine.rs) gets ONE call site per node (listed below).
+
+[nodes.audio-streaming]
+# Stream long audio from disk (bounded memory, read-ahead off the audio thread), native + web.
+paths = [
+  "crates/ether-controller/src/media_stream/**",
+  "crates/ether-controller/tests/media_stream*.rs",
+  "crates/ether-media/src/stream/**",
+  "crates/ether-media/tests/stream*.rs",
+  "crates/ether-native/src/disk_stream/**",
+  "crates/ether-native/tests/disk_stream*.rs",
+  "crates/ether-wasm/src/media_stream.rs",
+  "crates/ether-wasm/src/media_stream/**",
+  "crates/ether-wasm/tests/media_stream*.rs",
+  "apps/web/e2e/audio-streaming*.spec.ts",
+  "crates/ether-controller/tests/roadmap_v4.rs",
+  # shared touch: call should_stream / stream_media in the media pipeline; loop/locate hints
+  "crates/ether-controller/src/media/**",
+  "crates/ether-controller/src/handlers.rs",
+  # shared touch: NativeBridge::stream_media / WasmBridge::stream_media (+ worker/worklet wiring)
+  "crates/ether-native/src/bridge.rs",
+  "crates/ether-native/src/lib.rs",
+  "crates/ether-wasm/src/bridge.rs",
+  "crates/ether-wasm/src/proto.rs",
+  "crates/ether-wasm/src/worklet.rs",
+  "crates/ether-wasm/src/lib.rs",
+  # shared touch: underrun reporting (append-only MediaEvent variant) if needed
+  "crates/ether-protocol/src/media.rs",
+  # shared touch (v0.3 grant): one additive state field + initializer on EtherController
+  "crates/ether-controller/src/lib.rs",
+  # shared touch (BCR): RecordingShared::projects_root getter; WebBridge ranged reader; readRange fs op
+  "crates/ether-native/src/recording/mod.rs",
+  "crates/ether-wasm/src/web.rs",
+  "apps/web/src/engine/syncFs.ts",
+  "apps/web/src/engine/protocol.ts",
+  "apps/web/src/engine/opfs.worker.ts",
+  "apps/web/src/engine/ether-wasm.d.ts",
+]
+
+[nodes.midi-expression]
+# CC / pitch bend / channel + poly aftertouch: record, edit as lanes in the piano roll, play back.
+paths = [
+  "crates/ether-controller/src/expression/**",
+  "crates/ether-controller/tests/expression*.rs",
+  "crates/ether-core/src/expression.rs",
+  "crates/ether-core/src/expression/**",
+  "crates/ether-core/tests/expression*.rs",
+  "ui/src/features/expression/**",
+  "ui/src/transport/mock/roadmap/expression.*",
+  "apps/web/e2e/midi-expression*.spec.ts",
+  "crates/ether-controller/tests/roadmap_v4.rs",
+  # shared touch (hot file): the ExpressionRt prepare/render/reset calls in the clip stage
+  "crates/ether-core/src/engine.rs",
+  # shared touch: TrackDesc::expression out of the codec JSON blob into the binary layout
+  "crates/ether-core/src/codec.rs",
+  "crates/ether-core/tests/codec*.rs",
+  # shared touch: record CC/bend/pressure into lanes and note expressions
+  "crates/ether-controller/src/recording/**",
+  "crates/ether-native/src/recording/midi.rs",
+  "crates/ether-native/src/recording/live.rs",
+  # shared touch: copy expression with notes (duplicate, split, consolidate, flatten, paste)
+  "crates/ether-controller/src/doc/notes.rs",
+  "crates/ether-controller/src/doc/clips.rs",
+  "crates/ether-controller/src/time_edit/**",
+  "crates/ether-controller/src/freeze/**",
+  "crates/ether-controller/src/comping/**",
+  # shared touch: plugin hosts forward channel MIDI / poly pressure
+  "crates/ether-clap/src/node.rs",
+  "crates/ether-vst3/src/node.rs",
+  "crates/ether-au/src/mac/node.rs",
+  "crates/ether-sandbox/src/shm.rs",
+  # shared touch: lanes under the piano roll (mount, lane picker, curve editing)
+  "ui/src/features/piano-roll/**",
+  "ui/src/transport/mock/roadmap/liveRecord.*",
+  # shared touch (v0.3 grant): one additive state field + initializer on EtherController
+  "crates/ether-controller/src/lib.rs",
+  # shared touch (BCR): ExpressionRt on TrackRt (+inherit); ActiveNote source (clip, note index, start);
+  # NoteSink records it; ExpressionRt::compile at TrackRt construction; prewire hook test
+  "crates/ether-core/src/mixer.rs",
+  "crates/ether-core/src/sched.rs",
+  "crates/ether-core/src/graph.rs",
+  "crates/ether-core/tests/roadmap_v4_hooks.rs",
+  # shared touch (BCR): one NodeInit field (midi_map from IMidiMapping) in activate
+  "crates/ether-vst3/src/plugin.rs",
+  # shared touch (BCR): Poly Synth bend settles while no voice is active (block-size independent render)
+  "crates/ether-devices/src/poly_synth/engine.rs",
+  # shared touch (BCR): mock cascades/copies for the expression tables
+  "ui/src/transport/mock/documentReducer.ts",
+]
+
+[nodes.mpe]
+# MPE: per-note pitch/pressure/timbre, MPE input, per-note curves, CLAP/VST3 note expressions.
+# Depends on midi-expression (lands after it; merges dev first).
+paths = [
+  "crates/ether-controller/src/mpe/**",
+  "crates/ether-controller/tests/mpe*.rs",
+  "ui/src/features/mpe/**",
+  "ui/src/transport/mock/roadmap/mpe.*",
+  "apps/web/e2e/mpe*.spec.ts",
+  "crates/ether-controller/tests/roadmap_v4.rs",
+  # shared touch: per-note pitch/timbre and MPE output in the core expression renderer
+  "crates/ether-core/src/expression.rs",
+  "crates/ether-core/src/expression/**",
+  "crates/ether-core/src/event.rs",
+  # shared touch: MPE input while recording and monitoring
+  "crates/ether-controller/src/recording/**",
+  "crates/ether-native/src/recording/midi.rs",
+  "crates/ether-native/src/recording/live.rs",
+  # shared touch: note expressions in the plugin hosts (CLAP note expressions, VST3 note
+  # expression, MPE MIDI fallback) and the sandbox (NoteExpression already in the shm)
+  "crates/ether-clap/src/**",
+  "crates/ether-vst3/src/**",
+  "crates/ether-au/src/mac/node.rs",
+  "crates/ether-sandbox/src/**",
+  # shared touch: Poly Synth responds to per-note pitch/pressure/timbre
+  "crates/ether-devices/src/poly_synth/**",
+  # shared touch: track MPE settings in the inspector, per-note curves in the piano roll
+  "ui/src/app/shell/Inspector.tsx",
+  "ui/src/features/piano-roll/**",
+  "ui/src/features/expression/**",
+  # shared touch (v0.3 grant): one additive state field + initializer on EtherController
+  "crates/ether-controller/src/lib.rs",
+]
+
+[nodes.capture-midi]
+# Always-on MIDI capture buffer: "Capture" makes a clip of what was just played.
+paths = [
+  "crates/ether-controller/src/capture/**",
+  "crates/ether-controller/tests/capture*.rs",
+  "ui/src/features/capture/**",
+  "ui/src/transport/mock/roadmap/capture.*",
+  "apps/web/e2e/capture*.spec.ts",
+  "crates/ether-controller/tests/roadmap_v4.rs",
+  # shared touch: feed capture_input where MIDI input is drained (one line)
+  "crates/ether-controller/src/midi_learn/mod.rs",
+  # shared touch: the Capture button in the transport bar, palette entry
+  "ui/src/features/transport-bar/**",
+  "ui/src/app/shell/commands.ts",
+  # shared touch: mock MIDI input simulation for the capture buffer
+  "ui/src/transport/mock/MockTransport.ts",
+  # shared touch (v0.3 grant): one additive state field + initializer on EtherController
+  "crates/ether-controller/src/lib.rs",
+]
+
+[nodes.audio-to-midi]
+# Convert an audio clip to MIDI (melody / harmony / drums), offline job with progress.
+paths = [
+  "crates/ether-controller/src/audio_to_midi/**",
+  "crates/ether-controller/tests/audio_to_midi*.rs",
+  "crates/ether-media/src/to_midi/**",
+  "crates/ether-media/tests/to_midi*.rs",
+  "ui/src/features/audio-to-midi/**",
+  "ui/src/transport/mock/roadmap/audioToMidi.*",
+  "apps/web/e2e/audio-to-midi*.spec.ts",
+  "crates/ether-controller/tests/roadmap_v4.rs",
+  # shared touch: clip context menu entry ("Convert to MIDI...")
+  "ui/src/features/arrangement/ClipView.tsx",
+  # shared touch (v0.3 grant): one additive state field + initializer on EtherController
+  "crates/ether-controller/src/lib.rs",
+]
+
+[nodes.fx-space]
+# Convolution reverb (partitioned, low latency), IR loader + factory IRs, IR media in place.
+paths = [
+  "crates/ether-devices/src/fx_space/**",
+  "crates/ether-devices/presets/convolution-reverb/**",
+  "crates/ether-devices/tests/fx_space*.rs",
+  "crates/ether-controller/src/fx_space/**",
+  "crates/ether-controller/tests/fx_space*.rs",
+  "ui/src/features/devices/layout/ir/**",
+  "ui/src/transport/mock/devices/fxSpace.json",
+  "ui/src/transport/mock/roadmap/fxSpace.*",
+  "apps/web/e2e/fx-space*.spec.ts",
+  "crates/ether-controller/tests/roadmap_v4.rs",
+  # shared touch: append-only line(s) in the IMPLEMENTED list of this test
+  "crates/ether-devices/tests/v03_descriptors.rs",
+  # shared touch: rebuild/update reverbs when IR media loads (next to samplers)
+  "crates/ether-controller/src/handlers.rs",
+  # shared touch: IR resolution in the bridges' node creation / update_builtin
+  "crates/ether-native/src/bridge.rs",
+  "crates/ether-wasm/src/bridge.rs",
+  # shared touch: an IR widget (BCR to the widget catalog if a new widget kind is needed)
+  "ui/src/features/devices/layout/Widget.tsx",
+  "ui/src/features/devices/layout/widgets/data.tsx",
+  # shared touch (v0.3 grant): one additive state field + initializer on EtherController
+  "crates/ether-controller/src/lib.rs",
+  # shared touch (BCR): realfft dependency (already in Cargo.lock via rubato)
+  "Cargo.toml",
+  "crates/ether-devices/Cargo.toml",
+  # shared touch (BCR): pass the SampleResolver to fx_space::create
+  "crates/ether-devices/src/lib.rs",
+  # shared touch (BCR): fx_space::updatable_in_place in the in-place update check (IR crossfade)
+  "crates/ether-controller/src/engine.rs",
+  # shared touch (BCR, optional): EngineMsg::UpdateBuiltin so the web swaps IRs (and samplers) in place
+  "crates/ether-wasm/src/proto.rs",
+  "crates/ether-wasm/src/worklet.rs",
+]
+
+[nodes.external-instrument]
+# External Instrument (MIDI out + audio return), External Audio Effect, latency measurement.
+paths = [
+  "crates/ether-devices/src/external/**",
+  "crates/ether-devices/tests/external*.rs",
+  "crates/ether-controller/src/external/**",
+  "crates/ether-controller/tests/external*.rs",
+  "crates/ether-core/src/hw_io.rs",
+  "crates/ether-core/src/hw_io/**",
+  "crates/ether-core/tests/hw_io*.rs",
+  "ui/src/features/external/**",
+  "ui/src/transport/mock/devices/external.json",
+  "ui/src/transport/mock/roadmap/external.*",
+  "apps/web/e2e/external*.spec.ts",
+  "crates/ether-controller/tests/roadmap_v4.rs",
+  # shared touch: append-only line(s) in the IMPLEMENTED list of this test
+  "crates/ether-devices/tests/v03_descriptors.rs",
+  # shared touch (hot file): HwIoRt prepare/gather_returns/capture_send/write_sends calls
+  "crates/ether-core/src/engine.rs",
+  # shared touch: TrackDesc::hw_io out of the codec JSON blob into the binary layout
+  "crates/ether-core/src/codec.rs",
+  "crates/ether-core/tests/codec*.rs",
+  # shared touch: EngineBridge::list_hardware_ports, the hardware MIDI out thread, outputs
+  "crates/ether-native/src/bridge.rs",
+  "crates/ether-native/src/audio.rs",
+  "crates/ether-native/src/rt.rs",
+  "crates/ether-native/src/recording/midi.rs",
+  "crates/ether-controller/src/lib.rs",
+  # shared touch: routing UI widget in the shared renderer
+  "ui/src/features/devices/layout/Widget.tsx",
+  "ui/src/features/devices/layout/widgets/data.tsx",
+]
+
+[nodes.undo-history]
+# History panel: list, jump to state, named checkpoints; collab-aware (own steps).
+paths = [
+  "crates/ether-controller/src/undo_history/**",
+  "crates/ether-controller/tests/undo_history*.rs",
+  "ui/src/features/undo-history/**",
+  "ui/src/transport/mock/roadmap/undoHistory.*",
+  "apps/web/e2e/undo-history*.spec.ts",
+  "crates/ether-controller/tests/roadmap_v4.rs",
+  # shared touch: step ids and first-commit times (additive accessors)
+  "crates/ether-model/src/history.rs",
+  # shared touch: JumpTo through the Edit::{Undo, Redo} path; per-site steps in a session
+  "crates/ether-controller/src/handlers.rs",
+  # shared touch (BCR): one state field + initializer on EtherController
+  "crates/ether-controller/src/lib.rs",
+  "crates/ether-controller/src/collab/mod.rs",
+  # shared touch: the mock undo stack exposes steps
+  "ui/src/transport/mock/MockTransport.ts",
+  # shared touch: the History tab in the left rail / palette entry
+  "ui/src/app/shell/tabs.tsx",
+  "ui/src/app/shell/LeftRail.tsx",
+  "ui/src/app/shell/commands.ts",
+  # shared touch (BCR): one-word LeftTab union member "history"
+  "ui/src/app/shell/shellStore.ts",
+]
+
+[nodes.templates]
+# Project templates (default new project) + track templates, saved to the user library.
+paths = [
+  "crates/ether-controller/src/templates/**",
+  "crates/ether-controller/tests/templates*.rs",
+  "crates/ether-model/src/template.rs",
+  "ui/src/features/templates/**",
+  "ui/src/transport/mock/roadmap/templates.*",
+  "apps/web/e2e/templates*.spec.ts",
+  "crates/ether-controller/tests/roadmap_v4.rs",
+  # shared touch: "Save as template" in the track context menu; "New from template"
+  "ui/src/features/arrangement/TrackRow.tsx",
+  "ui/src/features/project/**",
+  "ui/src/app/shell/commands.ts",
+  # shared touch: NewProject next to Project::Create
+  "crates/ether-controller/src/project.rs",
+  # shared touch (v0.3 grant): one additive state field + initializer on EtherController
+  "crates/ether-controller/src/lib.rs",
+  # shared touch (BCR): template insert hook + template scope in dispatch (one gesture, one undo step)
+  "crates/ether-controller/src/handlers.rs",
+  # shared touch (BCR): MockTemplates construction + Template domain routing
+  "ui/src/transport/mock/MockTransport.ts",
+]
+
+[nodes.project-versions]
+# Rolling autosaved versions, restore/compare, crash recovery dialog (native + web OPFS).
+paths = [
+  "crates/ether-controller/src/versions/**",
+  "crates/ether-controller/tests/versions*.rs",
+  "ui/src/features/versions/**",
+  "ui/src/transport/mock/roadmap/versions.*",
+  "apps/web/e2e/project-versions*.spec.ts",
+  "crates/ether-controller/tests/roadmap_v4.rs",
+  # shared touch: session marker on open/close
+  "crates/ether-controller/src/project.rs",
+  # shared touch: ProjectStore::remove implementations (the default replies Unsupported)
+  "crates/ether-controller/src/store.rs",
+  "crates/ether-controller/src/memory.rs",
+  "crates/ether-native/src/store.rs",
+  "crates/ether-wasm/src/store.rs",
+  # shared touch: recovery dialog at startup, versions entry in the project screen
+  "ui/src/features/project/**",
+  "ui/src/app/App.tsx",
+  # shared touch: the mock project store keeps versions
+  "ui/src/transport/mock/MockTransport.ts",
+  # shared touch (v0.3 grant): one additive state field + initializer on EtherController
+  "crates/ether-controller/src/lib.rs",
+]
+
+[nodes.keymap]
+# Customizable keyboard shortcuts (editor, conflicts, presets Ethereal / Ableton-like), cheat sheet.
+paths = [
+  "crates/ether-controller/src/keymap/**",
+  "crates/ether-controller/tests/keymap*.rs",
+  "ui/src/features/keymap/**",
+  "ui/src/transport/mock/roadmap/keymap.*",
+  "apps/web/e2e/keymap*.spec.ts",
+  "crates/ether-controller/tests/roadmap_v4.rs",
+  # shared touch: key handlers read bindings from the keymap registry (lookup lines only);
+  # land after the other v0.3 UI nodes or merge dev often
+  "ui/src/app/App.tsx",
+  "ui/src/app/shell/commands.ts",
+  "ui/src/app/shell/CommandPalette.tsx",
+  "ui/src/features/arrangement/ArrangementView.tsx",
+  "ui/src/features/arrangement/actions.ts",
+  "ui/src/features/piano-roll/PianoRoll.tsx",
+  "ui/src/features/transport-bar/index.tsx",
+  "ui/src/features/time-edits/useArrangementTimeEdits.ts",
+  "ui/src/features/comping/actions.ts",
+  # shared touch (v0.3 grant): one additive state field + initializer on EtherController
+  "crates/ether-controller/src/lib.rs",
+]
+
+[nodes.web-latency]
+# Worklet -> controller latency report so PDC republish works on web (latency-republish follow-up).
+paths = [
+  "crates/ether-wasm/src/latency.rs",
+  "crates/ether-wasm/tests/latency*.rs",
+  # shared touch: the report message and its handling
+  "crates/ether-wasm/src/proto.rs",
+  "crates/ether-wasm/src/worklet.rs",
+  "crates/ether-wasm/src/bridge.rs",
+  "apps/web/e2e/web-latency*.spec.ts",
+  # shared touch (v0.3 grant): one additive state field + initializer on EtherController
+  "crates/ether-controller/src/lib.rs",
+]
+
+[nodes.ux-followups]
+# Small owner-visible fixes queued in the UX digest.
+paths = [
+  # hide the Devices section on VCA tracks
+  "ui/src/app/shell/DevicesPanel.tsx",
+  "ui/src/app/shell/DevicesPanel.test.tsx",
+  "ui/src/app/shell/Inspector.tsx",
+  # large-knob value text clipping
+  "ui/src/kit/Knob*",
+  "ui/src/kit/knob*",
+  "ui/src/features/devices/layout/widgets/params.tsx",
+  # peer avatar contrast (light theme)
+  "ui/src/features/collab/PresenceBar.tsx",
+  "ui/src/features/collab/collab.css",
+  # peer playheads in the piano roll
+  "ui/src/features/collab/presence/**",
+  "ui/src/features/piano-roll/PianoRoll.tsx",
+  # Browser.test focus flake
+  "ui/src/features/browser/**",
+  # drop EqCurvePlaceholder
+  "ui/src/features/devices/layout/**",
+  "apps/web/e2e/ux-followups*.spec.ts",
+  # shared touch (v0.3 grant): one additive state field + initializer on EtherController
+  "crates/ether-controller/src/lib.rs",
+  # shared touch (BCR, layout only): Tempo-tab time-signature denominator clipping (base-108 follow-up)
+  "ui/src/features/tempo/tempo.css",
+  "ui/src/features/tempo/TempoEditor.tsx",
+]
+
+[nodes.rack-presets]
+# Rack presets that store chains (preset format v2, Preset::rack; Preset::Load seed).
+paths = [
+  "crates/ether-controller/src/presets/**",
+  "crates/ether-controller/tests/presets*.rs",
+  "crates/ether-controller/tests/rack_presets*.rs",
+  "crates/ether-model/src/preset.rs",
+  "crates/ether-devices/presets/instrument-rack/**",
+  "crates/ether-devices/presets/audio-effect-rack/**",
+  "crates/ether-devices/presets/midi-effect-rack/**",
+  "ui/src/features/presets/**",
+  "ui/src/transport/mock/roadmap/presets.*",
+  "apps/web/e2e/rack-presets*.spec.ts",
+  # shared touch: rebuild chains on load (rack chain/device inserts through the racks code)
+  "crates/ether-controller/src/racks/**",
+  # shared touch: register factory rack presets
+  "crates/ether-devices/src/racks/**",
+  "crates/ether-devices/tests/v02_descriptors.rs",
+  # shared touch (v0.3 grant): one additive state field + initializer on EtherController
+  "crates/ether-controller/src/lib.rs",
 ]

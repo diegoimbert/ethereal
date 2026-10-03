@@ -1,0 +1,31 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "Tube Drive",
+    "device": {
+      "type": "Builtin",
+      "device": "Saturator"
+    },
+    "meta": {
+      "tags": [
+        "drive",
+        "harmonics",
+        "tube"
+      ],
+      "author": "Ethereal",
+      "description": "Asymmetric tube curve with a little bias for rich even harmonics."
+    },
+    "params": {
+      "0": 2.0,
+      "1": 14.0,
+      "2": 15.0,
+      "3": 10.0,
+      "4": 2.0,
+      "5": 1.0,
+      "6": 0.0,
+      "7": 100.0
+    }
+  }
+}

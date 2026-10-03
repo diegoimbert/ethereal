@@ -690,9 +690,10 @@ fn overview_and_track_reads() {
 #[test]
 fn library_and_export() {
     let mut h = Harness::with_project();
-    // The library index is not implemented on this host yet: a clear tool error.
+    // The library index exists (browser-v2) but has no roots on this test host: an empty page.
     let r = call(&mut h, "search_browser", json!({ "text": "kick" }));
-    assert!(r.is_error, "{}", r.text);
+    assert!(!r.is_error, "{}", r.text);
+    assert_eq!(serde_json::from_str::<Value>(&r.text).unwrap()["total"], 0);
     let r = call(
         &mut h,
         "load_browser_item",

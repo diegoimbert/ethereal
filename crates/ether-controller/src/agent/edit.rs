@@ -917,8 +917,14 @@ where
         let item = self.find_browser_item(a.req_str("item_id")?, now, out)?;
         if let Some(preset) = item.preset.clone() {
             if let Some(device) = a.id::<DeviceId>("device_id", "device")? {
+                // Rack presets that store chains mint their ids from the seed (collab replays).
+                let seed = self.agent_id(now);
                 self.agent_steps(
-                    vec![Command::Preset(PresetCommand::Load { device, preset })],
+                    vec![Command::Preset(PresetCommand::Load {
+                        device,
+                        preset,
+                        seed: Some(seed),
+                    })],
                     now,
                     out,
                 )?;
@@ -951,6 +957,7 @@ where
                 ));
             };
             let device: DeviceId = self.agent_id(now);
+            let seed = self.agent_id(now);
             self.agent_steps(
                 vec![
                     Command::Device(DeviceCommand::Insert {
@@ -961,7 +968,11 @@ where
                         },
                         before: None,
                     }),
-                    Command::Preset(PresetCommand::Load { device, preset }),
+                    Command::Preset(PresetCommand::Load {
+                        device,
+                        preset,
+                        seed: Some(seed),
+                    }),
                 ],
                 now,
                 out,

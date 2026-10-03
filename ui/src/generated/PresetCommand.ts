@@ -3,5 +3,6 @@ import type { DeviceId } from "./DeviceId";
 import type { PresetDevice } from "./PresetDevice";
 import type { PresetMeta } from "./PresetMeta";
 import type { PresetRef } from "./PresetRef";
+import type { RackChainId } from "./RackChainId";
 
-export type PresetCommand = { "type": "List", device: PresetDevice | null, text: string | null, } | { "type": "Load", device: DeviceId, preset: PresetRef, } | { "type": "Save", device: DeviceId, name: string, meta: PresetMeta, overwrite: boolean, } | { "type": "Rename", preset: PresetRef, name: string, } | { "type": "Delete", preset: PresetRef, } | { "type": "SetMeta", preset: PresetRef, meta: PresetMeta, };
+export type PresetCommand = { "type": "List", device: PresetDevice | null, text: string | null, } | { "type": "Load", device: DeviceId, preset: PresetRef, seed?: RackChainId, } | { "type": "Save", device: DeviceId, name: string, meta: PresetMeta, overwrite: boolean, } | { "type": "Rename", preset: PresetRef, name: string, } | { "type": "Delete", preset: PresetRef, } | { "type": "SetMeta", preset: PresetRef, meta: PresetMeta, };

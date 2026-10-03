@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
 use crate::drum_rack::SliceSettings;
+use crate::external::{ExternalRouting, IrSource};
 use crate::ids::{DeviceId, DrumPadId, MediaId, RackChainId, TrackId};
 use crate::multisampler::SampleZone;
 use crate::value::{Base64Bytes, OrderKey, ParamId};
@@ -56,7 +57,8 @@ pub enum DeviceKind {
 /// parameter lists are defined by the owning node (`devices-2`, `drum-rack`); ids are
 /// append-only, never renumbered once released. Variants after `DrumRack` are v0.2
 /// (contracts-3): their param tables are frozen in their `ether-devices` module (append-only)
-/// and implemented by the owning node (docs/ROADMAP.md "v0.2").
+/// and implemented by the owning node (docs/ROADMAP.md "v0.2"). Variants after
+/// `MidiEffectRack` are v0.3 (contracts-4), same rules (docs/ROADMAP.md "v0.3").
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
 #[serde(tag = "type")]
 pub enum BuiltinDevice {
@@ -129,6 +131,19 @@ pub enum BuiltinDevice {
     AudioEffectRack,
     /// Rack of parallel MIDI effect chains (`racks-modulation`).
     MidiEffectRack,
+    // --- v0.3 (contracts-4); owning node in parentheses ---
+    /// Partitioned convolution reverb (`fx-space`). `ir: None` = no IR loaded (dry only).
+    ConvolutionReverb {
+        ir: Option<IrSource>,
+    },
+    /// Hardware synth: MIDI out + audio return (`external-instrument`).
+    ExternalInstrument {
+        routing: ExternalRouting,
+    },
+    /// Hardware effect: audio send + return (`external-instrument`).
+    ExternalAudioEffect {
+        routing: ExternalRouting,
+    },
 }
 
 /// Data-less discriminant of [`BuiltinDevice`] (used in descriptors and factories).
@@ -166,11 +181,15 @@ pub enum BuiltinDeviceType {
     InstrumentRack,
     AudioEffectRack,
     MidiEffectRack,
+    // --- v0.3 (contracts-4) ---
+    ConvolutionReverb,
+    ExternalInstrument,
+    ExternalAudioEffect,
 }
 
 impl BuiltinDeviceType {
     /// Every built-in type, in `DeviceCommand::ListBuiltin` order.
-    pub const ALL: [BuiltinDeviceType; 32] = [
+    pub const ALL: [BuiltinDeviceType; 35] = [
         Self::Synth,
         Self::Sampler,
         Self::Compressor,
@@ -203,6 +222,9 @@ impl BuiltinDeviceType {
         Self::InstrumentRack,
         Self::AudioEffectRack,
         Self::MidiEffectRack,
+        Self::ConvolutionReverb,
+        Self::ExternalInstrument,
+        Self::ExternalAudioEffect,
     ];
 
     /// Rack types ([`crate::rack`]).
@@ -267,6 +289,9 @@ impl BuiltinDevice {
             Self::InstrumentRack => BuiltinDeviceType::InstrumentRack,
             Self::AudioEffectRack => BuiltinDeviceType::AudioEffectRack,
             Self::MidiEffectRack => BuiltinDeviceType::MidiEffectRack,
+            Self::ConvolutionReverb { .. } => BuiltinDeviceType::ConvolutionReverb,
+            Self::ExternalInstrument { .. } => BuiltinDeviceType::ExternalInstrument,
+            Self::ExternalAudioEffect { .. } => BuiltinDeviceType::ExternalAudioEffect,
         }
     }
 
@@ -308,16 +333,27 @@ impl BuiltinDevice {
             BuiltinDeviceType::InstrumentRack => Self::InstrumentRack,
             BuiltinDeviceType::AudioEffectRack => Self::AudioEffectRack,
             BuiltinDeviceType::MidiEffectRack => Self::MidiEffectRack,
+            BuiltinDeviceType::ConvolutionReverb => Self::ConvolutionReverb { ir: None },
+            BuiltinDeviceType::ExternalInstrument => Self::ExternalInstrument {
+                routing: ExternalRouting::default(),
+            },
+            BuiltinDeviceType::ExternalAudioEffect => Self::ExternalAudioEffect {
+                routing: ExternalRouting::default(),
+            },
         }
     }
 
-    /// Media referenced by the device kind (sampler sample, multisampler zones).
+    /// Media referenced by the device kind (sampler sample, multisampler zones, convolution
+    /// IR).
     pub fn media(&self) -> Vec<MediaId> {
         match self {
             Self::Sampler {
                 sample: Some(m), ..
             } => vec![*m],
             Self::MultiSampler { zones } => zones.iter().filter_map(|z| z.media).collect(),
+            Self::ConvolutionReverb {
+                ir: Some(IrSource::Media { media }),
+            } => vec![*media],
             _ => Vec::new(),
         }
     }

@@ -123,6 +123,12 @@ define_ids! {
     ChatMessageId => "ChatMessage";
     /// A note pinned on the arrangement. base-62 (`collab-social`).
     PinnedNoteId => "PinnedNote";
+    /// A channel-wide expression lane (CC, pitch bend, channel pressure) of a MIDI clip
+    /// (v0.3, `midi-expression`).
+    ExpressionLaneId => "ExpressionLane";
+    /// A per-note expression curve (pitch, pressure, timbre) of a note (v0.3,
+    /// `midi-expression` / `mpe`).
+    NoteExpressionId => "NoteExpression";
 }
 
 /// Deterministic id number `index` derived from a client-chosen `seed` id (v0.2, collab-safe
