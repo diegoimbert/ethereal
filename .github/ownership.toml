@@ -1917,4 +1917,6 @@ paths = [
   "crates/ether-devices/tests/v02_descriptors.rs",
   # shared touch (v0.3 grant): one additive state field + initializer on EtherController
   "crates/ether-controller/src/lib.rs",
+  # shared touch (BCR): browser v2 loads presets through loadPresetCommand (seed for rack presets)
+  "ui/src/features/browser/v2/BrowserV2.tsx",
 ]
