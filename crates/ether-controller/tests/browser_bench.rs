@@ -2,9 +2,15 @@
 //! 50 ms for 50k items). Indexes a generated in-memory library through the controller
 //! (bounded work per tick), then times representative queries end to end (`handle`).
 //!
-//! The 50 ms bound is asserted in optimized builds (`cargo test --release -p
-//! ether-controller --test browser_bench -- --nocapture` prints the timings); debug builds
-//! only check a loose bound, since they are ~20x slower.
+//! The bound applies to the CPU time of the querying thread (best of 5), not wall time: on
+//! a shared machine under heavy parallel load (CI, many cargo builds) the test thread can
+//! be descheduled for tens of milliseconds, which says nothing about the query's cost.
+//! CPU time only counts the time the thread actually ran, so the bound keeps measuring the
+//! index and stays deterministic. Queries run on the calling thread (`handle` is
+//! synchronous, the index uses no worker threads), so the thread's CPU time is the whole
+//! query. Wall time is printed next to it (`cargo test --release -p ether-controller
+//! --test browser_bench -- --nocapture`). Platforms without a thread CPU clock fall back
+//! to wall time.
 
 mod common;
 
@@ -46,6 +52,54 @@ fn library() -> MemoryLibrary {
         lib.add_file(&root, &path, vec![0; 4]);
     }
     lib
+}
+
+/// CPU time consumed so far by the calling thread.
+#[cfg(all(
+    any(target_os = "linux", target_os = "macos"),
+    target_pointer_width = "64"
+))]
+fn thread_cpu_time() -> Duration {
+    #[repr(C)]
+    struct Timespec {
+        sec: i64,
+        nsec: i64,
+    }
+    unsafe extern "C" {
+        fn clock_gettime(clock: i32, ts: *mut Timespec) -> i32;
+    }
+    #[cfg(target_os = "linux")]
+    const CLOCK_THREAD_CPUTIME_ID: i32 = 3;
+    #[cfg(target_os = "macos")]
+    const CLOCK_THREAD_CPUTIME_ID: i32 = 16;
+    let mut ts = Timespec { sec: 0, nsec: 0 };
+    // SAFETY: `ts` is a valid, writable `struct timespec` (two 64-bit fields here).
+    let rc = unsafe { clock_gettime(CLOCK_THREAD_CPUTIME_ID, &mut ts) };
+    assert_eq!(rc, 0, "clock_gettime(CLOCK_THREAD_CPUTIME_ID)");
+    Duration::new(ts.sec as u64, ts.nsec as u32)
+}
+
+/// Runs `f`, returning its result, the calling thread's CPU time and the wall time.
+fn timed<T>(f: impl FnOnce() -> T) -> (T, Duration, Duration) {
+    #[cfg(all(
+        any(target_os = "linux", target_os = "macos"),
+        target_pointer_width = "64"
+    ))]
+    let cpu0 = thread_cpu_time();
+    let t = Instant::now();
+    let out = f();
+    let wall = t.elapsed();
+    #[cfg(all(
+        any(target_os = "linux", target_os = "macos"),
+        target_pointer_width = "64"
+    ))]
+    let cpu = thread_cpu_time().saturating_sub(cpu0);
+    #[cfg(not(all(
+        any(target_os = "linux", target_os = "macos"),
+        target_pointer_width = "64"
+    )))]
+    let cpu = wall;
+    (out, cpu, wall)
 }
 
 fn q(text: &str) -> BrowserQuery {
@@ -166,20 +220,24 @@ fn queries_over_50k_items_are_fast() {
     ];
     let bound = Duration::from_millis(50);
     for (what, query) in queries {
-        // Best of 3 (the machine is shared).
+        // Best of 5 in CPU time (the machine is shared: caches, frequency and SMT siblings
+        // still vary a little under load).
         let mut best = Duration::MAX;
+        let mut best_wall = Duration::MAX;
         let mut total = 0;
-        for _ in 0..3 {
-            let t = Instant::now();
-            let reply = h.ok(Command::Browser(BrowserCommand::Query {
-                query: query.clone(),
-            }));
-            best = best.min(t.elapsed());
+        for _ in 0..5 {
+            let (reply, cpu, wall) = timed(|| {
+                h.ok(Command::Browser(BrowserCommand::Query {
+                    query: query.clone(),
+                }))
+            });
+            best = best.min(cpu);
+            best_wall = best_wall.min(wall);
             if let ReplyValue::BrowserPage { page } = reply {
                 total = page.total;
             }
         }
-        println!("{what:>28}: {best:>10.2?} ({total} matches)");
-        assert!(best < bound, "{what}: {best:?} >= {bound:?}");
+        println!("{what:>28}: {best:>10.2?} cpu, {best_wall:>10.2?} wall ({total} matches)");
+        assert!(best < bound, "{what}: {best:?} CPU >= {bound:?}");
     }
 }

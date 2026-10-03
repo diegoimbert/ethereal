@@ -1728,6 +1728,8 @@ paths = [
   # shared touch (BCR, optional): EngineMsg::UpdateBuiltin so the web swaps IRs (and samplers) in place
   "crates/ether-wasm/src/proto.rs",
   "crates/ether-wasm/src/worklet.rs",
+  # shared touch (BCR 2): presets carry the convolution reverb IR (preset_kind, kind_media, remap_kind)
+  "crates/ether-controller/src/presets/mod.rs",
 ]
 
 [nodes.external-instrument]
@@ -1767,6 +1769,8 @@ paths = [
   "crates/ether-devices/tests/layouts.rs",
   # shared touch (BCR): external::updatable_in_place (routing change keeps the live node)
   "crates/ether-controller/src/engine.rs",
+  # shared touch (BCR 2): builtinDevice defaults for v0.3 built-ins with data (external devices AND ConvolutionReverb)
+  "ui/src/features/devices/descriptors.ts",
 ]
 
 [nodes.undo-history]

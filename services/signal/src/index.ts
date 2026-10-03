@@ -6,12 +6,14 @@
  *   GET /v1/rooms/<room>/host  (upgrade) → the host's socket (HostHello first)
  *   GET /v1/rooms/<room>/join  (upgrade) → a joiner's socket (JoinHello first)
  *
- * Also mounted under `/signal/...` (the Pages Function proxy on the web app's origin).
+ * Also mounted under `/signal/...` (the Pages Function proxy on the web app's origin). The
+ * room object repeats the origin and upgrade checks, so every front door is equally strict.
  */
 
-import { originAllowed, route, SIGNAL_PROTOCOL_VERSION } from "./protocol";
+import { upgradeError } from "./do.ts";
+import { originAllowed, route, SIGNAL_PROTOCOL_VERSION } from "./protocol.ts";
 
-export { SignalRoom } from "./room";
+export { IpBudget, SignalRoom } from "./do.ts";
 
 function cors(origin: string | null, env: Env): HeadersInit {
   return origin && originAllowed(origin, env.ALLOWED_ORIGINS)
@@ -29,10 +31,9 @@ export default {
     if (r.kind === "health") {
       return Response.json({ ok: true, protocol: SIGNAL_PROTOCOL_VERSION }, { headers: cors(origin, env) });
     }
-    if (request.headers.get("Upgrade")?.toLowerCase() !== "websocket") {
-      return new Response("expected a WebSocket upgrade", { status: 426 });
-    }
-    // signal-service: per-IP rate limits (claims, bad doors) before reaching the room.
+    const err = upgradeError(request, env);
+    if (err) return err;
+    // Per-IP budgets (claims, bad doors) are enforced in the room, where the outcome is known.
     const stub = env.ROOMS.get(env.ROOMS.idFromName(r.room));
     return stub.fetch(request);
   },
