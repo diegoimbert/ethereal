@@ -862,6 +862,8 @@ paths = [
   "ui/src/features/ai-chat/**",
   "ui/src/transport/mock/roadmap/agent.*",
   "apps/web/e2e/ai-chat*.spec.ts",
+  # shared touch (approved BCR): one dependency line, @anthropic-ai/sdk
+  "ui/package.json",
   # shared touches: MockAgent routing (import, field, Agent case)
   "ui/src/transport/mock/MockTransport.ts",
   "ui/src/transport/mock/MockTransport.test.ts",
