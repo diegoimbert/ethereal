@@ -108,7 +108,10 @@ fn reset_removes_the_file_and_emits_the_default() {
     assert!(h.ctl.library.read(USER, FILE).is_err());
     assert_eq!(get(&mut h), Keymap::default());
     // Reset with nothing stored is fine.
-    assert_eq!(h.ok(Command::Keymap(KeymapCommand::Reset)), ReplyValue::Unit);
+    assert_eq!(
+        h.ok(Command::Keymap(KeymapCommand::Reset)),
+        ReplyValue::Unit
+    );
 }
 
 #[test]
