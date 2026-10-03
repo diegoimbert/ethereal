@@ -252,10 +252,8 @@ pub(crate) fn insert(
                     ctx.tx.insert(Entity::AutomationLane(l))?;
                 }
             }
-            Entity::AutomationPoint(pt) => {
-                if lanes.contains(&pt.lane) {
-                    ctx.tx.insert(Entity::AutomationPoint(pt))?;
-                }
+            Entity::AutomationPoint(pt) if lanes.contains(&pt.lane) => {
+                ctx.tx.insert(Entity::AutomationPoint(pt))?;
             }
             e @ (Entity::DrumPad(_) | Entity::RackChain(_) | Entity::ModMapping(_)) => {
                 ctx.tx.insert(e)?;
