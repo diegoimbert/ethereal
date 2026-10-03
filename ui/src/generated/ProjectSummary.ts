@@ -12,6 +12,6 @@ export type ProjectSummary = { id: ProjectId, name: string,
 modified_ms: number, 
 /**
  * base-115: shared by this app, or an offline copy of someone's shared project
- * (Recents badge and avatars; docs/SHARING.md §8.3). Omitted when not shared.
+ * (Recents badge and avatars; docs/SHARING.md §8.5). Omitted when not shared.
  */
 share?: ProjectShareInfo, };
