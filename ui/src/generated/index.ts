@@ -3,6 +3,8 @@ export type * from "./Activity";
 export type * from "./ActivityKind";
 export type * from "./ActivityTarget";
 export type * from "./ActorId";
+export type * from "./AgentCommand";
+export type * from "./AgentToolSpec";
 export type * from "./AnalysisCommand";
 export type * from "./AnalysisData";
 export type * from "./AnalysisEvent";
