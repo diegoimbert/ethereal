@@ -234,6 +234,8 @@ where
             StoreError::AlreadyExists(_) => invalid(format!("project {new_id} already exists")),
             e => store_err(e),
         })?;
+        // base-115: a copy is a private project (never the original's `share.json`).
+        crate::share::clear_share_file(&mut self.store, new_id);
         let mut project = doc.project.clone();
         project.id = new_id;
         project.settings.name = name;
@@ -287,6 +289,8 @@ where
             return Ok(ReplyValue::Saved { project: existing });
         }
         self.store.duplicate(id, new_id).map_err(store_err)?;
+        // base-115: a duplicate is a private project (never the original's `share.json`).
+        crate::share::clear_share_file(&mut self.store, new_id);
         // project-versions: the copy is not open anywhere.
         self.versions_forget_marker(new_id);
         let current = self
@@ -347,6 +351,10 @@ where
         self.media.sync(&mut self.bridge, Some(&doc.project));
         self.engine.graph_dirty = true;
         self.publish_if_due(now, true, out);
+        // base-115: hosting/joined sessions of another project pause; this one resumes
+        // sharing or reconnects (docs/SHARING.md §7).
+        let pid = self.doc.as_ref().expect("just set").project.id;
+        self.share_project_loaded(pid, out);
         // project-versions: session marker and version clock.
         self.versions_on_load(now);
     }

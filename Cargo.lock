@@ -1808,6 +1808,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha1",
+ "sha2",
  "str0m",
  "stun",
  "thiserror 2.0.21",

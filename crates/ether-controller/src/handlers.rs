@@ -94,6 +94,24 @@ pub(crate) fn media_file_name(id: MediaId, name: &str) -> String {
     format!("{MEDIA_DIR}/{id}-{clean}")
 }
 
+/// base-115: commands that edit the shared document (refused on a listen link). Local
+/// playback (transport, monitoring) stays available on the read-only copy.
+fn share_edits(command: &Command, current: Option<ProjectId>) -> bool {
+    use ether_core::protocol::media::MediaCommand;
+    match command {
+        Command::Transport(_) | Command::Recording(_) => false,
+        Command::Edit(EditCommand::Batch { commands, .. }) => {
+            commands.iter().any(|c| share_edits(c, current))
+        }
+        Command::Edit(EditCommand::Undo | EditCommand::Redo) => true,
+        Command::TimeEdit(_)
+        | Command::Freeze(_)
+        | Command::MediaRef(_)
+        | Command::Media(MediaCommand::Import { .. }) => true,
+        c => doc::is_document_command(c, current),
+    }
+}
+
 impl<B, H, S, L> EtherController<B, H, S, L>
 where
     B: EngineBridge,
@@ -122,6 +140,10 @@ where
         }
         // base-62: a note added by this command is authored by our session identity.
         let _note_author = self.social_note_scope(command);
+        // base-115: a listen link is view only (docs/SHARING.md §2.3).
+        if self.share_view_only() && share_edits(command, current) {
+            return Err(invalid_state("view only: you joined with a listen link"));
+        }
         // v0.3 (`templates`): `Template::Insert` loads its file and imports its samples
         // first (alone: in one gesture; in a `Batch`: scoped for the batch).
         if let Some(r) = self.template_insert_command(msg, now, out) {
@@ -992,6 +1014,8 @@ where
         self.export_tick(now, out);
         self.recording_tick(now, out);
         self.collab_tick(now, out);
+        // base-115: sharing (hub, signaling, joiner links) after the collab session.
+        self.share_tick(now, out);
         // v0.2 hooks.
         self.analysis_tick(out);
         self.freeze_tick(now, out);
