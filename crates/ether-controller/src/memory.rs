@@ -11,8 +11,12 @@ use ether_core::protocol::model::file::{CACHE_DIR, MEDIA_DIR, PROJECT_FILE};
 use ether_core::protocol::project::ProjectSummary;
 
 use crate::store::{
-    Library, ProjectStore, SHARE_FILE, StoreError, check_relative_path, file_kind, share_info,
+    Library, ProjectStore, SHARE_FILE, StoreError, USER_FOLDER_PREFIX, check_relative_path,
+    file_kind, import_folder_name, share_info, unique_folder_name, user_folder_id,
 };
+
+/// `base-136`: engine-side path prefix of [`MemoryLibrary`]'s imported folders.
+pub const IMPORTED_PREFIX: &str = "imported/";
 
 /// List the direct children of `dir` among `files` (paths relative to the same root).
 fn list(files: &BTreeMap<String, Vec<u8>>, dir: &str) -> Vec<DirectoryEntry> {
@@ -71,6 +75,8 @@ struct MemProject {
 pub struct MemoryStore {
     projects: BTreeMap<ProjectId, MemProject>,
     pub now_ms: u64,
+    /// Upload staging (`base-136`: browser folder imports are tested with it).
+    uploads: BTreeMap<String, (u64, Vec<u8>)>,
 }
 
 impl MemoryStore {
@@ -218,6 +224,41 @@ impl ProjectStore for MemoryStore {
         Ok(path)
     }
 
+    fn begin_upload(&mut self, upload: &str, size: u64) -> Result<(), StoreError> {
+        self.uploads.insert(upload.to_string(), (size, Vec::new()));
+        Ok(())
+    }
+
+    fn append_upload(
+        &mut self,
+        upload: &str,
+        offset: u64,
+        bytes: &[u8],
+    ) -> Result<u64, StoreError> {
+        let (size, data) = self
+            .uploads
+            .get_mut(upload)
+            .ok_or_else(|| StoreError::NotFound(format!("upload {upload}")))?;
+        if offset != data.len() as u64 || offset + bytes.len() as u64 > *size {
+            return Err(StoreError::Io(format!("upload {upload}: bad chunk")));
+        }
+        data.extend_from_slice(bytes);
+        Ok(data.len() as u64)
+    }
+
+    fn read_upload(&mut self, upload: &str) -> Result<Vec<u8>, StoreError> {
+        match self.uploads.get(upload) {
+            Some((size, data)) if *size == data.len() as u64 => Ok(data.clone()),
+            Some(_) => Err(StoreError::Io(format!("upload {upload} is incomplete"))),
+            None => Err(StoreError::NotFound(format!("upload {upload}"))),
+        }
+    }
+
+    fn discard_upload(&mut self, upload: &str) -> Result<(), StoreError> {
+        self.uploads.remove(upload);
+        Ok(())
+    }
+
     /// v0.3 (`project-versions`): delete one file; missing = `Ok`.
     fn remove(&mut self, id: ProjectId, rel_path: &str) -> Result<(), StoreError> {
         check_relative_path(rel_path)?;
@@ -251,6 +292,11 @@ pub struct MemoryLibrary {
     roots: BTreeMap<String, (String, BTreeMap<String, Vec<u8>>)>,
     /// Writable user root id (`Library::user_root`); not listed in `roots()`.
     user: Option<String>,
+    /// `base-136`: imported folders' files by engine-side path (`imported/<name>`), whether
+    /// added as a root or not (the "disk").
+    imported: BTreeMap<String, BTreeMap<String, Vec<u8>>>,
+    /// Imported folders added as roots (`add_folder`): root id → path.
+    added: BTreeMap<String, String>,
 }
 
 impl MemoryLibrary {
@@ -275,10 +321,30 @@ impl MemoryLibrary {
 
     /// The files of root `id` (for assertions).
     pub fn files(&self, id: &str) -> Vec<String> {
-        self.roots
-            .get(id)
-            .map(|(_, f)| f.keys().cloned().collect())
+        self.root_files(id)
+            .map(|f| f.keys().cloned().collect())
             .unwrap_or_default()
+    }
+
+    /// `base-136`: the same files, with no user folder added (a host restart: the
+    /// controller re-adds them from its index).
+    pub fn restarted(&self) -> Self {
+        Self {
+            added: BTreeMap::new(),
+            ..self.clone()
+        }
+    }
+
+    /// `base-136`: the imported folders' paths (for assertions).
+    pub fn imported_folders(&self) -> Vec<String> {
+        self.imported.keys().cloned().collect()
+    }
+
+    fn root_files(&self, root: &str) -> Option<&BTreeMap<String, Vec<u8>>> {
+        match self.added.get(root) {
+            Some(path) => self.imported.get(path),
+            None => self.roots.get(root).map(|(_, f)| f),
+        }
     }
 
     fn user_files(
@@ -286,7 +352,8 @@ impl MemoryLibrary {
         root: &str,
         rel_path: &str,
     ) -> Result<&mut BTreeMap<String, Vec<u8>>, StoreError> {
-        if self.user.as_deref() != Some(root) {
+        let imported = self.added.get(root).cloned();
+        if self.user.as_deref() != Some(root) && imported.is_none() {
             return Err(StoreError::Unsupported(format!(
                 "library {root} is read-only"
             )));
@@ -295,7 +362,10 @@ impl MemoryLibrary {
         if rel_path.is_empty() {
             return Err(StoreError::InvalidPath(rel_path.to_string()));
         }
-        Ok(&mut self.roots.get_mut(root).expect("user root exists").1)
+        match imported {
+            Some(path) => Ok(self.imported.entry(path).or_default()),
+            None => Ok(&mut self.roots.get_mut(root).expect("user root exists").1),
+        }
     }
 
     /// Add a file under root `id` (created if needed).
@@ -318,14 +388,17 @@ impl Library for MemoryLibrary {
                 location: BrowseLocation::Library { id: id.clone() },
                 name: name.clone(),
             })
+            .chain(self.added.iter().map(|(id, path)| BrowseRoot {
+                location: BrowseLocation::Library { id: id.clone() },
+                name: path[IMPORTED_PREFIX.len()..].to_string(),
+            }))
             .collect()
     }
 
     fn list_dir(&mut self, root: &str, rel_path: &str) -> Result<DirectoryListing, StoreError> {
         check_relative_path(rel_path)?;
-        let (_, files) = self
-            .roots
-            .get(root)
+        let files = self
+            .root_files(root)
             .ok_or_else(|| StoreError::NotFound(root.to_string()))?;
         Ok(DirectoryListing {
             location: BrowseLocation::Library {
@@ -338,9 +411,8 @@ impl Library for MemoryLibrary {
 
     fn read(&mut self, root: &str, rel_path: &str) -> Result<Vec<u8>, StoreError> {
         check_relative_path(rel_path)?;
-        self.roots
-            .get(root)
-            .and_then(|(_, f)| f.get(rel_path))
+        self.root_files(root)
+            .and_then(|f| f.get(rel_path))
             .cloned()
             .ok_or_else(|| StoreError::NotFound(format!("{root}/{rel_path}")))
     }
@@ -382,6 +454,48 @@ impl Library for MemoryLibrary {
 
     fn user_root(&self) -> Option<String> {
         self.user.clone()
+    }
+
+    /// `base-136`: only imported folders (`imported/<name>`, created) can be added.
+    fn add_folder(&mut self, path: &str) -> Result<String, StoreError> {
+        if !path.starts_with(IMPORTED_PREFIX) {
+            return Err(StoreError::Unsupported(
+                "the memory library has no OS folders".into(),
+            ));
+        }
+        if !self.imported.contains_key(path) {
+            return Err(StoreError::NotFound(path.to_string()));
+        }
+        let id = user_folder_id(path);
+        self.added.insert(id.clone(), path.to_string());
+        Ok(id)
+    }
+
+    /// `base-136`: forget a user folder and delete its files.
+    fn remove_folder(&mut self, root: &str) -> Result<(), StoreError> {
+        if !root.starts_with(USER_FOLDER_PREFIX) {
+            return Err(StoreError::InvalidPath(format!(
+                "{root} is not a user folder"
+            )));
+        }
+        let path = self
+            .added
+            .remove(root)
+            .ok_or_else(|| StoreError::NotFound(root.to_string()))?;
+        self.imported.remove(&path);
+        Ok(())
+    }
+
+    fn create_import_folder(&mut self, name: &str) -> Result<String, StoreError> {
+        let base = import_folder_name(name)
+            .ok_or_else(|| StoreError::InvalidPath(format!("bad folder name {name:?}")))?;
+        let name = unique_folder_name(&base, |c| {
+            let c = format!("{IMPORTED_PREFIX}{c}").to_lowercase();
+            self.imported.keys().any(|k| k.to_lowercase() == c)
+        });
+        let path = format!("{IMPORTED_PREFIX}{name}");
+        self.imported.insert(path.clone(), BTreeMap::new());
+        Ok(path)
     }
 }
 

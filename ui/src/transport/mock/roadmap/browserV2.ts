@@ -11,6 +11,10 @@
  *   `IndexProgress` then `IndexChanged` (synchronously);
  * - `Preview` plays `item.source` through `Media::Preview` (the mock ignores `sync`);
  * - `AddFolder` is native only: `Unsupported`; projects aren't indexed by the mock.
+ * - `base-136`: `ImportFolder` adds an empty user folder (`Folder` root, unique name),
+ *   `ImportFile` consumes a completed upload into it (an audio item at once: the mock's
+ *   `Rescan` is synchronous anyway), `RenameFolder` renames it, `RemoveFolder` drops it
+ *   with its items. Imported folders are index-only (no folder view, no lane import).
  */
 
 import type {
@@ -26,6 +30,7 @@ import { cmd } from "../../cmd";
 import { fail } from "../documentReducer";
 import { LIBRARY_FILES, LIBRARY_ID, wavSize } from "../library";
 import type { MockHost } from "./host";
+import type { UploadedAudio } from "./remote";
 
 /** Top-level library folders the mock treats as sample packs. */
 export const MOCK_PACKS: ReadonlyArray<string> = ["Vocals"];
@@ -33,6 +38,7 @@ export const USER_ROOT = "user";
 export const FACTORY_ROOT = "factory";
 export const PROJECTS_ROOT = "projects";
 const LIBRARY_NAME = "Library";
+const AUDIO_FILE = /\.(wav|wave|aif|aiff|aifc|flac|mp3|ogg|oga)$/i;
 const MAX_LIMIT = 200;
 /** Fake modification times: newest first in library order. */
 const MODIFIED_BASE_MS = Date.UTC(2026, 0, 1);
@@ -195,8 +201,15 @@ export class MockBrowser {
   private readonly favourites = new Set<string>();
   /** User tags by item id (replacing the item's default tags). */
   private readonly tags = new Map<string, string[]>();
+  /** `base-136`: imported folders (in creation order). */
+  private readonly folders: BrowserRoot[] = [];
+  private nextFolder = 1;
 
-  constructor(private readonly host: MockHost | null) {}
+  constructor(
+    private readonly host: MockHost | null,
+    /** Consume a completed upload (`MockUploads.take`); `ImportFile` needs it. */
+    private readonly takeUpload: ((upload: string) => UploadedAudio) | null = null,
+  ) {}
 
   command(c: BrowserCommand): ReplyValue {
     switch (c.type) {
@@ -218,9 +231,83 @@ export class MockBrowser {
       case "AddFolder":
         return fail("Unsupported", "adding folders needs the desktop app");
       case "RemoveFolder": {
+        const folder = this.folders.findIndex((f) => f.id === c.root);
+        if (folder >= 0) {
+          this.folders.splice(folder, 1);
+          this.dropItems((i) => i.root === c.root);
+          this.emit({ type: "Browser", event: { type: "IndexChanged" } });
+          return { type: "Unit" };
+        }
         const root = this.roots().find((r) => r.id === c.root);
         if (!root) fail("NotFound", `root ${c.root}`);
         return fail("InvalidArgument", `${root.name} is not a user folder`);
+      }
+      case "ImportFolder": {
+        const base = c.name
+          .replace(/[/\\:\p{Cc}]/gu, " ")
+          .trim()
+          .replace(/^\.+/, "")
+          .trim()
+          .slice(0, 64)
+          .trimEnd();
+        if (!base) fail("InvalidArgument", `bad folder name ${JSON.stringify(c.name)}`);
+        const taken = (n: string) => this.folders.some((f) => f.path?.toLowerCase() === `imported/${n}`.toLowerCase());
+        let name = base;
+        for (let n = 2; taken(name); n++) name = `${base} ${n}`;
+        this.folders.push({ id: `folder-mock-${this.nextFolder++}`, name, kind: "Folder", path: `imported/${name}`, items: 0 });
+        return { type: "BrowserRoots", roots: this.roots() };
+      }
+      case "ImportFile": {
+        const folder = this.folders.find((f) => f.id === c.root);
+        if (!this.takeUpload) fail("Unsupported", "uploads need the mock transport");
+        // The upload is consumed either way.
+        let audio: UploadedAudio | null = null;
+        let error: unknown = null;
+        try {
+          audio = this.takeUpload(c.upload);
+        } catch (e) {
+          error = e;
+        }
+        if (!folder) fail("NotFound", `user folder ${c.root}`);
+        const name = baseName(c.path);
+        if (!c.path || c.path.split("/").some((seg) => !seg || seg === "." || seg === "..") || name.startsWith("."))
+          fail("InvalidArgument", `bad file path ${JSON.stringify(c.path)}`);
+        if (!AUDIO_FILE.test(name)) fail("InvalidArgument", `${name} is not an audio or MIDI file`);
+        if (error) throw error;
+        const a = audio!;
+        const id = `${folder.id}/${c.path}`;
+        const { bpm, key } = parseNameMeta(name, c.path);
+        this.dropItems((i) => i.id === id);
+        this.items.push({
+          id,
+          kind: "Audio",
+          name,
+          root: folder.id,
+          path: c.path,
+          source: { type: "Location", location: { type: "Library", id: folder.id }, path: c.path },
+          preset: null,
+          tags: [],
+          favourite: false,
+          meta: {
+            duration_seconds: a.frames / a.sample_rate,
+            sample_rate: a.sample_rate,
+            channels: a.channels,
+            bpm,
+            key,
+            pack: folder.name,
+            modified_ms: MODIFIED_BASE_MS,
+            size: wavSize(a.frames, a.channels),
+          },
+        });
+        return { type: "Unit" };
+      }
+      case "RenameFolder": {
+        const folder = this.folders.find((f) => f.id === c.root) ?? fail("NotFound", `user folder ${c.root}`);
+        const name = c.name.trim();
+        folder.name = name || folder.path!.slice("imported/".length);
+        for (const i of this.items) if (i.root === folder.id) i.meta = { ...i.meta, pack: folder.name };
+        this.emit({ type: "Browser", event: { type: "IndexChanged" } });
+        return { type: "BrowserRoots", roots: this.roots() };
       }
       case "Rescan":
         this.rescan(c.root);
@@ -233,6 +320,10 @@ export class MockBrowser {
         return { type: "Unit" };
       }
     }
+  }
+
+  private dropItems(pred: (i: LibraryItem) => boolean) {
+    for (let at = this.items.length - 1; at >= 0; at--) if (pred(this.items[at]!)) this.items.splice(at, 1);
   }
 
   private emit(e: Event) {
@@ -263,6 +354,7 @@ export class MockBrowser {
         }),
       ),
       { id: USER_ROOT, name: "User Library", kind: "Library", path: null, items: count((i) => i.root === USER_ROOT) },
+      ...this.folders.map((f): BrowserRoot => ({ ...f, items: count((i) => i.root === f.id) })),
       { id: FACTORY_ROOT, name: "Factory Presets", kind: "Factory", path: null, items: count((i) => i.root === FACTORY_ROOT) },
     ];
   }

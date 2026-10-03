@@ -988,7 +988,10 @@ key, pack, modified, size } }`. `Browser::Query { text, kinds, tags, favourites_
 folder, device, sort: Name | Recent | Duration | Bpm | Relevance, offset, limit ≤ 200 }` →
 `BrowserPage { items, total, offset }`. `ListRoots` (library, packs, user folders, factory
 presets), `SetFavourite`, `SetTags`, `AddFolder { path }` (native only; the desktop shell
-picks it), `RemoveFolder`, `Rescan`; background indexing with `BrowserEvent::{IndexProgress,
+picks it), `RemoveFolder`, `Rescan`; folders from the UI machine (web, remote; `base-136`):
+`ImportFolder { name }` (an engine-owned copy) + `ImportFile { root, path, upload }` per
+uploaded audio file, then `Rescan`; removing it deletes the copy; `RenameFolder { root,
+name }` (display only, any user folder); background indexing with `BrowserEvent::{IndexProgress,
 IndexChanged}`. `Preview { item, sync }` uses the media-preview voice; `sync` repitches by
 project bpm / item bpm and starts on the next beat while playing. Presets appear as items
 (kind `Preset`).

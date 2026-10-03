@@ -13,12 +13,14 @@
 //!                        /cache/
 //! library/                            the web sample library root
 //! user-library/                       the writable user library (v0.2: `Presets/`, ...)
+//! imported/<folder>/                  folders imported from the user's computer (base-136)
 //! ```
 
 use std::collections::BTreeMap;
 
 use ether_controller::store::{
-    Library, ProjectStore, SHARE_FILE, StoreError, check_relative_path, file_kind, share_info,
+    Library, ProjectStore, SHARE_FILE, StoreError, USER_FOLDER_PREFIX, check_relative_path,
+    file_kind, import_folder_name, share_info, unique_folder_name, user_folder_id,
 };
 use ether_core::protocol::media::{
     BrowseLocation, BrowseRoot, DirectoryEntry, DirectoryListing, FileKind,
@@ -33,6 +35,9 @@ pub const LIBRARY_ID: &str = "browser";
 pub const USER_LIBRARY_ROOT: &str = "user-library";
 /// v0.2 (`presets`): root id of the user library (not listed in `roots()`).
 pub const USER_LIBRARY_ID: &str = "user";
+/// `base-136`: OPFS folder of the folders imported from the user's computer, one sub-folder
+/// each (`Library::create_import_folder`; their engine-side path is `imported/<folder>`).
+pub const IMPORTED_ROOT: &str = "imported";
 pub const PROJECT_FILE: &str = "project.ether";
 pub const MEDIA_DIR: &str = "media";
 pub const CACHE_DIR: &str = "cache";
@@ -448,49 +453,82 @@ pub fn ensure_demo_samples<F: Fs>(fs: &mut F) -> Result<(), StoreError> {
     Ok(())
 }
 
-/// The browser's sample library: one OPFS folder (`library/`). There is no way to add
-/// files to it from the UI in v0.1 (uploads are reserved in the protocol); it holds the
-/// generated demo samples ([`ensure_demo_samples`]).
+/// The browser's sample library: one OPFS folder (`library/`) holding the generated demo
+/// samples ([`ensure_demo_samples`]), the writable user library, and (`base-136`) the
+/// folders imported from the user's computer (`imported/<folder>/`, user folders added by
+/// the controller with their OPFS path; the controller remembers them).
 pub struct WebLibrary<F: Fs> {
     fs: F,
+    /// Imported folders added as roots: (root id, OPFS folder `imported/<folder>`).
+    imported: Vec<(String, String)>,
 }
 
 impl<F: Fs> WebLibrary<F> {
     pub fn new(fs: F) -> Self {
-        Self { fs }
+        Self {
+            fs,
+            imported: Vec::new(),
+        }
     }
 
-    fn base(&self, root: &str) -> Result<&'static str, StoreError> {
+    fn base(&self, root: &str) -> Result<String, StoreError> {
         match root {
-            LIBRARY_ID => Ok(LIBRARY_ROOT),
-            USER_LIBRARY_ID => Ok(USER_LIBRARY_ROOT),
-            _ => Err(StoreError::NotFound(format!("library root {root}"))),
+            LIBRARY_ID => Ok(LIBRARY_ROOT.to_string()),
+            USER_LIBRARY_ID => Ok(USER_LIBRARY_ROOT.to_string()),
+            _ => self
+                .imported
+                .iter()
+                .find(|(id, _)| id == root)
+                .map(|(_, dir)| dir.clone())
+                .ok_or_else(|| StoreError::NotFound(format!("library root {root}"))),
         }
     }
 
-    /// The writable user library's folder + a checked, non-empty relative path in it.
+    /// A writable root's folder (the user library or an imported folder) + a checked,
+    /// non-empty relative path in it.
     fn user_path(&self, root: &str, rel_path: &str) -> Result<String, StoreError> {
-        if root != USER_LIBRARY_ID {
-            return Err(StoreError::Unsupported(format!(
-                "library {root} is read-only"
-            )));
-        }
+        let base = match root {
+            USER_LIBRARY_ID => USER_LIBRARY_ROOT.to_string(),
+            _ => match self.imported.iter().find(|(id, _)| id == root) {
+                Some((_, dir)) => dir.clone(),
+                None => {
+                    return Err(StoreError::Unsupported(format!(
+                        "library {root} is read-only"
+                    )));
+                }
+            },
+        };
         let rel = relative(rel_path)?;
         if rel.is_empty() {
             return Err(StoreError::InvalidPath(rel_path.to_string()));
         }
-        Ok(join(USER_LIBRARY_ROOT, rel))
+        Ok(join(&base, rel))
+    }
+
+    /// `imported/<folder>` with a single valid folder segment, else `None`.
+    fn imported_folder(path: &str) -> Option<&str> {
+        let folder = path.strip_prefix(IMPORTED_ROOT)?.strip_prefix('/')?;
+        let valid = check_relative_path(folder).is_ok()
+            && !folder.is_empty()
+            && !folder.contains('/')
+            && !folder.starts_with('.');
+        valid.then_some(folder)
     }
 }
 
 impl<F: Fs> Library for WebLibrary<F> {
     fn roots(&self) -> Vec<BrowseRoot> {
-        vec![BrowseRoot {
+        let mut roots = vec![BrowseRoot {
             location: BrowseLocation::Library {
                 id: LIBRARY_ID.to_string(),
             },
             name: "Browser library".to_string(),
-        }]
+        }];
+        roots.extend(self.imported.iter().map(|(id, dir)| BrowseRoot {
+            location: BrowseLocation::Library { id: id.clone() },
+            name: dir.rsplit('/').next().unwrap_or(dir).to_string(),
+        }));
+        roots
     }
 
     fn list_dir(&mut self, root: &str, rel_path: &str) -> Result<DirectoryListing, StoreError> {
@@ -498,7 +536,7 @@ impl<F: Fs> Library for WebLibrary<F> {
         let location = BrowseLocation::Library {
             id: root.to_string(),
         };
-        match listing(&mut self.fs, base, rel_path, location.clone()) {
+        match listing(&mut self.fs, &base, rel_path, location.clone()) {
             // A fresh browser profile has no library folder yet: show it empty.
             Err(StoreError::NotFound(_)) if relative(rel_path)?.is_empty() => {
                 Ok(DirectoryListing {
@@ -517,7 +555,7 @@ impl<F: Fs> Library for WebLibrary<F> {
         if rel.is_empty() {
             return Err(StoreError::InvalidPath(rel_path.to_string()));
         }
-        self.fs.read(&join(base, rel))
+        self.fs.read(&join(&base, rel))
     }
 
     /// v0.2 (`presets`): only the user library (`user-library/`) is writable.
@@ -558,6 +596,58 @@ impl<F: Fs> Library for WebLibrary<F> {
 
     fn user_root(&self) -> Option<String> {
         Some(USER_LIBRARY_ID.to_string())
+    }
+
+    /// `base-136`: only imported folders (`imported/<folder>`, existing) can be added: the
+    /// web has no other folders. Id: [`user_folder_id`] of the OPFS path.
+    fn add_folder(&mut self, path: &str) -> Result<String, StoreError> {
+        if Self::imported_folder(path).is_none() {
+            return Err(StoreError::Unsupported(
+                "the web app can only import folders (Import folder…)".into(),
+            ));
+        }
+        match self.fs.stat(path)? {
+            Some(e) if e.is_dir => {}
+            Some(_) => return Err(StoreError::InvalidPath(format!("not a folder: {path}"))),
+            None => return Err(StoreError::NotFound(path.to_string())),
+        }
+        let id = user_folder_id(path);
+        if !self.imported.iter().any(|(i, _)| *i == id) {
+            self.imported.push((id.clone(), path.to_string()));
+        }
+        Ok(id)
+    }
+
+    /// `base-136`: forget an imported folder and delete its copy.
+    fn remove_folder(&mut self, root: &str) -> Result<(), StoreError> {
+        if !root.starts_with(USER_FOLDER_PREFIX) {
+            return Err(StoreError::InvalidPath(format!(
+                "{root} is not a user folder"
+            )));
+        }
+        let Some(i) = self.imported.iter().position(|(id, _)| id == root) else {
+            return Err(StoreError::NotFound(root.to_string()));
+        };
+        let (_, dir) = self.imported.remove(i);
+        match self.fs.remove(&dir) {
+            Ok(()) | Err(StoreError::NotFound(_)) => Ok(()),
+            Err(e) => Err(e),
+        }
+    }
+
+    /// `base-136`: `imported/<name>` (de-duplicated, case-insensitively), created empty.
+    fn create_import_folder(&mut self, name: &str) -> Result<String, StoreError> {
+        let base = import_folder_name(name)
+            .ok_or_else(|| StoreError::InvalidPath(format!("bad folder name {name:?}")))?;
+        let existing: Vec<String> = match self.fs.list(IMPORTED_ROOT) {
+            Ok(entries) => entries.into_iter().map(|e| e.name.to_lowercase()).collect(),
+            Err(StoreError::NotFound(_)) => Vec::new(),
+            Err(e) => return Err(e),
+        };
+        let name = unique_folder_name(&base, |c| existing.contains(&c.to_lowercase()));
+        let path = join(IMPORTED_ROOT, &name);
+        self.fs.mkdir(&path)?;
+        Ok(path)
     }
 }
 

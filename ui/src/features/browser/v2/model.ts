@@ -63,6 +63,8 @@ export function rootLocation(root: string, roots: ReadonlyArray<BrowserRoot>, lo
 
 /** Tab label of a root: library roots keep their `Media::ListLocations` name. */
 export function rootLabel(r: BrowserRoot, locations: ReadonlyArray<BrowseRoot> | null): string {
+  // User folders can be renamed (`RenameFolder`): the index knows their name.
+  if (r.kind === "Folder") return r.name;
   const l = locations?.find((x) => x.location.type === "Library" && x.location.id === r.id);
   return l?.name ?? r.name;
 }
