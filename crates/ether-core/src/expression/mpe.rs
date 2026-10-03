@@ -156,21 +156,12 @@ pub fn member_expression(m: &MpeSettings, data: [u8; 3]) -> Option<(u8, NoteExpr
 }
 
 /// Live MPE input state of one track (see the module docs).
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Default)]
 pub struct MpeIn {
     /// The sounding note per channel: `(note_id, key)`.
     held: [Option<(u32, u8)>; 16],
     /// Values received on a channel before its note-on.
     pending: [[Option<f32>; 3]; 16],
-}
-
-impl Default for MpeIn {
-    fn default() -> Self {
-        Self {
-            held: [None; 16],
-            pending: [[None; 3]; 16],
-        }
-    }
 }
 
 impl MpeIn {

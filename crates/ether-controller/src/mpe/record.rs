@@ -98,10 +98,10 @@ pub(crate) fn read(
         let key = e.data[1] & 0x7F;
         let on = status == 0x90 && e.data[2] & 0x7F > 0;
         let off = status == 0x80 || (status == 0x90 && e.data[2] & 0x7F == 0);
-        if on || (off && held[c].as_ref().is_some_and(|h| h.key == key)) {
-            if let Some(h) = held[c].take() {
-                finish(h, &mut out);
-            }
+        if (on || (off && held[c].as_ref().is_some_and(|h| h.key == key)))
+            && let Some(h) = held[c].take()
+        {
+            finish(h, &mut out);
         }
         if on {
             let start = e.position - from;
