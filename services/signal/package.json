@@ -1,0 +1,16 @@
+{
+  "name": "@ethereal/signal",
+  "private": true,
+  "version": "0.0.1",
+  "license": "GPL-3.0-or-later",
+  "description": "Ethereal signaling service: a Cloudflare Worker + Durable Object that introduces sharing peers (docs/SHARING.md §3).",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit -p .",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.3",
+    "vitest": "^5.0.2"
+  }
+}
