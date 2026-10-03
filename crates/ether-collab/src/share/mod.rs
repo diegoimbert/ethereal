@@ -19,8 +19,12 @@
 //! unchanged (docs/SHARING.md §2).
 
 pub mod dc;
+pub mod fake;
 pub mod file;
+pub mod handshake;
+pub mod hub;
 pub mod invite;
+pub mod keys;
 
 use ether_protocol::collab::{IceServer, StreamSignal};
 use ether_protocol::share::{PeerId, SignalClientMessage, SignalServerMessage};

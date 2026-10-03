@@ -18,6 +18,11 @@ serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
+# base-115 sharing (`share::keys`, every target): link-key derivations and proofs
+# (HMAC-SHA256), door hashes (SHA-256), base64url ids (docs/SHARING.md §4.2).
+hmac.workspace = true
+sha2.workspace = true
+base64.workspace = true
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 tungstenite.workspace = true
@@ -27,9 +32,7 @@ tracing-subscriber.workspace = true
 # Relay ICE (`relay::ice`, docs/COLLAB.md §10): STUN codec, TURN REST credentials, and the
 # optional TURN server (`turn` feature, tokio in its own thread).
 stun.workspace = true
-hmac.workspace = true
 sha1.workspace = true
-base64.workspace = true
 turn = { workspace = true, optional = true }
 tokio = { workspace = true, optional = true }
 # The `turn` crate's socket trait (`Conn`, async-trait) for the relay's socket wrappers.
