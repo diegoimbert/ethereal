@@ -35,6 +35,8 @@ fn track(id: u128, kind: TrackKind, output: Option<TrackId>) -> TrackDesc {
         clips: vec![],
         automation: vec![],
         racks: Vec::new(),
+        expression: Default::default(),
+        hw_io: Vec::new(),
     }
 }
 

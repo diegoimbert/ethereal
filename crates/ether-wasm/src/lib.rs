@@ -18,6 +18,8 @@
 //! (docs/SHARING.md §6.2).
 
 pub mod bridge;
+pub mod latency;
+pub mod media_stream;
 pub mod perf;
 pub mod proto;
 pub mod ring;

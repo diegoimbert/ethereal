@@ -248,6 +248,17 @@ ethereal://join/<room>[?s=<signal url>]#<key>
   the middle, cannot produce or relay a valid proof. The key never crosses the network, not
   even encrypted.
 
+**Frozen test vectors** (`ether_collab::share::keys::tests::frozen_vectors`). `K` = bytes
+`00..0f` (secret `AAECAwQFBgcICQoLDA0ODw`, link key `1AAECAwQFBgcICQoLDA0ODw`), room
+`AbCdEfGhIjKlMnOpQrStUv`, `fp_joiner = "sha-256 AA:BB:CC"`, `fp_host = "sha-256 11:22:33"`.
+Strings are concatenated as UTF-8 without separators; outputs are base64url without padding.
+- door = `-NlMpoJxAQr27xLrrnWcyg`; door hash (lowercase hex SHA-256 of the door string) =
+  `0ca35b191565d6d1aa58791582901a42b1ad1a79af44ae854d4b7c4b7dd63b28`
+- join proof = `IIhhbob-mfbMMQj0IERpl9I5YvYUsGRkYgAGYT4B3xs`
+- host proof = `Em9eKyuWCBC-Dygl1V2JRSJn5rlsPhSqcQ_mp-knftk`
+
+(Cross-checked by share-engine against an independent Python `hmac`/`hashlib` computation.)
+
 ### 4.3 Handshake on the data channel (`PeerHandshake`, before any `CollabMessage`)
 
 ```

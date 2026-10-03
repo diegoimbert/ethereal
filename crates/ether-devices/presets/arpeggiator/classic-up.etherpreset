@@ -1,0 +1,31 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "Classic Up",
+    "device": {
+      "type": "Builtin",
+      "device": "Arpeggiator"
+    },
+    "meta": {
+      "tags": [
+        "arp",
+        "classic"
+      ],
+      "author": "Ethereal",
+      "description": "Sixteenth notes up through the held chord."
+    },
+    "params": {
+      "0": 0.0,
+      "1": 4.0,
+      "2": 75.0,
+      "3": 1.0,
+      "4": 0.0,
+      "5": 0.0,
+      "6": 0.0,
+      "7": 100.0,
+      "8": 0.0
+    }
+  }
+}

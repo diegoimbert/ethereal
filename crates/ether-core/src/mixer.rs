@@ -205,6 +205,17 @@ impl TrackRt {
                 }
             }
         }
+        // v0.2 (`midi-fx`): a MIDI effect was added, removed or (un)bypassed. Notes it
+        // generated would never get their note-offs: release everything once (queued like a
+        // live event, delivered at offset 0 of the next block).
+        if midi_fx_changed(&self.chain, &old.chain) {
+            for c in &mut self.chain {
+                c.pending.push(crate::event::ProcessEvent {
+                    offset: 0,
+                    kind: crate::event::EventKind::AllNotesOff,
+                });
+            }
+        }
         std::mem::swap(&mut self.notes, &mut old.notes);
         self.next_note_id = old.next_note_id;
         self.meter = old.meter;
@@ -213,6 +224,20 @@ impl TrackRt {
         self.modulation.inherit(&mut old.modulation);
         self.input_tap.inherit(&mut old.input_tap);
         self.vca.inherit(&mut old.vca);
+    }
+}
+
+/// Whether the MIDI effects (entries without audio, `channels == (0, 0)`) of a chain or
+/// their bypass state differ between two snapshots. RT: compares in place.
+fn midi_fx_changed(new: &[ChainRt], old: &[ChainRt]) -> bool {
+    let mut a = new.iter().filter(|e| e.channels == (0, 0));
+    let mut b = old.iter().filter(|e| e.channels == (0, 0));
+    loop {
+        match (a.next(), b.next()) {
+            (None, None) => return false,
+            (Some(x), Some(y)) if x.key == y.key && x.enabled == y.enabled => {}
+            _ => return true,
+        }
     }
 }
 

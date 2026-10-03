@@ -6,7 +6,8 @@
 import type { Widget, WidgetSize } from "@/generated";
 import { useParam } from "./context";
 import { EqCurveWidget } from "./eq";
-import { MacrosWidget, MeterWidget, RackChainsWidget, SampleWaveformWidget, SpectrumWidget, TunerWidget, ZoneMapWidget } from "./widgets/data";
+import { MacrosWidget, MeterWidget, RackChainsWidget, SampleWaveformWidget, SpectrumWidget, TunerWidget } from "./widgets/data";
+import { ZoneMapWidget } from "./zones";
 import { ChoiceWidget, KnobWidget, NumberWidget, SliderWidget, ToggleWidget } from "./widgets/params";
 import {
   CrossoverWidget,

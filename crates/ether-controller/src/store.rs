@@ -117,6 +117,16 @@ pub trait ProjectStore {
         let _ = upload;
         Ok(())
     }
+
+    // --- v0.3 (contracts-4), defaulted ---
+
+    /// `project-versions`: delete a file relative to the project folder (old versions, the
+    /// session marker). Missing = `Ok`. Default: unsupported (the node implements it in the
+    /// native, OPFS and memory stores).
+    fn remove(&mut self, id: ProjectId, rel_path: &str) -> Result<(), StoreError> {
+        let _ = (id, rel_path);
+        Err(StoreError::Unsupported("removing project files".into()))
+    }
 }
 
 /// Project-relative path of an export file (`exports/<file_name>`): `file_name` must be a

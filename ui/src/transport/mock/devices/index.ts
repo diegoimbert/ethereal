@@ -11,10 +11,12 @@
 
 import type { DeviceDescriptor, ModulatorDescriptor } from "@/generated";
 import eq from "./eq.json";
+import external from "./external.json";
 import fxAnalysis from "./fxAnalysis.json";
 import fxColor from "./fxColor.json";
 import fxDynamics from "./fxDynamics.json";
 import fxModulation from "./fxModulation.json";
+import fxSpace from "./fxSpace.json";
 import midiFx from "./midiFx.json";
 import modulators from "./modulators.json";
 import multisampler from "./multisampler.json";
@@ -55,6 +57,19 @@ const groups = [polySynth, multisampler, fxColor, fxModulation, fxDynamics, fxAn
 >[];
 
 export const V02_DESCRIPTORS: Readonly<Record<V02DeviceType, DeviceDescriptor>> = Object.assign({}, ...groups);
+
+/** The v0.3 built-in types (contracts-4; after `MidiEffectRack` in `BuiltinDeviceType::ALL`). */
+export type V03DeviceType = "ConvolutionReverb" | "ExternalInstrument" | "ExternalAudioEffect";
+
+/**
+ * v0.3 descriptors (contracts-4), generated from Rust like the v0.2 ones: `fxSpace.json`
+ * (fx-space) and `external.json` (external-instrument). Regenerate with
+ * `UPDATE_MOCK_DESCRIPTORS=1 cargo test -p ether-devices --test v03_descriptors`.
+ */
+export const V03_DESCRIPTORS: Readonly<Record<V03DeviceType, DeviceDescriptor>> = Object.assign(
+  {},
+  ...([fxSpace, external] as unknown as Record<V03DeviceType, DeviceDescriptor>[]),
+);
 
 /** The EQ (devices-2) with its v0.2 `EqCurve` layout (graphical-eq), from Rust. */
 export const EQ_DESCRIPTOR: DeviceDescriptor = eq as unknown as DeviceDescriptor;
