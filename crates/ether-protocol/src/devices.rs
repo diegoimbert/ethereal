@@ -180,6 +180,12 @@ pub struct ParamInfo {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub step: Option<f64>,
+    /// base-132: position of this param among the plugin's own quick controls (CLAP
+    /// remote-controls pages: `page index · 8 + slot`, first occurrence). The device card
+    /// shows these right after the params the user pinned. Omitted from JSON when `None`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub remote: Option<u32>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, TS)]

@@ -1,18 +1,18 @@
 /**
  * Data widgets of the catalog: SampleWaveform (device kind data), Spectrum, Tuner,
- * Meter (`AnalysisData` through the `fx-analysis` seam), RackChains and Macros (racks), and
- * the EqCurve placeholder (the interactive curve is `graphical-eq`'s, in `layout/eq/`). The
- * ZoneMap is `multisampler`'s, in `layout/zones/`.
+ * Meter (`AnalysisData` through the `fx-analysis` seam), RackChains and Macros (racks). The
+ * EqCurve is `graphical-eq`'s, in `layout/eq/`; the ZoneMap is `multisampler`'s, in
+ * `layout/zones/`.
  */
 
 import clsx from "clsx";
 import { useEffect, useRef, useState } from "react";
-import type { AnalysisData, MediaRef, ParamInfo, PeakData, Widget, WidgetSize } from "@/generated";
+import type { AnalysisData, MediaRef, ParamInfo, PeakData } from "@/generated";
 import { useProjectStore } from "@/state";
 import { cmd, useTransport } from "@/transport";
 import { SampleSlot } from "../../SampleSlot";
 import { useLayoutContext, useParam, type ParamBinding } from "../context";
-import { freqToX, samplePath } from "../curves";
+import { freqToX } from "../curves";
 import { GridLines, Plot } from "../plot";
 import { useDeviceAnalysis } from "../seams";
 import { WidgetView } from "../Widget";
@@ -27,7 +27,7 @@ const HIT = 14;
 const OVERVIEW_PEAKS = 1024;
 
 /** Whole-sample min/max peaks of `media`, refetched when the engine reports new peaks. */
-function useOverviewPeaks(media: MediaRef | undefined): PeakData | null {
+export function useOverviewPeaks(media: MediaRef | undefined): PeakData | null {
   const transport = useTransport();
   const [peaks, setPeaks] = useState<{ media: string; data: PeakData } | null>(null);
   const [version, setVersion] = useState(0);
@@ -347,36 +347,6 @@ export function RackChainsWidget({ size, label }: TypedProps<"RackChains">) {
         ))}
         {list.length === 0 && <li className="eth-rack-chains__empty">No chains</li>}
       </ul>
-    </TypedFrame>
-  );
-}
-
-// ---- EQ curve (placeholder until graphical-eq) ------------------------------------------
-
-/**
- * Static stand-in for the EQ curve: the band frequencies on the log axis. `graphical-eq`
- * replaces it with the interactive curve (`layout/eq/`), registered in `Widget.tsx`.
- */
-export function EqCurvePlaceholder({ widget: w, size, label }: { widget: Extract<Widget, { type: "EqCurve" }>; size: WidgetSize; label: string | null }) {
-  const ctx = useLayoutContext();
-  const bands = w.bands.flatMap((b) => {
-    const info = ctx.params.get(b.freq);
-    const on = b.on == null ? 1 : (ctx.device.params[b.on] ?? ctx.params.get(b.on)?.default ?? 1);
-    return info ? [{ f: ctx.device.params[info.id] ?? info.default, on: on >= 0.5, id: info.id }] : [];
-  });
-  return (
-    <TypedFrame type="eq-curve" size={size} label={label}>
-      <Plot className="eth-plot--eq" label="EQ bands" testId="widget-eq-curve">
-        {({ w: wpx, h }) => (
-          <>
-            <GridLines w={wpx} h={h} ys={[0.5]} xs={[freqToX(100), freqToX(1000), freqToX(10000)]} />
-            <polyline className="eth-plot__line" points={samplePath(2, wpx, () => h / 2)} />
-            {bands.map((b) => (
-              <circle key={b.id} className={clsx("eth-plot__handle", !b.on && "eth-plot__handle--off")} cx={freqToX(b.f) * wpx} cy={h / 2} r={4} />
-            ))}
-          </>
-        )}
-      </Plot>
     </TypedFrame>
   );
 }

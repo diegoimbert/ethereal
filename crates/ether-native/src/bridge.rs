@@ -282,6 +282,30 @@ impl EngineBridge for NativeBridge {
                 .map_err(engine_err)?;
             return Ok(true);
         }
+        // v0.3 (`fx-space`): a new IR, read and partitioned here (off the audio thread);
+        // the node crossfades to it.
+        if let BuiltinDevice::ConvolutionReverb { .. } = kind {
+            let Some(entry) = self.devices.get(&device) else {
+                return Ok(false);
+            };
+            if !matches!(
+                entry.kind,
+                DeviceKind::Builtin(BuiltinDeviceType::ConvolutionReverb)
+            ) {
+                return Ok(false);
+            }
+            let Some(data) = ether_devices::fx_space::ir_swap(
+                kind,
+                &Sources(&self.sources),
+                self.prepare.sample_rate,
+            ) else {
+                return Ok(false);
+            };
+            self.handle
+                .set_node_data(entry.key, data)
+                .map_err(engine_err)?;
+            return Ok(true);
+        }
         let BuiltinDevice::Sampler { slices, .. } = kind else {
             return Ok(false);
         };
@@ -826,6 +850,25 @@ mod tests {
         b.create_builtin(s, &BuiltinDevice::Compressor, &[])
             .unwrap();
         assert_eq!(b.update_builtin(s, &ms(1)), Ok(false));
+    }
+
+    #[test]
+    fn convolution_ir_updates_in_place() {
+        use ether_core::protocol::model::IrSource;
+        let (mut b, _engine) = bridge();
+        let d = DeviceId(Ulid(9));
+        let reverb = |id: Option<&str>| BuiltinDevice::ConvolutionReverb {
+            ir: id.map(|id| IrSource::Factory { id: id.into() }),
+        };
+        let key = b.create_builtin(d, &reverb(Some("room")), &[]).unwrap();
+        assert_eq!(b.update_builtin(d, &reverb(Some("hall"))), Ok(true));
+        assert_eq!(b.update_builtin(d, &reverb(None)), Ok(true));
+        assert_eq!(b.node_of(d), Some(key), "same node");
+        // A reverb kind sent for another device type is refused.
+        let s = DeviceId(Ulid(10));
+        b.create_builtin(s, &BuiltinDevice::Compressor, &[])
+            .unwrap();
+        assert_eq!(b.update_builtin(s, &reverb(Some("hall"))), Ok(false));
     }
 
     #[test]

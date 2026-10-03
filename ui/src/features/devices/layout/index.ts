@@ -12,12 +12,15 @@ export { ParamShell } from "./ParamShell";
 export { paramMenu, paramTarget, showAutomation, useAutomated } from "./automation";
 export {
   boundParams,
+  cardParams,
   genericLayout,
+  PARAM_CARD_CAP,
   genericWidget,
   groupParams,
   referencedParams,
   resolveLayout,
   splitMainParams,
+  UNCAPPED_MAX,
   type ResolvedLayout,
 } from "./model";
 export { formatValue, snapPlain, toNormalized, toPlain } from "./values";

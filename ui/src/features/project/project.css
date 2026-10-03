@@ -178,27 +178,62 @@
   gap: var(--eth-space-sm);
 }
 
-/* Sharing (recents-shared, docs/SHARING.md §8.5): badge, avatars, "Live". */
+/* base-114: the open project's actions, badges and hints. */
 .eth-project-screen__heading {
   display: flex;
   align-items: center;
-  gap: var(--eth-space-md);
+  gap: var(--eth-space-sm);
 }
+.eth-project-screen__heading .eth-badge {
+  text-transform: none;
+  letter-spacing: var(--eth-tracking-normal);
+}
+.eth-project-screen__toolbar {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--eth-space-xs);
+  margin-left: calc(-1 * var(--eth-space-sm));
+}
+.eth-project-screen__toolbar.eth-project-screen__confirm {
+  margin-left: 0;
+  padding: 0;
+}
+.eth-project-screen__delete {
+  --button-fg: var(--eth-color-danger);
+}
+.eth-project-screen__hint {
+  margin: 0;
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-sm);
+  line-height: var(--eth-lh-normal);
+}
+
+/* project-versions: the "Versions…" entry under the open project. */
+.eth-project-screen__versions {
+  grid-column: 1 / -1;
+  justify-self: start;
+}
+
+/* templates: "Save as template…" under Continue, right-aligned. */
+.eth-project-screen__save-template {
+  grid-column: 2;
+  justify-self: end;
+}
+
+/* Sharing (recents-shared, docs/SHARING.md §8.5): badge, avatars, "Live". */
 .eth-project-screen__share-actions {
   display: flex;
   grid-column: 1 / -1;
+  flex-wrap: wrap;
   align-items: center;
-  gap: var(--eth-space-sm);
+  gap: var(--eth-space-xs);
   min-width: 0;
+  margin-left: calc(-1 * var(--eth-space-sm));
 }
-.eth-project-screen__notice {
-  align-self: flex-start;
-  border: none;
-  background: none;
-  color: var(--eth-color-ok);
-  font-size: var(--eth-fs-xs);
-  cursor: pointer;
-  text-align: left;
+.eth-project-screen__share-actions > .eth-project-screen__confirm {
+  margin-left: var(--eth-space-sm);
 }
 .eth-project-share {
   --eth-project-avatar-size: var(--eth-size-control-sm);

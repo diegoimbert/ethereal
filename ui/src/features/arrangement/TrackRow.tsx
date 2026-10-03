@@ -41,6 +41,7 @@ import { leaveNoteEntries, withSeparator } from "@/features/collab/social";
 import { LiveRecordLane } from "@/features/recording/live/LiveRecordLane";
 import { tapArmBlocked } from "@/features/recording/tapRecording";
 import { CompLayer, TakeLanes, TakesToggle, trackTakeEntries } from "@/features/comping";
+import { templateTrackEntries } from "@/features/templates";
 import { MOD_KEY, meterPosition, openContextMenu, setDragCursor, type ContextMenuEntry } from "@/kit";
 import { useEditorStore, useProjectStore, useTrackMeter } from "@/state";
 import {
@@ -243,6 +244,8 @@ function TrackHeader({ row }: { row: Row }) {
             track,
             useArrangementUi.getState().selectedTracks,
           ),
+          // templates: save as / insert a track template.
+          ...templateTrackEntries(useProjectStore.getState().project, track, useArrangementUi.getState().selectedTracks),
         ]);
       }}
       role="group"
@@ -767,6 +770,59 @@ function GroupLane({ track }: { track: Track }) {
           />
         ))}
       </LaneLayer>
+    </div>
+  );
+}
+
+/**
+ * base-106: clips dragged below the last track: the new tracks the drop will create, as
+ * ghost rows (in the draft row's style) right under the last track, with the dragged clips
+ * where they will land. Not interactive (the drag follows the pointer itself).
+ */
+export function NewTrackGhostRows() {
+  const preview = useArrangementUi((s) => (s.preview?.newTracks?.length ? s.preview : null));
+  const headerWidth = useArrangementUi((s) => s.headerWidth);
+  const height = useArrangementUi((s) => s.defaultHeight);
+  const clips = useProjectStore((s) => s.project?.clips ?? EMPTY_CLIPS);
+  const tempo = useTempoMap();
+  const { vp, visible } = useLaneView();
+  if (!preview) return null;
+  return (
+    <div className="eth-arr__ghost-rows" data-testid="new-track-ghosts">
+      {preview.newTracks!.map((lane) => (
+        <div
+          key={lane.id}
+          className="eth-arr-row eth-arr-row--draft eth-arr-row--ghost"
+          style={{ height }}
+          data-testid="new-track-ghost"
+          data-kind={lane.kind}
+        >
+          <div className="eth-arr-row__main" style={{ height }}>
+            <div className="eth-arr-header eth-arr-header--draft" style={{ width: headerWidth }}>
+              <span className="eth-arr-header__name">{lane.kind === "Midi" ? "New MIDI track" : "New audio track"}</span>
+            </div>
+            <div className="eth-arr-lane eth-arr-lane--ghost">
+              <LaneLayer origin={vp.scrollBeats}>
+                {laneItems(clips, lane.id, preview).map((it) =>
+                  it.bounds.start + it.bounds.length < visible.start || it.bounds.start > visible.end ? null : (
+                    <ClipView
+                      key={it.clip.id}
+                      clip={it.clip}
+                      bounds={it.bounds}
+                      trackColor={lane.color}
+                      vp={vp}
+                      visible={visible}
+                      tempo={tempo}
+                      dragging
+                      ghost={it.ghost}
+                    />
+                  ),
+                )}
+              </LaneLayer>
+            </div>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

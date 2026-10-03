@@ -818,6 +818,63 @@ paths = [
   "ui/src/features/arrangement/clipboard.ts",
   "ui/src/features/arrangement/ArrangementView.tsx",
   "ui/src/features/arrangement/actions.ts",
+  # shared touch (BCR, insert marker): paste no longer moves the playhead
+  "ui/src/features/arrangement/ArrangementView.test.tsx",
+]
+
+[nodes.agent-api]
+# Owner request (2026-10-03): MCP support. One agent tool registry in the controller (works native + wasm),
+# exposed as Command::Agent {ListTools, CallTool}; `ether-mcp` stdio server bridging to the running desktop
+# app over a loopback remote-engine socket (opt-in, token in a 0600 runtime file), or headless on a project.
+# The in-app AI chat (`ai-chat`) uses the same commands.
+paths = [
+  "crates/ether-mcp/**",
+  "crates/ether-protocol/src/agent.rs",
+  "crates/ether-controller/src/agent/**",
+  "crates/ether-controller/tests/agent*.rs",
+  "crates/ether-native/tests/agent*.rs",
+  "apps/desktop/src-tauri/src/agent_bridge*.rs",
+  "apps/desktop/src-tauri/src/agent_bridge/**",
+  "docs/MCP.md",
+  # shared touches (additive): Agent domain + ReplyValue variants, ts exports, dispatch arm, state field
+  "crates/ether-protocol/src/lib.rs",
+  "crates/ether-protocol/src/message.rs",
+  "crates/ether-protocol/src/ts.rs",
+  "crates/ether-controller/src/lib.rs",
+  "crates/ether-controller/src/handlers.rs",
+  # shared touches: reuse the remote-engine router/listener as a library for the desktop bridge
+  "crates/ether-server/src/**",
+  "crates/ether-server/Cargo.toml",
+  "crates/ether-native/src/lib.rs",
+  "apps/desktop/src-tauri/src/lib.rs",
+  "apps/desktop/src-tauri/Cargo.toml",
+  # shared touches: workspace member, `just mcp` recipe, README + CONTRACTS sections
+  "Cargo.toml",
+  "justfile",
+  "README.md",
+  "docs/CONTRACTS.md",
+  # shared (roadmap_v*.rs "unsupported until implemented" lists): remove only Agent entries
+  "crates/ether-controller/tests/roadmap_v*.rs",
+]
+
+[nodes.ai-chat]
+# Owner request (2026-10-03): AI chat mode inside the app, driving it through the same agent API
+# (Command::Agent ListTools/CallTool) as the MCP server. BYOK Anthropic API key.
+paths = [
+  "ui/src/features/ai-chat/**",
+  "ui/src/transport/mock/roadmap/agent.*",
+  "apps/web/e2e/ai-chat*.spec.ts",
+  # shared touch (approved BCR): one dependency line, @anthropic-ai/sdk
+  "ui/package.json",
+  # shared touches: MockAgent routing (import, field, Agent case)
+  "ui/src/transport/mock/MockTransport.ts",
+  "ui/src/transport/mock/MockTransport.test.ts",
+  # shared touches: chat panel tab + "Ask AI" palette command + shortcut
+  "ui/src/app/shell/LeftRail.tsx",
+  "ui/src/app/shell/tabs.tsx",
+  "ui/src/app/shell/shellStore.ts",
+  "ui/src/app/shell/commands.ts",
+  "ui/src/app/shell/FloatingPane.tsx",
 ]
 
 [nodes.turn-hardening]
@@ -1492,6 +1549,15 @@ paths = [
   "crates/ether-wasm/src/lib.rs",
   # shared touch: underrun reporting (append-only MediaEvent variant) if needed
   "crates/ether-protocol/src/media.rs",
+  # shared touch (v0.3 grant): one additive state field + initializer on EtherController
+  "crates/ether-controller/src/lib.rs",
+  # shared touch (BCR): RecordingShared::projects_root getter; WebBridge ranged reader; readRange fs op
+  "crates/ether-native/src/recording/mod.rs",
+  "crates/ether-wasm/src/web.rs",
+  "apps/web/src/engine/syncFs.ts",
+  "apps/web/src/engine/protocol.ts",
+  "apps/web/src/engine/opfs.worker.ts",
+  "apps/web/src/engine/ether-wasm.d.ts",
 ]
 
 [nodes.midi-expression]
@@ -1529,6 +1595,20 @@ paths = [
   # shared touch: lanes under the piano roll (mount, lane picker, curve editing)
   "ui/src/features/piano-roll/**",
   "ui/src/transport/mock/roadmap/liveRecord.*",
+  # shared touch (v0.3 grant): one additive state field + initializer on EtherController
+  "crates/ether-controller/src/lib.rs",
+  # shared touch (BCR): ExpressionRt on TrackRt (+inherit); ActiveNote source (clip, note index, start);
+  # NoteSink records it; ExpressionRt::compile at TrackRt construction; prewire hook test
+  "crates/ether-core/src/mixer.rs",
+  "crates/ether-core/src/sched.rs",
+  "crates/ether-core/src/graph.rs",
+  "crates/ether-core/tests/roadmap_v4_hooks.rs",
+  # shared touch (BCR): one NodeInit field (midi_map from IMidiMapping) in activate
+  "crates/ether-vst3/src/plugin.rs",
+  # shared touch (BCR): Poly Synth bend settles while no voice is active (block-size independent render)
+  "crates/ether-devices/src/poly_synth/engine.rs",
+  # shared touch (BCR): mock cascades/copies for the expression tables
+  "ui/src/transport/mock/documentReducer.ts",
 ]
 
 [nodes.mpe]
@@ -1561,6 +1641,17 @@ paths = [
   "ui/src/app/shell/Inspector.tsx",
   "ui/src/features/piano-roll/**",
   "ui/src/features/expression/**",
+  # shared touch (v0.3 grant): one additive state field + initializer on EtherController
+  "crates/ether-controller/src/lib.rs",
+  # shared touch (BCR): live MPE monitoring, one call in RecordingRt::process (identity without MPE)
+  "crates/ether-core/src/recording/mod.rs",
+  "crates/ether-core/tests/mpe*.rs",
+  # shared touch (BCR): the test plugin echoes NoteExpression events as MIDI out; CLAP/VST3 mpe tests
+  "crates/ether-clap/examples/ether_test_plugin.rs",
+  "crates/ether-clap/tests/mpe*.rs",
+  "crates/ether-vst3/tests/mpe*.rs",
+  # shared touch (BCR): mock live-record commit adds mpeTakeCommands (same undo step)
+  "ui/src/transport/mock/roadmap/liveRecord.ts",
 ]
 
 [nodes.capture-midi]
@@ -1579,6 +1670,8 @@ paths = [
   "ui/src/app/shell/commands.ts",
   # shared touch: mock MIDI input simulation for the capture buffer
   "ui/src/transport/mock/MockTransport.ts",
+  # shared touch (v0.3 grant): one additive state field + initializer on EtherController
+  "crates/ether-controller/src/lib.rs",
 ]
 
 [nodes.audio-to-midi]
@@ -1594,6 +1687,10 @@ paths = [
   "crates/ether-controller/tests/roadmap_v4.rs",
   # shared touch: clip context menu entry ("Convert to MIDI...")
   "ui/src/features/arrangement/ClipView.tsx",
+  # shared touch (v0.3 grant): one additive state field + initializer on EtherController
+  "crates/ether-controller/src/lib.rs",
+  # shared touch (BCR): pass the mock host to audioToMidiCommand
+  "ui/src/transport/mock/MockTransport.ts",
 ]
 
 [nodes.fx-space]
@@ -1619,6 +1716,20 @@ paths = [
   # shared touch: an IR widget (BCR to the widget catalog if a new widget kind is needed)
   "ui/src/features/devices/layout/Widget.tsx",
   "ui/src/features/devices/layout/widgets/data.tsx",
+  # shared touch (v0.3 grant): one additive state field + initializer on EtherController
+  "crates/ether-controller/src/lib.rs",
+  # shared touch (BCR): realfft dependency (already in Cargo.lock via rubato)
+  "Cargo.toml",
+  "crates/ether-devices/Cargo.toml",
+  # shared touch (BCR): pass the SampleResolver to fx_space::create
+  "crates/ether-devices/src/lib.rs",
+  # shared touch (BCR): fx_space::updatable_in_place in the in-place update check (IR crossfade)
+  "crates/ether-controller/src/engine.rs",
+  # shared touch (BCR, optional): EngineMsg::UpdateBuiltin so the web swaps IRs (and samplers) in place
+  "crates/ether-wasm/src/proto.rs",
+  "crates/ether-wasm/src/worklet.rs",
+  # shared touch (BCR 2): presets carry the convolution reverb IR (preset_kind, kind_media, remap_kind)
+  "crates/ether-controller/src/presets/mod.rs",
 ]
 
 [nodes.external-instrument]
@@ -1652,6 +1763,14 @@ paths = [
   # shared touch: routing UI widget in the shared renderer
   "ui/src/features/devices/layout/Widget.tsx",
   "ui/src/features/devices/layout/widgets/data.tsx",
+  # shared touch (BCR): Widget::HardwareRouting catalog entry + its exhaustive-match lines
+  "crates/ether-protocol/src/layout.rs",
+  "ui/src/features/devices/layout/model.ts",
+  "crates/ether-devices/tests/layouts.rs",
+  # shared touch (BCR): external::updatable_in_place (routing change keeps the live node)
+  "crates/ether-controller/src/engine.rs",
+  # shared touch (BCR 2): builtinDevice defaults for v0.3 built-ins with data (external devices AND ConvolutionReverb)
+  "ui/src/features/devices/descriptors.ts",
 ]
 
 [nodes.undo-history]
@@ -1667,6 +1786,8 @@ paths = [
   "crates/ether-model/src/history.rs",
   # shared touch: JumpTo through the Edit::{Undo, Redo} path; per-site steps in a session
   "crates/ether-controller/src/handlers.rs",
+  # shared touch (BCR): one state field + initializer on EtherController
+  "crates/ether-controller/src/lib.rs",
   "crates/ether-controller/src/collab/mod.rs",
   # shared touch: the mock undo stack exposes steps
   "ui/src/transport/mock/MockTransport.ts",
@@ -1674,6 +1795,8 @@ paths = [
   "ui/src/app/shell/tabs.tsx",
   "ui/src/app/shell/LeftRail.tsx",
   "ui/src/app/shell/commands.ts",
+  # shared touch (BCR): one-word LeftTab union member "history"
+  "ui/src/app/shell/shellStore.ts",
 ]
 
 [nodes.templates]
@@ -1692,6 +1815,12 @@ paths = [
   "ui/src/app/shell/commands.ts",
   # shared touch: NewProject next to Project::Create
   "crates/ether-controller/src/project.rs",
+  # shared touch (v0.3 grant): one additive state field + initializer on EtherController
+  "crates/ether-controller/src/lib.rs",
+  # shared touch (BCR): template insert hook + template scope in dispatch (one gesture, one undo step)
+  "crates/ether-controller/src/handlers.rs",
+  # shared touch (BCR): MockTemplates construction + Template domain routing
+  "ui/src/transport/mock/MockTransport.ts",
 ]
 
 [nodes.project-versions]
@@ -1715,6 +1844,8 @@ paths = [
   "ui/src/app/App.tsx",
   # shared touch: the mock project store keeps versions
   "ui/src/transport/mock/MockTransport.ts",
+  # shared touch (v0.3 grant): one additive state field + initializer on EtherController
+  "crates/ether-controller/src/lib.rs",
 ]
 
 [nodes.keymap]
@@ -1737,6 +1868,16 @@ paths = [
   "ui/src/features/transport-bar/index.tsx",
   "ui/src/features/time-edits/useArrangementTimeEdits.ts",
   "ui/src/features/comping/actions.ts",
+  # shared touch (v0.3 grant): one additive state field + initializer on EtherController
+  "crates/ether-controller/src/lib.rs",
+  # shared touch (BCR): session keymap field; MockKeymap route; registry lookups (matchesAction) in key handlers, defaults unchanged
+  "ui/src/transport/mock/MockTransport.ts",
+  "ui/src/features/project/index.tsx",
+  "ui/src/app/shell/EditorDrawer.tsx",
+  "ui/src/features/collab/social/chatStore.ts",
+  "ui/src/features/import/picker.ts",
+  "ui/src/features/automation/AutomationLaneView.tsx",
+  "ui/src/features/time-edits/actions.ts",
 ]
 
 [nodes.web-latency]
@@ -1749,6 +1890,8 @@ paths = [
   "crates/ether-wasm/src/worklet.rs",
   "crates/ether-wasm/src/bridge.rs",
   "apps/web/e2e/web-latency*.spec.ts",
+  # shared touch (v0.3 grant): one additive state field + initializer on EtherController
+  "crates/ether-controller/src/lib.rs",
 ]
 
 [nodes.ux-followups]
@@ -1773,6 +1916,11 @@ paths = [
   # drop EqCurvePlaceholder
   "ui/src/features/devices/layout/**",
   "apps/web/e2e/ux-followups*.spec.ts",
+  # shared touch (v0.3 grant): one additive state field + initializer on EtherController
+  "crates/ether-controller/src/lib.rs",
+  # shared touch (BCR, layout only): Tempo-tab time-signature denominator clipping (base-108 follow-up)
+  "ui/src/features/tempo/tempo.css",
+  "ui/src/features/tempo/TempoEditor.tsx",
 ]
 
 [nodes.rack-presets]
@@ -1793,6 +1941,10 @@ paths = [
   # shared touch: register factory rack presets
   "crates/ether-devices/src/racks/**",
   "crates/ether-devices/tests/v02_descriptors.rs",
+  # shared touch (v0.3 grant): one additive state field + initializer on EtherController
+  "crates/ether-controller/src/lib.rs",
+  # shared touch (BCR): browser v2 loads presets through loadPresetCommand (seed for rack presets)
+  "ui/src/features/browser/v2/BrowserV2.tsx",
 ]
 
 # --- Sharing: P2P host hub, invite links (base-115, docs/SHARING.md §12) ---------------

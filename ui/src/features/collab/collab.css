@@ -27,7 +27,7 @@
   height: var(--eth-collab-avatar-size);
   border-radius: var(--eth-radius-round);
   background: var(--eth-collab-peer);
-  color: var(--eth-color-bg);
+  color: var(--eth-collab-peer-ink, var(--eth-ink-dark));
   font-size: var(--eth-fs-xs);
   font-weight: 600;
   line-height: 1;
@@ -97,4 +97,14 @@
   width: var(--eth-size-icon-inline);
   height: var(--eth-size-icon-inline);
   fill: currentColor;
+}
+/* base-114: inline join-field errors and the remembered token. */
+.eth-collab__field-error {
+  margin-top: calc(-1 * var(--eth-space-xs));
+  font-size: var(--eth-fs-xs);
+}
+.eth-collab__remember {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-xs);
 }

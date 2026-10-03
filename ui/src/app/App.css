@@ -89,19 +89,31 @@
   /* A step lighter than the arrangement under it, so the card reads as floating on top. */
   background: var(--eth-color-bg-raised);
   box-shadow: var(--eth-shadow-lg);
-  /* No transition on left/right: the drawer's edges follow the side panes exactly (they
-     take their final place at once and only fade/slide in), never lagging behind them. */
-  transition: box-shadow var(--eth-duration-normal) var(--eth-ease-out);
+  /* The edges move (pin/unpin, the drawer next to a side pane opening or closing) on the
+     side panes' own enter/exit timing, so the drawer's edges track theirs. */
+  transition:
+    box-shadow var(--eth-duration-normal) var(--eth-ease-out),
+    top var(--eth-duration-normal) var(--eth-ease-out),
+    bottom var(--eth-duration-normal) var(--eth-ease-out),
+    left var(--eth-duration-normal) var(--eth-ease-out),
+    right var(--eth-duration-normal) var(--eth-ease-out);
   animation: var(--float-enter) var(--eth-duration-normal) var(--eth-ease-out) both;
 }
+/* Pinned: flush with the workspace edges and shadowed like the arrangement card beside it
+   (only the gap to the arrangement remains). */
 .eth-float--pinned {
-  box-shadow: var(--eth-shadow-md);
+  box-shadow: var(--eth-shadow-sm);
+}
+/* Resizing a pane by its edge: the drawer's edges follow the pointer at once. */
+:root[data-drag-cursor] .eth-float {
+  transition: none;
 }
 .eth-float--closing {
   animation: var(--float-exit) var(--float-exit-duration) var(--eth-ease-in) both;
   pointer-events: none;
 }
-/* Panes float inset from the workspace edges (and each other) by --eth-size-float-gap. */
+/* Panes float inset from the workspace edges (and each other) by --eth-size-float-gap;
+   pinned, they sit flush with the workspace edges like the arrangement. */
 .eth-float--left {
   top: var(--eth-size-float-gap);
   bottom: var(--eth-size-float-gap);
@@ -109,6 +121,11 @@
   width: var(--pane-left-size);
   --float-enter: eth-float-in-left;
   --float-exit: eth-float-out-left;
+}
+.eth-float--left.eth-float--pinned {
+  top: 0;
+  bottom: 0;
+  left: var(--eth-size-rail-width);
 }
 .eth-float--right {
   top: var(--eth-size-float-gap);
@@ -118,15 +135,31 @@
   --float-enter: eth-float-in-right;
   --float-exit: eth-float-out-right;
 }
-/* The drawer spans between the open side panes (panes never overlap each other). */
+.eth-float--right.eth-float--pinned {
+  top: 0;
+  bottom: 0;
+  right: 0;
+}
+/* The drawer spans between the open side panes (panes never overlap each other; the
+   offsets come from `paneLayout`). */
 .eth-float--bottom {
   z-index: 19;
   bottom: var(--eth-size-float-gap);
-  left: calc(var(--eth-size-rail-width) + var(--pane-left-occupied) + var(--eth-size-float-gap));
-  right: calc(var(--pane-right-occupied) + var(--eth-size-float-gap));
+  left: calc(var(--eth-size-rail-width) + var(--pane-bottom-left));
+  right: var(--pane-bottom-right);
   height: var(--pane-bottom-size);
   --float-enter: eth-float-in-bottom;
   --float-exit: eth-float-out-bottom;
+}
+/* Pinned, the drawer lines up with the arrangement: its edges move with the arrangement's
+   padding (same timing), so the two stay aligned while a side pane opens or closes. */
+.eth-float--bottom.eth-float--pinned {
+  bottom: 0;
+  transition:
+    box-shadow var(--eth-duration-normal) var(--eth-ease-out),
+    bottom var(--eth-duration-normal) var(--eth-ease-out),
+    left var(--eth-duration-slow) var(--eth-ease-standard),
+    right var(--eth-duration-slow) var(--eth-ease-standard);
 }
 .eth-float {
   --float-exit-duration: var(--eth-duration-normal);

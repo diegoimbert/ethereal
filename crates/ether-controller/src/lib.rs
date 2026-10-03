@@ -29,9 +29,11 @@
 //! - **Engine sample rate.** Media is resampled to [`ControllerConfig::engine_sample_rate`];
 //!   hosts call [`EtherController::set_engine_sample_rate`] when the device changes.
 
+pub mod agent;
 mod analysis;
 mod audio_to_midi;
 mod browser;
+pub mod bundle;
 mod capture;
 mod clip_editing;
 mod collab;
@@ -560,6 +562,8 @@ where
     uploads: upload::UploadState,
     /// Collaboration session (`collab` module).
     collab: collab::CollabState,
+    /// base-115: sharing (docs/SHARING.md).
+    share: share::ShareCtl,
     /// v0.2: watched devices for the analysis channel (`analysis` module).
     analysis: analysis::AnalysisState,
     /// v0.2: the time clipboard (`time_edit` module; runtime state, not undoable).
@@ -568,6 +572,14 @@ where
     capture: capture::CaptureState,
     /// v0.3: the running audio-to-MIDI job (`audio_to_midi` module).
     audio_to_midi: audio_to_midi::AudioToMidiState,
+    /// v0.3: the session keymap for hosts without a writable user library (`keymap` module).
+    keymap: keymap::KeymapState,
+    /// `agent-api`: agent tool runtime state (shared selection, export jobs).
+    agent: agent::AgentState,
+    /// v0.3: rolling versions and the crash-recovery session marker (`versions` module).
+    versions: versions::VersionsState,
+    /// v0.3: the history panel (`undo_history` module; runtime).
+    undo_history: undo_history::UndoHistoryState,
     next_gesture: u32,
     last_transport: Option<TransportState>,
     outputs: EngineOutputs,
@@ -616,10 +628,15 @@ where
             browser: Default::default(),
             uploads: Default::default(),
             collab: Default::default(),
+            share: Default::default(),
             analysis: Default::default(),
             time_edit: Default::default(),
             capture: Default::default(),
             audio_to_midi: Default::default(),
+            keymap: Default::default(),
+            agent: Default::default(),
+            versions: Default::default(),
+            undo_history: Default::default(),
             // Internal gestures (plugin GUI, tap tempo) live in the upper half of the id
             // space, away from UI-allocated ones.
             next_gesture: 0x8000_0000,
@@ -690,23 +707,28 @@ where
 {
     fn handle(&mut self, message: ClientMessage, out: &mut dyn MessageSink) {
         let now = self.host.now_ms();
-        let result = self.dispatch(&message, now, out);
-        self.emit_transport_if_changed(out);
-        out.send(ServerMessage::Reply(Reply {
+        // `agent-api`: export events are remembered for `get_export_status`.
+        let mut tap = agent::ExportTap::new(out);
+        let result = self.dispatch(&message, now, &mut tap);
+        self.emit_transport_if_changed(&mut tap);
+        tap.send(ServerMessage::Reply(Reply {
             id: message.id,
             result: match result {
                 Ok(value) => ReplyResult::Ok { value },
                 Err(error) => ReplyResult::Err { error },
             },
         }));
-        self.publish_if_due(now, false, out);
+        self.publish_if_due(now, false, &mut tap);
+        self.agent_absorb(tap);
     }
 
     fn tick(&mut self, now_ms: u64, out: &mut dyn MessageSink) {
         // `latency-republish`: a changed node latency marks the graph dirty; the tick's
         // publish below then recomputes PDC.
         self.engine.check_latencies(&self.bridge, now_ms);
-        self.tick_impl(now_ms, out);
+        let mut tap = agent::ExportTap::new(out);
+        self.tick_impl(now_ms, &mut tap);
+        self.agent_absorb(tap);
     }
 
     fn project(&self) -> Option<&Project> {

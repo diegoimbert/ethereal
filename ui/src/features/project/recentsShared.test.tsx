@@ -4,6 +4,7 @@
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Command, ProjectShareInfo, ProjectSummary, ShareCommand } from "@/generated";
+import { useNotices } from "@/features/notifications";
 import { renderWithMock, resetStores } from "@/features/transport-bar/testUtils";
 import { useContextMenuStore } from "@/kit";
 import { useProjectStore } from "@/state";
@@ -85,6 +86,7 @@ beforeEach(() => {
 afterEach(() => {
   resetStores();
   useShareSession.getState().set({ type: "Off" });
+  useNotices.getState().clear();
   useProjectScreen.setState({ open: false, launchPending: false });
 });
 
@@ -166,15 +168,15 @@ describe("Recents: shared projects", () => {
 
   it("offers the right menu entries per role", async () => {
     const { dialog } = await setup({ "Beat sketch": HOST, "Ambient idea": COPY });
-    expect(menuLabels(dialog, "Beat sketch")).toEqual(["Open", "Rename", "Duplicate", "—", "Copy invite link", "Stop sharing…", "—", "Delete…"]);
-    expect(menuLabels(dialog, "Ambient idea")).toEqual(["Open", "Rename", "Duplicate", "—", "Reconnect", "Make a private copy…", "—", "Delete…"]);
+    expect(menuLabels(dialog, "Beat sketch")).toEqual(["Open", "Rename", "Duplicate", "Export…", "—", "Copy invite link", "Stop sharing…", "—", "Delete…"]);
+    expect(menuLabels(dialog, "Ambient idea")).toEqual(["Open", "Rename", "Duplicate", "Export…", "—", "Reconnect", "Make a private copy…", "—", "Delete…"]);
   });
 
   it("copies the invite link of a hosted project, opening and resuming it first", async () => {
     const { dialog, sent } = await setup({ "Beat sketch": HOST });
     menuLabels(dialog, "Beat sketch");
     pick("Copy invite link");
-    expect(await within(dialog).findByRole("status")).toHaveTextContent("Link copied");
+    await waitFor(() => expect(useNotices.getState().notices.map((n) => n.message)).toContain("Link copied"));
     expect(useProjectStore.getState().project!.settings.name).toBe("Beat sketch");
     expect(sent.map((c) => c.type)).toContain("Start");
     expect(clipboard).toHaveLength(1);

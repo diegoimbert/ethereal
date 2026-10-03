@@ -34,6 +34,7 @@ import {
 } from "react";
 import type { AutomationLane, AutomationOwner, AutomationPoint, AutomationPointId, AutomationTarget, CurveShape, ParamInfo } from "@/generated";
 import { Button, Dialog, MOD_KEY, NumberField, openContextMenu, type ContextMenuEntry } from "@/kit";
+import { firstMatch } from "@/features/keymap";
 import { usePointsOfLane } from "@/state";
 import { paramToNormalized, paramToPlain } from "@/features/devices/paramScale";
 import {
@@ -62,6 +63,37 @@ import { LaneGesture, sendEdit } from "./gesture";
 import { formatNormalized, targetKey as keyOfTarget } from "./params";
 import { dragHint, FULL_RANGE, nudgeSize, paramStep, snapValue, stepDragDelta, stepLines, type ValueRange } from "./valueAxis";
 import "./automation.css";
+
+/** The lane's keymap actions (automation scope), in lookup order. */
+const AUTOMATION_ACTIONS = [
+  "edit.delete",
+  "edit.deleteModified",
+  "edit.selectAll",
+  "edit.copy",
+  "edit.cut",
+  "edit.paste",
+  "edit.duplicate",
+  "nudge.up",
+  "nudge.down",
+  "nudge.left",
+  "nudge.right",
+  "automation.fineUp",
+  "automation.fineDown",
+  "automation.fineLeft",
+  "automation.fineRight",
+] as const;
+
+/** Nudge actions -> [time steps, value steps, fine]. */
+const AUTOMATION_NUDGES: Partial<Record<string, readonly [number, number, boolean]>> = {
+  "nudge.up": [0, 1, false],
+  "nudge.down": [0, -1, false],
+  "nudge.left": [-1, 0, false],
+  "nudge.right": [1, 0, false],
+  "automation.fineUp": [0, 1, true],
+  "automation.fineDown": [0, -1, true],
+  "automation.fineLeft": [-1, 0, true],
+  "automation.fineRight": [1, 0, true],
+};
 
 export interface AutomationLaneViewProps {
   /** The document lane, or `null` when the parameter is shown but has no lane yet. */
@@ -380,38 +412,37 @@ export function AutomationLaneView({
   };
 
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
-    const mod = e.metaKey || e.ctrlKey;
-    const k = e.key.toLowerCase();
+    // keymap: chords from the user's keymap (automation scope; see the registry).
+    const action = firstMatch(AUTOMATION_ACTIONS, e);
     const handled = () => {
       e.preventDefault();
       e.stopPropagation();
     };
-    if (e.key === "Delete" || e.key === "Backspace") {
+    if (action === "edit.delete" || action === "edit.deleteModified") {
       // Always keep Delete in the focused lane, even with nothing to delete: bubbling up,
       // it would delete the arrangement's selected clips.
       handled();
       const ids = selectedHere().map((p) => p.id);
       if (ids.length === 0) return;
       void sendEdit(transport, removePointsCommand(ids));
-    } else if (mod && k === "a") {
+    } else if (action === "edit.selectAll") {
       handled();
       selection.getState().select(
         "automationPoint",
         live.current.points.map((p) => p.id),
         "replace",
       );
-    } else if (mod && !e.shiftKey && !e.altKey && (k === "c" || k === "x" || k === "v" || k === "d")) {
+    } else if (action === "edit.copy" || action === "edit.cut" || action === "edit.paste" || action === "edit.duplicate") {
       handled();
-      if (k === "c") copy();
-      else if (k === "x") cut();
-      else if (k === "v") void pasteAt(playheadBeats());
+      if (action === "edit.copy") copy();
+      else if (action === "edit.cut") cut();
+      else if (action === "edit.paste") void pasteAt(playheadBeats());
       else duplicate();
-    } else if (!mod && (e.key === "ArrowUp" || e.key === "ArrowDown" || e.key === "ArrowLeft" || e.key === "ArrowRight")) {
+    } else if (action && AUTOMATION_NUDGES[action]) {
       if (selectedHere().length === 0) return;
       handled();
-      const dir = e.key === "ArrowUp" || e.key === "ArrowRight" ? 1 : -1;
-      if (e.key === "ArrowUp" || e.key === "ArrowDown") nudge(0, dir, e.shiftKey);
-      else nudge(dir, 0, e.shiftKey);
+      const [dt, dv, fine] = AUTOMATION_NUDGES[action];
+      nudge(dt, dv, fine);
     }
   };
 

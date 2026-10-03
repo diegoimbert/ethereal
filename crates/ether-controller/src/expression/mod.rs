@@ -2,43 +2,39 @@
 //! `ether_model::expression`, protocol `ether_protocol::expression`, engine
 //! `ether_core::expression`; CONTRACTS.md §13.2).
 //!
-//! - [`expression_command`]: every `ExpressionCommand` (document commands dispatched from
-//!   `doc::apply`, one undo step each; `SetTrackMpe` is delegated to [`crate::mpe`]).
-//! - [`track_expression`]: compile hook (`compile.rs`): a MIDI track's clip lanes and note
-//!   expressions → `TrackDesc::expression` (note indices in the clip's sorted note list;
-//!   `mpe` from `Track::mpe`).
-//! - Recording (shared touch in `recording/` and the native writer): CC / pitch bend /
-//!   channel and poly pressure played while recording become lanes and note expressions of
-//!   the recorded clip (thinned to at most one point per 5 ms per curve, keeping extremes).
-//! - Cascades are done (`doc/mod.rs`, `doc/notes.rs`): deleting a clip removes its lanes,
-//!   deleting a note its expressions; `DocCtx::copy_clip` copies both. Other note copies
-//!   (`Note::Duplicate`, split, consolidate, flatten, paste) are this node's to extend.
+//! # Model in one paragraph
+//! A MIDI clip has at most one **lane** per `ExpressionKind` (CC 0..=119, pitch bend,
+//! channel pressure): one channel-wide curve in content-relative beats, so it moves, loops
+//! and duplicates with the clip. A note has at most one **note expression** per
+//! `NoteExpressionKind` (`Pressure` here; `Pitch`/`Timbre` are `mpe`'s): a per-note curve
+//! in beats from the note start. A curve is one document value (`points`), edited whole
+//! (`SetPoints`, `SetNoteExpression`) or by range (`ReplaceRange`, a pencil stroke).
 //!
-//! Until the node lands: commands reply `Unsupported` (tests/roadmap_v4.rs) and nothing is
-//! compiled (v0.2 behaviour).
+//! # This module
+//! - [`expression_command`] ([`commands`]): every `ExpressionCommand` (document commands
+//!   dispatched from `doc::apply`, one undo step each; `SetTrackMpe` is delegated to
+//!   [`crate::mpe`]).
+//! - [`track_expression`] ([`compile`]): compile hook (`compile.rs`): a MIDI track's clip
+//!   lanes and note expressions → `TrackDesc::expression` (note indices in the clip's
+//!   compiled, sorted note list; `mpe` from `Track::mpe`).
+//! - [`copy`]: note copies outside `DocCtx::copy_clip` keep their expressions
+//!   (`Note::Duplicate`, clip split, paste, consolidate, comp flatten).
+//! - [`record`]: CC / pitch bend / channel pressure played while recording become lanes of
+//!   the recorded clip, poly pressure the notes' `Pressure` expressions (thinned, see
+//!   [`record::thin`]).
+//! - Cascades are done (`doc/mod.rs`): deleting a clip removes its lanes, deleting a note
+//!   its expressions; `DocCtx::copy_clip` copies both.
+//!
+//! # For `mpe`
+//! Per-note `Pitch`/`Timbre` curves already go through every path here (commands, compile,
+//! copies, engine rendering). `mpe` adds `SetTrackMpe`, the MPE reading of the recorded
+//! MIDI (member channels → note expressions, next to [`record::note_expressions`]) and the
+//! receivers.
 
-use ether_core::expression::TrackExpressionDesc;
-use ether_core::protocol::expression::ExpressionCommand;
-use ether_core::protocol::model::{Project, Track};
+mod commands;
+mod compile;
+pub(crate) mod copy;
+pub(crate) mod record;
 
-use crate::doc::DocCtx;
-use crate::tx::{CmdResult, unsupported};
-
-/// Apply one `ExpressionCommand`.
-pub(crate) fn expression_command(ctx: &mut DocCtx, c: &ExpressionCommand) -> CmdResult<()> {
-    match c {
-        ExpressionCommand::SetTrackMpe { track, mpe } => {
-            crate::mpe::set_track_mpe(ctx, *track, *mpe)
-        }
-        other => Err(unsupported(format!(
-            "{} is not implemented yet (midi-expression)",
-            crate::doc::label_of(&ether_core::protocol::Command::Expression(other.clone()))
-        ))),
-    }
-}
-
-/// Compile hook: the expression of `track`'s compiled clips. Placeholder: empty.
-pub(crate) fn track_expression(project: &Project, track: &Track) -> TrackExpressionDesc {
-    let _ = (project, track);
-    TrackExpressionDesc::default()
-}
+pub(crate) use commands::expression_command;
+pub(crate) use compile::track_expression;

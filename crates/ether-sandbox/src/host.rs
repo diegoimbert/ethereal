@@ -48,6 +48,16 @@ impl Default for SandboxOptions {
     }
 }
 
+/// The audio thread's spin-wait budget when [`SandboxOptions::wait_budget`] is `None` (the
+/// production default): a quarter of a max-size block, e.g. ~1.33 ms for 256 frames at
+/// 48 kHz. Tests that render offline pass a long explicit budget instead, so a helper
+/// starved of CPU on a loaded machine can't turn their blocks into underruns.
+pub fn default_wait_budget(config: &PrepareConfig) -> Duration {
+    Duration::from_secs_f64(
+        config.max_block_size as f64 / f64::from(config.sample_rate.max(1.0)) / 4.0,
+    )
+}
+
 /// Distinguishes the IPC objects of several instances/activations in one host process.
 static NEXT_ID: AtomicU32 = AtomicU32::new(0);
 
@@ -338,11 +348,10 @@ impl PluginController for SandboxedPlugin {
             let v = self.param_value(p.id).unwrap_or(p.default);
             values.push((p.id.0, v));
         }
-        let wait_budget = self.options.wait_budget.unwrap_or_else(|| {
-            Duration::from_secs_f64(
-                config.max_block_size as f64 / f64::from(config.sample_rate.max(1.0)) / 4.0,
-            )
-        });
+        let wait_budget = self
+            .options
+            .wait_budget
+            .unwrap_or_else(|| default_wait_budget(config));
         Ok(Box::new(SandboxedNode::new(NodeInit {
             region,
             sem,
@@ -467,5 +476,26 @@ impl Drop for SandboxedPlugin {
                 let _ = reader.join();
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The production budget is unchanged: no explicit budget by default, which means a
+    /// quarter of a max-size block.
+    #[test]
+    fn default_wait_budget_is_a_quarter_block() {
+        assert_eq!(SandboxOptions::default().wait_budget, None);
+        let config = |max_block_size, sample_rate| PrepareConfig {
+            sample_rate,
+            max_block_size,
+            max_events_per_block: 64,
+        };
+        let us = |d: Duration| d.as_secs_f64() * 1e6;
+        assert!((us(default_wait_budget(&config(256, 48_000.0))) - 1_333.333).abs() < 0.01);
+        assert!((us(default_wait_budget(&config(512, 44_100.0))) - 2_902.494).abs() < 0.01);
+        assert!((us(default_wait_budget(&config(64, 48_000.0))) - 333.333).abs() < 0.01);
     }
 }

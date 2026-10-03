@@ -17,5 +17,6 @@
     "skipLibCheck": true,
     "types": []
   },
-  "include": ["src"]
+  "include": ["src", "../../scripts/release/web/functions"],
+  "exclude": ["src/**/*.test.ts"]
 }

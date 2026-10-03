@@ -2,7 +2,9 @@ import { useCallback, useEffect, useState } from "react";
 import type { DeviceId, PluginDescriptor } from "@/generated";
 import { addInstrumentCommand } from "@/features/devices/instrument";
 import { resolveSelectedTrack } from "@/features/devices/selectedTrack";
-import { Badge, Button, Select, type SelectOption } from "@/kit";
+import { FolderCog } from "lucide-react";
+import { openSettings } from "@/features/audio-settings/store";
+import { Badge, Button, IconButton, Select, type SelectOption } from "@/kit";
 import { devicesOfTrack, useProjectStore, useSelectedTrackId } from "@/state";
 import { cmd, newId, useTransport, useTransportEvent } from "@/transport";
 import { canInsert, filterPlugins, FORMAT_LABEL, type FormatFilter, insertCommand, pluginKey } from "./filter";
@@ -95,9 +97,10 @@ export function PluginList() {
           onChange={(e) => setQuery(e.target.value)}
         />
         <Select size="sm" aria-label="Plugin format" options={FORMAT_OPTIONS} value={format} onChange={setFormat} />
-        <Button size="sm" onClick={rescan} disabled={scan !== null} title="Scan the plugin folders again">
+        <Button size="sm" onClick={rescan} disabled={scan !== null} title="Scan new or changed plugins in the plugin folders">
           {scan ? "Scanning…" : "Rescan"}
         </Button>
+        <IconButton size="sm" tone="ghost" label="Plugin folders and full rescan" icon={<FolderCog />} onClick={() => openSettings("plugins")} />
       </div>
       {scan && (
         <div className="eth-plugins__status" role="status">

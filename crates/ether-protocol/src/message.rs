@@ -3,6 +3,7 @@
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
+use crate::agent::{AgentCommand, AgentToolSpec};
 use crate::analysis::{AnalysisCommand, AnalysisEvent};
 use crate::audio_to_midi::{AudioToMidiCommand, AudioToMidiEvent};
 use crate::automation::AutomationCommand;
@@ -28,7 +29,7 @@ use crate::midi_map::{MidiMapCommand, MidiMapEvent};
 use crate::mixer::MixerCommand;
 use crate::model::{GestureId, MediaId, MediaRef, MidiMapping, Patch, Project};
 use crate::notes::NoteCommand;
-use crate::plugins::{PluginCommand, PluginDescriptor, PluginEvent};
+use crate::plugins::{PluginCommand, PluginDescriptor, PluginEvent, PluginFolders};
 use crate::presets::{PresetCommand, PresetEvent, PresetInfo};
 use crate::project::{EditCommand, ProjectCommand, ProjectEvent, ProjectSummary};
 use crate::racks::{ModulationCommand, ModulatorDescriptor, RackCommand};
@@ -125,6 +126,10 @@ pub enum Command {
     // --- base-115 (sharing, docs/SHARING.md) ---
     /// Share / join: P2P host hub, invite links (not a document command).
     Share(ShareCommand),
+    // --- agent-api (owner request; docs/MCP.md) ---
+    /// LLM agent tools (in-app AI chat, MCP server). Not a document command itself: a tool
+    /// call that edits is one undo step.
+    Agent(AgentCommand),
 }
 
 /// Engine → UI. `Reply` answers exactly one `ClientMessage`; `Event`s are pushed;
@@ -189,6 +194,9 @@ pub enum ReplyValue {
     },
     Plugins {
         plugins: Vec<PluginDescriptor>,
+    },
+    PluginFolders {
+        folders: PluginFolders,
     },
     Media {
         media: MediaRef,
@@ -286,6 +294,22 @@ pub enum ReplyValue {
     },
     Keymap {
         keymap: Keymap,
+    },
+    // --- agent-api ---
+    /// `Agent::ListTools`.
+    AgentTools {
+        tools: Vec<AgentToolSpec>,
+    },
+    /// `Agent::CallTool`: `content` is JSON or plain text for the model; `is_error` marks a
+    /// failed call (unknown tool, invalid input, rejected edit).
+    AgentToolResult {
+        content: String,
+        is_error: bool,
+    },
+    /// base-114: a packed project bundle (`Project::ExportBundle` without a path), to pull
+    /// with `Export::ReadChunk`.
+    Bundle {
+        download: crate::export::ExportDownload,
     },
 }
 

@@ -1,0 +1,41 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.3.0",
+  "preset": {
+    "name": "Cathedral Wash",
+    "device": {
+      "type": "Builtin",
+      "device": "ConvolutionReverb"
+    },
+    "meta": {
+      "tags": [
+        "hall",
+        "ambient",
+        "long"
+      ],
+      "author": "Ethereal",
+      "description": "Long, dark and wide: for pads and ambient textures."
+    },
+    "params": {
+      "0": 50.0,
+      "1": 40.0,
+      "2": 100.0,
+      "3": 110.0,
+      "4": 200.0,
+      "5": 7000.0,
+      "6": 150.0,
+      "7": 0.0,
+      "8": 0.0
+    },
+    "kind": {
+      "type": "ConvolutionReverb",
+      "ir": {
+        "type": "Factory",
+        "id": "cathedral"
+      }
+    },
+    "samples": [],
+    "state": null
+  }
+}

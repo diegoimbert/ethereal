@@ -1,6 +1,8 @@
 import clsx from "clsx";
-import type { CSSProperties } from "react";
+import { useRef, type CSSProperties } from "react";
 import { knobGeometry } from "../theme/tokens";
+import "./Knob.css";
+import { centerParts, useCenterFit } from "./knobFit";
 import { useVerticalDrag } from "./useVerticalDrag";
 import type { Size } from "./variants";
 
@@ -13,6 +15,8 @@ export interface KnobProps {
   /** Pointer drag ended (close the gesture). */
   onChangeEnd?: () => void;
   label?: string;
+  /** Keep `label` as the accessible name only (no visible label under the ring), e.g. in list rows. */
+  hideLabel?: boolean;
   /** Arc drawn from the center (0.5) instead of from the minimum, e.g. pan. */
   bipolar?: boolean;
   /** Double-click resets to this value. Defaults to 0.5 when bipolar, else none. */
@@ -56,7 +60,8 @@ const DOT_R = 6;
 
 /**
  * Rotary control: a ring (the value arc from the minimum, or from the center when
- * bipolar) with a dot at the value. Large knobs show the value inside the ring; on hover,
+ * bipolar) with a dot at the value. Large knobs show the value inside the ring (the unit in
+ * the arc's bottom gap, both shrunk to fit); on hover,
  * focus or drag the label below turns into the value readout. Drag vertically to change
  * (Shift = fine), double-click to reset.
  */
@@ -66,6 +71,7 @@ export function Knob({
   onChangeStart,
   onChangeEnd,
   label,
+  hideLabel = false,
   bipolar = false,
   defaultValue,
   size = "md",
@@ -90,6 +96,11 @@ export function Knob({
   const [dx, dy] = polar(R, angle);
   const style = typeof size === "number" ? ({ "--knob-size": `${size}px` } as CSSProperties) : undefined;
   const center = valueText !== undefined && (typeof size === "number" ? size >= CENTER_MIN_PX : size === "lg");
+  const dialRef = useRef<HTMLSpanElement>(null);
+  const valueRef = useRef<HTMLSpanElement>(null);
+  const unitRef = useRef<HTMLSpanElement>(null);
+  useCenterFit(center ? valueText : undefined, { dial: dialRef, value: valueRef, unit: unitRef });
+  const parts = center ? centerParts(valueText) : null;
 
   return (
     <div
@@ -106,7 +117,7 @@ export function Knob({
       data-midi-target={midiTarget}
       {...handlers}
     >
-      <span className="eth-knob__dial">
+      <span ref={dialRef} className="eth-knob__dial">
         <svg className="eth-knob__svg" viewBox="0 0 100 100" aria-hidden="true">
           <circle className="eth-knob__body" cx={C} cy={C} r={R} />
           <path className="eth-knob__track" d={arc(R, START, START + SWEEP)} />
@@ -114,13 +125,20 @@ export function Knob({
           <line className="eth-knob__pointer" x1={qx} y1={qy} x2={px} y2={py} />
           <circle className="eth-knob__dot" cx={dx} cy={dy} r={DOT_R} />
         </svg>
-        {center && (
+        {parts && (
           <span className="eth-knob__center" aria-hidden="true">
-            {valueText}
+            <span ref={valueRef} className="eth-knob__center-value">
+              {parts.value}
+            </span>
+          </span>
+        )}
+        {parts?.unit && (
+          <span ref={unitRef} className="eth-knob__center-unit" aria-hidden="true">
+            {parts.unit}
           </span>
         )}
       </span>
-      {label && (
+      {label && !hideLabel && (
         <span className={clsx("eth-knob__label", valueText !== undefined && "eth-knob__label--readout")} aria-hidden="true">
           <span className="eth-knob__name">{label}</span>
           {valueText !== undefined && <span className="eth-knob__readout">{valueText}</span>}
