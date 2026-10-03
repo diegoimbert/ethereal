@@ -162,3 +162,7 @@
   border-radius: var(--eth-radius-md);
   background: var(--eth-color-bg-inset);
 }
+/* The recovery dialog has room: its times wrap rather than clip. */
+.eth-recovery__meta {
+  white-space: normal;
+}
