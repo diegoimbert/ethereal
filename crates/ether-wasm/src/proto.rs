@@ -8,12 +8,14 @@
 //!   [`MediaAssembler`]), so no single frame makes the audio thread convert or buffer a whole
 //!   file. The remaining small messages are JSON (tag `b'J'`).
 //! - Worklet → Worker: [`EngineReport`] (playhead, max-held meters, diagnostics; compact
-//!   binary encoded into a reused buffer so the audio thread doesn't allocate) and
-//!   [`REPORT_ERROR`] text messages (compile errors etc.).
+//!   binary encoded into a reused buffer so the audio thread doesn't allocate),
+//!   [`REPORT_ANALYSIS`] device analysis frames (`fx-analysis`, [`encode_analysis_into`])
+//!   and [`REPORT_ERROR`] text messages (compile errors etc.).
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
+use ether_core::analysis::{ANALYSIS_MAX_VALUES, AnalysisFrame, AnalysisKind};
 use ether_core::codec::{BinaryCodec, CodecError, GraphCodec};
 use ether_core::protocol::meters::TrackMeter;
 use ether_core::protocol::model::{BuiltinDevice, MediaId, ParamId, TrackId, Ulid};
@@ -72,6 +74,12 @@ pub enum EngineMsg {
         media: Option<MediaId>,
         gain: f32,
     },
+    /// v0.2 analysis channel: start/stop collecting a node's analysis frames
+    /// (`EngineHandle::watch_analysis`; the Worklet reports them as [`REPORT_ANALYSIS`]).
+    WatchAnalysis {
+        key: NodeKey,
+        on: bool,
+    },
 }
 
 /// The JSON-encoded subset of [`EngineMsg`].
@@ -98,6 +106,10 @@ enum JsonMsg {
         media: Option<MediaId>,
         gain: f32,
         id: u64,
+    },
+    WatchAnalysis {
+        key: NodeKey,
+        on: bool,
     },
 }
 
@@ -144,6 +156,7 @@ impl EngineMsg {
             EngineMsg::SetParam { change } => JsonMsg::SetParam { change },
             EngineMsg::Transport { control } => JsonMsg::Transport { control },
             EngineMsg::Preview { id, media, gain } => JsonMsg::Preview { media, gain, id },
+            EngineMsg::WatchAnalysis { key, on } => JsonMsg::WatchAnalysis { key, on },
         };
         let mut out = vec![TAG_JSON];
         serde_json::to_writer(&mut out, &json).expect("engine messages serialize");
@@ -221,6 +234,7 @@ impl<'a> Frame<'a> {
                     JsonMsg::SetParam { change } => EngineMsg::SetParam { change },
                     JsonMsg::Transport { control } => EngineMsg::Transport { control },
                     JsonMsg::Preview { media, gain, id } => EngineMsg::Preview { id, media, gain },
+                    JsonMsg::WatchAnalysis { key, on } => EngineMsg::WatchAnalysis { key, on },
                 }))
             }
             t => Err(DecodeError::Tag(t)),
@@ -355,6 +369,69 @@ impl MediaAssembler {
 pub const REPORT_STATE: u8 = b'R';
 /// Tag of an error text message (Worklet → Worker).
 pub const REPORT_ERROR: u8 = b'E';
+/// Tag of an analysis frame (Worklet → Worker; `fx-analysis`).
+pub const REPORT_ANALYSIS: u8 = b'A';
+
+// [A][node index u32][node generation u32][kind u8][len u16][len x f32 LE]; the node key is
+// the Worker's virtual key.
+const ANALYSIS_HEADER: usize = 1 + 4 + 4 + 1 + 2;
+/// Bytes of the largest analysis report (pre-size the Worklet's buffer with it).
+pub const ANALYSIS_REPORT_BYTES: usize = ANALYSIS_HEADER + 4 * ANALYSIS_MAX_VALUES;
+
+fn analysis_kind_tag(kind: AnalysisKind) -> u8 {
+    match kind {
+        AnalysisKind::Spectrum => 0,
+        AnalysisKind::Tuner => 1,
+        AnalysisKind::Levels => 2,
+        AnalysisKind::Modulation => 3,
+        AnalysisKind::SpectrumPre => 4,
+    }
+}
+
+/// **RT** (no allocation when `out` has [`ANALYSIS_REPORT_BYTES`] of capacity). Encode
+/// `frame`, produced by the node the Worker knows as `node`, into `out` (cleared first).
+pub fn encode_analysis_into(frame: &AnalysisFrame, node: NodeKey, out: &mut Vec<u8>) {
+    out.clear();
+    out.push(REPORT_ANALYSIS);
+    out.extend_from_slice(&node.index.to_le_bytes());
+    out.extend_from_slice(&node.generation.to_le_bytes());
+    out.push(analysis_kind_tag(frame.kind));
+    let values = frame.values();
+    out.extend_from_slice(&(values.len() as u16).to_le_bytes());
+    for v in values {
+        out.extend_from_slice(&v.to_le_bytes());
+    }
+}
+
+/// Decode a [`REPORT_ANALYSIS`] message (Worker side).
+pub fn decode_analysis(bytes: &[u8]) -> Result<AnalysisFrame, DecodeError> {
+    let mut c = Cursor(bytes);
+    if c.u8()? != REPORT_ANALYSIS {
+        return Err(DecodeError::Tag(bytes[0]));
+    }
+    let mut frame = AnalysisFrame::EMPTY;
+    frame.node = NodeKey {
+        index: c.u32()?,
+        generation: c.u32()?,
+    };
+    let kind = match c.u8()? {
+        0 => AnalysisKind::Spectrum,
+        1 => AnalysisKind::Tuner,
+        2 => AnalysisKind::Levels,
+        3 => AnalysisKind::Modulation,
+        4 => AnalysisKind::SpectrumPre,
+        t => return Err(DecodeError::Tag(t)),
+    };
+    frame.begin(kind);
+    let n = c.u16()? as usize;
+    if n > ANALYSIS_MAX_VALUES {
+        return Err(DecodeError::Truncated);
+    }
+    for _ in 0..n {
+        frame.push(c.f32()?);
+    }
+    Ok(frame)
+}
 
 /// Engine outputs since the previous report, Worklet → Worker.
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -699,5 +776,47 @@ mod tests {
         assert_eq!(buf.len(), EngineReport::encoded_len(1));
         assert_eq!(buf.capacity(), cap);
         assert_eq!(EngineReport::decode(&buf).unwrap(), report);
+    }
+
+    #[test]
+    fn analysis_frames_roundtrip_without_realloc() {
+        let mut f = AnalysisFrame::EMPTY;
+        f.begin(AnalysisKind::Tuner);
+        for v in [440.0, 69.0, -3.5, 0.9, -12.0] {
+            f.push(v);
+        }
+        let node = NodeKey {
+            index: 7,
+            generation: 1,
+        };
+        let mut buf = Vec::with_capacity(ANALYSIS_REPORT_BYTES);
+        let cap = buf.capacity();
+        encode_analysis_into(&f, node, &mut buf);
+        assert_eq!(buf.capacity(), cap);
+        let back = decode_analysis(&buf).unwrap();
+        assert_eq!(
+            (back.node, back.kind, back.values()),
+            (node, f.kind, f.values())
+        );
+        // A full frame fits the pre-sized buffer.
+        f.begin(AnalysisKind::Spectrum);
+        while f.push(-60.0) {}
+        encode_analysis_into(&f, node, &mut buf);
+        assert_eq!((buf.len(), buf.capacity()), (ANALYSIS_REPORT_BYTES, cap));
+        assert_eq!(
+            decode_analysis(&buf).unwrap().values().len(),
+            ANALYSIS_MAX_VALUES
+        );
+        assert_eq!(
+            decode_analysis(&buf[..20]).err(),
+            Some(DecodeError::Truncated)
+        );
+        // The watch message round-trips.
+        let msg = EngineMsg::WatchAnalysis {
+            key: node,
+            on: true,
+        };
+        let frames = msg.encode();
+        assert_eq!(Frame::decode(&frames[0]).unwrap(), Frame::Msg(msg));
     }
 }

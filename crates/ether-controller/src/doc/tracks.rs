@@ -243,6 +243,8 @@ fn duplicate(
         // Drum racks come with their pads and pad chains.
         ctx.copy_rack_pads(d.id, new_device, new_id, &mut device_ids)?;
     }
+    // v0.2 (`racks-modulation`): rack chains, modulators and mappings.
+    crate::racks::copy_for_track(ctx, &mut device_ids)?;
     let mut send_ids = BTreeMap::new();
     let sends: Vec<TrackSend> = ctx
         .p()

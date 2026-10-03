@@ -1,0 +1,52 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "Glass Pad",
+    "device": {
+      "type": "Builtin",
+      "device": "PolySynth"
+    },
+    "meta": {
+      "tags": [
+        "bright",
+        "evolving",
+        "pad"
+      ],
+      "author": "Ethereal",
+      "description": "Harmonic-sweep wavetable drifting through its frames over a sine octave."
+    },
+    "params": {
+      "0": 4.0,
+      "1": 35.0,
+      "7": 3.0,
+      "9": 1.0,
+      "13": -12.0,
+      "18": 3.0,
+      "19": 15.0,
+      "20": 70.0,
+      "25": 1.0,
+      "26": 6000.0,
+      "27": 20.0,
+      "29": 40.0,
+      "31": 900.0,
+      "32": 1500.0,
+      "33": 80.0,
+      "34": 2600.0,
+      "45": 0.0,
+      "46": 0.12,
+      "49": 5.0,
+      "50": 35.0,
+      "51": 0.0,
+      "52": 0.3,
+      "55": 4.0,
+      "56": 25.0,
+      "57": -12.0,
+      "58": 30.0,
+      "59": 1.0
+    },
+    "kind": null,
+    "state": null
+  }
+}

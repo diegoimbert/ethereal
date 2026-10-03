@@ -139,7 +139,7 @@ import { MockAnalysis } from "./roadmap/analysis";
 import { browserCommand } from "./roadmap/browserV2";
 import { MockFreeze } from "./roadmap/freezeBounce";
 import { libraryPath, MockMediaRefs } from "./roadmap/mediaReferences";
-import { presetCommand } from "./roadmap/presets";
+import { MockPresets } from "./roadmap/presets";
 import { listModulatorKinds } from "./roadmap/racksModulation";
 import { MockTimeEdits } from "./roadmap/timeEdits";
 import { chatCommand } from "./roadmap/social";
@@ -268,6 +268,7 @@ export class MockTransport implements EngineTransport {
     },
   };
   private readonly midiLearn = new MockMidiLearn(this.host);
+  private readonly presets = new MockPresets(this.host);
   private readonly exports = new MockExports(this.host);
   private readonly timeEdits = new MockTimeEdits({
     ...this.host,
@@ -299,7 +300,7 @@ export class MockTransport implements EngineTransport {
     save: () => void this.saveCurrent(),
     libraryHash: (rel) => hashHex(`library:${normalize(rel)}`),
   });
-  private readonly analysis = new MockAnalysis();
+  private readonly analysis = new MockAnalysis(this.host);
   private readonly preview = new MockPreview(this.host);
   private readonly uploads = new MockUploads((event) => this.emit(event));
   private readonly liveRecord = new MockLiveRecord({
@@ -467,7 +468,7 @@ export class MockTransport implements EngineTransport {
       case "TimeEdit":
         return this.timeEdits.command(command.command);
       case "Preset":
-        return presetCommand(command.command);
+        return this.presets.command(command.command);
       case "Browser":
         return browserCommand(command.command);
       case "Analysis":
@@ -1041,6 +1042,7 @@ export class MockTransport implements EngineTransport {
 
   /** Synthesize one meter frame (peak-hold with decay, beat pulse, a bit of noise). */
   private meterStep(): void {
+    this.analysis.step();
     const tracks = Object.values(this.project.tracks);
     const pulse = 0.7 + 0.3 * (1 - (this.position % 1));
     const decay = 0.82;

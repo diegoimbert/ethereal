@@ -1,0 +1,51 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "Metal Bell",
+    "device": {
+      "type": "Builtin",
+      "device": "PolySynth"
+    },
+    "meta": {
+      "tags": [
+        "bell",
+        "keys",
+        "metallic"
+      ],
+      "author": "Ethereal",
+      "description": "FM wavetable struck bright and decaying towards its softer frames."
+    },
+    "params": {
+      "0": 4.0,
+      "1": 65.0,
+      "7": 3.0,
+      "9": 1.0,
+      "13": -14.0,
+      "25": 1.0,
+      "26": 9000.0,
+      "27": 10.0,
+      "29": 40.0,
+      "31": 0.0,
+      "32": 3000.0,
+      "33": 0.0,
+      "34": 1800.0,
+      "39": 0.0,
+      "40": 1800.0,
+      "41": 0.0,
+      "42": 1500.0,
+      "43": 3.0,
+      "44": -55.0,
+      "45": 0.0,
+      "46": 0.4,
+      "49": 4.0,
+      "50": 20.0,
+      "57": -11.0,
+      "58": 70.0,
+      "59": 7.0
+    },
+    "kind": null,
+    "state": null
+  }
+}

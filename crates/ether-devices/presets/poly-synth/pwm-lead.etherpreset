@@ -1,0 +1,52 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "PWM Lead",
+    "device": {
+      "type": "Builtin",
+      "device": "PolySynth"
+    },
+    "meta": {
+      "tags": [
+        "classic",
+        "lead",
+        "pwm"
+      ],
+      "author": "Ethereal",
+      "description": "Square with LFO pulse-width modulation and an octave-down square, mono glide."
+    },
+    "params": {
+      "0": 1.0,
+      "5": 50.0,
+      "7": 1.0,
+      "9": -1.0,
+      "13": -8.0,
+      "21": 1.0,
+      "22": 1.0,
+      "23": 35.0,
+      "25": 0.0,
+      "26": 2400.0,
+      "27": 28.0,
+      "29": 40.0,
+      "30": 22.0,
+      "31": 2.0,
+      "32": 300.0,
+      "33": 90.0,
+      "34": 150.0,
+      "35": 0.0,
+      "36": 500.0,
+      "37": 30.0,
+      "38": 200.0,
+      "51": 1.0,
+      "52": 0.9,
+      "55": 6.0,
+      "56": 80.0,
+      "57": -4.0,
+      "58": 40.0
+    },
+    "kind": null,
+    "state": null
+  }
+}

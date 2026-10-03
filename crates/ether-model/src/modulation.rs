@@ -68,16 +68,24 @@ pub enum ModulatorKind {
     Steps,
     /// Sample-and-hold random (bipolar).
     Random,
+    /// Key tracking (unipolar): the last key reaching the host device, placed between the
+    /// kind's `Low Key` (0) and `High Key` (1) params.
+    Keytrack,
+    /// Velocity (unipolar): the last note-on velocity reaching the host device, placed
+    /// between the kind's `Low` (0) and `High` (1) params.
+    Velocity,
 }
 
 impl ModulatorKind {
     /// Every kind, in `ListModulators` order.
-    pub const ALL: [ModulatorKind; 5] = [
+    pub const ALL: [ModulatorKind; 7] = [
         Self::Lfo,
         Self::Envelope,
         Self::EnvelopeFollower,
         Self::Steps,
         Self::Random,
+        Self::Keytrack,
+        Self::Velocity,
     ];
 
     /// Whether the source range is `-1..=1` (else `0..=1`).
