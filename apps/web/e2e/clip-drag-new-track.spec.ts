@@ -27,7 +27,8 @@ const count = (r: Record<string, unknown>) => Object.keys(r).length;
 async function dragBelowLastTrack(page: Page, clipId: string, kind: "Midi" | "Audio", shot?: string): Promise<void> {
   const title = (await page.locator(`[data-clip-id="${clipId}"] .eth-clip__title`).boundingBox())!;
   const area = (await page.locator(".eth-arr__drop-area").boundingBox())!;
-  const x = title.x + 10;
+  // Grab the middle of the title bar: its corners belong to the fade handles (base-112).
+  const x = title.x + title.width / 2;
   const y = title.y + title.height / 2;
   await page.mouse.move(x, y);
   await page.mouse.down();
