@@ -20,7 +20,6 @@ use ether_core::protocol::external::ExternalCommand;
 use ether_core::protocol::model::*;
 use ether_core::protocol::notes::{NoteCommand, NoteSpec};
 use ether_core::protocol::project::ProjectCommand;
-use ether_core::protocol::templates::TemplateCommand;
 use ether_core::protocol::tracks::TrackCommand;
 use ether_core::protocol::undo_history::HistoryCommand;
 use ether_core::protocol::{Command, ErrorCode};
@@ -247,43 +246,7 @@ fn undo_history_replies_unsupported() {
     );
 }
 
-#[test]
-fn templates_reply_unsupported() {
-    let mut h = Harness::with_project();
-    let t = track(&mut h, TrackKind::Audio);
-    assert_unsupported(
-        &mut h,
-        Command::Template(TemplateCommand::List { kind: None }),
-    );
-    assert_unsupported(
-        &mut h,
-        Command::Template(TemplateCommand::SaveTracks {
-            tracks: vec![t],
-            name: "Vocal".into(),
-            meta: PresetMeta::default(),
-            overwrite: false,
-        }),
-    );
-    let seed = h.id();
-    assert_unsupported(
-        &mut h,
-        Command::Template(TemplateCommand::Insert {
-            template: "tracks/Vocal".into(),
-            seed,
-            parent: None,
-            before: None,
-        }),
-    );
-    let id = h.project_id();
-    assert_unsupported(
-        &mut h,
-        Command::Template(TemplateCommand::NewProject {
-            id,
-            name: "Song".into(),
-            template: None,
-        }),
-    );
-}
+// templates: implemented (tests/templates.rs).
 
 // project-versions: implemented (tests/versions.rs).
 

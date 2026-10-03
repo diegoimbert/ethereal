@@ -149,7 +149,7 @@ import { audioToMidiCommand } from "./roadmap/audioToMidi";
 import { MockCapture } from "./roadmap/capture";
 import { externalCommand } from "./roadmap/external";
 import { MockKeymap } from "./roadmap/keymap";
-import { templateCommand } from "./roadmap/templates";
+import { MockTemplates } from "./roadmap/templates";
 import { historyCommand } from "./roadmap/undoHistory";
 // ai-chat: the agent API (Command::Agent) over the mock document.
 import { MockAgent, type MockAgentCommand } from "./roadmap/agent";
@@ -314,6 +314,20 @@ export class MockTransport implements EngineTransport {
       }),
     save: () => void this.saveCurrent(),
     libraryHash: (rel) => hashHex(`library:${normalize(rel)}`),
+  });
+  /** v0.3 (`templates`): the template library (`roadmap/templates.ts`). */
+  private readonly templates = new MockTemplates({
+    ...this.host,
+    now: () => this.wallNow(),
+    newProject: (id, name, template) => {
+      const checked = this.checkNewProject(id, name);
+      if (this.dirty) this.saveCurrent();
+      const project = template ? { ...template, id, settings: { ...template.settings, name: checked } } : createEmptyProject(this.newId, checked, id);
+      this.storeProject(project, this.wallNow());
+      this.loadProject(project);
+      this.emitListChanged();
+      return { type: "Project", project: this.project };
+    },
   });
   private readonly analysis = new MockAnalysis(this.host);
   private readonly agent = new MockAgent(this.host);
@@ -548,7 +562,7 @@ export class MockTransport implements EngineTransport {
         return historyCommand(command.command);
       case "Template":
         if (command.command.type === "Insert") break;
-        return templateCommand(command.command);
+        return this.templates.command(command.command);
       case "Version":
         return this.versions.command(command.command);
       case "Keymap":

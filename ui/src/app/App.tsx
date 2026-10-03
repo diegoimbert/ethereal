@@ -29,6 +29,7 @@ import { KeymapRoot } from "@/features/keymap";
 import { MediaRefsRoot } from "@/features/media-refs";
 import { ProjectMenu } from "@/features/project";
 import { RecordingControls } from "@/features/recording";
+import { JoinRoot } from "@/features/share/join";
 import { ConnectDialog } from "@/features/remote";
 import { ShareControl } from "@/features/share";
 import { MetronomeSettings } from "@/features/tempo";
@@ -235,6 +236,7 @@ export function App() {
       <MediaRefsRoot />
       <VersionsRoot />
       <KeymapRoot />
+      <JoinRoot />
       <ContextMenuHost />
     </div>
   );
