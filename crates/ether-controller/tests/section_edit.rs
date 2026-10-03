@@ -27,7 +27,13 @@ fn midi_track(h: &mut Harness) -> TrackId {
 }
 
 /// A MIDI clip at `start` of `length` with a short note at each of `notes` (content beats).
-fn clip_with_notes(h: &mut Harness, track: TrackId, start: f64, length: f64, notes: &[f64]) -> ClipId {
+fn clip_with_notes(
+    h: &mut Harness,
+    track: TrackId,
+    start: f64,
+    length: f64,
+    notes: &[f64],
+) -> ClipId {
     let id: ClipId = h.id();
     h.ok(Command::Clip(ClipCommand::CreateMidi {
         id,
@@ -46,7 +52,10 @@ fn clip_with_notes(h: &mut Harness, track: TrackId, start: f64, length: f64, not
             duration: Beats(0.5),
         })
         .collect();
-    h.ok(Command::Note(NoteCommand::Add { clip: id, notes: specs }));
+    h.ok(Command::Note(NoteCommand::Add {
+        clip: id,
+        notes: specs,
+    }));
     id
 }
 
@@ -121,7 +130,10 @@ fn duplicate_section_tiles_its_exact_length_with_gaps() {
         );
         start += 4.0;
     }
-    assert_beats(&audible(&h, t), &[0.0, 3.0, 4.0, 7.0, 8.0, 11.0, 12.0, 15.0]);
+    assert_beats(
+        &audible(&h, t),
+        &[0.0, 3.0, 4.0, 7.0, 8.0, 11.0, 12.0, 15.0],
+    );
     assert!((track_end(&h, t) - 16.0).abs() < 1e-6);
     // Each duplicate is one undo step.
     undo(&mut h);
@@ -147,7 +159,10 @@ fn duplicate_keeps_the_empty_space_after_the_clip() {
         );
         start += 4.0;
     }
-    assert_beats(&audible(&h, t), &[0.0, 3.0, 4.0, 7.0, 8.0, 11.0, 12.0, 15.0]);
+    assert_beats(
+        &audible(&h, t),
+        &[0.0, 3.0, 4.0, 7.0, 8.0, 11.0, 12.0, 15.0],
+    );
 }
 
 /// A section with empty space before its first note (selection 1..5 over notes at 2 and 4).
@@ -196,12 +211,24 @@ fn copy_paste_takes_only_the_section_at_its_full_length() {
         );
     }
     // The pasted sections hold the notes at 3 and 5 only (relative 1 and 3).
-    assert_beats(&audible(&h, t), &[0.0, 3.0, 5.0, 7.0, 9.0, 11.0, 13.0, 15.0]);
+    assert_beats(
+        &audible(&h, t),
+        &[0.0, 3.0, 5.0, 7.0, 9.0, 11.0, 13.0, 15.0],
+    );
     assert!((track_end(&h, t) - 16.0).abs() < 1e-6);
     // The source clip is untouched by the copy.
-    let src: Vec<_> = h.project().clips.values().filter(|c| c.start.0 == 0.0).collect();
+    let src: Vec<_> = h
+        .project()
+        .clips
+        .values()
+        .filter(|c| c.start.0 == 0.0)
+        .collect();
     assert_eq!(src.len(), 1);
     assert!((src[0].length.0 - 8.0).abs() < 1e-6);
+    // The pasted pieces carry only the section's notes, not the whole source clip's.
+    for c in h.project().clips.values().filter(|c| c.start.0 >= 8.0) {
+        assert_eq!(h.project().notes_of(c.id).len(), 2);
+    }
     // One paste = one undo step.
     undo(&mut h);
     assert_beats(&audible(&h, t), &[0.0, 3.0, 5.0, 7.0, 9.0, 11.0]);
