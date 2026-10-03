@@ -117,8 +117,9 @@ directly.
 2. Mount it on the web app's origin, so the default `https://etherealws.pages.dev/signal`
    works (no extra domain, no CORS under COEP):
    - the web deploy must include `scripts/release/web/functions/` as the Pages project's
-     `functions/` folder (run `wrangler pages deploy <site>` from `scripts/release/web`, or
-     copy the folder next to the site);
+     `functions/` folder. The release workflow's Pages job does this (it deploys from a folder
+     holding `site/` and `functions/`); by hand, copy the folder next to the site and run
+     `wrangler pages deploy <site>` from their parent;
    - Pages project → Settings → Bindings → Durable Object: name `ROOMS`, Worker
      `ethereal-signal`, class `SignalRoom`.
 

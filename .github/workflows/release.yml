@@ -285,15 +285,18 @@ jobs:
         run: pnpm --filter @ethereal/web build
       - name: Zip
         run: node scripts/release/collect.mjs web ${{ needs.prepare.outputs.version }} "$RUNNER_TEMP/out"
-      - name: Site for Cloudflare Pages (dist + COOP/COEP _headers)
+      - name: Site for Cloudflare Pages (dist + COOP/COEP _headers + the /signal function)
         run: |
-          mkdir -p "$RUNNER_TEMP/site"
-          cp -R apps/web/dist/. "$RUNNER_TEMP/site/"
-          cp scripts/release/web/_headers "$RUNNER_TEMP/site/_headers"
+          mkdir -p "$RUNNER_TEMP/pages/site"
+          cp -R apps/web/dist/. "$RUNNER_TEMP/pages/site/"
+          cp scripts/release/web/_headers "$RUNNER_TEMP/pages/site/_headers"
+          # Pages Functions come from `functions/` next to the deployed folder (not inside it):
+          # `/signal/*` forwards to the signaling service (services/signal/README.md, Deploy).
+          cp -R scripts/release/web/functions "$RUNNER_TEMP/pages/functions"
       - uses: actions/upload-artifact@v4
         with:
           name: web-site
-          path: ${{ runner.temp }}/site
+          path: ${{ runner.temp }}/pages
           if-no-files-found: error
       - uses: actions/upload-artifact@v4
         with:
@@ -336,7 +339,7 @@ jobs:
         if: steps.check.outputs.skip != 'true'
         with:
           name: web-site
-          path: site
+          path: pages
       - name: Create the Pages project if missing
         if: steps.check.outputs.skip != 'true'
         run: |
@@ -346,6 +349,8 @@ jobs:
         id: deploy
         if: steps.check.outputs.skip != 'true'
         run: |
+          # From `pages/`, so wrangler also bundles `pages/functions` (the /signal route).
+          cd pages
           out="$(npx --yes "wrangler@$WRANGLER_VERSION" pages deploy site \
             --project-name "$PAGES_PROJECT" --branch main \
             --commit-hash "$GITHUB_SHA" --commit-message "v${{ needs.prepare.outputs.version }}" 2>&1)"
