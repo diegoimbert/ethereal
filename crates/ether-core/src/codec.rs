@@ -95,14 +95,23 @@ impl BinaryCodec {
 /// length + JSON), so the v0.2 nodes can refine their own desc types without touching the
 /// binary layout. A node that needs a hot, compact encoding moves its field into the binary
 /// layout (bumping `VERSION`): `groups-buses` did (v3), so did `racks-modulation` (v4).
+///
+/// v0.3 (contracts-4) adds `expression` and `hw_io` to the blob (absent = default, so the
+/// binary layout and `VERSION` are unchanged); `midi-expression` may move `expression` into
+/// the binary layout (bumping `VERSION`) if profiling asks for it.
 #[derive(serde::Serialize)]
 struct TrackExtRef<'a> {
     frozen: &'a Option<crate::freeze::FrozenDesc>,
+    expression: &'a crate::expression::TrackExpressionDesc,
+    hw_io: &'a Vec<crate::hw_io::HwIoDesc>,
 }
 
 #[derive(serde::Deserialize, Default)]
+#[serde(default)]
 struct TrackExt {
     frozen: Option<crate::freeze::FrozenDesc>,
+    expression: crate::expression::TrackExpressionDesc,
+    hw_io: Vec<crate::hw_io::HwIoDesc>,
 }
 
 impl GraphCodec for BinaryCodec {
@@ -280,6 +289,8 @@ impl Writer<'_> {
             modulation,
             input_tap,
             vca,
+            expression,
+            hw_io,
         } = t;
         self.ulid(id.0);
         self.u8(match kind {
@@ -353,12 +364,16 @@ impl Writer<'_> {
         // v0.2 (`racks-modulation`, v4): rack chains and modulation.
         self.vec(chain_racks, Self::chain_rack);
         self.modulation(modulation);
-        // Other v0.2 fields (`TrackExt`).
-        if frozen.is_none() {
+        // Other v0.2 and the v0.3 fields (`TrackExt`).
+        if frozen.is_none() && expression.is_empty() && hw_io.is_empty() {
             self.u8(0);
         } else {
             self.u8(1);
-            self.json(&TrackExtRef { frozen });
+            self.json(&TrackExtRef {
+                frozen,
+                expression,
+                hw_io,
+            });
         }
     }
 
@@ -863,6 +878,8 @@ impl Reader<'_> {
         if self.bool()? {
             let ext: TrackExt = self.json()?;
             t.frozen = ext.frozen;
+            t.expression = ext.expression;
+            t.hw_io = ext.hw_io;
         }
         Ok(t)
     }
@@ -994,6 +1011,8 @@ impl Reader<'_> {
             modulation: Default::default(),
             input_tap: None,
             vca: None,
+            expression: Default::default(),
+            hw_io: Vec::new(),
         })
     }
 

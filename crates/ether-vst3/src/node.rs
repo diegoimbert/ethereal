@@ -350,6 +350,8 @@ impl Vst3Node {
                     _ => {}
                 }
             }
+            // v0.3: `mpe` forwards this as a VST3 `NoteExpressionValueEvent`.
+            EventKind::NoteExpression { .. } => {}
         }
     }
 

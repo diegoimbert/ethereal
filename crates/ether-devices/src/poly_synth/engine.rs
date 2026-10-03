@@ -817,6 +817,8 @@ impl PolySynth {
             EventKind::AllNotesOff => self.all_notes_off(),
             EventKind::Param { param, value } => self.apply_param(param, value, true),
             EventKind::Midi { data } => self.midi(data),
+            // v0.3: per-note pitch/pressure/timbre (`mpe` implements the Poly Synth's MPE).
+            EventKind::NoteExpression { .. } => {}
         }
     }
 

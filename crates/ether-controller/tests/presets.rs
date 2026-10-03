@@ -171,6 +171,7 @@ fn load_is_one_undo_step_and_resets_missing_params() {
     let out = h.send(p(PresetCommand::Load {
         device: d,
         preset: factory("synth/soft-pad"),
+        seed: None,
     }));
     ok(&out);
     assert_eq!(patches(&out).len(), 1, "one patch");
@@ -193,12 +194,14 @@ fn load_is_one_undo_step_and_resets_missing_params() {
     let out = h.send(p(PresetCommand::Load {
         device: comp,
         preset: factory("synth/pluck"),
+        seed: None,
     }));
     assert_eq!(err(&out).code, ErrorCode::InvalidArgument);
     assert_eq!(h.project(), &before);
     let out = h.send(p(PresetCommand::Load {
         device: comp,
         preset: factory("compressor/nope"),
+        seed: None,
     }));
     assert_eq!(err(&out).code, ErrorCode::NotFound);
 }
@@ -250,6 +253,7 @@ fn save_rename_set_meta_delete_user_presets() {
     h.ok(p(PresetCommand::Load {
         device: d2,
         preset: again.preset.clone(),
+        seed: None,
     }));
     assert_eq!(param(&h, d2, 6), Some(999.0));
 
@@ -338,6 +342,7 @@ fn read_only_library_lists_factory_and_refuses_writes() {
     h.ok(p(PresetCommand::Load {
         device: d,
         preset: factory("synth/pluck"),
+        seed: None,
     }));
 }
 
@@ -391,6 +396,7 @@ fn sampler_presets_carry_their_sample() {
     h.ok(p(PresetCommand::Load {
         device: s2,
         preset: preset.preset.clone(),
+        seed: None,
     }));
     let kind = |h: &Harness, d: DeviceId| match &h.project().devices[&d].kind {
         DeviceKind::Builtin {
@@ -409,6 +415,7 @@ fn sampler_presets_carry_their_sample() {
     h.ok(p(PresetCommand::Load {
         device: s3,
         preset: preset.preset.clone(),
+        seed: None,
     }));
     assert_eq!(h.project().media.len(), 1);
     let imported = kind(&h, s3).expect("sample set");
@@ -480,6 +487,7 @@ fn plugin_presets_store_and_restore_the_state_blob() {
     h.ok(p(PresetCommand::Load {
         device: d,
         preset: preset.preset.clone(),
+        seed: None,
     }));
     h.tick();
     let DeviceKind::Plugin { plugin } = &h.project().devices[&d].kind else {
@@ -498,6 +506,7 @@ fn plugin_presets_store_and_restore_the_state_blob() {
     let out = h.send(p(PresetCommand::Load {
         device: s,
         preset: preset.preset,
+        seed: None,
     }));
     assert_eq!(err(&out).code, ErrorCode::InvalidArgument);
 }
