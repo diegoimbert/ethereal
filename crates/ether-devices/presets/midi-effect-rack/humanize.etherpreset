@@ -1,0 +1,106 @@
+{
+  "format": "ethereal-preset",
+  "version": 2,
+  "app_version": "0.3.0",
+  "preset": {
+    "name": "Humanize",
+    "device": {
+      "type": "Builtin",
+      "device": "MidiEffectRack"
+    },
+    "meta": {
+      "tags": [
+        "groove",
+        "humanize",
+        "velocity"
+      ],
+      "author": "Ethereal",
+      "description": "Small random velocity, timing and length changes. Macro 1 scales the velocity randomness."
+    },
+    "params": {
+      "0": 0.3,
+      "1": 0.0,
+      "2": 0.0,
+      "3": 0.0,
+      "4": 0.0,
+      "5": 0.0,
+      "6": 0.0,
+      "7": 0.0,
+      "8": 0.0
+    },
+    "kind": null,
+    "state": null,
+    "rack": {
+      "chains": [
+        {
+          "name": "Humanize",
+          "color": null,
+          "volume": 0.0,
+          "pan": 0.0,
+          "mute": false,
+          "solo": false,
+          "keys": {
+            "lo": 0,
+            "hi": 127
+          },
+          "velocities": {
+            "lo": 0,
+            "hi": 127
+          },
+          "select": {
+            "lo": 0,
+            "hi": 127
+          },
+          "devices": [
+            {
+              "name": "Velocity",
+              "enabled": true,
+              "device": {
+                "type": "Builtin",
+                "device": "Velocity"
+              },
+              "params": {
+                "7": 10.0
+              },
+              "kind": null,
+              "state": null
+            },
+            {
+              "name": "Feel",
+              "enabled": true,
+              "device": {
+                "type": "Builtin",
+                "device": "Randomizer"
+              },
+              "params": {
+                "0": 100.0,
+                "1": 0.0,
+                "4": 0.0,
+                "5": 8.0,
+                "6": 10.0
+              },
+              "kind": null,
+              "state": null
+            }
+          ]
+        }
+      ],
+      "modulators": [],
+      "mappings": [
+        {
+          "source": {
+            "type": "Macro",
+            "index": 0
+          },
+          "target": {
+            "type": "ChainDevice",
+            "chain": 0,
+            "device": 0
+          },
+          "param": 7,
+          "depth": 0.2
+        }
+      ]
+    }
+  }
+}
