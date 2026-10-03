@@ -25,7 +25,9 @@ pub enum TempoCurve {
     Linear,
 }
 
-/// A time-signature change. `time` must fall on a bar line of the previous signature.
+/// A time-signature change, anywhere on the timeline. A change inside a bar ends that bar
+/// early (a partial bar); a new bar in the new signature starts at the change (see
+/// `TempoMap::bar_beat`).
 /// There is always one at beat 0.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
 pub struct TimeSignaturePoint {

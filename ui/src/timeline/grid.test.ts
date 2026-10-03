@@ -55,6 +55,25 @@ describe("gridLines", () => {
     ]);
   });
 
+  it("ends a partial bar at a mid-bar signature change", () => {
+    // 4/4, then 7/8 at beat 2.5: no 4/4 beat line past the change.
+    const m = new TempoMap([], [
+      { id: "a", time: 0, signature: four },
+      { id: "b", time: 2.5, signature: { numerator: 7, denominator: 8 } },
+    ]);
+    const lines = gridLines(m, { start: 0, end: 6.5 }, { kind: "beats", beats: 1 });
+    expect(lines.map((l) => [l.beats, l.level, l.bar])).toEqual([
+      [0, "bar", 1],
+      [1, "beat", undefined],
+      [2, "beat", undefined],
+      [2.5, "bar", 2],
+      [3.5, "beat", undefined],
+      [4.5, "beat", undefined],
+      [5.5, "beat", undefined],
+      [6, "bar", 3],
+    ]);
+  });
+
   it("bar steps", () => {
     const lines = gridLines(m44, { start: 0, end: 32 }, { kind: "bars", bars: 2 });
     expect(lines.map((l) => l.bar)).toEqual([1, 3, 5, 7]);
@@ -80,6 +99,17 @@ describe("snapToGrid", () => {
     expect(snapToGrid(4.4, { kind: "beats", beats: 1 }, m)).toBeCloseTo(4.5);
     // Bar end is a valid target (3.4 → 3.5, not 4).
     expect(snapToGrid(3.4, { kind: "beats", beats: 1 }, m)).toBeCloseTo(3.5);
+  });
+
+  it("snaps within a partial bar (its early end is a target)", () => {
+    const m = new TempoMap([], [
+      { id: "a", time: 0, signature: four },
+      { id: "b", time: 2.5, signature: { numerator: 7, denominator: 8 } },
+    ]);
+    expect(snapToGrid(2.4, { kind: "beats", beats: 1 }, m)).toBeCloseTo(2.5);
+    expect(snapToGrid(2.2, { kind: "beats", beats: 1 }, m)).toBeCloseTo(2);
+    expect(snapToGrid(3.4, { kind: "beats", beats: 1 }, m)).toBeCloseTo(3.5);
+    expect(snapToGrid(3, { kind: "bars", bars: 1 }, m)).toBeCloseTo(2.5);
   });
 
   it("snaps to every N bars", () => {

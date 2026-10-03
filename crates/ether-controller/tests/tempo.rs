@@ -227,113 +227,107 @@ fn tempo_points_validate_and_clamp() {
     assert!(h.project().tempo_points.contains_key(&other));
 }
 
-#[test]
-fn time_signatures_crud_on_bar_lines() {
-    let mut h = Harness::with_project();
-    let zero = first_signature(&h);
-    // 4/4 from 0: a change must fall on a bar line (multiple of 4 beats).
-    let id: TimeSignatureId = h.id();
-    let e = code(
-        &mut h,
-        tempo(TempoCommand::AddTimeSignature {
-            id,
-            time: Beats(6.0),
-            signature: sig(3, 4),
-        }),
-    );
-    assert_eq!(e, ErrorCode::InvalidArgument);
+fn add_sig(h: &mut Harness, time: f64, s: TimeSignature) -> TimeSignatureId {
+    let id = h.id();
     h.ok(tempo(TempoCommand::AddTimeSignature {
         id,
-        time: Beats(8.0),
-        signature: sig(3, 4),
+        time: Beats(time),
+        signature: s,
     }));
-    // 3/4 from 8: bar lines at 8, 11, 14, ...
-    let seven: TimeSignatureId = h.id();
-    let e = code(
-        &mut h,
-        tempo(TempoCommand::AddTimeSignature {
-            id: seven,
-            time: Beats(12.0),
-            signature: sig(7, 8),
-        }),
-    );
-    assert_eq!(e, ErrorCode::InvalidArgument);
-    h.ok(tempo(TempoCommand::AddTimeSignature {
-        id: seven,
-        time: Beats(14.0),
-        signature: sig(7, 8),
-    }));
-    assert_eq!(h.project().tempo_map().signature_at(Beats(15.0)), sig(7, 8));
-    // Invalid signatures.
+    id
+}
+
+/// `(bar, beat)` of a position (1-based), from the project's tempo map.
+fn bb(h: &Harness, beats: f64) -> (i32, u32) {
+    let r = h.project().tempo_map().bar_beat(Beats(beats));
+    (r.bar, r.beat)
+}
+
+#[test]
+fn time_signatures_anywhere_on_the_grid() {
+    let mut h = Harness::with_project();
+    let zero = first_signature(&h);
+    // 4/4 from 0, then 3/4 at beat 2.5 (mid bar 1): bar 1 is a partial bar of 2.5 beats
+    // and bar 2 (3/4) starts at the change.
+    let three = add_sig(&mut h, 2.5, sig(3, 4));
+    assert_eq!(bb(&h, 0.0), (1, 1));
+    assert_eq!(bb(&h, 2.0), (1, 3));
+    assert_eq!(bb(&h, 2.5), (2, 1));
+    assert_eq!(bb(&h, 4.5), (2, 3));
+    assert_eq!(bb(&h, 5.5), (3, 1));
+    let r = h.project().tempo_map().bar_beat(Beats(3.0));
+    assert_eq!((r.bar, r.beat, r.fraction), (2, 1, 0.5));
+    // A 7/8 change mid-bar in 3/4 (beat 7 = 1.5 beats into bar 3).
+    let seven = add_sig(&mut h, 7.0, sig(7, 8));
+    assert_eq!(bb(&h, 6.5), (3, 2));
+    assert_eq!(bb(&h, 7.0), (4, 1));
+    assert_eq!(bb(&h, 7.5), (4, 2));
+    assert_eq!(bb(&h, 10.5), (5, 1)); // 7/8 bar = 3.5 beats
+    assert_eq!(h.project().tempo_map().signature_at(Beats(8.0)), sig(7, 8));
+    // Still rejected: an occupied position, negative or non-finite times, bad signatures.
+    for t in [2.5, -1.0, f64::NAN] {
+        let id: TimeSignatureId = h.id();
+        let e = code(
+            &mut h,
+            tempo(TempoCommand::AddTimeSignature {
+                id,
+                time: Beats(t),
+                signature: sig(5, 4),
+            }),
+        );
+        assert_eq!(e, ErrorCode::InvalidArgument, "time {t}");
+    }
     for s in [sig(0, 4), sig(4, 3), sig(100, 4)] {
         let e = code(
             &mut h,
             tempo(TempoCommand::EditTimeSignature {
-                id,
+                id: three,
                 time: None,
                 signature: Some(s),
             }),
         );
         assert_eq!(e, ErrorCode::InvalidArgument);
     }
-    // Move: on a bar line of the previous signature (4/4 from 0), not onto another change,
-    // and only if the later 7/8 at 14 stays on a bar line (6/8 from 4: no; 5/4: yes).
     let e = code(
         &mut h,
         tempo(TempoCommand::EditTimeSignature {
-            id,
-            time: Some(Beats(4.0)),
-            signature: Some(sig(6, 8)),
-        }),
-    );
-    assert_eq!(e, ErrorCode::InvalidArgument);
-    h.ok(tempo(TempoCommand::EditTimeSignature {
-        id,
-        time: Some(Beats(4.0)),
-        signature: Some(sig(5, 4)),
-    }));
-    let p = &h.project().time_signatures[&id];
-    assert_eq!((p.time, p.signature), (Beats(4.0), sig(5, 4)));
-    undo(&mut h);
-    let p = &h.project().time_signatures[&id];
-    assert_eq!((p.time, p.signature), (Beats(8.0), sig(3, 4)));
-    let e = code(
-        &mut h,
-        tempo(TempoCommand::EditTimeSignature {
-            id,
-            time: Some(Beats(14.0)),
+            id: three,
+            time: Some(Beats(7.0)),
             signature: None,
         }),
     );
-    assert_eq!(e, ErrorCode::InvalidArgument);
-    // Edits that would push a later change off its bar line are rejected: 3/4 at 0 with a
-    // change at 8, or removing the 3/4 at 8 (the 7/8 at 14 is not on a 4/4 bar line).
-    let e = code(
-        &mut h,
-        tempo(TempoCommand::EditTimeSignature {
-            id: zero.id,
-            time: None,
-            signature: Some(sig(3, 4)),
-        }),
-    );
-    assert_eq!(e, ErrorCode::InvalidArgument);
-    let e = code(
-        &mut h,
-        tempo(TempoCommand::RemoveTimeSignatures { ids: vec![id] }),
-    );
-    assert_eq!(e, ErrorCode::InvalidArgument);
-    // Adding a change that would shift a later one's grid is rejected too (2/4 at 11:
-    // 14 is not on a 2/4 bar line from 11).
-    let two: TimeSignatureId = h.id();
-    let e = code(
-        &mut h,
-        tempo(TempoCommand::AddTimeSignature {
-            id: two,
-            time: Beats(11.0),
-            signature: sig(2, 4),
-        }),
-    );
-    assert_eq!(e, ErrorCode::InvalidArgument);
+    assert_eq!(e, ErrorCode::InvalidArgument, "onto another change");
+    // Changing an earlier signature no longer requires later changes to stay on its bar
+    // lines (it used to be rejected); numbering follows.
+    h.ok(tempo(TempoCommand::EditTimeSignature {
+        id: zero.id,
+        time: None,
+        signature: Some(sig(6, 8)),
+    }));
+    assert_eq!(bb(&h, 2.5), (2, 1));
+    undo(&mut h);
+    // Move the 3/4 to beat 1.75; later numbering follows.
+    h.ok(tempo(TempoCommand::EditTimeSignature {
+        id: three,
+        time: Some(Beats(1.75)),
+        signature: None,
+    }));
+    assert_eq!(bb(&h, 1.75), (2, 1));
+    assert_eq!(bb(&h, 4.75), (3, 1));
+    assert_eq!(bb(&h, 7.0), (4, 1)); // 3/4 bar 3 is cut short at 7 by the 7/8
+    undo(&mut h);
+    assert_eq!(h.project().time_signatures[&three].time, Beats(2.5));
+    redo(&mut h);
+    assert_eq!(h.project().time_signatures[&three].time, Beats(1.75));
+    undo(&mut h);
+    // Delete the mid-bar 3/4: the 7/8 at 7 now cuts 4/4 bar 2 short (beat 3 of bar 2).
+    h.ok(tempo(TempoCommand::RemoveTimeSignatures {
+        ids: vec![three],
+    }));
+    assert_eq!(bb(&h, 6.5), (2, 3));
+    assert_eq!(bb(&h, 7.0), (3, 1));
+    undo(&mut h);
+    assert_eq!(bb(&h, 7.0), (4, 1));
     // The one at 0: not movable or removable.
     let e = code(
         &mut h,
@@ -350,19 +344,25 @@ fn time_signatures_crud_on_bar_lines() {
     );
     assert_eq!(e, ErrorCode::InvalidArgument);
     h.ok(tempo(TempoCommand::RemoveTimeSignatures {
-        ids: vec![id, seven],
+        ids: vec![three, seven],
     }));
     assert_eq!(h.project().time_signatures.len(), 1);
-    // Alone, the one at 0 is editable.
-    h.ok(tempo(TempoCommand::EditTimeSignature {
-        id: zero.id,
-        time: None,
-        signature: Some(sig(3, 4)),
-    }));
-    assert_eq!(first_signature(&h).signature, sig(3, 4));
-    undo(&mut h);
     undo(&mut h);
     assert_eq!(h.project().time_signatures.len(), 3);
+}
+
+#[test]
+fn mid_bar_changes_reach_the_engine_bar_grid() {
+    let mut h = Harness::with_project();
+    add_sig(&mut h, 2.5, sig(7, 8));
+    h.tick();
+    let g = h.ctl.bridge.last_graph();
+    let rt = ether_core::tempo::TempoMapRt::compile(&g.tempo, &g.signatures);
+    // The engine's bar grid (metronome downbeats, plugin bar start) restarts at 2.5.
+    assert_eq!(rt.signature_at(2.0), (sig(4, 4), 0.0));
+    assert_eq!(rt.signature_at(3.0), (sig(7, 8), 2.5));
+    assert_eq!(rt.signature_at(6.25).1, 6.0);
+    assert_eq!(rt.next_boundary(0.0), Some(2.5));
 }
 
 #[test]

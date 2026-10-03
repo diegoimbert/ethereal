@@ -52,7 +52,7 @@ export function barPosition(beats: Beats, points: ReadonlyArray<TimeSignaturePoi
       const bars = Math.floor((within + BEATS_EPSILON) / bpb);
       return { bar: barsBefore + bars + 1, ...beatInBar(within - bars * bpb, signature) };
     }
-    // Signature changes fall on bar lines; a partial last bar still counts as one.
+    // A change inside a bar ends it early: the partial bar still counts as one.
     barsBefore += Math.ceil((end - start - BEATS_EPSILON) / bpb);
   }
   return { bar: barsBefore + 1, beat: 1, sixteenth: 1 };
