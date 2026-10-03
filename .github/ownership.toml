@@ -820,6 +820,61 @@ paths = [
   "ui/src/features/arrangement/actions.ts",
 ]
 
+[nodes.agent-api]
+# Owner request (2026-10-03): MCP support. One agent tool registry in the controller (works native + wasm),
+# exposed as Command::Agent {ListTools, CallTool}; `ether-mcp` stdio server bridging to the running desktop
+# app over a loopback remote-engine socket (opt-in, token in a 0600 runtime file), or headless on a project.
+# The in-app AI chat (`ai-chat`) uses the same commands.
+paths = [
+  "crates/ether-mcp/**",
+  "crates/ether-protocol/src/agent.rs",
+  "crates/ether-controller/src/agent/**",
+  "crates/ether-controller/tests/agent*.rs",
+  "crates/ether-native/tests/agent*.rs",
+  "apps/desktop/src-tauri/src/agent_bridge*.rs",
+  "apps/desktop/src-tauri/src/agent_bridge/**",
+  "docs/MCP.md",
+  # shared touches (additive): Agent domain + ReplyValue variants, ts exports, dispatch arm, state field
+  "crates/ether-protocol/src/lib.rs",
+  "crates/ether-protocol/src/message.rs",
+  "crates/ether-protocol/src/ts.rs",
+  "crates/ether-controller/src/lib.rs",
+  "crates/ether-controller/src/handlers.rs",
+  # shared touches: reuse the remote-engine router/listener as a library for the desktop bridge
+  "crates/ether-server/src/**",
+  "crates/ether-server/Cargo.toml",
+  "crates/ether-native/src/lib.rs",
+  "apps/desktop/src-tauri/src/lib.rs",
+  "apps/desktop/src-tauri/Cargo.toml",
+  # shared touches: workspace member, `just mcp` recipe, README + CONTRACTS sections
+  "Cargo.toml",
+  "justfile",
+  "README.md",
+  "docs/CONTRACTS.md",
+  # shared (roadmap_v*.rs "unsupported until implemented" lists): remove only Agent entries
+  "crates/ether-controller/tests/roadmap_v*.rs",
+]
+
+[nodes.ai-chat]
+# Owner request (2026-10-03): AI chat mode inside the app, driving it through the same agent API
+# (Command::Agent ListTools/CallTool) as the MCP server. BYOK Anthropic API key.
+paths = [
+  "ui/src/features/ai-chat/**",
+  "ui/src/transport/mock/roadmap/agent.*",
+  "apps/web/e2e/ai-chat*.spec.ts",
+  # shared touch (approved BCR): one dependency line, @anthropic-ai/sdk
+  "ui/package.json",
+  # shared touches: MockAgent routing (import, field, Agent case)
+  "ui/src/transport/mock/MockTransport.ts",
+  "ui/src/transport/mock/MockTransport.test.ts",
+  # shared touches: chat panel tab + "Ask AI" palette command + shortcut
+  "ui/src/app/shell/LeftRail.tsx",
+  "ui/src/app/shell/tabs.tsx",
+  "ui/src/app/shell/shellStore.ts",
+  "ui/src/app/shell/commands.ts",
+  "ui/src/app/shell/FloatingPane.tsx",
+]
+
 [nodes.turn-hardening]
 # Follow-up to stream-host (docs/COLLAB.md §10 known limitations): per-username verified cap,
 # counting real nonce inserts, rotation-decision tests. TURN stays experimental until merged.
