@@ -76,8 +76,27 @@ async function rollGeometry(page: Page, clipLength: number) {
   };
 }
 
+/**
+ * Zooms the piano roll out (ctrl + wheel near its left edge) until `beats` fit in the left
+ * half of the visible grid, so every gesture lands on screen. The clip is 4 beats long.
+ */
+async function fitRoll(page: Page, beats: number) {
+  const body = (await page.locator(".eth-pr__body").boundingBox())!;
+  const left = (sel: string) => page.locator(sel).evaluate((el) => parseFloat((el as HTMLElement).style.left));
+  const pxPerBeat = async () => ((await left('[data-testid="piano-roll-clip-end"]')) - (await left(".eth-pr__start"))) / 4;
+  const room = (body.width - 64) / 2;
+  await page.mouse.move(body.x + 70, body.y + body.height / 2);
+  for (let i = 0; i < 20 && (await pxPerBeat()) * beats > room; i++) {
+    await page.keyboard.down("Control");
+    await page.mouse.wheel(0, 200);
+    await page.keyboard.up("Control");
+  }
+  expect((await pxPerBeat()) * beats).toBeLessThanOrEqual(room);
+}
+
 /** Two notes (beats 0 and 3) drawn by double-clicking the open piano roll's grid. */
 async function drawNotes(page: Page, clip: string) {
+  await fitRoll(page, 16);
   const g = await rollGeometry(page, 4);
   for (const beat of [0, 3]) {
     const before = (await noteStarts(page, clip)).length;
@@ -103,6 +122,7 @@ test("section edit: copy/paste a section (not the clip) and duplicate it with it
   await lane.dblclick({ position: { x: 5, y: 30 } });
   await expect.poll(() => spans(page, t.id)).toEqual([[0, 4]]);
   const clip = Object.values((await doc(page)).clips).find((c) => c.track === t.id)!;
+  await openClip(page, clip.id);
   await expect(page.getByTestId("piano-roll-grid")).toBeVisible();
   await drawNotes(page, clip.id);
   expect(await audible(page, t.id)).toEqual([0, 3]);
@@ -112,12 +132,13 @@ test("section edit: copy/paste a section (not the clip) and duplicate it with it
   await arrangement.focus();
   await page.keyboard.press("Escape");
   const px = (await page.locator(`[data-clip-id="${clip.id}"]`).boundingBox())!.width / 4;
-  const selectTime = async (from: number, to: number) => {
+  /** Drag over the lane from beat `from` to `to`; `nudge` px keeps presses off clip edges. */
+  const selectTime = async (from: number, to: number, nudge: [number, number] = [0, 0]) => {
     const box = (await lane.boundingBox())!;
-    await page.mouse.move(box.x + from * px, box.y + box.height - 8);
+    await page.mouse.move(box.x + from * px + nudge[0], box.y + box.height - 8);
     await page.mouse.down();
     await page.mouse.move(box.x + ((from + to) / 2) * px, box.y + box.height - 6, { steps: 3 });
-    await page.mouse.move(box.x + to * px, box.y + box.height - 8, { steps: 3 });
+    await page.mouse.move(box.x + to * px + nudge[1], box.y + box.height - 8, { steps: 3 });
     await page.mouse.up();
     await expect(page.getByTestId("time-selection")).toHaveCount(1);
   };
@@ -142,7 +163,8 @@ test("section edit: copy/paste a section (not the clip) and duplicate it with it
   await expect.poll(() => spans(page, t.id)).toEqual([[0, 4]]);
 
   // --- Owner step 2: select the bar, plain ⌘D three times: the section tiles, gaps kept -----
-  await selectTime(0, 4);
+  // From just past the clip's end (not its resize handle) back to the lane's start.
+  await selectTime(4, 0, [3, -20]);
   for (let i = 1; i <= 3; i++) {
     await page.keyboard.press("ControlOrMeta+d");
     await expect.poll(async () => (await spans(page, t.id)).length).toBe(1 + i);
