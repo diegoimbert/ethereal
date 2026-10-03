@@ -1,0 +1,33 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "Negative Bite",
+    "device": {
+      "type": "Builtin",
+      "device": "Phaser"
+    },
+    "meta": {
+      "tags": [
+        "phaser",
+        "feedback",
+        "aggressive"
+      ],
+      "author": "Ethereal",
+      "description": "Negative feedback on six stages: hollow, vocal-like sweeps."
+    },
+    "params": {
+      "0": 2.0,
+      "1": 0.6,
+      "2": 0.0,
+      "3": 6.0,
+      "4": 55.0,
+      "5": 1500.0,
+      "6": -70.0,
+      "7": 90.0,
+      "8": 50.0,
+      "9": 0.0
+    }
+  }
+}

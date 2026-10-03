@@ -65,8 +65,7 @@ export function buildCommands(transport: EngineTransport | null, devices: Readon
         run: () => {
           const p = useProjectStore.getState().project;
           const t = p ? deviceTargetTrack(p) : undefined;
-          const c = p && t ? insertDeviceCommand(p, t, d) : null;
-          if (c) send(c);
+          if (p && t) void insertDeviceCommand(transport, p, t, d).then((c) => c && send(c));
         },
       });
     }

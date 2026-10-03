@@ -1,8 +1,16 @@
 //! Test vectors of `ether_protocol::eq_response` for the UI mirror (`graphical-eq`). The
 //! TS implementation must reproduce every vector within 1e-6 dB. Regenerate with
 //! `UPDATE_EQ_VECTORS=1 cargo test -p ether-protocol --test eq_response` (never by hand).
+//!
+//! The check is "same inputs, `db` within [`DB_TOLERANCE`]" rather than bit-equality:
+//! `magnitude_db` goes through `tan`, `powf` and `log10`, which are not correctly rounded and
+//! differ by an ULP or so between platform libms (Apple libm vs glibc). The tolerance is the
+//! same 1e-6 dB contract the TS mirror is held to.
 
 use ether_protocol::eq_response::{EqShape, magnitude_db};
+
+/// Max allowed |stored - computed| in dB (the TS mirror's contract, far below audibility).
+const DB_TOLERANCE: f64 = 1e-6;
 
 const SHAPES: [EqShape; 9] = [
     EqShape::LowCut,
@@ -50,5 +58,23 @@ fn vectors_are_current() {
     }
     let found: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string(&path).expect("vectors file")).unwrap();
-    assert_eq!(found, expected, "stale: run with UPDATE_EQ_VECTORS=1");
+    let (found, expected) = (found.as_array().unwrap(), expected.as_array().unwrap());
+    assert_eq!(
+        found.len(),
+        expected.len(),
+        "stale: run with UPDATE_EQ_VECTORS=1"
+    );
+    for (f, e) in found.iter().zip(expected) {
+        let strip = |v: &serde_json::Value| {
+            let mut v = v.clone();
+            v.as_object_mut().unwrap().remove("db");
+            v
+        };
+        assert_eq!(strip(f), strip(e), "stale: run with UPDATE_EQ_VECTORS=1");
+        let (fd, ed) = (f["db"].as_f64().unwrap(), e["db"].as_f64().unwrap());
+        assert!(
+            (fd - ed).abs() <= DB_TOLERANCE,
+            "{e}: stored {fd} dB, computed {ed} dB (stale: run with UPDATE_EQ_VECTORS=1)"
+        );
+    }
 }

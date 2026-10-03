@@ -38,6 +38,10 @@ const IMPLEMENTED: &[BuiltinDeviceType] = &[
     BuiltinDeviceType::NoteLength,
     BuiltinDeviceType::Velocity,
     BuiltinDeviceType::Randomizer,
+    BuiltinDeviceType::Chorus,
+    BuiltinDeviceType::Phaser,
+    BuiltinDeviceType::Flanger,
+    BuiltinDeviceType::Tremolo,
 ];
 
 const GROUPS: &[(&str, &[BuiltinDeviceType])] = &[

@@ -116,13 +116,46 @@ fn fx_color_devices_are_placeholders() {
 }
 
 #[test]
-fn fx_modulation_devices_are_placeholders() {
-    group_inserts_and_compiles(&[
+fn fx_modulation_devices_insert_with_layouts() {
+    let types = [
         BuiltinDeviceType::Chorus,
         BuiltinDeviceType::Phaser,
         BuiltinDeviceType::Flanger,
         BuiltinDeviceType::Tremolo,
-    ]);
+    ];
+    group_inserts_and_compiles(&types);
+    let mut h = Harness::with_project();
+    let t = track(&mut h, TrackKind::Audio);
+    let ids: Vec<DeviceId> = types.iter().map(|&ty| insert(&mut h, t, ty)).collect();
+    for &d in &ids {
+        let ReplyValue::Descriptor { descriptor } =
+            h.ok(Command::Device(DeviceCommand::GetDescriptor { device: d }))
+        else {
+            panic!("descriptor reply");
+        };
+        assert!(descriptor.layout.is_some(), "{:?}", descriptor.name);
+        assert!(!ether_devices::factory_presets(descriptor_type(&h, d)).is_empty());
+    }
+    // The appended Through Zero toggle (param 9) is a regular, undoable param.
+    let flanger = ids[2];
+    let tz = ether_devices::fx_modulation::flanger::THROUGH_ZERO;
+    h.ok(Command::Device(DeviceCommand::SetParam {
+        device: flanger,
+        param: tz,
+        value: 1.0,
+    }));
+    assert_eq!(h.project().devices[&flanger].params.get(&tz), Some(&1.0));
+    h.tick();
+    let graph = h.ctl.bridge.last_graph();
+    let track = graph.tracks.iter().find(|x| x.id == t).unwrap();
+    assert_eq!(track.chain.len(), 4);
+}
+
+fn descriptor_type(h: &Harness, d: DeviceId) -> BuiltinDeviceType {
+    match &h.project().devices[&d].kind {
+        DeviceKind::Builtin { device } => device.device_type(),
+        other => panic!("{other:?}"),
+    }
 }
 
 /// fx-dynamics: the three devices insert and compile with their layouts; Gate and
