@@ -599,6 +599,38 @@ describe("PianoRoll sections and note clipboard (section-edit)", () => {
     expect(notesOf(clip).filter((n) => n.pitch === 60).map((n) => n.start)).toEqual([1, 4, 5]);
   });
 
+  it("insert marker: a click on empty grid while playing sets it (the playhead stays); ⌘V pastes there", async () => {
+    const { clip, a } = await setup();
+    await drag(noteEl(a), [x(1.5), y(60)], [x(1.5), y(60)]);
+    await press("c");
+    await send(cmd("Transport", { type: "Play" }));
+    await waitFor(() => expect(store().transport?.playing).toBe(true));
+    const locates: number[] = [];
+    const real = mock!.send.bind(mock);
+    vi.spyOn(mock!, "send").mockImplementation((c, o) => {
+      if (c.domain === "Transport" && c.command.type === "Locate") locates.push(c.command.position);
+      return real(c, o);
+    });
+    const playhead = playheadStore.getPlayhead()?.transport.position;
+    // Content beat 6.1 snaps to 6 (1/4 grid): the marker, drawn as a line.
+    await drag(grid(), [x(6.1), y(40)], [x(6.1), y(40)]);
+    expect(usePianoRollSection.getState().section).toEqual({ clip, start: 6, end: 6 });
+    expect(screen.getByTestId("piano-roll-marker").dataset.beats).toBe("6");
+    await press("v");
+    expect(notesOf(clip).filter((n) => n.pitch === 60).map((n) => n.start)).toEqual([1, 6]);
+    // The pasted range becomes the section, so ⌘V again lands right after it.
+    expect(usePianoRollSection.getState().section).toEqual({ clip, start: 6, end: 7 });
+    expect(locates).toEqual([]);
+    expect(playheadStore.getPlayhead()?.transport.position).toBe(playhead);
+  });
+
+  it("insert marker while stopped: the playhead goes there, so Play starts from it", async () => {
+    const { clip } = await setup();
+    await drag(grid(), [x(4.2), y(70)], [x(4.2), y(70)]);
+    expect(usePianoRollSection.getState().section).toEqual({ clip, start: 4, end: 4 });
+    await waitFor(() => expect(playheadStore.getPlayhead()?.transport.position).toBe(68));
+  });
+
   it("⌘X cuts the section's notes; ⌫ with a section and no selected notes clears it; Esc leaves it", async () => {
     const { clip } = await setup();
     await notesAt(clip, [0, 1, 2, 5]);
@@ -617,7 +649,7 @@ describe("PianoRoll sections and note clipboard (section-edit)", () => {
     expect(screen.queryByTestId("piano-roll-section")).toBeNull();
   });
 
-  it("a click on empty grid or a press on a note clears the section; ⌘A selects the clip's region", async () => {
+  it("a click on empty grid places the insert marker; a press on a note clears the section; ⌘A selects the clip's region", async () => {
     const { clip, a } = await setup();
     await drag(grid(), [x(0.1), y(70)], [x(3.9), y(50)]);
     expect(usePianoRollSection.getState().section).not.toBeNull();
@@ -626,7 +658,9 @@ describe("PianoRoll sections and note clipboard (section-edit)", () => {
     await press("a");
     expect(usePianoRollSection.getState().section).toEqual({ clip, start: 0, end: 8 });
     await drag(grid(), [x(6), y(40)], [x(6), y(40)]);
-    expect(usePianoRollSection.getState().section).toBeNull();
+    expect(usePianoRollSection.getState().section).toEqual({ clip, start: 6, end: 6 });
+    expect(screen.queryByTestId("piano-roll-section")).toBeNull();
+    expect(screen.getByTestId("piano-roll-marker")).toBeTruthy();
   });
 
   it("takes the desktop Edit menu's copy and paste events while focused", async () => {

@@ -46,6 +46,7 @@ import {
   type TimelineViewStore,
 } from "@/timeline";
 import { cmd, useTransport } from "@/transport";
+import { bindPlayFrom } from "@/features/time-edits/marker";
 import { clipTempoMap, contentEnd, contentToSong, songToContent } from "./clipTime";
 import { useSend } from "./drag";
 import { createPitchRows, KEYBOARD_WIDTH, pitchToY, yToPitch } from "./geometry";
@@ -57,7 +58,19 @@ import { useKeyHeightZoom } from "./useKeyHeightZoom";
 import { VelocityLane } from "./VelocityLane";
 import { ScaleControls } from "./ScaleControls";
 import { StretchBar, StretchButtons } from "./StretchBar";
-import { clearSection, copyOf, editSource, notesIn, pasteAt, pasteCommand, regionOf, sectionOf, usePianoRollSection } from "./section";
+import {
+  clearSection,
+  copyOf,
+  editSource,
+  isSectionMarker,
+  notesIn,
+  pasteAt,
+  pasteCommand,
+  rangeOfSection,
+  regionOf,
+  sectionOf,
+  usePianoRollSection,
+} from "./section";
 import "./pianoRoll.css";
 
 /** Prop-less piano roll mounted by the app shell. */
@@ -87,6 +100,9 @@ export interface PianoRollEditorProps {
 
 export function PianoRollEditor({ clip, view: injectedView }: PianoRollEditorProps) {
   const transport = useTransport();
+  // A marker placed while playing becomes the play start on the next stop (idempotent with
+  // the arrangement's binding: the first subscriber consumes it).
+  useEffect(() => bindPlayFrom(transport), [transport]);
   const send = useSend();
   const ownView = useMemo(() => createTimelineViewStore({ pxPerBeat: 40, followPlayhead: false }), []);
   const view = injectedView ?? ownView;
@@ -161,7 +177,9 @@ export function PianoRollEditor({ clip, view: injectedView }: PianoRollEditorPro
   }, [widthPx, view, clip, notes, keyH, rows]);
 
   // section-edit: the time range (of this clip) the clipboard/duplicate edits act on.
+  // A zero-length section is the insert marker (⌘V target); `range` is the real section.
   const section = usePianoRollSection((s) => (s.section?.clip === clip.id ? s.section : null));
+  const range = rangeOfSection(section);
 
   /** Copy / cut / paste / duplicate (see `section.ts`); one undo step each. */
   const sectionEdit = async (kind: "copy" | "cut" | "paste" | "duplicate") => {
@@ -176,7 +194,7 @@ export function PianoRollEditor({ clip, view: injectedView }: PianoRollEditorPro
       if (st.clipboard) await pasteAndSelect(pasteCommand(clip, st.clipboard, pasteAt(clip, sec, playheadBeats()), "Paste Notes"));
       return;
     }
-    const source = editSource(shownNotes, itemSelection.getState().selected.note, sec, step ? stepBeats : null);
+    const source = editSource(shownNotes, itemSelection.getState().selected.note, rangeOfSection(sec), step ? stepBeats : null);
     if (!source) return;
     if (kind === "duplicate") {
       await pasteAndSelect(pasteCommand(clip, copyOf(source), source.end, "Duplicate Notes"));
@@ -247,7 +265,7 @@ export function PianoRollEditor({ clip, view: injectedView }: PianoRollEditorPro
     let command: Command | null = null;
     if (key === "delete" || key === "backspace") {
       // The selected notes; with a section and no selection, the notes in the section.
-      const doomed = selected.length ? selected : section ? notesIn(shownNotes, section.start, section.end) : [];
+      const doomed = selected.length ? selected : range ? notesIn(shownNotes, range.start, range.end) : [];
       if (doomed.length) command = cmd("Note", { type: "Remove", ids: doomed.map((n) => n.id) });
     } else if (mod && key === "a") {
       itemSelection.getState().select("note", shownNotes.map((n) => n.id), "replace");
@@ -345,13 +363,14 @@ export function PianoRollEditor({ clip, view: injectedView }: PianoRollEditorPro
           />
           <StretchBar clip={clip} notes={shownNotes} vp={vp} step={step} tempo={tempo} />
           <div className="eth-pr__loopbar" data-testid="piano-roll-loopbar" onPointerDown={onStripPointerDown} title="Drag to select a section">
-            {section && (
+            {range && (
               <div
                 className="eth-pr__section"
                 data-testid="piano-roll-strip-section"
-                style={{ left: beatsToPx(section.start, vp), width: (section.end - section.start) * vp.pxPerBeat }}
+                style={{ left: beatsToPx(range.start, vp), width: (range.end - range.start) * vp.pxPerBeat }}
               />
             )}
+            {section && isSectionMarker(section) && <div className="eth-pr__marker" style={{ left: beatsToPx(section.start, vp) }} />}
             {loop.enabled && (
               <div
                 className="eth-pr__loop"

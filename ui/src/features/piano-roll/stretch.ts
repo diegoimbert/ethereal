@@ -18,7 +18,7 @@
 import type { Beats, Clip, Command, Note, NoteEdit, NoteId } from "@/generated";
 import { cmd } from "@/transport";
 import { MIN_NOTE_BEATS, noteEdit } from "./noteEdits";
-import { editSource, growCommands, type PianoRollSection } from "./section";
+import { editSource, growCommands, isSectionMarker, type PianoRollSection } from "./section";
 
 export type StretchHandle = "start" | "end" | "move";
 
@@ -57,7 +57,7 @@ export function stretchSource(
   selected: ReadonlySet<NoteId>,
   section: PianoRollSection | null,
 ): StretchSource | null {
-  if (section && section.end - section.start > 1e-9) {
+  if (section && !isSectionMarker(section)) {
     const src = editSource(notes, selected, section, null);
     return src && src.notes.length ? { ...src, section: true } : null;
   }
