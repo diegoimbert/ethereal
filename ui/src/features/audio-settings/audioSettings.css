@@ -74,3 +74,50 @@
     transform: rotate(360deg);
   }
 }
+
+/* base-115: Settings tabs (Audio | Sharing | Advanced, docs/SHARING.md §8.6). */
+.eth-settings {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-lg);
+  min-width: 0;
+}
+.eth-settings__tabs {
+  align-self: flex-start;
+}
+.eth-settings__panel {
+  min-width: 0;
+  /* Switching tabs keeps the dialog from jumping much. */
+  min-height: var(--eth-size-detail-height);
+}
+.eth-settings__stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-xl);
+}
+.eth-settings__stack > * + * {
+  padding-top: var(--eth-space-xl);
+  border-top: var(--eth-border-width) solid var(--eth-color-border);
+}
+.eth-settings__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-sm);
+}
+.eth-settings__heading {
+  margin: 0;
+  font-size: var(--eth-fs-md);
+  font-weight: var(--eth-fw-medium);
+  color: var(--eth-color-text);
+}
+.eth-settings__hint {
+  margin: 0;
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+}
+.eth-settings__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--eth-space-md);
+}
