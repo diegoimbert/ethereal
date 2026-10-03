@@ -24,7 +24,6 @@ use ether_core::protocol::notes::{NoteCommand, NoteSpec};
 use ether_core::protocol::project::ProjectCommand;
 use ether_core::protocol::templates::TemplateCommand;
 use ether_core::protocol::tracks::TrackCommand;
-use ether_core::protocol::undo_history::HistoryCommand;
 use ether_core::protocol::versions::VersionCommand;
 use ether_core::protocol::{Command, ErrorCode};
 
@@ -338,24 +337,6 @@ fn external_instrument_devices_are_placeholders() {
 }
 
 // ─── workflow ───────────────────────────────────────────────────────────────────────────
-
-#[test]
-fn undo_history_replies_unsupported() {
-    let mut h = Harness::with_project();
-    track(&mut h, TrackKind::Audio);
-    assert_unsupported(&mut h, Command::History(HistoryCommand::List));
-    assert_unsupported(
-        &mut h,
-        Command::History(HistoryCommand::JumpTo { step: None }),
-    );
-    assert_unsupported(
-        &mut h,
-        Command::History(HistoryCommand::SetCheckpoint {
-            step: 0,
-            name: Some("Before mix".into()),
-        }),
-    );
-}
 
 #[test]
 fn templates_reply_unsupported() {
