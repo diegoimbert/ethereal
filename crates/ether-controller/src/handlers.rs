@@ -109,6 +109,8 @@ where
     ) -> CmdResult<ReplyValue> {
         let current = self.doc.as_ref().map(|d| d.project.id);
         let command = &msg.command;
+        // `agent-api`: remember what the agent tools report (the UI's selection).
+        self.agent_observe(command);
         // base-53: while listening on a peer, transport commands go to the host and
         // recording is refused (loop changes are document commands: intercept first).
         if let Some(r) = self.collab_transport_intercept(command, out) {
@@ -186,6 +188,8 @@ where
             Command::Keymap(c) => self.keymap_command(c, out),
             // base-115 (docs/SHARING.md).
             Command::Share(c) => self.share_command(c, out),
+            // `agent-api`: LLM tools (each edit tool call is one undo step).
+            Command::Agent(c) => self.agent_command(c, now, out),
             other => Err(internal(format!(
                 "unhandled command {}",
                 doc::label_of(other)

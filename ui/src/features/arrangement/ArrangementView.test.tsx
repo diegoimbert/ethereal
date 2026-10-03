@@ -9,6 +9,7 @@ import { useCollabStore } from "@/features/collab/store";
 import { ArrangementView } from "./ArrangementView";
 import { BROWSER_DRAG_MIME } from "./browserDrop";
 import { clearClipboard } from "./clipboard";
+import { resetTimeSelection, useTimeSelection } from "@/features/time-edits/store";
 import { AUTOMATION_BAR_HEIGHT, LANE_HEIGHT, resetAutomationUi } from "@/features/automation";
 import { HEADER_WIDTH, MAX_TRACK_HEIGHT, MIN_TRACK_HEIGHT, TRACK_HEIGHT } from "./layout";
 import { arrangementView, resetArrangementUi, useArrangementUi } from "./uiStore";
@@ -103,6 +104,7 @@ async function undo() {
 beforeEach(async () => {
   resetArrangementUi();
   resetAutomationUi();
+  resetTimeSelection();
   useArrangementUi.getState().setGrid({ type: "Fixed", step: { kind: "beats", beats: 1 }, triplet: false });
   stubCanvas();
   await renderView();
@@ -727,7 +729,9 @@ describe("ArrangementView: clip editing", () => {
       expect(pasted).toMatchObject({ length: bass.length, name: bass.name });
       expect(notes(pasted.id)).toBe(notes(bass.id));
       expect([...itemSelection.getState().selected.clip]).toEqual([pasted.id]);
-      await waitFor(() => expect(playheadStore.getPlayhead()?.transport.position).toBe(32 + bass.length));
+      // section-edit: the insert marker (not the playhead) moves to the pasted end.
+      expect(useTimeSelection.getState().selection).toMatchObject({ start: 32 + bass.length, end: 32 + bass.length });
+      expect(playheadStore.getPlayhead()?.transport.position).toBe(32);
       await undo();
       expect(project().clips[pasted.id]).toBeUndefined();
     });

@@ -26,7 +26,8 @@
 //!   jump at the join if they differ).
 //! - `InsertSilence`: clips crossing `at` are split, material from `at` moves right; a comp
 //!   region crossing `at` is split; automation holds its value at `at` through the gap.
-//! - `Copy`/`Cut`: clip pieces (with notes, warp markers, clip envelopes), take clips, comp
+//! - `Copy`/`Cut`: clip pieces (with notes, warp markers, clip envelopes; a non-looping MIDI
+//!   piece keeps only the notes starting inside it), take clips, comp
 //!   regions and automation of the range, relative to its start.
 //! - `Paste`: onto `tracks` (clipboard track `i` → `tracks[i]`, kind mismatches skipped;
 //!   empty = the original tracks). `insert` = insert the clipboard length first, else the

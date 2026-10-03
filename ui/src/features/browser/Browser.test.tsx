@@ -8,6 +8,13 @@ import { Browser } from "./index";
 
 afterEach(resetStores);
 
+/**
+ * Waits on an engine round trip (a folder listing, then the focus effect it triggers). The
+ * default 1 s flaked under a loaded machine (the mock replies are in-process but the worker
+ * can be starved); the steps themselves are deterministic.
+ */
+const ROUND_TRIP = { timeout: 5_000 };
+
 const mediaNames = () => Object.values(useProjectStore.getState().project!.media).map((m) => m.name);
 
 /** Minimal DataTransfer stand-in (jsdom has none). */
@@ -96,42 +103,42 @@ describe("Browser", () => {
     expect(list.queryByRole("button", { name: /^(Preview|Import) / })).toBeNull();
   });
 
-  it("walks the rows with the arrow keys, previewing audio files, and opens / leaves folders", async () => {
+  it("walks the rows with the arrow keys, previewing audio files, and opens / leaves folders", { timeout: 20_000 }, async () => {
     await renderWithMock(<Browser />);
     const list = await files();
-    const drums = await list.findByRole("button", { name: "Drums" });
+    const drums = await list.findByRole("button", { name: "Drums" }, ROUND_TRIP);
     drums.focus();
     fireEvent.keyDown(drums, { key: "ArrowRight" });
-    const parent = await list.findByRole("button", { name: "Parent folder" });
-    await waitFor(() => expect(parent).toHaveFocus());
-    const kick = await list.findByRole("button", { name: "Kick.wav" });
+    const parent = await list.findByRole("button", { name: "Parent folder" }, ROUND_TRIP);
+    await waitFor(() => expect(parent).toHaveFocus(), ROUND_TRIP);
+    const kick = await list.findByRole("button", { name: "Kick.wav" }, ROUND_TRIP);
     const snare = list.getByRole("button", { name: "Snare.wav" });
     const rows = list.getAllByRole("button");
     const k = rows.indexOf(kick);
     // Walk down from the parent row to the kick: it plays; the next row replaces it.
     for (let i = 0; i < k; i++) fireEvent.keyDown(document.activeElement!, { key: "ArrowDown" });
     expect(kick).toHaveFocus();
-    await waitFor(() => expect(kick).toHaveAttribute("aria-pressed", "true"));
+    await waitFor(() => expect(kick).toHaveAttribute("aria-pressed", "true"), ROUND_TRIP);
     expect(rows[k + 1]).toBe(snare);
     fireEvent.keyDown(kick, { key: "ArrowDown" });
     expect(snare).toHaveFocus();
-    await waitFor(() => expect(snare).toHaveAttribute("aria-pressed", "true"));
+    await waitFor(() => expect(snare).toHaveAttribute("aria-pressed", "true"), ROUND_TRIP);
     expect(kick).toHaveAttribute("aria-pressed", "false");
     // Moving back onto a playing row keeps it playing (no toggle).
     fireEvent.click(kick);
-    await waitFor(() => expect(kick).toHaveAttribute("aria-pressed", "true"));
+    await waitFor(() => expect(kick).toHaveAttribute("aria-pressed", "true"), ROUND_TRIP);
     fireEvent.keyDown(kick, { key: "ArrowUp" });
     fireEvent.keyDown(document.activeElement!, { key: "ArrowDown" });
     expect(kick).toHaveFocus();
-    await waitFor(() => expect(kick).toHaveAttribute("aria-pressed", "true"));
+    await waitFor(() => expect(kick).toHaveAttribute("aria-pressed", "true"), ROUND_TRIP);
     // Home / End clamp to the ends; ← goes up a folder.
     fireEvent.keyDown(kick, { key: "Home" });
     expect(parent).toHaveFocus();
     fireEvent.keyDown(parent, { key: "ArrowUp" });
     expect(parent).toHaveFocus();
     fireEvent.keyDown(parent, { key: "ArrowLeft" });
-    const back = await list.findByRole("button", { name: "Drums" });
-    await waitFor(() => expect(list.getAllByRole("button")[0]).toHaveFocus());
+    const back = await list.findByRole("button", { name: "Drums" }, ROUND_TRIP);
+    await waitFor(() => expect(list.getAllByRole("button")[0]).toHaveFocus(), ROUND_TRIP);
     expect(back).toBeInTheDocument();
   });
 
@@ -145,7 +152,7 @@ describe("Browser", () => {
     await waitFor(() => expect(kick).toHaveAttribute("aria-pressed", "true"));
     // Replaced: the old row resets, the new one is previewing.
     fireEvent.click(snare);
-    await waitFor(() => expect(snare).toHaveAttribute("aria-pressed", "true"));
+    await waitFor(() => expect(snare).toHaveAttribute("aria-pressed", "true"), ROUND_TRIP);
     expect(kick).toHaveAttribute("aria-pressed", "false");
     // Played to its end (PreviewEnded { Finished }): the row resets by itself.
     act(() => mock.tick(16 * (PREVIEW_STEPS + 2)));
