@@ -1,0 +1,32 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "Square Lead",
+    "device": {
+      "type": "Builtin",
+      "device": "Synth"
+    },
+    "meta": {
+      "tags": [
+        "lead"
+      ],
+      "author": "Ethereal",
+      "description": "Hollow square lead."
+    },
+    "params": {
+      "0": 2.0,
+      "2": 5.0,
+      "3": 300.0,
+      "4": 75.0,
+      "5": 180.0,
+      "6": 6000.0,
+      "7": 20.0,
+      "8": -14.0
+    },
+    "kind": null,
+    "samples": [],
+    "state": null
+  }
+}

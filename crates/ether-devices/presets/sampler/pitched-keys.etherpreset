@@ -1,0 +1,29 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "Pitched Keys",
+    "device": {
+      "type": "Builtin",
+      "device": "Sampler"
+    },
+    "meta": {
+      "tags": [
+        "keys",
+        "pitched"
+      ],
+      "author": "Ethereal",
+      "description": "Chromatic playback with a short release."
+    },
+    "params": {
+      "0": 1.0,
+      "1": 60.0,
+      "3": 5.0,
+      "4": 400.0
+    },
+    "kind": null,
+    "samples": [],
+    "state": null
+  }
+}

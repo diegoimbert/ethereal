@@ -10,6 +10,10 @@
 //!   every `publish_interval_ms` from `handle` and always from `tick` (bursts coalesce).
 //! - Continuous controls (volume, pan, mute, send level, device params) are pushed to the
 //!   engine param queue immediately and do not republish.
+//! - PDC is computed at publish from the node latencies the audio thread last observed.
+//!   Each publish records them; the tick compares them with the live values
+//!   ([`EngineState::check_latencies`]) and republishes, at most every
+//!   [`LATENCY_REPUBLISH_MS`], when a node's latency changed (a built-in's lookahead param).
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -76,7 +80,14 @@ pub(crate) struct EngineState {
     pub audition: BTreeMap<TrackId, TakeLaneId>,
     /// v0.2 (`midi-fx`): scale last pushed to each Scale Quantize / Random node.
     midi_fx_scales: BTreeMap<DeviceId, MusicalScale>,
+    /// Node latencies as read just before the last publish (`latency-republish`). Reused
+    /// across publishes; compared with the live values by [`Self::check_latencies`].
+    published_latency: Vec<(NodeKey, Option<u32>)>,
 }
+
+/// Minimum time between a publish and a republish caused by a node latency change (a
+/// lookahead knob being dragged republishes at most this often).
+pub const LATENCY_REPUBLISH_MS: u64 = 50;
 
 pub(crate) fn bridge_err(e: BridgeError) -> ether_core::protocol::CommandError {
     match e {
@@ -309,6 +320,13 @@ impl EngineState {
         crate::drum_rack::apply_solo(&mut desc, &self.pad_solo);
         crate::comping::apply_audition(&mut desc, project, &mut self.audition);
         self.last_publish_ms = Some(now_ms);
+        // Read before publishing: a change racing the compile then costs one extra
+        // republish instead of going unnoticed.
+        self.published_latency.clear();
+        for n in self.nodes.values() {
+            self.published_latency
+                .push((n.key, bridge.node_latency(n.key)));
+        }
         match bridge.publish(desc) {
             Ok(()) => {
                 self.graph_dirty = false;
@@ -326,6 +344,26 @@ impl EngineState {
             }
         }
         problems
+    }
+
+    /// Controller tick (`latency-republish`): mark the graph dirty when a node's latency
+    /// differs from the value the last publish used for PDC, at most every
+    /// [`LATENCY_REPUBLISH_MS`] after a publish. Never allocates; no-op while the graph is
+    /// already dirty or before the first publish.
+    pub fn check_latencies<B: EngineBridge>(&mut self, bridge: &B, now_ms: u64) {
+        let Some(last) = self.last_publish_ms else {
+            return;
+        };
+        if self.graph_dirty || now_ms.saturating_sub(last) < LATENCY_REPUBLISH_MS {
+            return;
+        }
+        if self
+            .published_latency
+            .iter()
+            .any(|&(key, lat)| bridge.node_latency(key) != lat)
+        {
+            self.graph_dirty = true;
+        }
     }
 
     /// Engine effects of applied ops: continuous controls go to the param queue, anything
@@ -410,6 +448,26 @@ impl EngineState {
                         _ => continue,
                     }
                 }
+                // v0.2 (`racks-modulation`): live modulator params.
+                Op::Update {
+                    update:
+                        EntityUpdate::Modulator {
+                            id,
+                            change: ModulatorChange::Param { param, .. },
+                        },
+                } => project.modulators.get(id).map(|m| ParamChange {
+                    target: ParamTarget::Modulator {
+                        modulator: *id,
+                        param: *param,
+                    },
+                    value: m.params.get(param).copied().unwrap_or_else(|| {
+                        ether_devices::modulators::descriptor(m.kind)
+                            .params
+                            .iter()
+                            .find(|p| p.id == *param)
+                            .map_or(0.0, |p| p.default)
+                    }),
+                }),
                 _ => None,
             };
             match change {

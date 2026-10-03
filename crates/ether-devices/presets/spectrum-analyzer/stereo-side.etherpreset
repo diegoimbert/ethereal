@@ -1,0 +1,31 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "Side Content",
+    "device": {
+      "type": "Builtin",
+      "device": "SpectrumAnalyzer"
+    },
+    "meta": {
+      "tags": [
+        "mastering",
+        "stereo"
+      ],
+      "author": "Ethereal",
+      "description": "Analyses the side signal (L-R) to check stereo width per band."
+    },
+    "params": {
+      "0": 2.0,
+      "1": 60.0,
+      "2": 4.0,
+      "3": -96.0,
+      "4": 3.0,
+      "5": 1.0
+    },
+    "kind": null,
+    "samples": [],
+    "state": null
+  }
+}

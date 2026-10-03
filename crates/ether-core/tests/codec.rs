@@ -12,7 +12,9 @@ use ether_core::graph::{
     AutomationDesc, ChainEntry, ClipContentDesc, ClipDesc, MetronomeDesc, NoteDesc, PadDesc,
     ParamMapping, RackDesc, RenderGraphDesc, ResolvedTarget, SendDesc, TrackDesc, WarpDesc,
 };
-use ether_core::modulation::{ModMappingDesc, ModSourceDesc, ModulationDesc, ModulatorDesc};
+use ether_core::modulation::{
+    MacroDesc, ModMappingDesc, ModSourceDesc, ModulationDesc, ModulatorDesc,
+};
 use ether_core::protocol::devices::ParamScale;
 use ether_core::protocol::model::{
     AutomationTarget, ClipId, CurveShape, DeviceId, DrumPadId, FadeCurve, MediaId, MetronomeSound,
@@ -56,8 +58,9 @@ fn every_variant_roundtrips() {
     }
 }
 
-/// The v0.2 fields (contracts-3; `input_tap`, `vca` and `vcas` binary since codec v3, the
-/// others a JSON blob): every variant and `Option` state.
+/// The v0.2 fields (contracts-3; `input_tap`, `vca` and `vcas` binary since codec v3,
+/// `chain_racks` and `modulation` since v4, `frozen` a JSON blob): every variant and
+/// `Option` state.
 #[test]
 fn v02_fields_roundtrip() {
     let d = fixture::v02_filled();
@@ -500,8 +503,14 @@ fn track_ext() -> impl Strategy<Value = TrackExt> {
         Just(ChainRackKind::AudioEffect),
         Just(ChainRackKind::MidiEffect),
     ];
-    let rack = (node_key(), rack_kind, vec(chain, 0..3))
-        .prop_map(|(rack, kind, chains)| ChainRackDesc { rack, kind, chains });
+    let rack = (node_key(), rack_kind, vec(chain, 0..3), any::<u8>()).prop_map(
+        |(rack, kind, chains, selector)| ChainRackDesc {
+            rack,
+            kind,
+            chains,
+            selector,
+        },
+    );
     let kind = prop::sample::select(ModulatorKind::ALL.to_vec());
     let modulator = (
         ulid(),
@@ -537,12 +546,17 @@ fn track_ext() -> impl Strategy<Value = TrackExt> {
             mapping,
             base,
         });
-    let modulation =
-        (vec(modulator, 0..3), vec(mapping, 0..3)).prop_map(|(modulators, mappings)| {
-            ModulationDesc {
-                modulators,
-                mappings,
-            }
+    let macro_desc = (node_key(), prop::array::uniform8(finite64()))
+        .prop_map(|(rack, values)| MacroDesc { rack, values });
+    let modulation = (
+        vec(modulator, 0..3),
+        vec(mapping, 0..3),
+        vec(macro_desc, 0..2),
+    )
+        .prop_map(|(modulators, mappings, macros)| ModulationDesc {
+            modulators,
+            mappings,
+            macros,
         });
     let tap = prop_oneof![
         Just(InputTap::PreFx),

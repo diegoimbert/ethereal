@@ -1,0 +1,25 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "Mono",
+    "device": {
+      "type": "Builtin",
+      "device": "Utility"
+    },
+    "meta": {
+      "tags": [
+        "mono"
+      ],
+      "author": "Ethereal",
+      "description": "Sums to mono."
+    },
+    "params": {
+      "5": 1.0
+    },
+    "kind": null,
+    "samples": [],
+    "state": null
+  }
+}

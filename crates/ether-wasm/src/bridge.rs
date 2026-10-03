@@ -7,6 +7,7 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use ether_controller::{BridgeError, EngineBridge};
+use ether_core::analysis::AnalysisFrame;
 use ether_core::protocol::devices::DeviceDescriptor;
 use ether_core::protocol::model::{
     Base64Bytes, BuiltinDevice, BuiltinDeviceType, DeviceId, MediaId, MediaRef, ParamId,
@@ -15,11 +16,16 @@ use ether_core::protocol::model::{
 use ether_core::{EngineOutputs, NodeKey, ParamChange, RenderGraphDesc, TransportControl};
 use ether_media::DecodedAudio;
 
-use crate::proto::{EngineMsg, EngineReport, PREVIEW_MEDIA, REPORT_ERROR, REPORT_STATE};
+use crate::proto::{
+    EngineMsg, EngineReport, PREVIEW_MEDIA, REPORT_ANALYSIS, REPORT_ERROR, REPORT_STATE,
+    decode_analysis,
+};
 use crate::ring::{RingMemory, RingReader, RingWriter};
 
 /// Bytes of reports drained per poll (reports are small; this only bounds a backlog).
 const REPORT_BUDGET: usize = 256 * 1024;
+/// Analysis frames kept between two `poll_analysis` calls (oldest dropped beyond).
+const ANALYSIS_BACKLOG: usize = ether_core::analysis::ANALYSIS_RING;
 
 /// Shared between the bridge (owned by the controller) and the host wrapper, which flushes
 /// the ring after every call and surfaces engine errors as notifications.
@@ -30,6 +36,8 @@ pub struct BridgeShared<M: RingMemory> {
     pub errors: Vec<String>,
     /// Blocks rendered by the Worklet as of the last report (0 = not running yet).
     pub blocks: u64,
+    /// Analysis frames received since the last `EngineBridge::poll_analysis` (virtual keys).
+    pub analysis: Vec<AnalysisFrame>,
 }
 
 impl<M: RingMemory> BridgeShared<M> {
@@ -39,6 +47,7 @@ impl<M: RingMemory> BridgeShared<M> {
             reports,
             errors,
             blocks,
+            analysis,
             ..
         } = self;
         reports.drain(REPORT_BUDGET, |bytes| {
@@ -67,6 +76,15 @@ impl<M: RingMemory> BridgeShared<M> {
                     }
                     Err(e) => errors.push(format!("bad engine report: {e}")),
                 },
+                Some(&REPORT_ANALYSIS) => match decode_analysis(bytes) {
+                    Ok(f) => {
+                        if analysis.len() >= ANALYSIS_BACKLOG {
+                            analysis.remove(0);
+                        }
+                        analysis.push(f);
+                    }
+                    Err(e) => errors.push(format!("bad analysis report: {e}")),
+                },
                 Some(&REPORT_ERROR) => {
                     errors.push(String::from_utf8_lossy(&bytes[1..]).into_owned())
                 }
@@ -89,6 +107,7 @@ pub fn shared<M: RingMemory>(control: M, reports: M) -> Shared<M> {
         reports: RingReader::new(reports),
         errors: Vec::new(),
         blocks: 0,
+        analysis: Vec::new(),
     }))
 }
 
@@ -231,6 +250,17 @@ impl<M: RingMemory> EngineBridge for WebBridge<M> {
         let (_, kind) = self.devices.get(&device)?;
         Some(ether_devices::descriptor(*kind))
     }
+
+    /// Frames forwarded by the Worklet (`REPORT_ANALYSIS`), drained with the other reports
+    /// by [`EngineBridge::poll`], which the controller's tick calls first.
+    fn poll_analysis(&mut self, out: &mut Vec<AnalysisFrame>) {
+        out.append(&mut self.shared.borrow_mut().analysis);
+    }
+
+    fn watch_analysis(&mut self, node: NodeKey, on: bool) -> Result<(), BridgeError> {
+        self.send(EngineMsg::WatchAnalysis { key: node, on });
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -292,5 +322,111 @@ mod preview_tests {
         bridge.poll(&mut out);
         assert_eq!(out.preview_ended, None);
         assert!(bridge.shared.borrow().errors.is_empty());
+    }
+}
+
+#[cfg(test)]
+mod analysis_tests {
+    //! `fx-analysis`: watches reach the Worklet's engine and its frames come back to the
+    //! controller under the Worker's virtual node keys.
+    use super::*;
+    use crate::ring::HeapMemory;
+    use crate::worklet::{EngineHost, RENDER_QUANTUM};
+    use ether_core::analysis::AnalysisKind;
+    use ether_core::graph::{ChainEntry, TrackDesc};
+    use ether_core::protocol::model::{TrackId, TrackKind, Ulid};
+
+    fn track(id: u128, kind: TrackKind, output: Option<TrackId>) -> TrackDesc {
+        TrackDesc {
+            modulation: Default::default(),
+            vca: Default::default(),
+            chain_racks: Default::default(),
+            frozen: Default::default(),
+            input_tap: Default::default(),
+            id: TrackId(Ulid(id)),
+            kind,
+            chain: vec![],
+            output,
+            group: None,
+            sends: vec![],
+            volume: 1.0,
+            pan: 0.0,
+            mute: false,
+            solo: false,
+            audio_input: None,
+            monitor: false,
+            armed: false,
+            clips: vec![],
+            automation: vec![],
+            racks: Vec::new(),
+        }
+    }
+
+    fn render(host: &mut EngineHost<HeapMemory>, blocks: usize) {
+        for _ in 0..blocks {
+            host.render(RENDER_QUANTUM);
+        }
+    }
+
+    #[test]
+    fn analysis_frames_are_forwarded_from_the_worklet() {
+        let control = HeapMemory::new(1 << 20);
+        let reports = HeapMemory::new(1 << 18);
+        let mut bridge = WebBridge::new(shared(control.clone(), reports.clone()));
+        let mut host = EngineHost::new(48_000, control, reports);
+        let device = DeviceId(Ulid(9));
+        let key = bridge
+            .create_builtin(
+                device,
+                &BuiltinDevice::new(BuiltinDeviceType::SpectrumAnalyzer),
+                &[],
+            )
+            .unwrap();
+        let master = track(1, TrackKind::Master, None);
+        let mut audio = track(2, TrackKind::Audio, Some(master.id));
+        audio.chain = vec![ChainEntry {
+            node: key,
+            enabled: true,
+            sidechain: None,
+        }];
+        bridge
+            .publish(RenderGraphDesc {
+                tracks: vec![master, audio],
+                ..Default::default()
+            })
+            .unwrap();
+        let mut outputs = EngineOutputs::default();
+        let mut frames = Vec::new();
+        bridge.poll(&mut outputs);
+        render(&mut host, 8);
+        // Unwatched: nothing comes back.
+        bridge.poll(&mut outputs);
+        bridge.poll_analysis(&mut frames);
+        assert!(frames.is_empty());
+        bridge.watch_analysis(key, true).unwrap();
+        bridge.poll(&mut outputs);
+        // Half a second.
+        for _ in 0..30 {
+            render(&mut host, 6);
+            bridge.poll(&mut outputs);
+            bridge.poll_analysis(&mut frames);
+        }
+        assert!(
+            (12..=16).contains(&frames.len()),
+            "{} frames in 0.5 s",
+            frames.len()
+        );
+        assert!(frames.iter().all(|f| f.node == key));
+        assert!(frames.iter().all(|f| f.kind == AnalysisKind::Spectrum));
+        assert_eq!(frames[0].values().len(), 258);
+        assert!(bridge.shared.borrow().errors.is_empty());
+        // Unwatch stops them.
+        bridge.watch_analysis(key, false).unwrap();
+        bridge.poll(&mut outputs);
+        render(&mut host, 60);
+        bridge.poll(&mut outputs);
+        frames.clear();
+        bridge.poll_analysis(&mut frames);
+        assert!(frames.len() <= 1, "{}", frames.len());
     }
 }

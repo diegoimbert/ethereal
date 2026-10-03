@@ -3,4 +3,4 @@
 /**
  * Modulator kinds. Append-only (serialized by name).
  */
-export type ModulatorKind = "Lfo" | "Envelope" | "EnvelopeFollower" | "Steps" | "Random";
+export type ModulatorKind = "Lfo" | "Envelope" | "EnvelopeFollower" | "Steps" | "Random" | "Keytrack" | "Velocity";

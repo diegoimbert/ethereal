@@ -1,0 +1,45 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "Acid Bass",
+    "device": {
+      "type": "Builtin",
+      "device": "PolySynth"
+    },
+    "meta": {
+      "tags": [
+        "acid",
+        "bass",
+        "resonant"
+      ],
+      "author": "Ethereal",
+      "description": "Legato saw into a driven, resonant ladder with a snappy filter envelope and slides."
+    },
+    "params": {
+      "0": 0.0,
+      "21": 1.0,
+      "22": 2.0,
+      "23": 70.0,
+      "25": 0.0,
+      "26": 260.0,
+      "27": 72.0,
+      "28": 12.0,
+      "29": 40.0,
+      "30": 50.0,
+      "31": 1.0,
+      "32": 400.0,
+      "33": 75.0,
+      "34": 60.0,
+      "35": 0.0,
+      "36": 220.0,
+      "37": 5.0,
+      "38": 120.0,
+      "57": 4.0,
+      "58": 60.0
+    },
+    "kind": null,
+    "state": null
+  }
+}

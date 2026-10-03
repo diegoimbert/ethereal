@@ -1,0 +1,57 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "Sync Lead",
+    "device": {
+      "type": "Builtin",
+      "device": "PolySynth"
+    },
+    "meta": {
+      "tags": [
+        "aggressive",
+        "lead",
+        "sync"
+      ],
+      "author": "Ethereal",
+      "description": "Saw plus the Digital (hard-sync) wavetable swept by the mod envelope; legato glide."
+    },
+    "params": {
+      "0": 0.0,
+      "6": -4.0,
+      "7": 4.0,
+      "8": 10.0,
+      "18": 2.0,
+      "19": 12.0,
+      "20": 40.0,
+      "21": 1.0,
+      "22": 2.0,
+      "23": 45.0,
+      "25": 0.0,
+      "26": 4200.0,
+      "27": 25.0,
+      "28": 6.0,
+      "29": 30.0,
+      "31": 2.0,
+      "32": 300.0,
+      "33": 85.0,
+      "34": 180.0,
+      "39": 0.0,
+      "40": 700.0,
+      "41": 10.0,
+      "42": 300.0,
+      "43": 3.0,
+      "44": 70.0,
+      "45": 0.0,
+      "46": 5.5,
+      "49": 1.0,
+      "50": 11.0,
+      "57": 4.0,
+      "58": 40.0,
+      "60": 4.0
+    },
+    "kind": null,
+    "state": null
+  }
+}

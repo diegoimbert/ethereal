@@ -1,0 +1,31 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "Drum Punch",
+    "device": {
+      "type": "Builtin",
+      "device": "Compressor"
+    },
+    "meta": {
+      "tags": [
+        "drums",
+        "punch"
+      ],
+      "author": "Ethereal",
+      "description": "Slow attack lets transients through."
+    },
+    "params": {
+      "0": -18.0,
+      "1": 4.0,
+      "2": 25.0,
+      "3": 80.0,
+      "4": 3.0,
+      "5": 20.0
+    },
+    "kind": null,
+    "samples": [],
+    "state": null
+  }
+}

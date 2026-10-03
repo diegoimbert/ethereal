@@ -7,6 +7,510 @@
       "device": "PolySynth",
       "type": "Builtin"
     },
+    "layout": {
+      "sections": [
+        {
+          "columns": 4,
+          "id": "osc1",
+          "items": [
+            {
+              "colspan": 4,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "position": 1,
+                "shape": 0,
+                "type": "Oscillator"
+              }
+            },
+            {
+              "colspan": 2,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 59,
+                "type": "Choice"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 2,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 3,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 4,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 5,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 2,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 6,
+                "type": "Knob"
+              }
+            }
+          ],
+          "span": 2,
+          "title": "Osc 1"
+        },
+        {
+          "columns": 4,
+          "id": "osc2",
+          "items": [
+            {
+              "colspan": 4,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "position": 8,
+                "shape": 7,
+                "type": "Oscillator"
+              }
+            },
+            {
+              "colspan": 2,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 60,
+                "type": "Choice"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 9,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 10,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 11,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 12,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 2,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 13,
+                "type": "Knob"
+              }
+            }
+          ],
+          "span": 2,
+          "title": "Osc 2"
+        },
+        {
+          "columns": 2,
+          "id": "sub-noise",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 14,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 15,
+                "type": "Choice"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 16,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 17,
+                "type": "Knob"
+              }
+            }
+          ],
+          "span": 1,
+          "title": "Sub / Noise"
+        },
+        {
+          "columns": 2,
+          "id": "filter",
+          "items": [
+            {
+              "colspan": 2,
+              "label": null,
+              "size": "Large",
+              "widget": {
+                "cutoff": 26,
+                "drive": 28,
+                "gain": null,
+                "mode": 25,
+                "resonance": 27,
+                "type": "FilterCurve"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 29,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 30,
+                "type": "Knob"
+              }
+            }
+          ],
+          "span": 2,
+          "title": "Filter"
+        },
+        {
+          "columns": 2,
+          "id": "filter-env",
+          "items": [
+            {
+              "colspan": 2,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "attack": 35,
+                "decay": 36,
+                "delay": null,
+                "hold": null,
+                "release": 38,
+                "sustain": 37,
+                "type": "Envelope"
+              }
+            }
+          ],
+          "span": 1,
+          "title": "Filter Envelope"
+        },
+        {
+          "columns": 2,
+          "id": "amp-env",
+          "items": [
+            {
+              "colspan": 2,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "attack": 31,
+                "decay": 32,
+                "delay": null,
+                "hold": null,
+                "release": 34,
+                "sustain": 33,
+                "type": "Envelope"
+              }
+            }
+          ],
+          "span": 1,
+          "title": "Amp Envelope"
+        },
+        {
+          "columns": 2,
+          "id": "mod-env",
+          "items": [
+            {
+              "colspan": 2,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "attack": 39,
+                "decay": 40,
+                "delay": null,
+                "hold": null,
+                "release": 42,
+                "sustain": 41,
+                "type": "Envelope"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 43,
+                "type": "Choice"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 44,
+                "type": "Knob"
+              }
+            }
+          ],
+          "span": 1,
+          "title": "Mod Envelope"
+        },
+        {
+          "columns": 2,
+          "id": "lfo1",
+          "items": [
+            {
+              "colspan": 2,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "amount": 50,
+                "rate": 46,
+                "shape": 45,
+                "type": "Lfo"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 47,
+                "type": "Toggle"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 48,
+                "type": "Choice"
+              }
+            },
+            {
+              "colspan": 2,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 49,
+                "type": "Choice"
+              }
+            }
+          ],
+          "span": 1,
+          "title": "LFO 1"
+        },
+        {
+          "columns": 2,
+          "id": "lfo2",
+          "items": [
+            {
+              "colspan": 2,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "amount": 56,
+                "rate": 52,
+                "shape": 51,
+                "type": "Lfo"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 53,
+                "type": "Toggle"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 54,
+                "type": "Choice"
+              }
+            },
+            {
+              "colspan": 2,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 55,
+                "type": "Choice"
+              }
+            }
+          ],
+          "span": 1,
+          "title": "LFO 2"
+        },
+        {
+          "columns": 3,
+          "id": "voice",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 18,
+                "type": "Number"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 19,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 20,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 21,
+                "type": "Number"
+              }
+            },
+            {
+              "colspan": 2,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 22,
+                "type": "Choice"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 23,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 2,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 24,
+                "type": "Number"
+              }
+            }
+          ],
+          "span": 1,
+          "title": "Voice"
+        },
+        {
+          "columns": 1,
+          "id": "output",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Large",
+              "widget": {
+                "param": 57,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 58,
+                "type": "Knob"
+              }
+            }
+          ],
+          "span": 1,
+          "title": "Output"
+        }
+      ]
+    },
     "midi_input": true,
     "name": "Poly Synth",
     "params": [

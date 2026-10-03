@@ -479,6 +479,11 @@ impl EngineBridge for NativeBridge {
         self.handle.watch_analysis(node, on).map_err(engine_err)
     }
 
+    /// `latency-republish`: node latency as last observed by the audio thread.
+    fn node_latency(&self, key: NodeKey) -> Option<u32> {
+        self.handle.node_latency(key)
+    }
+
     fn descriptor(&mut self, device: DeviceId) -> Option<DeviceDescriptor> {
         match &self.devices.get(&device)?.kind {
             DeviceKind::Builtin(t) => Some(ether_devices::descriptor(*t)),
