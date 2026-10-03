@@ -2,6 +2,7 @@ import clsx from "clsx";
 import { Command } from "lucide-react";
 import { useEffect } from "react";
 import { IconButton, MOD_KEY } from "@/kit";
+import { AiChatPanel, useAiChatShortcut } from "@/features/ai-chat";
 import { Browser } from "@/features/browser";
 import { useCollabStore } from "@/features/collab/store";
 import { ChatPanel } from "@/features/collab/social";
@@ -23,6 +24,8 @@ export function LeftRail() {
   // collab-social: the Chat tab only exists in a session (its pane closes when it ends).
   const online = useCollabStore((s) => s.status.type === "Online");
   const offline = useCollabStore((s) => s.status.type === "Offline");
+  // ai-chat: Mod+Shift+A opens the AI chat.
+  useAiChatShortcut();
   useEffect(() => {
     const { left, setOpen } = useShellStore.getState();
     if (offline && left.open && left.tab === "chat") setOpen("left", false);
@@ -70,5 +73,7 @@ export function LeftPanel({ tab }: { tab: LeftTab }) {
       return <DevicesPanel />;
     case "chat":
       return <ChatPanel />;
+    case "ai":
+      return <AiChatPanel />;
   }
 }

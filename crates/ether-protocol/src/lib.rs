@@ -16,6 +16,7 @@
 pub use ether_model as model;
 pub use ether_model::ids;
 
+pub mod agent;
 pub mod analysis;
 pub mod audio_to_midi;
 pub mod automation;

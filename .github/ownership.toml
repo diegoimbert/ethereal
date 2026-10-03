@@ -1650,6 +1650,8 @@ paths = [
   "crates/ether-clap/examples/ether_test_plugin.rs",
   "crates/ether-clap/tests/mpe*.rs",
   "crates/ether-vst3/tests/mpe*.rs",
+  # shared touch (BCR): mock live-record commit adds mpeTakeCommands (same undo step)
+  "ui/src/transport/mock/roadmap/liveRecord.ts",
 ]
 
 [nodes.capture-midi]
@@ -1687,6 +1689,8 @@ paths = [
   "ui/src/features/arrangement/ClipView.tsx",
   # shared touch (v0.3 grant): one additive state field + initializer on EtherController
   "crates/ether-controller/src/lib.rs",
+  # shared touch (BCR): pass the mock host to audioToMidiCommand
+  "ui/src/transport/mock/MockTransport.ts",
 ]
 
 [nodes.fx-space]
@@ -1724,6 +1728,8 @@ paths = [
   # shared touch (BCR, optional): EngineMsg::UpdateBuiltin so the web swaps IRs (and samplers) in place
   "crates/ether-wasm/src/proto.rs",
   "crates/ether-wasm/src/worklet.rs",
+  # shared touch (BCR 2): presets carry the convolution reverb IR (preset_kind, kind_media, remap_kind)
+  "crates/ether-controller/src/presets/mod.rs",
 ]
 
 [nodes.external-instrument]
@@ -1757,6 +1763,14 @@ paths = [
   # shared touch: routing UI widget in the shared renderer
   "ui/src/features/devices/layout/Widget.tsx",
   "ui/src/features/devices/layout/widgets/data.tsx",
+  # shared touch (BCR): Widget::HardwareRouting catalog entry + its exhaustive-match lines
+  "crates/ether-protocol/src/layout.rs",
+  "ui/src/features/devices/layout/model.ts",
+  "crates/ether-devices/tests/layouts.rs",
+  # shared touch (BCR): external::updatable_in_place (routing change keeps the live node)
+  "crates/ether-controller/src/engine.rs",
+  # shared touch (BCR 2): builtinDevice defaults for v0.3 built-ins with data (external devices AND ConvolutionReverb)
+  "ui/src/features/devices/descriptors.ts",
 ]
 
 [nodes.undo-history]
@@ -1856,6 +1870,14 @@ paths = [
   "ui/src/features/comping/actions.ts",
   # shared touch (v0.3 grant): one additive state field + initializer on EtherController
   "crates/ether-controller/src/lib.rs",
+  # shared touch (BCR): session keymap field; MockKeymap route; registry lookups (matchesAction) in key handlers, defaults unchanged
+  "ui/src/transport/mock/MockTransport.ts",
+  "ui/src/features/project/index.tsx",
+  "ui/src/app/shell/EditorDrawer.tsx",
+  "ui/src/features/collab/social/chatStore.ts",
+  "ui/src/features/import/picker.ts",
+  "ui/src/features/automation/AutomationLaneView.tsx",
+  "ui/src/features/time-edits/actions.ts",
 ]
 
 [nodes.web-latency]
