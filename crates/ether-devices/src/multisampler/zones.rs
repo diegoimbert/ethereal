@@ -90,6 +90,7 @@ impl ZoneSet {
 
     /// RT-safe. The zones a note-on plays, with their crossfade gains, written to `out`;
     /// returns how many. `velocity` is 0..=1. `rr` holds the round-robin state.
+    #[allow(clippy::needless_range_loop)]
     pub fn select(
         &self,
         key: u8,

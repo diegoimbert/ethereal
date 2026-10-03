@@ -349,7 +349,7 @@ impl MultiSampler {
             let len = source.frames() as f64;
             let start = (z.start.0 * sr).clamp(0.0, len);
             let end = z.end.map_or(len, |e| (e.0 * sr).clamp(0.0, len));
-            if !(end > start) {
+            if end.is_nan() || end <= start {
                 continue;
             }
             let loop_start = (z.loop_start.0 * sr).clamp(start, end);
@@ -669,6 +669,7 @@ fn svf_coefs(mode: FilterMode, fc: f64, k: f64, sr: f64) -> Coefs {
     }
 }
 
+#[allow(clippy::needless_range_loop)]
 /// Read `m` output frames from `pos` at `rate` (4-point Hermite) into `out[ch][..m]`.
 fn fetch(
     source: &dyn AudioSource,
