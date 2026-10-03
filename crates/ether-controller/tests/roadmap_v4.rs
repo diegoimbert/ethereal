@@ -102,9 +102,10 @@ fn reopen(h: &mut Harness, p: &Project) {
 // ─── engine + editing ───────────────────────────────────────────────────────────────────
 
 #[test]
-fn audio_streaming_is_off_until_the_node_lands() {
+fn audio_streaming_policy_streams_long_media() {
     let mut h = Harness::with_project();
-    // Ten minutes of stereo: long enough to stream, but the policy says no yet.
+    // Ten minutes of stereo: long enough to stream (the pipeline tests are in
+    // tests/media_stream.rs).
     let media = MediaRef {
         id: h.id(),
         name: "long.wav".into(),
@@ -116,8 +117,20 @@ fn audio_streaming_is_off_until_the_node_lands() {
         location: MediaLocation::Project,
     };
     assert!(media.frames as f64 / 48_000.0 > ether_controller::media_stream::STREAM_MIN_SECONDS);
-    assert!(!ether_controller::media_stream::should_stream(
+    assert!(ether_controller::media_stream::should_stream(
         &media, 48_000
+    ));
+    // Short media and media of unknown length are decoded whole.
+    let short = MediaRef {
+        frames: 48_000 * 10,
+        ..media.clone()
+    };
+    assert!(!ether_controller::media_stream::should_stream(
+        &short, 48_000
+    ));
+    let unknown = MediaRef { frames: 0, ..media };
+    assert!(!ether_controller::media_stream::should_stream(
+        &unknown, 48_000
     ));
 }
 
