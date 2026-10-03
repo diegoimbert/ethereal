@@ -301,6 +301,8 @@ impl DiskStore {
             id,
             name: name_from_ether(&json).unwrap_or_else(|| "Untitled".to_string()),
             modified_ms: modified_ms(&file),
+            // base-115: `recents-shared` reads the project's `share.json`.
+            share: None,
         })
     }
 
