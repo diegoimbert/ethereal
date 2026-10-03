@@ -128,6 +128,7 @@ import { mulberry32, SEED_TIME, seededIdFactory } from "./random";
 import { beatsToSeconds, bpmAt, signatureAt } from "./tempo";
 import { changeKey, Tx } from "./tx";
 import { MockCollab } from "./roadmap/collab";
+import { MockShare } from "./roadmap/share";
 import { MockExports } from "./roadmap/export";
 import { MockPreview } from "./roadmap/mediaPreview";
 import type { MockHost } from "./roadmap/host";
@@ -145,12 +146,14 @@ import { MockTimeEdits } from "./roadmap/timeEdits";
 import { chatCommand } from "./roadmap/social";
 // v0.3 (contracts-4): one file per node (`./roadmap/index.ts`).
 import { audioToMidiCommand } from "./roadmap/audioToMidi";
-import { captureCommand } from "./roadmap/capture";
+import { MockCapture } from "./roadmap/capture";
 import { externalCommand } from "./roadmap/external";
 import { keymapCommand } from "./roadmap/keymap";
 import { templateCommand } from "./roadmap/templates";
 import { historyCommand } from "./roadmap/undoHistory";
 import { versionCommand } from "./roadmap/versions";
+// ai-chat: the agent API (Command::Agent) over the mock document.
+import { MockAgent, type MockAgentCommand } from "./roadmap/agent";
 
 export interface MockTransportOptions {
   /**
@@ -297,6 +300,8 @@ export class MockTransport implements EngineTransport {
       }),
   });
   private readonly collab = new MockCollab(this.host);
+  /** base-115 sharing simulation (docs/SHARING.md; `simulateJoin`, `simulateHostOnline`). */
+  readonly share = new MockShare(this.host);
   /** `media-references`: missing media, relink, collect (`setOffline` for tests). */
   readonly mediaRefs = new MockMediaRefs({
     project: () => this.project,
@@ -310,6 +315,7 @@ export class MockTransport implements EngineTransport {
     libraryHash: (rel) => hashHex(`library:${normalize(rel)}`),
   });
   private readonly analysis = new MockAnalysis(this.host);
+  private readonly agent = new MockAgent(this.host);
   private readonly preview = new MockPreview(this.host);
   private readonly uploads = new MockUploads((event) => this.emit(event));
   private readonly liveRecord = new MockLiveRecord({
@@ -323,6 +329,21 @@ export class MockTransport implements EngineTransport {
         for (const m of media) tx.upsert("Media", m);
         const ctx = { tx, newId: this.newId, position: this.position };
         for (const c of commands) reduceDocumentCommand(ctx, c);
+        return UNIT;
+      }),
+  });
+
+  /** `capture-midi`: the always-on MIDI capture buffer (fed by `simulateMidiInput`). */
+  private readonly capture = new MockCapture({
+    ...this.host,
+    now: () => this.now(),
+    position: () => this.position,
+    playing: () => this.playing,
+    commit: (commands, lanes) =>
+      void this.transact("Capture", null, (tx) => {
+        const ctx = { tx, newId: this.newId, position: this.position };
+        for (const c of commands) reduceDocumentCommand(ctx, c);
+        for (const lane of lanes) tx.upsert("ExpressionLane", lane);
         return UNIT;
       }),
   });
@@ -447,6 +468,10 @@ export class MockTransport implements EngineTransport {
     if (command.domain === "Project") return this.projectCommand(command.command, gesture);
     if (isDocumentCommand(command)) return this.applyDocument([command], labelOf(command), gesture);
 
+    // ai-chat: `Command::Agent` (not in the generated `Command` until agent-api lands).
+    const agent = command as unknown as { domain: string; command: MockAgentCommand };
+    if (agent.domain === "Agent") return this.agent.command(agent.command);
+
     switch (command.domain) {
       case "Transport":
         return this.transportCommand(command.command);
@@ -491,7 +516,7 @@ export class MockTransport implements EngineTransport {
       // v0.3 (contracts-4). Document commands (`Expression::*`, `External::SetRouting`,
       // `Template::Insert`) went through `applyDocument` above.
       case "Capture":
-        return captureCommand(command.command);
+        return this.capture.command(command.command);
       case "AudioToMidi":
         return audioToMidiCommand(command.command);
       case "External":
@@ -506,6 +531,9 @@ export class MockTransport implements EngineTransport {
         return versionCommand(command.command);
       case "Keymap":
         return keymapCommand(command.command);
+      // base-115 (docs/SHARING.md).
+      case "Share":
+        return this.share.command(command.command);
       default:
         return fail("InvalidArgument", `unknown command domain`);
     }
@@ -637,6 +665,7 @@ export class MockTransport implements EngineTransport {
 
   /** Emit `Event::Transport` if any field changed (or `force`). */
   private syncTransport(force = false): void {
+    this.capture.sync();
     const state = this.transportState();
     const json = JSON.stringify(state);
     if (!force && json === this.lastTransportJson) return;
@@ -658,6 +687,7 @@ export class MockTransport implements EngineTransport {
     this.emit({ type: "ProjectLoaded", project });
     this.mediaRefs.projectOpened();
     this.setArmed([]);
+    this.capture.projectChanged();
     this.setDirty(false);
     this.syncTransport();
   }
@@ -1014,6 +1044,8 @@ export class MockTransport implements EngineTransport {
    * (see `roadmap/midiLearn.ts`).
    */
   simulateMidiInput(port: string, data: [number, number, number]): void {
+    // v0.3 (`capture-midi`): every message also feeds the capture buffer.
+    this.capture.input(port, data);
     this.midiLearn.input(port, data);
   }
 

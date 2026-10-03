@@ -239,10 +239,6 @@
 .eth-plot__handle--lg {
   r: var(--device-handle-r-lg);
 }
-.eth-plot__handle--off {
-  fill: var(--eth-color-bg-inset);
-  stroke: var(--eth-color-text-dim);
-}
 .eth-plot__cross {
   stroke: var(--eth-color-accent-dim);
   stroke-width: var(--eth-border-width);

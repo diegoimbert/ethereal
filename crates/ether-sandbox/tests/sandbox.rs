@@ -368,9 +368,75 @@ fn signal(pid: u32, sig: &str) {
     assert!(status.success());
 }
 
+/// State letters (`R`, `S`, `T`, ...) of every thread of `pid`, or `None` if it is gone.
+#[cfg(target_os = "linux")]
+fn thread_states(pid: u32) -> Option<Vec<char>> {
+    let tasks = std::fs::read_dir(format!("/proc/{pid}/task")).ok()?;
+    tasks
+        .flatten()
+        .map(|t| {
+            let stat = std::fs::read_to_string(t.path().join("stat")).ok()?;
+            stat.rsplit_once(") ")?.1.chars().next()
+        })
+        .collect()
+}
+
+/// Waits until `pid` is idle (every thread asleep), i.e. it finished the block in flight
+/// and waits for the next one. A fixed sleep isn't enough on a loaded machine: the helper
+/// can stay descheduled for longer than any reasonable delay.
+fn wait_idle(pid: u32) {
+    #[cfg(target_os = "linux")]
+    {
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while !thread_states(pid).is_some_and(|s| s.iter().all(|c| matches!(c, 'S' | 'D'))) {
+            assert!(Instant::now() < deadline, "helper {pid} never went idle");
+            std::thread::sleep(Duration::from_millis(1));
+        }
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = pid;
+        std::thread::sleep(Duration::from_millis(20));
+    }
+}
+
+/// `true` once every thread of `pid` is stopped.
+fn is_stopped(pid: u32) -> bool {
+    #[cfg(target_os = "linux")]
+    {
+        thread_states(pid).is_some_and(|s| s.iter().all(|c| matches!(c, 'T' | 't')))
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        std::process::Command::new("ps")
+            .args(["-o", "stat=", "-p", &pid.to_string()])
+            .output()
+            .is_ok_and(|o| {
+                String::from_utf8_lossy(&o.stdout)
+                    .trim_start()
+                    .starts_with('T')
+            })
+    }
+}
+
+/// Freezes the helper between two blocks: waits until it is idle (the block in flight is
+/// done), sends `SIGSTOP`, and waits until the stop took effect (`kill` only queues it: a
+/// thread that isn't scheduled yet would otherwise still process the next block).
+fn freeze_idle(pid: u32) {
+    wait_idle(pid);
+    signal(pid, "-STOP");
+    let deadline = Instant::now() + Duration::from_secs(10);
+    while !is_stopped(pid) {
+        assert!(Instant::now() < deadline, "helper {pid} never stopped");
+        std::thread::sleep(Duration::from_millis(1));
+    }
+}
+
 #[test]
 fn late_helper_gives_silence_and_underruns_then_recovers() {
-    let mut p = spawn_with(options(Duration::from_millis(100)));
+    // Only a stopped helper may miss the budget, never a running one: 1 s keeps a
+    // CPU-starved (but running) helper on a loaded machine from underrunning.
+    let mut p = spawn_with(options(Duration::from_secs(1)));
     let mut node = p.activate(&config(64)).unwrap();
     let mut h = Harness::new(64);
     h.in_l.fill(0.5);
@@ -383,10 +449,10 @@ fn late_helper_gives_silence_and_underruns_then_recovers() {
 
     // Freeze the helper (after it finished the block in flight, which the next call still
     // collects normally): every later block misses its deadline.
-    std::thread::sleep(Duration::from_millis(20));
-    signal(p.helper_pid(), "-STOP");
+    freeze_idle(p.helper_pid());
     h.run(node.as_mut(), 64, &[]);
     assert_eq!(h.out_l[0], 0.5);
+    assert_eq!(p.underruns(), 0);
     for i in 0..3 {
         h.out_l.fill(1.0);
         h.run(node.as_mut(), 64, &[]);
@@ -395,15 +461,31 @@ fn late_helper_gives_silence_and_underruns_then_recovers() {
     }
     assert!(!node.is_faulted());
 
-    // Resume: output comes back, time-aligned, without further underruns.
+    // Resume: output comes back, time-aligned, without further underruns. The late block
+    // is skipped without waiting (budget 0 once substituted), so calls before the helper
+    // caught up may still underrun: wait for the signal to come back (bounded), then
+    // require clean blocks.
     signal(p.helper_pid(), "-CONT");
-    std::thread::sleep(Duration::from_millis(50));
+    let deadline = Instant::now() + Duration::from_secs(10);
+    loop {
+        std::thread::sleep(Duration::from_millis(5));
+        h.run(node.as_mut(), 64, &[]);
+        if h.out_l.iter().all(|s| *s == 0.5) {
+            break;
+        }
+        assert!(
+            h.out_l.iter().all(|s| *s == 0.0),
+            "silence or signal, never a misaligned block: {:?}",
+            &h.out_l[..4]
+        );
+        assert!(Instant::now() < deadline, "output never came back");
+    }
     let before = p.underruns();
     for _ in 0..3 {
         h.run(node.as_mut(), 64, &[]);
+        assert!(h.out_l.iter().all(|s| *s == 0.5), "{:?}", &h.out_l[..4]);
     }
     assert_eq!(p.underruns(), before);
-    assert!(h.out_l.iter().all(|s| *s == 0.5), "{:?}", &h.out_l[..4]);
     p.deactivate(node);
 }
 
@@ -421,9 +503,8 @@ fn audio_thread_detects_helper_death_while_waiting() {
     assert_eq!(h.out_l[0], 0.5);
 
     // Freeze the helper once it is idle, post one more block (stays in flight), then kill it.
-    std::thread::sleep(Duration::from_millis(20));
     let pid = p.helper_pid();
-    signal(pid, "-STOP");
+    freeze_idle(pid);
     h.run(node.as_mut(), 64, &[]);
     assert_eq!(h.out_l[0], 0.5);
     signal(pid, "-KILL");
@@ -432,7 +513,9 @@ fn audio_thread_detects_helper_death_while_waiting() {
     h.out_l.fill(1.0);
     h.run(node.as_mut(), 64, &[]);
     let waited = start.elapsed();
-    assert!(waited < Duration::from_millis(500), "waited {waited:?}");
+    // Far below the 10 s budget (crash detection ended the wait), with room for a host
+    // thread that is descheduled for a while on a loaded machine.
+    assert!(waited < Duration::from_secs(3), "waited {waited:?}");
     assert!(h.out_l.iter().chain(&h.out_r).all(|s| *s == 0.0));
     assert!(node.is_faulted());
     assert_eq!(p.underruns(), 0, "a crash is not an underrun");

@@ -11,6 +11,7 @@ use crate::model::file::EtherFile;
 use crate::model::{Op, Transaction};
 use crate::plugins::{ScanRequest, ScanResponse};
 use crate::remote::{BinaryKind, ClientHello, ServerHello};
+use crate::share::{PeerHandshake, SignalClientMessage, SignalServerMessage};
 
 /// Export every protocol + model type reachable from the root messages into `dir` (one
 /// `.ts` file per type) and write an `index.ts` barrel. Existing `.ts` files in `dir` are
@@ -38,6 +39,10 @@ pub fn export_all(dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
     BinaryKind::export_all(&cfg)?;
     MidiInputEvent::export_all(&cfg)?;
     CollabMessage::export_all(&cfg)?;
+    // base-115: signaling wire (imported by services/signal) and the data-channel handshake.
+    SignalClientMessage::export_all(&cfg)?;
+    SignalServerMessage::export_all(&cfg)?;
+    PeerHandshake::export_all(&cfg)?;
 
     let mut names: Vec<String> = std::fs::read_dir(dir)?
         .filter_map(|e| e.ok())
