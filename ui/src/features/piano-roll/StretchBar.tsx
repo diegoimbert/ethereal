@@ -28,7 +28,7 @@ const HOVER_CURSOR: Record<StretchHandle, string> = { start: "ew-resize", end: "
 const DRAG_CURSOR: Record<StretchHandle, string> = { start: "ew-resize", end: "ew-resize", move: "grabbing" };
 
 /** What the bar spans in `clip` (null: no bar). */
-export function useStretchSource(clip: Clip, notes: ReadonlyArray<Note>): StretchSource | null {
+function useStretchSource(clip: Clip, notes: ReadonlyArray<Note>): StretchSource | null {
   const selected = useSelectedItems("note");
   const section = usePianoRollSection((s) => (s.section?.clip === clip.id ? s.section : null));
   return useMemo(() => stretchSource(notes, selected, section), [notes, selected, section]);
