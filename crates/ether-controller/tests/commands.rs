@@ -622,8 +622,9 @@ fn host_handled_and_unsupported_commands() {
     let mut h = Harness::with_project();
     for c in [
         Command::Engine(EngineCommand::GetStatus),
-        Command::Plugin(PluginCommand::Rescan),
+        Command::Plugin(PluginCommand::Rescan { full: false }),
         Command::Plugin(PluginCommand::List),
+        Command::Plugin(PluginCommand::ListFolders),
         Command::Media(MediaCommand::StopPreview),
         Command::Recording(RecordingCommand::ListInputs),
     ] {

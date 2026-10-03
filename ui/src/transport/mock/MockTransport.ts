@@ -148,7 +148,7 @@ import { chatCommand } from "./roadmap/social";
 import { audioToMidiCommand } from "./roadmap/audioToMidi";
 import { MockCapture } from "./roadmap/capture";
 import { externalCommand } from "./roadmap/external";
-import { keymapCommand } from "./roadmap/keymap";
+import { MockKeymap } from "./roadmap/keymap";
 import { MockTemplates } from "./roadmap/templates";
 import { MockUndoHistory } from "./roadmap/undoHistory";
 // ai-chat: the agent API (Command::Agent) over the mock document.
@@ -288,6 +288,7 @@ export class MockTransport implements EngineTransport {
   };
   private readonly midiLearn = new MockMidiLearn(this.host);
   private readonly presets = new MockPresets(this.host);
+  private readonly keymap = new MockKeymap(this.host);
   private readonly browser = new MockBrowser(this.host);
   private readonly exports = new MockExports(this.host);
   private readonly timeEdits = new MockTimeEdits({
@@ -581,7 +582,7 @@ export class MockTransport implements EngineTransport {
       case "Version":
         return this.versions.command(command.command);
       case "Keymap":
-        return keymapCommand(command.command);
+        return this.keymap.command(command.command);
       // base-115 (docs/SHARING.md).
       case "Share":
         return this.share.command(command.command);
