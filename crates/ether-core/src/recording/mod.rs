@@ -41,7 +41,7 @@ pub use rtrb;
 
 use crate::config::EngineConfig;
 use crate::engine::EngineHandle;
-use crate::event::EventKind;
+use crate::event::{EventKind, ProcessEvent};
 use crate::graph::TrackDesc;
 use crate::mixer::TrackRt;
 use crate::transport::TransportInfo;
@@ -264,14 +264,10 @@ impl RecordingRt {
                     continue;
                 }
                 if let Some(first) = track.chain.first_mut() {
-                    // v0.3 (`mpe`): read as MPE on tracks with MPE settings; unchanged
-                    // otherwise (`ExpressionRt::live_input`).
-                    track.expression.live_input(
-                        &desc.expression,
-                        offset as u32,
+                    first.pending.push(ProcessEvent {
+                        offset: offset as u32,
                         kind,
-                        &mut first.pending,
-                    );
+                    });
                 }
             }
             if record_midi {
@@ -520,7 +516,7 @@ mod tests {
     }
 
     /// Logs the events it receives with the sample time of the block.
-    struct Probe(Arc<Mutex<Vec<(u64, crate::event::ProcessEvent)>>>);
+    struct Probe(Arc<Mutex<Vec<(u64, ProcessEvent)>>>);
 
     impl Node for Probe {
         fn prepare(&mut self, _: &PrepareConfig) {}

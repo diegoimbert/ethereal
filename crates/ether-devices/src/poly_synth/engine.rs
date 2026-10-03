@@ -12,7 +12,7 @@
 use std::f32::consts::FRAC_PI_4;
 
 use ether_core::protocol::devices::DeviceDescriptor;
-use ether_core::protocol::model::{BuiltinDeviceType, NoteExpressionKind, ParamId};
+use ether_core::protocol::model::{BuiltinDeviceType, ParamId};
 use ether_core::{
     AudioBuffers, Device, EventKind, Node, PrepareConfig, ProcessContext, ProcessStatus,
     TransportInfo,
@@ -57,15 +57,6 @@ const LFO_CUTOFF_OCTAVES: f32 = 4.0;
 const PW_MOD: f32 = 0.45;
 /// Unison detune at 100 % (cents, outermost voice; the knob is squared).
 const DETUNE_CENTS: f32 = 100.0;
-/// v0.3 (`mpe`): filter cutoff (octaves) added at full per-note pressure.
-pub const PRESSURE_CUTOFF_OCTAVES: f32 = 2.0;
-/// v0.3 (`mpe`): level boost at full per-note pressure (×, i.e. +3.5 dB).
-pub const PRESSURE_GAIN: f32 = 0.5;
-/// v0.3 (`mpe`): filter cutoff (octaves) per unit of per-note timbre away from
-/// [`TIMBRE_NEUTRAL`] (so 0 → -2, 1 → +2 octaves).
-pub const TIMBRE_CUTOFF_OCTAVES: f32 = 4.0;
-/// v0.3 (`mpe`): the timbre of a note without a timbre expression (MPE's CC 74 = 64).
-pub const TIMBRE_NEUTRAL: f32 = 0.5;
 
 // --- smoothed params -------------------------------------------------------------------
 
@@ -241,12 +232,6 @@ struct Voice {
     /// Current (gliding) and target pitch, in MIDI keys.
     pitch: f32,
     target: f32,
-    /// v0.3 (`mpe`): per-note expression (`EventKind::NoteExpression`). Pitch offset in
-    /// semitones (current, smoothed like the bend, and target), pressure 0..1, timbre 0..1.
-    note_pitch: f32,
-    note_pitch_target: f32,
-    pressure: f32,
-    timbre: f32,
     amp: Env,
     fenv: Env,
     menv: Env,
@@ -277,10 +262,6 @@ impl Voice {
         sustained: false,
         pitch: 60.0,
         target: 60.0,
-        note_pitch: 0.0,
-        note_pitch_target: 0.0,
-        pressure: 0.0,
-        timbre: TIMBRE_NEUTRAL,
         amp: Env::IDLE,
         fenv: Env::IDLE,
         menv: Env::IDLE,
@@ -385,8 +366,6 @@ struct Chunk {
     menv_amount: f32,
     velocity: f32,
     glide_coef: f32,
-    /// One-pole coefficient of the pitch-bend / per-note pitch smoothing over this chunk.
-    bend_coef: f32,
     bend: f32,
     lfo: GlobalMod,
     amp_rates: EnvRates,
@@ -660,10 +639,6 @@ impl PolySynth {
                     v.channel = channel;
                     v.key = key;
                     v.target = f32::from(key);
-                    // The new note's own expressions (if any) follow its note-on.
-                    v.note_pitch_target = 0.0;
-                    v.pressure = 0.0;
-                    v.timbre = TIMBRE_NEUTRAL;
                     if !glide {
                         v.pitch = v.target;
                     }
@@ -814,32 +789,6 @@ impl PolySynth {
         }
     }
 
-    /// v0.3 (`mpe`): a per-note expression for the voice playing `note_id` (released voices
-    /// keep following it, like CLAP). A voice that has not rendered yet takes the pitch at
-    /// once (the first value comes with the note-on), later values glide like the bend.
-    fn note_expression(&mut self, note_id: u32, kind: NoteExpressionKind, value: f32) {
-        if !value.is_finite() {
-            return;
-        }
-        for v in self
-            .voices
-            .iter_mut()
-            .filter(|v| v.note_id == note_id && v.active())
-        {
-            match kind {
-                NoteExpressionKind::Pitch => {
-                    let m = ether_core::protocol::model::MAX_NOTE_PITCH_OFFSET;
-                    v.note_pitch_target = value.clamp(-m, m);
-                    if v.fresh {
-                        v.note_pitch = v.note_pitch_target;
-                    }
-                }
-                NoteExpressionKind::Pressure => v.pressure = value.clamp(0.0, 1.0),
-                NoteExpressionKind::Timbre => v.timbre = value.clamp(0.0, 1.0),
-            }
-        }
-    }
-
     fn handle_event(&mut self, kind: &EventKind) {
         match *kind {
             EventKind::NoteOn {
@@ -868,13 +817,8 @@ impl PolySynth {
             EventKind::AllNotesOff => self.all_notes_off(),
             EventKind::Param { param, value } => self.apply_param(param, value, true),
             EventKind::Midi { data } => self.midi(data),
-            // v0.3 (`mpe`): per-note pitch/pressure/timbre of the voice(s) of `note_id`.
-            EventKind::NoteExpression {
-                note_id,
-                expression,
-                value,
-                ..
-            } => self.note_expression(note_id, expression, value),
+            // v0.3: per-note pitch/pressure/timbre (`mpe` implements the Poly Synth's MPE).
+            EventKind::NoteExpression { .. } => {}
         }
     }
 
@@ -966,8 +910,8 @@ impl PolySynth {
         for r in self.ramps.iter_mut() {
             r.advance(n as u32);
         }
-        let bend_coef = 1.0 - (-(n as f32) / (0.003 * self.sr)).exp();
         if self.any_active() {
+            let bend_coef = 1.0 - (-(n as f32) / (0.003 * self.sr)).exp();
             self.bend += (self.bend_target - self.bend) * bend_coef;
         } else {
             // No voice hears the glide: settle, as in the silent path of `process`.
@@ -1046,7 +990,6 @@ impl PolySynth {
             menv_amount: self.ramp(id::MOD_ENV_AMOUNT).cur,
             velocity: self.ramp(id::VELOCITY).cur,
             glide_coef,
-            bend_coef,
             bend,
             lfo,
             amp_rates: self.amp_rates,
@@ -1158,8 +1101,6 @@ fn render_voice(
     let n = c.n;
     // Glide.
     v.pitch = v.target + (v.pitch - v.target) * c.glide_coef;
-    // Per-note pitch (MPE): smoothed like the channel bend.
-    v.note_pitch += (v.note_pitch_target - v.note_pitch) * c.bend_coef;
     // Envelope-driven modulation (values at the chunk start).
     let menv = v.menv.level * c.menv_amount;
     let (mut pitch_mod, mut osc2_mod, mut pos_mod, mut pw_mod, mut cut_mod) =
@@ -1172,7 +1113,7 @@ fn render_voice(
         ModEnvTarget::PulseWidth => pw_mod = menv * PW_MOD,
         ModEnvTarget::Cutoff => cut_mod = menv * ENV_CUTOFF_OCTAVES,
     }
-    let base = v.pitch + v.note_pitch + c.bend + c.lfo.pitch + pitch_mod;
+    let base = v.pitch + c.bend + c.lfo.pitch + pitch_mod;
     let key1 = base + c.offset1;
     let key2 = base + c.offset2 + osc2_mod;
     let dt1 = key_dt(key1, c.sr);
@@ -1217,11 +1158,9 @@ fn render_voice(
         + c.key_tracking * (f32::from(v.key) - 60.0) / 12.0
         + v.fenv.level * c.fenv_amount * ENV_CUTOFF_OCTAVES * fenv_vel
         + c.lfo.cutoff
-        + cut_mod
-        + v.pressure * PRESSURE_CUTOFF_OCTAVES
-        + (v.timbre - TIMBRE_NEUTRAL) * TIMBRE_CUTOFF_OCTAVES;
+        + cut_mod;
     let g_end = dsp::prewarp(dsp::exp2(cutoff.clamp(3.0, 15.0)), c.sr);
-    let gain_end = vel_amt * c.lfo.amp * (1.0 + v.pressure * PRESSURE_GAIN);
+    let gain_end = vel_amt * c.lfo.amp;
     let pan_end = pan_gains(c.lfo.pan);
     if v.fresh {
         v.g = g_end;

@@ -23,13 +23,6 @@
       "csp": null
     }
   },
-  "plugins": {
-    "deep-link": {
-      "desktop": {
-        "schemes": ["ethereal"]
-      }
-    }
-  },
   "bundle": {
     "active": true,
     "targets": "all",

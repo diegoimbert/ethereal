@@ -76,8 +76,6 @@
 
 mod dsp;
 mod engine;
-#[cfg(test)]
-mod mpe_tests;
 mod tables;
 
 pub use engine::{MAX_POLYPHONY, MAX_UNISON, PolySynth};

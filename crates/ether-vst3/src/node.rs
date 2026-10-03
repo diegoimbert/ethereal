@@ -14,17 +14,13 @@ use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use ether_core::buffer::AudioBuffers;
 use ether_core::config::PrepareConfig;
 use ether_core::event::{EventKind, ProcessEvent};
-use ether_core::expression::mpe::MpeOut;
 use ether_core::node::{Device, Node, ProcessContext, ProcessStatus};
 use ether_core::plugin::PluginNode;
 use ether_core::protocol::devices::DeviceDescriptor;
-use ether_core::protocol::model::{NoteExpressionKind, ParamId};
+use ether_core::protocol::model::ParamId;
 use ether_core::transport::TransportInfo;
 use vst3::Steinberg::Vst::ControllerNumbers_::{kAfterTouch, kPitchBend};
-use vst3::Steinberg::Vst::Event_::EventTypes_::{
-    kNoteExpressionValueEvent, kNoteOffEvent, kNoteOnEvent, kPolyPressureEvent,
-};
-use vst3::Steinberg::Vst::NoteExpressionTypeIDs_::{kBrightnessTypeID, kTuningTypeID};
+use vst3::Steinberg::Vst::Event_::EventTypes_::{kNoteOffEvent, kNoteOnEvent, kPolyPressureEvent};
 use vst3::Steinberg::Vst::ProcessContext_::StatesAndFlags_::{
     kBarPositionValid, kContTimeValid, kCycleActive, kCycleValid, kPlaying, kProjectTimeMusicValid,
     kRecording, kTempoValid, kTimeSigValid,
@@ -34,9 +30,8 @@ use vst3::Steinberg::Vst::SymbolicSampleSizes_::kSample32;
 use vst3::Steinberg::Vst::{
     AudioBusBuffers, AudioBusBuffers__type0, Event, Event__type0, IAudioProcessor,
     IAudioProcessorTrait, IEditController, IEventList, IMidiMapping, IMidiMappingTrait,
-    INoteExpressionController, INoteExpressionControllerTrait, IParameterChanges,
-    NoteExpressionValueEvent, NoteOffEvent, NoteOnEvent, PolyPressureEvent,
-    ProcessContext as Vst3Context, ProcessData,
+    IParameterChanges, NoteOffEvent, NoteOnEvent, PolyPressureEvent, ProcessContext as Vst3Context,
+    ProcessData,
 };
 use vst3::Steinberg::{kResultFalse, kResultOk, kResultTrue};
 use vst3::{ComPtr, ComWrapper};
@@ -247,11 +242,6 @@ pub struct Vst3Node {
     release_all: bool,
     /// v0.3 (`midi-expression`): CC / bend / channel pressure → params.
     midi_map: MidiMap,
-    /// v0.3 (`mpe`): the plugin has an `INoteExpressionController` (per-note tuning and
-    /// brightness as `NoteExpressionValueEvent`); otherwise MPE MIDI through `mpe_out`
-    /// (member channels via `IMidiMapping`).
-    note_expressions: bool,
-    mpe_out: MpeOut,
     /// Keeps the library loaded while this node (its `IAudioProcessor`) lives, even if the
     /// controller is dropped first. Declared last: dropped after `processor`.
     _module: Arc<Module>,
@@ -275,24 +265,6 @@ pub(crate) struct NodeInit {
     pub module: Arc<Module>,
     /// v0.3 (`midi-expression`): `MidiMap::query` of the plugin's controller.
     pub midi_map: MidiMap,
-    /// v0.3 (`mpe`): [`takes_note_expressions`] of the plugin's controller.
-    pub note_expressions: bool,
-}
-
-/// v0.3 (`mpe`): whether a controller supports VST3 note expression on its first event
-/// bus (`INoteExpressionController` with at least one expression).
-pub(crate) fn takes_note_expressions(controller: &ComPtr<IEditController>) -> bool {
-    let Some(nec) = controller.cast::<INoteExpressionController>() else {
-        return false;
-    };
-    // SAFETY: valid interface, main thread.
-    (0..16).any(|ch| unsafe { nec.getNoteExpressionCount(0, ch) } > 0)
-}
-
-/// v0.3 (`mpe`): a `Pitch` in semitones as a normalized VST3 tuning (`kTuningTypeID`:
-/// plain = 240 · (normalized − 0.5), i.e. ±120 semitones).
-pub(crate) fn tuning_normalized(semitones: f32) -> f64 {
-    (0.5 + f64::from(semitones) / 240.0).clamp(0.0, 1.0)
 }
 
 impl Vst3Node {
@@ -310,7 +282,6 @@ impl Vst3Node {
             pending: initial,
             module,
             midi_map,
-            note_expressions,
         } = init;
         values.sort_by_key(|(id, _)| *id);
         let max_frames = config.max_block_size.max(1);
@@ -346,8 +317,6 @@ impl Vst3Node {
             held: [0; 16],
             release_all: false,
             midi_map,
-            note_expressions,
-            mpe_out: MpeOut::default(),
             _module: module,
         }
     }
@@ -460,42 +429,9 @@ impl Vst3Node {
         }
     }
 
-    /// v0.3 (`mpe`): a `NoteExpressionValueEvent` for the note `note_id`.
-    fn note_expression(&mut self, offset: u32, note_id: u32, type_id: u32, value: f64) {
-        self.in_events.push(Event {
-            busIndex: 0,
-            sampleOffset: offset as i32,
-            ppqPosition: 0.0,
-            flags: 0,
-            r#type: kNoteExpressionValueEvent as u16,
-            __field0: Event__type0 {
-                noteExpressionValue: NoteExpressionValueEvent {
-                    typeId: type_id,
-                    noteId: note_id as i32,
-                    value,
-                },
-            },
-        });
-    }
-
-    /// v0.3 (`mpe`): VST3 note expression when the plugin has it, else MPE MIDI
-    /// ([`MpeOut`]: one member channel per note once the track announced its MPE zone).
     fn convert_event(&mut self, e: &ProcessEvent) {
-        if self.note_expressions {
-            if let EventKind::Midi { data } = e.kind {
-                self.mpe_out.observe(data);
-            }
-            self.convert_one(e.offset, e.kind);
-        } else {
-            // (Fixed-size state: moved out and back, no allocation.)
-            let mut out = std::mem::take(&mut self.mpe_out);
-            out.translate(&e.kind, |kind| self.convert_one(e.offset, kind));
-            self.mpe_out = out;
-        }
-    }
-
-    fn convert_one(&mut self, t: u32, kind: EventKind) {
-        match kind {
+        let t = e.offset;
+        match e.kind {
             EventKind::NoteOn {
                 note_id,
                 channel,
@@ -543,29 +479,16 @@ impl Vst3Node {
                     },
                 }
             }
-            // `Pressure` is VST3's per-note poly pressure (with the note id); `Pitch` and
-            // `Timbre` are note expression (tuning, brightness). Without note expression
-            // support `MpeOut` already turned them into MIDI.
+            // v0.3: `Pressure` goes out as poly pressure (`midi-expression`); `mpe` adds
+            // `NoteExpressionValueEvent` for pitch/timbre (and pressure with MPE).
             EventKind::NoteExpression {
                 note_id,
                 channel,
                 key,
-                expression,
+                expression: ether_core::protocol::model::NoteExpressionKind::Pressure,
                 value,
-            } => match expression {
-                NoteExpressionKind::Pressure => {
-                    self.poly_pressure(t, note_id, channel, key, value.clamp(0.0, 1.0))
-                }
-                NoteExpressionKind::Pitch => {
-                    self.note_expression(t, note_id, kTuningTypeID, tuning_normalized(value))
-                }
-                NoteExpressionKind::Timbre => self.note_expression(
-                    t,
-                    note_id,
-                    kBrightnessTypeID,
-                    f64::from(value.clamp(0.0, 1.0)),
-                ),
-            },
+            } => self.poly_pressure(t, note_id, channel, key, value.clamp(0.0, 1.0)),
+            EventKind::NoteExpression { .. } => {}
         }
     }
 
@@ -913,7 +836,3 @@ mod midi_tests {
         assert_eq!(MidiMap(Some(t)).param(0, kPitchBend as usize), Some(7));
     }
 }
-
-#[cfg(test)]
-#[path = "node_mpe_tests.rs"]
-mod mpe_tests;

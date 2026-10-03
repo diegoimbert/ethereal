@@ -12,9 +12,7 @@ import { cmd, useTransport } from "@/transport";
 import { ExpressionLaneView } from "./ExpressionLaneView";
 import { useExpressionLanesOf } from "./hooks";
 import { choiceKey, COMMON_KINDS, NOTE_KINDS, OTHER_CC, type LaneChoice } from "./choices";
-import { kindKey, kindLabel, MAX_EXPRESSION_CC, noteKindLabel, sameKind, type Range } from "./model";
-import { pitchWindow } from "@/features/mpe/model";
-import { useTrack } from "@/state";
+import { kindKey, kindLabel, MAX_EXPRESSION_CC, noteKindLabel, sameKind } from "./model";
 import { NoteExpressionLaneView } from "./NoteExpressionLaneView";
 import "./expression.css";
 
@@ -37,9 +35,6 @@ export function ExpressionLanes({ clip, notes, vp, widthPx, height, stepBeats, l
   const lanes = useExpressionLanesOf(clip.id);
   const [choice, setChoice] = useState<LaneChoice>({ type: "Velocity" });
   const [otherCc, setOtherCc] = useState(false);
-  // `mpe`: the Pitch lane spans the track's per-note bend range.
-  const pitchSpan = pitchWindow(useTrack(clip.track)?.mpe);
-  const pitchRange: Range = [-pitchSpan, pitchSpan];
 
   const kinds: ExpressionKind[] = [...COMMON_KINDS];
   for (const l of [...lanes].sort((a, b) => kindKey(a.kind).localeCompare(kindKey(b.kind), undefined, { numeric: true }))) {
@@ -117,17 +112,7 @@ export function ExpressionLanes({ clip, notes, vp, widthPx, height, stepBeats, l
               stepBeats={stepBeats}
             />
           )}
-          {choice.type === "Note" && (
-            <NoteExpressionLaneView
-              key={choice.kind}
-              kind={choice.kind}
-              notes={notes}
-              vp={vp}
-              widthPx={widthPx}
-              height={height}
-              range={choice.kind === "Pitch" ? pitchRange : undefined}
-            />
-          )}
+          {choice.type === "Note" && <NoteExpressionLaneView kind={choice.kind} notes={notes} vp={vp} widthPx={widthPx} height={height} />}
         </div>
       </div>
     </div>

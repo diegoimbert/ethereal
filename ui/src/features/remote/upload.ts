@@ -48,21 +48,42 @@ export interface UploadOptions {
 }
 
 /** Upload `file` and import it into the open project. Resolves with the new media. */
-export async function uploadFile(
+export function uploadFile(
   transport: EngineTransport,
   file: UploadSource,
   onProgress?: (sent: number) => void,
   opts: UploadOptions = {},
 ): Promise<MediaRef> {
+  return stageUpload(transport, file, onProgress, opts.signal, async (upload) => {
+    const reply = await transport.send(cmd("Media", { type: "Import", id: newId(), source: { type: "Upload", upload } }), {
+      gesture: opts.gesture,
+    });
+    if (reply.type !== "Media") throw new Error(`unexpected reply ${reply.type}`);
+    return reply.media;
+  });
+}
+
+/**
+ * Upload `file` (`BeginUpload` → `UploadChunk`s) and hand the completed upload id to `consume`
+ * (which consumes it: `Import { source: Upload }`, `Browser::ImportFile`, …). Any failure,
+ * or aborting `signal`, cancels the upload.
+ */
+export async function stageUpload<T>(
+  transport: EngineTransport,
+  file: UploadSource,
+  onProgress: ((sent: number) => void) | undefined,
+  signal: AbortSignal | undefined,
+  consume: (upload: string) => Promise<T>,
+): Promise<T> {
   if (file.size <= 0) throw new Error(`${file.name} is empty`);
-  opts.signal?.throwIfAborted();
+  signal?.throwIfAborted();
   const upload = newId();
   await transport.send(cmd("Media", { type: "BeginUpload", upload, name: file.name, size: file.size }));
   try {
     const inFlight: Promise<unknown>[] = [];
     let sent = 0;
     for (let offset = 0; offset < file.size; offset += CHUNK_BYTES) {
-      opts.signal?.throwIfAborted();
+      signal?.throwIfAborted();
       const end = Math.min(file.size, offset + CHUNK_BYTES);
       const bytes = new Uint8Array(await file.slice(offset, end).arrayBuffer());
       const reply = hasBinaryChunks(transport)
@@ -77,12 +98,8 @@ export async function uploadFile(
       if (inFlight.length >= IN_FLIGHT) await inFlight.shift();
     }
     await Promise.all(inFlight);
-    opts.signal?.throwIfAborted();
-    const reply = await transport.send(cmd("Media", { type: "Import", id: newId(), source: { type: "Upload", upload } }), {
-      gesture: opts.gesture,
-    });
-    if (reply.type !== "Media") throw new Error(`unexpected reply ${reply.type}`);
-    return reply.media;
+    signal?.throwIfAborted();
+    return await consume(upload);
   } catch (e) {
     transport.send(cmd("Media", { type: "CancelUpload", upload })).catch(() => {});
     throw e;

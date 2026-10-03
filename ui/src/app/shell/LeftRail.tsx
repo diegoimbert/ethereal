@@ -8,7 +8,6 @@ import { useCollabStore } from "@/features/collab/store";
 import { ChatPanel } from "@/features/collab/social";
 import { MidiLearnPanel } from "@/features/midi-learn";
 import { PluginBrowser } from "@/features/plugins";
-import { HistoryPanel } from "@/features/undo-history";
 import { DevicesPanel } from "./DevicesPanel";
 import { useShellStore, type LeftTab } from "./shellStore";
 import { LEFT_TABS } from "./tabs";
@@ -72,8 +71,6 @@ export function LeftPanel({ tab }: { tab: LeftTab }) {
       return <MidiLearnPanel />;
     case "devices":
       return <DevicesPanel />;
-    case "history":
-      return <HistoryPanel />;
     case "chat":
       return <ChatPanel />;
     case "ai":

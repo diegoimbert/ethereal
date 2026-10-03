@@ -200,6 +200,56 @@ describe("Browser v2 (indexed)", () => {
     await waitFor(() => expect(browserCommands(spy).filter((c) => c.type === "ListRoots").length).toBeGreaterThan(0));
   });
 
+  it("imports a folder dropped on the places, then renames and removes it (base-136)", async () => {
+    const { spy } = await setup();
+    // No native folder dialog on this host: the folder is copied.
+    expect(within(screen.getByRole("tablist", { name: "Locations" })).getByRole("button", { name: /Import folder…/ })).toBeInTheDocument();
+    const wav = (name: string) => {
+      const b = new Uint8Array(44 + 200);
+      const v = new DataView(b.buffer);
+      [..."RIFF"].forEach((c, i) => (b[i] = c.charCodeAt(0)));
+      v.setUint32(4, 236, true);
+      [..."WAVEfmt "].forEach((c, i) => (b[8 + i] = c.charCodeAt(0)));
+      v.setUint32(16, 16, true);
+      v.setUint16(20, 1, true);
+      v.setUint16(22, 1, true);
+      v.setUint32(24, 44100, true);
+      v.setUint32(28, 88200, true);
+      v.setUint16(32, 2, true);
+      v.setUint16(34, 16, true);
+      [..."data"].forEach((c, i) => (b[36 + i] = c.charCodeAt(0)));
+      v.setUint32(40, 200, true);
+      return new File([b], name);
+    };
+    const fileEntry = (f: File) => ({ isFile: true, isDirectory: false, name: f.name, file: (ok: (x: File) => void) => ok(f) });
+    const entries = [fileEntry(wav("Kick.wav")), fileEntry(wav("Snare.wav")), fileEntry(new File(["x"], "notes.txt"))];
+    const folder = {
+      isFile: false,
+      isDirectory: true,
+      name: "Drums Kit",
+      createReader: () => ({ readEntries: (ok: (e: unknown[]) => void) => ok(entries.splice(0)) }),
+    };
+    const places = screen.getByRole("tablist", { name: "Locations" });
+    const dataTransfer = { types: ["Files"], files: [], items: [{ kind: "file", webkitGetAsEntry: () => folder, getAsFile: () => null }] };
+    fireEvent.dragEnter(places, { dataTransfer });
+    fireEvent.dragOver(places, { dataTransfer });
+    fireEvent.drop(places, { dataTransfer });
+    expect(await screen.findByRole("tab", { name: "Drums Kit" }, { timeout: 3000 })).toHaveAttribute("aria-selected", "true");
+    expect(await screen.findByText(/Imported 2 files into “Drums Kit” · 1 file skipped/)).toBeInTheDocument();
+    expect(browserCommands(spy)).toContainEqual({ type: "ImportFolder", name: "Drums Kit" });
+    expect(browserCommands(spy).filter((c) => c.type === "ImportFile").map((c) => c.type === "ImportFile" && c.path)).toEqual(["Kick.wav", "Snare.wav"]);
+
+    fireEvent.contextMenu(tab("Drums Kit"));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Rename…" }));
+    fireEvent.change(await screen.findByRole("textbox", { name: "Folder name" }), { target: { value: "Kit A" } });
+    fireEvent.click(screen.getByRole("button", { name: "Rename" }));
+    expect(await screen.findByRole("tab", { name: "Kit A" })).toBeInTheDocument();
+
+    fireEvent.contextMenu(tab("Kit A"));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Remove folder" }));
+    await waitFor(() => expect(screen.queryByRole("tab", { name: "Kit A" })).toBeNull());
+  });
+
   it("falls back to the folder browser when the engine has no index", async () => {
     const mock = new MockTransport({ timers: "manual", seed: 7 });
     const send = mock.send.bind(mock);

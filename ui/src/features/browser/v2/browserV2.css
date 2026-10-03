@@ -107,3 +107,14 @@
   flex: 0 4 auto;
   min-width: 0;
 }
+
+/* base-136: "Add folder…" / "Import folder…" closes the places; OS folders dropped on the
+   places highlight them. */
+.eth-browser-v2__add-folder {
+  color: var(--eth-color-text-dim);
+}
+
+.eth-browser-v2__places--drop {
+  background: var(--eth-color-accent-subtle);
+  box-shadow: inset 0 0 0 var(--eth-border-width-strong) var(--eth-color-accent);
+}

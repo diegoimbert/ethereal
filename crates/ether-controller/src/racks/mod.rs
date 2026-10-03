@@ -444,54 +444,6 @@ pub(crate) fn rack_command(ctx: &mut DocCtx, command: &RackCommand) -> CmdResult
     }
 }
 
-/// Rack presets (`rack-presets`, CONTRACTS.md §13.9): append a device of `kind` to the end
-/// of `chain_id` with the content rules of `Rack::InsertDevice` (no nested racks, chain
-/// fit). Built-ins get their default params, plugins are instantiated with `kind`'s state.
-/// Returns the inserted device.
-pub(crate) fn append_chain_device(
-    ctx: &mut DocCtx,
-    id: DeviceId,
-    chain_id: RackChainId,
-    kind: DeviceKind,
-) -> CmdResult<Device> {
-    let c = chain(ctx, chain_id)?;
-    let r = rack(ctx, c.rack)?;
-    let ty = rack_type(&r).expect("checked");
-    check_not_rack(&kind)?;
-    let order = order_before(&chain_device_siblings(ctx.p(), c.id, None), None)?;
-    let (name, params) = match &kind {
-        DeviceKind::Builtin { device } => {
-            let desc = builtin_descriptor(device);
-            check_chain_fit(ty, Some(desc.category))?;
-            (desc.name, default_params(device))
-        }
-        DeviceKind::Plugin { plugin } => {
-            let desc = ctx.host.instantiate_plugin(id, plugin)?;
-            check_chain_fit(ty, desc.as_ref().map(|d| d.category))?;
-            let name = desc
-                .as_ref()
-                .map(|d| d.name.clone())
-                .filter(|n| !n.is_empty())
-                .unwrap_or_else(|| plugin.name.clone());
-            (name, BTreeMap::new())
-        }
-    };
-    let d = Device {
-        id,
-        track: r.track,
-        order,
-        name,
-        enabled: true,
-        kind,
-        params,
-        sidechain: None,
-        pad: None,
-        chain: Some(c.id),
-    };
-    ctx.tx.insert(Entity::Device(d.clone()))?;
-    Ok(d)
-}
-
 /// `Rack::Group`: consecutive track-chain devices into a new rack with one chain. The
 /// devices' modulators move to the rack (new ids derived from the rack id, in the order
 /// modulators then mappings, each sorted by id) so their mappings keep working.

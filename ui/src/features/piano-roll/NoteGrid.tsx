@@ -31,7 +31,6 @@ import {
 import { cmd, newId, useTransport } from "@/transport";
 import { EditorPresence, type EditorCursorMapping } from "@/features/collab/presence";
 import { EditorNotes, leaveNoteEntries, withSeparator } from "@/features/collab/social";
-import { NotePitchCurves } from "@/features/mpe";
 import { contentEnd, contentToSong, songToContent } from "./clipTime";
 import { startDrag, useSend } from "./drag";
 import { isBlackKey, noteHitZone, noteRect, pitchToY, rowPitchDelta, yToPitch } from "./geometry";
@@ -307,7 +306,6 @@ export function NoteGrid({ clip, notes, view, vp, widthPx, keyH, rows, scale, hi
           onContextMenu={onNoteContextMenu}
         />
       ))}
-      <NotePitchCurves notes={visible} vp={vp} keyH={keyH} rowY={(p) => pitchToY(p, keyH, rows)} widthPx={widthPx} height={height} />
       {marquee.rect && (
         <div
           className="eth-pr-grid__marquee"

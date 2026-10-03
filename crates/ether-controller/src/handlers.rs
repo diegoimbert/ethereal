@@ -122,12 +122,6 @@ where
         }
         // base-62: a note added by this command is authored by our session identity.
         let _note_author = self.social_note_scope(command);
-        // v0.3 (`templates`): `Template::Insert` loads its file and imports its samples
-        // first (alone: in one gesture; in a `Batch`: scoped for the batch).
-        if let Some(r) = self.template_insert_command(msg, now, out) {
-            return r;
-        }
-        let _templates = self.template_scope(command, msg.gesture, now, out)?;
         if doc::is_document_command(command, current) {
             let label = doc::label_of(command);
             self.edit_with(&label, msg.gesture, now, out, |ctx| {
@@ -249,7 +243,6 @@ where
             label: label.to_string(),
             ops,
         };
-        doc.history.set_now_ms(now);
         let (applied, inverse) = doc
             .history
             .commit_with_inverse(&mut doc.project, tx, gesture)
@@ -339,24 +332,6 @@ where
         );
     }
 
-    /// Undo or redo one step without emitting anything (`Edit::{Undo, Redo}`, and
-    /// `History::JumpTo` step by step). Returns the applied ops, `None` if there was
-    /// nothing to undo/redo.
-    pub(crate) fn undo_redo_step(&mut self, undo: bool) -> CmdResult<Option<Vec<Op>>> {
-        if self.collab_active() {
-            // Collab: per-site undo (only this site's steps; peers' later changes win),
-            // stamped and sent like an edit.
-            return self.collab_undo_redo(undo);
-        }
-        let doc = self.doc.as_mut().ok_or_else(no_project)?;
-        if undo {
-            doc.history.undo(&mut doc.project)
-        } else {
-            doc.history.redo(&mut doc.project)
-        }
-        .map_err(model_err)
-    }
-
     fn edit_command(
         &mut self,
         c: &EditCommand,
@@ -367,7 +342,20 @@ where
         match c {
             EditCommand::Undo | EditCommand::Redo => {
                 let undo = matches!(c, EditCommand::Undo);
-                let applied = self.undo_redo_step(undo)?.ok_or_else(|| {
+                let applied = if self.collab_active() {
+                    // Collab: per-site undo (only this site's steps; peers' later changes
+                    // win), stamped and sent like an edit.
+                    self.collab_undo_redo(undo)?
+                } else {
+                    let doc = self.doc.as_mut().ok_or_else(no_project)?;
+                    if undo {
+                        doc.history.undo(&mut doc.project)
+                    } else {
+                        doc.history.redo(&mut doc.project)
+                    }
+                    .map_err(model_err)?
+                }
+                .ok_or_else(|| {
                     invalid_state(if matches!(c, EditCommand::Undo) {
                         "nothing to undo"
                     } else {
@@ -695,7 +683,7 @@ where
 
     // ─── Media ──────────────────────────────────────────────────────────────────────────
 
-    fn locations(&self) -> Vec<BrowseRoot> {
+    pub(crate) fn locations(&self) -> Vec<BrowseRoot> {
         let mut roots = self.library.roots();
         if self.doc.is_some() {
             roots.push(BrowseRoot {

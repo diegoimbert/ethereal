@@ -25,7 +25,6 @@ use block2::{DynBlock, RcBlock};
 use ether_core::buffer::AudioBuffers;
 use ether_core::config::PrepareConfig;
 use ether_core::event::{EventKind, ProcessEvent};
-use ether_core::expression::mpe::MpeOut;
 use ether_core::node::{Device, Node, ProcessContext, ProcessStatus};
 use ether_core::plugin::PluginNode;
 use ether_core::protocol::devices::DeviceDescriptor;
@@ -205,9 +204,6 @@ pub(crate) struct AuNode {
     sample_time: f64,
     errors: u32,
     reset_imp: Option<ResetImp>,
-    /// v0.3 (`mpe`): AUv3 MIDI 1.0 input has no per-note expression: MPE MIDI (one member
-    /// channel per note) once the track announced its MPE zone, else poly aftertouch.
-    mpe_out: MpeOut,
 }
 
 type ResetImp = unsafe extern "C-unwind" fn(*mut AnyObject, Sel);
@@ -536,7 +532,6 @@ impl AuNode {
             sample_time: 0.0,
             errors: 0,
             reset_imp,
-            mpe_out: MpeOut::default(),
         }
     }
 
@@ -712,14 +707,9 @@ impl AuNode {
                     }
                 }
                 kind => {
-                    // (Fixed-size state: moved out and back, no allocation.)
-                    let mut out = std::mem::take(&mut self.mpe_out);
-                    out.translate(kind, |k| {
-                        if let Some((bytes, len)) = midi_bytes(&k) {
-                            self.send_midi(e.offset, &bytes, len);
-                        }
-                    });
-                    self.mpe_out = out;
+                    if let Some((bytes, len)) = midi_bytes(kind) {
+                        self.send_midi(e.offset, &bytes, len);
+                    }
                 }
             }
         }

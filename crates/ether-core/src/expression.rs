@@ -39,24 +39,14 @@
 //! `BRIGHTNESS`), VST3 note expression, or MPE MIDI (one member channel per note) using
 //! [`TrackExpressionDesc::mpe`].
 //!
-//! # MPE (`mpe`, CONTRACTS.md §13.3; [`mpe`])
-//! Per-note `Pitch` and `Timbre` flow through [`ExpressionRt::render_notes`] like
-//! `Pressure`. On a track with MPE settings (`TrackExpressionDesc::mpe`):
-//! - the settings are announced in-band to the chain (the MPE Configuration Message and
-//!   pitch-bend sensitivities, [`mpe::config_messages`]) when playback starts, when live
-//!   input arrives, and whenever they change ([`ExpressionRt::live_input`] /
-//!   [`ExpressionRt::render_lanes`]); switching MPE off announces an empty zone;
-//! - live input is read as MPE ([`ExpressionRt::live_input`], [`mpe::MpeIn`]): member
-//!   channels' bend / pressure / CC 74 reach the instrument as `NoteExpression`.
-//!
-//! Receivers: the Poly Synth reads `NoteExpression` directly; plugin hosts send CLAP note
-//! expressions / VST3 note expression, else MPE MIDI ([`mpe::MpeOut`]).
+//! # For `mpe`
+//! Per-note `Pitch` and `Timbre` already flow through [`ExpressionRt::render_notes`] (it
+//! renders every [`NoteExpressionKind`]); `mpe` only adds the receivers (Poly Synth, plugin
+//! translation) and MPE input. [`note_quantum`] fixes the change resolution per kind.
 //!
 //! RT rules: the render methods run on the audio thread. They never allocate (the per-note
 //! state is pre-allocated by [`ExpressionRt::compile`], knots live on the stack) and are
 //! bounded by the curve data overlapping the sub-block.
-
-pub mod mpe;
 
 use ether_protocol::model::{ClipId, CurveShape, ExpressionKind, MpeSettings, NoteExpressionKind};
 use serde::{Deserialize, Serialize};
@@ -233,11 +223,6 @@ pub struct ExpressionRt {
     notes: Vec<NoteLast>,
     resend_lanes: bool,
     resend_notes: bool,
-    /// MPE (`mpe`): the settings last announced to the chain, whether they must be
-    /// announced again (transport stopped), and the live MPE input state.
-    announced: Option<MpeSettings>,
-    reannounce: bool,
-    mpe_in: mpe::MpeIn,
 }
 
 impl Default for ExpressionRt {
@@ -250,9 +235,6 @@ impl Default for ExpressionRt {
             notes: Vec::new(),
             resend_lanes: false,
             resend_notes: false,
-            announced: None,
-            reannounce: false,
-            mpe_in: mpe::MpeIn::default(),
         }
     }
 }
@@ -335,9 +317,6 @@ impl ExpressionRt {
         self.bend_driven = old.bend_driven;
         self.resend_lanes = old.resend_lanes;
         self.resend_notes = old.resend_notes;
-        self.announced = old.announced;
-        self.reannounce = old.reannounce;
-        self.mpe_in = old.mpe_in;
         self.notes.clear();
         for n in old.notes.drain(..) {
             if self.notes.len() == self.notes.capacity() {
@@ -368,60 +347,7 @@ impl ExpressionRt {
         }
         self.bend_driven = false;
         self.notes.clear();
-        self.reannounce = true;
         self.reset();
-    }
-
-    /// RT (`mpe`): announce the track's MPE settings to the chain at `offset` when they
-    /// changed since the last announcement (or playback restarted): an empty zone for the
-    /// previous settings when MPE was switched off or moved, then the new configuration.
-    fn announce(&mut self, desc: &TrackExpressionDesc, offset: u32, events: &mut EventBuffer) {
-        let again = self.reannounce && desc.mpe.is_some();
-        self.reannounce = false;
-        if desc.mpe == self.announced && !again {
-            return;
-        }
-        let mut push = |data: [u8; 3]| {
-            events.push(ProcessEvent {
-                offset,
-                kind: EventKind::Midi { data },
-            });
-        };
-        if let Some(old) = &self.announced
-            && desc.mpe.is_none_or(|m| m.zone != old.zone)
-        {
-            for d in mpe::config_messages(None, old) {
-                push(d);
-            }
-        }
-        if let Some(m) = &desc.mpe {
-            for d in mpe::config_messages(Some(m), m) {
-                push(d);
-            }
-        }
-        if desc.mpe != self.announced {
-            self.mpe_in.clear();
-        }
-        self.announced = desc.mpe;
-    }
-
-    /// RT (`mpe`): one live MIDI input event for this track at `offset` (monitoring). On an
-    /// MPE track, member-channel messages become `NoteExpression`s ([`mpe::MpeIn`]);
-    /// otherwise the event is pushed unchanged.
-    pub fn live_input(
-        &mut self,
-        desc: &TrackExpressionDesc,
-        offset: u32,
-        kind: EventKind,
-        events: &mut EventBuffer,
-    ) {
-        self.announce(desc, offset, events);
-        match &desc.mpe {
-            Some(m) => self.mpe_in.translate(m, offset, kind, events),
-            None => {
-                events.push(ProcessEvent { offset, kind });
-            }
-        }
     }
 
     /// RT. Push the clip lanes' MIDI messages of the sub-block into `events` (before the
@@ -439,7 +365,6 @@ impl ExpressionRt {
             self.pressure = UNSENT;
             self.bend = UNSENT;
         }
-        self.announce(desc, 0, events);
         if desc.clips.is_empty() && !self.bend_driven {
             return;
         }

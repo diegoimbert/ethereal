@@ -18,8 +18,8 @@ export const COMMON_KINDS: ReadonlyArray<ExpressionKind> = [
   { type: "Cc", controller: 64 },
 ];
 
-/** Per-note kinds offered (`Pitch` and `Timbre` from the `mpe` node). */
-export const NOTE_KINDS: ReadonlyArray<NoteExpressionKind> = ["Pressure", "Pitch", "Timbre"];
+/** Per-note kinds offered (the `mpe` node appends `Pitch` and `Timbre`). */
+export const NOTE_KINDS: ReadonlyArray<NoteExpressionKind> = ["Pressure"];
 
 export const OTHER_CC = "other-cc";
 

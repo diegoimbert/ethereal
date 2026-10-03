@@ -31,6 +31,8 @@ pub(crate) struct IndexFile {
 pub(crate) struct UserFolder {
     pub id: String,
     pub path: String,
+    /// `base-136`: the user's name for it (`RenameFolder`; `None` = the folder's own name).
+    pub name: Option<String>,
 }
 
 /// A scanned audio/MIDI file (`id` = `<root>/<path>`).
@@ -75,6 +77,7 @@ pub(crate) fn parse(bytes: &[u8], items: Option<&[u8]>) -> Option<IndexFile> {
             Some(UserFolder {
                 id: s(x, "id")?,
                 path: s(x, "path")?,
+                name: s(x, "name"),
             })
         })
         .collect();
@@ -153,7 +156,10 @@ pub(crate) fn parse(bytes: &[u8], items: Option<&[u8]>) -> Option<IndexFile> {
 pub(crate) fn serialize(file: &IndexFile) -> Vec<u8> {
     let v = json!({
         "version": VERSION,
-        "folders": file.folders.iter().map(|f| json!({"id": f.id, "path": f.path})).collect::<Vec<_>>(),
+        "folders": file.folders.iter().map(|f| match &f.name {
+            Some(name) => json!({"id": f.id, "path": f.path, "name": name}),
+            None => json!({"id": f.id, "path": f.path}),
+        }).collect::<Vec<_>>(),
         "favourites": file.favourites,
         "tags": file.tags,
         "packs": file.packs,
@@ -227,10 +233,18 @@ mod tests {
     #[test]
     fn round_trip_and_version_gate() {
         let file = IndexFile {
-            folders: vec![UserFolder {
-                id: "folder-1".into(),
-                path: "/x".into(),
-            }],
+            folders: vec![
+                UserFolder {
+                    id: "folder-1".into(),
+                    path: "/x".into(),
+                    name: None,
+                },
+                UserFolder {
+                    id: "folder-2".into(),
+                    path: "imported/Drums".into(),
+                    name: Some("My \"Drums\"".into()),
+                },
+            ],
             favourites: ["a/b.wav".to_string()].into(),
             tags: [("a/b.wav".to_string(), vec!["dry".to_string()])].into(),
             packs: [(

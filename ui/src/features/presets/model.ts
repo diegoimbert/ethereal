@@ -6,8 +6,7 @@
  */
 
 import { create } from "zustand";
-import type { Command, Device, DeviceId, PresetDevice, PresetInfo, PresetRef } from "@/generated";
-import { cmd, newId } from "@/transport";
+import type { Device, DeviceId, PresetDevice, PresetInfo, PresetRef } from "@/generated";
 
 /** The preset type of a device (built-in type, or plugin identity). */
 export function presetDeviceOf(device: Device): PresetDevice {
@@ -16,16 +15,7 @@ export function presetDeviceOf(device: Device): PresetDevice {
   return { type: "Plugin", format, plugin_id, name, vendor };
 }
 
-/**
- * `Preset::Load` of `preset` onto `device`, always with a fresh `seed`: rack presets that
- * store chains (v0.3, CONTRACTS.md §13.9) derive their new ids from it so collab replays
- * agree; other presets ignore it. Use this for every load (preset menu, browser).
- */
-export function loadPresetCommand(device: DeviceId, preset: PresetRef, seed: string = newId()): Command {
-  return cmd("Preset", { type: "Load", device, preset, seed });
-}
-
-export const sameRef =(a: PresetRef, b: PresetRef) => a.source === b.source && a.id === b.id;
+export const sameRef = (a: PresetRef, b: PresetRef) => a.source === b.source && a.id === b.id;
 
 /** A user preset of the same list with this name (case-insensitive), except `except`. */
 export function findByName(presets: ReadonlyArray<PresetInfo>, name: string, except?: PresetRef): PresetInfo | undefined {

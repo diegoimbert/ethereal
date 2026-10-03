@@ -3,8 +3,12 @@
  * browser's visual language (`../index.tsx`, `../browser.css`):
  * - search over the engine index (`Browser::Query`, debounced, by relevance while typing),
  *   kind chips, favourites, sort and tempo-synced preview ("Sync", remembered);
- * - places: "All", the library roots, sample packs, user folders and factory presets
- *   (desktop: "Add folder"); a place without filters browses folder by folder exactly like
+ * - places: "All", the library roots, sample packs, user folders and factory presets,
+ *   then "Add folder…" (desktop: the OS folder dialog; the folder is indexed in place) or
+ *   "Import folder…" (web, remote engine: the folder's audio is copied into the engine's
+ *   library, `../folders`); OS folders dropped on the browser are added the same way
+ *   (desktop paths) or imported; user folders can be renamed and removed from their
+ *   context menu; a place without filters browses folder by folder exactly like
  *   the folder browser (`Media::ListDirectory`), filters turn it into index results scoped
  *   to the place and folder;
  * - result rows preview (click, Enter, arrow keys), drag (the `../dragPayload.ts` payload),
@@ -16,16 +20,18 @@
 import "../browser.css";
 import "./browserV2.css";
 import clsx from "clsx";
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent, type MouseEvent } from "react";
 import { CornerLeftUp, FolderOpen, FolderPlus, Search, Star, X } from "lucide-react";
 import type { BrowseRoot, BrowserQuery, BrowserRoot, DirectoryEntry, LibraryItem } from "@/generated";
-import { BrowserImportBar, useImportDrop } from "@/features/import";
-import { loadPresetCommand, useCurrentPresets } from "@/features/presets";
+import { BrowserImportBar, fileSource, hasOsFiles, importAudio, isPathDropHost, noteHover, useImportDrop, type ImportSource } from "@/features/import";
+import { isAudioName } from "@/features/import/sources";
+import { useCurrentPresets } from "@/features/presets";
 import { useEngineCommands, useEngineEvent } from "@/features/transport-bar/engine";
 import { Button, Dialog, IconButton, Select, TextInput, openContextMenu, type ContextMenuEntry } from "@/kit";
 import { devicesOfTrack, useProjectStore, useSelectionStore } from "@/state";
 import { cmd, type EngineTransport } from "@/transport";
 import { EntryRow, ROW_SELECTOR, SEARCH_DEBOUNCE_MS, type BrowserScope } from "../index";
+import { FolderImportStatus, droppedItems, importFolder, pickFolder, useFolderImports, type PickedFolder } from "../folders";
 import { parentPath, pathSegments, sourceOf } from "../paths";
 import { ItemRow } from "./ItemRow";
 import {
@@ -101,6 +107,8 @@ export function BrowserV2({ scope, initialRoots }: BrowserV2Props) {
   const [results, setResults] = useState<Results | null>(null);
   const [listing, setListing] = useState<Listing | null>(null);
   const [editing, setEditing] = useState<LibraryItem | null>(null);
+  const [renaming, setRenaming] = useState<BrowserRoot | null>(null);
+  const [dropOnPlaces, setDropOnPlaces] = useState(false);
   const preview = useItemPreview(transport, send, sync, setOwnError);
   const shownError = ownError ?? error;
 
@@ -217,9 +225,12 @@ export function BrowserV2({ scope, initialRoots }: BrowserV2Props) {
     return () => {
       active = false;
     };
-    // `loc` is identified by `listingKey`.
+    // `loc` is identified by `listingKey`; `refresh` (the index changed) re-lists, e.g. a
+    // folder being imported.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [send, listingKey, mediaDep]);
+  }, [send, listingKey, mediaDep, refresh]);
+  // A folder import into this place is still copying (its files appear when it ends).
+  const importing = useFolderImports((st) => st.jobs.some((j) => j.root === current?.root && (j.state === "reading" || j.state === "copying")));
   const projectFilter = current?.root === PROJECT_MEDIA ? text.trim().toLowerCase() : "";
   const entries = useMemo(
     () =>
@@ -312,7 +323,7 @@ export function BrowserV2({ scope, initialRoots }: BrowserV2Props) {
       return;
     }
     const preset = item.preset;
-    void send(loadPresetCommand(device.id, preset)).then((r) => r && setCurrentPreset(device.id, preset, item.name));
+    void send(cmd("Preset", { type: "Load", device: device.id, preset })).then((r) => r && setCurrentPreset(device.id, preset, item.name));
   };
   const openProject = (item: LibraryItem) => void send(cmd("Project", { type: "Open", id: item.path }));
   const open = (item: LibraryItem) => {
@@ -339,9 +350,8 @@ export function BrowserV2({ scope, initialRoots }: BrowserV2Props) {
 
   // ---- Places ------------------------------------------------------------------------------
   const picker = folderPicker(transport);
-  const addFolder = async () => {
-    const path = await picker?.pickFolder();
-    if (!path) return;
+  /** Desktop: index a folder in place (an engine-side path). */
+  const addFolderPath = async (path: string) => {
     const before = new Set(roots.map((r) => r.id));
     const r = await send(cmd("Browser", { type: "AddFolder", path }));
     if (r?.type !== "BrowserRoots") return;
@@ -349,14 +359,75 @@ export function BrowserV2({ scope, initialRoots }: BrowserV2Props) {
     const added = r.roots.find((x) => !before.has(x.id));
     if (added) go({ root: added.id, folder: "" });
   };
+  const addFolder = async () => {
+    const path = await picker?.pickFolder();
+    if (path) await addFolderPath(path);
+  };
+  /** Web / remote engine: copy a folder of this computer into the library (`../folders`). */
+  const copyFolder = (read: (signal: AbortSignal) => Promise<PickedFolder>) => {
+    if (!transport) return;
+    void importFolder(transport, read, {
+      onRoot: (root) => {
+        listRoots();
+        go({ root, folder: "" });
+      },
+    });
+  };
+  const chooseFolder = async () => {
+    try {
+      const read = await pickFolder();
+      if (read) copyFolder(read);
+    } catch (e) {
+      setOwnError(`Couldn’t open the folder: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  };
+
+  /**
+   * OS drops on the browser: folders are added to the library (desktop paths: in place;
+   * otherwise copied), loose audio files go to the project as before.
+   */
+  const importFiles = (sources: ImportSource[]) => {
+    if (!transport || sources.length === 0) return;
+    void importAudio(transport, sources);
+    showProjectMedia();
+  };
+  const onPathDrop = (sources: ImportSource[]) => {
+    const paths = sources.flatMap((x) => (x.kind === "path" ? [x.path] : []));
+    importFiles(paths.filter(isAudioName).map((path) => ({ kind: "path" as const, path })));
+    // Anything else is taken for a folder; the engine refuses what isn't one.
+    for (const path of paths.filter((p) => !isAudioName(p))) void addFolderPath(path);
+  };
+  const dropProps = {
+    onDragOver: (e: DragEvent<HTMLDivElement>) => {
+      importDrop.onDragOver?.(e);
+      if (hasOsFiles(e.dataTransfer) && isPathDropHost(transport)) noteHover(e, onPathDrop);
+    },
+    onDrop: (e: DragEvent<HTMLDivElement>) => {
+      setDropOnPlaces(false);
+      const items = hasOsFiles(e.dataTransfer) ? droppedItems(e.dataTransfer.items) : null;
+      if (!items) return importDrop.onDrop?.(e);
+      e.preventDefault();
+      void items.then(({ folders, files }) => {
+        for (const read of folders) copyFolder(read);
+        importFiles(files.map((f) => fileSource(f)));
+      });
+    },
+  };
+
+  const renameFolder = (root: BrowserRoot, name: string) =>
+    void send(cmd("Browser", { type: "RenameFolder", root: root.id, name })).then((r) => r?.type === "BrowserRoots" && setRoots(r.roots));
   const placeMenu = (e: MouseEvent, r: BrowserRoot) => {
     const entries: ContextMenuEntry[] = [{ label: "Rescan", onSelect: () => void send(cmd("Browser", { type: "Rescan", root: r.id })) }];
     if (r.kind === "Folder")
-      entries.push("separator", {
-        label: "Remove folder",
-        danger: true,
-        onSelect: () => void send(cmd("Browser", { type: "RemoveFolder", root: r.id })).then((x) => x && listRoots()),
-      });
+      entries.push(
+        { label: "Rename…", onSelect: () => setRenaming(r) },
+        "separator",
+        {
+          label: "Remove folder",
+          danger: true,
+          onSelect: () => void send(cmd("Browser", { type: "RemoveFolder", root: r.id })).then((x) => x && listRoots()),
+        },
+      );
     openContextMenu(e, entries);
   };
 
@@ -382,7 +453,7 @@ export function BrowserV2({ scope, initialRoots }: BrowserV2Props) {
   };
 
   return (
-    <div className="eth-browser eth-browser-v2" data-feature="browser" data-browser="v2" {...importDrop}>
+    <div className="eth-browser eth-browser-v2" data-feature="browser" data-browser="v2" {...dropProps}>
       <div className="eth-browser__search">
         <Search className="eth-browser__search-icon" aria-hidden />
         <TextInput
@@ -450,7 +521,13 @@ export function BrowserV2({ scope, initialRoots }: BrowserV2Props) {
         )}
       </div>
 
-      <div className="eth-browser__locations" role="tablist" aria-label="Locations">
+      <div
+        className={clsx("eth-browser__locations", dropOnPlaces && "eth-browser-v2__places--drop")}
+        role="tablist"
+        aria-label="Locations"
+        onDragEnter={(e) => hasOsFiles(e.dataTransfer) && setDropOnPlaces(true)}
+        onDragLeave={(e) => !e.currentTarget.contains(e.relatedTarget as Node | null) && setDropOnPlaces(false)}
+      >
         {(current ? [ALL_ROOTS, ...roots.map((r) => r.id), ...(hasProjectMedia ? [PROJECT_MEDIA] : [])] : []).map((id) => {
           const selected = current?.root === id;
           const root = roots.find((r) => r.id === id);
@@ -470,7 +547,22 @@ export function BrowserV2({ scope, initialRoots }: BrowserV2Props) {
             </Button>
           );
         })}
-        {picker && <IconButton size="sm" tone="ghost" label="Add folder" icon={<FolderPlus />} onClick={() => void addFolder()} />}
+        {transport && (
+          <Button
+            size="sm"
+            tone="ghost"
+            className="eth-browser-v2__add-folder"
+            title={
+              picker
+                ? "Add a folder of this computer to the library (or drop one here)"
+                : "Copy a folder’s audio files into the library (or drop one here)"
+            }
+            onClick={() => void (picker ? addFolder() : chooseFolder())}
+          >
+            <FolderPlus aria-hidden />
+            {picker ? "Add folder…" : "Import folder…"}
+          </Button>
+        )}
       </div>
 
       {current && current.root !== ALL_ROOTS && (
@@ -527,8 +619,10 @@ export function BrowserV2({ scope, initialRoots }: BrowserV2Props) {
           {entries?.length === 0 && (
             <li className="eth-browser__empty">
               <FolderOpen aria-hidden />
-              <span>{projectFilter ? "No matches" : "Empty folder"}</span>
-              <span className="eth-browser__empty-hint">Audio files you add here show up to drag onto tracks.</span>
+              <span>{projectFilter ? "No matches" : importing ? "Importing…" : "Empty folder"}</span>
+              <span className="eth-browser__empty-hint">
+                {importing ? "The files show up here once they are copied." : "Audio files you add here show up to drag onto tracks."}
+              </span>
             </li>
           )}
           {entries?.map((entry) => {
@@ -639,8 +733,10 @@ export function BrowserV2({ scope, initialRoots }: BrowserV2Props) {
         </button>
       )}
 
+      <FolderImportStatus copies={transport?.kind === "wasm"} />
       {transport && <BrowserImportBar transport={transport} onImport={showProjectMedia} />}
       <TagsDialog item={editing} onClose={() => setEditing(null)} onSave={saveTags} />
+      <RenameFolderDialog root={renaming} onClose={() => setRenaming(null)} onSave={renameFolder} />
     </div>
   );
 }
@@ -674,6 +770,44 @@ function TagsDialog({ item, onClose, onSave }: { item: LibraryItem | null; onClo
       <TextInput
         aria-label="Tags"
         placeholder="drums, punchy, dark"
+        value={value}
+        autoFocus
+        onChange={(e) => setValue(e.target.value)}
+        onKeyDown={(e) => e.key === "Enter" && save()}
+      />
+    </Dialog>
+  );
+}
+
+function RenameFolderDialog({ root, onClose, onSave }: { root: BrowserRoot | null; onClose(): void; onSave(root: BrowserRoot, name: string): void }) {
+  const [value, setValue] = useState("");
+  const [for_, setFor] = useState<string | null>(null);
+  if (root && for_ !== root.id) {
+    setFor(root.id);
+    setValue(root.name);
+  }
+  if (!root && for_ !== null) setFor(null);
+  const save = () => {
+    if (root) onSave(root, value);
+    onClose();
+  };
+  return (
+    <Dialog
+      open={!!root}
+      onClose={onClose}
+      title={root ? `Rename “${root.name}”` : "Rename folder"}
+      footer={
+        <>
+          <Button onClick={onClose}>Cancel</Button>
+          <Button tone="accent" onClick={save}>
+            Rename
+          </Button>
+        </>
+      }
+    >
+      <TextInput
+        aria-label="Folder name"
+        placeholder="Leave empty to use the folder’s own name"
         value={value}
         autoFocus
         onChange={(e) => setValue(e.target.value)}

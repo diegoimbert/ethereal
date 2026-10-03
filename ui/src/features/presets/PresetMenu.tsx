@@ -3,7 +3,7 @@ import { ChevronDown, Ellipsis, Save } from "lucide-react";
 import type { Device, PresetInfo } from "@/generated";
 import { Button, IconButton, Popover, TextInput, openContextMenu, type Placement } from "@/kit";
 import { cmd, useTransport, useTransportEvent } from "@/transport";
-import { groupPresets, loadPresetCommand, presetDeviceOf, useCurrentPresets } from "./model";
+import { groupPresets, presetDeviceOf, useCurrentPresets } from "./model";
 import { PresetDialogs, type PresetDialog } from "./PresetDialogs";
 
 export interface PresetMenuProps {
@@ -68,7 +68,7 @@ export function PresetMenu({ device }: PresetMenuProps) {
   const load = (p: PresetInfo, close: () => void) => {
     setError(null);
     transport
-      .send(loadPresetCommand(device.id, p.preset))
+      .send(cmd("Preset", { type: "Load", device: device.id, preset: p.preset }))
       .then(() => {
         setCurrent(device.id, p.preset, p.name);
         close();
