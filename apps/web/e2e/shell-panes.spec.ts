@@ -180,7 +180,7 @@ function expectSmooth(xs: number[]): void {
   for (const s of xs.slice(1).map((x, i) => x - xs[i]!)) expect(Math.sign(s) * dir).toBeGreaterThanOrEqual(0);
 }
 
-test("the drawer's left edge follows the left pane as it collapses and expands", async ({ page }) => {
+test("the drawer's left edge follows the left pane as it collapses and expands @frames", async ({ page }) => {
   await start(page);
   await openEditor(page, "Piano Roll");
   await library(page);

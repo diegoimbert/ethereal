@@ -4,7 +4,6 @@ import { execFileSync, spawn, type ChildProcess } from "node:child_process";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test, type Page } from "@playwright/test";
-import type { ProjectSummary } from "@/generated";
 import { newProject, projectScreen } from "./ui";
 
 const dir = process.env.PROJECT_SHOTS;
@@ -45,9 +44,6 @@ test.afterAll(() => relay?.kill());
 
 const shot = (page: Page, name: string) => page.screenshot({ path: `${dir}/${name}.png` });
 
-const projects = (page: Page) =>
-  page.evaluate(() => (window as unknown as { __ether: { state(): { projects: ProjectSummary[] } } }).__ether.state().projects);
-
 async function boot(page: Page) {
   await page.goto("/");
   // base-131: the app launches with no project, on the project screen.
@@ -62,10 +58,6 @@ test("project screen, toast, palette, collab dialog, leave warning", async ({ pa
   await newProject(page, "Beat sketch");
   await newProject(page, "Late jam");
   await newProject(page, "Chord study");
-  // "Late jam" was used in a session (normally recorded while online).
-  const jam = (await projects(page)).find((p) => p.name === "Late jam")!;
-  await page.evaluate((id) => localStorage.setItem("eth-collab-projects", JSON.stringify({ [id]: "late-jam" })), jam.id);
-  await boot(page);
 
   // 1. Project screen: the open project's actions and the recents badges.
   await page.getByRole("button", { name: "Projects" }).click();

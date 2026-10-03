@@ -16,7 +16,7 @@ import { LeaveSessionDialog } from "./LeaveSessionDialog";
 import { ProjectScreen } from "./ProjectScreen";
 import { SafeModeBanner } from "./SafeModeBanner";
 import { useProjectScreen } from "./screenStore";
-import { useRecordSessionProjects } from "./sessionMarks";
+import { useShareSessionSync } from "./shareState";
 
 /**
  * Project menu: the Projects button, current project name and unsaved-changes dot. The
@@ -41,10 +41,9 @@ export function ProjectMenu() {
   const dirty = useProjectStore((s) => s.dirty);
   const open = useProjectScreen((s) => s.open);
   const disabled = !transport || name === null;
+  useShareSessionSync();
 
   const revision = useProjectStore((s) => s.revision);
-  // Recents badges: remember projects used in a collaboration session.
-  useRecordSessionProjects();
   const save = () => void send(cmd("Project", { type: "Save" }));
   const saveRef = useRef(save);
   useEffect(() => {

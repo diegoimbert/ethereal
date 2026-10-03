@@ -12,7 +12,7 @@ import { exportProject, importProject } from "./actions";
 import { ProjectMenu } from "./index";
 import { guardLeave, useLeaveGuard } from "./leaveGuard";
 import { useProjectScreen } from "./screenStore";
-import { markSessionProject, resetSessionMarks, splitLocalCopy } from "./sessionMarks";
+import { splitLocalCopy } from "./sessionMarks";
 
 const store = () => useProjectStore.getState();
 const names = () => store().projects.map((p) => p.name);
@@ -37,7 +37,6 @@ afterEach(() => {
   useLeaveGuard.setState({ pending: null });
   useNotices.getState().clear();
   localStorage.clear();
-  resetSessionMarks();
 });
 
 /** Record the commands sent through `t` (the app holds the same object). */
@@ -165,27 +164,17 @@ describe("leave-session warning", () => {
 });
 
 describe("recents badges", () => {
-  it("marks local copies and projects used in a session", async () => {
+  // Sharing badges ("Shared", "From …") come from the engine: recentsShared.test.tsx.
+  it("marks local copies", async () => {
     const { mock } = await renderWithMock(<ProjectMenu />);
     const beat = store().projects.find((p) => p.name === "Beat sketch")!;
     await mock.send(cmd("Project", { type: "Rename", id: beat.id, name: "Beat sketch (local copy)" }));
-    const other = store().projects.find((p) => p.id !== beat.id && p.id !== current().id)!;
-    markSessionProject(other.id, "jam");
 
     const dialog = await openScreen();
     const copyRow = await within(dialog).findByRole("button", { name: "Open Beat sketch (local copy)" });
     expect(within(copyRow).getByText("Local copy")).toBeInTheDocument();
     // The suffix shows as the badge, not in the name.
     expect(within(copyRow).getByTitle("Beat sketch (local copy)").textContent).toBe("Beat sketch");
-    const sessionRow = within(dialog).getByRole("button", { name: `Open ${other.name}` });
-    expect(within(sessionRow).getByText("Collab")).toBeInTheDocument();
-    expect(within(sessionRow).getByTitle("Last used in the collaboration session “jam”")).toBeInTheDocument();
-  });
-
-  it("remembers the open project while online", async () => {
-    await renderWithMock(<ProjectMenu />);
-    act(() => useCollabStore.setState({ status: { type: "Online", session: "late-night", site: "1" } }));
-    await waitFor(() => expect(JSON.parse(localStorage.getItem("eth-collab-projects") ?? "{}")).toEqual({ [current().id]: "late-night" }));
   });
 
   it("splits the local copy suffix", () => {

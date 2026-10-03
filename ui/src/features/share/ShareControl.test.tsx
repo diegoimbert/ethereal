@@ -10,6 +10,7 @@ import { useListenStore } from "@/features/collab/listen/store";
 import { ShareControl } from ".";
 import { shareCommands } from "./commands";
 import { useConfirm } from "./confirmStore";
+import { useJoinStore } from "./join/store";
 import { DEFAULT_SHARE_SETTINGS, useShareSettings } from "./settings";
 import { useShareStore } from "./store";
 import { useShareToasts } from "./toasts";
@@ -175,6 +176,15 @@ describe("ShareControl (host)", () => {
     await waitFor(() => expect(screen.getByTestId("share-button")).toBeInTheDocument());
   });
 
+  it("offers Join with a link… from the popover menu", async () => {
+    const mock = await setup();
+    await share(mock);
+    fireEvent.click(within(popover()).getByRole("button", { name: "More sharing actions" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Join with a link…" }));
+    await waitFor(() => expect(useJoinStore.getState().pasteOpen).toBe(true));
+    act(() => useJoinStore.getState().setPasteOpen(false));
+  });
+
   it("shows the signaling service states on the pill and in the popover", async () => {
     const mock = await setup();
     await share(mock);
@@ -306,6 +316,17 @@ describe("ShareControl (relay session)", () => {
       await mock.send({ domain: "Collab", command: { type: "Leave" } });
     });
     await waitFor(() => expect(screen.getByTestId("share-button")).toBeInTheDocument());
+    expect(screen.queryByTestId("collab-button")).toBeNull();
+  });
+
+  it("a shared project's own collab session (the hub's \"share\") shows only the pill", async () => {
+    const mock = await setup();
+    await share(mock);
+    await act(async () => {
+      await mock.send({ domain: "Collab", command: { type: "Join", server: "ws://hub", session: "share", token: null, name: "Diego" } });
+    });
+    await waitFor(() => expect(useCollabStore.getState().status.type).toBe("Online"));
+    expect(screen.getByTestId("session-pill")).toBeInTheDocument();
     expect(screen.queryByTestId("collab-button")).toBeNull();
   });
 });

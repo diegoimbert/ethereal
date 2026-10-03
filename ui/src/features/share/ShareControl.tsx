@@ -67,7 +67,7 @@ function ShareControlWith({ transport }: { transport: EngineTransport }) {
 
   return (
     <div className="eth-share" data-feature="share" data-state={state.type}>
-      <CollabRuntime />
+      <CollabRuntime shared={state.type !== "Off"} />
       {!hidden && (
         <Popover
           open={open}

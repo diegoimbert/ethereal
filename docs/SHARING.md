@@ -1,6 +1,8 @@
 # Sharing: P2P host hub, invite links (base-115)
 
-Status: **design + frozen contract, for the owner's review (T1)**. It builds on
+Status: **implemented** (the owner accepted the design in #198; nodes in §12, integration
+and end-to-end tests in §12.1). The default service runs at
+`https://etherealws.pages.dev/signal` (§3.1, §6.3). It builds on
 [COLLAB.md](COLLAB.md): the replicated document, sequenced op log, per-site undo, presence,
 chat and listen-on-peer all stay as they are. What changes is how sites reach each other, who
 sequences, and how people are invited. Contract: CONTRACTS.md §11.18. Nodes: ROADMAP.md
@@ -339,8 +341,9 @@ existing file API, so the same code works natively, on OPFS and in memory.
     ("Always continue in browser", `localStorage`). Phones go straight to the browser.
   - The URL is rewritten to `/` (the fragment dropped) with `history.replaceState` once the
     engine has the invite, so a reload or a shared screenshot does not leak the key.
-- **Pasting a link**: the Share popover's "Join with a link…" field and the command palette
-  ("Join shared project…") accept any invite form (`parseInvite`).
+- **Pasting a link**: the "Join with a link…" dialog accepts any invite form
+  (`parseInvite`). It opens from the command palette ("Join shared project…") and from the
+  Share popover's "…" menu ("Join with a link…").
 
 ## 6. Native WebRTC and the web endpoint (`p2p-transport`)
 
@@ -369,22 +372,81 @@ existing file API, so the same code works natively, on OPFS and in memory.
 ### 6.2 Web: the UI's `RTCPeerConnection`, bytes on a `MessagePort`
 
 `RTCPeerConnection` does not exist in Workers, and the controller and hub run in the
-controller Worker. So, as with the listen streams (`StreamEndpoint::Ui`):
+controller Worker. So the UI thread owns the peer connections and the Worker drives them
+over one `MessagePort`, the **share port** (as implemented by `p2p-transport`):
 
-- The controller asks the UI to open or close a peer connection
-  (`ShareEvent::PeerEndpoint{peer, Open{offer, ice_servers}}`) and exchanges SDP/ICE with it
-  (`ShareEvent::PeerSignal` / `ShareCommand::PeerSignal`). The signaling WebSocket itself
-  stays in the Worker (`WebSocket` exists there).
-- Data-channel **bytes never go through the JSON protocol**. At startup the UI creates a
-  `MessageChannel` and transfers one port to the controller Worker (the "share port"). Each
-  data-channel message is posted as `{peer, data: ArrayBuffer}` (transferred, zero-copy),
-  plus `{peer, open: fingerprints}` / `{peer, closed: reason}` and `bufferedAmount` updates.
-  On the Worker side, `ether-collab`'s wasm `PeerEndpoint` implements `PeerLink` over that
-  port. The UI agent (`ui/src/features/share/endpoint/**`) is ~200 lines and mirrors the
-  listen receiver.
+- At startup the page (`apps/web/src/engine/endpoint.ts`) creates a `MessageChannel`, keeps
+  one end for the UI agent (`ui/src/features/share/endpoint/**`) and transfers the other to
+  the controller Worker, which installs it (`ether_wasm::install_share_port` →
+  `ether_collab::share::web::install_port`).
+- **Everything for a pairing travels on that port**, not in the JSON engine protocol: the
+  open/close requests, the SDP/ICE signals both ways, the data-channel bytes and the
+  backpressure counters. Each pairing gets a channel number `ch` chosen by the Worker, so a
+  replaced pairing never receives the old one's messages:
+
+  | Worker → UI | UI → Worker |
+  |---|---|
+  | `{type:"open", ch, offer, ice, relay}` | `{type:"signal", ch, signal}` (`StreamSignal`) |
+  | `{type:"signal", ch, signal}` | `{type:"open", ch, local, remote}` (DTLS fingerprints from the SDPs) |
+  | `{type:"data", ch, data: ArrayBuffer}` (one ≤ 16 KiB `dc` fragment, transferred) | `{type:"data", ch, data}` |
+  | `{type:"close", ch}` | `{type:"flow", ch, consumed, buffered}`, `{type:"closed", ch, reason}` |
+
+- On the Worker side `ether_collab::share::web::WebPeers` implements `PeerEndpoint` (and its
+  links `PeerLink`) over that port, so the controller drives a web endpoint exactly like
+  the native str0m one. `PeerLink::buffered()` = bytes posted and not yet consumed by the
+  data channel plus its `bufferedAmount`.
+- **Relay only** is `PeerEndpoint::open(.., relay_only)`: on the web it becomes
+  `iceTransportPolicy: "relay"`. Natively there is no TURN client (§11), so the UI never sends
+  `relay_only` to a native engine (`nativeEngine()` in `ui/src/features/share/settings.ts`),
+  and a native endpoint asked for it fails the open with a clear reason.
+- The contract's `ShareEvent::{PeerEndpoint, PeerSignal}` and `ShareCommand::PeerSignal` are
+  **unused** (kept in the contract, append-only; the controller answers `PeerSignal` with
+  `Unsupported`).
+- The signaling WebSocket stays in the Worker (`WebSocket` exists there:
+  `ether_collab::share::signal::web::WebSignal`). Its `Origin` is the page's origin, which
+  the service checks (§3.4).
+- Without an installed port (a Worker started some other way) every web pairing fails with
+  "no share port"; signaling still works.
 - A **web host works** (the hub is in the Worker) as long as its tab stays open. Background
   tabs keep Workers and WebRTC alive, but laptops sleeping or tab discarding end the session
   (§11).
+
+### 6.3 Defaults: what a fresh install uses (`share-integration`)
+
+No setting is needed for Share → link → Join to work:
+
+| | Default | Where it comes from | Override |
+|---|---|---|---|
+| Sharing services | real ones: native `signal::native::WsSignal` (tungstenite + rustls, `wss://`) and `native::NativePeers` (str0m); web `WebSignal` + `WebPeers` | `EtherController::share_services()` falls back to `ether_collab::share::default_services()`, so `ether-native` (desktop and `ether-server`) and `ether-wasm` construct the controller without calling `set_share_services` | tests inject `share::fake` |
+| Signaling service | `https://etherealws.pages.dev/signal` (`DEFAULT_SIGNAL_URL`) | the Pages Function of §3.1 (shipped in the web release since #241) | Settings > Advanced > Signaling server (`SetServers`); a joiner uses the link's `?s=` |
+| ICE servers | what the service advertises in `HostWelcome`/`JoinWelcome`: `stun:stun.cloudflare.com:3478` (`STUN_URLS` in `services/signal/wrangler.toml`), plus TURN if configured | §2.4 | Settings > Advanced > ICE servers (`Collab::SetIceServers`) |
+| Invite links | `https://etherealws.pages.dev/join/<room>#<key>` | `DEFAULT_INVITE_ORIGIN` | `SetServers.invite_origin` (not exposed in the UI) |
+
+**"Can't reach the sharing service"** is not a health probe. The app never calls
+`/v1/health` (that route is for operators and smoke tests). The message is shown when the
+room socket itself fails:
+- **host**: `ShareState::Hosting{signal: Offline{reason}}` (the popover's alert, the pill's
+  "Not joinable" tooltip with `reason`). The socket retries with backoff (1 s → 30 s);
+- **joiner**: `JoinFailure::Network` on the join screen. It means the signaling socket
+  failed or the service refused the hello (`NotHost`, `Malformed`). Failures after the
+  introduction (the data channel dropped, or a bad handshake frame) are
+  `JoinFailure::Unreachable` ("Couldn't reach the host's computer").
+
+What the socket needs from the deployment:
+- `GET <signal>/v1/rooms/<room>/{host,join}` must answer the WebSocket upgrade (`101`). Before
+  the Pages Function shipped, Pages answered `/signal/...` with the SPA's `index.html` (200,
+  no upgrade), which every client reported as "can't reach the sharing service".
+- **Origins** (`ALLOWED_ORIGINS`, §3.4): the desktop app's signaling socket is opened by the
+  engine (Rust), which sends **no `Origin`** and is always allowed, so the Tauri origins
+  (`tauri://localhost`, `http://tauri.localhost`) only matter for webview requests (the
+  health route). The web app's Worker socket sends the page's origin: production and
+  preview deployments (`https://*.etherealws.pages.dev`) and `http://localhost:*` are
+  allowed. `http://127.0.0.1:*` is not (use `localhost` for dev against the real service,
+  or a local service).
+
+Known v1 behaviour: **Stop** while the service is unreachable cannot send `CloseRoom`, so
+joiners see "<host> went offline" rather than "stopped sharing", and the room is forgotten
+by its 30-day TTL.
 
 ## 7. Lifecycle
 
@@ -681,6 +743,26 @@ details are in ROADMAP.md "Sharing (base-115)".
 
 Later (optional): `share-handover` (§7.4), `native-turn-client` (§11), `offline-merge`
 (persist pending ops across restarts; decision 9).
+
+### 12.1 Tests across the nodes
+
+| Test | What it covers |
+|---|---|
+| `apps/web/e2e/share.spec.ts` | Two browser contexts (each with its own wasm engine) through the Node signaling adapter: share → Copy → open the link in the other browser → landing → Continue in browser → "Diego invites you to …" → Join; edits both ways; chat both ways; the host closes its tab → "Diego is offline" banner, the joiner edits its offline copy; the host opens Ethereal again and reopens the project → sharing resumes, the joiner reconnects by itself ("Diego is back") and its offline edit syncs; Stop sharing → "stopped sharing", the copy stays. The joiner's browser takes the real launch path (no WebDriver flag), and no project screen covers the join |
+| `apps/web/e2e/share-native.spec.ts` | Native ↔ web on loopback: `ether-server` (the desktop engine, headless, null audio, real `default_services()`: tungstenite + str0m) hosts and a browser joins, then a browser hosts and `ether-server` joins (`OpenInvite` → `Ready` → `AcceptInvite`); edits both ways, Stop, Leave |
+| `apps/web/e2e/p2p.spec.ts` (`p2p-transport`) | Data-channel echo browser ↔ browser and browser ↔ native str0m, without the engine |
+| `apps/web/e2e/join.spec.ts` (`join-flow`) | Landing, key stripping, pasted links, failures (against `MockShare`) |
+| `crates/ether-controller/tests/share.rs` (`share-engine`) | Every command over the fakes, plus two found by the e2e: a joiner leaving signaling before the host sees its channel (`FakeNet::set_answerer_lag`), and Stop while the service is down |
+| `services/signal` tests | `RoomCore`, limits, the Node adapter, the Pages Function |
+
+Running them: `pnpm --filter @ethereal/web test:e2e e2e/share.spec.ts e2e/share-native.spec.ts`
+(builds the wasm; the native spec also builds `ether-server`). The adapter is started as
+`node --experimental-transform-types services/signal/test/server.ts --port 0` (Node's default
+type stripping rejects its parameter properties).
+
+Not covered on the devbox (owner's laptop checks, listed in the PR): the desktop deep link
+(`ethereal://`, cold and warm start, macOS), and a real share between two machines through
+the deployed service and STUN.
 
 ## 13. Decisions for the owner
 

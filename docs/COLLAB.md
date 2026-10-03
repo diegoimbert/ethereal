@@ -1,10 +1,11 @@
 # Real-time collaboration (`collab` node)
 
 > **base-115**: the user-facing "Share" flow (P2P over WebRTC data channels, the sharer's app as
-> the hub, invite links) is designed in [SHARING.md](SHARING.md). It reuses everything below
-> unchanged: the hub *is* this relay's state machine, run in the host's process, and the
-> wire is the same `CollabMessage` stream. The relay itself stays as Settings > Advanced >
-> Relay session.
+> the hub, invite links) is in [SHARING.md](SHARING.md) (implemented; defaults in its §6.3,
+> end-to-end tests in its §12.1). It reuses everything below unchanged: the hub *is* this
+> relay's state machine, run in the host's process, and the wire is the same `CollabMessage`
+> stream, so §2-§9 and §12 (ops, undo, catch-up, media, presence, listen, chat) hold for a
+> shared project too. The relay itself stays as Settings > Advanced > Relay session.
 
 Status: approved design (manager, with the clarifications folded in below). Contracts it relies on:
 CONTRACTS.md §11.6 (`SiteId`, `ActorId`, `OpOrigin`, `StampedTransaction`,
@@ -283,6 +284,10 @@ join/leave button + dialog (server, session, token, name; same pattern as the re
 selected tracks/clips get an outline in that color (only through kit components and
 tokens; peer colors are data, like track colors). Presence v2 (live pointers, activity,
 follow mode, listening indicator) is §8; chat, pinned notes and peers' playheads are §12.
+Since base-115 the top-bar slot is the Share button / session pill (SHARING.md §8.1): the
+peer chips moved into the Share popover's people list, and the relay join dialog into
+Settings > Advanced > Relay session. During a relay session the slot still shows the relay
+bar (`collab-button`).
 
 ## 7. Security
 
@@ -692,6 +697,10 @@ also (setting) swap its live instances for mirrors while listening, to save CPU.
 
 No third party: nothing points at Google/Cloudflare STUN by default. The only ICE servers
 are the relay's, or the ones set in settings (`SetIceServers`; e.g. a self-hosted coturn).
+This is for **relay sessions**. Shared projects (SHARING.md §2.4, decision 3) use the ICE
+servers the signaling service advertises, `stun:stun.cloudflare.com:3478` by default, and
+the hub re-advertises them to every site as `CollabMessage::IceServers`, so the listen
+streams below use them too. `SetIceServers` overrides both.
 
 - **Port**: the relay binary also binds **UDP on the same port number** as its WebSocket
   (TCP) listener, so a relay stays one host:port (dev: `ETHER_DEV_PORT + 3`, both
@@ -1044,8 +1053,12 @@ UI (`ui/src/features/collab/social/**`):
   `collab_flush_presence`), tests `ether-model/tests/social.rs`,
   `ether-protocol/tests/social_shapes.rs`, `ether-controller/tests/social*.rs`; mock
   `ui/src/transport/mock/roadmap/social.ts`; UI `ui/src/features/collab/social/`.
-- Limitations: `wss://` works from the browser; the native client speaks `ws://` only (put a
-  TLS proxy in front of a public relay). The relay keeps sessions in memory (a relay restart
+- Sharing (base-115) lives next to this: `ether-collab/src/share/**` (hub driver,
+  handshake, keys, signaling and WebRTC endpoints), `ether-controller/src/share/**`,
+  `services/signal/**`, `ui/src/features/share/**`; see SHARING.md §12.
+- Limitations: `wss://` works from the browser; the native relay client speaks `ws://` only
+  (put a TLS proxy in front of a public relay). The sharing signaling socket does `wss://`
+  natively (tungstenite + rustls, SHARING.md §6.1); the relay client could reuse it. The relay keeps sessions in memory (a relay restart
   makes the first site to reconnect re-create the session from its replica).
 
 ## 14. Base changes

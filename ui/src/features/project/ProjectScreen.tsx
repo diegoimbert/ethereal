@@ -2,17 +2,20 @@ import { useEffect, useMemo, useRef, useState, type FormEvent, type MouseEvent, 
 import { History, MoreHorizontal, Plus } from "lucide-react";
 import type { ProjectSummary } from "@/generated";
 import { errorMessage, type EngineCommands } from "@/features/transport-bar/engine";
-import { Badge, Button, Dialog, IconButton, openContextMenu, TextInput } from "@/kit";
+import { Badge, Button, Dialog, IconButton, openContextMenu, TextInput, type ContextMenuEntry } from "@/kit";
 import { ProjectScale } from "@/features/scale/ProjectScale";
 import { openVersions, useRecoveryShown } from "@/features/versions/store";
 import { newProjectCommand, ProjectTemplatePicker, useTemplateDialog, type ProjectTemplateChoice } from "@/features/templates";
+import { notify } from "@/features/notifications";
 import { useProjectStore } from "@/state";
 import { cmd, newProjectId, type EngineTransport } from "@/transport";
 import { closeAndDelete, duplicateProject, exportProject, importProject, saveProjectAs } from "./actions";
 import { guardLeave } from "./leaveGuard";
 import { copyName, formatModified, sortProjects, uniqueName } from "./projectNames";
 import { useProjectScreen } from "./screenStore";
-import { splitLocalCopy, useSessionOf } from "./sessionMarks";
+import { splitLocalCopy } from "./sessionMarks";
+import { ShareBadges } from "./ShareBadges";
+import { copyInviteLink, makePrivateCopy, reconnectCopy, stopSharing } from "./shareActions";
 
 /**
  * The project screen: a modal over the whole app, shown on launch and from the Projects
@@ -73,10 +76,12 @@ function ErrorLine({ commands, extra, clearExtra }: { commands: EngineCommands; 
   );
 }
 
-/** "Local copy" / "Collab" badges of a project in the list or the current section. */
-function ProjectBadges({ id, name }: { id: string; name: string }) {
-  const session = useSessionOf(id);
-  const { localCopy } = splitLocalCopy(name);
+/**
+ * A project's badges in the list or the current section: "Local copy" (the backup kept when a
+ * collaboration session replaced it) and its sharing marks from `share.json` (`ShareBadges`).
+ */
+function ProjectBadges({ project, name = project?.name }: { project: ProjectSummary | undefined; name?: string }) {
+  const localCopy = name !== undefined && splitLocalCopy(name).localCopy;
   return (
     <>
       {localCopy && (
@@ -84,11 +89,7 @@ function ProjectBadges({ id, name }: { id: string; name: string }) {
           <Badge tone="warn">Local copy</Badge>
         </span>
       )}
-      {session && (
-        <span title={`Last used in the collaboration session “${session}”`}>
-          <Badge tone="accent">Collab</Badge>
-        </span>
-      )}
+      {project && <ShareBadges project={project} />}
     </>
   );
 }
@@ -101,6 +102,8 @@ function Home({ commands, onNew, onDone }: { commands: EngineCommands; onNew(): 
   const [busy, setBusy] = useState(false);
   const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  // A pending "Stop sharing" / "Make private" confirmation.
+  const [confirmShare, setConfirmShare] = useState<ShareConfirm | null>(null);
   // Failures of actions run outside `send` (export, import, duplicate, close and delete).
   const [error, setError] = useState<string | null>(null);
 
@@ -154,20 +157,50 @@ function Home({ commands, onNew, onDone }: { commands: EngineCommands; onNew(): 
     rename(renaming.id, renaming.name);
   };
 
+  /** Run a sharing action (they may open the project first): success as a toast, failure on the error line. */
+  const share = async (action: (t: EngineTransport) => Promise<unknown>, done?: string, close = false) => {
+    const ok = await act(async (t) => {
+      await action(t);
+      return true;
+    });
+    if (!ok) return;
+    if (done) notify("Info", done);
+    if (close) onDone();
+  };
+
+  /** A sharing action that opens `id` first when it is not the open project (asks to leave a session). */
+  const shareOpening = (id: string, action: (t: EngineTransport) => Promise<unknown>, done?: string, close = false) =>
+    id === current?.id ? share(action, done, close) : guardLeave(() => share(action, done, close));
+
+  /** The sharing entries of a project's menu (SHARING.md §8.5). */
+  const shareActions = (p: ProjectSummary): ShareAction[] => {
+    const s = p.share;
+    if (!s) return [];
+    if (s.role === "Host") {
+      if (!s.active) return [];
+      return [
+        { label: "Copy invite link", onSelect: () => void shareOpening(p.id, (t) => copyInviteLink(t, p.id), "Link copied") },
+        { label: "Stop sharing…", danger: true, onSelect: () => setConfirmShare({ id: p.id, kind: "stop" }) },
+      ];
+    }
+    const actions: ShareAction[] = [];
+    if (s.active) actions.push({ label: "Reconnect", onSelect: () => void shareOpening(p.id, (t) => reconnectCopy(t, p.id), undefined, true) });
+    actions.push({ label: "Make a private copy…", onSelect: () => setConfirmShare({ id: p.id, kind: "detach" }) });
+    return actions;
+  };
+
   const importBundle = async () => {
     const summary = await act((t) => importProject(t));
     if (summary) await openProject(summary.id);
   };
 
-  const menu = (e: MouseEvent, p: ProjectSummary) =>
-    openContextMenu(e, [
+  const menu = (e: MouseEvent, p: ProjectSummary) => {
+    const sharing = shareActions(p);
+    const entries: ContextMenuEntry[] = [
       { label: "Open", onSelect: () => void openProject(p.id) },
       // base-131: plugin devices stay bypassed placeholders until "Load plugins".
       { label: "Open without plugins", onSelect: () => void openProject(p.id, true) },
-      {
-        label: "Rename",
-        onSelect: () => setRenaming({ id: p.id, name: p.name }),
-      },
+      { label: "Rename", onSelect: () => setRenaming({ id: p.id, name: p.name }) },
       {
         label: "Duplicate",
         onSelect: () =>
@@ -184,13 +217,47 @@ function Home({ commands, onNew, onDone }: { commands: EngineCommands; onNew(): 
         label: "Export…",
         onSelect: () => void act((t) => exportProject(t, p.id, p.name)),
       },
+      ...(sharing.length > 0 ? (["separator", ...sharing] as ContextMenuEntry[]) : []),
       "separator",
-      {
-        label: "Delete…",
-        danger: true,
-        onSelect: () => setConfirmDelete(p.id),
-      },
-    ]);
+      { label: "Delete…", danger: true, onSelect: () => setConfirmDelete(p.id) },
+    ];
+    openContextMenu(e, entries);
+  };
+
+  /** "Stop sharing" / "Make private" inline confirmation for project `p`. */
+  const shareConfirm = (p: ProjectSummary, kind: "stop" | "detach") => {
+    const people = (p.share?.participants ?? []).map((x) => x.name);
+    const text =
+      kind === "stop"
+        ? `Stop sharing “${p.name}”? ${people.length > 0 ? `${listNames(people)} keep an offline copy. ` : ""}Links stop working.`
+        : `Make “${p.name}” private? It stops syncing with ${p.share?.host_name || "the host"}.`;
+    const label = kind === "stop" ? "Stop sharing" : "Make private";
+    return (
+      <span className="eth-project-screen__confirm">
+        <span className="eth-project-screen__name" title={text}>
+          {text}
+        </span>
+        <Button size="sm" onClick={() => setConfirmShare(null)}>
+          Cancel
+        </Button>
+        <Button
+          size="sm"
+          className="eth-project-screen__danger"
+          disabled={busy}
+          aria-label={`Confirm ${label.toLowerCase()} ${p.name}`}
+          onClick={() => {
+            setConfirmShare(null);
+            void (kind === "stop" ? shareOpening(p.id, (t) => stopSharing(t, p.id)) : share((t) => makePrivateCopy(t, p.id)));
+          }}
+        >
+          {label}
+        </Button>
+      </span>
+    );
+  };
+
+  const currentSummary = current ? projects.find((p) => p.id === current.id) : undefined;
+  const currentActions = currentSummary ? shareActions(currentSummary) : [];
 
   return (
     <div className="eth-project-screen__body">
@@ -198,7 +265,7 @@ function Home({ commands, onNew, onDone }: { commands: EngineCommands; onNew(): 
         <section className="eth-project-screen__current" aria-label="Open project">
           <span className="eth-project-screen__label eth-project-screen__heading">
             Open project
-            <ProjectBadges id={current.id} name={current.settings.name} />
+            <ProjectBadges project={currentSummary} name={current.settings.name} />
           </span>
           <CurrentName key={current.id} name={current.settings.name} onRename={(name) => rename(current.id, name)} />
           <Button variant="primary" onClick={onDone}>
@@ -254,6 +321,19 @@ function Home({ commands, onNew, onDone }: { commands: EngineCommands; onNew(): 
               </Button>
             </div>
           )}
+          {currentSummary && confirmShare?.id === current.id ? (
+            <div className="eth-project-screen__share-actions">{shareConfirm({ ...currentSummary, name: current.settings.name }, confirmShare.kind)}</div>
+          ) : (
+            currentActions.length > 0 && (
+              <div className="eth-project-screen__share-actions" role="group" aria-label="Sharing">
+                {currentActions.map((a) => (
+                  <Button key={a.label} size="sm" tone="ghost" disabled={busy} onClick={a.onSelect}>
+                    {a.label}
+                  </Button>
+                ))}
+              </div>
+            )
+          )}
           <ProjectScale send={send} />
           {/* project-versions: the open project's versions (save, compare, restore). */}
           <Button
@@ -300,6 +380,8 @@ function Home({ commands, onNew, onDone }: { commands: EngineCommands; onNew(): 
                       }}
                     />
                   </form>
+                ) : confirmShare?.id === p.id ? (
+                  shareConfirm(p, confirmShare.kind)
                 ) : confirmDelete === p.id ? (
                   <span className="eth-project-screen__confirm">
                     <span className="eth-project-screen__name">Delete “{p.name}”?</span>
@@ -330,7 +412,7 @@ function Home({ commands, onNew, onDone }: { commands: EngineCommands; onNew(): 
                     <span className="eth-project-screen__name" title={p.name}>
                       {splitLocalCopy(p.name).base}
                     </span>
-                    <ProjectBadges id={p.id} name={p.name} />
+                    <ProjectBadges project={p} />
                     <span className="eth-project-screen__date">{formatModified(p.modified_ms)}</span>
                   </button>
                 )}
@@ -359,6 +441,24 @@ function Home({ commands, onNew, onDone }: { commands: EngineCommands; onNew(): 
       )}
     </div>
   );
+}
+
+/** A pending sharing confirmation in the project screen. */
+interface ShareConfirm {
+  id: string;
+  kind: "stop" | "detach";
+}
+
+interface ShareAction {
+  label: string;
+  danger?: boolean;
+  onSelect(): void;
+}
+
+/** "Ada", "Ada and Tom", "Ada, Tom and Kim". */
+function listNames(names: ReadonlyArray<string>): string {
+  if (names.length <= 1) return names.join("");
+  return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
 }
 
 /** The open project's name, renamed on Enter or blur (Escape reverts). "Rename" focuses it. */

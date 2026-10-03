@@ -19,8 +19,8 @@
 use std::collections::BTreeMap;
 
 use ether_controller::store::{
-    Library, ProjectStore, StoreError, USER_FOLDER_PREFIX, check_relative_path, file_kind,
-    import_folder_name, unique_folder_name, user_folder_id,
+    Library, ProjectStore, SHARE_FILE, StoreError, USER_FOLDER_PREFIX, check_relative_path,
+    file_kind, import_folder_name, share_info, unique_folder_name, user_folder_id,
 };
 use ether_core::protocol::media::{
     BrowseLocation, BrowseRoot, DirectoryEntry, DirectoryListing, FileKind,
@@ -204,12 +204,17 @@ impl<F: Fs> WebStore<F> {
     fn summary(&mut self, id: ProjectId) -> Result<ProjectSummary, StoreError> {
         let (bytes, path) = self.read_document(id)?;
         let modified_ms = self.fs.stat(&path)?.map_or(0.0, |e| e.modified_ms);
+        // A missing or unreadable `share.json` lists the project as not shared.
+        let share = self
+            .fs
+            .read(&format!("{}/{SHARE_FILE}", Self::dir(id)))
+            .ok()
+            .and_then(|b| share_info(&b));
         Ok(ProjectSummary {
             id,
             name: name_of(&bytes),
             modified_ms,
-            // base-115: `recents-shared` reads the project's `share.json`.
-            share: None,
+            share,
         })
     }
 
@@ -290,8 +295,9 @@ impl<F: Fs> ProjectStore for WebStore<F> {
         if self.exists(to)? {
             return Err(StoreError::AlreadyExists(to.to_string()));
         }
-        // The cache is regenerable: copy an empty one.
-        self.copy_tree(&Self::dir(from), &Self::dir(to), &[CACHE_DIR])?;
+        // The cache is regenerable: copy an empty one. A copy is private: never copy the
+        // sharing state (and its secrets).
+        self.copy_tree(&Self::dir(from), &Self::dir(to), &[CACHE_DIR, SHARE_FILE])?;
         self.fs.mkdir(&format!("{}/{CACHE_DIR}", Self::dir(to)))
     }
 
@@ -986,6 +992,63 @@ mod tests {
             s.duplicate(pid(7), pid(8)),
             Err(StoreError::NotFound(_))
         ));
+    }
+
+    /// base-115 (`recents-shared`): `share.json` → `ProjectSummary.share`; never copied by
+    /// `duplicate` (SaveAs/Duplicate), deleted with the project.
+    #[test]
+    fn share_json_summary_duplicate_delete() {
+        use ether_controller::store::share_fixtures as fx;
+        use ether_core::protocol::share::ParticipantRole;
+
+        let (fs, mut s) = store();
+        for (n, name) in [(1, "Song"), (2, "Their song"), (3, "Mine")] {
+            s.create(pid(n)).unwrap();
+            s.save(pid(n), &doc(name)).unwrap();
+        }
+        s.write(pid(1), SHARE_FILE, fx::HOST.as_bytes()).unwrap();
+        s.write(pid(2), SHARE_FILE, fx::COPY.as_bytes()).unwrap();
+
+        let list = s.list().unwrap();
+        let by_id = |n| list.iter().find(|p| p.id == pid(n)).unwrap().clone();
+        let h = by_id(1).share.expect("host share");
+        assert_eq!(h.role, ParticipantRole::Host);
+        assert_eq!(h.participants[0].name, "Tom");
+        let c = by_id(2).share.expect("copy share");
+        assert_eq!(
+            (c.role, c.host_name.as_str(), c.active),
+            (ParticipantRole::Edit, "Diego", true)
+        );
+        assert_eq!(by_id(3).share, None);
+        // `save` reports the share info too (the `Saved` event's summary).
+        assert!(s.save(pid(2), &doc("Their song")).unwrap().share.is_some());
+        let json = serde_json::to_string(&list).unwrap();
+        for secret in fx::SECRETS {
+            assert!(!json.contains(secret), "{secret} leaked");
+        }
+
+        // An ended copy, and an unreadable file (listed as not shared, never hidden).
+        s.write(pid(2), SHARE_FILE, fx::COPY_ENDED.as_bytes())
+            .unwrap();
+        s.write(pid(3), SHARE_FILE, b"{ corrupt").unwrap();
+        let list = s.list().unwrap();
+        assert_eq!(list.len(), 3);
+        let ended = list.iter().find(|p| p.id == pid(2)).unwrap();
+        assert!(!ended.share.as_ref().unwrap().active);
+        assert_eq!(list.iter().find(|p| p.id == pid(3)).unwrap().share, None);
+
+        // Duplicate (also SaveAs) makes a private project.
+        s.write(pid(1), "media/a.wav", b"A").unwrap();
+        s.duplicate(pid(1), pid(4)).unwrap();
+        assert!(s.read(pid(4), SHARE_FILE).is_err());
+        assert_eq!(s.read(pid(4), "media/a.wav").unwrap(), b"A");
+        let list = s.list().unwrap();
+        assert_eq!(list.iter().find(|p| p.id == pid(4)).unwrap().share, None);
+
+        // Deleting the project deletes its share.json.
+        s.delete(pid(1)).unwrap();
+        let prefix = format!("projects/{}/", pid(1));
+        assert!(fs.files().iter().all(|f| !f.starts_with(&prefix)));
     }
 
     #[test]
