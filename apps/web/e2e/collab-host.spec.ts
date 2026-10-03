@@ -6,8 +6,8 @@
 // - A declares `SetHosting { ui_sender: true }` on join (Chromium has WebRTC + encoded
 //   transforms), so B sees A's presence with `can_host`; A's hosting toggle turns it off and
 //   on again.
-// - The listen round trip (B listens, A's web sender streams, B's playhead follows) needs the
-//   receiver (`stream-listen`): `test.fixme` until it lands.
+// - The listen round trip (B listens, A's web sender streams, B's playhead follows) is
+//   `collab-stream.spec.ts` (stream-host × stream-listen).
 //
 // No sleeps: every step waits on UI or engine state.
 import { execFileSync, spawn, type ChildProcess } from "node:child_process";
@@ -187,9 +187,3 @@ test("web host: stream tap output, SetHosting and the hosting toggle", async ({ 
   await ctxB.close();
   expect(errors.filter((e) => /panicked|RuntimeError|unreachable/.test(e))).toEqual([]);
 });
-
-// Needs stream-listen (the receiver UI + the controller's `Listen`): B listens on A, A's web
-// sender opens a peer connection (offer with the Opus parameters, ICE through the relay),
-// media flows, B receives anchors (`StreamClock`) and its playhead follows A's play/stop/loop
-// wrap; A's listener list shows Bob; B stops listening and A's connection closes.
-test.fixme("web host → web listener round trip (needs stream-listen)", async () => {});
