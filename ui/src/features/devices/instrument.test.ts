@@ -42,4 +42,11 @@ describe("addInstrumentCommand", () => {
     expect(await addInstrumentCommand(t, chain, insert)).toEqual(insert("fx"));
     expect(await addInstrumentCommand(t, [], insert)).toEqual(insert(null));
   });
+
+  it("with no instrument, goes after the MIDI effects (they feed it)", async () => {
+    const t = describing({ arp: "NoteEffect", scale: "NoteEffect", fx: "AudioEffect" });
+    const chain = [device("arp", "plugin"), device("scale", "plugin"), device("fx", "plugin")];
+    expect(await addInstrumentCommand(t, chain, insert)).toEqual(insert("fx"));
+    expect(await addInstrumentCommand(t, chain.slice(0, 2), insert)).toEqual(insert(null));
+  });
 });
