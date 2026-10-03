@@ -113,7 +113,10 @@ fn note_expressions_reach_a_clap_dialect_plugin() {
     // echoed: the plugin only echoes note expressions).
     assert_eq!(
         echo,
-        vec![(1, [0xA0 | TUNING, 60, 120]), (2, [0xA0 | BRIGHTNESS, 60, 5])]
+        vec![
+            (1, [0xA0 | TUNING, 60, 120]),
+            (2, [0xA0 | BRIGHTNESS, 60, 5])
+        ]
     );
     // The track announces MPE: pressure is a note expression now.
     let m = MpeSettings::default();

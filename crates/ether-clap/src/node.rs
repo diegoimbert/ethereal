@@ -10,8 +10,8 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 
 use clack_host::events::event_types::{
-    MidiEvent, NoteChokeEvent, NoteExpressionEvent, NoteExpressionType, NoteOffEvent,
-    NoteOnEvent, ParamValueEvent, TransportEvent, TransportFlags,
+    MidiEvent, NoteChokeEvent, NoteExpressionEvent, NoteExpressionType, NoteOffEvent, NoteOnEvent,
+    ParamValueEvent, TransportEvent, TransportFlags,
 };
 use clack_host::events::io::{OutputEventBuffer, TryPushError};
 use clack_host::events::spaces::CoreEventSpace;
@@ -22,10 +22,10 @@ use ether_core::buffer::AudioBuffers;
 use ether_core::config::PrepareConfig;
 use ether_core::event::{EventKind, ProcessEvent};
 use ether_core::expression::mpe::MpeOut;
-use ether_core::protocol::model::NoteExpressionKind;
 use ether_core::node::{Device, Node, ProcessContext, ProcessStatus};
 use ether_core::plugin::PluginNode;
 use ether_core::protocol::devices::DeviceDescriptor;
+use ether_core::protocol::model::NoteExpressionKind;
 use ether_core::protocol::model::ParamId;
 use ether_core::transport::TransportInfo;
 

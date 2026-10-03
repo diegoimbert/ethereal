@@ -36,6 +36,31 @@ describe("MockTransport MPE (mpe)", () => {
     expect(project(f).tracks[track]!.mpe).toBeUndefined();
   });
 
+  it("recording on an MPE track records per-note pitch, pressure and timbre (one undo step)", async () => {
+    const keys = Object.values(project(f).tracks).find((t) => t.name === "Keys")!;
+    await set(keys.id, DEFAULT_MPE);
+    await f.mock.send(cmd("Transport", { type: "Locate", position: 8 }));
+    await f.mock.send(cmd("Recording", { type: "Arm", track: keys.id, armed: true, exclusive: true }));
+    await f.mock.send(cmd("Recording", { type: "SetRecording", enabled: true }));
+    f.mock.tick(16 * 3 * 22); // just over 2 beats: notes on beats 9 and 10
+    await f.mock.send(cmd("Recording", { type: "SetRecording", enabled: false }));
+    const stopped = f.events.flatMap((e) => (e.type === "Recording" && e.event.type === "Stopped" ? [e.event.clips] : []));
+    const clip = project(f).clips[stopped[0]![0]!]!;
+    expect(clip.track).toBe(keys.id);
+    const notes = Object.values(project(f).notes).filter((n) => n.clip === clip.id);
+    expect(notes.length).toBeGreaterThanOrEqual(2);
+    for (const n of notes) {
+      const kinds = Object.values(project(f).note_expressions)
+        .filter((e) => e.note === n.id)
+        .map((e) => e.kind)
+        .sort();
+      expect(kinds).toEqual(["Pitch", "Pressure", "Timbre"]);
+    }
+    await undo(f);
+    expect(Object.values(project(f).note_expressions)).toHaveLength(0);
+    expect(project(f).clips[clip.id]).toBeUndefined();
+  });
+
   it("simulated MPE input gives recorded notes per-note curves on MPE tracks only", async () => {
     const track = await createTrack(f, "Midi");
     let n = 0;

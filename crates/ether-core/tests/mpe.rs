@@ -201,7 +201,8 @@ fn live_input_is_read_as_mpe_only_on_mpe_tracks() {
     let (mpe_rec, mut mpe_rx) = Recorder::new();
     let plain_rec = p.handle.add_node(Box::new(plain_rec)).unwrap();
     let mpe_rec = p.handle.add_node(Box::new(mpe_rec)).unwrap();
-    let mut plain: TrackDesc = with_chain(track(tid(2), TrackKind::Midi, Some(tid(1))), &[plain_rec]);
+    let mut plain: TrackDesc =
+        with_chain(track(tid(2), TrackKind::Midi, Some(tid(1))), &[plain_rec]);
     plain.monitor = true;
     let mut mpe_t: TrackDesc = with_chain(track(tid(3), TrackKind::Midi, Some(tid(1))), &[mpe_rec]);
     mpe_t.monitor = true;
@@ -246,7 +247,11 @@ fn live_input_is_read_as_mpe_only_on_mpe_tracks() {
     // MPE track: the announcement, then the member channel as note expressions.
     let seen = events(&drain(&mut mpe_rx));
     let (config, rest) = seen.split_at(CONFIG_MESSAGES);
-    assert!(config.iter().all(|(_, k)| matches!(k, EventKind::Midi { data } if data[0] & 0xF0 == 0xB0)));
+    assert!(
+        config
+            .iter()
+            .all(|(_, k)| matches!(k, EventKind::Midi { data } if data[0] & 0xF0 == 0xB0))
+    );
     let EventKind::NoteOn { note_id, .. } = midi_event(input[1]).unwrap() else {
         unreachable!()
     };
@@ -264,7 +269,12 @@ fn live_input_is_read_as_mpe_only_on_mpe_tracks() {
             (522, ne(NoteExpressionKind::Pitch, 24.0)),
             (532, ne(NoteExpressionKind::Pressure, 1.0)),
             (542, ne(NoteExpressionKind::Timbre, 0.0)),
-            (552, EventKind::Midi { data: [0xB0, 64, 127] }),
+            (
+                552,
+                EventKind::Midi {
+                    data: [0xB0, 64, 127]
+                }
+            ),
             (562, midi_event(input[5]).unwrap()),
         ]
     );

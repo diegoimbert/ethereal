@@ -7,8 +7,8 @@ use std::sync::atomic::Ordering;
 use std::time::Instant;
 
 use clack_extensions::audio_ports::{AudioPortFlags, AudioPortInfoBuffer};
-use clack_extensions::note_ports::{NoteDialects, NotePortInfoBuffer};
 use clack_extensions::gui::{GuiConfiguration, GuiSize, PluginGui, Window as ClapWindow};
+use clack_extensions::note_ports::{NoteDialects, NotePortInfoBuffer};
 use clack_host::events::event_types::ParamValueEvent;
 use clack_host::events::spaces::CoreEventSpace;
 use clack_host::prelude::*;
