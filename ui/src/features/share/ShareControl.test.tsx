@@ -183,9 +183,11 @@ describe("ShareControl (host)", () => {
     act(() => useShareStore.setState({ state: { ...s, signal: { type: "Offline", reason: "network" }, edit_link: null } }));
     expect(screen.getByTestId("session-pill")).toHaveTextContent("Not joinable");
     expect(screen.getByTestId("session-pill").title).toMatch(/network/);
-    expect(within(popover()).getByText("Getting a link…")).toBeInTheDocument();
+    // Offline: no "Getting a link…" spinner, the reason instead.
+    expect(within(popover()).queryByText("Getting a link…")).toBeNull();
     expect(within(popover()).getByRole("alert")).toHaveTextContent("Can't reach the sharing service");
-    act(() => useShareStore.setState({ state: { ...s, signal: { type: "Connecting" } } }));
+    act(() => useShareStore.setState({ state: { ...s, signal: { type: "Connecting" }, edit_link: null } }));
+    expect(within(popover()).getByText("Getting a link…")).toBeInTheDocument();
     expect(screen.getByTestId("session-pill")).toHaveTextContent("Connecting…");
     expect(screen.getByTestId("session-pill").dataset.tone).toBe("busy");
   });

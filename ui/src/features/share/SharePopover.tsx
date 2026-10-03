@@ -170,7 +170,7 @@ function LinkRow({ state }: { state: Hosting }) {
             {copied ? "Copied" : "Copy"}
           </Button>
         </div>
-      ) : (
+      ) : offline ? null : (
         <p className="eth-share-pop__status" role="status">
           <Loader2 className="eth-share-pop__icon eth-share-spin" aria-hidden />
           Getting a link…
