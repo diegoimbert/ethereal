@@ -318,7 +318,7 @@ test("web UI drives a remote ether-server", async ({ page }) => {
   // --- Disconnect: back to the in-browser engine and its project.
   await page.getByTestId("remote-button").click();
   await page.getByRole("button", { name: "Disconnect" }).click();
-  await expect(page.getByTestId("remote-button")).toHaveText("Remote");
+  await expect(page.getByTestId("remote-button")).toHaveText("Engine server…");
   await expect.poll(async () => (await project(page))?.id).toBe(localId);
   peer.close();
 

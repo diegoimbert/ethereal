@@ -8,13 +8,20 @@ import { useEngineCommands } from "@/features/transport-bar/engine";
 import { Button } from "@/kit";
 import { useProjectStore } from "@/state";
 import { cmd } from "@/transport";
+import { LeaveSessionDialog } from "./leaveGuard";
 import { ProjectScreen } from "./ProjectScreen";
 import { useProjectScreen } from "./screenStore";
+import { useRecordSessionProjects } from "./sessionMarks";
+
+export { closeAndDelete, duplicateProject, exportProject, importProject, saveProject, saveProjectAs } from "./actions";
+export { guardLeave } from "./leaveGuard";
+export { useProjectScreen } from "./screenStore";
 
 /**
  * Project menu: the Projects button, current project name and unsaved-changes dot. The
  * button opens the project screen (`ProjectScreen`: a modal over the app, also shown once on
- * launch: rename, new, open, duplicate, delete).
+ * launch: rename, new, open, save as, duplicate, export/import a `.ether` bundle, delete).
+ * Switching projects while in a collaboration session asks first (`LeaveSessionDialog`).
  *
  * The project saves itself: `AUTOSAVE_MS` after the last change (each edit restarts the
  * wait, so a burst of edits is one save). Ctrl/Cmd+S saves at once.
@@ -35,6 +42,8 @@ export function ProjectMenu() {
   const disabled = !transport || name === null;
 
   const revision = useProjectStore((s) => s.revision);
+  // Recents badges: remember projects used in a collaboration session.
+  useRecordSessionProjects();
   const save = () => void send(cmd("Project", { type: "Save" }));
   const saveRef = useRef(save);
   useEffect(() => {
@@ -73,6 +82,7 @@ export function ProjectMenu() {
         <Menu aria-hidden />
       </Button>
       <ProjectScreen commands={commands} />
+      <LeaveSessionDialog transport={transport} />
       <span className="eth-project__name" data-testid="project-name" title={name ?? undefined}>
         {name ?? "No project"}
       </span>

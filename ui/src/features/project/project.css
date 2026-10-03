@@ -177,3 +177,35 @@
   justify-content: flex-end;
   gap: var(--eth-space-sm);
 }
+
+/* base-114: the open project's actions, badges and hints. */
+.eth-project-screen__heading {
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-sm);
+}
+.eth-project-screen__heading .eth-badge {
+  text-transform: none;
+  letter-spacing: var(--eth-tracking-normal);
+}
+.eth-project-screen__toolbar {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--eth-space-xs);
+  margin-left: calc(-1 * var(--eth-space-sm));
+}
+.eth-project-screen__toolbar.eth-project-screen__confirm {
+  margin-left: 0;
+  padding: 0;
+}
+.eth-project-screen__delete {
+  --button-fg: var(--eth-color-danger);
+}
+.eth-project-screen__hint {
+  margin: 0;
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-sm);
+  line-height: var(--eth-lh-normal);
+}

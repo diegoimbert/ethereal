@@ -285,6 +285,35 @@ describe("TauriTransport OS files (file-import)", () => {
     expect(await t.pickFolder()).toBeNull();
   });
 
+  it("asks where to export / what to import a project bundle (base-114)", async () => {
+    const saveDialog = vi.fn().mockResolvedValueOnce("/Users/me/Song").mockResolvedValueOnce("/x/Song.ETHER").mockResolvedValueOnce(null);
+    const openDialog = vi.fn().mockResolvedValueOnce("/x/In.ether").mockResolvedValueOnce(null);
+    const t = new TauriTransport({ invoke: fakeHost(() => []).invoke, saveDialog, openDialog });
+    // The extension is added when the dialog leaves it out (GTK).
+    expect(await t.pickBundleSavePath("Song.ether")).toBe("/Users/me/Song.ether");
+    expect(saveDialog.mock.calls[0]![0]).toMatchObject({ defaultPath: "Song.ether", filters: [{ extensions: ["ether"] }] });
+    expect(await t.pickBundleSavePath("Song.ether")).toBe("/x/Song.ETHER");
+    expect(await t.pickBundleSavePath("Song.ether")).toBeNull();
+    expect(await t.pickBundleFile()).toBe("/x/In.ether");
+    expect(openDialog.mock.calls[0]![0]).toMatchObject({ multiple: false, directory: false, filters: [{ extensions: ["ether"] }] });
+    expect(await t.pickBundleFile()).toBeNull();
+  });
+
+  it("remembers the collab token through the shell (app data dir)", async () => {
+    const calls: [string, unknown][] = [];
+    const invoke = vi.fn(async (cmd: string, args?: Record<string, unknown>) => {
+      calls.push([cmd, args]);
+      return cmd === "collab_token_load" ? "tok" : null;
+    });
+    const t = new TauriTransport({ invoke, createChannel: () => new FakeChannel() });
+    expect(await t.loadCollabToken()).toBe("tok");
+    await t.saveCollabToken(null);
+    expect(calls).toEqual([
+      ["collab_token_load", undefined],
+      ["collab_token_save", { token: null }],
+    ]);
+  });
+
   it("delivers path drops from the shell until unsubscribed", async () => {
     let handler: ((e: { payload: unknown }) => void) | null = null;
     const unlisten = vi.fn();

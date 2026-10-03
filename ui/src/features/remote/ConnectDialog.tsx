@@ -38,8 +38,9 @@ function describeError(e: unknown): string {
 }
 
 /**
- * Connect to a remote engine (WebSocket URL + token): a top-bar button that opens a
- * dialog. While connected the whole UI runs against the remote engine (the local one is
+ * Connect to an engine server (WebSocket URL + token): a top-bar "Engine server…" button
+ * (base-114 naming; the app has no settings menu yet, so it stays in the top bar with a
+ * tooltip; the Share redesign moves it to Settings > Advanced) that opens a dialog. While connected the whole UI runs against the remote engine (the local one is
  * stopped and resumes on disconnect). Also shows file upload progress.
  */
 export function ConnectDialog() {
@@ -66,7 +67,7 @@ export function ConnectDialog() {
     e?.preventDefault();
     const target = normalizeServerUrl(url);
     if (!target) {
-      setError("Enter a server address such as ws://studio.local:9000");
+      setError("Enter the engine server address, such as ws://studio.local:9000.");
       return;
     }
     setBusy(true);
@@ -91,19 +92,23 @@ export function ConnectDialog() {
     setOpen(false);
   };
 
-  const label = remote ? (remote.info?.name ?? "Remote") : "Remote";
+  const label = remote ? (remote.info?.name ?? "Engine server") : "Engine server…";
   return (
     <div className="eth-remote" data-feature="remote">
       <Button
         size="sm"
         active={!!remote}
-        aria-label="Remote engine"
+        aria-label="Engine server"
         aria-haspopup="dialog"
-        title={remote ? `Connected to ${remote.url}` : "Connect to a remote engine"}
+        title={
+          remote
+            ? `Running on the engine server ${remote.url}`
+            : "Run this window on an engine server (ether-server) on another machine instead of the built-in engine"
+        }
         data-testid="remote-button"
         onClick={() => setOpen(true)}
       >
-        {remote ? `● ${label}` : "Remote"}
+        {remote ? `● ${label}` : label}
       </Button>
       {error && !open && (
         <button type="button" className="eth-remote__error" role="alert" title="Dismiss" onClick={() => setError(null)}>
@@ -114,7 +119,7 @@ export function ConnectDialog() {
       <Dialog
         open={open}
         onClose={() => setOpen(false)}
-        title="Remote engine"
+        title="Engine server"
         footer={
           remote ? (
             <>
@@ -145,7 +150,7 @@ export function ConnectDialog() {
         ) : (
           <form className="eth-remote__form" onSubmit={(e) => void connect(e)}>
             <label className="eth-remote__field">
-              <span>Server</span>
+              <span>Address</span>
               <TextInput
                 aria-label="Server address"
                 placeholder="ws://host:port"

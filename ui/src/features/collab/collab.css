@@ -98,3 +98,13 @@
   height: var(--eth-size-icon-inline);
   fill: currentColor;
 }
+/* base-114: inline join-field errors and the remembered token. */
+.eth-collab__field-error {
+  margin-top: calc(-1 * var(--eth-space-xs));
+  font-size: var(--eth-fs-xs);
+}
+.eth-collab__remember {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-xs);
+}

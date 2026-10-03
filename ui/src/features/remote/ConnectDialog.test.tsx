@@ -154,7 +154,7 @@ describe("ConnectDialog", () => {
     expect(screen.getByTestId("probe").dataset.kind).toBe("mock");
     fireEvent.change(screen.getByLabelText("Server address"), { target: { value: "http://x" } });
     fireEvent.click(screen.getByRole("button", { name: "Connect" }));
-    expect(await screen.findByText(/Enter a server address/)).toBeTruthy();
+    expect(await screen.findByText(/Enter the engine server address/)).toBeTruthy();
   });
 
   it("returns to the local engine when the connection drops", async () => {
