@@ -596,11 +596,15 @@ where
         out: &mut dyn MessageSink,
     ) -> CmdResult<ReplyValue> {
         match c {
-            PluginCommand::Rescan
+            PluginCommand::Rescan { .. }
             | PluginCommand::List
+            | PluginCommand::ListFolders
+            | PluginCommand::AddFolder { .. }
+            | PluginCommand::RemoveFolder { .. }
+            | PluginCommand::SetIncludeDefaults { .. }
             | PluginCommand::OpenEditor { .. }
             | PluginCommand::CloseEditor { .. } => Err(unsupported(
-                "plugin scanning and editors are handled by the host",
+                "plugin scanning, folders and editors are handled by the host",
             )),
             PluginCommand::SetSandboxed { device, sandboxed } => {
                 let plugin = self.plugin_device(*device)?;
