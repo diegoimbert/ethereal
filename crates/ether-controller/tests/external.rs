@@ -14,9 +14,9 @@ use ether_controller::{BridgeError, Controller, ControllerConfig, EngineBridge, 
 use ether_core::hw_io::HwLatencyResult;
 use ether_core::plugin::PluginNotification;
 use ether_core::protocol::devices::{DeviceCommand, DeviceDescriptor, DeviceSpec};
-use ether_core::protocol::project::EditCommand;
 use ether_core::protocol::external::{ExternalCommand, ExternalEvent, HardwarePorts};
 use ether_core::protocol::model::*;
+use ether_core::protocol::project::EditCommand;
 use ether_core::protocol::recording::{AudioInputChannel, MidiPort};
 use ether_core::protocol::tracks::TrackCommand;
 use ether_core::protocol::*;
@@ -55,7 +55,11 @@ impl EngineBridge for HwBridge {
     fn destroy_node(&mut self, key: NodeKey) -> Result<(), BridgeError> {
         self.fake.destroy_node(key)
     }
-    fn load_media(&mut self, media: &MediaRef, audio: Arc<DecodedAudio>) -> Result<(), BridgeError> {
+    fn load_media(
+        &mut self,
+        media: &MediaRef,
+        audio: Arc<DecodedAudio>,
+    ) -> Result<(), BridgeError> {
         self.fake.load_media(media, audio)
     }
     fn unload_media(&mut self, media: MediaId) -> Result<(), BridgeError> {
@@ -224,7 +228,12 @@ fn ports(with_synth: bool) -> HardwarePorts {
             vec![]
         },
         audio_inputs: vec![ch(0, "In 1"), ch(1, "In 2")],
-        audio_outputs: vec![ch(0, "Out 1"), ch(1, "Out 2"), ch(2, "Out 3"), ch(3, "Out 4")],
+        audio_outputs: vec![
+            ch(0, "Out 1"),
+            ch(1, "Out 2"),
+            ch(2, "Out 3"),
+            ch(3, "Out 4"),
+        ],
     }
 }
 
@@ -334,13 +343,17 @@ fn measured_latency_sets_the_param_as_one_undoable_edit() {
     let a = h.track(TrackKind::Audio);
     let e = h.insert(a, BuiltinDeviceType::ExternalAudioEffect);
     // Nothing routed yet.
-    let out = h.send(Command::External(ExternalCommand::MeasureLatency { device: e }));
+    let out = h.send(Command::External(ExternalCommand::MeasureLatency {
+        device: e,
+    }));
     assert_eq!(err(&out).code, ErrorCode::InvalidState);
     h.ok(set_routing(e, effect_routing()));
     h.tick();
     h.ctl.bridge.answer = Some(Some(480));
     assert_eq!(
-        h.ok(Command::External(ExternalCommand::MeasureLatency { device: e })),
+        h.ok(Command::External(ExternalCommand::MeasureLatency {
+            device: e
+        })),
         ReplyValue::Unit
     );
     assert_eq!(h.ctl.bridge.requests.len(), 1);
@@ -352,11 +365,24 @@ fn measured_latency_sets_the_param_as_one_undoable_edit() {
             latency_ms: 10.0
         }]
     );
-    assert_eq!(h.project().devices[&e].params.get(&fx::LATENCY), Some(&10.0));
+    assert_eq!(
+        h.project().devices[&e].params.get(&fx::LATENCY),
+        Some(&10.0)
+    );
     // The engine got the new value (PDC follows through `Node::latency`).
-    assert!(h.ctl.bridge.fake.param_changes().iter().any(|c| c.value == 10.0));
+    assert!(
+        h.ctl
+            .bridge
+            .fake
+            .param_changes()
+            .iter()
+            .any(|c| c.value == 10.0)
+    );
     h.ok(Command::Edit(EditCommand::Undo));
-    assert_ne!(h.project().devices[&e].params.get(&fx::LATENCY), Some(&10.0));
+    assert_ne!(
+        h.project().devices[&e].params.get(&fx::LATENCY),
+        Some(&10.0)
+    );
     // The routing edit is the step before.
     assert_eq!(h.routing(e), effect_routing());
 }
@@ -373,7 +399,9 @@ fn instrument_measurement_needs_midi_out_and_return() {
             ..ExternalRouting::default()
         },
     ));
-    let out = h.send(Command::External(ExternalCommand::MeasureLatency { device: i }));
+    let out = h.send(Command::External(ExternalCommand::MeasureLatency {
+        device: i,
+    }));
     assert_eq!(err(&out).code, ErrorCode::InvalidState);
     h.ok(set_routing(
         i,
@@ -384,9 +412,14 @@ fn instrument_measurement_needs_midi_out_and_return() {
         },
     ));
     h.ctl.bridge.answer = Some(Some(2400));
-    h.ok(Command::External(ExternalCommand::MeasureLatency { device: i }));
+    h.ok(Command::External(ExternalCommand::MeasureLatency {
+        device: i,
+    }));
     h.tick();
-    assert_eq!(h.project().devices[&i].params.get(&inst::LATENCY), Some(&50.0));
+    assert_eq!(
+        h.project().devices[&i].params.get(&inst::LATENCY),
+        Some(&50.0)
+    );
 }
 
 #[test]
@@ -397,25 +430,46 @@ fn failed_or_silent_measurements_report_measure_failed() {
     h.ok(set_routing(e, effect_routing()));
     // The engine gives up (nothing came back).
     h.ctl.bridge.answer = Some(None);
-    h.ok(Command::External(ExternalCommand::MeasureLatency { device: e }));
+    h.ok(Command::External(ExternalCommand::MeasureLatency {
+        device: e,
+    }));
     let ev = external_events(&h.tick());
     assert!(matches!(ev.as_slice(), [ExternalEvent::MeasureFailed { device, .. }] if *device == e));
-    assert_eq!(h.project().devices[&e].params.get(&fx::LATENCY).copied().unwrap_or(0.0), 0.0);
+    assert_eq!(
+        h.project().devices[&e]
+            .params
+            .get(&fx::LATENCY)
+            .copied()
+            .unwrap_or(0.0),
+        0.0
+    );
     // The engine never answers (audio stopped): the controller's deadline.
     h.ctl.bridge.answer = None;
-    h.ok(Command::External(ExternalCommand::MeasureLatency { device: e }));
-    let out = h.send(Command::External(ExternalCommand::MeasureLatency { device: e }));
+    h.ok(Command::External(ExternalCommand::MeasureLatency {
+        device: e,
+    }));
+    let out = h.send(Command::External(ExternalCommand::MeasureLatency {
+        device: e,
+    }));
     assert_eq!(err(&out).code, ErrorCode::InvalidState, "one at a time");
     h.advance(1000);
     assert!(external_events(&h.tick()).is_empty());
     h.advance(2500);
     let ev = external_events(&h.tick());
-    assert!(matches!(ev.as_slice(), [ExternalEvent::MeasureFailed { .. }]));
+    assert!(matches!(
+        ev.as_slice(),
+        [ExternalEvent::MeasureFailed { .. }]
+    ));
     // Above the param range.
     h.ctl.bridge.answer = Some(Some(48_000));
-    h.ok(Command::External(ExternalCommand::MeasureLatency { device: e }));
+    h.ok(Command::External(ExternalCommand::MeasureLatency {
+        device: e,
+    }));
     let ev = external_events(&h.tick());
-    assert!(matches!(ev.as_slice(), [ExternalEvent::MeasureFailed { .. }]));
+    assert!(matches!(
+        ev.as_slice(),
+        [ExternalEvent::MeasureFailed { .. }]
+    ));
 }
 
 #[test]

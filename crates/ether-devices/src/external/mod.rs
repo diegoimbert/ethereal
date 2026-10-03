@@ -285,12 +285,8 @@ impl ExternalNode {
             }
             Kind::Effect => {
                 let inputs = audio.inputs;
-                let input = |c: usize, i: usize| {
-                    inputs
-                        .get(c)
-                        .or(inputs.first())
-                        .map_or(0.0, |ch| ch[i])
-                };
+                let input =
+                    |c: usize, i: usize| inputs.get(c).or(inputs.first()).map_or(0.0, |ch| ch[i]);
                 let len = self.dry[0].len();
                 let d = self.latency as usize;
                 for i in a..b {

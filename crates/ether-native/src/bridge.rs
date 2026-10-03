@@ -940,7 +940,12 @@ pub mod hw_midi {
         }
 
         /// New routes: release notes whose node is gone or moved to another port.
-        pub fn set_routes(&mut self, version: u64, routes: HashMap<NodeKey, String>, sink: &mut dyn MidiOutSink) {
+        pub fn set_routes(
+            &mut self,
+            version: u64,
+            routes: HashMap<NodeKey, String>,
+            sink: &mut dyn MidiOutSink,
+        ) {
             self.version = version;
             self.routes = routes;
             let routes = &self.routes;
@@ -1027,8 +1032,9 @@ pub mod hw_midi {
                     let offset = f64::from(audio.recording.output_latency_or(block));
                     let wait = match audio.clock.sample_now(sample_rate) {
                         Some(now) => match s.step(now, offset, sink.as_mut()) {
-                            Some(next) => ((next as f64 + offset - now) / sample_rate)
-                                .clamp(0.0, 0.002),
+                            Some(next) => {
+                                ((next as f64 + offset - now) / sample_rate).clamp(0.0, 0.002)
+                            }
                             None => 0.002,
                         },
                         None => 0.01,
@@ -1401,7 +1407,10 @@ mod tests {
         // Due at (4800 + 480) / 48 kHz = 110 ms and 210 ms.
         for ((at, _, _), want) in sent.iter().zip([110.0, 210.0]) {
             let ms = at.duration_since(start).as_secs_f64() * 1000.0;
-            assert!(ms >= want - 1.0 && ms < want + 15.0, "sent at {ms} ms, due {want}");
+            assert!(
+                ms >= want - 1.0 && ms < want + 15.0,
+                "sent at {ms} ms, due {want}"
+            );
         }
     }
 
@@ -1412,13 +1421,15 @@ mod tests {
     fn measure_latency_through_the_null_loopback() {
         use ether_controller::memory::{MemoryLibrary, MemoryStore};
         use ether_controller::{Controller, EtherController};
+        use ether_core::protocol::Command;
         use ether_core::protocol::devices::{DeviceCommand, DeviceSpec};
         use ether_core::protocol::external::{ExternalCommand, ExternalEvent};
         use ether_core::protocol::message::{ClientMessage, Event, ServerMessage};
-        use ether_core::protocol::model::{ExternalRouting, HwChannels, ProjectId, TrackId, TrackKind};
+        use ether_core::protocol::model::{
+            ExternalRouting, HwChannels, ProjectId, TrackId, TrackKind,
+        };
         use ether_core::protocol::project::ProjectCommand;
         use ether_core::protocol::tracks::TrackCommand;
-        use ether_core::protocol::Command;
 
         let delay = 2048usize;
         let block = 256usize;
@@ -1435,9 +1446,10 @@ mod tests {
             max_block_size: block,
             ..Default::default()
         };
-        let out = crate::audio::AudioOutput::start(Box::new(parts.engine), &settings, shared.clone())
-            .map_err(|(e, _)| e)
-            .expect("null backend starts");
+        let out =
+            crate::audio::AudioOutput::start(Box::new(parts.engine), &settings, shared.clone())
+                .map_err(|(e, _)| e)
+                .expect("null backend starts");
         let mut gc = parts.gc;
         let gc_stop = Arc::new(std::sync::atomic::AtomicBool::new(false));
         let gc_flag = gc_stop.clone();
@@ -1459,7 +1471,8 @@ mod tests {
             fake::instantiate(),
             shared.clone(),
         );
-        let mut ctl = EtherController::new(b, NativeServices, MemoryStore::new(), MemoryLibrary::new());
+        let mut ctl =
+            EtherController::new(b, NativeServices, MemoryStore::new(), MemoryLibrary::new());
         let mut n = 0;
         let mut send = |ctl: &mut EtherController<_, _, _, _>, command: Command| {
             n += 1;

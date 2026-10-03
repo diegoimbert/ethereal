@@ -518,7 +518,9 @@ impl HwIo {
 
     /// RT: the view the track jobs use for this sub-block.
     pub(crate) fn table(&mut self) -> HwIoTable {
-        self.rt.as_mut().map_or_else(HwIoTable::default, |rt| rt.table())
+        self.rt
+            .as_mut()
+            .map_or_else(HwIoTable::default, |rt| rt.table())
     }
 
     /// Messages dropped so far (diagnostics).

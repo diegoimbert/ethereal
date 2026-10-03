@@ -196,7 +196,9 @@ impl RtRenderer {
         let sample_rate = engine.config().sample_rate as f64;
         Self {
             engine: Some(engine),
-            outs: (0..MAX_OUTPUT_CHANNELS).map(|_| vec![0.0; max_block]).collect(),
+            outs: (0..MAX_OUTPUT_CHANNELS)
+                .map(|_| vec![0.0; max_block])
+                .collect(),
             input: crate::recording::InputFeed::new(&shared, max_block, sample_rate),
             max_block,
             sample_rate,
@@ -244,7 +246,8 @@ impl RtRenderer {
                 };
                 process_guarded(engine, &inputs, &mut outputs[..n_out], n);
             }
-            self.input.after_process(&self.outs[0][..n], &self.outs[1][..n]);
+            self.input
+                .after_process(&self.outs[0][..n], &self.outs[1][..n]);
             let frames = &mut out[done * channels..(done + n) * channels];
             for (i, frame) in frames.chunks_exact_mut(channels).enumerate() {
                 if channels == 1 {
@@ -353,8 +356,7 @@ mod tests {
         use ether_core::graph::{ChainEntry, RenderGraphDesc};
         use ether_core::hw_io::HwIoDesc;
         use ether_core::protocol::model::{
-            BuiltinDevice, BuiltinDeviceType, ExternalRouting, HwChannels, TrackId, TrackKind,
-            Ulid,
+            BuiltinDevice, BuiltinDeviceType, ExternalRouting, HwChannels, TrackId, TrackKind, Ulid,
         };
 
         struct Dc;

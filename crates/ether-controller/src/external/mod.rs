@@ -80,7 +80,10 @@ pub(crate) fn set_routing(
 ) -> CmdResult<()> {
     let d = ctx.device(device)?;
     let Some((ty, _)) = external_of(&d) else {
-        return Err(invalid(format!("device {} is not an external device", d.id)));
+        return Err(invalid(format!(
+            "device {} is not an external device",
+            d.id
+        )));
     };
     ether_core::protocol::model::check_routing(routing).map_err(invalid)?;
     let kind = match ty {
@@ -155,13 +158,19 @@ where
                 Ok(ReplyValue::HardwarePorts { ports })
             }
             ExternalCommand::MeasureLatency { device } => {
-                let project = self.doc.as_ref().map(|d| &d.project).ok_or_else(crate::handlers::no_project)?;
+                let project = self
+                    .doc
+                    .as_ref()
+                    .map(|d| &d.project)
+                    .ok_or_else(crate::handlers::no_project)?;
                 let d = project
                     .devices
                     .get(device)
                     .ok_or_else(|| not_found(format!("device {device}")))?;
                 let Some((ty, routing)) = external_of(d) else {
-                    return Err(invalid(format!("device {device} is not an external device")));
+                    return Err(invalid(format!(
+                        "device {device} is not an external device"
+                    )));
                 };
                 let out_ok = match ty {
                     BuiltinDeviceType::ExternalInstrument => routing.midi_out.is_some(),
@@ -212,7 +221,13 @@ where
         self.poll_ports(now, out);
     }
 
-    fn measured(&mut self, device: DeviceId, samples: Option<u32>, now: u64, out: &mut dyn MessageSink) {
+    fn measured(
+        &mut self,
+        device: DeviceId,
+        samples: Option<u32>,
+        now: u64,
+        out: &mut dyn MessageSink,
+    ) {
         let fail = |out: &mut dyn MessageSink, message: &str| {
             event(
                 out,
@@ -225,7 +240,9 @@ where
             );
         };
         let Some(ty) = self
-            .doc.as_ref().map(|d| &d.project)
+            .doc
+            .as_ref()
+            .map(|d| &d.project)
             .and_then(|p| p.devices.get(&device))
             .and_then(|d| external_of(d).map(|(ty, _)| ty))
         else {
@@ -271,7 +288,9 @@ where
     /// Re-list the ports every [`PORTS_POLL_MS`] while the project has external devices.
     fn poll_ports(&mut self, now: u64, out: &mut dyn MessageSink) {
         let any = self
-            .doc.as_ref().map(|d| &d.project)
+            .doc
+            .as_ref()
+            .map(|d| &d.project)
             .is_some_and(|p| p.devices.values().any(|d| external_of(d).is_some()));
         if !any {
             return;

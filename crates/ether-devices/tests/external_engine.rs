@@ -12,8 +12,7 @@ use assert_no_alloc::assert_no_alloc;
 use ether_core::graph::{ChainEntry, ClipContentDesc, ClipDesc, NoteDesc, TrackDesc};
 use ether_core::hw_io::{HwIoDesc, HwMidiEvent};
 use ether_core::protocol::model::{
-    BuiltinDevice, BuiltinDeviceType, ClipId, ExternalRouting, HwChannels, TrackId, TrackKind,
-    Ulid,
+    BuiltinDevice, BuiltinDeviceType, ClipId, ExternalRouting, HwChannels, TrackId, TrackKind, Ulid,
 };
 use ether_core::{
     AudioBuffers, Device, EngineConfig, EngineParts, Node, NodeKey, PrepareConfig, ProcessContext,
@@ -119,7 +118,10 @@ impl Node for Source {
     }
 }
 
-fn device(ty: BuiltinDeviceType, params: &[(ether_core::protocol::model::ParamId, f64)]) -> Box<dyn Device> {
+fn device(
+    ty: BuiltinDeviceType,
+    params: &[(ether_core::protocol::model::ParamId, f64)],
+) -> Box<dyn Device> {
     let mut d = ether_devices::create(&BuiltinDevice::new(ty), &NoSamples);
     d.prepare(&PrepareConfig {
         sample_rate: SR as f32,
@@ -161,7 +163,13 @@ impl Hardware {
 }
 
 /// Run `blocks` blocks with `hw` in the loop; returns the master output (left) per sample.
-fn run(p: &mut EngineParts, hw: &mut Hardware, start: u64, blocks: usize, inputs: usize) -> Vec<f32> {
+fn run(
+    p: &mut EngineParts,
+    hw: &mut Hardware,
+    start: u64,
+    blocks: usize,
+    inputs: usize,
+) -> Vec<f32> {
     if hw.io.is_none() {
         hw.io = p.handle.take_hw_io();
     }
@@ -375,8 +383,18 @@ fn instrument_notes_reach_the_midi_ring_sample_accurately() {
     // Stop: all notes off on the channel.
     p.handle.transport(TransportControl::Stop).unwrap();
     hw.midi.clear();
-    run(&mut p, &mut hw, (SR as usize * 2 / BLOCK * BLOCK) as u64, 2, CHANNELS);
-    assert!(hw.midi.iter().any(|m| m.data == [0xb2, 123, 0]), "{:?}", hw.midi);
+    run(
+        &mut p,
+        &mut hw,
+        (SR as usize * 2 / BLOCK * BLOCK) as u64,
+        2,
+        CHANNELS,
+    );
+    assert!(
+        hw.midi.iter().any(|m| m.data == [0xb2, 123, 0]),
+        "{:?}",
+        hw.midi
+    );
 }
 
 #[test]
@@ -421,5 +439,9 @@ fn missing_return_channel_is_silent_and_resumes() {
     assert!(out.iter().all(|s| *s == 0.0));
     // Back: the return plays.
     let out = run(&mut p, &mut hw, (8 * BLOCK) as u64, 8, CHANNELS);
-    assert!(out.iter().all(|s| (*s - 0.25).abs() < 1e-6), "{:?}", &out[..4]);
+    assert!(
+        out.iter().all(|s| (*s - 0.25).abs() < 1e-6),
+        "{:?}",
+        &out[..4]
+    );
 }
