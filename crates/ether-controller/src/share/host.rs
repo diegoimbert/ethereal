@@ -722,6 +722,7 @@ where
         Ok((welcome, pending))
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn share_host_admitted(
         &mut self,
         h: &mut HostRt,

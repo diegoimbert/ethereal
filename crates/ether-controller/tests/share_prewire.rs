@@ -45,14 +45,11 @@ fn everything_else_is_unsupported_until_its_node_lands() {
     let mut s = Site::on_hub(1, &hub);
     s.create_project("Song");
     // share-engine: implemented (tests/share.rs).
-    for c in [
-        // p2p-transport (web UI endpoint)
-        ShareCommand::PeerSignal {
-            peer: 1,
-            signal: StreamSignal::Bye { reason: None },
-        },
-    ] {
-        let out = s.send(Command::Share(c.clone()));
-        assert_eq!(error_code(&out), ErrorCode::Unsupported, "{c:?}");
-    }
+    // p2p-transport (web UI endpoint)
+    let c = ShareCommand::PeerSignal {
+        peer: 1,
+        signal: StreamSignal::Bye { reason: None },
+    };
+    let out = s.send(Command::Share(c.clone()));
+    assert_eq!(error_code(&out), ErrorCode::Unsupported, "{c:?}");
 }

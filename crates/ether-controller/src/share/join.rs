@@ -694,11 +694,10 @@ where
                         self.share_sharing_ended(j, out);
                         return;
                     }
-                    if j.first_join() && !j.started {
-                        j.phase = Phase::Failed(reason, message);
-                    } else if matches!(reason, JoinFailure::Version | JoinFailure::HostNotVerified)
-                        && !j.started
-                    {
+                    // Terminal: a first join's failure; a version or identity problem.
+                    let terminal = j.first_join()
+                        || matches!(reason, JoinFailure::Version | JoinFailure::HostNotVerified);
+                    if terminal && !j.started {
                         j.phase = Phase::Failed(reason, message);
                     } else {
                         j.retry_at = now + j.backoff;

@@ -118,14 +118,15 @@ fn listen_allows(m: &CollabMessage) -> bool {
         // Chat only (receivers still apply the chat sanitize rules, COLLAB.md §12.1).
         CollabMessage::Transaction { transaction } => {
             !transaction.transaction.ops.is_empty()
-                && transaction.transaction.ops.iter().all(|op| match op {
-                    Op::Insert {
-                        entity: Entity::ChatMessage(_),
-                    } => true,
-                    Op::Remove {
-                        key: EntityKey::ChatMessage(_),
-                    } => true,
-                    _ => false,
+                && transaction.transaction.ops.iter().all(|op| {
+                    matches!(
+                        op,
+                        Op::Insert {
+                            entity: Entity::ChatMessage(_),
+                        } | Op::Remove {
+                            key: EntityKey::ChatMessage(_),
+                        }
+                    )
                 })
         }
         CollabMessage::Media { .. }
