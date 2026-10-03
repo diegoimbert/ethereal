@@ -508,3 +508,20 @@ fn cpu() {
     );
     println!("5 s factory IR: {:.1} MB", conv.memory_bytes() as f64 / 1e6);
 }
+
+/// The mock's factory IR list (`ui/src/transport/mock/roadmap/fxSpace.factoryIrs.json`)
+/// matches `fx_space::factory_irs()` (regenerate with `UPDATE_MOCK_DESCRIPTORS=1`).
+#[test]
+fn mock_factory_irs_match_rust() {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../ui/src/transport/mock/roadmap/fxSpace.factoryIrs.json");
+    let expected = serde_json::to_value(fx_space::factory_irs()).unwrap();
+    if std::env::var_os("UPDATE_MOCK_DESCRIPTORS").is_some() {
+        let text = format!("{}\n", serde_json::to_string_pretty(&expected).unwrap());
+        std::fs::write(&path, text).unwrap();
+        return;
+    }
+    let found: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+    assert_eq!(found, expected, "{} is stale (UPDATE_MOCK_DESCRIPTORS=1)", path.display());
+}
