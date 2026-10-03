@@ -122,6 +122,12 @@ where
         }
         // base-62: a note added by this command is authored by our session identity.
         let _note_author = self.social_note_scope(command);
+        // v0.3 (`templates`): `Template::Insert` loads its file and imports its samples
+        // first (alone: in one gesture; in a `Batch`: scoped for the batch).
+        if let Some(r) = self.template_insert_command(msg, now, out) {
+            return r;
+        }
+        let _templates = self.template_scope(command, msg.gesture, now, out)?;
         if doc::is_document_command(command, current) {
             let label = doc::label_of(command);
             self.edit_with(&label, msg.gesture, now, out, |ctx| {

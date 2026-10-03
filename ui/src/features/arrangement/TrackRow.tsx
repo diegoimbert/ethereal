@@ -41,6 +41,7 @@ import { leaveNoteEntries, withSeparator } from "@/features/collab/social";
 import { LiveRecordLane } from "@/features/recording/live/LiveRecordLane";
 import { tapArmBlocked } from "@/features/recording/tapRecording";
 import { CompLayer, TakeLanes, TakesToggle, trackTakeEntries } from "@/features/comping";
+import { templateTrackEntries } from "@/features/templates";
 import { MOD_KEY, meterPosition, openContextMenu, setDragCursor, type ContextMenuEntry } from "@/kit";
 import { useEditorStore, useProjectStore, useTrackMeter } from "@/state";
 import {
@@ -243,6 +244,8 @@ function TrackHeader({ row }: { row: Row }) {
             track,
             useArrangementUi.getState().selectedTracks,
           ),
+          // templates: save as / insert a track template.
+          ...templateTrackEntries(useProjectStore.getState().project, track, useArrangementUi.getState().selectedTracks),
         ]);
       }}
       role="group"

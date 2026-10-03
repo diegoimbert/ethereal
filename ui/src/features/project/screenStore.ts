@@ -11,13 +11,21 @@ interface ProjectScreenState {
   open: boolean;
   /** Show the screen once the first project is loaded (app launch). */
   launchPending: boolean;
+  /** The "New project" form is showing (instead of the project list). */
+  naming: boolean;
   show(): void;
+  /** Open straight on the "New project" form (templates: "New project from template…"). */
+  showNew(): void;
   hide(): void;
+  setNaming(naming: boolean): void;
 }
 
 export const useProjectScreen = create<ProjectScreenState>((set) => ({
   open: false,
   launchPending: launchByDefault(),
+  naming: false,
   show: () => set({ open: true }),
-  hide: () => set({ open: false }),
+  showNew: () => set({ open: true, naming: true }),
+  hide: () => set({ open: false, naming: false }),
+  setNaming: (naming) => set({ naming }),
 }));
