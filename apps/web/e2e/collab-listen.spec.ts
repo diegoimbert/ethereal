@@ -153,7 +153,8 @@ async function startScriptedHost(page: Page, args: { url: string; token: string;
       view: null,
       can_host: true,
     };
-    send({ type: "Hello", site, actor: null, name: "Hal", protocol_version: 1 });
+    // `ether_collab::wire::COLLAB_PROTOCOL_VERSION` (2 since base-62 social); the relay refuses others.
+    send({ type: "Hello", site, actor: null, name: "Hal", protocol_version: 2 });
     send({ type: "SyncRequest", site, version: "" });
     host.setCanHost = (can: boolean) =>
       send({ type: "Presence", presence: { site, actor: null, name: "Hal", color: 0, state: { ...presenceState, can_host: can } } });

@@ -965,6 +965,7 @@ pub fn compile_with(
             ),
             taps: crate::bus_tap::TapBuffers::compile(&tap_points[i], config),
             vca: crate::vca::TrackVcaRt::compile(t.vca, &desc.vcas, config),
+            expression: crate::expression::ExpressionRt::compile(&t.expression),
         });
     }
     send_index.sort();

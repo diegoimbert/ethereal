@@ -2,7 +2,9 @@
  * Piano roll: the MIDI note editor for the clip open in the detail editor
  * (`useEditedClipId()` from `@/state`). The time axis is the clip's content timeline.
  *
- * - Keyboard gutter (click a key: select its notes), note grid, velocity lane.
+ * - Keyboard gutter (click a key: select its notes), note grid, and the lane area
+ *   (`@/features/expression`): velocity, clip expression lanes (CC, pitch bend, channel
+ *   pressure) and per-note pressure, picked from the lane bar.
  * - Draw: double-click empty space (keep holding and drag to set the length), or drag in
  *   draw mode (B). Move: drag a note body
  *   (vertical = pitch). Resize: drag either edge. Delete: double-click a note, or
@@ -18,6 +20,7 @@ import type { Beats, Clip, Command, MusicalScale, Note, NoteId, TrackScale } fro
 import { CHROMATIC_SCALE, resolveScale } from "@/domain/scales";
 import { Button, Select } from "@/kit";
 import { EditingPeers } from "@/features/collab/presence";
+import { ExpressionLanes } from "@/features/expression";
 import { GrooveControls, grooveMenuItems, grooveQuantizeCommand, useGrooveSettings } from "@/features/groove";
 import { useClip, useEditedClipId, useNotesOfClip, useProjectStore } from "@/state";
 import {
@@ -40,7 +43,7 @@ import {
 import { cmd, newId, useTransport } from "@/transport";
 import { clipTempoMap, contentEnd, contentToSong, songToContent } from "./clipTime";
 import { useSend } from "./drag";
-import { createPitchRows, KEYBOARD_WIDTH, pitchToY, yToPitch } from "./geometry";
+import { createPitchRows, KEYBOARD_WIDTH, pitchToY, VELOCITY_LANE_HEIGHT, yToPitch } from "./geometry";
 import { Keyboard } from "./Keyboard";
 import { NoteGrid } from "./NoteGrid";
 import { nudgeEdits } from "./noteEdits";
@@ -291,14 +294,17 @@ export function PianoRollEditor({ clip, view: injectedView }: PianoRollEditorPro
         </div>
       </div>
 
-      <div className="eth-pr__lane">
-        <div className="eth-pr__lane-label" style={{ width: KEYBOARD_WIDTH }}>
-          Velocity
-        </div>
-        <div ref={laneRef} className="eth-pr__lane-body">
-          <VelocityLane notes={shownNotes} vp={vp} widthPx={widthPx} />
-        </div>
-      </div>
+      <ExpressionLanes
+        clip={clip}
+        notes={shownNotes}
+        vp={vp}
+        widthPx={widthPx}
+        height={VELOCITY_LANE_HEIGHT}
+        stepBeats={stepBeats}
+        labelWidth={KEYBOARD_WIDTH}
+        bodyRef={laneRef}
+        velocity={<VelocityLane notes={shownNotes} vp={vp} widthPx={widthPx} />}
+      />
     </div>
   );
 }

@@ -201,6 +201,8 @@ impl<F: Fs> WebStore<F> {
             id,
             name: name_of(&bytes),
             modified_ms,
+            // base-115: `recents-shared` reads the project's `share.json`.
+            share: None,
         })
     }
 

@@ -106,6 +106,8 @@ impl MemoryStore {
             id,
             name,
             modified_ms: p.modified_ms as f64,
+            // base-115: `recents-shared` reads the project's `share.json`.
+            share: None,
         }
     }
 }
