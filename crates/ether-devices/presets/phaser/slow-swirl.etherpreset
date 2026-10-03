@@ -1,0 +1,33 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "Slow Swirl",
+    "device": {
+      "type": "Builtin",
+      "device": "Phaser"
+    },
+    "meta": {
+      "tags": [
+        "phaser",
+        "slow",
+        "pads"
+      ],
+      "author": "Ethereal",
+      "description": "Classic four-stage swirl at 0.2 Hz with gentle feedback."
+    },
+    "params": {
+      "0": 1.0,
+      "1": 0.2,
+      "2": 0.0,
+      "3": 6.0,
+      "4": 70.0,
+      "5": 700.0,
+      "6": 40.0,
+      "7": 90.0,
+      "8": 50.0,
+      "9": 0.0
+    }
+  }
+}

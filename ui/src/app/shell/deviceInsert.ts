@@ -1,9 +1,10 @@
-import type { Command, DeviceDescriptor, Project, Track } from "@/generated";
+import type { Command, DeviceDescriptor, DeviceId, Project, Track } from "@/generated";
 import { useArrangementUi } from "@/features/arrangement/state";
 import { builtinDevice } from "@/features/devices/descriptors";
+import { addInstrumentCommand } from "@/features/devices/instrument";
 import { resolveSelectedTrack } from "@/features/devices/selectedTrack";
 import { devicesOfTrack, useSelectionStore } from "@/state";
-import { cmd, newId } from "@/transport";
+import { cmd, newId, type EngineTransport } from "@/transport";
 
 /** Category headings, in display order. */
 export const DEVICE_CATEGORIES: ReadonlyArray<{ id: DeviceDescriptor["category"]; label: string }> = [
@@ -26,15 +27,19 @@ export function canInsert(d: DeviceDescriptor, track: Track | undefined): boolea
   return !!track && d.device_type.type === "Builtin" && (d.category !== "Instrument" || track.kind === "Midi");
 }
 
-/** `Device::Insert` of a built-in device on `track`: instruments first in the chain, effects last. */
-export function insertDeviceCommand(project: Project, track: Track, d: DeviceDescriptor): Command | null {
+/**
+ * Adding a built-in device on `track`: effects go last; an instrument replaces the track's
+ * instrument in place (one undo step), or goes first when it has none.
+ */
+export async function insertDeviceCommand(
+  transport: EngineTransport,
+  project: Project,
+  track: Track,
+  d: DeviceDescriptor,
+): Promise<Command | null> {
   if (!canInsert(d, track) || d.device_type.type !== "Builtin") return null;
-  const first = devicesOfTrack(project, track.id)[0]?.id ?? null;
-  return cmd("Device", {
-    type: "Insert",
-    id: newId(),
-    track: track.id,
-    device: { type: "Builtin", device: builtinDevice(d.device_type.device) },
-    before: d.category === "Instrument" ? first : null,
-  });
+  const device = builtinDevice(d.device_type.device);
+  const insert = (before: DeviceId | null): Command =>
+    cmd("Device", { type: "Insert", id: newId(), track: track.id, device: { type: "Builtin", device }, before });
+  return d.category === "Instrument" ? addInstrumentCommand(transport, devicesOfTrack(project, track.id), insert) : insert(null);
 }
