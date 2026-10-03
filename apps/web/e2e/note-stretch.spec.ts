@@ -101,7 +101,10 @@ test("note stretch: drag the ruler bar's right edge to double the selected secti
   const d = drawn[0]![1]!;
   expect(drawn[1]![1]).toBe(d);
 
-  // No selection: no bar.
+  // A click on empty space drops the selection and places the insert marker (a zero-length
+  // selection): no bar.
+  await page.mouse.click(x(3.5), y - 60);
+  await expect(page.getByTestId("piano-roll-marker")).toBeVisible();
   await expect(page.getByTestId("piano-roll-stretch")).toHaveCount(0);
 
   // --- Select the section 0..4 on the strip under the ruler ----------------------------------
