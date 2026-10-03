@@ -10,7 +10,7 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import type { Project, TrackId } from "@/generated";
 import { openClip } from "./clips";
-import { createTrack, newProject } from "./ui";
+import { createTrack, newProject, pickOption } from "./ui";
 
 test.use({ viewport: { width: 1440, height: 900 }, colorScheme: "dark" });
 
@@ -86,16 +86,28 @@ async function fitRoll(page: Page, beats: number) {
   const pxPerBeat = async () => ((await left('[data-testid="piano-roll-clip-end"]')) - (await left(".eth-pr__start"))) / 4;
   const room = (body.width - 64) / 2;
   await page.mouse.move(body.x + 70, body.y + body.height / 2);
-  for (let i = 0; i < 20 && (await pxPerBeat()) * beats > room; i++) {
+  for (let i = 0; i < 60 && (await pxPerBeat()) * beats > room; i++) {
     await page.keyboard.down("Control");
-    await page.mouse.wheel(0, 200);
+    await page.mouse.wheel(0, 60);
     await page.keyboard.up("Control");
   }
   expect((await pxPerBeat()) * beats).toBeLessThanOrEqual(room);
+  // Wait for the zoom to settle (the view applies wheel steps over frames).
+  let last = NaN;
+  await expect
+    .poll(async () => {
+      const now = await pxPerBeat();
+      const settled = now === last;
+      last = now;
+      return settled;
+    })
+    .toBe(true);
 }
 
 /** Two notes (beats 0 and 3) drawn by double-clicking the open piano roll's grid. */
 async function drawNotes(page: Page, clip: string) {
+  // A fixed 1/4 grid: drawn notes and sections snap to beats whatever the zoom.
+  await pickOption(page.getByTestId("piano-roll"), "Grid", "1/4");
   await fitRoll(page, 16);
   const g = await rollGeometry(page, 4);
   for (const beat of [0, 3]) {
