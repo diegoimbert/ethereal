@@ -27,13 +27,15 @@
 //!   replaces an existing one only with `overwrite`, `Rename` refuses a taken name.
 
 mod files;
+mod rack;
 
 use std::collections::BTreeMap;
 
 use ether_core::protocol::media::{BrowseLocation, MediaCommand, MediaSource};
 use ether_core::protocol::model::{
     BuiltinDevice, Device, DeviceChange, DeviceId, DeviceKind, GestureId, MediaId, MediaLocation,
-    PRESET_EXTENSION, PRESETS_DIR, ParamId, Preset, PresetDevice, PresetSample, save_preset,
+    PRESET_EXTENSION, PRESETS_DIR, ParamId, Preset, PresetDevice, PresetSample, RackChainId,
+    save_preset,
 };
 use ether_core::protocol::presets::{
     PresetCommand, PresetEvent, PresetInfo, PresetRef, PresetSource,
@@ -120,8 +122,12 @@ where
             PresetCommand::List { device, text } => Ok(ReplyValue::Presets {
                 presets: self.preset_list(device.as_ref(), text.as_deref()),
             }),
-            PresetCommand::Load { device, preset, .. } => {
-                self.preset_load(*device, preset, gesture, now, out)?;
+            PresetCommand::Load {
+                device,
+                preset,
+                seed,
+            } => {
+                self.preset_load(*device, preset, *seed, gesture, now, out)?;
                 Ok(ReplyValue::Unit)
             }
             PresetCommand::Save {
@@ -330,9 +336,26 @@ where
                     .iter()
                     .map(|p| (p.id, d.params.get(&p.id).copied().unwrap_or(p.default)))
                     .collect();
+                let mut media = Vec::new();
                 if let Some(k) = preset_kind(kind) {
-                    preset.samples = self.preset_sample_refs(&root, pid, &kind_media(&k))?;
+                    media = kind_media(&k);
                     preset.kind = Some(k);
+                }
+                // v0.3: a rack stores its chains, their devices and its modulation.
+                if kind.device_type().is_rack() {
+                    let project = &self.doc.as_ref().ok_or_else(no_project)?.project;
+                    let (bridge, engine) = (&mut self.bridge, &self.engine);
+                    let mut state = |id: DeviceId| {
+                        engine
+                            .node(id)
+                            .and_then(|_| bridge.plugin_state(id).ok().flatten())
+                    };
+                    let (structure, rack_media) = rack::snapshot(project, device, &mut state);
+                    media.extend(rack_media);
+                    preset.rack = Some(structure);
+                }
+                if !media.is_empty() {
+                    preset.samples = self.preset_sample_refs(&root, pid, &media)?;
                 }
             }
             DeviceKind::Plugin { plugin } => {
@@ -452,6 +475,7 @@ where
         &mut self,
         device: DeviceId,
         preset: &PresetRef,
+        seed: Option<RackChainId>,
         gesture: Option<GestureId>,
         now: u64,
         out: &mut dyn MessageSink,
@@ -470,10 +494,23 @@ where
                 p.name
             )));
         }
+        // A preset with a rack structure needs the seed its new ids derive from.
+        let seed = match (&p.rack, seed) {
+            (Some(_), None) => {
+                return Err(invalid(
+                    "loading a rack preset with chains needs a seed for the new ids",
+                ));
+            }
+            (Some(_), seed) => seed,
+            (None, _) => None,
+        };
+        if seed.is_some() && (d.chain.is_some() || d.pad.is_some()) {
+            return Err(invalid("racks cannot be nested in rack chains"));
+        }
         // One undo step: the caller's gesture, or ours around imports + the edit.
         let own = gesture.is_none();
         let gesture = gesture.unwrap_or_else(|| self.new_gesture());
-        let result = self.preset_apply(&d, &p, gesture, now, out);
+        let result = self.preset_apply(&d, &p, seed, gesture, now, out);
         if own && let Some(doc) = self.doc.as_mut() {
             doc.history.end_gesture(gesture);
         }
@@ -484,6 +521,7 @@ where
         &mut self,
         d: &Device,
         p: &Preset,
+        seed: Option<RackChainId>,
         gesture: GestureId,
         now: u64,
         out: &mut dyn MessageSink,
@@ -491,13 +529,14 @@ where
         let device = d.id;
         match &d.kind {
             DeviceKind::Builtin { device: current } => {
-                let kind = match &p.kind {
-                    Some(k) => {
-                        let map = self.preset_import_samples(p, gesture, now, out);
-                        Some(remap_kind(k, &map))
-                    }
-                    None => None,
+                let map = if p.samples.is_empty() {
+                    BTreeMap::new()
+                } else {
+                    self.preset_import_samples(p, gesture, now, out)
                 };
+                let kind = p.kind.as_ref().map(|k| remap_kind(k, &map));
+                let structure = p.rack.as_ref().zip(seed);
+                let mut plugins = Vec::new();
                 let desc = ether_devices::descriptor(current.device_type());
                 let params: Vec<(ParamId, f64)> = desc
                     .params
@@ -512,6 +551,9 @@ where
                     .filter(|(id, v)| d.params.get(id) != Some(v))
                     .collect();
                 self.edit_with("Load Preset", Some(gesture), now, out, |ctx| {
+                    if let Some((structure, seed)) = structure {
+                        plugins = rack::rebuild(ctx, device, structure, seed, &map)?;
+                    }
                     if let Some(kind) = kind
                         && &kind != current
                     {
@@ -530,7 +572,15 @@ where
                         )?;
                     }
                     Ok(())
-                })
+                })?;
+                if !plugins.is_empty() {
+                    // Chain plugins: re-create the instances from their preset state.
+                    for id in plugins {
+                        self.engine.request_reload_from_doc(id);
+                    }
+                    self.publish_if_due(now, true, out);
+                }
+                Ok(())
             }
             DeviceKind::Plugin { plugin } => match &p.state {
                 Some(state) => {
