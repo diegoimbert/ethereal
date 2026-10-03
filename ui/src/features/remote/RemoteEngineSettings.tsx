@@ -1,6 +1,7 @@
 import "./remote.css";
 import type { FormEvent } from "react";
 import { Button, TextInput } from "@/kit";
+import { useAudioSettings } from "@/features/audio-settings/store";
 import { useEngineServer } from "./engineServer";
 import { normalizeServerUrl } from "./url";
 
@@ -15,7 +16,8 @@ export function RemoteEngineSettings() {
   if (!s.available) return null;
   const submit = (e?: FormEvent) => {
     e?.preventDefault();
-    void s.connect();
+    // Connected: the whole window switched engines; the settings close (like the old dialog).
+    void s.connect().then((ok) => ok && useAudioSettings.getState().close());
   };
   return (
     <section className="eth-remote__form" aria-label="Engine server" data-testid="settings-engine-server">

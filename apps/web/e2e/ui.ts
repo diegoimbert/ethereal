@@ -136,6 +136,32 @@ export async function openEditor(page: Page, tab: string): Promise<void> {
 export const playButton = (page: Page): Locator =>
   page.getByRole("toolbar", { name: "Transport" }).getByRole("button", { name: "Play", exact: true });
 
+/** Opens Settings (top-bar gear) on the Advanced tab (base-115, docs/SHARING.md §8.6). */
+async function openAdvancedSettings(page: Page): Promise<void> {
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  await page.getByRole("dialog", { name: "Settings" }).getByRole("tab", { name: "Advanced" }).click();
+}
+
+/**
+ * Opens the relay join dialog ("Relay address", "Session", "Your name", "Token", Join): it
+ * moved from the top bar to Settings > Advanced > Relay session (the Share button took its
+ * place). During a session the top bar still shows the relay bar (`collab-button`).
+ */
+export async function openRelayJoin(page: Page): Promise<void> {
+  await openAdvancedSettings(page);
+  await page.getByRole("button", { name: "Join a relay session…" }).click();
+  await expect(page.getByLabel("Relay address")).toBeVisible();
+}
+
+/**
+ * Opens the engine server form ("Server address", "Token", Connect) in Settings > Advanced;
+ * connecting closes the settings. While connected the top bar shows `remote-button`.
+ */
+export async function openEngineServer(page: Page): Promise<void> {
+  await openAdvancedSettings(page);
+  await expect(page.getByLabel("Server address")).toBeVisible();
+}
+
 /** Creates and opens a new, empty project from the project screen (Projects button). */
 export async function newProject(page: Page, name: string): Promise<void> {
   await page.getByRole("button", { name: "Projects" }).click();

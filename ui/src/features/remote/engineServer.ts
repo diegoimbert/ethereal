@@ -46,12 +46,13 @@ export function useEngineServer() {
   const [error, setError] = useState<string | null>(null);
   const remote = sw?.remote instanceof WsTransport ? sw.remote : null;
 
-  const connect = async () => {
-    if (!sw) return;
+  /** Resolves whether the window now runs on the server. */
+  const connect = async (): Promise<boolean> => {
+    if (!sw) return false;
     const target = normalizeServerUrl(url);
     if (!target) {
       setError("Enter the engine server address, such as ws://studio.local:9000.");
-      return;
+      return false;
     }
     setBusy(true);
     setError(null);
@@ -61,9 +62,11 @@ export function useEngineServer() {
       saveUrl(url.trim());
       setToken("");
       sw.switchToRemote(t);
+      return true;
     } catch (err) {
       t.dispose();
       setError(describeError(err));
+      return false;
     } finally {
       setBusy(false);
     }
