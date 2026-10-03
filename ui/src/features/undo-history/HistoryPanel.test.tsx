@@ -90,7 +90,7 @@ describe("HistoryPanel", () => {
     expect(screen.getByText("Verse done")).toBeTruthy();
 
     // A blank name removes it.
-    fireEvent.doubleClick(within(rows()[1]!).getAllByRole("button")[0]!);
+    fireEvent.click(within(rows()[1]!).getByRole("button", { name: "Rename checkpoint" }));
     const blank = screen.getByRole("textbox", { name: /Checkpoint name/ });
     fireEvent.change(blank, { target: { value: "  " } });
     fireEvent.blur(blank);

@@ -119,7 +119,6 @@ function StepRow({
             aria-current={current ? "step" : undefined}
             title={stepTitle(step)}
             onClick={onJump}
-            onDoubleClick={onEdit}
           >
             <span className="eth-history__text">
               {step.checkpoint && <span className="eth-history__checkpoint">{step.checkpoint}</span>}

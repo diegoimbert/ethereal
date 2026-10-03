@@ -12,6 +12,7 @@
 //! - [`EtherController::history_tick`]: `HistoryEvent::Changed` (at most every 100 ms, only
 //!   when the list changed) once a client listed the history.
 
+use ether_core::protocol::model::ProjectId;
 use ether_core::protocol::undo_history::{
     HistoryCommand, HistoryEvent, HistoryList, HistoryStep, HistoryStepId,
 };
@@ -36,7 +37,12 @@ pub(crate) struct UndoHistoryState {
     /// The list as the clients last saw it (reply or event).
     last_sent: Option<HistoryList>,
     last_sent_ms: Option<u64>,
+    /// `(project, History::version)` when `last_sent` was built: the list is only rebuilt
+    /// when it changed.
+    last_key: Option<HistoryKey>,
 }
+
+type HistoryKey = Option<(ProjectId, u64)>;
 
 /// The protocol view of `history`.
 pub(crate) fn history_list(history: &History) -> HistoryList {
@@ -63,6 +69,12 @@ where
     S: ProjectStore,
     L: Library,
 {
+    fn history_key(&self) -> HistoryKey {
+        self.doc
+            .as_ref()
+            .map(|d| (d.project.id, d.history.version()))
+    }
+
     fn current_history_list(&self) -> HistoryList {
         self.doc
             .as_ref()
@@ -73,7 +85,9 @@ where
     /// Reply with the current list, which the clients now know.
     fn history_reply(&mut self, now: u64) -> ReplyValue {
         let history = self.current_history_list();
+        let key = self.history_key();
         let st = &mut self.undo_history;
+        st.last_key = Some(key);
         st.listening = true;
         st.last_sent = Some(history.clone());
         st.last_sent_ms = Some(now);
@@ -158,8 +172,10 @@ where
 
     /// Called every tick.
     pub(crate) fn history_tick(&mut self, now: u64, out: &mut dyn MessageSink) {
+        let key = self.history_key();
         let st = &self.undo_history;
         if !st.listening
+            || st.last_key == Some(key)
             || st
                 .last_sent_ms
                 .is_some_and(|t| now.saturating_sub(t) < CHANGED_INTERVAL_MS)
@@ -168,6 +184,7 @@ where
         }
         let history = self.current_history_list();
         let st = &mut self.undo_history;
+        st.last_key = Some(key);
         if st.last_sent.as_ref() == Some(&history) {
             return;
         }

@@ -53,6 +53,8 @@ pub struct History {
     now_ms: u64,
     /// Steps were dropped from the front since the last [`History::clear`].
     truncated: bool,
+    /// Bumped on every change of the steps (see [`History::version`]).
+    version: u64,
 }
 
 /// One step as listed by [`History::steps`].
@@ -124,6 +126,7 @@ impl History {
             return Ok((tx.ops, own_inverse));
         }
         self.redo.clear();
+        self.version = self.version.wrapping_add(1);
         let merge = gesture.is_some() && gesture == self.open_gesture && !self.undo.is_empty();
         self.open_gesture = gesture;
         if merge {
@@ -164,6 +167,7 @@ impl History {
     /// On error (the document diverged from the history) the step stays on the undo stack.
     pub fn undo(&mut self, project: &mut Project) -> Result<Option<Vec<Op>>, ModelError> {
         self.open_gesture = None;
+        self.version = self.version.wrapping_add(1);
         let Some(mut step) = self.undo.pop_back() else {
             return Ok(None);
         };
@@ -188,6 +192,7 @@ impl History {
     /// Redo the last undone step; returns the applied ops, or `None` if nothing to redo.
     pub fn redo(&mut self, project: &mut Project) -> Result<Option<Vec<Op>>, ModelError> {
         self.open_gesture = None;
+        self.version = self.version.wrapping_add(1);
         let Some(step) = self.redo.pop() else {
             return Ok(None);
         };
@@ -223,6 +228,7 @@ impl History {
         F: FnOnce(&mut Project, &[Op], &[Op]) -> Result<(Vec<Op>, Vec<Op>), ModelError>,
     {
         self.open_gesture = None;
+        self.version = self.version.wrapping_add(1);
         let Some(step) = self.undo.pop_back() else {
             return Ok(None);
         };
@@ -253,6 +259,7 @@ impl History {
         F: FnOnce(&mut Project, &[Op], &[Op]) -> Result<(Vec<Op>, Vec<Op>), ModelError>,
     {
         self.open_gesture = None;
+        self.version = self.version.wrapping_add(1);
         let Some(step) = self.redo.pop() else {
             return Ok(None);
         };
@@ -277,6 +284,7 @@ impl History {
         self.undo.clear();
         self.redo.clear();
         self.open_gesture = None;
+        self.version = self.version.wrapping_add(1);
         self.truncated = false;
     }
 
@@ -314,10 +322,17 @@ impl History {
         {
             Some(step) => {
                 step.checkpoint = name;
+                self.version = self.version.wrapping_add(1);
                 true
             }
             None => false,
         }
+    }
+
+    /// Changes whenever the steps (or their checkpoints) may have changed: a cheap check
+    /// before listing them again. Starts at 0 for a new `History`.
+    pub fn version(&self) -> u64 {
+        self.version
     }
 
     /// The last applied step (`None` = nothing to undo).
@@ -505,7 +520,15 @@ mod tests {
         h.undo(&mut p).unwrap();
         h.redo(&mut p).unwrap();
         assert_eq!(h.steps().next().unwrap().checkpoint, Some("Before"));
+        let v = h.version();
         assert!(h.set_checkpoint(1, None));
         assert_eq!(h.steps().next().unwrap().checkpoint, None);
+        assert_ne!(h.version(), v, "a checkpoint change is a change");
+        let v = h.version();
+        assert!(!h.set_checkpoint(9, None));
+        h.end_gesture(GestureId(1));
+        assert_eq!(h.version(), v);
+        h.commit(&mut p, set_name("z"), None).unwrap();
+        assert_ne!(h.version(), v);
     }
 }
