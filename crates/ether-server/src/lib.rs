@@ -336,6 +336,12 @@ impl Server {
         self.shared.router.client_count()
     }
 
+    /// Connections still in the pre-auth (handshake + hello) phase, i.e. holding one of the
+    /// [`ServerConfig::max_pending_handshakes`] slots (diagnostics and tests).
+    pub fn pending_handshakes(&self) -> usize {
+        self.shared.pending.load(Ordering::Acquire)
+    }
+
     /// Block until the process is terminated.
     pub fn wait(mut self) {
         if let Some(t) = self.accept.take() {
