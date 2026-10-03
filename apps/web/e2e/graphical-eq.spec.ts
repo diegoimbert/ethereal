@@ -6,7 +6,7 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import type { Device, EqShape, Project, ServerMessage } from "@/generated";
 import { magnitudeDb } from "../../../ui/src/features/devices/layout/eq/eqResponse";
-import { addDevice, createTrack, openDeviceTab, playButton } from "./ui";
+import { addDevice, createTrack, launch, openDeviceTab, playButton } from "./ui";
 
 interface Handle {
   state(): { project: Project | null };
@@ -26,7 +26,7 @@ const [ON, TYPE, FREQ, GAIN] = [0, 1, 2, 3];
 async function openEq(page: Page, theme = "dark"): Promise<{ card: Locator; plot: Locator; id: string }> {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.addInitScript((t) => localStorage.setItem("eth-theme", t), theme);
-  await page.goto("/");
+  await launch(page);
   await expect(playButton(page)).toBeVisible({ timeout: 30_000 });
   await expect.poll(() => project(page).then((p) => p !== null), { timeout: 15_000 }).toBe(true);
   const track = await createTrack(page, "Audio");

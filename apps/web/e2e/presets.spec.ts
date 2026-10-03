@@ -3,7 +3,7 @@
 //   PRESETS_SHOTS=/tmp/shots npx playwright test presets
 import { expect, test, type Page } from "@playwright/test";
 import type { Project } from "@/generated";
-import { addDevice, createTrack, openDeviceTab, playButton } from "./ui";
+import { addDevice, createTrack, launch, openDeviceTab, openOnLaunch, playButton } from "./ui";
 
 interface Handle {
   state(): { project: Project | null };
@@ -14,7 +14,7 @@ const project = (page: Page): Promise<Project | null> => page.evaluate(() => (wi
 async function start(page: Page, theme?: string) {
   await page.setViewportSize({ width: 1440, height: 900 });
   if (theme) await page.addInitScript((t) => localStorage.setItem("eth-theme", t), theme);
-  await page.goto("/");
+  await launch(page);
   await expect(playButton(page)).toBeVisible({ timeout: 30_000 });
   await expect.poll(() => project(page).then((p) => p !== null), { timeout: 15_000 }).toBe(true);
 }
@@ -65,7 +65,7 @@ test("load a factory preset, save / reload / delete a user preset", async ({ pag
 
   // It survives a reload (OPFS user library) and loads onto a fresh synth.
   await page.reload();
-  await expect(playButton(page)).toBeVisible({ timeout: 30_000 });
+  await openOnLaunch(page);
   const id2 = await synth(page);
   const card2 = page.locator(`section[data-device="${id2}"]`);
   await card2.getByRole("button", { name: "Presets for Synth" }).click();

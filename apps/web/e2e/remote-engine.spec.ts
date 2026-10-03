@@ -15,7 +15,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test, type Page } from "@playwright/test";
 import type { Project } from "@/generated";
-import { createTrack, openEngineServer, openLibrary, playButton } from "./ui";
+import { createOnLaunch, createTrack, launch, openEngineServer, openLibrary, playButton } from "./ui";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const TOKEN = `e2e-${Math.random().toString(36).slice(2)}`;
@@ -220,7 +220,7 @@ test("web UI drives a remote ether-server", async ({ page }) => {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
 
-  await page.goto("/");
+  await launch(page);
   await expect(playButton(page)).toBeVisible({ timeout: 30_000 });
   await expect
     .poll(() => project(page).then((p) => p !== null), { timeout: 30_000 })
@@ -236,8 +236,9 @@ test("web UI drives a remote ether-server", async ({ page }) => {
   // --- Connect: the UI now mirrors the server's project.
   await connect(page, TOKEN);
   await expect(page.getByTestId("remote-button")).toHaveText(/e2e-server/);
-  // The button shows the server as soon as the socket is open; the UI then opens (or
-  // creates) the server's project. Wait for that before asking the server for it.
+  // base-131: the server has no project open: the project screen shows, and a project
+  // is created there. Wait for that before asking the server for it.
+  await createOnLaunch(page, "Remote song");
   await expect
     .poll(async () => (await project(page))?.id ?? localId, { timeout: 20_000 })
     .not.toBe(localId);

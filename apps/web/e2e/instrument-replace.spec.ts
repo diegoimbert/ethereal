@@ -7,7 +7,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import type { Project } from "@/generated";
 import { openClip } from "./clips";
-import { addDevice, createTrack, newProject, openDeviceTab, openLibrary, playButton } from "./ui";
+import { addDevice, createTrack, launch, newProject, openDeviceTab, openLibrary, playButton } from "./ui";
 
 interface Handle {
   state(): { project: Project | null };
@@ -43,7 +43,7 @@ test("adding an instrument to a new MIDI track replaces its Synth, and the track
   // `INSTRUMENT_REPLACE_SHOT=<png>`: also capture the chain after the replacement (dark).
   const shot = process.env.INSTRUMENT_REPLACE_SHOT;
   if (shot) await page.addInitScript(() => localStorage.setItem("eth-theme", "dark"));
-  await page.goto("/");
+  await launch(page);
   await expect(playButton(page)).toBeVisible({ timeout: 30_000 });
   await newProject(page, `Instrument replace ${Date.now()}`);
 

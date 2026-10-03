@@ -4,6 +4,7 @@
 // "Capture MIDI" is a harmless no-op (the controller replies InvalidState, nothing changes).
 import { expect, test, type Page } from "@playwright/test";
 import type { Project } from "@/generated";
+import { launch } from "./ui";
 
 interface Handle {
   state(): { project: Project | null };
@@ -15,8 +16,8 @@ test("Capture MIDI: button and palette entry on the web", async ({ page }) => {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
 
-  await page.goto("/");
-  await expect(page.getByRole("button", { name: "Play" })).toBeVisible({ timeout: 30_000 });
+  await launch(page);
+  await expect(page.getByRole("button", { name: "Play", exact: true })).toBeVisible({ timeout: 30_000 });
   await expect.poll(() => state(page).then((s) => s.project !== null), { timeout: 30_000 }).toBe(true);
 
   const capture = page.getByRole("toolbar", { name: "Transport" }).getByRole("button", { name: "Capture MIDI" });

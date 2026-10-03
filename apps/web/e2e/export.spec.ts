@@ -3,7 +3,7 @@
 // `Export::ReadChunk` and the browser saves them.
 import { expect, test, type Page } from "@playwright/test";
 import type { Project } from "@/generated";
-import { createTrack, newProject, pickOption, playButton } from "./ui";
+import { createTrack, launch, newProject, pickOption, playButton } from "./ui";
 
 interface Handle {
   state(): { project: Project | null };
@@ -19,7 +19,7 @@ test("export the loop region as a WAV download", async ({ page }) => {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
 
-  await page.goto("/");
+  await launch(page);
   await expect(playButton(page)).toBeVisible({
     timeout: 30_000,
   });

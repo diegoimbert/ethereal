@@ -13,7 +13,7 @@ import { fileURLToPath } from "node:url";
 import { expect, test, type Page } from "@playwright/test";
 import type { Clip, Project } from "@/generated";
 import { openClip } from "./clips";
-import { addDevice, createTrack, openDeviceTab, openEditor, pickOption, playButton, selectTrack } from "./ui";
+import { addDevice, createTrack, launch, openDeviceTab, openEditor, openRelayJoin, pickOption, playButton, selectTrack } from "./ui";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const shots = process.env.UX_SHOTS;
@@ -30,7 +30,7 @@ const project = (page: Page): Promise<Project | null> =>
 
 async function open(page: Page): Promise<void> {
   if (shots) await page.addInitScript((t) => localStorage.setItem("eth-theme", t), theme);
-  await page.goto("/");
+  await launch(page);
   await expect(playButton(page)).toBeVisible({ timeout: 30_000 });
   await expect.poll(() => project(page).then((p) => p !== null), { timeout: 30_000 }).toBe(true);
 }
@@ -168,7 +168,7 @@ test.describe("collab", () => {
   });
 
   async function join(page: Page, name: string) {
-    await page.getByTestId("collab-button").click();
+    await openRelayJoin(page);
     await page.getByLabel("Relay address").fill(relayUrl);
     await page.getByLabel("Session").fill(SESSION);
     await page.getByLabel("Your name").fill(name);

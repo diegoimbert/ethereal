@@ -183,3 +183,24 @@
   grid-column: 1 / -1;
   justify-self: start;
 }
+
+/* base-131 safe mode: plugins held as placeholders until "Load plugins". */
+.eth-safe-mode {
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-sm);
+  padding: var(--eth-space-xs) var(--eth-space-xs) var(--eth-space-xs) var(--eth-space-sm);
+  border: var(--eth-border-width) solid var(--eth-color-warn);
+  border-radius: var(--eth-radius-md);
+  background: var(--eth-color-bg-raised);
+  color: var(--eth-color-warn);
+  white-space: nowrap;
+}
+.eth-safe-mode__icon {
+  width: var(--eth-size-icon-sm);
+  height: var(--eth-size-icon-sm);
+  flex: none;
+}
+.eth-safe-mode__text {
+  font-weight: var(--eth-fw-medium);
+}

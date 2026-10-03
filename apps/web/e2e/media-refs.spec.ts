@@ -10,7 +10,7 @@
 // No sleeps: every step waits on UI or engine state.
 import { expect, test, type Page } from "@playwright/test";
 import type { Project } from "@/generated";
-import { newProject, playButton } from "./ui";
+import { launch, newProject, openOnLaunch, playButton } from "./ui";
 
 interface Handle {
   state(): { project: Project | null };
@@ -57,7 +57,7 @@ async function shot(page: Page, name: string): Promise<void> {
 
 test("a sample deleted from the project is reported missing and relinked", async ({ page }) => {
   test.setTimeout(120_000);
-  await page.goto("/");
+  await launch(page);
   await expect(playButton(page)).toBeVisible({ timeout: 30_000 });
   await newProject(page, "Missing samples");
   const kick = sineWav(4, 110);
@@ -89,7 +89,7 @@ test("a sample deleted from the project is reported missing and relinked", async
     { pid: p.id, file: media.file },
   );
   await page.reload();
-  await expect(playButton(page)).toBeVisible({ timeout: 30_000 });
+  await openOnLaunch(page, "Missing samples");
   await expect.poll(async () => (await project(page))?.id, { timeout: 30_000 }).toBe(p.id);
 
   // Detected on open: the clip is marked, a notice offers to relink.

@@ -2,6 +2,7 @@
 // SharedArrayBuffer rings, OPFS store), and playing advances the playhead rendered by
 // ether-core, with the real EtherController.
 import { expect, test, type Locator, type Page } from "@playwright/test";
+import { launch } from "./ui";
 
 /** Seconds shown by the transport bar (`m:ss.mmm`). */
 async function shownSeconds(position: Locator): Promise<number> {
@@ -28,10 +29,10 @@ test("plays with the wasm engine and the playhead advances", async ({ page }) =>
     if (m.type() === "error") errors.push(m.text());
   });
 
-  await page.goto("/");
+  await launch(page);
   expect(await page.evaluate(() => window.crossOriginIsolated)).toBe(true);
 
-  const play = page.getByRole("button", { name: "Play" });
+  const play = page.getByRole("button", { name: "Play", exact: true });
   await expect(play).toBeVisible({ timeout: 30_000 });
   const position = page.getByTestId("position-time");
 

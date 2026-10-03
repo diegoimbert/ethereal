@@ -5,7 +5,7 @@
 // travel in the binary codec v3) without an error.
 import { expect, test, type Page } from "@playwright/test";
 import type { Project, Track } from "@/generated";
-import { createTrack, newProject, pickOption, playButton, selectTrack } from "./ui";
+import { createTrack, launch, newProject, pickOption, playButton, selectTrack } from "./ui";
 
 interface Handle {
   state(): { project: Project | null };
@@ -31,7 +31,7 @@ test("group, ungroup, VCA and track-to-track input", async ({ page }) => {
     if (m.type() === "error") errors.push(m.text());
   });
 
-  await page.goto("/");
+  await launch(page);
   await expect(playButton(page)).toBeVisible({ timeout: 30_000 });
   await expect.poll(() => project(page).then((p) => p !== null), { timeout: 30_000 }).toBe(true);
   await newProject(page, `Groups ${Date.now()}`);

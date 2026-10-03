@@ -25,7 +25,6 @@ import type {
   ServerMessage,
 } from "@/generated";
 import { CommandFailedError, Emitter, type EngineTransport, type SendOptions, type Unsubscribe } from "../EngineTransport";
-import { newProjectId } from "../ids";
 
 /** Connection to the controller Worker, provided by the host app. */
 export interface WasmEndpoint {
@@ -58,8 +57,6 @@ export interface StreamOutput {
 export interface WasmTransportOptions {
   /** The engine endpoint (apps/web: `createWebEndpoint()`). Without one, `connect()` rejects. */
   endpoint?: WasmEndpoint;
-  /** Name of the project created when the store is empty on first connect. */
-  defaultProjectName?: string;
 }
 
 interface Pending {
@@ -75,7 +72,6 @@ export class WasmTransport implements EngineTransport {
   readonly kind = "wasm" as const;
 
   private readonly endpoint: WasmEndpoint | undefined;
-  private readonly defaultProjectName: string;
   private readonly events = new Emitter<Event>();
   private readonly playhead = new Emitter<PlayheadFrame>();
   private readonly meters = new Emitter<MeterFrame>();
@@ -88,29 +84,25 @@ export class WasmTransport implements EngineTransport {
 
   constructor(opts: WasmTransportOptions = {}) {
     this.endpoint = opts.endpoint;
-    this.defaultProjectName = opts.defaultProjectName ?? "Untitled";
+  }
+
+  /** The engine failed (a fatal Worker error): this session is not ending cleanly. */
+  get failed(): boolean {
+    return this.fatal !== null;
   }
 
   /**
-   * Boot the engine and return the current project. If none is open yet (fresh Worker),
-   * open the most recently saved one, or create a new one when the store is empty.
+   * Boot the engine and return the current project, or `null` when none is open (a fresh
+   * Worker: base-131, nothing is opened on launch; the project screen picks one).
    */
-  async connect(): Promise<Project> {
+  async connect(): Promise<Project | null> {
     await this.start();
     try {
       return this.projectOf(await this.send({ domain: "Project", command: { type: "Get" } }));
     } catch (e) {
-      if (!(e instanceof CommandFailedError)) throw e;
+      if (e instanceof CommandFailedError && (e.code === "InvalidState" || e.code === "NotFound")) return null;
+      throw e;
     }
-    const list = await this.send({ domain: "Project", command: { type: "List" } });
-    const newest = list.type === "Projects" ? list.projects[0] : undefined;
-    const reply = newest
-      ? await this.send({ domain: "Project", command: { type: "Open", id: newest.id } })
-      : await this.send({
-          domain: "Project",
-          command: { type: "Create", id: newProjectId(), name: this.defaultProjectName },
-        });
-    return this.projectOf(reply);
   }
 
   send(command: Command, opts?: SendOptions): Promise<ReplyValue> {

@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
 use crate::Command;
-use crate::model::{GestureId, ProjectId};
+use crate::model::{DeviceId, GestureId, ProjectId};
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
 #[serde(tag = "type")]
@@ -23,6 +23,15 @@ pub enum ProjectCommand {
     /// Open a stored project (the current one is autosaved first if dirty). Replies
     /// `Project` (also emitted as `Event::ProjectLoaded`).
     Open { id: ProjectId },
+    /// base-131: open a stored project in safe mode: every plugin device is kept as a
+    /// bypassed placeholder (not instantiated; its state and params stay untouched in the
+    /// document), and `Event::Project { SafeMode }` lists them. Nothing is written to the
+    /// store. Replies `Project` (also emitted as `Event::ProjectLoaded`).
+    OpenSafe { id: ProjectId },
+    /// base-131: leave safe mode: instantiate the plugin devices held as placeholders.
+    /// Emits `SafeMode { active: false, devices: [] }` (nothing when not in safe mode).
+    /// Replies `Unit`.
+    LoadPlugins,
     /// Save the current project to the store. Replies `Saved`.
     Save,
     /// Copy the current project (document + media) under `new_id` with `name`, and switch
@@ -70,6 +79,13 @@ pub enum ProjectEvent {
     Saved { project: ProjectSummary },
     /// Unsaved changes flag of the current project.
     DirtyChanged { dirty: bool },
+    /// base-131: safe mode of the open project (`OpenSafe`: `active`, with the plugin
+    /// devices held as bypassed placeholders; `LoadPlugins`: not active, empty). Opening a
+    /// project normally leaves safe mode without this event (`ProjectLoaded` resets it).
+    SafeMode {
+        active: bool,
+        devices: Vec<DeviceId>,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]

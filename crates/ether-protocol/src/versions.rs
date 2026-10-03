@@ -116,6 +116,9 @@ pub enum VersionCommand {
     DiscardRecovery {
         project: ProjectId,
     },
+    /// base-131: how the previous session ended, for "Reopen last project on launch" and
+    /// the crash dialog. Replies `SessionStatus`.
+    SessionStatus,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]

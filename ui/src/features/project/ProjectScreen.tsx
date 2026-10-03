@@ -4,7 +4,7 @@ import type { ProjectSummary } from "@/generated";
 import type { EngineCommands } from "@/features/transport-bar/engine";
 import { Button, Dialog, IconButton, openContextMenu, TextInput } from "@/kit";
 import { ProjectScale } from "@/features/scale/ProjectScale";
-import { openVersions } from "@/features/versions/store";
+import { openVersions, useRecoveryShown } from "@/features/versions/store";
 import { useProjectStore } from "@/state";
 import { cmd, newProjectId } from "@/transport";
 import { copyName, formatModified, sortProjects, uniqueName } from "./projectNames";
@@ -12,12 +12,14 @@ import { useProjectScreen } from "./screenStore";
 
 /**
  * The project screen: a modal over the whole app, shown on launch and from the Projects
- * button. The open project (on launch: the previous one) with its name editable, a big
- * "New project" button (asks for a name), and the other stored projects to open, rename,
- * duplicate or delete. Escape or a click outside continues with the open project.
+ * button. The open project (none on launch, base-131) with its name editable, a big
+ * "New project" button (asks for a name), and the other stored projects to open, open
+ * without plugins (safe mode), rename, duplicate or delete. Escape or a click outside
+ * continues with the open project (or with none). The crash-recovery dialog goes first.
  */
 export function ProjectScreen({ commands }: { commands: EngineCommands }) {
-  const open = useProjectScreen((s) => s.open);
+  const recovery = useRecoveryShown((s) => s.shown);
+  const open = useProjectScreen((s) => s.open) && !recovery;
   const hide = useProjectScreen((s) => s.hide);
   const [naming, setNaming] = useState(false);
   const close = () => {
@@ -89,6 +91,11 @@ function Home({ commands, onNew, onDone }: { commands: EngineCommands; onNew(): 
   const menu = (e: MouseEvent, p: ProjectSummary) =>
     openContextMenu(e, [
       { label: "Open", onSelect: () => void run(cmd("Project", { type: "Open", id: p.id })).then((r) => r && onDone()) },
+      // base-131: plugin devices stay bypassed placeholders until "Load plugins".
+      {
+        label: "Open without plugins",
+        onSelect: () => void run(cmd("Project", { type: "OpenSafe", id: p.id })).then((r) => r && onDone()),
+      },
       { label: "Rename", onSelect: () => setRenaming({ id: p.id, name: p.name }) },
       {
         label: "Duplicate",

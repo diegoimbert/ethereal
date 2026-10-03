@@ -9,7 +9,7 @@
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, test, type Page } from "@playwright/test";
-import { openLibrary, playButton } from "./ui";
+import { launch, openLibrary, playButton } from "./ui";
 
 const panel = (page: Page) => page.locator('[data-feature="browser"][data-browser="v2"]');
 const results = (page: Page) => panel(page).getByRole("list", { name: "Search results" });
@@ -22,7 +22,7 @@ for (const theme of ["dark", "light"] as const) {
     page.on("pageerror", (e) => errors.push(e.message));
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.addInitScript((t) => localStorage.setItem("eth-theme", t), theme);
-    await page.goto("/");
+    await launch(page);
     await expect(playButton(page)).toBeVisible({ timeout: 30_000 });
     await openLibrary(page);
     await expect(panel(page)).toBeVisible({ timeout: 20_000 });

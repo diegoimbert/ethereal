@@ -5,7 +5,7 @@
 // (Delay) show no selector.
 import { expect, test, type Page } from "@playwright/test";
 import type { Project } from "@/generated";
-import { addDevice, createTrack, newProject, openDeviceTab, pickOption, playButton } from "./ui";
+import { addDevice, createTrack, launch, newProject, openDeviceTab, pickOption, playButton } from "./ui";
 
 interface Handle {
   state(): { project: Project | null };
@@ -32,7 +32,7 @@ test("set a compressor sidechain from the device header", async ({ page }) => {
     if (m.type() === "error") errors.push(m.text());
   });
 
-  await page.goto("/");
+  await launch(page);
   await expect(playButton(page)).toBeVisible({
     timeout: 30_000,
   });

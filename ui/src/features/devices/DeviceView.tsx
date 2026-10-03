@@ -8,6 +8,7 @@ import { AddModulatorButton, addModulatorEntries, ModulatorsPanel, useModulatorK
 import { groupEntries, isChainRack, RackPanel } from "@/features/racks";
 import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Power, X } from "lucide-react";
 import { IconButton, openContextMenu } from "@/kit";
+import { useProjectStore } from "@/state";
 import { cmd } from "@/transport";
 import { DEVICE_DRAG_TYPE } from "./chainUtils";
 import { useDescriptor } from "./descriptors";
@@ -40,6 +41,7 @@ export function DeviceView({ device, prev, moveRightBefore, onDropBefore, layout
   const send = useSend();
   const sender = useGestureSender();
   const { descriptor, error } = useDescriptor(device);
+  const held = useProjectStore((s) => s.safeMode.includes(device.id));
   const [dropTarget, setDropTarget] = useState(false);
   const modulatorKinds = useModulatorKinds();
   const move = (before: DeviceId | null) =>
@@ -156,7 +158,7 @@ export function DeviceView({ device, prev, moveRightBefore, onDropBefore, layout
             <DeviceLayoutView device={device} descriptor={descriptor} sender={sender} />
           ) : (
             <div className="eth-device__body">
-              <div className="eth-device__status">{error ? "Descriptor unavailable" : "Loading…"}</div>
+              <div className="eth-device__status">{held ? "Not loaded (safe mode)" : error ? "Descriptor unavailable" : "Loading…"}</div>
             </div>
           )}
           {/* v0.2 (racks-modulation): a rack's chains, then the device's modulators. */}

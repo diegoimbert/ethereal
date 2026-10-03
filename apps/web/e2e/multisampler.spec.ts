@@ -5,7 +5,7 @@
 // `MULTISAMPLER_SHOTS=<dir>` also captures the zone map + panel in the dark and light themes.
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import type { Command, Project, SampleZone } from "@/generated";
-import { addDevice, openDeviceTab, openLibrary, playButton } from "./ui";
+import { addDevice, launch, openDeviceTab, openLibrary, playButton } from "./ui";
 
 interface Handle {
   state(): { project: Project | null };
@@ -78,7 +78,7 @@ async function send(page: Page, command: Command) {
 async function open(page: Page, theme: string, height = 1100) {
   await page.setViewportSize({ width: 1600, height });
   await page.addInitScript((t) => localStorage.setItem("eth-theme", t), theme);
-  await page.goto("/");
+  await launch(page);
   await expect(playButton(page)).toBeVisible({ timeout: 30_000 });
   await expect.poll(() => project(page).then((p) => p !== null), { timeout: 30_000 }).toBe(true);
 }

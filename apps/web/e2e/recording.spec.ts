@@ -4,7 +4,7 @@
 // count-in (undoable), per-track input and monitoring, and record-arm (runtime state).
 import { expect, test, type Page } from "@playwright/test";
 import type { Project, TrackId } from "@/generated";
-import { createTrack, pickOption, playButton } from "./ui";
+import { createTrack, launch, pickOption, playButton } from "./ui";
 
 interface Handle {
   state(): { project: Project | null; armedTracks: TrackId[] };
@@ -22,7 +22,7 @@ test("recording controls on the web: inputs unsupported, settings and arm work",
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
 
-  await page.goto("/");
+  await launch(page);
   await expect(playButton(page)).toBeVisible({ timeout: 30_000 });
   await expect.poll(() => state(page).then((s) => s.project !== null), { timeout: 30_000 }).toBe(true);
 

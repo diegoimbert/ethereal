@@ -5,7 +5,7 @@
 // the run. `DEVICE_UI_ONLY=Synth,Delay` narrows the list.
 import { expect, test, type Page } from "@playwright/test";
 import type { BuiltinDeviceType, Project } from "@/generated";
-import { addDevice, createTrack, openDeviceTab, playButton } from "./ui";
+import { addDevice, createTrack, launch, openDeviceTab, playButton } from "./ui";
 
 const dir = process.env.DEVICE_UI_SHOTS;
 const theme = process.env.DEVICE_UI_THEME ?? "dark";
@@ -28,7 +28,7 @@ for (const type of types) {
     test.setTimeout(60_000);
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.addInitScript((t) => localStorage.setItem("eth-theme", t), theme);
-    await page.goto("/");
+    await launch(page);
     await expect(playButton(page)).toBeVisible({ timeout: 30_000 });
     await expect.poll(() => project(page).then((p) => p !== null), { timeout: 15_000 }).toBe(true);
 

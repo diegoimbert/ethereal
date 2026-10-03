@@ -37,7 +37,6 @@ import type {
   ServerMessage,
 } from "@/generated";
 import { CommandFailedError, Emitter, type EngineTransport, type SendOptions, type Unsubscribe } from "../EngineTransport";
-import { newProjectId } from "../ids";
 import { bytesToBase64, decodeBinaryFrame, decodePeaksPayload, encodeBinaryFrame, PROTOCOL_VERSION } from "./binaryFrame";
 
 /** Minimal WebSocket surface (the browser's `WebSocket`; injectable for tests). */
@@ -59,8 +58,6 @@ export interface WsTransportOptions {
   token?: string | null;
   /** Client description for the server log. */
   client?: string;
-  /** Name of the project created when the server's store is empty (default "Untitled"). */
-  untitledName?: string;
   /** Opens the socket (default: `new WebSocket(url)`). */
   createSocket?: WebSocketFactory;
   /** How long `open()` waits for the hello answer (ms, default 10 s). */
@@ -190,20 +187,15 @@ export class WsTransport implements EngineTransport {
     });
   }
 
-  async connect(): Promise<Project> {
+  /** The server's open project, or `null` when none is open (base-131: nothing is opened here). */
+  async connect(): Promise<Project | null> {
     await this.open();
     try {
       return projectOf(await this.send({ domain: "Project", command: { type: "Get" } }));
     } catch (e) {
-      if (!(e instanceof CommandFailedError) || (e.code !== "InvalidState" && e.code !== "NotFound")) throw e;
+      if (e instanceof CommandFailedError && (e.code === "InvalidState" || e.code === "NotFound")) return null;
+      throw e;
     }
-    const list = await this.send({ domain: "Project", command: { type: "List" } });
-    const projects = list.type === "Projects" ? list.projects : [];
-    const newest = [...projects].sort((a, b) => b.modified_ms - a.modified_ms)[0];
-    const reply = newest
-      ? await this.send({ domain: "Project", command: { type: "Open", id: newest.id } })
-      : await this.send({ domain: "Project", command: { type: "Create", id: newProjectId(), name: this.options.untitledName ?? "Untitled" } });
-    return projectOf(reply);
   }
 
   send(command: Command, opts?: SendOptions): Promise<ReplyValue> {

@@ -11,7 +11,7 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import type { Clip, Project, WarpMarker } from "@/generated";
 import { openClip } from "./clips";
-import { createTrack, newProject, openLibrary, pickOption, playButton, setNumberField } from "./ui";
+import { createTrack, launch, newProject, openLibrary, pickOption, playButton, setNumberField } from "./ui";
 
 interface Handle {
   state(): { project: Project | null };
@@ -59,7 +59,7 @@ test("warp: markers, modes, transpose and playback", async ({ page }) => {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
 
-  await page.goto("/");
+  await launch(page);
   await expect(playButton(page)).toBeVisible({ timeout: 30_000 });
   await expect.poll(() => project(page).then((p) => p !== null), { timeout: 30_000 }).toBe(true);
 

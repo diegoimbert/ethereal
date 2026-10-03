@@ -6,6 +6,7 @@ import { useProjectStore } from "@/state";
 import { cmd, MockTransport, TransportProvider } from "@/transport";
 import { VERSION_INTERVAL_MS } from "@/transport/mock/roadmap/versions";
 import { openVersions, useVersionsDialog, VersionsRoot } from "./index";
+import { useRecoveryShown } from "./store";
 
 const trackCount = () => Object.keys(useProjectStore.getState().project!.tracks).length;
 let seq = 0;
@@ -104,7 +105,8 @@ describe("RecoveryDialog", () => {
       </TransportProvider>,
     );
     const dialog = await screen.findByRole("dialog", { name: "Recover unsaved work?" });
-    expect(useProjectScreen.getState().launchPending).toBe(false);
+    // The project screen waits behind it.
+    expect(useRecoveryShown.getState().shown).toBe(true);
     const name = mock.snapshot().settings.name;
     expect(within(dialog).getByText(name)).toBeInTheDocument();
     fireEvent.click(await enabled(dialog, `Recover ${name}`));
@@ -127,6 +129,26 @@ describe("RecoveryDialog", () => {
     await waitFor(() => expect(screen.queryByRole("dialog", { name: "Recover unsaved work?" })).not.toBeInTheDocument());
     const again = await mock.send(cmd("Version", { type: "ListRecoverable" }));
     expect(again).toEqual({ type: "Recoverable", projects: [] });
+  });
+
+  it("offers a crashed project without unsaved work, and opens it without plugins (base-131)", async () => {
+    const mock = new MockTransport({ timers: "manual", seed: 7 });
+    await mock.connect();
+    const id = mock.snapshot().id;
+    const name = mock.snapshot().settings.name;
+    mock.versions.simulateCrash(id);
+    render(
+      <TransportProvider transport={mock}>
+        <VersionsRoot />
+      </TransportProvider>,
+    );
+    const dialog = await screen.findByRole("dialog", { name: "Ethereal didn’t close properly" });
+    expect(within(dialog).getByText("No unsaved work")).toBeInTheDocument();
+    fireEvent.click(await enabled(dialog, `Open ${name} without plugins`));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    await waitFor(() => expect(useProjectStore.getState().safe).toBe(true));
+    expect(useProjectStore.getState().project!.id).toBe(id);
+    expect(useRecoveryShown.getState().shown).toBe(false);
   });
 
   it("shows nothing when there is nothing to recover", async () => {

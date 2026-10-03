@@ -53,6 +53,8 @@ pub struct FakeBridge {
     pub analysis_watches: Vec<(NodeKey, bool)>,
     /// Make `watch_analysis` fail (queue full) while set.
     pub fail_watches: bool,
+    /// `create_plugin` panics (a plugin crashing the process while it loads).
+    pub panic_on_plugin: bool,
 }
 
 impl FakeBridge {
@@ -134,6 +136,7 @@ impl EngineBridge for FakeBridge {
         plugin: &PluginInstance,
         state: Option<&Base64Bytes>,
     ) -> Result<NodeKey, BridgeError> {
+        assert!(!self.panic_on_plugin, "plugin crashed while loading");
         let Some(plugins) = &self.plugins else {
             return Err(BridgeError::Unsupported("no plugins".into()));
         };

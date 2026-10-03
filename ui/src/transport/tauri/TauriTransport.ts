@@ -13,9 +13,8 @@
  *   `messages`, matched by `id`.
  * - `invoke("ether_disconnect")` drops the channels (on `dispose`).
  *
- * `connect()` resolves with the current project. If the engine has none open yet (fresh
- * start), it opens the most recently saved project from the engine-side store, or creates
- * an "Untitled" one when the store is empty.
+ * `connect()` resolves with the current project, or `null` when the engine has none open
+ * (fresh start: base-131, nothing is opened on launch, the project screen picks one).
  */
 
 import { Channel, invoke as tauriInvoke } from "@tauri-apps/api/core";
@@ -32,7 +31,6 @@ import type {
   ServerMessage,
 } from "@/generated";
 import { CommandFailedError, Emitter, type EngineTransport, type SendOptions, type Unsubscribe } from "../EngineTransport";
-import { newProjectId } from "../ids";
 
 /** `invoke` from `@tauri-apps/api/core` (injectable for tests). */
 export type InvokeFn = (cmd: string, args?: Record<string, unknown>) => Promise<unknown>;
@@ -64,8 +62,6 @@ export interface TauriTransportOptions {
   listen?: ListenFn;
   openDialog?: OpenDialogFn;
   createChannel?: <T>() => ChannelLike<T>;
-  /** Name of the project created when the store is empty (default "Untitled"). */
-  untitledName?: string;
 }
 
 /** Info returned by `ether_connect` (diagnostics). */
@@ -101,7 +97,6 @@ export class TauriTransport implements EngineTransport {
   private readonly listen: ListenFn;
   private readonly openDialog: OpenDialogFn;
   private readonly createChannel: <T>() => ChannelLike<T>;
-  private readonly untitledName: string;
   private readonly events = new Emitter<Event>();
   private readonly playheadEmitter = new Emitter<PlayheadFrame>();
   private readonly meterEmitter = new Emitter<MeterFrame>();
@@ -121,10 +116,9 @@ export class TauriTransport implements EngineTransport {
     this.listen = options.listen ?? ((event, handler) => tauriListen(event, handler));
     this.openDialog = options.openDialog ?? ((o) => tauriOpen(o));
     this.createChannel = options.createChannel ?? (<T>() => new Channel<T>() as ChannelLike<T>);
-    this.untitledName = options.untitledName ?? "Untitled";
   }
 
-  async connect(): Promise<Project> {
+  async connect(): Promise<Project | null> {
     if (this.disposed) throw new Error("TauriTransport disposed");
     const messages = this.createChannel<ServerMessage>();
     const playhead = this.createChannel<PlayheadFrame>();
@@ -138,20 +132,14 @@ export class TauriTransport implements EngineTransport {
     return this.currentProject();
   }
 
-  /** The open project; opens the newest stored project (or creates one) if none is open. */
-  private async currentProject(): Promise<Project> {
+  /** The open project, or `null` when none is open (nothing is opened here). */
+  private async currentProject(): Promise<Project | null> {
     try {
       return projectOf(await this.send({ domain: "Project", command: { type: "Get" } }));
     } catch (e) {
-      if (!(e instanceof CommandFailedError) || (e.code !== "InvalidState" && e.code !== "NotFound")) throw e;
+      if (e instanceof CommandFailedError && (e.code === "InvalidState" || e.code === "NotFound")) return null;
+      throw e;
     }
-    const list = await this.send({ domain: "Project", command: { type: "List" } });
-    const projects = list.type === "Projects" ? list.projects : [];
-    const newest = [...projects].sort((a, b) => b.modified_ms - a.modified_ms)[0];
-    const reply = newest
-      ? await this.send({ domain: "Project", command: { type: "Open", id: newest.id } })
-      : await this.send({ domain: "Project", command: { type: "Create", id: newProjectId(), name: this.untitledName } });
-    return projectOf(reply);
   }
 
   send(command: Command, opts?: SendOptions): Promise<ReplyValue> {

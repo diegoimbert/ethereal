@@ -10,7 +10,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import type { Note, Project } from "@/generated";
 import { openClip } from "./clips";
-import { newProject } from "./ui";
+import { launch, newProject } from "./ui";
 
 interface Handle {
   state(): { project: Project | null };
@@ -40,8 +40,8 @@ test("groove: quantize with swing, humanize, project swing", async ({ page }) =>
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
 
-  await page.goto("/");
-  await expect(page.getByRole("button", { name: "Play" })).toBeVisible({ timeout: 30_000 });
+  await launch(page);
+  await expect(page.getByRole("button", { name: "Play", exact: true })).toBeVisible({ timeout: 30_000 });
   await expect.poll(() => project(page).then((p) => p !== null), { timeout: 30_000 }).toBe(true);
 
   await newProject(page, `Groove ${Date.now()}`);

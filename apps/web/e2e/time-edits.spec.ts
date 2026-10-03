@@ -9,7 +9,7 @@
 // `window.__ether` (apps/web/src/main.tsx). `E2E_SHOTS=<dir>` saves PR screenshots.
 import { expect, test, type Page } from "@playwright/test";
 import type { Project, TrackId } from "@/generated";
-import { createTrack, newProject } from "./ui";
+import { createTrack, launch, newProject } from "./ui";
 
 interface Handle {
   state(): { project: Project | null };
@@ -41,8 +41,8 @@ test("time edits: select time over tracks, delete time, undo, split at the edges
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
 
-  await page.goto("/");
-  await expect(page.getByRole("button", { name: "Play" })).toBeVisible({ timeout: 30_000 });
+  await launch(page);
+  await expect(page.getByRole("button", { name: "Play", exact: true })).toBeVisible({ timeout: 30_000 });
   await expect.poll(() => project(page).then((p) => p !== null), { timeout: 30_000 }).toBe(true);
   await newProject(page, `Time edits ${Date.now()}`);
 

@@ -194,6 +194,9 @@ export class MockVersions {
       case "DiscardRecovery":
         this.markers.delete(c.project);
         return { type: "Unit" };
+      // base-131: the mock's session markers are the simulated crashes.
+      case "SessionStatus":
+        return { type: "SessionStatus", unclean: [...this.markers] };
     }
   }
 

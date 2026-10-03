@@ -9,6 +9,7 @@
 
 import { useEffect, useState } from "react";
 import type { BuiltinDevice, BuiltinDeviceType, Device, DeviceDescriptor } from "@/generated";
+import { useProjectStore } from "@/state";
 import { cmd, useTransport, type EngineTransport } from "@/transport";
 
 const descriptorCache = new WeakMap<EngineTransport, Map<string, Promise<DeviceDescriptor>>>();
@@ -55,9 +56,13 @@ type Loaded<T> = { key: string; value: T } | { key: string; error: unknown };
 /** The descriptor of `device`, or `null` while loading / on error. */
 export function useDescriptor(device: Device): { descriptor: DeviceDescriptor | null; error: unknown } {
   const transport = useTransport();
+  // base-131: a plugin held as a safe-mode placeholder has no instance (nor descriptor) yet;
+  // it is fetched once loaded.
+  const held = useProjectStore((s) => s.safeMode.includes(device.id));
   const key = descriptorKey(device);
   const [loaded, setLoaded] = useState<Loaded<DeviceDescriptor> | null>(null);
   useEffect(() => {
+    if (held) return;
     let active = true;
     fetchDescriptor(transport, device).then(
       (value) => active && setLoaded({ key, value }),
@@ -68,8 +73,8 @@ export function useDescriptor(device: Device): { descriptor: DeviceDescriptor | 
     };
     // `device` only matters through `key` (and its id, captured in the key for plugins).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [transport, key]);
-  if (!loaded || loaded.key !== key) return { descriptor: null, error: null };
+  }, [transport, key, held]);
+  if (held || !loaded || loaded.key !== key) return { descriptor: null, error: null };
   return "value" in loaded ? { descriptor: loaded.value, error: null } : { descriptor: null, error: loaded.error };
 }
 

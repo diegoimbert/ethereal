@@ -10,7 +10,7 @@ import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { expect, test, type Page, type Route } from "@playwright/test";
 import type { Project } from "@/generated";
-import { newProject } from "./ui";
+import { launch, newProject } from "./ui";
 
 interface Handle {
   state(): { project: Project | null };
@@ -137,7 +137,7 @@ test("ai-chat: a scripted tool-using conversation edits the arrangement", async 
   });
   const api = await stubClaude(page);
 
-  await page.goto("/");
+  await launch(page);
   await expect(page.getByRole("button", { name: "Play", exact: true })).toBeVisible({ timeout: 30_000 });
   // The app may start on the project screen with nothing open: create the project directly.
   await newProject(page, `AI chat ${Date.now()}`);

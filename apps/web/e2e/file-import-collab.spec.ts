@@ -9,7 +9,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import type { Project } from "@/generated";
-import { openRelayJoin, playButton } from "./ui";
+import { launch, openRelayJoin, playButton } from "./ui";
 
 /** A mono 16-bit WAV: `seconds` of a 220 Hz sine at 48 kHz. */
 function sineWav(seconds: number): Buffer {
@@ -122,7 +122,7 @@ test.afterAll(() => {
 });
 
 async function open(page: Page): Promise<void> {
-  await page.goto("/");
+  await launch(page);
   await expect(page.getByRole("button", { name: "Play", exact: true })).toBeVisible({ timeout: 30_000 });
   await expect.poll(() => project(page).then((p) => p !== null), { timeout: 30_000 }).toBe(true);
 }
