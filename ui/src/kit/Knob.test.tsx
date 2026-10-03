@@ -48,7 +48,8 @@ describe("Knob center value", () => {
     const [gain, rate, mix] = container.querySelectorAll<HTMLElement>(".eth-knob");
     expect(gain!.querySelector(".eth-knob__center-value")!.textContent).toBe("-18.0");
     expect(gain!.querySelector(".eth-knob__center-unit")!.textContent).toBe("dB");
-    expect(gain!.querySelector<HTMLElement>(".eth-knob__center-value")!.style.getPropertyValue("--knob-center-scale")).toBe("1");
+    // Not laid out (jsdom): no measurement, the CSS default scale (1) applies.
+    expect(gain!.querySelector<HTMLElement>(".eth-knob__center-value")!.style.getPropertyValue("--knob-center-scale")).toBe("");
     expect(rate!.querySelector(".eth-knob__center-value")!.textContent).toBe("1/16");
     expect(rate!.querySelector(".eth-knob__center-unit")).toBeNull();
     expect(mix!.querySelector(".eth-knob__center")).toBeNull();

@@ -113,7 +113,8 @@ function useCenterFit(text: string | undefined) {
     if (!d || text === undefined) return;
     const fit = () => {
       const v = value.current;
-      if (!v) return;
+      // Unlaid-out (hidden, jsdom): nothing to fit, and skip the style read.
+      if (!v || d.clientWidth === 0) return;
       const stroke = parseFloat(getComputedStyle(d).getPropertyValue("--knob-stroke")) || 0;
       const room = centerRoom(d.clientWidth, stroke, v.offsetHeight);
       v.style.setProperty("--knob-center-scale", String(fitScale(room.value, v.offsetWidth)));

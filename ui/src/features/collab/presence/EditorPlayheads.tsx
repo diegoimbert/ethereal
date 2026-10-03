@@ -55,13 +55,15 @@ export function EditorPlayheads({ clip, mapping }: { clip: ClipId; mapping: RefO
         const sample = tracker.current.get(site);
         const beats = sample ? extrapolate(sample, now, tempo) : null;
         const x = beats === null ? null : editorPlayheadX(c, beats, mapping.current);
-        if (x === null || !sample) {
+        if (sample && beats !== null) {
+          el.dataset.playing = String(sample.transport.playing);
+          el.dataset.beats = beats.toFixed(3);
+        }
+        if (x === null) {
           el.dataset.hidden = "true";
           continue;
         }
         el.dataset.hidden = "false";
-        el.dataset.playing = String(sample.transport.playing);
-        el.dataset.beats = (beats ?? 0).toFixed(3);
         el.style.transform = `translateX(${x}px)`;
       }
     };
