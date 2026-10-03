@@ -114,9 +114,9 @@ impl Tremolo {
             let stereo = self.stereo.tick();
             let gain = self.gain.tick();
             let g = Self::gains(auto_pan, shape, self.lfo.phase(), depth, stereo);
-            for ch in 0..channels {
+            for (ch, &target) in g.iter().enumerate().take(channels) {
                 let sm = &mut self.smoothed[ch];
-                *sm = crate::dsp::flush32(g[ch] + (*sm - g[ch]) * k);
+                *sm = crate::dsp::flush32(target + (*sm - target) * k);
                 audio.outputs[ch][i] = input(inputs, ch, i) * *sm * gain;
             }
             for out in audio.outputs.iter_mut().skip(channels) {
