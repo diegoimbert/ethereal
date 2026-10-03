@@ -64,7 +64,7 @@ impl PeakBuilder {
             }
             i += take;
             self.fed += take as u64;
-            if self.fed % spp == 0 {
+            if self.fed.is_multiple_of(spp) {
                 self.flush();
             }
         }
@@ -89,7 +89,7 @@ impl PeakBuilder {
             let chans: Vec<&[f32]> = (0..self.lo.len()).map(|_| &zeros[..take]).collect();
             self.push(&chans);
         }
-        if self.fed % spp != 0 {
+        if !self.fed.is_multiple_of(spp) {
             self.flush();
         }
         // The cache encoding of `PeakMipmap` (level 0); coarser levels are derived on load.

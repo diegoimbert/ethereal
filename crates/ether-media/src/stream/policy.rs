@@ -117,9 +117,7 @@ impl FillPolicy {
 
     /// Forget every slot (the cache was cleared).
     pub fn clear(&mut self) {
-        for s in &mut self.slots {
-            *s = (None, 0);
-        }
+        self.slots.fill((None, 0));
     }
 
     /// Are all of `chunks` resident (per the mirror)?

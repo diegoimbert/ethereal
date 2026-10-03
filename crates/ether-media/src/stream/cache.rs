@@ -124,7 +124,7 @@ impl StreamCache {
         let s = &self.slots[slot];
         let seq = s.seq.load(Ordering::Acquire);
         let c = s.chunk.load(Ordering::Relaxed);
-        (seq % 2 == 0 && c != EMPTY).then_some(c)
+        (seq.is_multiple_of(2) && c != EMPTY).then_some(c)
     }
 
     /// The slot holding `chunk`, if resident.
@@ -196,11 +196,8 @@ impl StreamCache {
         let base = slot * ch * CHUNK_FRAMES + channel as usize * CHUNK_FRAMES;
         let n = (bytes.len() / 4).min(CHUNK_FRAMES.saturating_sub(offset));
         let dst = &self.data[base + offset..base + offset + n];
-        for (d, b) in dst.iter().zip(bytes.chunks_exact(4)) {
-            d.store(
-                u32::from_le_bytes([b[0], b[1], b[2], b[3]]),
-                Ordering::Relaxed,
-            );
+        for (d, b) in dst.iter().zip(bytes.as_chunks::<4>().0) {
+            d.store(u32::from_le_bytes(*b), Ordering::Relaxed);
         }
     }
 

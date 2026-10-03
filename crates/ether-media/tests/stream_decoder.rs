@@ -183,7 +183,7 @@ fn played_through_stream_has_no_underruns() {
         assert!(cache.read(0, pos, &mut l), "underrun at {pos}");
         assert!(cache.read(1, pos, &mut r), "underrun at {pos}");
         cache.prefetch_hint(pos + 128);
-        if pos % 4096 == 0 {
+        if pos.is_multiple_of(4096) {
             assert_eq!(l[..], whole.channels[0][pos as usize..pos as usize + 128]);
             assert_eq!(r[..], whole.channels[1][pos as usize..pos as usize + 128]);
             checked += 1;
@@ -191,7 +191,7 @@ fn played_through_stream_has_no_underruns() {
         pos += 128;
         now += 128.0 / 48.0;
         // The reader thread wakes every ~5 ms and decodes one chunk per wake at most.
-        if (pos / 128) % 2 == 0 {
+        if (pos / 128).is_multiple_of(2) {
             filler.fill_one(now);
         }
     }
@@ -223,4 +223,38 @@ fn locate_misses_unless_primed() {
     }
     assert!(cache.read(0, target2, &mut out));
     assert_eq!(cache.underruns(), 1);
+}
+
+/// `cargo test --release -p ether-media --test stream_decoder -- --ignored --nocapture`:
+/// reader-side cost of streaming (decode + resample per chunk, as a share of real time).
+#[test]
+#[ignore = "measurement (prints timings)"]
+fn measure_chunk_cost() {
+    let seconds = 60;
+    for (rate, what) in [
+        (48_000u32, "48 kHz WAV (no resample)"),
+        (44_100, "44.1 kHz WAV -> 48 kHz"),
+    ] {
+        let frames = rate as usize * seconds;
+        let bytes = wav_pcm16(&noise(2, frames), rate);
+        let mut dec = decoder(&bytes, "wav", frames as u64, 48_000);
+        let mut buf = Vec::new();
+        let n = dec.chunk_count();
+        let t = std::time::Instant::now();
+        for k in 0..n {
+            dec.decode_chunk(k, &mut buf).unwrap();
+        }
+        let seq = t.elapsed().as_secs_f64();
+        let t = std::time::Instant::now();
+        for k in shuffled(n) {
+            dec.decode_chunk(k, &mut buf).unwrap();
+        }
+        let random = t.elapsed().as_secs_f64();
+        println!(
+            "{what}: {:.3} ms/chunk sequential ({:.2}% of real time), {:.3} ms/chunk with a seek each",
+            seq * 1000.0 / n as f64,
+            100.0 * seq / seconds as f64,
+            random * 1000.0 / n as f64,
+        );
+    }
 }
