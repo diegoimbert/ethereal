@@ -47,6 +47,9 @@ export const TABLE_OF = {
   // base-62 (collab-social): chat journal and pinned notes (no parents).
   ChatMessage: "chat",
   PinnedNote: "pinned_notes",
+  // v0.3 (contracts-4): expression lanes after their clips, note expressions after their notes.
+  ExpressionLane: "expression_lanes",
+  NoteExpression: "note_expressions",
 } as const satisfies Record<EntityType, keyof Project>;
 
 /** Every entity type, parents before children (useful for ordered full-state dumps). */

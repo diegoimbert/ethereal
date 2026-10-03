@@ -8,7 +8,7 @@
  */
 
 import type { BuiltinDevice, BuiltinDeviceType, DeviceDescriptor, ParamInfo } from "@/generated";
-import { EQ_DESCRIPTOR, V02_DESCRIPTORS } from "./devices";
+import { EQ_DESCRIPTOR, V02_DESCRIPTORS, V03_DESCRIPTORS } from "./devices";
 import v01 from "./devices/v01Layouts.json";
 
 type V01DeviceType = "Synth" | "Sampler" | "Compressor" | "Delay" | "Reverb" | "Limiter" | "Utility" | "DrumRack";
@@ -31,12 +31,18 @@ export const BUILTIN_DESCRIPTORS: Readonly<Record<BuiltinDeviceType, DeviceDescr
   DrumRack: V01.DrumRack,
   // v0.2 (contracts-3): generated from Rust, one JSON file per device node (`./devices`).
   ...V02_DESCRIPTORS,
+  // v0.3 (contracts-4): fx-space and external-instrument, generated from Rust.
+  ...V03_DESCRIPTORS,
 };
 
 /** A fresh `BuiltinDevice` of `type` with default data (mirrors Rust `BuiltinDevice::new`). */
 export function newBuiltinDevice(type: BuiltinDeviceType): BuiltinDevice {
   if (type === "Sampler") return { type: "Sampler", sample: null, slices: { enabled: false, base_note: 36, markers: [] } };
   if (type === "MultiSampler") return { type: "MultiSampler", zones: [] };
+  if (type === "ConvolutionReverb") return { type: "ConvolutionReverb", ir: null };
+  if (type === "ExternalInstrument" || type === "ExternalAudioEffect") {
+    return { type, routing: { midi_out: null, midi_channel: 1, audio_send: null, audio_return: null } };
+  }
   return { type } as BuiltinDevice;
 }
 
