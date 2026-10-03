@@ -567,12 +567,21 @@ fn flatten(
         for n in notes {
             let nid: NoteId = derive_id(seed_notes, note_index);
             note_index += 1;
+            let from = n.id;
             ctx.tx.insert(Entity::Note(Note {
                 id: nid,
                 clip: id,
                 ..n
             }))?;
+            // v0.3 (`midi-expression`): the note's expressions follow it.
+            crate::expression::copy::copy_note_expressions(ctx, from, nid, |_, k| {
+                derive_id(nid, k as u32)
+            })?;
         }
+        // v0.3 (`midi-expression`): clip expression lanes (content times are unchanged).
+        crate::expression::copy::copy_lanes(ctx, src.id, id, |_, k| {
+            derive_id(id, 20_000 + k as u32)
+        })?;
         // Warp markers and clip envelopes, with ids derived from the new clip's.
         let markers: Vec<WarpMarker> = ctx
             .p()

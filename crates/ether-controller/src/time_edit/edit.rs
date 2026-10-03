@@ -56,6 +56,9 @@ pub(super) struct ClipBundle {
     pub notes: Vec<Note>,
     pub warp_markers: Vec<WarpMarker>,
     pub envelopes: Vec<(AutomationLane, Vec<AutomationPoint>)>,
+    /// v0.3 (`midi-expression`): clip expression lanes and the notes' expressions.
+    pub expression_lanes: Vec<ExpressionLane>,
+    pub note_expressions: Vec<NoteExpression>,
 }
 
 pub(super) fn bundle_of(p: &Project, c: &Clip) -> ClipBundle {
@@ -71,6 +74,13 @@ pub(super) fn bundle_of(p: &Project, c: &Clip) -> ClipBundle {
         notes: p.notes_of(c.id).into_iter().cloned().collect(),
         warp_markers: p.warp_markers_of(c.id).into_iter().cloned().collect(),
         envelopes,
+        expression_lanes: p.expression_lanes_of(c.id).into_iter().cloned().collect(),
+        note_expressions: p
+            .notes_of(c.id)
+            .into_iter()
+            .flat_map(|n| p.note_expressions_of(n.id))
+            .cloned()
+            .collect(),
     }
 }
 
@@ -109,10 +119,13 @@ pub(super) fn insert_bundle(
     let mut clip = b.clip.clone();
     clip.id = id;
     ctx.tx.insert(Entity::Clip(clip))?;
+    let mut note_ids: Vec<(NoteId, NoteId)> = Vec::with_capacity(b.notes.len());
     for n in &b.notes {
         let mut n = n.clone();
+        let old = n.id;
         n.id = ids.next();
         n.clip = id;
+        note_ids.push((old, n.id));
         ctx.tx.insert(Entity::Note(n))?;
     }
     for m in &b.warp_markers {
@@ -138,6 +151,24 @@ pub(super) fn insert_bundle(
             p.lane = lane_id;
             ctx.tx.insert(Entity::AutomationPoint(p))?;
         }
+    }
+    // v0.3 (`midi-expression`): lanes and note expressions (ids after every other child).
+    for l in &b.expression_lanes {
+        ctx.tx.insert(Entity::ExpressionLane(ExpressionLane {
+            id: ids.next(),
+            clip: id,
+            ..l.clone()
+        }))?;
+    }
+    for e in &b.note_expressions {
+        let Some(&(_, note)) = note_ids.iter().find(|(old, _)| *old == e.note) else {
+            continue;
+        };
+        ctx.tx.insert(Entity::NoteExpression(NoteExpression {
+            id: ids.next(),
+            note,
+            ..e.clone()
+        }))?;
     }
     Ok(())
 }

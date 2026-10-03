@@ -50,5 +50,15 @@ Local test
     npx serve is NOT enough (no headers). From the repo, `pnpm --filter @ethereal/web
     preview` serves a build with the right headers.
 
+Sharing (optional): the signaling service
+------------------------------------------
+"Share" introduces peers through a small signaling service (services/signal in the source
+repository; docs/SHARING.md). On Cloudflare Pages, `functions/signal/[[path]].ts` mounts it
+at <your site>/signal: deploy the service once (`wrangler deploy` in services/signal), deploy
+this folder's `functions/` with the site, and add a Durable Object binding to the Pages
+project (name ROOMS, Worker ethereal-signal, class SignalRoom). On other hosts the
+`functions/` folder is unused: run the service elsewhere and set its URL in the app
+(Settings > Advanced > Signaling server).
+
 Licenses: Ethereal is GPL-3.0-or-later (LICENSE.txt); third-party components are listed in
 THIRD_PARTY_NOTICES.txt.

@@ -16,6 +16,9 @@
 }
 .eth-tb__side--end {
   justify-content: flex-end;
+  /* Never narrower than its controls: on a tight top bar (1280 px with the shell's right
+     controls) the capsule moves left instead of undo/redo spilling over Loop/Metronome. */
+  min-width: max-content;
 }
 
 .eth-tb__capsule {

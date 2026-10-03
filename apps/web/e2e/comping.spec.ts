@@ -15,6 +15,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test, type Page } from "@playwright/test";
 import type { CompRegion, Project, TakeLane } from "@/generated";
+import { openEngineServer } from "./ui";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const TOKEN = `e2e-${Math.random().toString(36).slice(2)}`;
@@ -125,7 +126,7 @@ test("loop recording makes take lanes; swipe, next/previous take, audition, flat
   const localId = (await project(page)).id;
 
   // --- Remote engine with the loopback input; loop the first bar, no count-in.
-  await page.getByTestId("remote-button").click();
+  await openEngineServer(page);
   await page.getByLabel("Server address").fill(serverUrl);
   await page.getByLabel("Token").fill(TOKEN);
   await page.getByRole("button", { name: "Connect" }).click();

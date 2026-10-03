@@ -462,6 +462,14 @@ fn midi_bytes(kind: &EventKind) -> Option<([u8; 3], usize)> {
             };
             Some((data, n))
         }
+        // v0.3 (`midi-expression`): `Pressure` goes out as poly aftertouch (`mpe` adds MPE).
+        EventKind::NoteExpression {
+            channel,
+            key,
+            expression: ether_core::protocol::model::NoteExpressionKind::Pressure,
+            value,
+            ..
+        } => Some(([0xA0 | (channel & 0x0F), key.min(127), vel(value)], 3)),
         _ => None,
     }
 }

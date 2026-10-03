@@ -4,7 +4,7 @@
  * export is mounted into a slot here. Owned by `foundation` (later wiring by `alpha`).
  *
  * Layout:
- *   ┌ project menu │ transport capsule │ metronome │ recording │ export │ remote │ collab ┐
+ *   ┌ project menu │ transport capsule │ metronome │ recording │ export │ remote │ share ┐
  *   │rail│ markers + arrangement (fills the workspace)                                   │
  *   │    │  floating panes over it (or pinned beside it): browser (left, from the rail),   │
  *   │    │  inspector (right, with the selection), editor drawer (bottom)                 │
@@ -16,22 +16,24 @@
  * use `useTransport()` and read the document from `@/state`.
  */
 import { memo, useEffect } from "react";
-import { AudioLines, Moon, Sun } from "lucide-react";
+import { Moon, Settings, Sun } from "lucide-react";
 import { ContextMenuHost, IconButton } from "@/kit";
 import { useEditorStore, useProjectStore } from "@/state";
 import { size, useTheme } from "@/theme";
 import { ArrangementView } from "@/features/arrangement";
-import { AudioSettingsDialog, openAudioSettings } from "@/features/audio-settings";
+import { AudioSettingsDialog, openSettings } from "@/features/audio-settings";
 import { MarkerLane } from "@/features/clip-editing";
-import { PresenceBar } from "@/features/collab";
 import { ExportDialog } from "@/features/export";
 import { ImportRoot } from "@/features/import";
 import { MediaRefsRoot } from "@/features/media-refs";
 import { ProjectMenu } from "@/features/project";
 import { RecordingControls } from "@/features/recording";
+import { JoinRoot } from "@/features/share/join";
 import { ConnectDialog } from "@/features/remote";
+import { ShareControl } from "@/features/share";
 import { MetronomeSettings } from "@/features/tempo";
 import { TransportBar } from "@/features/transport-bar";
+import { VersionsRoot } from "@/features/versions";
 import { CommandPalette } from "./shell/CommandPalette";
 import { DrawerShortcut, DrawerTabs, EditorDrawer } from "./shell/EditorDrawer";
 import { FloatingPane } from "./shell/FloatingPane";
@@ -211,16 +213,17 @@ export function App() {
         <div data-slot="remote">
           <ConnectDialog />
         </div>
+        {/* base-115: the Share button / session pill (it also hosts the collab runtime). */}
         <div data-slot="collab">
-          <PresenceBar />
+          <ShareControl />
         </div>
         <IconButton
           size="sm"
           tone="ghost"
           className="eth-shell__theme"
-          label="Audio settings"
-          icon={<AudioLines />}
-          onClick={() => openAudioSettings()}
+          label="Settings"
+          icon={<Settings />}
+          onClick={() => openSettings()}
         />
         <ThemeToggle />
       </header>
@@ -230,6 +233,8 @@ export function App() {
       <AudioSettingsDialog />
       <ImportRoot />
       <MediaRefsRoot />
+      <VersionsRoot />
+      <JoinRoot />
       <ContextMenuHost />
     </div>
   );

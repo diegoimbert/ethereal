@@ -13,7 +13,6 @@ use ether_controller::store::ProjectStore;
 use ether_core::protocol::audio_to_midi::{
     AudioToMidiCommand, AudioToMidiMode, AudioToMidiOptions,
 };
-use ether_core::protocol::capture::CaptureCommand;
 use ether_core::protocol::clips::ClipCommand;
 use ether_core::protocol::devices::{DeviceCommand, DeviceSpec};
 use ether_core::protocol::expression::ExpressionCommand;
@@ -22,9 +21,7 @@ use ether_core::protocol::keymap::{Keymap, KeymapCommand};
 use ether_core::protocol::model::*;
 use ether_core::protocol::notes::{NoteCommand, NoteSpec};
 use ether_core::protocol::project::ProjectCommand;
-use ether_core::protocol::templates::TemplateCommand;
 use ether_core::protocol::tracks::TrackCommand;
-use ether_core::protocol::versions::VersionCommand;
 use ether_core::protocol::{Command, ErrorCode};
 
 /// Sends `c` and asserts it replies `Unsupported` without changing the document.
@@ -85,6 +82,7 @@ fn midi_clip(h: &mut Harness) -> (TrackId, ClipId, NoteId) {
     (t, clip, note)
 }
 
+#[allow(dead_code)] // midi-expression's tests moved to tests/expression.rs
 fn point(time: f64, value: f32) -> ExpressionPoint {
     ExpressionPoint {
         time: Beats(time),
@@ -94,6 +92,7 @@ fn point(time: f64, value: f32) -> ExpressionPoint {
 }
 
 /// Store `p` (edited outside the controller) and reopen it.
+#[allow(dead_code)] // midi-expression's tests moved to tests/expression.rs
 fn reopen(h: &mut Harness, p: &Project) {
     // Save first: opening autosaves a dirty project over the stored file.
     h.ok(Command::Project(ProjectCommand::Save));
@@ -125,96 +124,6 @@ fn audio_streaming_is_off_until_the_node_lands() {
 }
 
 #[test]
-fn midi_expression_replies_unsupported_and_cascades_are_done() {
-    let mut h = Harness::with_project();
-    let (t, clip, note) = midi_clip(&mut h);
-    let lane: ExpressionLaneId = h.id();
-    for c in [
-        ExpressionCommand::CreateLane {
-            id: lane,
-            clip,
-            kind: ExpressionKind::Cc { controller: 1 },
-        },
-        ExpressionCommand::SetPoints {
-            lane,
-            points: vec![point(0.0, 0.5)],
-        },
-        ExpressionCommand::ReplaceRange {
-            lane,
-            start: Beats(0.0),
-            end: Beats(1.0),
-            points: vec![],
-        },
-        ExpressionCommand::RemoveLane { id: lane },
-        ExpressionCommand::SetNoteExpression {
-            id: h.id(),
-            note,
-            kind: NoteExpressionKind::Pressure,
-            points: vec![point(0.0, 0.2)],
-        },
-        ExpressionCommand::ClearNoteExpressions {
-            notes: vec![note],
-            kind: None,
-        },
-    ] {
-        assert_unsupported(&mut h, Command::Expression(c));
-    }
-    // Nothing compiles yet.
-    h.tick();
-    let g = h.ctl.bridge.last_graph();
-    assert!(
-        g.tracks
-            .iter()
-            .all(|t| t.expression.is_empty() && t.hw_io.is_empty())
-    );
-
-    // Cascades and copies (done by contracts-4): a project with expression data.
-    let mut p = h.project().clone();
-    let expr: NoteExpressionId = h.id();
-    p.expression_lanes.insert(
-        lane,
-        ExpressionLane {
-            id: lane,
-            clip,
-            kind: ExpressionKind::PitchBend,
-            points: vec![point(0.0, 0.0), point(2.0, 1.0)],
-        },
-    );
-    p.note_expressions.insert(
-        expr,
-        NoteExpression {
-            id: expr,
-            note,
-            kind: NoteExpressionKind::Pressure,
-            points: vec![point(0.0, 0.5)],
-        },
-    );
-    reopen(&mut h, &p);
-    // Duplicating the clip copies both (new ids, same curves).
-    let copy: ClipId = h.id();
-    h.ok(Command::Clip(ClipCommand::Duplicate {
-        id: clip,
-        new_id: copy,
-        start: None,
-    }));
-    let pr = h.project();
-    let lanes = pr.expression_lanes_of(copy);
-    assert_eq!(lanes.len(), 1);
-    assert_eq!(lanes[0].points, p.expression_lanes[&lane].points);
-    let copied_note = pr.notes_of(copy)[0].id;
-    assert_eq!(pr.note_expressions_of(copied_note).len(), 1);
-    // Removing a note removes its expressions; deleting a clip removes its lanes.
-    h.ok(Command::Note(NoteCommand::Remove { ids: vec![note] }));
-    assert!(!h.project().note_expressions.contains_key(&expr));
-    h.ok(Command::Clip(ClipCommand::Delete {
-        ids: vec![clip, copy],
-    }));
-    assert!(h.project().expression_lanes.is_empty());
-    assert!(h.project().note_expressions.is_empty());
-    let _ = t;
-}
-
-#[test]
 fn mpe_replies_unsupported() {
     let mut h = Harness::with_project();
     let t = track(&mut h, TrackKind::Midi);
@@ -227,48 +136,29 @@ fn mpe_replies_unsupported() {
     );
 }
 
+/// Implemented (`audio-to-midi`; behaviour in `tests/audio_to_midi.rs`): a MIDI clip is
+/// refused without touching the document, cancelling an unknown job is a no-op.
 #[test]
-fn capture_midi_replies_unsupported() {
-    let mut h = Harness::with_project();
-    let t = track(&mut h, TrackKind::Midi);
-    let (clip, seed_notes) = (h.id(), h.id());
-    assert_unsupported(
-        &mut h,
-        Command::Capture(CaptureCommand::Capture {
-            track: t,
-            clip,
-            seed_notes,
-            adopt_tempo: true,
-        }),
-    );
-    assert_unsupported(&mut h, Command::Capture(CaptureCommand::Status));
-    assert_unsupported(&mut h, Command::Capture(CaptureCommand::Clear));
-}
-
-#[test]
-fn audio_to_midi_replies_unsupported() {
+fn audio_to_midi_is_implemented() {
     let mut h = Harness::with_project();
     let (_, clip, _) = midi_clip(&mut h);
     let (track, new_clip, seed_notes) = (h.id(), h.id(), h.id());
-    assert_unsupported(
-        &mut h,
-        Command::AudioToMidi(AudioToMidiCommand::Start {
-            job: "job-1".into(),
-            clip,
-            mode: AudioToMidiMode::Melody,
-            options: AudioToMidiOptions::default(),
-            track,
-            new_clip,
-            seed_notes,
-            instrument: None,
-        }),
-    );
-    assert_unsupported(
-        &mut h,
-        Command::AudioToMidi(AudioToMidiCommand::Cancel {
-            job: "job-1".into(),
-        }),
-    );
+    let before = h.project().clone();
+    let out = h.send(Command::AudioToMidi(AudioToMidiCommand::Start {
+        job: "job-1".into(),
+        clip,
+        mode: AudioToMidiMode::Melody,
+        options: AudioToMidiOptions::default(),
+        track,
+        new_clip,
+        seed_notes,
+        instrument: None,
+    }));
+    assert_eq!(err(&out).code, ErrorCode::InvalidArgument);
+    assert_eq!(h.project(), &before);
+    h.ok(Command::AudioToMidi(AudioToMidiCommand::Cancel {
+        job: "job-1".into(),
+    }));
 }
 
 #[test]
@@ -338,56 +228,11 @@ fn external_instrument_devices_are_placeholders() {
 
 // ─── workflow ───────────────────────────────────────────────────────────────────────────
 
-#[test]
-fn templates_reply_unsupported() {
-    let mut h = Harness::with_project();
-    let t = track(&mut h, TrackKind::Audio);
-    assert_unsupported(
-        &mut h,
-        Command::Template(TemplateCommand::List { kind: None }),
-    );
-    assert_unsupported(
-        &mut h,
-        Command::Template(TemplateCommand::SaveTracks {
-            tracks: vec![t],
-            name: "Vocal".into(),
-            meta: PresetMeta::default(),
-            overwrite: false,
-        }),
-    );
-    let seed = h.id();
-    assert_unsupported(
-        &mut h,
-        Command::Template(TemplateCommand::Insert {
-            template: "tracks/Vocal".into(),
-            seed,
-            parent: None,
-            before: None,
-        }),
-    );
-    let id = h.project_id();
-    assert_unsupported(
-        &mut h,
-        Command::Template(TemplateCommand::NewProject {
-            id,
-            name: "Song".into(),
-            template: None,
-        }),
-    );
-}
+// undo-history: implemented (tests/undo_history.rs).
 
-#[test]
-fn project_versions_reply_unsupported() {
-    let mut h = Harness::with_project();
-    assert_unsupported(&mut h, Command::Version(VersionCommand::List));
-    assert_unsupported(
-        &mut h,
-        Command::Version(VersionCommand::Create {
-            name: Some("v1".into()),
-        }),
-    );
-    assert_unsupported(&mut h, Command::Version(VersionCommand::ListRecoverable));
-}
+// templates: implemented (tests/templates.rs).
+
+// project-versions: implemented (tests/versions.rs).
 
 #[test]
 fn keymap_replies_unsupported() {
