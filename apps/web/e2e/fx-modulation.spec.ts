@@ -56,6 +56,8 @@ test("chorus, phaser, flanger and tremolo on an audio track", async ({ page }) =
     if (m.type() === "error") errors.push(m.text());
   });
 
+  // Wide enough that the transport toolbar never overlaps the Loop button.
+  await page.setViewportSize({ width: 1600, height: 900 });
   await page.goto("/");
   await expect(playButton(page)).toBeVisible({ timeout: 30_000 });
   await expect.poll(() => project(page).then((p) => p !== null), { timeout: 30_000 }).toBe(true);
