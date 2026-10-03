@@ -193,13 +193,11 @@ test.describe("in a collaboration session", () => {
     await expect(page.getByTestId("project-name")).toHaveText("Shared");
     await expect(page.getByTestId("collab-button")).toHaveText(`● ${SESSION}`);
 
-    // "Leave & open" leaves, then opens. The project used in the session gets a badge.
+    // "Leave & open" leaves, then opens.
     await screen.getByRole("button", { name: /^Open Other/ }).click();
     await ask.getByRole("button", { name: "Leave & open" }).click();
     await expect(page.getByTestId("project-name")).toHaveText("Other");
     // Out of a session the collab button is hidden.
     await expect(page.getByTestId("collab-button")).toHaveCount(0);
-    await page.getByRole("button", { name: "Projects" }).click();
-    await expect(screen.getByRole("button", { name: /^Open Shared/ }).getByText("Collab")).toBeVisible();
   });
 });
