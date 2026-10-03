@@ -455,6 +455,22 @@ pub trait EngineBridge {
             "hardware ports are not available on this host".into(),
         ))
     }
+
+    /// `external-instrument`: start measuring the hardware round trip of an external
+    /// device's node (`EngineHandle::measure_hw_latency`); the result comes back through
+    /// [`EngineBridge::poll_hw_latency`]. Default: unsupported (web).
+    fn measure_hw_latency(&mut self, node: NodeKey) -> Result<(), BridgeError> {
+        let _ = node;
+        Err(BridgeError::Unsupported(
+            "latency measurement is not available on this host".into(),
+        ))
+    }
+
+    /// `external-instrument`: the next finished latency measurement, if any. Called from
+    /// every controller tick.
+    fn poll_hw_latency(&mut self) -> Option<ether_core::hw_io::HwLatencyResult> {
+        None
+    }
 }
 
 /// Host services the controller needs besides the engine.
@@ -572,6 +588,8 @@ where
     capture: capture::CaptureState,
     /// v0.3: the running audio-to-MIDI job (`audio_to_midi` module).
     audio_to_midi: audio_to_midi::AudioToMidiState,
+    /// v0.3: external devices' measurements and ports (`external` module; runtime).
+    external: external::ExternalState,
     /// v0.3: the session keymap for hosts without a writable user library (`keymap` module).
     keymap: keymap::KeymapState,
     /// `agent-api`: agent tool runtime state (shared selection, export jobs).
@@ -633,6 +651,7 @@ where
             time_edit: Default::default(),
             capture: Default::default(),
             audio_to_midi: Default::default(),
+            external: Default::default(),
             keymap: Default::default(),
             agent: Default::default(),
             versions: Default::default(),
@@ -726,6 +745,8 @@ where
         // `latency-republish`: a changed node latency marks the graph dirty; the tick's
         // publish below then recomputes PDC.
         self.engine.check_latencies(&self.bridge, now_ms);
+        // v0.3 `external-instrument`: latency measurements and hardware port changes.
+        self.external_tick(now_ms, out);
         let mut tap = agent::ExportTap::new(out);
         self.tick_impl(now_ms, &mut tap);
         self.agent_absorb(tap);

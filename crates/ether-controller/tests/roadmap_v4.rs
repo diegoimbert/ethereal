@@ -185,8 +185,11 @@ fn fx_space_reverb_is_implemented() {
     ));
 }
 
+/// `external-instrument` landed (behaviour tests in `tests/external.rs`): routing is a
+/// document command compiled into `TrackDesc::hw_io`; a host without hardware I/O (the
+/// fake bridge, like the web) replies `Unsupported` for ports and measurement.
 #[test]
-fn external_instrument_devices_are_placeholders() {
+fn external_instrument_routes_and_hostless_ports_are_unsupported() {
     let mut h = Harness::with_project();
     let midi = track(&mut h, TrackKind::Midi);
     let audio = track(&mut h, TrackKind::Audio);
@@ -200,24 +203,31 @@ fn external_instrument_devices_are_placeholders() {
         audio,
         BuiltinDevice::new(BuiltinDeviceType::ExternalAudioEffect),
     );
+    h.ok(Command::External(ExternalCommand::SetRouting {
+        device: inst,
+        routing: ExternalRouting {
+            midi_out: Some("port".into()),
+            ..ExternalRouting::default()
+        },
+    }));
     h.tick();
     let g = h.ctl.bridge.last_graph();
     for t in [midi, audio] {
         let desc = g.tracks.iter().find(|x| x.id == t).unwrap();
         assert_eq!(desc.chain.len(), 1);
-        assert!(desc.hw_io.is_empty(), "compiled once the node lands");
+        assert_eq!(desc.hw_io.len(), 1);
+        assert_eq!(desc.hw_io[0].node, desc.chain[0].node);
     }
-    assert_unsupported(
-        &mut h,
-        Command::External(ExternalCommand::SetRouting {
-            device: inst,
-            routing: ExternalRouting {
-                midi_out: Some("port".into()),
-                ..ExternalRouting::default()
-            },
-        }),
-    );
     assert_unsupported(&mut h, Command::External(ExternalCommand::ListPorts));
+    let fx_routing = ExternalRouting {
+        audio_send: Some(HwChannels { first: 0, count: 2 }),
+        audio_return: Some(HwChannels { first: 0, count: 2 }),
+        ..ExternalRouting::default()
+    };
+    h.ok(Command::External(ExternalCommand::SetRouting {
+        device: fx,
+        routing: fx_routing,
+    }));
     assert_unsupported(
         &mut h,
         Command::External(ExternalCommand::MeasureLatency { device: fx }),
