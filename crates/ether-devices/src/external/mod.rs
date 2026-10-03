@@ -73,7 +73,7 @@ fn latency(id: u32) -> ether_core::protocol::devices::ParamInfo {
 /// # Panics
 /// For a type of another group.
 pub fn descriptor(ty: BuiltinDeviceType) -> DeviceDescriptor {
-    match ty {
+    let mut d = match ty {
         BuiltinDeviceType::ExternalInstrument => build(
             BuiltinDeviceType::ExternalInstrument,
             "External Instrument",
@@ -132,6 +132,68 @@ pub fn descriptor(ty: BuiltinDeviceType) -> DeviceDescriptor {
             0,
         ),
         other => panic!("{other:?} is not an external device"),
+    };
+    d.layout = Some(layout(ty));
+    d
+}
+
+/// Declarative panel: the hardware routing (`Widget::HardwareRouting`) and the levels.
+pub fn layout(ty: BuiltinDeviceType) -> ether_core::protocol::layout::DeviceLayout {
+    use crate::contract::{item, knob, layout, section};
+    use ether_core::protocol::layout::{Widget, WidgetSize::*};
+    let routing = section(
+        "hardware",
+        Some("Hardware"),
+        2,
+        1,
+        vec![item(Widget::HardwareRouting, Large)],
+    );
+    match ty {
+        BuiltinDeviceType::ExternalInstrument => {
+            use external_instrument as p;
+            layout(vec![
+                routing,
+                section(
+                    "return",
+                    Some("Return"),
+                    1,
+                    2,
+                    vec![knob(p::GAIN, Large), knob(p::LATENCY, Medium)],
+                ),
+            ])
+        }
+        _ => {
+            use external_audio_effect as p;
+            layout(vec![
+                routing,
+                section(
+                    "levels",
+                    Some("Levels"),
+                    2,
+                    3,
+                    vec![
+                        knob(p::SEND_GAIN, Medium),
+                        knob(p::RETURN_GAIN, Medium),
+                        knob(p::MIX, Large),
+                    ],
+                ),
+                section(
+                    "latency",
+                    Some("Latency"),
+                    1,
+                    1,
+                    vec![
+                        knob(p::LATENCY, Medium),
+                        item(
+                            Widget::Toggle {
+                                param: p::INVERT_PHASE,
+                            },
+                            Small,
+                        ),
+                    ],
+                ),
+            ])
+        }
     }
 }
 
