@@ -1,5 +1,6 @@
-// The AI chat (left rail tab "Ask AI"): talk to Claude, which edits the open project through
-// the agent API (the same tools as the MCP server). BYOK: the user's Anthropic API key.
+// The AI chat (left rail tab "Ask AI"): talk to a model (Anthropic, or any OpenAI-compatible
+// provider), which edits the open project through the agent API (the same tools as the MCP
+// server). BYOK: the user's own API key, or a local server.
 import "./aiChat.css";
 import clsx from "clsx";
 import { ArrowUp, Check, CircleAlert, LoaderCircle, Settings, Square, SquarePen, Wrench } from "lucide-react";
@@ -11,7 +12,8 @@ import { AiSettingsView } from "./AiSettingsView";
 import { KeySetup } from "./KeySetup";
 import { newChat, sendMessage, stopTurn, useAiChat, type ChatItem } from "./chatStore";
 import { useAiFocus } from "./open";
-import { MODELS, useAiSettings, type ModelId } from "./settings";
+import { PROVIDERS } from "./providers";
+import { missingSetup, modelLabel, useAiSettings } from "./settings";
 import { pretty, summarizeInput, summarizeResult } from "./toolSummary";
 
 const EXAMPLES = [
@@ -21,17 +23,25 @@ const EXAMPLES = [
 ];
 
 export function AiChatPanel() {
-  const apiKey = useAiSettings((s) => s.apiKey);
+  const missing = useAiSettings((s) => missingSetup(s));
+  const providerLabel = useAiSettings((s) => PROVIDERS[s.provider].label);
   const keyRejected = useAiChat((s) => s.keyRejected);
   const [settings, setSettings] = useState(false);
-  const needsKey = !apiKey;
   return (
     <div className="eth-ai" data-testid="ai-chat-panel">
       <Toolbar settings={settings} onSettings={() => setSettings((v) => !v)} />
       {settings ? (
         <AiSettingsView onDone={() => setSettings(false)} />
-      ) : needsKey ? (
+      ) : missing === "key" ? (
         <KeySetup />
+      ) : missing === "model" ? (
+        <div className="eth-ai__setup">
+          <p className="eth-ai__setup-title">Choose a model</p>
+          <p className="eth-ai__hint">Enter the model to use with {providerLabel} in the AI settings.</p>
+          <Button size="sm" tone="accent" onClick={() => setSettings(true)}>
+            Open AI settings
+          </Button>
+        </div>
       ) : (
         <>
           {keyRejected && <KeySetup rejected />}
@@ -44,18 +54,24 @@ export function AiChatPanel() {
 }
 
 function Toolbar({ settings, onSettings }: { settings: boolean; onSettings(): void }) {
+  const provider = useAiSettings((s) => s.provider);
   const model = useAiSettings((s) => s.model);
   const setModel = useAiSettings((s) => s.setModel);
   const empty = useAiChat((s) => s.items.length === 0);
+  const p = PROVIDERS[provider];
+  // The provider's suggestions, plus a model typed in the settings.
+  const models = model && !p.models.includes(model) ? [model, ...p.models] : [...p.models];
   return (
     <div className="eth-ai__toolbar">
-      <Select<ModelId>
+      <Select<string>
         size="sm"
         aria-label="Model"
         className="eth-ai__model"
-        options={MODELS.map((m) => ({ value: m.value, label: m.label }))}
+        options={models.map((m) => ({ value: m, label: modelLabel(m), group: p.label }))}
         value={model}
+        placeholder="Choose a model"
         onChange={setModel}
+        data-testid="ai-model"
       />
       <span className="eth-ai__spacer" />
       <IconButton size="sm" tone="ghost" label="New chat" icon={<SquarePen />} disabled={empty} onClick={newChat} />
@@ -204,7 +220,7 @@ function Composer() {
         ref={input}
         className="eth-input eth-ai__input"
         aria-label="Ask AI"
-        placeholder={hasProject ? `Ask AI to edit your project (${MOD_KEY}⇧L)` : "Open a project to ask AI"}
+        placeholder={hasProject ? `Ask AI to edit your project (${MOD_KEY}⇧A)` : "Open a project to ask AI"}
         disabled={!hasProject && !running}
         rows={2}
         value={text}

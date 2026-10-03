@@ -507,6 +507,10 @@ impl Vst3Plugin {
                 .as_ref()
                 .map(crate::node::MidiMap::query)
                 .unwrap_or_default(),
+            note_expressions: self
+                .controller
+                .as_ref()
+                .is_some_and(crate::node::takes_note_expressions),
         }))
     }
 

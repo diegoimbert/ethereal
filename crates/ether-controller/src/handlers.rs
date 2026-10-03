@@ -94,6 +94,24 @@ pub(crate) fn media_file_name(id: MediaId, name: &str) -> String {
     format!("{MEDIA_DIR}/{id}-{clean}")
 }
 
+/// base-115: commands that edit the shared document (refused on a listen link). Local
+/// playback (transport, monitoring) stays available on the read-only copy.
+fn share_edits(command: &Command, current: Option<ProjectId>) -> bool {
+    use ether_core::protocol::media::MediaCommand;
+    match command {
+        Command::Transport(_) | Command::Recording(_) => false,
+        Command::Edit(EditCommand::Batch { commands, .. }) => {
+            commands.iter().any(|c| share_edits(c, current))
+        }
+        Command::Edit(EditCommand::Undo | EditCommand::Redo) => true,
+        Command::TimeEdit(_)
+        | Command::Freeze(_)
+        | Command::MediaRef(_)
+        | Command::Media(MediaCommand::Import { .. }) => true,
+        c => doc::is_document_command(c, current),
+    }
+}
+
 impl<B, H, S, L> EtherController<B, H, S, L>
 where
     B: EngineBridge,
@@ -122,6 +140,16 @@ where
         }
         // base-62: a note added by this command is authored by our session identity.
         let _note_author = self.social_note_scope(command);
+        // base-115: a listen link is view only (docs/SHARING.md §2.3).
+        if self.share_view_only() && share_edits(command, current) {
+            return Err(invalid_state("view only: you joined with a listen link"));
+        }
+        // v0.3 (`templates`): `Template::Insert` loads its file and imports its samples
+        // first (alone: in one gesture; in a `Batch`: scoped for the batch).
+        if let Some(r) = self.template_insert_command(msg, now, out) {
+            return r;
+        }
+        let _templates = self.template_scope(command, msg.gesture, now, out)?;
         if doc::is_document_command(command, current) {
             let label = doc::label_of(command);
             self.edit_with(&label, msg.gesture, now, out, |ctx| {
@@ -243,6 +271,7 @@ where
             label: label.to_string(),
             ops,
         };
+        doc.history.set_now_ms(now);
         let (applied, inverse) = doc
             .history
             .commit_with_inverse(&mut doc.project, tx, gesture)
@@ -332,6 +361,24 @@ where
         );
     }
 
+    /// Undo or redo one step without emitting anything (`Edit::{Undo, Redo}`, and
+    /// `History::JumpTo` step by step). Returns the applied ops, `None` if there was
+    /// nothing to undo/redo.
+    pub(crate) fn undo_redo_step(&mut self, undo: bool) -> CmdResult<Option<Vec<Op>>> {
+        if self.collab_active() {
+            // Collab: per-site undo (only this site's steps; peers' later changes win),
+            // stamped and sent like an edit.
+            return self.collab_undo_redo(undo);
+        }
+        let doc = self.doc.as_mut().ok_or_else(no_project)?;
+        if undo {
+            doc.history.undo(&mut doc.project)
+        } else {
+            doc.history.redo(&mut doc.project)
+        }
+        .map_err(model_err)
+    }
+
     fn edit_command(
         &mut self,
         c: &EditCommand,
@@ -342,20 +389,7 @@ where
         match c {
             EditCommand::Undo | EditCommand::Redo => {
                 let undo = matches!(c, EditCommand::Undo);
-                let applied = if self.collab_active() {
-                    // Collab: per-site undo (only this site's steps; peers' later changes
-                    // win), stamped and sent like an edit.
-                    self.collab_undo_redo(undo)?
-                } else {
-                    let doc = self.doc.as_mut().ok_or_else(no_project)?;
-                    if undo {
-                        doc.history.undo(&mut doc.project)
-                    } else {
-                        doc.history.redo(&mut doc.project)
-                    }
-                    .map_err(model_err)?
-                }
-                .ok_or_else(|| {
+                let applied = self.undo_redo_step(undo)?.ok_or_else(|| {
                     invalid_state(if matches!(c, EditCommand::Undo) {
                         "nothing to undo"
                     } else {
@@ -562,11 +596,15 @@ where
         out: &mut dyn MessageSink,
     ) -> CmdResult<ReplyValue> {
         match c {
-            PluginCommand::Rescan
+            PluginCommand::Rescan { .. }
             | PluginCommand::List
+            | PluginCommand::ListFolders
+            | PluginCommand::AddFolder { .. }
+            | PluginCommand::RemoveFolder { .. }
+            | PluginCommand::SetIncludeDefaults { .. }
             | PluginCommand::OpenEditor { .. }
             | PluginCommand::CloseEditor { .. } => Err(unsupported(
-                "plugin scanning and editors are handled by the host",
+                "plugin scanning, folders and editors are handled by the host",
             )),
             PluginCommand::SetSandboxed { device, sandboxed } => {
                 let plugin = self.plugin_device(*device)?;
@@ -980,6 +1018,8 @@ where
         self.export_tick(now, out);
         self.recording_tick(now, out);
         self.collab_tick(now, out);
+        // base-115: sharing (hub, signaling, joiner links) after the collab session.
+        self.share_tick(now, out);
         // v0.2 hooks.
         self.analysis_tick(out);
         self.freeze_tick(now, out);
@@ -1026,6 +1066,7 @@ where
                                     device: BuiltinDevice::Sampler { sample: Some(m), .. }
                                 } if loaded.contains(m))
                                     || crate::multisampler::uses_media(&dev.kind, &loaded)
+                                    || crate::fx_space::uses_media(&dev.kind, &loaded)
                             })
                             .map(|dev| dev.id)
                             .collect()

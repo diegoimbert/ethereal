@@ -19,8 +19,12 @@
 //! unchanged (docs/SHARING.md §2).
 
 pub mod dc;
+pub mod fake;
 pub mod file;
+pub mod handshake;
+pub mod hub;
 pub mod invite;
+pub mod keys;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod native;
 pub mod signal;

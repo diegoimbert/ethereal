@@ -3,7 +3,7 @@ import type { ClientMessage, Event, MeterFrame, PlayheadFrame, Project, ServerMe
 import { createEmptyProject } from "../mock/demoProject";
 import { CommandFailedError } from "../EngineTransport";
 import { newId, newProjectId } from "../ids";
-import { type ChannelLike, type InvokeFn, TauriTransport } from "./TauriTransport";
+import { type ChannelLike, DEEP_LINK_EVENT, type InvokeFn, TauriTransport } from "./TauriTransport";
 
 class FakeChannel<T> implements ChannelLike<T> {
   onmessage: (message: T) => void = () => {};
@@ -257,6 +257,35 @@ describe("TauriTransport OS files (file-import)", () => {
     expect(await t.pickFolder()).toBeNull();
   });
 
+  it("asks where to export / what to import a project bundle (base-114)", async () => {
+    const saveDialog = vi.fn().mockResolvedValueOnce("/Users/me/Song").mockResolvedValueOnce("/x/Song.ETHER").mockResolvedValueOnce(null);
+    const openDialog = vi.fn().mockResolvedValueOnce("/x/In.ether").mockResolvedValueOnce(null);
+    const t = new TauriTransport({ invoke: fakeHost(() => []).invoke, saveDialog, openDialog });
+    // The extension is added when the dialog leaves it out (GTK).
+    expect(await t.pickBundleSavePath("Song.ether")).toBe("/Users/me/Song.ether");
+    expect(saveDialog.mock.calls[0]![0]).toMatchObject({ defaultPath: "Song.ether", filters: [{ extensions: ["ether"] }] });
+    expect(await t.pickBundleSavePath("Song.ether")).toBe("/x/Song.ETHER");
+    expect(await t.pickBundleSavePath("Song.ether")).toBeNull();
+    expect(await t.pickBundleFile()).toBe("/x/In.ether");
+    expect(openDialog.mock.calls[0]![0]).toMatchObject({ multiple: false, directory: false, filters: [{ extensions: ["ether"] }] });
+    expect(await t.pickBundleFile()).toBeNull();
+  });
+
+  it("remembers the collab token through the shell (app data dir)", async () => {
+    const calls: [string, unknown][] = [];
+    const invoke = vi.fn(async (cmd: string, args?: Record<string, unknown>) => {
+      calls.push([cmd, args]);
+      return cmd === "collab_token_load" ? "tok" : null;
+    });
+    const t = new TauriTransport({ invoke, createChannel: () => new FakeChannel() });
+    expect(await t.loadCollabToken()).toBe("tok");
+    await t.saveCollabToken(null);
+    expect(calls).toEqual([
+      ["collab_token_load", undefined],
+      ["collab_token_save", { token: null }],
+    ]);
+  });
+
   it("delivers path drops from the shell until unsubscribed", async () => {
     let handler: ((e: { payload: unknown }) => void) | null = null;
     const unlisten = vi.fn();
@@ -274,5 +303,63 @@ describe("TauriTransport OS files (file-import)", () => {
     expect(got).toEqual([["/x/a.wav"]]);
     off();
     expect(unlisten).toHaveBeenCalled();
+  });
+});
+
+describe("TauriTransport deep links (join-flow)", () => {
+  const LINK = "ethereal://join/AbCdEfGhIjKlMnOpQrStUv#10123456789_-abcdefghij";
+
+  /** A shell with a deep-link inbox: `arrive` queues links and fires the event. */
+  function shell(initial: string[]) {
+    let inbox = [...initial];
+    let handler: ((e: { payload: unknown }) => void) | null = null;
+    const unlisten = vi.fn();
+    const invoke: InvokeFn = vi.fn((cmd: string) => {
+      if (cmd !== "take_deep_links") return Promise.reject(new Error(cmd));
+      const out = inbox;
+      inbox = [];
+      return Promise.resolve(out);
+    });
+    const listen = vi.fn((event: string, h: (e: { payload: unknown }) => void) => {
+      expect(event).toBe(DEEP_LINK_EVENT);
+      handler = h;
+      return Promise.resolve(unlisten);
+    });
+    const t = new TauriTransport({ invoke, listen: listen as never });
+    const arrive = (...urls: string[]) => {
+      inbox.push(...urls);
+      handler!({ payload: null });
+    };
+    return { t, arrive, unlisten, invoke };
+  }
+
+  const flush = async () => {
+    for (let i = 0; i < 10; i++) await Promise.resolve();
+  };
+
+  it("delivers the cold-start link, then warm links, each once", async () => {
+    const { t, arrive, unlisten } = shell([LINK]);
+    const got: string[] = [];
+    const off = t.onDeepLink((u) => got.push(u));
+    await flush();
+    expect(got).toEqual([LINK]);
+    arrive("ethereal://join/second");
+    arrive("ethereal://join/third");
+    await flush();
+    expect(got).toEqual([LINK, "ethereal://join/second", "ethereal://join/third"]);
+    off();
+    expect(unlisten).toHaveBeenCalled();
+    arrive("ethereal://join/late");
+    await flush();
+    expect(got).toHaveLength(3);
+  });
+
+  it("does not take links when unsubscribed before the listener is ready", async () => {
+    const { t, invoke } = shell([LINK]);
+    const got: string[] = [];
+    t.onDeepLink((u) => got.push(u))();
+    await flush();
+    expect(got).toEqual([]);
+    expect(invoke).not.toHaveBeenCalled();
   });
 });

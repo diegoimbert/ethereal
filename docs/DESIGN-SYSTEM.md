@@ -150,13 +150,14 @@ status tones (Badge) `"default" | "accent" | "ok" | "warn" | "danger"`.
 | --- | --- |
 | `Button` | `tone`, `size`, `active` (aria-pressed). `variant` is deprecated (`primary` → `accent`). |
 | `IconButton` | glyph/icon only; `label` is required (accessible name + title). |
-| `Knob` | `size` = `sm`/`md`/`lg` (or pixels for one-offs); `bipolar`; drag/keys/double-click reset. |
+| `Knob` | `size` = `sm`/`md`/`lg` (or pixels for one-offs); `bipolar`; drag/keys/double-click reset; `hideLabel` keeps `label` as the accessible name only (list rows). |
 | `Fader` | vertical; size from `--fader-width/-height` (`height` prop only for one-offs). Drag sensitivity uses the measured height: a full-height drag sweeps the whole range. |
 | `Meter` | dB peak meter; height/colors/stops/widths from `--meter-*`. |
 | `Panel` | titled container with header actions. |
 | `Tabs` | `role=tablist`; arrow-key navigation; content is yours. |
 | `Toggle` | `role=switch`. |
-| `TextInput`, `Select`, `NumberField` | share `--input-*` tokens; NumberField commits on Enter/blur, ↑/↓ step (Shift ×10), Esc reverts. |
+| `TextInput`, `Select`, `NumberField` | share `--input-*` tokens; NumberField commits on Enter/blur, ↑/↓ step (Shift ×10), Esc reverts. A Select with more than `SEARCH_OVER` (50) options (or `searchable`) gets a search field and a windowed list (width `--eth-size-select-search-width`). |
+| `VirtualList` | windowed list of fixed-height rows (`rowHeight` from a `size` token): mounts only the rows in view, never more than `VIRTUAL_MAX_ROWS` (100). Use it for any list that can grow to thousands (e.g. a plugin's parameters). |
 | `Popover`, `Menu` | anchored to a trigger render-prop; close on outside click/Escape. |
 | `Dialog` | modal; Escape/backdrop closes. |
 | `Tooltip` | hover/focus; delay = `--tooltip-delay`. |

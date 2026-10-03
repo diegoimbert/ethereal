@@ -168,6 +168,7 @@ test.describe("collab", () => {
   });
 
   async function join(page: Page, name: string) {
+    // The relay join moved to Settings > Advanced with the Share redesign (#202).
     await openRelayJoin(page);
     await page.getByLabel("Relay address").fill(relayUrl);
     await page.getByLabel("Session").fill(SESSION);

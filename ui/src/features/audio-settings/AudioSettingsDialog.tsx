@@ -4,9 +4,11 @@ import { RefreshCw } from "lucide-react";
 import { Button, Dialog, IconButton, Meter, Select, Tabs, type SelectOption } from "@/kit";
 import { useProjectStore, useTrackMeter } from "@/state";
 import { cmd, isCommandFailed, TransportContext, type EngineTransport } from "@/transport";
+import { PluginFoldersPanel } from "@/features/plugins";
 import { SharingSettings } from "@/features/share/SharingSettings";
 import { LaunchSettings } from "@/features/project/LaunchSettings";
 import { AdvancedSettings } from "./AdvancedSettings";
+import { InputSettings } from "./InputSettings";
 import { loadAudioDevices, useAudioSettings, type SettingsTab } from "./store";
 import "./audioSettings.css";
 
@@ -21,6 +23,8 @@ function errorText(e: unknown): string {
 const TABS: ReadonlyArray<{ id: SettingsTab; label: string }> = [
   { id: "general", label: "General" },
   { id: "audio", label: "Audio" },
+  { id: "input", label: "Input" },
+  { id: "plugins", label: "Plugins" },
   { id: "sharing", label: "Sharing" },
   { id: "advanced", label: "Advanced" },
 ];
@@ -32,6 +36,10 @@ const TABS: ReadonlyArray<{ id: SettingsTab; label: string }> = [
  *   engine's status, and an input check (the level of armed, monitored tracks). Every change
  *   applies at once (`Engine::SetAudioConfig`, only the changed field); the engine persists
  *   the settings.
+ * - Input (base-135): mouse wheel and buttons (zoom/scroll sensitivity, inversion, which
+ *   modifier zooms, middle and side buttons). Kept on this device; needs no engine.
+ * - Plugins (base-129): the folders scanned for plugins (system folders on/off, the user's
+ *   folders with a format filter), Rescan and Full rescan.
  * - Sharing: identity and sharing preferences. Advanced: sharing servers, engine server,
  *   relay session.
  * Mounted once by the app shell; open it with `openSettings(tab)` or `openAudioSettings()`.
@@ -53,9 +61,11 @@ export function AudioSettingsDialog() {
         <div className="eth-settings">
           <Tabs label="Settings" value={tab} onChange={setTab} items={TABS} className="eth-settings__tabs" />
           <div className="eth-settings__panel" role="tabpanel" aria-label={TABS.find((t) => t.id === tab)?.label}>
-            {!transport && tab !== "general" && <p className="eth-audio-settings__note">No engine connected.</p>}
+            {!transport && tab !== "general" && tab !== "input" && <p className="eth-audio-settings__note">No engine connected.</p>}
             {tab === "general" && <LaunchSettings />}
+            {tab === "input" && <InputSettings />}
             {transport && tab === "audio" && <AudioSettingsBody transport={transport} reason={reason} />}
+            {transport && tab === "plugins" && <PluginFoldersPanel transport={transport} />}
             {transport && tab === "sharing" && <SharingSettings transport={transport} />}
             {transport && tab === "advanced" && <AdvancedSettings transport={transport} />}
           </div>

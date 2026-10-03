@@ -54,10 +54,45 @@ export async function uploadFile(
   onProgress?: (sent: number) => void,
   opts: UploadOptions = {},
 ): Promise<MediaRef> {
+  return withUpload(transport, file, onProgress, opts, async (upload) => {
+    const reply = await transport.send(
+      cmd("Media", {
+        type: "Import",
+        id: newId(),
+        source: { type: "Upload", upload },
+      }),
+      {
+        gesture: opts.gesture,
+      },
+    );
+    if (reply.type !== "Media") throw new Error(`unexpected reply ${reply.type}`);
+    return reply.media;
+  });
+}
+
+/**
+ * Upload `file` engine-side, then run `consume` with the staged upload id (base-114: project
+ * bundles are imported with `Project::ImportBundle { source: Upload }`). A failure anywhere
+ * cancels the upload.
+ */
+export async function withUpload<T>(
+  transport: EngineTransport,
+  file: UploadSource,
+  onProgress: ((sent: number) => void) | undefined,
+  opts: UploadOptions,
+  consume: (upload: string) => Promise<T>,
+): Promise<T> {
   if (file.size <= 0) throw new Error(`${file.name} is empty`);
   opts.signal?.throwIfAborted();
   const upload = newId();
-  await transport.send(cmd("Media", { type: "BeginUpload", upload, name: file.name, size: file.size }));
+  await transport.send(
+    cmd("Media", {
+      type: "BeginUpload",
+      upload,
+      name: file.name,
+      size: file.size,
+    }),
+  );
   try {
     const inFlight: Promise<unknown>[] = [];
     let sent = 0;
@@ -67,7 +102,14 @@ export async function uploadFile(
       const bytes = new Uint8Array(await file.slice(offset, end).arrayBuffer());
       const reply = hasBinaryChunks(transport)
         ? transport.uploadChunk(upload, offset, bytes)
-        : transport.send(cmd("Media", { type: "UploadChunk", upload, offset, data: bytesToBase64(bytes) }));
+        : transport.send(
+            cmd("Media", {
+              type: "UploadChunk",
+              upload,
+              offset,
+              data: bytesToBase64(bytes),
+            }),
+          );
       const done = reply.then(() => {
         sent += bytes.length;
         onProgress?.(sent);
@@ -78,11 +120,7 @@ export async function uploadFile(
     }
     await Promise.all(inFlight);
     opts.signal?.throwIfAborted();
-    const reply = await transport.send(cmd("Media", { type: "Import", id: newId(), source: { type: "Upload", upload } }), {
-      gesture: opts.gesture,
-    });
-    if (reply.type !== "Media") throw new Error(`unexpected reply ${reply.type}`);
-    return reply.media;
+    return await consume(upload);
   } catch (e) {
     transport.send(cmd("Media", { type: "CancelUpload", upload })).catch(() => {});
     throw e;
@@ -129,12 +167,22 @@ export async function uploadFiles(transport: EngineTransport, files: readonly Up
   const out: MediaRef[] = [];
   for (const file of files) {
     const id = newId();
-    uploadStore.start({ id, name: file.name, size: file.size, sent: 0, error: null, done: false });
+    uploadStore.start({
+      id,
+      name: file.name,
+      size: file.size,
+      sent: 0,
+      error: null,
+      done: false,
+    });
     try {
       out.push(await uploadFile(transport, file, (sent) => uploadStore.update(id, { sent })));
       uploadStore.remove(id);
     } catch (e) {
-      uploadStore.update(id, { error: e instanceof Error ? e.message : String(e), done: true });
+      uploadStore.update(id, {
+        error: e instanceof Error ? e.message : String(e),
+        done: true,
+      });
     }
   }
   return out;

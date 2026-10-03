@@ -822,6 +822,36 @@
   font-size: var(--eth-fs-sm);
 }
 
+/* base-106: clips dragged below the last track: the tracks the drop creates, as ghost rows
+   in the draft row's look, over the drop area (whose own hint steps aside meanwhile). */
+.eth-arr__ghost-rows {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  z-index: 2;
+  pointer-events: none;
+}
+
+/* Same name inset as the draft row's (top-level) header. */
+.eth-arr-row--ghost .eth-arr-header {
+  padding-left: calc(var(--eth-size-track-card-inset-left) + var(--eth-space-md));
+}
+
+.eth-arr__drop-area:has(> .eth-arr__ghost-rows) > :not(.eth-arr__ghost-rows) {
+  visibility: hidden;
+}
+
+/* The draft lane's dashed outline, inset vertically only: clips keep their x positions. */
+.eth-arr-lane--ghost::after {
+  content: "";
+  position: absolute;
+  inset: var(--eth-space-xs) 0;
+  border: var(--eth-border-width) dashed color-mix(in srgb, var(--eth-color-accent) 45%, transparent);
+  border-radius: var(--eth-radius-md);
+  pointer-events: none;
+}
+
 @keyframes eth-arr-draft-in {
   from {
     opacity: 0;

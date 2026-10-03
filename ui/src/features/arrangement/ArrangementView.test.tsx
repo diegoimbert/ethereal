@@ -893,6 +893,47 @@ describe("ArrangementView: audio and drops", () => {
     expect(screen.getAllByTestId("clip-notes").length).toBeGreaterThan(0);
   });
 
+  it("redraws an audio clip's waveform scaled by its gain, from the cached peaks", async () => {
+    // Per-canvas recording context: waveform columns (`rect`) and clip marks (`fillRect`).
+    const drawn = new Map<HTMLCanvasElement, { rects: number[]; marks: number }>();
+    vi.mocked(HTMLCanvasElement.prototype.getContext).mockImplementation(function (this: HTMLCanvasElement) {
+      const rec = { rects: [] as number[], marks: 0 };
+      drawn.set(this, rec);
+      const ctx: Record<string, unknown> = {
+        rect: (_x: number, _y: number, _w: number, h: number) => rec.rects.push(h),
+        fillRect: () => rec.marks++,
+      };
+      return new Proxy(ctx, {
+        get: (t, k: string) => (k in t ? t[k] : () => {}),
+        set: (t, k: string, v) => ((t[k] = v), true),
+      }) as unknown as CanvasRenderingContext2D;
+    });
+    const clip = Object.values(project().clips).find((c) => c.content.type === "Audio" && !c.lane)!;
+    const canvas = () => clipEl(clip).querySelector<HTMLCanvasElement>('[data-testid="clip-waveform"]')!;
+    const tallest = () => Math.max(...(drawn.get(canvas())?.rects ?? [0]));
+    const setGain = async (gain: number) => {
+      drawn.delete(canvas());
+      await act(async () => {
+        await mock.send(cmd("Clip", { type: "SetGain", id: clip.id, gain }));
+      });
+      await flush();
+    };
+    await setGain(0);
+    const base = tallest();
+    expect(base).toBeGreaterThan(1);
+    const peakRequests = sent.filter((c) => c.domain === "Media" && c.command.type === "GetPeaks").length;
+
+    await setGain(-12);
+    expect(canvas().dataset.gain).toBe("-12");
+    expect(tallest()).toBeLessThan(base * 0.5);
+    await setGain(6);
+    expect(tallest()).toBeGreaterThan(base);
+    expect(Number(canvas().dataset.clipped)).toBeGreaterThan(0);
+    expect(drawn.get(canvas())!.marks).toBeGreaterThan(0);
+    // Scaled at draw time: no new peak requests.
+    expect(sent.filter((c) => c.domain === "Media" && c.command.type === "GetPeaks")).toHaveLength(peakRequests);
+  });
+
   it("scrolling slides the lane layers instead of re-laying out the clips", async () => {
     const chords = clipEl(clipByName("Chords"));
     const view = arrangementView.getState();

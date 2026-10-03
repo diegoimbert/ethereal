@@ -16,7 +16,7 @@ import { size } from "@/theme";
  * `chat`: collab-social's Chat section, shown only in a collaboration session.
  * `ai`: the AI chat (`ai-chat`).
  */
-export type LeftTab = "library" | "project" | "plugins" | "devices" | "midi" | "chat" | "ai";
+export type LeftTab = "library" | "project" | "plugins" | "devices" | "midi" | "history" | "chat" | "ai";
 export type DrawerTab = "piano-roll" | "warp" | "automation" | "tempo" | "groove" | "drum-rack";
 export type PaneSide = "left" | "right" | "bottom";
 

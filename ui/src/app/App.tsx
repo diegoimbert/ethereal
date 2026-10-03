@@ -25,9 +25,11 @@ import { AudioSettingsDialog, openSettings } from "@/features/audio-settings";
 import { MarkerLane } from "@/features/clip-editing";
 import { ExportDialog } from "@/features/export";
 import { ImportRoot } from "@/features/import";
+import { KeymapRoot } from "@/features/keymap";
 import { MediaRefsRoot } from "@/features/media-refs";
 import { ProjectMenu } from "@/features/project";
 import { RecordingControls } from "@/features/recording";
+import { JoinRoot } from "@/features/share/join";
 import { ConnectDialog } from "@/features/remote";
 import { ShareControl } from "@/features/share";
 import { MetronomeSettings } from "@/features/tempo";
@@ -40,6 +42,7 @@ import { Inspector } from "./shell/Inspector";
 import { useInspectorTarget } from "./shell/inspectorTarget";
 import { LeftPanel, LeftRail } from "./shell/LeftRail";
 import { LEFT_TABS } from "./shell/tabs";
+import { paneLayout } from "./shell/paneLayout";
 import { useShellStore } from "./shell/shellStore";
 import "./App.css";
 
@@ -111,25 +114,20 @@ function Workspace() {
     [shell],
   );
 
-  // A pinned pane reserves its size plus the gap on both of its sides (it floats inset).
-  const reserved = (p: { open: boolean; pinned: boolean; size: number }) => (p.open && p.pinned ? p.size + 2 * GAP : 0);
-  const style = {
-    "--pane-left-size": `${left.size}px`,
-    "--pane-right-size": `${right.size}px`,
-    "--pane-bottom-size": `${bottom.size}px`,
-    "--pane-left-reserved": `${reserved(left)}px`,
-    "--pane-right-reserved": `${reserved({ ...right, open: rightOpen })}px`,
-    "--pane-bottom-reserved": `${reserved(bottom)}px`,
-    // Room taken by open side panes, pinned or not: the drawer sits between them.
-    "--pane-left-occupied": `${left.open ? left.size + GAP : 0}px`,
-    "--pane-right-occupied": `${rightOpen ? right.size + GAP : 0}px`,
-  } as React.CSSProperties;
+  const style = paneLayout(left, { ...right, open: rightOpen }, bottom, GAP) as React.CSSProperties;
+  // A press anywhere in the arrangement (tracks, ruler, headers, markers) collapses an
+  // unpinned left pane; the press still does its own job (capture, never stopped).
+  const collapseLeft = (e: React.PointerEvent) => {
+    if (e.button !== 0) return;
+    const { left } = shell();
+    if (left.open && !left.pinned) shell().setOpen("left", false);
+  };
   const leftLabel = LEFT_TABS.find((t) => t.id === left.tab)?.label ?? "Browser";
 
   return (
     <div className="eth-workspace" style={style}>
       <Rail />
-      <main className="eth-workspace__main" data-slot="main">
+      <main className="eth-workspace__main" data-slot="main" onPointerDownCapture={collapseLeft}>
         <div className="eth-workspace__stage">
           <div data-slot="markers">
             <Markers />
@@ -233,6 +231,8 @@ export function App() {
       <ImportRoot />
       <MediaRefsRoot />
       <VersionsRoot />
+      <KeymapRoot />
+      <JoinRoot />
       <ContextMenuHost />
     </div>
   );

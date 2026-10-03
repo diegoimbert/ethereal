@@ -54,7 +54,16 @@ pub struct TemplateFile {
     pub ether_version: u32,
     /// Version of the app that wrote the file (informational).
     pub app_version: String,
+    /// When the file was written (Unix ms; `TemplateInfo::modified_ms`, since library
+    /// listings carry no file times). Omitted when 0 (`templates`, additive).
+    #[serde(default, skip_serializing_if = "is_zero")]
+    #[ts(type = "number")]
+    pub saved_ms: u64,
     pub template: Template,
+}
+
+fn is_zero(v: &u64) -> bool {
+    *v == 0
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
@@ -85,6 +94,11 @@ pub enum TemplateBody {
 /// Parse and check a template file (format tag, versions, a project body validates, a
 /// tracks body starts with a track).
 pub fn load_template(json: &str) -> Result<Template, FileError> {
+    load_template_file(json).map(|f| f.template)
+}
+
+/// [`load_template`] keeping the file header (`saved_ms`, versions).
+pub fn load_template_file(json: &str) -> Result<TemplateFile, FileError> {
     let doc: serde_json::Value = serde_json::from_str(json)?;
     if doc.get("format").and_then(|f| f.as_str()) != Some(TEMPLATE_FORMAT_TAG) {
         return Err(FileError::NotAnEtherFile(format!(
@@ -130,16 +144,26 @@ pub fn load_template(json: &str) -> Result<Template, FileError> {
             }
         }
     }
-    Ok(file.template)
+    Ok(file)
 }
 
 /// Serialize a template at the current versions (pretty JSON).
 pub fn save_template(template: &Template, app_version: &str) -> Result<String, FileError> {
+    save_template_at(template, app_version, 0)
+}
+
+/// [`save_template`] stamped with the time it is written (`saved_ms`, Unix ms).
+pub fn save_template_at(
+    template: &Template,
+    app_version: &str,
+    saved_ms: u64,
+) -> Result<String, FileError> {
     let mut s = serde_json::to_string_pretty(&TemplateFile {
         format: TEMPLATE_FORMAT_TAG.into(),
         version: TEMPLATE_VERSION,
         ether_version: CURRENT_VERSION,
         app_version: app_version.into(),
+        saved_ms,
         template: template.clone(),
     })?;
     s.push('\n');

@@ -26,6 +26,7 @@ pub mod demo_samples;
 pub mod disk_stream;
 pub mod host;
 pub mod media;
+pub mod plugin_folders;
 pub mod plugin_mirror;
 pub mod plugins;
 pub mod recording;

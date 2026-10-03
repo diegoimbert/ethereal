@@ -29,7 +29,7 @@ use crate::midi_map::{MidiMapCommand, MidiMapEvent};
 use crate::mixer::MixerCommand;
 use crate::model::{GestureId, MediaId, MediaRef, MidiMapping, Patch, Project, ProjectId};
 use crate::notes::NoteCommand;
-use crate::plugins::{PluginCommand, PluginDescriptor, PluginEvent};
+use crate::plugins::{PluginCommand, PluginDescriptor, PluginEvent, PluginFolders};
 use crate::presets::{PresetCommand, PresetEvent, PresetInfo};
 use crate::project::{EditCommand, ProjectCommand, ProjectEvent, ProjectSummary};
 use crate::racks::{ModulationCommand, ModulatorDescriptor, RackCommand};
@@ -195,6 +195,9 @@ pub enum ReplyValue {
     Plugins {
         plugins: Vec<PluginDescriptor>,
     },
+    PluginFolders {
+        folders: PluginFolders,
+    },
     Media {
         media: MediaRef,
     },
@@ -308,6 +311,11 @@ pub enum ReplyValue {
     AgentToolResult {
         content: String,
         is_error: bool,
+    },
+    /// base-114: a packed project bundle (`Project::ExportBundle` without a path), to pull
+    /// with `Export::ReadChunk`.
+    Bundle {
+        download: crate::export::ExportDownload,
     },
 }
 
