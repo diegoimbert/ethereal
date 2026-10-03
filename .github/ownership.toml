@@ -1667,6 +1667,8 @@ paths = [
   "crates/ether-model/src/history.rs",
   # shared touch: JumpTo through the Edit::{Undo, Redo} path; per-site steps in a session
   "crates/ether-controller/src/handlers.rs",
+  # shared touch (BCR): one state field + initializer on EtherController
+  "crates/ether-controller/src/lib.rs",
   "crates/ether-controller/src/collab/mod.rs",
   # shared touch: the mock undo stack exposes steps
   "ui/src/transport/mock/MockTransport.ts",
