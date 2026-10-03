@@ -8,6 +8,7 @@ import { addTrack, selectTrackEntity } from "@/features/arrangement/actions";
 import { arrangementView } from "@/features/arrangement/uiStore";
 import { openImportDialog } from "@/features/import";
 import { mediaRefCommands } from "@/features/media-refs";
+import { shareCommands } from "@/features/share/commands";
 import { tracksOrdered, useProjectStore } from "@/state";
 import { getTheme, setTheme } from "@/theme";
 import { cmd, type EngineTransport } from "@/transport";
@@ -191,6 +192,8 @@ export function buildCommands(transport: EngineTransport | null, devices: Readon
       run: () => useShellStore.getState().setPinned(side, !useShellStore.getState()[side].pinned),
     });
   }
+  // base-115: Share, Stop sharing, Leave, sharing settings.
+  out.push(...shareCommands(transport, !!project));
   out.push({
     id: "audio-settings",
     group: "Appearance",

@@ -6,7 +6,7 @@
 //! contents, sounding notes, meter accumulators) over from the previous snapshot's track
 //! with the same id ([`TrackRt::inherit`]); that only swaps pointers, never allocates.
 
-use ether_protocol::model::{SendId, TrackId};
+use ether_protocol::model::{ClipId, SendId, TrackId};
 
 use crate::delay::DelayLine;
 use crate::event::EventBuffer;
@@ -69,6 +69,19 @@ pub(crate) struct ActiveNote {
     pub key: u8,
     /// Timeline beat of the note-off.
     pub end: f64,
+    /// v0.3 (`midi-expression`): the clip note this voice plays (note expressions).
+    pub source: NoteSource,
+}
+
+/// The clip note a sounding note plays (v0.3, `midi-expression`): its note expressions
+/// (`crate::expression`) are looked up by clip and note index, timed from `start`.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct NoteSource {
+    pub clip: ClipId,
+    /// Index in the clip's `ClipContentDesc::Midi { notes }` (sorted by start).
+    pub note: u32,
+    /// Timeline beat of the note start (before chasing: may be before the note-on).
+    pub start: f64,
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -176,6 +189,9 @@ pub(crate) struct TrackRt {
     pub taps: crate::bus_tap::TapBuffers,
     /// VCA gain/mute (`crate::vca`).
     pub vca: crate::vca::TrackVcaRt,
+    // --- v0.3 hooks (contracts-4) ---
+    /// MIDI expression playback state (`crate::expression`, `midi-expression`).
+    pub expression: crate::expression::ExpressionRt,
 }
 
 impl TrackRt {
@@ -224,6 +240,7 @@ impl TrackRt {
         self.modulation.inherit(&mut old.modulation);
         self.input_tap.inherit(&mut old.input_tap);
         self.vca.inherit(&mut old.vca);
+        self.expression.inherit(&mut old.expression);
     }
 }
 

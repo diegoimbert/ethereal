@@ -15,6 +15,9 @@ export interface CollabState {
    */
   hideOthers: boolean;
   setHideOthers(hide: boolean): void;
+  /** The Collaboration dialog is open (base-114: the command palette opens it too). */
+  dialogOpen: boolean;
+  setDialogOpen(open: boolean): void;
   /** Apply one engine event (ignores non-collab events). */
   onEvent(event: Event): void;
   reset(): void;
@@ -36,6 +39,8 @@ function loadHide(): boolean {
 export const useCollabStore = create<CollabState>()((set) => ({
   ...INITIAL,
   hideOthers: loadHide(),
+  dialogOpen: false,
+  setDialogOpen: (open) => set({ dialogOpen: open }),
   setHideOthers: (hide) => {
     set({ hideOthers: hide });
     try {
