@@ -32,6 +32,7 @@ import { RecordingControls } from "@/features/recording";
 import { ConnectDialog } from "@/features/remote";
 import { MetronomeSettings } from "@/features/tempo";
 import { TransportBar } from "@/features/transport-bar";
+import { VersionsRoot } from "@/features/versions";
 import { CommandPalette } from "./shell/CommandPalette";
 import { DrawerShortcut, DrawerTabs, EditorDrawer } from "./shell/EditorDrawer";
 import { FloatingPane } from "./shell/FloatingPane";
@@ -230,6 +231,7 @@ export function App() {
       <AudioSettingsDialog />
       <ImportRoot />
       <MediaRefsRoot />
+      <VersionsRoot />
       <ContextMenuHost />
     </div>
   );

@@ -24,7 +24,7 @@ describe("MockTransport project versions (project-versions)", () => {
     const v = await list();
     expect(v).toHaveLength(1);
     expect(v[0]).toMatchObject({ kind: "Autosave", name: null });
-    expect(v[0].id).toBe(`${v[0].created_ms}-autosave`);
+    expect(v[0]!.id).toBe(`${v[0]!.created_ms}-autosave`);
     expect(f.events.some((e) => e.type === "Version")).toBe(true);
     // No change since: no new version.
     f.mock.tick(VERSION_INTERVAL_MS);
@@ -32,10 +32,11 @@ describe("MockTransport project versions (project-versions)", () => {
   });
 
   it("keeps the newest autosave versions only", async () => {
+    f.mock.versions.intervalMs = 32;
     const manual = await create("Keep");
     for (let i = 0; i < MAX_AUTOSAVE_VERSIONS + 3; i++) {
       await createTrack(f, "Audio");
-      f.mock.tick(VERSION_INTERVAL_MS);
+      f.mock.tick(32);
     }
     const v = await list();
     expect(v.filter((x) => x.kind === "Autosave")).toHaveLength(MAX_AUTOSAVE_VERSIONS);
@@ -82,7 +83,7 @@ describe("MockTransport project versions (project-versions)", () => {
     const rec = await recoverable();
     expect(rec).toHaveLength(1);
     expect(rec[0]).toMatchObject({ project: id, version: { kind: "Autosave" } });
-    expect(rec[0].version.created_ms).toBeGreaterThan(rec[0].saved_ms);
+    expect(rec[0]!.version.created_ms).toBeGreaterThan(rec[0]!.saved_ms);
 
     const reply = (await f.mock.send(cmd("Version", { type: "Recover", project: id }))) as Reply<"Project">;
     expect(reply.project.id).toBe(id);
@@ -98,8 +99,8 @@ describe("MockTransport project versions (project-versions)", () => {
   it("diffs tables generically and lists track and clip names", () => {
     const base = project(f);
     const target = structuredClone(base);
-    const tid = Object.keys(target.tracks)[0];
-    target.tracks[tid] = { ...target.tracks[tid], name: "Renamed" };
+    const tid = Object.keys(target.tracks)[0]!;
+    target.tracks[tid] = { ...target.tracks[tid]!, name: "Renamed" };
     target.settings = { ...target.settings, name: "Other" };
     const d = diffProjects(base, target);
     expect(d.settings_changed).toBe(true);

@@ -98,6 +98,8 @@ export class MockVersions {
   private session: ProjectId | null = null;
   private lastRevision = 0;
   private lastVersionAt = 0;
+  /** Minimum time between autosave versions (tests shorten it; the mock ticks in 16 ms steps). */
+  intervalMs = VERSION_INTERVAL_MS;
 
   constructor(
     private readonly host: VersionsHost,
@@ -121,8 +123,12 @@ export class MockVersions {
   /** Called on every mock step: a rolling autosave version when due. */
   step(): void {
     const now = this.host.now();
-    if (this.session !== this.host.project().id) this.projectLoaded();
-    if (this.host.revision() === this.lastRevision || now - this.lastVersionAt < VERSION_INTERVAL_MS) return;
+    if (this.session === null) {
+      // The initial project (loaded before any step).
+      this.session = this.host.project().id;
+      this.lastVersionAt = now;
+    }
+    if (this.host.revision() === this.lastRevision || now - this.lastVersionAt < this.intervalMs) return;
     this.lastRevision = this.host.revision();
     this.lastVersionAt = now;
     this.write("Autosave", null);

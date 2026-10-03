@@ -1,0 +1,164 @@
+/* Versions dialog: as roomy as the project screen it is opened from. */
+.eth-versions {
+  --dialog-width: var(--eth-size-project-screen-width);
+}
+.eth-versions__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-md);
+  min-width: 0;
+}
+.eth-versions__save {
+  display: flex;
+  gap: var(--eth-space-sm);
+}
+.eth-versions__save .eth-input {
+  flex: 1;
+  min-width: 0;
+}
+.eth-versions__notice,
+.eth-versions__empty,
+.eth-recovery__intro {
+  margin: 0;
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-sm);
+}
+.eth-versions__error {
+  border: none;
+  background: none;
+  padding: 0;
+  color: var(--eth-color-record);
+  font: inherit;
+  font-size: var(--eth-fs-xs);
+  text-align: left;
+  cursor: pointer;
+}
+.eth-versions__list,
+.eth-recovery__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 50vh;
+  overflow: auto;
+}
+.eth-versions__item {
+  border-radius: var(--eth-radius-md);
+  transition: background-color var(--eth-duration-fast) var(--eth-ease-out);
+}
+.eth-versions__item:hover,
+.eth-versions__item:focus-within {
+  background: var(--eth-color-bg-hover);
+}
+.eth-versions__row {
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-sm);
+  min-height: var(--eth-size-project-row-height);
+  padding: 0 var(--eth-space-sm);
+}
+.eth-versions__info,
+.eth-recovery__info {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+.eth-versions__title,
+.eth-recovery__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+.eth-versions__meta,
+.eth-recovery__meta {
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.eth-versions__rename {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+}
+.eth-versions__rename .eth-input {
+  flex: 1;
+  min-width: 0;
+}
+.eth-versions__actions,
+.eth-recovery__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-xs);
+  flex-shrink: 0;
+}
+/* Secondary actions appear on hover/focus, like the project list. */
+.eth-versions__item .eth-icon-button {
+  opacity: 0;
+  transition: opacity var(--eth-duration-fast) var(--eth-ease-out);
+}
+.eth-versions__item:hover .eth-icon-button,
+.eth-versions__item:focus-within .eth-icon-button {
+  opacity: 1;
+}
+
+/* Compare: what changed since the version, under its row. */
+.eth-versions__diff {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-xs);
+  margin: 0 var(--eth-space-sm) var(--eth-space-sm);
+  padding: var(--eth-space-sm) var(--eth-space-md);
+  border-radius: var(--eth-radius-md);
+  background: var(--eth-color-bg-inset);
+  font-size: var(--eth-fs-sm);
+}
+.eth-versions__diff--empty {
+  color: var(--eth-color-text-dim);
+}
+.eth-versions__diff-caption {
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: var(--eth-tracking-caps);
+}
+.eth-versions__diff-list {
+  display: grid;
+  grid-template-columns: max-content max-content minmax(0, 1fr);
+  gap: var(--eth-space-xs) var(--eth-space-md);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.eth-versions__diff-row {
+  display: contents;
+}
+.eth-versions__diff-counts {
+  font-family: var(--eth-font-mono);
+  color: var(--eth-color-accent);
+}
+.eth-versions__diff-names {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--eth-color-text-dim);
+}
+
+/* Recovery dialog. */
+.eth-recovery__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-xs);
+  margin-top: var(--eth-space-md);
+}
+.eth-recovery__item {
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-md);
+  padding: var(--eth-space-sm) var(--eth-space-md);
+  border-radius: var(--eth-radius-md);
+  background: var(--eth-color-bg-inset);
+}

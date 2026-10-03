@@ -359,6 +359,7 @@ export class MockTransport implements EngineTransport {
     this.historyLimit = opts.historyLimit ?? 500;
     this.newId = opts.seed !== undefined ? seededIdFactory(opts.seed + 1000) : defaultNewId;
     this.rand = mulberry32(opts.seed ?? 1);
+    this.versions.projectLoaded();
   }
 
   // ─── EngineTransport ──────────────────────────────────────────────────────────────────
@@ -678,6 +679,7 @@ export class MockTransport implements EngineTransport {
     this.playheadDirty = true;
     this.emit({ type: "ProjectLoaded", project });
     this.mediaRefs.projectOpened();
+    this.versions.projectLoaded();
     this.setArmed([]);
     this.setDirty(false);
     this.syncTransport();
