@@ -168,6 +168,11 @@ hmac = "0.12"
 sha1 = "0.10"
 # base-115 sharing: link-key derivations and proofs (HMAC-SHA256), door hashes (docs/SHARING.md §4.2).
 sha2 = "0.10"
+# base-115 sharing (p2p-transport): `wss://` signaling sockets natively (docs/SHARING.md §6.1,
+# decision 6). rustls with the `ring` provider (already in the tree) and the Mozilla root
+# store. Licenses: rustls Apache-2.0 OR ISC OR MIT; webpki-roots CDLA-Permissive-2.0.
+rustls = { version = "0.23", default-features = false, features = ["std", "tls12", "ring"] }
+webpki-roots = "0.26"
 
 # --- agent-api: MCP server (official Rust SDK; stdio transport). License: Apache-2.0. ---
 rmcp = { version = "3.5", default-features = false, features = ["server", "transport-io"] }

@@ -6,6 +6,7 @@
 export {
   bindTimeSelection,
   canRun,
+  clipboardAction,
   inTimeSelection,
   runTimeAction,
   timeActionForKey,
@@ -13,7 +14,8 @@ export {
   type TimeAction,
   type TimeActionContext,
 } from "./actions";
-export { coversWholeSong, expandTracks, pasteTracks, selectionFromRect, timeSelection } from "./commands";
-export { clearTimeSelection, resetTimeSelection, useTimeSelection, type TimeRangeSelection } from "./store";
+export { coversWholeSong, expandTracks, isTimeTrack, pasteTracks, selectionFromRect, timeSelection } from "./commands";
+export { bindPlayFrom, insertMarker, insertPoint, pasteTarget, placeInsertMarker, setPlayStart } from "./marker";
+export { clearTimeSelection, isMarker, rangeOf, resetTimeSelection, useTimeSelection, type TimeRangeSelection } from "./store";
 export { TimeEditNotice, TimeSelectionLayer } from "./TimeSelectionLayer";
 export { useArrangementTimeEdits, type ArrangementTimeEdits } from "./useArrangementTimeEdits";

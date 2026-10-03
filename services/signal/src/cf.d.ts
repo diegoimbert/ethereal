@@ -1,6 +1,6 @@
 /**
- * The few Cloudflare Workers runtime types the skeleton uses (instead of a
- * `@cloudflare/workers-types` dependency; the `signal-service` node may switch to it).
+ * The few Cloudflare Workers runtime types the service uses (instead of a
+ * `@cloudflare/workers-types` dependency: the surface is small and stable).
  */
 
 interface DurableObjectId {
@@ -19,8 +19,10 @@ interface DurableObjectNamespace {
 interface DurableObjectStorage {
   get<T>(key: string): Promise<T | undefined>;
   put<T>(key: string, value: T): Promise<void>;
+  delete(key: string): Promise<boolean>;
   deleteAll(): Promise<void>;
   setAlarm(scheduledTime: number): Promise<void>;
+  deleteAlarm(): Promise<void>;
 }
 
 interface CfWebSocket {
@@ -44,6 +46,8 @@ interface CfResponseInit extends ResponseInit {
 
 interface Env {
   ROOMS: DurableObjectNamespace;
+  /** `IpBudget` objects (per-IP claims and bad doors); absent = no per-IP limits. */
+  BUDGETS?: DurableObjectNamespace;
   ALLOWED_ORIGINS: string;
   STUN_URLS: string;
   ROOM_TTL_DAYS: string;

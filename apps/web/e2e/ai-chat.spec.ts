@@ -122,9 +122,7 @@ async function stubClaude(page: Page): Promise<{ requests: Request[]; headers: A
   return { requests, headers };
 }
 
-// TODO(agent-api): drop this guard once the controller's tool registry is on dev. Until then
-// the wasm engine has no `Command::Agent`, so the conversation cannot run; the same flow is
-// covered against MockAgent by the vitest suite (AiChatPanel.test.tsx, agent.test.ts).
+// Guard kept for branches that predate agent-api (#186, merged); on dev the registry exists.
 const registry = fileURLToPath(new URL("../../../crates/ether-controller/src/agent", import.meta.url));
 test.skip(!existsSync(registry), "the controller's agent tool registry (node agent-api) is not merged yet");
 
@@ -141,7 +139,7 @@ test("ai-chat: a scripted tool-using conversation edits the arrangement", async 
 
   await page.goto("/");
   await expect(page.getByRole("button", { name: "Play", exact: true })).toBeVisible({ timeout: 30_000 });
-  await expect.poll(() => project(page).then(() => true), { timeout: 30_000 }).toBe(true);
+  // The app may start on the project screen with nothing open: create the project directly.
   await newProject(page, `AI chat ${Date.now()}`);
   await expect.poll(async () => Object.keys((await project(page)).clips).length).toBe(0);
   const before = new Set(Object.keys((await project(page)).tracks));
