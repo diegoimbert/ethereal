@@ -3,4 +3,4 @@
 /**
  * Data-less discriminant of [`BuiltinDevice`] (used in descriptors and factories).
  */
-export type BuiltinDeviceType = "Synth" | "Sampler" | "Compressor" | "Delay" | "Eq" | "Reverb" | "Limiter" | "Utility" | "DrumRack" | "PolySynth" | "MultiSampler" | "Saturator" | "Bitcrusher" | "AutoFilter" | "Chorus" | "Phaser" | "Flanger" | "Tremolo" | "Gate" | "MultibandCompressor" | "TransientShaper" | "SpectrumAnalyzer" | "Tuner" | "Arpeggiator" | "Chord" | "ScaleQuantize" | "NoteLength" | "Velocity" | "Randomizer" | "InstrumentRack" | "AudioEffectRack" | "MidiEffectRack";
+export type BuiltinDeviceType = "Synth" | "Sampler" | "Compressor" | "Delay" | "Eq" | "Reverb" | "Limiter" | "Utility" | "DrumRack" | "PolySynth" | "MultiSampler" | "Saturator" | "Bitcrusher" | "AutoFilter" | "Chorus" | "Phaser" | "Flanger" | "Tremolo" | "Gate" | "MultibandCompressor" | "TransientShaper" | "SpectrumAnalyzer" | "Tuner" | "Arpeggiator" | "Chord" | "ScaleQuantize" | "NoteLength" | "Velocity" | "Randomizer" | "InstrumentRack" | "AudioEffectRack" | "MidiEffectRack" | "ConvolutionReverb" | "ExternalInstrument" | "ExternalAudioEffect";

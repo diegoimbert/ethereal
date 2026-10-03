@@ -30,7 +30,9 @@
 //!   hosts call [`EtherController::set_engine_sample_rate`] when the device changes.
 
 mod analysis;
+mod audio_to_midi;
 mod browser;
+mod capture;
 mod clip_editing;
 mod collab;
 pub mod compile;
@@ -39,17 +41,23 @@ mod doc;
 mod drum_rack;
 mod engine;
 mod export;
+mod expression;
+mod external;
 mod file_import;
 mod freeze;
+mod fx_space;
 mod groove;
 mod groups;
 mod handlers;
+mod keymap;
 mod media;
 mod media_preview;
 mod media_refs;
+pub mod media_stream;
 pub mod memory;
 mod midi_fx;
 mod midi_learn;
+mod mpe;
 mod multisampler;
 mod plugins;
 mod presets;
@@ -60,10 +68,13 @@ mod sidechain;
 mod social;
 pub mod store;
 pub mod streaming;
+mod templates;
 mod tempo;
 mod time_edit;
 mod tx;
+mod undo_history;
 mod upload;
+mod versions;
 mod warp;
 
 use std::collections::BTreeMap;
@@ -420,6 +431,27 @@ pub trait EngineBridge {
             "plugin mirrors are not available on this host".into(),
         ))
     }
+
+    // ─── v0.3 (contracts-4) ───
+
+    /// `audio-streaming` (CONTRACTS.md §13.1): stream `source.media` from disk instead of
+    /// loading decoded audio (`load_media`). `Ok(true)` = the host registered a streaming
+    /// `AudioSource` for it; `Ok(false)` (the default) = not supported here, the controller
+    /// decodes the whole file as before.
+    fn stream_media(&mut self, source: &media_stream::StreamSource) -> Result<bool, BridgeError> {
+        let _ = source;
+        Ok(false)
+    }
+
+    /// `external-instrument` (CONTRACTS.md §13.7): hardware MIDI outputs and audio channels
+    /// for `External::ListPorts`. Default: unsupported (web).
+    fn list_hardware_ports(
+        &mut self,
+    ) -> Result<ether_core::protocol::external::HardwarePorts, BridgeError> {
+        Err(BridgeError::Unsupported(
+            "hardware ports are not available on this host".into(),
+        ))
+    }
 }
 
 /// Host services the controller needs besides the engine.
@@ -531,6 +563,10 @@ where
     analysis: analysis::AnalysisState,
     /// v0.2: the time clipboard (`time_edit` module; runtime state, not undoable).
     time_edit: time_edit::TimeEditState,
+    /// v0.3: the MIDI capture buffer (`capture` module; runtime, site-local).
+    capture: capture::CaptureState,
+    /// v0.3: the running audio-to-MIDI job (`audio_to_midi` module).
+    audio_to_midi: audio_to_midi::AudioToMidiState,
     next_gesture: u32,
     last_transport: Option<TransportState>,
     outputs: EngineOutputs,
@@ -581,6 +617,8 @@ where
             collab: Default::default(),
             analysis: Default::default(),
             time_edit: Default::default(),
+            capture: Default::default(),
+            audio_to_midi: Default::default(),
             // Internal gestures (plugin GUI, tap tempo) live in the upper half of the id
             // space, away from UI-allocated ones.
             next_gesture: 0x8000_0000,

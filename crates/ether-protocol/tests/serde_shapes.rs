@@ -74,6 +74,7 @@ fn sample_track(id_: TrackId) -> Track {
         output: TrackOutput::Default,
         monitor: MonitorMode::Auto,
         scale: Default::default(),
+        mpe: None,
     }
 }
 

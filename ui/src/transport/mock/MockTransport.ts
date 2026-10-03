@@ -143,6 +143,14 @@ import { MockPresets } from "./roadmap/presets";
 import { listModulatorKinds } from "./roadmap/racksModulation";
 import { MockTimeEdits } from "./roadmap/timeEdits";
 import { chatCommand } from "./roadmap/social";
+// v0.3 (contracts-4): one file per node (`./roadmap/index.ts`).
+import { audioToMidiCommand } from "./roadmap/audioToMidi";
+import { captureCommand } from "./roadmap/capture";
+import { externalCommand } from "./roadmap/external";
+import { keymapCommand } from "./roadmap/keymap";
+import { templateCommand } from "./roadmap/templates";
+import { historyCommand } from "./roadmap/undoHistory";
+import { versionCommand } from "./roadmap/versions";
 
 export interface MockTransportOptions {
   /**
@@ -480,9 +488,28 @@ export class MockTransport implements EngineTransport {
         return listModulatorKinds();
       case "Chat":
         return chatCommand(command.command, this.collab);
+      // v0.3 (contracts-4). Document commands (`Expression::*`, `External::SetRouting`,
+      // `Template::Insert`) went through `applyDocument` above.
+      case "Capture":
+        return captureCommand(command.command);
+      case "AudioToMidi":
+        return audioToMidiCommand(command.command);
+      case "External":
+        if (command.command.type === "SetRouting") break;
+        return externalCommand(command.command);
+      case "History":
+        return historyCommand(command.command);
+      case "Template":
+        if (command.command.type === "Insert") break;
+        return templateCommand(command.command);
+      case "Version":
+        return versionCommand(command.command);
+      case "Keymap":
+        return keymapCommand(command.command);
       default:
         return fail("InvalidArgument", `unknown command domain`);
     }
+    return fail("InvalidArgument", `unknown command`);
   }
 
   /** Apply document commands as one transaction / undo step and emit its patch. */

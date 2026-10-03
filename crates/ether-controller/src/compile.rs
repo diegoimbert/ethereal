@@ -357,6 +357,17 @@ pub fn compile_graph_with(p: &Project, ctx: &CompileContext) -> RenderGraphDesc 
                     _ => None,
                 },
                 vca: t.vca,
+                // --- v0.3 (contracts-4) ---
+                expression: if frozen.is_some() {
+                    Default::default()
+                } else {
+                    crate::expression::track_expression(p, t)
+                },
+                hw_io: if frozen.is_some() {
+                    Vec::new()
+                } else {
+                    crate::external::hw_io_descs(p, t.id, ctx.nodes)
+                },
                 frozen,
             }
         })

@@ -21,8 +21,15 @@
 //!   the engine-side user library (`<library>/Presets/<device-key>/<name>.etherpreset`). The
 //!   UI never touches files.
 //!
-//! Loading: parse, check `format`, run migrations up to [`PRESET_VERSION`] (none yet), then
-//! deserialize. Unknown top-level fields are ignored.
+//! - **Rack presets** (v0.3, `rack-presets`; version 2): a preset of a rack device
+//!   (`InstrumentRack`, `AudioEffectRack`, `MidiEffectRack`) also stores its structure in
+//!   `rack` ([`PresetRack`]): the chains with their devices, the rack's modulators and the
+//!   modulation mappings inside it. Loading one replaces the rack's chains (one undo step,
+//!   new ids derived from the load command's seed in chain/device order). Version-1 files
+//!   (no `rack`) load unchanged: a v1 rack preset sets macros and params only.
+//!
+//! Loading: parse, check `format`, run migrations up to [`PRESET_VERSION`] (1 → 2 is
+//! additive: `rack` absent = `None`), then deserialize. Unknown top-level fields are ignored.
 
 use std::collections::BTreeMap;
 
@@ -32,12 +39,15 @@ use ts_rs::TS;
 use crate::device::{BuiltinDevice, BuiltinDeviceType, PluginFormat};
 use crate::error::FileError;
 use crate::ids::MediaId;
+use crate::modulation::ModulatorKind;
+use crate::rack::Zone;
 use crate::value::{Base64Bytes, ParamId};
+use crate::value::{Color, Decibels, Pan};
 
 /// Magic string in the `format` field.
 pub const PRESET_FORMAT_TAG: &str = "ethereal-preset";
-/// Current preset file version.
-pub const PRESET_VERSION: u32 = 1;
+/// Current preset file version (2 = v0.3 rack presets, `Preset::rack`).
+pub const PRESET_VERSION: u32 = 2;
 /// File extension (without dot).
 pub const PRESET_EXTENSION: &str = "etherpreset";
 /// User preset folder inside the user library root.
@@ -110,6 +120,88 @@ pub struct Preset {
     /// Plugin state blob (plugins only).
     #[serde(default)]
     pub state: Option<Base64Bytes>,
+    /// Rack structure (v0.3, `rack-presets`; rack devices only). Omitted when `None`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub rack: Option<PresetRack>,
+}
+
+/// The structure of a rack preset (v0.3, `rack-presets`). Indices refer to positions in
+/// these lists (chains in order, devices in chain order, modulators in order).
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, TS)]
+pub struct PresetRack {
+    pub chains: Vec<PresetChain>,
+    /// Modulators hosted by the rack device itself.
+    #[serde(default)]
+    pub modulators: Vec<PresetModulator>,
+    /// Mappings whose source and target are inside the preset.
+    #[serde(default)]
+    pub mappings: Vec<PresetModMapping>,
+}
+
+/// One rack chain (fields as `ether_model::rack::RackChain`).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+pub struct PresetChain {
+    pub name: String,
+    pub color: Option<Color>,
+    pub volume: Decibels,
+    pub pan: Pan,
+    pub mute: bool,
+    pub solo: bool,
+    pub keys: Zone,
+    pub velocities: Zone,
+    pub select: Zone,
+    pub devices: Vec<PresetChainDevice>,
+}
+
+/// One device of a rack chain (built-in or plugin; no nested racks in v0.3).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+pub struct PresetChainDevice {
+    pub name: String,
+    pub enabled: bool,
+    pub device: PresetDevice,
+    #[serde(default)]
+    pub params: BTreeMap<ParamId, f64>,
+    #[serde(default)]
+    pub kind: Option<BuiltinDevice>,
+    #[serde(default)]
+    pub state: Option<Base64Bytes>,
+}
+
+/// A modulator hosted by the rack device.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+pub struct PresetModulator {
+    pub name: String,
+    pub kind: ModulatorKind,
+    #[serde(default)]
+    pub params: BTreeMap<ParamId, f64>,
+}
+
+/// A modulation mapping inside a rack preset.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+pub struct PresetModMapping {
+    pub source: PresetModSource,
+    pub target: PresetModTarget,
+    pub param: ParamId,
+    pub depth: f64,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(tag = "type")]
+pub enum PresetModSource {
+    /// Rack macro `index`.
+    Macro { index: u8 },
+    /// `PresetRack::modulators[index]`.
+    Modulator { index: u32 },
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(tag = "type")]
+pub enum PresetModTarget {
+    /// The rack device itself (non-macro params).
+    Rack,
+    /// `PresetRack::chains[chain].devices[device]`.
+    ChainDevice { chain: u32, device: u32 },
 }
 
 /// Parse and validate a preset file (format tag, version, device/kind consistency).
@@ -132,6 +224,31 @@ pub fn load_preset(json: &str) -> Result<Preset, FileError> {
     }
     let file: PresetFile = serde_json::from_value(doc)?;
     let p = file.preset;
+    if let Some(rack) = &p.rack {
+        let is_rack = matches!(&p.device, PresetDevice::Builtin { device } if device.is_rack());
+        let refs_ok = rack.mappings.iter().all(|m| {
+            let source = match m.source {
+                PresetModSource::Macro { index } => {
+                    usize::from(index) < crate::rack::RACK_MACROS as usize
+                }
+                PresetModSource::Modulator { index } => (index as usize) < rack.modulators.len(),
+            };
+            let target = match m.target {
+                PresetModTarget::Rack => true,
+                PresetModTarget::ChainDevice { chain, device } => rack
+                    .chains
+                    .get(chain as usize)
+                    .is_some_and(|c| (device as usize) < c.devices.len()),
+            };
+            source && target && m.depth.is_finite()
+        });
+        if !is_rack || !refs_ok {
+            return Err(FileError::Migration {
+                from: version as u32,
+                message: "invalid rack structure in preset".into(),
+            });
+        }
+    }
     if let (PresetDevice::Builtin { device }, Some(kind)) = (&p.device, &p.kind)
         && kind.device_type() != *device
     {
@@ -180,6 +297,7 @@ mod tests {
             kind: None,
             samples: vec![],
             state: None,
+            rack: None,
         }
     }
 

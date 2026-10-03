@@ -4,10 +4,16 @@ import type { BrowseRoot } from "./BrowseRoot";
 import type { BrowserPage } from "./BrowserPage";
 import type { BrowserRoot } from "./BrowserRoot";
 import type { ByteChunk } from "./ByteChunk";
+import type { CaptureResult } from "./CaptureResult";
+import type { CaptureStatus } from "./CaptureStatus";
 import type { DeviceDescriptor } from "./DeviceDescriptor";
 import type { DirectoryListing } from "./DirectoryListing";
 import type { EngineStatus } from "./EngineStatus";
+import type { FactoryIr } from "./FactoryIr";
+import type { HardwarePorts } from "./HardwarePorts";
+import type { HistoryList } from "./HistoryList";
 import type { InputList } from "./InputList";
+import type { Keymap } from "./Keymap";
 import type { MediaId } from "./MediaId";
 import type { MediaRef } from "./MediaRef";
 import type { MidiMapping } from "./MidiMapping";
@@ -17,8 +23,12 @@ import type { PluginDescriptor } from "./PluginDescriptor";
 import type { PresetInfo } from "./PresetInfo";
 import type { Project } from "./Project";
 import type { ProjectSummary } from "./ProjectSummary";
+import type { RecoveryInfo } from "./RecoveryInfo";
+import type { TemplateInfo } from "./TemplateInfo";
+import type { VersionDiff } from "./VersionDiff";
+import type { VersionInfo } from "./VersionInfo";
 
 /**
  * Typed payloads of replies. Most commands reply `Unit`.
  */
-export type ReplyValue = { "type": "Unit" } | { "type": "Project", project: Project, } | { "type": "Projects", projects: Array<ProjectSummary>, } | { "type": "Saved", project: ProjectSummary, } | { "type": "Locations", locations: Array<BrowseRoot>, } | { "type": "DeviceTypes", devices: Array<DeviceDescriptor>, } | { "type": "Descriptor", descriptor: DeviceDescriptor, } | { "type": "Plugins", plugins: Array<PluginDescriptor>, } | { "type": "Media", media: MediaRef, } | { "type": "Peaks", peaks: PeakData, } | { "type": "Directory", listing: DirectoryListing, } | { "type": "Tempo", bpm: number | null, } | { "type": "Inputs", inputs: InputList, } | { "type": "AudioDevices", devices: AudioDeviceList, } | { "type": "Status", status: EngineStatus, } | { "type": "ExportStarted", job: string, } | { "type": "Bytes", chunk: ByteChunk, } | { "type": "MidiMappings", mappings: Array<MidiMapping>, } | { "type": "RenderStarted", job: string, } | { "type": "Presets", presets: Array<PresetInfo>, } | { "type": "Preset", preset: PresetInfo, } | { "type": "BrowserPage", page: BrowserPage, } | { "type": "BrowserRoots", roots: Array<BrowserRoot>, } | { "type": "ModulatorKinds", kinds: Array<ModulatorDescriptor>, } | { "type": "MissingMedia", media: Array<MediaId>, };
+export type ReplyValue = { "type": "Unit" } | { "type": "Project", project: Project, } | { "type": "Projects", projects: Array<ProjectSummary>, } | { "type": "Saved", project: ProjectSummary, } | { "type": "Locations", locations: Array<BrowseRoot>, } | { "type": "DeviceTypes", devices: Array<DeviceDescriptor>, } | { "type": "Descriptor", descriptor: DeviceDescriptor, } | { "type": "Plugins", plugins: Array<PluginDescriptor>, } | { "type": "Media", media: MediaRef, } | { "type": "Peaks", peaks: PeakData, } | { "type": "Directory", listing: DirectoryListing, } | { "type": "Tempo", bpm: number | null, } | { "type": "Inputs", inputs: InputList, } | { "type": "AudioDevices", devices: AudioDeviceList, } | { "type": "Status", status: EngineStatus, } | { "type": "ExportStarted", job: string, } | { "type": "Bytes", chunk: ByteChunk, } | { "type": "MidiMappings", mappings: Array<MidiMapping>, } | { "type": "RenderStarted", job: string, } | { "type": "Presets", presets: Array<PresetInfo>, } | { "type": "Preset", preset: PresetInfo, } | { "type": "BrowserPage", page: BrowserPage, } | { "type": "BrowserRoots", roots: Array<BrowserRoot>, } | { "type": "ModulatorKinds", kinds: Array<ModulatorDescriptor>, } | { "type": "MissingMedia", media: Array<MediaId>, } | { "type": "Captured", capture: CaptureResult, } | { "type": "CaptureStatus", status: CaptureStatus, } | { "type": "FactoryIrs", irs: Array<FactoryIr>, } | { "type": "HardwarePorts", ports: HardwarePorts, } | { "type": "History", history: HistoryList, } | { "type": "Templates", templates: Array<TemplateInfo>, } | { "type": "Template", template: TemplateInfo, } | { "type": "Versions", versions: Array<VersionInfo>, } | { "type": "Version", version: VersionInfo, } | { "type": "VersionDiff", diff: VersionDiff, } | { "type": "Recoverable", projects: Array<RecoveryInfo>, } | { "type": "Keymap", keymap: Keymap, };

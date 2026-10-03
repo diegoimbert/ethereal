@@ -438,7 +438,8 @@ impl MultiSampler {
                 }
             }
             EventKind::Param { param, value } => self.apply_param(param, value, true),
-            EventKind::Midi { .. } => {}
+            // Per-note expression (MPE) is ignored until the v0.3 expression nodes wire it in.
+            EventKind::Midi { .. } | EventKind::NoteExpression { .. } => {}
         }
     }
 

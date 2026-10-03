@@ -13,7 +13,7 @@
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
-use crate::model::{DeviceId, PresetDevice, PresetMeta};
+use crate::model::{DeviceId, PresetDevice, PresetMeta, RackChainId};
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
 #[serde(tag = "type")]
@@ -27,7 +27,20 @@ pub enum PresetCommand {
     },
     /// Apply a preset to an existing device of the same type (params, kind data, plugin
     /// state). Undoable. `InvalidArgument` for a preset of another type.
-    Load { device: DeviceId, preset: PresetRef },
+    ///
+    /// v0.3 (`rack-presets`): loading a rack preset that stores its structure
+    /// (`Preset::rack`) replaces the rack's chains, chain devices, the rack's modulators and
+    /// the mappings inside it; every new entity gets `derive_id(seed, i)` in preset order
+    /// (chains, then each chain's devices, then modulators, then mappings) so collab replays
+    /// mint the same ids. `seed` is required for such presets (`InvalidArgument` without
+    /// it) and ignored otherwise. Omitted from JSON when `None`.
+    Load {
+        device: DeviceId,
+        preset: PresetRef,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[ts(optional)]
+        seed: Option<RackChainId>,
+    },
     /// Save a device's current state as a user preset. Replies `Preset` (the new entry).
     /// An existing user preset with the same name is replaced only when `overwrite`.
     Save {

@@ -402,7 +402,15 @@ fn search_filters_sort_and_paging() {
         ids(&h.query(q("vinyl kit"))),
         ["lib/Vinyl/Crackle Kick.wav"]
     );
-    assert_eq!(ids(&h.query(q("a minor"))), ["lib/Bass/Bass_Am_128bpm.wav"]);
+    // Scoped to the sample library: factory presets (e.g. the scale-quantize "C minor
+    // pentatonic") also match "minor".
+    assert_eq!(
+        ids(&h.query(BrowserQuery {
+            roots: vec!["lib".into()],
+            ..q("a minor")
+        })),
+        ["lib/Bass/Bass_Am_128bpm.wav"]
+    );
     // Roots, packs, folders.
     assert_eq!(
         ids(&h.query(BrowserQuery {

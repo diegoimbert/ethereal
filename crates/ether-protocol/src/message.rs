@@ -4,16 +4,22 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
 use crate::analysis::{AnalysisCommand, AnalysisEvent};
+use crate::audio_to_midi::{AudioToMidiCommand, AudioToMidiEvent};
 use crate::automation::AutomationCommand;
 use crate::browser::{BrowserCommand, BrowserEvent, BrowserPage, BrowserRoot};
+use crate::capture::{CaptureCommand, CaptureEvent, CaptureResult, CaptureStatus};
 use crate::clips::ClipCommand;
 use crate::collab::{CollabCommand, CollabEvent};
+use crate::devices::FactoryIr;
 use crate::devices::{DeviceCommand, DeviceDescriptor};
 use crate::drum_rack::{DrumRackCommand, SliceCommand};
 use crate::engine::{AudioDeviceList, EngineCommand, EngineEvent, EngineStatus};
 use crate::export::{ByteChunk, ExportCommand, ExportEvent, ExportJobId};
+use crate::expression::ExpressionCommand;
+use crate::external::{ExternalCommand, ExternalEvent, HardwarePorts};
 use crate::freeze::{FreezeCommand, FreezeEvent, RenderJobId};
 use crate::groove::GrooveCommand;
+use crate::keymap::{Keymap, KeymapCommand, KeymapEvent};
 use crate::markers::MarkerCommand;
 use crate::media::{BrowseRoot, DirectoryListing, MediaCommand, MediaEvent, PeakData};
 use crate::media_refs::{MediaRefCommand, MediaRefEvent};
@@ -29,10 +35,13 @@ use crate::racks::{ModulationCommand, ModulatorDescriptor, RackCommand};
 use crate::recording::{InputList, RecordingCommand, RecordingEvent};
 use crate::social::{ChatCommand, PinnedNoteCommand};
 use crate::takes::TakeCommand;
+use crate::templates::{TemplateCommand, TemplateEvent, TemplateInfo};
 use crate::tempo::TempoCommand;
 use crate::time_edit::TimeEditCommand;
 use crate::tracks::TrackCommand;
 use crate::transport::{PlayheadUpdate, TransportCommand, TransportState};
+use crate::undo_history::{HistoryCommand, HistoryEvent, HistoryList};
+use crate::versions::{RecoveryInfo, VersionCommand, VersionDiff, VersionEvent, VersionInfo};
 use crate::warp::WarpCommand;
 
 /// Client-chosen request id, echoed in the [`Reply`]. Unique per connection.
@@ -95,6 +104,23 @@ pub enum Command {
     Chat(ChatCommand),
     /// Notes pinned on the arrangement (document command).
     PinnedNote(PinnedNoteCommand),
+    // --- v0.3 (contracts-4; one domain per node, see docs/ROADMAP.md "v0.3") ---
+    /// Clip expression lanes, note expressions, track MPE (`midi-expression`, `mpe`).
+    Expression(ExpressionCommand),
+    /// MIDI capture buffer (`capture-midi`).
+    Capture(CaptureCommand),
+    /// Audio-to-MIDI conversion jobs (`audio-to-midi`).
+    AudioToMidi(AudioToMidiCommand),
+    /// External instrument / audio effect routing and latency (`external-instrument`).
+    External(ExternalCommand),
+    /// Undo history panel (`undo-history`).
+    History(HistoryCommand),
+    /// Project and track templates (`templates`).
+    Template(TemplateCommand),
+    /// Project versions and crash recovery (`project-versions`).
+    Version(VersionCommand),
+    /// User keymap storage (`keymap`).
+    Keymap(KeymapCommand),
 }
 
 /// Engine → UI. `Reply` answers exactly one `ClientMessage`; `Event`s are pushed;
@@ -215,6 +241,48 @@ pub enum ReplyValue {
     MissingMedia {
         media: Vec<MediaId>,
     },
+    // --- v0.3 (contracts-4) ---
+    /// `Capture::Capture`.
+    Captured {
+        capture: CaptureResult,
+    },
+    /// `Capture::Status`.
+    CaptureStatus {
+        status: CaptureStatus,
+    },
+    /// `Device::ListFactoryIrs`.
+    FactoryIrs {
+        irs: Vec<FactoryIr>,
+    },
+    /// `External::ListPorts`.
+    HardwarePorts {
+        ports: HardwarePorts,
+    },
+    /// `History::{List, JumpTo}`.
+    History {
+        history: HistoryList,
+    },
+    Templates {
+        templates: Vec<TemplateInfo>,
+    },
+    Template {
+        template: TemplateInfo,
+    },
+    Versions {
+        versions: Vec<VersionInfo>,
+    },
+    Version {
+        version: VersionInfo,
+    },
+    VersionDiff {
+        diff: VersionDiff,
+    },
+    Recoverable {
+        projects: Vec<RecoveryInfo>,
+    },
+    Keymap {
+        keymap: Keymap,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
@@ -296,6 +364,28 @@ pub enum Event {
     },
     MediaRef {
         event: MediaRefEvent,
+    },
+    // --- v0.3 ---
+    Capture {
+        event: CaptureEvent,
+    },
+    AudioToMidi {
+        event: AudioToMidiEvent,
+    },
+    External {
+        event: ExternalEvent,
+    },
+    History {
+        event: HistoryEvent,
+    },
+    Template {
+        event: TemplateEvent,
+    },
+    Version {
+        event: VersionEvent,
+    },
+    Keymap {
+        event: KeymapEvent,
     },
     /// User-facing message (toast).
     Notification {

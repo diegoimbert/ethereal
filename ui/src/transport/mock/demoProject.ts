@@ -141,6 +141,8 @@ export function createEmptyProject(nextId: () => string, name: string, id: Proje
     drum_pads: {},
     chat: {},
     pinned_notes: {},
+    expression_lanes: {},
+    note_expressions: {},
   };
 }
 
