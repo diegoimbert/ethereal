@@ -108,6 +108,10 @@
   --eth-size-detail-collapsed-height: 24px;
   --eth-size-popover-min-width: 140px;
   --eth-size-select-list-max-height: 320px;
+  --eth-size-select-search-width: 280px;
+  --eth-size-param-list-row-height: 34px;
+  --eth-size-param-list-height: 420px;
+  --eth-size-param-list-dialog-width: 560px;
   --eth-size-dialog-width: 420px;
   --eth-size-tooltip-max-width: 240px;
   --eth-size-edge-handle: 6px;

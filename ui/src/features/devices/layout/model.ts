@@ -98,6 +98,65 @@ export interface ResolvedLayout {
   moreCount: number;
   /** The device ships its own layout (else: the generic one). */
   declared: boolean;
+  /**
+   * The card shows only some of the params (`PARAM_CARD_CAP` for plugins); the rest are
+   * reached through "Show all N parameters…" (a searchable, windowed list).
+   */
+  capped: boolean;
+  /** Visible (non-hidden) params of the device. */
+  total: number;
+}
+
+/**
+ * Most controls a plugin card renders by default (pinned params first, then the plugin's
+ * own quick controls, then its first automatable params). The rest live in the
+ * "Show all parameters" list, which only mounts the rows in view.
+ */
+export const PARAM_CARD_CAP = 16;
+/**
+ * Any device (built-ins included) with more visible params than this gets the capped card,
+ * and a declared layout folds at most this many under "More" (beyond: the full list).
+ */
+export const UNCAPPED_MAX = 64;
+
+const NO_PINS: ReadonlyArray<ParamId> = [];
+
+/**
+ * The params a capped card shows, in order: `pins` (the user's, per plugin), the plugin's
+ * own quick controls (`ParamInfo.remote`, CLAP remote-controls pages), then the first
+ * automatable visible params, then any visible ones; at most `cap`, each once.
+ */
+export function cardParams(params: ReadonlyArray<ParamInfo>, pins: ReadonlyArray<ParamId> = NO_PINS, cap = PARAM_CARD_CAP): ParamInfo[] {
+  const out: ParamInfo[] = [];
+  const taken = new Set<ParamId>();
+  const take = (p: ParamInfo | undefined) => {
+    if (!p || p.hidden || taken.has(p.id) || out.length >= cap) return;
+    taken.add(p.id);
+    out.push(p);
+  };
+  if (pins.length) {
+    const byId = new Map(params.map((p) => [p.id, p]));
+    for (const id of pins) take(byId.get(id));
+  }
+  if (out.length < cap) {
+    const remote = params.filter((p) => p.remote != null).sort((a, b) => a.remote! - b.remote!);
+    for (const p of remote) take(p);
+  }
+  for (const p of params) {
+    if (out.length >= cap) break;
+    if (p.automatable) take(p);
+  }
+  for (const p of params) {
+    if (out.length >= cap) break;
+    take(p);
+  }
+  return out;
+}
+
+function visibleCount(params: ReadonlyArray<ParamInfo>): number {
+  let n = 0;
+  for (const p of params) if (!p.hidden) n++;
+  return n;
 }
 
 /**
@@ -112,23 +171,38 @@ export function genericLayout(params: ReadonlyArray<ParamInfo>): ResolvedLayout 
     more: more.length ? { sections: genericSections(more, "Medium", "more") } : null,
     moreCount,
     declared: false,
+    capped: false,
+    total: visibleCount(params),
   };
 }
 
 /**
  * Resolve a descriptor: its declared layout (plus the visible params it doesn't reference,
- * grouped, behind "More") or the generic layout.
+ * grouped, behind "More") or the generic layout. A plugin with more than `PARAM_CARD_CAP`
+ * visible params (any device above `UNCAPPED_MAX`) gets the capped card: the generic
+ * layout of `cardParams(params, pins)` only.
  */
-export function resolveLayout(descriptor: Pick<DeviceDescriptor, "params" | "layout">): ResolvedLayout {
+export function resolveLayout(
+  descriptor: Pick<DeviceDescriptor, "params" | "layout"> & Partial<Pick<DeviceDescriptor, "device_type">>,
+  pins: ReadonlyArray<ParamId> = NO_PINS,
+): ResolvedLayout {
   const layout = descriptor.layout;
-  if (!layout || layout.sections.length === 0) return genericLayout(descriptor.params);
+  const total = visibleCount(descriptor.params);
+  if (!layout || layout.sections.length === 0) {
+    const cap = descriptor.device_type?.type === "Plugin" ? PARAM_CARD_CAP : UNCAPPED_MAX;
+    if (total <= cap) return genericLayout(descriptor.params);
+    return { ...genericLayout(cardParams(descriptor.params, pins)), capped: true, total };
+  }
   const used = referencedParams(layout);
   const rest = groupParams(descriptor.params.filter((p) => !used.has(p.id)));
   const moreCount = rest.reduce((n, g) => n + g.params.length, 0);
+  const capped = moreCount > UNCAPPED_MAX;
   return {
     main: layout,
-    more: rest.length ? { sections: genericSections(rest, "Medium", "more") } : null,
-    moreCount,
+    more: rest.length && !capped ? { sections: genericSections(rest, "Medium", "more") } : null,
+    moreCount: capped ? 0 : moreCount,
     declared: true,
+    capped,
+    total,
   };
 }

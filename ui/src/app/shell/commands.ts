@@ -7,6 +7,7 @@ import type { DeviceDescriptor, Project } from "@/generated";
 import { addTrack, selectTrackEntity } from "@/features/arrangement/actions";
 import { arrangementView } from "@/features/arrangement/uiStore";
 import { openImportDialog } from "@/features/import";
+import { openKeymapEditor, printCheatSheet } from "@/features/keymap";
 import { useProjectScreen } from "@/features/project/screenStore";
 import { placementAfter, tracksToSave, useTemplateDialog } from "@/features/templates";
 import { useArrangementUi } from "@/features/arrangement/uiStore";
@@ -27,8 +28,15 @@ export interface PaletteCommand {
   label: string;
   /** Section shown next to the label. */
   group: string;
-  /** Shortcut hint (display only). */
+  /**
+   * Shortcut hint. The palette shows the keymap's chord for the command instead (keymap):
+   * a hint here is the command's default chord in the keymap unless it is a built-in action.
+   */
   shortcut?: string;
+  /** The keymap action this command is (`ui/src/features/keymap/registry.ts`), if any. */
+  action?: string;
+  /** `false`: not bindable in the keymap (per-project entries). */
+  bindable?: boolean;
   /** Extra words that match (not shown). */
   keywords?: string;
   run(): void;
@@ -135,6 +143,7 @@ export function buildCommands(transport: EngineTransport | null, devices: Readon
         group: "Go to",
         label: `Go to track ${t.name}`,
         keywords: "select jump track",
+        bindable: false,
         run: () => selectTrackEntity(t.id),
       });
     }
@@ -219,6 +228,22 @@ export function buildCommands(transport: EngineTransport | null, devices: Readon
     keywords: "audio device output input microphone sample rate buffer latency driver preferences",
     run: () => openAudioSettings(),
   });
+  out.push(
+    {
+      id: "keymap:open",
+      group: "Appearance",
+      label: "Keyboard shortcuts…",
+      keywords: "keymap hotkeys keys bindings shortcuts rebind preset ableton",
+      run: () => openKeymapEditor(),
+    },
+    {
+      id: "keymap:print",
+      group: "Appearance",
+      label: "Print keyboard shortcuts",
+      keywords: "keymap cheat sheet hotkeys print",
+      run: () => printCheatSheet(),
+    },
+  );
   const dark = getTheme() === "dark";
   out.push({
     id: "theme",
