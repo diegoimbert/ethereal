@@ -20,7 +20,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, 
 import { CornerLeftUp, FolderOpen, FolderPlus, Search, Star, X } from "lucide-react";
 import type { BrowseRoot, BrowserQuery, BrowserRoot, DirectoryEntry, LibraryItem } from "@/generated";
 import { BrowserImportBar, useImportDrop } from "@/features/import";
-import { useCurrentPresets } from "@/features/presets";
+import { loadPresetCommand, useCurrentPresets } from "@/features/presets";
 import { useEngineCommands, useEngineEvent } from "@/features/transport-bar/engine";
 import { Button, Dialog, IconButton, Select, TextInput, openContextMenu, type ContextMenuEntry } from "@/kit";
 import { devicesOfTrack, useProjectStore, useSelectionStore } from "@/state";
@@ -312,7 +312,7 @@ export function BrowserV2({ scope, initialRoots }: BrowserV2Props) {
       return;
     }
     const preset = item.preset;
-    void send(cmd("Preset", { type: "Load", device: device.id, preset })).then((r) => r && setCurrentPreset(device.id, preset, item.name));
+    void send(loadPresetCommand(device.id, preset)).then((r) => r && setCurrentPreset(device.id, preset, item.name));
   };
   const openProject = (item: LibraryItem) => void send(cmd("Project", { type: "Open", id: item.path }));
   const open = (item: LibraryItem) => {

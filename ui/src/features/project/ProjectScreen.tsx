@@ -5,6 +5,7 @@ import type { EngineCommands } from "@/features/transport-bar/engine";
 import { Button, Dialog, IconButton, openContextMenu, TextInput } from "@/kit";
 import { ProjectScale } from "@/features/scale/ProjectScale";
 import { openVersions } from "@/features/versions/store";
+import { newProjectCommand, ProjectTemplatePicker, useTemplateDialog, type ProjectTemplateChoice } from "@/features/templates";
 import { useProjectStore } from "@/state";
 import { cmd, newProjectId } from "@/transport";
 import { copyName, formatModified, sortProjects, uniqueName } from "./projectNames";
@@ -19,11 +20,9 @@ import { useProjectScreen } from "./screenStore";
 export function ProjectScreen({ commands }: { commands: EngineCommands }) {
   const open = useProjectScreen((s) => s.open);
   const hide = useProjectScreen((s) => s.hide);
-  const [naming, setNaming] = useState(false);
-  const close = () => {
-    hide();
-    setNaming(false);
-  };
+  const naming = useProjectScreen((s) => s.naming);
+  const setNaming = useProjectScreen((s) => s.setNaming);
+  const close = hide;
   return (
     <Dialog open={open} onClose={close} title="Projects" className="eth-project-screen">
       {naming ? (
@@ -106,6 +105,15 @@ function Home({ commands, onNew, onDone }: { commands: EngineCommands; onNew(): 
           <CurrentName key={current.id} name={current.settings.name} onRename={(name) => rename(current.id, name)} />
           <Button variant="primary" onClick={onDone}>
             Continue
+          </Button>
+          {/* templates: save the open project as a project template. */}
+          <Button
+            tone="ghost"
+            size="sm"
+            className="eth-project-screen__save-template"
+            onClick={() => useTemplateDialog.getState().open({ type: "save-project", name: current.settings.name })}
+          >
+            Save as template…
           </Button>
           <ProjectScale send={send} />
           {/* project-versions: the open project's versions (save, compare, restore). */}
@@ -246,11 +254,13 @@ function NewProject({ commands, onBack, onDone }: { commands: EngineCommands; on
   const suggested = uniqueName("Untitled", projects);
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
+  // templates: the project template to start from (`undefined`: the default one).
+  const [template, setTemplate] = useState<ProjectTemplateChoice | undefined>(undefined);
 
   const create = async (e: FormEvent) => {
     e.preventDefault();
     setBusy(true);
-    const reply = await send(cmd("Project", { type: "Create", id: newProjectId(), name: uniqueName(name || suggested, projects) }));
+    const reply = await send(newProjectCommand(newProjectId(), uniqueName(name || suggested, projects), template));
     setBusy(false);
     if (reply) onDone();
   };
@@ -275,6 +285,7 @@ function NewProject({ commands, onBack, onDone }: { commands: EngineCommands; on
           }
         }}
       />
+      <ProjectTemplatePicker value={template} onChange={setTemplate} />
       <ErrorLine commands={commands} />
       <div className="eth-project-screen__actions">
         <Button onClick={onBack}>Back</Button>
