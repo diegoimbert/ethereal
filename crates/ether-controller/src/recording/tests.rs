@@ -835,6 +835,192 @@ fn audio_loop_passes_become_takes_and_plain_recordings_stay_clips() {
     );
 }
 
+// ─── midi-expression: CC / bend / pressure become lanes and note expressions ────────────
+
+#[test]
+fn recorded_expression_becomes_lanes_and_note_pressure() {
+    let mut h = H::new(true);
+    let midi = h.track(TrackKind::Midi);
+    h.rec(RecordingCommand::Arm {
+        track: midi,
+        armed: true,
+        exclusive: true,
+    });
+    h.ctl.transport.position = Beats(4.0);
+    h.rec(RecordingCommand::SetRecording { enabled: true });
+    let ev = |position, data| RecordedMidi {
+        position,
+        data,
+        pass: 0,
+    };
+    h.capture().result.midi = vec![
+        ev(4.0, [0xB0, 1, 0]),
+        ev(4.5, [0x90, 60, 100]),
+        ev(4.6, [0xA0, 60, 64]),
+        ev(4.75, [0xE0, 0x7F, 0x7F]),
+        ev(5.0, [0xB0, 1, 127]),
+        ev(5.0, [0xA0, 60, 127]),
+        ev(5.5, [0x80, 60, 0]),
+        ev(5.6, [0xD0, 30, 0]),
+    ];
+    let out = h.rec(RecordingCommand::SetRecording { enabled: false });
+    let events = recording_events(&out);
+    let [RecordingEvent::Stopped { clips }] = events.as_slice() else {
+        panic!("{events:?}");
+    };
+    let p = h.project();
+    let lanes = p.expression_lanes_of(clips[0]);
+    let kinds: Vec<ExpressionKind> = lanes.iter().map(|l| l.kind).collect();
+    assert_eq!(
+        kinds,
+        vec![
+            ExpressionKind::Cc { controller: 1 },
+            ExpressionKind::PitchBend,
+            ExpressionKind::ChannelPressure
+        ]
+    );
+    let start = p.clips[&clips[0]].start.0;
+    let cc: Vec<(f64, f32)> = lanes[0]
+        .points
+        .iter()
+        .map(|q| (q.time.0 + start, q.value))
+        .collect();
+    assert_eq!(cc, vec![(4.0, 0.0), (5.0, 1.0)]);
+    assert_eq!(lanes[1].points[0].value, 1.0);
+    // Poly pressure on the recorded note, from its start.
+    let note = p.notes_of(clips[0])[0].id;
+    let pressure = p.note_expressions_of(note);
+    assert_eq!(pressure.len(), 1);
+    assert_eq!(pressure[0].kind, NoteExpressionKind::Pressure);
+    let pts: Vec<(f64, f32)> = pressure[0]
+        .points
+        .iter()
+        .map(|q| (q.time.0, q.value))
+        .collect();
+    assert!((pts[0].0 - 0.1).abs() < 1e-9 && (pts[0].1 - 64.0 / 127.0).abs() < 1e-6);
+    assert_eq!(pts[1], (0.5, 1.0));
+    // One undo step removes the clip with its expression.
+    h.ok(Command::Edit(EditCommand::Undo));
+    assert!(h.project().expression_lanes.is_empty());
+    assert!(h.project().note_expressions.is_empty());
+}
+
+#[test]
+fn a_pass_with_only_controller_moves_still_records_a_clip() {
+    let mut h = H::new(true);
+    let midi = h.track(TrackKind::Midi);
+    h.rec(RecordingCommand::Arm {
+        track: midi,
+        armed: true,
+        exclusive: true,
+    });
+    h.rec(RecordingCommand::SetRecording { enabled: true });
+    h.capture().result.midi = vec![RecordedMidi {
+        position: 0.5,
+        data: [0xB0, 64, 127],
+        pass: 0,
+    }];
+    let out = h.rec(RecordingCommand::SetRecording { enabled: false });
+    let events = recording_events(&out);
+    let [RecordingEvent::Stopped { clips }] = events.as_slice() else {
+        panic!("{events:?}");
+    };
+    assert_eq!(clips.len(), 1);
+    let p = h.project();
+    assert!(p.notes_of(clips[0]).is_empty());
+    assert_eq!(p.expression_lanes_of(clips[0]).len(), 1);
+}
+
+// ─── mpe: member channels become per-note pitch / pressure / timbre ─────────────────────
+
+#[test]
+fn an_mpe_track_records_member_channels_as_note_expressions() {
+    let mut h = H::new(true);
+    let mpe = h.track(TrackKind::Midi);
+    let plain = h.track(TrackKind::Midi);
+    h.ok(Command::Expression(
+        ether_core::protocol::expression::ExpressionCommand::SetTrackMpe {
+            track: mpe,
+            mpe: Some(MpeSettings::default()),
+        },
+    ));
+    for t in [mpe, plain] {
+        h.rec(RecordingCommand::Arm {
+            track: t,
+            armed: true,
+            exclusive: false,
+        });
+    }
+    h.rec(RecordingCommand::SetRecording { enabled: true });
+    let ev = |position, data| RecordedMidi {
+        position,
+        data,
+        pass: 0,
+    };
+    h.capture().result.midi = vec![
+        ev(0.0, [0xE1, 0, 0x40]),
+        ev(0.0, [0x91, 60, 100]),
+        ev(0.0, [0x92, 64, 100]),
+        ev(0.25, [0xE1, 0x7F, 0x7F]),
+        ev(0.5, [0xD2, 127, 0]),
+        ev(0.75, [0xB2, 74, 0]),
+        ev(0.8, [0xB0, 1, 64]), // master channel: a lane on both tracks
+        ev(1.0, [0x81, 60, 0]),
+        ev(1.0, [0x82, 64, 0]),
+    ];
+    let out = h.rec(RecordingCommand::SetRecording { enabled: false });
+    let events = recording_events(&out);
+    let [RecordingEvent::Stopped { clips }] = events.as_slice() else {
+        panic!("{events:?}");
+    };
+    let p = h.project();
+    let on = |t: TrackId| *clips.iter().find(|c| p.clips[c].track == t).unwrap();
+    let (cm, cp) = (on(mpe), on(plain));
+    // MPE track: one lane (CC 1 from the master channel), per-note curves.
+    let lanes: Vec<ExpressionKind> = p.expression_lanes_of(cm).iter().map(|l| l.kind).collect();
+    assert_eq!(lanes, vec![ExpressionKind::Cc { controller: 1 }]);
+    let notes = p.notes_of(cm);
+    let of = |pitch: u8| {
+        let n = notes.iter().find(|n| n.pitch == pitch).unwrap().id;
+        let mut x: Vec<(NoteExpressionKind, Vec<(f64, f32)>)> = p
+            .note_expressions_of(n)
+            .iter()
+            .map(|e| {
+                (
+                    e.kind,
+                    e.points.iter().map(|q| (q.time.0, q.value)).collect(),
+                )
+            })
+            .collect();
+        x.sort_by_key(|e| e.0);
+        x
+    };
+    assert_eq!(
+        of(60),
+        vec![(NoteExpressionKind::Pitch, vec![(0.0, 0.0), (0.25, 48.0)])]
+    );
+    assert_eq!(
+        of(64),
+        vec![
+            (NoteExpressionKind::Pressure, vec![(0.5, 1.0)]),
+            (NoteExpressionKind::Timbre, vec![(0.75, 0.0)]),
+        ]
+    );
+    // The plain track reads the same MIDI as channel messages.
+    let plain_lanes: Vec<ExpressionKind> =
+        p.expression_lanes_of(cp).iter().map(|l| l.kind).collect();
+    assert!(plain_lanes.contains(&ExpressionKind::PitchBend));
+    assert!(plain_lanes.contains(&ExpressionKind::Cc { controller: 74 }));
+    assert!(
+        p.notes_of(cp)
+            .iter()
+            .all(|n| p.note_expressions_of(n.id).is_empty())
+    );
+    // One undo step.
+    h.ok(Command::Edit(EditCommand::Undo));
+    assert!(h.project().note_expressions.is_empty());
+}
+
 /// `tap-recording` (uses this module's bridge and helpers).
 #[path = "tap_tests.rs"]
 mod tap;

@@ -622,8 +622,9 @@ fn host_handled_and_unsupported_commands() {
     let mut h = Harness::with_project();
     for c in [
         Command::Engine(EngineCommand::GetStatus),
-        Command::Plugin(PluginCommand::Rescan),
+        Command::Plugin(PluginCommand::Rescan { full: false }),
         Command::Plugin(PluginCommand::List),
+        Command::Plugin(PluginCommand::ListFolders),
         Command::Media(MediaCommand::StopPreview),
         Command::Recording(RecordingCommand::ListInputs),
     ] {
@@ -646,4 +647,119 @@ fn rename_current_project_is_undoable() {
     assert_eq!(h.project().settings.name, "Song");
     h.ok(Command::Edit(EditCommand::Undo));
     assert_eq!(h.project().settings.name, "Test");
+}
+
+/// base-106: dragging clips below the last track creates the new tracks (a MIDI one with
+/// the built-in synth, like "New track") and moves or copies the clips onto them, as ONE
+/// `Edit::Batch`: a single undo restores the original arrangement.
+#[test]
+fn drag_below_last_track_creates_tracks_and_moves_clips_in_one_undo_step() {
+    let mut h = Harness::with_project();
+    let a = create_track(&mut h, TrackKind::Midi);
+    let b = create_track(&mut h, TrackKind::Midi);
+    let ca = midi_clip(&mut h, a, 0.0, 4.0);
+    let cb = midi_clip(&mut h, b, 2.0, 4.0);
+    let tracks_before = h.project().tracks.len();
+
+    let new_midi = |id: TrackId, device: DeviceId| {
+        vec![
+            Command::Track(TrackCommand::Create {
+                id,
+                kind: TrackKind::Midi,
+                name: None,
+                color: None,
+                parent: None,
+                before: None,
+            }),
+            Command::Device(DeviceCommand::Insert {
+                id: device,
+                track: id,
+                device: DeviceSpec::Builtin {
+                    device: BuiltinDevice::Synth,
+                },
+                before: None,
+            }),
+        ]
+    };
+
+    // Move: two source tracks, two new tracks in order.
+    let (na, nb): (TrackId, TrackId) = (h.id(), h.id());
+    let (da, db): (DeviceId, DeviceId) = (h.id(), h.id());
+    let mut commands = new_midi(na, da);
+    commands.extend(new_midi(nb, db));
+    commands.push(Command::Clip(ClipCommand::Move {
+        moves: vec![
+            ClipMove {
+                id: ca,
+                track: na,
+                start: Beats(8.0),
+            },
+            ClipMove {
+                id: cb,
+                track: nb,
+                start: Beats(10.0),
+            },
+        ],
+    }));
+    let out = h.send(Command::Edit(EditCommand::Batch {
+        label: "Move Clips to New Tracks".into(),
+        commands,
+    }));
+    let p = patches(&out);
+    assert_eq!(p.len(), 1, "one patch, one undo step");
+    assert_eq!(
+        p[0].history.undo_label.as_deref(),
+        Some("Move Clips to New Tracks")
+    );
+    let pr = h.project();
+    assert_eq!(pr.tracks.len(), tracks_before + 2);
+    assert_eq!(pr.tracks[&na].kind, TrackKind::Midi);
+    assert!(pr.devices.contains_key(&da) && pr.devices.contains_key(&db));
+    assert_eq!(pr.clips[&ca].track, na);
+    assert_eq!(pr.clips[&ca].start, Beats(8.0));
+    assert_eq!(pr.clips[&cb].track, nb);
+    assert_eq!(pr.clips[&cb].start, Beats(10.0));
+
+    h.ok(Command::Edit(EditCommand::Undo));
+    let pr = h.project();
+    assert_eq!(pr.tracks.len(), tracks_before);
+    assert!(!pr.tracks.contains_key(&na) && !pr.tracks.contains_key(&nb));
+    assert!(!pr.devices.contains_key(&da));
+    assert_eq!(pr.clips[&ca].track, a);
+    assert_eq!(pr.clips[&ca].start, Beats(0.0));
+    assert_eq!(pr.clips[&cb].track, b);
+    assert_eq!(pr.clips[&cb].start, Beats(2.0));
+
+    // Copy: duplicate (parked after the source track's clips), then move onto the new track.
+    let nc: TrackId = h.id();
+    let dc: DeviceId = h.id();
+    let copy: ClipId = h.id();
+    let mut commands = new_midi(nc, dc);
+    commands.push(Command::Clip(ClipCommand::Duplicate {
+        id: ca,
+        new_id: copy,
+        start: Some(Beats(5.0)),
+    }));
+    commands.push(Command::Clip(ClipCommand::Move {
+        moves: vec![ClipMove {
+            id: copy,
+            track: nc,
+            start: Beats(0.0),
+        }],
+    }));
+    let out = h.send(Command::Edit(EditCommand::Batch {
+        label: "Copy Clips to New Tracks".into(),
+        commands,
+    }));
+    assert_eq!(patches(&out).len(), 1);
+    let pr = h.project();
+    assert_eq!(pr.clips[&copy].track, nc);
+    assert_eq!(pr.clips[&copy].start, Beats(0.0));
+    assert_eq!(pr.clips[&ca].track, a, "the original stays");
+    assert_eq!(pr.clips[&ca].start, Beats(0.0));
+    h.ok(Command::Edit(EditCommand::Undo));
+    let pr = h.project();
+    assert!(!pr.clips.contains_key(&copy));
+    assert!(!pr.tracks.contains_key(&nc));
+    assert_eq!(pr.tracks.len(), tracks_before);
 }

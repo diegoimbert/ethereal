@@ -716,6 +716,31 @@ Design: docs/COLLAB.md §12. Additive; the tables ship with `.ether` v4 (contrac
   `CollabEvent::ChatReceived { ids }`. Until `collab-social` lands, `Chat::*` and
   `PinnedNote::*` reply `Unsupported` (`ether-controller/tests/social_prewire.rs`).
 
+### 11.18 Sharing: P2P host hub, invite links (base-115)
+Design: docs/SHARING.md (T1, owner review). Additive and append-only:
+- Protocol (`ether_protocol::share`): `Command::Share(ShareCommand)` (`Get`, `SetIdentity`,
+  `SetServers`, host `Start`/`Stop`/`ResetLink`/`RemoveParticipant`/`SetParticipantRole`,
+  joiner `OpenInvite`/`AcceptInvite`/`Leave`/`Reconnect`/`Detach`, web `PeerSignal`) and
+  `Event::Share { event: ShareEvent }` (`State { ShareState }`, `Notice`, web
+  `PeerEndpoint`/`PeerSignal`). `ShareState` = `Off | Hosting | Joining { JoinStage } |
+  Joined`; `Participant`, `ParticipantRole` (Host/Edit/Listen), `ShareRole` (Edit/Listen),
+  `InvitePreview`. `ProjectSummary::share: Option<ProjectShareInfo>` (omitted when `None`).
+  Signaling wire `SignalClientMessage`/`SignalServerMessage` (`SIGNAL_PROTOCOL_VERSION` 1)
+  and the data-channel handshake `PeerHandshake` (`SHARE_PROTOCOL_VERSION` 1), both exported
+  to TS. Until their nodes land every `Share::*` but `Get` (reports `Off`) replies
+  `Unsupported` (`ether-controller/tests/share_prewire.rs`).
+- `ether-collab::share`: invite link format (`invite`, implemented; TS mirror
+  `ui/src/domain/invite.ts`, same vectors), data-channel fragmentation (`dc`, implemented),
+  `share.json` shape (`file`), and the node seams `PeerLink`, `SignalLink`, `PeerEndpoint`
+  (`PeerOutput::Connected` carries both DTLS fingerprints), `ShareServices`
+  (`default_services()` fails cleanly until `p2p-transport`). The hub is the existing `Relay`.
+- `services/signal/`: Cloudflare Worker + Durable Object skeleton (routes, origin checks,
+  frame validation, limits; room logic by `signal-service`), a pnpm workspace package.
+- Mock: `MockShare` (`ui/src/transport/mock/roadmap/share.ts`) simulates hosting, joining,
+  participants and the host going offline, so UI nodes start now.
+- Workspace deps added (unused until their nodes): `sha2`, `tauri-plugin-deep-link`,
+  `tauri-plugin-single-instance`.
+
 ## 12. v0.2 contracts (contracts-3)
 
 Frozen for the v0.2 nodes; per-node files, hook points and shared touches are in
@@ -1095,3 +1120,268 @@ latency-aligned sidechain buffers (base-24, §11.10) through `Node::process_side
 - `EqCurve` is for the EQ only in v0.2: the auto filter and the multiband compressor use
   standard controls (`FilterCurve`, `Crossover`, knobs). Other filters may adopt it later with
   an explicit param mapping (a BCR on this section).
+
+## 13. v0.3 contracts (contracts-4)
+
+Frozen for the v0.3 nodes. Per-node files, hook points and shared touches are in
+[ROADMAP.md "v0.3"](ROADMAP.md#v03-contracts-4). As in §12, everything is additive and
+append-only: v0.2 behaviour is unchanged until a node implements its part. Its commands reply
+`Unsupported` (pinned by `ether-controller/tests/roadmap_v4.rs`, one test per node), new
+devices are placeholders, new desc fields compile empty and the new engine hooks are stubs
+(`ether-core/tests/roadmap_v4_hooks.rs`). The MockTransport routes every new command to one
+file per node (`ui/src/transport/mock/roadmap/`, each pinned by its own `*.test.ts`).
+
+New domains (one protocol file each): `Command::{Expression, Capture, AudioToMidi,
+External, History, Template, Version, Keymap}`; `Event::{Capture, AudioToMidi, External,
+History, Template, Version, Keymap}`; replies `Captured`, `CaptureStatus`, `FactoryIrs`,
+`HardwarePorts`, `History`, `Templates`, `Template`, `Versions`, `Version`, `VersionDiff`,
+`Recoverable`, `Keymap`. New variants on existing domains: `Device::{SetIr,
+ListFactoryIrs}`; new optional field `Preset::Load::seed` (§13.9).
+
+Document commands (undoable, allowed in a `Batch`): every `Expression::*`,
+`External::SetRouting`, `Template::Insert`, `Device::SetIr`. Commands that make one undoable
+edit themselves but are not document commands: `Capture::Capture`, the end of an
+`AudioToMidi` job, `External::MeasureLatency`'s result. Runtime only: everything else.
+
+### 13.0 Ids, entities, `.ether` v5
+- New ids: `ExpressionLaneId`, `NoteExpressionId`. New tables (`#[serde(default)]`):
+  `expression_lanes`, `note_expressions` (`EntityKey`/`Entity`/`EntityUpdate` rows; ops
+  `Op::{ExpressionLane, NoteExpression}` with `ExpressionLaneChange::Points` /
+  `NoteExpressionChange::Points`). New optional field `Track::mpe` (omitted when `None`, TS
+  optional; `TrackChange::Mpe`). New `BuiltinDevice`s, in `BuiltinDeviceType::ALL` order after
+  `MidiEffectRack`: `ConvolutionReverb { ir: Option<IrSource> }`, `ExternalInstrument {
+  routing }`, `ExternalAudioEffect { routing }` (`ExternalRouting`). `BuiltinDevice::media()`
+  lists a `Media` IR.
+- `Project::entities()` order: … pinned notes, expression lanes, note expressions (each after
+  its clip / note). Cascades are done: deleting a clip removes its lanes, deleting a note its
+  expressions; `DocCtx::copy_clip` copies both.
+- Validation (`ether-model/src/apply.rs`, tests `ether-model/tests/roadmap_v4.rs`): a lane's
+  clip is a MIDI clip, one lane per `(clip, kind)`, `Cc` 0..=119; one note expression per
+  `(note, kind)`; curves via `expression::check_points` (sorted, finite, in range, ≤
+  `MAX_EXPRESSION_POINTS` = 16 384); `Track::mpe` on MIDI tracks only (`check_mpe`);
+  external routings via `external::check_routing`; a `Media` IR exists.
+- `.ether` v5: `V4ContractsV4Defaults` adds the two empty tables (idempotent, neutral). The
+  bump makes a v0.2 app refuse v5 files (`TooNew`) instead of dropping expression and the v0.3
+  devices on re-save.
+
+### 13.1 Audio streaming (`audio-streaming`)
+Media at least `STREAM_MIN_SECONDS` (30 s) long stream from disk on hosts that can
+(`EngineBridge::stream_media(&StreamSource) -> Ok(true)`; the default `Ok(false)` keeps the
+v0.2 whole-file decode). The controller still runs one decode pass for peaks and the content
+hash (samples dropped), then registers the stream. The host's streaming `AudioSource` serves
+`read` from a bounded lock-free chunk cache (`ether_media::stream::StreamCache`, chunks of
+`CHUNK_FRAMES` frames at the engine rate) filled by a reader thread (native: one shared disk
+thread, `ether-native/src/disk_stream`, `READ_AHEAD_CHUNKS` = 12; web: the engine Worker over
+OPFS sync access handles, chunks shipped over the SAB ring, 8 ahead). The audio thread never
+blocks, allocates or does I/O: a missing chunk is an underrun (silence, `read` returns
+`false`, counted and reported). `AudioSource::prefetch_hint` and the controller's loop/locate
+knowledge drive the read-ahead; warp/stretch read through the same source. Offline renders
+read the file synchronously. Policy hook: `media_stream::should_stream` (placeholder: never).
+
+### 13.2 MIDI expression (`midi-expression`)
+Model `ether_model::expression` (value table in its module docs): `ExpressionLane { clip,
+kind: Cc { controller } | PitchBend | ChannelPressure, points }` (content-relative beats,
+loops and moves with the clip); `NoteExpression { note, kind: Pitch | Pressure | Timbre,
+points }` (beats from the note start; points past the note end are kept, not played). A
+curve is **one value** (the unit of editing and of collab last-writer-wins). Values: CC and
+pressure 0..=1, bend -1..=1, note pitch ±96 semitones. Curves interpolate with the point's
+`CurveShape`, hold the first/last value outside their points.
+- Commands: `Expression::{CreateLane, RemoveLane, SetPoints, ReplaceRange,
+  SetNoteExpression, ClearNoteExpressions}` (and `SetTrackMpe`, §13.3), one undo step each.
+- Engine (`ether_core::expression`): the controller compiles lanes and note expressions into
+  `TrackDesc::expression` (`TrackExpressionDesc`, note indices into the clip's sorted note
+  list; empty = v0.2). `ExpressionRt::render` (stub, pre-built; `midi-expression` adds its
+  call in the clip stage of `engine.rs`) emits lanes as raw MIDI (`EventKind::Midi`) and note
+  expressions as `EventKind::NoteExpression { note_id, channel, key, expression, value }` for
+  the sounding note, on the automation grid (`PARAM_GRID` + breakpoints), only on 7/14-bit
+  changes, re-sent after a loop jump or locate; bend reset to centre when a bend lane's clip
+  stops. RT: no allocation.
+- Plugins: channel expression is plain MIDI; `Pressure` without MPE goes out as poly
+  aftertouch; CLAP/VST3 note expressions and MPE MIDI are §13.3. The sandbox shm already
+  encodes `NoteExpression`.
+- Codec: `TrackDesc::{expression, hw_io}` travel in the v2 JSON blob (absent = default, no
+  `VERSION` bump); a node may move them to the binary layout (bump `VERSION`).
+
+### 13.3 MPE (`mpe`)
+`Track::mpe: Option<MpeSettings { zone: Lower | Upper, member_channels 1..=15,
+note_pitch_range 1..=96 (default 48), master_pitch_range 0..=96 (default 2) }>`, set with
+`Expression::SetTrackMpe` (MIDI tracks). With `Some`, the track's MIDI input is read as MPE
+(each member channel's bend / channel pressure / CC 74 become the note's `Pitch` / `Pressure`
+/ `Timbre` when recording, and live as `NoteExpression` when monitoring), and plugin output
+uses, in order: CLAP note expressions (`TUNING`, `PRESSURE`, `BRIGHTNESS`), VST3 note
+expression, else MPE MIDI (one member channel per note). The Poly Synth responds to all three.
+CLAP note expressions are the reference model.
+
+### 13.4 MIDI capture (`capture-midi`)
+The controller keeps every incoming MIDI message (all ports, armed or not, playing or
+stopped) in a bounded ring (`CAPTURE_MAX_SECONDS` = 600, `CAPTURE_MAX_EVENTS` = 65 536,
+newest kept; runtime, site-local, never saved, cleared on project change), fed from
+`midi_learn_tick` (`capture_input`). `Capture::Capture { track, clip, seed_notes,
+adopt_tempo }` makes one undoable edit (clip, notes `derive_id(seed_notes, i)` in (start,
+pitch) order, expression lanes once §13.2 lands): playing → notes keep their song positions;
+stopped → the phrase goes at the playhead and, with `adopt_tempo`, the tempo (60..=180 bpm
+best fit, ties prefer 120) and loop are set in the same step. Only messages that reach the
+track's input filter count. Replies `Captured { clip, start, length, notes, bpm }`;
+`InvalidState` when nothing was played. `Status` → `CaptureStatus`; `CaptureEvent::Changed`
+on availability changes only.
+
+### 13.5 Audio to MIDI (`audio-to-midi`)
+`AudioToMidi::Start { job, clip, mode: Melody | Harmony | Drums, options, track, new_clip,
+seed_notes, instrument }` replies `Unit`; the controller runs `ether_media::to_midi::Detector`
+in bounded slices from its tick (`Progress` events), then applies one undo step: a MIDI track
+`track` right below the source track, clip `new_clip` at the source clip's position and
+length, notes `derive_id(seed_notes, i)` in (start, pitch) order, optionally a default
+instrument with id `instrument` (`PolySynth`, or an empty `DrumRack` for drums); then `Done`.
+`Failed` / `Cancel` → `Cancelled`; a job is cancelled when its clip or project goes away. One
+job at a time (`InvalidState`). Detection is on the source; notes map through the clip's warp
+and window. Options default to neutral values (GM drum keys 36/38/42).
+
+### 13.6 Convolution reverb (`fx-space`)
+`BuiltinDevice::ConvolutionReverb { ir: Option<IrSource> }`, `IrSource::Factory { id }`
+(`ether_devices::fx_space::FACTORY_IRS`, ids append-only) or `Media { media }` (any project
+audio media, referenced in place like samples: resolution, missing and relink work
+unchanged). Param table frozen in `fx_space/mod.rs` (Mix, Pre-delay, Decay, Size, Low/High
+Cut, Width, Gain, Reverse). `Device::SetIr { device, ir }` is a document command
+(`DeviceChange::Kind`; the live node swaps IRs through `EngineBridge::update_builtin` →
+`Node::set_data`, crossfading); `Device::ListFactoryIrs` → `FactoryIrs { irs: [FactoryIr {
+id, name, category, length, channels }] }`. The IR is read and FFT-partitioned off the audio
+thread; latency (if any) is reported for PDC.
+
+### 13.7 External instrument and audio effect (`external-instrument`)
+`ExternalRouting { midi_out: Option<port id>, midi_channel 1..=16, audio_send:
+Option<HwChannels>, audio_return: Option<HwChannels> }` (`HwChannels { first, count 1|2 }`),
+stored in the document like Ableton (a project opened elsewhere keeps the choices; unresolved
+ports = silent until they reappear; collab peers use their own hardware). Params frozen in
+`ether_devices::external` (instrument: Gain, Latency; effect: Send Gain, Return Gain, Mix,
+Latency, Invert Phase). `Latency` (ms) is the node's `Node::latency` (PDC).
+`External::SetRouting` is a document command; `ListPorts` → `HardwarePorts`;
+`MeasureLatency` replies `Unit`, then `ExternalEvent::LatencyMeasured` (and sets `Latency`
+as one undoable edit) or `MeasureFailed` (nothing back within 2 s). Hosts without hardware I/O
+(web) reply `Unsupported` (`EngineBridge::list_hardware_ports` default). Engine
+(`ether_core::hw_io`, stubs): the controller compiles `TrackDesc::hw_io` (`HwIoDesc` per
+external device); `HwIoRt::{prepare, gather_returns, capture_send, write_sends}` copy
+hardware inputs into return buffers before the jobs and add send buffers to the hardware
+outputs after master; an instrument's MIDI goes to a lock-free ring of `HwMidiEvent`s
+drained by the host's MIDI out thread (sample-accurate timestamps).
+
+### 13.8 Undo history (`undo-history`)
+`History::List` → `History { history: HistoryList { steps, current, truncated } }`
+(`HistoryStep { id, label, time_ms, undone, checkpoint }`; chronological: applied steps oldest first,
+then undone steps in redo order). `JumpTo { step }` undoes/redoes through the same path as
+`Edit::{Undo, Redo}` (one batch of patches; `None` = before the oldest kept step; `NotFound`
+for dropped steps). `SetCheckpoint { step, name }` names a step for the session. In a collab
+session only this site's own steps are listed and jumped (per-site undo, docs/COLLAB.md).
+`HistoryEvent::Changed` at most every 100 ms while a client listed the history. Runtime only:
+never saved, not undoable. Step ids are monotonic per session (merged gesture commits keep
+their step's id; additive accessors in `ether_model::History`).
+
+### 13.9 Rack presets (`rack-presets`)
+Preset file version 2: `Preset::rack: Option<PresetRack { chains: [PresetChain { name, color,
+volume, pan, mute, solo, keys, velocities, select, devices: [PresetChainDevice] }],
+modulators, mappings: [PresetModMapping { source: Macro { index } | Modulator { index },
+target: Rack | ChainDevice { chain, device }, param, depth }] }>` (rack devices only; indices
+into the preset's lists; checked on load). v1 files load unchanged (no `rack`: macros and
+params only). `Preset::Load { device, preset, seed }`: loading a preset with `rack` replaces
+the rack's chains, chain devices, the rack's modulators and the mappings inside it as one undo
+step; new entities get `derive_id(seed, i)` in preset order (chains, then each chain's devices
+in order, then modulators, then mappings); `seed` is required then (`InvalidArgument`) and
+ignored otherwise (omitted from JSON when `None`, TS optional). No nested racks in v0.3.
+
+### 13.10 Templates (`templates`)
+File format `ether_model::template` (`.ethertemplate`, JSON `{ format: "ethereal-template",
+version: 1, ether_version, app_version, template: { name, meta, body } }`): `body` is
+`Project { project, samples }` or `Tracks { entities, samples }` (one or more tracks and
+everything hanging off them except clips, in `Project::entities` order, parents first;
+`samples` by library location like sample-based presets). Templates live engine-side under
+`<user library>/Templates/{Projects,Tracks}/`, the default project template id in
+`Templates/default.json`; the UI never touches files. Ids: `"projects/<name>"`,
+`"tracks/<name>"`, `"factory/<slug>"` (read-only). `Template::Insert { template, seed,
+parent, before }` is a document command: every entity gets `derive_id(seed, i)` (`i` = its
+index in `entities`), references between template entities are remapped, sends to tracks
+outside are dropped and outputs reset to `Default`. `NewProject { id, name, template }`
+behaves like `Project::Create` (replies `Project`). `List`, `SaveProject`, `SaveTracks`,
+`Rename`, `Delete`, `SetDefault` manage the library (`TemplateEvent::Changed`). Templates
+from an older `.ether` version are rejected until the next format change adds the migration
+path (`load_template`).
+
+### 13.11 Project versions and crash recovery (`project-versions`)
+Versions are `.ether` documents at `<project>/versions/<id>.ether` (id `"<created ms>-<kind>"`,
+kinds `Autosave | Manual | BeforeRestore`), written through `ProjectStore::{write, read,
+list_dir, remove}` (`remove` is new and defaulted: `Unsupported`), so native disk, web OPFS
+and the memory store all work. Autosave versions: when the document changed since the last
+one, at most every `VERSION_INTERVAL_MS` (5 min), newest `MAX_AUTOSAVE_VERSIONS` (50) kept.
+`Restore` snapshots a `BeforeRestore` version first, replaces the document (emits
+`ProjectLoaded`, dirty). `Compare { version, against }` → `VersionDiff` (per-table counts,
+settings changed, up to 50 named tracks/clips). Crash recovery: opening a project writes
+`versions/.session`, a clean close removes it; `ListRecoverable` → projects whose marker
+survived and whose newest version is newer than `project.ether`; `Recover` opens it (dirty);
+`DiscardRecovery` removes the marker. Not undoable.
+
+### 13.12 Keymap (`keymap`)
+Actions and the built-in presets (`Ethereal`, `AbletonLike`) live in the UI command registry;
+the engine stores only the user's `Keymap { preset, overrides: [KeyBinding { action, chords
+}] }` at `<user library>/Settings/keymap.json` (`Keymap::{Get, Set, Reset}`,
+`KeymapEvent::Changed`; hosts without a writable library keep it for the session). Chords:
+modifiers in the order `Mod` (Cmd on macOS, Ctrl elsewhere), `Ctrl` (real Control, macOS),
+`Alt`, `Shift`, then one key (`A`-`Z`, `0`-`9`, `F1`-`F24`, named keys, unshifted
+punctuation), joined by `+` (`Mod+Shift+D`). Limits: `MAX_KEYMAP_OVERRIDES` = 1024,
+`MAX_CHORDS_PER_ACTION` = 4; overrides sorted by action, unique. Not undoable.
+
+### 13.13 Web node latency (`web-latency`)
+The worklet sends a `LatencyReport` (latencies of live nodes whose value changed) at most
+every `REPORT_INTERVAL_MS` (50 ms); the Worker bridge answers `EngineBridge::node_latency`
+from the latest values so `EngineState::check_latencies` republishes PDC like natively. The
+worklet fills a pre-sized buffer (no allocation).
+
+### 13.14 Choices worth reviewing
+1. **Expression curves are one value per lane / note expression**, not one entity per point
+   (thousands of points per performance). Collab merges whole curves last-writer-wins;
+   `ReplaceRange` keeps range edits small on the wire.
+2. **External device routing is in the document** (port ids and channels), like Ableton,
+   rather than per-machine settings; unresolved ports are silent, not errors.
+3. **Templates, keymaps and versions are engine-side files** (user library / project store),
+   never touched by the UI, so a remote engine and the web (OPFS) behave the same.
+4. **Undo history stays runtime** (not saved with the project); named checkpoints become
+   durable only through `project-versions`.
+5. **`engine.rs` was not pre-wired** (in-flight v0.2 nodes own it): `midi-expression` and
+   `external-instrument` each add one call site for their (pre-built) RT state.
+## 13. Agent API (`agent-api`, owner request; docs/MCP.md)
+
+- Protocol (`ether_protocol::agent`, exported to TS): `Command::Agent(AgentCommand)`.
+  - `ListTools` replies `ReplyValue::AgentTools { tools: [AgentToolSpec { name, description,
+    input_schema }] }`. `input_schema` is a JSON Schema `object`, as JSON text.
+  - `CallTool { name, input }` (`input` is a JSON object, as text) replies
+    `ReplyValue::AgentToolResult { content, is_error }`. `content` is JSON text, or plain text
+    for errors. An unknown tool, invalid input (schema-checked) or rejected edit gives
+    `is_error: true`, never a `CommandError`. With no project open, every tool is an
+    `is_error` result.
+- Registry: `ether-controller/src/agent/**`, the same on native, `ether-server` and WASM.
+  An editing call is ONE undo step labelled `AI: <action>`, built from ordinary document
+  commands. It is replicated in collab, and its `Event::Patch`es come before the reply.
+  Read tools never edit.
+- Tool shapes (pinned with `ai-chat`): `create_track {kind: midi|audio|group|return, name?}`
+  → `{track_id}`; `create_midi_clip {track_id, start_beats, length_beats, name?}` →
+  `{clip_id}`; `add_notes {clip_id, notes: [{pitch 0-127, start_beats (clip-relative),
+  duration_beats, velocity 1-127}]}` → `{note_ids}`; `rename_track {track_id, name}`;
+  `delete_track {track_id}`; `set_track_mix {track_id, volume_db?, pan? (-1..1), mute?,
+  solo?}`; `set_tempo {bpm}`; `get_project_overview {}`; `get_clip_notes {clip_id}`;
+  `undo {}`; `redo {}`. Tools may add optional inputs and result fields, but never remove
+  or rename them. Every tool follows the same conventions: snake_case names, units in
+  field names (`*_beats` in quarter notes from the song or clip start, `*_db`), string
+  document ids, and JSON object results. Positions never depend on bar-line or
+  time-signature rules.
+- Desktop agent bridge (`apps/desktop/src-tauri/src/agent_bridge.rs` over
+  `ether_server::agent_bridge`):
+  - Opt-in, default off, persisted in `<app data dir>/config/agent.json`.
+  - Tauri commands: `agent_bridge_status() -> { enabled, port, connected_clients }` and
+    `agent_bridge_set_enabled(enabled) -> same`.
+  - While enabled: a remote-engine listener (§11.5) on `127.0.0.1:<random port>`, with a
+    fresh token, against the UI's engine. Bridge request ids start at `0x8000_0000` and
+    gesture ids at `0x4000_0000`. The UI never receives bridge replies, and gets every
+    event.
+  - Runtime file: `<app data dir>/agent-bridge.json` = `{port, token, pid, version}`,
+    mode 0600, deleted on disable and on quit.
+- `ether-mcp` (stdio MCP server, `rmcp`): forwards `tools/list` and `tools/call` to
+  `ListTools` and `CallTool`, and exposes the resource `ethereal://project/overview`.
+  Modes: desktop (runtime file), `--server URL --token T`, and `--project PATH` (embedded
+  headless engine).

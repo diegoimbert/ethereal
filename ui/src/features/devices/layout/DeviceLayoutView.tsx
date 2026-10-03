@@ -6,6 +6,8 @@ import type { GestureSender } from "../gesture";
 import { LayoutContext, useLayoutContextValue } from "./context";
 import { isGenericSection, resolveLayout } from "./model";
 import { WidgetView } from "./Widget";
+import { AllParamsButton } from "../params/AllParams";
+import { pinKey, usePins } from "../params/pins";
 import "./layout.css";
 
 export interface DeviceLayoutViewProps {
@@ -17,11 +19,14 @@ export interface DeviceLayoutViewProps {
 /**
  * The one shared device renderer (CONTRACTS.md §12.4.2): the device's declared layout, or
  * the generic one (params grouped by `ParamInfo.group`); params the layout doesn't show
- * fold under "More controls".
+ * fold under "More controls". Plugins with many params (`resolveLayout`) show a capped card
+ * (pinned / quick controls / first params) and a "Show all N parameters…" list.
  */
 export function DeviceLayoutView({ device, descriptor, sender }: DeviceLayoutViewProps) {
   const ctx = useLayoutContextValue(device, descriptor, sender);
-  const resolved = useMemo(() => resolveLayout(descriptor), [descriptor]);
+  const pins = pinKey(device);
+  const pinned = usePins(pins);
+  const resolved = useMemo(() => resolveLayout(descriptor, pinned), [descriptor, pinned]);
   const [expanded, setExpanded] = useState(false);
   return (
     <LayoutContext.Provider value={ctx}>
@@ -40,6 +45,16 @@ export function DeviceLayoutView({ device, descriptor, sender }: DeviceLayoutVie
           </button>
           {expanded && <Sections layout={resolved.more} className="eth-device__body--more" />}
         </>
+      )}
+      {resolved.capped && (
+        <AllParamsButton
+          device={device.id}
+          deviceName={device.name}
+          params={descriptor.params}
+          sender={sender}
+          pins={resolved.declared ? null : pins}
+          total={resolved.total}
+        />
       )}
     </LayoutContext.Provider>
   );

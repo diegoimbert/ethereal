@@ -221,10 +221,24 @@ pub fn create(device: &BuiltinDevice) -> Box<dyn Device> {
     Box::new(RackNode::new(device.device_type()))
 }
 
-const INSTRUMENT_PRESETS: &[FactoryPreset] = &[FactoryPreset {
-    id: "instrument-rack/init",
-    json: include_str!("../../presets/instrument-rack/init.etherpreset"),
-}];
+const INSTRUMENT_PRESETS: &[FactoryPreset] = &[
+    FactoryPreset {
+        id: "instrument-rack/init",
+        json: include_str!("../../presets/instrument-rack/init.etherpreset"),
+    },
+    FactoryPreset {
+        id: "instrument-rack/key-split",
+        json: include_str!("../../presets/instrument-rack/key-split.etherpreset"),
+    },
+    FactoryPreset {
+        id: "instrument-rack/layered-pad",
+        json: include_str!("../../presets/instrument-rack/layered-pad.etherpreset"),
+    },
+    FactoryPreset {
+        id: "instrument-rack/velocity-layers",
+        json: include_str!("../../presets/instrument-rack/velocity-layers.etherpreset"),
+    },
+];
 const AUDIO_PRESETS: &[FactoryPreset] = &[
     FactoryPreset {
         id: "audio-effect-rack/init",
@@ -234,14 +248,38 @@ const AUDIO_PRESETS: &[FactoryPreset] = &[
         id: "audio-effect-rack/macros-centered",
         json: include_str!("../../presets/audio-effect-rack/macros-centered.etherpreset"),
     },
+    FactoryPreset {
+        id: "audio-effect-rack/dub-space",
+        json: include_str!("../../presets/audio-effect-rack/dub-space.etherpreset"),
+    },
+    FactoryPreset {
+        id: "audio-effect-rack/parallel-compression",
+        json: include_str!("../../presets/audio-effect-rack/parallel-compression.etherpreset"),
+    },
+    FactoryPreset {
+        id: "audio-effect-rack/wide-doubler",
+        json: include_str!("../../presets/audio-effect-rack/wide-doubler.etherpreset"),
+    },
 ];
-const MIDI_PRESETS: &[FactoryPreset] = &[FactoryPreset {
-    id: "midi-effect-rack/init",
-    json: include_str!("../../presets/midi-effect-rack/init.etherpreset"),
-}];
+const MIDI_PRESETS: &[FactoryPreset] = &[
+    FactoryPreset {
+        id: "midi-effect-rack/init",
+        json: include_str!("../../presets/midi-effect-rack/init.etherpreset"),
+    },
+    FactoryPreset {
+        id: "midi-effect-rack/chord-arp",
+        json: include_str!("../../presets/midi-effect-rack/chord-arp.etherpreset"),
+    },
+    FactoryPreset {
+        id: "midi-effect-rack/humanize",
+        json: include_str!("../../presets/midi-effect-rack/humanize.etherpreset"),
+    },
+];
 
-/// Factory presets of a type of this group. Rack presets hold the macro positions and the
-/// chain selector (the preset format has no place for chains yet).
+/// Factory presets of a type of this group. `init` and `macros-centered` hold the macro
+/// positions and the chain selector only (preset version 1); the others also store chains of
+/// built-in devices, the rack's modulators and their mappings (version 2, `Preset::rack`,
+/// v0.3 `rack-presets`).
 pub fn factory_presets(ty: BuiltinDeviceType) -> &'static [FactoryPreset] {
     match ty {
         BuiltinDeviceType::InstrumentRack => INSTRUMENT_PRESETS,

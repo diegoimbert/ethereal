@@ -14,6 +14,7 @@ pub(crate) fn param(
 ) -> ParamInfo {
     ParamInfo {
         step: None,
+        remote: None,
         id: ParamId(id),
         name: name.to_owned(),
         group: Some(group.to_owned()),
@@ -50,6 +51,7 @@ pub(crate) fn choice(
         automatable: true,
         hidden: false,
         step: Some(1.0),
+        remote: None,
     }
 }
 

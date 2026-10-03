@@ -43,7 +43,7 @@ mod sys;
 mod wire;
 
 #[cfg(any(target_os = "macos", target_os = "linux"))]
-pub use host::{SandboxOptions, SandboxedPlugin};
+pub use host::{SandboxOptions, SandboxedPlugin, default_wait_budget};
 #[cfg(any(target_os = "macos", target_os = "linux"))]
 pub use node::SandboxedNode;
 

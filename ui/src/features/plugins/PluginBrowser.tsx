@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
-import type { PluginDescriptor } from "@/generated";
+import type { DeviceId, PluginDescriptor } from "@/generated";
+import { addInstrumentCommand } from "@/features/devices/instrument";
 import { resolveSelectedTrack } from "@/features/devices/selectedTrack";
-import { Badge, Button, Select, type SelectOption } from "@/kit";
+import { FolderCog } from "lucide-react";
+import { openSettings } from "@/features/audio-settings/store";
+import { Badge, Button, IconButton, Select, type SelectOption } from "@/kit";
 import { devicesOfTrack, useProjectStore, useSelectedTrackId } from "@/state";
 import { cmd, newId, useTransport, useTransportEvent } from "@/transport";
 import { canInsert, filterPlugins, FORMAT_LABEL, type FormatFilter, insertCommand, pluginKey } from "./filter";
@@ -27,7 +30,7 @@ function errorText(e: unknown): string {
 /**
  * Scanned plugins of every format (desktop only; CLAP, VST3, AU), with a format badge and
  * filter: search, rescan, and click (or Enter) to insert on
- * the selected track's device chain. Instruments go to the start of MIDI tracks' chains.
+ * the selected track's device chain. An instrument replaces the track's instrument (or goes first).
  */
 export function PluginList() {
   usePluginEvents();
@@ -70,9 +73,12 @@ export function PluginList() {
     const project = useProjectStore.getState().project;
     if (!project || !track) return;
     setMessage(null);
-    const command = insertCommand(plugin, track, devicesOfTrack(project, track.id), newId());
-    transport
-      .send(command)
+    const chain = devicesOfTrack(project, track.id);
+    // An instrument replaces the track's instrument (a trailing one would silence it);
+    // `insertCommand` puts an instrument before the first device of the chain it is given.
+    const insertBefore = (before: DeviceId | null) => insertCommand(plugin, track, chain.filter((d) => d.id === before), newId());
+    (plugin.category === "Instrument" ? addInstrumentCommand(transport, chain, insertBefore) : Promise.resolve(insertBefore(null)))
+      .then((command) => transport.send(command))
       .then(() => setMessage(`Inserted ${plugin.name} on ${track.name}`))
       .catch((e: unknown) => setMessage(`Could not insert ${plugin.name}: ${errorText(e)}`));
   };
@@ -91,9 +97,10 @@ export function PluginList() {
           onChange={(e) => setQuery(e.target.value)}
         />
         <Select size="sm" aria-label="Plugin format" options={FORMAT_OPTIONS} value={format} onChange={setFormat} />
-        <Button size="sm" onClick={rescan} disabled={scan !== null} title="Scan the plugin folders again">
+        <Button size="sm" onClick={rescan} disabled={scan !== null} title="Scan new or changed plugins in the plugin folders">
           {scan ? "Scanning…" : "Rescan"}
         </Button>
+        <IconButton size="sm" tone="ghost" label="Plugin folders and full rescan" icon={<FolderCog />} onClick={() => openSettings("plugins")} />
       </div>
       {scan && (
         <div className="eth-plugins__status" role="status">

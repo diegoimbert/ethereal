@@ -77,6 +77,18 @@ describe("Ruler", () => {
     expect(useProjectStore.getState().project!.settings.loop_region).toEqual({ start: 0, end: 16 });
   });
 
+  it("shows a resize cursor over the loop brace edges and a grab cursor over its body", async () => {
+    await setup();
+    const loop = screen.getByTestId("ruler-loop");
+    loop.getBoundingClientRect = () => ({ left: 0, width: 320, top: 0, height: 8 }) as DOMRect;
+    fireEvent.pointerMove(loop, { clientX: 2 });
+    expect(loop.style.cursor).toBe("ew-resize");
+    fireEvent.pointerMove(loop, { clientX: 160 });
+    expect(loop.style.cursor).toBe("grab");
+    fireEvent.pointerMove(loop, { clientX: 318 });
+    expect(loop.style.cursor).toBe("ew-resize");
+  });
+
   it("double-click toggles the loop", async () => {
     await setup();
     await act(async () => {

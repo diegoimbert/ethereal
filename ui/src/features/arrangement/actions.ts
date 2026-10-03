@@ -3,9 +3,11 @@
 import type { EngineTransport } from "@/transport";
 import { cmd, newId } from "@/transport";
 import type { Beats, Clip, Command, Track, TrackId } from "@/generated";
-import { MOD_KEY, type ContextMenuEntry } from "@/kit";
+import { firstMatch, shortcutLabel, type ChordEvent } from "@/features/keymap";
+import type { ContextMenuEntry } from "@/kit";
 import { tracksOrdered, useEditorStore, useProjectStore, useSelectionStore } from "@/state";
-import { itemSelection, playheadBeats, type SelectMode } from "@/timeline";
+import { itemSelection, type SelectMode } from "@/timeline";
+import { insertPoint, pasteTarget } from "@/features/time-edits/marker";
 import { copyClips, cutClips, hasClipboard, pasteClips } from "./clipboard";
 import { isArrangementClip } from "./clipTime";
 import { arrangementTracks } from "./layout";
@@ -136,7 +138,9 @@ export function runClipAction(transport: EngineTransport, action: ClipAction): P
   const clips = selectedClips();
   switch (action) {
     case "split":
-      return sendEdit(transport, splitCommand(clips, playheadBeats(), newId));
+      // At the insert marker (else the range start, else the playhead): not the playhead
+      // while you listen (owner request).
+      return sendEdit(transport, splitCommand(clips, insertPoint().at, newId));
     case "duplicate": {
       // Select the copies, so repeated duplicates keep extending the pattern.
       const ids: string[] = [];
@@ -169,8 +173,9 @@ export function runClipAction(transport: EngineTransport, action: ClipAction): P
     case "cut":
       return cutClips(transport);
     case "paste":
-      // At the playhead; onto the selected track when the clips all come from one track.
-      return pasteClips(transport, playheadBeats(), useSelectionStore.getState().selectedTrack).then(() => {});
+      // At the insert marker (after a range selection; the playhead only without either),
+      // onto the marker's track (else the selected one) when the clips all come from one track.
+      return pasteClips(transport, pasteTarget(), insertPoint().track ?? useSelectionStore.getState().selectedTrack).then(() => {});
     case "deselect":
       itemSelection.getState().clear("clip");
       useArrangementUi.getState().setTrackFocus(null);
@@ -181,22 +186,25 @@ export function runClipAction(transport: EngineTransport, action: ClipAction): P
 }
 
 /** The action for a key press in the arrangement, or null. */
-export function actionForKey(e: { key: string; metaKey: boolean; ctrlKey: boolean; shiftKey: boolean; altKey: boolean }): ClipAction | null {
-  const mod = e.metaKey || e.ctrlKey;
-  const k = e.key.toLowerCase();
-  if (!mod && !e.altKey && (e.key === "Delete" || e.key === "Backspace")) return "delete";
-  if (!mod && e.key === "Escape") return "deselect";
-  if (mod && !e.shiftKey && !e.altKey) {
-    if (k === "e") return "split";
-    if (k === "d") return "duplicate";
-    if (k === "a") return "select-all";
-    if (k === "c") return "copy";
-    if (k === "x") return "cut";
-    if (k === "v") return "paste";
-  }
-  if (mod && e.shiftKey && k === "l") return "loop";
-  return null;
+export function actionForKey(e: ChordEvent): ClipAction | null {
+  // keymap: the chords come from the user's keymap (registry ids → clip actions).
+  const id = firstMatch(Object.keys(CLIP_KEY_ACTIONS), e);
+  return id ? CLIP_KEY_ACTIONS[id]! : null;
 }
+
+/** Keymap action id → clip action (the arrangement's clip shortcuts). */
+const CLIP_KEY_ACTIONS: Record<string, ClipAction> = {
+  "edit.delete": "delete",
+  "edit.deleteModified": "delete",
+  "edit.deselect": "deselect",
+  "edit.split": "split",
+  "edit.duplicate": "duplicate",
+  "edit.selectAll": "select-all",
+  "edit.copy": "copy",
+  "edit.cut": "cut",
+  "edit.paste": "paste",
+  "clip.toggleLoop": "loop",
+};
 
 /**
  * Right-click menu of a clip. Right-clicking an unselected clip selects just it (and its
@@ -213,19 +221,19 @@ export function clipMenu(transport: EngineTransport, clip: Clip): ContextMenuEnt
     ...(clip.content.type === "Midi" && clips.length === 1
       ? [{ label: "Open in Piano Roll", onSelect: () => useEditorStore.getState().openClip(clip.id) }, "separator" as const]
       : []),
-    { label: "Cut", shortcut: `${MOD_KEY}X`, onSelect: run("cut") },
-    { label: "Copy", shortcut: `${MOD_KEY}C`, onSelect: run("copy") },
-    { label: "Paste at Playhead", shortcut: `${MOD_KEY}V`, disabled: !hasClipboard(), onSelect: run("paste") },
+    { label: "Cut", shortcut: shortcutLabel("edit.cut"), onSelect: run("cut") },
+    { label: "Copy", shortcut: shortcutLabel("edit.copy"), onSelect: run("copy") },
+    { label: "Paste at Playhead", shortcut: shortcutLabel("edit.paste"), disabled: !hasClipboard(), onSelect: run("paste") },
     "separator",
-    { label: "Split at Playhead", shortcut: `${MOD_KEY}E`, onSelect: run("split") },
-    { label: "Duplicate", shortcut: `${MOD_KEY}D`, onSelect: run("duplicate") },
-    { label: allLooping ? "Disable Loop" : "Enable Loop", shortcut: `⇧${MOD_KEY}L`, onSelect: run("loop") },
+    { label: "Split at Playhead", shortcut: shortcutLabel("edit.split"), onSelect: run("split") },
+    { label: "Duplicate", shortcut: shortcutLabel("edit.duplicate"), onSelect: run("duplicate") },
+    { label: allLooping ? "Disable Loop" : "Enable Loop", shortcut: shortcutLabel("clip.toggleLoop"), onSelect: run("loop") },
     {
       label: allMuted ? "Unmute" : "Mute",
       onSelect: () => void sendEdit(transport, cmd("Clip", { type: "SetMuted", ids: clips.map((c) => c.id), muted: !allMuted })),
     },
     "separator",
-    { label: clips.length > 1 ? `Delete ${clips.length} Clips` : "Delete", shortcut: "⌫", danger: true, onSelect: run("delete") },
+    { label: clips.length > 1 ? `Delete ${clips.length} Clips` : "Delete", shortcut: shortcutLabel("edit.delete"), danger: true, onSelect: run("delete") },
   ];
 }
 
@@ -247,7 +255,7 @@ export function trackMenu(transport: EngineTransport, track: Track): ContextMenu
     "separator",
     {
       label: count > 1 ? `Delete ${count} Tracks` : "Delete Track",
-      shortcut: "⌫",
+      shortcut: shortcutLabel("edit.delete"),
       danger: true,
       onSelect: () => void deleteSelectedTracks(transport),
     },

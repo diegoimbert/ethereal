@@ -7,6 +7,7 @@ import {
   formatDuration,
   formatSeconds,
   loopFromPoints,
+  loopHandleAt,
   pxToBeats,
   pxToSeconds,
   revealBeats,
@@ -164,5 +165,11 @@ describe("loop editing", () => {
     expect(applyLoopDrag(r, "start", 1.6, snap)).toEqual({ start: 6, end: 8 });
     expect(applyLoopDrag(r, "end", -10, snap).end).toBeCloseTo(4 + 1 / 16);
     expect(loopFromPoints(6, 2)).toEqual({ start: 2, end: 6 });
+  });
+
+  it("maps a pointer offset on the brace to the edge it resizes", () => {
+    expect(loopHandleAt(2, 320)).toBe("start");
+    expect(loopHandleAt(160, 320)).toBe("move");
+    expect(loopHandleAt(318, 320)).toBe("end");
   });
 });

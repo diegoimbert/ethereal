@@ -40,5 +40,9 @@ str0m.workspace = true
 opus.workspace = true
 audiopus_sys.workspace = true
 
+# ASIO driver support on Windows (cpal's asio-sys builds against the Steinberg ASIO SDK).
+[target.'cfg(windows)'.dependencies]
+cpal = { workspace = true, features = ["asio"] }
+
 [lints]
 workspace = true

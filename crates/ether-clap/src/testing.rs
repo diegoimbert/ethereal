@@ -106,6 +106,9 @@ pub fn make_bundle(dir: &Path, name: &str) -> PathBuf {
         )
         .expect("write Info.plist");
     } else {
+        // The bundle is a single file here, so nothing above creates `dir` (the macOS branch
+        // gets it from `create_dir_all` of the bundle's Contents/MacOS).
+        std::fs::create_dir_all(dir).expect("create bundle dir");
         std::fs::copy(&dylib, &bundle).expect("copy dylib");
     }
     bundle

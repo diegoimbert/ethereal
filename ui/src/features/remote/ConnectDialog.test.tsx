@@ -1,9 +1,9 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ClientHello, ClientMessage, ServerMessage } from "@/generated";
 import { useProjectStore } from "@/state/projectStore";
 import { cmd, CommandFailedError, MockTransport, TransportProvider, useTransport } from "@/transport";
-import { ConnectDialog, useUploadDrop } from ".";
+import { ConnectDialog, RemoteEngineSettings, useUploadDrop } from ".";
 
 /**
  * A WebSocket whose "server" is a MockTransport (the remote engine): hello with token
@@ -106,13 +106,15 @@ function renderApp() {
   render(
     <TransportProvider transport={local}>
       <ConnectDialog />
+      <RemoteEngineSettings />
       <Probe />
     </TransportProvider>,
   );
 }
 
+/** Settings > Advanced > Engine server (base-115 moved the form out of the top bar). */
 async function connectWith(url: string, token: string) {
-  fireEvent.click(screen.getByTestId("remote-button"));
+  expect(screen.queryByTestId("remote-button")).toBeNull();
   fireEvent.change(screen.getByLabelText("Server address"), { target: { value: url } });
   fireEvent.change(screen.getByLabelText("Token"), { target: { value: token } });
   fireEvent.click(screen.getByRole("button", { name: "Connect" }));
@@ -131,6 +133,7 @@ describe("ConnectDialog", () => {
     expect(screen.getByTestId("probe").dataset.kind).toBe("remote");
     expect(screen.getByTestId("probe").dataset.droppable).toBe("yes");
     expect(screen.getByTestId("remote-button").textContent).toContain("studio");
+    expect(screen.getByTestId("settings-engine-server").textContent).toMatch(/Connected to studio/);
     expect(localStorage.getItem("eth-remote-url")).toBe("studio.local:9000");
     expect(JSON.stringify(localStorage)).not.toContain("tok");
 
@@ -139,9 +142,9 @@ describe("ConnectDialog", () => {
     await act(() => remoteEngine.send(cmd("Project", { type: "Rename", id: project.id, name: "Renamed remotely" })).then(() => undefined));
     await waitFor(() => expect(screen.getByTestId("probe").textContent).toBe("Renamed remotely"));
 
-    // Disconnect: back to the local engine.
+    // Disconnect from the top-bar indicator's dialog: back to the local engine.
     fireEvent.click(screen.getByTestId("remote-button"));
-    fireEvent.click(screen.getByRole("button", { name: "Disconnect" }));
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Disconnect" }));
     await waitFor(() => expect(screen.getByTestId("probe").dataset.kind).toBe("mock"));
     await waitFor(() => expect(screen.getByTestId("probe").textContent).toBe(localName));
     expect(sockets[0]!.readyState).toBe(3);
@@ -154,7 +157,7 @@ describe("ConnectDialog", () => {
     expect(screen.getByTestId("probe").dataset.kind).toBe("mock");
     fireEvent.change(screen.getByLabelText("Server address"), { target: { value: "http://x" } });
     fireEvent.click(screen.getByRole("button", { name: "Connect" }));
-    expect(await screen.findByText(/Enter a server address/)).toBeTruthy();
+    expect(await screen.findByText(/Enter the engine server address/)).toBeTruthy();
   });
 
   it("returns to the local engine when the connection drops", async () => {
@@ -162,7 +165,11 @@ describe("ConnectDialog", () => {
     await connectWith("ws://studio:1/", "tok");
     await waitFor(() => expect(screen.getByTestId("probe").dataset.kind).toBe("remote"));
     act(() => sockets[0]!.close(1006, ""));
-    await waitFor(() => expect(screen.getByTestId("probe").dataset.kind).toBe("mock"));
+    // Falling back boots a fresh local engine, which can exceed waitFor's 1 s default on a
+    // loaded machine (seen on the shared Linux devbox during the full suite).
+    await waitFor(() => expect(screen.getByTestId("probe").dataset.kind).toBe("mock"), {
+      timeout: 5000,
+    });
     expect(screen.getByRole("alert").textContent).toMatch(/Connection to studio lost/);
   });
 });

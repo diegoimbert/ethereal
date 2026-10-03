@@ -156,6 +156,7 @@ pub(super) fn apply(ctx: &mut DocCtx, c: &TrackCommand) -> CmdResult<()> {
                 output: TrackOutput::Default,
                 monitor: MonitorMode::default(),
                 scale: Default::default(),
+                mpe: None,
             };
             ctx.tx.insert(Entity::Track(track))
         }

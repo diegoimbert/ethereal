@@ -27,17 +27,38 @@ export type ToController =
       seed: string;
       /** AudioContext sample rate (the engine's rate). */
       sampleRate: number;
+      /**
+       * The Worker's end of the share port (docs/SHARING.md §6.2): the UI's WebRTC peer
+       * connections for `ether_collab::share::web` (UI agent: `@/features/share/endpoint`).
+       */
+      sharePort: MessagePort;
     }
-  | { type: "client"; json: string };
+  | { type: "client"; json: string }
+  /** Diagnostics and e2e: call a `ShareProbe` method (crates/ether-wasm/src/share.rs). */
+  | { type: "share-probe"; id: number; method: ShareProbeMethod; args: unknown[] };
+
+/** The methods of `ShareProbe` (one probe per Worker, created on first use). */
+export type ShareProbeMethod =
+  | "open"
+  | "signal"
+  | "poll"
+  | "send_text"
+  | "send_pattern"
+  | "recv"
+  | "buffered"
+  | "state"
+  | "close";
 
 /** Controller Worker → main. */
 export type FromController =
   | { type: "ready" }
   | { type: "server"; json: string }
-  | { type: "fatal"; message: string };
+  | { type: "fatal"; message: string }
+  /** Answer to a `share-probe` call (`error` when it threw). */
+  | { type: "share-probe"; id: number; result?: unknown; error?: string };
 
 /** Sync-FS request, controller Worker → OPFS Worker (answered through the fs buffer). */
-export type FsOp = "read" | "write" | "rename" | "list" | "mkdir" | "remove" | "stat";
+export type FsOp = "read" | "write" | "rename" | "list" | "mkdir" | "remove" | "stat" | "readRange";
 export interface FsRequest {
   op: FsOp;
   path: string;
@@ -45,6 +66,9 @@ export interface FsRequest {
   to?: string;
   /** `write` payload. */
   bytes?: Uint8Array;
+  /** `readRange`: byte offset and length (audio-streaming reads media in chunks). */
+  offset?: number;
+  length?: number;
   /** Echoed in the reply (see ./fsWire.ts). */
   seq: number;
 }

@@ -7,7 +7,9 @@
 //!   WebView's own storage (localStorage, IndexedDB) is separated per instance too.
 //! - Release builds: the normal Tauri app data dir for the bundle identifier.
 //!
-//! There is deliberately no single-instance plugin.
+//! Release builds use the single-instance plugin (a second launch, e.g. a clicked
+//! `ethereal://` link, goes to the running app; see `deep_link`). Dev builds don't, so
+//! instances still run side by side.
 
 use std::path::{Path, PathBuf};
 

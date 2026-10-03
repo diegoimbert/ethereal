@@ -62,6 +62,11 @@ pub struct Track {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub vca: Option<TrackId>,
+    /// MPE settings (v0.3, `mpe`; [`crate::expression::MpeSettings`]). MIDI tracks only;
+    /// `None` = plain MIDI. Omitted from JSON when `None`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub mpe: Option<crate::expression::MpeSettings>,
 }
 
 /// A frozen track's render (v0.2, `freeze-bounce`).

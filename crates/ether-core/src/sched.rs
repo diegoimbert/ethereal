@@ -9,7 +9,7 @@ use crate::event::{EventBuffer, EventKind, ProcessEvent};
 use crate::fades::fade_gain;
 use crate::graph::{ClipContentDesc, ClipDesc, WarpDesc};
 use crate::media::AudioSource;
-use crate::mixer::{ActiveNote, MAX_ACTIVE_NOTES};
+use crate::mixer::{ActiveNote, MAX_ACTIVE_NOTES, NoteSource};
 
 /// Shortest content loop honoured (beats); shorter loops play unlooped.
 const MIN_LOOP: f64 = 1.0 / 256.0;
@@ -235,7 +235,7 @@ pub(crate) struct NoteSink<'a> {
 }
 
 impl NoteSink<'_> {
-    fn note_on(&mut self, offset: u32, key: u8, velocity: f32, end: f64) {
+    fn note_on(&mut self, offset: u32, key: u8, velocity: f32, end: f64, source: NoteSource) {
         if self.notes.len() >= MAX_ACTIVE_NOTES {
             // Voice bookkeeping full: drop the note (reported as an event overflow).
             self.events.push(ProcessEvent {
@@ -255,7 +255,12 @@ impl NoteSink<'_> {
                 velocity,
             },
         }) {
-            self.notes.push(ActiveNote { note_id, key, end });
+            self.notes.push(ActiveNote {
+                note_id,
+                key,
+                end,
+                source,
+            });
         }
     }
 
@@ -314,7 +319,7 @@ pub(crate) fn schedule_notes(clip: &ClipDesc, timing: &Timing<'_>, sink: &mut No
     for_each_piece(clip, r0, r1, |p| {
         let c_end = p.c0 + (p.t1 - p.t0);
         let first = notes.partition_point(|n| n.start < p.c0);
-        for n in &notes[first..] {
+        for (i, n) in notes[first..].iter().enumerate() {
             if n.start >= c_end {
                 break;
             }
@@ -323,7 +328,12 @@ pub(crate) fn schedule_notes(clip: &ClipDesc, timing: &Timing<'_>, sink: &mut No
             if end <= t {
                 continue;
             }
-            sink.note_on(timing.offset(t), n.key, n.velocity, end);
+            let source = NoteSource {
+                clip: clip.id,
+                note: (first + i) as u32,
+                start: t,
+            };
+            sink.note_on(timing.offset(t), n.key, n.velocity, end, source);
         }
     });
 }
@@ -343,14 +353,19 @@ pub(crate) fn chase_notes(clip: &ClipDesc, timing: &Timing<'_>, sink: &mut NoteS
     let (r0, _) = timing.event_range();
     for_each_piece(clip, r0, r0 + EVENT_SHIFT, |p| {
         let first = notes.partition_point(|n| n.start < p.c0);
-        for n in &notes[..first] {
+        for (i, n) in notes[..first].iter().enumerate() {
             let t = p.t0 + (n.start - p.c0);
             if t < p.begin - EVENT_SHIFT {
                 continue; // before this piece (e.g. ahead of the content loop start)
             }
             let end = (t + n.duration.max(0.0)).min(p.end);
             if end > timing.b0 {
-                sink.note_on(0, n.key, n.velocity, end);
+                let source = NoteSource {
+                    clip: clip.id,
+                    note: i as u32,
+                    start: t,
+                };
+                sink.note_on(0, n.key, n.velocity, end, source);
             }
         }
     });

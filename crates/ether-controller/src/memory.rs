@@ -106,6 +106,8 @@ impl MemoryStore {
             id,
             name,
             modified_ms: p.modified_ms as f64,
+            // base-115: `recents-shared` reads the project's `share.json`.
+            share: None,
         }
     }
 }
@@ -207,6 +209,21 @@ impl ProjectStore for MemoryStore {
         let path = crate::store::export_path(file_name)?;
         self.write(id, &path, bytes)?;
         Ok(path)
+    }
+
+    /// v0.3 (`project-versions`): delete one file; missing = `Ok`.
+    fn remove(&mut self, id: ProjectId, rel_path: &str) -> Result<(), StoreError> {
+        check_relative_path(rel_path)?;
+        if rel_path.is_empty() {
+            return Err(StoreError::InvalidPath(rel_path.into()));
+        }
+        let files = &mut self.project(id)?.files;
+        let prefix = format!("{rel_path}/");
+        if files.keys().any(|k| k.starts_with(&prefix)) {
+            return Err(StoreError::InvalidPath(format!("{rel_path} is a folder")));
+        }
+        files.remove(rel_path);
+        Ok(())
     }
 
     fn list_dir(&mut self, id: ProjectId, rel_path: &str) -> Result<DirectoryListing, StoreError> {
