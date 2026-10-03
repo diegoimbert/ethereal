@@ -1,0 +1,220 @@
+/* Keyboard shortcuts editor (dialog) and the printable cheat sheet. Tokens only. */
+
+.eth-keymap {
+  --dialog-width: calc(var(--eth-size-dialog-width) * 1.6);
+}
+.eth-keymap__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-md);
+  min-width: 0;
+  min-height: 0;
+}
+.eth-keymap__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--eth-space-md);
+}
+.eth-keymap__preset {
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-sm);
+}
+.eth-keymap__search {
+  flex: 1;
+  min-width: 0;
+}
+.eth-keymap__conflict-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--eth-space-xs);
+  font-size: var(--eth-fs-sm);
+}
+.eth-keymap__dim {
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+}
+.eth-keymap__note {
+  margin: 0;
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-sm);
+}
+.eth-keymap__error {
+  margin: 0;
+  color: var(--eth-color-danger);
+  font-size: var(--eth-fs-sm);
+}
+.eth-keymap__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-lg);
+  max-height: calc(100vh - 20 * var(--eth-space-xl));
+  min-height: calc(10 * var(--eth-space-xl));
+  overflow-y: auto;
+  padding-right: var(--eth-space-xs);
+}
+.eth-keymap__group {
+  display: flex;
+  flex-direction: column;
+}
+.eth-keymap__heading {
+  margin: 0 0 var(--eth-space-xs);
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+  font-weight: var(--eth-fw-medium);
+  text-transform: uppercase;
+  
+}
+.eth-keymap__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--eth-space-xs) var(--eth-space-md);
+  padding: var(--eth-space-xs) var(--eth-space-sm);
+  border-radius: var(--eth-radius-md);
+}
+.eth-keymap__row:hover {
+  background: var(--eth-color-bg-hover);
+}
+.eth-keymap__row--conflict {
+  background: var(--eth-color-bg-inset);
+}
+.eth-keymap__label {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  font-size: var(--eth-fs-sm);
+}
+.eth-keymap__chords {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: var(--eth-space-xs);
+}
+.eth-keymap__chord {
+  display: inline-flex;
+  align-items: center;
+}
+.eth-keymap__kbd {
+  padding: 0 var(--eth-space-xs);
+  border: var(--eth-border-width) solid var(--eth-color-border-light);
+  border-radius: var(--eth-radius-sm);
+  background: var(--eth-color-bg-raised);
+  color: var(--eth-color-text);
+  font-family: var(--eth-font-ui);
+  font-size: var(--eth-fs-xs);
+  white-space: nowrap;
+}
+.eth-keymap__kbd--recording {
+  border-color: var(--eth-color-accent);
+  color: var(--eth-color-accent);
+}
+.eth-keymap__pending {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--eth-space-xs);
+}
+.eth-keymap__clash,
+.eth-keymap__conflict {
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-xs);
+  color: var(--eth-color-warn);
+  font-size: var(--eth-fs-xs);
+}
+.eth-keymap__conflict {
+  grid-column: 1 / -1;
+  flex-wrap: wrap;
+}
+.eth-keymap__warn-icon {
+  width: var(--eth-size-icon-sm);
+  height: var(--eth-size-icon-sm);
+  flex: none;
+}
+.eth-keymap__actions {
+  display: flex;
+  justify-content: flex-start;
+}
+
+/* ---- Cheat sheet (print only) ---------------------------------------------------------- */
+
+.eth-keymap-print {
+  display: none;
+}
+@media print {
+  body.eth-keymap-printing > :not(.eth-keymap-print) {
+    display: none !important;
+  }
+  body.eth-keymap-printing .eth-keymap-print {
+    display: block;
+    background: var(--eth-color-bg);
+    color: var(--eth-color-text);
+  }
+}
+.eth-keymap-sheet {
+  font-family: var(--eth-font-ui);
+  font-size: var(--eth-fs-sm);
+}
+.eth-keymap-sheet__header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--eth-space-lg);
+  margin-bottom: var(--eth-space-lg);
+  border-bottom: var(--eth-border-width) solid var(--eth-color-border);
+}
+.eth-keymap-sheet__title {
+  margin: 0;
+  font-size: var(--eth-fs-xl);
+  font-weight: var(--eth-fw-bold);
+}
+.eth-keymap-sheet__preset {
+  color: var(--eth-color-text-dim);
+}
+.eth-keymap-sheet__columns {
+  column-count: 2;
+  column-gap: var(--eth-space-2xl);
+}
+.eth-keymap-sheet__group {
+  break-inside: avoid;
+  margin-bottom: var(--eth-space-lg);
+}
+.eth-keymap-sheet__heading {
+  margin: 0 0 var(--eth-space-xs);
+  font-size: var(--eth-fs-md);
+  font-weight: var(--eth-fw-medium);
+}
+.eth-keymap-sheet__list {
+  margin: 0;
+}
+.eth-keymap-sheet__row {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--eth-space-md);
+  padding: var(--eth-space-hair) 0;
+  border-bottom: var(--eth-border-width) solid var(--eth-color-border-light);
+  break-inside: avoid;
+}
+.eth-keymap-sheet__row dt {
+  min-width: 0;
+}
+.eth-keymap-sheet__row dd {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--eth-space-xs);
+  margin: 0;
+}
+.eth-keymap-sheet__scope {
+  color: var(--eth-color-text-dim);
+}
+.eth-keymap-sheet__kbd {
+  padding: 0 var(--eth-space-xs);
+  border: var(--eth-border-width) solid var(--eth-color-border);
+  border-radius: var(--eth-radius-sm);
+  font-family: var(--eth-font-ui);
+  white-space: nowrap;
+}

@@ -1,5 +1,6 @@
 /**
- * Time-selection actions (keyboard shortcuts and the selection's context menu), Ableton-like:
+ * Time-selection actions (keyboard shortcuts and the selection's context menu), Ableton-like.
+ * Default keys below; the user's keymap decides (`time.*`, `edit.split`; keymap node):
  *
  * | action          | key        | what                                                     |
  * |-----------------|------------|----------------------------------------------------------|
@@ -26,7 +27,8 @@
  */
 
 import type { Command, TrackId } from "@/generated";
-import { MOD_KEY, type ContextMenuEntry } from "@/kit";
+import { firstMatch, shortcutLabel, type ChordEvent } from "@/features/keymap";
+import type { ContextMenuEntry } from "@/kit";
 import { useProjectStore } from "@/state";
 import { itemSelection } from "@/timeline";
 import { cmd, newId, nextGestureId, type EngineTransport } from "@/transport";
@@ -183,6 +185,19 @@ export async function runTimeAction(
   }
 }
 
+/** Keymap action id -> time action (the arrangement's ⇧⌘ time-selection shortcuts). */
+const TIME_KEY_ACTIONS: Record<string, TimeAction> = {
+  "time.cut": "cut",
+  "time.copy": "copy",
+  "time.paste": "paste-insert",
+  "time.duplicate": "duplicate",
+  "time.insertSilence": "insert-silence",
+  "time.delete": "delete",
+};
+
+/** The plain edit actions that act on the section while a time range exists (section-edit). */
+const SECTION_KEY_ACTIONS = ["edit.delete", "edit.copy", "edit.cut", "edit.paste", "edit.duplicate"] as const;
+
 /**
  * Where ⌘V pastes: right after the time selection (the pasted range becomes the selection,
  * so repeated pastes tile the section, gaps included), else at the insert marker, else at
@@ -193,41 +208,23 @@ export function pasteAt(sel: TimeRangeSelection | null): number {
 }
 
 /** The time action for a key press in the arrangement, or null (then the clip actions apply). */
-export function timeActionForKey(
-  e: {
-    key: string;
-    metaKey: boolean;
-    ctrlKey: boolean;
-    shiftKey: boolean;
-    altKey: boolean;
-  },
-  ctx: TimeActionContext,
-): TimeAction | null {
-  const mod = e.metaKey || e.ctrlKey;
-  // The insert marker is not a section: ⌘C/X/D/⌫ then act on clips.
+export function timeActionForKey(e: ChordEvent, ctx: TimeActionContext): TimeAction | null {
+  // keymap: chords from the user's keymap. Plain Mod+I is "Import audio..." (never here).
+  // The insert marker is not a section: Copy/Cut/Duplicate/Delete then act on clips.
   const hasSelection = rangeOf(useTimeSelection.getState().selection) !== null;
-  const del = e.key === "Backspace" || e.key === "Delete";
-  // Plain ⌫ deletes the selected time (while there is one; else it deletes clips/tracks).
-  if (!mod && !e.altKey && !e.shiftKey && del) return hasSelection && canRun("delete", ctx) ? "delete" : null;
-  if (!mod || e.altKey) return null;
-  const k = e.key.toLowerCase();
-  let action: TimeAction | null = null;
-  if (!e.shiftKey && (hasSelection || k === "v")) {
-    // The section shortcuts (see the module doc); ⌘V also pastes a time copy at the playhead.
-    action = clipboardAction(k === "c" ? "copy" : k === "x" ? "cut" : k === "v" ? "paste" : null);
-    if (k === "d") action = "duplicate";
-    if (action) return canRun(action, ctx) ? action : null;
+  const id = firstMatch([...SECTION_KEY_ACTIONS, ...Object.keys(TIME_KEY_ACTIONS), "edit.split"], e);
+  if (!id) return null;
+  // Delete (plain ⌫) deletes the selected time while there is one; else clips/tracks.
+  if (id === "edit.delete") return hasSelection && canRun("delete", ctx) ? "delete" : null;
+  if (id === "edit.copy" || id === "edit.cut" || id === "edit.paste" || id === "edit.duplicate") {
+    // The section shortcuts (see the module doc); Paste also pastes a time copy with no range.
+    const action =
+      id === "edit.duplicate" ? (hasSelection ? "duplicate" : null) : clipboardAction(id === "edit.copy" ? "copy" : id === "edit.cut" ? "cut" : "paste");
+    return action && canRun(action, ctx) ? action : null;
   }
-  if (e.shiftKey) {
-    if (k === "x") action = "cut";
-    else if (k === "c") action = "copy";
-    else if (k === "v") action = "paste-insert";
-    else if (k === "d") action = "duplicate";
-    else if (k === "i") action = "insert-silence";
-    else if (e.key === "Backspace" || e.key === "Delete") action = "delete";
-    // Plain ⌘I is "Import audio…" (file-import): never taken here.
-  } else if (k === "e") action = hasSelection ? "split" : "split-tracks";
-  return action && canRun(action, ctx) ? action : null;
+  // `edit.split` (Mod+E) splits the time selection, or the selected tracks at the marker/playhead.
+  const action = id === "edit.split" ? (hasSelection ? "split" : "split-tracks") : TIME_KEY_ACTIONS[id]!;
+  return canRun(action, ctx) ? action : null;
 }
 
 /**
@@ -247,11 +244,11 @@ export function timeSelectionMenu(transport: EngineTransport): ContextMenuEntry[
   const run = (a: TimeAction) => () => void runTimeAction(transport, a);
   const hasClipboard = useTimeSelection.getState().clipboard !== null;
   return [
-    { label: "Cut Time", shortcut: `${MOD_KEY}X`, onSelect: run("cut") },
-    { label: "Copy Time", shortcut: `${MOD_KEY}C`, onSelect: run("copy") },
+    { label: "Cut Time", shortcut: shortcutLabel("edit.cut"), onSelect: run("cut") },
+    { label: "Copy Time", shortcut: shortcutLabel("edit.copy"), onSelect: run("copy") },
     {
       label: "Paste After Selection",
-      shortcut: `${MOD_KEY}V`,
+      shortcut: shortcutLabel("edit.paste"),
       disabled: !hasClipboard,
       onSelect: run("paste"),
     },
@@ -262,30 +259,30 @@ export function timeSelectionMenu(transport: EngineTransport): ContextMenuEntry[
     },
     {
       label: "Paste Time",
-      shortcut: `⇧${MOD_KEY}V`,
+      shortcut: shortcutLabel("time.paste"),
       disabled: !hasClipboard,
       onSelect: run("paste-insert"),
     },
     "separator",
     {
       label: "Split at Selection",
-      shortcut: `${MOD_KEY}E`,
+      shortcut: shortcutLabel("edit.split"),
       onSelect: run("split"),
     },
     {
       label: "Duplicate Time",
-      shortcut: `${MOD_KEY}D`,
+      shortcut: shortcutLabel("edit.duplicate"),
       onSelect: run("duplicate"),
     },
     {
       label: "Insert Silence",
-      shortcut: `⇧${MOD_KEY}I`,
+      shortcut: shortcutLabel("time.insertSilence"),
       onSelect: run("insert-silence"),
     },
     "separator",
     {
       label: "Delete Time",
-      shortcut: "⌫",
+      shortcut: shortcutLabel("edit.delete"),
       danger: true,
       onSelect: run("delete"),
     },

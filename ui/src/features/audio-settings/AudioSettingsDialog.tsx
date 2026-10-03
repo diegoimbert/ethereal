@@ -4,6 +4,7 @@ import { RefreshCw } from "lucide-react";
 import { Button, Dialog, IconButton, Meter, Select, Tabs, type SelectOption } from "@/kit";
 import { useProjectStore, useTrackMeter } from "@/state";
 import { cmd, isCommandFailed, TransportContext, type EngineTransport } from "@/transport";
+import { PluginFoldersPanel } from "@/features/plugins";
 import { SharingSettings } from "@/features/share/SharingSettings";
 import { AdvancedSettings } from "./AdvancedSettings";
 import { InputSettings } from "./InputSettings";
@@ -21,6 +22,7 @@ function errorText(e: unknown): string {
 const TABS: ReadonlyArray<{ id: SettingsTab; label: string }> = [
   { id: "audio", label: "Audio" },
   { id: "input", label: "Input" },
+  { id: "plugins", label: "Plugins" },
   { id: "sharing", label: "Sharing" },
   { id: "advanced", label: "Advanced" },
 ];
@@ -33,6 +35,8 @@ const TABS: ReadonlyArray<{ id: SettingsTab; label: string }> = [
  *   the settings.
  * - Input (base-135): mouse wheel and buttons (zoom/scroll sensitivity, inversion, which
  *   modifier zooms, middle and side buttons). Kept on this device; needs no engine.
+ * - Plugins (base-129): the folders scanned for plugins (system folders on/off, the user's
+ *   folders with a format filter), Rescan and Full rescan.
  * - Sharing: identity and sharing preferences. Advanced: sharing servers, engine server,
  *   relay session.
  * Mounted once by the app shell; open it with `openSettings(tab)` or `openAudioSettings()`.
@@ -57,6 +61,7 @@ export function AudioSettingsDialog() {
             {!transport && tab !== "input" && <p className="eth-audio-settings__note">No engine connected.</p>}
             {tab === "input" && <InputSettings />}
             {transport && tab === "audio" && <AudioSettingsBody transport={transport} reason={reason} />}
+            {transport && tab === "plugins" && <PluginFoldersPanel transport={transport} />}
             {transport && tab === "sharing" && <SharingSettings transport={transport} />}
             {transport && tab === "advanced" && <AdvancedSettings transport={transport} />}
           </div>

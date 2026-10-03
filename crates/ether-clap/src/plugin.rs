@@ -145,10 +145,17 @@ impl ClapPlugin {
     }
 
     fn query_params(&mut self) -> Vec<ParamInfo> {
-        match self.exts().params {
-            Some(ext) => crate::params::list(&ext, &self.instance.plugin_handle()),
+        let exts = self.exts();
+        let handle = self.instance.plugin_handle();
+        let mut params = match exts.params {
+            Some(ext) => crate::params::list(&ext, &handle),
             None => Vec::new(),
+        };
+        if let Some(rc) = exts.remote_controls {
+            let slots = crate::params::remote_slots(&rc, &handle);
+            crate::params::apply_remote_slots(&mut params, &slots);
         }
+        params
     }
 
     fn port_layout(&mut self) -> PortLayout {

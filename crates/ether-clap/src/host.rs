@@ -20,6 +20,7 @@ use clack_extensions::params::{
     HostParams, HostParamsImplMainThread, HostParamsImplShared, ParamClearFlags, ParamRescanFlags,
     PluginParams,
 };
+use clack_extensions::remote_controls::PluginRemoteControls;
 use clack_extensions::state::{HostState, HostStateImpl, PluginState};
 use clack_extensions::timer::{HostTimer, HostTimerImpl, PluginTimer, TimerId};
 use clack_host::prelude::*;
@@ -126,6 +127,7 @@ pub(crate) struct PluginExts {
     pub timer: Option<PluginTimer>,
     pub audio_ports: Option<PluginAudioPorts>,
     pub note_ports: Option<PluginNotePorts>,
+    pub remote_controls: Option<PluginRemoteControls>,
 }
 
 pub(crate) struct Timer {
@@ -181,6 +183,7 @@ impl<'a> MainThreadHandler<'a> for HostMainThread<'a> {
             timer: instance.get_extension(),
             audio_ports: instance.get_extension(),
             note_ports: instance.get_extension(),
+            remote_controls: instance.get_extension(),
         });
     }
 }

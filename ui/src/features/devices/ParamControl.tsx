@@ -1,4 +1,4 @@
-import type { Device, ParamInfo } from "@/generated";
+import type { DeviceId, ParamInfo } from "@/generated";
 import { Button, Knob, Select } from "@/kit";
 import { cmd } from "@/transport";
 import { midiTarget } from "@/features/midi-learn/targets";
@@ -6,20 +6,21 @@ import type { GestureSender } from "./gesture";
 import { formatParam, labelIndex, labelValue, paramToNormalized, paramToPlain } from "./paramScale";
 
 export interface ParamControlProps {
-  device: Device;
+  device: DeviceId;
+  /** The param's document (plain) value. */
+  plain: number;
   info: ParamInfo;
   sender: GestureSender;
   /** Main controls are large (value inside the ring); folded ones small with a value line. */
-  size?: "md" | "lg";
+  size?: "sm" | "md" | "lg";
 }
 
 /** Generic control for one param, chosen from its `ParamInfo` (knob, toggle or choice). */
-export function ParamControl({ device, info, sender, size = "md" }: ParamControlProps) {
-  const plain = device.params[info.id] ?? info.default;
+export function ParamControl({ device, plain, info, sender, size = "md" }: ParamControlProps) {
   const setPlain = (value: number) =>
-    void sender.send(cmd("Device", { type: "SetParam", device: device.id, param: info.id, value }));
+    void sender.send(cmd("Device", { type: "SetParam", device, param: info.id, value }));
   const labels = info.labels;
-  const target = midiTarget({ type: "Param", target: { type: "DeviceParam", device: device.id, param: info.id } });
+  const target = midiTarget({ type: "Param", target: { type: "DeviceParam", device, param: info.id } });
 
   if (labels?.length === 2 || (info.unit === "Toggle" && !labels)) {
     const on = labels ? labelIndex(info, plain) === 1 : plain >= (info.min + info.max) / 2;
@@ -64,6 +65,7 @@ export function ParamControl({ device, info, sender, size = "md" }: ParamControl
         defaultValue={paramToNormalized(info, info.default)}
         bipolar={info.min < 0 && info.max > 0}
         label={info.name}
+        hideLabel={size === "sm"}
         valueText={text}
         onChange={(n) => setPlain(paramToPlain(info, n))}
         onChangeStart={sender.begin}

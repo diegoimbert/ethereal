@@ -54,6 +54,7 @@ pub fn param(
 ) -> ParamInfo {
     ParamInfo {
         step: None,
+        remote: None,
         id: ParamId(id),
         name: name.to_owned(),
         group: Some(group.to_owned()),
@@ -83,6 +84,7 @@ pub fn choice(id: u32, name: &str, group: &str, labels: &[&str], default: usize)
         automatable: true,
         hidden: false,
         step: Some(1.0),
+        remote: None,
     }
 }
 
@@ -117,6 +119,7 @@ pub fn stepped(
         automatable: true,
         hidden: false,
         step: Some(1.0),
+        remote: None,
     }
 }
 
