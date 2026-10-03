@@ -27,4 +27,18 @@ describe("DevicesPanel", () => {
     act(() => useSelectionStore.getState().selectTrack(keys.id));
     expect(await screen.findByRole("button", { name: "Add Synth" })).toBeEnabled();
   });
+
+  it("an added instrument replaces the track's instrument in place", async () => {
+    await renderWithMock(<DevicesPanel />);
+    const keys = tracksOrdered(project()).find((t) => t.kind === "Midi")!;
+    act(() => useSelectionStore.getState().selectTrack(keys.id));
+    const names = () =>
+      devicesOfTrack(project(), keys.id)
+        .filter((d) => !d.chain)
+        .map((d) => (d.kind.type === "Builtin" ? d.kind.device.type : d.kind.type));
+    const [instrument, ...rest] = names();
+    expect(instrument).toBe("Synth");
+    fireEvent.click(await screen.findByRole("button", { name: "Add Sampler" }));
+    await waitFor(() => expect(names()).toEqual(["Sampler", ...rest]));
+  });
 });
