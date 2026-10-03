@@ -115,7 +115,12 @@ fn save(h: &mut Harness, device: DeviceId, name: &str) -> PresetInfo {
     }
 }
 
-fn load(h: &mut Harness, device: DeviceId, preset: PresetRef, seed: Option<RackChainId>) -> Vec<ServerMessage> {
+fn load(
+    h: &mut Harness,
+    device: DeviceId,
+    preset: PresetRef,
+    seed: Option<RackChainId>,
+) -> Vec<ServerMessage> {
     h.send(Command::Preset(PresetCommand::Load {
         device,
         preset,
@@ -148,13 +153,25 @@ fn warnings(out: &[ServerMessage]) -> Vec<String> {
         .collect()
 }
 
-type ChainShape = (String, Option<Color>, Decibels, Pan, bool, bool, Zone, Zone, Zone);
+type ChainShape = (
+    String,
+    Option<Color>,
+    Decibels,
+    Pan,
+    bool,
+    bool,
+    Zone,
+    Zone,
+    Zone,
+);
+
+type DeviceShape = (String, bool, DeviceKind, BTreeMap<ParamId, f64>);
 
 /// Everything a rack preset covers, with ids replaced by positions (comparable across racks).
 #[derive(Debug, PartialEq)]
 struct Shape {
     params: BTreeMap<ParamId, f64>,
-    chains: Vec<(ChainShape, Vec<(String, bool, DeviceKind, BTreeMap<ParamId, f64>)>)>,
+    chains: Vec<(ChainShape, Vec<DeviceShape>)>,
     modulators: Vec<(String, ModulatorKind, BTreeMap<ParamId, f64>)>,
     mappings: Vec<(String, String, ParamId, f64)>,
 }
@@ -191,7 +208,12 @@ fn shape(p: &Project, rack: DeviceId) -> Shape {
         .collect();
     let mods = p.modulators_of(rack);
     let mod_name = |id: ModulatorId| {
-        format!("mod{}", mods.iter().position(|m| m.id == id).expect("rack modulator"))
+        format!(
+            "mod{}",
+            mods.iter()
+                .position(|m| m.id == id)
+                .expect("rack modulator")
+        )
     };
     let mut mappings: Vec<_> = p
         .mod_mappings
@@ -322,7 +344,10 @@ fn saving_a_rack_stores_its_structure_and_loading_rebuilds_it() {
             i += 1;
         }
     }
-    assert_eq!(p.modulators_of(rack2)[0].id, derive_id::<_, ModulatorId>(seed, i));
+    assert_eq!(
+        p.modulators_of(rack2)[0].id,
+        derive_id::<_, ModulatorId>(seed, i)
+    );
     let mapping_ids: Vec<ModMappingId> = (i + 1..i + 5).map(|n| derive_id(seed, n)).collect();
     for id in &mapping_ids {
         assert!(p.mod_mappings.contains_key(id), "mapping {id}");
@@ -354,10 +379,21 @@ fn loading_replaces_the_existing_structure_in_one_undo_step() {
         kind: ModulatorKind::Lfo,
         name: None,
     }));
-    map(&mut h, ModSource::Modulator { modulator: lfo }, outside, 0, 0.5);
+    map(
+        &mut h,
+        ModSource::Modulator { modulator: lfo },
+        outside,
+        0,
+        0.5,
+    );
     let before = h.project().clone();
     let seed: RackChainId = h.id();
-    let out = load(&mut h, rack, factory("instrument-rack/layered-pad"), Some(seed));
+    let out = load(
+        &mut h,
+        rack,
+        factory("instrument-rack/layered-pad"),
+        Some(seed),
+    );
     ok(&out);
     let p = h.project();
     let chains = p.chains_of(rack);
@@ -374,11 +410,15 @@ fn loading_replaces_the_existing_structure_in_one_undo_step() {
     assert_eq!(
         p.mod_mappings
             .values()
-            .filter(|m| matches!(m.source, ModSource::Macro { rack: r, .. } if r == rack)
-                || p.modulators.get(&match m.source {
-                    ModSource::Modulator { modulator } => modulator,
-                    _ => return false,
-                }).is_some_and(|x| x.device == rack))
+            .filter(
+                |m| matches!(m.source, ModSource::Macro { rack: r, .. } if r == rack)
+                    || p.modulators
+                        .get(&match m.source {
+                            ModSource::Modulator { modulator } => modulator,
+                            _ => return false,
+                        })
+                        .is_some_and(|x| x.device == rack)
+            )
             .count(),
         4
     );
@@ -429,7 +469,12 @@ fn same_seed_same_ids_on_every_site() {
     assert_eq!(rack, rack_b);
     let seed: RackChainId = a.id();
     for h in [&mut a, &mut b] {
-        ok(&load(h, rack, factory("audio-effect-rack/dub-space"), Some(seed)));
+        ok(&load(
+            h,
+            rack,
+            factory("audio-effect-rack/dub-space"),
+            Some(seed),
+        ));
     }
     assert_eq!(a.project().chains_of(rack).len(), 2);
     assert_eq!(a.project().rack_chains, b.project().rack_chains);
@@ -504,7 +549,12 @@ fn content_the_rack_refuses_fails_the_whole_load() {
     assert_eq!(h.project().devices, before.devices);
     assert_eq!(h.project().rack_chains, before.rack_chains);
     // Another rack type's preset is refused too.
-    let out = load(&mut h, rack, factory("midi-effect-rack/chord-arp"), Some(seed));
+    let out = load(
+        &mut h,
+        rack,
+        factory("midi-effect-rack/chord-arp"),
+        Some(seed),
+    );
     assert_eq!(err(&out).code, ErrorCode::InvalidArgument);
 }
 

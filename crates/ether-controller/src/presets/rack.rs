@@ -110,7 +110,9 @@ pub(super) fn snapshot(
         .values()
         .filter_map(|m| {
             let source = match m.source {
-                ModSource::Macro { rack: r, index } if r == rack => PresetModSource::Macro { index },
+                ModSource::Macro { rack: r, index } if r == rack => {
+                    PresetModSource::Macro { index }
+                }
                 ModSource::Modulator { modulator } => PresetModSource::Modulator {
                     index: mods.iter().position(|x| x.id == modulator)? as u32,
                 },
@@ -304,9 +306,10 @@ fn clear(ctx: &mut DocCtx, rack: DeviceId) -> CmdResult<()> {
         .values()
         .filter(|m| match m.source {
             ModSource::Macro { rack: r, .. } => r == rack,
-            ModSource::Modulator { modulator } => {
-                p.modulators.get(&modulator).is_some_and(|x| x.device == rack)
-            }
+            ModSource::Modulator { modulator } => p
+                .modulators
+                .get(&modulator)
+                .is_some_and(|x| x.device == rack),
         })
         .map(|m| m.id)
         .collect();

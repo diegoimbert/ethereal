@@ -350,7 +350,10 @@ fn check_rack_preset(id: &str, rack_type: BuiltinDeviceType, rack: &PresetRack) 
             let PresetDevice::Builtin { device } = d.device else {
                 panic!("{id}: factory rack presets use built-in devices only");
             };
-            assert!(!device.is_rack() && device != BuiltinDeviceType::DrumRack, "{id}: nested rack");
+            assert!(
+                !device.is_rack() && device != BuiltinDeviceType::DrumRack,
+                "{id}: nested rack"
+            );
             let desc = ether_devices::descriptor(device);
             match rack_type {
                 BuiltinDeviceType::AudioEffectRack => {
@@ -367,7 +370,11 @@ fn check_rack_preset(id: &str, rack_type: BuiltinDeviceType, rack: &PresetRack) 
                     .iter()
                     .find(|q| q.id == *pid)
                     .unwrap_or_else(|| panic!("{id}: {device:?} has no param {pid:?}"));
-                assert_eq!(info.snap(*v), *v, "{id}: {device:?} param {pid:?} out of range");
+                assert_eq!(
+                    info.snap(*v),
+                    *v,
+                    "{id}: {device:?} param {pid:?} out of range"
+                );
             }
             assert!(d.state.is_none() && d.kind.is_none(), "{id}");
             row.push(desc);
@@ -377,7 +384,10 @@ fn check_rack_preset(id: &str, rack_type: BuiltinDeviceType, rack: &PresetRack) 
     for m in &rack.modulators {
         let desc = ether_devices::modulators::descriptor(m.kind);
         for pid in m.params.keys() {
-            assert!(desc.params.iter().any(|q| q.id == *pid), "{id}: modulator param {pid:?}");
+            assert!(
+                desc.params.iter().any(|q| q.id == *pid),
+                "{id}: modulator param {pid:?}"
+            );
         }
     }
     for m in &rack.mappings {

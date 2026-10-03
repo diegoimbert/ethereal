@@ -22,6 +22,11 @@
 //!   references for sampler types (project copies are written to `Samples/` in the user
 //!   library so the preset stays usable in other projects; library/external files keep
 //!   their library location), plugin state read from the live instance.
+//! - Rack devices (v0.3, `rack-presets`, CONTRACTS.md §13.9): `Save` also stores the rack's
+//!   chains with their devices, its modulators and the mappings inside it (`Preset::rack`,
+//!   `rack::snapshot`); `Load` of such a preset needs the command's `seed` and rebuilds
+//!   the structure in the same undo step (`rack::rebuild`, ids `derive_id(seed, i)`).
+//!   Version-1 rack presets (no `rack`) set macros and params only.
 //! - `Save`/`Rename`/`Delete`/`SetMeta` are runtime (no undo) and emit
 //!   `PresetEvent::Changed`. Names are unique per device type (case-insensitive): `Save`
 //!   replaces an existing one only with `overwrite`, `Rename` refuses a taken name.
