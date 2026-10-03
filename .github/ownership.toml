@@ -1650,6 +1650,16 @@ paths = [
   "ui/src/features/devices/layout/widgets/data.tsx",
   # shared touch (v0.3 grant): one additive state field + initializer on EtherController
   "crates/ether-controller/src/lib.rs",
+  # shared touch (BCR): realfft dependency (already in Cargo.lock via rubato)
+  "Cargo.toml",
+  "crates/ether-devices/Cargo.toml",
+  # shared touch (BCR): pass the SampleResolver to fx_space::create
+  "crates/ether-devices/src/lib.rs",
+  # shared touch (BCR): fx_space::updatable_in_place in the in-place update check (IR crossfade)
+  "crates/ether-controller/src/engine.rs",
+  # shared touch (BCR, optional): EngineMsg::UpdateBuiltin so the web swaps IRs (and samplers) in place
+  "crates/ether-wasm/src/proto.rs",
+  "crates/ether-wasm/src/worklet.rs",
 ]
 
 [nodes.external-instrument]
