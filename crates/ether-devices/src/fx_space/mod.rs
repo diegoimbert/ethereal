@@ -29,17 +29,42 @@
 //! | 6 | Output | `Width` | 0 ..= 200 Percent, default 100 |
 //! | 7 | Output | `Gain` | -24 ..= 24 Decibels (wet), default 0 |
 //! | 8 | Time | `Reverse` | toggle, default off |
+//!
+//! # Implementation (`fx-space`)
+//!
+//! - [`convolver`]: zero-latency non-uniform partitioned convolution (direct 128-tap head,
+//!   FFT stages of 128 and 2048 with the large stage's work spread evenly over 128-sample
+//!   ticks); `Node::latency` is 0. Shaping params (`Decay`, `Size`, `Reverse`) rebuild the
+//!   spare kernel a few partitions per tick and crossfade, sharing the input history.
+//! - [`ir`]: base IR loading (media, at the engine rate, truncated to
+//!   [`ir::MAX_IR_SECONDS`], energy-normalized) and shaping.
+//! - [`factory_ir`]: the factory IRs, synthesized (no recorded or third-party IRs).
+//! - [`device`]: the node (pre-delay, convolver, low/high cut, width, gain, mix) and the
+//!   IR swap through `Node::set_data` ([`ir_swap`], built off the audio thread by the
+//!   bridges' `update_builtin`).
 
-use ether_core::Device;
+mod convolver;
+mod device;
+mod factory_ir;
+pub mod ir;
+
 use ether_core::protocol::devices::{
     DeviceCategory, DeviceDescriptor, FactoryIr, ParamScale, ParamUnit,
 };
-use ether_core::protocol::model::{BuiltinDevice, BuiltinDeviceType, Seconds};
+use ether_core::protocol::model::{BuiltinDevice, BuiltinDeviceType, IrSource, ParamId, Seconds};
+use ether_core::Device;
+use ether_core::node::NodeData;
 
+use crate::SampleResolver;
 #[allow(unused_imports)]
 use crate::contract::{
-    FactoryPreset, Placeholder, PlaceholderMode, choice, descriptor as build, param, toggle,
+    FactoryPreset, Placeholder, PlaceholderMode, choice, descriptor as build, layout, param,
+    section, toggle,
 };
+
+pub use convolver::{B as HEAD_BLOCK, Convolver, T as TAIL_BLOCK};
+pub use device::{ConvolutionReverb, IrSwap, SWAP_MS};
+pub use ir::{IrBase, IrInput, Shaping};
 
 /// Param ids of `ConvolutionReverb` (stable, append-only).
 pub mod convolution_reverb {
@@ -98,7 +123,48 @@ pub const FACTORY_IRS: &[FactoryIrSpec] = &[
         length_seconds: 2.8,
         channels: 2,
     },
+    FactoryIrSpec {
+        id: "cathedral",
+        name: "Cathedral",
+        category: "Hall",
+        length_seconds: 5.0,
+        channels: 2,
+    },
+    FactoryIrSpec {
+        id: "ambience",
+        name: "Ambience",
+        category: "Room",
+        length_seconds: 0.35,
+        channels: 2,
+    },
 ];
+
+/// `(min, max, default)` per param id (mirrors [`descriptor`]; RT lookups).
+const RANGES: [(f64, f64, f64); convolution_reverb::COUNT] = [
+    (0.0, 100.0, 30.0),
+    (0.0, 250.0, 0.0),
+    (10.0, 100.0, 100.0),
+    (50.0, 150.0, 100.0),
+    (20.0, 2000.0, 20.0),
+    (1000.0, 20000.0, 20000.0),
+    (0.0, 200.0, 100.0),
+    (-24.0, 24.0, 0.0),
+    (0.0, 1.0, 0.0),
+];
+
+/// Range of a param (allocation-free).
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Range {
+    pub min: f64,
+    pub max: f64,
+    pub default: f64,
+}
+
+pub(crate) fn param_info(id: ParamId) -> Option<Range> {
+    RANGES
+        .get(id.0 as usize)
+        .map(|&(min, max, default)| Range { min, max, default })
+}
 
 /// `Device::ListFactoryIrs` reply.
 pub fn factory_irs() -> Vec<FactoryIr> {
@@ -120,7 +186,9 @@ pub fn factory_irs() -> Vec<FactoryIr> {
 /// For a type of another group.
 pub fn descriptor(ty: BuiltinDeviceType) -> DeviceDescriptor {
     match ty {
-        BuiltinDeviceType::ConvolutionReverb => build(
+        BuiltinDeviceType::ConvolutionReverb => DeviceDescriptor {
+            layout: Some(reverb_layout()),
+            ..build(
             BuiltinDeviceType::ConvolutionReverb,
             "Convolution Reverb",
             DeviceCategory::AudioEffect,
@@ -195,18 +263,111 @@ pub fn descriptor(ty: BuiltinDeviceType) -> DeviceDescriptor {
             2,
             false,
             0,
-        ),
+        )
+        },
         other => panic!("{other:?} is not an fx-space device"),
     }
 }
 
-/// Non-RT. The device for `device` (a placeholder until `fx-space` lands: pass-through).
-pub fn create(device: &BuiltinDevice) -> Box<dyn Device> {
-    let ty = device.device_type();
-    Box::new(Placeholder::new(
-        descriptor(ty),
-        PlaceholderMode::PassThrough,
-    ))
+/// Panel: the IR (picker + waveform, the `SampleWaveform` data widget, which the shared
+/// renderer draws as the IR widget for this device) with its shaping, the EQ and the output.
+fn reverb_layout() -> ether_core::protocol::layout::DeviceLayout {
+    use crate::contract::{item, knob};
+    use convolution_reverb as p;
+    use ether_core::protocol::layout::Widget;
+    use ether_core::protocol::layout::WidgetSize::*;
+    let mut ir = item(
+        Widget::SampleWaveform {
+            start: None,
+            end: None,
+        },
+        Large,
+    );
+    ir.colspan = 4;
+    ir.label = Some("Impulse Response".to_owned());
+    layout(vec![
+        section(
+            "ir",
+            Some("Impulse Response"),
+            3,
+            4,
+            vec![
+                ir,
+                knob(p::DECAY, Large),
+                knob(p::SIZE, Medium),
+                knob(p::PRE_DELAY, Medium),
+                item(Widget::Toggle { param: p::REVERSE }, Small),
+            ],
+        ),
+        section(
+            "eq",
+            Some("EQ"),
+            1,
+            1,
+            vec![knob(p::LOW_CUT, Medium), knob(p::HIGH_CUT, Medium)],
+        ),
+        section(
+            "output",
+            Some("Output"),
+            1,
+            2,
+            vec![
+                knob(p::MIX, Large),
+                knob(p::GAIN, Medium),
+                knob(p::WIDTH, Medium),
+            ],
+        ),
+    ])
+}
+
+/// What `ir` points at, resolved (`None`: no IR, unknown factory id or media not loaded).
+pub fn resolve(ir: Option<&IrSource>, samples: &dyn SampleResolver) -> Option<IrInput> {
+    match ir? {
+        IrSource::Factory { id } => FACTORY_IRS
+            .iter()
+            .position(|s| s.id == id)
+            .map(IrInput::Factory),
+        IrSource::Media { media } => samples.resolve(*media).map(IrInput::Media),
+    }
+}
+
+/// Non-RT. The device for `device` (its IR is built in `prepare`, at the engine rate).
+pub fn create(device: &BuiltinDevice, samples: &dyn SampleResolver) -> Box<dyn Device> {
+    let ir = match device {
+        BuiltinDevice::ConvolutionReverb { ir } => ir.as_ref(),
+        other => panic!("{other:?} is not an fx-space device"),
+    };
+    Box::new(ConvolutionReverb::new(resolve(ir, samples)))
+}
+
+/// Whether a live node built from `old` takes `new` in place (`Node::set_data` with
+/// [`ir_swap`], crossfading): only the IR of a convolution reverb changed.
+pub fn updatable_in_place(old: &BuiltinDevice, new: &BuiltinDevice) -> bool {
+    matches!(
+        (old, new),
+        (
+            BuiltinDevice::ConvolutionReverb { ir: a },
+            BuiltinDevice::ConvolutionReverb { ir: b },
+        ) if a != b
+    )
+}
+
+/// Non-RT (bridges' `update_builtin`). Read and partition the IR of `device` at
+/// `sample_rate` and wrap it for `Node::set_data` (an [`IrSwap`]); `None` for another
+/// device type. The node crossfades to it.
+pub fn ir_swap(
+    device: &BuiltinDevice,
+    samples: &dyn SampleResolver,
+    sample_rate: f32,
+) -> Option<NodeData> {
+    let BuiltinDevice::ConvolutionReverb { ir } = device else {
+        return None;
+    };
+    let next = resolve(ir.as_ref(), samples).and_then(|input| {
+        IrBase::load(&input, sample_rate)
+            .map(|base| Box::new(Convolver::new(input, base, Shaping::default())))
+    });
+    Some(Box::new(IrSwap::new(next)))
 }
 
 /// Factory presets of a type of this group (embedded; add `FactoryPreset { id, json:
@@ -214,4 +375,18 @@ pub fn create(device: &BuiltinDevice) -> Box<dyn Device> {
 pub fn factory_presets(ty: BuiltinDeviceType) -> &'static [FactoryPreset] {
     let _ = ty;
     &[]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ranges_mirror_the_descriptor() {
+        let d = descriptor(BuiltinDeviceType::ConvolutionReverb);
+        for p in &d.params {
+            let r = param_info(p.id).unwrap();
+            assert_eq!((r.min, r.max, r.default), (p.min, p.max, p.default), "{}", p.name);
+        }
+    }
 }
