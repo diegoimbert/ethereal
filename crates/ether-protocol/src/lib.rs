@@ -43,6 +43,7 @@ pub mod project;
 pub mod racks;
 pub mod recording;
 pub mod remote;
+pub mod share;
 pub mod social;
 pub mod takes;
 pub mod tempo;

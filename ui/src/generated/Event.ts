@@ -15,9 +15,10 @@ import type { PresetEvent } from "./PresetEvent";
 import type { Project } from "./Project";
 import type { ProjectEvent } from "./ProjectEvent";
 import type { RecordingEvent } from "./RecordingEvent";
+import type { ShareEvent } from "./ShareEvent";
 import type { TransportState } from "./TransportState";
 
 /**
  * Pushed engine → UI events (low rate).
  */
-export type Event = { "type": "ProjectLoaded", project: Project, } | { "type": "Project", event: ProjectEvent, } | { "type": "Patch", patch: Patch, } | { "type": "Transport", state: TransportState, } | { "type": "Plugin", event: PluginEvent, } | { "type": "Recording", event: RecordingEvent, } | { "type": "Media", event: MediaEvent, } | { "type": "Engine", event: EngineEvent, } | { "type": "Export", event: ExportEvent, } | { "type": "MidiMap", event: MidiMapEvent, } | { "type": "Collab", event: CollabEvent, } | { "type": "Freeze", event: FreezeEvent, } | { "type": "Preset", event: PresetEvent, } | { "type": "Browser", event: BrowserEvent, } | { "type": "Analysis", event: AnalysisEvent, } | { "type": "MediaRef", event: MediaRefEvent, } | { "type": "Notification", level: NotificationLevel, message: string, };
+export type Event = { "type": "ProjectLoaded", project: Project, } | { "type": "Project", event: ProjectEvent, } | { "type": "Patch", patch: Patch, } | { "type": "Transport", state: TransportState, } | { "type": "Plugin", event: PluginEvent, } | { "type": "Recording", event: RecordingEvent, } | { "type": "Media", event: MediaEvent, } | { "type": "Engine", event: EngineEvent, } | { "type": "Export", event: ExportEvent, } | { "type": "MidiMap", event: MidiMapEvent, } | { "type": "Collab", event: CollabEvent, } | { "type": "Freeze", event: FreezeEvent, } | { "type": "Preset", event: PresetEvent, } | { "type": "Browser", event: BrowserEvent, } | { "type": "Analysis", event: AnalysisEvent, } | { "type": "MediaRef", event: MediaRefEvent, } | { "type": "Share", event: ShareEvent, } | { "type": "Notification", level: NotificationLevel, message: string, };

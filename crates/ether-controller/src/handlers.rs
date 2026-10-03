@@ -173,6 +173,8 @@ where
                 kinds: ether_devices::modulators::all(),
             }),
             Command::Chat(c) => self.chat_command(c, now, out),
+            // base-115 (docs/SHARING.md).
+            Command::Share(c) => self.share_command(c, out),
             other => Err(internal(format!(
                 "unhandled command {}",
                 doc::label_of(other)

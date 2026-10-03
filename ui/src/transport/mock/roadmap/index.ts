@@ -14,6 +14,7 @@
  * | `collab.ts`     | collab          | `Collab::*` (unsupported)                          |
  * | `remote.ts`     | remote-engine   | uploads (unsupported)                             |
  * | `social.ts`     | collab-social   | `Chat::*`, `PinnedNote::*` (unsupported)          |
+ * | `share.ts`      | share-engine    | `Share::*` (simulated; base-115, docs/SHARING.md) |
  *
  * v0.2 (contracts-3), same rules (see docs/ROADMAP.md "v0.2"):
  *
