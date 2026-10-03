@@ -23,6 +23,10 @@ thiserror.workspace = true
 wasm-bindgen.workspace = true
 js-sys.workspace = true
 console_error_panic_hook.workspace = true
+# The share port (docs/SHARING.md §6.2): `ether_collab::share::web` drives the UI's peer
+# connections over a `MessagePort`.
+ether-collab.workspace = true
+web-sys = { workspace = true, features = ["MessagePort"] }
 
 [lints]
 workspace = true

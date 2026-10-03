@@ -10,8 +10,8 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 
 use clack_host::events::event_types::{
-    MidiEvent, NoteChokeEvent, NoteOffEvent, NoteOnEvent, ParamValueEvent, TransportEvent,
-    TransportFlags,
+    MidiEvent, NoteChokeEvent, NoteExpressionEvent, NoteExpressionType, NoteOffEvent, NoteOnEvent,
+    ParamValueEvent, TransportEvent, TransportFlags,
 };
 use clack_host::events::io::{OutputEventBuffer, TryPushError};
 use clack_host::events::spaces::CoreEventSpace;
@@ -21,9 +21,11 @@ use clack_host::utils::{BeatTime, SecondsTime};
 use ether_core::buffer::AudioBuffers;
 use ether_core::config::PrepareConfig;
 use ether_core::event::{EventKind, ProcessEvent};
+use ether_core::expression::mpe::MpeOut;
 use ether_core::node::{Device, Node, ProcessContext, ProcessStatus};
 use ether_core::plugin::PluginNode;
 use ether_core::protocol::devices::DeviceDescriptor;
+use ether_core::protocol::model::NoteExpressionKind;
 use ether_core::protocol::model::ParamId;
 use ether_core::transport::TransportInfo;
 
@@ -119,6 +121,10 @@ pub struct ClapNode {
     /// `Device::set_param` calls not yet sent to the plugin.
     pending: Vec<(u32, f64)>,
     steady: u64,
+    /// v0.3 (`mpe`): the plugin takes CLAP note expressions (CLAP dialect); otherwise
+    /// per-note expression is translated to MPE MIDI by `mpe_out`.
+    note_expressions: bool,
+    mpe_out: MpeOut,
 }
 
 pub(crate) struct NodeInit {
@@ -130,6 +136,8 @@ pub(crate) struct NodeInit {
     pub max_frames: usize,
     pub max_events: usize,
     pub values: Vec<(u32, f64)>,
+    /// v0.3 (`mpe`): the plugin's note input takes the CLAP dialect.
+    pub note_expressions: bool,
 }
 
 impl ClapNode {
@@ -143,6 +151,7 @@ impl ClapNode {
             max_frames,
             max_events,
             mut values,
+            note_expressions,
         } = init;
         values.sort_by_key(|(id, _)| *id);
         let alloc = |ports: &[u32]| -> Vec<Vec<f32>> {
@@ -176,6 +185,8 @@ impl ClapNode {
             values,
             pending: Vec::with_capacity(pending_cap),
             steady: 0,
+            note_expressions,
+            mpe_out: MpeOut::default(),
         }
     }
 
@@ -197,9 +208,25 @@ impl ClapNode {
         }
     }
 
+    /// v0.3 (`mpe`): per-note expression, CLAP note expressions first (the reference model),
+    /// else MPE MIDI ([`MpeOut`]: one member channel per note once the track announced its
+    /// MPE zone; without MPE, `Pressure` as poly aftertouch).
     fn convert_event(&mut self, e: &ProcessEvent) {
-        let t = e.offset;
-        match e.kind {
+        if self.note_expressions {
+            if let EventKind::Midi { data } = e.kind {
+                self.mpe_out.observe(data);
+            }
+            self.convert_one(e.offset, e.kind);
+        } else {
+            // (Fixed-size state: moved out and back, no allocation.)
+            let mut out = std::mem::take(&mut self.mpe_out);
+            out.translate(&e.kind, |kind| self.convert_one(e.offset, kind));
+            self.mpe_out = out;
+        }
+    }
+
+    fn convert_one(&mut self, t: u32, kind: EventKind) {
+        match kind {
             EventKind::NoteOn {
                 note_id,
                 channel,
@@ -243,6 +270,45 @@ impl ClapNode {
                 ));
             }
             EventKind::Midi { data } => self.push_in(&MidiEvent::new(t, 0, data)),
+            // v0.3 (`midi-expression`): without MPE, `Pressure` goes out as poly aftertouch
+            // on the note's channel/key (CONTRACTS.md §13.2).
+            EventKind::NoteExpression {
+                channel,
+                key,
+                expression: NoteExpressionKind::Pressure,
+                value,
+                ..
+            } if !self.mpe_out.active() => self.push_in(&MidiEvent::new(
+                t,
+                0,
+                [
+                    0xA0 | (channel & 0x0F),
+                    key & 0x7F,
+                    (value.clamp(0.0, 1.0) * 127.0).round() as u8,
+                ],
+            )),
+            // v0.3 (`mpe`): `clap_event_note_expression` (only reached for CLAP-dialect
+            // plugins; others get MPE MIDI from `MpeOut`). TUNING is in semitones like
+            // `Pitch`; PRESSURE and BRIGHTNESS are 0..1.
+            EventKind::NoteExpression {
+                note_id,
+                channel,
+                key,
+                expression,
+                value,
+            } => {
+                let ty = match expression {
+                    NoteExpressionKind::Pitch => NoteExpressionType::Tuning,
+                    NoteExpressionKind::Pressure => NoteExpressionType::Pressure,
+                    NoteExpressionKind::Timbre => NoteExpressionType::Brightness,
+                };
+                self.push_in(&NoteExpressionEvent::new(
+                    t,
+                    Pckn::new(0u16, u16::from(channel), u16::from(key), note_id),
+                    ty,
+                    f64::from(value),
+                ));
+            }
         }
     }
 }

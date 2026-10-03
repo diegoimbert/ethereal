@@ -41,6 +41,19 @@ describe("App shell", () => {
     expect(container.querySelector('[data-feature="mixer"]')).toBeNull(); // the mixer view is gone
   });
 
+  it("has exactly one session element in the top bar: the Share button (base-115)", async () => {
+    await renderWithMock(<App />);
+    const top = document.querySelector<HTMLElement>('[data-slot="top"]')!;
+    await waitFor(() => expect(top.querySelector('[data-testid="share-button"]')).not.toBeNull());
+    // No relay "Collab" button, no peer chips, no idle "Remote" button.
+    for (const id of ["collab-button", "collab-peers", "remote-button", "session-pill"]) {
+      expect(top.querySelector(`[data-testid="${id}"]`), id).toBeNull();
+    }
+    // The settings (Audio | Sharing | Advanced) open from the gear.
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    expect(await screen.findByRole("tab", { name: "Sharing" })).toBeInTheDocument();
+  });
+
   it("the rail opens each panel in the left pane, and closes it on a second click", async () => {
     const { container } = render(<App />);
     expect(pane("left")).toBeNull();
@@ -57,13 +70,13 @@ describe("App shell", () => {
     await waitFor(() => expect(pane("left")).toBeNull());
   });
 
-  it("pinning a pane reserves its space next to the arrangement", () => {
+  it("pinning a pane reserves its space next to the arrangement (flush: one gap, to the arrangement)", () => {
     render(<App />);
     fireEvent.click(screen.getByRole("button", { name: "Library" }));
     expect(workspace().style.getPropertyValue("--pane-left-reserved")).toBe("0px");
     fireEvent.click(screen.getByRole("button", { name: "Pin Library" }));
     const { size } = useShellStore.getState().left;
-    expect(workspace().style.getPropertyValue("--pane-left-reserved")).toBe(`${size + 2 * parseFloat(tokenSize.floatGap)}px`);
+    expect(workspace().style.getPropertyValue("--pane-left-reserved")).toBe(`${size + parseFloat(tokenSize.floatGap)}px`);
     expect(pane("left")).toHaveClass("eth-float--pinned");
     fireEvent.click(screen.getByRole("button", { name: "Unpin Library" }));
     expect(workspace().style.getPropertyValue("--pane-left-reserved")).toBe("0px");
@@ -143,6 +156,45 @@ describe("App shell: connected", () => {
     act(() => useShellStore.getState().setPinned("bottom", true));
     await press(header, { button: 0, clientX: 5, clientY: 5 });
     expect(pane("bottom")).not.toBeNull();
+    mock.dispose();
+  });
+
+  it("a press anywhere in the arrangement collapses an unpinned left pane, not a pinned one", async () => {
+    const { container, mock } = await renderWithMock(<App />);
+    const arrangement = container.querySelector('[data-feature="arrangement"]')!;
+    const markers = container.querySelector('[data-slot="markers"]')!;
+    const header = screen.getByRole("group", { name: "Keys track" });
+    const press = async (el: Element) => {
+      await act(async () => {
+        fireEvent.pointerDown(el, { button: 0, clientX: 5, clientY: 5 });
+        fireEvent.pointerUp(window, { clientX: 5, clientY: 5 });
+      });
+    };
+    for (const el of [arrangement, markers, header]) {
+      act(() => useShellStore.getState().toggleLeft("library"));
+      expect(pane("left")).not.toBeNull();
+      await press(el);
+      expect(useShellStore.getState().left.open).toBe(false);
+      await waitFor(() => expect(pane("left")).toBeNull());
+    }
+    // The press still does its own job: a click on a track header selects the track.
+    act(() => useShellStore.getState().toggleLeft("library"));
+    await press(header);
+    fireEvent.click(header);
+    expect(useShellStore.getState().left.open).toBe(false);
+    expect(useArrangementUi.getState().trackFocus).not.toBeNull();
+
+    // Pinned, it stays open.
+    act(() => useShellStore.getState().toggleLeft("library"));
+    act(() => useShellStore.getState().setPinned("left", true));
+    await press(arrangement);
+    await press(header);
+    expect(useShellStore.getState().left.open).toBe(true);
+    expect(pane("left")).not.toBeNull();
+    // A press inside the pane itself never collapses it.
+    act(() => useShellStore.getState().setPinned("left", false));
+    await press(pane("left")!);
+    expect(useShellStore.getState().left.open).toBe(true);
     mock.dispose();
   });
 

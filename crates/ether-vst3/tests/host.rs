@@ -462,7 +462,7 @@ fn editor_needs_the_main_thread() {
     let mut plugin = effect();
     // Test threads are not the process main thread: the editor is neither probed
     // (`createView` is main-thread only) nor opened there.
-    if cfg!(target_os = "macos") {
+    if cfg!(any(target_os = "macos", windows)) {
         assert!(!plugin.has_editor());
         let e = plugin.open_editor().unwrap_err();
         assert!(matches!(e, PluginError::Load(_)), "{e:?}");

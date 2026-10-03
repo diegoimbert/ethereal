@@ -9,7 +9,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import type { Project } from "@/generated";
-import { playButton } from "./ui";
+import { openRelayJoin, playButton } from "./ui";
 
 /** A mono 16-bit WAV: `seconds` of a 220 Hz sine at 48 kHz. */
 function sineWav(seconds: number): Buffer {
@@ -128,7 +128,7 @@ async function open(page: Page): Promise<void> {
 }
 
 async function join(page: Page, name: string) {
-  await page.getByTestId("collab-button").click();
+  await openRelayJoin(page);
   await page.getByLabel("Relay address").fill(relayUrl);
   await page.getByLabel("Session").fill(SESSION);
   await page.getByLabel("Your name").fill(name);

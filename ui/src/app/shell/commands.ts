@@ -1,11 +1,19 @@
+import { openAiChat } from "@/features/ai-chat";
 import { openAudioSettings } from "@/features/audio-settings";
+import { captureMidi } from "@/features/capture";
 import { focusChat } from "@/features/collab/social";
 import { useCollabStore } from "@/features/collab/store";
-import type { DeviceDescriptor } from "@/generated";
+import type { DeviceDescriptor, Project } from "@/generated";
 import { addTrack, selectTrackEntity } from "@/features/arrangement/actions";
 import { arrangementView } from "@/features/arrangement/uiStore";
 import { openImportDialog } from "@/features/import";
+import { useProjectScreen } from "@/features/project/screenStore";
+import { placementAfter, tracksToSave, useTemplateDialog } from "@/features/templates";
+import { useArrangementUi } from "@/features/arrangement/uiStore";
 import { mediaRefCommands } from "@/features/media-refs";
+import { nameCurrentCheckpoint } from "@/features/undo-history";
+import { shareCommands } from "@/features/share/commands";
+import { joinPaletteCommands } from "@/features/share/join";
 import { tracksOrdered, useProjectStore } from "@/state";
 import { getTheme, setTheme } from "@/theme";
 import { cmd, type EngineTransport } from "@/transport";
@@ -53,6 +61,8 @@ export function buildCommands(transport: EngineTransport | null, devices: Readon
       },
       // media-references: relink missing samples, collect referenced ones.
       ...mediaRefCommands(transport, project),
+      // templates: save / insert templates, new project from a template.
+      ...templateCommands(project),
     );
     const target = deviceTargetTrack(project);
     for (const d of devices) {
@@ -65,8 +75,7 @@ export function buildCommands(transport: EngineTransport | null, devices: Readon
         run: () => {
           const p = useProjectStore.getState().project;
           const t = p ? deviceTargetTrack(p) : undefined;
-          const c = p && t ? insertDeviceCommand(p, t, d) : null;
-          if (c) send(c);
+          if (p && t) void insertDeviceCommand(transport, p, t, d).then((c) => c && send(c));
         },
       });
     }
@@ -87,6 +96,14 @@ export function buildCommands(transport: EngineTransport | null, devices: Readon
         run: () => send(cmd("Recording", { type: "SetRecording", enabled: !state?.recording })),
       },
       {
+        // capture-midi: the command replies InvalidState when nothing was played.
+        id: "transport:capture",
+        group: "Transport",
+        label: "Capture MIDI",
+        keywords: "capture midi record recent played notes take clip",
+        run: () => void captureMidi(transport).catch((e: unknown) => console.warn("[ethereal] capture failed:", e)),
+      },
+      {
         id: "transport:loop",
         group: "Transport",
         label: state?.loop_enabled ? "Turn loop off" : "Turn loop on",
@@ -102,6 +119,14 @@ export function buildCommands(transport: EngineTransport | null, devices: Readon
       },
       { id: "edit:undo", group: "Edit", label: "Undo", shortcut: "⌘Z", run: () => send(cmd("Edit", { type: "Undo" })) },
       { id: "edit:redo", group: "Edit", label: "Redo", shortcut: "⇧⌘Z", run: () => send(cmd("Edit", { type: "Redo" })) },
+      // undo-history: name the current step from anywhere (opens the History tab).
+      {
+        id: "history:checkpoint",
+        group: "Edit",
+        label: "Name checkpoint…",
+        keywords: "history undo checkpoint mark bookmark snapshot",
+        run: () => nameCurrentCheckpoint(),
+      },
     );
 
     for (const t of tracksOrdered(project)) {
@@ -131,6 +156,9 @@ export function buildCommands(transport: EngineTransport | null, devices: Readon
     }
   }
 
+  // join-flow: "Join shared project…" (paste an invite link).
+  out.push(...joinPaletteCommands());
+
   const inSession = useCollabStore.getState().status.type === "Online";
   if (inSession) {
     out.push({
@@ -142,8 +170,18 @@ export function buildCommands(transport: EngineTransport | null, devices: Readon
       run: () => focusChat(),
     });
   }
+  // ai-chat.
+  out.push({
+    id: "ai:ask",
+    group: "AI",
+    label: "Ask AI",
+    keywords: "ai assistant claude chat agent llm prompt generate",
+    shortcut: "⇧⌘A",
+    run: () => openAiChat(),
+  });
   for (const t of LEFT_TABS) {
     if (t.session && !inSession) continue;
+    if (t.id === "ai") continue; // "Ask AI" above
     out.push({
       id: `panel:${t.id}`,
       group: "Panels",
@@ -172,6 +210,8 @@ export function buildCommands(transport: EngineTransport | null, devices: Readon
       run: () => useShellStore.getState().setPinned(side, !useShellStore.getState()[side].pinned),
     });
   }
+  // base-115: Share, Stop sharing, Leave, sharing settings.
+  out.push(...shareCommands(transport, !!project));
   out.push({
     id: "audio-settings",
     group: "Appearance",
@@ -187,6 +227,47 @@ export function buildCommands(transport: EngineTransport | null, devices: Readon
     keywords: "theme dark light mode appearance",
     run: () => setTheme(dark ? "light" : "dark"),
   });
+  return out;
+}
+
+/** templates: palette entries (save the project or the selected tracks, insert, new project). */
+function templateCommands(project: Project): PaletteCommand[] {
+  const dialogs = useTemplateDialog.getState();
+  const selected = useArrangementUi.getState().selectedTracks;
+  const first = [...selected].map((id) => project.tracks[id]).find((t) => t && t.kind !== "Master");
+  const tracks = first ? tracksToSave(first.id, selected, project) : [];
+  const out: PaletteCommand[] = [
+    {
+      id: "template:save-project",
+      group: "Templates",
+      label: "Save project as template…",
+      keywords: "template project default new save",
+      run: () => dialogs.open({ type: "save-project", name: project.settings.name }),
+    },
+    {
+      id: "template:insert",
+      group: "Templates",
+      label: "Insert track template…",
+      keywords: "template track add insert chain preset",
+      run: () => dialogs.open({ type: "insert", placement: first ? placementAfter(project, first) : { parent: null, before: null } }),
+    },
+    {
+      id: "template:new-project",
+      group: "Templates",
+      label: "New project from template…",
+      keywords: "template project new create start",
+      run: () => useProjectScreen.getState().showNew(),
+    },
+  ];
+  if (tracks.length) {
+    out.splice(1, 0, {
+      id: "template:save-tracks",
+      group: "Templates",
+      label: tracks.length > 1 ? `Save ${tracks.length} tracks as template…` : `Save track “${first?.name ?? ""}” as template…`,
+      keywords: "template track save chain",
+      run: () => dialogs.open({ type: "save-tracks", tracks, name: tracks.length === 1 ? (first?.name ?? "") : "" }),
+    });
+  }
   return out;
 }
 

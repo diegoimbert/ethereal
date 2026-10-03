@@ -1,6 +1,12 @@
 //! Network hardening of `ether-server`: half-open / non-reading clients are dropped, the
 //! pre-auth phase has an absolute deadline, a message-size limit and a connection cap, and
 //! an unauthenticated (loopback) server refuses non-loopback `Host`/`Origin` upgrades.
+//!
+//! Timing: these tests run next to many others (and cargo builds) on loaded machines, where
+//! any thread can be descheduled for hundreds of milliseconds. Each timeout under test is
+//! therefore a few times longer than the scheduling hiccups it must survive, and every
+//! "it happens eventually" check polls against a generous deadline. What is checked is
+//! unchanged: who gets dropped and who stays, and that the pre-auth deadline is absolute.
 
 use std::io::{Read, Write};
 use std::net::{SocketAddr, TcpStream};
@@ -94,6 +100,8 @@ fn closed_by_server(s: &mut TcpStream, timeout: Duration) -> bool {
     }
 }
 
+const IDLE_TIMEOUT: Duration = Duration::from_millis(1_500);
+
 #[test]
 fn clients_that_stop_reading_are_dropped_and_live_ones_stay() {
     let tmp = TempDir::new("server-idle");
@@ -102,7 +110,8 @@ fn clients_that_stop_reading_are_dropped_and_live_ones_stay() {
         ServerConfig {
             token: Some(TOKEN.into()),
             ping_interval: Duration::from_millis(200),
-            idle_timeout: Duration::from_millis(800),
+            // Long enough that a live client descheduled for a while isn't idle yet.
+            idle_timeout: IDLE_TIMEOUT,
             write_timeout: Duration::from_millis(500),
             ..ServerConfig::default()
         },
@@ -126,16 +135,18 @@ fn clients_that_stop_reading_are_dropped_and_live_ones_stay() {
     ))
     .unwrap();
     assert_eq!(server.client_count(), 2);
+    // Stop once the silent client is gone and the live one has outlived two idle timeouts
+    // (bounded: on a loaded machine the server's sweep can run late).
     let start = Instant::now();
     let mut pings = 0;
-    while start.elapsed() < Duration::from_secs(3) {
+    while start.elapsed() < Duration::from_secs(20) {
         match live.read() {
             Ok(Message::Ping(_)) => pings += 1,
             Ok(_) => {}
             Err(tungstenite::Error::Io(_)) => {}
             Err(e) => panic!("live client dropped: {e}"),
         }
-        if server.client_count() == 1 && pings > 0 && start.elapsed() > Duration::from_secs(2) {
+        if server.client_count() == 1 && pings > 0 && start.elapsed() > 2 * IDLE_TIMEOUT {
             break;
         }
     }
@@ -144,6 +155,12 @@ fn clients_that_stop_reading_are_dropped_and_live_ones_stay() {
     drop(dead);
 }
 
+/// Pre-auth deadline. The trickle below would need ~15 s to send a full upgrade request, the
+/// test gives up after [`TRICKLE_LIMIT`]: being cut off in between proves the deadline is
+/// absolute, with seconds of slack for a loaded machine.
+const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(3);
+const TRICKLE_LIMIT: Duration = Duration::from_secs(10);
+
 #[test]
 fn pre_auth_deadline_size_limit_and_connection_cap() {
     let tmp = TempDir::new("server-preauth");
@@ -151,14 +168,14 @@ fn pre_auth_deadline_size_limit_and_connection_cap() {
         &tmp,
         ServerConfig {
             token: Some(TOKEN.into()),
-            handshake_timeout: Duration::from_millis(700),
+            handshake_timeout: HANDSHAKE_TIMEOUT,
             max_pending_handshakes: 2,
             ..ServerConfig::default()
         },
     );
     let addr = server.local_addr();
 
-    // Trickle: one byte of the upgrade request every 50 ms keeps each read short, but the
+    // Trickle: one byte of the upgrade request every 100 ms keeps each read short, but the
     // deadline is absolute.
     let request = format!(
         "GET / HTTP/1.1\r\nHost: {addr}\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\
@@ -172,16 +189,17 @@ fn pre_auth_deadline_size_limit_and_connection_cap() {
             cut = true;
             break;
         }
-        std::thread::sleep(Duration::from_millis(50));
-        if t0.elapsed() > Duration::from_secs(5) {
+        std::thread::sleep(Duration::from_millis(100));
+        if t0.elapsed() > TRICKLE_LIMIT {
             break;
         }
     }
+    assert!(request.len() as u32 * Duration::from_millis(100) > TRICKLE_LIMIT);
     assert!(
         cut || closed_by_server(&mut s, Duration::from_secs(2)),
         "trickling client not cut off"
     );
-    assert!(t0.elapsed() < Duration::from_secs(5));
+    assert!(t0.elapsed() < TRICKLE_LIMIT, "{:?}", t0.elapsed());
 
     // Oversized hello (> 64 KiB before auth): closed, never welcomed.
     let (mut ws, _) = tungstenite::connect(format!("ws://{addr}/")).unwrap();
@@ -200,19 +218,30 @@ fn pre_auth_deadline_size_limit_and_connection_cap() {
     assert_eq!(server.client_count(), 0);
 
     // Connection cap: two idle TCP connections fill the pre-auth slots; a third is closed
-    // right away. Once the deadline frees the slots, clients get in again.
+    // right away (well before the deadline that would close it if it had a slot). Once the
+    // deadline frees the slots, clients get in again. The connections above release their
+    // slots asynchronously (the server finishes their close handshake first, which can take
+    // a while on a loaded machine): wait for that, or the third connection could get the
+    // slot of one of them.
+    wait_until("earlier slots released", Duration::from_secs(10), || {
+        server.pending_handshakes() == 0
+    });
     let _idle1 = TcpStream::connect(addr).unwrap();
     let _idle2 = TcpStream::connect(addr).unwrap();
-    std::thread::sleep(Duration::from_millis(100));
+    wait_until(
+        "both idle connections hold a slot",
+        Duration::from_secs(10),
+        || server.pending_handshakes() == 2,
+    );
     let mut third = TcpStream::connect(addr).unwrap();
     assert!(
-        closed_by_server(&mut third, Duration::from_millis(300)),
+        closed_by_server(&mut third, HANDSHAKE_TIMEOUT * 2 / 3),
         "over the pre-auth cap"
     );
     let mut ok = None;
     wait_until(
         "a slot frees up",
-        Duration::from_secs(5),
+        Duration::from_secs(15),
         || match tungstenite::connect(format!("ws://{addr}/")) {
             Ok((mut ws, _)) => {
                 let welcomed = matches!(hello(&mut ws, Some(TOKEN)), ServerHello::Welcome { .. });

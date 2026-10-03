@@ -201,6 +201,8 @@ impl<F: Fs> WebStore<F> {
             id,
             name: name_of(&bytes),
             modified_ms,
+            // base-115: `recents-shared` reads the project's `share.json`.
+            share: None,
         })
     }
 
@@ -307,6 +309,23 @@ impl<F: Fs> ProjectStore for WebStore<F> {
             return Err(StoreError::NotFound(id.to_string()));
         }
         self.fs.write(&join(&Self::dir(id), rel), bytes)
+    }
+
+    /// v0.3 (`project-versions`): delete one file (never a folder); missing = `Ok`.
+    fn remove(&mut self, id: ProjectId, rel_path: &str) -> Result<(), StoreError> {
+        let rel = relative(rel_path)?;
+        if rel.is_empty() {
+            return Err(StoreError::InvalidPath(rel_path.to_string()));
+        }
+        let path = join(&Self::dir(id), rel);
+        match self.fs.stat(&path)? {
+            Some(e) if e.is_dir => Err(StoreError::InvalidPath(format!("{rel_path} is a folder"))),
+            Some(_) => match self.fs.remove(&path) {
+                Err(StoreError::NotFound(_)) => Ok(()),
+                r => r,
+            },
+            None => Ok(()),
+        }
     }
 
     fn list_dir(&mut self, id: ProjectId, rel_path: &str) -> Result<DirectoryListing, StoreError> {
@@ -875,6 +894,33 @@ mod tests {
             s.duplicate(pid(7), pid(8)),
             Err(StoreError::NotFound(_))
         ));
+    }
+
+    #[test]
+    fn remove_deletes_files_only() {
+        let (_fs, mut s) = store();
+        s.create(pid(3)).unwrap();
+        s.write(pid(3), "versions/.session", b"{}").unwrap();
+        s.write(pid(3), "versions/1-manual.ether", b"{}").unwrap();
+        s.remove(pid(3), "versions/.session").unwrap();
+        assert!(matches!(
+            ProjectStore::read(&mut s, pid(3), "versions/.session"),
+            Err(StoreError::NotFound(_))
+        ));
+        s.remove(pid(3), "versions/.session").unwrap();
+        assert!(matches!(
+            s.remove(pid(3), "versions"),
+            Err(StoreError::InvalidPath(_))
+        ));
+        assert!(matches!(
+            s.remove(pid(3), ""),
+            Err(StoreError::InvalidPath(_))
+        ));
+        assert!(matches!(
+            s.remove(pid(3), "../x"),
+            Err(StoreError::InvalidPath(_))
+        ));
+        assert!(ProjectStore::read(&mut s, pid(3), "versions/1-manual.ether").is_ok());
     }
 
     #[test]

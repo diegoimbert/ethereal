@@ -21,6 +21,8 @@ members = [
     "crates/ether-server",
     "crates/ether-collab",
     "apps/desktop/src-tauri",
+    # agent-api (owner request): MCP server.
+    "crates/ether-mcp",
 ]
 
 [workspace.package]
@@ -90,7 +92,7 @@ signalsmith-stretch = "0.1"
 
 # --- plugins (CLAP via clack; git-only, pinned) ---
 clack-host = { git = "https://github.com/prokopyl/clack", rev = "27ca28391b57a61bad4bb5099288a7bf9247350d" }
-clack-extensions = { git = "https://github.com/prokopyl/clack", rev = "27ca28391b57a61bad4bb5099288a7bf9247350d", features = ["clack-host", "audio-ports", "gui", "latency", "log", "note-ports", "params", "state", "timer", "tail"] }
+clack-extensions = { git = "https://github.com/prokopyl/clack", rev = "27ca28391b57a61bad4bb5099288a7bf9247350d", features = ["clack-host", "audio-ports", "gui", "latency", "log", "note-ports", "params", "remote-controls", "state", "timer", "tail"] }
 clack-plugin = { git = "https://github.com/prokopyl/clack", rev = "27ca28391b57a61bad4bb5099288a7bf9247350d" }
 libloading = "0.8"
 
@@ -129,9 +131,15 @@ tauri = { version = "2", features = [] }
 objc2 = "0.6"
 objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSWindow", "NSView", "NSResponder", "NSGraphics", "NSApplication", "NSRunningApplication"] }
 objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSString", "NSGeometry", "NSThread"] }
+# Win32 bindings (VST3 embedded editors in host windows on Windows). Already in the lockfile via tauri.
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Graphics_Gdi", "Win32_System_LibraryLoader", "Win32_UI_WindowsAndMessaging"] }
 tauri-build = { version = "2", features = [] }
 tauri-plugin-dialog = "2"
 tauri-plugin-fs = "2"
+# base-115 sharing (docs/SHARING.md §5): `ethereal://` deep links; a second launch hands the
+# link to the running instance. License: MIT OR Apache-2.0.
+tauri-plugin-deep-link = "2"
+tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }
 
 # --- roadmap v2 (contracts-2; versions are checked when a crate first uses them) ---
 # remote-engine: WebSocket server (sync, no async runtime).
@@ -159,6 +167,16 @@ async-trait = "0.1"
 # TURN REST credentials (HMAC-SHA1). License: MIT OR Apache-2.0.
 hmac = "0.12"
 sha1 = "0.10"
+# base-115 sharing: link-key derivations and proofs (HMAC-SHA256), door hashes (docs/SHARING.md §4.2).
+sha2 = "0.10"
+# base-115 sharing (p2p-transport): `wss://` signaling sockets natively (docs/SHARING.md §6.1,
+# decision 6). rustls with the `ring` provider (already in the tree) and the Mozilla root
+# store. Licenses: rustls Apache-2.0 OR ISC OR MIT; webpki-roots CDLA-Permissive-2.0.
+rustls = { version = "0.23", default-features = false, features = ["std", "tls12", "ring"] }
+webpki-roots = "0.26"
+
+# --- agent-api: MCP server (official Rust SDK; stdio transport). License: Apache-2.0. ---
+rmcp = { version = "3.5", default-features = false, features = ["server", "transport-io"] }
 
 # --- tooling / tests ---
 globset = "0.4"

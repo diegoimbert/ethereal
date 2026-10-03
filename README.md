@@ -38,6 +38,7 @@ just test-all    # cargo test + vitest
 | `just dev-web` | Browser host (`apps/web`, COOP/COEP headers for SharedArrayBuffer). |
 | `just dev-desktop` | Tauri desktop app. `just dev-desktop-headless` = same with the null audio backend. |
 | `just dev-server` | Headless engine over WebSocket (`ether-server`) for the web UI's **Remote** button (see below). |
+| `just mcp [args]` | MCP server (`ether-mcp`) for Claude Code / Claude Desktop (see below and [docs/MCP.md](docs/MCP.md)). |
 | `just gen-types` | Regenerate `ui/src/generated/` (TS types) from `crates/ether-protocol`. Commit the result; CI fails if stale. |
 | `just check-wasm` | `cargo check --target wasm32-unknown-unknown` for the engine-side crates. |
 | `just check-all` / `just test-all` | Everything CI runs. |
@@ -130,6 +131,22 @@ serves the UI over WebSocket, so the browser UI can drive an engine on another m
   and imports them into the project. Unfinished uploads are dropped when their client
   disconnects.
 - Protocol: `crates/ether-protocol/src/remote.rs`. `ether-server --help` lists all flags.
+
+## AI agents (MCP)
+
+`ether-mcp` lets Claude Code, Claude Desktop or any other MCP client edit a project: create
+tracks, write MIDI, add devices, mix, play and export. Every tool call is one undo step. It
+uses the same agent tools as the in-app AI chat.
+
+- **With the desktop app:** turn on **Allow AI agents (MCP)** in the app, then
+  `claude mcp add ethereal -- <path>/ether-mcp` (build it with
+  `cargo build --release -p ether-mcp`). The bridge listens on loopback only, with a
+  random token in an owner-only runtime file.
+- **Headless:** `ether-mcp --project song.ether` (no app, no audio output;
+  `save_project` writes the file). **Remote:** `ether-mcp --server ws://HOST:PORT --token T`.
+- `just mcp` runs it from source for this checkout's dev instance.
+
+Setup for Claude Desktop, the tool list and the security model: [docs/MCP.md](docs/MCP.md).
 
 ## License
 

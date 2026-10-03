@@ -49,6 +49,7 @@ fn fixture(seconds: f64, warp: WarpSettings) -> Fixture {
         output: TrackOutput::Default,
         monitor: MonitorMode::default(),
         scale: Default::default(),
+        mpe: None,
     };
     let midi_track = Track {
         id: ids.next(0),

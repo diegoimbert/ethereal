@@ -27,7 +27,7 @@
   height: var(--eth-collab-avatar-size);
   border-radius: var(--eth-radius-round);
   background: var(--eth-collab-peer);
-  color: var(--eth-color-bg);
+  color: var(--eth-collab-peer-ink, var(--eth-ink-dark));
   font-size: var(--eth-fs-xs);
   font-weight: 600;
   line-height: 1;

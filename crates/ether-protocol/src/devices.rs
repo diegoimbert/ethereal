@@ -4,7 +4,8 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
 use crate::model::{
-    BuiltinDevice, BuiltinDeviceType, DeviceId, MediaId, ParamId, PluginFormat, SampleZone, TrackId,
+    BuiltinDevice, BuiltinDeviceType, DeviceId, IrSource, MediaId, ParamId, PluginFormat,
+    SampleZone, Seconds, TrackId,
 };
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
@@ -75,6 +76,27 @@ pub enum DeviceCommand {
         device: DeviceId,
         zones: Vec<SampleZone>,
     },
+    /// v0.3 (`fx-space`): a convolution reverb's impulse response (`None` = unload).
+    /// `Media` IRs must exist in the project (import or reference the file first, like a
+    /// sample). Undoable; the live node swaps its IR without a click (crossfade).
+    SetIr {
+        device: DeviceId,
+        ir: Option<IrSource>,
+    },
+    /// v0.3 (`fx-space`): replies `FactoryIrs` (the IRs shipped with the convolution reverb).
+    ListFactoryIrs,
+}
+
+/// A factory impulse response (v0.3, `fx-space`).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+pub struct FactoryIr {
+    /// `IrSource::Factory { id }`.
+    pub id: String,
+    pub name: String,
+    /// Category for the browser (`"Room"`, `"Hall"`, `"Plate"`, ...).
+    pub category: String,
+    pub length: Seconds,
+    pub channels: u16,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
@@ -158,6 +180,12 @@ pub struct ParamInfo {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub step: Option<f64>,
+    /// base-132: position of this param among the plugin's own quick controls (CLAP
+    /// remote-controls pages: `page index · 8 + slot`, first occurrence). The device card
+    /// shows these right after the params the user pinned. Omitted from JSON when `None`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub remote: Option<u32>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, TS)]

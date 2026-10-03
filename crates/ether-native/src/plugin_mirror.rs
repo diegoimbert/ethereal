@@ -425,6 +425,7 @@ mod tests {
                 automatable: true,
                 hidden: false,
                 step: None,
+                remote: None,
             }],
             audio_inputs: 2,
             audio_outputs: 2,

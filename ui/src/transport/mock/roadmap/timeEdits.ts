@@ -471,7 +471,14 @@ export class MockTimeEdits {
           const cut = piece(c, Math.max(c.start, a), Math.min(c.start + c.length, b));
           return {
             clip: { ...cut, start: cut.start - a },
-            notes: Object.values(p.notes).filter((n) => n.clip === c.id),
+            // Like the engine: a non-looping MIDI piece keeps only the notes playing in it.
+            notes: Object.values(p.notes).filter(
+              (n) =>
+                n.clip === c.id &&
+                (cut.content.type !== "Midi" ||
+                  cut.looping.enabled ||
+                  (n.start >= cut.offset - EPS && n.start < cut.offset + cut.length - EPS)),
+            ),
             warp: Object.values(p.warp_markers).filter((m) => m.clip === c.id),
             envelopes: Object.values(p.automation_lanes)
               .filter((l) => l.owner.type === "Clip" && l.owner.clip === c.id)

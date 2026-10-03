@@ -16,6 +16,9 @@ import type { MeterFrame, PlayheadFrame, TrackId, TrackMeter } from "@/generated
 
 type Listener = () => void;
 
+const sameMeter = (a: TrackMeter, b: TrackMeter): boolean =>
+  a.peak[0] === b.peak[0] && a.peak[1] === b.peak[1] && a.rms[0] === b.rms[0] && a.rms[1] === b.rms[1] && a.clipped === b.clipped;
+
 class HighRateStore {
   private playhead: PlayheadFrame | null = null;
   private overridden = false;
@@ -61,6 +64,10 @@ class HighRateStore {
   /** Tracks missing from `frame` keep their last reading (UIs decay them visually). */
   setMeters(frame: MeterFrame): void {
     for (const m of frame.tracks) {
+      // The engine sends every track each tick: a silent or steady track keeps its snapshot
+      // (same object) and re-renders nothing.
+      const prev = this.meters.get(m.track);
+      if (prev && sameMeter(prev, m)) continue;
       this.meters.set(m.track, m);
       const ls = this.meterListeners.get(m.track);
       if (ls) for (const l of ls) l();

@@ -41,10 +41,10 @@ export function DevicesPanel() {
     };
   }, [transport]);
 
-  const add = (d: DeviceDescriptor) => {
+  const add = async (d: DeviceDescriptor) => {
     const p = useProjectStore.getState().project;
     const t = p ? deviceTargetTrack(p) : undefined;
-    const command = p && t ? insertDeviceCommand(p, t, d) : null;
+    const command = transport && p && t ? await insertDeviceCommand(transport, p, t, d) : null;
     if (!transport || !command || !t) return;
     transport.send(command).then(
       () => setMessage(`Added ${d.name} to ${t.name}`),
@@ -53,10 +53,16 @@ export function DevicesPanel() {
   };
 
   if (!transport || !project) return <div className="eth-devices-panel__hint">No engine connected</div>;
+  // A VCA carries no audio and takes no devices (the engine rejects inserts).
+  const isVca = track?.kind === "Vca";
   return (
     <div className="eth-devices-panel" data-feature="devices-panel">
       <div className="eth-devices-panel__target">
-        {track ? (
+        {isVca ? (
+          <>
+            <strong>{track.name}</strong> is a VCA: it takes no devices
+          </>
+        ) : track ? (
           <>
             Adds to <strong>{track.name}</strong>
           </>
@@ -72,7 +78,7 @@ export function DevicesPanel() {
             <section key={c.id} className="eth-devices-panel__group" aria-label={c.label}>
               <h3 className="eth-devices-panel__heading">{c.label}</h3>
               {list.map((d) => {
-                const ok = canInsert(d, track);
+                const ok = !isVca && canInsert(d, track);
                 return (
                   <button
                     key={d.name}
@@ -80,8 +86,14 @@ export function DevicesPanel() {
                     className={clsx("eth-devices-panel__item", !ok && "eth-devices-panel__item--disabled")}
                     disabled={!ok}
                     aria-label={`Add ${d.name}`}
-                    title={ok ? `Add ${d.name} to ${track?.name ?? "the track"}` : "Instruments go on MIDI tracks"}
-                    onClick={() => add(d)}
+                    title={
+                      ok
+                        ? `Add ${d.name} to ${track?.name ?? "the track"}`
+                        : isVca
+                          ? "A VCA takes no devices"
+                          : "Instruments go on MIDI tracks"
+                    }
+                    onClick={() => void add(d)}
                   >
                     <span className="eth-devices-panel__icon" aria-hidden>
                       {CATEGORY_ICON[d.category]}
