@@ -4,6 +4,7 @@
  */
 
 import type { Beats, Clip, Command, CompRegion, TakeLane, TakeLaneId, TrackId } from "@/generated";
+import { matchesAction, type ChordEvent } from "@/features/keymap";
 import type { ContextMenuEntry } from "@/kit";
 import { useProjectStore } from "@/state";
 import { cmd, newId, nextGestureId, type EngineTransport } from "@/transport";
@@ -65,11 +66,11 @@ export function pickTake(transport: EngineTransport, dir: -1 | 1): boolean {
 }
 
 /** Arrangement key handler: Up/Down pick the previous/next take for the selected region. */
-export function handleTakeKey(e: { key: string; metaKey: boolean; ctrlKey: boolean; altKey: boolean; shiftKey: boolean }, transport: EngineTransport): boolean {
-  if (e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return false;
-  if (e.key === "ArrowUp") return pickTake(transport, -1);
-  if (e.key === "ArrowDown") return pickTake(transport, 1);
-  if (e.key === "Escape" && useCompingUi.getState().selected) {
+export function handleTakeKey(e: ChordEvent, transport: EngineTransport): boolean {
+  // keymap: `take.previous` / `take.next` (defaults ↑ / ↓); Escape is `edit.deselect`.
+  if (matchesAction("take.previous", e)) return pickTake(transport, -1);
+  if (matchesAction("take.next", e)) return pickTake(transport, 1);
+  if (matchesAction("edit.deselect", e) && useCompingUi.getState().selected) {
     useCompingUi.getState().select(null);
     return false;
   }

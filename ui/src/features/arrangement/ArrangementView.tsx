@@ -63,8 +63,8 @@ import {
   TimeSelectionLayer,
   useArrangementTimeEdits,
 } from "@/features/time-edits";
+import { firstMatch } from "@/features/keymap";
 import {
-  groupShortcut,
   groupTracks,
   ungroupSelected,
   UngroupConfirmDialog,
@@ -238,12 +238,14 @@ function ConnectedArrangementView() {
     };
   }, [transport]);
 
-  // groups-buses: Cmd+G groups the selected tracks, Cmd+Shift+G ungroups. On the document,
+  // groups-buses: Cmd+G groups the selected tracks, Cmd+Shift+G ungroups (keymap). On the document,
   // so it still works after a menu or a click elsewhere took the focus (not in text fields
   // or dialogs).
   useEffect(() => {
     const onKey = (e: globalThis.KeyboardEvent) => {
-      const grouping = groupShortcut(e);
+      // keymap: `track.group` / `track.ungroup` (defaults Mod+G / Mod+Shift+G).
+      const action = firstMatch(["track.group", "track.ungroup"] as const, e);
+      const grouping = action === "track.ungroup" ? "ungroup" : action ? "group" : null;
       if (!grouping || e.defaultPrevented || isTextEntry(e.target)) return;
       const active = document.activeElement;
       const root = rootRef.current;

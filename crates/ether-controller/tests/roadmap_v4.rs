@@ -16,7 +16,6 @@ use ether_core::protocol::audio_to_midi::{
 use ether_core::protocol::clips::ClipCommand;
 use ether_core::protocol::devices::{DeviceCommand, DeviceSpec};
 use ether_core::protocol::external::ExternalCommand;
-use ether_core::protocol::keymap::{Keymap, KeymapCommand};
 use ether_core::protocol::model::*;
 use ether_core::protocol::notes::{NoteCommand, NoteSpec};
 use ether_core::protocol::project::ProjectCommand;
@@ -220,19 +219,9 @@ fn external_instrument_devices_are_placeholders() {
 
 // project-versions: implemented (tests/versions.rs).
 
-#[test]
-fn keymap_replies_unsupported() {
-    let mut h = Harness::with_project();
-    assert_unsupported(&mut h, Command::Keymap(KeymapCommand::Get));
-    assert_unsupported(
-        &mut h,
-        Command::Keymap(KeymapCommand::Set {
-            keymap: Keymap::default(),
-        }),
-    );
-}
+// keymap: implemented (tests/keymap.rs).
 
 // web-latency: web-only (the worklet's latency report, `ether-wasm/src/latency.rs`); its
 // prewire test is `crates/ether-wasm/tests/latency_prewire.rs`. rack-presets: the format is
-// pinned in `ether-model/tests/roadmap_v4.rs` (`rack_presets_store_chains`). ux-followups and
-// keymap's UI parts have no engine side.
+// pinned in `ether-model/tests/roadmap_v4.rs` (`rack_presets_store_chains`). ux-followups has no
+// engine side.

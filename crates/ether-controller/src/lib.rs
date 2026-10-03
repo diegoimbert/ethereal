@@ -569,6 +569,8 @@ where
     capture: capture::CaptureState,
     /// v0.3: the running audio-to-MIDI job (`audio_to_midi` module).
     audio_to_midi: audio_to_midi::AudioToMidiState,
+    /// v0.3: the session keymap for hosts without a writable user library (`keymap` module).
+    keymap: keymap::KeymapState,
     /// `agent-api`: agent tool runtime state (shared selection, export jobs).
     agent: agent::AgentState,
     /// v0.3: rolling versions and the crash-recovery session marker (`versions` module).
@@ -627,6 +629,7 @@ where
             time_edit: Default::default(),
             capture: Default::default(),
             audio_to_midi: Default::default(),
+            keymap: Default::default(),
             agent: Default::default(),
             versions: Default::default(),
             undo_history: Default::default(),

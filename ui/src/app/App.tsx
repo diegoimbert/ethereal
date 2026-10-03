@@ -25,6 +25,7 @@ import { AudioSettingsDialog, openSettings } from "@/features/audio-settings";
 import { MarkerLane } from "@/features/clip-editing";
 import { ExportDialog } from "@/features/export";
 import { ImportRoot } from "@/features/import";
+import { KeymapRoot } from "@/features/keymap";
 import { MediaRefsRoot } from "@/features/media-refs";
 import { ProjectMenu } from "@/features/project";
 import { RecordingControls } from "@/features/recording";
@@ -230,6 +231,7 @@ export function App() {
       <ImportRoot />
       <MediaRefsRoot />
       <VersionsRoot />
+      <KeymapRoot />
       <JoinRoot />
       <ContextMenuHost />
     </div>

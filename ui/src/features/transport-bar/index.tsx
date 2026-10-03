@@ -9,6 +9,7 @@ import { Circle, Pause, Play, Redo2, Repeat, Square, Timer, Undo2 } from "lucide
 import { Button } from "@/kit";
 import { timeSignaturePoints, useCpuLoad, usePlayhead, useProjectStore } from "@/state";
 import { cmd, nextGestureId } from "@/transport";
+import { firstMatch, useShortcutLabel } from "@/features/keymap";
 import { CaptureButton } from "@/features/capture";
 import { midiTarget } from "@/features/midi-learn/targets";
 import { CommitField } from "./CommitField";
@@ -31,8 +32,9 @@ const EMPTY_POINTS: TimeSignaturePoint[] = [];
  * Transport bar: play/stop/record, loop, metronome, tempo (+ tap), time signature, position
  * (bars and time), undo/redo, CPU load and engine status.
  *
- * Shortcuts (ignored while typing in a text field): Space = play/stop,
- * Ctrl/Cmd+Z = undo, Ctrl/Cmd+Shift+Z or Ctrl+Y = redo.
+ * Shortcuts (ignored while typing in a text field; keymap actions `transport.play`,
+ * `edit.undo`, `edit.redo`): by default Space = play/stop, Ctrl/Cmd+Z = undo,
+ * Ctrl/Cmd+Shift+Z or Ctrl+Y = redo.
  */
 export function TransportBar() {
   const { transport, send, error, clearError } = useEngineCommands();
@@ -74,6 +76,7 @@ export function TransportBar() {
     },
   };
 
+  const playKey = useShortcutLabel("transport.play");
   useTransportShortcuts({
     enabled: !disabled,
     // Engine-side toggle: correct even if the last Transport event hasn't rendered yet.
@@ -92,7 +95,7 @@ export function TransportBar() {
           <Button
             tone="ghost"
             aria-label={playing ? "Stop" : "Play"}
-            title={playing ? "Stop (Space)" : "Play (Space)"}
+            title={`${playing ? "Stop" : "Play"}${playKey ? ` (${playKey})` : ""}`}
             active={playing}
             className="eth-tb__btn eth-tb__play"
             {...midiTarget({ type: "Transport", action: "TogglePlay" })}
@@ -354,17 +357,17 @@ function useTransportShortcuts(handlers: ShortcutHandlers): void {
     const onKey = (e: KeyboardEvent) => {
       const h = ref.current;
       if (!h.enabled || e.defaultPrevented || isTextEntry(e.target)) return;
-      const mod = e.metaKey || e.ctrlKey;
-      if (e.key === " " && !mod && !e.altKey) {
+      // keymap: chords from the user's keymap (defaults Space, Mod+Z, Mod+Shift+Z / Ctrl+Y).
+      const action = firstMatch(["transport.play", "edit.undo", "edit.redo"] as const, e);
+      if (action === "transport.play") {
         // A focused button would also "click" on Space; let it.
-        if (e.target instanceof HTMLButtonElement) return;
+        if (e.key === " " && e.target instanceof HTMLButtonElement) return;
         e.preventDefault();
         h.togglePlay();
-      } else if (mod && !e.altKey && e.key.toLowerCase() === "z") {
+      } else if (action === "edit.undo") {
         e.preventDefault();
-        if (e.shiftKey) redoIfPossible(h);
-        else undoIfPossible(h);
-      } else if (e.ctrlKey && !e.metaKey && !e.shiftKey && e.key.toLowerCase() === "y") {
+        undoIfPossible(h);
+      } else if (action === "edit.redo") {
         e.preventDefault();
         redoIfPossible(h);
       }
