@@ -15,6 +15,7 @@
 
 pub mod memory;
 pub mod relay;
+pub mod share;
 pub mod wire;
 
 #[cfg(not(target_arch = "wasm32"))]
