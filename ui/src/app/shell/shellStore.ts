@@ -12,8 +12,11 @@ import { size } from "@/theme";
  * arrangement shrinks), still drawn as floating cards.
  */
 
-/** `chat`: collab-social's Chat section, shown only in a collaboration session. */
-export type LeftTab = "library" | "project" | "plugins" | "devices" | "midi" | "chat";
+/**
+ * `chat`: collab-social's Chat section, shown only in a collaboration session.
+ * `ai`: the AI chat (`ai-chat`).
+ */
+export type LeftTab = "library" | "project" | "plugins" | "devices" | "midi" | "chat" | "ai";
 export type DrawerTab = "piano-roll" | "warp" | "automation" | "tempo" | "groove" | "drum-rack";
 export type PaneSide = "left" | "right" | "bottom";
 
