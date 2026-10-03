@@ -1,6 +1,7 @@
 import clsx from "clsx";
-import type { CSSProperties } from "react";
+import { useLayoutEffect, useRef, type CSSProperties } from "react";
 import { knobGeometry } from "../theme/tokens";
+import "./Knob.css";
 import { useVerticalDrag } from "./useVerticalDrag";
 import type { Size } from "./variants";
 
@@ -54,9 +55,84 @@ const CENTER_MIN_PX = 40;
 /** Radius of the dot marking the value on the ring (viewBox units). */
 const DOT_R = 6;
 
+/** Smallest scale the center value shrinks to before it is allowed to clip. */
+export const CENTER_MIN_SCALE = 0.5;
+
+/**
+ * The center value split into its number and unit ("-18.0 dB" -> "-18.0" + "dB"): the number
+ * sits in the middle of the ring and the unit in the gap at the bottom of the arc, so a value
+ * with a unit fits a small ring. Text without exactly one inner space has no unit.
+ */
+export function centerParts(text: string): { value: string; unit: string | null } {
+  const t = text.trim();
+  const i = t.lastIndexOf(" ");
+  if (i <= 0 || t.indexOf(" ") !== i) return { value: t, unit: null };
+  return { value: t.slice(0, i), unit: t.slice(i + 1) };
+}
+
+/**
+ * Scale that fits content of `natural` size into `available`, never above 1 and never
+ * below `CENTER_MIN_SCALE`. Unmeasured sizes (0, e.g. in jsdom) keep 1.
+ */
+export function fitScale(available: number, natural: number): number {
+  if (!(natural > 0) || !(available > 0)) return 1;
+  return Math.max(CENTER_MIN_SCALE, Math.min(1, available / natural));
+}
+
+/** Digits fill about this much of a line box (cap height over line height). */
+const GLYPH_FILL = 0.6;
+
+/**
+ * Room for the center text of a dial `size` px wide whose arc stroke is `stroke` px:
+ * the value gets the chord of the ring's inside at its glyphs' half-height (from a line box
+ * `valueHeight` px tall), the unit the width of the arc's bottom gap (between the arc ends,
+ * minus their caps).
+ */
+export function centerRoom(size: number, stroke: number, valueHeight: number): { value: number; unit: number } {
+  const inner = (size / 2) * (R / 50) - stroke;
+  if (!(inner > 0)) return { value: 0, unit: 0 };
+  const half = Math.min(inner, (valueHeight * GLYPH_FILL) / 2);
+  const value = 2 * Math.sqrt(inner * inner - half * half);
+  const [x1] = polar(R, START + SWEEP);
+  const [x2] = polar(R, START);
+  const unit = (Math.abs(x1 - x2) / 100) * size - 2 * stroke;
+  return { value, unit: Math.max(0, unit) };
+}
+
+/**
+ * Shrinks the center value (and unit) to fit inside the ring: measured after layout and
+ * whenever the dial resizes (device cards size knobs by container width). Writes
+ * `--knob-center-scale` on each text element directly, so it never re-renders the knob.
+ */
+function useCenterFit(text: string | undefined) {
+  const dial = useRef<HTMLSpanElement>(null);
+  const value = useRef<HTMLSpanElement>(null);
+  const unit = useRef<HTMLSpanElement>(null);
+  useLayoutEffect(() => {
+    const d = dial.current;
+    if (!d || text === undefined) return;
+    const fit = () => {
+      const v = value.current;
+      if (!v) return;
+      const stroke = parseFloat(getComputedStyle(d).getPropertyValue("--knob-stroke")) || 0;
+      const room = centerRoom(d.clientWidth, stroke, v.offsetHeight);
+      v.style.setProperty("--knob-center-scale", String(fitScale(room.value, v.offsetWidth)));
+      const u = unit.current;
+      if (u) u.style.setProperty("--knob-center-scale", String(fitScale(room.unit, u.offsetWidth)));
+    };
+    fit();
+    if (typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(fit);
+    ro.observe(d);
+    return () => ro.disconnect();
+  }, [text]);
+  return { dial, value, unit };
+}
+
 /**
  * Rotary control: a ring (the value arc from the minimum, or from the center when
- * bipolar) with a dot at the value. Large knobs show the value inside the ring; on hover,
+ * bipolar) with a dot at the value. Large knobs show the value inside the ring (the unit in
+ * the arc's bottom gap, both shrunk to fit); on hover,
  * focus or drag the label below turns into the value readout. Drag vertically to change
  * (Shift = fine), double-click to reset.
  */
@@ -90,6 +166,8 @@ export function Knob({
   const [dx, dy] = polar(R, angle);
   const style = typeof size === "number" ? ({ "--knob-size": `${size}px` } as CSSProperties) : undefined;
   const center = valueText !== undefined && (typeof size === "number" ? size >= CENTER_MIN_PX : size === "lg");
+  const fit = useCenterFit(center ? valueText : undefined);
+  const parts = center ? centerParts(valueText) : null;
 
   return (
     <div
@@ -106,7 +184,7 @@ export function Knob({
       data-midi-target={midiTarget}
       {...handlers}
     >
-      <span className="eth-knob__dial">
+      <span ref={fit.dial} className="eth-knob__dial">
         <svg className="eth-knob__svg" viewBox="0 0 100 100" aria-hidden="true">
           <circle className="eth-knob__body" cx={C} cy={C} r={R} />
           <path className="eth-knob__track" d={arc(R, START, START + SWEEP)} />
@@ -114,9 +192,16 @@ export function Knob({
           <line className="eth-knob__pointer" x1={qx} y1={qy} x2={px} y2={py} />
           <circle className="eth-knob__dot" cx={dx} cy={dy} r={DOT_R} />
         </svg>
-        {center && (
+        {parts && (
           <span className="eth-knob__center" aria-hidden="true">
-            {valueText}
+            <span ref={fit.value} className="eth-knob__center-value">
+              {parts.value}
+            </span>
+          </span>
+        )}
+        {parts?.unit && (
+          <span ref={fit.unit} className="eth-knob__center-unit" aria-hidden="true">
+            {parts.unit}
           </span>
         )}
       </span>
