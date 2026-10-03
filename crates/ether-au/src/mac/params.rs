@@ -132,6 +132,7 @@ fn info(p: &AUParameter, id: u32, default: f64) -> ParamInfo {
     let meter = flags.contains(AudioUnitParameterOptions::Flag_MeterReadOnly);
     ParamInfo {
         step: None,
+        remote: None,
         id: ParamId(id),
         name,
         group: None,

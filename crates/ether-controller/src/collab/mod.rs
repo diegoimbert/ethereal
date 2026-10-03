@@ -76,6 +76,9 @@ struct Incoming {
 
 struct Session {
     request: ConnectRequest,
+    /// base-115: this session's own connector (a share session: the hub's loopback for the
+    /// host, the data channel for a joiner; docs/SHARING.md §2.1). `None`: the controller's.
+    connector: Option<Connector>,
     name: String,
     link: Option<BoxTransport>,
     /// `Hello` + `SyncRequest` sent on the current link.
@@ -155,6 +158,22 @@ impl Session {
     }
 }
 
+/// base-115: the current session as the share module sees it ([`EtherController::collab_view`]).
+pub(crate) struct CollabView {
+    /// `ConnectRequest::server` (share sessions use `share://<room>`).
+    pub server: String,
+    /// The link is open and greeted.
+    pub open: bool,
+    /// Joined, open, and our sync request was answered (caught up).
+    pub synced: bool,
+    pub project: Option<ProjectId>,
+    /// Last sequenced `seq` per site.
+    pub sites: BTreeMap<SiteId, u64>,
+    pub peers: Vec<Presence>,
+    /// This controller's site.
+    pub site: Option<SiteId>,
+}
+
 /// Collaboration state of the controller (one field on `EtherController`).
 #[derive(Default)]
 pub(crate) struct CollabState {
@@ -174,6 +193,9 @@ pub(crate) struct CollabState {
     ice_override: Option<Vec<IceServer>>,
     /// base-62 (`collab-social`): own colour, catch-up, published transport.
     pub(crate) social: crate::social::SocialState,
+    /// base-115: the last "(local copy)" kept on a rejoin (project, name), for the share
+    /// notice (`ShareNotice::LocalCopyKept`).
+    backup_kept: Option<(ProjectId, String)>,
     /// Plugin GUI mirrors while listening (`plugin-mirror`; outlives a session).
     mirror: mirror::MirrorState,
 }
@@ -224,6 +246,108 @@ where
         self.collab.session.as_ref().map(|s| s.name.clone())
     }
 
+    /// Start a session (leaving the current one): `CollabCommand::Join`, and the share
+    /// module's host and joiner sessions (base-115) with their own `connector`.
+    pub(crate) fn collab_start(
+        &mut self,
+        request: ConnectRequest,
+        name: &str,
+        connector: Option<Connector>,
+        now: u64,
+        out: &mut dyn MessageSink,
+    ) {
+        if self.collab.session.is_some() {
+            self.collab_leave(out);
+        }
+        self.collab_site();
+        let name: String = name.trim().chars().take(64).collect();
+        self.collab.session = Some(Box::new(Session {
+            request,
+            connector,
+            name,
+            link: None,
+            greeted: false,
+            awaiting_sync: false,
+            joined: false,
+            project: None,
+            index: 0,
+            epoch: 0,
+            sites: BTreeMap::new(),
+            seq: self.collab.last_seq,
+            pending: VecDeque::new(),
+            owe_snapshot: false,
+            peers: BTreeMap::new(),
+            names: BTreeMap::new(),
+            presence: PresenceState::default(),
+            presence_dirty: true,
+            last_presence_ms: 0,
+            reconnect_at: now,
+            backoff_ms: RECONNECT_MIN_MS,
+            incoming: BTreeMap::new(),
+            staged: Vec::new(),
+            upload_counter: 0,
+            status: None,
+            captured: BTreeMap::new(),
+            mix_seed: Default::default(),
+            backup: None,
+            ice_relay: Vec::new(),
+            pointer: Default::default(),
+            listener: Default::default(),
+            host: Default::default(),
+        }));
+        self.social_reset();
+        self.collab_connect(now);
+        self.collab_emit_status(out);
+        self.collab_emit_peers(out);
+    }
+
+    /// base-115: the per-site `seq` a shared project's document includes (from its
+    /// `share.json`, across host restarts): a session this controller creates from that
+    /// project seeds its snapshot with it (merged with what this run already knows).
+    pub(crate) fn collab_seed_sites(&mut self, pid: ProjectId, sites: &BTreeMap<SiteId, u64>) {
+        let mut merged = match self.collab.left_sites.take() {
+            Some((p, s)) if p == pid => s,
+            _ => BTreeMap::new(),
+        };
+        for (site, seq) in sites {
+            let e = merged.entry(*site).or_insert(0);
+            *e = (*e).max(*seq);
+        }
+        self.collab.left_sites = Some((pid, merged));
+    }
+
+    /// base-115: what the share module needs to know about the current session.
+    pub(crate) fn collab_view(&self) -> Option<CollabView> {
+        let s = self.collab.session.as_ref()?;
+        Some(CollabView {
+            server: s.request.server.clone(),
+            open: s.open(),
+            synced: s.joined && s.open() && !s.awaiting_sync,
+            project: s.project,
+            sites: s.sites.clone(),
+            peers: s.peers.values().cloned().collect(),
+            site: self.collab.site,
+        })
+    }
+
+    /// base-115: the sites the last left session's document includes (for `share.json`).
+    pub(crate) fn collab_left_sites(&self, pid: ProjectId) -> Option<BTreeMap<SiteId, u64>> {
+        match &self.collab.left_sites {
+            Some((p, s)) if *p == pid => Some(s.clone()),
+            _ => None,
+        }
+    }
+
+    /// base-115: the "(local copy)" kept on the last rejoin, once.
+    pub(crate) fn collab_take_backup_kept(&mut self) -> Option<(ProjectId, String)> {
+        self.collab.backup_kept.take()
+    }
+
+    /// base-115: the ICE servers from the settings (`SetIceServers`), if any.
+    pub(crate) fn collab_ice_override(&self) -> Option<&[IceServer]> {
+        self.collab.ice_override.as_deref()
+    }
+
     pub(crate) fn collab_command(
         &mut self,
         c: &CollabCommand,
@@ -245,55 +369,13 @@ where
                 if !(server.starts_with("ws://") || server.starts_with("wss://")) {
                     return Err(invalid("the relay URL must start with ws:// or wss://"));
                 }
-                if self.collab.session.is_some() {
-                    self.collab_leave(out);
-                }
-                let site = self.collab_site();
                 let request = ConnectRequest {
                     server: server.trim().to_string(),
                     session: session.clone(),
                     token: token.clone().filter(|t| !t.is_empty()),
                     client: format!("Ethereal {} ({name})", self.config.app_version),
                 };
-                let name: String = name.trim().chars().take(64).collect();
-                self.collab.session = Some(Box::new(Session {
-                    request,
-                    name,
-                    link: None,
-                    greeted: false,
-                    awaiting_sync: false,
-                    joined: false,
-                    project: None,
-                    index: 0,
-                    epoch: 0,
-                    sites: BTreeMap::new(),
-                    seq: self.collab.last_seq,
-                    pending: VecDeque::new(),
-                    owe_snapshot: false,
-                    peers: BTreeMap::new(),
-                    names: BTreeMap::new(),
-                    presence: PresenceState::default(),
-                    presence_dirty: true,
-                    last_presence_ms: 0,
-                    reconnect_at: now,
-                    backoff_ms: RECONNECT_MIN_MS,
-                    incoming: BTreeMap::new(),
-                    staged: Vec::new(),
-                    upload_counter: 0,
-                    status: None,
-                    captured: BTreeMap::new(),
-                    mix_seed: Default::default(),
-                    backup: None,
-                    ice_relay: Vec::new(),
-                    pointer: Default::default(),
-                    listener: Default::default(),
-                    host: Default::default(),
-                }));
-                let _ = site;
-                self.social_reset();
-                self.collab_connect(now);
-                self.collab_emit_status(out);
-                self.collab_emit_peers(out);
+                self.collab_start(request, name, None, now, out);
                 Ok(ReplyValue::Unit)
             }
             CollabCommand::Leave => {
@@ -395,14 +477,17 @@ where
     // ─── Link ───────────────────────────────────────────────────────────────────────────
 
     fn collab_connect(&mut self, now: u64) {
-        let Some(s) = self.collab.session.as_mut() else {
+        let CollabState {
+            session, connector, ..
+        } = &mut self.collab;
+        let Some(s) = session.as_mut() else {
             return;
         };
-        let connector = self
-            .collab
-            .connector
-            .get_or_insert_with(ether_collab::default_connector);
-        s.link = Some(connector(&s.request));
+        let link = match s.connector.as_mut() {
+            Some(c) => c(&s.request),
+            None => connector.get_or_insert_with(ether_collab::default_connector)(&s.request),
+        };
+        s.link = Some(link);
         s.greeted = false;
         s.reconnect_at = now;
     }
@@ -729,6 +814,15 @@ where
         }
         let (ops, inverse) = resolve::split_shared(ops, inverse);
         if ops.is_empty() {
+            return;
+        }
+        // base-115: a listen link sends chat only (edits are refused before this; the hub
+        // would close the link).
+        if self.share_view_only()
+            && ops
+                .iter()
+                .any(|op| !matches!(op.key(), Some(EntityKey::ChatMessage(_))))
+        {
             return;
         }
         if let Some(s) = self.collab.session.as_mut()
@@ -1486,6 +1580,9 @@ where
         let json =
             file::save(&copy, &self.config.app_version).map_err(|e| internal(e.to_string()))?;
         self.store.save(backup, &json).map_err(store_err)?;
+        // base-115: a copy is private (never the shared project's `share.json`).
+        crate::share::clear_share_file(&mut self.store, backup);
+        self.collab.backup_kept = Some((backup, name.clone()));
         notify(
             out,
             NotificationLevel::Info,

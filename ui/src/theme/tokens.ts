@@ -330,6 +330,12 @@ export const size = {
   detailCollapsedHeight: "24px",
   popoverMinWidth: "140px",
   selectListMaxHeight: "320px",
+  /** Searchable Select (long option lists, e.g. thousands of plugin params): list width. */
+  selectSearchWidth: "280px",
+  /** "All parameters" list of a device: row height (fits a small knob) and list height. */
+  paramListRowHeight: "34px",
+  paramListHeight: "420px",
+  paramListDialogWidth: "560px",
   dialogWidth: "420px",
   tooltipMaxWidth: "240px",
   /** Grab width of edge handles (clip and note resize). */
@@ -382,6 +388,10 @@ export const size = {
   // Piano roll.
   gridStepLabelMinWidth: "3.5em",
   loopBarHeight: "8px",
+  /** Note-stretch bar on the piano-roll ruler: height, edge marker width, extra grab area below. */
+  noteStretchBarHeight: "6px",
+  noteStretchEdgeWidth: "4px",
+  noteStretchHitExtra: "4px",
   velocityBarWidth: "4px",
   // Browser, plugins, project, recording, transport.
   browserRowHeight: "24px",

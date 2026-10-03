@@ -10,7 +10,8 @@
 //! - Worklet → Worker: [`EngineReport`] (playhead, max-held meters, diagnostics; compact
 //!   binary encoded into a reused buffer so the audio thread doesn't allocate),
 //!   [`REPORT_ANALYSIS`] device analysis frames (`fx-analysis`, [`encode_analysis_into`])
-//!   and [`REPORT_ERROR`] text messages (compile errors etc.).
+//!   [`REPORT_LATENCY`] node latency changes (`web-latency`, [`crate::latency`]) and
+//!   [`REPORT_ERROR`] text messages (compile errors etc.).
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -102,6 +103,14 @@ pub enum EngineMsg {
         frames: u64,
         slots: u32,
     },
+    /// v0.3 (`fx-space`): a data-only change of a live built-in (sampler slices,
+    /// multisampler zones, convolution reverb IR; `EngineBridge::update_builtin`). The
+    /// Worklet builds the node data from `device` and its sources and hands it to the node
+    /// (`Node::set_data`), so the change doesn't re-create the node (no click).
+    UpdateBuiltin {
+        key: NodeKey,
+        device: BuiltinDevice,
+    },
 }
 
 /// The JSON-encoded subset of [`EngineMsg`].
@@ -142,6 +151,10 @@ enum JsonMsg {
         channels: u16,
         frames: u64,
         slots: u32,
+    },
+    UpdateBuiltin {
+        key: NodeKey,
+        device: BuiltinDevice,
     },
 }
 
@@ -201,6 +214,7 @@ impl EngineMsg {
                 frames,
                 slots,
             },
+            EngineMsg::UpdateBuiltin { key, device } => JsonMsg::UpdateBuiltin { key, device },
         };
         let mut out = vec![TAG_JSON];
         serde_json::to_writer(&mut out, &json).expect("engine messages serialize");
@@ -319,6 +333,9 @@ impl<'a> Frame<'a> {
                         frames,
                         slots,
                     },
+                    JsonMsg::UpdateBuiltin { key, device } => {
+                        EngineMsg::UpdateBuiltin { key, device }
+                    }
                 }))
             }
             t => Err(DecodeError::Tag(t)),
@@ -492,6 +509,9 @@ pub const REPORT_STATE: u8 = b'R';
 pub const REPORT_ERROR: u8 = b'E';
 /// Tag of an analysis frame (Worklet → Worker; `fx-analysis`).
 pub const REPORT_ANALYSIS: u8 = b'A';
+/// Tag of a node latency report (Worklet → Worker; `web-latency`,
+/// [`crate::latency::LatencyReport`]).
+pub const REPORT_LATENCY: u8 = b'L';
 
 // [A][node index u32][node generation u32][kind u8][len u16][len x f32 LE]; the node key is
 // the Worker's virtual key.

@@ -867,3 +867,58 @@
   --badge-bg: var(--eth-color-danger);
   --badge-fg: var(--eth-color-text-inverse);
 }
+
+/* ---- VirtualList: windowed rows (fixed height, absolutely placed in a full-height spacer) */
+.eth-vlist {
+  position: relative;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.eth-vlist__spacer {
+  position: relative;
+  width: 100%;
+}
+.eth-vlist__row {
+  position: absolute;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: stretch;
+}
+.eth-vlist__row > * {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Searchable Select (long option lists): a search field above a windowed list. */
+.eth-select-list--search {
+  overflow: hidden;
+  width: var(--eth-size-select-search-width);
+  max-width: calc(100vw - 2 * var(--eth-space-sm));
+}
+.eth-select-list__search {
+  flex: none;
+  margin: var(--eth-space-xs);
+}
+.eth-select-list__rows {
+  height: var(--eth-size-select-list-max-height);
+}
+.eth-select-list__rows .eth-select-list__group {
+  display: flex;
+  align-items: flex-end;
+  height: var(--menu-item-height);
+  padding-top: 0;
+  padding-bottom: var(--eth-space-xs);
+  overflow: hidden;
+  white-space: nowrap;
+}
+.eth-select-list__rows .eth-menu__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.eth-select-list__empty {
+  padding: var(--eth-space-sm) var(--eth-space-md);
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-sm);
+}

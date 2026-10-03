@@ -42,7 +42,7 @@ use clack_extensions::state::{PluginState, PluginStateImpl};
 use clack_extensions::timer::{HostTimer, PluginTimer, PluginTimerImpl, TimerId};
 use clack_plugin::entry::prelude::*;
 use clack_plugin::events::event_types::{
-    ParamGestureBeginEvent, ParamGestureEndEvent, ParamValueEvent,
+    MidiEvent, ParamGestureBeginEvent, ParamGestureEndEvent, ParamValueEvent,
 };
 use clack_plugin::events::spaces::CoreEventSpace;
 use clack_plugin::prelude::*;
@@ -215,6 +215,20 @@ impl<'a> PluginAudioProcessor<'a, Shared, MainThread<'a>> for Processor<'a> {
                             ));
                             let _ = events.output.try_push(ParamGestureEndEvent::new(time, id));
                         }
+                    }
+                    // v0.3 (`mpe` tests): echo each note expression as a MIDI output
+                    // event `[0xA0 | expression id, key, round(value · 10)]`.
+                    Some(CoreEventSpace::NoteExpression(e)) => {
+                        let id = e
+                            .expression_type()
+                            .map_or(15, |t| t.into_raw() as u8 & 0x0F);
+                        let key = e.pckn().key.into_specific().unwrap_or(0) as u8 & 0x7F;
+                        let v = (e.value() * 10.0).round().clamp(0.0, 127.0) as u8;
+                        let time = event.header().time();
+                        let _ =
+                            events
+                                .output
+                                .try_push(MidiEvent::new(time, 0, [0xA0 | id, key, v]));
                     }
                     _ => {}
                 }

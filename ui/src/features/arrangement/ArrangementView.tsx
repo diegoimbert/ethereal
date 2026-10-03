@@ -54,12 +54,17 @@ import {
   withSeparator,
 } from "@/features/collab/social";
 import {
+  clipboardAction,
+  runTimeAction,
   TimeEditNotice,
+  bindPlayFrom,
+  isTimeTrack,
+  placeInsertMarker,
   TimeSelectionLayer,
   useArrangementTimeEdits,
 } from "@/features/time-edits";
+import { firstMatch } from "@/features/keymap";
 import {
-  groupShortcut,
   groupTracks,
   ungroupSelected,
   UngroupConfirmDialog,
@@ -202,6 +207,8 @@ function ConnectedArrangementView() {
   useMiddleButtonPan(scrollRef, view);
   useFollowWithMargin(view);
   useEffect(() => bindSingleSelection(), []);
+  // The insert marker placed while playing becomes the play start on the next stop.
+  useEffect(() => bindPlayFrom(transport), [transport]);
 
   // Copy/cut/paste also arrive as clipboard events: on macOS the app's Edit menu takes
   // cmd-C/X/V before the page sees the key (desktop app), and sends these instead.
@@ -215,7 +222,11 @@ function ConnectedArrangementView() {
       )
         return;
       e.preventDefault();
-      void runClipAction(transport, e.type as "copy" | "cut" | "paste");
+      // section-edit: a time selection (or a time copy, for paste) takes it as a section.
+      const kind = e.type as "copy" | "cut" | "paste";
+      const time = clipboardAction(kind);
+      if (time) void runTimeAction(transport, time);
+      else void runClipAction(transport, kind);
     };
     document.addEventListener("copy", onClipboard);
     document.addEventListener("cut", onClipboard);
@@ -227,12 +238,14 @@ function ConnectedArrangementView() {
     };
   }, [transport]);
 
-  // groups-buses: Cmd+G groups the selected tracks, Cmd+Shift+G ungroups. On the document,
+  // groups-buses: Cmd+G groups the selected tracks, Cmd+Shift+G ungroups (keymap). On the document,
   // so it still works after a menu or a click elsewhere took the focus (not in text fields
   // or dialogs).
   useEffect(() => {
     const onKey = (e: globalThis.KeyboardEvent) => {
-      const grouping = groupShortcut(e);
+      // keymap: `track.group` / `track.ungroup` (defaults Mod+G / Mod+Shift+G).
+      const action = firstMatch(["track.group", "track.ungroup"] as const, e);
+      const grouping = action === "track.ungroup" ? "ungroup" : action ? "group" : null;
       if (!grouping || e.defaultPrevented || isTextEntry(e.target)) return;
       const active = document.activeElement;
       const root = rootRef.current;
@@ -317,13 +330,17 @@ function ConnectedArrangementView() {
             .getState()
             .select("clip", [hit.id], selectModeFromEvent(ev));
       }
-      // A click on empty space also moves the playhead there (when stopped), snapped.
+      // A click on empty space (or a clip body) places the insert marker there on that
+      // track, snapped (Alt: free); it never moves a playing playhead (see time-edits
+      // `marker.ts`: while stopped, Play then starts from the marker).
+      // Rows without a timeline of their own (returns, master) just locate while stopped.
       const hw = useArrangementUi.getState().headerWidth;
-      if (p.x >= hw)
-        locateIfStopped(
-          transport,
-          snap(pxToBeats(p.x - hw, view.getState()), ev.altKey),
-        );
+      if (p.x >= hw) {
+        const at = snap(pxToBeats(p.x - hw, view.getState()), ev.altKey);
+        if (row && !row.draft && isTimeTrack(row.track))
+          placeInsertMarker(transport, at, [row.track.id]);
+        else locateIfStopped(transport, at);
+      }
     },
   });
 

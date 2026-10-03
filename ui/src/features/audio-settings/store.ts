@@ -2,12 +2,18 @@ import { create } from "zustand";
 import type { AudioConfig, AudioDeviceList, EngineStatus } from "@/generated";
 import { cmd, type EngineTransport } from "@/transport";
 
+/** The Settings dialog's tabs (docs/SHARING.md §8.6). */
+export type SettingsTab = "audio" | "plugins" | "sharing" | "advanced";
+
 /**
- * Audio settings dialog state, plus the engine's last known audio config (so other parts
+ * Settings dialog state (Audio | Plugins | Sharing | Advanced), plus the engine's last known audio config (so other parts
  * of the UI can tell, e.g., that no input device is open when a track gets armed).
  */
 export interface AudioSettingsState {
   open: boolean;
+  /** The tab shown. */
+  tab: SettingsTab;
+  setTab(tab: SettingsTab): void;
   /** Why the dialog was opened ("input": a track was armed with no input device). */
   reason: "input" | null;
   /** Last config the engine reported (`Engine::ListAudioDevices`), if known. */
@@ -18,27 +24,38 @@ export interface AudioSettingsState {
   /** Why devices can't be listed here (e.g. the browser), if so. */
   unavailable: string | null;
   loading: boolean;
+  /** Open on the Audio tab. */
   openSettings(reason?: "input"): void;
+  openTab(tab: SettingsTab): void;
   close(): void;
   setConfig(config: AudioConfig | null): void;
 }
 
 export const useAudioSettings = create<AudioSettingsState>()((set) => ({
   open: false,
+  tab: "audio",
+  setTab: (tab) => set({ tab }),
   reason: null,
   config: null,
   devices: null,
   status: null,
   unavailable: null,
   loading: false,
-  openSettings: (reason) => set({ open: true, reason: reason ?? null }),
+  openSettings: (reason) => set({ open: true, tab: "audio", reason: reason ?? null }),
+  openTab: (tab) => set({ open: true, tab, reason: null }),
   close: () => set({ open: false, reason: null }),
   setConfig: (config) => set({ config }),
 }));
 
-/** Open the audio settings dialog (e.g. from the command palette). */
+/** Open the settings on the Audio tab (e.g. from the command palette). */
 export function openAudioSettings(reason?: "input"): void {
   useAudioSettings.getState().openSettings(reason);
+}
+
+/** Open the settings on `tab` (the top bar's gear opens the last tab shown). */
+export function openSettings(tab?: SettingsTab): void {
+  const s = useAudioSettings.getState();
+  s.openTab(tab ?? s.tab);
 }
 
 /**

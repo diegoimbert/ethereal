@@ -86,6 +86,18 @@ test("gate, multiband compressor and transient shaper on an audio track", async 
     await expect(panel(shaper).getByRole("slider", { name, exact: true })).toBeVisible();
   }
 
+  // Loop over the clip (a 4 s sample): without it the clip ends after 4 s and the track is
+  // silent whatever the gate does, so a slow run would read "never reopens".
+  const clip = Object.values((await doc(page)).clips).find((c) => c.track === audio.id)!;
+  const region = { start: clip.start, end: clip.start + clip.length };
+  await page.evaluate((region) => {
+    const ep = (window as unknown as { __etherEngine: { post(json: string): void } }).__etherEngine;
+    ep.post(JSON.stringify({ id: 1_900_000_000, gesture: null, command: { domain: "Transport", command: { type: "SetLoopRegion", region } } }));
+  }, region);
+  await expect.poll(async () => (await doc(page)).settings.loop_region).toEqual(region);
+  await page.getByRole("toolbar", { name: "Transport" }).getByRole("button", { name: "Loop", exact: true }).click();
+  await expect.poll(async () => (await doc(page)).settings.loop_enabled).toBe(true);
+
   // Plays through (gate open at -40 dB threshold).
   await playButton(page).click();
   await expect.poll(() => peakOf(page, audio.id), { timeout: 15_000 }).toBeGreaterThan(0.05);

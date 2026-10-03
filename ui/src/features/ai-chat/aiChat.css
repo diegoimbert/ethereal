@@ -315,3 +315,23 @@
 .eth-ai__done {
   margin-top: auto;
 }
+.eth-ai__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-xs);
+  min-width: 0;
+}
+.eth-ai__field-stack {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--eth-space-xs);
+  min-width: 0;
+}
+.eth-ai__label {
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+}
+.eth-ai__hint--ok {
+  color: var(--eth-color-ok);
+}

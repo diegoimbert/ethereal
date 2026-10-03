@@ -1,10 +1,13 @@
 import { useContext, useEffect, useState } from "react";
 import type { AudioConfig, TrackId } from "@/generated";
 import { RefreshCw } from "lucide-react";
-import { Button, Dialog, IconButton, Meter, Select, type SelectOption } from "@/kit";
+import { Button, Dialog, IconButton, Meter, Select, Tabs, type SelectOption } from "@/kit";
 import { useProjectStore, useTrackMeter } from "@/state";
 import { cmd, isCommandFailed, TransportContext, type EngineTransport } from "@/transport";
-import { loadAudioDevices, useAudioSettings } from "./store";
+import { PluginFoldersPanel } from "@/features/plugins";
+import { SharingSettings } from "@/features/share/SharingSettings";
+import { AdvancedSettings } from "./AdvancedSettings";
+import { loadAudioDevices, useAudioSettings, type SettingsTab } from "./store";
 import "./audioSettings.css";
 
 const BUFFER_SIZES = [32, 64, 128, 256, 512, 1024, 2048];
@@ -15,11 +18,24 @@ function errorText(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
 }
 
+const TABS: ReadonlyArray<{ id: SettingsTab; label: string }> = [
+  { id: "audio", label: "Audio" },
+  { id: "plugins", label: "Plugins" },
+  { id: "sharing", label: "Sharing" },
+  { id: "advanced", label: "Advanced" },
+];
+
 /**
- * Audio settings: driver (host API), output and input devices, sample rate and buffer size,
- * the engine's status, and an input check (the level of armed, monitored tracks). Every
- * change applies at once (`Engine::SetAudioConfig`, only the changed field); the engine
- * persists the settings. Mounted once by the app shell; open it with `openAudioSettings()`.
+ * Settings, in tabs (base-115, docs/SHARING.md §8.6):
+ * - Audio: driver (host API), output and input devices, sample rate and buffer size, the
+ *   engine's status, and an input check (the level of armed, monitored tracks). Every change
+ *   applies at once (`Engine::SetAudioConfig`, only the changed field); the engine persists
+ *   the settings.
+ * - Plugins (base-129): the folders scanned for plugins (system folders on/off, the user's
+ *   folders with a format filter), Rescan and Full rescan.
+ * - Sharing: identity and sharing preferences. Advanced: sharing servers, engine server,
+ *   relay session.
+ * Mounted once by the app shell; open it with `openSettings(tab)` or `openAudioSettings()`.
  */
 export function AudioSettingsDialog() {
   const transport = useContext(TransportContext)?.transport ?? null;
@@ -29,17 +45,23 @@ export function AudioSettingsDialog() {
   }, [transport]);
   const open = useAudioSettings((s) => s.open);
   const reason = useAudioSettings((s) => s.reason);
+  const tab = useAudioSettings((s) => s.tab);
+  const setTab = useAudioSettings((s) => s.setTab);
   const close = useAudioSettings((s) => s.close);
   return (
-    <Dialog
-      open={open}
-      onClose={close}
-      title="Audio settings"
-      className="eth-audio-settings"
-      footer={<Button onClick={close}>Done</Button>}
-    >
-      {open && transport && <AudioSettingsBody transport={transport} reason={reason} />}
-      {open && !transport && <p className="eth-audio-settings__note">No engine connected.</p>}
+    <Dialog open={open} onClose={close} title="Settings" className="eth-audio-settings" footer={<Button onClick={close}>Done</Button>}>
+      {open && (
+        <div className="eth-settings">
+          <Tabs label="Settings" value={tab} onChange={setTab} items={TABS} className="eth-settings__tabs" />
+          <div className="eth-settings__panel" role="tabpanel" aria-label={TABS.find((t) => t.id === tab)?.label}>
+            {!transport && <p className="eth-audio-settings__note">No engine connected.</p>}
+            {transport && tab === "audio" && <AudioSettingsBody transport={transport} reason={reason} />}
+            {transport && tab === "plugins" && <PluginFoldersPanel transport={transport} />}
+            {transport && tab === "sharing" && <SharingSettings transport={transport} />}
+            {transport && tab === "advanced" && <AdvancedSettings transport={transport} />}
+          </div>
+        </div>
+      )}
     </Dialog>
   );
 }

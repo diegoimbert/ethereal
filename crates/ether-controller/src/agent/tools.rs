@@ -52,6 +52,9 @@ fn page(default_limit: u32, max: u32) -> (Value, Value) {
     )
 }
 
+/// Default page size of `get_device_params` (plugins can have thousands of params).
+pub(crate) const DEVICE_PARAMS_PAGE: u32 = 64;
+
 /// Max notes per `add_notes` / `create_midi_clip` call.
 pub(crate) const MAX_NOTES_PER_CALL: u32 = 1024;
 /// Max items removed/deleted per call.
@@ -126,11 +129,16 @@ pub(crate) static TOOLS: &[ToolDef] = &[
     },
     ToolDef {
         name: "get_device_params",
-        description: "Parameters of a device on a track: id, name, group, unit, min, max, default, current value (plain units such as Hz, dB, ms, %), the labels of switch/choice parameters and the step of integer ones. Use the ids or names with set_device_param.",
+        description: "Parameters of a device on a track: id, name, group, unit, min, max, default, current value (plain units such as Hz, dB, ms, %), the labels of switch/choice parameters and the step of integer ones. Use the ids or names with set_device_param. Plugins can have thousands of parameters: at most 64 are returned per call by default (`total` and a `note` say when more exist); filter with `query` (case-insensitive match on name or group) or page with `offset`.",
         schema: || {
-            let (offset, limit) = page(200, 500);
+            let (offset, limit) = page(DEVICE_PARAMS_PAGE, 500);
             obj(
-                json!({ "device_id": id("Device id."), "offset": offset, "limit": limit }),
+                json!({
+                    "device_id": id("Device id."),
+                    "query": { "type": "string", "description": "Only parameters whose name or group contains this text (case-insensitive). Default: all." },
+                    "offset": offset,
+                    "limit": limit
+                }),
                 &["device_id"],
             )
         },
