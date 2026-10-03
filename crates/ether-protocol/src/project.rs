@@ -44,6 +44,35 @@ pub enum ProjectCommand {
     Get,
     /// Undoable project scale metadata; never restricts MIDI notes.
     SetScale { scale: crate::model::MusicalScale },
+    // --- base-114 (project actions) ---
+    /// Pack a project (the open one: its current state) into one portable `.ether` bundle
+    /// file: a ZIP archive (entries stored, not compressed) holding `project.ether` and the
+    /// project's `media/` files. External media references (`MediaLocation::External`) stay
+    /// references. `path`: an absolute engine-machine path chosen in the desktop's OS save
+    /// dialog (the one explicit OS-file handoff, like `MediaSource::Path`): the host writes
+    /// the file there and replies `Unit`; hosts without OS files (web, remote) reply
+    /// `Unsupported`. `None`: replies `Bundle` with a download to pull with
+    /// `Export::ReadChunk` and drop with `Export::Release`.
+    ExportBundle { id: ProjectId, path: Option<String> },
+    /// Unpack a `.ether` bundle (from `ExportBundle`) as a new stored project `new_id` (not
+    /// opened). `name`: the new project's name (`None` = the name inside the bundle). A bare
+    /// `project.ether` document (no archive) is accepted too. Replies `Saved`.
+    ImportBundle {
+        new_id: ProjectId,
+        source: BundleSource,
+        name: Option<String>,
+    },
+}
+
+/// Where `ImportBundle` reads the bundle from. Never a UI-side path.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+#[serde(tag = "type")]
+pub enum BundleSource {
+    /// A completed upload (`Media::BeginUpload` / `UploadChunk`).
+    Upload { upload: String },
+    /// An absolute engine-machine path from the desktop's OS open dialog (`Unsupported`
+    /// elsewhere).
+    Path { path: String },
 }
 
 /// One entry of the project list.

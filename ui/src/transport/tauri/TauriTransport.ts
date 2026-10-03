@@ -22,7 +22,7 @@
 
 import { Channel, invoke as tauriInvoke } from "@tauri-apps/api/core";
 import { listen as tauriListen } from "@tauri-apps/api/event";
-import { open as tauriOpen } from "@tauri-apps/plugin-dialog";
+import { open as tauriOpen, save as tauriSave } from "@tauri-apps/plugin-dialog";
 import type {
   ClientMessage,
   Command,
@@ -55,6 +55,13 @@ export type OpenDialogFn = (options: {
   filters: { name: string; extensions: string[] }[];
 }) => Promise<string | string[] | null>;
 
+/** `save` from `@tauri-apps/plugin-dialog` (injectable for tests). */
+export type SaveDialogFn = (options: {
+  title: string;
+  defaultPath?: string;
+  filters: { name: string; extensions: string[] }[];
+}) => Promise<string | null>;
+
 /** Shell event carrying OS paths dropped on the window (`apps/desktop/src-tauri`). */
 export const PATH_DROP_EVENT = "ether://path-drop";
 
@@ -68,6 +75,7 @@ export interface TauriTransportOptions {
   invoke?: InvokeFn;
   listen?: ListenFn;
   openDialog?: OpenDialogFn;
+  saveDialog?: SaveDialogFn;
   createChannel?: <T>() => ChannelLike<T>;
   /** Name of the project created when the store is empty (default "Untitled"). */
   untitledName?: string;
@@ -105,6 +113,7 @@ export class TauriTransport implements EngineTransport {
   private readonly invoke: InvokeFn;
   private readonly listen: ListenFn;
   private readonly openDialog: OpenDialogFn;
+  private readonly saveDialog: SaveDialogFn;
   private readonly createChannel: <T>() => ChannelLike<T>;
   private readonly untitledName: string;
   private readonly events = new Emitter<Event>();
@@ -125,6 +134,7 @@ export class TauriTransport implements EngineTransport {
     this.invoke = options.invoke ?? ((cmd, args) => tauriInvoke(cmd, args));
     this.listen = options.listen ?? ((event, handler) => tauriListen(event, handler));
     this.openDialog = options.openDialog ?? ((o) => tauriOpen(o));
+    this.saveDialog = options.saveDialog ?? ((o) => tauriSave(o));
     this.createChannel = options.createChannel ?? (<T>() => new Channel<T>() as ChannelLike<T>);
     this.untitledName = options.untitledName ?? "Untitled";
   }
@@ -263,6 +273,43 @@ export class TauriTransport implements EngineTransport {
     const picked = await this.openDialog({ multiple: false, directory: true, title: "Search in folder", filters: [] });
     const path = Array.isArray(picked) ? picked[0] : picked;
     return typeof path === "string" ? path : null;
+  }
+
+  /**
+   * base-114: the OS save dialog for a project bundle: an absolute path ending in `.ether`
+   * (added when the dialog leaves it out), or `null` when dismissed. The engine writes it.
+   */
+  async pickBundleSavePath(defaultName: string): Promise<string | null> {
+    const path = await this.saveDialog({
+      title: "Export project",
+      defaultPath: defaultName,
+      filters: [{ name: "Ethereal project", extensions: ["ether"] }],
+    });
+    if (typeof path !== "string" || !path) return null;
+    return /\.ether$/i.test(path) ? path : `${path}.ether`;
+  }
+
+  /** base-114: the OS open dialog for a project bundle (absolute path), or `null`. */
+  async pickBundleFile(): Promise<string | null> {
+    const picked = await this.openDialog({
+      multiple: false,
+      directory: false,
+      title: "Import project",
+      filters: [{ name: "Ethereal project", extensions: ["ether"] }],
+    });
+    const path = Array.isArray(picked) ? picked[0] : picked;
+    return typeof path === "string" ? path : null;
+  }
+
+  /** base-114: the remembered collaboration token (app data dir, owner-only file). */
+  async loadCollabToken(): Promise<string | null> {
+    const token = await this.invoke("collab_token_load");
+    return typeof token === "string" && token ? token : null;
+  }
+
+  /** Remember (or forget, with `null`) the collaboration token. */
+  async saveCollabToken(token: string | null): Promise<void> {
+    await this.invoke("collab_token_save", { token });
   }
 
   dispose(): void {

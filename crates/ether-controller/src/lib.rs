@@ -33,6 +33,7 @@ pub mod agent;
 mod analysis;
 mod audio_to_midi;
 mod browser;
+pub mod bundle;
 mod capture;
 mod clip_editing;
 mod collab;

@@ -1,8 +1,10 @@
 // Toasts for peers' live chat messages while the chat section is closed (top right; a few at
 // most, auto-dismissed; a click opens the chat), and the chat shortcut (Mod+Shift+M) while in
-// a session. Mounted once by the presence bar.
+// a session. Mounted once by the presence bar. The app's notices (base-114, engine
+// `Event::Notification` and confirmations) share this one stack, so toasts never overlap.
 import { useEffect } from "react";
 import { Toast, ToastStack } from "@/kit";
+import { NotificationToastItems, useHasNotices } from "@/features/notifications";
 import { useShellStore } from "@/app/shell/shellStore";
 import { useProjectStore } from "@/state";
 import { peerColor, useCollabStore } from "../store";
@@ -14,6 +16,7 @@ export function ChatToasts() {
   const toasts = useChatUi((s) => s.toasts);
   const chat = useProjectStore((s) => s.project?.chat);
   const open = useShellStore((s) => s.left.open && s.left.tab === "chat");
+  const notices = useHasNotices();
 
   // Opening the chat shows everything: no toasts then.
   useEffect(() => {
@@ -36,23 +39,26 @@ export function ChatToasts() {
     const m = chat?.[id];
     return m ? [m] : [];
   });
-  if (!online || open || shown.length === 0) return null;
+  const chatShown = online && !open && shown.length > 0;
+  if (!chatShown && !notices) return null;
   return (
-    <ToastStack label="Chat messages">
-      {shown.map((m) => (
-        <Toast
-          key={m.id}
-          title={m.author.name || "Someone"}
-          accent={m.author.color !== null ? peerColor(m.author.color) : undefined}
-          timeoutMs={TOAST_MS}
-          onDismiss={() => dismissToast(m.id)}
-          onClick={() => {
-            if (!chatOpen()) focusChat();
-          }}
-        >
-          {firstLine(m.text)}
-        </Toast>
-      ))}
+    <ToastStack label={chatShown && !notices ? "Chat messages" : "Notifications"}>
+      <NotificationToastItems />
+      {chatShown &&
+        shown.map((m) => (
+          <Toast
+            key={m.id}
+            title={m.author.name || "Someone"}
+            accent={m.author.color !== null ? peerColor(m.author.color) : undefined}
+            timeoutMs={TOAST_MS}
+            onDismiss={() => dismissToast(m.id)}
+            onClick={() => {
+              if (!chatOpen()) focusChat();
+            }}
+          >
+            {firstLine(m.text)}
+          </Toast>
+        ))}
     </ToastStack>
   );
 }

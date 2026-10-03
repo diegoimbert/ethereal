@@ -306,6 +306,11 @@ pub enum ReplyValue {
         content: String,
         is_error: bool,
     },
+    /// base-114: a packed project bundle (`Project::ExportBundle` without a path), to pull
+    /// with `Export::ReadChunk`.
+    Bundle {
+        download: crate::export::ExportDownload,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
