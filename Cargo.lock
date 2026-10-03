@@ -1751,6 +1751,7 @@ dependencies = [
  "ether-native",
  "ether-protocol",
  "getrandom 0.3.4",
+ "serde",
  "serde_json",
  "thiserror 2.0.21",
  "tracing",
