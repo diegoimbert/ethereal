@@ -211,6 +211,21 @@ impl ProjectStore for MemoryStore {
         Ok(path)
     }
 
+    /// v0.3 (`project-versions`): delete one file; missing = `Ok`.
+    fn remove(&mut self, id: ProjectId, rel_path: &str) -> Result<(), StoreError> {
+        check_relative_path(rel_path)?;
+        if rel_path.is_empty() {
+            return Err(StoreError::InvalidPath(rel_path.into()));
+        }
+        let files = &mut self.project(id)?.files;
+        let prefix = format!("{rel_path}/");
+        if files.keys().any(|k| k.starts_with(&prefix)) {
+            return Err(StoreError::InvalidPath(format!("{rel_path} is a folder")));
+        }
+        files.remove(rel_path);
+        Ok(())
+    }
+
     fn list_dir(&mut self, id: ProjectId, rel_path: &str) -> Result<DirectoryListing, StoreError> {
         check_relative_path(rel_path)?;
         let entries = list(&self.project(id)?.files, rel_path);

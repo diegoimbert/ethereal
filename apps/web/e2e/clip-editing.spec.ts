@@ -63,6 +63,17 @@ test("clip editing: fade drag, reverse, markers", async ({ page }) => {
   const handle = clipEl.getByTestId("fade-in-handle");
   await handle.hover();
   const box = (await handle.boundingBox())!;
+
+  // Near the fade handle, the fade wins over the clip's edge resize strip; lower down the
+  // edge, the resize strip is still there.
+  const clipBox = (await clipEl.boundingBox())!;
+  const hitAt = (x: number, y: number) =>
+    page.evaluate(([px, py]) => {
+      const el = document.elementFromPoint(px!, py!);
+      return el?.closest("[data-handle]")?.getAttribute("data-handle") ?? `none:${el?.className ?? "null"}`;
+    }, [x, y]);
+  expect(await hitAt(clipBox.x + 4, box.y + box.height / 2)).toBe("fade-in");
+  expect(await hitAt(clipBox.x + 4, clipBox.y + clipBox.height - 2)).toBe("resize-start");
   const clipWidth = await page.evaluate(() => {
     const el = document.querySelector<HTMLElement>(".eth-clip");
     return el ? el.getBoundingClientRect().width : 0;

@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { originAllowed, parseClientMessage, route, sha256Hex } from "./protocol";
-import { RoomCore, type RoomSocket } from "./room";
+import { originAllowed, parseClientMessage, route, sha256Hex } from "./protocol.ts";
 
 const ROOM = "AbCdEfGhIjKlMnOpQrStUv";
 const HASH = "a".repeat(64);
@@ -39,6 +38,8 @@ describe("client messages", () => {
   });
 
   it("refuses malformed or oversized frames", () => {
+    expect(parseClientMessage(JSON.stringify({ type: "Ping", pad: "x".repeat(70_000) }))).toBeNull();
+    expect(parseClientMessage(JSON.stringify({ type: "SetDoors", doors: Array(67).fill(HASH) }))).toBeNull();
     expect(parseClientMessage("nope")).toBeNull();
     expect(parseClientMessage(JSON.stringify({ type: "HostHello", protocol: 1, host_token: "short", doors: [], app: "" }))).toBeNull();
     expect(parseClientMessage(JSON.stringify({ type: "SetDoors", doors: ["not-hex"] }))).toBeNull();
@@ -49,19 +50,5 @@ describe("client messages", () => {
 
   it("hashes like the engine (lowercase hex SHA-256)", async () => {
     expect(await sha256Hex("abc")).toBe("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
-  });
-});
-
-describe("RoomCore skeleton", () => {
-  it("answers pings and refuses the rest until signal-service lands", async () => {
-    const sent: unknown[] = [];
-    const closed: string[] = [];
-    const sock: RoomSocket = { kind: "join", peer: null, send: (m) => sent.push(m), close: (_c, r) => closed.push(r) };
-    const core = new RoomCore(null, { persist: async () => undefined, sha256: sha256Hex, now: () => 0 });
-    await core.message(sock, JSON.stringify({ type: "Ping" }));
-    expect(sent).toEqual([{ type: "Pong" }]);
-    await core.message(sock, JSON.stringify({ type: "JoinHello", protocol: 2, door: ROOM, app: "x" }));
-    expect(sent.at(-1)).toMatchObject({ type: "Refused", reason: "Version" });
-    expect(closed).toEqual(["Version"]);
   });
 });

@@ -1,5 +1,5 @@
 import "./collab.css";
-import { useContext, useEffect, useState, type CSSProperties, type FormEvent } from "react";
+import { useContext, useEffect, useState, type FormEvent } from "react";
 import type { Presence, PresenceState, SiteId } from "@/generated";
 import { Button, Dialog, openContextMenu, TextInput, Toggle } from "@/kit";
 import { useSelectionStore } from "@/state/selection";
@@ -7,9 +7,10 @@ import { itemSelection } from "@/timeline/selection";
 import { cmd, TransportContext, type EngineTransport } from "@/transport";
 import { HostingBadge, HostingSection, useHosting } from "./host";
 import { ListenBadge, ListenButton, listenMenuItems, useListenAgent } from "./listen";
+import { avatarStyle } from "./presence/avatar";
 import { nameOf, peerSummary, presenceV2Fields, setFollowing, useLocalPresence } from "./presence/local";
 import { ChatToasts } from "./social";
-import { highlightCss, initials, peerColor, useCollabStore, useHideOthers } from "./store";
+import { highlightCss, initials, useCollabStore, useHideOthers } from "./store";
 
 /** Remembered join fields (never the token). */
 const FIELDS_KEY = "eth-collab-join";
@@ -94,7 +95,7 @@ function PeerChip({ peer, peers, me, transport }: { peer: Presence; peers: Prese
     <button
       type="button"
       className="eth-collab__avatar eth-collab__chip"
-      style={{ "--eth-collab-peer": peerColor(peer.color) } as CSSProperties}
+      style={avatarStyle(peer.color)}
       title={`${peerSummary(peer, peers, me)}\n${hint}`}
       aria-label={following ? `Stop following ${name}` : `Follow ${name}`}
       aria-pressed={following}
@@ -152,11 +153,23 @@ export function PresenceBar() {
   return <PresenceBarWith transport={ctx.transport} />;
 }
 
-function PresenceBarWith({ transport }: { transport: EngineTransport }) {
+/**
+ * The collaboration runtime for the Share control (base-115 `share-ui`): presence, listen,
+ * highlights, chat toasts and the relay dialog (opened from Settings > Advanced > Relay
+ * session with `setDialogOpen`). The relay button and chips show only during a relay session.
+ */
+export function CollabRuntime() {
+  const ctx = useContext(TransportContext);
+  if (!ctx) return null;
+  return <PresenceBarWith transport={ctx.transport} bar={false} />;
+}
+
+function PresenceBarWith({ transport, bar = true }: { transport: EngineTransport; bar?: boolean }) {
   const status = useCollabStore((s) => s.status);
   const peers = useCollabStore((s) => s.peers);
   const onEvent = useCollabStore((s) => s.onEvent);
-  const [open, setOpen] = useState(false);
+  const open = useCollabStore((s) => s.dialogOpen);
+  const setOpen = useCollabStore((s) => s.setDialogOpen);
   const [fields, setFields] = useState(loadFields);
   const [token, setToken] = useState("");
   const [busy, setBusy] = useState(false);
@@ -173,6 +186,8 @@ function PresenceBarWith({ transport }: { transport: EngineTransport }) {
   useHosting(transport, status.type === "Online" ? status.session : null);
 
   const inSession = status.type !== "Offline";
+  // As the Share control's runtime, the relay bar shows only during a relay session.
+  const showBar = bar || inSession;
   const join = async (e?: FormEvent) => {
     e?.preventDefault();
     const f = { server: fields.server.trim(), session: fields.session.trim(), name: fields.name.trim() };
@@ -201,19 +216,21 @@ function PresenceBarWith({ transport }: { transport: EngineTransport }) {
     status.type === "Online" ? `● ${status.session}` : status.type === "Connecting" ? `Connecting to ${status.session}…` : "Collab";
   return (
     <div className="eth-collab" data-feature="collab" data-status={status.type}>
-      <Button
-        size="sm"
-        active={status.type === "Online"}
-        aria-label="Collaboration"
-        aria-haspopup="dialog"
-        title={inSession ? "Collaboration session" : "Join or start a collaboration session"}
-        data-testid="collab-button"
-        onClick={() => setOpen(true)}
-      >
-        {label}
-      </Button>
-      <HostingBadge />
-      {peers.length > 0 && (
+      {showBar && (
+        <Button
+          size="sm"
+          active={status.type === "Online"}
+          aria-label="Collaboration"
+          aria-haspopup="dialog"
+          title={inSession ? "Collaboration session" : "Join or start a collaboration session"}
+          data-testid="collab-button"
+          onClick={() => setOpen(true)}
+        >
+          {label}
+        </Button>
+      )}
+      {showBar && <HostingBadge />}
+      {showBar && peers.length > 0 && (
         <span className="eth-collab__peers" aria-label="Participants" data-testid="collab-peers">
           {peers.map((p) => (
             <PeerChip key={p.site} peer={p} peers={peers} me={status.type === "Online" ? status.site : null} transport={transport} />
@@ -254,7 +271,7 @@ function PresenceBarWith({ transport }: { transport: EngineTransport }) {
               <li className="eth-collab__member">You ({fields.name || "this device"})</li>
               {peers.map((p) => (
                 <li key={p.site} className="eth-collab__member">
-                  <span className="eth-collab__avatar" style={{ "--eth-collab-peer": peerColor(p.color) } as CSSProperties}>
+                  <span className="eth-collab__avatar" style={avatarStyle(p.color)}>
                     {initials(p.name)}
                   </span>
                   {p.name || "Anonymous"}

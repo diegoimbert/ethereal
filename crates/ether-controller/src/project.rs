@@ -109,7 +109,7 @@ where
     }
 
     /// Serialize a project, with every plugin's live state read from the engine.
-    fn serialize(&mut self, project: &Project) -> CmdResult<String> {
+    pub(crate) fn serialize(&mut self, project: &Project) -> CmdResult<String> {
         let mut copy = project.clone();
         for d in copy.devices.values_mut() {
             if let DeviceKind::Plugin { plugin } = &mut d.kind
@@ -140,7 +140,7 @@ where
         Ok(summary)
     }
 
-    fn autosave_before_switch(&mut self, out: &mut dyn MessageSink) -> CmdResult<()> {
+    pub(crate) fn autosave_before_switch(&mut self, out: &mut dyn MessageSink) -> CmdResult<()> {
         if self.doc.as_ref().is_some_and(|d| d.dirty) {
             self.save_current(out)?;
         }
@@ -247,6 +247,9 @@ where
                 },
             );
         }
+        // project-versions: the session moves to the new folder.
+        let now = self.host.now_ms();
+        self.versions_on_identity_change(now);
         self.emit_list_changed(out);
         Ok(ReplyValue::Project {
             project: Box::new(project),
@@ -266,6 +269,8 @@ where
             return Ok(ReplyValue::Saved { project: existing });
         }
         self.store.duplicate(id, new_id).map_err(store_err)?;
+        // project-versions: the copy is not open anywhere.
+        self.versions_forget_marker(new_id);
         let current = self
             .doc
             .as_ref()
@@ -286,7 +291,7 @@ where
 
     /// Make `project` the open document: reset history, runtime state, engine nodes and
     /// media, then announce it.
-    fn load_project(&mut self, project: Project, now: u64, out: &mut dyn MessageSink) {
+    pub(crate) fn load_project(&mut self, project: Project, now: u64, out: &mut dyn MessageSink) {
         self.engine.reset();
         self.media.reset(&mut self.bridge);
         self.armed.clear();
@@ -324,5 +329,7 @@ where
         self.media.sync(&mut self.bridge, Some(&doc.project));
         self.engine.graph_dirty = true;
         self.publish_if_due(now, true, out);
+        // project-versions: session marker and version clock.
+        self.versions_on_load(now);
     }
 }

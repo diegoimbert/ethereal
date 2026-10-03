@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState, type FormEvent, type MouseEvent } from "react";
-import { MoreHorizontal, Plus } from "lucide-react";
+import { History, MoreHorizontal, Plus } from "lucide-react";
 import type { ProjectSummary } from "@/generated";
 import type { EngineCommands } from "@/features/transport-bar/engine";
 import { Button, Dialog, IconButton, openContextMenu, TextInput } from "@/kit";
 import { ProjectScale } from "@/features/scale/ProjectScale";
+import { openVersions } from "@/features/versions/store";
 import { useProjectStore } from "@/state";
 import { cmd, newProjectId } from "@/transport";
 import { copyName, formatModified, sortProjects, uniqueName } from "./projectNames";
@@ -107,6 +108,19 @@ function Home({ commands, onNew, onDone }: { commands: EngineCommands; onNew(): 
             Continue
           </Button>
           <ProjectScale send={send} />
+          {/* project-versions: the open project's versions (save, compare, restore). */}
+          <Button
+            size="sm"
+            tone="ghost"
+            className="eth-project-screen__versions"
+            onClick={() => {
+              onDone();
+              openVersions();
+            }}
+          >
+            <History aria-hidden />
+            Versions…
+          </Button>
         </section>
       )}
 
