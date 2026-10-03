@@ -80,7 +80,7 @@ export function canRun(action: TimeAction, ctx?: TimeActionContext): boolean {
   }
 }
 
-/** `over`: "paste" goes over the selection (its start) even after a paste (the menu item). */
+/** `over`: "paste" goes over the selection (at its start), not after it (the menu item). */
 export async function runTimeAction(
   transport: EngineTransport,
   action: TimeAction,
@@ -249,8 +249,13 @@ export function timeSelectionMenu(transport: EngineTransport): ContextMenuEntry[
     { label: "Cut Time", shortcut: `${MOD_KEY}X`, onSelect: run("cut") },
     { label: "Copy Time", shortcut: `${MOD_KEY}C`, onSelect: run("copy") },
     {
-      label: "Paste Over Selection",
+      label: "Paste After Selection",
       shortcut: `${MOD_KEY}V`,
+      disabled: !hasClipboard,
+      onSelect: run("paste"),
+    },
+    {
+      label: "Paste Over Selection",
       disabled: !hasClipboard,
       onSelect: () => void runTimeAction(transport, "paste", undefined, { over: true }),
     },
