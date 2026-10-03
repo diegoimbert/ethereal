@@ -431,6 +431,8 @@ fn track(nan: bool) -> impl Strategy<Value = TrackDesc> {
                 clips,
                 automation,
                 racks,
+                expression: Default::default(),
+                hw_io: Vec::new(),
             },
         )
 }

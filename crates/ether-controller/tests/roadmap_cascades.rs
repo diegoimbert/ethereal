@@ -50,6 +50,7 @@ impl Doc {
             output: TrackOutput::Default,
             monitor: MonitorMode::Auto,
             scale: Default::default(),
+            mpe: None,
         }));
         id
     }

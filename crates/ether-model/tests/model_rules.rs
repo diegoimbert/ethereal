@@ -33,6 +33,7 @@ impl Fx {
             output: TrackOutput::Default,
             monitor: MonitorMode::Auto,
             scale: Default::default(),
+            mpe: None,
         }
     }
     fn add_track(&mut self, kind: TrackKind, parent: Option<TrackId>) -> TrackId {

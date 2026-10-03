@@ -44,6 +44,7 @@ import { defaultParams, defaultTrackName, makeClip, makeTrack, MOCK_TRACK_COLORS
 import { isRoadmapDocumentCommand, reduceRoadmapCommand } from "./roadmap";
 import { groupsTrackCommand } from "./roadmap/groupsBuses";
 import { setZones } from "./roadmap/multisampler";
+import { listFactoryIrs, setIr } from "./roadmap/fxSpace";
 import { clipV2Command, isCrossfade } from "./roadmap/clipEditing";
 import { onTrackDeletedTakes } from "./roadmap/comping";
 import { checkDeviceMove, copyRackPads, duplicateSiblings, onRackDeleted } from "./roadmap/drumRack";
@@ -82,7 +83,7 @@ export function isDocumentCommand(command: Command): boolean {
     case "Mixer":
       return true;
     case "Device":
-      return c.type !== "ListBuiltin" && c.type !== "GetDescriptor";
+      return c.type !== "ListBuiltin" && c.type !== "GetDescriptor" && c.type !== "ListFactoryIrs";
     case "Project":
       // Only renaming the *current* project is a document edit (checked in the reducer).
       return c.type === "Rename" || c.type === "SetScale";
@@ -589,6 +590,12 @@ function deviceCommand(ctx: ReducerContext, c: DeviceCommand): ReplyValue {
       // v0.2 (`multisampler`, `roadmap/multisampler.ts`).
       setZones(ctx, c.device, c.zones);
       break;
+    case "SetIr":
+      // v0.3 (`fx-space`, `roadmap/fxSpace.ts`).
+      setIr(ctx, c.device, c.ir);
+      break;
+    case "ListFactoryIrs":
+      return listFactoryIrs();
     case "ListBuiltin":
       return { type: "DeviceTypes", devices: Object.values(BUILTIN_DESCRIPTORS) };
     case "GetDescriptor": {

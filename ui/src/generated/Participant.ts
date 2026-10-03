@@ -18,4 +18,9 @@ site: SiteId | null, name: string, color: Color, role: ParticipantRole, online: 
 /**
  * This user.
  */
-you: boolean, };
+you: boolean, 
+/**
+ * When an offline member was last connected (ms since the Unix epoch, from
+ * `share.json`); `None` while online or never seen.
+ */
+last_seen_ms: number | null, };
