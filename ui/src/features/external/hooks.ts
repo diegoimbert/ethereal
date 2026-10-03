@@ -6,7 +6,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { DeviceId, HardwarePorts } from "@/generated";
-import { cmd, useTransport } from "@/transport";
+import { CommandFailedError, cmd, useTransport } from "@/transport";
 
 export interface PortsState {
   /** `null` until listed, or when the host has no hardware I/O. */
@@ -18,7 +18,7 @@ export interface PortsState {
 const codeOf = (e: unknown): string | undefined =>
   typeof e === "object" && e !== null && "code" in e ? String((e as { code: unknown }).code) : undefined;
 const messageOf = (e: unknown): string =>
-  typeof e === "object" && e !== null && "message" in e ? String((e as { message: unknown }).message) : String(e);
+  e instanceof CommandFailedError ? e.error.message : e instanceof Error ? e.message : String(e);
 
 /** The host's hardware ports, listed on mount and kept current by `PortsChanged`. */
 export function useHardwarePorts(): PortsState {

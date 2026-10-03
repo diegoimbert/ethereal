@@ -172,6 +172,12 @@ where
                         "device {device} is not an external device"
                     )));
                 };
+                // Hosts without hardware I/O (web) reply `Unsupported` whatever the routing.
+                if let Err(e @ crate::BridgeError::Unsupported(_)) =
+                    self.bridge.list_hardware_ports()
+                {
+                    return Err(bridge_err(e));
+                }
                 let out_ok = match ty {
                     BuiltinDeviceType::ExternalInstrument => routing.midi_out.is_some(),
                     _ => routing.audio_send.is_some(),

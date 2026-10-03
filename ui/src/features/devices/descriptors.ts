@@ -94,5 +94,8 @@ export function useBuiltinTypes(): DeviceDescriptor[] {
 export function builtinDevice(type: BuiltinDeviceType): BuiltinDevice {
   if (type === "Sampler") return { type: "Sampler", sample: null, slices: { enabled: false, base_note: 36, markers: [] } };
   if (type === "MultiSampler") return { type: "MultiSampler", zones: [] };
+  if (type === "ExternalInstrument" || type === "ExternalAudioEffect") {
+    return { type, routing: { midi_out: null, midi_channel: 1, audio_send: null, audio_return: null } };
+  }
   return { type } as BuiltinDevice;
 }

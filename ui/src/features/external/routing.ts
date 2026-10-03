@@ -63,7 +63,7 @@ export function channelOptions(
   channels: ReadonlyArray<AudioInputChannel>,
   current: HwChannels | null,
   prefix: string,
-  missing: string,
+  missing: string | null,
 ): PickerOption[] {
   const out: PickerOption[] = [{ value: NONE, label: "None" }];
   const sorted = [...channels].sort((a, b) => a.index - b.index);
@@ -76,7 +76,8 @@ export function channelOptions(
     out.push({ value: channelsValue({ first: c.index, count: 1 }), label: channelName(channels, c.index), group: "Mono" });
   }
   if (current && !out.some((o) => o.value === channelsValue(current))) {
-    out.push({ value: channelsValue(current), label: `${channelsLabel(current, [], prefix)} (${missing})` });
+    const label = channelsLabel(current, [], prefix);
+    out.push({ value: channelsValue(current), label: missing ? `${label} (${missing})` : label });
   }
   return out;
 }
@@ -84,11 +85,11 @@ export function channelOptions(
 /** MIDI channel options 1..=16. */
 export const MIDI_CHANNELS: PickerOption[] = Array.from({ length: 16 }, (_, i) => ({ value: `${i + 1}`, label: `Ch ${i + 1}` }));
 
-/** MIDI output options; the stored port is kept (marked missing) when not connected. */
-export function midiOptions(ports: HardwarePorts | null, current: string | null, missing: string): PickerOption[] {
+/** MIDI output options; the stored port is kept (marked `missing`, if given) when not listed. */
+export function midiOptions(ports: HardwarePorts | null, current: string | null, missing: string | null): PickerOption[] {
   const out: PickerOption[] = [{ value: NONE, label: "None" }];
   for (const p of ports?.midi_outputs ?? []) out.push({ value: p.id, label: p.name });
-  if (current !== null && !out.some((o) => o.value === current)) out.push({ value: current, label: `${current} (${missing})` });
+  if (current !== null && !out.some((o) => o.value === current)) out.push({ value: current, label: missing ? `${current} (${missing})` : current });
   return out;
 }
 

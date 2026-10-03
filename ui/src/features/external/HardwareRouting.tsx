@@ -66,6 +66,8 @@ export function HardwareRoutingWidget({ label }: HardwareRoutingWidgetProps) {
   };
   const missing = missingParts(routing, ports);
   const readOnly = unsupported;
+  // Without hardware I/O nothing is "missing": the stored routing is just shown.
+  const missingLabel = unsupported ? null : MISSING;
   const status = measureText(measure);
   return (
     <div className="eth-widget eth-widget--hardware-routing eth-hw" data-widget="HardwareRouting" data-testid="hardware-routing">
@@ -80,7 +82,7 @@ export function HardwareRoutingWidget({ label }: HardwareRoutingWidgetProps) {
               size="sm"
               aria-label="MIDI output"
               disabled={readOnly}
-              options={midiOptions(ports, routing.midi_out, MISSING)}
+              options={midiOptions(ports, routing.midi_out, missingLabel)}
               value={routing.midi_out ?? NONE}
               onChange={(v) => set({ midi_out: v === NONE ? null : v })}
             />
@@ -103,7 +105,7 @@ export function HardwareRoutingWidget({ label }: HardwareRoutingWidgetProps) {
               size="sm"
               aria-label="Audio send"
               disabled={readOnly}
-              options={channelOptions(ports?.audio_outputs ?? [], routing.audio_send, "Out", MISSING)}
+              options={channelOptions(ports?.audio_outputs ?? [], routing.audio_send, "Out", missingLabel)}
               value={channelsValue(routing.audio_send)}
               onChange={(v) => set({ audio_send: parseChannels(v) })}
             />
@@ -117,7 +119,7 @@ export function HardwareRoutingWidget({ label }: HardwareRoutingWidgetProps) {
             size="sm"
             aria-label="Audio return"
             disabled={readOnly}
-            options={channelOptions(ports?.audio_inputs ?? [], routing.audio_return, "In", MISSING)}
+            options={channelOptions(ports?.audio_inputs ?? [], routing.audio_return, "In", missingLabel)}
             value={channelsValue(routing.audio_return)}
             onChange={(v) => set({ audio_return: parseChannels(v) })}
           />
