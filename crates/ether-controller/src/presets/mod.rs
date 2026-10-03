@@ -40,8 +40,7 @@ use ether_core::protocol::media::{BrowseLocation, MediaCommand, MediaSource};
 use ether_core::protocol::model::{
     BuiltinDevice, Device, DeviceChange, DeviceId, DeviceKind, GestureId, IrSource, MediaId,
     MediaLocation, PRESET_EXTENSION, PRESETS_DIR, ParamId, Preset, PresetDevice, PresetSample,
-    RackChainId,
-    save_preset,
+    RackChainId, save_preset,
 };
 use ether_core::protocol::presets::{
     PresetCommand, PresetEvent, PresetInfo, PresetRef, PresetSource,
