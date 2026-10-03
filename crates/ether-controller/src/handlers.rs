@@ -1066,6 +1066,7 @@ where
                                     device: BuiltinDevice::Sampler { sample: Some(m), .. }
                                 } if loaded.contains(m))
                                     || crate::multisampler::uses_media(&dev.kind, &loaded)
+                                    || crate::fx_space::uses_media(&dev.kind, &loaded)
                             })
                             .map(|dev| dev.id)
                             .collect()
