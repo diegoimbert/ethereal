@@ -56,7 +56,7 @@ function desktop(triple) {
     if (name.endsWith(".app")) {
       if (wantHelper && !existsSync(join(f, "Contents", "MacOS", HELPER))) fail(`${name} has no Contents/MacOS/${HELPER}`);
       const arch = triple.split("-")[0];
-      const version = readFileSync(join(root, "VERSION"), "utf8").trim();
+      const version = (process.env.ETHER_RELEASE_VERSION || readFileSync(join(root, "VERSION"), "utf8")).trim();
       const zip = join(outDir, `${name.replace(/\.app$/, "")}_${version}_${arch}.app.zip`);
       // ditto keeps the bundle's symlinks, permissions and code signature intact.
       execFileSync("ditto", ["-c", "-k", "--sequesterRsrc", "--keepParent", f, zip], { stdio: "inherit" });

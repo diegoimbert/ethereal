@@ -29,7 +29,8 @@ if (!out) {
 }
 
 function releaseVersion() {
-  const v = readFileSync(join(root, "VERSION"), "utf8").trim();
+  // The workflow passes the computed release version (never a duplicate); VERSION otherwise.
+  const v = (process.env.ETHER_RELEASE_VERSION || readFileSync(join(root, "VERSION"), "utf8")).trim();
   // MSI/WiX and CFBundleVersion need plain numeric X.Y.Z.
   if (!/^\d+\.\d+\.\d+$/.test(v)) throw new Error(`VERSION must be X.Y.Z, got '${v}'`);
   return v;
