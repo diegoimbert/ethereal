@@ -64,8 +64,16 @@ fn prefault<T: Copy>(v: &mut [T]) {
 
 /// Stage partition counts for a kernel of `len` samples.
 fn parts(len: usize) -> (usize, usize) {
-    let p1 = if len > B { (len - B).div_ceil(B).min(P1) } else { 0 };
-    let p2 = if len > 2 * T { (len - 2 * T).div_ceil(T) } else { 0 };
+    let p1 = if len > B {
+        (len - B).div_ceil(B).min(P1)
+    } else {
+        0
+    };
+    let p2 = if len > 2 * T {
+        (len - 2 * T).div_ceil(T)
+    } else {
+        0
+    };
     (p1, p2)
 }
 
@@ -141,13 +149,23 @@ impl Ffts {
 }
 
 /// Forward transform of `time` (length `2n`) into `spec` (`n + 1` bins), scaled by `scale`.
-fn forward(fft: &dyn RealToComplex<f32>, time: &mut [f32], spec: &mut [Complex32], scratch: &mut [Complex32]) {
+fn forward(
+    fft: &dyn RealToComplex<f32>,
+    time: &mut [f32],
+    spec: &mut [Complex32],
+    scratch: &mut [Complex32],
+) {
     // Lengths always match the plan: the result can't be an error.
     let _ = fft.process_with_scratch(time, spec, scratch);
 }
 
 /// Inverse transform of `spec` (destroyed) into `time`.
-fn inverse(fft: &dyn ComplexToReal<f32>, spec: &mut [Complex32], time: &mut [f32], scratch: &mut [Complex32]) {
+fn inverse(
+    fft: &dyn ComplexToReal<f32>,
+    spec: &mut [Complex32],
+    time: &mut [f32],
+    scratch: &mut [Complex32],
+) {
     // A real signal's DC and Nyquist bins are real; clear rounding residue so realfft
     // doesn't flag them (it computes the transform either way).
     if let Some(first) = spec.first_mut() {
@@ -201,7 +219,10 @@ fn build_task(base: &IrBase, k: &mut Kernel, task: usize, f: &mut Ffts) -> usize
         let spec = &mut f.spec[..=B];
         forward(&*f.fwd1, time, spec, &mut f.scratch);
         let scale = 1.0 / (2 * B) as f32;
-        for (d, s) in k.h1[ch][p * (B + 1)..(p + 1) * (B + 1)].iter_mut().zip(spec.iter()) {
+        for (d, s) in k.h1[ch][p * (B + 1)..(p + 1) * (B + 1)]
+            .iter_mut()
+            .zip(spec.iter())
+        {
             *d = s * scale;
         }
         1
@@ -213,7 +234,10 @@ fn build_task(base: &IrBase, k: &mut Kernel, task: usize, f: &mut Ffts) -> usize
         let spec = &mut f.spec[..=T];
         forward(&*f.fwd2, time, spec, &mut f.scratch);
         let scale = 1.0 / (2 * T) as f32;
-        for (d, s) in k.h2[ch][p * (T + 1)..(p + 1) * (T + 1)].iter_mut().zip(spec.iter()) {
+        for (d, s) in k.h2[ch][p * (T + 1)..(p + 1) * (T + 1)]
+            .iter_mut()
+            .zip(spec.iter())
+        {
             *d = s * scale;
         }
         T2_UNITS
@@ -341,8 +365,7 @@ impl Convolver {
     /// Bytes held by this convolver (kernels, delay lines, buffers), for reports.
     pub fn memory_bytes(&self) -> usize {
         let k = 2 * (B + P1 * (B + 1) * 2 + self.cap2 * (T + 1) * 2) * 4;
-        let state = 2 * (2 * B + P1 * (B + 1) * 2 + 2 * B + 2 * T + self.cap2 * (T + 1) * 2)
-            * 4
+        let state = 2 * (2 * B + P1 * (B + 1) * 2 + 2 * B + 2 * T + self.cap2 * (T + 1) * 2) * 4
             + 2 * 2 * (T + 1) * 8
             + 2 * 2 * 2 * T * 4;
         2 * k + state + self.base.len * self.base.channels.len() * 4
@@ -409,7 +432,12 @@ impl Convolver {
         let other = self.active ^ 1;
         let total = 2 * self.kernels[other].tasks_per_channel();
         while units > 0 && self.next_task < total {
-            let cost = build_task(&self.base, &mut self.kernels[other], self.next_task, &mut self.f);
+            let cost = build_task(
+                &self.base,
+                &mut self.kernels[other],
+                self.next_task,
+                &mut self.f,
+            );
             self.next_task += 1;
             units = units.saturating_sub(cost);
         }
@@ -543,7 +571,12 @@ impl Convolver {
                 for &k in kernels {
                     for c in 0..2 {
                         let time = &mut self.f.time[..2 * T];
-                        inverse(&*self.f.inv2, &mut self.acc2[k][c], time, &mut self.f.scratch);
+                        inverse(
+                            &*self.f.inv2,
+                            &mut self.acc2[k][c],
+                            time,
+                            &mut self.f.scratch,
+                        );
                         self.next2[k][c].copy_from_slice(&time[T..]);
                     }
                 }
@@ -634,8 +667,14 @@ mod tests {
             let mut conv = Convolver::new(IrInput::Factory(0), base(h.clone()), Shaping::default());
             let got = run(&mut conv, &x, &[64, 1, 333, 128, 4096, 7]);
             let peak = want.iter().fold(0.0f32, |m, v| m.max(v.abs()));
-            let err = want.iter().zip(&got).fold(0.0f32, |m, (a, b)| m.max((a - b).abs()));
-            assert!(err <= 1e-4 * peak.max(1.0), "len {len}: err {err} (peak {peak})");
+            let err = want
+                .iter()
+                .zip(&got)
+                .fold(0.0f32, |m, (a, b)| m.max((a - b).abs()));
+            assert!(
+                err <= 1e-4 * peak.max(1.0),
+                "len {len}: err {err} (peak {peak})"
+            );
         }
     }
 
@@ -669,7 +708,9 @@ mod tests {
         let hr: Vec<f32> = h.iter().rev().copied().collect();
         let want = direct(&x, &hr);
         let tail = 80_000..120_000;
-        let peak = want[tail.clone()].iter().fold(0.0f32, |m, v| m.max(v.abs()));
+        let peak = want[tail.clone()]
+            .iter()
+            .fold(0.0f32, |m, v| m.max(v.abs()));
         let err = want[tail.clone()]
             .iter()
             .zip(&got[tail])
@@ -696,6 +737,9 @@ mod tests {
         ir.shaped(0, s, 36_000, 0, &mut out);
         assert!(out[35_999].abs() < 1e-3, "faded out at the end");
         assert_eq!(out[36_000], 0.0);
-        assert!((out[0] - 1.0 / 1.5f32.sqrt()).abs() < 1e-6, "stretch keeps energy");
+        assert!(
+            (out[0] - 1.0 / 1.5f32.sqrt()).abs() < 1e-6,
+            "stretch keeps energy"
+        );
     }
 }

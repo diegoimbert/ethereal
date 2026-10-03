@@ -180,7 +180,12 @@ fn impulse_gives_the_normalized_ir_at_zero_latency() {
     let [l, r] = render(&mut *d, [&x, &x], BLOCK, &[]);
     let g = 1.0 / energy(&ir).sqrt() as f32;
     for (i, &h) in ir.iter().enumerate() {
-        assert!((l[i] - h * g).abs() < 1e-5, "sample {i}: {} vs {}", l[i], h * g);
+        assert!(
+            (l[i] - h * g).abs() < 1e-5,
+            "sample {i}: {} vs {}",
+            l[i],
+            h * g
+        );
         assert!((r[i] - h * g).abs() < 1e-5);
     }
     assert!(l[0].abs() > 0.0, "zero latency");
@@ -198,7 +203,10 @@ fn block_size_does_not_change_the_output() {
     }
     // Same up to float reassociation and the event landing in different blocks.
     for o in &outs[1..] {
-        let err = o.iter().zip(&outs[0]).fold(0.0f32, |m, (a, b)| m.max((a - b).abs()));
+        let err = o
+            .iter()
+            .zip(&outs[0])
+            .fold(0.0f32, |m, (a, b)| m.max((a - b).abs()));
         assert!(err < 1e-3, "err {err}");
     }
 }
@@ -369,7 +377,11 @@ fn ir_swap_crossfades_without_a_click() {
 
 #[test]
 fn ir_swap_to_none_fades_to_dry() {
-    let next = fx_space::ir_swap(&BuiltinDevice::ConvolutionReverb { ir: None }, &NoSamples, SR);
+    let next = fx_space::ir_swap(
+        &BuiltinDevice::ConvolutionReverb { ir: None },
+        &NoSamples,
+        SR,
+    );
     let mut next = next;
     let ratio = swap_click_ratio(|d| {
         drop(assert_no_alloc(|| d.set_data(next.take().unwrap())));
@@ -406,7 +418,10 @@ fn swapped_ir_matches_a_fresh_reverb_once_settled() {
     );
     let [a, _] = render(&mut *d, [&x, &x], BLOCK, &[]);
     let [b, _] = render(&mut *fresh, [&x, &x], BLOCK, &[]);
-    let err = a.iter().zip(&b).fold(0.0f32, |m, (p, q)| m.max((p - q).abs()));
+    let err = a
+        .iter()
+        .zip(&b)
+        .fold(0.0f32, |m, (p, q)| m.max((p - q).abs()));
     assert!(err < 1e-3, "err {err}");
 }
 
@@ -423,7 +438,11 @@ fn set_data_rejects_foreign_payloads_and_hands_back_old_convolvers() {
     let b = fx_space::ir_swap(&factory("plate"), &NoSamples, SR).unwrap();
     let back = d.set_data(b).unwrap();
     let back = back.downcast::<fx_space::IrSwap>().unwrap();
-    assert_eq!(back.replaced_count(), 1, "the room convolver, retired after the first swap");
+    assert_eq!(
+        back.replaced_count(),
+        1,
+        "the room convolver, retired after the first swap"
+    );
 }
 
 #[test]
@@ -523,5 +542,10 @@ fn mock_factory_irs_match_rust() {
     }
     let found: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
-    assert_eq!(found, expected, "{} is stale (UPDATE_MOCK_DESCRIPTORS=1)", path.display());
+    assert_eq!(
+        found,
+        expected,
+        "{} is stale (UPDATE_MOCK_DESCRIPTORS=1)",
+        path.display()
+    );
 }

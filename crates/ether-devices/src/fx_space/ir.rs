@@ -166,7 +166,14 @@ impl IrBase {
     /// RT-safe. Write samples `[start, start + out.len())` of channel `ch` (mono IRs repeat
     /// channel 0) of the kernel for `shaping` (length `len` = [`Self::shaped_len`]) into
     /// `out`; zero past the end.
-    pub(crate) fn shaped(&self, ch: usize, shaping: Shaping, len: usize, start: usize, out: &mut [f32]) {
+    pub(crate) fn shaped(
+        &self,
+        ch: usize,
+        shaping: Shaping,
+        len: usize,
+        start: usize,
+        out: &mut [f32],
+    ) {
         let src = &self.channels[ch.min(self.channels.len() - 1)];
         let size = shaping.size();
         let inv = 1.0 / size;

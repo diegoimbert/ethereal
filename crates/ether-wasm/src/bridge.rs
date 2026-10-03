@@ -502,7 +502,9 @@ mod update_tests {
         let mut host = EngineHost::new(48_000, control, reports);
         let mut out = EngineOutputs::default();
         let d = DeviceId(Ulid(1));
-        bridge.create_builtin(d, &reverb(Some("room")), &[]).unwrap();
+        bridge
+            .create_builtin(d, &reverb(Some("room")), &[])
+            .unwrap();
         assert_eq!(bridge.update_builtin(d, &reverb(Some("hall"))), Ok(true));
         assert_eq!(bridge.update_builtin(d, &reverb(None)), Ok(true));
         let s = DeviceId(Ulid(2));
@@ -528,7 +530,10 @@ mod update_tests {
         bridge
             .create_builtin(c, &BuiltinDevice::Compressor, &[])
             .unwrap();
-        assert_eq!(bridge.update_builtin(c, &BuiltinDevice::Compressor), Ok(false));
+        assert_eq!(
+            bridge.update_builtin(c, &BuiltinDevice::Compressor),
+            Ok(false)
+        );
         assert_eq!(
             bridge.update_builtin(DeviceId(Ulid(9)), &reverb(None)),
             Ok(false)

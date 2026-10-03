@@ -48,12 +48,12 @@ mod device;
 mod factory_ir;
 pub mod ir;
 
+use ether_core::Device;
+use ether_core::node::NodeData;
 use ether_core::protocol::devices::{
     DeviceCategory, DeviceDescriptor, FactoryIr, ParamScale, ParamUnit,
 };
 use ether_core::protocol::model::{BuiltinDevice, BuiltinDeviceType, IrSource, ParamId, Seconds};
-use ether_core::Device;
-use ether_core::node::NodeData;
 
 use crate::SampleResolver;
 #[allow(unused_imports)]
@@ -189,81 +189,81 @@ pub fn descriptor(ty: BuiltinDeviceType) -> DeviceDescriptor {
         BuiltinDeviceType::ConvolutionReverb => DeviceDescriptor {
             layout: Some(reverb_layout()),
             ..build(
-            BuiltinDeviceType::ConvolutionReverb,
-            "Convolution Reverb",
-            DeviceCategory::AudioEffect,
-            vec![
-                param(
-                    0,
-                    "Mix",
-                    "Output",
-                    ParamUnit::Percent,
-                    (0.0, 100.0, 30.0),
-                    ParamScale::Linear,
-                ),
-                param(
-                    1,
-                    "Pre-delay",
-                    "Time",
-                    ParamUnit::Milliseconds,
-                    (0.0, 250.0, 0.0),
-                    ParamScale::Linear,
-                ),
-                param(
-                    2,
-                    "Decay",
-                    "Time",
-                    ParamUnit::Percent,
-                    (10.0, 100.0, 100.0),
-                    ParamScale::Linear,
-                ),
-                param(
-                    3,
-                    "Size",
-                    "Time",
-                    ParamUnit::Percent,
-                    (50.0, 150.0, 100.0),
-                    ParamScale::Linear,
-                ),
-                param(
-                    4,
-                    "Low Cut",
-                    "EQ",
-                    ParamUnit::Hertz,
-                    (20.0, 2000.0, 20.0),
-                    ParamScale::Log,
-                ),
-                param(
-                    5,
-                    "High Cut",
-                    "EQ",
-                    ParamUnit::Hertz,
-                    (1000.0, 20000.0, 20000.0),
-                    ParamScale::Log,
-                ),
-                param(
-                    6,
-                    "Width",
-                    "Output",
-                    ParamUnit::Percent,
-                    (0.0, 200.0, 100.0),
-                    ParamScale::Linear,
-                ),
-                param(
-                    7,
-                    "Gain",
-                    "Output",
-                    ParamUnit::Decibels,
-                    (-24.0, 24.0, 0.0),
-                    ParamScale::Linear,
-                ),
-                toggle(8, "Reverse", "Time", false),
-            ],
-            2,
-            2,
-            false,
-            0,
-        )
+                BuiltinDeviceType::ConvolutionReverb,
+                "Convolution Reverb",
+                DeviceCategory::AudioEffect,
+                vec![
+                    param(
+                        0,
+                        "Mix",
+                        "Output",
+                        ParamUnit::Percent,
+                        (0.0, 100.0, 30.0),
+                        ParamScale::Linear,
+                    ),
+                    param(
+                        1,
+                        "Pre-delay",
+                        "Time",
+                        ParamUnit::Milliseconds,
+                        (0.0, 250.0, 0.0),
+                        ParamScale::Linear,
+                    ),
+                    param(
+                        2,
+                        "Decay",
+                        "Time",
+                        ParamUnit::Percent,
+                        (10.0, 100.0, 100.0),
+                        ParamScale::Linear,
+                    ),
+                    param(
+                        3,
+                        "Size",
+                        "Time",
+                        ParamUnit::Percent,
+                        (50.0, 150.0, 100.0),
+                        ParamScale::Linear,
+                    ),
+                    param(
+                        4,
+                        "Low Cut",
+                        "EQ",
+                        ParamUnit::Hertz,
+                        (20.0, 2000.0, 20.0),
+                        ParamScale::Log,
+                    ),
+                    param(
+                        5,
+                        "High Cut",
+                        "EQ",
+                        ParamUnit::Hertz,
+                        (1000.0, 20000.0, 20000.0),
+                        ParamScale::Log,
+                    ),
+                    param(
+                        6,
+                        "Width",
+                        "Output",
+                        ParamUnit::Percent,
+                        (0.0, 200.0, 100.0),
+                        ParamScale::Linear,
+                    ),
+                    param(
+                        7,
+                        "Gain",
+                        "Output",
+                        ParamUnit::Decibels,
+                        (-24.0, 24.0, 0.0),
+                        ParamScale::Linear,
+                    ),
+                    toggle(8, "Reverse", "Time", false),
+                ],
+                2,
+                2,
+                false,
+                0,
+            )
         },
         other => panic!("{other:?} is not an fx-space device"),
     }
@@ -386,7 +386,12 @@ mod tests {
         let d = descriptor(BuiltinDeviceType::ConvolutionReverb);
         for p in &d.params {
             let r = param_info(p.id).unwrap();
-            assert_eq!((r.min, r.max, r.default), (p.min, p.max, p.default), "{}", p.name);
+            assert_eq!(
+                (r.min, r.max, r.default),
+                (p.min, p.max, p.default),
+                "{}",
+                p.name
+            );
         }
     }
 }

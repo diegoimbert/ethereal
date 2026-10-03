@@ -12,8 +12,8 @@
 //! Without an IR (`ir: None`, unknown factory id, unresolved media) the device passes the
 //! dry signal through.
 
-use ether_core::protocol::devices::DeviceDescriptor;
 use ether_core::node::NodeData;
+use ether_core::protocol::devices::DeviceDescriptor;
 use ether_core::protocol::model::ParamId;
 use ether_core::{
     AudioBuffers, Device, EventKind, Node, PrepareConfig, ProcessContext, ProcessStatus, Smoother,
@@ -106,7 +106,9 @@ pub struct ConvolutionReverb {
 impl ConvolutionReverb {
     /// Non-RT. A reverb on `input` (built in `prepare`, at the engine rate).
     pub fn new(input: Option<IrInput>) -> Self {
-        let infos = super::descriptor(ether_core::protocol::model::BuiltinDeviceType::ConvolutionReverb).params;
+        let infos =
+            super::descriptor(ether_core::protocol::model::BuiltinDeviceType::ConvolutionReverb)
+                .params;
         let mut values = [0.0; p::COUNT];
         for info in &infos {
             values[info.id.0 as usize] = info.default;
@@ -164,9 +166,7 @@ impl ConvolutionReverb {
 
     /// Whether nothing is in flight (no queued or running swap, kernel matches the params).
     pub fn settled(&self) -> bool {
-        self.pending.is_none()
-            && !self.swapping
-            && self.conv.as_ref().is_none_or(|c| c.settled())
+        self.pending.is_none() && !self.swapping && self.conv.as_ref().is_none_or(|c| c.settled())
     }
 
     fn allocate(&mut self, max_block: usize) {
@@ -214,13 +214,21 @@ impl ConvolutionReverb {
     /// Low cut; off at its minimum (20 Hz), so the default wet path is the plain IR.
     fn low_target(&self) -> Coefs {
         let c = self.cut(Shape::LowCut, self.v(p::LOW_CUT));
-        if self.v(p::LOW_CUT) <= LOW_CUT_OFF { c.bypassed() } else { c }
+        if self.v(p::LOW_CUT) <= LOW_CUT_OFF {
+            c.bypassed()
+        } else {
+            c
+        }
     }
 
     /// High cut; off at its maximum (20 kHz).
     fn high_target(&self) -> Coefs {
         let c = self.cut(Shape::HighCut, self.v(p::HIGH_CUT));
-        if self.v(p::HIGH_CUT) >= HIGH_CUT_OFF { c.bypassed() } else { c }
+        if self.v(p::HIGH_CUT) >= HIGH_CUT_OFF {
+            c.bypassed()
+        } else {
+            c
+        }
     }
 
     fn apply_param(&mut self, id: ParamId, value: f64, smooth: bool) {
@@ -363,7 +371,10 @@ impl ConvolutionReverb {
             // presence (dry level).
             let (mut wl, mut wr, presence) = if self.swapping {
                 let g = (self.swap_pos as f32 / self.swap_len as f32).min(1.0);
-                let (to, fr) = ((g * std::f32::consts::FRAC_PI_2).sin(), (g * std::f32::consts::FRAC_PI_2).cos());
+                let (to, fr) = (
+                    (g * std::f32::consts::FRAC_PI_2).sin(),
+                    (g * std::f32::consts::FRAC_PI_2).cos(),
+                );
                 self.swap_pos += 1;
                 (
                     self.wet[0][i] * to + self.wet_from[0][i] * fr,
@@ -440,9 +451,9 @@ impl Node for ConvolutionReverb {
             self.swapping = false;
             self.retired = [None, None];
             let shaping = self.shaping();
-            self.conv = input
-                .as_ref()
-                .and_then(|i| IrBase::load(i, sr).map(|base| Box::new(Convolver::new(i.clone(), base, shaping))));
+            self.conv = input.as_ref().and_then(|i| {
+                IrBase::load(i, sr).map(|base| Box::new(Convolver::new(i.clone(), base, shaping)))
+            });
             // Keep the input only while nothing holds it (unreadable media: retried later).
             self.input = if self.conv.is_some() { None } else { input };
             self.built_rate = sr;

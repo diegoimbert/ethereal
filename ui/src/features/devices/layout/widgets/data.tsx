@@ -27,7 +27,7 @@ const HIT = 14;
 const OVERVIEW_PEAKS = 1024;
 
 /** Whole-sample min/max peaks of `media`, refetched when the engine reports new peaks. */
-function useOverviewPeaks(media: MediaRef | undefined): PeakData | null {
+export function useOverviewPeaks(media: MediaRef | undefined): PeakData | null {
   const transport = useTransport();
   const [peaks, setPeaks] = useState<{ media: string; data: PeakData } | null>(null);
   const [version, setVersion] = useState(0);

@@ -194,7 +194,10 @@ fn lists_the_factory_irs() {
         assert!(!ir.name.is_empty() && !ir.category.is_empty());
     }
     let hall = irs.iter().find(|i| i.id == "hall").unwrap();
-    assert_eq!((hall.name.as_str(), hall.category.as_str()), ("Concert Hall", "Hall"));
+    assert_eq!(
+        (hall.name.as_str(), hall.category.as_str()),
+        ("Concert Hall", "Hall")
+    );
 }
 
 #[test]

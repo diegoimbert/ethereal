@@ -1,0 +1,72 @@
+/*
+ * Convolution Reverb impulse response widget (IrWidget). Tokens only (docs/DESIGN-SYSTEM.md).
+ */
+
+.eth-ir {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-xs);
+  width: 100%;
+  min-width: 0;
+  border-radius: var(--eth-radius-md);
+}
+.eth-ir--over .eth-plot.eth-plot--ir {
+  border-color: var(--eth-color-accent);
+}
+
+.eth-ir__bar {
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-xs);
+  min-width: 0;
+}
+.eth-ir__select {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.eth-ir__meta {
+  flex: 0 0 auto;
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.eth-ir__env {
+  fill: var(--eth-color-accent-subtle);
+  stroke: var(--eth-color-accent);
+  stroke-width: var(--eth-border-width);
+  stroke-linejoin: round;
+}
+.eth-ir--empty .eth-plot.eth-plot--ir {
+  border-style: dashed;
+}
+.eth-ir__pre {
+  stroke-dasharray: var(--eth-space-xs) var(--eth-space-xs);
+}
+.eth-ir__tick {
+  dominant-baseline: auto;
+}
+.eth-ir__badge {
+  text-anchor: end;
+  dominant-baseline: hanging;
+}
+
+.eth-ir__hint {
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-sm);
+  min-height: var(--eth-size-row-height);
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+}
+.eth-ir__hint--warn {
+  color: var(--eth-color-warn);
+}
+.eth-ir__hint-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
