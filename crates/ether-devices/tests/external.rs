@@ -184,3 +184,27 @@ fn reset_clears_the_dry_line() {
     let out = block(d.as_mut(), &silence, None, 2, &[]);
     assert!(out[0].iter().all(|s| *s == 0.0));
 }
+
+/// CPU cost (`cargo test -p ether-devices --test external -- --ignored --nocapture`):
+/// the effect with a 500 ms dry line, Mix 50 %, 128-sample blocks.
+#[test]
+#[ignore]
+fn cpu_cost() {
+    let mut d = make(BuiltinDeviceType::ExternalAudioEffect);
+    d.set_param(fx::LATENCY, 250.0);
+    d.set_param(fx::MIX, 50.0);
+    let x = vec![ramp(0), ramp(7)];
+    let ret = [ramp(3), ramp(9)];
+    let blocks = 20_000;
+    let t = std::time::Instant::now();
+    for _ in 0..blocks {
+        block(d.as_mut(), &x, Some(&ret), 4, &[]);
+    }
+    let per_block = t.elapsed().as_secs_f64() / blocks as f64;
+    let budget = BLOCK as f64 / f64::from(SR);
+    println!(
+        "external effect: {:.2} µs per {BLOCK}-sample block = {:.3} % of one core at {SR} Hz",
+        per_block * 1e6,
+        per_block / budget * 100.0
+    );
+}

@@ -1304,8 +1304,9 @@ mod tests {
     // ─── external-instrument ───
 
     /// Records what the MIDI thread sends, with the time.
+    type Sent = Vec<(std::time::Instant, String, Vec<u8>)>;
     #[derive(Clone, Default)]
-    struct RecordingSink(Arc<std::sync::Mutex<Vec<(std::time::Instant, String, Vec<u8>)>>>);
+    struct RecordingSink(Arc<std::sync::Mutex<Sent>>);
 
     impl hw_midi::MidiOutSink for RecordingSink {
         fn send(&mut self, port: &str, data: &[u8]) -> bool {
