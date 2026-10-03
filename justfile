@@ -42,6 +42,12 @@ dev-desktop-headless:
 dev-server *args:
     {{env}}; ETHER_WORKERS="${ETHER_WORKERS:-1}" ETHER_AUDIO="${ETHER_AUDIO:-null}" cargo run -p ether-server -- --print-token {{args}}
 
+# MCP server for AI agents (docs/MCP.md): attaches to this instance's desktop app (enable
+# "Allow AI agents (MCP)" there), or `just mcp --project song.ether` / `--server URL --token T`.
+# stdout is the MCP channel: cargo stays quiet.
+mcp *args:
+    @{{env}}; ETHER_AUDIO="${ETHER_AUDIO:-null}" cargo run -q -p ether-mcp -- {{args}}
+
 # Install the headless Chromium used by the Playwright e2e suite (once per machine).
 e2e-install:
     cd apps/web && npx playwright install chromium-headless-shell

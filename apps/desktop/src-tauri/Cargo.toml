@@ -24,6 +24,7 @@ tauri-build.workspace = true
 [dependencies]
 ether-core.workspace = true
 ether-native.workspace = true
+ether-server.workspace = true
 assert_no_alloc.workspace = true
 tauri.workspace = true
 tauri-plugin-dialog.workspace = true

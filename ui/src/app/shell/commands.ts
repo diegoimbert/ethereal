@@ -1,3 +1,4 @@
+import { openAiChat } from "@/features/ai-chat";
 import { openAudioSettings } from "@/features/audio-settings";
 import { focusChat } from "@/features/collab/social";
 import { useCollabStore } from "@/features/collab/store";
@@ -141,8 +142,18 @@ export function buildCommands(transport: EngineTransport | null, devices: Readon
       run: () => focusChat(),
     });
   }
+  // ai-chat.
+  out.push({
+    id: "ai:ask",
+    group: "AI",
+    label: "Ask AI",
+    keywords: "ai assistant claude chat agent llm prompt generate",
+    shortcut: "⇧⌘A",
+    run: () => openAiChat(),
+  });
   for (const t of LEFT_TABS) {
     if (t.session && !inSession) continue;
+    if (t.id === "ai") continue; // "Ask AI" above
     out.push({
       id: `panel:${t.id}`,
       group: "Panels",
