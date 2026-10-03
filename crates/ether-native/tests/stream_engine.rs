@@ -41,6 +41,8 @@ fn master() -> TrackDesc {
         clips: vec![],
         automation: vec![],
         racks: Vec::new(),
+        expression: Default::default(),
+        hw_io: Vec::new(),
     }
 }
 

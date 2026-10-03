@@ -742,3 +742,346 @@ the native writer (`ether-native/src/recording/{mod,writer}.rs`) maps `TrackInpu
 tracks to those channels; loop/punch passes become take lanes like hardware takes (comping).
 Web has no capture yet: disable arming a tapped track on web with a clear reason. RT rules apply
 (no allocation on the audio thread; tests with assert_no_alloc).
+
+# v0.3 (contracts-4)
+
+`contracts-4` froze the v0.3 contracts ([CONTRACTS.md §13](CONTRACTS.md)) and pre-created
+one module per node and layer, registered in its parent with one line, so the v0.3 nodes
+run in parallel with disjoint files. Each node owns exactly its block in
+[`.github/ownership.toml`](../.github/ownership.toml) ("v0.3"); the lists below summarize
+them. Every pre-created module starts with a doc comment saying what goes there. Session
+view stays out of scope (owner). Scripting / user devices and localization / full
+screen-reader scope are T1 questions for the owner, not v0.3 nodes.
+
+Ground rules (as for v0.2):
+- Protocol and model *types* are frozen (changes via BCR). Model validation of the new
+  entities is implemented (`ether-model/src/apply.rs`) and tested
+  (`ether-model/tests/roadmap_v4.rs`); `.ether` is v5 (`V4ContractsV4Defaults`, neutral).
+- Until a node lands its commands reply `Unsupported`, pinned by **one test per node** in
+  `crates/ether-controller/tests/roadmap_v4.rs`: each node rewrites or deletes only its own
+  test function. New devices are placeholders (`contract::Placeholder`: the reverb and the
+  effect pass through, the instrument is silent). New desc fields compile empty and new
+  engine hooks are stubs (`ether-core/tests/roadmap_v4_hooks.rs`).
+- The MockTransport routes every new command to one file per node under
+  `ui/src/transport/mock/roadmap/` (table in its `index.ts`), each pinned by its own
+  `*.test.ts` (`expectUnsupported` in `testUtils.ts`); device descriptors are generated JSON
+  in `ui/src/transport/mock/devices/{fxSpace,external}.json`
+  (`UPDATE_MOCK_DESCRIPTORS=1 cargo test -p ether-devices --test v03_descriptors`).
+- **Hot file.** contracts-4 did not touch `ether-core/src/engine.rs` (in-flight v0.2 nodes
+  own it). The two nodes with engine hooks (`midi-expression`: `ExpressionRt`;
+  `external-instrument`: `HwIoRt`) each add **one call site** there, as listed in their
+  blocks; everything else lives in their own core module. Need another hook: BCR.
+- The owner's UX passes on dev are authoritative (kit components, tokens, `midiTarget()` on
+  new controls, existing context menus). Every PR with a UI-visible change includes
+  screenshots (`.orchestra/pr-screenshot.sh <node-id> <file.png> "<caption>"`, embedded
+  under `## Screenshots`).
+- **Order.** Everything runs in parallel except `mpe`, which starts after `midi-expression`
+  lands (same files: `ether-core/src/expression.rs`, the piano roll). `keymap` touches many
+  key handlers with lookup lines only: it merges dev often and lands late in the wave.
+  `ux-followups` and `web-latency` are small and can land any time. `release-0.3` is the
+  human checkpoint after the wave.
+
+## `audio-streaming`
+
+Owns: `ether-controller/src/media_stream/**` (`should_stream`, `StreamSource`,
+`STREAM_MIN_SECONDS` = 30 s, `STREAM_READ_AHEAD_SECONDS` = 4 s), `ether-media/src/stream/**`
+(`ChunkDecoder`, lock-free `StreamCache`, `CHUNK_FRAMES`), `ether-native/src/disk_stream/**`
+(one shared reader thread), `ether-wasm/src/media_stream.rs` (Worker reads OPFS, ships chunks
+over the SAB ring), tests. Shared touches: the `media/` pipeline (call `should_stream`, keep
+one decode pass for peaks + hash, then `EngineBridge::stream_media`), `handlers.rs`
+(loop/locate hints), `NativeBridge`/`WasmBridge::stream_media` + worker/worklet wiring.
+Acceptance (CONTRACTS.md §13.1): a 10-minute stereo file plays with bounded memory (cache
+only) on native and web; warp/stretch, loops, locate and scrubbing don't underrun in the
+common case (underruns counted and reported, never a block on the audio thread);
+`assert_no_alloc` on the streaming `AudioSource::read`; offline renders (export, freeze,
+bounce, audio-to-MIDI) still read the whole file synchronously and are bit-identical to
+today.
+
+## `midi-expression`
+
+Owns: `ether-controller/src/expression/**` (every `Expression::*` command except
+`SetTrackMpe`, the `track_expression` compile hook), `ether-core/src/expression.rs`
+(`TrackExpressionDesc`, `ExpressionRt`), `ui/src/features/expression/**`, mock
+`roadmap/expression.*`, tests. Shared touches: one `ExpressionRt` call site in the clip stage
+of `engine.rs` (+ `prepare` on snapshot, `reset` on loop/locate); recording CC / bend /
+channel and poly pressure into lanes and note expressions (`ether-controller/src/recording/**`,
+`ether-native/src/recording/{midi,live}.rs`, mock `liveRecord.*`); copying expression with
+notes (`doc/notes.rs` duplicate, `doc/clips.rs` split, `time_edit/**` paste, `freeze/**`
+consolidate/flatten, `comping/**` flatten; the clip and note cascades and `DocCtx::copy_clip`
+are done); the plugin hosts forward channel MIDI and poly pressure; lanes under the piano
+roll (`ui/src/features/piano-roll/**`: lane picker, draw/edit curves, one undo step per
+gesture). Optional: move `TrackDesc::expression` out of the codec JSON blob into the binary
+layout (`codec.rs`, bump `VERSION`) if profiling asks for it.
+Acceptance: record a CC/bend performance, see and edit it under the piano roll, play it back
+sample-accurately (offline render identical with block sizes 64 and 512) to built-ins and
+plugins; poly pressure plays to plugins as poly aftertouch.
+
+## `mpe` (after `midi-expression`)
+
+Owns: `ether-controller/src/mpe/**` (`Expression::SetTrackMpe`), `ui/src/features/mpe/**`,
+mock `roadmap/mpe.*`, tests. Shared touches: per-note pitch/timbre and MPE output in
+`ether-core/src/expression.rs` (+ `EventKind::NoteExpression` in `event.rs`, frozen
+shape); MPE input while recording and monitoring (`recording/**`, native MIDI input); the
+plugin hosts translate `NoteExpression` (CLAP `clap_event_note_expression`, VST3
+`NoteExpressionValueEvent`, else MPE MIDI with `TrackExpressionDesc::mpe`; the sandbox shm
+already encodes it); the Poly Synth responds to per-note pitch/pressure/timbre
+(`poly_synth/**`); MPE settings in the inspector; per-note curves in the piano roll.
+Acceptance: an MPE controller (or the mock's MPE input) records per-note pitch/pressure/
+timbre, the curves are editable per note, the Poly Synth and a CLAP plugin with note
+expressions play them, a plugin without them receives MPE MIDI.
+
+## `capture-midi`
+
+Owns: `ether-controller/src/capture/**` (`CaptureState`, `capture_input`, `capture_command`,
+`capture_tick`), `ui/src/features/capture/**`, mock `roadmap/capture.*`, tests. Shared
+touches: one `capture_input` line where MIDI input is drained (`midi_learn/mod.rs`), the
+Capture button in the transport bar + palette entry, mock MIDI input simulation in
+`MockTransport.ts`. Acceptance (CONTRACTS.md §13.4): play while stopped → Capture creates a
+clip at the playhead with the inferred tempo (and loop) as one undo step; play while playing
+→ notes keep their song positions; the buffer is bounded (`CAPTURE_MAX_SECONDS`,
+`CAPTURE_MAX_EVENTS`), site-local and cleared on project change.
+
+## `audio-to-midi`
+
+Owns: `ether-controller/src/audio_to_midi/**` (job state, `audio_to_midi_tick`),
+`ether-media/src/to_midi/**` (incremental `Detector`: melody, harmony, drums),
+`ui/src/features/audio-to-midi/**`, mock `roadmap/audioToMidi.*`, tests. Shared touch: the
+clip context menu entry ("Convert to MIDI…", `ClipView.tsx`). Acceptance (CONTRACTS.md
+§13.5): synthetic test signals (sine melody, chords, kick/snare/hat loop) convert with the
+expected notes (pitch exact, onsets within 20 ms); bounded work per tick (no stall), progress
+events, cancel, one undo step at `Done` with ids from the command; warped clips land through
+the warp map.
+
+## `fx-space`
+
+Owns: `ether-devices/src/fx_space/**` (Convolution Reverb, frozen param table,
+`FACTORY_IRS`), presets `convolution-reverb`, `ether-controller/src/fx_space/**`
+(`Device::{SetIr, ListFactoryIrs}`), an IR widget under `ui/src/features/devices/layout/ir/**`,
+mock `roadmap/fxSpace.*` + `devices/fxSpace.json`, tests. Shared touches: reverbs rebuilt or
+updated when IR media loads (`handlers.rs`, next to samplers), IR resolution in the bridges'
+`create` / `update_builtin`, the widget registration in the shared renderer (BCR if a new
+widget kind is needed). Follow the v0.2 device agent guide. Acceptance: partitioned
+convolution with a zero-latency head (or the partition latency reported for PDC), IR swap
+without a click (crossfade), `assert_no_alloc` in `process`, IR media referenced in place
+(missing/relink like samples), a few factory IRs.
+
+## `external-instrument`
+
+Owns: `ether-devices/src/external/**` (External Instrument, External Audio Effect, frozen
+param tables), `ether-controller/src/external/**` (`set_routing`, `external_command`,
+`hw_io_descs`), `ether-core/src/hw_io.rs` (`HwIoDesc`, `HwIoRt`, `HwMidiEvent`),
+`ui/src/features/external/**`, mock `roadmap/external.*` + `devices/external.json`, tests.
+Shared touches: one `HwIoRt` call site per stage in `engine.rs` (`prepare`,
+`gather_returns` before the jobs, `capture_send`, `write_sends` after master), optional
+codec move of `TrackDesc::hw_io`, `EngineBridge::list_hardware_ports` + the hardware MIDI
+out thread (`ether-native/src/{bridge,audio,rt}.rs`, `recording/midi.rs`), a routing widget
+in the shared renderer. Acceptance (CONTRACTS.md §13.7): with a loopback (or the null audio
+backend's test loopback) the effect's returned audio is aligned with the dry signal after
+`MeasureLatency`; the instrument sends notes with sample-accurate timestamps; missing ports
+keep the device silent and resume when they reappear; web replies `Unsupported` for ports and
+measurement.
+
+## `undo-history`
+
+Owns: `ether-controller/src/undo_history/**`, `ui/src/features/undo-history/**`, mock
+`roadmap/undoHistory.*`, tests. Shared touches: step ids and first-commit times in
+`ether-model/src/history.rs` (additive accessors), `JumpTo` through the `Edit::{Undo,
+Redo}` path (`handlers.rs`, per-site in a session via `collab/mod.rs`), the mock undo stack,
+the History tab (left rail / palette). Acceptance (CONTRACTS.md §13.8): the list reads as
+the edit timeline, jumping is equivalent to N undos/redos (one patch batch), checkpoints
+named, in a collab session only own steps are listed and peers' later edits survive a jump.
+
+## `templates`
+
+Owns: `ether-controller/src/templates/**`, `ether-model/src/template.rs` (file format,
+frozen fields), `ui/src/features/templates/**`, mock `roadmap/templates.*`, tests. Shared
+touches: "Save as template" in the track context menu, "New from template" in the project
+screen and palette, `NewProject` next to `Project::Create` (`project.rs`). Acceptance
+(CONTRACTS.md §13.10): save tracks (with devices, racks, modulation, sends between them,
+automation) and insert them elsewhere as one undo step with derived ids (collab replay
+mints the same ids); "New project" uses the default project template; templates live in
+the user library on native and web.
+
+## `project-versions`
+
+Owns: `ether-controller/src/versions/**`, `ui/src/features/versions/**`, mock
+`roadmap/versions.*`, tests. Shared touches: session marker on open/close (`project.rs`),
+`ProjectStore::remove` in the native, OPFS and memory stores, the recovery dialog at startup
+and a versions entry in the project screen, the mock project store. Acceptance (CONTRACTS.md
+§13.11): autosave versions roll (interval, pruning), restore/compare work on native and web
+(OPFS), a killed session offers recovery on the next start and restores the newest version.
+
+## `keymap`
+
+Owns: `ether-controller/src/keymap/**` (storage), `ui/src/features/keymap/**` (action
+registry, presets "Ethereal" and "Ableton-like", conflicts, the editor, the printable cheat
+sheet), mock `roadmap/keymap.*`, tests. Shared touches: lookup lines in the key handlers
+(`App.tsx`, `ArrangementView.tsx`, `arrangement/actions.ts`, `PianoRoll.tsx`,
+`transport-bar/index.tsx`, `useArrangementTimeEdits.ts`, `comping/actions.ts`, the palette's
+shortcut hints). Acceptance (CONTRACTS.md §13.12): every existing shortcut is an action in
+the registry with its current chord in the "Ethereal" preset (no behaviour change by
+default); rebinding shows conflicts; the keymap persists in the user library; the cheat sheet
+prints.
+
+## `web-latency`
+
+Owns: `ether-wasm/src/latency.rs` (`LatencyReport`, `REPORT_INTERVAL_MS`), tests. Shared
+touches: the report message in `proto.rs`, the worklet's periodic report (pre-sized, no
+allocation) in `worklet.rs`, the Worker bridge's `node_latency` answering from it
+(`bridge.rs`). Acceptance (CONTRACTS.md §13.13): a built-in whose latency changes on web
+republishes PDC exactly like natively (`latency-republish` test ported to the wasm fake
+pipeline).
+
+## `ux-followups`
+
+Small owner-visible fixes from the UX digest: hide the Devices section on VCA tracks; the
+large-knob value text clipping; peer avatar contrast in the light theme; peer playheads in
+the piano roll; the `Browser.test` focus flake; drop `EqCurvePlaceholder`. Owns only the
+files listed in its block. Screenshots for each visible fix.
+
+## `rack-presets`
+
+Owns: `ether-controller/src/presets/**`, `ether-model/src/preset.rs` (format v2,
+`Preset::rack: Option<PresetRack>`, frozen), factory rack presets, `ui/src/features/presets/**`,
+mock `roadmap/presets.*`, tests. Shared touches: rebuilding chains on load through the racks
+code (`ether-controller/src/racks/**`), factory rack preset registration. Contract
+(CONTRACTS.md §13.9): saving a rack device stores its chains, chain devices, the rack's
+modulators and the mappings inside it; `Preset::Load { seed }` replaces them as one undo step
+with `derive_id(seed, i)` ids; v1 rack presets (macros and params only) load unchanged.
+## Sharing: P2P host hub, invite links (base-115)
+
+Design and frozen contract: [SHARING.md](SHARING.md) (T1, owner review), CONTRACTS.md §11.18.
+base-115 landed:
+- the protocol (`ether_protocol::share`), with `Command::Share` / `Event::Share` and
+  `ProjectSummary::share`;
+- the controller stub (`crates/ether-controller/src/share/`, every command but `Get` replies
+  `Unsupported`, pinned in `tests/share_prewire.rs`; each node removes ONLY its own
+  assertions);
+- `ether-collab::share` (invite format and data-channel fragmentation implemented,
+  `share.json` shape, and the seams `PeerLink`/`SignalLink`/`PeerEndpoint`/`ShareServices`);
+- the `services/signal` skeleton;
+- `MockShare`;
+- the TS invite parser `ui/src/domain/invite.ts`.
+
+The first six nodes run in parallel. Each builds against fakes (the signal adapter, the
+in-memory `PeerEndpoint`, `MockShare`). `share-integration` joins them. The owner's UX on dev
+is authoritative.
+
+### `signal-service`
+
+Owns `services/signal/**`, `scripts/release/web/functions/**`.
+- `RoomCore` per SHARING.md §3.3:
+  - claim (TOFU host token), `HostWelcome` with ICE servers (STUN from `STUN_URLS`, TURN
+    credentials when secrets exist);
+  - doors (`SetDoors`), `JoinHello` → `JoinWelcome` + `PeerArrived`, or `HostOffline` and a
+    later welcome when the host connects;
+  - signal routing with `peer` stamping, `EndPeer`, `PeerLeft`, `CloseRoom`, the TTL alarm;
+  - every limit in `LIMITS` (per-socket token bucket, per-IP bad doors and claims, joiners per
+    room, signals per pairing, hello timeout, offline wait).
+- A Node `ws` adapter (`services/signal/test/server.ts`) running `RoomCore` for the e2e of
+  other nodes. The Pages Function proxy (`functions/signal/[[path]].ts`, a DO binding).
+- Acceptance:
+  - unit tests for each transition and limit;
+  - `wrangler dev` smoke steps in the README;
+  - no deployment (owner).
+
+### `p2p-transport`
+
+Owns `crates/ether-collab/src/share/{native,web,signal}/**`, `ui/src/features/share/endpoint/**`;
+shared touches listed in `.github/ownership.toml`.
+- `SignalLink`: native over tungstenite with rustls (`wss://`), wasm over the Worker's
+  `WebSocket`. `PeerEndpoint` native: one `ether-share` thread, one UDP socket, a str0m
+  `Rtc` per pairing with one data channel (`DC_LABEL`), host + srflx candidates (the
+  `ether-native/src/stream/stun.rs` approach), trickle ICE, fingerprints from the SDP.
+  `PeerEndpoint` web: the share `MessagePort` between the UI and the controller Worker
+  (transferable `ArrayBuffer`s), with the UI agent creating `RTCPeerConnection`s on
+  `ShareEvent::PeerEndpoint`. Backpressure through `buffered()`. `default_services()` returns
+  the real services.
+- Acceptance:
+  - two native endpoints pair over loopback through an in-memory `SignalLink` and exchange
+    20 MiB of fragmented frames in order, with backpressure;
+  - ICE failure → `PeerOutput::Failed` within 30 s;
+  - web: vitest with a fake RTC, and a Playwright two-context data-channel echo through the
+    port;
+  - `just check-wasm` stays green.
+
+### `share-engine`
+
+Owns `crates/ether-controller/src/share/**`,
+`crates/ether-collab/src/share/{hub,handshake,keys,fake}.rs`, tests `share*.rs`, the mock
+`share.ts`; shared touches in `collab/mod.rs` (connector per session, `left_sites` seed,
+sync signals), `relay/mod.rs` (`set_snapshot_source`, `set_color`), `handlers.rs` (view-only
+refusal), `lib.rs`, `project.rs` (SaveAs/Duplicate skip `share.json`, resume/reconnect on
+Open).
+- The hub: drives `Relay` over `PeerLink`s plus a loopback, with the role filter of SHARING.md
+  §2.3, pinned names and colours, and ICE servers from the signaling service.
+- Key derivations and proofs (HMAC-SHA256) with **frozen test vectors** written into
+  SHARING.md §4.2.
+- Every `ShareCommand`, `ShareState`/`ShareNotice` and `share.json` per §4.5 and §7.
+- Acceptance:
+  - with the fake signal and in-memory peers, a host and 2 joiners converge (the collab
+    property test runs through the hub);
+  - listen role: refused edits, chat allowed;
+  - reset link keeps members; remove; stop; role change;
+  - host restart: new epoch, pending resent, members dedupe via `sites`;
+  - joiner reconnect with backoff; `HostOffline` → back;
+  - rejoin of an offline copy with offline work → "(local copy)";
+  - `SaveAs`/`Duplicate` without `share.json`.
+
+### `share-ui`
+
+Owns `ui/src/features/share/**` (except `endpoint/`, `join/`); shared touches: top-bar slot
+in `App.tsx`, `features/collab/{PresenceBar,index,store,collab.css}`, `features/audio-settings/**`,
+`features/remote/**`.
+- SHARING.md §8.1 (Share button / session pill), §8.2 (Share popover, host and joiner),
+  §8.4 (view only, offline banner), §8.6 (Settings dialog with Audio | Sharing | Advanced
+  tabs; Remote engine and the relay join form move to Advanced), §8.7 (toasts).
+- Acceptance:
+  - RTL tests against `MockShare` (`simulateJoin`, `simulateLeave`,
+    `simulateHostOnline`);
+  - exactly one session element in the top bar;
+  - screenshots light and dark;
+  - coordinate with base-114 if it already moved Remote engine.
+
+### `join-flow`
+
+Owns `ui/src/features/share/join/**`, `apps/web/src/join/**`, `apps/web/src/main.tsx`,
+`apps/desktop/src-tauri/**`, `ui/src/domain/invite.*`.
+- SHARING.md §5 and §8.3:
+  - `tauri-plugin-deep-link` (`ethereal` scheme) and `tauri-plugin-single-instance`
+    (`deep-link`), forwarding the URL to the webview (cold and warm start);
+  - the web `/join/` landing before engine boot ("Open in the app" / "Continue in browser",
+    remembered), stripping the key from the URL;
+  - `JoinScreen` for every `JoinStage`;
+  - "Join with a link…" in the popover and the palette.
+- Acceptance:
+  - Playwright `/join/...` → landing → Continue → Ready → Join (mock);
+  - an invalid link shows the right message;
+  - desktop deep link checked manually on the owner's laptop (listed in the PR).
+
+### `recents-shared`
+
+Owns `ui/src/features/project/**`, the stores (`ether-native`/`ether-wasm` `store.rs`,
+`ether-controller/src/{memory,store}.rs`).
+- `ProjectSummary.share` from `share.json` (role, host name, ≤ 8 participants, `active`,
+  `last_synced_ms`; never keys). `SaveAs`/`Duplicate` never copy `share.json`, and deleting a
+  project deletes it.
+- Recents: badge, avatar stack and menu entries per SHARING.md §8.5.
+- Acceptance: store tests with fixture files (native and wasm), RTL tests of the badges and
+  menus.
+
+### `share-integration` (after all of the above)
+
+Owns `apps/web/e2e/share*.spec.ts`, `crates/ether-native/tests/share*.rs`, SHARING.md and
+COLLAB.md updates.
+- Two browser contexts through the Node signal adapter:
+  1. share, copy the link, open it in the other context, Join;
+  2. edits both ways, chat, listen;
+  3. the host closes (the joiner keeps an offline copy) and reopens (the joiner
+     reconnects);
+  4. Stop sharing ends it.
+- Native↔web on the devbox (loopback).
+- The PR lists the owner's laptop checks (desktop deep link, macOS).
+
+Later, optional: `share-handover` (SHARING.md §7.4), `native-turn-client` (§11),
+`offline-merge` (decision 9).

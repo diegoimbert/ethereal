@@ -2,7 +2,8 @@ import { act, cleanup, fireEvent, screen, within } from "@testing-library/react"
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
 import type { Device } from "@/generated";
 import { devicesOfTrack, useProjectStore, useSelectionStore } from "@/state";
-import { cmd, type MockTransport } from "@/transport";
+import { cmd, newId, type MockTransport } from "@/transport";
+import { addTrackCommand } from "@/features/arrangement/actions";
 import { dragUp, flush, renderWithMock, resetStores, store, stubPointerCapture, trackByName } from "@/features/mixer/testUtils";
 import { groupParams, insertableTypes, splitMainParams } from "./chainUtils";
 import { BUILTIN_DESCRIPTORS } from "@/transport";
@@ -128,11 +129,39 @@ describe("DeviceChain", () => {
     expect(chainNames("Keys")).toEqual(["Synth", "Compressor"]);
   });
 
-  it("inserts instruments at the start of the chain", async () => {
+  it("an added instrument replaces the track's instrument in place", async () => {
     await renderChain();
     pickOption(screen.getByRole("combobox", { name: "Add device" }), { value: "Sampler" });
     await flush();
-    expect(chainNames("Keys")[0]).toBe("Sampler");
+    expect(chainNames("Keys")).toEqual(["Sampler", "Compressor"]);
+  });
+
+  it("replaces the default Synth of a new MIDI track (one undo step)", async () => {
+    await renderChain();
+    const id = newId();
+    await act(() => mock!.send(addTrackCommand("Midi", id, newId())));
+    act(() => useSelectionStore.getState().selectTrack(id));
+    await flush();
+    const name = store().project!.tracks[id]!.name;
+    expect(chainNames(name)).toEqual(["Synth"]);
+    pickOption(screen.getByRole("combobox", { name: "Add device" }), { value: "Sampler" });
+    await flush();
+    expect(chainNames(name)).toEqual(["Sampler"]);
+    await act(() => mock!.send(cmd("Edit", { type: "Undo" })));
+    expect(chainNames(name)).toEqual(["Synth"]);
+  });
+
+  it("inserts an instrument at the start of a chain without one", async () => {
+    await renderChain();
+    const id = newId();
+    await act(() => mock!.send(cmd("Track", { type: "Create", id, kind: "Midi", name: "Bare", color: null, parent: null, before: null })));
+    act(() => useSelectionStore.getState().selectTrack(id));
+    await flush();
+    pickOption(screen.getByRole("combobox", { name: "Add device" }), { value: "Delay" });
+    await flush();
+    pickOption(screen.getByRole("combobox", { name: "Add device" }), { value: "Sampler" });
+    await flush();
+    expect(chainNames("Bare")).toEqual(["Sampler", "Delay"]);
   });
 
   it("loads a sample dropped from the browser into a Sampler (one undo step)", async () => {

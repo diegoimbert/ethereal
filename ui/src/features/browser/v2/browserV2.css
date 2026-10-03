@@ -1,0 +1,109 @@
+/* The indexed browser (v2): only what the folder browser's classes (../browser.css) lack. */
+.eth-browser-v2__filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--eth-space-xs);
+  padding: var(--eth-space-sm) var(--eth-space-sm) 0;
+}
+.eth-browser-v2__kinds,
+.eth-browser-v2__tools,
+.eth-browser-v2__tag-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--eth-space-xs);
+}
+.eth-browser-v2__tools {
+  margin-left: auto;
+}
+.eth-browser-v2__tag-filters {
+  flex-basis: 100%;
+}
+.eth-browser-v2__tag-filters .lucide {
+  font-size: var(--eth-fs-xs);
+  opacity: var(--eth-opacity-muted);
+}
+.eth-browser-v2__item {
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-xs);
+}
+.eth-browser-v2__item > .eth-browser__row {
+  flex: 1;
+  min-width: 0;
+}
+.eth-browser-v2__badge {
+  flex: none;
+  height: auto;
+  padding: 0 var(--eth-space-xs);
+  font-size: var(--eth-fs-2xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--eth-color-text-dim);
+  background: var(--eth-color-bg-inset);
+}
+.eth-browser-v2__tags {
+  display: flex;
+  flex: none;
+  gap: var(--eth-space-xs);
+  max-width: 30%;
+  overflow: hidden;
+}
+.eth-browser-v2__tag {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--eth-color-text-disabled);
+  font: inherit;
+  font-size: var(--eth-fs-2xs);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.eth-browser-v2__tag::before {
+  content: "#";
+}
+.eth-browser-v2__tag:hover {
+  color: var(--eth-color-text);
+}
+/* The star stays quiet until hovered or on. */
+.eth-browser-v2__item .eth-browser-v2__star {
+  opacity: 0;
+  transition: opacity var(--eth-duration-fast) var(--eth-ease-out);
+}
+.eth-browser-v2__item:hover .eth-browser-v2__star,
+.eth-browser-v2__item:focus-within .eth-browser-v2__star,
+.eth-browser-v2__star--on {
+  opacity: 1;
+}
+.eth-browser-v2__item .eth-browser-v2__star--on {
+  opacity: 1;
+}
+.eth-browser-v2__star--on {
+  color: var(--eth-color-warn);
+}
+.eth-browser-v2__star--on .lucide {
+  fill: currentColor;
+}
+.eth-browser-v2__more {
+  display: flex;
+  justify-content: center;
+  padding: var(--eth-space-xs);
+}
+.eth-browser-v2__status {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--eth-space-sm);
+  padding: var(--eth-space-xs) var(--eth-space-sm);
+  border-top: var(--eth-border-width) solid var(--eth-color-border-light);
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+  font-variant-numeric: tabular-nums;
+}
+/* Narrow panels: the name keeps its room; the folder / device detail gives way first. */
+.eth-browser-v2__item .eth-browser__name {
+  flex: 1 1 auto;
+}
+.eth-browser-v2__item .eth-browser__detail {
+  flex: 0 4 auto;
+  min-width: 0;
+}

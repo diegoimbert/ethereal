@@ -1,0 +1,31 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "Slow Auto-Pan",
+    "device": {
+      "type": "Builtin",
+      "device": "Tremolo"
+    },
+    "meta": {
+      "tags": [
+        "auto-pan",
+        "stereo",
+        "movement"
+      ],
+      "author": "Ethereal",
+      "description": "Gentle sine auto-pan over two bars."
+    },
+    "params": {
+      "0": 1.0,
+      "1": 0.0,
+      "2": 0.5,
+      "3": 1.0,
+      "4": 11.0,
+      "5": 70.0,
+      "6": 0.0,
+      "7": 0.0
+    }
+  }
+}

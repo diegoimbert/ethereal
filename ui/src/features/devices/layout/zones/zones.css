@@ -1,0 +1,146 @@
+/*
+ * Multisampler zone editor (ZoneMap widget). Tokens only (docs/DESIGN-SYSTEM.md).
+ */
+
+.eth-zones {
+  --zones-plot-height: calc(var(--eth-size-row-height-lg) * 5);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-hair);
+  width: 100%;
+  min-width: 0;
+  border-radius: var(--eth-radius-md);
+  outline: none;
+}
+.eth-zones:focus-visible {
+  box-shadow: var(--eth-focus-halo);
+}
+.eth-zones .eth-plot.eth-plot--zones {
+  height: var(--zones-plot-height);
+  cursor: default;
+}
+.eth-zones--over .eth-plot.eth-plot--zones {
+  border-color: var(--eth-color-accent);
+}
+
+.eth-zones__grid line {
+  stroke: var(--eth-color-border-light);
+  stroke-width: var(--eth-border-width);
+}
+
+.eth-zones__zone rect {
+  fill: var(--eth-color-accent-subtle);
+  stroke: var(--eth-color-accent-dim);
+  stroke-width: var(--eth-border-width);
+  cursor: move;
+}
+.eth-zones__zone--empty rect {
+  fill: transparent;
+  stroke-dasharray: var(--eth-space-xs) var(--eth-space-xs);
+}
+.eth-zones__zone--selected rect {
+  fill: color-mix(in srgb, var(--eth-color-accent) 35%, transparent);
+  stroke: var(--eth-color-accent);
+  stroke-width: var(--eth-border-width-strong);
+}
+.eth-zones__edge {
+  stroke: var(--eth-color-text);
+  stroke-width: var(--eth-border-width-strong);
+}
+.eth-zones__edge--x {
+  cursor: ew-resize;
+}
+.eth-zones__edge--y {
+  cursor: ns-resize;
+}
+.eth-zones__root {
+  stroke: var(--eth-color-text-dim);
+  stroke-width: var(--eth-border-width);
+  pointer-events: none;
+}
+.eth-zones__drop {
+  fill: var(--eth-color-accent);
+  opacity: var(--eth-opacity-muted);
+  pointer-events: none;
+}
+
+/* Keyboard strip */
+.eth-zones .eth-plot.eth-zones__keys {
+  height: var(--eth-size-row-height-sm);
+  border-radius: var(--eth-radius-xs);
+}
+.eth-zones__key {
+  fill: var(--eth-color-piano-white-key);
+  stroke: var(--eth-color-piano-white-key-border);
+  stroke-width: var(--eth-border-width);
+}
+.eth-zones__key--black {
+  fill: var(--eth-color-piano-black-key);
+}
+.eth-zones__key--range {
+  fill: var(--eth-color-accent-subtle);
+}
+.eth-zones__key--root,
+.eth-zones__key--over {
+  fill: var(--eth-color-accent);
+}
+.eth-zones__octave {
+  fill: var(--eth-color-piano-key-label);
+  font-family: var(--eth-font-mono);
+  font-size: var(--eth-fs-2xs);
+  dominant-baseline: middle;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* Hint, errors, inspector */
+.eth-zones__hint,
+.eth-zones__error {
+  font-size: var(--eth-fs-xs);
+  color: var(--eth-color-text-dim);
+}
+.eth-zones__error {
+  color: var(--eth-color-danger);
+}
+.eth-zones__inspector {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-xs);
+  padding: var(--eth-space-xs) 0;
+}
+.eth-zones__inspector-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--eth-space-sm);
+  min-width: 0;
+}
+.eth-zones__sample {
+  overflow: hidden;
+  font-size: var(--eth-fs-xs);
+  font-weight: var(--eth-fw-medium);
+  color: var(--eth-color-text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.eth-zones__fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(calc(var(--eth-size-number-field-narrow) * 1.4), 1fr));
+  gap: var(--eth-space-xs) var(--eth-space-sm);
+}
+.eth-zones__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-hair);
+  min-width: 0;
+}
+.eth-zones__field-label {
+  font-size: var(--eth-fs-2xs);
+  color: var(--eth-color-text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+  letter-spacing: var(--eth-tracking-caps);
+}

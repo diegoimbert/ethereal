@@ -1,4 +1,6 @@
+import { openAiChat } from "@/features/ai-chat";
 import { openAudioSettings } from "@/features/audio-settings";
+import { captureMidi } from "@/features/capture";
 import { focusChat } from "@/features/collab/social";
 import { useCollabStore } from "@/features/collab/store";
 import type { DeviceDescriptor } from "@/generated";
@@ -65,8 +67,7 @@ export function buildCommands(transport: EngineTransport | null, devices: Readon
         run: () => {
           const p = useProjectStore.getState().project;
           const t = p ? deviceTargetTrack(p) : undefined;
-          const c = p && t ? insertDeviceCommand(p, t, d) : null;
-          if (c) send(c);
+          if (p && t) void insertDeviceCommand(transport, p, t, d).then((c) => c && send(c));
         },
       });
     }
@@ -85,6 +86,14 @@ export function buildCommands(transport: EngineTransport | null, devices: Readon
         label: state?.recording ? "Stop recording" : "Record",
         keywords: "record arm",
         run: () => send(cmd("Recording", { type: "SetRecording", enabled: !state?.recording })),
+      },
+      {
+        // capture-midi: the command replies InvalidState when nothing was played.
+        id: "transport:capture",
+        group: "Transport",
+        label: "Capture MIDI",
+        keywords: "capture midi record recent played notes take clip",
+        run: () => void captureMidi(transport).catch((e: unknown) => console.warn("[ethereal] capture failed:", e)),
       },
       {
         id: "transport:loop",
@@ -142,8 +151,18 @@ export function buildCommands(transport: EngineTransport | null, devices: Readon
       run: () => focusChat(),
     });
   }
+  // ai-chat.
+  out.push({
+    id: "ai:ask",
+    group: "AI",
+    label: "Ask AI",
+    keywords: "ai assistant claude chat agent llm prompt generate",
+    shortcut: "⇧⌘A",
+    run: () => openAiChat(),
+  });
   for (const t of LEFT_TABS) {
     if (t.session && !inSession) continue;
+    if (t.id === "ai") continue; // "Ask AI" above
     out.push({
       id: `panel:${t.id}`,
       group: "Panels",

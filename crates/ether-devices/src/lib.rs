@@ -4,7 +4,8 @@
 //! [`poly_synth`] (`synth-2`), [`multisampler`], [`fx_color`], [`fx_modulation`],
 //! [`fx_dynamics`], [`fx_analysis`], [`midi_fx`], [`racks`] + [`modulators`]
 //! (`racks-modulation`); shared scaffolding in [`contract`]; factory presets through
-//! [`factory_presets`] (v0.1 types: [`factory`], `presets`).
+//! [`factory_presets`] (v0.1 types: [`factory`], `presets`). v0.3 (contracts-4) adds
+//! [`fx_space`] (`fx-space`: convolution reverb) and [`external`] (`external-instrument`).
 //!
 //! Every device implements [`ether_core::Device`]; parameter ids and ranges are defined
 //! by each device's [`DeviceDescriptor`] (the UI renders a generic param UI from it).
@@ -22,11 +23,13 @@ pub mod delay;
 pub mod drum_rack;
 mod dsp;
 pub mod eq;
+pub mod external;
 pub mod factory;
 pub mod fx_analysis;
 pub mod fx_color;
 pub mod fx_dynamics;
 pub mod fx_modulation;
+pub mod fx_space;
 pub mod limiter;
 pub mod midi_fx;
 pub mod modulators;
@@ -87,6 +90,11 @@ pub fn descriptor(device: BuiltinDeviceType) -> DeviceDescriptor {
         BuiltinDeviceType::InstrumentRack
         | BuiltinDeviceType::AudioEffectRack
         | BuiltinDeviceType::MidiEffectRack => racks::descriptor(device),
+        // --- v0.3 groups ---
+        BuiltinDeviceType::ConvolutionReverb => fx_space::descriptor(device),
+        BuiltinDeviceType::ExternalInstrument | BuiltinDeviceType::ExternalAudioEffect => {
+            external::descriptor(device)
+        }
     }
 }
 
@@ -127,6 +135,10 @@ pub fn factory_presets(device: BuiltinDeviceType) -> &'static [contract::Factory
         BuiltinDeviceType::InstrumentRack
         | BuiltinDeviceType::AudioEffectRack
         | BuiltinDeviceType::MidiEffectRack => racks::factory_presets(device),
+        BuiltinDeviceType::ConvolutionReverb => fx_space::factory_presets(device),
+        BuiltinDeviceType::ExternalInstrument | BuiltinDeviceType::ExternalAudioEffect => {
+            external::factory_presets(device)
+        }
     }
 }
 
@@ -160,7 +172,7 @@ pub fn create(device: &BuiltinDevice, samples: &dyn SampleResolver) -> Box<dyn D
         BuiltinDevice::DrumRack => drum_rack::create(),
         // --- v0.2 groups (placeholders until their node lands) ---
         BuiltinDevice::PolySynth => poly_synth::create(device),
-        BuiltinDevice::MultiSampler { .. } => multisampler::create(device),
+        BuiltinDevice::MultiSampler { .. } => multisampler::create(device, samples),
         BuiltinDevice::Saturator | BuiltinDevice::Bitcrusher | BuiltinDevice::AutoFilter => {
             fx_color::create(device)
         }
@@ -181,6 +193,11 @@ pub fn create(device: &BuiltinDevice, samples: &dyn SampleResolver) -> Box<dyn D
         BuiltinDevice::InstrumentRack
         | BuiltinDevice::AudioEffectRack
         | BuiltinDevice::MidiEffectRack => racks::create(device),
+        // --- v0.3 groups (placeholders until their node lands) ---
+        BuiltinDevice::ConvolutionReverb { .. } => fx_space::create(device),
+        BuiltinDevice::ExternalInstrument { .. } | BuiltinDevice::ExternalAudioEffect { .. } => {
+            external::create(device)
+        }
     }
 }
 

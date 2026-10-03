@@ -24,6 +24,7 @@
 //! dev instances use the `+4` offset (`PORT_OFFSETS.remote`) of the instance base port
 //! (`scripts/dev-env.mjs`, README "Running multiple dev instances").
 
+pub mod agent_bridge;
 pub mod cli;
 pub mod frames;
 pub mod router;
@@ -209,8 +210,46 @@ fn default_name() -> String {
         .unwrap_or_else(|| "ether-server".into())
 }
 
+/// The engine a [`Server`] forwards client messages to.
+///
+/// [`Server::start`] owns a [`NativeHost`]; [`Server::attach`] serves an engine that
+/// somebody else owns and also drives (the desktop app's agent bridge, `agent-api`: the UI
+/// and the agents share one controller).
+pub trait Engine: Send + Sync {
+    /// Queue one (already id-remapped) client message.
+    fn send(&self, message: ether_protocol::ClientMessage) -> Result<(), String>;
+}
+
+impl Engine for NativeHost {
+    fn send(&self, message: ether_protocol::ClientMessage) -> Result<(), String> {
+        NativeHost::send(self, message).map_err(|e| e.to_string())
+    }
+}
+
+impl<E: Engine + ?Sized> Engine for Arc<E> {
+    fn send(&self, message: ether_protocol::ClientMessage) -> Result<(), String> {
+        (**self).send(message)
+    }
+}
+
+enum HostRef {
+    /// Started with [`Server::start`]: the router is the host's subscriber.
+    Owned(NativeHost),
+    /// Started with [`Server::attach`]: the owner feeds [`Router::outbound`].
+    Attached(Box<dyn Engine>),
+}
+
+impl HostRef {
+    fn send(&self, message: ether_protocol::ClientMessage) -> Result<(), String> {
+        match self {
+            Self::Owned(h) => Engine::send(h, message),
+            Self::Attached(e) => e.send(message),
+        }
+    }
+}
+
 struct Shared {
-    host: NativeHost,
+    host: HostRef,
     router: Arc<Router>,
     config: ServerConfig,
     info: ServerInfo,
@@ -248,10 +287,47 @@ pub struct Server {
 impl Server {
     /// Bind and start serving `host` in background threads.
     pub fn start(config: ServerConfig, host: NativeHost) -> Result<Self, ServerError> {
+        let router = Arc::new(Router::default());
+        {
+            let router = router.clone();
+            host.subscribe(Arc::new(move |m| router.outbound(m)));
+        }
+        Self::start_with(config, HostRef::Owned(host), router)
+    }
+
+    /// Serve an engine owned (and possibly also driven) by the caller, which must pass
+    /// every `ServerMessage` the engine emits to [`Router::outbound`] of `router`. Use a
+    /// router with an id base ([`Router::with_id_base`]) when other clients number
+    /// requests and gestures in the same engine, and send it only the replies it
+    /// [owns](Router::owns_reply).
+    pub fn attach(
+        config: ServerConfig,
+        engine: Box<dyn Engine>,
+        router: Arc<Router>,
+    ) -> Result<Self, ServerError> {
+        Self::start_with(config, HostRef::Attached(engine), router)
+    }
+
+    fn start_with(
+        config: ServerConfig,
+        host: HostRef,
+        router: Arc<Router>,
+    ) -> Result<Self, ServerError> {
         if config.token.is_none() && !config.bind.ip().is_loopback() {
+            if let HostRef::Owned(h) = &host {
+                h.unsubscribe();
+            }
             return Err(ServerError::InsecureBind(config.bind));
         }
-        let listener = TcpListener::bind(config.bind)?;
+        let listener = match TcpListener::bind(config.bind) {
+            Ok(l) => l,
+            Err(e) => {
+                if let HostRef::Owned(h) = &host {
+                    h.unsubscribe();
+                }
+                return Err(e.into());
+            }
+        };
         let addr = listener.local_addr()?;
         let info = ServerInfo {
             name: config.name.clone().unwrap_or_else(default_name),
@@ -267,11 +343,6 @@ impl Server {
                 collab: false,
             },
         };
-        let router = Arc::new(Router::default());
-        {
-            let router = router.clone();
-            host.subscribe(Arc::new(move |m| router.outbound(m)));
-        }
         if let Some(root) = &config.projects_root {
             // Whatever is staged from a previous run belongs to connections that are gone.
             let n = ether_native::uploads::remove_stale(root, Duration::ZERO);
@@ -336,6 +407,12 @@ impl Server {
         self.shared.router.client_count()
     }
 
+    /// Connections still in the pre-auth (handshake + hello) phase, i.e. holding one of the
+    /// [`ServerConfig::max_pending_handshakes`] slots (diagnostics and tests).
+    pub fn pending_handshakes(&self) -> usize {
+        self.shared.pending.load(Ordering::Acquire)
+    }
+
     /// Block until the process is terminated.
     pub fn wait(mut self) {
         if let Some(t) = self.accept.take() {
@@ -357,7 +434,9 @@ impl Server {
         if let Some(t) = self.janitor.take() {
             let _ = t.join();
         }
-        self.shared.host.unsubscribe();
+        if let HostRef::Owned(h) = &self.shared.host {
+            h.unsubscribe();
+        }
     }
 }
 

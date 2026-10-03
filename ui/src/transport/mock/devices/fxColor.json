@@ -7,6 +7,138 @@
       "device": "AutoFilter",
       "type": "Builtin"
     },
+    "layout": {
+      "sections": [
+        {
+          "columns": 2,
+          "id": "filter",
+          "items": [
+            {
+              "colspan": 2,
+              "label": null,
+              "size": "Large",
+              "widget": {
+                "cutoff": 1,
+                "drive": 3,
+                "gain": null,
+                "mode": 0,
+                "resonance": 2,
+                "type": "FilterCurve"
+              }
+            }
+          ],
+          "span": 2,
+          "title": "Filter"
+        },
+        {
+          "columns": 3,
+          "id": "envelope",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 4,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 5,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 6,
+                "type": "Knob"
+              }
+            }
+          ],
+          "span": 1,
+          "title": "Envelope"
+        },
+        {
+          "columns": 3,
+          "id": "lfo",
+          "items": [
+            {
+              "colspan": 3,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "amount": 7,
+                "rate": 9,
+                "shape": 8,
+                "type": "Lfo"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 10,
+                "type": "Toggle"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 11,
+                "type": "Choice"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 12,
+                "type": "Knob"
+              }
+            }
+          ],
+          "span": 2,
+          "title": "LFO"
+        },
+        {
+          "columns": 1,
+          "id": "output",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Large",
+              "widget": {
+                "param": 13,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 14,
+                "type": "Knob"
+              }
+            }
+          ],
+          "span": 1,
+          "title": "Output"
+        }
+      ]
+    },
     "midi_input": false,
     "name": "Auto Filter",
     "params": [
@@ -283,6 +415,80 @@
       "device": "Bitcrusher",
       "type": "Builtin"
     },
+    "layout": {
+      "sections": [
+        {
+          "columns": 4,
+          "id": "crush",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Large",
+              "widget": {
+                "param": 0,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Large",
+              "widget": {
+                "param": 1,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 2,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 3,
+                "type": "Toggle"
+              }
+            }
+          ],
+          "span": 2,
+          "title": "Crush"
+        },
+        {
+          "columns": 2,
+          "id": "output",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 4,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Large",
+              "widget": {
+                "param": 5,
+                "type": "Knob"
+              }
+            }
+          ],
+          "span": 1,
+          "title": "Output"
+        }
+      ]
+    },
     "midi_input": false,
     "name": "Bitcrusher",
     "params": [
@@ -390,6 +596,82 @@
     "device_type": {
       "device": "Saturator",
       "type": "Builtin"
+    },
+    "layout": {
+      "sections": [
+        {
+          "columns": 3,
+          "id": "shape",
+          "items": [
+            {
+              "colspan": 2,
+              "label": null,
+              "size": "Large",
+              "widget": {
+                "bias": 2,
+                "curve": 0,
+                "drive": 1,
+                "type": "TransferCurve"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 3,
+                "type": "Knob"
+              }
+            }
+          ],
+          "span": 2,
+          "title": "Shape"
+        },
+        {
+          "columns": 3,
+          "id": "output",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 6,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Large",
+              "widget": {
+                "param": 7,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 5,
+                "type": "Toggle"
+              }
+            },
+            {
+              "colspan": 3,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 4,
+                "type": "Choice"
+              }
+            }
+          ],
+          "span": 2,
+          "title": "Output"
+        }
+      ]
     },
     "midi_input": false,
     "name": "Saturator",
