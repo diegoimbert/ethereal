@@ -1,0 +1,40 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "Sustained Pad",
+    "device": {
+      "type": "Builtin",
+      "device": "MultiSampler"
+    },
+    "meta": {
+      "tags": [
+        "pad",
+        "strings",
+        "slow"
+      ],
+      "author": "Ethereal",
+      "description": "Slow swell and long release with a gently opening filter; for looped zones."
+    },
+    "params": {
+      "5": 50.0,
+      "6": 600.0,
+      "7": 2000.0,
+      "8": 90.0,
+      "9": 2500.0,
+      "10": 1.0,
+      "11": 3000.0,
+      "12": 10.0,
+      "13": 30.0,
+      "14": 30.0,
+      "15": 1500.0,
+      "16": 3000.0,
+      "17": 50.0,
+      "18": 2500.0
+    },
+    "kind": null,
+    "samples": [],
+    "state": null
+  }
+}

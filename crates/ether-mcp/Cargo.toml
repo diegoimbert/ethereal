@@ -1,0 +1,33 @@
+[package]
+name = "ether-mcp"
+description = "MCP server (stdio) exposing Ethereal's agent tools to LLM clients (Claude Code, Claude Desktop, ...)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+# `agent-api` (docs/MCP.md). Native only. The MCP side is the official Rust SDK (`rmcp`,
+# stdio transport); the Ethereal side is the remote-engine protocol (`ether-server`'s frames
+# over a blocking tungstenite client) or an embedded headless engine (`ether-native`).
+[dependencies]
+ether-protocol.workspace = true
+ether-controller.workspace = true
+ether-native.workspace = true
+ether-server.workspace = true
+getrandom.workspace = true
+rmcp.workspace = true
+serde_json.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "io-std"] }
+tracing.workspace = true
+tracing-subscriber.workspace = true
+tungstenite.workspace = true
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "ether-mcp"
+path = "src/main.rs"

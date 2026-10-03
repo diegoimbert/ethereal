@@ -86,7 +86,7 @@ fn scanned() -> Vec<PluginDescriptor> {
         let dir = ether_clap::testing::temp_dir("formats-e2e");
         let clap = ether_clap::testing::make_bundle(&dir, "EtherFormatsClap");
         let vst3 = ether_vst3::testing::make_bundle(&dir, "EtherFormatsVst3");
-        let mut targets = ether_native::plugins::formats().discover(Some(&[dir]));
+        let targets = ether_native::plugins::formats().discover(Some(&[dir]));
         assert_eq!(
             targets,
             vec![
@@ -101,8 +101,10 @@ fn scanned() -> Vec<PluginDescriptor> {
             ],
             "bundles discovered by format"
         );
+        // AUs only exist on macOS, so only there does the target list grow.
         #[cfg(target_os = "macos")]
-        {
+        let targets = {
+            let mut targets = targets;
             // AUs come from the component registry (what a rescan scans).
             let all = ether_native::plugins::formats().discover(None);
             let au = ScanTarget {
@@ -111,7 +113,8 @@ fn scanned() -> Vec<PluginDescriptor> {
             };
             assert!(all.contains(&au), "AUDelay in the registry targets");
             targets.push(au);
-        }
+            targets
+        };
         let runner = ScanRunner::new(workspace_bin(
             "ether-plugin-scanner",
             "ether-plugin-scanner",
@@ -153,6 +156,9 @@ struct Rig {
 impl Rig {
     fn new(plugins: Vec<PluginDescriptor>) -> Self {
         ether_native::sandbox::set_helper_path(Some(helper()));
+        // Offline render: wait for every sandboxed block, so a helper starved of CPU on a
+        // loaded machine can't turn blocks into silence (underruns) under the assertions.
+        ether_native::sandbox::set_wait_budget(Some(std::time::Duration::from_secs(10)));
         let parts = ether_core::create(ether_core::EngineConfig {
             sample_rate: RATE,
             max_block_size: BLOCK,

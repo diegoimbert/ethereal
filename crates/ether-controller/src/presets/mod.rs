@@ -120,7 +120,7 @@ where
             PresetCommand::List { device, text } => Ok(ReplyValue::Presets {
                 presets: self.preset_list(device.as_ref(), text.as_deref()),
             }),
-            PresetCommand::Load { device, preset } => {
+            PresetCommand::Load { device, preset, .. } => {
                 self.preset_load(*device, preset, gesture, now, out)?;
                 Ok(ReplyValue::Unit)
             }
@@ -320,6 +320,7 @@ where
             kind: None,
             samples: Vec::new(),
             state: None,
+            rack: None,
         };
         match &d.kind {
             DeviceKind::Builtin { device: kind } => {

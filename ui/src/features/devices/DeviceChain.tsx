@@ -1,10 +1,12 @@
 import { useState, type DragEvent } from "react";
 import { Select, type SelectOption } from "@/kit";
-import type { BuiltinDeviceType, DeviceDescriptor, DeviceId, Track, TrackId } from "@/generated";
+import type { BuiltinDeviceType, Command, Device, DeviceDescriptor, DeviceId, Track, TrackId } from "@/generated";
+import { chainInsertBefore } from "@/app/shell/deviceInsert";
 import clsx from "clsx";
 import { useDevicesOfTrack, useProjectStore, useSelectionStore, useTracksOrdered } from "@/state";
-import { cmd, newId } from "@/transport";
+import { cmd, newId, useTransport } from "@/transport";
 import { builtinDevice, useBuiltinTypes } from "./descriptors";
+import { addInstrumentCommand } from "./instrument";
 import { DEVICE_DRAG_TYPE, insertableTypes } from "./chainUtils";
 import { DeviceView } from "./DeviceView";
 import { useSend } from "./gesture";
@@ -41,20 +43,15 @@ function groupByCategory(types: ReadonlyArray<DeviceDescriptor>): SelectOption<s
 
 const CATEGORY_LABELS: Record<string, string> = { Instrument: "Instruments", AudioEffect: "Audio effects", NoteEffect: "MIDI effects" };
 
-function AddDevice({ track, firstDevice }: { track: Track; firstDevice: DeviceId | null }) {
+function AddDevice({ track, devices }: { track: Track; devices: ReadonlyArray<Device> }) {
   const send = useSend();
+  const transport = useTransport();
   const types = insertableTypes(useBuiltinTypes(), track);
-  const add = (type: BuiltinDeviceType, category: DeviceDescriptor["category"]) =>
-    void send(
-      cmd("Device", {
-        type: "Insert",
-        id: newId(),
-        track: track.id,
-        device: { type: "Builtin", device: builtinDevice(type) },
-        // Instruments go first in the chain (their output feeds the effects).
-        before: category === "Instrument" ? firstDevice : null,
-      }),
-    );
+  const add = async (type: BuiltinDeviceType, category: DeviceDescriptor["category"]) => {
+    const insert = (before: DeviceId | null): Command =>
+      cmd("Device", { type: "Insert", id: newId(), track: track.id, device: { type: "Builtin", device: builtinDevice(type) }, before });
+    void send(category === "Instrument" ? await addInstrumentCommand(transport, devices, insert) : insert(chainInsertBefore(devices, category)));
+  };
   return (
     <Select
       size="sm"
@@ -64,7 +61,7 @@ function AddDevice({ track, firstDevice }: { track: Track; firstDevice: DeviceId
       placeholder="+ Add device…"
       onChange={(v) => {
         const d = types.find((t) => t.device_type.type === "Builtin" && t.device_type.device === v);
-        if (d && d.device_type.type === "Builtin") add(d.device_type.device, d.category);
+        if (d && d.device_type.type === "Builtin") void add(d.device_type.device, d.category);
       }}
       options={groupByCategory(types)}
     />
@@ -99,7 +96,7 @@ function Chain({ track, layout, picker }: { track: Track; layout: ChainLayout; p
       {!stack && (
         <div className="eth-devices__toolbar">
           {picker && <TrackPicker track={track} />}
-          <AddDevice track={track} firstDevice={devices[0]?.id ?? null} />
+          <AddDevice track={track} devices={devices} />
         </div>
       )}
       <div className={clsx("eth-devices__chain", stack && "eth-devices__chain--stack")} role="list" aria-label={`${track.name} devices`}>
@@ -130,7 +127,7 @@ function Chain({ track, layout, picker }: { track: Track; layout: ChainLayout; p
       </div>
       {stack && (
         <div className="eth-devices__footer">
-          <AddDevice track={track} firstDevice={devices[0]?.id ?? null} />
+          <AddDevice track={track} devices={devices} />
         </div>
       )}
     </div>

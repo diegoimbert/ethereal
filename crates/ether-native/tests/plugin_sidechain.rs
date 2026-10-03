@@ -118,6 +118,9 @@ struct Rig {
 impl Rig {
     fn new() -> Self {
         ether_native::sandbox::set_helper_path(Some(helper()));
+        // Offline render: wait for every sandboxed block, so a helper starved of CPU on a
+        // loaded machine can't turn blocks into silence (underruns) under the assertions.
+        ether_native::sandbox::set_wait_budget(Some(std::time::Duration::from_secs(10)));
         let parts = ether_core::create(ether_core::EngineConfig {
             sample_rate: RATE,
             max_block_size: BLOCK,

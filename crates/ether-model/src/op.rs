@@ -125,6 +125,15 @@ pub enum EntityUpdate {
         id: PinnedNoteId,
         change: PinnedNoteChange,
     },
+    // --- v0.3 (contracts-4) ---
+    ExpressionLane {
+        id: ExpressionLaneId,
+        change: ExpressionLaneChange,
+    },
+    NoteExpression {
+        id: NoteExpressionId,
+        change: NoteExpressionChange,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
@@ -165,6 +174,8 @@ pub enum TrackChange {
     Freeze(Option<TrackFreeze>),
     /// v0.2 (`groups-buses`): VCA assignment.
     Vca(Option<TrackId>),
+    /// v0.3 (`mpe`): MPE settings (MIDI tracks only).
+    Mpe(Option<crate::expression::MpeSettings>),
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
@@ -375,6 +386,21 @@ pub enum ModulatorChange {
 pub enum ModMappingChange {
     Depth(f64),
     Source(ModSource),
+}
+
+/// v0.3 (`midi-expression`): a lane's whole curve is one last-writer-wins value
+/// (`ether_model::expression`). The kind and clip never change (re-create the lane).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+#[serde(tag = "field", content = "value")]
+pub enum ExpressionLaneChange {
+    Points(Vec<crate::expression::ExpressionPoint>),
+}
+
+/// v0.3 (`midi-expression` / `mpe`): a note expression's whole curve.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+#[serde(tag = "field", content = "value")]
+pub enum NoteExpressionChange {
+    Points(Vec<crate::expression::ExpressionPoint>),
 }
 
 /// A labeled group of ops applied atomically = one undo step.

@@ -14,6 +14,7 @@
  * | `collab.ts`     | collab          | `Collab::*` (unsupported)                          |
  * | `remote.ts`     | remote-engine   | uploads (unsupported)                             |
  * | `social.ts`     | collab-social   | `Chat::*`, `PinnedNote::*` (unsupported)          |
+ * | `share.ts`      | share-engine    | `Share::*` (simulated; base-115, docs/SHARING.md) |
  *
  * v0.2 (contracts-3), same rules (see docs/ROADMAP.md "v0.2"):
  *
@@ -28,6 +29,22 @@
  * | `racksModulation.ts` | racks-modulation  | `Rack::*`, `Modulation::*`                |
  * | `mediaReferences.ts` | media-references  | `MediaRef::*`                             |
  * | `groupsBuses.ts`     | groups-buses      | `Track::{GroupSelected, Ungroup, SetVca}` |
+ *
+ * v0.3 (contracts-4), same rules (see docs/ROADMAP.md "v0.3"); until each node lands its
+ * file replies `Unsupported` like the engine (`crates/ether-controller/tests/roadmap_v4.rs`):
+ *
+ * | file             | node                | commands                                              |
+ * |------------------|---------------------|-------------------------------------------------------|
+ * | `expression.ts`  | midi-expression     | `Expression::*` (document)                            |
+ * | `mpe.ts`         | mpe                 | `Expression::SetTrackMpe` (document)                  |
+ * | `capture.ts`     | capture-midi        | `Capture::*`                                          |
+ * | `audioToMidi.ts` | audio-to-midi       | `AudioToMidi::*`                                      |
+ * | `fxSpace.ts`     | fx-space            | `Device::{SetIr (document), ListFactoryIrs}`          |
+ * | `external.ts`    | external-instrument | `External::{SetRouting (document), ListPorts, MeasureLatency}` |
+ * | `undoHistory.ts` | undo-history        | `History::*`                                          |
+ * | `templates.ts`   | templates           | `Template::{Insert (document), *}`                    |
+ * | `versions.ts`    | project-versions    | `Version::*`                                          |
+ * | `keymap.ts`      | keymap              | `Keymap::*`                                           |
  *
  * Device groups' mock descriptors are generated JSON in `../devices/` (one file per node).
  *
@@ -46,6 +63,10 @@ import { tempoCommand } from "./tempo";
 // v0.2 (contracts-3): one file per node.
 import { takeCommand } from "./comping";
 import { modulationCommand, rackCommand } from "./racksModulation";
+// v0.3 (contracts-4): one file per node.
+import { expressionCommand } from "./expression";
+import { setExternalRouting } from "./external";
+import { insertTemplate } from "./templates";
 
 /** Roadmap domains that are document commands (undoable, allowed in a `Batch`). */
 export function isRoadmapDocumentCommand(command: Command): boolean {
@@ -65,6 +86,13 @@ export function isRoadmapDocumentCommand(command: Command): boolean {
       return true;
     case "Modulation":
       return command.command.type !== "ListModulatorKinds";
+    // v0.3 (contracts-4).
+    case "Expression":
+      return true;
+    case "External":
+      return command.command.type === "SetRouting";
+    case "Template":
+      return command.command.type === "Insert";
     default:
       return false;
   }
@@ -106,6 +134,18 @@ export function reduceRoadmapCommand(ctx: ReducerContext, command: Command, dele
       return true;
     case "PinnedNote":
       pinnedNoteCommand(ctx, command.command);
+      return true;
+    // v0.3 (contracts-4).
+    case "Expression":
+      expressionCommand(ctx, command.command);
+      return true;
+    case "External":
+      if (command.command.type !== "SetRouting") return false;
+      setExternalRouting(ctx, command.command);
+      return true;
+    case "Template":
+      if (command.command.type !== "Insert") return false;
+      insertTemplate(ctx, command.command);
       return true;
     default:
       return false;
