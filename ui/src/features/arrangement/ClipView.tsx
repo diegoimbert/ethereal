@@ -245,13 +245,16 @@ function AudioWaveform({ tempo, ...body }: BodyProps & { tempo: TempoMap }) {
     useShallow((s) => (s.project ? warpMarkersOfClip(s.project, clip.id) : [])),
   );
   const seam = useThemeColor("clipSeam");
+  // Marks peaks the clip gain pushes past full scale (the meters' clip color).
+  const over = useThemeColor("meterHigh");
   const [tiles, redraw] = useReducer((x: number) => x + 1, 0);
   // Tiles arrive asynchronously: redraw when they do (or when peaks are invalidated).
   useEffect(() => peaks.subscribe(redraw), [peaks]);
 
+  // `clip` covers its gain: a gain change redraws from the cached peaks (scaled at draw time).
   const content = useMemo(
-    () => [clip, bounds.start, bounds.length, bounds.offset, media, markers, tempo, tiles, body.ink, seam],
-    [clip, bounds.start, bounds.length, bounds.offset, media, markers, tempo, tiles, body.ink, seam],
+    () => [clip, bounds.start, bounds.length, bounds.offset, media, markers, tempo, tiles, body.ink, seam, over],
+    [clip, bounds.start, bounds.length, bounds.offset, media, markers, tempo, tiles, body.ink, seam, over],
   );
   useCanvasDraw(ref, body, content, (ctx, area) => {
     if (!media || clip.content.type !== "Audio") return;
@@ -259,7 +262,7 @@ function AudioWaveform({ tempo, ...body }: BodyProps & { tempo: TempoMap }) {
     const beatsPerPx = (area.to - area.from) / Math.max(1, area.width);
     const level = peakLevel(Math.abs(toSeconds(beatsPerPx) - toSeconds(0)) * media.sample_rate);
     const shaped = { length: bounds.length, offset: bounds.offset, looping: clip.looping };
-    drawWaveform(
+    const drawn = drawWaveform(
       ctx,
       area,
       {
@@ -269,14 +272,25 @@ function AudioWaveform({ tempo, ...body }: BodyProps & { tempo: TempoMap }) {
         toSeconds,
         frames: media.frames,
         reversed: clip.content.reversed,
+        gainDb: clip.content.gain,
         level,
         tile: (i) => (i * TILE_PEAKS * level < media.frames ? peaks.tile(media.id, level, i) : null),
       },
       body.ink,
+      over,
     );
+    if (ref.current) ref.current.dataset.clipped = String(drawn.clipped);
     drawLoopSeams(ctx, area, shaped, bounds.start, seam);
   });
-  return <canvas ref={ref} className="eth-clip__canvas" data-testid="clip-waveform" data-media={mediaId ?? ""} />;
+  return (
+    <canvas
+      ref={ref}
+      className="eth-clip__canvas"
+      data-testid="clip-waveform"
+      data-media={mediaId ?? ""}
+      data-gain={clip.content.type === "Audio" ? clip.content.gain : undefined}
+    />
+  );
 }
 
 /** Thin markers where a looped clip wraps around to its loop start. */
