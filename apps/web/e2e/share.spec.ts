@@ -184,6 +184,12 @@ test("share → link → join → edits and chat both ways → host away and bac
   await expect(ada.getByText(`You're in ${songName} with Diego`)).toBeVisible({ timeout: 30_000 });
   // Joining from a link at launch: the project screen never covers the joined project.
   await expect(ada.getByRole("dialog", { name: "Projects" })).toHaveCount(0);
+  // One session element in the top bar: the pill, not also the relay bar of the hub's
+  // collab session.
+  for (const p of [diego, ada]) {
+    await expect(p.getByTestId("session-pill")).toBeVisible();
+    await expect(p.getByTestId("collab-button")).toHaveCount(0);
+  }
   await expect.poll(() => shareState(ada)).toBe("Joined");
   await expect.poll(() => project(ada).then((p) => p?.settings.name)).toBe(songName);
   const start = await trackNames(diego);

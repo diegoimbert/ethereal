@@ -530,7 +530,10 @@ fn stop_while_the_service_is_unreachable_reads_as_host_offline() {
     run(&mut [&mut h, &mut ada], 5);
     share(&mut h, ShareCommand::Stop);
     assert_eq!(state(&h), ShareState::Off);
-    assert!(share_file(&mut h, pid).is_none(), "the host forgets its secrets anyway");
+    assert!(
+        share_file(&mut h, pid).is_none(),
+        "the host forgets its secrets anyway"
+    );
     net.set_down(false);
     run(&mut [&mut h, &mut ada], 60);
     assert!(net.room_exists(&room), "the service never got CloseRoom");
@@ -541,7 +544,11 @@ fn stop_while_the_service_is_unreachable_reads_as_host_offline() {
         "{:?}",
         notices(&ada)
     );
-    assert!(!notices(&ada).iter().any(|n| matches!(n, ShareNotice::SharingEnded { .. })));
+    assert!(
+        !notices(&ada)
+            .iter()
+            .any(|n| matches!(n, ShareNotice::SharingEnded { .. }))
+    );
     assert!(
         matches!(
             state(&ada),

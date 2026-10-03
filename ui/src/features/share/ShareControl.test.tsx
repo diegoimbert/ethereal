@@ -318,4 +318,15 @@ describe("ShareControl (relay session)", () => {
     await waitFor(() => expect(screen.getByTestId("share-button")).toBeInTheDocument());
     expect(screen.queryByTestId("collab-button")).toBeNull();
   });
+
+  it("a shared project's own collab session (the hub's \"share\") shows only the pill", async () => {
+    const mock = await setup();
+    await share(mock);
+    await act(async () => {
+      await mock.send({ domain: "Collab", command: { type: "Join", server: "ws://hub", session: "share", token: null, name: "Diego" } });
+    });
+    await waitFor(() => expect(useCollabStore.getState().status.type).toBe("Online"));
+    expect(screen.getByTestId("session-pill")).toBeInTheDocument();
+    expect(screen.queryByTestId("collab-button")).toBeNull();
+  });
 });

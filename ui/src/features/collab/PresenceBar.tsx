@@ -163,13 +163,17 @@ export function PresenceBar() {
  * highlights, chat toasts and the relay dialog (opened from Settings > Advanced > Relay
  * session with `setDialogOpen`). The relay button and chips show only during a relay session.
  */
-export function CollabRuntime() {
+export function CollabRuntime({ shared = false }: { shared?: boolean }) {
   const ctx = useContext(TransportContext);
   if (!ctx) return null;
-  return <PresenceBarWith transport={ctx.transport} bar={false} />;
+  return <PresenceBarWith transport={ctx.transport} bar={false} shared={shared} />;
 }
 
-function PresenceBarWith({ transport, bar = true }: { transport: EngineTransport; bar?: boolean }) {
+/**
+ * `shared`: the collab session is a shared project's (its hub runs a session named "share"),
+ * which the Share control's pill already shows: no relay bar for it.
+ */
+function PresenceBarWith({ transport, bar = true, shared = false }: { transport: EngineTransport; bar?: boolean; shared?: boolean }) {
   const status = useCollabStore((s) => s.status);
   const peers = useCollabStore((s) => s.peers);
   const onEvent = useCollabStore((s) => s.onEvent);
@@ -208,7 +212,7 @@ function PresenceBarWith({ transport, bar = true }: { transport: EngineTransport
 
   const inSession = status.type !== "Offline";
   // As the Share control's runtime, the relay bar shows only during a relay session.
-  const showBar = bar || inSession;
+  const showBar = bar || (inSession && !shared);
   const join = async (e?: FormEvent) => {
     e?.preventDefault();
     const f = { server: fields.server.trim(), session: fields.session.trim(), name: fields.name.trim() };
