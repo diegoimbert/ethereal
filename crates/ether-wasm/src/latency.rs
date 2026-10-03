@@ -67,19 +67,7 @@ impl LatencyReport {
         if body.len() != count * ENTRY {
             return Err(DecodeError::Truncated);
         }
-        let u32_at = |e: &[u8], i: usize| u32::from_le_bytes(e[i..i + 4].try_into().unwrap());
-        let latencies = body
-            .chunks_exact(ENTRY)
-            .map(|e| {
-                (
-                    NodeKey {
-                        index: u32_at(e, 0),
-                        generation: u32_at(e, 4),
-                    },
-                    u32_at(e, 8),
-                )
-            })
-            .collect();
+        let latencies = body.as_chunks::<ENTRY>().0.iter().map(entry).collect();
         Ok(Self { latencies })
     }
 }
@@ -89,6 +77,18 @@ fn begin(out: &mut Vec<u8>) {
     out.clear();
     out.push(REPORT_LATENCY);
     out.extend_from_slice(&0u16.to_le_bytes());
+}
+
+/// **RT.** Decode one entry.
+fn entry(e: &[u8; ENTRY]) -> (NodeKey, u32) {
+    let u32_at = |i: usize| u32::from_le_bytes([e[i], e[i + 1], e[i + 2], e[i + 3]]);
+    (
+        NodeKey {
+            index: u32_at(0),
+            generation: u32_at(4),
+        },
+        u32_at(8),
+    )
 }
 
 /// **RT.** Append one entry and bump the count (no allocation within capacity).
@@ -172,13 +172,10 @@ impl LatencyTracker {
     /// Worker's.
     pub fn commit(&mut self) {
         let Self { reported, buf, .. } = self;
-        for e in buf[HEADER..].chunks_exact(ENTRY) {
-            let key = NodeKey {
-                index: u32::from_le_bytes(e[0..4].try_into().unwrap()),
-                generation: u32::from_le_bytes(e[4..8].try_into().unwrap()),
-            };
+        for e in buf[HEADER..].as_chunks::<ENTRY>().0 {
+            let (key, latency) = entry(e);
             if let Some(v) = reported.get_mut(&key) {
-                *v = u32::from_le_bytes(e[8..12].try_into().unwrap());
+                *v = latency;
             }
         }
         begin(buf);
