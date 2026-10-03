@@ -140,7 +140,7 @@ test("ai-chat: a scripted tool-using conversation edits the arrangement", async 
   const api = await stubClaude(page);
 
   await page.goto("/");
-  await expect(page.getByRole("button", { name: "Play" })).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole("button", { name: "Play", exact: true })).toBeVisible({ timeout: 30_000 });
   await expect.poll(() => project(page).then(() => true), { timeout: 30_000 }).toBe(true);
   await newProject(page, `AI chat ${Date.now()}`);
   await expect.poll(async () => Object.keys((await project(page)).clips).length).toBe(0);
