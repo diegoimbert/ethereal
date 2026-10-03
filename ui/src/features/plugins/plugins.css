@@ -155,8 +155,8 @@
   gap: var(--eth-space-xs);
 }
 .eth-plugin-folders__add svg {
-  width: 1em;
-  height: 1em;
+  width: var(--eth-size-icon-sm);
+  height: var(--eth-size-icon-sm);
 }
 .eth-plugin-folders__list {
   list-style: none;
@@ -168,8 +168,6 @@
   background: var(--eth-color-bg-inset);
   border: var(--eth-border-width) solid var(--eth-color-border);
   border-radius: var(--eth-radius-sm);
-  max-height: 12em;
-  overflow: auto;
 }
 .eth-plugin-folders__list--defaults[data-off] {
   opacity: 0.5;
