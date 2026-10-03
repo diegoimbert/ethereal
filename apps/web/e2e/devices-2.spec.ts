@@ -116,8 +116,12 @@ test("EQ, reverb, limiter and utility on an audio track", async ({ page }) => {
 
   // Param panels come from the engine descriptors.
   const panel = (id: string) => page.locator(`[data-device="${id}"]`);
-  // A device card shows its main params; the rest fold under "More … controls".
-  await panel(eq.id).getByRole("button", { name: "More EQ controls" }).click();
+  // The EQ's declared layout (graphical-eq) shows every band under its curve: nothing
+  // folds under "More … controls".
+  await expect(panel(eq.id).getByRole("img", { name: /^EQ curve/ })).toBeVisible();
+  await expect(
+    panel(eq.id).getByRole("button", { name: "More EQ controls" }),
+  ).toHaveCount(0);
   await expect(panel(eq.id).getByRole("slider", { name: "Freq" })).toHaveCount(
     8,
   );

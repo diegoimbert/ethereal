@@ -1,5 +1,6 @@
 # Release: build the desktop app (macOS arm64 + x86_64, Linux x86_64, Windows x86_64) and
-# the web bundle, then publish a GitHub Release tagged from VERSION and deploy the web app to
+# the web bundle, then publish a GitHub Release (VERSION, or the next patch after the last
+# release so a version is never published twice) and deploy the web app to
 # Cloudflare Pages. See docs/RELEASING.md.
 #
 # Runs ONLY on push to `main` (and manual dispatch). `dev` and PR branches never trigger it.
@@ -53,13 +54,22 @@ jobs:
             echo "::error file=VERSION::VERSION must be X.Y.Z, got '$version'"
             exit 1
           fi
+          # Never publish the same version twice: VERSION wins if it is newer than every
+          # released vX.Y.Z; otherwise bump the patch of the highest released version.
+          base="$version"
+          latest="$(git ls-remote --tags origin 'refs/tags/v*' | awk '{print $2}' \
+            | sed -nE 's#^refs/tags/v([0-9]+\.[0-9]+\.[0-9]+)$#\1#p' \
+            | sort -t. -k1,1n -k2,2n -k3,3n | tail -1)"
+          if [[ -n "$latest" ]]; then
+            newest="$(printf '%s\n%s\n' "$latest" "$base" | sort -t. -k1,1n -k2,2n -k3,3n | tail -1)"
+            if [[ "$newest" != "$base" || "$base" == "$latest" ]]; then
+              IFS=. read -r ma mi pa <<<"$latest"
+              version="$ma.$mi.$((pa + 1))"
+              echo "::notice::VERSION $base is not newer than released v$latest: publishing v$version"
+            fi
+          fi
           tag="v$version"
           prerelease=false
-          if git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null; then
-            tag="v$version+${GITHUB_SHA::7}"
-            prerelease=true
-            echo "::notice::$tag: v$version already exists, publishing as a prerelease"
-          fi
           {
             echo "version=$version"
             echo "tag=$tag"
@@ -111,6 +121,9 @@ jobs:
             target: x86_64-pc-windows-msvc
             bundles: msi,nsis
     runs-on: ${{ matrix.os }}
+    env:
+      # The computed release version (VERSION, or the next patch after the last release).
+      ETHER_RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
     steps:
       - uses: actions/checkout@v4
       - name: Windows aws-lc (prebuilt NASM objects; str0m's DTLS pulls aws-lc-sys)
@@ -378,7 +391,6 @@ jobs:
           {
             echo "## Ethereal $TAG"
             echo
-            [ "$PRERELEASE" = true ] && echo "> Prerelease build of commit ${GITHUB_SHA::7}: \`v$VERSION\` was already released. Bump \`VERSION\` for a new release." && echo
             echo "### Downloads"
             echo "- **macOS**: \`*_aarch64.dmg\` (Apple Silicon), \`*_x64.dmg\` (Intel). \`.app.zip\` is the same app, zipped."
             echo "- **Linux**: \`*.AppImage\` (any x86_64 distro) or \`*.deb\` (Debian/Ubuntu)."

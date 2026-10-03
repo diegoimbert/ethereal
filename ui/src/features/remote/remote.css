@@ -37,3 +37,23 @@
   font: inherit;
   cursor: pointer;
 }
+/* Settings > Advanced > Engine server (base-115). */
+.eth-remote__heading {
+  margin: 0;
+  font-size: var(--eth-fs-md);
+  font-weight: var(--eth-fw-medium);
+  color: var(--eth-color-text);
+}
+.eth-remote__row {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: var(--eth-space-sm);
+}
+.eth-remote__connected {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-sm);
+}
+.eth-remote__status {
+  margin: 0;
+}

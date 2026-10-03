@@ -1,12 +1,13 @@
 // Presence inside an editor (the piano roll): this user's editing clip and pointer are
-// published, peers' pointers on the same clip are drawn over the grid, and `EditingPeers`
-// shows who else has the clip open. The editor supplies the coordinate mapping, so this
+// published, peers' pointers on the same clip and peers' playheads (`EditorPlayheads`) are
+// drawn over the grid, and `EditingPeers` shows who else has the clip open. The editor supplies the coordinate mapping, so this
 // module knows nothing about keys or rows.
 import { useEffect, useLayoutEffect, useRef, type CSSProperties, type RefObject } from "react";
 import type { ArrangerPointer, ClipId, SiteId } from "@/generated";
 import { cmd, useTransport } from "@/transport";
 import { peerColor, useCollabStore, useHideOthers } from "../store";
 import { useClipEditors } from "./editors";
+import { EditorPlayheads } from "./EditorPlayheads";
 import { setEditingClip, useLocalPresence } from "./local";
 import { usePointerStore } from "./pointers";
 
@@ -46,7 +47,12 @@ export function EditorPresence({ clip, gridRef, mapping }: EditorPresenceProps) 
     };
   }, [clip]);
   usePublishEditorPointer(clip, gridRef, mapping, online);
-  return online && !hide ? <EditorPointers clip={clip} mapping={mapping} /> : null;
+  return online && !hide ? (
+    <>
+      <EditorPlayheads clip={clip} mapping={mapping} />
+      <EditorPointers clip={clip} mapping={mapping} />
+    </>
+  ) : null;
 }
 
 function usePublishEditorPointer(

@@ -4,11 +4,11 @@
 //   monotonically and ends at the expected height, and a click on the lane then works;
 // - a stepped param (the synth's Transpose, semitones) snaps to whole steps;
 // - copy/paste of points (keyboard and the lane's "Paste Here" menu);
-// - 64 tracks: the open/close animation keeps a steady frame rate.
+// - 64 tracks: the open/close animation keeps a steady frame rate (automation-ux.perf.spec.ts).
 //
 // No sleeps: every step waits on UI or engine state. The UI mirror is `window.__ether`.
 import { expect, test, type Page } from "@playwright/test";
-import type { Command, Project } from "@/generated";
+import type { Project } from "@/generated";
 import { createTrack, newProject, pickOption } from "./ui";
 
 interface Handle {
@@ -122,121 +122,4 @@ test("automation lanes animate open, snap stepped params, and copy/paste points"
   await expect.poll(semis).toBeCloseTo(before + 3, 9);
 
   expect(errors).toEqual([]);
-});
-
-// ---- 64 tracks: frame rate while lanes open/close ---------------------------------------
-
-interface Probe {
-  replies: Record<number, { status: string }>;
-  post(json: string): void;
-}
-const ulid = (kind: number, n: number) => `01J${kind}${String(n).padStart(22, "0")}`;
-let nextId = 2_000_000_000;
-
-async function send(page: Page, command: Command) {
-  const id = nextId++;
-  await page.evaluate(
-    ([id, command]) => (window as unknown as { __probe: Probe }).__probe.post(JSON.stringify({ id, gesture: null, command })),
-    [id, command] as const,
-  );
-  await expect
-    .poll(() => page.evaluate((id) => (window as unknown as { __probe: Probe }).__probe.replies[id], id), { timeout: 15_000 })
-    .toMatchObject({ status: "Ok" });
-}
-
-test("64 tracks: opening/closing automation keeps the frame rate", async ({ page }) => {
-  test.setTimeout(180_000);
-  await page.goto("/");
-  await newProject(page, `Automation perf ${Date.now()}`);
-  await page.evaluate(() => {
-    const ep = (window as unknown as { __etherEngine: { handles(): { controller: Worker } | null; post(json: string): void } }).__etherEngine;
-    const probe: Probe = { replies: {}, post: (json) => ep.post(json) };
-    ep.handles()!.controller.addEventListener("message", (e: MessageEvent<{ type: string; json?: string }>) => {
-      if (e.data.type !== "server" || !e.data.json) return;
-      for (const m of JSON.parse(e.data.json) as { kind: string; body: { id: number; result: { status: string } } }[]) {
-        if (m.kind === "Reply") probe.replies[m.body.id] = m.body.result;
-      }
-    });
-    (window as unknown as { __probe: Probe }).__probe = probe;
-  });
-  // One MIDI track with 8 clips of 16 notes, duplicated to 64.
-  const first = ulid(1, 0);
-  await send(page, { domain: "Track", command: { type: "Create", id: first, kind: "Midi", name: "perf 0", color: null, parent: null, before: null } });
-  for (let c = 0; c < 8; c++) {
-    const clip = ulid(3, c);
-    await send(page, { domain: "Clip", command: { type: "CreateMidi", id: clip, track: first, start: c * 4, length: 4, name: null } });
-    await send(page, {
-      domain: "Note",
-      command: {
-        type: "Add",
-        clip,
-        notes: Array.from({ length: 16 }, (_, k) => ({ id: ulid(4, c * 16 + k), pitch: 60 + (k % 12), velocity: 100, start: k / 4, duration: 0.25 })),
-      },
-    });
-  }
-  for (let t = 1; t < 64; t++) await send(page, { domain: "Track", command: { type: "Duplicate", id: first, new_id: ulid(1, t) } });
-  await expect.poll(async () => Object.keys((await doc(page)).tracks).length).toBeGreaterThanOrEqual(64);
-  await expect(page.locator(".eth-arr-row")).not.toHaveCount(0);
-
-  // Toggle the first track's automation a few times; record frame intervals, and the main
-  // thread's script + layout time per frame (CDP), against the same page at rest.
-  const toggle = page.getByRole("button", { name: /Show automation of perf 0|Hide automation of perf 0/ }).first();
-  const cdp = await page.context().newCDPSession(page);
-  await cdp.send("Performance.enable");
-  const metrics = async () => {
-    const { metrics: m } = await cdp.send("Performance.getMetrics");
-    const get = (n: string) => m.find((x) => x.name === n)?.value ?? 0;
-    return { script: get("ScriptDuration"), layout: get("LayoutDuration") + get("RecalcStyleDuration"), task: get("TaskDuration") };
-  };
-  const idleFrames = await page.evaluate(
-    () =>
-      new Promise<number[]>((done) => {
-        const out: number[] = [];
-        let last = performance.now();
-        const tick = (now: number) => {
-          out.push(now - last);
-          last = now;
-          if (out.length < 40) requestAnimationFrame(tick);
-          else done(out.slice(1));
-        };
-        requestAnimationFrame(tick);
-      }),
-  );
-  const m0 = await metrics();
-  await page.evaluate(() => {
-    const w = window as unknown as { __frames: number[]; __rec: boolean };
-    w.__frames = [];
-    w.__rec = true;
-    let last = performance.now();
-    const tick = (now: number) => {
-      w.__frames.push(now - last);
-      last = now;
-      if (w.__rec) requestAnimationFrame(tick);
-    };
-    requestAnimationFrame(tick);
-  });
-  for (let i = 0; i < 6; i++) {
-    await toggle.click();
-    await page.waitForFunction(() => document.querySelector(".eth-auto-track--animating") === null);
-  }
-  const frames = await page.evaluate(() => {
-    const w = window as unknown as { __frames: number[]; __rec: boolean };
-    w.__rec = false;
-    return w.__frames.slice(1);
-  });
-  const m1 = await metrics();
-  const med = (xs: number[]) => [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)]!;
-  const p95 = [...frames].sort((a, b) => a - b)[Math.floor(frames.length * 0.95)]!;
-  const perFrame = (k: "script" | "layout" | "task") => ((m1[k] - m0[k]) * 1000) / frames.length;
-  console.log(
-    `automation-ux perf (64 tracks): ${frames.length} frames, median ${med(frames).toFixed(1)} ms (idle ${med(idleFrames).toFixed(1)} ms), ` +
-      `p95 ${p95.toFixed(1)} ms; per frame: script ${perFrame("script").toFixed(2)} ms, style+layout ${perFrame("layout").toFixed(2)} ms, ` +
-      `main-thread tasks ${perFrame("task").toFixed(2)} ms`,
-  );
-  // The frame budget at 60 fps is 16.7 ms: the work per animated frame must fit well within
-  // it. (The frame interval itself depends on the machine: a headless browser on a shared
-  // box may present at 30 Hz even at rest, so it is compared to the idle rate.)
-  expect(med(frames)).toBeLessThanOrEqual(med(idleFrames) * 1.25);
-  expect(p95).toBeLessThanOrEqual(med(idleFrames) * 2.5);
-  expect(perFrame("script")).toBeLessThan(8);
 });

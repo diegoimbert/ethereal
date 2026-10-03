@@ -127,6 +127,8 @@ where
     ) -> CmdResult<ReplyValue> {
         let current = self.doc.as_ref().map(|d| d.project.id);
         let command = &msg.command;
+        // `agent-api`: remember what the agent tools report (the UI's selection).
+        self.agent_observe(command);
         // base-53: while listening on a peer, transport commands go to the host and
         // recording is refused (loop changes are document commands: intercept first).
         if let Some(r) = self.collab_transport_intercept(command, out) {
@@ -142,6 +144,12 @@ where
         if self.share_view_only() && share_edits(command, current) {
             return Err(invalid_state("view only: you joined with a listen link"));
         }
+        // v0.3 (`templates`): `Template::Insert` loads its file and imports its samples
+        // first (alone: in one gesture; in a `Batch`: scoped for the batch).
+        if let Some(r) = self.template_insert_command(msg, now, out) {
+            return r;
+        }
+        let _templates = self.template_scope(command, msg.gesture, now, out)?;
         if doc::is_document_command(command, current) {
             let label = doc::label_of(command);
             self.edit_with(&label, msg.gesture, now, out, |ctx| {
@@ -208,6 +216,8 @@ where
             Command::Keymap(c) => self.keymap_command(c, out),
             // base-115 (docs/SHARING.md).
             Command::Share(c) => self.share_command(c, out),
+            // `agent-api`: LLM tools (each edit tool call is one undo step).
+            Command::Agent(c) => self.agent_command(c, now, out),
             other => Err(internal(format!(
                 "unhandled command {}",
                 doc::label_of(other)
@@ -261,6 +271,7 @@ where
             label: label.to_string(),
             ops,
         };
+        doc.history.set_now_ms(now);
         let (applied, inverse) = doc
             .history
             .commit_with_inverse(&mut doc.project, tx, gesture)
@@ -350,6 +361,24 @@ where
         );
     }
 
+    /// Undo or redo one step without emitting anything (`Edit::{Undo, Redo}`, and
+    /// `History::JumpTo` step by step). Returns the applied ops, `None` if there was
+    /// nothing to undo/redo.
+    pub(crate) fn undo_redo_step(&mut self, undo: bool) -> CmdResult<Option<Vec<Op>>> {
+        if self.collab_active() {
+            // Collab: per-site undo (only this site's steps; peers' later changes win),
+            // stamped and sent like an edit.
+            return self.collab_undo_redo(undo);
+        }
+        let doc = self.doc.as_mut().ok_or_else(no_project)?;
+        if undo {
+            doc.history.undo(&mut doc.project)
+        } else {
+            doc.history.redo(&mut doc.project)
+        }
+        .map_err(model_err)
+    }
+
     fn edit_command(
         &mut self,
         c: &EditCommand,
@@ -360,20 +389,7 @@ where
         match c {
             EditCommand::Undo | EditCommand::Redo => {
                 let undo = matches!(c, EditCommand::Undo);
-                let applied = if self.collab_active() {
-                    // Collab: per-site undo (only this site's steps; peers' later changes
-                    // win), stamped and sent like an edit.
-                    self.collab_undo_redo(undo)?
-                } else {
-                    let doc = self.doc.as_mut().ok_or_else(no_project)?;
-                    if undo {
-                        doc.history.undo(&mut doc.project)
-                    } else {
-                        doc.history.redo(&mut doc.project)
-                    }
-                    .map_err(model_err)?
-                }
-                .ok_or_else(|| {
+                let applied = self.undo_redo_step(undo)?.ok_or_else(|| {
                     invalid_state(if matches!(c, EditCommand::Undo) {
                         "nothing to undo"
                     } else {

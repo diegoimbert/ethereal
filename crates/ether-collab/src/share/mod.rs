@@ -10,8 +10,8 @@
 //!   service), [`PeerEndpoint`] (creates peer connections, yields [`PeerLink`]s), bundled in
 //!   [`ShareServices`]. Real implementations: node `p2p-transport` (native: tungstenite +
 //!   rustls and str0m; web: the Worker's `WebSocket` and the UI's `RTCPeerConnection`
-//!   behind a `MessagePort`). Until then [`default_services`] fails cleanly; tests inject
-//!   in-memory fakes.
+//!   behind a `MessagePort`): [`signal`], [`native`], [`web`], bundled by
+//!   [`default_services`]. Tests inject in-memory fakes.
 //!
 //! The hub (node `share-engine`) is the existing [`crate::relay::Relay`] state machine run in
 //! the host's process (one session), with the host's own site on a loopback link and every
@@ -25,6 +25,11 @@ pub mod handshake;
 pub mod hub;
 pub mod invite;
 pub mod keys;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod native;
+pub mod signal;
+#[cfg(target_arch = "wasm32")]
+pub mod web;
 
 use ether_protocol::collab::{IceServer, StreamSignal};
 use ether_protocol::share::{PeerId, SignalClientMessage, SignalServerMessage};
@@ -111,9 +116,23 @@ pub struct ShareServices {
     pub peers: BoxPeerEndpoint,
 }
 
-/// The platform services (`p2p-transport`). Until that node lands: a signaling socket that
-/// is closed at once (`fatal`) and an endpoint whose peers fail.
+/// The platform services: the signaling socket of [`signal::connect`], and the native
+/// str0m endpoint ([`native::NativePeers`]) or, on the web, the UI's peer connections
+/// behind the share port ([`web::WebPeers`]; without an installed port its peers fail).
 pub fn default_services() -> ShareServices {
+    #[cfg(not(target_arch = "wasm32"))]
+    let peers: BoxPeerEndpoint = Box::<native::NativePeers>::default();
+    #[cfg(target_arch = "wasm32")]
+    let peers: BoxPeerEndpoint = Box::<web::WebPeers>::default();
+    ShareServices {
+        signal: Box::new(|url: &str| signal::connect(url)),
+        peers,
+    }
+}
+
+/// Services that fail cleanly (a build or test without networking): every signaling
+/// socket is closed at once (`fatal`), every peer fails.
+pub fn unavailable_services() -> ShareServices {
     ShareServices {
         signal: Box::new(|_| Box::new(Unavailable)),
         peers: Box::new(FailedPeers::default()),
@@ -122,7 +141,7 @@ pub fn default_services() -> ShareServices {
 
 struct Unavailable;
 
-const UNAVAILABLE: &str = "peer-to-peer sharing is not available in this build yet";
+const UNAVAILABLE: &str = "peer-to-peer sharing is not available in this build";
 
 impl SignalLink for Unavailable {
     fn send(&mut self, _: &SignalClientMessage) {}
@@ -158,8 +177,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn default_services_fail_cleanly() {
-        let mut s = default_services();
+    fn unavailable_services_fail_cleanly() {
+        let mut s = unavailable_services();
         let link = (s.signal)("wss://x.test/v1/rooms/r/host");
         assert!(matches!(
             link.state(),
