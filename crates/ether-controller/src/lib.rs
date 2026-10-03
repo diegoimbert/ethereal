@@ -64,6 +64,7 @@ mod presets;
 mod project;
 mod racks;
 mod recording;
+mod share;
 mod sidechain;
 mod social;
 pub mod store;
