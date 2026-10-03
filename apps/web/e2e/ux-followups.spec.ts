@@ -13,7 +13,7 @@ import { fileURLToPath } from "node:url";
 import { expect, test, type Page } from "@playwright/test";
 import type { Clip, Project } from "@/generated";
 import { openClip } from "./clips";
-import { addDevice, createTrack, openDeviceTab, playButton, selectTrack } from "./ui";
+import { addDevice, createTrack, openDeviceTab, openEditor, pickOption, playButton, selectTrack } from "./ui";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const shots = process.env.UX_SHOTS;
@@ -91,6 +91,31 @@ test("a large knob's value fits inside its ring", async ({ page }) => {
     await card.scrollIntoViewIfNeeded();
     await page.mouse.move(0, 0);
     await card.screenshot({ path: `${shots}/ux-knob-values-${theme}.png` });
+  }
+});
+
+test("the Tempo tab's time-signature fields fit their header (denominator not clipped)", async ({ page }) => {
+  test.setTimeout(90_000);
+  await open(page);
+  await openEditor(page, "Tempo");
+  await page.getByTestId("signature-lane").dblclick({ position: { x: 12 * 8 + 2, y: 6 } });
+  await expect.poll(async () => Object.keys((await project(page))!.time_signatures).length).toBe(2);
+  await pickOption(page, "Beat unit", { value: "16" });
+  const fields = page.getByTestId("signature-fields");
+  const unit = fields.getByRole("combobox", { name: "Beat unit" });
+  await expect(unit).toHaveText(/16/);
+  // Every field sits inside the header, and the select shows its whole value.
+  const header = (await page.locator(".eth-tempo__header").filter({ has: fields }).boundingBox())!;
+  for (const name of ["Beats per bar", "Beat unit", "Delete time signature"]) {
+    const b = (await fields.getByRole(name === "Beats per bar" ? "spinbutton" : name === "Beat unit" ? "combobox" : "button", { name }).boundingBox())!;
+    expect(b.x + b.width, name).toBeLessThanOrEqual(header.x + header.width + 0.5);
+  }
+  // The select's value text isn't cut ("16", not "1…").
+  const value = unit.locator(".eth-select__value");
+  expect(await value.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
+  if (shots) {
+    await page.mouse.move(0, 0);
+    await page.locator(".eth-tempo").screenshot({ path: `${shots}/ux-tempo-signature-${theme}.png` });
   }
 });
 
