@@ -126,7 +126,7 @@
 }
 .eth-zones__fields {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(var(--eth-size-number-field-narrow), 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(calc(var(--eth-size-number-field-narrow) * 1.4), 1fr));
   gap: var(--eth-space-xs) var(--eth-space-sm);
 }
 .eth-zones__field {
@@ -138,6 +138,9 @@
 .eth-zones__field-label {
   font-size: var(--eth-fs-2xs);
   color: var(--eth-color-text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
   text-transform: uppercase;
+  white-space: nowrap;
   letter-spacing: var(--eth-tracking-caps);
 }
