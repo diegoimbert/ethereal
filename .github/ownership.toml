@@ -818,6 +818,8 @@ paths = [
   "ui/src/features/arrangement/clipboard.ts",
   "ui/src/features/arrangement/ArrangementView.tsx",
   "ui/src/features/arrangement/actions.ts",
+  # shared touch (BCR, insert marker): paste no longer moves the playhead
+  "ui/src/features/arrangement/ArrangementView.test.tsx",
 ]
 
 [nodes.turn-hardening]
