@@ -123,6 +123,7 @@ fn group_selected(
         scale: Default::default(),
         freeze: None,
         vca: None,
+        mpe: None,
     }))?;
     // Children keep their relative order (their order keys are already sorted and unique
     // among the old siblings, so they stay valid inside the new group).

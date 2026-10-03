@@ -100,6 +100,15 @@ pub struct TrackDesc {
     /// VCA assignment (`groups-buses`, [`crate::vca`]): an id in `RenderGraphDesc::vcas`.
     #[serde(default)]
     pub vca: Option<TrackId>,
+    // --- v0.3 (contracts-4; each field's module owns its semantics) ---
+    /// MIDI expression lanes, note expressions and MPE (`midi-expression`, `mpe`,
+    /// [`crate::expression`]). Empty = none (v0.2 behaviour).
+    #[serde(default)]
+    pub expression: crate::expression::TrackExpressionDesc,
+    /// External instrument/effect hardware I/O of this track's chain (`external-instrument`,
+    /// [`crate::hw_io`]).
+    #[serde(default)]
+    pub hw_io: Vec<crate::hw_io::HwIoDesc>,
 }
 
 /// Click settings (roadmap v2, `tempo-metronome`). The click is rendered by
@@ -1019,6 +1028,8 @@ mod tests {
             clips: vec![],
             automation: vec![],
             racks: vec![],
+            expression: Default::default(),
+            hw_io: Vec::new(),
         }
     }
 

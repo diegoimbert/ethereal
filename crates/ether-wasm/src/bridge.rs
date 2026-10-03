@@ -347,6 +347,8 @@ mod analysis_tests {
             clips: vec![],
             automation: vec![],
             racks: Vec::new(),
+            expression: Default::default(),
+            hw_io: Vec::new(),
         }
     }
 

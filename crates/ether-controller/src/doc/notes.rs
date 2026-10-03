@@ -77,7 +77,7 @@ pub(super) fn apply(ctx: &mut DocCtx, c: &NoteCommand) -> CmdResult<()> {
         NoteCommand::Remove { ids } => {
             for id in ids {
                 note(ctx, *id)?;
-                ctx.tx.remove(EntityKey::Note(*id))?;
+                ctx.delete_note(*id)?;
             }
             Ok(())
         }

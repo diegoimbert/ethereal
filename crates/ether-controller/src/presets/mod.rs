@@ -320,6 +320,7 @@ where
             kind: None,
             samples: Vec::new(),
             state: None,
+            rack: None,
         };
         match &d.kind {
             DeviceKind::Builtin { device: kind } => {

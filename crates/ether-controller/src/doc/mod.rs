@@ -167,7 +167,18 @@ impl DocCtx<'_, '_> {
             .map(|n| n.id)
             .collect();
         for n in notes {
-            self.tx.remove(EntityKey::Note(n))?;
+            self.delete_note(n)?;
+        }
+        // v0.3: expression lanes (`midi-expression`).
+        let lanes: Vec<ExpressionLaneId> = self
+            .p()
+            .expression_lanes
+            .values()
+            .filter(|l| l.clip == id)
+            .map(|l| l.id)
+            .collect();
+        for l in lanes {
+            self.tx.remove(EntityKey::ExpressionLane(l))?;
         }
         let markers: Vec<WarpMarkerId> = self
             .p()
@@ -183,6 +194,21 @@ impl DocCtx<'_, '_> {
             |l| matches!(l.owner, AutomationOwner::Clip { clip } if clip == id),
         )?;
         self.tx.remove(EntityKey::Clip(id))
+    }
+
+    /// Remove a note and its expressions (v0.3).
+    pub fn delete_note(&mut self, id: NoteId) -> CmdResult<()> {
+        let exprs: Vec<NoteExpressionId> = self
+            .p()
+            .note_expressions
+            .values()
+            .filter(|e| e.note == id)
+            .map(|e| e.id)
+            .collect();
+        for e in exprs {
+            self.tx.remove(EntityKey::NoteExpression(e))?;
+        }
+        self.tx.remove(EntityKey::Note(id))
     }
 
     pub fn delete_send(&mut self, id: SendId) -> CmdResult<()> {
@@ -445,9 +471,35 @@ impl DocCtx<'_, '_> {
         self.tx.insert(Entity::Clip(copy))?;
         let notes: Vec<Note> = self.p().notes_of(src.id).into_iter().cloned().collect();
         for mut n in notes {
+            let old = n.id;
             n.id = self.new_id();
             n.clip = new_id;
+            let new_note = n.id;
             self.tx.insert(Entity::Note(n))?;
+            // v0.3: the note's expressions follow it.
+            let exprs: Vec<NoteExpression> = self
+                .p()
+                .note_expressions_of(old)
+                .into_iter()
+                .cloned()
+                .collect();
+            for mut e in exprs {
+                e.id = self.new_id();
+                e.note = new_note;
+                self.tx.insert(Entity::NoteExpression(e))?;
+            }
+        }
+        // v0.3: clip expression lanes.
+        let lanes: Vec<ExpressionLane> = self
+            .p()
+            .expression_lanes_of(src.id)
+            .into_iter()
+            .cloned()
+            .collect();
+        for mut l in lanes {
+            l.id = self.new_id();
+            l.clip = new_id;
+            self.tx.insert(Entity::ExpressionLane(l))?;
         }
         let markers: Vec<WarpMarker> = self
             .p()
@@ -636,7 +688,10 @@ pub(crate) fn is_document_command(command: &Command, current: Option<ProjectId>)
         | Command::Note(_)
         | Command::Automation(_)
         | Command::Mixer(_) => true,
-        Command::Device(c) => !matches!(c, D::ListBuiltin | D::GetDescriptor { .. }),
+        Command::Device(c) => !matches!(
+            c,
+            D::ListBuiltin | D::GetDescriptor { .. } | D::ListFactoryIrs
+        ),
         Command::Transport(c) => matches!(
             c,
             T::SetLoopEnabled { .. }
@@ -663,6 +718,16 @@ pub(crate) fn is_document_command(command: &Command, current: Option<ProjectId>)
         Command::Modulation(c) => !matches!(
             c,
             ether_core::protocol::racks::ModulationCommand::ListModulatorKinds
+        ),
+        // v0.3 (contracts-4).
+        Command::Expression(_) => true,
+        Command::External(c) => matches!(
+            c,
+            ether_core::protocol::external::ExternalCommand::SetRouting { .. }
+        ),
+        Command::Template(c) => matches!(
+            c,
+            ether_core::protocol::templates::TemplateCommand::Insert { .. }
         ),
         Command::Project(ProjectCommand::SetScale { .. }) => true,
         Command::Project(ProjectCommand::Rename { id, .. }) => Some(*id) == current,
@@ -713,6 +778,18 @@ pub(crate) fn apply(ctx: &mut DocCtx, command: &Command) -> CmdResult<ReplyValue
         Command::Rack(c) => crate::racks::rack_command(ctx, c),
         Command::Modulation(c) => crate::racks::modulation_command(ctx, c),
         Command::PinnedNote(c) => crate::social::pinned_note_command(ctx, c),
+        // v0.3 (contracts-4).
+        Command::Expression(c) => crate::expression::expression_command(ctx, c),
+        Command::External(ether_core::protocol::external::ExternalCommand::SetRouting {
+            device,
+            routing,
+        }) => crate::external::set_routing(ctx, *device, routing),
+        Command::Template(ether_core::protocol::templates::TemplateCommand::Insert {
+            template,
+            seed,
+            parent,
+            before,
+        }) => crate::templates::insert(ctx, template, *seed, *parent, *before),
         Command::Project(ProjectCommand::SetScale { scale }) => {
             ctx.tx.settings(SettingsChange::Scale(*scale))
         }

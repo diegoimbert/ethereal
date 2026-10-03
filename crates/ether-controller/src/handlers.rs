@@ -148,6 +148,8 @@ where
             Command::Device(DeviceCommand::GetDescriptor { device }) => {
                 self.get_descriptor(*device)
             }
+            // v0.3 (`fx-space`).
+            Command::Device(DeviceCommand::ListFactoryIrs) => crate::fx_space::list_factory_irs(),
             Command::Recording(r) => self.recording_command(r, now, out),
             Command::Plugin(p) => self.plugin_command(p, msg.gesture, now, out),
             Command::Warp(WarpCommand::DetectTempo { clip }) => self.detect_tempo(*clip),
@@ -173,6 +175,15 @@ where
                 kinds: ether_devices::modulators::all(),
             }),
             Command::Chat(c) => self.chat_command(c, now, out),
+            // v0.3 (contracts-4; document parts of `Expression`, `External` and `Template`
+            // go through `doc::apply`).
+            Command::Capture(c) => self.capture_command(c, now, out),
+            Command::AudioToMidi(c) => self.audio_to_midi_command(c, now, out),
+            Command::External(c) => self.external_command(c, now, out),
+            Command::History(c) => self.history_command(c, now, out),
+            Command::Template(c) => self.template_command(c, now, out),
+            Command::Version(c) => self.version_command(c, now, out),
+            Command::Keymap(c) => self.keymap_command(c, out),
             other => Err(internal(format!(
                 "unhandled command {}",
                 doc::label_of(other)
@@ -968,6 +979,11 @@ where
         self.freeze_tick(now, out);
         self.browser_tick(now, out);
         self.media_refs_tick(now, out);
+        // v0.3 hooks.
+        self.capture_tick(now, out);
+        self.audio_to_midi_tick(now, out);
+        self.history_tick(now, out);
+        self.versions_tick(now, out);
 
         // Media jobs.
         if let Some(pid) = self.doc.as_ref().map(|d| d.project.id)

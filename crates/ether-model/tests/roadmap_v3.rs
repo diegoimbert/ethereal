@@ -41,6 +41,7 @@ impl Fx {
             scale: Default::default(),
             freeze: None,
             vca: None,
+            mpe: None,
         }))
         .unwrap();
         id
