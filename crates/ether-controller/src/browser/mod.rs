@@ -6,8 +6,10 @@
 //!
 //! - **Lazy start.** Nothing happens until the first `Browser` command (the v2 browser sends
 //!   `ListRoots` when it mounts): the persisted index is loaded from the user library
-//!   (`<library>/.ethereal/index.json`, [`persist`]), user folders are re-added through
-//!   `Library::add_folder`, and every root is queued for an incremental rescan.
+//!   (`<library>/.ethereal/index.json` + the `items.json` scan cache, [`persist`]), user
+//!   folders are re-added through `Library::add_folder`, and every root is queued for an
+//!   incremental rescan. User edits (favourites, tags, folders) are written at once; the
+//!   scan cache after scans settle.
 //! - **Never blocks the controller.** Scanning is a breadth-first walk of each root, a
 //!   bounded number of folder listings and entries per tick ([`DIRS_PER_TICK`],
 //!   [`ENTRIES_PER_TICK`]); queries answer from the partial index meanwhile. A second,
@@ -124,13 +126,16 @@ pub(crate) struct BrowserState {
     last_progress: u64,
     last_changed: u64,
     last_full_scan: u64,
-    /// When the index should be written (`None` = clean).
+    /// When the item cache should be written (`None` = clean).
     persist_due: Option<u64>,
     /// First change since the last write.
     dirty_since: Option<u64>,
+    /// The user data changed: write `index.json` at the end of the command/tick.
+    user_dirty: bool,
 }
 
 impl BrowserState {
+    /// The items changed (written after a quiet period).
     fn mark_dirty(&mut self, now: u64) {
         self.persist_due = Some(now + PERSIST_AFTER_MS);
         self.dirty_since.get_or_insert(now);
@@ -380,7 +385,7 @@ where
                 if !self.browser.index.set_favourite(item, *favourite) {
                     return Err(not_found(format!("library item {item}")));
                 }
-                self.browser.mark_dirty(now);
+                self.browser_save_user();
                 changed(out);
                 Ok(ReplyValue::Unit)
             }
@@ -388,7 +393,7 @@ where
                 if !self.browser.index.set_tags(item, tags) {
                     return Err(not_found(format!("library item {item}")));
                 }
-                self.browser.mark_dirty(now);
+                self.browser_save_user();
                 changed(out);
                 Ok(ReplyValue::Unit)
             }
@@ -404,7 +409,7 @@ where
                     path: path.clone(),
                 });
                 self.browser_queue_scan(&id);
-                self.browser.mark_dirty(now);
+                self.browser_save_user();
                 Ok(ReplyValue::BrowserRoots {
                     roots: self.browser_roots(),
                 })
@@ -420,6 +425,7 @@ where
                 st.packs.remove(root);
                 st.index.remove_where(|e| &e.item.root == root);
                 st.mark_dirty(now);
+                self.browser_save_user();
                 changed(out);
                 Ok(ReplyValue::Unit)
             }
@@ -493,11 +499,13 @@ where
                     let st = &mut self.browser;
                     st.index
                         .remove_where(|e| e.item.root == scan.root && !scan.seen.contains(&e.item.id));
+                    let packs_changed = st.packs.get(&scan.root).map_or(!scan.packs.is_empty(), |p| *p != scan.packs);
                     if scan.packs.is_empty() {
                         st.packs.remove(&scan.root);
                     } else {
                         st.packs.insert(scan.root.clone(), scan.packs);
                     }
+                    st.user_dirty |= packs_changed;
                     st.mark_dirty(now);
                     st.last_progress = now;
                     progress(out, &scan.root, scan.scanned, Some(scan.scanned));
@@ -516,6 +524,9 @@ where
         if self.browser.scans.is_empty() {
             self.browser_probe(now, out);
         }
+        if self.browser.user_dirty {
+            self.browser_save_user();
+        }
         self.browser_persist(now);
         let st = &self.browser;
         if st.scans.is_empty() && st.probe.is_empty() && now >= st.last_full_scan + RESCAN_EVERY_MS {
@@ -529,11 +540,11 @@ where
             return;
         }
         self.browser.started = true;
-        let file = self
-            .library
-            .user_root()
-            .and_then(|root| self.library.read(&root, persist::INDEX_PATH).ok())
-            .and_then(|bytes| persist::parse(&bytes));
+        let file = self.library.user_root().and_then(|root| {
+            let index = self.library.read(&root, persist::INDEX_PATH).ok()?;
+            let items = self.library.read(&root, persist::ITEMS_PATH).ok();
+            persist::parse(&index, items.as_deref())
+        });
         if let Some(file) = file {
             for folder in file.folders {
                 if let Ok(id) = self.library.add_folder(&folder.path) {
@@ -801,12 +812,7 @@ where
             self.browser.dirty_since = None;
             return;
         };
-        let file = IndexFile {
-            folders: st.folders.clone(),
-            favourites: st.index.favourites.clone(),
-            tags: st.index.tags.clone(),
-            packs: st.packs.clone(),
-            items: st
+        let items: Vec<StoredItem> = st
                 .index
                 .entries()
                 .filter(|e| matches!(e.item.kind, LibraryItemKind::Audio | LibraryItemKind::Midi))
@@ -821,13 +827,32 @@ where
                     rate: e.item.meta.sample_rate,
                     channels: e.item.meta.channels,
                 })
-                .collect(),
-        };
+                .collect();
         // A failed write is retried with the next change.
         let _ = self
             .library
-            .write_file(&root, persist::INDEX_PATH, &persist::serialize(&file));
+            .write_file(&root, persist::ITEMS_PATH, &persist::serialize_items(&items));
         self.browser.persist_due = None;
         self.browser.dirty_since = None;
+    }
+
+    /// Write `index.json` (user folders, favourites, tags, packs) now.
+    fn browser_save_user(&mut self) {
+        let st = &mut self.browser;
+        st.user_dirty = false;
+        let Some(root) = self.library.user_root() else {
+            return;
+        };
+        let file = IndexFile {
+            folders: st.folders.clone(),
+            favourites: st.index.favourites.clone(),
+            tags: st.index.tags.clone(),
+            packs: st.packs.clone(),
+            items: Vec::new(),
+        };
+        // Best effort (a read-only library keeps them for the session).
+        let _ = self
+            .library
+            .write_file(&root, persist::INDEX_PATH, &persist::serialize(&file));
     }
 }

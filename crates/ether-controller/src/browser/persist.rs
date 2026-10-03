@@ -1,6 +1,8 @@
-//! The persisted index (`<user library>/.ethereal/index.json`): user folders, favourites,
-//! tags, and the scanned files with their probed metadata (so a restart only re-lists
-//! folders instead of re-probing every file). Presets and projects are re-derived on load.
+//! The persisted index, in the user library: `.ethereal/index.json` holds the user's data
+//! (user folders, favourites, tags) and the packs, small and written right after each edit;
+//! `.ethereal/items.json` caches the scanned files with their probed metadata (so a restart
+//! only re-lists folders instead of re-probing every file), written after scans settle.
+//! Presets and projects are re-derived on load.
 //!
 //! Hand-written JSON (`serde_json::Value`; the crate has no serde derive): compact keys,
 //! unknown keys ignored, another `version` starts empty.
@@ -11,6 +13,8 @@ use serde_json::{Map, Value, json};
 
 /// Path inside the user library root.
 pub(crate) const INDEX_PATH: &str = ".ethereal/index.json";
+/// The scan cache, next to it.
+pub(crate) const ITEMS_PATH: &str = ".ethereal/items.json";
 pub(crate) const VERSION: u64 = 1;
 
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -52,8 +56,9 @@ fn f(v: &Value, k: &str) -> Option<f64> {
     v.get(k)?.as_f64()
 }
 
-/// Parse an index file; anything unreadable or of another version is `None`.
-pub(crate) fn parse(bytes: &[u8]) -> Option<IndexFile> {
+/// Parse the index (`items`: the scan cache, if readable); anything unreadable or of
+/// another version is `None` (the cache alone is dropped when it is unreadable).
+pub(crate) fn parse(bytes: &[u8], items: Option<&[u8]>) -> Option<IndexFile> {
     let v: Value = serde_json::from_slice(bytes).ok()?;
     if v.get("version")?.as_u64()? != VERSION {
         return None;
@@ -106,7 +111,11 @@ pub(crate) fn parse(bytes: &[u8]) -> Option<IndexFile> {
                 .collect()
         })
         .unwrap_or_default();
-    let items = arr("items")
+    let items = items
+        .and_then(|b| serde_json::from_slice::<Value>(b).ok())
+        .filter(|v| v.get("version").and_then(Value::as_u64) == Some(VERSION))
+        .and_then(|v| v.get("items").and_then(Value::as_array).cloned())
+        .unwrap_or_default()
         .iter()
         .filter_map(|x| {
             Some(StoredItem {
@@ -131,9 +140,21 @@ pub(crate) fn parse(bytes: &[u8]) -> Option<IndexFile> {
     })
 }
 
+/// `index.json` (everything but the items).
 pub(crate) fn serialize(file: &IndexFile) -> Vec<u8> {
-    let items: Vec<Value> = file
-        .items
+    let v = json!({
+        "version": VERSION,
+        "folders": file.folders.iter().map(|f| json!({"id": f.id, "path": f.path})).collect::<Vec<_>>(),
+        "favourites": file.favourites,
+        "tags": file.tags,
+        "packs": file.packs,
+    });
+    serde_json::to_vec(&v).unwrap_or_default()
+}
+
+/// `items.json`.
+pub(crate) fn serialize_items(items: &[StoredItem]) -> Vec<u8> {
+    let items: Vec<Value> = items
         .iter()
         .map(|i| {
             let mut o = Map::new();
@@ -160,15 +181,7 @@ pub(crate) fn serialize(file: &IndexFile) -> Vec<u8> {
             Value::Object(o)
         })
         .collect();
-    let v = json!({
-        "version": VERSION,
-        "folders": file.folders.iter().map(|f| json!({"id": f.id, "path": f.path})).collect::<Vec<_>>(),
-        "favourites": file.favourites,
-        "tags": file.tags,
-        "packs": file.packs,
-        "items": items,
-    });
-    serde_json::to_vec(&v).unwrap_or_default()
+    serde_json::to_vec(&json!({ "version": VERSION, "items": items })).unwrap_or_default()
 }
 
 #[cfg(test)]
@@ -205,10 +218,16 @@ mod tests {
                 },
             ],
         };
-        let bytes = serialize(&file);
-        assert_eq!(parse(&bytes), Some(file));
-        assert_eq!(parse(br#"{"version":99}"#), None);
-        assert_eq!(parse(b"garbage"), None);
-        assert_eq!(parse(br#"{"version":1}"#), Some(IndexFile::default()));
+        let (index, items) = (serialize(&file), serialize_items(&file.items));
+        assert_eq!(parse(&index, Some(&items)), Some(file.clone()));
+        let no_cache = IndexFile {
+            items: vec![],
+            ..file
+        };
+        assert_eq!(parse(&index, None), Some(no_cache.clone()));
+        assert_eq!(parse(&index, Some(b"garbage")), Some(no_cache));
+        assert_eq!(parse(br#"{"version":99}"#, Some(&items)), None);
+        assert_eq!(parse(b"garbage", None), None);
+        assert_eq!(parse(br#"{"version":1}"#, None), Some(IndexFile::default()));
     }
 }
