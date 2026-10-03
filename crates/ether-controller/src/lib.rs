@@ -513,6 +513,8 @@ where
     uploads: upload::UploadState,
     /// Collaboration session (`collab` module).
     collab: collab::CollabState,
+    /// base-115: sharing (docs/SHARING.md).
+    share: share::ShareCtl,
     /// v0.2: watched devices for the analysis channel (`analysis` module).
     analysis: analysis::AnalysisState,
     /// v0.2: the time clipboard (`time_edit` module; runtime state, not undoable).
@@ -564,6 +566,7 @@ where
             preview: Default::default(),
             uploads: Default::default(),
             collab: Default::default(),
+            share: Default::default(),
             analysis: Default::default(),
             time_edit: Default::default(),
             // Internal gestures (plugin GUI, tap tempo) live in the upper half of the id

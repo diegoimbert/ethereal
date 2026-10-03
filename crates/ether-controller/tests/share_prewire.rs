@@ -8,7 +8,6 @@ mod support;
 
 use ether_collab::memory::Hub;
 use ether_core::protocol::collab::StreamSignal;
-use ether_core::protocol::model::{Color, ProjectId};
 use ether_core::protocol::share::*;
 use ether_core::protocol::*;
 use support::*;
@@ -44,42 +43,9 @@ fn get_reports_off() {
 fn everything_else_is_unsupported_until_its_node_lands() {
     let hub = Hub::default();
     let mut s = Site::on_hub(1, &hub);
-    let pid = s.create_project("Song");
-    let other = ProjectId::NIL;
-    // share-engine
+    s.create_project("Song");
+    // share-engine: implemented (tests/share.rs).
     for c in [
-        ShareCommand::SetIdentity {
-            name: "Ada".into(),
-            color: Some(Color(0xff8800)),
-        },
-        ShareCommand::SetServers {
-            signal_url: None,
-            invite_origin: None,
-        },
-        ShareCommand::SetPreferences {
-            resume_on_open: true,
-            auto_listen: true,
-            relay_only: false,
-        },
-        ShareCommand::Start,
-        ShareCommand::Stop,
-        ShareCommand::ResetLink {
-            role: ShareRole::Listen,
-        },
-        ShareCommand::RemoveParticipant { member: "m".into() },
-        ShareCommand::SetParticipantRole {
-            member: "m".into(),
-            role: ShareRole::Edit,
-        },
-        ShareCommand::OpenInvite {
-            link:
-                "https://etherealws.pages.dev/join/AAAAAAAAAAAAAAAAAAAAAA#1AAAAAAAAAAAAAAAAAAAAAA"
-                    .into(),
-        },
-        ShareCommand::AcceptInvite,
-        ShareCommand::Leave,
-        ShareCommand::Reconnect { project: pid },
-        ShareCommand::Detach { project: other },
         // p2p-transport (web UI endpoint)
         ShareCommand::PeerSignal {
             peer: 1,

@@ -413,6 +413,24 @@ impl Hub {
             .map_err(|(link, e)| (link.expect("a peer link"), e))
     }
 
+    /// Frames `conn` already sent (read from its link with the handshake's last frame).
+    pub fn deliver(&self, conn: ConnId, frames: Vec<WireFrame>) {
+        let mut h = self.lock();
+        for f in frames {
+            if !h.conns.contains_key(&conn) {
+                return;
+            }
+            let m = match f {
+                WireFrame::Text(t) => decode_text(&t),
+                WireFrame::Binary(b) => decode_binary(&b),
+            };
+            match m {
+                Ok(m) => h.process(conn, m),
+                Err(e) => h.close(conn, e),
+            }
+        }
+    }
+
     /// Drive the hub: joiners' frames, closed links, the relay's clock.
     pub fn poll(&self, now_ms: u64) {
         let mut h = self.lock();
