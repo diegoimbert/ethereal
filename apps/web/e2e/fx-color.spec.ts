@@ -58,6 +58,8 @@ test("saturator, bitcrusher and auto filter on an audio track", async ({ page })
     if (m.type() === "error") errors.push(m.text());
   });
 
+  // Wide enough that the transport's Loop button isn't covered by the toolbar's end side.
+  await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/");
   await expect(playButton(page)).toBeVisible({ timeout: 30_000 });
   await expect.poll(() => project(page).then((p) => p !== null), { timeout: 30_000 }).toBe(true);
