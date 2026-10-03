@@ -149,7 +149,7 @@ export function buildCommands(transport: EngineTransport | null, devices: Readon
     group: "AI",
     label: "Ask AI",
     keywords: "ai assistant claude chat agent llm prompt generate",
-    shortcut: "⇧⌘L",
+    shortcut: "⇧⌘A",
     run: () => openAiChat(),
   });
   for (const t of LEFT_TABS) {

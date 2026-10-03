@@ -164,8 +164,8 @@ describe("MCP bridge toggle (desktop)", () => {
 
 describe("opening the AI chat", () => {
   it("palette/shortcut open the Ask AI tab", () => {
-    expect(isAiShortcut({ metaKey: true, ctrlKey: false, shiftKey: true, altKey: false, key: "L", code: "KeyL" })).toBe(true);
-    expect(isAiShortcut({ metaKey: true, ctrlKey: false, shiftKey: false, altKey: false, key: "l", code: "KeyL" })).toBe(false);
+    expect(isAiShortcut({ metaKey: true, ctrlKey: false, shiftKey: true, altKey: false, key: "A", code: "KeyA" })).toBe(true);
+    expect(isAiShortcut({ metaKey: true, ctrlKey: false, shiftKey: false, altKey: false, key: "a", code: "KeyA" })).toBe(false);
     act(() => openAiChat());
     expect(useShellStore.getState().left).toMatchObject({ open: true, tab: "ai" });
     // Opening again keeps it open (doesn't toggle it closed).

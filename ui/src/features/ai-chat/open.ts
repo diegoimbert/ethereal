@@ -1,4 +1,4 @@
-// Opening the AI chat: the palette's "Ask AI" and the shortcut (Mod+Shift+L) open its rail
+// Opening the AI chat: the palette's "Ask AI" and the shortcut (Mod+Shift+A) open its rail
 // tab and focus the input.
 import { useEffect } from "react";
 import { create } from "zustand";
@@ -20,9 +20,9 @@ export function openAiChat(): void {
   if (!aiChatOpen()) useShellStore.getState().toggleLeft(AI_TAB);
 }
 
-/** `Mod+Shift+L` (not Alt). */
+/** `Mod+Shift+A` (not Alt; Mod+Shift+L is the arrangement clip-loop toggle). */
 export function isAiShortcut(e: Pick<KeyboardEvent, "metaKey" | "ctrlKey" | "shiftKey" | "altKey" | "key" | "code">): boolean {
-  return (e.metaKey || e.ctrlKey) && e.shiftKey && !e.altKey && (e.code === "KeyL" || e.key.toLowerCase() === "l");
+  return (e.metaKey || e.ctrlKey) && e.shiftKey && !e.altKey && (e.code === "KeyA" || e.key.toLowerCase() === "a");
 }
 
 /** Window-level shortcut (mounted once, by the left rail). */

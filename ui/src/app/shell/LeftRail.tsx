@@ -24,7 +24,7 @@ export function LeftRail() {
   // collab-social: the Chat tab only exists in a session (its pane closes when it ends).
   const online = useCollabStore((s) => s.status.type === "Online");
   const offline = useCollabStore((s) => s.status.type === "Offline");
-  // ai-chat: Mod+Shift+L opens the AI chat.
+  // ai-chat: Mod+Shift+A opens the AI chat.
   useAiChatShortcut();
   useEffect(() => {
     const { left, setOpen } = useShellStore.getState();
