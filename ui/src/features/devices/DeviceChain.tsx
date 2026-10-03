@@ -1,6 +1,7 @@
 import { useState, type DragEvent } from "react";
 import { Select, type SelectOption } from "@/kit";
-import type { BuiltinDeviceType, DeviceDescriptor, DeviceId, Track, TrackId } from "@/generated";
+import type { BuiltinDeviceType, Device, DeviceDescriptor, DeviceId, Track, TrackId } from "@/generated";
+import { chainInsertBefore } from "@/app/shell/deviceInsert";
 import clsx from "clsx";
 import { useDevicesOfTrack, useProjectStore, useSelectionStore, useTracksOrdered } from "@/state";
 import { cmd, newId } from "@/transport";
@@ -41,7 +42,7 @@ function groupByCategory(types: ReadonlyArray<DeviceDescriptor>): SelectOption<s
 
 const CATEGORY_LABELS: Record<string, string> = { Instrument: "Instruments", AudioEffect: "Audio effects", NoteEffect: "MIDI effects" };
 
-function AddDevice({ track, firstDevice }: { track: Track; firstDevice: DeviceId | null }) {
+function AddDevice({ track, devices }: { track: Track; devices: readonly Device[] }) {
   const send = useSend();
   const types = insertableTypes(useBuiltinTypes(), track);
   const add = (type: BuiltinDeviceType, category: DeviceDescriptor["category"]) =>
@@ -51,8 +52,8 @@ function AddDevice({ track, firstDevice }: { track: Track; firstDevice: DeviceId
         id: newId(),
         track: track.id,
         device: { type: "Builtin", device: builtinDevice(type) },
-        // Instruments go first in the chain (their output feeds the effects).
-        before: category === "Instrument" ? firstDevice : null,
+        // MIDI effects, then the instrument (its output feeds the audio effects).
+        before: chainInsertBefore(devices, category),
       }),
     );
   return (
@@ -99,7 +100,7 @@ function Chain({ track, layout, picker }: { track: Track; layout: ChainLayout; p
       {!stack && (
         <div className="eth-devices__toolbar">
           {picker && <TrackPicker track={track} />}
-          <AddDevice track={track} firstDevice={devices[0]?.id ?? null} />
+          <AddDevice track={track} devices={devices} />
         </div>
       )}
       <div className={clsx("eth-devices__chain", stack && "eth-devices__chain--stack")} role="list" aria-label={`${track.name} devices`}>
@@ -130,7 +131,7 @@ function Chain({ track, layout, picker }: { track: Track; layout: ChainLayout; p
       </div>
       {stack && (
         <div className="eth-devices__footer">
-          <AddDevice track={track} firstDevice={devices[0]?.id ?? null} />
+          <AddDevice track={track} devices={devices} />
         </div>
       )}
     </div>
