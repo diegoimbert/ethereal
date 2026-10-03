@@ -12,11 +12,13 @@ use ether_core::protocol::browser::BrowserEvent;
 use ether_core::protocol::media::MediaEvent;
 use serde_json::{Value, json};
 
+/// Audio items only: factory presets (e.g. the arpeggiator's "Swung Bounce", tagged
+/// "groove") would otherwise match the same words.
 fn query(c: &mut Client, text: &str) -> Value {
     c.ok(
         "Browser",
         json!({"type": "Query", "query": {
-            "text": text, "kinds": [], "tags": [], "favourites_only": false, "roots": [],
+            "text": text, "kinds": ["Audio"], "tags": [], "favourites_only": false, "roots": [],
             "folder": null, "device": null, "sort": "Relevance", "offset": 0, "limit": 50,
         }}),
     )["page"]
