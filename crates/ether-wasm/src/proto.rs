@@ -18,9 +18,7 @@ use std::sync::Arc;
 use ether_core::analysis::{ANALYSIS_MAX_VALUES, AnalysisFrame, AnalysisKind};
 use ether_core::codec::{BinaryCodec, CodecError, GraphCodec};
 use ether_core::protocol::meters::TrackMeter;
-use ether_core::protocol::model::{
-    BuiltinDevice, MediaId, MusicalScale, ParamId, TrackId, Ulid,
-};
+use ether_core::protocol::model::{BuiltinDevice, MediaId, MusicalScale, ParamId, TrackId, Ulid};
 use ether_core::{NodeKey, ParamChange, PlayheadState, RenderGraphDesc, TransportControl};
 use ether_media::DecodedAudio;
 use serde::{Deserialize, Serialize};

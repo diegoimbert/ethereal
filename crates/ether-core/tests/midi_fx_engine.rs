@@ -102,7 +102,9 @@ fn bypassed_midi_effect_is_midi_thru_without_its_params() {
     let fx = p.handle.add_node(Box::new(Octaver)).unwrap();
     let (rec, mut rx) = Recorder::new();
     let rec = p.handle.add_node(Box::new(rec)).unwrap();
-    p.handle.publish(graph(&[(fx, false), (rec, true)])).unwrap();
+    p.handle
+        .publish(graph(&[(fx, false), (rec, true)]))
+        .unwrap();
     p.handle
         .set_param(ParamChange {
             target: ParamTarget::Node {
@@ -154,7 +156,9 @@ fn removing_or_bypassing_a_midi_effect_releases_notes_once() {
     assert_eq!(all_notes_off(&events(&drain(&mut rx))), 0);
 
     // Bypass: the held (generated) note is released.
-    p.handle.publish(graph(&[(fx, false), (rec, true)])).unwrap();
+    p.handle
+        .publish(graph(&[(fx, false), (rec, true)]))
+        .unwrap();
     render(&mut p.engine, 1024, BLOCK);
     assert!(all_notes_off(&events(&drain(&mut rx))) >= 1);
 
