@@ -218,6 +218,7 @@ fn project_store_and_browser_shapes() {
             id: pid,
             name: "Song".into(),
             modified_ms: 1.0,
+            share: None,
         }],
     });
     let json = roundtrip(&Command::Media(MediaCommand::Import {
