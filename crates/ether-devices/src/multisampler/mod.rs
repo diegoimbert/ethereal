@@ -3,7 +3,7 @@
 //!
 //! The multisampler: zones (`BuiltinDevice::MultiSampler::zones`, `ether_model::multisampler`) with key/velocity ranges, round robin, loop points; global ADSR and filter.
 //!
-//! Every device here starts as a [`Placeholder`] (pass-through / silent / MIDI-thru) with its
+//! Implementation in progress (node `multisampler`): zones, velocity layers, round robin.
 //! final descriptor. **Param ids are stable and append-only** (documents, automation and
 //! presets store them): never renumber, only append. Split this module into files as you like.
 //!
