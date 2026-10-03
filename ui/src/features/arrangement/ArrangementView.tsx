@@ -91,7 +91,7 @@ import {
 import { useLaneAnimation } from "./laneAnimation";
 import { PeakCache } from "./peaks";
 import { Toolbar } from "./Toolbar";
-import { ImportPlaceholder, TrackRow } from "./TrackRow";
+import { ImportPlaceholder, NewTrackGhostRows, TrackRow } from "./TrackRow";
 import { arrangementView, useArrangementUi } from "./uiStore";
 import { useFollowWithMargin } from "./useFollowWithMargin";
 import { useTrackHeightZoom } from "./useTrackHeightZoom";
@@ -513,6 +513,7 @@ function ConnectedArrangementView() {
             >
               <AddTrackRow />
               <NewTrackDropHint />
+              <NewTrackGhostRows />
             </div>
             <TrackDropLine />
             <div className="eth-arr__overlay" style={{ left: headerWidth }}>
