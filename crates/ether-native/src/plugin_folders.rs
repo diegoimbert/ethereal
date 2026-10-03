@@ -123,15 +123,15 @@ impl PluginFolderSettings {
         if !p.is_dir() {
             return Err(FolderError::Invalid(format!("not a folder: {path}")));
         }
-        self.edit(|s| {
-            match s.folders.iter_mut().find(|f| same_folder(&f.path, p)) {
+        self.edit(
+            |s| match s.folders.iter_mut().find(|f| same_folder(&f.path, p)) {
                 Some(f) => f.format = format,
                 None => s.folders.push(PluginFolder {
                     path: path.to_owned(),
                     format,
                 }),
-            }
-        });
+            },
+        );
         Ok(())
     }
 
@@ -189,7 +189,8 @@ mod tests {
         assert!(!l.defaults.is_empty());
 
         s.add(a.to_str().unwrap(), None).unwrap();
-        s.add(b.to_str().unwrap(), Some(PluginFormat::Vst3)).unwrap();
+        s.add(b.to_str().unwrap(), Some(PluginFormat::Vst3))
+            .unwrap();
         // Re-adding (with a trailing `/.`) updates the filter instead of duplicating.
         s.add(&format!("{}/.", a.display()), Some(PluginFormat::Clap))
             .unwrap();
@@ -224,7 +225,10 @@ mod tests {
             s.remove(a.to_str().unwrap()),
             Err(FolderError::NotFound(_))
         ));
-        assert_eq!(PluginFolderSettings::open(&db).list(&formats).folders.len(), 1);
+        assert_eq!(
+            PluginFolderSettings::open(&db).list(&formats).folders.len(),
+            1
+        );
     }
 
     #[test]

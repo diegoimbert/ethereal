@@ -32,7 +32,9 @@ use ether_core::plugin::{PluginController, PluginError};
 use ether_core::protocol::model::PluginFormat;
 use ether_core::protocol::plugins::{PluginDescriptor, ScanRequest, ScanResponse};
 
-pub use cache::{CachedScan, Fingerprint, SCAN_CACHE_FILE, SCANNER_VERSION, ScanCache, fingerprint};
+pub use cache::{
+    CachedScan, Fingerprint, SCAN_CACHE_FILE, SCANNER_VERSION, ScanCache, fingerprint,
+};
 pub use scan::{SCAN_JOBS_ENV, SCANNER_BIN, ScanReport, ScanRunner};
 
 /// One plugin format's loader. Implementations are stateless or internally synchronized

@@ -232,7 +232,10 @@ impl ScanRunner {
         let mut results: Vec<Option<TargetResult>> = keyed
             .iter()
             .map(|(k, fp)| {
-                let e = cache.entries.get(k).filter(|e| !full && e.fingerprint == *fp)?;
+                let e = cache
+                    .entries
+                    .get(k)
+                    .filter(|e| !full && e.fingerprint == *fp)?;
                 Some(match &e.result {
                     CachedResult::Ok { plugins } => Ok(plugins.clone()),
                     CachedResult::Err { message } => Err(Failure {
@@ -303,7 +306,13 @@ mod tests {
     fn ids(r: &ScanReport) -> Vec<String> {
         r.plugins
             .iter()
-            .map(|p| Path::new(&p.id).file_name().unwrap().to_string_lossy().into_owned())
+            .map(|p| {
+                Path::new(&p.id)
+                    .file_name()
+                    .unwrap()
+                    .to_string_lossy()
+                    .into_owned()
+            })
             .collect()
     }
 
@@ -354,7 +363,12 @@ mod tests {
         assert_eq!((r.scanned, r.reused), (2, 1));
         assert_eq!(ids(&r.report), ["A.clap", "B.clap"]);
         let ran = runs(&s);
-        assert_eq!(ran.iter().filter(|p| **p == canon(&a) || **p == a.display().to_string()).count(), 2);
+        assert_eq!(
+            ran.iter()
+                .filter(|p| **p == canon(&a) || **p == a.display().to_string())
+                .count(),
+            2
+        );
         assert_eq!(ran.len(), 5);
 
         // A new target is scanned; a removed one is dropped from the cache.
@@ -417,9 +431,24 @@ mod tests {
             path: "aufx:dely:appl".into(),
         };
         let mut cache = ScanCache::in_memory();
-        assert_eq!(runner.scan_targets_cached(std::slice::from_ref(&au), &mut cache, false, |_, _, _| {}).scanned, 1);
-        assert_eq!(runner.scan_targets_cached(std::slice::from_ref(&au), &mut cache, false, |_, _, _| {}).scanned, 0);
-        assert_eq!(runner.scan_targets_cached(std::slice::from_ref(&au), &mut cache, true, |_, _, _| {}).scanned, 1);
+        assert_eq!(
+            runner
+                .scan_targets_cached(std::slice::from_ref(&au), &mut cache, false, |_, _, _| {})
+                .scanned,
+            1
+        );
+        assert_eq!(
+            runner
+                .scan_targets_cached(std::slice::from_ref(&au), &mut cache, false, |_, _, _| {})
+                .scanned,
+            0
+        );
+        assert_eq!(
+            runner
+                .scan_targets_cached(std::slice::from_ref(&au), &mut cache, true, |_, _, _| {})
+                .scanned,
+            1
+        );
     }
 
     /// The numbers in the PR: `cargo test -p ether-plugin-host --release -- --ignored
@@ -435,7 +464,9 @@ mod tests {
             .collect();
         let time = |jobs: usize| {
             let t = Instant::now();
-            let r = ScanRunner::new(&s).with_jobs(jobs).scan_targets(&targets, |_, _, _| {});
+            let r = ScanRunner::new(&s)
+                .with_jobs(jobs)
+                .scan_targets(&targets, |_, _, _| {});
             assert_eq!(r.plugins.len(), 40);
             t.elapsed()
         };

@@ -894,7 +894,11 @@ impl ControllerThread {
     fn request_scan(&self, full: bool) {
         if self.scanning.swap(true, Ordering::SeqCst) {
             self.rescan_pending.fetch_max(
-                if full { RESCAN_FULL } else { RESCAN_INCREMENTAL },
+                if full {
+                    RESCAN_FULL
+                } else {
+                    RESCAN_INCREMENTAL
+                },
                 Ordering::SeqCst,
             );
             return;

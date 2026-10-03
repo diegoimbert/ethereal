@@ -31,7 +31,14 @@ fn scanner() -> PathBuf {
     let target = root.join("target/ether-native-helper");
     let cargo = std::env::var("CARGO").unwrap_or_else(|_| "cargo".into());
     let status = std::process::Command::new(cargo)
-        .args(["build", "-q", "-p", "ether-plugin-scanner", "--bin", "ether-plugin-scanner"])
+        .args([
+            "build",
+            "-q",
+            "-p",
+            "ether-plugin-scanner",
+            "--bin",
+            "ether-plugin-scanner",
+        ])
         .arg("--manifest-path")
         .arg(root.join("Cargo.toml"))
         .arg("--target-dir")

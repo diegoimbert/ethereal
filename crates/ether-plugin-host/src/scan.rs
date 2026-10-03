@@ -195,8 +195,7 @@ impl ScanRunner {
     }
 
     fn run(&self, request: &ScanRequest) -> TargetResult {
-        let request =
-            serde_json::to_string(request).map_err(|e| Failure::plugin(e.to_string()))?;
+        let request = serde_json::to_string(request).map_err(|e| Failure::plugin(e.to_string()))?;
 
         let mut child = Command::new(&self.scanner)
             .stdin(Stdio::piped())
@@ -581,7 +580,9 @@ printf '{"type":"Err","message":%s}\n' "$(printf '%s' "$req" | sed 's/"/\\"/g; s
     #[test]
     fn default_jobs_is_bounded() {
         let n = ScanRunner::default_jobs();
-        assert!((1..=ScanRunner::MAX_DEFAULT_JOBS).contains(&n) || std::env::var(SCAN_JOBS_ENV).is_ok());
+        assert!(
+            (1..=ScanRunner::MAX_DEFAULT_JOBS).contains(&n) || std::env::var(SCAN_JOBS_ENV).is_ok()
+        );
         assert_eq!(ScanRunner::new("x").with_jobs(0).jobs, 1);
     }
 
@@ -592,7 +593,9 @@ printf '{"type":"Err","message":%s}\n' "$(printf '%s' "$req" | sed 's/"/\\"/g; s
         let s = behaving_scanner("scan-overlap", "0.4");
         let targets: Vec<_> = (0..8).map(|i| clap(format!("/x/P{i}.clap"))).collect();
         let start = Instant::now();
-        let report = ScanRunner::new(&s).with_jobs(4).scan_targets(&targets, |_, _, _| {});
+        let report = ScanRunner::new(&s)
+            .with_jobs(4)
+            .scan_targets(&targets, |_, _, _| {});
         let took = start.elapsed();
         assert_eq!(report.plugins.len(), 8);
         assert!(took >= Duration::from_millis(780), "{took:?}");
@@ -622,13 +625,25 @@ printf '{"type":"Err","message":%s}\n' "$(printf '%s' "$req" | sed 's/"/\\"/g; s
                 calls.push((done, total, current.map(Path::to_path_buf)));
             });
         // The hang costs its own timeout, in parallel with the rest.
-        assert!(start.elapsed() < Duration::from_secs(4), "{:?}", start.elapsed());
+        assert!(
+            start.elapsed() < Duration::from_secs(4),
+            "{:?}",
+            start.elapsed()
+        );
         let ids: Vec<_> = report.plugins.iter().map(|p| p.id.as_str()).collect();
         assert_eq!(ids, ["/x/A.clap", "/x/B.clap", "/x/C.clap", "/x/D.clap"]);
         let failed: Vec<_> = report.failed.iter().map(|f| f.path.as_str()).collect();
         assert_eq!(failed, ["/x/hang.clap", "/x/crash.clap", "/x/bad.clap"]);
-        assert!(report.failed[0].message.contains("timed out"), "{:?}", report.failed);
-        assert!(report.failed[1].message.contains("crashed"), "{:?}", report.failed);
+        assert!(
+            report.failed[0].message.contains("timed out"),
+            "{:?}",
+            report.failed
+        );
+        assert!(
+            report.failed[1].message.contains("crashed"),
+            "{:?}",
+            report.failed
+        );
         assert_eq!(report.failed[2].message, "not a plugin");
 
         // Progress: monotonic `done`, every target reported as current once it starts,
@@ -650,11 +665,12 @@ printf '{"type":"Err","message":%s}\n' "$(printf '%s' "$req" | sed 's/"/\\"/g; s
         let s = behaving_scanner("scan-seq", "0");
         let targets = [clap("/x/A.clap"), clap("/x/crash.clap")];
         let mut calls = Vec::new();
-        let report = ScanRunner::new(&s)
-            .with_jobs(1)
-            .scan_targets(&targets, |done, total, current| {
-                calls.push((done, total, current.map(Path::to_path_buf)));
-            });
+        let report =
+            ScanRunner::new(&s)
+                .with_jobs(1)
+                .scan_targets(&targets, |done, total, current| {
+                    calls.push((done, total, current.map(Path::to_path_buf)));
+                });
         assert_eq!(report.plugins.len(), 1);
         assert_eq!(report.failed.len(), 1);
         assert_eq!(

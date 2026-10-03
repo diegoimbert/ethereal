@@ -48,10 +48,14 @@ pub enum PluginCommand {
         format: Option<PluginFormat>,
     },
     /// Remove a user plugin folder and rescan. Replies `PluginFolders`.
-    RemoveFolder { path: String },
+    RemoveFolder {
+        path: String,
+    },
     /// Whether the OS default plugin folders (and, for AU, the system component registry)
     /// are scanned; on by default. Rescans. Replies `PluginFolders`.
-    SetIncludeDefaults { include: bool },
+    SetIncludeDefaults {
+        include: bool,
+    },
 }
 
 /// The folders scanned for plugins (`Plugin::ListFolders`).
@@ -175,7 +179,10 @@ mod tests {
         // Clients that predate `full` keep sending (and receiving) the bare variant.
         let bare: PluginCommand = serde_json::from_str(r#"{"type":"Rescan"}"#).unwrap();
         assert_eq!(bare, PluginCommand::Rescan { full: false });
-        assert_eq!(serde_json::to_string(&bare).unwrap(), r#"{"type":"Rescan"}"#);
+        assert_eq!(
+            serde_json::to_string(&bare).unwrap(),
+            r#"{"type":"Rescan"}"#
+        );
         let full = PluginCommand::Rescan { full: true };
         assert_eq!(
             serde_json::to_string(&full).unwrap(),
