@@ -780,6 +780,13 @@ paths = [
 # that already has one (e.g. the default Synth from "New track") put it in front, and the trailing
 # instrument (no notes in) cleared its audio -> silent track. Adding an instrument now replaces it.
 paths = [
+  # BCR (base-98): third insert path (shell Devices pane + Cmd-K Add <device>) replaces instruments too
+  "ui/src/app/shell/deviceInsert.ts",
+  "ui/src/app/shell/deviceInsert.test.ts",
+  "ui/src/app/shell/DevicesPanel.tsx",
+  "ui/src/app/shell/DevicesPanel.test.tsx",
+  "ui/src/app/shell/commands.ts",
+  "ui/src/app/shell/commands.test.ts",
   # BCR (base-96): the plugin-insert assertion now expects the Replace Instrument batch
   "ui/src/features/plugins/Plugins.test.tsx",
   # BCR (base-95): shared helper + the plugin browser's instrument insert path (same bug)
