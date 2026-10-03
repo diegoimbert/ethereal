@@ -3,9 +3,10 @@
  * right-click menus).
  *
  * Copy snapshots the selected clips (with their notes and warp markers). Paste puts them at
- * a position (the playhead, or where the lane was right-clicked), keeping their relative
- * timing, as one undo step, then selects the pasted clips and (when stopped) moves the
- * playhead to their end, so pasting again continues the pattern. A clip still in the
+ * a position (the insert marker, else the playhead, or where the lane was right-clicked),
+ * keeping their relative timing, as one undo step, then selects the pasted clips and moves
+ * the insert marker to their end (never the playhead), so pasting again continues the
+ * pattern. A clip still in the
  * project is pasted with `Clip::Duplicate` (exact copy); after a cut, it is rebuilt from
  * the snapshot.
  *
@@ -17,6 +18,7 @@
 import type { Beats, Clip, ClipId, Command, Note, TrackId, WarpMarker } from "@/generated";
 import { notesOfClip, useProjectStore, warpMarkersOfClip } from "@/state";
 import { itemSelection } from "@/timeline";
+import { placeInsertMarker } from "@/features/time-edits/marker";
 import { useTimeSelection } from "@/features/time-edits/store";
 import { cmd, newId, type EngineTransport } from "@/transport";
 import { startOf } from "./clipTime";
@@ -88,9 +90,9 @@ export async function pasteClips(transport: EngineTransport, at: Beats, track: T
   const now = useProjectStore.getState().project;
   const created = pasted.filter((id) => now?.clips[id]);
   if (created.length) itemSelection.getState().select("clip", created, "replace");
-  if (!useProjectStore.getState().transport?.playing) {
-    transport.send(cmd("Transport", { type: "Locate", position: at + (end - start) })).catch(() => {});
-  }
+  // The insert marker moves to the end (after the selection change, which clears it).
+  const tracks = [...new Set(created.map((id) => now!.clips[id]!.track))];
+  if (tracks.length) placeInsertMarker(null, at + (end - start), tracks.slice(0, 1));
   return created;
 }
 

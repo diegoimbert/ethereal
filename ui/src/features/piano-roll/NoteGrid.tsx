@@ -35,7 +35,8 @@ import { contentEnd, contentToSong, songToContent } from "./clipTime";
 import { startDrag, useSend } from "./drag";
 import { isBlackKey, noteHitZone, noteRect, pitchToY, rowPitchDelta, yToPitch } from "./geometry";
 import { moveEdits, newNote, noteEdit, resizeEdits } from "./noteEdits";
-import { clearSection, sectionOf, usePianoRollSection, type PianoRollSection } from "./section";
+import { setPlayStart } from "@/features/time-edits/marker";
+import { clearSection, isSectionMarker, placeSectionMarker, sectionOf, usePianoRollSection, type PianoRollSection } from "./section";
 
 export interface NoteGridProps {
   clip: Clip;
@@ -104,13 +105,12 @@ export function NoteGrid({ clip, notes, view, vp, widthPx, keyH, rows, scale, hi
       const at = (px: number) => Math.max(0, snapToGrid(pxToBeats(px, vp), marqueeAlt.current ? null : step, tempo, "nearest"));
       usePianoRollSection.getState().setSection(sectionOf(clip.id, at(rect.x0), at(rect.x1)));
     },
-    // A click on empty space (no drag) clears the section and moves the playhead there,
-    // snapped to the grid (alt: free), while stopped, like in the arrangement.
+    // A click on empty space (no drag) places the insert marker there, snapped to the grid
+    // (alt: free). It never moves a playing playhead; while stopped, Play starts from it.
     onClick: (p, ev) => {
-      clearSection();
-      if (useProjectStore.getState().transport?.playing) return;
       const content = Math.max(0, snapToGrid(pxToBeats(p.x, vp), ev.altKey ? null : step, tempo, "nearest"));
-      transport.send(cmd("Transport", { type: "Locate", position: contentToSong(clip, content) })).catch(() => {});
+      placeSectionMarker(clip.id, content);
+      setPlayStart(transport, contentToSong(clip, content));
     },
   });
 
@@ -284,7 +284,9 @@ export function NoteGrid({ clip, notes, view, vp, widthPx, keyH, rows, scale, hi
       })}
       <div className="eth-pr-grid__outside" style={{ left: 0, width: Math.max(0, xStart) }} />
       <div className="eth-pr-grid__outside" style={{ left: Math.max(0, xEnd), right: 0 }} data-testid="piano-roll-clip-end" />
-      {section && (
+      {section && isSectionMarker(section) ? (
+        <div className="eth-pr-grid__marker" data-testid="piano-roll-marker" data-beats={section.start} style={{ left: beatsToPx(section.start, vp) }} />
+      ) : section && (
         <div
           className="eth-pr-grid__section"
           data-testid="piano-roll-section"

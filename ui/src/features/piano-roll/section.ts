@@ -13,11 +13,17 @@
  * selected notes, over their span rounded out to the grid.
  *
  * - ⌘C copies; ⌘X copies then removes the source notes (no time shift).
- * - ⌘V pastes right after the section, else at the playhead (in the clip), merging with
+ * - ⌘V pastes right after the section, else at the insert marker, else at the playhead (in
+ *   the clip), merging with
  *   the notes there; ⌘D pastes a copy right after the section without touching the
  *   clipboard. Either way the pasted range becomes the section and its notes the selection,
  *   so repeating tiles the section, gaps preserved. The clip grows when the paste runs
  *   past its end (its length, or its loop end when looping).
+ *
+ * The INSERT MARKER (owner request, like the arrangement's): a click on empty grid places it
+ * (snapped, Alt: free) as a ZERO-LENGTH section in the same store; ⌘V then pastes there
+ * instead of at the playhead, which a click never moves while playing (`setPlayStart`).
+ * Copy / cut / duplicate / delete ignore it (it is not a range).
  *
  * Each edit is one undo step (an `Edit.Batch`), replicated in collab like any document edit.
  * The clipboard is per app (module state), so notes copy between clips.
@@ -67,6 +73,22 @@ export function clearSection(): void {
 /** Reset (tests). */
 export function resetPianoRollSection(): void {
   usePianoRollSection.setState({ section: null, clipboard: null });
+}
+
+/** `true` if `section` is the insert marker (zero length). */
+export function isSectionMarker(section: PianoRollSection | null): boolean {
+  return section !== null && section.end - section.start <= 1e-6;
+}
+
+/** `section` if it is a real (non-empty) range, else null. */
+export function rangeOfSection(section: PianoRollSection | null): PianoRollSection | null {
+  return section && !isSectionMarker(section) ? section : null;
+}
+
+/** Place the insert marker in `clip` at content position `at` (replacing the section). */
+export function placeSectionMarker(clip: ClipId, at: Beats): void {
+  const b = Math.max(0, at);
+  usePianoRollSection.getState().setSection({ clip, start: b, end: b });
 }
 
 /** A section of `clip` from two content positions (any order); null if empty. */
@@ -168,7 +190,10 @@ export function pasteCommand(
   };
 }
 
-/** Where ⌘V pastes: right after the section, else the playhead's content position. */
+/**
+ * Where ⌘V pastes: right after the section, at the insert marker (a zero-length section),
+ * else the playhead's content position.
+ */
 export function pasteAt(clip: Clip, section: PianoRollSection | null, playhead: Beats): Beats {
   if (section) return section.end;
   const rel = playhead - clip.start;

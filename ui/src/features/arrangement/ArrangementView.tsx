@@ -57,6 +57,9 @@ import {
   clipboardAction,
   runTimeAction,
   TimeEditNotice,
+  bindPlayFrom,
+  isTimeTrack,
+  placeInsertMarker,
   TimeSelectionLayer,
   useArrangementTimeEdits,
 } from "@/features/time-edits";
@@ -70,7 +73,6 @@ import { TransportContext, useTransport, useTransportEvent } from "@/transport";
 import {
   actionForKey,
   bindSingleSelection,
-  locateIfStopped,
   newTrackMenu,
   runClipAction,
   selectTrackEntity,
@@ -204,6 +206,8 @@ function ConnectedArrangementView() {
   useMiddleButtonPan(scrollRef, view);
   useFollowWithMargin(view);
   useEffect(() => bindSingleSelection(), []);
+  // The insert marker placed while playing becomes the play start on the next stop.
+  useEffect(() => bindPlayFrom(transport), [transport]);
 
   // Copy/cut/paste also arrive as clipboard events: on macOS the app's Edit menu takes
   // cmd-C/X/V before the page sees the key (desktop app), and sends these instead.
@@ -323,12 +327,15 @@ function ConnectedArrangementView() {
             .getState()
             .select("clip", [hit.id], selectModeFromEvent(ev));
       }
-      // A click on empty space also moves the playhead there (when stopped), snapped.
+      // A click on empty space (or a clip body) places the insert marker there on that
+      // track, snapped (Alt: free); it never moves a playing playhead (see time-edits
+      // `marker.ts`: while stopped, Play then starts from the marker).
       const hw = useArrangementUi.getState().headerWidth;
-      if (p.x >= hw)
-        locateIfStopped(
+      if (p.x >= hw && row && !row.draft && isTimeTrack(row.track))
+        placeInsertMarker(
           transport,
           snap(pxToBeats(p.x - hw, view.getState()), ev.altKey),
+          [row.track.id],
         );
     },
   });
