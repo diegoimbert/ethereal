@@ -508,6 +508,8 @@ where
     midi_learn: midi_learn::MidiLearnState,
     /// Browser preview runtime state (current preview id, decode, cache; `media_preview`).
     preview: media_preview::PreviewState,
+    /// v0.2: the library index (`browser` module).
+    browser: browser::BrowserState,
     /// Uploads from the UI machine in progress (`upload` module, remote-engine).
     uploads: upload::UploadState,
     /// Collaboration session (`collab` module).
@@ -561,6 +563,7 @@ where
             export: Default::default(),
             midi_learn: Default::default(),
             preview: Default::default(),
+            browser: Default::default(),
             uploads: Default::default(),
             collab: Default::default(),
             analysis: Default::default(),

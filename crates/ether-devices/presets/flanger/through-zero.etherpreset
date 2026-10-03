@@ -1,0 +1,33 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "Through Zero",
+    "device": {
+      "type": "Builtin",
+      "device": "Flanger"
+    },
+    "meta": {
+      "tags": [
+        "flanger",
+        "through zero",
+        "tape"
+      ],
+      "author": "Ethereal",
+      "description": "Tape-style flanging through zero (adds 10 ms latency, compensated)."
+    },
+    "params": {
+      "0": 0.15,
+      "1": 0.0,
+      "2": 6.0,
+      "3": 100.0,
+      "4": 4.0,
+      "5": 0.0,
+      "6": 0.0,
+      "7": 50.0,
+      "8": 0.0,
+      "9": 1.0
+    }
+  }
+}

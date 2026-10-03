@@ -1,0 +1,33 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "Synced Quarters",
+    "device": {
+      "type": "Builtin",
+      "device": "Phaser"
+    },
+    "meta": {
+      "tags": [
+        "phaser",
+        "sync",
+        "rhythmic"
+      ],
+      "author": "Ethereal",
+      "description": "Eight stages sweeping once per quarter note, locked to the song."
+    },
+    "params": {
+      "0": 3.0,
+      "1": 1.0,
+      "2": 1.0,
+      "3": 8.0,
+      "4": 60.0,
+      "5": 1200.0,
+      "6": 55.0,
+      "7": 45.0,
+      "8": 50.0,
+      "9": 0.0
+    }
+  }
+}

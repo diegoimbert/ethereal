@@ -9,7 +9,6 @@ mod common;
 
 use common::*;
 use ether_core::protocol::analysis::AnalysisCommand;
-use ether_core::protocol::browser::{BrowserCommand, BrowserQuery, BrowserSort};
 use ether_core::protocol::devices::{DeviceCommand, DeviceSpec};
 use ether_core::protocol::media::{MediaCommand, MediaSource};
 use ether_core::protocol::model::*;
@@ -120,22 +119,88 @@ fn multisampler_inserts_and_sets_zones() {
 }
 
 #[test]
-fn fx_color_devices_are_placeholders() {
+fn fx_color_devices_insert_with_layouts_and_an_auto_filter_sidechain() {
     group_inserts_and_compiles(&[
         BuiltinDeviceType::Saturator,
         BuiltinDeviceType::Bitcrusher,
         BuiltinDeviceType::AutoFilter,
     ]);
+    let mut h = Harness::with_project();
+    let kick = track(&mut h, TrackKind::Audio);
+    let pad = track(&mut h, TrackKind::Audio);
+    let sat = insert(&mut h, pad, BuiltinDeviceType::Saturator);
+    let crush = insert(&mut h, pad, BuiltinDeviceType::Bitcrusher);
+    let filter = insert(&mut h, pad, BuiltinDeviceType::AutoFilter);
+    for d in [sat, crush, filter] {
+        let ReplyValue::Descriptor { descriptor } =
+            h.ok(Command::Device(DeviceCommand::GetDescriptor { device: d }))
+        else {
+            panic!("descriptor reply");
+        };
+        assert!(descriptor.layout.is_some(), "{:?}", descriptor.name);
+    }
+    // The auto filter's envelope follower keys from a sidechain; the others have none.
+    h.ok(Command::Device(DeviceCommand::SetSidechain {
+        device: filter,
+        source: Some(kick),
+    }));
+    assert_eq!(h.project().devices[&filter].sidechain, Some(kick));
+    for d in [sat, crush] {
+        let out = h.send(Command::Device(DeviceCommand::SetSidechain {
+            device: d,
+            source: Some(kick),
+        }));
+        assert_eq!(err(&out).code, ErrorCode::InvalidArgument);
+    }
+    h.tick();
+    let graph = h.ctl.bridge.last_graph();
+    let t = graph.tracks.iter().find(|t| t.id == pad).unwrap();
+    assert_eq!(t.chain.len(), 3);
+    assert!(t.chain[0].sidechain.is_none() && t.chain[1].sidechain.is_none());
+    assert!(t.chain[2].sidechain.is_some());
 }
 
 #[test]
-fn fx_modulation_devices_are_placeholders() {
-    group_inserts_and_compiles(&[
+fn fx_modulation_devices_insert_with_layouts() {
+    let types = [
         BuiltinDeviceType::Chorus,
         BuiltinDeviceType::Phaser,
         BuiltinDeviceType::Flanger,
         BuiltinDeviceType::Tremolo,
-    ]);
+    ];
+    group_inserts_and_compiles(&types);
+    let mut h = Harness::with_project();
+    let t = track(&mut h, TrackKind::Audio);
+    let ids: Vec<DeviceId> = types.iter().map(|&ty| insert(&mut h, t, ty)).collect();
+    for &d in &ids {
+        let ReplyValue::Descriptor { descriptor } =
+            h.ok(Command::Device(DeviceCommand::GetDescriptor { device: d }))
+        else {
+            panic!("descriptor reply");
+        };
+        assert!(descriptor.layout.is_some(), "{:?}", descriptor.name);
+        assert!(!ether_devices::factory_presets(descriptor_type(&h, d)).is_empty());
+    }
+    // The appended Through Zero toggle (param 9) is a regular, undoable param.
+    let flanger = ids[2];
+    let tz = ether_devices::fx_modulation::flanger::THROUGH_ZERO;
+    h.ok(Command::Device(DeviceCommand::SetParam {
+        device: flanger,
+        param: tz,
+        value: 1.0,
+    }));
+    assert_eq!(h.project().devices[&flanger].params.get(&tz), Some(&1.0));
+    h.tick();
+    let graph = h.ctl.bridge.last_graph();
+    let track = graph.tracks.iter().find(|x| x.id == t).unwrap();
+    assert_eq!(track.chain.len(), 4);
+}
+
+fn descriptor_type(h: &Harness, d: DeviceId) -> BuiltinDeviceType {
+    match &h.project().devices[&d].kind {
+        DeviceKind::Builtin { device } => device.device_type(),
+        other => panic!("{other:?}"),
+    }
 }
 
 /// fx-dynamics: the three devices insert and compile with their layouts; Gate and
@@ -249,28 +314,7 @@ fn midi_fx_devices_are_placeholders() {
 
 // presets: see tests/presets.rs. racks-modulation: see tests/racks.rs and tests/modulation.rs.
 
-#[test]
-fn browser_v2_replies_unsupported() {
-    let mut h = Harness::with_project();
-    assert_unsupported(
-        &mut h,
-        Command::Browser(BrowserCommand::Query {
-            query: BrowserQuery {
-                text: "kick".into(),
-                kinds: vec![],
-                tags: vec![],
-                favourites_only: false,
-                roots: vec![],
-                folder: None,
-                device: None,
-                sort: BrowserSort::Name,
-                offset: 0,
-                limit: 50,
-            },
-        }),
-    );
-    assert_unsupported(&mut h, Command::Browser(BrowserCommand::ListRoots));
-}
+// browser-v2: see tests/browser.rs.
 
 // media-references: see tests/media_refs.rs.
 

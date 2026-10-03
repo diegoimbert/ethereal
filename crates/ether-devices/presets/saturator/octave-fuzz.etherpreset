@@ -1,0 +1,31 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "Octave Fuzz",
+    "device": {
+      "type": "Builtin",
+      "device": "Saturator"
+    },
+    "meta": {
+      "tags": [
+        "fuzz",
+        "octave",
+        "rectify"
+      ],
+      "author": "Ethereal",
+      "description": "Full-wave rectification: an octave-up fuzz, half wet."
+    },
+    "params": {
+      "0": 5.0,
+      "1": 18.0,
+      "2": 0.0,
+      "3": 20.0,
+      "4": 2.0,
+      "5": 1.0,
+      "6": 0.0,
+      "7": 50.0
+    }
+  }
+}
