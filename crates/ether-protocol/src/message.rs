@@ -3,6 +3,7 @@
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
+use crate::agent::{AgentCommand, AgentToolSpec};
 use crate::analysis::{AnalysisCommand, AnalysisEvent};
 use crate::automation::AutomationCommand;
 use crate::browser::{BrowserCommand, BrowserEvent, BrowserPage, BrowserRoot};
@@ -95,6 +96,10 @@ pub enum Command {
     Chat(ChatCommand),
     /// Notes pinned on the arrangement (document command).
     PinnedNote(PinnedNoteCommand),
+    // --- agent-api (owner request; docs/MCP.md) ---
+    /// LLM agent tools (in-app AI chat, MCP server). Not a document command itself: a tool
+    /// call that edits is one undo step.
+    Agent(AgentCommand),
 }
 
 /// Engine → UI. `Reply` answers exactly one `ClientMessage`; `Event`s are pushed;
@@ -214,6 +219,17 @@ pub enum ReplyValue {
     },
     MissingMedia {
         media: Vec<MediaId>,
+    },
+    // --- agent-api ---
+    /// `Agent::ListTools`.
+    AgentTools {
+        tools: Vec<AgentToolSpec>,
+    },
+    /// `Agent::CallTool`: `content` is JSON or plain text for the model; `is_error` marks a
+    /// failed call (unknown tool, invalid input, rejected edit).
+    AgentToolResult {
+        content: String,
+        is_error: bool,
     },
 }
 
