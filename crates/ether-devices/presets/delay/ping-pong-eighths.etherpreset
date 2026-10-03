@@ -1,0 +1,30 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "Ping-Pong Eighths",
+    "device": {
+      "type": "Builtin",
+      "device": "Delay"
+    },
+    "meta": {
+      "tags": [
+        "stereo",
+        "sync"
+      ],
+      "author": "Ethereal",
+      "description": "Eighth notes bouncing left and right."
+    },
+    "params": {
+      "0": 1.0,
+      "2": 4.0,
+      "3": 45.0,
+      "4": 30.0,
+      "5": 1.0
+    },
+    "kind": null,
+    "samples": [],
+    "state": null
+  }
+}

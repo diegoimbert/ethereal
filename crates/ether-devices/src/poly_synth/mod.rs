@@ -5,8 +5,7 @@
 //!
 //! Wavetables: `Type = Wavetable` plays table `OSC*_TABLE` (a small built-in set shipped with the device, one entry per `Table` label, e.g. 64 frames x 2048 samples each, generated or embedded under `poly_synth/tables/`, band-limited per octave; `Position` morphs through its frames). User wavetables come later (append a kind-data field then).
 //!
-//! Every device here starts as a [`Placeholder`] (pass-through / silent / MIDI-thru) with its
-//! final descriptor. **Param ids are stable and append-only** (documents, automation and
+//! **Param ids are stable and append-only** (documents, automation and
 //! presets store them): never renumber, only append. Split this module into files as you like.
 //!
 //! # Poly Synth (`BuiltinDeviceType::PolySynth`)
@@ -75,14 +74,22 @@
 //! | 59 | Osc 1 | `Table` | Basic Shapes / Harmonic Sweep / PWM / Formant / Digital / Organ / Vocal / Metallic (default Basic Shapes) |
 //! | 60 | Osc 2 | `Table` | Basic Shapes / Harmonic Sweep / PWM / Formant / Digital / Organ / Vocal / Metallic (default Basic Shapes) |
 
+mod dsp;
+mod engine;
+mod tables;
+
+pub use engine::{MAX_POLYPHONY, MAX_UNISON, PolySynth};
+
 use ether_core::Device;
 use ether_core::protocol::devices::{DeviceCategory, DeviceDescriptor, ParamScale, ParamUnit};
 use ether_core::protocol::model::{BuiltinDevice, BuiltinDeviceType};
 
-#[allow(unused_imports)]
+use ether_core::protocol::layout::{DeviceLayout, LayoutItem};
+use ether_core::protocol::model::ParamId;
+
 use crate::contract::{
-    FactoryPreset, Placeholder, PlaceholderMode, SYNC_RATES, choice, descriptor as build, param,
-    stepped, toggle,
+    FactoryPreset, SYNC_RATES, choice, descriptor as build, item, knob, layout as layout_of, param,
+    section, stepped, toggle,
 };
 
 /// Param ids of `PolySynth` (stable, append-only).
@@ -604,21 +611,297 @@ pub fn descriptor(ty: BuiltinDeviceType) -> DeviceDescriptor {
             2,
             true,
             0,
-        ),
+        )
+        .with_layout(layout()),
         other => unreachable!("{other:?} is not a `synth-2` device"),
     }
 }
 
-/// Non-RT. A new instance (placeholder until implemented).
-pub fn create(device: &BuiltinDevice) -> Box<dyn Device> {
-    let ty = device.device_type();
-    let mode = PlaceholderMode::Silent;
-    Box::new(Placeholder::new(descriptor(ty), mode))
+trait WithLayout {
+    fn with_layout(self, layout: DeviceLayout) -> Self;
 }
 
-/// Factory presets of a type of this group (embedded; add `FactoryPreset { id, json:
-/// include_str!("../../presets/<device-key>/<slug>.etherpreset") }` entries).
+impl WithLayout for DeviceDescriptor {
+    fn with_layout(mut self, layout: DeviceLayout) -> Self {
+        self.layout = Some(layout);
+        self
+    }
+}
+
+/// Declarative panel (drawn by the shared device renderer): oscillators, sub/noise, filter
+/// curve, the three envelopes, both LFOs, voice/unison and output. Typed widgets own the
+/// params they bind (their controls row), so those are not repeated as knobs.
+pub fn layout() -> DeviceLayout {
+    use ether_core::protocol::layout::{Widget, WidgetSize::*};
+    use poly_synth as p;
+    let wide = |mut it: LayoutItem, span: u8| {
+        it.colspan = span;
+        it
+    };
+    let choice = |param: ParamId| item(Widget::Choice { param }, Small);
+    let number = |param: ParamId| item(Widget::Number { param }, Small);
+    let osc = |n: u8, ty, pos, table, oct, semi, fine, pw, level| {
+        section(
+            &format!("osc{n}"),
+            Some(&format!("Osc {n}")),
+            2,
+            4,
+            vec![
+                wide(
+                    item(
+                        Widget::Oscillator {
+                            shape: ty,
+                            position: Some(pos),
+                        },
+                        Medium,
+                    ),
+                    4,
+                ),
+                wide(choice(table), 2),
+                knob(oct, Small),
+                knob(semi, Small),
+                knob(fine, Small),
+                knob(pw, Small),
+                wide(knob(level, Medium), 2),
+            ],
+        )
+    };
+    let env = |id: &str, title: &str, a, d, s, r| {
+        section(
+            id,
+            Some(title),
+            1,
+            2,
+            vec![wide(
+                item(
+                    Widget::Envelope {
+                        attack: a,
+                        decay: d,
+                        sustain: s,
+                        release: r,
+                        delay: None,
+                        hold: None,
+                    },
+                    Medium,
+                ),
+                2,
+            )],
+        )
+    };
+    let lfo = |n: u8, shape, rate, amount, sync, sync_rate, target| {
+        section(
+            &format!("lfo{n}"),
+            Some(&format!("LFO {n}")),
+            1,
+            2,
+            vec![
+                wide(
+                    item(
+                        Widget::Lfo {
+                            shape,
+                            rate,
+                            amount: Some(amount),
+                        },
+                        Medium,
+                    ),
+                    2,
+                ),
+                item(Widget::Toggle { param: sync }, Small),
+                choice(sync_rate),
+                wide(choice(target), 2),
+            ],
+        )
+    };
+    let mut mod_env = env(
+        "mod-env",
+        "Mod Envelope",
+        p::MOD_ATTACK,
+        p::MOD_DECAY,
+        p::MOD_SUSTAIN,
+        p::MOD_RELEASE,
+    );
+    mod_env.items.push(choice(p::MOD_ENV_TARGET));
+    mod_env.items.push(knob(p::MOD_ENV_AMOUNT, Small));
+    layout_of(vec![
+        osc(
+            1,
+            p::OSC1_TYPE,
+            p::OSC1_POSITION,
+            p::OSC1_TABLE,
+            p::OSC1_OCTAVE,
+            p::OSC1_SEMITONES,
+            p::OSC1_FINE,
+            p::OSC1_PULSE_WIDTH,
+            p::OSC1_LEVEL,
+        ),
+        osc(
+            2,
+            p::OSC2_TYPE,
+            p::OSC2_POSITION,
+            p::OSC2_TABLE,
+            p::OSC2_OCTAVE,
+            p::OSC2_SEMITONES,
+            p::OSC2_FINE,
+            p::OSC2_PULSE_WIDTH,
+            p::OSC2_LEVEL,
+        ),
+        section(
+            "sub-noise",
+            Some("Sub / Noise"),
+            1,
+            2,
+            vec![
+                knob(p::SUB_LEVEL, Small),
+                choice(p::SUB_OCTAVE),
+                knob(p::NOISE_LEVEL, Small),
+                knob(p::NOISE_COLOR, Small),
+            ],
+        ),
+        section(
+            "filter",
+            Some("Filter"),
+            2,
+            2,
+            vec![
+                wide(
+                    item(
+                        Widget::FilterCurve {
+                            cutoff: p::CUTOFF,
+                            resonance: p::RESONANCE,
+                            mode: Some(p::FILTER_TYPE),
+                            drive: Some(p::DRIVE),
+                            gain: None,
+                        },
+                        Large,
+                    ),
+                    2,
+                ),
+                knob(p::KEY_TRACKING, Small),
+                knob(p::FILTER_ENV_AMOUNT, Small),
+            ],
+        ),
+        env(
+            "filter-env",
+            "Filter Envelope",
+            p::FILTER_ATTACK,
+            p::FILTER_DECAY,
+            p::FILTER_SUSTAIN,
+            p::FILTER_RELEASE,
+        ),
+        env(
+            "amp-env",
+            "Amp Envelope",
+            p::AMP_ATTACK,
+            p::AMP_DECAY,
+            p::AMP_SUSTAIN,
+            p::AMP_RELEASE,
+        ),
+        mod_env,
+        lfo(
+            1,
+            p::LFO1_SHAPE,
+            p::LFO1_RATE,
+            p::LFO1_AMOUNT,
+            p::LFO1_SYNC,
+            p::LFO1_SYNC_RATE,
+            p::LFO1_TARGET,
+        ),
+        lfo(
+            2,
+            p::LFO2_SHAPE,
+            p::LFO2_RATE,
+            p::LFO2_AMOUNT,
+            p::LFO2_SYNC,
+            p::LFO2_SYNC_RATE,
+            p::LFO2_TARGET,
+        ),
+        section(
+            "voice",
+            Some("Voice"),
+            1,
+            3,
+            vec![
+                number(p::UNISON_VOICES),
+                knob(p::UNISON_DETUNE, Small),
+                knob(p::UNISON_SPREAD, Small),
+                number(p::VOICES),
+                wide(choice(p::VOICE_MODE), 2),
+                knob(p::GLIDE, Small),
+                wide(number(p::BEND_RANGE), 2),
+            ],
+        ),
+        section(
+            "output",
+            Some("Output"),
+            1,
+            1,
+            vec![knob(p::VOLUME, Large), knob(p::VELOCITY, Small)],
+        ),
+    ])
+}
+
+/// Non-RT. A new instance.
+pub fn create(device: &BuiltinDevice) -> Box<dyn Device> {
+    debug_assert_eq!(device.device_type(), BuiltinDeviceType::PolySynth);
+    Box::new(PolySynth::new())
+}
+
+/// Factory presets (pads, basses, plucks, keys, leads), embedded.
+static FACTORY_PRESETS: [FactoryPreset; 12] = [
+    FactoryPreset {
+        id: "poly-synth/supersaw-pad",
+        json: include_str!("../../presets/poly-synth/supersaw-pad.etherpreset"),
+    },
+    FactoryPreset {
+        id: "poly-synth/glass-pad",
+        json: include_str!("../../presets/poly-synth/glass-pad.etherpreset"),
+    },
+    FactoryPreset {
+        id: "poly-synth/vocal-choir",
+        json: include_str!("../../presets/poly-synth/vocal-choir.etherpreset"),
+    },
+    FactoryPreset {
+        id: "poly-synth/deep-sub",
+        json: include_str!("../../presets/poly-synth/deep-sub.etherpreset"),
+    },
+    FactoryPreset {
+        id: "poly-synth/acid-bass",
+        json: include_str!("../../presets/poly-synth/acid-bass.etherpreset"),
+    },
+    FactoryPreset {
+        id: "poly-synth/reese-bass",
+        json: include_str!("../../presets/poly-synth/reese-bass.etherpreset"),
+    },
+    FactoryPreset {
+        id: "poly-synth/bright-pluck",
+        json: include_str!("../../presets/poly-synth/bright-pluck.etherpreset"),
+    },
+    FactoryPreset {
+        id: "poly-synth/soft-keys",
+        json: include_str!("../../presets/poly-synth/soft-keys.etherpreset"),
+    },
+    FactoryPreset {
+        id: "poly-synth/drawbar-organ",
+        json: include_str!("../../presets/poly-synth/drawbar-organ.etherpreset"),
+    },
+    FactoryPreset {
+        id: "poly-synth/sync-lead",
+        json: include_str!("../../presets/poly-synth/sync-lead.etherpreset"),
+    },
+    FactoryPreset {
+        id: "poly-synth/pwm-lead",
+        json: include_str!("../../presets/poly-synth/pwm-lead.etherpreset"),
+    },
+    FactoryPreset {
+        id: "poly-synth/metal-bell",
+        json: include_str!("../../presets/poly-synth/metal-bell.etherpreset"),
+    },
+];
+
+/// Factory presets of a type of this group.
 pub fn factory_presets(ty: BuiltinDeviceType) -> &'static [FactoryPreset] {
-    let _ = ty;
-    &[]
+    match ty {
+        BuiltinDeviceType::PolySynth => &FACTORY_PRESETS,
+        _ => &[],
+    }
 }

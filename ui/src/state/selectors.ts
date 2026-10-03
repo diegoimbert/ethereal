@@ -115,7 +115,7 @@ const markersByClip = new WeakMap<object, Map<ClipId, WarpMarker[]>>();
 
 /** The track's own device chain (devices on drum pads are excluded: see `devicesOfPad`). */
 export function devicesOfTrack(project: Project, track: TrackId): Device[] {
-  return groupedBy(devicesByTrack, project.devices, (d) => (d.pad === null ? d.track : null), byOrder).get(track) ?? NONE;
+  return groupedBy(devicesByTrack, project.devices, (d) => (d.pad === null && d.chain == null ? d.track : null), byOrder).get(track) ?? NONE;
 }
 
 /** The device chain of a drum pad (mirrors `Project::pad_devices_of`). */

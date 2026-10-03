@@ -303,7 +303,7 @@ v2 adds `export`, `tempo`, `markers`, `midi_map`, `groove`, `drum_rack` (with sl
 - `compile_graph(project, node_lookup, version) -> RenderGraphDesc` is a pure function
   that can be unit-tested without an engine.
 
-**Host-handled commands (base-6).** `Command::Engine(*)` (audio device list/config/status) and `Command::Plugin(Rescan | List | OpenEditor | CloseEditor)` are intercepted by the **native host** on the controller thread before `Controller::handle`, which replies itself (same ordering: one reply per message). The controller replies `Unsupported` if it ever receives them (web host). `EngineBridge::poll_plugins` (drained from the controller tick) and `EngineBridge::plugin_state` (read for every plugin device before serializing) are defaulted, so non-plugin hosts ignore them. So is `EngineBridge::plugin_param_values` (current plain values of a plugin's params, read after (re)instantiating from a state blob to mirror them into `Device.params`).
+**Host-handled commands (base-6).** `Command::Engine(*)` (audio device list/config/status) and `Command::Plugin(Rescan | List | OpenEditor | CloseEditor)` are intercepted by the **native host** on the controller thread before `Controller::handle`, which replies itself (same ordering: one reply per message). The controller replies `Unsupported` if it ever receives them (web host). `EngineBridge::poll_plugins` (drained from the controller tick) and `EngineBridge::plugin_state` (read for every plugin device before serializing) are defaulted, so non-plugin hosts ignore them. So is `EngineBridge::plugin_param_values` (current plain values of a plugin's params, read after (re)instantiating from a state blob to mirror them into `Device.params`). So is `EngineBridge::node_latency(key)` (native: `EngineHandle::node_latency`; web: `None`), which the controller tick compares with the latencies of the last publish to republish PDC, at most every 50 ms, when a built-in's latency changes (`latency-republish`).
 
 ## 6. UI transport: `ui/src/transport`, `ui/src/state`
 
@@ -895,7 +895,7 @@ runtime; `PresetEvent::Changed` after user-set changes. Sample-based presets car
 - Modulators live **inside any track-chain device** (not on drum-pad or rack-chain devices in
   v0.2, so every host is an entry the engine's `pre_node` hook sees; a rack's modulators reach
   its chain devices) (`Modulator { device, order, name, kind, params, sidechain }`,
-  kinds `Lfo`, `Envelope`, `EnvelopeFollower`, `Steps`, `Random`; param tables frozen in
+  kinds `Lfo`, `Envelope`, `EnvelopeFollower`, `Steps`, `Random`, `Keytrack`, `Velocity` (appended by BCR base-87, unipolar); param tables frozen in
   `ether_devices::modulators`). `ModMapping { source: Modulator | Macro { rack, index },
   device, param, depth -1..=1 }`, one per (source, target). Scope: a modulator targets its
   host and, for a rack host, devices on the rack's chains, never the rack's own macros (no

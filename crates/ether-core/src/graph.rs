@@ -930,6 +930,22 @@ pub fn compile_with(
             modulation: crate::modulation::ModulationRt::compile(
                 &t.modulation,
                 mod_sc_sources[i].clone(),
+                crate::modulation::SidechainLatency {
+                    sources: mod_sc_sources[i]
+                        .iter()
+                        .map(|&s| (desc.tracks[s].id, out_lat[s]))
+                        .collect(),
+                    host_in: t
+                        .chain
+                        .iter()
+                        .zip(&chain_info[i])
+                        .scan(in_lat[i], |acc, (e, info)| {
+                            let at = *acc;
+                            *acc += info.latency;
+                            Some((e.node, at))
+                        })
+                        .collect(),
+                },
                 config,
             ),
             input_tap: crate::bus_tap::InputTapRt::compile(

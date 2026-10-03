@@ -1,0 +1,30 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "Vocal Leveler",
+    "device": {
+      "type": "Builtin",
+      "device": "Compressor"
+    },
+    "meta": {
+      "tags": [
+        "vocal"
+      ],
+      "author": "Ethereal",
+      "description": "Fast attack evens out a vocal."
+    },
+    "params": {
+      "0": -24.0,
+      "1": 3.0,
+      "2": 5.0,
+      "3": 120.0,
+      "4": 4.0,
+      "5": 80.0
+    },
+    "kind": null,
+    "samples": [],
+    "state": null
+  }
+}

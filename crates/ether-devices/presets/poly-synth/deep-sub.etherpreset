@@ -1,0 +1,40 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "Deep Sub",
+    "device": {
+      "type": "Builtin",
+      "device": "PolySynth"
+    },
+    "meta": {
+      "tags": [
+        "bass",
+        "clean",
+        "sub"
+      ],
+      "author": "Ethereal",
+      "description": "Mono triangle with a sine sub an octave down."
+    },
+    "params": {
+      "0": 2.0,
+      "14": -4.0,
+      "15": 0.0,
+      "21": 1.0,
+      "22": 1.0,
+      "25": 0.0,
+      "26": 500.0,
+      "27": 5.0,
+      "29": 50.0,
+      "31": 2.0,
+      "32": 300.0,
+      "33": 90.0,
+      "34": 90.0,
+      "57": 0.0,
+      "58": 40.0
+    },
+    "kind": null,
+    "state": null
+  }
+}

@@ -12,6 +12,9 @@
 //!   (`EngineBridge::plugin_param_values`) and mirrored into `Device.params`, so the UI
 //!   and automation see what the restored state actually contains. The mirror is not an
 //!   edit: no undo step, no dirty flag, just a patch.
+//! - **Modulated params** (v0.2, `racks-modulation`): the engine sends a modulated param's
+//!   effective value to the plugin while the document keeps the base, so modulated params
+//!   are never mirrored back and their `ParamEdited` echoes are ignored ([`is_modulated`]).
 
 use std::collections::BTreeMap;
 
@@ -32,17 +35,35 @@ pub(crate) struct PluginsState {
     mirrored: BTreeMap<DeviceId, NodeKey>,
 }
 
+/// Whether a modulation mapping targets `device`'s `param` (its live value is the
+/// modulated one, not the document's base).
+pub(crate) fn is_modulated(
+    project: &Project,
+    device: DeviceId,
+    param: ether_core::protocol::model::ParamId,
+) -> bool {
+    project
+        .mod_mappings
+        .values()
+        .any(|m| m.device == device && m.param == param)
+}
+
 /// Mirror `values` into `project`'s device `device`. Returns the updated device when
-/// anything changed.
+/// anything changed. Modulated params keep their document base.
 fn mirror_params(
     project: &mut Project,
     device: DeviceId,
     values: &[(ether_core::protocol::model::ParamId, f64)],
 ) -> Option<Entity> {
+    let modulated: Vec<ether_core::protocol::model::ParamId> = values
+        .iter()
+        .map(|(p, _)| *p)
+        .filter(|p| is_modulated(project, device, *p))
+        .collect();
     let d = project.devices.get_mut(&device)?;
     let mut changed = false;
     for (param, value) in values {
-        if !value.is_finite() {
+        if !value.is_finite() || modulated.contains(param) {
             continue;
         }
         let same = d

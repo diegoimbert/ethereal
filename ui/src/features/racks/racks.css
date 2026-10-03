@@ -1,0 +1,131 @@
+/*
+ * Rack chains (racks-modulation): the chain list and the selected chain's devices inside a
+ * rack's device card. Tokens only.
+ */
+
+.eth-rack {
+  display: flex;
+  gap: var(--eth-space-sm);
+  padding: var(--eth-space-sm);
+  border-top: var(--eth-border-width) solid var(--eth-color-border);
+  min-width: 0;
+}
+.eth-device--stack .eth-rack {
+  flex-direction: column;
+}
+.eth-rack__chains {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-xs);
+  flex: 0 0 var(--eth-size-device-card-min-width);
+  min-width: 0;
+}
+.eth-rack__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--eth-space-xs);
+  padding: var(--eth-space-xs) var(--eth-space-sm);
+  border: var(--eth-border-width) solid var(--eth-color-border);
+  border-radius: var(--eth-radius-md);
+  background: var(--eth-color-bg-inset);
+  cursor: pointer;
+}
+.eth-rack__row:focus-visible {
+  outline: var(--eth-focus-ring-width) solid var(--eth-color-focus);
+  outline-offset: var(--eth-focus-ring-offset);
+}
+.eth-rack__row--selected {
+  border-color: var(--eth-color-accent);
+  background: var(--eth-color-accent-subtle);
+}
+.eth-rack__row--muted .eth-rack__name {
+  color: var(--eth-color-text-disabled);
+}
+.eth-rack__row--drop {
+  border-style: dashed;
+  border-color: var(--eth-color-accent);
+}
+.eth-rack__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--eth-fs-sm);
+  font-weight: var(--eth-fw-medium);
+  color: var(--eth-color-text);
+}
+.eth-rack__buttons {
+  display: flex;
+  gap: var(--eth-space-xs);
+}
+.eth-rack__letter {
+  font-size: var(--eth-fs-xs);
+  font-weight: var(--eth-fw-bold);
+}
+.eth-rack__knobs {
+  display: flex;
+  grid-column: 1 / -1;
+  justify-content: flex-start;
+  gap: var(--eth-space-md);
+}
+.eth-rack__add-chain {
+  align-self: flex-start;
+}
+.eth-rack__add-chain svg {
+  width: var(--eth-size-icon-sm);
+  height: var(--eth-size-icon-sm);
+}
+.eth-rack__empty {
+  font-size: var(--eth-fs-xs);
+  color: var(--eth-color-text-dim);
+}
+.eth-rack__chain {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-sm);
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.eth-rack__zones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--eth-space-md);
+  font-size: var(--eth-fs-xs);
+  color: var(--eth-color-text-dim);
+}
+.eth-rack__zone {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--eth-space-xs);
+}
+.eth-rack__zone .eth-input {
+  width: var(--eth-size-control-lg);
+}
+.eth-rack__devices {
+  display: flex;
+  gap: var(--eth-space-sm);
+  overflow-x: auto;
+  min-width: 0;
+}
+.eth-device--stack .eth-rack__devices {
+  flex-direction: column;
+}
+.eth-rack__slot {
+  flex: 0 0 auto;
+  min-width: var(--eth-size-device-card-min-width);
+}
+.eth-rack__end {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-xs);
+  justify-content: center;
+  min-width: var(--eth-size-device-add-min-width);
+  padding: var(--eth-space-sm);
+  border: var(--eth-border-width) dashed var(--eth-color-border);
+  border-radius: var(--eth-radius-md);
+}
+.eth-rack__end--drop {
+  border-color: var(--eth-color-accent);
+  background: var(--eth-color-accent-subtle);
+}

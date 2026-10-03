@@ -7,6 +7,43 @@
       "device": "AudioEffectRack",
       "type": "Builtin"
     },
+    "layout": {
+      "sections": [
+        {
+          "columns": 4,
+          "id": "macros",
+          "items": [
+            {
+              "colspan": 4,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "type": "Macros"
+              }
+            }
+          ],
+          "span": 3,
+          "title": "Macros"
+        },
+        {
+          "columns": 1,
+          "id": "chains",
+          "items": [
+            {
+              "colspan": 1,
+              "label": "Chain Select",
+              "size": "Small",
+              "widget": {
+                "param": 8,
+                "type": "Knob"
+              }
+            }
+          ],
+          "span": 1,
+          "title": "Chains"
+        }
+      ]
+    },
     "midi_input": false,
     "name": "Audio Effect Rack",
     "params": [
@@ -286,6 +323,43 @@
       "device": "InstrumentRack",
       "type": "Builtin"
     },
+    "layout": {
+      "sections": [
+        {
+          "columns": 4,
+          "id": "macros",
+          "items": [
+            {
+              "colspan": 4,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "type": "Macros"
+              }
+            }
+          ],
+          "span": 3,
+          "title": "Macros"
+        },
+        {
+          "columns": 1,
+          "id": "chains",
+          "items": [
+            {
+              "colspan": 1,
+              "label": "Chain Select",
+              "size": "Small",
+              "widget": {
+                "param": 8,
+                "type": "Knob"
+              }
+            }
+          ],
+          "span": 1,
+          "title": "Chains"
+        }
+      ]
+    },
     "midi_input": true,
     "name": "Instrument Rack",
     "params": [
@@ -564,6 +638,43 @@
     "device_type": {
       "device": "MidiEffectRack",
       "type": "Builtin"
+    },
+    "layout": {
+      "sections": [
+        {
+          "columns": 4,
+          "id": "macros",
+          "items": [
+            {
+              "colspan": 4,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "type": "Macros"
+              }
+            }
+          ],
+          "span": 3,
+          "title": "Macros"
+        },
+        {
+          "columns": 1,
+          "id": "chains",
+          "items": [
+            {
+              "colspan": 1,
+              "label": "Chain Select",
+              "size": "Small",
+              "widget": {
+                "param": 8,
+                "type": "Knob"
+              }
+            }
+          ],
+          "span": 1,
+          "title": "Chains"
+        }
+      ]
     },
     "midi_input": true,
     "name": "MIDI Effect Rack",

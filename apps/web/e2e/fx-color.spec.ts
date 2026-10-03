@@ -104,7 +104,6 @@ test("saturator, bitcrusher and auto filter on an audio track", async ({ page })
   const transportBar = page.getByRole("toolbar", { name: "Transport" });
   await transportBar.getByRole("button", { name: "Loop" }).click();
   await expect.poll(async () => (await doc(page)).settings.loop_enabled).toBe(true);
-  console.log("clip", JSON.stringify(Object.values((await doc(page)).clips)[0]));
   await playButton(page).click();
   await expect.poll(() => peakOf(page, audio.id), { timeout: 15_000 }).toBeGreaterThan(0.05);
 

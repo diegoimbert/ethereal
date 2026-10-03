@@ -7,6 +7,96 @@
       "device": "SpectrumAnalyzer",
       "type": "Builtin"
     },
+    "layout": {
+      "sections": [
+        {
+          "columns": 6,
+          "id": "spectrum",
+          "items": [
+            {
+              "colspan": 6,
+              "label": null,
+              "size": "Large",
+              "widget": {
+                "type": "Spectrum"
+              }
+            }
+          ],
+          "span": 4,
+          "title": null
+        },
+        {
+          "columns": 3,
+          "id": "analyzer",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 0,
+                "type": "Choice"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 1,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 2,
+                "type": "Choice"
+              }
+            }
+          ],
+          "span": 2,
+          "title": "Analyzer"
+        },
+        {
+          "columns": 3,
+          "id": "display",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 3,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 4,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 5,
+                "type": "Toggle"
+              }
+            }
+          ],
+          "span": 2,
+          "title": "Display"
+        }
+      ]
+    },
     "midi_input": false,
     "name": "Spectrum",
     "params": [
@@ -127,6 +217,61 @@
     "device_type": {
       "device": "Tuner",
       "type": "Builtin"
+    },
+    "layout": {
+      "sections": [
+        {
+          "columns": 1,
+          "id": "tuner",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Large",
+              "widget": {
+                "type": "Tuner"
+              }
+            }
+          ],
+          "span": 3,
+          "title": null
+        },
+        {
+          "columns": 1,
+          "id": "settings",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 0,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 1,
+                "type": "Choice"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 2,
+                "type": "Toggle"
+              }
+            }
+          ],
+          "span": 1,
+          "title": "Tuner"
+        }
+      ]
     },
     "midi_input": false,
     "name": "Tuner",

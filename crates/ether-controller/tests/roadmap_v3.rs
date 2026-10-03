@@ -13,8 +13,6 @@ use ether_core::protocol::browser::{BrowserCommand, BrowserQuery, BrowserSort};
 use ether_core::protocol::devices::{DeviceCommand, DeviceSpec};
 use ether_core::protocol::media::{MediaCommand, MediaSource};
 use ether_core::protocol::model::*;
-use ether_core::protocol::presets::{PresetCommand, PresetRef, PresetSource};
-use ether_core::protocol::racks::{ModulationCommand, RackCommand};
 use ether_core::protocol::tracks::TrackCommand;
 use ether_core::protocol::{Command, ErrorCode, ReplyValue};
 
@@ -80,8 +78,17 @@ fn group_inserts_and_compiles(types: &[BuiltinDeviceType]) {
 // ─── device groups (placeholders until each node lands) ─────────────────────────────────
 
 #[test]
-fn synth_2_poly_synth_is_a_placeholder() {
+fn synth_2_poly_synth_inserts_compiles_and_keeps_its_params() {
     group_inserts_and_compiles(&[BuiltinDeviceType::PolySynth]);
+    // The real device (not a placeholder) reports the document's param values.
+    let mut dev = ether_devices::create(
+        &BuiltinDevice::new(BuiltinDeviceType::PolySynth),
+        &ether_devices::NoSamples,
+    );
+    let cutoff = ether_devices::poly_synth::poly_synth::CUTOFF;
+    dev.set_param(cutoff, 1234.0);
+    assert_eq!(dev.param(cutoff), Some(1234.0));
+    assert_eq!(dev.channels(), (0, 2));
 }
 
 #[test]
@@ -203,12 +210,12 @@ fn fx_dynamics_devices_insert_with_layouts_and_sidechains() {
 }
 
 #[test]
-fn fx_analysis_devices_are_placeholders_and_watch_works() {
+fn fx_analysis_devices_insert_and_watches_reach_the_engine() {
     group_inserts_and_compiles(&[
         BuiltinDeviceType::SpectrumAnalyzer,
         BuiltinDeviceType::Tuner,
     ]);
-    // The analysis channel's watch commands are implemented (contracts-3).
+    // Watch/Unwatch are refcounted and reach the engine (frames: tests/analysis_devices.rs).
     let mut h = Harness::with_project();
     let t = track(&mut h, TrackKind::Audio);
     let d = insert(&mut h, t, BuiltinDeviceType::SpectrumAnalyzer);
@@ -260,91 +267,7 @@ fn midi_fx_devices_are_placeholders() {
 
 // ─── feature nodes ──────────────────────────────────────────────────────────────────────
 
-#[test]
-fn presets_reply_unsupported() {
-    let mut h = Harness::with_project();
-    let t = track(&mut h, TrackKind::Midi);
-    let d = insert(&mut h, t, BuiltinDeviceType::PolySynth);
-    let preset = PresetRef {
-        source: PresetSource::User,
-        id: "poly-synth/x.etherpreset".into(),
-    };
-    for c in [
-        PresetCommand::List {
-            device: None,
-            text: None,
-        },
-        PresetCommand::Load {
-            device: d,
-            preset: preset.clone(),
-        },
-        PresetCommand::Save {
-            device: d,
-            name: "X".into(),
-            meta: PresetMeta::default(),
-            overwrite: false,
-        },
-        PresetCommand::Rename {
-            preset: preset.clone(),
-            name: "Y".into(),
-        },
-        PresetCommand::Delete {
-            preset: preset.clone(),
-        },
-        PresetCommand::SetMeta {
-            preset,
-            meta: PresetMeta::default(),
-        },
-    ] {
-        assert_unsupported(&mut h, Command::Preset(c));
-    }
-}
-
-#[test]
-fn racks_modulation_reply_unsupported() {
-    let mut h = Harness::with_project();
-    let t = track(&mut h, TrackKind::Midi);
-    let rack = insert(&mut h, t, BuiltinDeviceType::InstrumentRack);
-    insert(&mut h, t, BuiltinDeviceType::AudioEffectRack);
-    let chain: RackChainId = h.id();
-    assert_unsupported(
-        &mut h,
-        Command::Rack(RackCommand::AddChain {
-            id: chain,
-            rack,
-            name: None,
-            before: None,
-        }),
-    );
-    let modulator: ModulatorId = h.id();
-    assert_unsupported(
-        &mut h,
-        Command::Modulation(ModulationCommand::AddModulator {
-            id: modulator,
-            device: rack,
-            kind: ModulatorKind::Lfo,
-            name: None,
-        }),
-    );
-    let mapping: ModMappingId = h.id();
-    assert_unsupported(
-        &mut h,
-        Command::Modulation(ModulationCommand::Map {
-            id: mapping,
-            source: ModSource::Macro { rack, index: 0 },
-            device: rack,
-            param: RACK_SELECTOR_PARAM,
-            depth: 0.5,
-        }),
-    );
-    // Modulator kinds are listed from the frozen tables already.
-    match h.ok(Command::Modulation(ModulationCommand::ListModulatorKinds)) {
-        ReplyValue::ModulatorKinds { kinds } => assert_eq!(kinds.len(), ModulatorKind::ALL.len()),
-        other => panic!("{other:?}"),
-    }
-    // Rack params: 8 macros + chain selector.
-    assert_eq!(h.project().devices[&rack].params.len(), 9);
-}
+// presets: see tests/presets.rs. racks-modulation: see tests/racks.rs and tests/modulation.rs.
 
 #[test]
 fn browser_v2_replies_unsupported() {
