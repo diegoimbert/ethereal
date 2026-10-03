@@ -76,8 +76,10 @@ pub enum PeerOutput {
 pub trait PeerEndpoint {
     /// Start a peer connection for `peer`. `offer`: create the data channel
     /// ([`dc::DC_LABEL`], ordered, reliable) and the offer (the joiner); else wait for the
-    /// offer (the host).
-    fn open(&mut self, peer: PeerId, offer: bool, ice_servers: &[IceServer]);
+    /// offer (the host). `relay_only` (`ShareCommand::SetPreferences`): gather and use
+    /// relay (TURN) candidates only, hiding this device's IP; host/srflx candidates are
+    /// dropped (web: `iceTransportPolicy: "relay"`).
+    fn open(&mut self, peer: PeerId, offer: bool, ice_servers: &[IceServer], relay_only: bool);
     /// A remote signal for `peer`.
     fn signal(&mut self, peer: PeerId, signal: StreamSignal);
     fn poll(&mut self, out: &mut Vec<PeerOutput>);
@@ -158,7 +160,7 @@ impl SignalLink for Unavailable {
 struct FailedPeers(Vec<PeerId>);
 
 impl PeerEndpoint for FailedPeers {
-    fn open(&mut self, peer: PeerId, _: bool, _: &[IceServer]) {
+    fn open(&mut self, peer: PeerId, _: bool, _: &[IceServer], _: bool) {
         self.0.push(peer);
     }
     fn signal(&mut self, _: PeerId, _: StreamSignal) {}
@@ -184,7 +186,7 @@ mod tests {
             LinkState::Closed { fatal: true, .. }
         ));
         let mut out = Vec::new();
-        s.peers.open(3, true, &[]);
+        s.peers.open(3, true, &[], false);
         s.peers.poll(&mut out);
         assert!(matches!(
             out.as_slice(),
