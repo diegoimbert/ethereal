@@ -20,6 +20,8 @@ interface ProjectScreenState {
   show(mode?: ScreenMode): void;
   /** Show the screen with the open project's name field focused. */
   rename(): void;
+  /** Open straight on the "New project" form (templates: "New project from template…"). */
+  showNew(): void;
   hide(): void;
   setMode(mode: ScreenMode): void;
 }
@@ -36,6 +38,7 @@ export const useProjectScreen = create<ProjectScreenState>((set) => ({
       mode: "home",
       renameRequest: s.renameRequest + 1,
     })),
+  showNew: () => set({ open: true, mode: "new" }),
   hide: () => set({ open: false, mode: "home" }),
   setMode: (mode) => set({ mode }),
 }));

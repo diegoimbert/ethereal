@@ -424,7 +424,9 @@ fn copy_paste_overwrites_and_inserts() {
         .find(|c| c.track == b && c.start == Beats(8.0))
         .unwrap()
         .clone();
-    assert_eq!(h.project().notes_of(pasted.id).len(), 1);
+    // The piece 1..3 doesn't hold the source note (at 0): only the notes playing in it
+    // are copied (section-edit).
+    assert_eq!(h.project().notes_of(pasted.id).len(), 0);
     // The volume envelope went to b's volume (a new lane) with the copied ramp.
     let b_lane = h
         .project()

@@ -23,6 +23,7 @@ import {
   TextInput,
   Toggle,
   TONES,
+  VirtualList,
   Tooltip,
   useTheme,
   type ThemeName,
@@ -35,6 +36,7 @@ import {
   fontSize,
   fontWeight,
   radius,
+  size as sizeTokens,
   sharedGroups,
   space,
   THEME_NAMES,
@@ -43,6 +45,9 @@ import {
   TRACK_COLORS,
 } from "@/theme";
 import "./kit-gallery.css";
+
+/** A long option list (the searchable, windowed Select and VirtualList demos). */
+const BIG_OPTIONS = Array.from({ length: 5_000 }, (_, i) => ({ value: `p${i}`, label: `Parameter ${i + 1}`, group: `Page ${Math.floor(i / 100) + 1}` }));
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -242,6 +247,7 @@ function Inputs() {
   const [num, setNum] = useState(120);
   const [on, setOn] = useState(true);
   const [tab, setTab] = useState<"one" | "two" | "three">("one");
+  const [bigSel, setBigSel] = useState("");
   return (
     <>
       {SIZES.map((size) => (
@@ -276,6 +282,23 @@ function Inputs() {
           <NumberField size={size} aria-label={`Tempo ${size}`} value={num} onChange={setNum} min={20} max={999} precision={2} unit="BPM" />
         </Row>
       ))}
+      <Row label="Long lists">
+        <Select
+          size="sm"
+          aria-label="Searchable select"
+          value={bigSel}
+          onChange={setBigSel}
+          placeholder="+ Parameter…"
+          options={BIG_OPTIONS}
+        />
+        <VirtualList
+          className="eth-gallery__vlist"
+          aria-label="Virtual list"
+          count={BIG_OPTIONS.length}
+          rowHeight={parseFloat(sizeTokens.rowHeight)}
+          renderRow={(i) => <span className="eth-gallery__vrow">{BIG_OPTIONS[i]!.label}</span>}
+        />
+      </Row>
       <Row label="Toggle">
         <Toggle checked={on} onChange={setOn} label="Metronome" />
         <Toggle checked={!on} onChange={(v) => setOn(!v)} size="sm" label="Small" />

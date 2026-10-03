@@ -1,0 +1,128 @@
+/* Templates: the template list, the "Start from" picker and the dialogs. Tokens only. */
+
+.eth-templates__scroll {
+  max-height: var(--eth-size-select-list-max-height);
+  overflow: auto;
+}
+.eth-templates__group {
+  margin: 0;
+  padding: var(--eth-space-sm) var(--eth-space-sm) var(--eth-space-xs);
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+  font-weight: var(--eth-fw-medium);
+}
+.eth-templates__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.eth-templates__row {
+  display: flex;
+  align-items: center;
+  border-radius: var(--eth-radius-sm);
+  transition: background-color var(--eth-duration-fast) var(--eth-ease-out);
+}
+.eth-templates__row:hover,
+.eth-templates__row:focus-within {
+  background: var(--menu-item-bg-hover);
+}
+.eth-templates__item {
+  display: flex;
+  flex: 1;
+  align-items: baseline;
+  gap: var(--eth-space-sm);
+  min-width: 0;
+  height: var(--menu-item-height);
+  padding: 0 var(--eth-space-sm);
+  border: 0;
+  border-radius: var(--eth-radius-sm);
+  background: transparent;
+  color: var(--eth-color-text);
+  font-size: var(--eth-fs-sm);
+  text-align: left;
+  cursor: pointer;
+  outline: none;
+}
+.eth-templates__item:focus-visible {
+  outline: var(--eth-focus-ring-width) solid var(--eth-color-focus);
+  outline-offset: calc(-1 * var(--eth-focus-ring-width));
+}
+.eth-templates__item[aria-current="true"] {
+  color: var(--eth-color-accent);
+  font-weight: var(--eth-fw-medium);
+}
+.eth-templates__name {
+  flex: none;
+  max-width: 60%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.eth-templates__badge {
+  flex: none;
+  padding: 0 var(--eth-space-xs);
+  border-radius: var(--eth-radius-pill);
+  background: color-mix(in srgb, var(--eth-color-accent) 14%, transparent);
+  color: var(--eth-color-accent);
+  font-size: var(--eth-fs-xs);
+}
+.eth-templates__tags {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.eth-templates__more {
+  opacity: 0;
+  transition: opacity var(--eth-duration-fast) var(--eth-ease-out);
+}
+.eth-templates__row:hover .eth-templates__more,
+.eth-templates__row:focus-within .eth-templates__more {
+  opacity: 1;
+}
+
+/* "Start from" in the new-project form. */
+.eth-template-picker {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-xs);
+}
+.eth-template-picker__label {
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: var(--eth-tracking-caps);
+}
+
+.eth-template-dialog__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-md);
+}
+.eth-template-dialog__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-xs);
+}
+.eth-template-dialog__label {
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+  font-weight: var(--eth-fw-medium);
+}
+.eth-template-dialog__text,
+.eth-template-dialog__hint,
+.eth-template-dialog__error {
+  margin: 0;
+  font-size: var(--eth-fs-sm);
+}
+.eth-template-dialog__hint {
+  color: var(--eth-color-text-dim);
+}
+.eth-template-dialog__error {
+  margin-top: var(--eth-space-sm);
+  color: var(--eth-color-danger);
+}

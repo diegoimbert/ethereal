@@ -15,7 +15,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test, type Page } from "@playwright/test";
 import type { Project } from "@/generated";
-import { createTrack, openLibrary, playButton } from "./ui";
+import { createTrack, openEngineServer, openLibrary, playButton } from "./ui";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const TOKEN = `e2e-${Math.random().toString(36).slice(2)}`;
@@ -209,7 +209,7 @@ function wavBytes(): number[] {
 }
 
 async function connect(page: Page, token: string) {
-  await page.getByTestId("remote-button").click();
+  await openEngineServer(page);
   await page.getByLabel("Server address").fill(serverUrl);
   await page.getByLabel("Token").fill(token);
   await page.getByRole("button", { name: "Connect" }).click();
@@ -230,7 +230,7 @@ test("web UI drives a remote ether-server", async ({ page }) => {
   // --- A wrong token is refused; the UI stays on the local engine.
   await connect(page, "wrong");
   await expect(page.getByText("Wrong or missing token.")).toBeVisible();
-  await page.getByRole("button", { name: "Cancel" }).click();
+  await page.getByRole("button", { name: "Done" }).click();
   expect((await project(page))!.id).toBe(localId);
 
   // --- Connect: the UI now mirrors the server's project.
@@ -318,7 +318,7 @@ test("web UI drives a remote ether-server", async ({ page }) => {
   // --- Disconnect: back to the in-browser engine and its project.
   await page.getByTestId("remote-button").click();
   await page.getByRole("button", { name: "Disconnect" }).click();
-  await expect(page.getByTestId("remote-button")).toHaveText("Engine server…");
+  await expect(page.getByTestId("remote-button")).toHaveCount(0);
   await expect.poll(async () => (await project(page))?.id).toBe(localId);
   peer.close();
 

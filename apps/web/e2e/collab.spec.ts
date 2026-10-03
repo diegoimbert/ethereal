@@ -11,6 +11,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test, type Page } from "@playwright/test";
 import type { Project } from "@/generated";
+import { openRelayJoin } from "./ui";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const TOKEN = `e2e-${Math.random().toString(36).slice(2)}`;
@@ -85,7 +86,7 @@ async function open(page: Page): Promise<string> {
 }
 
 async function join(page: Page, name: string) {
-  await page.getByTestId("collab-button").click();
+  await openRelayJoin(page);
   await page.getByLabel("Relay address").fill(relayUrl);
   await page.getByLabel("Session").fill(SESSION);
   await page.getByLabel("Your name").fill(name);
@@ -140,7 +141,7 @@ test("two browsers edit one project through a relay", async ({ browser }) => {
   // --- B leaves: A's presence bar empties; B keeps a local copy of the project.
   await b.getByTestId("collab-button").click();
   await b.getByRole("button", { name: "Leave session" }).click();
-  await expect(b.getByTestId("collab-button")).toHaveText("Collab");
+  await expect(b.getByTestId("collab-button")).toHaveCount(0);
   await expect(a.getByTestId("collab-peers")).toHaveCount(0, { timeout: 10_000 });
   expect((await project(b))?.id).toBe(idA);
 

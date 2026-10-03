@@ -1,9 +1,11 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent, type MouseEvent } from "react";
-import { MoreHorizontal, Plus } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, type FormEvent, type MouseEvent, type ReactNode } from "react";
+import { History, MoreHorizontal, Plus } from "lucide-react";
 import type { ProjectSummary } from "@/generated";
 import { errorMessage, type EngineCommands } from "@/features/transport-bar/engine";
 import { Badge, Button, Dialog, IconButton, openContextMenu, TextInput } from "@/kit";
 import { ProjectScale } from "@/features/scale/ProjectScale";
+import { openVersions } from "@/features/versions/store";
+import { newProjectCommand, ProjectTemplatePicker, useTemplateDialog, type ProjectTemplateChoice } from "@/features/templates";
 import { useProjectStore } from "@/state";
 import { cmd, newProjectId, type EngineTransport } from "@/transport";
 import { closeAndDelete, duplicateProject, exportProject, importProject, saveProjectAs } from "./actions";
@@ -29,25 +31,7 @@ export function ProjectScreen({ commands }: { commands: EngineCommands }) {
   return (
     <Dialog open={open} onClose={hide} title={mode === "saveAs" ? "Save as" : "Projects"} className="eth-project-screen">
       {mode === "new" ? (
-        <NameForm
-          commands={commands}
-          label="Name your project"
-          inputLabel="New project name"
-          submit="Create"
-          leave="Leave & create"
-          suggested={(projects) => uniqueName("Untitled", projects)}
-          run={(name, projects) =>
-            commands.send(
-              cmd("Project", {
-                type: "Create",
-                id: newProjectId(),
-                name: uniqueName(name, projects),
-              }),
-            )
-          }
-          onBack={home}
-          onDone={hide}
-        />
+        <NewProject commands={commands} onBack={home} onDone={hide} />
       ) : mode === "saveAs" ? (
         <NameForm
           commands={commands}
@@ -215,6 +199,15 @@ function Home({ commands, onNew, onDone }: { commands: EngineCommands; onNew(): 
           <Button variant="primary" onClick={onDone}>
             Continue
           </Button>
+          {/* templates: save the open project as a project template. */}
+          <Button
+            tone="ghost"
+            size="sm"
+            className="eth-project-screen__save-template"
+            onClick={() => useTemplateDialog.getState().open({ type: "save-project", name: current.settings.name })}
+          >
+            Save as template…
+          </Button>
           {confirmDelete === current.id ? (
             <div className="eth-project-screen__confirm eth-project-screen__toolbar" role="group" aria-label="Confirm delete">
               <span className="eth-project-screen__name">Delete “{current.settings.name}”? It closes first; this can&apos;t be undone.</span>
@@ -257,6 +250,19 @@ function Home({ commands, onNew, onDone }: { commands: EngineCommands; onNew(): 
             </div>
           )}
           <ProjectScale send={send} />
+          {/* project-versions: the open project's versions (save, compare, restore). */}
+          <Button
+            size="sm"
+            tone="ghost"
+            className="eth-project-screen__versions"
+            onClick={() => {
+              onDone();
+              openVersions();
+            }}
+          >
+            <History aria-hidden />
+            Versions…
+          </Button>
         </section>
       )}
 
@@ -398,6 +404,27 @@ function CurrentName({ name, onRename }: { name: string; onRename(name: string):
   );
 }
 
+/** The "New project" form: a name and the project template to start from (templates). */
+function NewProject({ commands, onBack, onDone }: { commands: EngineCommands; onBack(): void; onDone(): void }) {
+  // templates: the project template to start from (`undefined`: the default one).
+  const [template, setTemplate] = useState<ProjectTemplateChoice | undefined>(undefined);
+  return (
+    <NameForm
+      commands={commands}
+      label="Name your project"
+      inputLabel="New project name"
+      submit="Create"
+      leave="Leave & create"
+      suggested={(projects) => uniqueName("Untitled", projects)}
+      run={(name, projects) => commands.send(newProjectCommand(newProjectId(), uniqueName(name, projects), template))}
+      onBack={onBack}
+      onDone={onDone}
+    >
+      <ProjectTemplatePicker value={template} onChange={setTemplate} />
+    </NameForm>
+  );
+}
+
 /** Ask for a name, then create a project / save as (both switch projects: guarded). */
 function NameForm({
   commands,
@@ -409,6 +436,7 @@ function NameForm({
   run,
   onBack,
   onDone,
+  children,
 }: {
   commands: EngineCommands;
   label: string;
@@ -419,6 +447,8 @@ function NameForm({
   run(name: string, projects: ReadonlyArray<ProjectSummary>): Promise<unknown>;
   onBack(): void;
   onDone(): void;
+  /** Extra fields under the name (the new-project form's template picker). */
+  children?: ReactNode;
 }) {
   const projects = useProjectStore((s) => s.projects);
   const placeholder = suggested(projects);
@@ -461,6 +491,7 @@ function NameForm({
           }
         }}
       />
+      {children}
       <ErrorLine commands={commands} extra={error} clearExtra={() => setError(null)} />
       <div className="eth-project-screen__actions">
         <Button onClick={onBack}>Back</Button>

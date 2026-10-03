@@ -1,4 +1,5 @@
 import { useEffect, type KeyboardEvent } from "react";
+import { matchesAction } from "@/features/keymap";
 import { Button } from "@/kit";
 import { useShellStore } from "./shellStore";
 import { DRAWER_TABS } from "./tabs";
@@ -45,20 +46,20 @@ export function EditorDrawer() {
 }
 
 /**
- * ⌘J / Ctrl+J toggles the editor drawer (anywhere but text fields). Escape that nothing else
+ * ⌘J / Ctrl+J (keymap `view.editor`) toggles the editor drawer (anywhere but text fields). Escape that nothing else
  * used (not in a text field, dialog or menu) closes an unpinned piano roll. Renders nothing.
  */
 export function DrawerShortcut() {
   useEffect(() => {
     const onKey = (e: globalThis.KeyboardEvent) => {
-      if (e.key === "Escape" && !e.defaultPrevented && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey) {
+      if (matchesAction("edit.deselect", e) && !e.defaultPrevented) {
         const t = e.target as HTMLElement | null;
         if (t?.closest?.('input, textarea, [contenteditable="true"], [role="dialog"], [role="menu"], [role="listbox"]')) return;
         const { bottom, setOpen } = useShellStore.getState();
         if (bottom.open && !bottom.pinned && bottom.tab === "piano-roll") setOpen("bottom", false);
         return;
       }
-      if (!(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey || e.key.toLowerCase() !== "j") return;
+      if (!matchesAction("view.editor", e)) return;
       const t = e.target as HTMLElement | null;
       if (t && (t.isContentEditable || t.tagName === "INPUT" || t.tagName === "TEXTAREA")) return;
       e.preventDefault();

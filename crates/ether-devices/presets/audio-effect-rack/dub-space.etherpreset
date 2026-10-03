@@ -1,0 +1,179 @@
+{
+  "format": "ethereal-preset",
+  "version": 2,
+  "app_version": "0.3.0",
+  "preset": {
+    "name": "Dub Space",
+    "device": {
+      "type": "Builtin",
+      "device": "AudioEffectRack"
+    },
+    "meta": {
+      "tags": [
+        "delay",
+        "dub",
+        "space"
+      ],
+      "author": "Ethereal",
+      "description": "Dry signal plus a filtered echo chain into a big room. Macro 1 is the echo feedback, Macro 2 the echo tone; a slow LFO drifts the filter."
+    },
+    "params": {
+      "0": 0.2,
+      "1": 0.5,
+      "2": 0.0,
+      "3": 0.0,
+      "4": 0.0,
+      "5": 0.0,
+      "6": 0.0,
+      "7": 0.0,
+      "8": 0.0
+    },
+    "kind": null,
+    "state": null,
+    "rack": {
+      "chains": [
+        {
+          "name": "Dry",
+          "color": null,
+          "volume": 0.0,
+          "pan": 0.0,
+          "mute": false,
+          "solo": false,
+          "keys": {
+            "lo": 0,
+            "hi": 127
+          },
+          "velocities": {
+            "lo": 0,
+            "hi": 127
+          },
+          "select": {
+            "lo": 0,
+            "hi": 127
+          },
+          "devices": []
+        },
+        {
+          "name": "Echo",
+          "color": null,
+          "volume": -6.0,
+          "pan": 0.0,
+          "mute": false,
+          "solo": false,
+          "keys": {
+            "lo": 0,
+            "hi": 127
+          },
+          "velocities": {
+            "lo": 0,
+            "hi": 127
+          },
+          "select": {
+            "lo": 0,
+            "hi": 127
+          },
+          "devices": [
+            {
+              "name": "Echo",
+              "enabled": true,
+              "device": {
+                "type": "Builtin",
+                "device": "Delay"
+              },
+              "params": {
+                "0": 1.0,
+                "2": 5.0,
+                "3": 40.0,
+                "4": 100.0,
+                "5": 1.0
+              },
+              "kind": null,
+              "state": null
+            },
+            {
+              "name": "Tone",
+              "enabled": true,
+              "device": {
+                "type": "Builtin",
+                "device": "AutoFilter"
+              },
+              "params": {
+                "0": 0.0,
+                "1": 900.0,
+                "2": 25.0
+              },
+              "kind": null,
+              "state": null
+            },
+            {
+              "name": "Room",
+              "enabled": true,
+              "device": {
+                "type": "Builtin",
+                "device": "Reverb"
+              },
+              "params": {
+                "1": 70.0,
+                "2": 3.5,
+                "5": 35.0
+              },
+              "kind": null,
+              "state": null
+            }
+          ]
+        }
+      ],
+      "modulators": [
+        {
+          "name": "Drift",
+          "kind": "Lfo",
+          "params": {
+            "0": 0.0,
+            "1": 0.08
+          }
+        }
+      ],
+      "mappings": [
+        {
+          "source": {
+            "type": "Macro",
+            "index": 0
+          },
+          "target": {
+            "type": "ChainDevice",
+            "chain": 1,
+            "device": 0
+          },
+          "param": 3,
+          "depth": 0.3
+        },
+        {
+          "source": {
+            "type": "Macro",
+            "index": 1
+          },
+          "target": {
+            "type": "ChainDevice",
+            "chain": 1,
+            "device": 1
+          },
+          "param": 1,
+          "depth": 0.35
+        },
+        {
+          "source": {
+            "type": "Modulator",
+            "index": 0
+          },
+          "target": {
+            "type": "ChainDevice",
+            "chain": 1,
+            "device": 1
+          },
+          "param": 1,
+          "depth": 0.08
+        }
+      ]
+    }
+  }
+}

@@ -209,3 +209,15 @@
   font-size: var(--eth-fs-sm);
   line-height: var(--eth-lh-normal);
 }
+
+/* project-versions: the "Versions…" entry under the open project. */
+.eth-project-screen__versions {
+  grid-column: 1 / -1;
+  justify-self: start;
+}
+
+/* templates: "Save as template…" under Continue, right-aligned. */
+.eth-project-screen__save-template {
+  grid-column: 2;
+  justify-self: end;
+}

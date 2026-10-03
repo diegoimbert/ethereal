@@ -461,6 +461,21 @@ impl ProjectStore for DiskStore {
         fs::read(p).map_err(io_err)
     }
 
+    /// v0.3 (`project-versions`): delete one file (never a folder); missing = `Ok`.
+    fn remove(&mut self, id: ProjectId, rel_path: &str) -> Result<(), StoreError> {
+        let dir = self.existing_project_dir(id)?;
+        if sanitize_rel(rel_path)?.as_os_str().is_empty() {
+            return Err(StoreError::InvalidPath(rel_path.to_string()));
+        }
+        let path = resolve_in(&dir, rel_path)?;
+        match fs::symlink_metadata(&path) {
+            Ok(m) if m.is_dir() => Err(StoreError::InvalidPath(format!("{rel_path} is a folder"))),
+            Ok(_) => fs::remove_file(&path).map_err(io_err),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+            Err(e) => Err(io_err(e)),
+        }
+    }
+
     fn list_dir(&mut self, id: ProjectId, rel_path: &str) -> Result<DirectoryListing, StoreError> {
         let dir = self.existing_project_dir(id)?;
         let rel = sanitize_rel(rel_path)?;
@@ -1042,6 +1057,29 @@ mod tests {
             s.read_bundle_file(missing.to_str().unwrap()),
             Err(StoreError::NotFound(_))
         ));
+    }
+
+    #[test]
+    fn remove_deletes_files_only() {
+        let tmp = TempDir::new("store-remove");
+        let mut s = store(&tmp);
+        let a = pid(8);
+        s.create(a).unwrap();
+        s.write(a, "versions/.session", b"{}").unwrap();
+        s.write(a, "versions/1-manual.ether", b"{}").unwrap();
+        s.remove(a, "versions/.session").unwrap();
+        assert!(!s.project_dir(a).join("versions/.session").exists());
+        s.remove(a, "versions/.session").unwrap();
+        assert!(matches!(
+            s.remove(a, "versions"),
+            Err(StoreError::InvalidPath(_))
+        ));
+        assert!(matches!(s.remove(a, ""), Err(StoreError::InvalidPath(_))));
+        assert!(matches!(
+            s.remove(a, "../x"),
+            Err(StoreError::InvalidPath(_))
+        ));
+        assert!(s.project_dir(a).join("versions/1-manual.ether").exists());
     }
 
     #[test]

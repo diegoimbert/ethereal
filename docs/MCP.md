@@ -59,7 +59,7 @@ in-app AI chat ─────────────────────�
 | `get_track` | One track: mixer, routing, sends, devices, all clips (paginated). |
 | `get_clip_notes` | The notes of a MIDI clip (paginated). |
 | `list_device_types` | Built-in instruments, audio effects and MIDI effects you can add. |
-| `get_device_params` | A device's parameters: id, name, unit, range, value, labels. |
+| `get_device_params` | A device's parameters: id, name, unit, range, value, labels. 64 per call by default (`total` + a `note` when more exist); `query` filters by name/group, `offset` pages. |
 | `create_track` | `{kind: midi\|audio\|group\|return, name?}`. MIDI tracks get an instrument (default `synth`). Returns `{track_id}`. |
 | `delete_track`, `rename_track` | `{track_id}`, `{track_id, name}`. |
 | `set_track_mix` | `{track_id, volume_db?, pan?, mute?, solo?, arm?}`. |

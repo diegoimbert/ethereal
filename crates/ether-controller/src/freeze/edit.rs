@@ -338,6 +338,46 @@ pub(crate) struct PlayedNote {
     pub pitch: u8,
     pub velocity: f32,
     pub muted: bool,
+    /// v0.3 (`midi-expression`): the clip note it plays (its expressions follow it).
+    pub source: NoteId,
+}
+
+/// The linear pieces of a clip in song time: `(song start, content start, content end)`
+/// (the loop unrolled).
+fn clip_pieces(c: &Clip) -> Vec<(f64, f64, f64)> {
+    let cs = clip_start(c).0;
+    let ce = cs + c.length.0;
+    let mut pieces = Vec::new();
+    let (ls, le) = (c.looping.start.0, c.looping.end.0);
+    if c.looping.enabled && le > ls + 1e-9 {
+        let mut song = cs;
+        let mut content = c.offset.0;
+        while song < ce - 1e-9 && pieces.len() < 100_000 {
+            let piece_end = if content < le { le } else { f64::INFINITY };
+            let len = (piece_end - content).min(ce - song);
+            pieces.push((song, content, content + len));
+            song += len;
+            content = ls;
+        }
+    } else {
+        pieces.push((cs, c.offset.0, c.offset.0 + c.length.0));
+    }
+    pieces
+}
+
+/// The unmuted main-lane MIDI clips of `track` overlapping `[start, end)`.
+fn played_clips(p: &Project, track: TrackId, start: f64, end: f64) -> Vec<&Clip> {
+    p.clips
+        .values()
+        .filter(|c| {
+            c.track == track
+                && c.lane.is_none()
+                && !c.muted
+                && matches!(c.content, ClipContent::Midi)
+                && clip_start(c).0 + c.length.0 > start
+                && clip_start(c).0 < end
+        })
+        .collect()
 }
 
 /// Notes of the unmuted main-lane MIDI clips of `track` sounding from `[start, end)`
@@ -345,36 +385,9 @@ pub(crate) struct PlayedNote {
 /// (start, pitch).
 pub(crate) fn played_notes(p: &Project, track: TrackId, start: f64, end: f64) -> Vec<PlayedNote> {
     let mut out = Vec::new();
-    for c in p.clips.values() {
-        if c.track != track
-            || c.lane.is_some()
-            || c.muted
-            || !matches!(c.content, ClipContent::Midi)
-        {
-            continue;
-        }
-        let cs = clip_start(c).0;
-        let ce = cs + c.length.0;
-        if ce <= start || cs >= end {
-            continue;
-        }
+    for c in played_clips(p, track, start, end) {
         let notes = p.notes_of(c.id);
-        // Pieces (song start, content start, content end).
-        let mut pieces = Vec::new();
-        let (ls, le) = (c.looping.start.0, c.looping.end.0);
-        if c.looping.enabled && le > ls + 1e-9 {
-            let mut song = cs;
-            let mut content = c.offset.0;
-            while song < ce - 1e-9 && pieces.len() < 100_000 {
-                let piece_end = if content < le { le } else { f64::INFINITY };
-                let len = (piece_end - content).min(ce - song);
-                pieces.push((song, content, content + len));
-                song += len;
-                content = ls;
-            }
-        } else {
-            pieces.push((cs, c.offset.0, c.offset.0 + c.length.0));
-        }
+        let pieces = clip_pieces(c);
         for (song, c0, c1) in pieces {
             for n in &notes {
                 if n.start.0 < c0 - 1e-9 || n.start.0 >= c1 - 1e-9 {
@@ -394,6 +407,7 @@ pub(crate) fn played_notes(p: &Project, track: TrackId, start: f64, end: f64) ->
                     pitch: n.pitch,
                     velocity: n.velocity,
                     muted: n.muted,
+                    source: n.id,
                 });
             }
         }
@@ -423,6 +437,39 @@ pub(crate) fn consolidate_midi(
         return Ok(());
     }
     let notes = played_notes(ctx.p(), track, start.0, end.0);
+    // v0.3 (`midi-expression`): read the expression before the new clip replaces the
+    // sources.
+    let note_exprs: Vec<Vec<NoteExpression>> = notes
+        .iter()
+        .map(|n| {
+            ctx.p()
+                .note_expressions_of(n.source)
+                .into_iter()
+                .cloned()
+                .collect()
+        })
+        .collect();
+    let mut pieces: Vec<crate::expression::copy::Piece> =
+        played_clips(ctx.p(), track, start.0, end.0)
+            .into_iter()
+            .flat_map(|c| {
+                clip_pieces(c)
+                    .into_iter()
+                    .filter_map(move |(song, c0, c1)| {
+                        // The piece clamped to `[start, end)`.
+                        let s0 = song.max(start.0);
+                        let s1 = (song + (c1 - c0)).min(end.0);
+                        (s1 > s0).then_some(crate::expression::copy::Piece {
+                            clip: c.id,
+                            at: s0 - start.0,
+                            c0: c0 + (s0 - song),
+                            c1: c0 + (s1 - song),
+                        })
+                    })
+            })
+            .collect();
+    pieces.sort_by(|a, b| a.at.total_cmp(&b.at));
+    let lanes = crate::expression::copy::unroll_lanes(ctx.p(), &pieces);
     let name = ctx.track(track)?.name;
     doc::apply(
         ctx,
@@ -435,10 +482,12 @@ pub(crate) fn consolidate_midi(
         }),
     )?;
     let mut specs = Vec::with_capacity(notes.len());
+    let mut specs_ids: Vec<NoteId> = Vec::with_capacity(notes.len());
     let mut muted = Vec::new();
     for n in &notes {
         let id: NoteId = derive_id(seed_notes, *next);
         *next += 1;
+        specs_ids.push(id);
         specs.push(NoteSpec {
             id,
             pitch: n.pitch,
@@ -462,6 +511,25 @@ pub(crate) fn consolidate_midi(
     }
     if !muted.is_empty() {
         doc::apply(ctx, &Command::Note(NoteCommand::Edit { edits: muted }))?;
+    }
+    // v0.3 (`midi-expression`): note expressions follow their notes, lanes are unrolled
+    // into the new clip's content time (ids derived from the new clip / note).
+    for (exprs, &to) in note_exprs.into_iter().zip(&specs_ids) {
+        for (k, e) in exprs.into_iter().enumerate() {
+            ctx.tx.insert(Entity::NoteExpression(NoteExpression {
+                id: derive_id(to, k as u32),
+                note: to,
+                ..e
+            }))?;
+        }
+    }
+    for (k, (kind, points)) in lanes.into_iter().enumerate() {
+        ctx.tx.insert(Entity::ExpressionLane(ExpressionLane {
+            id: derive_id(clip, 0x4558_0000 + k as u32),
+            clip,
+            kind,
+            points,
+        }))?;
     }
     Ok(())
 }
