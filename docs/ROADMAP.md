@@ -686,18 +686,6 @@ Owns: `crates/ether-controller/src/browser/**`, `ui/src/features/browser/v2/**`,
 tempo-synced preview (`ether-core/src/preview.rs`, `ether-controller/src/media_preview/**`),
 user folders (`ether-native/src/store.rs`; native picker in `apps/desktop/src/**`).
 
-Implemented (behaviour beyond §12.8, see `ether-controller/src/browser/mod.rs`): indexing
-starts lazily at the first `Browser` command and runs a bounded amount per tick (folder
-listings, entries and an 8 ms wall-clock budget), then probes audio headers (files up to
-16 MiB). Persistence is split in the user library: `.ethereal/index.json` (user folders,
-favourites, tags, packs; written on each edit) and `.ethereal/items.json` (the scan cache;
-written after scans settle). Packs are top-level folders holding a `pack.json` (root id
-`<root>/<folder>`). Tempo and key come from file names; `modified_ms` of files is when they
-were first indexed ("recently added"). Desktop user folders get the stable id
-`folder-<fnv64 of the path>` (`DiskStore::add_folder`) and are re-added from the index on
-start. Synced previews resample to `engine rate / ratio` (repitch) and pad to the next beat
-at hand-off; the engine voice is unchanged. 50k-item queries: `tests/browser_bench.rs`.
-
 ## `media-references`
 
 Owns: `crates/ether-controller/src/media_refs/**`, `ui/src/features/media-refs/**`, mock
