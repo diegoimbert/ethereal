@@ -40,7 +40,7 @@ function mayDispatch(): boolean {
 /** Handle a keydown; returns what it did (for tests). */
 export function dispatchKey(e: KeyboardEvent): "ran" | "blocked" | null {
   if (paused > 0 || e.defaultPrevented || isTextEntry(e.target)) return null;
-  if (e.target instanceof Element && e.target.closest('[role="dialog"], [role="menu"], [role="listbox"]')) return null;
+  if (e.target instanceof Element && e.target.closest('[role="dialog"]:not(.eth-dialog--closing), [role="menu"], [role="listbox"]')) return null;
   if (eventChords(e).length === 0 || !mayDispatch()) return null;
   const entries = paletteEntries();
   derivePaletteActions(entries);

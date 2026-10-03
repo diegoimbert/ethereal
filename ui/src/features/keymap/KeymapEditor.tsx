@@ -189,6 +189,7 @@ function Row({ action, chords, presetChords, overridden, conflicts, recording, o
         {scope && <span className="eth-keymap__dim">{scope}</span>}
       </div>
       <div className="eth-keymap__chords">
+        {chords.length === 0 && !recording && <span className="eth-keymap__dim">Not set</span>}
         {chords.map((c) => (
           <span key={c} className="eth-keymap__chord" data-chord={c}>
             <kbd className="eth-keymap__kbd">{formatChord(c)}</kbd>
