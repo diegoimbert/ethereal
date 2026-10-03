@@ -7,6 +7,7 @@ use crate::automation::{AutomationLane, AutomationPoint};
 use crate::clip::Clip;
 use crate::device::Device;
 use crate::drum_rack::DrumPad;
+use crate::expression::{ExpressionLane, NoteExpression};
 use crate::ids::*;
 use crate::marker::Marker;
 use crate::media::MediaRef;
@@ -51,6 +52,9 @@ pub enum Entity {
     // --- base-62 (`collab-social`, `.ether` v4) ---
     ChatMessage(ChatMessage),
     PinnedNote(PinnedNote),
+    // --- v0.3 (`.ether` v5, contracts-4) ---
+    ExpressionLane(ExpressionLane),
+    NoteExpression(NoteExpression),
 }
 
 /// The key of any entity.
@@ -78,6 +82,8 @@ pub enum EntityKey {
     ModMapping(ModMappingId),
     ChatMessage(ChatMessageId),
     PinnedNote(PinnedNoteId),
+    ExpressionLane(ExpressionLaneId),
+    NoteExpression(NoteExpressionId),
 }
 
 impl Entity {
@@ -104,6 +110,8 @@ impl Entity {
             Self::ModMapping(e) => EntityKey::ModMapping(e.id),
             Self::ChatMessage(e) => EntityKey::ChatMessage(e.id),
             Self::PinnedNote(e) => EntityKey::PinnedNote(e.id),
+            Self::ExpressionLane(e) => EntityKey::ExpressionLane(e.id),
+            Self::NoteExpression(e) => EntityKey::NoteExpression(e.id),
         }
     }
 }

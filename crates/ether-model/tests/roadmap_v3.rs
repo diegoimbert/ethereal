@@ -41,6 +41,7 @@ impl Fx {
             scale: Default::default(),
             freeze: None,
             vca: None,
+            mpe: None,
         }))
         .unwrap();
         id
@@ -488,7 +489,7 @@ fn v2_fixture_loads_at_v4_with_project_media() {
     assert!(p.chat.is_empty() && p.pinned_notes.is_empty());
     let saved = file::save(&p, "0.2.0").unwrap();
     let v: serde_json::Value = serde_json::from_str(&saved).unwrap();
-    assert_eq!(v["version"], 4);
+    assert_eq!(v["version"], file::CURRENT_VERSION);
     // Absent optional fields stay absent (older-shaped entities are unchanged on disk).
     assert!(
         !saved.contains("\"lane\": null")

@@ -1,0 +1,39 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "Plucked",
+    "device": {
+      "type": "Builtin",
+      "device": "MultiSampler"
+    },
+    "meta": {
+      "tags": [
+        "pluck",
+        "round-robin"
+      ],
+      "author": "Ethereal",
+      "description": "Short, snappy filter pluck with random round robin."
+    },
+    "params": {
+      "6": 0.0,
+      "7": 400.0,
+      "8": 0.0,
+      "9": 250.0,
+      "10": 1.0,
+      "11": 600.0,
+      "12": 25.0,
+      "13": 40.0,
+      "14": 60.0,
+      "15": 0.0,
+      "16": 300.0,
+      "17": 0.0,
+      "18": 250.0,
+      "19": 1.0
+    },
+    "kind": null,
+    "samples": [],
+    "state": null
+  }
+}

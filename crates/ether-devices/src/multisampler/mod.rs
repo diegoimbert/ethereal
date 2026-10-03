@@ -1,15 +1,18 @@
-//! v0.2 devices owned by the `multisampler` node (contracts-3 froze the param tables; see
-//! docs/ROADMAP.md "v0.2" and the device agent guide there).
-//!
-//! The multisampler: zones (`BuiltinDevice::MultiSampler::zones`, `ether_model::multisampler`) with key/velocity ranges, round robin, loop points; global ADSR and filter.
-//!
-//! Every device here starts as a [`Placeholder`] (pass-through / silent / MIDI-thru) with its
-//! final descriptor. **Param ids are stable and append-only** (documents, automation and
-//! presets store them): never renumber, only append. Split this module into files as you like.
+//! v0.2 multisampler (node `multisampler`; contracts-3 froze the param table, see
+//! docs/ROADMAP.md "v0.2" and the device agent guide there). **Param ids are stable and
+//! append-only** (documents, automation and presets store them).
 //!
 //! # Multisampler (`BuiltinDeviceType::MultiSampler`)
 //!
-//! Zones are device-kind data (see `ether_model::multisampler` for the zone selection rules); live zone edits arrive through `Node::set_data` (`Vec<SampleZone>` + resolved sources).
+//! Zones (`BuiltinDevice::MultiSampler::zones`, `ether_model::multisampler`) with key and
+//! velocity ranges, root key, tune, gain, pan, loop points with crossfade and round-robin
+//! groups; a global amp ADSR and a per-voice filter with its own envelope.
+//!
+//! - [`zones`]: the resolved [`ZoneSet`] (built off the audio thread from the zones and the
+//!   host's [`SampleResolver`]) and the per-note selection (candidates, round robin, velocity
+//!   crossfades).
+//! - [`device`]: the [`MultiSampler`] node. Live zone edits arrive through `Node::set_data`
+//!   (a boxed [`ZoneSet`]) without cutting sounding notes ([`updatable_in_place`]).
 //!
 //! | id | group | name | range |
 //! |----|-------|------|-------|
@@ -37,13 +40,19 @@
 
 use ether_core::Device;
 use ether_core::protocol::devices::{DeviceCategory, DeviceDescriptor, ParamScale, ParamUnit};
+use ether_core::protocol::layout::DeviceLayout;
 use ether_core::protocol::model::{BuiltinDevice, BuiltinDeviceType};
 
-#[allow(unused_imports)]
+use crate::SampleResolver;
 use crate::contract::{
-    FactoryPreset, Placeholder, PlaceholderMode, SYNC_RATES, choice, descriptor as build, param,
-    stepped, toggle,
+    FactoryPreset, choice, descriptor as build, item, knob, param, section, stepped,
 };
+
+pub mod device;
+pub mod zones;
+
+pub use device::{MAX_VOICES, MultiSampler};
+pub use zones::{Hit, MAX_LAYERS, RoundRobin, ZoneSet};
 
 /// Param ids of `MultiSampler` (stable, append-only).
 pub mod multi_sampler {
@@ -79,183 +88,333 @@ pub mod multi_sampler {
 /// For a type of another group.
 pub fn descriptor(ty: BuiltinDeviceType) -> DeviceDescriptor {
     match ty {
-        BuiltinDeviceType::MultiSampler => build(
-            BuiltinDeviceType::MultiSampler,
-            "Multisampler",
-            DeviceCategory::Instrument,
-            vec![
-                param(
-                    0,
-                    "Volume",
-                    "Output",
-                    ParamUnit::Decibels,
-                    (-70.0, 6.0, -6.0),
-                    ParamScale::Fader,
-                ),
-                stepped(1, "Transpose", "Pitch", ParamUnit::Semitones, -48, 48, 0),
-                param(
-                    2,
-                    "Fine",
-                    "Pitch",
-                    ParamUnit::Semitones,
-                    (-1.0, 1.0, 0.0),
-                    ParamScale::Linear,
-                ),
-                stepped(3, "Voices", "Voice", ParamUnit::None, 1, 64, 32),
-                param(
-                    4,
-                    "Glide",
-                    "Voice",
-                    ParamUnit::Milliseconds,
-                    (0.0, 2000.0, 0.0),
-                    ParamScale::Power { exponent: 3.0 },
-                ),
-                param(
-                    5,
-                    "Velocity",
-                    "Voice",
-                    ParamUnit::Percent,
-                    (0.0, 100.0, 100.0),
-                    ParamScale::Linear,
-                ),
-                param(
-                    6,
-                    "Attack",
-                    "Amp Envelope",
-                    ParamUnit::Milliseconds,
-                    (0.0, 10000.0, 1.0),
-                    ParamScale::Power { exponent: 3.0 },
-                ),
-                param(
-                    7,
-                    "Decay",
-                    "Amp Envelope",
-                    ParamUnit::Milliseconds,
-                    (1.0, 10000.0, 200.0),
-                    ParamScale::Power { exponent: 3.0 },
-                ),
-                param(
-                    8,
-                    "Sustain",
-                    "Amp Envelope",
-                    ParamUnit::Percent,
-                    (0.0, 100.0, 100.0),
-                    ParamScale::Linear,
-                ),
-                param(
-                    9,
-                    "Release",
-                    "Amp Envelope",
-                    ParamUnit::Milliseconds,
-                    (1.0, 20000.0, 100.0),
-                    ParamScale::Power { exponent: 3.0 },
-                ),
-                choice(
-                    10,
-                    "Type",
-                    "Filter",
-                    &[
-                        "Off",
-                        "Low-pass 24",
-                        "Low-pass 12",
-                        "High-pass 12",
-                        "Band-pass 12",
-                    ],
-                    0,
-                ),
-                param(
-                    11,
-                    "Cutoff",
-                    "Filter",
-                    ParamUnit::Hertz,
-                    (20.0, 20000.0, 20000.0),
-                    ParamScale::Log,
-                ),
-                param(
-                    12,
-                    "Resonance",
-                    "Filter",
-                    ParamUnit::Percent,
-                    (0.0, 100.0, 0.0),
-                    ParamScale::Linear,
-                ),
-                param(
-                    13,
-                    "Key Tracking",
-                    "Filter",
-                    ParamUnit::Percent,
-                    (0.0, 100.0, 0.0),
-                    ParamScale::Linear,
-                ),
-                param(
-                    14,
-                    "Env Amount",
-                    "Filter",
-                    ParamUnit::Percent,
-                    (-100.0, 100.0, 0.0),
-                    ParamScale::Linear,
-                ),
-                param(
-                    15,
-                    "Attack",
-                    "Filter Envelope",
-                    ParamUnit::Milliseconds,
-                    (0.0, 10000.0, 1.0),
-                    ParamScale::Power { exponent: 3.0 },
-                ),
-                param(
-                    16,
-                    "Decay",
-                    "Filter Envelope",
-                    ParamUnit::Milliseconds,
-                    (1.0, 10000.0, 400.0),
-                    ParamScale::Power { exponent: 3.0 },
-                ),
-                param(
-                    17,
-                    "Sustain",
-                    "Filter Envelope",
-                    ParamUnit::Percent,
-                    (0.0, 100.0, 0.0),
-                    ParamScale::Linear,
-                ),
-                param(
-                    18,
-                    "Release",
-                    "Filter Envelope",
-                    ParamUnit::Milliseconds,
-                    (1.0, 20000.0, 300.0),
-                    ParamScale::Power { exponent: 3.0 },
-                ),
-                choice(19, "Round Robin", "Voice", &["Cycle", "Random"], 0),
-                param(
-                    20,
-                    "Pan",
-                    "Output",
-                    ParamUnit::Pan,
-                    (-1.0, 1.0, 0.0),
-                    ParamScale::Linear,
-                ),
-            ],
-            0,
-            2,
-            true,
-            0,
-        ),
+        BuiltinDeviceType::MultiSampler => DeviceDescriptor {
+            layout: Some(layout()),
+            ..build(
+                BuiltinDeviceType::MultiSampler,
+                "Multisampler",
+                DeviceCategory::Instrument,
+                vec![
+                    param(
+                        0,
+                        "Volume",
+                        "Output",
+                        ParamUnit::Decibels,
+                        (-70.0, 6.0, -6.0),
+                        ParamScale::Fader,
+                    ),
+                    stepped(1, "Transpose", "Pitch", ParamUnit::Semitones, -48, 48, 0),
+                    param(
+                        2,
+                        "Fine",
+                        "Pitch",
+                        ParamUnit::Semitones,
+                        (-1.0, 1.0, 0.0),
+                        ParamScale::Linear,
+                    ),
+                    stepped(3, "Voices", "Voice", ParamUnit::None, 1, 64, 32),
+                    param(
+                        4,
+                        "Glide",
+                        "Voice",
+                        ParamUnit::Milliseconds,
+                        (0.0, 2000.0, 0.0),
+                        ParamScale::Power { exponent: 3.0 },
+                    ),
+                    param(
+                        5,
+                        "Velocity",
+                        "Voice",
+                        ParamUnit::Percent,
+                        (0.0, 100.0, 100.0),
+                        ParamScale::Linear,
+                    ),
+                    param(
+                        6,
+                        "Attack",
+                        "Amp Envelope",
+                        ParamUnit::Milliseconds,
+                        (0.0, 10000.0, 1.0),
+                        ParamScale::Power { exponent: 3.0 },
+                    ),
+                    param(
+                        7,
+                        "Decay",
+                        "Amp Envelope",
+                        ParamUnit::Milliseconds,
+                        (1.0, 10000.0, 200.0),
+                        ParamScale::Power { exponent: 3.0 },
+                    ),
+                    param(
+                        8,
+                        "Sustain",
+                        "Amp Envelope",
+                        ParamUnit::Percent,
+                        (0.0, 100.0, 100.0),
+                        ParamScale::Linear,
+                    ),
+                    param(
+                        9,
+                        "Release",
+                        "Amp Envelope",
+                        ParamUnit::Milliseconds,
+                        (1.0, 20000.0, 100.0),
+                        ParamScale::Power { exponent: 3.0 },
+                    ),
+                    choice(
+                        10,
+                        "Type",
+                        "Filter",
+                        &[
+                            "Off",
+                            "Low-pass 24",
+                            "Low-pass 12",
+                            "High-pass 12",
+                            "Band-pass 12",
+                        ],
+                        0,
+                    ),
+                    param(
+                        11,
+                        "Cutoff",
+                        "Filter",
+                        ParamUnit::Hertz,
+                        (20.0, 20000.0, 20000.0),
+                        ParamScale::Log,
+                    ),
+                    param(
+                        12,
+                        "Resonance",
+                        "Filter",
+                        ParamUnit::Percent,
+                        (0.0, 100.0, 0.0),
+                        ParamScale::Linear,
+                    ),
+                    param(
+                        13,
+                        "Key Tracking",
+                        "Filter",
+                        ParamUnit::Percent,
+                        (0.0, 100.0, 0.0),
+                        ParamScale::Linear,
+                    ),
+                    param(
+                        14,
+                        "Env Amount",
+                        "Filter",
+                        ParamUnit::Percent,
+                        (-100.0, 100.0, 0.0),
+                        ParamScale::Linear,
+                    ),
+                    param(
+                        15,
+                        "Attack",
+                        "Filter Envelope",
+                        ParamUnit::Milliseconds,
+                        (0.0, 10000.0, 1.0),
+                        ParamScale::Power { exponent: 3.0 },
+                    ),
+                    param(
+                        16,
+                        "Decay",
+                        "Filter Envelope",
+                        ParamUnit::Milliseconds,
+                        (1.0, 10000.0, 400.0),
+                        ParamScale::Power { exponent: 3.0 },
+                    ),
+                    param(
+                        17,
+                        "Sustain",
+                        "Filter Envelope",
+                        ParamUnit::Percent,
+                        (0.0, 100.0, 0.0),
+                        ParamScale::Linear,
+                    ),
+                    param(
+                        18,
+                        "Release",
+                        "Filter Envelope",
+                        ParamUnit::Milliseconds,
+                        (1.0, 20000.0, 300.0),
+                        ParamScale::Power { exponent: 3.0 },
+                    ),
+                    choice(19, "Round Robin", "Voice", &["Cycle", "Random"], 0),
+                    param(
+                        20,
+                        "Pan",
+                        "Output",
+                        ParamUnit::Pan,
+                        (-1.0, 1.0, 0.0),
+                        ParamScale::Linear,
+                    ),
+                ],
+                0,
+                2,
+                true,
+                0,
+            )
+        },
         other => unreachable!("{other:?} is not a `multisampler` device"),
     }
 }
 
-/// Non-RT. A new instance (placeholder until implemented).
-pub fn create(device: &BuiltinDevice) -> Box<dyn Device> {
-    let ty = device.device_type();
-    let mode = PlaceholderMode::Silent;
-    Box::new(Placeholder::new(descriptor(ty), mode))
+/// Declarative panel: the zone map on top, then pitch/voice, envelopes, filter and output.
+pub fn layout() -> DeviceLayout {
+    use ether_core::protocol::layout::{LayoutItem, Widget, WidgetSize::*};
+    use multi_sampler as p;
+    let wide = |mut it: LayoutItem, span: u8| {
+        it.colspan = span;
+        it
+    };
+    let env = |id: &str, title: &str, a, d, s, r| {
+        section(
+            id,
+            Some(title),
+            1,
+            2,
+            vec![wide(
+                item(
+                    Widget::Envelope {
+                        attack: a,
+                        decay: d,
+                        sustain: s,
+                        release: r,
+                        delay: None,
+                        hold: None,
+                    },
+                    Medium,
+                ),
+                2,
+            )],
+        )
+    };
+    crate::contract::layout(vec![
+        section(
+            "zones",
+            Some("Zones"),
+            4,
+            1,
+            vec![item(Widget::ZoneMap, Large)],
+        ),
+        section(
+            "pitch",
+            Some("Pitch"),
+            1,
+            2,
+            vec![knob(p::TRANSPOSE, Medium), knob(p::FINE, Medium)],
+        ),
+        section(
+            "voice",
+            Some("Voice"),
+            1,
+            2,
+            vec![
+                item(Widget::Number { param: p::VOICES }, Small),
+                item(
+                    Widget::Choice {
+                        param: p::ROUND_ROBIN,
+                    },
+                    Small,
+                ),
+                knob(p::GLIDE, Small),
+                knob(p::VELOCITY, Small),
+            ],
+        ),
+        env(
+            "amp-env",
+            "Amp Envelope",
+            p::AMP_ATTACK,
+            p::AMP_DECAY,
+            p::AMP_SUSTAIN,
+            p::AMP_RELEASE,
+        ),
+        section(
+            "filter",
+            Some("Filter"),
+            2,
+            2,
+            vec![
+                wide(
+                    item(
+                        Widget::FilterCurve {
+                            cutoff: p::CUTOFF,
+                            resonance: p::RESONANCE,
+                            mode: Some(p::FILTER_TYPE),
+                            drive: None,
+                            gain: None,
+                        },
+                        Medium,
+                    ),
+                    2,
+                ),
+                knob(p::KEY_TRACKING, Small),
+                knob(p::FILTER_ENV_AMOUNT, Small),
+            ],
+        ),
+        env(
+            "filter-env",
+            "Filter Envelope",
+            p::FILTER_ATTACK,
+            p::FILTER_DECAY,
+            p::FILTER_SUSTAIN,
+            p::FILTER_RELEASE,
+        ),
+        section(
+            "output",
+            Some("Output"),
+            1,
+            1,
+            vec![knob(p::VOLUME, Large), knob(p::PAN, Small)],
+        ),
+    ])
 }
 
-/// Factory presets of a type of this group (embedded; add `FactoryPreset { id, json:
-/// include_str!("../../presets/<device-key>/<slug>.etherpreset") }` entries).
+/// Non-RT. A new instance playing `device`'s zones, their media resolved with `samples`
+/// (unresolved media = silent zones until the host rebuilds or updates the node).
+pub fn create(device: &BuiltinDevice, samples: &dyn SampleResolver) -> Box<dyn Device> {
+    Box::new(MultiSampler::new(zone_set(device, samples)))
+}
+
+/// Non-RT. The [`ZoneSet`] of a multisampler kind (empty for other kinds): what a host
+/// sends to a live node with `set_data` (`EngineBridge::update_builtin`).
+pub fn zone_set(device: &BuiltinDevice, samples: &dyn SampleResolver) -> ZoneSet {
+    match device {
+        BuiltinDevice::MultiSampler { zones } => ZoneSet::new(zones, |m| samples.resolve(m)),
+        _ => ZoneSet::default(),
+    }
+}
+
+/// Whether a live node built from `old` can take `new` in place (`Node::set_data` with
+/// [`zone_set`]): both are multisamplers and only their zones differ.
+pub fn updatable_in_place(old: &BuiltinDevice, new: &BuiltinDevice) -> bool {
+    matches!(
+        (old, new),
+        (
+            BuiltinDevice::MultiSampler { zones: a },
+            BuiltinDevice::MultiSampler { zones: b },
+        ) if a != b
+    )
+}
+
+static FACTORY_PRESETS: [FactoryPreset; 3] = [
+    FactoryPreset {
+        id: "multi-sampler/keys",
+        json: include_str!("../../presets/multisampler/keys.etherpreset"),
+    },
+    FactoryPreset {
+        id: "multi-sampler/sustained-pad",
+        json: include_str!("../../presets/multisampler/sustained-pad.etherpreset"),
+    },
+    FactoryPreset {
+        id: "multi-sampler/plucked",
+        json: include_str!("../../presets/multisampler/plucked.etherpreset"),
+    },
+];
+
+/// Factory presets of a type of this group (params only: zones reference project media).
 pub fn factory_presets(ty: BuiltinDeviceType) -> &'static [FactoryPreset] {
-    let _ = ty;
-    &[]
+    match ty {
+        BuiltinDeviceType::MultiSampler => &FACTORY_PRESETS,
+        _ => &[],
+    }
 }
