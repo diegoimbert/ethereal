@@ -13,11 +13,16 @@
 //! The Worker turns reports into `Playhead`/`Meters` messages for the UI in `tick`.
 //! Messages to/from the UI are JSON-encoded `ClientMessage`/`ServerMessage`. Requires
 //! COOP/COEP (`apps/web` sets them). No plugins on the web. Owned by the `wasm-host` node.
+//!
+//! [`share`] (wasm32): the share `MessagePort` to the UI's WebRTC peer connections
+//! (docs/SHARING.md §6.2).
 
 pub mod bridge;
 pub mod perf;
 pub mod proto;
 pub mod ring;
+#[cfg(target_arch = "wasm32")]
+pub mod share;
 pub mod store;
 pub mod web;
 pub mod worklet;
