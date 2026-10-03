@@ -73,6 +73,7 @@ const FALLBACK_STEP_BEATS: Beats = 0.25;
 /** The piano roll's keymap actions (piano-roll scope), in lookup order. */
 const PIANO_ROLL_ACTIONS = [
   "edit.delete",
+  "edit.deleteModified",
   "edit.selectAll",
   "pianoRoll.quantize",
   "edit.duplicate",
@@ -84,6 +85,9 @@ const PIANO_ROLL_ACTIONS = [
   "nudge.right",
   "pianoRoll.octaveUp",
   "pianoRoll.octaveDown",
+  "pianoRoll.nudgeLeftShift",
+  "pianoRoll.nudgeRightShift",
+  "pianoRoll.duplicateShift",
 ] as const;
 
 /** Nudge actions -> [grid steps, semitones]. */
@@ -94,6 +98,8 @@ const NUDGES: Partial<Record<string, readonly [number, number]>> = {
   "nudge.right": [1, 0],
   "pianoRoll.octaveUp": [0, 12],
   "pianoRoll.octaveDown": [0, -12],
+  "pianoRoll.nudgeLeftShift": [-1, 0],
+  "pianoRoll.nudgeRightShift": [1, 0],
 };
 
 /** A button tooltip with the action's current shortcut: "Draw mode (B)". */
@@ -192,13 +198,13 @@ export function PianoRollEditor({ clip, view: injectedView }: PianoRollEditorPro
     // keymap: chords from the user's keymap (piano-roll scope; see the registry).
     const action = firstMatch(PIANO_ROLL_ACTIONS, e);
     let command: Command | null = null;
-    if (action === "edit.delete") {
+    if (action === "edit.delete" || action === "edit.deleteModified") {
       if (selected.length) command = cmd("Note", { type: "Remove", ids: selected.map((n) => n.id) });
     } else if (action === "edit.selectAll") {
       itemSelection.getState().select("note", shownNotes.map((n) => n.id), "replace");
     } else if (action === "pianoRoll.quantize") {
       quantize();
-    } else if (action === "edit.duplicate") {
+    } else if (action === "edit.duplicate" || action === "pianoRoll.duplicateShift") {
       if (selected.length) {
         const dup = duplicateCommand(selected);
         void send(dup.command).then((ok) => ok && itemSelection.getState().select("note", dup.ids, "replace"));

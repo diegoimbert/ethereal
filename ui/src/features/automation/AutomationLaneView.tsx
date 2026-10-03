@@ -67,6 +67,7 @@ import "./automation.css";
 /** The lane's keymap actions (automation scope), in lookup order. */
 const AUTOMATION_ACTIONS = [
   "edit.delete",
+  "edit.deleteModified",
   "edit.selectAll",
   "edit.copy",
   "edit.cut",
@@ -417,7 +418,7 @@ export function AutomationLaneView({
       e.preventDefault();
       e.stopPropagation();
     };
-    if (action === "edit.delete") {
+    if (action === "edit.delete" || action === "edit.deleteModified") {
       // Always keep Delete in the focused lane, even with nothing to delete: bubbling up,
       // it would delete the arrangement's selected clips.
       handled();

@@ -60,7 +60,7 @@ const G: ReadonlyArray<KeymapScope> = ["global"];
 /** The built-in, handled actions: every shortcut the app had, with its chord. */
 export const BUILTIN_ACTIONS: ReadonlyArray<KeymapAction> = [
   // Transport
-  { id: "transport.play", label: "Play / Stop", group: "Transport", scopes: G, chords: ["Space"], palette: "transport:play", handled: true },
+  { id: "transport.play", label: "Play / Stop", group: "Transport", scopes: G, chords: ["Space", "Shift+Space"], palette: "transport:play", handled: true },
   { id: "transport.record", label: "Record", group: "Transport", scopes: G, chords: [], ableton: ["F9"], palette: "transport:record" },
   { id: "transport.loop", label: "Loop on / off", group: "Transport", scopes: G, chords: [], ableton: ["Mod+L"], palette: "transport:loop" },
   { id: "transport.metronome", label: "Metronome on / off", group: "Transport", scopes: G, chords: [], palette: "transport:metronome" },
@@ -73,6 +73,17 @@ export const BUILTIN_ACTIONS: ReadonlyArray<KeymapAction> = [
   { id: "edit.paste", label: "Paste at the playhead", group: "Edit", scopes: E, chords: ["Mod+V"], handled: true },
   { id: "edit.duplicate", label: "Duplicate", group: "Edit", scopes: E, chords: ["Mod+D"], handled: true },
   { id: "edit.delete", label: "Delete", group: "Edit", scopes: E, chords: ["Backspace", "Delete"], handled: true, keywords: "remove" },
+  // Aliases the old handlers accepted (Shift or Alt didn't change Delete). Their own action so
+  // that Delete stays within MAX_CHORDS_PER_ACTION and stays editable on its own.
+  {
+    id: "edit.deleteModified",
+    label: "Delete (with Shift / Alt)",
+    group: "Edit",
+    scopes: E,
+    chords: ["Shift+Backspace", "Shift+Delete", "Alt+Backspace", "Alt+Delete"],
+    handled: true,
+    keywords: "remove",
+  },
   { id: "edit.selectAll", label: "Select all", group: "Edit", scopes: E, chords: ["Mod+A"], handled: true },
   {
     id: "edit.deselect",
@@ -102,17 +113,23 @@ export const BUILTIN_ACTIONS: ReadonlyArray<KeymapAction> = [
   // Piano roll
   { id: "pianoRoll.quantize", label: "Quantize", group: "Piano roll", scopes: ["pianoRoll"], chords: ["Mod+U"], handled: true },
   { id: "pianoRoll.drawMode", label: "Draw mode", group: "Piano roll", scopes: ["pianoRoll"], chords: ["B"], handled: true },
-  { id: "nudge.up", label: "Nudge up", group: "Piano roll", scopes: ["pianoRoll", "automation"], chords: ["ArrowUp"], handled: true, keywords: "move pitch value" },
-  { id: "nudge.down", label: "Nudge down", group: "Piano roll", scopes: ["pianoRoll", "automation"], chords: ["ArrowDown"], handled: true, keywords: "move pitch value" },
-  { id: "nudge.left", label: "Nudge left", group: "Piano roll", scopes: ["pianoRoll", "automation"], chords: ["ArrowLeft"], handled: true, keywords: "move earlier" },
-  { id: "nudge.right", label: "Nudge right", group: "Piano roll", scopes: ["pianoRoll", "automation"], chords: ["ArrowRight"], handled: true, keywords: "move later" },
+  { id: "nudge.up", label: "Nudge up", group: "Piano roll", scopes: ["pianoRoll", "automation"], chords: ["ArrowUp", "Alt+ArrowUp"], handled: true, keywords: "move pitch value" },
+  { id: "nudge.down", label: "Nudge down", group: "Piano roll", scopes: ["pianoRoll", "automation"], chords: ["ArrowDown", "Alt+ArrowDown"], handled: true, keywords: "move pitch value" },
+  { id: "nudge.left", label: "Nudge left", group: "Piano roll", scopes: ["pianoRoll", "automation"], chords: ["ArrowLeft", "Alt+ArrowLeft"], handled: true, keywords: "move earlier" },
+  { id: "nudge.right", label: "Nudge right", group: "Piano roll", scopes: ["pianoRoll", "automation"], chords: ["ArrowRight", "Alt+ArrowRight"], handled: true, keywords: "move later" },
   { id: "pianoRoll.octaveUp", label: "Octave up", group: "Piano roll", scopes: ["pianoRoll"], chords: ["Shift+ArrowUp"], handled: true },
   { id: "pianoRoll.octaveDown", label: "Octave down", group: "Piano roll", scopes: ["pianoRoll"], chords: ["Shift+ArrowDown"], handled: true },
+  // Aliases the piano roll always accepted (Shift doesn't change a horizontal nudge; ⇧⌘D
+  // duplicates notes): piano-roll-only, so they don't clash with the automation lane's fine
+  // nudge or the arrangement's Duplicate time.
+  { id: "pianoRoll.nudgeLeftShift", label: "Nudge left (with Shift)", group: "Piano roll", scopes: ["pianoRoll"], chords: ["Shift+ArrowLeft"], handled: true },
+  { id: "pianoRoll.nudgeRightShift", label: "Nudge right (with Shift)", group: "Piano roll", scopes: ["pianoRoll"], chords: ["Shift+ArrowRight"], handled: true },
+  { id: "pianoRoll.duplicateShift", label: "Duplicate (with Shift)", group: "Piano roll", scopes: ["pianoRoll"], chords: ["Mod+Shift+D"], handled: true },
   // Automation lane
-  { id: "automation.fineUp", label: "Nudge up (fine)", group: "Automation", scopes: ["automation"], chords: ["Shift+ArrowUp"], handled: true },
-  { id: "automation.fineDown", label: "Nudge down (fine)", group: "Automation", scopes: ["automation"], chords: ["Shift+ArrowDown"], handled: true },
-  { id: "automation.fineLeft", label: "Nudge left (fine)", group: "Automation", scopes: ["automation"], chords: ["Shift+ArrowLeft"], handled: true },
-  { id: "automation.fineRight", label: "Nudge right (fine)", group: "Automation", scopes: ["automation"], chords: ["Shift+ArrowRight"], handled: true },
+  { id: "automation.fineUp", label: "Nudge up (fine)", group: "Automation", scopes: ["automation"], chords: ["Shift+ArrowUp", "Alt+Shift+ArrowUp"], handled: true },
+  { id: "automation.fineDown", label: "Nudge down (fine)", group: "Automation", scopes: ["automation"], chords: ["Shift+ArrowDown", "Alt+Shift+ArrowDown"], handled: true },
+  { id: "automation.fineLeft", label: "Nudge left (fine)", group: "Automation", scopes: ["automation"], chords: ["Shift+ArrowLeft", "Alt+Shift+ArrowLeft"], handled: true },
+  { id: "automation.fineRight", label: "Nudge right (fine)", group: "Automation", scopes: ["automation"], chords: ["Shift+ArrowRight", "Alt+Shift+ArrowRight"], handled: true },
   // App
   { id: "palette.open", label: "Command palette", group: "App", scopes: G, chords: ["Mod+K"], handled: true, keywords: "search commands" },
   { id: "keymap.open", label: "Keyboard shortcuts…", group: "App", scopes: G, chords: [], palette: "keymap:open", keywords: "keymap bindings hotkeys" },

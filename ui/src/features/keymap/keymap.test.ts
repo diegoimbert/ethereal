@@ -1,7 +1,7 @@
 /** Keymap: chords, the registry and presets, lookups, palette actions, the dispatcher. */
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Keymap } from "@/generated";
-import { eventChords, formatChord, isValidChord, normalizeChord, parseShortcutHint } from "./chords";
+import { eventChords, formatChord, isValidChord, MAX_CHORDS_PER_ACTION, normalizeChord, parseShortcutHint } from "./chords";
 import { conflictsFor, findConflicts } from "./conflicts";
 import { dispatchKey } from "./dispatcher";
 import { derivePaletteActions, paletteActionId, paletteShortcut, setPaletteSource, type PaletteEntry } from "./palette";
@@ -81,12 +81,14 @@ describe("registry and presets", () => {
     const ids = BUILTIN_ACTIONS.map((a) => a.id);
     expect(new Set(ids).size).toBe(ids.length);
     for (const a of BUILTIN_ACTIONS) for (const c of [...a.chords, ...(a.ableton ?? [])]) expect(isValidChord(c), `${a.id} ${c}`).toBe(true);
+    // A default binding must stay storable as an override (the engine's limit).
+    for (const a of BUILTIN_ACTIONS) expect(a.chords.length + (a.ableton?.length ?? 0), a.id).toBeLessThanOrEqual(MAX_CHORDS_PER_ACTION);
   });
 
   it("Ethereal is exactly the app's shortcuts (no behaviour change by default)", () => {
     const defaults = Object.fromEntries(BUILTIN_ACTIONS.filter((a) => a.chords.length).map((a) => [a.id, [...a.chords]]));
     expect(defaults).toEqual({
-      "transport.play": ["Space"],
+      "transport.play": ["Space", "Shift+Space"],
       "edit.undo": ["Mod+Z"],
       "edit.redo": ["Mod+Shift+Z", "Ctrl+Y"],
       "edit.copy": ["Mod+C"],
@@ -94,6 +96,7 @@ describe("registry and presets", () => {
       "edit.paste": ["Mod+V"],
       "edit.duplicate": ["Mod+D"],
       "edit.delete": ["Backspace", "Delete"],
+      "edit.deleteModified": ["Shift+Backspace", "Shift+Delete", "Alt+Backspace", "Alt+Delete"],
       "edit.selectAll": ["Mod+A"],
       "edit.deselect": ["Escape"],
       "edit.split": ["Mod+E"],
@@ -110,16 +113,19 @@ describe("registry and presets", () => {
       "time.delete": ["Mod+Shift+Backspace", "Mod+Shift+Delete"],
       "pianoRoll.quantize": ["Mod+U"],
       "pianoRoll.drawMode": ["B"],
-      "nudge.up": ["ArrowUp"],
-      "nudge.down": ["ArrowDown"],
-      "nudge.left": ["ArrowLeft"],
-      "nudge.right": ["ArrowRight"],
+      "nudge.up": ["ArrowUp", "Alt+ArrowUp"],
+      "nudge.down": ["ArrowDown", "Alt+ArrowDown"],
+      "nudge.left": ["ArrowLeft", "Alt+ArrowLeft"],
+      "nudge.right": ["ArrowRight", "Alt+ArrowRight"],
       "pianoRoll.octaveUp": ["Shift+ArrowUp"],
       "pianoRoll.octaveDown": ["Shift+ArrowDown"],
-      "automation.fineUp": ["Shift+ArrowUp"],
-      "automation.fineDown": ["Shift+ArrowDown"],
-      "automation.fineLeft": ["Shift+ArrowLeft"],
-      "automation.fineRight": ["Shift+ArrowRight"],
+      "pianoRoll.nudgeLeftShift": ["Shift+ArrowLeft"],
+      "pianoRoll.nudgeRightShift": ["Shift+ArrowRight"],
+      "pianoRoll.duplicateShift": ["Mod+Shift+D"],
+      "automation.fineUp": ["Shift+ArrowUp", "Alt+Shift+ArrowUp"],
+      "automation.fineDown": ["Shift+ArrowDown", "Alt+Shift+ArrowDown"],
+      "automation.fineLeft": ["Shift+ArrowLeft", "Alt+Shift+ArrowLeft"],
+      "automation.fineRight": ["Shift+ArrowRight", "Alt+Shift+ArrowRight"],
       "palette.open": ["Mod+K"],
       "project.save": ["Mod+S"],
       "file.import": ["Mod+I"],
@@ -157,6 +163,16 @@ describe("lookups", () => {
     expect(firstMatch(["time.duplicate", "edit.duplicate"], key("D", { ctrlKey: true, shiftKey: true }))).toBe("time.duplicate");
     expect(matchesAction("edit.redo", key("y", { ctrlKey: true }))).toBe(true);
     expect(matchesAction("transport.play", key(" "))).toBe(true);
+  });
+
+  it("keep the old handlers' lenient forms as default aliases", () => {
+    expect(matchesAction("transport.play", key(" ", { shiftKey: true }))).toBe(true);
+    expect(matchesAction("edit.deleteModified", key("Backspace", { shiftKey: true }))).toBe(true);
+    expect(matchesAction("edit.deleteModified", key("Delete", { altKey: true }))).toBe(true);
+    expect(matchesAction("nudge.up", key("ArrowUp", { altKey: true }))).toBe(true);
+    expect(matchesAction("automation.fineLeft", key("ArrowLeft", { altKey: true, shiftKey: true }))).toBe(true);
+    expect(matchesAction("pianoRoll.nudgeLeftShift", key("ArrowLeft", { shiftKey: true }))).toBe(true);
+    expect(matchesAction("pianoRoll.duplicateShift", key("D", { ctrlKey: true, shiftKey: true }))).toBe(true);
   });
 
   it("follow the user's overrides and preset", () => {

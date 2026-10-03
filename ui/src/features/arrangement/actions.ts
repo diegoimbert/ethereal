@@ -191,6 +191,7 @@ export function actionForKey(e: ChordEvent): ClipAction | null {
 /** Keymap action id → clip action (the arrangement's clip shortcuts). */
 const CLIP_KEY_ACTIONS: Record<string, ClipAction> = {
   "edit.delete": "delete",
+  "edit.deleteModified": "delete",
   "edit.deselect": "deselect",
   "edit.split": "split",
   "edit.duplicate": "duplicate",
