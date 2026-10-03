@@ -1,6 +1,7 @@
 import { useState, type DragEvent } from "react";
 import { Select, type SelectOption } from "@/kit";
 import type { BuiltinDeviceType, Command, Device, DeviceDescriptor, DeviceId, Track, TrackId } from "@/generated";
+import { chainInsertBefore } from "@/app/shell/deviceInsert";
 import clsx from "clsx";
 import { useDevicesOfTrack, useProjectStore, useSelectionStore, useTracksOrdered } from "@/state";
 import { cmd, newId, useTransport } from "@/transport";
@@ -49,7 +50,7 @@ function AddDevice({ track, devices }: { track: Track; devices: ReadonlyArray<De
   const add = async (type: BuiltinDeviceType, category: DeviceDescriptor["category"]) => {
     const insert = (before: DeviceId | null): Command =>
       cmd("Device", { type: "Insert", id: newId(), track: track.id, device: { type: "Builtin", device: builtinDevice(type) }, before });
-    void send(category === "Instrument" ? await addInstrumentCommand(transport, devices, insert) : insert(null));
+    void send(category === "Instrument" ? await addInstrumentCommand(transport, devices, insert) : insert(chainInsertBefore(devices, category)));
   };
   return (
     <Select

@@ -174,6 +174,18 @@ impl<M: RingMemory> EngineBridge for WebBridge<M> {
         Ok(())
     }
 
+    fn set_node_scale(
+        &mut self,
+        device: DeviceId,
+        scale: ether_core::protocol::model::MusicalScale,
+    ) -> Result<bool, BridgeError> {
+        let Some(&(key, _)) = self.devices.get(&device) else {
+            return Ok(false);
+        };
+        self.send(EngineMsg::NodeScale { key, scale });
+        Ok(true)
+    }
+
     fn load_media(
         &mut self,
         media: &MediaRef,

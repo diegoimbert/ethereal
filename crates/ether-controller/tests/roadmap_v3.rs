@@ -286,15 +286,39 @@ fn fx_analysis_devices_insert_and_watches_reach_the_engine() {
 }
 
 #[test]
-fn midi_fx_devices_are_placeholders() {
-    group_inserts_and_compiles(&[
+fn midi_fx_devices_insert_with_layouts_before_the_instrument() {
+    let types = [
         BuiltinDeviceType::Arpeggiator,
         BuiltinDeviceType::Chord,
         BuiltinDeviceType::ScaleQuantize,
         BuiltinDeviceType::NoteLength,
         BuiltinDeviceType::Velocity,
         BuiltinDeviceType::Randomizer,
-    ]);
+    ];
+    group_inserts_and_compiles(&types);
+    // Real devices with panels; ordering and scale pushes: tests/midi_fx.rs.
+    let mut h = Harness::with_project();
+    let t = track(&mut h, TrackKind::Midi);
+    for ty in types {
+        let d = insert(&mut h, t, ty);
+        let ReplyValue::Descriptor { descriptor } =
+            h.ok(Command::Device(DeviceCommand::GetDescriptor { device: d }))
+        else {
+            panic!("descriptor reply");
+        };
+        assert!(descriptor.layout.is_some(), "{ty:?}");
+    }
+    insert(&mut h, t, BuiltinDeviceType::Synth);
+    let id: DeviceId = h.id();
+    let out = h.send(Command::Device(DeviceCommand::Insert {
+        id,
+        track: t,
+        device: DeviceSpec::Builtin {
+            device: BuiltinDevice::new(BuiltinDeviceType::Arpeggiator),
+        },
+        before: None,
+    }));
+    assert_eq!(err(&out).code, ErrorCode::InvalidArgument);
 }
 
 // ─── feature nodes ──────────────────────────────────────────────────────────────────────

@@ -1,0 +1,37 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "Power Fifths",
+    "device": {
+      "type": "Builtin",
+      "device": "Chord"
+    },
+    "meta": {
+      "tags": [
+        "chord",
+        "fifth",
+        "octave"
+      ],
+      "author": "Ethereal",
+      "description": "Fifth and octave."
+    },
+    "params": {
+      "0": 7.0,
+      "1": 12.0,
+      "2": 0.0,
+      "3": 0.0,
+      "4": 0.0,
+      "5": 0.0,
+      "6": 100.0,
+      "7": 90.0,
+      "8": 100.0,
+      "9": 100.0,
+      "10": 100.0,
+      "11": 100.0,
+      "12": 0.0,
+      "13": 0.0
+    }
+  }
+}

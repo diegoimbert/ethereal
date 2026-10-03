@@ -190,6 +190,19 @@ pub trait EngineBridge {
         Ok(false)
     }
 
+    /// v0.2 (`midi-fx`, CONTRACTS.md §12.4.4): push the resolved `MusicalScale` to a live
+    /// built-in node (`Node::set_data` with a `Box<MusicalScale>`: Scale Quantize, Random).
+    /// Native: `EngineHandle::set_node_data`; web: `EngineMsg::NodeScale` to the worklet.
+    /// `Ok(false)` (the default) = unsupported or unknown device.
+    fn set_node_scale(
+        &mut self,
+        device: DeviceId,
+        scale: ether_core::protocol::model::MusicalScale,
+    ) -> Result<bool, BridgeError> {
+        let _ = (device, scale);
+        Ok(false)
+    }
+
     /// `media-preview`: play decoded `audio` (at the engine rate) on the engine's preview
     /// voice at linear `gain` as preview `id` (controller-chosen, monotonic), replacing any
     /// playing preview; `audio: None` stops it (`id` ignored). Native: `EngineHandle::preview`
