@@ -23,7 +23,6 @@ use ether_core::protocol::project::ProjectCommand;
 use ether_core::protocol::templates::TemplateCommand;
 use ether_core::protocol::tracks::TrackCommand;
 use ether_core::protocol::undo_history::HistoryCommand;
-use ether_core::protocol::versions::VersionCommand;
 use ether_core::protocol::{Command, ErrorCode};
 
 /// Sends `c` and asserts it replies `Unsupported` without changing the document.
@@ -125,30 +124,29 @@ fn audio_streaming_is_off_until_the_node_lands() {
     ));
 }
 
+/// Implemented (`audio-to-midi`; behaviour in `tests/audio_to_midi.rs`): a MIDI clip is
+/// refused without touching the document, cancelling an unknown job is a no-op.
 #[test]
-fn audio_to_midi_replies_unsupported() {
+fn audio_to_midi_is_implemented() {
     let mut h = Harness::with_project();
     let (_, clip, _) = midi_clip(&mut h);
     let (track, new_clip, seed_notes) = (h.id(), h.id(), h.id());
-    assert_unsupported(
-        &mut h,
-        Command::AudioToMidi(AudioToMidiCommand::Start {
-            job: "job-1".into(),
-            clip,
-            mode: AudioToMidiMode::Melody,
-            options: AudioToMidiOptions::default(),
-            track,
-            new_clip,
-            seed_notes,
-            instrument: None,
-        }),
-    );
-    assert_unsupported(
-        &mut h,
-        Command::AudioToMidi(AudioToMidiCommand::Cancel {
-            job: "job-1".into(),
-        }),
-    );
+    let before = h.project().clone();
+    let out = h.send(Command::AudioToMidi(AudioToMidiCommand::Start {
+        job: "job-1".into(),
+        clip,
+        mode: AudioToMidiMode::Melody,
+        options: AudioToMidiOptions::default(),
+        track,
+        new_clip,
+        seed_notes,
+        instrument: None,
+    }));
+    assert_eq!(err(&out).code, ErrorCode::InvalidArgument);
+    assert_eq!(h.project(), &before);
+    h.ok(Command::AudioToMidi(AudioToMidiCommand::Cancel {
+        job: "job-1".into(),
+    }));
 }
 
 #[test]
@@ -274,18 +272,7 @@ fn templates_reply_unsupported() {
     );
 }
 
-#[test]
-fn project_versions_reply_unsupported() {
-    let mut h = Harness::with_project();
-    assert_unsupported(&mut h, Command::Version(VersionCommand::List));
-    assert_unsupported(
-        &mut h,
-        Command::Version(VersionCommand::Create {
-            name: Some("v1".into()),
-        }),
-    );
-    assert_unsupported(&mut h, Command::Version(VersionCommand::ListRecoverable));
-}
+// project-versions: implemented (tests/versions.rs).
 
 #[test]
 fn keymap_replies_unsupported() {
