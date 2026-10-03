@@ -30,12 +30,21 @@ export function editorPlayheadX(
   return content === null ? null : mapping.toScreen(content, 0).x;
 }
 
+/** The nearest ancestor that scrolls vertically (the editor's body), if any. */
+function scrollParent(el: HTMLElement): HTMLElement | null {
+  for (let p = el.parentElement; p; p = p.parentElement) {
+    if (/(auto|scroll)/.test(getComputedStyle(p).overflowY)) return p;
+  }
+  return null;
+}
+
 export function EditorPlayheads({ clip, mapping }: { clip: ClipId; mapping: RefObject<EditorCursorMapping> }) {
   const peers = useCollabStore((s) => s.peers);
   const listeningTo = useListenStore((s) => activeHost(s.listening));
   const tempo = useTempoMap();
   const tracker = useRef(new SampleTracker());
   const els = useRef(new Map<SiteId, HTMLDivElement>());
+  const root = useRef<HTMLDivElement>(null);
   // The host we listen to already drives our own playhead (stream-listen): not twice.
   const withTransport = peers.filter((p) => p.state.transport && p.site !== listeningTo);
   const sites = withTransport.map((p) => p.site).join(",");
@@ -47,10 +56,18 @@ export function EditorPlayheads({ clip, mapping }: { clip: ClipId; mapping: RefO
   useEffect(() => {
     if (!sites) return;
     let frame = 0;
+    const scroller = root.current ? scrollParent(root.current) : null;
     const draw = () => {
       frame = requestAnimationFrame(draw);
       const now = performance.now();
       const c = useProjectStore.getState().project?.clips[clip];
+      // The initials caps ride the top of the visible part of the grid (it scrolls under the
+      // editor's keys; `position: sticky` can't, the grid clips its overflow).
+      const overlay = root.current;
+      if (overlay && scroller) {
+        const top = Math.max(0, scroller.getBoundingClientRect().top - overlay.getBoundingClientRect().top);
+        overlay.style.setProperty("--eth-collab-cap-top", `${top}px`);
+      }
       for (const [site, el] of els.current) {
         const sample = tracker.current.get(site);
         const beats = sample ? extrapolate(sample, now, tempo) : null;
@@ -73,7 +90,7 @@ export function EditorPlayheads({ clip, mapping }: { clip: ClipId; mapping: RefO
 
   if (withTransport.length === 0) return null;
   return (
-    <div className="eth-collab-editor-playheads" aria-hidden data-testid="editor-peer-playheads">
+    <div ref={root} className="eth-collab-editor-playheads" aria-hidden data-testid="editor-peer-playheads">
       {withTransport.map((p) => (
         <div
           key={p.site}

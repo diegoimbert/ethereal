@@ -87,12 +87,12 @@
 }
 
 /* Peers' playheads in the piano roll (ux-followups), like the arranger's: a dashed line in
-   the peer's colour, dimmed while that peer is stopped. The initials cap sticks to the top
-   of the visible grid (`overflow: clip` keeps the editor's scroller as the sticky root). */
+   the peer's colour, dimmed while that peer is stopped. The initials cap rides the top of
+   the visible grid (`--eth-collab-cap-top`, set per frame by EditorPlayheads.tsx). */
 .eth-collab-editor-playheads {
   position: absolute;
   inset: 0;
-  overflow: clip;
+  overflow: hidden;
   pointer-events: none;
   z-index: 3;
 }
@@ -112,9 +112,9 @@
   opacity: var(--eth-opacity-muted);
 }
 .eth-collab-editor-playhead__cap {
-  position: sticky;
-  top: 0;
-  display: inline-block;
+  position: absolute;
+  top: var(--eth-collab-cap-top, 0);
+  left: 0;
   translate: -50% 0;
   padding: 0 var(--eth-space-xs);
   border-radius: var(--eth-radius-sm);

@@ -191,7 +191,7 @@ test.describe("collab", () => {
     await expect.poll(async () => Number(await head.getAttribute("data-beats")), { timeout: 10_000 }).toBeGreaterThan(first + 0.25);
     // A stops and locates into the middle of the clip (a press on a clip's body locates):
     // B's line holds still there, dimmed, on the clip's content axis.
-    await playButton(a).click();
+    await a.getByRole("toolbar", { name: "Transport" }).getByRole("button", { name: "Stop", exact: true }).first().click();
     await expect(head).toHaveAttribute("data-playing", "false", { timeout: 10_000 });
     const cb = (await a.locator(`[data-clip-id="${clip.id}"]`).boundingBox())!;
     await a.mouse.click(cb.x + cb.width / 2, cb.y + cb.height - 4);
@@ -202,6 +202,10 @@ test.describe("collab", () => {
     const hb = (await head.boundingBox())!;
     expect(hb.x).toBeGreaterThan(gb.x);
     expect(hb.x).toBeLessThan(gb.x + gb.width);
+    // The initials cap rides the top of the visible grid (the grid scrolls under the keys).
+    const body = (await b.locator(".eth-pr__body").boundingBox())!;
+    const cap = (await head.locator(".eth-collab-editor-playhead__cap").boundingBox())!;
+    expect(Math.abs(cap.y - body.y)).toBeLessThan(2);
     await shoot(b, "ux-piano-roll-peer-playhead");
 
     // "Hide users and notes" hides it.

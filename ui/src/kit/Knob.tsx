@@ -116,10 +116,16 @@ function useCenterFit(text: string | undefined) {
       // Unlaid-out (hidden, jsdom): nothing to fit, and skip the style read.
       if (!v || d.clientWidth === 0) return;
       const stroke = parseFloat(getComputedStyle(d).getPropertyValue("--knob-stroke")) || 0;
-      const room = centerRoom(d.clientWidth, stroke, v.offsetHeight);
-      v.style.setProperty("--knob-center-scale", String(fitScale(room.value, v.offsetWidth)));
+      // The scale shrinks the font, so measured sizes are scaled: undo the current one.
+      const natural = (el: HTMLElement) => {
+        const k = parseFloat(el.style.getPropertyValue("--knob-center-scale")) || 1;
+        return { w: el.offsetWidth / k, h: el.offsetHeight / k };
+      };
+      const nv = natural(v);
+      const room = centerRoom(d.clientWidth, stroke, nv.h);
+      v.style.setProperty("--knob-center-scale", fitScale(room.value, nv.w).toFixed(3));
       const u = unit.current;
-      if (u) u.style.setProperty("--knob-center-scale", String(fitScale(room.unit, u.offsetWidth)));
+      if (u) u.style.setProperty("--knob-center-scale", fitScale(room.unit, natural(u).w).toFixed(3));
     };
     fit();
     if (typeof ResizeObserver === "undefined") return;
