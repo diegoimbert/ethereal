@@ -437,8 +437,29 @@ where
             )))
         })?;
         let offset = a.u64("offset").unwrap_or(0) as usize;
-        let limit = a.u64("limit").unwrap_or(200) as usize;
-        let visible: Vec<_> = desc.params.iter().filter(|p| !p.hidden).collect();
+        let limit = a
+            .u64("limit")
+            .unwrap_or(u64::from(super::tools::DEVICE_PARAMS_PAGE))
+            .max(1) as usize;
+        let query = a
+            .str("query")
+            .map(str::trim)
+            .filter(|q| !q.is_empty())
+            .map(str::to_lowercase);
+        let matches = |p: &&ether_core::protocol::devices::ParamInfo| {
+            query.as_deref().is_none_or(|q| {
+                p.name.to_lowercase().contains(q)
+                    || p.group
+                        .as_deref()
+                        .is_some_and(|g| g.to_lowercase().contains(q))
+            })
+        };
+        let visible: Vec<_> = desc
+            .params
+            .iter()
+            .filter(|p| !p.hidden)
+            .filter(matches)
+            .collect();
         let params: Vec<Value> = visible
             .iter()
             .skip(offset)
@@ -465,6 +486,7 @@ where
                 Value::Object(m)
             })
             .collect();
+        let shown = params.len();
         let mut v = json!({
             "device": {
                 "id": d.id.to_string(),
@@ -478,9 +500,14 @@ where
             "offset": offset,
             "params": params,
         });
+        if let Some(q) = &query {
+            v["query"] = json!(q);
+        }
         if offset + limit < visible.len() {
             v["note"] = json!(format!(
-                "more parameters: call again with offset {}",
+                "showing {} of {} parameters: call again with offset {}, or pass `query` to filter by name",
+                shown,
+                visible.len(),
                 offset + limit
             ));
         }

@@ -15,6 +15,8 @@ export interface KnobProps {
   /** Pointer drag ended (close the gesture). */
   onChangeEnd?: () => void;
   label?: string;
+  /** Keep `label` as the accessible name only (no visible label under the ring), e.g. in list rows. */
+  hideLabel?: boolean;
   /** Arc drawn from the center (0.5) instead of from the minimum, e.g. pan. */
   bipolar?: boolean;
   /** Double-click resets to this value. Defaults to 0.5 when bipolar, else none. */
@@ -69,6 +71,7 @@ export function Knob({
   onChangeStart,
   onChangeEnd,
   label,
+  hideLabel = false,
   bipolar = false,
   defaultValue,
   size = "md",
@@ -135,7 +138,7 @@ export function Knob({
           </span>
         )}
       </span>
-      {label && (
+      {label && !hideLabel && (
         <span className={clsx("eth-knob__label", valueText !== undefined && "eth-knob__label--readout")} aria-hidden="true">
           <span className="eth-knob__name">{label}</span>
           {valueText !== undefined && <span className="eth-knob__readout">{valueText}</span>}

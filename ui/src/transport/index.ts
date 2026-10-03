@@ -22,6 +22,7 @@ export { newId, newProjectId, nextGestureId, uuidv7 } from "./ids";
 export { BUILTIN_DESCRIPTORS, builtinDescriptor, clampParam } from "./mock/builtinDevices";
 export { createDemoProject, createDemoProjects, createEmptyProject } from "./mock/demoProject";
 export { MockTransport, type MockTransportOptions } from "./mock/MockTransport";
+export { MOCK_MEGA_PARAM_COUNT, MOCK_MEGA_PLUGIN_ID } from "./mock/plugins";
 export { TauriTransport } from "./tauri/TauriTransport";
 export { TransportProvider, type TransportProviderProps } from "./TransportProvider";
 export { WasmTransport } from "./wasm/WasmTransport";
