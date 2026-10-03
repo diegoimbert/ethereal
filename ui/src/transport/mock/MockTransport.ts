@@ -145,7 +145,7 @@ import { MockTimeEdits } from "./roadmap/timeEdits";
 import { chatCommand } from "./roadmap/social";
 // v0.3 (contracts-4): one file per node (`./roadmap/index.ts`).
 import { audioToMidiCommand } from "./roadmap/audioToMidi";
-import { captureCommand } from "./roadmap/capture";
+import { MockCapture } from "./roadmap/capture";
 import { externalCommand } from "./roadmap/external";
 import { keymapCommand } from "./roadmap/keymap";
 import { templateCommand } from "./roadmap/templates";
@@ -327,6 +327,21 @@ export class MockTransport implements EngineTransport {
       }),
   });
 
+  /** `capture-midi`: the always-on MIDI capture buffer (fed by `simulateMidiInput`). */
+  private readonly capture = new MockCapture({
+    ...this.host,
+    now: () => this.now(),
+    position: () => this.position,
+    playing: () => this.playing,
+    commit: (commands, lanes) =>
+      void this.transact("Capture", null, (tx) => {
+        const ctx = { tx, newId: this.newId, position: this.position };
+        for (const c of commands) reduceDocumentCommand(ctx, c);
+        for (const lane of lanes) tx.upsert("ExpressionLane", lane);
+        return UNIT;
+      }),
+  });
+
   constructor(opts: MockTransportOptions = {}) {
     this.manual = opts.timers === "manual";
     const initial = opts.projects ?? (opts.project ? [opts.project] : createDemoProjects());
@@ -491,7 +506,7 @@ export class MockTransport implements EngineTransport {
       // v0.3 (contracts-4). Document commands (`Expression::*`, `External::SetRouting`,
       // `Template::Insert`) went through `applyDocument` above.
       case "Capture":
-        return captureCommand(command.command);
+        return this.capture.command(command.command);
       case "AudioToMidi":
         return audioToMidiCommand(command.command);
       case "External":
@@ -637,6 +652,7 @@ export class MockTransport implements EngineTransport {
 
   /** Emit `Event::Transport` if any field changed (or `force`). */
   private syncTransport(force = false): void {
+    this.capture.sync();
     const state = this.transportState();
     const json = JSON.stringify(state);
     if (!force && json === this.lastTransportJson) return;
@@ -658,6 +674,7 @@ export class MockTransport implements EngineTransport {
     this.emit({ type: "ProjectLoaded", project });
     this.mediaRefs.projectOpened();
     this.setArmed([]);
+    this.capture.projectChanged();
     this.setDirty(false);
     this.syncTransport();
   }
@@ -1014,6 +1031,8 @@ export class MockTransport implements EngineTransport {
    * (see `roadmap/midiLearn.ts`).
    */
   simulateMidiInput(port: string, data: [number, number, number]): void {
+    // v0.3 (`capture-midi`): every message also feeds the capture buffer.
+    this.capture.input(port, data);
     this.midiLearn.input(port, data);
   }
 
