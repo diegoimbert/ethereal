@@ -1,6 +1,7 @@
 /**
  * The note grid: pitch rows, grid lines, the clip's playable region, notes and the
- * marquee. Draw / move / resize notes; every drag is one undo gesture.
+ * marquee. Draw / move / resize notes; every drag is one undo gesture. The marquee also
+ * makes the section (a time range, like the arrangement's time selection; `section.ts`).
  */
 
 import { memo, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
@@ -34,6 +35,7 @@ import { contentEnd, contentToSong, songToContent } from "./clipTime";
 import { startDrag, useSend } from "./drag";
 import { isBlackKey, noteHitZone, noteRect, pitchToY, rowPitchDelta, yToPitch } from "./geometry";
 import { moveEdits, newNote, noteEdit, resizeEdits } from "./noteEdits";
+import { clearSection, sectionOf, usePianoRollSection, type PianoRollSection } from "./section";
 
 export interface NoteGridProps {
   clip: Clip;
@@ -53,11 +55,13 @@ export interface NoteGridProps {
   drawMode: boolean;
   /** Extra note context-menu items for the clicked selection (appended after Delete). */
   menuItems?: (ids: NoteId[]) => ContextMenuEntry[];
+  /** The section (time range) of this clip, drawn over the rows. */
+  section?: PianoRollSection | null;
 }
 
 const BAR_STEP: GridStep = { kind: "bars", bars: 1 };
 
-export function NoteGrid({ clip, notes, view, vp, widthPx, keyH, rows, scale, highlight, tempo, step, newNoteBeats, drawMode, menuItems }: NoteGridProps) {
+export function NoteGrid({ clip, notes, view, vp, widthPx, keyH, rows, scale, highlight, tempo, step, newNoteBeats, drawMode, menuItems, section = null }: NoteGridProps) {
   const transport = useTransport();
   const send = useSend();
   const rootRef = useRef<HTMLDivElement>(null);
@@ -90,12 +94,20 @@ export function NoteGrid({ clip, notes, view, vp, widthPx, keyH, rows, scale, hi
     [notes, range, widthPx],
   );
 
+  /** Alt held at the marquee's press: its section is not snapped. */
+  const marqueeAlt = useRef(false);
   const marquee = useMarquee({
     kind: "note",
     hitTest: (rect) => marqueeHits(rect, notes.map((n) => ({ id: n.id, rect: noteRect(n, vp, keyH, rows) }))),
-    // A click on empty space (no drag) also moves the playhead there, snapped to the grid
-    // (alt: free), while stopped, like in the arrangement.
+    // The dragged time range becomes the section (snapped; alt: free).
+    onEnd: (rect) => {
+      const at = (px: number) => Math.max(0, snapToGrid(pxToBeats(px, vp), marqueeAlt.current ? null : step, tempo, "nearest"));
+      usePianoRollSection.getState().setSection(sectionOf(clip.id, at(rect.x0), at(rect.x1)));
+    },
+    // A click on empty space (no drag) clears the section and moves the playhead there,
+    // snapped to the grid (alt: free), while stopped, like in the arrangement.
     onClick: (p, ev) => {
+      clearSection();
       if (useProjectStore.getState().transport?.playing) return;
       const content = Math.max(0, snapToGrid(pxToBeats(p.x, vp), ev.altKey ? null : step, tempo, "nearest"));
       transport.send(cmd("Transport", { type: "Locate", position: contentToSong(clip, content) })).catch(() => {});
@@ -147,12 +159,15 @@ export function NoteGrid({ clip, notes, view, vp, widthPx, keyH, rows, scale, hi
       addNoteAt(e, true);
       return;
     }
+    marqueeAlt.current = e.altKey;
     marquee.onPointerDown(e);
   };
 
   const onNotePointerDown = (e: ReactPointerEvent<HTMLDivElement>, note: Note) => {
     if (e.button !== 0) return;
     e.stopPropagation();
+    // Pressing a note leaves section mode: edits act on the selected notes again.
+    clearSection();
     const sel = itemSelection.getState();
     const mode = selectModeFromEvent(e);
     const wasSelected = sel.selected.note.has(note.id);
@@ -269,6 +284,13 @@ export function NoteGrid({ clip, notes, view, vp, widthPx, keyH, rows, scale, hi
       })}
       <div className="eth-pr-grid__outside" style={{ left: 0, width: Math.max(0, xStart) }} />
       <div className="eth-pr-grid__outside" style={{ left: Math.max(0, xEnd), right: 0 }} data-testid="piano-roll-clip-end" />
+      {section && (
+        <div
+          className="eth-pr-grid__section"
+          data-testid="piano-roll-section"
+          style={{ left: beatsToPx(section.start, vp), width: (section.end - section.start) * vp.pxPerBeat }}
+        />
+      )}
       {visible.map((n) => (
         <NoteView
           key={n.id}

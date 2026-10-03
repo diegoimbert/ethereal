@@ -204,6 +204,19 @@
   background: var(--eth-color-outside-shade);
 }
 
+.eth-pr-grid__section,
+.eth-pr__section {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  pointer-events: none;
+  background: color-mix(in srgb, var(--eth-color-selection) 18%, transparent);
+  box-shadow:
+    inset var(--eth-border-width) 0 0 var(--eth-color-selection),
+    inset calc(-1 * var(--eth-border-width)) 0 0 var(--eth-color-selection);
+  z-index: 1;
+}
+
 .eth-pr-grid__marquee {
   position: absolute;
   pointer-events: none;

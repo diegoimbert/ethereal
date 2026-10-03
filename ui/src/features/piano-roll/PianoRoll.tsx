@@ -9,12 +9,15 @@
  *   Delete/Backspace. Alt bypasses snapping. Every drag is one undo gesture.
  * - Selection: click / shift / cmd-ctrl, marquee on empty space, cmd-A. Cmd/ctrl-drag a
  *   note duplicates the selection (copies follow the pointer).
- * - Keys: arrows nudge (shift = octave), cmd-U quantize, cmd-D duplicate, Esc deselects.
- *   Quantize (button, cmd-U) uses the settings of the groove Quantize… popover.
+ * - Keys: arrows nudge (shift = octave), cmd-U quantize, Esc deselects. Quantize (button,
+ *   cmd-U) uses the settings of the groove Quantize… popover.
+ * - Sections (section-edit): a marquee or a drag on the strip under the ruler selects a time
+ *   range; cmd-C / X / V / D copy, cut, paste and duplicate notes with the section's exact
+ *   length, gaps included (see `section.ts`). The desktop Edit menu's copy/cut/paste too.
  */
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import type { Beats, Clip, Command, MusicalScale, Note, NoteId, TrackScale } from "@/generated";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import type { Beats, Clip, Command, MusicalScale, TrackScale } from "@/generated";
 import { CHROMATIC_SCALE, resolveScale } from "@/domain/scales";
 import { Button, Select } from "@/kit";
 import { EditingPeers } from "@/features/collab/presence";
@@ -25,8 +28,11 @@ import {
   createTimelineViewStore,
   formatGridStep,
   itemSelection,
+  playheadBeats,
+  pxToBeats,
   resolveGrid,
   Ruler,
+  snapToGrid,
   stepLength,
   useMiddleButtonPan,
   useSelectedItems,
@@ -37,7 +43,7 @@ import {
   type GridSetting,
   type TimelineViewStore,
 } from "@/timeline";
-import { cmd, newId, useTransport } from "@/transport";
+import { cmd, useTransport } from "@/transport";
 import { clipTempoMap, contentEnd, contentToSong, songToContent } from "./clipTime";
 import { useSend } from "./drag";
 import { createPitchRows, KEYBOARD_WIDTH, pitchToY, yToPitch } from "./geometry";
@@ -48,6 +54,7 @@ import { GRID_OPTIONS } from "./gridOptions";
 import { useKeyHeightZoom } from "./useKeyHeightZoom";
 import { VelocityLane } from "./VelocityLane";
 import { ScaleControls } from "./ScaleControls";
+import { clearSection, copyOf, editSource, notesIn, pasteAt, pasteCommand, regionOf, sectionOf, usePianoRollSection } from "./section";
 import "./pianoRoll.css";
 
 /** Prop-less piano roll mounted by the app shell. */
@@ -150,6 +157,82 @@ export function PianoRollEditor({ clip, view: injectedView }: PianoRollEditorPro
     }
   }, [widthPx, view, clip, notes, keyH, rows]);
 
+  // section-edit: the time range (of this clip) the clipboard/duplicate edits act on.
+  const section = usePianoRollSection((s) => (s.section?.clip === clip.id ? s.section : null));
+
+  /** Copy / cut / paste / duplicate (see `section.ts`); one undo step each. */
+  const sectionEdit = async (kind: "copy" | "cut" | "paste" | "duplicate") => {
+    const st = usePianoRollSection.getState();
+    const sec = st.section?.clip === clip.id ? st.section : null;
+    const pasteAndSelect = async (r: ReturnType<typeof pasteCommand>) => {
+      if (!r.command || !(await send(r.command))) return;
+      itemSelection.getState().select("note", r.ids, "replace");
+      usePianoRollSection.getState().setSection(r.section);
+    };
+    if (kind === "paste") {
+      if (st.clipboard) await pasteAndSelect(pasteCommand(clip, st.clipboard, pasteAt(clip, sec, playheadBeats()), "Paste Notes"));
+      return;
+    }
+    const source = editSource(shownNotes, itemSelection.getState().selected.note, sec, step ? stepBeats : null);
+    if (!source) return;
+    if (kind === "duplicate") {
+      await pasteAndSelect(pasteCommand(clip, copyOf(source), source.end, "Duplicate Notes"));
+      return;
+    }
+    st.setClipboard(copyOf(source));
+    if (kind === "cut" && source.notes.length) {
+      const ids = source.notes.map((n) => n.id);
+      itemSelection.getState().select("note", ids, "remove");
+      await send(cmd("Note", { type: "Remove", ids }));
+    }
+  };
+  const sectionEditRef = useRef(sectionEdit);
+  useEffect(() => {
+    sectionEditRef.current = sectionEdit;
+  });
+
+  // The desktop app's Edit menu takes cmd-C/X/V before the page sees the key and sends
+  // clipboard events instead: take them while the piano roll has the focus.
+  useEffect(() => {
+    const onClipboard = (e: ClipboardEvent) => {
+      const root = rootRef.current;
+      const active = document.activeElement;
+      if (!root || !root.contains(active) || isTextEntry(active)) return;
+      e.preventDefault();
+      void sectionEditRef.current(e.type as "copy" | "cut" | "paste");
+    };
+    document.addEventListener("copy", onClipboard);
+    document.addEventListener("cut", onClipboard);
+    document.addEventListener("paste", onClipboard);
+    return () => {
+      document.removeEventListener("copy", onClipboard);
+      document.removeEventListener("cut", onClipboard);
+      document.removeEventListener("paste", onClipboard);
+    };
+  }, []);
+
+  /** Drag on the strip under the ruler: select a section (and every shown note in it). */
+  const onStripPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return;
+    const box = e.currentTarget.getBoundingClientRect();
+    const at = (ev: { clientX: number; altKey: boolean }) =>
+      snapToGrid(Math.max(0, pxToBeats(ev.clientX - box.left, view.getState())), ev.altKey ? null : step, tempo, "nearest");
+    const from = at(e);
+    const update = (ev: PointerEvent) => {
+      const sec = sectionOf(clip.id, from, at(ev));
+      usePianoRollSection.getState().setSection(sec);
+      const inside = sec ? notesIn(shownNotes, sec.start, sec.end).map((n) => n.id) : [];
+      itemSelection.getState().select("note", inside, "replace");
+    };
+    const up = (ev: PointerEvent) => {
+      window.removeEventListener("pointermove", update);
+      window.removeEventListener("pointerup", up);
+      update(ev);
+    };
+    window.addEventListener("pointermove", update);
+    window.addEventListener("pointerup", up);
+  };
+
   const quantize = () =>
     void send(grooveQuantizeCommand(clip.id, selected.map((n) => n.id), useGrooveSettings.getState().quantize, stepBeats));
 
@@ -160,20 +243,21 @@ export function PianoRollEditor({ clip, view: injectedView }: PianoRollEditorPro
     const key = e.key.toLowerCase();
     let command: Command | null = null;
     if (key === "delete" || key === "backspace") {
-      if (selected.length) command = cmd("Note", { type: "Remove", ids: selected.map((n) => n.id) });
+      // The selected notes; with a section and no selection, the notes in the section.
+      const doomed = selected.length ? selected : section ? notesIn(shownNotes, section.start, section.end) : [];
+      if (doomed.length) command = cmd("Note", { type: "Remove", ids: doomed.map((n) => n.id) });
     } else if (mod && key === "a") {
       itemSelection.getState().select("note", shownNotes.map((n) => n.id), "replace");
+      usePianoRollSection.getState().setSection(regionOf(clip));
     } else if (mod && key === "u") {
       quantize();
-    } else if (mod && key === "d") {
-      if (selected.length) {
-        const dup = duplicateCommand(selected);
-        void send(dup.command).then((ok) => ok && itemSelection.getState().select("note", dup.ids, "replace"));
-      }
+    } else if (mod && !e.shiftKey && !e.altKey && (key === "c" || key === "x" || key === "v" || key === "d")) {
+      void sectionEdit(key === "c" ? "copy" : key === "x" ? "cut" : key === "v" ? "paste" : "duplicate");
     } else if (!mod && key === "b") {
       setDrawMode((d) => !d);
     } else if (key === "escape") {
       itemSelection.getState().clear("note");
+      clearSection();
     } else if (key.startsWith("arrow") && selected.length) {
       const dir = key === "arrowup" || key === "arrowright" ? 1 : -1;
       const vertical = key === "arrowup" || key === "arrowdown";
@@ -255,7 +339,14 @@ export function PianoRollEditor({ clip, view: injectedView }: PianoRollEditorPro
             onLocate={locate}
             syncWidth={!injectedView}
           />
-          <div className="eth-pr__loopbar" data-testid="piano-roll-loopbar">
+          <div className="eth-pr__loopbar" data-testid="piano-roll-loopbar" onPointerDown={onStripPointerDown} title="Drag to select a section">
+            {section && (
+              <div
+                className="eth-pr__section"
+                data-testid="piano-roll-strip-section"
+                style={{ left: beatsToPx(section.start, vp), width: (section.end - section.start) * vp.pxPerBeat }}
+              />
+            )}
             {loop.enabled && (
               <div
                 className="eth-pr__loop"
@@ -286,6 +377,7 @@ export function PianoRollEditor({ clip, view: injectedView }: PianoRollEditorPro
             step={step}
             newNoteBeats={stepBeats}
             drawMode={drawMode}
+            section={section}
             menuItems={(ids) => grooveMenuItems(clip.id, ids, stepBeats, send)}
           />
         </div>
@@ -303,13 +395,7 @@ export function PianoRollEditor({ clip, view: injectedView }: PianoRollEditorPro
   );
 }
 
-/** Duplicate the selection right after itself (Ableton cmd-D); returns the copies' ids. */
-function duplicateCommand(selected: ReadonlyArray<Note>): { command: Command; ids: NoteId[] } {
-  const start = Math.min(...selected.map((n) => n.start));
-  const end = Math.max(...selected.map((n) => n.start + n.duration));
-  const copies = selected.map((n) => ({ from: n.id, new_id: newId() }));
-  return {
-    command: cmd("Note", { type: "Duplicate", copies, offset: end - start, transpose: 0 }),
-    ids: copies.map((c) => c.new_id),
-  };
+function isTextEntry(target: Element | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  return target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName);
 }
