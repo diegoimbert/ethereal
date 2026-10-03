@@ -53,7 +53,11 @@ impl EngineBridge for Bridge {
     fn destroy_node(&mut self, key: NodeKey) -> Result<(), BridgeError> {
         self.inner.destroy_node(key)
     }
-    fn load_media(&mut self, media: &MediaRef, audio: Arc<DecodedAudio>) -> Result<(), BridgeError> {
+    fn load_media(
+        &mut self,
+        media: &MediaRef,
+        audio: Arc<DecodedAudio>,
+    ) -> Result<(), BridgeError> {
         self.inner.load_media(media, audio)
     }
     fn unload_media(&mut self, media: MediaId) -> Result<(), BridgeError> {
@@ -74,7 +78,12 @@ impl EngineBridge for Bridge {
     fn descriptor(&mut self, device: DeviceId) -> Option<DeviceDescriptor> {
         self.inner.descriptor(device)
     }
-    fn preview(&mut self, _id: u64, audio: Option<Arc<DecodedAudio>>, _gain: f32) -> Result<(), BridgeError> {
+    fn preview(
+        &mut self,
+        _id: u64,
+        audio: Option<Arc<DecodedAudio>>,
+        _gain: f32,
+    ) -> Result<(), BridgeError> {
         if let Some(a) = audio {
             self.plays.push((a.frames(), a.sample_rate));
         }
@@ -205,7 +214,10 @@ fn ids(p: &BrowserPage) -> Vec<&str> {
 }
 
 fn tone(seconds: f64) -> Vec<u8> {
-    wav(44_100, &[sine(44_100, 220.0, (seconds * 44_100.0) as usize, 0.5)])
+    wav(
+        44_100,
+        &[sine(44_100, 220.0, (seconds * 44_100.0) as usize, 0.5)],
+    )
 }
 
 fn user_preset(name: &str, tags: &[&str]) -> Vec<u8> {
@@ -228,8 +240,12 @@ fn library() -> MemoryLibrary {
     lib.add_file(LIB, "Vinyl/pack.json", br#"{"name":"Vinyl Kit"}"#.to_vec());
     lib.add_file(LIB, "Vinyl/Crackle Kick.wav", tone(0.1));
     lib.add_file(LIB, ".hidden/secret.wav", tone(0.1));
-    lib.write_file(USER, "Presets/synth/Warm Pad.etherpreset", &user_preset("Warm Pad", &["Pad", "warm"]))
-        .unwrap();
+    lib.write_file(
+        USER,
+        "Presets/synth/Warm Pad.etherpreset",
+        &user_preset("Warm Pad", &["Pad", "warm"]),
+    )
+    .unwrap();
     lib.write_file(USER, "Samples/Vox.wav", &tone(0.3)).unwrap();
     lib
 }
@@ -246,20 +262,35 @@ fn indexes_library_presets_and_projects_in_the_background() {
     let mut h = H::new(library());
     h.create_project("Song A");
     // Nothing is scanned before the first browser command.
-    assert!(events(&h.tick()).iter().all(|e| !matches!(e, Event::Browser { .. })));
+    assert!(
+        events(&h.tick())
+            .iter()
+            .all(|e| !matches!(e, Event::Browser { .. }))
+    );
     let roots = h.roots();
     let evs = h.index();
     assert!(evs.iter().any(|e| matches!(e, BrowserEvent::IndexProgress { root, total: Some(n), .. } if root == LIB && *n == 6)));
     assert!(evs.contains(&BrowserEvent::IndexChanged));
-    let names: Vec<(&str, BrowserRootKind)> = roots.iter().map(|r| (r.id.as_str(), r.kind)).collect();
+    let names: Vec<(&str, BrowserRootKind)> =
+        roots.iter().map(|r| (r.id.as_str(), r.kind)).collect();
     assert_eq!(
         names,
-        [(LIB, BrowserRootKind::Library), (USER, BrowserRootKind::Library), ("factory", BrowserRootKind::Factory)]
+        [
+            (LIB, BrowserRootKind::Library),
+            (USER, BrowserRootKind::Library),
+            ("factory", BrowserRootKind::Factory)
+        ]
     );
 
     let roots = h.roots();
-    let pack = roots.iter().find(|r| r.id == "lib/Vinyl").expect("pack root");
-    assert_eq!((pack.name.as_str(), pack.kind, pack.items), ("Vinyl Kit", BrowserRootKind::Pack, 1));
+    let pack = roots
+        .iter()
+        .find(|r| r.id == "lib/Vinyl")
+        .expect("pack root");
+    assert_eq!(
+        (pack.name.as_str(), pack.kind, pack.items),
+        ("Vinyl Kit", BrowserRootKind::Pack, 1)
+    );
     assert_eq!(roots.iter().find(|r| r.id == LIB).unwrap().items, 6);
 
     let all = h.query(BrowserQuery {
@@ -293,7 +324,10 @@ fn indexes_library_presets_and_projects_in_the_background() {
         })
     );
     assert_eq!(all.items[1].meta.bpm, Some(120.0), "a loop's bare number");
-    assert_eq!(all.items[5].meta.bpm, None, "a bare number without loop context");
+    assert_eq!(
+        all.items[5].meta.bpm, None,
+        "a bare number without loop context"
+    );
     assert_eq!(all.items[2].meta.pack.as_deref(), Some("Vinyl Kit"));
 
     // User preset: tags from its meta, device filter.
@@ -319,7 +353,13 @@ fn indexes_library_presets_and_projects_in_the_background() {
         ..q("")
     });
     assert!(factory.total > 0);
-    assert!(factory.items.iter().all(|i| i.kind == LibraryItemKind::Preset && i.preset.as_ref().unwrap().source == PresetSource::Factory));
+    assert!(
+        factory
+            .items
+            .iter()
+            .all(|i| i.kind == LibraryItemKind::Preset
+                && i.preset.as_ref().unwrap().source == PresetSource::Factory)
+    );
     let no_delay_presets = h.query(BrowserQuery {
         kinds: vec![LibraryItemKind::Preset],
         roots: vec![USER.into()],
@@ -354,8 +394,14 @@ fn search_filters_sort_and_paging() {
         ["lib/Drums/Kick.wav", "lib/Vinyl/Crackle Kick.wav"]
     );
     // Words match name, path, pack and key.
-    assert_eq!(ids(&h.query(q("drums loops"))), ["lib/Drums/Loops/Break 120.wav"]);
-    assert_eq!(ids(&h.query(q("vinyl kit"))), ["lib/Vinyl/Crackle Kick.wav"]);
+    assert_eq!(
+        ids(&h.query(q("drums loops"))),
+        ["lib/Drums/Loops/Break 120.wav"]
+    );
+    assert_eq!(
+        ids(&h.query(q("vinyl kit"))),
+        ["lib/Vinyl/Crackle Kick.wav"]
+    );
     assert_eq!(ids(&h.query(q("a minor"))), ["lib/Bass/Bass_Am_128bpm.wav"]);
     // Roots, packs, folders.
     assert_eq!(
@@ -386,13 +432,22 @@ fn search_filters_sort_and_paging() {
         kinds: vec![LibraryItemKind::Audio],
         ..q("")
     });
-    assert_eq!(&ids(&by_bpm)[..2], ["lib/Drums/Loops/Break 120.wav", "lib/Bass/Bass_Am_128bpm.wav"]);
+    assert_eq!(
+        &ids(&by_bpm)[..2],
+        [
+            "lib/Drums/Loops/Break 120.wav",
+            "lib/Bass/Bass_Am_128bpm.wav"
+        ]
+    );
     let by_duration = h.query(BrowserQuery {
         sort: BrowserSort::Duration,
         kinds: vec![LibraryItemKind::Audio],
         ..q("")
     });
-    assert_eq!(by_duration.items.last().unwrap().id, "lib/Drums/Loops/Break 120.wav");
+    assert_eq!(
+        by_duration.items.last().unwrap().id,
+        "lib/Drums/Loops/Break 120.wav"
+    );
     // Paging (limit clamped to 1..=200).
     let page = h.query(BrowserQuery {
         offset: 2,
@@ -403,7 +458,10 @@ fn search_filters_sort_and_paging() {
     assert_eq!((page.total, page.offset, page.items.len()), (6, 2, 2));
     let one = h.query(BrowserQuery { limit: 0, ..q("") });
     assert_eq!(one.items.len(), 1);
-    let big = h.query(BrowserQuery { limit: 10_000, ..q("") });
+    let big = h.query(BrowserQuery {
+        limit: 10_000,
+        ..q("")
+    });
     assert!(big.items.len() <= 200);
 }
 
@@ -431,13 +489,30 @@ fn favourites_and_tags_persist_and_reload() {
     assert_eq!(fav.items[0].tags, ["dry", "punchy"]);
     assert!(fav.items[0].favourite);
     // Tag filter and text over tags.
-    assert_eq!(ids(&h.query(BrowserQuery { tags: vec!["DRY".into()], ..q("") })), [kick]);
-    assert_eq!(ids(&h.query(BrowserQuery { roots: vec![LIB.into()], ..q("punch") })), [kick]);
+    assert_eq!(
+        ids(&h.query(BrowserQuery {
+            tags: vec!["DRY".into()],
+            ..q("")
+        })),
+        [kick]
+    );
+    assert_eq!(
+        ids(&h.query(BrowserQuery {
+            roots: vec![LIB.into()],
+            ..q("punch")
+        })),
+        [kick]
+    );
 
     // Persisted after a quiet period.
     h.advance(3000);
     h.tick();
-    assert!(h.ctl.library.files(USER).contains(&".ethereal/index.json".to_string()));
+    assert!(
+        h.ctl
+            .library
+            .files(USER)
+            .contains(&".ethereal/index.json".to_string())
+    );
 
     // A fresh controller over the same library: favourites, tags and probed metadata are
     // back right away (before the rescan finishes), and stay after it.
@@ -449,7 +524,10 @@ fn favourites_and_tags_persist_and_reload() {
     });
     assert_eq!(ids(&fav), [kick]);
     assert_eq!(fav.items[0].tags, ["dry", "punchy"]);
-    assert!(fav.items[0].meta.duration_seconds.is_some(), "probe persisted");
+    assert!(
+        fav.items[0].meta.duration_seconds.is_some(),
+        "probe persisted"
+    );
     h.index();
     let fav = h.query(BrowserQuery {
         favourites_only: true,
@@ -460,29 +538,54 @@ fn favourites_and_tags_persist_and_reload() {
         item: kick.into(),
         favourite: false,
     });
-    assert_eq!(h.query(BrowserQuery { favourites_only: true, ..q("") }).total, 0);
+    assert_eq!(
+        h.query(BrowserQuery {
+            favourites_only: true,
+            ..q("")
+        })
+        .total,
+        0
+    );
 }
 
 #[test]
 fn rescan_is_incremental() {
     let mut h = indexed();
     h.ctl.library.add_file(LIB, "Drums/Clap.wav", tone(0.2));
-    h.ctl.library.write_file(USER, "Samples/New.wav", &tone(0.2)).unwrap();
+    h.ctl
+        .library
+        .write_file(USER, "Samples/New.wav", &tone(0.2))
+        .unwrap();
     h.ctl.library.remove_file(USER, "Samples/Vox.wav").unwrap();
     // Not seen until a rescan.
     assert_eq!(h.query(q("clap")).total, 0);
-    assert_eq!(h.ok(BrowserCommand::Rescan { root: Some(LIB.into()) }), ReplyValue::Unit);
+    assert_eq!(
+        h.ok(BrowserCommand::Rescan {
+            root: Some(LIB.into())
+        }),
+        ReplyValue::Unit
+    );
     h.index();
     assert_eq!(ids(&h.query(q("clap"))), ["lib/Drums/Clap.wav"]);
-    assert_eq!(h.query(q("vox")).total, 1, "the user root was not rescanned");
+    assert_eq!(
+        h.query(q("vox")).total,
+        1,
+        "the user root was not rescanned"
+    );
     h.ok(BrowserCommand::Rescan { root: None });
     h.index();
     assert_eq!(h.query(q("vox")).total, 0);
     assert_eq!(ids(&h.query(q("new"))), ["user/Samples/New.wav"]);
     // A pack id rescans its root; factory/projects are valid roots.
-    h.ok(BrowserCommand::Rescan { root: Some("lib/Vinyl".into()) });
-    h.ok(BrowserCommand::Rescan { root: Some("factory".into()) });
-    h.ok(BrowserCommand::Rescan { root: Some("projects".into()) });
+    h.ok(BrowserCommand::Rescan {
+        root: Some("lib/Vinyl".into()),
+    });
+    h.ok(BrowserCommand::Rescan {
+        root: Some("factory".into()),
+    });
+    h.ok(BrowserCommand::Rescan {
+        root: Some("projects".into()),
+    });
     h.index();
 }
 
@@ -490,27 +593,59 @@ fn rescan_is_incremental() {
 fn errors() {
     let mut h = indexed();
     assert_eq!(
-        h.err(BrowserCommand::SetFavourite { item: "lib/nope.wav".into(), favourite: true }).code,
+        h.err(BrowserCommand::SetFavourite {
+            item: "lib/nope.wav".into(),
+            favourite: true
+        })
+        .code,
         ErrorCode::NotFound
     );
     assert_eq!(
-        h.err(BrowserCommand::SetTags { item: "lib/nope.wav".into(), tags: vec![] }).code,
+        h.err(BrowserCommand::SetTags {
+            item: "lib/nope.wav".into(),
+            tags: vec![]
+        })
+        .code,
         ErrorCode::NotFound
     );
-    assert_eq!(h.err(BrowserCommand::Rescan { root: Some("nope".into()) }).code, ErrorCode::NotFound);
-    assert_eq!(h.err(BrowserCommand::RemoveFolder { root: LIB.into() }).code, ErrorCode::NotFound);
+    assert_eq!(
+        h.err(BrowserCommand::Rescan {
+            root: Some("nope".into())
+        })
+        .code,
+        ErrorCode::NotFound
+    );
+    assert_eq!(
+        h.err(BrowserCommand::RemoveFolder { root: LIB.into() })
+            .code,
+        ErrorCode::NotFound
+    );
     // The memory library has no OS folders (web/remote behave the same).
     assert_eq!(
-        h.err(BrowserCommand::AddFolder { path: "/tmp".into() }).code,
+        h.err(BrowserCommand::AddFolder {
+            path: "/tmp".into()
+        })
+        .code,
         ErrorCode::Unsupported
     );
-    assert_eq!(h.err(BrowserCommand::AddFolder { path: " ".into() }).code, ErrorCode::InvalidArgument);
     assert_eq!(
-        h.err(BrowserCommand::Preview { item: "lib/Midi/Groove.mid".into(), sync: false }).code,
+        h.err(BrowserCommand::AddFolder { path: " ".into() }).code,
         ErrorCode::InvalidArgument
     );
     assert_eq!(
-        h.err(BrowserCommand::Preview { item: "lib/none.wav".into(), sync: false }).code,
+        h.err(BrowserCommand::Preview {
+            item: "lib/Midi/Groove.mid".into(),
+            sync: false
+        })
+        .code,
+        ErrorCode::InvalidArgument
+    );
+    assert_eq!(
+        h.err(BrowserCommand::Preview {
+            item: "lib/none.wav".into(),
+            sync: false
+        })
+        .code,
         ErrorCode::NotFound
     );
 }
@@ -528,7 +663,10 @@ fn loop_library() -> MemoryLibrary {
 
 fn preview(h: &mut H, item: &str, sync: bool) -> (usize, u32) {
     h.ctl.bridge.plays.clear();
-    let out = h.send(Command::Browser(BrowserCommand::Preview { item: item.into(), sync }));
+    let out = h.send(Command::Browser(BrowserCommand::Preview {
+        item: item.into(),
+        sync,
+    }));
     assert_eq!(ok(&out), ReplyValue::Unit);
     for _ in 0..1000 {
         if let Some(p) = h.ctl.bridge.plays.first() {
@@ -552,11 +690,20 @@ fn tempo_synced_preview_repitches_and_waits_for_the_beat() {
         assert!(frames.abs_diff(want) <= 64, "{frames} vs {want}");
     };
     // Unsynced: as is.
-    close(preview(&mut h, "lib/Loops/Beat 60bpm.wav", false), SR as usize);
+    close(
+        preview(&mut h, "lib/Loops/Beat 60bpm.wav", false),
+        SR as usize,
+    );
     // 60 bpm item in a 120 bpm project: twice as fast, half as long.
-    close(preview(&mut h, "lib/Loops/Beat 60bpm.wav", true), SR as usize / 2);
+    close(
+        preview(&mut h, "lib/Loops/Beat 60bpm.wav", true),
+        SR as usize / 2,
+    );
     // Same tempo, or no tempo: unchanged.
-    close(preview(&mut h, "lib/Loops/Beat 120bpm.wav", true), SR as usize);
+    close(
+        preview(&mut h, "lib/Loops/Beat 120bpm.wav", true),
+        SR as usize,
+    );
     close(preview(&mut h, "lib/Hits/Hit.wav", true), SR as usize);
 
     // Playing at beat 4.5: a synced preview waits half a beat (0.25 s at 120 bpm).
@@ -568,11 +715,22 @@ fn tempo_synced_preview_repitches_and_waits_for_the_beat() {
         bpm: 120.0,
         sample_time: 0,
     });
-    h.send(Command::Transport(ether_core::protocol::transport::TransportCommand::Play));
+    h.send(Command::Transport(
+        ether_core::protocol::transport::TransportCommand::Play,
+    ));
     h.tick();
-    close(preview(&mut h, "lib/Loops/Beat 120bpm.wav", true), SR as usize + SR as usize / 4);
+    close(
+        preview(&mut h, "lib/Loops/Beat 120bpm.wav", true),
+        SR as usize + SR as usize / 4,
+    );
     // Cached decode, still aligned at hand-off.
-    close(preview(&mut h, "lib/Loops/Beat 120bpm.wav", true), SR as usize + SR as usize / 4);
+    close(
+        preview(&mut h, "lib/Loops/Beat 120bpm.wav", true),
+        SR as usize + SR as usize / 4,
+    );
     // Unsynced previews never wait.
-    close(preview(&mut h, "lib/Loops/Beat 120bpm.wav", false), SR as usize);
+    close(
+        preview(&mut h, "lib/Loops/Beat 120bpm.wav", false),
+        SR as usize,
+    );
 }

@@ -38,8 +38,8 @@ use std::sync::Arc;
 use ether_core::protocol::media::{
     BrowseLocation, MediaCommand, MediaEvent, MediaSource, PreviewEndReason,
 };
-use ether_core::protocol::model::{Beats, ProjectId};
 use ether_core::protocol::model::file::MEDIA_DIR;
+use ether_core::protocol::model::{Beats, ProjectId};
 use ether_core::protocol::{CommandError, ErrorCode, Event, NotificationLevel, ReplyValue};
 use ether_media::{DecodedAudio, MediaError};
 

@@ -49,9 +49,7 @@ use ether_core::protocol::browser::{
     LibraryItemMeta,
 };
 use ether_core::protocol::media::{BrowseLocation, FileKind, MediaSource};
-use ether_core::protocol::model::{
-    BuiltinDeviceType, PRESET_EXTENSION, PRESETS_DIR, load_preset,
-};
+use ether_core::protocol::model::{BuiltinDeviceType, PRESET_EXTENSION, PRESETS_DIR, load_preset};
 use ether_core::protocol::presets::{PresetRef, PresetSource};
 use ether_core::protocol::{Event, ReplyValue};
 use symphonia::core::formats::FormatOptions;
@@ -222,7 +220,12 @@ fn file_entry(
 }
 
 /// A preset item (`root`/`path` as listed; `preset` as `Preset::Load` takes it).
-fn preset_entry(root: &str, path: &str, preset: PresetRef, p: &ether_core::protocol::model::Preset) -> Entry {
+fn preset_entry(
+    root: &str,
+    path: &str,
+    preset: PresetRef,
+    p: &ether_core::protocol::model::Preset,
+) -> Entry {
     Entry::new(
         LibraryItem {
             id: format!("{root}/{path}"),
@@ -281,7 +284,12 @@ fn list_folder<L: Library>(
         return 1;
     };
     let root = scan.root.clone();
-    if depth == 1 && listing.entries.iter().any(|e| e.name == PACK_FILE && e.kind != FileKind::Directory) {
+    if depth == 1
+        && listing
+            .entries
+            .iter()
+            .any(|e| e.name == PACK_FILE && e.kind != FileKind::Directory)
+    {
         let name = library
             .read(&root, &format!("{dir}/{PACK_FILE}"))
             .ok()
@@ -505,9 +513,13 @@ where
                 None => {
                     let scan = self.browser.scans.pop_front().expect("checked");
                     let st = &mut self.browser;
-                    st.index
-                        .remove_where(|e| e.item.root == scan.root && !scan.seen.contains(&e.item.id));
-                    let packs_changed = st.packs.get(&scan.root).map_or(!scan.packs.is_empty(), |p| *p != scan.packs);
+                    st.index.remove_where(|e| {
+                        e.item.root == scan.root && !scan.seen.contains(&e.item.id)
+                    });
+                    let packs_changed = st
+                        .packs
+                        .get(&scan.root)
+                        .map_or(!scan.packs.is_empty(), |p| *p != scan.packs);
                     if scan.packs.is_empty() {
                         st.packs.remove(&scan.root);
                     } else {
@@ -537,7 +549,8 @@ where
         }
         self.browser_persist(now);
         let st = &self.browser;
-        if st.scans.is_empty() && st.probe.is_empty() && now >= st.last_full_scan + RESCAN_EVERY_MS {
+        if st.scans.is_empty() && st.probe.is_empty() && now >= st.last_full_scan + RESCAN_EVERY_MS
+        {
             self.browser_scan_all(now);
         }
     }
@@ -576,7 +589,14 @@ where
                     .split_once('/')
                     .and_then(|(top, _)| st.packs.get(&item.root)?.get(top).cloned())
                     .unwrap_or_else(|| root_name.clone());
-                let mut e = file_entry(&item.root, &item.path, item.midi, item.size, Some(pack), item.added);
+                let mut e = file_entry(
+                    &item.root,
+                    &item.path,
+                    item.midi,
+                    item.size,
+                    Some(pack),
+                    item.added,
+                );
                 e.probed = item.probed;
                 e.item.meta.duration_seconds = item.duration;
                 e.item.meta.sample_rate = item.rate;
@@ -641,7 +661,12 @@ where
             .map(|(id, _)| id.as_str())
             .chain([FACTORY_ROOT, PROJECTS_ROOT])
             .collect();
-        if self.browser.index.remove_where(|e| !known.contains(e.item.root.as_str())) > 0 {
+        if self
+            .browser
+            .index
+            .remove_where(|e| !known.contains(e.item.root.as_str()))
+            > 0
+        {
             self.browser.mark_dirty(now);
         }
         for (id, _) in &roots {
@@ -661,7 +686,8 @@ where
                     source: PresetSource::Factory,
                     id: f.id.to_string(),
                 };
-                st.index.upsert(preset_entry(FACTORY_ROOT, f.id, preset, &p));
+                st.index
+                    .upsert(preset_entry(FACTORY_ROOT, f.id, preset, &p));
             }
         }
     }
@@ -751,7 +777,9 @@ where
         let doc = self.doc.as_ref()?;
         let project_bpm = doc.project.tempo_map().bpm_at(self.transport.position);
         let ratio = match bpm {
-            Some(b) if b > 0.0 && project_bpm > 0.0 => (project_bpm / b).clamp(MIN_RATIO, MAX_RATIO),
+            Some(b) if b > 0.0 && project_bpm > 0.0 => {
+                (project_bpm / b).clamp(MIN_RATIO, MAX_RATIO)
+            }
             _ => 1.0,
         };
         Some(PreviewSync {
@@ -813,9 +841,7 @@ where
             return;
         };
         let busy = !st.scans.is_empty();
-        let overdue = st
-            .dirty_since
-            .is_some_and(|t| now >= t + PERSIST_LATEST_MS);
+        let overdue = st.dirty_since.is_some_and(|t| now >= t + PERSIST_LATEST_MS);
         if now < due || (busy && !overdue) {
             return;
         }
@@ -825,25 +851,27 @@ where
             return;
         };
         let items: Vec<StoredItem> = st
-                .index
-                .entries()
-                .filter(|e| matches!(e.item.kind, LibraryItemKind::Audio | LibraryItemKind::Midi))
-                .map(|e| StoredItem {
-                    root: e.item.root.clone(),
-                    path: e.item.path.clone(),
-                    midi: e.item.kind == LibraryItemKind::Midi,
-                    size: e.item.meta.size.unwrap_or(0.0),
-                    added: e.item.meta.modified_ms,
-                    probed: e.probed,
-                    duration: e.item.meta.duration_seconds,
-                    rate: e.item.meta.sample_rate,
-                    channels: e.item.meta.channels,
-                })
-                .collect();
+            .index
+            .entries()
+            .filter(|e| matches!(e.item.kind, LibraryItemKind::Audio | LibraryItemKind::Midi))
+            .map(|e| StoredItem {
+                root: e.item.root.clone(),
+                path: e.item.path.clone(),
+                midi: e.item.kind == LibraryItemKind::Midi,
+                size: e.item.meta.size.unwrap_or(0.0),
+                added: e.item.meta.modified_ms,
+                probed: e.probed,
+                duration: e.item.meta.duration_seconds,
+                rate: e.item.meta.sample_rate,
+                channels: e.item.meta.channels,
+            })
+            .collect();
         // A failed write is retried with the next change.
-        let _ = self
-            .library
-            .write_file(&root, persist::ITEMS_PATH, &persist::serialize_items(&items));
+        let _ = self.library.write_file(
+            &root,
+            persist::ITEMS_PATH,
+            &persist::serialize_items(&items),
+        );
         self.browser.persist_due = None;
         self.browser.dirty_since = None;
     }

@@ -142,8 +142,7 @@ impl Index {
                 Some(old)
             }
             None => {
-                self.by_id
-                    .insert(entry.item.id.clone(), self.entries.len());
+                self.by_id.insert(entry.item.id.clone(), self.entries.len());
                 self.entries.push(entry);
                 self.order_dirty = true;
                 None
@@ -209,11 +208,7 @@ impl Index {
 
     pub fn query(&mut self, q: &BrowserQuery) -> BrowserPage {
         self.ensure_order();
-        let words: Vec<String> = q
-            .text
-            .split_whitespace()
-            .map(str::to_lowercase)
-            .collect();
+        let words: Vec<String> = q.text.split_whitespace().map(str::to_lowercase).collect();
         let tags = normalize_tags(&q.tags);
         let roots: Vec<(&str, Option<String>)> = q
             .roots
@@ -262,9 +257,9 @@ impl Index {
             {
                 return false;
             }
-            words
-                .iter()
-                .all(|w| e.hay.contains(w.as_str()) || i.tags.iter().any(|t| t.contains(w.as_str())))
+            words.iter().all(|w| {
+                e.hay.contains(w.as_str()) || i.tags.iter().any(|t| t.contains(w.as_str()))
+            })
         };
 
         let mut hits: Vec<u32> = self
@@ -455,7 +450,10 @@ mod tests {
     fn favourites_and_tags_survive_rescans() {
         let mut ix = index();
         assert!(ix.set_favourite("lib/Drums/Kick.wav", true));
-        assert!(ix.set_tags("lib/Drums/Kick.wav", &[" Punchy".into(), "punchy".into(), "".into(), "Dry".into()]));
+        assert!(ix.set_tags(
+            "lib/Drums/Kick.wav",
+            &[" Punchy".into(), "punchy".into(), "".into(), "Dry".into()]
+        ));
         assert!(!ix.set_favourite("lib/none", true));
         let mut fav = q("");
         fav.favourites_only = true;
@@ -478,11 +476,22 @@ mod tests {
         let mut ix = index();
         ix.get_mut("lib/Drums/Kick.wav").unwrap().item.meta.bpm = Some(128.0);
         ix.get_mut("lib/Drums/Snare.wav").unwrap().item.meta.bpm = Some(90.0);
-        ix.get_mut("lib/Drums/Kick.wav").unwrap().item.meta.modified_ms = Some(5.0);
-        ix.get_mut("lib/Drums/Snare.wav").unwrap().item.meta.modified_ms = Some(9.0);
+        ix.get_mut("lib/Drums/Kick.wav")
+            .unwrap()
+            .item
+            .meta
+            .modified_ms = Some(5.0);
+        ix.get_mut("lib/Drums/Snare.wav")
+            .unwrap()
+            .item
+            .meta
+            .modified_ms = Some(9.0);
         let mut s = q("");
         s.sort = BrowserSort::Bpm;
-        assert_eq!(&names(&ix.query(&s))[..3], ["Snare.wav", "Kick.wav", "Big Kickstarter.wav"]);
+        assert_eq!(
+            &names(&ix.query(&s))[..3],
+            ["Snare.wav", "Kick.wav", "Big Kickstarter.wav"]
+        );
         s.sort = BrowserSort::Recent;
         assert_eq!(&names(&ix.query(&s))[..2], ["Snare.wav", "Kick.wav"]);
     }

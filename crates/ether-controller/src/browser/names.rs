@@ -119,7 +119,10 @@ mod tests {
         assert_eq!(p("Bass_128bpm").0, Some(128.0));
         assert_eq!(p("Bass 128 BPM").0, Some(128.0));
         assert_eq!(p("Break 120 loop").0, Some(120.0));
-        assert_eq!(parse("Break 120", "Drums/Loops/Break 120.wav").bpm, Some(120.0));
+        assert_eq!(
+            parse("Break 120", "Drums/Loops/Break 120.wav").bpm,
+            Some(120.0)
+        );
         // No context: a bare number is not a tempo.
         assert_eq!(parse("Snare 100", "Drums/Snare 100.wav").bpm, None);
         assert_eq!(p("Kick 01").0, None);

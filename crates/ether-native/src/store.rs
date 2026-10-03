@@ -1068,8 +1068,15 @@ mod tests {
         assert_eq!(roots[1].name, "My Samples");
         let sub = Library::list_dir(&mut s, &id, "sub").unwrap();
         assert_eq!(sub.entries[0].path, "sub/hit.wav");
-        assert!(s.external_path(&id, "sub/hit.wav").unwrap().ends_with("hit.wav"));
-        assert!(matches!(s.add_folder("relative"), Err(StoreError::InvalidPath(_))));
+        assert!(
+            s.external_path(&id, "sub/hit.wav")
+                .unwrap()
+                .ends_with("hit.wav")
+        );
+        assert!(matches!(
+            s.add_folder("relative"),
+            Err(StoreError::InvalidPath(_))
+        ));
         assert!(matches!(
             s.add_folder(dir.join("sub/hit.wav").to_str().unwrap()),
             Err(StoreError::InvalidPath(_))
@@ -1078,7 +1085,10 @@ mod tests {
             s.add_folder(tmp.path().join("missing").to_str().unwrap()),
             Err(StoreError::NotFound(_))
         ));
-        assert!(matches!(s.remove_folder("lib"), Err(StoreError::InvalidPath(_))));
+        assert!(matches!(
+            s.remove_folder("lib"),
+            Err(StoreError::InvalidPath(_))
+        ));
         s.remove_folder(&id).unwrap();
         assert_eq!(s.roots().len(), 1);
         assert!(matches!(s.remove_folder(&id), Err(StoreError::NotFound(_))));

@@ -63,7 +63,12 @@ pub(crate) fn parse(bytes: &[u8], items: Option<&[u8]>) -> Option<IndexFile> {
     if v.get("version")?.as_u64()? != VERSION {
         return None;
     }
-    let arr = |k: &str| v.get(k).and_then(Value::as_array).cloned().unwrap_or_default();
+    let arr = |k: &str| {
+        v.get(k)
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default()
+    };
     let folders = arr("folders")
         .iter()
         .filter_map(|x| {
@@ -85,7 +90,11 @@ pub(crate) fn parse(bytes: &[u8], items: Option<&[u8]>) -> Option<IndexFile> {
                 .map(|(id, t)| {
                     let t = t
                         .as_array()
-                        .map(|a| a.iter().filter_map(|x| x.as_str().map(str::to_string)).collect())
+                        .map(|a| {
+                            a.iter()
+                                .filter_map(|x| x.as_str().map(str::to_string))
+                                .collect()
+                        })
                         .unwrap_or_default();
                     (id.clone(), t)
                 })
@@ -224,7 +233,11 @@ mod tests {
             }],
             favourites: ["a/b.wav".to_string()].into(),
             tags: [("a/b.wav".to_string(), vec!["dry".to_string()])].into(),
-            packs: [("a".to_string(), [("P".to_string(), "Pack".to_string())].into())].into(),
+            packs: [(
+                "a".to_string(),
+                [("P".to_string(), "Pack".to_string())].into(),
+            )]
+            .into(),
             items: vec![
                 StoredItem {
                     root: "a".into(),

@@ -47,7 +47,10 @@ fn user_folder_index_import_preview_and_restart() {
 
     let mut c = Client::start(&paths);
     let pid = c.project_id();
-    c.ok("Project", json!({"type": "Create", "id": pid, "name": "Browse"}));
+    c.ok(
+        "Project",
+        json!({"type": "Create", "id": pid, "name": "Browse"}),
+    );
     let path = folder.to_str().unwrap().to_string();
     let roots = c.ok("Browser", json!({"type": "AddFolder", "path": path}))["roots"].clone();
     let user_folder = roots
@@ -70,7 +73,14 @@ fn user_folder_index_import_preview_and_restart() {
         |r| {
             r.events
                 .iter()
-                .any(|e| matches!(e, Event::Browser { event: BrowserEvent::IndexChanged }))
+                .any(|e| {
+                    matches!(
+                        e,
+                        Event::Browser {
+                            event: BrowserEvent::IndexChanged
+                        }
+                    )
+                })
                 .then_some(())
         },
         "IndexChanged",
@@ -98,7 +108,14 @@ fn user_folder_index_import_preview_and_restart() {
         |r| {
             r.events
                 .iter()
-                .any(|e| matches!(e, Event::Media { event: MediaEvent::PreviewStarted { .. } }))
+                .any(|e| {
+                    matches!(
+                        e,
+                        Event::Media {
+                            event: MediaEvent::PreviewStarted { .. }
+                        }
+                    )
+                })
                 .then_some(())
         },
         "PreviewStarted",

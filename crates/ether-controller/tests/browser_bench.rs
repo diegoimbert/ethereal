@@ -111,13 +111,57 @@ fn queries_over_50k_items_are_fast() {
         ("everything by name", q("")),
         ("one word", q("kick")),
         ("two words", q("kick loops")),
-        ("common letter, relevance", BrowserQuery { sort: BrowserSort::Relevance, ..q("a") }),
-        ("deep page", BrowserQuery { offset: 40_000, ..q("") }),
-        ("bpm sort", BrowserQuery { sort: BrowserSort::Bpm, kinds: vec![LibraryItemKind::Audio], ..q("") }),
-        ("recent sort", BrowserQuery { sort: BrowserSort::Recent, ..q("") }),
-        ("duration sort", BrowserQuery { sort: BrowserSort::Duration, ..q("pad") }),
-        ("root + folder", BrowserQuery { roots: vec!["root4".into()], folder: Some("Pack 7".into()), ..q("") }),
-        ("favourites", BrowserQuery { favourites_only: true, ..q("") }),
+        (
+            "common letter, relevance",
+            BrowserQuery {
+                sort: BrowserSort::Relevance,
+                ..q("a")
+            },
+        ),
+        (
+            "deep page",
+            BrowserQuery {
+                offset: 40_000,
+                ..q("")
+            },
+        ),
+        (
+            "bpm sort",
+            BrowserQuery {
+                sort: BrowserSort::Bpm,
+                kinds: vec![LibraryItemKind::Audio],
+                ..q("")
+            },
+        ),
+        (
+            "recent sort",
+            BrowserQuery {
+                sort: BrowserSort::Recent,
+                ..q("")
+            },
+        ),
+        (
+            "duration sort",
+            BrowserQuery {
+                sort: BrowserSort::Duration,
+                ..q("pad")
+            },
+        ),
+        (
+            "root + folder",
+            BrowserQuery {
+                roots: vec!["root4".into()],
+                folder: Some("Pack 7".into()),
+                ..q("")
+            },
+        ),
+        (
+            "favourites",
+            BrowserQuery {
+                favourites_only: true,
+                ..q("")
+            },
+        ),
         ("no match", q("zzzz")),
     ];
     let bound = Duration::from_millis(50);
