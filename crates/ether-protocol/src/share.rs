@@ -159,6 +159,9 @@ pub enum PeerEndpointAction {
     Open {
         offer: bool,
         ice_servers: Vec<IceServer>,
+        /// `ShareCommand::SetPreferences { relay_only }`: `iceTransportPolicy: "relay"`.
+        #[serde(default)]
+        relay_only: bool,
     },
     Close,
 }
@@ -395,6 +398,7 @@ pub enum SignalServerMessage {
     HostWelcome {
         ice_servers: Vec<IceServer>,
         /// The room is forgotten this long after the host was last connected.
+        #[ts(type = "number")]
         room_ttl_s: u64,
     },
     /// Host: a joiner passed a door. The joiner offers; the host answers.

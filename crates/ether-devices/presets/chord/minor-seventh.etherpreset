@@ -1,0 +1,36 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "Minor Seventh",
+    "device": {
+      "type": "Builtin",
+      "device": "Chord"
+    },
+    "meta": {
+      "tags": [
+        "chord",
+        "seventh"
+      ],
+      "author": "Ethereal",
+      "description": "Minor third, fifth and minor seventh, upper voices a little softer."
+    },
+    "params": {
+      "0": 3.0,
+      "1": 7.0,
+      "2": 10.0,
+      "3": 0.0,
+      "4": 0.0,
+      "5": 0.0,
+      "6": 90.0,
+      "7": 85.0,
+      "8": 80.0,
+      "9": 100.0,
+      "10": 100.0,
+      "11": 100.0,
+      "12": 0.0,
+      "13": 0.0
+    }
+  }
+}

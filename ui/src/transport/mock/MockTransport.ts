@@ -137,13 +137,21 @@ import { MockLiveRecord } from "./roadmap/liveRecord";
 import { MockUploads } from "./roadmap/remote";
 // v0.2 (contracts-3) runtime simulations, one file per node.
 import { MockAnalysis } from "./roadmap/analysis";
-import { browserCommand } from "./roadmap/browserV2";
+import { MockBrowser } from "./roadmap/browserV2";
 import { MockFreeze } from "./roadmap/freezeBounce";
 import { libraryPath, MockMediaRefs } from "./roadmap/mediaReferences";
 import { MockPresets } from "./roadmap/presets";
 import { listModulatorKinds } from "./roadmap/racksModulation";
 import { MockTimeEdits } from "./roadmap/timeEdits";
 import { chatCommand } from "./roadmap/social";
+// v0.3 (contracts-4): one file per node (`./roadmap/index.ts`).
+import { audioToMidiCommand } from "./roadmap/audioToMidi";
+import { captureCommand } from "./roadmap/capture";
+import { externalCommand } from "./roadmap/external";
+import { keymapCommand } from "./roadmap/keymap";
+import { templateCommand } from "./roadmap/templates";
+import { historyCommand } from "./roadmap/undoHistory";
+import { versionCommand } from "./roadmap/versions";
 
 export interface MockTransportOptions {
   /**
@@ -270,6 +278,7 @@ export class MockTransport implements EngineTransport {
   };
   private readonly midiLearn = new MockMidiLearn(this.host);
   private readonly presets = new MockPresets(this.host);
+  private readonly browser = new MockBrowser(this.host);
   private readonly exports = new MockExports(this.host);
   private readonly timeEdits = new MockTimeEdits({
     ...this.host,
@@ -473,7 +482,7 @@ export class MockTransport implements EngineTransport {
       case "Preset":
         return this.presets.command(command.command);
       case "Browser":
-        return browserCommand(command.command);
+        return this.browser.command(command.command);
       case "Analysis":
         return this.analysis.command(command.command);
       case "MediaRef":
@@ -482,12 +491,31 @@ export class MockTransport implements EngineTransport {
         return listModulatorKinds();
       case "Chat":
         return chatCommand(command.command, this.collab);
+      // v0.3 (contracts-4). Document commands (`Expression::*`, `External::SetRouting`,
+      // `Template::Insert`) went through `applyDocument` above.
+      case "Capture":
+        return captureCommand(command.command);
+      case "AudioToMidi":
+        return audioToMidiCommand(command.command);
+      case "External":
+        if (command.command.type === "SetRouting") break;
+        return externalCommand(command.command);
+      case "History":
+        return historyCommand(command.command);
+      case "Template":
+        if (command.command.type === "Insert") break;
+        return templateCommand(command.command);
+      case "Version":
+        return versionCommand(command.command);
+      case "Keymap":
+        return keymapCommand(command.command);
       // base-115 (docs/SHARING.md).
       case "Share":
         return this.share.command(command.command);
       default:
         return fail("InvalidArgument", `unknown command domain`);
     }
+    return fail("InvalidArgument", `unknown command`);
   }
 
   /** Apply document commands as one transaction / undo step and emit its patch. */
