@@ -1620,6 +1620,7 @@ dependencies = [
  "assert_no_alloc",
  "ether-core",
  "ether-native",
+ "ether-server",
  "objc2",
  "objc2-foundation",
  "serde",
