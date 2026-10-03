@@ -9,7 +9,7 @@
  *
  * There is no audio in the mock: the "detected" notes are a deterministic pattern per mode
  * (a melody line, block chords, a kick/snare/hat beat) across the clip. Needs the mock host
- * (`MockTransport` passes it); without one every command fails `Unsupported`.
+ * (`MockTransport` passes it; without one every command fails `Unsupported`).
  */
 
 import type {

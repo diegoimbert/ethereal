@@ -1,7 +1,9 @@
 /** MockTransport: `AudioToMidi::*` (v0.3, audio-to-midi). */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AudioToMidiCommand, AudioToMidiOptions, Command, Event, Project } from "@/generated";
+import { cmd } from "../../cmd";
 import { createDemoProject } from "../demoProject";
+import { MockTransport } from "../MockTransport";
 import { audioToMidiCommand, STEP_MS } from "./audioToMidi";
 import type { MockHost } from "./host";
 import { testId } from "./testUtils";
@@ -116,6 +118,29 @@ describe("MockTransport audio to MIDI (audio-to-midi)", () => {
     vi.advanceTimersByTime(STEP_MS);
     expect(events.at(-1)).toMatchObject({ event: { type: "Cancelled", job: "c" } });
     expect(applied).toEqual([]);
+  });
+
+  it("runs through the MockTransport: one undo step, then undone", async () => {
+    const mock = new MockTransport({ timers: "manual", seed: 7 });
+    const events: Event[] = [];
+    mock.onEvent((e) => events.push(e));
+    await mock.connect();
+    const before = mock.snapshot();
+    const clip = audioClip(before);
+    const c = start(clip.id, "Harmony");
+    await mock.send(cmd("AudioToMidi", c));
+    vi.advanceTimersByTime(STEP_MS * 4);
+    expect(events.filter((e) => e.type === "AudioToMidi").at(-1)).toMatchObject({ event: { type: "Done", track: c.track } });
+    const after = mock.snapshot();
+    expect(after.tracks[c.track]).toMatchObject({ kind: "Midi", name: `${clip.name || before.tracks[clip.track]!.name} MIDI` });
+    expect(after.clips[c.new_clip]).toMatchObject({ track: c.track, start: clip.start, length: clip.length });
+    expect(Object.values(after.notes).some((n) => n.clip === c.new_clip)).toBe(true);
+    expect(after.devices[c.instrument]).toBeDefined();
+    await mock.send(cmd("Edit", { type: "Undo" }));
+    const undone = mock.snapshot();
+    expect(undone.tracks[c.track]).toBeUndefined();
+    expect(undone.clips[c.new_clip]).toBeUndefined();
+    mock.dispose();
   });
 
   it("validates like the engine", () => {

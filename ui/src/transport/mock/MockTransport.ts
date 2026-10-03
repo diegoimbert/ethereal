@@ -496,7 +496,7 @@ export class MockTransport implements EngineTransport {
       case "Capture":
         return captureCommand(command.command);
       case "AudioToMidi":
-        return audioToMidiCommand(command.command);
+        return audioToMidiCommand(command.command, this.host);
       case "External":
         if (command.command.type === "SetRouting") break;
         return externalCommand(command.command);
