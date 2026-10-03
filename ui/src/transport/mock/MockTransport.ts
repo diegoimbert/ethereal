@@ -128,6 +128,7 @@ import { mulberry32, SEED_TIME, seededIdFactory } from "./random";
 import { beatsToSeconds, bpmAt, signatureAt } from "./tempo";
 import { changeKey, Tx } from "./tx";
 import { MockCollab } from "./roadmap/collab";
+import { MockShare } from "./roadmap/share";
 import { MockExports } from "./roadmap/export";
 import { MockPreview } from "./roadmap/mediaPreview";
 import type { MockHost } from "./roadmap/host";
@@ -151,6 +152,8 @@ import { keymapCommand } from "./roadmap/keymap";
 import { templateCommand } from "./roadmap/templates";
 import { historyCommand } from "./roadmap/undoHistory";
 import { versionCommand } from "./roadmap/versions";
+// ai-chat: the agent API (Command::Agent) over the mock document.
+import { MockAgent, type MockAgentCommand } from "./roadmap/agent";
 
 export interface MockTransportOptions {
   /**
@@ -297,6 +300,8 @@ export class MockTransport implements EngineTransport {
       }),
   });
   private readonly collab = new MockCollab(this.host);
+  /** base-115 sharing simulation (docs/SHARING.md; `simulateJoin`, `simulateHostOnline`). */
+  readonly share = new MockShare(this.host);
   /** `media-references`: missing media, relink, collect (`setOffline` for tests). */
   readonly mediaRefs = new MockMediaRefs({
     project: () => this.project,
@@ -310,6 +315,7 @@ export class MockTransport implements EngineTransport {
     libraryHash: (rel) => hashHex(`library:${normalize(rel)}`),
   });
   private readonly analysis = new MockAnalysis(this.host);
+  private readonly agent = new MockAgent(this.host);
   private readonly preview = new MockPreview(this.host);
   private readonly uploads = new MockUploads((event) => this.emit(event));
   private readonly liveRecord = new MockLiveRecord({
@@ -462,6 +468,10 @@ export class MockTransport implements EngineTransport {
     if (command.domain === "Project") return this.projectCommand(command.command, gesture);
     if (isDocumentCommand(command)) return this.applyDocument([command], labelOf(command), gesture);
 
+    // ai-chat: `Command::Agent` (not in the generated `Command` until agent-api lands).
+    const agent = command as unknown as { domain: string; command: MockAgentCommand };
+    if (agent.domain === "Agent") return this.agent.command(agent.command);
+
     switch (command.domain) {
       case "Transport":
         return this.transportCommand(command.command);
@@ -521,6 +531,9 @@ export class MockTransport implements EngineTransport {
         return versionCommand(command.command);
       case "Keymap":
         return keymapCommand(command.command);
+      // base-115 (docs/SHARING.md).
+      case "Share":
+        return this.share.command(command.command);
       default:
         return fail("InvalidArgument", `unknown command domain`);
     }
