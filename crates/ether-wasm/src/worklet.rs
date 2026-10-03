@@ -150,6 +150,8 @@ pub struct EngineHost<M: RingMemory> {
     errors: Vec<String>,
     /// `media-preview`: a natural preview end not yet delivered (reports are lossy).
     preview_ended: Option<u64>,
+    /// `audio-streaming`: streamed media caches ([`crate::media_stream`]).
+    streams: crate::media_stream::WorkletStreams,
 }
 
 impl<M: RingMemory> EngineHost<M> {
@@ -186,6 +188,7 @@ impl<M: RingMemory> EngineHost<M> {
             blocks: 0,
             errors: Vec::new(),
             preview_ended: None,
+            streams: Default::default(),
         }
     }
 
@@ -315,7 +318,25 @@ impl<M: RingMemory> EngineHost<M> {
     fn apply_frame(&mut self, bytes: &[u8]) -> bool {
         let (heavy, res) = match Frame::decode(bytes) {
             Err(e) => (false, Err(format!("bad engine message: {e}"))),
-            Ok(Frame::Msg(msg)) => (matches!(msg, EngineMsg::Publish { .. }), self.apply(msg)),
+            Ok(Frame::Msg(msg)) => (
+                matches!(
+                    msg,
+                    EngineMsg::Publish { .. } | EngineMsg::StreamOpen { .. }
+                ),
+                self.apply(msg),
+            ),
+            Ok(Frame::StreamChunk {
+                media,
+                slot,
+                chunk,
+                channel,
+                flags,
+                samples,
+            }) => {
+                self.streams
+                    .chunk(media, slot, chunk, channel, flags, samples);
+                (false, Ok(()))
+            }
             Ok(Frame::MediaBegin {
                 media,
                 sample_rate,
@@ -396,6 +417,7 @@ impl<M: RingMemory> EngineHost<M> {
             EngineMsg::LoadMedia { media, audio } => self.add_source(media, audio),
             EngineMsg::UnloadMedia { media } => {
                 self.media.cancel(media);
+                self.streams.remove(media);
                 self.sources.remove(&media);
                 self.handle.remove_source(media).map_err(|e| e.to_string())
             }
@@ -443,6 +465,19 @@ impl<M: RingMemory> EngineHost<M> {
                 let real = self.real_key(key)?;
                 self.handle
                     .watch_analysis(real, on)
+                    .map_err(|e| e.to_string())
+            }
+            EngineMsg::StreamOpen {
+                media,
+                channels,
+                frames,
+                slots,
+            } => {
+                let cache = self.streams.open(media, channels, frames, slots);
+                let source: Arc<dyn AudioSource> = cache;
+                self.sources.insert(media, source.clone());
+                self.handle
+                    .add_source(media, source)
                     .map_err(|e| e.to_string())
             }
         }
@@ -532,6 +567,11 @@ impl<M: RingMemory> EngineHost<M> {
         // report, playhead is always the latest; a preview end is kept until delivered).
         if self.reports.try_send_now(&self.report_buf) {
             self.preview_ended = None;
+        }
+        if !self.streams.is_empty() {
+            // Lossy too: the next report carries the cursors again.
+            let report = self.streams.encode_report();
+            let _ = self.reports.try_send_now(report);
         }
         self.send_analysis();
     }

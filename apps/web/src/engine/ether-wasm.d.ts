@@ -19,6 +19,8 @@ declare module "@ether-wasm/ether_wasm.js" {
     remove(path: string): void;
     /** JSON entry or `null`. */
     stat(path: string): string;
+    /** `length` bytes of a file from `offset` (fewer at the end; audio-streaming). */
+    readRange(path: string, offset: number, length: number): Uint8Array;
   }
 
   export class WasmController {

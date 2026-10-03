@@ -37,7 +37,7 @@ export type FromController =
   | { type: "fatal"; message: string };
 
 /** Sync-FS request, controller Worker → OPFS Worker (answered through the fs buffer). */
-export type FsOp = "read" | "write" | "rename" | "list" | "mkdir" | "remove" | "stat";
+export type FsOp = "read" | "write" | "rename" | "list" | "mkdir" | "remove" | "stat" | "readRange";
 export interface FsRequest {
   op: FsOp;
   path: string;
@@ -45,6 +45,9 @@ export interface FsRequest {
   to?: string;
   /** `write` payload. */
   bytes?: Uint8Array;
+  /** `readRange`: byte offset and length (audio-streaming reads media in chunks). */
+  offset?: number;
+  length?: number;
   /** Echoed in the reply (see ./fsWire.ts). */
   seq: number;
 }
