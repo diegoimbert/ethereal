@@ -593,15 +593,6 @@ Shared touches: `handlers.rs` (rebuild/update multisamplers when zone media load
 samplers), zone sources in `ether-native/src/bridge.rs` / `ether-wasm/src/bridge.rs`.
 Zones: `ether_model::multisampler` (selection, round robin, loops); external media allowed.
 
-Implemented (`ether_devices::multisampler::{zones, device}`): up to 64 voices, 16 layers per
-note; round-robin groups count only the note's candidates (Cycle / Random without repeat);
-partially overlapping velocity ranges crossfade (equal power), nested ones layer; loops wrap
-while held with a linear crossfade (clamped to the loop and `loop_start`); live zone edits
-swap a resolved `ZoneSet` in place (voices on removed media fade over 2 ms). Zone editor:
-`ui/src/features/devices/layout/zones/` (map drag = one `SetZones` on release; drops mapped
-by `mapDropped`, roots from `C3` (= 60) / 2-3 digit numbers in names). Factory presets live
-in `presets/multisampler/` with ids `multi-sampler/<slug>` (`BuiltinDeviceType::key()`).
-
 ## `fx-color`, `fx-modulation`, `fx-dynamics`
 
 Own their group module (`fx_color`, `fx_modulation`, `fx_dynamics`), presets folders
