@@ -3,9 +3,10 @@
 //!
 //! MIDI effects (`DeviceCategory::NoteEffect`, CONTRACTS.md §12.4.4): consume `ctx.events`, write the transformed note/MIDI stream to `ctx.out_events` (forward what they don't transform and every `AllNotesOff`, never `Param`); generated notes use note ids from `0x8000_0000 | n`; audio untouched (`channels() == (0, 0)`). Delays only (never earlier than input); a device that holds notes back reports no latency (musical delay).
 //!
-//! Every device here starts as a [`Placeholder`] (pass-through / silent / MIDI-thru) with its
-//! final descriptor. **Param ids are stable and append-only** (documents, automation and
-//! presets store them): never renumber, only append. Split this module into files as you like.
+//! **Param ids are stable and append-only** (documents, automation and presets store them):
+//! never renumber, only append. Each descriptor carries its declarative layout (drawn by the
+//! shared device renderer). The shared block driver (event order, scheduling, generated ids,
+//! flushing held notes) lives in `core`; one file per device.
 //!
 //! # Arpeggiator (`BuiltinDeviceType::Arpeggiator`)
 //!
@@ -97,13 +98,29 @@
 
 use ether_core::Device;
 use ether_core::protocol::devices::{DeviceCategory, DeviceDescriptor, ParamScale, ParamUnit};
-use ether_core::protocol::model::{BuiltinDevice, BuiltinDeviceType};
+use ether_core::protocol::layout::{DeviceLayout, Widget, WidgetSize};
+use ether_core::protocol::model::{BuiltinDevice, BuiltinDeviceType, ParamId};
 
-#[allow(unused_imports)]
 use crate::contract::{
-    FactoryPreset, Placeholder, PlaceholderMode, SYNC_RATES, choice, descriptor as build, param,
+    FactoryPreset, SYNC_RATES, choice, descriptor as build, item, knob, layout, param, section,
     stepped, toggle,
 };
+
+mod core;
+mod fx_arp;
+mod fx_chord;
+mod fx_length;
+mod fx_random;
+mod fx_scale;
+mod fx_velocity;
+
+pub use self::core::GENERATED;
+pub use self::fx_arp::Arpeggiator;
+pub use self::fx_chord::Chord;
+pub use self::fx_length::NoteLength;
+pub use self::fx_random::Randomizer;
+pub use self::fx_scale::ScaleQuantize;
+pub use self::fx_velocity::Velocity;
 
 /// Param ids of `Arpeggiator` (stable, append-only).
 pub mod arpeggiator {
@@ -202,6 +219,164 @@ pub mod randomizer {
 /// # Panics
 /// For a type of another group.
 pub fn descriptor(ty: BuiltinDeviceType) -> DeviceDescriptor {
+    let mut d = params_descriptor(ty);
+    d.layout = Some(device_layout(ty));
+    d
+}
+
+/// Declarative panel of a type (CONTRACTS.md §12.4.2; drawn by the shared renderer).
+fn device_layout(ty: BuiltinDeviceType) -> DeviceLayout {
+    use WidgetSize::{Large, Medium, Small};
+    let pick = |param, size| item(Widget::Choice { param }, size);
+    let switch = |param, size| item(Widget::Toggle { param }, size);
+    match ty {
+        BuiltinDeviceType::Arpeggiator => {
+            use arpeggiator::*;
+            layout(vec![
+                section(
+                    "pattern",
+                    Some("Pattern"),
+                    2,
+                    3,
+                    vec![
+                        pick(STYLE, Medium),
+                        knob(RATE, Large),
+                        knob(GATE, Large),
+                        knob(OCTAVES, Medium),
+                        knob(SWING, Medium),
+                        pick(RETRIGGER, Small),
+                        switch(HOLD, Small),
+                    ],
+                ),
+                section(
+                    "velocity",
+                    Some("Velocity"),
+                    1,
+                    1,
+                    vec![pick(VELOCITY_MODE, Small), knob(FIXED_VELOCITY, Medium)],
+                ),
+            ])
+        }
+        BuiltinDeviceType::Chord => {
+            use chord::*;
+            let shifts = (0..6)
+                .map(|i| knob(ParamId(SHIFT_1.0 + i), Medium))
+                .collect();
+            let velocities = (0..6)
+                .map(|i| knob(ParamId(VELOCITY_1.0 + i), Small))
+                .collect();
+            layout(vec![
+                section("notes", Some("Notes"), 3, 6, shifts),
+                section("velocities", Some("Velocities"), 3, 6, velocities),
+                section(
+                    "strum",
+                    Some("Strum"),
+                    1,
+                    1,
+                    vec![knob(STRUM, Large), knob(STRUM_TENSION, Medium)],
+                ),
+            ])
+        }
+        BuiltinDeviceType::ScaleQuantize => {
+            use scale_quantize::*;
+            layout(vec![
+                section(
+                    "scale",
+                    Some("Scale"),
+                    2,
+                    3,
+                    vec![pick(SOURCE, Medium), pick(ROOT, Small), pick(KIND, Small)],
+                ),
+                section(
+                    "quantize",
+                    Some("Quantize"),
+                    1,
+                    1,
+                    vec![knob(TRANSPOSE, Large), pick(DIRECTION, Small)],
+                ),
+            ])
+        }
+        BuiltinDeviceType::NoteLength => {
+            use note_length::*;
+            layout(vec![section(
+                "length",
+                Some("Length"),
+                2,
+                3,
+                vec![
+                    knob(LENGTH, Large),
+                    knob(SYNC_LENGTH, Large),
+                    knob(GATE, Medium),
+                    pick(MODE, Small),
+                    pick(TRIGGER, Small),
+                ],
+            )])
+        }
+        BuiltinDeviceType::Velocity => {
+            use velocity::*;
+            layout(vec![
+                section(
+                    "curve",
+                    Some("Curve"),
+                    2,
+                    3,
+                    vec![
+                        knob(DRIVE, Large),
+                        knob(COMPAND, Large),
+                        knob(RANDOM, Medium),
+                        pick(MODE, Small),
+                        pick(TARGET, Small),
+                    ],
+                ),
+                section(
+                    "range",
+                    Some("Range"),
+                    2,
+                    2,
+                    vec![
+                        knob(IN_LOW, Medium),
+                        knob(IN_HIGH, Medium),
+                        knob(OUT_LOW, Medium),
+                        knob(OUT_HIGH, Medium),
+                    ],
+                ),
+            ])
+        }
+        BuiltinDeviceType::Randomizer => {
+            use randomizer::*;
+            layout(vec![
+                section(
+                    "pitch",
+                    Some("Pitch"),
+                    2,
+                    2,
+                    vec![
+                        knob(CHANCE, Large),
+                        knob(PITCH_RANGE, Large),
+                        pick(PITCH_MODE, Small),
+                        switch(SCALE_AWARE, Small),
+                    ],
+                ),
+                section(
+                    "humanize",
+                    Some("Humanize"),
+                    2,
+                    4,
+                    vec![
+                        knob(VELOCITY_RANDOM, Medium),
+                        knob(TIMING_RANDOM, Medium),
+                        knob(LENGTH_RANDOM, Medium),
+                        knob(SEED, Small),
+                    ],
+                ),
+            ])
+        }
+        other => unreachable!("{other:?} is not a `midi-fx` device"),
+    }
+}
+
+/// The param tables (frozen by contracts-3).
+fn params_descriptor(ty: BuiltinDeviceType) -> DeviceDescriptor {
     match ty {
         BuiltinDeviceType::Arpeggiator => build(
             BuiltinDeviceType::Arpeggiator,
@@ -502,16 +677,52 @@ pub fn descriptor(ty: BuiltinDeviceType) -> DeviceDescriptor {
     }
 }
 
-/// Non-RT. A new instance (placeholder until implemented).
+/// Non-RT. A new instance.
+///
+/// # Panics
+/// For a type of another group.
 pub fn create(device: &BuiltinDevice) -> Box<dyn Device> {
-    let ty = device.device_type();
-    let mode = PlaceholderMode::MidiThru;
-    Box::new(Placeholder::new(descriptor(ty), mode))
+    match device.device_type() {
+        BuiltinDeviceType::Arpeggiator => Box::new(Arpeggiator::new()),
+        BuiltinDeviceType::Chord => Box::new(Chord::new()),
+        BuiltinDeviceType::ScaleQuantize => Box::new(ScaleQuantize::new()),
+        BuiltinDeviceType::NoteLength => Box::new(NoteLength::new()),
+        BuiltinDeviceType::Velocity => Box::new(Velocity::new()),
+        BuiltinDeviceType::Randomizer => Box::new(Randomizer::new()),
+        other => unreachable!("{other:?} is not a `midi-fx` device"),
+    }
 }
 
-/// Factory presets of a type of this group (embedded; add `FactoryPreset { id, json:
-/// include_str!("../../presets/<device-key>/<slug>.etherpreset") }` entries).
+macro_rules! presets {
+    ($key:literal: $($slug:literal),* $(,)?) => {
+        &[$(FactoryPreset {
+            id: concat!($key, "/", $slug),
+            json: include_str!(concat!("../../presets/", $key, "/", $slug, ".etherpreset")),
+        }),*]
+    };
+}
+
+/// Factory presets of a type of this group (embedded from `presets/<device-key>/`).
 pub fn factory_presets(ty: BuiltinDeviceType) -> &'static [FactoryPreset] {
-    let _ = ty;
-    &[]
+    match ty {
+        BuiltinDeviceType::Arpeggiator => {
+            presets!("arpeggiator": "classic-up", "trance-sixteenths", "swung-bounce", "chord-stabs")
+        }
+        BuiltinDeviceType::Chord => {
+            presets!("chord": "major-triad", "minor-seventh", "power-fifths", "slow-strum")
+        }
+        BuiltinDeviceType::ScaleQuantize => {
+            presets!("scale-quantize": "follow-track", "c-minor-pentatonic", "octave-up")
+        }
+        BuiltinDeviceType::NoteLength => {
+            presets!("note-length": "staccato", "eighth-notes", "release-trigger")
+        }
+        BuiltinDeviceType::Velocity => {
+            presets!("velocity": "soft-touch", "hard-hitter", "fixed-100")
+        }
+        BuiltinDeviceType::Randomizer => {
+            presets!("randomizer": "gentle-humanize", "octave-jumps", "in-scale-melody")
+        }
+        _ => &[],
+    }
 }

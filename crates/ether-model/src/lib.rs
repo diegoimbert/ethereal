@@ -9,6 +9,9 @@
 //!   (rack chains), [`modulation`] (modulators, mappings); plus [`multisampler`] zones,
 //!   track freeze, external media references and the [`preset`] file format.
 //! - Chat journal and pinned notes (`.ether` v4, base-62): [`social`].
+//! - v0.3 (`.ether` v5, contracts-4): [`expression`] (clip expression lanes, per-note
+//!   expressions, MPE settings), [`external`] (hardware I/O routing, convolution IR source),
+//!   the [`template`] file format and rack presets ([`preset::PresetRack`]).
 //! - [`op`]: the op set (the only way to mutate), [`history`]: undo/redo,
 //!   [`patch`]: UI mirror updates, [`file`]: `.ether` format + migrations.
 //!
@@ -24,6 +27,8 @@ pub mod device;
 pub mod drum_rack;
 pub mod entity;
 pub mod error;
+pub mod expression;
+pub mod external;
 pub mod file;
 pub mod history;
 pub mod ids;
@@ -45,6 +50,7 @@ pub mod scale;
 pub use scale::*;
 pub mod social;
 pub mod take;
+pub mod template;
 pub mod tempo;
 pub mod track;
 pub mod value;
@@ -57,6 +63,8 @@ pub use device::*;
 pub use drum_rack::*;
 pub use entity::*;
 pub use error::*;
+pub use expression::*;
+pub use external::*;
 pub use history::*;
 pub use ids::*;
 pub use marker::*;

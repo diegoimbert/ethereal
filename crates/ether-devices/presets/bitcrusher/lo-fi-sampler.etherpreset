@@ -1,0 +1,29 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "Lo-fi Sampler",
+    "device": {
+      "type": "Builtin",
+      "device": "Bitcrusher"
+    },
+    "meta": {
+      "tags": [
+        "dither",
+        "lo-fi",
+        "sampler"
+      ],
+      "author": "Ethereal",
+      "description": "12-bit, 26 kHz, dithered: an early sampler with its noise floor."
+    },
+    "params": {
+      "0": 12.0,
+      "1": 26040.0,
+      "2": 0.0,
+      "3": 1.0,
+      "4": 0.0,
+      "5": 100.0
+    }
+  }
+}
