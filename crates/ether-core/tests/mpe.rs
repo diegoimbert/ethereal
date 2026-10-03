@@ -190,3 +190,82 @@ fn an_mpe_track_announces_its_zone_on_play_and_on_change() {
     }
     assert!(!out.active());
 }
+
+/// Live MIDI into two monitored MIDI tracks, one with MPE settings, one without.
+#[test]
+fn live_input_is_read_as_mpe_only_on_mpe_tracks() {
+    use ether_core::recording::{LiveMidi, midi_event};
+    let mut p = create(config());
+    let mut io = p.handle.take_recording_io().unwrap();
+    let (plain_rec, mut plain_rx) = Recorder::new();
+    let (mpe_rec, mut mpe_rx) = Recorder::new();
+    let plain_rec = p.handle.add_node(Box::new(plain_rec)).unwrap();
+    let mpe_rec = p.handle.add_node(Box::new(mpe_rec)).unwrap();
+    let mut plain: TrackDesc = with_chain(track(tid(2), TrackKind::Midi, Some(tid(1))), &[plain_rec]);
+    plain.monitor = true;
+    let mut mpe_t: TrackDesc = with_chain(track(tid(3), TrackKind::Midi, Some(tid(1))), &[mpe_rec]);
+    mpe_t.monitor = true;
+    mpe_t.expression.mpe = Some(mpe());
+    p.handle
+        .publish(RenderGraphDesc {
+            version: 1,
+            tracks: vec![master(), plain, mpe_t],
+            ..Default::default()
+        })
+        .unwrap();
+    render(&mut p.engine, 512, 512);
+    drain(&mut plain_rx);
+    drain(&mut mpe_rx);
+    // An MPE controller, channel 2 (member): initial bend, note-on, pressure, timbre, a
+    // master-channel CC, note-off. Due at the start of the next block.
+    let input: [[u8; 3]; 6] = [
+        [0xE1, 0x7F, 0x7F],
+        [0x91, 60, 100],
+        [0xD1, 127, 0],
+        [0xB1, 74, 0],
+        [0xB0, 64, 127],
+        [0x81, 60, 0],
+    ];
+    for (i, data) in input.iter().enumerate() {
+        io.midi_in
+            .push(LiveMidi {
+                sample_time: 512 + i as u64 * 10,
+                data: *data,
+            })
+            .unwrap();
+    }
+    render(&mut p.engine, 512, 512);
+    // Plain track: exactly the decoded MIDI, at its offsets (the v0.2 path).
+    let plain_seen = events(&drain(&mut plain_rx));
+    let want: Vec<(u64, EventKind)> = input
+        .iter()
+        .enumerate()
+        .map(|(i, d)| (512 + i as u64 * 10, midi_event(*d).unwrap()))
+        .collect();
+    assert_eq!(plain_seen, want);
+    // MPE track: the announcement, then the member channel as note expressions.
+    let seen = events(&drain(&mut mpe_rx));
+    let (config, rest) = seen.split_at(CONFIG_MESSAGES);
+    assert!(config.iter().all(|(_, k)| matches!(k, EventKind::Midi { data } if data[0] & 0xF0 == 0xB0)));
+    let EventKind::NoteOn { note_id, .. } = midi_event(input[1]).unwrap() else {
+        unreachable!()
+    };
+    let ne = |expression, value| EventKind::NoteExpression {
+        note_id,
+        channel: 1,
+        key: 60,
+        expression,
+        value,
+    };
+    assert_eq!(
+        rest,
+        &[
+            (522, midi_event(input[1]).unwrap()),
+            (522, ne(NoteExpressionKind::Pitch, 24.0)),
+            (532, ne(NoteExpressionKind::Pressure, 1.0)),
+            (542, ne(NoteExpressionKind::Timbre, 0.0)),
+            (552, EventKind::Midi { data: [0xB0, 64, 127] }),
+            (562, midi_event(input[5]).unwrap()),
+        ]
+    );
+}
