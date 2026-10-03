@@ -1,17 +1,25 @@
 /**
  * Time-selection actions (keyboard shortcuts and the selection's context menu), Ableton-like:
  *
- * | action          | key     | what                                                     |
- * |-----------------|---------|----------------------------------------------------------|
- * | split           | ⌘E      | split every selected track at the selection edges        |
- * | split-tracks    | ⌘E      | no time selection, tracks selected: split them at the playhead |
- * | cut             | ⇧⌘X     | copy the selection, then delete its time                 |
- * | copy            | ⇧⌘C     | copy the selection to the (engine) time clipboard        |
- * | paste           | menu    | paste over the range at the selection start / playhead   |
- * | paste-insert    | ⇧⌘V     | paste, shifting what follows right                       |
- * | duplicate       | ⇧⌘D     | insert a copy of the selection right after it            |
- * | delete          | ⇧⌘⌫     | remove the selected time (later material moves left)     |
- * | insert-silence  | ⇧⌘I     | insert the selection's length of silence at its start    |
+ * | action          | key        | what                                                     |
+ * |-----------------|------------|----------------------------------------------------------|
+ * | split           | ⌘E         | split every selected track at the selection edges        |
+ * | split-tracks    | ⌘E         | no time range, tracks selected or an insert marker: split them at the marker (else the playhead) |
+ * | cut             | ⌘X / ⇧⌘X   | copy the selection, then delete its time                 |
+ * | copy            | ⌘C / ⇧⌘C   | copy the selection to the (engine) time clipboard        |
+ * | paste           | ⌘V         | paste the copied section (its full length, over what is there) right after the selection, else at the insert marker, else the playhead |
+ * | paste-insert    | ⇧⌘V        | paste at the selection start / insert marker / playhead, shifting what follows right |
+ * | duplicate       | ⌘D / ⇧⌘D   | insert a copy of the selection right after it            |
+ * | delete          | ⌫ / ⇧⌘⌫    | remove the selected time (later material moves left)     |
+ * | insert-silence  | ⇧⌘I        | insert the selection's length of silence at its start    |
+ *
+ * section-edit (owner report): while a time selection exists, the PLAIN ⌘C/X/V/D and ⌫ act
+ * on it (the section: clips are cut at its edges, only the span is copied), not on whole
+ * clips; the ⇧⌘ forms stay as aliases. Without a time selection the clip shortcuts apply,
+ * except ⌘V right after a time copy (the most recent copy wins, see `clipboard`).
+ *
+ * The insert marker (a zero-length selection, `marker.ts`) is not a range: copy, cut,
+ * duplicate, delete and insert-silence need a real range; paste and split target the marker.
  *
  * Each is one undo step (split at both edges: two commands under one gesture). Refused
  * edits (a frozen track, ...) show their engine message as a notice.
@@ -20,10 +28,11 @@
 import type { Command, TrackId } from "@/generated";
 import { MOD_KEY, type ContextMenuEntry } from "@/kit";
 import { useProjectStore } from "@/state";
-import { itemSelection, playheadBeats } from "@/timeline";
+import { itemSelection } from "@/timeline";
 import { cmd, newId, nextGestureId, type EngineTransport } from "@/transport";
 import { expandTracks, pasteTracks, timeSelection } from "./commands";
-import { useTimeSelection, type TimeRangeSelection } from "./store";
+import { insertMarker, insertPoint, pasteTarget } from "./marker";
+import { rangeOf, useTimeSelection, type TimeRangeSelection } from "./store";
 
 export type TimeAction = "split" | "split-tracks" | "cut" | "copy" | "paste" | "paste-insert" | "duplicate" | "delete" | "insert-silence";
 
@@ -64,18 +73,25 @@ export interface TimeActionContext {
 /** Whether `action` can run now. */
 export function canRun(action: TimeAction, ctx?: TimeActionContext): boolean {
   const { selection, clipboard } = useTimeSelection.getState();
+  const range = rangeOf(selection);
   switch (action) {
     case "split-tracks":
-      return !selection && !!ctx && !ctx.hasSelectedClips && ctx.selectedTracks.size > 0;
+      return !range && !!ctx && !ctx.hasSelectedClips && (ctx.selectedTracks.size > 0 || insertMarker() !== null);
     case "paste":
     case "paste-insert":
       return clipboard !== null;
     default:
-      return selection !== null;
+      return range !== null;
   }
 }
 
-export async function runTimeAction(transport: EngineTransport, action: TimeAction, ctx?: TimeActionContext): Promise<void> {
+/** `over`: "paste" goes over the selection (at its start), not after it (the menu item). */
+export async function runTimeAction(
+  transport: EngineTransport,
+  action: TimeAction,
+  ctx?: TimeActionContext,
+  opts: { over?: boolean } = {},
+): Promise<void> {
   const project = useProjectStore.getState().project;
   const store = useTimeSelection.getState();
   const sel = store.selection;
@@ -103,8 +119,8 @@ export async function runTimeAction(transport: EngineTransport, action: TimeActi
       await send(transport, [
         timeEdit({
           type: "Split",
-          tracks: [...ctx!.selectedTracks],
-          at: playheadBeats(),
+          tracks: ctx!.selectedTracks.size ? [...ctx!.selectedTracks] : [...insertMarker()!.tracks],
+          at: insertPoint().at,
           seed: newId(),
         }),
       ]);
@@ -126,18 +142,15 @@ export async function runTimeAction(transport: EngineTransport, action: TimeActi
     }
     case "paste":
     case "paste-insert": {
-      const at = sel ? sel.start : playheadBeats();
-      const tracks = pasteTracks(project, sel?.tracks[0] ?? null);
       const insert = action === "paste-insert";
+      const at = insert || opts.over ? insertPoint().at : pasteAt(sel);
+      const tracks = pasteTracks(project, sel?.tracks[0] ?? null);
       const ok = await send(transport, [timeEdit({ type: "Paste", at, tracks, insert, seed: newId() })]);
-      // The pasted range becomes the selection.
+      // The pasted range becomes the selection (so the next ⌘V lands right after it).
       const cb = store.clipboard!;
-      if (ok && tracks.length)
-        select({
-          start: at,
-          end: at + cb.length,
-          tracks: tracks.slice(0, cb.tracks),
-        });
+      const target = tracks.length ? tracks.slice(0, cb.tracks) : sel?.tracks;
+      // Never the playhead: edits stay dissociated from playback (insert marker, owner).
+      if (ok && target?.length) select({ start: at, end: at + cb.length, tracks: target });
       return;
     }
     case "duplicate": {
@@ -170,6 +183,15 @@ export async function runTimeAction(transport: EngineTransport, action: TimeActi
   }
 }
 
+/**
+ * Where ⌘V pastes: right after the time selection (the pasted range becomes the selection,
+ * so repeated pastes tile the section, gaps included), else at the insert marker, else at
+ * the playhead. "Paste Over Selection" (menu) pastes at the selection start instead.
+ */
+export function pasteAt(sel: TimeRangeSelection | null): number {
+  return pasteTarget(sel);
+}
+
 /** The time action for a key press in the arrangement, or null (then the clip actions apply). */
 export function timeActionForKey(
   e: {
@@ -182,9 +204,20 @@ export function timeActionForKey(
   ctx: TimeActionContext,
 ): TimeAction | null {
   const mod = e.metaKey || e.ctrlKey;
+  // The insert marker is not a section: ⌘C/X/D/⌫ then act on clips.
+  const hasSelection = rangeOf(useTimeSelection.getState().selection) !== null;
+  const del = e.key === "Backspace" || e.key === "Delete";
+  // Plain ⌫ deletes the selected time (while there is one; else it deletes clips/tracks).
+  if (!mod && !e.altKey && !e.shiftKey && del) return hasSelection && canRun("delete", ctx) ? "delete" : null;
   if (!mod || e.altKey) return null;
   const k = e.key.toLowerCase();
   let action: TimeAction | null = null;
+  if (!e.shiftKey && (hasSelection || k === "v")) {
+    // The section shortcuts (see the module doc); ⌘V also pastes a time copy at the playhead.
+    action = clipboardAction(k === "c" ? "copy" : k === "x" ? "cut" : k === "v" ? "paste" : null);
+    if (k === "d") action = "duplicate";
+    if (action) return canRun(action, ctx) ? action : null;
+  }
   if (e.shiftKey) {
     if (k === "x") action = "cut";
     else if (k === "c") action = "copy";
@@ -193,8 +226,20 @@ export function timeActionForKey(
     else if (k === "i") action = "insert-silence";
     else if (e.key === "Backspace" || e.key === "Delete") action = "delete";
     // Plain ⌘I is "Import audio…" (file-import): never taken here.
-  } else if (k === "e") action = useTimeSelection.getState().selection ? "split" : "split-tracks";
+  } else if (k === "e") action = hasSelection ? "split" : "split-tracks";
   return action && canRun(action, ctx) ? action : null;
+}
+
+/**
+ * The time action for a copy/cut/paste (key or the desktop Edit menu's clipboard event), or
+ * null for the clip clipboard: copy/cut need a time selection; paste needs the time
+ * clipboard to be the most recent copy.
+ */
+export function clipboardAction(kind: "copy" | "cut" | "paste" | null): TimeAction | null {
+  const { selection, clipboard } = useTimeSelection.getState();
+  if (kind === "paste") return clipboard ? "paste" : null;
+  if (kind === "copy" || kind === "cut") return rangeOf(selection) ? kind : null;
+  return null;
 }
 
 /** Right-click menu inside the time selection. */
@@ -202,12 +247,18 @@ export function timeSelectionMenu(transport: EngineTransport): ContextMenuEntry[
   const run = (a: TimeAction) => () => void runTimeAction(transport, a);
   const hasClipboard = useTimeSelection.getState().clipboard !== null;
   return [
-    { label: "Cut Time", shortcut: `⇧${MOD_KEY}X`, onSelect: run("cut") },
-    { label: "Copy Time", shortcut: `⇧${MOD_KEY}C`, onSelect: run("copy") },
+    { label: "Cut Time", shortcut: `${MOD_KEY}X`, onSelect: run("cut") },
+    { label: "Copy Time", shortcut: `${MOD_KEY}C`, onSelect: run("copy") },
+    {
+      label: "Paste After Selection",
+      shortcut: `${MOD_KEY}V`,
+      disabled: !hasClipboard,
+      onSelect: run("paste"),
+    },
     {
       label: "Paste Over Selection",
       disabled: !hasClipboard,
-      onSelect: run("paste"),
+      onSelect: () => void runTimeAction(transport, "paste", undefined, { over: true }),
     },
     {
       label: "Paste Time",
@@ -223,7 +274,7 @@ export function timeSelectionMenu(transport: EngineTransport): ContextMenuEntry[
     },
     {
       label: "Duplicate Time",
-      shortcut: `⇧${MOD_KEY}D`,
+      shortcut: `${MOD_KEY}D`,
       onSelect: run("duplicate"),
     },
     {
@@ -234,7 +285,7 @@ export function timeSelectionMenu(transport: EngineTransport): ContextMenuEntry[
     "separator",
     {
       label: "Delete Time",
-      shortcut: `⇧${MOD_KEY}⌫`,
+      shortcut: "⌫",
       danger: true,
       onSelect: run("delete"),
     },
@@ -249,7 +300,7 @@ export function inTimeSelection(
   toBeats: (lanePx: number) => number,
   headerWidth: number,
 ): boolean {
-  const sel = useTimeSelection.getState().selection;
+  const sel = rangeOf(useTimeSelection.getState().selection);
   if (!sel || x < headerWidth) return false;
   const b = toBeats(x - headerWidth);
   if (b < sel.start || b > sel.end) return false;

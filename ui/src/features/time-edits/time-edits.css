@@ -10,6 +10,29 @@
     inset calc(-1 * var(--eth-border-width)) 0 0 var(--eth-color-selection);
 }
 
+/* The insert marker (a zero-length time selection): a thin blinking accent line. */
+.eth-insert-marker {
+  position: absolute;
+  z-index: 2;
+  width: var(--eth-border-width-strong);
+  transform: translateX(-50%);
+  pointer-events: none;
+  background: var(--eth-color-accent);
+  animation: eth-insert-marker-blink 1s steps(2, start) infinite;
+}
+
+@keyframes eth-insert-marker-blink {
+  to {
+    visibility: hidden;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .eth-insert-marker {
+    animation: none;
+  }
+}
+
 .eth-time-notice {
   position: absolute;
   z-index: 6;
