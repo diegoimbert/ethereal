@@ -704,6 +704,31 @@ Design: docs/COLLAB.md §12. Additive; the tables ship with `.ether` v4 (contrac
   `CollabEvent::ChatReceived { ids }`. Until `collab-social` lands, `Chat::*` and
   `PinnedNote::*` reply `Unsupported` (`ether-controller/tests/social_prewire.rs`).
 
+### 11.18 Sharing: P2P host hub, invite links (base-115)
+Design: docs/SHARING.md (T1, owner review). Additive and append-only:
+- Protocol (`ether_protocol::share`): `Command::Share(ShareCommand)` (`Get`, `SetIdentity`,
+  `SetServers`, host `Start`/`Stop`/`ResetLink`/`RemoveParticipant`/`SetParticipantRole`,
+  joiner `OpenInvite`/`AcceptInvite`/`Leave`/`Reconnect`/`Detach`, web `PeerSignal`) and
+  `Event::Share { event: ShareEvent }` (`State { ShareState }`, `Notice`, web
+  `PeerEndpoint`/`PeerSignal`). `ShareState` = `Off | Hosting | Joining { JoinStage } |
+  Joined`; `Participant`, `ParticipantRole` (Host/Edit/Listen), `ShareRole` (Edit/Listen),
+  `InvitePreview`. `ProjectSummary::share: Option<ProjectShareInfo>` (omitted when `None`).
+  Signaling wire `SignalClientMessage`/`SignalServerMessage` (`SIGNAL_PROTOCOL_VERSION` 1)
+  and the data-channel handshake `PeerHandshake` (`SHARE_PROTOCOL_VERSION` 1), both exported
+  to TS. Until their nodes land every `Share::*` but `Get` (reports `Off`) replies
+  `Unsupported` (`ether-controller/tests/share_prewire.rs`).
+- `ether-collab::share`: invite link format (`invite`, implemented; TS mirror
+  `ui/src/domain/invite.ts`, same vectors), data-channel fragmentation (`dc`, implemented),
+  `share.json` shape (`file`), and the node seams `PeerLink`, `SignalLink`, `PeerEndpoint`
+  (`PeerOutput::Connected` carries both DTLS fingerprints), `ShareServices`
+  (`default_services()` fails cleanly until `p2p-transport`). The hub is the existing `Relay`.
+- `services/signal/`: Cloudflare Worker + Durable Object skeleton (routes, origin checks,
+  frame validation, limits; room logic by `signal-service`), a pnpm workspace package.
+- Mock: `MockShare` (`ui/src/transport/mock/roadmap/share.ts`) simulates hosting, joining,
+  participants and the host going offline, so UI nodes start now.
+- Workspace deps added (unused until their nodes): `sha2`, `tauri-plugin-deep-link`,
+  `tauri-plugin-single-instance`.
+
 ## 12. v0.2 contracts (contracts-3)
 
 Frozen for the v0.2 nodes; per-node files, hook points and shared touches are in
@@ -1308,3 +1333,43 @@ worklet fills a pre-sized buffer (no allocation).
    durable only through `project-versions`.
 5. **`engine.rs` was not pre-wired** (in-flight v0.2 nodes own it): `midi-expression` and
    `external-instrument` each add one call site for their (pre-built) RT state.
+## 13. Agent API (`agent-api`, owner request; docs/MCP.md)
+
+- Protocol (`ether_protocol::agent`, exported to TS): `Command::Agent(AgentCommand)`.
+  - `ListTools` replies `ReplyValue::AgentTools { tools: [AgentToolSpec { name, description,
+    input_schema }] }`. `input_schema` is a JSON Schema `object`, as JSON text.
+  - `CallTool { name, input }` (`input` is a JSON object, as text) replies
+    `ReplyValue::AgentToolResult { content, is_error }`. `content` is JSON text, or plain text
+    for errors. An unknown tool, invalid input (schema-checked) or rejected edit gives
+    `is_error: true`, never a `CommandError`. With no project open, every tool is an
+    `is_error` result.
+- Registry: `ether-controller/src/agent/**`, the same on native, `ether-server` and WASM.
+  An editing call is ONE undo step labelled `AI: <action>`, built from ordinary document
+  commands. It is replicated in collab, and its `Event::Patch`es come before the reply.
+  Read tools never edit.
+- Tool shapes (pinned with `ai-chat`): `create_track {kind: midi|audio|group|return, name?}`
+  → `{track_id}`; `create_midi_clip {track_id, start_beats, length_beats, name?}` →
+  `{clip_id}`; `add_notes {clip_id, notes: [{pitch 0-127, start_beats (clip-relative),
+  duration_beats, velocity 1-127}]}` → `{note_ids}`; `rename_track {track_id, name}`;
+  `delete_track {track_id}`; `set_track_mix {track_id, volume_db?, pan? (-1..1), mute?,
+  solo?}`; `set_tempo {bpm}`; `get_project_overview {}`; `get_clip_notes {clip_id}`;
+  `undo {}`; `redo {}`. Tools may add optional inputs and result fields, but never remove
+  or rename them. Every tool follows the same conventions: snake_case names, units in
+  field names (`*_beats` in quarter notes from the song or clip start, `*_db`), string
+  document ids, and JSON object results. Positions never depend on bar-line or
+  time-signature rules.
+- Desktop agent bridge (`apps/desktop/src-tauri/src/agent_bridge.rs` over
+  `ether_server::agent_bridge`):
+  - Opt-in, default off, persisted in `<app data dir>/config/agent.json`.
+  - Tauri commands: `agent_bridge_status() -> { enabled, port, connected_clients }` and
+    `agent_bridge_set_enabled(enabled) -> same`.
+  - While enabled: a remote-engine listener (§11.5) on `127.0.0.1:<random port>`, with a
+    fresh token, against the UI's engine. Bridge request ids start at `0x8000_0000` and
+    gesture ids at `0x4000_0000`. The UI never receives bridge replies, and gets every
+    event.
+  - Runtime file: `<app data dir>/agent-bridge.json` = `{port, token, pid, version}`,
+    mode 0600, deleted on disable and on quit.
+- `ether-mcp` (stdio MCP server, `rmcp`): forwards `tools/list` and `tools/call` to
+  `ListTools` and `CallTool`, and exposes the resource `ethereal://project/overview`.
+  Modes: desktop (runtime file), `--server URL --token T`, and `--project PATH` (embedded
+  headless engine).
