@@ -21,6 +21,8 @@ static ALLOC: assert_no_alloc::AllocDisabler = assert_no_alloc::AllocDisabler;
 /// skipped for them). APPEND-ONLY: each device node adds one line per type it implements.
 const IMPLEMENTED: &[BuiltinDeviceType] = &[
     // (device nodes append here)
+    BuiltinDeviceType::ExternalInstrument,
+    BuiltinDeviceType::ExternalAudioEffect,
 ];
 
 /// Mock descriptor file per group (`ui/src/transport/mock/devices/<file>.json`), owned by

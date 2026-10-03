@@ -68,7 +68,8 @@ enum Control {
         key: NodeKey,
         data: crate::node::NodeData,
     },
-    Swap(Box<RenderSnapshot>),
+    /// With the snapshot's hardware I/O state (`crate::hw_io`, `external-instrument`).
+    Swap(Box<RenderSnapshot>, Option<Box<crate::hw_io::HwIoRt>>),
     AddSource {
         media: MediaId,
         source: Arc<dyn AudioSource>,
@@ -92,6 +93,7 @@ enum Garbage {
     Data(#[allow(dead_code)] crate::node::NodeData),
     Source(#[allow(dead_code)] Arc<dyn AudioSource>),
     StreamTap(#[allow(dead_code)] Box<crate::stream_tap::StreamTapWriter>),
+    HwIo(#[allow(dead_code)] Box<crate::hw_io::HwIoRt>),
 }
 
 enum Output {
@@ -229,6 +231,7 @@ pub fn create(config: EngineConfig) -> EngineParts {
         compile_with(RenderGraphDesc::default(), &config, &|_| None).expect("empty graph compiles");
     let tempo_bpm = snapshot.tempo.bpm_at(0.0);
     let (analysis_rt, analysis_rx) = crate::analysis::AnalysisRt::new(config.sample_rate);
+    let (hw_io_rt, hw_io_handle) = crate::hw_io::channel(config.sample_rate);
     playhead.write(&PlayheadState {
         bpm: tempo_bpm,
         ..Default::default()
@@ -262,6 +265,7 @@ pub fn create(config: EngineConfig) -> EngineParts {
         executor: Box::new(crate::parallel::SequentialExecutor),
         warp: warp_rt,
         analysis: analysis_rt,
+        hw_io: hw_io_rt,
         beat_table: vec![0.0; config.max_block_size + 1],
         config: config.clone(),
     };
@@ -283,6 +287,7 @@ pub fn create(config: EngineConfig) -> EngineParts {
         latency: 0,
         warp: warp_handle,
         analysis: analysis_rx,
+        hw_io: hw_io_handle,
         config,
     };
     EngineParts {
@@ -328,6 +333,8 @@ pub struct Engine {
     pub(crate) warp: crate::warp::WarpRt,
     /// Device → UI analysis frames ([`crate::analysis`], v0.2).
     analysis: crate::analysis::AnalysisRt,
+    /// External devices' hardware sends/returns and MIDI out ([`crate::hw_io`], v0.3).
+    hw_io: crate::hw_io::HwIo,
     /// Exact beats of the current sub-block's samples on ramped tempo maps
     /// (`sched::Exact::beats`, `max_block_size + 1` entries).
     beat_table: Vec<f64>,
@@ -441,7 +448,10 @@ impl Engine {
                         self.retire(Garbage::Data(old));
                     }
                 }
-                Control::Swap(mut new) => {
+                Control::Swap(mut new, hw) => {
+                    if let Some(old) = self.hw_io.swap(hw) {
+                        self.retire(Garbage::HwIo(old));
+                    }
                     {
                         let old = &mut self.snapshot.rt;
                         let fresh = &mut new.rt;
@@ -681,6 +691,7 @@ impl Engine {
             stream_tap,
             executor,
             beat_table,
+            hw_io,
             ..
         } = self;
         let RenderSnapshot { desc, tempo, rt } = &mut **snapshot;
@@ -797,6 +808,8 @@ impl Engine {
         recording.process(&info, n, &desc.tracks, tracks);
         // VCA gains and automation for this sub-block (`crate::vca`), before the jobs.
         vcas.update(tracks, &timing, playing);
+        // Hardware returns of external devices (`crate::hw_io`), before the jobs.
+        hw_io.gather_returns(inputs, off, n, transport.sample_time);
 
         // --- tracks, level by level (`crate::parallel`) ---
         // Stopped with nothing live (no monitored input): only tails ring out, so keep the
@@ -823,6 +836,7 @@ impl Engine {
             },
             info: &info,
             timing: &timing,
+            hw: hw_io.table(),
         };
         for level in levels.iter() {
             let idx = &level_order[level.start..level.end];
@@ -859,6 +873,8 @@ impl Engine {
                 }
             }
         }
+        // --- external devices' hardware sends and MIDI (`crate::hw_io`), after master ---
+        hw_io.write_sends(outputs, off, n, transport.sample_time);
         // --- metronome (after master reached the hardware outputs; not metered) ---
         if transport.reset_nodes {
             metronome.reset();
@@ -1043,6 +1059,8 @@ struct JobCtx<'a> {
     flags: JobFlags,
     info: &'a TransportInfo,
     timing: &'a Timing<'a>,
+    /// External devices' entries (`crate::hw_io`): each reached by its node's job only.
+    hw: crate::hw_io::HwIoTable,
 }
 
 // SAFETY: the shared fields are `Sync` (checked below); the raw pointers are only
@@ -1383,18 +1401,38 @@ impl JobCtx<'_> {
                     events: entry.events.as_slice(),
                     out_events,
                 };
-                let mut buffers = AudioBuffers {
-                    inputs: &ins[..n_in],
-                    outputs: &mut outs[..n_out],
-                };
-                // Sidechain (`crate::sidechain`): a tapped source's aligned signal.
-                match entry
-                    .sidechain
-                    .and_then(|src| rt_sidechain.read(ti, k, src, n))
-                {
-                    Some(sc) => node.process_sidechain(&mut ctx, &mut buffers, &sc),
-                    None => node.process(&mut ctx, &mut buffers),
-                };
+                // External device (`crate::hw_io`): MIDI to the hardware, the return as its
+                // sidechain, its hardware send as outputs 2..4.
+                // SAFETY: `key` is in this track's chain (see `HwIoTable::get`).
+                if let Some(hw) = unsafe { self.hw.get(key) } {
+                    hw.push_events(entry.events.as_slice(), info.sample_time);
+                    let (ret, [sl, sr_]) = hw.split(n);
+                    let [o0, o1] = outs;
+                    let mut outs4: [&mut [f32]; 4] = [o0, o1, sl, sr_];
+                    let n_out4 = if n_out < 2 || outs4[2].is_empty() {
+                        n_out
+                    } else {
+                        4
+                    };
+                    let mut buffers = AudioBuffers {
+                        inputs: &ins[..n_in],
+                        outputs: &mut outs4[..n_out4],
+                    };
+                    node.process_sidechain(&mut ctx, &mut buffers, &ret);
+                } else {
+                    let mut buffers = AudioBuffers {
+                        inputs: &ins[..n_in],
+                        outputs: &mut outs[..n_out],
+                    };
+                    // Sidechain (`crate::sidechain`): a tapped source's aligned signal.
+                    match entry
+                        .sidechain
+                        .and_then(|src| rt_sidechain.read(ti, k, src, n))
+                    {
+                        Some(sc) => node.process_sidechain(&mut ctx, &mut buffers, &sc),
+                        None => node.process(&mut ctx, &mut buffers),
+                    };
+                }
             }
             *overflow |= out_events.overflowed();
             if !chain_racks.is_empty() {
@@ -1494,6 +1532,8 @@ pub struct EngineHandle {
     latency: u32,
     /// Analysis frames from the audio thread ([`crate::analysis`], v0.2).
     analysis: Consumer<crate::analysis::AnalysisFrame>,
+    /// Hardware I/O rings ([`crate::hw_io`], v0.3).
+    pub(crate) hw_io: crate::hw_io::HwIoHandle,
 }
 
 struct HandleSlot {
@@ -1614,7 +1654,8 @@ impl EngineHandle {
             })?
         };
         let latency = snapshot.latency();
-        self.send(Control::Swap(Box::new(snapshot)))?;
+        let hw = crate::hw_io::HwIoRt::for_graph(&snapshot.desc, self.config.max_block_size);
+        self.send(Control::Swap(Box::new(snapshot), hw))?;
         self.latency = latency;
         Ok(())
     }
