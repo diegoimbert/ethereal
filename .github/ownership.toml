@@ -1694,6 +1694,8 @@ paths = [
   "ui/src/app/shell/tabs.tsx",
   "ui/src/app/shell/LeftRail.tsx",
   "ui/src/app/shell/commands.ts",
+  # shared touch (BCR): one-word LeftTab union member "history"
+  "ui/src/app/shell/shellStore.ts",
 ]
 
 [nodes.templates]
@@ -1803,6 +1805,9 @@ paths = [
   "apps/web/e2e/ux-followups*.spec.ts",
   # shared touch (v0.3 grant): one additive state field + initializer on EtherController
   "crates/ether-controller/src/lib.rs",
+  # shared touch (BCR, layout only): Tempo-tab time-signature denominator clipping (base-108 follow-up)
+  "ui/src/features/tempo/tempo.css",
+  "ui/src/features/tempo/TempoEditor.tsx",
 ]
 
 [nodes.rack-presets]
