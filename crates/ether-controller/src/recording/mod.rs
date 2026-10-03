@@ -659,7 +659,7 @@ where
                 * doc.project.tempo_map().bpm_at(Beats(from.max(0.0)))
                 / 60.0;
             let expression =
-                crate::expression::record::recorded_expression(events, from, until, &notes, gap);
+                crate::expression::record::recorded_expression(events, from, &notes, gap);
             if notes.is_empty() && expression.is_empty() {
                 continue;
             }
@@ -670,6 +670,10 @@ where
                 .reduce(f64::max)
             {
                 until = until.max(last);
+            }
+            // v0.3: the clip also covers the recorded controller moves.
+            if let Some(last) = expression.end() {
+                until = until.max(from + last + MIN_LENGTH);
             }
             if n_groups == 1 {
                 midi_end = midi_end.max(until);

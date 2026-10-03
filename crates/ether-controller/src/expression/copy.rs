@@ -112,9 +112,10 @@ pub(crate) fn unroll_lanes(p: &Project, pieces: &[Piece]) -> Vec<(ExpressionKind
                     &mut out.last_mut().unwrap().1
                 }
             };
-            // Later pieces win where they overlap.
-            curve.retain(|q| q.time.0 < start || q.time.0 > end);
-            let i = curve.partition_point(|q| q.time.0 < start);
+            // Later pieces win where they overlap; a point already at `start` (the end of
+            // the previous piece) stays, so the curve jumps there.
+            curve.retain(|q| q.time.0 <= start || q.time.0 > end);
+            let i = curve.partition_point(|q| q.time.0 <= start);
             curve.splice(i..i, pts);
         }
     }

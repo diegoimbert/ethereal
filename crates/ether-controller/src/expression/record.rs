@@ -30,15 +30,22 @@ impl RecordedExpression {
     pub fn is_empty(&self) -> bool {
         self.lanes.is_empty() && self.note_pressure.is_empty()
     }
+
+    /// The last lane point (relative to the clip start), to size the clip.
+    pub fn end(&self) -> Option<f64> {
+        self.lanes
+            .iter()
+            .filter_map(|(_, c)| c.last().map(|p| p.time.0))
+            .reduce(f64::max)
+    }
 }
 
-/// The expression of `events` (absolute positions) in a clip starting at `start` whose
-/// recorded notes are `notes` (relative to `start`, from `notes_from_midi`). `gap`: the
-/// thinning window in beats.
+/// The expression of `events` (absolute positions, already limited to the kept range) in a
+/// clip starting at `start` whose recorded notes are `notes` (relative to `start`, from
+/// `notes_from_midi`). `gap`: the thinning window in beats.
 pub(crate) fn recorded_expression(
     events: &[RecordedMidi],
     start: f64,
-    end: f64,
     notes: &[NoteSpecDraft],
     gap: f64,
 ) -> RecordedExpression {
@@ -50,7 +57,7 @@ pub(crate) fn recorded_expression(
         curve: CurveShape::Step,
     };
     for e in events {
-        if e.position < start || e.position >= end {
+        if e.position < start {
             continue;
         }
         let t = e.position - start;
@@ -168,9 +175,9 @@ mod tests {
             ev(2.5, [0xE0, 0, 0x40]),
             ev(3.0, [0xD0, 64, 0]),
             ev(3.0, [0xB0, 123, 0]), // channel mode: not recorded
-            ev(9.0, [0xB0, 1, 5]),   // past the end
+            ev(0.5, [0xB0, 1, 5]),   // before the clip
         ];
-        let r = recorded_expression(&events, 1.0, 8.0, &[], 0.0);
+        let r = recorded_expression(&events, 1.0, &[], 0.0);
         let kinds: Vec<ExpressionKind> = r.lanes.iter().map(|l| l.0).collect();
         assert_eq!(
             kinds,
@@ -214,7 +221,7 @@ mod tests {
             ev(12.0, [0xA0, 64, 50]), // after the note: dropped
             ev(10.5, [0xA0, 61, 50]), // no such note
         ];
-        let r = recorded_expression(&events, 10.0, 20.0, &notes, 0.0);
+        let r = recorded_expression(&events, 10.0, &notes, 0.0);
         assert!(r.lanes.is_empty());
         assert_eq!(r.note_pressure.len(), 2);
         assert_eq!(r.note_pressure[0].0, 0);

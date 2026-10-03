@@ -24,7 +24,8 @@
 //! at offset 0 after a timeline jump (play, locate, loop wrap; [`ExpressionRt::reset`]).
 //! Each knot is evaluated at the exact beat of its sample (tempo ramps included). A message
 //! is sent only when its **quantized** value changes (7-bit CC/pressure, 14-bit bend; see
-//! [`lane_quantum`] / [`note_quantum`]), and after a jump every current value is re-sent.
+//! [`lane_quantum`] / [`note_quantum`]; a `NoteExpression` carries the quantized value,
+//! [`note_value`]), and after a jump every current value is re-sent.
 //! So an offline render is the same for every block size.
 //!
 //! Lane messages of a knot are pushed **before** the knot's note-ons (a bend set on a
@@ -178,6 +179,17 @@ pub fn note_quantum(kind: NoteExpressionKind, v: f32) -> u16 {
         NoteExpressionKind::Pressure | NoteExpressionKind::Timbre => {
             (v.clamp(0.0, 1.0) * 127.0).round() as u16
         }
+    }
+}
+
+/// The value a note-expression quantum stands for (what `NoteExpression::value` carries,
+/// so a rendering never depends on float error in the curve evaluation).
+pub fn note_value(kind: NoteExpressionKind, q: u16) -> f32 {
+    match kind {
+        NoteExpressionKind::Pitch => {
+            f32::from(q) / 128.0 - ether_protocol::model::MAX_NOTE_PITCH_OFFSET
+        }
+        NoteExpressionKind::Pressure | NoteExpressionKind::Timbre => f32::from(q) / 127.0,
     }
 }
 
@@ -525,7 +537,10 @@ impl ExpressionRt {
             if on >= off {
                 continue;
             }
-            knots.insert(on as usize, n.source.start);
+            if n.source.start >= timing.b0 - sched::EVENT_SHIFT {
+                // Started in this sub-block: its first value goes with the note-on.
+                knots.insert(on as usize, n.source.start);
+            }
             for c in cs {
                 let first = c
                     .points
@@ -583,7 +598,7 @@ impl ExpressionRt {
                             channel: 0,
                             key: n.key,
                             expression: c.kind,
-                            value: v,
+                            value: note_value(c.kind, q),
                         },
                     });
                 }
@@ -650,5 +665,19 @@ mod tests {
             note_quantum(NoteExpressionKind::Pitch, 0.01),
             note_quantum(NoteExpressionKind::Pitch, 0.0)
         );
+        for kind in [
+            NoteExpressionKind::Pitch,
+            NoteExpressionKind::Pressure,
+            NoteExpressionKind::Timbre,
+        ] {
+            let (lo, hi) = kind.range();
+            let step = (hi - lo) / f32::from(note_quantum(kind, hi) - note_quantum(kind, lo));
+            for v in [lo, hi, (lo + hi) / 2.0, lo + 0.3 * (hi - lo)] {
+                let back = note_value(kind, note_quantum(kind, v));
+                assert!((back - v).abs() <= step / 2.0 + 1e-6, "{kind:?} {v} {back}");
+            }
+            assert_eq!(note_value(kind, note_quantum(kind, lo)), lo);
+            assert_eq!(note_value(kind, note_quantum(kind, hi)), hi);
+        }
     }
 }

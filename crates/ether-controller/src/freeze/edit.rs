@@ -437,6 +437,37 @@ pub(crate) fn consolidate_midi(
         return Ok(());
     }
     let notes = played_notes(ctx.p(), track, start.0, end.0);
+    // v0.3 (`midi-expression`): read the expression before the new clip replaces the
+    // sources.
+    let note_exprs: Vec<Vec<NoteExpression>> = notes
+        .iter()
+        .map(|n| {
+            ctx.p()
+                .note_expressions_of(n.source)
+                .into_iter()
+                .cloned()
+                .collect()
+        })
+        .collect();
+    let mut pieces: Vec<crate::expression::copy::Piece> =
+        played_clips(ctx.p(), track, start.0, end.0)
+            .into_iter()
+            .flat_map(|c| {
+                clip_pieces(c).into_iter().filter_map(move |(song, c0, c1)| {
+                    // The piece clamped to `[start, end)`.
+                    let s0 = song.max(start.0);
+                    let s1 = (song + (c1 - c0)).min(end.0);
+                    (s1 > s0).then_some(crate::expression::copy::Piece {
+                        clip: c.id,
+                        at: s0 - start.0,
+                        c0: c0 + (s0 - song),
+                        c1: c0 + (s1 - song),
+                    })
+                })
+            })
+            .collect();
+    pieces.sort_by(|a, b| a.at.total_cmp(&b.at));
+    let lanes = crate::expression::copy::unroll_lanes(ctx.p(), &pieces);
     let name = ctx.track(track)?.name;
     doc::apply(
         ctx,
@@ -481,34 +512,16 @@ pub(crate) fn consolidate_midi(
     }
     // v0.3 (`midi-expression`): note expressions follow their notes, lanes are unrolled
     // into the new clip's content time (ids derived from the new clip / note).
-    for (n, spec) in notes.iter().zip(&specs_ids) {
-        let to = *spec;
-        crate::expression::copy::copy_note_expressions(ctx, n.source, to, |_, k| {
-            derive_id(to, k as u32)
-        })?;
+    for (exprs, &to) in note_exprs.into_iter().zip(&specs_ids) {
+        for (k, e) in exprs.into_iter().enumerate() {
+            ctx.tx.insert(Entity::NoteExpression(NoteExpression {
+                id: derive_id(to, k as u32),
+                note: to,
+                ..e
+            }))?;
+        }
     }
-    let pieces: Vec<crate::expression::copy::Piece> = played_clips(ctx.p(), track, start.0, end.0)
-        .into_iter()
-        .flat_map(|c| {
-            clip_pieces(c).into_iter().filter_map(move |(song, c0, c1)| {
-                // Clamp the piece to `[start, end)`.
-                let s0 = song.max(start.0);
-                let s1 = (song + (c1 - c0)).min(end.0);
-                (s1 > s0).then_some(crate::expression::copy::Piece {
-                    clip: c.id,
-                    at: s0 - start.0,
-                    c0: c0 + (s0 - song),
-                    c1: c0 + (s1 - song),
-                })
-            })
-        })
-        .collect();
-    let mut pieces = pieces;
-    pieces.sort_by(|a, b| a.at.total_cmp(&b.at));
-    for (k, (kind, points)) in crate::expression::copy::unroll_lanes(ctx.p(), &pieces)
-        .into_iter()
-        .enumerate()
-    {
+    for (k, (kind, points)) in lanes.into_iter().enumerate() {
         ctx.tx.insert(Entity::ExpressionLane(ExpressionLane {
             id: derive_id(clip, 0x4558_0000 + k as u32),
             clip,
