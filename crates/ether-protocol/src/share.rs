@@ -84,6 +84,16 @@ pub enum ShareCommand {
         signal_url: Option<String>,
         invite_origin: Option<String>,
     },
+    /// This user's sharing preferences (sent by the UI at startup with `SetIdentity`, and
+    /// when changed in Settings). `resume_on_open`: reopening a shared project resumes
+    /// sharing (decision 13). `auto_listen`: joining with a listen link starts `Listen` on
+    /// the host (§2.3). `relay_only`: hide this device's IP (web: `iceTransportPolicy:
+    /// "relay"`; native: host/srflx candidates dropped; needs a TURN server). Replies `Unit`.
+    SetPreferences {
+        resume_on_open: bool,
+        auto_listen: bool,
+        relay_only: bool,
+    },
     // ─── host ───
     /// Share the open project: (re)open its room on the signaling service, start the hub,
     /// and join it as the host site. A project shared before resumes with the same links.
@@ -149,6 +159,9 @@ pub enum PeerEndpointAction {
     Open {
         offer: bool,
         ice_servers: Vec<IceServer>,
+        /// `ShareCommand::SetPreferences { relay_only }`: `iceTransportPolicy: "relay"`.
+        #[serde(default)]
+        relay_only: bool,
     },
     Close,
 }
@@ -276,6 +289,10 @@ pub struct Participant {
     pub online: bool,
     /// This user.
     pub you: bool,
+    /// When an offline member was last connected (ms since the Unix epoch, from
+    /// `share.json`); `None` while online or never seen.
+    #[serde(default)]
+    pub last_seen_ms: Option<f64>,
 }
 
 /// Name + colour, for avatars.
@@ -381,6 +398,7 @@ pub enum SignalServerMessage {
     HostWelcome {
         ice_servers: Vec<IceServer>,
         /// The room is forgotten this long after the host was last connected.
+        #[ts(type = "number")]
         room_ttl_s: u64,
     },
     /// Host: a joiner passed a door. The joiner offers; the host answers.

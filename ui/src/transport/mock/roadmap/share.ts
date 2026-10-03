@@ -36,6 +36,8 @@ export class MockShare {
   name = "Me";
   color: Color | null = null;
   inviteOrigin = DEFAULT_ORIGIN;
+  /** Last `SetPreferences` (the engine applies these; the mock only records them). */
+  preferences = { resumeOnOpen: true, autoListen: true, relayOnly: false };
   private room = "";
   private keys: Record<ShareRole, string> = { Edit: "", Listen: "" };
   private nextMember = 1;
@@ -56,6 +58,9 @@ export class MockShare {
       }
       case "SetServers":
         this.inviteOrigin = c.invite_origin ?? DEFAULT_ORIGIN;
+        return UNIT;
+      case "SetPreferences":
+        this.preferences = { resumeOnOpen: c.resume_on_open, autoListen: c.auto_listen, relayOnly: c.relay_only };
         return UNIT;
       case "Start": {
         const project = this.host.project().id;
@@ -168,7 +173,7 @@ export class MockShare {
   simulateJoin(name: string, role: ShareRole, color: Color = 0xff94a6): string {
     const s = this.requireHosting();
     const member = `member-${this.nextMember++}`;
-    const p: Participant = { member, site: String(100 + this.nextMember), name, color, role, online: true, you: false };
+    const p: Participant = { member, site: String(100 + this.nextMember), name, color, role, online: true, you: false, last_seen_ms: null };
     this.state = { ...s, participants: [...s.participants, p] };
     this.emit();
     this.notice({ type: "ParticipantJoined", name, color });
@@ -180,7 +185,7 @@ export class MockShare {
     const s = this.requireHosting();
     const p = s.participants.find((x) => x.member === member);
     if (!p) return;
-    this.state = { ...s, participants: s.participants.map((x) => (x === p ? { ...x, online: false, site: null } : x)) };
+    this.state = { ...s, participants: s.participants.map((x) => (x === p ? { ...x, online: false, site: null, last_seen_ms: Date.now() } : x)) };
     this.emit();
     this.notice({ type: "ParticipantLeft", name: p.name });
   }
@@ -199,11 +204,11 @@ export class MockShare {
   }
 
   private me(role: Participant["role"]): Participant {
-    return { member: role === "Host" ? null : "me", site: "1", name: this.name, color: this.color ?? 0xffb454, role, online: true, you: true };
+    return { member: role === "Host" ? null : "me", site: "1", name: this.name, color: this.color ?? 0xffb454, role, online: true, you: true, last_seen_ms: null };
   }
 
   private mockHost(): Participant {
-    return { member: null, site: "2", name: "Mock host", color: MOCK_HOST_COLOR, role: "Host", online: true, you: false };
+    return { member: null, site: "2", name: "Mock host", color: MOCK_HOST_COLOR, role: "Host", online: true, you: false, last_seen_ms: null };
   }
 
   private requireHosting(): Extract<ShareState, { type: "Hosting" }> {

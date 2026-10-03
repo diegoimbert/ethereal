@@ -56,6 +56,11 @@ fn everything_else_is_unsupported_until_its_node_lands() {
             signal_url: None,
             invite_origin: None,
         },
+        ShareCommand::SetPreferences {
+            resume_on_open: true,
+            auto_listen: true,
+            relay_only: false,
+        },
         ShareCommand::Start,
         ShareCommand::Stop,
         ShareCommand::ResetLink {
