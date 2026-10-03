@@ -16,9 +16,10 @@ use ether_core::protocol::model::{
 use ether_core::{EngineOutputs, NodeKey, ParamChange, RenderGraphDesc, TransportControl};
 use ether_media::DecodedAudio;
 
+use crate::latency::{LatencyReport, LatencyTable};
 use crate::proto::{
-    EngineMsg, EngineReport, PREVIEW_MEDIA, REPORT_ANALYSIS, REPORT_ERROR, REPORT_STATE,
-    decode_analysis,
+    EngineMsg, EngineReport, PREVIEW_MEDIA, REPORT_ANALYSIS, REPORT_ERROR, REPORT_LATENCY,
+    REPORT_STATE, decode_analysis,
 };
 use crate::ring::{RingMemory, RingReader, RingWriter};
 
@@ -38,6 +39,9 @@ pub struct BridgeShared<M: RingMemory> {
     pub blocks: u64,
     /// Analysis frames received since the last `EngineBridge::poll_analysis` (virtual keys).
     pub analysis: Vec<AnalysisFrame>,
+    /// `web-latency`: latest node latencies reported by the Worklet (virtual keys), read by
+    /// `EngineBridge::node_latency`.
+    pub latencies: LatencyTable,
 }
 
 impl<M: RingMemory> BridgeShared<M> {
@@ -48,6 +52,7 @@ impl<M: RingMemory> BridgeShared<M> {
             errors,
             blocks,
             analysis,
+            latencies,
             ..
         } = self;
         reports.drain(REPORT_BUDGET, |bytes| {
@@ -85,6 +90,10 @@ impl<M: RingMemory> BridgeShared<M> {
                     }
                     Err(e) => errors.push(format!("bad analysis report: {e}")),
                 },
+                Some(&REPORT_LATENCY) => match LatencyReport::decode(bytes) {
+                    Ok(r) => latencies.apply(&r),
+                    Err(e) => errors.push(format!("bad latency report: {e}")),
+                },
                 Some(&REPORT_ERROR) => {
                     errors.push(String::from_utf8_lossy(&bytes[1..]).into_owned())
                 }
@@ -108,6 +117,7 @@ pub fn shared<M: RingMemory>(control: M, reports: M) -> Shared<M> {
         errors: Vec::new(),
         blocks: 0,
         analysis: Vec::new(),
+        latencies: LatencyTable::default(),
     }))
 }
 
@@ -149,6 +159,7 @@ impl<M: RingMemory> EngineBridge for WebBridge<M> {
             generation: 1,
         };
         self.devices.insert(device, (key, kind.device_type()));
+        self.shared.borrow_mut().latencies.track(key);
         self.send(EngineMsg::CreateBuiltin {
             key,
             device: kind.clone(),
@@ -170,6 +181,7 @@ impl<M: RingMemory> EngineBridge for WebBridge<M> {
 
     fn destroy_node(&mut self, key: NodeKey) -> Result<(), BridgeError> {
         self.devices.retain(|_, (k, _)| *k != key);
+        self.shared.borrow_mut().latencies.forget(key);
         self.send(EngineMsg::DestroyNode { key });
         Ok(())
     }
@@ -260,6 +272,13 @@ impl<M: RingMemory> EngineBridge for WebBridge<M> {
     fn watch_analysis(&mut self, node: NodeKey, on: bool) -> Result<(), BridgeError> {
         self.send(EngineMsg::WatchAnalysis { key: node, on });
         Ok(())
+    }
+
+    /// `web-latency`: the latest latency the Worklet reported for `key` (drained by
+    /// [`EngineBridge::poll`]); `None` while it still has the latency it was created with,
+    /// which the Worklet's engine already compiles PDC with.
+    fn node_latency(&self, key: NodeKey) -> Option<u32> {
+        self.shared.borrow().latencies.get(key)
     }
 }
 
