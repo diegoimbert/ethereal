@@ -983,6 +983,12 @@ paths = [
 
 [nodes.multisampler]
 paths = [
+  # BCR (base-99): create() passes the SampleResolver; in-place zone updates; zone editor UI + renderer case
+  "crates/ether-devices/src/lib.rs",
+  "crates/ether-controller/src/engine.rs",
+  "ui/src/features/devices/layout/zones/**",
+  "ui/src/features/devices/layout/Widget.tsx",
+  "ui/src/features/devices/layout/widgets/data.tsx",
   # base-86: append-only line(s) in the IMPLEMENTED list of this test
   "crates/ether-devices/tests/v02_descriptors.rs",
   "crates/ether-devices/src/multisampler/**",
@@ -1258,6 +1264,8 @@ paths = [
 
 [nodes.browser-v2]
 paths = [
+  # BCR (base-99): the controller's browser state field (+ Default in with_config)
+  "crates/ether-controller/src/lib.rs",
   "crates/ether-controller/src/browser/**",
   "ui/src/features/browser/v2/**",
   "ui/src/transport/mock/roadmap/browserV2.*",
