@@ -13,7 +13,7 @@ import { fileURLToPath } from "node:url";
 import { expect, test, type Page } from "@playwright/test";
 import type { Clip, Project } from "@/generated";
 import { openClip } from "./clips";
-import { addDevice, createTrack, openDeviceTab, openEditor, pickOption, playButton, selectTrack } from "./ui";
+import { addDevice, createTrack, openDeviceTab, openEditor, pickOption, playButton, selectTrack, openRelayJoin } from "./ui";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const shots = process.env.UX_SHOTS;
@@ -168,7 +168,8 @@ test.describe("collab", () => {
   });
 
   async function join(page: Page, name: string) {
-    await page.getByTestId("collab-button").click();
+    // The relay join moved to Settings > Advanced with the Share redesign (#202).
+    await openRelayJoin(page);
     await page.getByLabel("Relay address").fill(relayUrl);
     await page.getByLabel("Session").fill(SESSION);
     await page.getByLabel("Your name").fill(name);
