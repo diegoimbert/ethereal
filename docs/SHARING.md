@@ -320,7 +320,7 @@ existing file API, so the same code works natively, on OPFS and in memory.
   `join-flow` node checks and adds a `_redirects` rule `/join/* /index.html 200` if needed).
   `apps/web/src/main.tsx` checks `location.pathname` for `/join/` **before booting the
   engine** and renders the lightweight **join landing**:
-  - "**Diego's Ethereal invited you**" is not known yet (the name comes from the host, §4.3),
+  - The host's name is not known yet (it comes from the host after authentication, §4.3),
     so the landing says "You've been invited to an Ethereal project" with two buttons:
     **Open in the app** (`ethereal://join/<same tail>`; if the page is still visible after
     1.5 s, it shows "Don't have the app? Download it" next to the button) and **Continue in
