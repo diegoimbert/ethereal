@@ -279,20 +279,26 @@ impl Drums {
         }
         let keys = [opts.kick_key, opts.snare_key, opts.hihat_key];
         let mut notes = Vec::new();
-        for (&t, nb) in times.iter().zip(&norm) {
-            // Hats are often far quieter than the backbeat: a lower bar.
-            let mut hit = [nb[0] >= tau, nb[1] >= tau, nb[2] >= 0.5 * tau];
+        for ((&t, g), nb) in times.iter().zip(gains).zip(&norm) {
+            // Each band is judged against its own typical gain (`nb`), and must also be a
+            // real share of what this onset gained: a kind of drum absent from the file
+            // would otherwise be "typical" at the level of the others' leakage.
+            let total = (g[0] + g[1] + g[2]).max(1e-12);
+            let top = (g[1] + g[2]).max(1e-12);
+            let share = [g[0] / total, g[1] / top, g[2] / top];
+            let mut hit = [
+                nb[0] >= tau && share[0] >= 0.1,
+                nb[1] >= tau && share[1] >= 0.15,
+                // Hats are often far quieter than the backbeat: a lower bar.
+                nb[2] >= 0.5 * tau && share[2] >= 0.15,
+            ];
             // A snare's own top end is not a hat.
             if hit[1] && hit[2] {
                 hit[2] = nb[2] >= 0.5 * nb[1];
             }
             if !hit.iter().any(|h| *h) {
-                let (b, v) = nb
-                    .iter()
-                    .enumerate()
-                    .max_by(|a, b| a.1.total_cmp(b.1))
-                    .unwrap();
-                if *v >= tau * 0.5 {
+                let b = (0..3).max_by(|&a, &b| share[a].total_cmp(&share[b])).unwrap();
+                if nb[b] >= tau * 0.5 {
                     hit[b] = true;
                 }
             }

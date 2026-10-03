@@ -246,30 +246,29 @@ fn capture_midi_replies_unsupported() {
     assert_unsupported(&mut h, Command::Capture(CaptureCommand::Clear));
 }
 
+/// Implemented (`audio-to-midi`; behaviour in `tests/audio_to_midi.rs`): a MIDI clip is
+/// refused without touching the document, cancelling an unknown job is a no-op.
 #[test]
-fn audio_to_midi_replies_unsupported() {
+fn audio_to_midi_is_implemented() {
     let mut h = Harness::with_project();
     let (_, clip, _) = midi_clip(&mut h);
     let (track, new_clip, seed_notes) = (h.id(), h.id(), h.id());
-    assert_unsupported(
-        &mut h,
-        Command::AudioToMidi(AudioToMidiCommand::Start {
-            job: "job-1".into(),
-            clip,
-            mode: AudioToMidiMode::Melody,
-            options: AudioToMidiOptions::default(),
-            track,
-            new_clip,
-            seed_notes,
-            instrument: None,
-        }),
-    );
-    assert_unsupported(
-        &mut h,
-        Command::AudioToMidi(AudioToMidiCommand::Cancel {
-            job: "job-1".into(),
-        }),
-    );
+    let before = h.project().clone();
+    let out = h.send(Command::AudioToMidi(AudioToMidiCommand::Start {
+        job: "job-1".into(),
+        clip,
+        mode: AudioToMidiMode::Melody,
+        options: AudioToMidiOptions::default(),
+        track,
+        new_clip,
+        seed_notes,
+        instrument: None,
+    }));
+    assert_eq!(err(&out).code, ErrorCode::InvalidArgument);
+    assert_eq!(h.project(), &before);
+    h.ok(Command::AudioToMidi(AudioToMidiCommand::Cancel {
+        job: "job-1".into(),
+    }));
 }
 
 #[test]
