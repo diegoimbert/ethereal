@@ -571,7 +571,7 @@ fn token_of(sdp: &str, prefix: &str) -> Option<u64> {
 }
 
 impl PeerEndpoint for FakeEndpoint {
-    fn open(&mut self, peer: PeerId, offer: bool, _ice: &[IceServer]) {
+    fn open(&mut self, peer: PeerId, offer: bool, _ice: &[IceServer], _relay_only: bool) {
         if !offer {
             return;
         }
@@ -758,8 +758,8 @@ mod tests {
         };
         let mut he = net.endpoint("sha-256 HH");
         let mut je = net.endpoint("sha-256 JJ");
-        he.open(peer, false, &[]);
-        je.open(jp, true, &[]);
+        he.open(peer, false, &[], false);
+        je.open(jp, true, &[], false);
         let mut out = Vec::new();
         je.poll(&mut out);
         let Some(PeerOutput::Signal { signal, .. }) = out.pop() else {

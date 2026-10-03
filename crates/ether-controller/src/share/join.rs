@@ -486,7 +486,7 @@ where
                     d.offline = false;
                     d.since = now;
                     let ice = peer_ice(ice_override.as_deref(), &ice_servers, relay_only);
-                    services.peers.open(peer, true, &ice);
+                    services.peers.open(peer, true, &ice, relay_only);
                     events.push(DialEvent::Arrived);
                 }
                 SignalServerMessage::HostOffline { last_seen_ms } => {

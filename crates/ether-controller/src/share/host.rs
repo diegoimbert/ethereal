@@ -482,7 +482,10 @@ where
                         &h.ice,
                         self.share.prefs.relay_only,
                     );
-                    self.share_services().peers.open(peer, false, &ice);
+                    let relay_only = self.share.prefs.relay_only;
+                    self.share_services()
+                        .peers
+                        .open(peer, false, &ice, relay_only);
                     h.pairings.insert(
                         peer,
                         Pairing {
