@@ -150,7 +150,7 @@ import { externalCommand } from "./roadmap/external";
 import { keymapCommand } from "./roadmap/keymap";
 import { templateCommand } from "./roadmap/templates";
 import { historyCommand } from "./roadmap/undoHistory";
-import { versionCommand } from "./roadmap/versions";
+import { MockVersions } from "./roadmap/versions";
 
 export interface MockTransportOptions {
   /**
@@ -326,6 +326,27 @@ export class MockTransport implements EngineTransport {
         return UNIT;
       }),
   });
+
+  /** `project-versions`: rolling versions and crash recovery (`simulateCrash` for tests). */
+  readonly versions = new MockVersions(
+    {
+      project: () => this.project,
+      revision: () => this.revision,
+      now: () => this.wallNow(),
+      emit: (event) => this.emit(event),
+      summaries: () => this.summaries(),
+      savedJson: (id) => this.store.get(id)?.json,
+      replaceDocument: (project) => {
+        this.loadProject(project);
+        this.setDirty(true);
+      },
+      saveIfDirty: () => {
+        if (this.dirty) this.saveCurrent();
+      },
+    },
+    parseEtherFile,
+    serializeEtherFile,
+  );
 
   constructor(opts: MockTransportOptions = {}) {
     this.manual = opts.timers === "manual";
@@ -503,7 +524,7 @@ export class MockTransport implements EngineTransport {
         if (command.command.type === "Insert") break;
         return templateCommand(command.command);
       case "Version":
-        return versionCommand(command.command);
+        return this.versions.command(command.command);
       case "Keymap":
         return keymapCommand(command.command);
       default:
@@ -1044,6 +1065,7 @@ export class MockTransport implements EngineTransport {
     this.freeze.step();
     this.preview.step();
     this.liveRecord.step();
+    this.versions.step();
   }
 
   private emitPlayhead(): void {

@@ -567,6 +567,8 @@ where
     capture: capture::CaptureState,
     /// v0.3: the running audio-to-MIDI job (`audio_to_midi` module).
     audio_to_midi: audio_to_midi::AudioToMidiState,
+    /// v0.3: rolling versions and the crash-recovery session marker (`versions` module).
+    versions: versions::VersionsState,
     next_gesture: u32,
     last_transport: Option<TransportState>,
     outputs: EngineOutputs,
@@ -619,6 +621,7 @@ where
             time_edit: Default::default(),
             capture: Default::default(),
             audio_to_midi: Default::default(),
+            versions: Default::default(),
             // Internal gestures (plugin GUI, tap tempo) live in the upper half of the id
             // space, away from UI-allocated ones.
             next_gesture: 0x8000_0000,
