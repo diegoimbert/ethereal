@@ -382,6 +382,10 @@ export const size = {
   // Piano roll.
   gridStepLabelMinWidth: "3.5em",
   loopBarHeight: "8px",
+  /** Note-stretch bar on the piano-roll ruler: height, edge marker width, extra grab area below. */
+  noteStretchBarHeight: "6px",
+  noteStretchEdgeWidth: "4px",
+  noteStretchHitExtra: "4px",
   velocityBarWidth: "4px",
   // Browser, plugins, project, recording, transport.
   browserRowHeight: "24px",
