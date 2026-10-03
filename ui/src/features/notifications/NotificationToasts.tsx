@@ -1,12 +1,5 @@
-import { useEffect } from "react";
 import { Toast } from "@/kit";
-import type { EngineTransport } from "@/transport";
-import { onNotificationEvent, toastLook, useNotices } from "./store";
-
-/** Turn the engine's `Event::Notification`s into notices while mounted. */
-export function useEngineNotifications(transport: EngineTransport | null): void {
-  useEffect(() => transport?.onEvent(onNotificationEvent), [transport]);
-}
+import { toastLook, useNotices } from "./store";
 
 /**
  * The notices as kit toasts (Info auto-dismissed, Warning/Error kept until dismissed). Render
@@ -42,9 +35,4 @@ export function NotificationToastItems() {
       })}
     </>
   );
-}
-
-/** Whether there is anything to show (the shared stack renders only then). */
-export function useHasNotices(): boolean {
-  return useNotices((s) => s.notices.length > 0);
 }

@@ -26,9 +26,7 @@ describe("engine notifications as toasts", () => {
   it("turns Event::Notification into a notice (as a sentence) and ignores other events", () => {
     onNotificationEvent({ type: "Notification", level: "Info", message: "left the collaboration session (another project was opened)" });
     onNotificationEvent({ type: "Project", event: { type: "DirtyChanged", dirty: true } });
-    expect(useNotices.getState().notices).toMatchObject([
-      { level: "Info", message: "Left the collaboration session (another project was opened)" },
-    ]);
+    expect(useNotices.getState().notices).toMatchObject([{ level: "Info", message: "Left the collaboration session (another project was opened)" }]);
     expect(sentence("  ")).toBe("");
   });
 

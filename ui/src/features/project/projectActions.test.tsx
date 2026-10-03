@@ -123,8 +123,7 @@ describe("open project actions", () => {
 });
 
 describe("leave-session warning", () => {
-  const goOnline = () =>
-    act(() => useCollabStore.setState({ status: { type: "Online", session: "jam", site: "1" } }));
+  const goOnline = () => act(() => useCollabStore.setState({ status: { type: "Online", session: "jam", site: "1" } }));
 
   it("asks before opening another project while in a session", async () => {
     const { mock } = await renderWithMock(<ProjectMenu />);

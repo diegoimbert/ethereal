@@ -8,14 +8,10 @@ import { useEngineCommands } from "@/features/transport-bar/engine";
 import { Button } from "@/kit";
 import { useProjectStore } from "@/state";
 import { cmd } from "@/transport";
-import { LeaveSessionDialog } from "./leaveGuard";
+import { LeaveSessionDialog } from "./LeaveSessionDialog";
 import { ProjectScreen } from "./ProjectScreen";
 import { useProjectScreen } from "./screenStore";
 import { useRecordSessionProjects } from "./sessionMarks";
-
-export { closeAndDelete, duplicateProject, exportProject, importProject, saveProject, saveProjectAs } from "./actions";
-export { guardLeave } from "./leaveGuard";
-export { useProjectScreen } from "./screenStore";
 
 /**
  * Project menu: the Projects button, current project name and unsaved-changes dot. The

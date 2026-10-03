@@ -2,7 +2,6 @@
 // collaboration session ends this device's part in it (the engine leaves when the open
 // project changes). Ask first; on "Leave & open" leave explicitly, then run the action.
 import { create } from "zustand";
-import { Button, Dialog } from "@/kit";
 import { useCollabStore } from "@/features/collab/store";
 import { cmd, type EngineTransport } from "@/transport";
 
@@ -44,13 +43,15 @@ export function guardLeave(action: () => void | Promise<unknown>, confirm = "Lea
   );
 }
 
-function cancel() {
+/** "Cancel" (or Escape): the action does not run. */
+export function cancelLeave() {
   const p = useLeaveGuard.getState().pending;
   useLeaveGuard.setState({ pending: null });
   p?.settle(false);
 }
 
-async function confirmLeave(transport: EngineTransport | null) {
+/** "Leave & open": leave the session, then run the action. */
+export async function confirmLeave(transport: EngineTransport | null) {
   const p = useLeaveGuard.getState().pending;
   useLeaveGuard.setState({ pending: null });
   if (!p) return;
@@ -58,29 +59,4 @@ async function confirmLeave(transport: EngineTransport | null) {
   await transport?.send(cmd("Collab", { type: "Leave" })).catch(() => undefined);
   p.settle(true);
   void p.action();
-}
-
-/** The confirmation dialog (mounted once, by the project menu). */
-export function LeaveSessionDialog({ transport }: { transport: EngineTransport | null }) {
-  const pending = useLeaveGuard((s) => s.pending);
-  return (
-    <Dialog
-      open={pending !== null}
-      onClose={cancel}
-      title={pending ? `Leave the “${pending.session}” session?` : ""}
-      footer={
-        <>
-          <Button onClick={cancel}>Cancel</Button>
-          <Button tone="danger" onClick={() => void confirmLeave(transport)}>
-            {pending?.confirm ?? "Leave & open"}
-          </Button>
-        </>
-      }
-    >
-      <p className="eth-project-screen__hint">
-        You stop collaborating on this session&apos;s project. Your copy stays in your projects: join the session again to keep working with the
-        others.
-      </p>
-    </Dialog>
-  );
 }

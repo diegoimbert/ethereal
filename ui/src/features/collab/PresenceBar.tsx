@@ -335,7 +335,7 @@ function PresenceBarWith({ transport }: { transport: EngineTransport }) {
               <TextInput aria-label="Token" type="password" autoComplete="off" value={token} onChange={(e) => setToken(e.target.value)} />
             </label>
             <div className="eth-collab__remember">
-              <Toggle size="sm" checked={remember} onChange={setRemember} label="Remember token" />
+              <Toggle size="sm" checked={remember} onChange={setRemember} label="Remember" />
               <p className="eth-collab__hint">
                 {tokens.where === "app"
                   ? "Kept in Ethereal's app data folder on this computer."

@@ -3,7 +3,7 @@ import { act, fireEvent, screen, waitFor, within } from "@testing-library/react"
 import { afterEach, describe, expect, it } from "vitest";
 import { useCollabStore } from "@/features/collab/store";
 import { useNotices } from "@/features/notifications";
-import { useProjectScreen } from "@/features/project";
+import { useProjectScreen } from "@/features/project/screenStore";
 import { renderWithMock, resetStores } from "@/features/transport-bar/testUtils";
 import { useProjectStore } from "@/state";
 import { CommandPalette } from "./CommandPalette";
