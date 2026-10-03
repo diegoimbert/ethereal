@@ -4,6 +4,14 @@ import type { BeatRange, Beats } from "@/generated";
 
 export type LoopHandle = "start" | "end" | "move";
 
+/** Width in px of the resize zone at each end of the loop brace. */
+export const LOOP_EDGE_PX = 5;
+
+/** Which part of the loop brace a pointer `offset` px from its left edge grabs (pure). */
+export function loopHandleAt(offset: number, width: number): LoopHandle {
+  return offset <= LOOP_EDGE_PX ? "start" : offset >= width - LOOP_EDGE_PX ? "end" : "move";
+}
+
 /** Minimum loop length in beats. */
 export const MIN_LOOP_BEATS = 1 / 16;
 

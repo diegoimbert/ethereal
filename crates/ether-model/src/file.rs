@@ -1,7 +1,7 @@
 //! The `.ether` file format: versioned JSON with migrations from day one.
 //!
 //! ```json
-//! { "format": "ethereal-project", "version": 4, "app_version": "0.2.0", "project": { ... } }
+//! { "format": "ethereal-project", "version": 5, "app_version": "0.3.0", "project": { ... } }
 //! ```
 //!
 //! Loading: parse to `serde_json::Value`, read `version`, run every migration from that
@@ -20,7 +20,7 @@ use crate::project::Project;
 /// Magic string in the `format` field.
 pub const FORMAT_TAG: &str = "ethereal-project";
 /// Current `.ether` version. Bump + add a [`Migration`] for every breaking schema change.
-pub const CURRENT_VERSION: u32 = 4;
+pub const CURRENT_VERSION: u32 = 5;
 /// File extension (without dot).
 pub const EXTENSION: &str = "ether";
 /// Document file name inside a project folder.
@@ -54,6 +54,7 @@ pub fn migrations() -> Vec<Box<dyn Migration>> {
         Box::new(V1RemoveSession),
         Box::new(V2RoadmapDefaults),
         Box::new(V3ContractsV3Defaults),
+        Box::new(V4ContractsV4Defaults),
     ]
 }
 
@@ -260,6 +261,38 @@ impl Migration for V3ContractsV3Defaults {
                 m.entry("location".to_string())
                     .or_insert(json!({"type": "Project"}));
             }
+        }
+        Ok(())
+    }
+}
+
+/// v4 → v5: v0.3 (contracts-4) tables, all neutral (a migrated project sounds and behaves
+/// exactly as before).
+///
+/// - tables `expression_lanes`, `note_expressions` (empty);
+/// - `Track::mpe` stays absent (= `None`, plain MIDI).
+///
+/// The bump makes a v0.2 app refuse v5 files (`TooNew`) instead of silently dropping MIDI
+/// expression (CC/bend/pressure lanes, MPE curves) and the v0.3 devices on re-save. Fields
+/// already present are kept (idempotent).
+pub struct V4ContractsV4Defaults;
+
+impl Migration for V4ContractsV4Defaults {
+    fn source_version(&self) -> u32 {
+        4
+    }
+
+    fn migrate(&self, doc: &mut serde_json::Value) -> Result<(), FileError> {
+        let project = doc["project"]
+            .as_object_mut()
+            .ok_or_else(|| FileError::Migration {
+                from: 4,
+                message: "no project object".into(),
+            })?;
+        for table in ["expression_lanes", "note_expressions"] {
+            project
+                .entry(table.to_string())
+                .or_insert(serde_json::json!({}));
         }
         Ok(())
     }
@@ -489,6 +522,21 @@ mod tests {
             "chat",
             "pinned_notes",
         ] {
+            assert!(project.remove(t).is_some(), "{t}");
+        }
+        assert_eq!(load(&doc.to_string()).unwrap(), p);
+    }
+
+    #[test]
+    fn v4_migration_is_idempotent_and_neutral() {
+        let p = project();
+        let mut doc: serde_json::Value = serde_json::from_str(&save(&p, "0.3.0").unwrap()).unwrap();
+        let before = doc.clone();
+        V4ContractsV4Defaults.migrate(&mut doc).unwrap();
+        assert_eq!(doc, before);
+        doc["version"] = 4.into();
+        let project = doc["project"].as_object_mut().unwrap();
+        for t in ["expression_lanes", "note_expressions"] {
             assert!(project.remove(t).is_some(), "{t}");
         }
         assert_eq!(load(&doc.to_string()).unwrap(), p);

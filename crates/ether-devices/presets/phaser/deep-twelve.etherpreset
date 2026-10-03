@@ -1,0 +1,33 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "Deep Twelve",
+    "device": {
+      "type": "Builtin",
+      "device": "Phaser"
+    },
+    "meta": {
+      "tags": [
+        "phaser",
+        "deep",
+        "resonant"
+      ],
+      "author": "Ethereal",
+      "description": "Twelve stages with strong feedback for six deep, resonant notches."
+    },
+    "params": {
+      "0": 4.0,
+      "1": 0.12,
+      "2": 0.0,
+      "3": 6.0,
+      "4": 85.0,
+      "5": 900.0,
+      "6": 75.0,
+      "7": 120.0,
+      "8": 50.0,
+      "9": -1.0
+    }
+  }
+}

@@ -246,7 +246,16 @@ impl ScanRunner {
 mod tests {
     use super::*;
 
-    /// A fake "scanner" shell script.
+    /// Serializes the tests that write and then exec a script. Linux refuses to exec a file
+    /// that any process has open for writing (ETXTBSY): if one test spawns a scanner while
+    /// another is writing its script, the forked child briefly inherits that write fd (until
+    /// its own exec closes it), and the second test's spawn fails with "Text file busy".
+    fn serial() -> std::sync::MutexGuard<'static, ()> {
+        static LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+        LOCK.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
+    /// A fake "scanner" shell script (hold [`serial`] while writing and running it).
     fn script(purpose: &str, body: &str) -> PathBuf {
         use std::os::unix::fs::PermissionsExt;
         let dir = std::env::temp_dir().join(ether_core::plugin::ipc_name(
@@ -263,6 +272,7 @@ mod tests {
 
     #[test]
     fn a_daemon_holding_the_pipes_does_not_hang_the_scan() {
+        let _serial = serial();
         // The "plugin" leaves a background process with our stdout/stderr open, then the
         // scanner answers and exits.
         let s = script(
@@ -286,6 +296,7 @@ echo '{"type":"Ok","plugins":[]}'"#,
 
     #[test]
     fn sidechain_inputs_cross_the_scanner_and_default_to_none() {
+        let _serial = serial();
         // A current scanner reports the aux bus; an older one (no field) means none.
         let plugin = |extra: &str| {
             format!(
@@ -314,6 +325,7 @@ echo '{"type":"Ok","plugins":[]}'"#,
 
     #[test]
     fn request_carries_the_format_of_a_target() {
+        let _serial = serial();
         // Echo the request back as the error message.
         let s = script(
             "scan-echo",

@@ -1,0 +1,29 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "8-bit Console",
+    "device": {
+      "type": "Builtin",
+      "device": "Bitcrusher"
+    },
+    "meta": {
+      "tags": [
+        "8-bit",
+        "chiptune",
+        "retro"
+      ],
+      "author": "Ethereal",
+      "description": "8 bits at 22 kHz: the grainy sound of early consoles."
+    },
+    "params": {
+      "0": 8.0,
+      "1": 22050.0,
+      "2": 0.0,
+      "3": 0.0,
+      "4": 0.0,
+      "5": 100.0
+    }
+  }
+}
