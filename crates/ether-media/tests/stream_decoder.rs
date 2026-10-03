@@ -39,7 +39,8 @@ fn decoder(bytes: &[u8], ext: &str, frames: u64, rate: u32) -> ChunkDecoder {
 /// All chunks, in `order`, assembled into whole channels.
 fn assemble(dec: &mut ChunkDecoder, order: &[u64]) -> Vec<Vec<f32>> {
     let n = dec.frames() as usize;
-    let mut out = vec![vec![f32::NAN; dec.chunk_count() as usize * CHUNK_FRAMES]; dec.channels() as usize];
+    let mut out =
+        vec![vec![f32::NAN; dec.chunk_count() as usize * CHUNK_FRAMES]; dec.channels() as usize];
     let mut buf = Vec::new();
     for &k in order {
         dec.decode_chunk(k, &mut buf).unwrap();
@@ -60,7 +61,9 @@ fn shuffled(n: u64) -> Vec<u64> {
     let mut v: Vec<u64> = (0..n).collect();
     let mut x = 7u64;
     for i in (1..v.len()).rev() {
-        x = x.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        x = x
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
         v.swap(i, (x >> 33) as usize % (i + 1));
     }
     v
@@ -106,7 +109,11 @@ fn same_rate_chunks_are_bit_identical_to_the_whole_file() {
         let whole = decode(&bytes, Some(ext)).unwrap();
         for order in [[0, 1], [1, 0]] {
             let mut dec = decoder(&bytes, ext, frames as u64, 48_000);
-            assert_eq!(assemble(&mut dec, &order), whole.channels, "{ext} {order:?}");
+            assert_eq!(
+                assemble(&mut dec, &order),
+                whole.channels,
+                "{ext} {order:?}"
+            );
         }
     }
 }

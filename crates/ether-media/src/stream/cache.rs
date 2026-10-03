@@ -129,9 +129,9 @@ impl StreamCache {
 
     /// The slot holding `chunk`, if resident.
     pub fn find(&self, chunk: u64) -> Option<usize> {
-        self.slots
-            .iter()
-            .position(|s| s.chunk.load(Ordering::Relaxed) == chunk && s.seq.load(Ordering::Acquire) % 2 == 0)
+        self.slots.iter().position(|s| {
+            s.chunk.load(Ordering::Relaxed) == chunk && s.seq.load(Ordering::Acquire) % 2 == 0
+        })
     }
 
     /// The chunk an audio read missed most recently (cleared). Writer side.
@@ -173,7 +173,10 @@ impl StreamCache {
             match src {
                 Some(src) => {
                     for (i, d) in dst.iter().enumerate() {
-                        d.store(src.get(i).copied().unwrap_or(0.0).to_bits(), Ordering::Relaxed);
+                        d.store(
+                            src.get(i).copied().unwrap_or(0.0).to_bits(),
+                            Ordering::Relaxed,
+                        );
                     }
                 }
                 None => dst.iter().for_each(|d| d.store(0, Ordering::Relaxed)),
@@ -194,14 +197,19 @@ impl StreamCache {
         let n = (bytes.len() / 4).min(CHUNK_FRAMES.saturating_sub(offset));
         let dst = &self.data[base + offset..base + offset + n];
         for (d, b) in dst.iter().zip(bytes.chunks_exact(4)) {
-            d.store(u32::from_le_bytes([b[0], b[1], b[2], b[3]]), Ordering::Relaxed);
+            d.store(
+                u32::from_le_bytes([b[0], b[1], b[2], b[3]]),
+                Ordering::Relaxed,
+            );
         }
     }
 
     /// Start rewriting `slot` with `chunk` (readers treat it as missing until
     /// [`Self::end_slot`]).
     pub fn begin_slot(&self, slot: usize, chunk: u64) {
-        let Some(s) = self.slots.get(slot) else { return };
+        let Some(s) = self.slots.get(slot) else {
+            return;
+        };
         let seq = s.seq.load(Ordering::Relaxed);
         let seq = if seq % 2 == 1 { seq + 1 } else { seq };
         s.seq.store(seq + 1, Ordering::Relaxed);
@@ -211,7 +219,9 @@ impl StreamCache {
 
     /// Publish a slot started with [`Self::begin_slot`].
     pub fn end_slot(&self, slot: usize) {
-        let Some(s) = self.slots.get(slot) else { return };
+        let Some(s) = self.slots.get(slot) else {
+            return;
+        };
         let seq = s.seq.load(Ordering::Relaxed);
         if seq % 2 == 1 {
             s.seq.store(seq + 1, Ordering::Release);
@@ -262,7 +272,11 @@ impl StreamCache {
         let mut lru = (0, u64::MAX);
         for (i, c) in self.cursors.iter().enumerate() {
             let pos = c.pos.load(Ordering::Relaxed);
-            let s = if pos == 0 { 0 } else { c.stamp.load(Ordering::Relaxed) };
+            let s = if pos == 0 {
+                0
+            } else {
+                c.stamp.load(Ordering::Relaxed)
+            };
             if s < lru.1 {
                 lru = (i, s);
             }
@@ -380,7 +394,9 @@ mod tests {
         assert_eq!(cache.slot_chunk(0), None);
         let mut out = [1.0; 4];
         assert!(!cache.read(0, 5 * CHUNK_FRAMES as u64, &mut out));
-        let bytes: Vec<u8> = (0..CHUNK_FRAMES).flat_map(|_| 5.0f32.to_le_bytes()).collect();
+        let bytes: Vec<u8> = (0..CHUNK_FRAMES)
+            .flat_map(|_| 5.0f32.to_le_bytes())
+            .collect();
         cache.write_channel_bytes(0, 0, 0, &bytes);
         cache.end_slot(0);
         assert_eq!(cache.slot_chunk(0), Some(5));
@@ -405,14 +421,25 @@ mod tests {
         assert_eq!(cs[1].frame, 10_000_000);
         // Reversed voice: hints go down.
         cache.prefetch_hint(10_000_000 - 256);
-        let back = cache.cursors().into_iter().flatten().find(|c| c.frame == 10_000_000 - 256).unwrap();
+        let back = cache
+            .cursors()
+            .into_iter()
+            .flatten()
+            .find(|c| c.frame == 10_000_000 - 256)
+            .unwrap();
         assert!(back.backwards);
         // More voices than cursors: the least recently used one is reused.
         for k in 1..=MAX_CURSORS as u64 {
             cache.prefetch_hint(k * 100_000_000);
         }
         assert_eq!(cache.cursors().into_iter().flatten().count(), MAX_CURSORS);
-        assert!(cache.cursors().into_iter().flatten().all(|c| c.frame % 100_000_000 == 0));
+        assert!(
+            cache
+                .cursors()
+                .into_iter()
+                .flatten()
+                .all(|c| c.frame % 100_000_000 == 0)
+        );
     }
 
     #[test]

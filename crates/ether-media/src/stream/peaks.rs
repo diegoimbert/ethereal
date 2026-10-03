@@ -131,7 +131,10 @@ mod tests {
             let mut at = 0;
             while at < frames {
                 let n = block.min(frames - at);
-                b.push(&[&audio.channels[0][at..at + n], &audio.channels[1][at..at + n]]);
+                b.push(&[
+                    &audio.channels[0][at..at + n],
+                    &audio.channels[1][at..at + n],
+                ]);
                 at += n;
             }
             assert_eq!(b.finish().unwrap(), whole, "block {block}");

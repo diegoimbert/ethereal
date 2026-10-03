@@ -20,8 +20,8 @@
 
 use std::collections::VecDeque;
 
-use super::cache::{CursorState, MAX_CURSORS};
 use super::CHUNK_FRAMES;
+use super::cache::{CursorState, MAX_CURSORS};
 
 /// Chunks at the start of every streamed media kept resident.
 pub const HEAD_CHUNKS: u64 = 2;

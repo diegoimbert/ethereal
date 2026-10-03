@@ -75,7 +75,11 @@ struct SourceReader {
 }
 
 impl SourceReader {
-    fn new(source: Box<dyn MediaSource>, extension: Option<&str>, frames: u64) -> Result<(Self, u32), MediaError> {
+    fn new(
+        source: Box<dyn MediaSource>,
+        extension: Option<&str>,
+        frames: u64,
+    ) -> Result<(Self, u32), MediaError> {
         let mss = MediaSourceStream::new(source, MediaSourceStreamOptions::default());
         let mut hint = Hint::new();
         if let Some(ext) = extension {
@@ -238,13 +242,17 @@ impl SourceReader {
         let end = self.pos + n as u64;
         // Decode until the request is buffered, the file ends, or the document ends.
         let want = end.min(self.frames);
-        while !self.eof && self.pos < want && (self.buf_pos == u64::MAX || self.buffered_end() < want) {
+        while !self.eof
+            && self.pos < want
+            && (self.buf_pos == u64::MAX || self.buffered_end() < want)
+        {
             if !self.decode_packet()? {
                 self.eof = true;
             }
             // Drop what lies before the read position (seek preroll, skipped frames).
             if self.buf_pos != u64::MAX && self.buf_pos < self.pos {
-                let drop = ((self.pos - self.buf_pos) as usize).min(self.buf.first().map_or(0, Vec::len));
+                let drop =
+                    ((self.pos - self.buf_pos) as usize).min(self.buf.first().map_or(0, Vec::len));
                 for c in &mut self.buf {
                     c.drain(..drop);
                 }
@@ -266,7 +274,8 @@ impl SourceReader {
         self.pos = end;
         // Forget consumed frames.
         if self.buf_pos != u64::MAX && self.buf_pos < self.pos {
-            let drop = ((self.pos - self.buf_pos) as usize).min(self.buf.first().map_or(0, Vec::len));
+            let drop =
+                ((self.pos - self.buf_pos) as usize).min(self.buf.first().map_or(0, Vec::len));
             for c in &mut self.buf {
                 c.drain(..drop);
             }
@@ -422,7 +431,8 @@ impl ChunkDecoder {
         let n_ch = self.channels as usize;
         let rate = self.rate.as_mut().expect("resampling");
         let pending_start = rate.next_out - rate.pending[0].len() as u64;
-        let resident = rate.running && start >= pending_start && start <= rate.next_out + CHUNK_FRAMES as u64;
+        let resident =
+            rate.running && start >= pending_start && start <= rate.next_out + CHUNK_FRAMES as u64;
         if !resident {
             // Restart at s0 (a multiple of q) far enough before the target.
             let (p, q) = (rate.p, rate.q);

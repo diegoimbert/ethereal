@@ -11,10 +11,10 @@
 
 use std::collections::BTreeMap;
 
+use ether_core::RenderGraphDesc;
 use ether_core::graph::{ClipContentDesc, ClipDesc, WarpDesc};
 use ether_core::protocol::model::MediaId;
 use ether_core::tempo::TempoMapRt;
-use ether_core::RenderGraphDesc;
 
 /// Frames before a jump target also kept (the stretcher and interpolation read a little
 /// before the content position).
@@ -94,7 +94,9 @@ pub fn positions_at(
     let tempo = TempoMapRt::compile(&graph.tempo, &graph.signatures);
     let mut out = Vec::new();
     for clip in graph.tracks.iter().flat_map(|t| t.clips.iter()) {
-        let Some(media) = media_of(clip) else { continue };
+        let Some(media) = media_of(clip) else {
+            continue;
+        };
         let Some(total) = frames(media) else { continue };
         if let Some(c) = content_at(clip, beat)
             && let Some(f) = frame_of(clip, c, &tempo, engine_rate as f64, total)
@@ -130,7 +132,9 @@ pub fn anchors(
         }
     }
     for clip in graph.tracks.iter().flat_map(|t| t.clips.iter()) {
-        let Some(media) = media_of(clip) else { continue };
+        let Some(media) = media_of(clip) else {
+            continue;
+        };
         let Some(total) = frames(media) else { continue };
         if let Some(f) = frame_of(clip, clip.offset, &tempo, rate, total) {
             add(media, f);
@@ -233,7 +237,10 @@ mod tests {
         let frames = |m: MediaId| (m == M).then_some(48_000 * 600);
         // 120 BPM: one beat = 0.5 s = 24 000 frames. Clip at beat 8 playing from content 4.
         let mut g = graph(vec![audio_clip(8.0, 100.0, 4.0, None)]);
-        assert_eq!(positions_at(&g, 10.0, 48_000, &frames), vec![(M, 6 * 24_000)]);
+        assert_eq!(
+            positions_at(&g, 10.0, 48_000, &frames),
+            vec![(M, 6 * 24_000)]
+        );
         assert!(positions_at(&g, 7.0, 48_000, &frames).is_empty());
         g.loop_enabled = true;
         g.loop_start = 20.0;
@@ -263,6 +270,9 @@ mod tests {
             *reversed = true;
         }
         let g = graph(vec![clip]);
-        assert_eq!(positions_at(&g, 2.0, 48_000, &frames)[0].1, 48_000 * 100 - 1 - 96_000);
+        assert_eq!(
+            positions_at(&g, 2.0, 48_000, &frames)[0].1,
+            48_000 * 100 - 1 - 96_000
+        );
     }
 }

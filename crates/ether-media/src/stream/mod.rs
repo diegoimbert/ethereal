@@ -53,7 +53,11 @@ impl StreamFiller {
     /// A cache of [`slot_count`]`(read_ahead)` slots for `decoder`'s media.
     pub fn new(decoder: ChunkDecoder, read_ahead: usize) -> Self {
         let slots = slot_count(read_ahead);
-        let cache = Arc::new(StreamCache::new(decoder.channels(), decoder.frames(), slots));
+        let cache = Arc::new(StreamCache::new(
+            decoder.channels(),
+            decoder.frames(),
+            slots,
+        ));
         let policy = FillPolicy::new(decoder.chunk_count(), slots, read_ahead);
         Self {
             decoder,
@@ -83,7 +87,9 @@ impl StreamFiller {
     /// Are the chunks at these engine frames (and the next ones) resident?
     pub fn primed(&self, frames: &[u64]) -> bool {
         let c = CHUNK_FRAMES as u64;
-        frames.iter().all(|&f| self.policy.resident(&[f / c, f / c + 1]))
+        frames
+            .iter()
+            .all(|&f| self.policy.resident(&[f / c, f / c + 1]))
     }
 
     /// Decode at most one chunk. Returns `true` if there was work.
