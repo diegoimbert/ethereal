@@ -11,9 +11,10 @@ use common::*;
 use ether_controller::memory::{MemoryLibrary, MemoryStore};
 use ether_controller::store::{ProjectStore, StoreError};
 use ether_controller::{Controller, ControllerConfig, EtherController};
+use ether_core::protocol::export::ExportCommand;
 use ether_core::protocol::media::{DirectoryListing, MediaCommand, MediaEvent, MediaSource};
 use ether_core::protocol::model::*;
-use ether_core::protocol::project::{ProjectCommand, ProjectSummary};
+use ether_core::protocol::project::{BundleSource, ProjectCommand, ProjectSummary};
 use ether_core::protocol::*;
 
 /// `MemoryStore` with upload staging.
@@ -287,4 +288,162 @@ fn limits_and_idle_cleanup() {
     ok(&h.begin("fresh", "a.wav", 1));
     assert_eq!(h.ctl.store.staged.len(), 1);
     assert_eq!(err(&h.chunk("big", 0, &[0])).code, ErrorCode::NotFound);
+}
+
+// ─── base-114: project bundles (`ExportBundle` / `ImportBundle`) ────────────────────────
+
+impl H {
+    /// Upload `bytes` in 64 KiB chunks as `upload`.
+    fn upload(&mut self, upload: &str, bytes: &[u8]) {
+        ok(&self.begin(upload, "song.ether", bytes.len()));
+        for (i, part) in bytes.chunks(64 * 1024).enumerate() {
+            ok(&self.chunk(upload, i * 64 * 1024, part));
+        }
+    }
+
+    /// Pull a download with `Export::ReadChunk`.
+    fn pull(&mut self, token: &str) -> Vec<u8> {
+        let mut bytes = Vec::new();
+        loop {
+            let ReplyValue::Bytes { chunk } = self.ok(Command::Export(ExportCommand::ReadChunk {
+                token: token.into(),
+                offset: bytes.len() as f64,
+                length: 100_000,
+            })) else {
+                panic!("expected bytes")
+            };
+            bytes.extend_from_slice(&chunk.data.0);
+            if chunk.eof {
+                return bytes;
+            }
+        }
+    }
+
+    fn export_bundle(&mut self, id: ProjectId) -> Vec<u8> {
+        let ReplyValue::Bundle { download } =
+            self.ok(Command::Project(ProjectCommand::ExportBundle {
+                id,
+                path: None,
+            }))
+        else {
+            panic!("expected a bundle")
+        };
+        assert!(download.name.ends_with(".ether"));
+        let bytes = self.pull(&download.token);
+        assert_eq!(bytes.len() as f64, download.size);
+        bytes
+    }
+
+    fn import_bundle(
+        &mut self,
+        upload: &str,
+        name: Option<&str>,
+    ) -> (ProjectId, Vec<ServerMessage>) {
+        let new_id = self.ids.next_project_id(T0 + 1);
+        let out = self.send(Command::Project(ProjectCommand::ImportBundle {
+            new_id,
+            source: BundleSource::Upload {
+                upload: upload.into(),
+            },
+            name: name.map(str::to_string),
+        }));
+        (new_id, out)
+    }
+}
+
+fn bundle_document(bundle: &[u8]) -> Project {
+    let entries = ether_controller::bundle::unpack(bundle).unwrap();
+    file::load(std::str::from_utf8(entries[0].1).unwrap()).unwrap()
+}
+
+#[test]
+fn bundle_round_trip_keeps_the_document_and_media() {
+    let mut h = H::new();
+    let audio = tone();
+    h.upload("u1", &audio);
+    let (media_id, out) = h.import("u1");
+    let ReplyValue::Media { media } = ok(&out) else {
+        panic!()
+    };
+    let pid = h.ctl.project().unwrap().id;
+
+    let bundle = h.export_bundle(pid);
+    assert_eq!(&bundle[..4], b"PK\x03\x04", "a ZIP archive");
+    let names: Vec<String> = ether_controller::bundle::unpack(&bundle)
+        .unwrap()
+        .into_iter()
+        .map(|(n, _)| n)
+        .collect();
+    assert_eq!(names, vec!["project.ether".to_string(), media.file.clone()]);
+
+    h.upload("b1", &bundle);
+    let (new_id, out) = h.import_bundle("b1", Some("Imported"));
+    let ReplyValue::Saved { project } = ok(&out) else {
+        panic!("expected Saved")
+    };
+    assert_eq!((project.id, project.name.as_str()), (new_id, "Imported"));
+    assert!(
+        h.ctl.store.staged.is_empty(),
+        "the staged upload is consumed"
+    );
+    assert_eq!(
+        h.ctl.store.inner.file(new_id, &media.file).unwrap(),
+        &audio[..]
+    );
+    // Not opened by the import; opening it shows the same media.
+    assert_eq!(h.ctl.project().unwrap().id, pid);
+    let ReplyValue::Project { project } =
+        h.ok(Command::Project(ProjectCommand::Open { id: new_id }))
+    else {
+        panic!()
+    };
+    assert_eq!(project.id, new_id);
+    assert_eq!(project.settings.name, "Imported");
+    assert_eq!(project.media[&media_id].file, media.file);
+
+    // A stored (not open) project exports too, with the same document content.
+    let again = h.export_bundle(pid);
+    assert_eq!(
+        bundle_document(&again).media,
+        bundle_document(&bundle).media
+    );
+    // A retried import is idempotent (the upload is already consumed).
+    let out = h.send(Command::Project(ProjectCommand::ImportBundle {
+        new_id,
+        source: BundleSource::Upload {
+            upload: "gone".into(),
+        },
+        name: None,
+    }));
+    assert!(matches!(ok(&out), ReplyValue::Saved { project } if project.id == new_id));
+}
+
+#[test]
+fn bundle_import_accepts_a_bare_document_and_refuses_bad_input() {
+    let mut h = H::new();
+    let pid = h.ctl.project().unwrap().id;
+    let json = h
+        .ctl
+        .store
+        .inner
+        .file(pid, "project.ether")
+        .unwrap()
+        .to_vec();
+    h.upload("doc", &json);
+    let (id, out) = h.import_bundle("doc", None);
+    assert!(
+        matches!(ok(&out), ReplyValue::Saved { project } if project.id == id && project.name == "Up")
+    );
+
+    h.upload("bad", b"PK\x03\x04 definitely not a zip");
+    let (id, out) = h.import_bundle("bad", None);
+    assert_eq!(err(&out).code, ErrorCode::InvalidArgument);
+    assert!(!h.ctl.store.inner.contains(id), "nothing half-imported");
+
+    // OS paths are desktop-only (MemoryStore has none).
+    let out = h.send(Command::Project(ProjectCommand::ExportBundle {
+        id: pid,
+        path: Some("/tmp/x.ether".into()),
+    }));
+    assert_eq!(err(&out).code, ErrorCode::Unsupported);
 }

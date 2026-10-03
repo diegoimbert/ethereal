@@ -134,6 +134,47 @@ fn ether_disconnect(host: tauri::State<'_, HostSlot>) -> Result<(), String> {
     host.with(|h| h.unsubscribe())
 }
 
+/// base-114: file holding the remembered collaboration relay token (in the app data dir).
+const COLLAB_TOKEN_FILE: &str = "collab-token";
+
+/// The remembered collaboration token, if any. The token is never logged.
+#[tauri::command]
+fn collab_token_load(paths: tauri::State<'_, AppPaths>) -> Option<String> {
+    std::fs::read_to_string(paths.data_dir.join(COLLAB_TOKEN_FILE))
+        .ok()
+        .map(|t| t.trim().to_string())
+        .filter(|t| !t.is_empty())
+}
+
+/// Remember (or, with `None`/empty, forget) the collaboration token. Owner-only file on Unix.
+#[tauri::command]
+fn collab_token_save(
+    paths: tauri::State<'_, AppPaths>,
+    token: Option<String>,
+) -> Result<(), String> {
+    let path = paths.data_dir.join(COLLAB_TOKEN_FILE);
+    let token = token.unwrap_or_default();
+    if token.trim().is_empty() {
+        return match std::fs::remove_file(&path) {
+            Err(e) if e.kind() != std::io::ErrorKind::NotFound => {
+                Err("could not forget the token".into())
+            }
+            _ => Ok(()),
+        };
+    }
+    std::fs::create_dir_all(&paths.data_dir)
+        .map_err(|_| "could not create the app data folder".to_string())?;
+    let mut options = std::fs::OpenOptions::new();
+    options.write(true).create(true).truncate(true);
+    #[cfg(unix)]
+    std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
+    let mut f = options
+        .open(&path)
+        .map_err(|_| "could not remember the token".to_string())?;
+    std::io::Write::write_all(&mut f, token.trim().as_bytes())
+        .map_err(|_| "could not remember the token".to_string())
+}
+
 fn init_tracing() {
     use tracing_subscriber::EnvFilter;
     let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
@@ -242,7 +283,9 @@ pub fn run() {
             engine_info,
             ether_connect,
             ether_send,
-            ether_disconnect
+            ether_disconnect,
+            collab_token_load,
+            collab_token_save
         ])
         .build(tauri::generate_context!())
         .expect("error while building the Ethereal desktop app");

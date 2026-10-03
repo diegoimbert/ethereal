@@ -31,6 +31,7 @@
 
 mod analysis;
 mod browser;
+pub mod bundle;
 mod clip_editing;
 mod collab;
 pub mod compile;
