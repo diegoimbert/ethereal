@@ -54,7 +54,12 @@ import {
   withSeparator,
 } from "@/features/collab/social";
 import {
+  clipboardAction,
+  runTimeAction,
   TimeEditNotice,
+  bindPlayFrom,
+  isTimeTrack,
+  placeInsertMarker,
   TimeSelectionLayer,
   useArrangementTimeEdits,
 } from "@/features/time-edits";
@@ -202,6 +207,8 @@ function ConnectedArrangementView() {
   useMiddleButtonPan(scrollRef, view);
   useFollowWithMargin(view);
   useEffect(() => bindSingleSelection(), []);
+  // The insert marker placed while playing becomes the play start on the next stop.
+  useEffect(() => bindPlayFrom(transport), [transport]);
 
   // Copy/cut/paste also arrive as clipboard events: on macOS the app's Edit menu takes
   // cmd-C/X/V before the page sees the key (desktop app), and sends these instead.
@@ -215,7 +222,11 @@ function ConnectedArrangementView() {
       )
         return;
       e.preventDefault();
-      void runClipAction(transport, e.type as "copy" | "cut" | "paste");
+      // section-edit: a time selection (or a time copy, for paste) takes it as a section.
+      const kind = e.type as "copy" | "cut" | "paste";
+      const time = clipboardAction(kind);
+      if (time) void runTimeAction(transport, time);
+      else void runClipAction(transport, kind);
     };
     document.addEventListener("copy", onClipboard);
     document.addEventListener("cut", onClipboard);
@@ -319,13 +330,17 @@ function ConnectedArrangementView() {
             .getState()
             .select("clip", [hit.id], selectModeFromEvent(ev));
       }
-      // A click on empty space also moves the playhead there (when stopped), snapped.
+      // A click on empty space (or a clip body) places the insert marker there on that
+      // track, snapped (Alt: free); it never moves a playing playhead (see time-edits
+      // `marker.ts`: while stopped, Play then starts from the marker).
+      // Rows without a timeline of their own (returns, master) just locate while stopped.
       const hw = useArrangementUi.getState().headerWidth;
-      if (p.x >= hw)
-        locateIfStopped(
-          transport,
-          snap(pxToBeats(p.x - hw, view.getState()), ev.altKey),
-        );
+      if (p.x >= hw) {
+        const at = snap(pxToBeats(p.x - hw, view.getState()), ev.altKey);
+        if (row && !row.draft && isTimeTrack(row.track))
+          placeInsertMarker(transport, at, [row.track.id]);
+        else locateIfStopped(transport, at);
+      }
     },
   });
 

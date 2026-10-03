@@ -14,7 +14,7 @@ import { fileURLToPath } from "node:url";
 import { expect, test, type Page } from "@playwright/test";
 import type { Clip, Project } from "@/generated";
 import { openClip } from "./clips";
-import { createTrack, playButton } from "./ui";
+import { createTrack, openRelayJoin, playButton } from "./ui";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const TOKEN = `e2e-${Math.random().toString(36).slice(2)}`;
@@ -80,7 +80,7 @@ async function open(page: Page): Promise<void> {
 }
 
 async function join(page: Page, name: string) {
-  await page.getByTestId("collab-button").click();
+  await openRelayJoin(page);
   await page.getByLabel("Relay address").fill(relayUrl);
   await page.getByLabel("Session").fill(SESSION);
   await page.getByLabel("Your name").fill(name);

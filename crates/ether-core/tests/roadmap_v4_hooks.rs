@@ -16,7 +16,7 @@ use ether_core::protocol::model::{
     CurveShape, ExpressionKind, ExternalRouting, HwChannels, MpeSettings, NoteExpressionKind,
     TrackKind,
 };
-use ether_core::{EventBuffer, EventKind, NodeKey};
+use ether_core::{EventKind, NodeKey};
 
 fn desc_with_v03_fields() -> RenderGraphDesc {
     let mut t = track(tid(1), TrackKind::Midi, None);
@@ -77,12 +77,11 @@ fn v03_track_fields_roundtrip_through_the_codec() {
 fn expression_and_hw_io_stubs_do_nothing() {
     let desc = desc_with_v03_fields();
     let t = &desc.tracks[0];
-    let mut rt = ExpressionRt::default();
+    // `ExpressionRt` renders inside the engine (`midi-expression`; tests in
+    // `tests/expression*.rs`): here only its non-RT construction.
+    let mut rt = ExpressionRt::compile(&t.expression);
     rt.prepare(&t.expression);
-    let mut events = EventBuffer::with_capacity(16);
-    rt.render(&t.expression, 0.0, 1.0, 128, &mut events);
     rt.reset();
-    assert!(events.is_empty());
     let mut hw = HwIoRt::default();
     hw.prepare(&t.hw_io, 128);
     let input = [0.5f32; 128];

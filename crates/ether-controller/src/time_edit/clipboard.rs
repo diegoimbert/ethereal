@@ -30,6 +30,20 @@ pub(crate) struct TimeClipboard {
     pub tracks: Vec<TrackCopy>,
 }
 
+/// A copied piece of a (non-looping) MIDI clip keeps only the notes that play in it (start
+/// inside its window): a section copy carries the section, not the whole source clip's
+/// notes hidden outside the piece (owner report, `section-edit`). A looping clip replays
+/// its loop, so it keeps every note.
+fn keep_section_notes(b: &mut ClipBundle) {
+    let c = &b.clip;
+    if !matches!(c.content, ClipContent::Midi) || c.looping.enabled {
+        return;
+    }
+    let (from, to) = (c.offset.0, c.offset.0 + c.length.0);
+    b.notes
+        .retain(|n| n.start.0 >= from - EPS && n.start.0 < to - EPS);
+}
+
 /// Copy `[a, b)` of `tracks` (display order).
 pub(super) fn copy(p: &Project, tracks: &[TrackId], a: f64, b: f64) -> TimeClipboard {
     let mut out = Vec::new();
@@ -46,6 +60,7 @@ pub(super) fn copy(p: &Project, tracks: &[TrackId], a: f64, b: f64) -> TimeClipb
                 let e = (c.start.0 + c.length.0).min(b);
                 bundle.clip = edit::piece(&c, s, e);
                 bundle.clip.start = Beats(s - a);
+                keep_section_notes(&mut bundle);
                 bundle
             })
             .collect();

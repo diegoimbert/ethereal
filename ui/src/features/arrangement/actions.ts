@@ -6,7 +6,8 @@ import type { Beats, Clip, Command, Track, TrackId } from "@/generated";
 import { firstMatch, shortcutLabel, type ChordEvent } from "@/features/keymap";
 import type { ContextMenuEntry } from "@/kit";
 import { tracksOrdered, useEditorStore, useProjectStore, useSelectionStore } from "@/state";
-import { itemSelection, playheadBeats, type SelectMode } from "@/timeline";
+import { itemSelection, type SelectMode } from "@/timeline";
+import { insertPoint, pasteTarget } from "@/features/time-edits/marker";
 import { copyClips, cutClips, hasClipboard, pasteClips } from "./clipboard";
 import { isArrangementClip } from "./clipTime";
 import { arrangementTracks } from "./layout";
@@ -137,7 +138,9 @@ export function runClipAction(transport: EngineTransport, action: ClipAction): P
   const clips = selectedClips();
   switch (action) {
     case "split":
-      return sendEdit(transport, splitCommand(clips, playheadBeats(), newId));
+      // At the insert marker (else the range start, else the playhead): not the playhead
+      // while you listen (owner request).
+      return sendEdit(transport, splitCommand(clips, insertPoint().at, newId));
     case "duplicate": {
       // Select the copies, so repeated duplicates keep extending the pattern.
       const ids: string[] = [];
@@ -170,8 +173,9 @@ export function runClipAction(transport: EngineTransport, action: ClipAction): P
     case "cut":
       return cutClips(transport);
     case "paste":
-      // At the playhead; onto the selected track when the clips all come from one track.
-      return pasteClips(transport, playheadBeats(), useSelectionStore.getState().selectedTrack).then(() => {});
+      // At the insert marker (after a range selection; the playhead only without either),
+      // onto the marker's track (else the selected one) when the clips all come from one track.
+      return pasteClips(transport, pasteTarget(), insertPoint().track ?? useSelectionStore.getState().selectedTrack).then(() => {});
     case "deselect":
       itemSelection.getState().clear("clip");
       useArrangementUi.getState().setTrackFocus(null);

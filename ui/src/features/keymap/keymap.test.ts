@@ -121,7 +121,6 @@ describe("registry and presets", () => {
       "pianoRoll.octaveDown": ["Shift+ArrowDown"],
       "pianoRoll.nudgeLeftShift": ["Shift+ArrowLeft"],
       "pianoRoll.nudgeRightShift": ["Shift+ArrowRight"],
-      "pianoRoll.duplicateShift": ["Mod+Shift+D"],
       "automation.fineUp": ["Shift+ArrowUp", "Alt+Shift+ArrowUp"],
       "automation.fineDown": ["Shift+ArrowDown", "Alt+Shift+ArrowDown"],
       "automation.fineLeft": ["Shift+ArrowLeft", "Alt+Shift+ArrowLeft"],
@@ -172,7 +171,6 @@ describe("lookups", () => {
     expect(matchesAction("nudge.up", key("ArrowUp", { altKey: true }))).toBe(true);
     expect(matchesAction("automation.fineLeft", key("ArrowLeft", { altKey: true, shiftKey: true }))).toBe(true);
     expect(matchesAction("pianoRoll.nudgeLeftShift", key("ArrowLeft", { shiftKey: true }))).toBe(true);
-    expect(matchesAction("pianoRoll.duplicateShift", key("D", { ctrlKey: true, shiftKey: true }))).toBe(true);
   });
 
   it("follow the user's overrides and preset", () => {

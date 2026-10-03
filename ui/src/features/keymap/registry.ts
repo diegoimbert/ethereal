@@ -119,12 +119,10 @@ export const BUILTIN_ACTIONS: ReadonlyArray<KeymapAction> = [
   { id: "nudge.right", label: "Nudge right", group: "Piano roll", scopes: ["pianoRoll", "automation"], chords: ["ArrowRight", "Alt+ArrowRight"], handled: true, keywords: "move later" },
   { id: "pianoRoll.octaveUp", label: "Octave up", group: "Piano roll", scopes: ["pianoRoll"], chords: ["Shift+ArrowUp"], handled: true },
   { id: "pianoRoll.octaveDown", label: "Octave down", group: "Piano roll", scopes: ["pianoRoll"], chords: ["Shift+ArrowDown"], handled: true },
-  // Aliases the piano roll always accepted (Shift doesn't change a horizontal nudge; ⇧⌘D
-  // duplicates notes): piano-roll-only, so they don't clash with the automation lane's fine
-  // nudge or the arrangement's Duplicate time.
+  // Aliases the piano roll always accepted (Shift doesn't change a horizontal nudge):
+  // piano-roll-only, so they don't clash with the automation lane's fine nudge.
   { id: "pianoRoll.nudgeLeftShift", label: "Nudge left (with Shift)", group: "Piano roll", scopes: ["pianoRoll"], chords: ["Shift+ArrowLeft"], handled: true },
   { id: "pianoRoll.nudgeRightShift", label: "Nudge right (with Shift)", group: "Piano roll", scopes: ["pianoRoll"], chords: ["Shift+ArrowRight"], handled: true },
-  { id: "pianoRoll.duplicateShift", label: "Duplicate (with Shift)", group: "Piano roll", scopes: ["pianoRoll"], chords: ["Mod+Shift+D"], handled: true },
   // Automation lane
   { id: "automation.fineUp", label: "Nudge up (fine)", group: "Automation", scopes: ["automation"], chords: ["Shift+ArrowUp", "Alt+Shift+ArrowUp"], handled: true },
   { id: "automation.fineDown", label: "Nudge down (fine)", group: "Automation", scopes: ["automation"], chords: ["Shift+ArrowDown", "Alt+Shift+ArrowDown"], handled: true },
