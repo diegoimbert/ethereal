@@ -8,7 +8,7 @@ import "./browser.css";
 import clsx from "clsx";
 import { useEffect, useRef, useState, type DragEvent, type KeyboardEvent, type ReactNode } from "react";
 import { AudioLines, CornerLeftUp, File, Folder, FolderOpen, Music, Search, Volume2, X } from "lucide-react";
-import type { BrowseLocation, BrowseRoot, DirectoryEntry, MediaSource } from "@/generated";
+import type { BrowseLocation, BrowseRoot, BrowserRoot, DirectoryEntry, MediaSource } from "@/generated";
 import { BrowserImportBar, useImportDrop } from "@/features/import";
 import { useEngineCommands, useEngineEvent } from "@/features/transport-bar/engine";
 import { Button, TextInput } from "@/kit";
@@ -17,6 +17,7 @@ import { cmd } from "@/transport";
 import { writeBrowserDrag, type BrowserDragPayload } from "./dragPayload";
 import { formatSize, locationKey, parentPath, pathSegments, sameLocation, sourceOf } from "./paths";
 import { useBrowserPreview } from "./preview";
+import { BrowserV2 } from "./v2/BrowserV2";
 
 interface Place {
   location: BrowseLocation;
@@ -39,7 +40,7 @@ const inScope = (scope: BrowserScope) => (root: BrowseRoot) =>
 /** Recursive search bounds (the engine lists one folder per request). */
 const SEARCH_MAX_DIRS = 200;
 const SEARCH_MAX_RESULTS = 300;
-const SEARCH_DEBOUNCE_MS = 150;
+export const SEARCH_DEBOUNCE_MS = 150;
 
 interface Found {
   key: string;
@@ -48,7 +49,7 @@ interface Found {
 }
 
 /** Keyboard-navigable rows of a list. */
-const ROW_SELECTOR = ".eth-browser__row[data-row]";
+export const ROW_SELECTOR = ".eth-browser__row[data-row]";
 
 const KIND_ICON: Record<DirectoryEntry["kind"], ReactNode> = {
   Directory: <Folder />,
@@ -58,13 +59,41 @@ const KIND_ICON: Record<DirectoryEntry["kind"], ReactNode> = {
 };
 
 /**
+ * The library browser. Engines with the library index (`Browser::*`, v0.2 `browser-v2`)
+ * get the indexed browser (`./v2`: search, filters, favourites, tags, packs, folders);
+ * older or remote engines that reply `Unsupported`, and the project-media scope, get the
+ * folder browser below.
+ */
+export function Browser({ scope = "all" }: { scope?: BrowserScope } = {}) {
+  const { transport } = useEngineCommands();
+  const hasProject = useProjectStore((s) => s.project !== null);
+  // `undefined` while probing, `null` when unsupported.
+  const [roots, setRoots] = useState<BrowserRoot[] | null | undefined>(undefined);
+  const probe = !!transport && hasProject && scope !== "project";
+  useEffect(() => {
+    if (!probe || !transport) return;
+    let active = true;
+    transport.send(cmd("Browser", { type: "ListRoots" })).then(
+      (r) => active && setRoots(r.type === "BrowserRoots" ? r.roots : null),
+      () => active && setRoots(null),
+    );
+    return () => {
+      active = false;
+    };
+  }, [probe, transport]);
+  if (!probe || roots === null) return <FolderBrowser scope={scope} />;
+  if (roots === undefined) return <div className="eth-browser" data-feature="browser" aria-busy />;
+  return <BrowserV2 scope={scope} initialRoots={roots} />;
+}
+
+/**
  * Sample browser over the engine-visible locations (`Media::ListLocations`: library folders
  * and the current project's media). Folders navigate; clicking an audio file previews it
  * (click again to stop) and dragging it onto a drop target imports it there (payload:
  * `./dragPayload.ts`). The UI never accesses files itself, except files the user drops from
  * the OS or picks with "Import audio…" (`@/features/import`: uploaded to the engine).
  */
-export function Browser({ scope = "all" }: { scope?: BrowserScope } = {}) {
+export function FolderBrowser({ scope = "all" }: { scope?: BrowserScope } = {}) {
   const { transport, send, error, clearError } = useEngineCommands();
   const hasProject = useProjectStore((s) => s.project !== null);
   const media = useProjectStore((s) => s.project?.media);
@@ -362,7 +391,7 @@ export function Browser({ scope = "all" }: { scope?: BrowserScope } = {}) {
   );
 }
 
-interface EntryRowProps {
+export interface EntryRowProps {
   entry: DirectoryEntry;
   /** Secondary text after the name (search results: the containing folder). */
   detail?: string;
@@ -372,7 +401,7 @@ interface EntryRowProps {
   onPreview(entry: DirectoryEntry, source: MediaSource): void;
 }
 
-function EntryRow({ entry, detail, source, previewing, onOpen, onPreview }: EntryRowProps) {
+export function EntryRow({ entry, detail, source, previewing, onOpen, onPreview }: EntryRowProps) {
   const isDir = entry.kind === "Directory";
   const isAudio = entry.kind === "Audio";
 
