@@ -2,13 +2,15 @@
  * The note grid: pitch rows, grid lines, the clip's playable region, notes and the
  * marquee. Draw / move / resize notes; every drag is one undo gesture. The marquee also
  * makes the section (a time range, like the arrangement's time selection; `section.ts`).
+ * Alt/Option + drag on a note body changes the velocity of the selection (or that note)
+ * instead of moving it; Shift moves notes without snapping.
  */
 
-import { memo, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import clsx from "clsx";
 import { scaleTone } from "@/domain/scales";
 import type { Clip, Command, MusicalScale, Note, NoteId } from "@/generated";
-import { openContextMenu, type ContextMenuEntry } from "@/kit";
+import { Badge, openContextMenu, type ContextMenuEntry } from "@/kit";
 import { useProjectStore } from "@/state";
 import {
   beatsToPx,
@@ -35,7 +37,7 @@ import { NotePitchCurves } from "@/features/mpe";
 import { contentEnd, contentToSong, songToContent } from "./clipTime";
 import { startDrag, useSend } from "./drag";
 import { isBlackKey, noteHitZone, noteRect, pitchToY, rowPitchDelta, yToPitch } from "./geometry";
-import { moveEdits, newNote, noteEdit, resizeEdits } from "./noteEdits";
+import { midiVelocity, moveEdits, newNote, noteEdit, resizeEdits, velocityDrag, velocityEdits } from "./noteEdits";
 import { setPlayStart } from "@/features/time-edits/marker";
 import { clearSection, isSectionMarker, placeSectionMarker, sectionOf, usePianoRollSection, type PianoRollSection } from "./section";
 
@@ -50,7 +52,10 @@ export interface NoteGridProps {
   scale: MusicalScale;
   highlight: boolean;
   tempo: TempoMap;
-  /** Snap step (`null` = grid off). Alt bypasses snapping during a drag. */
+  /**
+   * Snap step (`null` = grid off). Alt bypasses snapping during a drag, except when moving
+   * notes: there Alt edits velocity and Shift bypasses snapping.
+   */
   step: GridStep | null;
   /** Length of a new note (the grid step, or a 1/16 when the grid is off). */
   newNoteBeats: number;
@@ -151,6 +156,32 @@ export function NoteGrid({ clip, notes, view, vp, widthPx, keyH, rows, scale, hi
   };
 
   const [isDoublePress] = useState(createDoublePress);
+  /** Alt held over the grid: a press on a note body edits velocity (ns-resize cursor). */
+  const altHeld = useAltHeld();
+  /** The note under an Alt-drag (its velocity is shown in a badge while dragging). */
+  const [velocityNote, setVelocityNote] = useState<NoteId | null>(null);
+
+  /**
+   * Alt-drag on a note body: vertical movement changes the velocity of `originals` (the
+   * selection, or just the pressed note) by the same amount; one undo gesture, no time or
+   * pitch change. A click without a drag changes nothing.
+   */
+  const startVelocityDrag = (e: ReactPointerEvent, note: Note, originals: Note[], onClick: () => void) => {
+    const dv = velocityDrag();
+    setVelocityNote(note.id);
+    startDrag(
+      transport,
+      e,
+      {
+        move: (_dx, dy, ev) => cmd("Note", { type: "Edit", edits: velocityEdits(originals, dv(dy, ev.shiftKey)) }),
+        end: (moved) => {
+          setVelocityNote(null);
+          if (!moved) onClick();
+        },
+      },
+      { threshold: 3, cursor: "ns-resize" },
+    );
+  };
 
   const onBackgroundPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
     // Draw mode: every press inserts. Otherwise the second press of a double-click on empty
@@ -180,15 +211,27 @@ export function NoteGrid({ clip, notes, view, vp, widthPx, keyH, rows, scale, hi
     const originals = notes.filter((n) => selected.has(n.id));
     /** Copy ids by original id while the drag duplicates (cmd/ctrl held). */
     let copies: Map<NoteId, NoteId> | null = null;
+    /** A click (no drag) on a selected note: plain selects just it; cmd deselects it. */
+    const clickSelected = () => {
+      if (!wasSelected) return;
+      if (mode === "replace") itemSelection.getState().select("note", [note.id], "replace");
+      else if (mode === "toggle") itemSelection.getState().select("note", [note.id], "remove");
+    };
+    if (zone === "body" && e.altKey) {
+      startVelocityDrag(e, note, originals, clickSelected);
+      return;
+    }
     const back = originals.map((n) => noteEdit(n.id, { start: n.start, pitch: n.pitch }));
     startDrag(
       transport,
       e,
       {
         move: (dx, dy, ev) => {
-          const snap = ev.altKey ? null : step;
           const dBeats = dx / vp.pxPerBeat;
-          if (zone !== "body") return cmd("Note", { type: "Edit", edits: resizeEdits(originals, note, zone, dBeats, snap, tempo) });
+          // Resize: alt bypasses snapping. Move: shift does (alt at the press edits velocity
+          // instead; alt pressed mid-move still frees it).
+          if (zone !== "body") return cmd("Note", { type: "Edit", edits: resizeEdits(originals, note, zone, dBeats, ev.altKey ? null : step, tempo) });
+          const snap = ev.shiftKey || ev.altKey ? null : step;
           const edits = moveEdits(originals, note, dBeats, rowPitchDelta(note.pitch, dy, keyH, rows), snap, tempo);
           const wantCopy = ev.metaKey || ev.ctrlKey;
           if (wantCopy && !copies) {
@@ -220,10 +263,8 @@ export function NoteGrid({ clip, notes, view, vp, widthPx, keyH, rows, scale, hi
             const project = useProjectStore.getState().project;
             const created = [...copies.values()].filter((id) => project?.notes[id]);
             if (created.length) itemSelection.getState().select("note", created, "replace");
-          } else if (!moved && wasSelected) {
-            // A plain click on a selected note selects just it; cmd-click deselects it.
-            if (mode === "replace") itemSelection.getState().select("note", [note.id], "replace");
-            else if (mode === "toggle") itemSelection.getState().select("note", [note.id], "remove");
+          } else if (!moved) {
+            clickSelected();
           }
         },
       },
@@ -272,7 +313,7 @@ export function NoteGrid({ clip, notes, view, vp, widthPx, keyH, rows, scale, hi
   return (
     <div
       ref={rootRef}
-      className={clsx("eth-pr-grid", drawMode && "eth-pr-grid--draw")}
+      className={clsx("eth-pr-grid", drawMode && "eth-pr-grid--draw", altHeld && !drawMode && "eth-pr-grid--alt")}
       style={{ height }}
       data-testid="piano-roll-grid"
       onPointerDown={onBackgroundPointerDown}
@@ -307,6 +348,7 @@ export function NoteGrid({ clip, notes, view, vp, widthPx, keyH, rows, scale, hi
           onContextMenu={onNoteContextMenu}
         />
       ))}
+      {velocityNote && <VelocityBadge note={notes.find((n) => n.id === velocityNote)} vp={vp} keyH={keyH} rows={rows} />}
       <NotePitchCurves notes={visible} vp={vp} keyH={keyH} rowY={(p) => pitchToY(p, keyH, rows)} widthPx={widthPx} height={height} />
       {marquee.rect && (
         <div
@@ -322,6 +364,44 @@ export function NoteGrid({ clip, notes, view, vp, widthPx, keyH, rows, scale, hi
       <PlayheadLine view={view} mapping={(song) => songToContent(clip, song)} />
       <EditorPresence clip={clip.id} gridRef={rootRef} mapping={cursorMapping} />
       <EditorNotes clip={clip.id} gridRef={rootRef} mapping={cursorMapping} layoutKey={`${vp.pxPerBeat}:${vp.scrollBeats}:${keyH}:${rows.length}:${rows[0] ?? 0}`} />
+    </div>
+  );
+}
+
+/** Whether Alt/Option is held (for the velocity-drag cursor over notes). */
+function useAltHeld(): boolean {
+  const [held, setHeld] = useState(false);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => setHeld(e.altKey);
+    const onMove = (e: PointerEvent) => setHeld(e.altKey);
+    const off = () => setHeld(false);
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("keyup", onKey);
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("blur", off);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("keyup", onKey);
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("blur", off);
+    };
+  }, []);
+  return held;
+}
+
+/** The velocity (MIDI 1..127) of the note under an Alt-drag, just above it. */
+function VelocityBadge({ note, vp, keyH, rows }: { note: Note | undefined; vp: TimelineViewport; keyH: number; rows: readonly number[] }) {
+  if (!note) return null;
+  const r = noteRect(note, vp, keyH, rows);
+  return (
+    <div
+      // Below the note when it sits on the top rows (the badge would be clipped above).
+      className={clsx("eth-pr-grid__velocity", r.y0 < 2 * keyH && "eth-pr-grid__velocity--below")}
+      data-testid="piano-roll-velocity-badge"
+      style={{ left: r.x0, top: r.y0 < 2 * keyH ? r.y0 + keyH : r.y0 }}
+      aria-live="polite"
+    >
+      <Badge tone="accent">Velocity {midiVelocity(note.velocity)}</Badge>
     </div>
   );
 }

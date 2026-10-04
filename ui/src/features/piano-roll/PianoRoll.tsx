@@ -7,8 +7,11 @@
  *   pressure) and per-note pressure, picked from the lane bar.
  * - Draw: double-click empty space (keep holding and drag to set the length), or drag in
  *   draw mode (B). Move: drag a note body
- *   (vertical = pitch). Resize: drag either edge. Delete: double-click a note, or
- *   Delete/Backspace. Alt bypasses snapping. Every drag is one undo gesture.
+ *   (vertical = pitch; Shift: no snapping). Resize: drag either edge. Delete: double-click
+ *   a note, or Delete/Backspace. Velocity: Alt/Option-drag a note body vertically (the
+ *   selection, or just that note, by the same amount; Shift: fine), or the velocity lane.
+ *   Alt bypasses snapping on every other drag (draw, resize, marquee, ruler, stretch bar).
+ *   Every drag is one undo gesture.
  * - Selection: click / shift / cmd-ctrl, marquee on empty space, cmd-A. Cmd/ctrl-drag a
  *   note duplicates the selection (copies follow the pointer).
  * - Keys: arrows nudge (shift = octave), cmd-U quantize, Esc deselects. Quantize (button,

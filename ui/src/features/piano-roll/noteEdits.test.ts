@@ -3,7 +3,21 @@ import type { Clip, Note } from "@/generated";
 import { TempoMap, type GridStep } from "@/timeline";
 import { clipSongStart, clipTempoMap, contentEnd, contentToSong, songToContent } from "./clipTime";
 import { isBlackKey, noteHitZone, pitchName, pitchToY, yToPitch } from "./geometry";
-import { clampMove, MIN_NOTE_BEATS, MIN_VELOCITY, moveEdits, newNote, nudgeEdits, quantizeCommand, resizeEdits, velocityEdits } from "./noteEdits";
+import {
+  clampMove,
+  midiVelocity,
+  MIN_NOTE_BEATS,
+  MIN_VELOCITY,
+  moveEdits,
+  newNote,
+  nudgeEdits,
+  quantizeCommand,
+  resizeEdits,
+  velocityDrag,
+  VELOCITY_DRAG_PX,
+  VELOCITY_FINE,
+  velocityEdits,
+} from "./noteEdits";
 
 const tempo = TempoMap.constant(120);
 const sixteenth: GridStep = { kind: "beats", beats: 0.25 };
@@ -98,6 +112,39 @@ describe("velocity, new notes, quantize", () => {
     const edits = velocityEdits([note("a", 60, 0, 1, 0.5), note("b", 60, 0, 1, 0.9)], 0.3);
     expect(edits.map((e) => e.velocity)).toEqual([0.8, 1]);
     expect(velocityEdits([note("a", 60, 0, 1, 0.1)], -1)[0]!.velocity).toBe(MIN_VELOCITY);
+  });
+
+  it("alt-drag velocity: up is louder, the full range over VELOCITY_DRAG_PX", () => {
+    const drag = velocityDrag();
+    expect(drag(-VELOCITY_DRAG_PX / 2, false)).toBeCloseTo(0.5);
+    expect(drag(-VELOCITY_DRAG_PX, false)).toBeCloseTo(1);
+    expect(drag(0, false)).toBeCloseTo(0);
+    expect(velocityDrag()(VELOCITY_DRAG_PX / 4, false)).toBeCloseTo(-0.25);
+  });
+
+  it("alt-drag velocity: shift is fine and toggling it mid-drag never jumps", () => {
+    const drag = velocityDrag();
+    expect(drag(-90, false)).toBeCloseTo(0.5);
+    // Shift pressed at the same pointer position: unchanged.
+    expect(drag(-90, true)).toBeCloseTo(0.5);
+    // 90 px more with shift: a tenth of the coarse amount.
+    expect(drag(-180, true)).toBeCloseTo(0.5 + 0.5 * VELOCITY_FINE);
+    expect(drag(-180, false)).toBeCloseTo(0.5 + 0.5 * VELOCITY_FINE);
+  });
+
+  it("alt-drag velocity: the same delta on every note, clamped like the lane", () => {
+    const dv = velocityDrag()(-VELOCITY_DRAG_PX * 0.3, false);
+    const edits = velocityEdits([note("a", 60, 0, 1, 0.5), note("b", 62, 1, 1, 0.9)], dv);
+    expect(edits[0]!.velocity).toBeCloseTo(0.8);
+    expect(edits[1]!.velocity).toBe(1);
+    // Velocity only: no time or pitch change.
+    expect(edits.every((e) => e.start === null && e.pitch === null && e.duration === null)).toBe(true);
+  });
+
+  it("shows velocity as MIDI 1..127", () => {
+    expect(midiVelocity(1)).toBe(127);
+    expect(midiVelocity(100 / 127)).toBe(100);
+    expect(midiVelocity(MIN_VELOCITY)).toBe(1);
   });
 
   it("clamps new notes", () => {

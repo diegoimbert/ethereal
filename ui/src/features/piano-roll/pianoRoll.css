@@ -337,6 +337,25 @@
   right: 0;
 }
 
+/* Alt/Option held: a press on a note body drags its velocity (the edges still resize). */
+.eth-pr-grid--alt .eth-pr-note {
+  cursor: ns-resize;
+}
+
+/* The velocity of the note under an Alt-drag, just above it (below on the top rows). */
+.eth-pr-grid__velocity {
+  position: absolute;
+  z-index: 4;
+  transform: translateY(calc(-100% - var(--eth-space-xs)));
+  pointer-events: none;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.eth-pr-grid__velocity--below {
+  transform: translateY(var(--eth-space-xs));
+}
+
 /* Selected notes glow: a brighter fill, a light rim and a soft halo in the accent color. */
 .eth-pr-note--selected {
   z-index: 3;
