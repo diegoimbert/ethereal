@@ -19,6 +19,11 @@
 //!     output is a DC level `2 · Volume · velocity` while a note is held (sample-accurate),
 //!     echoing note-ons back to the host (`audioMasterProcessEvents`); claims an editor
 //!     (`effEditGetRect` 200x100, no real view).
+//!
+//! Loading aborts the process if the library path contains `ether-crash`, and hangs forever
+//! if it contains `ether-hang` (scanner crash/timeout tests; Unix only).
+//!
+//! Nothing here allocates on the audio thread.
 
 #![allow(clippy::missing_safety_doc, non_upper_case_globals)]
 
@@ -429,12 +434,46 @@ unsafe extern "C" fn process_double_replacing(
     }
 }
 
+/// Crash or hang on demand, based on this library's own path (see the module docs).
+fn misbehave() {
+    #[cfg(unix)]
+    {
+        use std::ffi::{CStr, c_char};
+        #[repr(C)]
+        struct DlInfo {
+            fname: *const c_char,
+            fbase: *mut c_void,
+            sname: *const c_char,
+            saddr: *mut c_void,
+        }
+        unsafe extern "C" {
+            fn dladdr(addr: *const c_void, info: *mut DlInfo) -> i32;
+        }
+        // SAFETY: plain libc query about an address of this library.
+        let mut info: DlInfo = unsafe { std::mem::zeroed() };
+        let found = unsafe { dladdr(VSTPluginMain as *const c_void, &mut info) } != 0;
+        if !found || info.fname.is_null() {
+            return;
+        }
+        let path = unsafe { CStr::from_ptr(info.fname) }.to_string_lossy();
+        if path.contains("ether-crash") {
+            std::process::abort();
+        }
+        if path.contains("ether-hang") {
+            loop {
+                std::thread::sleep(std::time::Duration::from_secs(1));
+            }
+        }
+    }
+}
+
 /// The VST 2.4 entry point.
 ///
 /// # Safety
 /// Called by a VST2 host with a valid `audioMasterCallback`.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn VSTPluginMain(host: HostCallback) -> *mut AEffect {
+    misbehave();
     // SAFETY: a host callback accepts a null effect for `audioMasterVersion`/`CurrentId`.
     let version = unsafe { host(std::ptr::null_mut(), audioMasterVersion, 0, 0, std::ptr::null_mut(), 0.0) };
     if version == 0 {

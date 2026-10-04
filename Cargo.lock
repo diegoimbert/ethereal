@@ -1946,6 +1946,7 @@ dependencies = [
  "ether-plugin-host",
  "ether-sandbox",
  "ether-stretch",
+ "ether-vst2",
  "ether-vst3",
  "getrandom 0.3.4",
  "midir",
@@ -1976,6 +1977,7 @@ dependencies = [
  "ether-clap",
  "ether-core",
  "ether-plugin-host",
+ "ether-vst2",
  "ether-vst3",
  "serde_json",
 ]
@@ -2000,6 +2002,7 @@ dependencies = [
  "ether-clap",
  "ether-core",
  "ether-plugin-host",
+ "ether-vst2",
  "ether-vst3",
  "serde",
  "serde_json",

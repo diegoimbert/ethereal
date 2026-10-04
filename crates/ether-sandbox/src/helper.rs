@@ -65,11 +65,12 @@ pub fn formats() -> ether_plugin_host::Formats {
     ether_plugin_host::Formats::new(vec![
         Arc::new(ether_clap::ClapFormat),
         Arc::new(ether_vst3::Vst3Format),
+        Arc::new(ether_vst2::Vst2Format),
         Arc::new(ether_au::AuFormat),
     ])
 }
 
-/// Parsed command line: `[--format <clap|vst3|au>] <path> <plugin-id>`.
+/// Parsed command line: `[--format <clap|vst3|vst2|au>] <path> <plugin-id>`.
 #[derive(Debug, PartialEq)]
 pub struct Args {
     pub format: PluginFormat,
@@ -78,7 +79,7 @@ pub struct Args {
 }
 
 pub const USAGE: &str =
-    "usage: ether-sandbox-helper [--format <clap|vst3|au>] <bundle-or-component> <plugin-id>";
+    "usage: ether-sandbox-helper [--format <clap|vst3|vst2|au>] <bundle-or-component> <plugin-id>";
 
 /// Parse the helper's arguments. `--format` defaults to `clap` (hosts before VST3/AU passed
 /// only the bundle and the id).
@@ -426,13 +427,19 @@ mod tests {
         let a = parse(&["aufx:dely:appl", "aufx:dely:appl", "--format", "AU"]).unwrap();
         assert_eq!(a.format, PluginFormat::Au);
         assert_eq!(a.path, PathBuf::from("aufx:dely:appl"));
-        assert!(parse(&["--format", "vst2", "a", "b"]).is_err());
+        assert_eq!(parse(&["--format", "vst2", "a", "b"]).unwrap().format, PluginFormat::Vst2);
+        assert!(parse(&["--format", "lv2", "a", "b"]).is_err());
         assert!(parse(&["a", "b", "--format"]).is_err());
         assert!(parse(&["a"]).is_err());
         assert!(parse(&["a", "b", "c"]).is_err());
         assert_eq!(
             formats().formats(),
-            [PluginFormat::Clap, PluginFormat::Vst3, PluginFormat::Au]
+            [
+                PluginFormat::Clap,
+                PluginFormat::Vst3,
+                PluginFormat::Vst2,
+                PluginFormat::Au
+            ]
         );
     }
 }
