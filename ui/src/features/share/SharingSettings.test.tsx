@@ -1,4 +1,4 @@
-/** Settings > Advanced "Hide my IP (relay only)": web only until native has a TURN client (#203). */
+/** Settings > Advanced "Hide my IP (relay only)": every engine (native has its own TURN client, native-turn). */
 import { fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import type { Command, ReplyValue } from "@/generated";
@@ -39,15 +39,18 @@ describe("Hide my IP (relay only)", () => {
     expect(prefs(t).at(-1)).toMatchObject({ relay_only: true });
   });
 
-  it("is disabled on desktop, and never sent there", () => {
+  it("works on desktop too (the native endpoint has a TURN client)", () => {
     useShareSettings.getState().update({ relayOnly: true });
     const t = desktop();
     render(<SharingAdvancedSettings transport={t} />);
     const toggle = screen.getByRole("switch", { name: "Hide my IP (relay only)" });
-    expect(toggle).toBeDisabled();
-    expect(toggle).toHaveAttribute("aria-checked", "false");
-    expect(screen.getByText("Needs a relay (TURN) server: not supported in the desktop app yet.")).toBeInTheDocument();
+    expect(toggle).toBeEnabled();
+    expect(toggle).toHaveAttribute("aria-checked", "true");
+    expect(screen.queryByText(/not supported in the desktop app/)).not.toBeInTheDocument();
     pushPreferences(t);
+    expect(prefs(t).at(-1)).toMatchObject({ relay_only: true });
+    fireEvent.click(toggle);
+    expect(useShareSettings.getState().relayOnly).toBe(false);
     expect(prefs(t).at(-1)).toMatchObject({ relay_only: false });
   });
 });

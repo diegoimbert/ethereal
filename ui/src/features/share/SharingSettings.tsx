@@ -5,7 +5,7 @@ import type { IceServer } from "@/generated";
 import { Button, IconButton, TextInput, Toggle } from "@/kit";
 import type { EngineTransport } from "@/transport";
 import { IdentitySection } from "./SharePopover";
-import { iceUrlError, nativeEngine, pushIce, pushPreferences, pushSignal, signalUrlError, useShareSettings, type ShareSettings } from "./settings";
+import { iceUrlError, pushIce, pushPreferences, pushSignal, signalUrlError, useShareSettings, type ShareSettings } from "./settings";
 
 /** Change a preference and send all three (`Share::SetPreferences`). */
 function setPreference(transport: EngineTransport, patch: Partial<Pick<ShareSettings, "resumeOnOpen" | "autoListen" | "relayOnly">>) {
@@ -41,8 +41,6 @@ export function SharingSettings({ transport }: { transport: EngineTransport }) {
 export function SharingAdvancedSettings({ transport }: { transport: EngineTransport }) {
   const saved = useShareSettings((s) => s.signalUrl);
   const relayOnly = useShareSettings((s) => s.relayOnly);
-  // No TURN client natively: relay-only would fail every connection (p2p-transport #203).
-  const native = nativeEngine(transport);
   const update = useShareSettings((s) => s.update);
   const [signal, setSignal] = useState(saved);
   const problem = signalUrlError(signal);
@@ -77,15 +75,12 @@ export function SharingAdvancedSettings({ transport }: { transport: EngineTransp
       <IceServersEditor transport={transport} />
       <Toggle
         size="sm"
-        checked={relayOnly && !native}
-        disabled={native}
+        checked={relayOnly}
         onChange={(v) => setPreference(transport, { relayOnly: v })}
         label="Hide my IP (relay only)"
       />
       <p className="eth-share-pop__hint">
-        {native
-          ? "Needs a relay (TURN) server: not supported in the desktop app yet."
-          : "Connects through a TURN relay only, so others never see your address. Needs a TURN server above."}
+        Connects through a TURN relay only, so others never see your address. Uses the sharing service&apos;s relay, or a TURN server above.
       </p>
     </section>
   );

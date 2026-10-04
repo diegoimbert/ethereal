@@ -3,6 +3,9 @@
 //! `cargo test -p ether-collab --test p2p_stdio -- --ignored --nocapture`.
 //!
 //! - `P2P_STDIO_OFFER=1`: this side is the joiner (it offers), else the host.
+//! - `P2P_STDIO_ICE`: the ICE servers (JSON `IceServer` list; default none), and
+//!   `P2P_STDIO_RELAY=1`: "Hide my IP" (relay only, no host candidates); for the TURN e2e
+//!   (`apps/web/e2e/p2p-turn.spec.ts`).
 //! - stdout: one `P2P <json>` line per event: `{"type":"Signal","signal":...}`,
 //!   `{"type":"Connected","local":"sha-256 ..","remote":".."}`, `{"type":"Failed","reason":..}`,
 //!   `{"type":"Frame","text":..}` or `{"type":"Frame","len":..,"sum":..}` (binary).
@@ -18,7 +21,7 @@ use ether_collab::LinkState;
 use ether_collab::share::native::{NativeConfig, NativePeers};
 use ether_collab::share::{BoxPeerLink, PeerEndpoint, PeerOutput};
 use ether_collab::wire::WireFrame;
-use ether_protocol::collab::StreamSignal;
+use ether_protocol::collab::{IceServer, StreamSignal};
 use serde::{Deserialize, Serialize};
 
 const PEER: u32 = 1;
@@ -78,8 +81,21 @@ fn stdio_peer() {
         }
         let _ = tx.send(In::Quit);
     });
-    let mut ep = NativePeers::new(NativeConfig::default());
-    ep.open(PEER, offer, &[], false);
+    let ice: Vec<IceServer> = std::env::var("P2P_STDIO_ICE")
+        .map(|s| serde_json::from_str(&s).expect("P2P_STDIO_ICE is an IceServer list"))
+        .unwrap_or_default();
+    let relay = std::env::var("P2P_STDIO_RELAY").is_ok_and(|v| v == "1");
+    let config = if relay {
+        NativeConfig {
+            loopback: false,
+            default_route: false,
+            ..NativeConfig::default()
+        }
+    } else {
+        NativeConfig::default()
+    };
+    let mut ep = NativePeers::new(config);
+    ep.open(PEER, offer, &ice, relay);
     let mut link: Option<BoxPeerLink> = None;
     let started = Instant::now();
     let mut outputs = Vec::new();
