@@ -14,6 +14,7 @@ const FORMAT_CHOICES: SelectOption<FormatChoice>[] = [
   { value: "Any", label: "Any format" },
   { value: "Clap", label: FORMAT_LABEL.Clap },
   { value: "Vst3", label: FORMAT_LABEL.Vst3 },
+  { value: "Vst2", label: FORMAT_LABEL.Vst2 },
   { value: "Au", label: FORMAT_LABEL.Au },
 ];
 
@@ -33,7 +34,7 @@ export function PluginFoldersPanel({ transport }: { transport: EngineTransport }
   if (transport.kind !== "tauri") {
     return (
       <p className="eth-plugin-folders__note">
-        Plugins (CLAP, VST3, AU) are loaded by the desktop app; their folders are set there.
+        Plugins (CLAP, VST3, VST2, AU) are loaded by the desktop app; their folders are set there.
       </p>
     );
   }

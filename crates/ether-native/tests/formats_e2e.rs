@@ -1,6 +1,6 @@
 //! Every plugin format end to end through the native host: one CLAP (`ether-clap`'s
-//! fixture), one VST3 (`ether-vst3`'s fixture) and one AU (Apple's built-in AUDelay, macOS
-//! only), each:
+//! fixture), one VST3 (`ether-vst3`'s fixture), one VST2 (`ether-vst2`'s gain fixture) and one
+//! AU (Apple's built-in AUDelay, macOS only), each:
 //!
 //! - scanned through the real `ether-plugin-scanner` (targets from the host's
 //!   [`ether_native::plugins::formats`] discovery; AUs from the component registry);
@@ -86,6 +86,11 @@ fn scanned() -> Vec<PluginDescriptor> {
         let dir = ether_clap::testing::temp_dir("formats-e2e");
         let clap = ether_clap::testing::make_bundle(&dir, "EtherFormatsClap");
         let vst3 = ether_vst3::testing::make_bundle(&dir, "EtherFormatsVst3");
+        let vst2 = ether_vst2::testing::make_plugin(
+            &dir,
+            "EtherFormatsVst2",
+            ether_vst2::testing::Fixture::Plugin,
+        );
         let targets = ether_native::plugins::formats().discover(Some(&[dir]));
         assert_eq!(
             targets,
@@ -97,6 +102,10 @@ fn scanned() -> Vec<PluginDescriptor> {
                 ScanTarget {
                     format: PluginFormat::Vst3,
                     path: vst3
+                },
+                ScanTarget {
+                    format: PluginFormat::Vst2,
+                    path: vst2
                 },
             ],
             "bundles discovered by format"
@@ -446,6 +455,18 @@ fn vst3_end_to_end() {
     run(Case {
         plugin: find(PluginFormat::Vst3, ether_vst3::testing::EFFECT_ID),
         param: 1,
+        value: 0.25,
+        before: 1.0,
+        after: 0.5,
+    });
+}
+
+#[test]
+fn vst2_end_to_end() {
+    // Gain (param 0: output gain = 2 × value, default 0.5).
+    run(Case {
+        plugin: find(PluginFormat::Vst2, ether_vst2::testing::GAIN_ID),
+        param: 0,
         value: 0.25,
         before: 1.0,
         after: 0.5,

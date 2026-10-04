@@ -40,6 +40,8 @@ const SYNTH = plugin("com.acme.synth", "Big Synth", "Instrument");
 const EQ = plugin("org.other.eq", "Air EQ", "AudioEffect", "Other");
 const VST_VERB = plugin("E7E1E4A1000000000000000000000001", "Verb", "AudioEffect", "Acme", "Vst3");
 const AU_DELAY = plugin("aufx:dely:appl", "AUDelay", "AudioEffect", "Apple", "Au");
+/** The same plugin also installed as VST2: listed separately, told apart by its chip. */
+const VST2_VERB = plugin("41636D56", "Verb", "AudioEffect", "Acme", "Vst2");
 
 /** The desktop host as seen by the UI: MockTransport's document + host-handled plugin commands. */
 class DesktopFake implements EngineTransport {
@@ -123,14 +125,19 @@ describe("filter helpers", () => {
   });
 
   it("filters by format and searches format names", () => {
-    const all = [VERB, VST_VERB, AU_DELAY, EQ];
+    const all = [VERB, VST_VERB, AU_DELAY, EQ, VST2_VERB];
     expect(filterPlugins(all, "").map((p) => `${p.name}/${p.format}`)).toEqual([
       "Air EQ/Clap",
       "AUDelay/Au",
       "Verb/Clap",
+      "Verb/Vst2",
       "Verb/Vst3",
     ]);
     expect(filterPlugins(all, "", "Vst3")).toEqual([VST_VERB]);
+    expect(filterPlugins(all, "", "Vst2")).toEqual([VST2_VERB]);
+    expect(filterPlugins(all, "vst2")).toEqual([VST2_VERB]);
+    expect(isInstalled(all, { format: "Vst2", plugin_id: VST2_VERB.id })).toBe(true);
+    expect(isInstalled(all, { format: "Vst3", plugin_id: VST2_VERB.id })).toBe(false);
     expect(filterPlugins(all, "", "Au")).toEqual([AU_DELAY]);
     expect(filterPlugins(all, "verb", "Clap")).toEqual([EQ, VERB]);
     expect(filterPlugins(all, "vst3")).toEqual([VST_VERB]);
@@ -251,6 +258,20 @@ describe("PluginDeviceControls", () => {
     expect(screen.getByTestId("host")).toBeEmptyDOMElement();
   });
 
+  it("shows the plugin's format chip", async () => {
+    const vst2: Device = {
+      ...device(false),
+      kind: {
+        type: "Plugin",
+        plugin: { format: "Vst2", plugin_id: VST2_VERB.id, name: "Verb", vendor: "Acme", version: "1", sandboxed: false, state: null },
+      },
+    };
+    const t = new DesktopFake();
+    t.plugins = [VST2_VERB];
+    await renderWith(t, <PluginDeviceControls device={vst2} />);
+    expect(await screen.findByTitle("VST2 plugin")).toHaveTextContent("VST2");
+  });
+
   it("opens/closes the editor and toggles the sandbox", async () => {
     const d = device(false);
     const t = await renderWith(new DesktopFake(), <PluginDeviceControls device={d} />);
@@ -319,7 +340,7 @@ describe("plugin formats", () => {
 
   it("badges every plugin with its format, filters by format and inserts with the format", async () => {
     const t = new DesktopFake();
-    t.plugins = [VERB, VST_VERB, AU_DELAY, SYNTH];
+    t.plugins = [VERB, VST_VERB, AU_DELAY, SYNTH, VST2_VERB];
     await renderWith(t, <PluginBrowser />);
     const list = await screen.findByRole("list", { name: "Plugins" });
     await within(list).findByText("AUDelay");
@@ -327,6 +348,7 @@ describe("plugin formats", () => {
       "AUDelayAppleEffectAU",
       "Big SynthAcmeInstrumentCLAP",
       "VerbAcmeEffectCLAP",
+      "VerbAcmeEffectVST2",
       "VerbAcmeEffectVST3",
     ]);
 
@@ -350,8 +372,16 @@ describe("plugin formats", () => {
       command: { type: "Insert", device: { type: "Plugin", plugin_id: AU_DELAY.id, format: "Au" } },
     });
 
+    pickOption(format, { value: "Vst2" });
+    fireEvent.click(within(list).getByText("Verb"));
+    await waitFor(() =>
+      expect(t.sent.at(-1)).toMatchObject({
+        command: { type: "Insert", device: { type: "Plugin", plugin_id: VST2_VERB.id, format: "Vst2" } },
+      }),
+    );
+
     pickOption(format, { value: "All" });
-    expect(within(list).getAllByRole("button")).toHaveLength(4);
+    expect(within(list).getAllByRole("button")).toHaveLength(5);
   });
 
   it("shows a plugin missing from the scanned list as bypassed, until a rescan finds it", async () => {

@@ -263,15 +263,18 @@ v2 adds `export`, `tempo`, `markers`, `midi_map`, `groove`, `drum_rack` (with sl
   semaphores, +1 block latency reported for PDC, crash → faulted → bypass) implement the
   same traits. **IPC naming rule:** every global OS object is named with
   `ipc_name(instance, pid, purpose)`.
-- **Plugin formats (formats-base).** `PluginFormat { Clap, Vst3, Au }` (serde tags
-  `"Clap"`/`"Vst3"`/`"Au"`, stable, additive). Each format implements
+- **Plugin formats (formats-base; `Vst2` added by `vst2`).** `PluginFormat { Clap, Vst3, Au,
+  Vst2 }` (serde tags `"Clap"`/`"Vst3"`/`"Au"`/`"Vst2"`, stable, additive; CLI names
+  `clap`/`vst3`/`au`/`vst2`). Each format implements
   `ether_plugin_host::PluginFormatHost` (`scan` in the scanner process only, `instantiate`
-  on the plugin main thread) in its own crate (`ether-clap`, `ether-vst3`, `ether-au`); the
+  on the plugin main thread) in its own crate (`ether-clap`, `ether-vst3`, `ether-au`,
+  `ether-vst2`); the
   scanner and sandbox helper (`--format`) dispatch through a `Formats` registry. **Id
   convention** (`PluginInstance.plugin_id` = `PluginDescriptor.id`): CLAP = reverse-DNS
   plugin id; VST3 = class id as 32 uppercase hex in canonical `FUID::toString` order (same
   on every OS); AU = `type:subtype:manufacturer` four-char codes (`aufx:dely:appl`, non-
-  printable bytes as `\xHH`). The document stores no plugin location: hosts resolve
+  printable bytes as `\xHH`); VST2 = `AEffect::uniqueID` as 8 uppercase hex digits
+  (`'EtG2'` → `45744732`; shell sub-plugins: their own uniqueID, path = the shell library). The document stores no plugin location: hosts resolve
   `(format, plugin_id)` through their scanned catalog (`PluginDescriptor.path` = bundle
   path; for AU the id). `DeviceSpec::Plugin.format` and `ScanRequest.format` are optional
   (omitted = CLAP / inferred from the path). Details: `docs/PLUGIN-FORMATS.md`.
@@ -969,7 +972,8 @@ The node parameter-event API is `EventKind::Param { param, value }` at a sample 
 (already delivered to every node, sorted). Built-ins apply them at their offset
 (`split_at_events`); hosts forward offsets: CLAP `clap_event_param_value.header.time`, VST3
 `IParamValueQueue::addPoint(sampleOffset)`, AU `AudioUnitScheduleParameters` with
-`eventSampleTime`. A node that ignores offsets applies changes at block start (the
+`eventSampleTime`, VST2 (no timed params) splits the block at param events (sub-blocks of at
+least 16 samples) and sends MIDI with `deltaFrames`. A node that ignores offsets applies changes at block start (the
 backwards-compatible default). What changes (engine only, `ether_core::automation_rt`,
 extracted verbatim from `engine.rs` by contracts-3):
 - node params: events on an **absolute grid** (`sample_time` multiples of `PARAM_GRID` =
@@ -1093,7 +1097,9 @@ latency-aligned sidechain buffers (base-24, §11.10) through `Node::process_side
 - Hosts pass the buffers as their second input bus: CLAP (clack) the second input audio port
   (`CLAP_PORT_IS_MAIN` unset), VST3 the first `kAux` input bus (activated with
   `activateBus` when a source is set, silent when not), AU input bus 1 (render callback
-  supplying the sidechain). Without a source the aux bus gets silence.
+  supplying the sidechain). Without a source the aux bus gets silence. VST2 has no standard
+  sidechain bus: `ether-vst2` reports `sidechain_inputs = 0` (extra plugin inputs get
+  silence).
 - Sandboxed plugins: the shared-memory block gains the aux input channels (`sidechain_inputs ×
   max_block` floats after the main inputs) and the shm `VERSION` is bumped by one; the helper
   forwards them to the plugin the same way. Serialized with `sample-accurate-automation`

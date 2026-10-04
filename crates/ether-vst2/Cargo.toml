@@ -1,0 +1,46 @@
+[package]
+name = "ether-vst2"
+description = "VST2 plugin hosting (PluginFormatHost for .dll/.so/.vst) on clean-room ABI bindings. Owned by the `vst2` node."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[dependencies]
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+ether-core.workspace = true
+ether-plugin-host.workspace = true
+libloading.workspace = true
+tracing.workspace = true
+
+# CFBundle for `.vst` bundles, AppKit host windows for editors.
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2.workspace = true
+objc2-core-foundation.workspace = true
+objc2-app-kit.workspace = true
+objc2-foundation.workspace = true
+
+# Win32 host windows for editors.
+[target.'cfg(windows)'.dependencies]
+windows-sys.workspace = true
+
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+assert_no_alloc.workspace = true
+
+# Minimal VST2 plugins built from this crate's ABI bindings, used by the tests of this crate,
+# `ether-plugin-scanner` and `ether-sandbox`. One source, two libraries (see its docs): the
+# shell build includes the plugin source as a module.
+[[example]]
+name = "ether_vst2_test_plugin"
+crate-type = ["cdylib"]
+
+[[example]]
+name = "ether_vst2_test_shell"
+crate-type = ["cdylib"]
+
+[lints]
+workspace = true

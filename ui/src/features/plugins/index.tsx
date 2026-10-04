@@ -5,7 +5,7 @@
 import "./plugins.css";
 import { PluginBrowserView } from "./PluginBrowser";
 
-/** Plugin browser: scanned CLAP/VST3/AU plugins, format filter, search, rescan, click to insert (desktop only). */
+/** Plugin browser: scanned CLAP/VST3/VST2/AU plugins, format filter, search, rescan, click to insert (desktop only). */
 export function PluginBrowser() {
   return <PluginBrowserView />;
 }

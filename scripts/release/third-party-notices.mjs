@@ -38,6 +38,28 @@ const VENDORED = {
   ],
 };
 
+/**
+ * Interface definitions Ethereal's own code was written from (no code of these projects is
+ * compiled in; listed for attribution). `ether-vst2`'s VST2 ABI bindings come from these
+ * GPL clean-room headers, never from the Steinberg VST2 SDK.
+ */
+const INTERFACE_REFERENCES = [
+  {
+    name: "FST (Free Studio Technologies), fst/fst.h",
+    license: "GPL-3.0-or-later",
+    authors: "IOhannes m zmölnig, IEM",
+    url: "https://git.iem.at/zmoelnig/FST",
+    use: "VST 2.x ABI reference for crates/ether-vst2/src/abi.rs (struct layouts, opcodes, flags)",
+  },
+  {
+    name: "VeSTige aeffectx.h (LMMS; also in Ardour)",
+    license: "GPL-2.0-or-later",
+    authors: "Javier Serrano Polo",
+    url: "https://github.com/LMMS/lmms/blob/master/include/aeffectx.h",
+    use: "VST 2.x ABI reference for crates/ether-vst2/src/abi.rs (host opcodes, VstMidiEvent, VstTimeInfo)",
+  },
+];
+
 /** Components called out at the top of the file (the audio stretch engine). */
 const HIGHLIGHT = new Set(["signalsmith-stretch"]);
 
@@ -159,6 +181,10 @@ function render(pkgs) {
   if (highlighted.length) {
     lines.push(rule, "Time-stretching engine", rule, "");
     highlighted.forEach(entry);
+  }
+  lines.push(rule, "Interface definitions (clean-room references; no code included)", rule, "");
+  for (const r of INTERFACE_REFERENCES) {
+    lines.push(r.name, `  License: ${r.license}`, `  Authors: ${r.authors}`, `  Source:  ${r.url}`, `  Used as: ${r.use}`, "");
   }
   let eco = null;
   for (const p of pkgs) {

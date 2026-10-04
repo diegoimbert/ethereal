@@ -10,7 +10,7 @@
 //! `PluginEvent::Crashed` until `PluginCommand::Reload`.
 //!
 //! Every format can be sandboxed: the helper loads the plugin through the same
-//! `PluginFormatHost` as the in-process host (`--format clap|vst3|au`). AUv3 extensions
+//! `PluginFormatHost` as the in-process host (`--format clap|vst3|vst2|au`). AUv3 extensions
 //! already run out of process (Apple's XPC bridge); sandboxing one is allowed anyway (the
 //! helper then hosts the `AUAudioUnit` proxy) because it is harmless, keeps the toggle
 //! uniform across formats, and still isolates in-process v2 units and the AU host code.
