@@ -168,8 +168,8 @@ describe("Recents: shared projects", () => {
 
   it("offers the right menu entries per role", async () => {
     const { dialog } = await setup({ "Beat sketch": HOST, "Ambient idea": COPY });
-    expect(menuLabels(dialog, "Beat sketch")).toEqual(["Open", "Rename", "Duplicate", "Export…", "—", "Copy invite link", "Stop sharing…", "—", "Delete…"]);
-    expect(menuLabels(dialog, "Ambient idea")).toEqual(["Open", "Rename", "Duplicate", "Export…", "—", "Reconnect", "Make a private copy…", "—", "Delete…"]);
+    expect(menuLabels(dialog, "Beat sketch")).toEqual(["Open", "Open without plugins", "Rename", "Duplicate", "Export…", "—", "Copy invite link", "Stop sharing…", "—", "Delete…"]);
+    expect(menuLabels(dialog, "Ambient idea")).toEqual(["Open", "Open without plugins", "Rename", "Duplicate", "Export…", "—", "Reconnect", "Make a private copy…", "—", "Delete…"]);
   });
 
   it("copies the invite link of a hosted project, opening and resuming it first", async () => {
