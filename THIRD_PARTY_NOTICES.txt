@@ -18,6 +18,22 @@ signalsmith-stretch 0.1.3 (Rust crate)
   Signalsmith Linear (C++ library, vendored): [T3]
 
 ================================================================================
+Interface definitions (clean-room references; no code included)
+================================================================================
+
+FST (Free Studio Technologies), fst/fst.h
+  License: GPL-3.0-or-later
+  Authors: IOhannes m zmölnig, IEM
+  Source:  https://git.iem.at/zmoelnig/FST
+  Used as: VST 2.x ABI reference for crates/ether-vst2/src/abi.rs (struct layouts, opcodes, flags)
+
+VeSTige aeffectx.h (LMMS; also in Ardour)
+  License: GPL-2.0-or-later
+  Authors: Javier Serrano Polo
+  Source:  https://github.com/LMMS/lmms/blob/master/include/aeffectx.h
+  Used as: VST 2.x ABI reference for crates/ether-vst2/src/abi.rs (host opcodes, VstMidiEvent, VstTimeInfo)
+
+================================================================================
 npm packages
 ================================================================================
 

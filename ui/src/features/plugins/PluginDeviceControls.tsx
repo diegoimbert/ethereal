@@ -11,7 +11,7 @@ export interface PluginDeviceControlsProps {
 
 /**
  * Plugin-specific controls in a device header (mounted by `DeviceView` for every device;
- * renders nothing for built-ins): editor window, sandbox toggle, and the crashed and
+ * renders nothing for built-ins): format chip, editor window, sandbox toggle, and the crashed and
  * missing states (bypassed) with their Reload action. Works the same for every format.
  */
 export function PluginDeviceControls({ device }: PluginDeviceControlsProps) {
@@ -55,6 +55,10 @@ export function PluginDeviceControls({ device }: PluginDeviceControlsProps) {
 
   return (
     <span className="eth-plugin-controls" data-plugin-controls={device.id}>
+      {/* The format chip: a plugin installed as VST2 and VST3 (or CLAP) is two plugins. */}
+      <Badge className="eth-plugin-controls__format">
+        <span title={`${FORMAT_LABEL[format]} plugin`}>{FORMAT_LABEL[format]}</span>
+      </Badge>
       {missing ? (
         <>
           <Badge tone="warn" className="eth-plugin-controls__missing">

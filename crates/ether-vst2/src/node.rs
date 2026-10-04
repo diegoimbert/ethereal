@@ -126,10 +126,7 @@ impl Vst2Node {
         let max_frames = config.max_block_size.max(1);
         let n_in = effect.num_inputs() as usize;
         let n_out = effect.num_outputs() as usize;
-        let main = (
-            descriptor.audio_inputs,
-            descriptor.audio_outputs,
-        );
+        let main = (descriptor.audio_inputs, descriptor.audio_outputs);
         let double = precision == Precision::Double;
         let wide = |n: usize| if double { n * max_frames } else { 0 };
         let mut midi = vec![VstMidiEvent::default(); MAX_EVENTS].into_boxed_slice();
@@ -326,7 +323,12 @@ impl Vst2Node {
                 if let Some(f) = f {
                     // SAFETY: channel pointers to `n` valid samples each.
                     unsafe {
-                        f(raw, self.in_ptrs.as_mut_ptr(), self.out_ptrs.as_mut_ptr(), n as i32)
+                        f(
+                            raw,
+                            self.in_ptrs.as_mut_ptr(),
+                            self.out_ptrs.as_mut_ptr(),
+                            n as i32,
+                        )
                     };
                 }
             }
@@ -373,7 +375,11 @@ impl Vst2Node {
         self.effect.dispatch(effProcessEvents, 0, 0, ptr, 0.0);
     }
 
-    fn run(&mut self, ctx: &mut ProcessContext<'_>, audio: &mut AudioBuffers<'_, '_>) -> ProcessStatus {
+    fn run(
+        &mut self,
+        ctx: &mut ProcessContext<'_>,
+        audio: &mut AudioBuffers<'_, '_>,
+    ) -> ProcessStatus {
         let frames = ctx.frames;
         if frames > self.max_frames {
             audio.clear_outputs();

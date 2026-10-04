@@ -19,6 +19,7 @@ class FoldersFake implements EngineTransport {
     defaults: [
       { path: "/Library/Audio/Plug-Ins/CLAP", format: "Clap", exists: true },
       { path: "/Library/Audio/Plug-Ins/VST3", format: "Vst3", exists: false },
+      { path: "/Library/Audio/Plug-Ins/VST", format: "Vst2", exists: true },
     ],
     folders: [],
   };
@@ -115,6 +116,9 @@ describe("PluginFoldersPanel", () => {
 
     pickOption(screen.getByRole("combobox", { name: "Formats in /Users/me/Plugins" }), { value: "Vst3" });
     await waitFor(() => expect(t.sent.at(-1)).toEqual({ type: "AddFolder", path: "/Users/me/Plugins", format: "Vst3" }));
+    t.emit({ type: "ScanFinished", plugins: 5, failed: [] });
+    pickOption(screen.getByRole("combobox", { name: "Formats in /Users/me/Plugins" }), { value: "Vst2" });
+    await waitFor(() => expect(t.sent.at(-1)).toEqual({ type: "AddFolder", path: "/Users/me/Plugins", format: "Vst2" }));
     t.emit({ type: "ScanFinished", plugins: 5, failed: [] });
 
     fireEvent.click(await screen.findByRole("button", { name: "Remove /Users/me/Plugins" }));

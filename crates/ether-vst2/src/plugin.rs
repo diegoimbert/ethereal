@@ -85,8 +85,10 @@ impl State {
                     .get(..len.checked_mul(4).ok_or_else(|| bad("length"))?)
                     .ok_or_else(|| bad("truncated"))?;
                 let values = bytes
-                    .chunks_exact(4)
-                    .map(|b| f32::from_le_bytes([b[0], b[1], b[2], b[3]]))
+                    .as_chunks::<4>()
+                    .0
+                    .iter()
+                    .map(|b| f32::from_le_bytes(*b))
                     .collect();
                 Ok(State::Params { program, values })
             }
@@ -151,7 +153,11 @@ impl Vst2Plugin {
         let info = info(&effect, path, None);
         let n = effect.num_params();
         let defaults = (0..n).map(|i| effect.get_parameter(i)).collect();
-        let io = (effect.num_inputs(), effect.num_outputs(), effect.initial_delay());
+        let io = (
+            effect.num_inputs(),
+            effect.num_outputs(),
+            effect.initial_delay(),
+        );
         let mut plugin = Self {
             path: path.to_path_buf(),
             plugin_id: plugin_id.to_owned(),
@@ -188,7 +194,10 @@ impl Vst2Plugin {
     /// `effGetTailSize` in samples (`None` = unknown/default; `Some(u32::MAX)`-ish values
     /// mean "infinite"). Not part of the format-agnostic contract yet.
     pub fn tail_samples(&self) -> Option<u32> {
-        match self.effect.dispatch(effGetTailSize, 0, 0, std::ptr::null_mut(), 0.0) {
+        match self
+            .effect
+            .dispatch(effGetTailSize, 0, 0, std::ptr::null_mut(), 0.0)
+        {
             0 => None,
             1 => Some(0), // "no tail"
             n if n > 0 => Some(u32::try_from(n).unwrap_or(u32::MAX)),
@@ -342,9 +351,8 @@ impl PluginController for Vst2Plugin {
         if self.link.is_some() {
             return Err(PluginError::Activation("plugin is already active".into()));
         }
-        let precision = Precision::choose(&self.effect).ok_or_else(|| {
-            PluginError::Activation("plugin has no process function".into())
-        })?;
+        let precision = Precision::choose(&self.effect)
+            .ok_or_else(|| PluginError::Activation("plugin has no process function".into()))?;
         let e = &self.effect;
         let null = std::ptr::null_mut();
         let max_frames = config.max_block_size.max(1);
@@ -538,7 +546,11 @@ impl PluginController for Vst2Plugin {
         if host.take_update_display() {
             // Program change or internal edit: params may have new names, values changed.
             let params = self.list_params();
-            if params.iter().map(|p| &p.name).ne(self.params.iter().map(|p| &p.name)) {
+            if params
+                .iter()
+                .map(|p| &p.name)
+                .ne(self.params.iter().map(|p| &p.name))
+            {
                 self.params = params;
                 out.push(PluginNotification::ParamsChanged);
             }

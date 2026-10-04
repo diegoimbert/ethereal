@@ -427,7 +427,10 @@ mod tests {
         let a = parse(&["aufx:dely:appl", "aufx:dely:appl", "--format", "AU"]).unwrap();
         assert_eq!(a.format, PluginFormat::Au);
         assert_eq!(a.path, PathBuf::from("aufx:dely:appl"));
-        assert_eq!(parse(&["--format", "vst2", "a", "b"]).unwrap().format, PluginFormat::Vst2);
+        assert_eq!(
+            parse(&["--format", "vst2", "a", "b"]).unwrap().format,
+            PluginFormat::Vst2
+        );
         assert!(parse(&["--format", "lv2", "a", "b"]).is_err());
         assert!(parse(&["a", "b", "--format"]).is_err());
         assert!(parse(&["a"]).is_err());

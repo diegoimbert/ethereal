@@ -2,7 +2,7 @@
 //! plugins.
 #![cfg(any(target_os = "macos", target_os = "linux"))]
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 use std::time::{Duration, Instant};
 
@@ -43,7 +43,7 @@ fn shell_path() -> PathBuf {
         .clone()
 }
 
-fn spawn(path: &PathBuf, id: &str) -> SandboxedPlugin {
+fn spawn(path: &Path, id: &str) -> SandboxedPlugin {
     let options = SandboxOptions {
         helper: PathBuf::from(env!("CARGO_BIN_EXE_ether-sandbox-helper")),
         format: PluginFormat::Vst2,
@@ -185,8 +185,7 @@ fn params_and_chunk_state_over_ipc() {
         std::thread::sleep(Duration::from_millis(10));
     }
     assert!(
-        !out
-            .iter()
+        !out.iter()
             .any(|n| matches!(n, PluginNotification::ParamEdited { .. })),
         "{out:?}"
     );

@@ -20,6 +20,7 @@ const FORMAT_OPTIONS: SelectOption<FormatFilter>[] = [
   { value: "All", label: "All formats" },
   { value: "Clap", label: FORMAT_LABEL.Clap },
   { value: "Vst3", label: FORMAT_LABEL.Vst3 },
+  { value: "Vst2", label: FORMAT_LABEL.Vst2 },
   { value: "Au", label: FORMAT_LABEL.Au },
 ];
 
@@ -28,7 +29,7 @@ function errorText(e: unknown): string {
 }
 
 /**
- * Scanned plugins of every format (desktop only; CLAP, VST3, AU), with a format badge and
+ * Scanned plugins of every format (desktop only; CLAP, VST3, VST2, AU), with a format badge and
  * filter: search, rescan, and click (or Enter) to insert on
  * the selected track's device chain. An instrument replaces the track's instrument (or goes first).
  */
@@ -119,7 +120,7 @@ export function PluginList() {
       <div className="eth-plugins__target">{track ? `Insert on: ${track.name}` : "No track selected"}</div>
       <ul className="eth-plugins__list" aria-label="Plugins">
         {plugins === null && <li className="eth-plugins__empty">Loading…</li>}
-        {plugins?.length === 0 && <li className="eth-plugins__empty">No plugins found. Install CLAP, VST3 or AU plugins and rescan.</li>}
+        {plugins?.length === 0 && <li className="eth-plugins__empty">No plugins found. Install CLAP, VST3, VST2 or AU plugins and rescan.</li>}
         {plugins && plugins.length > 0 && shown.length === 0 && <li className="eth-plugins__empty">No match.</li>}
         {shown.map((p) => {
           const ok = canInsert(p, track);

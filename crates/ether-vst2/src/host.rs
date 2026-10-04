@@ -36,8 +36,8 @@ pub(crate) enum Edit {
 /// Host state of one plugin instance (see the module docs).
 pub(crate) struct HostShared {
     edits: Mutex<Vec<Edit>>,
-    /// > 0 while the host itself changes params on the main thread (`set_param_value`,
-    /// `load_state`): `audioMasterAutomate` echoes are not user edits then.
+    /// Non-zero while the host itself changes params on the main thread
+    /// (`set_param_value`, `load_state`): `audioMasterAutomate` echoes are not user edits.
     suppress: AtomicU32,
     io_changed: AtomicBool,
     update_display: AtomicBool,
@@ -404,7 +404,13 @@ mod tests {
         assert_eq!(can(c"offline"), 0);
         let mut buf = [0xFFu8; 64];
         assert_eq!(
-            call(no_fx, audioMasterGetVendorString, 0, 0, buf.as_mut_ptr().cast()),
+            call(
+                no_fx,
+                audioMasterGetVendorString,
+                0,
+                0,
+                buf.as_mut_ptr().cast()
+            ),
             1
         );
         assert_eq!(read_cstr(&buf), "Ethereal");
@@ -489,7 +495,13 @@ mod tests {
             assert_eq!(unsafe { (*t).tempo }, 140.0);
             assert_eq!(call(e, audioMasterTempoAt, 0, 0, null), 1_400_000);
             assert_eq!(call(e, audioMasterGetCurrentProcessLevel, 0, 0, null), 2);
-            call(e, audioMasterProcessEvents, 0, 0, (&mut events as *mut VstEventsBuf<1>).cast());
+            call(
+                e,
+                audioMasterProcessEvents,
+                0,
+                0,
+                (&mut events as *mut VstEventsBuf<1>).cast(),
+            );
             // Automation while processing is not a GUI edit.
             unsafe { host_callback(e, audioMasterAutomate, 0, 0, null, 1.0) };
         }

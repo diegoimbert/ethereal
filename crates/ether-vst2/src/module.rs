@@ -72,7 +72,9 @@ impl Library {
                 LoadError::Plugin(PluginError::Load("bundle path is not a valid URL".into()))
             })?;
             CFBundle::new(None, Some(&url)).ok_or_else(|| {
-                LoadError::Plugin(PluginError::Load("not a macOS bundle (CFBundleCreate)".into()))
+                LoadError::Plugin(PluginError::Load(
+                    "not a macOS bundle (CFBundleCreate)".into(),
+                ))
             })?
         };
         // SAFETY: loading a plugin library runs foreign code. Inherent to plugin hosting:
@@ -101,7 +103,6 @@ impl Library {
             path: path.to_path_buf(),
         })
     }
-
 }
 
 /// The library binary for `path` (the path itself, or the executable of a macOS bundle).
@@ -163,11 +164,7 @@ impl Effect {
     /// Create and open an instance (plugin main thread). `shell_id` is the sub-plugin of a
     /// shell library to create (`audioMasterCurrentId`); 0 = the library's own plugin.
     pub fn create(lib: Arc<Library>, shell_id: i32) -> Result<Self, PluginError> {
-        let dir = lib
-            .path
-            .parent()
-            .map(Path::to_path_buf)
-            .unwrap_or_default();
+        let dir = lib.path.parent().map(Path::to_path_buf).unwrap_or_default();
         let host = Arc::new(HostShared::new(&dir));
         with_current_id(shell_id, || {
             // SAFETY: the entry point with our callback; returns an owned AEffect or null.
@@ -177,7 +174,9 @@ impl Effect {
             // SAFETY: a non-null AEffect from the entry point.
             let e = unsafe { &mut *ptr.as_ptr() };
             if e.magic != EFFECT_MAGIC {
-                return Err(PluginError::Load("bad AEffect magic (not a VST2 plugin)".into()));
+                return Err(PluginError::Load(
+                    "bad AEffect magic (not a VST2 plugin)".into(),
+                ));
             }
             if e.dispatcher.is_none() {
                 return Err(PluginError::Load("AEffect has no dispatcher".into()));

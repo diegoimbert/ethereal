@@ -1085,3 +1085,15 @@ COLLAB.md updates.
 
 Later, optional: `share-handover` (SHARING.md §7.4), `native-turn-client` (§11),
 `offline-merge` (decision 9).
+
+## `vst2` (owner request: "we need support for VST2")
+
+Done: `crates/ether-vst2` hosts VST 2.4 plugins through `PluginFormatHost` like the other
+formats (`PluginFormat::Vst2`), on its own ABI bindings written from the GPL clean-room
+headers of FST and VeSTige (never the Steinberg SDK). Scanner pool, sandbox helper
+(`--format vst2`), native host, plugin browser, Settings > Plugins folders and the device
+header all list it. Details in [PLUGIN-FORMATS.md](PLUGIN-FORMATS.md) ("VST2").
+Follow-ups, if wanted: Linux X11 editors (with VST3's), a sidechain convention for 4-input
+VST2 effects, per-format dedupe of plugins shipped as VST2 + VST3, the plugin's display text
+(`effGetParamDisplay`) in the generic device UI, and the Windows `VSTPluginsPath` registry
+key as an extra default folder.

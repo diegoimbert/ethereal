@@ -104,15 +104,27 @@ impl Plugin {
         }
     }
 
-    fn call_host(&mut self, op: i32, index: i32, value: isize, ptr: *mut c_void, opt: f32) -> isize {
+    fn call_host(
+        &mut self,
+        op: i32,
+        index: i32,
+        value: isize,
+        ptr: *mut c_void,
+        opt: f32,
+    ) -> isize {
         // SAFETY: the host's callback with our own effect.
         unsafe { (self.host)(&mut self.effect, op, index, value, ptr, opt) }
     }
 
     /// Read the tempo from the host transport into the `Tempo` param.
     fn read_time(&mut self) {
-        let t = self.call_host(audioMasterGetTime, 0, kVstTempoValid as isize, std::ptr::null_mut(), 0.0)
-            as *const VstTimeInfo;
+        let t = self.call_host(
+            audioMasterGetTime,
+            0,
+            kVstTempoValid as isize,
+            std::ptr::null_mut(),
+            0.0,
+        ) as *const VstTimeInfo;
         // SAFETY: the host returns null or a valid time info.
         if let Some(t) = unsafe { t.as_ref() }
             && t.flags & kVstTempoValid != 0
@@ -142,8 +154,8 @@ impl Plugin {
             return false;
         }
         self.program = i32::from_le_bytes([rest[0], rest[1], rest[2], rest[3]]);
-        for (i, b) in rest[4..].chunks_exact(4).enumerate() {
-            self.params[i] = f32::from_le_bytes([b[0], b[1], b[2], b[3]]);
+        for (i, b) in rest[4..].as_chunks::<4>().0.iter().enumerate() {
+            self.params[i] = f32::from_le_bytes(*b);
         }
         true
     }
@@ -205,7 +217,11 @@ unsafe extern "C" fn dispatcher(
             0
         }
         effGetParamLabel => {
-            let label = if p.kind != Kind::Synth && index == 0 { "dB" } else { "" };
+            let label = if p.kind != Kind::Synth && index == 0 {
+                "dB"
+            } else {
+                ""
+            };
             unsafe { write_str(ptr, label) };
             0
         }
@@ -299,8 +315,10 @@ unsafe extern "C" fn dispatcher(
                 }
                 let m = unsafe { &*ev.cast::<VstMidiEvent>() };
                 if p.num_events < MAX_EVENTS {
-                    p.events[p.num_events] =
-                        (m.delta_frames, [m.midi_data[0], m.midi_data[1], m.midi_data[2]]);
+                    p.events[p.num_events] = (
+                        m.delta_frames,
+                        [m.midi_data[0], m.midi_data[1], m.midi_data[2]],
+                    );
                     p.num_events += 1;
                 }
             }
@@ -475,13 +493,29 @@ fn misbehave() {
 pub unsafe extern "C" fn VSTPluginMain(host: HostCallback) -> *mut AEffect {
     misbehave();
     // SAFETY: a host callback accepts a null effect for `audioMasterVersion`/`CurrentId`.
-    let version = unsafe { host(std::ptr::null_mut(), audioMasterVersion, 0, 0, std::ptr::null_mut(), 0.0) };
+    let version = unsafe {
+        host(
+            std::ptr::null_mut(),
+            audioMasterVersion,
+            0,
+            0,
+            std::ptr::null_mut(),
+            0.0,
+        )
+    };
     if version == 0 {
         return std::ptr::null_mut();
     }
     let kind = if is_shell_build() {
         let id = unsafe {
-            host(std::ptr::null_mut(), audioMasterCurrentId, 0, 0, std::ptr::null_mut(), 0.0)
+            host(
+                std::ptr::null_mut(),
+                audioMasterCurrentId,
+                0,
+                0,
+                std::ptr::null_mut(),
+                0.0,
+            )
         } as i32;
         match id {
             SHELL_GAIN_UID => Kind::ShellGain,
@@ -533,7 +567,8 @@ pub unsafe extern "C" fn VSTPluginMain(host: HostCallback) -> *mut AEffect {
             user: std::ptr::null_mut(),
             unique_id: uid,
             version: 1203,
-            process_replacing: (kind != Kind::ShellGain).then_some(process_replacing as ProcessProc),
+            process_replacing: (kind != Kind::ShellGain)
+                .then_some(process_replacing as ProcessProc),
             process_double_replacing: (kind != Kind::Synth)
                 .then_some(process_double_replacing as ProcessDoubleProc),
             future: [0; 56],

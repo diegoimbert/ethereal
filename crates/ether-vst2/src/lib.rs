@@ -100,10 +100,7 @@ const FOREIGN_BUNDLES: &[&str] = &[
 ];
 
 /// Instantiate a plugin in-process (plugin main thread).
-pub fn instantiate(
-    path: &Path,
-    plugin_id: &str,
-) -> Result<Box<dyn PluginController>, PluginError> {
+pub fn instantiate(path: &Path, plugin_id: &str) -> Result<Box<dyn PluginController>, PluginError> {
     Ok(Box::new(Vst2Plugin::load(path, plugin_id)?))
 }
 

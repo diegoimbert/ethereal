@@ -47,8 +47,7 @@ pub type HostCallback =
 /// `process` (accumulating, deprecated) and `processReplacing`.
 pub type ProcessProc = unsafe extern "C" fn(*mut AEffect, *mut *mut f32, *mut *mut f32, i32);
 /// `processDoubleReplacing`.
-pub type ProcessDoubleProc =
-    unsafe extern "C" fn(*mut AEffect, *mut *mut f64, *mut *mut f64, i32);
+pub type ProcessDoubleProc = unsafe extern "C" fn(*mut AEffect, *mut *mut f64, *mut *mut f64, i32);
 pub type SetParameterProc = unsafe extern "C" fn(*mut AEffect, i32, f32);
 pub type GetParameterProc = unsafe extern "C" fn(*mut AEffect, i32) -> f32;
 /// The plugin entry point (`VSTPluginMain`, `main_macho`, `main`).

@@ -133,17 +133,28 @@ fn scan_plain_and_shell_libraries() {
     assert_eq!(
         ids,
         [
-            (SHELL_GAIN_ID, "Ether Shell Gain", DeviceCategory::AudioEffect),
+            (
+                SHELL_GAIN_ID,
+                "Ether Shell Gain",
+                DeviceCategory::AudioEffect
+            ),
             (SYNTH_ID, "Ether Shell Synth", DeviceCategory::Instrument),
         ]
     );
     assert_eq!(shell[1].features, ["instrument", "synth"]);
-    assert!(shell.iter().all(|p| p.path == shell_path().to_string_lossy()));
+    assert!(
+        shell
+            .iter()
+            .all(|p| p.path == shell_path().to_string_lossy())
+    );
 
     // Through the format host, and discovery of both libraries.
     assert_eq!(Vst2Format.scan(&gain_path()).unwrap(), plugins);
     let found = Vst2Format.discover(&[dir()]);
-    assert!(found.contains(&gain_path()) && found.contains(&shell_path()), "{found:?}");
+    assert!(
+        found.contains(&gain_path()) && found.contains(&shell_path()),
+        "{found:?}"
+    );
 }
 
 #[test]
@@ -164,7 +175,10 @@ fn effect_descriptor_params_and_text() {
     let params = plugin.params();
     let names: Vec<_> = params.iter().map(|p| p.name.as_str()).collect();
     assert_eq!(names, ["Gain", "Mode", "Tempo"]);
-    assert_eq!((params[0].min, params[0].max, params[0].default), (0.0, 1.0, 0.5));
+    assert_eq!(
+        (params[0].min, params[0].max, params[0].default),
+        (0.0, 1.0, 0.5)
+    );
     assert!(params.iter().all(|p| p.automatable && p.labels.is_none()));
 
     assert_eq!(plugin.param_value(GAIN), Some(0.5));
@@ -197,8 +211,16 @@ fn process_gain_sample_accurate_params_and_transport() {
     let events = [param(32, GAIN, 0.25)];
     let status = assert_no_alloc(|| h.run(node.as_mut(), &events));
     assert_eq!(status, ProcessStatus::Continue);
-    assert!(h.out_l[..32].iter().all(|&s| s == 1.0), "{:?}", &h.out_l[..34]);
-    assert!(h.out_l[32..].iter().all(|&s| s == 0.25), "{:?}", &h.out_l[30..]);
+    assert!(
+        h.out_l[..32].iter().all(|&s| s == 1.0),
+        "{:?}",
+        &h.out_l[..34]
+    );
+    assert!(
+        h.out_l[32..].iter().all(|&s| s == 0.25),
+        "{:?}",
+        &h.out_l[30..]
+    );
     assert_eq!(h.out_r, h.out_l);
     assert_eq!(node.param(GAIN), Some(0.25));
     // The plugin read the tempo through audioMasterGetTime.
@@ -260,8 +282,16 @@ fn synth_midi_is_sample_accurate_and_echoed() {
         },
     ];
     assert_no_alloc(|| h.run(node.as_mut(), &events));
-    assert!(h.out_l[..10].iter().all(|&s| s == 0.0), "{:?}", &h.out_l[..12]);
-    assert!(h.out_l[10..40].iter().all(|&s| s == 1.0), "{:?}", &h.out_l[8..42]);
+    assert!(
+        h.out_l[..10].iter().all(|&s| s == 0.0),
+        "{:?}",
+        &h.out_l[..12]
+    );
+    assert!(
+        h.out_l[10..40].iter().all(|&s| s == 1.0),
+        "{:?}",
+        &h.out_l[8..42]
+    );
     assert!(h.out_l[40..].iter().all(|&s| s == 0.0));
     // The plugin's MIDI out (audioMasterProcessEvents) comes back as node output events.
     let out = h.out_events.as_slice().to_vec();
@@ -349,7 +379,10 @@ fn chunk_state_round_trips() {
     // Restoring is not a user edit.
     assert!(poll(&mut b).is_empty());
     b.load_state(&[]).unwrap();
-    assert!(matches!(b.load_state(b"garbage"), Err(PluginError::State(_))));
+    assert!(matches!(
+        b.load_state(b"garbage"),
+        Err(PluginError::State(_))
+    ));
 }
 
 #[test]
@@ -371,10 +404,7 @@ fn editor_less_operation() {
     plugin.close_editor(); // no-op
     // The synth claims an editor; it can only be hosted where host windows exist.
     let synth = instantiate(&shell_path(), SYNTH_ID).unwrap();
-    assert_eq!(
-        synth.has_editor(),
-        cfg!(any(target_os = "macos", windows))
-    );
+    assert_eq!(synth.has_editor(), cfg!(any(target_os = "macos", windows)));
 }
 
 #[test]
