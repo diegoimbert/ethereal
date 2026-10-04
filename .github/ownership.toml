@@ -2113,3 +2113,22 @@ paths = [
   "ui/src/features/share/ShareControl.test.tsx",
   "ui/src/features/collab/PresenceBar.tsx",
 ]
+
+[nodes.native-turn]
+# TURN client for the native WebRTC endpoint (str0m): relay candidates, "Hide my IP" natively.
+paths = [
+  "crates/ether-collab/src/share/native/**",
+  "crates/ether-collab/tests/p2p_turn.rs",
+  "crates/ether-collab/tests/fixtures/native-turn/**",
+  "apps/web/e2e/p2p-turn.spec.ts",
+  # Shared touches (BCR).
+  "crates/ether-collab/tests/p2p_stdio.rs",
+  "crates/ether-collab/src/share/mod.rs",
+  "ui/src/features/share/settings.ts",
+  "ui/src/features/share/SharingSettings.tsx",
+  "ui/src/features/share/SharingSettings.test.tsx",
+  "ui/src/features/audio-settings/AudioSettings.test.tsx",
+  "docs/SHARING.md",
+  "docs/COLLAB.md",
+  "docs/ROADMAP.md",
+]
