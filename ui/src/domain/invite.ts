@@ -2,7 +2,7 @@
  * Invite links (docs/SHARING.md §4.1): the TypeScript mirror of
  * `crates/ether-collab/src/share/invite.rs` (same grammar, same test vectors).
  *
- *   https://etherealws.pages.dev/join/<room>[?s=<signal url>]#<key>
+ *   https://app.ethereal.ws/join/<room>[?s=<signal url>]#<key>
  *   ethereal://join/<room>[?s=...]#<key>
  *
  * `room`: 22 base64url chars. `key`: a version char (`1`) + 22 base64url chars, in the

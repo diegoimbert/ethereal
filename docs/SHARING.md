@@ -219,7 +219,7 @@ Persisted per room, and nothing else: `hostTokenHash`, `doors[]` (SHA-256 hex),
 ### 4.1 Format (frozen; `ether_collab::share::invite`, `ui/src/domain/invite.ts`)
 
 ```text
-https://etherealws.pages.dev/join/<room>[?s=<signal url>]#<key>
+https://app.ethereal.ws/join/<room>[?s=<signal url>]#<key>
 ethereal://join/<room>[?s=<signal url>]#<key>
 ```
 
@@ -421,7 +421,7 @@ No setting is needed for Share → link → Join to work:
 | Sharing services | real ones: native `signal::native::WsSignal` (tungstenite + rustls, `wss://`) and `native::NativePeers` (str0m); web `WebSignal` + `WebPeers` | `EtherController::share_services()` falls back to `ether_collab::share::default_services()`, so `ether-native` (desktop and `ether-server`) and `ether-wasm` construct the controller without calling `set_share_services` | tests inject `share::fake` |
 | Signaling service | `https://etherealws.pages.dev/signal` (`DEFAULT_SIGNAL_URL`) | the Pages Function of §3.1 (shipped in the web release since #241) | Settings > Advanced > Signaling server (`SetServers`); a joiner uses the link's `?s=` |
 | ICE servers | what the service advertises in `HostWelcome`/`JoinWelcome`: `stun:stun.cloudflare.com:3478` (`STUN_URLS` in `services/signal/wrangler.toml`), plus TURN if configured | §2.4 | Settings > Advanced > ICE servers (`Collab::SetIceServers`) |
-| Invite links | `https://etherealws.pages.dev/join/<room>#<key>` | `DEFAULT_INVITE_ORIGIN` | `SetServers.invite_origin` (not exposed in the UI) |
+| Invite links | `https://app.ethereal.ws/join/<room>#<key>` (older builds: `etherealws.pages.dev`, same site) | `DEFAULT_INVITE_ORIGIN` | `SetServers.invite_origin` (not exposed in the UI) |
 
 **"Can't reach the sharing service"** is not a health probe. The app never calls
 `/v1/health` (that route is for operators and smoke tests). The message is shown when the

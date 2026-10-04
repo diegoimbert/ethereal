@@ -20,7 +20,7 @@ import { fail } from "../documentReducer";
 import type { MockHost } from "./host";
 
 const UNIT: ReplyValue = { type: "Unit" };
-const DEFAULT_ORIGIN = "https://etherealws.pages.dev";
+const DEFAULT_ORIGIN = "https://app.ethereal.ws";
 const B64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
 /** Host colour in the mock (data, like track colours). */
 export const MOCK_HOST_COLOR = 0x5cffe8;
