@@ -2161,4 +2161,5 @@ paths = [
   "docs/ROADMAP.md",
   "docs/PLUGIN-FORMATS.md",
   "THIRD_PARTY_NOTICES.txt",
+  "scripts/release/third-party-notices.mjs",
 ]
