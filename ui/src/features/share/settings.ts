@@ -140,16 +140,13 @@ export function pushIce(transport: EngineTransport, servers: ReadonlyArray<IceSe
 }
 
 /**
- * A native engine (desktop, or an engine server) opens the peer connections itself and has no
- * TURN client yet, so "Hide my IP (relay only)" is unavailable there (p2p-transport #203).
+ * Send the Sharing preferences (`Share::SetPreferences`). "Hide my IP" works on every engine:
+ * the browser's `RTCPeerConnection` and the native str0m endpoint's own TURN client.
  */
-export const nativeEngine = (transport: EngineTransport): boolean => transport.kind === "tauri" || transport.kind === "remote";
-
-/** Send the Sharing preferences (`Share::SetPreferences`; relay-only never on a native engine). */
 export function pushPreferences(transport: EngineTransport, s: Pick<ShareSettings, "resumeOnOpen" | "autoListen" | "relayOnly"> = useShareSettings.getState()): void {
   quiet(
     transport.send(
-      cmd("Share", { type: "SetPreferences", resume_on_open: s.resumeOnOpen, auto_listen: s.autoListen, relay_only: s.relayOnly && !nativeEngine(transport) }),
+      cmd("Share", { type: "SetPreferences", resume_on_open: s.resumeOnOpen, auto_listen: s.autoListen, relay_only: s.relayOnly }),
     ),
   );
 }
