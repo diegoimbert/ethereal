@@ -13,6 +13,7 @@ members = [
     "crates/ether-plugin-scanner",
     "crates/ether-plugin-host",
     "crates/ether-vst3",
+    "crates/ether-vst2",
     "crates/ether-au",
     "crates/ether-sandbox",
     "crates/ether-native",
@@ -50,6 +51,7 @@ ether-stretch = { path = "crates/ether-stretch", default-features = false }
 ether-clap = { path = "crates/ether-clap" }
 ether-plugin-host = { path = "crates/ether-plugin-host" }
 ether-vst3 = { path = "crates/ether-vst3" }
+ether-vst2 = { path = "crates/ether-vst2" }
 ether-au = { path = "crates/ether-au" }
 ether-sandbox = { path = "crates/ether-sandbox" }
 ether-native = { path = "crates/ether-native" }

@@ -2032,6 +2032,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "ether-vst2"
+version = "0.0.1"
+dependencies = [
+ "assert_no_alloc",
+ "ether-core",
+ "ether-plugin-host",
+ "libloading 0.8.9",
+ "objc2",
+ "objc2-app-kit",
+ "objc2-core-foundation",
+ "objc2-foundation",
+ "tracing",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
 name = "ether-vst3"
 version = "0.0.1"
 dependencies = [

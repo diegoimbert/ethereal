@@ -380,7 +380,7 @@ pub struct PluginInstance {
     pub state: Option<Base64Bytes>,
 }
 
-/// Plugin format. Serialized as the plain variant name (`"Clap"`, `"Vst3"`, `"Au"`); these
+/// Plugin format. Serialized as the plain variant name (`"Clap"`, `"Vst3"`, `"Au"`, `"Vst2"`); these
 /// tags are stable (`.ether` files and the wire depend on them) and new formats are additive.
 ///
 /// `plugin_id` convention per format (what [`PluginInstance::plugin_id`] and the scanner's
@@ -395,23 +395,36 @@ pub struct PluginInstance {
 /// - [`PluginFormat::Au`]: the `AudioComponentDescription` four-char codes
 ///   `type:subtype:manufacturer` (`aufx:dely:appl` = Apple AUDelay). Each code is exactly
 ///   four characters (Mac OS Roman, printable), kept verbatim (case-sensitive, spaces kept).
+/// - [`PluginFormat::Vst2`]: the plugin's `AEffect::uniqueID` as 8 **uppercase** hex digits
+///   of its 32-bit value (`'EtG2'` → `45744732`); shell sub-plugins use their own uniqueID.
+///   The library path (`.dll`/`.so`/`.vst`) is not part of the id: the host finds it in its
+///   plugin catalog. Two unrelated VST2 plugins may share a uniqueID (the format has no
+///   registry anymore); the catalog then resolves to the first one scanned.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, TS)]
 pub enum PluginFormat {
     Clap,
     Vst3,
     Au,
+    /// VST 2.4 (`ether-vst2`, clean-room ABI). Added after `Au`: tags are additive.
+    Vst2,
 }
 
 impl PluginFormat {
     /// Every format, in scan/display order.
-    pub const ALL: [PluginFormat; 3] = [PluginFormat::Clap, PluginFormat::Vst3, PluginFormat::Au];
+    pub const ALL: [PluginFormat; 4] = [
+        PluginFormat::Clap,
+        PluginFormat::Vst3,
+        PluginFormat::Vst2,
+        PluginFormat::Au,
+    ];
 
-    /// Lowercase CLI/log name: `clap`, `vst3`, `au` (e.g. `ether-sandbox-helper --format`).
+    /// Lowercase CLI/log name: `clap`, `vst3`, `vst2`, `au` (e.g. `ether-sandbox-helper --format`).
     pub fn as_str(self) -> &'static str {
         match self {
             PluginFormat::Clap => "clap",
             PluginFormat::Vst3 => "vst3",
             PluginFormat::Au => "au",
+            PluginFormat::Vst2 => "vst2",
         }
     }
 

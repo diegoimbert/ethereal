@@ -92,6 +92,7 @@ fn format_tags_are_stable() {
         (PluginFormat::Clap, "Clap", "clap"),
         (PluginFormat::Vst3, "Vst3", "vst3"),
         (PluginFormat::Au, "Au", "au"),
+        (PluginFormat::Vst2, "Vst2", "vst2"),
     ] {
         assert_eq!(serde_json::to_value(f).unwrap(), Value::from(tag));
         assert_eq!(
@@ -103,8 +104,8 @@ fn format_tags_are_stable() {
         assert_eq!(PluginFormat::parse(cli), Some(f));
         assert_eq!(PluginFormat::parse(&cli.to_uppercase()), Some(f));
     }
-    assert_eq!(PluginFormat::parse("vst2"), None);
-    assert_eq!(PluginFormat::ALL.len(), 3);
+    assert_eq!(PluginFormat::parse("vst"), None);
+    assert_eq!(PluginFormat::ALL.len(), 4);
 }
 
 #[test]
@@ -113,9 +114,10 @@ fn every_format_round_trips_through_ether_files() {
         plugin(PluginFormat::Clap, "com.example.synth"),
         plugin(PluginFormat::Vst3, "565354416D627261736F6E6963000000"),
         plugin(PluginFormat::Au, "aufx:dely:appl"),
+        plugin(PluginFormat::Vst2, "45744732"),
     ]);
     let json = file::save(&p, "test").unwrap();
-    assert_eq!(formats_in(&json), ["Au", "Clap", "Vst3"]);
+    assert_eq!(formats_in(&json), ["Au", "Clap", "Vst2", "Vst3"]);
     let back = file::load(&json).unwrap();
     assert_eq!(back, p);
 }
