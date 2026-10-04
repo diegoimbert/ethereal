@@ -121,7 +121,7 @@ async function connect(t: EngineTransport) {
   t.onEvent((e) => {
     if (e.type === "Patch") store().applyPatch(e.patch);
   });
-  store().loadProject(await t.connect());
+  store().loadProject((await t.connect())!);
 }
 
 async function flush() {

@@ -9,7 +9,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test, type Page } from "@playwright/test";
 import type { Project, ProjectSummary } from "@/generated";
-import { newProject, openRelayJoin } from "./ui";
+import { newProject, openRelayJoin, projectScreen } from "./ui";
 
 interface Handle {
   state(): { project: Project | null; projects: ProjectSummary[] };
@@ -44,8 +44,8 @@ function sineWav(seconds: number): Buffer {
 
 async function boot(page: Page) {
   await page.goto("/");
-  await expect(page.getByRole("button", { name: "Play", exact: true })).toBeVisible({ timeout: 30_000 });
-  await expect.poll(() => state(page).then((s) => s.project !== null), { timeout: 30_000 }).toBe(true);
+  // base-131: the app launches with no project, on the project screen.
+  await expect(projectScreen(page)).toBeVisible({ timeout: 30_000 });
 }
 
 /** The project screen's "Open project" actions. */

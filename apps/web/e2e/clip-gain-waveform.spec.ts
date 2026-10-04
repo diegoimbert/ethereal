@@ -7,7 +7,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import type { Project } from "@/generated";
 import { selectClip } from "./clips";
-import { newProject, openLibrary, setNumberField } from "./ui";
+import { openLibrary, setNumberField, launch } from "./ui";
 
 interface Handle {
   state(): { project: Project | null };
@@ -39,11 +39,7 @@ test("clip gain: the Inspector gain redraws the arrangement waveform", async ({ 
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
 
-  await page.goto("/");
-  await expect(page.getByRole("button", { name: "Play" })).toBeVisible({ timeout: 30_000 });
-  await expect.poll(() => project(page).then((p) => p !== null), { timeout: 30_000 }).toBe(true);
-
-  await newProject(page, `Clip gain ${Date.now()}`);
+  await launch(page, `Clip gain ${Date.now()}`);
   await expect.poll(async () => Object.keys((await doc(page)).clips).length).toBe(0);
 
   // --- Audio track + library loop ----------------------------------------------------------

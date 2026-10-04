@@ -17,7 +17,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test, type Page } from "@playwright/test";
 import type { Project } from "@/generated";
-import { openEngineServer } from "./ui";
+import { createOnLaunch, launch, openEngineServer } from "./ui";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const TOKEN = `e2e-${Math.random().toString(36).slice(2)}`;
@@ -107,7 +107,7 @@ test("live recording clip grows while recording, then becomes the real clip", as
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
 
-  await page.goto("/");
+  await launch(page);
   await expect(page.getByRole("button", { name: "Play", exact: true })).toBeVisible({ timeout: 30_000 });
   await expect.poll(() => state(page).then((s) => s.project !== null), { timeout: 30_000 }).toBe(true);
   const localId = (await project(page)).id;
@@ -118,6 +118,8 @@ test("live recording clip grows while recording, then becomes the real clip", as
   await page.getByLabel("Token").fill(TOKEN);
   await page.getByRole("button", { name: "Connect" }).click();
   await expect(page.getByTestId("remote-button")).toHaveText(/e2e-rec/);
+  // base-131: the server has no project open; the project screen creates one there.
+  await createOnLaunch(page, "Remote song");
   await expect.poll(async () => (await project(page)).id).not.toBe(localId);
   await peerSend("Engine", {
     type: "SetAudioConfig",

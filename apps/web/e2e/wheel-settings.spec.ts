@@ -6,8 +6,7 @@
 // `UX_SHOTS=<dir>` also writes the PR screenshots of the Input tab (`UX_SHOTS_THEME=light`).
 // No sleeps: every step waits on UI or engine state.
 import { expect, test, type Page } from "@playwright/test";
-import type { Project } from "@/generated";
-import { createTrack, playButton } from "./ui";
+import { createTrack, launch, openOnLaunch } from "./ui";
 
 const shots = process.env.UX_SHOTS;
 const theme = process.env.UX_SHOTS_THEME === "light" ? "light" : "dark";
@@ -16,21 +15,11 @@ const NOTCH_ZOOM = 1.12;
 
 test.use({ viewport: { width: 1440, height: 900 } });
 
-interface Handle {
-  state(): { project: Project | null };
-}
-
 async function open(page: Page): Promise<void> {
   // Instant zoom (no spring animation), so each notch lands at once.
   await page.emulateMedia({ reducedMotion: "reduce" });
   if (shots) await page.addInitScript((t) => localStorage.setItem("eth-theme", t), theme);
-  await page.goto("/");
-  await expect(playButton(page)).toBeVisible({ timeout: 30_000 });
-  await expect
-    .poll(() => page.evaluate(() => (window as unknown as { __ether: Handle }).__ether.state().project !== null), {
-      timeout: 30_000,
-    })
-    .toBe(true);
+  await launch(page);
 }
 
 /** The arrangement's live zoom (px per beat), from a track lane's `--ppb`. */
@@ -113,7 +102,8 @@ test("mouse-wheel notches zoom by the configured per-notch factor; inversion fli
 
   // Kept on this device across reloads.
   await page.reload();
-  await expect(playButton(page)).toBeVisible({ timeout: 30_000 });
+  // base-131: nothing opens on launch; reopen the project from Recents.
+  await openOnLaunch(page);
   dialog = await openInputSettings(page);
   await expect(dialog.getByRole("switch", { name: "Invert zoom direction" })).toHaveAttribute("aria-checked", "true");
   await expect(dialog.getByRole("spinbutton", { name: "Zoom sensitivity" })).toHaveValue(/^2\.00/);

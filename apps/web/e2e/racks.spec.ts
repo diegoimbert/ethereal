@@ -12,7 +12,7 @@
 // `window.__ether` (apps/web/src/main.tsx).
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import type { Device, ModMapping, Project } from "@/generated";
-import { addDevice, createTrack, newProject, openDeviceTab, pickOption, playButton } from "./ui";
+import { addDevice, createTrack, launch, newProject, openDeviceTab, pickOption, playButton } from "./ui";
 
 interface Handle {
   state(): { project: Project | null };
@@ -55,7 +55,7 @@ test("racks: chains, a modulator and a macro mapped onto a synth", async ({ page
   });
   await page.setViewportSize({ width: 1600, height: 1600 });
   await page.addInitScript((t) => localStorage.setItem("eth-theme", t), theme);
-  await page.goto("/");
+  await launch(page);
   await expect(playButton(page)).toBeVisible({ timeout: 30_000 });
   await expect.poll(() => project(page).then((p) => p !== null), { timeout: 30_000 }).toBe(true);
   await newProject(page, `Racks ${Date.now()}`);

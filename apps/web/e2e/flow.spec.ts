@@ -11,7 +11,7 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import type { Project } from "@/generated";
 import { openClip, selectClip } from "./clips";
-import { addDevice, createTrack, newProject, openDeviceTab, openLibrary, playButton } from "./ui";
+import { addDevice, createTrack, launch, newProject, openDeviceTab, openLibrary, openOnLaunch, playButton } from "./ui";
 
 interface Handle {
   state(): { project: Project | null; dirty: boolean; history: { can_undo: boolean; can_redo: boolean } };
@@ -69,7 +69,7 @@ test("full flow: build a song, play it, edit, save, reload", async ({ page }) =>
     if (m.type() === "error") errors.push(m.text());
   });
 
-  await page.goto("/");
+  await launch(page);
   await expect(playButton(page)).toBeVisible({ timeout: 30_000 });
   await expect.poll(() => project(page).then((p) => p !== null), { timeout: 30_000 }).toBe(true);
 
@@ -200,8 +200,9 @@ test("full flow: build a song, play it, edit, save, reload", async ({ page }) =>
   await expect(page.getByRole("status", { name: "Unsaved changes" })).toHaveCount(0);
   const saved = await doc(page);
 
+  // base-131: nothing reopens on launch; the project screen's Recents opens it.
   await page.reload();
-  await expect(playButton(page)).toBeVisible({ timeout: 30_000 });
+  await openOnLaunch(page, name);
   await expect.poll(() => project(page).then((p) => p?.id), { timeout: 30_000 }).toBe(projectId);
   expect(await doc(page)).toEqual(saved);
   await expect(page.getByTestId("project-name")).toHaveText(name);

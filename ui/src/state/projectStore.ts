@@ -20,6 +20,7 @@ import { immer } from "zustand/middleware/immer";
 import type {
   HistoryState,
   Patch,
+  DeviceId,
   Project,
   ProjectSummary,
   TrackId,
@@ -47,9 +48,19 @@ export interface ProjectStoreState {
   projects: ProjectSummary[];
   /** The current project has unsaved changes. */
   dirty: boolean;
+  /**
+   * base-131: the open project was opened without plugins (`Project::OpenSafe`) and they
+   * are not loaded yet (`Event::Project { SafeMode }`).
+   */
+  safe: boolean;
+  /** In safe mode: the plugin devices held as bypassed placeholders. */
+  safeMode: DeviceId[];
 
-  /** Replace the whole document (connect, `ProjectLoaded`, refetch). */
+  /** Replace the whole document (connect, `ProjectLoaded`, refetch). Keeps `safeMode`. */
   loadProject(project: Project, opts?: { history?: HistoryState }): void;
+  /** No project is open (connected to an engine that has none: launch). */
+  clearProject(): void;
+  setSafeMode(active: boolean, devices: ReadonlyArray<DeviceId>): void;
   /** Apply an `Event::Patch`. Ignores stale revisions; reports gaps without applying. */
   applyPatch(patch: Patch): PatchResult;
   setTransport(state: TransportState): void;
@@ -70,6 +81,8 @@ const INITIAL = {
   armedTracks: [],
   projects: [],
   dirty: false,
+  safe: false,
+  safeMode: [],
 } satisfies Partial<ProjectStoreState>;
 
 export const useProjectStore = create<ProjectStoreState>()(
@@ -82,6 +95,24 @@ export const useProjectStore = create<ProjectStoreState>()(
         s.revision = null;
         s.history = opts?.history ?? EMPTY_HISTORY;
         // Armed tracks, the project list and the dirty flag come from their own events.
+      });
+    },
+
+    clearProject() {
+      set((s) => {
+        s.project = null;
+        s.revision = null;
+        s.history = EMPTY_HISTORY;
+        s.dirty = false;
+        s.safe = false;
+        s.safeMode = [];
+      });
+    },
+
+    setSafeMode(active, devices) {
+      set((s) => {
+        s.safe = active;
+        s.safeMode = [...devices];
       });
     },
 

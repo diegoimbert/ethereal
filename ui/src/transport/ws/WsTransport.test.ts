@@ -118,25 +118,21 @@ describe("WsTransport", () => {
     await expect(t.send({ domain: "Transport", command: { type: "Play" } })).rejects.toSatisfy((x) => isCommandFailed(x, "InvalidState"));
   });
 
-  it("connects: creates a project on an empty server", async () => {
+  it("connects to the server's open project", async () => {
     const p = project();
+    const { t } = setup((m) => (m.command.domain === "Project" ? [ok(m.id, { type: "Project", project: p })] : []));
+    expect((await t.connect())?.settings.name).toBe("Remote");
+  });
+
+  it("connects: opens nothing when the server has no open project (base-131)", async () => {
     const { t, socket } = setup((m) => {
       const c = m.command;
-      if (c.domain !== "Project") return [];
-      switch (c.command.type) {
-        case "Get":
-          return [{ kind: "Reply", body: { id: m.id, result: { status: "Err", error: { code: "InvalidState", message: "no project" } } } }];
-        case "List":
-          return [ok(m.id, { type: "Projects", projects: [] })];
-        case "Create":
-          return [ok(m.id, { type: "Project", project: { ...p, id: c.command.id } })];
-        default:
-          return [];
-      }
+      if (c.domain === "Project" && c.command.type === "Get")
+        return [{ kind: "Reply", body: { id: m.id, result: { status: "Err", error: { code: "InvalidState", message: "no project" } } } }];
+      return [];
     });
-    const got = await t.connect();
-    expect(got.settings.name).toBe("Remote");
-    expect(socket().sent.map((m) => ("command" in m ? m.command.command.type : "binary"))).toEqual(["Get", "List", "Create"]);
+    await expect(t.connect()).resolves.toBeNull();
+    expect(socket().sent.map((m) => ("command" in m ? m.command.command.type : "binary"))).toEqual(["Get"]);
   });
 
   it("delivers patches before the reply, and streams", async () => {

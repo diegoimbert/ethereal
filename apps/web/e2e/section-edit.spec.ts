@@ -10,7 +10,7 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import type { Project, TrackId } from "@/generated";
 import { openClip } from "./clips";
-import { createTrack, newProject, pickOption } from "./ui";
+import { createTrack, launch, newProject, pickOption } from "./ui";
 
 test.use({ viewport: { width: 1440, height: 900 }, colorScheme: "dark" });
 
@@ -123,8 +123,8 @@ test("section edit: copy/paste a section (not the clip) and duplicate it with it
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
 
-  await page.goto("/");
-  await expect(page.getByRole("button", { name: "Play" })).toBeVisible({ timeout: 30_000 });
+  await launch(page);
+  await expect(page.getByRole("button", { name: "Play", exact: true })).toBeVisible({ timeout: 30_000 });
   await expect.poll(() => project(page).then((p) => p !== null), { timeout: 30_000 }).toBe(true);
   await newProject(page, `Section edit ${Date.now()}`);
 
@@ -236,8 +236,8 @@ test("insert marker: a lane click while playing sets the paste point, never the 
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
 
-  await page.goto("/");
-  await expect(page.getByRole("button", { name: "Play" })).toBeVisible({ timeout: 30_000 });
+  await launch(page);
+  await expect(page.getByRole("button", { name: "Play", exact: true })).toBeVisible({ timeout: 30_000 });
   await expect.poll(() => project(page).then((p) => p !== null), { timeout: 30_000 }).toBe(true);
   await newProject(page, `Insert marker ${Date.now()}`);
 

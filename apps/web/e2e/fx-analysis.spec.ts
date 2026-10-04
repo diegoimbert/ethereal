@@ -7,7 +7,7 @@
 // saves each panel in the dark and light themes.
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import type { Project } from "@/generated";
-import { addDevice, createTrack, newProject, openDeviceTab, openLibrary, playButton } from "./ui";
+import { addDevice, createTrack, launch, newProject, openDeviceTab, openLibrary, playButton } from "./ui";
 
 const shots = process.env.FX_ANALYSIS_SHOTS;
 
@@ -46,7 +46,7 @@ for (const theme of shots ? ["dark", "light"] : ["dark"]) {
     });
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.addInitScript((t) => localStorage.setItem("eth-theme", t), theme);
-    await page.goto("/");
+    await launch(page);
     await expect(playButton(page)).toBeVisible({ timeout: 30_000 });
     await expect.poll(() => project(page).then((p) => p !== null), { timeout: 30_000 }).toBe(true);
     await newProject(page, `FX Analysis ${Date.now()}`);

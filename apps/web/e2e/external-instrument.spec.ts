@@ -7,7 +7,7 @@
 // `EXTERNAL_SHOTS=<dir>` also captures the panels (dark 1440×900, and light).
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import type { Command, ExternalRouting, Project } from "@/generated";
-import { addDevice, openDeviceTab, playButton } from "./ui";
+import { addDevice, launch, openDeviceTab, playButton } from "./ui";
 
 interface Handle {
   state(): { project: Project | null };
@@ -86,9 +86,9 @@ async function send(page: Page, command: Command): Promise<{ status: string; err
 async function open(page: Page, theme: string) {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.addInitScript((t) => localStorage.setItem("eth-theme", t), theme);
-  await page.goto("/");
+  // Nothing is open on launch (base-131): create a project from the launch screen.
+  await launch(page, `External ${theme}`);
   await expect(playButton(page)).toBeVisible({ timeout: 30_000 });
-  await expect.poll(() => project(page).then((p) => p !== null), { timeout: 30_000 }).toBe(true);
   await installProbe(page);
 }
 

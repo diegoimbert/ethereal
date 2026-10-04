@@ -4,7 +4,7 @@ import { execFileSync, spawn, type ChildProcess } from "node:child_process";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test, type Page } from "@playwright/test";
-import { newProject } from "./ui";
+import { newProject, projectScreen } from "./ui";
 
 const dir = process.env.PROJECT_SHOTS;
 test.skip(!dir, "set PROJECT_SHOTS=<dir> to capture");
@@ -46,7 +46,8 @@ const shot = (page: Page, name: string) => page.screenshot({ path: `${dir}/${nam
 
 async function boot(page: Page) {
   await page.goto("/");
-  await expect(page.getByRole("button", { name: "Play", exact: true })).toBeVisible({ timeout: 30_000 });
+  // base-131: the app launches with no project, on the project screen.
+  await expect(projectScreen(page)).toBeVisible({ timeout: 30_000 });
 }
 
 test("project screen, toast, palette, collab dialog, leave warning", async ({ page }) => {

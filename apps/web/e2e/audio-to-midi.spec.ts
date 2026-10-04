@@ -8,7 +8,7 @@
 // No sleeps: every step waits on UI or engine state.
 import { expect, test, type Page } from "@playwright/test";
 import type { Project } from "@/generated";
-import { newProject, playButton } from "./ui";
+import { launch, newProject, playButton } from "./ui";
 
 const shots = process.env.A2M_SHOTS;
 test.use({ viewport: { width: 1440, height: 900 }, colorScheme: "dark" });
@@ -129,7 +129,7 @@ test("convert a melody and a drum loop to MIDI tracks below their clips", async 
   test.setTimeout(120_000);
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
-  await page.goto("/");
+  await launch(page);
   await expect(playButton(page)).toBeVisible({ timeout: 30_000 });
   await newProject(page, `A2M ${Date.now()}`);
   const [vox, drums] = await importFiles(page, [

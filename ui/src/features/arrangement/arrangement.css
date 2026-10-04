@@ -874,3 +874,11 @@
 [data-theme="light"] .eth-clip--selected {
   box-shadow: none;
 }
+
+/* base-131: no project open (launch): a calm empty state with a way back to the project screen. */
+.eth-arr--no-project {
+  align-items: center;
+  justify-content: center;
+  gap: var(--eth-space-lg);
+  color: var(--eth-color-text-dim);
+}

@@ -27,7 +27,7 @@ use crate::media_refs::{MediaRefCommand, MediaRefEvent};
 use crate::meters::MeterFrame;
 use crate::midi_map::{MidiMapCommand, MidiMapEvent};
 use crate::mixer::MixerCommand;
-use crate::model::{GestureId, MediaId, MediaRef, MidiMapping, Patch, Project};
+use crate::model::{GestureId, MediaId, MediaRef, MidiMapping, Patch, Project, ProjectId};
 use crate::notes::NoteCommand;
 use crate::plugins::{PluginCommand, PluginDescriptor, PluginEvent, PluginFolders};
 use crate::presets::{PresetCommand, PresetEvent, PresetInfo};
@@ -291,6 +291,12 @@ pub enum ReplyValue {
     },
     Recoverable {
         projects: Vec<RecoveryInfo>,
+    },
+    /// base-131: `Version::SessionStatus`: stored projects whose session marker was left by
+    /// another session that didn't close cleanly (a crash, a killed process). Empty = the
+    /// previous session closed cleanly.
+    SessionStatus {
+        unclean: Vec<ProjectId>,
     },
     Keymap {
         keymap: Keymap,

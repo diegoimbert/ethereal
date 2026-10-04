@@ -3,7 +3,7 @@ import type { AudioConfig, AudioDeviceList, EngineStatus } from "@/generated";
 import { cmd, type EngineTransport } from "@/transport";
 
 /** The Settings dialog's tabs (docs/SHARING.md §8.6). */
-export type SettingsTab = "audio" | "input" | "plugins" | "sharing" | "advanced";
+export type SettingsTab = "general" | "audio" | "input" | "plugins" | "sharing" | "advanced";
 
 /**
  * Settings dialog state (Audio | Input | Plugins | Sharing | Advanced), plus the engine's last known audio config (so other parts

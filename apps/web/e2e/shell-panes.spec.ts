@@ -4,7 +4,7 @@
 //
 // `SHELL_PANES_SHOTS=<dir>` also saves the PR screenshots there.
 import { expect, test, type Locator, type Page } from "@playwright/test";
-import { createTrack, newProject, openEditor, selectTrack } from "./ui";
+import { createTrack, openEditor, selectTrack, launch } from "./ui";
 
 test.use({ viewport: { width: 1440, height: 900 }, colorScheme: "dark" });
 
@@ -40,8 +40,7 @@ const near = (a: number, b: number) => expect(Math.abs(a - b)).toBeLessThanOrEqu
 
 /** A new project with one MIDI track; resolves with the track's name. */
 async function start(page: Page): Promise<string> {
-  await page.goto("/");
-  await newProject(page, "Panes");
+  await launch(page, "Panes");
   return (await createTrack(page, "Midi")).name;
 }
 

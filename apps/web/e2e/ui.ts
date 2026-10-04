@@ -164,12 +164,55 @@ export async function openEngineServer(page: Page): Promise<void> {
   await expect(page.getByLabel("Server address")).toBeVisible();
 }
 
-/** Creates and opens a new, empty project from the project screen (Projects button). */
+/**
+ * Creates and opens a new, empty project from the project screen (Projects button, or the
+ * screen already shown on launch, base-131).
+ */
 export async function newProject(page: Page, name: string): Promise<void> {
-  await page.getByRole("button", { name: "Projects" }).click();
   const screen = page.getByRole("dialog", { name: "Projects" });
+  if (!(await screen.isVisible())) await page.getByRole("button", { name: "Projects" }).click();
   await screen.getByRole("button", { name: "New project" }).click();
   await screen.getByLabel("New project name").fill(name);
   await screen.getByRole("button", { name: "Create" }).click();
   await expect(page.getByTestId("project-name")).toHaveText(name);
+  await expect(screen).toHaveCount(0);
+}
+
+/** The project screen (a dialog named "Projects"). */
+export const projectScreen = (page: Page): Locator => page.getByRole("dialog", { name: "Projects" });
+
+/**
+ * base-131: the app launches with no project open, on the project screen. Loads the app and
+ * creates a new, empty project there (what most specs start from).
+ */
+export async function launch(page: Page, name = "Untitled"): Promise<void> {
+  await page.goto("/");
+  await createOnLaunch(page, name);
+}
+
+/** On the launch project screen (after `goto`/`reload`): create and open a new project. */
+export async function createOnLaunch(page: Page, name = "Untitled"): Promise<void> {
+  const screen = projectScreen(page);
+  await expect(screen).toBeVisible({ timeout: 30_000 });
+  await screen.getByRole("button", { name: "New project" }).click();
+  await screen.getByLabel("New project name").fill(name);
+  await screen.getByRole("button", { name: "Create" }).click();
+  await expect(page.getByTestId("project-name")).toHaveText(name);
+  await expect(screen).toHaveCount(0);
+}
+
+/**
+ * On the launch project screen (after `reload`): open a stored project from Recents, by
+ * name, or the most recent one.
+ */
+export async function openOnLaunch(page: Page, name?: string): Promise<void> {
+  const screen = projectScreen(page);
+  await expect(screen).toBeVisible({ timeout: 30_000 });
+  const entry = name
+    ? screen.getByRole("button", { name: `Open ${name}`, exact: true })
+    : screen.getByRole("list", { name: "Stored projects" }).getByRole("button", { name: /^Open / }).first();
+  const label = (await entry.getAttribute("aria-label"))!.slice("Open ".length);
+  await entry.click();
+  await expect(page.getByTestId("project-name")).toHaveText(label);
+  await expect(screen).toHaveCount(0);
 }

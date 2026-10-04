@@ -10,7 +10,7 @@
 // `window.__ether` (apps/web/src/main.tsx).
 import { expect, test, type Page } from "@playwright/test";
 import type { Project } from "@/generated";
-import { newProject, openEditor, pickOption, playButton, setNumberField } from "./ui";
+import { launch, newProject, openEditor, pickOption, playButton, setNumberField } from "./ui";
 
 interface Handle {
   state(): { project: Project | null; transport: { playing: boolean } | null };
@@ -43,7 +43,7 @@ test("tempo-metronome: metronome settings, tempo map editing", async ({ page }) 
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
 
-  await page.goto("/");
+  await launch(page);
   await expect(playButton(page)).toBeVisible({ timeout: 30_000 });
   await expect.poll(() => project(page).then((p) => p !== null), { timeout: 30_000 }).toBe(true);
 

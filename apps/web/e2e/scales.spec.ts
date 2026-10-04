@@ -10,7 +10,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import type { Project } from "@/generated";
 import { openClip } from "./clips";
-import { createTrack, newProject, pickOption } from "./ui";
+import { createTrack, launch, newProject, pickOption } from "./ui";
 
 interface Handle {
   state(): { project: Project | null };
@@ -32,8 +32,8 @@ test("scales: project scale, folded rows, custom track scale", async ({ page }) 
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
 
-  await page.goto("/");
-  await expect(page.getByRole("button", { name: "Play" })).toBeVisible({ timeout: 30_000 });
+  await launch(page);
+  await expect(page.getByRole("button", { name: "Play", exact: true })).toBeVisible({ timeout: 30_000 });
   await expect.poll(() => project(page).then((p) => p !== null), { timeout: 30_000 }).toBe(true);
   await newProject(page, `Scales ${Date.now()}`);
 

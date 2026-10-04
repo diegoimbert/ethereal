@@ -223,6 +223,9 @@ where
                 projects: self.list_recoverable()?,
             }),
             VersionCommand::Recover { project } => self.recover(*project, now, out),
+            VersionCommand::SessionStatus => Ok(ReplyValue::SessionStatus {
+                unclean: self.unclean_projects()?,
+            }),
             VersionCommand::DiscardRecovery { project } => {
                 self.versions.stale_on_open.remove(project);
                 let ours = self.doc.as_ref().is_some_and(|d| d.project.id == *project);
@@ -428,6 +431,27 @@ where
         self.set_dirty(true, out);
         self.emit_versions_changed(out);
         Ok(())
+    }
+
+    /// Stored projects left open by another session that didn't close cleanly (a stale
+    /// session marker), whether or not they hold work to recover.
+    fn unclean_projects(&mut self) -> CmdResult<Vec<ProjectId>> {
+        let session = self.session_id();
+        let open = self.doc.as_ref().map(|d| d.project.id);
+        let mut out = Vec::new();
+        for summary in self.store.list().map_err(store_err)? {
+            let stale = if Some(summary.id) == open {
+                self.versions.stale_on_open.contains(&summary.id)
+            } else {
+                self.store
+                    .read(summary.id, SESSION_MARKER)
+                    .is_ok_and(|b| marker_session(&b).as_deref() != Some(session.as_str()))
+            };
+            if stale {
+                out.push(summary.id);
+            }
+        }
+        Ok(out)
     }
 
     fn list_recoverable(&mut self) -> CmdResult<Vec<RecoveryInfo>> {

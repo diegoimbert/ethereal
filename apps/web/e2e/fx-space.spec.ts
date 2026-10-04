@@ -6,7 +6,7 @@
 // `FX_SPACE_SHOTS=<dir>` also captures the panel in the dark (1440×900) and light themes.
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import type { Project } from "@/generated";
-import { addDevice, createTrack, newProject, openDeviceTab, openLibrary, pickOption, playButton } from "./ui";
+import { addDevice, createTrack, newProject, openDeviceTab, openLibrary, pickOption, playButton, launch } from "./ui";
 
 interface Handle {
   state(): { project: Project | null };
@@ -50,9 +50,7 @@ async function dragKnob(page: Page, knob: Locator, dy: number) {
 async function open(page: Page, theme: string, size = { width: 1440, height: 900 }) {
   await page.setViewportSize(size);
   await page.addInitScript((t) => localStorage.setItem("eth-theme", t), theme);
-  await page.goto("/");
-  await expect(playButton(page)).toBeVisible({ timeout: 30_000 });
-  await expect.poll(() => project(page).then((p) => p !== null), { timeout: 30_000 }).toBe(true);
+  await launch(page);
 }
 
 /** An audio track with the demo kick at the start, and a Convolution Reverb on it. */

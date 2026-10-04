@@ -5,7 +5,7 @@
 // track meter stays at the ceiling.
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import type { Project } from "@/generated";
-import { addDevice, createTrack, newProject, openDeviceTab, openLibrary, playButton } from "./ui";
+import { addDevice, createTrack, launch, newProject, openDeviceTab, openLibrary, playButton } from "./ui";
 
 interface Handle {
   state(): { project: Project | null };
@@ -51,7 +51,7 @@ test("EQ, reverb, limiter and utility on an audio track", async ({ page }) => {
     if (m.type() === "error") errors.push(m.text());
   });
 
-  await page.goto("/");
+  await launch(page);
   await expect(playButton(page)).toBeVisible({
     timeout: 30_000,
   });

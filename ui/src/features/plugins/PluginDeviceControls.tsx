@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { Command, Device } from "@/generated";
 import { Badge, Button } from "@/kit";
+import { useProjectStore } from "@/state";
 import { cmd, useTransport } from "@/transport";
 import { FORMAT_LABEL, isInstalled } from "./filter";
 import { usePluginEvents, usePluginStore, useScannedPlugins } from "./pluginStore";
@@ -11,8 +12,9 @@ export interface PluginDeviceControlsProps {
 
 /**
  * Plugin-specific controls in a device header (mounted by `DeviceView` for every device;
- * renders nothing for built-ins): format chip, editor window, sandbox toggle, and the crashed and
- * missing states (bypassed) with their Reload action. Works the same for every format.
+ * renders nothing for built-ins): format chip, editor window, sandbox toggle, and the
+ * safe-mode placeholder, crashed and missing states (bypassed) with their Load / Reload
+ * action. Works the same for every format.
  */
 export function PluginDeviceControls({ device }: PluginDeviceControlsProps) {
   usePluginEvents();
@@ -24,6 +26,8 @@ export function PluginDeviceControls({ device }: PluginDeviceControlsProps) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const plugins = useScannedPlugins(device.kind.type === "Plugin");
+  // base-131: held as a placeholder (the project was opened without plugins).
+  const held = useProjectStore((s) => s.safeMode.includes(device.id));
 
   if (device.kind.type !== "Plugin") return null;
   const { sandboxed, format, plugin_id } = device.kind.plugin;
@@ -52,6 +56,11 @@ export function PluginDeviceControls({ device }: PluginDeviceControlsProps) {
       clearCrash(device.id),
     );
   const reload = () => run(cmd("Plugin", { type: "Reload", device: device.id }), () => clearCrash(device.id));
+  const load = () =>
+    run(cmd("Plugin", { type: "Reload", device: device.id }), () => {
+      const store = useProjectStore.getState();
+      store.setSafeMode(store.safe, store.safeMode.filter((d) => d !== device.id));
+    });
 
   return (
     <span className="eth-plugin-controls" data-plugin-controls={device.id}>
@@ -59,7 +68,18 @@ export function PluginDeviceControls({ device }: PluginDeviceControlsProps) {
       <Badge className="eth-plugin-controls__format">
         <span title={`${FORMAT_LABEL[format]} plugin`}>{FORMAT_LABEL[format]}</span>
       </Badge>
-      {missing ? (
+      {held ? (
+        <>
+          <Badge tone="warn" className="eth-plugin-controls__missing">
+            <span role="status" title="Opened without plugins: bypassed, state kept. Load it, or Load plugins in the top bar.">
+              safe mode · bypassed
+            </span>
+          </Badge>
+          <Button size="sm" variant="ghost" disabled={busy} aria-label={`Load ${name}`} title="Load this plugin now" onClick={load}>
+            ⟳
+          </Button>
+        </>
+      ) : missing ? (
         <>
           <Badge tone="warn" className="eth-plugin-controls__missing">
             <span role="status" title={`${FORMAT_LABEL[format]} plugin ${plugin_id} is not installed. Rescan plugins, then reload.`}>

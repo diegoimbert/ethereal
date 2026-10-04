@@ -128,7 +128,15 @@ machine than the engine, so the protocol never carries file-system paths.
 - **Project protocol** (`ProjectCommand`):
   - `List`, `Create { id, name }`, `Open { id }`, `Save`, `SaveAs { new_id, name }`,
     `Duplicate { id, new_id, name }`, `Rename { id, name }`, `Delete { id }`, `Get`.
-  - `Event::Project` carries `ListChanged`, `Saved` or `DirtyChanged`.
+  - base-131: `OpenSafe { id }` opens a project in safe mode (every plugin device is a
+    bypassed placeholder: no instance, state and params untouched, nothing written);
+    `LoadPlugins` leaves it (instantiates them). `Plugin::Reload` loads one placeholder.
+  - `Event::Project` carries `ListChanged`, `Saved`, `DirtyChanged` or (base-131)
+    `SafeMode { active, devices }`.
+  - **Launch (base-131): no host opens a project.** The controller starts with none,
+    `connect()` resolves with `null`, and the UI shows the project screen. The UI setting
+    "Reopen last project on launch" (default off) reopens the last one only when the
+    previous session closed cleanly (`Version::SessionStatus`, §13.11).
   - `ProjectSummary` is `{ id, name, modified_ms }`.
 - **Sample browser** (`MediaCommand`):
   - `ListLocations` returns engine-visible roots: configured library folders
@@ -1324,7 +1332,13 @@ one, at most every `VERSION_INTERVAL_MS` (5 min), newest `MAX_AUTOSAVE_VERSIONS`
 settings changed, up to 50 named tracks/clips). Crash recovery: opening a project writes
 `versions/.session`, a clean close removes it; `ListRecoverable` → projects whose marker
 survived and whose newest version is newer than `project.ether`; `Recover` opens it (dirty);
-`DiscardRecovery` removes the marker. Not undoable.
+`DiscardRecovery` removes the marker. Not undoable. The marker is written before the
+project's devices and plugins are instantiated, so a plugin crashing while a project opens
+counts as a crash. base-131: `SessionStatus` → `SessionStatus { unclean }`, the projects
+whose marker another session left (crashed or killed), with or without work to recover
+(the UI's crash dialog offers them, with "Open without plugins"; the reopen setting
+requires none). In the browser the Worker never closes cleanly, so the page also records
+whether it was unloaded cleanly (`ui/src/features/versions/session.ts`).
 
 ### 13.12 Keymap (`keymap`)
 Actions and the built-in presets (`Ethereal`, `AbletonLike`) live in the UI command registry;

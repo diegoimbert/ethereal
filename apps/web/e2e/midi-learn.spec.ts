@@ -3,6 +3,7 @@
 // and MIDI mode stays off; the rest of the app keeps working normally.
 import { expect, test, type Page } from "@playwright/test";
 import type { Project } from "@/generated";
+import { launch } from "./ui";
 
 interface Handle {
   state(): { project: Project | null };
@@ -14,8 +15,8 @@ test("MIDI tab on the web: learning needs the desktop app", async ({ page }) => 
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
 
-  await page.goto("/");
-  await expect(page.getByRole("button", { name: "Play" })).toBeVisible({ timeout: 30_000 });
+  await launch(page);
+  await expect(page.getByRole("button", { name: "Play", exact: true })).toBeVisible({ timeout: 30_000 });
   await expect.poll(() => state(page).then((s) => s.project !== null), { timeout: 30_000 }).toBe(true);
 
   await page.getByRole("button", { name: "MIDI mapping" }).click();

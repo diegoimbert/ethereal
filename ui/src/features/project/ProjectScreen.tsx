@@ -4,7 +4,7 @@ import type { ProjectSummary } from "@/generated";
 import { errorMessage, type EngineCommands } from "@/features/transport-bar/engine";
 import { Badge, Button, Dialog, IconButton, openContextMenu, TextInput, type ContextMenuEntry } from "@/kit";
 import { ProjectScale } from "@/features/scale/ProjectScale";
-import { openVersions } from "@/features/versions/store";
+import { openVersions, useRecoveryShown } from "@/features/versions/store";
 import { newProjectCommand, ProjectTemplatePicker, useTemplateDialog, type ProjectTemplateChoice } from "@/features/templates";
 import { notify } from "@/features/notifications";
 import { useProjectStore } from "@/state";
@@ -19,14 +19,16 @@ import { copyInviteLink, makePrivateCopy, reconnectCopy, stopSharing } from "./s
 
 /**
  * The project screen: a modal over the whole app, shown on launch and from the Projects
- * button. The open project (on launch: the previous one) with its name editable and its
+ * button. The open project (none on launch, base-131) with its name editable and its
  * actions (rename, save as, duplicate, export, import, delete), a big "New project" button
- * (asks for a name), and the other stored projects to open, rename, duplicate or delete.
- * Escape or a click outside continues with the open project. In a collaboration session,
- * opening/creating/saving as another project asks first (`guardLeave`).
+ * (asks for a name), and the other stored projects to open, open without plugins (safe
+ * mode), rename, duplicate or delete. Escape or a click outside continues with the open
+ * project (or with none). In a collaboration session, opening/creating/saving as another
+ * project asks first (`guardLeave`). The crash-recovery dialog goes first.
  */
 export function ProjectScreen({ commands }: { commands: EngineCommands }) {
-  const open = useProjectScreen((s) => s.open);
+  const recovery = useRecoveryShown((s) => s.shown);
+  const open = useProjectScreen((s) => s.open) && !recovery;
   const mode = useProjectScreen((s) => s.mode);
   const hide = useProjectScreen((s) => s.hide);
   const setMode = useProjectScreen((s) => s.setMode);
@@ -138,7 +140,8 @@ function Home({ commands, onNew, onDone }: { commands: EngineCommands; onNew(): 
     }
   };
 
-  const openProject = (id: string) => guardLeave(() => run(cmd("Project", { type: "Open", id })).then((r) => r && onDone()));
+  const openProject = (id: string, safe = false) =>
+    guardLeave(() => run(cmd("Project", { type: safe ? "OpenSafe" : "Open", id })).then((r) => r && onDone()));
 
   const rename = (id: string, name: string) => {
     const trimmed = name.trim();
@@ -195,6 +198,8 @@ function Home({ commands, onNew, onDone }: { commands: EngineCommands; onNew(): 
     const sharing = shareActions(p);
     const entries: ContextMenuEntry[] = [
       { label: "Open", onSelect: () => void openProject(p.id) },
+      // base-131: plugin devices stay bypassed placeholders until "Load plugins".
+      { label: "Open without plugins", onSelect: () => void openProject(p.id, true) },
       { label: "Rename", onSelect: () => setRenaming({ id: p.id, name: p.name }) },
       {
         label: "Duplicate",

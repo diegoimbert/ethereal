@@ -5,13 +5,16 @@ import "./project.css";
 import { useEffect, useRef } from "react";
 import { Menu } from "lucide-react";
 import { matchesAction } from "@/features/keymap";
+import { useJoinScreenShown } from "@/features/share/join";
 import { TemplateDialogs } from "@/features/templates";
-import { useEngineCommands } from "@/features/transport-bar/engine";
+import { useEngineCommands, useOptionalConnection } from "@/features/transport-bar/engine";
 import { Button } from "@/kit";
 import { useProjectStore } from "@/state";
 import { cmd } from "@/transport";
+import { launch, useLaunchBookkeeping } from "./launch";
 import { LeaveSessionDialog } from "./LeaveSessionDialog";
 import { ProjectScreen } from "./ProjectScreen";
+import { SafeModeBanner } from "./SafeModeBanner";
 import { useProjectScreen } from "./screenStore";
 import { useShareSessionSync } from "./shareState";
 
@@ -47,11 +50,30 @@ export function ProjectMenu() {
     saveRef.current = disabled ? () => undefined : save;
   });
 
-  // Launch: show the project screen once the first project is loaded.
+  // Launch (base-131): hosts open nothing, so once connected with no project, reopen the
+  // last one if the setting allows it, else show the project screen. An engine that
+  // already has a project open (a remote engine, the mock) shows the screen over it.
+  const connected = useOptionalConnection()?.status === "connected";
+  const launched = useRef<unknown>(null);
+  useEffect(() => {
+    if (!connected || !transport || launched.current === transport) return;
+    launched.current = transport;
+    if (useProjectStore.getState().project === null) {
+      useProjectScreen.setState({ launchPending: false });
+      void launch(transport);
+    }
+  }, [connected, transport]);
   const launchPending = useProjectScreen((s) => s.launchPending);
   useEffect(() => {
     if (launchPending && name !== null) useProjectScreen.setState({ launchPending: false, open: true });
   }, [launchPending, name]);
+  useLaunchBookkeeping(transport);
+  // A join (an invite link, possibly the one the app was launched with) replaces the
+  // project screen: joining opens the shared project.
+  const joinShown = useJoinScreenShown();
+  useEffect(() => {
+    if (joinShown && open) useProjectScreen.getState().hide();
+  }, [joinShown, open]);
 
   // Autosave: once there are unsaved changes and no edit for AUTOSAVE_MS (every document
   // revision restarts the wait).
@@ -96,6 +118,7 @@ export function ProjectMenu() {
           ●
         </span>
       )}
+      <SafeModeBanner />
       {error && !open && (
         <button type="button" className="eth-project__error" role="alert" title="Dismiss" onClick={clearError}>
           {error}

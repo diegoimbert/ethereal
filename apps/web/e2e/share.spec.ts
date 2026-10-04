@@ -18,7 +18,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test, type Browser, type BrowserContext, type Page } from "@playwright/test";
 import type { Project, ProjectSummary } from "@/generated";
-import { createTrack, playButton } from "./ui";
+import { createTrack, launch, openOnLaunch, playButton } from "./ui";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 
@@ -100,10 +100,10 @@ async function person(browser: Browser, name: string, { realLaunch = false } = {
   return ctx;
 }
 
+/** base-131: the app launches with no project open; create one on the launch project screen. */
 async function boot(page: Page): Promise<void> {
-  await page.goto("/");
+  await launch(page);
   await expect(playButton(page)).toBeVisible({ timeout: 30_000 });
-  await expect.poll(() => project(page).then((p) => p !== null), { timeout: 30_000 }).toBe(true);
 }
 
 /** The popover's link, copied with the Copy button (the clipboard as a user would). */
@@ -228,12 +228,9 @@ test("share → link → join → edits and chat both ways → host away and bac
   // Diego opens Ethereal again and reopens the shared project: sharing resumes by itself.
   diego = await diegoCtx.newPage();
   watch(diego);
-  await boot(diego);
-  if ((await project(diego))!.id !== pid) {
-    await diego.getByRole("button", { name: "Projects" }).click();
-    const screen = diego.getByRole("dialog", { name: "Projects" });
-    await screen.getByRole("button", { name: songName, exact: false }).first().dblclick();
-  }
+  // base-131: nothing opens at launch; he picks the project on the launch project screen.
+  await diego.goto("/");
+  await openOnLaunch(diego, songName);
   await expect.poll(() => project(diego).then((p) => p?.id), { timeout: 30_000 }).toBe(pid);
   await expect(diego.getByTestId("session-pill")).toHaveAccessibleName(/^Session: Live/, { timeout: 30_000 });
 

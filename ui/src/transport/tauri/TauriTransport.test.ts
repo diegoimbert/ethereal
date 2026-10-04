@@ -77,48 +77,20 @@ describe("TauriTransport", () => {
   it("connects, registers channels and returns the open project", async () => {
     const { t, host } = transport((m) => [ok(m.id, { type: "Project", project })]);
     const p = await t.connect();
-    expect(p.settings.name).toBe("Song");
+    expect(p?.settings.name).toBe("Song");
     expect(host.state.calls).toEqual(["ether_connect", "ether_send"]);
     expect(host.state.sent[0]?.command).toEqual({ domain: "Project", command: { type: "Get" } });
     expect(t.info?.backend).toBe("null");
   });
 
-  it("opens the newest stored project when none is open", async () => {
+  it("opens nothing when no project is open (base-131: no reopen on launch)", async () => {
     const { t, host } = transport((m) => {
       const c = m.command.command as { type: string };
       if (c.type === "Get") return [err(m.id, "InvalidState")];
-      if (c.type === "List")
-        return [
-          ok(m.id, {
-            type: "Projects",
-            projects: [
-              { id: "old", name: "Old", modified_ms: 1 },
-              { id: "new", name: "New", modified_ms: 5 },
-            ],
-          }),
-        ];
       return [ok(m.id, { type: "Project", project })];
     });
-    await t.connect();
-    expect(host.state.sent.map((m) => m.command.command)).toEqual([
-      { type: "Get" },
-      { type: "List" },
-      { type: "Open", id: "new" },
-    ]);
-  });
-
-  it("creates an Untitled project when the store is empty", async () => {
-    const { t, host } = transport((m) => {
-      const c = m.command.command as { type: string };
-      if (c.type === "Get") return [err(m.id, "InvalidState")];
-      if (c.type === "List") return [ok(m.id, { type: "Projects", projects: [] })];
-      return [ok(m.id, { type: "Project", project })];
-    });
-    await t.connect();
-    const create = host.state.sent[2]!.command.command as { type: string; id: string; name: string };
-    expect(create.type).toBe("Create");
-    expect(create.name).toBe("Untitled");
-    expect(create.id).toMatch(/^[0-9a-f-]{36}$/);
+    await expect(t.connect()).resolves.toBeNull();
+    expect(host.state.sent.map((m) => m.command.command)).toEqual([{ type: "Get" }]);
   });
 
   it("delivers patches before resolving send, with gesture and unique ids", async () => {

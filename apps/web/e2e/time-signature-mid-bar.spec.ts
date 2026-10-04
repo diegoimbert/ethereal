@@ -10,7 +10,7 @@
 // UI or engine state (the mirror is read through `window.__ether`).
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import type { Project } from "@/generated";
-import { newProject, openEditor, pickOption, playButton, setNumberField } from "./ui";
+import { launch, openEditor, pickOption, setNumberField } from "./ui";
 
 interface Handle {
   state(): { project: Project | null };
@@ -45,10 +45,7 @@ test("time signature change mid-bar: partial bar, ruler numbering, Alt places fr
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
 
-  await page.goto("/");
-  await expect(playButton(page)).toBeVisible({ timeout: 30_000 });
-  await expect.poll(() => project(page).then((p) => p !== null), { timeout: 30_000 }).toBe(true);
-  await newProject(page, `Mid-bar ${Date.now()}`);
+  await launch(page, `Mid-bar ${Date.now()}`);
   await expect.poll(async () => (await signatures(page)).length).toBe(1);
 
   const ruler = page.locator(".eth-arr__ruler");

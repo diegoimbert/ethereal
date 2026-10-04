@@ -5,7 +5,7 @@
 //   carry `data-midi-target` with the right target (MIDI learn reads only this attribute).
 import { expect, test, type Page } from "@playwright/test";
 import type { MidiMapTarget, Project } from "@/generated";
-import { newProject } from "./ui";
+import { launch, newProject } from "./ui";
 
 interface Handle {
   state(): { project: Project | null };
@@ -41,8 +41,8 @@ test("theme switch and MIDI learn targets", async ({ page }) => {
     if (m.type() === "error") errors.push(m.text());
   });
 
-  await page.goto("/");
-  await expect(page.getByRole("button", { name: "Play" })).toBeVisible({ timeout: 30_000 });
+  await launch(page);
+  await expect(page.getByRole("button", { name: "Play", exact: true })).toBeVisible({ timeout: 30_000 });
   await expect.poll(() => project(page).then((p) => p !== null), { timeout: 30_000 }).toBe(true);
 
   // A fresh project with one MIDI track (the built-in synth comes with it).

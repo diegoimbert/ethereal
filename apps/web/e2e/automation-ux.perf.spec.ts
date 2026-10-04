@@ -10,7 +10,7 @@
 import { availableParallelism, loadavg } from "node:os";
 import { expect, test, type Page } from "@playwright/test";
 import type { Command, Project } from "@/generated";
-import { newProject } from "./ui";
+import { launch, newProject } from "./ui";
 
 interface Handle {
   state(): { project: Project | null };
@@ -69,7 +69,7 @@ async function send(page: Page, command: Command) {
 
 test("64 tracks: opening/closing automation keeps the frame rate @frames", async ({ page }) => {
   test.setTimeout(180_000);
-  await page.goto("/");
+  await launch(page);
   await newProject(page, `Automation perf ${Date.now()}`);
   await page.evaluate(() => {
     const ep = (window as unknown as { __etherEngine: { handles(): { controller: Worker } | null; post(json: string): void } }).__etherEngine;

@@ -15,7 +15,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test, type Page } from "@playwright/test";
 import type { Presence, Project } from "@/generated";
-import { openRelayJoin, playButton } from "./ui";
+import { launch, openRelayJoin, playButton } from "./ui";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const TOKEN = `e2e-${Math.random().toString(36).slice(2)}`;
@@ -68,7 +68,7 @@ test.afterAll(() => {
 });
 
 async function open(page: Page): Promise<void> {
-  await page.goto("/");
+  await launch(page);
   await expect(page.getByRole("button", { name: "Play", exact: true })).toBeVisible({ timeout: 30_000 });
   await expect.poll(() => project(page).then((p) => p !== null), { timeout: 30_000 }).toBe(true);
 }

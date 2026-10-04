@@ -12,7 +12,7 @@
 // No sleeps: every step waits on UI or engine state.
 import { expect, test, type Page } from "@playwright/test";
 import type { Project } from "@/generated";
-import { createTrack, newProject, playButton } from "./ui";
+import { createTrack, launch, newProject, openOnLaunch, playButton } from "./ui";
 
 interface Handle {
   state(): { project: Project | null; dirty: boolean };
@@ -49,7 +49,7 @@ async function saved(page: Page): Promise<void> {
 
 test("versions: save, compare, restore; a killed session offers recovery", async ({ page }) => {
   test.setTimeout(120_000);
-  await page.goto("/");
+  await launch(page);
   await expect(playButton(page)).toBeVisible({ timeout: 30_000 });
   await newProject(page, "Versions demo");
   await createTrack(page, "Midi");
@@ -120,7 +120,7 @@ test("versions: save, compare, restore; a killed session offers recovery", async
   // Unsaved (dirty) until saved; then nothing is left to recover.
   await saved(page);
   await page.reload();
-  await expect(playButton(page)).toBeVisible({ timeout: 30_000 });
+  await openOnLaunch(page, "Versions demo");
   await expect.poll(async () => (await state(page)).project?.id, { timeout: 30_000 }).toBe(pid);
   await expect(page.getByRole("dialog", { name: "Recover unsaved work?" })).toHaveCount(0);
   expect(await trackKinds(page)).toEqual(["Midi"]);

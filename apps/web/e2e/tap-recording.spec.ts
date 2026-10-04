@@ -17,7 +17,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test, type Page } from "@playwright/test";
 import type { Project, TakeLane } from "@/generated";
-import { createTrack, newProject, openEngineServer, pickOption, playButton, selectTrack } from "./ui";
+import { createOnLaunch, createTrack, launch, newProject, openEngineServer, pickOption, playButton, selectTrack } from "./ui";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const TOKEN = `e2e-${Math.random().toString(36).slice(2)}`;
@@ -55,7 +55,7 @@ test("browser build: a tapped track can't be armed, with the reason shown", asyn
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
 
-  await page.goto("/");
+  await launch(page);
   await expect(playButton(page)).toBeVisible({ timeout: 30_000 });
   await expect.poll(() => state(page).then((s) => s.project !== null), { timeout: 30_000 }).toBe(true);
   await newProject(page, `Tap arm ${Date.now()}`);
@@ -156,7 +156,7 @@ test.describe("native engine", () => {
     const errors: string[] = [];
     page.on("pageerror", (e) => errors.push(e.message));
 
-    await page.goto("/");
+    await launch(page);
     await expect(playButton(page)).toBeVisible({ timeout: 30_000 });
     await expect.poll(() => state(page).then((s) => s.project !== null), { timeout: 30_000 }).toBe(true);
     const localId = (await project(page)).id;
@@ -167,6 +167,8 @@ test.describe("native engine", () => {
     await page.getByLabel("Token").fill(TOKEN);
     await page.getByRole("button", { name: "Connect" }).click();
     await expect(page.getByTestId("remote-button")).toHaveText(/e2e-tap/);
+    // base-131: the server has no project open; the project screen creates one there.
+    await createOnLaunch(page, "Remote song");
     await expect.poll(async () => (await project(page)).id).not.toBe(localId);
     await peerSend("Transport", { type: "SetLoopRegion", region: { start: 0, end: 4 } });
     await peerSend("Transport", { type: "SetLoopEnabled", enabled: true });

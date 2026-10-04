@@ -6,6 +6,7 @@ import clsx from "clsx";
 import { ArrowUp, Check, CircleAlert, LoaderCircle, Settings, Square, SquarePen, Wrench } from "lucide-react";
 import { useContext, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
 import { Button, IconButton, MOD_KEY, Select } from "@/kit";
+import { useProjectStore } from "@/state";
 import { TransportContext } from "@/transport";
 import { AiSettingsView } from "./AiSettingsView";
 import { KeySetup } from "./KeySetup";
@@ -189,6 +190,8 @@ function ToolChip({ item }: { item: Extract<ChatItem, { kind: "tool" }> }) {
 
 function Composer() {
   const transport = useContext(TransportContext)?.transport ?? null;
+  // base-131: nothing to edit before a project is open (the app launches with none).
+  const hasProject = useProjectStore((s) => s.project !== null);
   const running = useAiChat((s) => s.running);
   const [text, setText] = useState("");
   const input = useRef<HTMLTextAreaElement>(null);
@@ -197,7 +200,7 @@ function Composer() {
     input.current?.focus();
   }, [focus]);
   const send = () => {
-    if (!transport || running || !text.trim()) return;
+    if (!transport || !hasProject || running || !text.trim()) return;
     void sendMessage(transport, text);
     setText("");
   };
@@ -217,7 +220,8 @@ function Composer() {
         ref={input}
         className="eth-input eth-ai__input"
         aria-label="Ask AI"
-        placeholder={`Ask AI to edit your project (${MOD_KEY}⇧A)`}
+        placeholder={hasProject ? `Ask AI to edit your project (${MOD_KEY}⇧A)` : "Open a project to ask AI"}
+        disabled={!hasProject && !running}
         rows={2}
         value={text}
         onChange={(e) => setText(e.target.value)}
@@ -231,7 +235,7 @@ function Composer() {
             <Square aria-hidden className="eth-ai__btn-icon" /> Stop
           </Button>
         ) : (
-          <Button size="sm" tone="accent" disabled={!transport || !text.trim()} onClick={send} data-testid="ai-send">
+          <Button size="sm" tone="accent" disabled={!transport || !hasProject || !text.trim()} onClick={send} data-testid="ai-send">
             <ArrowUp aria-hidden className="eth-ai__btn-icon" /> Send
           </Button>
         )}

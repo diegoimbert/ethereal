@@ -1,5 +1,6 @@
 import "./arrangement.css";
-import { MOD_KEY, openContextMenu, setDragCursor } from "@/kit";
+import { Button, MOD_KEY, openContextMenu, setDragCursor } from "@/kit";
+import { useProjectScreen } from "@/features/project/screenStore";
 import {
   droppedFiles,
   hasOsFiles,
@@ -121,10 +122,23 @@ interface DropTarget {
  * `<TransportProvider>` (the bare app shell in tests) it renders an empty placeholder.
  */
 export function ArrangementView() {
-  if (!useContext(TransportContext)) {
+  const connected = !!useContext(TransportContext);
+  const noProject = useProjectStore((s) => s.project === null);
+  if (!connected) {
     return (
       <div className="eth-arr eth-arr--disconnected" data-feature="arrangement">
         No engine connection
+      </div>
+    );
+  }
+  // base-131: nothing is opened on launch; the project screen picks a project.
+  if (noProject) {
+    return (
+      <div className="eth-arr eth-arr--disconnected eth-arr--no-project" data-feature="arrangement">
+        <span>No project open</span>
+        <Button tone="accent" onClick={() => useProjectScreen.getState().show()}>
+          Open a project
+        </Button>
       </div>
     );
   }

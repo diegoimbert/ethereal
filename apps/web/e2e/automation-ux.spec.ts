@@ -9,7 +9,7 @@
 // No sleeps: every step waits on UI or engine state. The UI mirror is `window.__ether`.
 import { expect, test, type Page } from "@playwright/test";
 import type { Project } from "@/generated";
-import { createTrack, newProject, pickOption } from "./ui";
+import { createTrack, launch, newProject, pickOption } from "./ui";
 
 interface Handle {
   state(): { project: Project | null };
@@ -55,7 +55,7 @@ test("automation lanes animate open, snap stepped params, and copy/paste points"
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
 
-  await page.goto("/");
+  await launch(page);
   await newProject(page, `Automation ${Date.now()}`);
   const midi = await createTrack(page, "Midi");
   const synth = Object.values((await doc(page)).devices).find((d) => d.track === midi.id)!;

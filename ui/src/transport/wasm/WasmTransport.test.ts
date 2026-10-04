@@ -63,51 +63,14 @@ describe("WasmTransport", () => {
     expect(ep.sent.map((m) => m.command)).toEqual([{ domain: "Project", command: { type: "Get" } }]);
   });
 
-  it("creates a project when none is open and the store is empty", async () => {
-    const created = project("Untitled");
+  it("opens nothing when no project is open (base-131: no reopen on launch)", async () => {
     const ep = new FakeEndpoint((m) => {
       const c = m.command;
-      if (c.domain !== "Project") throw new Error("unexpected");
-      switch (c.command.type) {
-        case "Get":
-          return [fail(m.id, "InvalidState")];
-        case "List":
-          return [ok(m.id, { type: "Projects", projects: [] })];
-        case "Create":
-          return [{ kind: "Event", body: { type: "ProjectLoaded", project: created } }, ok(m.id, { type: "Project", project: created })];
-        default:
-          throw new Error("unexpected");
-      }
-    });
-    const t = new WasmTransport({ endpoint: ep });
-    const events: Event[] = [];
-    t.onEvent((e) => events.push(e));
-    await expect(t.connect()).resolves.toEqual(created);
-    const create = ep.sent[2]!.command;
-    expect(create.domain === "Project" && create.command.type === "Create" && create.command.name).toBe("Untitled");
-    expect(events.map((e) => e.type)).toEqual(["ProjectLoaded"]);
-  });
-
-  it("opens the newest stored project when none is open", async () => {
-    const p = project("Newest");
-    const ep = new FakeEndpoint((m) => {
-      const c = m.command;
-      if (c.domain !== "Project") throw new Error("unexpected");
-      if (c.command.type === "Get") return [fail(m.id, "InvalidState")];
-      if (c.command.type === "List")
-        return [
-          ok(m.id, {
-            type: "Projects",
-            projects: [
-              { id: PROJECT_ID, name: "Newest", modified_ms: 2 },
-              { id: "01890a5d-ac96-774b-bcce-b302099a8058", name: "Old", modified_ms: 1 },
-            ],
-          }),
-        ];
-      if (c.command.type === "Open" && c.command.id === PROJECT_ID) return [ok(m.id, { type: "Project", project: p })];
+      if (c.domain === "Project" && c.command.type === "Get") return [fail(m.id, "InvalidState")];
       throw new Error("unexpected");
     });
-    await expect(new WasmTransport({ endpoint: ep }).connect()).resolves.toEqual(p);
+    await expect(new WasmTransport({ endpoint: ep }).connect()).resolves.toBeNull();
+    expect(ep.sent.map((m) => m.command)).toEqual([{ domain: "Project", command: { type: "Get" } }]);
   });
 
   it("delivers a command's patches before resolving it", async () => {

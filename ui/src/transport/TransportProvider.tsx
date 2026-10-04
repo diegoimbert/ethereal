@@ -16,7 +16,7 @@ export interface TransportProviderProps {
 
 /**
  * Provides the `EngineTransport` to the tree and keeps the UI stores in sync with it:
- * - connects on mount and loads the returned project into `useProjectStore`;
+ * - connects on mount and loads the returned project (if one is open) into `useProjectStore`;
  * - mirrors `ProjectLoaded` / `Patch` / `Transport` / `Project` (list, saved,
  *   dirty) / `Recording::ArmChanged` events into the store (refetching the whole project on
  *   a revision gap);
@@ -47,6 +47,8 @@ export function TransportProvider({ transport: local, children }: TransportProvi
     const offEvent = transport.onEvent((event) => {
       switch (event.type) {
         case "ProjectLoaded":
+          // A (re)opened project starts out of safe mode; `SafeMode` follows if not.
+          store().setSafeMode(false, []);
           store().loadProject(event.project);
           break;
         case "Project":
@@ -59,6 +61,9 @@ export function TransportProvider({ transport: local, children }: TransportProvi
               break;
             case "DirtyChanged":
               store().setDirty(event.event.dirty);
+              break;
+            case "SafeMode":
+              store().setSafeMode(event.event.active, event.event.devices);
               break;
           }
           break;
@@ -82,7 +87,9 @@ export function TransportProvider({ transport: local, children }: TransportProvi
     transport.connect().then(
       (project) => {
         if (!active) return;
-        store().loadProject(project);
+        // base-131: hosts open nothing on launch, so there may be no project yet.
+        if (project) store().loadProject(project);
+        else store().clearProject();
         setConnection({ status: "connected" });
       },
       (error: unknown) => {

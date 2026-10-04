@@ -4,8 +4,10 @@
  * `useTransport()`), and only read the document from the project store.
  *
  * Contract (all hosts):
- * - `connect()` resolves with the full current `Project`; the host then emits the current
- *   `TransportState` as `Event::Transport`. Subscribe to `onEvent` BEFORE calling it.
+ * - `connect()` resolves with the full current `Project`, or `null` when the engine has none
+ *   open (base-131: no host opens a project on launch; the project screen picks one); the
+ *   host then emits the current `TransportState` as `Event::Transport`. Subscribe to
+ *   `onEvent` BEFORE calling it.
  * - `send()` resolves once the engine applied the command. Every `Event::Patch` caused by
  *   the command is delivered to `onEvent` listeners BEFORE the promise settles, so after
  *   `await send(...)` the project store is up to date.
@@ -29,8 +31,8 @@ export interface SendOptions {
 
 export interface EngineTransport {
   readonly kind: "mock" | "tauri" | "wasm" | "remote";
-  /** Connect and return the full current project. */
-  connect(): Promise<Project>;
+  /** Connect and return the full current project, or `null` when none is open. */
+  connect(): Promise<Project | null>;
   /**
    * Send a command; resolves with the reply value, rejects with a `CommandFailedError`
    * (wrapping `CommandError`) on Err. Patches for the command are delivered to event

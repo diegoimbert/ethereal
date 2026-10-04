@@ -9,7 +9,7 @@ export { IDENTITY_KEY, loadIdentity, saveIdentity, type ShareIdentity } from "./
 export { JoinLanding, type JoinLandingProps } from "./JoinLanding";
 export { isMobile, joinRoute, prefersBrowser, setPrefersBrowser, type JoinRoute } from "./landing";
 export { deepLinkForTail, inviteLinkFrom, joinTail, linkProblem } from "./links";
-export { openInvite, openJoinWithLink } from "./store";
+export { openInvite, openJoinWithLink, useJoinScreenShown } from "./store";
 
 /**
  * Command palette entries (`ui/src/app/shell/commands.ts` spreads them in): "Join shared

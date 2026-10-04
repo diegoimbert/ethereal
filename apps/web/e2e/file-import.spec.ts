@@ -7,7 +7,7 @@
 // No sleeps: every step waits on UI or engine state.
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import type { Project } from "@/generated";
-import { createTrack, newProject, openLibrary } from "./ui";
+import { createTrack, launch, newProject, openLibrary } from "./ui";
 
 interface Handle {
   state(): { project: Project | null };
@@ -69,7 +69,7 @@ async function dropFiles(target: Locator, files: DropFile[], at?: { dx: number; 
 const count = (o: object) => Object.keys(o).length;
 
 test.beforeEach(async ({ page }) => {
-  await page.goto("/");
+  await launch(page);
   await expect(page.getByRole("button", { name: "Play", exact: true })).toBeVisible({ timeout: 30_000 });
 });
 

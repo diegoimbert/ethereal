@@ -64,6 +64,11 @@ pub(crate) struct EngineState {
     /// Plugins to re-create from the document's `plugin.state` rather than their live state
     /// (collab: a peer replicated a new state).
     reload_from_doc: BTreeSet<DeviceId>,
+    /// base-131 safe mode: plugin devices held as bypassed placeholders (no node, so they
+    /// are skipped from chains and their document state is what gets saved).
+    deferred: BTreeSet<DeviceId>,
+    /// Safe mode is on (the project was opened with `OpenSafe`, plugins not loaded yet).
+    safe_mode: bool,
     pub graph_dirty: bool,
     pub version: u64,
     pub last_publish_ms: Option<u64>,
@@ -115,6 +120,8 @@ impl EngineState {
     }
 
     pub fn request_recreate(&mut self, device: DeviceId) {
+        // Reloading a placeholder (safe mode) loads that plugin.
+        self.deferred.remove(&device);
         self.recreate.insert(device);
         self.failed.remove(&device);
         self.graph_dirty = true;
@@ -136,10 +143,47 @@ impl EngineState {
         self.plugin_descriptors.clear();
         self.recreate.clear();
         self.reload_from_doc.clear();
+        self.deferred.clear();
+        self.safe_mode = false;
         self.pad_solo.clear();
         self.audition.clear();
         self.midi_fx_scales.clear();
         self.graph_dirty = true;
+    }
+
+    /// Safe mode (base-131): hold `project`'s plugin devices as placeholders. Call right
+    /// after [`Self::reset`], before the first sync. Returns them.
+    pub fn defer_plugins(&mut self, project: &Project) -> Vec<DeviceId> {
+        self.safe_mode = true;
+        self.deferred = project
+            .devices
+            .values()
+            .filter(|d| matches!(d.kind, DeviceKind::Plugin { .. }))
+            .map(|d| d.id)
+            .collect();
+        self.deferred.iter().copied().collect()
+    }
+
+    /// Plugin devices held as placeholders (safe mode).
+    pub fn deferred(&self) -> Vec<DeviceId> {
+        self.deferred.iter().copied().collect()
+    }
+
+    /// Safe mode is on.
+    pub fn safe_mode(&self) -> bool {
+        self.safe_mode
+    }
+
+    /// Leave safe mode: the placeholders are instantiated at the next sync. `false` when
+    /// not in safe mode.
+    pub fn load_deferred(&mut self) -> bool {
+        if !self.safe_mode {
+            return false;
+        }
+        self.safe_mode = false;
+        self.deferred.clear();
+        self.graph_dirty = true;
+        true
     }
 
     pub fn set_plugin_descriptor(&mut self, device: DeviceId, desc: Option<DeviceDescriptor>) {
@@ -219,7 +263,13 @@ impl EngineState {
         self.failed.retain(|d, _| devices.contains_key(d));
         self.recreate.retain(|d| devices.contains_key(d));
         self.reload_from_doc.retain(|d| devices.contains_key(d));
+        self.deferred.retain(|d| all.contains_key(d));
         for device in devices.values() {
+            if self.deferred.contains(&device.id)
+                && matches!(device.kind, DeviceKind::Plugin { .. })
+            {
+                continue;
+            }
             let sig = sig_of(&device.kind);
             let recreate = self.recreate.remove(&device.id);
             let from_doc = self.reload_from_doc.remove(&device.id);

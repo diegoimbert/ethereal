@@ -4,7 +4,7 @@
 // performance.now), so they are exact, not timing luck.
 import { expect, test, type Page } from "@playwright/test";
 import type { Project } from "@/generated";
-import { createTrack, newProject, pickOption } from "./ui";
+import { createTrack, launch, newProject, pickOption } from "./ui";
 
 const dir = process.env.AUTOMATION_SHOTS;
 test.skip(!dir, "set AUTOMATION_SHOTS=<dir> to capture");
@@ -21,7 +21,7 @@ const shot = (page: Page, name: string) => page.screenshot({ path: `${dir}/${nam
 test("automation lanes: animation frames, step grid, paste, tooltip", async ({ page }) => {
   test.setTimeout(120_000);
   await page.clock.install();
-  await page.goto("/");
+  await launch(page);
   await newProject(page, "Automation demo");
   const a = await createTrack(page, "Midi");
   const b = await createTrack(page, "Midi");

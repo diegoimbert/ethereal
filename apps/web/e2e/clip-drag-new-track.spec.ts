@@ -6,7 +6,7 @@
 // `CLIP_DRAG_SHOTS=<dir>` also saves the PR screenshots (1440×900, dark).
 import { expect, test, type Page } from "@playwright/test";
 import type { Project } from "@/generated";
-import { createTrack, newProject, openLibrary } from "./ui";
+import { createTrack, openLibrary, launch } from "./ui";
 
 const shots = process.env.CLIP_DRAG_SHOTS;
 test.use({ viewport: { width: 1440, height: 900 }, colorScheme: "dark" });
@@ -48,9 +48,7 @@ test("clips dragged below the last track land on new tracks, one undo step each"
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
 
-  await page.goto("/");
-  await expect.poll(() => page.evaluate(() => (window as unknown as { __ether: Handle }).__ether.state().project !== null), { timeout: 30_000 }).toBe(true);
-  await newProject(page, `Clip drag ${Date.now()}`);
+  await launch(page, `Clip drag ${Date.now()}`);
 
   // A MIDI clip (double-click on the MIDI lane) and an audio clip (sample from the library).
   const midiTrack = await createTrack(page, "Midi");

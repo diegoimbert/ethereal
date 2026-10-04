@@ -15,3 +15,6 @@ export const useVersionsDialog = create<VersionsDialogState>((set) => ({
 
 /** Open the versions dialog of the open project. */
 export const openVersions = () => useVersionsDialog.getState().show();
+
+/** base-131: the crash-recovery dialog is up (the project screen waits behind it). */
+export const useRecoveryShown = create<{ shown: boolean }>(() => ({ shown: false }));

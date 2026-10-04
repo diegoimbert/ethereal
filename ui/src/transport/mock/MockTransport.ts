@@ -93,6 +93,7 @@
 import type {
   BrowseLocation,
   Command,
+  DeviceId,
   EditCommand,
   EngineCommand,
   EtherFile,
@@ -226,6 +227,9 @@ export class MockTransport implements EngineTransport {
   readonly kind = "mock" as const;
 
   private project: Project;
+  /** base-131: plugin devices held as placeholders (`OpenSafe`). */
+  private safeMode: DeviceId[] = [];
+  private safe = false;
   private revision = 0;
   private undoStack: HistoryEntry[] = [];
   private redoStack: HistoryEntry[] = [];
@@ -757,6 +761,8 @@ export class MockTransport implements EngineTransport {
   private loadProject(project: Project): void {
     this.liveRecord.abort();
     this.project = project;
+    this.safe = false;
+    this.safeMode = [];
     this.undoStack = [];
     this.redoStack = [];
     this.openGesture = null;
@@ -851,13 +857,29 @@ export class MockTransport implements EngineTransport {
         this.emitListChanged();
         return { type: "Project", project: this.project };
       }
-      case "Open": {
+      case "Open":
+      case "OpenSafe": {
         const entry = this.stored(c.id);
         if (this.dirty) this.saveCurrent();
         // Re-read after a possible autosave (opening the current project reloads it).
         this.loadProject(parseEtherFile(this.store.get(c.id)?.json ?? entry.json));
+        // base-131 safe mode: the mock hosts no plugins; it reports their devices as held.
+        if (c.type === "OpenSafe") {
+          this.safeMode = Object.values(this.project.devices)
+            .filter((d) => d.kind.type === "Plugin")
+            .map((d) => d.id);
+          this.safe = true;
+          this.emit({ type: "Project", event: { type: "SafeMode", active: true, devices: this.safeMode } });
+        }
         return { type: "Project", project: this.project };
       }
+      case "LoadPlugins":
+        if (this.safe) {
+          this.safe = false;
+          this.safeMode = [];
+          this.emit({ type: "Project", event: { type: "SafeMode", active: false, devices: [] } });
+        }
+        return UNIT;
       case "Save":
         return { type: "Saved", project: this.saveCurrent() };
       case "SaveAs": {

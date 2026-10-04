@@ -13,7 +13,7 @@
 // engine state.
 import { expect, test, type Page } from "@playwright/test";
 import type { Command, Project } from "@/generated";
-import { playButton } from "./ui";
+import { launch, playButton } from "./ui";
 
 interface Handle {
   state(): { project: Project | null };
@@ -100,7 +100,7 @@ test("large project: binary graph snapshots play while editing", async ({ page }
     if (m.type() === "error") errors.push(m.text());
   });
 
-  await page.goto("/");
+  await launch(page);
   await expect(playButton(page)).toBeVisible({ timeout: 30_000 });
   await expect
     .poll(() => page.evaluate(() => (window as unknown as { __ether: Handle }).__ether.state().project !== null), {

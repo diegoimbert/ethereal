@@ -122,6 +122,13 @@ export function JoinRoot() {
 
   const joining = share.type === "Joining" ? share.stage : null;
   const stage = local ?? joining;
+  // base-131: the project screen (shown on launch, with no project open) steps aside.
+  const screenShown = stage !== null && !hidden;
+  useEffect(() => {
+    useJoinStore.setState({ screenShown });
+  }, [screenShown]);
+  useEffect(() => () => useJoinStore.setState({ screenShown: false }), []);
+
   // Kept while the dialog animates out.
   const [shown, setShown] = useState<JoinStage | null>(stage);
   if (stage && stage !== shown) setShown(stage);

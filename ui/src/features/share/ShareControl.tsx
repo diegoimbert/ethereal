@@ -5,6 +5,7 @@
 import { Share2 } from "lucide-react";
 import { useContext, useEffect, useRef } from "react";
 import { Badge, Button, Popover, Toast, ToastStack } from "@/kit";
+import { useProjectStore } from "@/state";
 import { cmd, TransportContext, type EngineTransport } from "@/transport";
 import { CollabRuntime } from "@/features/collab";
 import { useCollabStore } from "@/features/collab/store";
@@ -57,6 +58,8 @@ function ShareControlWith({ transport }: { transport: EngineTransport }) {
   const status = sessionStatus(state);
   const people = othersOnline(participantsOf(state));
   const hidden = state.type === "Off" && inRelay;
+  // base-131: the app launches with no project open; there is nothing to share yet.
+  const hasProject = useProjectStore((s) => s.project !== null);
 
   const share = async () => {
     if (await attempt(transport, cmd("Share", { type: "Start" }), "Couldn't share this project")) setOpen(true);
@@ -82,7 +85,8 @@ function ShareControlWith({ transport }: { transport: EngineTransport }) {
                 aria-haspopup="dialog"
                 aria-expanded={false}
                 data-testid="share-button"
-                title="Share this project: invite people with a link"
+                disabled={!hasProject}
+                title={hasProject ? "Share this project: invite people with a link" : "Open a project to share it"}
                 onClick={() => void share()}
               >
                 <Share2 className="eth-share__icon" aria-hidden />

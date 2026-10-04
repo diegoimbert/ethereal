@@ -9,7 +9,7 @@
 // `window.__ether` (apps/web/src/main.tsx).
 import { expect, test, type Page } from "@playwright/test";
 import type { Device, DrumPad, Project } from "@/generated";
-import { createTrack, newProject, openEditor, openLibrary, pickOption, playButton, selectTrack } from "./ui";
+import { createTrack, launch, newProject, openEditor, openLibrary, pickOption, playButton, selectTrack } from "./ui";
 
 interface Handle {
   state(): { project: Project | null };
@@ -41,7 +41,7 @@ test("drum rack: build a 2-pad kit from the browser", async ({ page }) => {
     if (m.type() === "error") errors.push(m.text());
   });
 
-  await page.goto("/");
+  await launch(page);
   await expect(playButton(page)).toBeVisible({ timeout: 30_000 });
   await expect.poll(() => project(page).then((p) => p !== null), { timeout: 30_000 }).toBe(true);
 

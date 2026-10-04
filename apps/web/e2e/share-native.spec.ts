@@ -20,7 +20,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test, type Browser, type Page } from "@playwright/test";
 import type { Project, ShareState } from "@/generated";
-import { createTrack, playButton } from "./ui";
+import { createTrack, launch, playButton } from "./ui";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const TOKEN = `e2e-${Math.random().toString(36).slice(2)}`;
@@ -221,10 +221,10 @@ async function browserPerson(browser: Browser, name: string): Promise<Page> {
   return page;
 }
 
+/** base-131: the app launches with no project open; create one on the launch project screen. */
 async function boot(page: Page): Promise<void> {
-  await page.goto("/");
+  await launch(page);
   await expect(playButton(page)).toBeVisible({ timeout: 30_000 });
-  await expect.poll(() => project(page).then((p) => p !== null), { timeout: 30_000 }).toBe(true);
 }
 
 /** The link as this test's web server serves it. */

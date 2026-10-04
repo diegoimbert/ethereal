@@ -15,7 +15,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, test, type Locator, type Page, type TestInfo } from "@playwright/test";
 import type { Project } from "@/generated";
-import { createTrack, newProject, openLibrary, playButton } from "./ui";
+import { createTrack, newProject, openLibrary, openOnLaunch, playButton } from "./ui";
 
 interface Handle {
   state(): { project: Project | null };
@@ -67,9 +67,8 @@ async function dropOnLane(page: Page, row: Locator, track: string) {
 
 async function boot(page: Page) {
   await page.setViewportSize({ width: 1440, height: 900 });
+  // Nothing is open on launch (base-131): callers create a project with `newProject`.
   await page.goto("/");
-  await expect(playButton(page)).toBeVisible({ timeout: 30_000 });
-  await expect.poll(() => doc(page).then((p) => p !== null), { timeout: 30_000 }).toBe(true);
 }
 
 for (const theme of ["dark", "light"] as const) {
@@ -161,6 +160,7 @@ for (const theme of ["dark", "light"] as const) {
 
     // --- Reload: the place is still there -------------------------------------------------------
     await page.reload();
+    await openOnLaunch(page);
     await expect(playButton(page)).toBeVisible({ timeout: 30_000 });
     await panel(page)
       .waitFor({ timeout: 5_000 })
@@ -188,6 +188,7 @@ test("folder import: <input webkitdirectory> fallback (no showDirectoryPicker)",
     delete (window as unknown as { showDirectoryPicker?: unknown }).showDirectoryPicker;
   });
   await boot(page);
+  await newProject(page, `Folder fallback ${Date.now()}`);
   await openLibrary(page);
   const chooser = page.waitForEvent("filechooser");
   await places(page).getByRole("button", { name: /Import folder…/ }).click();

@@ -47,6 +47,15 @@ where
             }),
             ProjectCommand::Create { id, name } => self.create(*id, name, now, out),
             ProjectCommand::Open { id } => self.open(*id, now, out),
+            ProjectCommand::OpenSafe { id } => self.open_safe(*id, now, out),
+            ProjectCommand::LoadPlugins => {
+                self.doc.as_ref().ok_or_else(no_project)?;
+                if self.engine.load_deferred() {
+                    self.emit_safe_mode(out);
+                    self.publish_if_due(now, true, out);
+                }
+                Ok(ReplyValue::Unit)
+            }
             ProjectCommand::Save => Ok(ReplyValue::Saved {
                 project: self.save_current(out)?,
             }),
@@ -221,6 +230,36 @@ where
         Ok(ReplyValue::Project {
             project: Box::new(project),
         })
+    }
+
+    /// base-131: open `id` with its plugin devices held as bypassed placeholders.
+    fn open_safe(
+        &mut self,
+        id: ProjectId,
+        now: u64,
+        out: &mut dyn MessageSink,
+    ) -> CmdResult<ReplyValue> {
+        self.autosave_before_switch(out)?;
+        let json = self.store.load(id).map_err(store_err)?;
+        let mut project = file::load(&json).map_err(file_err)?;
+        project.id = id;
+        self.load_project_with(project.clone(), now, true, out);
+        Ok(ReplyValue::Project {
+            project: Box::new(project),
+        })
+    }
+
+    /// `Event::Project { SafeMode }` with the current placeholders.
+    pub(crate) fn emit_safe_mode(&self, out: &mut dyn MessageSink) {
+        event(
+            out,
+            Event::Project {
+                event: ProjectEvent::SafeMode {
+                    active: self.engine.safe_mode(),
+                    devices: self.engine.deferred(),
+                },
+            },
+        );
     }
 
     fn save_as(
@@ -431,7 +470,21 @@ where
     /// Make `project` the open document: reset history, runtime state, engine nodes and
     /// media, then announce it.
     pub(crate) fn load_project(&mut self, project: Project, now: u64, out: &mut dyn MessageSink) {
+        self.load_project_with(project, now, false, out);
+    }
+
+    /// `safe`: plugin devices are held as placeholders (base-131 safe mode).
+    fn load_project_with(
+        &mut self,
+        project: Project,
+        now: u64,
+        safe: bool,
+        out: &mut dyn MessageSink,
+    ) {
         self.engine.reset();
+        if safe {
+            self.engine.defer_plugins(&project);
+        }
         self.media.reset(&mut self.bridge);
         self.armed.clear();
         self.plugin_gestures.clear();
@@ -464,6 +517,13 @@ where
         );
         self.last_transport = None;
         self.emit_transport_if_changed(out);
+        if safe {
+            self.emit_safe_mode(out);
+        }
+        // project-versions: session marker and version clock. Written BEFORE the devices
+        // (plugins) are instantiated, so a crash while loading them counts as a crash
+        // (base-131: no reopen on launch, recovery offered).
+        self.versions_on_load(now);
         let doc = self.doc.as_ref().expect("just set");
         self.media.sync(&mut self.bridge, Some(&doc.project));
         self.engine.graph_dirty = true;
@@ -472,8 +532,6 @@ where
         // sharing or reconnects (docs/SHARING.md §7).
         let pid = self.doc.as_ref().expect("just set").project.id;
         self.share_project_loaded(pid, out);
-        // project-versions: session marker and version clock.
-        self.versions_on_load(now);
     }
 }
 

@@ -75,7 +75,11 @@ test("a damaged invite says so on the landing; Open Ethereal boots the app witho
 test("a reset or revoked invite shows the join screen's message (pasted link)", async ({ page }) => {
   await mockShare(page);
   await page.goto("/");
-  await expect(page.getByRole("button", { name: "Play" })).toBeVisible({ timeout: 30_000 });
+  // base-131: the app launches on the project screen, with no project; continue without one.
+  const projects = page.getByRole("dialog", { name: "Projects" });
+  await expect(projects).toBeVisible({ timeout: 30_000 });
+  await page.keyboard.press("Escape");
+  await expect(projects).toHaveCount(0);
   // The palette's "Join shared project…" → paste.
   await page.keyboard.press("ControlOrMeta+k");
   await page.getByRole("combobox", { name: "Search commands" }).fill("join shared");

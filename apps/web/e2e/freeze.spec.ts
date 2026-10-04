@@ -7,7 +7,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import type { Project, Track } from "@/generated";
 import { openClip } from "./clips";
-import { createTrack, newProject, playButton } from "./ui";
+import { createTrack, launch, newProject, playButton } from "./ui";
 
 const shots = process.env.FREEZE_SHOTS;
 test.use({ viewport: { width: 1440, height: 900 }, colorScheme: "dark" });
@@ -62,7 +62,7 @@ test("freeze, unfreeze, flatten, bounce and consolidate from the arrangement", a
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
 
-  await page.goto("/");
+  await launch(page);
   await expect(playButton(page)).toBeVisible({ timeout: 30_000 });
   await expect
     .poll(() => page.evaluate(() => (window as unknown as { __ether: Handle }).__ether.state().project !== null), {
