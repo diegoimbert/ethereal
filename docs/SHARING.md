@@ -200,6 +200,7 @@ Persisted per room, and nothing else: `hostTokenHash`, `doors[]` (SHA-256 hex),
   Per client IP (Workers rate-limiting binding): ≤ 20 bad doors/min, ≤ 30 room claims/hour.
   Malformed frames close the socket (`Refused{Malformed}`).
 - **Origins**: browsers must present an allowed `Origin` (`ALLOWED_ORIGINS`: the Pages
+  origin, its custom domains (`app.ethereal.ws`, `ethereal.ws`),
   origin and its preview subdomains, the Tauri webview origins, `localhost` for dev). Native
   clients send none and are allowed. This is not authentication (non-browser clients can lie).
   It keeps other websites from using the service through their visitors' browsers. HTTP
