@@ -200,7 +200,8 @@ Persisted per room, and nothing else: `hostTokenHash`, `doors[]` (SHA-256 hex),
   Per client IP (Workers rate-limiting binding): ≤ 20 bad doors/min, ≤ 30 room claims/hour.
   Malformed frames close the socket (`Refused{Malformed}`).
 - **Origins**: browsers must present an allowed `Origin` (`ALLOWED_ORIGINS`: the Pages
-  origin and its preview subdomains, the Tauri webview origins, `localhost` for dev). Native
+  origin and its preview subdomains, its custom domains `app.ethereal.ws` and `ethereal.ws`,
+  the Tauri webview origins, `localhost` for dev). Native
   clients send none and are allowed. This is not authentication (non-browser clients can lie).
   It keeps other websites from using the service through their visitors' browsers. HTTP
   routes send `Access-Control-Allow-Origin` for allowed origins only.
@@ -218,7 +219,7 @@ Persisted per room, and nothing else: `hostTokenHash`, `doors[]` (SHA-256 hex),
 ### 4.1 Format (frozen; `ether_collab::share::invite`, `ui/src/domain/invite.ts`)
 
 ```text
-https://etherealws.pages.dev/join/<room>[?s=<signal url>]#<key>
+https://app.ethereal.ws/join/<room>[?s=<signal url>]#<key>
 ethereal://join/<room>[?s=<signal url>]#<key>
 ```
 
@@ -351,7 +352,7 @@ existing file API, so the same code works natively, on OPFS and in memory.
 
 | Option | For | Against |
 |---|---|---|
-| **str0m (chosen)** | Already in the tree for `stream-host` (`str0m 0.24`, `rust-crypto`, which pulls `sctp-proto`). Data-channel support adds no new crate. Sans-IO and sync: one thread, one UDP socket, deterministic tests with fake time. The session lives next to the controller and the hub, so it does not depend on the webview (Linux WebKitGTK builds without WebRTC can host and join). Headless `ether-server` can host (an always-on studio box) | We own ICE gathering (host + srflx, the `stream/stun.rs` pattern) and str0m has no TURN client (§11). str0m's SCTP is younger than libwebrtc's |
+| **str0m (chosen)** | Already in the tree for `stream-host` (`str0m 0.24`, `rust-crypto`, which pulls `sctp-proto`). Data-channel support adds no new crate. Sans-IO and sync: one thread, one UDP socket, deterministic tests with fake time. The session lives next to the controller and the hub, so it does not depend on the webview (Linux WebKitGTK builds without WebRTC can host and join). Headless `ether-server` can host (an always-on studio box) | We own ICE gathering (host + srflx, the `stream/stun.rs` pattern) and the TURN client (str0m has none: `share/native/turn.rs`, node `native-turn`). str0m's SCTP is younger than libwebrtc's |
 | webrtc-rs | Full stack incl. TURN client | tokio everywhere, a large tree (+3-5 MB), API churn, moving to a sans-IO rewrite. Already rejected in COLLAB.md §11 |
 | Data channel in the webview, bridged to the engine | Same code path as web, and libwebrtc's maturity in Chromium-based webviews | Every op and media chunk crosses Tauri IPC as JSON (base64 media, 16 MiB snapshots). The session dies with the webview. No WebRTC in some WebKitGTK builds. `ether-server` cannot host |
 
@@ -365,6 +366,32 @@ existing file API, so the same code works natively, on OPFS and in memory.
   candidates + one srflx Binding per STUN URL). It lives in
   `crates/ether-collab/src/share/native/**` (thread + socket), and `ether-collab` gains
   `str0m` as a native-only dependency.
+- **Relay candidates (TURN)** (`native-turn`): a small sans-IO TURN client
+  (`share/native/turn.rs`, an RFC 8656 subset with long-term credentials, on the `stun`
+  crate's codec that the relay's STUN server already uses: no new crate). For each pairing
+  the share thread tries the advertised `turn:`/`turns:` URLs that carry credentials, at
+  most three: UDP first, then TLS (port 443 first: it passes most firewalls), then TCP,
+  until one Allocate succeeds (a server that does not answer is given up after 5 s). The
+  relayed address becomes a relay candidate in the pairing's `Rtc` (trickled like the srflx
+  one; over UDP the Allocate response's mapped address is also a free srflx candidate).
+  - UDP allocations live on the share socket. A UDP allocation belongs to its 5-tuple, so
+    **one allocation per TURN server is shared by every pairing**: str0m sends from the
+    relayed address, the thread routes those datagrams through the allocation (a
+    CreatePermission and a ChannelBind on the first datagram to a peer, data queued until
+    one succeeds, then `ChannelData`; `Send` indications if the server refuses channels),
+    and relayed data goes to the pairing whose `Rtc` accepts it.
+  - TCP/TLS (`turn:…?transport=tcp`, `turns:`; rustls with the Mozilla roots, as the
+    signaling socket): one small I/O thread per connection moves framed messages
+    (RFC 8656 §12.5, padded `ChannelData`) between the stream and the share thread.
+  - The allocation is refreshed a minute before its lifetime ends, permissions every 4 min,
+    channels every 9 min. One no pairing has used for 30 s is released (`LIFETIME 0`), and
+    all are released on shutdown. A lost allocation (refresh refused, connection closed)
+    drops the relay candidate; ICE then fails over or the link closes (consent freshness).
+  - Responses carrying a `MESSAGE-INTEGRITY` are verified. Tests: the codec and state
+    machine against an in-process fake server (`turn.rs`); native↔native pairings with no
+    host candidates through the relay's own TURN server, over UDP, TLS and TCP
+    (`crates/ether-collab/tests/p2p_turn.rs`, `--features turn`); native↔browser with
+    relay only on both sides (`apps/web/e2e/p2p-turn.spec.ts`).
 - Threading: one `ether-share` thread owns the UDP socket and every pairing's `Rtc`. It
   exchanges `PeerOutput`s/commands with the controller over `crossbeam-channel`s (non-blocking
   `PeerEndpoint::poll`), the same pattern as the stream sender.
@@ -396,9 +423,11 @@ over one `MessagePort`, the **share port** (as implemented by `p2p-transport`):
   the native str0m one. `PeerLink::buffered()` = bytes posted and not yet consumed by the
   data channel plus its `bufferedAmount`.
 - **Relay only** is `PeerEndpoint::open(.., relay_only)`: on the web it becomes
-  `iceTransportPolicy: "relay"`. Natively there is no TURN client (§11), so the UI never sends
-  `relay_only` to a native engine (`nativeEngine()` in `ui/src/features/share/settings.ts`),
-  and a native endpoint asked for it fails the open with a clear reason.
+  `iceTransportPolicy: "relay"`. Natively (§6.1, `native-turn`) the pairing has relay
+  candidates only: no host or srflx candidate, no STUN query, and nothing is sent to a peer
+  except through the allocation. Without a TURN server (with credentials) the open fails at
+  once ("needs a TURN relay server, and none is configured"); when every TURN server fails,
+  the pairing fails ("could not reach the TURN relay: ...").
 - The contract's `ShareEvent::{PeerEndpoint, PeerSignal}` and `ShareCommand::PeerSignal` are
   **unused** (kept in the contract, append-only; the controller answers `PeerSignal` with
   `Unsupported`).
@@ -420,7 +449,7 @@ No setting is needed for Share → link → Join to work:
 | Sharing services | real ones: native `signal::native::WsSignal` (tungstenite + rustls, `wss://`) and `native::NativePeers` (str0m); web `WebSignal` + `WebPeers` | `EtherController::share_services()` falls back to `ether_collab::share::default_services()`, so `ether-native` (desktop and `ether-server`) and `ether-wasm` construct the controller without calling `set_share_services` | tests inject `share::fake` |
 | Signaling service | `https://etherealws.pages.dev/signal` (`DEFAULT_SIGNAL_URL`) | the Pages Function of §3.1 (shipped in the web release since #241) | Settings > Advanced > Signaling server (`SetServers`); a joiner uses the link's `?s=` |
 | ICE servers | what the service advertises in `HostWelcome`/`JoinWelcome`: `stun:stun.cloudflare.com:3478` (`STUN_URLS` in `services/signal/wrangler.toml`), plus TURN if configured | §2.4 | Settings > Advanced > ICE servers (`Collab::SetIceServers`) |
-| Invite links | `https://etherealws.pages.dev/join/<room>#<key>` | `DEFAULT_INVITE_ORIGIN` | `SetServers.invite_origin` (not exposed in the UI) |
+| Invite links | `https://app.ethereal.ws/join/<room>#<key>` (older builds: `etherealws.pages.dev`, same site) | `DEFAULT_INVITE_ORIGIN` | `SetServers.invite_origin` (not exposed in the UI) |
 
 **"Can't reach the sharing service"** is not a health probe. The app never calls
 `/v1/health` (that route is for operators and smoke tests). The message is shown when the
@@ -713,10 +742,13 @@ longer works". At most 3 on screen (the `ChatToasts` stack rules).
 Known limitations:
 - **Symmetric NAT on both sides without TURN**: ICE fails (`JoinFailure::Unreachable`, "ask
   the host to enable a relay server"). STUN covers most home and office NATs. Corporate
-  networks and some mobile carriers need TURN (§3.4). **Native has no TURN client** (str0m):
-  a native peer connects through TURN only when the *other* side allocates a relay
-  candidate, so native↔native across two symmetric NATs fails even with TURN until a native
-  TURN client exists (future: `turn` crate client in the share thread).
+  networks and some mobile carriers need TURN (§3.4). Desktop and `ether-server` have their
+  own TURN client (§6.1), so any pair (native or web, either side behind a strict NAT)
+  connects through the advertised TURN server, and "Hide my IP" works everywhere. Not
+  supported natively: DTLS-over-UDP TURN (`turns:…?transport=udp`), IPv6 relayed addresses
+  (the share socket is IPv4), TURN servers without credentials, and moving a live
+  connection to a new allocation when its allocation is lost (ICE fails over to another
+  candidate pair, or the link closes and the joiner reconnects).
 - The host must be online for anyone to join (owner decision). Hand-over is §7.4.
 - A restarted host starts a new epoch: joiners resync fully once (snapshot + media cache).
   This is fine for typical projects, but a large media library means a large first sync.
@@ -741,8 +773,12 @@ details are in ROADMAP.md "Sharing (base-115)".
 | `recents-shared` | `crates/ether-{native,wasm}/src/store.rs` + `ether-controller/src/memory.rs` (read `share.json` into `ProjectSummary.share`), `ui/src/features/project/**` | base-115 | Badges, avatars, menus of §8.5 against stores with fixture `share.json`s. Duplicate/SaveAs never copy `share.json` (native + wasm store tests) |
 | `share-integration` | `apps/web/e2e/share*.spec.ts`, `docs/SHARING.md`, `docs/COLLAB.md` cross-refs, `ShareServices` wiring in `ether-native`/`ether-wasm` defaults | all of the above | Two browser contexts through the Node signal adapter: share → copy link → open in the other context → Join → edits both ways, chat, host leaves → offline copy → host back → reconnect. Native↔web join on the devbox (loopback). The owner's laptop checks (desktop deep link, macOS) listed in the PR |
 
-Later (optional): `share-handover` (§7.4), `native-turn-client` (§11), `offline-merge`
-(persist pending ops across restarts; decision 9).
+After the first wave: `native-turn` (the native TURN client, §6.1; owns
+`crates/ether-collab/src/share/native/**` with `p2p-transport`, `tests/p2p_turn.rs`,
+`apps/web/e2e/p2p-turn.spec.ts`).
+
+Later (optional): `share-handover` (§7.4), `offline-merge` (persist pending ops across
+restarts; decision 9).
 
 ### 12.1 Tests across the nodes
 

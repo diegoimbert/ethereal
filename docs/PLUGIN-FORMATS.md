@@ -1,9 +1,10 @@
-# Plugin formats: CLAP, VST3, AU
+# Plugin formats: CLAP, VST3, VST2, AU
 
-All three formats are hosted end to end: scanning, the native host (in-process and
+All four formats are hosted end to end: scanning, the native host (in-process and
 sandboxed), save/reopen and the plugin browser. The base came from the `formats-base` node.
 `vst3` (`crates/ether-vst3/**`) and `au` (`crates/ether-au/**`) implemented the formats, and
 `formats-integration` wired them into the app (see "Integration (native host)" below).
+`vst2` (`crates/ether-vst2/**`) added VST2 later (see "VST2" below).
 
 ## Architecture
 
@@ -12,6 +13,7 @@ ether-core            PluginController / PluginNode / PluginError   (contracts, 
 ether-plugin-host     PluginFormatHost trait, Formats registry, ScanRunner, bundle walker
   ├─ ether-clap       ClapFormat  (adapter over the existing CLAP host)
   ├─ ether-vst3       Vst3Format
+  ├─ ether-vst2       Vst2Format  (clean-room ABI bindings, no Steinberg SDK)
   └─ ether-au         AuFormat    (macOS only; Unsupported elsewhere)
 users: ether-plugin-scanner (protocol + --scan-all), ether-sandbox helper (--format),
        ether-native (formats-integration)
@@ -32,7 +34,7 @@ users: ether-plugin-scanner (protocol + --scan-all), ether-sandbox helper (--for
 The formats the `Formats` registry holds depend on who builds it:
 
 - The scanner, the sandbox helper and the native host (`ether_native::plugins::formats`)
-  all build a registry with all three formats.
+  all build a registry with all four formats.
 
 Scanning stays out-of-process and crash-safe:
 
@@ -43,7 +45,7 @@ Scanning stays out-of-process and crash-safe:
 - Scans are incremental (`ScanCache`, `<data>/plugin-db/scan-cache.json`, next to `plugins.json`). Each target's result is cached, failures included, keyed by format + canonical path. It is validated by a fingerprint: the newest mtime, total size and entry count of the bundle tree. The whole cache is dropped when the crate version or the scanner binary changes. A rescan runs the scanner only on new or changed targets, and drops removed ones. `Plugin::Rescan { full: true }` ("Full rescan") ignores the cache and retries failures. If the scanner fails to start, that failure isn't cached. AU component ids have nothing on disk to fingerprint, so an updated AU keeps its old descriptor until a full rescan. New and removed AUs are still picked up.
 - What is scanned (`PluginFolderSettings`, `<data>/plugin-db/folders.json`): the OS default folders when "System folders" is on (the default; it also covers the AU registry), plus the user's folders, each limited to one format or to any. Overlapping folders are walked once, deduplicated by canonical path. `Plugin::{ListFolders, AddFolder, RemoveFolder, SetIncludeDefaults}` edit these settings and start an incremental rescan. The UI is in Settings > Plugins.
 
-The sandbox helper takes `--format <clap|vst3|au>` (default `clap`) through `SandboxOptions.format`. It loads through `Formats::instantiate`, so sandboxing works for every format as soon as its host does.
+The sandbox helper takes `--format <clap|vst3|vst2|au>` (default `clap`) through `SandboxOptions.format`. It loads through `Formats::instantiate`, so sandboxing works for every format as soon as its host does.
 
 Other contract points:
 
@@ -52,12 +54,13 @@ Other contract points:
 
 ## Ids (`PluginInstance.plugin_id` / `PluginDescriptor.id`)
 
-Documented on `ether_model::PluginFormat`. `.ether` tags are `"Clap"`, `"Vst3"` and `"Au"`, and they are stable.
+Documented on `ether_model::PluginFormat`. `.ether` tags are `"Clap"`, `"Vst3"`, `"Au"` and `"Vst2"`, and they are stable.
 
 | Format | id | `PluginDescriptor.path` |
 |---|---|---|
 | CLAP | CLAP plugin id, reverse-DNS | `.clap` bundle |
 | VST3 | class id in canonical `FUID::toString` form: 32 uppercase hex, words l1..l4 (the `CID` in `moduleinfo.json`). Same on every OS; convert with `ether_vst3::class_id_to_string` / `parse_class_id` (COM byte layout on Windows) | `.vst3` bundle |
+| VST2 | `AEffect::uniqueID` as 8 uppercase hex digits of its 32-bit value (`'EtG2'` → `45744732`); shell sub-plugins use their own uniqueID. Convert with `ether_vst2::plugin_id` / `parse_plugin_id` | the `.dll` / `.so` / `.vst` (for a shell sub-plugin: the shell library) |
 | AU | `type:subtype:manufacturer` four-char codes, e.g. `aufx:dely:appl`. Printable ASCII is kept verbatim; other bytes, `:` and `\` become `\xHH`. Use `ether_au::AuComponentId` | the id itself (AUs load from the component registry) |
 
 **Decision: `PluginInstance` has no location field.** Documents store `(format, plugin_id)` only. The host resolves the bundle from its scanned catalog (`PluginCatalog`), so a project opens on any machine that has the plugin installed. Because nothing in the `.ether` format changed, no migration was needed. `crates/ether-model/tests/plugin_formats.rs` has a fixture test showing that a pre-VST3 file still loads, and that every format round-trips.
@@ -138,6 +141,72 @@ The paths this node owns are in `.github/ownership.toml`.
    - show a format badge and filter in the browser.
 5. **End-to-end tests.** Add the VST3 fixture and AU built-ins to the native e2e: insert, save, reopen, sandbox toggle.
 
+### `vst2` (`crates/ether-vst2/**`)
+
+Owner request: "we need support for VST2. Add it. Use open source SDK implementations".
+
+- **ABI.** `ether_vst2::abi` is a minimal set of hand-written bindings (`AEffect`,
+  `audioMasterCallback`, effect/host opcodes, `VstEvents`/`VstMidiEvent`, `VstTimeInfo`,
+  `ERect`, flags, plug categories) written from two GPL clean-room headers: FST `fst/fst.h`
+  (GPL-3.0-or-later, IEM) and VeSTige `aeffectx.h` (GPL-2.0-or-later, LMMS/Ardour). The
+  Steinberg VST2 SDK is neither used nor vendored. Layouts are unit-tested (`size_of`/offsets
+  for 64- and 32-bit). Cited in the module header and `THIRD_PARTY_NOTICES.txt`. No new
+  dependency (the MIT `vst` crate was the alternative; it is unmaintained and its host side
+  would still need the same glue, so the ~300 lines of bindings were the better fit).
+- **Shapes and folders.** Windows `.dll`, Linux `.so` (files; the walker never descends into
+  `.vst3`/`.clap`/`.component`/`.lv2`/app bundles), macOS `.vst` bundles. Defaults, after
+  `VST_PATH`: Windows `%ProgramFiles%\VSTPlugins`, `%ProgramFiles%\Steinberg\VSTPlugins`,
+  `%CommonProgramFiles%\VST2`, `%CommonProgramFiles%\Steinberg\VST2`; macOS
+  `/Library/Audio/Plug-Ins/VST`, `~/Library/Audio/Plug-Ins/VST`; Linux `~/.vst`,
+  `/usr/lib/vst`, `/usr/local/lib/vst`. Entry points: `VSTPluginMain`, `main_macho`, `main`.
+  A library without any of them scans as "no plugins" (VST folders often hold helper DLLs),
+  not as a failure.
+- **Scan** (scanner process, same pool, timeout, kill and cache rules): open the plugin,
+  name (`effGetEffectName` → `effGetProductString` → file name), vendor, version
+  (`effGetVendorVersion`), category (`effFlagsIsSynth` or synth/generator category →
+  Instrument), features from `effGetPlugCategory`. **Shells** (`kPlugCategShell`, Waves-style)
+  list every sub-plugin from `effShellGetNextPlugin`; each is opened through
+  `audioMasterCurrentId` for its category and vendor, within a 12 s budget (past it, the rest
+  are listed by name as effects so a huge shell stays inside the 20 s scan timeout).
+- **Instance.** `Vst2Plugin` (main thread) owns the shared `AEffect` (`effClose` when the
+  controller and node are both gone). `activate`: `effSetSampleRate`, `effSetBlockSize`,
+  `effSetProcessPrecision`, `effMainsChanged(1)`, `effStartProcess`, latency =
+  `initialDelay`. `Vst2Node` (audio thread, nothing allocated): `processReplacing` (f32), or
+  `processDoubleReplacing` with f32↔f64 copies for 64-bit-only plugins, or the old
+  accumulating `process`; MIDI (notes, raw MIDI, MPE as MIDI, all-notes-off) through
+  `effProcessEvents` with `deltaFrames`; blocks split at param events (≥ 16-sample
+  sub-blocks) since `setParameter` is untimed; `audioMasterGetTime` answered from the
+  engine transport per sub-block; plugin MIDI out (`audioMasterProcessEvents`) becomes node
+  output events. Main ins/outs are the first ≤ 2 plugin channels; extra inputs get silence,
+  no sidechain.
+- **Params.** `ParamId` = index, plain = the plugin's 0..1 value, default = value at open,
+  all automatable (`effCanBeAutomated` is unimplemented in most plugins). Names from
+  `effGetParamName`; `Vst2Plugin::param_text` gives `effGetParamDisplay` + `effGetParamLabel`
+  (not in the generic UI yet). GUI `audioMasterAutomate`/`BeginEdit`/`EndEdit` →
+  `ParamEdited`/gestures; host-initiated sets and state loads are not echoed.
+  `set_param_value` works active or inactive (one object).
+- **State.** `effGetChunk`/`effSetChunk` (bank) for `effFlagsProgramChunks`, else every
+  param value; plus the current program. Framing in the crate docs (`EthVST2\0`, v1).
+- **Host callbacks.** Per-instance state through `AEffect::resvd2` (reserved for hosts; JUCE
+  does the same); audio-thread callbacks through a thread-local scope set by the node (no
+  locks). `audioMasterIOChanged` re-reads latency/channels (`LatencyChanged`,
+  `RestartRequested` if channels changed while active), `audioMasterUpdateDisplay` →
+  `StateDirty` (+ `ParamsChanged` if names changed), `audioMasterSizeWindow` resizes the
+  editor window.
+- **Editor.** `effEditOpen` with the host window's `NSView`/`HWND` (the host-window code is a
+  copy of `ether-vst3`'s, as VST3 copied CLAP's), `effEditIdle` from `poll`,
+  `effEditGetRect` for the size (re-read after opening), `effEditClose` before the window
+  goes. Not user-resizable (VST2 has no host → plugin resize). Linux: no editor (like VST3).
+- **Tests.** `examples/ether_vst2_test_plugin.rs`, written with the crate's own bindings, is
+  built twice: a gain effect (chunks, latency, f32 + f64) and a shell (64-bit-only gain + a
+  synth with MIDI out). `tests/host.rs` covers scan (plain and shell), params and text,
+  sample-accurate params and MIDI, MIDI out, transport, f64, automation, latency changes,
+  state (chunk and params), editor-less, no allocation; the scanner (crash/hang/CLI), the
+  sandbox helper and the native e2e (`formats_e2e.rs`: insert, save/reopen, sandbox toggle)
+  run it too.
+- **Same plugin as VST2 and VST3.** Both are listed, each with its format chip (browser,
+  device header); no dedupe yet (owner decision).
+
 ## Integration (native host)
 
 Done by the `formats-integration` node:
@@ -204,6 +273,7 @@ Everything is GPL-3.0-or-later compatible:
 
 | Dependency | License |
 |---|---|
+| VST2 ABI (`ether-vst2`, own code) | GPL-3.0-or-later; written from FST (GPL-3.0-or-later) and VeSTige (GPL-2.0-or-later) headers, no SDK |
 | `vst3` crate | MIT OR Apache-2.0. Its bindings derive from the VST3 SDK headers, which Steinberg has published under MIT since SDK 3.8. |
 | objc2 family | Zlib OR Apache-2.0 OR MIT |
 | `block2` | MIT |

@@ -101,6 +101,29 @@ export function velocityEdits(notes: ReadonlyArray<Note>, dv: number): NoteEdit[
   return notes.map((n) => noteEdit(n.id, { velocity: clamp(n.velocity + dv, MIN_VELOCITY, 1) }));
 }
 
+/** Vertical px for a full-range (0..1) velocity drag on a note (Alt-drag; Ableton-like). */
+export const VELOCITY_DRAG_PX = 180;
+/** Velocity drag speed while Shift is held (fine control). */
+export const VELOCITY_FINE = 0.1;
+
+/**
+ * The velocity offset of an Alt-drag on a note, fed the pointer's vertical offset from the
+ * press (px, down = positive) and whether Shift is held. Up = louder. Movement is
+ * accumulated, so pressing or releasing Shift mid-drag never makes the value jump.
+ */
+export function velocityDrag(): (dy: number, fine: boolean) => number {
+  let lastDy = 0;
+  let dv = 0;
+  return (dy, fine) => {
+    dv += (-(dy - lastDy) / VELOCITY_DRAG_PX) * (fine ? VELOCITY_FINE : 1);
+    lastDy = dy;
+    return dv;
+  };
+}
+
+/** MIDI velocity (1..127) of a normalized velocity, as shown to the user. */
+export const midiVelocity = (v: number): number => Math.round(clamp(v, 0, 1) * 127);
+
 /** A new note at (`pitch`, `start`) with `duration`, clamped to the valid range. */
 export function newNote(id: NoteId, pitch: number, start: Beats, duration: Beats, velocity = 100 / 127): NoteSpec {
   return {

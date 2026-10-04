@@ -15,8 +15,8 @@ import { DEFAULT_SHARE_SETTINGS, useShareSettings } from "./settings";
 import { useShareStore } from "./store";
 import { useShareToasts } from "./toasts";
 
-const EDIT_INVITE = "https://etherealws.pages.dev/join/AbCdEfGhIjKlMnOpQrStUv#1AbCdEfGhIjKlMnOpQrStUv";
-const LISTEN_INVITE = "https://etherealws.pages.dev/join/AbCdEfGhIjKlMnOpQrStUv#1LbCdEfGhIjKlMnOpQrStUv";
+const EDIT_INVITE = "https://app.ethereal.ws/join/AbCdEfGhIjKlMnOpQrStUv#1AbCdEfGhIjKlMnOpQrStUv";
+const LISTEN_INVITE = "https://app.ethereal.ws/join/AbCdEfGhIjKlMnOpQrStUv#1LbCdEfGhIjKlMnOpQrStUv";
 
 /** A MockTransport recording what the UI sent (its `share` is the MockShare simulation). */
 class ShareMock extends MockTransport {
@@ -91,7 +91,7 @@ describe("ShareControl (host)", () => {
     const name = useProjectStore.getState().project!.settings.name;
     expect(within(popover()).getByText(`Share “${name}”`)).toBeInTheDocument();
     const edit = within(popover()).getByLabelText<HTMLInputElement>("Edit link");
-    expect(edit.value).toMatch(/^https:\/\/etherealws\.pages\.dev\/join\/[\w-]{22}#1/);
+    expect(edit.value).toMatch(/^https:\/\/app\.ethereal\.ws\/join\/[\w-]{22}#1/);
     fireEvent.click(within(popover()).getByTestId("share-copy"));
     await waitFor(() => expect(clipboard).toEqual([edit.value]));
     expect(toastTitles()).toContain("Link copied");

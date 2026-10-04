@@ -32,7 +32,7 @@ describe("MockShare", () => {
     if (hosting?.type !== "Hosting") throw new Error("not hosting");
     expect(hosting.participants).toMatchObject([{ name: "Diego", role: "Host", you: true }]);
     expect(typeof parseInvite(hosting.edit_link ?? "")).toBe("object");
-    expect(hosting.listen_link).toMatch(/^https:\/\/etherealws\.pages\.dev\/join\/[\w-]{22}#1L/);
+    expect(hosting.listen_link).toMatch(/^https:\/\/app\.ethereal\.ws\/join\/[\w-]{22}#1L/);
 
     const member = s.simulateJoin("Ada", "Edit");
     expect(lastState(events)).toMatchObject({ participants: [{ role: "Host" }, { name: "Ada", online: true }] });

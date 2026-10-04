@@ -31,8 +31,9 @@ pub const SHARE_PROTOCOL_VERSION: u32 = 1;
 /// `services/signal` Durable Object (docs/SHARING.md §3.1). Overridable in Settings >
 /// Advanced, and per link with `?s=<origin>`.
 pub const DEFAULT_SIGNAL_URL: &str = "https://etherealws.pages.dev/signal";
-/// Default web origin of invite links.
-pub const DEFAULT_INVITE_ORIGIN: &str = "https://etherealws.pages.dev";
+/// Default web origin of invite links (the web app's custom domain; the same Pages project
+/// also answers on `etherealws.pages.dev`, so older links keep working).
+pub const DEFAULT_INVITE_ORIGIN: &str = "https://app.ethereal.ws";
 /// Desktop deep-link scheme (`ethereal://join/<room>#<key>`).
 pub const DEEP_LINK_SCHEME: &str = "ethereal";
 /// At most this many participants (host included) in a shared project.

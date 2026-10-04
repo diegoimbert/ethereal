@@ -2113,3 +2113,53 @@ paths = [
   "ui/src/features/share/ShareControl.test.tsx",
   "ui/src/features/collab/PresenceBar.tsx",
 ]
+
+[nodes.native-turn]
+# TURN client for the native WebRTC endpoint (str0m): relay candidates, "Hide my IP" natively.
+paths = [
+  "crates/ether-collab/src/share/native/**",
+  "crates/ether-collab/tests/p2p_turn.rs",
+  "crates/ether-collab/tests/fixtures/native-turn/**",
+  "apps/web/e2e/p2p-turn.spec.ts",
+  # Shared touches (BCR).
+  "crates/ether-collab/tests/p2p_stdio.rs",
+  "crates/ether-collab/src/share/mod.rs",
+  "ui/src/features/share/settings.ts",
+  "ui/src/features/share/SharingSettings.tsx",
+  "ui/src/features/share/SharingSettings.test.tsx",
+  "ui/src/features/audio-settings/AudioSettings.test.tsx",
+  "docs/SHARING.md",
+  "docs/COLLAB.md",
+  "docs/ROADMAP.md",
+]
+
+[nodes.vst2]
+# VST2 hosting from clean-room open-source ABI headers (FST / VeSTige), no Steinberg SDK.
+paths = [
+  "crates/ether-vst2/**",
+  # Shared touches (BCR).
+  "Cargo.toml",
+  "crates/ether-model/src/device.rs",
+  "crates/ether-model/tests/plugin_formats.rs",
+  "crates/ether-controller/src/presets/files.rs",
+  "crates/ether-plugin-host/**",
+  "crates/ether-plugin-scanner/Cargo.toml",
+  "crates/ether-plugin-scanner/src/main.rs",
+  "crates/ether-plugin-scanner/tests/vst2.rs",
+  "crates/ether-sandbox/Cargo.toml",
+  "crates/ether-sandbox/src/helper.rs",
+  "crates/ether-sandbox/tests/vst2.rs",
+  "crates/ether-native/Cargo.toml",
+  "crates/ether-native/src/plugins.rs",
+  "crates/ether-native/src/sandbox.rs",
+  "crates/ether-native/src/plugin_folders.rs",
+  "crates/ether-native/tests/formats_e2e.rs",
+  "ui/src/features/plugins/**",
+  "ui/src/transport/mock/plugins.ts",
+  "docs/CONTRACTS.md",
+  "docs/ARCHITECTURE.md",
+  "docs/ROADMAP.md",
+  "docs/PLUGIN-FORMATS.md",
+  "THIRD_PARTY_NOTICES.txt",
+  "scripts/release/third-party-notices.mjs",
+]

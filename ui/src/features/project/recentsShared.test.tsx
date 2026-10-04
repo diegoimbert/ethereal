@@ -180,7 +180,7 @@ describe("Recents: shared projects", () => {
     expect(useProjectStore.getState().project!.settings.name).toBe("Beat sketch");
     expect(sent.map((c) => c.type)).toContain("Start");
     expect(clipboard).toHaveLength(1);
-    expect(clipboard[0]).toMatch(/^https:\/\/etherealws\.pages\.dev\/join\/.+#1/);
+    expect(clipboard[0]).toMatch(/^https:\/\/app\.ethereal\.ws\/join\/.+#1/);
   });
 
   it("copies the link of the open hosted project without restarting it", async () => {

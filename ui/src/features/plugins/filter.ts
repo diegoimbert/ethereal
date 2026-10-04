@@ -5,6 +5,7 @@ import { cmd } from "@/transport";
 export const FORMAT_LABEL: Record<PluginFormat, string> = {
   Clap: "CLAP",
   Vst3: "VST3",
+  Vst2: "VST2",
   Au: "AU",
 };
 

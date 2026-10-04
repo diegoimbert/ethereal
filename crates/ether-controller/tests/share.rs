@@ -195,10 +195,7 @@ fn a_host_and_two_joiners_converge() {
     let (mut h, pid) = host(&net);
     add_track(&mut h);
     let (edit, _) = links(&h);
-    assert!(
-        edit.starts_with("https://etherealws.pages.dev/join/"),
-        "{edit}"
-    );
+    assert!(edit.starts_with("https://app.ethereal.ws/join/"), "{edit}");
     let mut ada = site(&net, 0x2002, "Ada");
     share(&mut ada, ShareCommand::OpenInvite { link: edit.clone() });
     run(&mut [&mut h, &mut ada], 10);

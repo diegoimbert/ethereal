@@ -2,7 +2,7 @@
 //! `ui/src/features/share/invite.ts`:
 //!
 //! ```text
-//! https://etherealws.pages.dev/join/<room>[?s=<signal url, percent-encoded>]#<key>
+//! https://app.ethereal.ws/join/<room>[?s=<signal url, percent-encoded>]#<key>
 //! ethereal://join/<room>[?s=...]#<key>
 //! ```
 //!

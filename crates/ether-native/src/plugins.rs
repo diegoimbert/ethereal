@@ -89,6 +89,7 @@ pub fn formats() -> Formats {
     Formats::new(vec![
         Arc::new(ether_clap::ClapFormat),
         Arc::new(ether_vst3::Vst3Format),
+        Arc::new(ether_vst2::Vst2Format),
         Arc::new(ether_au::AuFormat),
     ])
 }
@@ -105,6 +106,7 @@ pub fn format_label(format: PluginFormat) -> &'static str {
         PluginFormat::Clap => "CLAP",
         PluginFormat::Vst3 => "VST3",
         PluginFormat::Au => "AU",
+        PluginFormat::Vst2 => "VST2",
     }
 }
 

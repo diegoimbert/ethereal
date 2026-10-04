@@ -21,6 +21,7 @@ ether-clap.workspace = true
 # VST3 + AU (formats-integration): every format goes through ether-plugin-host's Formats.
 ether-plugin-host.workspace = true
 ether-vst3.workspace = true
+ether-vst2.workspace = true
 ether-au.workspace = true
 # Wave-3 registration points: `plugins` (sandbox.rs) and `recording` (recording/).
 ether-sandbox.workspace = true

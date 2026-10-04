@@ -20,7 +20,7 @@ new_sqlite_classes = ["SignalRoom", "IpBudget"]
 [vars]
 # Web origins allowed to open sockets from a browser (comma-separated; `*` suffix = any
 # subdomain, for Pages previews). Native clients send no Origin and are allowed.
-ALLOWED_ORIGINS = "https://etherealws.pages.dev,https://*.etherealws.pages.dev,tauri://localhost,http://tauri.localhost,http://localhost:*"
+ALLOWED_ORIGINS = "https://etherealws.pages.dev,https://*.etherealws.pages.dev,https://app.ethereal.ws,https://ethereal.ws,tauri://localhost,http://tauri.localhost,http://localhost:*"
 # ICE servers advertised to hosts and joiners (comma-separated `stun:` URLs).
 STUN_URLS = "stun:stun.cloudflare.com:3478"
 # Days a room survives without its host connecting.

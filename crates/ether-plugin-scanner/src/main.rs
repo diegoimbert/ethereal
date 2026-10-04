@@ -1,10 +1,10 @@
-//! `ether-plugin-scanner`: scans plugins (CLAP, VST3, AU) out-of-process.
+//! `ether-plugin-scanner`: scans plugins (CLAP, VST3, VST2, AU) out-of-process.
 //!
 //! Modes:
 //! - no arguments (the host protocol, see `ether_protocol::plugins`): reads a JSON
 //!   `ScanRequest` from stdin, loads that ONE target through the format's
 //!   `PluginFormatHost` (format from the request, else inferred from the path: `.clap`,
-//!   `.vst3`, AU component id), writes one JSON `ScanResponse` line to stdout, exits 0. A
+//!   `.vst3`, `.dll`/`.so`/`.vst` (VST2), AU component id), writes one JSON `ScanResponse` line to stdout, exits 0. A
 //!   crash/hang only loses that target; the host (`ether_plugin_host::ScanRunner`) enforces a
 //!   timeout.
 //! - `--paths`: print every format's platform search paths (CLAP first, incl. `CLAP_PATH`) as
@@ -24,6 +24,7 @@ fn formats() -> ether_plugin_host::Formats {
     ether_plugin_host::Formats::new(vec![
         Arc::new(ether_clap::ClapFormat),
         Arc::new(ether_vst3::Vst3Format),
+        Arc::new(ether_vst2::Vst2Format),
         Arc::new(ether_au::AuFormat),
     ])
 }

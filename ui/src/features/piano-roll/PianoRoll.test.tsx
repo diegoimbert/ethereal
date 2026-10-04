@@ -327,10 +327,72 @@ describe("PianoRoll", () => {
     ]);
   });
 
-  it("alt bypasses snapping", async () => {
+  it("shift bypasses snapping when moving notes; alt still does when resizing", async () => {
     const { clip, a } = await setup();
-    await drag(noteEl(a), [x(1.5), y(60)], [x(1.8), y(60)], { altKey: true });
+    await drag(noteEl(a), [x(1.5), y(60)], [x(1.8), y(60)], { shiftKey: true });
     expect(notesOf(clip)[0]!.start).toBeCloseTo(1.3);
+    await drag(noteEl(a), [x(2.3) - 1, y(60)], [x(2.6) - 1, y(60)], { altKey: true });
+    expect(notesOf(clip)[0]!.duration).toBeCloseTo(1.3);
+  });
+
+  it("alt-drag on a selected note changes every selected velocity by the same amount, in one gesture", async () => {
+    const { clip, a, b } = await setup();
+    act(() => itemSelection.getState().select("note", [a, b], "replace"));
+    const sent = vi.spyOn(mock!, "send");
+    fireEvent.pointerDown(noteEl(a), { button: 0, clientX: x(1.5), clientY: y(60), altKey: true });
+    expect(document.documentElement.style.getPropertyValue("--eth-drag-cursor")).toBe("ns-resize");
+    // Up 36 px (a fifth of the 180 px range): +0.2; sideways movement is ignored.
+    fireEvent.pointerMove(window, { clientX: x(3), clientY: y(60) - 18, altKey: true });
+    fireEvent.pointerMove(window, { clientX: x(3.5), clientY: y(60) - 36, altKey: true });
+    await flush();
+    expect(screen.getByTestId("piano-roll-velocity-badge").textContent).toBe(`Velocity ${Math.round(1 * 127)}`);
+    fireEvent.pointerUp(window, { clientX: x(3.5), clientY: y(60) - 36 });
+    await flush();
+    expect(screen.queryByTestId("piano-roll-velocity-badge")).toBeNull();
+    const [na, nb] = notesOf(clip);
+    expect(na).toMatchObject({ start: 1, pitch: 60 });
+    expect(nb).toMatchObject({ start: 2, pitch: 64 });
+    expect(na!.velocity).toBeCloseTo(1);
+    expect(nb!.velocity).toBeCloseTo(0.7);
+    // Only Note::Edit commands, all in one gesture, closed once.
+    const calls = sent.mock.calls;
+    const kinds = calls.map(([c]) => `${c.domain}.${c.command.type}`);
+    expect(new Set(kinds)).toEqual(new Set(["Note.Edit", "Edit.EndGesture"]));
+    expect(kinds.filter((k) => k === "Edit.EndGesture")).toHaveLength(1);
+    expect(new Set(calls.filter(([c]) => c.domain === "Note").map(([, o]) => o?.gesture)).size).toBe(1);
+    await undo();
+    expect(notesOf(clip).map((n) => n.velocity)).toEqual([0.8, 0.5]);
+  });
+
+  it("alt-drag on an unselected note edits just it and selects it; alt-click changes nothing", async () => {
+    const { clip, a, b } = await setup();
+    act(() => itemSelection.getState().select("note", [a], "replace"));
+    await drag(noteEl(b), [x(2.5), y(64)], [x(2.5), y(64) + 45], { altKey: true });
+    expect(notesOf(clip).map((n) => n.velocity)).toEqual([0.8, expect.closeTo(0.25)]);
+    expect([...itemSelection.getState().selected.note]).toEqual([b]);
+    // Shift: fine control (a tenth).
+    await drag(noteEl(b), [x(2.5), y(64)], [x(2.5), y(64) - 90], { altKey: true, shiftKey: true });
+    expect(notesOf(clip)[1]!.velocity).toBeCloseTo(0.3);
+    const before = notesOf(clip);
+    await drag(noteEl(a), [x(1.5), y(60)], [x(1.5) + 1, y(60) + 1], { altKey: true });
+    expect(notesOf(clip)).toEqual(before);
+    expect([...itemSelection.getState().selected.note]).toEqual([a]);
+  });
+
+  it("without alt, dragging a note still moves it (velocity unchanged)", async () => {
+    const { clip, a } = await setup();
+    await drag(noteEl(a), [x(1.5), y(60)], [x(2.5), y(60) - 36]);
+    expect(notesOf(clip)[0]).toMatchObject({ start: 2, velocity: 0.8 });
+    expect(notesOf(clip)[0]!.pitch).toBeGreaterThan(60);
+  });
+
+  it("shows the ns-resize cursor on notes while alt is held", async () => {
+    await setup();
+    expect(grid().classList.contains("eth-pr-grid--alt")).toBe(false);
+    fireEvent.keyDown(window, { key: "Alt", altKey: true });
+    expect(grid().classList.contains("eth-pr-grid--alt")).toBe(true);
+    fireEvent.keyUp(window, { key: "Alt", altKey: false });
+    expect(grid().classList.contains("eth-pr-grid--alt")).toBe(false);
   });
 
   it("resizes a note from its end and start edges", async () => {

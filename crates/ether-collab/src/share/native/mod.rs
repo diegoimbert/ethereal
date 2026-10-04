@@ -6,8 +6,14 @@
 //! - [`NativePeers::open`] creates a pairing: the joiner (`offer`) adds the data channel
 //!   ([`DC_LABEL`](crate::share::dc::DC_LABEL)) and sends the offer; the host waits for it
 //!   and answers. Host candidates (loopback and the default-route interface) are in the SDP;
-//!   one server-reflexive candidate per `stun:` URL (at most two) is trickled, then the
-//!   end-of-candidates marker. TURN URLs are ignored (str0m has no TURN client, §11).
+//!   one server-reflexive candidate per `stun:` URL (at most two) and one relay candidate
+//!   are trickled, then the end-of-candidates marker.
+//! - Relay candidates come from our own TURN client ([`turn`], RFC 8656 subset, long-term
+//!   credentials) on the same socket: the advertised `turn:`/`turns:` URLs that carry a
+//!   username and credential are tried UDP first, then TLS (443 first), then TCP ([`stream`]:
+//!   one I/O thread per connection), until one allocation succeeds. str0m sends from the
+//!   relayed address and the thread routes those datagrams through the allocation
+//!   (permissions and channels on demand, refreshed, released when idle).
 //! - When the channel opens: [`PeerOutput::Connected`] with a [`NativeLink`] and both DTLS
 //!   fingerprints (`sha-256 AB:CD:...`, as in SDP).
 //! - No channel within [`NativeConfig::connect_timeout`] (30 s): [`PeerOutput::Failed`].
@@ -15,15 +21,18 @@
 //!   (consent freshness), whose channel closes, or that receives a bad fragment closes
 //!   (its [`PeerLink::state`] becomes `Closed`).
 //!
-//! - "Hide my IP" (`open(.., relay_only: true)`): this endpoint has no TURN client, so
-//!   such an `open` fails at once ([`RELAY_ONLY_UNSUPPORTED`]) rather than leaking host and
-//!   srflx candidates.
+//! - "Hide my IP" (`open(.., relay_only: true)`): relay candidates only (no host or
+//!   server-reflexive candidate, no STUN query, nothing sent to a peer except through the
+//!   relay). Without a TURN server the `open` fails at once ([`RELAY_ONLY_NO_TURN`]); when
+//!   every TURN server fails, the pairing fails ("could not reach the TURN relay: ...").
 //!
 //! The thread starts on the first `open` (a build that never shares spawns nothing) and
 //! stops when the endpoint is dropped.
 
+mod stream;
 mod stun;
 mod thread;
+pub mod turn;
 
 use std::collections::VecDeque;
 use std::net::{SocketAddr, UdpSocket};
@@ -35,13 +44,15 @@ use std::time::Duration;
 use crossbeam_channel::{Receiver, Sender};
 use ether_protocol::collab::{IceServer, StreamSignal};
 use ether_protocol::share::PeerId;
+use rustls::pki_types::CertificateDer;
 
 use super::{PeerEndpoint, PeerLink, PeerOutput, dc};
 use crate::LinkState;
 use crate::wire::WireFrame;
 
-/// Why a pairing fails at once while "Hide my IP (relay only)" is on.
-pub const RELAY_ONLY_UNSUPPORTED: &str = "\"Hide my IP\" needs a TURN relay, which this desktop build cannot use yet: turn it off to connect";
+/// Why a pairing fails at once while "Hide my IP (relay only)" is on and no TURN server
+/// (with credentials) is configured.
+pub const RELAY_ONLY_NO_TURN: &str = "\"Hide my IP\" needs a TURN relay server, and none is configured: add one in Settings > Advanced, or turn it off";
 
 /// What the endpoint advertises and how long it waits.
 #[derive(Clone, Debug)]
@@ -54,6 +65,9 @@ pub struct NativeConfig {
     pub connect_timeout: Duration,
     /// A connected link whose ICE stays disconnected this long is closed.
     pub disconnect_timeout: Duration,
+    /// Trusted for `turns:` servers in addition to the Mozilla roots (a self-hosted TURN
+    /// server with a private CA; tests).
+    pub extra_tls_roots: Vec<CertificateDer<'static>>,
 }
 
 impl Default for NativeConfig {
@@ -63,6 +77,7 @@ impl Default for NativeConfig {
             default_route: true,
             connect_timeout: Duration::from_secs(30),
             disconnect_timeout: Duration::from_secs(8),
+            extra_tls_roots: Vec::new(),
         }
     }
 }
@@ -72,6 +87,7 @@ pub(crate) enum Cmd {
         peer: PeerId,
         offer: bool,
         ice: Vec<IceServer>,
+        relay_only: bool,
     },
     Signal {
         peer: PeerId,
@@ -91,6 +107,21 @@ pub(crate) enum Cmd {
     StunResolved {
         conn: u64,
         server: Option<SocketAddr>,
+    },
+    TurnResolved {
+        conn: u64,
+        url: turn::TurnUrl,
+        creds: turn::Credentials,
+        server: Option<SocketAddr>,
+    },
+    /// Messages from a TCP/TLS TURN connection.
+    TurnStream {
+        relay: u64,
+        msgs: Vec<Vec<u8>>,
+    },
+    TurnStreamClosed {
+        relay: u64,
+        reason: String,
     },
     Shutdown,
 }
@@ -291,18 +322,12 @@ impl Default for NativePeers {
 
 impl PeerEndpoint for NativePeers {
     fn open(&mut self, peer: PeerId, offer: bool, ice_servers: &[IceServer], relay_only: bool) {
-        if relay_only {
-            self.failed.push_back(PeerOutput::Failed {
-                peer,
-                reason: RELAY_ONLY_UNSUPPORTED.into(),
-            });
-            return;
-        }
         match self.running() {
             Ok(_) => self.command(Cmd::Open {
                 peer,
                 offer,
                 ice: ice_servers.to_vec(),
+                relay_only,
             }),
             Err(reason) => self.failed.push_back(PeerOutput::Failed { peer, reason }),
         }
@@ -361,7 +386,7 @@ mod tests {
     }
 
     /// One `stun:` server (a loopback responder) gives one trickled srflx candidate, then
-    /// the end-of-candidates marker; TURN URLs are ignored.
+    /// the end-of-candidates marker; TURN URLs without credentials are ignored.
     #[test]
     fn srflx_candidates_trickle_after_the_offer() {
         let server = UdpSocket::bind("127.0.0.1:0").unwrap();
@@ -385,8 +410,8 @@ mod tests {
                     format!("stun:127.0.0.1:{}", addr.port()),
                     "turn:turn.example:3478".into(),
                 ],
-                username: Some("u".into()),
-                credential: Some("p".into()),
+                username: None,
+                credential: None,
             }],
             false,
         );
@@ -454,18 +479,85 @@ mod tests {
         assert_eq!(candidates(&hout), vec![String::new()]);
     }
 
+    /// "Hide my IP" without a TURN server (or one without credentials) fails at once.
     #[test]
-    fn relay_only_fails_at_once_without_a_socket() {
+    fn relay_only_needs_a_turn_server() {
         let mut ep = NativePeers::new(config());
-        ep.open(4, true, &[], true);
+        let stun_only = IceServer {
+            urls: vec![
+                "stun:127.0.0.1:9".into(),
+                "turn:127.0.0.1:9?transport=udp".into(),
+            ],
+            username: None,
+            credential: None,
+        };
+        ep.open(4, true, &[stun_only], true);
         let mut out = Vec::new();
-        ep.poll(&mut out);
+        let t = Instant::now();
+        while out.is_empty() {
+            assert!(t.elapsed() < Duration::from_secs(5));
+            ep.poll(&mut out);
+            std::thread::sleep(Duration::from_millis(2));
+        }
         assert!(matches!(
             out.as_slice(),
-            [PeerOutput::Failed { peer: 4, reason }] if reason == RELAY_ONLY_UNSUPPORTED
+            [PeerOutput::Failed { peer: 4, reason }] if reason == RELAY_ONLY_NO_TURN
         ));
-        assert!(ep.port().is_none(), "nothing was opened");
-        ep.open(4, true, &[], false);
-        assert!(ep.port().is_some());
+    }
+
+    /// "Hide my IP" with a TURN server that never answers: no candidate is ever trickled
+    /// (no host, no srflx), and the pairing fails once the server gives up.
+    #[test]
+    fn relay_only_trickles_nothing_but_relays() {
+        let silent = UdpSocket::bind("127.0.0.1:0").unwrap();
+        let mut ep = NativePeers::new(NativeConfig {
+            default_route: true,
+            ..config()
+        });
+        ep.open(
+            5,
+            true,
+            &[IceServer {
+                urls: vec![
+                    "stun:127.0.0.1:9".into(),
+                    format!("turn:127.0.0.1:{}", silent.local_addr().unwrap().port()),
+                ],
+                username: Some("u".into()),
+                credential: Some("p".into()),
+            }],
+            true,
+        );
+        let mut out = Vec::new();
+        let t = Instant::now();
+        while !out.iter().any(|o| matches!(o, PeerOutput::Failed { .. })) {
+            assert!(t.elapsed() < Duration::from_secs(10), "no failure");
+            ep.poll(&mut out);
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        let PeerOutput::Signal {
+            signal: StreamSignal::Offer { sdp },
+            ..
+        } = &out[0]
+        else {
+            panic!("the offer first");
+        };
+        assert!(
+            !sdp.contains("a=candidate"),
+            "no candidate in the offer: {sdp}"
+        );
+        let c = candidates(&out);
+        assert!(
+            c.iter().all(String::is_empty),
+            "nothing but the end marker: {c:?}"
+        );
+        assert!(matches!(
+            out.last(),
+            Some(PeerOutput::Failed { peer: 5, reason }) if reason.starts_with("could not reach the TURN relay")
+        ));
+        // The silent server saw the Allocate request (and its retransmissions) only.
+        silent.set_nonblocking(true).unwrap();
+        let mut buf = [0u8; 1500];
+        let (n, _) = silent.recv_from(&mut buf).unwrap();
+        assert_eq!(&buf[..2], &[0, 3], "an Allocate request ({n} bytes)");
     }
 }
