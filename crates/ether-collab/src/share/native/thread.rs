@@ -1,10 +1,21 @@
 //! The `ether-share` thread: one UDP socket, one str0m `Rtc` per pairing (sans-IO: this
 //! thread owns the socket and the clock). A normal thread: it may allocate and block.
 //!
-//! Loop: commands → wait for a datagram (until the next `Rtc`/STUN deadline, or a wake
-//! datagram from a link) → drain the socket (STUN responses by transaction id, everything
-//! else to the `Rtc` that `accepts` it) → due timeouts → queued fragments into SCTP → poll
-//! every `Rtc` until it wants time. Idle (no pairing, no STUN query): blocks on the commands.
+//! Loop: commands → wait for a datagram (until the next `Rtc`/STUN/TURN deadline, or a wake
+//! datagram from a link) → drain the socket (STUN responses by transaction id, datagrams
+//! from a TURN server to its allocation, everything else to the `Rtc` that `accepts` it) →
+//! due timeouts → queued fragments into SCTP → poll every `Rtc` until it wants time. Idle
+//! (no pairing, no STUN query, no allocation): blocks on the commands.
+//!
+//! TURN (docs/SHARING.md §6.1): a pairing given TURN servers tries them in
+//! [`turn::attempt_order`] (UDP, then TLS, then TCP) until one allocation succeeds; its
+//! relayed address becomes a relay candidate in the pairing's `Rtc`. One allocation per
+//! server is shared by every pairing (a UDP allocation is bound to our socket's 5-tuple,
+//! so a second one on the same server would be refused): datagrams `Rtc`s send *from* a
+//! relayed address go through that allocation, and what it relays in is handed to the
+//! pairing whose `Rtc` accepts it. An allocation nobody has used for [`RELAY_IDLE`] is
+//! released. Relay only ("Hide my IP"): no host or server-reflexive candidates, and
+//! nothing is ever sent from the socket to a peer directly.
 
 use std::collections::VecDeque;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr, UdpSocket};
@@ -20,7 +31,9 @@ use str0m::channel::ChannelId;
 use str0m::net::{Protocol, Receive};
 use str0m::{Candidate, Event, IceConnectionState, Input, Output, Rtc};
 
-use super::{Cmd, LinkShared, NativeConfig, NativeLink, WAKE, Waker, stun};
+use super::stream::StreamConn;
+use super::turn::{self, Credentials, Received, Transport, TurnUrl};
+use super::{Cmd, LinkShared, NativeConfig, NativeLink, RELAY_ONLY_NO_TURN, WAKE, Waker, stun};
 use crate::share::PeerOutput;
 use crate::share::dc::{DC_LABEL, Reassembler};
 use crate::wire::WireFrame;
@@ -39,6 +52,12 @@ const IDLE_POLL: Duration = Duration::from_millis(50);
 const MAX_BURST: usize = 256;
 /// SCTP buffered-amount-low threshold: below it, queued fragments are pushed again.
 const LOW_WATER: usize = 64 * 1024;
+/// TURN servers one pairing tries (the advertised list has up to six URLs).
+const MAX_TURN_ATTEMPTS: usize = 3;
+/// Concurrent allocations (one per server is shared by every pairing).
+const MAX_RELAYS: usize = 8;
+/// An allocation no pairing uses is released after this (a re-pairing reuses it).
+pub const RELAY_IDLE: Duration = Duration::from_secs(30);
 
 /// The IPv4 address of the interface the default route goes through (no packet is sent).
 fn default_route_ip() -> Option<Ipv4Addr> {
@@ -79,6 +98,16 @@ struct Pairing {
     disconnected_since: Option<Instant>,
     next_timeout: Instant,
     stun_pending: usize,
+    /// "Hide my IP": relay candidates only, never a direct datagram.
+    relay_only: bool,
+    /// TURN servers still to try, in order.
+    turn_attempts: VecDeque<(TurnUrl, Credentials)>,
+    /// A TURN server is being tried (the end-of-candidates marker waits).
+    turn_pending: bool,
+    /// A relay candidate was added.
+    relayed: bool,
+    /// Why the last TURN server failed.
+    turn_error: Option<String>,
     eoc_sent: bool,
     /// Terminal: the reason (the pairing is removed after the current drive).
     done: Option<String>,
@@ -116,6 +145,11 @@ impl Pairing {
             disconnected_since: None,
             next_timeout: now,
             stun_pending: 0,
+            relay_only: false,
+            turn_attempts: VecDeque::new(),
+            turn_pending: false,
+            relayed: false,
+            turn_error: None,
             eoc_sent: false,
             done: None,
         }
@@ -167,7 +201,7 @@ impl Pairing {
     }
 
     fn maybe_end_of_candidates(&mut self, out: &mut Vec<PeerOutput>) {
-        if self.stun_pending == 0 && !self.eoc_sent && self.described {
+        if self.stun_pending == 0 && !self.turn_pending && !self.eoc_sent && self.described {
             self.eoc_sent = true;
             out.push(self.ice(String::new()));
         }
@@ -184,6 +218,20 @@ impl Pairing {
             let s = c.to_sdp_string();
             self.trickle(s, out);
         }
+    }
+
+    /// The relay candidate of an allocation (`local`: our address towards the server).
+    fn add_relayed(&mut self, relayed: SocketAddr, local: SocketAddr, out: &mut Vec<PeerOutput>) {
+        self.turn_pending = false;
+        self.turn_attempts.clear();
+        if let Ok(c) = Candidate::relayed(relayed, local, "udp")
+            && let Some(c) = self.rtc.add_local_candidate(c)
+        {
+            self.relayed = true;
+            let s = c.to_sdp_string();
+            self.trickle(s, out);
+        }
+        self.maybe_end_of_candidates(out);
     }
 
     fn set_remote_described(&mut self) {
@@ -307,7 +355,7 @@ impl Pairing {
     /// Poll the `Rtc` until it wants time: send its datagrams, turn its events into outputs.
     fn drive(
         &mut self,
-        socket: &UdpSocket,
+        send: &mut dyn FnMut(SocketAddr, SocketAddr, &[u8]),
         config: &NativeConfig,
         now: Instant,
         out: &mut Vec<PeerOutput>,
@@ -321,11 +369,7 @@ impl Pairing {
                     self.next_timeout = t;
                     break;
                 }
-                Ok(Output::Transmit(t)) => {
-                    // Unreachable destinations (e.g. IPv6 candidates on our IPv4 socket)
-                    // fail here: ICE picks another pair.
-                    let _ = socket.send_to(&t.contents, t.destination);
-                }
+                Ok(Output::Transmit(t)) => send(t.source, t.destination, &t.contents),
                 Ok(Output::Event(e)) => self.on_event(e, now, out, cmd, waker),
                 Err(e) => {
                     self.fail(e.to_string());
@@ -430,13 +474,11 @@ impl Pairing {
 
     /// Start a clean close (SCTP shutdown, DTLS close_notify, so the peer notices at once)
     /// and send what that produces; events are dropped.
-    fn close_and_drain(&mut self, socket: &UdpSocket) {
+    fn close_and_drain(&mut self, send: &mut dyn FnMut(SocketAddr, SocketAddr, &[u8])) {
         let _ = self.rtc.close();
         for _ in 0..64 {
             match self.rtc.poll_output() {
-                Ok(Output::Transmit(t)) => {
-                    let _ = socket.send_to(&t.contents, t.destination);
-                }
+                Ok(Output::Transmit(t)) => send(t.source, t.destination, &t.contents),
                 Ok(Output::Event(_)) => {}
                 Ok(Output::Timeout(_)) | Err(_) => break,
             }
@@ -465,6 +507,56 @@ struct StunQuery {
     resent: bool,
 }
 
+/// One TURN allocation, shared by the pairings that use (or wait for) its relay candidate.
+struct Relay {
+    id: u64,
+    alloc: turn::Allocation,
+    /// TCP/TLS: the connection's I/O thread (UDP uses the share socket).
+    stream: Option<StreamConn>,
+    /// Pairings whose `Rtc` holds the relay candidate.
+    users: Vec<u64>,
+    /// Pairings waiting for the allocation.
+    waiting: Vec<u64>,
+    idle_since: Option<Instant>,
+}
+
+/// Hand an allocation's messages to its server.
+fn flush_relay(socket: &UdpSocket, r: &mut Relay) {
+    while let Some(t) = r.alloc.poll_transmit() {
+        match &r.stream {
+            Some(s) => s.send(t),
+            None => {
+                let _ = socket.send_to(&t, r.alloc.server());
+            }
+        }
+    }
+}
+
+/// Where an `Rtc` datagram goes: from a relayed address, through its allocation; from one
+/// of our host addresses, straight out of the socket; from anything else (an allocation
+/// that is gone), nowhere: a relay-only pairing never reveals our address.
+fn route(
+    socket: &UdpSocket,
+    hosts: &[SocketAddr],
+    relays: &mut [Relay],
+    now: Instant,
+    source: SocketAddr,
+    destination: SocketAddr,
+    data: &[u8],
+) {
+    if let Some(r) = relays
+        .iter_mut()
+        .find(|r| r.alloc.relayed() == Some(source))
+    {
+        r.alloc.send(destination, data, now);
+        flush_relay(socket, r);
+    } else if hosts.contains(&source) {
+        // Unreachable destinations (e.g. IPv6 candidates on our IPv4 socket) fail here:
+        // ICE picks another pair.
+        let _ = socket.send_to(data, destination);
+    }
+}
+
 pub(crate) struct Thread {
     config: NativeConfig,
     socket: UdpSocket,
@@ -477,6 +569,8 @@ pub(crate) struct Thread {
     pairings: Vec<Pairing>,
     next_conn: u64,
     stun: Vec<StunQuery>,
+    relays: Vec<Relay>,
+    next_relay: u64,
     waker: Arc<Waker>,
     buf: Vec<u8>,
 }
@@ -507,6 +601,8 @@ impl Thread {
             pairings: Vec::new(),
             next_conn: 1,
             stun: Vec::new(),
+            relays: Vec::new(),
+            next_relay: 1,
             waker: Arc::new(Waker::new(port)),
             buf: vec![0; 2048],
         })
@@ -531,6 +627,16 @@ impl Thread {
         v
     }
 
+    /// Every address the socket may send from (host candidates, and the bases of
+    /// server-reflexive ones).
+    fn host_sources(&self) -> Vec<SocketAddr> {
+        let mut v = vec![SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), self.port)];
+        if let Some(ip) = self.lan {
+            v.push(SocketAddr::new(IpAddr::V4(ip), self.port));
+        }
+        v
+    }
+
     /// The local candidate address a datagram from `source` arrived at (the socket is bound
     /// to 0.0.0.0 and std has no IP_PKTINFO: loopback traffic arrives on 127.0.0.1,
     /// everything else on the default-route interface).
@@ -544,7 +650,7 @@ impl Thread {
 
     pub(crate) fn run(mut self) {
         loop {
-            if self.pairings.is_empty() && self.stun.is_empty() {
+            if self.pairings.is_empty() && self.stun.is_empty() && self.relays.is_empty() {
                 match self.cmd_rx.recv() {
                     Ok(Cmd::Shutdown) | Err(_) => return self.shutdown(),
                     Ok(cmd) => self.command(cmd),
@@ -561,6 +667,7 @@ impl Thread {
             }
             let now = Instant::now();
             self.stun_timeouts(now);
+            self.relay_timeouts(now);
             self.drive_all(now);
             self.flush();
 
@@ -571,6 +678,11 @@ impl Thread {
             }
             for q in &self.stun {
                 deadline = deadline.min(q.sent + STUN_RETRANSMIT);
+            }
+            for r in &self.relays {
+                if let Some(t) = r.alloc.next_timeout() {
+                    deadline = deadline.min(t);
+                }
             }
             let wait = deadline
                 .saturating_duration_since(now)
@@ -609,11 +721,19 @@ impl Thread {
     }
 
     fn shutdown(&mut self) {
+        let hosts = self.host_sources();
+        let now = Instant::now();
         for mut p in self.pairings.drain(..) {
-            p.close_and_drain(&self.socket);
+            p.close_and_drain(&mut |s, d, b| {
+                route(&self.socket, &hosts, &mut self.relays, now, s, d, b)
+            });
             if let Some(link) = p.link.take() {
                 link.shared.close("sharing stopped");
             }
+        }
+        for mut r in self.relays.drain(..) {
+            r.alloc.release(now);
+            flush_relay(&self.socket, &mut r);
         }
     }
 
@@ -626,7 +746,12 @@ impl Thread {
     fn command(&mut self, cmd: Cmd) {
         let now = Instant::now();
         match cmd {
-            Cmd::Open { peer, offer, ice } => self.open(peer, offer, ice, now),
+            Cmd::Open {
+                peer,
+                offer,
+                ice,
+                relay_only,
+            } => self.open(peer, offer, ice, relay_only, now),
             Cmd::Signal { peer, signal } => {
                 if let Some(p) = self.pairings.iter_mut().find(|p| p.peer == peer) {
                     p.on_signal(signal, now, &mut self.out);
@@ -651,6 +776,25 @@ impl Thread {
                 }
             }
             Cmd::StunResolved { conn, server } => self.stun_resolved(conn, server, now),
+            Cmd::TurnResolved {
+                conn,
+                url,
+                creds,
+                server,
+            } => self.turn_resolved(conn, url, creds, server, now),
+            Cmd::TurnStream { relay, msgs } => {
+                if let Some(i) = self.relays.iter().position(|r| r.id == relay) {
+                    for m in msgs {
+                        self.relay_input(i, &m, now);
+                    }
+                }
+            }
+            Cmd::TurnStreamClosed { relay, reason } => {
+                if let Some(i) = self.relays.iter().position(|r| r.id == relay) {
+                    self.relays[i].alloc.lost(reason);
+                    self.relay_events(i, now);
+                }
+            }
             Cmd::Shutdown => {}
         }
     }
@@ -658,14 +802,34 @@ impl Thread {
     /// Drop pairing `i` without an output (the owner closed it).
     fn remove(&mut self, i: usize, reason: &str) {
         let mut p = self.pairings.remove(i);
-        p.close_and_drain(&self.socket);
+        let hosts = self.host_sources();
+        let now = Instant::now();
+        p.close_and_drain(&mut |s, d, b| {
+            route(&self.socket, &hosts, &mut self.relays, now, s, d, b)
+        });
         if let Some(link) = p.link.take() {
             link.shared.close(reason);
         }
-        self.stun.retain(|q| q.conn != p.conn);
+        self.forget(p.conn);
     }
 
-    fn open(&mut self, peer: PeerId, offer: bool, ice: Vec<IceServer>, now: Instant) {
+    /// A pairing is gone: its STUN queries and its hold on allocations.
+    fn forget(&mut self, conn: u64) {
+        self.stun.retain(|q| q.conn != conn);
+        for r in &mut self.relays {
+            r.users.retain(|c| *c != conn);
+            r.waiting.retain(|c| *c != conn);
+        }
+    }
+
+    fn open(
+        &mut self,
+        peer: PeerId,
+        offer: bool,
+        ice: Vec<IceServer>,
+        relay_only: bool,
+        now: Instant,
+    ) {
         // Re-opening a peer replaces its pairing.
         while let Some(i) = self.pairings.iter().position(|p| p.peer == peer) {
             self.remove(i, "replaced");
@@ -677,16 +841,51 @@ impl Thread {
             });
             return;
         }
+        let turns: Vec<(TurnUrl, Credentials)> = ice
+            .iter()
+            .filter_map(|s| {
+                let creds = Credentials {
+                    username: s.username.clone()?,
+                    password: s.credential.clone()?,
+                };
+                Some(
+                    s.urls
+                        .iter()
+                        .filter_map(|u| turn::parse_turn_url(u))
+                        .map(move |u| (u, creds.clone())),
+                )
+            })
+            .flatten()
+            .collect();
+        let turns = turn::attempt_order(turns, MAX_TURN_ATTEMPTS);
+        if relay_only && turns.is_empty() {
+            self.out.push(PeerOutput::Failed {
+                peer,
+                reason: RELAY_ONLY_NO_TURN.into(),
+            });
+            return;
+        }
         let conn = self.next_conn;
         self.next_conn += 1;
-        let mut p = Pairing::new(peer, conn, &self.host_candidates(), now);
-        let urls: Vec<String> = ice
-            .iter()
-            .flat_map(|s| s.urls.iter())
-            .filter(|u| stun::parse_stun_url(u).is_some())
-            .take(MAX_STUN_URLS)
-            .cloned()
-            .collect();
+        let hosts = if relay_only {
+            Vec::new()
+        } else {
+            self.host_candidates()
+        };
+        let mut p = Pairing::new(peer, conn, &hosts, now);
+        p.relay_only = relay_only;
+        p.turn_pending = !turns.is_empty();
+        p.turn_attempts = turns.into();
+        let urls: Vec<String> = if relay_only {
+            Vec::new() // a server-reflexive candidate is our public address
+        } else {
+            ice.iter()
+                .flat_map(|s| s.urls.iter())
+                .filter(|u| stun::parse_stun_url(u).is_some())
+                .take(MAX_STUN_URLS)
+                .cloned()
+                .collect()
+        };
         p.stun_pending = urls.len();
         if !urls.is_empty() {
             // DNS may block: resolve on a short-lived thread, report through the commands.
@@ -708,7 +907,219 @@ impl Thread {
         if offer {
             p.make_offer(&mut self.out);
         }
+        let try_turn = p.turn_pending;
         self.pairings.push(p);
+        if try_turn {
+            self.next_turn(conn, now);
+        }
+    }
+
+    /// Try pairing `conn`'s next TURN server, or give up on a relay candidate.
+    fn next_turn(&mut self, conn: u64, now: Instant) {
+        let Some(p) = self.pairings.iter_mut().find(|p| p.conn == conn) else {
+            return;
+        };
+        let Some((url, creds)) = p.turn_attempts.pop_front() else {
+            p.turn_pending = false;
+            if p.relay_only && !p.relayed {
+                let why = p.turn_error.clone().unwrap_or_default();
+                p.fail(format!("could not reach the TURN relay: {why}"));
+            }
+            p.maybe_end_of_candidates(&mut self.out);
+            return;
+        };
+        if let Ok(ip) = url.host.parse::<IpAddr>() {
+            let server = Some(SocketAddr::new(ip, url.port)).filter(SocketAddr::is_ipv4);
+            return self.turn_resolved(conn, url, creds, server, now);
+        }
+        // DNS may block: resolve on a short-lived thread, report through the commands.
+        let tx = self.cmd_tx.clone();
+        let waker = self.waker.clone();
+        let spawned = std::thread::Builder::new()
+            .name("ether-share-turn-dns".into())
+            .spawn(move || {
+                let server = url.resolve();
+                let _ = tx.send(Cmd::TurnResolved {
+                    conn,
+                    url,
+                    creds,
+                    server,
+                });
+                waker.wake();
+            });
+        if spawned.is_err() {
+            self.next_turn(conn, now);
+        }
+    }
+
+    fn turn_failed(&mut self, conn: u64, reason: String, now: Instant) {
+        if let Some(p) = self.pairings.iter_mut().find(|p| p.conn == conn) {
+            p.turn_error = Some(reason);
+            self.next_turn(conn, now);
+        }
+    }
+
+    fn turn_resolved(
+        &mut self,
+        conn: u64,
+        url: TurnUrl,
+        creds: Credentials,
+        server: Option<SocketAddr>,
+        now: Instant,
+    ) {
+        if !self.pairings.iter().any(|p| p.conn == conn) {
+            return;
+        }
+        let Some(server) = server else {
+            return self.turn_failed(conn, format!("could not resolve {}", url.host), now);
+        };
+        // One allocation per server, shared.
+        if let Some(i) = self.relays.iter().position(|r| {
+            !r.alloc.is_failed()
+                && r.alloc.server() == server
+                && r.alloc.transport() == url.transport
+        }) {
+            let r = &mut self.relays[i];
+            r.idle_since = None;
+            match r.alloc.relayed() {
+                Some(relayed) => {
+                    r.users.push(conn);
+                    let local = self.local_for(server);
+                    if let Some(p) = self.pairings.iter_mut().find(|p| p.conn == conn) {
+                        p.add_relayed(relayed, local, &mut self.out);
+                    }
+                }
+                None => r.waiting.push(conn),
+            }
+            return;
+        }
+        if self.relays.len() >= MAX_RELAYS {
+            return self.turn_failed(conn, "too many TURN allocations".into(), now);
+        }
+        let id = self.next_relay;
+        self.next_relay += 1;
+        let stream = if url.transport.is_stream() {
+            match StreamConn::open(
+                id,
+                server,
+                url.transport,
+                url.host.clone(),
+                self.config.extra_tls_roots.clone(),
+                self.cmd_tx.clone(),
+                self.waker.clone(),
+            ) {
+                Ok(s) => Some(s),
+                Err(e) => return self.turn_failed(conn, e.to_string(), now),
+            }
+        } else {
+            None
+        };
+        let mut r = Relay {
+            id,
+            alloc: turn::Allocation::new(server, url.transport, creds, now),
+            stream,
+            users: Vec::new(),
+            waiting: vec![conn],
+            idle_since: None,
+        };
+        flush_relay(&self.socket, &mut r);
+        self.relays.push(r);
+    }
+
+    /// A message from relay `i`'s server.
+    fn relay_input(&mut self, i: usize, msg: &[u8], now: Instant) {
+        let r = &mut self.relays[i];
+        if let Received::Data(peer, data) = r.alloc.handle_input(msg, now)
+            && let Some(relayed) = r.alloc.relayed()
+            && let Ok(contents) = data.as_slice().try_into()
+        {
+            let input = Input::Receive(
+                now,
+                Receive {
+                    proto: Protocol::Udp,
+                    source: peer,
+                    destination: relayed,
+                    contents,
+                },
+            );
+            let users = &r.users;
+            if let Some(p) = self
+                .pairings
+                .iter_mut()
+                .filter(|p| users.contains(&p.conn))
+                .find(|p| p.rtc.accepts(&input))
+            {
+                p.receive(input);
+            }
+        }
+        flush_relay(&self.socket, &mut self.relays[i]);
+        self.relay_events(i, now);
+    }
+
+    /// Hand relay `i`'s events to the pairings that wait for it.
+    fn relay_events(&mut self, i: usize, now: Instant) {
+        while let Some(e) = self.relays[i].alloc.poll_event() {
+            match e {
+                turn::Event::Allocated { relayed, mapped } => {
+                    let r = &mut self.relays[i];
+                    let waiting = std::mem::take(&mut r.waiting);
+                    r.users.extend(&waiting);
+                    let server = r.alloc.server();
+                    let udp = r.alloc.transport() == Transport::Udp;
+                    let local = self.local_for(server);
+                    for conn in waiting {
+                        let Some(p) = self.pairings.iter_mut().find(|p| p.conn == conn) else {
+                            continue;
+                        };
+                        // Over UDP the server saw our socket's public address: a free
+                        // server-reflexive candidate (not for "Hide my IP").
+                        if udp
+                            && !p.relay_only
+                            && let Some(mapped) = mapped
+                        {
+                            p.add_srflx(mapped, local, &mut self.out);
+                        }
+                        p.add_relayed(relayed, local, &mut self.out);
+                    }
+                }
+                turn::Event::Failed(reason) => {
+                    tracing::debug!("share TURN allocation failed: {reason}");
+                    let waiting = std::mem::take(&mut self.relays[i].waiting);
+                    for conn in waiting {
+                        self.turn_failed(conn, reason.clone(), now);
+                    }
+                }
+            }
+        }
+    }
+
+    /// Relay retransmissions and refreshes; failed and idle allocations go away.
+    fn relay_timeouts(&mut self, now: Instant) {
+        for i in 0..self.relays.len() {
+            let r = &mut self.relays[i];
+            if r.alloc.next_timeout().is_some_and(|t| now >= t) {
+                r.alloc.handle_timeout(now);
+                flush_relay(&self.socket, r);
+                self.relay_events(i, now);
+            }
+        }
+        let socket = &self.socket;
+        self.relays.retain_mut(|r| {
+            if r.alloc.is_failed() {
+                return false;
+            }
+            if r.users.is_empty() && r.waiting.is_empty() {
+                let since = *r.idle_since.get_or_insert(now);
+                if now.duration_since(since) >= RELAY_IDLE {
+                    r.alloc.release(now);
+                    flush_relay(socket, r);
+                    return false;
+                }
+            } else {
+                r.idle_since = None;
+            }
+            true
+        });
     }
 
     fn stun_resolved(&mut self, conn: u64, server: Option<SocketAddr>, now: Instant) {
@@ -780,6 +1191,15 @@ impl Thread {
             }
             return;
         }
+        // A UDP TURN server talks to its allocation.
+        if let Some(i) = self
+            .relays
+            .iter()
+            .position(|r| r.stream.is_none() && r.alloc.server() == source)
+        {
+            let msg = data.to_vec();
+            return self.relay_input(i, &msg, now);
+        }
         let destination = self.local_for(source);
         let Ok(contents) = data.try_into() else {
             return;
@@ -793,15 +1213,23 @@ impl Thread {
                 contents,
             },
         );
-        if let Some(p) = self.pairings.iter_mut().find(|p| p.rtc.accepts(&input)) {
+        // A relay-only pairing takes nothing that bypassed its relay.
+        if let Some(p) = self
+            .pairings
+            .iter_mut()
+            .filter(|p| !p.relay_only)
+            .find(|p| p.rtc.accepts(&input))
+        {
             p.receive(input);
         }
     }
 
     fn drive_all(&mut self, now: Instant) {
+        let hosts = self.host_sources();
         for p in &mut self.pairings {
+            let (socket, relays) = (&self.socket, &mut self.relays);
             p.drive(
-                &self.socket,
+                &mut |s, d, b| route(socket, &hosts, relays, now, s, d, b),
                 &self.config,
                 now,
                 &mut self.out,
@@ -813,9 +1241,11 @@ impl Thread {
         while i < self.pairings.len() {
             if self.pairings[i].done.is_some() {
                 let mut p = self.pairings.remove(i);
-                p.close_and_drain(&self.socket);
+                p.close_and_drain(&mut |s, d, b| {
+                    route(&self.socket, &hosts, &mut self.relays, now, s, d, b)
+                });
                 p.finish(&mut self.out);
-                self.stun.retain(|q| q.conn != p.conn);
+                self.forget(p.conn);
             } else {
                 i += 1;
             }

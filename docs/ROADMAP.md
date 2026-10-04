@@ -1083,8 +1083,16 @@ COLLAB.md updates.
 - Native↔web on the devbox (loopback).
 - The PR lists the owner's laptop checks (desktop deep link, macOS).
 
-Later, optional: `share-handover` (SHARING.md §7.4), `native-turn-client` (§11),
-`offline-merge` (decision 9).
+Later, optional: `share-handover` (SHARING.md §7.4), `offline-merge` (decision 9).
+
+### `native-turn` (after the first wave)
+
+A TURN client for the native share endpoint (SHARING.md §6.1, §11): relay candidates from
+the advertised `turn:`/`turns:` servers (UDP, then TLS, then TCP), routed through the
+allocation on the share thread, refreshed and released; "Hide my IP (relay only)" works on
+desktop and `ether-server`. Tests: codec and state machine unit tests, native↔native
+through the relay's TURN server with no host candidates (UDP, TLS, TCP), native↔browser
+relay-only e2e (`p2p-turn.spec.ts`).
 
 ## `vst2` (owner request: "we need support for VST2")
 
