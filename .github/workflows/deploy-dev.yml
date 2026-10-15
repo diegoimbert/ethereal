@@ -1,15 +1,16 @@
-# Deploy the web app to https://dev.ethereal.ws at most every 15 minutes (when `dev` moved), on
+# Deploy the web app to https://dev.ethereal.ws at most every 15 minutes (when `main` moved), on
 # the self-hosted devbox runner (no GitHub-hosted minutes): the web build only
-# (no desktop platforms), to the Cloudflare Pages project `ethereal-dev` (production branch
-# `dev`; same STATIC_SHARE / ROOMS bindings as the release project `etherealws`, so the dev
-# site shares the production share storage and signaling). The app's version reads
+# (no desktop platforms), to the Cloudflare Pages project `ethereal-dev` (Cloudflare Pages
+# production branch `dev`; same STATIC_SHARE / ROOMS bindings as the release project
+# `etherealws`, so the dev site shares the production share storage and signaling). The app's
+# version reads
 # `<VERSION>-dev.<short sha>`. Releases (ethereal.ws) stay in release.yml. `wrangler pages
 # deploy` never attaches custom domains, so a last step makes sure dev.ethereal.ws is attached to
 # the project and has its DNS record (idempotent; it only warns if the token lacks the rights).
 name: Deploy dev
 
-# Throttled: a schedule every 15 minutes (on the default branch, `dev`) instead of every push;
-# a run whose `dev` commit is already deployed exits right away. `workflow_dispatch` deploys now.
+# Throttled: a schedule every 15 minutes (on the default branch, `main`) instead of every push;
+# a run whose `main` commit is already deployed exits right away. `workflow_dispatch` deploys now.
 on:
   schedule:
     - cron: "*/15 * * * *"
@@ -83,6 +84,8 @@ jobs:
         run: |
           # From `pages/`, so wrangler also bundles `pages/functions` (/signal, /static).
           cd "$RUNNER_TEMP/pages"
+          # `--branch dev` is the Cloudflare Pages deployment branch (the `ethereal-dev`
+          # project's production branch), not a git branch.
           npx --yes "wrangler@$WRANGLER_VERSION" pages deploy site \
             --project-name "$PAGES_PROJECT" --branch dev \
             --commit-hash "$GITHUB_SHA" --commit-message "$VERSION" --commit-dirty=true

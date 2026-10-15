@@ -1048,7 +1048,7 @@ loops: blends the loop's tail into the material before the loop start), `Filter`
 `Off | Low-pass | High-pass | Band-pass`, 12 dB state-variable, per voice), `Cutoff` (18),
 `Resonance` (19) and `Voices` (20, 1..=32, default 8 = the polyphony before). Every
 default renders bit-identically to before (`ether-devices/tests/instruments_golden.rs`,
-fingerprints recorded on `dev`). The import model's `Sampler` gains `loop_range`,
+fingerprints recorded on `main`). The import model's `Sampler` gains `loop_range`,
 `ping_pong`, `reverse`, `decay_ms`, `sustain`; Ableton's Simpler maps its sustain loop,
 reverse and ADSR onto them.
 

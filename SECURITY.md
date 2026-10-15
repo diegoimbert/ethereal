@@ -15,7 +15,7 @@ to reproduce, and the impact you expect.
 ## What to expect
 
 - An acknowledgement within a few days.
-- A fix on `dev`, then in the next release, with credit in the advisory unless you prefer not.
+- A fix on `main`, then in the next release, with credit in the advisory unless you prefer not.
 - Please give us a reasonable time to ship the fix before disclosing it.
 
 ## Scope

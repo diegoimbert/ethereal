@@ -7,7 +7,7 @@
 # (`ethereal-private`) adds the signed updater artifacts and points the app's updater at
 # these releases.
 #
-# Runs ONLY on push to `main` (and manual dispatch). `dev` and PR branches never trigger it.
+# Runs ONLY on push to `main` (and manual dispatch). Other branches and PRs never trigger it.
 # Publishing happens only for `main`; a manual dispatch on another branch builds and uploads
 # workflow artifacts but publishes nothing.
 name: Release

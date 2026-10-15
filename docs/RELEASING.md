@@ -4,12 +4,13 @@ Releases are built and published by [`.github/workflows/release.yml`](../.github
 
 ## When it runs
 
-- **Push to `main`**: builds everything and publishes a GitHub Release. `main` only moves
-  when `dev` is promoted, so every push to `main` is a release.
+- **Push to `main`**: builds everything and publishes a GitHub Release. `main` is the default
+  and only integration branch, so every push to `main` is a release.
 - **Manual** (Actions → Release → Run workflow): on `main`, same as a push (untick
   `publish` to build only). On any other branch it builds and uploads the files as workflow
   artifacts, and never publishes.
-- `dev`, `node/*` and PR branches never trigger it. `ci.yml` is separate and stays disabled.
+- Other branches and PRs never trigger it. `ci.yml` is separate: it runs on every PR and on
+  pushes to `main`.
 
 Runs are serialized per branch (`concurrency: release-<ref>`) and never cancelled midway.
 
@@ -35,7 +36,7 @@ passes it to `tauri build` as the app version (bundle version, Info.plist, MSI),
 - If it exists, the release is `v<VERSION>+<shortsha>` and marked as a **prerelease**
   (so every push to `main` still produces downloadable builds).
 
-To cut a new release: bump `VERSION` on `dev` and promote `dev` to `main`.
+To cut a new release: bump `VERSION` on `main` (land it with a pull request).
 
 ### Release notes
 
@@ -46,7 +47,8 @@ guide; GitHub's generated changelog follows. It is what the download page and th
 
 ### Before a release (required)
 
-GitHub CI is off, so these run locally on `dev` before it is promoted:
+CI runs most of these on every PR; run them locally too, especially the e2e and tours, which
+CI does not run:
 
 - `just check-all` and the test suites (`check-all` starts with `just check-case-clashes`:
   tracked paths or TS module names that differ only in case break macOS/Windows builds).
@@ -301,13 +303,15 @@ Pages dashboard). The COOP/COEP headers are required: the web engine uses Shared
 
 ### dev.ethereal.ws
 
-Every push to `dev` (except docs-only changes) deploys the web build alone to
-`https://dev.ethereal.ws` (`.github/workflows/deploy-dev.yml`, same secrets; the build steps are
-the composite action `.github/actions/web-build`, shared with the release's `web` job). Its
-Pages project is `ethereal-dev` (production branch `dev`), with the same Functions bindings
+A scheduled workflow checks the default branch (`main`) every 15 minutes and, when its tip
+moved, deploys the web build alone to `https://dev.ethereal.ws`
+(`.github/workflows/deploy-dev.yml`, same secrets; the build steps are the composite action
+`.github/actions/web-build`, shared with the release's `web` job). Its Pages project is
+`ethereal-dev` (Cloudflare Pages production branch `dev`), with the same Functions bindings
 as the release project (`STATIC_SHARE` → `ethereal-static-share`, `ROOMS` → the signaling
 durable object), so the dev site shares the production share storage and signaling. The app
-shows its version as `<VERSION>-dev.<short sha>`. A newer push cancels a deploy in progress.
+shows its version as `<VERSION>-dev.<short sha>`. Runs are serialized: a newer run waits for
+the one in progress.
 
 ## Download page
 
