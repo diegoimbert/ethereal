@@ -1,0 +1,98 @@
+{
+  "$comment": "License texts for crates whose published tarballs omit a license file (cargo-bundle-licenses reports these as 'NOT FOUND'). Paths are relative to this directory. `scripts/gen-notices.mjs` resolves, in order: the crate's repository entry, then `canonical`, then the `crates` entry (keyed by package name). See README.md.",
+  "canonical": {
+    "MIT": "canonical/MIT.txt",
+    "Apache-2.0": "canonical/Apache-2.0.txt",
+    "BSD-3-Clause": "canonical/BSD-3-Clause.txt",
+    "Zlib": "canonical/Zlib.txt",
+    "MPL-2.0": "canonical/MPL-2.0.txt",
+    "Unlicense": "canonical/Unlicense.txt"
+  },
+  "repositories": {
+    "https://github.com/dropbox/rust-alloc-no-stdlib": {
+      "BSD-3-Clause": "upstream/dropbox__rust-alloc-no-stdlib/LICENSE"
+    },
+    "https://github.com/RustAudio/cpal/": {
+      "Apache-2.0": "upstream/RustAudio__cpal/LICENSE"
+    },
+    "https://github.com/madsmtm/objc2": {
+      "MIT": "upstream/madsmtm__objc2/LICENSE-MIT.txt",
+      "Apache-2.0": "upstream/madsmtm__objc2/LICENSE-APACHE.txt",
+      "Zlib": "upstream/madsmtm__objc2/LICENSE-ZLIB.txt"
+    },
+    "https://github.com/dropbox/rust-brotli": {
+      "BSD-3-Clause": "upstream/dropbox__rust-brotli/LICENSE.BSD-3-Clause",
+      "MIT": "upstream/dropbox__rust-brotli/LICENSE.MIT"
+    },
+    "https://github.com/coupler-rs/vst3-rs": {
+      "MIT": "upstream/coupler-rs__vst3-rs/LICENSE-MIT",
+      "Apache-2.0": "upstream/coupler-rs__vst3-rs/LICENSE-APACHE"
+    },
+    "https://github.com/rustaudio/sample.git": {
+      "MIT": "upstream/rustaudio__sample/LICENSE-MIT",
+      "Apache-2.0": "upstream/rustaudio__sample/LICENSE-APACHE"
+    },
+    "https://github.com/knurling-rs/defmt": {
+      "MIT": "upstream/knurling-rs__defmt/LICENSE-MIT",
+      "Apache-2.0": "upstream/knurling-rs__defmt/LICENSE-APACHE"
+    },
+    "https://github.com/OpenByteDev/dlopen2": {
+      "MIT": "upstream/OpenByteDev__dlopen2/LICENSE"
+    },
+    "https://github.com/hsivonen/encoding_rs": {
+      "MIT": "upstream/hsivonen__encoding_rs/LICENSE-MIT",
+      "Apache-2.0": "upstream/hsivonen__encoding_rs/LICENSE-APACHE",
+      "BSD-3-Clause": "upstream/hsivonen__encoding_rs/COPYRIGHT"
+    },
+    "https://github.com/jni-rs/jni-sys": {
+      "MIT": "upstream/jni-rs__jni-sys/LICENSE-MIT",
+      "Apache-2.0": "upstream/jni-rs__jni-sys/LICENSE-APACHE"
+    },
+    "https://github.com/negamartin/midly": {
+      "Unlicense": "upstream/negamartin__midly/LICENSE"
+    },
+    "https://github.com/rust-mobile/ndk": {
+      "MIT": "upstream/rust-mobile__ndk/LICENSE-MIT",
+      "Apache-2.0": "upstream/rust-mobile__ndk/LICENSE-APACHE"
+    },
+    "https://github.com/rust-windowing/android-ndk-rs": {
+      "MIT": "upstream/rust-windowing__android-ndk-rs/LICENSE-MIT",
+      "Apache-2.0": "upstream/rust-windowing__android-ndk-rs/LICENSE-APACHE"
+    },
+    "https://github.com/modelcontextprotocol/rust-sdk/": {
+      "Apache-2.0": "upstream/modelcontextprotocol__rust-sdk/LICENSE"
+    },
+    "https://github.com/servo/stylo": {
+      "MPL-2.0": "upstream/servo__servo/LICENSE"
+    },
+    "https://github.com/pdeljanov/Symphonia": {
+      "MPL-2.0": "upstream/pdeljanov__Symphonia/LICENSE"
+    },
+    "https://github.com/Aleph-Alpha/ts-rs": {
+      "MIT": "upstream/Aleph-Alpha__ts-rs/LICENSE"
+    },
+    "https://github.com/open-i18n/rust-unic/": {
+      "MIT": "upstream/open-i18n__rust-unic/LICENSE-MIT",
+      "Apache-2.0": "upstream/open-i18n__rust-unic/LICENSE-APACHE"
+    },
+    "https://github.com/tokio-rs/valuable": {
+      "MIT": "upstream/tokio-rs__valuable/LICENSE"
+    },
+    "https://github.com/wravery/webview2-rs": {
+      "MIT": "upstream/wravery__webview2-rs/LICENSE"
+    },
+    "https://github.com/retep998/winapi-rs": {
+      "MIT": "upstream/retep998__winapi-rs/LICENSE-MIT",
+      "Apache-2.0": "upstream/retep998__winapi-rs/LICENSE-APACHE"
+    },
+    "https://github.com/microsoft/windows-rs": {
+      "MIT": "upstream/microsoft__windows-rs/license-mit",
+      "Apache-2.0": "upstream/microsoft__windows-rs/license-apache-2.0"
+    }
+  },
+  "crates": {
+    "r-efi": {
+      "LGPL-2.1-or-later": "canonical/r-efi-lgpl-note.txt"
+    }
+  }
+}

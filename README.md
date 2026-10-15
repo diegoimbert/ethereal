@@ -25,7 +25,9 @@ What works today:
 
 Developer docs: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (architecture, Cargo
 features), [docs/CONTRACTS.md](docs/CONTRACTS.md) (protocol, model, engine traits),
-[docs/RELEASING.md](docs/RELEASING.md).
+[docs/RELEASING.md](docs/RELEASING.md). Third-party licenses: the components shipped in the
+releases and their license texts are in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md),
+regenerated with `just notices` (the license policy gate is `deny.toml`).
 
 ## Toolchain setup
 
@@ -58,6 +60,8 @@ just test-all    # cargo test + vitest
 | `just e2e-web [args]` / `just e2e-native` | Playwright end-to-end tests of the web build (run `just e2e-install` once) / native smoke test on the null audio backend. |
 | `just mcp [args]` | MCP server (`ether-mcp`) for Claude Code / Claude Desktop (see below and [docs/MCP.md](docs/MCP.md)). |
 | `just gen-types` | Regenerate `ui/src/generated/` (TS types) from `crates/ether-protocol`. Commit the result; CI fails if stale. |
+| `just notices` | Regenerate `THIRD-PARTY-NOTICES.md` (the third-party licenses shipped in the releases; `third-party/` holds texts the crates omit). Commit the result; CI fails if stale. |
+| `just check-licenses` | `cargo deny check licenses` — every dependency's license must be on the `deny.toml` allow-list. |
 | `just check-wasm` | `cargo check --target wasm32-unknown-unknown` for the engine-side crates (every feature, and none). |
 | `just check-features` | clippy over the workspace with `--all-features` and with `--no-default-features` (part of `check-all`). |
 | `just check-all` / `just test-all` | Everything the gates run, with every Cargo feature. |

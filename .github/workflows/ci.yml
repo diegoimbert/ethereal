@@ -73,6 +73,38 @@ jobs:
             exit 1
           fi
 
+  licenses:
+    name: Licenses (cargo-deny) and notices fresh
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: cargo-deny
+        uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2
+        with:
+          command: check licenses
+      - name: Toolchain (from rust-toolchain.toml)
+        run: rustup show active-toolchain || rustup toolchain install
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          key: gen-notices
+      - uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2
+        with:
+          tool: cargo-bundle-licenses@4.2.0
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Notices fresh
+        run: |
+          node scripts/gen-notices.mjs
+          if [ -n "$(git status --porcelain -- THIRD-PARTY-NOTICES.md)" ]; then
+            git diff -- THIRD-PARTY-NOTICES.md | head -200
+            echo "::error::THIRD-PARTY-NOTICES.md is stale. Run 'just notices' and commit."
+            exit 1
+          fi
+
   web:
     name: TS (tsc, eslint, vitest, build)
     runs-on: ubuntu-latest

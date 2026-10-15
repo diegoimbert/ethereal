@@ -91,7 +91,6 @@ rubato = "0.16"
 midly = { version = "0.5", default-features = false, features = ["std"] }
 realfft = "3.5"
 rustfft = "6.4"
-signalsmith-stretch = "0.1"
 
 # --- plugins (CLAP via clack; git-only, pinned) ---
 clack-host = { git = "https://github.com/prokopyl/clack", rev = "27ca28391b57a61bad4bb5099288a7bf9247350d" }

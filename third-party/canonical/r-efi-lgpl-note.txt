@@ -1,0 +1,4 @@
+Ethereal uses r-efi under the MIT or the Apache-2.0 option of its
+"MIT OR Apache-2.0 OR LGPL-2.1-or-later" license (see the MIT and Apache-2.0 texts
+elsewhere in this file). The LGPL-2.1-or-later option is not exercised, so its text is
+not reproduced here.

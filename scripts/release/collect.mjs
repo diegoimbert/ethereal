@@ -5,15 +5,16 @@
 //     Copies the installers Tauri produced under target/<triple>/release/bundle/ (dmg, deb,
 //     AppImage, msi, NSIS setup.exe), zips the macOS .app, and checks that the sandbox
 //     helper and the MCP server (`ether-mcp`) are inside the macOS .app and the .deb whenever
-//     tauri.conf.json bundles them.
+//     tauri.conf.json bundles them. The third-party notices (THIRD-PARTY-NOTICES.md) are
+//     copied next to the installers (the installers also bundle them, see tauri.conf.json).
 //     Updater bundles (auto-update; only built when TAURI_SIGNING_PRIVATE_KEY is set) are
 //     collected with their `.sig`: the macOS `Ethereal.app.tar.gz` is renamed
 //     `Ethereal_<v>_<arch>.app.tar.gz` (both macOS builds name it the same), the AppImage /
 //     setup.exe / msi signatures keep their installer's name + `.sig`.
 //
 //   node scripts/release/collect.mjs web <version> <out-dir>
-//     Zips apps/web/dist + the COOP/COEP deployment files (scripts/release/web/) + notices
-//     into Ethereal_<version>_web.zip.
+//     Zips apps/web/dist + the COOP/COEP deployment files (scripts/release/web/) +
+//     THIRD-PARTY-NOTICES.md into Ethereal_<version>_web.zip.
 import { execFileSync } from "node:child_process";
 import { copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -96,6 +97,12 @@ function desktop(triple) {
     }
   }
   if (collected.length === 0) fail(`no installers under ${bundleDir}`);
+  const notices = join(root, "THIRD-PARTY-NOTICES.md");
+  if (existsSync(notices)) {
+    const dest = join(outDir, "THIRD-PARTY-NOTICES.md");
+    copyFileSync(notices, dest);
+    collected.push(dest);
+  }
   for (const c of collected) console.log(`collect: ${c}`);
 }
 
@@ -105,6 +112,7 @@ function web(version) {
   const stage = join(mkdtempSync(join(tmpdir(), "ether-web-")), `Ethereal_${version}_web`);
   cpSync(dist, stage, { recursive: true });
   cpSync(join(root, "scripts/release/web"), stage, { recursive: true });
+  cpSync(join(root, "THIRD-PARTY-NOTICES.md"), join(stage, "THIRD-PARTY-NOTICES.md"));
   const zip = join(outDir, `${basename(stage)}.zip`);
   execFileSync("zip", ["-qr", zip, basename(stage)], { cwd: dirname(stage), stdio: "inherit" });
   console.log(`collect: ${zip}`);

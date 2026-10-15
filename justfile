@@ -106,6 +106,21 @@ check-types-fresh: gen-types
     git diff --exit-code --stat -- ui/src/generated || (echo "ui/src/generated is stale: run 'just gen-types' and commit" && exit 1)
     test -z "$(git status --porcelain -- ui/src/generated)" || (git status --porcelain -- ui/src/generated; echo "untracked generated files: run 'just gen-types' and commit" && exit 1)
 
+# Regenerate THIRD-PARTY-NOTICES.md (Rust lockfile + npm production deps; commits the result).
+# Needs `pnpm install` and `cargo install cargo-bundle-licenses --version 4.2.0`.
+notices:
+    node scripts/gen-notices.mjs
+
+# Fail if THIRD-PARTY-NOTICES.md is stale (CI).
+check-notices-fresh: notices
+    git diff --exit-code --stat -- THIRD-PARTY-NOTICES.md || (echo "THIRD-PARTY-NOTICES.md is stale: run 'just notices' and commit" && exit 1)
+    test -z "$(git status --porcelain -- THIRD-PARTY-NOTICES.md)" || (echo "THIRD-PARTY-NOTICES.md is untracked: run 'just notices' and commit" && exit 1)
+
+# Every dependency's license must be on the allow-list in deny.toml (CI).
+# Needs `cargo install cargo-deny`.
+check-licenses:
+    cargo deny check licenses
+
 # cargo check for the wasm32 target (engine-side crates), with every feature and with none.
 check-wasm:
     cargo check --target wasm32-unknown-unknown {{wasm_crates}} --all-features
@@ -121,8 +136,9 @@ check-features:
 check-case-clashes:
     node scripts/check-case-clashes.mjs
 
-# Everything CI checks, except tests.
-check-all: check-case-clashes check-wasm check-features check-types-fresh
+# Everything CI checks, except tests. (check-notices-fresh and check-licenses need
+# cargo-bundle-licenses / cargo-deny, see their recipes.)
+check-all: check-case-clashes check-wasm check-features check-types-fresh check-notices-fresh check-licenses
     cargo fmt --all --check
     pnpm -r typecheck
     pnpm -r lint

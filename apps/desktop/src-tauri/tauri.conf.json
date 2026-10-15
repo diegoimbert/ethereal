@@ -48,6 +48,8 @@
     "active": true,
     "targets": "all",
     "category": "Music",
+    "copyright": "Copyright © Ethereal contributors. Bundles third-party components under their own licenses; see THIRD-PARTY-NOTICES.md.",
+    "licenseFile": "../../../THIRD-PARTY-NOTICES.md",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -59,7 +61,8 @@
       "files": {
         "MacOS/ether-sandbox-helper": "binaries/ether-sandbox-helper",
         "MacOS/ether-plugin-scanner": "binaries/ether-plugin-scanner",
-        "MacOS/ether-mcp": "binaries/ether-mcp"
+        "MacOS/ether-mcp": "binaries/ether-mcp",
+        "Resources/THIRD-PARTY-NOTICES.md": "../../../THIRD-PARTY-NOTICES.md"
       }
     },
     "linux": {
@@ -67,21 +70,24 @@
         "files": {
           "/usr/bin/ether-sandbox-helper": "binaries/ether-sandbox-helper",
           "/usr/bin/ether-plugin-scanner": "binaries/ether-plugin-scanner",
-          "/usr/bin/ether-mcp": "binaries/ether-mcp"
+          "/usr/bin/ether-mcp": "binaries/ether-mcp",
+          "/usr/share/doc/ethereal/THIRD-PARTY-NOTICES.md": "../../../THIRD-PARTY-NOTICES.md"
         }
       },
       "rpm": {
         "files": {
           "/usr/bin/ether-sandbox-helper": "binaries/ether-sandbox-helper",
           "/usr/bin/ether-plugin-scanner": "binaries/ether-plugin-scanner",
-          "/usr/bin/ether-mcp": "binaries/ether-mcp"
+          "/usr/bin/ether-mcp": "binaries/ether-mcp",
+          "/usr/share/doc/ethereal/THIRD-PARTY-NOTICES.md": "../../../THIRD-PARTY-NOTICES.md"
         }
       },
       "appimage": {
         "files": {
           "/usr/bin/ether-sandbox-helper": "binaries/ether-sandbox-helper",
           "/usr/bin/ether-plugin-scanner": "binaries/ether-plugin-scanner",
-          "/usr/bin/ether-mcp": "binaries/ether-mcp"
+          "/usr/bin/ether-mcp": "binaries/ether-mcp",
+          "/usr/share/doc/ethereal/THIRD-PARTY-NOTICES.md": "../../../THIRD-PARTY-NOTICES.md"
         }
       }
     }

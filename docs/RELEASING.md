@@ -54,6 +54,10 @@ GitHub CI is off, so these run locally on `dev` before it is promoted:
 - `just e2e-tours`: the guided tours walked through end to end (opt-in, about a minute;
   docs/TUTORIALS.md "Tests"). Tours break silently in UI refactors; a release ships only with
   every tour green.
+- Third-party licenses are part of `check-all` too (`check-notices-fresh`, `check-licenses`).
+  If a dependency changed, run `just notices` and commit the regenerated
+  `THIRD-PARTY-NOTICES.md`; if `check-licenses` fails, a dependency brought in a license that
+  is not on the `deny.toml` allow-list (see that file before widening it).
 
 ## What gets built
 
@@ -63,13 +67,15 @@ GitHub CI is off, so these run locally on `dev` before it is promoted:
 | macOS x64 | `macos-latest` (cross, `x86_64-apple-darwin`) | `Ethereal_<v>_x64.dmg`, `Ethereal_<v>_x86_64.app.zip` |
 | Linux x64 | `ubuntu-22.04` (glibc 2.35 baseline) | `Ethereal_<v>_amd64.AppImage`, `Ethereal_<v>_amd64.deb` |
 | Windows x64 | `windows-latest` | `Ethereal_<v>_x64_en-US.msi`, `Ethereal_<v>_x64-setup.exe` |
-| Web | `ubuntu-latest` | `Ethereal_<v>_web.zip` (static site + `_headers` + `DEPLOY.txt`) |
+| Web | `ubuntu-latest` | `Ethereal_<v>_web.zip` (static site + `_headers` + `DEPLOY.txt` + `THIRD-PARTY-NOTICES.md`) |
 
 Each release also carries `SHA256SUMS.txt`, and, when the
 updater key is configured, the updater bundles, their `.sig` files and `latest.json`
 (see Auto-update). The notes start
 with a download guide and each platform's signing status, followed by GitHub's generated
-changelog.
+changelog. `THIRD-PARTY-NOTICES.md` is also copied next to the installers and bundled into
+each app (`tauri.conf.json` `bundle.licenseFile` / `files` and the `.deb`/`.rpm`/AppImage
+`/usr/share/doc/ethereal/`), so every artifact carries the third-party license texts.
 
 - **Sandbox helper.** `ether-sandbox-helper` is built and staged by `tauri.conf.json`'s
   `beforeBuildCommand` (`scripts/build-sandbox-helper.mjs --bundle`, which follows Tauri's
