@@ -47,6 +47,7 @@ const platform = env.RUNNER_OS ?? { darwin: "macOS", linux: "Linux", win32: "Win
 // Paths in `bundle.resources` are relative to apps/desktop/src-tauri.
 const config = {
   version: releaseVersion(),
+  bundle: {},
 };
 
 let signed = false;
