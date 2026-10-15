@@ -125,20 +125,29 @@ and existing signers are asked to sign again.
 
 ## For maintainers
 
-- The `CLA` commit status must be a **required** check on the default branch, so a pull
-  request cannot merge until it is green. With the GitHub CLI:
+- **Order matters.** Land `.github/workflows/cla.yml` on the default branch (`main`) *first* —
+  the workflow runs from the base branch, so until it is on `main` no `CLA` status is ever
+  reported. If you require the check before that, every pull request is stuck on
+  "Expected — Waiting for status to be reported".
+- Then make `CLA` a **required** status check on the default branch, so a pull request cannot
+  merge until it is green. Setting branch protection is a `PUT` (a `PATCH` returns 404):
 
   ```sh
-  gh api -X PATCH repos/diegoimbert/ethereal/branches/main/protection \
+  gh api -X PUT repos/diegoimbert/ethereal/branches/main/protection \
     -H "Accept: application/vnd.github+json" \
-    -F "required_status_checks[strict]=true" \
-    -F "required_status_checks[contexts][]=CLA" \
-    -F "enforce_admins=false" \
-    -F "required_pull_request_reviews=" \
-    -F "restrictions="
+    --input - <<'JSON'
+  {
+    "required_status_checks": { "strict": false, "contexts": ["CLA"] },
+    "enforce_admins": false,
+    "required_pull_request_reviews": null,
+    "restrictions": null
+  }
+  JSON
   ```
 
-  (Adjust the branch name if the default branch differs.)
+  This *replaces* the branch's protection; on a branch that has none it just creates it. (If
+  you later add other required checks, add them to `contexts`.) Use `"strict": true` only if
+  you also want branches to be up to date with `main` before merging.
 - The automation lives in `.github/workflows/cla.yml` and `.github/scripts/cla.mjs`. It uses
   only the workflow token (`contents`, `pull-requests` and `statuses` write) and never runs
   pull-request code. Signatures live in `cla-signatures.json` on the `cla-signatures` branch.
