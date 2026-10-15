@@ -1,8 +1,6 @@
 # Contributing to Ethereal
 
-Thanks for your interest in Ethereal, a DAW with a single arrangement view: a Rust audio
-engine and a React/TypeScript UI that run in a desktop app (Tauri) and in the browser (the
-engine as WebAssembly). The [README](README.md) is the project overview; this file covers how
+Thanks for your interest in Ethereal. The [README](README.md) is the project overview; this file covers how
 to set up a checkout, what CI expects, and how to get a change merged. When the two disagree,
 the README and the docs in [`docs/`](docs) win.
 
