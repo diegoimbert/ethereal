@@ -60,6 +60,10 @@ jobs:
           fi
       - uses: actions/checkout@v4
         if: steps.skip.outputs.skip != 'true'
+      - uses: ./.github/actions/overlay-private
+        if: steps.skip.outputs.skip != 'true'
+        with:
+          token: ${{ secrets.ETHER_PRIVATE_TOKEN }}
       - name: Dev version
         if: steps.skip.outputs.skip != 'true'
         id: version

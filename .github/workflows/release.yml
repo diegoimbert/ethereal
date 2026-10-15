@@ -129,6 +129,9 @@ jobs:
       ETHER_RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
     steps:
       - uses: actions/checkout@v4
+      - uses: ./.github/actions/overlay-private
+        with:
+          token: ${{ secrets.ETHER_PRIVATE_TOKEN }}
       - name: Windows aws-lc (prebuilt NASM objects; str0m's DTLS pulls aws-lc-sys)
         if: runner.os == 'Windows'
         shell: bash
@@ -283,6 +286,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: ./.github/actions/overlay-private
+        with:
+          token: ${{ secrets.ETHER_PRIVATE_TOKEN }}
       # Shared with deploy-dev.yml (dev.ethereal.ws).
       - name: Build + Pages site
         uses: ./.github/actions/web-build
@@ -377,6 +383,9 @@ jobs:
       DRY_RUN: ${{ inputs.dry_run == true }}
     steps:
       - uses: actions/checkout@v4
+      - uses: ./.github/actions/overlay-private
+        with:
+          token: ${{ secrets.ETHER_PRIVATE_TOKEN }}
       - uses: actions/download-artifact@v4
         with:
           path: ${{ runner.temp }}/artifacts
