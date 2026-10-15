@@ -4,13 +4,12 @@ Releases are built and published by [`.github/workflows/release.yml`](../.github
 
 ## When it runs
 
-- **Push to `main`**: builds everything and publishes a GitHub Release. `main` is the default
-  and only integration branch, so every push to `main` is a release.
-- **Manual** (Actions → Release → Run workflow): on `main`, same as a push (untick
-  `publish` to build only). On any other branch it builds and uploads the files as workflow
-  artifacts, and never publishes.
-- Other branches and PRs never trigger it. `ci.yml` is separate: it runs on every PR and on
-  pushes to `main`.
+- **Manual only** (Actions → Release → Run workflow). A push or merge to `main` never
+  publishes — `ci.yml` runs the checks there, and nothing else.
+- On `main` the dispatch builds everything and publishes a GitHub Release (untick `publish`
+  to build only). On any other branch it builds and uploads the files as workflow artifacts,
+  and never publishes.
+- PRs and pushes to `main` never trigger it.
 
 Runs are serialized per branch (`concurrency: release-<ref>`) and never cancelled midway.
 

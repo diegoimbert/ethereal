@@ -7,14 +7,13 @@
 # (`ethereal-private`) adds the signed updater artifacts and points the app's updater at
 # these releases.
 #
-# Runs ONLY on push to `main` (and manual dispatch). Other branches and PRs never trigger it.
-# Publishing happens only for `main`; a manual dispatch on another branch builds and uploads
-# workflow artifacts but publishes nothing.
+# Runs only on an explicit manual dispatch — never on a push, so a merge to `main` does not
+# publish (checks live in ci.yml). Publishing happens only on `main` when the dispatch asks for
+# it; a dispatch on another branch builds and uploads workflow artifacts but publishes nothing.
 name: Release
 
 on:
-  push:
-    branches: [main]
+  # Manual only: a push to `main` must not publish a release. See docs/RELEASING.md.
   workflow_dispatch:
     inputs:
       publish:
