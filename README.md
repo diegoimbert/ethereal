@@ -194,3 +194,16 @@ uses the same agent tools as the in-app AI chat.
   `just dev-desktop --features mcp` or `just dev-desktop-full`).
 
 Setup for Claude Desktop, the tool list and the security model: [docs/MCP.md](docs/MCP.md).
+
+## License
+
+Ethereal is licensed under the **GNU Affero General Public License, version 3 or later**
+(AGPL-3.0-or-later) — see [LICENSE](LICENSE). A separate commercial or alternative license is
+available for those who need it (contact [@diegoimbert](https://github.com/diegoimbert)); see
+[LICENSING.md](LICENSING.md) for the dual-licensing model.
+
+Contributions require signing the [Contributor License Agreement](CLA.md), which is enforced
+automatically on pull requests (the `CLA` check must pass before a pull request can merge).
+
+Ethereal is built with third-party open-source software; the components and their license
+texts are in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).

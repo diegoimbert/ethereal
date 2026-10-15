@@ -3,10 +3,16 @@
 # Ethereal ships desktop installers and a web build, so every dependency is distributed.
 # Everything allowed here is permissive (MPL-2.0 is file-level copyleft and is fine to link,
 # but it is listed explicitly rather than lumped in with the permissive licenses).
-# THIRD-PARTY-NOTICES.md is generated separately (scripts/gen-notices.mjs) and is what the
-# artifacts carry; this file is the gate that keeps a new, unexpected license out.
 #
-# Refresh the allow-list only after checking the license really is acceptable to ship.
+# Ethereal itself is AGPL-3.0-or-later and is also offered under commercial terms
+# (LICENSING.md). A dependency that is itself copyleft (AGPL/GPL) could not be relicensed, so
+# it must not come in: keep this allow-list permissive, plus licenses that are compatible with
+# the AGPL and with relicensing. THIRD-PARTY-NOTICES.md is generated separately
+# (scripts/gen-notices.mjs) and is what the artifacts carry; this file is the gate that keeps
+# a new, unexpected license out.
+#
+# Refresh the allow-list only after checking the license really is acceptable to ship and to
+# relicense.
 
 [graph]
 all-features = true

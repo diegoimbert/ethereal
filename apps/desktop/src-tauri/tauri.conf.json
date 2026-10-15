@@ -48,8 +48,8 @@
     "active": true,
     "targets": "all",
     "category": "Music",
-    "copyright": "Copyright © Ethereal contributors. Bundles third-party components under their own licenses; see THIRD-PARTY-NOTICES.md.",
-    "licenseFile": "../../../THIRD-PARTY-NOTICES.md",
+    "copyright": "Copyright © 2026 Diego Imbert and the Ethereal contributors. Licensed under the AGPL-3.0-or-later; see LICENSE and THIRD-PARTY-NOTICES.md.",
+    "licenseFile": "../../../LICENSE",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -62,6 +62,7 @@
         "MacOS/ether-sandbox-helper": "binaries/ether-sandbox-helper",
         "MacOS/ether-plugin-scanner": "binaries/ether-plugin-scanner",
         "MacOS/ether-mcp": "binaries/ether-mcp",
+        "Resources/LICENSE": "../../../LICENSE",
         "Resources/THIRD-PARTY-NOTICES.md": "../../../THIRD-PARTY-NOTICES.md"
       }
     },
@@ -71,6 +72,7 @@
           "/usr/bin/ether-sandbox-helper": "binaries/ether-sandbox-helper",
           "/usr/bin/ether-plugin-scanner": "binaries/ether-plugin-scanner",
           "/usr/bin/ether-mcp": "binaries/ether-mcp",
+          "/usr/share/doc/ethereal/LICENSE": "../../../LICENSE",
           "/usr/share/doc/ethereal/THIRD-PARTY-NOTICES.md": "../../../THIRD-PARTY-NOTICES.md"
         }
       },
@@ -79,6 +81,7 @@
           "/usr/bin/ether-sandbox-helper": "binaries/ether-sandbox-helper",
           "/usr/bin/ether-plugin-scanner": "binaries/ether-plugin-scanner",
           "/usr/bin/ether-mcp": "binaries/ether-mcp",
+          "/usr/share/doc/ethereal/LICENSE": "../../../LICENSE",
           "/usr/share/doc/ethereal/THIRD-PARTY-NOTICES.md": "../../../THIRD-PARTY-NOTICES.md"
         }
       },
@@ -87,6 +90,7 @@
           "/usr/bin/ether-sandbox-helper": "binaries/ether-sandbox-helper",
           "/usr/bin/ether-plugin-scanner": "binaries/ether-plugin-scanner",
           "/usr/bin/ether-mcp": "binaries/ether-mcp",
+          "/usr/share/doc/ethereal/LICENSE": "../../../LICENSE",
           "/usr/share/doc/ethereal/THIRD-PARTY-NOTICES.md": "../../../THIRD-PARTY-NOTICES.md"
         }
       }

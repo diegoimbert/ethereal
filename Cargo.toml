@@ -30,6 +30,7 @@ edition = "2024"
 rust-version = "1.88"
 repository = "https://github.com/diegoimbert/ethereal"
 authors = ["Ethereal contributors"]
+license = "AGPL-3.0-or-later"
 publish = false
 
 # Every dependency any node is expected to need is pre-declared here (ORCHESTRATION.md §4).
