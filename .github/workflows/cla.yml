@@ -28,6 +28,8 @@ jobs:
   cla:
     runs-on: ubuntu-latest
     env:
+      # Not exported automatically to a shell step; the script needs it for the API.
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       # Bump when CLA.md changes materially; older signatures then have to sign again.
       CLA_VERSION: "1"
       # Accounts that never sign (the copyright holder; bots are skipped automatically).
