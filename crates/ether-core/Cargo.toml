@@ -1,0 +1,29 @@
+[package]
+name = "ether-core"
+description = "Real-time DSP engine core: graph, scheduler, tempo map, transport, mixer, PDC."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[dependencies]
+ether-protocol.workspace = true
+ether-stretch.workspace = true
+serde.workspace = true
+# v0.2 (contracts-3): the codec's JSON blob for v0.2 track fields (`codec.rs`).
+serde_json.workspace = true
+rtrb.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+# Real stretchers (C++ Signalsmith and its Rust port) for the Complex-warp render tests
+# (src/warp/tests.rs).
+ether-stretch = { workspace = true, features = ["signalsmith", "rust-stretch"] }
+assert_no_alloc.workspace = true
+proptest.workspace = true
+serde_json.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,27 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "g major pentatonic",
+    "device": {
+      "type": "Builtin",
+      "device": "ScaleQuantize"
+    },
+    "meta": {
+      "tags": [
+        "scale",
+        "pentatonic"
+      ],
+      "author": "ethereal",
+      "description": "its own scale: g major pentatonic."
+    },
+    "params": {
+      "0": 2.0,
+      "1": 7.0,
+      "2": 5.0,
+      "3": 0.0,
+      "4": 0.0
+    }
+  }
+}

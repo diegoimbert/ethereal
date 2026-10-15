@@ -1,0 +1,143 @@
+/* A roomier dialog than the default; the content fills it and never overflows it. */
+.eth-audio-settings {
+  --dialog-width: var(--eth-size-audio-settings-dialog-width);
+}
+.eth-audio-settings__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-lg);
+  min-width: 0;
+}
+.eth-audio-settings__grid {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--eth-space-sm) var(--eth-space-lg);
+  align-items: center;
+}
+.eth-audio-settings__field {
+  display: contents;
+}
+.eth-audio-settings__label {
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-sm);
+}
+.eth-audio-settings__hint {
+  margin: 0;
+  padding: var(--eth-space-sm) var(--eth-space-md);
+  border-radius: var(--eth-radius-md);
+  background: var(--eth-color-accent-subtle);
+  color: var(--eth-color-text);
+  font-size: var(--eth-fs-sm);
+}
+.eth-audio-settings__error {
+  margin: 0;
+  color: var(--eth-color-danger);
+  font-size: var(--eth-fs-sm);
+}
+.eth-audio-settings__status,
+.eth-audio-settings__note {
+  margin: 0;
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-sm);
+}
+.eth-audio-settings__heading {
+  margin: 0 0 var(--eth-space-xs);
+  font-size: var(--eth-fs-sm);
+  font-weight: var(--eth-fw-medium);
+}
+.eth-audio-settings__meter {
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-md);
+}
+.eth-audio-settings__meter-name {
+  width: var(--eth-size-audio-settings-meter-name-width);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--eth-fs-sm);
+}
+.eth-audio-settings__meter-bar {
+  flex: 1;
+}
+
+.eth-audio-settings__toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: calc(var(--eth-space-sm) * -1);
+}
+.eth-audio-settings__spin {
+  animation: eth-audio-spin 0.8s linear infinite;
+}
+@keyframes eth-audio-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* base-115: Settings tabs (Audio | Sharing | Advanced, docs/SHARING.md §8.6). */
+.eth-settings {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-lg);
+  min-width: 0;
+}
+.eth-settings__tabs {
+  align-self: flex-start;
+}
+.eth-settings__panel {
+  min-width: 0;
+  /* Switching tabs keeps the dialog from jumping much. */
+  min-height: var(--eth-size-detail-height);
+}
+.eth-settings__stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-xl);
+}
+.eth-settings__stack > * + * {
+  padding-top: var(--eth-space-xl);
+  border-top: var(--eth-border-width) solid var(--eth-color-border);
+}
+.eth-settings__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-sm);
+}
+.eth-settings__heading {
+  margin: 0;
+  font-size: var(--eth-fs-md);
+  font-weight: var(--eth-fw-medium);
+  color: var(--eth-color-text);
+}
+.eth-settings__hint {
+  margin: 0;
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+}
+.eth-settings__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--eth-space-md);
+}
+/* A compact number field at the end of a settings row (e.g. Translucency). */
+.eth-settings__number {
+  flex: none;
+  width: calc(var(--eth-size-control-lg) * 3);
+}
+
+/* base-135: Settings > Input. */
+.eth-input-settings__toggles {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--eth-space-sm);
+  margin-top: var(--eth-space-xs);
+}
+.eth-input-settings__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--eth-space-md);
+}

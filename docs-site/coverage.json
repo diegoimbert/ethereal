@@ -1,0 +1,1367 @@
+{
+  "total": 452,
+  "removed": 1,
+  "covered": 451,
+  "pending": 0,
+  "percent": 100,
+  "items": {
+    "first-run/the-welcome-screen-is-the-project-picker": [
+      "basics/projects#the-welcome-screen"
+    ],
+    "first-run/closing-the-welcome-screen-drops-you-into-a-draft-project": [
+      "basics/projects#new-projects-start-as-drafts"
+    ],
+    "first-run/untouched-draft-projects-are-thrown-away": [
+      "basics/projects#new-projects-start-as-drafts"
+    ],
+    "first-run/get-started-guided-tours-and-soon-items": [
+      "basics/projects#guided-tours"
+    ],
+    "first-run/starting-a-tour-or-a-new-project-during-a-jam-asks-you-to-le": [
+      "basics/projects#switching-projects-during-a-live-session"
+    ],
+    "first-run/reopen-last-project-on-launch-off-by-default": [
+      "basics/projects#reopening-your-last-project"
+    ],
+    "first-run/safe-mode-open-without-plugins": [
+      "advanced/safe-mode#opening-without-plugins"
+    ],
+    "first-run/only-one-browser-tab-can-use-ethereal": [
+      "welcome/where-your-projects-live#one-tab-at-a-time"
+    ],
+    "first-run/project-links-in-the-address-bar-web": [
+      "basics/projects#project-links-in-the-address-bar"
+    ],
+    "first-run/the-open-on-desktop-band": [
+      "welcome/what-is-ethereal#the-open-on-desktop-band"
+    ],
+    "first-run/what-the-web-version-can-t-do": [
+      "welcome/what-is-ethereal#what-the-web-version-cant-do"
+    ],
+    "first-run/phones-and-touch-only-tablets-are-blocked": [
+      "welcome/what-is-ethereal#phones-and-tablets"
+    ],
+    "first-run/privacy-notice-on-first-run": [
+      "reference/privacy-and-telemetry#the-first-run-notice"
+    ],
+    "first-run/news-pop-up-after-launch": [
+      "reference/reporting-issues#news"
+    ],
+    "first-run/desktop-updates": [
+      "welcome/what-is-ethereal#updates"
+    ],
+    "first-run/linux-package-installs-don-t-update-themselves": [
+      "welcome/what-is-ethereal#updates"
+    ],
+    "first-run/project-templates-and-the-default-template": [
+      "basics/projects#templates"
+    ],
+    "projects-storage/where-your-projects-are-stored": [
+      "welcome/where-your-projects-live#on-the-desktop"
+    ],
+    "projects-storage/web-projects-can-be-lost-with-browser-data": [
+      "welcome/where-your-projects-live#in-the-browser"
+    ],
+    "projects-storage/moving-a-project-between-web-and-desktop-or-to-another-compu": [
+      "basics/moving-projects#moving-a-project"
+    ],
+    "projects-storage/export-project-pack-media-files-or-not": [
+      "basics/moving-projects#exporting-a-project"
+    ],
+    "projects-storage/autosave-and-the-unsaved-changes-dot": [
+      "basics/projects#saving-is-automatic"
+    ],
+    "projects-storage/plugin-tweaks-don-t-show-the-unsaved-dot": [
+      "basics/projects#plugin-settings-and-the-dot"
+    ],
+    "projects-storage/closing-a-web-tab-doesn-t-warn-you": [
+      "basics/projects#closing-the-browser-tab"
+    ],
+    "projects-storage/quitting-the-desktop-app": [
+      "basics/projects#quitting-the-desktop-app"
+    ],
+    "projects-storage/cmd-w-closes-the-top-floating-window-not-the-app": [
+      "basics/projects#quitting-the-desktop-app"
+    ],
+    "projects-storage/the-project-menu": [
+      "basics/projects#the-project-menu"
+    ],
+    "projects-storage/some-project-actions-are-only-in-the-command-palette": [
+      "basics/projects#actions-in-the-command-palette"
+    ],
+    "projects-storage/recent-projects-search-right-click-menu": [
+      "basics/projects#recent-projects"
+    ],
+    "projects-storage/deleting-a-project-is-permanent": [
+      "basics/projects#deleting-a-project"
+    ],
+    "projects-storage/versions-automatic-backups": [
+      "basics/versions-and-backups#automatic-versions"
+    ],
+    "projects-storage/restoring-a-version-is-itself-reversible": [
+      "basics/versions-and-backups#restoring-a-version"
+    ],
+    "projects-storage/versions-don-t-include-audio-files": [
+      "basics/versions-and-backups#what-a-version-contains"
+    ],
+    "projects-storage/save-snapshot-mod-alt-s": [
+      "basics/versions-and-backups#snapshots"
+    ],
+    "projects-storage/crash-recovery-dialog": [
+      "basics/versions-and-backups#after-a-crash"
+    ],
+    "projects-storage/missing-samples-and-relinking": [
+      "basics/moving-projects#missing-samples"
+    ],
+    "projects-storage/samples-used-from-your-disk-aren-t-inside-the-project": [
+      "basics/moving-projects#samples-from-your-disk"
+    ],
+    "projects-storage/files-from-newer-or-pre-release-versions-are-refused": [
+      "basics/projects#projects-from-a-newer-version"
+    ],
+    "projects-storage/local-copy-projects-after-a-jam": [
+      "basics/projects#local-copy-projects"
+    ],
+    "transport-tempo/play-stop-buttons-and-what-stop-does-twice": [
+      "basics/playing-and-navigating#the-play-and-stop-buttons"
+    ],
+    "transport-tempo/space-returns-to-where-you-started-shift-space-stops-in-plac": [
+      "basics/playing-and-navigating#space-and-shiftspace"
+    ],
+    "transport-tempo/space-works-everywhere-except-text-fields": [
+      "basics/playing-and-navigating#space-works-everywhere"
+    ],
+    "transport-tempo/record-loop-and-metronome-have-no-default-shortcut": [
+      "basics/playing-and-navigating#record-loop-and-metronome-keys"
+    ],
+    "transport-tempo/tempo-field-type-drag-arrows-shift-for-fine": [
+      "basics/tempo-and-time-signature#setting-the-tempo"
+    ],
+    "transport-tempo/the-tempo-field-edits-the-tempo-at-the-playhead-not-the-whol": [
+      "basics/tempo-and-time-signature#songs-with-tempo-changes"
+    ],
+    "transport-tempo/tap-tempo": [
+      "basics/tempo-and-time-signature#tap-tempo"
+    ],
+    "transport-tempo/time-signature-field-is-per-position": [
+      "basics/tempo-and-time-signature#the-time-signature"
+    ],
+    "transport-tempo/position-display-before-zero-count-in": [
+      "basics/playing-and-navigating#the-position-display"
+    ],
+    "transport-tempo/metronome-settings-and-count-in-click": [
+      "basics/playing-and-navigating#the-metronome"
+    ],
+    "transport-tempo/count-in-and-punch-in-out": [
+      "basics/playing-and-navigating#count-in-and-punch"
+    ],
+    "transport-tempo/loop-brace-move-resize-toggle-draw-a-new-one": [
+      "basics/playing-and-navigating#looping-a-section"
+    ],
+    "transport-tempo/ruler-click-to-locate-and-scrub": [
+      "basics/playing-and-navigating#the-ruler-moves-the-playhead"
+    ],
+    "transport-tempo/follow-playhead-is-off-by-default": [
+      "basics/playing-and-navigating#follow-the-playhead"
+    ],
+    "transport-tempo/tempo-and-time-signature-changes-on-the-ruler-marker-lane": [
+      "basics/tempo-and-time-signature#changes-during-the-song"
+    ],
+    "transport-tempo/tempo-automation-lane-on-the-master-track": [
+      "basics/tempo-and-time-signature#the-tempo-lane"
+    ],
+    "transport-tempo/a-time-signature-change-mid-bar-cuts-that-bar-short": [
+      "basics/tempo-and-time-signature#a-change-in-the-middle-of-a-bar"
+    ],
+    "transport-tempo/project-scale-is-a-visual-guide-only": [
+      "basics/tempo-and-time-signature#the-project-scale"
+    ],
+    "transport-tempo/cpu-disk-and-engine-indicators": [
+      "basics/the-screen#cpu-disk-and-engine-status"
+    ],
+    "arrangement/adding-tracks-menu-drag-or-empty-space-right-click": [
+      "making-music/tracks#adding-a-track"
+    ],
+    "arrangement/new-midi-track-opens-the-instrument-picker": [
+      "making-music/tracks#choosing-an-instrument"
+    ],
+    "arrangement/track-types": [
+      "making-music/tracks#kinds-of-tracks"
+    ],
+    "arrangement/selecting-tracks-click-shift-cmd-ctrl": [
+      "making-music/tracks#selecting-tracks"
+    ],
+    "arrangement/solo-is-exclusive-cmd-ctrl-click-adds": [
+      "making-music/tracks#mute-and-solo"
+    ],
+    "arrangement/arm-is-exclusive-cmd-ctrl-click-to-arm-several": [
+      "making-music/tracks#arming-for-recording"
+    ],
+    "arrangement/header-volume-and-pan": [
+      "making-music/tracks#volume-and-pan"
+    ],
+    "arrangement/rename-tracks-empty-name-restores-the-default": [
+      "making-music/tracks#renaming-a-track"
+    ],
+    "arrangement/reorder-tracks-by-dragging-headers": [
+      "making-music/tracks#moving-tracks"
+    ],
+    "arrangement/track-height-header-width": [
+      "making-music/tracks#track-height-and-header-width"
+    ],
+    "arrangement/zoom-and-scroll-with-wheel-trackpad-middle-button": [
+      "basics/playing-and-navigating#zoom-and-scroll"
+    ],
+    "arrangement/zoom-out-stops-past-the-song-end": [
+      "basics/playing-and-navigating#how-far-you-can-zoom-out"
+    ],
+    "arrangement/grid-and-snap-alt-bypasses-everywhere": [
+      "making-music/arranging#the-grid-and-snapping"
+    ],
+    "arrangement/click-on-a-lane-places-the-insert-marker-not-the-playhead": [
+      "basics/playing-and-navigating#the-insert-marker"
+    ],
+    "arrangement/plain-drag-selects-clips-shift-drag-selects-time": [
+      "making-music/arranging#selecting-clips-or-time"
+    ],
+    "arrangement/plain-edit-keys-act-on-the-time-selection-when-one-exists": [
+      "making-music/arranging#edit-keys-and-the-time-selection"
+    ],
+    "arrangement/time-edits-insert-silence-delete-time-duplicate-paste": [
+      "making-music/arranging#time-edits"
+    ],
+    "arrangement/selecting-all-tracks-moves-markers-and-tempo-too": [
+      "making-music/arranging#all-tracks-or-some"
+    ],
+    "arrangement/paste-overwrites-time-clipboard-is-not-saved": [
+      "making-music/arranging#pasting-time"
+    ],
+    "arrangement/undo-restores-selections": [
+      "making-music/arranging#undo-brings-your-selection-back"
+    ],
+    "arrangement/markers-locators": [
+      "making-music/arranging#markers"
+    ],
+    "arrangement/group-and-ungroup-tracks": [
+      "making-music/tracks#groups"
+    ],
+    "arrangement/vca-tracks": [
+      "making-music/tracks#vca-tracks"
+    ],
+    "arrangement/track-menu-cut-copy-paste-duplicate-delete-tracks": [
+      "making-music/tracks#cut-copy-paste-duplicate-and-delete"
+    ],
+    "arrangement/cut-tracks-can-only-be-pasted-right-away": [
+      "making-music/tracks#cut-copy-paste-duplicate-and-delete"
+    ],
+    "arrangement/track-input-from-another-track": [
+      "making-music/tracks#recording-from-another-track"
+    ],
+    "arrangement/arrangement-shortcuts-need-the-arrangement-focused": [
+      "making-music/arranging#shortcuts-need-the-arrangement"
+    ],
+    "clips/grab-clips-by-their-title-bar": [
+      "making-music/clips#moving-a-clip"
+    ],
+    "clips/cmd-ctrl-drag-copies-not-alt": [
+      "making-music/clips#copying-while-dragging"
+    ],
+    "clips/clip-selection-modifiers": [
+      "making-music/clips#selecting-clips"
+    ],
+    "clips/click-opens-the-clip-editor": [
+      "making-music/clips#opening-a-clip"
+    ],
+    "clips/double-click-expands-the-editor-and-inspector": [
+      "making-music/clips#double-clicking-a-clip"
+    ],
+    "clips/moving-onto-other-clips-trims-or-deletes-them": [
+      "making-music/clips#dropping-onto-other-clips"
+    ],
+    "clips/moving-clips-between-tracks-and-to-new-tracks": [
+      "making-music/clips#moving-to-another-track"
+    ],
+    "clips/trimming-limits-and-leading-gaps": [
+      "making-music/clips#trimming"
+    ],
+    "clips/slip-edit-cmd-ctrl-shift-drag": [
+      "making-music/clips#slip-editing"
+    ],
+    "clips/create-midi-clips-with-double-click": [
+      "making-music/clips#making-a-midi-clip"
+    ],
+    "clips/drag-and-drop-audio": [
+      "making-music/clips#adding-audio"
+    ],
+    "clips/split-duplicate-loop-reverse-shortcuts": [
+      "making-music/clips#split-duplicate-loop-and-reverse"
+    ],
+    "clips/paste-goes-to-the-insert-marker-and-tiles": [
+      "making-music/clips#copy-and-paste"
+    ],
+    "clips/rename-clips": [
+      "making-music/clips#renaming-a-clip"
+    ],
+    "clips/clip-and-track-colors": [
+      "making-music/clips#clip-colors"
+    ],
+    "clips/fade-handles-on-audio-clips": [
+      "making-music/audio-clips#fades"
+    ],
+    "clips/crossfades-between-touching-clips": [
+      "making-music/audio-clips#crossfades"
+    ],
+    "clips/clip-gain-changes-the-waveform-height": [
+      "making-music/audio-clips#clip-gain"
+    ],
+    "clips/editing-several-clips-in-the-inspector": [
+      "making-music/clips#editing-several-clips-at-once"
+    ],
+    "clips/reverse": [
+      "making-music/audio-clips#reverse"
+    ],
+    "clips/warp-on-off-repitch-or-complex": [
+      "making-music/audio-clips#warp-on-or-off"
+    ],
+    "clips/warp-markers": [
+      "making-music/audio-clips#warp-markers"
+    ],
+    "clips/takes-where-they-come-from": [
+      "making-music/takes-and-comping#where-takes-come-from"
+    ],
+    "clips/swipe-comping-and-choosing-takes": [
+      "making-music/takes-and-comping#comping-picking-the-best-parts"
+    ],
+    "clips/take-lane-menu-crossfades-promote-flatten": [
+      "making-music/takes-and-comping#the-take-lane-menu"
+    ],
+    "clips/freeze-locks-clips-and-devices": [
+      "advanced/freeze-and-bounce#freezing-a-track"
+    ],
+    "clips/freezing-a-group-locks-its-tracks": [
+      "advanced/freeze-and-bounce#freezing-a-group"
+    ],
+    "clips/flatten-is-permanent": [
+      "advanced/freeze-and-bounce#flatten"
+    ],
+    "clips/bounce-to-new-track-bounce-in-place-consolidate": [
+      "advanced/freeze-and-bounce#bounce-and-consolidate"
+    ],
+    "midi-editing/draw-a-note-double-click-empty-space-or-turn-on-draw-mode": [
+      "making-music/piano-roll#drawing-notes"
+    ],
+    "midi-editing/new-notes-are-one-grid-step-long": [
+      "making-music/piano-roll#note-length-and-the-grid"
+    ],
+    "midi-editing/delete-a-note-by-double-clicking-it": [
+      "making-music/piano-roll#deleting-notes"
+    ],
+    "midi-editing/move-resize-and-transpose-by-dragging": [
+      "making-music/piano-roll#moving-resizing-and-transposing"
+    ],
+    "midi-editing/pressing-a-note-plays-it-the-headphones-toggle": [
+      "making-music/piano-roll#hearing-notes-as-you-edit"
+    ],
+    "midi-editing/selecting-notes-click-shift-cmd-ctrl-marquee-select-all": [
+      "making-music/piano-roll#selecting-notes"
+    ],
+    "midi-editing/click-a-piano-key-to-select-all-notes-of-that-pitch": [
+      "making-music/piano-roll#selecting-every-note-of-one-pitch"
+    ],
+    "midi-editing/alt-option-drag-a-note-to-change-its-velocity": [
+      "making-music/piano-roll#velocity"
+    ],
+    "midi-editing/cmd-ctrl-drag-duplicates-notes-and-you-can-switch-mid-drag": [
+      "making-music/piano-roll#duplicating-notes"
+    ],
+    "midi-editing/turning-snapping-off-shift-when-moving-alt-for-everything-el": [
+      "making-music/piano-roll#turning-snapping-off"
+    ],
+    "midi-editing/shift-drag-on-empty-space-makes-a-time-section": [
+      "making-music/piano-roll#sections"
+    ],
+    "midi-editing/with-a-section-copy-cut-paste-duplicate-use-its-exact-length": [
+      "making-music/piano-roll#editing-with-a-section"
+    ],
+    "midi-editing/arrow-keys-nudge-notes-shift-octave": [
+      "making-music/piano-roll#nudging-with-the-arrow-keys"
+    ],
+    "midi-editing/click-empty-grid-to-set-where-playback-starts": [
+      "making-music/piano-roll#setting-where-playback-starts"
+    ],
+    "midi-editing/velocity-lane": [
+      "making-music/piano-roll#the-velocity-lane"
+    ],
+    "midi-editing/quantize-cmd-ctrl-u-uses-the-quantize-popover-settings": [
+      "making-music/piano-roll#quantize"
+    ],
+    "midi-editing/quantize-and-humanize-settings-are-not-saved": [
+      "advanced/groove#the-settings-are-remembered"
+    ],
+    "midi-editing/humanize-randomizes-timing-and-velocity": [
+      "advanced/groove#humanize"
+    ],
+    "midi-editing/project-swing-vs-quantize-swing": [
+      "advanced/groove#project-swing-vs-quantize-swing"
+    ],
+    "midi-editing/scales-are-a-visual-guide-only": [
+      "making-music/piano-roll#scales"
+    ],
+    "midi-editing/scale-notes-only-hides-notes-that-are-still-there": [
+      "making-music/piano-roll#scale-notes-only"
+    ],
+    "midi-editing/editing-the-scale-in-follow-project-mode-changes-every-track": [
+      "making-music/piano-roll#project-scale-or-track-scale"
+    ],
+    "midi-editing/stretch-bar-2-2-and-reverse": [
+      "making-music/piano-roll#stretching-and-reversing-notes"
+    ],
+    "midi-editing/key-height-grip-and-triplet-grid": [
+      "making-music/piano-roll#key-height-and-triplets"
+    ],
+    "midi-editing/edit-several-midi-clips-at-once": [
+      "making-music/piano-roll#editing-several-clips-at-once"
+    ],
+    "midi-editing/multi-clip-notes-can-t-leave-their-clip-and-clips-never-grow": [
+      "making-music/piano-roll#limits-when-editing-several-clips"
+    ],
+    "midi-editing/looping-clips-only-the-first-pass-is-real": [
+      "making-music/piano-roll#looping-clips"
+    ],
+    "midi-editing/drum-rack-tracks-open-the-beat-editor": [
+      "making-music/piano-roll#drum-rack-tracks-open-the-beat-editor"
+    ],
+    "midi-editing/expression-lanes-cc-pitch-bend-pressure": [
+      "making-music/expression-and-mpe#choosing-a-lane"
+    ],
+    "midi-editing/drawing-and-editing-expression-curves": [
+      "making-music/expression-and-mpe#drawing-and-editing-curves"
+    ],
+    "midi-editing/per-note-lanes-draw-over-the-selected-notes-only": [
+      "making-music/expression-and-mpe#per-note-lanes"
+    ],
+    "midi-editing/mpe-turn-it-on-per-track-in-the-inspector": [
+      "making-music/expression-and-mpe#mpe"
+    ],
+    "midi-editing/convert-audio-to-midi": [
+      "advanced/audio-to-midi#converting-a-clip"
+    ],
+    "midi-editing/audio-to-midi-one-conversion-at-a-time-main-lane-clips-only": [
+      "advanced/audio-to-midi#one-at-a-time-main-lane-clips-only"
+    ],
+    "midi-editing/computer-midi-keyboard-m": [
+      "making-music/computer-midi-keyboard#turning-it-on"
+    ],
+    "midi-editing/while-the-midi-keyboard-is-on-letter-shortcuts-stop-working": [
+      "making-music/computer-midi-keyboard#shortcuts-while-it-is-on"
+    ],
+    "midi-editing/the-midi-keyboard-auto-arms-a-track": [
+      "making-music/computer-midi-keyboard#which-track-it-plays"
+    ],
+    "midi-editing/the-midi-keyboard-keeps-playing-inside-plugin-windows": [
+      "making-music/computer-midi-keyboard#inside-plugin-windows"
+    ],
+    "midi-editing/piano-roll-on-touch-select-and-draw-modes": [
+      "mobile/editing-on-touch#the-piano-roll-on-touch"
+    ],
+    "recording/recording-needs-the-desktop-app": [
+      "making-music/recording#recording-needs-the-desktop-app"
+    ],
+    "recording/arm-a-track-then-record": [
+      "making-music/recording#your-first-recording"
+    ],
+    "recording/arming-is-exclusive-cmd-ctrl-click-arms-several": [
+      "making-music/recording#arming-several-tracks"
+    ],
+    "recording/arm-state-isn-t-saved-with-the-project": [
+      "making-music/recording#arming-several-tracks"
+    ],
+    "recording/arming-an-audio-track-with-no-input-device-opens-settings": [
+      "making-music/recording#your-first-recording"
+    ],
+    "recording/the-in-panel-input-device-per-track-arm-input-and-monitor": [
+      "making-music/recording#the-in-panel"
+    ],
+    "recording/monitor-modes-auto-in-off": [
+      "making-music/recording#monitoring"
+    ],
+    "recording/midi-input-port-and-channel-filters": [
+      "making-music/recording#midi-input-filters"
+    ],
+    "recording/count-in-pre-roll": [
+      "making-music/recording#count-in"
+    ],
+    "recording/punch-records-only-inside-the-loop-region": [
+      "making-music/recording#punch-in-and-out"
+    ],
+    "recording/recording-over-clips-or-in-a-loop-makes-takes-not-overdub": [
+      "making-music/recording#recording-over-clips-and-in-a-loop"
+    ],
+    "recording/takes-show-lanes-swipe-to-comp-up-down-to-switch": [
+      "making-music/recording#recording-over-clips-and-in-a-loop"
+    ],
+    "recording/live-view-while-recording": [
+      "making-music/recording#while-you-record"
+    ],
+    "recording/silent-take-warning-macos-microphone-permission": [
+      "making-music/recording#a-silent-take"
+    ],
+    "recording/switching-projects-while-recording-loses-the-recording": [
+      "making-music/recording#while-you-record"
+    ],
+    "recording/recording-another-track-resampling": [
+      "making-music/recording#recording-another-track"
+    ],
+    "recording/capture-midi-rescue-what-you-just-played": [
+      "making-music/capture-midi#rescue-what-you-just-played"
+    ],
+    "recording/capture-while-stopped-sets-the-tempo-empty-projects-only": [
+      "making-music/capture-midi#played-while-stopped"
+    ],
+    "recording/capture-keeps-only-the-latest-take-then-empties": [
+      "making-music/capture-midi#what-capture-keeps"
+    ],
+    "recording/capture-respects-the-target-track-s-midi-filter": [
+      "making-music/capture-midi#when-capture-finds-nothing"
+    ],
+    "audio-midi-setup/settings-audio-driver-output-input-sample-rate-buffer": [
+      "making-music/audio-and-midi-setup#the-audio-settings"
+    ],
+    "audio-midi-setup/in-the-browser-the-system-picks-the-devices": [
+      "making-music/audio-and-midi-setup#in-the-browser"
+    ],
+    "audio-midi-setup/buffer-size-what-you-ask-for-vs-what-the-device-runs": [
+      "making-music/audio-and-midi-setup#what-you-ask-for-and-what-the-device-runs"
+    ],
+    "audio-midi-setup/smaller-buffer-lower-latency-more-dropouts": [
+      "making-music/audio-and-midi-setup#latency-and-dropouts"
+    ],
+    "audio-midi-setup/recording-latency-is-compensated-automatically": [
+      "making-music/audio-and-midi-setup#recording-latency"
+    ],
+    "audio-midi-setup/input-check": [
+      "making-music/audio-and-midi-setup#input-check"
+    ],
+    "audio-midi-setup/refresh-devices-after-plugging-in": [
+      "making-music/audio-and-midi-setup#plugging-in-a-new-device"
+    ],
+    "audio-midi-setup/unplugged-output-automatic-fallback-and-return": [
+      "making-music/audio-and-midi-setup#when-the-output-device-disappears"
+    ],
+    "audio-midi-setup/device-closed-status-when-another-engine-plays": [
+      "making-music/audio-and-midi-setup#device-closed"
+    ],
+    "audio-midi-setup/engine-not-responding-notice": [
+      "making-music/audio-and-midi-setup#the-engine-is-not-responding"
+    ],
+    "audio-midi-setup/engine-log-desktop": [
+      "making-music/audio-and-midi-setup#the-engine-log"
+    ],
+    "audio-midi-setup/midi-controllers-just-work-no-device-list": [
+      "advanced/midi-learn#your-controller-just-works"
+    ],
+    "audio-midi-setup/midi-mapping-turn-on-midi-mode-click-a-control-move-a-knob": [
+      "advanced/midi-learn#mapping-a-control"
+    ],
+    "audio-midi-setup/right-click-any-control-learn-midi-remove-midi-mapping": [
+      "advanced/midi-learn#from-a-controls-right-click-menu"
+    ],
+    "audio-midi-setup/mappings-are-saved-in-the-project-not-globally": [
+      "advanced/midi-learn#mappings-belong-to-the-project"
+    ],
+    "audio-midi-setup/one-mapping-per-knob-learning-again-replaces-it": [
+      "advanced/midi-learn#one-knob-one-target"
+    ],
+    "audio-midi-setup/mapping-options-mode-min-and-max": [
+      "advanced/midi-learn#mode-minimum-and-maximum"
+    ],
+    "audio-midi-setup/mapped-keys-still-play-notes": [
+      "advanced/midi-learn#mapped-keys-still-play-notes"
+    ],
+    "audio-midi-setup/midi-learn-needs-the-desktop-app": [
+      "advanced/midi-learn#desktop-only"
+    ],
+    "devices/adding-a-device": [
+      "making-music/devices-and-presets#adding-a-device"
+    ],
+    "devices/instruments-only-on-midi-tracks-one-per-chain": [
+      "making-music/devices-and-presets#what-goes-where"
+    ],
+    "devices/chain-order-is-fixed-by-section": [
+      "making-music/devices-and-presets#the-order-of-a-chain"
+    ],
+    "devices/device-window-vs-parameter-list": [
+      "making-music/devices-and-presets#the-device-window-and-the-parameter-list"
+    ],
+    "devices/bypass-rename-copy-paste-devices": [
+      "making-music/devices-and-presets#bypass-rename-copy-and-paste"
+    ],
+    "devices/hover-only-header-buttons": [
+      "making-music/devices-and-presets#the-device-header"
+    ],
+    "devices/knob-gestures": [
+      "making-music/devices-and-presets#turning-knobs"
+    ],
+    "devices/touch-knobs-fine-mode-by-moving-sideways": [
+      "making-music/devices-and-presets#turning-knobs"
+    ],
+    "devices/no-typing-values-into-knobs": [
+      "making-music/devices-and-presets#exact-values"
+    ],
+    "devices/parameter-context-menu": [
+      "making-music/devices-and-presets#the-parameter-menu"
+    ],
+    "devices/show-all-parameters-and-pinning": [
+      "making-music/devices-and-presets#plugins-with-many-parameters"
+    ],
+    "devices/presets-load-save-factory-vs-user": [
+      "making-music/devices-and-presets#presets"
+    ],
+    "devices/presets-are-files-in-your-user-library": [
+      "making-music/devices-and-presets#where-presets-are-saved"
+    ],
+    "devices/current-preset-name-is-per-session": [
+      "making-music/devices-and-presets#the-preset-name-on-the-button"
+    ],
+    "devices/device-library-favourites-sort-and-format-toggles": [
+      "making-music/devices-and-presets#favourites-sorting-and-plugin-formats"
+    ],
+    "devices/synth": [
+      "making-music/instruments#synth"
+    ],
+    "devices/poly-synth": [
+      "making-music/instruments#poly-synth"
+    ],
+    "devices/fm-synth": [
+      "making-music/instruments#fm-synth"
+    ],
+    "devices/sampler": [
+      "making-music/instruments#sampler"
+    ],
+    "devices/sampler-slice-mode": [
+      "making-music/instruments#slice-mode"
+    ],
+    "devices/multisampler": [
+      "making-music/instruments#multisampler"
+    ],
+    "devices/compressor": [
+      "making-music/effects#compressor"
+    ],
+    "devices/eq": [
+      "making-music/effects#eq"
+    ],
+    "devices/delay": [
+      "making-music/effects#delay"
+    ],
+    "devices/reverb": [
+      "making-music/effects#reverb"
+    ],
+    "devices/convolution-reverb": [
+      "making-music/effects#convolution-reverb"
+    ],
+    "devices/limiter": [
+      "making-music/effects#limiter"
+    ],
+    "devices/utility": [
+      "making-music/effects#utility"
+    ],
+    "devices/color-effects-saturator-bitcrusher-auto-filter": [
+      "making-music/effects#color-saturator-bitcrusher-auto-filter"
+    ],
+    "devices/modulation-effects-chorus-phaser-flanger-tremolo": [
+      "making-music/effects#modulation-chorus-phaser-flanger-tremolo"
+    ],
+    "devices/dynamics-gate-multiband-compressor-transient-shaper": [
+      "making-music/effects#dynamics-gate-multiband-compressor-transient-shaper"
+    ],
+    "devices/analysis-spectrum-and-tuner": [
+      "making-music/effects#analysis-spectrum-and-tuner"
+    ],
+    "devices/midi-effects-arpeggiator-chord-scale-note-length-velocity-ra": [
+      "making-music/effects#midi-effects"
+    ],
+    "devices/external-instrument-external-audio-effect": [
+      "making-music/instruments#external-instrument",
+      "making-music/effects#external-audio-effect"
+    ],
+    "racks-modulation/group-a-device-into-a-rack": [
+      "making-music/racks-and-macros#making-a-rack"
+    ],
+    "racks-modulation/rack-chains": [
+      "making-music/racks-and-macros#chains"
+    ],
+    "racks-modulation/chain-zones-keys-velocity-chain-select": [
+      "making-music/racks-and-macros#zones-keys-velocity-and-chain-select"
+    ],
+    "racks-modulation/rack-content-rules-and-nesting-depth": [
+      "making-music/racks-and-macros#what-a-rack-can-hold"
+    ],
+    "racks-modulation/rack-macros": [
+      "making-music/racks-and-macros#macros"
+    ],
+    "racks-modulation/rack-presets-keep-the-whole-rack": [
+      "making-music/racks-and-macros#rack-presets"
+    ],
+    "racks-modulation/drum-rack-pads": [
+      "making-music/drum-rack#pads"
+    ],
+    "racks-modulation/choke-groups": [
+      "making-music/drum-rack#choke-groups"
+    ],
+    "racks-modulation/pad-solo-isn-t-saved-or-undoable": [
+      "making-music/drum-rack#mute-and-solo-pads"
+    ],
+    "racks-modulation/slice-a-sample-into-a-drum-rack": [
+      "making-music/drum-rack#slicing-a-sample-to-pads"
+    ],
+    "racks-modulation/adding-a-modulator": [
+      "making-music/modulation-and-sidechain#adding-a-modulator"
+    ],
+    "racks-modulation/mapping-a-modulator-to-parameters": [
+      "making-music/modulation-and-sidechain#mapping-a-modulator"
+    ],
+    "racks-modulation/modulation-depth-chips-and-rings": [
+      "making-music/modulation-and-sidechain#depth-rings-and-chips"
+    ],
+    "racks-modulation/modulator-types": [
+      "making-music/modulation-and-sidechain#modulator-types"
+    ],
+    "racks-modulation/sidechain-a-device": [
+      "making-music/modulation-and-sidechain#sidechain"
+    ],
+    "racks-modulation/sidechain-from-your-own-track-or-a-muted-track": [
+      "making-music/modulation-and-sidechain#keying-from-your-own-track-or-a-muted-track"
+    ],
+    "automation/show-automation-lanes": [
+      "making-music/automation#showing-automation-lanes"
+    ],
+    "automation/adding-points": [
+      "making-music/automation#adding-points"
+    ],
+    "automation/editing-points": [
+      "making-music/automation#editing-points"
+    ],
+    "automation/shift-snaps-values-to-round-numbers": [
+      "making-music/automation#round-values-with-shift"
+    ],
+    "automation/curves": [
+      "making-music/automation#curves"
+    ],
+    "automation/set-an-exact-value": [
+      "making-music/automation#set-an-exact-value"
+    ],
+    "automation/time-ranges-in-a-lane": [
+      "making-music/automation#copying-and-moving-a-time-range"
+    ],
+    "automation/lane-height-and-value-zoom": [
+      "making-music/automation#lane-height-and-value-zoom"
+    ],
+    "automation/moving-an-automated-knob-doesn-t-stick": [
+      "making-music/automation#automated-knobs-follow-their-lane"
+    ],
+    "automation/hide-vs-disable-vs-delete-a-lane": [
+      "making-music/automation#hide-disable-or-delete-a-lane"
+    ],
+    "automation/device-on-off-automation": [
+      "making-music/automation#turning-a-device-on-and-off"
+    ],
+    "automation/clip-envelopes": [
+      "making-music/automation#clip-envelopes"
+    ],
+    "automation/automation-vs-modulation": [
+      "making-music/automation#automation-or-modulation"
+    ],
+    "automation/automation-on-touch": [
+      "mobile/editing-on-touch#automation-on-touch"
+    ],
+    "plugins/plugins-are-desktop-only": [
+      "sounds-and-plugins/plugins#plugins-need-the-desktop-app"
+    ],
+    "plugins/plugin-folders-and-scanning": [
+      "sounds-and-plugins/plugins#where-ethereal-looks-for-plugins"
+    ],
+    "plugins/failed-plugins-and-retry": [
+      "sounds-and-plugins/plugins#plugins-that-failed-to-load"
+    ],
+    "plugins/same-plugin-in-several-formats": [
+      "sounds-and-plugins/plugins#the-same-plugin-in-several-formats"
+    ],
+    "plugins/plugin-editor-windows": [
+      "sounds-and-plugins/plugins#opening-a-plugins-window"
+    ],
+    "plugins/linux-plugin-editors-need-x11": [
+      "sounds-and-plugins/plugins#plugin-windows-on-linux"
+    ],
+    "plugins/keys-in-plugin-windows": [
+      "sounds-and-plugins/plugins#keys-in-plugin-windows"
+    ],
+    "plugins/sandboxing-and-crashes": [
+      "sounds-and-plugins/plugins#when-a-plugin-crashes"
+    ],
+    "plugins/open-without-plugins-safe-mode": [
+      "sounds-and-plugins/plugins#opening-a-project-without-plugins"
+    ],
+    "plugins/missing-plugins": [
+      "sounds-and-plugins/plugins#missing-plugins"
+    ],
+    "plugins/plugin-state-is-saved-in-the-project": [
+      "sounds-and-plugins/plugins#how-plugin-sounds-are-saved"
+    ],
+    "plugins/plugin-presets": [
+      "sounds-and-plugins/plugins#plugin-presets"
+    ],
+    "browser/the-browser": [
+      "sounds-and-plugins/browser#finding-sounds"
+    ],
+    "browser/preview-samples": [
+      "sounds-and-plugins/browser#previewing-samples"
+    ],
+    "browser/drag-samples-into-the-project": [
+      "sounds-and-plugins/browser#dragging-samples-in"
+    ],
+    "browser/midi-files-from-the-browser": [
+      "sounds-and-plugins/browser#midi-files"
+    ],
+    "browser/presets-in-the-browser": [
+      "sounds-and-plugins/browser#presets"
+    ],
+    "browser/add-your-own-folders": [
+      "sounds-and-plugins/browser#adding-your-own-folders"
+    ],
+    "browser/folder-depth-limit": [
+      "sounds-and-plugins/browser#what-gets-indexed"
+    ],
+    "browser/tags-and-favourites": [
+      "sounds-and-plugins/browser#favourites-and-tags"
+    ],
+    "browser/packs": [
+      "sounds-and-plugins/browser#packs"
+    ],
+    "browser/file-filter-rules": [
+      "sounds-and-plugins/browser#choosing-which-files-are-listed"
+    ],
+    "browser/project-media-and-open-projects": [
+      "sounds-and-plugins/browser#projects"
+    ],
+    "sharing/the-share-button-and-its-two-modes": [
+      "sharing/overview#two-ways-to-share"
+    ],
+    "sharing/no-account-needed-to-join-or-view": [
+      "sharing/overview#no-account-needed"
+    ],
+    "sharing/can-edit-vs-can-listen-links": [
+      "sharing/overview#can-edit-and-can-listen"
+    ],
+    "sharing/links-are-bearer-capabilities": [
+      "sharing/overview#anyone-with-the-link-gets-in"
+    ],
+    "sharing/allow-editing-toggle-live": [
+      "sharing/live-sessions#allow-editing"
+    ],
+    "sharing/reset-link-vs-remove-vs-stop-sharing": [
+      "sharing/live-sessions#reset-remove-or-stop"
+    ],
+    "sharing/quitting-is-not-stopping-sharing": [
+      "sharing/live-sessions#closing-the-app-doesnt-stop-sharing"
+    ],
+    "sharing/people-list-roles-and-limits": [
+      "sharing/live-sessions#the-people-list"
+    ],
+    "sharing/joining-open-in-the-app-or-continue-in-browser": [
+      "sharing/joining#opening-an-invite-link"
+    ],
+    "sharing/the-join-screen-and-play-with": [
+      "sharing/joining#the-join-screen"
+    ],
+    "sharing/why-a-join-fails": [
+      "sharing/joining#when-a-join-fails"
+    ],
+    "sharing/the-host-must-be-online-to-join": [
+      "sharing/joining#the-host-must-be-online"
+    ],
+    "sharing/session-pill-and-view-only-badge": [
+      "sharing/live-sessions#the-session-pill"
+    ],
+    "sharing/shared-projects-in-your-project-list": [
+      "sharing/live-sessions#shared-projects-in-your-project-list"
+    ],
+    "sharing/static-snapshot-what-gets-published": [
+      "sharing/static-links#what-a-snapshot-contains"
+    ],
+    "sharing/static-permissions": [
+      "sharing/static-links#permissions"
+    ],
+    "sharing/what-a-static-share-always-exposes": [
+      "sharing/static-links#what-anyone-with-the-link-can-see"
+    ],
+    "sharing/hide-devices": [
+      "sharing/static-links#hide-devices"
+    ],
+    "sharing/download-can-t-stop-recording": [
+      "sharing/static-links#download-and-recording"
+    ],
+    "sharing/publishing-again-replaces-the-old-link": [
+      "sharing/static-links#publishing-again"
+    ],
+    "sharing/snapshots-never-expire-only-this-device-can-remove-them": [
+      "sharing/static-links#links-dont-expire"
+    ],
+    "sharing/publish-progress-cancel-and-rate-limits": [
+      "sharing/static-links#publishing-takes-a-moment"
+    ],
+    "sharing/the-read-only-viewer": [
+      "sharing/share-viewer#a-read-only-ethereal"
+    ],
+    "sharing/solo-and-mute-in-the-viewer": [
+      "sharing/share-viewer#listening-to-single-tracks"
+    ],
+    "sharing/open-a-copy-to-edit": [
+      "sharing/share-viewer#opening-a-copy-to-edit"
+    ],
+    "sharing/privacy-of-live-sharing": [
+      "sharing/live-sessions#privacy"
+    ],
+    "collaboration/everyone-plays-on-their-own-computer": [
+      "sharing/live-sessions#everyone-plays-on-their-own-computer"
+    ],
+    "collaboration/mute-and-solo-are-per-person": [
+      "sharing/live-sessions#mute-and-solo-are-yours"
+    ],
+    "collaboration/what-syncs-and-what-stays-local": [
+      "sharing/live-sessions#what-syncs-and-what-stays-yours"
+    ],
+    "collaboration/audio-files-are-sent-to-everyone": [
+      "sharing/live-sessions#audio-files-are-sent-to-everyone"
+    ],
+    "collaboration/plugins-don-t-travel": [
+      "sharing/live-sessions#plugins-dont-travel"
+    ],
+    "collaboration/undo-only-undoes-your-own-changes": [
+      "sharing/live-sessions#undo-only-undoes-your-own-changes"
+    ],
+    "collaboration/live-pointers-and-selections": [
+      "sharing/live-sessions#seeing-each-other"
+    ],
+    "collaboration/follow-someone-s-view": [
+      "sharing/live-sessions#following-someones-view"
+    ],
+    "collaboration/hide-users-and-notes": [
+      "sharing/live-sessions#hide-users-and-notes"
+    ],
+    "collaboration/session-chat": [
+      "sharing/live-sessions#chat"
+    ],
+    "collaboration/pinned-notes": [
+      "sharing/live-sessions#pinned-notes"
+    ],
+    "collaboration/listen-on-a-friend-s-computer": [
+      "sharing/listening-together#listening-on-someone"
+    ],
+    "collaboration/listening-needs-the-other-person-s-yes": [
+      "sharing/listening-together#they-say-yes-first"
+    ],
+    "collaboration/host-s-listening-settings": [
+      "sharing/listening-together#your-listening-settings"
+    ],
+    "collaboration/listening-latency": [
+      "sharing/listening-together#latency"
+    ],
+    "collaboration/offline-copies-and-host-going-offline": [
+      "sharing/live-sessions#when-the-host-goes-offline"
+    ],
+    "collaboration/local-copy-projects": [
+      "sharing/live-sessions#local-copy-projects"
+    ],
+    "collaboration/leaving-a-session": [
+      "sharing/live-sessions#leaving-a-session"
+    ],
+    "collaboration/when-sharing-ends": [
+      "sharing/live-sessions#when-sharing-ends"
+    ],
+    "collaboration/play-with-no-engine-view-only": [
+      "sharing/listening-together#no-engine-view-only"
+    ],
+    "collaboration/run-an-engine-for-me-on-someone-s-computer": [
+      "sharing/listening-together#running-an-engine-on-their-computer"
+    ],
+    "collaboration/everyone-must-run-the-same-version": [
+      "sharing/live-sessions#everyone-needs-the-same-version"
+    ],
+    "import-daw/which-daw-files-open": [
+      "import-export/other-daws#which-files-open"
+    ],
+    "import-daw/where-to-start-an-import": [
+      "import-export/other-daws#starting-an-import"
+    ],
+    "import-daw/an-import-makes-a-new-project": [
+      "import-export/other-daws#an-import-makes-a-new-project"
+    ],
+    "import-daw/import-is-beta": [
+      "import-export/other-daws#importing-is-in-beta"
+    ],
+    "import-daw/progress-and-cancel": [
+      "import-export/other-daws#while-it-imports"
+    ],
+    "import-daw/reading-the-import-report": [
+      "import-export/other-daws#the-import-report"
+    ],
+    "import-daw/right-click-a-report-line-to-resolve-it": [
+      "import-export/other-daws#the-import-report"
+    ],
+    "import-daw/nothing-resolvable-is-thrown-away": [
+      "import-export/other-daws#nothing-is-thrown-away"
+    ],
+    "import-daw/resolve-missing-devices-samples": [
+      "import-export/other-daws#resolving-missing-items"
+    ],
+    "import-daw/resolve-later-and-getting-back-to-it": [
+      "import-export/other-daws#resolving-later"
+    ],
+    "import-daw/show-when-a-project-opens-switch": [
+      "import-export/other-daws#resolving-later"
+    ],
+    "import-daw/replacing-a-missing-device-carries-values-over": [
+      "import-export/other-daws#replacing-a-device-or-plugin"
+    ],
+    "import-daw/plugin-state-kept-only-for-the-same-plugin": [
+      "import-export/other-daws#replacing-a-device-or-plugin"
+    ],
+    "import-daw/ai-suggestions-for-missing-plugins-optional": [
+      "import-export/other-daws#ai-suggestions"
+    ],
+    "import-daw/finding-missing-audio-files": [
+      "import-export/other-daws#finding-missing-audio-files"
+    ],
+    "import-daw/on-the-web-referenced-audio-comes-in-missing": [
+      "import-export/other-daws#audio-files-on-the-web"
+    ],
+    "import-daw/ableton-live-what-converts": [
+      "import-export/other-daws#ableton-live"
+    ],
+    "import-daw/ableton-live-what-is-lost-or-approximated": [
+      "import-export/other-daws#ableton-live"
+    ],
+    "import-daw/fl-studio-what-converts-and-what-doesn-t": [
+      "import-export/other-daws#fl-studio"
+    ],
+    "import-daw/dawproject-reaper-per-app-gaps": [
+      "import-export/other-daws#dawproject-and-reaper"
+    ],
+    "import-daw/size-limits-on-imports": [
+      "import-export/other-daws#size-limits"
+    ],
+    "import-daw/import-audio-files-i-ctrl-i": [
+      "import-export/importing-audio#import-audio"
+    ],
+    "import-daw/dropping-audio-vs-project-files": [
+      "import-export/importing-audio#dropping-files-on-the-window"
+    ],
+    "import-daw/audio-import-limits-and-errors": [
+      "import-export/importing-audio#limits-and-errors"
+    ],
+    "export/export-audio-dialog": [
+      "import-export/exporting-audio#the-export-audio-dialog"
+    ],
+    "export/where-exported-files-go": [
+      "import-export/exporting-audio#where-the-files-go"
+    ],
+    "export/range-options-and-the-selected-clips-range": [
+      "import-export/exporting-audio#range"
+    ],
+    "export/tail-for-reverb-and-delay": [
+      "import-export/exporting-audio#tail"
+    ],
+    "export/formats-bit-depth-and-sample-rate-rules": [
+      "import-export/exporting-audio#format-bit-depth-and-sample-rate"
+    ],
+    "export/normalize": [
+      "import-export/exporting-audio#normalize"
+    ],
+    "export/stems-what-each-file-contains": [
+      "import-export/exporting-audio#stems"
+    ],
+    "export/overlapping-stems": [
+      "import-export/exporting-audio#when-stems-overlap"
+    ],
+    "export/export-keeps-running-when-the-dialog-is-closed": [
+      "import-export/exporting-audio#while-it-exports"
+    ],
+    "export/large-exports-in-the-browser": [
+      "import-export/exporting-audio#large-exports-in-the-browser"
+    ],
+    "export/a-plugin-that-can-t-render-offline-fails-the-export": [
+      "import-export/exporting-audio#when-a-plugin-stops-the-export"
+    ],
+    "export/export-to-another-daw": [
+      "import-export/exporting-to-other-daws#exporting-a-project"
+    ],
+    "export/als-and-flp-exports-are-untested-in-live-fl": [
+      "import-export/exporting-to-other-daws#which-format-to-choose"
+    ],
+    "export/what-other-daws-can-t-receive": [
+      "import-export/exporting-to-other-daws#what-other-daws-cant-receive"
+    ],
+    "export/fl-studio-may-ask-to-locate-samples": [
+      "import-export/exporting-to-other-daws#fl-studio-and-its-samples"
+    ],
+    "shortcuts-commands/command-palette-k-ctrl-k": [
+      "basics/command-palette-and-settings#the-command-palette"
+    ],
+    "shortcuts-commands/commands-only-in-the-palette": [
+      "basics/command-palette-and-settings#commands-only-in-the-palette"
+    ],
+    "shortcuts-commands/transport-shortcuts": [
+      "reference/keyboard-shortcuts#all-shortcuts"
+    ],
+    "shortcuts-commands/edit-shortcuts": [
+      "reference/keyboard-shortcuts#all-shortcuts"
+    ],
+    "shortcuts-commands/copy-cut-paste-act-on-the-time-selection-when-there-is-one": [
+      "reference/keyboard-shortcuts#the-time-selection-comes-first"
+    ],
+    "shortcuts-commands/time-selection-shortcuts": [
+      "reference/keyboard-shortcuts#all-shortcuts"
+    ],
+    "shortcuts-commands/arrangement-shortcuts": [
+      "reference/keyboard-shortcuts#all-shortcuts"
+    ],
+    "shortcuts-commands/piano-roll-shortcuts": [
+      "reference/keyboard-shortcuts#all-shortcuts"
+    ],
+    "shortcuts-commands/automation-lane-shortcuts": [
+      "reference/keyboard-shortcuts#all-shortcuts"
+    ],
+    "shortcuts-commands/app-and-view-shortcuts": [
+      "reference/keyboard-shortcuts#all-shortcuts"
+    ],
+    "shortcuts-commands/computer-midi-keyboard-m": [
+      "reference/keyboard-shortcuts#the-computer-midi-keyboard"
+    ],
+    "shortcuts-commands/mouse-modifiers": [
+      "reference/keyboard-shortcuts#all-shortcuts"
+    ],
+    "shortcuts-commands/customizing-shortcuts": [
+      "reference/keyboard-shortcuts#changing-shortcuts"
+    ],
+    "shortcuts-commands/ableton-like-preset": [
+      "reference/keyboard-shortcuts#the-ableton-like-preset"
+    ],
+    "shortcuts-commands/conflicts": [
+      "reference/keyboard-shortcuts#conflicts"
+    ],
+    "shortcuts-commands/any-palette-command-can-get-a-shortcut": [
+      "reference/keyboard-shortcuts#any-command-can-get-a-shortcut"
+    ],
+    "shortcuts-commands/print-the-cheat-sheet": [
+      "reference/keyboard-shortcuts#printing-a-cheat-sheet"
+    ],
+    "shortcuts-commands/where-shortcuts-are-saved": [
+      "reference/keyboard-shortcuts#where-your-shortcuts-are-saved"
+    ],
+    "shortcuts-commands/ctrl-vs-on-mac": [
+      "reference/keyboard-shortcuts#mac-and-pc-keys"
+    ],
+    "shortcuts-commands/browser-shortcuts-that-win-on-the-web": [
+      "reference/keyboard-shortcuts#in-the-browser"
+    ],
+    "shortcuts-commands/shortcuts-in-text-fields-and-plugin-windows": [
+      "reference/keyboard-shortcuts#text-fields-and-plugin-windows"
+    ],
+    "mobile/phones-show-a-not-available-screen": [
+      "mobile/mobile-beta#phones-and-tablets"
+    ],
+    "mobile/turning-on-the-mobile-beta": [
+      "mobile/mobile-beta#turning-on-the-mobile-beta"
+    ],
+    "mobile/the-mobile-layout": [
+      "mobile/mobile-beta#the-layout"
+    ],
+    "mobile/pan-pinch-and-momentum": [
+      "mobile/gestures#scrolling-and-zooming"
+    ],
+    "mobile/tap-double-tap-long-press": [
+      "mobile/gestures#tap-double-tap-and-long-press"
+    ],
+    "mobile/panning-stops-following-the-playhead": [
+      "mobile/gestures#following-the-playhead"
+    ],
+    "mobile/empty-arrangement-double-tap-to-make-a-clip": [
+      "mobile/gestures#making-a-clip"
+    ],
+    "mobile/track-headers-on-touch": [
+      "mobile/gestures#track-headers"
+    ],
+    "mobile/the-track-sheet": [
+      "mobile/gestures#the-track-sheet"
+    ],
+    "mobile/sheets-close-with-back": [
+      "mobile/gestures#sheets"
+    ],
+    "mobile/moving-clips-select-first-or-long-press": [
+      "mobile/gestures#moving-clips"
+    ],
+    "mobile/trim-handles-only-on-selected-wide-enough-clips": [
+      "mobile/gestures#trimming-clips"
+    ],
+    "mobile/the-clip-action-bar": [
+      "mobile/gestures#the-clip-action-bar"
+    ],
+    "mobile/select-more-multi-select-without-shift": [
+      "mobile/gestures#selecting-several-clips"
+    ],
+    "mobile/nudge-by-one-grid-step": [
+      "mobile/gestures#nudging-by-one-grid-step"
+    ],
+    "mobile/time-range-with-handles": [
+      "mobile/gestures#selecting-a-time-range"
+    ],
+    "mobile/clip-sheet-typed-position": [
+      "mobile/gestures#typing-a-position"
+    ],
+    "mobile/clip-editor-and-piano-roll-on-touch": [
+      "mobile/editing-on-touch#the-clip-editor"
+    ],
+    "mobile/automation-on-touch": [
+      "mobile/editing-on-touch#automation-on-touch"
+    ],
+    "mobile/the-mixer-view-and-fine-mode": [
+      "mobile/editing-on-touch#the-mixer"
+    ],
+    "mobile/leaving-the-app-stops-playback": [
+      "mobile/mobile-beta#leaving-the-app-stops-playback"
+    ],
+    "mobile/rotating-keeps-your-place": [
+      "mobile/mobile-beta#rotating-the-phone"
+    ],
+    "mobile/what-s-missing-on-mobile": [
+      "mobile/mobile-beta#what-still-needs-a-computer"
+    ],
+    "mobile/projects-sharing-and-settings-on-a-phone": [
+      "mobile/mobile-beta#projects-sharing-and-settings"
+    ],
+    "ai-mcp/ask-ai-panel": [
+      "advanced/ai-assistant#the-ask-ai-panel"
+    ],
+    "ai-mcp/bring-your-own-api-key": [
+      "advanced/ai-assistant#connecting-a-provider"
+    ],
+    "ai-mcp/where-your-key-is-stored": [
+      "advanced/ai-assistant#where-your-key-is-stored"
+    ],
+    "ai-mcp/what-is-sent-to-the-ai-provider": [
+      "advanced/ai-assistant#what-is-sent-to-the-provider"
+    ],
+    "ai-mcp/each-ai-action-is-one-undo-step": [
+      "advanced/ai-assistant#every-ai-edit-is-one-undo-step"
+    ],
+    "ai-mcp/tool-calls-stop-and-round-limit": [
+      "advanced/ai-assistant#tool-calls-stop-and-the-round-limit"
+    ],
+    "ai-mcp/switching-provider-starts-fresh": [
+      "advanced/ai-assistant#the-saved-conversation-and-switching-provider"
+    ],
+    "ai-mcp/web-cors-blocks-some-providers": [
+      "advanced/ai-assistant#providers-blocked-in-the-browser"
+    ],
+    "ai-mcp/models-without-tool-support": [
+      "advanced/ai-assistant#models-without-tool-support"
+    ],
+    "ai-mcp/what-the-ai-can-t-do": [
+      "advanced/ai-assistant#what-the-ai-can-and-cant-do"
+    ],
+    "ai-mcp/external-ai-agents-mcp": [
+      "advanced/mcp#allow-external-ai-agents"
+    ],
+    "ai-mcp/mcp-headless-and-remote-modes": [
+      "advanced/mcp#without-the-app-project-files-and-engine-servers"
+    ],
+    "remote-engine/engine-server-remote-engine": [
+      "advanced/engine-server#connecting-to-an-engine-server"
+    ],
+    "remote-engine/what-runs-where-with-an-engine-server": [
+      "advanced/engine-server#what-runs-where"
+    ],
+    "remote-engine/engine-server-security": [
+      "advanced/engine-server#security"
+    ],
+    "remote-engine/uploading-audio-to-an-engine-server": [
+      "advanced/engine-server#adding-audio-files"
+    ],
+    "remote-engine/web-vs-desktop-plugins": [
+      "welcome/what-is-ethereal#what-the-web-version-cant-do"
+    ],
+    "remote-engine/web-vs-desktop-recording-and-midi": [
+      "welcome/what-is-ethereal#what-the-web-version-cant-do"
+    ],
+    "remote-engine/web-projects-live-in-the-browser": [
+      "welcome/where-your-projects-live#in-the-browser"
+    ],
+    "remote-engine/web-phones-and-big-projects": [
+      "welcome/what-is-ethereal#phones-and-tablets"
+    ],
+    "remote-engine/web-hosting-and-dedicated-engines": [
+      "welcome/what-is-ethereal#what-the-web-version-cant-do"
+    ],
+    "remote-engine/remote-engine-latency": [
+      "advanced/engine-server#latency-when-the-engine-is-elsewhere"
+    ],
+    "remote-engine/audio-device-released-with-no-engine": [
+      "advanced/engine-server#when-your-own-engine-is-off"
+    ],
+    "app-shell/settings-overview": [
+      "basics/command-palette-and-settings#settings"
+    ],
+    "app-shell/command-palette-cmd-ctrl-k": [
+      "basics/command-palette-and-settings#the-command-palette"
+    ],
+    "app-shell/floating-panels-pin-click-away-collapse": [
+      "basics/the-screen#panels-that-float"
+    ],
+    "app-shell/show-hide-the-editor-drawer-cmd-ctrl-j": [
+      "basics/the-screen#the-editor-drawer"
+    ],
+    "app-shell/undo-and-redo": [
+      "basics/undo-and-history#undo-and-redo"
+    ],
+    "app-shell/history-panel-jump-to-any-step": [
+      "basics/undo-and-history#the-history-panel"
+    ],
+    "app-shell/checkpoints-in-the-undo-history": [
+      "basics/undo-and-history#checkpoints"
+    ],
+    "app-shell/undo-history-isn-t-saved": [
+      "basics/undo-and-history#the-history-isnt-saved"
+    ],
+    "app-shell/undo-in-a-jam-only-undoes-your-own-edits": [
+      "basics/undo-and-history#undo-in-a-live-session"
+    ],
+    "app-shell/toasts-which-ones-stay": [
+      "basics/the-screen#messages-at-the-bottom"
+    ],
+    "app-shell/engine-not-responding-warning": [
+      "reference/troubleshooting#the-engine-is-not-responding"
+    ],
+    "app-shell/engine-log-desktop": [
+      "reference/troubleshooting#the-engine-log"
+    ],
+    "app-shell/report-an-issue": [
+      "reference/reporting-issues#report-an-issue"
+    ],
+    "app-shell/what-an-issue-report-attaches": [
+      "reference/reporting-issues#what-a-report-attaches"
+    ],
+    "app-shell/telemetry-is-on-by-default-and-how-to-turn-it-off": [
+      "reference/privacy-and-telemetry#crash-reports-and-usage-statistics"
+    ],
+    "app-shell/send-diagnostics-ticket-for-a-bug": [
+      "reference/reporting-issues#send-diagnostics"
+    ],
+    "app-shell/debug-panels-advanced": [
+      "reference/reporting-issues#debug-panels"
+    ]
+  },
+  "removedItems": {
+    "ai-mcp/ether-mcp-isn-t-bundled-yet": "#662 ships ether-mcp with the desktop app; advanced/mcp#connecting-claude-code documents the current setup"
+  },
+  "pendingItems": []
+}

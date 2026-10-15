@@ -1,0 +1,68 @@
+/* Expression lanes under the piano roll (midi-expression). */
+
+.eth-expr {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+}
+
+.eth-expr__bar {
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-sm);
+  padding: var(--eth-space-xs) var(--eth-space-sm);
+  border-top: var(--eth-border-width) solid var(--eth-color-border);
+}
+
+.eth-expr-lane {
+  display: block;
+  overflow: hidden;
+  background: var(--eth-color-bg-inset);
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.eth-expr-lane__centre {
+  stroke: var(--eth-color-border-light);
+  stroke-width: 1;
+  pointer-events: none;
+}
+
+.eth-expr-lane__curve {
+  fill: none;
+  stroke: var(--eth-color-accent);
+  stroke-width: 1.5;
+  pointer-events: none;
+}
+
+.eth-expr-lane__fill {
+  fill: var(--eth-color-accent);
+  fill-opacity: 0.15;
+  stroke: none;
+  pointer-events: none;
+}
+
+.eth-expr-lane__point {
+  fill: var(--eth-color-bg-inset);
+  stroke: var(--eth-color-accent);
+  stroke-width: 1.5;
+  cursor: grab;
+}
+
+.eth-expr-lane__hint {
+  fill: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+  pointer-events: none;
+}
+
+/* Note spans in per-note lanes. */
+.eth-expr-note {
+  fill: var(--eth-color-border);
+  fill-opacity: 0.35;
+  stroke: var(--eth-color-border-light);
+  stroke-width: 1;
+}
+
+.eth-expr-note--selected {
+  fill: var(--eth-color-selection);
+}

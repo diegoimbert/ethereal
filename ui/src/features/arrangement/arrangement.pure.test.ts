@@ -1,0 +1,647 @@
+import { describe, expect, it, vi } from "vitest";
+import { AUTOMATION_BAR_HEIGHT, automationHeight } from "@/features/automation";
+import type { Clip, Command, Note, PeakData, ReplyValue, Track } from "@/generated";
+import { TempoMap } from "@/timeline";
+import type { EngineTransport } from "@/transport";
+import { actionForKey } from "./actions";
+import { smallClipAt } from "./smallClips";
+import { contrastRatio, DARK_INK, inkOn, LIGHT_INK, luminance } from "./helpers";
+import { edgeScrollSpeed, returnBlockedZone, trackDropTarget } from "./trackDrag";
+import { BROWSER_DRAG_MIME, readBrowserDrag } from "./browserDrop";
+import { drumRows, noteRects, pitchRange } from "./clipDraw";
+import { contentBeatAt, contentSegments, mediaLengthInBeats, sourceSecondsMapper } from "./clipTime";
+import { boundsCommand, dragPreview, duplicateCommand, moveCommand, shiftedOffset, splitCommand, toggleLoopCommand, type DragInput } from "./editMath";
+import { barAround, groupSummarySpans } from "./helpers";
+import { laneItems } from "./laneItems";
+import { arrangementTracks, clipRects, HEADER_WIDTH, layoutRows, rowIndexAt, TRACK_HEIGHT } from "./layout";
+import { PeakCache, peakLevel, peakRange, TILE_PEAKS } from "./peaks";
+import { followScroll } from "./useSmoothFollow";
+
+// ── Fixtures ──────────────────────────────────────────────────────────────────────────
+
+function track(id: string, kind: Track["kind"], order: string, parent: string | null = null): Track {
+  return {
+    id,
+    kind,
+    name: id,
+    color: 0xff0000,
+    order,
+    parent,
+    mixer: { volume: 0, pan: 0, mute: false, solo: false },
+    input: { type: "None" },
+    output: { type: "Default" },
+    monitor: "Auto",
+    scale: { type: "FollowProject" },
+  };
+}
+
+function clip(id: string, trackId: string, start: number, length: number, extra: Partial<Clip> = {}): Clip {
+  return {
+    id,
+    track: trackId,
+    start,
+    name: id,
+    color: null,
+    muted: false,
+    length,
+    offset: 0,
+    looping: { enabled: false, start: 0, end: length },
+    content: { type: "Midi" },
+    ...extra,
+  };
+}
+
+const audio = (id: string, trackId: string, start: number, length: number, extra: Partial<Clip> = {}): Clip =>
+  clip(id, trackId, start, length, {
+    content: {
+      type: "Audio",
+      media: "m1",
+      gain: 0,
+      transpose: 0,
+      fade_in: 0,
+      fade_out: 0,
+      fade_in_curve: { type: "Linear" },
+      fade_out_curve: { type: "Linear" },
+      reversed: false,
+      warp: { enabled: true, mode: "Complex", source_bpm: 120 },
+    },
+    ...extra,
+  });
+
+const tempo = TempoMap.constant(120);
+const beatGrid = (b: number) => Math.round(b);
+const tracks = [track("m1", "Midi", "a"), track("m2", "Midi", "b"), track("a1", "Audio", "c")];
+const rows = layoutRows(tracks, new Set());
+
+const commandsOf = (c: Command | null): Command[] => (!c ? [] : c.domain === "Edit" && c.command.type === "Batch" ? c.command.commands : [c]);
+
+// ── clipTime ──────────────────────────────────────────────────────────────────────────
+
+describe("contentSegments", () => {
+  it("maps an unlooped clip linearly from its offset", () => {
+    expect(contentSegments({ length: 8, offset: 2, looping: { enabled: false, start: 0, end: 4 } }, 10)).toEqual([{ t0: 10, t1: 18, c0: 2 }]);
+  });
+
+  it("unrolls loops after the offset reaches the loop end", () => {
+    const c = { length: 10, offset: 1, looping: { enabled: true, start: 0, end: 4 } };
+    expect(contentSegments(c, 0)).toEqual([
+      { t0: 0, t1: 3, c0: 1 },
+      { t0: 3, t1: 7, c0: 0 },
+      { t0: 7, t1: 10, c0: 0 },
+    ]);
+  });
+
+  it("restricts to a range and skips whole repetitions", () => {
+    const c = { length: 100, offset: 0, looping: { enabled: true, start: 0, end: 4 } };
+    expect(contentSegments(c, 0, 41, 45)).toEqual([
+      { t0: 41, t1: 44, c0: 1 },
+      { t0: 44, t1: 45, c0: 0 },
+    ]);
+  });
+
+  it("contentBeatAt follows loops", () => {
+    const c = clip("c", "m1", 8, 16, { looping: { enabled: true, start: 0, end: 4 } });
+    expect(contentBeatAt(c, 8)).toBe(0);
+    expect(contentBeatAt(c, 13)).toBe(1);
+    expect(contentBeatAt(c, 30)).toBeNull();
+  });
+});
+
+describe("source mapping", () => {
+  it("uses the source tempo, falling back to the song tempo", () => {
+    expect(sourceSecondsMapper(120, 90, [])(4)).toBe(2);
+    expect(sourceSecondsMapper(null, 60, [])(4)).toBe(4);
+  });
+
+  it("interpolates between warp markers and extends with the source tempo", () => {
+    const f = sourceSecondsMapper(120, 120, [
+      { beat: 4, source: 1 },
+      { beat: 0, source: 0 },
+    ]);
+    expect(f(2)).toBeCloseTo(0.5);
+    expect(f(6)).toBeCloseTo(2);
+  });
+
+  it("finds the media length in beats", () => {
+    const f = sourceSecondsMapper(120, 120, []);
+    expect(mediaLengthInBeats({ frames: 44100 * 8, sample_rate: 44100 }, f)).toBeCloseTo(16, 6);
+  });
+});
+
+// ── layout ────────────────────────────────────────────────────────────────────────────
+
+describe("layout", () => {
+  const all = [
+    track("g", "Group", "a"),
+    track("c1", "Midi", "a", "g"),
+    track("g2", "Group", "b", "g"),
+    track("c2", "Audio", "a", "g2"),
+    track("r", "Return", "c"),
+    track("master", "Master", "d"),
+    track("t", "Audio", "e"),
+  ];
+  // Display order as `tracksOrdered` gives it: depth-first.
+  const ordered = [all[0]!, all[1]!, all[2]!, all[3]!, all[4]!, all[5]!, all[6]!];
+
+  it("puts returns and master last and hides descendants of folded groups", () => {
+    expect(arrangementTracks(ordered, new Set()).map((t) => t.id)).toEqual(["g", "c1", "g2", "c2", "t", "r", "master"]);
+    expect(arrangementTracks(ordered, new Set(["g2"])).map((t) => t.id)).toEqual(["g", "c1", "g2", "t", "r", "master"]);
+    expect(arrangementTracks(ordered, new Set(["g"])).map((t) => t.id)).toEqual(["g", "t", "r", "master"]);
+  });
+
+  it("stacks rows with depth and automation height", () => {
+    const r = layoutRows(ordered, new Set(), (id) => (id === "c1" ? 30 : 0));
+    expect(r.map((x) => [x.track.id, x.depth, x.y])).toEqual([
+      ["g", 0, 0],
+      ["c1", 1, TRACK_HEIGHT],
+      ["g2", 1, 2 * TRACK_HEIGHT + 30],
+      ["c2", 2, 3 * TRACK_HEIGHT + 30],
+      ["t", 0, 4 * TRACK_HEIGHT + 30],
+      ["r", 0, 5 * TRACK_HEIGHT + 30],
+      ["master", 0, 6 * TRACK_HEIGHT + 30],
+    ]);
+    expect(rowIndexAt(r, -1)).toBe(-1);
+    expect(rowIndexAt(r, TRACK_HEIGHT + 70)).toBe(1);
+    expect(rowIndexAt(r, 10000)).toBe(r.length);
+  });
+
+  it("adds the automation slot height of ui-automation to every row", () => {
+    // Closed automation takes no room; an open track adds the parameter bar and its lanes.
+    const closed = { open: new Set<string>(), shown: {} };
+    const r = layoutRows(ordered, new Set(), (id) => automationHeight(closed, id));
+    expect(r[1]).toMatchObject({ y: TRACK_HEIGHT, laneHeight: TRACK_HEIGHT, height: TRACK_HEIGHT });
+    const first = ordered[0]!.id;
+    const open = { open: new Set([first]), shown: { [first]: ["volume"] } };
+    const o = layoutRows(ordered, new Set(), (id) => automationHeight(open, id));
+    expect(o[1]!.y).toBe(TRACK_HEIGHT + AUTOMATION_BAR_HEIGHT + 64);
+    expect(rowIndexAt(o, TRACK_HEIGHT + 10)).toBe(0);
+  });
+
+  it("computes clip rects in content px for the marquee", () => {
+    const rects = clipRects(rows, [clip("x", "m2", 2, 4)], { pxPerBeat: 10, scrollBeats: 1 });
+    expect(rects).toEqual([{ id: "x", rect: { x0: HEADER_WIDTH + 10, x1: HEADER_WIDTH + 50, y0: TRACK_HEIGHT, y1: 2 * TRACK_HEIGHT } }]);
+  });
+
+  it("summarizes clips inside a group", () => {
+    const byId = Object.fromEntries(all.map((t) => [t.id, t]));
+    const clips = { a: clip("a", "c1", 4, 2), b: audio("b", "c2", 0, 1), c: clip("c", "t", 0, 8) };
+    expect(groupSummarySpans(byId, clips, "g")).toEqual([
+      [0, 1],
+      [4, 2],
+    ]);
+    const many = { a: clip("a", "c1", 0, 2), b: audio("b", "c2", 1, 3), c: clip("c", "c1", 4, 1), d: clip("d", "c1", 7, 1) };
+    expect(groupSummarySpans(byId, many, "g")).toEqual([
+      [0, 5],
+      [7, 1],
+    ]);
+  });
+
+  it("finds the bar around a position", () => {
+    expect(barAround(tempo, 5.5)).toEqual({ start: 4, length: 4 });
+    // A 7/8 change at 2.5 cuts bar 1 short (a partial bar of 2.5 beats).
+    const mid = new TempoMap(
+      [],
+      [
+        { id: "a", time: 0, signature: { numerator: 4, denominator: 4 } },
+        { id: "b", time: 2.5, signature: { numerator: 7, denominator: 8 } },
+      ],
+    );
+    expect(barAround(mid, 1)).toEqual({ start: 0, length: 2.5 });
+    expect(barAround(mid, 3)).toEqual({ start: 2.5, length: 3.5 });
+  });
+});
+
+// ── edit math ─────────────────────────────────────────────────────────────────────────
+
+describe("dragPreview", () => {
+  const a = clip("a", "m1", 4, 4);
+  const b = clip("b", "m1", 10, 2);
+  const input: DragInput = { clips: [a, b], anchor: "a", rows, snap: beatGrid };
+
+  it("moves the selection by the anchor's snapped delta", () => {
+    const p = dragPreview(input, "move", 1.4);
+    expect(p.get("a")).toMatchObject({ start: 5, track: "m1" });
+    expect(p.get("b")).toMatchObject({ start: 11, track: "m1" });
+  });
+
+  it("never moves the selection before 0", () => {
+    const p = dragPreview(input, "move", -10);
+    expect(p.get("a")!.start).toBe(0);
+    expect(p.get("b")!.start).toBe(6);
+  });
+
+  it("moves between compatible tracks only", () => {
+    expect(dragPreview(input, "move", 0, 1).get("a")!.track).toBe("m2");
+    // Row +2 is an audio track: MIDI clips stay on their track.
+    expect(dragPreview(input, "move", 0, 2).get("a")!.track).toBe("m1");
+    expect(dragPreview(input, "move", 0, 9).get("a")!.track).toBe("m1");
+  });
+
+  it("resizes the end with snapping and a minimum length", () => {
+    expect(dragPreview(input, "resize-end", 1.6).get("a")).toMatchObject({ start: 4, length: 6 });
+    expect(dragPreview(input, "resize-end", -10).get("b")!.length).toBeGreaterThan(0);
+  });
+
+  it("limits unlooped audio resizes to the media length", () => {
+    const x = audio("x", "a1", 0, 4);
+    const p = dragPreview({ clips: [x], anchor: "x", rows, snap: beatGrid, sourceLength: () => 6 }, "resize-end", 10);
+    expect(p.get("x")!.length).toBe(6);
+    const looped = { ...x, looping: { enabled: true, start: 0, end: 4 } };
+    const q = dragPreview({ clips: [looped], anchor: "x", rows, snap: beatGrid, sourceLength: () => 6 }, "resize-end", 10);
+    expect(q.get("x")!.length).toBe(14);
+  });
+
+  it("resizes the start keeping the end and shifting the offset", () => {
+    expect(dragPreview(input, "resize-start", 1.2).get("a")).toEqual({ track: "m1", start: 5, length: 3, offset: 1 });
+    // base-142: extending past the content start adds a leading gap (negative offset).
+    expect(dragPreview(input, "resize-start", -2).get("a")).toEqual({ track: "m1", start: 2, length: 6, offset: -2 });
+    // Never before beat 0.
+    expect(dragPreview(input, "resize-start", -10).get("a")).toEqual({ track: "m1", start: 0, length: 8, offset: -4 });
+  });
+
+  it("trims a leading gap back before the content (unlooped)", () => {
+    const gapped = clip("g", "m1", 2, 6, { offset: -2 });
+    const g = { clips: [gapped], anchor: "g", rows, snap: beatGrid };
+    expect(dragPreview(g, "resize-start", 1).get("g")).toMatchObject({ start: 3, length: 5, offset: -1 });
+    expect(dragPreview(g, "resize-start", 3).get("g")).toMatchObject({ start: 5, length: 3, offset: 1 });
+  });
+
+  it("wraps a looped clip's offset into the loop when extending left", () => {
+    const looped = clip("l", "m1", 8, 4, { looping: { enabled: true, start: 0, end: 4 } });
+    const l = { clips: [looped], anchor: "l", rows, snap: beatGrid };
+    // 1 beat left: the loop's last beat plays first; the loop region doesn't move.
+    expect(dragPreview(l, "resize-start", -1).get("l")).toEqual({ track: "m1", start: 7, length: 5, offset: 3 });
+    // More than a whole loop: wraps again.
+    expect(dragPreview(l, "resize-start", -6).get("l")).toEqual({ track: "m1", start: 2, length: 10, offset: 2 });
+    // Exactly one loop: back at the loop start.
+    expect(dragPreview(l, "resize-start", -4).get("l")!.offset).toBe(0);
+    // Trimming back right from a wrapped offset stays inside the loop.
+    const wrapped = { ...looped, start: 7, length: 5, offset: 3 };
+    const w = { clips: [wrapped], anchor: "l", rows, snap: beatGrid };
+    expect(dragPreview(w, "resize-start", 2).get("l")).toEqual({ track: "m1", start: 9, length: 3, offset: 1 });
+  });
+});
+
+describe("commands", () => {
+  const a = clip("a", "m1", 4, 4);
+  const b = clip("b", "m1", 10, 2);
+  let n = 0;
+  const ids = () => `new${++n}`;
+
+  it("moves only changed clips in one command", () => {
+    const p = dragPreview({ clips: [a, b], anchor: "a", rows, snap: beatGrid }, "move", 2, 1);
+    expect(moveCommand([a, b], p, false, ids)).toEqual({
+      domain: "Clip",
+      command: {
+        type: "Move",
+        moves: [
+          { id: "a", track: "m2", start: 6 },
+          { id: "b", track: "m2", start: 12 },
+        ],
+      },
+    });
+    const none = dragPreview({ clips: [a], anchor: "a", rows, snap: beatGrid }, "move", 0.2);
+    expect(moveCommand([a], none, false, ids)).toBeNull();
+  });
+
+  it("copies as one batch (duplicate, then move to the new track)", () => {
+    n = 0;
+    const p = dragPreview({ clips: [a], anchor: "a", rows, snap: beatGrid }, "move", 4, 1);
+    const c = moveCommand([a], p, true, ids)!;
+    expect(c.domain).toBe("Edit");
+    expect(commandsOf(c).map((x) => x.command.type)).toEqual(["Duplicate", "Move"]);
+    // Created clear of the source track's clips (so it can't trim the original), then moved.
+    expect(commandsOf(c)[0]!.command).toMatchObject({ id: "a", new_id: "new1", start: a.start + a.length + 1 });
+    expect(commandsOf(c)[1]!.command).toMatchObject({ moves: [{ id: "new1", start: 8 }] });
+  });
+
+  it("resizes with SetBounds", () => {
+    const p = dragPreview({ clips: [a], anchor: "a", rows, snap: beatGrid }, "resize-start", 1);
+    expect(boundsCommand([a], p)).toEqual({
+      domain: "Clip",
+      command: { type: "SetBounds", id: "a", start: 5, length: 3, offset: 1 },
+    });
+  });
+
+  it("splits only clips containing the position", () => {
+    const c = commandsOf(splitCommand([a, b], 6, ids));
+    expect(c).toHaveLength(1);
+    expect(c[0]!.command).toMatchObject({ type: "Split", id: "a", at: 6 });
+    expect(splitCommand([a], 4, ids)).toBeNull();
+  });
+
+  it("duplicates the selection as a block after itself", () => {
+    const c = commandsOf(duplicateCommand([a, b], ids));
+    expect(c.map((x) => (x.command as { start: number }).start)).toEqual([12, 18]);
+  });
+
+  it("keys a multi-clip step with its catalog message, so the undo label is localized (#667)", () => {
+    expect(duplicateCommand([a, b], ids)!.command).toMatchObject({
+      type: "Batch",
+      label: "duplicate clips",
+      key: { id: "undo.clips.duplicate", args: { count: 2 } },
+    });
+  });
+
+  it("toggles looping", () => {
+    expect(toggleLoopCommand([a])!.command).toEqual({
+      type: "SetLoop",
+      id: "a",
+      looping: { enabled: true, start: 0, end: 4 },
+    });
+    const looped = { ...a, looping: { enabled: true, start: 0, end: 2 } };
+    expect(toggleLoopCommand([looped])!.command).toMatchObject({ looping: { enabled: false, start: 0, end: 2 } });
+    // Mixed selection: loop the unlooped ones, leave the looped ones alone.
+    expect(commandsOf(toggleLoopCommand([looped, b]))).toHaveLength(1);
+    // A leading gap stays a gap: the loop starts at content 0.
+    const gapped = { ...a, start: 2, length: 6, offset: -2 };
+    expect(toggleLoopCommand([gapped])!.command).toMatchObject({ looping: { enabled: true, start: 0, end: 4 } });
+  });
+});
+
+describe("shiftedOffset", () => {
+  const loop = (start: number, end: number) => ({ enabled: true, start, end });
+  it("keeps intro content, then a gap, for looped clips that start before the loop", () => {
+    const intro = { offset: 1, looping: loop(2, 4) };
+    expect(shiftedOffset(intro, -0.5)).toBe(0.5);
+    expect(shiftedOffset(intro, -3)).toBe(-2);
+    // Reaching the loop wraps inside it.
+    expect(shiftedOffset(intro, 4)).toBe(3);
+  });
+});
+
+describe("laneItems", () => {
+  const a = clip("a", "m1", 0, 4);
+  const b = clip("b", "m2", 0, 4);
+  const clips = { a, b };
+
+  it("draws dragged clips in their target lane", () => {
+    const bounds = new Map([["a", { track: "m2", start: 8, length: 4, offset: 0 }]]);
+    expect(laneItems(clips, "m1", { bounds, copy: false })).toEqual([]);
+    expect(laneItems(clips, "m2", { bounds, copy: false }).map((x) => [x.clip.id, x.bounds.start, x.dragging])).toEqual([
+      ["b", 0, false],
+      ["a", 8, true],
+    ]);
+  });
+
+  it("keeps originals and adds ghosts for copies", () => {
+    const bounds = new Map([["a", { track: "m1", start: 8, length: 4, offset: 0 }]]);
+    expect(laneItems(clips, "m1", { bounds, copy: true }).map((x) => [x.clip.id, x.ghost])).toEqual([
+      ["a", false],
+      ["a", true],
+    ]);
+  });
+});
+
+// ── drawing helpers ───────────────────────────────────────────────────────────────────
+
+describe("note preview", () => {
+  const note = (start: number, duration: number, pitch = 60): Note => ({
+    id: `n${start}`,
+    clip: "c",
+    pitch,
+    velocity: 1,
+    release_velocity: 0.5,
+    start,
+    duration,
+    muted: false,
+  });
+
+  it("places notes on the timeline and repeats them in loops", () => {
+    const c = clip("c", "m1", 8, 8, { looping: { enabled: true, start: 0, end: 4 } });
+    const rects = noteRects(c, 8, [note(0, 1), note(3, 2)], 8, 16);
+    expect(rects.map((r) => [r.t0, r.t1])).toEqual([
+      [8, 9],
+      [11, 12],
+      [12, 13],
+      [15, 16],
+    ]);
+  });
+
+  it("pads the pitch range to an octave", () => {
+    expect(pitchRange([note(0, 1, 60)])).toEqual({ lo: 54, hi: 66 });
+    expect(pitchRange([])).toEqual({ lo: 60, hi: 72 });
+  });
+
+  it("drum rows: one per used pitch, lowest first, no matter how far apart", () => {
+    const { index, rows } = drumRows([note(0, 1, 49), note(1, 1, 36), note(2, 1, 36), note(3, 1, 42)]);
+    expect(rows).toBe(3);
+    expect([...index]).toEqual([
+      [36, 0],
+      [42, 1],
+      [49, 2],
+    ]);
+  });
+});
+
+describe("peaks", () => {
+  it("picks power-of-two levels", () => {
+    expect(peakLevel(1)).toBe(16);
+    expect(peakLevel(100)).toBe(128);
+    expect(peakLevel(128)).toBe(128);
+  });
+
+  const tileData = (index: number, level: number, value: number): PeakData => ({
+    media: "m",
+    samples_per_peak: level,
+    start_frame: index * TILE_PEAKS * level,
+    min: [new Array(TILE_PEAKS).fill(-value)],
+    max: [new Array(TILE_PEAKS).fill(value)],
+  });
+
+  it("merges peaks across tiles and reports missing ones", () => {
+    const level = 16;
+    const edge = TILE_PEAKS * level;
+    const tiles = [tileData(0, level, 0.2), tileData(1, level, 0.5)];
+    expect(peakRange(edge - 32, edge + 32, level, (i) => tiles[i] ?? null)).toEqual({ min: -0.5, max: 0.5 });
+    expect(peakRange(0, 32, level, (i) => tiles[i] ?? null)).toEqual({ min: -0.2, max: 0.2 });
+    expect(peakRange(0, 32, level, () => null)).toBeNull();
+  });
+
+  it("fetches each tile once and notifies when it arrives", async () => {
+    const send = vi.fn(async (c: Command): Promise<ReplyValue> => {
+      const r = (c.command as { request: { start_frame: number; samples_per_peak: number } }).request;
+      return { type: "Peaks", peaks: tileData(r.start_frame / (TILE_PEAKS * r.samples_per_peak), r.samples_per_peak, 1) };
+    });
+    const cache = new PeakCache({ send } as unknown as EngineTransport);
+    const listener = vi.fn();
+    cache.subscribe(listener);
+    expect(cache.tile("m", 16, 2)).toBeNull();
+    expect(cache.tile("m", 16, 2)).toBeNull();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(send.mock.calls[0]![0]).toEqual({
+      domain: "Media",
+      command: { type: "GetPeaks", request: { media: "m", samples_per_peak: 16, start_frame: 2 * TILE_PEAKS * 16, frame_count: TILE_PEAKS * 16 } },
+    });
+    // Tile arrivals are announced once per frame.
+    await new Promise((r) => requestAnimationFrame(r));
+    expect(listener).toHaveBeenCalled();
+    expect(cache.tile("m", 16, 2)?.start_frame).toBe(2 * TILE_PEAKS * 16);
+    cache.invalidate("m");
+    expect(cache.tile("m", 16, 2)).toBeNull();
+    expect(send).toHaveBeenCalledTimes(2);
+  });
+});
+
+// ── misc ──────────────────────────────────────────────────────────────────────────────
+
+describe("follow playhead", () => {
+  const s = { pxPerBeat: 10, scrollBeats: 0, widthPx: 1000 };
+  it("scrolls smoothly: the playhead travels to 40% of the view, then the view moves by what it advanced", () => {
+    // 1000 px wide at 10 px/beat: the follow point is 400 px, beat 40 from the left edge.
+    expect(followScroll(s, 30, 29)).toBeNull();
+    expect(followScroll(s, 40, 39)).toBeNull();
+    // Past it: the view moves by the playhead's advance (it keeps its place on screen).
+    expect(followScroll(s, 41, 40)).toBeCloseTo(1);
+    // After a zoom left it at 70%: it stays there (the view moves by the advance only).
+    expect(followScroll({ ...s, scrollBeats: 10 }, 80, 79)).toBeCloseTo(11);
+    // Off view (a loop restart, a locate): back to the follow point (never before 0).
+    expect(followScroll({ ...s, scrollBeats: 200 }, 10, 300)).toBe(0);
+    expect(followScroll(s, 300, 299)).toBeCloseTo(260);
+  });
+});
+
+describe("keys and drops", () => {
+  const k = (key: string, mods: Partial<{ metaKey: boolean; ctrlKey: boolean; shiftKey: boolean; altKey: boolean }> = {}) =>
+    actionForKey({ key, metaKey: false, ctrlKey: false, shiftKey: false, altKey: false, ...mods });
+
+  it("maps shortcuts", () => {
+    expect(k("Delete")).toBe("delete");
+    expect(k("Backspace")).toBe("delete");
+    expect(k("e", { ctrlKey: true })).toBe("split");
+    expect(k("d", { metaKey: true })).toBe("duplicate");
+    expect(k("L", { metaKey: true, shiftKey: true })).toBe("loop");
+    expect(k("a", { ctrlKey: true })).toBe("select-all");
+    expect(k("e")).toBeNull();
+  });
+
+  it("reads the browser drag payload", () => {
+    const payload = { version: 1, kind: "media", source: { type: "Project", media: "m" }, name: "x.wav", file_kind: "Audio" };
+    const dt = (data: string) => ({ types: [BROWSER_DRAG_MIME], getData: () => data });
+    expect(readBrowserDrag(dt(JSON.stringify(payload)))).toEqual(payload);
+    expect(readBrowserDrag(dt("{"))).toBeNull();
+    expect(readBrowserDrag(dt(JSON.stringify({ ...payload, version: 2 })))).toBeNull();
+    expect(readBrowserDrag({ types: ["text/plain"], getData: () => "" })).toBeNull();
+  });
+});
+
+// ── trackDrag ─────────────────────────────────────────────────────────────────────────
+
+describe("trackDropTarget", () => {
+  // g (group) > [g1], m1, m2, r (return), M (master); every row TRACK_HEIGHT tall.
+  const ordered = [
+    track("g", "Group", "a"),
+    track("g1", "Midi", "a", "g"),
+    track("m1", "Midi", "b"),
+    track("m2", "Midi", "c"),
+    track("r", "Return", "d"),
+    track("M", "Master", "e"),
+  ];
+  const rs = layoutRows(ordered, new Set());
+  const H = TRACK_HEIGHT;
+
+  it("drops before the row below the nearest gap, in that row's group", () => {
+    expect(trackDropTarget(rs, 2 * H + 5, "m2")).toEqual({ parent: null, before: "m1", y: 2 * H, into: null });
+    expect(trackDropTarget(rs, H + 5, "m2")).toEqual({ parent: "g", before: "g1", y: H, into: null });
+  });
+
+  it("drops into a group over the middle of its header, never into itself", () => {
+    expect(trackDropTarget(rs, H / 2, "m1")).toEqual({ parent: "g", before: null, y: 0, into: "g" });
+    expect(trackDropTarget(rs, H / 2, "g")?.into).toBeNull();
+    // Over its own child: lands after itself (no move), never inside itself.
+    expect(trackDropTarget(rs, H + 5, "g")).toEqual({ parent: null, before: "m1", y: 2 * H, into: null });
+    expect(trackDropTarget(rs, 5, "g")).toBeNull(); // right where it is
+  });
+
+  it("drops after the last regular track instead of among returns and master", () => {
+    expect(trackDropTarget(rs, 5 * H, "m1")).toEqual({ parent: null, before: null, y: 4 * H, into: null });
+  });
+});
+
+describe("trackDropTarget: returns (#791)", () => {
+  // m1, m2, ra, rb, rc, M; every row TRACK_HEIGHT tall.
+  const ordered = [
+    track("m1", "Midi", "a"),
+    track("m2", "Midi", "b"),
+    track("ra", "Return", "c"),
+    track("rb", "Return", "d"),
+    track("rc", "Return", "e"),
+    track("M", "Master", "f"),
+  ];
+  const rs = layoutRows(ordered, new Set());
+  const H = TRACK_HEIGHT;
+
+  it("drops a return between the other returns", () => {
+    expect(trackDropTarget(rs, 3 * H + 3, "rc")).toEqual({ parent: null, before: "rb", y: 3 * H, into: null });
+    expect(trackDropTarget(rs, 2 * H + 3, "rc")).toEqual({ parent: null, before: "ra", y: 2 * H, into: null });
+    // After the last return: before master.
+    expect(trackDropTarget(rs, 5 * H - 3, "ra")).toEqual({ parent: null, before: null, y: 5 * H, into: null });
+    // Right above itself: before the next one (no move).
+    expect(trackDropTarget(rs, 2 * H + 3, "ra")).toEqual({ parent: null, before: "rb", y: 3 * H, into: null });
+  });
+
+  it("never among the regular tracks (just above the first return still snaps to it)", () => {
+    expect(trackDropTarget(rs, H, "rb")).toBeNull();
+    expect(trackDropTarget(rs, 5, "rb")).toBeNull();
+    expect(trackDropTarget(rs, 2 * H - 3, "rb")).toEqual({ parent: null, before: "ra", y: 2 * H, into: null });
+    expect(returnBlockedZone(rs)).toEqual({ top: 0, height: 2 * H });
+  });
+
+  it("a return being added (not a row) drops among the returns too", () => {
+    expect(trackDropTarget(rs, 4 * H + 3, "__new__", "Return")).toEqual({ parent: null, before: "rc", y: 4 * H, into: null });
+    expect(trackDropTarget(rs, H, "__new__", "Return")).toBeNull();
+    // A regular track being added still goes before the returns.
+    expect(trackDropTarget(rs, 4 * H + 3, "__new__", "Midi")).toEqual({ parent: null, before: null, y: 2 * H, into: null });
+  });
+
+  it("a regular track can't land among the returns", () => {
+    expect(trackDropTarget(rs, 4 * H, "m1")).toEqual({ parent: null, before: null, y: 2 * H, into: null });
+  });
+});
+
+describe("edgeScrollSpeed", () => {
+  it("scrolls up near the top, down near the bottom, faster closer to the edge", () => {
+    expect(edgeScrollSpeed(300, 0, 600)).toBe(0);
+    expect(edgeScrollSpeed(2, 0, 600)).toBeLessThan(edgeScrollSpeed(20, 0, 600));
+    expect(edgeScrollSpeed(20, 0, 600)).toBeLessThan(0);
+    expect(edgeScrollSpeed(598, 0, 600)).toBeGreaterThan(edgeScrollSpeed(580, 0, 600));
+    expect(edgeScrollSpeed(580, 0, 600)).toBeGreaterThan(0);
+    // Above / below the view: full speed, not more.
+    expect(edgeScrollSpeed(-500, 0, 600)).toBe(edgeScrollSpeed(0, 0, 600));
+    // A view too short for two edge bands doesn't scroll.
+    expect(edgeScrollSpeed(5, 0, 40)).toBe(0);
+  });
+});
+
+// ── smallClips ────────────────────────────────────────────────────────────────────────
+
+describe("smallClipAt", () => {
+  const item = (id: string, start: number, length: number, ghost = false) => ({
+    clip: { id } as Clip,
+    bounds: { start, length, offset: 0, track: "t" },
+    dragging: false,
+    ghost,
+  });
+
+  it("hit-tests the clip under the pointer, else the nearest within the slop; ghosts never", () => {
+    const small = [item("a", 0, 1), item("b", 1.2, 1), item("g", 5, 1, true)];
+    expect(smallClipAt(small, 0.5, 0.1)?.clip.id).toBe("a");
+    expect(smallClipAt(small, 1.15, 0.1)?.clip.id).toBe("b"); // 0.05 before b, 0.15 after a
+    expect(smallClipAt(small, 3, 0.1)).toBeNull();
+    expect(smallClipAt(small, 5.5, 0.1)).toBeNull();
+  });
+});
+
+describe("inkOn (badge icon contrast)", () => {
+  it("uses dark ink on light fills and light ink on dark ones, by WCAG contrast", () => {
+    expect(luminance(0xffffff)).toBeCloseTo(1);
+    expect(luminance(0x000000)).toBe(0);
+    expect(contrastRatio(1, 0)).toBeCloseTo(21);
+    expect(inkOn(0xe6c07e)).toBe(DARK_INK); // pastel amber
+    expect(inkOn(0x8fa8e6)).toBe(DARK_INK); // pastel blue
+    expect(inkOn(0x1e3a8a)).toBe(LIGHT_INK); // deep navy
+    expect(inkOn(0x7a1f3d)).toBe(LIGHT_INK); // wine
+  });
+});

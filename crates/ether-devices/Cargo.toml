@@ -1,0 +1,20 @@
+[package]
+name = "ether-devices"
+description = "Built-in devices: synth, sampler, compressor, delay."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[dependencies]
+ether-core.workspace = true
+realfft.workspace = true
+
+[dev-dependencies]
+assert_no_alloc.workspace = true
+serde_json.workspace = true
+
+[lints]
+workspace = true

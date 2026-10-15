@@ -1,0 +1,89 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Ethereal",
+  "version": "0.0.1",
+  "identifier": "dev.ethereal.app",
+  "build": {
+    "frontendDist": "../../../ui/dist",
+    "beforeDevCommand": "",
+    "beforeBuildCommand": "pnpm --filter @ethereal/ui build && pnpm --workspace-root exec node scripts/build-sandbox-helper.mjs --bundle"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "create": false,
+        "title": "ethereal",
+        "width": 1440,
+        "height": 900,
+        "minWidth": 960,
+        "minHeight": 600,
+        "dragDropEnabled": false
+      }
+    ],
+    "security": {
+      "csp": {
+        "default-src": "'self'",
+        "script-src": "'self'",
+        "style-src": "'self' 'unsafe-inline'",
+        "img-src": "'self' data: blob:",
+        "font-src": "'self' data:",
+        "media-src": "'self' blob:",
+        "worker-src": "'self'",
+        "connect-src": "'self' ipc: http://ipc.localhost https: wss: http: ws:",
+        "frame-src": "https://ethereal-news.diegoimbert.workers.dev",
+        "object-src": "'none'",
+        "base-uri": "'self'",
+        "form-action": "'self'"
+      },
+      "dangerousDisableAssetCspModification": ["style-src"]
+    }
+  },
+  "plugins": {
+    "http": {
+      "scopeRedirects": true
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "category": "Music",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "macOS": {
+      "files": {
+        "MacOS/ether-sandbox-helper": "binaries/ether-sandbox-helper",
+        "MacOS/ether-plugin-scanner": "binaries/ether-plugin-scanner",
+        "MacOS/ether-mcp": "binaries/ether-mcp"
+      }
+    },
+    "linux": {
+      "deb": {
+        "files": {
+          "/usr/bin/ether-sandbox-helper": "binaries/ether-sandbox-helper",
+          "/usr/bin/ether-plugin-scanner": "binaries/ether-plugin-scanner",
+          "/usr/bin/ether-mcp": "binaries/ether-mcp"
+        }
+      },
+      "rpm": {
+        "files": {
+          "/usr/bin/ether-sandbox-helper": "binaries/ether-sandbox-helper",
+          "/usr/bin/ether-plugin-scanner": "binaries/ether-plugin-scanner",
+          "/usr/bin/ether-mcp": "binaries/ether-mcp"
+        }
+      },
+      "appimage": {
+        "files": {
+          "/usr/bin/ether-sandbox-helper": "binaries/ether-sandbox-helper",
+          "/usr/bin/ether-plugin-scanner": "binaries/ether-plugin-scanner",
+          "/usr/bin/ether-mcp": "binaries/ether-mcp"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,243 @@
+/* Transport bar: a centered floating capsule (transport, position, tempo) between two
+   flexible sides (undo/redo, CPU and engine status on the right). */
+.eth-tb {
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-lg);
+  min-width: 0;
+  font-size: var(--eth-fs-sm);
+}
+.eth-tb__side {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-md);
+}
+.eth-tb__side--end {
+  justify-content: flex-end;
+  /* Never narrower than its controls: on a tight top bar (1280 px with the shell's right
+     controls) the capsule moves left instead of undo/redo spilling over Loop/Metronome. */
+  min-width: max-content;
+}
+
+.eth-tb__capsule {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-md);
+  padding: var(--eth-space-xs) var(--eth-space-md);
+  border: var(--eth-border-width) solid var(--eth-color-border-light);
+  border-radius: var(--eth-radius-pill);
+  background: var(--eth-color-bg-raised);
+  box-shadow: var(--eth-shadow-md);
+}
+.eth-tb__divider {
+  width: var(--eth-border-width);
+  align-self: stretch;
+  margin: var(--eth-space-xs) 0;
+  background: var(--eth-color-border-light);
+}
+.eth-tb__group {
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-xs);
+}
+
+/* Round icon buttons. */
+.eth-tb__btn {
+  --_fg: var(--eth-color-text-dim);
+  width: var(--eth-size-control-lg);
+  height: var(--eth-size-control-lg);
+  padding: 0;
+  border-radius: var(--eth-radius-pill);
+}
+.eth-tb__btn:hover:not(:disabled) {
+  --_fg: var(--eth-color-text);
+}
+.eth-tb__btn .lucide {
+  width: var(--eth-size-transport-icon);
+  height: var(--eth-size-transport-icon);
+}
+.eth-tb__play {
+  --_fg: var(--eth-color-text);
+}
+.eth-tb__play[aria-pressed="true"] {
+  --_bg: color-mix(in srgb, var(--eth-color-play) 22%, transparent);
+  --_bg-hover: color-mix(in srgb, var(--eth-color-play) 30%, transparent);
+  --_fg: var(--eth-color-play);
+}
+.eth-tb__record,
+.eth-tb__record:hover:not(:disabled) {
+  --_fg: var(--eth-color-record);
+}
+.eth-tb__record .lucide {
+  fill: currentColor;
+  transform: scale(0.8);
+}
+.eth-tb__record[aria-pressed="true"] {
+  --_bg: color-mix(in srgb, var(--eth-color-record) 24%, transparent);
+  --_bg-hover: var(--_bg);
+  animation: eth-tb-rec 1.2s ease-in-out infinite alternate;
+}
+@keyframes eth-tb-rec {
+  to {
+    background: color-mix(in srgb, var(--eth-color-record) 8%, transparent);
+  }
+}
+.eth-tb__toggle[aria-pressed="true"],
+.eth-tb__toggle[aria-pressed="true"]:hover:not(:disabled) {
+  --_fg: var(--eth-color-accent);
+}
+
+.eth-tb__unit {
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+}
+.eth-tb__tap {
+  color: var(--eth-color-text-dim);
+  letter-spacing: var(--eth-tracking-caps);
+}
+
+.eth-tb-field {
+  height: var(--eth-size-control-md);
+  padding: 0 var(--eth-space-sm);
+  border: var(--eth-border-width) solid var(--eth-color-border-light);
+  border-radius: var(--eth-radius-sm);
+  background: var(--eth-color-bg-inset);
+  color: var(--eth-color-text);
+  font-size: var(--eth-fs-sm);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  transition:
+    border-color var(--eth-duration-fast) var(--eth-ease-out),
+    background var(--eth-duration-fast) var(--eth-ease-out);
+}
+.eth-tb-field--pill {
+  border-radius: var(--eth-radius-pill);
+  padding: 0 var(--eth-space-md);
+  text-align: center;
+}
+.eth-tb-field--draggable:not(:focus) {
+  cursor: ns-resize;
+}
+.eth-tb-field--draggable:not(:focus):hover {
+  border-color: var(--eth-color-border-strong);
+  background: var(--eth-color-bg-hover);
+}
+.eth-tb-field:focus {
+  outline: none;
+  border-color: var(--eth-color-accent);
+  box-shadow: 0 0 0 var(--eth-focus-halo) var(--eth-color-accent-subtle);
+}
+.eth-tb-field:disabled {
+  opacity: 0.4;
+}
+.eth-tb-field--invalid {
+  border-color: var(--eth-color-record);
+}
+
+/* Large position readout. */
+.eth-tb__position {
+  display: flex;
+  align-items: baseline;
+  gap: var(--eth-space-md);
+  padding: 0 var(--eth-space-sm);
+  font-variant-numeric: tabular-nums;
+  /* The position text changes every frame while playing: contained and on its own layer,
+     a change repaints just this box (not the page) and can't trigger a page layout. */
+  contain: layout paint;
+  will-change: transform;
+}
+.eth-tb__bars {
+  min-width: 7ch;
+  color: var(--eth-color-text);
+  font-size: var(--eth-fs-xl);
+  font-weight: 500;
+  letter-spacing: var(--eth-tracking-tight);
+  text-align: right;
+}
+.eth-tb__time {
+  min-width: 8ch;
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-sm);
+}
+
+.eth-tb__error {
+  max-width: 28ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border: none;
+  background: none;
+  color: var(--eth-color-record);
+  font-size: var(--eth-fs-xs);
+  cursor: pointer;
+}
+
+.eth-tb__cpu {
+  /* Updated at meter rate: same isolation as the position. */
+  contain: layout paint;
+  will-change: transform;
+  font-size: var(--eth-fs-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--eth-color-text-dim);
+  min-width: 7ch;
+  /* Never squeezed by a crowded bar (paint containment would cut it). */
+  flex: none;
+  white-space: nowrap;
+  text-align: right;
+}
+/* Disk-streaming dropouts: a warning light, shown only after a dropout (click resets). */
+.eth-tb__disk {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--eth-space-xs);
+  flex: none;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: var(--eth-fs-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--eth-color-text-dim);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.eth-tb__disk:hover {
+  color: var(--eth-color-text);
+}
+.eth-tb__disk-dot {
+  width: var(--eth-size-status-dot);
+  height: var(--eth-size-status-dot);
+  border-radius: var(--eth-radius-round);
+  background: var(--eth-color-meter-mid);
+}
+.eth-tb__engine {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--eth-space-xs);
+  font-size: var(--eth-fs-xs);
+  color: var(--eth-color-text-dim);
+}
+.eth-tb__engine-dot {
+  width: var(--eth-size-status-dot);
+  height: var(--eth-size-status-dot);
+  border-radius: var(--eth-radius-round);
+  background: var(--eth-color-text-dim);
+}
+.eth-tb__engine[data-level="ok"] .eth-tb__engine-dot {
+  background: var(--eth-color-meter-low);
+  box-shadow: 0 0 var(--eth-size-status-dot-glow) color-mix(in srgb, var(--eth-color-meter-low) 60%, transparent);
+}
+.eth-tb__engine[data-level="warn"] .eth-tb__engine-dot {
+  background: var(--eth-color-meter-mid);
+}
+.eth-tb__engine[data-level="error"] .eth-tb__engine-dot {
+  background: var(--eth-color-meter-high);
+}
+
+/* Settings > Appearance > Glow off: status lights without their halo. */
+:root[data-glow="off"] .eth-tb__engine[data-level="ok"] .eth-tb__engine-dot {
+  box-shadow: none;
+}

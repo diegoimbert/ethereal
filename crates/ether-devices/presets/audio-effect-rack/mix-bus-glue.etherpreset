@@ -1,0 +1,140 @@
+{
+  "format": "ethereal-preset",
+  "version": 2,
+  "app_version": "0.6.0",
+  "preset": {
+    "name": "mix bus glue",
+    "device": {
+      "type": "Builtin",
+      "device": "AudioEffectRack"
+    },
+    "meta": {
+      "tags": [
+        "mix",
+        "bus",
+        "master",
+        "glue"
+      ],
+      "author": "ethereal",
+      "description": "for a mix bus: a 25 Hz low cut and a little air, a slow 2:1 glue compressor that ignores the sub, and a safety limiter at -1 dB. macro 1 adds glue."
+    },
+    "params": {
+      "0": 0.0,
+      "1": 0.0,
+      "2": 0.0,
+      "3": 0.0,
+      "4": 0.0,
+      "5": 0.0,
+      "6": 0.0,
+      "7": 0.0,
+      "8": 0.0
+    },
+    "kind": null,
+    "state": null,
+    "rack": {
+      "chains": [
+        {
+          "name": "bus",
+          "color": null,
+          "volume": 0.0,
+          "pan": 0.0,
+          "mute": false,
+          "solo": false,
+          "keys": {
+            "lo": 0,
+            "hi": 127
+          },
+          "velocities": {
+            "lo": 0,
+            "hi": 127
+          },
+          "select": {
+            "lo": 0,
+            "hi": 127
+          },
+          "devices": [
+            {
+              "name": "clean",
+              "enabled": true,
+              "device": {
+                "type": "Builtin",
+                "device": "Eq"
+              },
+              "params": {
+                "0": 1.0,
+                "1": 0.0,
+                "2": 25.0,
+                "3": 0.0,
+                "4": 0.7071,
+                "5": 0.0,
+                "10": 0.0,
+                "15": 0.0,
+                "20": 0.0,
+                "25": 0.0,
+                "30": 1.0,
+                "31": 4.0,
+                "32": 10000.0,
+                "33": 1.0,
+                "34": 0.7071,
+                "35": 0.0,
+                "40": 0.0
+              },
+              "kind": null,
+              "state": null
+            },
+            {
+              "name": "glue",
+              "enabled": true,
+              "device": {
+                "type": "Builtin",
+                "device": "Compressor"
+              },
+              "params": {
+                "0": -14.0,
+                "1": 2.0,
+                "2": 30.0,
+                "3": 200.0,
+                "4": 1.5,
+                "5": 100.0,
+                "7": 12.0
+              },
+              "kind": null,
+              "state": null
+            },
+            {
+              "name": "safety",
+              "enabled": true,
+              "device": {
+                "type": "Builtin",
+                "device": "Limiter"
+              },
+              "params": {
+                "0": 0.0,
+                "1": -1.0,
+                "2": 100.0
+              },
+              "kind": null,
+              "state": null
+            }
+          ]
+        }
+      ],
+      "modulators": [],
+      "mappings": [
+        {
+          "source": {
+            "type": "Macro",
+            "index": 0
+          },
+          "target": {
+            "type": "ChainDevice",
+            "chain": 0,
+            "device": 1
+          },
+          "param": 0,
+          "depth": -0.2
+        }
+      ]
+    }
+  }
+}

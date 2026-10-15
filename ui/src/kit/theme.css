@@ -1,0 +1,6 @@
+/*
+ * Kept for compatibility (`@ethereal/ui/kit/theme.css`, ui/src/main.tsx). Tokens now live in
+ * ui/src/theme/ — edit ui/src/theme/tokens.ts, not this file. See docs/DESIGN-SYSTEM.md.
+ */
+@import "../theme/tokens.css";
+@import "../theme/base.css";

@@ -1,0 +1,5 @@
+# Formatting-only commits, skipped by `git blame` (git config blame.ignoreRevsFile .git-blame-ignore-revs;
+# GitHub reads this file by default).
+
+# style: prettier (printWidth 160) over ui, apps/web and services (#494)
+f885e41e0f1d658b62c66970f934f732210bb46e

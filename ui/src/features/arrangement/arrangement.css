@@ -1,0 +1,1183 @@
+/* Arrangement view. Tokens come from kit/theme.css. */
+
+.eth-arr {
+  /* Positioned: the header column's resize grip is placed from its left edge. Isolated: the
+     ambient blobs sit under the content, above this background. */
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: var(--eth-color-bg);
+  color: var(--eth-color-text);
+  font-size: var(--eth-fs-sm);
+  outline: none;
+  user-select: none;
+}
+
+/* The arrangement's tools, in the corner above the track headers (no bar of their own). */
+.eth-arr-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-xs);
+  height: 100%;
+  min-width: 0;
+  padding: 0 var(--eth-space-sm);
+  overflow: hidden;
+}
+
+.eth-arr-toolbar__spacer {
+  flex: 1;
+  min-width: 0;
+}
+
+.eth-arr-toolbar__add {
+  flex: none;
+}
+
+/* The "More" menu (narrow column): the grid. */
+.eth-arr-toolbar__more {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-sm);
+  padding: var(--eth-space-xs) var(--eth-space-sm);
+}
+
+/* The Add track menu: each kind is a small card (draggable into place), its icon in a track
+   color; a hint under them. */
+.eth-arr-add-track {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-sm);
+  padding: var(--eth-space-md);
+}
+.eth-arr-add-track__item.eth-menu__item {
+  height: auto;
+  padding: var(--eth-space-md) var(--eth-space-lg);
+  border: var(--eth-border-width) solid var(--eth-color-border-light);
+  border-radius: var(--eth-radius-md);
+  background: var(--eth-color-bg-raised);
+  cursor: grab;
+}
+.eth-arr-add-track__item.eth-menu__item:hover {
+  background: var(--eth-color-bg-hover);
+}
+.eth-arr-add-track__item .eth-menu__label {
+  flex: 1;
+}
+.eth-arr-add-track__item .eth-arr-header__badge {
+  margin-right: 0;
+}
+.eth-arr-add-track__deco {
+  display: flex;
+  align-items: center;
+  pointer-events: none;
+}
+.eth-arr-add-track__hint {
+  margin: 0;
+  padding: var(--eth-space-xs) var(--eth-space-sm) 0;
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+}
+
+.eth-arr-toolbar__grid {
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-sm);
+  color: var(--eth-color-text-dim);
+}
+
+.eth-arr-toolbar__grid select {
+  background: var(--eth-color-bg-inset);
+  color: var(--eth-color-text);
+  border: var(--eth-border-width) solid var(--eth-color-border-light);
+  border-radius: var(--eth-radius-sm);
+  font-size: var(--eth-fs-sm);
+}
+
+.eth-arr-toolbar__sep {
+  width: var(--eth-border-width);
+  align-self: stretch;
+  margin: 0 var(--eth-space-xs);
+  background: var(--eth-color-border-light);
+}
+
+.eth-arr__top {
+  display: flex;
+  flex: none;
+  scrollbar-gutter: stable;
+  overflow: hidden;
+}
+
+/* Above the header column: part of its surface (no fill, no borders), so the column reads as
+   one translucent strip down to the clips passing under it. */
+.eth-arr__corner {
+  flex: none;
+  box-sizing: border-box;
+  background: transparent;
+  /* The column's right border and shadow, continued up from the tracks. */
+  border-right: var(--eth-border-width) solid var(--eth-color-border-light);
+  position: relative;
+  z-index: 1;
+  box-shadow: var(--eth-space-xs) 0 var(--eth-space-md) color-mix(in srgb, var(--eth-mix-black) 22%, transparent);
+}
+
+.eth-arr__ruler {
+  flex: 1;
+  min-width: 0;
+}
+
+.eth-arr__blobs {
+  z-index: -1;
+}
+/* Always on here: they only drift (a morphing shape would be re-rasterized every frame). */
+.eth-arr__blobs > span {
+  width: calc(var(--eth-size-backdrop-blob) * 0.7);
+  height: calc(var(--eth-size-backdrop-blob) * 0.7);
+  border-radius: var(--eth-radius-round) !important;
+}
+
+.eth-arr__scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+
+/* The master track, pinned below the scrolling tracks (same scrollbar gutter, so the lanes
+   line up with the ones above). */
+.eth-arr__master {
+  position: relative;
+  flex: none;
+  max-height: 40%;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  border-top: var(--eth-border-width) solid var(--eth-color-border);
+}
+
+.eth-arr__content {
+  position: relative;
+  min-height: 100%;
+  touch-action: none;
+}
+
+/* Room below the tracks for a floating (unpinned) editor drawer, so the last tracks can be
+   scrolled above it (`--pane-bottom-overlay`, set by the workspace; 0 otherwise). */
+.eth-arr__scroll::after {
+  content: "";
+  display: block;
+  height: var(--pane-bottom-overlay, 0);
+}
+
+.eth-arr__backdrop,
+.eth-arr__overlay {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.eth-arr__overlay {
+  z-index: 3;
+}
+
+/* Grid lines are a faint tint of the text color: darker than the background in light
+   mode, lighter in dark mode. */
+/* Bar/beat lines (ArrangementView.tsx `GridLayer`): a 1px-tall canvas stretched to the
+   full height, crisp vertical lines without smoothing. */
+.eth-arr__grid {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  image-rendering: pixelated;
+}
+
+.eth-arr__loop {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 1px; /* eth-allow-hardcoded: a unit box, scaled to the loop length by its transform */
+  background: var(--eth-color-accent);
+  opacity: 0.07;
+  /* Positioned and sized by a transform (translateX + scaleX of 1px), on its own layer:
+     panning and zooming move it without a repaint. */
+  transform-origin: 0 0;
+  will-change: transform;
+}
+
+.eth-arr__marquee {
+  position: absolute;
+  z-index: 4;
+  border: var(--eth-border-width) solid var(--eth-color-selection);
+  background: color-mix(in srgb, var(--eth-color-selection) 15%, transparent);
+  pointer-events: none;
+  border-radius: var(--eth-radius-sm);
+}
+
+.eth-arr__drop-area {
+  position: relative;
+  display: flex;
+  align-items: center;
+  padding-left: calc(var(--eth-arr-header-width, var(--eth-size-track-header-width)) + var(--eth-space-lg));
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+}
+
+/* "+ Add track" below the last track, in the header column: a faint ghost row that firms
+   up on hover, like a track header card. */
+.eth-arr__add-track-slot {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 1;
+  box-sizing: border-box;
+  /* The card's inset: the menu anchors to the card, not to the whole row. */
+  padding: var(--eth-size-track-card-inset-y) var(--eth-space-lg) var(--eth-size-track-card-inset-y) var(--eth-size-track-card-inset-left);
+}
+.eth-arr__add-track-slot > .eth-popover-anchor {
+  display: flex;
+}
+.eth-arr__add-track {
+  position: relative;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-sm);
+  box-sizing: border-box;
+  height: calc(var(--eth-size-add-track-height) - 2 * var(--eth-size-track-card-inset-y));
+  padding: 0 calc(var(--eth-size-add-track-pad-right) - var(--eth-space-lg)) 0 calc(var(--eth-size-add-track-pad-left) - var(--eth-size-track-card-inset-left));
+  border: none;
+  background: none;
+  color: var(--eth-color-text-dim);
+  opacity: 0.6;
+  font: inherit;
+  font-size: var(--eth-fs-sm);
+  cursor: default;
+  transition:
+    opacity var(--eth-duration-fast) var(--eth-ease-out),
+    color var(--eth-duration-fast) var(--eth-ease-out);
+}
+.eth-arr__add-track::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: var(--eth-radius-lg);
+  background: transparent;
+  transition: background-color var(--eth-duration-fast) var(--eth-ease-out);
+}
+.eth-arr__add-track:hover,
+.eth-arr__add-track:focus-visible {
+  opacity: 1;
+  color: var(--eth-color-text);
+  outline: none;
+}
+.eth-arr__add-track:hover::before,
+.eth-arr__add-track:focus-visible::before {
+  background: var(--eth-color-bg-hover);
+}
+.eth-arr__add-track svg {
+  width: var(--eth-size-icon-md);
+  height: var(--eth-size-icon-md);
+}
+
+.eth-arr__drop-label {
+  padding: var(--eth-space-sm) var(--eth-space-md);
+  border: var(--eth-border-width) dashed var(--eth-color-border-light);
+  border-radius: var(--eth-radius-md);
+  transition:
+    color var(--eth-duration-fast) var(--eth-ease-out),
+    border-color var(--eth-duration-fast) var(--eth-ease-out),
+    background-color var(--eth-duration-fast) var(--eth-ease-out);
+}
+
+.eth-arr__drop-label--active {
+  color: var(--eth-color-accent);
+  border-color: var(--eth-color-accent);
+  background: var(--eth-color-accent-subtle);
+}
+
+/* Pending browser-drop import (lane placeholder, or in the drop area for a new track). */
+.eth-arr-import {
+  padding: var(--eth-space-xs) var(--eth-space-sm);
+  border: var(--eth-border-width) dashed var(--eth-color-accent);
+  border-radius: var(--eth-radius-sm);
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.eth-arr-lane .eth-arr-import {
+  position: absolute;
+  top: var(--eth-space-sm);
+}
+
+.eth-arr-import--error {
+  border-color: var(--eth-color-record);
+  color: var(--eth-color-record);
+}
+
+/* The header column's surface: over the clip layer (which draws under the column), under the
+   rows' headers. Translucent over a blur, like the floating panes; opaque when translucency is
+   off. */
+.eth-arr__header-shade {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  pointer-events: none;
+  /* Half as see-through as the floating panes (the setting's translucency, halved). */
+  background: color-mix(in srgb, var(--eth-color-bg) calc((1 + var(--eth-opacity-translucent-surface)) * 50%), transparent);
+  border-right: var(--eth-border-width) solid var(--eth-color-border-light);
+  box-sizing: border-box;
+  /* A soft shadow off the right edge, over the lanes. */
+  box-shadow: var(--eth-space-xs) 0 var(--eth-space-md) color-mix(in srgb, var(--eth-mix-black) 22%, transparent);
+  -webkit-backdrop-filter: blur(var(--eth-size-translucent-blur));
+  backdrop-filter: blur(var(--eth-size-translucent-blur));
+}
+:root[data-translucency="off"] .eth-arr__header-shade {
+  background: var(--eth-color-bg);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+/* Resize grip on the header column's right edge (full height of the arrangement). */
+.eth-arr__header-resize {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: var(--eth-size-splitter-width);
+  z-index: 8;
+  cursor: ew-resize;
+  transition: background var(--eth-duration-fast) var(--eth-ease-out);
+}
+
+.eth-arr__header-resize:hover {
+  background: color-mix(in srgb, var(--eth-color-accent) 40%, transparent);
+}
+
+/* ── Rows ─────────────────────────────────────────────────────────── */
+
+.eth-arr-row {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  /* Rows away from the view skip style, layout and paint (and make no compositor layers):
+     the browser's own vertical virtualization (performance audit #3). Rows have an explicit
+     height, so a skipped row keeps its size. */
+  content-visibility: auto;
+}
+/* A selected track: painted unclipped (content-visibility implies paint containment, which
+   would cut its header's glow at the row's top and bottom; the rows around are transparent). */
+.eth-arr-row--selected {
+  content-visibility: visible;
+}
+
+.eth-arr-row__main {
+  display: flex;
+  flex: none;
+}
+
+/* Lane resize grip: along the bottom edge of the track header only. */
+.eth-arr-row__resize {
+  position: absolute;
+  left: 0;
+  height: var(--eth-size-splitter-width);
+  z-index: 6;
+  cursor: ns-resize;
+}
+
+.eth-arr-row__resize:hover {
+  background: color-mix(in srgb, var(--eth-color-selection) 40%, transparent);
+}
+
+.eth-arr-row__automation {
+  flex: 1;
+}
+
+.eth-arr-header {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-sm);
+  position: relative;
+  z-index: 5;
+  /* Its own compositing layer: otherwise each header (and its meter layer) is re-layerized
+     against the lane layers moving under it on every pan/zoom frame. */
+  will-change: transform;
+  box-sizing: border-box;
+  /* The card's right inset (12px, a gap before the lanes) plus room inside it. */
+  padding-right: calc(var(--eth-space-lg) + var(--eth-space-md));
+  /* A narrow header column: the contents keep their sizes and are cut at the card's right
+     edge (not squeezed, nothing spilling over the gap or the lanes); room above and below
+     for the volume readout. */
+  clip-path: inset(calc(-2 * var(--eth-size-control-lg)) var(--eth-space-lg) calc(-2 * var(--eth-size-control-lg)) 0);
+  /* The header is a floating card: drawn by ::before, inset from the row (the header box
+     itself keeps the column width that clip positions rely on). */
+  background: transparent;
+  cursor: default;
+  transition:
+    background-color var(--eth-duration-fast) var(--eth-ease-out),
+    opacity var(--eth-duration-fast) var(--eth-ease-out);
+}
+
+.eth-arr-header::before {
+  content: "";
+  position: absolute;
+  /* Nested tracks' cards step in with their group depth. */
+  inset: var(--eth-size-track-card-inset-y) var(--eth-space-lg) var(--eth-size-track-card-inset-y)
+    calc(var(--eth-size-track-card-inset-left) + var(--eth-track-depth, 0) * var(--eth-size-track-indent));
+  z-index: -1;
+  border-radius: var(--eth-radius-lg);
+  /* Only a selected track shows its card; hover gives a faint hint. */
+  background: transparent;
+  transition:
+    background-color var(--eth-duration-fast) var(--eth-ease-out),
+    box-shadow var(--eth-duration-fast) var(--eth-ease-out);
+}
+
+/* A track with a selected clip looks hovered (not selected): data-clip-selected. */
+.eth-arr-header:hover::before,
+.eth-arr-header[data-clip-selected]::before {
+  background: color-mix(in srgb, var(--eth-track-color) 8%, transparent);
+}
+
+/* Round badge in the track color with the track type's icon. */
+.eth-arr-header__badge {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--eth-size-track-badge);
+  height: var(--eth-size-track-badge);
+  /* A bit more room before the track name than the header's gap. */
+  margin-right: var(--eth-space-sm);
+  border-radius: var(--eth-radius-round);
+  background: var(--eth-track-color);
+  /* Icon color: set inline from the track color's contrast (inkOn). */
+  font-size: var(--eth-fs-lg);
+}
+
+.eth-arr-header--dragging {
+  opacity: 0.5;
+}
+
+.eth-arr-header--drop-into::before {
+  box-shadow: inset 0 0 0 var(--eth-border-width-strong) var(--eth-color-accent);
+}
+
+.eth-arr-header:not(.eth-arr-header--master) {
+  cursor: grab;
+}
+
+/* A return dragged over the regular tracks: it can't go there. */
+.eth-arr-header--drop-blocked::before {
+  box-shadow: inset 0 0 0 var(--eth-border-width-strong) var(--eth-color-danger);
+}
+
+/* The part of the arrangement a dragged return can't be dropped in (the regular tracks). */
+.eth-arr__track-drop-blocked {
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 6;
+  background: color-mix(in srgb, var(--eth-color-danger) 10%, transparent);
+  pointer-events: none;
+}
+
+/* Track header drop position while dragging a track. */
+.eth-arr__track-drop {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: var(--eth-border-width-strong);
+  margin-top: calc(var(--eth-border-width-strong) / -2);
+  z-index: 6;
+  background: var(--eth-color-accent);
+  pointer-events: none;
+}
+
+.eth-arr-header--selected::before,
+.eth-arr-header--selected:hover::before {
+  background: color-mix(in srgb, var(--eth-track-color) 22%, var(--eth-color-bg-raised));
+  box-shadow:
+    /* A light rim, as a selected clip's (its color lifted toward white): the glow reads
+       brighter around it. */ inset 0 0 0
+    var(--eth-border-width) color-mix(in srgb, var(--eth-track-color) 30%, var(--eth-mix-white));
+}
+[data-theme="light"] .eth-arr-header--selected::before,
+[data-theme="light"] .eth-arr-header--selected:hover::before {
+  box-shadow: inset 0 0 0 var(--eth-border-width) color-mix(in srgb, var(--eth-track-color) 70%, var(--eth-mix-black));
+}
+/* Settings > Appearance > Glow off: no halo around the selected track's card. */
+:root[data-glow="off"] .eth-arr-header__glow {
+  display: none;
+}
+/* The selected card's glow (TrackRow: a sibling of the header, which clips its contents at
+   the card's edges): the card's box, behind it, with the piano roll's selected-note glow (same
+   two blurs) in the track color. */
+.eth-arr-header__glow {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 4;
+  box-sizing: border-box;
+  pointer-events: none;
+}
+.eth-arr-header__glow::before {
+  content: "";
+  position: absolute;
+  inset: var(--eth-size-track-card-inset-y) var(--eth-space-lg) var(--eth-size-track-card-inset-y)
+    calc(var(--eth-size-track-card-inset-left) + var(--eth-track-depth, 0) * var(--eth-size-track-indent));
+  border-radius: var(--eth-radius-lg);
+  box-shadow:
+    0 0 var(--eth-size-selected-glow-inner) color-mix(in srgb, var(--eth-track-color) 45%, transparent),
+    0 0 var(--eth-size-selected-glow-outer) color-mix(in srgb, var(--eth-track-color) 30%, transparent);
+}
+
+/* A short lane: the badge is the icon alone, in the track color (no circle). */
+.eth-arr-header--compact .eth-arr-header__badge {
+  width: var(--eth-size-icon-md);
+  height: var(--eth-size-icon-md);
+  margin-right: var(--eth-space-xs);
+  background: transparent;
+  color: var(--eth-track-color);
+  font-size: var(--eth-fs-md);
+}
+
+/* A group's badge is its fold button: the chevron on the badge's circle in the track color
+   (ink set inline, like the other badges' icons); a short lane shows the chevron alone,
+   neutral. */
+.eth-arr-header__fold {
+  padding: 0;
+  border: none;
+  cursor: pointer;
+}
+.eth-arr-header--compact .eth-arr-header__fold {
+  color: var(--eth-color-text-dim);
+}
+.eth-arr-header--compact .eth-arr-header__fold:hover {
+  background: var(--eth-color-bg-hover);
+  color: var(--eth-color-text);
+}
+.eth-arr-header__fold svg {
+  transition: transform var(--eth-duration-fast) var(--eth-ease-out);
+}
+.eth-arr-header__fold[data-folded] svg {
+  transform: rotate(-90deg);
+}
+.eth-arr-header__fold:hover {
+  filter: brightness(1.1);
+}
+.eth-arr-header__fold:focus-visible {
+  outline: var(--eth-focus-ring-width) solid var(--eth-color-accent-subtle);
+  outline-offset: var(--eth-border-width);
+}
+
+.eth-arr-header__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: var(--eth-fw-medium);
+}
+
+.eth-arr-header__rename {
+  flex: 1;
+  min-width: 0;
+  height: calc(var(--eth-fs-md) + var(--eth-space-md));
+  padding: 0 var(--eth-space-xs);
+  border: var(--eth-border-width) solid var(--eth-color-focus);
+  border-radius: var(--eth-radius-sm);
+  background: var(--eth-color-bg-inset);
+  color: var(--eth-color-text);
+  outline: none;
+}
+
+/* Mute / solo / arm: shown on hover (and whenever one is on). */
+/* Compact volume fader in the header (the mixer view is gone). */
+/* The instrument picker's anchor (InstrumentPick): the header's card, so the library opens
+   right under it (or above). */
+.eth-arr-header__pick {
+  position: absolute;
+  inset: var(--eth-size-track-card-inset-y) var(--eth-space-lg) var(--eth-size-track-card-inset-y) var(--eth-size-track-card-inset-left);
+  pointer-events: none;
+}
+.eth-arr-header__pick > .eth-popover-anchor,
+.eth-arr-header__pick-anchor {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* Pan knob after the volume fader (HeaderPan). */
+.eth-arr-pan {
+  flex: none;
+  display: flex;
+  margin-left: var(--eth-space-sm);
+}
+.eth-arr-pan .eth-knob {
+  --knob-size: var(--eth-size-track-pan-knob);
+}
+.eth-arr-vol {
+  position: relative;
+  flex: none;
+  display: flex;
+  align-items: center;
+  width: var(--eth-size-track-fader-width);
+  height: var(--eth-size-control-sm);
+  cursor: ew-resize;
+  touch-action: none;
+  outline: none;
+}
+.eth-arr-vol__track {
+  position: relative;
+  width: 100%;
+  height: var(--eth-size-fader-track-width);
+  border-radius: var(--eth-radius-pill);
+  background: var(--eth-color-knob-track);
+  overflow: visible;
+}
+.eth-arr-vol__fill {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: color-mix(in srgb, var(--eth-track-color) 70%, var(--eth-color-text-dim));
+  transform-origin: left center;
+}
+.eth-arr-vol__thumb {
+  position: absolute;
+  top: 50%;
+  width: var(--eth-size-track-fader-thumb);
+  height: var(--eth-size-track-fader-thumb);
+  margin: calc(var(--eth-size-track-fader-thumb) / -2) 0 0 calc(var(--eth-size-track-fader-thumb) / -2);
+  border-radius: var(--eth-radius-round);
+  background: var(--eth-color-text);
+  box-shadow: var(--eth-shadow-sm);
+  opacity: 0.7;
+  transition:
+    opacity var(--eth-duration-fast) var(--eth-ease-out),
+    transform var(--eth-duration-fast) var(--eth-ease-out);
+}
+.eth-arr-vol:hover .eth-arr-vol__thumb,
+.eth-arr-vol--active .eth-arr-vol__thumb,
+.eth-arr-vol:focus-visible .eth-arr-vol__thumb {
+  opacity: 1;
+  transform: scale(1.2);
+}
+.eth-arr-vol:focus-visible .eth-arr-vol__track {
+  box-shadow: 0 0 0 var(--eth-focus-ring-width) var(--eth-color-focus);
+}
+/* dB readout above the fader while hovering or dragging. */
+.eth-arr-vol__readout {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  z-index: 2;
+  padding: 0 var(--eth-space-xs);
+  border-radius: var(--eth-radius-sm);
+  background: var(--eth-color-bg-overlay);
+  box-shadow: var(--eth-shadow-sm);
+  color: var(--eth-color-text);
+  font-size: var(--eth-fs-xs);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transform: translate(-50%, var(--eth-space-xs));
+  transition:
+    opacity var(--eth-duration-fast) var(--eth-ease-out),
+    transform var(--eth-duration-fast) var(--eth-ease-out);
+}
+.eth-arr-vol:hover .eth-arr-vol__readout,
+.eth-arr-vol--active .eth-arr-vol__readout {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+/* The name and, over its right end, the buttons at fixed positions (they never move). The
+   name runs under the hidden ones and stops before the leftmost visible one: shown on hover
+   (or a selected clip), or carrying state. */
+.eth-arr-header__main {
+  position: relative;
+  display: flex;
+  flex: 1;
+  align-items: center;
+  min-width: 0;
+}
+
+.eth-arr-header__buttons {
+  position: absolute;
+  top: 50%;
+  right: 0;
+  display: flex;
+  /* Every button keeps its slot (shown or not), so nothing moves on hover. */
+  gap: var(--eth-space-xs);
+  transform: translateY(-50%);
+}
+
+/* Never narrower than its buttons (a narrow header clips at its right end instead, so they
+   don't spill over the badge): k slots for k buttons. */
+.eth-arr-header__main:has(> .eth-arr-header__buttons > :nth-child(1)) {
+  min-width: calc(1 * (var(--eth-size-track-button) + var(--eth-space-xs)));
+}
+.eth-arr-header__main:has(> .eth-arr-header__buttons > :nth-child(2)) {
+  min-width: calc(2 * (var(--eth-size-track-button) + var(--eth-space-xs)));
+}
+.eth-arr-header__main:has(> .eth-arr-header__buttons > :nth-child(3)) {
+  min-width: calc(3 * (var(--eth-size-track-button) + var(--eth-space-xs)));
+}
+.eth-arr-header__main:has(> .eth-arr-header__buttons > :nth-child(4)) {
+  min-width: calc(4 * (var(--eth-size-track-button) + var(--eth-space-xs)));
+}
+.eth-arr-header__main:has(> .eth-arr-header__buttons > :nth-child(5)) {
+  min-width: calc(5 * (var(--eth-size-track-button) + var(--eth-space-xs)));
+}
+.eth-arr-header__main:has(> .eth-arr-header__buttons > :nth-child(6)) {
+  min-width: calc(6 * (var(--eth-size-track-button) + var(--eth-space-xs)));
+}
+
+/* Renaming: the field takes the whole width. */
+.eth-arr-header__main:has(.eth-arr-header__rename) .eth-arr-header__buttons {
+  display: none;
+}
+
+/* Room for the buttons from the leftmost visible one to the right end: k slots when the
+   visible one is the k-th from the end (the later, wider rule wins). */
+.eth-arr-header:has(.eth-arr-header__buttons > :nth-last-child(1):is([aria-pressed="true"], .eth-takes-toggle, .eth-auto-toggle--has)) .eth-arr-header__name,
+.eth-arr-header:is(:hover, [data-clip-selected]):has(.eth-arr-header__buttons > :nth-last-child(1)) .eth-arr-header__name {
+  margin-right: calc(1 * (var(--eth-size-track-button) + var(--eth-space-xs)));
+}
+.eth-arr-header:has(.eth-arr-header__buttons > :nth-last-child(2):is([aria-pressed="true"], .eth-takes-toggle, .eth-auto-toggle--has)) .eth-arr-header__name,
+.eth-arr-header:is(:hover, [data-clip-selected]):has(.eth-arr-header__buttons > :nth-last-child(2)) .eth-arr-header__name {
+  margin-right: calc(2 * (var(--eth-size-track-button) + var(--eth-space-xs)));
+}
+.eth-arr-header:has(.eth-arr-header__buttons > :nth-last-child(3):is([aria-pressed="true"], .eth-takes-toggle, .eth-auto-toggle--has)) .eth-arr-header__name,
+.eth-arr-header:is(:hover, [data-clip-selected]):has(.eth-arr-header__buttons > :nth-last-child(3)) .eth-arr-header__name {
+  margin-right: calc(3 * (var(--eth-size-track-button) + var(--eth-space-xs)));
+}
+.eth-arr-header:has(.eth-arr-header__buttons > :nth-last-child(4):is([aria-pressed="true"], .eth-takes-toggle, .eth-auto-toggle--has)) .eth-arr-header__name,
+.eth-arr-header:is(:hover, [data-clip-selected]):has(.eth-arr-header__buttons > :nth-last-child(4)) .eth-arr-header__name {
+  margin-right: calc(4 * (var(--eth-size-track-button) + var(--eth-space-xs)));
+}
+.eth-arr-header:has(.eth-arr-header__buttons > :nth-last-child(5):is([aria-pressed="true"], .eth-takes-toggle, .eth-auto-toggle--has)) .eth-arr-header__name,
+.eth-arr-header:is(:hover, [data-clip-selected]):has(.eth-arr-header__buttons > :nth-last-child(5)) .eth-arr-header__name {
+  margin-right: calc(5 * (var(--eth-size-track-button) + var(--eth-space-xs)));
+}
+.eth-arr-header:has(.eth-arr-header__buttons > :nth-last-child(6):is([aria-pressed="true"], .eth-takes-toggle, .eth-auto-toggle--has)) .eth-arr-header__name,
+.eth-arr-header:is(:hover, [data-clip-selected]):has(.eth-arr-header__buttons > :nth-last-child(6)) .eth-arr-header__name {
+  margin-right: calc(6 * (var(--eth-size-track-button) + var(--eth-space-xs)));
+}
+
+.eth-arr-header__toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  /* A fixed slot whether shown or not (owner: the buttons must never move on hover); hidden
+     ones are only faded out, and ignore the pointer. */
+  width: var(--eth-size-track-button);
+  height: var(--eth-size-track-button);
+  padding: 0;
+  overflow: hidden;
+  border: none;
+  border-radius: var(--eth-radius-sm);
+  background: transparent;
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-md);
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity var(--eth-duration-fast) var(--eth-ease-out),
+    background-color var(--eth-duration-fast) var(--eth-ease-out),
+    color var(--eth-duration-fast) var(--eth-ease-out);
+}
+
+/* Shown: on hover, and whenever the button carries state (on, takes, automation dot, freeze
+   status) or has focus. */
+.eth-arr-header:hover .eth-arr-header__toggle,
+.eth-arr-header[data-clip-selected] .eth-arr-header__toggle,
+.eth-arr-header__toggle:focus-visible,
+.eth-arr-header__toggle[aria-pressed="true"],
+.eth-arr-header__toggle.eth-takes-toggle,
+.eth-arr-header__toggle.eth-auto-toggle--has,
+.eth-arr-header__toggle.eth-freeze__lock,
+.eth-arr-header__toggle.eth-freeze__cancel,
+.eth-arr-header__toggle.eth-freeze__error {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.eth-arr-header__toggle:hover {
+  background: var(--eth-color-bg-hover);
+  color: var(--eth-color-text);
+}
+
+.eth-arr-header__automation[aria-pressed="true"] {
+  background: var(--eth-color-accent-subtle);
+  color: var(--eth-color-accent);
+}
+
+/* The track has automation: a dot on the toggle, even while its lanes are hidden. */
+.eth-arr-header__automation.eth-auto-toggle--has {
+  position: relative;
+  opacity: 1;
+}
+
+.eth-arr-header__automation.eth-auto-toggle--has::after {
+  content: "";
+  position: absolute;
+  top: var(--eth-space-xs);
+  right: var(--eth-space-xs);
+  width: var(--eth-size-dot-sm);
+  height: var(--eth-size-dot-sm);
+  border-radius: var(--eth-radius-round);
+  background: var(--eth-color-accent);
+}
+
+.eth-arr-header__mute[aria-pressed="true"] {
+  background: color-mix(in srgb, var(--eth-color-warn) 22%, transparent);
+  color: var(--eth-color-warn);
+}
+
+.eth-arr-header__solo[aria-pressed="true"] {
+  background: color-mix(in srgb, var(--eth-color-accent) 24%, transparent);
+  color: var(--eth-color-accent);
+}
+
+.eth-arr-header__arm[aria-pressed="true"] {
+  background: color-mix(in srgb, var(--eth-color-record) 22%, transparent);
+  color: var(--eth-color-record);
+}
+
+.eth-arr-header__arm[aria-pressed="true"] .lucide {
+  fill: currentColor;
+}
+
+/* Live level along the header's right edge. */
+/* The track's level, on the edge between the header column and the lanes: centered in the gap
+   right of the header card (positioned on the row, outside the clipped header box). */
+.eth-arr-header__meter {
+  position: absolute;
+  top: 0;
+  left: calc(var(--eth-arr-header-width) - (var(--eth-space-lg) + var(--eth-size-track-meter-width)) / 2);
+  z-index: 6;
+  box-sizing: border-box;
+  border-top: var(--eth-size-track-card-inset-y) solid transparent;
+  border-bottom: var(--eth-size-track-card-inset-y) solid transparent;
+  background-clip: padding-box;
+  width: var(--eth-size-track-meter-width);
+  border-radius: var(--eth-radius-pill);
+  background: color-mix(in srgb, var(--eth-color-text) 6%, transparent);
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.eth-arr-header__meter-fill {
+  position: absolute;
+  inset: 0;
+  transform-origin: bottom;
+  /* Updated at meter rate: its own compositing layer, so a level change is a compositor-only
+     transform instead of a repaint of the page underneath (all lanes, clips...). */
+  will-change: transform;
+  background: linear-gradient(
+    to top,
+    var(--eth-color-meter-low) 0%,
+    var(--eth-color-meter-low) 70%,
+    var(--eth-color-meter-mid) 85%,
+    var(--eth-color-meter-high) 100%
+  );
+}
+
+.eth-arr-lane {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  /* A faint line between tracks, in the lanes only (headers are floating cards). */
+  box-shadow: inset 0 calc(-1 * var(--eth-border-width)) 0 color-mix(in srgb, var(--eth-color-border-light) 45%, transparent);
+}
+
+.eth-arr-lane--no-clips {
+  background: color-mix(in srgb, var(--eth-color-bg-inset) 60%, transparent);
+}
+
+.eth-arr-lane__drop-hint {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: var(--eth-border-width-strong);
+  background: var(--eth-color-accent);
+  pointer-events: none;
+}
+
+/* Lane content, slid to the scroll position by LaneLayer (so scrolling doesn't re-render). */
+.eth-arr-lane__layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  will-change: transform;
+  /* LaneLayer scales from the lane's left edge (live/settled zoom while zooming). */
+  transform-origin: 0 0;
+}
+
+/* ── Clip elements ─────────────────────────────────────────────────── */
+/* The arranger canvas (gl/) draws the clips. These rules style the few DOM clips left: the
+   live recording clip (recording/live), the MIDI insert preview (`.eth-clip--ghost`), and
+   `.eth-clip__name`, which gl/textRaster.ts reads the clip name's font from. */
+
+.eth-clip {
+  position: absolute;
+  top: var(--eth-space-xs);
+  bottom: var(--eth-space-xs);
+  box-sizing: border-box;
+  overflow: hidden;
+  border-radius: var(--eth-radius-md);
+  /* A soft tint of the clip color; the waveform/notes sit on it. */
+  /* Theme-aware shades of the clip color: in light mode the pastel palette is darkened so
+     clips stand out on the light background (see the [data-theme="light"] rule below). */
+  --clip-strong: var(--eth-clip-color);
+  --clip-rim: color-mix(in srgb, var(--eth-clip-color) 30%, var(--eth-mix-white));
+  --clip-lift: var(--eth-mix-white);
+  background: color-mix(in srgb, var(--clip-strong) 26%, var(--eth-color-bg-panel));
+  border: none;
+  /* Only the title bar and the edge handles take the pointer: a press on the body goes
+     through to the lane, like on empty space (locate, marquee). */
+  pointer-events: none;
+  transition:
+    box-shadow var(--eth-duration-fast) var(--eth-ease-out),
+    border-color var(--eth-duration-fast) var(--eth-ease-out),
+    opacity var(--eth-duration-fast) var(--eth-ease-out),
+    filter var(--eth-duration-fast) var(--eth-ease-out);
+}
+
+.eth-clip--ghost {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+/* Title bar: the clip's grab zone (a thin grip strip on top, the name as an inset label). */
+.eth-clip__title {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-xs);
+  height: var(--eth-size-clip-title-height);
+  padding: var(--eth-space-hair) var(--eth-space-xs) 0;
+  overflow: hidden;
+  white-space: nowrap;
+  font-size: var(--eth-fs-xs);
+  line-height: var(--eth-size-clip-title-line-height);
+  color: var(--eth-color-text-inverse);
+  background: var(--clip-strong);
+  pointer-events: auto;
+  cursor: grab;
+  transition: background-color var(--eth-duration-fast) var(--eth-ease-out);
+}
+
+.eth-clip__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 0 var(--eth-space-xs);
+  border-radius: var(--eth-radius-sm);
+  font-weight: var(--eth-fw-medium);
+}
+/* Renaming in place (the clip menu's "Rename"): a field in the header, over its width. */
+.eth-clip__rename {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding: 0 var(--eth-space-xs);
+  border: var(--eth-border-width) solid var(--eth-color-focus);
+  border-radius: var(--eth-radius-sm);
+  background: var(--eth-color-bg-inset);
+  color: var(--eth-color-text);
+  font: inherit;
+  font-weight: var(--eth-fw-medium);
+  outline: none;
+  cursor: text;
+}
+
+.eth-clip__body {
+  position: absolute;
+  top: var(--eth-size-clip-title-height);
+  bottom: 0;
+  pointer-events: none;
+}
+
+/* Over the body's height (the live recording clip's waveform). */
+.eth-clip__canvas {
+  display: block;
+  position: absolute;
+  top: 0;
+  height: 100%;
+}
+
+/* ── Draft track (type not chosen yet) ─────────────────────────────── */
+
+.eth-arr-row--draft {
+  animation: eth-arr-draft-in var(--eth-duration-normal) var(--eth-ease-out) both;
+}
+
+.eth-arr-header--draft {
+  gap: var(--eth-space-xs);
+}
+
+.eth-arr-header--draft::before,
+.eth-arr-header--draft:hover::before {
+  background: var(--eth-color-accent-subtle);
+  box-shadow: inset 0 0 0 var(--eth-border-width) color-mix(in srgb, var(--eth-color-accent) 55%, transparent);
+}
+
+.eth-arr-header--draft .eth-arr-header__name {
+  color: var(--eth-color-accent);
+  font-weight: var(--eth-fw-medium);
+}
+
+.eth-arr-lane--draft {
+  display: flex;
+  align-items: center;
+  padding-left: var(--eth-space-lg);
+  border: var(--eth-border-width) dashed color-mix(in srgb, var(--eth-color-accent) 45%, transparent);
+  border-radius: var(--eth-radius-md);
+  margin: var(--eth-space-xs);
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-sm);
+}
+
+/* base-106: clips dragged below the last track: the tracks the drop creates, as ghost rows
+   in the draft row's look, over the drop area (whose own hint steps aside meanwhile). */
+.eth-arr__ghost-rows {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  z-index: 2;
+  pointer-events: none;
+}
+
+/* Same name inset as the draft row's (top-level) header. */
+.eth-arr-row--ghost .eth-arr-header {
+  padding-left: calc(var(--eth-size-track-card-inset-left) + var(--eth-space-md));
+}
+
+.eth-arr__drop-area:has(> .eth-arr__ghost-rows) > :not(.eth-arr__ghost-rows) {
+  visibility: hidden;
+}
+
+/* The draft lane's dashed outline, inset vertically only: clips keep their x positions. */
+.eth-arr-lane--ghost::after {
+  content: "";
+  position: absolute;
+  inset: var(--eth-space-xs) 0;
+  border: var(--eth-border-width) dashed color-mix(in srgb, var(--eth-color-accent) 45%, transparent);
+  border-radius: var(--eth-radius-md);
+  pointer-events: none;
+}
+
+@keyframes eth-arr-draft-in {
+  from {
+    opacity: 0;
+    transform: translateY(calc(-1 * var(--eth-space-sm)));
+  }
+}
+
+/* Light theme: darker clip shades for contrast on the light background. */
+[data-theme="light"] .eth-clip {
+  --clip-strong: color-mix(in srgb, var(--eth-clip-color) 70%, var(--eth-mix-black));
+  --clip-rim: var(--clip-strong);
+  --clip-lift: var(--eth-mix-black);
+}
+
+/* base-131: no project open (launch): a calm empty state with a way back to the project screen. */
+.eth-arr--no-project {
+  align-items: center;
+  justify-content: center;
+  gap: var(--eth-space-lg);
+  color: var(--eth-color-text-dim);
+}
+
+/* ── WebGL arranger (gl/GlClipLayer.tsx) ───────────────────────────── */
+
+/* Over the lanes, between the grid (below) and the rows' lane DOM (above). The canvas is
+   positioned in content px at the scroll position it was drawn for (a transform). */
+.eth-arr-gl {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.eth-arr-gl__canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: block;
+  pointer-events: none;
+}
+
+/* The rename field over a clip's title band (laid out like `.eth-clip__title`), above the
+   rows so it takes the pointer. */
+.eth-arr-gl__rename {
+  position: absolute;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-xs);
+  box-sizing: border-box;
+  height: var(--eth-size-clip-title-height);
+  padding: var(--eth-space-hair) var(--eth-space-xs) 0;
+  font-size: var(--eth-fs-xs);
+  line-height: var(--eth-size-clip-title-line-height);
+  pointer-events: auto;
+}
+
+/* A clip's audio-to-MIDI status (progress, stop / failure buttons) at the end of its title
+   band, laid out like `.eth-clip__title`. Only its buttons take the pointer. */
+.eth-arr-gl__status {
+  position: absolute;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--eth-space-xs);
+  box-sizing: border-box;
+  height: var(--eth-size-clip-title-height);
+  padding: var(--eth-space-hair) var(--eth-space-xs) 0;
+  overflow: hidden;
+  color: var(--eth-color-text-inverse);
+  font-size: var(--eth-fs-xs);
+  line-height: var(--eth-size-clip-title-line-height);
+  pointer-events: none;
+}
+
+.eth-arr-gl__status > * {
+  pointer-events: auto;
+}
+
+.eth-arr-gl__rename-icon {
+  flex: none;
+  width: var(--eth-size-icon-inline);
+}
+
+/* Selection announcements for screen readers (the canvas has no clip elements). */
+.eth-arr-gl__live {
+  position: absolute;
+  width: var(--eth-border-width);
+  height: var(--eth-border-width);
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

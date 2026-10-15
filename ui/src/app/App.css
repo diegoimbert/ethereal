@@ -1,0 +1,412 @@
+.eth-shell {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-sm);
+  height: 100%;
+  padding: var(--eth-space-sm);
+  background: var(--eth-color-bg);
+}
+
+.eth-shell__top {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-md);
+  min-height: var(--eth-size-top-bar-height);
+  /* Left padding puts the menu button's center over the rail's center line. */
+  padding: var(--eth-space-xs) var(--eth-space-sm) var(--eth-space-xs) var(--eth-space-md);
+}
+.eth-shell__transport {
+  flex: 1;
+  min-width: 0;
+  /* When the window is too narrow for every transport control, scroll them sideways rather
+     than spilling under the next top-bar group (which then swallowed clicks on Redo). */
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+.eth-shell__transport::-webkit-scrollbar {
+  display: none;
+}
+
+/* ---- Workspace: rail + arrangement + floating panes ---------------------------------- */
+.eth-workspace {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+/* The read-only viewer has no rail. */
+.eth-workspace[data-read-only] {
+  --eth-size-rail-width: var(--eth-space-0);
+}
+/* Pinned panes pad the arrangement by their size (animated); unpinned ones float over it. */
+.eth-workspace__main {
+  position: absolute;
+  inset: 0;
+  padding: 0 var(--pane-right-reserved) var(--pane-bottom-reserved) calc(var(--eth-size-rail-width) + var(--pane-left-reserved));
+  transition: padding var(--eth-duration-slow) var(--eth-ease-standard);
+}
+.eth-workspace__stage {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-width: 0;
+  overflow: hidden;
+  border: var(--eth-border-width) solid var(--eth-color-border-light);
+  border-radius: var(--eth-radius-xl);
+  background: var(--eth-color-bg-panel);
+  box-shadow: var(--eth-shadow-sm);
+}
+.eth-workspace__stage > [data-feature="arrangement"] {
+  flex: 1;
+  min-height: 0;
+}
+
+/* The icon rail on the left edge. */
+.eth-rail {
+  position: absolute;
+  /* Above the arrangement's container, which spans the whole workspace (under the rail). */
+  z-index: 1;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: var(--eth-size-rail-width);
+  display: flex;
+  flex-direction: column;
+  /* Centered in the rail, on the same vertical line as the top bar's menu button. */
+  align-items: center;
+  gap: var(--eth-space-md);
+  padding-top: var(--eth-space-xs);
+  /* Lifts the command palette button off the window's bottom edge. */
+  padding-bottom: var(--eth-space-lg);
+}
+.eth-rail__button {
+  color: var(--eth-color-text-dim);
+  border-radius: var(--eth-radius-lg);
+}
+.eth-rail__button--active {
+  color: var(--eth-color-accent);
+  background: var(--eth-color-accent-subtle);
+}
+
+/* A floating pane: a card over (or, pinned, beside) the arrangement. */
+.eth-float {
+  position: absolute;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  border: var(--eth-border-width) solid var(--eth-color-border-light);
+  border-radius: var(--eth-radius-xl);
+  /* A step lighter than the arrangement under it, so the card reads as floating on top. */
+  background: var(--eth-color-bg-raised);
+  box-shadow: var(--eth-shadow-lg);
+  /* The edges move (pin/unpin, the drawer next to a side pane opening or closing) on the
+     side panes' own enter/exit timing, so the drawer's edges track theirs. */
+  transition:
+    box-shadow var(--eth-duration-normal) var(--eth-ease-out),
+    top var(--eth-duration-normal) var(--eth-ease-out),
+    bottom var(--eth-duration-normal) var(--eth-ease-out),
+    left var(--eth-duration-normal) var(--eth-ease-out),
+    right var(--eth-duration-normal) var(--eth-ease-out);
+  animation: var(--float-enter) var(--eth-duration-normal) var(--eth-ease-out) both;
+}
+/* Pinned: flush with the workspace edges and shadowed like the arrangement card beside it
+   (only the gap to the arrangement remains). */
+.eth-float--pinned {
+  box-shadow: var(--eth-shadow-sm);
+}
+/* Floating (not pinned): translucent, the arrangement shows through heavily blurred
+   (Settings: "Disable translucency"). */
+:root:not([data-translucency="off"]) .eth-float:not(.eth-float--pinned) {
+  background: color-mix(in srgb, var(--eth-color-bg-raised) calc(var(--eth-opacity-translucent-surface) * 100%), transparent);
+  -webkit-backdrop-filter: blur(var(--eth-size-translucent-blur));
+  backdrop-filter: blur(var(--eth-size-translucent-blur));
+}
+/* Resizing a pane by its edge: the drawer's edges follow the pointer at once. */
+:root[data-drag-cursor] .eth-float {
+  transition: none;
+}
+.eth-float--closing {
+  animation: var(--float-exit) var(--float-exit-duration) var(--eth-ease-in) both;
+  pointer-events: none;
+}
+/* Panes float inset from the workspace edges (and each other) by --eth-size-float-gap;
+   pinned, they sit flush with the workspace edges like the arrangement. */
+.eth-float--left {
+  top: var(--eth-size-float-gap);
+  bottom: var(--eth-size-float-gap);
+  left: calc(var(--eth-size-rail-width) + var(--eth-size-float-gap));
+  width: var(--pane-left-size);
+  --float-enter: eth-float-in-left;
+  --float-exit: eth-float-out-left;
+}
+.eth-float--left.eth-float--pinned {
+  top: 0;
+  bottom: 0;
+  left: var(--eth-size-rail-width);
+}
+.eth-float--right {
+  top: var(--eth-size-float-gap);
+  bottom: var(--eth-size-float-gap);
+  right: var(--eth-size-float-gap);
+  width: var(--pane-right-size);
+  --float-enter: eth-float-in-right;
+  --float-exit: eth-float-out-right;
+}
+.eth-float--right.eth-float--pinned {
+  top: 0;
+  bottom: 0;
+  right: 0;
+}
+/* The drawer spans between the open side panes (panes never overlap each other; the
+   offsets come from `paneLayout`). */
+.eth-float--bottom {
+  z-index: 19;
+  bottom: var(--eth-size-float-gap);
+  left: calc(var(--eth-size-rail-width) + var(--pane-bottom-left));
+  right: var(--pane-bottom-right);
+  height: var(--pane-bottom-size);
+  --float-enter: eth-float-in-bottom;
+  --float-exit: eth-float-out-bottom;
+}
+/* A collapsed pane: a thin bar floating at its edge (content unmounted). The right one is
+   inset to stay clear of the arrangement's vertical scrollbar. */
+.eth-float-bar {
+  position: absolute;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-md);
+  padding: var(--eth-space-md) var(--eth-space-sm);
+  border: var(--eth-border-width) solid var(--eth-color-border-light);
+  border-radius: var(--eth-radius-xl);
+  background: var(--eth-color-bg-raised);
+  color: var(--eth-color-text-dim);
+  box-shadow: var(--eth-shadow-lg);
+  font: inherit;
+  cursor: pointer;
+}
+/* Fades in once the card has flown out; fades out as the card flies back in. */
+.eth-float-bar {
+  animation: eth-float-bar-in var(--eth-duration-fast) var(--eth-ease-out) both;
+}
+.eth-float-bar--closing {
+  animation: eth-float-bar-out var(--eth-duration-fast) var(--eth-ease-in) both;
+  pointer-events: none;
+}
+@keyframes eth-float-bar-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes eth-float-bar-out {
+  to {
+    opacity: 0;
+  }
+}
+.eth-float-bar:hover {
+  color: var(--eth-color-text);
+  background: var(--eth-color-bg-hover);
+}
+.eth-float-bar > svg {
+  width: var(--eth-size-icon-md);
+  height: var(--eth-size-icon-md);
+  flex: none;
+}
+.eth-float-bar--right {
+  top: 50%;
+  right: var(--eth-size-collapsed-bar-inset);
+  width: var(--eth-size-collapsed-bar);
+  flex-direction: column;
+  transform: translateY(-50%);
+}
+.eth-float-bar--right .eth-float-bar__title {
+  writing-mode: vertical-rl;
+}
+.eth-float-bar--bottom {
+  bottom: var(--eth-size-float-gap);
+  left: 50%;
+  height: var(--eth-size-collapsed-bar);
+  padding: var(--eth-space-sm) var(--eth-space-md);
+  transform: translateX(-50%);
+}
+/* Pinned, the drawer lines up with the arrangement: its edges move with the arrangement's
+   padding (same timing), so the two stay aligned while a side pane opens or closes. */
+.eth-float--bottom.eth-float--pinned {
+  bottom: 0;
+  transition:
+    box-shadow var(--eth-duration-normal) var(--eth-ease-out),
+    bottom var(--eth-duration-normal) var(--eth-ease-out),
+    left var(--eth-duration-slow) var(--eth-ease-standard),
+    right var(--eth-duration-slow) var(--eth-ease-standard);
+}
+.eth-float {
+  --float-exit-duration: var(--eth-duration-normal);
+}
+@keyframes eth-float-in-left {
+  from {
+    opacity: 0;
+    transform: translateX(calc(var(--eth-space-3xl) * -1));
+  }
+}
+@keyframes eth-float-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(var(--eth-space-3xl));
+  }
+}
+@keyframes eth-float-in-bottom {
+  from {
+    opacity: 0;
+    transform: translateY(var(--eth-space-3xl));
+  }
+}
+@keyframes eth-float-out-left {
+  to {
+    opacity: 0;
+    transform: translateX(calc(var(--eth-space-3xl) * -1));
+  }
+}
+@keyframes eth-float-out-right {
+  to {
+    opacity: 0;
+    transform: translateX(var(--eth-space-3xl));
+  }
+}
+@keyframes eth-float-out-bottom {
+  to {
+    opacity: 0;
+    transform: translateY(var(--eth-space-3xl));
+  }
+}
+.eth-float__header {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-xs);
+  height: var(--panel-header-height);
+  padding: 0 var(--eth-space-xs) 0 var(--eth-space-md);
+  border-bottom: var(--eth-border-width) solid var(--eth-color-border-light);
+}
+.eth-float__title {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+}
+.eth-float__heading {
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-sm);
+  font-weight: var(--eth-fw-medium);
+}
+.eth-float__body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+.eth-float__fill {
+  height: 100%;
+}
+/* The editor drawer fills its pane: each editor scrolls inside itself (e.g. the piano
+   roll's key rows), so the pane body itself doesn't scroll. */
+.eth-float--bottom .eth-float__body {
+  overflow: hidden;
+}
+.eth-drawer {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+.eth-drawer > * {
+  flex: 1;
+  min-height: 0;
+}
+/* Resize grip on the pane's inner edge. */
+.eth-float__resize {
+  position: absolute;
+  z-index: 1;
+  touch-action: none;
+  transition: background var(--eth-duration-fast) var(--eth-ease-out);
+}
+.eth-float__resize:hover {
+  background: color-mix(in srgb, var(--eth-color-accent) 40%, transparent);
+}
+.eth-float--left .eth-float__resize,
+.eth-float--right .eth-float__resize {
+  top: 0;
+  bottom: 0;
+  width: var(--eth-size-splitter-width);
+  cursor: ew-resize;
+}
+.eth-float--left .eth-float__resize {
+  right: 0;
+}
+.eth-float--right .eth-float__resize {
+  left: 0;
+}
+.eth-float--bottom .eth-float__resize {
+  left: 0;
+  right: 0;
+  top: 0;
+  height: var(--eth-size-splitter-width);
+  cursor: ns-resize;
+}
+
+.eth-shell__tabs {
+  display: flex;
+  gap: var(--eth-space-xs);
+  letter-spacing: var(--eth-tracking-normal);
+}
+/* Soft pill tabs: the active one sits on a raised surface. */
+.eth-shell__tab {
+  border-radius: var(--eth-radius-pill);
+  color: var(--eth-color-text-dim);
+  font-weight: var(--eth-fw-medium);
+  transition:
+    background var(--eth-duration-normal) var(--eth-ease-out),
+    color var(--eth-duration-normal) var(--eth-ease-out),
+    box-shadow var(--eth-duration-normal) var(--eth-ease-out);
+}
+.eth-shell__tab:hover:not(:disabled) {
+  color: var(--eth-color-text);
+}
+.eth-shell__tab[aria-selected="true"] {
+  background: var(--eth-color-bg-active);
+  color: var(--eth-color-text);
+  box-shadow: var(--eth-shadow-sm);
+}
+.eth-shell__theme {
+  color: var(--eth-color-text-dim);
+}
+
+/* Placeholder look for feature stubs (removed as features land). */
+.eth-feature-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--eth-space-xs);
+  height: 100%;
+  min-height: var(--eth-size-detail-collapsed-height);
+  padding: var(--eth-space-sm);
+  border: var(--eth-border-width) dashed var(--eth-color-border-light);
+  border-radius: var(--eth-radius-sm);
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-sm);
+  text-align: center;
+}
+.eth-shell__top .eth-feature-placeholder {
+  flex-direction: row;
+}
+.eth-shell__top .eth-feature-placeholder span {
+  display: none;
+}
+.eth-feature-placeholder__owner {
+  font-family: var(--eth-font-mono);
+  font-size: var(--eth-fs-xs);
+}

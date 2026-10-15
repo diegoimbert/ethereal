@@ -1,0 +1,450 @@
+/* Automation lanes. Tokens come from kit/theme.css. */
+
+.eth-auto-track {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  font-size: var(--eth-fs-xs);
+  color: var(--eth-color-text-dim);
+  user-select: none;
+}
+
+.eth-auto-bar {
+  display: flex;
+  flex: none;
+}
+
+.eth-auto-bar__header,
+.eth-auto-row__header {
+  flex: none;
+  box-sizing: border-box;
+  display: flex;
+  gap: var(--eth-space-xs);
+  padding: 0 var(--eth-space-xs) 0 var(--eth-space-md);
+  background: transparent;
+}
+
+.eth-auto-bar__header {
+  align-items: center;
+}
+
+.eth-auto-bar__toggle {
+  background: none;
+  border: none;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.eth-auto-bar__toggle:hover {
+  color: var(--eth-color-text);
+}
+
+/* Kit Selects in the lane headers: layout only (the kit styles them). */
+.eth-auto-select {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.eth-auto-row {
+  display: flex;
+  flex: none;
+  border-top: var(--eth-border-width) solid var(--eth-color-border);
+}
+
+.eth-auto-row__header {
+  position: relative;
+  flex-direction: column;
+  justify-content: center;
+  /* Room for the value scale on the right. */
+  padding-right: calc(var(--eth-space-3xl) + var(--eth-space-xl) + var(--eth-space-xs));
+}
+
+/* Value scale (step labels; scroll/zoom the visible value window). */
+.eth-auto-scale {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: calc(var(--eth-space-3xl) + var(--eth-space-xl));
+  overflow: hidden;
+  border-left: var(--eth-border-width) solid var(--eth-color-border);
+  color: var(--eth-color-text-dim);
+  font-family: var(--eth-font-mono);
+  font-size: var(--eth-fs-xs);
+  cursor: ns-resize;
+  touch-action: none;
+}
+.eth-auto-scale[data-zoomed] {
+  background: var(--eth-color-accent-subtle);
+}
+.eth-auto-scale__label {
+  position: absolute;
+  right: var(--eth-space-xs);
+  transform: translateY(-50%);
+  line-height: 1;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.eth-auto-scale__label[data-major] {
+  color: var(--eth-color-text);
+}
+
+/* Lane resize grip: along the bottom edge of the lane header only (like tracks). */
+.eth-auto-row__resize {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: var(--eth-size-splitter-width);
+  z-index: 6;
+  cursor: ns-resize;
+}
+.eth-auto-row__resize:hover {
+  background: color-mix(in srgb, var(--eth-color-selection) 40%, transparent);
+}
+
+.eth-auto-row__line {
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-xs);
+  min-width: 0;
+}
+
+.eth-auto-row__param {
+  flex: 1;
+}
+
+/* The master's "Tempo" lane: no value scale on the right; its name and the BPM at the playhead. */
+.eth-auto-row__header--plain {
+  padding-right: var(--eth-space-xs);
+}
+
+.eth-auto-row__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--eth-color-text);
+  font-size: var(--eth-fs-sm);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.eth-auto-row__value {
+  flex: none;
+  color: var(--eth-color-text-dim);
+  font-family: var(--eth-font-mono);
+  font-size: var(--eth-fs-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.eth-auto-row__missing {
+  flex: 1;
+  font-style: italic;
+}
+
+.eth-auto-icon {
+  flex: none;
+  min-width: var(--eth-size-control-sm);
+  height: var(--eth-size-control-sm);
+  padding: 0 var(--eth-space-xs);
+  background: var(--eth-color-bg-raised);
+  color: var(--eth-color-text-dim);
+  border: var(--eth-border-width) solid var(--eth-color-border-light);
+  border-radius: var(--eth-radius-sm);
+  font-size: var(--eth-fs-xs);
+  line-height: 1;
+  cursor: pointer;
+}
+
+.eth-auto-icon--on {
+  color: var(--eth-color-text-inverse);
+  background: var(--eth-color-accent);
+}
+
+.eth-auto-row__lane {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.eth-auto-lane {
+  position: relative;
+  background: var(--eth-color-bg-inset);
+  outline: none;
+  touch-action: none;
+}
+
+/* Drawn by the WebGL arranger (gl/layers/automationLanes.ts), which sits below the rows. */
+.eth-auto-lane--gl {
+  background: transparent;
+}
+
+.eth-auto-lane:focus-visible {
+  box-shadow: inset 0 0 0 var(--eth-border-width) var(--eth-color-accent-dim);
+}
+
+.eth-auto-lane__svg {
+  display: block;
+  overflow: hidden;
+  cursor: crosshair;
+}
+
+.eth-auto-lane__line {
+  fill: none;
+  stroke: var(--eth-color-accent);
+  stroke-width: 1.5;
+  pointer-events: none;
+}
+
+.eth-auto-lane--disabled .eth-auto-lane__line,
+.eth-auto-lane--disabled .eth-auto-lane__point {
+  opacity: 0.35;
+}
+
+.eth-auto-lane__point {
+  fill: var(--eth-color-bg-inset);
+  stroke: var(--eth-color-accent);
+  stroke-width: 1.5;
+  cursor: grab;
+}
+
+.eth-auto-lane__point--selected {
+  fill: var(--eth-color-selection);
+  stroke: var(--eth-color-text);
+}
+
+.eth-auto-lane__marquee {
+  fill: var(--eth-color-selection);
+  fill-opacity: 0.2;
+  stroke: var(--eth-color-selection);
+  pointer-events: none;
+  rx: var(--eth-radius-sm);
+  ry: var(--eth-radius-sm);
+}
+
+/* Step gridlines of stepped params (the default value stronger). */
+.eth-auto-lane__step {
+  stroke: var(--eth-color-border);
+  stroke-width: 1;
+  pointer-events: none;
+}
+.eth-auto-lane__step--major {
+  stroke: var(--eth-color-border-light);
+}
+
+/* Value + modifier hints while dragging a point. */
+.eth-auto-lane__tip {
+  position: absolute;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-hair);
+  padding: var(--eth-space-xs) var(--eth-space-sm);
+  transform: translate(var(--eth-space-md), calc(-100% - var(--eth-space-sm)));
+  background: var(--tooltip-bg);
+  color: var(--tooltip-fg);
+  border: var(--eth-border-width) solid var(--tooltip-border);
+  border-radius: var(--tooltip-radius);
+  font-size: var(--eth-fs-xs);
+  white-space: nowrap;
+  pointer-events: none;
+}
+.eth-auto-lane__tip--below {
+  transform: translate(var(--eth-space-md), var(--eth-space-sm));
+}
+.eth-auto-lane__tip-value {
+  font-family: var(--eth-font-mono);
+  color: var(--eth-color-text);
+}
+.eth-auto-lane__tip-hint {
+  color: var(--eth-color-text-dim);
+}
+
+/* "Set Value…" (PointValuePopover): anchored at the point; the popover is portaled. */
+.eth-auto-lane__value-anchor {
+  position: absolute;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+.eth-auto-value-pop {
+  min-width: 0;
+}
+.eth-auto-value-pop__row {
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-xs);
+}
+.eth-auto-value-pop__input {
+  width: 9ch;
+  font-family: var(--eth-font-mono);
+}
+.eth-auto-value-pop__unit {
+  padding-right: var(--eth-space-xs);
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+  white-space: nowrap;
+}
+
+/* Detail view */
+
+.eth-auto-detail {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: var(--eth-color-bg);
+}
+
+.eth-auto-detail--empty {
+  align-items: center;
+  justify-content: center;
+  color: var(--eth-color-text-dim);
+}
+
+.eth-auto-detail__ruler {
+  display: flex;
+  flex: none;
+}
+
+.eth-auto-detail__corner {
+  flex: none;
+  box-sizing: border-box;
+  padding: var(--eth-space-xs);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  background: var(--eth-color-bg-panel);
+  border-right: var(--eth-border-width) solid var(--eth-color-border);
+  border-bottom: var(--eth-border-width) solid var(--eth-color-border);
+  color: var(--eth-color-text);
+}
+
+.eth-auto-detail__ruler-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.eth-auto-detail__body {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.eth-auto-detail__playhead {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/* Automation open/close toggle (detail view; the arrangement shows it as an icon). */
+.eth-auto-toggle {
+  margin-left: auto;
+  padding: 0 var(--eth-space-sm);
+  border: none;
+  border-radius: var(--eth-radius-sm);
+  background: none;
+  color: var(--eth-color-text-dim);
+  font: inherit;
+  cursor: pointer;
+}
+.eth-auto-toggle[aria-pressed="true"] {
+  background: var(--eth-color-accent-subtle);
+  color: var(--eth-color-accent);
+}
+
+/* Opening/closing (laneMotion.ts): the row height is tweened in JS with the same
+   `--automation-lane-*` timing; the content fades and slides in the draft row's way. */
+/* Mid-animation the arrangement clips the slot and slides this in/out (laneAnimation.ts). */
+.eth-auto-track--animating {
+  overflow: hidden;
+}
+.eth-auto-enter {
+  animation: eth-auto-in var(--automation-lane-duration) var(--automation-lane-ease) both;
+}
+.eth-auto-track--closing > * {
+  animation: eth-auto-out var(--automation-lane-duration) var(--automation-lane-ease) both;
+  pointer-events: none;
+}
+/* A hidden lane collapses in place (the lanes below move up with it). */
+.eth-auto-row--leaving {
+  overflow: hidden;
+  animation: eth-auto-collapse var(--automation-lane-duration) var(--automation-lane-ease) both;
+  pointer-events: none;
+}
+@keyframes eth-auto-in {
+  from {
+    opacity: 0;
+    transform: translateY(calc(-1 * var(--eth-space-sm)));
+  }
+}
+@keyframes eth-auto-out {
+  to {
+    opacity: 0;
+    transform: translateY(calc(-1 * var(--eth-space-sm)));
+  }
+}
+@keyframes eth-auto-collapse {
+  to {
+    opacity: 0;
+    height: 0;
+    border-top-width: 0;
+  }
+}
+
+/* Clip envelopes (ClipEnvelopes.tsx): the warp editor's strip and the lane in clip editors. */
+.eth-auto-clip {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  border-top: var(--eth-border-width) solid var(--eth-color-border);
+}
+
+.eth-auto-clip__bar {
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-sm);
+  padding: var(--eth-space-xs) var(--eth-space-sm);
+}
+
+.eth-auto-clip__title {
+  color: var(--eth-color-text-dim);
+}
+
+.eth-auto-clip__row {
+  display: flex;
+}
+
+.eth-auto-clip__label {
+  flex: none;
+}
+
+.eth-auto-clip__body {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.eth-auto-clip__lane {
+  position: relative;
+  background: var(--eth-color-bg-inset);
+}
+
+.eth-auto-clip__missing {
+  display: flex;
+  align-items: center;
+  padding: 0 var(--eth-space-sm);
+  color: var(--eth-color-text-dim);
+  font-style: italic;
+  background: var(--eth-color-bg-inset);
+}

@@ -1,0 +1,26 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.4.0",
+  "preset": {
+    "name": "octave up",
+    "device": {
+      "type": "Builtin",
+      "device": "Pitch"
+    },
+    "meta": {
+      "tags": [
+        "pitch",
+        "transpose"
+      ],
+      "author": "ethereal",
+      "description": "every note one octave up."
+    },
+    "params": {
+      "0": 12.0,
+      "1": 0.0,
+      "2": 127.0,
+      "3": 0.0
+    }
+  }
+}

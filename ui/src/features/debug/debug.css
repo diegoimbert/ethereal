@@ -1,0 +1,24 @@
+/* base-154: debug panels (DebugPanelsRoot.tsx) in kit FloatingWindows. */
+.eth-debug-panel__title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.eth-debug-panel__kind {
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+  font-weight: var(--eth-fw-regular);
+}
+/* The panel's content fills the body and scrolls inside its own regions. */
+.eth-debug-panel__body {
+  overflow: hidden;
+}
+.eth-debug-panel__body > * {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+}
+.eth-debug-panel__error {
+  padding: var(--eth-space-md);
+  color: var(--eth-color-danger);
+  overflow-wrap: anywhere;
+}

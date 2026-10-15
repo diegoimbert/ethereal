@@ -1,0 +1,231 @@
+/* Guided tours (docs/TUTORIALS.md), three layers (the --eth-z-tour-* tokens): the dim above
+   dialogs (a target inside the settings shows through its hole) and below popovers (a menu or
+   a select's list opened during a step stays readable); the rings above popovers (a target
+   inside a menu, or covered by one, keeps its ring in sight); the bubble above all of them. */
+.eth-tour,
+.eth-tour__rings,
+.eth-tour__bubble {
+  --tour-dim: color-mix(in srgb, var(--eth-color-bg) 72%, transparent);
+  --tour-move: var(--eth-duration-normal) var(--eth-ease-standard);
+}
+.eth-tour,
+.eth-tour__rings {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+}
+.eth-tour {
+  z-index: var(--eth-z-tour-dim);
+}
+/* Only drawn: presses go through to the highlighted part (and the menu under it). */
+.eth-tour__rings {
+  z-index: var(--eth-z-tour-ring);
+}
+
+.eth-tour__dim {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.eth-tour__shade {
+  fill: var(--tour-dim);
+}
+/* The dim's luminance mask: white shows the shade, black (the holes) cuts it out. */
+.eth-tour__mask-fill {
+  fill: var(--eth-mix-white);
+}
+.eth-tour__hole {
+  fill: var(--eth-mix-black);
+  rx: var(--eth-radius-lg);
+  transition:
+    x var(--tour-move),
+    y var(--tour-move),
+    width var(--tour-move),
+    height var(--tour-move);
+}
+.eth-tour__catch {
+  fill: transparent;
+  pointer-events: fill;
+}
+
+.eth-tour__ring {
+  position: absolute;
+  border: var(--eth-space-hair) solid var(--eth-color-accent);
+  border-radius: var(--eth-radius-lg);
+  box-shadow: 0 0 0 var(--eth-space-xs) var(--eth-color-accent-glow);
+  pointer-events: none;
+  transition:
+    left var(--tour-move),
+    top var(--tour-move),
+    width var(--tour-move),
+    height var(--tour-move);
+}
+.eth-tour__ring[data-interactive] {
+  animation: eth-tour-ring 1.6s var(--eth-ease-standard) infinite;
+}
+@keyframes eth-tour-ring {
+  50% {
+    box-shadow: 0 0 0 var(--eth-space-sm) var(--eth-color-accent-glow);
+  }
+}
+
+.eth-tour__bubble {
+  position: fixed;
+  z-index: var(--eth-z-tour-bubble);
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-md);
+  width: min(var(--eth-size-tour-bubble-width), calc(100vw - 2 * var(--eth-space-lg)));
+  max-height: calc(100vh - 2 * var(--eth-space-lg));
+  overflow-y: auto;
+  padding: var(--eth-space-lg);
+  border: var(--eth-space-hair) solid var(--eth-color-border-card);
+  border-radius: var(--eth-radius-xl);
+  background: var(--eth-color-bg-raised);
+  box-shadow: var(--eth-shadow-lg);
+  color: var(--eth-color-text);
+  pointer-events: auto;
+  outline: none;
+  transition:
+    left var(--tour-move),
+    top var(--tour-move);
+}
+.eth-tour__head {
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-sm);
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+}
+.eth-tour__tour {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.eth-tour__count {
+  font-variant-numeric: tabular-nums;
+}
+
+.eth-tour__content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-sm);
+}
+.eth-tour__title {
+  margin: 0;
+  font-size: var(--eth-fs-lg);
+  font-weight: 600;
+}
+.eth-tour__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-sm);
+  line-height: 1.5;
+}
+.eth-tour__body p,
+.eth-tour__body ul {
+  margin: 0;
+}
+.eth-tour__body ul {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-xs);
+  padding-left: var(--eth-space-lg);
+}
+.eth-tour__body strong {
+  font-weight: 600;
+}
+.eth-tour__note {
+  margin: 0;
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-sm);
+}
+.eth-tour__hint {
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-sm);
+  margin: 0;
+  color: var(--eth-color-accent);
+  font-size: var(--eth-fs-sm);
+  font-weight: 500;
+}
+.eth-tour__hint-dot {
+  flex: none;
+  margin-right: var(--eth-space-xs);
+  width: var(--eth-space-sm);
+  height: var(--eth-space-sm);
+  border-radius: var(--eth-radius-round);
+  background: var(--eth-color-accent);
+  animation: eth-tour-ring 1.6s var(--eth-ease-standard) infinite;
+}
+
+.eth-tour__illustration {
+  display: flex;
+  justify-content: center;
+  padding: var(--eth-space-sm);
+  border-radius: var(--eth-radius-lg);
+  background: var(--eth-color-bg-inset);
+  color: var(--eth-color-text-dim);
+}
+.eth-tour__illustration svg {
+  width: 100%;
+  height: auto;
+  max-height: var(--eth-size-tour-illustration-max-height);
+}
+.eth-tour-diagram__box {
+  fill: var(--eth-color-bg-raised);
+  stroke: var(--eth-color-border-strong);
+}
+.eth-tour-diagram__accent {
+  fill: var(--eth-color-accent-subtle);
+  stroke: var(--eth-color-accent);
+}
+.eth-tour-diagram__wire {
+  fill: none;
+  stroke: var(--eth-color-text-dim);
+  stroke-dasharray: 4 3;
+}
+.eth-tour-diagram__label {
+  fill: var(--eth-color-text);
+  /* eth-allow-hardcoded: SVG user units of the diagram's viewBox (scaled with it), not CSS pixels */
+  font-size: 10px;
+  text-anchor: middle;
+}
+.eth-tour-diagram__small {
+  fill: var(--eth-color-text-dim);
+  /* eth-allow-hardcoded: SVG user units of the diagram's viewBox (scaled with it), not CSS pixels */
+  font-size: 8px;
+  text-anchor: middle;
+}
+
+.eth-tour__foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--eth-space-sm);
+}
+.eth-tour__spacer {
+  flex: 1;
+}
+.eth-tour__foot--confirm {
+  justify-content: flex-end;
+}
+.eth-tour__confirm {
+  flex-basis: 100%;
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-sm);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .eth-tour__hole,
+  .eth-tour__ring,
+  .eth-tour__bubble {
+    transition: none;
+  }
+  .eth-tour__ring[data-interactive],
+  .eth-tour__hint-dot {
+    animation: none;
+  }
+}

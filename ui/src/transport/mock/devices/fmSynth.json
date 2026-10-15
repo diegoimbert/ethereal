@@ -1,0 +1,2399 @@
+{
+  "FmSynth": {
+    "audio_inputs": 0,
+    "audio_outputs": 2,
+    "category": "Instrument",
+    "device_type": {
+      "device": "FmSynth",
+      "type": "Builtin"
+    },
+    "layout": {
+      "sections": [
+        {
+          "columns": 4,
+          "id": "op-a",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 0,
+                "type": "Toggle"
+              }
+            },
+            {
+              "colspan": 3,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 1,
+                "type": "Choice"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 2,
+                "type": "Number"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 3,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 4,
+                "type": "Toggle"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": "Freq",
+              "size": "Small",
+              "widget": {
+                "param": 5,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 6,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 11,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 12,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 4,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "attack": 7,
+                "decay": 8,
+                "delay": null,
+                "hold": null,
+                "release": 10,
+                "sustain": 9,
+                "type": "Envelope"
+              }
+            }
+          ],
+          "span": 1,
+          "title": "Operator A"
+        },
+        {
+          "columns": 4,
+          "id": "op-b",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 13,
+                "type": "Toggle"
+              }
+            },
+            {
+              "colspan": 3,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 14,
+                "type": "Choice"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 15,
+                "type": "Number"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 16,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 17,
+                "type": "Toggle"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": "Freq",
+              "size": "Small",
+              "widget": {
+                "param": 18,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 19,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 24,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 25,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 4,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "attack": 20,
+                "decay": 21,
+                "delay": null,
+                "hold": null,
+                "release": 23,
+                "sustain": 22,
+                "type": "Envelope"
+              }
+            }
+          ],
+          "span": 1,
+          "title": "Operator B"
+        },
+        {
+          "columns": 4,
+          "id": "op-c",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 26,
+                "type": "Toggle"
+              }
+            },
+            {
+              "colspan": 3,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 27,
+                "type": "Choice"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 28,
+                "type": "Number"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 29,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 30,
+                "type": "Toggle"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": "Freq",
+              "size": "Small",
+              "widget": {
+                "param": 31,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 32,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 37,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 38,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 4,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "attack": 33,
+                "decay": 34,
+                "delay": null,
+                "hold": null,
+                "release": 36,
+                "sustain": 35,
+                "type": "Envelope"
+              }
+            }
+          ],
+          "span": 1,
+          "title": "Operator C"
+        },
+        {
+          "columns": 4,
+          "id": "op-d",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 39,
+                "type": "Toggle"
+              }
+            },
+            {
+              "colspan": 3,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 40,
+                "type": "Choice"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 41,
+                "type": "Number"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 42,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 43,
+                "type": "Toggle"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": "Freq",
+              "size": "Small",
+              "widget": {
+                "param": 44,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 45,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 50,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 51,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 4,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "attack": 46,
+                "decay": 47,
+                "delay": null,
+                "hold": null,
+                "release": 49,
+                "sustain": 48,
+                "type": "Envelope"
+              }
+            }
+          ],
+          "span": 1,
+          "title": "Operator D"
+        },
+        {
+          "columns": 1,
+          "id": "algorithm",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "algorithm": 52,
+                "algorithms": [
+                  {
+                    "carriers": 1,
+                    "modulators": [
+                      2,
+                      4,
+                      8,
+                      0
+                    ]
+                  },
+                  {
+                    "carriers": 1,
+                    "modulators": [
+                      2,
+                      12,
+                      0,
+                      0
+                    ]
+                  },
+                  {
+                    "carriers": 1,
+                    "modulators": [
+                      6,
+                      0,
+                      8,
+                      0
+                    ]
+                  },
+                  {
+                    "carriers": 1,
+                    "modulators": [
+                      14,
+                      0,
+                      0,
+                      0
+                    ]
+                  },
+                  {
+                    "carriers": 1,
+                    "modulators": [
+                      6,
+                      8,
+                      8,
+                      0
+                    ]
+                  },
+                  {
+                    "carriers": 3,
+                    "modulators": [
+                      0,
+                      4,
+                      8,
+                      0
+                    ]
+                  },
+                  {
+                    "carriers": 5,
+                    "modulators": [
+                      2,
+                      0,
+                      8,
+                      0
+                    ]
+                  },
+                  {
+                    "carriers": 3,
+                    "modulators": [
+                      4,
+                      4,
+                      8,
+                      0
+                    ]
+                  },
+                  {
+                    "carriers": 7,
+                    "modulators": [
+                      0,
+                      0,
+                      8,
+                      0
+                    ]
+                  },
+                  {
+                    "carriers": 7,
+                    "modulators": [
+                      8,
+                      8,
+                      8,
+                      0
+                    ]
+                  },
+                  {
+                    "carriers": 15,
+                    "modulators": [
+                      0,
+                      0,
+                      0,
+                      0
+                    ]
+                  }
+                ],
+                "type": "FmAlgorithm"
+              }
+            }
+          ],
+          "span": 1,
+          "title": "Algorithm"
+        },
+        {
+          "columns": 2,
+          "id": "pitch-voice",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 53,
+                "type": "Number"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 54,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 2,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 76,
+                "type": "Choice"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": "Polyphony",
+              "size": "Small",
+              "widget": {
+                "param": 55,
+                "type": "Number"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 57,
+                "type": "Number"
+              }
+            },
+            {
+              "colspan": 2,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 56,
+                "type": "Knob"
+              }
+            }
+          ],
+          "span": 1,
+          "title": "Pitch / Voice"
+        },
+        {
+          "columns": 3,
+          "id": "lfo",
+          "items": [
+            {
+              "colspan": 3,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "amount": null,
+                "rate": 59,
+                "shape": 58,
+                "type": "Lfo"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": "Pitch",
+              "size": "Small",
+              "widget": {
+                "param": 60,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": "Filter",
+              "size": "Small",
+              "widget": {
+                "param": 61,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": "Volume",
+              "size": "Small",
+              "widget": {
+                "param": 62,
+                "type": "Knob"
+              }
+            }
+          ],
+          "span": 1,
+          "title": "LFO"
+        },
+        {
+          "columns": 3,
+          "id": "filter",
+          "items": [
+            {
+              "colspan": 3,
+              "label": null,
+              "size": "Large",
+              "widget": {
+                "cutoff": 65,
+                "drive": null,
+                "gain": null,
+                "mode": 64,
+                "resonance": 66,
+                "type": "FilterCurve"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 63,
+                "type": "Toggle"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 67,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 68,
+                "type": "Knob"
+              }
+            }
+          ],
+          "span": 2,
+          "title": "Filter"
+        },
+        {
+          "columns": 2,
+          "id": "filter-env",
+          "items": [
+            {
+              "colspan": 2,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "attack": 69,
+                "decay": 70,
+                "delay": null,
+                "hold": null,
+                "release": 72,
+                "sustain": 71,
+                "type": "Envelope"
+              }
+            }
+          ],
+          "span": 1,
+          "title": "Filter Envelope"
+        },
+        {
+          "columns": 2,
+          "id": "output",
+          "items": [
+            {
+              "colspan": 2,
+              "label": null,
+              "size": "Large",
+              "widget": {
+                "param": 73,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 74,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 75,
+                "type": "Toggle"
+              }
+            }
+          ],
+          "span": 1,
+          "title": "Output"
+        }
+      ]
+    },
+    "midi_input": true,
+    "name": "FM Synth",
+    "params": [
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Operator A",
+        "hidden": false,
+        "id": 0,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "On",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Operator A",
+        "hidden": false,
+        "id": 1,
+        "labels": [
+          "Sine",
+          "Triangle",
+          "Saw",
+          "Square",
+          "Noise"
+        ],
+        "max": 4.0,
+        "min": 0.0,
+        "name": "Wave",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Operator A",
+        "hidden": false,
+        "id": 2,
+        "labels": [
+          "0.5",
+          "1",
+          "2",
+          "3",
+          "4",
+          "5",
+          "6",
+          "7",
+          "8",
+          "9",
+          "10",
+          "11",
+          "12",
+          "13",
+          "14",
+          "15",
+          "16",
+          "17",
+          "18",
+          "19",
+          "20",
+          "21",
+          "22",
+          "23",
+          "24",
+          "25",
+          "26",
+          "27",
+          "28",
+          "29",
+          "30",
+          "31",
+          "32",
+          "33",
+          "34",
+          "35",
+          "36",
+          "37",
+          "38",
+          "39",
+          "40",
+          "41",
+          "42",
+          "43",
+          "44",
+          "45",
+          "46",
+          "47",
+          "48"
+        ],
+        "max": 48.0,
+        "min": 0.0,
+        "name": "Coarse",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Ratio"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Operator A",
+        "hidden": false,
+        "id": 3,
+        "labels": null,
+        "max": 1000.0,
+        "min": 0.0,
+        "name": "Fine",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Operator A",
+        "hidden": false,
+        "id": 4,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Fixed",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      },
+      {
+        "automatable": true,
+        "default": 440.0,
+        "group": "Operator A",
+        "hidden": false,
+        "id": 5,
+        "labels": null,
+        "max": 10000.0,
+        "min": 1.0,
+        "name": "Frequency",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Hertz"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Operator A",
+        "hidden": false,
+        "id": 6,
+        "labels": null,
+        "max": 0.0,
+        "min": -70.0,
+        "name": "Level",
+        "scale": {
+          "type": "Fader"
+        },
+        "unit": "Decibels"
+      },
+      {
+        "automatable": true,
+        "default": 2.0,
+        "group": "Operator A",
+        "hidden": false,
+        "id": 7,
+        "labels": null,
+        "max": 20000.0,
+        "min": 0.0,
+        "name": "Attack",
+        "scale": {
+          "exponent": 3.0,
+          "type": "Power"
+        },
+        "unit": "Milliseconds"
+      },
+      {
+        "automatable": true,
+        "default": 600.0,
+        "group": "Operator A",
+        "hidden": false,
+        "id": 8,
+        "labels": null,
+        "max": 60000.0,
+        "min": 1.0,
+        "name": "Decay",
+        "scale": {
+          "exponent": 3.0,
+          "type": "Power"
+        },
+        "unit": "Milliseconds"
+      },
+      {
+        "automatable": true,
+        "default": 100.0,
+        "group": "Operator A",
+        "hidden": false,
+        "id": 9,
+        "labels": null,
+        "max": 100.0,
+        "min": 0.0,
+        "name": "Sustain",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Percent"
+      },
+      {
+        "automatable": true,
+        "default": 300.0,
+        "group": "Operator A",
+        "hidden": false,
+        "id": 10,
+        "labels": null,
+        "max": 60000.0,
+        "min": 1.0,
+        "name": "Release",
+        "scale": {
+          "exponent": 3.0,
+          "type": "Power"
+        },
+        "unit": "Milliseconds"
+      },
+      {
+        "automatable": true,
+        "default": 50.0,
+        "group": "Operator A",
+        "hidden": false,
+        "id": 11,
+        "labels": null,
+        "max": 100.0,
+        "min": 0.0,
+        "name": "Velocity",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Percent"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Operator A",
+        "hidden": false,
+        "id": 12,
+        "labels": null,
+        "max": 100.0,
+        "min": 0.0,
+        "name": "Feedback",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Percent"
+      },
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Operator B",
+        "hidden": false,
+        "id": 13,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "On",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Operator B",
+        "hidden": false,
+        "id": 14,
+        "labels": [
+          "Sine",
+          "Triangle",
+          "Saw",
+          "Square",
+          "Noise"
+        ],
+        "max": 4.0,
+        "min": 0.0,
+        "name": "Wave",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Operator B",
+        "hidden": false,
+        "id": 15,
+        "labels": [
+          "0.5",
+          "1",
+          "2",
+          "3",
+          "4",
+          "5",
+          "6",
+          "7",
+          "8",
+          "9",
+          "10",
+          "11",
+          "12",
+          "13",
+          "14",
+          "15",
+          "16",
+          "17",
+          "18",
+          "19",
+          "20",
+          "21",
+          "22",
+          "23",
+          "24",
+          "25",
+          "26",
+          "27",
+          "28",
+          "29",
+          "30",
+          "31",
+          "32",
+          "33",
+          "34",
+          "35",
+          "36",
+          "37",
+          "38",
+          "39",
+          "40",
+          "41",
+          "42",
+          "43",
+          "44",
+          "45",
+          "46",
+          "47",
+          "48"
+        ],
+        "max": 48.0,
+        "min": 0.0,
+        "name": "Coarse",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Ratio"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Operator B",
+        "hidden": false,
+        "id": 16,
+        "labels": null,
+        "max": 1000.0,
+        "min": 0.0,
+        "name": "Fine",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Operator B",
+        "hidden": false,
+        "id": 17,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Fixed",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      },
+      {
+        "automatable": true,
+        "default": 440.0,
+        "group": "Operator B",
+        "hidden": false,
+        "id": 18,
+        "labels": null,
+        "max": 10000.0,
+        "min": 1.0,
+        "name": "Frequency",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Hertz"
+      },
+      {
+        "automatable": true,
+        "default": -70.0,
+        "group": "Operator B",
+        "hidden": false,
+        "id": 19,
+        "labels": null,
+        "max": 0.0,
+        "min": -70.0,
+        "name": "Level",
+        "scale": {
+          "type": "Fader"
+        },
+        "unit": "Decibels"
+      },
+      {
+        "automatable": true,
+        "default": 2.0,
+        "group": "Operator B",
+        "hidden": false,
+        "id": 20,
+        "labels": null,
+        "max": 20000.0,
+        "min": 0.0,
+        "name": "Attack",
+        "scale": {
+          "exponent": 3.0,
+          "type": "Power"
+        },
+        "unit": "Milliseconds"
+      },
+      {
+        "automatable": true,
+        "default": 600.0,
+        "group": "Operator B",
+        "hidden": false,
+        "id": 21,
+        "labels": null,
+        "max": 60000.0,
+        "min": 1.0,
+        "name": "Decay",
+        "scale": {
+          "exponent": 3.0,
+          "type": "Power"
+        },
+        "unit": "Milliseconds"
+      },
+      {
+        "automatable": true,
+        "default": 100.0,
+        "group": "Operator B",
+        "hidden": false,
+        "id": 22,
+        "labels": null,
+        "max": 100.0,
+        "min": 0.0,
+        "name": "Sustain",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Percent"
+      },
+      {
+        "automatable": true,
+        "default": 300.0,
+        "group": "Operator B",
+        "hidden": false,
+        "id": 23,
+        "labels": null,
+        "max": 60000.0,
+        "min": 1.0,
+        "name": "Release",
+        "scale": {
+          "exponent": 3.0,
+          "type": "Power"
+        },
+        "unit": "Milliseconds"
+      },
+      {
+        "automatable": true,
+        "default": 50.0,
+        "group": "Operator B",
+        "hidden": false,
+        "id": 24,
+        "labels": null,
+        "max": 100.0,
+        "min": 0.0,
+        "name": "Velocity",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Percent"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Operator B",
+        "hidden": false,
+        "id": 25,
+        "labels": null,
+        "max": 100.0,
+        "min": 0.0,
+        "name": "Feedback",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Percent"
+      },
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Operator C",
+        "hidden": false,
+        "id": 26,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "On",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Operator C",
+        "hidden": false,
+        "id": 27,
+        "labels": [
+          "Sine",
+          "Triangle",
+          "Saw",
+          "Square",
+          "Noise"
+        ],
+        "max": 4.0,
+        "min": 0.0,
+        "name": "Wave",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Operator C",
+        "hidden": false,
+        "id": 28,
+        "labels": [
+          "0.5",
+          "1",
+          "2",
+          "3",
+          "4",
+          "5",
+          "6",
+          "7",
+          "8",
+          "9",
+          "10",
+          "11",
+          "12",
+          "13",
+          "14",
+          "15",
+          "16",
+          "17",
+          "18",
+          "19",
+          "20",
+          "21",
+          "22",
+          "23",
+          "24",
+          "25",
+          "26",
+          "27",
+          "28",
+          "29",
+          "30",
+          "31",
+          "32",
+          "33",
+          "34",
+          "35",
+          "36",
+          "37",
+          "38",
+          "39",
+          "40",
+          "41",
+          "42",
+          "43",
+          "44",
+          "45",
+          "46",
+          "47",
+          "48"
+        ],
+        "max": 48.0,
+        "min": 0.0,
+        "name": "Coarse",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Ratio"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Operator C",
+        "hidden": false,
+        "id": 29,
+        "labels": null,
+        "max": 1000.0,
+        "min": 0.0,
+        "name": "Fine",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Operator C",
+        "hidden": false,
+        "id": 30,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Fixed",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      },
+      {
+        "automatable": true,
+        "default": 440.0,
+        "group": "Operator C",
+        "hidden": false,
+        "id": 31,
+        "labels": null,
+        "max": 10000.0,
+        "min": 1.0,
+        "name": "Frequency",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Hertz"
+      },
+      {
+        "automatable": true,
+        "default": -70.0,
+        "group": "Operator C",
+        "hidden": false,
+        "id": 32,
+        "labels": null,
+        "max": 0.0,
+        "min": -70.0,
+        "name": "Level",
+        "scale": {
+          "type": "Fader"
+        },
+        "unit": "Decibels"
+      },
+      {
+        "automatable": true,
+        "default": 2.0,
+        "group": "Operator C",
+        "hidden": false,
+        "id": 33,
+        "labels": null,
+        "max": 20000.0,
+        "min": 0.0,
+        "name": "Attack",
+        "scale": {
+          "exponent": 3.0,
+          "type": "Power"
+        },
+        "unit": "Milliseconds"
+      },
+      {
+        "automatable": true,
+        "default": 600.0,
+        "group": "Operator C",
+        "hidden": false,
+        "id": 34,
+        "labels": null,
+        "max": 60000.0,
+        "min": 1.0,
+        "name": "Decay",
+        "scale": {
+          "exponent": 3.0,
+          "type": "Power"
+        },
+        "unit": "Milliseconds"
+      },
+      {
+        "automatable": true,
+        "default": 100.0,
+        "group": "Operator C",
+        "hidden": false,
+        "id": 35,
+        "labels": null,
+        "max": 100.0,
+        "min": 0.0,
+        "name": "Sustain",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Percent"
+      },
+      {
+        "automatable": true,
+        "default": 300.0,
+        "group": "Operator C",
+        "hidden": false,
+        "id": 36,
+        "labels": null,
+        "max": 60000.0,
+        "min": 1.0,
+        "name": "Release",
+        "scale": {
+          "exponent": 3.0,
+          "type": "Power"
+        },
+        "unit": "Milliseconds"
+      },
+      {
+        "automatable": true,
+        "default": 50.0,
+        "group": "Operator C",
+        "hidden": false,
+        "id": 37,
+        "labels": null,
+        "max": 100.0,
+        "min": 0.0,
+        "name": "Velocity",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Percent"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Operator C",
+        "hidden": false,
+        "id": 38,
+        "labels": null,
+        "max": 100.0,
+        "min": 0.0,
+        "name": "Feedback",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Percent"
+      },
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Operator D",
+        "hidden": false,
+        "id": 39,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "On",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Operator D",
+        "hidden": false,
+        "id": 40,
+        "labels": [
+          "Sine",
+          "Triangle",
+          "Saw",
+          "Square",
+          "Noise"
+        ],
+        "max": 4.0,
+        "min": 0.0,
+        "name": "Wave",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Operator D",
+        "hidden": false,
+        "id": 41,
+        "labels": [
+          "0.5",
+          "1",
+          "2",
+          "3",
+          "4",
+          "5",
+          "6",
+          "7",
+          "8",
+          "9",
+          "10",
+          "11",
+          "12",
+          "13",
+          "14",
+          "15",
+          "16",
+          "17",
+          "18",
+          "19",
+          "20",
+          "21",
+          "22",
+          "23",
+          "24",
+          "25",
+          "26",
+          "27",
+          "28",
+          "29",
+          "30",
+          "31",
+          "32",
+          "33",
+          "34",
+          "35",
+          "36",
+          "37",
+          "38",
+          "39",
+          "40",
+          "41",
+          "42",
+          "43",
+          "44",
+          "45",
+          "46",
+          "47",
+          "48"
+        ],
+        "max": 48.0,
+        "min": 0.0,
+        "name": "Coarse",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Ratio"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Operator D",
+        "hidden": false,
+        "id": 42,
+        "labels": null,
+        "max": 1000.0,
+        "min": 0.0,
+        "name": "Fine",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Operator D",
+        "hidden": false,
+        "id": 43,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Fixed",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      },
+      {
+        "automatable": true,
+        "default": 440.0,
+        "group": "Operator D",
+        "hidden": false,
+        "id": 44,
+        "labels": null,
+        "max": 10000.0,
+        "min": 1.0,
+        "name": "Frequency",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Hertz"
+      },
+      {
+        "automatable": true,
+        "default": -70.0,
+        "group": "Operator D",
+        "hidden": false,
+        "id": 45,
+        "labels": null,
+        "max": 0.0,
+        "min": -70.0,
+        "name": "Level",
+        "scale": {
+          "type": "Fader"
+        },
+        "unit": "Decibels"
+      },
+      {
+        "automatable": true,
+        "default": 2.0,
+        "group": "Operator D",
+        "hidden": false,
+        "id": 46,
+        "labels": null,
+        "max": 20000.0,
+        "min": 0.0,
+        "name": "Attack",
+        "scale": {
+          "exponent": 3.0,
+          "type": "Power"
+        },
+        "unit": "Milliseconds"
+      },
+      {
+        "automatable": true,
+        "default": 600.0,
+        "group": "Operator D",
+        "hidden": false,
+        "id": 47,
+        "labels": null,
+        "max": 60000.0,
+        "min": 1.0,
+        "name": "Decay",
+        "scale": {
+          "exponent": 3.0,
+          "type": "Power"
+        },
+        "unit": "Milliseconds"
+      },
+      {
+        "automatable": true,
+        "default": 100.0,
+        "group": "Operator D",
+        "hidden": false,
+        "id": 48,
+        "labels": null,
+        "max": 100.0,
+        "min": 0.0,
+        "name": "Sustain",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Percent"
+      },
+      {
+        "automatable": true,
+        "default": 300.0,
+        "group": "Operator D",
+        "hidden": false,
+        "id": 49,
+        "labels": null,
+        "max": 60000.0,
+        "min": 1.0,
+        "name": "Release",
+        "scale": {
+          "exponent": 3.0,
+          "type": "Power"
+        },
+        "unit": "Milliseconds"
+      },
+      {
+        "automatable": true,
+        "default": 50.0,
+        "group": "Operator D",
+        "hidden": false,
+        "id": 50,
+        "labels": null,
+        "max": 100.0,
+        "min": 0.0,
+        "name": "Velocity",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Percent"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Operator D",
+        "hidden": false,
+        "id": 51,
+        "labels": null,
+        "max": 100.0,
+        "min": 0.0,
+        "name": "Feedback",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Percent"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Algorithm",
+        "hidden": false,
+        "id": 52,
+        "labels": [
+          "D→C→B→A",
+          "(C+D)→B→A",
+          "(D→C)+B→A",
+          "(B+C+D)→A",
+          "D→(B,C)→A",
+          "D→C→B, A",
+          "B→A, D→C",
+          "D→C→(A,B)",
+          "D→C, A, B",
+          "D→(A,B,C)",
+          "A+B+C+D"
+        ],
+        "max": 10.0,
+        "min": 0.0,
+        "name": "Algorithm",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Pitch",
+        "hidden": false,
+        "id": 53,
+        "labels": [
+          "-48",
+          "-47",
+          "-46",
+          "-45",
+          "-44",
+          "-43",
+          "-42",
+          "-41",
+          "-40",
+          "-39",
+          "-38",
+          "-37",
+          "-36",
+          "-35",
+          "-34",
+          "-33",
+          "-32",
+          "-31",
+          "-30",
+          "-29",
+          "-28",
+          "-27",
+          "-26",
+          "-25",
+          "-24",
+          "-23",
+          "-22",
+          "-21",
+          "-20",
+          "-19",
+          "-18",
+          "-17",
+          "-16",
+          "-15",
+          "-14",
+          "-13",
+          "-12",
+          "-11",
+          "-10",
+          "-9",
+          "-8",
+          "-7",
+          "-6",
+          "-5",
+          "-4",
+          "-3",
+          "-2",
+          "-1",
+          "0",
+          "1",
+          "2",
+          "3",
+          "4",
+          "5",
+          "6",
+          "7",
+          "8",
+          "9",
+          "10",
+          "11",
+          "12",
+          "13",
+          "14",
+          "15",
+          "16",
+          "17",
+          "18",
+          "19",
+          "20",
+          "21",
+          "22",
+          "23",
+          "24",
+          "25",
+          "26",
+          "27",
+          "28",
+          "29",
+          "30",
+          "31",
+          "32",
+          "33",
+          "34",
+          "35",
+          "36",
+          "37",
+          "38",
+          "39",
+          "40",
+          "41",
+          "42",
+          "43",
+          "44",
+          "45",
+          "46",
+          "47",
+          "48"
+        ],
+        "max": 48.0,
+        "min": -48.0,
+        "name": "Transpose",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Semitones"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Pitch",
+        "hidden": false,
+        "id": 54,
+        "labels": null,
+        "max": 100.0,
+        "min": -100.0,
+        "name": "Fine",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Cents"
+      },
+      {
+        "automatable": true,
+        "default": 8.0,
+        "group": "Voice",
+        "hidden": false,
+        "id": 55,
+        "labels": [
+          "1",
+          "2",
+          "3",
+          "4",
+          "5",
+          "6",
+          "7",
+          "8",
+          "9",
+          "10",
+          "11",
+          "12",
+          "13",
+          "14",
+          "15",
+          "16",
+          "17",
+          "18",
+          "19",
+          "20",
+          "21",
+          "22",
+          "23",
+          "24",
+          "25",
+          "26",
+          "27",
+          "28",
+          "29",
+          "30",
+          "31",
+          "32"
+        ],
+        "max": 32.0,
+        "min": 1.0,
+        "name": "Voices",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Voice",
+        "hidden": false,
+        "id": 56,
+        "labels": null,
+        "max": 2000.0,
+        "min": 0.0,
+        "name": "Glide",
+        "scale": {
+          "exponent": 3.0,
+          "type": "Power"
+        },
+        "unit": "Milliseconds"
+      },
+      {
+        "automatable": true,
+        "default": 2.0,
+        "group": "Voice",
+        "hidden": false,
+        "id": 57,
+        "labels": [
+          "0",
+          "1",
+          "2",
+          "3",
+          "4",
+          "5",
+          "6",
+          "7",
+          "8",
+          "9",
+          "10",
+          "11",
+          "12",
+          "13",
+          "14",
+          "15",
+          "16",
+          "17",
+          "18",
+          "19",
+          "20",
+          "21",
+          "22",
+          "23",
+          "24"
+        ],
+        "max": 24.0,
+        "min": 0.0,
+        "name": "Bend Range",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Semitones"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "LFO",
+        "hidden": false,
+        "id": 58,
+        "labels": [
+          "Sine",
+          "Triangle",
+          "Saw",
+          "Square",
+          "Sample & Hold"
+        ],
+        "max": 4.0,
+        "min": 0.0,
+        "name": "Shape",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 5.0,
+        "group": "LFO",
+        "hidden": false,
+        "id": 59,
+        "labels": null,
+        "max": 50.0,
+        "min": 0.01,
+        "name": "Rate",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Hertz"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "LFO",
+        "hidden": false,
+        "id": 60,
+        "labels": null,
+        "max": 100.0,
+        "min": 0.0,
+        "name": "To Pitch",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Percent"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "LFO",
+        "hidden": false,
+        "id": 61,
+        "labels": null,
+        "max": 100.0,
+        "min": -100.0,
+        "name": "To Filter",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Percent"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "LFO",
+        "hidden": false,
+        "id": 62,
+        "labels": null,
+        "max": 100.0,
+        "min": 0.0,
+        "name": "To Volume",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Percent"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Filter",
+        "hidden": false,
+        "id": 63,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "On",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      },
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Filter",
+        "hidden": false,
+        "id": 64,
+        "labels": [
+          "Low-pass 12",
+          "Low-pass 24",
+          "High-pass 12",
+          "High-pass 24",
+          "Band-pass 12",
+          "Band-pass 24"
+        ],
+        "max": 5.0,
+        "min": 0.0,
+        "name": "Type",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 8000.0,
+        "group": "Filter",
+        "hidden": false,
+        "id": 65,
+        "labels": null,
+        "max": 20000.0,
+        "min": 20.0,
+        "name": "Cutoff",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Hertz"
+      },
+      {
+        "automatable": true,
+        "default": 10.0,
+        "group": "Filter",
+        "hidden": false,
+        "id": 66,
+        "labels": null,
+        "max": 100.0,
+        "min": 0.0,
+        "name": "Resonance",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Percent"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Filter",
+        "hidden": false,
+        "id": 67,
+        "labels": null,
+        "max": 100.0,
+        "min": -100.0,
+        "name": "Env Amount",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Percent"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Filter",
+        "hidden": false,
+        "id": 68,
+        "labels": null,
+        "max": 100.0,
+        "min": 0.0,
+        "name": "Key Tracking",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Percent"
+      },
+      {
+        "automatable": true,
+        "default": 5.0,
+        "group": "Filter Envelope",
+        "hidden": false,
+        "id": 69,
+        "labels": null,
+        "max": 20000.0,
+        "min": 0.0,
+        "name": "Attack",
+        "scale": {
+          "exponent": 3.0,
+          "type": "Power"
+        },
+        "unit": "Milliseconds"
+      },
+      {
+        "automatable": true,
+        "default": 400.0,
+        "group": "Filter Envelope",
+        "hidden": false,
+        "id": 70,
+        "labels": null,
+        "max": 60000.0,
+        "min": 1.0,
+        "name": "Decay",
+        "scale": {
+          "exponent": 3.0,
+          "type": "Power"
+        },
+        "unit": "Milliseconds"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Filter Envelope",
+        "hidden": false,
+        "id": 71,
+        "labels": null,
+        "max": 100.0,
+        "min": 0.0,
+        "name": "Sustain",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Percent"
+      },
+      {
+        "automatable": true,
+        "default": 300.0,
+        "group": "Filter Envelope",
+        "hidden": false,
+        "id": 72,
+        "labels": null,
+        "max": 60000.0,
+        "min": 1.0,
+        "name": "Release",
+        "scale": {
+          "exponent": 3.0,
+          "type": "Power"
+        },
+        "unit": "Milliseconds"
+      },
+      {
+        "automatable": true,
+        "default": -14.0,
+        "group": "Output",
+        "hidden": false,
+        "id": 73,
+        "labels": null,
+        "max": 6.0,
+        "min": -70.0,
+        "name": "Volume",
+        "scale": {
+          "type": "Fader"
+        },
+        "unit": "Decibels"
+      },
+      {
+        "automatable": true,
+        "default": 100.0,
+        "group": "Output",
+        "hidden": false,
+        "id": 74,
+        "labels": null,
+        "max": 100.0,
+        "min": 0.0,
+        "name": "Tone",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Percent"
+      },
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Output",
+        "hidden": false,
+        "id": 75,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Antialias",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Voice",
+        "hidden": false,
+        "id": 76,
+        "labels": [
+          "Poly",
+          "Mono",
+          "Legato"
+        ],
+        "max": 2.0,
+        "min": 0.0,
+        "name": "Mode",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      }
+    ],
+    "sidechain_inputs": 0
+  }
+}

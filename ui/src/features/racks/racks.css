@@ -1,0 +1,169 @@
+/*
+ * Rack chains (racks-modulation): one collapsible row per chain inside a rack's device card
+ * and window (RackPanel); an expanded chain shows the shared sectioned chain (devices.css).
+ * Tokens only.
+ */
+
+.eth-rack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-sm);
+  padding: var(--eth-space-md);
+  border-top: var(--eth-border-width) solid var(--eth-color-border);
+  min-width: 0;
+}
+.eth-rack__chains {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-sm);
+  min-width: 0;
+}
+.eth-rack__chain {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* A chain's line: chevron, name, then the track header's controls. */
+.eth-rack__row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-xs);
+  min-height: var(--eth-size-control-lg);
+  padding: 0 var(--eth-space-xs) 0 var(--eth-space-sm);
+  border: var(--eth-border-width) solid var(--eth-color-border);
+  border-radius: var(--eth-radius-md);
+  background: var(--eth-color-bg-inset);
+  cursor: pointer;
+  user-select: none;
+}
+.eth-rack__row:hover {
+  border-color: var(--eth-color-border-strong);
+}
+.eth-rack__row:focus-visible {
+  outline: var(--eth-focus-ring-width) solid var(--eth-color-focus);
+  outline-offset: var(--eth-focus-ring-offset);
+}
+/* The fold: its height eases between 0 and its content's (grid row 0fr → 1fr). */
+.eth-rack__fold {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows var(--eth-duration-normal) var(--eth-ease-out);
+}
+.eth-rack__fold--open {
+  grid-template-rows: 1fr;
+}
+.eth-rack__fold-inner {
+  min-height: 0;
+  overflow: hidden;
+}
+.eth-rack__chain--open > .eth-rack__row {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.eth-rack__row--drop {
+  border-style: dashed;
+  border-color: var(--eth-color-accent);
+}
+.eth-rack__chevron {
+  flex: none;
+  width: var(--eth-size-icon-sm);
+  height: var(--eth-size-icon-sm);
+  color: var(--eth-color-text-dim);
+  transition: transform var(--eth-duration-fast) var(--eth-ease-out);
+}
+.eth-rack__chain--open .eth-rack__chevron {
+  transform: rotate(90deg);
+}
+.eth-rack__window {
+  flex: none;
+  display: inline-flex;
+  cursor: default;
+}
+.eth-rack__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--eth-fs-sm);
+  font-weight: var(--eth-fw-medium);
+  color: var(--eth-color-text);
+}
+/* Renaming a chain in place: its name becomes a field. */
+.eth-rack__rename {
+  flex: 1;
+  min-width: 0;
+  padding: 0 var(--eth-space-xs);
+  border: var(--eth-border-width) solid var(--eth-color-accent);
+  border-radius: var(--eth-radius-sm);
+  outline: none;
+  background: var(--eth-color-bg-inset);
+  color: var(--eth-color-text);
+  font: inherit;
+  font-size: var(--eth-fs-sm);
+  font-weight: var(--eth-fw-medium);
+}
+.eth-rack__row--muted .eth-rack__name {
+  color: var(--eth-color-text-disabled);
+}
+.eth-rack__controls {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-xs);
+  cursor: default;
+}
+/* The track header's mute / solo buttons, always shown here (not only on hover). */
+.eth-rack__controls .eth-arr-header__toggle.eth-rack__toggle {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* An expanded chain: its devices (the inspector's sections) under its line. */
+.eth-rack__body {
+  /* Even on every side: the first section's header adds no space of its own (below). */
+  padding: var(--eth-space-sm);
+  border: var(--eth-border-width) solid var(--eth-color-border);
+  border-top: 0;
+  border-bottom-left-radius: var(--eth-radius-md);
+  border-bottom-right-radius: var(--eth-radius-md);
+}
+
+.eth-rack__empty {
+  font-size: var(--eth-fs-xs);
+  color: var(--eth-color-text-dim);
+}
+
+/* A chain's zones (its settings popover): keys, velocity, chain select. */
+.eth-rack__zones {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-sm);
+  padding: var(--eth-space-sm);
+  font-size: var(--eth-fs-xs);
+  color: var(--eth-color-text-dim);
+}
+.eth-rack__zone {
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-xs);
+}
+.eth-rack__zone-label {
+  flex: 1;
+  min-width: calc(var(--eth-size-control-lg) * 3);
+}
+.eth-rack__zone .eth-number {
+  width: calc(var(--eth-size-control-lg) * 2);
+}
+
+/* A rack on a rack chain: its chains sit one step in. */
+.eth-rack--nested {
+  margin-left: var(--eth-space-md);
+  border-top: 0;
+}
+
+.eth-rack__body .eth-devices__section:first-child .eth-devices__section-head {
+  padding-top: 0;
+}

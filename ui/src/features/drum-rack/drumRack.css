@@ -1,0 +1,318 @@
+/* Drum rack detail tab: pad grid, pad settings + chain, slice editor. Tokens only
+   (docs/DESIGN-SYSTEM.md). */
+
+.eth-drum-rack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-md);
+  padding: var(--eth-space-md);
+  color: var(--eth-color-text);
+  font-size: var(--eth-fs-sm);
+  overflow: auto;
+  height: 100%;
+  box-sizing: border-box;
+}
+
+.eth-drum-rack--empty {
+  color: var(--eth-color-text-dim);
+}
+
+.eth-drum-rack__toolbar,
+.eth-slices__toolbar,
+.eth-drum-rack__pad-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--eth-space-sm);
+}
+
+.eth-drum-rack__track {
+  font-weight: var(--eth-fw-medium);
+}
+
+.eth-drum-rack__hint {
+  margin: 0;
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+}
+
+.eth-drum-rack__label {
+  color: var(--eth-color-text-dim);
+}
+
+.eth-drum-rack__field,
+.eth-drum-rack__knob {
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-xs);
+}
+/* The pad's controls: columns of control + caption, captions on one baseline. */
+.eth-drum-rack__pad-controls:has(.eth-drum-rack__field--stacked) {
+  margin-top: calc(var(--eth-space-xl) + var(--eth-space-sm));
+  align-items: flex-end;
+  gap: var(--eth-space-md);
+}
+.eth-drum-rack__field--stacked,
+.eth-drum-rack__pad-controls .eth-drum-rack__knob {
+  flex-direction: column;
+  justify-content: flex-end;
+  min-width: calc(var(--eth-size-knob-sm) * 2);
+}
+/* The choke select sits on the knobs' dial line: centred on a small knob's height (the
+   column is bottom-aligned, the select is shorter than the dial). */
+.eth-drum-rack__field--stacked > .eth-select {
+  margin-bottom: calc((var(--eth-size-knob-sm) - var(--input-height-sm)) / 2);
+}
+/* As a knob's label (kit .eth-knob: xs, knob label color). */
+.eth-drum-rack__caption {
+  font-size: var(--eth-fs-xs);
+  color: var(--knob-label-fg, var(--eth-color-text-dim));
+}
+
+/* The (big) pad grid, the selected pad's settings and chain to its right; in a narrow window,
+   the settings go under the grid and the pads shrink to fit. */
+.eth-drum-rack__rack {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--eth-space-lg);
+}
+
+.eth-drum-rack__pads {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-sm);
+  min-width: 0;
+}
+
+.eth-drum-rack__grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, var(--eth-size-drum-pad-width)));
+  grid-auto-rows: var(--eth-size-drum-pad-height);
+  gap: var(--eth-space-sm);
+}
+
+.eth-drum-rack__cell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: space-between;
+  height: 100%;
+  min-width: 0;
+  padding: var(--eth-space-sm);
+  overflow: hidden;
+  text-align: left;
+  border-radius: var(--eth-radius-lg);
+}
+
+.eth-drum-rack__cell--none {
+  visibility: hidden;
+}
+
+/* An unused note: no fill, a dashed outline (like the chain's "+ add" cards). A used pad
+   keeps the button's own fill. */
+.eth-drum-rack__cell--empty:not([aria-pressed="true"]) {
+  --_bg: transparent;
+  --_bg-hover: var(--eth-color-bg-hover);
+  color: var(--eth-color-text-dim);
+  border: var(--eth-border-width) dashed var(--eth-color-border-light);
+}
+
+/* The selected pad: a light accent tint and outline, not the button's full accent fill. */
+.eth-button.eth-drum-rack__cell[aria-pressed="true"] {
+  --_bg: color-mix(in srgb, var(--eth-color-accent) 14%, var(--button-bg));
+  --_bg-hover: color-mix(in srgb, var(--eth-color-accent) 20%, var(--button-bg));
+  --_fg: var(--eth-color-text);
+  box-shadow: inset 0 0 0 var(--eth-border-width) color-mix(in srgb, var(--eth-color-accent) 70%, transparent);
+}
+
+.eth-drum-rack__cell--muted {
+  opacity: var(--eth-opacity-muted);
+}
+
+.eth-drum-rack__cell--over {
+  outline: var(--eth-border-width-strong) solid var(--eth-color-accent);
+}
+
+/* Renaming a pad in place: the cell is a field. */
+.eth-drum-rack__cell--renaming {
+  border: var(--eth-border-width) solid var(--eth-color-accent);
+  border-radius: var(--eth-radius-lg);
+  box-sizing: border-box;
+}
+.eth-drum-rack__rename {
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  outline: none;
+  background: none;
+  color: var(--eth-color-text);
+  font: inherit;
+  font-weight: var(--eth-fw-medium);
+}
+/* A pad and its mute / solo toggles (the track header's, bottom right of the pad, beside
+   the note: clear of the name). */
+.eth-drum-rack__slot {
+  position: relative;
+  min-width: 0;
+}
+.eth-drum-rack__slot > .eth-drum-rack__cell {
+  width: 100%;
+}
+.eth-drum-rack__toggles {
+  position: absolute;
+  bottom: var(--eth-space-xs);
+  right: var(--eth-space-xs);
+  display: flex;
+  gap: var(--eth-space-hair);
+}
+/* Like the track header's: shown on hover, or while on. */
+.eth-drum-rack__slot:hover .eth-drum-rack__toggle,
+.eth-drum-rack__toggle:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+.eth-drum-rack__cell-name {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: var(--eth-fw-medium);
+}
+
+.eth-drum-rack__cell-note {
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+}
+
+.eth-drum-rack__pad {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-sm);
+  /* Beside the grid while it has room for about three pads' width, else under it. */
+  flex: 1 1 calc(var(--eth-size-drum-pad-width) * 3);
+  min-width: 0;
+}
+
+/* The pad chain: the shared sectioned chain (devices.css), full width under the grid. */
+.eth-drum-rack__chain {
+  min-width: 0;
+}
+
+.eth-slices {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-sm);
+}
+
+.eth-slices__lane {
+  position: relative;
+  height: calc(var(--eth-size-row-height-lg) * 3);
+  border: var(--eth-border-width) solid var(--eth-color-border);
+  border-radius: var(--eth-radius-sm);
+  background: var(--eth-color-bg-inset);
+}
+
+/* The slice editor's number fields keep their size in a device window's layout grid. */
+.eth-slices__toolbar .eth-number {
+  flex: none;
+  width: var(--eth-size-number-field-narrow);
+}
+
+/* One slice (from its marker to the next): pressing it plays its key. */
+.eth-slices__region {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  cursor: pointer;
+}
+
+.eth-slices__region:hover {
+  background: var(--eth-color-bg-hover);
+}
+
+.eth-slices__region--playing,
+.eth-slices__region--playing:hover {
+  background: var(--eth-color-accent-subtle);
+}
+
+/* Past key 127: not playable. */
+.eth-slices__region--off {
+  cursor: default;
+  opacity: var(--eth-opacity-muted);
+}
+
+.eth-slices__canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.eth-slices__marker {
+  position: absolute;
+  z-index: 1;
+  top: 0;
+  bottom: 0;
+  width: var(--eth-space-sm);
+  margin-left: calc(var(--eth-space-sm) / -2);
+  cursor: ew-resize;
+  touch-action: none;
+}
+
+.eth-slices__marker::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  border-left: var(--eth-border-width-strong) solid var(--eth-color-warn);
+}
+
+.eth-slices__marker--drag::before,
+.eth-slices__marker:focus-visible::before {
+  border-left-color: var(--eth-color-accent);
+}
+
+.eth-slices__marker-label {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  padding: 0 var(--eth-space-xs);
+  font-size: var(--eth-fs-xs);
+  color: var(--eth-color-text-inverse);
+  background: var(--eth-color-warn);
+  border-radius: var(--eth-radius-sm);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* devices-pass-instruments ------------------------------------------------------------ */
+/* In the drum rack's device window: the editor below the rack params, inset like them. */
+.eth-device--window > .eth-drum-rack__rack {
+  padding: 0 var(--eth-space-md) var(--eth-space-md);
+}
+/* A pad device drawn with its declared layout (a Sampler's panel) takes the chain's width. */
+
+/* The pad bank (note range) select: a little air above it. */
+.eth-drum-rack__bank {
+  margin-top: var(--eth-space-sm);
+}
+
+/* "slice to pads": next to the bank select of a drum rack window. */
+.eth-drum-rack__pads-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--eth-space-sm);
+  margin-top: var(--eth-space-sm);
+}
+
+.eth-drum-rack__pads-bar .eth-drum-rack__bank {
+  margin-top: 0;
+}
+
+.eth-drum-rack__slice-drop--over {
+  outline: var(--eth-border-width) solid var(--eth-color-accent);
+  border-radius: var(--eth-radius-sm);
+}

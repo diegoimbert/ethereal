@@ -1,0 +1,21 @@
+name: Feature
+description: A new capability or an improvement
+labels: [feature]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What and why
+      description: The change, and the problem it solves.
+    validations:
+      required: true
+  - type: textarea
+    id: done
+    attributes:
+      label: Done when
+      description: How we know it works (behaviour, tests, docs).
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes
+      description: Design pointers, related issues, open questions for the owner.

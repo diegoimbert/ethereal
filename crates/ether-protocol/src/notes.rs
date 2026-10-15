@@ -1,0 +1,78 @@
+//! MIDI note editing (piano roll).
+
+use serde::{Deserialize, Serialize};
+use ts_rs::TS;
+
+use crate::model::{Beats, ClipId, NoteId};
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+#[serde(tag = "type")]
+pub enum NoteCommand {
+    Add {
+        clip: ClipId,
+        notes: Vec<NoteSpec>,
+    },
+    Remove {
+        ids: Vec<NoteId>,
+    },
+    /// Partial edits; `None` fields are unchanged. Typical drag: many edits, one gesture.
+    Edit {
+        edits: Vec<NoteEdit>,
+    },
+    /// Quantize starts (and optionally ends) to `grid` with `strength` 0..=1.
+    /// `notes: None` = all notes of the clip. `swing` 0..=1 (roadmap v2, `groove`): targets
+    /// on odd grid positions are delayed by `swing · grid / 3` (destructive, independent of
+    /// the project playback swing). 0 = straight.
+    Quantize {
+        clip: ClipId,
+        notes: Option<Vec<NoteId>>,
+        grid: Beats,
+        strength: f32,
+        ends: bool,
+        swing: f32,
+    },
+    /// Mirror MIDI content in time (the MIDI "Reverse"; one undo step). `notes: None` =
+    /// the whole clip: every note lying inside the clip's region (its loop region when
+    /// looping, else the content span it plays, `max(offset, 0) .. offset + length`) with
+    /// its per-note expressions, the clip's expression lanes (CC, pitch bend, pressure)
+    /// and its envelopes. `notes: Some(ids)` = only those notes (and their per-note
+    /// expressions), inside their own span (`min start .. max end`); unselected notes,
+    /// lanes and envelopes stay. Notes crossing the region edge are left as they are.
+    /// Duration, pitch, velocities and mute are kept; reversing twice restores the input;
+    /// an empty selection is a no-op.
+    Reverse {
+        clip: ClipId,
+        notes: Option<Vec<NoteId>>,
+    },
+    /// Copy notes shifted by `offset` beats and `transpose` semitones, with new ids.
+    Duplicate {
+        copies: Vec<NoteCopy>,
+        offset: Beats,
+        transpose: i8,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+pub struct NoteSpec {
+    pub id: NoteId,
+    pub pitch: u8,
+    pub velocity: f32,
+    pub start: Beats,
+    pub duration: Beats,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+pub struct NoteEdit {
+    pub id: NoteId,
+    pub pitch: Option<u8>,
+    pub velocity: Option<f32>,
+    pub start: Option<Beats>,
+    pub duration: Option<Beats>,
+    pub muted: Option<bool>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize, TS)]
+pub struct NoteCopy {
+    pub from: NoteId,
+    pub new_id: NoteId,
+}

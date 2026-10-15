@@ -1,0 +1,565 @@
+.eth-project {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-sm);
+  font-size: var(--eth-fs-sm);
+}
+.eth-project__name {
+  /* Lines up with the arrangement's left edge below (rail + pane gap past the menu button). */
+  margin-left: var(--eth-space-sm);
+  max-width: 20ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+  /* A button: a click renames the project in place. */
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font-family: inherit;
+  font-size: inherit;
+  cursor: text;
+}
+.eth-project__name:disabled {
+  cursor: default;
+}
+/* Renaming in place: a field where the name was, the same size. */
+.eth-project__rename {
+  margin-left: var(--eth-space-sm);
+  width: 20ch;
+  padding: 0 var(--eth-space-xs);
+  border: var(--eth-border-width) solid var(--eth-color-focus);
+  border-radius: var(--eth-radius-sm);
+  background: var(--eth-color-bg-inset);
+  color: var(--eth-color-text);
+  font: inherit;
+  font-weight: 600;
+  outline: none;
+}
+.eth-project__dirty {
+  color: var(--eth-color-accent);
+  font-size: var(--eth-fs-xs);
+  transition: opacity var(--eth-duration-fast) var(--eth-ease-out);
+}
+.eth-project__dirty--clean {
+  opacity: 0;
+}
+.eth-project__error {
+  max-width: 28ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border: none;
+  background: none;
+  color: var(--eth-color-record);
+  font-size: var(--eth-fs-xs);
+  cursor: pointer;
+  text-align: left;
+}
+
+/* Project screen: a roomy kit Dialog over the whole app. */
+.eth-project-screen {
+  --dialog-width: var(--eth-size-project-screen-width);
+}
+/* The welcome screen (home): the wordmark and version, then Get started | the projects. */
+.eth-project-screen--welcome {
+  --dialog-width: var(--eth-size-welcome-width);
+}
+.eth-project-screen--welcome .eth-dialog__header {
+  /* Named "Open project" for assistive tech; the wordmark is the visible header. */
+  position: absolute;
+  width: var(--eth-border-width);
+  height: var(--eth-border-width);
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+.eth-welcome {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-xl);
+  padding: var(--eth-space-lg) var(--eth-space-sm) var(--eth-space-sm);
+}
+.eth-welcome__brand {
+  display: flex;
+  align-items: baseline;
+  gap: var(--eth-space-md);
+}
+/* Why the picker is shown (a project link that isn't stored in this browser). */
+.eth-welcome__notice {
+  margin: 0;
+  color: var(--eth-color-warn);
+  font-size: var(--eth-fs-sm);
+}
+/* The wordmark alone (no logo: the owner wants the splash screen text-only). */
+.eth-welcome__wordmark {
+  font-size: var(--eth-fs-display);
+  font-weight: 200;
+  line-height: var(--eth-lh-tight);
+  letter-spacing: var(--eth-tracking-tight);
+}
+.eth-welcome__version {
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+}
+.eth-welcome__actions {
+  display: flex;
+  gap: var(--eth-space-sm);
+  margin-left: auto;
+  align-self: center;
+}
+.eth-welcome__columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--eth-space-xl);
+  align-items: start;
+}
+/* The left column: get started, then the example beats (#518). */
+.eth-welcome__guides {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-lg);
+  min-width: 0;
+}
+/* An example: the row opens it, "show me how" next to it starts its tour. */
+.eth-welcome__example {
+  align-items: center;
+  gap: var(--eth-space-xs);
+}
+.eth-welcome__example-guide {
+  flex: none;
+}
+.eth-welcome__example-guide[data-done] .lucide {
+  color: var(--eth-color-ok);
+}
+.eth-welcome__start {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-xs);
+}
+.eth-welcome__articles {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-sm);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.eth-welcome__article {
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-md);
+  padding: var(--eth-space-md) var(--eth-space-lg);
+  border-radius: var(--eth-radius-lg);
+  background: var(--eth-color-bg-inset);
+}
+.eth-welcome__article-icon {
+  display: inline-flex;
+  flex: none;
+  color: var(--eth-color-accent);
+}
+.eth-welcome__article-icon .lucide {
+  width: var(--eth-size-project-new-icon);
+  height: var(--eth-size-project-new-icon);
+}
+.eth-welcome__article-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+.eth-welcome__article-title {
+  font-weight: 500;
+}
+.eth-welcome__article-blurb {
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+}
+.eth-welcome__article-item {
+  display: flex;
+}
+.eth-welcome__article--tour {
+  flex: 1;
+  border: var(--eth-space-hair) solid transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background var(--eth-duration-fast) var(--eth-ease-standard),
+    border-color var(--eth-duration-fast) var(--eth-ease-standard);
+}
+.eth-welcome__article--tour:hover:not(:disabled) {
+  border-color: var(--eth-color-border);
+  background: var(--eth-color-bg-hover);
+}
+.eth-welcome__article--tour:focus-visible {
+  outline: var(--eth-space-hair) solid var(--eth-color-accent);
+  outline-offset: var(--eth-space-hair);
+}
+.eth-welcome__article--tour:disabled {
+  cursor: progress;
+}
+.eth-welcome__done {
+  display: inline-flex;
+  flex: none;
+  color: var(--eth-color-ok);
+}
+.eth-welcome__done .lucide {
+  width: var(--eth-size-project-new-icon);
+  height: var(--eth-size-project-new-icon);
+}
+.eth-welcome__soon {
+  flex: none;
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+}
+
+.eth-project-screen__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-lg);
+  min-width: 0;
+}
+.eth-project-screen__label {
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+  font-weight: 600;
+  letter-spacing: var(--eth-tracking-caps);
+}
+.eth-project-screen__current {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--eth-space-sm) var(--eth-space-md);
+  align-items: center;
+}
+.eth-project-screen__current .eth-project-screen__label {
+  grid-column: 1 / -1;
+}
+.eth-project-screen__rename {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+}
+.eth-project-screen__rename .eth-input {
+  flex: 1;
+  min-width: 0;
+}
+.eth-project-screen__current-name {
+  font-weight: 600;
+}
+/* The big "New project" button. */
+.eth-project-screen__new {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--eth-space-sm);
+  min-height: var(--eth-size-project-new-height);
+  border: none;
+  border-radius: var(--eth-radius-lg);
+  background: color-mix(in srgb, var(--eth-color-accent) 14%, transparent);
+  color: var(--eth-color-accent);
+  font: inherit;
+  font-size: var(--eth-fs-md);
+  font-weight: 600;
+  transition: background-color var(--eth-duration-fast) var(--eth-ease-out);
+}
+.eth-project-screen__new:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--eth-color-accent) 22%, transparent);
+}
+.eth-project-screen__new:focus-visible {
+  outline: var(--eth-focus-ring-width) solid var(--eth-color-focus);
+  outline-offset: var(--eth-focus-ring-offset);
+}
+.eth-project-screen__new .lucide {
+  width: var(--eth-size-project-new-icon);
+  height: var(--eth-size-project-new-icon);
+}
+.eth-project-screen__recent {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-xs);
+  min-height: 0;
+}
+/* "Recent projects" and its search (an icon inside the field) on one line. */
+.eth-project-screen__recent-head {
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-md);
+  margin-bottom: var(--eth-space-xs);
+}
+.eth-project-screen__search {
+  position: relative;
+  display: flex;
+  flex: none;
+  width: var(--eth-size-project-search-width);
+  margin-left: auto;
+}
+.eth-project-screen__search .eth-input {
+  flex: 1;
+  padding-left: calc(var(--eth-size-icon-md) + 2 * var(--eth-space-sm));
+}
+.eth-project-screen__search-icon {
+  position: absolute;
+  top: 50%;
+  left: var(--eth-space-sm);
+  width: var(--eth-size-icon-md);
+  height: var(--eth-size-icon-md);
+  color: var(--eth-color-text-dim);
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+.eth-project-screen__empty {
+  padding: var(--eth-space-sm);
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-sm);
+}
+.eth-project-screen__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 40vh;
+  overflow: auto;
+}
+.eth-project-screen__item {
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-xs);
+  min-height: var(--eth-size-project-row-height);
+  border-radius: var(--eth-radius-md);
+  transition: background-color var(--eth-duration-fast) var(--eth-ease-out);
+}
+.eth-project-screen__item:hover {
+  background: var(--eth-color-bg-hover);
+}
+.eth-project-screen__open {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  align-items: center;
+  gap: var(--eth-space-md);
+  height: var(--eth-size-project-row-height);
+  padding: 0 var(--eth-space-sm);
+  border: none;
+  background: none;
+  color: var(--eth-color-text);
+  font: inherit;
+  text-align: left;
+}
+.eth-project-screen__open:focus-visible {
+  outline: var(--eth-focus-ring-width) solid var(--eth-color-focus);
+  border-radius: var(--eth-radius-md);
+}
+.eth-project-screen__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.eth-project-screen__date {
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+  white-space: nowrap;
+}
+.eth-project-screen__item .eth-icon-button {
+  opacity: 0;
+  transition: opacity var(--eth-duration-fast) var(--eth-ease-out);
+}
+.eth-project-screen__item:hover .eth-icon-button,
+.eth-project-screen__item:focus-within .eth-icon-button {
+  opacity: 1;
+}
+.eth-project-screen__confirm {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  align-items: center;
+  gap: var(--eth-space-sm);
+  padding: 0 var(--eth-space-sm);
+}
+.eth-project-screen__danger {
+  background: var(--eth-color-record);
+  color: var(--eth-color-text-inverse);
+}
+.eth-project-screen__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--eth-space-sm);
+}
+
+/* base-114: the open project's actions, badges and hints. */
+.eth-project-screen__heading {
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-sm);
+}
+.eth-project-screen__heading .eth-badge {
+  letter-spacing: var(--eth-tracking-normal);
+}
+.eth-project-screen__toolbar {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--eth-space-xs);
+  margin-left: calc(-1 * var(--eth-space-sm));
+}
+.eth-project-screen__toolbar.eth-project-screen__confirm {
+  margin-left: 0;
+  padding: 0;
+}
+.eth-project-screen__delete {
+  --button-fg: var(--eth-color-danger);
+}
+.eth-project-screen__hint {
+  margin: 0;
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-sm);
+  line-height: var(--eth-lh-normal);
+}
+
+/* project-versions: the "Versions…" entry under the open project. */
+.eth-project-screen__versions {
+  grid-column: 1 / -1;
+  justify-self: start;
+}
+
+/* templates: "Save as template…" under Continue, right-aligned. */
+.eth-project-screen__save-template {
+  grid-column: 2;
+  justify-self: end;
+}
+
+/* base-131 safe mode: plugins held as placeholders until "Load plugins". */
+.eth-safe-mode {
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-sm);
+  padding: var(--eth-space-xs) var(--eth-space-xs) var(--eth-space-xs) var(--eth-space-sm);
+  border: var(--eth-border-width) solid var(--eth-color-warn);
+  border-radius: var(--eth-radius-md);
+  background: var(--eth-color-bg-raised);
+  color: var(--eth-color-warn);
+  white-space: nowrap;
+}
+.eth-safe-mode__icon {
+  width: var(--eth-size-icon-sm);
+  height: var(--eth-size-icon-sm);
+  flex: none;
+}
+.eth-safe-mode__text {
+  font-weight: var(--eth-fw-medium);
+}
+
+.eth-project__menu {
+  color: var(--eth-color-text-dim);
+  border-radius: var(--eth-radius-lg);
+}
+
+/* The project menu (ProjectMenuPanel): menu rows, the scale picker, the delete confirmation. */
+.eth-project-menu {
+  min-width: calc(var(--eth-size-popover-min-width) * 1.5);
+}
+.eth-project-menu__scale {
+  padding: var(--eth-space-xs) var(--eth-space-md);
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-sm);
+}
+.eth-project-menu__confirm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-xs);
+  padding: var(--eth-space-xs) var(--eth-space-sm);
+  font-size: var(--eth-fs-sm);
+}
+.eth-project-menu__confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--eth-space-xs);
+}
+.eth-project-menu__confirm-actions .eth-menu__item {
+  width: auto;
+}
+
+/* Export project dialog. */
+.eth-project-export__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-sm);
+}
+.eth-project-export__help {
+  margin: 0;
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+  line-height: var(--eth-lh-normal);
+}
+
+/* "Import from another DAW": a submenu at the item's side (hover, click or →). */
+.eth-project-menu__sub {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+.eth-project-menu__chevron {
+  width: var(--eth-size-icon-sm);
+  height: var(--eth-size-icon-sm);
+  color: var(--eth-color-text-dim);
+}
+.eth-menu__item--open {
+  background: var(--menu-item-bg-hover);
+}
+.eth-project-menu__submenu {
+  position: absolute;
+  top: calc(-1 * var(--eth-space-xs));
+  left: 100%;
+  /* As wide as its items (it is positioned against the narrow parent row). */
+  width: max-content;
+  min-width: var(--eth-size-popover-min-width);
+  padding: var(--eth-space-xs);
+  background: var(--popover-bg);
+  border: var(--eth-border-width) solid var(--popover-border);
+  border-radius: var(--popover-radius);
+  box-shadow: var(--popover-shadow);
+  animation: eth-context-menu-in var(--context-menu-enter-duration) var(--context-menu-enter-ease) both;
+}
+
+/* #646: shown before the engine is up. A quiet line by the version; the recent projects are
+   placeholder rows of the real rows' height (as many as last time: nothing moves when the
+   list arrives). */
+.eth-welcome__loading {
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+}
+.eth-project-screen__item--bone:hover {
+  background: none;
+}
+.eth-project-screen__bone {
+  display: block;
+  width: 60%;
+  height: var(--eth-fs-sm);
+  margin: 0 var(--eth-space-sm);
+  border-radius: var(--eth-radius-md);
+  background: var(--eth-color-bg-raised);
+  animation: eth-project-bone-pulse calc(var(--eth-duration-slow) * 5) var(--eth-ease-standard) infinite alternate;
+}
+.eth-project-screen__item--bone:nth-child(3n + 2) .eth-project-screen__bone {
+  width: 45%;
+}
+.eth-project-screen__item--bone:nth-child(3n) .eth-project-screen__bone {
+  width: 70%;
+}
+@keyframes eth-project-bone-pulse {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0.45;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .eth-project-screen__bone {
+    animation: none;
+  }
+}

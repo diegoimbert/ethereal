@@ -1,0 +1,202 @@
+/* The device library panels (Instruments / Effects / MIDI Effects). Tokens only. */
+.eth-devlib {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  font-size: var(--eth-fs-sm);
+}
+.eth-devlib__search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  padding: var(--eth-space-sm) var(--eth-space-sm) 0;
+}
+.eth-devlib__search-icon {
+  position: absolute;
+  left: calc(var(--eth-space-sm) * 2);
+  color: var(--eth-color-text-dim);
+  pointer-events: none;
+}
+.eth-devlib__search-input {
+  flex: 1;
+  padding-left: calc(var(--eth-space-sm) * 2 + var(--eth-size-icon-md));
+}
+.eth-devlib__search-input::-webkit-search-cancel-button {
+  display: none;
+}
+.eth-devlib__search-clear {
+  position: absolute;
+  right: calc(var(--eth-space-sm) + var(--eth-space-xs));
+  display: inline-flex;
+  padding: var(--eth-space-xs);
+  border: none;
+  border-radius: var(--eth-radius-sm);
+  background: none;
+  color: var(--eth-color-text-dim);
+  cursor: pointer;
+}
+.eth-devlib__sources {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--eth-space-xs);
+  padding: var(--eth-space-sm);
+  border-bottom: var(--eth-border-width) solid var(--eth-color-border-light);
+}
+.eth-devlib__list {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  list-style: none;
+  margin: 0;
+  padding: var(--eth-space-xs);
+}
+.eth-devlib__row {
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-sm);
+  height: var(--eth-size-browser-row-height);
+  padding: 0 var(--eth-space-sm);
+  border-radius: var(--eth-radius-sm);
+  user-select: none;
+}
+.eth-devlib__row:hover {
+  background: var(--eth-color-bg-hover);
+}
+.eth-devlib__row--active {
+  background: var(--eth-color-bg-hover);
+  box-shadow: inset 0 0 0 var(--eth-border-width) var(--eth-color-border-light);
+}
+.eth-devlib__icon {
+  display: inline-flex;
+  flex: none;
+  color: var(--eth-color-accent);
+  font-size: var(--eth-fs-md);
+}
+/* The name has priority: it keeps its width while the vendor shrinks (first, down to nothing),
+   and the format chip never shrinks (#425). */
+.eth-devlib__name {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.eth-devlib__vendor {
+  flex: 0 1000 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+}
+/* A plugin's format chip, right-aligned before the star. */
+.eth-devlib__format {
+  flex: none;
+  margin-left: auto;
+}
+/* The plugin format toggles, right of the sources and the favourites star. */
+.eth-devlib__formats {
+  display: flex;
+  gap: var(--eth-space-xs);
+  margin-left: auto;
+}
+.eth-devlib__empty {
+  padding: var(--eth-space-lg);
+  color: var(--eth-color-text-dim);
+  text-align: center;
+}
+.eth-devlib__footer {
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-xs);
+  min-height: var(--eth-size-row-height);
+  padding: var(--eth-space-xs) var(--eth-space-sm);
+  border-top: var(--eth-border-width) solid var(--eth-color-border-light);
+}
+.eth-devlib__status {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+}
+
+/* A fixed-size panel (a chain section's add popover); rows click to add. */
+.eth-devlib {
+  width: calc(var(--eth-size-browser-row-height) * 12);
+  height: calc(var(--eth-size-browser-row-height) * 16);
+  max-height: 70vh;
+}
+.eth-devlib .eth-devlib__row {
+  cursor: pointer;
+}
+
+/* Sort, right of the search field. */
+.eth-devlib__search {
+  gap: var(--eth-space-xs);
+}
+.eth-devlib__sort {
+  flex: none;
+}
+.eth-devlib__field {
+  position: relative;
+  display: flex;
+  flex: 1;
+  align-items: center;
+  min-width: 0;
+}
+.eth-devlib__field .eth-devlib__search-icon {
+  left: var(--eth-space-sm);
+}
+.eth-devlib__field .eth-devlib__search-clear {
+  right: var(--eth-space-xs);
+}
+
+/* Stars: bare (no toggled background), filled yellow when on; a row's shows on hover / when on. */
+.eth-devlib .eth-button.eth-devlib__star {
+  --_bg: transparent;
+  --_bg-hover: transparent;
+  --_fg: var(--eth-color-text-dim);
+  flex: none;
+}
+.eth-devlib .eth-button.eth-devlib__star:hover {
+  --_fg: var(--eth-color-text);
+}
+.eth-devlib .eth-button.eth-devlib__star--on {
+  --_fg: var(--eth-color-warn);
+}
+.eth-devlib__star--on .lucide {
+  fill: currentColor;
+}
+.eth-devlib__row .eth-devlib__star {
+  opacity: 0;
+  /* Right-aligned (after a plugin's format chip, which takes the free space instead). */
+  margin-left: auto;
+}
+.eth-devlib__row .eth-devlib__format + .eth-devlib__star {
+  margin-left: 0;
+}
+.eth-devlib__row:hover .eth-devlib__star,
+.eth-devlib__row .eth-devlib__star--on {
+  opacity: 1;
+}
+
+/* The Sampler's sample picker (same panel): a row's icon previews the sample. */
+.eth-sample-picker__preview {
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+.eth-sample-picker__preview[aria-pressed="true"],
+.eth-sample-picker__preview:hover {
+  color: var(--eth-color-text);
+}
+.eth-sample-picker .eth-devlib__search {
+  padding-bottom: var(--eth-space-sm);
+  border-bottom: var(--eth-border-width) solid var(--eth-color-border-light);
+}

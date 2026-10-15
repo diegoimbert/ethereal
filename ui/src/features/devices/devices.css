@@ -1,0 +1,630 @@
+.eth-devices {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  font-size: var(--eth-fs-sm);
+}
+.eth-devices--empty {
+  align-items: center;
+  justify-content: center;
+  color: var(--eth-color-text-dim);
+}
+.eth-devices__toolbar {
+  display: flex;
+  gap: var(--eth-space-md);
+  padding: var(--eth-space-sm) var(--eth-space-md);
+  border-bottom: var(--eth-border-width) solid var(--eth-color-border-light);
+}
+/* Kit Select (track picker, add device, choice params). */
+.eth-devices .eth-select {
+  max-width: 100%;
+}
+.eth-devices__track {
+  min-width: var(--eth-size-device-track-picker-min-width);
+}
+.eth-devices__add {
+  min-width: var(--eth-size-device-add-min-width);
+}
+.eth-devices__chain {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  gap: var(--eth-space-md);
+  padding: var(--eth-space-md);
+  overflow-x: auto;
+}
+.eth-devices__slot {
+  position: relative;
+  display: flex;
+  flex: none;
+}
+.eth-devices__end {
+  flex: 1;
+  min-width: var(--eth-size-device-chain-end-min-width);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--eth-color-text-dim);
+  border: var(--eth-border-width) dashed transparent;
+  border-radius: var(--eth-radius-lg);
+  transition: border-color var(--eth-duration-fast) var(--eth-ease-out);
+}
+.eth-devices__end--drop {
+  position: relative;
+}
+
+/* ---- Device card ---- */
+.eth-device {
+  display: flex;
+  flex-direction: column;
+  min-width: var(--eth-size-device-card-min-width);
+  overflow: hidden;
+  /* A card surface a step above the pane, so cards stand out (dark mode especially). */
+  background: var(--eth-color-bg-card);
+  border: var(--eth-border-width) solid var(--eth-color-border-card);
+  border-radius: var(--eth-radius-lg);
+  box-shadow: var(--eth-shadow-sm);
+  transition:
+    border-color var(--eth-duration-fast) var(--eth-ease-out),
+    box-shadow var(--eth-duration-fast) var(--eth-ease-out),
+    opacity var(--eth-duration-fast) var(--eth-ease-out);
+}
+.eth-device:hover {
+  border-color: var(--eth-color-border-strong);
+}
+/* The selected card (copy / paste target): a neutral, stronger frame. */
+.eth-device--selected,
+.eth-device--selected:hover {
+  border-color: var(--eth-color-text-dim);
+}
+.eth-device:focus {
+  outline: none;
+}
+.eth-device--bypassed .eth-device__body,
+.eth-device--bypassed .eth-device__name {
+  opacity: var(--eth-opacity-muted);
+}
+.eth-device__header {
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-xs);
+  height: var(--eth-size-row-height-lg);
+  padding: 0 var(--eth-space-sm);
+  border-bottom: var(--eth-border-width) solid var(--eth-color-border-light);
+  /* A press-and-drag moves the device; a click opens its window. */
+  cursor: grab;
+}
+.eth-device__header:active {
+  cursor: grabbing;
+}
+.eth-device__name {
+  flex: 1;
+  min-width: 0;
+  font-weight: var(--eth-fw-medium);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: opacity var(--eth-duration-fast) var(--eth-ease-out);
+}
+.eth-device__power[aria-pressed="true"] {
+  color: var(--eth-color-accent);
+}
+.eth-device__power[aria-pressed="false"] {
+  color: var(--eth-color-text-dim);
+}
+/* Move/remove appear on hover (and stay reachable by keyboard). */
+/* Move and remove: always shown. */
+.eth-device__actions {
+  display: flex;
+  gap: var(--eth-space-xs);
+}
+.eth-device__body {
+  display: flex;
+  gap: var(--eth-space-xl);
+  padding: var(--eth-space-md) var(--eth-space-lg);
+}
+.eth-device__body--more {
+  padding-top: 0;
+}
+.eth-device__group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-sm);
+}
+.eth-device__group-name {
+  font-size: var(--eth-fs-xs);
+  font-weight: var(--eth-fw-medium);
+  color: var(--eth-color-text-dim);
+}
+.eth-device__params {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(var(--eth-size-device-param-min-width), auto));
+  gap: var(--eth-space-md) var(--eth-space-lg);
+}
+.eth-device__more {
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-xs);
+  margin: 0 var(--eth-space-sm) var(--eth-space-sm);
+  padding: var(--eth-space-xs) var(--eth-space-sm);
+  border: 0;
+  border-radius: var(--eth-radius-sm);
+  background: transparent;
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+  cursor: pointer;
+  transition:
+    background var(--eth-duration-fast) var(--eth-ease-out),
+    color var(--eth-duration-fast) var(--eth-ease-out);
+}
+.eth-device__more:hover {
+  background: var(--eth-color-bg-hover);
+  color: var(--eth-color-text);
+}
+.eth-device__more-icon {
+  transition: transform var(--eth-duration-fast) var(--eth-ease-out);
+}
+.eth-device__more-icon--open {
+  transform: rotate(180deg);
+}
+.eth-device__status {
+  color: var(--eth-color-text-dim);
+}
+
+/* base-153: the card body under the header: the parameter list (the header's "Parameters"
+   toggle), a rack's chains, the modulators. The device's own UI is in its window. */
+.eth-device__inline:empty {
+  display: none;
+}
+.eth-device__inline > .eth-device-params {
+  animation: eth-device-params-in var(--eth-duration-normal) var(--eth-ease-standard) both;
+}
+@keyframes eth-device-params-in {
+  from {
+    opacity: 0;
+  }
+}
+/* Nothing under the header: no separator line. */
+.eth-device:not(:has(> .eth-device__inline:not(:empty))) > .eth-device__header {
+  border-bottom-color: transparent;
+}
+
+/* ---- Stacked layout (inspector): full-width cards, one above the other ---- */
+.eth-devices--stack {
+  height: auto;
+}
+.eth-devices__chain--stack {
+  flex-direction: column;
+  flex: none;
+  overflow: visible;
+  padding: 0;
+  gap: var(--eth-space-sm);
+}
+.eth-devices__chain--stack .eth-devices__slot {
+  display: block;
+}
+.eth-devices__chain--stack .eth-devices__end {
+  min-width: 0;
+  min-height: var(--eth-size-row-height-lg);
+}
+/* In a rack chain or a drum pad's chain: no empty end row under the last section (drops land
+   on the sections' cards). */
+:is(.eth-rack__body, .eth-drum-rack__chain) .eth-devices__chain--stack .eth-devices__end {
+  min-height: 0;
+  margin-top: calc(-1 * var(--eth-space-sm));
+}
+/*
+ * Responsive cards: each stacked card is a size container, and its content reflows with
+ * the card's width (the inspector pane is resizable):
+ * - params sit in a grid of auto-filled columns, as many as fit;
+ * - groups (Oscillator, Filter, ...) are blocks laid side by side when there's room and
+ *   stacked when narrow;
+ * - knobs scale with the card (container units, clamped).
+ * Roughly: ~200px → 2 columns of compact knobs; ~320px → 3–4 columns; ≥500px → groups side
+ * by side with larger knobs.
+ */
+.eth-device--stack {
+  min-width: 0;
+  container: device / inline-size;
+}
+.eth-device--stack .eth-device__body {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--device-group-min)), 1fr));
+  gap: var(--eth-space-md) var(--eth-space-lg);
+  padding: var(--eth-space-md);
+  /* Knob diameters follow the card width: main (lg) and folded (md) controls. */
+  --knob-size-lg: clamp(var(--eth-size-device-knob-lg-min), 11cqi, var(--eth-size-device-knob-lg-max));
+  --knob-size: clamp(var(--eth-size-device-knob-min), 8cqi, var(--eth-size-device-knob-max));
+  --device-param-min: calc(var(--knob-size-lg) + var(--eth-size-device-param-room));
+  --device-group-min: var(--eth-size-device-group-min-width);
+}
+.eth-device--stack .eth-device__body--more {
+  padding-top: 0;
+  --device-param-min: calc(var(--knob-size) + var(--eth-size-device-param-room-more));
+}
+.eth-device--stack .eth-device__group {
+  min-width: 0;
+}
+.eth-device--stack .eth-device__params {
+  grid-template-columns: repeat(auto-fill, minmax(var(--device-param-min), 1fr));
+  justify-items: center;
+  gap: var(--eth-space-md) var(--eth-space-sm);
+}
+/* Choices and toggles span wider cells so their text fits. */
+.eth-device--stack .eth-param--choice {
+  grid-column: span 2;
+  justify-self: stretch;
+}
+.eth-device--stack .eth-param {
+  width: 100%;
+}
+/* eth-allow-hardcoded: container query conditions cannot use var() */
+@container device (max-width: 240px) {
+  .eth-device__body {
+    --device-param-min: calc(var(--knob-size-lg) + var(--eth-size-device-param-room-narrow));
+    --knob-center-font-size: var(--eth-fs-xs);
+  }
+  .eth-device__header {
+    padding: 0 var(--eth-space-xs);
+  }
+}
+/* eth-allow-hardcoded: container query conditions cannot use var() */
+@container device (min-width: 480px) {
+  .eth-device__body {
+    --device-group-min: var(--eth-size-device-group-min-width-wide);
+    --knob-center-font-size: var(--eth-fs-sm);
+  }
+  .eth-device__group-name {
+    font-size: var(--eth-fs-sm);
+  }
+}
+
+.eth-param {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--eth-space-xs);
+  min-width: 0;
+  font-size: var(--eth-fs-xs);
+}
+.eth-param__name,
+.eth-param__value {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: center;
+}
+.eth-param__name {
+  color: var(--eth-color-text-dim);
+}
+.eth-param__value {
+  color: var(--eth-color-text);
+  font-variant-numeric: tabular-nums;
+}
+/* Enum selects shrink with their cell. */
+.eth-param--choice .eth-select {
+  width: 100%;
+  min-width: 0;
+}
+/* Kit knob labels (under the ring) truncate too. */
+.eth-param .eth-knob {
+  max-width: 100%;
+  min-width: 0;
+}
+
+/* Sampler: the loaded sample, and the drop target for a new one. */
+.eth-sample-slot {
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-sm);
+  margin: var(--eth-space-md) var(--eth-space-md) 0;
+  padding: var(--eth-space-xs) var(--eth-space-sm);
+  border: var(--eth-border-width) solid var(--eth-color-border-light);
+  border-radius: var(--eth-radius-md);
+  background: var(--eth-color-bg-inset);
+  font-size: var(--eth-fs-sm);
+  transition: border-color var(--eth-duration-fast) var(--eth-ease-out);
+}
+/* In the waveform widget: a compact chip on the waveform's left edge (not a full-width bar). */
+.eth-widget--sample-waveform .eth-sample-slot {
+  align-self: flex-start;
+  width: fit-content;
+  max-width: 100%;
+  margin: 0;
+  padding: 0 var(--eth-space-xs) 0 var(--eth-space-sm);
+  border-radius: var(--eth-radius-sm);
+  font-size: var(--eth-fs-xs);
+}
+/* The sample chip, and a Sampler's "classic | slice" switch at its right. */
+.eth-sample-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--eth-space-sm);
+}
+/* The waveform as a drop target: the accent outline while a sample is dragged over it. */
+.eth-sample-drop {
+  min-width: 0;
+  border-radius: var(--eth-radius-sm);
+}
+.eth-sample-drop--over {
+  outline: var(--eth-border-width) solid var(--eth-color-accent);
+}
+.eth-sample-slot--empty {
+  border-style: dashed;
+  color: var(--eth-color-text-dim);
+}
+.eth-sample-slot--over {
+  border-color: var(--eth-color-accent);
+  border-style: solid;
+}
+.eth-sample-slot__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* The name is the sample picker's trigger (a click picks a sample, or replaces the loaded one). */
+.eth-sample-slot > .eth-popover-anchor {
+  flex: 1;
+  min-width: 0;
+}
+.eth-sample-slot__pick {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+.eth-sample-slot__pick:hover,
+.eth-sample-slot__pick[aria-expanded="true"] {
+  color: var(--eth-color-text);
+}
+
+/* The chain's sections (MIDI Effects, Instrument, Audio Effects), each under a small label. */
+.eth-devices__section {
+  display: contents;
+}
+.eth-devices__section-label {
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-2xs);
+  font-weight: var(--eth-fw-medium);
+  letter-spacing: var(--eth-tracking-caps);
+}
+.eth-devices__chain--stack .eth-devices__section-label {
+  padding: var(--eth-space-sm) var(--eth-space-xs) 0;
+}
+.eth-devices__chain:not(.eth-devices__chain--stack) .eth-devices__section-label {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  align-self: stretch;
+  text-align: center;
+  padding: 0 var(--eth-space-xs);
+  border-left: var(--eth-border-width) solid var(--eth-color-border-light);
+}
+
+/* A section's head: its label, and (stacked) its add menu on the right. */
+.eth-devices__section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--eth-space-xs);
+}
+/* No right padding: the (wide) "+" then centers on the cards' X column. */
+.eth-devices__chain--stack .eth-devices__section-head {
+  padding: var(--eth-space-sm) 0 0 var(--eth-space-xs);
+}
+/* A little more air between sections (not above the first). */
+.eth-devices__chain--stack .eth-devices__section + .eth-devices__section .eth-devices__section-head {
+  padding-top: var(--eth-space-lg);
+}
+.eth-devices__chain--stack .eth-devices__section-head .eth-devices__section-label {
+  padding: 0;
+}
+.eth-devices__chain:not(.eth-devices__chain--stack) .eth-devices__section-head {
+  display: contents;
+}
+/* Short (the heads stay airy) but wide, for an easy hit… */
+.eth-devices__section-add {
+  flex: none;
+}
+.eth-devices .eth-icon-button.eth-devices__section-add {
+  width: var(--eth-size-control-lg);
+}
+/* …with the small "+" glyph it always had, but it reads as a button: full-contrast glyph
+   on a soft fill, accent on hover. */
+.eth-devices__section-add .eth-icon-button__icon {
+  font-size: var(--eth-size-icon-sm);
+}
+.eth-devices .eth-button.eth-devices__section-add {
+  --_bg: transparent;
+  --_bg-hover: transparent;
+  --_fg: var(--eth-color-text-dim);
+}
+.eth-devices .eth-button.eth-devices__section-add:hover,
+.eth-devices .eth-button.eth-devices__section-add[aria-expanded="true"] {
+  --_fg: var(--eth-color-accent);
+}
+
+/* Where a dragged device lands: a short line centered in the gap before the target card
+   (vertical between side-by-side cards, horizontal between stacked ones), or at the
+   start of the end zone. A position marker, not a card edge. */
+.eth-device__insert,
+.eth-devices__end--drop::before {
+  position: absolute;
+  z-index: 1;
+  border-radius: var(--eth-radius-round);
+  background: var(--eth-color-accent);
+  pointer-events: none;
+}
+.eth-devices__end--drop::before {
+  content: "";
+}
+.eth-devices__chain:not(.eth-devices__chain--stack) .eth-device__insert,
+.eth-devices__chain:not(.eth-devices__chain--stack) .eth-devices__end--drop::before {
+  top: 0;
+  bottom: 0;
+  left: calc(var(--eth-space-md) / -2 - var(--eth-border-width));
+  width: var(--eth-border-width-strong);
+}
+.eth-devices__chain--stack .eth-device__insert,
+.eth-devices__chain--stack .eth-devices__end--drop::before {
+  left: 0;
+  right: 0;
+  top: calc(var(--eth-space-sm) / -2 - var(--eth-border-width));
+  height: var(--eth-border-width-strong);
+}
+
+/* Presets and "+" (modulator): shown while the card's header is hovered or focused, or
+   their menu is open; no animation, they just appear. Hidden, they take no room (no width,
+   the header's gap taken back), so the name gets the whole width. Shown, they sit right
+   after the name and take room from the name only (it truncates). With no room left, they
+   are clipped whole (a button that doesn't fit wraps onto a hidden second line) instead of
+   squeezing the header's fixed buttons: besides the name, the slot is the only header item
+   that can shrink. They stay focusable while hidden: tabbing into them shows them
+   (:focus-within). */
+.eth-device__header > :not(.eth-device__name, .eth-device__rename, .eth-device__on-hover) {
+  flex: none;
+}
+.eth-device__on-hover {
+  display: inline-flex;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 0;
+  margin-inline-start: calc(var(--eth-space-xs) * -1);
+  overflow: hidden;
+  opacity: 0;
+}
+.eth-device__on-hover-inner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  align-content: flex-start;
+  gap: var(--eth-space-xs);
+  min-width: 0;
+  height: var(--eth-size-control-sm);
+  overflow: hidden;
+}
+/* An empty first item on the first line: a button that doesn't fit wraps onto the hidden
+   second line instead of being cut in half on the first. */
+.eth-device__on-hover-inner::before {
+  content: "";
+  /* Full height, so the first line is too even when nothing else fits on it. */
+  height: 100%;
+  margin-inline-end: calc(var(--eth-space-xs) * -1);
+}
+/* Nothing to show (a missing device without modulators): no item, no gap. */
+.eth-device__on-hover:has(> .eth-device__on-hover-inner:empty) {
+  display: none;
+}
+.eth-device__header:hover .eth-device__on-hover,
+.eth-device__on-hover:focus-within,
+.eth-device__on-hover:has([aria-expanded="true"]) {
+  max-width: none;
+  margin-inline-start: 0;
+  opacity: 1;
+}
+/* Touch (no hover): always shown. */
+@media (hover: none) {
+  .eth-device__on-hover {
+    max-width: none;
+    margin-inline-start: 0;
+    opacity: 1;
+  }
+}
+
+/* Renaming a device in its header (double-click the name). */
+.eth-device__rename {
+  flex: 1;
+  min-width: 0;
+  padding: 0 var(--eth-space-xs);
+  border: var(--eth-border-width) solid var(--eth-color-border-light);
+  border-radius: var(--eth-radius-sm);
+  background: var(--eth-color-bg-inset);
+  color: var(--eth-color-text);
+  font: inherit;
+  font-weight: var(--eth-fw-medium);
+}
+.eth-device__rename:focus {
+  outline: none;
+  border-color: var(--eth-color-focus);
+}
+
+/* A section's last "device": a placeholder card (the collapsed card's size) that adds one. */
+.eth-devices__add-card {
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-xs);
+  width: 100%;
+  height: var(--eth-size-row-height-lg);
+  padding: 0 var(--eth-space-sm);
+  border: var(--eth-border-width) dashed var(--eth-color-border-card);
+  border-radius: var(--eth-radius-lg);
+  background: none;
+  color: var(--eth-color-text-dim);
+  font: inherit;
+  font-size: var(--eth-fs-sm);
+  cursor: pointer;
+  transition:
+    color var(--eth-duration-fast) var(--eth-ease-out),
+    background-color var(--eth-duration-fast) var(--eth-ease-out);
+}
+.eth-devices__add-card:hover,
+.eth-devices__add-card[aria-expanded="true"] {
+  color: var(--eth-color-text);
+  background: var(--eth-color-bg-hover);
+}
+.eth-devices__add-card .lucide {
+  font-size: var(--eth-size-icon-sm);
+}
+
+/* Sidechain source and tap (features/sidechain) in a device header: capped and shrinkable,
+   their value ellipsized, so the device's name keeps its room. */
+.eth-select.eth-sidechain,
+.eth-select.eth-sidechain-tap {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: var(--eth-size-sidechain-select-max-width);
+}
+
+/* ---- Translucency (Settings > Appearance; off: the solid fills above) ----------------------
+   Device surfaces let the pane or window behind show through, like the piano roll: a card in
+   a chain is a lighter veil (a device window's editor has no card: window.css); insets (plots,
+   meters, lists, the sample slot) a partial tint. */
+:root:not([data-translucency="off"]) .eth-device:not(.eth-device--window) {
+  background: color-mix(in srgb, var(--eth-color-bg-card) 55%, transparent);
+}
+/* A device inside a rack chain (or a drum pad's chain) is already on its rack's card: no second
+   veil, its outline only (nested racks would otherwise darken step by step). */
+:root :is(.eth-rack__body, .eth-drum-rack__chain) .eth-device:not(.eth-device--window) {
+  background: transparent;
+}
+/* Every device's insets share the same tint (factory layouts, racks, modulation, slices). */
+:root:not([data-translucency="off"])
+  :where(
+    .eth-sample-slot,
+    .eth-plot,
+    .eth-level,
+    .eth-tuner,
+    .eth-params__list,
+    .eth-rack-chains__row,
+    .eth-fm__cell:not(:hover):not(.eth-fm__cell--on),
+    .eth-rack__row,
+    .eth-mod:not(.eth-mod--mapping),
+    .eth-mod-bar,
+    .eth-slices__lane
+  ) {
+  background: color-mix(in srgb, var(--eth-color-bg-inset) 55%, transparent);
+}
+:root:not([data-translucency="off"]) .eth-eq .eth-plot.eth-plot--eq {
+  background: color-mix(in srgb, var(--eth-color-bg-inset) 55%, transparent);
+}

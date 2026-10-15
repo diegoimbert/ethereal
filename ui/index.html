@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ethereal</title>
+    <!-- The theme's background (--eth-color-bg) before the app's CSS loads: no white flash. -->
+    <style>
+      html { background: #16181e; }
+    </style>
+    <script>
+      try { if (localStorage.getItem("eth-theme") === "light") document.documentElement.style.background = "#eceef2"; } catch {}
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

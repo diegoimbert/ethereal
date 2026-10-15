@@ -1,0 +1,14 @@
+{
+  "about": "Mock/controller transport contract (#596): the same command sequence run on MockTransport (contract.test.ts) and on the controller (crates/ether-controller/tests/mock_contract.rs) gives these states. `position` is the playhead (the mock's; the controller's comes from the engine, so only the mock checks it).",
+  "steps": [
+    { "command": { "domain": "Transport", "command": { "type": "Locate", "position": 16 } }, "playing": false, "start_position": 16, "position": 16 },
+    { "command": { "domain": "Transport", "command": { "type": "Play" } }, "playing": true, "start_position": 16, "position": 16 },
+    { "command": { "domain": "Transport", "command": { "type": "Locate", "position": 32 } }, "playing": true, "start_position": 16, "position": 32 },
+    { "command": { "domain": "Transport", "command": { "type": "Stop" } }, "playing": false, "start_position": 16, "position": 32 },
+    { "command": { "domain": "Transport", "command": { "type": "Play" } }, "playing": true, "start_position": 16, "position": 32 },
+    { "command": { "domain": "Transport", "command": { "type": "Stop" } }, "playing": false, "start_position": 16, "position": 32 },
+    { "command": { "domain": "Transport", "command": { "type": "Stop" } }, "playing": false, "start_position": 16, "position": 16 },
+    { "command": { "domain": "Transport", "command": { "type": "TogglePlay" } }, "playing": true, "start_position": 16, "position": 16 },
+    { "command": { "domain": "Transport", "command": { "type": "TogglePlay" } }, "playing": false, "start_position": 16, "position": 16 }
+  ]
+}

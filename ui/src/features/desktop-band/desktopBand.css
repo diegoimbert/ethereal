@@ -1,0 +1,67 @@
+/* The web version's "Open on desktop" band (DesktopBand.tsx). Tokens only. */
+
+/* The band's height, for what sizes itself to the window under the top bar (share popover). */
+:root:has(.eth-desktop-band) {
+  --eth-web-band-height: var(--eth-size-control-lg);
+}
+
+/* The page with the band: the band on top, the app shell fills the rest. */
+.eth-web-frame {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+.eth-web-frame__app {
+  flex: 1 1 0;
+  min-height: 0;
+}
+
+.eth-desktop-band {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--eth-space-md);
+  min-width: 0;
+  height: var(--eth-web-band-height, var(--eth-size-control-lg));
+  padding: 0 var(--eth-space-md);
+  border-bottom: var(--eth-border-width) solid var(--eth-color-border-light);
+  background: var(--eth-color-bg-panel);
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+  line-height: var(--eth-lh-tight);
+  white-space: nowrap;
+}
+.eth-desktop-band__text {
+  overflow: hidden;
+  min-width: 0;
+  text-overflow: ellipsis;
+}
+.eth-desktop-band__open {
+  flex: none;
+}
+/* Close: at the band's far end. The text and "Open on desktop" stay centered: an invisible
+   twin of the close button holds the left end. */
+.eth-desktop-band__close {
+  flex: none;
+  margin-left: auto;
+}
+.eth-desktop-band::before {
+  content: "";
+  flex: none;
+  width: var(--eth-size-control-sm);
+  margin-right: auto;
+}
+.eth-desktop-band__link {
+  color: var(--eth-color-accent);
+  text-decoration: none;
+}
+.eth-desktop-band__link:hover {
+  text-decoration: underline;
+}
+.eth-desktop-band__link-icon {
+  width: var(--eth-size-icon-sm);
+  height: var(--eth-size-icon-sm);
+  margin-right: var(--eth-space-xs);
+  vertical-align: middle;
+}

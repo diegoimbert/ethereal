@@ -1,0 +1,147 @@
+{
+  "format": "ethereal-preset",
+  "version": 2,
+  "app_version": "0.6.0",
+  "preset": {
+    "name": "vocal chain",
+    "device": {
+      "type": "Builtin",
+      "device": "AudioEffectRack"
+    },
+    "meta": {
+      "tags": [
+        "vocals",
+        "chain",
+        "plate"
+      ],
+      "author": "ethereal",
+      "description": "a lead vocal: rumble cut at 90 Hz, presence and air, a 3:1 leveling compressor, and a short plate. macro 1 adds space."
+    },
+    "params": {
+      "0": 0.0,
+      "1": 0.0,
+      "2": 0.0,
+      "3": 0.0,
+      "4": 0.0,
+      "5": 0.0,
+      "6": 0.0,
+      "7": 0.0,
+      "8": 0.0
+    },
+    "kind": null,
+    "state": null,
+    "rack": {
+      "chains": [
+        {
+          "name": "vocal",
+          "color": null,
+          "volume": 0.0,
+          "pan": 0.0,
+          "mute": false,
+          "solo": false,
+          "keys": {
+            "lo": 0,
+            "hi": 127
+          },
+          "velocities": {
+            "lo": 0,
+            "hi": 127
+          },
+          "select": {
+            "lo": 0,
+            "hi": 127
+          },
+          "devices": [
+            {
+              "name": "eq",
+              "enabled": true,
+              "device": {
+                "type": "Builtin",
+                "device": "Eq"
+              },
+              "params": {
+                "0": 1.0,
+                "1": 0.0,
+                "2": 90.0,
+                "3": 0.0,
+                "4": 0.7071,
+                "5": 0.0,
+                "10": 0.0,
+                "15": 0.0,
+                "20": 1.0,
+                "21": 2.0,
+                "22": 3500.0,
+                "23": 2.0,
+                "24": 1.0,
+                "25": 0.0,
+                "30": 1.0,
+                "31": 4.0,
+                "32": 12000.0,
+                "33": 2.0,
+                "34": 0.7071,
+                "35": 0.0,
+                "40": 0.0
+              },
+              "kind": null,
+              "state": null
+            },
+            {
+              "name": "level",
+              "enabled": true,
+              "device": {
+                "type": "Builtin",
+                "device": "Compressor"
+              },
+              "params": {
+                "0": -22.0,
+                "1": 3.0,
+                "2": 5.0,
+                "3": 80.0,
+                "4": 5.0,
+                "6": 1.0,
+                "7": 6.0
+              },
+              "kind": null,
+              "state": null
+            },
+            {
+              "name": "plate",
+              "enabled": true,
+              "device": {
+                "type": "Builtin",
+                "device": "Reverb"
+              },
+              "params": {
+                "0": 20.0,
+                "1": 35.0,
+                "2": 1.4,
+                "3": 55.0,
+                "5": 12.0,
+                "6": 200.0,
+                "8": 80.0
+              },
+              "kind": null,
+              "state": null
+            }
+          ]
+        }
+      ],
+      "modulators": [],
+      "mappings": [
+        {
+          "source": {
+            "type": "Macro",
+            "index": 0
+          },
+          "target": {
+            "type": "ChainDevice",
+            "chain": 0,
+            "device": 2
+          },
+          "param": 5,
+          "depth": 0.25
+        }
+      ]
+    }
+  }
+}

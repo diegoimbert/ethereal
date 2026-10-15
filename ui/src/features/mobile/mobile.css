@@ -1,0 +1,899 @@
+/* The mobile shell (#522, MobileShell.tsx). Tokens only. The layout follows `data-layout`
+   (phone-portrait, phone-landscape, tablet), set from the viewport by `useFormFactor`. */
+
+/* No pull-to-refresh or rubber-banding fighting the timeline gestures; no double-tap zoom
+   delay on buttons. */
+html[data-eth-mobile],
+html[data-eth-mobile] body {
+  overscroll-behavior: none;
+}
+html[data-eth-mobile] {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  /* Menus and option lists (context menus, selects) at touch size. */
+  --menu-item-height: var(--eth-size-touch-target);
+}
+html[data-eth-mobile] .eth-menu__item {
+  font-size: var(--eth-fs-md);
+}
+/* Keyboard shortcut hints mean nothing on a touch screen. */
+html[data-eth-mobile] .eth-menu__shortcut {
+  display: none;
+}
+
+.eth-mshell {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    "top"
+    "main"
+    "dock";
+  gap: 0;
+  /* The dynamic viewport: the bars stay above iOS's collapsing toolbar. */
+  height: 100vh;
+  height: 100dvh;
+  padding: 0;
+}
+
+.eth-mshell__top {
+  grid-area: top;
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-xs);
+  min-width: 0;
+  min-height: var(--eth-size-mobile-top-bar);
+  padding: env(safe-area-inset-top) calc(var(--eth-space-sm) + env(safe-area-inset-right)) 0 calc(var(--eth-space-sm) + env(safe-area-inset-left));
+}
+.eth-mshell__project {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+.eth-mshell__project .eth-project {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+/* The top bar's shared controls (project menu, name, Share) at touch size. */
+.eth-mshell__top .eth-button {
+  --button-height: var(--eth-size-touch-target);
+  min-height: var(--eth-size-touch-target);
+}
+.eth-mshell__top .eth-icon-button {
+  min-width: var(--eth-size-touch-target);
+}
+/* Share (the one accent button): the desktop's size, its touch target still 44 px tall (an
+   invisible extension above and below). */
+.eth-mshell__top [data-slot="collab"] .eth-button--accent {
+  --button-height: var(--button-height-sm);
+  position: relative;
+  min-height: 0;
+}
+.eth-mshell__top [data-slot="collab"] .eth-button--accent::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  right: 0;
+  left: 0;
+  height: var(--eth-size-touch-target);
+  transform: translateY(-50%);
+}
+.eth-mshell__top .eth-project__name {
+  flex: 0 1 auto;
+  min-width: 0;
+  min-height: var(--eth-size-touch-target);
+  margin-left: 0;
+  padding: 0 var(--eth-space-xs);
+}
+/* iOS zooms into a focused field under 16 px: the rename field is at least that. */
+.eth-mshell .eth-project__rename,
+html[data-eth-mobile] input:not([type="checkbox"], [type="radio"], [type="range"]),
+html[data-eth-mobile] textarea {
+  font-size: var(--eth-fs-touch-input);
+}
+.eth-mshell__history {
+  display: flex;
+  flex: none;
+}
+.eth-mshell__spacer {
+  flex: 1 1 0;
+}
+
+.eth-mshell__main {
+  grid-area: main;
+  min-height: 0;
+  padding: 0 env(safe-area-inset-right) 0 env(safe-area-inset-left);
+}
+.eth-mshell__stage {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-width: 0;
+  overflow: hidden;
+  border-top: var(--eth-border-width) solid var(--eth-color-border-light);
+  border-bottom: var(--eth-border-width) solid var(--eth-color-border-light);
+  background: var(--eth-color-bg-panel);
+}
+.eth-mshell__stage > [data-feature="arrangement"] {
+  flex: 1;
+  min-height: 0;
+}
+
+.eth-mshell__dock {
+  grid-area: dock;
+  min-width: 0;
+  padding: 0 calc(var(--eth-space-sm) + env(safe-area-inset-right)) env(safe-area-inset-bottom) calc(var(--eth-space-sm) + env(safe-area-inset-left));
+  background: var(--eth-color-bg);
+}
+
+/* ---- The transport dock ------------------------------------------------------------- */
+.eth-mdock {
+  display: flex;
+  flex-direction: column;
+}
+.eth-mdock__status {
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-md);
+  min-width: 0;
+  min-height: var(--eth-size-mobile-status);
+}
+.eth-mdock__status .eth-tb__position {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0;
+}
+.eth-mdock__status .eth-tb__bars {
+  min-width: 0;
+  font-size: var(--eth-fs-lg);
+  text-align: left;
+}
+.eth-mdock__tempo {
+  display: inline-flex;
+  flex: none;
+  align-items: baseline;
+  gap: var(--eth-space-xs);
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-sm);
+}
+.eth-mdock__bpm {
+  color: var(--eth-color-text);
+  font-size: var(--eth-fs-md);
+}
+.eth-mdock__unit {
+  font-size: var(--eth-fs-xs);
+}
+.eth-mdock__main {
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  min-height: var(--eth-size-mobile-dock);
+}
+
+/* Touch-sized buttons: a 44 px target, the icon larger than the desktop's. */
+.eth-mdock__btn.eth-button {
+  --button-height: var(--eth-size-touch-target);
+  min-width: var(--eth-size-touch-target);
+  min-height: var(--eth-size-touch-target);
+  padding: 0;
+  border-radius: var(--eth-radius-pill);
+  justify-content: center;
+}
+.eth-mdock__btn svg {
+  width: var(--eth-size-icon-lg);
+  height: var(--eth-size-icon-lg);
+}
+.eth-mdock__btn--small svg {
+  width: var(--eth-size-icon-md);
+  height: var(--eth-size-icon-md);
+}
+.eth-mdock__btn.eth-button:active:not(:disabled) {
+  background: var(--eth-color-bg-active);
+}
+.eth-mdock__play.eth-button {
+  --_fg: var(--eth-color-text);
+}
+/* Play, record: the desktop transport's colors (transport-bar.css), a tint when on. */
+.eth-mdock__play.eth-button[aria-pressed="true"] {
+  --_bg: color-mix(in srgb, var(--eth-color-play) 22%, transparent);
+  --_bg-hover: var(--_bg);
+  --_fg: var(--eth-color-play);
+}
+.eth-mdock__record.eth-button {
+  --_fg: var(--eth-color-record);
+}
+.eth-mdock__record.eth-button[aria-pressed="true"] {
+  --_bg: color-mix(in srgb, var(--eth-color-record) 24%, transparent);
+  --_bg-hover: var(--_bg);
+  --_fg: var(--eth-color-record);
+}
+.eth-mdock__record svg {
+  fill: currentColor;
+  transform: scale(0.8);
+}
+
+/* ---- Phone landscape: one bar at the bottom (the top bar's group on its left) ------- */
+.eth-mshell[data-layout="phone-landscape"] {
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "main main"
+    "top dock";
+}
+.eth-mshell[data-layout="phone-landscape"] .eth-mshell__top {
+  padding: 0 0 env(safe-area-inset-bottom) calc(var(--eth-space-sm) + env(safe-area-inset-left));
+  background: var(--eth-color-bg);
+}
+.eth-mshell[data-layout="phone-landscape"] .eth-mshell__spacer {
+  display: none;
+}
+.eth-mshell[data-layout="phone-landscape"] .eth-mshell__dock {
+  padding-left: var(--eth-space-sm);
+}
+.eth-mshell[data-layout="phone-landscape"] .eth-mdock,
+.eth-mshell[data-layout="tablet"] .eth-mdock {
+  flex-direction: row-reverse;
+  align-items: center;
+  gap: var(--eth-space-md);
+}
+.eth-mshell[data-layout="phone-landscape"] .eth-mdock__main,
+.eth-mshell[data-layout="tablet"] .eth-mdock__main {
+  flex: none;
+  gap: var(--eth-space-xs);
+}
+.eth-mshell[data-layout="phone-landscape"] .eth-mdock__status,
+.eth-mshell[data-layout="tablet"] .eth-mdock__status {
+  flex: 1 1 auto;
+}
+/* The project's name would crowd the landscape bar: the menu button alone. */
+.eth-mshell[data-layout="phone-landscape"] .eth-project__name {
+  display: none;
+}
+/* Landscape: the position before the tempo (the bar has room for one). */
+.eth-mshell[data-layout="phone-landscape"] .eth-mdock__tempo,
+.eth-mshell[data-layout="phone-landscape"] .eth-tb__time {
+  display: none;
+}
+
+/* ---- Track headers on touch screens (TrackRow, shared with the desktop) --------------- */
+/* No hover: mute / solo / arm are always shown. */
+.eth-mshell .eth-arr-header__toggle {
+  opacity: 1;
+  pointer-events: auto;
+}
+/* Phones: two lines in the narrow column, the desktop's badge and the name, then the buttons
+   at touch size; volume, pan, takes and automation live in the track sheet (a tap on the
+   selected header). */
+.eth-mshell[data-layout^="phone"] .eth-arr-header {
+  flex-wrap: wrap;
+  align-content: center;
+  row-gap: var(--eth-space-xs);
+  padding-right: calc(var(--eth-space-lg) + var(--eth-space-xs));
+}
+.eth-mshell[data-layout^="phone"] .eth-arr-header__main {
+  display: contents;
+}
+/* The desktop reserves room for the buttons beside the name (by hover state): here they are
+   on their own line. */
+.eth-mshell[data-layout^="phone"] .eth-arr-header .eth-arr-header__name {
+  flex: 1 1 0;
+  min-width: 0;
+  margin-right: 0 !important;
+}
+.eth-mshell[data-layout^="phone"] .eth-arr-header__buttons {
+  position: static;
+  flex-basis: 100%;
+  transform: none;
+}
+.eth-mshell[data-layout^="phone"] .eth-arr-header__toggle {
+  width: var(--eth-size-mobile-track-button);
+  height: var(--eth-size-mobile-track-button);
+  font-size: var(--eth-fs-lg);
+}
+.eth-mshell[data-layout^="phone"] .eth-arr-header :is(.eth-arr-vol, .eth-arr-pan, .eth-takes-toggle, .eth-arr-header__automation) {
+  display: none;
+}
+/* Tablets: the desktop header (volume and pan stay) on two lines, as its buttons are always
+   shown here (the desktop overlays them on the name on hover): the badge and the name, then
+   mute / solo / arm, volume and pan. */
+.eth-mshell[data-layout="tablet"] .eth-arr-header {
+  flex-wrap: wrap;
+  align-content: center;
+  row-gap: var(--eth-space-xs);
+}
+.eth-mshell[data-layout="tablet"] .eth-arr-header__main {
+  display: contents;
+}
+.eth-mshell[data-layout="tablet"] .eth-arr-header .eth-arr-header__name {
+  flex: 1 1 60%;
+  margin-right: 0 !important;
+}
+.eth-mshell[data-layout="tablet"] .eth-arr-header__buttons {
+  position: static;
+  flex: none;
+  transform: none;
+}
+.eth-mshell[data-layout="tablet"] .eth-arr-header .eth-arr-vol {
+  flex: 1;
+}
+/* Mute / solo / arm at touch size (#640: they were the desktop's small buttons); the desktop's
+   look otherwise (no fill, a tint when on: arrangement.css). */
+.eth-mshell[data-layout="tablet"] .eth-arr-header__toggle {
+  width: var(--eth-size-touch-target);
+  height: var(--eth-size-touch-target);
+  font-size: var(--eth-fs-lg);
+}
+.eth-mshell .eth-arr-header__toggle:active:not([aria-pressed="true"]) {
+  background: var(--eth-color-bg-active);
+}
+
+/* ---- Sheets (Sheet.tsx) -------------------------------------------------------------- */
+/* The sheet takes the focus when it opens (Escape reaches it): no ring around the panel. */
+.eth-sheet:focus {
+  outline: none;
+}
+.eth-sheet-layer {
+  position: fixed;
+  inset: 0;
+  z-index: var(--eth-z-dialog);
+}
+.eth-sheet__scrim {
+  position: absolute;
+  inset: 0;
+  background: var(--eth-color-bg-overlay);
+  opacity: 0.5;
+  animation: eth-sheet-fade var(--eth-duration-normal) var(--eth-ease-out) both;
+}
+.eth-sheet {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  max-width: var(--eth-size-mobile-sheet-max-width);
+  height: 55dvh;
+  margin: 0 auto;
+  padding: 0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  /* The desktop dialog's surface (kit.css .eth-dialog), its bottom corners on the screen's edge. */
+  border: var(--eth-border-width) solid var(--dialog-border);
+  border-bottom: 0;
+  border-radius: var(--dialog-radius) var(--dialog-radius) 0 0;
+  background: var(--dialog-bg);
+  box-shadow: var(--dialog-shadow);
+  transition:
+    height var(--eth-duration-normal) var(--eth-ease-out),
+    transform var(--eth-duration-normal) var(--eth-ease-out);
+  animation: eth-sheet-up var(--eth-duration-normal) var(--eth-ease-out) both;
+}
+.eth-sheet[data-detent="tall"] {
+  height: 92dvh;
+}
+/* Phone landscape: a full-screen panel (half the height would leave too little). */
+html[data-eth-mobile="phone-landscape"] .eth-sheet {
+  height: 100dvh;
+  max-width: none;
+  border-radius: 0;
+}
+.eth-sheet__head {
+  position: relative;
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--eth-space-sm);
+  min-height: var(--eth-size-mobile-top-bar);
+  padding: var(--eth-space-sm) var(--eth-space-sm) 0 var(--eth-space-lg);
+  touch-action: none;
+}
+.eth-sheet__grip {
+  position: absolute;
+  top: var(--eth-space-xs);
+  left: 50%;
+  width: var(--eth-size-touch-target);
+  height: var(--eth-space-xs);
+  border-radius: var(--eth-radius-pill);
+  background: var(--eth-color-border);
+  transform: translateX(-50%);
+}
+.eth-sheet__title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--eth-fs-lg);
+  font-weight: var(--eth-fw-medium);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.eth-sheet__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--eth-space-sm) var(--eth-space-lg) var(--eth-space-lg);
+}
+@keyframes eth-sheet-up {
+  from {
+    transform: translateY(100%);
+  }
+}
+@keyframes eth-sheet-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+/* ---- The track sheet (TrackSheet.tsx) -------------------------------------------------- */
+.eth-track-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-lg);
+}
+.eth-track-sheet__title {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--eth-space-sm);
+  min-width: 0;
+}
+.eth-track-sheet__swatch {
+  flex: none;
+  width: var(--eth-size-status-dot);
+  height: var(--eth-size-status-dot);
+  border-radius: var(--eth-radius-round);
+  background: var(--eth-track-color);
+}
+.eth-track-sheet__row {
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-md);
+  min-height: var(--eth-size-touch-target);
+}
+.eth-track-sheet__label {
+  flex: none;
+  width: var(--eth-size-mobile-sheet-label);
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-sm);
+}
+.eth-track-sheet__name {
+  flex: 1;
+  min-width: 0;
+  height: var(--eth-size-touch-target);
+  padding: 0 var(--eth-space-md);
+  border: var(--eth-border-width) solid var(--eth-color-border);
+  border-radius: var(--eth-radius-md);
+  background: var(--eth-color-bg-inset);
+  color: var(--eth-color-text);
+}
+.eth-track-sheet__toggles,
+.eth-track-sheet__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--eth-space-sm);
+}
+.eth-track-sheet__toggles .eth-button,
+.eth-track-sheet__actions .eth-button {
+  --button-height: var(--eth-size-touch-target);
+  flex: 1 1 auto;
+  gap: var(--eth-space-sm);
+  justify-content: center;
+  font-size: var(--eth-fs-md);
+}
+.eth-track-sheet__arm[aria-pressed="true"] {
+  color: var(--eth-color-record);
+}
+/* The header's own fader and knob, at touch size. */
+.eth-track-sheet__fader {
+  flex: 1;
+  min-width: 0;
+}
+/* Room above the fader for its dB readout. */
+.eth-track-sheet__row:has(.eth-track-sheet__fader) {
+  margin-top: var(--eth-space-lg);
+}
+.eth-track-sheet__fader .eth-arr-vol {
+  width: 100%;
+  height: var(--eth-size-touch-target);
+}
+.eth-track-sheet__fader .eth-arr-vol__thumb {
+  opacity: 1;
+  transform: scale(2);
+}
+.eth-track-sheet__fader .eth-arr-vol__readout {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+.eth-track-sheet .eth-arr-pan {
+  margin: 0;
+}
+.eth-track-sheet .eth-arr-pan .eth-knob {
+  --knob-size: var(--eth-size-touch-target);
+}
+.eth-track-sheet__heading {
+  margin: 0 0 var(--eth-space-sm);
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-sm);
+  font-weight: var(--eth-fw-medium);
+}
+.eth-track-sheet__device-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.eth-track-sheet__device {
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-sm);
+  min-height: var(--eth-size-touch-target);
+  border-bottom: var(--eth-border-width) solid var(--eth-color-border-light);
+}
+.eth-track-sheet__device-dot {
+  width: var(--eth-size-status-dot);
+  height: var(--eth-size-status-dot);
+  border-radius: var(--eth-radius-round);
+  background: var(--eth-color-ok);
+}
+.eth-track-sheet__device[data-enabled="false"] {
+  color: var(--eth-color-text-dim);
+}
+.eth-track-sheet__device[data-enabled="false"] .eth-track-sheet__device-dot {
+  background: var(--eth-color-text-disabled);
+}
+.eth-track-sheet__device-state {
+  margin-left: auto;
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-sm);
+}
+.eth-track-sheet__empty,
+.eth-track-sheet__hint {
+  margin: var(--eth-space-sm) 0 0;
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-sm);
+}
+
+/* The clip sheet (ClipSheet.tsx): the track sheet's rows; an edge's nudges fill the row. */
+.eth-clip-sheet__nudge {
+  flex: 1;
+}
+
+/* ---- Clips on touch screens (ClipHandles.tsx, ClipActions.tsx) ------------------------- */
+.eth-mshell__main {
+  position: relative;
+}
+/* The selected clips' trim grips (drawn; the touch targets are wider: clipTouch.ts). */
+.eth-clip-handles {
+  position: absolute;
+  pointer-events: none;
+}
+.eth-clip-handles__grip {
+  position: absolute;
+  top: 50%;
+  width: var(--eth-size-mobile-grip-width);
+  height: min(var(--eth-size-mobile-grip-height), 70%);
+  border: var(--eth-border-width) solid var(--eth-color-bg);
+  border-radius: var(--eth-radius-pill);
+  background: var(--eth-color-text);
+  box-shadow: var(--eth-shadow-sm);
+  transform: translate(-50%, -50%);
+}
+.eth-clip-handles__grip--start {
+  left: 0;
+}
+.eth-clip-handles__grip--end {
+  left: 100%;
+}
+/* The time range's handles (RangeHandles.tsx; the touch targets are wider: rangeTouch.ts). */
+.eth-range-handle {
+  position: absolute;
+  border-left: var(--eth-border-width-strong) solid var(--eth-color-accent);
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+.eth-range-handle__knob {
+  position: absolute;
+  left: 50%;
+  width: var(--eth-size-mobile-grip-width);
+  height: var(--eth-size-mobile-grip-height);
+  border: var(--eth-border-width) solid var(--eth-color-bg);
+  border-radius: var(--eth-radius-pill);
+  background: var(--eth-color-accent);
+  box-shadow: var(--eth-shadow-sm);
+  transform: translateX(-50%);
+}
+.eth-range-handle--start .eth-range-handle__knob {
+  top: 0;
+}
+.eth-range-handle--end .eth-range-handle__knob {
+  bottom: 0;
+}
+/* The selection's actions: a floating bar at the bottom of the arrangement. */
+.eth-clip-actions {
+  position: absolute;
+  bottom: var(--eth-space-md);
+  left: 50%;
+  z-index: 30;
+  display: flex;
+  max-width: calc(100% - 2 * var(--eth-space-md));
+  padding: var(--eth-space-xs);
+  overflow-x: auto;
+  /* The desktop popover's surface (kit.css .eth-popover). */
+  border: var(--eth-border-width) solid var(--popover-border);
+  border-radius: var(--popover-radius);
+  background: var(--popover-bg);
+  box-shadow: var(--popover-shadow);
+  transform: translateX(-50%);
+  scrollbar-width: none;
+  animation: eth-sheet-fade var(--eth-duration-fast) var(--eth-ease-out) both;
+}
+.eth-clip-actions__btn.eth-button {
+  --button-height: var(--eth-size-touch-target);
+  flex: none;
+  flex-direction: column;
+  gap: 0;
+  min-width: var(--eth-size-touch-target);
+  height: auto;
+  min-height: var(--eth-size-touch-target);
+  padding: var(--eth-space-xs) var(--eth-space-sm);
+  font-size: var(--eth-fs-2xs);
+}
+.eth-clip-actions__btn svg {
+  width: var(--eth-size-icon-lg);
+  height: var(--eth-size-icon-lg);
+}
+/* Where a dragged clip lands: above the finger (never under it). */
+.eth-drag-badge {
+  position: fixed;
+  z-index: var(--eth-z-popover);
+  padding: var(--eth-space-xs) var(--eth-space-sm);
+  border-radius: var(--eth-radius-md);
+  background: var(--eth-color-bg-overlay);
+  box-shadow: var(--eth-shadow-md);
+  color: var(--eth-color-text);
+  font-size: var(--eth-fs-md);
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+  transform: translate(-50%, calc(-100% - var(--eth-size-mobile-badge-lift)));
+}
+
+/* ---- The clip editor panel (EditorPanel.tsx) ------------------------------------------- */
+.eth-meditor {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-top: var(--eth-border-width) solid var(--eth-color-border-light);
+  background: var(--eth-color-bg-raised);
+  animation: eth-sheet-up var(--eth-duration-normal) var(--eth-ease-out) both;
+}
+/* Tablets: the lower part, the arrangement stays in view above. */
+.eth-mshell[data-layout="tablet"] .eth-meditor {
+  top: 45%;
+  box-shadow: var(--eth-shadow-lg);
+}
+.eth-meditor__head {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--eth-space-sm);
+  min-height: var(--eth-size-mobile-top-bar);
+  padding: 0 var(--eth-space-xs) 0 var(--eth-space-md);
+  border-bottom: var(--eth-border-width) solid var(--eth-color-border-light);
+}
+.eth-meditor__head .eth-shell__tabs {
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+}
+.eth-meditor__head .eth-button {
+  --button-height: var(--eth-size-touch-target);
+}
+.eth-meditor__body {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+.eth-meditor__body > .eth-drawer {
+  height: 100%;
+}
+/* Phones: the piano roll's velocity / expression lanes only when shown (the head's toggle). */
+.eth-mshell[data-layout^="phone"] .eth-meditor:not([data-lanes]) .eth-expr,
+.eth-mshell[data-layout="tablet"] .eth-meditor__lanes {
+  display: none;
+}
+/* The editors' toolbars: one scrolling row of touch-sized controls. */
+.eth-meditor .eth-pr__toolbar {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.eth-meditor .eth-pr__toolbar .eth-button {
+  --button-height: var(--eth-size-touch-target);
+  flex: none;
+}
+
+/* ---- The mixer (MobileMixer.tsx) ------------------------------------------------------- */
+.eth-mmixer {
+  position: absolute;
+  inset: 0;
+  z-index: 35;
+  display: flex;
+  min-height: 0;
+  background: var(--eth-color-bg-panel);
+}
+.eth-mmixer__strips {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+.eth-mmixer__master {
+  display: flex;
+  flex: none;
+  border-left: var(--eth-border-width) solid var(--eth-color-border);
+}
+.eth-mmixer__empty {
+  margin: auto;
+  color: var(--eth-color-text-dim);
+}
+.eth-mstrip {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--eth-space-sm);
+  width: var(--eth-size-mobile-strip-width);
+  padding: var(--eth-space-sm) var(--eth-space-xs);
+  border-right: var(--eth-border-width) solid var(--eth-color-border-light);
+}
+.eth-mshell[data-layout="tablet"] .eth-mstrip {
+  width: var(--eth-size-mobile-strip-width-wide);
+}
+.eth-mstrip__name {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--eth-space-xs);
+  width: 100%;
+  font-size: var(--eth-fs-sm);
+}
+.eth-mstrip__label {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+/* The track's color, as the track sheet's swatch. */
+.eth-mstrip__dot {
+  flex: none;
+  width: var(--eth-size-status-dot);
+  height: var(--eth-size-status-dot);
+  border-radius: var(--eth-radius-round);
+  background: var(--eth-track-color);
+}
+.eth-mstrip .eth-arr-pan {
+  margin: 0;
+}
+.eth-mstrip .eth-arr-pan .eth-knob {
+  --knob-size: var(--eth-size-touch-target);
+}
+.eth-mstrip__pan-space {
+  height: var(--eth-size-touch-target);
+}
+/* The fader takes the strip's free height, its meter beside it. */
+.eth-mstrip__fader {
+  display: flex;
+  flex: 1;
+  gap: var(--eth-space-xs);
+  min-height: 0;
+}
+.eth-mstrip__fader .eth-fader {
+  --fader-width: var(--eth-size-touch-target);
+  --fader-thumb-height: var(--eth-size-mobile-grip-height);
+  height: 100%;
+  touch-action: none;
+}
+.eth-mstrip__meter {
+  height: 100%;
+}
+.eth-mstrip__db {
+  font-size: var(--eth-fs-xs);
+  color: var(--eth-color-text-dim);
+}
+.eth-mstrip__buttons {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-xs);
+}
+.eth-mstrip__toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--eth-size-touch-target);
+  height: var(--eth-size-touch-target);
+  padding: 0;
+  border: none;
+  border-radius: var(--eth-radius-sm);
+  background: transparent;
+  color: var(--eth-color-text-dim);
+}
+.eth-mstrip__toggle:active {
+  background: var(--eth-color-bg-active);
+}
+.eth-mstrip__toggle svg {
+  width: var(--eth-size-icon-lg);
+  height: var(--eth-size-icon-lg);
+}
+/* On: the track header's tints (arrangement.css). */
+.eth-mstrip__mute[aria-pressed="true"] {
+  background: color-mix(in srgb, var(--eth-color-warn) 22%, transparent);
+  color: var(--eth-color-warn);
+}
+.eth-mstrip__solo[aria-pressed="true"] {
+  background: color-mix(in srgb, var(--eth-color-accent) 24%, transparent);
+  color: var(--eth-color-accent);
+}
+.eth-mstrip__arm[aria-pressed="true"] {
+  background: color-mix(in srgb, var(--eth-color-record) 22%, transparent);
+  color: var(--eth-color-record);
+}
+/* Phone landscape: little height, the buttons side by side. */
+.eth-mshell[data-layout="phone-landscape"] .eth-mstrip__buttons {
+  flex-direction: row;
+}
+.eth-mshell[data-layout="phone-landscape"] .eth-mstrip {
+  width: auto;
+  min-width: var(--eth-size-mobile-strip-width);
+}
+
+/* ---- Dialogs, popovers and the project screen on touch screens (shared kit / features) - */
+/* Phones: dialogs are full-screen panels (safe areas inside), tabs scroll sideways. */
+html[data-eth-mobile^="phone"] .eth-dialog {
+  width: 100vw;
+  max-width: none;
+  height: 100dvh;
+  max-height: none;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  border: 0;
+  border-radius: 0;
+}
+html[data-eth-mobile] .eth-tabs {
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+/* Touch-sized controls in dialogs, popovers and sheets. */
+html[data-eth-mobile] :is(.eth-dialog, .eth-popover, .eth-sheet) :is(.eth-button, .eth-tabs__tab) {
+  --button-height: var(--eth-size-touch-target);
+  --tab-height: var(--eth-size-touch-target);
+  min-height: var(--eth-size-touch-target);
+}
+html[data-eth-mobile] .eth-popover {
+  max-width: calc(100vw - 2 * var(--eth-space-sm));
+}
+/* The project screen: one column, the projects first; the header wraps. */
+html[data-eth-mobile^="phone"] .eth-welcome__columns {
+  grid-template-columns: minmax(0, 1fr);
+}
+html[data-eth-mobile^="phone"] .eth-welcome__columns > .eth-project-screen__body {
+  order: -1;
+}
+html[data-eth-mobile^="phone"] .eth-welcome__brand {
+  flex-wrap: wrap;
+}
+html[data-eth-mobile^="phone"] .eth-welcome__actions {
+  flex-wrap: wrap;
+  margin-left: 0;
+}
+/* A project row's actions (rename, duplicate, delete) are shown: no hover on touch. */
+html[data-eth-mobile] .eth-project-screen__item .eth-icon-button {
+  opacity: 1;
+  min-width: var(--eth-size-touch-target);
+  min-height: var(--eth-size-touch-target);
+}
+html[data-eth-mobile] .eth-project-screen__open {
+  height: auto;
+  min-height: var(--eth-size-touch-target);
+}

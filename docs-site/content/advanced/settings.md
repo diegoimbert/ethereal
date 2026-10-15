@@ -1,0 +1,84 @@
+---
+title: settings reference
+order: 90
+summary: Every tab of the settings window and what its options do, with links to the pages that explain them.
+platform: all
+audience: everyone
+---
+
+Open the settings with the gear button in the top bar, or run **audio settings…** or **mouse and wheel settings…** from the [command palette](/docs/basics/command-palette-and-settings). Every change applies at once, and **done** closes the window. Options that need the audio engine say **no engine connected** when it isn't running.
+
+Some settings belong to a project (tempo, swing, MIDI mappings) and live in the project, not here.
+
+## general
+
+- **startup**: **reopen last project on launch** (off by default). See [projects and saving](/docs/basics/projects).
+- **storage** [[web]]: whether the browser has agreed to keep your projects, how much space they use, and **request again** if it hasn't. See [where your projects live](/docs/welcome/where-your-projects-live).
+- **library files**: which files the browser lists, as rules matched against file names. **reset to defaults** undoes your changes. See [the browser](/docs/sounds-and-plugins/browser).
+- **updates** [[desktop]]: **check for updates automatically**. **about** shows the version and when updates were last checked.
+
+## appearance
+
+- **theme**: dark or light.
+- **zoom**: scales the whole interface (text, controls and panels).
+- **animations**: classic, fast (every animation takes half the time) or reduced motion (changes apply at once).
+- **color blobs**: the soft colors drifting behind dialogs and, faintly, behind the arrangement.
+- **glow**: the halo around selected notes, clips and tracks, the playhead and status lights.
+- **translucency**: how see-through panels are, or **disable translucency**.
+
+These are kept on this device.
+
+## audio
+
+The audio driver, the **output device**, the **input device**, the **sample rate** and the **buffer size**, the engine's status and an input check. In the browser, your system chooses the devices. See [audio and midi setup](/docs/making-music/audio-and-midi-setup).
+
+## input
+
+How the mouse wheel and buttons behave, kept on this device:
+
+- **wheel**: zoom and scroll sensitivity, whether the plain wheel scrolls or zooms, which modifier does the other, inverted zoom and scrolling, and whether [[key:Shift]] + wheel scrolls sideways.
+- **mouse buttons**: what a middle-button drag does (pan the view, or nothing) and what the back / forward buttons do (nothing, or undo / redo).
+
+## plugins [[desktop]]
+
+The folders scanned for plugins: the system folders (each can be turned off) and your own folders, plus the scan buttons. In the web version this tab only says plugins need the desktop app. See [plugins](/docs/sounds-and-plugins/plugins).
+
+## sharing
+
+- **you appear as**: your name, as people see it in a live session.
+- **resume sharing when i open a shared project**: your links stay valid while the project is closed. Turned off, you share again with the share button.
+- **automatically listen to the host when joining with a listen link**.
+
+See [live sessions](/docs/sharing/live-sessions).
+
+## privacy
+
+- **send crash reports** and **send anonymous usage statistics**.
+- **your data**: your install id, **view what's sent**, **reset install id** and **send diagnostics…**.
+- **news**: **check for news**.
+
+See [privacy and telemetry](/docs/reference/privacy-and-telemetry).
+
+## advanced
+
+For special setups. Most people never change these:
+
+- **sharing**: the signaling server that introduces people in a live session, your own STUN / TURN servers, and **hide my IP (relay only)**. See [live sessions](/docs/sharing/live-sessions).
+- **static share storage**: where static share links are published. See [static share links](/docs/sharing/static-links).
+- **engine server**: run this window on an engine on another machine. Hidden until you run **engine server…** from the command palette (or used one before). See [the engine server](/docs/advanced/engine-server).
+- **relay session**: join an always-on relay instead of the sharer's computer, for studio servers and networks without internet.
+- **engine log** [[desktop]]: **open engine log** shows what the engine reports (warnings, plugin problems, why it stopped responding) in a terminal window. See [troubleshooting](/docs/reference/troubleshooting).
+- **debug panels**: tools for diagnosing problems, mostly for developers. See [reporting issues](/docs/reference/reporting-issues).
+
+## other settings
+
+A few settings live where you use them:
+
+- the AI provider, model, key and the external agents switch: in the **ask ai** panel's settings. See [the ai assistant](/docs/advanced/ai-assistant).
+- keyboard shortcuts: **edit keyboard shortcuts…** on the **input** tab, or **keyboard shortcuts…** in the command palette. See [keyboard shortcuts](/docs/reference/keyboard-shortcuts).
+- the metronome: in the transport bar. See [playing and moving around](/docs/basics/playing-and-navigating).
+
+## where next
+
+- [audio and midi setup](/docs/making-music/audio-and-midi-setup)
+- [troubleshooting](/docs/reference/troubleshooting)

@@ -1,0 +1,120 @@
+/* Timeline primitives (ruler, playhead line). Tokens come from kit/theme.css. */
+
+.eth-ruler {
+  position: relative;
+  overflow: hidden;
+  background: var(--eth-color-bg-inset);
+  border-bottom: var(--eth-border-width) solid var(--eth-color-border);
+  cursor: default;
+  user-select: none;
+  touch-action: none;
+  font-family: var(--eth-font-mono);
+  font-size: var(--eth-fs-xs);
+  color: var(--eth-color-text-dim);
+}
+
+/* Ticks and labels (Ruler.tsx `drawMarks`): 25% / 55% high ticks in border-light /
+   text-dim, labels in text-dim below the loop brace (--eth-size-ruler-label-top). */
+.eth-ruler__marks {
+  position: absolute;
+  left: 0;
+  top: 0;
+}
+
+/* BeatCanvas.tsx: moved and stretched by a composited transform from its left edge. */
+.eth-beat-canvas {
+  pointer-events: none;
+  transform-origin: 0 0;
+  will-change: transform;
+}
+
+.eth-ruler__loop {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: var(--eth-size-ruler-loop-height);
+  background: var(--eth-color-accent);
+  opacity: 0.85;
+  border-radius: 0 0 var(--eth-radius-sm) var(--eth-radius-sm);
+  cursor: grab;
+  /* Moved with a transform while panning: its own layer (no page repaint per frame). */
+  will-change: transform;
+}
+
+/* Taller invisible hit area so the thin brace stays easy to grab. */
+.eth-ruler__loop::after {
+  content: "";
+  position: absolute;
+  inset: 0 0 calc(-1 * var(--eth-size-ruler-loop-hit-extra));
+}
+
+.eth-ruler__loop--off {
+  background: var(--eth-color-knob-track);
+  opacity: 0.9;
+}
+
+.eth-ruler__playhead {
+  position: absolute;
+  /* Moves every frame while playing (transform): own layer, no page repaint. */
+  will-change: transform;
+  left: calc(-1 * var(--eth-size-playhead-marker-half-width));
+  bottom: 0;
+  width: 0;
+  height: 0;
+  border-left: var(--eth-size-playhead-marker-half-width) solid transparent;
+  border-right: var(--eth-size-playhead-marker-half-width) solid transparent;
+  border-top: var(--eth-size-playhead-marker-height) solid var(--eth-color-playhead);
+  pointer-events: none;
+  transition: border-top-color var(--eth-duration-slow) var(--eth-ease-out);
+}
+/* Playing: the line's color (the accent in the dark theme). */
+.eth-ruler__playhead[data-playing] {
+  border-top-color: var(--eth-color-playhead-playing);
+}
+
+.eth-playhead-line {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: var(--eth-border-width);
+  background: var(--eth-color-playhead);
+  pointer-events: none;
+  z-index: 2;
+  /* Moves every frame while playing (`translateX`, see `usePlayheadPosition`): its own
+     layer, so moving it doesn't repaint the arrangement under it. */
+  will-change: transform;
+  /* Parked (stopped): a quieter line; playing: full strength. Play / stop fade between the
+     two (never `transform`: it moves the line every frame). */
+  opacity: var(--eth-opacity-muted);
+  transition:
+    opacity var(--eth-duration-slow) var(--eth-ease-out),
+    background-color var(--eth-duration-slow) var(--eth-ease-out);
+}
+/* Playing (dark theme): the accent, with a soft halo (theme tokens: the light theme has neither). The halo is a horizontal gradient strip, not a
+   shadow / blur, so it costs nothing as the line moves (other users' playheads are drawn
+   elsewhere and stay plain). */
+.eth-playhead-line[data-playing] {
+  opacity: 1;
+  background: var(--eth-color-playhead-playing);
+}
+.eth-playhead-line::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(var(--eth-space-md) * -1);
+  width: calc(var(--eth-space-md) * 2 + var(--eth-border-width));
+  background: linear-gradient(to right, transparent, var(--eth-color-playhead-glow), transparent);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--eth-duration-slow) var(--eth-ease-out);
+}
+.eth-playhead-line[data-playing]::before {
+  opacity: 1;
+}
+
+/* Settings > Appearance > Glow off: the playhead without its halo. */
+:root[data-glow="off"] .eth-playhead-line::before {
+  display: none;
+}

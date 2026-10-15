@@ -1,0 +1,15 @@
+// Engine connection: the `EngineTransport` contract, its implementations, and the React
+// provider/hooks. Features import from "@/transport" and "@/state" only.
+export { cmd, type CommandDomain, type DomainCommand } from "./cmd";
+export { TransportContext, useConnectionStatus, useTransport, useTransportEvent, type ConnectionStatus, type TransportContextValue } from "./context";
+export { createDefaultTransport, isTauri } from "./createDefaultTransport";
+export { CommandFailedError, commandErrorText, Emitter, isCommandFailed, type EngineTransport, type SendOptions, type Unsubscribe } from "./EngineTransport";
+export { deriveId, newId, newProjectId, nextGestureId, uuidv7 } from "./ids";
+export { BUILTIN_DESCRIPTORS, builtinDescriptor, clampParam } from "./mock/builtinDevices";
+export { createDemoProject, createDemoProjects, createEmptyProject } from "./mock/demoProject";
+export { MockTransport, type MockTransportOptions } from "./mock/MockTransport";
+export { MOCK_MEGA_PARAM_COUNT, MOCK_MEGA_PLUGIN_ID } from "./mock/plugins";
+export { TauriTransport } from "./tauri/TauriTransport";
+export { TransportProvider, type TransportProviderProps } from "./TransportProvider";
+export { WasmTransport } from "./wasm/WasmTransport";
+export { WsTransport, type WsTransportOptions } from "./ws/WsTransport";

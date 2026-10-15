@@ -1,0 +1,27 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "orchestra a 442",
+    "device": {
+      "type": "Builtin",
+      "device": "Tuner"
+    },
+    "meta": {
+      "tags": [
+        "orchestral"
+      ],
+      "author": "ethereal",
+      "description": "A4 = 442 Hz, common for european orchestras."
+    },
+    "params": {
+      "0": 442.0,
+      "1": 0.0,
+      "2": 0.0
+    },
+    "kind": null,
+    "samples": [],
+    "state": null
+  }
+}

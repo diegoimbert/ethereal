@@ -1,0 +1,26 @@
+/* base-153: factory device windows (DeviceWindow.tsx), in kit FloatingWindows (base-154:
+   the frame, title bar, resizing: kit/FloatingWindow.css). */
+.eth-device-window__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--eth-color-text);
+}
+.eth-device-window__track {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+  font-weight: var(--eth-fw-regular);
+}
+/* The editor inside: a stacked device card's body, without the card's own frame. */
+.eth-device.eth-device--window {
+  flex: none;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  overflow: visible;
+}
+.eth-device.eth-device--window:hover {
+  border-color: transparent;
+}

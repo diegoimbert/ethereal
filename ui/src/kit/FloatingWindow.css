@@ -1,0 +1,159 @@
+/* base-154: floating windows (FloatingWindow.tsx): device windows, debug panels. Same card
+   language as the floating panes (.eth-float): raised surface, light border, large radius,
+   large shadow. */
+.eth-fwin {
+  position: fixed;
+  z-index: calc(var(--eth-z-window) + var(--fwin-stack, 0));
+  display: flex;
+  flex-direction: column;
+  max-width: 100vw;
+  /* Sized by its content, at most the viewport's height (the body scrolls); dragged lower, it
+     goes past the bottom edge rather than shrinking. */
+  max-height: calc(100vh - 2 * var(--eth-size-float-gap));
+  border: var(--eth-border-width) solid var(--eth-color-border-light);
+  border-radius: var(--eth-radius-xl);
+  background: var(--eth-color-bg-raised);
+  box-shadow: var(--eth-shadow-lg);
+  /* One radius: the header, the body and their backgrounds are clipped to it. */
+  overflow: hidden;
+  color: var(--eth-color-text);
+  font-size: var(--eth-fs-sm);
+  animation: eth-fwin-in var(--eth-duration-normal) var(--eth-ease-out) both;
+}
+/* Translucent like the floating panes (.eth-float): what's behind shows through, heavily
+   blurred (Settings > Appearance > Translucency; off: the solid surface above). */
+:root:not([data-translucency="off"]) .eth-fwin {
+  background: color-mix(in srgb, var(--eth-color-bg-raised) calc(var(--eth-opacity-translucent-surface) * 100%), transparent);
+  -webkit-backdrop-filter: blur(var(--eth-size-translucent-blur));
+  backdrop-filter: blur(var(--eth-size-translucent-blur));
+}
+.eth-fwin--sized {
+  max-height: 100vh;
+}
+.eth-fwin:focus-visible {
+  outline: var(--eth-focus-ring-width) solid var(--eth-color-accent);
+  outline-offset: var(--eth-focus-ring-offset);
+}
+.eth-fwin--top {
+  border-color: var(--eth-color-border-strong);
+}
+.eth-fwin--gesture {
+  user-select: none;
+}
+.eth-fwin__header {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-xs);
+  height: var(--eth-size-panel-header-height);
+  padding: 0 var(--eth-size-edge-handle) 0 var(--eth-space-md);
+  border-bottom: var(--eth-border-width) solid var(--eth-color-border-light);
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+}
+/* The title bar's buttons stay clickable over the top edge's resize strip. */
+.eth-fwin__header button {
+  position: relative;
+  z-index: 3;
+}
+.eth-fwin__header:active {
+  cursor: grabbing;
+}
+.eth-fwin__title {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: var(--eth-space-sm);
+  overflow: hidden;
+  white-space: nowrap;
+  font-weight: var(--eth-fw-medium);
+}
+.eth-fwin__actions {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-xs);
+}
+.eth-fwin__body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden auto;
+}
+
+/* Resize handles: thin strips just inside the edges (the frame clips), squares at the corners. */
+.eth-fwin__handle {
+  position: absolute;
+  z-index: 1;
+  touch-action: none;
+}
+.eth-fwin__handle--n,
+.eth-fwin__handle--s {
+  left: var(--eth-size-edge-handle);
+  right: var(--eth-size-edge-handle);
+  height: var(--eth-size-edge-handle);
+  cursor: ns-resize;
+}
+.eth-fwin__handle--e,
+.eth-fwin__handle--w {
+  top: var(--eth-size-edge-handle);
+  bottom: var(--eth-size-edge-handle);
+  width: var(--eth-size-edge-handle);
+  cursor: ew-resize;
+}
+.eth-fwin__handle--n {
+  top: 0;
+}
+.eth-fwin__handle--s {
+  bottom: 0;
+}
+.eth-fwin__handle--e {
+  right: 0;
+}
+.eth-fwin__handle--w {
+  left: 0;
+}
+.eth-fwin__handle--ne,
+.eth-fwin__handle--nw,
+.eth-fwin__handle--se,
+.eth-fwin__handle--sw {
+  z-index: 2;
+  width: calc(1.5 * var(--eth-size-edge-handle));
+  height: calc(1.5 * var(--eth-size-edge-handle));
+}
+.eth-fwin__handle--ne {
+  top: 0;
+  right: 0;
+  cursor: nesw-resize;
+}
+.eth-fwin__handle--sw {
+  bottom: 0;
+  left: 0;
+  cursor: nesw-resize;
+}
+.eth-fwin__handle--nw {
+  top: 0;
+  left: 0;
+  cursor: nwse-resize;
+}
+.eth-fwin__handle--se {
+  bottom: 0;
+  right: 0;
+  cursor: nwse-resize;
+}
+
+@keyframes eth-fwin-in {
+  from {
+    opacity: 0;
+    transform: translateY(var(--eth-space-sm)) scale(0.98);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .eth-fwin {
+    animation: none;
+  }
+}

@@ -1,0 +1,53 @@
+/* Groove: piano-roll popovers and the detail tab. Tokens only (docs/DESIGN-SYSTEM.md). */
+
+.eth-groove {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--eth-space-md);
+  padding: var(--eth-space-md);
+  color: var(--eth-color-text);
+  font-size: var(--eth-fs-sm);
+}
+
+.eth-groove--empty {
+  color: var(--eth-color-text-dim);
+}
+
+.eth-groove__popover {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-sm);
+  padding: var(--eth-space-sm);
+  font-size: var(--eth-fs-sm);
+}
+
+.eth-groove__field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--eth-space-sm);
+}
+
+.eth-groove__label {
+  color: var(--eth-color-text-dim);
+}
+
+.eth-groove__hint {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+}
+
+/* The inspector's "Groove" row (ProjectSwingFields): swing amount and grid side by side. */
+.eth-groove__compact {
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-sm);
+}
+/* The swing amount: just wide enough for "100 %" (not the inspector field's full width). */
+.eth-groove__compact .eth-number {
+  flex: none;
+  width: 7ch;
+}

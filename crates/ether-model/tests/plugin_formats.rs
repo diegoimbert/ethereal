@@ -1,0 +1,154 @@
+//! `PluginFormat` is additive: the format tags are stable serde tags (`"Clap"`, `"Vst3"`,
+//! `"Au"`, `"Vst2"`) and round-trip.
+//!
+//! `fixtures/v1_clap_plugin.ether` is a format-1 document with one CLAP plugin. Regenerate it
+//! (only if format 1 itself changes, which it must not after release) with
+//! `ETHER_BLESS=1 cargo test -p ether-model --test plugin_formats`.
+
+use ether_model::*;
+use serde_json::Value;
+
+const CLAP: &str = include_str!("fixtures/v1_clap_plugin.ether");
+
+fn plugin(format: PluginFormat, plugin_id: &str) -> PluginInstance {
+    PluginInstance {
+        format,
+        plugin_id: plugin_id.into(),
+        name: "P".into(),
+        vendor: "V".into(),
+        version: "1.0".into(),
+        sandboxed: false,
+        state: Some(Base64Bytes(vec![1, 2, 3])),
+    }
+}
+
+fn project_with(plugins: &[PluginInstance]) -> Project {
+    let mut ids = IdGen::new(7);
+    let mut now = 1_000;
+    let mut p = Project::new(&mut ids, now);
+    now += 1;
+    let track = Track {
+        vca: Default::default(),
+        freeze: None,
+        id: ids.next(now),
+        kind: TrackKind::Audio,
+        name: "t".into(),
+        color: Color(0),
+        order: OrderKey::between(None, None),
+        parent: None,
+        mixer: TrackMixer::default(),
+        input: TrackInput::None,
+        output: TrackOutput::Default,
+        monitor: MonitorMode::Auto,
+        scale: Default::default(),
+        mpe: None,
+    };
+    let track_id = track.id;
+    p.apply(&Op::Insert {
+        entity: Entity::Track(track),
+    })
+    .unwrap();
+    let mut prev: Option<OrderKey> = None;
+    for plugin in plugins {
+        now += 1;
+        let order = OrderKey::between(prev.as_ref(), None);
+        prev = Some(order.clone());
+        p.apply(&Op::Insert {
+            entity: Entity::Device(Device {
+                sidechain_tap: None,
+                chain: None,
+                id: ids.next(now),
+                track: track_id,
+                order,
+                name: plugin.name.clone(),
+                enabled: true,
+                kind: DeviceKind::Plugin {
+                    plugin: plugin.clone(),
+                },
+                params: Default::default(),
+                sidechain: None,
+                pad: None,
+            }),
+        })
+        .unwrap();
+    }
+    p
+}
+
+fn formats_in(json: &str) -> Vec<String> {
+    let v: Value = serde_json::from_str(json).unwrap();
+    let mut out: Vec<String> = v["project"]["devices"]
+        .as_object()
+        .unwrap()
+        .values()
+        .map(|d| d["kind"]["plugin"]["format"].as_str().unwrap().to_owned())
+        .collect();
+    out.sort();
+    out
+}
+
+#[test]
+fn format_tags_are_stable() {
+    for (f, tag, cli) in [
+        (PluginFormat::Clap, "Clap", "clap"),
+        (PluginFormat::Vst3, "Vst3", "vst3"),
+        (PluginFormat::Au, "Au", "au"),
+        (PluginFormat::Vst2, "Vst2", "vst2"),
+    ] {
+        assert_eq!(serde_json::to_value(f).unwrap(), Value::from(tag));
+        assert_eq!(
+            serde_json::from_value::<PluginFormat>(tag.into()).unwrap(),
+            f
+        );
+        assert_eq!(f.as_str(), cli);
+        assert_eq!(f.to_string(), cli);
+        assert_eq!(PluginFormat::parse(cli), Some(f));
+        assert_eq!(PluginFormat::parse(&cli.to_uppercase()), Some(f));
+    }
+    assert_eq!(PluginFormat::parse("vst"), None);
+    assert_eq!(PluginFormat::ALL.len(), 4);
+}
+
+#[test]
+fn every_format_round_trips_through_ether_files() {
+    let p = project_with(&[
+        plugin(PluginFormat::Clap, "com.example.synth"),
+        plugin(PluginFormat::Vst3, "565354416D627261736F6E6963000000"),
+        plugin(PluginFormat::Au, "aufx:dely:appl"),
+        plugin(PluginFormat::Vst2, "45744732"),
+    ]);
+    let json = file::save(&p, "test").unwrap();
+    assert_eq!(formats_in(&json), ["Au", "Clap", "Vst2", "Vst3"]);
+    let back = file::load(&json).unwrap();
+    assert_eq!(back, p);
+}
+
+#[test]
+fn clap_fixture_loads() {
+    if std::env::var_os("ETHER_BLESS").is_some() {
+        let p = project_with(&[plugin(PluginFormat::Clap, "com.example.synth")]);
+        let json = file::save(&p, "0.0.1").unwrap();
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/fixtures/v1_clap_plugin.ether"
+        );
+        std::fs::write(path, json).unwrap();
+        return;
+    }
+    let raw: Value = serde_json::from_str(CLAP).unwrap();
+    assert_eq!(raw["format_version"], 1);
+    let p = file::load(CLAP).expect("fixture loads");
+    let plugins: Vec<&PluginInstance> = p
+        .devices
+        .values()
+        .filter_map(|d| match &d.kind {
+            DeviceKind::Plugin { plugin } => Some(plugin),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(plugins.len(), 1);
+    assert_eq!(plugins[0].format, PluginFormat::Clap);
+    assert_eq!(plugins[0].plugin_id, "com.example.synth");
+    // Saving again keeps the tag byte-for-byte.
+    assert_eq!(formats_in(&file::save(&p, "0.0.1").unwrap()), ["Clap"]);
+}

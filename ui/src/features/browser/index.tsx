@@ -1,0 +1,474 @@
+// The left rail (`app/shell/LeftRail.tsx`) mounts `Browser` (keep the export name; its props
+// are optional).
+//
+// Drop targets (arrangement): see `./dragPayload.ts` for the drag payload format
+// and `resolveDroppedMedia` / `waitForMediaLength`.
+import "./browser.css";
+import clsx from "clsx";
+import { useEffect, useRef, useState, type DragEvent, type KeyboardEvent, type ReactNode } from "react";
+import { AudioLines, CornerLeftUp, File, Folder, FolderOpen, Music, Search, Volume2, X } from "lucide-react";
+import type { BrowseLocation, BrowseRoot, BrowserRoot, DirectoryEntry, MediaSource } from "@/generated";
+import { useImportDrop } from "@/features/import";
+import { useEngineCommands, useEngineEvent } from "@/features/transport-bar/engine";
+import { Button, TextInput } from "@/kit";
+import { useProjectStore } from "@/state";
+import { cmd } from "@/transport";
+import { useT } from "@/i18n";
+import { writeBrowserDrag, type BrowserDragPayload } from "./dragPayload";
+import { formatSize, locationKey, parentPath, pathSegments, sameLocation, sourceOf } from "./paths";
+import { useBrowserPreview } from "./preview";
+import { BrowserV2 } from "./v2/BrowserV2";
+import { isFactoryRoot, isUserRootName, locationName } from "./v2/model";
+
+/** Files of a location are user content unless it is a factory library root (bundled samples). */
+const userFiles = (l: BrowseLocation) => l.type !== "Library" || !isFactoryRoot(l.id);
+/** A location's name is user content for configured folders (not "Project media", "Factory", "User library"). */
+const userRootName = (l: BrowseLocation) => l.type === "Library" && isUserRootName({ id: l.id });
+
+interface Place {
+  location: BrowseLocation;
+  path: string;
+}
+
+interface Listing {
+  key: string;
+  entries: DirectoryEntry[];
+}
+
+const placeKey = (p: Place) => `${locationKey(p.location)}/${p.path}`;
+
+/** Which locations the browser shows: all of them, the library folders, or the project's media. */
+export type BrowserScope = "all" | "library" | "project";
+
+const inScope = (scope: BrowserScope) => (root: BrowseRoot) =>
+  scope === "all" || (scope === "library" ? root.location.type === "Library" : root.location.type === "ProjectMedia");
+
+/** Recursive search bounds (the engine lists one folder per request). */
+const SEARCH_MAX_DIRS = 200;
+const SEARCH_MAX_RESULTS = 300;
+export const SEARCH_DEBOUNCE_MS = 150;
+
+interface Found {
+  key: string;
+  entries: DirectoryEntry[];
+  done: boolean;
+}
+
+/** Keyboard-navigable rows of a list. */
+export const ROW_SELECTOR = ".eth-browser__row[data-row]";
+
+const KIND_ICON: Record<DirectoryEntry["kind"], ReactNode> = {
+  Directory: <Folder />,
+  Audio: <AudioLines />,
+  Midi: <Music />,
+  Other: <File />,
+};
+
+/**
+ * The library browser. Engines with the library index (`Browser::*`, v0.2 `browser-v2`)
+ * get the indexed browser (`./v2`: search, filters, favourites, tags, packs, folders);
+ * older or remote engines that reply `Unsupported`, and the project-media scope, get the
+ * folder browser below.
+ */
+export function Browser({ scope = "all" }: { scope?: BrowserScope } = {}) {
+  const { transport } = useEngineCommands();
+  const hasProject = useProjectStore((s) => s.project !== null);
+  // `undefined` while probing, `null` when unsupported.
+  const [roots, setRoots] = useState<BrowserRoot[] | null | undefined>(undefined);
+  const probe = !!transport && hasProject && scope !== "project";
+  useEffect(() => {
+    if (!probe || !transport) return;
+    let active = true;
+    transport.send(cmd("Browser", { type: "ListRoots" })).then(
+      (r) => active && setRoots(r.type === "BrowserRoots" ? r.roots : null),
+      () => active && setRoots(null),
+    );
+    return () => {
+      active = false;
+    };
+  }, [probe, transport]);
+  if (!probe || roots === null) return <FolderBrowser scope={scope} />;
+  if (roots === undefined) return <div className="eth-browser" data-feature="browser" aria-busy />;
+  return <BrowserV2 scope={scope} initialRoots={roots} />;
+}
+
+/**
+ * Sample browser over the engine-visible locations (`Media::ListLocations`: library folders
+ * and the current project's media). Folders navigate; clicking an audio file previews it
+ * (click again to stop) and dragging it onto a drop target imports it there (payload:
+ * `./dragPayload.ts`). The UI never accesses files itself, except files the user drops from
+ * the OS or picks with "Import audio…" (`@/features/import`: uploaded to the engine).
+ */
+export function FolderBrowser({ scope = "all" }: { scope?: BrowserScope } = {}) {
+  const t = useT();
+  const { transport, send, error, clearError } = useEngineCommands();
+  const hasProject = useProjectStore((s) => s.project !== null);
+  const media = useProjectStore((s) => s.project?.media);
+  const [locations, setLocations] = useState<BrowseRoot[] | null>(null);
+  const [place, setPlace] = useState<Place | null>(null);
+  const [listing, setListing] = useState<Listing | null>(null);
+  const { previewing, toggle: togglePreview, play: playPreview } = useBrowserPreview(send);
+  const [query, setQuery] = useState("");
+  const [found, setFound] = useState<Found | null>(null);
+
+  const ready = !!transport && hasProject;
+  // `file-import`: OS files dropped here are added to the project; show them there.
+  const showProjectMedia = () => {
+    const projectMedia = locations?.find((l) => l.location.type === "ProjectMedia");
+    if (projectMedia) setPlace({ location: projectMedia.location, path: "" });
+  };
+  const importDrop = useImportDrop(showProjectMedia);
+
+  // Browse roots, once connected.
+  useEffect(() => {
+    if (!ready) return;
+    let active = true;
+    void send(cmd("Media", { type: "ListLocations" })).then((reply) => {
+      if (active && reply?.type === "Locations") setLocations(reply.locations.filter(inScope(scope)));
+    });
+    return () => {
+      active = false;
+    };
+  }, [ready, send, scope]);
+
+  // `base-145`: the file filter changed: list the folder again.
+  const [filterVersion, setFilterVersion] = useState(0);
+  useEngineEvent((event) => {
+    if (event.type === "Media" && event.event.type === "LocationsChanged") setLocations(event.event.locations.filter(inScope(scope)));
+    if (event.type === "Browser" && event.event.type === "FileFilterChanged") setFilterVersion((n) => n + 1);
+  });
+
+  // The shown place: the chosen one if its location still exists, else the first root.
+  const current: Place | null =
+    place && locations?.some((l) => sameLocation(l.location, place.location)) ? place : locations?.[0] ? { location: locations[0].location, path: "" } : null;
+  const currentKey = current ? placeKey(current) : null;
+  // The project's media folder changes with the document: re-list it on media patches.
+  const mediaDep = current?.location.type === "ProjectMedia" ? media : null;
+
+  useEffect(() => {
+    if (!ready || !current) return;
+    let active = true;
+    const key = placeKey(current);
+    void send(cmd("Media", { type: "ListDirectory", location: current.location, path: current.path })).then((reply) => {
+      if (active && reply?.type === "Directory") setListing({ key, entries: reply.listing.entries });
+    });
+    return () => {
+      active = false;
+    };
+    // `current` is identified by `currentKey`.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, send, currentKey, mediaDep, filterVersion]);
+
+  // Search: every file and folder under the current one whose name contains the query
+  // (walked folder by folder, bounded), refreshed as results come in.
+  const q = query.trim().toLowerCase();
+  const searchKey = current && q ? `${placeKey(current)}?${q}` : null;
+  useEffect(() => {
+    if (!ready || !current || !q) return;
+    let active = true;
+    const key = `${placeKey(current)}?${q}`;
+    const { location, path } = current;
+    const timer = setTimeout(async () => {
+      const out: DirectoryEntry[] = [];
+      const queue = [path];
+      let dirs = 0;
+      while (queue.length && active && dirs < SEARCH_MAX_DIRS && out.length < SEARCH_MAX_RESULTS) {
+        dirs++;
+        const reply = await send(cmd("Media", { type: "ListDirectory", location, path: queue.shift()! }));
+        if (!active || reply?.type !== "Directory") continue;
+        for (const e of reply.listing.entries) {
+          if (e.kind === "Directory") queue.push(e.path);
+          if (e.name.toLowerCase().includes(q)) out.push(e);
+        }
+        setFound({ key, entries: [...out], done: false });
+      }
+      if (active) setFound({ key, entries: out.slice(0, SEARCH_MAX_RESULTS), done: true });
+    }, SEARCH_DEBOUNCE_MS);
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+    // `current` is identified by `currentKey`.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, send, currentKey, q, filterVersion]);
+  const results = searchKey && found?.key === searchKey ? found : null;
+
+  const navigate = (path: string) => {
+    if (!current) return;
+    setPlace({ location: current.location, path });
+    setQuery("");
+  };
+
+  const entries = listing && listing.key === currentKey ? listing.entries : null;
+
+  // Keyboard folder navigation focuses the new folder's first row once it is listed.
+  const focusFirstRow = useRef(false);
+  const filesList = useRef<HTMLUListElement>(null);
+  useEffect(() => {
+    if (!focusFirstRow.current || !entries) return;
+    focusFirstRow.current = false;
+    filesList.current?.querySelector<HTMLElement>(ROW_SELECTOR)?.focus();
+  }, [entries]);
+
+  /**
+   * Arrow keys walk the rows of a list (moving onto an audio file previews it), Home/End jump
+   * to the ends; → opens a folder, ← / Backspace go up one.
+   */
+  const onListKeyDown = (e: KeyboardEvent<HTMLUListElement>, shown: DirectoryEntry[] | null | undefined) => {
+    const row = (e.target as HTMLElement).closest<HTMLElement>(ROW_SELECTOR);
+    if (!row || !current) return;
+    const entry = shown?.find((x) => x.path === row.dataset.path);
+    if ((e.key === "ArrowLeft" || e.key === "Backspace") && current.path !== "") {
+      e.preventDefault();
+      focusFirstRow.current = true;
+      navigate(parentPath(current.path));
+      return;
+    }
+    if (e.key === "ArrowRight" && entry?.kind === "Directory") {
+      e.preventDefault();
+      focusFirstRow.current = true;
+      navigate(entry.path);
+      return;
+    }
+    const rows = Array.from(e.currentTarget.querySelectorAll<HTMLElement>(ROW_SELECTOR));
+    const i = rows.indexOf(row);
+    const to = e.key === "ArrowDown" ? i + 1 : e.key === "ArrowUp" ? i - 1 : e.key === "Home" ? 0 : e.key === "End" ? rows.length - 1 : null;
+    if (to === null) return;
+    e.preventDefault();
+    const next = rows[Math.max(0, Math.min(rows.length - 1, to))];
+    if (!next || next === row) return;
+    next.focus();
+    next.scrollIntoView?.({ block: "nearest" });
+    const target = shown?.find((x) => x.path === next.dataset.path);
+    if (target?.kind === "Audio") void playPreview(target, sourceOf(current.location, target, media));
+  };
+  const currentRoot = current ? locations?.find((l) => sameLocation(l.location, current.location)) : undefined;
+
+  return (
+    <div className="eth-browser" data-feature="browser" {...importDrop}>
+      <div className="eth-browser__search">
+        <Search className="eth-browser__search-icon" aria-hidden />
+        <TextInput
+          size="sm"
+          type="search"
+          className="eth-browser__search-input"
+          aria-label={t("browser.search.label")}
+          placeholder={currentRoot ? t("browser.search.in", { name: locationName(currentRoot) }) : t("browser.search.placeholder")}
+          value={query}
+          disabled={!current}
+          onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Escape" && query) {
+              e.stopPropagation();
+              setQuery("");
+            }
+          }}
+        />
+        {query && (
+          <button type="button" className="eth-browser__search-clear" aria-label={t("browser.search.clear")} onClick={() => setQuery("")}>
+            <X aria-hidden />
+          </button>
+        )}
+      </div>
+      <div
+        className={clsx("eth-browser__locations", (locations?.length ?? 0) <= 1 && ready && "eth-browser__locations--single")}
+        role="tablist"
+        aria-label={t("browser.locations")}
+      >
+        {(locations ?? []).map((root) => {
+          const selected = !!current && sameLocation(root.location, current.location);
+          return (
+            <Button
+              key={locationKey(root.location)}
+              size="sm"
+              tone="ghost"
+              role="tab"
+              aria-selected={selected}
+              active={selected}
+              onClick={() => {
+                setPlace({ location: root.location, path: "" });
+              }}
+            >
+              <span className={userRootName(root.location) ? "eth-user-text" : undefined}>{locationName(root)}</span>
+            </Button>
+          );
+        })}
+        {!ready && <span className="eth-browser__hint">{t("browser.no_engine")}</span>}
+      </div>
+
+      {current && (
+        <nav className="eth-browser__crumbs" aria-label={t("browser.path")}>
+          <button type="button" className="eth-browser__crumb" onClick={() => navigate("")}>
+            {currentRoot ? (
+              <span className={userRootName(currentRoot.location) ? "eth-user-text" : undefined}>{locationName(currentRoot)}</span>
+            ) : (
+              t("browser.root")
+            )}
+          </button>
+          {pathSegments(current.path).map((seg) => (
+            <span key={seg.path}>
+              <span className="eth-browser__sep">/</span>
+              <button type="button" className={clsx("eth-browser__crumb", userFiles(current.location) && "eth-user-text")} onClick={() => navigate(seg.path)}>
+                {seg.name}
+              </button>
+            </span>
+          ))}
+        </nav>
+      )}
+
+      {q ? (
+        <ul
+          className="eth-browser__list"
+          aria-label={t("browser.results.search")}
+          aria-busy={!results?.done}
+          onKeyDown={(e) => onListKeyDown(e, results?.entries)}
+        >
+          {results?.done && results.entries.length === 0 && (
+            <li className="eth-browser__empty">
+              <Search aria-hidden />
+              <span>{t("browser.empty.no_matches")}</span>
+              <span className="eth-browser__empty-hint">{t("browser.empty.no_name_match", { query: query.trim() })}</span>
+            </li>
+          )}
+          {current &&
+            results?.entries.map((entry) => (
+              <EntryRow
+                key={entry.path}
+                entry={entry}
+                detail={parentPath(entry.path)}
+                userText={userFiles(current.location)}
+                source={sourceOf(current.location, entry, media)}
+                previewing={previewing === entry.path}
+                onOpen={() => navigate(entry.path)}
+                onPreview={togglePreview}
+              />
+            ))}
+        </ul>
+      ) : (
+        <ul
+          ref={filesList}
+          className="eth-browser__list"
+          aria-label={t("browser.files")}
+          aria-busy={current !== null && entries === null}
+          onKeyDown={(e) => onListKeyDown(e, entries)}
+        >
+          {current && current.path !== "" && (
+            <li>
+              <div
+                className="eth-browser__row eth-browser__row--dir"
+                role="button"
+                tabIndex={0}
+                data-row
+                aria-label={t("browser.parent_folder")}
+                onClick={() => navigate(parentPath(current.path))}
+                onKeyDown={(e) => e.key === "Enter" && navigate(parentPath(current.path))}
+              >
+                <span className="eth-browser__icon" aria-hidden>
+                  <CornerLeftUp />
+                </span>
+                <span className="eth-browser__name">..</span>
+              </div>
+            </li>
+          )}
+          {entries?.length === 0 && (
+            <li className="eth-browser__empty">
+              <FolderOpen aria-hidden />
+              <span>{t("browser.empty.folder")}</span>
+              <span className="eth-browser__empty-hint">{t("browser.empty.folder_hint")}</span>
+            </li>
+          )}
+          {current &&
+            entries?.map((entry) => (
+              <EntryRow
+                key={entry.path}
+                entry={entry}
+                userText={userFiles(current.location)}
+                source={sourceOf(current.location, entry, media)}
+                previewing={previewing === entry.path}
+                onOpen={() => navigate(entry.path)}
+                onPreview={togglePreview}
+              />
+            ))}
+        </ul>
+      )}
+
+      {error && (
+        <button type="button" className="eth-browser__error" role="alert" title={t("common.dismiss")} onClick={clearError}>
+          {error}
+        </button>
+      )}
+    </div>
+  );
+}
+
+export interface EntryRowProps {
+  entry: DirectoryEntry;
+  /** Secondary text after the name (search results: the containing folder). */
+  detail?: string;
+  source: MediaSource;
+  previewing: boolean;
+  /** The row the search field's arrow keys are on. */
+  active?: boolean;
+  onOpen(): void;
+  onPreview(entry: DirectoryEntry, source: MediaSource): void;
+  /** The name and folder are user content (kept in their case); factory files are app text. */
+  userText?: boolean;
+}
+
+export function EntryRow({ entry, detail, source, previewing, active, onOpen, onPreview, userText = true }: EntryRowProps) {
+  const t = useT();
+  const isDir = entry.kind === "Directory";
+  const isAudio = entry.kind === "Audio";
+
+  const activate = () => {
+    if (isDir) onOpen();
+    else if (isAudio) onPreview(entry, source);
+  };
+
+  const onDragStart = (e: DragEvent<HTMLDivElement>) => {
+    const payload: BrowserDragPayload = { version: 1, kind: "media", source, name: entry.name, file_kind: entry.kind };
+    writeBrowserDrag(e.dataTransfer, payload);
+  };
+
+  return (
+    <li>
+      <div
+        className={clsx(
+          "eth-browser__row",
+          `eth-browser__row--${entry.kind.toLowerCase()}`,
+          previewing && "eth-browser__row--previewing",
+          active && "eth-browser__row--active",
+        )}
+        role={isDir || isAudio ? "button" : undefined}
+        tabIndex={isDir || isAudio ? 0 : undefined}
+        aria-label={entry.name}
+        aria-pressed={isAudio ? previewing : undefined}
+        // Its label and title are the user's file name.
+        data-i18n-exempt={userText || undefined}
+        data-row={isDir || isAudio ? "" : undefined}
+        data-path={entry.path}
+        title={isAudio ? t("browser.row.preview_hint", { name: entry.name }) : entry.name}
+        draggable={isAudio}
+        onDragStart={isAudio ? onDragStart : undefined}
+        onClick={
+          isDir || isAudio
+            ? (e) => {
+                e.currentTarget.focus();
+                activate();
+              }
+            : undefined
+        }
+        onKeyDown={(e: KeyboardEvent) => {
+          if (e.key === "Enter" && e.target === e.currentTarget) activate();
+        }}
+      >
+        <span className="eth-browser__icon" aria-hidden>
+          {previewing ? <Volume2 /> : KIND_ICON[entry.kind]}
+        </span>
+        <span className={clsx("eth-browser__name", userText && "eth-user-text")}>{entry.name}</span>
+        {detail !== undefined && detail !== "" && <span className={clsx("eth-browser__detail", userText && "eth-user-text")}>{detail}</span>}
+        {isAudio && <span className="eth-browser__size">{formatSize(entry.size)}</span>}
+      </div>
+    </li>
+  );
+}

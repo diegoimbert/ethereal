@@ -1,0 +1,44 @@
+[
+  {
+    "category": "Room",
+    "channels": 2,
+    "id": "room",
+    "length": 0.6,
+    "name": "Small Room"
+  },
+  {
+    "category": "Room",
+    "channels": 2,
+    "id": "chamber",
+    "length": 1.2,
+    "name": "Chamber"
+  },
+  {
+    "category": "Plate",
+    "channels": 2,
+    "id": "plate",
+    "length": 1.8,
+    "name": "Plate"
+  },
+  {
+    "category": "Hall",
+    "channels": 2,
+    "id": "hall",
+    "length": 2.8,
+    "name": "Concert Hall"
+  },
+  {
+    "category": "Hall",
+    "channels": 2,
+    "id": "cathedral",
+    "length": 5.0,
+    "name": "Cathedral"
+  },
+  {
+    "category": "Room",
+    "channels": 2,
+    "id": "ambience",
+    "length": 0.35,
+    "name": "Ambience"
+  }
+]

@@ -1,0 +1,211 @@
+/* The indexed browser (v2): only what the folder browser's classes (../browser.css) lack. */
+.eth-browser-v2__filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--eth-space-xs);
+  padding: var(--eth-space-sm) var(--eth-space-sm) 0;
+}
+.eth-browser-v2__kinds,
+.eth-browser-v2__tag-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--eth-space-xs);
+}
+.eth-browser-v2__tag-filters {
+  flex-basis: 100%;
+}
+.eth-browser-v2__tag-filters .lucide {
+  font-size: var(--eth-fs-xs);
+  opacity: var(--eth-opacity-muted);
+}
+.eth-browser-v2__item {
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-xs);
+}
+.eth-browser-v2__item > .eth-browser__row {
+  flex: 1;
+  min-width: 0;
+}
+.eth-browser-v2__badge {
+  flex: none;
+  height: auto;
+  padding: 0 var(--eth-space-xs);
+  font-size: var(--eth-fs-2xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--eth-color-text-dim);
+  background: var(--eth-color-bg-inset);
+}
+.eth-browser-v2__tags {
+  display: flex;
+  flex: none;
+  gap: var(--eth-space-xs);
+  max-width: 30%;
+  overflow: hidden;
+}
+.eth-browser-v2__tag {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--eth-color-text-disabled);
+  font: inherit;
+  font-size: var(--eth-fs-2xs);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.eth-browser-v2__tag::before {
+  content: "#";
+}
+.eth-browser-v2__tag:hover {
+  color: var(--eth-color-text);
+}
+/* The star stays quiet until hovered or on. */
+.eth-browser-v2__item .eth-browser-v2__star {
+  opacity: 0;
+  transition: opacity var(--eth-duration-fast) var(--eth-ease-out);
+}
+.eth-browser-v2__item:hover .eth-browser-v2__star,
+.eth-browser-v2__item:focus-within .eth-browser-v2__star,
+.eth-browser-v2__star--on {
+  opacity: 1;
+}
+.eth-browser-v2__item .eth-browser-v2__star--on {
+  opacity: 1;
+}
+.eth-browser-v2__star--on {
+  color: var(--eth-color-warn);
+}
+.eth-browser-v2__star--on .lucide {
+  fill: currentColor;
+}
+.eth-browser-v2__more {
+  display: flex;
+  justify-content: center;
+  padding: var(--eth-space-xs);
+}
+.eth-browser-v2__status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--eth-space-sm);
+  padding: var(--eth-space-xs) var(--eth-space-sm);
+  border-top: var(--eth-border-width) solid var(--eth-color-border-light);
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+  font-variant-numeric: tabular-nums;
+}
+/* Narrow panels: the name keeps its room; the folder / device detail gives way first. */
+.eth-browser-v2__item .eth-browser__name {
+  flex: 1 1 auto;
+}
+.eth-browser-v2__item .eth-browser__detail {
+  flex: 0 4 auto;
+  min-width: 0;
+}
+
+/* The folder tree (./FolderTree.tsx): rows indent by depth, a chevron before folders;
+   OS folders dragged over it highlight it. */
+.eth-browser-v2__tree {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+.eth-browser-tree__row,
+.eth-browser-tree__placeholder {
+  padding-left: calc(var(--eth-space-sm) + var(--tree-depth, 0) * var(--eth-space-lg));
+}
+.eth-browser-tree__row {
+  gap: var(--eth-space-xs);
+}
+.eth-browser-tree__row .eth-browser__icon {
+  margin-right: var(--eth-space-xs);
+}
+.eth-browser-tree__row--root .eth-browser__name {
+  font-weight: var(--eth-fw-medium);
+}
+.eth-browser-tree__chevron {
+  display: inline-flex;
+  flex: none;
+  width: var(--eth-size-icon-md);
+  justify-content: center;
+  color: var(--eth-color-text-dim);
+  transition: transform var(--eth-duration-fast) var(--eth-ease-out);
+}
+.eth-browser-tree__chevron--open {
+  transform: rotate(90deg);
+}
+.eth-browser-tree__row[aria-selected="true"] {
+  background: var(--eth-color-bg-hover);
+}
+.eth-browser-tree__placeholder {
+  display: flex;
+  align-items: center;
+  height: var(--eth-size-browser-row-height);
+  padding-left: calc(var(--eth-space-sm) + var(--tree-depth, 0) * var(--eth-space-lg) + var(--eth-size-icon-md) + var(--eth-space-xs));
+  color: var(--eth-color-text-disabled);
+  font-size: var(--eth-fs-xs);
+}
+.eth-browser-tree__add {
+  width: 100%;
+  border: none;
+  background: none;
+  color: var(--eth-color-text-dim);
+  font: inherit;
+  text-align: left;
+}
+.eth-browser-tree__add:hover {
+  color: var(--eth-color-text);
+}
+
+.eth-browser-tree--drop {
+  background: var(--eth-color-bg-hover);
+}
+
+/* Stars (the "Favourites only" toggle and each row's): bare, filled yellow when on, never
+   the toggled ghost button's background (outranks `.eth-button--ghost[aria-pressed]`). */
+.eth-browser-v2 .eth-button.eth-browser-v2__star {
+  --_bg: transparent;
+  --_bg-hover: transparent;
+  --_fg: var(--eth-color-text-dim);
+}
+.eth-browser-v2 .eth-button.eth-browser-v2__star:hover {
+  --_fg: var(--eth-color-text);
+}
+.eth-browser-v2 .eth-button.eth-browser-v2__star--on {
+  --_fg: var(--eth-color-warn);
+}
+
+/* The sort select sits right of the search field; the clear button stays inside the field. */
+.eth-browser-v2 .eth-browser__search {
+  gap: var(--eth-space-xs);
+}
+.eth-browser-v2__sort {
+  flex: none;
+}
+.eth-browser-v2__field {
+  position: relative;
+  display: flex;
+  flex: 1;
+  align-items: center;
+  min-width: 0;
+}
+.eth-browser-v2__field .eth-browser__search-icon {
+  left: var(--eth-space-sm);
+}
+.eth-browser-v2__field .eth-browser__search-clear {
+  right: var(--eth-space-xs);
+}
+/*
+ * The search keeps its focus look while a click in the panel briefly focuses a row (the
+ * focus goes back to the search on release): no ring flicker when clicking through samples.
+ * Not while another field, select or list has the focus.
+ */
+.eth-browser-v2 .eth-browser__search-input:focus,
+.eth-browser-v2:has(:focus:not(input, textarea, select, [role="combobox"], [role="listbox"], [role="menu"])) .eth-browser__search-input:not(:disabled) {
+  outline: none;
+  border-color: var(--input-border-focus);
+  box-shadow: 0 0 0 var(--eth-focus-ring-width) var(--eth-color-accent-subtle);
+}

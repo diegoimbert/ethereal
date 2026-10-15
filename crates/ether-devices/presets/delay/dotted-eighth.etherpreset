@@ -1,0 +1,30 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "dotted eighth",
+    "device": {
+      "type": "Builtin",
+      "device": "Delay"
+    },
+    "meta": {
+      "tags": [
+        "rhythmic",
+        "sync"
+      ],
+      "author": "ethereal",
+      "description": "the classic dotted-eighth repeat."
+    },
+    "params": {
+      "0": 1.0,
+      "2": 5.0,
+      "3": 40.0,
+      "4": 25.0,
+      "5": 0.0
+    },
+    "kind": null,
+    "samples": [],
+    "state": null
+  }
+}

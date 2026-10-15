@@ -1,0 +1,142 @@
+/* Audio to MIDI (v0.3, `audio-to-midi`): the Convert dialog and the status on the clip. */
+
+.eth-a2m__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-sm);
+}
+
+.eth-a2m__modes {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--eth-space-xs);
+}
+
+.eth-a2m__help {
+  margin: 0;
+  min-height: calc(var(--eth-fs-sm) * var(--eth-lh-normal));
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-sm);
+  line-height: var(--eth-lh-normal);
+}
+
+.eth-a2m__fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-sm);
+  margin: 0;
+  padding: var(--eth-space-sm) 0 0;
+  border: none;
+  border-top: var(--eth-border-width) solid var(--eth-color-border);
+}
+
+.eth-a2m__fields:disabled {
+  opacity: var(--eth-opacity-muted);
+}
+
+.eth-a2m__row {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  align-items: center;
+  gap: var(--eth-space-md);
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-sm);
+}
+
+.eth-a2m__range {
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-sm);
+}
+
+.eth-a2m__range > .eth-input,
+.eth-a2m__range > * {
+  min-width: 0;
+}
+
+.eth-a2m__reset {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.eth-a2m__status {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-xs);
+  font-size: var(--eth-fs-sm);
+  color: var(--eth-color-text-dim);
+}
+
+.eth-a2m__bar,
+.eth-a2m__clip-progress {
+  position: relative;
+  display: block;
+  height: var(--eth-space-xs);
+  overflow: hidden;
+  border-radius: var(--eth-radius-pill);
+  background: var(--eth-color-bg-inset);
+}
+
+.eth-a2m__bar-fill {
+  position: absolute;
+  inset: 0;
+  transform-origin: left center;
+  border-radius: inherit;
+  background: var(--eth-color-accent);
+  transition: transform var(--eth-duration-fast) var(--eth-ease-out);
+}
+
+.eth-a2m__error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--eth-space-sm);
+  margin: 0;
+  color: var(--eth-color-danger);
+  font-size: var(--eth-fs-sm);
+}
+
+/* On the clip: a progress strip along the bottom of the title bar, a stop button. */
+.eth-a2m__clip-progress {
+  position: absolute;
+  left: var(--eth-space-xs);
+  right: var(--eth-space-xs);
+  bottom: var(--eth-space-hair);
+  height: calc(var(--eth-space-xs) * 0.75);
+  pointer-events: none;
+  background: color-mix(in srgb, var(--eth-color-text-inverse) 25%, transparent);
+}
+
+.eth-a2m__clip-progress .eth-a2m__bar-fill {
+  background: var(--eth-color-text-inverse);
+}
+
+.eth-a2m__clip-stop,
+.eth-a2m__clip-error {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--eth-size-icon-sm);
+  height: var(--eth-size-icon-sm);
+  padding: 0;
+  border: none;
+  border-radius: var(--eth-radius-sm);
+  color: inherit;
+  background: transparent;
+  cursor: pointer;
+}
+
+.eth-a2m__clip-stop:hover {
+  background: color-mix(in srgb, var(--eth-color-text-inverse) 20%, transparent);
+}
+
+.eth-a2m__clip-stop svg,
+.eth-a2m__clip-error svg {
+  width: 100%;
+  height: 100%;
+}
+
+.eth-a2m__clip-error {
+  color: var(--eth-color-warn);
+}

@@ -1,0 +1,68 @@
+/* Freeze / bounce (v0.2, `freeze-bounce`): track-header status and frozen rows. */
+
+/* A frozen track's toggle stays visible, tinted like ice. */
+.eth-arr-header__toggle.eth-freeze__toggle {
+  opacity: 1;
+  color: var(--eth-color-info);
+  background: color-mix(in srgb, var(--eth-color-info) 16%, transparent);
+}
+
+.eth-arr-header__toggle.eth-freeze__cancel,
+.eth-arr-header__toggle.eth-freeze__error {
+  opacity: 1;
+}
+
+.eth-arr-header__toggle.eth-freeze__error {
+  color: var(--eth-color-warn);
+}
+
+/* Render progress along the bottom edge of the header card. */
+.eth-freeze__progress {
+  position: absolute;
+  left: calc(var(--eth-size-track-card-inset-left) + var(--eth-track-depth, 0) * var(--eth-size-track-indent) + var(--eth-space-md));
+  right: calc(var(--eth-space-lg) + var(--eth-space-md));
+  bottom: calc(var(--eth-size-track-card-inset-y) + var(--eth-space-xs));
+  height: var(--eth-space-xs);
+  overflow: hidden;
+  border-radius: var(--eth-radius-pill);
+  background: var(--eth-color-bg-inset);
+  pointer-events: none;
+}
+
+.eth-freeze__progress-fill {
+  position: absolute;
+  inset: 0;
+  transform-origin: left center;
+  border-radius: inherit;
+  background: var(--eth-color-info);
+  transition: transform var(--eth-duration-fast) var(--eth-ease-out);
+}
+
+.eth-freeze__progress--queued .eth-freeze__progress-fill {
+  background: var(--eth-color-text-disabled);
+}
+
+/* A frozen track's lane: an icy tint (the arranger canvas desaturates its clips). */
+.eth-arr-row--frozen .eth-arr-lane {
+  background-color: color-mix(in srgb, var(--eth-color-info) 6%, transparent);
+}
+
+/* Tracks inside a frozen group (Freeze Group): greyed out and not interactive; the lane is
+   the same icy tint as a frozen track. */
+.eth-arr-row--inert .eth-arr-lane {
+  background-color: color-mix(in srgb, var(--eth-color-info) 6%, transparent);
+}
+
+.eth-arr-header--inert {
+  opacity: var(--eth-opacity-disabled);
+}
+
+.eth-arr-header--inert .eth-arr-header__toggle:disabled {
+  cursor: not-allowed;
+}
+
+.eth-arr-header__toggle.eth-freeze__lock {
+  opacity: 1;
+  cursor: default;
+  color: var(--eth-color-info);
+}

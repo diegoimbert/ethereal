@@ -1,0 +1,76 @@
+/* base-145: Settings > General > Library files. Tokens only. */
+.eth-file-filter__error {
+  margin: 0;
+  color: var(--eth-color-danger);
+  font-size: var(--eth-fs-sm);
+}
+.eth-file-filter__lists {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--eth-space-md);
+  min-width: 0;
+}
+.eth-file-filter__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-xs);
+  min-width: 0;
+}
+.eth-file-filter__list-head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-xs);
+}
+.eth-file-filter__title {
+  font-size: var(--eth-fs-sm);
+  font-weight: var(--eth-fw-medium);
+  color: var(--eth-color-text);
+}
+.eth-file-filter__list-hint {
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+}
+.eth-file-filter__rules {
+  list-style: none;
+  margin: 0;
+  padding: var(--eth-space-xs);
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-xs);
+  background: var(--eth-color-bg-inset);
+  border: var(--eth-border-width) solid var(--eth-color-border);
+  border-radius: var(--eth-radius-sm);
+  min-height: var(--eth-space-xl);
+}
+.eth-file-filter__rule {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-xs);
+  min-width: 0;
+}
+.eth-file-filter__rule-row {
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-xs);
+  min-width: 0;
+}
+.eth-file-filter__input {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--eth-font-mono);
+}
+.eth-file-filter__rule-error {
+  color: var(--eth-color-danger);
+  font-size: var(--eth-fs-xs);
+  padding-left: var(--eth-space-sm);
+}
+.eth-file-filter__add {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--eth-space-xs);
+}
+.eth-file-filter__add svg {
+  width: var(--eth-size-icon-sm);
+  height: var(--eth-size-icon-sm);
+}

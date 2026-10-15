@@ -1,0 +1,34 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.6.0",
+  "preset": {
+    "name": "cathedral",
+    "device": {
+      "type": "Builtin",
+      "device": "Reverb"
+    },
+    "meta": {
+      "tags": [
+        "huge",
+        "long",
+        "ambient"
+      ],
+      "author": "ethereal",
+      "description": "a huge stone space: long, dense and dark."
+    },
+    "params": {
+      "0": 40.0,
+      "1": 100.0,
+      "2": 8.0,
+      "3": 65.0,
+      "4": 100.0,
+      "5": 30.0,
+      "6": 80.0,
+      "7": 7000.0,
+      "8": 85.0,
+      "9": 0.0,
+      "10": 0.0
+    }
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.6.0",
+  "preset": {
+    "name": "open hat",
+    "device": {
+      "type": "Builtin",
+      "device": "PolySynth"
+    },
+    "meta": {
+      "tags": [
+        "drums",
+        "hi-hat"
+      ],
+      "author": "ethereal",
+      "description": "bright noise that rings on, for a drum rack pad."
+    },
+    "params": {
+      "6": -70.0,
+      "16": 0.0,
+      "17": 100.0,
+      "21": 1.0,
+      "22": 1.0,
+      "25": 2.0,
+      "26": 6500.0,
+      "27": 15.0,
+      "31": 0.0,
+      "32": 320.0,
+      "33": 0.0,
+      "34": 160.0,
+      "57": -4.0,
+      "58": 50.0
+    },
+    "kind": null,
+    "state": null
+  }
+}

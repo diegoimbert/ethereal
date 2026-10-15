@@ -1,0 +1,251 @@
+/* Resolve missing items (import-resolver): rows of missing plugins and audio files. */
+
+.eth-resolver-dialog {
+  --dialog-width: min(calc(var(--eth-size-dialog-width) * 2), calc(100vw - 2 * var(--eth-space-lg)));
+}
+
+.eth-resolver {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-md);
+  max-height: calc(100vh - 4 * var(--eth-space-3xl));
+  overflow-y: auto;
+}
+
+.eth-resolver__summary {
+  margin: 0;
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-sm);
+}
+
+.eth-resolver__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-xs);
+}
+
+.eth-resolver__heading {
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-sm);
+  margin: 0;
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+  font-weight: var(--eth-fw-bold);
+  letter-spacing: var(--eth-tracking-caps);
+}
+
+.eth-resolver__search {
+  flex: 1;
+  font-weight: var(--eth-fw-regular);
+  letter-spacing: var(--eth-tracking-normal);
+}
+
+.eth-resolver__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-xs);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* toggle | icon | name | choice, then the reason under name + choice. */
+.eth-resolver__row {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr) minmax(0, 1.4fr);
+  align-items: center;
+  column-gap: var(--eth-space-sm);
+  row-gap: var(--eth-space-xs);
+  padding: var(--eth-space-sm);
+  border: var(--eth-border-width) solid var(--eth-color-border-light);
+  border-radius: var(--eth-radius-sm);
+  background: var(--eth-color-bg-inset);
+}
+
+.eth-resolver__row--focused {
+  border-color: var(--eth-color-accent);
+}
+
+.eth-resolver__icon {
+  width: var(--eth-size-icon-md);
+  height: var(--eth-size-icon-md);
+  color: var(--eth-color-text-dim);
+}
+
+.eth-resolver__badge-icon {
+  width: var(--eth-size-icon-inline);
+  height: var(--eth-size-icon-inline);
+  margin-right: var(--eth-space-hair);
+  vertical-align: middle;
+}
+
+.eth-resolver__info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.eth-resolver__name {
+  overflow: hidden;
+  color: var(--eth-color-text);
+  font-size: var(--eth-fs-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.eth-resolver__meta {
+  overflow: hidden;
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.eth-resolver__choice {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--eth-space-xs);
+  min-width: 0;
+}
+
+.eth-resolver__choice > * {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.eth-resolver__why {
+  grid-column: 3 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--eth-space-xs);
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+}
+
+.eth-resolver__reason {
+  color: var(--eth-color-text);
+}
+
+.eth-resolver__keep {
+  color: var(--eth-color-ok);
+}
+
+.eth-resolver__lost {
+  flex-basis: 100%;
+  color: var(--eth-color-warn);
+}
+
+.eth-resolver__lost summary {
+  cursor: pointer;
+}
+
+.eth-resolver__lost ul {
+  margin: var(--eth-space-hair) 0 0;
+  padding-left: var(--eth-space-lg);
+}
+
+.eth-resolver__hint {
+  margin: 0;
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+}
+
+.eth-resolver__error {
+  flex: 1;
+  color: var(--eth-color-danger);
+  font-size: var(--eth-fs-xs);
+}
+
+/* ── AI ───────────────────────────────────────────────────────────── */
+
+.eth-resolver__ai {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-xs);
+  padding: var(--eth-space-sm);
+  border: var(--eth-border-width) dashed var(--eth-color-accent);
+  border-radius: var(--eth-radius-sm);
+}
+
+.eth-resolver__ai-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-sm);
+}
+
+.eth-resolver__ai-text {
+  flex: 1;
+  font-size: var(--eth-fs-sm);
+}
+
+.eth-resolver__consent {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--eth-space-xs);
+  font-size: var(--eth-fs-xs);
+}
+
+.eth-resolver__consent p {
+  margin: 0;
+}
+
+.eth-resolver__payload {
+  align-self: stretch;
+  max-height: calc(8 * var(--eth-size-row-height));
+  margin: 0;
+  padding: var(--eth-space-sm);
+  overflow: auto;
+  border-radius: var(--eth-radius-sm);
+  background: var(--eth-color-bg);
+  font-family: var(--eth-font-mono);
+  font-size: var(--eth-fs-xs);
+}
+
+.eth-resolver__consent-actions {
+  display: flex;
+  gap: var(--eth-space-xs);
+  align-self: flex-end;
+}
+
+/* ── Replace plugin… ──────────────────────────────────────────────── */
+
+.eth-replace-dialog {
+  --dialog-width: min(var(--eth-size-dialog-width), calc(100vw - 2 * var(--eth-space-lg)));
+}
+
+.eth-replace__plugin {
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-sm);
+  padding: var(--eth-space-sm);
+  border: var(--eth-border-width) solid var(--eth-color-border-light);
+  border-radius: var(--eth-radius-sm);
+  background: var(--eth-color-bg-inset);
+}
+
+.eth-replace__arrow {
+  align-self: center;
+}
+
+.eth-replace .eth-resolver__why {
+  grid-column: auto;
+}
+
+.eth-resolver__autoshow {
+  margin-right: auto;
+}
+
+/* The top bar's "N missing" (import-resolver): reachable after the dialog. */
+.eth-missing-badge {
+  color: var(--eth-color-warn);
+  gap: var(--eth-space-xs);
+  white-space: nowrap;
+}
+
+.eth-missing-badge__icon {
+  width: var(--eth-size-icon-md);
+  height: var(--eth-size-icon-md);
+}

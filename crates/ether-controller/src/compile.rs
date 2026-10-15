@@ -1,0 +1,693 @@
+//! Model → [`RenderGraphDesc`]: a pure function of the document plus the engine node table.
+//!
+//! - Every track (groups, returns, master included) becomes a `TrackDesc` with its output
+//!   fully resolved (`TrackOutput::Default` → parent group bus, else master; master → the
+//!   hardware), its enclosing group, sends, device chain (devices without an engine node
+//!   are skipped), fader state (linear gain), input/monitoring, arrangement clips and
+//!   automation.
+//! - Automation lanes are placed on the track that owns their *target* (a volume/pan lane
+//!   on that track, a send lane on the send's source track, a device lane on the device's
+//!   track) with a normalized→plain [`ParamMapping`]: track volume and send level use the
+//!   `Fader` law from [`crate::SILENCE_DB`] to [`crate::MAX_VOLUME_DB`] /
+//!   [`crate::MAX_SEND_DB`] (plain = dB, as `ether_core::automation::gain_from_plain`
+//!   expects), pan is linear -1..=1, device params use the device descriptor. Disabled
+//!   lanes, lanes without points and unresolvable targets are skipped.
+//! - Clip envelopes of an audio clip's own gain / transposition (`AutomationTarget::
+//!   {ClipGain, ClipTranspose}`) don't drive a track target: they go into the clip's
+//!   content desc ([`clip_param_envelopes`]), which the audio renderer applies (both
+//!   modulate the clip's static value).
+//! - Audio clips reference their media by id even if it is not loaded yet (silence until
+//!   the source arrives).
+
+use ether_core::graph::{
+    AutomationDesc, ChainEntry, ClipContentDesc, ClipDesc, ClipParamEnvelope, NoteDesc,
+    ParamMapping, RateIntegral, ResolvedTarget, SendDesc, TrackDesc, TransposeEnvelope,
+};
+use ether_core::protocol::devices::{DeviceDescriptor, ParamInfo, ParamScale, ParamUnit};
+use ether_core::protocol::model::*;
+use ether_core::tempo::{TempoPointDesc, TimeSignatureDesc};
+use ether_core::{NodeKey, RenderGraphDesc};
+
+use std::collections::HashMap;
+
+use crate::doc::clip_start;
+use crate::{MAX_SEND_DB, MAX_VOLUME_DB, SILENCE_DB};
+
+/// Normalized → plain mapping of track volume automation (plain = dB).
+pub const TRACK_VOLUME_MAPPING: ParamMapping = ParamMapping {
+    min: SILENCE_DB as f64,
+    max: MAX_VOLUME_DB as f64,
+    scale: ParamScale::Fader,
+    steps: None,
+};
+
+/// Normalized → plain mapping of send level automation (plain = dB).
+pub const SEND_LEVEL_MAPPING: ParamMapping = ParamMapping {
+    min: SILENCE_DB as f64,
+    max: MAX_SEND_DB as f64,
+    scale: ParamScale::Fader,
+    steps: None,
+};
+
+/// Normalized → plain mapping of device on/off automation (two steps: off, on).
+pub const DEVICE_ENABLED_MAPPING: ParamMapping = ParamMapping {
+    min: 0.0,
+    max: 1.0,
+    scale: ParamScale::Linear,
+    steps: Some(2),
+};
+
+/// Normalized → plain mapping of a clip gain envelope (plain = dB added to the clip gain;
+/// the bottom is silence).
+pub const CLIP_GAIN_MAPPING: ParamMapping = ParamMapping {
+    min: CLIP_GAIN_MIN_DB,
+    max: CLIP_GAIN_MAX_DB,
+    scale: ParamScale::Fader,
+    steps: None,
+};
+
+/// Normalized → plain mapping of a clip transposition envelope (plain = semitones added to
+/// the clip transpose; continuous, like Live's).
+pub const CLIP_TRANSPOSE_MAPPING: ParamMapping = ParamMapping {
+    min: -CLIP_TRANSPOSE_RANGE,
+    max: CLIP_TRANSPOSE_RANGE,
+    scale: ParamScale::Linear,
+    steps: None,
+};
+
+/// Normalized → plain mapping of pan automation.
+pub const PAN_MAPPING: ParamMapping = ParamMapping {
+    min: -1.0,
+    max: 1.0,
+    scale: ParamScale::Linear,
+    steps: None,
+};
+
+/// Parameter metadata of the mixer targets of automation (`None` for device params, which
+/// come from the device descriptor). The single source of truth for mixer automation:
+/// track volume and send level use a `Fader` law over [`SILENCE_DB`]..=[`MAX_VOLUME_DB`]
+/// (-144..=+6 dB, plain value in dB; the bottom is silence), pan is linear -1..=1. The UI
+/// (mixer faders, automation lanes) uses the same mapping.
+pub fn track_param_info(target: &AutomationTarget) -> Option<ParamInfo> {
+    let (name, unit, m, default) = match target {
+        AutomationTarget::TrackVolume { .. } => {
+            ("Volume", ParamUnit::Decibels, TRACK_VOLUME_MAPPING, 0.0)
+        }
+        AutomationTarget::SendLevel { .. } => (
+            "Send",
+            ParamUnit::Decibels,
+            SEND_LEVEL_MAPPING,
+            SILENCE_DB as f64,
+        ),
+        AutomationTarget::TrackPan { .. } => ("Pan", ParamUnit::Pan, PAN_MAPPING, 0.0),
+        AutomationTarget::ClipGain => ("Clip Gain", ParamUnit::Decibels, CLIP_GAIN_MAPPING, 0.0),
+        AutomationTarget::ClipTranspose => (
+            "Transposition",
+            ParamUnit::Semitones,
+            CLIP_TRANSPOSE_MAPPING,
+            0.0,
+        ),
+        AutomationTarget::DeviceEnabled { .. } => {
+            return Some(ParamInfo {
+                step: None,
+                remote: None,
+                id: ParamId(0),
+                name: "Device On".into(),
+                group: None,
+                unit: ParamUnit::Toggle,
+                min: 0.0,
+                max: 1.0,
+                default: 1.0,
+                scale: ParamScale::Linear,
+                labels: Some(vec!["Off".into(), "On".into()]),
+                automatable: true,
+                hidden: false,
+            });
+        }
+        AutomationTarget::DeviceParam { .. } => return None,
+    };
+    Some(ParamInfo {
+        step: None,
+        remote: None,
+        id: ParamId(0),
+        name: name.into(),
+        group: None,
+        unit,
+        min: m.min,
+        max: m.max,
+        default,
+        scale: m.scale,
+        labels: None,
+        automatable: true,
+        hidden: false,
+    })
+}
+
+/// Everything besides the document that the compiler needs.
+pub struct CompileContext<'a> {
+    /// Engine node of a device (`None` = not instantiated: skipped from chains).
+    pub nodes: &'a dyn Fn(DeviceId) -> Option<NodeKey>,
+    /// Descriptor of a device (param mappings for device automation).
+    pub descriptors: &'a dyn Fn(&Device) -> Option<DeviceDescriptor>,
+    /// Runtime record-arm state.
+    pub armed: &'a dyn Fn(TrackId) -> bool,
+    pub version: u64,
+}
+
+/// Built-in descriptors only (plugins need the host's instance descriptors).
+pub fn builtin_descriptors(device: &Device) -> Option<DeviceDescriptor> {
+    match &device.kind {
+        DeviceKind::Builtin { device } => Some(ether_devices::descriptor(device.device_type())),
+        DeviceKind::Plugin { .. } | DeviceKind::Missing { .. } => None,
+    }
+}
+
+fn mapping_of(desc: &DeviceDescriptor, param: ParamId) -> Option<ParamMapping> {
+    let info = desc.params.iter().find(|p| p.id == param)?;
+    Some(ParamMapping {
+        min: info.min,
+        max: info.max,
+        scale: info.scale,
+        steps: info
+            .labels
+            .as_ref()
+            .filter(|l| l.len() > 1)
+            .map(|l| l.len() as u32),
+    })
+}
+
+/// Tracks in display order (depth-first), so descs are deterministic.
+fn tracks_in_order(p: &Project) -> Vec<&Track> {
+    fn walk<'a>(p: &'a Project, t: &'a Track, out: &mut Vec<&'a Track>) {
+        out.push(t);
+        for c in p.child_tracks(t.id) {
+            walk(p, c, out);
+        }
+    }
+    let mut out = Vec::with_capacity(p.tracks.len());
+    for t in p.tracks_ordered() {
+        walk(p, t, &mut out);
+    }
+    // Orphans (cannot happen in a validated project) still get compiled.
+    if out.len() != p.tracks.len() {
+        for t in p.tracks.values() {
+            if !out.iter().any(|o| o.id == t.id) {
+                out.push(t);
+            }
+        }
+    }
+    out
+}
+
+/// Resolved output bus of a track.
+pub(crate) fn resolve_output(p: &Project, t: &Track) -> Option<TrackId> {
+    match &t.output {
+        TrackOutput::None => None,
+        TrackOutput::Track { track } => Some(*track),
+        TrackOutput::Default if t.kind == TrackKind::Master => None,
+        TrackOutput::Default => t.parent.or_else(|| {
+            p.tracks
+                .values()
+                .find(|m| m.kind == TrackKind::Master)
+                .map(|m| m.id)
+        }),
+    }
+}
+
+/// Track whose `TrackDesc` hosts automation of `target`, plus the resolved engine target.
+fn resolve_target(
+    p: &Project,
+    ctx: &CompileContext,
+    target: &AutomationTarget,
+) -> Option<(TrackId, ResolvedTarget, ParamMapping)> {
+    match *target {
+        AutomationTarget::TrackVolume { track } => p.tracks.contains_key(&track).then_some((
+            track,
+            ResolvedTarget::TrackVolume,
+            TRACK_VOLUME_MAPPING,
+        )),
+        AutomationTarget::TrackPan { track } => {
+            p.tracks
+                .contains_key(&track)
+                .then_some((track, ResolvedTarget::TrackPan, PAN_MAPPING))
+        }
+        AutomationTarget::SendLevel { send } => {
+            let s = p.sends.get(&send)?;
+            Some((s.from, ResolvedTarget::Send { send }, SEND_LEVEL_MAPPING))
+        }
+        AutomationTarget::DeviceParam { device, param } => {
+            let d = p.devices.get(&device)?;
+            let node = (ctx.nodes)(device)?;
+            let mapping = mapping_of(&(ctx.descriptors)(d)?, param)?;
+            Some((d.track, ResolvedTarget::Node { node, param }, mapping))
+        }
+        AutomationTarget::DeviceEnabled { device } => {
+            let d = p.devices.get(&device)?;
+            let node = (ctx.nodes)(device)?;
+            Some((
+                d.track,
+                ResolvedTarget::NodeEnabled { node },
+                DEVICE_ENABLED_MAPPING,
+            ))
+        }
+        // Applied by the clip's audio renderer ([`clip_param_envelopes`]), not a track target.
+        AutomationTarget::ClipGain | AutomationTarget::ClipTranspose => None,
+    }
+}
+
+/// The gain and transposition envelopes of an audio clip (enabled lanes with points among
+/// `lanes`, the clip's), as its content desc carries them. The transposition's
+/// [`RateIntegral`] covers the content the clip can play.
+pub(crate) fn clip_param_envelopes<'a>(
+    lanes: impl IntoIterator<Item = &'a AutomationLane>,
+    points: impl Fn(AutomationLaneId) -> Vec<(f64, f64, CurveShape)>,
+    clip: &Clip,
+    transpose: f32,
+    warp: Option<&ether_core::graph::WarpDesc>,
+) -> (Option<ClipParamEnvelope>, Option<TransposeEnvelope>) {
+    let (mut gain, mut tr) = (None, None);
+    for l in lanes {
+        if !l.enabled || !l.target.is_clip_property() {
+            continue;
+        }
+        let pts = points(l.id);
+        if pts.is_empty() {
+            continue;
+        }
+        match l.target {
+            AutomationTarget::ClipGain => {
+                gain = Some(ClipParamEnvelope {
+                    points: pts,
+                    mapping: CLIP_GAIN_MAPPING,
+                });
+            }
+            _ => {
+                let env = ClipParamEnvelope {
+                    points: pts,
+                    mapping: CLIP_TRANSPOSE_MAPPING,
+                };
+                let offset = clip.offset.0;
+                let end = if clip.looping.enabled {
+                    clip.looping.end.0.max(offset + clip.length.0)
+                } else {
+                    offset + clip.length.0
+                };
+                let lo = offset.min(clip.looping.start.0).min(0.0);
+                let rate = RateIntegral::build(warp, transpose, &env, offset.max(0.0), lo, end);
+                tr = Some(TransposeEnvelope { env, rate });
+            }
+        }
+    }
+    (gain, tr)
+}
+
+/// One-pass group-bys of the big tables (perf audit #1). The compiler used to scan every
+/// note per MIDI clip, every lane per clip, every point per lane, every clip, send and
+/// device per track: O(clips × notes). These are built once per compile (O(n log n)) and
+/// give each parent its children in the order the scans produced.
+pub(crate) struct Groups<'a> {
+    /// Unmuted notes of each clip, sorted like [`Project::notes_of`].
+    notes: HashMap<ClipId, Vec<&'a Note>>,
+    /// Envelopes of each clip (all lanes owned by the clip), in id order.
+    clip_lanes: HashMap<ClipId, Vec<&'a AutomationLane>>,
+    /// Points of each lane, sorted like [`Project::points_of`].
+    points: HashMap<AutomationLaneId, Vec<&'a AutomationPoint>>,
+    /// Main-lane clips of each track, in id order.
+    clips: HashMap<TrackId, Vec<&'a Clip>>,
+    /// Sends by source track, in id order.
+    sends: HashMap<TrackId, Vec<&'a TrackSend>>,
+    /// Track-chain devices of each track, sorted like [`Project::devices_of`].
+    devices: HashMap<TrackId, Vec<&'a Device>>,
+}
+
+fn group<'a, K: std::hash::Hash + Eq, V: 'a>(
+    items: impl Iterator<Item = (K, &'a V)>,
+) -> HashMap<K, Vec<&'a V>> {
+    let mut m: HashMap<K, Vec<&'a V>> = HashMap::new();
+    for (k, v) in items {
+        m.entry(k).or_default().push(v);
+    }
+    m
+}
+
+fn children<'s, 'a, K: std::hash::Hash + Eq, V>(
+    m: &'s HashMap<K, Vec<&'a V>>,
+    k: &K,
+) -> &'s [&'a V] {
+    m.get(k).map_or(&[], Vec::as_slice)
+}
+
+impl<'a> Groups<'a> {
+    pub(crate) fn new(p: &'a Project) -> Self {
+        let mut notes = group(p.notes.values().filter(|n| !n.muted).map(|n| (n.clip, n)));
+        for v in notes.values_mut() {
+            v.sort_unstable_by(|a, b| {
+                a.start
+                    .0
+                    .total_cmp(&b.start.0)
+                    .then(a.pitch.cmp(&b.pitch))
+                    .then(a.id.cmp(&b.id))
+            });
+        }
+        let mut points = group(p.automation_points.values().map(|pt| (pt.lane, pt)));
+        for v in points.values_mut() {
+            v.sort_unstable_by(|a, b| a.time.0.total_cmp(&b.time.0).then(a.id.cmp(&b.id)));
+        }
+        let mut devices = group(
+            p.devices
+                .values()
+                .filter(|d| d.pad.is_none() && d.chain.is_none())
+                .map(|d| (d.track, d)),
+        );
+        for v in devices.values_mut() {
+            v.sort_unstable_by(|a, b| (&a.order, a.id).cmp(&(&b.order, b.id)));
+        }
+        Groups {
+            notes,
+            clip_lanes: group(p.automation_lanes.values().filter_map(|l| match l.owner {
+                AutomationOwner::Clip { clip } => Some((clip, l)),
+                AutomationOwner::Track { .. } => None,
+            })),
+            points,
+            clips: group(
+                p.clips
+                    .values()
+                    .filter(|c| c.lane.is_none())
+                    .map(|c| (c.track, c)),
+            ),
+            sends: group(p.sends.values().map(|s| (s.from, s))),
+            devices,
+        }
+    }
+
+    fn lane_points(&self, lane: AutomationLaneId) -> Vec<(f64, f64, CurveShape)> {
+        children(&self.points, &lane)
+            .iter()
+            .map(|pt| (pt.time.0, pt.value, pt.curve))
+            .collect()
+    }
+}
+
+pub(crate) fn clip_desc(
+    p: &Project,
+    g: &Groups,
+    ctx: &CompileContext,
+    clip: &Clip,
+    start: Beats,
+) -> ClipDesc {
+    let content = match &clip.content {
+        ClipContent::Midi => {
+            let mut notes: Vec<NoteDesc> = children(&g.notes, &clip.id)
+                .iter()
+                .map(|n| NoteDesc {
+                    start: n.start.0,
+                    duration: n.duration.0,
+                    key: n.pitch,
+                    velocity: n.velocity,
+                    release_velocity: n.release_velocity,
+                })
+                .collect();
+            crate::groove::swing_notes(&p.settings, start.0, clip.offset.0, &mut notes);
+            ClipContentDesc::Midi { notes }
+        }
+        ClipContent::Audio(a) => {
+            let warp = crate::warp::warp_desc(p, clip, a);
+            let (gain_envelope, transpose_envelope) = clip_param_envelopes(
+                children(&g.clip_lanes, &clip.id).iter().copied(),
+                |l| g.lane_points(l),
+                clip,
+                a.transpose,
+                warp.as_ref(),
+            );
+            ClipContentDesc::Audio {
+                media: a.media,
+                gain: a.gain.to_linear(),
+                transpose: a.transpose,
+                fade_in: a.fade_in.0,
+                fade_out: a.fade_out.0,
+                fade_in_curve: a.fade_in_curve,
+                fade_out_curve: a.fade_out_curve,
+                reversed: a.reversed,
+                warp,
+                gain_envelope,
+                transpose_envelope,
+            }
+        }
+    };
+    let envelopes = children(&g.clip_lanes, &clip.id)
+        .iter()
+        .filter(|l| l.enabled)
+        .filter_map(|l| {
+            let (track, resolved, mapping) = resolve_target(p, ctx, &l.target)?;
+            let points = g.lane_points(l.id);
+            (track == clip.track && !points.is_empty()).then_some(AutomationDesc {
+                target: l.target,
+                resolved,
+                points,
+                mapping,
+            })
+        })
+        .collect();
+    ClipDesc {
+        id: clip.id,
+        start: start.0,
+        length: clip.length.0,
+        offset: clip.offset.0,
+        looping: clip
+            .looping
+            .enabled
+            .then_some((clip.looping.start.0, clip.looping.end.0)),
+        muted: clip.muted,
+        content,
+        envelopes,
+    }
+}
+
+/// Ops that cannot change the compiled graph nor the engine's node set (perf audit #1):
+/// names and colours, arrangement markers, pinned notes, chat and MIDI mappings, none of
+/// which the compiler reads. They don't mark the graph dirty, so renaming a track no longer
+/// recompiles a large project. Anything not listed here republishes.
+pub(crate) fn graph_neutral(op: &Op) -> bool {
+    use EntityUpdate as U;
+    match op {
+        Op::Settings { change } => matches!(
+            change,
+            SettingsChange::Name(_) | SettingsChange::CountInBars(_)
+        ),
+        Op::Insert { entity } => graph_neutral_table(entity.key()),
+        Op::Remove { key } => graph_neutral_table(*key),
+        Op::Update { update } => match update {
+            U::Track { change, .. } => {
+                matches!(change, TrackChange::Name(_) | TrackChange::Color(_))
+            }
+            U::Clip { change, .. } => matches!(change, ClipChange::Name(_) | ClipChange::Color(_)),
+            U::Device { change, .. } => matches!(change, DeviceChange::Name(_)),
+            U::DrumPad { change, .. } => {
+                matches!(change, DrumPadChange::Name(_) | DrumPadChange::Color(_))
+            }
+            U::TakeLane { change, .. } => {
+                matches!(change, TakeLaneChange::Name(_) | TakeLaneChange::Color(_))
+            }
+            U::RackChain { change, .. } => {
+                matches!(change, RackChainChange::Name(_) | RackChainChange::Color(_))
+            }
+            U::Modulator { change, .. } => matches!(change, ModulatorChange::Name(_)),
+            other => graph_neutral_table(other.key()),
+        },
+    }
+}
+
+/// Tables the compiler never reads.
+fn graph_neutral_table(key: EntityKey) -> bool {
+    matches!(
+        key,
+        EntityKey::Marker(_)
+            | EntityKey::PinnedNote(_)
+            | EntityKey::ChatMessage(_)
+            | EntityKey::MidiMapping(_)
+    )
+}
+
+/// Compile the document (see the module docs).
+pub fn compile_graph_with(p: &Project, ctx: &CompileContext) -> RenderGraphDesc {
+    let tempo_map = p.tempo_map();
+    let g = Groups::new(p);
+    let mut tracks: Vec<TrackDesc> = tracks_in_order(p)
+        .into_iter()
+        // v0.2: VCA tracks carry no audio (`RenderGraphDesc::vcas`, `crate::groups`).
+        .filter(|t| t.kind != TrackKind::Vca)
+        .map(|t| {
+            let armed = (ctx.armed)(t.id);
+            let monitor = match t.monitor {
+                MonitorMode::In => true,
+                MonitorMode::Off => false,
+                MonitorMode::Auto => armed,
+            };
+            // Main-lane clips only: take-lane clips play through comp regions (v0.2,
+            // `crate::comping`).
+            let mut clips: Vec<(Beats, &Clip)> = children(&g.clips, &t.id)
+                .iter()
+                .map(|c| (clip_start(c), *c))
+                .collect();
+            clips.sort_by(|a, b| a.0.0.total_cmp(&b.0.0).then(a.1.id.cmp(&b.1.id)));
+            let mut clip_descs: Vec<ClipDesc> = clips
+                .into_iter()
+                .map(|(s, c)| clip_desc(p, &g, ctx, c, s))
+                .collect();
+            let comp = crate::comping::comp_clips(p, &g, ctx, t.id);
+            if !comp.is_empty() {
+                clip_descs.extend(comp);
+                clip_descs.sort_by(|a, b| a.start.total_cmp(&b.start).then(a.id.cmp(&b.id)));
+            }
+            // v0.2 (`freeze-bounce`): a frozen track plays its render instead of its clips and
+            // chain.
+            let frozen = crate::freeze::frozen_desc(p, t);
+            if frozen.is_some() {
+                clip_descs.clear();
+            }
+            TrackDesc {
+                id: t.id,
+                kind: t.kind,
+                chain: children(&g.devices, &t.id)
+                    .iter()
+                    .filter(|_| frozen.is_none())
+                    .filter_map(|d| {
+                        (ctx.nodes)(d.id).map(|node| ChainEntry {
+                            node,
+                            enabled: d.enabled,
+                            sidechain: d.sidechain,
+                        })
+                    })
+                    .collect(),
+                output: resolve_output(p, t),
+                group: t.parent,
+                sends: children(&g.sends, &t.id)
+                    .iter()
+                    .map(|s| SendDesc {
+                        id: s.id,
+                        to: s.to,
+                        level: s.level.to_linear(),
+                        pre_fader: s.pre_fader,
+                    })
+                    .collect(),
+                volume: t.mixer.volume.to_linear(),
+                pan: t.mixer.pan.0,
+                mute: t.mixer.mute,
+                solo: t.mixer.solo,
+                audio_input: match t.input {
+                    TrackInput::Audio { first, count } => Some((first, count)),
+                    _ => None,
+                },
+                midi_input: match &t.input {
+                    TrackInput::Midi { port, channel } => ether_core::recording::MidiInputFilter {
+                        port: port.as_deref().map(ether_core::recording::port_key),
+                        channel: *channel,
+                    },
+                    _ => Default::default(),
+                },
+                monitor,
+                armed,
+                clips: clip_descs,
+                automation: Vec::new(),
+                racks: if frozen.is_some() {
+                    Vec::new()
+                } else {
+                    crate::drum_rack::racks_desc(p, t.id, ctx)
+                },
+                // --- v0.2 (contracts-3) ---
+                chain_racks: if frozen.is_some() {
+                    Vec::new()
+                } else {
+                    crate::racks::chain_racks_desc(p, t.id, ctx)
+                },
+                modulation: if frozen.is_some() {
+                    Default::default()
+                } else {
+                    crate::racks::modulation_desc(p, t.id, ctx)
+                },
+                input_tap: match t.input {
+                    TrackInput::Track { track, tap } => {
+                        Some(ether_core::InputTapDesc { track, point: tap })
+                    }
+                    _ => None,
+                },
+                vca: t.vca,
+                // --- v0.3 (contracts-4) ---
+                expression: if frozen.is_some() {
+                    Default::default()
+                } else {
+                    crate::expression::track_expression(p, t)
+                },
+                hw_io: if frozen.is_some() {
+                    Vec::new()
+                } else {
+                    crate::external::hw_io_descs(p, t.id, ctx.nodes)
+                },
+                // --- v0.4 ---
+                sidechain_taps: if frozen.is_some() {
+                    Vec::new()
+                } else {
+                    crate::sidechain::taps_desc(p, t.id, ctx)
+                },
+                frozen,
+            }
+        })
+        .collect();
+
+    for lane in p.automation_lanes.values() {
+        if !lane.enabled || !matches!(lane.owner, AutomationOwner::Track { .. }) {
+            continue;
+        }
+        let Some((track, resolved, mapping)) = resolve_target(p, ctx, &lane.target) else {
+            continue;
+        };
+        let points = g.lane_points(lane.id);
+        if points.is_empty() {
+            continue;
+        }
+        if let Some(td) = tracks.iter_mut().find(|td| td.id == track) {
+            td.automation.push(AutomationDesc {
+                target: lane.target,
+                resolved,
+                points,
+                mapping,
+            });
+        }
+    }
+
+    // v0.2 (`groups-buses`): soloing a VCA solos its tracks.
+    crate::freeze::apply_inert(p, &mut tracks);
+    crate::groups::fold_vca_solo(p, &mut tracks);
+    RenderGraphDesc {
+        version: ctx.version,
+        tempo: tempo_map
+            .tempo
+            .iter()
+            .map(|t| TempoPointDesc {
+                beat: t.time.0,
+                bpm: t.bpm,
+                curve: t.curve,
+            })
+            .collect(),
+        signatures: tempo_map
+            .signatures
+            .iter()
+            .map(|s| TimeSignatureDesc {
+                beat: s.time.0,
+                signature: s.signature,
+            })
+            .collect(),
+        loop_enabled: p.settings.loop_enabled,
+        loop_start: p.settings.loop_region.start.0,
+        loop_end: p.settings.loop_region.end.0,
+        metronome: p.settings.metronome,
+        click: crate::tempo::metronome_desc(&p.settings),
+        tracks,
+        vcas: crate::groups::vca_descs(p, ctx),
+    }
+}
+
+#[cfg(test)]
+mod equivalence_tests;
+#[cfg(test)]
+mod reference;

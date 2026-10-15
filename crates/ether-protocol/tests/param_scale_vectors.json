@@ -1,0 +1,490 @@
+{
+ "_comment": "Shared normalized<->plain param-scale test vectors. Source of truth: ether_protocol::devices::scale_to_plain/scale_to_normalized and ether_controller::compile::track_param_info. Checked by crates/ether-protocol/tests/param_scale_vectors.rs, crates/ether-controller/tests/contract_vectors.rs and ui/src/app/contracts.test.ts.",
+ "tolerance": 1e-09,
+ "cases": [
+  {
+   "scale": {
+    "type": "Linear"
+   },
+   "min": -1,
+   "max": 1,
+   "normalized": 0,
+   "plain": -1
+  },
+  {
+   "scale": {
+    "type": "Linear"
+   },
+   "min": -1,
+   "max": 1,
+   "normalized": 0.1,
+   "plain": -0.8
+  },
+  {
+   "scale": {
+    "type": "Linear"
+   },
+   "min": -1,
+   "max": 1,
+   "normalized": 0.25,
+   "plain": -0.5
+  },
+  {
+   "scale": {
+    "type": "Linear"
+   },
+   "min": -1,
+   "max": 1,
+   "normalized": 0.5,
+   "plain": 0.0
+  },
+  {
+   "scale": {
+    "type": "Linear"
+   },
+   "min": -1,
+   "max": 1,
+   "normalized": 0.75,
+   "plain": 0.5
+  },
+  {
+   "scale": {
+    "type": "Linear"
+   },
+   "min": -1,
+   "max": 1,
+   "normalized": 0.9,
+   "plain": 0.8
+  },
+  {
+   "scale": {
+    "type": "Linear"
+   },
+   "min": -1,
+   "max": 1,
+   "normalized": 1,
+   "plain": 1
+  },
+  {
+   "scale": {
+    "type": "Log"
+   },
+   "min": 20,
+   "max": 20000,
+   "normalized": 0,
+   "plain": 20.0
+  },
+  {
+   "scale": {
+    "type": "Log"
+   },
+   "min": 20,
+   "max": 20000,
+   "normalized": 0.1,
+   "plain": 39.905246299377595
+  },
+  {
+   "scale": {
+    "type": "Log"
+   },
+   "min": 20,
+   "max": 20000,
+   "normalized": 0.25,
+   "plain": 112.46826503806983
+  },
+  {
+   "scale": {
+    "type": "Log"
+   },
+   "min": 20,
+   "max": 20000,
+   "normalized": 0.5,
+   "plain": 632.4555320336758
+  },
+  {
+   "scale": {
+    "type": "Log"
+   },
+   "min": 20,
+   "max": 20000,
+   "normalized": 0.75,
+   "plain": 3556.5588200778457
+  },
+  {
+   "scale": {
+    "type": "Log"
+   },
+   "min": 20,
+   "max": 20000,
+   "normalized": 0.9,
+   "plain": 10023.744672545447
+  },
+  {
+   "scale": {
+    "type": "Log"
+   },
+   "min": 20,
+   "max": 20000,
+   "normalized": 1,
+   "plain": 20000.0
+  },
+  {
+   "scale": {
+    "type": "Power",
+    "exponent": 2
+   },
+   "min": 0,
+   "max": 100,
+   "normalized": 0,
+   "plain": 0
+  },
+  {
+   "scale": {
+    "type": "Power",
+    "exponent": 2
+   },
+   "min": 0,
+   "max": 100,
+   "normalized": 0.1,
+   "plain": 1.0000000000000002
+  },
+  {
+   "scale": {
+    "type": "Power",
+    "exponent": 2
+   },
+   "min": 0,
+   "max": 100,
+   "normalized": 0.25,
+   "plain": 6.25
+  },
+  {
+   "scale": {
+    "type": "Power",
+    "exponent": 2
+   },
+   "min": 0,
+   "max": 100,
+   "normalized": 0.5,
+   "plain": 25.0
+  },
+  {
+   "scale": {
+    "type": "Power",
+    "exponent": 2
+   },
+   "min": 0,
+   "max": 100,
+   "normalized": 0.75,
+   "plain": 56.25
+  },
+  {
+   "scale": {
+    "type": "Power",
+    "exponent": 2
+   },
+   "min": 0,
+   "max": 100,
+   "normalized": 0.9,
+   "plain": 81.0
+  },
+  {
+   "scale": {
+    "type": "Power",
+    "exponent": 2
+   },
+   "min": 0,
+   "max": 100,
+   "normalized": 1,
+   "plain": 100
+  },
+  {
+   "scale": {
+    "type": "Power",
+    "exponent": 3
+   },
+   "min": 1,
+   "max": 5000,
+   "normalized": 0,
+   "plain": 1
+  },
+  {
+   "scale": {
+    "type": "Power",
+    "exponent": 3
+   },
+   "min": 1,
+   "max": 5000,
+   "normalized": 0.1,
+   "plain": 5.999000000000001
+  },
+  {
+   "scale": {
+    "type": "Power",
+    "exponent": 3
+   },
+   "min": 1,
+   "max": 5000,
+   "normalized": 0.25,
+   "plain": 79.109375
+  },
+  {
+   "scale": {
+    "type": "Power",
+    "exponent": 3
+   },
+   "min": 1,
+   "max": 5000,
+   "normalized": 0.5,
+   "plain": 625.875
+  },
+  {
+   "scale": {
+    "type": "Power",
+    "exponent": 3
+   },
+   "min": 1,
+   "max": 5000,
+   "normalized": 0.75,
+   "plain": 2109.953125
+  },
+  {
+   "scale": {
+    "type": "Power",
+    "exponent": 3
+   },
+   "min": 1,
+   "max": 5000,
+   "normalized": 0.9,
+   "plain": 3645.2710000000006
+  },
+  {
+   "scale": {
+    "type": "Power",
+    "exponent": 3
+   },
+   "min": 1,
+   "max": 5000,
+   "normalized": 1,
+   "plain": 5000
+  },
+  {
+   "scale": {
+    "type": "Fader"
+   },
+   "min": -70,
+   "max": 6,
+   "normalized": 0,
+   "plain": -70
+  },
+  {
+   "scale": {
+    "type": "Fader"
+   },
+   "min": -70,
+   "max": 6,
+   "normalized": 0.1,
+   "plain": -54.0
+  },
+  {
+   "scale": {
+    "type": "Fader"
+   },
+   "min": -70,
+   "max": 6,
+   "normalized": 0.25,
+   "plain": -30.123599479677743
+  },
+  {
+   "scale": {
+    "type": "Fader"
+   },
+   "min": -70,
+   "max": 6,
+   "normalized": 0.5,
+   "plain": -12.061799739838872
+  },
+  {
+   "scale": {
+    "type": "Fader"
+   },
+   "min": -70,
+   "max": 6,
+   "normalized": 0.75,
+   "plain": -1.4963241964979974
+  },
+  {
+   "scale": {
+    "type": "Fader"
+   },
+   "min": -70,
+   "max": 6,
+   "normalized": 0.9,
+   "plain": 3.254550566359493
+  },
+  {
+   "scale": {
+    "type": "Fader"
+   },
+   "min": -70,
+   "max": 6,
+   "normalized": 1,
+   "plain": 6.0
+  },
+  {
+   "scale": {
+    "type": "Fader"
+   },
+   "min": -144,
+   "max": 6,
+   "normalized": 0,
+   "plain": -144
+  },
+  {
+   "scale": {
+    "type": "Fader"
+   },
+   "min": -144,
+   "max": 6,
+   "normalized": 0.1,
+   "plain": -54.0
+  },
+  {
+   "scale": {
+    "type": "Fader"
+   },
+   "min": -144,
+   "max": 6,
+   "normalized": 0.25,
+   "plain": -30.123599479677743
+  },
+  {
+   "scale": {
+    "type": "Fader"
+   },
+   "min": -144,
+   "max": 6,
+   "normalized": 0.5,
+   "plain": -12.061799739838872
+  },
+  {
+   "scale": {
+    "type": "Fader"
+   },
+   "min": -144,
+   "max": 6,
+   "normalized": 0.75,
+   "plain": -1.4963241964979974
+  },
+  {
+   "scale": {
+    "type": "Fader"
+   },
+   "min": -144,
+   "max": 6,
+   "normalized": 0.9,
+   "plain": 3.254550566359493
+  },
+  {
+   "scale": {
+    "type": "Fader"
+   },
+   "min": -144,
+   "max": 6,
+   "normalized": 1,
+   "plain": 6.0
+  },
+  {
+   "scale": {
+    "type": "Linear"
+   },
+   "min": 0,
+   "max": 100,
+   "normalized": 0,
+   "plain": 0
+  },
+  {
+   "scale": {
+    "type": "Linear"
+   },
+   "min": 0,
+   "max": 100,
+   "normalized": 0.1,
+   "plain": 10.0
+  },
+  {
+   "scale": {
+    "type": "Linear"
+   },
+   "min": 0,
+   "max": 100,
+   "normalized": 0.25,
+   "plain": 25.0
+  },
+  {
+   "scale": {
+    "type": "Linear"
+   },
+   "min": 0,
+   "max": 100,
+   "normalized": 0.5,
+   "plain": 50.0
+  },
+  {
+   "scale": {
+    "type": "Linear"
+   },
+   "min": 0,
+   "max": 100,
+   "normalized": 0.75,
+   "plain": 75.0
+  },
+  {
+   "scale": {
+    "type": "Linear"
+   },
+   "min": 0,
+   "max": 100,
+   "normalized": 0.9,
+   "plain": 90.0
+  },
+  {
+   "scale": {
+    "type": "Linear"
+   },
+   "min": 0,
+   "max": 100,
+   "normalized": 1,
+   "plain": 100
+  }
+ ],
+ "mixer_targets": {
+  "TrackVolume": {
+   "unit": "Decibels",
+   "min": -144,
+   "max": 6,
+   "default": 0,
+   "scale": {
+    "type": "Fader"
+   }
+  },
+  "SendLevel": {
+   "unit": "Decibels",
+   "min": -144,
+   "max": 6,
+   "default": -144,
+   "scale": {
+    "type": "Fader"
+   }
+  },
+  "TrackPan": {
+   "unit": "Pan",
+   "min": -1,
+   "max": 1,
+   "default": 0,
+   "scale": {
+    "type": "Linear"
+   }
+  }
+ }
+}

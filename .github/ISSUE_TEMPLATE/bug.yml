@@ -1,0 +1,39 @@
+name: Bug
+description: Something does not work as it should
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happens
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. New project, add a MIDI track
+        2. ...
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where
+      multiple: true
+      options:
+        - Desktop (macOS)
+        - Desktop (Windows)
+        - Desktop (Linux)
+        - Web
+        - ether-server / services
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+      placeholder: 0.5.0, or a dev commit
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs, screenshots, project file
+      description: Never paste secrets or private sample paths.

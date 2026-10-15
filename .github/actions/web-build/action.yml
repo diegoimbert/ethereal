@@ -1,0 +1,60 @@
+# Build the web app (wasm engine + UI) and assemble the Cloudflare Pages site (the deployed
+# folder `<out>/site`: dist + the COOP/COEP `_headers`).
+# Shared by release.yml (the `web` job) and deploy-dev.yml so the two builds never drift.
+name: Web build
+description: Build apps/web and assemble the Cloudflare Pages site
+
+inputs:
+  out:
+    description: Where to assemble the Pages site (`site/` + `functions/`)
+    required: true
+  cache-key:
+    description: Swatinem/rust-cache key
+    required: true
+  node-version:
+    description: Node.js version
+    default: "24"
+  version:
+    description: Version shown by the app (VITE_ETHER_VERSION); empty = the repo VERSION
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - name: Toolchain (from rust-toolchain.toml)
+      shell: bash
+      run: rustup show active-toolchain || rustup toolchain install
+    # GitHub-hosted only: the self-hosted devbox runner keeps its target dir and uses the
+    # shared sccache, so uploading GBs of cache to GitHub would only slow it down.
+    - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      if: runner.environment == 'github-hosted'
+      with:
+        key: ${{ inputs.cache-key }}
+        cache-on-failure: true
+    - name: wasm-bindgen version (from Cargo.lock)
+      id: wb
+      shell: bash
+      run: echo "version=$(grep -A1 '^name = "wasm-bindgen"$' Cargo.lock | sed -n 's/^version = "\(.*\)"/\1/p')" >> "$GITHUB_OUTPUT"
+    - uses: taiki-e/install-action@4cef1412cce204788f482e778a0b9187f9626a29 # v2.87.21
+      with:
+        tool: wasm-bindgen@${{ steps.wb.outputs.version }}
+    - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+    - uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+        cache: pnpm
+    - shell: bash
+      run: pnpm install --frozen-lockfile
+    - name: Build (wasm engine + UI)
+      shell: bash
+      env:
+        VITE_ETHER_VERSION: ${{ inputs.version }}
+      run: pnpm --filter @ethereal/web build
+    - name: Site for Cloudflare Pages (dist + COOP/COEP _headers)
+      shell: bash
+      env:
+        OUT: ${{ inputs.out }}
+      run: |
+        mkdir -p "$OUT/site"
+        cp -R apps/web/dist/. "$OUT/site/"
+        cp scripts/release/web/_headers "$OUT/site/_headers"

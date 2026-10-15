@@ -1,0 +1,22 @@
+/target
+node_modules/
+dist/
+.orchestra/
+.DS_Store
+*.tsbuildinfo
+apps/desktop/src-tauri/gen/
+# Sandbox helper staged for the bundler (scripts/build-sandbox-helper.mjs --bundle).
+apps/desktop/src-tauri/binaries/
+.claude/
+.ether-dev/
+
+# Decrypted secrets (docs/SECRETS.md): never commit plaintext copies.
+secrets/*.dec*
+secrets/*.plain*
+secrets/*.tmp
+
+# proptest writes a failing case's seed next to the test (`*.proptest-regressions`). Keep the
+# local ones out of commits; the already tracked seed files stay tracked and keep replaying
+# (to add a seed on purpose: `git add -f`).
+*.proptest-regressions
+.plugin-work/

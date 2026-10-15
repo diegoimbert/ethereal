@@ -1,0 +1,145 @@
+//! Recording: arm, monitoring, inputs, record transport.
+
+use serde::{Deserialize, Serialize};
+use ts_rs::TS;
+
+use crate::model::{ClipId, MonitorMode, TrackId, TrackInput};
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+#[serde(tag = "type")]
+pub enum RecordingCommand {
+    /// Record-arm (NOT undoable, not stored in the document; runtime state of the
+    /// controller, reported via `RecordingEvent::ArmChanged`). `exclusive`: disarm others.
+    Arm {
+        track: TrackId,
+        armed: bool,
+        exclusive: bool,
+    },
+    SetMonitor {
+        track: TrackId,
+        monitor: MonitorMode,
+    },
+    SetInput {
+        track: TrackId,
+        input: TrackInput,
+    },
+    /// Global arrangement record button: starts playback + recording on armed tracks.
+    SetRecording {
+        enabled: bool,
+    },
+    /// Punch in/out: record only inside the loop region (runtime, not undoable; reported
+    /// via `RecordingEvent::PunchChanged`).
+    SetPunch {
+        enabled: bool,
+    },
+    /// Undoable project setting.
+    SetCountIn {
+        bars: u32,
+    },
+    /// Replies `Inputs`.
+    ListInputs,
+    /// Live MIDI from the app itself (the computer MIDI keyboard, `keyboard-midi`): one short
+    /// channel voice message (`[status, data1, data2]`), played and recorded exactly like a
+    /// message from a hardware MIDI input (every monitored MIDI track hears it; armed MIDI
+    /// tracks record it) and kept by MIDI capture under the port [`COMPUTER_KEYBOARD_PORT`].
+    /// Runtime only: not undoable, not replicated, allowed on a listen link. Replies `Unit`;
+    /// `Invalid` for system / realtime bytes; `Unsupported` on hosts without live MIDI.
+    LiveMidi {
+        data: [u8; 3],
+    },
+    /// base-150: audition a note on one track's instrument (piano-roll note preview): one
+    /// short channel voice message (`[status, data1, data2]`, e.g. `[0x90, pitch, velocity]`
+    /// then `[0x80, pitch, 0]`) played on `track`'s first device from the next block, whether
+    /// the track is armed / monitored or not, and while the transport plays. Unlike
+    /// `LiveMidi` it is never recorded or captured, and other tracks don't hear it; ignored
+    /// on non-MIDI tracks. The UI sends the note off (no stuck notes: it releases on pointer
+    /// up, blur and editor close). Runtime only: not undoable, not replicated, allowed on a
+    /// listen link. Replies `Unit`; `Invalid` for system / realtime bytes, `NotFound` for an
+    /// unknown track; `Unsupported` on hosts without live MIDI.
+    PreviewNote {
+        track: TrackId,
+        data: [u8; 3],
+    },
+}
+
+/// The MIDI input port name of [`RecordingCommand::LiveMidi`] messages (MIDI capture,
+/// MIDI learn sources).
+pub const COMPUTER_KEYBOARD_PORT: &str = "Computer Keyboard";
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+pub struct InputList {
+    pub audio: Vec<AudioInputChannel>,
+    pub midi: Vec<MidiPort>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+pub struct AudioInputChannel {
+    pub index: u16,
+    pub name: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+pub struct MidiPort {
+    pub id: String,
+    pub name: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+#[serde(tag = "type")]
+pub enum RecordingEvent {
+    Started {
+        tracks: Vec<TrackId>,
+    },
+    /// Recorded clips are ordinary clips (already delivered via patches); this lists them.
+    Stopped {
+        clips: Vec<ClipId>,
+    },
+    InputsChanged {
+        inputs: InputList,
+    },
+    /// The full set of currently armed tracks (sent on change and on connect).
+    ArmChanged {
+        armed: Vec<TrackId>,
+    },
+    PunchChanged {
+        enabled: bool,
+    },
+    /// Live view of the takes being recorded (`live-record`): only what is new since the
+    /// previous `Progress`, emitted by the controller while recording (~20 Hz). Runtime only:
+    /// never part of the document or of collab; the real clips arrive with `Stopped`.
+    Progress {
+        audio: Vec<LiveAudioChunk>,
+        midi: Vec<LiveMidiNote>,
+    },
+}
+
+/// New waveform peaks of one audio take. Peaks are min/max over `frames_per_peak` input
+/// frames, all channels merged; peak `i` of the take covers frames
+/// `[i * frames_per_peak, (i + 1) * frames_per_peak)` from the take start.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+pub struct LiveAudioChunk {
+    pub track: TrackId,
+    /// Take number within this recording session (a new take starts on each loop wrap).
+    pub take: u32,
+    /// Timeline position (beats) of the take's first frame, latency-compensated exactly like
+    /// the committed clip.
+    pub start: f64,
+    pub sample_rate: u32,
+    pub frames_per_peak: u32,
+    /// Index of `min[0]` / `max[0]` within the take.
+    #[ts(type = "number")]
+    pub first_peak: u64,
+    pub min: Vec<f32>,
+    pub max: Vec<f32>,
+}
+
+/// A MIDI note played while recording, at its latency-compensated timeline position.
+/// Sent when it starts (`length: None`) and again when it ends (`length: Some`).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+pub struct LiveMidiNote {
+    pub track: TrackId,
+    pub pitch: u8,
+    pub velocity: u8,
+    pub start: f64,
+    pub length: Option<f64>,
+}

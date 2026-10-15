@@ -1,0 +1,5 @@
+[env]
+# CMake 4 removed compatibility with projects declaring cmake_minimum_required < 3.5. The Opus
+# source bundled in audiopus_sys (stream-host's WebRTC audio) still declares an older minimum, so
+# its CMake build fails on CMake 4 (release CI on macOS/Windows, and local macOS with Homebrew CMake).
+CMAKE_POLICY_VERSION_MINIMUM = "3.5"

@@ -1,0 +1,5 @@
+# Inventory items (docs-site/inventory.json) that no page covers yet, while the docs are
+# written part by part (#665). A content PR removes the ids it covers; the coverage test
+# fails on an uncovered item that isn't listed here, and on a listed item that is covered.
+# Pages that are linked to but not written yet:
+# Items:

@@ -1,0 +1,60 @@
+/* A crashed region (#590): in place of the region, as a floating card (dialog roots), or
+   over the whole window (the app). */
+.eth-crash {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  min-height: 0;
+  padding: var(--eth-space-sm);
+}
+.eth-crash--panel {
+  width: 100%;
+  height: 100%;
+}
+.eth-crash--overlay {
+  position: fixed;
+  left: var(--eth-space-lg);
+  bottom: var(--eth-space-lg);
+  z-index: var(--eth-z-dialog);
+}
+.eth-crash--app {
+  position: fixed;
+  inset: 0;
+  background: var(--eth-color-bg);
+}
+.eth-crash__card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-sm);
+  max-width: var(--eth-size-tooltip-max-width);
+  padding: var(--eth-space-md);
+  background: var(--eth-color-bg-raised);
+  border: var(--eth-border-width) solid var(--eth-color-border);
+  border-radius: var(--eth-radius-sm);
+  box-shadow: var(--eth-shadow-sm);
+  color: var(--eth-color-text);
+}
+.eth-crash__title {
+  margin: 0;
+  font-size: var(--eth-fs-sm);
+  font-weight: var(--eth-fw-medium);
+}
+.eth-crash__hint {
+  margin: 0;
+  font-size: var(--eth-fs-xs);
+  color: var(--eth-color-text-dim);
+}
+.eth-crash__detail {
+  margin: 0;
+  font-family: var(--eth-font-mono);
+  font-size: var(--eth-fs-xs);
+  color: var(--eth-color-danger);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.eth-crash__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--eth-space-xs);
+}

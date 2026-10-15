@@ -1,0 +1,40 @@
+[package]
+name = "ether-server"
+description = "Headless native engine host serving the UI protocol over WebSocket (remote engine)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+# Native only: the host is `ether-native` (controller + cpal/null audio + disk store +
+# plugins); the socket is `tungstenite` (blocking, one thread per connection).
+[dependencies]
+ether-protocol.workspace = true
+ether-native.workspace = true
+crossbeam-channel.workspace = true
+getrandom.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+signal-hook.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+tungstenite.workspace = true
+
+[lints]
+workspace = true
+
+# Cargo features (feature-flags; docs/ARCHITECTURE.md "Cargo features"): the host's
+# features, passed through to `ether-native`. Default: the fast dev core
+# (`just dev-server`); `full` is everything (`just dev-server-full`, the gates).
+[features]
+default = []
+full = ["plugins", "warp-complex"]
+plugins = ["ether-native/plugins"]
+warp-complex = ["ether-native/warp-complex"]
+
+[[bin]]
+name = "ether-server"
+path = "src/main.rs"

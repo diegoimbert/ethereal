@@ -1,0 +1,47 @@
+/* Computer MIDI keyboard toggle (transport bar) and its octave / velocity indicator. */
+.eth-kbmidi {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--eth-space-xs);
+}
+.eth-kbmidi__toggle[aria-pressed="true"],
+.eth-kbmidi__toggle[aria-pressed="true"]:hover:not(:disabled) {
+  --_fg: var(--eth-color-accent);
+}
+.eth-kbmidi__status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--eth-space-sm);
+  height: var(--eth-size-control-md);
+  padding: 0 var(--eth-space-md);
+  border: var(--eth-border-width) solid var(--eth-color-border-light);
+  border-radius: var(--eth-radius-pill);
+  background: var(--eth-color-bg-inset);
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  transition:
+    border-color var(--eth-duration-fast) var(--eth-ease-out),
+    color var(--eth-duration-fast) var(--eth-ease-out);
+}
+.eth-kbmidi__octave {
+  min-width: 3ch;
+  color: var(--eth-color-text);
+  font-weight: var(--eth-fw-medium);
+}
+.eth-kbmidi__velocity {
+  min-width: 6ch;
+}
+.eth-kbmidi__unit {
+  margin-right: var(--eth-space-xs);
+  letter-spacing: var(--eth-tracking-caps);
+}
+/* A held note lights the indicator. */
+.eth-kbmidi__status[data-playing] {
+  border-color: var(--eth-color-accent);
+  color: var(--eth-color-accent);
+}
+.eth-kbmidi__status[data-playing] .eth-kbmidi__octave {
+  color: var(--eth-color-accent);
+}

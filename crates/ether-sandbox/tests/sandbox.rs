@@ -1,0 +1,764 @@
+//! Out-of-process hosting tests against `ether-clap`'s `ether_test_plugin` fixture.
+#![cfg(any(target_os = "macos", target_os = "linux"))]
+
+use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
+use std::time::{Duration, Instant};
+
+use assert_no_alloc::{AllocDisabler, assert_no_alloc};
+use ether_clap::testing;
+use ether_core::buffer::AudioBuffers;
+use ether_core::config::PrepareConfig;
+use ether_core::event::{EventBuffer, EventKind, ProcessEvent};
+use ether_core::node::ProcessContext;
+use ether_core::plugin::{PluginController, PluginError, PluginNode, PluginNotification};
+use ether_core::protocol::model::ParamId;
+use ether_core::transport::TransportInfo;
+use ether_sandbox::{SandboxOptions, SandboxedPlugin};
+
+#[global_allocator]
+static ALLOC: AllocDisabler = AllocDisabler;
+
+const ID: &str = "dev.ethereal.test-plugin";
+const GAIN: ParamId = ParamId(1);
+const MODE: ParamId = ParamId(2);
+const TEMPO: ParamId = ParamId(3);
+/// The fixture's own latency.
+const PLUGIN_LATENCY: u32 = 64;
+
+fn bundle() -> PathBuf {
+    static BUNDLE: OnceLock<PathBuf> = OnceLock::new();
+    BUNDLE
+        .get_or_init(|| {
+            let dir = testing::temp_dir("sandbox-tests");
+            testing::make_bundle(&dir, "EtherSandboxTest")
+        })
+        .clone()
+}
+
+fn options(wait_budget: Duration) -> SandboxOptions {
+    SandboxOptions {
+        helper: PathBuf::from(env!("CARGO_BIN_EXE_ether-sandbox-helper")),
+        wait_budget: Some(wait_budget),
+        ..SandboxOptions::default()
+    }
+}
+
+/// Deterministic: the audio thread waits (up to 10 s) for every result.
+fn spawn() -> SandboxedPlugin {
+    spawn_with(options(Duration::from_secs(10)))
+}
+
+fn spawn_with(options: SandboxOptions) -> SandboxedPlugin {
+    SandboxedPlugin::spawn(&bundle(), ID, &testing::instance_id(), options)
+        .expect("spawn sandboxed plugin")
+}
+
+fn config(max_block_size: usize) -> PrepareConfig {
+    PrepareConfig {
+        sample_rate: 48_000.0,
+        max_block_size,
+        max_events_per_block: 64,
+    }
+}
+
+/// Renders blocks through a node with pre-allocated buffers.
+struct Harness {
+    in_l: Vec<f32>,
+    in_r: Vec<f32>,
+    out_l: Vec<f32>,
+    out_r: Vec<f32>,
+    out_events: EventBuffer,
+    transport: TransportInfo,
+}
+
+impl Harness {
+    fn new(max: usize) -> Self {
+        Self {
+            in_l: vec![0.0; max],
+            in_r: vec![0.0; max],
+            out_l: vec![0.0; max],
+            out_r: vec![0.0; max],
+            out_events: EventBuffer::with_capacity(64),
+            transport: TransportInfo::STOPPED,
+        }
+    }
+
+    fn run(&mut self, node: &mut dyn PluginNode, frames: usize, events: &[ProcessEvent]) {
+        self.out_events.clear();
+        let inputs: [&[f32]; 2] = [&self.in_l[..frames], &self.in_r[..frames]];
+        let mut outputs: [&mut [f32]; 2] = [&mut self.out_l[..frames], &mut self.out_r[..frames]];
+        let mut ctx = ProcessContext {
+            sample_rate: 48_000.0,
+            frames,
+            transport: &self.transport,
+            events,
+            out_events: &mut self.out_events,
+        };
+        let mut audio = AudioBuffers {
+            inputs: &inputs,
+            outputs: &mut outputs,
+        };
+        node.process(&mut ctx, &mut audio);
+    }
+}
+
+fn param(offset: u32, p: ParamId, value: f64) -> ProcessEvent {
+    ProcessEvent {
+        offset,
+        kind: EventKind::Param { param: p, value },
+    }
+}
+
+/// A scripted stream: per block (frames, events). Input is a ramp over absolute time.
+fn script(sizes: &[usize]) -> Vec<(usize, Vec<ProcessEvent>)> {
+    sizes
+        .iter()
+        .enumerate()
+        .map(|(i, &frames)| {
+            let events = match i {
+                2 => vec![param(frames as u32 / 2, GAIN, 0.5)],
+                4 => vec![ProcessEvent {
+                    offset: 1,
+                    kind: EventKind::NoteOn {
+                        note_id: 1,
+                        channel: 0,
+                        key: 60,
+                        velocity: 1.0,
+                    },
+                }],
+                6 => vec![
+                    ProcessEvent {
+                        offset: 0,
+                        kind: EventKind::AllNotesOff,
+                    },
+                    param(3, GAIN, 1.5),
+                ],
+                _ => Vec::new(),
+            };
+            (frames, events)
+        })
+        .collect()
+}
+
+/// Render the script through `node`; returns the concatenated left and right outputs.
+fn render(
+    node: &mut dyn PluginNode,
+    max: usize,
+    script: &[(usize, Vec<ProcessEvent>)],
+) -> Vec<[f32; 2]> {
+    let mut h = Harness::new(max);
+    let mut t = 0usize;
+    let mut out = Vec::new();
+    for (frames, events) in script {
+        for i in 0..*frames {
+            let x = ((t + i) % 97) as f32 / 97.0 - 0.5;
+            h.in_l[i] = x;
+            h.in_r[i] = -x;
+        }
+        h.run(node, *frames, events);
+        out.extend((0..*frames).map(|i| [h.out_l[i], h.out_r[i]]));
+        t += frames;
+    }
+    out
+}
+
+fn compare_delayed(sizes: &[usize], max: usize) {
+    let script = script(sizes);
+
+    let mut inproc = ether_clap::instantiate(&bundle(), ID).expect("load in-process");
+    let mut node = inproc.activate(&config(max)).unwrap();
+    let expected = render(node.as_mut(), max, &script);
+    inproc.deactivate(node);
+
+    let mut sandbox = spawn();
+    let mut node = sandbox.activate(&config(max)).unwrap();
+    assert_eq!(node.latency(), max as u32 + PLUGIN_LATENCY);
+    assert_eq!(node.channels(), (2, 2));
+    let got = render(node.as_mut(), max, &script);
+    assert!(!node.is_faulted());
+    assert_eq!(node.param(GAIN), Some(1.5));
+    sandbox.deactivate(node);
+    assert_eq!(sandbox.underruns(), 0);
+
+    assert_eq!(got.len(), expected.len());
+    for (t, s) in got.iter().enumerate() {
+        let want = if t < max { [0.0; 2] } else { expected[t - max] };
+        assert_eq!(*s, want, "sample {t}");
+    }
+    // The stream is not trivially silent.
+    assert!(expected.iter().any(|s| s[0] != 0.0));
+}
+
+#[test]
+fn output_equals_in_process_delayed_by_one_block() {
+    compare_delayed(&[64; 12], 64);
+}
+
+#[test]
+fn variable_sub_blocks_keep_a_constant_one_block_delay() {
+    compare_delayed(&[128, 32, 96, 1, 127, 64, 128, 50, 128, 7, 100], 128);
+}
+
+/// perf-plugins (audit #9): on a thread that renders device buffers, the sandbox delay is
+/// the device period (64 frames here), not the engine's max block (256); a longer call
+/// later raises it.
+#[test]
+fn device_thread_delay_is_the_device_period() {
+    let (max, period) = (256, 64);
+    let script = script(&[period; 12]);
+    let mut inproc = ether_clap::instantiate(&bundle(), ID).expect("load in-process");
+    let mut node = inproc.activate(&config(max)).unwrap();
+    let expected = render(node.as_mut(), max, &script);
+    inproc.deactivate(node);
+
+    let mut sandbox = spawn();
+    let node = sandbox.activate(&config(max)).unwrap();
+    assert_eq!(node.latency(), max as u32 + PLUGIN_LATENCY);
+    let (node, got, grown) = std::thread::spawn(move || {
+        let mut node = node;
+        ether_core::period::begin_callback(period, 48_000.0);
+        let got = render(node.as_mut(), max, &script);
+        let mut h = Harness::new(max);
+        h.run(node.as_mut(), 128, &[]);
+        let grown = node.latency();
+        (node, got, grown)
+    })
+    .join()
+    .unwrap();
+    assert_eq!(grown, 128 + PLUGIN_LATENCY);
+    sandbox.deactivate(node);
+    assert_eq!(sandbox.underruns(), 0);
+    for (t, s) in got.iter().enumerate() {
+        let want = if t < period {
+            [0.0; 2]
+        } else {
+            expected[t - period]
+        };
+        assert_eq!(*s, want, "sample {t}");
+    }
+    assert!(expected.iter().any(|s| s[0] != 0.0));
+}
+
+#[test]
+fn params_state_and_notifications_over_ipc() {
+    let mut a = spawn();
+    let d = a.descriptor();
+    assert_eq!(d.name, "Ethereal Test Plugin");
+    assert_eq!(
+        (d.audio_inputs, d.audio_outputs, d.midi_input),
+        (2, 2, true)
+    );
+    let params = a.params();
+    let reference = ether_clap::instantiate(&bundle(), ID).unwrap().params();
+    assert_eq!(params, reference);
+    assert!(a.has_editor());
+
+    // Inactive set/get.
+    assert_eq!(a.param_value(GAIN), Some(1.0));
+    a.set_param_value(GAIN, 0.75).unwrap();
+    a.set_param_value(MODE, 2.0).unwrap();
+    assert_eq!(a.param_value(GAIN), Some(0.75));
+    assert_eq!(a.param_value(ParamId(99)), None);
+
+    // State round-trip into another sandboxed instance.
+    let state = a.save_state().unwrap();
+    assert_eq!(state.len(), 16);
+    let mut b = spawn();
+    b.load_state(&state).unwrap();
+    assert_eq!(b.param_value(GAIN), Some(0.75));
+    assert_eq!(b.param_value(MODE), Some(2.0));
+    assert!(matches!(b.load_state(&[1, 2]), Err(PluginError::State(_))));
+
+    // Active: events reach the plugin; readback + plugin-side edits come back.
+    let mut node = b.activate(&config(64)).unwrap();
+    assert!(matches!(
+        b.activate(&config(64)),
+        Err(PluginError::Activation(_))
+    ));
+    assert_eq!(node.param(GAIN), Some(0.75));
+    let mut h = Harness::new(64);
+    h.transport.bpm = 133.0;
+    h.transport.playing = true;
+    h.run(node.as_mut(), 64, &[param(0, GAIN, 0.25)]);
+    // CC 7 = 127: the fixture sets Gain to 2.0 itself, like a GUI edit.
+    let cc = [ProcessEvent {
+        offset: 3,
+        kind: EventKind::Midi {
+            data: [0xB0, 7, 127],
+        },
+    }];
+    h.run(node.as_mut(), 64, &cc);
+    h.run(node.as_mut(), 64, &[]); // collects the CC block's result
+    assert_eq!(b.param_value(TEMPO), Some(133.0));
+    assert_eq!(b.param_value(GAIN), Some(2.0));
+
+    let mut out = Vec::new();
+    b.poll(&mut out);
+    assert_eq!(
+        out,
+        vec![
+            PluginNotification::GestureBegin { param: GAIN },
+            PluginNotification::ParamEdited {
+                param: GAIN,
+                value: 2.0
+            },
+            PluginNotification::GestureEnd { param: GAIN },
+        ]
+    );
+    out.clear();
+    b.poll(&mut out);
+    assert!(out.is_empty(), "{out:?}");
+    b.deactivate(node);
+
+    // Re-activation keeps state.
+    let node = b.activate(&config(64)).unwrap();
+    assert_eq!(node.param(GAIN), Some(2.0));
+    b.deactivate(node);
+}
+
+#[test]
+fn editor_is_forwarded_to_the_helper() {
+    let mut p = spawn();
+    p.open_editor().expect("open editor");
+    // The fixture closes its headless window on its 3rd timer tick (helper-side timers).
+    let mut out = Vec::new();
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while !out.contains(&PluginNotification::EditorClosed) {
+        assert!(Instant::now() < deadline, "editor never closed: {out:?}");
+        p.poll(&mut out);
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    p.open_editor().expect("open again");
+    p.close_editor();
+}
+
+#[test]
+fn helper_crash_is_isolated() {
+    let mut p = spawn();
+    let mut node = p.activate(&config(64)).unwrap();
+    let mut h = Harness::new(64);
+    h.in_l.fill(0.5);
+    h.in_r.fill(0.5);
+    for _ in 0..3 {
+        h.run(node.as_mut(), 64, &[]);
+    }
+    assert_eq!(h.out_l[0], 0.5);
+
+    p.kill_helper();
+    for _ in 0..4 {
+        h.out_l.fill(1.0);
+        h.run(node.as_mut(), 64, &[]);
+        assert!(h.out_l.iter().chain(&h.out_r).all(|s| *s == 0.0));
+    }
+    assert!(node.is_faulted());
+
+    let mut out = Vec::new();
+    p.poll(&mut out);
+    assert!(
+        matches!(out.as_slice(), [PluginNotification::Crashed { .. }]),
+        "{out:?}"
+    );
+    out.clear();
+    p.poll(&mut out);
+    assert!(out.is_empty(), "Crashed is reported once: {out:?}");
+
+    assert!(matches!(p.save_state(), Err(PluginError::Crashed(_))));
+    assert_eq!(p.param_value(GAIN), None);
+    p.deactivate(node);
+    // Still alive: a new sandboxed instance works.
+    let mut q = spawn();
+    assert_eq!(q.param_value(GAIN), Some(1.0));
+}
+
+#[test]
+fn helper_exit_is_detected_without_kill_from_host() {
+    let mut p = spawn();
+    let mut node = p.activate(&config(64)).unwrap();
+    let pid = p.helper_pid();
+    let status = std::process::Command::new("kill")
+        .args(["-9", &pid.to_string()])
+        .status()
+        .unwrap();
+    assert!(status.success());
+    let mut out = Vec::new();
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while out.is_empty() {
+        assert!(Instant::now() < deadline);
+        p.poll(&mut out);
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    assert!(
+        matches!(out[0], PluginNotification::Crashed { .. }),
+        "{out:?}"
+    );
+    let mut h = Harness::new(64);
+    h.in_l.fill(0.5);
+    h.run(node.as_mut(), 64, &[]);
+    assert!(node.is_faulted());
+    assert!(h.out_l.iter().all(|s| *s == 0.0));
+    p.deactivate(node);
+}
+
+fn signal(pid: u32, sig: &str) {
+    let status = std::process::Command::new("kill")
+        .args([sig, &pid.to_string()])
+        .status()
+        .unwrap();
+    assert!(status.success());
+}
+
+/// State letters (`R`, `S`, `T`, ...) of every thread of `pid`, or `None` if it is gone.
+#[cfg(target_os = "linux")]
+fn thread_states(pid: u32) -> Option<Vec<char>> {
+    let tasks = std::fs::read_dir(format!("/proc/{pid}/task")).ok()?;
+    tasks
+        .flatten()
+        .map(|t| {
+            let stat = std::fs::read_to_string(t.path().join("stat")).ok()?;
+            stat.rsplit_once(") ")?.1.chars().next()
+        })
+        .collect()
+}
+
+/// Waits until `pid` is idle (every thread asleep), i.e. it finished the block in flight
+/// and waits for the next one. A fixed sleep isn't enough on a loaded machine: the helper
+/// can stay descheduled for longer than any reasonable delay.
+fn wait_idle(pid: u32) {
+    #[cfg(target_os = "linux")]
+    {
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while !thread_states(pid).is_some_and(|s| s.iter().all(|c| matches!(c, 'S' | 'D'))) {
+            assert!(Instant::now() < deadline, "helper {pid} never went idle");
+            std::thread::sleep(Duration::from_millis(1));
+        }
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = pid;
+        std::thread::sleep(Duration::from_millis(20));
+    }
+}
+
+/// `true` once every thread of `pid` is stopped.
+fn is_stopped(pid: u32) -> bool {
+    #[cfg(target_os = "linux")]
+    {
+        thread_states(pid).is_some_and(|s| s.iter().all(|c| matches!(c, 'T' | 't')))
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        std::process::Command::new("ps")
+            .args(["-o", "stat=", "-p", &pid.to_string()])
+            .output()
+            .is_ok_and(|o| {
+                String::from_utf8_lossy(&o.stdout)
+                    .trim_start()
+                    .starts_with('T')
+            })
+    }
+}
+
+/// Freezes the helper between two blocks: waits until it is idle (the block in flight is
+/// done), sends `SIGSTOP`, and waits until the stop took effect (`kill` only queues it: a
+/// thread that isn't scheduled yet would otherwise still process the next block).
+fn freeze_idle(pid: u32) {
+    wait_idle(pid);
+    signal(pid, "-STOP");
+    let deadline = Instant::now() + Duration::from_secs(10);
+    while !is_stopped(pid) {
+        assert!(Instant::now() < deadline, "helper {pid} never stopped");
+        std::thread::sleep(Duration::from_millis(1));
+    }
+}
+
+#[test]
+fn late_helper_gives_silence_and_underruns_then_recovers() {
+    // Only a stopped helper may miss the budget, never a running one: 1 s keeps a
+    // CPU-starved (but running) helper on a loaded machine from underrunning.
+    let mut p = spawn_with(options(Duration::from_secs(1)));
+    let mut node = p.activate(&config(64)).unwrap();
+    let mut h = Harness::new(64);
+    h.in_l.fill(0.5);
+    h.in_r.fill(0.5);
+    for _ in 0..3 {
+        h.run(node.as_mut(), 64, &[]);
+    }
+    assert_eq!(h.out_l[0], 0.5);
+    assert_eq!(p.underruns(), 0);
+
+    // Freeze the helper (after it finished the block in flight, which the next call still
+    // collects normally): every later block misses its deadline.
+    freeze_idle(p.helper_pid());
+    h.run(node.as_mut(), 64, &[]);
+    assert_eq!(h.out_l[0], 0.5);
+    assert_eq!(p.underruns(), 0);
+    for i in 0..3 {
+        h.out_l.fill(1.0);
+        h.run(node.as_mut(), 64, &[]);
+        assert!(h.out_l.iter().all(|s| *s == 0.0), "block {i}");
+        assert_eq!(p.underruns(), i + 1);
+    }
+    assert!(!node.is_faulted());
+
+    // Resume: output comes back, time-aligned, without further underruns. The late block
+    // is skipped without waiting (budget 0 once substituted), so calls before the helper
+    // caught up may still underrun: wait for the signal to come back (bounded), then
+    // require clean blocks.
+    signal(p.helper_pid(), "-CONT");
+    let deadline = Instant::now() + Duration::from_secs(10);
+    loop {
+        std::thread::sleep(Duration::from_millis(5));
+        h.run(node.as_mut(), 64, &[]);
+        if h.out_l.iter().all(|s| *s == 0.5) {
+            break;
+        }
+        assert!(
+            h.out_l.iter().all(|s| *s == 0.0),
+            "silence or signal, never a misaligned block: {:?}",
+            &h.out_l[..4]
+        );
+        assert!(Instant::now() < deadline, "output never came back");
+    }
+    let before = p.underruns();
+    for _ in 0..3 {
+        h.run(node.as_mut(), 64, &[]);
+        assert!(h.out_l.iter().all(|s| *s == 0.5), "{:?}", &h.out_l[..4]);
+    }
+    assert_eq!(p.underruns(), before);
+    p.deactivate(node);
+}
+
+#[test]
+fn audio_thread_detects_helper_death_while_waiting() {
+    // Huge wait budget: only crash detection can end the wait early. No `poll()` calls.
+    let mut p = spawn_with(options(Duration::from_secs(10)));
+    let mut node = p.activate(&config(64)).unwrap();
+    let mut h = Harness::new(64);
+    h.in_l.fill(0.5);
+    h.in_r.fill(0.5);
+    for _ in 0..3 {
+        h.run(node.as_mut(), 64, &[]);
+    }
+    assert_eq!(h.out_l[0], 0.5);
+
+    // Freeze the helper once it is idle, post one more block (stays in flight), then kill it.
+    let pid = p.helper_pid();
+    freeze_idle(pid);
+    h.run(node.as_mut(), 64, &[]);
+    assert_eq!(h.out_l[0], 0.5);
+    signal(pid, "-KILL");
+
+    let start = Instant::now();
+    h.out_l.fill(1.0);
+    h.run(node.as_mut(), 64, &[]);
+    let waited = start.elapsed();
+    // Far below the 10 s budget (crash detection ended the wait), with room for a host
+    // thread that is descheduled for a while on a loaded machine.
+    assert!(waited < Duration::from_secs(3), "waited {waited:?}");
+    assert!(h.out_l.iter().chain(&h.out_r).all(|s| *s == 0.0));
+    assert!(node.is_faulted());
+    assert_eq!(p.underruns(), 0, "a crash is not an underrun");
+    p.deactivate(node);
+}
+
+#[test]
+fn set_param_coalesces_and_never_loses_the_latest_value() {
+    let mut p = spawn();
+    let mut node = p.activate(&config(64)).unwrap();
+    // Far more immediate sets than the pending list could hold without coalescing.
+    for i in 0..200 {
+        node.set_param(MODE, f64::from(i % 3));
+        node.set_param(GAIN, f64::from(i % 7) / 7.0);
+    }
+    node.set_param(GAIN, 0.5);
+    node.set_param(MODE, 2.0);
+    assert_eq!(node.param(GAIN), Some(0.5));
+    let mut h = Harness::new(64);
+    h.in_l.fill(1.0);
+    h.in_r.fill(1.0);
+    h.run(node.as_mut(), 64, &[]);
+    h.run(node.as_mut(), 64, &[]); // output of the first block (gain applied at offset 0)
+    assert!(h.out_l.iter().all(|s| *s == 0.5), "{:?}", &h.out_l[..4]);
+    assert_eq!(p.param_value(GAIN), Some(0.5));
+    assert_eq!(p.param_value(MODE), Some(2.0));
+    p.deactivate(node);
+}
+
+#[test]
+fn no_alloc_on_host_audio_path() {
+    // Zero wait budget: exercises the underrun path too (results usually arrive late).
+    for budget in [Duration::from_secs(10), Duration::ZERO] {
+        let mut p = spawn_with(options(budget));
+        let mut node = p.activate(&config(128)).unwrap();
+        let mut h = Harness::new(128);
+        h.in_l.fill(0.25);
+        let events = [
+            param(5, GAIN, 0.5),
+            ProcessEvent {
+                offset: 9,
+                kind: EventKind::NoteOn {
+                    note_id: 3,
+                    channel: 0,
+                    key: 64,
+                    velocity: 0.5,
+                },
+            },
+        ];
+        // First block starts processing in the helper; nothing special on the host side.
+        for i in 0..50 {
+            let frames = if i % 3 == 0 { 128 } else { 40 };
+            assert_no_alloc(|| {
+                node.set_param(MODE, 1.0);
+                node.reset();
+                h.run(node.as_mut(), frames, &events);
+            });
+        }
+        if budget.is_zero() {
+            // Some results were late unless the helper is extremely fast; either way no alloc.
+            let _ = p.underruns();
+        } else {
+            assert_eq!(p.underruns(), 0);
+        }
+        p.kill_helper();
+        assert_no_alloc(|| h.run(node.as_mut(), 128, &events));
+        p.deactivate(node);
+    }
+}
+
+#[test]
+fn spawn_errors() {
+    let e = SandboxedPlugin::spawn(&bundle(), "nope", "t", options(Duration::ZERO)).unwrap_err();
+    assert!(matches!(e, PluginError::NotFound(_)), "{e:?}");
+    let e = SandboxedPlugin::spawn(
+        &bundle(),
+        ID,
+        "t",
+        SandboxOptions {
+            helper: Path::new("/nonexistent/ether-sandbox-helper").into(),
+            ..options(Duration::ZERO)
+        },
+    )
+    .unwrap_err();
+    assert!(matches!(e, PluginError::Ipc(_)), "{e:?}");
+}
+
+#[test]
+fn helper_loads_through_the_requested_format() {
+    use ether_core::protocol::model::PluginFormat;
+    // Explicit `--format clap` works like the default.
+    let p = SandboxedPlugin::spawn(
+        &bundle(),
+        ID,
+        "t",
+        SandboxOptions {
+            format: PluginFormat::Clap,
+            ..options(Duration::ZERO)
+        },
+    )
+    .unwrap();
+    assert_eq!(p.descriptor().name, "Ethereal Test Plugin");
+    drop(p);
+    // VST3/AU go through their format hosts. A plugin that doesn't exist must give a clean
+    // error (`Unsupported` from a stub or off-platform, `NotFound` from a real host), not a
+    // crash. Real per-format coverage lives in tests/vst3.rs and tests/au.rs.
+    for (format, path, id) in [
+        (PluginFormat::Vst3, "/nonexistent/X.vst3", "0".repeat(32)),
+        (
+            PluginFormat::Au,
+            "aufx:zzzz:zzzz",
+            "aufx:zzzz:zzzz".to_string(),
+        ),
+    ] {
+        let e = SandboxedPlugin::spawn(
+            Path::new(path),
+            &id,
+            "t",
+            SandboxOptions {
+                format,
+                ..options(Duration::ZERO)
+            },
+        )
+        .unwrap_err();
+        assert!(
+            matches!(e, PluginError::Unsupported(_) | PluginError::NotFound(_)),
+            "{format}: {e:?}"
+        );
+    }
+}
+
+/// perf-plugins (audit #9) measurement, not a regression test (timing depends on the
+/// machine): 8 sandboxed instances in a real-time-paced callback loop at 128 and 256
+/// frames, the old per-node budget (a quarter of a 1024-frame block each) vs the shared
+/// device deadline. Prints callbacks over their period ("xruns"), helper underruns and the
+/// added latency.
+/// `CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS=true cargo test -p ether-sandbox --release --test sandbox -- --ignored --nocapture measure`
+/// (debug assertions: the no-alloc checker only exists with them).
+#[test]
+#[ignore = "measurement"]
+fn measure_sandbox_xruns_and_latency() {
+    const INSTANCES: usize = 8;
+    const SECONDS: f64 = 4.0;
+    for period in [128usize, 256] {
+        for (name, budget) in [
+            (
+                "per-node budget",
+                Some(Duration::from_secs_f64(1024.0 / 48_000.0 / 4.0)),
+            ),
+            ("shared deadline", None),
+        ] {
+            let mut plugins: Vec<SandboxedPlugin> = (0..INSTANCES)
+                .map(|_| {
+                    spawn_with(SandboxOptions {
+                        wait_budget: budget,
+                        ..options(Duration::ZERO)
+                    })
+                })
+                .collect();
+            let nodes: Vec<Box<dyn PluginNode>> = plugins
+                .iter_mut()
+                .map(|p| p.activate(&config(1024)).unwrap())
+                .collect();
+            let (nodes, xruns, worst, latency) = std::thread::spawn(move || {
+                let mut nodes = nodes;
+                let mut h = Harness::new(1024);
+                let dt = Duration::from_secs_f64(period as f64 / 48_000.0);
+                let blocks = (SECONDS / dt.as_secs_f64()) as usize;
+                let (mut xruns, mut worst) = (0, Duration::ZERO);
+                let mut next = Instant::now();
+                for _ in 0..blocks {
+                    let start = Instant::now();
+                    if budget.is_none() {
+                        // The new host: the callback publishes the period and deadline.
+                        ether_core::period::begin_callback(period, 48_000.0);
+                    }
+                    for n in &mut nodes {
+                        h.run(n.as_mut(), period, &[]);
+                    }
+                    let took = start.elapsed();
+                    worst = worst.max(took);
+                    if took > dt {
+                        xruns += 1;
+                    }
+                    next += dt;
+                    if let Some(wait) = next.checked_duration_since(Instant::now()) {
+                        std::thread::sleep(wait);
+                    }
+                }
+                let latency = nodes[0].latency() - PLUGIN_LATENCY;
+                (nodes, xruns, worst, latency)
+            })
+            .join()
+            .unwrap();
+            let underruns: u64 = plugins.iter().map(|p| p.underruns()).sum();
+            for (p, n) in plugins.iter_mut().zip(nodes) {
+                p.deactivate(n);
+            }
+            eprintln!(
+                "{period} frames, {name}: {xruns} callbacks over the period, worst {worst:?}, \
+                 {underruns} helper underruns, sandbox latency {latency} frames ({:.2} ms)",
+                f64::from(latency) / 48.0
+            );
+        }
+    }
+}

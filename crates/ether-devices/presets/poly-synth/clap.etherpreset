@@ -1,0 +1,38 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.6.0",
+  "preset": {
+    "name": "clap",
+    "device": {
+      "type": "Builtin",
+      "device": "PolySynth"
+    },
+    "meta": {
+      "tags": [
+        "drums",
+        "clap"
+      ],
+      "author": "ethereal",
+      "description": "band-passed noise burst, for a drum rack pad."
+    },
+    "params": {
+      "6": -70.0,
+      "16": 0.0,
+      "17": 55.0,
+      "21": 1.0,
+      "22": 1.0,
+      "25": 3.0,
+      "26": 1400.0,
+      "27": 30.0,
+      "31": 0.0,
+      "32": 200.0,
+      "33": 0.0,
+      "34": 110.0,
+      "57": 2.0,
+      "58": 40.0
+    },
+    "kind": null,
+    "state": null
+  }
+}

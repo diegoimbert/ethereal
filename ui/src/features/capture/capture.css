@@ -1,0 +1,8 @@
+/* Capture MIDI button (transport bar): dim until there is something to capture, then lit
+   with the accent so it reads as "you can grab that". */
+.eth-capture[data-available] {
+  --_fg: var(--eth-color-accent);
+}
+.eth-capture[data-available]:hover:not(:disabled) {
+  --_fg: var(--eth-color-accent-hover);
+}

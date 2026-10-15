@@ -1,0 +1,7 @@
+# Generated (Rust → TS types; design-token CSS from ui/src/theme/tokens.ts).
+ui/src/generated/
+ui/src/theme/tokens.css
+dist/
+playwright-report/
+test-results/
+.wrangler/

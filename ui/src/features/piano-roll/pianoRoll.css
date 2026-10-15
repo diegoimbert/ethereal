@@ -1,0 +1,647 @@
+/* Piano roll. Tokens come from kit/theme.css. */
+
+.eth-pr {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  outline: none;
+  /* Partly pass-through: the drawer's surface (translucent when floating) shows a little. */
+  background: color-mix(in srgb, var(--eth-color-bg-panel) 40%, transparent);
+  color: var(--eth-color-text);
+  font-family: var(--eth-font-ui);
+  font-size: var(--eth-fs-sm);
+  user-select: none;
+}
+
+.eth-pr--empty {
+  align-items: center;
+  justify-content: center;
+  color: var(--eth-color-text-dim);
+}
+
+/* Shared by the piano roll and the beat editor (same height and insets: switching between
+   them moves nothing). */
+.eth-pr__toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-sm);
+  min-height: var(--eth-size-control-lg);
+  padding: var(--eth-space-xs) var(--eth-space-sm);
+  border-bottom: var(--eth-border-width) solid var(--eth-color-border);
+}
+
+.eth-pr__title {
+  font-weight: 600;
+  margin-right: var(--eth-space-md);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: var(--eth-size-editor-title-max-width);
+}
+
+.eth-pr__grid-select {
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-xs);
+  color: var(--eth-color-text-dim);
+}
+
+.eth-pr__step {
+  min-width: var(--eth-size-grid-step-label-min-width);
+  font-family: var(--eth-font-mono);
+  font-size: var(--eth-fs-xs);
+  color: var(--eth-color-text-dim);
+}
+
+.eth-pr__header {
+  display: flex;
+  flex: none;
+}
+
+.eth-pr__corner {
+  flex: none;
+  background: var(--eth-color-bg-inset);
+  border-right: var(--eth-border-width) solid var(--eth-color-border);
+  border-bottom: var(--eth-border-width) solid var(--eth-color-border);
+}
+
+.eth-pr__ruler {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+
+/* Note-stretch bar (base-109): over the top of the ruler, spanning the selection. */
+.eth-pr-stretch-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: calc(var(--eth-size-note-stretch-bar-height) + var(--eth-size-note-stretch-hit-extra));
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.eth-pr-stretch {
+  position: absolute;
+  top: 0;
+  height: var(--eth-size-note-stretch-bar-height);
+  pointer-events: auto;
+  background: color-mix(in srgb, var(--eth-color-selection) 45%, transparent);
+  border-radius: 0 0 var(--eth-radius-sm) var(--eth-radius-sm);
+  cursor: grab;
+  touch-action: none;
+}
+
+/* Taller invisible hit area so the thin bar stays easy to grab. */
+.eth-pr-stretch::after {
+  content: "";
+  position: absolute;
+  inset: 0 0 calc(-1 * var(--eth-size-note-stretch-hit-extra));
+}
+
+.eth-pr-stretch--dragging {
+  background: color-mix(in srgb, var(--eth-color-selection) 70%, transparent);
+}
+
+.eth-pr-stretch__edge {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: var(--eth-size-note-stretch-edge-width);
+  background: var(--eth-color-selection);
+  pointer-events: none;
+}
+
+.eth-pr-stretch__edge--start {
+  left: 0;
+  border-bottom-left-radius: var(--eth-radius-sm);
+}
+
+.eth-pr-stretch__edge--end {
+  right: 0;
+  border-bottom-right-radius: var(--eth-radius-sm);
+}
+
+.eth-pr__loopbar {
+  position: relative;
+  height: var(--eth-size-loop-bar-height);
+  overflow: hidden;
+  background: var(--eth-color-bg-inset);
+  border-bottom: var(--eth-border-width) solid var(--eth-color-border);
+}
+
+.eth-pr__loop {
+  position: absolute;
+  top: var(--eth-space-hair);
+  bottom: var(--eth-space-hair);
+  background: var(--eth-color-accent);
+  opacity: 0.8;
+  border-radius: var(--eth-radius-sm);
+}
+
+.eth-pr__start {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: var(--eth-border-width-strong);
+  margin-left: calc(var(--eth-border-width-strong) / -2);
+  background: var(--eth-color-text);
+}
+
+.eth-pr__body {
+  flex: 1;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.eth-pr__canvas {
+  position: relative;
+  display: flex;
+}
+
+/* The key-height grip along the keyboard's left edge (drag up / down, like Ableton's). */
+.eth-pr__zoom-grip {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 2;
+  width: var(--eth-size-piano-zoom-grip);
+  cursor: ns-resize;
+  background: color-mix(in srgb, var(--eth-color-text) 4%, transparent);
+  transition: background-color var(--eth-duration-fast) var(--eth-ease-out);
+}
+.eth-pr__zoom-grip:hover {
+  background: color-mix(in srgb, var(--eth-color-accent) 25%, transparent);
+}
+
+.eth-pr-keys {
+  position: relative;
+  flex: none;
+  border-right: var(--eth-border-width) solid var(--eth-color-border);
+  cursor: pointer;
+}
+
+.eth-pr-key {
+  position: absolute;
+  left: 0;
+  right: 0;
+  box-sizing: border-box;
+  padding-right: var(--eth-space-xs);
+  font-size: var(--eth-fs-2xs);
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  color: var(--eth-color-piano-key-label);
+}
+
+.eth-pr-key--white {
+  background: var(--eth-color-piano-white-key);
+  border-bottom: var(--eth-border-width) solid var(--eth-color-piano-white-key-border);
+}
+
+/* Light theme: white keys with visible dividers; black keys stay dark. */
+[data-theme="light"] .eth-pr-key--white {
+  background: var(--eth-color-piano-white-key);
+  border-bottom-color: var(--eth-color-piano-white-key-border);
+}
+
+[data-theme="light"] .eth-pr-keys {
+  background: var(--eth-color-piano-white-key);
+  border-right-color: var(--eth-color-piano-white-key-border);
+}
+
+/* The full row's width, flush with the white keys: no uncovered strip right of it. */
+.eth-pr-key--black {
+  background: var(--eth-color-piano-black-key);
+  z-index: 1;
+}
+
+.eth-pr-grid {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  /* Partly pass-through: enough fill to read the notes, a hint of the drawer behind. */
+  background: color-mix(in srgb, var(--eth-color-bg) 55%, transparent);
+  cursor: default;
+  touch-action: none;
+}
+
+.eth-pr-grid--draw {
+  cursor: crosshair;
+}
+
+/* The rows (tints, C lines, grid lines) and the notes are drawn on two canvases
+   (`noteLayout.ts`): rows under the DOM overlays (outside shade, clip starts, section), notes
+   over them. Sized and moved with the vertical scroll by `NoteGrid`. */
+.eth-pr-grid__canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+}
+
+.eth-pr-grid__canvas--notes {
+  z-index: 2;
+}
+
+.eth-pr-grid__outside {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  pointer-events: none;
+  background: var(--eth-color-outside-shade);
+}
+
+.eth-pr-grid__section,
+.eth-pr__section {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  pointer-events: none;
+  background: color-mix(in srgb, var(--eth-color-selection) 18%, transparent);
+  box-shadow:
+    inset var(--eth-border-width) 0 0 var(--eth-color-selection),
+    inset calc(-1 * var(--eth-border-width)) 0 0 var(--eth-color-selection);
+  z-index: 1;
+}
+/* A section over some pitches only (a Shift-drag on the grid): outlined on every side. */
+.eth-pr-grid__section--pitches {
+  box-shadow: inset 0 0 0 var(--eth-border-width) var(--eth-color-selection);
+}
+
+/* The insert marker (a zero-length section): a thin blinking accent line. */
+.eth-pr-grid__marker,
+.eth-pr__marker {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: var(--eth-border-width-strong);
+  transform: translateX(-50%);
+  pointer-events: none;
+  background: var(--eth-color-accent);
+  z-index: 1;
+  animation: eth-pr-marker-blink 1s steps(2, start) infinite;
+}
+
+@keyframes eth-pr-marker-blink {
+  to {
+    visibility: hidden;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .eth-pr-grid__marker,
+  .eth-pr__marker {
+    animation: none;
+  }
+}
+
+.eth-pr-grid__marquee {
+  position: absolute;
+  pointer-events: none;
+  border: var(--eth-border-width) solid var(--eth-color-accent);
+  background: color-mix(in srgb, var(--eth-color-accent) 15%, transparent);
+  z-index: 3;
+  border-radius: var(--eth-radius-sm);
+}
+
+/* The velocity of the note under an Alt-drag, just above it (below on the top rows). */
+.eth-pr-grid__velocity {
+  position: absolute;
+  z-index: 4;
+  transform: translateY(calc(-100% - var(--eth-space-xs)));
+  pointer-events: none;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.eth-pr-grid__velocity--below {
+  transform: translateY(var(--eth-space-xs));
+}
+
+.eth-pr__lane {
+  display: flex;
+  flex: none;
+  border-top: var(--eth-border-width) solid var(--eth-color-border);
+}
+
+.eth-pr__lane-label {
+  flex: none;
+  box-sizing: border-box;
+  padding: var(--eth-space-xs);
+  font-size: var(--eth-fs-xs);
+  color: var(--eth-color-text-dim);
+  border-right: var(--eth-border-width) solid var(--eth-color-border);
+}
+
+.eth-pr__lane-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.eth-pr-velocity {
+  position: relative;
+  overflow: hidden;
+  background: var(--eth-color-bg-inset);
+  touch-action: none;
+}
+
+/* The bars are drawn on a canvas (VelocityLane); it takes no pointer events itself. */
+.eth-pr-velocity__canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+}
+
+/* Scale highlight on the keys (data-scale-tone = root | in | out; absent when off or
+   chromatic). The grid's rows and notes are drawn by `noteLayout.ts`. */
+.eth-pr-key[data-scale-tone="in"] {
+  box-shadow: inset var(--eth-size-piano-scale-mark) 0 var(--eth-color-piano-scale-key-mark);
+}
+
+.eth-pr-key[data-scale-tone="root"] {
+  box-shadow: inset var(--eth-size-piano-scale-root-mark) 0 var(--eth-color-accent);
+  color: var(--eth-color-accent);
+  font-weight: var(--eth-fw-bold);
+}
+
+.eth-pr-key[data-scale-tone="out"] {
+  opacity: var(--eth-opacity-scale-out-key);
+}
+
+/* Multi-clip editing (base-143): several clips on the song timeline. */
+.eth-pr__clip-count {
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+  white-space: nowrap;
+  margin-right: var(--eth-space-md);
+}
+
+/* The clips' bands under the ruler: name, region and loop; a click focuses the clip. */
+.eth-pr__bands {
+  position: relative;
+  height: var(--eth-size-row-height-sm);
+  overflow: hidden;
+  background: var(--eth-color-bg-inset);
+  border-bottom: var(--eth-border-width) solid var(--eth-color-border);
+}
+
+.eth-pr__band {
+  --eth-pr-clip-color: var(--eth-color-accent);
+  position: absolute;
+  top: var(--eth-space-hair);
+  bottom: var(--eth-space-hair);
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  padding: 0 var(--eth-space-xs);
+  overflow: hidden;
+  font: inherit;
+  font-size: var(--eth-fs-2xs);
+  color: var(--eth-color-text-dim);
+  text-align: left;
+  white-space: nowrap;
+  background: color-mix(in srgb, var(--eth-pr-clip-color) 22%, transparent);
+  border: var(--eth-border-width) solid color-mix(in srgb, var(--eth-pr-clip-color) 45%, transparent);
+  border-radius: var(--eth-radius-sm);
+  cursor: pointer;
+}
+
+.eth-pr__band:hover {
+  color: var(--eth-color-text);
+}
+
+.eth-pr__band--focus {
+  color: var(--eth-color-text);
+  font-weight: 600;
+  background: color-mix(in srgb, var(--eth-pr-clip-color) 45%, transparent);
+  border-color: var(--eth-pr-clip-color);
+}
+
+.eth-pr__band-name {
+  position: relative;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.eth-pr__band-loop {
+  position: absolute;
+  bottom: 0;
+  height: var(--eth-border-width-strong);
+  background: var(--eth-color-accent);
+}
+
+/* A clip's start on the grid (the focused clip's is stronger). */
+.eth-pr-grid__clip-start {
+  --eth-pr-clip-color: var(--eth-color-border);
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: var(--eth-border-width);
+  pointer-events: none;
+  background: color-mix(in srgb, var(--eth-pr-clip-color) 60%, transparent);
+}
+
+.eth-pr-grid__clip-start--focus {
+  width: var(--eth-border-width-strong);
+  background: var(--eth-pr-clip-color);
+}
+
+/* A key held down (Keyboard): a shade darker (a black key lighter), drawn over its
+   neighbours; instant both ways. */
+.eth-pr-key.eth-pr-key--pressed {
+  z-index: 2;
+  filter: brightness(0.86);
+}
+/* Already dark: a press lightens a black key instead. */
+.eth-pr-key--black.eth-pr-key--pressed {
+  filter: brightness(1.35);
+}
+
+/* Piano roll ⇄ beat editor (EditorSwitch, the drawer's pill tabs): the toolbar's last
+   control, at its far right in both editors. */
+.eth-pr__switch {
+  flex: none;
+  margin-left: auto;
+}
+
+/* ---- Step sequencer (BeatGrid: Drum Rack tracks) ------------------------------------ */
+.eth-beats {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  /* Partly pass-through, like the piano roll. */
+  background: color-mix(in srgb, var(--eth-color-bg-panel) 40%, transparent);
+}
+:root[data-translucency="off"] .eth-beats__body {
+  --_name-bg: var(--eth-color-bg-panel);
+}
+/* The steps and the playhead over them. */
+.eth-beats__stage {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+.eth-beats__playhead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: var(--_name-w, var(--eth-size-beat-name-width));
+  right: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 3;
+}
+/* The scroller: rows scroll natively; the x axis is the timeline view (wheel / trackpad zoom
+   and pan through it), so no horizontal scrollbar. */
+.eth-beats__body {
+  /* The sticky ruler and names: like the piano roll, the drawer's surface shows through,
+     blurred so the steps scrolling under them stay out of the way. */
+  --_name-bg: color-mix(in srgb, var(--eth-color-bg-panel) 55%, transparent);
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden auto;
+  overscroll-behavior: contain;
+}
+.eth-beats__head,
+.eth-beats__row {
+  display: flex;
+  flex: none;
+}
+.eth-beats__head {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  height: calc(var(--eth-size-beat-ruler-height) + var(--eth-size-loop-bar-height));
+  background: var(--_name-bg);
+  -webkit-backdrop-filter: blur(var(--eth-size-translucent-blur));
+  backdrop-filter: blur(var(--eth-size-translucent-blur));
+  border-bottom: var(--eth-border-width) solid var(--eth-color-border);
+}
+.eth-beats__corner,
+.eth-beats__name {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  flex: none;
+  width: var(--_name-w, var(--eth-size-beat-name-width));
+  background: var(--_name-bg);
+  -webkit-backdrop-filter: blur(var(--eth-size-translucent-blur));
+  backdrop-filter: blur(var(--eth-size-translucent-blur));
+}
+/* The name column's resize edge (on every row, so it reads as one line). */
+.eth-beats__name-grip {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  width: var(--eth-space-sm);
+  cursor: ew-resize;
+  z-index: 1;
+}
+.eth-beats__body:has(.eth-beats__name-grip:hover) .eth-beats__corner,
+.eth-beats__body:has(.eth-beats__name-grip:hover) .eth-beats__name {
+  border-right-color: var(--eth-color-accent);
+}
+.eth-beats__ruler {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+/* Under the bar numbers, like the piano roll's loop strip. */
+.eth-beats__loopbar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: var(--eth-size-loop-bar-height);
+  overflow: hidden;
+  background: color-mix(in srgb, var(--eth-color-bg-inset) 60%, transparent);
+  border-top: var(--eth-border-width) solid var(--eth-color-border);
+  pointer-events: none;
+}
+.eth-beats__row {
+  flex: none;
+  align-items: center;
+  height: var(--eth-size-beat-row-height);
+}
+.eth-beats__row--fill {
+  flex: 1 0 auto;
+  height: auto;
+}
+/* No pads yet: a way into the Drum Rack, centred in the (empty) step area. */
+.eth-beats__hint {
+  flex: 1;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.eth-beats__corner {
+  border-right: var(--eth-border-width) solid var(--eth-color-border);
+}
+/* A block (not flex) so a long name ends in an ellipsis; centred by its line height. */
+.eth-beats__name {
+  align-self: stretch;
+  line-height: var(--eth-size-beat-row-height);
+  padding: 0 var(--eth-space-md);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border-right: var(--eth-border-width) solid var(--eth-color-border);
+}
+/* A fixed column ("C#-1" fits) so the names line up. */
+.eth-beats__note {
+  display: inline-block;
+  width: 4ch;
+  margin-right: var(--eth-space-sm);
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+  font-variant-numeric: tabular-nums;
+}
+.eth-beats__name--pad {
+  cursor: pointer;
+}
+.eth-beats__name--pad:hover {
+  color: var(--eth-color-accent);
+}
+.eth-beats__row--stray .eth-beats__name {
+  color: var(--eth-color-text-dim);
+}
+/* A row's step area: only space (the canvas above draws and takes the pointer). */
+.eth-beats__cells {
+  flex: 1;
+  min-width: 0;
+  align-self: stretch;
+  pointer-events: none;
+}
+/* The steps of every row: one canvas (BeatGrid / beatCanvas.ts) over the rows' step area. */
+.eth-beats__rows {
+  position: relative;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+}
+.eth-beats__canvas {
+  position: absolute;
+  z-index: 1;
+  top: 0;
+  left: var(--_name-w, var(--eth-size-beat-name-width));
+  right: 0;
+  width: calc(100% - var(--_name-w, var(--eth-size-beat-name-width)));
+  display: block;
+  touch-action: none;
+}

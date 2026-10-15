@@ -1,0 +1,21 @@
+{
+  "name": "ethereal",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@12.6.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "typecheck": "pnpm -r --if-present typecheck",
+    "lint": "pnpm -r --if-present lint",
+    "test": "pnpm -r --if-present test",
+    "build": "pnpm -r --if-present build",
+    "i18n": "pnpm --filter @ethereal/ui i18n",
+    "format": "prettier --write \"{ui,apps/web}/**/*.{ts,tsx,js,mjs,css}\"",
+    "format:check": "prettier --check \"{ui,apps/web}/**/*.{ts,tsx,js,mjs,css}\""
+  },
+  "devDependencies": {
+    "prettier": "3.6.2"
+  }
+}

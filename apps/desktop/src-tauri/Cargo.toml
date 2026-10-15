@@ -1,0 +1,64 @@
+[package]
+name = "ether-desktop"
+description = "Ethereal desktop app: thin Tauri v2 shell over ether-native."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish.workspace = true
+default-run = "ether-desktop"
+
+[lib]
+name = "ether_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[[bin]]
+name = "ether-desktop"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build.workspace = true
+
+[dependencies]
+ether-core.workspace = true
+ether-native.workspace = true
+# The agent bridge for `ether-mcp` (feature `mcp`).
+ether-server = { workspace = true, optional = true }
+assert_no_alloc.workspace = true
+tauri.workspace = true
+tauri-plugin-dialog.workspace = true
+tauri-plugin-fs.workspace = true
+# `ai-chat`: provider requests from Rust (no CORS), scoped (src/ai_http.rs). No cookie
+# jar; `unsafe-headers` only so the UI can drop the `Origin` header (local servers such as
+# Ollama refuse unknown origins), and the scope still limits where requests go.
+tauri-plugin-http = { workspace = true, features = ["rustls-tls", "http2", "system-proxy", "unsafe-headers"] }
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+# `path_drop`: forward Finder drops (file paths) to the UI.
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2.workspace = true
+objc2-foundation.workspace = true
+
+[dev-dependencies]
+# `ai_http` tests: the real ACL and HTTP plugin on the mock runtime.
+tauri = { workspace = true, features = ["test"] }
+
+[lints]
+workspace = true
+
+# Cargo features (feature-flags; docs/ARCHITECTURE.md "Cargo features"). The default is the
+# fast dev core (`just dev-desktop`); releases build `full` (`pnpm tauri build --features
+# full`, release.yml) and so do `just dev-desktop-full`, `just check-all` and `just test-all`.
+[features]
+default = []
+full = ["mcp", "ether-native/full"]
+# Agent bridge for `ether-mcp` ("Allow AI agents (MCP)"; `ether-server`). Off: enabling it
+# fails "not available in this build".
+mcp = ["dep:ether-server"]
+# Pass-throughs to `ether-native` (`just dev-desktop --features plugins`, ...).
+plugins = ["ether-native/plugins"]
+warp-complex = ["ether-native/warp-complex"]

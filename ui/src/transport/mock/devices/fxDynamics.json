@@ -1,0 +1,1280 @@
+{
+  "Gate": {
+    "audio_inputs": 2,
+    "audio_outputs": 2,
+    "category": "AudioEffect",
+    "device_type": {
+      "device": "Gate",
+      "type": "Builtin"
+    },
+    "layout": {
+      "sections": [
+        {
+          "columns": 4,
+          "id": "curve",
+          "items": [
+            {
+              "colspan": 3,
+              "label": null,
+              "size": "Large",
+              "widget": {
+                "floor": 2,
+                "input_gain": null,
+                "knee": null,
+                "level": 1,
+                "mode": 4,
+                "ratio": 3,
+                "threshold": 0,
+                "type": "DynamicsCurve"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": "GR",
+              "size": "Medium",
+              "widget": {
+                "index": 0,
+                "max_db": 0.0,
+                "min_db": -60.0,
+                "type": "Meter"
+              }
+            }
+          ],
+          "span": 3,
+          "title": "Gate"
+        },
+        {
+          "columns": 2,
+          "id": "gate",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 1,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 10,
+                "type": "Toggle"
+              }
+            }
+          ],
+          "span": 1,
+          "title": "Detector"
+        },
+        {
+          "columns": 4,
+          "id": "timing",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 5,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 6,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 7,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 8,
+                "type": "Knob"
+              }
+            }
+          ],
+          "span": 2,
+          "title": "Timing"
+        },
+        {
+          "columns": 1,
+          "id": "sidechain",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 9,
+                "type": "Knob"
+              }
+            }
+          ],
+          "span": 1,
+          "title": "Sidechain"
+        },
+        {
+          "columns": 1,
+          "id": "output",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 11,
+                "type": "Knob"
+              }
+            }
+          ],
+          "span": 1,
+          "title": "Output"
+        }
+      ]
+    },
+    "midi_input": false,
+    "name": "Gate",
+    "params": [
+      {
+        "automatable": true,
+        "default": -40.0,
+        "group": "Gate",
+        "hidden": false,
+        "id": 0,
+        "labels": null,
+        "max": 0.0,
+        "min": -80.0,
+        "name": "Threshold",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Decibels"
+      },
+      {
+        "automatable": true,
+        "default": 3.0,
+        "group": "Gate",
+        "hidden": false,
+        "id": 1,
+        "labels": null,
+        "max": 24.0,
+        "min": 0.0,
+        "name": "Return",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Decibels"
+      },
+      {
+        "automatable": true,
+        "default": -80.0,
+        "group": "Gate",
+        "hidden": false,
+        "id": 2,
+        "labels": null,
+        "max": 0.0,
+        "min": -80.0,
+        "name": "Floor",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Decibels"
+      },
+      {
+        "automatable": true,
+        "default": 4.0,
+        "group": "Gate",
+        "hidden": false,
+        "id": 3,
+        "labels": null,
+        "max": 20.0,
+        "min": 1.0,
+        "name": "Ratio",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Ratio"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Gate",
+        "hidden": false,
+        "id": 4,
+        "labels": [
+          "Gate",
+          "Expander"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Mode",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 0.5,
+        "group": "Timing",
+        "hidden": false,
+        "id": 5,
+        "labels": null,
+        "max": 100.0,
+        "min": 0.01,
+        "name": "Attack",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Milliseconds"
+      },
+      {
+        "automatable": true,
+        "default": 10.0,
+        "group": "Timing",
+        "hidden": false,
+        "id": 6,
+        "labels": null,
+        "max": 500.0,
+        "min": 0.0,
+        "name": "Hold",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Milliseconds"
+      },
+      {
+        "automatable": true,
+        "default": 100.0,
+        "group": "Timing",
+        "hidden": false,
+        "id": 7,
+        "labels": null,
+        "max": 2000.0,
+        "min": 1.0,
+        "name": "Release",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Milliseconds"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Timing",
+        "hidden": false,
+        "id": 8,
+        "labels": null,
+        "max": 10.0,
+        "min": 0.0,
+        "name": "Lookahead",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Milliseconds"
+      },
+      {
+        "automatable": true,
+        "default": 20.0,
+        "group": "Sidechain",
+        "hidden": false,
+        "id": 9,
+        "labels": null,
+        "max": 2000.0,
+        "min": 20.0,
+        "name": "Sidechain HPF",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Hertz"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Gate",
+        "hidden": false,
+        "id": 10,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Flip",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Output",
+        "hidden": false,
+        "id": 11,
+        "labels": null,
+        "max": 24.0,
+        "min": -24.0,
+        "name": "Output",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Decibels"
+      }
+    ],
+    "sidechain_inputs": 2
+  },
+  "MultibandCompressor": {
+    "audio_inputs": 2,
+    "audio_outputs": 2,
+    "category": "AudioEffect",
+    "device_type": {
+      "device": "MultibandCompressor",
+      "type": "Builtin"
+    },
+    "layout": {
+      "sections": [
+        {
+          "columns": 1,
+          "id": "crossover",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Large",
+              "widget": {
+                "frequencies": [
+                  0,
+                  1
+                ],
+                "type": "Crossover"
+              }
+            }
+          ],
+          "span": 4,
+          "title": "Crossover"
+        },
+        {
+          "columns": 4,
+          "id": "low",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 2,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 3,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 6,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": "GR",
+              "size": "Small",
+              "widget": {
+                "index": 0,
+                "max_db": 0.0,
+                "min_db": -24.0,
+                "type": "Meter"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 4,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 5,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 7,
+                "type": "Toggle"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 8,
+                "type": "Toggle"
+              }
+            }
+          ],
+          "span": 1,
+          "title": "Low"
+        },
+        {
+          "columns": 4,
+          "id": "mid",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 9,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 10,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 13,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": "GR",
+              "size": "Small",
+              "widget": {
+                "index": 1,
+                "max_db": 0.0,
+                "min_db": -24.0,
+                "type": "Meter"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 11,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 12,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 14,
+                "type": "Toggle"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 15,
+                "type": "Toggle"
+              }
+            }
+          ],
+          "span": 1,
+          "title": "Mid"
+        },
+        {
+          "columns": 4,
+          "id": "high",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 16,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 17,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 20,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": "GR",
+              "size": "Small",
+              "widget": {
+                "index": 2,
+                "max_db": 0.0,
+                "min_db": -24.0,
+                "type": "Meter"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 18,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 19,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 21,
+                "type": "Toggle"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 22,
+                "type": "Toggle"
+              }
+            }
+          ],
+          "span": 1,
+          "title": "High"
+        },
+        {
+          "columns": 1,
+          "id": "output",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 23,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 24,
+                "type": "Knob"
+              }
+            }
+          ],
+          "span": 1,
+          "title": "Output"
+        }
+      ]
+    },
+    "midi_input": false,
+    "name": "Multiband Compressor",
+    "params": [
+      {
+        "automatable": true,
+        "default": 200.0,
+        "group": "Crossover",
+        "hidden": false,
+        "id": 0,
+        "labels": null,
+        "max": 1000.0,
+        "min": 20.0,
+        "name": "Low / Mid",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Hertz"
+      },
+      {
+        "automatable": true,
+        "default": 2500.0,
+        "group": "Crossover",
+        "hidden": false,
+        "id": 1,
+        "labels": null,
+        "max": 16000.0,
+        "min": 500.0,
+        "name": "Mid / High",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Hertz"
+      },
+      {
+        "automatable": true,
+        "default": -20.0,
+        "group": "Low",
+        "hidden": false,
+        "id": 2,
+        "labels": null,
+        "max": 0.0,
+        "min": -60.0,
+        "name": "Threshold",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Decibels"
+      },
+      {
+        "automatable": true,
+        "default": 3.0,
+        "group": "Low",
+        "hidden": false,
+        "id": 3,
+        "labels": null,
+        "max": 20.0,
+        "min": 1.0,
+        "name": "Ratio",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Ratio"
+      },
+      {
+        "automatable": true,
+        "default": 10.0,
+        "group": "Low",
+        "hidden": false,
+        "id": 4,
+        "labels": null,
+        "max": 200.0,
+        "min": 0.1,
+        "name": "Attack",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Milliseconds"
+      },
+      {
+        "automatable": true,
+        "default": 150.0,
+        "group": "Low",
+        "hidden": false,
+        "id": 5,
+        "labels": null,
+        "max": 2000.0,
+        "min": 5.0,
+        "name": "Release",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Milliseconds"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Low",
+        "hidden": false,
+        "id": 6,
+        "labels": null,
+        "max": 24.0,
+        "min": 0.0,
+        "name": "Makeup",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Decibels"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Low",
+        "hidden": false,
+        "id": 7,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Solo",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Low",
+        "hidden": false,
+        "id": 8,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Bypass",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      },
+      {
+        "automatable": true,
+        "default": -20.0,
+        "group": "Mid",
+        "hidden": false,
+        "id": 9,
+        "labels": null,
+        "max": 0.0,
+        "min": -60.0,
+        "name": "Threshold",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Decibels"
+      },
+      {
+        "automatable": true,
+        "default": 3.0,
+        "group": "Mid",
+        "hidden": false,
+        "id": 10,
+        "labels": null,
+        "max": 20.0,
+        "min": 1.0,
+        "name": "Ratio",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Ratio"
+      },
+      {
+        "automatable": true,
+        "default": 10.0,
+        "group": "Mid",
+        "hidden": false,
+        "id": 11,
+        "labels": null,
+        "max": 200.0,
+        "min": 0.1,
+        "name": "Attack",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Milliseconds"
+      },
+      {
+        "automatable": true,
+        "default": 150.0,
+        "group": "Mid",
+        "hidden": false,
+        "id": 12,
+        "labels": null,
+        "max": 2000.0,
+        "min": 5.0,
+        "name": "Release",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Milliseconds"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Mid",
+        "hidden": false,
+        "id": 13,
+        "labels": null,
+        "max": 24.0,
+        "min": 0.0,
+        "name": "Makeup",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Decibels"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Mid",
+        "hidden": false,
+        "id": 14,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Solo",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Mid",
+        "hidden": false,
+        "id": 15,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Bypass",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      },
+      {
+        "automatable": true,
+        "default": -20.0,
+        "group": "High",
+        "hidden": false,
+        "id": 16,
+        "labels": null,
+        "max": 0.0,
+        "min": -60.0,
+        "name": "Threshold",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Decibels"
+      },
+      {
+        "automatable": true,
+        "default": 3.0,
+        "group": "High",
+        "hidden": false,
+        "id": 17,
+        "labels": null,
+        "max": 20.0,
+        "min": 1.0,
+        "name": "Ratio",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Ratio"
+      },
+      {
+        "automatable": true,
+        "default": 10.0,
+        "group": "High",
+        "hidden": false,
+        "id": 18,
+        "labels": null,
+        "max": 200.0,
+        "min": 0.1,
+        "name": "Attack",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Milliseconds"
+      },
+      {
+        "automatable": true,
+        "default": 150.0,
+        "group": "High",
+        "hidden": false,
+        "id": 19,
+        "labels": null,
+        "max": 2000.0,
+        "min": 5.0,
+        "name": "Release",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Milliseconds"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "High",
+        "hidden": false,
+        "id": 20,
+        "labels": null,
+        "max": 24.0,
+        "min": 0.0,
+        "name": "Makeup",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Decibels"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "High",
+        "hidden": false,
+        "id": 21,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Solo",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "High",
+        "hidden": false,
+        "id": 22,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Bypass",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Output",
+        "hidden": false,
+        "id": 23,
+        "labels": null,
+        "max": 24.0,
+        "min": -24.0,
+        "name": "Output",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Decibels"
+      },
+      {
+        "automatable": true,
+        "default": 100.0,
+        "group": "Output",
+        "hidden": false,
+        "id": 24,
+        "labels": null,
+        "max": 100.0,
+        "min": 0.0,
+        "name": "Mix",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Percent"
+      }
+    ],
+    "sidechain_inputs": 2
+  },
+  "TransientShaper": {
+    "audio_inputs": 2,
+    "audio_outputs": 2,
+    "category": "AudioEffect",
+    "device_type": {
+      "device": "TransientShaper",
+      "type": "Builtin"
+    },
+    "layout": {
+      "sections": [
+        {
+          "columns": 2,
+          "id": "shaper",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Large",
+              "widget": {
+                "param": 0,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Large",
+              "widget": {
+                "param": 1,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 2,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 3,
+                "type": "Knob"
+              }
+            }
+          ],
+          "span": 2,
+          "title": "Shaper"
+        },
+        {
+          "columns": 1,
+          "id": "meter",
+          "items": [
+            {
+              "colspan": 1,
+              "label": "Shaping",
+              "size": "Small",
+              "widget": {
+                "index": 0,
+                "max_db": 18.0,
+                "min_db": -18.0,
+                "type": "Meter"
+              }
+            }
+          ],
+          "span": 1,
+          "title": "Gain"
+        },
+        {
+          "columns": 1,
+          "id": "output",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 5,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 6,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 4,
+                "type": "Toggle"
+              }
+            }
+          ],
+          "span": 1,
+          "title": "Output"
+        }
+      ]
+    },
+    "midi_input": false,
+    "name": "Transient Shaper",
+    "params": [
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Shaper",
+        "hidden": false,
+        "id": 0,
+        "labels": null,
+        "max": 100.0,
+        "min": -100.0,
+        "name": "Attack",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Percent"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Shaper",
+        "hidden": false,
+        "id": 1,
+        "labels": null,
+        "max": 100.0,
+        "min": -100.0,
+        "name": "Sustain",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Percent"
+      },
+      {
+        "automatable": true,
+        "default": 10.0,
+        "group": "Shaper",
+        "hidden": false,
+        "id": 2,
+        "labels": null,
+        "max": 50.0,
+        "min": 1.0,
+        "name": "Attack Time",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Milliseconds"
+      },
+      {
+        "automatable": true,
+        "default": 100.0,
+        "group": "Shaper",
+        "hidden": false,
+        "id": 3,
+        "labels": null,
+        "max": 500.0,
+        "min": 10.0,
+        "name": "Release Time",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Milliseconds"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Output",
+        "hidden": false,
+        "id": 4,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Clip",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Output",
+        "hidden": false,
+        "id": 5,
+        "labels": null,
+        "max": 24.0,
+        "min": -24.0,
+        "name": "Output",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Decibels"
+      },
+      {
+        "automatable": true,
+        "default": 100.0,
+        "group": "Output",
+        "hidden": false,
+        "id": 6,
+        "labels": null,
+        "max": 100.0,
+        "min": 0.0,
+        "name": "Mix",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Percent"
+      }
+    ],
+    "sidechain_inputs": 0
+  }
+}

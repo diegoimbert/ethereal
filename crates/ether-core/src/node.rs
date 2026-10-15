@@ -1,0 +1,154 @@
+//! Processing nodes: the [`Node`] trait (anything in the graph) and [`Device`] (a
+//! user-facing node with parameters and a descriptor: built-in devices, plugins).
+
+use ether_protocol::devices::DeviceDescriptor;
+use ether_protocol::model::ParamId;
+use serde::{Deserialize, Serialize};
+
+use crate::analysis::AnalysisSink;
+use crate::buffer::AudioBuffers;
+use crate::config::PrepareConfig;
+use crate::event::{EventBuffer, ProcessEvent};
+use crate::transport::TransportInfo;
+
+/// Handle to a node inserted into the engine (slot index + generation, so stale keys are
+/// detected). Allocated by [`crate::EngineHandle::add_node`]; referenced from
+/// [`crate::RenderGraphDesc`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+pub struct NodeKey {
+    pub index: u32,
+    pub generation: u32,
+}
+
+/// Everything a node sees during one `process` call.
+pub struct ProcessContext<'a> {
+    pub sample_rate: f32,
+    /// Number of frames in this (sub-)block, `<= max_block_size`. The scheduler splits
+    /// blocks at loop points and tempo-segment boundaries, so transport info is linear
+    /// within a call.
+    pub frames: usize,
+    pub transport: &'a TransportInfo,
+    /// Input events for this node, sorted by `offset`, all `< frames`.
+    pub events: &'a [ProcessEvent],
+    /// Output events (note effects, plugins' MIDI out). Pre-allocated; may overflow.
+    pub out_events: &'a mut EventBuffer,
+}
+
+/// Non-parameter data for a live node ([`Node::set_data`], `EngineHandle::set_node_data`):
+/// built off the audio thread, downcast by the node (`data.downcast::<T>()`).
+pub type NodeData = Box<dyn std::any::Any + Send>;
+
+/// Return value of [`Node::process`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ProcessStatus {
+    /// Outputs contain signal.
+    Continue,
+    /// Outputs are silent and will stay silent until new input/events arrive. The engine
+    /// then skips the node (silent output) while its input stays digital silence and no
+    /// event reaches it (perf audit #5; `Engine::set_silence_skipping`), so only return it
+    /// once nothing the node holds (delay lines, reverb tails, LFO-driven sound) can still
+    /// come out, and never from a node that makes sound or events out of nothing.
+    Silent,
+}
+
+/// A real-time audio processor.
+///
+/// Lifecycle: constructed + [`Node::prepare`]d on a non-RT thread, then moved to the audio
+/// thread (hence `Send`); `process`/`reset` run on the audio thread and must obey the RT
+/// rules (no alloc, locks, I/O, unbounded work); finally sent back and dropped on the GC
+/// thread.
+pub trait Node: Send {
+    /// Non-RT. Allocate buffers for `config`. Called before the node's first `process` and
+    /// again if the config changes (after being taken out of the graph).
+    fn prepare(&mut self, config: &PrepareConfig);
+
+    /// RT-safe. Clear internal state (voices, delay lines) e.g. on transport jumps.
+    fn reset(&mut self);
+
+    /// RT-safe. Render `ctx.frames` samples.
+    fn process(
+        &mut self,
+        ctx: &mut ProcessContext<'_>,
+        audio: &mut AudioBuffers<'_, '_>,
+    ) -> ProcessStatus;
+
+    /// Latency in samples introduced by this node (for plugin delay compensation). May
+    /// change; the controller re-publishes the graph when it does.
+    fn latency(&self) -> u32 {
+        0
+    }
+
+    /// Main input / output channel counts.
+    fn channels(&self) -> (u16, u16) {
+        (2, 2)
+    }
+
+    /// RT-safe. Take non-parameter data (roadmap v2, e.g. `ether_model::SliceSettings` for
+    /// the sampler) sent with `EngineHandle::set_node_data`. Swap it in without allocating
+    /// or freeing and return the replaced data (dropped on the GC thread); return `Some(data)`
+    /// unchanged to reject it (the default).
+    fn set_data(&mut self, data: NodeData) -> Option<NodeData> {
+        Some(data)
+    }
+
+    /// RT. Polled while the engine skips this node (it returned [`ProcessStatus::Silent`],
+    /// its input stays silent and no event reaches it; perf audit #5), once per block:
+    /// `true` processes it anyway (e.g. a CLAP plugin's `request_process`). Default: no.
+    fn wake_requested(&mut self) -> bool {
+        false
+    }
+
+    /// Roadmap v2 (`sidechain`): channels of the sidechain input (0 = none; the engine then
+    /// never calls [`Node::process_sidechain`]). Must match
+    /// `DeviceDescriptor::sidechain_inputs`.
+    fn sidechain_inputs(&self) -> u16 {
+        0
+    }
+
+    /// RT-safe. [`Node::process`] with the sidechain signal (`sidechain_inputs()` planar
+    /// channels of `ctx.frames` samples, already latency-aligned with `audio`). Called
+    /// instead of `process` when the chain entry has a sidechain source; nodes with a
+    /// sidechain input override it. Default: ignore the sidechain.
+    fn process_sidechain(
+        &mut self,
+        ctx: &mut ProcessContext<'_>,
+        audio: &mut AudioBuffers<'_, '_>,
+        sidechain: &[&[f32]],
+    ) -> ProcessStatus {
+        let _ = sidechain;
+        self.process(ctx, audio)
+    }
+
+    /// v0.2 analysis channel ([`crate::analysis`]): whether this node produces analysis
+    /// frames. Queried once (on the audio thread) when the node is added to the engine.
+    fn has_analysis(&self) -> bool {
+        false
+    }
+
+    /// RT. Write this pass's analysis frames into `out` (up to
+    /// [`crate::analysis::ANALYSIS_FRAMES_PER_PASS`], e.g. the EQ's pre and post spectrum;
+    /// `AnalysisSink::frame(kind)` hands out the next pre-allocated frame, `node` is set by
+    /// the engine); write none for nothing new. Called while the node is watched, at most
+    /// [`crate::analysis::ANALYSIS_HZ`] times per second, after `process`, on the audio
+    /// thread. Copy only: compute in `process`.
+    fn analysis(&mut self, out: &mut AnalysisSink<'_>) {
+        let _ = out;
+    }
+}
+
+/// A node with parameters and a descriptor (built-in devices, plugins).
+///
+/// Parameter values are *plain* (see `ParamInfo`). During playback all changes arrive as
+/// `EventKind::Param` events in `ProcessContext::events` (sample-accurate, from UI or
+/// automation); [`Device::set_param`] is for initial state before insertion (non-RT) or
+/// RT-safe immediate sets.
+pub trait Device: Node {
+    /// Non-RT. Static description incl. parameter list.
+    fn descriptor(&self) -> DeviceDescriptor;
+
+    /// Current plain value (for UI readback / state save).
+    fn param(&self, id: ParamId) -> Option<f64>;
+
+    /// RT-safe. Set immediately (no smoothing).
+    fn set_param(&mut self, id: ParamId, value: f64);
+}

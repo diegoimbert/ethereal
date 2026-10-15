@@ -1,0 +1,140 @@
+{
+  "format": "ethereal-preset",
+  "version": 2,
+  "app_version": "0.6.0",
+  "preset": {
+    "name": "bass bus",
+    "device": {
+      "type": "Builtin",
+      "device": "AudioEffectRack"
+    },
+    "meta": {
+      "tags": [
+        "bass",
+        "bus",
+        "grit"
+      ],
+      "author": "ethereal",
+      "description": "steady, thick bass: a 30 Hz low cut, a firm 4:1 compressor and tube grit blended in. macro 1 adds grit."
+    },
+    "params": {
+      "0": 0.0,
+      "1": 0.0,
+      "2": 0.0,
+      "3": 0.0,
+      "4": 0.0,
+      "5": 0.0,
+      "6": 0.0,
+      "7": 0.0,
+      "8": 0.0
+    },
+    "kind": null,
+    "state": null,
+    "rack": {
+      "chains": [
+        {
+          "name": "bass",
+          "color": null,
+          "volume": 0.0,
+          "pan": 0.0,
+          "mute": false,
+          "solo": false,
+          "keys": {
+            "lo": 0,
+            "hi": 127
+          },
+          "velocities": {
+            "lo": 0,
+            "hi": 127
+          },
+          "select": {
+            "lo": 0,
+            "hi": 127
+          },
+          "devices": [
+            {
+              "name": "clean",
+              "enabled": true,
+              "device": {
+                "type": "Builtin",
+                "device": "Eq"
+              },
+              "params": {
+                "0": 1.0,
+                "1": 0.0,
+                "2": 30.0,
+                "3": 0.0,
+                "4": 0.7071,
+                "5": 0.0,
+                "10": 1.0,
+                "11": 2.0,
+                "12": 250.0,
+                "13": -2.0,
+                "14": 1.0,
+                "15": 0.0,
+                "20": 0.0,
+                "25": 0.0,
+                "30": 0.0,
+                "35": 0.0,
+                "40": 0.0
+              },
+              "kind": null,
+              "state": null
+            },
+            {
+              "name": "level",
+              "enabled": true,
+              "device": {
+                "type": "Builtin",
+                "device": "Compressor"
+              },
+              "params": {
+                "0": -20.0,
+                "1": 4.0,
+                "2": 20.0,
+                "3": 150.0,
+                "4": 3.0,
+                "7": 6.0
+              },
+              "kind": null,
+              "state": null
+            },
+            {
+              "name": "grit",
+              "enabled": true,
+              "device": {
+                "type": "Builtin",
+                "device": "Saturator"
+              },
+              "params": {
+                "0": 2.0,
+                "1": 8.0,
+                "3": -10.0,
+                "5": 1.0,
+                "7": 30.0
+              },
+              "kind": null,
+              "state": null
+            }
+          ]
+        }
+      ],
+      "modulators": [],
+      "mappings": [
+        {
+          "source": {
+            "type": "Macro",
+            "index": 0
+          },
+          "target": {
+            "type": "ChainDevice",
+            "chain": 0,
+            "device": 2
+          },
+          "param": 7,
+          "depth": 0.5
+        }
+      ]
+    }
+  }
+}

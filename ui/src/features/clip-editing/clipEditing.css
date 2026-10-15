@@ -1,0 +1,89 @@
+/* Clip editing: the marker lane (the arranger canvas draws fades, crossfades and badges).
+   Tokens only (docs/DESIGN-SYSTEM.md). */
+
+/* ─── Marker lane ───────────────────────────────────────────────────────────────────── */
+
+/* The arrangement's loop brace on its own strip above the markers (LoopBrace). */
+.eth-loop-strip {
+  display: flex;
+  height: calc(var(--eth-size-ruler-loop-height) + var(--eth-space-xs));
+  background: var(--eth-color-bg-inset);
+}
+.eth-loop-strip__corner {
+  flex: none;
+}
+.eth-loop-strip__lane {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.eth-markers {
+  display: flex;
+  height: var(--eth-size-row-height-sm);
+  border-bottom: var(--eth-border-width) solid var(--eth-color-border);
+  background: var(--eth-color-bg-inset);
+  user-select: none;
+}
+
+.eth-markers__corner {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--eth-space-xs);
+  box-sizing: border-box;
+  padding: 0 var(--eth-space-sm);
+  font-size: var(--eth-fs-xs);
+  color: var(--eth-color-text-dim);
+  border-right: var(--eth-border-width) solid var(--eth-color-border);
+}
+
+.eth-markers__lane {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  cursor: copy;
+}
+
+/* Tempo and signature changes in the lane (TempoMapMarkers): their chips across its height. */
+.eth-markers__lane .eth-ruler-tempo__stop {
+  top: 0;
+  align-items: center;
+}
+
+.eth-markers__marker {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  max-width: var(--eth-size-sidebar-min-width);
+  padding: 0 var(--eth-space-xs);
+  border-left: var(--eth-border-width-strong) solid var(--eth-marker-color, var(--eth-color-warn));
+  background: color-mix(in srgb, var(--eth-marker-color, var(--eth-color-warn)) 25%, var(--eth-color-bg-inset));
+  color: var(--eth-color-text);
+  font-size: var(--eth-fs-xs);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: grab;
+}
+
+.eth-markers__marker:hover {
+  background: color-mix(in srgb, var(--eth-marker-color, var(--eth-color-warn)) 45%, var(--eth-color-bg-inset));
+}
+
+.eth-markers__marker--dragging {
+  cursor: grabbing;
+  z-index: 1;
+}
+
+.eth-markers__rename {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 2;
+}

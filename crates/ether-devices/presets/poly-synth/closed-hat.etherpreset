@@ -1,0 +1,38 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.6.0",
+  "preset": {
+    "name": "closed hat",
+    "device": {
+      "type": "Builtin",
+      "device": "PolySynth"
+    },
+    "meta": {
+      "tags": [
+        "drums",
+        "hi-hat"
+      ],
+      "author": "ethereal",
+      "description": "short bright noise tick, for a drum rack pad."
+    },
+    "params": {
+      "6": -70.0,
+      "16": 0.0,
+      "17": 100.0,
+      "21": 1.0,
+      "22": 1.0,
+      "25": 2.0,
+      "26": 7500.0,
+      "27": 10.0,
+      "31": 0.0,
+      "32": 45.0,
+      "33": 0.0,
+      "34": 35.0,
+      "57": -3.0,
+      "58": 50.0
+    },
+    "kind": null,
+    "state": null
+  }
+}

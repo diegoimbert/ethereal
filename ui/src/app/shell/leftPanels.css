@@ -1,0 +1,4 @@
+/* Left rail extras. Tokens only (scanned by hardcoded.test.ts). */
+.eth-rail__spacer {
+  flex: 1;
+}

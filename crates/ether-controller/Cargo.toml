@@ -1,0 +1,40 @@
+[package]
+name = "ether-controller"
+description = "Controller: commands to ops to model to patches; model to render snapshot."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[dependencies]
+ether-core.workspace = true
+ether-model.workspace = true
+ether-protocol.workspace = true
+ether-media.workspace = true
+ether-devices.workspace = true
+symphonia.workspace = true
+rubato.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+# base-145: library file filters.
+regex.workspace = true
+# export: WAV/FLAC/MP3 encoding.
+hound.workspace = true
+flacenc.workspace = true
+rusty_mp3.workspace = true
+
+[build-dependencies]
+# build.rs: the English undo labels from the UI's catalog (docs/LOCALIZATION.md).
+serde_json.workspace = true
+
+[lints]
+workspace = true
+
+# Cargo features (feature-flags; docs/ARCHITECTURE.md "Cargo features"). The default is the
+# fast dev core; release builds and the gates use `full` (or `--all-features`).
+[features]
+default = []
+# Everything below: what the shipped apps build.
+full = []

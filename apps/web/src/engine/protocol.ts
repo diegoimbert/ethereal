@@ -1,0 +1,55 @@
+// Messages between the main thread, the controller Worker and the OPFS Worker, plus the
+// shared-buffer sizes. (Worker ↔ Worklet traffic goes through the SAB rings, in Rust.)
+
+/** Ring layout: 16 header bytes + a power-of-two data area (crates/ether-wasm/src/ring.rs). */
+export const RING_HEADER_BYTES = 16;
+/** Control ring (graph snapshots, params, transport, decoded media), Worker → Worklet. */
+export const CONTROL_RING_BYTES = 4 * 1024 * 1024;
+/** Report ring (playhead, meters, errors), Worklet → Worker. */
+export const REPORT_RING_BYTES = 256 * 1024;
+/** Sync-FS response buffer: 16 header bytes + chunk area. */
+export const FS_HEADER_BYTES = 16;
+export const FS_CHUNK_BYTES = 1024 * 1024;
+
+export function ringBuffer(dataBytes: number): SharedArrayBuffer {
+  return new SharedArrayBuffer(RING_HEADER_BYTES + dataBytes);
+}
+
+/** Main → controller Worker. */
+export type ToController =
+  | {
+      type: "init";
+      module: WebAssembly.Module;
+      control: SharedArrayBuffer;
+      reports: SharedArrayBuffer;
+      fsBuffer: SharedArrayBuffer;
+      fsPort: MessagePort;
+      seed: string;
+      /** AudioContext sample rate (the engine's rate). */
+      sampleRate: number;
+      /**
+       * One Int32: how many `client` messages the Worker has handled (#565: a closing page
+       * waits for its last save, `WasmEndpoint.drain`).
+       */
+      handled: SharedArrayBuffer;
+    }
+  | { type: "client"; json: string };
+
+/** Controller Worker → main. */
+export type FromController = { type: "ready" } | { type: "server"; json: string } | { type: "fatal"; message: string };
+
+/** Sync-FS request, controller Worker → OPFS Worker (answered through the fs buffer). */
+export type FsOp = "read" | "write" | "rename" | "list" | "mkdir" | "remove" | "stat" | "readRange";
+export interface FsRequest {
+  op: FsOp;
+  path: string;
+  /** `rename` destination. */
+  to?: string;
+  /** `write` payload. */
+  bytes?: Uint8Array;
+  /** `readRange`: byte offset and length (audio-streaming reads media in chunks). */
+  offset?: number;
+  length?: number;
+  /** Echoed in the reply (see ./fsWire.ts). */
+  seq: number;
+}
