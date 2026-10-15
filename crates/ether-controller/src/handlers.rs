@@ -288,9 +288,9 @@ where
             Command::MidiMap(c) => self.midi_map_command(c, out),
             // Collaboration is private (the overlay). `SetPresence` is a local selection
             // notification the agent tools read (`agent_observe`); keep it a no-op.
-            Command::Collab(ether_core::protocol::collab::CollabCommand::SetPresence { .. }) => {
-                Ok(ReplyValue::Unit)
-            }
+            Command::Collab(ether_core::protocol::collab::CollabCommand::SetPresence {
+                ..
+            }) => Ok(ReplyValue::Unit),
             Command::Collab(_) => Err(unsupported("collaboration is not available in this build")),
             // v0.2 (contracts-3; document parts of `Take`, `Rack`, `Modulation` and the new
             // `Track` commands go through `doc::apply`).

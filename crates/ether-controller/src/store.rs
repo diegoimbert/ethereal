@@ -488,5 +488,3 @@ pub fn file_kind(name: &str) -> ether_core::protocol::media::FileKind {
         FileKind::Other
     }
 }
-
-

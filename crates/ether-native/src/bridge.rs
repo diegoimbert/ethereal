@@ -1658,7 +1658,6 @@ mod tests {
         }
     }
 
-
     // ─── external-instrument ───
 
     /// Records what the MIDI thread sends, with the time.

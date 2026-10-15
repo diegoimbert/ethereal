@@ -449,11 +449,7 @@ mod tests {
         assert!(parse(&["a", "b", "c"]).is_err());
         assert_eq!(
             formats().formats(),
-            [
-                PluginFormat::Clap,
-                PluginFormat::Vst3,
-                PluginFormat::Au
-            ]
+            [PluginFormat::Clap, PluginFormat::Vst3, PluginFormat::Au]
         );
     }
 }
