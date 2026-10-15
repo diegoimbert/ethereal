@@ -202,6 +202,10 @@ Ethereal is licensed under the **GNU Affero General Public License, version 3 or
 available for those who need it (contact [@diegoimbert](https://github.com/diegoimbert)); see
 [LICENSING.md](LICENSING.md) for the dual-licensing model.
 
+See [CONTRIBUTING.md](CONTRIBUTING.md) for how to set up a checkout, what CI expects and how
+to get a change merged. Everyone taking part agrees to the
+[Code of Conduct](CODE_OF_CONDUCT.md).
+
 Contributions require signing the [Contributor License Agreement](CLA.md), which is enforced
 automatically on pull requests (the `CLA` check must pass before a pull request can merge).
 
