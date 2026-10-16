@@ -131,7 +131,7 @@ mod tests {
             .plugin(tauri_plugin_http::init())
             .manage(AiHttpScope::default())
             .invoke_handler(tauri::generate_handler![ai_http_allow])
-            .build(tauri::test::mock_context(tauri::test::noop_assets()))
+            .build(tauri::generate_context!())
             .expect("mock app");
         let window = match app.get_webview_window("main") {
             Some(w) => w,
