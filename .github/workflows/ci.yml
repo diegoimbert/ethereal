@@ -34,7 +34,10 @@ jobs:
       - name: clippy
         run: cargo clippy --workspace --all-targets --all-features -- -D warnings
       - name: test
-        run: cargo test --workspace --all-features
+        # `ether-desktop`'s test build links `run`'s `generate_context!` and the ai_http test's;
+        # on macOS the two `_EMBED_INFO_PLIST` symbols fail to link. Its tests run in the OSS
+        # job on Linux instead.
+        run: cargo test --workspace --all-features --exclude ether-desktop
       - name: wasm32 check
         run: cargo check --target wasm32-unknown-unknown -p ether-protocol -p ether-model -p ether-core -p ether-devices -p ether-media -p ether-controller -p ether-stretch -p ether-wasm --all-features
 

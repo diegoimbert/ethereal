@@ -432,11 +432,6 @@ fn open_in_browser(url: &str) -> std::io::Result<()> {
 
 /// Entry point shared by the binary (and mobile targets, should they ever exist).
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
-/// Runs the desktop app.
-///
-/// Excluded from the test build: its `generate_context!` and the test context's would both emit
-/// the macOS `_EMBED_INFO_PLIST` symbol, which fails to link ("already defined").
-#[cfg(not(test))]
 pub fn run() {
     let _ = MAIN_THREAD.set(std::thread::current().id());
     init_tracing();
