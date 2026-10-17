@@ -142,7 +142,10 @@ jobs:
       - name: clippy
         run: cargo clippy --workspace --all-targets --all-features -- -D warnings
       - name: test
-        run: cargo nextest run --profile ci --workspace --all-features
+        # `ether-desktop`'s test binaries link the Tauri app, which needs the Common Controls v6
+        # manifest an installed app carries; bare, they don't start (0xc0000139). Its tests run on
+        # Linux, and the Windows packaging job builds and bundles it.
+        run: cargo nextest run --profile ci --workspace --all-features --exclude ether-desktop
 
   # --- Web ----------------------------------------------------------------------------------
 
@@ -391,9 +394,12 @@ jobs:
       - uses: taiki-e/install-action@8cca0918f8471c33515202b73f56ab27f2bed283 # v2.87.29
         with:
           tool: cargo-deny@0.20.2
-      - uses: taiki-e/install-action@8cca0918f8471c33515202b73f56ab27f2bed283 # v2.87.29
-        with:
-          tool: actionlint@1.7.12
+      - name: Install actionlint 1.7.12 (checksum-verified release)
+        run: |
+          curl -sSfL -o "$RUNNER_TEMP/actionlint.tgz" https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz
+          echo "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8  $RUNNER_TEMP/actionlint.tgz" | sha256sum -c -
+          tar -xzf "$RUNNER_TEMP/actionlint.tgz" -C "$RUNNER_TEMP" actionlint
+          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
       - uses: taiki-e/install-action@8cca0918f8471c33515202b73f56ab27f2bed283 # v2.87.29
         with:
           tool: cargo-bundle-licenses@4.2.0

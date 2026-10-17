@@ -80,6 +80,23 @@ test("export a bundle, then import it back with its media", async ({ page }) => 
   await page.keyboard.press("ControlOrMeta+i");
   await (await chooser).setFiles([{ name: "Pad.wav", mimeType: "audio/wav", buffer: sineWav(0.5) }]);
   await expect.poll(async () => Object.keys((await state(page)).project.media).length, { timeout: 20_000 }).toBe(1);
+  // The media lands first; its track and clip follow. Settled: two reads in a row agree.
+  const shape = async () => {
+    const p = (await state(page)).project;
+    return JSON.stringify([Object.keys(p.tracks).sort(), Object.keys(p.clips).sort()]);
+  };
+  let last = "";
+  await expect
+    .poll(
+      async () => {
+        const now = await shape();
+        const settled = now === last && (JSON.parse(now) as string[][])[1]!.length > 0;
+        last = now;
+        return settled;
+      },
+      { timeout: 20_000, intervals: [250] },
+    )
+    .toBe(true);
   const original = (await state(page)).project;
 
   // Export: a browser download of a ZIP-based .ether file.

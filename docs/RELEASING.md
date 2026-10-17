@@ -49,8 +49,8 @@ guide; GitHub's generated changelog follows. It is what the download page and th
 
 ### Before a release (required)
 
-CI runs most of these on every PR; run them locally too, especially the e2e and tours, which
-CI does not run:
+CI runs these on every PR (the e2e and tours too, except the `@frames` and `@pixels` specs,
+which only hold on the devbox); run them locally before a release anyway:
 
 - `just check-all` and the test suites (`check-all` starts with `just check-case-clashes`:
   tracked paths or TS module names that differ only in case break macOS/Windows builds).
