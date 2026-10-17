@@ -130,8 +130,16 @@ export async function selectClip(page: Page, clipId: string, modifiers: Array<"S
 
 /** Opens a clip's context menu (a right-click on its title bar). */
 export async function clipMenu(page: Page, clipId: string): Promise<void> {
-  const p = await clipPoint(page, clipId);
-  await page.mouse.click(p.x, p.y, { button: "right" });
+  // A clip that just appeared (flattened, bounced) can still move while the rows settle: aim
+  // once its rect holds still, and press again if no menu opened.
+  await expect(async () => {
+    const at = await clipPoint(page, clipId);
+    await page.waitForTimeout(100);
+    const p = await clipPoint(page, clipId);
+    expect(p).toEqual(at);
+    await page.mouse.click(p.x, p.y, { button: "right" });
+    await expect(page.getByRole("menu")).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 20_000 });
 }
 
 /**

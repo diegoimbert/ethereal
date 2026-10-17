@@ -95,7 +95,7 @@ fn user_folder_index_import_preview_and_restart() {
         json!({"type": "Import", "id": id, "source": item["source"].clone()}),
     )["media"]
         .clone();
-    let abs = folder.join("Loops/Beat Am 100bpm.wav");
+    let abs = folder.join("Loops").join("Beat Am 100bpm.wav");
     assert_eq!(
         media["location"],
         json!({"type": "External", "path": abs.to_str().unwrap()})
@@ -178,7 +178,7 @@ fn imported_folder_copy_index_restart_and_remove() {
         .clone();
     assert_eq!(folder["name"], "Field Recordings");
     let root = folder["id"].as_str().unwrap().to_string();
-    let dir = tmp.path().join("Imported Folders/Field Recordings");
+    let dir = tmp.path().join("Imported Folders").join("Field Recordings");
     assert_eq!(folder["path"], dir.to_str().unwrap());
 
     let rain = wav(48_000, &[sine(48_000, 330.0, 12_000, 0.5)]);

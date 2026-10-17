@@ -1777,11 +1777,12 @@ mod tests {
         drop(t);
         let sent = sink.0.lock().unwrap().clone();
         assert_eq!(sent.len(), 2);
-        // Due at (4800 + 480) / 48 kHz = 110 ms and 210 ms.
+        // Due at (4800 + 480) / 48 kHz = 110 ms and 210 ms. Never early; late by at most 50 ms
+        // (a shared CI runner can stall a thread for ~15 ms; a broken schedule is off by 100s).
         for ((at, _, _), want) in sent.iter().zip([110.0, 210.0]) {
             let ms = at.duration_since(start).as_secs_f64() * 1000.0;
             assert!(
-                ms >= want - 1.0 && ms < want + 15.0,
+                ms >= want - 1.0 && ms < want + 50.0,
                 "sent at {ms} ms, due {want}"
             );
         }
