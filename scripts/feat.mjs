@@ -10,10 +10,11 @@
 //                                                   cross-linked; start the full build
 //   just feat update                                merge main into OSS x (and EE main into EE x)
 //   just feat status                                branches, pointers, PRs, checks, warnings
-//   just feat ship [x] [--admin] [--force] [--no-build] [--ignore-ee-checks] [--timeout <min>] [--takeover]
-//                                                   under a global lock: bring both sides up to
-//                                                   date, wait for every check, merge EE, point
-//                                                   OSS x at EE main, merge OSS
+//   just feat ship [x] [--admin] [--force] [--no-build] [--ignore-ee-checks] [--timeout <min>] [--takeover] [--log F]
+//                                                   bring both sides up to date and wait for every
+//                                                   check, then under a global lock: update again
+//                                                   (re-wait only if the trees changed), merge EE,
+//                                                   point OSS x at EE main, merge OSS
 //   just feat sync [--dry-run] [--ci] [--pr N]      the reconcile the EE-side bot runs
 //   just feat check <oss-pr>                        dry-run the pointer guard for one OSS PR
 //   just feat hooks                                 install the pre-push pointer guard
@@ -26,15 +27,22 @@
 // Everything that talks to GitHub goes through `gh` (its auth, or GH_TOKEN). In CI,
 // FEAT_EE_TOKEN (when set) is used for calls to the EE repo and GH_TOKEN for the OSS repo.
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, writeFileSync, chmodSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync, chmodSync } from "node:fs";
 import { hostname } from "node:os";
-import { join, resolve, sep } from "node:path";
+import { dirname, join, resolve, sep } from "node:path";
 
 class Fail extends Error {}
 const die = (msg) => {
   throw new Fail(msg);
 };
-const log = (msg) => console.log(msg);
+let LOG_FILE = null; // `ship` also writes its log here, with timestamps
+const toLogFile = (msg) => {
+  if (LOG_FILE) appendFileSync(LOG_FILE, `${new Date().toISOString()} ${String(msg).replace(/\n/g, "\n    ")}\n`);
+};
+const log = (msg) => {
+  console.log(msg);
+  toLogFile(msg);
+};
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // ---------------------------------------------------------------------------------- shell
@@ -89,7 +97,7 @@ const EE = (() => {
 // The integration branch of both repos. Only for rehearsing the workflow against a throwaway
 // pair of base branches (FEAT_MAIN=<name>); the bots and the workflows always use main.
 const MAIN = process.env.FEAT_MAIN || "main";
-const LOCK_REF = "locks/ship";
+const LOCK_REF = MAIN === "main" ? "locks/ship" : `locks/ship-${MAIN}`; // a rehearsal has its own
 const LOCK_STALE_MIN = 30; // no heartbeat for this long: the ship died
 const LOCK_BEAT_MIN = 3;
 const POINTER_CTX = "ee/pointer";
@@ -725,6 +733,30 @@ function updateEeBranch(x) {
 
 // ---------------------------------------------------------------------------------- ship
 
+// Do two refreshed ship states test the same thing? The EE heads have the same tree, and the
+// OSS heads differ at most in the gitlink, which points at EE commits with the same tree.
+function sameTrees(t, s) {
+  if (!t || !!t.eePr !== !!s.eePr || !!t.ossPr !== !!s.ossPr) return false;
+  if (s.eePr && t.eeHead !== s.eeHead && treeOf(EE, t.eeHead) !== treeOf(EE, s.eeHead)) return false;
+  if (s.ossPr && t.ossHead !== s.ossHead) {
+    const diff = gitTry(ROOT, "diff", "--name-only", t.ossHead, s.ossHead);
+    if (diff === null || diff.split("\n").some((f) => f && f !== "ee")) return false;
+    const [a, b] = [apiPointer(t.ossHead), apiPointer(s.ossHead)];
+    if (a !== b && (!a || !b || treeOf(EE, a) !== treeOf(EE, b))) return false;
+  }
+  return true;
+}
+
+// Each ship logs to a file of its own as well (parallel ships must not share one): --log F,
+// or <git common dir>/feat-logs/ship-<branch>-<time>-<pid>.log.
+function shipLogFile(x, given) {
+  const file = given
+    ? resolve(given)
+    : join(resolve(ROOT, git("rev-parse", "--git-common-dir")), "feat-logs", `ship-${x.replace(/[^\w.-]/g, "_")}-${new Date().toISOString().replace(/[:.]/g, "-")}-${process.pid}.log`);
+  mkdirSync(dirname(file), { recursive: true });
+  return file;
+}
+
 async function cmdShip(args) {
   const admin = argFlag(args, "--admin");
   const force = argFlag(args, "--force");
@@ -734,8 +766,11 @@ async function cmdShip(args) {
   // its OSS side): reported, not gating. The OSS checks still gate.
   const ignoreEeChecks = argFlag(args, "--ignore-ee-checks");
   const timeoutMin = Number(argVal(args, "--timeout") ?? 60);
+  const logArg = argVal(args, "--log");
   const x = args[0] ?? featBranch();
   if (x === MAIN) die("ship a feature branch, not main");
+  LOG_FILE = shipLogFile(x, logArg);
+  log(`log: ${LOG_FILE}`);
   {
     const o = openPr(OSS, x);
     const e = openPr(EE, x);
@@ -748,55 +783,85 @@ async function cmdShip(args) {
     die(`${what} ${c.why}${c.moved ? "" : " (--force to ship anyway)"}`);
   };
 
-  const lock = await Lock.acquire(x, { takeover });
+  // Bring both sides up to date with main (merges pushed to x; no-ops when already current).
+  const refresh = () => {
+    const s = { ossPr: openPr(OSS, x), eePr: openPr(EE, x), eeHead: null, ossHead: null };
+    s.eeMergedBefore = !s.eePr && !!mergedPr(EE, x);
+    if (s.eePr?.isDraft || s.ossPr?.isDraft) die("a PR is still a draft (gh pr ready)");
+    if (!s.eePr && !s.ossPr) die(`no open PR for ${x} any more`);
+    if (s.eePr) {
+      if (!apiContains(EE, s.eePr.headRefOid, MAIN)) updateEeBranch(x);
+      s.eeHead = refSha(EE, x);
+    }
+    if (s.ossPr) {
+      const want = s.eePr ? s.eeHead : s.eeMergedBefore ? refSha(EE, MAIN) : null;
+      s.ossHead = updateOssBranch(x, want);
+      if (s.ossHead !== s.ossPr.headRefOid) log(`OSS ${x} updated (main merged in, ee -> ${short(apiPointer(s.ossHead))})`);
+      if (!want && apiPointer(s.ossHead) !== apiPointer(MAIN)) die(`OSS ${x} changes the ee pointer but has no open EE PR ${x}`);
+      sync({ only: String(s.ossPr.number), build: false, quiet: true });
+    }
+    return s;
+  };
+  // Every check on both PRs at the refreshed heads (the long part: OSS CI, the full build).
+  const waitAll = async (s) => {
+    const { eePr, ossPr, eeHead, ossHead } = s;
+    if (eePr) {
+      let c = await waitChecks(EE, eePr.number, eeHead, { timeoutMin, label: `EE #${eePr.number}` });
+      // EE CI builds against whatever OSS x was when it ran; OSS x may have moved since.
+      if (!c.ok && !c.moved && ossPr && rerunEeCi(eeHead)) {
+        await sleep(20000);
+        c = await waitChecks(EE, eePr.number, eeHead, { timeoutMin, label: `EE #${eePr.number} (re-run)` });
+      }
+      if (c.moved) return { moved: true };
+      if (!c.ok && ignoreEeChecks) log(`! EE PR #${eePr.number} checks ${c.why} (--ignore-ee-checks)`);
+      else gate(c, `EE PR #${eePr.number} checks`);
+    }
+    if (ossPr) {
+      if (noBuild) log(`! not waiting for ee/build (--no-build)`);
+      else gate(await awaitBuild(ossPr.number, ossHead, { timeoutMin }), `OSS PR #${ossPr.number}`);
+      const c = await waitChecks(OSS, ossPr.number, ossHead, { timeoutMin, label: `OSS #${ossPr.number}` });
+      if (c.moved) return { moved: true };
+      gate(c, `OSS PR #${ossPr.number} checks`);
+    }
+    return { moved: false };
+  };
+
+  let lock = null;
   let keepLock = false;
   try {
-    // 1. Bring both sides up to date and wait for every check on the result; repeat if
-    //    anything moved meanwhile. Nothing is merged yet, so a failure here changes nothing.
-    let ossPr, eePr, eeMergedBefore, ossHead, eeHead;
+    // 1. Wait for every check WITHOUT the lock (other ships keep merging meanwhile). Then take
+    //    the lock and bring both sides up to date again: if that changed nothing that was
+    //    tested (only the merge base, or the gitlink to an identical EE tree), go on to merge;
+    //    otherwise let the lock go and wait for the checks on the new heads. Nothing is merged
+    //    yet, so a failure here changes nothing.
+    let s;
+    let tested = null;
     for (let round = 1; ; round++) {
-      if (round > 5) die("main kept moving while waiting for checks; re-run later");
-      lock.beat(true);
-      ossPr = openPr(OSS, x);
-      eePr = openPr(EE, x);
-      eeMergedBefore = !eePr && !!mergedPr(EE, x);
-      if (eePr?.isDraft || ossPr?.isDraft) die("a PR is still a draft (gh pr ready)");
-      if (eePr) {
-        if (!apiContains(EE, eePr.headRefOid, MAIN)) updateEeBranch(x);
-        eeHead = refSha(EE, x);
+      if (round > 12) die("main kept moving while waiting for checks; re-run later");
+      lock?.beat(true);
+      s = refresh();
+      if (lock && sameTrees(tested, s)) break;
+      if (lock) {
+        log("main moved meanwhile and changed what was tested: releasing the ship lock until the checks pass again");
+        lock.release();
+        lock = null;
       }
-      if (ossPr) {
-        const want = eePr ? eeHead : eeMergedBefore ? refSha(EE, MAIN) : null;
-        ossHead = updateOssBranch(x, want);
-        if (ossHead !== ossPr.headRefOid) log(`OSS ${x} updated (main merged in, ee -> ${short(apiPointer(ossHead))})`);
-        if (!want && apiPointer(ossHead) !== apiPointer(MAIN)) die(`OSS ${x} changes the ee pointer but has no open EE PR ${x}`);
-        sync({ only: String(ossPr.number), build: false, quiet: true });
+      if ((await waitAll(s)).moved) {
+        log("a branch moved while waiting; bringing it up to date again");
+        continue;
       }
-      let moved = false;
-      if (eePr) {
-        let c = await waitChecks(EE, eePr.number, eeHead, { timeoutMin, label: `EE #${eePr.number}`, lock });
-        // EE CI builds against whatever OSS x was when it ran; OSS x may have moved since.
-        if (!c.ok && !c.moved && ossPr && rerunEeCi(eeHead)) {
-          await sleep(20000);
-          c = await waitChecks(EE, eePr.number, eeHead, { timeoutMin, label: `EE #${eePr.number} (re-run)`, lock });
-        }
-        if (c.moved) moved = true;
-        else if (!c.ok && ignoreEeChecks) log(`! EE PR #${eePr.number} checks ${c.why} (--ignore-ee-checks)`);
-        else gate(c, `EE PR #${eePr.number} checks`);
-      }
-      if (ossPr && !moved) {
-        if (noBuild) log(`! not waiting for ee/build (--no-build)`);
-        else gate(await awaitBuild(ossPr.number, ossHead, { timeoutMin, lock }), `OSS PR #${ossPr.number}`);
-        const c = await waitChecks(OSS, ossPr.number, ossHead, { timeoutMin, label: `OSS #${ossPr.number}`, lock });
-        if (c.moved) moved = true;
-        else gate(c, `OSS PR #${ossPr.number} checks`);
-      }
-      // Still current? (an owner merge on GitHub can move either main at any time)
-      if (!moved && eePr && (refSha(EE, x) !== eeHead || !apiContains(EE, eeHead, MAIN))) moved = true;
-      if (!moved && ossPr && (refSha(OSS, x) !== ossHead || !apiContains(OSS, ossHead, MAIN))) moved = true;
-      if (!moved) break;
-      log("something moved while waiting; bringing the branches up to date again");
+      tested = s;
+      lock = await Lock.acquire(x, { takeover });
+      log("got the ship lock");
     }
+    // Same trees as tested: the full build's verdict carries over to a new OSS head.
+    if (s.ossPr && s.ossHead !== tested.ossHead) {
+      const prev = statusesOf(tested.ossHead).get(BUILD_CTX);
+      if (prev?.state === "success") postStatus(s.ossHead, BUILD_CTX, "success", `${prev.description} (same trees as ${short(tested.ossHead)})`, prev.target_url);
+      log(`OSS ${x} at ${short(s.ossHead)}: same trees as the checked ${short(tested.ossHead)}`);
+    }
+    const { ossPr, eePr, eeMergedBefore } = s;
+    let { ossHead, eeHead } = s;
 
     // 2. EE first.
     let eeMain = refSha(EE, MAIN);
@@ -875,7 +940,7 @@ async function cmdShip(args) {
     log(`shipped ${x}`);
   } finally {
     if (keepLock) log(`keeping the ship lock for ${x}: fix the cause, then re-run \`just feat ship ${x} --takeover\``);
-    else lock.release();
+    else lock?.release();
     triggerSync();
   }
 }
@@ -1123,6 +1188,7 @@ try {
 } catch (e) {
   if (e instanceof Fail || e instanceof ApiError) {
     console.error(`feat ${name}: ${e.message}`);
+    toLogFile(`feat ${name}: ${e.message}`);
     process.exit(1);
   }
   throw e;
