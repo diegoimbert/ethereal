@@ -134,6 +134,10 @@ set-but-empty variable as configured.
 | `WINDOWS_CERTIFICATE_PASSWORD` | the `.pfx` password |
 | `WINDOWS_TIMESTAMP_URL` | optional, default `http://timestamp.digicert.com` |
 
+The default timestamp server is plain HTTP on purpose: an RFC 3161 timestamp is signed by the
+authority and verified against its certificate chain, so the transport adds nothing (DigiCert's
+authority does not answer over HTTPS).
+
 The workflow imports the `.pfx` into the runner's user certificate store and passes its
 thumbprint to Tauri (`bundle.windows.certificateThumbprint`, SHA-256, timestamped), which
 signs the executable, the MSI and the NSIS installer. Certificates that live only in an
@@ -154,8 +158,9 @@ the private build (see `ethereal-private`).
 When it is enabled (`full` in the private build), the app reads
 `https://github.com/diegoimbert/ethereal/releases/latest/download/latest.json`, so only the
 newest stable release is offered; prereleases (`v<VERSION>+<sha>`, partial releases) never
-are. Every download is verified against the minisign public key in
-`apps/desktop/src-tauri/tauri.conf.json` (`plugins.updater.pubkey`) before it is installed.
+are. Every download is verified against the minisign public key before it is installed:
+`plugins.updater.pubkey`, which the private overlay adds to the Tauri config (this
+repository's `apps/desktop/src-tauri/tauri.conf.json` has no updater section).
 
 ### How a release gets updater files
 
