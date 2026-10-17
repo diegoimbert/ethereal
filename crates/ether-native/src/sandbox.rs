@@ -1,4 +1,4 @@
-//! Out-of-process plugin hosting (owned by the `plugins` wave-3 node; see `docs/WAVE3.md`).
+//! Out-of-process plugin hosting (macOS and Linux; on Windows `spawn` returns an error).
 //!
 //! `NativeBridge::create_plugin` (`bridge.rs`) picks [`instantiate`] instead of the
 //! in-process instantiator when `PluginInstance.sandboxed` is set. The sandboxed controller

@@ -1,5 +1,5 @@
-//! Uploads from the UI machine (roadmap v2, owned by the `remote-engine` node; see
-//! `docs/ROADMAP.md` and `ether_protocol::media` / `ether_protocol::remote`).
+//! Uploads from the UI machine (roadmap v2; see CONTRACTS.md §11.5,
+//! `ether_protocol::media` / `ether_protocol::remote`).
 //!
 //! `Media::{BeginUpload, UploadChunk, CancelUpload}` land here: bytes are staged in the
 //! store (`ProjectStore::{begin, append, read, discard}_upload`; natively a file under

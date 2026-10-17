@@ -1,5 +1,4 @@
-//! Media preview voice (roadmap, owned by the `media-preview` node; see `docs/ROADMAP.md`
-//! and CONTRACTS.md §11.15).
+//! Media preview voice (CONTRACTS.md §11.15).
 //!
 //! Auditions a sample from the browser: one voice, outside the tracks, mixed straight into
 //! the hardware outputs after master (not metered, not recorded, not exported, independent

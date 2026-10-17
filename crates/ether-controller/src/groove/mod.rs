@@ -1,5 +1,5 @@
-//! Groove: humanize, quantize swing and the project playback swing (roadmap v2, owned by
-//! the `groove` node; see `docs/ROADMAP.md` and `ether_protocol::groove`).
+//! Groove: humanize, quantize swing and the project playback swing (roadmap v2; see
+//! CONTRACTS.md §11.11 and `ether_protocol::groove`).
 //!
 //! - `GrooveCommand` is a document command ([`apply`], from `doc::apply`).
 //! - `NoteCommand::Quantize { swing }` is handled in `doc/notes.rs` (shared touch), with

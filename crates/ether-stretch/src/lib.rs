@@ -6,8 +6,6 @@
 //! - [`RustStretcher`] (feature `rust-stretch`, everywhere): a pure-Rust port, used by the
 //!   web host (wasm32 has no C++ toolchain here). Without a stretcher, Complex-warped clips
 //!   play Repitch.
-//!
-//! Owned by the `stretch` node.
 
 /// A streaming time-stretcher / pitch-shifter. API mirrors Signalsmith Stretch.
 ///

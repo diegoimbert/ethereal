@@ -1,4 +1,4 @@
-//! Groove (roadmap v2, `groove` node): humanize and the project swing. Quantize itself
+//! Groove (roadmap v2, `groove`): humanize and the project swing. Quantize itself
 //! (with `strength` and `swing`) is `NoteCommand::Quantize`. All undoable.
 
 use serde::{Deserialize, Serialize};

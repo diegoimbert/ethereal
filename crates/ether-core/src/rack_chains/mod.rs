@@ -1,5 +1,5 @@
 //! Rack chains: parallel device chains inside instrument / audio-effect / MIDI-effect racks
-//! (v0.2, owned by the `racks-modulation` node; model `ether_model::rack`, CONTRACTS.md §12.6).
+//! (v0.2, `racks-modulation`; model `ether_model::rack`, CONTRACTS.md §12.6).
 //!
 //! Same engine shape as drum-rack pads (`crate::drum_rack`, pre-wired the same way in
 //! `engine.rs`/`graph.rs`): `TrackDesc::chain_racks` lists, per rack node of the track chain,

@@ -1,4 +1,4 @@
-//! Built-in `Utility` device (roadmap v2, owned by the `devices-2` node).
+//! Built-in `Utility` device (roadmap v2, `devices-2`).
 //!
 //! Gain, balance pan, stereo width, phase invert (L/R) and mono. Per sample:
 //! 1. input channel mode (`Channel`: stereo, left or right on both sides, swapped),

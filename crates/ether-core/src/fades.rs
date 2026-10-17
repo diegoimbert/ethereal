@@ -1,4 +1,4 @@
-//! Clip fade shapes (roadmap v2, owned by the `clip-editing` node; see `docs/ROADMAP.md`).
+//! Clip fade shapes (roadmap v2; see CONTRACTS.md §11.4).
 //!
 //! [`fade_gain`] is the one fade law shared by the engine (`sched::render_audio`, which
 //! the clip-editing node switches from its linear ramp to this with a one-line call), the

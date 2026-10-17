@@ -1,4 +1,4 @@
-//! External instrument / audio effect (v0.3, owned by the `external-instrument` node; device
+//! External instrument / audio effect (v0.3, `external-instrument`; device
 //! `ether_devices::external`, engine `ether_core::hw_io`; CONTRACTS.md §13.7).
 //!
 //! - [`set_routing`]: `External::SetRouting` (document command from `doc::apply`;

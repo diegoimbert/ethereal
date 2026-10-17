@@ -40,7 +40,6 @@ regenerated with `just notices` (the license policy gate is `deny.toml`).
 | just | any recent | `brew install just` / `cargo install just` / [just.systems](https://just.systems) |
 | Tauri CLI | v2 | Installed as a dev dependency of `apps/desktop` (`pnpm tauri ...`); no global install needed. |
 | C/C++ toolchain | | macOS: Xcode Command Line Tools (`xcode-select --install`). Windows: MSVC Build Tools + WebView2 (preinstalled on Win 11). Linux: `build-essential` plus Tauri/ALSA deps: `libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libasound2-dev libssl-dev pkg-config`. Needed for Tauri, cpal, and Signalsmith Stretch (C++). |
-| Python | >= 3.11 | Only for `scripts/check-ownership.py` (uses `tomllib`). |
 
 ```sh
 pnpm install
@@ -65,7 +64,6 @@ just test-all    # cargo test + vitest
 | `just check-wasm` | `cargo check --target wasm32-unknown-unknown` for the engine-side crates (every feature, and none). |
 | `just check-features` | clippy over the workspace with `--all-features` and with `--no-default-features` (part of `check-all`). |
 | `just check-all` / `just test-all` | Everything the gates run, with every Cargo feature. |
-| `just check-ownership` | Checks that a `node/<id>` branch only touches its owned paths (`.github/ownership.toml`). |
 | `just dev-port` | Prints this checkout's instance id and ports. |
 
 ## Cargo features (fast dev builds)
@@ -115,7 +113,7 @@ ui/                     React + TS app (@ethereal/ui)
   src/kit/              primitives: theme, Button, Knob, Fader, Panel, Meter
   src/timeline/         time<->pixel, zoom/scroll, grid, selection
   src/features/<name>/  one folder per feature
-scripts/                dev-env.mjs (instance/ports), check-ownership.py
+scripts/                dev-env.mjs (instance/ports), feat.mjs (the ee/ workflow), release tooling
 ```
 
 ## Running multiple dev instances

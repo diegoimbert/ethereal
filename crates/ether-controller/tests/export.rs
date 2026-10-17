@@ -1,4 +1,4 @@
-//! Offline export (`export` node): the offline render equals the realtime render
+//! Offline export (`export`): the offline render equals the realtime render
 //! (sample-exact after the latency drop), stems sum to the mix, WAV/FLAC/MP3 decode round
 //! trips, cancel, the download path (stores without `write_export`), and errors.
 

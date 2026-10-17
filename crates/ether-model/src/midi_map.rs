@@ -1,5 +1,4 @@
-//! MIDI controller mappings ("MIDI learn"). Roadmap v2, owned by the `midi-learn` node (see
-//! `docs/ROADMAP.md`).
+//! MIDI controller mappings ("MIDI learn"; roadmap v2, see CONTRACTS.md §11.9).
 //!
 //! A mapping binds one incoming MIDI control (a CC or a note on a port/channel) to one
 //! target: a device parameter, a mixer control, or a transport action. Mappings are part of

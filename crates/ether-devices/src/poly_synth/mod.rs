@@ -1,5 +1,4 @@
-//! v0.2 devices owned by the `synth-2` node (contracts-3 froze the param tables; see
-//! docs/ROADMAP.md "v0.2" and the device agent guide there).
+//! v0.2 poly synth (contracts-3 froze the param tables; see docs/DEVICES.md).
 //!
 //! The polyphonic synth: 2 oscillators (virtual-analog shapes + wavetable position), sub, noise, multimode filter with drive, amp/filter/mod envelopes, 2 LFOs, unison, glide, voice modes.
 //!
