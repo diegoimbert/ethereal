@@ -181,9 +181,9 @@ platform or signature only leaves that platform out of the manifest, with a warn
 Installed apps treat a release without `latest.json` as "no update information" and stay
 on their current version.
 
-Apps up to v0.5.1 read the private repository's URL, which always 404s: they never see an
-update and need one manual install of the next version (say so in its notes). From then on
-they update from the public repository.
+Apps up to v0.6.0 read a repository that no longer has the releases (`diegoimbert/ethereal-public`
+for v0.6.0), so their checks always 404: they never see an update and need one manual install
+of the next version (say so in its notes). From then on they update from this repository.
 
 ### Keys
 
