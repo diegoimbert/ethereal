@@ -79,6 +79,7 @@ export function TimeEditNotice() {
   }, [notice]);
   if (!notice) return null;
   return (
+    // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions -- a click dismisses the notice early; it times out by itself
     <div className="eth-time-notice" role="status" data-testid="time-edit-notice" onClick={() => useTimeSelection.getState().notify(null)}>
       {notice.message}
     </div>

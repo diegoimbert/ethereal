@@ -1,7 +1,7 @@
 import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import type { AudioDeviceList, Command, Event, InputList, ReplyValue, Track } from "@/generated";
-import { Button, Popover, Select } from "@/kit";
+import { Button, DismissibleError, Popover, Select } from "@/kit";
 import { tracksOrdered, useProjectStore } from "@/state";
 import { cmd, commandErrorText, isCommandFailed, TransportContext, type EngineTransport } from "@/transport";
 import { useLiveRecordingFeed } from "./live/liveStore";
@@ -190,9 +190,9 @@ export function RecordingControls() {
         )}
       </Popover>
       {error && (
-        <button type="button" className="eth-rec__error" role="alert" title={t("common.dismiss")} onClick={clearError}>
+        <DismissibleError className="eth-rec__error" onDismiss={clearError}>
           {error}
-        </button>
+        </DismissibleError>
       )}
     </div>
   );

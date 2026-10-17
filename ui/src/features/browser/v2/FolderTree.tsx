@@ -332,6 +332,7 @@ export function FolderTree({ roots, kind, send, media, refresh, previewing, onPr
         const tabbable = activeShown ? active === row.key : row === rows[0];
         return (
           <li key={row.key} role="none">
+            {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events -- the tree's onKeyDown handles the focused row's keys */}
             <div
               className={clsx(
                 "eth-browser__row eth-browser-tree__row",
@@ -345,7 +346,6 @@ export function FolderTree({ roots, kind, send, media, refresh, previewing, onPr
               aria-expanded={isFolder ? row.expanded : undefined}
               aria-selected={active === row.key}
               aria-label={name}
-              aria-pressed={target ? playing : undefined}
               tabIndex={tabbable ? 0 : -1}
               data-tree-row=""
               data-key={row.key}

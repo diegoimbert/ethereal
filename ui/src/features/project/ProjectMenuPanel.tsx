@@ -91,6 +91,7 @@ export function ProjectMenuPanel({ commands, close }: { commands: EngineCommands
 
   return (
     <OpenSub.Provider value={subContext}>
+      {/* eslint-disable-next-line jsx-a11y/interactive-supports-focus -- a menu: focus is on its items (roving, menuKeyDown) */}
       <div
         ref={ref}
         className="eth-menu eth-project-menu"

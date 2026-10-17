@@ -102,5 +102,6 @@ export function BeatCanvas({ view, height, stretchY, draw, deps, className, test
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `deps` are the draw inputs
   }, [view, height, stretchY, ...deps]);
 
+  // Decorative (grid lines, ruler ticks): the ruler's own label and value say where the view is.
   return <canvas ref={ref} className={className ? `eth-beat-canvas ${className}` : "eth-beat-canvas"} data-testid={testId} aria-hidden />;
 }

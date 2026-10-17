@@ -5,7 +5,7 @@ import { Menu } from "lucide-react";
 import { matchesAction } from "@/features/keymap";
 import { TemplateDialogs } from "@/features/templates";
 import { useEngineCommands, useOptionalConnection } from "@/features/transport-bar/engine";
-import { IconButton, Popover } from "@/kit";
+import { DismissibleError, IconButton, Popover } from "@/kit";
 import { useProjectStore } from "@/state";
 import { cmd, WasmTransport } from "@/transport";
 import { launch, showPickerEarly, useLaunchBookkeeping } from "./launch";
@@ -191,9 +191,9 @@ export function ProjectMenu() {
       {/* import-resolver: anything missing stays reachable after the dialog. */}
       <MissingItemsBadge />
       {error && !open && (
-        <button type="button" className="eth-project__error" role="alert" title={t("common.dismiss")} onClick={clearError}>
+        <DismissibleError className="eth-project__error" onDismiss={clearError}>
           {error}
-        </button>
+        </DismissibleError>
       )}
     </div>
   );

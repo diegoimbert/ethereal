@@ -30,6 +30,7 @@ export function InstrumentPick({ track }: { track: Track }) {
       >
         {/* React events bubble out of the portal into the header: its press would start a
             track drag (and take the click) or select the track. */}
+        {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions -- only keeps its events from reaching the track header around it */}
         <div
           className="eth-arr-header__pick-panel"
           onPointerDown={(e) => e.stopPropagation()}

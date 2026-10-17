@@ -29,7 +29,7 @@ import { isAudioName } from "@/features/import/sources";
 import { loadPresetCommand, useCurrentPresets } from "@/features/presets";
 import { sliceSampleEntries } from "@/features/drum-rack";
 import { useEngineCommands, useEngineEvent } from "@/features/transport-bar/engine";
-import { Button, Dialog, IconButton, Select, TextInput, openContextMenu, type ContextMenuEntry } from "@/kit";
+import { Button, Dialog, DismissibleError, IconButton, Select, TextInput, openContextMenu, type ContextMenuEntry } from "@/kit";
 import { devicesOfTrack, useProjectStore, useSelectionStore } from "@/state";
 import { cmd, type EngineTransport } from "@/transport";
 import { Trans, useT } from "@/i18n";
@@ -642,18 +642,15 @@ export function BrowserV2({ initialRoots }: BrowserV2Props) {
       </div>
 
       {shownError && (
-        <button
-          type="button"
+        <DismissibleError
           className="eth-browser__error"
-          role="alert"
-          title={t("common.dismiss")}
-          onClick={() => {
+          onDismiss={() => {
             setOwnError(null);
             clearError();
           }}
         >
           {shownError}
-        </button>
+        </DismissibleError>
       )}
 
       <FolderImportStatus copies={transport?.kind === "wasm"} />
