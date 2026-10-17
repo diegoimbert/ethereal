@@ -28,9 +28,9 @@ Rules:
 
 | Command | What it does |
 |---|---|
-| `start x [--ee] [--worktree <dir>]` | Branch `x` off `origin/main` (or `origin/x`), here or in a new worktree. `--ee` (or an existing EE branch `x`) also initialises `ee/` and puts it on EE branch `x`. |
-| `ee` | Initialise `ee/` and put it on the current branch's name (existing EE `x`, else new off EE `main`). |
-| `push [--draft] [--title T] [--body B \| --body-file F]` | Push EE `x` (if it has commits), commit the pointer (`ee: point at x`), push OSS `x`, open or update both PRs with cross-links, post `ee/pointer` and start the full build (`ee/build`). With no OSS changes the OSS branch stays local: EE-only. If a branch moved on GitHub (bot pointer commits, a ship's merge of main), that is merged in first; nothing is force-pushed except bot pointer-only commits. |
+| `start x [--ee] [--worktree <dir>]` | Branch `x` off `origin/main` (or `origin/x`), here or in a new worktree (outside this checkout). `--ee` (or an existing EE branch `x`) also initialises `ee/` and puts it on EE branch `x`. |
+| `ee` | Initialise `ee/` and put it on the current branch's name (existing EE `x`, else new off EE `main`). `start`, `ee`, `update` and `tree` also check out the submodules nested in `ee/` (libvpx). |
+| `push [--draft] [--title T] [--body B \| --body-file F] [--ee-title T] [--ee-body B \| --ee-body-file F]` | Push EE `x` (if it has commits), commit the pointer (`ee: point at x`), push OSS `x`, open or update both PRs with cross-links (a given title/body is applied to open PRs too; `--ee-*` set the EE PR's, which default to the OSS ones), post `ee/pointer` and start the full build (`ee/build`). With no OSS changes the OSS branch stays local: EE-only. If a branch moved on GitHub (bot pointer commits, a ship's merge of main), that is merged in first; nothing is force-pushed except bot pointer-only commits. |
 | `status` | Branches, pointers, PRs, checks, `ee/*` statuses, the ship lock, and what is out of line. |
 | `update` | Merge `main` into OSS `x` and EE `main` into EE `x`; a gitlink conflict resolves to `ee/`'s HEAD. |
 | `ship [x] [--admin] [--force] [--no-build] [--ignore-ee-checks] [--timeout <min>] [--takeover]` | Takes the global ship lock, brings OSS `x` (and EE `x`) up to date with `main`, waits for every check on both PRs including `ee/build`, merges the EE PR, points OSS `x` at EE `main`, merges the OSS PR (squash) and makes sure OSS `main` points at EE `main`. Repeats the update/wait round if anything moved meanwhile. `--force` ships despite failing checks, `--no-build` skips only the `ee/build` wait, `--ignore-ee-checks` reports failing EE PR checks without gating on them (an EE change merged ahead of its OSS side), `--admin` bypasses branch protection. |
@@ -48,6 +48,12 @@ just feat push            # EE first, then the pointer + OSS; PRs opened and cro
 just feat status
 just feat ship my-thing   # EE merges first, then OSS (squash), under the lock
 ```
+
+An agent (or anyone) already working in a worktree of its own runs `just feat start my-thing --ee`
+there, without `--worktree`: the worktree itself switches to `my-thing`. Agent harnesses that
+confine git to the agent's worktree block `--worktree ../x`, and a worktree nested inside the
+checkout is refused (its tools would sweep it up). The OSS PR is public: keep private details
+out of `--title`/`--body` and put them in `--ee-title`/`--ee-body`.
 
 An OSS-only change is the same without `--ee` (its PR never touches the gitlink); an EE-only
 change is the same with only `ee/` commits (only an EE PR is opened).

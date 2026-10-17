@@ -4,8 +4,10 @@
 //   just feat start <x> [--ee] [--worktree <dir>]   branch x off origin/main (and ee/ x with --ee)
 //   just feat ee                                    put ee/ on the current branch's name (init it)
 //   just feat push [--draft] [--title T] [--body B | --body-file F]
+//                  [--ee-title T] [--ee-body B | --ee-body-file F]
 //                                                   push EE x, then the pointer + OSS x; open/update
-//                                                   both PRs, cross-linked; start the full build
+//                                                   both PRs (title/body too, when given),
+//                                                   cross-linked; start the full build
 //   just feat update                                merge main into OSS x (and EE main into EE x)
 //   just feat status                                branches, pointers, PRs, checks, warnings
 //   just feat ship [x] [--admin] [--force] [--no-build] [--ignore-ee-checks] [--timeout <min>] [--takeover]
@@ -26,7 +28,7 @@
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync, chmodSync } from "node:fs";
 import { hostname } from "node:os";
-import { join, resolve } from "node:path";
+import { join, resolve, sep } from "node:path";
 
 class Fail extends Error {}
 const die = (msg) => {
@@ -289,6 +291,20 @@ function eeEnable(x) {
     gitIn(EE_DIR, "switch", "-q", "-c", x, "--track", `origin/${x}`);
   else gitIn(EE_DIR, "switch", "-q", "--no-track", "-c", x, `origin/${MAIN}`);
   log(`ee/ is on branch ${x} (${short(gitIn(EE_DIR, "rev-parse", "HEAD"))})`);
+  eeSubmodules();
+}
+// Check out the submodules nested in ee/ (crates/ether-vpx/libvpx) at the commits ee/ pins:
+// without them the full product builds without the VP9 encoder. Shallow first (the pinned
+// commit only), a full fetch if the server refuses that.
+function eeSubmodules(dir = EE_DIR) {
+  if (!existsSync(join(dir, ".gitmodules"))) return;
+  const status = gitTry(dir, "submodule", "status", "--recursive") ?? "";
+  if (!status.split("\n").some((l) => /^[-+U]/.test(l))) return; // all checked out at the pins
+  log("checking out the submodules in ee/ (libvpx) ...");
+  const ok =
+    gitOk(dir, "submodule", "update", "--init", "--recursive", "--depth", "1") ||
+    gitOk(dir, "submodule", "update", "--init", "--recursive");
+  if (!ok) log(`! could not check out the submodules in ee/: run \`git -C ${dir} submodule update --init --recursive\` (the full build needs libvpx)`);
 }
 
 // Is EE commit `sha` pushed (reachable from an EE branch)? `mainOnly`: from EE main.
@@ -407,6 +423,9 @@ function cmdStart(args) {
   let cwd = ROOT;
   if (wt) {
     cwd = resolve(wt);
+    // A tree nested in this one would be swept up by its tools (pnpm, prettier, eslint).
+    if (cwd === ROOT || cwd.startsWith(ROOT + sep))
+      die(`${cwd} is inside this checkout: run \`just feat start ${x}\` without --worktree to use this checkout itself`);
     if (gitOk(ROOT, "rev-parse", "--verify", "-q", `refs/heads/${x}`)) git("worktree", "add", cwd, x);
     else git("worktree", "add", "--no-track", "-b", x, cwd, from);
     log(`worktree ${cwd} on ${x}`);
@@ -440,10 +459,14 @@ function cmdEe() {
 // post the pointer status and start the full build (what the bot does, so it works without it).
 function cmdPush(args) {
   const draft = argFlag(args, "--draft");
+  // Title/body for both PRs; --ee-* override them for the (private) EE PR. Applied when a PR
+  // is opened, and to an already open PR when given again.
+  const bodyOf = (b, f) => (f ? readFileSync(f, "utf8") : b);
   const title = argVal(args, "--title");
-  const bodyArg = argVal(args, "--body");
-  const bodyFile = argVal(args, "--body-file");
-  const body = bodyFile ? readFileSync(bodyFile, "utf8") : bodyArg;
+  const body = bodyOf(argVal(args, "--body"), argVal(args, "--body-file"));
+  const eeTitle = argVal(args, "--ee-title") ?? title;
+  const eeBody = bodyOf(argVal(args, "--ee-body"), argVal(args, "--ee-body-file")) ?? body;
+  if (args.length) die(`unknown arguments: ${args.join(" ")}`);
   const x = featBranch();
   git("fetch", "-q", "origin", MAIN);
 
@@ -500,23 +523,29 @@ function cmdPush(args) {
   let eePr = eeTip ? openPr(EE, x) : null;
   let ossPr = ossChanged ? openPr(OSS, x) : null;
   const subject = (cwd) => gitIn(cwd, "log", "-1", "--format=%s", "--no-merges");
-  if (eeTip && !eePr) {
-    const t = title ?? subject(EE_DIR);
-    gh(EE, ["pr", "create", "-R", EE, "--head", x, "--base", MAIN, "--title", t, "--body", body ?? "", ...(draft ? ["--draft"] : [])]);
-    eePr = openPr(EE, x);
-    log(`EE PR: ${eePr.url}`);
-  }
-  if (ossChanged && !ossPr) {
-    const t = title ?? subject(ROOT);
-    gh(OSS, ["pr", "create", "-R", OSS, "--head", x, "--base", MAIN, "--title", t, "--body", body ?? "", ...(draft ? ["--draft"] : [])]);
-    ossPr = openPr(OSS, x);
-    log(`OSS PR: ${ossPr.url}`);
-  }
+  // Open the PR, or bring an open one's title and text in line with --title/--body (the
+  // cross-link block is kept either way). Returns [pr, base text for its body].
+  const ensurePr = (repo, cwd, pr, t, b) => {
+    if (!pr) {
+      gh(repo, ["pr", "create", "-R", repo, "--head", x, "--base", MAIN, "--title", t ?? subject(cwd), "--body", b ?? "", ...(draft ? ["--draft"] : [])]);
+      pr = openPr(repo, x);
+      log(`${repo === EE ? "EE" : "OSS"} PR: ${pr.url}`);
+      return [pr, pr.body];
+    }
+    if (t !== undefined && t !== pr.title) {
+      gh(repo, ["pr", "edit", String(pr.number), "-R", repo, "--title", t]);
+      log(`${repo === EE ? "EE" : "OSS"} PR #${pr.number}: title updated`);
+    }
+    return [pr, b ?? pr.body];
+  };
+  let eeText, ossText;
+  if (eeTip) [eePr, eeText] = ensurePr(EE, EE_DIR, eePr, eeTitle, eeBody);
+  if (ossChanged) [ossPr, ossText] = ensurePr(OSS, ROOT, ossPr, title, body);
   // The OSS PR is public: its pair note carries only the link (no titles or text from EE).
   if (eePr)
-    setBody(EE, eePr, withPair(eePr.body, ossPr ? `Paired OSS PR: ${ossPr.url} (ship with \`just feat ship ${x}\`: this one merges first).` : "EE-only: no OSS PR. When this merges, OSS main gets an automatic `ee` pointer bump."));
+    setBody(EE, eePr, withPair(eeText, ossPr ? `Paired OSS PR: ${ossPr.url} (ship with \`just feat ship ${x}\`: this one merges first).` : "EE-only: no OSS PR. When this merges, OSS main gets an automatic `ee` pointer bump."));
   if (ossPr)
-    setBody(OSS, ossPr, withPair(ossPr.body, eePr ? `Paired EE PR: ${eePr.url} (private). The \`ee\` pointer follows its branch; ship with \`just feat ship ${x}\`.` : "Leaves `ee` untouched."));
+    setBody(OSS, ossPr, withPair(ossText, eePr ? `Paired EE PR: ${eePr.url} (private). The \`ee\` pointer follows its branch; ship with \`just feat ship ${x}\`.` : "Leaves `ee` untouched."));
   if (ossPr) {
     // What the bot would do, done right away (and without it): pointer status + full build.
     sync({ only: String(ossPr.number), build: !ossPr.isDraft, quiet: true, main: true });
@@ -545,6 +574,7 @@ function cmdUpdate() {
       die(`EE merge of origin/${x} has conflicts: resolve them in ee/, commit, then re-run`);
     if (!gitOk(EE_DIR, "merge", "-q", "--no-edit", `origin/${MAIN}`)) die("EE merge of main has conflicts: resolve them in ee/, commit, then re-run");
     want = gitIn(EE_DIR, "rev-parse", "HEAD");
+    eeSubmodules(); // the merge may have moved the libvpx pin
   }
   mergeInto(ROOT, `origin/${MAIN}`, want);
   // OSS-only branch with ee/ initialised: keep ee/ on the (possibly bumped) pointer.
@@ -553,6 +583,7 @@ function cmdUpdate() {
     if (p && p !== ee.head) {
       eeFetch();
       gitIn(EE_DIR, "checkout", "-q", "--detach", p);
+      eeSubmodules();
     }
   }
   log(`updated ${x} with main${want ? ` (ee -> ${short(want)})` : ""}; \`just feat push\` to publish`);
@@ -1062,6 +1093,7 @@ function cmdPrePush(args) {
 function cmdTree(args) {
   const dir = args[0] ?? die("usage: feat tree <dir>");
   if (!existsSync(join(EE_DIR, "overlay.mjs"))) die("ee/ is not initialised (`just feat ee`)");
+  eeSubmodules();
   run(process.execPath, [join(EE_DIR, "overlay.mjs"), "--make", resolve(dir), "--from", ROOT], { cwd: ROOT });
   log(`full-product tree in ${resolve(dir)} (throwaway; delete it when done)`);
 }
