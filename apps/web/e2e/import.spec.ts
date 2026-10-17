@@ -2,16 +2,19 @@
 // DAWproject exported by Bitwig Studio and a REAPER project, each picked (project screen,
 // command palette) and dropped on the window, become new projects that open, with the
 // import report.
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test, type Page } from "@playwright/test";
 import type { Project } from "@/generated";
-import { importFixtures } from "./importFixtures";
+import { IMPORT_FIXTURES_DIR, importFixtures } from "./importFixtures";
 import { launch, projectScreen, resolveLater } from "./ui";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
-const fixtures = importFixtures((p) => readFileSync(resolve(repoRoot, p)));
+// The importer is not in every build (the open-source one has none): no fixtures, no specs.
+const hasImporter = existsSync(resolve(repoRoot, IMPORT_FIXTURES_DIR));
+const fixtures = hasImporter ? importFixtures((p) => readFileSync(resolve(repoRoot, p))) : null!;
+test.skip(!hasImporter, "the importer is not part of this build");
 
 const project = (page: Page) => page.evaluate(() => (window as unknown as { __ether: { state(): { project: Project | null } } }).__ether.state().project!);
 

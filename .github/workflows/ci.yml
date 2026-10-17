@@ -3,75 +3,86 @@ name: CI
 # OSS only: every job builds this repo on its own, with `ee/` (the private submodule) empty.
 # The full product (OSS + ee/) is built on the private side, which reports back to OSS PRs as
 # the `ee/build` and `ee/pointer` commit statuses (docs/EE-WORKFLOW.md).
+#
+# Everything runs on GitHub-hosted runners (never self-hosted: a fork's pull request runs its
+# own code here), with no secret, so every job gates pull requests from forks too.
+#
+# Supply chain: every action is pinned to a full commit SHA (the comment names its release);
+# Dependabot (.github/dependabot.yml) proposes the bumps. The Rust toolchain is pinned in
+# rust-toolchain.toml, tools installed by taiki-e/install-action are pinned to exact versions.
+#
+# Caches: the repository has 10 GB of Actions cache. Only `main` saves Rust caches (pull
+# requests restore them), so pull requests cannot evict `main`'s and every job starts warm.
 on:
   pull_request:
   push:
     branches: [main]
+    # A pointer bump of the private submodule changes nothing this workflow builds.
+    paths-ignore: [ee]
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  # A new push to a pull request supersedes its last run; runs on `main` always finish (they
+  # save the caches every pull request starts from).
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   CARGO_TERM_COLOR: always
   CARGO_INCREMENTAL: "0"
+  # Line tables keep backtraces readable at a fraction of full debuginfo's build, link and
+  # cache size.
+  CARGO_PROFILE_DEV_DEBUG: line-tables-only
+  CARGO_PROFILE_TEST_DEBUG: line-tables-only
   ETHER_AUDIO: "null"
+  RUST_BACKTRACE: "1"
+  NODE_VERSION: "24"
 
 jobs:
-  rust-macos:
-    name: Rust (macOS)
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Toolchain (from rust-toolchain.toml)
-        run: rustup show active-toolchain || rustup toolchain install
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
-      - name: fmt
-        run: cargo fmt --all --check
-      - name: clippy
-        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
-      - name: test
-        # `ether-desktop`'s test build links `run`'s `generate_context!` and the ai_http test's;
-        # on macOS the two `_EMBED_INFO_PLIST` symbols fail to link. Its tests run in the OSS
-        # job on Linux instead.
-        run: cargo test --workspace --all-features --exclude ether-desktop
-      - name: wasm32 check
-        run: cargo check --target wasm32-unknown-unknown -p ether-protocol -p ether-model -p ether-core -p ether-devices -p ether-media -p ether-controller -p ether-stretch -p ether-wasm --all-features
+  # --- Rust ---------------------------------------------------------------------------------
 
-  rust-check:
-    name: Rust check (${{ matrix.os }})
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
+  rust-linux:
+    name: Rust (Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Linux system deps (Tauri, ALSA)
-        if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libasound2-dev libssl-dev pkg-config
       - name: Toolchain (from rust-toolchain.toml)
         run: rustup show active-toolchain || rustup toolchain install
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
-      - name: cargo check
-        run: cargo check --workspace --all-targets --all-features
-
-  types-fresh:
-    name: Generated TS types fresh
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Toolchain (from rust-toolchain.toml)
-        run: rustup show active-toolchain || rustup toolchain install
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
-          key: gen-types
-      - name: Regenerate
-        run: cargo run -q -p ether-protocol --example gen-ts -- ui/src/generated
-      - name: Diff
+          key: linux
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - uses: taiki-e/install-action@8cca0918f8471c33515202b73f56ab27f2bed283 # v2.87.29
+        with:
+          tool: cargo-nextest@0.9.148
+      - name: fmt
+        run: cargo fmt --all --check
+      - name: clippy
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+      - name: test
+        # `effects_defaults`/`instruments_*` have golden-hash tests recorded on one x86_64
+        # Linux box; the GitHub runner's CPU/libm render the same audio with different rounding,
+        # so they are devbox tools, not CI gates (elsewhere they check nothing bit-exact).
+        run: >-
+          cargo nextest run --profile ci --workspace --all-features
+          -E 'not (test(=appended_params_keep_the_default_sound) | test(=patches_from_before_render_as_before))'
+      - name: doctests
+        run: cargo test --workspace --all-features --doc
+      - name: wasm32 check
+        run: cargo check --target wasm32-unknown-unknown -p ether-protocol -p ether-model -p ether-core -p ether-devices -p ether-media -p ether-controller -p ether-stretch -p ether-wasm --all-features
+      - name: Generated TS types fresh
         run: |
+          cargo run -q -p ether-protocol --example gen-ts -- ui/src/generated
           if [ -n "$(git status --porcelain -- ui/src/generated)" ]; then
             git status --porcelain -- ui/src/generated
             git diff -- ui/src/generated | head -200
@@ -79,27 +90,311 @@ jobs:
             exit 1
           fi
 
-  licenses:
-    name: Licenses (cargo-deny) and notices fresh
-    runs-on: ubuntu-latest
+  rust-macos:
+    # The macOS-specific code: plugin hosting (AU, CLAP, VST3, scanner, sandbox), the CoreAudio
+    # host, the server, and the DSP crates on aarch64. The platform-neutral rest (controller,
+    # model, protocol, wasm) is tested on Linux and Windows; clippy still covers everything.
+    # macOS runners are the scarcest (5 at a time per account), so this job stays lean.
+    name: Rust (macOS)
+    runs-on: macos-latest
+    timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
-      - name: cargo-deny
-        uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          command: check licenses
+          persist-credentials: false
       - name: Toolchain (from rust-toolchain.toml)
         run: rustup show active-toolchain || rustup toolchain install
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
-          key: gen-notices
-      - uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2
+          key: macos
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - uses: taiki-e/install-action@8cca0918f8471c33515202b73f56ab27f2bed283 # v2.87.29
         with:
-          tool: cargo-bundle-licenses@4.2.0
+          tool: cargo-nextest@0.9.148
+      - name: clippy
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+      - name: test
+        run: >-
+          cargo nextest run --profile ci --all-features
+          -p ether-au -p ether-clap -p ether-vst3 -p ether-plugin-host -p ether-plugin-scanner
+          -p ether-sandbox -p ether-native -p ether-server -p ether-mcp
+          -p ether-core -p ether-devices -p ether-media -p ether-stretch
+
+  rust-windows:
+    name: Rust (Windows)
+    runs-on: windows-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Toolchain (from rust-toolchain.toml)
+        run: rustup show active-toolchain || rustup toolchain install
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          key: windows
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - uses: taiki-e/install-action@8cca0918f8471c33515202b73f56ab27f2bed283 # v2.87.29
+        with:
+          tool: cargo-nextest@0.9.148
+      - name: clippy
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+      - name: test
+        run: cargo nextest run --profile ci --workspace --all-features
+
+  # --- Web ----------------------------------------------------------------------------------
+
+  web:
+    name: Web (tsc, eslint, prettier, vitest)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 24
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: tsc
+        run: pnpm -r typecheck
+      - name: eslint
+        run: pnpm -r lint
+      - name: prettier
+        run: pnpm format:check
+      - name: case clashes
+        run: node scripts/check-case-clashes.mjs
+      - name: vitest
+        run: pnpm -r test
+      - name: release scripts
+        run: node --test scripts/release/*.test.mjs
+
+  web-build:
+    # The web build the e2e shards test (wasm engine + UI, `vite build`), the native server some
+    # specs drive, the release's web zip, and the production bundle under the deployed
+    # Content-Security-Policy (any violation fails, e2e/global-teardown.ts).
+    name: Web build (wasm, dist, server) + CSP
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Linux system deps (ALSA)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libasound2-dev pkg-config
+      - name: Toolchain (from rust-toolchain.toml)
+        run: rustup show active-toolchain || rustup toolchain install
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          key: web-build
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - name: wasm-bindgen version (from Cargo.lock)
+        id: wb
+        run: echo "version=$(grep -A1 '^name = "wasm-bindgen"$' Cargo.lock | sed -n 's/^version = "\(.*\)"/\1/p')" >> "$GITHUB_OUTPUT"
+      - uses: taiki-e/install-action@8cca0918f8471c33515202b73f56ab27f2bed283 # v2.87.29
+        with:
+          tool: wasm-bindgen@${{ steps.wb.outputs.version }}
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: build ui + web
+        run: |
+          pnpm --filter @ethereal/ui build
+          pnpm --filter @ethereal/web build
+      - name: web release zip
+        run: node scripts/release/collect.mjs web "$(cat VERSION)" "$RUNNER_TEMP/web-release"
+      - name: ether-server (the e2e specs' native engine)
+        # Same package/features as e2e/server.ts, so the binary is the one the specs expect.
+        run: |
+          cargo build -p ether-server --bin ether-server --features full
+          mkdir -p "$RUNNER_TEMP/e2e-bin"
+          cp target/debug/ether-server "$RUNNER_TEMP/e2e-bin/"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: e2e-web
+          # Relative to apps/web: the wasm pkg (dev server) and dist (preview).
+          path: |
+            apps/web/src/wasm/pkg
+            apps/web/dist
+          retention-days: 3
+          if-no-files-found: error
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: e2e-bin
+          path: ${{ runner.temp }}/e2e-bin
+          retention-days: 3
+          if-no-files-found: error
+      - name: Playwright browser
+        working-directory: apps/web
+        run: npx playwright install --with-deps chromium-headless-shell
+      - name: CSP (production bundle under the deployed policy)
+        working-directory: apps/web
+        env:
+          ETHER_E2E_PREVIEW: "1"
+        run: npx playwright test --project=webgl --workers=2 smoke.spec.ts launch.spec.ts flow.spec.ts
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: failure()
+        with:
+          name: playwright-csp
+          path: apps/web/test-results
+          retention-days: 7
+          if-no-files-found: ignore
+
+  e2e:
+    # The Playwright suite (real wasm engine + controller in headless Chromium, both arranger
+    # backends) and the guided tours walkthrough, sharded. No retries: a flaky spec is a bug.
+    name: e2e (${{ matrix.shard }}/4)
+    needs: web-build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: e2e-web
+          path: apps/web
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: e2e-bin
+          path: ${{ runner.temp }}/e2e-bin
+      - name: Playwright browser
+        working-directory: apps/web
+        run: npx playwright install --with-deps chromium-headless-shell
+      - name: Playwright
+        working-directory: apps/web
+        env:
+          ETHEREAL_TOURS: "1"
+          ETHER_E2E_SERVER_BIN: ${{ runner.temp }}/e2e-bin/ether-server
+          SHARD: ${{ matrix.shard }}
+        run: |
+          chmod +x "$ETHER_E2E_SERVER_BIN"
+          npx playwright test --workers=2 --shard="$SHARD/4"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: failure()
+        with:
+          name: playwright-${{ matrix.shard }}
+          path: apps/web/test-results
+          retention-days: 7
+          if-no-files-found: ignore
+
+  # --- Packaging ----------------------------------------------------------------------------
+
+  package:
+    # The release's desktop packaging path, before merge: tauri.conf.json's beforeBuildCommand
+    # (UI + helpers + MCP server staged by build-sandbox-helper.mjs --bundle), the release
+    # config overlay (tauri-config.mjs: version, Windows `externalBin`), the bundler, and
+    # collect.mjs's checks that the helpers are inside the package. Open-source build only
+    # (the official one adds the private overlay); unsigned. Release builds use LTO and one
+    # codegen unit; here only the packaging is under test, so both are off to keep it fast.
+    name: Package (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Linux deb
+            os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            bundles: deb
+          - name: Windows nsis
+            os: windows-latest
+            target: x86_64-pc-windows-msvc
+            bundles: nsis
+    env:
+      CARGO_PROFILE_RELEASE_LTO: "off"
+      CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "16"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Windows (aws-lc-sys without NASM)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: echo "AWS_LC_SYS_PREBUILT_NASM=1" >> "$GITHUB_ENV"
+      - name: Linux system deps (Tauri, ALSA)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libasound2-dev libssl-dev libxdo-dev pkg-config
+      - name: Toolchain (from rust-toolchain.toml)
+        shell: bash
+        run: rustup show active-toolchain || rustup toolchain install
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          key: package-${{ matrix.target }}
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Release config overlay
+        shell: bash
+        run: node scripts/release/tauri-config.mjs "$RUNNER_TEMP/tauri.release.json"
+      - name: tauri build
+        shell: bash
+        working-directory: apps/desktop
+        env:
+          TARGET: ${{ matrix.target }}
+          BUNDLES: ${{ matrix.bundles }}
+        run: pnpm tauri build --ci --features full --target "$TARGET" --bundles "$BUNDLES" --config "$RUNNER_TEMP/tauri.release.json"
+      - name: Collect (checks the helpers are packaged)
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+        run: node scripts/release/collect.mjs desktop "$TARGET" "$RUNNER_TEMP/out"
+
+  # --- Policy -------------------------------------------------------------------------------
+
+  policy:
+    name: Policy (licenses, notices, advisories, ee boundary, actionlint)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: OSS code and manifests never reference the private submodule
+        run: |
+          if git grep -nE '(\.\./)*\bee/(crates|ui|services|apps|scripts)/' -- '*.toml' '*.json' '*.ts' '*.tsx' '*.rs' '*.mjs' ':!scripts/feat.mjs'; then
+            echo "::error::OSS must not depend on ee/ (docs/EE-WORKFLOW.md: ee/ may depend on OSS, never the reverse)"
+            exit 1
+          fi
+          git config -f .gitmodules submodule.ee.update | grep -qx none || { echo "::error::.gitmodules: ee needs update = none"; exit 1; }
+      - name: Toolchain (from rust-toolchain.toml)
+        run: rustup show active-toolchain || rustup toolchain install
+      - uses: taiki-e/install-action@8cca0918f8471c33515202b73f56ab27f2bed283 # v2.87.29
+        with:
+          tool: cargo-deny@0.20.2,cargo-bundle-licenses@4.2.0,actionlint@1.7.12
+      - name: actionlint
+        run: actionlint
+      - name: Licenses, bans, sources (cargo-deny)
+        run: cargo deny check licenses bans sources
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - name: Notices fresh
@@ -110,75 +405,25 @@ jobs:
             echo "::error::THIRD-PARTY-NOTICES.md is stale. Run 'just notices' and commit."
             exit 1
           fi
-
-  ee-boundary:
-    name: No references into ee/
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: OSS code and manifests never reference the private submodule
+      - name: Does this change the dependencies?
+        # Advisories gate a pull request only when it changes a lockfile (or the policy): a new
+        # advisory against an existing dependency must not block unrelated work. `main` and the
+        # daily run (advisories.yml) always gate.
+        id: deps
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ github.event.pull_request.base.sha }}
         run: |
-          if git grep -nE '(\.\./)*\bee/(crates|ui|services|apps|scripts)/' -- '*.toml' '*.json' '*.ts' '*.tsx' '*.rs' '*.mjs' ':!scripts/feat.mjs'; then
-            echo "::error::OSS must not depend on ee/ (docs/EE-WORKFLOW.md: ee/ may depend on OSS, never the reverse)"
-            exit 1
+          gate=true
+          if [ "$EVENT" = pull_request ]; then
+            git fetch --no-tags --depth=1 origin "$BASE"
+            git diff --quiet FETCH_HEAD HEAD -- Cargo.lock pnpm-lock.yaml deny.toml && gate=false
           fi
-          git config -f .gitmodules submodule.ee.update | grep -qx none || { echo "::error::.gitmodules: ee needs update = none"; exit 1; }
-
-  # The OSS repo is the public, self-contained DAW; it must build and pass its tests on its own.
-  # No job here needs a secret, so they all gate pull requests from forks too.
-  oss-rust:
-    name: OSS Rust (build + tests)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Linux system deps (Tauri, ALSA)
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libasound2-dev libssl-dev pkg-config
-      - name: Toolchain (from rust-toolchain.toml)
-        run: rustup show active-toolchain || rustup toolchain install
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
-        with:
-          key: oss
-      - name: fmt
-        run: cargo fmt --all --check
-      - name: clippy
-        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
-      - name: test
-        # `effects_defaults`/`instruments_*` have golden-hash tests recorded on one x86_64
-        # Linux box; the GitHub runner's CPU/libm render the same audio with different rounding,
-        # so they are devbox tools, not CI gates (the original CI only ran the suite on macOS,
-        # where they are cfg'd out). Everything else runs.
-        run: cargo test --workspace --all-features -- --skip appended_params_keep_the_default_sound --skip patches_from_before_render_as_before
-      - name: wasm32 check
-        run: cargo check --target wasm32-unknown-unknown -p ether-protocol -p ether-model -p ether-core -p ether-devices -p ether-media -p ether-controller -p ether-stretch -p ether-wasm --all-features
-
-  oss-web:
-    name: OSS web (tsc, eslint, vitest, build)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - name: tsc
-        run: pnpm -r typecheck
-      - name: eslint
-        run: pnpm -r lint
-      - name: prettier
-        run: pnpm format:check
-      - name: vitest
-        run: pnpm -r test
-      - name: wasm-bindgen version (from Cargo.lock)
-        id: wb
-        run: echo "version=$(grep -A1 '^name = "wasm-bindgen"$' Cargo.lock | sed -n 's/^version = "\(.*\)"/\1/p')" >> "$GITHUB_OUTPUT"
-      - uses: taiki-e/install-action@4cef1412cce204788f482e778a0b9187f9626a29 # v2.87.21
-        with:
-          tool: wasm-bindgen@${{ steps.wb.outputs.version }}
-      - name: build ui + web
-        run: |
-          pnpm --filter @ethereal/ui build
-          pnpm --filter @ethereal/web build
+          echo "gate=$gate" >> "$GITHUB_OUTPUT"
+          echo "advisories gate: $gate"
+      - name: Advisories (cargo-deny)
+        continue-on-error: ${{ steps.deps.outputs.gate != 'true' }}
+        run: cargo deny check advisories
+      - name: Advisories (pnpm audit, production dependencies)
+        continue-on-error: ${{ steps.deps.outputs.gate != 'true' }}
+        run: pnpm audit --prod --audit-level high

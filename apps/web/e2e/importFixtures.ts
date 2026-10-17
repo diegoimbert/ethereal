@@ -123,8 +123,11 @@ export const RPP = `<REAPER_PROJECT 0.1 "7.27/linux-x86_64" 1727000000
 >
 `;
 
+/** The importer's fixtures (repo-relative): only in a build that has the importer. */
+export const IMPORT_FIXTURES_DIR = "crates/ether-import/tests/fixtures/dawproject";
+
 export function importFixtures(read: (repoPath: string) => Buffer) {
-  const dir = "crates/ether-import/tests/fixtures/dawproject";
+  const dir = IMPORT_FIXTURES_DIR;
   const canon = zip([
     ["project.xml", read(`${dir}/canon-project.xml`)],
     ["metadata.xml", read(`${dir}/canon-metadata.xml`)],
