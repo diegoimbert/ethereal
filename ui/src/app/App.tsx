@@ -17,7 +17,7 @@
 import { lazy, memo, Suspense, useContext, useEffect, useRef } from "react";
 import { Settings } from "lucide-react";
 import { useT } from "@/i18n";
-import { ConfirmDialog, ContextMenuHost, IconButton, ReadOnlySurface, TitleTooltipHost } from "@/kit";
+import { ConfirmDialog, ContextMenuHost, IconButton, ReadOnlySurface, TitleTooltipHost, ToastStack } from "@/kit";
 import { dismissOnRelease, useEditorStore, useProjectStore, useReadOnly } from "@/state";
 import { size } from "@/theme";
 import type { ClipId } from "@/generated";
@@ -32,6 +32,7 @@ import { KeymapRoot } from "@/features/keymap";
 import { EngineLanguage } from "./EngineLanguage";
 import { MediaRefsRoot } from "@/features/media-refs";
 import { MidiLearnRoot } from "@/features/midi-learn";
+import { NotificationToastItems } from "@/features/notifications";
 import { ImportResolverRoot } from "@/features/import-resolver";
 import { ProjectMenu } from "@/features/project";
 import { RecordingControls, useKeepRecordingSetup } from "@/features/recording";
@@ -310,6 +311,10 @@ export function App() {
   return (
     <PanelBoundary name="app" variant="app">
       <Shell />
+      {/* The app's notices (saved, exported, duplicated, warnings), over every shell. */}
+      <ToastStack>
+        <NotificationToastItems />
+      </ToastStack>
     </PanelBoundary>
   );
 }
