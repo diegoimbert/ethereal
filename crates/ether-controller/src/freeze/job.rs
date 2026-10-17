@@ -45,6 +45,9 @@ pub(crate) struct PassSpec {
     pub cut: Option<Beats>,
     /// Post-chain (device chain included) or the clips only.
     pub chain: bool,
+    /// Partial freeze: render `track`'s chain only up to and including this device (the
+    /// devices after it are not instantiated, so they are left out of the render).
+    pub up_to: Option<DeviceId>,
     /// Media id and display name of the result.
     pub media: MediaId,
     pub name: String,
@@ -124,14 +127,13 @@ pub(crate) fn needed_tracks(p: &Project, target: TrackId, chain: bool) -> BTreeS
         if let TrackInput::Track { track, .. } = track.input {
             feeds.push(track);
         }
-        if track.freeze.is_none() {
-            feeds.extend(
-                p.devices
-                    .values()
-                    .filter(|d| d.track == t)
-                    .filter_map(|d| d.sidechain),
-            );
-        }
+        // Live devices (a partially frozen track's tail too) hear their sidechains.
+        feeds.extend(
+            p.devices
+                .values()
+                .filter(|d| d.track == t && d.sidechain.is_some() && !p.device_frozen(d.id))
+                .filter_map(|d| d.sidechain),
+        );
         for f in feeds {
             if p.tracks.contains_key(&f) && set.insert(f) {
                 stack.push(f);
@@ -144,13 +146,35 @@ pub(crate) fn needed_tracks(p: &Project, target: TrackId, chain: bool) -> BTreeS
 /// Devices a pass instantiates: those of the needed tracks (the target's only with its
 /// chain), never of frozen tracks.
 fn pass_devices(p: &Project, spec: &PassSpec, needed: &BTreeSet<TrackId>) -> Vec<DeviceId> {
+    let frozen = p.frozen_devices();
+    let tail = spec
+        .up_to
+        .map(|d| live_tail(p, spec.track, d))
+        .unwrap_or_default();
     p.devices
         .values()
         .filter(|d| needed.contains(&d.track))
         .filter(|d| spec.chain || d.track != spec.track)
-        .filter(|d| p.tracks.contains_key(&d.track) && p.frozen_by(d.track).is_none())
+        .filter(|d| p.tracks.contains_key(&d.track) && !frozen.contains(&d.id))
+        .filter(|d| !tail.contains(&d.id))
         // Disabled plugins are bypassed anyway: no instance needed.
         .filter(|d| d.enabled || !matches!(d.kind, DeviceKind::Plugin { .. }))
+        .map(|d| d.id)
+        .collect()
+}
+
+/// The devices of `track` after `up_to` on its chain, with everything nested in them (the
+/// live tail of a partial freeze).
+pub(crate) fn live_tail(p: &Project, track: TrackId, up_to: DeviceId) -> BTreeSet<DeviceId> {
+    let chain = p.devices_of(track);
+    let Some(i) = chain.iter().position(|d| d.id == up_to) else {
+        return BTreeSet::new();
+    };
+    let roots: BTreeSet<DeviceId> = chain[i + 1..].iter().map(|d| d.id).collect();
+    p.devices
+        .values()
+        .filter(|d| d.track == track)
+        .filter(|d| p.chain_root(d.id).is_some_and(|r| roots.contains(&r.id)))
         .map(|d| d.id)
         .collect()
 }

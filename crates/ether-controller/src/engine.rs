@@ -302,19 +302,16 @@ impl EngineState {
         self.plugins_pending = false;
         let empty = BTreeMap::new();
         let all = project.map_or(&empty, |p| &p.devices);
-        // v0.2 (`freeze-bounce`): devices of frozen tracks get no node (their CPU is saved;
-        // the track plays its render). Their plugin state is in the document (kept at
-        // freeze), so unfreezing re-creates them as they were.
+        // v0.2 (`freeze-bounce`): frozen devices get no node (their CPU is saved; the track
+        // plays its render, then a partial freeze's live tail). Their plugin state is in the
+        // document (kept at freeze), so unfreezing re-creates them as they were.
         let live: BTreeMap<DeviceId, Device>;
         let devices = match project {
             Some(p) if p.tracks.values().any(|t| t.freeze.is_some()) => {
+                let frozen = p.frozen_devices();
                 live = all
                     .iter()
-                    .filter(|(_, d)| {
-                        p.tracks
-                            .get(&d.track)
-                            .is_none_or(|t| p.frozen_by(t.id).is_none())
-                    })
+                    .filter(|(id, _)| !frozen.contains(id))
                     .map(|(k, d)| (*k, d.clone()))
                     .collect();
                 &live

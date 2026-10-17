@@ -3,7 +3,7 @@
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
-use crate::ids::{MediaId, TrackId};
+use crate::ids::{DeviceId, MediaId, TrackId};
 use crate::value::{Color, Decibels, OrderKey, Pan, Seconds};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize, TS)]
@@ -85,12 +85,24 @@ pub struct Track {
 /// is *inert* (`Project::frozen_ancestor`): not processed and not audible on its own
 /// (nothing compiled, no nodes, no solo, no sends, no sidechain output), and the controller
 /// rejects edits to them as for a frozen track. Their sends (to returns) stop while frozen.
+///
+/// **Partial freeze** (`up_to`, "freeze up to here"): only the track's source and its chain
+/// up to and including device `up_to` are rendered into `media`; the devices after it (the
+/// *live tail*) keep their nodes and process the render in real time, and stay editable
+/// (`Project::device_frozen`, `Project::frozen_chain_len`). The track still counts as
+/// frozen everywhere else (clips locked, `frozen_by`, inert descendants for a group).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
 pub struct TrackFreeze {
     /// The render (project media, under `media/`; never an external reference).
     pub media: MediaId,
     /// Song time of the media's first frame (seconds, >= 0; 0 in v0.2).
     pub start: Seconds,
+    /// The freeze point: the last frozen device of the track chain (a top-level device of
+    /// this track). `None` (and older files) = the whole chain. A device id that is no
+    /// longer on the track's chain also means the whole chain. Omitted from JSON when `None`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub up_to: Option<DeviceId>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize, TS)]

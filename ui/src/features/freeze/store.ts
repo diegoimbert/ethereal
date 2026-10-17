@@ -7,7 +7,7 @@
  */
 
 import { create } from "zustand";
-import type { Beats, Clip, Command, Event, FreezeCommand, TrackId } from "@/generated";
+import type { Beats, Clip, Command, DeviceId, Event, FreezeCommand, TrackId } from "@/generated";
 import { useProjectStore } from "@/state";
 import { cmd, commandErrorText, isCommandFailed, newId, type EngineTransport } from "@/transport";
 import { descendantsOf, frozenAncestor } from "./inert";
@@ -182,6 +182,14 @@ export function canFreeze(track: TrackId): boolean {
 
 export function freezeTracks(transport: EngineTransport, tracks: TrackId[]): Promise<void[]> {
   return Promise.all(tracks.map((track) => runRenderJob(transport, "Freeze", [track], (job) => freeze({ type: "Freeze", job, track, media: newId() }))));
+}
+
+/**
+ * "freeze up to here": render `track` through its chain up to and including `device`; the
+ * devices after it stay live (`FreezeCommand::Freeze { up_to }`).
+ */
+export function freezeUpTo(transport: EngineTransport, track: TrackId, device: DeviceId): Promise<void> {
+  return runRenderJob(transport, "Freeze", [track], (job) => freeze({ type: "Freeze", job, track, media: newId(), up_to: device }));
 }
 
 async function sendOrRecord(transport: EngineTransport, tracks: TrackId[], command: Command): Promise<void> {

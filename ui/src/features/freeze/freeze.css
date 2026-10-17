@@ -66,3 +66,26 @@
   cursor: default;
   color: var(--eth-color-info);
 }
+
+/* Frozen devices (#25): the freeze point and every device before it, when a track is frozen
+   (a partial freeze keeps the devices after its freeze point live and unstyled). The icy
+   tint of a frozen lane; their parameters are locked (inert). */
+.eth-device--frozen {
+  background-color: color-mix(in srgb, var(--eth-color-info) 6%, var(--eth-color-bg-card));
+  border-color: color-mix(in srgb, var(--eth-color-info) 35%, var(--eth-color-border-card));
+}
+
+.eth-device--frozen .eth-device__inline {
+  opacity: var(--eth-opacity-muted);
+}
+
+.eth-device__frozen {
+  display: inline-flex;
+  flex: none;
+  color: var(--eth-color-info);
+}
+
+.eth-device__frozen svg {
+  width: var(--eth-size-icon-sm);
+  height: var(--eth-size-icon-sm);
+}

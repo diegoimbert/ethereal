@@ -953,8 +953,18 @@ half-open ranges). `arrangement_clips_of` lists main-lane clips only.
   replaces the group and all its descendants by one audio track `new_track` (name, color,
   parent, mixer, output, VCA, sends of the group) holding one clip of the render; the
   group's own fader/pan automation lanes are dropped. One undo step.
-- Engine: `TrackDesc::frozen: Option<FrozenDesc>` (+ empty clips/chain), rendered by
-  `ether_core::freeze::render_frozen` where clips render (pre-wired).
+- **Freeze up to a device** (#25, additive): `Freeze { up_to: Some(device) }` renders the
+  source and the chain up to and including that track-chain device into the media, stored as
+  `TrackFreeze::up_to` (omitted = the whole chain, so older files load unchanged; the last
+  device of the chain is stored as `None`, a plain freeze). Not on MIDI effects nor before a
+  MIDI track's instrument (`InvalidArgument`). Only the frozen devices
+  (`Project::device_frozen`: up to the freeze point, nested ones with their rack) lose their
+  nodes and are locked; the devices after it (the live tail) compile into the chain after
+  the render and stay editable (inserting or moving devices into the tail too). Clips stay
+  locked; the track counts as frozen everywhere else. `Flatten` keeps the live tail (on the
+  audio track, or moved to the new audio track).
+- Engine: `TrackDesc::frozen: Option<FrozenDesc>` (+ empty clips/chain, or the live tail in
+  `chain`), rendered by `ether_core::freeze::render_frozen` where clips render (pre-wired).
 - Render jobs (`Freeze`, `Bounce`, audio `Consolidate`) reply `RenderStarted { job }` and run
   on an `OfflineRenderer` from the controller tick (like export; one job at a time,
   independent of export), then `FreezeEvent::{Progress, Done, Failed, Cancelled}`. The

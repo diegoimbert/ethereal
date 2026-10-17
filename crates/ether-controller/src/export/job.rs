@@ -778,17 +778,14 @@ impl Job {
         let p = &*self.project;
         let master = self.master();
         let is_stem = self.is_stem();
+        let frozen = p.frozen_devices();
         let devices = p
             .devices
             .values()
             // Master chain excluded from stems.
             .filter(|d| !(is_stem && Some(d.track) == master))
-            // Frozen tracks play their render (`freeze-bounce`): no nodes.
-            .filter(|d| {
-                p.tracks
-                    .get(&d.track)
-                    .is_none_or(|t| p.frozen_by(t.id).is_none())
-            })
+            // Frozen devices: their track plays its render (`freeze-bounce`), no nodes.
+            .filter(|d| !frozen.contains(&d.id))
             // Disabled plugins are bypassed anyway: no instance needed.
             .filter(|d| d.enabled || !matches!(d.kind, DeviceKind::Plugin { .. }))
             .map(|d| d.id)

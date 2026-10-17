@@ -7,7 +7,8 @@ import { PresetMenu } from "@/features/presets";
 import { SidechainSelector } from "@/features/sidechain";
 import { AddModulatorButton, addModulatorEntries, ModulatorsPanel, useModulatorKinds } from "@/features/modulation";
 import { groupEntries, isChainRack, RackPanel } from "@/features/racks";
-import { ChevronLeft, ChevronRight, Power, SlidersHorizontal, X } from "lucide-react";
+import { freezeDeviceEntries, useDeviceFrozen } from "@/features/freeze";
+import { ChevronLeft, ChevronRight, Power, SlidersHorizontal, Snowflake, X } from "lucide-react";
 import { IconButton, openContextMenu, type ContextMenuEntry } from "@/kit";
 import { useProjectStore } from "@/state";
 import { useDeviceOn } from "@/features/automation/live";
@@ -61,6 +62,9 @@ export function DeviceView({ device, prev, moveRightBefore, onDropBefore, accept
   const send = useSend();
   const remove = () => (onRemove ? onRemove() : void send(cmd("Device", { type: "Remove", id: device.id })));
   const { on, automated } = useDeviceOn(device);
+  // Freeze (#25): a frozen device (its track plays a render through it) is locked; with a
+  // partial freeze, the devices after the freeze point stay live.
+  const frozen = useDeviceFrozen(device);
   const transport = useTransport();
   // Copy / paste (deviceClipboard.ts): the selected card, what's copied, device kinds.
   const selected = useDeviceClipboard((s) => s.selected === device.id);
@@ -109,7 +113,9 @@ export function DeviceView({ device, prev, moveRightBefore, onDropBefore, accept
           !paramsOpen && "eth-device--collapsed",
           !on && "eth-device--bypassed",
           selected && "eth-device--selected",
+          frozen && "eth-device--frozen",
         )}
+        data-frozen={frozen || undefined}
         data-device={device.id}
         aria-label={device.name}
         // A click selects the card (the innermost one: a device in a rack chain, not its rack)
@@ -154,6 +160,7 @@ export function DeviceView({ device, prev, moveRightBefore, onDropBefore, accept
                   },
                 ],
                 groupEntries(device, descriptor, send),
+                freezeDeviceEntries(transport, device, categoryOf),
                 device.pad === null && device.chain == null ? addModulatorEntries(modulatorKinds, device, send) : [],
                 pluginMenuEntries(device, transport),
                 [{ label: t("devices.device.delete"), danger: true, onSelect: remove }],
@@ -215,6 +222,11 @@ export function DeviceView({ device, prev, moveRightBefore, onDropBefore, accept
               <AddModulatorButton device={device} />
             </span>
           </span>
+          {frozen && (
+            <span className="eth-device__frozen" role="img" aria-label={t("devices.device.frozen")} title={t("devices.device.frozen_title")}>
+              <Snowflake aria-hidden />
+            </span>
+          )}
           <PluginDeviceControls device={device} />
           <MissingDeviceControls device={device} />
           <SidechainSelector device={device} />
@@ -258,7 +270,7 @@ export function DeviceView({ device, prev, moveRightBefore, onDropBefore, accept
         </header>
         {/* The card body: the parameter list (when shown), a rack's chains, the modulators.
             The device's own UI is in its window, never here. */}
-        <div className="eth-device__inline">
+        <div className="eth-device__inline" inert={frozen || undefined}>
           {paramsOpen &&
             (descriptor ? (
               <DeviceParams id={paramsId} device={device.id} deviceName={device.name} descriptor={descriptor} sender={sender} pins={pinKey(device)} />

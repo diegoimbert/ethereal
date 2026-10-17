@@ -6,9 +6,11 @@
 //! its field name) and resolved against the project, so every present and future content
 //! command of the listed domains is covered without a per-variant table:
 //! - clips, notes, warp markers, take lanes and comp regions of a frozen track;
-//! - devices on a frozen track (and what hangs off them: drum pads, rack chains, modulators,
-//!   modulation mappings), and automation lanes/points of a device on a frozen track or of a
-//!   frozen track's clip (clip envelopes). Mixer lanes (volume, pan, sends) stay editable;
+//! - frozen devices (`Project::device_frozen`: every device of a frozen track, or those up to
+//!   the freeze point of a partial freeze) and what hangs off them (drum pads, rack chains,
+//!   modulators, modulation mappings), and automation lanes/points of a frozen device or of
+//!   a frozen track's clip (clip envelopes). Mixer lanes (volume, pan, sends) stay editable,
+//!   and so does a partial freeze's live tail (inserting or moving devices into it too);
 //! - a frozen track named by a `track` field (creating or moving clips/devices onto it,
 //!   arming it, comping it) or listed in a time edit's `tracks` (an empty list means every
 //!   track, so it includes the frozen ones).
@@ -90,59 +92,101 @@ fn frozen(p: &Project, track: TrackId) -> Option<&Track> {
     p.frozen_by(track).and_then(|t| p.tracks.get(&t))
 }
 
-/// The frozen track that entity `id` belongs to (content of a frozen track), if any.
+/// What a command's entity hangs off: track content (clips and what is on them, take lanes,
+/// comp regions) or a device (what is on it: pads, rack chains, modulators, mappings, its
+/// automation lanes).
+#[derive(Clone, Copy)]
+enum Owner {
+    Track(TrackId),
+    Device(DeviceId),
+}
+
+/// The frozen track that entity `id` belongs to (content of a frozen track, or a frozen
+/// device: a partial freeze's live tail stays editable), if any.
 fn frozen_owner(p: &Project, id: Ulid) -> Option<&Track> {
-    let clip_track = |c: ClipId| p.clips.get(&c).map(|c| c.track);
-    let device_track = |d: DeviceId| p.devices.get(&d).map(|d| d.track);
-    let lane_track = |l: AutomationLaneId| {
+    let clip_track = |c: ClipId| p.clips.get(&c).map(|c| Owner::Track(c.track));
+    let device = |d: DeviceId| p.devices.get(&d).map(|d| Owner::Device(d.id));
+    let lane_owner = |l: AutomationLaneId| {
         let lane = p.automation_lanes.get(&l)?;
         match (&lane.owner, &lane.target) {
             (AutomationOwner::Clip { clip }, _) => clip_track(*clip),
             (
                 _,
-                AutomationTarget::DeviceParam { device, .. }
-                | AutomationTarget::DeviceEnabled { device },
-            ) => device_track(*device),
+                AutomationTarget::DeviceParam { device: d, .. }
+                | AutomationTarget::DeviceEnabled { device: d },
+            ) => device(*d),
             _ => None,
         }
     };
-    let track = clip_track(ClipId(id))
-        .or_else(|| device_track(DeviceId(id)))
+    let owner = clip_track(ClipId(id))
+        .or_else(|| device(DeviceId(id)))
         .or_else(|| p.notes.get(&NoteId(id)).and_then(|n| clip_track(n.clip)))
-        .or_else(|| lane_track(AutomationLaneId(id)))
+        .or_else(|| lane_owner(AutomationLaneId(id)))
         .or_else(|| {
             p.automation_points
                 .get(&AutomationPointId(id))
-                .and_then(|pt| lane_track(pt.lane))
+                .and_then(|pt| lane_owner(pt.lane))
         })
         .or_else(|| {
             p.warp_markers
                 .get(&WarpMarkerId(id))
                 .and_then(|m| clip_track(m.clip))
         })
-        .or_else(|| {
-            p.drum_pads
-                .get(&DrumPadId(id))
-                .and_then(|d| device_track(d.rack))
-        })
+        .or_else(|| p.drum_pads.get(&DrumPadId(id)).and_then(|d| device(d.rack)))
         .or_else(|| {
             p.rack_chains
                 .get(&RackChainId(id))
-                .and_then(|c| device_track(c.rack))
+                .and_then(|c| device(c.rack))
         })
         .or_else(|| {
             p.modulators
                 .get(&ModulatorId(id))
-                .and_then(|m| device_track(m.device))
+                .and_then(|m| device(m.device))
         })
         .or_else(|| {
             p.mod_mappings
                 .get(&ModMappingId(id))
-                .and_then(|m| device_track(m.device))
+                .and_then(|m| device(m.device))
         })
-        .or_else(|| p.take_lanes.get(&TakeLaneId(id)).map(|l| l.track))
-        .or_else(|| p.comp_regions.get(&CompRegionId(id)).map(|r| r.track))?;
-    frozen(p, track)
+        .or_else(|| {
+            p.take_lanes
+                .get(&TakeLaneId(id))
+                .map(|l| Owner::Track(l.track))
+        })
+        .or_else(|| {
+            p.comp_regions
+                .get(&CompRegionId(id))
+                .map(|r| Owner::Track(r.track))
+        })?;
+    match owner {
+        Owner::Track(track) => frozen(p, track),
+        Owner::Device(d) => {
+            if !p.device_frozen(d) {
+                return None;
+            }
+            frozen(p, p.devices.get(&d)?.track)
+        }
+    }
+}
+
+/// A `Device::{Insert, Move}` onto a partially frozen track lands in its live tail: always,
+/// since its `before` (when set) is checked as a device on its own (a frozen one blocks).
+fn into_live_tail(p: &Project, command: &Command, track: TrackId) -> bool {
+    use ether_core::protocol::devices::DeviceCommand as D;
+    let Command::Device(D::Insert { track: t, .. } | D::Move { track: t, .. }) = command else {
+        return false;
+    };
+    let Some(up_to) = p
+        .tracks
+        .get(&track)
+        .and_then(|t| t.freeze.as_ref())
+        .and_then(|f| f.up_to)
+    else {
+        return false;
+    };
+    *t == track
+        && p.frozen_ancestor(track).is_none()
+        && p.devices_of(track).iter().any(|d| d.id == up_to)
 }
 
 fn rejected(t: &Track) -> ether_core::protocol::CommandError {
@@ -210,7 +254,10 @@ pub(crate) fn check_editable(p: &Project, command: &Command) -> CmdResult<()> {
                 Tracks::Field => key == "track",
                 Tracks::Selection => key == "track" || key == "tracks",
             };
-            if blocks && let Some(f) = frozen(p, t.id) {
+            if blocks
+                && let Some(f) = frozen(p, t.id)
+                && !into_live_tail(p, command, t.id)
+            {
                 return Err(rejected(f));
             }
             continue;
