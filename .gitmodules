@@ -1,0 +1,4 @@
+[submodule "ee"]
+	path = ee
+	url = ../ethereal-private.git
+	update = none

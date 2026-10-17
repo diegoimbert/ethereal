@@ -21,5 +21,3 @@ secrets/*.tmp
 *.proptest-regressions
 .plugin-work/
 
-# The private overlay checked out by CI (.github/actions/overlay-private).
-.private/

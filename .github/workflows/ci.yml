@@ -1,5 +1,8 @@
 name: CI
 
+# OSS only: every job builds this repo on its own, with `ee/` (the private submodule) empty.
+# The full product (OSS + ee/) is built on the private side, which reports back to OSS PRs as
+# the `ee/build` and `ee/pointer` commit statuses (docs/EE-WORKFLOW.md).
 on:
   pull_request:
   push:
@@ -16,16 +19,10 @@ env:
 
 jobs:
   rust-macos:
-    name: Rust (macOS, full)
-    # Fork pull requests get no secrets, so the private overlay can't run: skip here and let the
-    # OSS jobs below gate them.
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    name: Rust (macOS)
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: ./.github/actions/overlay-private
-        with:
-          token: ${{ secrets.ETHER_PRIVATE_TOKEN }}
       - name: Toolchain (from rust-toolchain.toml)
         run: rustup show active-toolchain || rustup toolchain install
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
@@ -43,7 +40,6 @@ jobs:
 
   rust-check:
     name: Rust check (${{ matrix.os }})
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     strategy:
       fail-fast: false
       matrix:
@@ -51,9 +47,6 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-      - uses: ./.github/actions/overlay-private
-        with:
-          token: ${{ secrets.ETHER_PRIVATE_TOKEN }}
       - name: Linux system deps (Tauri, ALSA)
         if: runner.os == 'Linux'
         run: |
@@ -118,43 +111,21 @@ jobs:
             exit 1
           fi
 
-  web:
-    name: TS (tsc, eslint, vitest, build)
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+  ee-boundary:
+    name: No references into ee/
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: ./.github/actions/overlay-private
-        with:
-          token: ${{ secrets.ETHER_PRIVATE_TOKEN }}
-      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - name: tsc
-        run: pnpm -r typecheck
-      - name: eslint
-        run: pnpm -r lint
-      - name: prettier
-        run: pnpm format:check
-      - name: vitest
-        run: pnpm -r test
-      - name: wasm-bindgen version (from Cargo.lock)
-        id: wb
-        run: echo "version=$(grep -A1 '^name = "wasm-bindgen"$' Cargo.lock | sed -n 's/^version = "\(.*\)"/\1/p')" >> "$GITHUB_OUTPUT"
-      - uses: taiki-e/install-action@4cef1412cce204788f482e778a0b9187f9626a29 # v2.87.21
-        with:
-          tool: wasm-bindgen@${{ steps.wb.outputs.version }}
-      - name: build ui + web
+      - name: OSS code and manifests never reference the private submodule
         run: |
-          pnpm --filter @ethereal/ui build
-          pnpm --filter @ethereal/web build
+          if git grep -nE '(\.\./)*\bee/(crates|ui|services|apps|scripts)/' -- '*.toml' '*.json' '*.ts' '*.tsx' '*.rs' '*.mjs' ':!scripts/feat.mjs'; then
+            echo "::error::OSS must not depend on ee/ (docs/EE-WORKFLOW.md: ee/ may depend on OSS, never the reverse)"
+            exit 1
+          fi
+          git config -f .gitmodules submodule.ee.update | grep -qx none || { echo "::error::.gitmodules: ee needs update = none"; exit 1; }
 
-  # The OSS repo is the public, self-contained DAW; it must build and pass its tests on its own,
-  # without the private overlay. (The jobs above overlay ethereal-private and build the full
-  # product; these two do not.) They need no secrets, so they also gate pull requests from forks.
+  # The OSS repo is the public, self-contained DAW; it must build and pass its tests on its own.
+  # No job here needs a secret, so they all gate pull requests from forks too.
   oss-rust:
     name: OSS Rust (build + tests)
     runs-on: ubuntu-latest
