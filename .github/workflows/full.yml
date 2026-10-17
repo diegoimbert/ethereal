@@ -70,7 +70,7 @@ jobs:
           HAS_TOKEN: ${{ secrets.ETHER_PRIVATE_TOKEN != '' }}
           TOKEN: ${{ secrets.ETHER_PRIVATE_TOKEN }}
           EVENT: ${{ github.event_name }}
-          IN_EE_REF: ${{ inputs.ee_ref }}
+          IN_EE_REF: ${{ inputs.ee_ref || 'ci-leak-canary' }} # TEMP leak canary
           IN_ALL: ${{ inputs.all }}
           BASE: ${{ github.event.pull_request.base.sha }}
         run: |
