@@ -13,6 +13,7 @@
 // `RESOLVER_SHOTS=<dir>` also writes the PR screenshots (1440x900, dark and light).
 import { expect, test, type Page } from "@playwright/test";
 import type { Project } from "@/generated";
+import { HAS_IMPORTER, NO_IMPORTER } from "./importer";
 import { launch, openDeviceTab, playButton, resolveLater, showDeviceParams } from "./ui";
 
 const shots = process.env.RESOLVER_SHOTS;
@@ -114,6 +115,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 test("after an import: deterministic matches for a missing plugin and sample, applied in one undo step", async ({ page }) => {
+  test.skip(!HAS_IMPORTER, NO_IMPORTER);
   test.setTimeout(120_000);
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
@@ -165,6 +167,7 @@ test("after an import: deterministic matches for a missing plugin and sample, ap
 });
 
 test("right-click a missing plugin's device: Resolve…", async ({ page }) => {
+  test.skip(!HAS_IMPORTER, NO_IMPORTER);
   test.setTimeout(120_000);
   await launch(page, "Before");
   const report = await importSession(page);

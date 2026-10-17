@@ -30,7 +30,13 @@ const header = (page: Page, t: Track) => page.getByRole("group", { name: `${t.na
 
 async function trackMenu(page: Page, t: Track, item: string): Promise<void> {
   await header(page, t).click({ button: "right", position: { x: 6, y: 10 } });
-  await page.getByRole("menuitem", { name: item, exact: true }).click();
+  // On a busy runner a click can land while the menu settles and only focus the entry
+  // (seen on canvas2d): pick it again until the menu closes.
+  const entry = page.getByRole("menuitem", { name: item, exact: true });
+  await expect(async () => {
+    if (await entry.isVisible()) await entry.click({ timeout: 2_000 });
+    await expect(entry).toBeHidden({ timeout: 2_000 });
+  }).toPass({ timeout: 20_000 });
 }
 
 /** A MIDI clip on `t` with a few notes drawn in the piano roll. */

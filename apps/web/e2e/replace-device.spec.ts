@@ -22,6 +22,7 @@ import { expect, test, type Page } from "@playwright/test";
 import type { Command, Project } from "@/generated";
 import { installProbe, sendBatched, ulid } from "./perfProject";
 import { launch, openDeviceTab, playButton, showDeviceParams } from "./ui";
+import { HAS_IMPORTER, NO_IMPORTER } from "./importer";
 
 const shots = process.env.REPLACE_SHOTS;
 test.use({ viewport: { width: 1440, height: 900 } });
@@ -116,7 +117,9 @@ async function choose(page: Page, dialog: ReturnType<Page["getByRole"]>, option:
   await picker.getByRole("button", { name: option.split(" · ")[0]!, exact: true }).click();
 }
 
+// It imports a REAPER project to get a plugin to replace.
 test.describe("real engine", () => {
+  test.skip(!HAS_IMPORTER, NO_IMPORTER);
   test.beforeEach(async ({ page }) => {
     await page.addInitScript((installed) => {
       (window as unknown as { __etherResolverPlugins: unknown }).__etherResolverPlugins = installed;

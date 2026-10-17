@@ -54,7 +54,9 @@ test("a 10,000-param plugin: header-only card, capped inline list, search, pin k
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.addInitScript((t) => localStorage.setItem("eth-theme", t), theme);
 
-  let { id, card } = await openMega(page);
+  const opened = await openMega(page);
+  const card = opened.card;
+  let id = opened.id;
   // The card is its header: no control until the parameters are shown.
   expect(await card.locator("[data-param]").count()).toBe(0);
   const params = await showDeviceParams(page, id);
@@ -96,7 +98,7 @@ test("a 10,000-param plugin: header-only card, capped inline list, search, pin k
   // Reload: the mock project starts over, but the pin is a UI setting of the plugin, so a
   // new instance of it shows Cutoff 4241 first.
   await page.reload();
-  ({ id, card } = await openMega(page));
+  ({ id } = await openMega(page));
   const again = await showDeviceParams(page, id);
   await expect(again.locator("[data-param-row]").first()).toHaveAttribute("data-param-row", "4241");
   expect(await page.evaluate(() => localStorage.getItem("eth.devices.paramPins"))).toContain("4241");

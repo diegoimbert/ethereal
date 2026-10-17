@@ -8,10 +8,12 @@ import { fileURLToPath } from "node:url";
 import { expect, test, type Page } from "@playwright/test";
 import type { Project } from "@/generated";
 import { importFixtures } from "./importFixtures";
+import { HAS_IMPORTER, NO_IMPORTER } from "./importer";
 import { launch, projectScreen, resolveLater } from "./ui";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
-const fixtures = importFixtures((p) => readFileSync(resolve(repoRoot, p)));
+test.skip(!HAS_IMPORTER, NO_IMPORTER);
+const fixtures = HAS_IMPORTER ? importFixtures((p) => readFileSync(resolve(repoRoot, p))) : null!;
 
 const project = (page: Page) => page.evaluate(() => (window as unknown as { __ether: { state(): { project: Project | null } } }).__ether.state().project!);
 

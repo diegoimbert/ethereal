@@ -360,7 +360,7 @@ Components: 603 (Rust crates, npm packages and vendored source).
 | `rubato` | 0.16.2 | MIT | https://github.com/HEnquist/rubato |
 | `rustc-hash` | 2.1.3 | Apache-2.0 OR MIT | https://github.com/rust-lang/rustc-hash |
 | `rustfft` | 6.4.1 | MIT OR Apache-2.0 | https://github.com/ejmahler/RustFFT |
-| `rustls` | 0.23.45 | Apache-2.0 OR ISC OR MIT | https://github.com/rustls/rustls |
+| `rustls` | 0.23.46 | Apache-2.0 OR ISC OR MIT | https://github.com/rustls/rustls |
 | `rustls-pki-types` | 1.15.1 | MIT OR Apache-2.0 | https://github.com/rustls/pki-types |
 | `rustls-webpki` | 0.103.15 | ISC | https://github.com/rustls/webpki |
 | `rustversion` | 1.0.23 | MIT OR Apache-2.0 | https://github.com/dtolnay/rustversion |
@@ -603,7 +603,7 @@ Components: 603 (Rust crates, npm packages and vendored source).
 | `x11` | 2.21.0 | MIT | https://github.com/AltF02/x11-rs.git |
 | `x11-dl` | 2.21.0 | MIT | https://github.com/AltF02/x11-rs.git |
 | `yoke` | 0.8.3 | Unicode-3.0 | https://github.com/unicode-org/icu4x |
-| `yoke-derive` | 0.8.3 | Unicode-3.0 | https://github.com/unicode-org/icu4x |
+| `yoke-derive` | 0.8.4 | Unicode-3.0 | https://github.com/unicode-org/icu4x |
 | `zerocopy` | 0.8.59 | BSD-2-Clause OR Apache-2.0 OR MIT | https://github.com/google/zerocopy |
 | `zerocopy-derive` | 0.8.59 | BSD-2-Clause OR Apache-2.0 OR MIT | https://github.com/google/zerocopy |
 | `zerofrom` | 0.1.8 | Unicode-3.0 | https://github.com/unicode-org/icu4x |

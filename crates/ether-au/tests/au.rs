@@ -40,6 +40,15 @@ fn config() -> PrepareConfig {
     }
 }
 
+/// One test talks to the Audio Unit framework at a time. Instantiating and rendering Apple's
+/// units from several test threads at once intermittently deadlocked every test on the macOS
+/// CI runners (all of them past 60 s, the job hit its 6 h limit); hosts drive each unit from
+/// one plugin thread anyway. A failed test poisons the lock, so take it anyway.
+fn serial() -> std::sync::MutexGuard<'static, ()> {
+    static LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    LOCK.lock().unwrap_or_else(|e| e.into_inner())
+}
+
 fn load(id: &str) -> Box<dyn PluginController> {
     AuFormat
         .instantiate(Path::new(id), id)
@@ -108,6 +117,7 @@ fn param(offset: u32, p: ParamId, value: f64) -> ProcessEvent {
 
 #[test]
 fn registry_lists_builtins() {
+    let _serial = serial();
     let targets = AuFormat.discover_registry();
     for id in [DELAY, LOWPASS, DLS] {
         assert!(
@@ -121,6 +131,7 @@ fn registry_lists_builtins() {
 
 #[test]
 fn scan_describes_builtins() {
+    let _serial = serial();
     let d = &AuFormat.scan(Path::new(DELAY)).expect("scan")[0];
     assert_eq!(d.format, PluginFormat::Au);
     assert_eq!(d.id, DELAY);
@@ -140,6 +151,7 @@ fn scan_describes_builtins() {
 
 #[test]
 fn params_are_mapped_stably() {
+    let _serial = serial();
     let mut a = load(DELAY);
     let mut b = load(DELAY);
     let pa = a.params();
@@ -166,6 +178,7 @@ fn params_are_mapped_stably() {
 
 #[test]
 fn delay_alters_signal_and_applies_scheduled_params() {
+    let _serial = serial();
     let mut plugin = load(DELAY);
     let mut node = plugin.activate(&config()).expect("activate");
     assert_eq!(node.channels(), (2, 2));
@@ -198,6 +211,7 @@ fn delay_alters_signal_and_applies_scheduled_params() {
 
 #[test]
 fn lowpass_filters_high_frequencies() {
+    let _serial = serial();
     let mut plugin = load(LOWPASS);
     let mut node = plugin.activate(&config()).expect("activate");
     let mut h = Harness::new();
@@ -229,6 +243,7 @@ fn lowpass_filters_high_frequencies() {
 
 #[test]
 fn instrument_plays_notes() {
+    let _serial = serial();
     let mut plugin = load(DLS);
     let d = plugin.descriptor();
     assert_eq!(d.category, DeviceCategory::Instrument);
@@ -268,6 +283,7 @@ fn instrument_plays_notes() {
 
 #[test]
 fn state_round_trips() {
+    let _serial = serial();
     let mut a = load(DELAY);
     a.set_param_value(DELAY_TIME, 0.25).expect("set");
     a.set_param_value(WET_DRY, 80.0).expect("set");
@@ -297,6 +313,7 @@ fn state_round_trips() {
 
 #[test]
 fn gui_edits_become_notifications() {
+    let _serial = serial();
     let mut plugin = AuPlugin::load(DELAY).expect("load");
     plugin.simulate_gui_edit(DELAY_TIME, 0.5);
     let deadline = Instant::now() + Duration::from_secs(5);
@@ -335,6 +352,7 @@ fn gui_edits_become_notifications() {
 
 #[test]
 fn editor_needs_main_thread() {
+    let _serial = serial();
     let mut plugin = load(DELAY);
     // Test threads are never the process main thread: opening must fail cleanly (or report
     // that the unit has no custom view), never crash.
@@ -344,6 +362,7 @@ fn editor_needs_main_thread() {
 
 #[test]
 fn latency_is_reported() {
+    let _serial = serial();
     // AUPeakLimiter looks ahead (its attack time): non-zero latency at the engine rate.
     let mut plugin = load("aufx:lmtr:appl");
     let node = plugin.activate(&config()).expect("activate");
@@ -362,6 +381,7 @@ fn latency_is_reported() {
 
 #[test]
 fn dropping_without_deactivate_is_safe() {
+    let _serial = serial();
     // Node first (e.g. a panic while active), then the controller.
     let mut plugin = load(DELAY);
     let mut node = plugin.activate(&config()).expect("activate");
