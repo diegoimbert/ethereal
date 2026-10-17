@@ -32,6 +32,8 @@ export default tseslint.config(
       // A labelled group that takes focus is an editor's keyboard scope (the piano roll, an
       // automation lane, the warp view): its shortcuts act on what it shows.
       "jsx-a11y/no-noninteractive-tabindex": ["error", { tags: [], roles: ["tabpanel", "group"], allowExpressionValues: true }],
+      // The kit's fields render an <input> (a label wrapping one labels it).
+      "jsx-a11y/label-has-associated-control": ["error", { controlComponents: ["TextInput", "NumberField"], depth: 3 }],
       "jsx-a11y/no-noninteractive-element-interactions": [
         "error",
         {
