@@ -107,7 +107,7 @@ CI (`.github/workflows/ci.yml`) must pass before a pull request merges. The loca
 |---|---|
 | Rust formatting | `cargo fmt --all --check` (fix with `just fmt`) |
 | Rust lints, every feature and none | `just check-features` |
-| Rust tests | `just test-all` |
+| Rust tests (Linux and Windows: every crate; macOS: the platform and DSP crates) | `just test-all` |
 | wasm32 build of the engine crates | `just check-wasm` |
 | TypeScript typecheck | `pnpm -r typecheck` |
 | ESLint | `pnpm -r lint` |
@@ -115,7 +115,11 @@ CI (`.github/workflows/ci.yml`) must pass before a pull request merges. The loca
 | Generated TS types fresh | `just check-types-fresh` |
 | Third-party notices fresh | `just check-notices-fresh` |
 | Dependency licenses allowed | `just check-licenses` |
+| Advisories, yanked crates, sources (when the PR changes a lockfile) | `just check-advisories` |
 | Filename case clashes | `just check-case-clashes` |
+| Playwright e2e and the guided tours (not `@frames`/`@pixels`) | `just e2e-web`, `just e2e-tours` |
+| Release packaging (Linux .deb, Windows installer, unsigned) | `cd apps/desktop && pnpm tauri build --features full` |
+| Workflow lint | `actionlint` |
 
 `just check-all` runs every check except the tests; `just test-all` runs the tests. Run both
 before you push, or at least the ones your change touches.
