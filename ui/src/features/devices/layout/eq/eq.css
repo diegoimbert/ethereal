@@ -147,10 +147,22 @@
 }
 
 /* ---- Readout of the hovered / dragged band ---- */
-.eth-eq__readout {
+/* Top right, over the plot: the readout of the band under the pointer, then the reset button. */
+.eth-eq__overlay {
   position: absolute;
   top: var(--eth-space-xs);
   right: var(--eth-space-xs);
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-xs);
+  pointer-events: none;
+}
+
+.eth-eq__overlay > .eth-eq__reset {
+  pointer-events: auto;
+}
+
+.eth-eq__readout {
   display: flex;
   align-items: center;
   gap: var(--eth-space-xs);

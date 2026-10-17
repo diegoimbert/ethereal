@@ -8,6 +8,7 @@ import { DEFAULT_KEY_HEIGHT as KEY_H, MAX_KEY_HEIGHT } from "./geometry";
 import { PianoRoll } from "./index";
 import { pickOption } from "@/kit/testing";
 import { resetPianoRollSection, usePianoRollSection } from "./section";
+import { resetLastVelocity } from "./lastVelocity";
 import { gridScene, velocityScene, type SceneItem } from "./noteLayout";
 import { resetTimeSelection, useTimeSelection } from "@/features/time-edits/store";
 import { useContextMenuStore, type ContextMenuItem } from "@/kit";
@@ -39,6 +40,7 @@ afterEach(() => {
   store().reset();
   useEditorStore.getState().close();
   itemSelection.getState().clear();
+  resetLastVelocity();
 });
 
 async function flush() {
@@ -390,12 +392,43 @@ describe("PianoRoll", () => {
     expect(sent.mock.calls.filter(([c]) => c.domain === "Edit" && c.command.type === "EndGesture")).toHaveLength(1);
   });
 
-  it("shift bypasses snapping when moving notes; alt still does when resizing", async () => {
-    const { clip } = await setup();
+  it("alt pressed once a move has started bypasses snapping; shift no longer does (#954)", async () => {
+    const { clip, a } = await setup();
+    // Shift held through the move: still snapped (+0.3 beat rounds to 0).
     await drag(grid(), [x(1.5), y(60)], [x(1.8), y(60)], { shiftKey: true });
-    expect(notesOf(clip)[0]!.start).toBeCloseTo(1.3);
-    await drag(grid(), [x(2.3) - 1, y(60)], [x(2.6) - 1, y(60)], { altKey: true });
-    expect(notesOf(clip)[0]!.duration).toBeCloseTo(1.3);
+    expect(notesOf(clip).find((n) => n.id === a)!.start).toBe(1);
+    // A plain press, then alt held on the moves: free (+0.3 beat).
+    fireEvent.pointerDown(grid(), { button: 0, clientX: x(1.5), clientY: y(60) });
+    fireEvent.pointerMove(window, { clientX: x(1.7), clientY: y(60), altKey: true });
+    fireEvent.pointerMove(window, { clientX: x(1.8), clientY: y(60), altKey: true });
+    await flush();
+    expect(notesOf(clip).find((n) => n.id === a)!.start).toBeCloseTo(1.3);
+    // Releasing alt mid-move snaps again at once (no pointer move needed).
+    fireEvent.keyUp(window, { key: "Alt", altKey: false });
+    await flush();
+    expect(notesOf(clip).find((n) => n.id === a)!.start).toBe(1);
+    // And pressing it frees the move again.
+    fireEvent.keyDown(window, { key: "Alt", altKey: true });
+    await flush();
+    expect(notesOf(clip).find((n) => n.id === a)!.start).toBeCloseTo(1.3);
+    fireEvent.pointerUp(window, { clientX: x(1.8), clientY: y(60), altKey: true });
+    await flush();
+    expect(notesOf(clip).find((n) => n.id === a)).toMatchObject({ pitch: 60, velocity: 0.8 });
+  });
+
+  it("alt bypasses snapping when resizing and drawing notes; shift does not", async () => {
+    const { clip, a } = await setup();
+    await drag(grid(), [x(2) - 1, y(60)], [x(2.3) - 1, y(60)], { shiftKey: true });
+    expect(notesOf(clip).find((n) => n.id === a)!.duration).toBe(1);
+    await drag(grid(), [x(2) - 1, y(60)], [x(2.3) - 1, y(60)], { altKey: true });
+    expect(notesOf(clip).find((n) => n.id === a)!.duration).toBeCloseTo(1.3);
+    // Draw mode: an alt press draws off the grid.
+    fireEvent.click(screen.getByRole("button", { name: "draw" }));
+    fireEvent.pointerDown(grid(), { button: 0, clientX: x(5.3), clientY: y(67), altKey: true });
+    fireEvent.pointerUp(window, { clientX: x(5.3), clientY: y(67), altKey: true });
+    await flush();
+    const drawn = notesOf(clip).find((n) => n.pitch === 67);
+    expect(drawn?.start).toBeCloseTo(5.3);
   });
 
   it("alt-drag on a selected note changes every selected velocity by the same amount, in one gesture", async () => {
@@ -606,6 +639,30 @@ describe("PianoRoll", () => {
     await doubleClickAt(x(1.5), y(60));
     await flush();
     expect(notesOf(clip).find((n) => n.id === a)).toBeUndefined();
+  });
+
+  it("a new note takes the velocity of the last touched note (the default before any)", async () => {
+    const { clip, a, b } = await setup();
+    // Nothing touched yet: the default (MIDI 100).
+    await doublePress(x(4.6), y(67));
+    expect(notesOf(clip).find((n) => n.pitch === 67)!.velocity).toBeCloseTo(100 / 127);
+    // Select both, last clicking b (0.5): the new note takes b's velocity, in one undo step.
+    await drag(grid(), [x(1.5), y(60)], [x(1.5), y(60)]);
+    await drag(grid(), [x(2.5), y(64)], [x(2.5), y(64)], { shiftKey: true });
+    await doublePress(x(6.6), y(69));
+    expect(notesOf(clip).find((n) => n.pitch === 69)!.velocity).toBeCloseTo(0.5);
+    await undo();
+    expect(notesOf(clip).find((n) => n.pitch === 69)).toBeUndefined();
+    // Editing the last touched note's velocity counts: alt-drag a up 36 px (0.8 → 1).
+    await drag(grid(), [x(1.5), y(60)], [x(1.5), y(60) - 36], { altKey: true });
+    expect(notesOf(clip).find((n) => n.id === a)!.velocity).toBeCloseTo(1);
+    await doublePress(x(6.6), y(71));
+    expect(notesOf(clip).find((n) => n.pitch === 71)!.velocity).toBeCloseTo(1);
+    // Draw mode too, from the note just drawn (itself the last touched one).
+    fireEvent.click(screen.getByRole("button", { name: "draw" }));
+    await drag(grid(), [x(5.2), y(48)], [x(5.2), y(48)]);
+    expect(notesOf(clip).find((n) => n.pitch === 48)!.velocity).toBeCloseTo(1);
+    expect(notesOf(clip).find((n) => n.id === b)!.velocity).toBe(0.5);
   });
 
   it("draw mode: a drag draws a note and extends it, as one undo step", async () => {
@@ -915,14 +972,30 @@ describe("PianoRoll sections and note clipboard (section-edit)", () => {
     expect(screen.queryByTestId("piano-roll-section")).toBeNull();
   });
 
-  it("a click on empty grid places the insert marker; a press on a note clears the section; ⌘A selects the clip's region", async () => {
+  it("⌘A selects every note like a plain marquee over them all: no section, the old one goes", async () => {
+    const { clip, a, b } = await setup();
+    // A plain (no Shift) marquee over both notes.
+    await drag(grid(), [x(0.1), y(70)], [x(3.9), y(50)]);
+    const marquee = [...itemSelection.getState().selected.note].sort();
+    expect(marquee).toEqual([a, b].sort());
+    expect(usePianoRollSection.getState().section).toBeNull();
+    // A Shift-drag section over one note, then ⌘A: the same state as the marquee.
+    await drag(grid(), [x(0.1), y(61)], [x(1.9), y(59)], { shiftKey: true });
+    expect(usePianoRollSection.getState().section).toMatchObject({ clip });
+    expect(itemSelection.getState().selected.note.size).toBe(1);
+    await press("a");
+    expect([...itemSelection.getState().selected.note].sort()).toEqual(marquee);
+    expect(usePianoRollSection.getState().section).toBeNull();
+    expect(screen.queryByTestId("piano-roll-section")).toBeNull();
+    expect(useTimeSelection.getState().selection).toBeNull();
+  });
+
+  it("a click on empty grid places the insert marker; a press on a note clears the section", async () => {
     const { clip } = await setup();
     await drag(grid(), [x(0.1), y(70)], [x(3.9), y(50)], { shiftKey: true });
     expect(usePianoRollSection.getState().section).not.toBeNull();
     await drag(grid(), [x(1.5), y(60)], [x(1.5), y(60)]);
     expect(usePianoRollSection.getState().section).toBeNull();
-    await press("a");
-    expect(usePianoRollSection.getState().section).toEqual({ clip, start: 0, end: 8 });
     await drag(grid(), [x(6), y(40)], [x(6), y(40)]);
     expect(usePianoRollSection.getState().section).toEqual({ clip, start: 6, end: 6 });
     expect(screen.queryByTestId("piano-roll-section")).toBeNull();
@@ -1056,4 +1129,60 @@ describe("sections are free, like the arrangement's; edits act on what is inside
         .sort(),
     ).toEqual([2.5, 2.75]);
   });
+});
+
+describe("PianoRoll: a clip extended to the left past its content start", () => {
+  // The clip (song 64, 8 beats) extended 2 beats to the left: start 62, offset -2. The editor
+  // shows content -2 .. 8 (bar 1 stays at content 0).
+  async function extended() {
+    // The ruler measures a width: the editor fits the clip when it opens.
+    vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(800);
+    const ids = await setup({ open: false });
+    await send(cmd("Clip", { type: "SetBounds", id: ids.clip, start: 62, length: 10, offset: -2 }));
+    await send(cmd("Note", { type: "Add", clip: ids.clip, notes: [{ id: "01PIANOROLLNOTEGAP00000000", pitch: 62, velocity: 0.8, start: -1, duration: 0.5 }] }));
+    act(() => useEditorStore.getState().openClip(ids.clip));
+    pickOption(screen.getByRole("combobox", { name: "grid" }), { value: "5" });
+    await flush();
+    // The fitted view: content -2 .. 8 over 800 px (8 px padding), scrolled to the clip start.
+    const ppb = (800 - 16) / 10;
+    const scroll = -2;
+    const gx = (beats: number) => (beats - scroll) * ppb;
+    return { ...ids, gap: "01PIANOROLLNOTEGAP00000000", gx, ppb };
+  }
+
+  it("shows the leading gap and the notes in it, where they play", async () => {
+    const { gap, a, gx, ppb } = await extended();
+    const n = drawnNote(gap)!;
+    expect(n).toBeDefined();
+    expect(n.x).toBeCloseTo(gx(-1));
+    expect(n.x).toBeGreaterThan(0);
+    expect(n.w).toBeCloseTo(0.5 * ppb);
+    expect(drawnNote(a)!.x).toBeCloseTo(gx(1));
+    // Nothing is shaded at the gap: the clip starts at content -2.
+    const shaded = [...document.querySelectorAll<HTMLElement>(".eth-pr-grid__outside")];
+    for (const s of shaded) expect(parseFloat(s.style.left) + (parseFloat(s.style.width) || Infinity)).not.toBeCloseTo(gx(0));
+    expect(document.querySelector<HTMLElement>(".eth-pr__start")!.style.left).toBe(`${gx(-2)}px`);
+  });
+
+  it("draws and moves notes in the gap (never before the clip start)", async () => {
+    const { clip, gap, gx } = await extended();
+    // Draw at content -1.6 (snapped down to the beat grid: -2, the clip start).
+    await doublePressAt(gx(-1.6), y(70));
+    const drawn = notesOf(clip).find((n) => n.pitch === 70)!;
+    expect(drawn).toMatchObject({ start: -2, duration: 1 });
+    // Drag the gap note 3 beats left: it stops at the clip start (content -2).
+    await drag(grid(), [gx(-0.75), y(62)], [gx(-3.75), y(62)]);
+    expect(notesOf(clip).find((n) => n.id === gap)!.start).toBeCloseTo(-2);
+    // A note from the clip's content moves into the gap.
+    const b = notesOf(clip).find((n) => n.pitch === 64)!;
+    await drag(grid(), [gx(b.start + 0.5), y(64)], [gx(b.start + 0.5 - 3), y(64)]);
+    expect(notesOf(clip).find((n) => n.id === b.id)!.start).toBeCloseTo(-1);
+  });
+
+  async function doublePressAt(atX: number, atY: number) {
+    fireEvent.pointerDown(grid(), { button: 0, clientX: atX, clientY: atY });
+    fireEvent.pointerUp(window, { clientX: atX, clientY: atY });
+    await flush();
+    await drag(grid(), [atX, atY], [atX, atY]);
+  }
 });

@@ -58,7 +58,7 @@ export class SyncFs implements JsFsHost {
     try {
       reply = collect(this.ctrl, this.data, seq, TIMEOUT_MS);
     } catch (e) {
-      if (e instanceof FsTimeoutError) throw { code: "Io", message: `OPFS ${req.op} ${req.path}: timed out` }; // i18n-ignore: an engine I/O error, for logs
+      if (e instanceof FsTimeoutError) throw { code: "Io", message: `opfs ${req.op} ${req.path}: timed out` }; // i18n-ignore: an engine I/O error, for logs
       throw e;
     }
     if (!reply.ok) throw JSON.parse(decoder.decode(reply.error)) as { code: string; message: string };

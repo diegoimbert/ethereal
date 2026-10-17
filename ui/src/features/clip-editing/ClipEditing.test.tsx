@@ -5,11 +5,12 @@ import { useProjectStore } from "@/state";
 import { cmd, MockTransport, newId, TransportProvider } from "@/transport";
 import { ContextMenuHost, type ContextMenuEntry } from "@/kit";
 import { ArrangementView } from "@/features/arrangement";
-import { resetArrangementUi, useArrangementUi } from "@/features/arrangement/uiStore";
+import { arrangementView, resetArrangementUi, useArrangementUi } from "@/features/arrangement/uiStore";
 import { resetAutomationUi } from "@/features/automation";
 import { dragCurve, dragFadeLength, tensionForMidGain, withClipEditingEntries } from "./clipEditing";
 import { fadeGain } from "./fades";
 import { MarkerLane } from "./MarkerLane";
+import { addSignatureCommand, addTempoPointCommand } from "@/features/tempo/tempoCommands";
 import { useTimeSelection } from "@/features/time-edits/store";
 
 /** Default arrangement zoom: 24 px per beat. */
@@ -212,6 +213,36 @@ describe("MarkerLane", () => {
     expect(markers()).toHaveLength(0);
     await undo();
     expect(markers()[0]!.name).toBe("Chorus");
+  });
+
+  it("drags time signature and tempo changes on the arrangement grid; Alt drags freely", async () => {
+    // A half-beat grid: finer than a beat, so a signature change snaps to it.
+    useArrangementUi.getState().setGrid({ type: "Fixed", step: { kind: "beats", beats: 0.5 }, triplet: false });
+    const sigId = newId();
+    const tempoId = newId();
+    await act(async () => {
+      await mock.send(addSignatureCommand(8, { numerator: 3, denominator: 4 }, sigId));
+      await mock.send(addTempoPointCommand(4, 140, "Step", tempoId));
+    });
+    // jsdom lays nothing out: give the view a width so the chips render.
+    act(() => arrangementView.getState().setWidth(2000));
+    await flush();
+    const sigEl = () => document.querySelector(`[data-signature="${sigId}"]`)!;
+    const tempoEl = () => document.querySelector(`[data-tempo-point="${tempoId}"]`)!;
+    const sigTime = () => project().time_signatures[sigId]!.time;
+
+    // Snapped by default (was free: the lane passed no grid step).
+    await drag(sigEl(), 2.3 * PX);
+    expect(sigTime()).toBe(10.5);
+    // Alt: free.
+    await drag(sigEl(), 1.15 * PX, 0, true);
+    expect(sigTime()).toBeCloseTo(11.65, 6);
+
+    // The same for a tempo change (before the signature change: the grid is bar-relative).
+    await drag(tempoEl(), 1.3 * PX);
+    expect(project().tempo_points[tempoId]!.time).toBe(5.5);
+    await drag(tempoEl(), 0.3 * PX, 0, true);
+    expect(project().tempo_points[tempoId]!.time).toBeCloseTo(5.8, 6);
   });
 
   it("adds a marker at the selection cursor with +, and from the lane menu", async () => {

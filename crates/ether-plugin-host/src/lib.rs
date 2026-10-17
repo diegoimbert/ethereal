@@ -27,6 +27,7 @@ pub mod bundles;
 mod cache;
 pub mod editor_keys;
 pub mod editor_owner;
+pub mod native_window;
 mod scan;
 #[doc(hidden)]
 pub mod testing;

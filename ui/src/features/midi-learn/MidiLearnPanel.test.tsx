@@ -70,10 +70,10 @@ describe("MidiLearnPanel", () => {
   it("learns a clicked control from the next MIDI message, then edits and removes the mapping", async () => {
     const { mock } = await setup();
     const track = Object.values(store().project!.tracks)[0]!;
-    expect(screen.getByText("no MIDI mappings.")).toBeInTheDocument();
+    expect(screen.getByText("no midi mappings.")).toBeInTheDocument();
     expect(screen.getByRole("note")).toHaveTextContent(mockNotice());
 
-    fireEvent.click(screen.getByRole("switch", { name: "MIDI mode" }));
+    fireEvent.click(screen.getByRole("switch", { name: "midi mode" }));
     await waitFor(() => expect(document.body).toHaveClass(MIDI_MODE_CLASS));
     const pan = screen.getByTestId("pan");
     expect(pan).toHaveAttribute("data-midi-mappable");
@@ -90,9 +90,9 @@ describe("MidiLearnPanel", () => {
     act(() => mock.simulateMidiInput("mock-midi", [0xb0, 21, 64]));
     await waitFor(() => expect(Object.values(store().project!.midi_mappings)).toHaveLength(1));
     expect(useMidiLearnStore.getState().learning).toBeNull();
-    const list = screen.getByRole("list", { name: "MIDI mappings" });
+    const list = screen.getByRole("list", { name: "midi mappings" });
     expect(within(list).getByText(`${track.name} · pan`)).toBeInTheDocument();
-    expect(within(list).getByText("CC 21 · ch 1 · mock-midi")).toBeInTheDocument();
+    expect(within(list).getByText("cc 21 · ch 1 · mock-midi")).toBeInTheDocument();
     await waitFor(() => expect(pan).toHaveAttribute("data-midi-mapped"));
 
     // Edit the mode and the range.
@@ -109,14 +109,14 @@ describe("MidiLearnPanel", () => {
     expect(mock.midiCommands("Unmap")).toHaveLength(1);
 
     // Turning MIDI mode off clears the marks.
-    fireEvent.click(screen.getByRole("switch", { name: "MIDI mode" }));
+    fireEvent.click(screen.getByRole("switch", { name: "midi mode" }));
     await waitFor(() => expect(document.body).not.toHaveClass(MIDI_MODE_CLASS));
     expect(pan).not.toHaveAttribute("data-midi-mappable");
   });
 
   it("cancels a learn by clicking the control again, with Escape or the Cancel button", async () => {
     const { mock } = await setup();
-    fireEvent.click(screen.getByRole("switch", { name: "MIDI mode" }));
+    fireEvent.click(screen.getByRole("switch", { name: "midi mode" }));
     const pan = await screen.findByTestId("pan");
     fireEvent.pointerDown(pan, { button: 0 });
     await waitFor(() => expect(useMidiLearnStore.getState().learning).not.toBeNull());
@@ -136,11 +136,11 @@ describe("MidiLearnPanel", () => {
 
   it("learns transport actions from the target menu and shows input activity", async () => {
     const { mock } = await setup();
-    fireEvent.click(screen.getByRole("switch", { name: "MIDI mode" }));
+    fireEvent.click(screen.getByRole("switch", { name: "midi mode" }));
     pickOption(await screen.findByRole("combobox", { name: "learn other target" }), { value: "transport:ToggleLoop" });
     await waitFor(() => expect(useMidiLearnStore.getState().learning).toEqual({ type: "Transport", action: "ToggleLoop" }));
     act(() => mock.simulateMidiInput("mock-midi", [0x90, 60, 100]));
-    const list = await screen.findByRole("list", { name: "MIDI mappings" });
+    const list = await screen.findByRole("list", { name: "midi mappings" });
     expect(within(list).getByText("transport · loop")).toBeInTheDocument();
     expect(screen.getByText("last input: note C3 · ch 1 · mock-midi")).toBeInTheDocument();
   });
@@ -148,12 +148,12 @@ describe("MidiLearnPanel", () => {
   it("keeps MIDI mode and learns with the MIDI tab closed", async () => {
     const { mock, rerender } = await setup();
     const track = Object.values(store().project!.tracks)[0]!;
-    fireEvent.click(screen.getByRole("switch", { name: "MIDI mode" }));
+    fireEvent.click(screen.getByRole("switch", { name: "midi mode" }));
     await waitFor(() => expect(document.body).toHaveClass(MIDI_MODE_CLASS));
 
     // Close the MIDI tab: MIDI mode stays on and clicking a control still learns it.
     rerender(<Shell mock={mock} panel={false} />);
-    expect(screen.queryByRole("switch", { name: "MIDI mode" })).toBeNull();
+    expect(screen.queryByRole("switch", { name: "midi mode" })).toBeNull();
     expect(document.body).toHaveClass(MIDI_MODE_CLASS);
     const pan = screen.getByTestId("pan");
     await waitFor(() => expect(pan).toHaveAttribute("data-midi-mappable"));
@@ -170,13 +170,13 @@ describe("MidiLearnPanel", () => {
 
     // Reopening the tab shows the same state and the mapping.
     rerender(<Shell mock={mock} panel />);
-    expect(screen.getByRole("switch", { name: "MIDI mode" })).toBeChecked();
-    expect(within(screen.getByRole("list", { name: "MIDI mappings" })).getByText(`${track.name} · pan`)).toBeInTheDocument();
+    expect(screen.getByRole("switch", { name: "midi mode" })).toBeChecked();
+    expect(within(screen.getByRole("list", { name: "midi mappings" })).getByText(`${track.name} · pan`)).toBeInTheDocument();
   });
 
   it("explains that MIDI learn needs the desktop app on the web build", async () => {
     await setup("wasm");
     expect(screen.getByRole("note")).toHaveTextContent(webNotice());
-    expect(screen.getByRole("switch", { name: "MIDI mode" })).toBeDisabled();
+    expect(screen.getByRole("switch", { name: "midi mode" })).toBeDisabled();
   });
 });

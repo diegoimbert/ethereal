@@ -259,7 +259,7 @@ describe("launch before the engine is up (#646)", () => {
 
   it("waits for the engine on a project URL, after a crash or with a project to reopen", () => {
     const cases: Array<[string, () => void, () => void]> = [
-      ["a project URL", () => window.history.replaceState(null, "", "/p/song/abc"), () => window.history.replaceState(null, "", "/")],
+      ["a project url", () => window.history.replaceState(null, "", "/p/song/abc"), () => window.history.replaceState(null, "", "/")],
       ["a crash", () => localStorage.setItem("eth.session", "open"), () => localStorage.removeItem("eth.session")],
       [
         "reopen last",

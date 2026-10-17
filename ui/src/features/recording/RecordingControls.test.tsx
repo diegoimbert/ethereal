@@ -144,7 +144,7 @@ describe("RecordingControls", () => {
     fireEvent.click(port);
     fireEvent.click(await screen.findByRole("option", { name: "Mock MIDI Keyboard" }));
     await waitFor(() => expect(store().project!.tracks[keys.id]!.input).toEqual({ type: "Midi", port: "mock-midi", channel: null }));
-    const channel = within(keysRow).getByRole("combobox", { name: `MIDI channel of ${keys.name}` });
+    const channel = within(keysRow).getByRole("combobox", { name: `midi channel of ${keys.name}` });
     expect(channel).toHaveTextContent("all channels");
     pickOption(channel, { value: "1" });
     await waitFor(() => expect(store().project!.tracks[keys.id]!.input).toEqual({ type: "Midi", port: "mock-midi", channel: 1 }));
@@ -154,7 +154,7 @@ describe("RecordingControls", () => {
     fireEvent.click(await screen.findByRole("option", { name: "all ports" }));
     await waitFor(() => expect(store().project!.tracks[keys.id]!.input).toEqual({ type: "Midi", port: null, channel: 1 }));
     // Audio tracks have no channel filter.
-    expect(within(row).queryByRole("combobox", { name: `MIDI channel of ${audio.name}` })).toBeNull();
+    expect(within(row).queryByRole("combobox", { name: `midi channel of ${audio.name}` })).toBeNull();
 
     const monitor = within(row).getByRole("combobox", { name: `monitoring of ${audio.name}` });
     pickOption(monitor, { value: "Off" });

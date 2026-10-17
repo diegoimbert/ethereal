@@ -85,7 +85,7 @@ for (const theme of shots ? ["dark", "light"] : ["dark"]) {
     await playButton(page).click();
     // The bass loop has a pitch the tuner finds (a note name, not "–").
     await expect(tunerWidget.locator(".eth-tuner__note")).toHaveText(/^[A-G]♯?\d$/, { timeout: 15_000 });
-    await expect(tunerWidget.locator(".eth-tuner__readout")).toHaveText(/ct · \d+\.\d Hz/);
+    await expect(tunerWidget.locator(".eth-tuner__readout")).toHaveText(/ct · \d+\.\d hz/);
 
     // Peak Hold on → the held line (UI-side) over the live spectrum.
     await (await panel(spectrum.id)).getByRole("button", { name: "peak hold" }).click();

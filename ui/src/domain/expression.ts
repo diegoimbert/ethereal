@@ -97,7 +97,7 @@ export function kindLabel(kind: ExpressionKind): string {
       return "channel pressure";
     case "Cc": {
       const name = CC_NAMES[kind.controller];
-      return name ? `CC ${kind.controller} ${name}` : `CC ${kind.controller}`;
+      return name ? `cc ${kind.controller} ${name}` : `cc ${kind.controller}`;
     }
   }
 }

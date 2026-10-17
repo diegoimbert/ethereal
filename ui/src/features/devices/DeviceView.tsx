@@ -2,7 +2,7 @@ import clsx from "clsx";
 import { useId, useState, type DragEvent } from "react";
 import type { Device, DeviceId } from "@/generated";
 import { PluginDeviceControls, pluginMenuEntries } from "@/features/plugins";
-import { MissingDeviceControls, replacePluginEntries, resolvePluginEntries } from "@/features/import-resolver";
+import { MissingDeviceControls, replaceDeviceEntries, resolvePluginEntries } from "@/features/import-resolver";
 import { PresetMenu } from "@/features/presets";
 import { SidechainSelector } from "@/features/sidechain";
 import { AddModulatorButton, addModulatorEntries, ModulatorsPanel, useModulatorKinds } from "@/features/modulation";
@@ -12,6 +12,8 @@ import { ChevronLeft, ChevronRight, Power, SlidersHorizontal, Snowflake, X } fro
 import { IconButton, openContextMenu, type ContextMenuEntry } from "@/kit";
 import { useProjectStore } from "@/state";
 import { useDeviceOn } from "@/features/automation/live";
+import { midiTarget } from "@/features/midi-learn/targets";
+import { switchMenu, switchTarget } from "./layout/automation";
 import { cmd, useTransport } from "@/transport";
 import { useT } from "@/i18n";
 import { DEVICE_DRAG_TYPE, deviceCategory, draggingDevice, setDraggingDevice } from "./chainUtils";
@@ -65,6 +67,7 @@ export function DeviceView({ device, prev, moveRightBefore, onDropBefore, accept
   // Freeze (#25): a frozen device (its track plays a render through it) is locked; with a
   // partial freeze, the devices after the freeze point stay live.
   const frozen = useDeviceFrozen(device);
+  const setEnabled = (enabled: boolean) => void send(cmd("Device", { type: "SetEnabled", id: device.id, enabled }));
   const transport = useTransport();
   // Copy / paste (deviceClipboard.ts): the selected card, what's copied, device kinds.
   const selected = useDeviceClipboard((s) => s.selected === device.id);
@@ -122,7 +125,8 @@ export function DeviceView({ device, prev, moveRightBefore, onDropBefore, accept
         // and focuses it, so ⌘C / ⌘V copy / paste it (deviceClipboard.ts).
         tabIndex={-1}
         onPointerDown={(e) => {
-          if (e.button !== 0 || (e.target as HTMLElement).closest(".eth-device") !== e.currentTarget) return;
+          // A rack chain's own space inside this card is that chain's (DeviceChain.tsx).
+          if (e.button !== 0 || (e.target as HTMLElement).closest(".eth-device, [data-paste-chain]") !== e.currentTarget) return;
           useDeviceClipboard.getState().select(device.id);
           if (!(e.target as HTMLElement).closest("input, textarea, select, [contenteditable='true']")) e.currentTarget.focus({ preventScroll: true });
         }}
@@ -138,8 +142,8 @@ export function DeviceView({ device, prev, moveRightBefore, onDropBefore, accept
               // Groups, separated: the device itself; racks (v0.2 racks-modulation); modulators;
               // plugin (advanced); delete.
               menuGroups([
-                // import-resolver: a plugin that isn't installed; any plugin can be replaced.
-                [...resolvePluginEntries(device, transport), ...replacePluginEntries(device, transport)],
+                // import-resolver: a plugin that isn't installed; any device but a rack can be replaced.
+                [...resolvePluginEntries(device, transport), ...replaceDeviceEntries(device, transport)],
                 [
                   { label: t("devices.device.copy"), shortcut: shortcutLabel("edit.copy"), onSelect: () => useDeviceClipboard.getState().copy(device.id) },
                   ...(copied
@@ -156,7 +160,7 @@ export function DeviceView({ device, prev, moveRightBefore, onDropBefore, accept
                   { label: t("devices.device.rename_menu"), onSelect: () => setRenaming(true) },
                   {
                     label: device.enabled ? t("devices.device.bypass") : t("devices.device.enable"),
-                    onSelect: () => void send(cmd("Device", { type: "SetEnabled", id: device.id, enabled: !device.enabled })),
+                    onSelect: () => setEnabled(!device.enabled),
                   },
                 ],
                 groupEntries(device, descriptor, send),
@@ -192,7 +196,10 @@ export function DeviceView({ device, prev, moveRightBefore, onDropBefore, accept
             }
             data-automated={automated || undefined}
             icon={<Power />}
-            onClick={() => void send(cmd("Device", { type: "SetEnabled", id: device.id, enabled: !device.enabled }))}
+            onClick={() => setEnabled(!device.enabled)}
+            // Like a knob: right-click for its automation lane and reset; MIDI-learnable.
+            onContextMenu={(e) => switchMenu(e, device, setEnabled)}
+            {...midiTarget({ type: "Param", target: switchTarget(device) })}
           />
           {renaming ? (
             <input

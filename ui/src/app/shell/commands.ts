@@ -31,7 +31,7 @@ import { getTheme, setTheme } from "@/theme";
 import { cmd, type EngineTransport } from "@/transport";
 import { canInsert } from "@/features/devices/chainUtils";
 import { deviceTargetTrack, insertDeviceCommand } from "./deviceInsert";
-import { useShellStore, type PaneSide } from "@/state/shell";
+import { drawerCanFullscreen, useShellStore, type PaneSide } from "@/state/shell";
 import { LEFT_TABS } from "./tabs";
 
 /** One command palette entry. */
@@ -65,6 +65,7 @@ export const EDITOR_PALETTE_ACTIONS = [
   "edit.delete",
   "edit.selectAll",
   "edit.split",
+  "clip.consolidate",
   "track.group",
   "track.ungroup",
   "pianoRoll.quantize",
@@ -335,6 +336,15 @@ export function buildCommands(transport: EngineTransport | null, devices: Readon
     keywords: "piano roll warp automation editor toggle",
     run: () => useShellStore.getState().setOpen("bottom", !useShellStore.getState().bottom.open),
   });
+  if (shell.bottom.open && !shell.bottom.collapsed && drawerCanFullscreen(shell.bottom.tab)) {
+    out.push({
+      id: "panel:drawer-fullscreen",
+      group: "Panels",
+      label: shell.drawerFullscreen ? tr("shell.command.drawer_exit_fullscreen") : tr("shell.command.drawer_fullscreen"),
+      keywords: "maximize expand piano roll beat editor full screen",
+      run: () => useShellStore.getState().setDrawerFullscreen(!useShellStore.getState().drawerFullscreen),
+    });
+  }
   for (const side of ["left", "right", "bottom"] as const) {
     const pinned = shell[side].pinned;
     out.push({

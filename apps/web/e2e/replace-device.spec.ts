@@ -1,14 +1,20 @@
-// "Replace plugin…" (owner request: swap any plugin device's plugin, not only a missing one,
-// with "Retain automations and parameters").
+// "Replace device…" (owner requests: swap any plugin device's plugin, not only a missing one,
+// with "Retain automations and parameters"; then "it should rather just be replace device and
+// not limited to plugins": factory devices too, for factory devices or plugins of the same
+// role).
 //
 // 1. Real wasm engine: a REAPER project's "Kontakt 7" device gets values and an automation
 //    lane. The web has no plugin host, so the test stands in an installed list (Kontakt 7
 //    itself, Kontakt 8, Diva) through the resolver's e2e seam (`window.__etherResolverPlugins`):
-//    the device is not missing, yet its header offers "Replace plugin…". Retaining, Kontakt 8
+//    the device is not missing, yet its header offers "Replace device…". Retaining, Kontakt 8
 //    (the same plugin family and format) keeps the state, values and lane; one undo step puts
 //    Kontakt 7 back. Without retaining, Diva starts at its defaults and the lane goes; undo
 //    brings it back.
-// 2. Mock engine (`?mock`, where plugins load): Mock Mega → Mock Mini, parameters matched by
+// 2. Real wasm engine, factory → factory: a compressor with a sidechain, values and lanes
+//    becomes a gate (same role, has a sidechain input): Release's value and lane follow by
+//    name, Knee's lane goes; one undo step puts the compressor back. The picker lists factory
+//    audio effects, not racks nor instruments.
+// 3. Mock engine (`?mock`, where plugins load): Mock Mega → Mock Mini, parameters matched by
 //    name; the dialog lists what can't be kept, the new plugin's parameters show.
 //
 // `REPLACE_SHOTS=<dir>` also writes the PR screenshots (1440x900, dark and light).
@@ -94,16 +100,16 @@ async function openReplace(page: Page, deviceName: string, menuShot?: string) {
   const header = page.getByTestId("inspector").getByRole("region", { name: deviceName }).locator(".eth-device__header");
   await header.click({ button: "right" });
   if (menuShot) await shot(page, menuShot);
-  await page.getByRole("menuitem", { name: "replace plugin…" }).click();
+  await page.getByRole("menuitem", { name: "replace device…" }).click();
   const dialog = page.getByRole("dialog", { name: `replace “${deviceName}”` });
   await expect(dialog).toBeVisible();
   return dialog;
 }
 
 async function choose(page: Page, dialog: ReturnType<Page["getByRole"]>, option: string): Promise<void> {
-  // The shared searchable picker: rows are named by plugin ("Diva · CLAP 1.4.7" -> "Diva").
-  await dialog.getByRole("button", { name: "replacement plugin" }).click();
-  const picker = page.getByRole("dialog", { name: "replacement plugin" });
+  // The shared searchable picker: rows are named by device ("Diva · CLAP 1.4.7" -> "Diva").
+  await dialog.getByRole("button", { name: "replacement device" }).click();
+  const picker = page.getByRole("dialog", { name: "replacement device" });
   await expect(picker.getByRole("searchbox")).toBeVisible();
   await page.mouse.move(0, 0);
   await shot(page, "replace-picker");
@@ -148,7 +154,7 @@ test.describe("real engine", () => {
     let dialog = await openReplace(page, "Kontakt 7");
     await expect(dialog.getByRole("switch", { name: "retain automations and parameters" })).toHaveAttribute("aria-checked", "true");
     await choose(page, dialog, "Kontakt 8 · VST3 8.2.0");
-    await expect(dialog.getByTestId("replace-summary")).toHaveText("same plugin (or another version of it): its state and every parameter are kept.");
+    await expect(dialog.getByTestId("replace-summary")).toHaveText("same device (or another version of it): its state and every parameter are kept.");
     await page.mouse.move(0, 0);
     await shot(page, "replace-retain");
     await dialog.getByRole("button", { name: "replace", exact: true }).click();
@@ -169,7 +175,7 @@ test.describe("real engine", () => {
     await choose(page, dialog, "Diva · CLAP 1.4.7");
     await dialog.getByRole("switch", { name: "retain automations and parameters" }).click();
     await expect(dialog.getByTestId("replace-summary")).toContainText(
-      "the new plugin starts at its defaults. 1 automation lane and the parameter mappings are removed",
+      "the new device starts at its defaults. 1 automation lane and the parameter mappings are removed",
     );
     await shot(page, "replace-reset");
     await dialog.getByRole("button", { name: "replace", exact: true }).click();
@@ -186,6 +192,67 @@ test.describe("real engine", () => {
     expect(after.devices[d.id]).toEqual(before.devices[d.id]);
     expect(errors).toEqual([]);
   });
+});
+
+test("real engine: a factory device becomes another one (values, lanes and sidechain by name), one undo step", async ({ page }) => {
+  test.setTimeout(120_000);
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await launch(page, "Factory swap");
+  await installProbe(page);
+  const [track, key, comp] = [ulid(8, 1), ulid(8, 2), ulid(8, 3)];
+  const [releaseLane, kneeLane] = [ulid(8, 4), ulid(8, 5)];
+  // Compressor params: Release 3, Knee 7; the gate's Release is 7 (ether-devices).
+  const lane = (id: string, param: number, point: string): Command[] => [
+    { domain: "Automation", command: { type: "CreateLane", id, owner: { type: "Track", track }, target: { type: "DeviceParam", device: comp, param } } },
+    { domain: "Automation", command: { type: "AddPoints", lane: id, points: [{ id: point, time: 1, value: 0.5, curve: { type: "Linear" } }] } },
+  ];
+  await sendBatched(page, [
+    { domain: "Track", command: { type: "Create", id: track, kind: "Audio", name: "Drums", color: null, parent: null, before: null } },
+    { domain: "Track", command: { type: "Create", id: key, kind: "Audio", name: "Kick", color: null, parent: null, before: null } },
+    { domain: "Device", command: { type: "Insert", id: comp, track, device: { type: "Builtin", device: { type: "Compressor" } }, before: null } },
+    { domain: "Device", command: { type: "SetParam", device: comp, param: 3, value: 250 } },
+    { domain: "Device", command: { type: "SetSidechain", device: comp, source: key } },
+    ...lane(releaseLane, 3, ulid(8, 6)),
+    ...lane(kneeLane, 7, ulid(8, 7)),
+  ]);
+  await expect.poll(async () => Object.keys((await project(page)).automation_lanes)).toContain(kneeLane);
+  await openDeviceTab(page, "Drums");
+  const before = await project(page);
+
+  const dialog = await openReplace(page, "compressor");
+  await dialog.getByRole("button", { name: "replacement device" }).click();
+  const picker = page.getByRole("dialog", { name: "replacement device" });
+  await expect(picker.getByRole("button", { name: "gate", exact: true })).toBeVisible();
+  // Audio effects only, never a rack nor the compressor itself.
+  await expect(picker.getByRole("button", { name: "audio effect rack", exact: true })).toHaveCount(0);
+  await expect(picker.getByRole("button", { name: "synth", exact: true })).toHaveCount(0);
+  await expect(picker.getByRole("button", { name: "compressor", exact: true })).toHaveCount(0);
+  await picker.getByRole("button", { name: "gate", exact: true }).click();
+  const summary = dialog.getByTestId("replace-summary");
+  await expect(summary).toContainText("parameters matched by name");
+  await expect(summary).toContainText("1 automation lane of unmatched parameters will be removed.");
+  await dialog.getByRole("button", { name: "replace", exact: true }).click();
+  await expect(dialog).toBeHidden();
+  await expect.poll(async () => (await project(page)).devices[comp]!.kind).toEqual({ type: "Builtin", device: { type: "Gate" } });
+  const after = await project(page);
+  const d = after.devices[comp]!;
+  expect(d.name).toBe("gate");
+  expect(d.order).toBe(before.devices[comp]!.order);
+  expect(d.sidechain).toBe(key);
+  // Release carried through the normalized ranges (the gate's default is 100 ms).
+  expect(d.params[7]).toBeGreaterThan(100);
+  expect(after.automation_lanes[releaseLane]!.target).toEqual({ type: "DeviceParam", device: comp, param: 7 });
+  expect(after.automation_lanes[kneeLane]).toBeUndefined();
+  await expect(page.getByTestId("inspector").getByRole("region", { name: "gate" })).toBeVisible();
+
+  await page.keyboard.press("ControlOrMeta+z");
+  await expect.poll(async () => (await project(page)).devices[comp]!.kind).toEqual({ type: "Builtin", device: { type: "Compressor" } });
+  const undone = await project(page);
+  expect(undone.devices[comp]).toEqual(before.devices[comp]);
+  expect(undone.automation_lanes).toEqual(before.automation_lanes);
+  expect(undone.automation_points).toEqual(before.automation_points);
+  expect(errors).toEqual([]);
 });
 
 test("mock engine: parameters matched by name, the new plugin loads", async ({ page }) => {

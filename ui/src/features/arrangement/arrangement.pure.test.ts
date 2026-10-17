@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { AUTOMATION_BAR_HEIGHT, automationHeight } from "@/features/automation";
 import type { Clip, Command, Note, PeakData, ReplyValue, Track } from "@/generated";
-import { TempoMap } from "@/timeline";
+import { snapDelta, TempoMap } from "@/timeline";
 import type { EngineTransport } from "@/transport";
 import { actionForKey } from "./actions";
 import { smallClipAt } from "./smallClips";
@@ -13,6 +13,7 @@ import { contentBeatAt, contentSegments, mediaLengthInBeats, sourceSecondsMapper
 import { boundsCommand, dragPreview, duplicateCommand, moveCommand, shiftedOffset, splitCommand, toggleLoopCommand, type DragInput } from "./editMath";
 import { barAround, groupSummarySpans } from "./helpers";
 import { laneItems } from "./laneItems";
+import { sameTrackExceptVolume } from "./trackEquality";
 import { arrangementTracks, clipRects, HEADER_WIDTH, layoutRows, rowIndexAt, TRACK_HEIGHT } from "./layout";
 import { PeakCache, peakLevel, peakRange, TILE_PEAKS } from "./peaks";
 import { followScroll } from "./useSmoothFollow";
@@ -222,6 +223,18 @@ describe("dragPreview", () => {
     const p = dragPreview(input, "move", 1.4);
     expect(p.get("a")).toMatchObject({ start: 5, track: "m1" });
     expect(p.get("b")).toMatchObject({ start: 11, track: "m1" });
+  });
+
+  it("moves an off-grid anchor by whole grid steps (snapMove, relative)", () => {
+    const tempo = TempoMap.constant(120);
+    const off = clip("o", "m1", 4.34, 2);
+    const snapMove = (origin: number, delta: number) => snapDelta(origin, delta, { kind: "beats", beats: 1 }, tempo, true);
+    const rel: DragInput = { clips: [off, b], anchor: "o", rows, snap: beatGrid, snapMove };
+    expect(dragPreview(rel, "move", 0.8).get("o")!.start).toBeCloseTo(5.34);
+    expect(dragPreview(rel, "move", 0.8).get("b")!.start).toBeCloseTo(11);
+    expect(dragPreview(rel, "move", -1.4).get("o")!.start).toBeCloseTo(3.34);
+    // Resizes stay absolute.
+    expect(dragPreview(rel, "resize-end", 0.3).get("o")!.length).toBeCloseTo(2.66);
   });
 
   it("never moves the selection before 0", () => {
@@ -514,6 +527,10 @@ describe("keys and drops", () => {
     expect(k("d", { metaKey: true })).toBe("duplicate");
     expect(k("L", { metaKey: true, shiftKey: true })).toBe("loop");
     expect(k("a", { ctrlKey: true })).toBe("select-all");
+    // #870: Ctrl/Cmd+J consolidates the selected clips.
+    expect(k("j", { ctrlKey: true })).toBe("consolidate");
+    expect(k("j", { metaKey: true })).toBe("consolidate");
+    expect(k("j")).toBeNull();
     expect(k("e")).toBeNull();
   });
 
@@ -643,5 +660,30 @@ describe("inkOn (badge icon contrast)", () => {
     expect(inkOn(0x8fa8e6)).toBe(DARK_INK); // pastel blue
     expect(inkOn(0x1e3a8a)).toBe(LIGHT_INK); // deep navy
     expect(inkOn(0x7a1f3d)).toBe(LIGHT_INK); // wine
+  });
+});
+
+describe("sameTrackExceptVolume (#911)", () => {
+  const track = {
+    id: "t",
+    kind: "Midi",
+    name: "Keys",
+    color: "#fff",
+    order: "a",
+    parent: null,
+    mixer: { volume: 0, pan: 0, mute: false, solo: false },
+    input: { type: "None" },
+    output: { type: "Master" },
+    monitor: "Auto",
+    scale: { type: "FollowProject" },
+  } as unknown as Track;
+  const copy = (): Track => JSON.parse(JSON.stringify(track)) as Track;
+  it("ignores the volume, compares everything else deeply", () => {
+    expect(sameTrackExceptVolume(track, copy())).toBe(true);
+    expect(sameTrackExceptVolume(track, { ...copy(), mixer: { ...track.mixer, volume: -6 } })).toBe(true);
+    expect(sameTrackExceptVolume(track, { ...copy(), mixer: { ...track.mixer, pan: 0.5 } })).toBe(false);
+    expect(sameTrackExceptVolume(track, { ...copy(), name: "Bass" })).toBe(false);
+    expect(sameTrackExceptVolume(track, { ...copy(), output: { type: "Track", track: "g" } } as unknown as Track)).toBe(false);
+    expect(sameTrackExceptVolume(track, { ...copy(), vca: "v" } as unknown as Track)).toBe(false);
   });
 });

@@ -349,6 +349,7 @@ impl Drive {
                         FreezeEvent::Progress {
                             job: j,
                             progress: p,
+                            ..
                         } => {
                             assert_eq!(j, job);
                             progress.push(*p);

@@ -4,13 +4,14 @@
  *
  * 1. clips drawn above the others first: selected and dragged clips (`z-index: 2`), then
  *    the rest, later starts above earlier ones;
- * 2. within a clip: its edge handles (`min(6px, 25%)` wide, full height, above the title),
- *    then its title band (the grab zone);
+ * 2. within a clip: its edge handles (`handleWidth`: 25% of the clip, clamped to 3–6 px,
+ *    full height, above the title), then its title band (the grab zone);
  * 3. a clip's body lets the pointer through (to clips below, then to the lane: locate,
  *    marquee); it is reported as `body` only when nothing interactive is hit;
  * 4. clips narrower than `SMALL_CLIP_PX` (their title band only)
  *    are hit anywhere in the lane's height, within `SMALL_SLOP_PX`, like its title bar, and
- *    only when no clip element was hit.
+ *    only when no clip element was hit. They keep their edge handles (same widths, over the
+ *    lane's height) down to `MIN_RESIZE_PX`; narrower ones only move (zoom in to trim them).
  *
  * Ghosts (copy-drag previews) are never hit.
  */
@@ -24,6 +25,13 @@ import { SMALL_CLIP_PX, smallClipAt } from "../smallClips";
 export const SMALL_SLOP_PX = 3;
 /** Widest edge handle (`--eth-size-edge-handle`). */
 export const EDGE_HANDLE_PX = 6;
+/** Narrowest edge handle (on clips under 24 px, where 25% would be thinner). */
+export const EDGE_HANDLE_MIN_PX = 3;
+/**
+ * Clips narrower than this on screen have no edge handles (they only move): two 3 px
+ * handles leave a 4 px grab zone at 10 px. Ableton / Bitwig likewise trim clips of a few px.
+ */
+export const MIN_RESIZE_PX = 10;
 
 /** `layer`: a phase-2 layer's own part (`Hit.layer`, see layers.ts). */
 export type HitPart = "header" | "resize-start" | "resize-end" | "body" | "small" | "layer";
@@ -49,12 +57,27 @@ export function boxX(it: LaneItem, v: LaneView): [number, number] {
   return [x0, Math.max(x0 + CLIP_MIN_PX, x0 + it.bounds.length * v.pxPerBeat)];
 }
 
-/** Width of a clip box's edge handles. */
+/**
+ * Width of a clip box's edge handles: a quarter of the box, clamped to
+ * `[EDGE_HANDLE_MIN_PX, EDGE_HANDLE_PX]` (0 under `MIN_RESIZE_PX`: no handles). Mirrored by
+ * the hover highlight (shaders.ts, canvas2d.ts).
+ */
 export function handleWidth(x0: number, x1: number): number {
-  return Math.min(EDGE_HANDLE_PX, 0.25 * (x1 - x0));
+  const w = x1 - x0;
+  if (w < MIN_RESIZE_PX) return 0;
+  return Math.max(EDGE_HANDLE_MIN_PX, Math.min(EDGE_HANDLE_PX, 0.25 * w));
 }
 
-/** Whether a clip is drawn as a small clip (no handles, no body) at this zoom. */
+/** The edge handle of the box `[x0, x1)` at `x` (inside the box), if any. */
+export function edgeAt(x: number, x0: number, x1: number): "resize-start" | "resize-end" | null {
+  const hw = handleWidth(x0, x1);
+  if (hw === 0 || x < x0 || x >= x1) return null;
+  if (x < x0 + hw) return "resize-start";
+  if (x >= x1 - hw) return "resize-end";
+  return null;
+}
+
+/** Whether a clip is drawn as a small clip (no body; handles from `MIN_RESIZE_PX`) at this zoom. */
 export function isSmall(it: LaneItem, v: LaneView): boolean {
   return it.bounds.length * v.pxPerBeat < SMALL_CLIP_PX;
 }
@@ -93,10 +116,9 @@ export function hitLane(
     }
     const [x0, x1] = boxX(it, v);
     if (x < x0 || x >= x1 || y < top || y >= bottom) continue;
-    const hw = handleWidth(x0, x1);
     const at = (part: HitPart): Hit => ({ clip: it.clip.id, track, part });
-    if (x < x0 + hw) return at("resize-start");
-    if (x >= x1 - hw) return at("resize-end");
+    const edge = edgeAt(x, x0, x1);
+    if (edge) return at(edge);
     if (y < top + CLIP_TITLE) return at("header");
     body ??= at("body");
   }
@@ -104,7 +126,10 @@ export function hitLane(
     small.sort((a, b) => a.bounds.start - b.bounds.start);
     const beat = x / v.pxPerBeat + v.scrollBeats;
     const it = smallClipAt(small, beat, SMALL_SLOP_PX / v.pxPerBeat);
-    if (it) return { clip: it.clip.id, track, part: "small" };
+    if (it) {
+      const [x0, x1] = boxX(it, v);
+      return { clip: it.clip.id, track, part: edgeAt(x, x0, x1) ?? "small" };
+    }
   }
   return body;
 }

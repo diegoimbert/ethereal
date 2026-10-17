@@ -14,6 +14,6 @@ name: string,
  */
 confidence: number, 
 /**
- * Plain-language reason ("Same kind of device: reverb").
+ * Plain-language reason ("same kind of device: reverb").
  */
 reason: string, };

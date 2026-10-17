@@ -11,7 +11,17 @@ import { TempoRuler as Ruler } from "./TempoRuler";
 import { MetronomeSettings } from "./MetronomeSettings";
 import { signatureMenu } from "./menus";
 import { TempoAutomationLane } from "./TempoAutomationLane";
-import { bpmRange, bpmToY, snapSignatureTime, sortedSignatures, sortedTempoPoints, tempoPath, type LaneGeom } from "./tempoCommands";
+import {
+  addTempoPointCommand,
+  bpmRange,
+  bpmToY,
+  editTempoPointCommand,
+  snapSignatureTime,
+  sortedSignatures,
+  sortedTempoPoints,
+  tempoPath,
+  type LaneGeom,
+} from "./tempoCommands";
 
 let mock: MockTransport | undefined;
 const store = () => useProjectStore.getState();
@@ -94,7 +104,9 @@ describe("TempoAutomationLane", () => {
     await waitFor(() => expect(tempoPoints()).toHaveLength(2));
     const added = tempoPoints()[1]!;
     expect(added.time).toBe(8);
-    expect(added.bpm).toBeGreaterThan(120);
+    // The tempo there (not the pointer's y): the map doesn't change.
+    expect(added.bpm).toBe(120);
+    expect(added.curve).toBe("Step");
     // The new point is selected.
     await waitFor(() => expect(document.querySelector(`[data-point="${added.id}"]`)!.getAttribute("aria-selected")).toBe("true"));
 
@@ -126,6 +138,21 @@ describe("TempoAutomationLane", () => {
     await waitFor(() => expect(project().tempo_points[added.id]!.curve).toBe("Linear"));
     fireEvent.keyDown(screen.getByTestId("tempo-lane"), { key: "Delete" });
     await waitFor(() => expect(tempoPoints()).toHaveLength(1));
+  });
+
+  it("a point added on a ramp takes the tempo there and keeps ramping: the map doesn't change", async () => {
+    await setup(<Lane />);
+    const zero = tempoPoints()[0]!;
+    await act(async () => {
+      await mock!.send(addTempoPointCommand(16, 160, "Step"));
+      await mock!.send(editTempoPointCommand(zero.id, { curve: "Linear" }));
+    });
+    const before = tempoPoints();
+    // x=96: beat 8, half way up the 120 → 160 ramp, whatever the pointer's y.
+    fireEvent.doubleClick(screen.getByTestId("tempo-lane-svg"), { clientX: 96, clientY: 110 });
+    await waitFor(() => expect(tempoPoints()).toHaveLength(3));
+    expect(tempoPoints()[1]).toMatchObject({ time: 8, bpm: 140, curve: "Linear" });
+    for (const p of before) expect(project().tempo_points[p.id]).toEqual(p);
   });
 
   it("unmounting mid-drag ends the drag (no throw, no edits, one EndGesture) (#591)", async () => {

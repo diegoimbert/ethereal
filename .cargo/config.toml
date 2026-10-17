@@ -3,3 +3,10 @@
 # source bundled in audiopus_sys (stream-host's WebRTC audio) still declares an older minimum, so
 # its CMake build fails on CMake 4 (release CI on macOS/Windows, and local macOS with Homebrew CMake).
 CMAKE_POLICY_VERSION_MINIMUM = "3.5"
+
+# ScreenCaptureKit (plugin editor window capture, `ether-plugin-host` `capture`) exists from
+# macOS 12.3: weak-link it so every binary that links ether-plugin-host (the app, the sandbox
+# helper, the scanner) still starts on older macOS, where capture reports "unsupported"
+# (it checks for the `SCStream` class first). Overridden by a `RUSTFLAGS` environment variable.
+[target.'cfg(target_os = "macos")']
+rustflags = ["-C", "link-arg=-Wl,-weak_framework,ScreenCaptureKit"]

@@ -9,7 +9,7 @@ use std::io::{self, Read, Write};
 
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD as B64;
-use ether_core::plugin::{PluginError, PluginNotification};
+use ether_core::plugin::{NativeWindow, PluginError, PluginNotification};
 use ether_core::protocol::devices::{DeviceDescriptor, ParamInfo};
 use ether_core::protocol::model::ParamId;
 use ether_core::protocol::plugins::PluginWindowKey;
@@ -71,7 +71,21 @@ pub(crate) enum Response {
     },
     /// Base64 state blob.
     State(String),
+    /// Poll answer of older helpers (no editor window): still accepted by the host.
     Notifications(Vec<Notification>),
+    /// Poll answer: the notifications, and the open editor's window as it is now (found late
+    /// for floating CLAP editors; `None` once closed).
+    Polled {
+        notifications: Vec<Notification>,
+        #[serde(default)]
+        editor_window: Option<NativeWindow>,
+    },
+    /// `OpenEditor` succeeded (older helpers answer `Ok`). The window is the helper's: X11
+    /// ids and CGWindowIDs are valid in the host too; an `NSWindow*` is not.
+    EditorOpened {
+        #[serde(default)]
+        window: Option<NativeWindow>,
+    },
     Ok,
     Err(WireError),
 }
@@ -269,6 +283,37 @@ mod tests {
         assert_eq!(
             read_frame::<Request>(&mut &buf[..]).unwrap(),
             Some(Request::SetKeyCapture(vec!["KeyA".into()]))
+        );
+        // Editor windows cross the wire; fields missing from older helpers default.
+        let window = NativeWindow {
+            pid: 42,
+            handle: ether_core::plugin::WindowHandle::AppKit {
+                window_number: 7,
+                ns_window: 0x1000,
+            },
+        };
+        let mut buf = Vec::new();
+        let opened = Response::EditorOpened {
+            window: Some(window),
+        };
+        write_frame(&mut buf, &opened).unwrap();
+        assert_eq!(read_frame::<Response>(&mut &buf[..]).unwrap(), Some(opened));
+        let old: Response = serde_json::from_str(r#"{"EditorOpened":{}}"#).unwrap();
+        assert_eq!(old, Response::EditorOpened { window: None });
+        let old: Response = serde_json::from_str(r#"{"Polled":{"notifications":[]}}"#).unwrap();
+        assert_eq!(
+            old,
+            Response::Polled {
+                notifications: vec![],
+                editor_window: None
+            }
+        );
+        assert_eq!(
+            serde_json::to_value(window).unwrap(),
+            serde_json::json!({
+                "pid": 42,
+                "handle": {"kind": "appKit", "windowNumber": 7, "nsWindow": 0x1000}
+            })
         );
         let e = PluginError::State("x".into());
         assert_eq!(PluginError::from(WireError::from(e.clone())), e);

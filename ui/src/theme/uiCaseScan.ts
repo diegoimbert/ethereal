@@ -9,11 +9,14 @@
 // - the values of a variable, or the strings `return`ed by a function, whose name says it holds
 //   labels (`KIND_LABEL = {...}`, `text = "..."`, `function trackKindLabel() { return "..." }`, `formatGridStep`).
 // - any other literal that reads as words (two words or more), outside `console.*` calls.
+// - and, whatever the syntax, any literal holding a term that used to keep its capitals
+//   (`UPPERCASE_TERMS`: "MIDI", "VST3", "dB", "Hz"...): a unit appended to a readout
+//   (`${db} dB`) or a format label in a lookup table is UI text the rules above can't see.
 // Strings reach these through `?:`, `||`, `??`, `+`, templates, arrays and the literal arguments of a call.
 // A literal on a line with `eth-allow-case` (or the line after one) is skipped, and a file
 // containing `eth-allow-case-file` is skipped whole.
 import ts from "typescript";
-import { badWords, lowerUiText } from "./uiCase.ts";
+import { badWords, lowerUiText, uppercaseTerms } from "./uiCase.ts";
 
 /** Attribute and property names whose string values are shown to people. */
 const TEXT_NAME =
@@ -189,12 +192,46 @@ function checkedPieces(file: string, src: string): Array<{ piece: Piece; line: n
     .filter(({ line }) => !lines[line]?.includes(ALLOW_MARK) && !lines[line - 1]?.includes(ALLOW_MARK));
 }
 
-/** Capitalized words in the UI text of one file. */
+/** Every string literal, template piece and JSX text of a file, but imports, types, property names and `console.*` calls. */
+function allLiterals(sf: ts.SourceFile): Piece[] {
+  const out: Piece[] = [];
+  const visit = (n: ts.Node) => {
+    if (ts.isImportDeclaration(n) || ts.isExportDeclaration(n) || ts.isLiteralTypeNode(n) || isConsoleCall(n)) return;
+    if (ts.isStringLiteral(n) && n.parent && (ts.isPropertyAssignment(n.parent) || ts.isPropertySignature(n.parent)) && n.parent.name === n) return;
+    if (
+      ts.isStringLiteral(n) ||
+      ts.isNoSubstitutionTemplateLiteral(n) ||
+      ts.isTemplateHead(n) ||
+      ts.isTemplateMiddle(n) ||
+      ts.isTemplateTail(n) ||
+      ts.isJsxText(n)
+    )
+      out.push(n);
+    ts.forEachChild(n, visit);
+  };
+  visit(sf);
+  return out;
+}
+
+/** Capitalized words in the UI text of one file, and the old uppercase terms in any of its literals. */
 export function scanCase(file: string, src: string): CaseFinding[] {
-  return checkedPieces(file, src).flatMap(({ piece, line, sf }) => {
+  const ui = checkedPieces(file, src).flatMap(({ piece, line, sf }) => {
     const text = piece.getText(sf);
     return badWords(text).map((word) => ({ file, line: line + 1, word, text: text.trim().slice(0, 100) }));
   });
+  if (src.includes(FILE_ALLOW_MARK)) return ui;
+  const sf = parse(file, src);
+  const lines = src.split("\n");
+  const seen = new Set(ui.map((f) => `${f.line}:${f.word}`));
+  const terms = allLiterals(sf).flatMap((piece) => {
+    const line = sf.getLineAndCharacterOfPosition(piece.getStart(sf)).line;
+    if (lines[line]?.includes(ALLOW_MARK) || lines[line - 1]?.includes(ALLOW_MARK)) return [];
+    const text = piece.getText(sf);
+    return uppercaseTerms(text)
+      .filter((word) => !seen.has(`${line + 1}:${word}`))
+      .map((word) => ({ file, line: line + 1, word, text: text.trim().slice(0, 100) }));
+  });
+  return [...ui, ...terms];
 }
 
 /** `src` with its UI text lowercased (the fixer behind the sweep; also handy for new files). */

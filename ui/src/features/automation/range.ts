@@ -33,7 +33,7 @@ import type {
   PointSpec,
 } from "@/generated";
 import { cmd, newId } from "@/transport";
-import { shapeFraction } from "./curve";
+import { shapeFraction, splitPointAt } from "./curve";
 import { batchStep, type StepLabel } from "@/features/arrangement/editMath";
 
 /** Same-time tolerance (beats), the engine's. */
@@ -133,6 +133,80 @@ export function writeRange(
   const right = hasAfter ? valueAt(pts, end) : null;
   if (right !== null) add.push({ id: makeId(), time: end, value: right, curve: curveAt(pts, end) });
   return { remove, add };
+}
+
+/** Moving a time section of a lane up/down (`sectionMovePlan`). */
+export interface SectionPlan {
+  /** Edge points to add first (new ids, in id order). */
+  add: PointSpec[];
+  /** What moves: the points inside the section and its inner edge points (added or existing). */
+  moving: AutomationPoint[];
+}
+
+/**
+ * Plan a vertical move of the section `[a, b]` of a lane (`pts` sorted by time, then id):
+ * the lane outside the section must not change, so each edge becomes a jump of two points at
+ * the same time (the engine orders them by id): an outer one keeping the outside value and an
+ * inner one that moves with the points strictly inside.
+ *
+ * - Start edge: no point there → two new points with the lane's value (the outer one first;
+ *   the inner one continues the split segment, `splitPointAt`). One existing point → it stays
+ *   as the outer point and a new inner one follows it (a new id sorts after it). Two or more
+ *   (already a jump) → the last one moves, nothing is added.
+ * - End edge: no point → two new points (inner first, then the outer one continuing the
+ *   segment after the edge). One existing point → it becomes the inner one (it moves) and a
+ *   new outer point after it keeps its value and curve. Two or more → the first one moves.
+ *
+ * The points outside are untouched, so their values are bit-identical; the lane between
+ * them and the edges keeps its shape exactly for linear and step segments and for the part
+ * of a curve before an edge; the part of a curve after an edge gets the closest tension
+ * (`splitPointAt`). `null` for a lane without points or an empty section.
+ */
+export function sectionMovePlan(
+  pts: ReadonlyArray<AutomationPoint>,
+  a: Beats,
+  b: Beats,
+  laneId: AutomationLaneId,
+  makeId: () => AutomationPointId = newId,
+): SectionPlan | null {
+  if (pts.length === 0 || b - a <= RANGE_EPS) return null;
+  const at = (t: Beats) => pts.filter((p) => Math.abs(p.time - t) <= RANGE_EPS);
+  const inside = pts.filter((p) => p.time > a + RANGE_EPS && p.time < b - RANGE_EPS);
+  const add: PointSpec[] = [];
+  const LINEAR: CurveShape = { type: "Linear" };
+  const created = (spec: PointSpec): AutomationPoint => ({ ...spec, lane: laneId });
+  const startMoving: AutomationPoint[] = [];
+  const endMoving: AutomationPoint[] = [];
+
+  const atA = at(a);
+  if (atA.length >= 2) startMoving.push(atA[atA.length - 1]!);
+  else if (atA.length === 1) {
+    const p = atA[0]!;
+    const inner: PointSpec = { id: makeId(), time: p.time, value: p.value, curve: p.curve };
+    add.push(inner);
+    startMoving.push(created(inner));
+  } else {
+    const { value, curve } = splitPointAt(pts, a, LINEAR)!;
+    add.push({ id: makeId(), time: a, value, curve: LINEAR });
+    const inner: PointSpec = { id: makeId(), time: a, value, curve };
+    add.push(inner);
+    startMoving.push(created(inner));
+  }
+
+  const atB = at(b);
+  if (atB.length >= 2) endMoving.push(atB[0]!);
+  else if (atB.length === 1) {
+    const q = atB[0]!;
+    endMoving.push(q);
+    add.push({ id: makeId(), time: q.time, value: q.value, curve: q.curve });
+  } else {
+    const { value, curve } = splitPointAt(pts, b, LINEAR)!;
+    const inner: PointSpec = { id: makeId(), time: b, value, curve: LINEAR };
+    add.push(inner);
+    endMoving.push(created(inner));
+    add.push({ id: makeId(), time: b, value, curve });
+  }
+  return { add, moving: [...startMoving, ...inside, ...endMoving] };
 }
 
 /**

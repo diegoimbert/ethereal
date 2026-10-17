@@ -10,7 +10,7 @@ import { captureTargetTrack, shouldAdoptTempo } from "./actions";
 
 const store = () => useProjectStore.getState();
 const project = () => store().project!;
-const button = () => screen.getByRole("button", { name: "capture MIDI" });
+const button = () => screen.getByRole("button", { name: "capture midi" });
 
 afterEach(() => {
   resetStores();

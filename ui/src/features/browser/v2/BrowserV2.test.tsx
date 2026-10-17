@@ -92,8 +92,8 @@ describe("Browser v2 (indexed)", () => {
     expect(q).toMatchObject({ query: { text: "loop", sort: "Relevance", roots: [], kinds: ["Audio"] } });
     expect(screen.getByRole("combobox", { name: "sort" })).toHaveTextContent("relevance");
 
-    fireEvent.click(kindChip("MIDI"));
-    expect(kindChip("MIDI")).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(kindChip("midi"));
+    expect(kindChip("midi")).toHaveAttribute("aria-pressed", "true");
     expect(await screen.findByText("no matches")).toBeInTheDocument();
     search("");
     await expand("Library", "MIDI");

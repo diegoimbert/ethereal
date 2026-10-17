@@ -75,7 +75,7 @@ describe("a device the user adds", () => {
     });
     expect(added).toBe(false);
     expect(t.sent).toEqual([]);
-    expect(messages()).toEqual(["Warning: Surge XT is an instrument: select a MIDI track"]);
+    expect(messages()).toEqual(["Warning: Surge XT is an instrument: select a midi track"]);
   });
 
   it("a failed insert shows the error", async () => {

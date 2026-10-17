@@ -43,7 +43,7 @@ const ids = () => {
 describe("midiImportCommand (#717)", () => {
   it("an empty project: new MIDI tracks per file track with notes, the file's tempo map, bar-long clips; one batch", () => {
     const plan = midiImportCommand(project(), file, { track: null, at: 0 }, ids())!;
-    expect(plan.command.domain === "Edit" && plan.command.command.type === "Batch" && plan.command.command.label).toBe("import MIDI file");
+    expect(plan.command.domain === "Edit" && plan.command.command.type === "Batch" && plan.command.command.label).toBe("import midi file");
     const cs = commands(plan.command);
     const creates = cs.flatMap((c) => (c.domain === "Track" && c.command.type === "Create" ? [c.command] : []));
     // The empty file track is skipped; an unnamed one is named after the file and its channel.

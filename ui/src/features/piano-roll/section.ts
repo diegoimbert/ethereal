@@ -4,9 +4,9 @@
  * The section is a time range on the clip's content axis, made like the arrangement's time
  * selection, and free like it (owner request: never widened to the notes): a Shift-drag on
  * the grid (over the rows it covers: `pitches`; it also selects the notes it touches) or a
- * drag on the strip under the ruler (every pitch); a click on empty grid, a press on a note
- * or Escape clears it, ⌘A selects the clip's whole region. Its edges snap to the grid, never
- * coarser than a beat (`sectionStep`: zooming out doesn't make it jump by bars).
+ * drag on the strip under the ruler (every pitch); a click on empty grid, a press on a note,
+ * Escape or ⌘A (it selects the notes only, like a plain marquee) clears it. Its edges snap
+ * to the grid, never coarser than a beat (`sectionStep`: zooming out doesn't make it jump by bars).
  *
  * Edits act on what is INSIDE the section, like the arrangement's section on its clips: the
  * notes overlapping it (on its rows), cut at its edges (a note starting before it counts from
@@ -37,7 +37,7 @@ import type { Beats, Clip, ClipId, Command, Note, NoteId, NoteSpec } from "@/gen
 import { cmd, newId } from "@/transport";
 import type { GridStep } from "@/timeline";
 import type { StepLabel } from "@/features/arrangement/editMath";
-import { contentEnd, songToContent } from "./clipTime";
+import { contentEnd, contentFloor, songToContent } from "./clipTime";
 import { noteEdit } from "./noteEdits";
 
 const EPS = 1e-9;
@@ -48,7 +48,7 @@ export interface PianoRollSection {
   end: Beats;
   /**
    * The pitches it covers (inclusive), like the arrangement's section covers the tracks it was
-   * drawn over: a Shift-drag on the grid sets them; absent = every pitch (the strip, ⌘A).
+   * drawn over: a Shift-drag on the grid sets them; absent = every pitch (the strip).
    */
   pitches?: PitchRange;
 }
@@ -104,16 +104,19 @@ export function rangeOfSection(section: PianoRollSection | null): PianoRollSecti
   return section && !isSectionMarker(section) ? section : null;
 }
 
-/** Place the insert marker in `clip` at content position `at` (replacing the section). */
-export function placeSectionMarker(clip: ClipId, at: Beats): void {
-  const b = Math.max(0, at);
+/** Place the insert marker in `clip` at content position `at` (from `floor` on; replacing the section). */
+export function placeSectionMarker(clip: ClipId, at: Beats, floor: Beats = 0): void {
+  const b = Math.max(floor, at);
   usePianoRollSection.getState().setSection({ clip, start: b, end: b });
 }
 
-/** A section of `clip` from two content positions (any order); null if empty. */
-export function sectionOf(clip: ClipId, a: Beats, b: Beats, pitches?: PitchRange): PianoRollSection | null {
-  const start = Math.max(0, Math.min(a, b));
-  const end = Math.max(0, Math.max(a, b));
+/**
+ * A section of `clip` from two content positions (any order; from `floor` on, the clip's
+ * `contentFloor`); null if empty.
+ */
+export function sectionOf(clip: ClipId, a: Beats, b: Beats, pitches?: PitchRange, floor: Beats = 0): PianoRollSection | null {
+  const start = Math.max(floor, Math.min(a, b));
+  const end = Math.max(floor, Math.max(a, b));
   if (end - start <= 1e-6) return null;
   return pitches ? { clip, start, end, pitches } : { clip, start, end };
 }
@@ -240,7 +243,7 @@ export function pasteCommand(
   at: Beats,
   label: StepLabel,
 ): { command: Command | null; ids: NoteId[]; section: PianoRollSection } {
-  at = Math.max(0, at);
+  at = Math.max(contentFloor(clip), at);
   const specs: NoteSpec[] = cb.notes.map((n) => ({
     id: newId(),
     pitch: n.pitch,
@@ -273,10 +276,4 @@ export function pasteAt(clip: Clip, section: PianoRollSection | null, cursor: Be
   const regionStart = clip.looping.enabled ? clip.looping.start : clip.offset;
   if (rel < 0) return regionStart;
   return songToContent(clip, cursor) ?? clip.offset + rel;
-}
-
-/** The clip's whole playable region (⌘A). */
-export function regionOf(clip: Clip): PianoRollSection | null {
-  const start = clip.looping.enabled ? clip.looping.start : clip.offset;
-  return sectionOf(clip.id, start, contentEnd(clip));
 }

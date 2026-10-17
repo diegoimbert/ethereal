@@ -15,7 +15,7 @@
         "guitar"
       ],
       "author": "ethereal",
-      "description": "two voices at 0.8 Hz, 7 ms: the familiar stereo chorus for guitars and keys."
+      "description": "two voices at 0.8 hz, 7 ms: the familiar stereo chorus for guitars and keys."
     },
     "params": {
       "0": 0.0,

@@ -123,7 +123,7 @@ impl Rig {
         );
         let ctl = EtherController::with_config(
             bridge,
-            NativeServices,
+            NativeServices::default(),
             store.clone(),
             store,
             ControllerConfig::default(),

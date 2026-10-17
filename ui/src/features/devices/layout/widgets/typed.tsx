@@ -381,7 +381,7 @@ export function LfoWidget({ widget: w, size, label }: TypedProps<"Lfo">) {
         morph={shape.info.labels ? 0.5 : shape.normalized}
         cycles={2}
         amp={amount ? Math.max(0.1, Math.abs(amount.normalized * (amount.bipolar ? 2 : 1) - (amount.bipolar ? 1 : 0))) : 1}
-        label={`LFO: ${shape.text}, ${rate.text}`}
+        label={`lfo: ${shape.text}, ${rate.text}`}
         testId="widget-lfo"
       />
     </TypedFrame>

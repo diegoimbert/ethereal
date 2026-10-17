@@ -14,7 +14,7 @@
         "tonal-balance"
       ],
       "author": "ethereal",
-      "description": "4096-point analysis with moderate averaging and a 3 dB/oct tilt: a balanced mix reads roughly flat."
+      "description": "4096-point analysis with moderate averaging and a 3 db/oct tilt: a balanced mix reads roughly flat."
     },
     "params": {
       "0": 2.0,

@@ -23,6 +23,6 @@ describe("bufferChoice", () => {
   it("says when the system sets the buffer (WASAPI shared mode)", () => {
     const c = bufferChoice(128, 480, null, false);
     expect(c.value).toBe(480);
-    expect(c.note).toMatch(/set by windows \(WASAPI shared mode\): 480 samples per callback/);
+    expect(c.note).toMatch(/set by windows \(wasapi shared mode\): 480 samples per callback/);
   });
 });

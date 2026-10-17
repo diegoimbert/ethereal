@@ -97,8 +97,14 @@ pub struct ImportReportItem {
     pub area: ImportArea,
     /// What it is about (a track, device or file name), when one thing.
     pub subject: Option<String>,
-    /// Plain-language explanation ("Clip launcher scenes are not supported").
+    /// Plain-language explanation in English ("clip launcher scenes are not supported"):
+    /// agents, logs, older clients.
     pub message: String,
+    /// The explanation as a message of the UI's catalogs (`import_report.*`,
+    /// `export_report.*`), shown in the user's language (docs/LOCALIZATION.md).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub key: Option<crate::model::text::TextKey>,
     /// How many times this line occurred (>= 1).
     pub count: u32,
 }

@@ -186,7 +186,7 @@ pub mod menu {
         let config = app.config();
         let about = AboutMetadata {
             name: Some(pkg.name.clone()),
-            version: Some(pkg.version.to_string()),
+            version: Some(crate::APP_VERSION.to_string()),
             copyright: config.bundle.copyright.clone(),
             authors: config.bundle.publisher.clone().map(|p| vec![p]),
             ..Default::default()

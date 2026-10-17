@@ -6,11 +6,12 @@
  *   (`@/features/expression`): velocity, clip expression lanes (CC, pitch bend, channel
  *   pressure) and per-note pressure, picked from the lane bar.
  * - Draw: double-click empty space (keep holding and drag to set the length), or drag in
- *   draw mode (B). Move: drag a note body
- *   (vertical = pitch; Shift: no snapping). Resize: drag either edge. Delete: double-click
+ *   draw mode (B); a new note takes the velocity of the last clicked, drawn or
+ *   velocity-edited note (`lastVelocity.ts`). Move: drag a note body
+ *   (vertical = pitch; Alt pressed mid-move: no snapping). Resize: drag either edge. Delete: double-click
  *   a note, or Delete/Backspace. Velocity: Alt/Option-drag a note body vertically (the
  *   selection, or just that note, by the same amount; Shift: fine), or the velocity lane.
- *   Alt bypasses snapping on every other drag (draw, resize, marquee, ruler, stretch bar).
+ *   Alt bypasses snapping on every drag (move, draw, resize, marquee, ruler, stretch bar).
  *   Every drag is one undo gesture.
  * - Preview (headphones toggle, on by default, persisted): pressing a note or a key plays it
  *   on the clip's track instrument while held (`notePreview.ts`).
@@ -90,7 +91,6 @@ import {
   pasteAt,
   pasteCommand,
   rangeOfSection,
-  regionOf,
   sectionOf,
   type NoteClipboard,
   usePianoRollSection,
@@ -321,6 +321,12 @@ function Editor({ space, view: injectedView }: { space: RollSpace; view?: Timeli
     previousRows.current = rows;
   }, [rows, keyH]);
 
+  // The axis starts at the space's floor: before content 0 when the clip was extended to the
+  // left past its content start (a leading gap, shown and editable like the rest).
+  useEffect(() => {
+    view.getState().setLimits({ minScrollBeats: space.floor });
+  }, [view, space.floor]);
+
   // Fit the clip horizontally and center its notes vertically when it opens.
   const fitted = useRef(false);
   useEffect(() => {
@@ -330,7 +336,7 @@ function Editor({ space, view: injectedView }: { space: RollSpace; view?: Timeli
       const start = Math.min(...space.bands.map((b) => b.start));
       view.getState().zoomToRange({ start, end: Math.max(...space.bands.map((b) => b.end), start + 4) }, 8);
     } else {
-      view.getState().zoomToRange({ start: 0, end: Math.max(contentEnd(clip), 4) }, 8);
+      view.getState().zoomToRange({ start: space.floor, end: Math.max(contentEnd(clip), space.floor + 4) }, 8);
     }
     const body = bodyRef.current;
     if (body) {
@@ -413,10 +419,10 @@ function Editor({ space, view: injectedView }: { space: RollSpace; view?: Timeli
     if (e.button !== 0) return;
     const box = e.currentTarget.getBoundingClientRect();
     const at = (ev: { clientX: number; altKey: boolean }) =>
-      snapToGrid(Math.max(0, pxToBeats(ev.clientX - box.left, view.getState())), ev.altKey ? null : sectionStep(step), tempo, "nearest");
+      snapToGrid(Math.max(space.floor, pxToBeats(ev.clientX - box.left, view.getState())), ev.altKey ? null : sectionStep(step), tempo, "nearest");
     const from = at(e);
     const update = (ev: PointerEvent) => {
-      const drawn = sectionOf(space.key, from, at(ev));
+      const drawn = sectionOf(space.key, from, at(ev), undefined, space.floor);
       const inside = drawn ? notesOver(shownNotes, drawn.start, drawn.end) : [];
       usePianoRollSection.getState().setSection(drawn);
       itemSelection.getState().select(
@@ -468,12 +474,14 @@ function Editor({ space, view: injectedView }: { space: RollSpace; view?: Timeli
         if (commands.length) command = cmd("Edit", { type: "Batch", label: "delete notes", key: { id: "undo.note.delete_section", args: {} }, commands }); // i18n-ignore
       } else if (selected.length) command = cmd("Note", { type: "Remove", ids: selected.map((n) => n.id) });
     } else if (action === "edit.selectAll") {
+      // Like a plain (no Shift) marquee over every shown note: the selection is replaced and
+      // no section is made (the old one goes), so edits act on the selected notes.
+      clearSection();
       itemSelection.getState().select(
         "note",
         shownNotes.map((n) => n.id),
         "replace",
       );
-      usePianoRollSection.getState().setSection(space.multi ? multiRegion(space) : regionOf(clip));
     } else if (action === "pianoRoll.quantize") {
       quantize();
     } else if (action === "clip.reverse") {
@@ -700,11 +708,6 @@ function useClipColors(space: RollSpace): ReadonlyMap<ClipId, string> | undefine
     }
     return colors;
   }, [space, tracks]);
-}
-
-/** ⌘A with several clips: from the first clip's start to the last clip's end. */
-function multiRegion(space: RollSpace) {
-  return sectionOf(space.key, Math.min(...space.bands.map((b) => b.start)), Math.max(...space.bands.map((b) => b.end)));
 }
 
 /**

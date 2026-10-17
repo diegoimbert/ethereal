@@ -110,7 +110,7 @@ describe("DeviceChain", () => {
     // The Synth's declared layout: the oscillator's shape choice (4 labels → select) and the
     // filter curve's cutoff knob showing the formatted plain value.
     expect(within(synth).getByRole("combobox", { name: "waveform" })).toHaveTextContent("saw");
-    expect(within(synth).getByRole("slider", { name: "cutoff" })).toHaveAttribute("aria-valuetext", "2.4 kHz");
+    expect(within(synth).getByRole("slider", { name: "cutoff" })).toHaveAttribute("aria-valuetext", "2.4 khz");
 
     act(() => useSelectionStore.getState().selectTrack(trackByName("Drums").id));
     expect(screen.getByRole("list", { name: "Drums devices" })).toBeInTheDocument();
@@ -331,8 +331,8 @@ describe("DeviceChain: stacked layout (inspector)", () => {
     // "+" right of its label and a placeholder card last in it; none for the instrument while
     // there is one.
     expect(screen.queryByRole("button", { name: "add device" })).toBeNull();
-    const midiFx = within(screen.getByRole("group", { name: "MIDI effects" }));
-    expect(midiFx.getAllByRole("button", { name: "add MIDI effect" })).toHaveLength(2);
+    const midiFx = within(screen.getByRole("group", { name: "midi effects" }));
+    expect(midiFx.getAllByRole("button", { name: "add midi effect" })).toHaveLength(2);
     expect(screen.queryByRole("button", { name: "add instrument" })).toBeNull();
     const fxCard = within(screen.getByRole("group", { name: "audio effects" }))
       .getAllByRole("button", { name: "add audio effect" })
@@ -350,8 +350,8 @@ describe("DeviceChain: stacked layout (inspector)", () => {
     // base-154: a device added from the library opens its window.
     expect(await screen.findByRole("dialog", { name: "delay window" })).toBeInTheDocument();
 
-    fireEvent.click(midiFx.getAllByRole("button", { name: "add MIDI effect" })[0]!);
-    const search = await screen.findByRole("searchbox", { name: "search MIDI effects" });
+    fireEvent.click(midiFx.getAllByRole("button", { name: "add midi effect" })[0]!);
+    const search = await screen.findByRole("searchbox", { name: "search midi effects" });
     fireEvent.change(search, { target: { value: "arp" } });
     fireEvent.keyDown(search, { key: "ArrowDown" });
     fireEvent.keyDown(search, { key: "Enter" });
@@ -359,10 +359,50 @@ describe("DeviceChain: stacked layout (inspector)", () => {
     expect(chainNames("Keys")[0]).toBe("arpeggiator");
   });
 
+  it("a drop at the chain's end shows its line between the last device and the add card, and lands there", async () => {
+    await renderStack();
+    await pickDevice(
+      within(screen.getByRole("group", { name: "audio effects" }))
+        .getAllByRole("button", { name: "add audio effect" })
+        .at(-1)!,
+      "delay",
+    );
+    await flush();
+    expect(chainNames("Keys")).toEqual(["Synth", "Compressor", "delay"]);
+    const compressor = deviceOf("Keys", "Compressor");
+    const data = new Map<string, string>([["application/x-ethereal-device", compressor.id]]);
+    const dataTransfer = { types: [...data.keys()], getData: (k: string) => data.get(k) ?? "", setData: (k: string, v: string) => data.set(k, v) };
+    const header = deviceEl("Compressor").querySelector("header")!;
+    const addCard = () =>
+      within(screen.getByRole("group", { name: "audio effects" }))
+        .getAllByRole("button", { name: "add audio effect" })
+        .at(-1)!;
+    const endZone = document.querySelector(".eth-devices__end")!;
+    fireEvent.dragStart(header, { dataTransfer });
+    // Over the end zone (below the add card): the line is in the add card's top gap, after the
+    // last device in DOM order, never below the card.
+    fireEvent.dragOver(endZone, { dataTransfer });
+    let line = screen.getByTestId("device-insert");
+    expect(line.parentElement).toBe(addCard());
+    expect(deviceEl("delay").compareDocumentPosition(line) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(endZone).not.toHaveClass("eth-devices__end--drop");
+    fireEvent.dragLeave(endZone);
+    expect(screen.queryByTestId("device-insert")).toBeNull();
+    // Over the add card itself: the same line; the drop moves the device to the end.
+    fireEvent.dragOver(addCard(), { dataTransfer });
+    line = screen.getByTestId("device-insert");
+    expect(line.parentElement).toBe(addCard());
+    fireEvent.drop(addCard(), { dataTransfer });
+    await flush();
+    expect(chainNames("Keys")).toEqual(["Synth", "delay", "Compressor"]);
+    expect(screen.queryByTestId("device-insert")).toBeNull();
+    fireEvent.dragEnd(header);
+  });
+
   it("labels the sections; stacked cards have no up/down buttons (drag the header)", async () => {
     await renderStack();
     // Every section a MIDI track holds, empty ones included.
-    expect(screen.getAllByRole("group").map((g) => g.getAttribute("aria-label"))).toEqual(["MIDI effects", "instrument", "audio effects"]);
+    expect(screen.getAllByRole("group").map((g) => g.getAttribute("aria-label"))).toEqual(["midi effects", "instrument", "audio effects"]);
 
     expect(screen.queryByRole("button", { name: /^move Synth (up|down)$/ })).toBeNull();
     expect(screen.getByRole("button", { name: "remove Synth" })).toBeInTheDocument();

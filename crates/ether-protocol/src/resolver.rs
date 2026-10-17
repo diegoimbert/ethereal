@@ -10,9 +10,10 @@
 //! 3. `Resolve::Apply` applies the user's choices in **one undo step** ("Resolve Missing
 //!    Items").
 //!
-//! 4. `Resolve::Replace` swaps the plugin of **any** plugin device (missing or not) for
-//!    another, in one undo step ("Replace Plugin"), optionally retaining its automation,
-//!    mappings and parameter values ([`ReplaceReport`] says what could not be kept).
+//! 4. `Resolve::Replace` swaps **any** device that isn't a rack (built-in, plugin or
+//!    missing) for another device of the same role, built-in or plugin, in one undo step
+//!    ("Replace Device"), optionally retaining its automation, mappings and parameter
+//!    values ([`ReplaceReport`] says what could not be kept).
 //!
 //! The controller has no plugin catalog (the host scans plugins): the UI passes the
 //! installed plugins it got from `Plugin::List`. AI suggestions (optional, UI side, through
@@ -70,20 +71,30 @@ pub enum ResolveCommand {
         #[ts(optional, as = "Option<Vec<DeviceResolution>>")]
         devices: Vec<DeviceResolution>,
     },
-    /// Replace the plugin of any plugin device (installed or missing), or a missing device
-    /// (placeholder, `DeviceKind::Missing`), with `plugin`, in one
-    /// undo step "Replace Plugin". The device keeps its id, position, sidechain source,
-    /// enabled state and name (unless it was the old plugin's name). `retain`: keep the
+    /// Replace any device that isn't a rack (a built-in device, a plugin, installed or
+    /// missing, or a missing device placeholder) with another device of the same role, in
+    /// one undo step "Replace Device": a plugin (`plugin`) or a built-in device (`builtin`),
+    /// exactly one of them. Roles: an audio effect is replaced by an audio effect, an
+    /// instrument by an instrument, a MIDI effect by a MIDI effect (checked when both
+    /// descriptors are known); racks and drum racks are neither replaced nor replacements
+    /// (their chains would go). The device keeps its id, position, enabled state and name
+    /// (unless it was the old device's default name), and its sidechain source when the new
+    /// device has a sidechain input (else it goes, listed in the report). `retain`: keep the
     /// automation lanes, modulation and MIDI mappings and values of the parameters the new
-    /// plugin also has, matched by id for the same plugin (or another version of it in the
-    /// same format, whose state is carried) and by normalized name otherwise; the others are
-    /// dropped and listed in the report. Without `retain` the new plugin starts at its
-    /// defaults and the device's parameter lanes and mappings are removed (its on/off lane
-    /// and modulators stay). `preview`: reply the report only (nothing changes). Replies
-    /// `PluginReplaced`.
+    /// device also has, matched by id for the same device (the same built-in type, or the
+    /// same plugin or another version of it in the same format, whose state is carried) and
+    /// by normalized name otherwise; the others are dropped and listed in the report.
+    /// Without `retain` the new device starts at its defaults and the device's parameter
+    /// lanes and mappings are removed (its on/off lane and modulators stay). `preview`:
+    /// reply the report only (nothing changes). Replies `PluginReplaced`.
     Replace {
         device: DeviceId,
-        plugin: ReplacementPlugin,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[ts(optional)]
+        plugin: Option<ReplacementPlugin>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[ts(optional)]
+        builtin: Option<BuiltinDeviceType>,
         retain: bool,
         #[serde(default, skip_serializing_if = "std::ops::Not::not")]
         #[ts(optional, as = "Option<bool>")]
@@ -105,8 +116,8 @@ pub struct ReplacementPlugin {
 /// How `Resolve::Replace` carries parameters over.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, TS)]
 pub enum ParamMatch {
-    /// The same plugin, or another version of it in the same format: its state and
-    /// parameter ids are kept.
+    /// The same plugin, or another version of it in the same format, or the same built-in
+    /// type: its state and parameter ids are kept.
     SameIds,
     /// Matched by normalized parameter name (values converted through their normalized
     /// range when both ranges are known).
@@ -115,7 +126,7 @@ pub enum ParamMatch {
     ByIndex,
     /// Nothing could be matched (the parameter names of one side are unknown).
     Unmatched,
-    /// `retain: false`: the new plugin starts at its defaults.
+    /// `retain: false`: the new device starts at its defaults.
     Reset,
 }
 
@@ -123,7 +134,7 @@ pub enum ParamMatch {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
 pub struct ReplaceReport {
     pub matched: ParamMatch,
-    /// The plugin state (presets, loaded samples) is carried over.
+    /// The device state (a plugin's presets and loaded samples) is carried over.
     pub state_kept: bool,
     /// Parameters carried over (with a value, automation or a mapping).
     pub kept: u32,
@@ -223,7 +234,7 @@ pub struct DeviceCandidate {
     pub name: String,
     /// 0..=1.
     pub confidence: f32,
-    /// Plain-language reason ("Same kind of device: reverb").
+    /// Plain-language reason ("same kind of device: reverb").
     pub reason: String,
 }
 
@@ -266,7 +277,7 @@ pub struct PluginCandidate {
     pub rule: MatchRule,
     /// 0..=1.
     pub confidence: f32,
-    /// Plain-language reason ("Same plugin family and vendor: Kontakt 7 → Kontakt").
+    /// Plain-language reason ("same plugin family and vendor: Kontakt 7 → Kontakt").
     pub reason: String,
     /// What the replacement does with the saved state and parameters.
     pub plan: ParamPlan,

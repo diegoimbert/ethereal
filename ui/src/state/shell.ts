@@ -34,6 +34,13 @@ export interface ShellState {
   left: PaneState & { tab: LeftTab };
   right: PaneState;
   bottom: PaneState & { tab: DrawerTab };
+  /**
+   * The drawer fills the workspace (covers the arrangement; the top bar stays usable). Only
+   * for the clip editor (piano roll / beat editor, see `drawerCanFullscreen`): showing another
+   * tab, closing or collapsing the drawer leaves it. Not remembered across sessions; the
+   * drawer's own `size` is left alone, so leaving restores its height.
+   */
+  drawerFullscreen: boolean;
   paletteOpen: boolean;
 
   /** Rail click: open `tab`, or close the pane when it is already showing it. */
@@ -48,6 +55,8 @@ export interface ShellState {
    */
   expand(side: "right" | "bottom", min: number, max: number): void;
   setSize(side: PaneSide, px: number): void;
+  /** Enter / leave the drawer's fullscreen (entering is a no-op unless it shows the clip editor). */
+  setDrawerFullscreen(on: boolean): void;
   setPalette(open: boolean): void;
 }
 
@@ -87,9 +96,13 @@ function initial() {
       // A tab that no longer exists (Tempo, Groove, Drum Rack) opens the piano roll.
       tab: saved.bottom?.tab && DRAWER_TAB_IDS.includes(saved.bottom.tab) ? saved.bottom.tab : ("piano-roll" as DrawerTab),
     },
+    drawerFullscreen: false,
     paletteOpen: false,
   };
 }
+
+/** Whether the drawer can go fullscreen showing `tab`: the clip editor (piano roll / beat editor) only. */
+export const drawerCanFullscreen = (tab: DrawerTab): boolean => tab === "piano-roll";
 
 export const useShellStore = create<ShellState>()((set, get) => {
   const save = () => {
@@ -110,15 +123,28 @@ export const useShellStore = create<ShellState>()((set, get) => {
       const { left } = get();
       patch("left", left.open && left.tab === tab ? { open: false } : ({ open: true, tab } as Partial<PaneState>));
     },
-    openDrawer: (tab) => patch("bottom", { open: true, tab } as Partial<PaneState>),
-    setOpen: (side, open) => patch(side, { open }),
+    openDrawer: (tab) => {
+      if (!drawerCanFullscreen(tab)) set({ drawerFullscreen: false });
+      patch("bottom", { open: true, tab } as Partial<PaneState>);
+    },
+    setOpen: (side, open) => {
+      if (side === "bottom" && !open) set({ drawerFullscreen: false });
+      patch(side, { open });
+    },
     setPinned: (side, pinned) => patch(side, { pinned }),
-    setCollapsed: (side, collapsed) => patch(side, { collapsed }),
+    setCollapsed: (side, collapsed) => {
+      if (side === "bottom" && collapsed) set({ drawerFullscreen: false });
+      patch(side, { collapsed });
+    },
     expand: (side, min, max) => {
       const pane = get()[side];
       if (pane.collapsed) patch(side, { collapsed: false, size: Math.max(min, Math.min(max, pane.size)) });
     },
     setSize: (side, size) => patch(side, { size }),
+    setDrawerFullscreen: (on) => {
+      const { bottom } = get();
+      set({ drawerFullscreen: on && bottom.open && !bottom.collapsed && drawerCanFullscreen(bottom.tab) });
+    },
     setPalette: (paletteOpen) => set({ paletteOpen }),
   };
 });

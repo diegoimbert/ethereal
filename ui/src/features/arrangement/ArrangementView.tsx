@@ -200,13 +200,20 @@ function ConnectedArrangementView() {
   useEffect(() => {
     const onKey = (e: globalThis.KeyboardEvent) => {
       // keymap: `track.group` / `track.ungroup` (defaults Mod+G / Mod+Shift+G).
-      const action = firstMatch(["track.group", "track.ungroup"] as const, e);
-      const grouping = action === "track.ungroup" ? "ungroup" : action ? "group" : null;
-      if (!grouping || e.defaultPrevented || isTextEntry(e.target)) return;
+      // #870: `clip.consolidate` (Mod+J) too, when nothing has focus (a click elsewhere): else
+      // the browser takes Ctrl+J (Chrome opens its downloads). In the arrangement, its own
+      // key handler already ran it (and prevented the default).
+      const action = firstMatch(["track.group", "track.ungroup", "clip.consolidate"] as const, e);
+      if (!action || e.defaultPrevented || isTextEntry(e.target)) return;
       const active = document.activeElement;
       const root = rootRef.current;
       if (active && active !== document.body && !root?.contains(active)) return;
       e.preventDefault();
+      if (action === "clip.consolidate") {
+        void runClipAction(transport, "consolidate");
+        return;
+      }
+      const grouping = action === "track.ungroup" ? "ungroup" : "group";
       const ui = useArrangementUi.getState();
       const fallback = useSelectionStore.getState().selectedTrack;
       const selected = ui.selectedTracks.size > 0 ? [...ui.selectedTracks] : fallback ? [fallback] : [];

@@ -78,7 +78,8 @@
 .eth-device--selected:hover {
   border-color: var(--eth-color-text-dim);
 }
-.eth-device:focus {
+.eth-device:focus,
+.eth-devices__chain:focus {
   outline: none;
 }
 .eth-device--bypassed .eth-device__body,
@@ -482,6 +483,16 @@
   right: 0;
   top: calc(var(--eth-space-sm) / -2 - var(--eth-border-width));
   height: var(--eth-border-width-strong);
+}
+/* A section's end, above its add card: the same line, in the gap between the last card and
+   the add card (offset by the card's own border, which a slot doesn't have). */
+.eth-devices__add-card {
+  position: relative;
+}
+.eth-devices__chain--stack .eth-devices__add-card > .eth-device__insert {
+  left: calc(-1 * var(--eth-border-width));
+  right: calc(-1 * var(--eth-border-width));
+  top: calc(var(--eth-space-sm) / -2 - 2 * var(--eth-border-width));
 }
 
 /* Presets and "+" (modulator): shown while the card's header is hovered or focused, or

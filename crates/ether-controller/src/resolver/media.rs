@@ -78,9 +78,9 @@ pub fn stem_key(path: &str) -> String {
 fn khz(rate: u32) -> String {
     let k = f64::from(rate) / 1000.0;
     if k.fract() == 0.0 {
-        format!("{k:.0} kHz")
+        format!("{k:.0} khz")
     } else {
-        format!("{k:.1} kHz")
+        format!("{k:.1} khz")
     }
 }
 
@@ -89,12 +89,12 @@ fn khz(rate: u32) -> String {
 /// the file's content needs the same sample rate and channel count, like Relink).
 pub fn score(expected: &Expected, found: &Probed) -> Option<(f32, String)> {
     if expected.hash.as_deref() == Some(found.hash.as_str()) {
-        return Some((1.0, "Same content".into()));
+        return Some((1.0, "same content".into()));
     }
     let (mut c, mut why) = if file_key(&expected.name) == file_key(&found.name) {
-        (0.6f32, vec!["Same file name".to_string()])
+        (0.6f32, vec!["same file name".to_string()])
     } else if stem_key(&expected.name) == stem_key(&found.name) {
-        (0.45, vec!["Same name, another file type".to_string()])
+        (0.45, vec!["same name, another file type".to_string()])
     } else {
         return None;
     };
@@ -134,15 +134,7 @@ pub fn score(expected: &Expected, found: &Probed) -> Option<(f32, String)> {
         c = c.min(0.7);
         why.push("different content".into());
     }
-    Some((c.clamp(0.05, 0.95), capitalize(&why.join(", "))))
-}
-
-fn capitalize(s: &str) -> String {
-    let mut c = s.chars();
-    match c.next() {
-        Some(f) => f.to_uppercase().collect::<String>() + c.as_str(),
-        None => String::new(),
-    }
+    Some((c.clamp(0.05, 0.95), why.join(", ")))
 }
 
 /// Header probe + content hash of a file's bytes.
@@ -429,7 +421,7 @@ mod tests {
         assert!((c - 0.95).abs() < 1e-6, "{c}");
         assert_eq!(
             why,
-            "Same file name, same format (44.1 kHz, 2 ch), same length"
+            "same file name, same format (44.1 khz, 2 ch), same length"
         );
         // Same content beats everything.
         let mut p = probed("Other.wav", 48_000, 1, 1);
@@ -450,7 +442,7 @@ mod tests {
         let (c, why) = score(&e, &probed("Loop.wav", 48_000, 2, 480_000)).unwrap();
         assert!((c - 0.8).abs() < 1e-6, "{c} {why}");
         assert!(
-            why.contains("48 kHz, 2 ch (the project's hint: 44.1 kHz, 2 ch)"),
+            why.contains("48 khz, 2 ch (the project's hint: 44.1 khz, 2 ch)"),
             "{why}"
         );
         // Another type with the same stem.

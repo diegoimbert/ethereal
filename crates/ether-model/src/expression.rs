@@ -194,7 +194,7 @@ pub fn check_points(points: &[ExpressionPoint], range: (f32, f32)) -> Result<(),
 /// Check MPE settings ranges.
 pub fn check_mpe(m: &MpeSettings) -> Result<(), String> {
     if !(1..=15).contains(&m.member_channels) {
-        return Err("MPE member channels must be 1..=15".into());
+        return Err("mpe member channels must be 1..=15".into());
     }
     if !(m.note_pitch_range.is_finite() && (1.0..=96.0).contains(&m.note_pitch_range)) {
         return Err("MPE note pitch range must be 1..=96 semitones".into());

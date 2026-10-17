@@ -74,7 +74,7 @@ describe("MockTransport audio to MIDI (audio-to-midi)", () => {
 
     expect(applied).toHaveLength(1);
     const [step] = applied;
-    expect(step!.label).toBe("convert to MIDI");
+    expect(step!.label).toBe("convert to midi");
     const [track, newClip, notes, device] = step!.commands;
     const source = p.tracks[clip.track]!;
     expect(track).toMatchObject({ domain: "Track", command: { type: "Create", id: c.track, kind: "Midi", parent: source.parent } });
@@ -132,7 +132,7 @@ describe("MockTransport audio to MIDI (audio-to-midi)", () => {
     vi.advanceTimersByTime(STEP_MS * 4);
     expect(events.filter((e) => e.type === "AudioToMidi").at(-1)).toMatchObject({ event: { type: "Done", track: c.track } });
     const after = mock.snapshot();
-    expect(after.tracks[c.track]).toMatchObject({ kind: "Midi", name: `${clip.name || before.tracks[clip.track]!.name} MIDI` });
+    expect(after.tracks[c.track]).toMatchObject({ kind: "Midi", name: `${clip.name || before.tracks[clip.track]!.name} midi` });
     expect(after.clips[c.new_clip]).toMatchObject({ track: c.track, start: clip.start, length: clip.length });
     expect(Object.values(after.notes).some((n) => n.clip === c.new_clip)).toBe(true);
     expect(after.devices[c.instrument]).toBeDefined();

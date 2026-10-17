@@ -39,9 +39,25 @@ pub enum RackCommand {
         id: RackChainId,
         color: Option<Color>,
     },
+    /// Reorder a chain within its rack.
     MoveChain {
         id: RackChainId,
         before: Option<RackChainId>,
+    },
+    /// Copy chain `id` (settings, devices with their params and plugin state, nested racks and
+    /// drum pads) as `new_id` onto `rack` (any rack, on any track) before `before` (a chain of
+    /// `rack`; None = last). `cut`: then remove the source chain (a move between racks: its
+    /// devices get new ids, their automation follows on the same track). Every device must fit
+    /// the target rack (chain content rules, nesting depth, never inside itself). Mappings
+    /// from macros / modulators that don't surround the new place are dropped (a duplicate in
+    /// the same rack keeps them). Idempotent on `new_id`.
+    CopyChain {
+        id: RackChainId,
+        new_id: RackChainId,
+        rack: DeviceId,
+        before: Option<RackChainId>,
+        #[serde(default)]
+        cut: bool,
     },
     /// Partial update (`None` = unchanged). Continuous: send with a gesture.
     SetChainMix {

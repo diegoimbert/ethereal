@@ -92,7 +92,7 @@ describe("KeymapEditor", () => {
     pickOption(screen.getByRole("combobox", { name: "keymap preset" }), "ableton-like");
     await waitFor(() => expect(within(row("transport.record")).getByText("F9")).toBeInTheDocument());
     // Ableton-like keeps the defaults.
-    expect(within(row("view.editor")).getByText("Ctrl+J")).toBeInTheDocument();
+    expect(within(row("view.editor")).getByText("Alt+Ctrl+L")).toBeInTheDocument();
     expect(await getStored(mock)).toEqual({ preset: "AbletonLike", overrides: [] });
     fireEvent.click(screen.getByRole("button", { name: /reset all/ }));
     await waitFor(async () => expect(await getStored(mock)).toEqual(DEFAULT_KEYMAP));

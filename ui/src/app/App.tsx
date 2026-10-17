@@ -45,7 +45,7 @@ import { DocsRoot } from "@/features/docs";
 import { useDocumentTitle } from "@/features/document-title";
 import { VersionsRoot } from "@/features/versions";
 import { CommandPalette } from "./shell/CommandPalette";
-import { DrawerShortcut, DrawerTabs, EditorDrawer } from "./shell/EditorDrawer";
+import { DrawerFullscreenButton, DrawerShortcut, DrawerTabs, EditorDrawer, useDrawerFullscreen } from "./shell/EditorDrawer";
 import { FloatingPane } from "./shell/FloatingPane";
 import { Inspector } from "./shell/Inspector";
 import { useInspectorTarget } from "./shell/inspectorTarget";
@@ -107,6 +107,7 @@ function Workspace() {
   const left = readOnly ? { ...storedLeft, open: false } : storedLeft;
   const right = useShellStore((s) => s.right);
   const bottom = useShellStore((s) => s.bottom);
+  const fullscreen = useDrawerFullscreen();
   const shell = useShellStore.getState;
   const target = useInspectorTarget();
   const rightOpen = target !== null;
@@ -283,6 +284,8 @@ function Workspace() {
         collapsed={bottom.collapsed}
         onCollapsedChange={(v) => shell().setCollapsed("bottom", v)}
         header={<DrawerTabs />}
+        actions={<DrawerFullscreenButton />}
+        fullscreen={fullscreen}
         open={bottom.open}
         pinned={bottom.pinned}
         size={bottom.size}

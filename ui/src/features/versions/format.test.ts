@@ -17,9 +17,9 @@ describe("versions format", () => {
   });
 
   it("formats sizes, tables and counts", () => {
-    expect(formatSize(512)).toBe("512 B");
-    expect(formatSize(2048)).toBe("2 KB");
-    expect(formatSize(3 * 1024 * 1024)).toBe("3.0 MB");
+    expect(formatSize(512)).toBe("512 b");
+    expect(formatSize(2048)).toBe("2 kb");
+    expect(formatSize(3 * 1024 * 1024)).toBe("3.0 mb");
     expect(tableLabel("automation_points")).toBe("automation points");
     expect(countsLabel({ added: 2, removed: 0, changed: 1 })).toBe("+2 ~1");
   });
