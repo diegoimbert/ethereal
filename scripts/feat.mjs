@@ -84,6 +84,9 @@ const EE = (() => {
   if (url.startsWith("../")) return `${OSS.split("/")[0]}/${url.slice(3).replace(/\.git$/, "")}`;
   return slug(url) ?? die(`cannot parse the ee submodule url ${url}`);
 })();
+// The integration branch of both repos. Only for rehearsing the workflow against a throwaway
+// pair of base branches (FEAT_MAIN=<name>); the bots and the workflows always use main.
+const MAIN = process.env.FEAT_MAIN || "main";
 const LOCK_REF = "locks/ship";
 const LOCK_STALE_MIN = 30; // no heartbeat for this long: the ship died
 const LOCK_BEAT_MIN = 3;
@@ -202,7 +205,7 @@ class Lock {
   }
   static async acquire(branch, { takeover = false, waitMin = 120 } = {}) {
     const holder = `${process.env.USER ?? "?"}@${hostname()} pid ${process.pid}`;
-    const tree = treeOf(EE, refSha(EE, "main"));
+    const tree = treeOf(EE, refSha(EE, MAIN));
     const deadline = Date.now() + waitMin * 60000;
     let told = false;
     for (;;) {
@@ -284,7 +287,7 @@ function eeEnable(x) {
   if (gitOk(EE_DIR, "rev-parse", "--verify", "-q", `refs/heads/${x}`)) gitIn(EE_DIR, "switch", "-q", x);
   else if (gitOk(EE_DIR, "rev-parse", "--verify", "-q", `refs/remotes/origin/${x}`))
     gitIn(EE_DIR, "switch", "-q", "-c", x, "--track", `origin/${x}`);
-  else gitIn(EE_DIR, "switch", "-q", "--no-track", "-c", x, "origin/main");
+  else gitIn(EE_DIR, "switch", "-q", "--no-track", "-c", x, `origin/${MAIN}`);
   log(`ee/ is on branch ${x} (${short(gitIn(EE_DIR, "rev-parse", "HEAD"))})`);
 }
 
@@ -292,12 +295,12 @@ function eeEnable(x) {
 function eePushed(sha, { mainOnly = false } = {}) {
   if (eeReady() && gitOk(EE_DIR, "cat-file", "-e", `${sha}^{commit}`)) {
     eeFetch();
-    if (mainOnly) return gitOk(EE_DIR, "merge-base", "--is-ancestor", sha, "origin/main");
+    if (mainOnly) return gitOk(EE_DIR, "merge-base", "--is-ancestor", sha, `origin/${MAIN}`);
     return gitIn(EE_DIR, "branch", "-r", "--contains", sha) !== "";
   }
   // No local ee/: ask GitHub (needs read access to the EE repo).
   try {
-    if (mainOnly) return apiContains(EE, "main", sha);
+    if (mainOnly) return apiContains(EE, MAIN, sha);
     return !!api(EE, `commits/${sha}`, { allow404: true });
   } catch {
     return false;
@@ -307,10 +310,12 @@ function eePushed(sha, { mainOnly = false } = {}) {
 // Merge `ref` into the branch checked out at `cwd`. A conflict on the `ee` gitlink resolves to
 // `want` (ours when null); any other conflict aborts the merge and fails. Then the pointer is
 // set to `want` (when given).
-function mergeInto(cwd, ref, want) {
+function mergeInto(cwd, ref, want, into = currentBranch(cwd) ?? "the branch") {
   if (!gitOk(cwd, "merge-base", "--is-ancestor", ref, "HEAD")) {
     const ours = pointerAt("HEAD", cwd);
-    if (!gitOk(cwd, "merge", "-q", "--no-edit", ref)) {
+    const name = ref.replace(/^origin\//, "");
+    const msg = `Merge ${name} into ${into}${want ? ` (ee -> ${short(want)})` : ""}`;
+    if (!gitOk(cwd, "merge", "-q", "--no-edit", "-m", msg, ref)) {
       const conflicted = gitIn(cwd, "diff", "--name-only", "--diff-filter=U").split("\n").filter(Boolean);
       if (!conflicted.length || conflicted.some((f) => f !== "ee")) {
         gitOk(cwd, "merge", "--abort");
@@ -349,7 +354,7 @@ function pushBranch(cwd, x) {
       continue;
     }
     log(`origin/${x} has ${remoteOnly.length} commit(s) you don't have; merging them`);
-    mergeInto(cwd, theirs, pointerAt("HEAD", cwd));
+    mergeInto(cwd, `origin/${x}`, pointerAt("HEAD", cwd), x);
   }
   die(`could not push ${x} (it kept moving)`);
 }
@@ -386,7 +391,7 @@ function argFlag(args, name) {
 function featBranch() {
   const x = currentBranch();
   if (!x) die("detached HEAD: check out your feature branch");
-  if (x === "main") die("you are on main: start a branch with `just feat start <name>`");
+  if (x === MAIN) die("you are on main: start a branch with `just feat start <name>`");
   return x;
 }
 
@@ -394,11 +399,11 @@ function cmdStart(args) {
   const wt = argVal(args, "--worktree");
   const withEe = argFlag(args, "--ee");
   const x = args[0] ?? die("usage: feat start <branch> [--ee] [--worktree <dir>]");
-  if (x === "main" || !gitOk(ROOT, "check-ref-format", "--branch", x)) die(`bad branch name ${x}`);
-  git("fetch", "-q", "origin", "main");
+  if (x === MAIN || !gitOk(ROOT, "check-ref-format", "--branch", x)) die(`bad branch name ${x}`);
+  git("fetch", "-q", "origin", MAIN);
   const remote = gitOk(ROOT, "ls-remote", "--exit-code", "--heads", "origin", x);
   if (remote) git("fetch", "-q", "origin", `${x}:refs/remotes/origin/${x}`);
-  const from = remote ? `origin/${x}` : "origin/main";
+  const from = remote ? `origin/${x}` : `origin/${MAIN}`;
   let cwd = ROOT;
   if (wt) {
     cwd = resolve(wt);
@@ -440,7 +445,7 @@ function cmdPush(args) {
   const bodyFile = argVal(args, "--body-file");
   const body = bodyFile ? readFileSync(bodyFile, "utf8") : bodyArg;
   const x = featBranch();
-  git("fetch", "-q", "origin", "main");
+  git("fetch", "-q", "origin", MAIN);
 
   // --- EE side
   const ee = eeState();
@@ -449,7 +454,7 @@ function cmdPush(args) {
     eeFetch();
     if (ee.branch === x) {
       if (ee.dirty) die("ee/ has uncommitted changes: commit them (in ee/) first");
-      const ahead = Number(gitIn(EE_DIR, "rev-list", "--count", "origin/main..HEAD"));
+      const ahead = Number(gitIn(EE_DIR, "rev-list", "--count", `origin/${MAIN}..HEAD`));
       const hasRemote = gitOk(EE_DIR, "rev-parse", "--verify", "-q", `refs/remotes/origin/${x}`);
       if (ahead > 0 || hasRemote) {
         if (hasRemote && !gitOk(EE_DIR, "merge-base", "--is-ancestor", `origin/${x}`, "HEAD")) {
@@ -463,8 +468,8 @@ function cmdPush(args) {
       }
     } else if (ee.branch === null) {
       if (pointerAt("HEAD") !== ee.head) die(`ee/ is detached at ${short(ee.head)} with no branch: run \`just feat ee\` to put it on ${x}`);
-    } else if (ee.branch === "main") {
-      if (Number(gitIn(EE_DIR, "rev-list", "--count", "origin/main..HEAD")) > 0)
+    } else if (ee.branch === MAIN) {
+      if (Number(gitIn(EE_DIR, "rev-list", "--count", `origin/${MAIN}..HEAD`)) > 0)
         die("ee/ has local commits on main: EE work goes on a branch named like the OSS one (`just feat ee`)");
     } else die(`ee/ is on branch ${ee.branch}, expected ${x} (or main): \`just feat ee\``);
   }
@@ -479,13 +484,13 @@ function cmdPush(args) {
   }
 
   // --- OSS side
-  const ossChanged = git("diff", "--name-only", "origin/main...HEAD", "--", ".", ":(exclude)ee") !== "";
+  const ossChanged = git("diff", "--name-only", `origin/${MAIN}...HEAD`, "--", ".", ":(exclude)ee") !== "";
   const ossRemote = gitOk(ROOT, "ls-remote", "--exit-code", "--heads", "origin", x);
   if (!ossChanged && !eeTip) die("nothing to push: no OSS changes and no EE commits on " + x);
   let ossPushed = false;
   if (ossChanged || ossRemote) {
     const ptr = pointerAt("HEAD");
-    const basePtr = pointerAt(git("merge-base", "origin/main", "HEAD"));
+    const basePtr = pointerAt(git("merge-base", `origin/${MAIN}`, "HEAD"));
     if (ptr && ptr !== basePtr && !eePushed(ptr)) die(`OSS ${x} points at EE ${short(ptr)}, which is not pushed`);
     pushBranch(ROOT, x);
     ossPushed = true;
@@ -497,13 +502,13 @@ function cmdPush(args) {
   const subject = (cwd) => gitIn(cwd, "log", "-1", "--format=%s", "--no-merges");
   if (eeTip && !eePr) {
     const t = title ?? subject(EE_DIR);
-    gh(EE, ["pr", "create", "-R", EE, "--head", x, "--base", "main", "--title", t, "--body", body ?? "", ...(draft ? ["--draft"] : [])]);
+    gh(EE, ["pr", "create", "-R", EE, "--head", x, "--base", MAIN, "--title", t, "--body", body ?? "", ...(draft ? ["--draft"] : [])]);
     eePr = openPr(EE, x);
     log(`EE PR: ${eePr.url}`);
   }
   if (ossChanged && !ossPr) {
     const t = title ?? subject(ROOT);
-    gh(OSS, ["pr", "create", "-R", OSS, "--head", x, "--base", "main", "--title", t, "--body", body ?? "", ...(draft ? ["--draft"] : [])]);
+    gh(OSS, ["pr", "create", "-R", OSS, "--head", x, "--base", MAIN, "--title", t, "--body", body ?? "", ...(draft ? ["--draft"] : [])]);
     ossPr = openPr(OSS, x);
     log(`OSS PR: ${ossPr.url}`);
   }
@@ -530,7 +535,7 @@ function triggerSync() {
 // ee/'s HEAD (your EE branch).
 function cmdUpdate() {
   const x = featBranch();
-  git("fetch", "-q", "origin", "main");
+  git("fetch", "-q", "origin", MAIN);
   const ee = eeState();
   let want = null;
   if (ee.ready && ee.branch === x) {
@@ -538,10 +543,10 @@ function cmdUpdate() {
     eeFetch();
     if (gitOk(EE_DIR, "rev-parse", "--verify", "-q", `refs/remotes/origin/${x}`) && !gitOk(EE_DIR, "merge", "-q", "--no-edit", `origin/${x}`))
       die(`EE merge of origin/${x} has conflicts: resolve them in ee/, commit, then re-run`);
-    if (!gitOk(EE_DIR, "merge", "-q", "--no-edit", "origin/main")) die("EE merge of main has conflicts: resolve them in ee/, commit, then re-run");
+    if (!gitOk(EE_DIR, "merge", "-q", "--no-edit", `origin/${MAIN}`)) die("EE merge of main has conflicts: resolve them in ee/, commit, then re-run");
     want = gitIn(EE_DIR, "rev-parse", "HEAD");
   }
-  mergeInto(ROOT, "origin/main", want);
+  mergeInto(ROOT, `origin/${MAIN}`, want);
   // OSS-only branch with ee/ initialised: keep ee/ on the (possibly bumped) pointer.
   if (ee.ready && ee.branch !== x && !ee.dirty) {
     const p = pointerAt("HEAD");
@@ -658,10 +663,10 @@ function withTempWorktree(ref, fn) {
 // Merge OSS main into OSS x on GitHub (via a temp worktree), with the gitlink at `want` (or
 // left as merged when null). Returns the new head (unchanged when already up to date).
 function updateOssBranch(x, want) {
-  git("fetch", "-q", "origin", "+refs/heads/main:refs/remotes/origin/main", `+refs/heads/${x}:refs/remotes/origin/${x}`);
+  git("fetch", "-q", "origin", `+refs/heads/${MAIN}:refs/remotes/origin/${MAIN}`, `+refs/heads/${x}:refs/remotes/origin/${x}`);
   return withTempWorktree(`origin/${x}`, (dir) => {
     const before = gitIn(dir, "rev-parse", "HEAD");
-    mergeInto(dir, "origin/main", want);
+    mergeInto(dir, `origin/${MAIN}`, want, x);
     if (gitIn(dir, "rev-parse", "HEAD") === before) return before;
     pushBranch(dir, x);
     return gitIn(dir, "rev-parse", "HEAD");
@@ -670,7 +675,7 @@ function updateOssBranch(x, want) {
 // Merge EE main into EE x on GitHub (server-side merge; no checkout needed).
 function updateEeBranch(x) {
   try {
-    const r = api(EE, "merges", { method: "POST", body: { base: x, head: "main", commit_message: `Merge EE main into ${x}` } });
+    const r = api(EE, "merges", { method: "POST", body: { base: x, head: MAIN, commit_message: `Merge EE ${MAIN} into ${x}` } });
     if (r.sha) log(`merged EE main into EE ${x} (${short(r.sha)})`);
   } catch (e) {
     if (e instanceof ApiError && e.status === 409) die(`EE ${x} conflicts with EE main: \`just feat update\`, resolve in ee/, \`just feat push\`, re-run`);
@@ -686,7 +691,7 @@ async function cmdShip(args) {
   const takeover = argFlag(args, "--takeover");
   const timeoutMin = Number(argVal(args, "--timeout") ?? 60);
   const x = args[0] ?? featBranch();
-  if (x === "main") die("ship a feature branch, not main");
+  if (x === MAIN) die("ship a feature branch, not main");
   {
     const o = openPr(OSS, x);
     const e = openPr(EE, x);
@@ -713,14 +718,14 @@ async function cmdShip(args) {
       eeMergedBefore = !eePr && !!mergedPr(EE, x);
       if (eePr?.isDraft || ossPr?.isDraft) die("a PR is still a draft (gh pr ready)");
       if (eePr) {
-        if (!apiContains(EE, eePr.headRefOid, "main")) updateEeBranch(x);
+        if (!apiContains(EE, eePr.headRefOid, MAIN)) updateEeBranch(x);
         eeHead = refSha(EE, x);
       }
       if (ossPr) {
-        const want = eePr ? eeHead : eeMergedBefore ? refSha(EE, "main") : null;
+        const want = eePr ? eeHead : eeMergedBefore ? refSha(EE, MAIN) : null;
         ossHead = updateOssBranch(x, want);
         if (ossHead !== ossPr.headRefOid) log(`OSS ${x} updated (main merged in, ee -> ${short(apiPointer(ossHead))})`);
-        if (!want && apiPointer(ossHead) !== apiPointer("main")) die(`OSS ${x} changes the ee pointer but has no open EE PR ${x}`);
+        if (!want && apiPointer(ossHead) !== apiPointer(MAIN)) die(`OSS ${x} changes the ee pointer but has no open EE PR ${x}`);
         sync({ only: String(ossPr.number), build: false, quiet: true });
       }
       let moved = false;
@@ -737,14 +742,14 @@ async function cmdShip(args) {
         else gate(c, `OSS PR #${ossPr.number} checks`);
       }
       // Still current? (an owner merge on GitHub can move either main at any time)
-      if (!moved && eePr && (refSha(EE, x) !== eeHead || !apiContains(EE, eeHead, "main"))) moved = true;
-      if (!moved && ossPr && (refSha(OSS, x) !== ossHead || !apiContains(OSS, ossHead, "main"))) moved = true;
+      if (!moved && eePr && (refSha(EE, x) !== eeHead || !apiContains(EE, eeHead, MAIN))) moved = true;
+      if (!moved && ossPr && (refSha(OSS, x) !== ossHead || !apiContains(OSS, ossHead, MAIN))) moved = true;
       if (!moved) break;
       log("something moved while waiting; bringing the branches up to date again");
     }
 
     // 2. EE first.
-    let eeMain = refSha(EE, "main");
+    let eeMain = refSha(EE, MAIN);
     let sameTree = true;
     if (eePr) {
       log(`merging EE PR #${eePr.number} ...`);
@@ -755,13 +760,13 @@ async function cmdShip(args) {
       } catch {
         /* already gone */
       }
-      eeMain = refSha(EE, "main");
+      eeMain = refSha(EE, MAIN);
       sameTree = treeOf(EE, eeMain) === treeOf(EE, eeHead);
       log(`EE main is now ${short(eeMain)}${sameTree ? "" : " (its tree differs from the tested EE branch: EE main moved meanwhile)"}`);
     }
     if (!ossPr) {
       // EE-only: OSS main follows EE main right away.
-      const r = apiSetPointer("main", eeMain, `ee: bump to EE main (${short(eeMain)})`);
+      const r = apiSetPointer(MAIN, eeMain, `ee: bump to EE main (${short(eeMain)})`);
       log(r.changed ? `OSS main ee -> ${short(eeMain)}` : "OSS main already points at EE main");
       log(`shipped ${x}`);
       return;
@@ -798,7 +803,7 @@ async function cmdShip(args) {
       }
       // Main moved (an owner merge): merge it in again and re-check everything on the result.
       log(`OSS main moved (${state}); merging it in again`);
-      eeMain = refSha(EE, "main");
+      eeMain = refSha(EE, MAIN);
       ossHead = updateOssBranch(x, eePr || eeMergedBefore ? eeMain : null);
       sameTree = false;
       gate(await awaitBuild(ossPr.number, ossHead, { timeoutMin, lock }), `OSS PR #${ossPr.number}`);
@@ -812,9 +817,9 @@ async function cmdShip(args) {
     }
     log(`merged OSS PR #${ossPr.number}`);
     // 4. main must end at EE main
-    const tip = refSha(EE, "main");
-    if (apiPointer("main") !== tip) {
-      apiSetPointer("main", tip, `ee: bump to EE main (${short(tip)})`);
+    const tip = refSha(EE, MAIN);
+    if (apiPointer(MAIN) !== tip) {
+      apiSetPointer(MAIN, tip, `ee: bump to EE main (${short(tip)})`);
       log(`OSS main ee -> ${short(tip)}`);
     }
     log(`shipped ${x}`);
@@ -850,19 +855,19 @@ function sync({ dry = false, ci = false, only = null, build = false, quiet = fal
       throw e;
     }
   };
-  const eeMain = refSha(EE, "main");
+  const eeMain = refSha(EE, MAIN);
   const lock = readLock();
   const fresh = lockFresh(lock);
   say(`EE main ${short(eeMain)}${lock ? `; ship lock held (${lock.ageMin.toFixed(0)} min since renewal${fresh ? "" : ", stale"})` : ""}`);
 
   if (main) {
-    const ossMainPtr = apiPointer("main");
+    const ossMainPtr = apiPointer(MAIN);
     if (ossMainPtr === null) say("OSS main has no ee/ gitlink yet: nothing to bump");
     else if (ossMainPtr === eeMain) say("OSS main points at EE main");
     else if (fresh) say(`OSS main points at ${short(ossMainPtr)}; a ship holds the lock, leaving it`);
     else {
       say(`OSS main points at ${short(ossMainPtr)} -> bumping to ${short(eeMain)}`);
-      write(`bump OSS main ee -> ${short(eeMain)}`, () => apiSetPointer("main", eeMain, `ee: bump to EE main (${short(eeMain)})`));
+      write(`bump OSS main ee -> ${short(eeMain)}`, () => apiSetPointer(MAIN, eeMain, `ee: bump to EE main (${short(eeMain)})`));
     }
   }
 
@@ -926,7 +931,7 @@ function sync({ dry = false, ci = false, only = null, build = false, quiet = fal
   // OSS branches without a PR still follow their EE twin (invariant 3).
   const withPr = new Set(list.map((p) => p.headRefName));
   for (const [x, tip] of eeBranches) {
-    if (x === "main" || withPr.has(x) || (fresh && lock.branch === x)) continue;
+    if (x === MAIN || withPr.has(x) || (fresh && lock.branch === x)) continue;
     if (!refSha(OSS, x)) continue;
     const ptr = apiPointer(x);
     if (ptr === null || ptr === tip) continue;
@@ -950,7 +955,7 @@ function cmdCheck(args) {
 
 function cmdStatus() {
   const x = currentBranch();
-  git("fetch", "-q", "origin", "main");
+  git("fetch", "-q", "origin", MAIN);
   const ee = eeState();
   if (ee.ready) eeFetch();
   const ptr = pointerAt("HEAD");
@@ -958,15 +963,15 @@ function cmdStatus() {
   log(`OSS ${OSS} (EE: ${EE})`);
   row("branch", x ?? "(detached)");
   row("ee pointer", short(ptr));
-  row("OSS main pointer", short(pointerAt("origin/main")));
+  row("OSS main pointer", short(pointerAt(`origin/${MAIN}`)));
   if (ee.ready) {
     row("ee/ HEAD", `${short(ee.head)} on ${ee.branch ?? "DETACHED"}${ee.dirty ? ", uncommitted changes" : ""}`);
-    row("EE main", short(gitTry(EE_DIR, "rev-parse", "origin/main")));
+    row("EE main", short(gitTry(EE_DIR, "rev-parse", `origin/${MAIN}`)));
     if (x) row(`EE ${x}`, short(gitTry(EE_DIR, "rev-parse", "-q", "--verify", `refs/remotes/origin/${x}`)));
   } else row("ee/", "not initialised (`just feat ee`)");
   const lock = readLock();
   if (lock) row("ship lock", `${lock.branch} (${lock.holder}, ${lock.ageMin.toFixed(0)} min since renewal${lockFresh(lock) ? "" : ", stale"})`);
-  if (x && x !== "main") {
+  if (x && x !== MAIN) {
     const o = openPr(OSS, x);
     const e = openPr(EE, x);
     row("OSS PR", o ? `${o.url}${o.isDraft ? " (draft)" : ""}` : "-");
