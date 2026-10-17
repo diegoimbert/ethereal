@@ -32,6 +32,7 @@ export function InstrumentPick({ track }: { track: Track }) {
             track drag (and take the click) or select the track. */}
         <div
           className="eth-arr-header__pick-panel"
+          data-tour="instrument-pick"
           onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => e.stopPropagation()}
           onDoubleClick={(e) => e.stopPropagation()}
