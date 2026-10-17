@@ -270,10 +270,10 @@ pub mod menu {
             super::request(app);
         } else if event.id().as_ref() == CLOSE_ID {
             close_key_window(app);
-        } else if let Some(action) = app_menu::menu_action(event.id().as_ref()) {
-            if let Err(e) = app.emit_to("main", app_menu::MENU_ACTION_EVENT, action) {
-                tracing::debug!(%e, action, "menu action not delivered");
-            }
+        } else if let Some(action) = app_menu::menu_action(event.id().as_ref())
+            && let Err(e) = app.emit_to("main", app_menu::MENU_ACTION_EVENT, action)
+        {
+            tracing::debug!(%e, action, "menu action not delivered");
         }
     }
 

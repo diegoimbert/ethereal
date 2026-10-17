@@ -30,11 +30,11 @@ Rules:
 |---|---|
 | `start x [--ee] [--worktree <dir>]` | Branch `x` off `origin/main` (or `origin/x`), here or in a new worktree. `--ee` (or an existing EE branch `x`) also initialises `ee/` and puts it on EE branch `x`. |
 | `ee` | Initialise `ee/` and put it on the current branch's name (existing EE `x`, else new off EE `main`). |
-| `push [--draft] [--force] [--title T] [--body B]` | Push EE `x` (if it has commits), commit the pointer (`ee: point at x`), push OSS `x`, open or update both PRs with cross-links. With no OSS changes the OSS branch stays local: EE-only. A rejection caused only by the bot's pointer commits is resolved by replacing them. |
-| `status` | Branches, pointers, PRs, check counts, and what is out of line. |
+| `push [--draft] [--title T] [--body B \| --body-file F]` | Push EE `x` (if it has commits), commit the pointer (`ee: point at x`), push OSS `x`, open or update both PRs with cross-links, post `ee/pointer` and start the full build (`ee/build`). With no OSS changes the OSS branch stays local: EE-only. If a branch moved on GitHub (bot pointer commits, a ship's merge of main), that is merged in first; nothing is force-pushed except bot pointer-only commits. |
+| `status` | Branches, pointers, PRs, checks, `ee/*` statuses, the ship lock, and what is out of line. |
 | `update` | Merge `main` into OSS `x` and EE `main` into EE `x`; a gitlink conflict resolves to `ee/`'s HEAD. |
-| `ship [x] [--admin] [--force] [--timeout <min>] [--takeover]` | Wait for both PRs' checks, take the global ship lock, merge main into OSS `x`, merge the EE PR, point OSS `x` at EE `main`, wait for the required checks, merge the OSS PR, make sure OSS `main` points at EE `main`. |
-| `sync [--dry-run]` | The reconcile the private-side bot runs (needs write access to both repos). |
+| `ship [x] [--admin] [--force] [--timeout <min>] [--takeover]` | Takes the global ship lock, brings OSS `x` (and EE `x`) up to date with `main`, waits for every check on both PRs including `ee/build`, merges the EE PR, points OSS `x` at EE `main`, merges the OSS PR (squash) and makes sure OSS `main` points at EE `main`. Repeats the update/wait round if anything moved meanwhile. |
+| `sync [--dry-run] [--pr N] [--build]` | The reconcile the private-side bot runs (needs write access to both repos). |
 | `check <pr>` | Dry-run the pointer guard for one OSS PR. |
 | `hooks` | Install a pre-push hook that refuses OSS commits pointing at unpushed EE commits. |
 | `tree <dir>` | A throwaway full-product tree (copy of this checkout + the EE overlay) to build locally. |
@@ -49,6 +49,9 @@ just feat status
 just feat ship my-thing   # EE merges first, then OSS (squash), under the lock
 ```
 
+An OSS-only change is the same without `--ee` (its PR never touches the gitlink); an EE-only
+change is the same with only `ee/` commits (only an EE PR is opened).
+
 Keep `ee/` on a branch while you edit it. A plain `git submodule update` checks it out
 detached at the pointer; `just feat ee` puts it back on `x`.
 
@@ -59,8 +62,9 @@ reaches this repository's Actions:
 
 - **Sync** (on every push there, on `feat push`/`ship`, and hourly): moves OSS `main` to EE
   `main` (unless a ship holds the lock), keeps each open OSS PR's pointer on its EE branch tip
-  (or EE `main` once that merged), and posts the **`ee/pointer`** status on OSS PRs. It only
-  makes fast-forward API commits that touch nothing but `ee`, retried when the branch moved.
+  (or EE `main` once that merged), merges `main` into a PR whose only conflict is the gitlink,
+  and posts the **`ee/pointer`** status on OSS PRs. Its API commits touch nothing but `ee` and
+  are fast-forward only, retried when the branch moved.
 - **Full build**: each non-draft OSS PR head gets the **`ee/build`** status: the full product
   built from that PR (with EE `main` when the PR leaves `ee` alone). Fork PRs are not built
   automatically.
@@ -68,12 +72,20 @@ reaches this repository's Actions:
 - Releases and the dev deploy are built on the private side from OSS `main` + the `ee` commit
   it points at; GitHub Releases are still published here.
 
+`feat push` and `feat ship` do the bot's part for their own PR themselves (pointer status,
+starting the build, turning a finished build into `ee/build`), so the workflow keeps working
+when the bot cannot write here.
+
 ## Concurrency notes
 
-- Only `feat ship` merges paired PRs, one ship at a time (a lock ref in the private repo; a
-  lock older than an hour is considered stale). The sync bot leaves the shipping branch and
-  OSS `main` alone while the lock is held.
+- Only `feat ship` merges paired PRs, one ship at a time: a lock ref in the private repo,
+  renewed every few minutes while the ship waits, and considered dead after 30 minutes without
+  renewal. The sync bot leaves the shipping branch and OSS `main` alone while the lock is held.
 - Squash merges and `main` pointer bumps make the gitlink conflict on open paired PRs; that is
-  expected. `feat update` / `feat ship` resolve it (to the EE branch tip, then EE `main`).
-- If a ship stops after the EE PR merged (e.g. the OSS checks failed), it keeps the lock; fix
-  and re-run `just feat ship x` to finish (OSS `x` is pointed at EE `main`).
+  expected. The bot, `feat update` and `feat ship` resolve it (to the EE branch tip, then EE
+  `main`).
+- After the EE PR merged, the OSS PR's head only changes the gitlink (to EE `main`, normally
+  the very tree that was built), so the `ee/*` statuses carry over and only the required checks
+  are waited for again.
+- If a ship stops after the EE PR merged (e.g. the OSS merge failed), it keeps the lock; fix
+  the cause and run `just feat ship x --takeover` to finish (OSS `x` is pointed at EE `main`).
