@@ -31,14 +31,17 @@ changelog), latest/prerelease flag and files. Users and the download page read i
 ## Version and tag
 
 The [`VERSION`](../VERSION) file (plain `X.Y.Z`) is the release version. The workflow
-passes it to `tauri build` as the app version (bundle version, Info.plist, MSI), so
-`tauri.conf.json` and the Cargo versions don't need bumping.
+passes it to `tauri build` as the app version (bundle version, Info.plist, MSI), so the
+Cargo versions don't need bumping. `tauri.conf.json`'s `version` (what a local `tauri build`
+labels the app with) mirrors `VERSION`: bump both together
+(`scripts/release/tauri-config.test.mjs` fails when they differ).
 
 - If tag `v<VERSION>` doesn't exist yet, the release is `v<VERSION>`, marked as latest.
 - If it exists, the release is `v<VERSION>+<shortsha>` and marked as a **prerelease**
   (so every push to `main` still produces downloadable builds).
 
-To cut a new release: bump `VERSION` on `main` (land it with a pull request).
+To cut a new release: bump `VERSION` and `tauri.conf.json`'s `version` on `main` (land it
+with a pull request).
 
 ### Release notes
 
