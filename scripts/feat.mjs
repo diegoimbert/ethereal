@@ -8,7 +8,7 @@
 //                                                   both PRs, cross-linked; start the full build
 //   just feat update                                merge main into OSS x (and EE main into EE x)
 //   just feat status                                branches, pointers, PRs, checks, warnings
-//   just feat ship [x] [--admin] [--force] [--timeout <min>] [--takeover]
+//   just feat ship [x] [--admin] [--force] [--no-build] [--timeout <min>] [--takeover]
 //                                                   under a global lock: bring both sides up to
 //                                                   date, wait for every check, merge EE, point
 //                                                   OSS x at EE main, merge OSS
@@ -590,6 +590,15 @@ async function waitChecks(repo, n, sha, { required = false, timeoutMin, label, l
   }
 }
 
+// Re-run the failed jobs of the latest EE CI run of `sha` (once per ship round).
+function rerunEeCi(sha) {
+  const r = gh(EE, ["run", "list", "-R", EE, "-w", "ee-ci.yml", "--commit", sha, "-L", "5", "--json", "databaseId,status,conclusion,attempt"], { allowFail: true, full: true });
+  const run = r.status === 0 ? JSON.parse(r.stdout || "[]")[0] : null;
+  if (!run || run.status !== "completed" || run.conclusion === "success" || run.attempt > 2) return false;
+  log(`re-running the failed EE CI jobs (run ${run.databaseId}) against the current OSS branch`);
+  return gh(EE, ["run", "rerun", String(run.databaseId), "-R", EE, "--failed"], { allowFail: true, full: true }).status === 0;
+}
+
 // The run of oss-pr.yml that builds `sha` (its run-name carries the sha).
 function buildRun(sha) {
   const out = gh(EE, ["run", "list", "-R", EE, "-w", BUILD_WORKFLOW, "-L", "40", "--json", "databaseId,displayTitle,status,conclusion,url,createdAt"], { allowFail: true, full: true });
@@ -689,6 +698,7 @@ async function cmdShip(args) {
   const admin = argFlag(args, "--admin");
   const force = argFlag(args, "--force");
   const takeover = argFlag(args, "--takeover");
+  const noBuild = argFlag(args, "--no-build");
   const timeoutMin = Number(argVal(args, "--timeout") ?? 60);
   const x = args[0] ?? featBranch();
   if (x === MAIN) die("ship a feature branch, not main");
@@ -730,13 +740,18 @@ async function cmdShip(args) {
       }
       let moved = false;
       if (eePr) {
-        const c = await waitChecks(EE, eePr.number, eeHead, { timeoutMin, label: `EE #${eePr.number}`, lock });
+        let c = await waitChecks(EE, eePr.number, eeHead, { timeoutMin, label: `EE #${eePr.number}`, lock });
+        // EE CI builds against whatever OSS x was when it ran; OSS x may have moved since.
+        if (!c.ok && !c.moved && ossPr && rerunEeCi(eeHead)) {
+          await sleep(20000);
+          c = await waitChecks(EE, eePr.number, eeHead, { timeoutMin, label: `EE #${eePr.number} (re-run)`, lock });
+        }
         if (c.moved) moved = true;
         else gate(c, `EE PR #${eePr.number} checks`);
       }
       if (ossPr && !moved) {
-        const b = await awaitBuild(ossPr.number, ossHead, { timeoutMin, lock });
-        gate(b, `OSS PR #${ossPr.number}`);
+        if (noBuild) log(`! not waiting for ee/build (--no-build)`);
+        else gate(await awaitBuild(ossPr.number, ossHead, { timeoutMin, lock }), `OSS PR #${ossPr.number}`);
         const c = await waitChecks(OSS, ossPr.number, ossHead, { timeoutMin, label: `OSS #${ossPr.number}`, lock });
         if (c.moved) moved = true;
         else gate(c, `OSS PR #${ossPr.number} checks`);
@@ -788,7 +803,7 @@ async function cmdShip(args) {
             if (sameTree && s?.state === "success") postStatus(head, ctx, "success", `${s.description} (same trees as ${short(ossHead)})`, s.target_url);
           }
           if (!prev.get(POINTER_CTX)) postStatus(head, POINTER_CTX, "success", "EE side merged: follows EE main");
-          if (!sameTree) gate(await awaitBuild(ossPr.number, head, { timeoutMin, lock }), `OSS PR #${ossPr.number}`);
+          if (!sameTree && !noBuild) gate(await awaitBuild(ossPr.number, head, { timeoutMin, lock }), `OSS PR #${ossPr.number}`);
         }
       }
       if (!admin) gate(await waitChecks(OSS, ossPr.number, head, { required: true, timeoutMin, label: `required OSS #${ossPr.number}`, lock }), `OSS PR #${ossPr.number} required checks`);
@@ -806,7 +821,7 @@ async function cmdShip(args) {
       eeMain = refSha(EE, MAIN);
       ossHead = updateOssBranch(x, eePr || eeMergedBefore ? eeMain : null);
       sameTree = false;
-      gate(await awaitBuild(ossPr.number, ossHead, { timeoutMin, lock }), `OSS PR #${ossPr.number}`);
+      if (!noBuild) gate(await awaitBuild(ossPr.number, ossHead, { timeoutMin, lock }), `OSS PR #${ossPr.number}`);
       gate(await waitChecks(OSS, ossPr.number, ossHead, { timeoutMin, label: `OSS #${ossPr.number}`, lock }), `OSS PR #${ossPr.number} checks`);
     }
     keepLock = false;
