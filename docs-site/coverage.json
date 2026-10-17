@@ -1,7 +1,7 @@
 {
-  "total": 452,
+  "total": 375,
   "removed": 1,
-  "covered": 451,
+  "covered": 374,
   "pending": 0,
   "percent": 100,
   "items": {
@@ -16,9 +16,6 @@
     ],
     "first-run/get-started-guided-tours-and-soon-items": [
       "basics/projects#guided-tours"
-    ],
-    "first-run/starting-a-tour-or-a-new-project-during-a-jam-asks-you-to-le": [
-      "basics/projects#switching-projects-during-a-live-session"
     ],
     "first-run/reopen-last-project-on-launch-off-by-default": [
       "basics/projects#reopening-your-last-project"
@@ -40,18 +37,6 @@
     ],
     "first-run/phones-and-touch-only-tablets-are-blocked": [
       "welcome/what-is-ethereal#phones-and-tablets"
-    ],
-    "first-run/privacy-notice-on-first-run": [
-      "reference/privacy-and-telemetry#the-first-run-notice"
-    ],
-    "first-run/news-pop-up-after-launch": [
-      "reference/reporting-issues#news"
-    ],
-    "first-run/desktop-updates": [
-      "welcome/what-is-ethereal#updates"
-    ],
-    "first-run/linux-package-installs-don-t-update-themselves": [
-      "welcome/what-is-ethereal#updates"
     ],
     "first-run/project-templates-and-the-default-template": [
       "basics/projects#templates"
@@ -118,9 +103,6 @@
     ],
     "projects-storage/files-from-newer-or-pre-release-versions-are-refused": [
       "basics/projects#projects-from-a-newer-version"
-    ],
-    "projects-storage/local-copy-projects-after-a-jam": [
-      "basics/projects#local-copy-projects"
     ],
     "transport-tempo/play-stop-buttons-and-what-stop-does-twice": [
       "basics/playing-and-navigating#the-play-and-stop-buttons"
@@ -843,212 +825,26 @@
     "browser/project-media-and-open-projects": [
       "sounds-and-plugins/browser#projects"
     ],
-    "sharing/the-share-button-and-its-two-modes": [
-      "sharing/overview#two-ways-to-share"
-    ],
-    "sharing/no-account-needed-to-join-or-view": [
-      "sharing/overview#no-account-needed"
-    ],
-    "sharing/can-edit-vs-can-listen-links": [
-      "sharing/overview#can-edit-and-can-listen"
-    ],
-    "sharing/links-are-bearer-capabilities": [
-      "sharing/overview#anyone-with-the-link-gets-in"
-    ],
-    "sharing/allow-editing-toggle-live": [
-      "sharing/live-sessions#allow-editing"
-    ],
-    "sharing/reset-link-vs-remove-vs-stop-sharing": [
-      "sharing/live-sessions#reset-remove-or-stop"
-    ],
-    "sharing/quitting-is-not-stopping-sharing": [
-      "sharing/live-sessions#closing-the-app-doesnt-stop-sharing"
-    ],
-    "sharing/people-list-roles-and-limits": [
-      "sharing/live-sessions#the-people-list"
-    ],
-    "sharing/joining-open-in-the-app-or-continue-in-browser": [
-      "sharing/joining#opening-an-invite-link"
-    ],
-    "sharing/the-join-screen-and-play-with": [
-      "sharing/joining#the-join-screen"
-    ],
-    "sharing/why-a-join-fails": [
-      "sharing/joining#when-a-join-fails"
-    ],
-    "sharing/the-host-must-be-online-to-join": [
-      "sharing/joining#the-host-must-be-online"
-    ],
-    "sharing/session-pill-and-view-only-badge": [
-      "sharing/live-sessions#the-session-pill"
-    ],
-    "sharing/shared-projects-in-your-project-list": [
-      "sharing/live-sessions#shared-projects-in-your-project-list"
-    ],
-    "sharing/static-snapshot-what-gets-published": [
-      "sharing/static-links#what-a-snapshot-contains"
-    ],
-    "sharing/static-permissions": [
-      "sharing/static-links#permissions"
-    ],
-    "sharing/what-a-static-share-always-exposes": [
-      "sharing/static-links#what-anyone-with-the-link-can-see"
-    ],
-    "sharing/hide-devices": [
-      "sharing/static-links#hide-devices"
-    ],
-    "sharing/download-can-t-stop-recording": [
-      "sharing/static-links#download-and-recording"
-    ],
-    "sharing/publishing-again-replaces-the-old-link": [
-      "sharing/static-links#publishing-again"
-    ],
-    "sharing/snapshots-never-expire-only-this-device-can-remove-them": [
-      "sharing/static-links#links-dont-expire"
-    ],
-    "sharing/publish-progress-cancel-and-rate-limits": [
-      "sharing/static-links#publishing-takes-a-moment"
-    ],
-    "sharing/the-read-only-viewer": [
-      "sharing/share-viewer#a-read-only-ethereal"
-    ],
-    "sharing/solo-and-mute-in-the-viewer": [
-      "sharing/share-viewer#listening-to-single-tracks"
-    ],
-    "sharing/open-a-copy-to-edit": [
-      "sharing/share-viewer#opening-a-copy-to-edit"
-    ],
-    "sharing/privacy-of-live-sharing": [
-      "sharing/live-sessions#privacy"
-    ],
-    "collaboration/everyone-plays-on-their-own-computer": [
-      "sharing/live-sessions#everyone-plays-on-their-own-computer"
-    ],
-    "collaboration/mute-and-solo-are-per-person": [
-      "sharing/live-sessions#mute-and-solo-are-yours"
-    ],
-    "collaboration/what-syncs-and-what-stays-local": [
-      "sharing/live-sessions#what-syncs-and-what-stays-yours"
-    ],
-    "collaboration/audio-files-are-sent-to-everyone": [
-      "sharing/live-sessions#audio-files-are-sent-to-everyone"
-    ],
-    "collaboration/plugins-don-t-travel": [
-      "sharing/live-sessions#plugins-dont-travel"
-    ],
-    "collaboration/undo-only-undoes-your-own-changes": [
-      "sharing/live-sessions#undo-only-undoes-your-own-changes"
-    ],
-    "collaboration/live-pointers-and-selections": [
-      "sharing/live-sessions#seeing-each-other"
-    ],
-    "collaboration/follow-someone-s-view": [
-      "sharing/live-sessions#following-someones-view"
-    ],
-    "collaboration/hide-users-and-notes": [
-      "sharing/live-sessions#hide-users-and-notes"
-    ],
-    "collaboration/session-chat": [
-      "sharing/live-sessions#chat"
-    ],
-    "collaboration/pinned-notes": [
-      "sharing/live-sessions#pinned-notes"
-    ],
-    "collaboration/listen-on-a-friend-s-computer": [
-      "sharing/listening-together#listening-on-someone"
-    ],
-    "collaboration/listening-needs-the-other-person-s-yes": [
-      "sharing/listening-together#they-say-yes-first"
-    ],
-    "collaboration/host-s-listening-settings": [
-      "sharing/listening-together#your-listening-settings"
-    ],
-    "collaboration/listening-latency": [
-      "sharing/listening-together#latency"
-    ],
-    "collaboration/offline-copies-and-host-going-offline": [
-      "sharing/live-sessions#when-the-host-goes-offline"
-    ],
-    "collaboration/local-copy-projects": [
-      "sharing/live-sessions#local-copy-projects"
-    ],
-    "collaboration/leaving-a-session": [
-      "sharing/live-sessions#leaving-a-session"
-    ],
-    "collaboration/when-sharing-ends": [
-      "sharing/live-sessions#when-sharing-ends"
-    ],
-    "collaboration/play-with-no-engine-view-only": [
-      "sharing/listening-together#no-engine-view-only"
-    ],
-    "collaboration/run-an-engine-for-me-on-someone-s-computer": [
-      "sharing/listening-together#running-an-engine-on-their-computer"
-    ],
-    "collaboration/everyone-must-run-the-same-version": [
-      "sharing/live-sessions#everyone-needs-the-same-version"
-    ],
-    "import-daw/which-daw-files-open": [
-      "import-export/other-daws#which-files-open"
-    ],
-    "import-daw/where-to-start-an-import": [
-      "import-export/other-daws#starting-an-import"
-    ],
-    "import-daw/an-import-makes-a-new-project": [
-      "import-export/other-daws#an-import-makes-a-new-project"
-    ],
-    "import-daw/import-is-beta": [
-      "import-export/other-daws#importing-is-in-beta"
-    ],
-    "import-daw/progress-and-cancel": [
-      "import-export/other-daws#while-it-imports"
-    ],
-    "import-daw/reading-the-import-report": [
-      "import-export/other-daws#the-import-report"
-    ],
-    "import-daw/right-click-a-report-line-to-resolve-it": [
-      "import-export/other-daws#the-import-report"
-    ],
-    "import-daw/nothing-resolvable-is-thrown-away": [
-      "import-export/other-daws#nothing-is-thrown-away"
-    ],
     "import-daw/resolve-missing-devices-samples": [
-      "import-export/other-daws#resolving-missing-items"
+      "sounds-and-plugins/missing-plugins-and-samples#resolving-missing-items"
     ],
     "import-daw/resolve-later-and-getting-back-to-it": [
-      "import-export/other-daws#resolving-later"
+      "sounds-and-plugins/missing-plugins-and-samples#resolving-later"
     ],
     "import-daw/show-when-a-project-opens-switch": [
-      "import-export/other-daws#resolving-later"
+      "sounds-and-plugins/missing-plugins-and-samples#resolving-later"
     ],
     "import-daw/replacing-a-missing-device-carries-values-over": [
-      "import-export/other-daws#replacing-a-device-or-plugin"
+      "sounds-and-plugins/missing-plugins-and-samples#replacing-a-device-or-plugin"
     ],
     "import-daw/plugin-state-kept-only-for-the-same-plugin": [
-      "import-export/other-daws#replacing-a-device-or-plugin"
+      "sounds-and-plugins/missing-plugins-and-samples#replacing-a-device-or-plugin"
     ],
     "import-daw/ai-suggestions-for-missing-plugins-optional": [
-      "import-export/other-daws#ai-suggestions"
+      "sounds-and-plugins/missing-plugins-and-samples#ai-suggestions"
     ],
     "import-daw/finding-missing-audio-files": [
-      "import-export/other-daws#finding-missing-audio-files"
-    ],
-    "import-daw/on-the-web-referenced-audio-comes-in-missing": [
-      "import-export/other-daws#audio-files-on-the-web"
-    ],
-    "import-daw/ableton-live-what-converts": [
-      "import-export/other-daws#ableton-live"
-    ],
-    "import-daw/ableton-live-what-is-lost-or-approximated": [
-      "import-export/other-daws#ableton-live"
-    ],
-    "import-daw/fl-studio-what-converts-and-what-doesn-t": [
-      "import-export/other-daws#fl-studio"
-    ],
-    "import-daw/dawproject-reaper-per-app-gaps": [
-      "import-export/other-daws#dawproject-and-reaper"
-    ],
-    "import-daw/size-limits-on-imports": [
-      "import-export/other-daws#size-limits"
+      "sounds-and-plugins/missing-plugins-and-samples#finding-missing-audio-files"
     ],
     "import-daw/import-audio-files-i-ctrl-i": [
       "import-export/importing-audio#import-audio"
@@ -1091,18 +887,6 @@
     ],
     "export/a-plugin-that-can-t-render-offline-fails-the-export": [
       "import-export/exporting-audio#when-a-plugin-stops-the-export"
-    ],
-    "export/export-to-another-daw": [
-      "import-export/exporting-to-other-daws#exporting-a-project"
-    ],
-    "export/als-and-flp-exports-are-untested-in-live-fl": [
-      "import-export/exporting-to-other-daws#which-format-to-choose"
-    ],
-    "export/what-other-daws-can-t-receive": [
-      "import-export/exporting-to-other-daws#what-other-daws-cant-receive"
-    ],
-    "export/fl-studio-may-ask-to-locate-samples": [
-      "import-export/exporting-to-other-daws#fl-studio-and-its-samples"
     ],
     "shortcuts-commands/command-palette-k-ctrl-k": [
       "basics/command-palette-and-settings#the-command-palette"
@@ -1237,7 +1021,7 @@
       "mobile/mobile-beta#what-still-needs-a-computer"
     ],
     "mobile/projects-sharing-and-settings-on-a-phone": [
-      "mobile/mobile-beta#projects-sharing-and-settings"
+      "mobile/mobile-beta#projects-and-settings"
     ],
     "ai-mcp/ask-ai-panel": [
       "advanced/ai-assistant#the-ask-ai-panel"
@@ -1332,9 +1116,6 @@
     "app-shell/undo-history-isn-t-saved": [
       "basics/undo-and-history#the-history-isnt-saved"
     ],
-    "app-shell/undo-in-a-jam-only-undoes-your-own-edits": [
-      "basics/undo-and-history#undo-in-a-live-session"
-    ],
     "app-shell/toasts-which-ones-stay": [
       "basics/the-screen#messages-at-the-bottom"
     ],
@@ -1344,20 +1125,8 @@
     "app-shell/engine-log-desktop": [
       "reference/troubleshooting#the-engine-log"
     ],
-    "app-shell/report-an-issue": [
-      "reference/reporting-issues#report-an-issue"
-    ],
-    "app-shell/what-an-issue-report-attaches": [
-      "reference/reporting-issues#what-a-report-attaches"
-    ],
-    "app-shell/telemetry-is-on-by-default-and-how-to-turn-it-off": [
-      "reference/privacy-and-telemetry#crash-reports-and-usage-statistics"
-    ],
-    "app-shell/send-diagnostics-ticket-for-a-bug": [
-      "reference/reporting-issues#send-diagnostics"
-    ],
     "app-shell/debug-panels-advanced": [
-      "reference/reporting-issues#debug-panels"
+      "advanced/settings#advanced"
     ]
   },
   "removedItems": {

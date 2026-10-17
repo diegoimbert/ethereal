@@ -40,4 +40,3 @@ On the desktop, a save dialog asks where to put the file. In the browser, the fi
 
 - [The piano roll](/docs/making-music/piano-roll): edit the imported notes.
 - [Importing audio](/docs/import-export/importing-audio): bring in audio files the same way.
-- [Projects from other DAWs](/docs/import-export/other-daws): bring a whole song, with its mix.

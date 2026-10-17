@@ -9,7 +9,7 @@ covers:
   - mobile/turning-on-the-mobile-beta #turning-on-the-mobile-beta
   - mobile/the-mobile-layout #the-layout
   - mobile/what-s-missing-on-mobile #what-still-needs-a-computer
-  - mobile/projects-sharing-and-settings-on-a-phone #projects-sharing-and-settings
+  - mobile/projects-sharing-and-settings-on-a-phone #projects-and-settings
   - mobile/leaving-the-app-stops-playback #leaving-the-app-stops-playback
   - mobile/rotating-keeps-your-place #rotating-the-phone
 ---
@@ -31,7 +31,7 @@ Ethereal looks at the device, not the window size, to decide:
 - A tablet with a keyboard and trackpad (an iPad with a Magic Keyboard, for example) gets the normal desktop editor.
 - Laptops with a touchscreen get the desktop editor.
 
-Two kinds of links always work on a phone, with or without the beta: [static share links](/docs/sharing/static-links) (`/s/…`), which open the read-only [share viewer](/docs/sharing/share-viewer), and this documentation.
+This documentation always works on a phone, with or without the beta.
 
 ## turning on the mobile beta
 
@@ -50,7 +50,7 @@ The beta uses the same arrangement as the desktop, laid out for a thumb:
 
 ![The mobile beta on a phone: the top bar, the arrangement with clips, and the transport at the bottom](images/phone.jpg "The mobile beta on a phone.")
 
-- **The top bar**: the project menu (tap the project name; it has **export audio…** too), **undo** and **redo**, **share** and the settings button.
+- **The top bar**: the project menu (tap the project name; it has **export audio…** too), **undo** and **redo**, and the settings button.
 - **The arrangement**: tracks and their clips. On a phone, each track header shows the name and then **mute**, **solo** and **arm** at touch size. Volume, pan, takes and automation are in the [track sheet](/docs/mobile/gestures#the-track-sheet).
 - **The status row**: the position, the tempo and time signature, and the **follow playhead** button.
 - **The transport** at the bottom: **stop**, **play** / **pause**, **record**, **loop**, **metronome**, and a button that switches between the tracks and the [mixer](/docs/mobile/editing-on-touch#the-mixer).
@@ -69,17 +69,13 @@ The beta is for arranging and editing what's already in a project. These things 
 - **Keyboard features**: no command palette, keyboard shortcuts or computer MIDI keyboard.
 - **MIDI mapping**, guided tours and the AI assistant.
 
-To report a problem from your phone, use **report an issue…** in the project menu (there is no status bar on mobile).
+## projects and settings
 
-## projects, sharing and settings
-
-The project screen, the project menu, sharing and settings all work on a phone:
+The project screen, the project menu and settings all work on a phone:
 
 - Dialogs such as settings open full screen, and their buttons are touch-sized.
 - On the project screen, each project's **rename**, **duplicate** and **delete** buttons are always shown (there's no hover on a touchscreen).
 - The project's address is kept in the address bar, so reloading the page reopens the same project.
-- **share** works as on a computer. See [sharing your music](/docs/sharing/overview).
-- An invite link to a live session first shows the "not available" screen on a phone. Tap **try the mobile beta** there (or open the link in a tab where the beta is already on): the join screen appears, and **continue in browser** joins the session in the touch version. See [joining a session](/docs/sharing/joining).
 
 ## leaving the app stops playback
 

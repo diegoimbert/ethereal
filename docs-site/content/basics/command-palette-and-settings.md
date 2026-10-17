@@ -25,7 +25,7 @@ Commands you ran recently come first. When a command has a keyboard shortcut, th
 
 The palette doesn't open while you're typing in a text field, so the shortcut never gets in the way of your typing.
 
-The palette lists commands for tracks, the transport, editing, the project, panels, templates, devices (**add …** inserts a device on the selected track), sharing, the appearance and help.
+The palette lists commands for tracks, the transport, editing, the project, panels, templates, devices (**add …** inserts a device on the selected track), the appearance and help.
 
 ## commands only in the palette
 
@@ -49,16 +49,14 @@ The **gear** at the right end of the top bar opens the settings. They're split i
 
 | tab | what's in it |
 |---|---|
-| **general** | **startup** (reopen the last project on launch, see [projects and saving](/docs/basics/projects#reopening-your-last-project)); in the browser, **storage** (whether the browser keeps your projects safe, see [where your projects live](/docs/welcome/where-your-projects-live)); **library files** (which files the browser lists); **updates** and **about**. |
+| **general** | **startup** (reopen the last project on launch, see [projects and saving](/docs/basics/projects#reopening-your-last-project)); in the browser, **storage** (whether the browser keeps your projects safe, see [where your projects live](/docs/welcome/where-your-projects-live)); **library files** (which files the browser lists). |
 | **appearance** | the theme (light or dark), the interface zoom, animations, the colour blobs and glow, and translucency. |
 | **audio** | the driver, output and input devices, sample rate and buffer size, and an input check. In the browser, the system picks the devices. See [audio and MIDI setup](/docs/making-music/audio-and-midi-setup). |
 | **input** | the mouse wheel and buttons: zoom and scroll sensitivity, which modifier zooms, inverted directions, the middle button and the back and forward buttons. See [zoom and scroll](/docs/basics/playing-and-navigating#zoom-and-scroll). **edit keyboard shortcuts…** opens the shortcuts editor (also **keyboard shortcuts…** in the palette). |
 | **plugins** | [[desktop]] the folders scanned for plugins, and rescanning. See [plugins](/docs/sounds-and-plugins/plugins). |
-| **sharing** | your sharing preferences, such as resuming sharing when you open a shared project. See [live sessions](/docs/sharing/live-sessions). |
-| **privacy** | crash reports and usage statistics, what's sent, and news. See [privacy and telemetry](/docs/reference/privacy-and-telemetry). |
-| **advanced** | the sharing servers, the static share storage, the engine server (once turned on), the relay session, the engine log (desktop) and the debug panels. See [the settings reference](/docs/advanced/settings). |
+| **advanced** | the engine server (once turned on), the engine log (desktop) and the debug panels. See [the settings reference](/docs/advanced/settings). |
 
-Appearance, input and privacy settings are kept on this computer (or in this browser). The other settings need the audio engine to be running.
+Appearance and input settings are kept on this computer (or in this browser). The other settings need the audio engine to be running.
 
 ## where next
 

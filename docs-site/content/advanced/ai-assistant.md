@@ -43,7 +43,7 @@ You use your own key, and the provider bills you for what you use. Ethereal does
 - [[desktop]] In Ethereal's app data, on this computer.
 - [[web]] In this browser's local storage. Anyone who uses the same browser profile can read it.
 
-Either way, the key is only ever sent to the provider you chose. It isn't sent to the engine, to people in a live session or to Ethereal's servers.
+Either way, the key is only ever sent to the provider you chose. It isn't sent to the engine or to Ethereal's servers.
 
 ## what is sent to the provider
 
@@ -56,7 +56,7 @@ The first time you use a provider, the panel says what it sends (project content
 
 ## every ai edit is one undo step
 
-Each change the AI makes is applied right away as one undo step, named **ai: …** in the history (for example **ai: add notes**). Press [[action:edit.undo]] to undo the last one, or jump back in the **history** panel. In a live session, the AI's edits reach everyone, and they count as your edits: your undo undoes them, other people's undo doesn't.
+Each change the AI makes is applied right away as one undo step, named **ai: …** in the history (for example **ai: add notes**). Press [[action:edit.undo]] to undo the last one, or jump back in the **history** panel.
 
 ## tool calls, stop and the round limit
 
@@ -67,7 +67,7 @@ Each action the AI takes shows as a row in the chat. Expand it to see what the A
 
 ## the saved conversation and switching provider
 
-The conversation belongs to the project. It's kept on this computer (not in the project file, so it doesn't travel with the project or reach people in a live session) and comes back when you reopen the project or reload the app, and the AI picks up where it left off. Each project has its own conversation.
+The conversation belongs to the project. It's kept on this computer (not in the project file, so it doesn't travel with the project) and comes back when you reopen the project or reload the app, and the AI picks up where it left off. Each project has its own conversation.
 
 **clear chat** (the eraser button) empties the conversation and forgets the saved one. A very long conversation keeps only its latest part.
 
@@ -100,4 +100,3 @@ To let an AI app outside Ethereal edit your project, see [ai agents (mcp)](/docs
 
 - [ai agents (mcp)](/docs/advanced/mcp): connect Claude Code or Claude Desktop to the desktop app.
 - [undo and history](/docs/basics/undo-and-history): step back through AI edits.
-- [privacy and telemetry](/docs/reference/privacy-and-telemetry): what Ethereal itself sends.
