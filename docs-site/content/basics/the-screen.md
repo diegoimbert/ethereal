@@ -13,7 +13,7 @@ covers:
 
 This page is a quick tour of the editor: the window you work in once a project is open. You don't need anything set up first. If you're on a phone, see [the mobile beta](/docs/mobile/mobile-beta) instead: its layout is different.
 
-From top to bottom, the editor has a **top bar**, the **arrangement** in the middle, a thin **status bar** at the bottom, and three panels that slide in over the arrangement: the **browser** on the left, the **inspector** on the right and the **editor drawer** at the bottom.
+From top to bottom, the editor has a **top bar**, the **arrangement** in the middle, and three panels that slide in over the arrangement: the **browser** on the left, the **inspector** on the right and the **editor drawer** at the bottom.
 
 ## the top bar
 
@@ -25,7 +25,7 @@ From left to right:
 - **The transport.** Play, stop, record, then the position, the tempo and the time signature, then loop and metronome. See [playing and moving around](/docs/basics/playing-and-navigating) and [tempo, time signature and scale](/docs/basics/tempo-and-time-signature).
 - **Undo and redo**, with the name of the step each one would undo or redo when you hover it.
 - **Engine indicators**: the cpu load, a disk warning and a status dot. They're described [below](#cpu-disk-and-engine-status).
-- **The metronome settings, the recording controls** (record armed tracks, count-in, punch, inputs), **share** and the **settings** gear. While an audio export runs with its dialog closed, an **export %** button shows its progress.
+- **The metronome settings, the recording controls** (record armed tracks, count-in, punch, inputs) and the **settings** gear. While an audio export runs with its dialog closed, an **export %** button shows its progress.
 
 ## the arrangement
 
@@ -42,7 +42,6 @@ The narrow column of icons on the far left is the **rail**. Each icon opens a pa
 - **library**: the browser, with your samples, presets and devices. See [the browser](/docs/sounds-and-plugins/browser).
 - **MIDI mapping**: map hardware knobs to controls (desktop app).
 - **history**: every edit you made, so you can jump back to any of them. See [undo and history](/docs/basics/undo-and-history).
-- **chat**: only while you're in a live session.
 - **ask AI**: the AI assistant.
 - The last button opens the [command palette](/docs/basics/command-palette-and-settings).
 
@@ -69,10 +68,6 @@ The browser, the inspector and the drawer float over the arrangement, so they do
 - Drag a panel's inner edge to resize it.
 
 The command palette also has **pin browser**, **pin inspector** and **pin editor drawer** (and their **unpin** versions).
-
-## the status bar
-
-The thin bar along the bottom has **report an issue** at its right end. See [reporting issues](/docs/reference/reporting-issues).
 
 ## messages at the bottom
 

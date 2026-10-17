@@ -36,7 +36,7 @@ Only the 10 newest unnamed **before restore** versions are kept.
 
 ## what a version contains
 
-A version holds the project itself: the tracks, clips, notes, devices, automation and settings. It does **not** hold your audio files, sharing information or exported files.
+A version holds the project itself: the tracks, clips, notes, devices, automation and settings. It does **not** hold your audio files or exported files.
 
 > [!warning]
 > If you delete or replace an audio file, restoring an older version won't bring it back. The clips that used it show as missing.

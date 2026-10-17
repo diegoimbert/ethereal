@@ -6,13 +6,13 @@ platform: all
 audience: everyone
 ---
 
-Des réponses rapides, chacune avec un lien vers la page qui en dit plus. Vous ne trouvez pas votre question ? Cherchez dans la documentation, ou [signalez un problème](/docs/reference/reporting-issues) pour la poser.
+Des réponses rapides, chacune avec un lien vers la page qui en dit plus. Vous ne trouvez pas votre question ? Cherchez dans la documentation, ou [signalez un problème](https://github.com/diegoimbert/ethereal/issues) pour la poser.
 
 ## les bases {#the-basics}
 
 ### dois-je utiliser l’application de bureau ou la version web ? {#should-i-use-the-desktop-app-or-the-web-version}
 
-Les deux font de la musique avec les mêmes instruments et effets intégrés. L’application de bureau (macOS, Windows et Linux) ajoute les plug-ins (CLAP, VST3, AU), l’enregistrement, le MIDI matériel et l’apprentissage MIDI, et garde vos projets sous forme de fichiers sur votre ordinateur. La version web ne demande rien à installer, ce qui en fait un bon moyen d’essayer Ethereal ou de rejoindre la session d’un ami. Voir [qu’est-ce qu’Ethereal](/docs/welcome/what-is-ethereal).
+Les deux font de la musique avec les mêmes instruments et effets intégrés. L’application de bureau (macOS, Windows et Linux) ajoute les plug-ins (CLAP, VST3, AU), l’enregistrement, le MIDI matériel et l’apprentissage MIDI, et garde vos projets sous forme de fichiers sur votre ordinateur. La version web ne demande rien à installer, ce qui en fait un bon moyen d’essayer Ethereal. Voir [qu’est-ce qu’Ethereal](/docs/welcome/what-is-ethereal).
 
 ### où sont mes projets ? {#where-are-my-projects}
 
@@ -32,7 +32,7 @@ Une version tactile pour téléphones et tablettes est en bêta. Voir [Ethereal 
 
 ### est-ce que ça marche hors ligne ? {#does-it-work-offline}
 
-L’application de bureau fait de la musique sans connexion internet. Le partage, rejoindre des sessions, les nouveautés, la recherche de mises à jour, les signalements de problèmes et l’assistant IA en ont besoin.
+L’application de bureau fait de la musique sans connexion internet. Les nouveautés et l’assistant IA en ont besoin.
 
 ## faire de la musique {#making-music}
 
@@ -54,31 +54,9 @@ Dans [raccourcis clavier](/docs/reference/keyboard-shortcuts). Chaque commande e
 
 ## fichiers et autres applications {#files-and-other-apps}
 
-### puis-je ouvrir mes projets ableton live ou fl studio ? {#can-i-open-my-ableton-live-or-fl-studio-projects}
-
-Oui, en bêta : les sets Ableton Live (`.als`), les projets FL Studio (`.flp`), les fichiers DAWproject et les projets REAPER s’ouvrent comme un nouveau projet Ethereal. Un rapport liste ce qui n’a pas pu être repris, et vous aide à remplacer les plug-ins et échantillons manquants. Voir [projets d’autres DAW](/docs/import-export/other-daws).
-
-### puis-je envoyer mon projet vers une autre daw ? {#can-i-send-my-project-to-another-daw}
-
-Oui : exportez en DAWproject, en set Ableton Live (`.als`) ou en projet FL Studio (`.flp`). Voir [exporter vers d’autres DAW](/docs/import-export/exporting-to-other-daws).
-
 ### quels formats audio puis-je exporter ? {#which-audio-formats-can-i-export}
 
 WAV, FLAC et MP3, en un seul mix ou en stems. Voir [exporter l’audio](/docs/import-export/exporting-audio).
-
-## partage {#sharing}
-
-### comment faire de la musique avec un ami ? {#how-do-i-make-music-with-a-friend}
-
-Appuyez sur **partager** et envoyez-lui un lien. Il peut rejoindre depuis l’application de bureau ou directement depuis son navigateur, sans compte. Chacun joue la musique sur son propre ordinateur. Voir [partager votre musique](/docs/sharing/overview).
-
-### si j’annule dans une session, est-ce que j’annule le travail de mon ami ? {#if-i-undo-in-a-session-do-i-undo-my-friends-work}
-
-Non. Annuler n’annule que vos propres modifications. Voir [annuler et historique](/docs/basics/undo-and-history).
-
-### mon projet partagé est-il privé ? {#is-my-shared-project-private}
-
-Une session en direct circule chiffrée entre vos ordinateurs, et les personnes qui y participent peuvent voir l’adresse IP des autres. Toute personne qui a un lien peut l’utiliser : ne partagez donc vos liens qu’avec des personnes de confiance, et réinitialisez un lien que vous avez trop diffusé. Voir [sessions en direct](/docs/sharing/live-sessions) et [confidentialité et télémétrie](/docs/reference/privacy-and-telemetry).
 
 ## différences avec ableton live {#differences-from-ableton-live}
 
@@ -92,9 +70,7 @@ Ethereal vous semblera familier si vous connaissez Live, avec quelques différen
 - **Le clavier MIDI de l’ordinateur est sur [[action:midi.computerKeyboard]]**, comme dans Live.
 - **Pas de vue mixeur séparée.** Volume, panoramique, muet et solo sont sur les en-têtes de piste, et les envois sont dans l’inspecteur. Voir [mixage](/docs/making-music/mixing).
 - **Deux modes de warp** : repitch et complex. Voir [clips audio](/docs/making-music/audio-clips).
-- **Les plug-ins peuvent tourner isolés**, dans leur propre processus, pour qu’un plug-in qui plante n’entraîne pas l’application avec lui. Voir [plug-ins](/docs/sounds-and-plugins/plugins).
-- **Les sessions en direct sont intégrées.** Partagez un lien et travaillez ensemble sur le même projet. Voir [partager votre musique](/docs/sharing/overview).
-- **Les projets Live s’ouvrent dans Ethereal**, et Ethereal peut exporter des fichiers `.als`, en bêta. Voir [projets d’autres DAW](/docs/import-export/other-daws).
+- **Les plug-ins peuvent tourner isolés** (sur macOS et Linux), dans leur propre processus, pour qu’un plug-in qui plante n’entraîne pas l’application avec lui. Voir [plug-ins](/docs/sounds-and-plugins/plugins).
 
 ## et ensuite {#where-next}
 

@@ -34,7 +34,6 @@ You can also drag files from your computer's file manager:
 - **audio files below the tracks**: each one gets a new audio track.
 - **audio files on the browser**: they're added to the project without placing a clip.
 - **MIDI files** (`.mid`, `.midi`) on a MIDI track or below the tracks: they become MIDI clips. See [midi files](/docs/import-export/midi-files).
-- **a project from another DAW** (`.als`, `.flp`, `.rpp`, `.dawproject`), dropped anywhere: it's imported as a new project. See [projects from other DAWs](/docs/import-export/other-daws).
 - **an Ethereal project** (`.ether`), dropped anywhere: it's imported and opened as a new project.
 
 ## limits and errors
@@ -43,10 +42,7 @@ Ethereal checks each file before reading it. Files over 1 GB, empty files and fi
 
 Each file being imported shows a row with its progress at the bottom of the window. If one file fails, the others still import, and the failed one stays in the list with its error until you dismiss it. You can cancel a file while it's still being read. Once its audio is in the project, the import can no longer be cancelled: use undo instead.
 
-In a [live session](/docs/sharing/live-sessions), imported audio is sent to everyone in the session.
-
 ## where next
 
 - [Clips](/docs/making-music/clips): move, trim and loop your audio.
 - [Audio clips](/docs/making-music/audio-clips): fades, warp and reverse.
-- [Projects from other DAWs](/docs/import-export/other-daws): bring a whole song.

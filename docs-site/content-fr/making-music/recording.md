@@ -32,7 +32,7 @@ Dans le navigateur, les boutons d’enregistrement et de **punch** sont désacti
 - le [clavier MIDI de l’ordinateur](/docs/making-music/computer-midi-keyboard), pour jouer des notes,
 - [capturer le MIDI](/docs/making-music/capture-midi), pour transformer ce que vous venez de jouer en clip.
 
-[Téléchargez l’application de bureau](/download) pour enregistrer de l’audio ou du MIDI matériel.
+[Téléchargez l’application de bureau](https://github.com/diegoimbert/ethereal/releases) pour enregistrer de l’audio ou du MIDI matériel.
 
 ## votre premier enregistrement {#your-first-recording}
 
@@ -51,7 +51,7 @@ L’enregistrement n’a pas de raccourci par défaut. Vous pouvez lui en attrib
 
 Un simple clic sur le **●** d’une piste arme cette piste et désarme toutes les autres. Pour enregistrer plusieurs pistes à la fois, faites [[key:Mod]]-clic sur leurs boutons **●** pour les ajouter. Dans le panneau **in ▾** (voir plus bas), les boutons d’armement ne désarment jamais les autres pistes.
 
-Les pistes armées sont mémorisées sur cet ordinateur pour chaque projet : quand vous rouvrez un projet, les mêmes pistes sont de nouveau armées. L’armement n’est pas enregistré dans le fichier du projet (il ne voyage pas avec lui et n’atteint pas les participants d’une session en direct) et ne fait pas partie de l’historique d’annulation.
+Les pistes armées sont mémorisées sur cet ordinateur pour chaque projet : quand vous rouvrez un projet, les mêmes pistes sont de nouveau armées. L’armement n’est pas enregistré dans le fichier du projet (il ne voyage pas avec lui) et ne fait pas partie de l’historique d’annulation.
 
 ## le panneau in {#the-in-panel}
 

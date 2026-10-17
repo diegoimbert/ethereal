@@ -61,7 +61,7 @@ When two actions that work in the same place share a key, both rows are flagged.
 
 ### any command can get a shortcut
 
-Every command in the palette (adding a device, opening a panel, sharing…) is in the editor and can get a shortcut, except the ones tied to the current project, like "go to track".
+Every command in the palette (adding a device, opening a panel…) is in the editor and can get a shortcut, except the ones tied to the current project, like "go to track".
 
 ### printing a cheat sheet
 

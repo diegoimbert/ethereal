@@ -31,17 +31,6 @@ The desktop app hosts plugins in these formats:
 
 The web version can't load plugins. Its device library lists only Ethereal's built-in devices, and its **settings › plugins** tab just says that plugins are loaded by the desktop app. If you open a project that uses plugins in the browser, those devices are bypassed and the tracks play without them.
 
-## explore plugins: free plugins
-
-Don't have plugins yet? **explore plugins** lists free instruments and effects you can add to Ethereal. Open it from the **explore plugins** button at the bottom of the device library (the list that opens from a chain's **+** button), or from **settings › plugins**.
-
-Search by name, or filter by category: **synth**, **effect**, **sampler**, **drums** or **utility**. Each card shows the plugin's author, formats, license and download size, with links to its homepage, its source code and its license. The list has two parts:
-
-- **open source**: in the desktop app, click **install**. Ethereal downloads the plugin, checks that the file is the one the signed catalog lists, installs it in your plugin folders and rescans, so it shows up in the device library right away. Installed plugins show **installed** with an **uninstall** button, and **update** when there's a newer version. You can cancel while it downloads. A plugin that isn't available for your system says why.
-- **freeware**: **download** opens the author's page in your browser. Install it as the author explains, then **rescan** in **settings › plugins**.
-
-On the web [[web]], the list is read-only: plugins only run in the desktop app, and the dialog links to the download page.
-
 ## where ethereal looks for plugins
 
 Open **settings** and go to the **plugins** tab.
@@ -102,7 +91,7 @@ If a project uses a plugin that isn't installed on this computer, Ethereal keeps
 1. Install the plugin, then **rescan** in **settings › plugins**.
 2. The device now shows **found · reload**. Click it to load the plugin with the sound saved in the project.
 
-To use another plugin instead, right-click the **missing · bypassed** badge or the device's header and choose **resolve…**. Right-click any plugin's header and choose **replace plugin…** to swap it for another installed plugin. Values and automation carry over to parameters with the same name. See [missing plugins and samples](/docs/import-export/other-daws#resolving-missing-items).
+To use another plugin instead, right-click the **missing · bypassed** badge or the device's header and choose **resolve…**. Right-click any plugin's header and choose **replace plugin…** to swap it for another installed plugin. Values and automation carry over to parameters with the same name. See [missing plugins and samples](/docs/sounds-and-plugins/missing-plugins-and-samples).
 
 ## how plugin sounds are saved
 
@@ -116,4 +105,4 @@ The preset menu in a device's header works for plugins too: it saves and loads t
 
 - [Devices and presets](/docs/making-music/devices-and-presets): add and arrange devices on a track.
 - [Safe mode](/docs/advanced/safe-mode): open a project that crashes.
-- [Projects from other DAWs](/docs/import-export/other-daws): plugins in imported projects.
+- [Missing plugins and samples](/docs/sounds-and-plugins/missing-plugins-and-samples): replace plugins a project uses that aren't installed.

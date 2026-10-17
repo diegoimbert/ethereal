@@ -32,7 +32,7 @@ In the browser, the record and **punch** buttons are disabled, and the inputs pa
 - the [computer MIDI keyboard](/docs/making-music/computer-midi-keyboard), to play notes,
 - [capture MIDI](/docs/making-music/capture-midi), to turn what you just played into a clip.
 
-[Get the desktop app](/download) to record audio or hardware MIDI.
+[Get the desktop app](https://github.com/diegoimbert/ethereal/releases) to record audio or hardware MIDI.
 
 ## your first recording
 
@@ -51,7 +51,7 @@ Record has no default shortcut. You can give it one in [keyboard shortcuts](/doc
 
 A plain click on a track's **●** arms that track and disarms all the others. To record several tracks at once, [[key:Mod]]-click their **●** buttons to add them. In the **in ▾** panel (below), the arm buttons never disarm other tracks.
 
-Which tracks are armed is remembered on this computer for each project: when you reopen a project, the same tracks are armed again. Arming is not saved in the project file (it doesn't travel with it or reach the people in a live session) and is not part of undo.
+Which tracks are armed is remembered on this computer for each project: when you reopen a project, the same tracks are armed again. Arming is not saved in the project file (it doesn't travel with it) and is not part of undo.
 
 ## the in panel
 
