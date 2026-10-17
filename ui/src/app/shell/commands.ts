@@ -1,5 +1,6 @@
 import { openAiChat } from "@/features/ai-chat";
 import { docsCommands } from "@/features/docs/commands";
+import { newsCommands } from "@/features/news";
 import { openAudioSettings, openSettings } from "@/features/audio-settings";
 import { captureMidi } from "@/features/capture";
 import type { DeviceDescriptor, Project } from "@/generated";
@@ -396,6 +397,8 @@ export function buildCommands(transport: EngineTransport | null, devices: Readon
   });
   // docs (#665): the user documentation.
   out.push(...docsCommands());
+  // news: "news…" (Help; the desktop Help menu's `app:news`).
+  out.push(...newsCommands());
   // base-154: "Debug: <title>" per registered debug panel.
   out.push(...debugPanelCommands());
   return out;
