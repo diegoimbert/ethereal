@@ -1,39 +1,31 @@
-// The agent API (Command::Agent, pinned in the agent contract; implemented in the controller by
-// `agent-api`): the same tool registry the MCP server exposes. The chat only ever edits the
-// project through these two commands.
+// The agent API (`Command::Agent`, implemented in the controller's agent tool registry): the
+// same tool registry the MCP server exposes. The chat only ever edits the project through
+// these two commands.
 //
-// TODO(agent-api): these types mirror the contract by hand until `ui/src/generated` has
-// `AgentCommand` / `AgentToolSpec` and the `AgentTools` / `AgentToolResult` reply variants;
-// then import them from "@/generated" and drop the casts below.
-import type { Command, ReplyValue } from "@/generated";
+// Every shape here comes from `@/generated` (ts-rs output of ether-protocol, checked for
+// staleness in CI), with no casts: a protocol change to the agent domain fails the UI typecheck.
+import type { AgentCommand, AgentToolSpec, Command, ReplyValue } from "@/generated";
 import type { EngineTransport } from "@/transport";
 
-/** A tool of the registry. `input_schema` is a JSON Schema object, as JSON text. */
-export interface AgentToolSpec {
-  name: string;
-  description: string;
-  input_schema: string;
-}
+export type { AgentCommand, AgentToolSpec };
 
-export type AgentCommand = { type: "ListTools" } | { type: "CallTool"; name: string; input: string };
-
-export type AgentReply = { type: "AgentTools"; tools: AgentToolSpec[] } | { type: "AgentToolResult"; content: string; is_error: boolean };
+/** The replies to agent commands. */
+export type AgentReply = Extract<ReplyValue, { type: "AgentTools" | "AgentToolResult" }>;
 
 /** What a tool call gave back to the model. */
-export interface ToolOutcome {
-  content: string;
-  is_error: boolean;
-}
+export type ToolOutcome = Omit<Extract<AgentReply, { type: "AgentToolResult" }>, "type">;
 
-/** `Command::Agent(command)`, typed until the generated `Command` has the domain. */
 export function agentCommand(command: AgentCommand): Command {
-  return { domain: "Agent", command } as unknown as Command;
+  return { domain: "Agent", command };
 }
 
-function reply<T extends AgentReply["type"]>(value: ReplyValue, type: T): Extract<AgentReply, { type: T }> {
-  const v = value as unknown as AgentReply;
-  if (v.type !== type) throw new Error(`unexpected reply to agent command: ${(value as { type: string }).type}`);
-  return v as Extract<AgentReply, { type: T }>;
+function isReply<T extends AgentReply["type"]>(value: ReplyValue, type: T): value is Extract<ReplyValue, { type: T }> {
+  return value.type === type;
+}
+
+function reply<T extends AgentReply["type"]>(value: ReplyValue, type: T): Extract<ReplyValue, { type: T }> {
+  if (!isReply(value, type)) throw new Error(`unexpected reply to agent command: ${value.type}`);
+  return value;
 }
 
 export async function listTools(transport: EngineTransport): Promise<AgentToolSpec[]> {

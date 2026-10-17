@@ -7,9 +7,8 @@
  * - `CallTool { name, input }` -> `AgentToolResult { content, is_error }`. A bad tool name,
  *   bad JSON or invalid input is an `is_error` result, never a command error.
  * - Each edit is ONE undo step (`MockHost.applyDocument`), patched like any command.
- *
- * TODO(agent-api): the reply and command shapes are hand-typed until `ui/src/generated` has
- * the Agent domain.
+ * - Command and reply shapes are the generated ones, without casts: a protocol change to the
+ *   agent domain fails the UI typecheck here too.
  */
 
 import type { AgentCommand, Clip, Command, Note, Project, ReplyValue, Track } from "@/generated";
@@ -81,9 +80,9 @@ export class MockAgent {
         return {
           type: "AgentTools",
           tools: this.tools.map((t) => ({ name: t.name, description: t.description, input_schema: JSON.stringify(t.schema) })),
-        } as unknown as ReplyValue;
+        };
       case "CallTool":
-        return { type: "AgentToolResult", ...this.call(c.name, c.input) } as unknown as ReplyValue;
+        return { type: "AgentToolResult", ...this.call(c.name, c.input) };
     }
   }
 
