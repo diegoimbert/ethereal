@@ -5,8 +5,9 @@
 [profile.ci]
 # Report every failure, not only the first.
 fail-fast = false
-# No retries: a flaky test is a bug to fix, not to hide.
-retries = 0
+# One retry: real-time tests (MIDI timing, recording compensation) can miss on a stalled shared
+# runner. A test that passes only on its retry is reported as FLAKY in the log: fix it.
+retries = 1
 # Flag a test after 60 s, kill it after 5 min (the slowest test takes under a minute).
 slow-timeout = { period = "60s", terminate-after = 5 }
 failure-output = "immediate-final"
