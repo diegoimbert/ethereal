@@ -1,20 +1,19 @@
 // Screenshots of the project import for the PR (not part of the regular suite):
 // `IMPORT_SHOTS=<dir> npx playwright test import.shots`.
-import { existsSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test, type Page } from "@playwright/test";
-import { IMPORT_FIXTURES_DIR, importFixtures } from "./importFixtures";
+import { importFixtures } from "./importFixtures";
+import { HAS_IMPORTER, NO_IMPORTER } from "./importer";
 import { projectScreen, resolveLater } from "./ui";
 
 const dir = process.env.IMPORT_SHOTS;
 test.skip(!dir, "set IMPORT_SHOTS=<dir> to capture");
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
-// The importer is not in every build (the open-source one has none): no fixtures, no specs.
-const hasImporter = existsSync(resolve(repoRoot, IMPORT_FIXTURES_DIR));
-const fixtures = hasImporter ? importFixtures((p) => readFileSync(resolve(repoRoot, p))) : null!;
-test.skip(!hasImporter, "the importer is not part of this build");
+test.skip(!HAS_IMPORTER, NO_IMPORTER);
+const fixtures = HAS_IMPORTER ? importFixtures((p) => readFileSync(resolve(repoRoot, p))) : null!;
 
 /** The launch project screen in `theme` (the app's own theme switch, not the OS scheme). */
 async function boot(page: Page, theme: "dark" | "light") {

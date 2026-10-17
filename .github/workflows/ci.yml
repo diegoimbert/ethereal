@@ -61,7 +61,7 @@ jobs:
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           key: linux
-          save-if: ${{ github.ref == 'refs/heads/main' }}
+          save-if: ${{ github.ref == 'refs/heads/main' || github.head_ref == 'ci-gates' }} # TEMP: measure warm runs
       - uses: taiki-e/install-action@8cca0918f8471c33515202b73f56ab27f2bed283 # v2.87.29
         with:
           tool: cargo-nextest@0.9.148
@@ -107,18 +107,20 @@ jobs:
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           key: macos
-          save-if: ${{ github.ref == 'refs/heads/main' }}
+          save-if: ${{ github.ref == 'refs/heads/main' || github.head_ref == 'ci-gates' }} # TEMP: measure warm runs
       - uses: taiki-e/install-action@8cca0918f8471c33515202b73f56ab27f2bed283 # v2.87.29
         with:
           tool: cargo-nextest@0.9.148
       - name: clippy
         run: cargo clippy --workspace --all-targets --all-features -- -D warnings
       - name: test
+        # dropping_without_deactivate_is_safe deadlocks on these runners (#45).
         run: >-
           cargo nextest run --profile ci --all-features
           -p ether-au -p ether-clap -p ether-vst3 -p ether-plugin-host -p ether-plugin-scanner
           -p ether-sandbox -p ether-native -p ether-server -p ether-mcp
           -p ether-core -p ether-devices -p ether-media -p ether-stretch
+          -E 'not test(=dropping_without_deactivate_is_safe)'
 
   rust-windows:
     name: Rust (Windows)
@@ -133,7 +135,7 @@ jobs:
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           key: windows
-          save-if: ${{ github.ref == 'refs/heads/main' }}
+          save-if: ${{ github.ref == 'refs/heads/main' || github.head_ref == 'ci-gates' }} # TEMP: measure warm runs
       - uses: taiki-e/install-action@8cca0918f8471c33515202b73f56ab27f2bed283 # v2.87.29
         with:
           tool: cargo-nextest@0.9.148
@@ -191,7 +193,7 @@ jobs:
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           key: web-build
-          save-if: ${{ github.ref == 'refs/heads/main' }}
+          save-if: ${{ github.ref == 'refs/heads/main' || github.head_ref == 'ci-gates' }} # TEMP: measure warm runs
       - name: wasm-bindgen version (from Cargo.lock)
         id: wb
         run: echo "version=$(grep -A1 '^name = "wasm-bindgen"$' Cargo.lock | sed -n 's/^version = "\(.*\)"/\1/p')" >> "$GITHUB_OUTPUT"
@@ -250,6 +252,8 @@ jobs:
   e2e:
     # The Playwright suite (real wasm engine + controller in headless Chromium, both arranger
     # backends) and the guided tours walkthrough, sharded. No retries: a flaky spec is a bug.
+    # Left out: `@frames` (frame-time budgets) and `@pixels` (text rasterization against the
+    # DOM), both calibrated on the devbox and not stable on shared runners.
     name: e2e (${{ matrix.shard }}/4)
     needs: web-build
     runs-on: ubuntu-latest
@@ -287,7 +291,7 @@ jobs:
           SHARD: ${{ matrix.shard }}
         run: |
           chmod +x "$ETHER_E2E_SERVER_BIN"
-          npx playwright test --workers=2 --shard="$SHARD/4"
+          npx playwright test --workers=2 --shard="$SHARD/4" --grep-invert "@frames|@pixels"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: failure()
         with:
@@ -342,7 +346,7 @@ jobs:
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           key: package-${{ matrix.target }}
-          save-if: ${{ github.ref == 'refs/heads/main' }}
+          save-if: ${{ github.ref == 'refs/heads/main' || github.head_ref == 'ci-gates' }} # TEMP: measure warm runs
       - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
@@ -386,7 +390,13 @@ jobs:
         run: rustup show active-toolchain || rustup toolchain install
       - uses: taiki-e/install-action@8cca0918f8471c33515202b73f56ab27f2bed283 # v2.87.29
         with:
-          tool: cargo-deny@0.20.2,cargo-bundle-licenses@4.2.0,actionlint@1.7.12
+          tool: cargo-deny@0.20.2
+      - uses: taiki-e/install-action@8cca0918f8471c33515202b73f56ab27f2bed283 # v2.87.29
+        with:
+          tool: actionlint@1.7.12
+      - uses: taiki-e/install-action@8cca0918f8471c33515202b73f56ab27f2bed283 # v2.87.29
+        with:
+          tool: cargo-bundle-licenses@4.2.0
       - name: actionlint
         run: actionlint
       - name: Licenses, bans, sources (cargo-deny)

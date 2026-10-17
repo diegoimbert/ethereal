@@ -55,7 +55,7 @@ test("Save as and Duplicate", async ({ page }) => {
   await paletteCommand(page, "duplicate project");
   await expect.poll(async () => (await state(page)).names).toContain("Song copy");
   expect((await state(page)).project.id).toBe(id);
-  await expect(page.getByRole("status").filter({ hasText: "Duplicated as “Song copy”" })).toBeVisible();
+  await expect(page.getByRole("status").filter({ hasText: "duplicated as “Song copy”" })).toBeVisible();
   // The copy is listed in the picker (the open project is not).
   const screen = await openProjectScreen(page);
   await expect(screen.getByRole("button", { name: "open Song copy" })).toBeVisible();
