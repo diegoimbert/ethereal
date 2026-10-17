@@ -1,0 +1,4 @@
+# LF in every checkout, Windows included: fixtures are compared byte for byte and generated
+# files are checked for freshness (CI runs the tests on Windows). Binary files are detected and
+# left alone.
+* text=auto eol=lf

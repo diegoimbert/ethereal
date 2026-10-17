@@ -1,6 +1,8 @@
 # Generated (Rust → TS types; design-token CSS from ui/src/theme/tokens.ts).
 ui/src/generated/
 ui/src/theme/tokens.css
+# wasm-bindgen output (apps/web/scripts/build-wasm.mjs; git-ignored).
+apps/web/src/wasm/pkg/
 dist/
 playwright-report/
 test-results/
