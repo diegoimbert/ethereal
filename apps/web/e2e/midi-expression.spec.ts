@@ -74,7 +74,7 @@ test("midi expression: draw a pitch bend lane, undo, mod wheel, note pressure", 
 
   // --- Mod wheel ------------------------------------------------------------------------------
   await pickOption(roll, "lane", { value: "cc1" });
-  await expect(lane).toHaveAttribute("data-kind", "CC 1 mod wheel");
+  await expect(lane).toHaveAttribute("data-kind", "cc 1 mod wheel");
   await stroke(page, lane, [0.1, 0.8], [0.5, 0.2]);
   await expect.poll(async () => Object.values((await doc(page)).expression_lanes).map((l) => l.kind)).toEqual([{ type: "Cc", controller: 1 }]);
 

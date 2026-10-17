@@ -6,16 +6,19 @@
  * Gestures on a handle: drag = frequency (x) + gain (y; x only for shapes without gain),
  * Alt-drag or wheel = Q, Shift = fine, double-click = band on/off, context menu = on/off,
  * type and reset. Every drag (and every wheel burst) is one undo step. Focused handles take
- * arrow keys (←/→ frequency, ↑/↓ gain, Alt+↑/↓ Q; Shift = fine).
+ * arrow keys (←/→ frequency, ↑/↓ gain, Alt+↑/↓ Q; Shift = fine). The reset button (top right)
+ * puts every param of the device back to its default, as in a freshly inserted EQ: one undo
+ * step.
  */
 
 import clsx from "clsx";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
 import type { Widget, WidgetSize } from "@/generated";
-import { openContextMenu } from "@/kit";
+import { RotateCcw } from "lucide-react";
+import { IconButton, openContextMenu } from "@/kit";
 import { inputSettings, readWheel, wheelScrollPx } from "@/timeline";
 import { labelIndex, labelValue } from "@/domain/paramScale";
-import { bindParam, useLayoutContext, type ParamBinding } from "../context";
+import { bindParam, useLayoutContext, type LayoutContextValue, type ParamBinding } from "../context";
 import { freqToX, xToFreq } from "../curves";
 import { Plot } from "../plot";
 import { TypedFrame } from "../widgets/typed";
@@ -73,6 +76,23 @@ function toggleOn(b: ResolvedBand): void {
 
 function setQ(b: ResolvedBand, q: number): void {
   b.bindings.q?.setPlain(q);
+}
+
+/** Params of the device not at their default (what the reset button would change). */
+function changedParams(ctx: LayoutContextValue): ParamBinding[] {
+  return ctx.descriptor.params.filter((info) => (ctx.device.params[info.id] ?? info.default) !== info.default).map((info) => bindParam(ctx, info));
+}
+
+/**
+ * Every param of the device back to its default (a freshly inserted EQ: all bands, output,
+ * channel mode), as one undo step (one gesture, like a band reset).
+ */
+function resetDevice(ctx: LayoutContextValue): void {
+  const changed = changedParams(ctx);
+  if (changed.length === 0) return;
+  ctx.sender.begin();
+  for (const b of changed) b.reset();
+  ctx.sender.end();
 }
 
 /** "Band 3 · Bell · 1.00 kHz · +3.0 dB · Q 0.71" (what the handle currently does). */
@@ -232,6 +252,7 @@ export function EqCurveWidget({ widget: w, size, label }: EqCurveProps) {
   };
 
   const shown = bands.find((b) => b.index === (dragging ? selected : hover));
+  const atDefaults = changedParams(ctx).length === 0;
   const summary = bands.filter((b) => b.on).length;
 
   return (
@@ -340,11 +361,26 @@ export function EqCurveWidget({ widget: w, size, label }: EqCurveProps) {
             );
           }}
         </Plot>
-        {shown && (
-          <div className={clsx("eth-eq__readout", `eth-eq__band--${shown.index % 8}`)} data-testid="eq-readout" data-band={shown.index}>
-            {readout(shown)}
-          </div>
-        )}
+        <div className="eth-eq__overlay">
+          {shown && (
+            <div className={clsx("eth-eq__readout", `eth-eq__band--${shown.index % 8}`)} data-testid="eq-readout" data-band={shown.index}>
+              {readout(shown)}
+            </div>
+          )}
+          <IconButton
+            size="sm"
+            tone="ghost"
+            className="eth-eq__reset"
+            label={t("devices.eq.reset")}
+            title={atDefaults ? t("devices.eq.reset_none") : t("devices.eq.reset")}
+            icon={<RotateCcw />}
+            disabled={atDefaults}
+            onClick={() => {
+              endWheel();
+              resetDevice(ctx);
+            }}
+          />
+        </div>
       </div>
     </TypedFrame>
   );

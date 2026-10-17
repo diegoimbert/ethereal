@@ -13,7 +13,7 @@
         "measurement"
       ],
       "author": "ethereal",
-      "description": "raw dBFS per bin with no display tilt, e.g. to read test tones."
+      "description": "raw dbfs per bin with no display tilt, e.g. to read test tones."
     },
     "params": {
       "0": 2.0,

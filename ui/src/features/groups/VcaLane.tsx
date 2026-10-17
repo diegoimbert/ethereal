@@ -8,7 +8,7 @@ import { VcaSummary } from "./controls";
 export function VcaLane({ track }: { track: Track }) {
   return (
     <div className="eth-arr-lane eth-groups-vca-lane" data-lane={track.id} data-testid="vca-lane">
-      <span className="eth-groups-vca-lane__label">VCA</span>
+      <span className="eth-groups-vca-lane__label">vca</span>
       <VcaSummary vca={track} className="eth-groups-vca-lane__tracks" />
     </div>
   );

@@ -82,6 +82,7 @@ fn preset_kind(kind: &BuiltinDevice) -> Option<BuiltinDevice> {
         BuiltinDevice::Sampler { .. }
             | BuiltinDevice::MultiSampler { .. }
             | BuiltinDevice::ConvolutionReverb { .. }
+            | BuiltinDevice::VolumeLfo { .. }
     )
     .then(|| kind.clone())
 }

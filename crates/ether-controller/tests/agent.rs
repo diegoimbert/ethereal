@@ -72,7 +72,7 @@ fn one_step(h: &mut Harness, name: &str, input: Value) -> Value {
             .undo_label
             .as_deref()
             .unwrap_or("")
-            .starts_with("AI: "),
+            .starts_with("ai: "),
         "{name}: labelled undo step: {:?}",
         ps.last().unwrap().history
     );
@@ -680,10 +680,10 @@ fn song_transport_and_history() {
     let t = midi_track(&mut h);
     let id: TrackId = t.parse().unwrap();
     let v = ok_call(&mut h, "undo", json!({}));
-    assert_eq!(v["undone"], "AI: add MIDI track");
+    assert_eq!(v["undone"], "ai: add midi track");
     assert!(!h.project().tracks.contains_key(&id));
     let v = ok_call(&mut h, "redo", json!({}));
-    assert_eq!(v["redone"], "AI: add MIDI track");
+    assert_eq!(v["redone"], "ai: add midi track");
     assert!(h.project().tracks.contains_key(&id));
     let r = call(&mut h, "redo", json!({}));
     assert!(

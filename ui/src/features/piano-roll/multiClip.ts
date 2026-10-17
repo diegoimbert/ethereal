@@ -30,7 +30,7 @@ import type { StepLabel } from "@/features/arrangement/editMath";
 import type { EngineTransport, SendOptions } from "@/transport";
 import { cmd, newId } from "@/transport";
 import { useProjectStore } from "@/state";
-import { songToContent } from "./clipTime";
+import { contentFloor, songToContent } from "./clipTime";
 import { MIN_NOTE_BEATS } from "./noteEdits";
 import type { NoteClipboard, PianoRollSection } from "./section";
 
@@ -143,7 +143,7 @@ export function bandAt(bands: ReadonlyArray<ClipBand>, at: Beats, tracks: Readon
 
 /** Content position of song beat `at` in `clip` (a loop repetition maps into the loop). */
 export function contentAt(clip: Clip, at: Beats): Beats {
-  return Math.max(0, songToContent(clip, at) ?? at - clipShift(clip));
+  return Math.max(contentFloor(clip), songToContent(clip, at) ?? at - clipShift(clip));
 }
 
 /**
@@ -251,7 +251,7 @@ export function toClipContent(command: Command, ctx: MultiClipContext, project: 
         edits: c.edits.map((e) => {
           if (e.start === null) return e;
           const clip = clipOfNote(project, ctx, e.id);
-          return clip ? { ...e, start: Math.max(0, e.start - clipShift(clip)) } : e;
+          return clip ? { ...e, start: Math.max(contentFloor(clip), e.start - clipShift(clip)) } : e;
         }),
       });
     }

@@ -184,14 +184,16 @@ export interface TempoMapMarkersProps {
   view: TimelineViewStore;
   /** Snap a raw beat position (`bypass` = Alt). */
   snap: (beats: Beats, bypass: boolean) => Beats;
+  /** The lane's resolved grid step (`null`: grid off), as for the ruler. */
+  gridStep: () => GridStep | null;
 }
 
 /**
  * The tempo and time-signature changes for a lane outside the ruler (the arrangement's
  * marker lane): the same chips, drag and menus as on the ruler.
  */
-export function TempoMapMarkers({ view, snap }: TempoMapMarkersProps) {
+export function TempoMapMarkers({ view, snap, gridStep }: TempoMapMarkersProps) {
   const vp = useViewport(view);
   const widthPx = useTimelineView(view, (s) => s.widthPx);
-  return <RulerTempoMarkers vp={vp} widthPx={widthPx} snap={snap} gridStep={() => null} />;
+  return <RulerTempoMarkers vp={vp} widthPx={widthPx} snap={snap} gridStep={gridStep} />;
 }

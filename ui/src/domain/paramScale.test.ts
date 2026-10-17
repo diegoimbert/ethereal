@@ -63,16 +63,16 @@ describe("ParamInfo helpers", () => {
   it("maps log params through the scale", () => {
     const cutoff = info({ min: 20, max: 20000, scale: { type: "Log" }, unit: "Hertz" });
     expect(close(paramToNormalized(cutoff, 632.4555320336759), 0.5)).toBe(true);
-    expect(formatParam(cutoff, 8000)).toBe("8 kHz");
-    expect(formatParam(cutoff, 440)).toBe("440 Hz");
+    expect(formatParam(cutoff, 8000)).toBe("8 khz");
+    expect(formatParam(cutoff, 440)).toBe("440 hz");
   });
 
   it("formats units", () => {
     expect(formatParam(info({ unit: "Milliseconds", max: 5000 }), 5)).toBe("5 ms");
     expect(formatParam(info({ unit: "Percent", max: 100 }), 35)).toBe("35 %");
     expect(formatParam(info({ unit: "Semitones", min: -12, max: 12 }), 3)).toBe("+3 st");
-    expect(formatDb(-144)).toBe("-inf dB");
-    expect(formatDb(-6)).toBe("-6.0 dB");
+    expect(formatDb(-144)).toBe("-inf db");
+    expect(formatDb(-6)).toBe("-6.0 db");
     expect(formatPan(0)).toBe("C");
     expect(formatPan(-0.25)).toBe("25L");
     expect(formatPan(1)).toBe("100R");

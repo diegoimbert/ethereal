@@ -9,6 +9,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { BuiltinDevice, BuiltinDeviceType, Device, DeviceDescriptor } from "@/generated";
+import { DEFAULT_LFO_CURVE } from "./layout/lfoCurve/lfoCurveMath";
 import { localizeDescriptor, useLocale } from "@/i18n";
 import { useProjectStore } from "@/state";
 import { cmd, useTransport, type EngineTransport } from "@/transport";
@@ -118,5 +119,6 @@ export function builtinDevice(type: BuiltinDeviceType): BuiltinDevice {
   }
   // A new convolution reverb starts on the factory hall (Rust `DEFAULT_CONVOLUTION_IR`, #520).
   if (type === "ConvolutionReverb") return { type, ir: { type: "Factory", id: "hall" } };
+  if (type === "VolumeLfo") return { type, curve: DEFAULT_LFO_CURVE };
   return { type } as BuiltinDevice;
 }

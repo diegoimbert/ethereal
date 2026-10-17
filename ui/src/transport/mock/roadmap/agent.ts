@@ -242,7 +242,7 @@ export class MockAgent {
               cmd("Device", { type: "Insert", id: this.host.newId(), track: id, device: { type: "Builtin", device: { type: "Synth" } }, before: null }),
             );
           }
-          this.edit("AI: add track", commands);
+          this.edit("ai: add track", commands);
           return { track_id: id, name: this.track(id).name };
         },
       },
@@ -253,7 +253,7 @@ export class MockAgent {
         run: (i) => {
           const t = this.track(str(i, "track_id"));
           if (t.kind === "Master") fail("The master track cannot be deleted.");
-          this.edit("AI: delete track", [cmd("Track", { type: "Delete", id: t.id })]);
+          this.edit("ai: delete track", [cmd("Track", { type: "Delete", id: t.id })]);
           return { deleted: t.id };
         },
       },
@@ -264,7 +264,7 @@ export class MockAgent {
         run: (i) => {
           const t = this.track(str(i, "track_id"));
           const name = str(i, "name").trim() || fail("`name` is empty.");
-          this.edit("AI: rename track", [cmd("Track", { type: "Rename", id: t.id, name })]);
+          this.edit("ai: rename track", [cmd("Track", { type: "Rename", id: t.id, name })]);
           return { track_id: t.id, name };
         },
       },
@@ -293,7 +293,7 @@ export class MockAgent {
           if (mute !== undefined) commands.push(cmd("Mixer", { type: "SetMute", track: t.id, mute }));
           if (solo !== undefined) commands.push(cmd("Mixer", { type: "SetSolo", track: t.id, solo, exclusive: false }));
           if (!commands.length) fail("Nothing to change: pass volume_db, pan, mute or solo.");
-          this.edit("AI: set mix", commands);
+          this.edit("ai: set mix", commands);
           return this.trackSummary(this.track(t.id));
         },
       },
@@ -315,7 +315,7 @@ export class MockAgent {
           const start = num(i, "start_beats", { min: 0 })!;
           const length = num(i, "length_beats", { min: 1e-6 })!;
           const id = this.host.newId();
-          this.edit("AI: add MIDI clip", [cmd("Clip", { type: "CreateMidi", id, track: t.id, start, length, name: str(i, "name", true) ?? null })]);
+          this.edit("ai: add midi clip", [cmd("Clip", { type: "CreateMidi", id, track: t.id, start, length, name: str(i, "name", true) ?? null })]);
           return { clip_id: id };
         },
       },
@@ -358,7 +358,7 @@ export class MockAgent {
               velocity: (num(o, "velocity", { min: 1, max: 127, optional: true }) ?? 100) / 127,
             };
           });
-          this.edit("AI: add notes", [cmd("Note", { type: "Add", clip: clip.id, notes })]);
+          this.edit("ai: add notes", [cmd("Note", { type: "Add", clip: clip.id, notes })]);
           return { note_ids: notes.map((n) => n.id) };
         },
       },
@@ -371,7 +371,7 @@ export class MockAgent {
           if (!Array.isArray(ids) || !ids.length || ids.some((x) => typeof x !== "string")) fail("`note_ids` must be a non-empty array of ids.");
           const missing = (ids as string[]).filter((id) => !this.project.notes[id]);
           if (missing.length) fail(`Unknown note ids: ${missing.join(", ")}.`);
-          this.edit("AI: delete notes", [cmd("Note", { type: "Remove", ids: ids as string[] })]);
+          this.edit("ai: delete notes", [cmd("Note", { type: "Remove", ids: ids as string[] })]);
           return { removed: ids.length };
         },
       },
@@ -381,7 +381,7 @@ export class MockAgent {
         schema: obj({ bpm: { type: "number", minimum: 20, maximum: 999 } }, ["bpm"]),
         run: (i) => {
           const bpm = num(i, "bpm", { min: 20, max: 999 })!;
-          this.edit("AI: set tempo", [cmd("Transport", { type: "SetTempo", bpm })]);
+          this.edit("ai: set tempo", [cmd("Transport", { type: "SetTempo", bpm })]);
           return { tempo_bpm: bpm };
         },
       },

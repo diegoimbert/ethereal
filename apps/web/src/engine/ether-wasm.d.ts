@@ -29,6 +29,10 @@ declare module "@ether-wasm/ether_wasm.js" {
     tick(nowMs: number): string;
     pending_control_bytes(): number;
     engine_blocks(): number;
+    /** #519: JSON `[{id, url, max}]` of the sample pack's pending HTTP GETs. */
+    take_http_requests(): string;
+    http_progress(id: number, received: number, total: number): void;
+    http_done(id: number, status: number, body: Uint8Array, error?: string | null): void;
     free(): void;
   }
 

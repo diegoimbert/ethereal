@@ -136,12 +136,12 @@ test("after an import: deterministic matches for a missing plugin and sample, ap
   await expect(plugin).toContainText("Kontakt 7");
   await expect(plugin).toContainText("same family");
   await expect(plugin).toContainText("Kontakt 7 → Kontakt");
-  await expect(plugin.getByRole("combobox", { name: "Replacement for Kontakt 7" })).toContainText("Kontakt · VST3 8.2.0");
+  await expect(plugin.getByRole("combobox", { name: "Replacement for Kontakt 7" })).toContainText("Kontakt · vst3 8.2.0");
   // The sample: found in the browser's Factory library by name.
   const sample = dialog.getByTestId("resolver-media");
   await expect(sample).toContainText("Kick.wav");
   await expect(sample.getByRole("combobox", { name: "File for Kick.wav" })).toContainText("factory/", { timeout: 30_000 });
-  await expect(sample).toContainText("Same file name");
+  await expect(sample).toContainText("same file name");
   await page.mouse.move(0, 0);
   await shot(page, "resolver-dialog");
 

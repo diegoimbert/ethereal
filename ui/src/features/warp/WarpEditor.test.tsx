@@ -76,7 +76,7 @@ describe("WarpEditor", () => {
     await setup({ open: null });
     expect(screen.getByTestId("warp-empty").textContent).toMatch(/double-click an audio clip/);
     act(() => useEditorStore.getState().openClip(Object.values(store().project!.clips).find((c) => c.content.type === "Midi")!.id));
-    expect(screen.getByTestId("warp-empty").textContent).toMatch(/MIDI clip/);
+    expect(screen.getByTestId("warp-empty").textContent).toMatch(/midi clip/);
   });
 
   it("shows the clip's warp settings and a waveform", async () => {

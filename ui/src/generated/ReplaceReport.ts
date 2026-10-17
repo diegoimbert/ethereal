@@ -6,7 +6,7 @@ import type { ParamMatch } from "./ParamMatch";
  */
 export type ReplaceReport = { matched: ParamMatch, 
 /**
- * The plugin state (presets, loaded samples) is carried over.
+ * The device state (a plugin's presets and loaded samples) is carried over.
  */
 state_kept: boolean, 
 /**

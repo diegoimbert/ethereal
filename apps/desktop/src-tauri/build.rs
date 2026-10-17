@@ -19,5 +19,24 @@ fn main() {
         .expect("write ui/dist placeholder index.html");
     }
 
+    app_version();
     tauri_build::build();
+}
+
+/// `ETHER_APP_VERSION` (`crate::APP_VERSION`): the app's version, from the same place as the
+/// release bundle's (`scripts/release/tauri-config.mjs`): the release workflow's
+/// `ETHER_RELEASE_VERSION`, else the repo `VERSION` file. Never `tauri.conf.json`'s
+/// placeholder `version`.
+fn app_version() {
+    let file = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../VERSION");
+    println!("cargo:rerun-if-changed={}", file.display());
+    println!("cargo:rerun-if-env-changed=ETHER_RELEASE_VERSION");
+    let version = std::env::var("ETHER_RELEASE_VERSION")
+        .ok()
+        .filter(|v| !v.trim().is_empty())
+        .or_else(|| std::fs::read_to_string(&file).ok())
+        .expect("read the repo VERSION file")
+        .trim()
+        .to_string();
+    println!("cargo:rustc-env=ETHER_APP_VERSION={version}");
 }

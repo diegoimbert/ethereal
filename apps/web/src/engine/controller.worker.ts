@@ -13,6 +13,54 @@ interface Scope {
 const scope = self as unknown as Scope;
 
 const TICK_MS = 16;
+
+interface HttpRequest {
+  id: number;
+  url: string;
+  max: number;
+}
+
+/**
+ * #519: run the sample pack's HTTP GETs the controller asked for (`HostServices::http_get`)
+ * with `fetch`, streaming the body with progress and the size cap, and hand the answers back.
+ */
+function runHttp(ctl: WasmController): void {
+  const requests = JSON.parse(ctl.take_http_requests()) as HttpRequest[];
+  for (const r of requests) void fetchOne(ctl, r);
+}
+
+async function fetchOne(ctl: WasmController, r: HttpRequest): Promise<void> {
+  const fail = (e: unknown): void => guarded(() => ctl.http_done(r.id, 0, new Uint8Array(), e instanceof Error ? e.message : String(e)));
+  try {
+    const resp = await fetch(r.url, { cache: "no-cache" });
+    const header = resp.headers.get("content-length");
+    const total = header ? Number(header) : -1;
+    if (total > r.max) return fail("the download is bigger than expected");
+    const reader = resp.body?.getReader();
+    const parts: Uint8Array[] = [];
+    let received = 0;
+    while (reader) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      received += value.length;
+      if (received > r.max) {
+        await reader.cancel();
+        return fail("the download is bigger than expected");
+      }
+      parts.push(value);
+      guarded(() => ctl.http_progress(r.id, received, total));
+    }
+    const body = new Uint8Array(received);
+    let at = 0;
+    for (const p of parts) {
+      body.set(p, at);
+      at += p.length;
+    }
+    guarded(() => ctl.http_done(r.id, resp.status, body, null));
+  } catch (e) {
+    fail(e);
+  }
+}
 let controller: WasmController | null = null;
 let dead = false;
 /** `client` messages handled (shared with the page, see `ToController` init). */
@@ -49,7 +97,14 @@ scope.onmessage = (e) => {
         const fs = new SyncFs(msg.fsBuffer, msg.fsPort);
         const ctl = new WasmController(BigInt(msg.seed), msg.sampleRate, msg.control, msg.reports, fs);
         controller = ctl;
-        setInterval(() => guarded(() => post(ctl.tick(Date.now()))), TICK_MS);
+        setInterval(
+          () =>
+            guarded(() => {
+              post(ctl.tick(Date.now()));
+              runHttp(ctl);
+            }),
+          TICK_MS,
+        );
         scope.postMessage({ type: "ready" });
       });
       break;
@@ -57,6 +112,7 @@ scope.onmessage = (e) => {
       guarded(() => {
         if (!controller) throw new Error("controller not initialized");
         post(controller.handle(msg.json));
+        runHttp(controller);
       });
       if (handled) Atomics.add(handled, 0, 1);
       break;

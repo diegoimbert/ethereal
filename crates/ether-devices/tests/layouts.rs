@@ -64,6 +64,13 @@ fn bound(w: &Widget) -> Vec<ParamId> {
             .map(|i| ParamId(first.0 + i))
             .collect(),
         W::XyPad { x, y } => vec![*x, *y],
+        W::LfoCurve {
+            sync,
+            sync_rate,
+            rate,
+            phase,
+            depth,
+        } => vec![*sync, *sync_rate, *rate, *phase, *depth],
         W::Crossover { frequencies } => frequencies.clone(),
         W::SampleWaveform { start, end } => [*start, *end].into_iter().flatten().collect(),
         W::EqCurve {

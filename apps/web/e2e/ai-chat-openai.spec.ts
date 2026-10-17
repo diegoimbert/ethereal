@@ -143,7 +143,7 @@ test("ai-chat (OpenAI-compatible): the scripted conversation edits the arrangeme
   const panel = page.getByTestId("ai-chat-panel");
   await expect(panel).toBeVisible();
   await panel.getByRole("combobox", { name: "provider" }).click();
-  await page.getByRole("option", { name: "OpenAI", exact: true }).click();
+  await page.getByRole("option", { name: "openai", exact: true }).click();
   await expect(panel.getByText(/only ever sent to api\.openai\.com/)).toBeVisible();
   await panel.getByLabel("API key").fill(KEY);
   await panel.getByRole("button", { name: "save key" }).click();
@@ -205,9 +205,9 @@ for (const theme of ["dark", "light"] as const) {
     await palette(page, "Ask AI");
     const panel = page.getByTestId("ai-chat-panel");
     await panel.getByRole("combobox", { name: "provider" }).click();
-    await expect(page.getByRole("option", { name: "OpenAI", exact: true })).toBeVisible();
+    await expect(page.getByRole("option", { name: "openai", exact: true })).toBeVisible();
     await page.screenshot({ path: `${shots}/ai-provider-picker-${theme}.png` });
-    await page.getByRole("option", { name: "OpenAI", exact: true }).click();
+    await page.getByRole("option", { name: "openai", exact: true }).click();
     await panel.getByLabel("API key").fill(KEY);
     await panel.getByRole("button", { name: "save key" }).click();
     // #717: agree once to send the project to this provider.

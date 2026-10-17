@@ -38,6 +38,7 @@ use crate::project::{EditCommand, ProjectCommand, ProjectEvent, ProjectSummary};
 use crate::racks::{ModulationCommand, ModulatorDescriptor, RackCommand};
 use crate::recording::{InputList, RecordingCommand, RecordingEvent};
 use crate::resolver::{ReplaceReport, ResolveCommand, ResolveEvent, ResolveProposal};
+use crate::samples::{SamplesCommand, SamplesEvent, SamplesView};
 use crate::share::{ShareCommand, ShareEvent};
 use crate::social::{ChatCommand, PinnedNoteCommand};
 use crate::takes::TakeCommand;
@@ -141,6 +142,10 @@ pub enum Command {
     // --- i18n (#667; docs/LOCALIZATION.md) ---
     /// App settings the engine takes from the UI (not a document command).
     Settings(SettingsCommand),
+    // --- #519 (docs/SAMPLES.md) ---
+    /// The default sample pack: manifest, lazy downloads, the built-in kit (not a document
+    /// command).
+    Samples(SamplesCommand),
 }
 
 /// App settings the engine takes from the UI (never an undo step).
@@ -295,6 +300,10 @@ pub enum ReplyValue {
     },
     MissingMedia {
         media: Vec<MediaId>,
+    },
+    /// `Samples::{Open, Get}` (#519).
+    Samples {
+        view: SamplesView,
     },
     // --- v0.3 (contracts-4) ---
     /// `Capture::Capture`.
@@ -492,6 +501,10 @@ pub enum Event {
     },
     MediaRef {
         event: MediaRefEvent,
+    },
+    /// The default sample pack (#519).
+    Samples {
+        event: SamplesEvent,
     },
     // --- v0.3 ---
     Capture {

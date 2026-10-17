@@ -183,8 +183,8 @@ fn house() -> Example {
     use Drum::*;
     Example {
         slug: "example-house-beat",
-        name: "House Beat",
-        description: "Four on the floor at 124 bpm: kick, clap, hats and an off-beat bass.",
+        name: "house beat",
+        description: "four on the floor at 124 bpm: kick, clap, hats and an off-beat bass.",
         tags: &["example", "house", "drums"],
         bpm: 124.0,
         swing: None,
@@ -230,8 +230,8 @@ fn hip_hop() -> Example {
     use Drum::*;
     Example {
         slug: "example-hip-hop-loop",
-        name: "Hip-Hop Loop",
-        description: "A swung boom-bap beat at 90 bpm under two soft keys chords.",
+        name: "hip-hop loop",
+        description: "a swung boom-bap beat at 90 bpm under two soft keys chords.",
         tags: &["example", "hip-hop", "drums", "keys"],
         bpm: 90.0,
         swing: Some((0.5, 0.25)),
@@ -270,8 +270,8 @@ fn lofi() -> Example {
     use Drum::*;
     Example {
         slug: "example-lofi-chords",
-        name: "Lo-Fi Chords",
-        description: "Four warm seventh chords at 80 bpm, worn down by chorus, bit crushing and reverb, over a lazy beat.",
+        name: "lo-fi chords",
+        description: "four warm seventh chords at 80 bpm, worn down by chorus, bit crushing and reverb, over a lazy beat.",
         tags: &["example", "lo-fi", "chords", "keys"],
         bpm: 80.0,
         swing: Some((0.35, 0.25)),
@@ -316,8 +316,8 @@ fn bassline() -> Example {
     use Drum::*;
     Example {
         slug: "example-simple-bassline",
-        name: "Simple Bassline",
-        description: "An eighth-note acid bassline in E minor at 120 bpm over a kick and hats.",
+        name: "simple bassline",
+        description: "an eighth-note acid bassline in E minor at 120 bpm over a kick and hats.",
         tags: &["example", "bass"],
         bpm: 120.0,
         swing: None,
@@ -603,7 +603,7 @@ pub(crate) fn template(ex: &Example, seed: u64) -> CmdResult<Template> {
         name: ex.name.into(),
         meta: PresetMeta {
             tags: ex.tags.iter().map(|t| t.to_string()).collect(),
-            author: Some("Ethereal".into()),
+            author: Some("ethereal".into()),
             description: Some(ex.description.into()),
         },
         body: TemplateBody::Project {

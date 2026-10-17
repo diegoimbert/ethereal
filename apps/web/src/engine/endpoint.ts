@@ -89,7 +89,7 @@ export function createWebEndpoint(): WebEndpoint {
 
   const boot = async (): Promise<void> => {
     if (!window.crossOriginIsolated) {
-      throw new Error("the page is not cross-origin isolated (COOP/COEP headers); the web engine needs SharedArrayBuffer");
+      throw new Error("the page is not cross-origin isolated (coop/coep headers); the web engine needs SharedArrayBuffer");
     }
     if (typeof AudioWorkletNode === "undefined") throw new Error("this browser has no AudioWorklet support");
 
@@ -119,7 +119,7 @@ export function createWebEndpoint(): WebEndpoint {
     const fs = new Worker(new URL("./opfs.worker.ts", import.meta.url), { type: "module", name: "ether-opfs" });
     const channel = new MessageChannel();
     fs.postMessage({ type: "init", port: channel.port1, buffer: fsBuffer }, [channel.port1]);
-    fs.onerror = (e) => die(`OPFS worker: ${e.message}`);
+    fs.onerror = (e) => die(`opfs worker: ${e.message}`);
     cleanup.push(() => {
       if (!handles) fs.terminate();
     });

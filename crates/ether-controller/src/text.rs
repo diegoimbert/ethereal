@@ -2,8 +2,7 @@
 //! [`TextKey`] (message id + arguments) for the UI to show in the user's language, and the
 //! English text for agents, logs and older clients. The English comes from the UI's own
 //! catalog (`undo.*`, `notice.*`, `error.*` in `ui/src/i18n/locales/en.json`, compiled in by build.rs), formatted by
-//! the small ICU subset those messages use: `{name}`, `{n, plural, one {…} other {# …}}`
-//! (and `=N`), `{x, select, a {…} other {…}}`.
+//! the small ICU subset those messages use (`ether_model::text::format`).
 
 use std::collections::HashMap;
 use std::sync::OnceLock;
@@ -192,7 +191,7 @@ fn default_name_in(lang: &str, key: &TextKey) -> String {
         .and_then(|t| t.get(key.id.as_str()))
         .or_else(|| names_table("en").and_then(|t| t.get(key.id.as_str())));
     match message {
-        Some(m) => format(m, &key.args, None),
+        Some(m) => format(m, &key.args),
         None => key.id.clone(),
     }
 }
@@ -207,7 +206,7 @@ fn device_default_name_in(lang: &str, descriptor_name: &str) -> String {
     if lang != "en" {
         let key = engine_key(descriptor_name);
         if let Some(m) = names_table(lang).and_then(|t| t.get(key.id.as_str())) {
-            return format(m, &key.args, None);
+            return format(m, &key.args);
         }
     }
     descriptor_name.trim().to_lowercase()
@@ -221,124 +220,20 @@ pub(crate) fn exists(id: &str) -> bool {
 /// The English text of `key` (its id when the catalog doesn't have it).
 pub fn english(key: &TextKey) -> String {
     match messages().get(key.id.as_str()) {
-        Some(m) => format(m, &key.args, None),
+        Some(m) => format(m, &key.args),
         None => key.id.clone(),
     }
 }
 
 /// The message whose English text is exactly `text`, for a message without arguments
-/// ("capture MIDI" → `undo.capture.capture`).
+/// ("capture midi" → `undo.capture.capture`).
 pub(crate) fn key_of_english(text: &str) -> Option<TextKey> {
     plain().get(text).map(|id| TextKey::new(*id))
 }
 
-fn arg_text(arg: &TextArg) -> String {
-    match arg {
-        TextArg::Int(n) => n.to_string(),
-        TextArg::Str(s) => s.clone(),
-        TextArg::Key(k) => english(k),
-    }
-}
-
-/// The index just past the `}` closing the `{` at `open`.
-fn close_of(s: &str, open: usize) -> Option<usize> {
-    let mut depth = 0usize;
-    for (i, c) in s[open..].char_indices() {
-        match c {
-            '{' => depth += 1,
-            '}' => {
-                depth -= 1;
-                if depth == 0 {
-                    return Some(open + i + 1);
-                }
-            }
-            _ => {}
-        }
-    }
-    None
-}
-
-/// `sel {text} sel {text}` → `[(sel, text)]`.
-fn options(s: &str) -> Vec<(&str, &str)> {
-    let mut out = Vec::new();
-    let mut rest = s.trim_start();
-    while let Some(open) = rest.find('{') {
-        let selector = rest[..open].trim();
-        let Some(end) = close_of(rest, open) else {
-            break;
-        };
-        out.push((selector, &rest[open + 1..end - 1]));
-        rest = rest[end..].trim_start();
-    }
-    out
-}
-
-fn format(
-    message: &str,
-    args: &std::collections::BTreeMap<String, TextArg>,
-    pound: Option<i64>,
-) -> String {
-    let mut out = String::new();
-    let mut i = 0;
-    while i < message.len() {
-        let c = message[i..].chars().next().expect("in bounds");
-        match c {
-            '{' => {
-                let Some(end) = close_of(message, i) else {
-                    out.push_str(&message[i..]);
-                    break;
-                };
-                let inner = &message[i + 1..end - 1];
-                let mut parts = inner.splitn(3, ',');
-                let name = parts.next().unwrap_or("").trim();
-                let kind = parts.next().map(str::trim);
-                let arg = args.get(name);
-                match (kind, parts.next()) {
-                    (Some("plural"), Some(opts)) => {
-                        let n = match arg {
-                            Some(TextArg::Int(n)) => *n,
-                            _ => 0,
-                        };
-                        let opts = options(opts);
-                        let exact = format!("={n}");
-                        let pick = opts
-                            .iter()
-                            .find(|(s, _)| *s == exact)
-                            .or_else(|| {
-                                opts.iter()
-                                    .find(|(s, _)| *s == if n == 1 { "one" } else { "other" })
-                            })
-                            .or_else(|| opts.iter().find(|(s, _)| *s == "other"));
-                        if let Some((_, text)) = pick {
-                            out.push_str(&format(text, args, Some(n)));
-                        }
-                    }
-                    (Some("select"), Some(opts)) => {
-                        let value = arg.map(arg_text).unwrap_or_default();
-                        let opts = options(opts);
-                        let pick = opts
-                            .iter()
-                            .find(|(s, _)| *s == value)
-                            .or_else(|| opts.iter().find(|(s, _)| *s == "other"));
-                        if let Some((_, text)) = pick {
-                            out.push_str(&format(text, args, pound));
-                        }
-                    }
-                    _ => out.push_str(&arg.map(arg_text).unwrap_or_else(|| format!("{{{name}}}"))),
-                }
-                i = end;
-            }
-            '#' if pound.is_some() => {
-                out.push_str(&pound.expect("checked").to_string());
-                i += 1;
-            }
-            c => {
-                out.push(c);
-                i += c.len_utf8();
-            }
-        }
-    }
-    out
+/// `message` (ICU, the subset above) with `args`, nested messages in English.
+fn format(message: &str, args: &std::collections::BTreeMap<String, TextArg>) -> String {
+    ether_core::protocol::model::text::format(message, args, &english)
 }
 
 #[cfg(test)]
@@ -346,7 +241,7 @@ mod tests {
     use super::*;
 
     fn fmt(message: &str, key: TextKey) -> String {
-        format(message, &key.args, None)
+        format(message, &key.args)
     }
 
     #[test]
@@ -396,7 +291,7 @@ mod tests {
             k("Invert L"),
             ("engine.invert_l".into(), "invert left".into())
         );
-        assert_eq!(k("EQ"), ("engine.eq".into(), "EQ".into()));
+        assert_eq!(k("EQ"), ("engine.eq".into(), "eq".into()));
         // Not a built-in's: the lowercase text.
         assert_eq!(engine_arg("Air Width"), TextArg::Str("air width".into()));
     }
@@ -433,12 +328,12 @@ mod tests {
         assert_eq!(fmt("{count, plural, =0 {none} other {#}}", k(0)), "none");
         let named = TextKey::new("x").arg("device", "reverb");
         assert_eq!(fmt("remove {device}", named), "remove reverb");
-        let select = "add {kind, select, audio {audio track} midi {MIDI track} other {VCA}}";
+        let select = "add {kind, select, audio {audio track} midi {midi track} other {vca}}";
         assert_eq!(
             fmt(select, TextKey::new("x").arg("kind", "midi")),
-            "add MIDI track"
+            "add midi track"
         );
-        assert_eq!(fmt(select, TextKey::new("x").arg("kind", "vca")), "add VCA");
+        assert_eq!(fmt(select, TextKey::new("x").arg("kind", "vca")), "add vca");
         assert_eq!(fmt("{missing} left", TextKey::new("x")), "{missing} left");
     }
 
@@ -453,7 +348,7 @@ mod tests {
         assert_eq!(key_of_english("not a label"), None);
         // Nested messages are formatted in English too.
         let ai = TextKey::new("undo.agent.edit").arg("edit", TextKey::new("undo.mixer.set_volume"));
-        assert_eq!(english(&ai), "AI: set volume");
+        assert_eq!(english(&ai), "ai: set volume");
         assert_eq!(english(&TextKey::new("undo.no_such")), "undo.no_such");
     }
 

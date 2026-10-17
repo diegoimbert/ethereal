@@ -86,7 +86,7 @@ describe("PluginDeviceControls", () => {
     t.plugins = [VST2_VERB];
     await renderWith(t, <Header device={vst2} />);
     await screen.findByRole("button", { name: /window/i }).catch(() => undefined);
-    expect(screen.queryByText("VST2")).toBeNull();
+    expect(screen.queryByText("vst2")).toBeNull();
   });
 
   it("opens/closes the editor from the header's window toggle; sandboxing is a context-menu entry", async () => {
@@ -170,7 +170,7 @@ describe("plugin formats", () => {
     await renderWith(t, <Header device={auDevice} />);
     inProject(auDevice);
     const missing = await screen.findByText("missing · bypassed");
-    expect(missing).toHaveAttribute("title", "AU plugin aufx:dely:appl is not installed. install it and rescan plugins.");
+    expect(missing).toHaveAttribute("title", "au plugin aufx:dely:appl is not installed. install it and rescan plugins.");
     expect(screen.getByRole("button", { name: "open AUDelay window" })).toBeDisabled();
     expect(t.sent.filter((c) => c.command.type === "List")).toHaveLength(1);
 
@@ -179,7 +179,7 @@ describe("plugin formats", () => {
     t.emit({ type: "ScanFinished", plugins: 1, failed: [] });
     const found = (await screen.findByText("found · reload")).closest("button")!;
     expect(found).toHaveAccessibleName("reload AUDelay");
-    expect(found).toHaveAttribute("title", "AU plugin aufx:dely:appl was found by the last scan. load it with the state saved in the project.");
+    expect(found).toHaveAttribute("title", "au plugin aufx:dely:appl was found by the last scan. load it with the state saved in the project.");
     expect(screen.queryByText("missing · bypassed")).toBeNull();
     expect(screen.getByRole("button", { name: "open AUDelay window" })).toBeDisabled();
 

@@ -52,7 +52,7 @@ test("import a DAWproject from Bitwig Studio through the project screen", async 
 
   const report = page.getByRole("dialog", { name: "imported “Canon”" });
   await expect(report).toBeVisible({ timeout: 30_000 });
-  await expect(report).toContainText("from Bitwig Studio 5.1.6 (DAWproject)");
+  await expect(report).toContainText("from Bitwig Studio 5.1.6 (dawproject)");
   await expect(report).toContainText("3 tracks");
   // Bitwig's own Sampler has no Ethereal equivalent: kept as a missing device to replace.
   await expect(report.getByRole("region", { name: "needs resolving" })).toContainText("Sampler");
@@ -115,7 +115,7 @@ test("import a REAPER project from the command palette", async ({ page }) => {
   const chooser = page.waitForEvent("filechooser");
   await page
     .getByRole("listbox", { name: "commands" })
-    .getByRole("option", { name: /import from another DAW/ })
+    .getByRole("option", { name: /import from another daw/ })
     .click();
   await (await chooser).setFiles([{ name: "Session.rpp", mimeType: "text/plain", buffer: fixtures.rpp }]);
   const report = page.getByRole("dialog", { name: "imported “Session”" });

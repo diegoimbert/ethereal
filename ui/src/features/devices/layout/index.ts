@@ -6,7 +6,7 @@ export { DeviceLayoutView, type DeviceLayoutViewProps } from "./DeviceLayoutView
 export { WidgetView, type WidgetViewProps } from "./Widget";
 export { bindParam, LayoutContext, useLayoutContext, useParam, type LayoutContextValue, type ParamBinding } from "./context";
 export { ParamShell } from "./ParamShell";
-export { paramMenu, paramTarget, showAutomation, useAutomated } from "./automation";
+export { paramMenu, paramTarget, showAutomation, showSwitchAutomation, switchMenu, switchTarget, useAutomated } from "./automation";
 export {
   boundParams,
   cardParams,

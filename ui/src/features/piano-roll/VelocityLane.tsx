@@ -18,6 +18,7 @@ import { cmd, useTransport } from "@/transport";
 import { startDrag } from "./drag";
 import { VELOCITY_LANE_HEIGHT } from "./geometry";
 import { velocityEdits } from "./noteEdits";
+import { touchNote } from "./lastVelocity";
 import { InstanceList, RectRenderer } from "./noteCanvas";
 import { buildVelocityLayer, hitVelocityBar, registerScene, tagged, type SceneTag, type VelocityColors, type VelocityLaneInput } from "./noteLayout";
 
@@ -64,6 +65,8 @@ export function VelocityLane({ notes, vp, widthPx, height = VELOCITY_LANE_HEIGHT
       if (selectModeFromEvent(e) === "replace") itemSelection.getState().clear("note");
       return;
     }
+    // New notes take the velocity of the bar last pressed (`lastVelocity.ts`).
+    touchNote(note);
     const sel = itemSelection.getState();
     if (!sel.selected.note.has(note.id)) {
       const mode = selectModeFromEvent(e);

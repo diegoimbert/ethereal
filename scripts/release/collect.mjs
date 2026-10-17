@@ -8,6 +8,8 @@
 //     tauri.conf.json bundles them. The app license (LICENSE) and the third-party notices
 //     (THIRD-PARTY-NOTICES.md) are copied next to the installers (the installers also bundle
 //     them; see tauri.conf.json).
+//     On macOS it also checks the .app's identity as System Settings shows it (name, bundle
+//     id, icon, usage strings, signing identifier).
 //     Updater bundles (auto-update; only built when TAURI_SIGNING_PRIVATE_KEY is set) are
 //     collected with their `.sig`: the macOS `Ethereal.app.tar.gz` is renamed
 //     `Ethereal_<v>_<arch>.app.tar.gz` (both macOS builds name it the same), the AppImage /
@@ -51,6 +53,35 @@ function fail(msg) {
   process.exit(1);
 }
 
+// What macOS shows in System Settings › Privacy & Security (Screen & System Audio
+// Recording, Microphone) comes from the app's Info.plist and code signature: check that the
+// built .app names Ethereal, has its icon and the usage strings of src-tauri/Info.plist, and
+// is signed as the bundle id (docs/RELEASING.md "macOS permissions").
+function checkMacIdentity(app, conf) {
+  const plist = join(app, "Contents", "Info.plist");
+  const read = (key) => {
+    try {
+      return execFileSync("plutil", ["-extract", key, "raw", "-o", "-", plist], { encoding: "utf8" }).trim();
+    } catch {
+      return "";
+    }
+  };
+  const expect = { CFBundleName: conf.productName, CFBundleIdentifier: conf.identifier, CFBundleExecutable: conf.mainBinaryName ?? "ether-desktop" };
+  for (const [key, want] of Object.entries(expect)) if (read(key) !== want) fail(`${basename(app)}: ${key} is '${read(key)}', expected '${want}'`);
+  const icon = read("CFBundleIconFile");
+  if (!icon || !existsSync(join(app, "Contents", "Resources", icon))) fail(`${basename(app)}: no CFBundleIconFile in Contents/Resources`);
+  const usage = readFileSync(join(root, "apps/desktop/src-tauri/Info.plist"), "utf8").match(/NS\w+UsageDescription/g) ?? [];
+  for (const key of usage) if (!read(key)) fail(`${basename(app)}: ${key} (apps/desktop/src-tauri/Info.plist) is missing from the bundle`);
+  // codesign prints its details on stderr.
+  const out = execFileSync("sh", ["-c", 'codesign -dv "$1" 2>&1', "sh", app], { encoding: "utf8" });
+  const id = out.match(/^Identifier=(.*)$/m)?.[1];
+  if (id !== conf.identifier) fail(`${basename(app)}: signed as '${id}', expected '${conf.identifier}'`);
+  const adhoc = /^Signature=adhoc$/m.test(out);
+  console.log(
+    `collect: ${basename(app)}: ${conf.identifier}, icon ${icon}, ${usage.join(", ")}; ${adhoc ? "ad-hoc signature (privacy grants reset on every update)" : "Developer ID signature"}`,
+  );
+}
+
 function desktop(triple) {
   const targetDir = process.env.CARGO_TARGET_DIR ? resolve(root, process.env.CARGO_TARGET_DIR) : join(root, "target");
   const bundleDir = join(targetDir, triple, "release", "bundle");
@@ -64,6 +95,7 @@ function desktop(triple) {
     const name = basename(f);
     if (name.endsWith(".app")) {
       for (const h of helpers) if (!existsSync(join(f, "Contents", "MacOS", h))) fail(`${name} has no Contents/MacOS/${h}`);
+      checkMacIdentity(f, JSON.parse(conf));
       const arch = triple.split("-")[0];
       const version = (process.env.ETHER_RELEASE_VERSION || readFileSync(join(root, "VERSION"), "utf8")).trim();
       const zip = join(outDir, `${name.replace(/\.app$/, "")}_${version}_${arch}.app.zip`);

@@ -15,7 +15,7 @@
         "snare"
       ],
       "author": "ethereal",
-      "description": "strong fast attack plus a bit more ring, clipped softly at 0 dBFS."
+      "description": "strong fast attack plus a bit more ring, clipped softly at 0 dbfs."
     },
     "params": {
       "0": 80.0,

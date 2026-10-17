@@ -11,7 +11,7 @@ import type { LaneLayerContext, LayerOutput } from "../layers";
 import type { Palette } from "../palette";
 import { InstanceWriter, RECT_STRIDE } from "../pipelines";
 import type { LaneScene, SceneInput, ViewWindow } from "../scene";
-import { automationLayer, automationPointAt, buildAutomationLane, envelope, type GlAutomationLane } from "./automationLanes";
+import { automationLayer, automationPointAt, baselineDashes, buildAutomationLane, envelope, type GlAutomationLane } from "./automationLanes";
 import { compingLayers, compItems, MUTED_OPACITY } from "./comping";
 import { groupSummaryLayer } from "./groupSummary";
 import { lanePalette } from "./lanePalette";
@@ -140,6 +140,33 @@ describe("automation lane build", () => {
     const none = output();
     buildAutomationLane(lane(), place, { y0: 56, y1: 90 }, win(0, 10), ctx, none.out, shape);
     expect(none.rects.count).toBe(0);
+  });
+
+  it("an empty lane draws its baseline: gray dashes at the current value's y", () => {
+    const { out, shapes } = output();
+    buildAutomationLane(lane({ points: [], baseline: 0.75 }), place, { y0: 0, y1: 300 }, win(0, 10, 10), ctx, out, shape);
+    // 10 beats at 10 px/beat = 100 px: 4 px dashes every 8 px, anchored at beat 0.
+    expect(shapes.count).toBe(13);
+    const c = lanePalette(palette);
+    const yy = 100 + LANE_PAD + (64 - 2 * LANE_PAD) * 0.25;
+    const first = shapeAt(shapes, 0);
+    // Dash 0: beats [0, 0.4], inset by the 0.75 px cap radius.
+    expect(first.slice(0, 6).map((v) => +v.toFixed(5))).toEqual([0, 0.75, 0.4, -0.75, yy, yy]);
+    expect(first.slice(8, 12).map((v) => +v.toFixed(5))).toEqual([...c.textDim].map((v) => +v.toFixed(5)));
+    expect(shapeAt(shapes, 1)[0]).toBeCloseTo(0.8, 6);
+  });
+
+  it("a lane with points draws no baseline", () => {
+    const { out, shapes } = output();
+    buildAutomationLane(lane({ baseline: 0.75 }), place, { y0: 0, y1: 300 }, win(0, 10), ctx, out, shape);
+    expect(shapes.count).toBe(7);
+  });
+
+  it("baseline dashes are anchored at beat 0 and cover the window", () => {
+    expect(baselineDashes(0, 1, 8)).toEqual([0, 0.5]);
+    const d = baselineDashes(1.2, 3, 4); // 1 beat dashes, period 2
+    expect(d).toEqual([0, 1, 2, 3]);
+    expect(baselineDashes(0, 0, 4)).toEqual([]);
   });
 
   it("hit-tests points (topmost wins)", () => {

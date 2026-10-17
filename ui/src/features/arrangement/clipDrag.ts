@@ -14,7 +14,7 @@
 
 import type { Beats, Clip, MediaRef } from "@/generated";
 import { isReadOnly, useProjectStore, useSelectionStore, warpMarkersOfClip } from "@/state";
-import { dragBeats, itemSelection, resolveGrid, selectModeFromEvent, snapToGrid, TempoMap } from "@/timeline";
+import { dragBeats, itemSelection, resolveGrid, selectModeFromEvent, snapDelta, snapToGrid, TempoMap } from "@/timeline";
 import { newId, type EngineTransport } from "@/transport";
 import { setDragCursor } from "@/kit";
 import { clipSourceMapper } from "@/domain/warpMap";
@@ -116,11 +116,20 @@ export function onClipPointerDown(
     return inNewTrackZone(rows, clientY - contentTop(), bottom);
   };
 
-  const snapFor = (bypass: boolean) => {
-    if (bypass) return (b: Beats) => b;
+  /** The visible grid step (adaptive: at the current zoom), `null` when off or bypassed. */
+  const stepFor = (bypass: boolean) => {
+    if (bypass) return null;
     const s = view.getState();
-    const step = resolveGrid(useArrangementUi.getState().grid, s.pxPerBeat, tempo.signatureAt(s.scrollBeats));
+    return resolveGrid(useArrangementUi.getState().grid, s.pxPerBeat, tempo.signatureAt(s.scrollBeats));
+  };
+  const snapFor = (bypass: boolean) => {
+    const step = stepFor(bypass);
     return (b: Beats) => snapToGrid(b, step, tempo);
+  };
+  // Moves snap relatively: an off-grid clip keeps its offset within the grid.
+  const snapMoveFor = (bypass: boolean) => {
+    const step = stepFor(bypass);
+    return (origin: Beats, delta: Beats) => snapDelta(origin, delta, step, tempo, true);
   };
 
   type Mods = Pick<PointerEvent, "altKey" | "metaKey" | "ctrlKey">;
@@ -138,6 +147,7 @@ export function onClipPointerDown(
         anchor: clip.id,
         rows,
         snap: snapFor(ev.altKey),
+        snapMove: snapMoveFor(ev.altKey),
         sourceLength: (c) => clipSourceLength(c, project.media, tempo, ctx.transport.kind),
       },
       mode,

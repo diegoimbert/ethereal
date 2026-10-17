@@ -181,10 +181,10 @@ fn looks_debug(label: &str) -> bool {
         })
 }
 
-/// Lowercase, except acronyms (MIDI, LFO, ...) and "AI".
+/// Lowercase, acronyms included ("midi", "lfo", "ai": no exceptions, docs/LOCALIZATION.md).
 fn starts_lowercase(label: &str) -> bool {
     let first = label.split_whitespace().next().unwrap_or("");
-    first.chars().all(|c| !c.is_uppercase()) || first.chars().all(|c| !c.is_lowercase())
+    first.chars().all(|c| !c.is_uppercase())
 }
 
 fn every_command() -> Vec<Command> {

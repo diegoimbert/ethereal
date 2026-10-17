@@ -70,7 +70,7 @@ const TOURS: ReadonlyArray<{ title: string; id: string; script: Script; example?
     },
   },
   {
-    title: "bring a project from another DAW",
+    title: "bring a project from another daw",
     id: "import-daw",
     script: {
       menu: (page) => page.locator('[data-tour="project-menu"]').click(),

@@ -300,6 +300,11 @@ impl Lfo {
         self.phase
     }
 
+    /// Back to phase 0 (a retrigger).
+    pub(super) fn restart(&mut self) {
+        self.phase = 0.0;
+    }
+
     /// Advance one sample; `i` is the sample index in the sub-block the step was made for.
     #[inline]
     pub(super) fn advance(&mut self, step: &LfoStep, i: usize) {
@@ -425,7 +430,21 @@ impl ModLine {
     pub(super) fn read(&self, delay: f32) -> f32 {
         let d = delay.clamp(1.0, self.max_delay());
         let i = d as usize;
-        let f = d - i as f32;
+        self.hermite(i, d - i as f32)
+    }
+
+    /// [`Self::read`] with a double-precision position: long modulated delays keep a
+    /// sub-sample resolution far below the `f32` step (~1e-4 samples at 1000).
+    #[inline]
+    pub(super) fn read_f64(&self, delay: f64) -> f32 {
+        let d = delay.clamp(1.0, f64::from(self.max_delay()));
+        let i = d as usize;
+        self.hermite(i, (d - i as f64) as f32)
+    }
+
+    /// 4-point Hermite between taps `i` and `i + 1`, fraction `f`.
+    #[inline]
+    fn hermite(&self, i: usize, f: f32) -> f32 {
         let x0 = self.tap(i - 1);
         let x1 = self.tap(i);
         let x2 = self.tap(i + 1);

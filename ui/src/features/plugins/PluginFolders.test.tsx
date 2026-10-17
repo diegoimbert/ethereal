@@ -18,9 +18,9 @@ class FoldersFake implements EngineTransport {
   state: PluginFolders = {
     include_defaults: true,
     defaults: [
-      { path: "/Library/Audio/Plug-Ins/CLAP", format: "Clap", exists: true },
-      { path: "/Library/Audio/Plug-Ins/VST3", format: "Vst3", exists: false },
-      { path: "/Library/Audio/Plug-Ins/VST", format: "Vst2", exists: true },
+      { path: "/Library/Audio/Plug-Ins/clap", format: "Clap", exists: true },
+      { path: "/Library/Audio/Plug-Ins/vst3", format: "Vst3", exists: false },
+      { path: "/Library/Audio/Plug-Ins/vst", format: "Vst2", exists: true },
     ],
     folders: [],
   };
@@ -108,7 +108,7 @@ describe("PluginFoldersPanel", () => {
   it("lists system folders read-only, adds, re-filters and removes user folders (each rescans)", async () => {
     const t = await renderPanel(new FoldersFake());
     const system = await screen.findByRole("list", { name: "system folders" });
-    expect(within(system).getByText("/Library/Audio/Plug-Ins/CLAP")).toBeInTheDocument();
+    expect(within(system).getByText("/Library/Audio/Plug-Ins/clap")).toBeInTheDocument();
     expect(within(system).getByText("not found")).toBeInTheDocument();
     expect(within(system).queryByRole("button")).toBeNull();
     expect(screen.getByText(/no folders added/)).toBeInTheDocument();
@@ -162,7 +162,7 @@ describe("PluginFoldersPanel", () => {
   });
 
   describe("failed plugins", () => {
-    const kontakt = "C:\\Program Files\\Common Files\\VST3\\Kontakt 7.vst3";
+    const kontakt = "C:\\Program Files\\Common Files\\vst3\\Kontakt 7.vst3";
     const failures = (): ScanFailure[] => [
       { path: kontakt, message: "scan timed out after 20s", format: "Vst3" },
       { path: "/p/bad.clap", message: "", format: "Clap" },
@@ -186,10 +186,10 @@ describe("PluginFoldersPanel", () => {
       const list = screen.getByRole("list", { name: "failed plugins" });
       expect(within(list).getAllByRole("listitem")).toHaveLength(2);
       expect(within(row(kontakt)).getByText("scan timed out after 20s")).toBeInTheDocument();
-      expect(within(row(kontakt)).getByText("VST3")).toBeInTheDocument();
+      expect(within(row(kontakt)).getByText("vst3")).toBeInTheDocument();
       // No reason from the engine: something neutral.
       expect(within(row("/p/bad.clap")).getByText("unknown error")).toBeInTheDocument();
-      expect(within(row("/p/bad.clap")).getByText("CLAP")).toBeInTheDocument();
+      expect(within(row("/p/bad.clap")).getByText("clap")).toBeInTheDocument();
     });
 
     it("right-click → Retry… asks for a timeout (90 s by default) and rescans that plugin; a success removes the row", async () => {

@@ -402,7 +402,7 @@ export class MockTransport implements EngineTransport {
     position: () => this.position,
     playing: () => this.playing,
     commit: (commands, lanes) =>
-      void this.transact("capture MIDI", null, (tx) => {
+      void this.transact("capture midi", null, (tx) => {
         const ctx = { tx, newId: this.newId, position: this.position };
         for (const c of commands) reduceDocumentCommand(ctx, c);
         for (const lane of lanes) tx.upsert("ExpressionLane", lane);

@@ -31,6 +31,8 @@ const EFFECTS: BuiltinDeviceType[] = [
   "Phaser",
   "Flanger",
   "Tremolo",
+  "Vibrato",
+  "VolumeLfo",
   "SpectrumAnalyzer",
   "Tuner",
   "Arpeggiator",

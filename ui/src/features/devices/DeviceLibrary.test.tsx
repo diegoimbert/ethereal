@@ -13,6 +13,7 @@ import { pickOption } from "@/kit/testing";
 import { useAudioSettings } from "@/features/audio-settings/store";
 import { DevicePicker } from "./DevicePicker";
 import { DeviceLibrary } from "./DeviceLibrary";
+import { resetI18nForTests, setLocale } from "@/i18n/runtime";
 
 let transport: EngineTransport | undefined;
 afterEach(() => {
@@ -23,6 +24,7 @@ afterEach(() => {
   useSelectionStore.getState().selectTrack(null);
   usePluginStore.getState().reset();
   resetLibraryStats();
+  resetI18nForTests();
 });
 
 async function renderWith<T extends EngineTransport>(t: T, ui: ReactNode): Promise<T> {
@@ -50,18 +52,52 @@ describe("DeviceLibrary", () => {
     expect(all).toContain("compressor");
     expect(all).not.toContain("synth");
     // All by name (factory and plugins mixed), plugins with their vendor and format chip.
-    expect(all).toContain("VerbAcmeCLAP");
+    expect(all).toContain("VerbAcmeclap");
     expect(all).toEqual([...all].sort((a, b) => a!.localeCompare(b!)));
 
     fireEvent.click(screen.getByRole("button", { name: "plugins" }));
-    expect(names(list)).toEqual(["Air EQOtherCLAP", "AUDelayAppleAU", "VerbAcmeCLAP"]);
+    expect(names(list)).toEqual(["Air EQOtherclap", "AUDelayAppleau", "VerbAcmeclap"]);
     fireEvent.click(screen.getByRole("button", { name: "factory" }));
     expect(names(list).some((n) => n?.includes("Acme"))).toBe(false);
     fireEvent.click(screen.getByRole("button", { name: "all" }));
     fireEvent.change(screen.getByRole("searchbox", { name: "search effects" }), { target: { value: "apple" } });
-    expect(names(list)).toEqual(["AUDelayAppleAU"]);
+    expect(names(list)).toEqual(["AUDelayAppleau"]);
     fireEvent.change(screen.getByRole("searchbox", { name: "search effects" }), { target: { value: "zzz" } });
     expect(list.getByText("no match.")).toBeInTheDocument();
+  });
+
+  it('names the EQ "eq" in lowercase, like every factory effect, and search finds it either way', async () => {
+    await renderWith(new MockTransport({ timers: "manual", seed: 3 }), <DeviceLibrary category="AudioEffect" onPick={() => undefined} />);
+    const list = await rows("effects");
+    await list.findByText("eq");
+    for (const n of names(list)) expect(n).toBe(n!.toLowerCase());
+    const search = screen.getByRole("searchbox", { name: "search effects" });
+    for (const q of ["EQ", "eq", "Eq"]) {
+      fireEvent.change(search, { target: { value: q } });
+      expect(names(list)).toContain("eq");
+    }
+    await act(() => setLocale("fr"));
+    fireEvent.change(search, { target: { value: "EQ" } });
+    expect(names(list)).toContain("eq");
+  });
+
+  it("names acronyms lowercase too (midi effect rack, fm synth), and search finds them either way", async () => {
+    const cases = [
+      ["NoteEffect", "midi effects", "midi effect rack", ["MIDI", "midi", "Midi"]],
+      ["Instrument", "instruments", "fm synth", ["FM", "fm"]],
+    ] as const;
+    for (const [category, label, name, queries] of cases) {
+      await renderWith(new MockTransport({ timers: "manual", seed: 3 }), <DeviceLibrary category={category} onPick={() => undefined} />);
+      const list = await rows(label);
+      await list.findByText(name);
+      for (const n of names(list)) expect(n).toBe(n!.toLowerCase());
+      const search = screen.getByRole("searchbox", { name: `search ${label}` });
+      for (const q of queries) {
+        fireEvent.change(search, { target: { value: q } });
+        expect(names(list)).toContain(name);
+      }
+      cleanup();
+    }
   });
 
   it("hides built-in types the engine flags unimplemented (contract placeholders, #438)", async () => {
@@ -125,6 +161,52 @@ describe("DeviceLibrary", () => {
     expect(picked).toEqual(["Big Synth"]);
   });
 
+  it("the arrows wrap: Up on the first row goes to the last, Down on the last back to the first (scrolled into view)", async () => {
+    const scrolled: (string | undefined)[] = [];
+    // jsdom has no scrollIntoView: record which row the library scrolls to.
+    HTMLElement.prototype.scrollIntoView = function (this: HTMLElement) {
+      scrolled.push(this.dataset.key);
+    };
+    try {
+      await renderWith(new MockTransport({ timers: "manual", seed: 3 }), <DeviceLibrary category="AudioEffect" onPick={() => undefined} />);
+      const list = await rows("effects");
+      await list.findByText("delay");
+      const field = screen.getByRole("searchbox", { name: "search effects" });
+      const keys = () => Array.from(document.querySelectorAll<HTMLElement>(".eth-devlib__row")).map((r) => r.dataset.key);
+      const active = () => document.querySelector<HTMLElement>(".eth-devlib__row--active")?.dataset.key;
+      const all = keys();
+      expect(all.length).toBeGreaterThan(2);
+      expect(active()).toBe(all[0]);
+      fireEvent.keyDown(field, { key: "ArrowUp" });
+      expect(active()).toBe(all.at(-1));
+      expect(scrolled.at(-1)).toBe(all.at(-1));
+      fireEvent.keyDown(field, { key: "ArrowDown" });
+      expect(active()).toBe(all[0]);
+      expect(scrolled.at(-1)).toBe(all[0]);
+
+      // A search narrows the rows: the wrap follows the filtered list.
+      fireEvent.change(field, { target: { value: "e" } });
+      const shown = keys();
+      expect(shown.length).toBeGreaterThan(1);
+      expect(shown.length).toBeLessThanOrEqual(all.length);
+      fireEvent.keyDown(field, { key: "ArrowUp" });
+      expect(active()).toBe(shown.at(-1));
+      fireEvent.keyDown(field, { key: "ArrowDown" });
+      expect(active()).toBe(shown[0]);
+
+      // A single row stays put both ways.
+      fireEvent.change(field, { target: { value: "delay" } });
+      const one = keys();
+      expect(one).toHaveLength(1);
+      fireEvent.keyDown(field, { key: "ArrowDown" });
+      expect(active()).toBe(one[0]);
+      fireEvent.keyDown(field, { key: "ArrowUp" });
+      expect(active()).toBe(one[0]);
+    } finally {
+      delete (HTMLElement.prototype as Partial<HTMLElement>).scrollIntoView;
+    }
+  });
+
   it("the first row is active right after typing: Enter picks it without an arrow", async () => {
     const picked: string[] = [];
     await renderWith(new DesktopFake(), <DeviceLibrary category="Instrument" onPick={(p) => picked.push(p.name)} />);
@@ -166,10 +248,10 @@ describe("DeviceLibrary", () => {
     const list = await rows("devices");
     await list.findByText("Air EQ");
     const all = names(list);
-    expect(all).toContain("Big SynthAcmeCLAP");
+    expect(all).toContain("Big SynthAcmeclap");
     expect(all).toContain("compressor");
     expect(all).toContain("synth");
-    expect(all).not.toContain("VerbAcmeCLAP");
+    expect(all).not.toContain("VerbAcmeclap");
     expect(screen.getByRole("searchbox", { name: "search devices" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "plugin settings" })).toBeInTheDocument();
     fireEvent.click(list.getByRole("button", { name: "Air EQ" }));
@@ -184,10 +266,10 @@ describe("DeviceLibrary", () => {
       <DeviceLibrary pluginsOnly plugins={[VERB, EQ, AU_DELAY]} onClose={() => closed++} onPick={(p) => picked.push(p.name)} />,
     );
     const list = await rows("plugins");
-    expect(names(list)).toEqual(["Air EQOtherCLAP", "AUDelayAppleAU", "VerbAcmeCLAP"]);
+    expect(names(list)).toEqual(["Air EQOtherclap", "AUDelayAppleau", "VerbAcmeclap"]);
     expect(screen.queryByRole("button", { name: "factory" })).toBeNull();
     fireEvent.change(screen.getByRole("searchbox", { name: "search plugins" }), { target: { value: "apple" } });
-    expect(names(list)).toEqual(["AUDelayAppleAU"]);
+    expect(names(list)).toEqual(["AUDelayAppleau"]);
     fireEvent.keyDown(screen.getByRole("searchbox", { name: "search plugins" }), { key: "ArrowDown" });
     fireEvent.keyDown(screen.getByRole("searchbox", { name: "search plugins" }), { key: "Enter" });
     expect(picked).toEqual(["AUDelay"]);
@@ -226,31 +308,31 @@ describe("DeviceLibrary plugin formats", () => {
     const list = await rows("effects");
     await list.findByText("Air EQ");
     fireEvent.click(screen.getByRole("button", { name: "plugins" }));
-    expect(names(list)).toEqual(["Air EQOtherCLAP", "AUDelayAppleAU", "VerbAcmeCLAP", "VerbAcmeVST2", "VerbAcmeVST3"]);
+    expect(names(list)).toEqual(["Air EQOtherclap", "AUDelayAppleau", "VerbAcmeclap", "VerbAcmevst2", "VerbAcmevst3"]);
     // AU is macOS-only: no toggle here (jsdom isn't a Mac), and its plugins stay listed.
     expect(
       within(formatGroup())
         .getAllByRole("button")
         .map((b) => b.textContent),
-    ).toEqual(["CLAP", "VST2", "VST3"]);
-    for (const f of ["CLAP", "VST2", "VST3"]) expect(toggle(f)).toHaveAttribute("aria-pressed", "true");
+    ).toEqual(["clap", "vst2", "vst3"]);
+    for (const f of ["clap", "vst2", "vst3"]) expect(toggle(f)).toHaveAttribute("aria-pressed", "true");
 
-    fireEvent.click(toggle("VST2"));
-    expect(toggle("VST2")).toHaveAttribute("aria-pressed", "false");
-    expect(names(list)).toEqual(["Air EQOtherCLAP", "AUDelayAppleAU", "VerbAcmeCLAP", "VerbAcmeVST3"]);
+    fireEvent.click(toggle("vst2"));
+    expect(toggle("vst2")).toHaveAttribute("aria-pressed", "false");
+    expect(names(list)).toEqual(["Air EQOtherclap", "AUDelayAppleau", "VerbAcmeclap", "VerbAcmevst3"]);
     // Search applies within the shown formats (a hidden format's name doesn't bring it back).
     const search = screen.getByRole("searchbox", { name: "search effects" });
     fireEvent.change(search, { target: { value: "verb" } });
-    expect(names(list)).toEqual(["VerbAcmeCLAP", "VerbAcmeVST3"]);
+    expect(names(list)).toEqual(["VerbAcmeclap", "VerbAcmevst3"]);
     fireEvent.change(search, { target: { value: "vst2" } });
     expect(list.getByText("no match.")).toBeInTheDocument();
     fireEvent.change(search, { target: { value: "" } });
 
     // At least one stays on: the last one shown can't be turned off.
-    fireEvent.click(toggle("CLAP"));
-    expect(names(list)).toEqual(["AUDelayAppleAU", "VerbAcmeVST3"]);
-    expect(toggle("VST3")).toBeDisabled();
-    expect(toggle("CLAP")).toBeEnabled();
+    fireEvent.click(toggle("clap"));
+    expect(names(list)).toEqual(["AUDelayAppleau", "VerbAcmevst3"]);
+    expect(toggle("vst3")).toBeDisabled();
+    expect(toggle("clap")).toBeEnabled();
 
     // The factory source has no plugins: no toggles.
     fireEvent.click(screen.getByRole("button", { name: "factory" }));
@@ -265,8 +347,8 @@ describe("DeviceLibrary plugin formats", () => {
     };
     await renderWith(desktop(), <DeviceLibrary category="AudioEffect" onPick={() => undefined} />);
     let list = await rows("effects");
-    await waitFor(() => expect(names(list)).toContain("VerbAcmeVST2"));
-    fireEvent.click(toggle("VST2"));
+    await waitFor(() => expect(names(list)).toContain("VerbAcmevst2"));
+    fireEvent.click(toggle("vst2"));
     expect(JSON.parse(localStorage.getItem("eth-device-library")!)).toMatchObject({ hiddenFormats: ["Vst2"] });
     // A new session reads it back.
     vi.resetModules();
@@ -277,11 +359,11 @@ describe("DeviceLibrary plugin formats", () => {
 
     await renderWith(desktop(), <DeviceLibrary category="AudioEffect" onPick={() => undefined} />);
     list = await rows("effects");
-    await waitFor(() => expect(names(list)).toContain("VerbAcmeVST3"));
-    expect(names(list)).not.toContain("VerbAcmeVST2");
-    expect(toggle("VST2")).toHaveAttribute("aria-pressed", "false");
-    fireEvent.click(toggle("VST2"));
-    expect(names(list)).toContain("VerbAcmeVST2");
+    await waitFor(() => expect(names(list)).toContain("VerbAcmevst3"));
+    expect(names(list)).not.toContain("VerbAcmevst2");
+    expect(toggle("vst2")).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(toggle("vst2"));
+    expect(names(list)).toContain("VerbAcmevst2");
     expect(JSON.parse(localStorage.getItem("eth-device-library")!)).toMatchObject({ hiddenFormats: [] });
   });
 
@@ -299,9 +381,9 @@ describe("DeviceLibrary plugin formats", () => {
     act(() => useLibraryStats.getState().setFormatShown("Vst3", false));
     await renderWith(new DesktopFake(), <DeviceLibrary pluginsOnly plugins={[VERB, VST_VERB]} onPick={() => undefined} />);
     const plugins = await rows("plugins");
-    expect(names(plugins)).toEqual(["VerbAcmeCLAP", "VerbAcmeVST3"]);
-    expect(toggle("CLAP")).toHaveAttribute("aria-pressed", "true");
-    expect(toggle("VST3")).toHaveAttribute("aria-pressed", "true");
+    expect(names(plugins)).toEqual(["VerbAcmeclap", "VerbAcmevst3"]);
+    expect(toggle("clap")).toHaveAttribute("aria-pressed", "true");
+    expect(toggle("vst3")).toHaveAttribute("aria-pressed", "true");
   });
 
   it("the format toggles show AU on macOS only", () => {
@@ -316,7 +398,7 @@ describe("DeviceLibrary plugin formats", () => {
     const picked: LibraryDevicePayload[] = [];
     await renderWith(new DesktopFake(), <DeviceLibrary pluginsOnly plugins={[VST2_VERB, twin, copy, VERB]} onPick={(p) => picked.push(p)} />);
     const list = await rows("plugins");
-    expect(names(list)).toEqual(["Other VerbElsewhereVST2", "VerbAcmeCLAP", "VerbAcmeVST2"]);
+    expect(names(list)).toEqual(["Other VerbElsewherevst2", "VerbAcmeclap", "VerbAcmevst2"]);
     const keys = list.getAllByRole("listitem").map((li) => li.querySelector<HTMLElement>("[data-key]")!.dataset.key);
     expect(new Set(keys).size).toBe(3);
 

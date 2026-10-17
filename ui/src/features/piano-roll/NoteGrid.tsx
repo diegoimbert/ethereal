@@ -3,7 +3,8 @@
  * marquee. Draw / move / resize notes; every drag is one undo gesture. A Shift-drag makes
  * the section instead (a time range, like the arrangement's time selection; `section.ts`).
  * Alt/Option + drag on a note body changes the velocity of the selection (or that note)
- * instead of moving it; Shift moves notes without snapping.
+ * instead of moving it; Alt pressed once a move has started turns its snapping off (Alt is
+ * the snap bypass of every drag).
  *
  * With several clips (multi-clip editing, `multiClip.ts`) the axis is the song timeline:
  * each clip is a band, the space outside every clip is shaded, notes take their clip's color
@@ -56,6 +57,7 @@ import { contentEnd } from "./clipTime";
 import { startDrag, useSend } from "./drag";
 import { noteRect, pitchToY, rowPitchDelta, yToPitch } from "./geometry";
 import { midiVelocity, moveEdits, newNote, noteEdit, resizeEdits, velocityDrag, velocityEdits } from "./noteEdits";
+import { newNoteVelocity, touchNote } from "./lastVelocity";
 import { InstanceList, RectRenderer } from "./noteCanvas";
 import {
   buildNotesLayer,
@@ -103,8 +105,8 @@ export interface NoteGridProps {
   highlight: boolean;
   tempo: TempoMap;
   /**
-   * Snap step (`null` = grid off). Alt bypasses snapping during a drag, except when moving
-   * notes: there Alt edits velocity and Shift bypasses snapping.
+   * Snap step (`null` = grid off). Alt bypasses snapping during every drag. On a note body
+   * Alt held at the press edits velocity instead, so a move is freed by Alt pressed mid-move.
    */
   step: GridStep | null;
   /** Length of a new note (the grid step, or a 1/16 when the grid is off). */
@@ -173,11 +175,11 @@ export function NoteGrid({
   const marqueeAlt = useRef(false);
   /** The section from a drag rectangle (snapped; alt: free). */
   const sectionFromRect = (rect: Rect): PianoRollSection | null => {
-    const at = (px: number) => Math.max(0, snapToGrid(pxToBeats(px, vp), marqueeAlt.current ? null : sectionStep(step), tempo, "nearest"));
+    const at = (px: number) => Math.max(space.floor, snapToGrid(pxToBeats(px, vp), marqueeAlt.current ? null : sectionStep(step), tempo, "nearest"));
     // The rows it was drawn over (like the arrangement's section covers its tracks).
     const a = yToPitch(rect.y0, keyH, rows);
     const b = yToPitch(Math.max(rect.y0, rect.y1 - 1e-3), keyH, rows);
-    return sectionOf(space.key, at(rect.x0), at(rect.x1), { low: Math.min(a, b), high: Math.max(a, b) });
+    return sectionOf(space.key, at(rect.x0), at(rect.x1), { low: Math.min(a, b), high: Math.max(a, b) }, space.floor);
   };
   // A plain drag selects notes; a Shift-drag makes a section AND selects the notes under the
   // rectangle (notes and a section at once, like the arrangement's section covering its clips),
@@ -213,9 +215,9 @@ export function NoteGrid({
         const next = extendOrRetract(prev, pxToBeats(p.x, vp), snap);
         const pitch = yToPitch(p.y, keyH, rows);
         const pitches = prev.pitches && { low: Math.min(prev.pitches.low, pitch), high: Math.max(prev.pitches.high, pitch) };
-        const sec = sectionOf(space.key, next.start, next.end, pitches);
+        const sec = sectionOf(space.key, next.start, next.end, pitches, space.floor);
         if (!sec) {
-          placeSectionMarker(space.key, next.start);
+          placeSectionMarker(space.key, next.start, space.floor);
           setPlayStart(transport, space.toSong(next.start));
           return true;
         }
@@ -233,8 +235,8 @@ export function NoteGrid({
     // A click on empty space (no drag) places the insert marker there, snapped to the grid
     // (alt: free). It never moves a playing playhead; while stopped, Play starts from it.
     onClick: (p, ev) => {
-      const content = Math.max(0, snapToGrid(pxToBeats(p.x, vp), ev.altKey ? null : step, tempo, "nearest"));
-      placeSectionMarker(space.key, content);
+      const content = Math.max(space.floor, snapToGrid(pxToBeats(p.x, vp), ev.altKey ? null : step, tempo, "nearest"));
+      placeSectionMarker(space.key, content, space.floor);
       setPlayStart(transport, space.toSong(content));
     },
   });
@@ -274,7 +276,10 @@ export function NoteGrid({
     if (!target) return false;
     if (target.clip.id !== clip.id) useEditorStore.getState().focusClip(target.clip.id);
     // `spec` in editor beats (the drag's length math); the command in the clip's content.
-    const spec = newNote(newId(), yToPitch(y, keyH, rows), start, newNoteBeats);
+    // Its velocity is the last touched note's (`lastVelocity.ts`).
+    const velocity = newNoteVelocity(useProjectStore.getState().project?.notes);
+    const spec = newNote(newId(), yToPitch(y, keyH, rows), start, newNoteBeats, velocity, space.floor);
+    touchNote(spec);
     const add = cmd("Note", { type: "Add", clip: target.clip.id, notes: [{ ...spec, start: target.content }] });
     // Select once the note exists (the selection is pruned against the project).
     const selectIt = () => itemSelection.getState().select("note", [spec.id], "replace");
@@ -356,8 +361,10 @@ export function NoteGrid({
     if (!wasSelected) sel.select("note", [note.id], mode === "remove" || mode === "toggle" ? "add" : mode);
     const selected = itemSelection.getState().selected.note;
     const originals = notes.filter((n) => selected.has(n.id));
-    // Every press on a note auditions it (plain, shift / cmd selection clicks and drags).
+    // Every press on a note auditions it (plain, shift / cmd selection clicks and drags),
+    // and new notes take its velocity (`lastVelocity.ts`).
     preview(note.clip, note.pitch, note.velocity);
+    touchNote(note);
     /** Copy ids by original id while the drag duplicates (cmd/ctrl held). */
     let copies: Map<NoteId, NoteId> | null = null;
     /** A click (no drag) on a selected note: plain selects just it; cmd deselects it. */
@@ -380,10 +387,11 @@ export function NoteGrid({
       {
         move: (dx, dy, ev) => {
           const dBeats = beatsMoved(pressX + dx);
-          // Resize: alt bypasses snapping. Move: shift does (alt at the press edits velocity
-          // instead; alt pressed mid-move still frees it).
-          if (zone !== "body") return cmd("Note", { type: "Edit", edits: resizeEdits(originals, note, zone, dBeats, ev.altKey ? null : step, tempo) });
-          const snap = ev.shiftKey || ev.altKey ? null : step;
+          // Alt bypasses snapping (on a move, alt at the press edits velocity instead, so
+          // there it is alt pressed mid-move). Shift does nothing here.
+          if (zone !== "body")
+            return cmd("Note", { type: "Edit", edits: resizeEdits(originals, note, zone, dBeats, ev.altKey ? null : step, tempo, space.floor) });
+          const snap = ev.altKey ? null : step;
           const edits = moveEdits(originals, note, dBeats, rowPitchDelta(note.pitch, dy, keyH, rows), snap, tempo, space.limits);
           // A vertical move re-auditions the pressed note at its new pitch (Ableton).
           preview(note.clip, edits.find((x) => x.id === note.id)?.pitch ?? note.pitch, note.velocity);

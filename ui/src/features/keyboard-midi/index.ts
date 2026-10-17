@@ -6,6 +6,8 @@ export {
   hasListeningTrack,
   releaseAll,
   setEnabled,
+  setOctave,
+  setVelocity,
   targetTrack,
   toggleKeyboardMidi,
   TOGGLE_ACTION,

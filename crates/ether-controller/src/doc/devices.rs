@@ -337,6 +337,26 @@ fn apply_inner(ctx: &mut DocCtx, c: &DeviceCommand) -> CmdResult<()> {
         DeviceCommand::SetZones { device, zones } => {
             crate::multisampler::set_zones(ctx, *device, zones)
         }
+        // `fx-modulation`: the Volume LFO's drawn cycle (one `Kind` change, one undo step).
+        DeviceCommand::SetLfoCurve { device, curve } => {
+            let d = ctx.device(*device)?;
+            if !matches!(
+                d.kind,
+                DeviceKind::Builtin {
+                    device: BuiltinDevice::VolumeLfo { .. }
+                }
+            ) {
+                return Err(invalid(format!("device {} is not a volume lfo", d.id)));
+            }
+            ctx.set_device(
+                d.id,
+                DeviceChange::Kind(DeviceKind::Builtin {
+                    device: BuiltinDevice::VolumeLfo {
+                        curve: curve.sanitized(),
+                    },
+                }),
+            )
+        }
         DeviceCommand::SetSample { device, media } => {
             let d = ctx.device(*device)?;
             if !matches!(

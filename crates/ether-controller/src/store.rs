@@ -390,6 +390,42 @@ pub trait Library {
             "external media is not available on this host".into(),
         ))
     }
+
+    // --- #519: the sample pack cache (docs/SAMPLES.md) ---
+
+    /// Read a file of the sample pack cache: `rel` (checked by the caller, `/`-separated) under
+    /// the host's samples folder (natively `<app data>/samples`, OPFS `samples/` on the web).
+    /// Default: unsupported (no cache: the built-in kit only).
+    fn sample_cache_read(&mut self, rel: &str) -> Result<Vec<u8>, StoreError> {
+        let _ = rel;
+        Err(StoreError::Unsupported(
+            "the sample cache is not available on this host".into(),
+        ))
+    }
+
+    /// Write a cache file, creating its folders; replaces it atomically where the host can.
+    fn sample_cache_write(&mut self, rel: &str, bytes: &[u8]) -> Result<(), StoreError> {
+        let _ = (rel, bytes);
+        Err(StoreError::Unsupported(
+            "the sample cache is not available on this host".into(),
+        ))
+    }
+
+    /// Delete a cache file (a missing one is not an error).
+    fn sample_cache_remove(&mut self, rel: &str) -> Result<(), StoreError> {
+        let _ = rel;
+        Err(StoreError::Unsupported(
+            "the sample cache is not available on this host".into(),
+        ))
+    }
+
+    /// The file names in a cache folder (empty when it doesn't exist).
+    fn sample_cache_list(&mut self, dir: &str) -> Result<Vec<String>, StoreError> {
+        let _ = dir;
+        Err(StoreError::Unsupported(
+            "the sample cache is not available on this host".into(),
+        ))
+    }
 }
 
 /// base-115 (`recents-shared`): the host-local sharing file next to `project.ether`

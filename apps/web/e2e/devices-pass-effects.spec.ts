@@ -52,6 +52,8 @@ const CASES: Case[] = [
   { type: "Phaser", shows: ["widget-lfo"], change: { param: 10, action: { select: "LFO Shape", option: "Triangle" }, expect: (v) => v === 1 } },
   { type: "Flanger", shows: ["widget-lfo"], change: { param: 10, action: { select: "LFO Shape", option: "Square" }, expect: (v) => v === 2 } },
   { type: "Tremolo", shows: ["widget-lfo"] },
+  { type: "Vibrato", shows: ["widget-lfo"], change: { param: 0, action: { select: "Shape", option: "Drift" }, expect: (v) => v === 6 } },
+  { type: "VolumeLfo", shows: ["widget-lfo-curve"], change: { param: 2, action: { select: "Sync Rate", option: "1/8" }, expect: (v) => v === 6 } },
   { type: "Saturator", shows: ["widget-transfer-curve"] },
   { type: "AutoFilter", shows: ["widget-filter-curve", "widget-lfo"] },
   { type: "Bitcrusher", shows: [] },

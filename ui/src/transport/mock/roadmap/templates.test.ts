@@ -67,7 +67,7 @@ describe("MockTransport templates (templates)", () => {
     const group = p.tracks[deriveId(seed, 0)]!;
     expect(group.kind).toBe("Group");
     const kids = Object.values(p.tracks).filter((t) => t.parent === group.id);
-    expect(kids.map((t) => t.name)).toEqual(["Kit"]);
+    expect(kids.map((t) => t.name)).toEqual(["kit"]);
     await expect(f.mock.send(cmd("Template", { type: "Delete", template: "factory/drum-bus" }))).rejects.toMatchObject({ code: "InvalidArgument" });
   });
 

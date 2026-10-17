@@ -127,4 +127,17 @@ describe("BeatGrid (step sequencer on Drum Rack tracks)", () => {
     fireEvent.click(screen.getByRole("button", { name: "add drums" }));
     expect(useDeviceWindows.getState().open).toContain(RACK);
   });
+
+  it("a clip extended to the left past its content start opens at its start: steps in the gap add notes there", async () => {
+    await setup();
+    // Song 4..8, then its left edge dragged 1 beat earlier: content -1..4 (a leading gap).
+    await send(cmd("Clip", { type: "SetBounds", id: CLIP, start: 4, length: 4, offset: 0 }));
+    await send(cmd("Clip", { type: "SetBounds", id: CLIP, start: 3, length: 5, offset: -1 }));
+    act(() => useEditorStore.getState().close());
+    act(() => useEditorStore.getState().openClip(CLIP));
+    await screen.findByRole("grid", { name: "steps" });
+    fireEvent.pointerDown(canvas(), { button: 0, ...at(0, 2) });
+    fireEvent.pointerUp(window);
+    await waitFor(() => expect(notes().map((n) => [n.pitch, n.start])).toEqual([[36, -0.75]]));
+  });
 });

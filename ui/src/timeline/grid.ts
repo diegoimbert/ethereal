@@ -154,16 +154,20 @@ export function snapToGrid(beats: Beats, step: GridStep | null, tempo: TempoMap,
 }
 
 /**
- * Snap a drag: the new position of an item that started at `origin` and was dragged by
- * `delta` beats. Absolute (default): the item's new start lands on the grid. Relative:
- * the item keeps its offset from the grid (the delta is snapped instead), like Ableton
- * when moving an off-grid clip. Returns the snapped delta.
+ * Snap a drag: the snapped delta for an item that started at `origin` and was dragged by
+ * `delta` beats (`step === null`: grid off, `delta` unchanged).
+ *
+ * - Absolute (default): the item's new start lands on the grid.
+ * - Relative (moves of notes and clips, like Ableton): an item already on the grid snaps as
+ *   in absolute mode; an off-grid item keeps its offset within the grid instead, the delta
+ *   being snapped to a whole number of steps (at 4.34 on a 1-beat grid: 3.34, 5.34, ...).
+ *   Clamping the result (e.g. at 0) is up to the caller.
  */
 export function snapDelta(origin: Beats, delta: Beats, step: GridStep | null, tempo: TempoMap, relative = false): Beats {
   if (step === null) return delta;
-  if (!relative) return snapToGrid(origin + delta, step, tempo) - origin;
+  if (!relative || Math.abs(snapToGrid(origin, step, tempo) - origin) <= BEATS_EPSILON) return snapToGrid(origin + delta, step, tempo) - origin;
   const len = stepLength(step, tempo.signatureAt(origin));
-  return snapBeats(delta, len);
+  return len > 0 ? snapBeats(delta, len) : delta;
 }
 
 /** Human-readable name of a grid step ("1/16", "1/8T", "1 Bar", "4 Bars"). */

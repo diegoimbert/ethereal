@@ -13,7 +13,7 @@
         "early-music"
       ],
       "author": "ethereal",
-      "description": "A4 = 415 Hz for baroque pitch."
+      "description": "A4 = 415 hz for baroque pitch."
     },
     "params": {
       "0": 415.0,

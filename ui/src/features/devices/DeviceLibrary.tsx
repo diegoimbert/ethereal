@@ -28,6 +28,7 @@ import { cmd } from "@/transport";
 import { localizeDescriptor, useT, type MessageKey } from "@/i18n";
 import type { LibraryDevicePayload } from "./libraryDevice";
 import { libraryKey, useLibraryStats, type LibrarySort } from "./libraryStats";
+import { stepWrapped } from "./libraryNav";
 
 export type LibrarySource = "All" | "Factory" | "Plugins";
 const SORT_LABEL: Record<LibrarySort, MessageKey> = {
@@ -218,7 +219,8 @@ export function DeviceLibrary({ category, categories, accept, pluginsOnly = fals
     if (ev.key !== "ArrowDown" && ev.key !== "ArrowUp") return;
     ev.preventDefault();
     const i = entries.findIndex((x) => x.key === activeKey);
-    const to = ev.key === "ArrowDown" ? Math.min(entries.length - 1, i + 1) : i < 0 ? entries.length - 1 : Math.max(0, i - 1);
+    // Wraps: Up on the first row goes to the last, Down on the last to the first.
+    const to = stepWrapped(i, entries.length, ev.key === "ArrowDown" ? 1 : -1);
     const next = entries[to];
     if (!next) return;
     setActive(next.key);

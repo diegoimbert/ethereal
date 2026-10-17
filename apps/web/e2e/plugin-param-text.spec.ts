@@ -42,9 +42,9 @@ test("plugin knobs show the plugin's own value text", async ({ page }) => {
 
   const list = (await showDeviceParams(page, id)).getByRole("list", { name: "Mock Mega parameters" });
   const value = (param: number) => list.locator(`[data-param-row="${param}"] .eth-param__value`);
-  // "Cutoff 1" (plain 0..1): the plugin's text; "Gain 0" (dB): the UI's formatting.
+  // "Cutoff 1" (plain 0..1): the plugin's text, as the plugin writes it ("20 Hz"); "Gain 0" (dB): the UI's formatting, lowercase ("0.0 db").
   await expect(value(1)).toHaveText("20 Hz");
-  await expect(value(0)).toHaveText("0.0 dB");
+  await expect(value(0)).toHaveText("0.0 db");
 
   await send(page, { domain: "Device", command: { type: "SetParam", device: id, param: 1, value: 0.5 } });
   await expect(value(1)).toHaveText("632 Hz");

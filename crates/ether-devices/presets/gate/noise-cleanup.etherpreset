@@ -15,7 +15,7 @@
         "noise"
       ],
       "author": "ethereal",
-      "description": "slow-releasing gate that pulls amp hiss down 30 dB when the part stops, without chopping tails."
+      "description": "slow-releasing gate that pulls amp hiss down 30 db when the part stops, without chopping tails."
     },
     "params": {
       "0": -55.0,

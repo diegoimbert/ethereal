@@ -111,7 +111,7 @@ test("the highlight of a part inside a menu is drawn above the menu", async ({ p
   await page.goto("/");
   const screen = projectScreen(page);
   await expect(screen).toBeVisible({ timeout: 30_000 });
-  await screen.getByRole("button", { name: "bring a project from another DAW", exact: true }).click();
+  await screen.getByRole("button", { name: "bring a project from another daw", exact: true }).click();
   await expect(bubble(page)).toContainText("bring your songs with you", { timeout: 30_000 });
   await next(page).click();
   await next(page).click();
