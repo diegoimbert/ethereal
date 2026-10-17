@@ -1,19 +1,31 @@
 /** MockTransport: the agent API (ai-chat's MockAgent). */
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import type { Command, ReplyValue } from "@/generated";
+import { agentCommand as agent, type AgentToolSpec, type ToolOutcome as Result } from "@/features/ai-chat/agentApi";
+import type { ReplyValue } from "@/generated";
 import { project, undo, useMock, type MockFixture } from "./testUtils";
 
-const agent = (command: object) => ({ domain: "Agent", command }) as unknown as Command;
-
-interface Result {
-  content: string;
-  is_error: boolean;
+function expectReply<T extends ReplyValue["type"]>(r: ReplyValue, type: T): asserts r is Extract<ReplyValue, { type: T }> {
+  expect(r.type).toBe(type);
 }
 
 async function call(f: MockFixture, name: string, input: unknown, raw?: string): Promise<Result> {
-  const r = (await f.mock.send(agent({ type: "CallTool", name, input: raw ?? JSON.stringify(input) }))) as unknown as Result & { type: string };
-  expect(r.type).toBe("AgentToolResult");
+  const r = await f.mock.send(agent({ type: "CallTool", name, input: raw ?? JSON.stringify(input) }));
+  expectReply(r, "AgentToolResult");
   return { content: r.content, is_error: r.is_error };
+}
+
+async function listTools(f: MockFixture): Promise<AgentToolSpec[]> {
+  const r = await f.mock.send(agent({ type: "ListTools" }));
+  expectReply(r, "AgentTools");
+  return r.tools;
+}
+
+/** Tool names of the controller's registry (crates/ether-controller/src/agent/tools.rs). */
+function registryNames(): string[] {
+  const src = readFileSync(resolve(__dirname, "../../../../../crates/ether-controller/src/agent/tools.rs"), "utf8");
+  return [...src.matchAll(/^\s*name: "([a-z_]+)",$/gm)].map((m) => m[1]!);
 }
 
 async function ok<T = Record<string, unknown>>(f: MockFixture, name: string, input: unknown): Promise<T> {
@@ -26,18 +38,21 @@ describe("MockTransport agent API", () => {
   const f = useMock();
 
   it("ListTools: names, descriptions and JSON-text schemas", async () => {
-    const r = (await f.mock.send(agent({ type: "ListTools" }))) as unknown as ReplyValue & {
-      tools: Array<{ name: string; description: string; input_schema: string }>;
-    };
-    expect(r.type).toBe("AgentTools");
-    const names = r.tools.map((t) => t.name);
+    const tools = await listTools(f);
+    const names = tools.map((t) => t.name);
     for (const n of ["get_project_overview", "create_track", "create_midi_clip", "add_notes", "set_track_mix", "set_tempo", "undo", "redo"]) {
       expect(names).toContain(n);
     }
-    for (const t of r.tools) {
+    for (const t of tools) {
       expect(t.description.length).toBeGreaterThan(10);
       expect(JSON.parse(t.input_schema)).toMatchObject({ type: "object" });
     }
+  });
+
+  it("every mock tool exists in the controller's registry (a rename there fails here)", async () => {
+    const real = registryNames();
+    expect(real.length).toBeGreaterThan(20);
+    expect((await listTools(f)).map((t) => t.name).filter((n) => !real.includes(n))).toEqual([]);
   });
 
   it("create a track, a clip and notes: one undo step per call, visible in the document", async () => {
