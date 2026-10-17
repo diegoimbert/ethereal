@@ -281,6 +281,9 @@ export function rackCommand(ctx: ReducerContext, c: RackCommand): void {
       tx.upsert("RackChain", { ...ch, order: keyForInsert(rackChainsOf(ctx.tx.project, ch.rack, ch.id), c.before) });
       return;
     }
+    case "CopyChain":
+      copyChainCommand(ctx, c);
+      return;
     case "SetChainMix": {
       const ch = chain(ctx, c.id);
       const next = { ...ch };
@@ -428,7 +431,7 @@ export function modulationCommand(ctx: ReducerContext, c: ModulationCommand): vo
         id: c.id,
         device: d.id,
         order: keyForInsert(siblings, null),
-        name: c.name ?? (same === 0 ? desc.name : `${desc.name} ${same + 1}`),
+        name: c.name ?? (same === 0 ? desc.name.toLowerCase() : `${desc.name.toLowerCase()} ${same + 1}`),
         kind: c.kind,
         params: Object.fromEntries(desc.params.map((p) => [p.id, p.default])),
       });
@@ -576,28 +579,79 @@ function copyModulation(ctx: ReducerContext, ids: Map<DeviceId, DeviceId>): void
 }
 
 function copyChains(ctx: ReducerContext, src: DeviceId, dst: DeviceId, ids: Map<DeviceId, DeviceId>): void {
+  for (const c of rackChainsOf(ctx.tx.project, src)) copyChain(ctx, c, ctx.newId(), dst, c.order, ids);
+}
+
+/** `racks::copy_chain`: chain `c` as `chainId` onto rack `dst` (devices, nested racks and pads). */
+function copyChain(ctx: ReducerContext, c: RackChain, chainId: RackChainId, dst: DeviceId, order: string, ids: Map<DeviceId, DeviceId>): void {
   const track = device(ctx, dst).track;
-  for (const c of rackChainsOf(ctx.tx.project, src)) {
-    const chainId = ctx.newId();
-    ctx.tx.upsert("RackChain", { ...c, id: chainId, rack: dst });
-    for (const d of chainDevicesOf(ctx.tx.project, c.id)) {
-      const id = ctx.newId();
-      ids.set(d.id, id);
-      ctx.tx.upsert("Device", { ...d, id, track, chain: chainId });
-      // A nested rack: its chains too (depth bounded by the model).
-      if (isChainRack(d)) copyChains(ctx, d.id, id, ids);
-      // A nested drum rack: its pads with their chains, and the chains of the racks on them.
-      if (isDrumRack(d)) {
-        const pads = new Map<DeviceId, DeviceId>();
-        copyRackPads(ctx, d.id, id, track, pads);
-        for (const [from, to] of pads) {
-          ids.set(from, to);
-          const x = ctx.tx.get("Device", from);
-          if (x && isChainRack(x)) copyChains(ctx, from, to, ids);
-        }
+  ctx.tx.upsert("RackChain", { ...c, id: chainId, rack: dst, order });
+  for (const d of chainDevicesOf(ctx.tx.project, c.id)) {
+    const id = ctx.newId();
+    ids.set(d.id, id);
+    // A sidechain that can't hold at the new place is cut (`racks::copy_chain`).
+    const cutSidechain = d.sidechain === track && (d.track !== track || d.sidechain_tap?.chain != null);
+    const copy: Device = { ...d, id, track, chain: chainId };
+    if (cutSidechain) {
+      copy.sidechain = null;
+      delete copy.sidechain_tap;
+    }
+    ctx.tx.upsert("Device", copy);
+    // A nested rack: its chains too (depth bounded by the model).
+    if (isChainRack(d)) copyChains(ctx, d.id, id, ids);
+    // A nested drum rack: its pads with their chains, and the chains of the racks on them.
+    if (isDrumRack(d)) {
+      const pads = new Map<DeviceId, DeviceId>();
+      copyRackPads(ctx, d.id, id, track, pads);
+      for (const [from, to] of pads) {
+        ids.set(from, to);
+        const x = ctx.tx.get("Device", from);
+        if (x && isChainRack(x)) copyChains(ctx, from, to, ids);
       }
     }
   }
+}
+
+/**
+ * `Rack::CopyChain` (`racks::copy_chain_command`): copy a chain onto any rack, `cut` then
+ * removes the source. Mappings from outside the chain stay when their source surrounds the
+ * new place; a cut on the same track carries its devices' automation lanes.
+ */
+function copyChainCommand(ctx: ReducerContext, c: Extract<RackCommand, { type: "CopyChain" }>): void {
+  const { tx } = ctx;
+  if (tx.get("RackChain", c.new_id)) return;
+  const src = chain(ctx, c.id);
+  const r = rack(ctx, c.rack);
+  for (const d of chainDevicesOf(tx.project, src.id)) {
+    if (d.kind.type !== "Builtin") continue;
+    checkNestable(ctx, d.kind.device.type, d.id, r.id);
+    checkFit(rackType(r)!, builtinDescriptor(d.kind.device).category);
+  }
+  if (c.before !== null && tx.get("RackChain", c.before)?.rack !== r.id) fail("InvalidArgument", "`before` must be a chain of the target rack");
+  const ids = new Map<DeviceId, DeviceId>();
+  copyChain(ctx, src, c.new_id, r.id, keyForInsert(rackChainsOf(tx.project, r.id), c.before), ids);
+  copyModulation(ctx, ids);
+  const around = [r.id, ...(enclosingRacks(ctx, r.id) ?? [])];
+  for (const m of tx.all("ModMapping")) {
+    const target = ids.get(m.device);
+    if (target === undefined) continue;
+    const host = sourceHost(ctx, m.source);
+    if (host === null || ids.has(host) || !around.includes(host)) continue;
+    tx.upsert("ModMapping", { ...m, id: ctx.newId(), device: target });
+  }
+  if (!c.cut) return;
+  if (device(ctx, src.rack).track === r.track) {
+    for (const l of tx.all("AutomationLane")) {
+      const old = targetDevice(l.target);
+      const to = old === null ? undefined : ids.get(old);
+      if (to === undefined) continue;
+      const lane = ctx.newId();
+      const target = l.target.type === "DeviceParam" ? { ...l.target, device: to } : l.target.type === "DeviceEnabled" ? { ...l.target, device: to } : l.target;
+      tx.upsert("AutomationLane", { ...l, id: lane, target });
+      for (const pt of tx.all("AutomationPoint")) if (pt.lane === l.id) tx.upsert("AutomationPoint", { ...pt, id: ctx.newId(), lane });
+    }
+  }
+  deleteChain(ctx, src.id, (d) => deleteChainDevice(ctx, d));
 }
 
 /** `Track::Duplicate` / `Device::Duplicate`: `ids` maps the copied devices (a track's, or a

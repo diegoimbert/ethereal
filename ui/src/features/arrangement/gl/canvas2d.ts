@@ -192,7 +192,7 @@ export class Canvas2DBackend implements RenderBackend {
       let clip: Box | null = { x0: cx0, y0: rowY(l, d[o + 28]!, d[o + 29]!), x1: cx1, y1: rowY(l, d[o + 30]!, d[o + 31]!) };
       let clipR = d[o + 22]!;
       let [x0, x1] = boxX(f, d[o]!, d[o + 1]!, d[o + 2]!, d[o + 3]!, d[o + 4]!);
-      const handle = Math.min(6, 0.25 * (cx1 - cx0));
+      const handle = Math.max(3, Math.min(6, 0.25 * (cx1 - cx0))); // hitTest.ts handleWidth
       if (flags & RectFlag.HandleStart) [x0, x1] = [cx0, cx0 + handle];
       if (flags & RectFlag.HandleEnd) [x0, x1] = [cx1 - handle, cx1];
       let r: Box = { x0, y0: rowY(l, d[o + 8]!, d[o + 9]!), x1, y1: rowY(l, d[o + 10]!, d[o + 11]!) };

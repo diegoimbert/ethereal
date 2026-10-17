@@ -15,7 +15,7 @@
         "wobble"
       ],
       "author": "ethereal",
-      "description": "resonant 24 dB low-pass wobbling in 1/8 notes with some drive."
+      "description": "resonant 24 db low-pass wobbling in 1/8 notes with some drive."
     },
     "params": {
       "0": 1.0,

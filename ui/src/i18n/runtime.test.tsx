@@ -1,7 +1,7 @@
 import { act, render, screen } from "@testing-library/react";
 import { useEffect } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { compareText, foldForSearch, formatFixed, parseNumber } from "./format";
+import { compareText, foldForSearch, formatBytes, formatDate, formatDateTime, formatFixed, formatNumber, parseNumber } from "./format";
 import { PSEUDO_CLOSE, PSEUDO_OPEN, pseudoMessage } from "./pseudo";
 import { useT } from "./hooks";
 import { Trans } from "./Trans";
@@ -68,7 +68,7 @@ describe("engine messages (tText)", () => {
     expect(tText(move, "move 3 clips")).toBe("move 3 clips");
     await setLocale("fr");
     expect(tText(move, "move 3 clips")).toBe("déplacer 3 clips");
-    expect(tText(ai, "AI: move 3 clips")).toBe("IA : déplacer 3 clips");
+    expect(tText(ai, "ai: move 3 clips")).toBe("ia : déplacer 3 clips");
     // Names (user content) stay as they are.
     expect(tText(remove, "remove Reverb")).toBe("retirer Reverb");
     // No key, or one this build doesn't know (a newer engine): the English.
@@ -171,6 +171,16 @@ describe("formatting", () => {
     await setLocale("fr");
     expect(formatFixed(1.5, 2)).toBe("1,50");
     expect(formatFixed(-2.25, 1)).toBe("-2,3");
+  });
+
+  it("writes units, months and am / pm lowercase, like all the app's text", async () => {
+    expect(formatBytes(1_200_000)).toBe("1.2 mb");
+    expect(formatBytes(340_000)).toBe("340 kb");
+    expect(formatNumber(2, { style: "unit", unit: "gigabyte", unitDisplay: "short" })).toBe("2 gb");
+    expect(formatDate(Date.UTC(2026, 9, 15, 12), { dateStyle: "medium", timeZone: "UTC" })).toBe("oct 15, 2026");
+    expect(formatDateTime(Date.UTC(2026, 9, 15, 23, 5), { timeStyle: "short", timeZone: "UTC" })).toBe("11:05 pm");
+    await setLocale("fr");
+    expect(formatBytes(1_200_000)).toBe("1,2\u202fmo");
   });
 
   it("sorts and searches the way people read", () => {

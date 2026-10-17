@@ -2,10 +2,11 @@
 import type { DeviceId } from "./DeviceId";
 import type { DeviceSpec } from "./DeviceSpec";
 import type { IrSource } from "./IrSource";
+import type { LfoCurve } from "./LfoCurve";
 import type { MediaId } from "./MediaId";
 import type { ParamId } from "./ParamId";
 import type { SampleZone } from "./SampleZone";
 import type { SidechainTap } from "./SidechainTap";
 import type { TrackId } from "./TrackId";
 
-export type DeviceCommand = { "type": "Insert", id: DeviceId, track: TrackId, device: DeviceSpec, before: DeviceId | null, } | { "type": "Remove", id: DeviceId, } | { "type": "Move", id: DeviceId, track: TrackId, before: DeviceId | null, } | { "type": "Duplicate", id: DeviceId, new_id: DeviceId, track?: TrackId, } | { "type": "Rename", id: DeviceId, name: string, } | { "type": "SetEnabled", id: DeviceId, enabled: boolean, } | { "type": "SetParam", device: DeviceId, param: ParamId, value: number, } | { "type": "ResetParam", device: DeviceId, param: ParamId, } | { "type": "SetSample", device: DeviceId, media: MediaId | null, } | { "type": "ListBuiltin" } | { "type": "GetDescriptor", device: DeviceId, } | { "type": "SetSidechain", device: DeviceId, source: TrackId | null, tap?: SidechainTap, } | { "type": "SetZones", device: DeviceId, zones: Array<SampleZone>, } | { "type": "SetIr", device: DeviceId, ir: IrSource | null, } | { "type": "ListFactoryIrs" };
+export type DeviceCommand = { "type": "Insert", id: DeviceId, track: TrackId, device: DeviceSpec, before: DeviceId | null, } | { "type": "Remove", id: DeviceId, } | { "type": "Move", id: DeviceId, track: TrackId, before: DeviceId | null, } | { "type": "Duplicate", id: DeviceId, new_id: DeviceId, track?: TrackId, } | { "type": "Rename", id: DeviceId, name: string, } | { "type": "SetEnabled", id: DeviceId, enabled: boolean, } | { "type": "SetParam", device: DeviceId, param: ParamId, value: number, } | { "type": "ResetParam", device: DeviceId, param: ParamId, } | { "type": "SetSample", device: DeviceId, media: MediaId | null, } | { "type": "ListBuiltin" } | { "type": "GetDescriptor", device: DeviceId, } | { "type": "SetSidechain", device: DeviceId, source: TrackId | null, tap?: SidechainTap, } | { "type": "SetZones", device: DeviceId, zones: Array<SampleZone>, } | { "type": "SetIr", device: DeviceId, ir: IrSource | null, } | { "type": "ListFactoryIrs" } | { "type": "SetLfoCurve", device: DeviceId, curve: LfoCurve, };

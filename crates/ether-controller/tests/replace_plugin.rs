@@ -27,7 +27,7 @@ use ether_core::protocol::resolver::{
     ParamMatch, ReplaceReport, ReplacementPlugin, ResolveCommand,
 };
 use ether_core::protocol::tracks::TrackCommand;
-use ether_core::protocol::{Command, ErrorCode, ReplyValue};
+use ether_core::protocol::{Command, ReplyValue};
 
 const ALPHA: &str = "com.test.Alpha";
 const BETA: &str = "com.test.Beta";
@@ -70,7 +70,6 @@ fn descriptor(id: &str, name: &str, params: Vec<ParamInfo>) -> DeviceDescriptor 
 struct Setup {
     h: Harness,
     device: DeviceId,
-    other: DeviceId,
     sidechain: TrackId,
     cutoff_lane: AutomationLaneId,
     drive_lane: AutomationLaneId,
@@ -175,7 +174,7 @@ fn setup() -> Setup {
         },
         before: None,
     }));
-    let other = builtin(&mut h, BuiltinDeviceType::Delay);
+    builtin(&mut h, BuiltinDeviceType::Delay);
     h.tick();
     for (p, v) in [(1, 25.0), (2, 0.5), (3, 5.0)] {
         h.ok(Command::Device(DeviceCommand::SetParam {
@@ -259,7 +258,6 @@ fn setup() -> Setup {
     Setup {
         h,
         device,
-        other,
         sidechain,
         cutoff_lane,
         drive_lane,
@@ -288,7 +286,8 @@ fn replace(
 ) -> ReplaceReport {
     match h.ok(Command::Resolve(ResolveCommand::Replace {
         device,
-        plugin: to,
+        plugin: Some(to),
+        builtin: None,
         retain,
         preview,
     })) {
@@ -331,7 +330,7 @@ fn retain_moves_values_lanes_and_mappings_by_name_in_one_undo_step() {
             state_kept: false,
             kept: 2,
             lost: vec![
-                "Plugin state (presets, loaded samples)".into(),
+                "plugin state (presets, loaded samples)".into(),
                 "Drive".into()
             ],
             lanes_removed: 1,
@@ -486,17 +485,4 @@ fn the_same_plugin_keeps_its_live_state_and_ids() {
         created_with(h, s.device),
         Some(Some(Base64Bytes(b"alpha-live".to_vec())))
     );
-}
-
-#[test]
-fn only_plugin_devices_are_replaced() {
-    let mut s = setup();
-    let e = err(&s.h.send(Command::Resolve(ResolveCommand::Replace {
-        device: s.other,
-        plugin: beta(),
-        retain: true,
-        preview: false,
-    })));
-    assert_eq!(e.code, ErrorCode::InvalidArgument);
-    assert!(e.message.contains("is a built-in device"), "{}", e.message);
 }

@@ -58,11 +58,15 @@ test("automation lanes: click sets the cursor, ⇧-drag selects a range, ⌘D du
   expect(box.height).toBeCloseTo(64, 0);
   const header = page.getByRole("group", { name: `${midi.name} track` });
 
-  // Two points (a ramp up), double-clicked in.
+  // Two points (a ramp up): double-clicked in (each takes the lane's value there), the
+  // second one dragged up while held.
   await svg.dblclick({ position: { x: 20, y: box.height * 0.8 } });
   await expect.poll(async () => (await volumePoints(page)).length).toBe(1);
-  await svg.dblclick({ position: { x: 200, y: box.height * 0.2 } });
+  await page.mouse.click(box.x + 200, box.y + box.height * 0.5);
+  await page.mouse.down({ clickCount: 2 });
   await expect.poll(async () => (await volumePoints(page)).length).toBe(2);
+  await page.mouse.move(box.x + 200, box.y + box.height * 0.5 - 6, { steps: 4 });
+  await page.mouse.up();
   const [a, b] = await volumePoints(page);
   expect(b!.value).toBeGreaterThan(a!.value);
 
@@ -129,7 +133,7 @@ test("automation lanes: click sets the cursor, ⇧-drag selects a range, ⌘D du
   const tip = volume.getByTestId("automation-drag-tip");
   await expect(tip).toBeVisible();
   // Whole dB on the tooltip while ⇧ is held.
-  await expect(tip.locator(".eth-auto-lane__tip-value")).toHaveText(/^-?\d+(\.0+)? dB$/);
+  await expect(tip.locator(".eth-auto-lane__tip-value")).toHaveText(/^-?\d+(\.0+)? db$/);
   const moving = (await volumePoints(page)).find((p) => p.id === created.id)!;
   expect(moving.time).toBeGreaterThan(created.time);
   expect(moving.value).toBeGreaterThan(created.value);

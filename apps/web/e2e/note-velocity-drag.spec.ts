@@ -116,3 +116,63 @@ test("alt-drag on a selected note changes the selection's velocity as one undo s
 
   expect(errors).toEqual([]);
 });
+
+// #954: Alt/Option is the snap bypass of every drag. Alt held at the press on a note body edits
+// velocity (above), so a note move is freed by Alt pressed once it is moving; Shift no longer
+// frees it.
+test("alt pressed mid-move moves a note off the grid; shift doesn't", async ({ page }) => {
+  test.setTimeout(120_000);
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await launch(page, `Alt snap bypass ${Date.now()}`);
+
+  const t = await createTrack(page, "Midi");
+  await page.locator(`[data-lane="${t.id}"]`).dblclick({ position: { x: 5, y: 30 } });
+  await expect.poll(async () => Object.values((await doc(page)).clips).filter((c) => c.track === t.id).length).toBe(1);
+  const clip = Object.values((await doc(page)).clips).find((c) => c.track === t.id)!.id;
+  await openClip(page, clip);
+  const grid = page.getByTestId("piano-roll-grid");
+  await expect(grid).toBeVisible();
+  const gbox = (await grid.boundingBox())!;
+  const body = (await page.locator(".eth-pr__body").boundingBox())!;
+  await page.mouse.dblclick(gbox.x + 30, body.y + body.height / 2);
+  await expect.poll(async () => (await notesOf(page, clip)).length).toBe(1);
+  const n0 = (await notesOf(page, clip))[0]!;
+  // A new note is one grid step long: drag by 0.4 of it (snapped: no move; free: 0.4 step).
+  const nb = await pianoRollNote(grid, n0.id);
+  const step = n0.duration;
+  const dx = nb.width * 0.4;
+  const cx = nb.x + nb.width / 2;
+  const cy = nb.y + nb.height / 2;
+  const startOf = async () => (await notesOf(page, clip))[0]!.start;
+  const freed = async () => Math.abs((await startOf()) - (n0.start + step * 0.4)) < step * 0.05;
+
+  // --- Shift held through the move: still snapped ------------------------------------------------
+  await page.mouse.move(cx, cy);
+  await page.keyboard.down("Shift");
+  await page.mouse.down();
+  await page.mouse.move(cx + dx, cy, { steps: 6 });
+  await page.mouse.up();
+  await page.keyboard.up("Shift");
+  expect(await startOf()).toBeCloseTo(n0.start, 5);
+
+  // --- A plain press, then Alt once moving: free; releasing Alt mid-drag snaps again -----------
+  await page.mouse.move(cx, cy);
+  await page.mouse.down();
+  await page.mouse.move(cx + dx / 2, cy, { steps: 3 });
+  await page.keyboard.down("Alt");
+  await page.mouse.move(cx + dx, cy, { steps: 3 });
+  await expect.poll(freed).toBe(true);
+  await page.keyboard.up("Alt");
+  await expect.poll(startOf).toBeCloseTo(n0.start, 5);
+  await page.keyboard.down("Alt");
+  await expect.poll(freed).toBe(true);
+  await page.mouse.up();
+  await page.keyboard.up("Alt");
+  // A move, not a velocity edit.
+  const moved = (await notesOf(page, clip))[0]!;
+  expect(moved.velocity).toBe(n0.velocity);
+  expect(moved.pitch).toBe(n0.pitch);
+
+  expect(errors).toEqual([]);
+});

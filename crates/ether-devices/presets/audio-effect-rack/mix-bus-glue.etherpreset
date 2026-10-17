@@ -16,7 +16,7 @@
         "glue"
       ],
       "author": "ethereal",
-      "description": "for a mix bus: a 25 Hz low cut and a little air, a slow 2:1 glue compressor that ignores the sub, and a safety limiter at -1 dB. macro 1 adds glue."
+      "description": "for a mix bus: a 25 hz low cut and a little air, a slow 2:1 glue compressor that ignores the sub, and a safety limiter at -1 db. macro 1 adds glue."
     },
     "params": {
       "0": 0.0,

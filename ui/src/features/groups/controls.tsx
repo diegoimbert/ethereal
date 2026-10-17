@@ -47,7 +47,7 @@ export function TrackInputSelect({ track, className }: { track: Track; className
           {
             value: "keep",
             label:
-              input.type === "Audio" ? t("groups.input.hardware", { channels: `${input.first + 1}${input.count > 1 ? `/${input.first + 2}` : ""}` }) : "MIDI",
+              input.type === "Audio" ? t("groups.input.hardware", { channels: `${input.first + 1}${input.count > 1 ? `/${input.first + 2}` : ""}` }) : "midi",
           },
         ]
       : []),
@@ -92,7 +92,7 @@ export function VcaSelect({ track, className }: { track: Track; className?: stri
     <Select
       size="sm"
       className={className}
-      aria-label={`${track.name} VCA`}
+      aria-label={`${track.name} vca`}
       value={track.vca ?? "none"}
       onChange={(v) => void assignVca(transport, [track.id], v === "none" ? null : v)}
       options={[{ value: "none", label: t("groups.vca.none") }, ...targets.map((v) => ({ value: v.id, label: t("groups.vca.option", { name: v.name }) }))]}
@@ -115,7 +115,7 @@ export function GroupsRoutingRows({ track, Row }: { track: Track; Row: Component
         </Row>
       )}
       {track.kind !== "Master" && (hasVcaChoice || track.vca) && (
-        <Row label="VCA">
+        <Row label="vca">
           <VcaSelect track={track} />
         </Row>
       )}

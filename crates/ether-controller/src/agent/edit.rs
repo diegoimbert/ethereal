@@ -352,7 +352,7 @@ where
         if !notes.is_empty() {
             commands.push(Command::Note(NoteCommand::Add { clip: id, notes }));
         }
-        self.agent_batch(label("add MIDI clip"), &commands, now, out)?;
+        self.agent_batch(label("add midi clip"), &commands, now, out)?;
         let c = self.clip_of(id)?;
         Ok(json!({
             "clip_id": id.to_string(),

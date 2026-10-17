@@ -77,12 +77,13 @@ fn format_rank(f: PluginFormat) -> u8 {
     }
 }
 
+/// A format's name in the reasons the resolver dialog shows (lowercase, like all the UI's text).
 pub fn format_label(f: PluginFormat) -> &'static str {
     match f {
-        PluginFormat::Clap => "CLAP",
-        PluginFormat::Vst3 => "VST3",
-        PluginFormat::Au => "AU",
-        PluginFormat::Vst2 => "VST2",
+        PluginFormat::Clap => "clap",
+        PluginFormat::Vst3 => "vst3",
+        PluginFormat::Au => "au",
+        PluginFormat::Vst2 => "vst2",
     }
 }
 
@@ -101,7 +102,7 @@ fn rule_for(m: &Missing<'_>, p: &PluginDescriptor) -> Option<(MatchRule, f32, St
         return Some((
             MatchRule::SameId,
             1.0,
-            "The same plugin is installed".into(),
+            "the same plugin is installed".into(),
         ));
     }
     let vendor = normalize::vendor_match(m.vendor, &p.vendor);
@@ -118,7 +119,7 @@ fn rule_for(m: &Missing<'_>, p: &PluginDescriptor) -> Option<(MatchRule, f32, St
             MatchRule::SameId,
             0.95,
             format!(
-                "Same plugin id ({a}) in {}: {} → {}",
+                "same plugin id ({a}) in {}: {} → {}",
                 format_label(p.format),
                 format_label(m.format),
                 format_label(p.format)
@@ -139,7 +140,7 @@ fn rule_for(m: &Missing<'_>, p: &PluginDescriptor) -> Option<(MatchRule, f32, St
             MatchRule::SameName,
             0.9 - unknown_penalty,
             format!(
-                "Same name{} in {}",
+                "same name{} in {}",
                 if vendor == VendorMatch::Same {
                     " and vendor"
                 } else {
@@ -168,7 +169,7 @@ fn rule_for(m: &Missing<'_>, p: &PluginDescriptor) -> Option<(MatchRule, f32, St
             MatchRule::SameFamily,
             base - unknown_penalty,
             format!(
-                "Same plugin family{}: {} → {} ({what})",
+                "same plugin family{}: {} → {} ({what})",
                 if vendor == VendorMatch::Same {
                     " and vendor"
                 } else {
@@ -195,7 +196,7 @@ fn rule_for(m: &Missing<'_>, p: &PluginDescriptor) -> Option<(MatchRule, f32, St
             MatchRule::Similar,
             c.clamp(0.0, 0.7),
             format!(
-                "Similar name ({:.0}% alike): {} → {}",
+                "similar name ({:.0}% alike): {} → {}",
                 sim * 100.0,
                 m.name,
                 p.name
@@ -305,12 +306,12 @@ pub fn plan(
             0,
             if format != m.format {
                 format!(
-                    "Plugin state (presets, loaded samples): {} state can't be read by the {} plugin",
+                    "plugin state (presets, loaded samples): {} state can't be read by the {} plugin",
                     format_label(m.format),
                     format_label(format)
                 )
             } else {
-                "Plugin state (presets, loaded samples): another plugin can't read it".into()
+                "plugin state (presets, loaded samples): another plugin can't read it".into()
             },
         );
     }
@@ -490,7 +491,7 @@ mod tests {
         assert_eq!(c[1].format, PluginFormat::Clap);
         assert!(matches!(c[1].plan, ParamPlan::Map { .. }));
         assert!(
-            c[1].lost[0].contains("VST3 state can't be read by the CLAP plugin"),
+            c[1].lost[0].contains("vst3 state can't be read by the clap plugin"),
             "{:?}",
             c[1].lost
         );
@@ -609,7 +610,7 @@ mod tests {
         let c = candidates(&m, &installed, &BTreeMap::new());
         assert_eq!(c[0].rule, MatchRule::SameName);
         assert!((c[0].confidence - 0.9).abs() < 1e-6);
-        assert_eq!(c[0].reason, "Same name and vendor in VST3");
+        assert_eq!(c[0].reason, "same name and vendor in vst3");
     }
 
     #[test]

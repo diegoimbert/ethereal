@@ -103,6 +103,7 @@ describe("registry and presets", () => {
       "edit.deselect": ["Escape"],
       "edit.split": ["Mod+E"],
       "clip.reverse": ["R"],
+      "clip.consolidate": ["Mod+J"],
       "clip.toggleLoop": ["Mod+Shift+L"],
       "track.group": ["Mod+G"],
       "track.ungroup": ["Mod+Shift+G"],
@@ -136,7 +137,7 @@ describe("registry and presets", () => {
       "project.save": ["Mod+S"],
       "project.snapshot": ["Mod+Alt+S"],
       "file.import": ["Mod+I"],
-      "view.editor": ["Mod+J"],
+      "view.editor": ["Mod+Alt+L"],
       "ai:ask": ["Mod+Shift+A"],
       "collab.focusChat": ["Mod+Shift+M"],
     });
@@ -153,7 +154,9 @@ describe("registry and presets", () => {
       expect(ableton.slice(0, a.chords.length)).toEqual([...a.chords]);
     }
     expect(presetChords(registeredAction("transport.record")!, "AbletonLike")).toEqual(["F9"]);
-    expect(presetChords(registeredAction("view.editor")!, "AbletonLike")).toEqual(["Mod+J", "Mod+Alt+L"]);
+    expect(presetChords(registeredAction("view.editor")!, "AbletonLike")).toEqual(["Mod+Alt+L"]);
+    // #870: Mod+J consolidates the selected clips (it used to toggle the editor drawer).
+    expect(presetChords(registeredAction("clip.consolidate")!, "AbletonLike")).toEqual(["Mod+J"]);
   });
 
   it("other features can register actions", () => {

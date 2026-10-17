@@ -218,6 +218,37 @@ test("a click on a factory device's card selects it; its window opens from its b
   await page.keyboard.press("Escape");
 });
 
+// ⌘V with no device selected (a click on the chain's empty space) appends at the chain's end;
+// another ⌘V appends again (deviceClipboard.ts).
+test("a device pasted with none selected goes at the end of the chain", async ({ page }) => {
+  test.setTimeout(60_000);
+  const id = await insertEq(page, "dark");
+  const card = deviceCard(page, id);
+  const track = (await project(page))!.devices[id]!.track;
+  const chain = (): Promise<string[]> =>
+    project(page).then((p) =>
+      Object.values(p!.devices)
+        .filter((d) => d.track === track && d.chain == null && d.pad === null)
+        .sort((a, b) => (a.order < b.order ? -1 : 1))
+        .map((d) => d.id),
+    );
+  await card.locator(".eth-device__name").click();
+  await page.keyboard.press("ControlOrMeta+c");
+  // The chain's empty space: no device selected, the chain focused.
+  const space = page.locator("[data-paste-chain]").filter({ has: card });
+  await space.locator(":scope > .eth-devices__end").click();
+  await expect(card).not.toHaveClass(/eth-device--selected/);
+  await expect(space).toBeFocused();
+  await page.keyboard.press("ControlOrMeta+v");
+  await expect.poll(() => chain().then((c) => c.length)).toBe(2);
+  const [first, pasted] = await chain();
+  expect(first).toBe(id);
+  await expect(deviceCard(page, pasted!)).toHaveClass(/eth-device--selected/);
+  await page.keyboard.press("ControlOrMeta+v");
+  await expect.poll(() => chain().then((c) => c.length)).toBe(3);
+  expect((await chain()).slice(0, 2)).toEqual([id, pasted]);
+});
+
 test("a plugin's header (mock engine): the same two toggles, independent", async ({ page }) => {
   test.setTimeout(60_000);
   await page.setViewportSize({ width: 1440, height: 900 });
@@ -239,16 +270,20 @@ test("a plugin's header (mock engine): the same two toggles, independent", async
   const card = deviceCard(page, id);
   const header = card.locator(":scope > header");
   const windowToggle = header.getByRole("button", { name: "open Mock Mega window" });
-  await expect(windowToggle).toBeEnabled();
-  await expect(windowToggle).toHaveAttribute("title", "open the plugin window");
+  // No plugin hosting on the web: the plugin's editor can't open here. The toggle says why
+  // (aria-disabled, so its tooltip still shows) instead of doing nothing (#967).
+  await expect(windowToggle).toBeDisabled();
+  await expect(windowToggle).toHaveAttribute("aria-disabled", "true");
+  await expect(windowToggle).toHaveAttribute("title", /plugins don't run in the browser/);
   await expect(windowToggle).toHaveAttribute("aria-pressed", "false");
-  // The parameters: the generic list, inline (no plugin hosting on the web: the plugin's
-  // editor can't open here, and a factory window never opens for a plugin).
+  // The parameters: the generic list, inline (and a factory window never opens for a plugin).
   await showDeviceParams(page, id);
   await expect(card.getByRole("list", { name: "Mock Mega parameters" })).toBeVisible();
   await expect(windowToggle).toHaveAttribute("aria-pressed", "false");
-  await windowToggle.click();
+  // aria-disabled: a click reaches it and opens nothing (no window, no error).
+  await windowToggle.click({ force: true });
   await expect(page.locator(`[data-device-window="${id}"]`)).toHaveCount(0);
+  await expect(page.locator("[data-remote-plugin-window]")).toHaveCount(0);
   await expect(card.getByTestId("device-params")).toBeVisible();
   // A click on the card asks for the plugin's editor, like the toggle: never a factory window.
   await header.click({ position: { x: (await header.boundingBox())!.width / 2, y: 4 } });

@@ -22,6 +22,7 @@
 
 use ether_protocol::devices::{DeviceDescriptor, ParamInfo};
 use ether_protocol::model::ParamId;
+use serde::{Deserialize, Serialize};
 
 use crate::config::PrepareConfig;
 use crate::node::Device;
@@ -55,6 +56,14 @@ pub trait PluginController {
     fn open_editor(&mut self) -> Result<(), PluginError>;
     fn close_editor(&mut self);
 
+    /// The open editor's top-level native window (for capturing it and injecting input into
+    /// it, #853). `None` while no editor is open, or when the window isn't known (yet): a
+    /// plugin's own floating window (CLAP) is discovered best-effort after it opens, so this
+    /// may turn `Some` a few polls later. Main thread.
+    fn editor_window(&self) -> Option<NativeWindow> {
+        None
+    }
+
     /// Main-thread housekeeping (CLAP `on_main_thread`, timers, GUI callbacks). Appends
     /// notifications for the controller. Call regularly (~30-60 Hz).
     fn poll(&mut self, out: &mut Vec<PluginNotification>);
@@ -87,6 +96,37 @@ pub trait PluginController {
             "setting params while inactive".into(),
         ))
     }
+}
+
+/// A plugin editor's top-level native window, owned by process `pid`: the host process for
+/// in-process plugins, the helper's for sandboxed ones (X11 window ids and CGWindowIDs are
+/// valid across processes; an `HWND` is system-wide too).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NativeWindow {
+    pub pid: u32,
+    pub handle: WindowHandle,
+}
+
+/// A platform window handle as plain integers (serializable, `Send`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", tag = "kind")]
+pub enum WindowHandle {
+    /// The X11 window id (the client window, not a window manager frame).
+    X11 {
+        window: u64,
+    },
+    Win32 {
+        hwnd: isize,
+    },
+    AppKit {
+        /// `-[NSWindow windowNumber]`, i.e. the `CGWindowID` (ScreenCaptureKit, CGWindowList).
+        #[serde(rename = "windowNumber")]
+        window_number: i64,
+        /// The `NSWindow*`, only meaningful inside `pid`; 0 when reported across processes.
+        #[serde(rename = "nsWindow")]
+        ns_window: usize,
+    },
 }
 
 /// Things a plugin tells its host outside of audio processing.

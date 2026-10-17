@@ -478,7 +478,8 @@ impl NativeHost {
         let plugin_db = config.data_dir.join("plugin-db");
         let catalog = PluginCatalog::open(&plugin_db);
         let plugin_folders = PluginFolderSettings::open(&plugin_db);
-        let store = DiskStore::new(config.projects_root.clone(), config.library_roots.clone());
+        let store = DiskStore::new(config.projects_root.clone(), config.library_roots.clone())
+            .with_sample_cache(Some(config.data_dir.join("samples")));
         let mut bridge = NativeBridge::new(
             parts.handle,
             prepare,
@@ -529,7 +530,7 @@ impl NativeHost {
             .name("ether-controller".into())
             .spawn(move || {
                 let controller = match std::panic::catch_unwind(AssertUnwindSafe(|| {
-                    factory(bridge, NativeServices, store.clone(), store)
+                    factory(bridge, NativeServices::default(), store.clone(), store)
                 })) {
                     Ok(c) => c,
                     Err(p) => {
@@ -1553,7 +1554,7 @@ fn folder_err(id: u32, e: FolderError) -> ServerMessage {
 impl NativeServices {
     fn now_ms_static() -> u64 {
         use ether_controller::HostServices;
-        NativeServices.now_ms()
+        NativeServices::default().now_ms()
     }
 }
 

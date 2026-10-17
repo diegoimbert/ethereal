@@ -15,7 +15,7 @@
         "subtle"
       ],
       "author": "ethereal",
-      "description": "low-ratio compression on all three bands with a dB of makeup: holds a mix or drum bus together."
+      "description": "low-ratio compression on all three bands with a db of makeup: holds a mix or drum bus together."
     },
     "params": {
       "0": 180.0,

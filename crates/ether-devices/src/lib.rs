@@ -96,7 +96,9 @@ fn type_descriptor(device: BuiltinDeviceType) -> DeviceDescriptor {
         BuiltinDeviceType::Chorus
         | BuiltinDeviceType::Phaser
         | BuiltinDeviceType::Flanger
-        | BuiltinDeviceType::Tremolo => fx_modulation::descriptor(device),
+        | BuiltinDeviceType::Tremolo
+        | BuiltinDeviceType::Vibrato
+        | BuiltinDeviceType::VolumeLfo => fx_modulation::descriptor(device),
         BuiltinDeviceType::Gate
         | BuiltinDeviceType::MultibandCompressor
         | BuiltinDeviceType::TransientShaper => fx_dynamics::descriptor(device),
@@ -143,7 +145,9 @@ pub fn factory_presets(device: BuiltinDeviceType) -> &'static [contract::Factory
         BuiltinDeviceType::Chorus
         | BuiltinDeviceType::Phaser
         | BuiltinDeviceType::Flanger
-        | BuiltinDeviceType::Tremolo => fx_modulation::factory_presets(device),
+        | BuiltinDeviceType::Tremolo
+        | BuiltinDeviceType::Vibrato
+        | BuiltinDeviceType::VolumeLfo => fx_modulation::factory_presets(device),
         BuiltinDeviceType::Gate
         | BuiltinDeviceType::MultibandCompressor
         | BuiltinDeviceType::TransientShaper => fx_dynamics::factory_presets(device),
@@ -216,7 +220,9 @@ pub fn create(device: &BuiltinDevice, samples: &dyn SampleResolver) -> Box<dyn D
         BuiltinDevice::Chorus
         | BuiltinDevice::Phaser
         | BuiltinDevice::Flanger
-        | BuiltinDevice::Tremolo => fx_modulation::create(device),
+        | BuiltinDevice::Tremolo
+        | BuiltinDevice::Vibrato
+        | BuiltinDevice::VolumeLfo { .. } => fx_modulation::create(device),
         BuiltinDevice::Gate
         | BuiltinDevice::MultibandCompressor
         | BuiltinDevice::TransientShaper => fx_dynamics::create(device),

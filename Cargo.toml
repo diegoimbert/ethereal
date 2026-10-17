@@ -185,6 +185,9 @@ hmac = "0.12"
 sha1 = "0.10"
 # base-115 sharing: link-key derivations and proofs (HMAC-SHA256), door hashes (docs/SHARING.md §4.2).
 sha2 = "0.10"
+# The default sample pack: the manifest's Ed25519 signature check (pure Rust, so the web engine
+# verifies too; ring needs a C toolchain for wasm32).
+ed25519-dalek = { version = "2.2", default-features = false, features = ["std"] }
 # Sharing's WebSocket relay fallback (docs/SHARING.md §3.6): an ephemeral X25519 exchange,
 # HKDF-SHA256 and ChaCha20-Poly1305 end to end through the signaling service. Pure Rust (wasm
 # too), already in the tree through str0m's rust-crypto. Licenses: BSD-3-Clause (x25519-dalek),

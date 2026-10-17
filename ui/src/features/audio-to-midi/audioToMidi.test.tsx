@@ -65,7 +65,7 @@ describe("audio to MIDI menu", () => {
     const midi = Object.values(project.clips).find((c) => c.content.type === "Midi")!;
     expect(audioToMidiClipEntries(transport, midi)).toEqual([]);
     const menu = withAudioToMidiEntries(["separator", { label: "Delete", onSelect: () => {} }], transport, audio);
-    expect(labels(menu)).toEqual(["—", "convert to MIDI…", "—", "Delete"]);
+    expect(labels(menu)).toEqual(["—", "convert to midi…", "—", "Delete"]);
     items(audioToMidiClipEntries(transport, audio))[0]!.onSelect();
     expect(useAudioToMidi.getState().dialog).toBe(audio.id);
   });
@@ -73,12 +73,12 @@ describe("audio to MIDI menu", () => {
   it("offers Stop on the converting clip and disables others while busy", () => {
     useAudioToMidi.setState({ job: { job: "j", clip: audio.id, mode: "Melody", progress: 0.2, track: "t", newClip: "c" } });
     const [stop] = items(audioToMidiClipEntries(transport, audio));
-    expect(stop!.label).toBe("stop converting to MIDI");
+    expect(stop!.label).toBe("stop converting to midi");
     stop!.onSelect();
     expect(fake.sent.at(-1)).toEqual({ domain: "AudioToMidi", command: { type: "Cancel", job: "j" } });
     const other = { ...audio, id: "other" };
     useProjectStore.setState({ project: { ...project, clips: { ...project.clips, other } } });
-    expect(items(audioToMidiClipEntries(transport, other))[0]).toMatchObject({ label: "convert to MIDI…", disabled: true });
+    expect(items(audioToMidiClipEntries(transport, other))[0]).toMatchObject({ label: "convert to midi…", disabled: true });
   });
 });
 
@@ -134,7 +134,7 @@ describe("convert dialog", () => {
     await flush();
     a2m({ type: "Failed", job: starts().at(-1)!.job, message: "could not be decoded" });
     act(() => useAudioToMidi.setState({ dialog: null }));
-    const warn = screen.getByRole("button", { name: /convert to MIDI failed: could not be decoded/ });
+    const warn = screen.getByRole("button", { name: /convert to midi failed: could not be decoded/ });
     fireEvent.click(warn);
     expect(useAudioToMidi.getState().dialog).toBe(audio.id);
   });

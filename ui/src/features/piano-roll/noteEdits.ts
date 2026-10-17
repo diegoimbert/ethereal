@@ -28,13 +28,15 @@ export function noteEdit(id: NoteId, fields: Partial<Omit<NoteEdit, "id">>): Not
 
 /**
  * Where a note's start may move to (inclusive), e.g. its clip's window in the multi-clip
- * editor (`multiClip.ts`); `null` = anywhere from 0.
+ * editor (`multiClip.ts`) or from a left-extended clip's start (`singleClipSpace`); `null` =
+ * anywhere from 0.
  */
 export type MoveLimits = (note: Note) => readonly [Beats, Beats] | null;
 
 /**
- * The clamped (beats, pitch) deltas that keep every note in range (start >= 0, inside its
- * `limits`, pitch 0..127).
+ * The clamped (beats, pitch) deltas that keep every note in range (start inside its
+ * `limits`, from 0 by default; pitch 0..127). A note already before its lower limit is never
+ * pushed forward.
  */
 export function clampMove(notes: ReadonlyArray<Note>, dBeats: Beats, dPitch: number, limits?: MoveLimits): { dBeats: Beats; dPitch: number } {
   if (notes.length === 0) return { dBeats, dPitch };
@@ -44,7 +46,7 @@ export function clampMove(notes: ReadonlyArray<Note>, dBeats: Beats, dPitch: num
   let maxPitch = 0;
   for (const n of notes) {
     const [min, max] = limits?.(n) ?? [0, Infinity];
-    lo = Math.max(lo, Math.max(0, min) - n.start);
+    lo = Math.max(lo, Math.min(min, n.start) - n.start);
     hi = Math.min(hi, max - n.start);
     minPitch = Math.min(minPitch, n.pitch);
     maxPitch = Math.max(maxPitch, n.pitch);
@@ -56,8 +58,9 @@ export function clampMove(notes: ReadonlyArray<Note>, dBeats: Beats, dPitch: num
 }
 
 /**
- * Move `notes` by a raw drag delta. The time delta is snapped so that `anchor` (the note
- * under the pointer) lands on the grid (`step = null` = no snapping).
+ * Move `notes` by a raw drag delta. The time delta is snapped relative to `anchor` (the
+ * note under the pointer): an on-grid anchor lands on the grid, an off-grid one keeps its
+ * offset within the grid (`snapDelta`, relative). `step = null` = no snapping.
  */
 export function moveEdits(
   notes: ReadonlyArray<Note>,
@@ -68,24 +71,33 @@ export function moveEdits(
   tempo: TempoMap,
   limits?: MoveLimits,
 ): NoteEdit[] {
-  const snapped = snapDelta(anchor.start, rawBeats, step, tempo);
+  const snapped = snapDelta(anchor.start, rawBeats, step, tempo, true);
   const { dBeats, dPitch } = clampMove(notes, snapped, rawPitch, limits);
-  return notes.map((n) => noteEdit(n.id, { start: Math.max(0, n.start + dBeats), pitch: n.pitch + dPitch }));
+  return notes.map((n) => noteEdit(n.id, { start: n.start + dBeats, pitch: n.pitch + dPitch }));
 }
 
 /** Move by exact deltas (keyboard nudges), clamped to the valid range. */
 export function nudgeEdits(notes: ReadonlyArray<Note>, dBeats: Beats, dPitch: number, limits?: MoveLimits): NoteEdit[] {
   const d = clampMove(notes, dBeats, dPitch, limits);
-  return notes.map((n) => noteEdit(n.id, { start: Math.max(0, n.start + d.dBeats), pitch: n.pitch + d.dPitch }));
+  return notes.map((n) => noteEdit(n.id, { start: n.start + d.dBeats, pitch: n.pitch + d.dPitch }));
 }
 
 export type ResizeEdge = "start" | "end";
 
 /**
  * Resize `notes` by a raw drag delta on one edge. The anchor's dragged edge snaps to the
- * grid and every note gets the same delta, never shorter than `MIN_NOTE_BEATS`.
+ * grid and every note gets the same delta, never shorter than `MIN_NOTE_BEATS`. Starts stay
+ * from `floor` on (the clip's `contentFloor`).
  */
-export function resizeEdits(notes: ReadonlyArray<Note>, anchor: Note, edge: ResizeEdge, rawBeats: Beats, step: GridStep | null, tempo: TempoMap): NoteEdit[] {
+export function resizeEdits(
+  notes: ReadonlyArray<Note>,
+  anchor: Note,
+  edge: ResizeEdge,
+  rawBeats: Beats,
+  step: GridStep | null,
+  tempo: TempoMap,
+  floor: Beats = 0,
+): NoteEdit[] {
   if (edge === "end") {
     const anchorEnd = anchor.start + anchor.duration;
     const end = snapToGrid(anchorEnd + rawBeats, step, tempo);
@@ -96,7 +108,7 @@ export function resizeEdits(notes: ReadonlyArray<Note>, anchor: Note, edge: Resi
   const d = start - anchor.start;
   return notes.map((n) => {
     const end = n.start + n.duration;
-    const s = clamp(n.start + d, 0, end - MIN_NOTE_BEATS);
+    const s = clamp(n.start + d, Math.min(floor, n.start), end - MIN_NOTE_BEATS);
     return noteEdit(n.id, { start: s, duration: end - s });
   });
 }
@@ -129,13 +141,13 @@ export function velocityDrag(): (dy: number, fine: boolean) => number {
 /** MIDI velocity (1..127) of a normalized velocity, as shown to the user. */
 export const midiVelocity = (v: number): number => Math.round(clamp(v, 0, 1) * 127);
 
-/** A new note at (`pitch`, `start`) with `duration`, clamped to the valid range. */
-export function newNote(id: NoteId, pitch: number, start: Beats, duration: Beats, velocity = 100 / 127): NoteSpec {
+/** A new note at (`pitch`, `start`) with `duration`, clamped to the valid range (starts from `floor` on). */
+export function newNote(id: NoteId, pitch: number, start: Beats, duration: Beats, velocity = 100 / 127, floor: Beats = 0): NoteSpec {
   return {
     id,
     pitch: clamp(Math.round(pitch), 0, MAX_PITCH),
     velocity,
-    start: Math.max(0, start),
+    start: Math.max(floor, start),
     duration: Math.max(MIN_NOTE_BEATS, duration),
   };
 }

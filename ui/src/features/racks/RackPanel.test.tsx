@@ -180,14 +180,14 @@ describe("RackPanel", () => {
     const rack = await rackWithSynth();
     fireEvent.click(within(rack).getByRole("button", { name: "add modulator to instrument rack" }));
     const menu = useContextMenuStore.getState().menu!;
-    const add = menu.items.find((i) => i !== "separator" && i.label === "add LFO");
-    if (!add || add === "separator") throw new Error("no add LFO entry");
+    const add = menu.items.find((i) => i !== "separator" && i.label === "add lfo");
+    if (!add || add === "separator") throw new Error("no add lfo entry");
     add.onSelect();
     await flush();
-    const lfo = await within(rack).findByRole("region", { name: "LFO" });
+    const lfo = await within(rack).findByRole("region", { name: "lfo" });
     const delay = await openWindow("delay");
     const rackWindow = await openParams("instrument rack");
-    fireEvent.click(within(lfo).getByRole("button", { name: "map LFO" }));
+    fireEvent.click(within(lfo).getByRole("button", { name: "map lfo" }));
     const targets = within(delay).getAllByTestId("mod-target");
     expect(targets.length).toBeGreaterThan(0);
     // The rack's macros are not targets of its own modulator.

@@ -52,6 +52,7 @@ pub mod racks;
 pub mod recording;
 pub mod remote;
 pub mod resolver;
+pub mod samples;
 pub mod share;
 pub mod social;
 pub mod static_share;

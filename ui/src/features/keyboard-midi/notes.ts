@@ -86,9 +86,24 @@ export function stepVelocity(velocity: number, dir: -1 | 1): number {
   return clampVelocity(next);
 }
 
-const NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"] as const;
+/** Octaves the popover's keyboard strip shows: the played one, one below, two above. */
+export const STRIP_OCTAVES = 4;
 
-/** `C3` for 60 (Ableton's naming). */
+/** First octave of the strip around `octave`, kept inside the playable range. */
+export function stripStart(octave: number): number {
+  return Math.min(MAX_OCTAVE - STRIP_OCTAVES + 1, Math.max(MIN_OCTAVE, octave - 1));
+}
+
+/** The velocities C/V step through: 1, 20, 40, … 120, 127. */
+export function velocityStops(): number[] {
+  const stops = [MIN_VELOCITY];
+  for (let v = VELOCITY_STEP; v < MAX_VELOCITY; v += VELOCITY_STEP) stops.push(v);
+  return [...stops, MAX_VELOCITY];
+}
+
+const NAMES = ["c", "c#", "d", "d#", "e", "f", "f#", "g", "g#", "a", "a#", "b"] as const;
+
+/** `c3` for 60 (Ableton's naming, lowercase like all the UI). */
 export function noteName(note: number): string {
   return `${NAMES[((note % 12) + 12) % 12]}${Math.floor(note / 12) - 2}`;
 }

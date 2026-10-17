@@ -46,14 +46,14 @@ import { DocsRoot } from "@/features/docs";
 import { useDocumentTitle } from "@/features/document-title";
 import { VersionsRoot } from "@/features/versions";
 import { CommandPalette } from "./shell/CommandPalette";
-import { DrawerShortcut, DrawerTabs, EditorDrawer } from "./shell/EditorDrawer";
+import { DrawerFullscreenButton, DrawerShortcut, DrawerTabs, EditorDrawer, useDrawerFullscreen } from "./shell/EditorDrawer";
 import { FloatingPane } from "./shell/FloatingPane";
 import { Inspector } from "./shell/Inspector";
 import { useInspectorTarget } from "./shell/inspectorTarget";
 import { LeftPanel, LeftRail } from "./shell/LeftRail";
 import { useClickFocusesPanelSearch, useFocusPanelSearch } from "./shell/useFocusPanelSearch";
 import { bindSelectionHistory } from "@/features/time-edits/selectionHistory";
-import { LEFT_TABS } from "./shell/tabs";
+import { railTabs } from "./shell/tabs";
 import { paneLayout } from "./shell/paneLayout";
 import { useShellStore } from "@/state/shell";
 import { useMobileUi } from "@/features/mobile/mode";
@@ -61,6 +61,7 @@ import { EngineErrorScreen } from "@/features/startup";
 import { TransportContext } from "@/transport";
 import { useTransportSwitch } from "@/transport/createDefaultTransport";
 import { PanelBoundary } from "./PanelBoundary";
+import { ExtensionRoots, useExtensionInit } from "./ExtensionRoots";
 import "./App.css";
 
 /** Sizes in px, from the design tokens (`size.*` in ui/src/theme/tokens.ts). */
@@ -108,6 +109,7 @@ function Workspace() {
   const left = readOnly ? { ...storedLeft, open: false } : storedLeft;
   const right = useShellStore((s) => s.right);
   const bottom = useShellStore((s) => s.bottom);
+  const fullscreen = useDrawerFullscreen();
   const shell = useShellStore.getState;
   const target = useInspectorTarget();
   const rightOpen = target !== null;
@@ -210,8 +212,8 @@ function Workspace() {
   const sidebar = useRef<HTMLDivElement>(null);
   useFocusPanelSearch(sidebar, left.open ? left.tab : null);
   useClickFocusesPanelSearch(sidebar, left.open ? left.tab : null);
-  const leftTab = LEFT_TABS.find((tab) => tab.id === left.tab);
-  const leftLabel = t(leftTab?.label ?? "shell.tab.browser");
+  const leftTab = railTabs().find((tab) => tab.id === left.tab);
+  const leftLabel = leftTab ? leftTab.label() : t("shell.tab.browser");
 
   return (
     <div className="eth-workspace" style={style} data-read-only={readOnly || undefined}>
@@ -284,6 +286,8 @@ function Workspace() {
         collapsed={bottom.collapsed}
         onCollapsedChange={(v) => shell().setCollapsed("bottom", v)}
         header={<DrawerTabs />}
+        actions={<DrawerFullscreenButton />}
+        fullscreen={fullscreen}
         open={bottom.open}
         pinned={bottom.pinned}
         size={bottom.size}
@@ -305,6 +309,8 @@ function Workspace() {
 
 /** The mobile shell (#522), its own chunk: desktops never load it. */
 const MobileShell = lazy(() => import("@/features/mobile/MobileShell").then((m) => ({ default: m.MobileShell })));
+/** The read-only shell on a touch screen, from the same chunk. */
+const MobileViewerShell = lazy(() => import("@/features/mobile/MobileShell").then((m) => ({ default: m.MobileViewerShell })));
 
 export function App() {
   return (
@@ -324,7 +330,19 @@ function Shell() {
   const usingRemote = useTransportSwitch()?.remote != null;
   // The tab (and desktop window) title: `ethereal - <project>` (#740).
   useDocumentTitle();
-  if (useReadOnly()) return <ViewerShell />;
+  // Extensions (`@/ext` "app.init").
+  useExtensionInit();
+  // A read-only view (`state/viewer.ts`, an extension's): in the touch layout on phones and tablets.
+  if (useReadOnly())
+    return mobile ? (
+      <PanelBoundary name="workspace" variant="app">
+        <Suspense fallback={null}>
+          <MobileViewerShell />
+        </Suspense>
+      </PanelBoundary>
+    ) : (
+      <ViewerShell />
+    );
   // #597: the local engine didn't start: say why (the editor would stay blank), with retry.
   if (connection?.connection.status === "error" && !usingRemote) return <EngineErrorScreen error={connection.connection.error} onRetry={connection.retry} />;
   if (mobile)
@@ -339,7 +357,7 @@ function Shell() {
 }
 
 /**
- * The read-only shell of a shared project (`/s/<id>`, docs/SHARING.md §14.6): the same
+ * The read-only shell (`state/viewer.ts`: a view an extension shows, e.g. a shared project): the same
  * workspace (arrangement, inspector, editor drawer, device windows) and transport, and nothing
  * that changes the project or the app. No context menus or command palette.
  */
@@ -402,6 +420,7 @@ function EditorShell() {
             <ConnectDialog />
           </PanelBoundary>
         </div>
+        <ExtensionRoots shell="editor" slot="top-bar" />
         <IconButton
           size="sm"
           tone="ghost"
@@ -415,9 +434,11 @@ function EditorShell() {
       <PanelBoundary name="workspace">
         <Workspace />
       </PanelBoundary>
+      <ExtensionRoots shell="editor" slot="status-bar" />
       {/* base-153: factory device windows, floating above the workspace. */}
       <PanelBoundary name="device windows" variant="overlay">
         <DeviceWindowsRoot />
+        <ExtensionRoots shell="editor" slot="device-windows" bare />
       </PanelBoundary>
       {/* base-154: the open debug panels (features/debug), floating windows. */}
       <PanelBoundary name="debug panels" variant="overlay">
@@ -464,6 +485,8 @@ function EditorShell() {
       <PanelBoundary name="documentation" variant="overlay">
         <DocsRoot />
       </PanelBoundary>
+      {/* Extensions' dialogs and runtimes (`@/ext` "shell.root"). */}
+      <ExtensionRoots shell="editor" slot="overlay" />
       {/* Destructive actions (freeze, comping, expression, project delete) confirm here. */}
       <ConfirmDialog />
       <ContextMenuHost />

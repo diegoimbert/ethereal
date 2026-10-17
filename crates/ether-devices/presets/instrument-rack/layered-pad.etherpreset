@@ -15,7 +15,7 @@
         "warm"
       ],
       "author": "ethereal",
-      "description": "a detuned saw body under a soft octave-up sine layer. macro 1 opens both filters, macro 2 brings in the air layer; a slow LFO breathes on the body's cutoff."
+      "description": "a detuned saw body under a soft octave-up sine layer. macro 1 opens both filters, macro 2 brings in the air layer; a slow lfo breathes on the body's cutoff."
     },
     "params": {
       "0": 0.25,

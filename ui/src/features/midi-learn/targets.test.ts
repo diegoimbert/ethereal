@@ -51,7 +51,7 @@ describe("targets", () => {
 
   it("describes and matches sources", () => {
     expect(noteName(60)).toBe("C3");
-    expect(describeSource({ port: "Knobs", channel: 0, control: { type: "Cc", number: 21 } })).toBe("CC 21 · ch 1 · Knobs");
+    expect(describeSource({ port: "Knobs", channel: 0, control: { type: "Cc", number: 21 } })).toBe("cc 21 · ch 1 · Knobs");
     expect(describeSource({ port: null, channel: null, control: { type: "Note", key: 61 } })).toBe("note C#3 · any ch · any port");
     const seen = { port: "Knobs", channel: 3, control: { type: "Cc", number: 7 } } as const;
     expect(sourceMatches({ port: null, channel: null, control: { type: "Cc", number: 7 } }, seen)).toBe(true);

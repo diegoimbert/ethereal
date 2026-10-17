@@ -70,6 +70,9 @@ pub struct FakeBridge {
     pub ir_requests: Vec<MediaId>,
     /// #529: the audio handed over for them (`ir_media`), in order.
     pub ir_audio: Vec<(MediaId, Arc<DecodedAudio>)>,
+    /// `create_offline_plugin` works (a Utility node stands in for the plugin); unset: the
+    /// default `Unsupported` (no plugin host).
+    pub offline_plugins: bool,
 }
 
 impl FakeBridge {
@@ -278,6 +281,28 @@ impl EngineBridge for FakeBridge {
         out.append(&mut self.plugin_notes);
     }
 
+    fn create_offline_plugin(
+        &mut self,
+        device: DeviceId,
+        plugin: &PluginInstance,
+        state: Option<&Base64Bytes>,
+        sample_rate: u32,
+    ) -> Result<Box<dyn ether_core::Node>, BridgeError> {
+        let _ = (device, plugin, state, sample_rate);
+        if !self.offline_plugins {
+            return Err(BridgeError::Unsupported(
+                "offline plugin rendering is not available on this host".into(),
+            ));
+        }
+        struct NoSamples;
+        impl ether_devices::SampleResolver for NoSamples {
+            fn resolve(&self, _: MediaId) -> Option<Arc<dyn ether_core::AudioSource>> {
+                None
+            }
+        }
+        Ok(ether_devices::create(&BuiltinDevice::Utility, &NoSamples))
+    }
+
     fn plugin_state(&mut self, device: DeviceId) -> Result<Option<Base64Bytes>, BridgeError> {
         self.plugin_state_reads.push(device);
         Ok(self.plugin_states.get(&device).cloned())
@@ -294,6 +319,13 @@ pub struct FakeHost {
     /// to simulate slow work such as plugin loading.
     pub step_per_read: u64,
     reads: std::cell::Cell<u64>,
+    /// #519: a fake web for `http_get`: URL → (status, body); other URLs answer 404.
+    pub web: BTreeMap<String, (u16, Vec<u8>)>,
+    /// #519: every request fails like a machine without network.
+    pub offline: bool,
+    /// #519: the URLs requested so far.
+    pub requested: Vec<String>,
+    http_pending: Vec<(u64, String, u64)>,
 }
 
 impl FakeHost {
@@ -302,6 +334,10 @@ impl FakeHost {
             now,
             step_per_read: 0,
             reads: std::cell::Cell::new(0),
+            web: BTreeMap::new(),
+            offline: false,
+            requested: Vec::new(),
+            http_pending: Vec::new(),
         }
     }
 }
@@ -317,6 +353,33 @@ impl HostServices for FakeHost {
     }
     fn random_seed(&mut self) -> u64 {
         0x5eed
+    }
+    fn http_get(&mut self, id: u64, url: &str, max_bytes: u64) -> Result<(), String> {
+        self.requested.push(url.to_string());
+        self.http_pending.push((id, url.to_string(), max_bytes));
+        Ok(())
+    }
+    fn poll_http(&mut self, out: &mut Vec<ether_controller::HttpEvent>) {
+        use ether_controller::HttpEvent;
+        for (id, url, max) in std::mem::take(&mut self.http_pending) {
+            let result = if self.offline {
+                Err("offline".to_string())
+            } else {
+                match self.web.get(&url) {
+                    Some((_, body)) if body.len() as u64 > max => Err("too big".to_string()),
+                    Some((status, body)) => {
+                        out.push(HttpEvent::Progress {
+                            id,
+                            received: body.len() as u64 / 2,
+                            total: Some(body.len() as u64),
+                        });
+                        Ok((*status, body.clone()))
+                    }
+                    None => Ok((404, Vec::new())),
+                }
+            };
+            out.push(HttpEvent::Done { id, result });
+        }
     }
 }
 

@@ -13,7 +13,7 @@
         "standard"
       ],
       "author": "ethereal",
-      "description": "A4 = 440 Hz, both channels."
+      "description": "A4 = 440 hz, both channels."
     },
     "params": {
       "0": 440.0,

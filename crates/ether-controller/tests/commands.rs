@@ -9,7 +9,7 @@ use ether_core::protocol::clips::{ClipCommand, ClipMove};
 use ether_core::protocol::devices::{DeviceCommand, DeviceSpec};
 use ether_core::protocol::mixer::MixerCommand;
 use ether_core::protocol::model::*;
-use ether_core::protocol::notes::{NoteCommand, NoteSpec};
+use ether_core::protocol::notes::{NoteCommand, NoteCopy, NoteEdit, NoteSpec};
 use ether_core::protocol::project::{EditCommand, ProjectCommand, ProjectEvent};
 use ether_core::protocol::tracks::TrackCommand;
 use ether_core::protocol::transport::TransportCommand;
@@ -285,6 +285,51 @@ fn gestures_merge_into_one_undo_step() {
     h.ok(Command::Edit(EditCommand::Undo));
     let out = h.send(Command::Edit(EditCommand::Undo));
     assert_eq!(err(&out).code, ErrorCode::InvalidState);
+}
+
+#[test]
+fn multi_track_volume_batches_are_one_patch_each_and_one_undo_step() {
+    // #911: a volume drag over many selected tracks sends one `Edit::Batch` per frame.
+    let mut h = Harness::with_project();
+    let tracks: Vec<TrackId> = (0..32)
+        .map(|_| create_track(&mut h, TrackKind::Midi))
+        .collect();
+    let g = GestureId(11);
+    for v in [-1.0, -2.0, -3.0] {
+        let out = h.send_with(
+            Command::Edit(EditCommand::Batch {
+                key: None,
+                label: "set volume".into(),
+                commands: tracks
+                    .iter()
+                    .map(|&track| {
+                        Command::Mixer(MixerCommand::SetVolume {
+                            track,
+                            volume: Decibels(v),
+                        })
+                    })
+                    .collect(),
+            }),
+            Some(g),
+        );
+        ok(&out);
+        let p = patches(&out);
+        assert_eq!(p.len(), 1, "one patch for the whole selection");
+        assert_eq!(p[0].changes.len(), tracks.len());
+    }
+    h.ok(Command::Edit(EditCommand::EndGesture { gesture: g }));
+    for t in &tracks {
+        assert_eq!(h.project().tracks[t].mixer.volume, Decibels(-3.0));
+    }
+    let out = h.send(Command::Edit(EditCommand::Undo));
+    assert_eq!(patches(&out).len(), 1);
+    for t in &tracks {
+        assert_eq!(h.project().tracks[t].mixer.volume, Decibels(0.0));
+    }
+    assert_eq!(
+        patches(&out)[0].history.redo_label.as_deref(),
+        Some("set volume")
+    );
 }
 
 #[test]
@@ -919,4 +964,87 @@ fn drag_below_last_track_creates_tracks_and_moves_clips_in_one_undo_step() {
     assert!(!pr.clips.contains_key(&copy));
     assert!(!pr.tracks.contains_key(&nc));
     assert_eq!(pr.tracks.len(), tracks_before);
+}
+
+#[test]
+fn notes_may_start_in_a_left_extended_clips_leading_gap() {
+    // A MIDI clip extended to the left past its content start (offset -2): notes can be
+    // put in that gap (down to the offset) and the engine gets them.
+    let mut h = Harness::with_project();
+    let t = create_track(&mut h, TrackKind::Midi);
+    let c = midi_clip(&mut h, t, 4.0, 4.0);
+    let add = |h: &mut Harness, start: f64| {
+        let id: NoteId = h.id();
+        let out = h.send(Command::Note(NoteCommand::Add {
+            clip: c,
+            notes: vec![NoteSpec {
+                id,
+                pitch: 60,
+                velocity: 0.8,
+                start: Beats(start),
+                duration: Beats(0.5),
+            }],
+        }));
+        (id, out)
+    };
+    let edit_start = |h: &mut Harness, id: NoteId, start: f64| {
+        h.ok(Command::Note(NoteCommand::Edit {
+            edits: vec![NoteEdit {
+                id,
+                pitch: None,
+                velocity: None,
+                start: Some(Beats(start)),
+                duration: None,
+                muted: None,
+            }],
+        }));
+    };
+    // Before the extension a negative start is still invalid.
+    let (_, out) = add(&mut h, -1.0);
+    assert_eq!(err(&out).code, ErrorCode::InvalidArgument);
+    h.ok(Command::Clip(ClipCommand::SetBounds {
+        id: c,
+        start: Beats(2.0),
+        length: Beats(6.0),
+        offset: Beats(-2.0),
+    }));
+    let (n, out) = add(&mut h, -1.0);
+    ok(&out);
+    assert_eq!(h.project().notes[&n].start, Beats(-1.0));
+    // Before the clip start: rejected on add, clamped on edit / duplicate.
+    let (_, out) = add(&mut h, -3.0);
+    assert_eq!(err(&out).code, ErrorCode::InvalidArgument);
+    edit_start(&mut h, n, -5.0);
+    assert_eq!(h.project().notes[&n].start, Beats(-2.0));
+    let copy: NoteId = h.id();
+    h.ok(Command::Note(NoteCommand::Duplicate {
+        copies: vec![NoteCopy {
+            from: n,
+            new_id: copy,
+        }],
+        offset: Beats(-1.0),
+        transpose: 0,
+    }));
+    assert_eq!(h.project().notes[&copy].start, Beats(-2.0));
+    // Quantize keeps a note in the gap there.
+    edit_start(&mut h, n, -1.1);
+    h.ok(Command::Note(NoteCommand::Quantize {
+        clip: c,
+        notes: Some(vec![n]),
+        grid: Beats(0.5),
+        strength: 1.0,
+        ends: false,
+        swing: 0.0,
+    }));
+    assert!(h.project().notes[&n].start.approx_eq(Beats(-1.0)));
+    // The engine gets the note (it plays at song beat 2 + (-1 - -2) = 3).
+    h.advance(100);
+    h.tick();
+    let g = h.ctl.bridge.last_graph();
+    let cd = &g.tracks.iter().find(|x| x.id == t).unwrap().clips[0];
+    let ether_core::graph::ClipContentDesc::Midi { notes } = &cd.content else {
+        panic!("midi")
+    };
+    assert!(notes.iter().any(|x| (x.start + 1.0).abs() < 1e-9));
+    assert_eq!(cd.offset, -2.0);
 }

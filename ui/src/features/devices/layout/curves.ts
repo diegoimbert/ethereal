@@ -104,13 +104,14 @@ export function transfer(x: number, drive: number, curve = 0, bias = 0): number 
   return Math.max(-1, Math.min(1, y / norm));
 }
 
-export type WaveKind = "sine" | "triangle" | "saw" | "ramp-down" | "square" | "pulse" | "noise" | "random" | "table";
+export type WaveKind = "sine" | "triangle" | "saw" | "ramp-down" | "square" | "pulse" | "noise" | "random" | "drift" | "table";
 
 /** Wave shape from a shape label ("Sine", "Saw Down", "S&H", "Wavetable"...). */
 export function waveOf(label: string | null | undefined): WaveKind {
   const l = (label ?? "").toLowerCase();
   if (/table|wt/.test(l)) return "table";
   if (/s&h|sample|random|rand/.test(l)) return "random";
+  if (/drift/.test(l)) return "drift";
   if (/noise/.test(l)) return "noise";
   if (/tri/.test(l)) return "triangle";
   if (/down|ramp/.test(l)) return "ramp-down";
@@ -149,6 +150,13 @@ export function waveAt(kind: WaveKind, phase: number, morph = 0.5): number {
       return hash(Math.floor(phase * 64));
     case "random":
       return hash(Math.floor(phase * 4));
+    case "drift": {
+      // Smooth random: raised-cosine glides between the random steps.
+      const x = phase * 4;
+      const i = Math.floor(x);
+      const t = 0.5 - 0.5 * Math.cos(Math.PI * (x - i));
+      return (1 - t) * hash(i) + t * hash(i + 1);
+    }
     case "table": {
       const order: WaveKind[] = ["sine", "triangle", "saw", "square"];
       const pos = Math.max(0, Math.min(1, morph)) * (order.length - 1);

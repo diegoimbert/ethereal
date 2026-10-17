@@ -11,6 +11,7 @@ import { useT } from "@/i18n";
 import { Button, useScopedDrag } from "@/kit";
 import { beatsToPx, snapToGrid, useSelectedItems, type GridStep, type TempoMap, type TimelineViewport } from "@/timeline";
 import { useTransport } from "@/transport";
+import { contentFloor } from "./clipTime";
 import { startDrag, useSend } from "./drag";
 import { usePianoRollSection } from "./section";
 import {
@@ -72,7 +73,7 @@ export function StretchBar({ sectionKey, clip, notes, vp, step, tempo }: Stretch
       {
         move(dx, _dy, m) {
           const snap = (b: Beats) => snapToGrid(b, m.altKey ? null : step, tempo, "nearest");
-          const to = stretchRange(from, handle, dx / pxPerBeat, snap);
+          const to = stretchRange(from, handle, dx / pxPerBeat, snap, original ? contentFloor(original) : 0);
           setDragRange(to);
           const section = stretchedSection(sectionKey, from, to);
           if (section) usePianoRollSection.getState().setSection(section);

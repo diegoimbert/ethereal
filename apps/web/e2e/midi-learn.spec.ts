@@ -21,9 +21,9 @@ test("MIDI tab on the web: learning needs the desktop app", async ({ page }) => 
 
   await page.getByRole("button", { name: "MIDI mapping" }).click();
   const panel = page.locator('[data-feature="midi-learn"]');
-  await expect(panel.getByRole("note")).toContainText("MIDI learn needs the desktop app");
+  await expect(panel.getByRole("note")).toContainText("midi learn needs the desktop app");
   await expect(panel.getByRole("switch", { name: "MIDI mode" })).toBeDisabled();
-  await expect(panel).toContainText("no MIDI mappings.");
+  await expect(panel).toContainText("no midi mappings.");
   expect((await state(page)).project!.midi_mappings).toEqual({});
   // MIDI mode never engaged: no control is highlighted or intercepted.
   await expect(page.locator("body.eth-midi-mode")).toHaveCount(0);

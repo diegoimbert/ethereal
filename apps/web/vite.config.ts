@@ -19,7 +19,7 @@ const previewPort = devPort("preview");
 
 export default defineConfig({
   // Absolute asset URLs (/assets/…): the app is also served at deep paths (/p/<slug>/<id>,
-  // /s/<id>, /join/…), where relative ones would break.
+  // /docs/…), where relative ones would break.
   base: "/",
   // cspPreview: `vite preview` serves the deployed Content-Security-Policy (csp.ts).
   // i18nCatalogPlugin: the UI's compiled translation catalogs (docs/LOCALIZATION.md).

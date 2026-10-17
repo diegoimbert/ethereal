@@ -34,6 +34,9 @@ pub mod plugins;
 pub mod recording;
 pub mod rt;
 pub mod sandbox;
+// The sample pack's downloads (feature `net`).
+#[cfg(feature = "net")]
+mod samples_http;
 mod save_writer;
 pub mod store;
 #[doc(hidden)]

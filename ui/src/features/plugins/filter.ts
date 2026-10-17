@@ -2,10 +2,10 @@ import type { PluginDescriptor, PluginFormat } from "@/generated";
 
 /** Display names of the plugin formats (shown lowercase, like all the app's own text). */
 export const FORMAT_LABEL: Record<PluginFormat, string> = {
-  Clap: "CLAP",
-  Vst3: "VST3",
-  Vst2: "VST2",
-  Au: "AU",
+  Clap: "clap",
+  Vst3: "vst3",
+  Vst2: "vst2",
+  Au: "au",
 };
 
 /** The plugin browser's format toggles, in order. */

@@ -1,7 +1,7 @@
 //! Undo labels: the short, human name of what a command does ("move 3 clips", "set
 //! volume", "add reverb"), shown in the undo history panel and as "Undo …" in the UI.
 //!
-//! Style: lowercase (acronyms stay uppercase: MIDI, MPE, VCA, IR), a verb first, counts
+//! Style: lowercase (acronyms too: midi, mpe, vca, ir), a verb first, counts
 //! when a command acts on several things, and the device/parameter name when the project
 //! has it at hand. Every command variant is matched explicitly (no wildcard arm), so a new
 //! command doesn't compile until it has a label; `tests::every_command_has_a_human_label`
@@ -75,7 +75,7 @@ impl UndoLabel {
 }
 
 /// A label given as English text: keyed when the text is one of the catalog's messages
-/// without arguments (`"capture MIDI"`), else shown as is.
+/// without arguments (`"capture midi"`), else shown as is.
 impl From<&str> for UndoLabel {
     fn from(text: &str) -> Self {
         Self {
@@ -360,6 +360,7 @@ pub(crate) fn label_of(command: &Command, project: Option<&Project>) -> UndoLabe
                 "undo.device.remove_sidechain",
             ),
             D::SetZones { .. } => k("undo.device.set_zones"),
+            D::SetLfoCurve { .. } => k("undo.device.set_lfo_curve"),
             D::SetIr { ir, .. } => {
                 pick(ir.is_some(), "undo.device.load_ir", "undo.device.clear_ir")
             }
@@ -494,6 +495,7 @@ pub(crate) fn label_of(command: &Command, project: Option<&Project>) -> UndoLabe
             R::RenameChain { .. } => k("undo.rack.rename_chain"),
             R::SetChainColor { .. } => k("undo.rack.set_chain_color"),
             R::MoveChain { .. } => k("undo.rack.move_chain"),
+            R::CopyChain { cut, .. } => pick(*cut, "undo.rack.move_chain", "undo.rack.copy_chain"),
             R::SetChainMix { .. } => k("undo.rack.set_chain_mix"),
             R::SetChainZones { .. } => k("undo.rack.set_chain_zones"),
             R::InsertDevice { device, .. } => ka("undo.device.add", "device", spec_arg(device)),
@@ -667,6 +669,7 @@ pub(crate) fn label_of(command: &Command, project: Option<&Project>) -> UndoLabe
         Command::Keymap(_) => k("undo.domain.keymap"),
         Command::Settings(_) => k("undo.domain.settings"),
         Command::Share(_) => k("undo.domain.share"),
+        Command::Samples(_) => k("undo.domain.samples"),
     }
 }
 

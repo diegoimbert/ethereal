@@ -8,10 +8,10 @@ export { ImportResolverRoot } from "./ImportResolverRoot";
 export { ResolverDialog } from "./ResolverDialog";
 export { ReplaceDialog } from "./ReplaceDialog";
 export {
-  replacePluginLabel,
+  replaceDeviceLabel,
   resolveLabel,
   resolveMissingLabel,
-  replacePluginEntries,
+  replaceDeviceEntries,
   resolveClipEntries,
   resolveMediaEntries,
   resolvePluginEntries,
@@ -20,7 +20,7 @@ export {
   withResolveClipEntries,
 } from "./menus";
 export { catalogNow, isMissingPlugin, loadCatalog } from "./catalog";
-export { closeReplace, openReplace, resetReplace, useReplace } from "./replace";
+export { acceptReplacement, closeReplace, isRackDevice, openReplace, resetReplace, useReplace } from "./replace";
 export {
   applyResolveEvent,
   autoShow,

@@ -5,39 +5,46 @@
 // in a Web Worker, the engine in an AudioWorklet, connected by SharedArrayBuffer rings
 // (./engine/endpoint.ts). The standalone UI against `MockTransport` is `just dev-ui`; `?mock`
 // runs this build against it too (e2e of mock-only fixtures, e.g. the 10,000-param plugin).
+//
+// Extensions (`@/ext`, docs/EXTENSIONS.md) see the boot ("web.boot", with the invite a web route
+// started it for), may wrap the transport ("web.transport") and add to the debug handle
+// ("web.debug").
 import { App, cmd, enableMobileUi, MockTransport, playheadStore, TransportProvider, useProjectStore, WasmTransport, type EngineTransport } from "@ethereal/ui";
 import { StrictMode } from "react";
-import { createRoot } from "react-dom/client";
 import { DesktopBandFrame } from "@/features/desktop-band";
 import { markWebSessionClosed } from "@/features/versions/session";
 import { openSettings } from "@/features/audio-settings";
 import { ensurePersistentStorage } from "@/features/storage";
 import { claimStore, EngineErrorScreen, OtherTabScreen, takeOverStore, type StoreOwner } from "@/features/startup";
 import { initI18n } from "@/i18n";
-import { currentDevice, isDesktopMachine, preferPlaybackAudioSession, wantsMobileUi } from "./mobile";
+import { contributions, emit } from "@/ext";
+import { applyMobileUi, currentDevice, isDesktopMachine } from "./mobile";
+import { appRoot } from "./root";
 
-const rootElement = document.getElementById("root");
-if (!rootElement) throw new Error("#root element missing");
-const root = createRoot(rootElement);
+const root = appRoot();
+
+/** Boot the editor once the user's language is loaded (`./main.tsx`). */
+export async function runApp(invite: string | null): Promise<void> {
+  // The user's language first (a lazy chunk unless English), so nothing renders in English first.
+  await initI18n();
+  startApp(invite);
+}
 
 /**
  * Boot the editor; if that fails before the editor shows (#597: the engine's chunk didn't
  * load, e.g. a page left open across a deploy), say why instead of doing nothing.
  */
-function startApp(): void {
-  boot().catch((error: unknown) => {
+function startApp(invite: string | null): void {
+  boot(invite).catch((error: unknown) => {
     console.error("ethereal: the app didn't start", error);
     root.render(<EngineErrorScreen error={error} />);
   });
 }
 
-async function boot(): Promise<void> {
+async function boot(invite: string | null): Promise<void> {
   // The touch UI (#522): phones and touch-only tablets, or asked for.
-  const mobile = wantsMobileUi();
-  if (mobile) {
-    enableMobileUi();
-    preferPlaybackAudioSession();
-  }
+  const mobile = applyMobileUi(enableMobileUi);
+  emit("web.boot", invite);
 
   let transport: EngineTransport;
   if (new URLSearchParams(window.location.search).has("mock")) {
@@ -69,6 +76,7 @@ async function boot(): Promise<void> {
       showMoved();
     });
   }
+  for (const wrap of contributions("web.transport")) transport = wrap(transport) ?? transport;
   // Read-only e2e/debug view of the UI mirror: the project document, history, dirty flag,
   // the latest meter readings and playhead (apps/web/e2e reads these to check state across
   // reloads, and to pace meter checks by transport time).
@@ -76,6 +84,7 @@ async function boot(): Promise<void> {
     state: () => useProjectStore.getState(),
     meter: (track: string) => playheadStore.getMeter(track),
     playhead: () => playheadStore.getPlayhead(),
+    ...Object.assign({}, ...contributions("web.debug").map((extra) => extra(transport))),
   };
 
   root.render(
@@ -114,7 +123,3 @@ function showMoved(): void {
     />,
   );
 }
-
-// The user's language first (a lazy chunk unless English), so nothing renders in English first.
-await initI18n();
-startApp();

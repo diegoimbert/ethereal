@@ -327,6 +327,8 @@ where
             Command::Agent(c) => self.agent_command(c, now, out),
             // `import-resolver`: missing plugins and audio files (`Apply` is one undo step).
             Command::Resolve(c) => self.resolve_command(c, now, out),
+            // #519: the default sample pack.
+            Command::Samples(c) => self.samples_command(c, out),
             other => Err(internal(format!(
                 "unhandled command {}",
                 doc::label_of(other, None)
@@ -1263,6 +1265,7 @@ where
         self.browser_tick(now, out);
         self.media_refs_tick(now, out);
         self.resolve_tick(now, out);
+        self.samples_tick(out);
         // v0.3 hooks.
         self.capture_tick(now, out);
         self.audio_to_midi_tick(now, out);

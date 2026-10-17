@@ -196,14 +196,14 @@ const TYPED_SUFFIXES: Partial<Record<ParamInfo["unit"], Record<string, number>>>
   Ratio: { ":1": 1 },
 };
 
-/** Unit shown after the "Set Value…" field ("dB", "Hz"...); empty when the text says it (labels, pan, on/off). */
+/** Unit shown after the "Set Value…" field ("db", "hz"...); empty when the text says it (labels, pan, on/off). */
 export function editUnit(info: ParamInfo): string {
   if (info.labels && info.labels.length > 0) return "";
   switch (info.unit) {
     case "Decibels":
-      return "dB";
+      return "db";
     case "Hertz":
-      return "Hz";
+      return "hz";
     case "Milliseconds":
       return "ms";
     case "Seconds":

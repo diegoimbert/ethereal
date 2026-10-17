@@ -376,6 +376,11 @@ mod macos {
             Some(Retained::as_ptr(&view) as *mut c_void)
         }
 
+        /// The editor's native window (`PluginController::editor_window`).
+        pub fn native_window(&self) -> ether_core::plugin::NativeWindow {
+            ether_plugin_host::native_window::appkit(&self.window)
+        }
+
         pub fn show(&self) {
             self.window.makeKeyAndOrderFront(None);
             // Attached once on screen (a child window added while ordered out would be
@@ -584,6 +589,13 @@ mod windows {
             Some(self.hwnd)
         }
 
+        /// The editor's native window (`PluginController::editor_window`).
+        pub fn native_window(&self) -> ether_core::plugin::NativeWindow {
+            ether_plugin_host::native_window::current(ether_core::plugin::WindowHandle::Win32 {
+                hwnd: self.hwnd as isize,
+            })
+        }
+
         pub fn show(&self) {
             // SAFETY: our live window.
             unsafe {
@@ -711,6 +723,13 @@ mod linux {
             Some(self.window.id() as usize as *mut c_void)
         }
 
+        /// The editor's native window (`PluginController::editor_window`).
+        pub fn native_window(&self) -> ether_core::plugin::NativeWindow {
+            ether_plugin_host::native_window::current(ether_core::plugin::WindowHandle::X11 {
+                window: self.window.id(),
+            })
+        }
+
         pub fn show(&self) {
             self.window.show();
         }
@@ -775,6 +794,9 @@ mod other {
             Err("host editor windows are not supported on this OS yet".into())
         }
         pub fn view_ptr(&self) -> Option<*mut c_void> {
+            match *self {}
+        }
+        pub fn native_window(&self) -> ether_core::plugin::NativeWindow {
             match *self {}
         }
         pub fn show(&self) {

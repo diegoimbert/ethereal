@@ -133,6 +133,15 @@ test("clip move, copy-drag, resize, extend left and move between tracks", async 
   // Move C right by 2 beats.
   await dragClip(page, c, 2 * ppb);
   await expect.poll(() => bounds(c)).toEqual([14, 2, 0, t1]);
+  // An off-grid clip keeps its offset within the (1-beat) grid: 14.34 → 16.34, not 16.
+  await send(page, { domain: "Clip", command: { type: "Move", moves: [{ id: c, track: (await clipOf(page, c)).track, start: 14.34 }] } });
+  await expect.poll(() => bounds(c)).toEqual([14.34, 2, 0, t1]);
+  await dragClip(page, c, 2 * ppb + 5);
+  await expect.poll(() => bounds(c)).toEqual([16.34, 2, 0, t1]);
+  await dragClip(page, c, -2 * ppb);
+  await expect.poll(() => bounds(c)).toEqual([14.34, 2, 0, t1]);
+  await send(page, { domain: "Clip", command: { type: "Move", moves: [{ id: c, track: (await clipOf(page, c)).track, start: 14 }] } });
+  await expect.poll(() => bounds(c)).toEqual([14, 2, 0, t1]);
   // Copy-drag B right by 12 beats (Ctrl/Cmd held): a copy at 18, B stays.
   const before = Object.keys((await doc(page)).clips).length;
   await selectClip(page, b);
@@ -154,6 +163,34 @@ test("clip move, copy-drag, resize, extend left and move between tracks", async 
   await dragClip(page, a, 0, rowGap);
   await expect.poll(async () => (await clipOf(page, a)).track).toBe(t2);
   expect(await isClipSelected(page, a)).toBe(true);
+});
+
+test("small clips (1 beat, 24 px) resize from both edges", async ({ page }) => {
+  test.setTimeout(120_000);
+  await launch(page, `Arranger small resize ${Date.now()}`);
+  const { a } = await smallProject(page);
+  const ppb = 24;
+  const t1 = (await clipOf(page, a)).track;
+  const e = ulid(2, 5);
+  const f = ulid(2, 6);
+  await send(page, { domain: "Clip", command: { type: "CreateMidi", id: e, track: t1, start: 20, length: 1, name: "e" } });
+  await send(page, { domain: "Clip", command: { type: "CreateMidi", id: f, track: t1, start: 24, length: 1, name: "f" } });
+  const bounds = async (id: string) => {
+    const k = await clipOf(page, id);
+    return [+k.start.toFixed(3), +k.length.toFixed(3), +k.offset.toFixed(3)];
+  };
+  await expect.poll(async () => (await clipPart(page, e, "resize-end")).width).toBe(6);
+  // The hit test, the cursor and the drag agree on the edges; the middle moves.
+  const end = await clipPoint(page, e, "resize-end");
+  expect(await arrangerApi(page, "hitTest", end.x, end.y)).toEqual({ clip: e, part: "resize-end" });
+  const mid = await clipPoint(page, e, "box");
+  expect(await arrangerApi(page, "hitTest", mid.x, mid.y)).toEqual({ clip: e, part: "small" });
+  await page.mouse.move(end.x, end.y);
+  await expect.poll(() => page.evaluate(([x, y]) => getComputedStyle(document.elementFromPoint(x, y)!).cursor, [end.x, end.y] as const)).toBe("ew-resize");
+  await dragClip(page, e, ppb, 0, { part: "resize-end" });
+  await expect.poll(() => bounds(e)).toEqual([20, 2, 0]);
+  await dragClip(page, f, -ppb, 0, { part: "resize-start" });
+  await expect.poll(() => bounds(f)).toEqual([23, 2, -1]);
 });
 
 test("clips never disappear while panning and zooming (1k clips)", async ({ page }) => {

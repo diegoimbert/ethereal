@@ -25,7 +25,7 @@ function sources(): string[] {
 }
 
 describe("UI text is lowercase (#524)", () => {
-  it("every string the UI shows is lowercase, but acronyms, units, key names and proper nouns", () => {
+  it("every string the UI shows is lowercase, acronyms, units and names included", () => {
     const findings = sources().flatMap((f) => {
       const src = readFileSync(f, "utf8");
       const lines = src.split("\n");
@@ -35,7 +35,10 @@ describe("UI text is lowercase (#524)", () => {
         return !(id !== undefined && isGroupId(id));
       });
     });
-    expect(formatCaseFindings(findings), "lowercase these (or extend ALLOWED_WORDS in ui/src/theme/uiCase.ts for a new acronym or name)").toBe("");
+    expect(
+      formatCaseFindings(findings),
+      "lowercase these: app text has no capitalized words, acronyms and units included (eth-allow-case only for what is not UI text)",
+    ).toBe("");
   });
 
   it("no stylesheet changes the case of text: the strings themselves are lowercase", () => {
@@ -55,23 +58,37 @@ describe("UI text is lowercase (#524)", () => {
     expect(found.map((f) => relative(repo, f))).toEqual([]);
   });
 
-  it("keeps acronyms, units, key names, note names and proper nouns", () => {
-    expect(lowerUiText("Add MIDI Track")).toBe("add MIDI track");
-    expect(lowerUiText("Open VST3 Plugin at 440 Hz, -6 dB")).toBe("open VST3 plugin at 440 Hz, -6 dB");
-    expect(lowerUiText("Import from Ableton Live or FL Studio")).toBe("import from Ableton Live or FL Studio");
-    expect(lowerUiText("Press ⌘K or Ctrl+Shift+Enter")).toBe("press ⌘K or Ctrl+Shift+Enter");
-    expect(lowerUiText("Transpose to C#4 in A minor (CCs, URLs)")).toBe("transpose to C#4 in A minor (CCs, URLs)");
+  it('lowercases every word: acronyms, formats, units and names too (owner: "lowercase everything")', () => {
+    expect(lowerUiText("Add MIDI Track")).toBe("add midi track");
+    expect(lowerUiText("Open VST3 Plugin at 440 Hz, 1.2 kHz, -6 dB")).toBe("open vst3 plugin at 440 hz, 1.2 khz, -6 db");
+    expect(lowerUiText("Import from Ableton Live or FL Studio on macOS")).toBe("import from ableton live or fl studio on macos");
+    expect(lowerUiText("LFO, FM Synth, DC Filter, GR, PWM, RMS, Sidechain HPF, MPE, CLAP, AU, DAW, IR, OSC")).toBe(
+      "lfo, fm synth, dc filter, gr, pwm, rms, sidechain hpf, mpe, clap, au, daw, ir, osc",
+    );
+    expect(lowerUiText("Tempo 120 BPM, 37% CPU, EQ")).toBe("tempo 120 bpm, 37% cpu, eq");
     expect(lowerUiText("A Track")).toBe("a track");
     expect(lowerUiText("Welcome to Ethereal")).toBe("welcome to ethereal");
     expect(lowerUiText("Line\\nBreak")).toBe("line\\nbreak");
-    expect(badWords("WasmTransport disposed, OpenRouter")).toEqual([]);
+    for (const w of ["MIDI", "dB", "Hz", "kHz", "VST3", "LFO", "OpenRouter", "DAWproject", "CCs", "VST3-only"]) expect(badWords(`x ${w} y`)).toEqual([w]);
+    // a code identifier in a message isn't a word
+    expect(badWords("WasmTransport disposed, SharedArrayBuffer")).toEqual([]);
   });
 
-  it("writes the units bpm and cpu lowercase, unlike the other acronyms (#815)", () => {
-    expect(lowerUiText("Tempo 120 BPM, 37% CPU, MIDI in")).toBe("tempo 120 bpm, 37% cpu, MIDI in");
-    expect(badWords("120 BPM")).toEqual(["BPM"]);
-    expect(badWords("CPU 12%")).toEqual(["CPU"]);
-    expect(badWords("120 bpm, cpu 12%")).toEqual([]);
+  it("keeps what isn't a word: key caps in a shortcut, note names, pan and grid notation", () => {
+    expect(lowerUiText("Press ⌘K or Ctrl+Shift+Enter")).toBe("press ⌘K or Ctrl+Shift+Enter");
+    expect(lowerUiText("Hold Shift")).toBe("hold shift");
+    expect(lowerUiText("Transpose to C#4 in A minor")).toBe("transpose to C#4 in A minor");
+    expect(badWords("25L, 100R, C, 1/8T")).toEqual([]);
+  });
+
+  it("flags the old uppercase terms in any literal, not only the ones read as UI text", () => {
+    const src = [
+      'const unit = { Decibels: "dB", Hertz: "Hz" };',
+      "const s = `${v} kHz`;",
+      'const ok = "db"; // lowercase',
+      'const keep = "MIDI"; // eth-allow-case: the reason',
+    ].join("\n");
+    expect(scanCase("x.ts", src).map((f) => f.word)).toEqual(["dB", "Hz", "kHz"]);
   });
 
   it("finds UI text by syntax and leaves code alone", () => {

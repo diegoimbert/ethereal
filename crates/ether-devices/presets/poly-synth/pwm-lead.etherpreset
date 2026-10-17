@@ -3,7 +3,7 @@
   "version": 1,
   "app_version": "0.2.0",
   "preset": {
-    "name": "PWM lead",
+    "name": "pwm lead",
     "device": {
       "type": "Builtin",
       "device": "PolySynth"
@@ -15,7 +15,7 @@
         "pwm"
       ],
       "author": "ethereal",
-      "description": "square with LFO pulse-width modulation and an octave-down square, mono glide."
+      "description": "square with lfo pulse-width modulation and an octave-down square, mono glide."
     },
     "params": {
       "0": 1.0,

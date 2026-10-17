@@ -5,6 +5,7 @@
  * `[data-clip-id]` elements.
  */
 
+import { contributions } from "@/ext";
 import type { ClipId } from "@/generated";
 import { useProjectStore } from "@/state";
 import { CLIP_INSET, CLIP_TITLE } from "./laneBodyGeometry";
@@ -221,6 +222,8 @@ export function installArrangementTestApi(p: Plumbing): () => void {
     },
     resetText: () => glRenderer()?.resetText(),
   };
+  // Extensions' entries (`@/ext` "e2e.arrangement").
+  for (const extra of contributions("e2e.arrangement")) Object.assign(api, extra());
   w.__ether ??= {};
   w.__ether.arrangement = api;
   w.__ether.arrangementView = () => arrangementView;

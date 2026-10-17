@@ -11,12 +11,15 @@
 //! is its child window, a floating window gets it as transient parent ([`transient_window`]).
 
 use std::ffi::{c_ulong, c_void};
+use std::time::{Duration, Instant};
 
 use clack_extensions::gui::{
     GuiApiType, GuiConfiguration, GuiSize, PluginGui, Window as ClapWindow,
 };
 use clack_host::prelude::PluginMainThreadHandle;
+use ether_core::plugin::NativeWindow;
 use ether_plugin_host::editor_owner::OwnerWindow;
+use ether_plugin_host::native_window::NewWindows;
 
 /// Pick the GUI configuration to use for `gui`, or `None` if we can't host it.
 pub(crate) fn negotiate(
@@ -139,6 +142,11 @@ mod macos {
             Some(Retained::as_ptr(&view) as *mut c_void)
         }
 
+        /// The editor's native window (`PluginController::editor_window`).
+        pub fn native_window(&self) -> ether_core::plugin::NativeWindow {
+            ether_plugin_host::native_window::appkit(&self.window)
+        }
+
         pub fn show(&self) {
             self.window.makeKeyAndOrderFront(None);
             // Attached once on screen (a child window added while ordered out would be
@@ -224,6 +232,9 @@ mod other {
         pub fn view_ptr(&self) -> Option<*mut c_void> {
             match *self {}
         }
+        pub fn native_window(&self) -> ether_core::plugin::NativeWindow {
+            match *self {}
+        }
         pub fn show(&self) {
             match *self {}
         }
@@ -248,6 +259,68 @@ mod other {
 
         pub fn close(self) {
             match self {}
+        }
+    }
+}
+
+/// A floating editor's own window (`PluginController::editor_window`): CLAP doesn't expose
+/// it, so it is found among the windows that appeared since the editor opened
+/// (`ether_plugin_host::native_window`), right after `gui.show` and then from the poll, every
+/// [`FloatingWindow::RETRY`] until [`FloatingWindow::GIVE_UP`] passed (plugins may create
+/// or map it late).
+#[derive(Debug)]
+pub(crate) enum FloatingWindow {
+    Searching {
+        windows: NewWindows,
+        next: Instant,
+        until: Instant,
+    },
+    Found(NativeWindow),
+    NotFound,
+}
+
+impl FloatingWindow {
+    pub const RETRY: Duration = Duration::from_millis(200);
+    pub const GIVE_UP: Duration = Duration::from_secs(5);
+
+    /// Start looking, given the windows from before the editor opened.
+    pub fn search(windows: NewWindows) -> Self {
+        let now = Instant::now();
+        let mut me = Self::Searching {
+            windows,
+            next: now,
+            until: now + Self::GIVE_UP,
+        };
+        me.poll(now);
+        me
+    }
+
+    pub fn poll(&mut self, now: Instant) {
+        let Self::Searching {
+            windows,
+            next,
+            until,
+        } = self
+        else {
+            return;
+        };
+        if now < *next {
+            return;
+        }
+        *self = match windows.find() {
+            Some(window) => Self::Found(window),
+            None if now >= *until => Self::NotFound,
+            None => {
+                *next = now + Self::RETRY;
+                return;
+            }
+        };
+    }
+
+    pub fn window(&self) -> Option<NativeWindow> {
+        match self {
+            Self::Found(window) => Some(*window),
+            _ => None,
         }
     }
 }

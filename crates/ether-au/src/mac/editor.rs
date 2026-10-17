@@ -153,6 +153,11 @@ impl EditorWindow {
         })
     }
 
+    /// The editor's native window (`PluginController::editor_window`).
+    pub fn native_window(&self) -> ether_core::plugin::NativeWindow {
+        ether_plugin_host::native_window::appkit(&self.window)
+    }
+
     pub fn show(&self) {
         self.window.makeKeyAndOrderFront(None);
         if let Some(owner) = &self.owner {

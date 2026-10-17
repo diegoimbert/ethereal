@@ -7,10 +7,6 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { MessageFormatElement } from "@formatjs/icu-messageformat-parser";
 import { parseMessage } from "./compile.ts";
-import { PROPER_NOUNS } from "./text.ts";
-
-export { PROPER_NOUNS };
-
 export const I18N_DIR = fileURLToPath(new URL("..", import.meta.url));
 export const LOCALES_DIR = join(I18N_DIR, "locales");
 export const UI_DIR = join(I18N_DIR, "..", "..");
@@ -87,11 +83,9 @@ export function literalText(ast: MessageFormatElement[]): string {
   return s;
 }
 
-const PROPER_RE = new RegExp(`(?<![\\p{L}\\p{N}])(${PROPER_NOUNS.join("|")})(?![\\p{L}\\p{N}])`, "gu");
-
-/** Capitals left once the proper nouns are taken out (the lowercase rule). */
+/** Capitalized words (the lowercase rule, #524: no exceptions, acronyms and units included). */
 export function capitalsIn(text: string): string[] {
-  return [...text.replace(PROPER_RE, "").matchAll(/\p{Lu}\p{L}*/gu)].map((m) => m[0]);
+  return [...text.matchAll(/[\p{L}\p{N}]*\p{Lu}[\p{L}\p{N}]*/gu)].map((m) => m[0]);
 }
 
 /** A translation may format a plain `{x}` (string or number) as a number or a select (`{x, plural…}`). */
@@ -123,7 +117,7 @@ export function checkCatalogs(catalogs: Record<string, Catalog> = Object.fromEnt
       }
       const text = literalText(ast);
       const caps = capitalsIn(text);
-      if (caps.length) errors.push(`${code}: "${key}" has capitals (${caps.join(", ")}): app text is lowercase (#524); proper nouns go in PROPER_NOUNS`);
+      if (caps.length) errors.push(`${code}: "${key}" has capitals (${caps.join(", ")}): app text is lowercase (#524), acronyms and units included`);
       if (msg !== msg.trim()) errors.push(`${code}: "${key}" starts or ends with a space`);
       if (code === "fr") {
         if (text.includes("'")) errors.push(`fr: "${key}" uses ' : write the typographic apostrophe ’`);
@@ -220,7 +214,9 @@ export function renderArgsFile(source: Catalog = readCatalog(SOURCE_LOCALE)): st
         if (kind === "tag") usesTag = true;
         return `${/^[A-Za-z_$][\w$]*$/.test(name) ? name : JSON.stringify(name)}: ${kind === "tag" ? "Tag" : kind}`;
       });
-    lines.push(`  ${JSON.stringify(key)}: { ${fields.join("; ")} };`);
+    const line = `  ${JSON.stringify(key)}: { ${fields.join("; ")} };`;
+    // Wrapped as prettier does past its print width (160), so `format:check` agrees.
+    lines.push(line.length <= 160 ? line : [`  ${JSON.stringify(key)}: {`, ...fields.map((f) => `    ${f};`), "  };"].join("\n"));
   }
   lines.push("}", "");
   if (!usesTag) lines.splice(1, 2);

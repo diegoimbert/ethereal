@@ -15,6 +15,7 @@ import { itemSelection } from "@/timeline";
 import { frozenAncestor, isDeviceFrozen, isFrozenTrack } from "./inert";
 import type { EngineTransport } from "@/transport";
 import { t } from "@/i18n";
+import { shortcutLabel } from "@/features/keymap";
 import {
   bounceClips,
   bounceRange,
@@ -162,6 +163,26 @@ function selectedClips(clip: Clip): Clip[] {
   return out.some((c) => c.id === clip.id) ? out : [clip];
 }
 
+/** Why consolidating `clips` is off: not audio/MIDI tracks ("kind"), a frozen or rendering track ("blocked"), or null. */
+function consolidateState(clips: ReadonlyArray<Clip>): "kind" | "blocked" | null {
+  const p = useProjectStore.getState().project;
+  const tracks = clips.map((c) => p?.tracks[c.track]);
+  if (tracks.some((t) => !t || (t.kind !== "Audio" && t.kind !== "Midi"))) return "kind";
+  const frozen = tracks.some((t) => t && p && isFrozenTrack(p, t));
+  const busy = clips.some((c) => !!jobOfTrack(useFreezeUi.getState(), c.track));
+  return busy || frozen ? "blocked" : null;
+}
+
+/**
+ * #870: consolidate `clips` (the arrangement's `clip.consolidate`, Mod+J), when the clip menu
+ * would let you. Returns whether it ran.
+ */
+export function consolidateIfAllowed(transport: EngineTransport, clips: ReadonlyArray<Clip>): boolean {
+  if (clips.length === 0 || consolidateState(clips) !== null) return false;
+  void consolidateClips(transport, clips);
+  return true;
+}
+
 /** Clip-menu entries for `clip` (acting on the selected clips). */
 export function freezeClipEntries(transport: EngineTransport, clip: Clip): ContextMenuEntry[] {
   const p = useProjectStore.getState().project;
@@ -188,6 +209,7 @@ export function freezeClipEntries(transport: EngineTransport, clip: Clip): Conte
       : []),
     {
       label: t("freeze.menu.consolidate"),
+      shortcut: shortcutLabel("clip.consolidate"),
       disabled: busy || frozen,
       onSelect: () => void consolidateClips(transport, clips),
     },

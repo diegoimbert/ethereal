@@ -18,7 +18,7 @@ use crate::media::hash::content_hash;
 use crate::store::ProjectStore;
 
 /// Sample rate of the kit's files.
-const RATE: u32 = 48_000;
+pub(crate) const RATE: u32 = 48_000;
 
 /// One pad of the kit.
 #[derive(Clone, Debug)]
@@ -139,7 +139,7 @@ pub(crate) fn synth(i: usize) -> Vec<f32> {
 }
 
 /// 16-bit mono WAV bytes of `x`.
-fn wav(x: &[f32]) -> Result<Vec<u8>, String> {
+pub(crate) fn wav(x: &[f32]) -> Result<Vec<u8>, String> {
     let spec = hound::WavSpec {
         channels: 1,
         sample_rate: RATE,

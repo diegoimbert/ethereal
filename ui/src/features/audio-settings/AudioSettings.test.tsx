@@ -43,7 +43,7 @@ describe("AudioSettingsDialog", () => {
     const input = screen.getByRole("combobox", { name: "input device" });
     expect(input).toHaveTextContent("none (no recording)");
     expect(screen.getByRole("combobox", { name: "output device" })).toHaveTextContent("Mock Output (system default)");
-    expect(await screen.findByTestId("audio-status")).toHaveTextContent("48000 Hz");
+    expect(await screen.findByTestId("audio-status")).toHaveTextContent("48000 hz");
 
     pickOption(input, /Mock Input/);
     await waitFor(() => expect(applied).toHaveLength(1));

@@ -180,9 +180,9 @@ describe("params", () => {
   });
 
   it("formats normalized values through ParamInfo.scale", () => {
-    expect(formatNormalized(VOLUME_INFO, 0)).toBe("-inf dB");
+    expect(formatNormalized(VOLUME_INFO, 0)).toBe("-inf db");
     // Fader law: 1.0 is the top of the range.
-    expect(formatNormalized(VOLUME_INFO, 1)).toBe("6.0 dB");
+    expect(formatNormalized(VOLUME_INFO, 1)).toBe("6.0 db");
     expect(formatNormalized(PAN_INFO, 0.5)).toBe("C");
     expect(formatNormalized(PAN_INFO, 0)).toBe("100L");
     expect(targetKey({ type: "DeviceParam", device: "D", param: 3 })).toBe("param:D:3");
