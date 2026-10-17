@@ -19,8 +19,8 @@ Ground rules (same as wave 3):
   `ui/src/transport/mock/roadmap/<feature>.ts` (+ its test), dispatched from
   `roadmap/index.ts` (base-17 split), so UI work can start before the Rust side. Keep your
   mock file in sync if a behaviour detail changes.
-- UI placeholders render the standard `eth-feature-placeholder` markup (or nothing, for
-  top-bar/inline slots); no styling (the `design-system` node owns styling).
+- UI placeholders render nothing until their feature lands; no styling (the
+  `design-system` node owns styling).
 - "Shared touch" = a minimal, additive edit in a shared file. **Hot files**
   (`ether-core/src/{engine.rs, graph.rs, mixer.rs}`) were pre-wired in base-17: the
   metronome call, sidechain ordering/PDC/taps (`ether-core/src/sidechain.rs`), the drum-rack
