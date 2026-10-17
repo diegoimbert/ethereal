@@ -28,11 +28,21 @@ test("right-click the power button to automate the device's on/off", async ({ pa
   const lane = page.getByRole("group", { name: /device on automation/i });
   await expect(lane).toBeVisible();
 
-  // Draw on (top) then off (bottom): a toggle lane snaps them to on / off, stepped.
+  // Two points: a new point starts at the lane's value there (not at the pointer's y), so both
+  // are on; the second (selected once made) steps down to off. A toggle lane holds them, stepped.
   const svg = lane.getByTestId("automation-lane-svg");
   const box = (await svg.boundingBox())!;
   await svg.dblclick({ position: { x: 4, y: box.height * 0.2 } });
   await svg.dblclick({ position: { x: 120, y: box.height * 0.8 } });
+  await expect.poll(async () => Object.keys((await doc(page)).automation_points).length).toBe(2);
+  await page.keyboard.press("ArrowDown");
+  await expect
+    .poll(async () =>
+      Object.values((await doc(page)).automation_points)
+        .sort((a, b) => a.time - b.time)
+        .map((p) => p.value),
+    )
+    .toEqual([1, 0]);
   await expect.poll(async () => Object.keys((await doc(page)).automation_points).length).toBe(2);
   const project = await doc(page);
   const switchLane = Object.values(project.automation_lanes).find((l) => l.target.type === "DeviceEnabled")!;
