@@ -679,7 +679,13 @@ function checksOf(repo, pr, required) {
   if (!r.stdout.trim()) return [];
   return JSON.parse(r.stdout);
 }
-const headOf = (repo, n) => JSON.parse(gh(repo, ["pr", "view", String(n), "-R", repo, "--json", "headRefOid"])).headRefOid;
+// The head of PR `n`. Right after a push the PR can still report the previous head for a few
+// seconds: when the branch itself is already at `expect`, that is what counts.
+function headOf(repo, n, expect) {
+  const p = JSON.parse(gh(repo, ["pr", "view", String(n), "-R", repo, "--json", "headRefOid,headRefName"]));
+  if (expect && p.headRefOid !== expect && refSha(repo, p.headRefName) === expect) return expect;
+  return p.headRefOid;
+}
 
 // Wait until every check of PR `n` (only the required ones with `required`) passes, on head
 // `sha`. Checks need a moment to register after a push: none at all counts as pending for a
@@ -689,7 +695,7 @@ async function waitChecks(repo, n, sha, { required = false, timeoutMin, label, l
   let told = "";
   for (;;) {
     lock?.beat();
-    const head = headOf(repo, n);
+    const head = headOf(repo, n, sha);
     if (head !== sha) return { ok: false, moved: true, why: `head moved to ${short(head)}` };
     const cs = checksOf(repo, n, required);
     const bad = cs.filter((c) => c.bucket === "fail" || c.bucket === "cancel").map((c) => c.name);
