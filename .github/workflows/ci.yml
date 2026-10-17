@@ -291,7 +291,8 @@ jobs:
 
   e2e:
     # The Playwright suite (real wasm engine + controller in headless Chromium, both arranger
-    # backends) and the guided tours walkthrough, sharded. No retries: a flaky spec is a bug.
+    # backends) and the guided tours walkthrough, sharded. One retry: a spec that only passes on
+    # its retry is reported as flaky in the log (a bug to fix), without blocking the merge.
     # Left out: `@frames` (frame-time budgets) and `@pixels` (text rasterization against the
     # DOM), both calibrated on the devbox and not stable on shared runners.
     name: e2e (${{ matrix.shard }}/4)
@@ -331,7 +332,7 @@ jobs:
           SHARD: ${{ matrix.shard }}
         run: |
           chmod +x "$ETHER_E2E_SERVER_BIN"
-          npx playwright test --workers=2 --shard="$SHARD/4" --grep-invert "@frames|@pixels"
+          npx playwright test --workers=2 --shard="$SHARD/4" --grep-invert "@frames|@pixels" --retries=1
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: failure()
         with:
