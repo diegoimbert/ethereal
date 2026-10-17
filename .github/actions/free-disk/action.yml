@@ -1,0 +1,27 @@
+# Room for the Rust build on a GitHub-hosted runner: the images ship ~30 GB of SDKs this repo
+# never uses (Android, .NET, Haskell, CodeQL, Swift, docker images). Linux removes them; every
+# OS prints the free space before and after, so a full disk is easy to spot in the log.
+name: Free runner disk
+description: Remove unused preinstalled toolchains from a GitHub-hosted runner
+
+runs:
+  using: composite
+  steps:
+    - name: Free disk (Linux)
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        df -h / | tail -1
+        sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /usr/local/.ghcup \
+          /opt/hostedtoolcache/CodeQL /usr/share/swift /usr/local/share/powershell \
+          /usr/local/share/chromium /opt/microsoft/msedge /usr/lib/jvm
+        sudo docker image prune --all --force > /dev/null 2>&1 || true
+        df -h / | tail -1
+    - name: Disk (Windows)
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: Get-PSDrive -PSProvider FileSystem | Format-Table Name, @{n='FreeGB';e={[math]::Round($_.Free/1GB,1)}}
+    - name: Disk (macOS)
+      if: runner.os == 'macOS'
+      shell: bash
+      run: df -h / | tail -1
