@@ -828,6 +828,21 @@ async function cmdShip(args) {
 
   let lock = null;
   let keepLock = false;
+  // Killed (Ctrl-C, TaskStop, kill): let the lock go instead of leaving it for 30 minutes.
+  const onSignal = (sig) => {
+    log(`${sig}: stopping the ship`);
+    if (lock && keepLock) log(`keeping the ship lock for ${x} (EE is merged): re-run \`just feat ship ${x} --takeover\``);
+    else if (lock) {
+      try {
+        lock.release();
+        log("released the ship lock");
+      } catch (e) {
+        log(`could not release the ship lock: ${e.message}`);
+      }
+    }
+    process.exit(130);
+  };
+  for (const sig of ["SIGINT", "SIGTERM", "SIGHUP"]) process.once(sig, onSignal);
   try {
     // 1. Wait for every check WITHOUT the lock (other ships keep merging meanwhile). Then take
     //    the lock and bring both sides up to date again: if that changed nothing that was
