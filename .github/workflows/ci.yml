@@ -90,7 +90,7 @@ jobs:
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           key: linux
-          save-if: ${{ github.ref == 'refs/heads/main' || github.head_ref == 'ci-gates' }} # TEMP: measure warm runs
+          save-if: ${{ github.ref == 'refs/heads/main' }}
           cache-on-failure: true
       - uses: taiki-e/install-action@8cca0918f8471c33515202b73f56ab27f2bed283 # v2.87.29
         with:
@@ -139,7 +139,7 @@ jobs:
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           key: macos
-          save-if: ${{ github.ref == 'refs/heads/main' || github.head_ref == 'ci-gates' }} # TEMP: measure warm runs
+          save-if: ${{ github.ref == 'refs/heads/main' }}
           cache-on-failure: true
       - uses: taiki-e/install-action@8cca0918f8471c33515202b73f56ab27f2bed283 # v2.87.29
         with:
@@ -170,7 +170,7 @@ jobs:
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           key: windows
-          save-if: ${{ github.ref == 'refs/heads/main' || github.head_ref == 'ci-gates' }} # TEMP: measure warm runs
+          save-if: ${{ github.ref == 'refs/heads/main' }}
           cache-on-failure: true
       - uses: taiki-e/install-action@8cca0918f8471c33515202b73f56ab27f2bed283 # v2.87.29
         with:
@@ -232,7 +232,7 @@ jobs:
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           key: web-build
-          save-if: ${{ github.ref == 'refs/heads/main' || github.head_ref == 'ci-gates' }} # TEMP: measure warm runs
+          save-if: ${{ github.ref == 'refs/heads/main' }}
           cache-on-failure: true
       - name: wasm-bindgen version (from Cargo.lock)
         id: wb
@@ -388,7 +388,7 @@ jobs:
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           key: package-${{ matrix.target }}
-          save-if: ${{ github.ref == 'refs/heads/main' || github.head_ref == 'ci-gates' }} # TEMP: measure warm runs
+          save-if: ${{ github.ref == 'refs/heads/main' }}
           cache-on-failure: true
       - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
