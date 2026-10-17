@@ -1,9 +1,9 @@
 # Contracts: review guide
 
-This is what every parallel node builds against. Review this page (and skim the linked
-files) before fan-out. Types are frozen after approval; changes go through a BCR
-(ORCHESTRATION.md §6.1). Bodies marked `todo!("<node> node")` say which node implements
-them.
+The contracts every crate and the UI build against: the protocol, the model, the engine
+traits and the rules around them, with the decisions behind them. Protocol and model types
+are stable: change them on purpose, in a pull request that says so (wire compatibility,
+`.ether` versions, the generated TS types).
 
 ## 1. Big picture
 
@@ -311,7 +311,7 @@ v2 adds `export`, `tempo`, `markers`, `midi_map`, `groove`, `drum_rack` (with sl
   Clip content is either MIDI `notes` or audio `media: MediaId` with gain, transpose,
   fades and an optional `WarpDesc`. The desc is serializable so the web host can ship it
   Worker → Worklet. `compile()` does the topological sort, PDC and cycle rejection
-  (`core` node).
+  (`ether-core`).
 - **`ParamChange { target: TrackVolume | TrackPan | TrackMute | SendLevel | Node { node, param }, value }`**
   goes through a lock-free queue and is applied at the next block.
 - **`AudioSource`**: `read(channel, start, out) -> bool` must be RT-safe. It returns
@@ -400,7 +400,7 @@ v2 adds `export`, `tempo`, `markers`, `midi_map`, `groove`, `drum_rack` (with sl
   `newProjectId()` (UUIDv7), `nextGestureId()`.
 - **Implementations.**
   - `MockTransport` is in-memory. It implements most document commands with patches,
-    undo/redo and gestures, plus a fake playhead and meters. UI nodes build real features
+    undo/redo and gestures, plus a fake playhead and meters. UI work builds real features
     against it. It also simulates the engine-side project store (three demo projects,
     dirty flag) and a fake sample library. There are no file pickers and no browser file
     I/O.
@@ -417,13 +417,10 @@ v2 adds `export`, `tempo`, `markers`, `midi_map`, `groove`, `drum_rack` (with sl
 
 ## 7. Repo mechanics
 
-- `.github/ownership.toml` maps each node to its globs. `scripts/check-ownership.py` runs
-  in CI for `node/*` branches. `Cargo.lock`, `pnpm-lock.yaml` and `ui/src/generated/**`
-  are open to everyone. `foundation`, `alpha`, `v0.1` and `base-*` are unrestricted.
 - `[workspace.dependencies]` pre-declares everything anticipated: cpal, clack (git-pinned),
   symphonia, rubato, midir, rtrb, triple_buffer, basedrop, assert_no_alloc, signalsmith,
   shared_memory, raw_sync, interprocess, wasm-bindgen, js-sys, web-sys, tauri + plugins,
-  proptest, insta, and others. Nodes opt in from their own `Cargo.toml`. `ui/package.json`
+  proptest, insta, and others. Crates opt in from their own `Cargo.toml`. `ui/package.json`
   is likewise pre-populated.
 - **Parallel dev instances** (README "Running multiple dev instances"):
   - `ETHER_INSTANCE` defaults to the worktree directory name.
@@ -489,29 +486,12 @@ v2 adds `export`, `tempo`, `markers`, `midi_map`, `groove`, `drum_rack` (with sl
 8. **Plugin state.** Accepted as proposed: the state blob is authoritative on load and
    params are mirrored in the document.
 
-## 10. Stubs and ownership
-
-| Node | Implements |
-|---|---|
-| `model` | every `todo!("model node")` in ether-model (`OrderKey::between`, `Project::apply/...`, `History`, `patch::changes_for`, `file::load/save`, `TempoMap`) |
-| `core` | `engine.rs`, `graph::compile`, `tempo.rs` |
-| `devices` | ether-devices |
-| `media` | ether-media |
-| `controller` | ether-controller |
-| `clap` / `sandbox` / `stretch` | their crates (+ scanner) |
-| `native-host` / `wasm-host` | ether-native + apps/desktop + `ui/src/transport/tauri` / ether-wasm + apps/web + `ui/src/transport/wasm` |
-| ui-* | their feature folders / `ui/src/timeline` |
-
-`ether-protocol` has no owner after foundation, so everything in it is implemented now.
-That includes the normalized↔plain param mapping (`devices::scale_to_plain` /
-`scale_to_normalized`, with test vectors the UI mirrors).
-
 ## 11. Roadmap v2 contracts (contracts-2)
 
-Frozen for the 12 roadmap feature nodes; per-node files and hook points are in
-[ROADMAP.md](ROADMAP.md). Everything is additive: v0.1 behaviour is unchanged until a node
-implements its part (its commands reply `Unsupported`, new devices are pass-through
-placeholders, new graph fields are empty or neutral). The MockTransport simulates all of it.
+The contracts of the 12 roadmap v2 features. Everything is additive: v0.1 behaviour is
+unchanged where a feature is not implemented (its commands reply `Unsupported`, new devices
+are pass-through placeholders, new graph fields are empty or neutral). The MockTransport
+simulates all of it.
 
 Conventions kept: one protocol domain file per feature (`Command::{Export, Tempo, Marker,
 MidiMap, Groove, DrumRack, Slice, Collab}`), document edits are ops on normalized entity
@@ -553,8 +533,8 @@ tables with field-level `Update`s, client-chosen ids, patches before replies.
 
 ### 11.2 New built-in devices
 `BuiltinDevice::{Eq, Reverb, Limiter, Utility, DrumRack}`. `BuiltinDeviceType::ALL` is the
-`ListBuiltin` order and `BuiltinDevice::new(ty)` builds defaults. Param lists belong to the
-owning node (append-only ids). `DeviceDescriptor::sidechain_inputs` (0 = none) is new on
+`ListBuiltin` order and `BuiltinDevice::new(ty)` builds defaults. Param lists belong to each
+device (append-only ids). `DeviceDescriptor::sidechain_inputs` (0 = none) is new on
 every descriptor.
 
 ### 11.3 Tempo map and metronome
@@ -593,7 +573,7 @@ every descriptor.
   the earlier clip ends inside the later one by at most both `A.fade_out` and `B.fade_in`.
   The engine sums clips, so a crossfade is two overlapping fades; `ClipCommand::Crossfade`
   creates one. Overlaps are not a model invariant.
-- **Crossfade gestures** (`crossfades` node). `ClipCommand::SetCrossfade { first, second,
+- **Crossfade gestures** (`crossfades`). `ClipCommand::SetCrossfade { first, second,
   at, length, curve: Option<FadeCurve> }` sets the crossfade of `first` into `second` to
   `length` beats centred on `at`, with the same extension rules as `Crossfade` (each clip
   extends into the other as far as its source allows; the other side makes up the rest).
@@ -636,15 +616,6 @@ dirty project before exiting. Dev port offset `remote: 4`
 (`scripts/dev-env.mjs`). `ether-server` (headless native host) and
 `ui/src/transport/ws/WsTransport` are stubs; the frame codec is implemented on both sides.
 
-### 11.6 Collaboration (reserved)
-Model: `SiteId` (u64 as a decimal string), `ActorId`, `OpOrigin { site, actor, seq }`,
-`StampedTransaction`. Protocol: `CollabCommand` (Join, Leave, SetPresence), `CollabEvent`
-(Session, Presence), `Presence`/`PresenceState`, and the engine-to-engine `CollabMessage`
-(Hello, Transaction, Update, SyncRequest, Snapshot, Presence, Leave), and
-`Patch::origin: Option<OpOrigin>` (omitted when `None`). Everything replies
-`Unsupported`; the `collab` node refines it through BCRs. Remote edits will reach UIs as
-ordinary patches, and undo stays per site.
-
 ### 11.7 Multicore partition contract
 `EngineConfig::worker_threads` (0 = everything on the audio thread, the default; ignored on
 wasm32). The core never spawns threads; hosts supply an RT-safe `parallel::ParallelExecutor`
@@ -671,7 +642,7 @@ min, max (normalized; min > max inverts), mode: Absolute | Relative { encoding }
 One mapping per source, saved in the document. `MidiMapCommand::{Map, Edit, Unmap}` are
 undoable; `Learn { target? }` (runtime, `MidiMapEvent::LearnChanged`/`Learned`) and `List`
 (`ReplyValue::MidiMappings`) are not. Host input: `MidiInputEvent { port, data: [u8; 3],
-time_ms }` through `EngineBridge::poll_midi_input`, fed natively from the recording node's
+time_ms }` through `EngineBridge::poll_midi_input`, fed natively from the recording
 MIDI input path (its `LiveMidi` callback, extended with the port id). Mapped messages become
 ordinary edits at tick rate (one gesture per control) and still reach monitored tracks.
 
@@ -764,7 +735,7 @@ fade curves Linear, `reversed` false. Tested on a realistic v2 fixture
 3. **Pad chains reuse `Device`** with a `pad` parent pointer instead of a second device
    table, so params, automation, plugins and MIDI mapping work on pad devices unchanged.
 4. **`sidechain_inputs` is on every descriptor**, touching every descriptor literal once now
-   so feature nodes don't have to.
+   so each feature doesn't have to.
 5. **Project swing is a playback groove** compiled by the controller; `Quantize::swing` is
    the destructive variant.
 6. **MIDI mappings are document entities** (saved and undoable, like Ableton); learn mode is
@@ -792,97 +763,13 @@ Controller hook: `EngineBridge::preview` (defaulted `Unsupported`), `media_previ
 (`preview_command`, `preview_tick`). The MockTransport (`MockPreview`) follows the same
 event rules.
 
-### 11.16 Presence v2 and listen-on-peer (base-53)
-Design: docs/COLLAB.md §8-§11. All additive and append-only in `ether_protocol::collab`:
-- `PresenceState` gains `viewport`, `activity`, `following`, and the controller-owned
-  `listening_to`, `can_host` (all `#[serde(default)]`, omitted when unset). `cursor` keeps
-  its meaning (edit cursor). The live pointer is a separate channel:
-  `CollabCommand::SetPointer` → `CollabMessage::Pointer { site, pointer }` →
-  `CollabEvent::Pointer`, `ArrangerPointer { beats, track, y }` in song coordinates
-  (≤ 30 Hz, `POINTER_MAX_HZ`).
-- Site-to-site messages `CollabMessage::{Signal, Listen, Unlisten, TransportRequest,
-  StreamClock}` carry `from`/`to` (`CollabMessage::route`): the relay checks `from`, delivers
-  to `to` only (same session, synced). `IceServers` is relay → site only
-  (`Relay::set_ice_provider`, refreshed every `RelayConfig::ice_refresh_ms`).
-- Commands `Listen { host }`, `StopListening`, `SendSignal`, `SendStreamClock`, `SetHosting`,
-  `SetIceServers`; events `Signal`, `ListenStatus`, `StreamClock`, `IceServers`. Until their
-  node lands, `SetPointer` (presence-v2), `Listen`/`StopListening` (stream-listen),
-  `SetHosting`/`SendStreamClock` (stream-host) reply `Unsupported`; `SendSignal` and
-  `SetIceServers` work (`ether-controller/tests/collab_prewire.rs`).
-- Stream clock: `StreamClock { rtp, position, ..., count_in_end }` = "the sample with RTP
-  timestamp `rtp` in this listener's stream is the timeline at `position`" (48 kHz,
-  wrapping u32), every 100 ms and at every discontinuity. `rtp` = the RTP time of the
-  rendered sample **plus the graph latency** (when it is heard), for jumps too
-  (COLLAB.md §9.4, worked example); count-in anchors carry the pre-roll position.
-- Engine: `ether_core::stream_tap` (`EngineHandle::set_stream_tap`): a copy of the render
-  after master + metronome/count-in and before the preview voice, into pre-allocated `rtrb`
-  rings (block headers with `jump` on play/locate/loop wrap, + interleaved stereo),
-  RT-safe.
-- `EngineBridge` (defaulted): `stream_capabilities`, `start/stop_stream_capture`,
-  `stream_open/stream_signal/stream_close`, `poll_stream` (`streaming::StreamOutput`), and
-  plugin GUI mirrors `create/destroy_plugin_mirror`, `set_plugin_mirror_param`.
-- Relay limits (`relay::limits`): presence 20 Hz, pointer 40 Hz (clears always pass),
-  site-to-site 200/s (dropped, not disconnected).
-
-### 11.17 Social: chat, pinned notes, peer playheads (base-62)
-Design: docs/COLLAB.md §12. Additive; the tables ship with `.ether` v4 (contracts-3):
-- Model (`ether_model::social`): `ChatMessage { id, seq, author, text, sent_at }` and
-  `PinnedNote { id, position: NotePosition { beats, track, y }, text, author, created_at,
-  resolved }`, `Author { name, site, actor, color }`; tables `Project::{chat,
-  pinned_notes}` (`.ether` v4: added empty by the v3 → v4 migration); ids `ChatMessageId`, `PinnedNoteId`;
-  `EntityUpdate::PinnedNote` (`PinnedNoteChange::{Position, Text, Resolved}`); chat
-  messages have no updates. Caps: text ≤ 2000 chars and ≤ 4096 bytes (chat and notes),
-  author name ≤ 64, ≤ 2000 stored chat messages (oldest pruned by the sender, in the same
-  transaction; `apply` refuses past 4000), ≤ 500 notes. Notes may be pinned in a piano
-  roll (`NotePosition::editor`, weak clip ref). Remote chat inserts are dropped unless
-  `author.site` is the origin and `seq` is 0; chat updates are dropped, and chat removes
-  unless they are the sender's prune (COLLAB.md §12.1). `COLLAB_PROTOCOL_VERSION` = 2.
-  `note.position.track` is a weak reference (not validated, never cascaded).
-- Chat order is log order: `Project::apply` gives an `Insert` with `seq: 0` the next `seq`.
-  `History` applies chat ops without recording them (`social::is_untracked`).
-- Protocol: `Command::Chat(ChatCommand::Send { id, text })` (not a document command, not in
-  a `Batch`, `InvalidState` outside a session), `Command::PinnedNote(PinnedNoteCommand::{Add,
-  Edit, Delete})` (document command), `PresenceState::transport: Option<PeerTransport {
-  position, playing, sent_at_ms, loop_region }>` (controller-owned),
-  `CollabEvent::ChatReceived { ids }`. Until `collab-social` lands, `Chat::*` and
-  `PinnedNote::*` reply `Unsupported` (`ether-controller/tests/social_prewire.rs`).
-
-### 11.18 Sharing: P2P host hub, invite links (base-115)
-Design: docs/SHARING.md (T1, owner review). Additive and append-only:
-- Protocol (`ether_protocol::share`): `Command::Share(ShareCommand)` (`Get`, `SetIdentity`,
-  `SetServers`, host `Start`/`Stop`/`ResetLink`/`RemoveParticipant`/`SetParticipantRole`/`SetHideDevices` (SHARING.md §14.7),
-  joiner `OpenInvite`/`AcceptInvite`/`Leave`/`Reconnect`/`Detach`, web `PeerSignal`) and
-  `Event::Share { event: ShareEvent }` (`State { ShareState }`, `Notice`, web
-  `PeerEndpoint`/`PeerSignal`). `ShareState` = `Off | Hosting | Joining { JoinStage } |
-  Joined`; `Participant`, `ParticipantRole` (Host/Edit/Listen), `ShareRole` (Edit/Listen),
-  `InvitePreview`. `ProjectSummary::share: Option<ProjectShareInfo>` (omitted when `None`).
-  Signaling wire `SignalClientMessage`/`SignalServerMessage` (`SIGNAL_PROTOCOL_VERSION` 1)
-  and the data-channel handshake `PeerHandshake` (`SHARE_PROTOCOL_VERSION` 1), both exported
-  to TS. Until their nodes land every `Share::*` but `Get` (reports `Off`) replies
-  `Unsupported` (`ether-controller/tests/share_prewire.rs`).
-- `share-name` (additive, same protocol versions): `PeerHandshake::Accept` gained optional
-  `name`/`color` (the identity chosen on the join screen, which replaces `Hello`'s; older
-  hosts ignore them, an older joiner's bare `Accept` keeps `Hello`'s). In a share session a
-  `Presence` carries the user's preferred colour (non-zero) and its current name; the hub
-  re-pins the name and grants the colour when free (SHARING.md §2.3).
-- `ether-collab::share`: invite link format (`invite`, implemented; TS mirror
-  `ui/src/domain/invite.ts`, same vectors), data-channel fragmentation (`dc`, implemented),
-  `share.json` shape (`file`), and the node seams `PeerLink`, `SignalLink`, `PeerEndpoint`
-  (`PeerOutput::Connected` carries both DTLS fingerprints), `ShareServices`
-  (`default_services()` fails cleanly until `p2p-transport`). The hub is the existing `Relay`.
-- Mock: `MockShare` (`ui/src/transport/mock/roadmap/share.ts`) simulates hosting, joining,
-  participants and the host going offline, so UI nodes start now.
-- Workspace deps added (unused until their nodes): `sha2`, `tauri-plugin-deep-link`,
-  `tauri-plugin-single-instance`.
-
 ## 12. v0.2 contracts (contracts-3)
 
-Frozen for the v0.2 nodes; per-node files, hook points and shared touches are in
-[ROADMAP.md "v0.2"](ROADMAP.md#v02-contracts-3). Everything is additive and append-only:
-v0.1 behaviour is unchanged until a node implements its part (its commands reply
+The contracts of the v0.2 features. Everything is additive and append-only: v0.1
+behaviour is unchanged where a feature is not implemented (its commands reply
 `Unsupported`, pinned by `ether-controller/tests/roadmap_v3.rs`; new devices are
 placeholders; new desc fields are empty). The MockTransport routes every new command to
-one file per node (`ui/src/transport/mock/roadmap/`). The repo owner decided four UX
+one file per feature (`ui/src/transport/mock/roadmap/`). The repo owner decided four UX
 questions before the freeze: Bitwig-style modulation, take lanes with swipe comping,
 declarative device layouts with one shared renderer, and samples referenced in place.
 
@@ -1077,13 +964,13 @@ move stored normalized automation).
 #### 12.4.2 Declarative layouts (`device-ui`)
 `DeviceDescriptor::layout: Option<DeviceLayout>` (`ether_protocol::layout`, generated to
 TS): sections (`id`, `title`, `span` 1..=4, `columns` 1..=8) of items (`widget`, `size`
-Small/Medium/Large, `colspan`, `label`). Widget catalog (append-only, BCR to extend): param
+Small/Medium/Large, `colspan`, `label`). Widget catalog (append-only: a new widget is a protocol change): param
 widgets `Knob`, `Slider`, `Toggle`, `Choice`, `Number`; typed widgets `Envelope`,
 `FilterCurve`, `TransferCurve`, `Oscillator`, `Lfo`, `StepEditor`, `XyPad`, `Crossover`;
 data widgets `SampleWaveform`, `ZoneMap`, `Spectrum`, `Tuner`, `Meter`, `RackChains`,
 `Macros`, and `EqCurve` (§12.15, the EQ only for now). Appended by `devices-pass-effects`: `DynamicsCurve` (compressor / gate / limiter transfer curve with a live detector-level dot from `Levels`), `DelayTaps` (delay echoes), `ReverbDecay` (reverb decay envelope) and `VelocityCurve` (MIDI velocity mapping). Appended by `fm-synth`: `FmAlgorithm` (an FM synth's algorithm picker: one routing diagram per choice of its `algorithm` param, from `FmRouting` modulator / carrier bit masks). **One shared renderer** (`ui/src/features/devices/layout/`, kit components and
 tokens only) renders every built-in; devices without a layout (plugins, v0.1 devices until
-they add one) get the generic layout grouped by `ParamInfo::group`. Device nodes write
+they add one) get the generic layout grouped by `ParamInfo::group`. Devices write
 specs and widget data only, never bespoke panels. `ModulatorDescriptor::layout` uses the same
 catalog (the Steps editor is `StepEditor`). A shared validator
 (`ether-devices/tests/layouts.rs`) checks every built-in and modulator layout: referenced
@@ -1135,7 +1022,7 @@ Chain rule: MIDI effects precede the first instrument (`midi_fx::check_chain_ord
 scale changes. Plugins with MIDI output keep working as before (their events feed the next
 device).
 
-### 12.5 Presets (`presets` + each device node)
+### 12.5 Presets (`presets` + each device)
 File format `ether_model::preset` (`.etherpreset`, JSON `{ format: "ethereal-preset",
 version: 1, app_version, preset: { name, device: Builtin { device } | Plugin { format,
 plugin_id, name, vendor }, meta { tags, author, description }, params, kind, samples,
@@ -1171,7 +1058,7 @@ runtime; `PresetEvent::Changed` after user-set changes. Sample-based presets car
 - Modulators live **inside any track-chain device** (not on drum-pad or rack-chain devices in
   v0.2, so every host is an entry the engine's `pre_node` hook sees; a rack's modulators reach
   its chain devices) (`Modulator { device, order, name, kind, params, sidechain }`,
-  kinds `Lfo`, `Envelope`, `EnvelopeFollower`, `Steps`, `Random`, `Keytrack`, `Velocity` (appended by BCR base-87, unipolar); param tables frozen in
+  kinds `Lfo`, `Envelope`, `EnvelopeFollower`, `Steps`, `Random`, `Keytrack`, `Velocity` (appended in base-87, unipolar); param tables frozen in
   `ether_devices::modulators`). `ModMapping { source: Modulator | Macro { rack, index },
   device, param, depth -1..=1 }`, one per (source, target). Scope: a modulator targets its
   host and, for a rack host, devices on the rack's chains, never the rack's own macros (no
@@ -1310,11 +1197,11 @@ readback}`; `ParamTarget::Modulator`; `automation_rt::apply_automation` (moved).
    Bitwig choice); macros are modulation sources rather than direct param owners.
 3. **Freeze plays at song time**, not as a warped clip: exact whatever the tempo map, and
    the engine needs no warp for it. Flatten warps the clip to the tempo map.
-4. **Device param tables were frozen by contracts-3**, not by the device nodes, so the mock,
-   presets and layouts could be written in parallel. Nodes append params; they never
+4. **Device param tables were frozen by contracts-3**, not by each device, so the mock,
+   presets and layouts could be written in parallel. Devices append params; they never
    renumber.
 5. **The codec carries v0.2 track fields as JSON** to keep the binary layout stable while
-   nodes refine their desc types; a node that needs speed moves its field into the binary
+   features refine their desc types; one that needs speed moves its field into the binary
    layout (bumping the version).
 6. **Library write access is new** (`Library::write_file` & co.) and presets/index share
    one writable user root.
@@ -1382,17 +1269,16 @@ latency-aligned sidechain buffers (base-24, §11.10) through `Node::process_side
   arrive as `AnalysisData::Spectrum { stage: Pre | Post }`.
 - `EqCurve` is for the EQ only in v0.2: the auto filter and the multiband compressor use
   standard controls (`FilterCurve`, `Crossover`, knobs). Other filters may adopt it later with
-  an explicit param mapping (a BCR on this section).
+  an explicit param mapping (a change to this section).
 
 ## 13. v0.3 contracts (contracts-4)
 
-Frozen for the v0.3 nodes. Per-node files, hook points and shared touches are in
-[ROADMAP.md "v0.3"](ROADMAP.md#v03-contracts-4). As in §12, everything is additive and
-append-only: v0.2 behaviour is unchanged until a node implements its part. Its commands reply
-`Unsupported` (pinned by `ether-controller/tests/roadmap_v4.rs`, one test per node), new
+The contracts of the v0.3 features. As in §12, everything is additive and append-only:
+v0.2 behaviour is unchanged where a feature is not implemented. Its commands reply
+`Unsupported` (pinned by `ether-controller/tests/roadmap_v4.rs`, one test per feature), new
 devices are placeholders, new desc fields compile empty and the new engine hooks are stubs
 (`ether-core/tests/roadmap_v4_hooks.rs`). The MockTransport routes every new command to one
-file per node (`ui/src/transport/mock/roadmap/`, each pinned by its own `*.test.ts`).
+file per feature (`ui/src/transport/mock/roadmap/`, each pinned by its own `*.test.ts`).
 
 New domains (one protocol file each): `Command::{Expression, Capture, AudioToMidi,
 External, History, Template, Version, Keymap}`; `Event::{Capture, AudioToMidi, External,
@@ -1464,7 +1350,7 @@ pressure 0..=1, bend -1..=1, note pitch ±96 semitones. Curves interpolate with 
   aftertouch; CLAP/VST3 note expressions and MPE MIDI are §13.3. The sandbox shm already
   encodes `NoteExpression`.
 - Codec: `TrackDesc::{expression, hw_io}` travel in the v2 JSON blob (absent = default, no
-  `VERSION` bump); a node may move them to the binary layout (bump `VERSION`).
+  `VERSION` bump); a later change may move them to the binary layout (bump `VERSION`).
 
 ### 13.3 MPE (`mpe`)
 `Track::mpe: Option<MpeSettings { zone: Lower | Upper, member_channels 1..=15,
@@ -1536,8 +1422,7 @@ drained by the host's MIDI out thread (sample-accurate timestamps).
 (`HistoryStep { id, label, time_ms, undone, checkpoint }`; chronological: applied steps oldest first,
 then undone steps in redo order). `JumpTo { step }` undoes/redoes through the same path as
 `Edit::{Undo, Redo}` (one batch of patches; `None` = before the oldest kept step; `NotFound`
-for dropped steps). `SetCheckpoint { step, name }` names a step for the session. In a collab
-session only this site's own steps are listed and jumped (per-site undo, docs/COLLAB.md).
+for dropped steps). `SetCheckpoint { step, name }` names a step for the session.
 `HistoryEvent::Changed` at most every 100 ms while a client listed the history. `History::State`
 → `HistoryState { history }` (what `Patch::history` carries; the UI reads it on connect, so
 switching engines keeps undo enabled; it doesn't subscribe to `Changed`). Runtime only:
@@ -1660,7 +1545,7 @@ alt, meta, down, repeat } })`. UI side: `ui/src/features/plugin-keys` (`onPlugin
    never touched by the UI, so a remote engine and the web (OPFS) behave the same.
 4. **Undo history stays runtime** (not saved with the project); named checkpoints become
    durable only through `project-versions`.
-5. **`engine.rs` was not pre-wired** (in-flight v0.2 nodes own it): `midi-expression` and
+5. **`engine.rs` was not pre-wired** (other v0.2 work was changing it): `midi-expression` and
    `external-instrument` each add one call site for their (pre-built) RT state.
 
 ### 13.16 Computer MIDI keyboard (`keyboard-midi`, owner request)
@@ -1742,64 +1627,7 @@ instead of a `Media::Preview` of the whole file.
   Modes: desktop (runtime file), `--server URL --token T`, and `--project PATH` (embedded
   headless engine).
 
-## 14. Project import (owner request; docs/IMPORT.md)
-
-### 14.1 `Project::Import` (`import-dawproject`, `import-ableton`, `import-fl`)
-
-- Protocol (`ether_protocol::import`, exported to TS):
-  - `ProjectCommand::Import { new_id, source: BundleSource, name: Option<String> }` checks the
-    source and replies `Unit` at once. The source is `Upload { upload }` (web, remote) or
-    `Path { path }` (desktop: OS dialog or drop; `ProjectStore::read_import_file`, defaulted
-    to `Unsupported`, accepts absolute `.dawproject/.als/.flp/.rpp/.rpp-bak` paths). The
-    format comes from the content (`ether_import::detect`); an unrecognized file, a busy
-    importer (`InvalidState`) or an existing `new_id` fail at once. The new project's name:
-    `name`, else the source's title (DAWproject metadata, Ableton/FL fields), else the
-    source file's stem (the upload's name or the path), else "Imported project".
-  - `ProjectCommand::CancelImport { id }` replies `Unit`; the half-written project is removed.
-  - `Event::Import { event: ImportEvent }`: `Progress { id, progress 0..1, stage }`,
-    `Done { id, project: ProjectSummary, report: ImportReport }` (after the new project's
-    `Event::ProjectLoaded`), `Failed { id, message }`, `Cancelled { id }`.
-  - `ImportReport { format: ImportFormat, application, summary: ImportSummary, items }`:
-    counts of what was imported, and every `ImportReportItem { status: Approximated |
-    Dropped | NeedsResolving, area, subject, message, count }` (identical lines merged;
-    `NeedsResolving`: kept as a missing device or audio file to resolve, §14.2).
-- Controller (`ether-controller/src/import`): one job at a time, stepped from `tick` (parse
-  in one step; then one media file per tick; then map, save, open): the controller keeps
-  serving transport and meters meanwhile. Archive media (DAWproject) are written to the
-  project's `media/`; media a source references by path are referenced in place
-  (`MediaLocation::External`) when the host can read them (tried: the written paths, their
-  project-relative forms, the file name in the project folder, `Samples/**` and in a parent
-  `Ableton Project Info` folder), else kept as missing references to relink. Parsers and the
-  mapper run under `catch_unwind`. The current project is autosaved before the switch.
-- `crates/ether-import`: format-neutral `ImportedProject` (beats, plain units), one parser
-  module per format (`dawproject`, `reaper`; `ableton` and `flp` owned by their nodes), the
-  deterministic mapper (`map`: ids from `IdGen::new(seed)`, `seed` derived from the new
-  project id) and plugin state conversions (`.vstpreset`, `.fxp/.fxb`, raw CLAP, `.aupreset`
-  → Ethereal's per-format state blobs). Pure Rust, no I/O, native + wasm32.
-- UI (`ui/src/features/project-import`): "Import from another DAW…" on the project screen
-  and in the command palette (desktop: `TauriTransport::pickImportFile`), project files
-  dropped anywhere on the window (capture phase, before the audio drop zones; macOS path
-  drops through `onPathDrop`), a progress dialog with Cancel, then the report dialog.
-
-### 14.1b `Project::ExportTo` (`project-export`, owner request; docs/EXPORT-DAW.md)
-
-- Protocol (`ether_protocol::project_export`, additive): `ProjectCommand::ExportTo { id,
-  format: ProjectExportFormat (DawProject | Ableton | FlStudio), path: Option<String> }`
-  replies `ReplyValue::ProjectExported { result: ProjectExportResult { report:
-  ProjectExportReport { format, summary: ImportSummary, items: Vec<ImportReportItem> },
-  path, download } }`. Synchronous (like `ExportBundle`). `path` (desktop OS save dialog;
-  `ProjectStore::write_project_export`, defaulted to `Unsupported`) must end with the
-  format's extension; the host writes the file there and any `files` beside it. Without a
-  path the result is a download (`Export::ReadChunk` / `Release`): the project file, or a
-  `.zip` of the project folder when the format keeps its audio beside the file. A format
-  without a writer in this build replies `Unsupported`.
-- `crates/ether-export` (pure, native + wasm32; feature `import` in the controller):
-  `unmap` (Ethereal project → `ImportedProject`, the mapper's tables reversed) and one writer
-  per format. Report lines use the import report's types: `Dropped` = not exported.
-- UI (`ui/src/features/project-export`): project menu "Export to another DAW ▸" and palette
-  entries; desktop `TauriTransport::pickProjectExportPath`; the report dialog.
-
-### 14.2 Resolving missing plugins and audio files (`import-resolver`, owner request)
+## 14. Resolving missing plugins and audio files (`import-resolver`)
 
 - Protocol (`ether_protocol::resolver`, additive): `Command::Resolve(ResolveCommand)`,
   `ReplyValue::ResolveProposal { proposal }`, `Event::Resolve { event: ResolveEvent }`.
@@ -1858,36 +1686,3 @@ instead of a `Media::Preview` of the whole file.
   validated strictly and never applied without the user switching them on.
 - Hosts: no host code (the commands go to the controller). Mock:
   `ui/src/transport/mock/roadmap/resolver.ts`.
-
-## 15. Telemetry (`observability`, owner request)
-
-- Wire (`crates/ether-protocol/src/telemetry.rs`, TS-exported; imported by
-  the telemetry service and `ui/src/features/telemetry`): JSON `POST`s to the
-  `ethereal-telemetry` Worker, each with an `X-Ethereal-Version` header.
-  - `POST /v1/events` ← `TelemetryBatch { ctx, events: Vec<TelemetryEvent { name, props?, value? }> }`
-    (≤ 100 events, ≤ 64 KiB) → `TelemetryReply { ok, accepted, dropped }`.
-  - `POST /v1/crash` ← `CrashReport { ctx, kind: CrashKind, message, stack?, thread?, plugin?, exit_code?, at_ms? }`
-    (≤ 256 KiB) → `TelemetryReply { ok, fingerprint }`.
-  - `POST /v1/diagnostics` ← `DiagnosticsReport { ctx, description, system, log, project }`
-    (≤ 1 MiB) → `TelemetryReply { ok, ticket }` (`D-` + 6 Crockford base32 chars).
-  - `TelemetryContext { install_id (UUID v4), version (repo VERSION), os, arch, platform: desktop|web|server }`.
-  - Errors: 400 invalid (unknown `kind`, bad context, no version header), 403 browser origin
-    not allowed, 413 too big, 429 rate limited (per install id); the body is
-    `TelemetryReply { ok: false, error }`. Unknown fields are dropped, never errors.
-- Event names and props are an allowlist in the Worker (`the telemetry service/src/catalog.ts`):
-  an unknown event is counted in `dropped`, an unknown prop dropped, a label outside the
-  prop's values becomes `other`. Labels are `[a-z0-9_.+-]{1,32}`. Adding an event =
-  catalog + PRIVACY.md + the emitter, Worker deployed first.
-- Privacy invariants (both the senders and the Worker enforce them): every free-text field
-  goes through the shared scrubber (`ui/src/features/telemetry/scrub.ts`, Rust port in
-  `ether-native`, common vectors in `the telemetry service/test/scrub-vectors.json`); the
-  Worker never stores the client IP (country only); no project content, file names or room
-  ids.
-- Consent: opt-out. Desktop and `ether-server` keep `<data dir>/telemetry/settings.json`
-  (`crash_reports`, `usage`, `install_id`, `notice_seen`); the web keeps
-  `localStorage["eth-telemetry"]`. `DO_NOT_TRACK`, an empty `ETHER_TELEMETRY_URL`, browser
-  DNT/GPC, dev builds and e2e send nothing (an explicit `ETHER_TELEMETRY_URL` /
-  `localStorage["eth-telemetry-url"]` enables dev/e2e).
-- Rust feature `telemetry` (`ether-native`, passed through by the desktop app and
-  `ether-server`; in `full`). Off: no panic hook, no sender; the desktop commands report
-  `available: false`.

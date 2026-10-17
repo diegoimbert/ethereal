@@ -1,4 +1,4 @@
-//! Plugin GUI mirrors (`plugin-mirror` node; docs/COLLAB.md §9.6).
+//! Plugin GUI mirrors (`plugin-mirror`; docs/COLLAB.md §9.6).
 //!
 //! A **mirror** is a GUI-only instance of a plugin device: instantiated and restored on the
 //! main thread like a live one, but **never activated**, never in the engine, never

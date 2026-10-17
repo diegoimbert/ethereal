@@ -1,4 +1,4 @@
-//! Controller-side recording (owned by the `recording` wave-3 node; see `docs/WAVE3.md`).
+//! Controller-side recording.
 //!
 //! - **Arm** (`RecordingCommand::Arm`): runtime state in `EtherController::armed`, not in
 //!   the document and not undoable; reported with `RecordingEvent::ArmChanged`. Arm state

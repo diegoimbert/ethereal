@@ -1,4 +1,4 @@
-//! Offline export (roadmap v2, `export` node): render the arrangement to audio files.
+//! Offline export (roadmap v2, `export`): render the arrangement to audio files.
 //!
 //! Flow: `Export::Render` replies `ExportStarted { job }` immediately; the render runs in the
 //! background (controller tick) and reports `Event::Export` progress, then exactly one of

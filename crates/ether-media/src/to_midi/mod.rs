@@ -1,4 +1,4 @@
-//! Audio → MIDI detection (v0.3, owned by the `audio-to-midi` node; CONTRACTS.md §13.5).
+//! Audio → MIDI detection (v0.3, `audio-to-midi`; CONTRACTS.md §13.5).
 //! Pure DSP on decoded audio (native + wasm, no dependency beyond std); the controller
 //! (`audio_to_midi/`) runs it in bounded slices from its tick and turns the notes into a
 //! clip.

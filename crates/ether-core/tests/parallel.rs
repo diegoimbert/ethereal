@@ -1,4 +1,4 @@
-//! Multicore (`multicore` node, CONTRACTS.md §11.7): parallel processing is bit-identical
+//! Multicore (`multicore`, CONTRACTS.md §11.7): parallel processing is bit-identical
 //! to sequential processing on randomized projects (groups, returns, pre/post sends,
 //! sidechains, drum racks with choke groups, latent devices, audio clips incl.
 //! Complex-warped ones pinned to the audio thread, automation, a snapshot swap, live

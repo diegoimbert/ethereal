@@ -90,7 +90,7 @@ fn lane(node: ether_core::NodeKey, param: u32, song: f64) -> AutomationDesc {
     }
 }
 
-/// 16 MIDI tracks of `clips` back-to-back 1-beat clips, `lanes` node-param lanes each; with
+/// 16 MIDI tracks of `clips` back-to-back 1-beat clips, `lanes`-param lanes each; with
 /// `envelopes`, every clip also carries an envelope on param 0.
 fn project(
     nodes: &[ether_core::NodeKey],

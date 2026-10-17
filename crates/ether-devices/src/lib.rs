@@ -10,7 +10,6 @@
 //!
 //! Every device implements [`ether_core::Device`]; parameter ids and ranges are defined
 //! by each device's [`DeviceDescriptor`] (the UI renders a generic param UI from it).
-//! Owned by the `devices` node.
 
 use std::sync::Arc;
 

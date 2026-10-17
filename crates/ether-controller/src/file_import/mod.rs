@@ -1,4 +1,4 @@
-//! Importing audio from the user's computer (v0.2, owned by the `file-import` node, priority
+//! Importing audio from the user's computer (v0.2, `file-import`, priority
 //! 1; CONTRACTS.md §12.13).
 //!
 //! - Desktop: `Media::Import { source: MediaSource::Path { path } }` (Tauri file dialog or

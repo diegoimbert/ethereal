@@ -1,4 +1,4 @@
-//! Project and track templates (v0.3, owned by the `templates` node; CONTRACTS.md §13.10).
+//! Project and track templates (v0.3, `templates`; CONTRACTS.md §13.10).
 //!
 //! ```json
 //! { "format": "ethereal-template", "format_version": 1, "project_format_version": 1,

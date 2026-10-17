@@ -1,5 +1,4 @@
-//! Upload staging for the native store (roadmap v2, owned by the `remote-engine` node; see
-//! `docs/ROADMAP.md`). `DiskStore`'s `ProjectStore::{begin,append,read,discard}_upload`
+//! Upload staging for the native store (roadmap v2; see CONTRACTS.md §11.5). `DiskStore`'s `ProjectStore::{begin,append,read,discard}_upload`
 //! delegate here.
 //!
 //! Layout: `<projects_root>/.uploads/<upload>.part` (the bytes received so far) and

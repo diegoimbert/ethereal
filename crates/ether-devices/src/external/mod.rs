@@ -1,5 +1,5 @@
-//! v0.3 devices owned by the `external-instrument` node (contracts-4 froze the param
-//! tables; see docs/ROADMAP.md "v0.3" and CONTRACTS.md §13.7).
+//! v0.3 external instrument and audio effect (contracts-4 froze the param tables; see
+//! CONTRACTS.md §13.7 and docs/DEVICES.md).
 //!
 //! The nodes read and write hardware through the engine's `ether_core::hw_io` buffers (the
 //! routing is in the device kind, `ether_model::ExternalRouting`, compiled into

@@ -1,4 +1,4 @@
-//! `crossfades` node: offline renders of two audio clips crossfaded the way the controller
+//! `crossfades`: offline renders of two audio clips crossfaded the way the controller
 //! lays them out (`ClipCommand::{Crossfade, SetCrossfade}`): the earlier clip extended past
 //! the boundary with a fade-out, the later one started before it with a fade-in of the same
 //! length. Checks the gain law at the midpoint, continuity (no clicks), constant amplitude on

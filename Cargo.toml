@@ -1,6 +1,5 @@
 [workspace]
 resolver = "3"
-# The member list is owned by `foundation` and frozen: nobody else edits it (ORCHESTRATION.md §4).
 members = [
     "crates/ether-protocol",
     "crates/ether-model",
@@ -33,10 +32,9 @@ authors = ["Ethereal contributors"]
 license = "AGPL-3.0-or-later"
 publish = false
 
-# Every dependency any node is expected to need is pre-declared here (ORCHESTRATION.md §4).
-# Crates opt in with `foo.workspace = true` in their OWN Cargo.toml. A dependency missing
-# from this table goes through a BCR. Entries that no crate uses yet are not resolved or
-# downloaded, so pre-declaring them is free.
+# Every external dependency is declared here once, with its version and features. Crates opt
+# in with `foo.workspace = true` in their OWN Cargo.toml; a new dependency is added to this
+# table first. Entries that no crate uses yet are not resolved or downloaded.
 [workspace.dependencies]
 # --- internal ---
 ether-protocol = { path = "crates/ether-protocol" }
