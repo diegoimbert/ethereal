@@ -31,7 +31,7 @@ requested then.
 
 | File | What |
 |---|---|
-| `config.ts` | the endpoint: `DEFAULT_NEWS_URL` (`https://ethereal-news.diegoimbert.workers.dev`), or `localStorage["eth-news-url"]` (`""` turns it off, a URL turns it on even in dev); the request's query |
+| `config.ts` | the endpoint: `DEFAULT_NEWS_URL` (`https://news.ethereal.ws`), or `localStorage["eth-news-url"]` (`""` turns it off, a URL turns it on even in dev); the request's query |
 | `store.ts` | the fetch (8 s timeout; a failure is only logged with `console.info`, never shown at launch), dismissals, the toggle |
 | `messages.ts` | the frame's sandbox and the two messages a page may post |
 | `NewsDialog.tsx` | the viewer (one item at a time, in a sandboxed frame) and the **news…** list |

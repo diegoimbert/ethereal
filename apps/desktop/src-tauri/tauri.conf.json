@@ -31,7 +31,7 @@
         "media-src": "'self' blob:",
         "worker-src": "'self'",
         "connect-src": "'self' ipc: http://ipc.localhost https: wss: http: ws:",
-        "frame-src": "https://ethereal-news.diegoimbert.workers.dev",
+        "frame-src": "https://news.ethereal.ws",
         "object-src": "'none'",
         "base-uri": "'self'",
         "form-action": "'self'"

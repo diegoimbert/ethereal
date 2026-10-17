@@ -6,13 +6,13 @@ import { isTauri } from "@/transport";
 import { APP_VERSION } from "@/config/version";
 
 /**
- * The public news service run by the Ethereal maintainers (its API: docs/NEWS.md), on
- * workers.dev until the ethereal.ws zone is on the Cloudflare account. Every build, one made
+ * The public news service run by the Ethereal maintainers (its API: docs/NEWS.md), on its
+ * custom domain (the workers.dev URL keeps answering for older builds). Every build, one made
  * from source included, asks it; `localStorage["eth-news-url"]` points a build at another
  * instance. Also in frame-src of scripts/release/web/_headers and
  * apps/desktop/src-tauri/tauri.conf.json: the item pages are framed from it.
  */
-export const DEFAULT_NEWS_URL = "https://ethereal-news.diegoimbert.workers.dev";
+export const DEFAULT_NEWS_URL = "https://news.ethereal.ws";
 /** Explicit endpoint (dev builds, e2e, self-hosting): `""` disables, a URL enables even in dev. */
 export const NEWS_URL_KEY = "eth-news-url";
 
