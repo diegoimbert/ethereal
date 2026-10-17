@@ -8,7 +8,7 @@
 //                                                   both PRs, cross-linked; start the full build
 //   just feat update                                merge main into OSS x (and EE main into EE x)
 //   just feat status                                branches, pointers, PRs, checks, warnings
-//   just feat ship [x] [--admin] [--force] [--no-build] [--timeout <min>] [--takeover]
+//   just feat ship [x] [--admin] [--force] [--no-build] [--ignore-ee-checks] [--timeout <min>] [--takeover]
 //                                                   under a global lock: bring both sides up to
 //                                                   date, wait for every check, merge EE, point
 //                                                   OSS x at EE main, merge OSS
@@ -699,6 +699,9 @@ async function cmdShip(args) {
   const force = argFlag(args, "--force");
   const takeover = argFlag(args, "--takeover");
   const noBuild = argFlag(args, "--no-build");
+  // EE PR checks known red for a reason outside the PR (e.g. an EE change that merged ahead of
+  // its OSS side): reported, not gating. The OSS checks still gate.
+  const ignoreEeChecks = argFlag(args, "--ignore-ee-checks");
   const timeoutMin = Number(argVal(args, "--timeout") ?? 60);
   const x = args[0] ?? featBranch();
   if (x === MAIN) die("ship a feature branch, not main");
@@ -747,6 +750,7 @@ async function cmdShip(args) {
           c = await waitChecks(EE, eePr.number, eeHead, { timeoutMin, label: `EE #${eePr.number} (re-run)`, lock });
         }
         if (c.moved) moved = true;
+        else if (!c.ok && ignoreEeChecks) log(`! EE PR #${eePr.number} checks ${c.why} (--ignore-ee-checks)`);
         else gate(c, `EE PR #${eePr.number} checks`);
       }
       if (ossPr && !moved) {
