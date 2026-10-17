@@ -10,7 +10,7 @@ import { AudioLines, CornerLeftUp, File, Folder, FolderOpen, Music, Search, Volu
 import type { BrowseLocation, BrowseRoot, BrowserRoot, DirectoryEntry, MediaSource } from "@/generated";
 import { useImportDrop } from "@/features/import";
 import { useEngineCommands, useEngineEvent } from "@/features/transport-bar/engine";
-import { Button, TextInput } from "@/kit";
+import { Button, DismissibleError, TextInput } from "@/kit";
 import { useProjectStore } from "@/state";
 import { cmd } from "@/transport";
 import { useT } from "@/i18n";
@@ -393,9 +393,9 @@ export function FolderBrowser({ scope = "all" }: { scope?: BrowserScope } = {}) 
       )}
 
       {error && (
-        <button type="button" className="eth-browser__error" role="alert" title={t("common.dismiss")} onClick={clearError}>
+        <DismissibleError className="eth-browser__error" onDismiss={clearError}>
           {error}
-        </button>
+        </DismissibleError>
       )}
     </div>
   );

@@ -215,7 +215,7 @@ describe("Browser", () => {
     fireEvent.click(row);
     const alert = await screen.findByRole("alert");
     expect(alert.textContent).toMatch(/disposed/);
-    fireEvent.click(alert);
+    fireEvent.click(within(alert).getByRole("button"));
     expect(screen.queryByRole("alert")).toBeNull();
   });
 });

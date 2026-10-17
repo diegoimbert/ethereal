@@ -511,6 +511,8 @@ function Editor({ space, view: injectedView }: { space: RollSpace; view?: Timeli
       ref={rootRef}
       className="eth-pr"
       tabIndex={0}
+      role="group"
+      aria-label={t("piano_roll.label")}
       data-testid="piano-roll"
       onKeyDown={onKeyDown}
       data-keymap-scope="pianoRoll"

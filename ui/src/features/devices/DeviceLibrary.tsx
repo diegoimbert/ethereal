@@ -301,6 +301,7 @@ export function DeviceLibrary({ category, categories, accept, pluginsOnly = fals
       <ul ref={list} className="eth-devlib__list" aria-label={t("devices.library.list", { kind: noun })} aria-busy={builtins === null && !pluginsOnly}>
         {entries.map((e) => (
           <li key={e.key}>
+            {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/interactive-supports-focus -- the search field above keeps the focus: its arrows and Enter pick the active row */}
             <div
               className={clsx("eth-devlib__row", activeKey === e.key && "eth-devlib__row--active")}
               data-key={e.key}

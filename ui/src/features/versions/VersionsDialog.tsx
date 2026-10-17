@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent, type MouseEvent } from "react";
 import { MoreHorizontal } from "lucide-react";
 import type { VersionDiff, VersionInfo } from "@/generated";
 import { useEngineCommands, useEngineEvent } from "@/features/transport-bar/engine";
-import { Badge, Button, Dialog, IconButton, openContextMenu, TextInput } from "@/kit";
+import { Badge, Button, Dialog, DismissibleError, IconButton, openContextMenu, TextInput } from "@/kit";
 import { useProjectStore } from "@/state";
 import { cmd } from "@/transport";
 import { countsLabel, formatExact, formatSize, formatWhen, isEmptyDiff, kindLabel, sortTables, tableLabel, versionTitle } from "./format";
@@ -128,9 +128,9 @@ function VersionsBody() {
         </p>
       )}
       {error && (
-        <button type="button" className="eth-versions__error" role="alert" title={t("common.dismiss")} onClick={clearError}>
+        <DismissibleError className="eth-versions__error" onDismiss={clearError}>
           {error}
-        </button>
+        </DismissibleError>
       )}
 
       {versions !== null && versions.length === 0 && <p className="eth-versions__empty">{t("versions.empty")}</p>}
