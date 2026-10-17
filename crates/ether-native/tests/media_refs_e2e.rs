@@ -67,7 +67,7 @@ fn referenced_in_place_missing_relinked_collected() {
     c.quit();
 
     // Moved while the app was closed.
-    let archive = tmp.path().join("Archive/2026");
+    let archive = tmp.path().join("Archive").join("2026");
     std::fs::create_dir_all(&archive).unwrap();
     std::fs::rename(&kick_path, archive.join("Kick.wav")).unwrap();
     let mut c = Client::start(&paths);
