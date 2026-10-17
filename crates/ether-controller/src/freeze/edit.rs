@@ -3,6 +3,7 @@
 
 use ether_core::protocol::Command;
 use ether_core::protocol::clips::ClipCommand;
+use ether_core::protocol::devices::DeviceCommand;
 use ether_core::protocol::freeze::BounceTarget;
 use ether_core::protocol::mixer::MixerCommand;
 use ether_core::protocol::model::*;
@@ -135,7 +136,12 @@ fn live_track(ctx: &DocCtx, id: TrackId) -> CmdResult<Track> {
 }
 
 /// `Freeze` done: the media and the freeze (one undo step).
-pub(crate) fn finish_freeze(ctx: &mut DocCtx, track: TrackId, media: MediaRef) -> CmdResult<()> {
+pub(crate) fn finish_freeze(
+    ctx: &mut DocCtx,
+    track: TrackId,
+    up_to: Option<DeviceId>,
+    media: MediaRef,
+) -> CmdResult<()> {
     let t = live_track(ctx, track)?;
     if t.freeze.is_some() {
         return Err(crate::tx::keyed_err(
@@ -151,6 +157,7 @@ pub(crate) fn finish_freeze(ctx: &mut DocCtx, track: TrackId, media: MediaRef) -
         TrackChange::Freeze(Some(TrackFreeze {
             media: id,
             start: Seconds(0.0),
+            up_to,
         })),
     )
 }
@@ -164,7 +171,7 @@ fn next_sibling(p: &Project, t: &Track) -> Option<TrackId> {
 }
 
 /// Delete everything a flatten replaces: clips (all lanes), comp regions, take lanes and
-/// devices of `track`.
+/// the frozen devices of `track` (a partial freeze's live tail stays).
 fn clear_content(ctx: &mut DocCtx, track: TrackId) -> CmdResult<()> {
     let clips: Vec<ClipId> = ctx
         .p()
@@ -203,7 +210,7 @@ fn clear_content(ctx: &mut DocCtx, track: TrackId) -> CmdResult<()> {
         .p()
         .devices
         .values()
-        .filter(|d| d.track == track)
+        .filter(|d| d.track == track && ctx.p().device_frozen(d.id))
         .map(|d| (d.pad.is_some() || d.chain.is_some(), d.id))
         .collect();
     devices.sort();
@@ -211,6 +218,29 @@ fn clear_content(ctx: &mut DocCtx, track: TrackId) -> CmdResult<()> {
         if ctx.p().devices.contains_key(&d) {
             ctx.delete_device(d)?;
         }
+    }
+    Ok(())
+}
+
+/// Flatten of a partial freeze: the live tail of `from` (in chain order) moves to the end of
+/// `to`'s chain, so the flattened track still sounds the same.
+fn move_live_tail(ctx: &mut DocCtx, from: TrackId, to: TrackId) -> CmdResult<()> {
+    let tail: Vec<DeviceId> = ctx
+        .p()
+        .devices_of(from)
+        .into_iter()
+        .filter(|d| !ctx.p().device_frozen(d.id))
+        .map(|d| d.id)
+        .collect();
+    for id in tail {
+        doc::apply(
+            ctx,
+            &Command::Device(DeviceCommand::Move {
+                id,
+                track: to,
+                before: None,
+            }),
+        )?;
     }
     Ok(())
 }
@@ -236,8 +266,9 @@ pub(crate) fn flatten(
     let start = Beats(start.0.max(0.0));
     match t.kind {
         TrackKind::Audio => {
-            ctx.set_track(track, TrackChange::Freeze(None))?;
+            // While still frozen: a partial freeze's live tail stays.
             clear_content(ctx, track)?;
+            ctx.set_track(track, TrackChange::Freeze(None))?;
             place_render(ctx, clip, track, start, &media)
         }
         TrackKind::Midi => {
@@ -288,6 +319,7 @@ pub(crate) fn flatten(
                 )?;
             }
             place_render(ctx, clip, new_track, start, &media)?;
+            move_live_tail(ctx, track, new_track)?;
             doc::apply(ctx, &Command::Track(TrackCommand::Delete { id: track }))?;
             Ok(())
         }
@@ -359,6 +391,7 @@ fn flatten_group(
         )?;
     }
     place_render(ctx, clip, new_track, start, media)?;
+    move_live_tail(ctx, t.id, new_track)?;
     doc::apply(ctx, &Command::Track(TrackCommand::Delete { id: t.id }))?;
     Ok(())
 }
@@ -712,7 +745,7 @@ mod tests {
             host: &mut host,
             warnings: Vec::new(),
         };
-        finish_freeze(&mut ctx, t, media).unwrap();
+        finish_freeze(&mut ctx, t, None, media).unwrap();
         let ops = ctx.tx.finish();
         // The step still carries the state (peers in a session get it with the freeze).
         assert!(ops.iter().any(|op| matches!(

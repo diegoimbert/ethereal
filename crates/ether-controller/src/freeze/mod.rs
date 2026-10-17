@@ -20,6 +20,11 @@
 //! - [`frozen_desc`]: `compile.rs` calls it per track; `Some` = the track compiles to
 //!   `TrackDesc::frozen` with no clips, chain, racks or modulation; `engine.rs::sync_nodes`
 //!   creates no nodes for its devices. Engine side: `ether_core::freeze::render_frozen`.
+//! - Partial freeze ("freeze up to here", `TrackFreeze::up_to`): the render stops at the
+//!   freeze point (`job::PassSpec::up_to`: the devices after it get no node in the render).
+//!   Only the frozen devices (`Project::device_frozen`) lose their nodes and are locked; the
+//!   live tail compiles into the chain after the render and stays editable. Flatten keeps
+//!   the live tail.
 //! - [`check_editable`]: called before every command (`handlers.rs`), see [`editable`].
 
 mod edit;
@@ -52,6 +57,8 @@ const TICK_BUDGET_MS: u64 = 12;
 enum Finish {
     Freeze {
         track: TrackId,
+        /// The freeze point (`TrackFreeze::up_to`; `None` = whole chain).
+        up_to: Option<DeviceId>,
     },
     Bounce {
         track: TrackId,
@@ -174,6 +181,45 @@ fn check_group_freezable(p: &Project, group: &Track, out: &mut dyn MessageSink) 
     Ok(())
 }
 
+/// Validate a "freeze up to here" device of `t` (see `FreezeCommand::Freeze`): a device of the
+/// track's own chain, not a MIDI effect, not before a MIDI track's instrument. Returns the
+/// freeze point to store: `None` when it is the last device (the whole chain).
+fn freeze_point(
+    p: &Project,
+    t: &Track,
+    up_to: DeviceId,
+    descriptor: &dyn Fn(&Device) -> Option<ether_core::protocol::devices::DeviceDescriptor>,
+) -> CmdResult<Option<DeviceId>> {
+    use ether_core::protocol::devices::DeviceCategory as C;
+    let chain = p.devices_of(t.id);
+    let Some(i) = chain.iter().position(|d| d.id == up_to) else {
+        return Err(invalid(format!(
+            "device {up_to} is not on the chain of track \"{}\"",
+            t.name
+        )));
+    };
+    let category = |d: &Device| descriptor(d).map(|desc| desc.category);
+    let d = chain[i];
+    if category(d) == Some(C::NoteEffect) {
+        return Err(invalid(format!(
+            "\"{}\" is a MIDI effect: freeze up to the instrument or an audio effect",
+            d.name
+        )));
+    }
+    if t.kind == TrackKind::Midi
+        && let Some(first) = chain
+            .iter()
+            .position(|d| category(d) == Some(C::Instrument))
+        && i < first
+    {
+        return Err(invalid(format!(
+            "\"{}\" comes before the instrument: freeze up to the instrument or an audio effect",
+            d.name
+        )));
+    }
+    Ok((i + 1 < chain.len()).then_some(up_to))
+}
+
 fn check_range(start: Beats, end: Beats) -> CmdResult<()> {
     if !(start.0.is_finite() && end.0.is_finite() && start.0 >= 0.0) {
         return Err(invalid("invalid range"));
@@ -271,12 +317,21 @@ where
                 )?;
                 Ok(ReplyValue::Unit)
             }
-            FreezeCommand::Freeze { job, track, media } => {
+            FreezeCommand::Freeze {
+                job,
+                track,
+                media,
+                up_to,
+            } => {
                 let p = &self.doc.as_ref().ok_or_else(no_project)?.project;
                 self.check_can_start(job)?;
                 let t = freezable_track(p, *track)?;
                 not_frozen(p, t)?;
                 new_media(p, *media)?;
+                let up_to = match up_to {
+                    Some(d) => freeze_point(p, t, *d, &|d| self.engine.descriptor(d))?,
+                    None => None,
+                };
                 let group = t.kind == TrackKind::Group;
                 if group {
                     check_group_freezable(p, t, out)?;
@@ -296,10 +351,18 @@ where
                     tail: true,
                     cut: None,
                     chain: true,
+                    up_to,
                     media: *media,
                     name: format!("{} Freeze", t.name),
                 };
-                self.start_job(job, vec![spec], Finish::Freeze { track: *track })
+                self.start_job(
+                    job,
+                    vec![spec],
+                    Finish::Freeze {
+                        track: *track,
+                        up_to,
+                    },
+                )
             }
             FreezeCommand::Bounce {
                 job,
@@ -355,6 +418,7 @@ where
                     tail: *include_chain && matches!(target, BounceTarget::NewTrack { .. }),
                     cut: Some(*end),
                     chain: *include_chain,
+                    up_to: None,
                     media: *media,
                     name: format!("{} Bounce", t.name),
                 };
@@ -422,6 +486,7 @@ where
                         tail: true,
                         cut: Some(*end),
                         chain: true,
+                        up_to: None,
                         media,
                         name: format!("{} Bounce", t.name),
                     });
@@ -480,6 +545,7 @@ where
                             tail: false,
                             cut: None,
                             chain: false,
+                            up_to: None,
                             media,
                             name: format!("{} Consolidated", t.name),
                         });
@@ -607,14 +673,14 @@ where
             .map(|r| r.media.clone())
             .collect();
         let (label, result) = match &running.finish {
-            Finish::Freeze { track } => (
+            Finish::Freeze { track, up_to } => (
                 "Freeze",
                 self.edit_with(
                     crate::doc::undo("undo.freeze.freeze"),
                     None,
                     now,
                     out,
-                    |ctx| edit::finish_freeze(ctx, *track, media[0].clone()),
+                    |ctx| edit::finish_freeze(ctx, *track, *up_to, media[0].clone()),
                 ),
             ),
             Finish::Bounce {

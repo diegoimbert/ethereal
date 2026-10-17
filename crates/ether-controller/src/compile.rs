@@ -510,6 +510,24 @@ fn graph_neutral_table(key: EntityKey) -> bool {
 
 /// Compile the document (see the module docs).
 pub fn compile_graph_with(p: &Project, ctx: &CompileContext) -> RenderGraphDesc {
+    // v0.2 (`freeze-bounce`): frozen devices (a frozen track's chain, or the part up to the
+    // freeze point of a partial freeze) compile as if they had no node: they are left out of
+    // chains, racks, modulation, automation and taps; a partial freeze's live tail stays.
+    let frozen_devices = p.frozen_devices();
+    let live_nodes = |d: DeviceId| {
+        if frozen_devices.contains(&d) {
+            None
+        } else {
+            (ctx.nodes)(d)
+        }
+    };
+    let live_ctx = CompileContext {
+        nodes: &live_nodes,
+        descriptors: ctx.descriptors,
+        armed: ctx.armed,
+        version: ctx.version,
+    };
+    let ctx = &live_ctx;
     let tempo_map = p.tempo_map();
     let g = Groups::new(p);
     let mut tracks: Vec<TrackDesc> = tracks_in_order(p)
@@ -540,17 +558,19 @@ pub fn compile_graph_with(p: &Project, ctx: &CompileContext) -> RenderGraphDesc 
                 clip_descs.sort_by(|a, b| a.start.total_cmp(&b.start).then(a.id.cmp(&b.id)));
             }
             // v0.2 (`freeze-bounce`): a frozen track plays its render instead of its clips and
-            // chain.
+            // chain (a partial freeze: then its live tail).
             let frozen = crate::freeze::frozen_desc(p, t);
             if frozen.is_some() {
                 clip_descs.clear();
             }
+            let whole = frozen.is_some()
+                && p.frozen_chain_len(t.id) == Some(children(&g.devices, &t.id).len());
             TrackDesc {
                 id: t.id,
                 kind: t.kind,
                 chain: children(&g.devices, &t.id)
                     .iter()
-                    .filter(|_| frozen.is_none())
+                    .filter(|_| !whole)
                     .filter_map(|d| {
                         (ctx.nodes)(d.id).map(|node| ChainEntry {
                             node,
@@ -589,18 +609,18 @@ pub fn compile_graph_with(p: &Project, ctx: &CompileContext) -> RenderGraphDesc 
                 armed,
                 clips: clip_descs,
                 automation: Vec::new(),
-                racks: if frozen.is_some() {
+                racks: if whole {
                     Vec::new()
                 } else {
                     crate::drum_rack::racks_desc(p, t.id, ctx)
                 },
                 // --- v0.2 (contracts-3) ---
-                chain_racks: if frozen.is_some() {
+                chain_racks: if whole {
                     Vec::new()
                 } else {
                     crate::racks::chain_racks_desc(p, t.id, ctx)
                 },
-                modulation: if frozen.is_some() {
+                modulation: if whole {
                     Default::default()
                 } else {
                     crate::racks::modulation_desc(p, t.id, ctx)
@@ -618,13 +638,13 @@ pub fn compile_graph_with(p: &Project, ctx: &CompileContext) -> RenderGraphDesc 
                 } else {
                     crate::expression::track_expression(p, t)
                 },
-                hw_io: if frozen.is_some() {
+                hw_io: if whole {
                     Vec::new()
                 } else {
                     crate::external::hw_io_descs(p, t.id, ctx.nodes)
                 },
                 // --- v0.4 ---
-                sidechain_taps: if frozen.is_some() {
+                sidechain_taps: if whole {
                     Vec::new()
                 } else {
                     crate::sidechain::taps_desc(p, t.id, ctx)

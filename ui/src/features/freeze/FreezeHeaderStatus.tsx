@@ -3,6 +3,7 @@ import { Lock, Snowflake, TriangleAlert, X } from "lucide-react";
 import type { Track } from "@/generated";
 import type { EngineTransport } from "@/transport";
 import { useT } from "@/i18n";
+import { useProjectStore } from "@/state";
 import { useFrozenAncestor } from "./inert";
 import { cancelRenderJob, dismissError, jobOfTrack, unfreezeTracks, useFreezeUi } from "./store";
 
@@ -16,6 +17,8 @@ export function FreezeHeaderStatus({ track, transport }: { track: Track; transpo
   const job = useFreezeUi((s) => jobOfTrack(s, track.id));
   const error = useFreezeUi((s) => s.errors[track.id]);
   const owner = useFrozenAncestor(track.id);
+  // Partial freeze (#25): the freeze point's name.
+  const upTo = useProjectStore((s) => (track.freeze?.up_to ? s.project?.devices[track.freeze.up_to]?.name : undefined));
   const t = useT();
   if (job) {
     const pct = job.progress === null ? null : Math.round(job.progress * 100);
@@ -56,7 +59,9 @@ export function FreezeHeaderStatus({ track, transport }: { track: Track; transpo
         className="eth-arr-header__toggle eth-freeze__toggle"
         aria-pressed
         aria-label={t("freeze.status.unfreeze", { name: track.name })}
-        title={group ? t("freeze.status.frozen_group") : t("freeze.status.frozen_track")}
+        title={
+          upTo !== undefined ? t("freeze.status.frozen_partial", { device: upTo }) : group ? t("freeze.status.frozen_group") : t("freeze.status.frozen_track")
+        }
         onClick={(e) => {
           e.stopPropagation();
           void unfreezeTracks(transport, [track.id]);

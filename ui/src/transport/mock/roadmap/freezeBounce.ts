@@ -8,7 +8,7 @@
  * here. `Unfreeze`, `Flatten` and MIDI-only `Consolidate` are instantaneous.
  */
 
-import type { Beats, BounceTarget, Clip, ClipId, Command, FreezeCommand, MediaId, MediaRef, Project, ReplyValue, Track, TrackId } from "@/generated";
+import type { Beats, BounceTarget, Clip, ClipId, Command, DeviceId, FreezeCommand, MediaId, MediaRef, Project, ReplyValue, Track, TrackId } from "@/generated";
 import { cmd } from "../../cmd";
 import { fail } from "../documentReducer";
 import { beatsToSeconds } from "../tempo";
@@ -31,7 +31,7 @@ export interface FreezeHost extends MockHost {
 }
 
 type Finish =
-  | { type: "Freeze"; track: TrackId }
+  | { type: "Freeze"; track: TrackId; upTo?: DeviceId }
   | { type: "Bounce"; track: TrackId; start: Beats; target: BounceTarget }
   | { type: "Consolidate"; tracks: TrackId[]; start: Beats; end: Beats }
   | { type: "BounceRange"; start: Beats; bounces: { track: TrackId; newTrack: TrackId; clip: ClipId; media: MediaId }[] };
@@ -110,8 +110,18 @@ export class MockFreeze {
             .map(clipEnd),
         );
         if (end <= 1e-9) fail("InvalidArgument", `track "${t.name}" has no clips to freeze`);
+        // Freeze up to a device (#25): a device of the track's chain; its last = the whole chain.
+        let upTo: DeviceId | undefined;
+        if (c.up_to) {
+          const chain = Object.values(p.devices)
+            .filter((d) => d.track === c.track && d.pad === null && d.chain == null)
+            .sort((a, b) => (a.order < b.order ? -1 : a.order > b.order ? 1 : a.id < b.id ? -1 : 1));
+          const at = chain.findIndex((d) => d.id === c.up_to);
+          if (at < 0) fail("InvalidArgument", `device ${c.up_to} is not on the chain of track "${t.name}"`);
+          upTo = at < chain.length - 1 ? c.up_to : undefined;
+        }
         const seconds = beatsToSeconds(p, end) + MOCK_TAIL_SECONDS;
-        return this.start(c.job, [this.media(c.media, `${t.name} Freeze`, seconds)], { type: "Freeze", track: c.track });
+        return this.start(c.job, [this.media(c.media, `${t.name} Freeze`, seconds)], { type: "Freeze", track: c.track, upTo });
       }
       case "Unfreeze": {
         const t = contentTrack(p, c.track);
@@ -305,7 +315,7 @@ export class MockFreeze {
           const t = p.tracks[f.track] ?? fail("InvalidState", "the track was deleted during the render");
           const m = job.media[0]!;
           tx.upsert("Media", m);
-          tx.upsert("Track", { ...t, freeze: { media: m.id, start: 0 } });
+          tx.upsert("Track", { ...t, freeze: { media: m.id, start: 0, ...(f.upTo ? { up_to: f.upTo } : {}) } });
         } else if (f.type === "Bounce") {
           const t = p.tracks[f.track] ?? fail("InvalidState", "the track was deleted during the render");
           const m = job.media[0]!;

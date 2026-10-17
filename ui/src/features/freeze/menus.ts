@@ -4,14 +4,15 @@
  * - Track header: Freeze / Unfreeze / Flatten (the selected tracks; Flatten asks first, #717),
  *   Cancel while rendering.
  * - Clip: Bounce to New Track, Bounce in Place (audio), Consolidate (the selected clips).
+ * - Device: freeze up to here (#25: partial chain freeze), unfreeze on a frozen device.
  * - Time selection: Bounce to New Track (the selected range of each selected track).
  */
 
-import type { Beats, Clip, Track, TrackId } from "@/generated";
+import type { Beats, Clip, Device, DeviceCategory, Track, TrackId } from "@/generated";
 import { useConfirm, type ContextMenuEntry } from "@/kit";
-import { useProjectStore } from "@/state";
+import { devicesOfTrack, useProjectStore } from "@/state";
 import { itemSelection } from "@/timeline";
-import { frozenAncestor, isFrozenTrack } from "./inert";
+import { frozenAncestor, isDeviceFrozen, isFrozenTrack } from "./inert";
 import type { EngineTransport } from "@/transport";
 import { t } from "@/i18n";
 import {
@@ -22,6 +23,7 @@ import {
   consolidateClips,
   flattenTracks,
   freezeTracks,
+  freezeUpTo,
   jobOfTrack,
   tracksWithClipsIn,
   unfreezeTracks,
@@ -118,6 +120,38 @@ export function withFreezeTrackEntries(
   selected: ReadonlyArray<TrackId>,
 ): ContextMenuEntry[] {
   return insertBeforeLastGroup(entries, freezeTrackEntries(transport, track, selected));
+}
+
+/**
+ * Device-menu entries (#25): "freeze up to here" renders the track through its chain up to
+ * and including `device`, the devices after it staying live. Offered on the track-chain
+ * devices of audio, MIDI and group tracks, from the instrument on: never on a MIDI effect
+ * (nor on anything before a MIDI track's instrument), nor inside racks or drum pads. On a
+ * frozen device: "unfreeze track".
+ */
+export function freezeDeviceEntries(transport: EngineTransport, device: Device, categoryOf: (d: Device) => DeviceCategory): ContextMenuEntry[] {
+  const p = useProjectStore.getState().project;
+  const track = p?.tracks[device.track];
+  if (!p || !track || !freezable(track) || device.pad || device.chain) return [];
+  if (categoryOf(device) === "NoteEffect") return [];
+  const chain = devicesOfTrack(p, track.id);
+  const at = chain.findIndex((d) => d.id === device.id);
+  if (at < 0) return [];
+  const instrument = track.kind === "Midi" ? chain.findIndex((d) => categoryOf(d) === "Instrument") : -1;
+  if (at < instrument) return [];
+  // Inside a frozen group, or rendering: the track menu says why / cancels.
+  if (frozenAncestor(p.tracks, track.id) || jobOfTrack(useFreezeUi.getState(), track.id)) return [];
+  if (track.freeze) {
+    if (!isDeviceFrozen(p, device)) return [];
+    return [{ label: t("freeze.menu.unfreeze", { kind: noun([track]), count: 1 }), onSelect: () => void unfreezeTracks(transport, [track.id]) }];
+  }
+  return [
+    {
+      label: t("freeze.menu.freeze_up_to"),
+      disabled: !canFreeze(track.id),
+      onSelect: () => void freezeUpTo(transport, track.id, device.id),
+    },
+  ];
 }
 
 /** The selected arrangement clips (main lanes), `clip` included. */

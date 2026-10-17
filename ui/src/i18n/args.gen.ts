@@ -292,6 +292,7 @@ export interface MessageArgs {
   "freeze.status.cancel": { kind: string; name: string | number };
   "freeze.status.failed": { error: string | number };
   "freeze.status.failed_title": { error: string | number };
+  "freeze.status.frozen_partial": { device: string | number };
   "freeze.status.locked": { name: string | number };
   "freeze.status.locked_title": { name: string | number };
   "freeze.status.progress": { pct: string | number; what: string | number };

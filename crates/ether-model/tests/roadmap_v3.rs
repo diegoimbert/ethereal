@@ -456,6 +456,7 @@ fn freeze_media_and_vcas() {
         change: TrackChange::Freeze(Some(TrackFreeze {
             media,
             start: Seconds(0.0),
+            up_to: None,
         })),
     };
     assert!(f.update(freeze(ext)).is_err());
@@ -473,6 +474,7 @@ fn freeze_media_and_vcas() {
         change: TrackChange::Freeze(Some(TrackFreeze {
             media: own,
             start: Seconds(0.0),
+            up_to: None,
         })),
     })
     .unwrap();
@@ -710,4 +712,84 @@ fn drum_racks_nest_in_instrument_rack_chains() {
     too_deep.chain = Some(parent_chain);
     assert!(f.insert(Entity::Device(too_deep)).is_err());
     f.p.validate().unwrap();
+}
+
+#[test]
+fn partial_freeze_freezes_the_chain_up_to_the_freeze_point() {
+    let mut f = Fx::new();
+    let t = f.track(TrackKind::Audio);
+    let own = f.media(MediaLocation::Project);
+    // Chain order = insertion order (same order keys, ids increase).
+    let eq = f.device(t, BuiltinDevice::Eq);
+    f.insert(Entity::Device(eq.clone())).unwrap();
+    let rack = f.device(t, BuiltinDevice::AudioEffectRack);
+    f.insert(Entity::Device(rack.clone())).unwrap();
+    let chain = RackChain {
+        id: f.id(),
+        rack: rack.id,
+        order: OrderKey::between(None, None),
+        name: "Chain".into(),
+        color: None,
+        volume: Decibels::UNITY,
+        pan: Pan(0.0),
+        mute: false,
+        solo: false,
+        keys: Zone::FULL,
+        velocities: Zone { lo: 1, hi: 127 },
+        select: Zone::FULL,
+    };
+    f.insert(Entity::RackChain(chain.clone())).unwrap();
+    let nested = Device {
+        chain: Some(chain.id),
+        ..f.device(t, BuiltinDevice::Utility)
+    };
+    f.insert(Entity::Device(nested.clone())).unwrap();
+    let reverb = f.device(t, BuiltinDevice::Reverb);
+    f.insert(Entity::Device(reverb.clone())).unwrap();
+    assert_eq!(f.p.chain_root(nested.id).map(|d| d.id), Some(rack.id));
+    assert_eq!(f.p.frozen_chain_len(t), None);
+    assert!(f.p.frozen_devices().is_empty());
+
+    let freeze = |f: &mut Fx, up_to| {
+        f.update(EntityUpdate::Track {
+            id: t,
+            change: TrackChange::Freeze(Some(TrackFreeze {
+                media: own,
+                start: Seconds(0.0),
+                up_to,
+            })),
+        })
+        .unwrap();
+        f.p.frozen_devices()
+    };
+    let set = |ids: &[DeviceId]| {
+        ids.iter()
+            .copied()
+            .collect::<std::collections::BTreeSet<_>>()
+    };
+    assert_eq!(freeze(&mut f, Some(eq.id)), set(&[eq.id]));
+    assert_eq!(f.p.frozen_chain_len(t), Some(1));
+    assert!(!f.p.device_frozen(nested.id));
+    // A rack freezes with what is nested in it.
+    assert_eq!(
+        freeze(&mut f, Some(rack.id)),
+        set(&[eq.id, rack.id, nested.id])
+    );
+    assert!(f.p.device_frozen(nested.id));
+    assert!(!f.p.device_frozen(reverb.id));
+    // No freeze point, or one that is not on the chain: the whole chain.
+    let all = set(&[eq.id, rack.id, nested.id, reverb.id]);
+    assert_eq!(freeze(&mut f, None), all);
+    assert_eq!(freeze(&mut f, Some(nested.id)), all);
+    f.p.validate().unwrap();
+}
+
+#[test]
+fn track_freeze_without_a_freeze_point_loads_as_the_whole_chain() {
+    let media: MediaId = IdGen::new(3).next(1);
+    let json = format!(r#"{{"media":"{media}","start":0.0}}"#);
+    let f: TrackFreeze = serde_json::from_str(&json).unwrap();
+    assert_eq!(f.up_to, None);
+    // ...and saves without the field.
+    assert!(!serde_json::to_string(&f).unwrap().contains("up_to"));
 }

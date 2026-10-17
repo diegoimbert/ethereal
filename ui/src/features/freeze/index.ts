@@ -2,8 +2,18 @@
 import "./freeze.css";
 
 export { FreezeHeaderStatus } from "./FreezeHeaderStatus";
-export { descendantsOf, frozenAncestor, inertTitle, isFrozenTrack, useFrozenAncestor } from "./inert";
-export { freezeClipEntries, freezeRangeEntries, freezeTrackEntries, withFreezeClipEntries, withFreezeTrackEntries } from "./menus";
+export {
+  chainRoot,
+  descendantsOf,
+  frozenAncestor,
+  frozenChainLength,
+  inertTitle,
+  isDeviceFrozen,
+  isFrozenTrack,
+  useDeviceFrozen,
+  useFrozenAncestor,
+} from "./inert";
+export { freezeClipEntries, freezeDeviceEntries, freezeRangeEntries, freezeTrackEntries, withFreezeClipEntries, withFreezeTrackEntries } from "./menus";
 export {
   bounceClips,
   bounceRange,
@@ -11,6 +21,7 @@ export {
   consolidateClips,
   flattenTracks,
   freezeTracks,
+  freezeUpTo,
   jobOfTrack,
   runRenderJob,
   unfreezeTracks,

@@ -369,6 +369,7 @@ impl Drive {
                 job: job.clone(),
                 track,
                 media,
+                up_to: None,
             })),
             ReplyValue::RenderStarted { job: job.clone() }
         );
@@ -1058,6 +1059,7 @@ fn one_job_at_a_time_cancel_and_errors() {
         job: "x".into(),
         track: empty,
         media: mid,
+        up_to: None,
     }));
     assert_eq!(e.code, ErrorCode::InvalidArgument);
     let mid: MediaId = d.id();
@@ -1065,6 +1067,7 @@ fn one_job_at_a_time_cancel_and_errors() {
         job: "x".into(),
         track: group,
         media: mid,
+        up_to: None,
     }));
     assert_eq!(e.code, ErrorCode::InvalidArgument);
     let mid: MediaId = d.id();
@@ -1072,12 +1075,14 @@ fn one_job_at_a_time_cancel_and_errors() {
         job: "j1".into(),
         track: t,
         media: mid,
+        up_to: None,
     }));
     let mid: MediaId = d.id();
     let e = d.err(Command::Freeze(FreezeCommand::Freeze {
         job: "j2".into(),
         track: t,
         media: mid,
+        up_to: None,
     }));
     assert_eq!(e.code, ErrorCode::InvalidState);
     d.tick();
@@ -1099,6 +1104,7 @@ fn one_job_at_a_time_cancel_and_errors() {
         job: "j3".into(),
         track: t,
         media: mid,
+        up_to: None,
     }));
     let other = d.ids.next_project_id(T0);
     d.ok(Command::Project(ProjectCommand::Create {
@@ -1340,6 +1346,7 @@ fn frozen_group_locks_its_children() {
         job: "x".into(),
         track: pad,
         media,
+        up_to: None,
     }));
     assert_eq!(e.code, ErrorCode::InvalidState);
     // Mixer edits of the group stay possible; renaming too.
@@ -1420,6 +1427,7 @@ fn freeze_group_rejects_children_routed_outside_and_empty_groups() {
         job: "e".into(),
         track: empty,
         media,
+        up_to: None,
     }));
     assert_eq!(e.code, ErrorCode::InvalidArgument);
     d.ok(Command::Mixer(MixerCommand::SetOutput {
@@ -1430,6 +1438,7 @@ fn freeze_group_rejects_children_routed_outside_and_empty_groups() {
         job: "r".into(),
         track: g,
         media,
+        up_to: None,
     }));
     assert_eq!(e.code, ErrorCode::InvalidState, "{}", e.message);
     assert!(e.message.contains("routed outside"), "{}", e.message);
@@ -1461,6 +1470,7 @@ fn freeze_group_warns_about_sends_and_sidechains() {
         job: "w".into(),
         track: g,
         media,
+        up_to: None,
     }));
     let warning = events(&out)
         .into_iter()
@@ -1750,4 +1760,253 @@ fn one_pass_stems_equal_per_track_passes() {
     let only = d.export_files(ExportMode::MixAndStems { tracks: vec![] });
     assert_eq!(only.len(), 1);
     assert_eq!(max_diff(&only[0], &mix_ref), 0.0);
+}
+
+// ─── Freeze up to a device (partial chain freeze, #25) ───────────────────────────────────
+
+/// Freeze `track` up to (and including) `up_to`; the devices after it stay live.
+fn freeze_up_to(d: &mut Drive, track: TrackId, up_to: DeviceId) -> MediaId {
+    let media: MediaId = d.id();
+    let job = format!("partial{}", d.next);
+    assert_eq!(
+        d.ok(Command::Freeze(FreezeCommand::Freeze {
+            job: job.clone(),
+            track,
+            media,
+            up_to: Some(up_to),
+        })),
+        ReplyValue::RenderStarted { job: job.clone() }
+    );
+    let (end, _) = d.finish(&job);
+    assert_eq!(end, FreezeEvent::Done { job });
+    d.settle();
+    media
+}
+
+/// `keys` plus a utility after the delay (the live tail of a freeze up to the delay).
+fn keys_with_tail(d: &mut Drive) -> (TrackId, DeviceId, DeviceId) {
+    let (t, delay) = keys(d);
+    let utility = d.device(t, BuiltinDevice::Utility);
+    d.settle();
+    (t, delay, utility)
+}
+
+#[test]
+fn freeze_up_to_a_device_keeps_the_tail_live() {
+    let mut d = Drive::new();
+    let (t, delay, utility) = keys_with_tail(&mut d);
+    let live = d.play(FRAMES);
+    assert!(peak(&live) > 0.01, "audible");
+    let nodes_before = d.ctl.bridge.nodes.len();
+    freeze_up_to(&mut d, t, delay);
+    let f = d.p().tracks[&t].freeze.clone().expect("frozen");
+    assert_eq!(f.up_to, Some(delay));
+    assert_eq!(d.p().frozen_chain_len(t), Some(2));
+    assert!(d.p().device_frozen(delay));
+    assert!(!d.p().device_frozen(utility));
+    // Synth and delay lose their nodes; the utility keeps its node and runs after the render.
+    assert_eq!(d.ctl.bridge.nodes.len(), nodes_before - 2);
+    assert!(d.ctl.bridge.nodes.values().any(|x| *x == utility));
+    let graph = d.ctl.bridge.last_graph.clone().unwrap();
+    let td = graph.tracks.iter().find(|x| x.id == t).unwrap();
+    assert!(td.frozen.is_some());
+    assert!(td.clips.is_empty());
+    assert_eq!(td.chain.len(), 1);
+    let frozen = d.play(FRAMES);
+    let diff = max_diff(&live, &frozen);
+    assert!(diff < 1e-4, "partially frozen playback differs by {diff}");
+
+    // The live tail stays editable: its gain changes the output.
+    d.ok(Command::Device(DeviceCommand::SetParam {
+        device: utility,
+        param: ether_devices::utility::params::GAIN,
+        value: -6.0,
+    }));
+    let quieter = d.play(FRAMES);
+    // After the gain smoothing of the first blocks.
+    let after = |x: &[Vec<f32>; 2]| {
+        [
+            x[0][SR as usize / 4..].to_vec(),
+            x[1][SR as usize / 4..].to_vec(),
+        ]
+    };
+    let ratio = peak(&after(&quieter)) / peak(&after(&frozen));
+    assert!((ratio - 0.5).abs() < 0.02, "{ratio}");
+
+    // Devices up to the freeze point stay locked.
+    for c in [
+        Command::Device(DeviceCommand::SetParam {
+            device: delay,
+            param: ether_devices::descriptor(BuiltinDeviceType::Delay).params[0].id,
+            value: 0.5,
+        }),
+        Command::Device(DeviceCommand::Remove { id: delay }),
+        Command::Device(DeviceCommand::Insert {
+            id: d.id(),
+            track: t,
+            device: DeviceSpec::Builtin {
+                device: BuiltinDevice::Reverb,
+            },
+            before: Some(delay),
+        }),
+        Command::Device(DeviceCommand::Move {
+            id: utility,
+            track: t,
+            before: Some(delay),
+        }),
+        Command::Automation(AutomationCommand::CreateLane {
+            id: d.id(),
+            owner: AutomationOwner::Track { track: t },
+            target: AutomationTarget::DeviceParam {
+                device: delay,
+                param: ParamId(0),
+            },
+        }),
+    ] {
+        let before = d.p().clone();
+        let e = d.err(c.clone());
+        assert_eq!(e.code, ErrorCode::InvalidState, "{c:?}");
+        assert_eq!(d.p(), &before);
+    }
+    // ...and so do the clips.
+    let clip = d.p().clips.values().find(|c| c.track == t).unwrap().id;
+    let e = d.err(Command::Clip(ClipCommand::Delete { ids: vec![clip] }));
+    assert_eq!(e.code, ErrorCode::InvalidState);
+
+    // Devices can be added to, automated in and removed from the tail.
+    let reverb: DeviceId = d.id();
+    for c in [
+        Command::Device(DeviceCommand::Insert {
+            id: reverb,
+            track: t,
+            device: DeviceSpec::Builtin {
+                device: BuiltinDevice::Reverb,
+            },
+            before: Some(utility),
+        }),
+        Command::Automation(AutomationCommand::CreateLane {
+            id: d.id(),
+            owner: AutomationOwner::Track { track: t },
+            target: AutomationTarget::DeviceParam {
+                device: utility,
+                param: ParamId(0),
+            },
+        }),
+        Command::Device(DeviceCommand::Move {
+            id: reverb,
+            track: t,
+            before: None,
+        }),
+        Command::Device(DeviceCommand::Remove { id: reverb }),
+    ] {
+        d.ok(c);
+    }
+
+    // Unfreeze: the whole chain is live again.
+    d.ok(Command::Freeze(FreezeCommand::Unfreeze { track: t }));
+    d.tick();
+    assert!(d.p().tracks[&t].freeze.is_none());
+    assert_eq!(d.ctl.bridge.nodes.len(), nodes_before);
+}
+
+#[test]
+fn freeze_up_to_the_instrument_keeps_every_audio_effect_live() {
+    let mut d = Drive::new();
+    let (t, delay) = keys(&mut d);
+    let synth = d.p().devices_of(t)[0].id;
+    let live = d.play(FRAMES);
+    freeze_up_to(&mut d, t, synth);
+    assert_eq!(d.p().tracks[&t].freeze.as_ref().unwrap().up_to, Some(synth));
+    assert!(!d.p().device_frozen(delay));
+    let frozen = d.play(FRAMES);
+    let diff = max_diff(&live, &frozen);
+    assert!(diff < 1e-4, "partially frozen playback differs by {diff}");
+}
+
+#[test]
+fn freeze_points_are_validated() {
+    let mut d = Drive::new();
+    let t = d.track(TrackKind::Midi, "Arp");
+    let arp = d.device(t, BuiltinDevice::Arpeggiator);
+    d.device(t, BuiltinDevice::Synth);
+    let delay = d.device(t, BuiltinDevice::Delay);
+    d.midi_clip(t, 0.0, &[60, 64]);
+    let other = d.track(TrackKind::Audio, "Other");
+    let foreign = d.device(other, BuiltinDevice::Utility);
+    d.settle();
+    for up_to in [arp, foreign] {
+        let media: MediaId = d.id();
+        let e = d.err(Command::Freeze(FreezeCommand::Freeze {
+            job: "x".into(),
+            track: t,
+            media,
+            up_to: Some(up_to),
+        }));
+        assert_eq!(e.code, ErrorCode::InvalidArgument, "{}", e.message);
+    }
+    // Up to the last device = the whole chain, like a plain freeze.
+    freeze_up_to(&mut d, t, delay);
+    assert_eq!(d.p().tracks[&t].freeze.as_ref().unwrap().up_to, None);
+    assert!(d.p().device_frozen(delay));
+    let id: DeviceId = d.id();
+    let e = d.err(Command::Device(DeviceCommand::Insert {
+        id,
+        track: t,
+        device: DeviceSpec::Builtin {
+            device: BuiltinDevice::Reverb,
+        },
+        before: None,
+    }));
+    assert_eq!(e.code, ErrorCode::InvalidState);
+}
+
+#[test]
+fn flatten_a_partial_freeze_keeps_the_live_tail() {
+    let mut d = Drive::new();
+    let (t, delay, utility) = keys_with_tail(&mut d);
+    d.ok(Command::Device(DeviceCommand::SetParam {
+        device: utility,
+        param: ether_devices::utility::params::GAIN,
+        value: -6.0,
+    }));
+    d.settle();
+    let live = d.play(FRAMES);
+    freeze_up_to(&mut d, t, delay);
+    let (clip, new_track): (ClipId, TrackId) = (d.id(), d.id());
+    d.ok(Command::Freeze(FreezeCommand::Flatten {
+        track: t,
+        clip,
+        new_track,
+    }));
+    d.settle();
+    assert!(!d.p().tracks.contains_key(&t));
+    // The utility moved to the new audio track, after the render.
+    let chain: Vec<DeviceId> = d.p().devices_of(new_track).iter().map(|x| x.id).collect();
+    assert_eq!(chain, vec![utility]);
+    assert!(!d.p().devices.contains_key(&delay));
+    let flat = d.play(FRAMES);
+    // The moved utility is a fresh node: skip its gain smoothing.
+    let diff = max_diff_from(&live, &flat, SR as usize / 4);
+    assert!(diff < 1e-3, "flattened playback differs by {diff}");
+}
+
+#[test]
+fn flatten_a_partially_frozen_audio_track_keeps_its_tail() {
+    let mut d = Drive::new();
+    let t = d.track(TrackKind::Audio, "Tone");
+    let eq = d.device(t, BuiltinDevice::Eq);
+    let utility = d.device(t, BuiltinDevice::Utility);
+    d.audio_clip(t, 0.0);
+    d.settle();
+    freeze_up_to(&mut d, t, eq);
+    let (clip, new_track): (ClipId, TrackId) = (d.id(), d.id());
+    d.ok(Command::Freeze(FreezeCommand::Flatten {
+        track: t,
+        clip,
+        new_track,
+    }));
+    let chain: Vec<DeviceId> = d.p().devices_of(t).iter().map(|x| x.id).collect();
+    assert_eq!(chain, vec![utility]);
+    assert!(d.p().tracks[&t].freeze.is_none());
+    assert_eq!(d.p().clips[&clip].track, t);
 }

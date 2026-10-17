@@ -851,6 +851,7 @@ fn transpose_rejects_frozen_tracks() {
     p.tracks.get_mut(&track).unwrap().freeze = Some(TrackFreeze {
         media,
         start: Seconds(0.0),
+        up_to: None,
     });
     let json = ether_model::file::save(&p, "test").unwrap();
     use ether_controller::store::ProjectStore;

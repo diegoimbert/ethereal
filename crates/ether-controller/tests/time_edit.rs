@@ -643,6 +643,7 @@ fn frozen_tracks_reject_time_edits() {
         p.tracks.get_mut(&t).unwrap().freeze = Some(TrackFreeze {
             media,
             start: Seconds(0.0),
+            up_to: None,
         });
     });
     let before = h.project().clone();

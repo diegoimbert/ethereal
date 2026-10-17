@@ -87,7 +87,9 @@ pub struct TrackDesc {
     #[serde(default)]
     pub racks: Vec<RackDesc>,
     // --- v0.2 (contracts-3; each field's module owns its semantics) ---
-    /// Frozen track (`freeze-bounce`, [`crate::freeze`]): `clips` and `chain` are empty.
+    /// Frozen track (`freeze-bounce`, [`crate::freeze`]): `clips` are empty, and so is
+    /// `chain` unless the freeze is partial (then it holds the live tail, which processes
+    /// the render).
     #[serde(default)]
     pub frozen: Option<crate::freeze::FrozenDesc>,
     /// Rack chains of the rack devices in `chain` (`racks-modulation`,

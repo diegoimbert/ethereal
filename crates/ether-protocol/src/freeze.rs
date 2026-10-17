@@ -12,7 +12,7 @@
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
-use crate::model::{Beats, ClipId, MediaId, TrackId};
+use crate::model::{Beats, ClipId, DeviceId, MediaId, TrackId};
 
 /// Client-chosen job id (ULID string, like export jobs).
 pub type RenderJobId = String;
@@ -31,10 +31,23 @@ pub enum FreezeCommand {
     /// warning notification lists them), and nothing can be created or moved inside the
     /// group. Rejected (`InvalidState`) when a descendant is routed to a track outside the
     /// group, or the group is empty (`InvalidArgument`).
+    ///
+    /// **Freeze up to a device** (`up_to`): render only the source and the chain up to and
+    /// including that device (`TrackFreeze::up_to`); the devices after it stay live and
+    /// editable, processing the render. It must be a device of the track's own chain and
+    /// not a MIDI effect (nor before the instrument of a MIDI track): `InvalidArgument`
+    /// otherwise. The last device of the chain (or `None`) freezes the whole chain, exactly
+    /// like a plain track freeze (stored as `up_to: None`).
+    ///
+    /// Flatten of a partial freeze keeps the live tail: it stays on the audio track, or moves
+    /// to the new audio track (MIDI track, group).
     Freeze {
         job: RenderJobId,
         track: TrackId,
         media: MediaId,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[ts(optional)]
+        up_to: Option<DeviceId>,
     },
     /// Clear `Track::freeze` (instantaneous; the media stays until unused and purged). A group
     /// inside a frozen group cannot be unfrozen on its own (`InvalidState`).
