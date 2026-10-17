@@ -1422,6 +1422,8 @@
   "shell.desktop_band.label": "desktop app",
   "shell.desktop_band.text": "ethereal works best in the desktop app",
   "shell.desktop_band.open": "open on desktop",
+  "community.discord.label": "discord",
+  "community.discord.join": "join the ethereal discord",
   "shell.notice.info": "info",
   "shell.notice.warning": "warning",
   "shell.notice.error": "error",
