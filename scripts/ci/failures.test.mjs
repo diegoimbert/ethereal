@@ -10,6 +10,7 @@ test("names what failed, never the messages", () => {
     "  --> crates/secret/src/lib.rs:3:5",
     "error: could not compile `secret-crate` (lib) due to 1 previous error",
     "        FAIL [   0.039s] (1090/1895) ether-devices::engine_text ui_engine_text_list_is_current",
+    "  TRY 2 FAIL [   0.015s] (2036/2983) ee-crate::canary canary_fails",
     "    thread 'x' panicked at crates/secret/src/lib.rs:9:5: the private detail",
     "test share::tests::keeps_it ... FAILED",
     "  ✘  63 [webgl] › e2e/secret.spec.ts:6:1 › the title of a private feature (11.2s)",
@@ -21,6 +22,7 @@ test("names what failed, never the messages", () => {
   assert.deepEqual(failures(log), [
     "compile error in secret-crate",
     "fail ether-devices::engine_text ui_engine_text_list_is_current",
+    "fail ee-crate::canary canary_fails",
     "fail share::tests::keeps_it",
     "fail [webgl] e2e/secret.spec.ts:6:1",
     "fail src/features/secret/x.test.ts",

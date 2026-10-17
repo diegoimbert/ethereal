@@ -7,7 +7,7 @@ export function failures(log) {
   for (const line of log.split(/\r?\n/)) {
     let m;
     // cargo-nextest: `FAIL [ 0.1s] (3/9) crate::binary test_name`
-    if ((m = /^\s*(FAIL|TIMEOUT|SIGSEGV|SIGABRT|SIGKILL|FLAKY)\s+\[[^\]]*\]\s+(?:\([^)]*\)\s+)?(\S+\s+\S+)/.exec(line))) add(`${m[1].toLowerCase()} ${m[2]}`);
+    if ((m = /^\s*(?:TRY \d+\s+)?(FAIL|TIMEOUT|SIGSEGV|SIGABRT|SIGKILL|FLAKY)\s+\[[^\]]*\]\s+(?:\([^)]*\)\s+)?(\S+\s+\S+)/.exec(line))) add(`${m[1].toLowerCase()} ${m[2]}`);
     // libtest: `test path::name ... FAILED`
     else if ((m = /^test (\S+) \.\.\. FAILED$/.exec(line))) add(`fail ${m[1]}`);
     // cargo: `error: could not compile `crate` ...`
