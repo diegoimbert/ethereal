@@ -72,6 +72,8 @@ if (platform === "Windows" && env.WINDOWS_CERTIFICATE_THUMBPRINT) {
   config.bundle.windows = {
     certificateThumbprint: env.WINDOWS_CERTIFICATE_THUMBPRINT,
     digestAlgorithm: "sha256",
+    // Plain HTTP is fine: an RFC 3161 timestamp is signed by the authority, and DigiCert's
+    // does not answer over HTTPS (docs/RELEASING.md).
     timestampUrl: env.WINDOWS_TIMESTAMP_URL || "http://timestamp.digicert.com",
   };
 }
