@@ -1,0 +1,69 @@
+name: EE sync
+
+# The pointer bot (docs/EE-WORKFLOW.md "Automation"): `node scripts/feat.mjs sync --ci`, idempotent
+# and race-safe (fast-forward API commits, retried; never a force-push):
+#   - OSS main -> EE main (unless a `feat ship` holds the lock),
+#   - each open OSS PR x -> the tip of EE x, or EE main once the EE PR x merged (a PR whose only
+#     conflict with main is the gitlink gets main merged in),
+#   - the `ee/pointer` status on OSS PRs.
+# `feat push` and `feat ship` do the same for their own PR; this catches everything else.
+#
+# Runs main's code only (schedule, manual): never pull-request code. Needs the ETHER_BOT_TOKEN
+# secret (write to this repository, read the private one); without it, nothing runs. Its output
+# names private branches and PRs, so it goes to the encrypted full log like the full build's.
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ee-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - id: gate
+        env:
+          HAS_BOT: ${{ secrets.ETHER_BOT_TOKEN != '' }}
+        run: |
+          echo "bot=$HAS_BOT" >> "$GITHUB_OUTPUT"
+          [ "$HAS_BOT" = true ] || echo "::warning::ETHER_BOT_TOKEN is not set: no sync (see docs/EE-WORKFLOW.md)"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: steps.gate.outputs.bot == 'true'
+        with:
+          ref: main
+          # Full history: resolving a gitlink conflict merges main into a PR branch, pushed with
+          # the bot token.
+          fetch-depth: 0
+          token: ${{ secrets.ETHER_BOT_TOKEN }}
+      - name: Sync
+        if: steps.gate.outputs.bot == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.ETHER_BOT_TOKEN }}
+          FEAT_EE_TOKEN: ${{ secrets.ETHER_BOT_TOKEN }}
+          FEAT_OSS_REPO: ${{ github.repository }}
+          FEAT_EE_REPO: diegoimbert/ethereal-private
+        run: |
+          git config user.name "ethereal-bot"
+          git config user.email "ethereal-bot@users.noreply.github.com"
+          node scripts/ci/private-step.mjs sync -- node scripts/feat.mjs sync --ci
+      - name: ee/ (for the log recipients)
+        if: always() && steps.gate.outputs.bot == 'true'
+        env:
+          TOKEN: ${{ secrets.ETHER_BOT_TOKEN }}
+        run: |
+          auth="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$TOKEN" | base64 | tr -d '\n')"
+          echo "::add-mask::$auth"
+          mkdir -p ee && git -C ee init -q
+          git -C ee -c http.extraheader="$auth" fetch -q --depth=1 https://github.com/diegoimbert/ethereal-private main 2>/dev/null
+          git -C ee checkout -q FETCH_HEAD -- .sops.yaml
+      - uses: ./.github/actions/full-logs
+        if: always() && steps.gate.outputs.bot == 'true'
+        with:
+          name: full-logs-sync

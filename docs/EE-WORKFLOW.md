@@ -57,24 +57,32 @@ detached at the pointer; `just feat ee` puts it back on `x`.
 
 ## Automation
 
-The private repository runs the bots and the full-product CI, so no private code or log ever
-reaches this repository's Actions:
+All CI runs in this repository, on GitHub-hosted runners; the private repository has none.
 
-- **Sync** (on every push there, on `feat push`/`ship`, and hourly): moves OSS `main` to EE
-  `main` (unless a ship holds the lock), keeps each open OSS PR's pointer on its EE branch tip
-  (or EE `main` once that merged), merges `main` into a PR whose only conflict is the gitlink,
-  and posts the **`ee/pointer`** status on OSS PRs. Its API commits touch nothing but `ee` and
-  are fast-forward only, retried when the branch moved.
-- **Full build**: each non-draft OSS PR head gets the **`ee/build`** status: the full product
-  built from that PR (with EE `main` when the PR leaves `ee` alone). Fork PRs are not built
-  automatically.
-- **EE CI** builds each EE PR against OSS branch `x` (or OSS `main`).
-- Releases and the dev deploy are built on the private side from OSS `main` + the `ee` commit
-  it points at; GitHub Releases are still published here.
+- **Full build** (`.github/workflows/full.yml`): the full product (this repo + `ee/` overlaid)
+  for every same-repo PR, every push to `main`, and on demand. Its **`ee/build`** job is the
+  check `feat ship` waits for. A PR builds against its `ee` pointer when it moves it, else EE
+  `main`; pull requests run Linux (Rust) and the web build, `main` adds macOS, Windows and the
+  e2e suite. A fork's PR cannot read the private repository (GitHub withholds the secret), so
+  its full jobs are skipped; a maintainer builds it by hand after reading it:
+  `gh workflow run full.yml -f ref=refs/pull/N/head`.
+  - The private code never shows in the public log: each step's output goes to a file
+    (`scripts/ci/private-step.mjs`), the log shows the result and the names of what failed, and
+    the files are uploaded **encrypted with age** to the recipients in `ee/.sops.yaml`.
+    `just full-logs <run-id>` downloads and decrypts them.
+  - These jobs restore the OSS-only caches of `ci.yml` and never save a cache (a fork's PR can
+    restore caches made on `main`).
+- **Sync** (`.github/workflows/ee-sync.yml`, every 10 minutes and on demand, plus `feat push`/
+  `ship`): moves OSS `main` to EE `main` (unless a ship holds the lock), keeps each open OSS
+  PR's pointer on its EE branch tip (or EE `main` once that merged), merges `main` into a PR
+  whose only conflict is the gitlink, and posts the **`ee/pointer`** status on OSS PRs. Its API
+  commits touch nothing but `ee` and are fast-forward only, retried when the branch moved.
+- Releases and the dev deploy still run on the private side until they move here too.
 
-`feat push` and `feat ship` do the bot's part for their own PR themselves (pointer status,
-starting the build, turning a finished build into `ee/build`), so the workflow keeps working
-when the bot cannot write here.
+Secrets (this repository): `ETHER_PRIVATE_TOKEN` (read the private repository: the full build)
+and `ETHER_BOT_TOKEN` (write this repository's contents, pull requests and statuses, read the
+private one: the sync). Without the bot token the sync does nothing; `feat push` and
+`feat ship` still do its part for their own PR.
 
 ## Concurrency notes
 
