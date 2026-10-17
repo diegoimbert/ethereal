@@ -57,7 +57,7 @@ fn referenced_in_place_missing_relinked_collected() {
     );
     assert_eq!(
         s["location"],
-        json!({"type": "External", "path": library.join("Drums/Snare.wav").to_str().unwrap()})
+        json!({"type": "External", "path": library.join("Drums").join("Snare.wav").to_str().unwrap()})
     );
     let project_dir = tmp.path().join("projects").join(&pid);
     for m in [&k, &s] {

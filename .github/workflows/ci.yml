@@ -42,10 +42,39 @@ env:
   NODE_VERSION: "24"
 
 jobs:
+  changes:
+    # A pull request that touches no Rust, packaging or CI file (UI, web, docs) skips the Rust and
+    # packaging jobs: they would rebuild the same thing, and macOS runners are scarce. `main`
+    # runs everything.
+    name: What changed
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      rust: ${{ steps.diff.outputs.rust }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - id: diff
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          rust=true
+          if [ "$EVENT" = pull_request ]; then
+            git fetch --no-tags --depth=1 origin "$BASE"
+            git diff --name-only FETCH_HEAD HEAD > "$RUNNER_TEMP/changed.txt"
+            grep -qE '^(crates/|apps/desktop/|ui/src/generated/|third-party/|\.cargo/|\.config/|\.github/|scripts/(build-sandbox-helper\.mjs|release/)|Cargo\.(toml|lock)$|rust-toolchain\.toml$|deny\.toml$|package\.json$|pnpm-lock\.yaml$)' "$RUNNER_TEMP/changed.txt" || rust=false
+          fi
+          echo "rust=$rust" >> "$GITHUB_OUTPUT"
+          echo "Rust and packaging jobs: $rust"
+
   # --- Rust ---------------------------------------------------------------------------------
 
   rust-linux:
     name: Rust (Linux)
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -62,6 +91,7 @@ jobs:
         with:
           key: linux
           save-if: ${{ github.ref == 'refs/heads/main' || github.head_ref == 'ci-gates' }} # TEMP: measure warm runs
+          cache-on-failure: true
       - uses: taiki-e/install-action@8cca0918f8471c33515202b73f56ab27f2bed283 # v2.87.29
         with:
           tool: cargo-nextest@0.9.148
@@ -96,6 +126,8 @@ jobs:
     # model, protocol, wasm) is tested on Linux and Windows; clippy still covers everything.
     # macOS runners are the scarcest (5 at a time per account), so this job stays lean.
     name: Rust (macOS)
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
     runs-on: macos-latest
     timeout-minutes: 60
     steps:
@@ -108,6 +140,7 @@ jobs:
         with:
           key: macos
           save-if: ${{ github.ref == 'refs/heads/main' || github.head_ref == 'ci-gates' }} # TEMP: measure warm runs
+          cache-on-failure: true
       - uses: taiki-e/install-action@8cca0918f8471c33515202b73f56ab27f2bed283 # v2.87.29
         with:
           tool: cargo-nextest@0.9.148
@@ -124,6 +157,8 @@ jobs:
 
   rust-windows:
     name: Rust (Windows)
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
     runs-on: windows-latest
     timeout-minutes: 75
     steps:
@@ -136,6 +171,7 @@ jobs:
         with:
           key: windows
           save-if: ${{ github.ref == 'refs/heads/main' || github.head_ref == 'ci-gates' }} # TEMP: measure warm runs
+          cache-on-failure: true
       - uses: taiki-e/install-action@8cca0918f8471c33515202b73f56ab27f2bed283 # v2.87.29
         with:
           tool: cargo-nextest@0.9.148
@@ -197,6 +233,7 @@ jobs:
         with:
           key: web-build
           save-if: ${{ github.ref == 'refs/heads/main' || github.head_ref == 'ci-gates' }} # TEMP: measure warm runs
+          cache-on-failure: true
       - name: wasm-bindgen version (from Cargo.lock)
         id: wb
         run: echo "version=$(grep -A1 '^name = "wasm-bindgen"$' Cargo.lock | sed -n 's/^version = "\(.*\)"/\1/p')" >> "$GITHUB_OUTPUT"
@@ -313,6 +350,8 @@ jobs:
     # (the official one adds the private overlay); unsigned. Release builds use LTO and one
     # codegen unit; here only the packaging is under test, so both are off to keep it fast.
     name: Package (${{ matrix.name }})
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     strategy:
@@ -350,6 +389,7 @@ jobs:
         with:
           key: package-${{ matrix.target }}
           save-if: ${{ github.ref == 'refs/heads/main' || github.head_ref == 'ci-gates' }} # TEMP: measure warm runs
+          cache-on-failure: true
       - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
