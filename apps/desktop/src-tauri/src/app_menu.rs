@@ -69,16 +69,28 @@ pub const EDIT_HISTORY: &[ItemSpec] = &[
 ];
 pub const EDIT_SELECT_ALL: ItemSpec = ("edit.selectAll", "select all", Some("Mod+A"));
 
-/// Help menu.
+/// Help menu: what this build handles. An extension adds its own groups
+/// ([`set_extra_help_items`]); their labels come from the UI like these.
 pub const HELP_ITEMS: &[ItemSpec] = &[
     ("keymap:open", "keyboard shortcuts…", None),
     ("app:news", "news…", None),
-    ("app:report-issue", "report an issue…", None),
-    ("app:send-diagnostics", "send diagnostics…", None),
 ];
 
-/// "Check for Updates…" (Help, builds with the updater).
-pub const UPDATES_ITEM: ItemSpec = ("app:check-updates", "check for updates…", None);
+static EXTRA_HELP: std::sync::OnceLock<Vec<&'static [ItemSpec]>> = std::sync::OnceLock::new();
+
+/// Extension point: groups appended to the Help menu (each after a separator), set once
+/// before the app's menu is built. Their action ids reach the UI like the app's items; the
+/// UI labels them (`@/ext` "desktopMenu.labels") and runs them (its palette commands).
+pub fn set_extra_help_items(groups: Vec<&'static [ItemSpec]>) {
+    let _ = EXTRA_HELP.set(groups);
+}
+
+/// The Help menu's groups: the app's, then the extensions'.
+pub fn help_groups() -> Vec<&'static [ItemSpec]> {
+    let mut groups = vec![HELP_ITEMS];
+    groups.extend(EXTRA_HELP.get().into_iter().flatten().copied());
+    groups
+}
 
 /// The menu bar's text in the UI's language; `actions` labels the items above by action id.
 /// Missing fields keep their English default.
@@ -417,7 +429,6 @@ mod tests {
             .chain(EDIT_HISTORY)
             .chain([&EDIT_SELECT_ALL])
             .chain(HELP_ITEMS)
-            .chain([&UPDATES_ITEM])
         {
             let key = format!("menu.action.{}", catalog_id(spec.0));
             assert_eq!(spec.1, msg(&key), "{key}");

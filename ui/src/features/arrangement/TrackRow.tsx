@@ -1,4 +1,5 @@
 import clsx from "clsx";
+import { surfaceMenuEntries } from "@/ext/surfaces";
 import { useStore } from "zustand";
 import { memo, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type PointerEvent, type ReactNode } from "react";
 import { AudioLines, ChevronDown, Circle, CornerDownRight, Folder, Headphones, Piano, Speaker, SlidersVertical, Spline, Volume2, VolumeX } from "lucide-react";
@@ -560,6 +561,7 @@ function TrackLane({ track }: { track: Track }) {
             disabled: !hasClipboard(),
             onSelect: () => void pasteClips(ctx.transport, at, track.id),
           },
+          ...surfaceMenuEntries({ kind: "arranger" }, e),
         ]);
       }}
     >

@@ -22,6 +22,8 @@
  * (`hitNote`); the cursor follows what is under the pointer (`gridCursor`).
  */
 
+import { surfaceMenuEntries } from "@/ext/surfaces";
+import { useContributions, type EditorCursorMapping } from "@/ext";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type RefObject } from "react";
 import clsx from "clsx";
 import type { ClipId, Command, MusicalScale, Note, NoteId, TextKey } from "@/generated";
@@ -162,6 +164,25 @@ export function NoteGrid({
     const track = (space.clips.find((c) => c.id === clipId) ?? clip).track;
     playPreview(transport, track, pitch, velocity);
   };
+
+  // Grid px ⇄ content beats (of the focused clip) and pitch (the key plus how far up it), for
+  // the extensions' layers (`@/ext` "pianoRoll.layer": e.g. other people's cursors).
+  const layers = useContributions("pianoRoll.layer");
+  const cursorMapping = useRef<EditorCursorMapping>(null!);
+  useLayoutEffect(() => {
+    const shift = space.focusShift;
+    cursorMapping.current = {
+      fromScreen: (x, y) => {
+        const row = Math.min(rows.length - 1, Math.max(0, Math.floor(y / keyH)));
+        const within = Math.min(0.999, Math.max(0, 1 - (y - row * keyH) / keyH));
+        return { beats: pxToBeats(x, vp) - shift, pitch: rows[row]! + within };
+      },
+      toScreen: (beats, pitch) => {
+        const key = Math.floor(pitch);
+        return { x: beatsToPx(beats + shift, vp), y: pitchToY(key, keyH, rows) + (1 - (pitch - key)) * keyH };
+      },
+    };
+  });
 
   const range = useMemo(() => visibleRange(vp, widthPx > 0 ? widthPx : FALLBACK_WIDTH), [vp, widthPx]);
   const lines = useMemo(() => gridLines(tempo, range, step ?? BAR_STEP), [tempo, range, step]);
@@ -499,14 +520,15 @@ export function NoteGrid({
         },
       },
       ...(menuItems ? ["separator" as const, ...menuItems(ids)] : []),
+      ...surfaceMenuEntries({ kind: "editor", clip: clip.id }, e),
     ]);
   };
 
-  /** A note: its menu. Empty grid: paste (#575). */
+  /** A note: its menu. Empty grid: paste (#575), and the extensions' entries. */
   const onContextMenu = (e: React.MouseEvent) => {
     const hit = e.target === e.currentTarget ? noteAt(e) : null;
     if (hit) onNoteContextMenu(e, hit.note.id);
-    else openContextMenu(e, [pasteEntry(e.currentTarget)]);
+    else openContextMenu(e, [pasteEntry(e.currentTarget), ...surfaceMenuEntries({ kind: "editor", clip: clip.id }, e)]);
   };
 
   // ---- Cursor: what is under the pointer (the notes are not elements) ----
@@ -748,6 +770,15 @@ export function NoteGrid({
         />
       )}
       <PlayheadLine view={view} mapping={space.fromSong} />
+      {layers.map((Layer, i) => (
+        <Layer
+          key={i}
+          clip={clip.id}
+          gridRef={rootRef}
+          mapping={cursorMapping}
+          layoutKey={`${vp.pxPerBeat}:${vp.scrollBeats}:${keyH}:${rows.length}:${rows[0] ?? 0}`}
+        />
+      ))}
     </div>
   );
 }

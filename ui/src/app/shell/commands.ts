@@ -32,7 +32,8 @@ import { cmd, type EngineTransport } from "@/transport";
 import { canInsert } from "@/features/devices/chainUtils";
 import { deviceTargetTrack, insertDeviceCommand } from "./deviceInsert";
 import { drawerCanFullscreen, useShellStore, type PaneSide } from "@/state/shell";
-import { LEFT_TABS } from "./tabs";
+import { railTabs } from "./tabs";
+import { contributions } from "@/ext";
 
 /** One command palette entry. */
 export interface PaletteCommand {
@@ -316,12 +317,13 @@ export function buildCommands(transport: EngineTransport | null, devices: Readon
     action: "ai:ask",
     run: () => openAiChat(),
   });
-  for (const t of LEFT_TABS) {
+  for (const t of railTabs()) {
     if (t.id === "ai") continue; // "Ask AI" above
+    if (t.contributed?.isVisible && !t.contributed.isVisible()) continue;
     out.push({
       id: `panel:${t.id}`,
       group: "Panels",
-      label: tr("shell.command.open_panel", { panel: tr(t.label) }),
+      label: tr("shell.command.open_panel", { panel: t.label() }),
       keywords: "show panel browser rail",
       run: () => {
         const s = useShellStore.getState();
@@ -404,6 +406,8 @@ export function buildCommands(transport: EngineTransport | null, devices: Readon
     keywords: "theme dark light mode appearance",
     run: () => setTheme(dark ? "light" : "dark"),
   });
+  // Extensions (`@/ext` "palette.commands").
+  for (const f of contributions("palette.commands")) out.push(...f({ transport, project, devices }));
   // docs (#665): the user documentation.
   out.push(...docsCommands());
   // base-154: "Debug: <title>" per registered debug panel.

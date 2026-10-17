@@ -13,7 +13,9 @@ import { size } from "@/theme";
  */
 
 /** `ai`: the AI chat (`ai-chat`). */
-export type LeftTab = "library" | "midi" | "history" | "ai";
+export type BuiltinLeftTab = "library" | "midi" | "history" | "ai";
+/** A left rail tab: the app's, or one an extension contributes (`@/ext` "shell.leftTab"). */
+export type LeftTab = BuiltinLeftTab | (string & {});
 export type DrawerTab = "piano-roll" | "warp" | "automation";
 const DRAWER_TAB_IDS: ReadonlyArray<DrawerTab> = ["piano-roll", "warp", "automation"];
 export type PaneSide = "left" | "right" | "bottom";
@@ -69,7 +71,7 @@ interface Saved {
   bottom?: Partial<PaneState> & { tab?: DrawerTab };
 }
 
-const LEFT_TABS: ReadonlyArray<LeftTab> = ["library", "midi", "history", "ai"];
+const LEFT_TABS: ReadonlyArray<BuiltinLeftTab> = ["library", "midi", "history", "ai"];
 const leftTab = (tab: string | undefined): LeftTab => LEFT_TABS.find((t) => t === tab) ?? "library";
 
 function load(): Saved {

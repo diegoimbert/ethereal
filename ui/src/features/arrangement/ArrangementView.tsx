@@ -1,4 +1,6 @@
 import "./arrangement.css";
+import { rulerMenuEntries, surfaceMenuEntries } from "@/ext/surfaces";
+import { useContributions } from "@/ext";
 import { AmbientBlobs, Button, openContextMenu, setDragCursor, useThemeColor } from "@/kit";
 import { useProjectScreen } from "@/features/project/screenStore";
 import { droppedFiles, hasOsFiles, importAudio, noteHover, openImportDialog, type DropPoint, type ImportSource } from "@/features/import";
@@ -148,6 +150,8 @@ function ConnectedArrangementView() {
 
   const rootRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  // Extensions' layers over the tracks (`@/ext` "arrangement.layer").
+  const layers = useContributions("arrangement.layer");
   const contentRef = useRef<HTMLDivElement>(null);
   useLaneAnimation(contentRef, rows, rowsRef);
   // The canvas reads its rows from `rowsRef`, but nothing else tells it they changed: folding
@@ -467,6 +471,7 @@ function ConnectedArrangementView() {
             view={view}
             grid={grid}
             className="eth-arr__ruler"
+            menuItems={rulerMenuEntries}
           />
         </div>
         <div className="eth-arr__scroll" ref={scrollRef} onPointerDownCapture={onTracksPointerDownCapture}>
@@ -495,6 +500,7 @@ function ConnectedArrangementView() {
                     shortcut: shortcutLabel("file.import"),
                     onSelect: () => void openImportDialog(transport),
                   },
+                  ...surfaceMenuEntries({ kind: "arranger" }, e),
                 ]);
               }
             }}
@@ -552,6 +558,10 @@ function ConnectedArrangementView() {
             </div>
           </div>
         )}
+        {/* Extensions' layers over the tracks (`@/ext` "arrangement.layer"). */}
+        {layers.map((Layer, i) => (
+          <Layer key={i} rootRef={rootRef} scrollRef={scrollRef} rows={rows} masterRow={masterRow} />
+        ))}
         <HeaderColumnResizer />
         <TimeEditNotice />
         <UngroupConfirmDialog />

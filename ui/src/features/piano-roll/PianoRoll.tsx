@@ -31,6 +31,7 @@
  *   lanes follow the focused clip).
  */
 
+import { contributions, useContributions } from "@/ext";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import clsx from "clsx";
 import type { Beats, Clip, ClipId, Command, MusicalScale, TrackScale } from "@/generated";
@@ -116,16 +117,20 @@ export function PianoRoll() {
   const rack = useClipDrumRack(clip);
   const pianoRollChosen = useBeatView((s) => (clip ? s.pianoRoll.has(clip.track) : false));
   const t = useT();
+  const pending = usePendingClip();
   if (!clip) return <Empty text={t("piano_roll.empty.no_clip")} />;
   if (clip.content.type !== "Midi") return <Empty text={t("piano_roll.empty.audio_clip")} />;
+  // An extension's clip whose notes aren't here yet (`@/ext` "clips.pending"): it waits.
+  const waiting = pending((clips ?? [clip]).find((c) => pending(c) !== null) ?? clip);
+  if (waiting !== null) return <Empty text={waiting} loading />;
   if (rack && !clips && !pianoRollChosen) return <BeatGrid key={clip.id} clip={clip} rack={rack} />;
   if (clips) return <PianoRollEditor key={`multi:${clips.map((c) => c.id).join(",")}`} clip={clip} clips={clips} />;
   return <PianoRollEditor key={clip.id} clip={clip} />;
 }
 
-function Empty({ text }: { text: string }) {
+function Empty({ text, loading }: { text: string; loading?: boolean }) {
   return (
-    <div className="eth-pr eth-pr--empty" data-testid="piano-roll-empty">
+    <div className="eth-pr eth-pr--empty" data-testid={loading ? "piano-roll-loading" : "piano-roll-empty"} aria-busy={loading || undefined}>
       {text}
     </div>
   );
@@ -327,10 +332,21 @@ function Editor({ space, view: injectedView }: { space: RollSpace; view?: Timeli
     view.getState().setLimits({ minScrollBeats: space.floor });
   }, [view, space.floor]);
 
-  // Fit the clip horizontally and center its notes vertically when it opens.
+  // An extension's follow mode (`@/ext` "pianoRoll.follow"): publish this view, apply a followed
+  // one (when it shows this clip).
+  const followLayout = useRef({ clip: clip.id, shift: space.focusShift, rows, keyH });
+  useLayoutEffect(() => {
+    followLayout.current = { clip: clip.id, shift: space.focusShift, rows, keyH };
+  });
+  const follows = contributions("pianoRoll.follow");
+  const headers = useContributions("pianoRoll.header");
+
+  // Fit the clip horizontally and center its notes vertically when it opens (not while its
+  // view follows someone's).
   const fitted = useRef(false);
   useEffect(() => {
     if (fitted.current || widthPx <= 0) return;
+    if (follows.some((f) => f.following(clip.id))) return;
     fitted.current = true;
     if (space.multi) {
       const start = Math.min(...space.bands.map((b) => b.start));
@@ -533,6 +549,12 @@ function Editor({ space, view: injectedView }: { space: RollSpace; view?: Timeli
             {t("piano_roll.clip_count", { count: space.clips.length })}
           </span>
         )}
+        {headers.map((Header, i) => (
+          <Header key={i} clip={clip.id} />
+        ))}
+        {follows.map(({ Follow }, i) => (
+          <Follow key={i} clip={clip.id} layout={followLayout} view={view} body={bodyRef} />
+        ))}
         <span className="eth-pr__grid-select">
           {t("piano_roll.grid")}
           <Select
@@ -758,4 +780,13 @@ function ClipBands({ space, vp, colors }: { space: RollSpace; vp: { pxPerBeat: n
 function isTextEntry(target: Element | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
   return target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName);
+}
+
+/**
+ * The extensions' pending clips (`@/ext` "clips.pending", hooks): for a clip, the editor's
+ * text while its content is on its way, or `null`.
+ */
+function usePendingClip(): (clip: Clip) => string | null {
+  const checks = contributions("clips.pending").map((p) => ({ pending: p.usePending(), text: p.text }));
+  return (clip) => checks.find((c) => c.pending(clip))?.text() ?? null;
 }

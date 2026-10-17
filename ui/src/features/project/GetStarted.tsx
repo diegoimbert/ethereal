@@ -1,4 +1,5 @@
 import { AudioLines, BookOpen, CircleCheck, Music } from "lucide-react";
+import { useContributions, type GetStartedContribution } from "@/ext";
 import { useState, type ReactNode } from "react";
 import { Button } from "@/kit";
 import type { EngineCommands } from "@/features/transport-bar/engine";
@@ -8,11 +9,28 @@ import { useStartTour } from "./useStartTour";
 import { useT, type MessageKey } from "@/i18n";
 
 /** The welcome screen's guides: guided tours of the real UI (docs/TUTORIALS.md), or coming soon. */
-const ARTICLES: ReadonlyArray<{ title: MessageKey; blurb: MessageKey; icon: ReactNode; tour?: TourDef }> = [
+const ARTICLES: ReadonlyArray<Article> = [
   // Waits for the default sample pack (#519).
   { title: "project.start.first_track", blurb: "project.start.first_track_blurb", icon: <Music aria-hidden /> },
   { title: "tutorials.record.title", blurb: "project.start.record_blurb", icon: <AudioLines aria-hidden />, tour: RECORD_AUDIO_TOUR },
 ];
+
+interface Article {
+  title: MessageKey | (() => string);
+  blurb: MessageKey | (() => string);
+  icon: ReactNode;
+  tour?: TourDef;
+}
+
+/** The app's guides with the extensions' (`@/ext` "project.getStarted") placed in. */
+function articles(extra: ReadonlyArray<GetStartedContribution>): Article[] {
+  const out: Article[] = [...ARTICLES];
+  for (const x of extra) {
+    const at = x.after ? out.findIndex((a) => a.tour?.id === x.after) : -1;
+    out.splice(at < 0 ? out.length : at + 1, 0, { title: x.title, blurb: x.blurb, icon: x.icon, tour: x.tour });
+  }
+  return out;
+}
 
 /**
  * The welcome screen's "Get started": each guide is a guided tour. Starting one makes a
@@ -22,6 +40,7 @@ const ARTICLES: ReadonlyArray<{ title: MessageKey; blurb: MessageKey; icon: Reac
 export function GetStarted({ commands, onStarted }: { commands: EngineCommands; onStarted(): void }) {
   const t = useT();
   const done = useTutorialProgress((s) => s.done);
+  const extra = useContributions("project.getStarted");
   const hosts = useTour((s) => s.hosts);
   const [confirm, setConfirm] = useState<string | null>(null);
   const transport = commands.transport;
@@ -36,9 +55,9 @@ export function GetStarted({ commands, onStarted }: { commands: EngineCommands; 
     <section className="eth-welcome__start" aria-label={t("project.start.title")}>
       <span className="eth-project-screen__label">{t("project.start.title")}</span>
       <ul className="eth-welcome__articles">
-        {ARTICLES.map((a) => {
+        {articles(extra).map((a) => {
           const tour = a.tour;
-          const title = t(a.title);
+          const title = typeof a.title === "function" ? a.title() : t(a.title);
           const finished = tour !== undefined && `${tour.id}@${tour.version}` in done;
           const available = tour !== undefined && hosts > 0 && !!transport && tour.platforms.includes(platformOf(transport.kind));
           const body = (
@@ -46,20 +65,20 @@ export function GetStarted({ commands, onStarted }: { commands: EngineCommands; 
               <span className="eth-welcome__article-icon">{a.icon}</span>
               <span className="eth-welcome__article-text">
                 <span className="eth-welcome__article-title">{title}</span>
-                <span className="eth-welcome__article-blurb">{t(a.blurb)}</span>
+                <span className="eth-welcome__article-blurb">{typeof a.blurb === "function" ? a.blurb() : t(a.blurb)}</span>
               </span>
             </>
           );
           if (!tour || !available)
             return (
-              <li key={a.title} className="eth-welcome__article" aria-disabled="true">
+              <li key={tour?.id ?? title} className="eth-welcome__article" aria-disabled="true">
                 {body}
                 <span className="eth-welcome__soon">{t("project.start.soon")}</span>
               </li>
             );
           if (confirm === tour.id)
             return (
-              <li key={a.title} className="eth-welcome__article eth-welcome__article--confirm" data-testid={`tutorial-confirm-${tour.id}`}>
+              <li key={tour?.id ?? title} className="eth-welcome__article eth-welcome__article--confirm" data-testid={`tutorial-confirm-${tour.id}`}>
                 <span className="eth-welcome__article-icon">{a.icon}</span>
                 <span className="eth-welcome__article-text" role="alert">
                   <span className="eth-welcome__article-title">{title}</span>
@@ -74,7 +93,7 @@ export function GetStarted({ commands, onStarted }: { commands: EngineCommands; 
               </li>
             );
           return (
-            <li key={a.title} className="eth-welcome__article-item">
+            <li key={tour?.id ?? title} className="eth-welcome__article-item">
               <button
                 type="button"
                 className="eth-welcome__article eth-welcome__article--tour"

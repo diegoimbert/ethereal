@@ -12,6 +12,7 @@ import type { BuiltinDevice, BuiltinDeviceType, Device, DeviceDescriptor } from 
 import { DEFAULT_LFO_CURVE } from "./layout/lfoCurve/lfoCurveMath";
 import { localizeDescriptor, useLocale } from "@/i18n";
 import { useProjectStore } from "@/state";
+import { usePluginStore } from "@/features/plugins/pluginStore";
 import { cmd, useTransport, type EngineTransport } from "@/transport";
 
 const descriptorCache = new WeakMap<EngineTransport, Map<string, Promise<DeviceDescriptor>>>();
@@ -24,10 +25,11 @@ export function descriptorKey(device: Device): string {
   return `plugin:${device.id}:${device.kind.plugin.plugin_id}`;
 }
 
-export function fetchDescriptor(transport: EngineTransport, device: Device): Promise<DeviceDescriptor> {
+/** `epoch`: a plugin device's descriptor changed on the engine host (`usePluginStore.descriptorsChanged`). */
+export function fetchDescriptor(transport: EngineTransport, device: Device, epoch = 0): Promise<DeviceDescriptor> {
   let cache = descriptorCache.get(transport);
   if (!cache) descriptorCache.set(transport, (cache = new Map()));
-  const key = descriptorKey(device);
+  const key = `${descriptorKey(device)}#${epoch}`;
   let p = cache.get(key);
   if (!p) {
     p = transport.send(cmd("Device", { type: "GetDescriptor", device: device.id })).then((reply) => {
@@ -65,12 +67,14 @@ export function useDescriptor(device: Device): { descriptor: DeviceDescriptor | 
   // base-131: a plugin held as a safe-mode placeholder has no instance (nor descriptor) yet;
   // it is fetched once loaded.
   const held = useProjectStore((s) => s.safeMode.includes(device.id));
-  const key = descriptorKey(device);
+  // A plugin played on another computer's engine: its descriptor comes from there, maybe later.
+  const epoch = usePluginStore((s) => (device.kind.type === "Plugin" ? (s.descriptorEpochs[device.id] ?? 0) : 0));
+  const key = `${descriptorKey(device)}#${epoch}`;
   const [loaded, setLoaded] = useState<Loaded<DeviceDescriptor> | null>(null);
   useEffect(() => {
     if (held) return;
     let active = true;
-    fetchDescriptor(transport, device).then(
+    fetchDescriptor(transport, device, epoch).then(
       (value) => active && setLoaded({ key, value }),
       (error: unknown) => active && setLoaded({ key, error }),
     );

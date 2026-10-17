@@ -1,4 +1,5 @@
 import clsx from "clsx";
+import { useContributions } from "@/ext";
 import { useId, useState, type DragEvent } from "react";
 import type { Device, DeviceId } from "@/generated";
 import { PluginDeviceControls, pluginMenuEntries } from "@/features/plugins";
@@ -67,6 +68,7 @@ export function DeviceView({ device, prev, moveRightBefore, onDropBefore, accept
   // Freeze (#25): a frozen device (its track plays a render through it) is locked; with a
   // partial freeze, the devices after the freeze point stay live.
   const frozen = useDeviceFrozen(device);
+  const headerBadges = useContributions("devices.headerBadge");
   const setEnabled = (enabled: boolean) => void send(cmd("Device", { type: "SetEnabled", id: device.id, enabled }));
   const transport = useTransport();
   // Copy / paste (deviceClipboard.ts): the selected card, what's copied, device kinds.
@@ -229,6 +231,10 @@ export function DeviceView({ device, prev, moveRightBefore, onDropBefore, accept
               <AddModulatorButton device={device} />
             </span>
           </span>
+          {/* Extensions' badges (`@/ext` "devices.headerBadge"). */}
+          {headerBadges.map((Badge, i) => (
+            <Badge key={i} device={device} />
+          ))}
           {frozen && (
             <span className="eth-device__frozen" role="img" aria-label={t("devices.device.frozen")} title={t("devices.device.frozen_title")}>
               <Snowflake aria-hidden />

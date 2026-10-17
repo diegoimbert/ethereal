@@ -32,11 +32,20 @@ export type ToController =
        * waits for its last save, `WasmEndpoint.drain`).
        */
       handled: SharedArrayBuffer;
+      /** An extension's own init fields (`WebEngineExtension.init`). */
+      [extra: string]: unknown;
     }
-  | { type: "client"; json: string };
+  | { type: "client"; json: string }
+  /** An extension's own message (`ControllerWorkerExtension.onMessage`). */
+  | { type: `ext:${string}`; [field: string]: unknown };
 
 /** Controller Worker → main. */
-export type FromController = { type: "ready" } | { type: "server"; json: string } | { type: "fatal"; message: string };
+export type FromController =
+  | { type: "ready" }
+  | { type: "server"; json: string }
+  | { type: "fatal"; message: string }
+  /** An extension's own message (`WebEngineExtension.onControllerMessage`). */
+  | { type: `ext:${string}`; [field: string]: unknown };
 
 /** Sync-FS request, controller Worker → OPFS Worker (answered through the fs buffer). */
 export type FsOp = "read" | "write" | "rename" | "list" | "mkdir" | "remove" | "stat" | "readRange";

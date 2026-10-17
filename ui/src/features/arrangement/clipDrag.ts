@@ -18,6 +18,7 @@ import { dragBeats, itemSelection, resolveGrid, selectModeFromEvent, snapDelta, 
 import { newId, type EngineTransport } from "@/transport";
 import { setDragCursor } from "@/kit";
 import { clipSourceMapper } from "@/domain/warpMap";
+import { setEditActivity as setActivity } from "@/ext/surfaces";
 import { isArrangementClip, mediaLengthInBeats, startOf } from "./clipTime";
 import { placeInsertMarker } from "@/features/time-edits/marker";
 import { sendEdit, type ArrangementContextValue } from "./context";
@@ -166,6 +167,11 @@ export function onClipPointerDown(
     if (isReadOnly()) return;
     pointer = { x: ev.clientX, y: ev.clientY };
     if (!active && Math.hypot(pointer.x - startX, pointer.y - startY) < DRAG_THRESHOLD_PX) return;
+    if (!active) {
+      // What the user does, for the extensions (`@/ext` "edit.activity"), cleared in `done`.
+      const target = clips.length > 1 ? ({ type: "Selection" } as const) : ({ type: "Clip", clip: clip.id } as const);
+      setActivity({ kind: mode === "move" ? "Dragging" : "Resizing", target });
+    }
     active = true;
     update(ev);
   };
@@ -209,6 +215,7 @@ export function onClipPointerDown(
 
   const done = () => {
     setDragCursor(null);
+    if (active) setActivity(null);
     release();
     unsubscribeView();
     window.removeEventListener("pointermove", move);

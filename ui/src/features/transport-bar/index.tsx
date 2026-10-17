@@ -1,4 +1,5 @@
 // The app shell (ui/src/app/App.tsx) mounts `TransportBar`: keep it prop-less (read state via hooks).
+import { contributions } from "@/ext";
 import "./transport-bar.css";
 import { useEffect, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
@@ -43,6 +44,8 @@ export function TransportBar() {
   const disabled = !transport || !hasProject;
   // A shared project's viewer: play, stop, loop and the position; tempo and signature shown, not set.
   const readOnly = useReadOnly();
+  // An extension says nothing here can play now (e.g. joined with no engine): the reason.
+  const blocked = useTransportBlocked();
 
   const playing = state?.playing ?? false;
   const recording = state?.recording ?? false;
@@ -86,7 +89,7 @@ export function TransportBar() {
     else playOrStopHere(transport);
   };
   useTransportShortcuts({ enabled: !disabled, undo, redo });
-  useTransportKeys({ enabled: !disabled, run: runTransportKey });
+  useTransportKeys({ enabled: !disabled && !blocked, run: runTransportKey });
 
   return (
     <div className="eth-tb" data-feature="transport-bar" role="toolbar" aria-label={t("shell.transport.toolbar")}>
@@ -99,15 +102,17 @@ export function TransportBar() {
             tone="ghost"
             aria-label={playing ? t("shell.transport.stop") : t("shell.transport.play")}
             title={
-              playKey
-                ? t(playing ? "shell.transport.stop_key" : "shell.transport.play_key", { key: playKey })
-                : t(playing ? "shell.transport.stop" : "shell.transport.play")
+              blocked
+                ? blocked
+                : playKey
+                  ? t(playing ? "shell.transport.stop_key" : "shell.transport.play_key", { key: playKey })
+                  : t(playing ? "shell.transport.stop" : "shell.transport.play")
             }
             active={playing}
             className="eth-tb__btn eth-tb__play"
             data-tour="play"
             {...midiTarget({ type: "Transport", action: "TogglePlay" })}
-            disabled={disabled}
+            disabled={disabled || (!!blocked && !playing)}
             onClick={togglePlay}
           >
             {playing ? <Pause aria-hidden /> : <Play aria-hidden />}
@@ -128,11 +133,11 @@ export function TransportBar() {
             <Button
               tone="ghost"
               aria-label={t("shell.transport.record")}
-              title={t("shell.transport.record_title")}
+              title={blocked ?? t("shell.transport.record_title")}
               active={recording}
               className="eth-tb__btn eth-tb__record"
               {...midiTarget({ type: "Transport", action: "ToggleRecord" })}
-              disabled={disabled}
+              disabled={disabled || (!!blocked && !recording)}
               onClick={() => void send(cmd("Recording", { type: "SetRecording", enabled: !recording }))}
             >
               <Circle aria-hidden />
@@ -490,4 +495,12 @@ function useTransportShortcuts(handlers: ShortcutHandlers): void {
       window.removeEventListener("auxclick", onSideDown);
     };
   }, []);
+}
+
+/** Why the transport can't play now, from the extensions (`@/ext` "transport.blocked"), or `null`. */
+function useTransportBlocked(): string | null {
+  // The contributions are fixed once the app runs: each is a hook, called in order.
+  // eslint-disable-next-line react-hooks/rules-of-hooks -- hooks, fixed once the app runs
+  const reasons = contributions("transport.blocked").map((useBlocked) => useBlocked());
+  return reasons.find((r) => r !== null) ?? null;
 }

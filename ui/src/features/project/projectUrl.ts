@@ -7,6 +7,7 @@
 //
 // Query parameters and the fragment are kept. The desktop app has no address bar: nothing
 // here runs there.
+import { contributions } from "@/ext";
 import { useProjectStore } from "@/state";
 import { cmd, type EngineTransport } from "@/transport";
 import type { MessageKey } from "@/i18n";
@@ -60,9 +61,9 @@ export function parseProjectPath(pathname: string): { slug: string | null; id: s
   }
 }
 
-/** Routes owned by someone else (the docs site): never rewritten. */
+/** Routes owned by someone else (the docs site, an extension's `web.route`s): never rewritten. */
 function foreignRoute(pathname: string): boolean {
-  return pathname.startsWith("/docs");
+  return pathname.startsWith("/docs") || contributions("project.foreignRoute").some((owns) => owns(pathname));
 }
 
 /** The address bar reflects the project on this host (the browser; not the desktop app). */
@@ -99,8 +100,9 @@ export async function projectStored(transport: EngineTransport, id: string): Pro
 export function targetPath(): string {
   const project = useProjectStore.getState().project;
   if (!project) return "/";
-  // The launch draft behind the picker: nothing picked yet.
-  if (isDraft(project.id) && useProjectScreen.getState().open) return "/";
+  // The launch draft behind the picker (or the screen an extension shows instead): nothing
+  // picked yet. An extension whose screen comes or goes calls `syncProjectUrl`.
+  if (isDraft(project.id) && (useProjectScreen.getState().open || contributions("project.launchHeld").some((held) => held()))) return "/";
   return projectPath(project.settings.name, project.id);
 }
 

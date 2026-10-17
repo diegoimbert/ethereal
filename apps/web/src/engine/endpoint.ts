@@ -1,7 +1,10 @@
 // Main-thread side of the browser engine: compiles the wasm module once, creates the two
 // SAB rings, starts the AudioWorklet (engine), the OPFS Worker and the controller Worker,
-// and exposes them to `WasmTransport` as a `WasmEndpoint`.
+// and exposes them to `WasmTransport` as a `WasmEndpoint`. Extensions (`@/ext` "web.engine")
+// may bring their own worklet and controller Worker modules (wrapping the app's), more worklet
+// outputs, init fields and messages, and methods of the endpoint.
 import wasmUrl from "@ether-wasm/ether_wasm_bg.wasm?url";
+import { contributions, type WebEngineExtension } from "@/ext";
 import { Emitter } from "@/transport/EngineTransport";
 import type { WasmEndpoint } from "@/transport/wasm/WasmTransport";
 import workletUrl from "./engine.worklet.ts?worker&url";
@@ -43,7 +46,7 @@ export interface WebEndpoint extends WasmEndpoint {
   handles(): WebEngineHandles | null;
 }
 
-export function createWebEndpoint(): WebEndpoint {
+export function createWebEndpoint(extensions: ReadonlyArray<WebEngineExtension> = contributions("web.engine")): WebEndpoint {
   const batches = new Emitter<string>();
   const fatal = new Emitter<Error>();
   let handles: WebEngineHandles | null = null;
@@ -103,12 +106,14 @@ export function createWebEndpoint(): WebEndpoint {
     cleanup.push(() => {
       if (!handles) void context.close().catch(() => undefined);
     });
-    await context.audioWorklet.addModule(workletUrl);
+    await context.audioWorklet.addModule(extensions.find((x) => x.workletUrl)?.workletUrl ?? workletUrl);
+    // Output 0 → speakers; an extension's outputs after it (each stereo).
+    const outputs = 1 + extensions.reduce((n, x) => n + (x.extraOutputs ?? 0), 0);
     const node = new AudioWorkletNode(context, "ether-engine", {
       numberOfInputs: 0,
-      numberOfOutputs: 1,
-      outputChannelCount: [2],
-      processorOptions: { module, control, reports },
+      numberOfOutputs: outputs,
+      outputChannelCount: Array.from({ length: outputs }, () => 2),
+      processorOptions: { module, control, reports, ...Object.assign({}, ...extensions.map((x) => x.processorOptions?.() ?? {})) },
     });
     node.onprocessorerror = () => die("the audio worklet failed");
     node.port.onmessage = (e: MessageEvent<{ type: string; message?: string }>) => {
@@ -124,11 +129,14 @@ export function createWebEndpoint(): WebEndpoint {
       if (!handles) fs.terminate();
     });
 
-    const controller = new Worker(new URL("./controller.worker.ts", import.meta.url), {
-      type: "module",
-      name: "ether-controller",
-    });
+    const controller =
+      extensions.find((x) => x.controllerWorker)?.controllerWorker?.() ??
+      new Worker(new URL("./controller.worker.ts", import.meta.url), {
+        type: "module",
+        name: "ether-controller",
+      });
     handles = { context, node, controller, fs };
+    const h = handles;
     cleanup.push(resumeOnGesture(context));
 
     await new Promise<void>((resolve, reject) => {
@@ -149,8 +157,21 @@ export function createWebEndpoint(): WebEndpoint {
             reject(new Error(msg.message));
             die(`controller: ${msg.message}`);
             break;
+          default:
+            for (const x of extensions) x.onControllerMessage?.(msg, h);
+            break;
         }
       };
+      // The extensions' init fields and transferables (and what to stop with the engine).
+      const extra: Record<string, unknown> = {};
+      const transfer: Transferable[] = [channel.port2];
+      for (const x of extensions) {
+        const i = x.init?.(h);
+        if (!i) continue;
+        Object.assign(extra, i.fields ?? {});
+        transfer.push(...(i.transfer ?? []));
+        if (i.cleanup) cleanup.push(i.cleanup);
+      }
       const init: ToController = {
         type: "init",
         module,
@@ -161,8 +182,9 @@ export function createWebEndpoint(): WebEndpoint {
         seed: randomSeed(),
         sampleRate: context.sampleRate,
         handled: handled.buffer as SharedArrayBuffer,
+        ...extra,
       };
-      controller.postMessage(init, [channel.port2]);
+      controller.postMessage(init, transfer);
     });
   };
 
@@ -184,6 +206,8 @@ export function createWebEndpoint(): WebEndpoint {
     onMessages: (l) => batches.on(l),
     onFatal: (l) => fatal.on(l),
     handles: () => handles,
+    // The extensions' methods (a stream tap, probes, …).
+    ...Object.assign({}, ...extensions.map((x) => x.methods?.(() => handles) ?? {})),
     dispose() {
       teardown();
       batches.clear();

@@ -13,6 +13,7 @@
  * formats turned off are remembered (`libraryStats.hiddenFormats`). Two plugins sharing a
  * format + id (VST2 uniqueID collisions) are both listed: the insert names which one.
  */
+import { useContributions } from "@/ext";
 import "./deviceLibrary.css";
 import clsx from "clsx";
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
@@ -128,7 +129,10 @@ export function DeviceLibrary({ category, categories, accept, pluginsOnly = fals
   const transport = useOptionalTransport();
   const desktop = transport?.kind === "tauri";
   usePluginEvents();
+  const pluginActions = useContributions("plugins.actions");
   const stored = usePluginStore((s) => s.plugins);
+  // Another computer's engine plays the project: its plugins (`usePluginStore.remote`).
+  const remote = usePluginStore((s) => s.remote);
   const plugins = given !== undefined ? given : stored;
   const scan = usePluginStore((s) => s.scan);
   const failed = usePluginStore((s) => s.failed);
@@ -167,7 +171,7 @@ export function DeviceLibrary({ category, categories, accept, pluginsOnly = fals
   const sort = useLibraryStats((s) => s.sort);
   const [favouritesOnly, setFavouritesOnly] = useState(false);
   const hiddenFormats = useLibraryStats((s) => s.hiddenFormats);
-  const pluginsShown = desktop || given !== undefined;
+  const pluginsShown = desktop || given !== undefined || remote !== null;
   // The format toggles: this platform's formats present in the plugin list, when 2 or more.
   const formats = useMemo<PluginFormat[]>(() => {
     if (!pluginsShown) return [];
@@ -300,6 +304,11 @@ export function DeviceLibrary({ category, categories, accept, pluginsOnly = fals
           </div>
         )}
       </div>
+      {remote && given === undefined && (
+        <p className="eth-devlib__remote" role="note">
+          <Plug aria-hidden /> {t("devices.library.remote_plugins", { host: remote.name })}
+        </p>
+      )}
       <ul ref={list} className="eth-devlib__list" aria-label={t("devices.library.list", { kind: noun })} aria-busy={builtins === null && !pluginsOnly}>
         {entries.map((e) => (
           <li key={e.key}>
@@ -336,7 +345,7 @@ export function DeviceLibrary({ category, categories, accept, pluginsOnly = fals
         {(builtins !== null || pluginsOnly) && entries.length === 0 && (
           <li className="eth-devlib__empty">
             {(source === "Plugins" || pluginsOnly) && !pluginsShown
-              ? t("plugin_store.desktop_only")
+              ? t("devices.library.desktop_only")
               : query
                 ? t("devices.library.no_match")
                 : hidden.size > 0 && (source === "Plugins" || pluginsOnly)
@@ -349,17 +358,23 @@ export function DeviceLibrary({ category, categories, accept, pluginsOnly = fals
       </ul>
       <div className="eth-devlib__footer">
         <span className="eth-devlib__status" role="status">
-          {scan
-            ? scan.total > 0
-              ? t("plugins.scan.progress", { done: scan.done, total: scan.total })
-              : t("plugins.scan.scanning")
-            : // A failure without a path is the scan itself failing (e.g. no scanner binary).
-              failed.some((f) => !f.path)
-              ? t("plugins.scan.scan_failed", { error: failed.find((f) => !f.path)!.message })
-              : failed.length > 0
-                ? t("plugins.scan.failed_count", { count: failed.length })
-                : null}
+          {remote
+            ? null
+            : scan
+              ? scan.total > 0
+                ? t("plugins.scan.progress", { done: scan.done, total: scan.total })
+                : t("plugins.scan.scanning")
+              : // A failure without a path is the scan itself failing (e.g. no scanner binary).
+                failed.some((f) => !f.path)
+                ? t("plugins.scan.scan_failed", { error: failed.find((f) => !f.path)!.message })
+                : failed.length > 0
+                  ? t("plugins.scan.failed_count", { count: failed.length })
+                  : null}
         </span>
+        {/* Extensions' plugin actions ("explore plugins"; `@/ext` "plugins.actions"). */}
+        {pluginActions.map((Action, i) => (
+          <Action key={i} place="library" onClose={onClose} />
+        ))}
         {desktop && (
           // Plugin folders and scanning live in the settings (Rescan / Full rescan there).
           <Button

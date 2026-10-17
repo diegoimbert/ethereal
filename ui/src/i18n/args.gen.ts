@@ -188,6 +188,7 @@ export interface MessageArgs {
   "devices.library.favourite": { name: string | number };
   "devices.library.hide_format": { format: string | number };
   "devices.library.list": { kind: string };
+  "devices.library.remote_plugins": { host: string | number };
   "devices.library.search": { kind: string };
   "devices.library.show_format": { format: string | number };
   "devices.library.unfavourite": { name: string | number };
@@ -301,6 +302,7 @@ export interface MessageArgs {
   "freeze.status.queued": { what: string | number };
   "freeze.status.unfreeze": { name: string | number };
   "freeze.status.what": { kind: string; name: string | number };
+  "freeze.status.what_on": { host: string | number; kind: string; name: string | number };
   "groove.humanize.apply": { count: number };
   "groove.quantize.apply": { count: number };
   "groups.input.from": { name: string | number };
@@ -591,6 +593,7 @@ export interface MessageArgs {
   "shell.crash.crashed": { name: string | number };
   "shell.crash.load_failed": { name: string | number };
   "shell.crash.panel_other": { name: string | number };
+  "shell.desktop_band.no_app": { link: Tag };
   "shell.engine_health.recovered": { secs: string | number };
   "shell.engine_health.recovered_reason": { reason: string | number; secs: string | number };
   "shell.engine_health.stalled_reason": { reason: string | number };

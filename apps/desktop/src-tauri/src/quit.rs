@@ -205,7 +205,7 @@ pub mod menu {
         let undo = app_menu::macos::item(app, *undo, &l)?;
         let redo = app_menu::macos::item(app, *redo, &l)?;
         let select_all = app_menu::macos::item(app, app_menu::EDIT_SELECT_ALL, &l)?;
-        let help: Vec<&[app_menu::ItemSpec]> = vec![app_menu::HELP_ITEMS];
+        let help = app_menu::help_groups();
         let help = app_menu::macos::grouped(app, &help, &l)?;
         let help: Vec<&dyn IsMenuItem<R>> = help.iter().map(|b| b.as_ref()).collect();
         Menu::with_items(

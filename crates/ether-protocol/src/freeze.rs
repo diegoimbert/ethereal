@@ -141,6 +141,11 @@ pub enum FreezeEvent {
         job: RenderJobId,
         /// 0..=1.
         progress: f32,
+        /// The name of the computer that renders it, when it isn't this one (an extension's
+        /// remote render). `None`: this one.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[ts(optional)]
+        host: Option<String>,
     },
     /// The document edit was applied (its patch precedes this event).
     Done {

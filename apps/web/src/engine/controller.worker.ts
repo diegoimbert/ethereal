@@ -2,6 +2,9 @@
 // `ClientMessage`s from the UI, talks to the AudioWorklet over the SAB rings (inside Rust),
 // persists projects in OPFS through `SyncFs`, and ticks at ~60 Hz to forward playhead and
 // meters.
+//
+// An extension's worker module (`@/ext` "web.engine" `controllerWorker`) imports this one and
+// calls `extendControllerWorker` (before the init message arrives) for its own messages.
 import { initSync, WasmController } from "@ether-wasm/ether_wasm.js";
 import type { FromController, ToController } from "./protocol";
 import { SyncFs } from "./syncFs";
@@ -13,6 +16,21 @@ interface Scope {
 const scope = self as unknown as Scope;
 
 const TICK_MS = 16;
+
+/** An extension of the controller Worker (`extendControllerWorker`). */
+export interface ControllerWorkerExtension {
+  /** The init message (with the extension's own fields), once the controller exists. */
+  onInit?(init: Extract<ToController, { type: "init" }>, controller: WasmController): void;
+  /** One of its own messages (`ext:*`): `post` answers the page. */
+  onMessage?(msg: { type: string; [field: string]: unknown }, post: (msg: FromController) => void): void;
+}
+
+const extensions: ControllerWorkerExtension[] = [];
+
+/** Add an extension (call it from the module that imports this one, at load). */
+export function extendControllerWorker(ext: ControllerWorkerExtension): void {
+  extensions.push(ext);
+}
 
 interface HttpRequest {
   id: number;
@@ -97,6 +115,7 @@ scope.onmessage = (e) => {
         const fs = new SyncFs(msg.fsBuffer, msg.fsPort);
         const ctl = new WasmController(BigInt(msg.seed), msg.sampleRate, msg.control, msg.reports, fs);
         controller = ctl;
+        for (const x of extensions) x.onInit?.(msg, ctl);
         setInterval(
           () =>
             guarded(() => {
@@ -115,6 +134,11 @@ scope.onmessage = (e) => {
         runHttp(controller);
       });
       if (handled) Atomics.add(handled, 0, 1);
+      break;
+    default:
+      // Not `guarded`: an extension's errors are its caller's, not the engine's.
+      if (dead) break;
+      for (const x of extensions) x.onMessage?.(msg, (m) => scope.postMessage(m));
       break;
   }
 };

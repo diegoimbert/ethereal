@@ -89,6 +89,7 @@
  * meter noise deterministic.
  */
 
+import { contributions } from "@/ext";
 import type {
   BrowseLocation,
   Command,
@@ -442,6 +443,40 @@ export class MockTransport implements EngineTransport {
     this.newId = opts.seed !== undefined ? seededIdFactory(opts.seed + 1000) : defaultNewId;
     this.rand = mulberry32(opts.seed ?? 1);
     this.versions.projectLoaded();
+    for (const d of contributions("mock.domain")) d.attach?.(this.ext);
+  }
+
+  /**
+   * What the extensions' mock domains (`@/ext` "mock.domain") may use: the mock's host (the
+   * roadmap mocks' interface), events, uploads and downloads, the stored projects.
+   */
+  readonly ext: MockExtensionHost = {
+    transport: this,
+    host: this.host,
+    emit: (event) => this.emit(event),
+    newId: () => this.newId(),
+    takeUpload: (upload) => this.uploads.takeBytes(upload),
+    addDownload: (d, bytes) => this.exports.addDownload(d, bytes),
+    project: () => this.project,
+    storedJson: (id) => this.stored(id).json,
+    emptyProject: (id, name) => createEmptyProject(this.newId, name, id),
+    storeAndOpen: (project) => {
+      if (this.dirty) this.saveCurrent();
+      const summary = this.storeProject(project, this.wallNow());
+      this.loadProject(project);
+      this.emitListChanged();
+      return summary;
+    },
+  };
+
+  /** An extension's answer for `command` (`mock.domain`), or `undefined`. */
+  private extensionCommand(domain: string, command: unknown): ReplyValue | undefined {
+    for (const d of contributions("mock.domain")) {
+      if (d.domain !== domain) continue;
+      const reply = d.handle(command, this.ext);
+      if (reply !== undefined) return reply as ReplyValue;
+    }
+    return undefined;
   }
 
   // ─── EngineTransport ──────────────────────────────────────────────────────────────────
@@ -555,6 +590,8 @@ export class MockTransport implements EngineTransport {
     if (isDocumentCommand(command)) return this.applyDocument([command], labelOf(command), gesture);
 
     if (command.domain === "Agent") return this.agent.command(command.command);
+    const extension = this.extensionCommand(command.domain, command.command);
+    if (extension !== undefined) return extension;
 
     switch (command.domain) {
       case "Transport":
@@ -1021,7 +1058,7 @@ export class MockTransport implements EngineTransport {
         return { type: "Saved", project: summary };
       }
       default:
-        return fail("Unsupported", `${c.type} is not available in this build`);
+        return this.extensionCommand("Project", c) ?? fail("Unsupported", `${c.type} is not available in this build`);
     }
   }
 
@@ -1476,4 +1513,18 @@ export function parseEtherFile(json: string): Project {
   }
   if (Object.values(p.tracks).filter((t) => t.kind === "Master").length !== 1) return fail("Decode", "project must have exactly one master track");
   return p;
+}
+
+/** What an extension's mock domain gets (`MockTransport.ext`). */
+export interface MockExtensionHost {
+  transport: MockTransport;
+  host: MockHost;
+  emit(event: Event): void;
+  newId(): string;
+  takeUpload(upload: string): Uint8Array;
+  addDownload(download: { token: string; name: string; mime: string; size: number }, bytes: Uint8Array): void;
+  project(): Project;
+  storedJson(id: ProjectId): string;
+  emptyProject(id: ProjectId, name: string): Project;
+  storeAndOpen(project: Project): ProjectSummary;
 }
