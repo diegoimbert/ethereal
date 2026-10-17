@@ -8,17 +8,16 @@
 //
 // `COMPING_SHOTS=<dir>` also saves PR screenshots (expanded take lanes with a swiped comp,
 // dark and light).
-import { execFileSync, spawn, type ChildProcess } from "node:child_process";
+import { spawn, type ChildProcess } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 import { expect, test, type Page } from "@playwright/test";
 import type { CompRegion, Project, TakeLane } from "@/generated";
 import { expectRenderer } from "./lanesFixture";
 import { createOnLaunch, launch, openEngineServer, stopButton, headerButton } from "./ui";
+import { buildServer } from "./server";
 
-const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const TOKEN = `e2e-${Math.random().toString(36).slice(2)}`;
 const shots = process.env.COMPING_SHOTS;
 
@@ -42,22 +41,6 @@ const compOf = (p: Project, track: string): CompRegion[] =>
   Object.values(p.comp_regions)
     .filter((r) => r.track === track)
     .sort((a, b) => a.start - b.start);
-
-function buildServer(): string {
-  const out = execFileSync("cargo", ["build", "-p", "ether-server", "--bin", "ether-server", "--features", "full", "--message-format=json"], {
-    cwd: repoRoot,
-    env: { ...process.env, CARGO_BUILD_JOBS: process.env.CARGO_BUILD_JOBS ?? "3" },
-    encoding: "utf8",
-    maxBuffer: 256 * 1024 * 1024,
-    stdio: ["ignore", "pipe", "inherit"],
-  });
-  for (const line of out.split("\n")) {
-    if (!line.startsWith("{")) continue;
-    const msg = JSON.parse(line) as { reason?: string; target?: { name: string }; executable?: string | null };
-    if (msg.reason === "compiler-artifact" && msg.target?.name === "ether-server" && msg.executable) return msg.executable;
-  }
-  throw new Error("cargo did not report the ether-server binary");
-}
 
 let server: ChildProcess | null = null;
 let serverUrl = "";
