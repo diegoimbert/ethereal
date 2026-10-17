@@ -1,6 +1,9 @@
 # Releasing Ethereal
 
-Releases are built and published by [`.github/workflows/release.yml`](../.github/workflows/release.yml).
+Releases are built and published by `.github/workflows/release.yml`, which (with the dev
+deploy, `deploy-dev.yml`) lives in the private `ee/` repository: official binaries are the full
+product, OSS main plus the `ee/` commit it points at (docs/EE-WORKFLOW.md). The GitHub Release
+itself is still created in this repository. The rest of this page describes that workflow.
 
 ## When it runs
 

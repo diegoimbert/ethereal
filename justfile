@@ -155,3 +155,9 @@ test-all:
 fmt:
     cargo fmt --all
     pnpm format
+
+# Paired OSS + EE branches and PRs through the `ee/` submodule (docs/EE-WORKFLOW.md):
+# `just feat start x [--ee]`, `just feat push`, `just feat status`, `just feat ship x`, ...
+[positional-arguments]
+feat *args:
+    node scripts/feat.mjs "$@"

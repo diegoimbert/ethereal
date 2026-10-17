@@ -310,10 +310,10 @@ pub mod macos {
             let id = format!("{ACTION_PREFIX}{}", s.action);
             let accel = s.chord.as_deref().and_then(accelerator);
             for sub in top.iter().filter_map(MenuItemKind::as_submenu) {
-                if let Some(MenuItemKind::MenuItem(item)) = sub.get(&id) {
-                    if let Err(e) = item.set_accelerator(accel.as_deref()) {
-                        tracing::debug!(%e, id, "menu key equivalent not set");
-                    }
+                if let Some(MenuItemKind::MenuItem(item)) = sub.get(&id)
+                    && let Err(e) = item.set_accelerator(accel.as_deref())
+                {
+                    tracing::debug!(%e, id, "menu key equivalent not set");
                 }
             }
         }
