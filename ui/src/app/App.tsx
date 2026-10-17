@@ -42,6 +42,7 @@ import { QuitRoot } from "@/features/quit";
 import { DesktopMenuRoot } from "@/features/desktop-menu";
 import { TourRoot } from "@/features/tutorials";
 import { DocsRoot } from "@/features/docs";
+import { NewsRoot } from "@/features/news";
 import { useDocumentTitle } from "@/features/document-title";
 import { VersionsRoot } from "@/features/versions";
 import { CommandPalette } from "./shell/CommandPalette";
@@ -454,6 +455,10 @@ function EditorShell() {
       {/* Guided tours from the welcome screen's "get started" (docs/TUTORIALS.md). */}
       <PanelBoundary name="tour" variant="overlay">
         <TourRoot />
+      </PanelBoundary>
+      {/* news: the maintainers' announcements, once after launch (docs/NEWS.md). */}
+      <PanelBoundary name="news" variant="overlay">
+        <NewsRoot />
       </PanelBoundary>
       {/* docs (#665): the user documentation over the app (desktop; the web opens /docs). */}
       <PanelBoundary name="documentation" variant="overlay">
