@@ -468,6 +468,81 @@ impl Project {
         }
     }
 
+    /// How many devices of `track`'s chain ([`Self::devices_of`]) are frozen: `None` when the
+    /// track is not covered by a freeze; the whole chain when it is frozen without a freeze
+    /// point or sits inside a frozen group; else the devices up to and including
+    /// `TrackFreeze::up_to` (partial freeze; the rest is the live tail).
+    pub fn frozen_chain_len(&self, track: TrackId) -> Option<usize> {
+        let by = self.frozen_by(track)?;
+        let chain = self.devices_of(track);
+        if by != track {
+            return Some(chain.len());
+        }
+        let up_to = self.tracks.get(&track)?.freeze.as_ref()?.up_to;
+        Some(
+            up_to
+                .and_then(|d| chain.iter().position(|x| x.id == d))
+                .map_or(chain.len(), |i| i + 1),
+        )
+    }
+
+    /// The track-chain device that `device` sits under: itself when it is on a track chain,
+    /// else the rack (drum rack or chain rack, nested racks followed up) holding it.
+    pub fn chain_root(&self, device: DeviceId) -> Option<&Device> {
+        let mut d = self.devices.get(&device)?;
+        // Bounded by the device count: a (corrupt) nesting cycle cannot loop forever.
+        for _ in 0..=self.devices.len() {
+            let rack = match (d.pad, d.chain) {
+                (Some(pad), _) => self.drum_pads.get(&pad)?.rack,
+                (None, Some(chain)) => self.rack_chains.get(&chain)?.rack,
+                (None, None) => return Some(d),
+            };
+            d = self.devices.get(&rack)?;
+        }
+        None
+    }
+
+    /// Whether `device` is frozen: on a track covered by a freeze, at or before the freeze
+    /// point (nested devices follow their rack). Devices of the live tail are not.
+    pub fn device_frozen(&self, device: DeviceId) -> bool {
+        let Some(root) = self.chain_root(device) else {
+            return false;
+        };
+        let Some(n) = self.frozen_chain_len(root.track) else {
+            return false;
+        };
+        self.devices_of(root.track)
+            .iter()
+            .position(|d| d.id == root.id)
+            .is_none_or(|i| i < n)
+    }
+
+    /// Every frozen device ([`Self::device_frozen`]); empty when nothing is frozen.
+    pub fn frozen_devices(&self) -> std::collections::BTreeSet<DeviceId> {
+        let mut out = std::collections::BTreeSet::new();
+        if !self.tracks.values().any(|t| t.freeze.is_some()) {
+            return out;
+        }
+        let mut roots: BTreeMap<TrackId, std::collections::BTreeSet<DeviceId>> = BTreeMap::new();
+        for d in self.devices.values() {
+            let Some(root) = self.chain_root(d.id) else {
+                continue;
+            };
+            let frozen = roots.entry(root.track).or_insert_with(|| {
+                let n = self.frozen_chain_len(root.track).unwrap_or(0);
+                self.devices_of(root.track)
+                    .into_iter()
+                    .take(n)
+                    .map(|d| d.id)
+                    .collect()
+            });
+            if frozen.contains(&root.id) {
+                out.insert(d.id);
+            }
+        }
+        out
+    }
+
     /// All descendants of `group` (children, their children, ...), in no particular order.
     pub fn descendants(&self, group: TrackId) -> Vec<TrackId> {
         let mut out = Vec::new();

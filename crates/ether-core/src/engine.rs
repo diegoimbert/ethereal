@@ -1397,7 +1397,8 @@ impl JobCtx<'_> {
             notes.clear();
         }
         // Frozen track (`crate::freeze`, v0.2): the render replaces clips and chain (the
-        // controller compiles neither).
+        // controller compiles neither), or the frozen part of the chain (partial freeze: the
+        // live tail compiled into `chain` processes the render below).
         if playing
             && let Some(frozen) = &tdesc.frozen
             && !crate::freeze::render_frozen(frozen, self.sources, info, sr, a, n)

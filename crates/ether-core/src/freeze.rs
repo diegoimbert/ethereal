@@ -4,7 +4,9 @@
 //! compiles it **without clips and without device chain** (its nodes are not instantiated).
 //! The engine calls [`render_frozen`] where clips would render (pre-wired in `engine.rs`,
 //! once per sub-block, playing only): it adds the render at song time into the track's
-//! buffer, before the (empty) chain, fader, sends and meters.
+//! buffer, before the (empty) chain, fader, sends and meters. A **partial** freeze ("freeze
+//! up to here", `TrackFreeze::up_to`) compiles the devices after the freeze point into the
+//! chain: they process the render live like any chain.
 //!
 //! Mapping: output sample `o` of the sub-block (`TransportInfo::seconds` = song time of
 //! sample 0) reads media frame `round((seconds + o / sample_rate - start_seconds) ·

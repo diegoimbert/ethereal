@@ -275,8 +275,12 @@ where
             if self.armed.contains(&t.id) {
                 m.insert("armed".into(), json!(true));
             }
-            if t.freeze.is_some() {
+            if let Some(f) = &t.freeze {
                 m.insert("frozen".into(), json!(true));
+                // Partial freeze: the devices after this one stay live and editable.
+                if let Some(d) = f.up_to {
+                    m.insert("frozenUpTo".into(), json!(d.to_string()));
+                }
             }
             if let Some(g) = p.frozen_ancestor(t.id) {
                 m.insert("frozenByGroup".into(), json!(g.to_string()));
