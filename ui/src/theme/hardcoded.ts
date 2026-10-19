@@ -1,6 +1,6 @@
 /**
  * Finds hard-coded design values that should be tokens: literal colors (hex, rgb()/hsl()/…,
- * named colors), px font sizes, px/em/rem lengths, numeric size props (`height={120}`) and
+ * named colors, and in TS the engine's numeric colors like `0x888888`), px font sizes, px/em/rem lengths, numeric size props (`height={120}`) and
  * numeric inline styles (`style={{ width: 40 }}`). Each source span is reported once.
  * Used by `hardcoded.test.ts` (kit + app shell + gallery + base.css must be clean) and
  * `report-hardcoded.mjs` (inventory of ui/src/features for the design sweep).
@@ -25,6 +25,8 @@ export interface ScanOptions {
 const NAMED =
   "white|black|red|green|blue|yellow|orange|purple|pink|gray|grey|silver|maroon|navy|teal|olive|lime|aqua|cyan|magenta|fuchsia|brown|gold|violet|indigo|crimson|coral|salmon|tomato";
 const COLOR = /#[0-9a-fA-F]{3,8}\b|\b(?:rgba?|hsla?|hwb|oklch|oklab|lab|lch)\(/g;
+// TS: a numeric 0xRRGGBB color (track/clip colors are numbers), not a bit mask (`c & 0xffffff`).
+const TS_HEX_NUMBER = /(?<!&\s*)\b0x[0-9a-fA-F]{6}\b/g;
 // CSS: a named color as a declaration value word (not part of a class/var name).
 const CSS_NAMED = new RegExp(`(?<=:[^;{}]*?)(?<![\\w.#-])(?:${NAMED})(?![\\w-])`, "gi");
 // TS: a named color as a whole string literal.
@@ -75,6 +77,7 @@ export function scanSource(file: string, src: string, opts: ScanOptions = {}): F
       add("named-color", CSS_NAMED);
       if (opts.lengths) add("length", CSS_LENGTH);
     } else {
+      add("color", TS_HEX_NUMBER);
       add("font-size", TS_FONT_SIZE);
       add("named-color", TS_NAMED);
       add("size-prop", SIZE_PROP);
