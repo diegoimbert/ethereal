@@ -1,4 +1,4 @@
-//! Time-selection edits across tracks (v0.2, `time-edits` node; CONTRACTS.md §12.3).
+//! Time-selection edits across tracks (v0.2, `time-edits`; CONTRACTS.md §12.3).
 //!
 //! A time selection is a beat range plus a set of tracks (empty = every audio, MIDI and group
 //! track, never master/returns). "Time" commands shift everything after the range on the

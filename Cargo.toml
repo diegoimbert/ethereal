@@ -71,7 +71,7 @@ tracing = { version = "0.1", default-features = false, features = ["std"] }
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 
 # --- real-time plumbing ---
-rtrb = "0.3"
+rtrb = "0.4"
 assert_no_alloc = "1.1"
 crossbeam-channel = "0.5"
 
@@ -114,7 +114,7 @@ wasm-bindgen = "0.2.100"
 js-sys = "0.3.77"
 web-sys = { version = "0.3.77", features = ["console", "MessagePort", "Worker", "AudioWorkletGlobalScope"] }
 console_error_panic_hook = "0.1"
-getrandom = "0.3"
+getrandom = "0.4"
 
 # --- desktop app ---
 tauri = { version = "2", features = [] }
@@ -137,7 +137,7 @@ tauri-plugin-http = { version = "2", default-features = false }
 # remote-engine: WebSocket server (sync, no async runtime).
 tungstenite = "0.27"
 # remote-engine: SIGTERM/SIGINT save the project and close clients.
-signal-hook = "0.3"
+signal-hook = "0.4"
 # export: WAV/FLAC/MP3 writing.
 hound = "3.5"
 flacenc = "0.4"

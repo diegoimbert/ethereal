@@ -1,6 +1,6 @@
 /**
  * Mock of `Marker::*` and the v2 clip commands (`SetFadeCurves`, `SetReversed`,
- * `Crossfade`; `SetCrossfade` from the `crossfades` node). Owned by `clip-editing`.
+ * `Crossfade`; `SetCrossfade` from `crossfades`; `clip-editing`).
  */
 
 import type { Clip, ClipCommand, FadeCurve, MarkerCommand } from "@/generated";

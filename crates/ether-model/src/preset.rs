@@ -1,4 +1,4 @@
-//! Device preset files (v0.2, owned by the `presets` node; CONTRACTS.md §12.5).
+//! Device preset files (v0.2, `presets`; CONTRACTS.md §12.5).
 //!
 //! ```json
 //! { "format": "ethereal-preset", "version": 1, "app_version": "0.2.0",

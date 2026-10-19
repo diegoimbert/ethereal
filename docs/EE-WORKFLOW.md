@@ -49,10 +49,10 @@ Rules:
 |---|---|
 | `start x [--ee] [--worktree <dir>]` | Branch `x` off `origin/main` (or `origin/x`), here or in a new worktree (outside this checkout). `--ee` (or an existing EE branch `x`) also initialises `ee/` and puts it on EE branch `x`. |
 | `ee` | Initialise `ee/` and put it on the current branch's name (existing EE `x`, else new off EE `main`). `start`, `ee`, `update` and `tree` also check out the submodules nested in `ee/` (libvpx). |
-| `push [--draft] [--title T] [--body B \| --body-file F] [--ee-title T] [--ee-body B \| --ee-body-file F]` | Push EE `x` (if it has commits), commit the pointer (`ee: point at x`), push OSS `x`, open or update both PRs with cross-links (a given title/body is applied to open PRs too; `--ee-*` set the EE PR's, which default to the OSS ones), post `ee/pointer` and start the full build (`ee/build`). With no OSS changes the OSS branch stays local: EE-only. If a branch moved on GitHub (bot pointer commits, a ship's merge of main), that is merged in first; nothing is force-pushed except bot pointer-only commits. |
+| `push [--draft] [--title T] [--body B \| --body-file F] [--ee-title T] [--ee-body B \| --ee-body-file F]` | Push EE `x` (if it has commits), commit the pointer (`ee: point at x`), push OSS `x`, open or update both PRs with cross-links (a given title/body is applied to open PRs too; `--ee-*` set the EE PR's, which default to the OSS ones), post `ee/pointer`. No full build (pull requests build nothing, see below). With no OSS changes the OSS branch stays local: EE-only. If a branch moved on GitHub (bot pointer commits, a ship's merge of main), that is merged in first; nothing is force-pushed except bot pointer-only commits. |
 | `status` | Branches, pointers, PRs, checks, `ee/*` statuses, the ship lock, and what is out of line. |
 | `update` | Merge `main` into OSS `x` and EE `main` into EE `x`; a gitlink conflict resolves to `ee/`'s HEAD. |
-| `ship [x] [--admin] [--force] [--no-build] [--ignore-ee-checks] [--timeout <min>] [--takeover] [--strict] [--log F]` | Brings OSS `x` (and EE `x`) up to date with `main`, starts the full build if it has not run, and waits for every check on both PRs including `ee/build`, without the lock (a cancelled run is re-run once). Then it takes the global ship lock and brings both up to date again. If `main` came in cleanly and touches none of the PR's files (or nothing changed), it merges on the checks that passed: the EE PR, then OSS `x` pointed at EE `main`, then the OSS PR (squash), and makes sure OSS `main` points at EE `main`. Otherwise (the PR got new commits, or `main` changed files the PR changes; with `--strict` or `FEAT_SHIP_STRICT=1`, any tree change) it lets the lock go and waits for the checks on the new heads first. Logs to a file of its own as well (printed first; `--log F` picks it). `--force` ships despite failing checks, `--no-build` skips only the `ee/build` wait, `--ignore-ee-checks` reports failing EE PR checks without gating on them (an EE change merged ahead of its OSS side), `--admin` bypasses branch protection. |
+| `ship [x] [--admin] [--force] [--build] [--ignore-ee-checks] [--timeout <min>] [--takeover] [--strict] [--log F]` | Brings OSS `x` (and EE `x`) up to date with `main`, and waits for the gating checks (`CLA`, `What changed`, `Policy`, `ee/pointer`; see below), without the lock (a cancelled run is re-run once). Then it takes the global ship lock and brings both up to date again. If `main` came in cleanly and touches none of the PR's files (or nothing changed), it merges on the checks that passed: the EE PR, then OSS `x` pointed at EE `main`, then the OSS PR (squash), and makes sure OSS `main` points at EE `main`. Otherwise (the PR got new commits, or `main` changed files the PR changes; with `--strict` or `FEAT_SHIP_STRICT=1`, any tree change) it lets the lock go and waits for the checks on the new heads first. Logs to a file of its own as well (printed first; `--log F` picks it). `--force` ships despite failing checks, `--build` also waits for an `ee/build` started by hand (`feat sync --pr N --build`), `--ignore-ee-checks` reports failing EE PR checks without gating on them (an EE change merged ahead of its OSS side), `--admin` bypasses branch protection. A PR that changes `.github/workflows` cannot be merged through the API without the token's `workflow` scope: `ship` then pushes the same squash commit to `main` over SSH and closes the PR. |
 | `queue [--prune]` | Who holds the ship lock and what every running ship waits for (its checks, the full build, the lock), with ages. `--prune` deletes the tickets of ships that died. |
 | `sync [--dry-run] [--pr N] [--build]` | The reconcile the private-side bot runs (needs write access to both repos). |
 | `check <pr>` | Dry-run the pointer guard for one OSS PR. |
@@ -85,13 +85,18 @@ detached at the pointer; `just feat ee` puts it back on `x`.
 
 All CI runs in this repository, on GitHub-hosted runners; the private repository has none.
 
+- **Pull requests build and test nothing** (owner, 2026-10-19): only `CLA`, `What changed`,
+  `Policy` and `ee/pointer` gate a merge (`feat ship` waits for those alone). Run the relevant
+  tests locally before pushing. Every build and test (`ci.yml` on all platforms, the full
+  product) runs on `main`; a red `main` opens a `ci-main` issue and is fixed forward in a
+  follow-up PR.
 - **Full build** (`.github/workflows/full.yml`): the full product (this repo + `ee/` overlaid)
-  for every same-repo PR, every push to `main`, and on demand. Its **`ee/build`** job is the
-  check `feat ship` waits for. A PR builds against its `ee` pointer when it moves it, else EE
-  `main`; pull requests run Linux (Rust) and the web build, `main` adds macOS, Windows and the
-  e2e suite. A fork's PR cannot read the private repository (GitHub withholds the secret), so
-  its full jobs are skipped; a maintainer builds it by hand after reading it:
-  `gh workflow run full.yml -f ref=refs/pull/N/head`.
+  on every push to `main` (Linux, macOS, Windows, web, e2e) and on demand; its aggregate job is
+  **`ee/build`**. Pull requests run no builds or tests (owner, 2026-10-19): only CLA, Policy,
+  What changed and `ee/pointer` gate a merge, so run the relevant tests locally, and fix `main`
+  forward if it goes red. A PR's full build on demand:
+  `gh workflow run full.yml --ref <branch> -f ref=<sha> -f all=false` (it uses the commit's `ee`
+  pointer; a fork's PR only after reading it: `-f ref=refs/pull/N/head`).
   - The private code never shows in the public log: each step's output goes to a file
     (`scripts/ci/private-step.mjs`), the log shows the result and the names of what failed, and
     the files are uploaded **encrypted with age** to the recipients in `ee/.sops.yaml`.
@@ -108,7 +113,11 @@ All CI runs in this repository, on GitHub-hosted runners; the private repository
   PR's pointer on its EE branch tip (or EE `main` once that merged), merges `main` into a PR
   whose only conflict is the gitlink, and posts the **`ee/pointer`** status on OSS PRs. Its API
   commits touch nothing but `ee` and are fast-forward only, retried when the branch moved.
-- Releases and the dev deploy still run on the private side until they move here too.
+- **Release and dev deploy** (`.github/workflows/release.yml`, `deploy-dev.yml`; docs/RELEASING.md):
+  the same overlay and encrypted logs; the signing and Cloudflare secrets live in the protected
+  `release` and `dev` environments (`main` only; `release` also needs the owner's approval).
+- **EE-only changes** (no OSS PR): `feat ship` dispatches `full.yml` on `main` with
+  `ee_ref=<EE head>` and waits for it before merging.
 
 Secrets (this repository): `ETHER_PRIVATE_TOKEN` (read the private repository: the full build)
 and `ETHER_BOT_TOKEN` (write this repository's contents, pull requests and statuses, read the

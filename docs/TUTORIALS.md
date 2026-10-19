@@ -6,12 +6,19 @@ and a bubble explains it. Code: `ui/src/features/tutorials/**`.
 
 | Tour | id | Project it makes | Ends with |
 | --- | --- | --- | --- |
+| Make your first track | `first-track` | "my first track" (empty) | "open the guide" or finish |
 | Jam with your friends | `jam` | "jam tutorial" (the starter project) | "start a session now" or finish |
 | Record audio | `record-audio` | "record audio tutorial" (empty) | finish |
 | Bring a project from another DAW | `import-daw` | "import tutorial" (empty) | "pick a file now" or finish |
 | Example beats (×4, below) | `example-<slug>` | the example ("house beat", …), from its template | "open the guide" or finish |
 
-"Make your first track" stays "soon" until the default sample pack (#519).
+**Make your first track** (#14, `tours/firstTrack.tsx`) needs no sample: a MIDI track (Add
+track, then MIDI track), its instrument (the picker that opens under it: the built-in synth
+it has, or the poly synth), a clip (a double-click on the empty lane), opened in the piano
+roll (a double-click on the clip), three notes drawn there, then play and stop. It ends with
+"open the guide": `welcome/first-beat` ("your first loop"), which goes on with a second
+instrument, an effect and the mix. When the default sample pack (#519) ships, a step that
+drags a sample in can join it.
 
 ## Example beats
 

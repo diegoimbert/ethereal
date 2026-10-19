@@ -1,9 +1,8 @@
 # Plugin formats: CLAP, VST3, AU
 
 CLAP, VST3 and AU are hosted end to end: scanning, the native host (in-process and
-sandboxed), save/reopen and the plugin browser. The base came from the `formats-base` node.
-`vst3` (`crates/ether-vst3/**`) and `au` (`crates/ether-au/**`) implemented the formats, and
-`formats-integration` wired them into the app (see "Integration (native host)" below). VST2 is
+sandboxed), save/reopen and the plugin browser. `crates/ether-vst3` and `crates/ether-au`
+implement the formats, and the native host wires them into the app (see "Integration (native host)" below). VST2 is
 **not in this build** (it lives in the private overlay; see "`vst2`" below).
 
 ## Architecture
@@ -70,7 +69,7 @@ Documented on `ether_model::PluginFormat`. `.ether` tags are `"Clap"`, `"Vst3"`,
 
 `DeviceSpec::Plugin` gained an optional `format`. When it is omitted, the format is CLAP.
 
-## What each node must do
+## What each format implements
 
 ### `vst3` (`crates/ether-vst3/**` only)
 
@@ -130,8 +129,6 @@ Documented on `ether_model::PluginFormat`. `.ether` tags are `"Clap"`, `"Vst3"`,
 
 ### `formats-integration`
 
-The paths this node owns are in `.github/ownership.toml`.
-
 1. **Native instantiation.** `ether-native/src/plugins.rs` + `bridge.rs`:
    - Make `Instantiate` format-aware: `Fn(PluginFormat, &Path, &str)`.
    - Build it from a `Formats` holding Clap + Vst3 + Au.
@@ -152,7 +149,7 @@ the model so a project that references one still parses.
 
 ## Integration (native host)
 
-Done by the `formats-integration` node:
+How the native host uses the formats:
 
 - **Loading by format.** `ether_native::plugins::Instantiate` is `Fn(PluginFormat, &Path, &str)`,
   built from the `Formats` registry (`instantiate_any`). `NativeBridge::create_plugin` looks
@@ -202,7 +199,7 @@ slot is left empty), calls the plugin with no borrow held, and checks it back in
 - `instantiate` builds, restores and activates the new controller with no borrow held, and
   only then inserts it (retiring any instance of the device created meanwhile).
 
-Other notes from the format nodes that hosts must respect:
+Other notes from the format hosts that callers must respect:
 
 - `load_state` on an *active* controller leaves the live node's links stale. The host only
   restores state before `activate` (a state change re-instantiates the device).

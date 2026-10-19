@@ -1,5 +1,4 @@
-//! v0.2 multisampler (node `multisampler`; contracts-3 froze the param table, see
-//! docs/ROADMAP.md "v0.2" and the device agent guide there). **Param ids are stable and
+//! v0.2 multisampler (contracts-3 froze the param table; see docs/DEVICES.md). **Param ids are stable and
 //! append-only** (documents, automation and presets store them).
 //!
 //! # Multisampler (`BuiltinDeviceType::MultiSampler`)

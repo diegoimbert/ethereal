@@ -1,5 +1,4 @@
-//! v0.2 devices owned by the `fx-color` node (contracts-3 froze the param tables; see
-//! docs/ROADMAP.md "v0.2" and the device agent guide there).
+//! v0.2 color devices (contracts-3 froze the param tables; see docs/DEVICES.md).
 //!
 //! Color effects: saturator (several curves), bitcrusher, auto-filter (multimode + envelope follower + LFO).
 //!

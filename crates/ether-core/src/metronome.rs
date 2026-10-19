@@ -1,5 +1,4 @@
-//! Metronome click (roadmap v2, owned by the `tempo-metronome` node; see
-//! `docs/ROADMAP.md`).
+//! Metronome click (roadmap v2; see CONTRACTS.md §11.3).
 //!
 //! Hook point (already wired, base-17): the engine owns one [`Metronome`] and, after the
 //! master bus has been written to the hardware outputs of a sub-block, calls

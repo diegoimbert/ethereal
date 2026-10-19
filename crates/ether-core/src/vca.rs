@@ -1,4 +1,4 @@
-//! VCA faders (v0.2, owned by the `groups-buses` node; CONTRACTS.md §12.10).
+//! VCA faders (v0.2, `groups-buses`; CONTRACTS.md §12.10).
 //!
 //! VCA tracks (`TrackKind::Vca`) carry no audio: the controller compiles them into
 //! `RenderGraphDesc::vcas` (never into `tracks`), and every assigned track's desc names its VCA

@@ -1,4 +1,4 @@
-//! VST3 plugin hosting (native only). Owned by the `vst3` node; see `docs/PLUGIN-FORMATS.md`.
+//! VST3 plugin hosting (native only); see `docs/PLUGIN-FORMATS.md`.
 //!
 //! [`Vst3Format`] is the [`PluginFormatHost`] for `.vst3` bundles, built on the `vst3`
 //! crate's COM bindings:

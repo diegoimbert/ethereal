@@ -17,6 +17,8 @@
 // covered by the static checks (ui/src/features/tutorials/tours.static.test.tsx). The mobile
 // shell offers no tour: checked below.
 import { expect as baseExpect, test, type Page, type TestInfo } from "@playwright/test";
+import type { Project } from "@/generated";
+import { openClip } from "./clips";
 import { IPHONE, mobileShell } from "./mobile";
 import { projectScreen } from "./ui";
 
@@ -41,12 +43,50 @@ const press = (name: string) => (page: Page) => bubble(page).getByRole("button",
 /** The play button: the example tours wait for playback. */
 const play: Action = (page) => page.getByRole("toolbar", { name: "transport" }).getByRole("button", { name: "play", exact: true }).click();
 
+/** The open project's first MIDI track and its first clip (the first-track tour makes them). */
+async function firstMidi(page: Page): Promise<{ track: string; clip: string | null }> {
+  const p = await page.evaluate(() => (window as unknown as { __ether: { state(): { project: Project | null } } }).__ether.state().project);
+  const track = Object.values(p?.tracks ?? {}).find((t) => t.kind === "Midi")!;
+  const clip = Object.values(p?.clips ?? {}).find((c) => c.track === track.id);
+  return { track: track.id, clip: clip?.id ?? null };
+}
+
+/** The first-track tour (#14): a MIDI track, an instrument, a clip, three notes, play and stop. */
+const FIRST_TRACK: Script = {
+  "add-track": async (page) => {
+    await page.locator('[data-tour="add-track"]').click();
+    await page.getByRole("menuitem", { name: "create midi track" }).click();
+  },
+  instrument: (page) => page.locator('[data-tour="instrument-pick"]').getByRole("button", { name: "poly synth", exact: true }).click(),
+  clip: async (page) => {
+    const { track } = await firstMidi(page);
+    await page.locator(`[data-lane="${track}"]`).dblclick({ position: { x: 10, y: 20 } });
+  },
+  "open-clip": async (page) => openClip(page, (await firstMidi(page)).clip!),
+  notes: async (page) => {
+    // Inside the clip (left of the "outside" shade), like flow.spec.ts.
+    const grid = page.getByTestId("piano-roll-grid");
+    const box = (await grid.boundingBox())!;
+    const end = (await page.getByTestId("piano-roll-clip-end").boundingBox())!;
+    const width = end.x - box.x;
+    for (const [fx, fy] of [
+      [0.05, 0.4],
+      [0.35, 0.45],
+      [0.65, 0.5],
+    ] as const)
+      await grid.dblclick({ position: { x: width * fx + 2, y: box.height * fy } });
+  },
+  play: (page) => page.locator('[data-tour="play"]').click(),
+  stop: (page) => page.locator('[data-tour="play"]').click(),
+};
+
 /**
  * The web walk of every tour on the welcome screen, by its item's title. `example`: an example
  * beat's tour (#518), started by its "show me how" button in the examples section. The jam and
  * import tours are not in the open-source build (the full product walks them).
  */
 const TOURS: ReadonlyArray<{ title: string; id: string; script: Script; example?: true }> = [
+  { title: "make your first track", id: "first-track", script: FIRST_TRACK },
   {
     title: "record audio",
     id: "record-audio",
