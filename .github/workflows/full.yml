@@ -21,7 +21,12 @@ run-name: >-
 #     checked before every save), the web jobs restore ci.yml's OSS-only caches; only main saves.
 #
 # Runners: repository variables FULL_RUNNER / FULL_MACOS_RUNNER / FULL_WINDOWS_RUNNER (JSON, e.g.
-# '"ubuntu-latest"' or '["self-hosted","linux"]') pick them; GitHub-hosted by default.
+# '"ubuntu-latest"' or '["self-hosted","devbox-pool"]') pick the build jobs' runners;
+# GitHub-hosted by default. The short jobs (Resolve, ee/build, main is red) stay GitHub-hosted, so
+# a busy pool never holds up the start of a run. On the devbox pool (docs/CI-RUNNERS.md) the job
+# ids name the cargo target dirs (`full-*`, apart from ci.yml's open-source ones), the
+# GitHub-hosted-only steps are skipped, and a hook empties the overlay from the workspace after
+# every job.
 on:
   push:
     branches: [main]
@@ -58,7 +63,7 @@ jobs:
   resolve:
     # What to build, and whether this run may see the private code at all.
     name: Resolve
-    runs-on: ${{ fromJSON(vars.FULL_RUNNER || '"ubuntu-latest"') }}
+    runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
       enabled: ${{ steps.r.outputs.enabled }}
@@ -104,7 +109,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
           echo "OSS \`$oss_ref\` + EE \`${ee_ref:0:12}\` ($why); macOS, Windows and e2e: $all" >> "$GITHUB_STEP_SUMMARY"
 
-  rust-linux:
+  full-rust-linux:
     name: Full Rust (Linux)
     needs: resolve
     if: needs.resolve.outputs.enabled == 'true'
@@ -151,7 +156,7 @@ jobs:
         with:
           name: full-logs-rust-linux
 
-  web:
+  full-web:
     name: Full web (tsc, eslint, prettier, vitest, build)
     needs: resolve
     if: needs.resolve.outputs.enabled == 'true'
@@ -165,6 +170,7 @@ jobs:
       - name: Toolchain (from rust-toolchain.toml)
         run: rustup show active-toolchain || rustup toolchain install
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        if: runner.environment == 'github-hosted'
         with:
           key: web-build
           save-if: "false"
@@ -201,7 +207,7 @@ jobs:
         with:
           name: full-logs-web
 
-  e2e:
+  full-e2e:
     # The Playwright suite on the full build (pushes to main and manual runs: the per-PR e2e is
     # ci.yml's, on the open-source build).
     name: Full e2e (${{ matrix.shard }}/4)
@@ -227,6 +233,7 @@ jobs:
       - name: Toolchain (from rust-toolchain.toml)
         run: rustup show active-toolchain || rustup toolchain install
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        if: runner.environment == 'github-hosted'
         with:
           key: web-build
           save-if: "false"
@@ -246,7 +253,7 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           package-manager-cache: false
       - name: install
-        run: node scripts/ci/private-step.mjs install -- "pnpm install --frozen-lockfile && cd apps/web && npx playwright install --with-deps chromium-headless-shell"
+        run: node scripts/ci/private-step.mjs install -- "pnpm install --frozen-lockfile && cd apps/web && npx playwright install ${{ runner.environment == 'github-hosted' && '--with-deps' || '' }} chromium-headless-shell"
       - name: Playwright
         env:
           ETHEREAL_TOURS: "1"
@@ -339,9 +346,9 @@ jobs:
     # The aggregate check: green when every full-product job passed or was skipped (macOS,
     # Windows and e2e on a dispatch without `all`).
     name: ee/build
-    needs: [resolve, rust-linux, web, e2e, rust-macos, rust-windows]
+    needs: [resolve, full-rust-linux, full-web, full-e2e, rust-macos, rust-windows]
     if: always()
-    runs-on: ${{ fromJSON(vars.FULL_RUNNER || '"ubuntu-latest"') }}
+    runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - env:
@@ -350,3 +357,32 @@ jobs:
           echo "$RESULTS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
           bad="$(echo "$RESULTS" | jq -r '[to_entries[] | select(.value.result == "failure" or .value.result == "cancelled") | .key] | join(", ")')"
           if [ -n "$bad" ]; then echo "::error::full product: $bad"; exit 1; fi
+
+  main-red:
+    # Like ci.yml's: a failed push to main comments on the one open `ci-main` issue (or opens it).
+    # Only the run link and the names of the failed jobs: the logs are private.
+    name: main is red
+    needs: [ee-build]
+    if: failure() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          RUN_ID: ${{ github.run_id }}
+          SHA: ${{ github.sha }}
+        run: |
+          body="The full product failed on \`main\` at $SHA: $RUN (logs: \`just full-logs $RUN_ID\`)"
+          open=$(gh issue list --label ci-main --state open --json number --jq '.[0].number // empty')
+          if [ -n "$open" ]; then
+            gh issue comment "$open" --body "$body"
+          else
+            gh label create ci-main --color B60205 --description "CI is red on main" 2>/dev/null || true
+            gh issue create --title "CI is red on main" --label ci-main --body "$body
+
+          Pull requests run no builds or tests; \`main\` is where a break shows up first. Fix forward, then close this issue."
+          fi
